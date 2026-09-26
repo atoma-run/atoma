@@ -280,6 +280,13 @@ export const checklistCoverageSchema = z.object({
   kind: z.enum(['http', 'review']),
   status: z.enum(['covered', 'uncovered', 'review']),
   observationRefs: z.array(z.string()),
+  /**
+   * The root acceptor's own judgement of this criterion, when its verdict
+   * gave one: what a person who approved seven criteria reads to learn which
+   * ones the delivery was judged to meet. A model's word, beside the
+   * mechanical status, never in place of it.
+   */
+  judgement: z.object({ met: z.boolean(), reason: z.string().max(400).optional() }).strict().optional(),
 });
 export type ChecklistCoverage = z.infer<typeof checklistCoverageSchema>;
 

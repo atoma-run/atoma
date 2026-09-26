@@ -252,7 +252,12 @@ export function gpuEventCardCopy(event: VizEvent, t: GpuTranslate): GpuEventCard
     body = t(event.at === 'deepening' ? 'depth.deepening' : `depth.entry.${event.mode}`);
   } else if (event.kind === 'acceptance') {
     const http = event.checklist?.filter((item) => item.kind === 'http') ?? [];
-    body = [event.reasoning, t('depth.coverage', {
+    // The acceptor's own word per criterion, when it gave one.
+    const judged = event.checklist?.filter((item) => item.judgement !== undefined) ?? [];
+    body = [event.reasoning, judged.length ? t('depth.checklist.judged', {
+      met: judged.filter((item) => item.judgement?.met).length,
+      count: judged.length,
+    }) : '', t('depth.coverage', {
       covered: event.floorCoverage?.filter((item) => item.status === 'covered').length ?? 0,
       total: event.floorCoverage?.length ?? 0,
     }), event.checklist?.length ? t(event.checklistSource === 'user' ? 'depth.checklist.user' : 'depth.checklist.drafted', {

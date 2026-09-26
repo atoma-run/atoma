@@ -57,7 +57,12 @@ Neighbours:
   out at (`observedLayoutsBlock`): run 134d916a was accepted on "no overflow
   at 375 and 1280 pixels" with every check at 800x600. No criterion text is
   parsed — a width detector is the vocabulary-frozen kind this file warns
-  about; the acceptor compares.
+  about; the acceptor compares. When criteria are shown, the acceptor also
+  judges EACH one (`criteria`, kept on the checklist items as `judgement`); a
+  USER list is always read, never approved mechanically past, and an approval
+  that judges one of its criteria unmet is the acceptor contradicting itself,
+  so it refuses with that criterion. A drafted item judged unmet is recorded
+  and never fails a run by itself.
 - A LANDED result carries `LANDED_RESULT_GUIDANCE` to that validator, and
   nothing else does. A landed run stopped before it could prove the floor, so
   `floorCoverage` is uncovered BY CONSTRUCTION and the verdict is always a

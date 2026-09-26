@@ -846,6 +846,7 @@ export async function llmVerdict(args: {
   // `undefined` at the parse boundary — same treatment as branchName —
   // so downstream consumers only ever see `boolean | undefined`.
   const activeSkillFollowed = raw.activeSkillFollowed ?? undefined;
-  if (raw.approved) return { ...raw, activeSkillFollowed };
-  return { ...raw, branchName: raw.branchName ?? undefined, activeSkillFollowed };
+  const criteria = raw.criteria ?? undefined;
+  if (raw.approved) return { ...raw, activeSkillFollowed, criteria };
+  return { ...raw, branchName: raw.branchName ?? undefined, activeSkillFollowed, criteria };
 }

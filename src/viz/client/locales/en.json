@@ -762,6 +762,8 @@
   "depth.checklist.user_other": "{{count}} criteria you approved, {{observed}} of {{http}} HTTP checks observed",
   "depth.checklist.drafted_one": "{{count}} drafted checklist item, {{observed}} of {{http}} HTTP checks observed",
   "depth.checklist.drafted_other": "{{count}} drafted checklist items, {{observed}} of {{http}} HTTP checks observed",
+  "depth.checklist.judged_one": "{{met}} of {{count}} criterion judged met",
+  "depth.checklist.judged_other": "{{met}} of {{count}} criteria judged met",
   "filters.allRoles": "All roles",
   "filters.allBranches": "all branches",
   "filters.branch": "branch {{id}}",

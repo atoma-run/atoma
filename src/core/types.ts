@@ -256,7 +256,15 @@ export type PositiveVerdict = {
    * across concurrent subtasks.
    */
   proofUncovered?: boolean;
+  /** One judgement per acceptance criterion, when the prompt listed criteria. */
+  criteria?: readonly CriterionJudgement[];
 };
+/** A validator's judgement of ONE acceptance criterion, by its checklist id. */
+export interface CriterionJudgement {
+  readonly id: string;
+  readonly met: boolean;
+  readonly reason?: string;
+}
 export type NegativeVerdict = {
   approved: false;
   reasoning: string;
@@ -265,6 +273,8 @@ export type NegativeVerdict = {
   branchName?: string;
   /** See PositiveVerdict.activeSkillFollowed — same semantics on rejections. */
   activeSkillFollowed?: boolean;
+  /** See PositiveVerdict.criteria. */
+  criteria?: readonly CriterionJudgement[];
 };
 export type Verdict = PositiveVerdict | NegativeVerdict;
 

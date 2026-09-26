@@ -884,7 +884,13 @@ export function coerceVerdictDefaults(raw: unknown): unknown {
   const asf = obj['activeSkillFollowed'];
   const needsAsfCoercion =
     asf !== undefined && asf !== null && typeof asf !== 'boolean';
-  const out: Record<string, unknown> = needsAsfCoercion || obj['approved'] === false ? { ...obj } : obj;
+  const needsCriteriaCoercion = obj['criteria'] !== undefined && obj['criteria'] !== null;
+  const out: Record<string, unknown> = needsAsfCoercion || needsCriteriaCoercion || obj['approved'] === false ? { ...obj } : obj;
+  if (needsCriteriaCoercion) {
+    const criteria = coerceCriteria(obj['criteria']);
+    if (criteria === undefined) delete out['criteria'];
+    else out['criteria'] = criteria;
+  }
   if (needsAsfCoercion) {
     if (asf === 'true') out['activeSkillFollowed'] = true;
     else if (asf === 'false') out['activeSkillFollowed'] = false;
@@ -912,6 +918,32 @@ export function coerceVerdictDefaults(raw: unknown): unknown {
   return out;
 }
 
+/** One judgement per acceptance criterion; entries the coercion could not read are dropped before this. */
+const criterionJudgementsSchema = z.array(z.object({
+  id: z.string().min(1).max(40),
+  met: z.boolean(),
+  reason: z.string().max(400).optional(),
+}));
+
+/**
+ * The per-criterion judgements, read TOLERANTLY: they record what the
+ * acceptor said about each criterion and never fail an otherwise valid
+ * verdict. An entry without a string id and a boolean (or "true"/"false")
+ * `met` is dropped; a reason is bounded.
+ */
+function coerceCriteria(raw: unknown): Array<{ id: string; met: boolean; reason?: string }> | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const out: Array<{ id: string; met: boolean; reason?: string }> = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object') continue;
+    const e = entry as Record<string, unknown>;
+    const met = e['met'] === true || e['met'] === 'true' ? true : e['met'] === false || e['met'] === 'false' ? false : undefined;
+    if (typeof e['id'] !== 'string' || !e['id'] || e['id'].length > 40 || met === undefined) continue;
+    out.push({ id: e['id'], met, ...(typeof e['reason'] === 'string' ? { reason: e['reason'].slice(0, 400) } : {}) });
+  }
+  return out;
+}
+
 export const verdictSchema = z
   .discriminatedUnion('approved', [
     z.object({
@@ -921,6 +953,7 @@ export const verdictSchema = z
       // nullish() for the same reason as branchName below; `llmVerdict`
       // normalises null → undefined at the parse boundary.
       activeSkillFollowed: z.boolean().nullish(),
+      criteria: criterionJudgementsSchema.nullish(),
     }),
     z.object({
       approved: z.literal(false),
@@ -934,6 +967,7 @@ export const verdictSchema = z
       // `string | undefined` before returning.
       branchName: z.string().nullish(),
       activeSkillFollowed: z.boolean().nullish(),
+      criteria: criterionJudgementsSchema.nullish(),
     }),
   ])
   // A rejected verdict targeting the canonical type (`patch` or `branch`)

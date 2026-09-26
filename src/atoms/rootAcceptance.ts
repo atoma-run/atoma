@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { baseExecutorOf } from '../core/attestation.js';
 import type { Atom } from '../core/atom.js';
-import type { Result, RunContext, Task } from '../core/types.js';
+import type { CriterionJudgement, Result, RunContext, Task } from '../core/types.js';
 import { modelForTier } from '../core/models.js';
 import { establishesDomInteraction } from '../contracts/attestation.js';
 import type { AcceptanceInfo, PhaseCoverageRecord, ProofFloor } from '../contracts/depthRouting.js';
@@ -79,6 +79,48 @@ export async function rootProofCoverage(ctx: RunContext, floor: ProofFloor): Pro
   }));
 }
 
+/**
+ * ONE JUDGEMENT PER CRITERION. The acceptor used to answer one prose verdict
+ * for a whole list, so a person who approved seven criteria could not tell
+ * which the delivery was judged to meet (2026-09-26). The judgements ride
+ * the checklist items; they are the model's word beside the mechanical
+ * status, never in place of it.
+ */
+export const CRITERIA_JUDGEMENT_REQUEST =
+  'ALSO emit "criteria" in your verdict JSON: one entry per item above, ' +
+  '[{"id": "c1", "met": true|false, "reason": "<at most 15 words>"}], judged on the evidence.';
+
+function judgeCoverage(
+  coverage: readonly ChecklistCoverage[],
+  judgements: readonly CriterionJudgement[] | undefined
+): ChecklistCoverage[] {
+  const byId = new Map((judgements ?? []).map((judgement) => [judgement.id, judgement]));
+  return coverage.map((item) => {
+    const judgement = byId.get(item.id);
+    return judgement ? { ...item, judgement: { met: judgement.met, ...(judgement.reason ? { reason: judgement.reason.slice(0, 400) } : {}) } } : item;
+  });
+}
+
+/**
+ * An approval that judges one of the USER's criteria unmet contradicts
+ * itself; it is the acceptor's own statement, so the delivery is refused
+ * with that criterion as the reason. A drafted item never makes a run fail
+ * this way: the drafted list "adds nothing the goal did not ask for".
+ */
+function consistentWithCriteria(
+  verdict: { readonly approved: boolean; readonly reasoning?: string },
+  judged: readonly ChecklistCoverage[],
+  source: ChecklistSource
+): { readonly approved: boolean; readonly reasoning?: string } {
+  if (!verdict.approved || source !== 'user') return verdict;
+  const unmet = judged.filter((item) => item.judgement?.met === false);
+  if (unmet.length === 0) return verdict;
+  return {
+    approved: false,
+    reasoning: `Approved criteria judged NOT met: ${unmet.map((item) => `${item.id} ${item.behaviour}${item.judgement?.reason ? ` (${item.judgement.reason})` : ''}`).join('; ')}`,
+  };
+}
+
 /** A delivery verdict only: no registry, learning hook, or remediation lives here. */
 export async function acceptRootResult(args: {
   actor: Atom; task: Task; result: Result; ctx: RunContext; floor: ProofFloor;
@@ -100,9 +142,13 @@ export async function acceptRootResult(args: {
     payload: { output: result.output, summary: result.summary }, child: actor,
     ...(result.evidence ? { evidence: result.evidence } : {}) });
   const floorCoverage = await rootProofCoverage(ctx, floor);
+  // Criteria the user approved are READ, whatever the floor says: a covered
+  // floor with no finding used to approve mechanically past them.
+  const userCriteria = source === 'user' && coverage.length > 0;
   const review = floor.length === 0 || gates.reviewFindings.length > 0 || probe.requiresReview ||
-    floorCoverage.some((item) => item.status === 'uncovered');
-  const verdict = gates.rejection
+    floorCoverage.some((item) => item.status === 'uncovered') || userCriteria;
+  const judgementsAsked = checklistBlock !== '';
+  const raw = gates.rejection
     ? { approved: false, reasoning: gates.rejection.reasoning }
     : review ? await llmVerdict({
       ctx, model: modelForTier(1), supervisorName: 'run-root', supervisorTier: 3,
@@ -112,12 +158,14 @@ export async function acceptRootResult(args: {
       groundTruthBlock: probe.block,
       mechanicalFindingsBlock: renderResultGateFindings(gates.reviewFindings),
       proofCoverageBlock: 'ROOT DELIVERY PROOF (no effect on phase credits):\n' + JSON.stringify(floorCoverage) +
-        (checklistBlock ? `\n\n${checklistBlock}` : '') + (layoutsBlock ? `\n\n${layoutsBlock}` : ''),
+        (checklistBlock ? `\n\n${checklistBlock}\n${CRITERIA_JUDGEMENT_REQUEST}` : '') + (layoutsBlock ? `\n\n${layoutsBlock}` : ''),
       // A landed run always reaches here through a validation call, because it
       // stopped before it could prove the floor. Saying what a landing IS costs
       // one block and decides whether the phases it did complete survive.
       ...(result.unfinishedPhases?.length ? { landingBlock: LANDED_RESULT_GUIDANCE } : {}),
     }) : { approved: true, reasoning: 'No mechanical finding requires review.' };
+  const judged = judgementsAsked && 'criteria' in raw ? judgeCoverage(coverage, raw.criteria) : coverage;
+  const verdict = consistentWithCriteria(raw, judged, source);
   const produced = result.producedBy;
   return {
     attempt: ctx.attempt ?? 1, approved: verdict.approved, reasoning: verdict.reasoning ?? '',
@@ -128,7 +176,7 @@ export async function acceptRootResult(args: {
       .map((finding) => ({ id: finding.gateId, disposition: finding.disposition })),
     probe: { requiresReview: probe.requiresReview, contradiction: probe.contradiction },
     floorCoverage, phaseCoverage: [...args.phaseCoverage],
-    ...(coverage.length > 0 ? { checklist: coverage, checklistSource: source,
+    ...(judged.length > 0 ? { checklist: judged, checklistSource: source,
       ...(args.checklistOrigin?.digest ? { checklistDigest: args.checklistOrigin.digest } : {}) } : {}),
     basis: review && !gates.rejection ? 'validation-call' : 'mechanical',
   };

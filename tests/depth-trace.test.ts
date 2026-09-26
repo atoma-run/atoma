@@ -67,5 +67,9 @@ describe('depth evidence in persisted traces and GPU timeline', () => {
     expect(gpuEventCardCopy(drafted, t).body).toContain('depth.checklist.drafted');
     const none = { ...event, checklist: undefined };
     expect(gpuEventCardCopy(none, t).body).not.toContain('depth.checklist');
+    // No judgement given, none claimed; given, the card says how many were met.
+    expect(gpuEventCardCopy(event, t).body).not.toContain('depth.checklist.judged');
+    const judged = { ...event, checklist: event.checklist!.map((item, i) => ({ ...item, judgement: { met: i !== 1 } })) };
+    expect(gpuEventCardCopy(judged, t).body).toContain('depth.checklist.judged{"met":2,"count":3}');
   });
 });

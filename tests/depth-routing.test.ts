@@ -508,6 +508,46 @@ describe('depth transition through the production supervision loop', () => {
     for (const prompt of verdictPrompts) expect(prompt).toContain('- [REVIEW] c1 the page shows the monthly total');
   });
 
+  it('records one judgement per criterion, and refuses an approval that judges a user criterion unmet', async () => {
+    // A person who approved criteria could not tell which ones the delivery
+    // was judged to meet: one prose verdict covered the whole list (2026-09-26).
+    const checklist = [
+      { id: 'c1', behaviour: 'the page shows the monthly total', check: { kind: 'review' as const } },
+      { id: 'c2', behaviour: 'uploading a CSV replaces the data', check: { kind: 'review' as const } },
+    ];
+    const judge = (c2: boolean) => jsonText({ approved: true, reasoning: 'looks done', criteria: [
+      { id: 'c1', met: true, reason: 'total rendered' }, { id: 'c2', met: c2, reason: c2 ? 'upload observed' : 'upload never exercised' },
+      { id: 'bogus' }, 'not an entry',
+    ] });
+    // Covered floor, no finding: a user list is still READ, never approved mechanically.
+    const user = context();
+    await observe(user);
+    user.llm.enqueueText(judge(false));
+    const refused = await acceptRootResult({ actor: new Actor(), task, result, ctx: user, floor, phaseCoverage: [],
+      checklist, checklistOrigin: { source: 'user', digest: 'a'.repeat(64) } });
+    expect(user.llm.calls[0]!.userContent).toContain('ALSO emit "criteria"');
+    expect(refused.approved).toBe(false);
+    expect(refused.reasoning).toMatch(/c2 uploading a CSV replaces the data \(upload never exercised\)/);
+    expect(refused.checklist?.map((item) => item.judgement)).toEqual([
+      { met: true, reason: 'total rendered' }, { met: false, reason: 'upload never exercised' }]);
+    expect(acceptanceSchema.parse(refused)).toBeTruthy();
+    // All met: approved, with the judgements kept.
+    const met = context();
+    met.llm.enqueueText(judge(true));
+    const approved = await acceptRootResult({ actor: new Actor(), task, result, ctx: met, floor: [], phaseCoverage: [],
+      checklist, checklistOrigin: { source: 'user', digest: 'a'.repeat(64) } });
+    expect(approved.approved).toBe(true);
+    expect(approved.checklist?.every((item) => item.judgement?.met)).toBe(true);
+    // A DRAFTED item judged unmet is recorded, and never fails the run by itself.
+    const drafted = context();
+    drafted.llm.enqueueText(jsonText({ approved: true, reasoning: 'done', criteria: [{ id: 'c1', met: false }] }));
+    const draftedList = [{ id: 'c1', behaviour: 'lists notes', check: { kind: 'http' as const, method: 'GET' as const, path: '/api/notes' } }];
+    const kept = await acceptRootResult({ actor: new Actor(), task, result, ctx: drafted, floor: [], phaseCoverage: [],
+      checklist: draftedList, checklistOrigin: { source: 'drafted' } });
+    expect(kept.approved).toBe(true);
+    expect(kept.checklist?.[0]?.judgement).toEqual({ met: false });
+  });
+
   it('refuses for good after the last remediation, without a third pass', async () => {
     const ctx = context();
     const stats = vi.fn();
