@@ -15,6 +15,21 @@ import { parsePayloadTolerant, parseWith, planSchema } from './json.js';
 import type { Skill } from '../skills/types.js';
 import { witnessesFromPayload, type Witness } from '../contracts/witness.js';
 import { renderObservations, type AttestationRecord } from '../contracts/attestation.js';
+
+/**
+ * Where a molecule puts what only EXERCISES the artefact. Publication and the
+ * preview already exclude every `.atoma-*` path; without a named place, probe
+ * inputs landed beside the deliverable and were published into the
+ * customer's repository (production run 80d1af73, 2026-09-26: five
+ * `probe-*` files). Runtime text, not a stored prompt: it reaches every
+ * molecule, branches included, without re-earning anyone's trust.
+ */
+export const SCRATCH_DIRECTORY = '.atoma-scratch';
+const SCRATCH_FILE_LINES: readonly string[] = [
+  `- An input you write ONLY to exercise the artefact — a probe CSV, a fixture, a file to upload in a`,
+  `  browser check — goes under "${SCRATCH_DIRECTORY}/" (e.g. "${SCRATCH_DIRECTORY}/invalid-rows.csv"): the host never`,
+  `  publishes it. Files the task asks for (samples, docs, tests) stay where the task puts them.`,
+];
 import { SkillRegistry } from '../skills/registry.js';
 import { namespaceOf, type SkillNamespace } from '../skills/namespace.js';
 import {
@@ -314,6 +329,7 @@ export class L1Atom extends Atom {
       `- This execution has at most ${maxToolIterations} tool iterations. Reserve capacity for every requested file and its verification.`,
       `- On a retry, inspect the current state and complete the remaining work; do not repeat completed discovery or rewrite already-correct files.`,
       `- A requested answer/report file is a deliverable too: writing the main artifact does not replace writing that file.`,
+      ...SCRATCH_FILE_LINES,
       hasValidator
         ? `- For ANY web artifact you produce, call validate_html on the server URL.`
         : null,

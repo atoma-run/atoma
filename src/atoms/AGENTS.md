@@ -180,6 +180,11 @@ load-bearing.
   contradictions.
 - Ground-truth reporting must quote observed tool bytes. Narrative self-report
   alone is not evidence.
+- Inputs that only EXERCISE the artefact go under `.atoma-scratch/`, which
+  publication and the preview already exclude with every `.atoma-*` path; the
+  molecule reads the rule in its runtime execution prompt, so branches whose
+  stored prompts predate it hear it too (run 80d1af73 published five probe
+  inputs into a customer's repository).
 - A rule the acceptor enforces is taught to every molecule it binds. The
   README port refusal (`DURABLE_HTTP_PORT_LITERAL_RE`) applies to any
   loopback server, so the static-web molecule carries
