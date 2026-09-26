@@ -195,8 +195,11 @@ CSV-to-JSON CLI and its technical documentation (R1, R7). Approved and
 drafted criteria, continuation of a partial, a comparison rerun, a preview
 and publication (created, then extended) were each exercised.
 
-Open, for the owner: the analyst's hold on the run slot after every run
-(I2, preemption proposed), a single-encoded file body in the Codex protocol
-(I4 residual, proposed), one verdict per review criterion (O1), scratch files
-in published deliverables (O4), and stale read-backs read as current state
-(O5). I1 was not reproduced.
+Decided by the owner on 2026-09-27 and built: a member's run preempts the
+resident analyst (I2), a file body travels once-encoded in a declared
+`content` field of the Codex envelope (I4 residual), the delivery review
+judges each criterion and refuses an approval that judges a user criterion
+unmet (O1), inputs that only exercise the deliverable go under
+`.atoma-scratch/`, which is never published (O4), and a read the branch
+rewrote afterwards is marked stale for validators (O5). I1 was not
+reproduced.

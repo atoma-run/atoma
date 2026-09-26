@@ -23,6 +23,11 @@ corrections of the 2026-09-24 and 2026-09-25 code reviews.
 - `validate_html` lays a page out at a requested viewport.
 - Browser checks can attach a workspace file to a file input, so a page that
   uploads a CSV can be verified.
+- The delivery review judges each acceptance criterion; the judgements are
+  kept with the run, and an approval that judges one of your criteria unmet
+  is refused with it.
+- A member's run preempts the post-run analysis instead of being refused
+  behind it; the analysis resumes afterwards without losing its attempt.
 
 ### Fixed
 
@@ -57,6 +62,10 @@ corrections of the 2026-09-24 and 2026-09-25 code reviews.
   details.
 - A Node server a run starts gets a concrete free port, so a server written
   as "PORT, default 3000" no longer collides with itself on a restart.
+- Codex writes a file's text once-encoded in a declared field, where it used
+  to fail on double escaping.
+- Inputs a run writes only to test its deliverable are no longer published.
+- A validator is told when a file it sees read was rewritten afterwards.
 
 ## v0.4.0 — 2026-09-17
 
