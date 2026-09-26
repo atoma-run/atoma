@@ -29,7 +29,7 @@ checks the result against what you asked for, and lets you inspect every step.
 
 ## Watch the demo
 
-https://github.com/user-attachments/assets/481c59de-2f29-423e-a55c-80cc5b448b92
+https://github.com/user-attachments/assets/9572ddb9-0767-45c8-aaf2-5435619c1cbd
 
 ## From a business need to a tool you can use
 
