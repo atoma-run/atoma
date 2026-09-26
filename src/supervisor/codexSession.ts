@@ -64,6 +64,7 @@ export interface CodexSupervisorOptions {
   execute?: typeof runCommand;
   readEvidence?: (args: unknown) => string;
   onLog?: (line: string) => void;
+  signal?: AbortSignal;
 }
 
 export function codexSupervisorConfigArgs(): string[] {
@@ -113,6 +114,7 @@ export async function runCodexSupervisor(options: CodexSupervisorOptions): Promi
     const result = await runCommand(options.command, args, {
       cwd: jail, env, timeoutMs: options.timeoutMs,
       ...(options.onLog ? { onLog: options.onLog } : {}),
+      ...(options.signal ? { signal: options.signal } : {}),
       input: `${JSON.stringify({ id: 1, method: 'initialize', params: { clientInfo: { name: 'atoma-supervisor', version: '1' }, capabilities: { experimentalApi: true } } })}\n`,
       onLine(line, send, end) {
         try {

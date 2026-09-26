@@ -108,6 +108,13 @@ export interface ProjectCoordinatorOptions {
   readonly skillsDir?: string;
   readonly driver?: ProjectRunDriver;
   readonly acquireLease?: RunLeaseAcquirer;
+  /**
+   * Ask this host's background analysis to give the run slot up; true once
+   * it has. Called when the slot's holder is the resident analyst: a
+   * member's run preempts a post-run analysis instead of being refused
+   * behind it (owner decision 2026-09-27). The mender is never preempted.
+   */
+  readonly yieldBackground?: () => Promise<boolean>;
   readonly publisher?: ProjectRunPublisher;
   readonly onRunFinished?: (event: ProjectRunFinishedEvent) => void | Promise<void>;
   /**
@@ -224,6 +231,9 @@ export interface SubscriptionTransportUse {
    */
   readonly payers: RunPayerLedger;
 }
+
+/** How long a member's start waits for the analysis it preempts to let go of the slot. */
+export const PREEMPT_ANALYST_WAIT_MS = 20_000;
 
 export class ProjectRunBusy extends Error {
   constructor(message: string) {
@@ -1035,6 +1045,7 @@ export class ProjectRunCoordinator {
   private readonly skillsRoot: string;
   private readonly driver: ProjectRunDriver;
   private readonly acquireLease: RunLeaseAcquirer;
+  private readonly yieldBackground?: () => Promise<boolean>;
   private readonly publisher?: ProjectRunPublisher;
   private readonly onRunFinished?: (event: ProjectRunFinishedEvent) => void | Promise<void>;
   private readonly tierModelsFor?: (principalId: string) => TierModelPins;
@@ -1065,6 +1076,7 @@ export class ProjectRunCoordinator {
     reconcilePlatformSkills({ db: this.dbPath, skillsRoot: this.skillsRoot });
     this.driver = options.driver ?? spawnRun;
     this.acquireLease = options.acquireLease ?? acquireRunLease;
+    this.yieldBackground = options.yieldBackground;
     this.publisher = options.publisher;
     if (options.onRunFinished) this.onRunFinished = options.onRunFinished;
     if (options.tierModelsFor) this.tierModelsFor = options.tierModelsFor;
@@ -1214,6 +1226,28 @@ export class ProjectRunCoordinator {
     }
   }
 
+  /**
+   * The run slot, preempting this host's post-run analysis when that is what
+   * holds it: the analysis is aborted (its run keeps its attempt), the lease
+   * released, and the acquisition tried ONCE more. Any other holder — another
+   * run, the mender, a deployment — refuses as before.
+   */
+  private async acquireLeasePreempting(runId: string): Promise<RunLease> {
+    try {
+      return await this.acquireLease(runId);
+    } catch (error) {
+      if (!(error instanceof RunLockBusyError) || error.condition !== 'held' ||
+        !error.owner?.runId.startsWith('analyst:') || !this.yieldBackground) throw error;
+      const yielded = await Promise.race([
+        this.yieldBackground().catch(() => false),
+        new Promise<boolean>((resolve) => { setTimeout(() => resolve(false), PREEMPT_ANALYST_WAIT_MS).unref(); }),
+      ]);
+      if (!yielded) throw error;
+      process.stderr.write(`[atoma projects] preempted the post-run analysis ${error.owner.runId} for ${runId}\n`);
+      return this.acquireLease(runId);
+    }
+  }
+
   /** Preparation and the child's hard backstop belong to the task's lifetime too. */
   runTaskBudgetMs(): number {
     return PROJECT_RUN_PREPARATION_TIMEOUT_MS + this.timeoutMs + DEFAULT_HARD_KILL_MARGIN_MS + UNKILLABLE_BACKSTOP_EXTRA_MS;
@@ -1264,7 +1298,7 @@ export class ProjectRunCoordinator {
     );
     let lease: RunLease;
     try {
-      lease = await this.acquireLease(`project:${candidateRunId}`);
+      lease = await this.acquireLeasePreempting(`project:${candidateRunId}`);
     } catch (error) {
       if (error instanceof RunLockBusyError) {
         // A concurrent identical request may have reserved its row while

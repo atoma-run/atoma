@@ -35,4 +35,20 @@ describe.skipIf(process.platform === 'win32')('supervisor subprocess ownership',
     const pid = Number(readFileSync(join(root, 'pid'), 'utf8'));
     expect(() => process.kill(pid, 0)).toThrow();
   }, 10_000);
+
+  it('aborts on its signal like a timeout: the group is gone before it rejects with the reason', async () => {
+    // A member's run preempts the resident analysis through this signal.
+    const root = mkdtempSync(join(tmpdir(), 'atoma-session-abort-'));
+    roots.push(root);
+    const script = join(root, 'long.mjs');
+    writeFileSync(script, `import {writeFileSync} from 'node:fs';
+      writeFileSync('pid', String(process.pid)); setInterval(() => {}, 1000);`);
+    const controller = new AbortController();
+    const running = runCommand(script, [], { cwd: root, timeoutMs: 60_000, signal: controller.signal });
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    controller.abort(new Error('preempted by a product run'));
+    await expect(running).rejects.toThrow('preempted by a product run');
+    const pid = Number(readFileSync(join(root, 'pid'), 'utf8'));
+    expect(() => process.kill(pid, 0)).toThrow();
+  }, 10_000);
 });

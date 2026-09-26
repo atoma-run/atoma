@@ -67,6 +67,8 @@ export interface ResidentAnalystHealth {
   readonly analysed: number;
   readonly failed: number;
   readonly deferred: number;
+  /** Analyses a product run preempted; each kept its place and its attempt. */
+  readonly preempted: number;
   readonly lastResult: { runId: string; outcome: string; at: string } | null;
   readonly lastError: string | null;
 }
@@ -79,12 +81,19 @@ export interface ResidentAnalyst {
   enqueue(runId: string, finishedAtMs: number): void;
   /** Drain what is due, now, for tests that will not wait for a timer. */
   drainNow(): Promise<void>;
+  /**
+   * A product run needs the slot: abort the analysis in flight, if any, and
+   * resolve once it has released the lease. True when one was preempted.
+   * The analysed run keeps its place and its attempt.
+   */
+  yieldForRun(): Promise<boolean>;
 }
 
 export interface ResidentAnalystOptions {
   /** `PlatformEventLog.subscribe`, or any bus with the same shape. */
   readonly subscribe: (listener: (event: PlatformEvent) => void) => () => void;
-  readonly analyse: (runId: string) => Promise<AnalyseResult>;
+  /** `signal` aborts when a product run preempts this analysis. */
+  readonly analyse: (runId: string, signal: AbortSignal) => Promise<AnalyseResult>;
   /** The shared idle predicate; a queued run waits while it says active. */
   readonly isActive: () => boolean;
   readonly quietMs?: number;
@@ -103,6 +112,8 @@ export function startResidentAnalyst(options: ResidentAnalystOptions): ResidentA
 
   const queue = new Map<string, number>(); // runId → finished at (ms)
   let inFlight: string | null = null;
+  let current: { readonly controller: AbortController; readonly done: Promise<void> } | null = null;
+  let preempted = 0;
   let analysed = 0;
   let failed = 0;
   let deferred = 0;
@@ -120,8 +131,17 @@ export function startResidentAnalyst(options: ResidentAnalystOptions): ResidentA
     }
   });
 
-  async function drain(): Promise<void> {
-    if (inFlight || stopped) return;
+  function drain(): Promise<void> {
+    if (inFlight || stopped) return Promise.resolve();
+    const controller = new AbortController();
+    const done = analyseNext(controller.signal);
+    // Registered synchronously with the flight it describes, so a preemption
+    // that lands during the session always finds it.
+    if (inFlight) current = { controller, done };
+    return done.finally(() => { if (current?.controller === controller) current = null; });
+  }
+
+  async function analyseNext(signal: AbortSignal): Promise<void> {
     // The provider refused the ACCOUNT: every run would be refused the same
     // way until its window resets, so none is spent on it meanwhile.
     if (now() < pausedUntil) return;
@@ -139,8 +159,15 @@ export function startResidentAnalyst(options: ResidentAnalystOptions): ResidentA
     queue.delete(runId);
     inFlight = runId;
     try {
-      const result = await options.analyse(runId);
+      const result = await options.analyse(runId, signal);
       lastResult = { runId, outcome: result.outcome, at: new Date(now()).toISOString() };
+      if (result.outcome === 'preempted') {
+        // A product run took the slot: this run keeps its place and its one
+        // attempt, and is analysed once the machine is quiet again.
+        preempted += 1;
+        queue.set(runId, next[1]);
+        return;
+      }
       if (result.outcome === 'analysed') analysed += 1;
       else if (result.outcome !== 'already-analysed' && result.outcome !== 'dry-run' && !stopsTheBatch(result.outcome)) failed += 1;
       if (result.outcome === 'refused-active') {
@@ -177,7 +204,14 @@ export function startResidentAnalyst(options: ResidentAnalystOptions): ResidentA
       unsubscribe();
     },
     health() {
-      return { armed: !stopped, quietMs, queued: queue.size, inFlight, analysed, failed, deferred, lastResult, lastError };
+      return { armed: !stopped, quietMs, queued: queue.size, inFlight, analysed, failed, deferred, preempted, lastResult, lastError };
+    },
+    async yieldForRun() {
+      const flight = current;
+      if (!flight) return false;
+      flight.controller.abort(new Error('preempted by a product run'));
+      await flight.done;
+      return true;
     },
     enqueue(runId, finishedAtMs) {
       if (!queue.has(runId)) queue.set(runId, finishedAtMs);

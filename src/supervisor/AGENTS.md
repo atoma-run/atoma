@@ -74,8 +74,14 @@ Neighbours:
   retry. No dispatch credential or auth-secret rotation through GitHub is needed.
 - Analyst and mender reserve the existing machine-global run lease, without
   stale recovery, throughout their work and cleanup. Product admission and
-  deployment use that same slot. A new product run is refused while maintenance
-  holds it; this is the explicit resource trade on the 4 GB production host.
+  deployment use that same slot, and the two never run together on the 4 GB
+  host. Since the owner decision of 2026-09-27 a member's run PREEMPTS the
+  resident ANALYST instead of being refused behind it: the coordinator asks
+  `yieldForRun`, the session's process group is terminated through its abort
+  signal, the lease released, and the analysed run keeps its place and its
+  one attempt (`preempted`). Three member starts were refused 409 in one
+  production session after every run (2026-09-26). The mender, holding a
+  worktree and a push, is never preempted: a run is still refused behind it.
 - The mender model and checks stay in disposable Docker containers: 2 GiB RAM,
   no additional swap, one CPU, 512 MiB tmpfs, one Vitest worker. Host Codex is
   text-only and holds a dedicated ChatGPT profile; the harness alone holds the

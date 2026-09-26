@@ -793,6 +793,9 @@ const PROJECTS_RUNTIME: ProjectsRuntime | null = (() => {
     dbPath,
     projectsRoot: PROJECTS_ROOT,
     skillsDir: SKILLS_DIR,
+    // A member's run preempts this host's post-run analysis (owner decision
+    // 2026-09-27). Read at call time: the analyst is armed further down.
+    yieldBackground: () => ANALYST?.yieldForRun() ?? Promise.resolve(false),
     ...(publisher ? { publisher } : {}),
     // Describe the deliverable while the workspace is still this run's. The
     // adapter stays one call wide; `src/preview/service.ts` owns what a
@@ -1238,7 +1241,7 @@ const ANALYST: ResidentAnalyst | null = (() => {
   };
   const resident = startResidentAnalyst({
     subscribe: (listener) => journal.subscribe(listener),
-    analyse: (runId) => analyseTarget(resolveTarget(runId, options), options),
+    analyse: (runId, signal) => analyseTarget(resolveTarget(runId, options), { ...options, signal }),
     isActive: () => anyRunActive({ runsDir: RUNS_DIR, leasePath: mcpRunLockPath() }),
     quietMs: analystQuietMsFromEnv() ?? undefined,
     logger: log,

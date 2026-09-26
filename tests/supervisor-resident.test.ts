@@ -173,3 +173,40 @@ describe('startResidentAnalyst', () => {
     expect(warnings).toHaveLength(1);
   });
 });
+
+describe('a member run preempts the resident analysis (owner decision 2026-09-27)', () => {
+  it('aborts the analysis in flight, keeps the run queued with its attempt, and says it yielded', async () => {
+    const b = bus();
+    const clock = 1_000_000;
+    const signals: AbortSignal[] = [];
+    let entered!: () => void;
+    const inSession = new Promise<void>((resolve) => { entered = resolve; });
+    const resident = startResidentAnalyst({
+      subscribe: b.subscribe,
+      analyse: (runId, signal) => {
+        signals.push(signal);
+        entered();
+        return new Promise<AnalyseResult>((resolve) => {
+          signal.addEventListener('abort', () => resolve({ runId, outcome: 'preempted', verdictPath: null }), { once: true });
+        });
+      },
+      isActive: () => false,
+      quietMs: 0,
+      pollMs: 60_000,
+      now: () => clock,
+    });
+    try {
+      expect(await resident.yieldForRun()).toBe(false);
+      resident.enqueue('run-a', clock - 1);
+      const drained = resident.drainNow();
+      await inSession;
+      expect(resident.health().inFlight).toBe('run-a');
+      expect(await resident.yieldForRun()).toBe(true);
+      await drained;
+      expect(signals[0]!.aborted).toBe(true);
+      expect(resident.health()).toMatchObject({ inFlight: null, queued: 1, preempted: 1, failed: 0, analysed: 0 });
+    } finally {
+      resident.stop();
+    }
+  });
+});

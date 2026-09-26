@@ -104,6 +104,12 @@ export interface AnalysisTarget {
 }
 
 export interface AnalystOptions {
+  /**
+   * A product run preempting this analysis: the session is terminated, the
+   * lease released, and the outcome is `preempted` — no verdict, no spent
+   * attempt (owner decision 2026-09-27).
+   */
+  readonly signal?: AbortSignal;
   /** The checkout the session runs in and paths are shown relative to. */
   readonly repoRoot: string;
   readonly runsDir: string;
@@ -136,7 +142,8 @@ export type AnalyseOutcome =
   | 'dry-run'
   | 'session-failed'
   | 'quota-refused'
-  | 'invalid-verdict';
+  | 'invalid-verdict'
+  | 'preempted';
 
 /**
  * The provider refused the ACCOUNT, not this run: every later session in the
@@ -344,20 +351,30 @@ export async function analyseTarget(target: AnalysisTarget, options: AnalystOpti
   }
   try {
     const startedAt = Date.now();
-    const session = codex ? await runCodexSupervisor({
+    if (options.signal?.aborted) return { runId, outcome: 'preempted', verdictPath: null };
+    const session = await (codex ? runCodexSupervisor({
       command: options.codexCommand ?? process.env['ATOMA_SUPERVISOR_CMD_CODEX'] ?? 'codex',
       provider: options.provider, cwd: options.repoRoot, prompt,
       hardening: `${ANALYST_HARDENING} Use only read_evidence to list, search and read files; there is no shell. Empty path lists files.`,
       schema: ANALYST_VERDICT_JSON_SCHEMA, timeoutMs: options.timeoutMs, onLog: options.warn,
       readEvidence: createEvidenceReader(options.repoRoot, { 'digest.json': digestPaths.digestPath, 'events.jsonl': digestPaths.eventsPath, 'run.json': runFile }),
-    }) : await runClaudeSession({
+      ...(options.signal ? { signal: options.signal } : {}),
+    }) : runClaudeSession({
       claudeCommand: options.claudeCommand,
       args,
       cwd: options.repoRoot,
       provider: options.provider,
       timeoutMs: options.timeoutMs,
       onLog: options.warn,
+      ...(options.signal ? { signal: options.signal } : {}),
+    })).catch((error: unknown) => {
+      if (options.signal?.aborted) return null;
+      throw error;
     });
+    if (session === null) {
+      options.log(`analysis of ${runId} preempted by a product run; it keeps its place and its attempt`);
+      return { runId, outcome: 'preempted', verdictPath: null };
+    }
     if (session.code !== 0) {
       const detail = truncate(session.stderr.trim() || session.stdout.trim(), 2000);
       options.warn(`${codex ? 'codex' : 'claude'} exited ${session.code} for ${runId}: ${detail}`);

@@ -87,7 +87,8 @@ function fixture(trace: Record<string, unknown> = finishedTrace()): Fixture {
 import { appendFileSync, writeFileSync } from 'node:fs';
 writeFileSync(process.env.STUB_CLAUDE_ARGS, JSON.stringify(process.argv.slice(2)));
 if (process.env.STUB_SPAWNS) appendFileSync(process.env.STUB_SPAWNS, 'x');
-if (process.env.STUB_API_ERROR_STATUS) {
+if (process.env.STUB_HANG) setInterval(() => {}, 1000);
+else if (process.env.STUB_API_ERROR_STATUS) {
   // The measured shape of a provider refusal (Z.ai, 2026-09-24): exit 1, typed status, provider prose.
   process.stdout.write(JSON.stringify({ type: 'result', subtype: 'success', is_error: true, api_error_status: Number(process.env.STUB_API_ERROR_STATUS), result: 'API Error: Request rejected · [1308][Usage limit reached for 5 hour.]', total_cost_usd: 0 }));
   process.exit(1);
@@ -412,6 +413,27 @@ describe('analyseRun', () => {
     expect(existsSync(f.claudeArgs)).toBe(false);
     expect(pendingRuns(f.options()).map((entry) => entry.id)).toEqual([RUN_ID]);
   });
+});
+
+describe('a member run preempting the analysis (owner decision 2026-09-27)', () => {
+  it('ends the session, writes no verdict, releases the slot and says preempted', async () => {
+    const f = fixture();
+    process.env['STUB_HANG'] = '1';
+    try {
+      const controller = new AbortController();
+      const pending = analyseRun(RUN_ID, { ...f.options(), timeoutMs: 60_000, signal: controller.signal });
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      controller.abort(new Error('preempted by a product run'));
+      const result = await pending;
+      expect(result.outcome).toBe('preempted');
+      expect(existsSync(join(f.supervisorDir, 'verdicts', `${RUN_ID}.json`))).toBe(false);
+      // The slot is free for the member's run the moment the call returns.
+      delete process.env['STUB_HANG'];
+      expect((await analyseRun(RUN_ID, f.options())).outcome).not.toBe('refused-active');
+    } finally {
+      delete process.env['STUB_HANG'];
+    }
+  }, 20_000);
 });
 
 describe('an account-level refusal from the analyst provider', () => {

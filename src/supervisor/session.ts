@@ -68,6 +68,12 @@ export interface RunCommandOptions {
   readonly onLine?: (line: string, send: (message: unknown) => void, end: () => void) => void;
   /** Model-authored mender commands run without networking. */
   readonly network?: 'none';
+  /**
+   * Abort the command as the timeout does: the process group is terminated
+   * and confirmed gone before the promise rejects with the signal's reason.
+   * A product run preempting the resident analyst is the one caller.
+   */
+  readonly signal?: AbortSignal;
 }
 
 /**
@@ -97,15 +103,18 @@ export function runCommand(
     let timedOut = false;
     let closed = false;
     let reaped = false;
+    let stopReason: Error | null = null;
     const finishTimeout = () => {
       if (!closed || !reaped || settled) return;
       settled = true;
-      rejectRun(new Error(`timeout after ${options.timeoutMs}ms: ${resolved.command} ${args.slice(0, 3).join(' ')}`));
+      options.signal?.removeEventListener('abort', abort);
+      rejectRun(stopReason ?? new Error(`timeout after ${options.timeoutMs}ms: ${resolved.command} ${args.slice(0, 3).join(' ')}`));
     };
-    const timer = setTimeout(() => {
-      if (settled) return;
+    const terminate = (reason: Error | null, note: string) => {
+      if (settled || timedOut) return;
       timedOut = true;
-      options.onLog?.(`command exceeded ${options.timeoutMs}ms; terminating: ${resolved.command}`);
+      stopReason = reason;
+      options.onLog?.(note);
       // The existing run-group primitive confirms disappearance, including
       // grandchildren whose parent already exited. A surviving group keeps
       // the caller (and hence the mender lock/worktree) occupied.
@@ -116,7 +125,15 @@ export function runCommand(
         reaped = true;
         finishTimeout();
       })();
-    }, options.timeoutMs);
+    };
+    const timer = setTimeout(() => terminate(null, `command exceeded ${options.timeoutMs}ms; terminating: ${resolved.command}`), options.timeoutMs);
+    const abort = () => {
+      clearTimeout(timer);
+      const reason: unknown = options.signal?.reason;
+      terminate(reason instanceof Error ? reason : new Error('command aborted'), `command aborted; terminating: ${resolved.command}`);
+    };
+    if (options.signal?.aborted) abort();
+    else options.signal?.addEventListener('abort', abort, { once: true });
     let lines = '';
     child.stdout?.setEncoding('utf8');
     child.stdout?.on('data', (chunk: string) => {
@@ -135,6 +152,7 @@ export function runCommand(
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      options.signal?.removeEventListener('abort', abort);
       rejectRun(error);
     });
     child.on('close', (code) => {
@@ -143,6 +161,7 @@ export function runCommand(
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      options.signal?.removeEventListener('abort', abort);
       resolveRun({ code, stdout, stderr });
     });
     child.stdin?.on('error', () => { /* close/error owns the result */ });
@@ -392,6 +411,7 @@ export interface ClaudeSessionOptions {
   readonly provider: SupervisorProvider;
   readonly timeoutMs: number;
   readonly onLog?: (line: string) => void;
+  readonly signal?: AbortSignal;
 }
 
 export interface ClaudeSessionResult extends CommandResult {
@@ -406,6 +426,7 @@ export async function runClaudeSession(options: ClaudeSessionOptions): Promise<C
     env: providerChildEnv(options.provider),
     timeoutMs: options.timeoutMs,
     ...(options.onLog ? { onLog: options.onLog } : {}),
+    ...(options.signal ? { signal: options.signal } : {}),
   });
   const wrapper = result.code === 0 ? parseLooseJson(result.stdout) : null;
   return { ...result, wrapper, structured: extractStructured(wrapper), usage: sessionUsage(wrapper) };

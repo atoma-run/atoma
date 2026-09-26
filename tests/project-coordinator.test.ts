@@ -1091,6 +1091,41 @@ describe('ProjectRunCoordinator', () => {
     expect(tenantBusyMessage({ runId: 'maintenance:retention' })).toMatch(/scheduled maintenance/);
     expect(tenantBusyMessage({ runId: 'project:abc' }, 'wedged')).toMatch(/an operator has to release it/);
   });
+
+  it('preempts the post-run analysis for a member run, and never the mender (owner decision 2026-09-27)', async () => {
+    // Three member starts were refused 409 in one production session while
+    // the analyst held the slot after the previous run (2026-09-26).
+    const busy = (runId: string) => new RunLockBusyError('another MCP server owns the run slot',
+      { token: 't', runId, ownerPid: 1, acquiredAt: new Date().toISOString() });
+    const coordinatorWith = (holder: string, yielded: boolean) => {
+      const f = fixture();
+      let calls = 0;
+      const yieldBackground = vi.fn(async () => yielded);
+      const coordinator = new ProjectRunCoordinator({
+        store: f.store, dbPath: f.dbPath, projectsRoot: f.root,
+        hostEnv: { ...haystackTestEnvironment(f.root), PATH: process.env['PATH'], ...ANTHROPIC_PINS, ANTHROPIC_API_KEY: 'model-key' },
+        driver: vi.fn(async () => { throw new Error('driver died'); }),
+        acquireLease: async () => { calls += 1; if (calls === 1) throw busy(holder); return lease(); },
+        yieldBackground,
+      });
+      const start = () => coordinator.start({ orgId: f.viewer.orgId, principalId: f.viewer.principalId, projectId: f.project.projectId,
+        request: { idempotencyKey: `run-${holder}`, goal: 'Build a clock in one index.html.' } });
+      return { coordinator, start, yieldBackground, calls: () => calls };
+    };
+    const analyst = coordinatorWith('analyst:cc922a60', true);
+    const started = await analyst.start();
+    expect(started.projectRunId).toBeTruthy();
+    expect(analyst.yieldBackground).toHaveBeenCalledTimes(1);
+    expect(analyst.calls()).toBe(2);
+    await analyst.coordinator.waitForIdle();
+    // The analysis would not let go: the member is refused, as before.
+    const stubborn = coordinatorWith('analyst:cc922a60', false);
+    await expect(stubborn.start()).rejects.toBeInstanceOf(ProjectRunBusy);
+    // The mender is never preempted.
+    const mender = coordinatorWith('mender:cc922a60', true);
+    await expect(mender.start()).rejects.toBeInstanceOf(ProjectRunBusy);
+    expect(mender.yieldBackground).not.toHaveBeenCalled();
+  });
 });
 
 describe('runnerFailureDetail', () => {
