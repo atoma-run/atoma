@@ -321,44 +321,38 @@ describe('runTask --help — usage, never a run', () => {
 });
 
 describe('runner skill-promotion policy — pure, no provider calls', () => {
-  it('freezes compilation on an unseeded run by default', () => {
+  // Owner decision 2026-09-26: a recipe that can be compiled is compiled at
+  // learn time on EVERY run. The seed no longer decides anything here.
+  it('enables compilation by default on an unseeded run', () => {
     expect(resolveSkillPromotion({ noPromoteSkills: false }, undefined)).toEqual({
-      enabled: false,
-      source: 'default-disable',
+      enabled: true,
+      source: 'default-enable',
     });
   });
 
-  it('enables compilation by default for a seeded maintenance run', () => {
-    expect(
-      resolveSkillPromotion(
-        { noPromoteSkills: false, seed: 'benchmark/fixtures/wclite' },
-        undefined
-      )
-    ).toEqual({ enabled: true, source: 'seed-default' });
-  });
-
-  it('keeps exact ATOMA_SKILL_PROMOTE=1 as an explicit unseeded opt-in', () => {
+  it('keeps exact ATOMA_SKILL_PROMOTE=1 as an explicit opt-in', () => {
     expect(resolveSkillPromotion({ noPromoteSkills: false }, '1')).toEqual({
       enabled: true,
       source: 'environment-enable',
     });
   });
 
-  it('lets an explicit environment opt-out override the maintenance default', () => {
-    expect(
-      resolveSkillPromotion({ noPromoteSkills: false, seed: '/fixture' }, '0')
-    ).toEqual({ enabled: false, source: 'environment-disable' });
-  });
-
-  it('fails closed on mistyped environment opt-ins', () => {
-    expect(resolveSkillPromotion({ noPromoteSkills: false, seed: '/fixture' }, 'true')).toEqual({
+  it('lets an explicit environment opt-out override the default', () => {
+    expect(resolveSkillPromotion({ noPromoteSkills: false }, '0')).toEqual({
       enabled: false,
       source: 'environment-disable',
     });
   });
 
-  it('makes --no-promote-skills the final veto over env opt-in and seed mode', () => {
-    expect(resolveSkillPromotion({ noPromoteSkills: true, seed: '/fixture' }, '1')).toEqual({
+  it('fails closed on mistyped environment opt-ins', () => {
+    expect(resolveSkillPromotion({ noPromoteSkills: false }, 'true')).toEqual({
+      enabled: false,
+      source: 'environment-disable',
+    });
+  });
+
+  it('makes --no-promote-skills the final veto over an env opt-in', () => {
+    expect(resolveSkillPromotion({ noPromoteSkills: true }, '1')).toEqual({
       enabled: false,
       source: 'cli-disable',
     });

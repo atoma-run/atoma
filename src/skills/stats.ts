@@ -1,4 +1,5 @@
 import type { Skill } from './types.js';
+import { shouldTrustSkill } from '../atoms/cost.js';
 
 /**
  * SKILL CATALOG STATS — the utility/hygiene view behind `skills stats`.
@@ -35,8 +36,9 @@ export interface SkillStatsRow {
 
 /**
  * Lifecycle-position labels, mirroring the `skills show` "next" logic but
- * compressed to one cell. Thresholds are passed in (call-time operator
- * config — see trustThreshold/promoteThreshold in cost.ts).
+ * compressed to one cell. The promote threshold is passed in (call-time
+ * operator config — see promoteThreshold in cost.ts); script dispatch reads
+ * `shouldTrustSkill`, which takes no threshold since 2026-09-26.
  */
 export function skillStatus(
   s: Skill,
@@ -44,7 +46,7 @@ export function skillStatus(
   // refusal stamps come in two currencies — combined compile+scan for
   // compile/scan refusals, compile-only for demotions — and only
   // generations.ts knows both. Pass `refusalStampIsCurrent` in production.
-  opts: { trust: number; promote: number; stampIsCurrent: (gen: string | undefined) => boolean }
+  opts: { promote: number; stampIsCurrent: (gen: string | undefined) => boolean }
 ): string {
   const parts: string[] = [];
   const driven = s.successes + s.failures;
@@ -65,9 +67,10 @@ export function skillStatus(
     else if (s.successes >= opts.promote) parts.push('promotion-eligible');
     else if (s.successes > 0) parts.push(`promotion-in-${opts.promote - s.successes}`);
   } else {
-    if (s.failures > 0) parts.push('blocked(reset)');
-    else if (s.successes >= opts.trust) parts.push('zero-llm-dispatch');
-    else parts.push(`trust-in-${opts.trust - s.successes}`);
+    // Dispatchability is `shouldTrustSkill`'s alone; the labels only name
+    // which of its two conditions failed.
+    if (shouldTrustSkill(s)) parts.push('zero-llm-dispatch');
+    else parts.push(s.failures > 0 ? 'blocked(reset)' : 'no-fallback(validated-loop)');
     if (s.directFailures) parts.push(`direct✗${s.directFailures}`);
   }
   return parts.join(' ');
@@ -91,6 +94,11 @@ export function skillStatus(
  * same shape resolves itself given enough runs — the mature catalog holds five
  * compiled scripts that got there — so this is "you will wait a long time for
  * the zero-cost path", not "it can never happen".
+ *
+ * AT THE DEFAULT THRESHOLD IT NEVER FIRES. Since 2026-09-26 the threshold is
+ * zero and a recipe compiles when it is learned, so its match rate no longer
+ * stands between it and the zero-cost path. The flag still means what it
+ * says under an operator-raised ATOMA_PROMOTE_THRESHOLD.
  *
  * Deliberately measured rather than heuristic: no attempt to judge the wording.
  * A RATIO, because the absolute count says nothing — 2 matches is healthy in a
@@ -123,7 +131,7 @@ export function isUnderMatched(
 
 export function computeStatsRows(
   byL1: ReadonlyMap<string, readonly Skill[]>,
-  opts: { trust: number; promote: number; stampIsCurrent: (gen: string | undefined) => boolean }
+  opts: { promote: number; stampIsCurrent: (gen: string | undefined) => boolean }
 ): SkillStatsRow[] {
   const rows: SkillStatsRow[] = [];
   for (const [l1, skills] of byL1) {

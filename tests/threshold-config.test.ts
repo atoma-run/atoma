@@ -46,15 +46,37 @@ describe('lifecycle thresholds are operator-configurable', () => {
       expect(shouldTrustType(type)).toBe(true);
       process.env['ATOMA_TRUST_THRESHOLD'] = '5';
       expect(shouldTrustType(type)).toBe(false);
-      expect(shouldTrustSkill({ successes: 3, failures: 0 })).toBe(false);
-      expect(shouldTrustSkill({ successes: 5, failures: 0 })).toBe(true);
     } finally { db.close(); }
+  });
+
+  it('skill dispatch trust reads no threshold: a script with a fallback is trusted until it fails', () => {
+    // Owner decision 2026-09-26 (docs/compile-at-learn-2026-09-26.md).
+    process.env['ATOMA_TRUST_THRESHOLD'] = '5';
+    expect(shouldTrustSkill({ failures: 0, fallbackBody: '1. recipe' })).toBe(true);
+    expect(shouldTrustSkill({ failures: 1, fallbackBody: '1. recipe' })).toBe(false);
+  });
+
+  it('a script without a fallback recipe is never trusted: it could not be demoted', () => {
+    expect(shouldTrustSkill({ failures: 0 })).toBe(false);
+    expect(shouldTrustSkill({ failures: 0, fallbackBody: '  \n' })).toBe(false);
+  });
+
+  it('compiles at learn time by default: the promote threshold is zero', () => {
+    expect(TRUST_PROMOTE_THRESHOLD_SUCCESSES).toBe(0);
+    process.env['ATOMA_PROMOTE_THRESHOLD'] = '0';
+    expect(promoteThreshold()).toBe(0);
+    process.env['ATOMA_PROMOTE_THRESHOLD'] = '3';
+    expect(promoteThreshold()).toBe(3);
   });
 
   it('garbage or non-positive values fall back to the DEFAULT — never to a weaker gate', () => {
     for (const bad of ['0', '-1', 'abc', '', '2.5']) {
       process.env['ATOMA_TRUST_THRESHOLD'] = bad;
       expect(trustThreshold()).toBe(TRUST_THRESHOLD_SUCCESSES);
+    }
+    for (const bad of ['-1', 'abc', '2.5']) {
+      process.env['ATOMA_PROMOTE_THRESHOLD'] = bad;
+      expect(promoteThreshold()).toBe(TRUST_PROMOTE_THRESHOLD_SUCCESSES);
     }
   });
 });

@@ -15,7 +15,10 @@ Neighbours:
 
 ## Lifecycle
 
-Skills follow learn → match/inject → earn credit → compile → trusted dispatch.
+Skills follow learn → compile → match → deterministic dispatch or inject →
+credit. Compilation happens AT LEARN TIME and dispatch needs no earned runs,
+by owner decision on 2026-09-26
+([compile-at-learn record](../../docs/compile-at-learn-2026-09-26.md)).
 
 - ONE catalog, ONE trust, for every run on the platform — a run is a run
   ([platform trust record](../../docs/platform-trust-2026-09-15.md)). BODIES
@@ -80,15 +83,25 @@ Skills follow learn → match/inject → earn credit → compile → trusted dis
   otherwise valid run, and an unchanged body is not a revision.
 - Auto-created/revised skill bodies must stay within the owner's toolset and
   generalize beyond the triggering task. No task-specific literals.
-- Promotion compiles an LLM recipe to a deterministic script only after earned
-  successes. Promotion resets script trust; the new executable must earn trust.
-- Promotion is frozen by default on from-scratch runs. A seeded workspace is
-  the current maintenance-mode signal and enables promotion by default;
-  `ATOMA_SKILL_PROMOTE=1` is the exact opt-in anywhere, while any other explicit
-  value disables it. `--no-promote-skills` is the final veto over both env and
-  seed. MCP `promoteSkills:true` maps to the same explicit env opt-in.
-- Untrusted scripts run through the normal L1 tool loop. Trusted scripts may
-  dispatch deterministically only after all preflight gates pass.
+- A recipe that CAN be compiled IS compiled, the moment it is learned:
+  `learnSkillFromRun` saves every draft, then runs `tryPromoteSkill` on each,
+  with the run it was distilled from as the compile example. The promote
+  threshold (`ATOMA_PROMOTE_THRESHOLD`) defaults to ZERO; an uncompiled
+  recipe (learned while promotion was off, or under a raised threshold)
+  compiles at its next credited success. The compiler's refusal is stamped
+  and is the answer until the body or the compiler changes. The price is one
+  compile call per learned draft, on the post-approval path, including twins
+  and recipes that will never match again.
+- Promotion is ON by default for every run, seeded or from scratch. Only
+  `ATOMA_SKILL_PROMOTE=1` counts as an explicit opt-in; any other explicit
+  value disables it, and `--no-promote-skills` is the final veto over the env.
+  MCP `promoteSkills:true` maps to the explicit env opt-in. Direct library use
+  stays opt-in (the hook reads `=== '1'`), like learning.
+- Promotion resets the counters: the script's record is its own. A script is
+  trusted for deterministic dispatch from its FIRST match when it has no
+  recorded failure AND a non-empty `_fallback.md` (`shouldTrustSkill` reads no
+  threshold). Every preflight gate still applies. An untrusted script runs
+  through the normal L1 tool loop.
 - Output intent is STRUCTURED first: plans declare `outputs` on every
   file-mutating subtask (threaded onto the child Task) and compilers declare
   `writes` in the promotion envelope, cross-checked once against the static
@@ -112,8 +125,8 @@ Skills follow learn → match/inject → earn credit → compile → trusted dis
 - The distiller SEES the visible namespaces' skill ids and `when_to_use` lines
   and is told not to re-learn them. The only mechanical guard is exact-id
   equality, so a SEMANTIC TWIN under a fresh name is the failure mode to
-  design against: promotion needs the threshold successes on ONE id, and two
-  half-credited twins never reach it while both compete for every match.
+  design against: each twin pays its own compile call, and both then compete
+  for every match, splitting the credit and failure evidence of one pattern.
   Measured 2026-08-21: one 6-task batch learned 11 skills, 6 of them three
   twin pairs.
 - `validateProbeManifest` gates malformed machine input before dispatch.
@@ -124,8 +137,11 @@ Skills follow learn → match/inject → earn credit → compile → trusted dis
 - A deterministic dispatch must prove the deliverable, not merely that named
   files already exist. Mutating work needs relevant before/after change or
   equivalent evidence; pure verification may remain read-only.
-- A script without `_fallback.md` is undemotable and must be refused before
-  dispatch. Never manufacture a fallback after trust was already lost.
+- A script without `_fallback.md` is undemotable and is refused before
+  dispatch: `shouldTrustSkill` requires the fallback, so a hand-authored script
+  always runs through the validated loop. Enforced since 2026-09-26; before,
+  only the earned-run wait kept such a script from running unwatched. Never
+  manufacture a fallback after trust was already lost.
 - Event-recovery skills match failure classes mid-run and carry zero LLM cost.
   Their triggers describe reusable failure classes, never task themes.
 - `skills drop`, `merge`, `reset`, `forgive`, and review are operator-only
@@ -145,13 +161,22 @@ Skills follow learn → match/inject → earn credit → compile → trusted dis
   `registry dedupe --apply` drop the deleted atom's skill namespace
   (`skills/<atom-id>/`); `mergeInto` itself does not touch the skill store.
 - Compilation's measured value is maintenance verification, not from-scratch
-  builds. Do not spend new rounds tuning it unless task decomposition changes.
+  builds. Compiling everywhere at learn time is an owner policy, not a
+  measured saving; do not report it as one, and do not spend new rounds
+  tuning the compiler unless task decomposition changes.
 
 ## Intentional choices and rejected shortcuts
 
 - Do not report compilation as the source of build-task savings. Eight rounds
   support tiering, earned trust, and recipe reuse; compilation dispatched mainly
   on maintenance and did not pay on from-scratch decomposition.
+- Do NOT restore the earned-run gates as a "safety" fix without the owner. The
+  3-success promote threshold, the from-scratch freeze and the 3 clean runs
+  before dispatch were removed deliberately on 2026-09-26. What guards a fresh
+  script now is mechanical and does not judge content — envelope, deliverable
+  gate, anti-redispatch, demotion streak to the compiled script's fallback. A
+  defect found in that gap is a finding to report, and the remedy is the
+  owner's call.
 - Do NOT lower the `skills stats --sim` default to catch semantic twins.
   Measured 2026-08-21 against three known pairs: they score 0.41, 0.39 and
   0.26 while a build-vs-probe FALSE positive scores 0.31, so no threshold on

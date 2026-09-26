@@ -25,29 +25,34 @@ export const TRUST_THRESHOLD_SUCCESSES = 3;
 /**
  * Operator overrides for the three lifecycle thresholds, read at CALL time
  * so a single run can be made more (or less) cautious without a rebuild:
- *   ATOMA_TRUST_THRESHOLD   → successes before validators are skipped (3)
- *   ATOMA_PROMOTE_THRESHOLD → successes before llm→script compilation (3)
+ *   ATOMA_TRUST_THRESHOLD   → successes before a TYPE's validators are skipped (3)
+ *   ATOMA_PROMOTE_THRESHOLD → credited successes before llm→script compilation (0)
  *   ATOMA_DEMOTE_AFTER      → deterministic failures before demotion (2)
- * Invalid or non-positive values fall back to the default rather than
- * disabling a safety gate — a typo must never make the system LESS careful.
- * The constants above remain the documented defaults and the values tests
- * assert against.
+ * Invalid values fall back to the default rather than disabling a safety
+ * gate — a typo must never make the system LESS careful. Each knob has a
+ * floor: 1 for the two whose zero would switch a gate off, 0 for promotion,
+ * whose default IS zero. The constants above remain the documented defaults
+ * and the values tests assert against.
  */
-function envThreshold(name: string, fallback: number): number {
+function envThreshold(name: string, fallback: number, floor = 1): number {
   const raw = process.env[name];
   if (raw === undefined) return fallback;
   const n = Number(raw);
-  return Number.isInteger(n) && n > 0 ? n : fallback;
+  return Number.isInteger(n) && n >= floor ? n : fallback;
 }
 
-/** Consecutive successes for types; clean lifetime successes for skills. */
+/** Consecutive successes before a TYPE is trusted. Skills do not read it. */
 export function trustThreshold(): number {
   return envThreshold('ATOMA_TRUST_THRESHOLD', TRUST_THRESHOLD_SUCCESSES);
 }
 
-/** Successes (with zero failures) before an llm skill attempts compilation. */
+/**
+ * Credited successes (with zero failures) before an llm skill attempts
+ * compilation. Zero by default, which means AT LEARN TIME — see
+ * TRUST_PROMOTE_THRESHOLD_SUCCESSES. An operator may raise it for one run.
+ */
 export function promoteThreshold(): number {
-  return envThreshold('ATOMA_PROMOTE_THRESHOLD', TRUST_PROMOTE_THRESHOLD_SUCCESSES);
+  return envThreshold('ATOMA_PROMOTE_THRESHOLD', TRUST_PROMOTE_THRESHOLD_SUCCESSES, 0);
 }
 
 /** Consecutive deterministic failures before a script skill is demoted. */
@@ -56,32 +61,35 @@ export function demoteAfter(): number {
 }
 
 /**
- * When an `kind: 'llm'` skill crosses this many SUCCESSES with zero
- * recorded failures, the supervisor will attempt to PROMOTE it to a
- * deterministic `kind: 'script'` body via a Sonnet compile call. The
- * promoted skill executes via a single LLM round-trip + write_file +
- * run_shell instead of a full LLM-driven recipe each time, cutting
- * Haiku tool-loop spend on stable patterns. Demotion (any future
- * failure on the script form) restores the original llm body from a
- * sidecar `_fallback.md` and increments `failures`; the `failures > 0`
- * gate then blocks re-promotion until the operator manually resets the
- * counters or deletes the skill. Five was the original pick (matching
- * the trust level observed on the LoL-SSR run's
- * `scaffold-node-ssr-sqlite-api` skill, 5/2 lifetime); lowered to THREE
- * after the 2026-08-07 threshold experiment (batches 14-15, run under
- * ATOMA_PROMOTE_THRESHOLD=3): across every compile attempt of the
- * campaign the success count NEVER changed the compiler's verdict —
- * compilable recipes compiled at their first attempt and irreducible-
- * reasoning recipes were refused with the same rationale at any count —
- * so the extra two runs only delayed the outcome (~$0.60-1 + two runs of
- * latency per lineage) while the downstream gates (compiler refusal,
- * static scan, generation-stamped anti-thrash, post-promotion counter
- * RESET + re-earned trust, deliverable gate, demotion streak) carry the
- * actual safety. The count still matters as a match-surface sample for
- * LEARNED skills; three matched-and-credited runs proved sufficient to
- * expose a bad surface in practice (free-ride gap + `skills stats`).
+ * Credited SUCCESSES an `kind: 'llm'` skill needs, with zero recorded
+ * failures, before the supervisor attempts to PROMOTE it to a deterministic
+ * `kind: 'script'` body via one compile call. ZERO since 2026-09-26 (owner
+ * decision, docs/compile-at-learn-2026-09-26.md): a recipe that CAN be
+ * compiled is compiled the moment it is learned, from the very run it was
+ * distilled from, instead of waiting for credit. The compiler either
+ * produces a script or refuses with a reason, and the refusal is stamped.
+ *
+ * The count was never what decided compilability. It started at five,
+ * matching the trust level observed on the LoL-SSR run's
+ * `scaffold-node-ssr-sqlite-api` skill (5/2 lifetime), and was lowered to
+ * three after the 2026-08-07 threshold experiment (batches 14-15, run under
+ * ATOMA_PROMOTE_THRESHOLD=3): across every compile attempt of the campaign
+ * the success count NEVER changed the compiler's verdict — compilable
+ * recipes compiled at their first attempt and irreducible-reasoning recipes
+ * were refused with the same rationale at any count. What the count still
+ * bought was a match-surface sample: only a recipe that had been matched
+ * and credited paid for a compile. At zero, every learned draft pays for
+ * its compile, including twins and recipes that will never match again.
+ * The downstream gates — compiler refusal, static scan, generation-stamped
+ * anti-thrash, the post-promotion counter RESET, the deliverable gate and
+ * the demotion streak — carry the safety, as they already did.
+ *
+ * Demotion (a failure on the script form) restores the original llm body
+ * from the `_fallback.md` sidecar and increments `failures`; the
+ * `failures > 0` gate then blocks re-promotion until the operator resets
+ * the counters or deletes the skill.
  */
-export const TRUST_PROMOTE_THRESHOLD_SUCCESSES = 3;
+export const TRUST_PROMOTE_THRESHOLD_SUCCESSES = 0;
 
 /**
  * Consecutive DETERMINISTIC dispatch failures (non-zero exit or missing
@@ -262,16 +270,32 @@ export function shouldTrustType(type: AtomType): boolean {
 }
 
 /**
- * Skills retain their own clean-lifetime trust contract. Gates the
- * deterministic dispatch of `kind: 'script'` skills in `L2.runSubtask`:
- * a trusted script runs via write_file + run_shell with ZERO LLM calls
- * (no L1 plan/execute, no validators). Note that promotion already
- * requires TRUST_PROMOTE_THRESHOLD_SUCCESSES (3) clean runs, so every
- * freshly promoted script qualifies immediately; hand-written scripts
- * must first earn 3 clean runs through the normal LLM loop.
+ * Gates the deterministic dispatch of `kind: 'script'` skills in
+ * `L2.runSubtask`: a trusted script runs via write_file + run_shell with
+ * ZERO LLM calls (no L1 plan/execute, no validators).
+ *
+ * A script is trusted from its first match unless a failure is on record
+ * (owner decision 2026-09-26, docs/compile-at-learn-2026-09-26.md). Until
+ * then a freshly compiled script — its counters reset by promotion — had to
+ * earn `trustThreshold()` clean runs through the validated LLM loop first.
+ * What stands in for those runs now is mechanical: the envelope contract,
+ * the before/after deliverable gate, the anti-redispatch memo, and the
+ * deterministic-failure demotion streak back to the script's fallback
+ * recipe. None of them judges CONTENT; a script that exits 0 with a
+ * well-formed envelope and changes the named files is accepted unvalidated.
+ *
+ * THE FALLBACK IS PART OF TRUST. A script without a non-empty `_fallback.md`
+ * — a hand-authored one; every compiled script gets one from
+ * `promoteToScript` — can never be demoted, so it is never trusted and runs
+ * through the validated L1 loop instead. skills/AGENTS.md stated that
+ * refusal long before it was enforced: the three clean runs this gate used
+ * to demand were what kept such a script from running unwatched.
  */
-export function shouldTrustSkill(skill: { successes: number; failures: number }): boolean {
-  return skill.failures === 0 && skill.successes >= trustThreshold();
+export function shouldTrustSkill(skill: {
+  readonly failures: number;
+  readonly fallbackBody?: string | undefined;
+}): boolean {
+  return skill.failures === 0 && (skill.fallbackBody ?? '').trim().length > 0;
 }
 
 /** Synthetic verdict returned by the trust fast-path in place of an LLM call. */

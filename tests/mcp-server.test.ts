@@ -739,7 +739,7 @@ describe('MCP readers — the ones the roadmap owed', () => {
     const out = skillShow({ l1: 'mol-1', id: 'long-body' }) as {
       skill: { body: string; bodyChars: number; successes: number; freeRides: number };
       status: string;
-      thresholdsInForce: { trust: number; promote: number };
+      thresholdsInForce: { promote: number; demoteAfter: number };
       caveat: string;
     };
     expect(out.skill.bodyChars).toBe(5000);
@@ -747,7 +747,9 @@ describe('MCP readers — the ones the roadmap owed', () => {
     expect(out.skill.successes).toBe(1);
     expect(out.skill.freeRides).toBe(0);
     expect(out.status).toMatch(/promotion/);
-    expect(out.thresholdsInForce.promote).toBeGreaterThan(0);
+    // Zero by default since 2026-09-26: compiled at learn time.
+    expect(out.thresholdsInForce.promote).toBe(0);
+    expect(out.thresholdsInForce).not.toHaveProperty('trust');
     expect(out.caveat).toBe(SKILL_BODY_CAVEAT);
     expect((skillShow({ l1: 'mol-1', id: 'nope' }) as { note: string }).note).toMatch(/no skill/);
   });

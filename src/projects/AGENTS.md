@@ -213,8 +213,8 @@ list. These values come from the host snapshot, never a tenant prompt.
   ([skill storage contract](../skills/AGENTS.md)).
 - PROMOTION, DETERMINISTIC DISPATCH and the PREFILTER CACHE follow the same
   defaults as any run on the host (a run is a run,
-  [platform trust record](../../docs/platform-trust-2026-09-15.md)): a seeded
-  workspace enables promotion, dispatch is on unless the host env says
+  [platform trust record](../../docs/platform-trust-2026-09-15.md)): promotion
+  is on unless the host env turns it off, dispatch is on unless it says
   `ATOMA_SKILL_DIRECT=0`, and the cache is the platform's. The coordinator
   pins none of them and sends no veto flag; the one thing a tenant launch
   insists on is `--container`. A host that wants a lifecycle stage off says

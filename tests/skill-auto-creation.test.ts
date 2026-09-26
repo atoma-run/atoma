@@ -7,6 +7,7 @@ import { openDb } from '../src/registry/db.js';
 import { L2Atom, parseSkillDraft, parseSkillDrafts, isSafeSkillId } from '../src/atoms/L2Atom.js';
 import { TRUST_THRESHOLD_SUCCESSES } from '../src/atoms/cost.js';
 import { SkillRegistry } from '../src/skills/registry.js';
+import type { SkillEventInfo } from '../src/core/types.js';
 import { makeCtx, jsonText , nsOf} from './helpers.js';
 
 /**
@@ -616,6 +617,135 @@ describe('L2 onApproved — skill auto-creation (C3)', () => {
     expect(after).toHaveLength(1);
     expect(after[0]!.id).toBe('web-build-loop');
     expect(after[0]!.successes).toBe(1); // existing skill was used and approved
+  });
+});
+
+describe('L2 onApproved — compile at learn (owner decision 2026-09-26)', () => {
+  let dir: string;
+  let skills: SkillRegistry;
+  let reg: AtomRegistry;
+  const ENV = ['ATOMA_SKILL_LEARN', 'ATOMA_SKILL_PROMOTE', 'ATOMA_PROMOTE_THRESHOLD'] as const;
+  const envBefore = new Map<string, string | undefined>();
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'atoma-skill-compile-at-learn-'));
+    skills = new SkillRegistry(dir);
+    reg = new AtomRegistry(openDb(':memory:'));
+    reg.create(2, seed);
+    reg.create(1, {
+      ...seed,
+      description: 'web builder',
+      systemPrompt: 'You are an L1.',
+      tools: ['write_file', 'read_file', 'run_shell'].map(
+        (name) => ({ name, description: name, inputSchema: { type: 'object' } })
+      ),
+    });
+    for (const key of ENV) envBefore.set(key, process.env[key]);
+    process.env['ATOMA_SKILL_LEARN'] = '1';
+    process.env['ATOMA_SKILL_PROMOTE'] = '1';
+    delete process.env['ATOMA_PROMOTE_THRESHOLD'];
+    for (let i = 0; i < TRUST_THRESHOLD_SUCCESSES; i++) reg.recordSuccess('Water');
+    // A scarecrow recipe, so the skill prefilter really runs and escalates:
+    // learning needs "a match was attempted and nothing fit".
+    skills.save(nsOf(reg, 'Water'), {
+      id: 'unrelated',
+      description: 'something else',
+      whenToUse: 'never matches our task',
+      kind: 'llm',
+      body: 'b',
+    });
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+    for (const key of ENV) {
+      const value = envBefore.get(key);
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  const SCRIPT_BODY =
+    "import fs from 'node:fs';\nfs.writeFileSync('report.txt', 'x');\nconsole.log(JSON.stringify({ output: 'ok', summary: 'checked\\n== GROUND TRUTH ==\\nschema/state: nothing' }));\n";
+
+  function novelApprovedRun(ctx: ReturnType<typeof makeCtx>): void {
+    ctx.llm.enqueueText(jsonText({ kind: 'reuse', target: 'Water', confidence: 'high', reasoning: 't' }));
+    ctx.llm.enqueueText(jsonText({ kind: 'escalate', reasoning: 'no fit' }));
+    ctx.llm.enqueueText(jsonText({ reasoning: 'r', proposedAction: 'a', expectedOutput: 'e' }));
+    enqueueExecutedResult(ctx, { output: 'report.txt', summary: 'wrote and checked the report' });
+    ctx.llm.enqueueText(
+      JSON.stringify({
+        id: 'write-and-check-report',
+        description: 'write a report file and read it back',
+        when_to_use: 'when the task asks to write a report and confirm its contents',
+        body: '1. write_file report.txt\n2. read_file report.txt to confirm it',
+      })
+    );
+  }
+
+  it('compiles the recipe it just learned, before any credited run', async () => {
+    const events: SkillEventInfo[] = [];
+    const ctx = { ...makeCtx(), recordSkill: (e: SkillEventInfo) => events.push(e) };
+    novelApprovedRun(ctx);
+    ctx.llm.enqueueText(JSON.stringify({ promotable: true, language: 'node', body: SCRIPT_BODY }));
+
+    await L2Atom.fromType(reg.getByName('Tracheid')!, reg, [], skills)
+      .handleDirect({ description: 'write the report and check it' }, ctx);
+
+    // tier prefilter, skill prefilter, plan, execute, distil, compile.
+    expect(ctx.llm.calls).toHaveLength(6);
+    expect(ctx.llm.calls[5]!.userContent).toMatch(/You are PROMOTING a SKILL/);
+    const learned = skills.loadFor(nsOf(reg, 'Water')).find((s) => s.id === 'write-and-check-report')!;
+    expect(learned).toMatchObject({ kind: 'script', language: 'node', successes: 0, failures: 0 });
+    expect(learned.body.trim()).toBe(SCRIPT_BODY.trim());
+    // The distilled recipe is the fallback a demotion restores.
+    expect(learned.fallbackBody).toMatch(/read_file report\.txt/);
+    expect(existsSync(join(dir, nsOf(reg, 'Water'), 'write-and-check-report', '_fallback.md'))).toBe(true);
+    const promote = events.find((e) => e.op === 'promote')!;
+    expect(promote.reasoning).toBe('compiled to node at learn time');
+    expect(events.filter((e) => e.op === 'learn' || e.op === 'promote').map((e) => e.op))
+      .toEqual(['learn', 'promote']);
+  });
+
+  it('stamps a learn-time refusal, so the next credited run does not recompile the same body', async () => {
+    const ctx = makeCtx();
+    novelApprovedRun(ctx);
+    ctx.llm.enqueueText(JSON.stringify({ promotable: false, reason: 'the report wording is judgment' }));
+
+    await L2Atom.fromType(reg.getByName('Tracheid')!, reg, [], skills)
+      .handleDirect({ description: 'write the report and check it' }, ctx);
+
+    const learned = skills.loadFor(nsOf(reg, 'Water')).find((s) => s.id === 'write-and-check-report')!;
+    expect(learned.kind).toBe('llm');
+    expect(learned.promotionRefusedReason).toBe('the report wording is judgment');
+
+    // Next run: the recipe matches, drives an approved run, is credited —
+    // and NO compile call follows (the queue holds none; a call would throw).
+    const next = makeCtx();
+    next.llm.enqueueText(jsonText({ kind: 'reuse', target: 'Water', confidence: 'high', reasoning: 't' }));
+    next.llm.enqueueText(
+      jsonText({ kind: 'reuse', target: 'write-and-check-report', confidence: 'high', reasoning: 'fit' })
+    );
+    next.llm.enqueueText(jsonText({ reasoning: 'r', proposedAction: 'a', expectedOutput: 'e' }));
+    enqueueExecutedResult(next, { output: 'report.txt', summary: 'wrote and checked the report' });
+    await L2Atom.fromType(reg.getByName('Tracheid')!, reg, [], skills)
+      .handleDirect({ description: 'write the other report and check it' }, next);
+    expect(next.llm.calls).toHaveLength(4);
+    expect(skills.loadFor(nsOf(reg, 'Water')).find((s) => s.id === 'write-and-check-report')!)
+      .toMatchObject({ kind: 'llm', successes: 1 });
+  });
+
+  it('learns without compiling when promotion is off', async () => {
+    process.env['ATOMA_SKILL_PROMOTE'] = '0';
+    const ctx = makeCtx();
+    novelApprovedRun(ctx);
+
+    await L2Atom.fromType(reg.getByName('Tracheid')!, reg, [], skills)
+      .handleDirect({ description: 'write the report and check it' }, ctx);
+
+    expect(ctx.llm.calls).toHaveLength(5);
+    const learned = skills.loadFor(nsOf(reg, 'Water')).find((s) => s.id === 'write-and-check-report')!;
+    expect(learned).toMatchObject({ kind: 'llm', successes: 0 });
+    expect(learned.promotionRefusedAt).toBeUndefined();
   });
 });
 

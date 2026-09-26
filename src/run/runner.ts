@@ -137,8 +137,7 @@ export type SkillPromotionSource =
   | 'cli-disable'
   | 'environment-enable'
   | 'environment-disable'
-  | 'seed-default'
-  | 'default-disable';
+  | 'default-enable';
 
 export interface SkillPromotionDecision {
   readonly enabled: boolean;
@@ -318,14 +317,16 @@ export function parseRunnerArgs(argv: readonly string[]): RunnerArgs {
 /**
  * Resolve the llm→script compilation policy without starting a run.
  *
- * Promotion has value on maintenance work, represented today by a seeded
- * workspace. From-scratch runs keep compilation frozen unless the operator
- * explicitly opts in. The CLI kill switch is a veto, including over a seed
- * and `ATOMA_SKILL_PROMOTE=1`; only that exact environment value enables the
- * compiler, so typos fail closed.
+ * ON by default for every run, seeded or from scratch (owner decision
+ * 2026-09-26, docs/compile-at-learn-2026-09-26.md): a recipe that can be
+ * compiled is compiled when it is learned. Until then a from-scratch run
+ * kept compilation frozen and only a seeded workspace enabled it. The CLI
+ * kill switch is a veto, including over `ATOMA_SKILL_PROMOTE=1`; an explicit
+ * environment value other than exactly "1" disables the compiler, so a typo
+ * fails closed rather than silently leaving it on.
  */
 export function resolveSkillPromotion(
-  args: Pick<RunnerArgs, 'noPromoteSkills' | 'seed'>,
+  args: Pick<RunnerArgs, 'noPromoteSkills'>,
   configuredValue: string | undefined
 ): SkillPromotionDecision {
   if (args.noPromoteSkills) return { enabled: false, source: 'cli-disable' };
@@ -333,8 +334,7 @@ export function resolveSkillPromotion(
   if (configuredValue !== undefined) {
     return { enabled: false, source: 'environment-disable' };
   }
-  if (args.seed) return { enabled: true, source: 'seed-default' };
-  return { enabled: false, source: 'default-disable' };
+  return { enabled: true, source: 'default-enable' };
 }
 
 /**
@@ -668,17 +668,15 @@ export async function startTask(
   } else {
     console.log('skill auto-distillation: ON (default — pass --no-learn-skills to disable)');
   }
-  // Skill llm→script PROMOTION (#C2c). When a kind:llm skill crosses
-  // TRUST_PROMOTE_THRESHOLD_SUCCESSES with zero failures, the L2 makes a
-  // single Sonnet call to compile its body into a deterministic Node
-  // script. On approval the next match runs the script via write_file +
-  // run_shell instead of an LLM tool-loop. Compilation is frozen by default
-  // on from-scratch work: it has measured value on MAINTENANCE tasks, which
-  // today are identified by a seeded workspace. Priority is CLI veto > exact
-  // env opt-in/opt-out > seed default > default-off. Demotion (any future
-  // failure on the script form) restores the stashed llm body from the
-  // `_fallback.md` sidecar, and the failures-must-be-zero gate then blocks
-  // re-promotion until the operator resets the counters by hand.
+  // Skill llm→script PROMOTION (#C2c). The L2 makes a single compile call
+  // on every recipe it learns (and on any uncompiled kind:llm recipe at its
+  // next credited success), turning the body into a deterministic Node
+  // script. The next match runs the script via write_file + run_shell
+  // instead of an LLM tool-loop. Priority is CLI veto > exact env
+  // opt-in/opt-out > default-on. Demotion (any future failure on the script
+  // form) restores the stashed llm body from the `_fallback.md` sidecar, and
+  // the failures-must-be-zero gate then blocks re-promotion until the
+  // operator resets the counters by hand.
   const promotionEnv = hostEnv.promote;
   const promotion = resolveSkillPromotion(args, promotionEnv);
   process.env['ATOMA_SKILL_PROMOTE'] = promotion.enabled ? '1' : '0';
@@ -690,21 +688,16 @@ export async function startTask(
     console.log(
       `skill llm→script promotion: off (ATOMA_SKILL_PROMOTE=${JSON.stringify(promotionEnv)}; only exact "1" enables)`
     );
-  } else if (promotion.source === 'seed-default') {
-    console.log(
-      'skill llm→script promotion: ON (maintenance seed default — pass --no-promote-skills to disable)'
-    );
   } else {
     console.log(
-      'skill llm→script promotion: off (from-scratch default — set ATOMA_SKILL_PROMOTE=1 to opt in)'
+      'skill llm→script promotion: ON (default, compiled at learn — pass --no-promote-skills to disable)'
     );
   }
-  // Deterministic dispatch of TRUSTED kind:script skills (#C4). A script
-  // skill with 3+ clean runs executes via write_file + run_shell with
-  // ZERO LLM calls; any deviation falls back to the normal LLM loop.
-  // Unlike learn/promote this is a kill switch, not an opt-in — the lib
-  // enables it whenever ATOMA_SKILL_DIRECT !== '0', because the path
-  // costs nothing and is gated by trust counters.
+  // Deterministic dispatch of kind:script skills (#C4). A script skill with
+  // no recorded failure executes via write_file + run_shell with ZERO LLM
+  // calls from its first match; any deviation falls back to the normal LLM
+  // loop. Unlike learn/promote this is a kill switch, not an opt-in — the
+  // lib enables it whenever ATOMA_SKILL_DIRECT !== '0'.
   const direct = resolveDirectDispatch(args.noDirectSkills, hostEnv.direct);
   process.env['ATOMA_SKILL_DIRECT'] = direct.enabled ? '1' : '0';
   if (direct.source === 'cli-disable') {

@@ -112,7 +112,7 @@ export function skillReset(input: { l1: string; id: string; actor: OperatorActor
     after: { successes: 0, failures: 0, promotionRefusedAt: null },
     actor: input.actor.label,
     journaled,
-    note: `The skill re-earns trust from scratch: deterministic dispatch after ${trustThreshold()} clean runs, promotion attempt after ${promoteThreshold()}.`,
+    note: `Counters and refusal stamp cleared: a script dispatches deterministically again at once; an llm recipe re-attempts compilation after ${Math.max(1, promoteThreshold())} credited run(s).`,
   };
 }
 

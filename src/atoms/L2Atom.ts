@@ -834,8 +834,8 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         });
 
         // Deterministic dispatch (#C4). A TRUSTED `kind: 'script'` skill
-        // (3+ clean runs AFTER promotion, zero failures — promotion resets
-        // the markdown recipe's counters so the new script earns trust)
+        // (zero recorded failures and a fallback recipe to demote to — since
+        // 2026-09-26 no clean runs are required first, see `shouldTrustSkill`)
         // is executed DIRECTLY
         // via write_file + run_shell: zero LLM calls, no L1 plan/execute,
         // no validators. The script's exit code + envelope contract
@@ -1050,6 +1050,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     child: L1Atom;
     ctx: RunContext;
     visibleNamespaces?: readonly string[];
+    hostTools?: readonly string[];
   }): Promise<void> {
     await this.lifecycle()?.learnSkillFromRun(args);
   }
@@ -1708,6 +1709,9 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
               ...(skillCtx.visibleNamespaces
                 ? { visibleNamespaces: skillCtx.visibleNamespaces }
                 : {}),
+              // Learning compiles what it learns; the scan reads the HOME's
+              // declared tools, as the credit path's promotion does (R3).
+              hostTools: (this.registry.getByAtomId(skillCtx.l1Name)?.tools ?? []).map((t) => t.name),
             });
           } catch (err) {
             ctx.logger.warn(

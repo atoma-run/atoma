@@ -12,12 +12,13 @@ import { TRUST_THRESHOLD_SUCCESSES } from '../src/atoms/cost.js';
 import { SkillRegistry } from '../src/skills/registry.js';
 import type { RunContext, SkillEventInfo, ToolExecutor } from '../src/core/types.js';
 import { MockLlmClient } from '../src/core/llm.js';
-import { makeCtx, jsonText , nsOf} from './helpers.js';
+import { makeCtx, jsonText , nsOf, saveCompiledScript } from './helpers.js';
 
 /**
  * Tests for #C4 — DETERMINISTIC DISPATCH of trusted `kind: 'script'`
  * skills. When the skill prefilter matches a script skill whose own
- * counters pass the trust gate (3+ successes, 0 failures) and
+ * counters pass the trust gate (0 failures — since 2026-09-26 no clean
+ * runs are required first) and
  * `ctx.tools` is wired, L2 executes the script directly via
  * write_file + run_shell — zero LLM calls for the subtask (no L1
  * plan/execute, no validators). Any deviation (non-zero exit, missing
@@ -169,15 +170,20 @@ describe('L2.runSubtask — deterministic script dispatch (C4)', () => {
   }
 
   function saveScriptSkill(successes: number): void {
-    skills.save(nsOf(reg, 'Water'), {
+    saveCompiledScript(skills, nsOf(reg, 'Water'), {
       id: 'scaffold-config',
       description: 'write a canonical config file',
       whenToUse: 'when the subtask asks for the standard config scaffold',
-      kind: 'script',
       language: 'node',
       body: SCRIPT_BODY,
     });
     for (let i = 0; i < successes; i++) skills.recordSuccess(nsOf(reg, 'Water'), 'scaffold-config');
+  }
+
+  /** The one untrusted state left: a script with a failure on record. */
+  function saveUntrustedScriptSkill(): void {
+    saveScriptSkill(0);
+    skills.recordFailure(nsOf(reg, 'Water'), 'scaffold-config');
   }
 
   function makeCtxWith(
@@ -249,9 +255,36 @@ describe('L2.runSubtask — deterministic script dispatch (C4)', () => {
     expect(events.map((e) => e.op)).toEqual(['match', 'direct', 'success']);
   });
 
-  it('does NOT dispatch an untrusted script skill (falls through to the LLM loop)', async () => {
+  it('dispatches a never-credited script (0/0) on its very first match', async () => {
+    // Owner decision 2026-09-26: a freshly compiled script — counters reset
+    // by promotion — does not earn clean runs before it runs unwatched.
     trustAtomType();
-    saveScriptSkill(0); // 0/0 — below the trust threshold
+    saveScriptSkill(0);
+    const { executor, calls } = makeExecutor({ exitCode: 0, stdout: `${ENVELOPE_LINE}
+`, stderr: '' });
+    const events: SkillEventInfo[] = [];
+    const neuron = L2Atom.fromType(reg.getByName('Tracheid')!, reg, [], skills);
+    const ctx = makeCtxWith(executor, events);
+    ctx.llm.enqueueText(
+      jsonText({ kind: 'reuse', target: 'Water', confidence: 'high', reasoning: 'tier' })
+    );
+    ctx.llm.enqueueText(
+      jsonText({ kind: 'reuse', target: 'scaffold-config', confidence: 'high', reasoning: 'fits' })
+    );
+
+    const result = await neuron.handleDirect({ description: 'scaffold the config' }, ctx);
+
+    expect(ctx.llm.calls).toHaveLength(2);
+    expect(result.output).toEqual({ built: true });
+    expect(calls.map((c) => c.name)).toEqual(['write_file', 'run_shell', 'run_shell']);
+    const loaded = skills.loadFor(nsOf(reg, 'Water')).find((s) => s.id === 'scaffold-config')!;
+    expect(loaded.successes).toBe(1);
+    expect(events.map((e) => e.op)).toEqual(['match', 'direct', 'success']);
+  });
+
+  it('does NOT dispatch a script with a recorded failure (falls through to the LLM loop)', async () => {
+    trustAtomType();
+    saveUntrustedScriptSkill(); // 0/1 — a failure revokes dispatch
     const { executor, calls } = makeExecutor({ exitCode: 0, stdout: ENVELOPE_LINE, stderr: '' });
     const events: SkillEventInfo[] = [];
     const neuron = L2Atom.fromType(reg.getByName('Tracheid')!, reg, [], skills);
@@ -278,9 +311,46 @@ describe('L2.runSubtask — deterministic script dispatch (C4)', () => {
     expect(events.map((e) => e.op)).toEqual(['match', 'inject', 'credit-withheld']);
   });
 
+  it('does NOT dispatch a hand-authored script without a fallback, however clean its record', async () => {
+    // skills/AGENTS.md: a script without _fallback.md is undemotable and is
+    // refused before dispatch. The earned-run wait used to be the only thing
+    // keeping such a script from running unwatched; with it gone (2026-09-26)
+    // the refusal lives in shouldTrustSkill.
+    trustAtomType();
+    skills.save(nsOf(reg, 'Water'), {
+      id: 'scaffold-config',
+      description: 'write a canonical config file',
+      whenToUse: 'when the subtask asks for the standard config scaffold',
+      kind: 'script',
+      language: 'node',
+      body: SCRIPT_BODY,
+    });
+    for (let i = 0; i < TRUST_THRESHOLD_SUCCESSES; i++) skills.recordSuccess(nsOf(reg, 'Water'), 'scaffold-config');
+    const { executor, calls } = makeExecutor({ exitCode: 0, stdout: ENVELOPE_LINE, stderr: '' });
+    const events: SkillEventInfo[] = [];
+    const neuron = L2Atom.fromType(reg.getByName('Tracheid')!, reg, [], skills);
+    const ctx = makeCtxWith(executor, events);
+    ctx.llm.enqueueText(
+      jsonText({ kind: 'reuse', target: 'Water', confidence: 'high', reasoning: 'tier' })
+    );
+    ctx.llm.enqueueText(
+      jsonText({ kind: 'reuse', target: 'scaffold-config', confidence: 'high', reasoning: 'fits' })
+    );
+    ctx.llm.enqueueText(jsonText({ reasoning: 'r', proposedAction: 'a', expectedOutput: 'e' }));
+    enqueueExecutedResult(ctx, { output: 'done', summary: 'ok' });
+
+    const result = await neuron.handleDirect({ description: 'scaffold the config' }, ctx);
+
+    expect(result.summary).toBe('ok');
+    expect(ctx.llm.calls).toHaveLength(4);
+    expect(calls).toHaveLength(0);
+    expect(ctx.llm.calls[2]!.systemPrompt).toMatch(/== ACTIVE SKILL: scaffold-config/);
+    expect(events.map((e) => e.op)).not.toContain('direct');
+  });
+
   it('credits an untrusted script only when L1 writes and runs its exact scratch file', async () => {
     trustAtomType();
-    saveScriptSkill(0);
+    saveUntrustedScriptSkill();
     const { executor } = makeExecutor({ exitCode: 0, stdout: ENVELOPE_LINE, stderr: '' });
     const events: SkillEventInfo[] = [];
     const neuron = L2Atom.fromType(reg.getByName('Tracheid')!, reg, [], skills);
@@ -523,11 +593,10 @@ describe('L2.runSubtask — deterministic script dispatch (C4)', () => {
     // BEFORE the envelope parse could reject it, leaving the LLM loop to
     // clean up after a side effect it didn't cause. The gate must skip the
     // run entirely, not run-then-reject.
-    skills.save(nsOf(reg, 'Water'), {
+    saveCompiledScript(skills, nsOf(reg, 'Water'), {
       id: 'scaffold-config',
       description: 'write a canonical config file',
       whenToUse: 'when the subtask asks for the standard config scaffold',
-      kind: 'script',
       language: 'node',
       body: [
         `const fs = require('fs');`,
@@ -670,8 +739,8 @@ describe('anti-redispatch guard — a reproduced dispatch output routes to the L
     reg.create(2, { description: 'l2', systemPrompt: 'l2', tools: [], params: {}, createdBy: 't' });
     reg.create(1, { description: 'l1', systemPrompt: 'l1', tools: [], params: {}, createdBy: 't' });
     for (let i = 0; i < 3; i++) reg.recordSuccess('Water');
-    skills.save(nsOf(reg, 'Water'), {
-      id: 'verify-stuff', description: 'd', whenToUse: 'w', kind: 'script', language: 'node',
+    saveCompiledScript(skills, nsOf(reg, 'Water'), {
+      id: 'verify-stuff', description: 'd', whenToUse: 'w', language: 'node',
       body: 'console.log(JSON.stringify({output: "ok", summary: "done"}))',
     });
     for (let i = 0; i < 3; i++) skills.recordSuccess(nsOf(reg, 'Water'), 'verify-stuff');
@@ -808,11 +877,10 @@ describe('deliverable gate — a script cannot report success for a file it neve
     reg2.create(2, SEED2);
     reg2.create(1, { ...SEED2, description: 'builder', systemPrompt: 'You are an L1.' });
     for (let i = 0; i < TRUST_THRESHOLD_SUCCESSES; i++) reg2.recordSuccess('Water');
-    skills2.save(nsOf(reg2, 'Water'), {
+    saveCompiledScript(skills2, nsOf(reg2, 'Water'), {
       id: 'scaffold-config',
       description: 'write a canonical config file',
       whenToUse: 'when the subtask asks for the standard config scaffold',
-      kind: 'script',
       language: 'node',
       body: OPAQUE_SCRIPT_BODY,
     });
@@ -872,11 +940,10 @@ describe('deliverable gate — a script cannot report success for a file it neve
     // after a wasted dispatch, five times in six runs, taking dispatches from
     // 10 to 1. Filtering the catalogue is cheaper and more precise than
     // rejecting the result.
-    skills2.save(nsOf(reg2, 'Water'), {
+    saveCompiledScript(skills2, nsOf(reg2, 'Water'), {
       id: 'readonly-verifier',
       description: 'replay recorded invocations',
       whenToUse: 'confirm a CLI still behaves as recorded',
-      kind: 'script',
       language: 'node',
       body: "import fs from 'node:fs';\nJSON.parse(fs.readFileSync('.atoma-probes.json','utf8'));\nconsole.log('{}');",
     });

@@ -48,9 +48,9 @@ export function compileEffortForModel(model: string): 'low' | 'medium' {
  * ====================================================================
  * Everything a supervisor does to its L1 children's persistent skills:
  * match (prefilter) → inject, learn (distill on approved novel runs),
- * revise (on escalation), promote llm→script (compile at trust), dispatch
- * a trusted script with ZERO LLM calls, and demote on deterministic-
- * failure streaks. The behaviour, prompts and guards are verbatim from
+ * revise (on escalation), promote llm→script (compile at learn), dispatch
+ * a script with ZERO LLM calls, and demote on deterministic-failure
+ * streaks. The behaviour, prompts and guards are verbatim from
  * L2Atom — the move gives the ~600-line engine its own module boundary,
  * its own import surface (auditable: which LLM calls it can make), and a
  * host interface instead of supervisor internals.
@@ -371,6 +371,12 @@ export class SkillLifecycle {
      * have matched, so a same-id draft is a twin in the making.
      */
     visibleNamespaces?: readonly string[];
+    /**
+     * DECLARED tools of the HOME namespace, for the compile-at-learn static
+     * scan. Same source as the credit path's `tryPromoteSkill` call, so a
+     * body is judged against one toolset whichever path compiles it.
+     */
+    hostTools?: readonly string[];
   }): Promise<void> {
     if (!resultHasSuccessfulToolAction(args.result)) {
       args.ctx.logger.debug(
@@ -420,9 +426,10 @@ export class SkillLifecycle {
             `fresh name. Emit that EXACT existing id (the caller keeps the earned`,
             `recipe untouched, which is the outcome you want) or omit the draft.`,
             `A twin under a new name is the single most expensive thing you can`,
-            `produce here, because promotion to a zero-token script needs N clean`,
-            `successes on ONE id: two half-credited twins never reach it, and both`,
-            `sit in the catalogue competing for every future match.`,
+            `produce here: every learned recipe pays its own compile call, and`,
+            `two twins then sit in the catalogue competing for every future`,
+            `match, splitting the credit and failure evidence that decides`,
+            `whether either of them keeps its zero-token script.`,
             `MEASURED 2026-08-21, one 6-task batch, 6 of 11 learned skills were`,
             `three twin pairs: "recheck-recorded-cli-probes" beside`,
             `"recheck-cli-invocations-match-manifest", "zero-dep-http-crud-api"`,
@@ -450,8 +457,8 @@ export class SkillLifecycle {
       `this one line. It never sees the workspace, the file system, or what a`,
       `previous phase produced. So an activation condition phrased as DISK`,
       `STATE is unmatchable — not merely weak, but impossible to evaluate — and`,
-      `a recipe that is never picked never earns the successes that would let`,
-      `it compile into a zero-cost script.`,
+      `a recipe that is never picked is never used, however cheaply it was`,
+      `compiled.`,
       `MEASURED, and the split is clean: two verification recipes phrased as`,
       `disk state ("a probe manifest already exists in the workspace", "an`,
       `entry script and fixture exist on disk") sat at ONE match after ten`,
@@ -499,10 +506,11 @@ export class SkillLifecycle {
       `stderr against what is documented or expected, reading files back — ALSO`,
       `emit it as a standalone skill under a "verification" key on the same JSON`,
       `object (same four fields, a DIFFERENT id). Verification recipes are the`,
-      `ones that can later compile into deterministic zero-cost scripts, but only`,
-      `if they carry no design steps: every step must be DERIVABLE from the`,
-      `workspace alone (the entry file, the .atoma-probes.json manifest when`,
-      `the run wrote one, fixture files present on disk).`,
+      `ones that compile, right after this call, into deterministic zero-cost`,
+      `scripts, but only if they carry no design steps: every step must be`,
+      `DERIVABLE from the workspace alone (the entry file, the`,
+      `.atoma-probes.json manifest when the run wrote one, fixture files`,
+      `present on disk).`,
       `INPUT PRECEDENCE — this decides whether the recipe can ever compile:`,
       `when the run wrote .atoma-probes.json, step 1 of the verification`,
       `recipe MUST read THAT. A README is at best a named fallback, never the`,
@@ -548,6 +556,7 @@ export class SkillLifecycle {
     // verification skill, and vice versa. The existence check re-reads the
     // registry inside the loop so a duplicate id later in the same response
     // hits the no-overwrite guard like any other duplicate.
+    const learned: string[] = [];
     for (const draft of drafts) {
       if (!isSafeSkillId(draft.id)) {
         args.ctx.logger.warn(
@@ -597,6 +606,32 @@ export class SkillLifecycle {
         actorTier: 2,
         reasoning: draft.description,
       });
+      learned.push(draft.id);
+    }
+    // COMPILE AT LEARN (owner decision 2026-09-26,
+    // docs/compile-at-learn-2026-09-26.md). A recipe that can be compiled is
+    // compiled now, from the run it was distilled from, rather than after it
+    // has earned credit. Every draft is SAVED before any compile starts, so a
+    // compile that errors or times out cannot cost a sibling draft its body.
+    // The ordinary promotion gates decide: the policy switch, a zero
+    // threshold (an operator may raise it), the refusal stamp. A refusal is
+    // stamped there, so the recipe stays kind:llm and is not recompiled
+    // until its body or the compiler changes.
+    for (const skillId of learned) {
+      try {
+        await this.tryPromoteSkill({
+          l1Name: args.l1Name,
+          skillId,
+          subTask: args.subTask,
+          result: args.result,
+          ctx: args.ctx,
+          ...(args.hostTools ? { hostTools: args.hostTools } : {}),
+        });
+      } catch (err) {
+        args.ctx.logger.warn(
+          `[${this.host.name}] compile at learn of "${skillId}" errored: ${(err as Error).message}; the recipe stays kind:llm`
+        );
+      }
     }
   }
 
@@ -793,15 +828,18 @@ export class SkillLifecycle {
   }
 
   /**
-   * Try to PROMOTE a `kind: 'llm'` skill to `kind: 'script'` after a
-   * successful run. The eligibility gate runs first (cheap local
-   * check); only if it passes do we make the Sonnet compile call. The
-   * compile asks the model to either produce a deterministic Node
-   * script body OR refuse with a reason. On a clean compile we call
-   * `registry.promoteToScript` which stashes the original llm body in
-   * `_fallback.md` so demotion can restore it.
+   * Try to PROMOTE a `kind: 'llm'` skill to `kind: 'script'`. Two callers:
+   * `learnSkillFromRun`, right after a draft is saved (the default path,
+   * since the threshold is zero), and the credit path after an approved
+   * skilled run (a recipe learned while promotion was off, or under a raised
+   * threshold). The eligibility gate runs first (cheap local check); only
+   * if it passes do we make the compile call. The compile asks the model to
+   * either produce a deterministic Node script body OR refuse with a
+   * reason. On a clean compile we call `registry.promoteToScript` which
+   * stashes the original llm body in `_fallback.md` so demotion can
+   * restore it.
    *
-   * The trigger condition is `successes >= TRUST_PROMOTE_THRESHOLD &&
+   * The trigger condition is `successes >= promoteThreshold() &&
    * failures === 0 && kind === 'llm'`. The `failures === 0` clause
    * also blocks RE-promotion after a demotion (which bumps `failures`
    * via `recordFailure` upstream), so a script that broke and got
@@ -813,7 +851,7 @@ export class SkillLifecycle {
    * declines (returns `promotable: false`), no script is saved and the
    * skill stays as `kind: 'llm'`. We do NOT retry on the next success
    * either — the eligibility gate (`successes >= threshold`) keeps
-   * firing forever once the threshold is crossed, so to prevent
+   * firing on every later credited success, so to prevent
    * Sonnet-call thrash on un-promotable skills we stamp the attempt on
    * the skill's trust row (`promotionRefusedAt`). Future runs see it and skip.
    */
@@ -1006,7 +1044,12 @@ export class SkillLifecycle {
       skillId: args.skillId,
       actorName: this.host.name,
       actorTier: 2,
-      reasoning: `compiled to ${compiled.language} after ${skill.successes} successes`,
+      // Zero credited successes can only mean the learn-time call: the
+      // credit path bumps the counter before it asks.
+      reasoning:
+        skill.successes === 0
+          ? `compiled to ${compiled.language} at learn time`
+          : `compiled to ${compiled.language} after ${skill.successes} credited successes`,
     });
   }
 
@@ -1209,6 +1252,13 @@ export class SkillLifecycle {
           // behind the measurement: the filter exists to save a WASTED DISPATCH, so
           // where no dispatch is possible there is nothing to save and refusing costs
           // only credit.
+          // Since 2026-09-26 every script with a fallback and no recorded failure
+          // is trusted (`shouldTrustSkill`), so the filter now sees every
+          // compiled script's match. The
+          // starvation above no longer applies — no counter has to be earned
+          // before dispatch — but its cost moved: a phase this predicate refuses
+          // gets no recipe at all, where it used to get the script injected into
+          // the validated loop. Measure that before widening or narrowing it.
           if (
             s.kind === 'script' &&
             shouldTrustSkill(s) &&
@@ -1529,8 +1579,9 @@ export class SkillLifecycle {
     if (streak < demoteAfter()) return;
     const demoted = this.skills.demoteToLlm(l1Name, skill.id);
     if (!demoted) {
-      // No _fallback.md (hand-authored script) — nothing to restore. The
-      // pre-flight envelope gate is what keeps such skills mostly harmless.
+      // No _fallback.md (hand-authored script) — nothing to restore.
+      // `shouldTrustSkill` keeps such a script off deterministic dispatch,
+      // so this branch is reached only by a caller that skipped that gate.
       ctx.logger.warn(
         `[${this.host.name}] script skill "${skill.id}" hit ${streak} deterministic failures but has no llm fallback — leaving as-is`
       );

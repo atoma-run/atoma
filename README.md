@@ -183,8 +183,9 @@ keeps its starting workspace when it does.
   the goal and its acceptance criteria.
 - **Trust is earned.** Components that keep succeeding can skip some model
   reviews while retaining mechanical checks. A failure revokes that trust.
-- **Skills carry forward.** Verified work becomes reusable recipes. Recipes are
-  compiled into scripts only when a run continues existing work.
+- **Skills carry forward.** Verified work becomes reusable recipes. A recipe
+  that can be turned into a script is compiled as soon as it is learned, and
+  the script then runs without model calls until it fails.
 
 The composition model is **Element → Molecule → Cell → Tissue**: tools, workers,
 supervisors and planners. Read **[How atoma works](docs/how-it-works.md)** for

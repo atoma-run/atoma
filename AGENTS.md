@@ -341,10 +341,14 @@ load-bearing and they are stated once, where the call sites are.
 ## Skills lifecycle
 
 Orientation only — the contract lives in [src/skills](src/skills/AGENTS.md).
-Skills follow learn → match/inject → earn credit → compile → trusted dispatch,
-under owner namespaces keyed by atom id (`skills/<atom-id>/`). Compilation's
-measured value is maintenance verification, not from-scratch builds, and every
-operator lifecycle action is attributable.
+Skills follow learn → compile → match → deterministic dispatch or inject →
+credit, under owner namespaces keyed by atom id (`skills/<atom-id>/`). A
+recipe that can be compiled is compiled when it is learned, on every run, and
+a compiled script dispatches from its first match until it fails (owner
+decision 2026-09-26,
+[docs/compile-at-learn-2026-09-26.md](docs/compile-at-learn-2026-09-26.md)).
+Compilation's measured value is still maintenance verification, not
+from-scratch builds, and every operator lifecycle action is attributable.
 
 Skills and the registry are a platform commons: a RUN IS A RUN. The operator's
 runs and every organisation's runs read the same catalog and the same registry
@@ -459,6 +463,7 @@ The frozen record contains the full dated reasoning behind these rules:
 - [the acceptance checklist: a run says what it will prove — 2026-09-25](docs/acceptance-checklist-2026-09-25.md)
 - [the acceptance checklist on its first real runs: stale local builds, compound items — 2026-09-25](docs/incidents/checklist-first-runs-2026-09-25.md)
 - [production runs over the README use cases: seven runs, seven incidents — 2026-09-26](docs/incidents/production-runs-2026-09-26.md)
+- [compile at learn, dispatch at first match — owner decision 2026-09-26](docs/compile-at-learn-2026-09-26.md)
 - [external code review](docs/code-review-2026-08-14.md)
 - [code review 2026-08-18](docs/code-review-2026-08-18.md)
 - [supervisor-held proof attestation (A1) design review 2026-08-22](docs/supervisor-attestation-a1-review-2026-08-22.md)

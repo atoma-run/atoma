@@ -17,7 +17,7 @@ import type { Skill } from '../src/skills/types.js';
  * tolerant parser.
  */
 
-const GEN = { trust: 3, promote: 5, stampIsCurrent: (g: string | undefined) => g === 'GEN-NOW' };
+const GEN = { promote: 5, stampIsCurrent: (g: string | undefined) => g === 'GEN-NOW' };
 
 function fakeSkill(over: Partial<Skill>): Skill {
   return {
@@ -34,7 +34,7 @@ function fakeSkill(over: Partial<Skill>): Skill {
 }
 
 describe('selectCurriculumTargets', () => {
-  it('categorises: script-maturation, stale-refusal-retry, promotion-push, failed-family', () => {
+  it('categorises: stale-refusal-retry, promotion-push, failed-family', () => {
     const byL1 = new Map([
       [
         'Water',
@@ -55,16 +55,24 @@ describe('selectCurriculumTargets', () => {
       ...GEN,
       failedFamilies: [{ family: 'cli', failed: 2, total: 5 }],
     });
+    // A compiled script is never a target: without a failure it already
+    // dispatches with zero LLM calls (2026-09-26), so no run can mature it.
     expect(targets.map((t) => t.category)).toEqual([
-      'script-maturation',
       'stale-refusal-retry',
       'promotion-push',
       'failed-family-retry',
     ]);
-    expect(targets[0]!.skillId).toBe('fresh-script');
-    expect(targets[0]!.hint).toMatch(/2 more clean validated run/);
-    expect(targets[2]!.hint).toMatch(/1 clean success\(es\) from the llm→script compile/);
-    expect(targets[3]!.family).toBe('cli');
+    expect(targets.some((t) => t.skillId === 'fresh-script')).toBe(false);
+    expect(targets[1]!.hint).toMatch(/1 clean success\(es\) from the llm→script compile/);
+    expect(targets[2]!.family).toBe('cli');
+  });
+
+  it('at the default threshold of zero, a credited uncompiled recipe is one run from its compile', () => {
+    // A recipe credited while promotion was off: the next credited run compiles it.
+    const byL1 = new Map([['Water', [fakeSkill({ id: 'learned-while-off', successes: 2 })]]]);
+    const targets = selectCurriculumTargets({ byL1, ...GEN, promote: 0 });
+    expect(targets.map((t) => [t.category, t.skillId])).toEqual([['promotion-push', 'learned-while-off']]);
+    expect(targets[0]!.hint).toMatch(/is 1 clean success\(es\) from the llm→script compile/);
   });
 
   it('skips blocked skills (failures > 0), refused-current-gen, and never-driven llm skills', () => {
@@ -99,7 +107,7 @@ describe('selectCurriculumTargets', () => {
       ],
     ]);
     const all = selectCurriculumTargets({ byL1, ...GEN });
-    expect(all.map((t) => t.skillId)).toEqual(['script-near', 'push-near', 'push-far']);
+    expect(all.map((t) => t.skillId)).toEqual(['push-near', 'push-far']);
     const capped = selectCurriculumTargets({ byL1, ...GEN, cap: 2 });
     expect(capped).toHaveLength(2);
     expect(selectCurriculumTargets({ byL1, ...GEN }).length).toBeLessThanOrEqual(DEFAULT_TARGET_CAP);

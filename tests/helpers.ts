@@ -8,6 +8,8 @@ import { MockLlmClient } from '../src/core/llm.js';
 import { DEFAULT_LIMITS } from '../src/core/limits.js';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { namespaceOf, type SkillNamespace } from '../src/skills/namespace.js';
+import type { SkillRegistry } from '../src/skills/registry.js';
+import type { SkillLanguage } from '../src/skills/types.js';
 
 export function silentLogger(): Logger {
   return {
@@ -83,4 +85,38 @@ export function nsOf(reg: AtomRegistry, name: string): SkillNamespace {
   const type = reg.getByName(name);
   if (!type) throw new Error(`nsOf: no atom named "${name}" in this registry`);
   return namespaceOf(type);
+}
+
+/**
+ * Seed a COMPILED script the way production makes one: an llm recipe saved,
+ * then `promoteToScript`, which stashes the recipe as `_fallback.md` and
+ * zeroes the counters. A script saved directly as `kind: 'script'` has no
+ * fallback, and `shouldTrustSkill` never trusts it for deterministic
+ * dispatch — it could not be demoted.
+ */
+export function saveCompiledScript(
+  skills: SkillRegistry,
+  ns: string,
+  spec: {
+    id: string;
+    description: string;
+    whenToUse: string;
+    body: string;
+    language?: SkillLanguage;
+    fallback?: string;
+  }
+): void {
+  skills.save(ns, {
+    id: spec.id,
+    description: spec.description,
+    whenToUse: spec.whenToUse,
+    kind: 'llm',
+    body: spec.fallback ?? '1. write the file the subtask names\n2. report what was written',
+  });
+  skills.promoteToScript({
+    l1Name: ns,
+    skillId: spec.id,
+    language: spec.language ?? 'node',
+    scriptBody: spec.body,
+  });
 }

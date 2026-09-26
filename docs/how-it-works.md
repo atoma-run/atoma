@@ -258,7 +258,7 @@ sequenceDiagram
             L2->>L2: mid-tier plan → subtasks
         end
         L2->>L2: check the skill library for a matching recipe
-        alt trusted compiled script whose write targets match the subtask
+        alt compiled script, no failure on record, whose write targets match the subtask
             L2->>W: write script · run it · parse one strict JSON line
             Note over L2,W: zero model calls — falls through to the path below if the<br/>envelope is off-contract or a named file is left untouched
         else
@@ -320,35 +320,44 @@ that — designed, measured and refused.
 ```mermaid
 graph LR
     A["✅ Novel task<br/>solved and verified"] -->|"1 distillation call"| B["📖 Recipe learned<br/><i>build half + verify half,<br/>split automatically</i>"]
-    B -->|"injected at no extra cost<br/>on matching tasks"| C["📈 Trust earned<br/>3 clean runs"]
-    C -->|"1 compile call"| D{"Is this<br/>mechanical?"}
+    B -->|"1 compile call,<br/>at once"| D{"Is this<br/>mechanical?"}
     D -->|"no — judgment required"| X["🚫 Compilation refused<br/><i>reason persisted to disk</i>"]
-    D -->|"yes"| E["⚡ Compiled script<br/><i>counters reset to zero</i>"]
-    E -->|"3 more validated runs"| M{"Does it write the files<br/>this subtask names?"}
+    X -->|"injected at no extra cost<br/>on matching tasks"| C["📈 Recipe guides the<br/>validated loop"]
+    D -->|"yes"| E["⚡ Compiled script<br/><i>counters at zero</i>"]
+    E --> M{"Does it write the files<br/>this subtask names?"}
     M -->|"no — withheld at match time"| C
     M -->|"yes"| F["🏁 Deterministic dispatch<br/><b>0 model calls</b>"]
     F -->|"named file left byte-identical,<br/>or envelope off-contract"| C
     F -->|"2 contract failures"| G["🛡️ Automatic demotion<br/>back to the recipe"]
-    G -.->|"body revised"| C
+    G -.->|"body revised"| B
     style F fill:#000,color:#ffd700
     style X fill:#78350f,color:#fff
     style G fill:#7f1d1d,color:#fff
 ```
 
-The loop is **asymmetric on purpose**. Promotion has to be earned twice — once by the recipe,
-then again by the compiled script, whose counters are reset at compile time precisely because
-the script is a brand-new artefact that has never executed. Demotion takes two failures. A
-wrong script cannot entrench itself. A right one runs free *when it is matched to work it can
-actually do* — and that, not correctness, is the binding constraint: in round 8 a fully trusted,
-correct compiled script was withheld 14 times, every refusal justified, and dispatched zero
-times.
+**Compile at learn, dispatch at first match** (owner decision, 2026-09-26 —
+[`compile-at-learn-2026-09-26.md`](compile-at-learn-2026-09-26.md)). A recipe that can be
+compiled is compiled the moment it is learned, from the run it was distilled from, on every run
+— seeded or from scratch. The script it produces dispatches on its first match, with no clean
+runs required first. Until that date, promotion had to be earned twice: three credited runs for
+the recipe, then three validated runs for the script, whose counters are reset at compile time.
+That wait bought one thing — no compile, and no unwatched run, until the recipe had been
+observed working — and the threshold experiment of 2026-08-07 had already shown it never changed
+the compiler's verdict. What guards a fresh script now is mechanical: the output envelope, the
+before/after check on the named files, the anti-redispatch memo, and demotion after two
+contract failures back to the recipe every compiled script keeps as its fallback. A script
+without that fallback — a hand-authored one — never dispatches directly. None of them judges
+content. A wrong script that exits cleanly and changes the right files is accepted, and it
+stays trusted until a failure is recorded against it. The binding constraint is unchanged: a
+script runs free only *when it is matched to work it can actually do* — in round 8 a fully
+trusted, correct compiled script was withheld 14 times, every refusal justified, and dispatched
+zero times.
 
-**Promotion is opt-in for from-scratch runs.** A seeded workspace enables it by
-default; `ATOMA_SKILL_PROMOTE=1` explicitly enables it elsewhere and
-`--no-promote-skills` is the final veto. Recipes live under the owning molecule's
-id, and skill credit requires evidence that the recipe drove the attempt.
-Plans declare `outputs`; compilation declares `writes`. Those structured fields
-are checked before dispatch, with lexical matching retained for legacy records.
+**Promotion is on by default for every run.** `ATOMA_SKILL_PROMOTE=1` is the explicit opt-in,
+any other explicit value turns it off, and `--no-promote-skills` is the final veto. Recipes live
+under the owning molecule's id, and skill credit requires evidence that the recipe drove the
+attempt. Plans declare `outputs`; compilation declares `writes`. Those structured fields are
+checked before dispatch, with lexical matching retained for legacy records.
 
 **Splitting build from verify is what makes anything compilable at all.** A monolithic
 "build and check it" recipe always gets refused, because the build half is irreducible

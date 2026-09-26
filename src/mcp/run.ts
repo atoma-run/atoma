@@ -237,10 +237,11 @@ export function buildRunEnvOverrides(
   _hostEnv: NodeJS.ProcessEnv = process.env
 ): Record<string, string> {
   return {
-    // Promotion is now default-off on unseeded/from-scratch runs. MCP cannot
-    // expose --seed, so `true` must become the same explicit opt-in as an
-    // operator launching with ATOMA_SKILL_PROMOTE=1. `false` remains the CLI
-    // veto assembled by buildRunArgs, which wins even over an inherited env.
+    // Promotion is on by default for every run since 2026-09-26. `true` is
+    // still the explicit opt-in an operator gets from ATOMA_SKILL_PROMOTE=1,
+    // so it overrides a host whose own env turned compilation off. `false`
+    // remains the CLI veto assembled by buildRunArgs, which wins even over an
+    // inherited env.
     ...(input.promoteSkills === true ? { ATOMA_SKILL_PROMOTE: '1' } : {}),
   };
 }

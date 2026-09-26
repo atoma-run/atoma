@@ -896,12 +896,16 @@ export class SkillRegistry {
    * the successes were all earned by the MARKDOWN recipe driving a
    * validated LLM tool-loop, while the compiled script is a brand-new
    * artefact that has never executed even once. Inheriting 5/0 armed the
-   * deterministic dispatch (`shouldTrustSkill` needs 3/0) on its very
+   * deterministic dispatch (`shouldTrustSkill` then needed 3/0) on its very
    * first match — and that path returns before the supervise loop, so
    * nothing would have validated its output, and `onFailed`/`demoteToLlm`
    * are unreachable from it. Observed on `document-cli-from-source` after
-   * the 2026-07-25 run. Resetting makes the script form earn its 3 clean
-   * runs THROUGH the validated loop before it is trusted to run unwatched.
+   * the 2026-07-25 run. Resetting made the script form earn its 3 clean
+   * runs THROUGH the validated loop before it was trusted to run unwatched.
+   * Since 2026-09-26 `shouldTrustSkill` asks for no clean runs, so a freshly
+   * promoted script dispatches on its first match by owner decision
+   * (docs/compile-at-learn-2026-09-26.md). The reset still matters: the
+   * script's record is its own, and a failure on it is what stops dispatch.
    *
    * Refuses (throws) if the skill on disk is already `kind: 'script'`.
    * That guard keeps double-promotion from clobbering an existing

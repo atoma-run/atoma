@@ -11,19 +11,21 @@ import { unfoldedRegistryPredicate } from '../registry/db.js';
  *
  * Selection is CODE (which skills are one nudge from a lifecycle
  * transition), generation is ONE Sonnet-tier call (novel task statements
- * whose workflow shape matches each target — judgment). Four target
+ * whose workflow shape matches each target — judgment). Three target
  * categories, in priority order:
- *   1. script-maturation   — kind:script below the trust threshold: each
- *      clean validated run brings the zero-LLM dispatch closer.
- *   2. stale-refusal-retry — llm skills parked by a refusal stamp from an
+ *   1. stale-refusal-retry — llm skills parked by a refusal stamp from an
  *      OLDER compiler generation: one clean success re-attempts compile.
- *   3. promotion-push      — llm skills with 1..promote-1 clean successes:
- *      armed runs toward the compile trigger.
- *   4. failed-family-retry — burn-in families with failed rows (Voyager
+ *   2. promotion-push      — credited llm skills not yet compiled: the
+ *      clean runs left before the compile trigger (one, at the default
+ *      threshold of zero — a recipe learned while promotion was off).
+ *   3. failed-family-retry — burn-in families with failed rows (Voyager
  *      re-proposes failures; a family that never delivered is exactly the
  *      signal worth another shot).
  * Skills with failures > 0 are SKIPPED — they need `skills reset` (an
- * operator judgment), not more runs.
+ * operator judgment), not more runs. Compiled scripts are never targets:
+ * since 2026-09-26 one without a failure already dispatches with zero LLM
+ * calls, so there is no maturation left for a run to buy (the former
+ * `script-maturation` category).
  *
  * The generated goals must be NOVEL: the point is to mature counters on
  * fresh-but-shape-matching tasks, not to replay the task the skill was
@@ -36,7 +38,7 @@ import { SkillRegistry } from '../skills/registry.js';
 import { skillsDirPath, storeDbPath } from '../core/stores.js';
 import Database from 'better-sqlite3';
 import { existsSync as fsExistsSync } from 'node:fs';
-import { trustThreshold, promoteThreshold } from '../atoms/cost.js';
+import { promoteThreshold } from '../atoms/cost.js';
 import { refusalStampIsCurrent } from '../skills/generations.js';
 import { extractJson } from '../atoms/json.js';
 import { modelForTier } from '../core/models.js';
@@ -47,7 +49,6 @@ import type { Skill } from '../skills/types.js';
 import type { BurninTask } from './burnin.js';
 
 export type CurriculumCategory =
-  | 'script-maturation'
   | 'stale-refusal-retry'
   | 'promotion-push'
   | 'failed-family-retry';
@@ -63,10 +64,9 @@ export interface CurriculumTarget {
 }
 
 const CATEGORY_PRIORITY: Record<CurriculumCategory, number> = {
-  'script-maturation': 0,
-  'stale-refusal-retry': 1,
-  'promotion-push': 2,
-  'failed-family-retry': 3,
+  'stale-refusal-retry': 0,
+  'promotion-push': 1,
+  'failed-family-retry': 2,
 };
 
 /** Default cap on targets per batch — one task per target downstream. */
@@ -78,7 +78,6 @@ export const DEFAULT_TARGET_CAP = 8;
  */
 export function selectCurriculumTargets(args: {
   byL1: ReadonlyMap<string, readonly Skill[]>;
-  trust: number;
   promote: number;
   /** Refusal-stamp currency check — pass `refusalStampIsCurrent` (generations.ts). */
   stampIsCurrent: (gen: string | undefined) => boolean;
@@ -92,19 +91,7 @@ export function selectCurriculumTargets(args: {
       // cannot move these, so proposing tasks for them wastes the batch.
       if (s.failures > 0) continue;
       const shape = `${s.description} — when to use: ${s.whenToUse}`;
-      if (s.kind === 'script' && s.successes < args.trust) {
-        const n = args.trust - s.successes;
-        scored.push({
-          priority: CATEGORY_PRIORITY['script-maturation'],
-          distance: n,
-          target: {
-            category: 'script-maturation',
-            l1,
-            skillId: s.id,
-            hint: `compiled script "${s.id}" on ${l1} needs ${n} more clean validated run(s) to unlock zero-LLM dispatch. Workflow shape: ${shape}`,
-          },
-        });
-      } else if (
+      if (
         s.kind === 'llm' &&
         s.promotionRefusedAt &&
         !args.stampIsCurrent(s.promotionRefusedGeneration)
@@ -119,13 +106,10 @@ export function selectCurriculumTargets(args: {
             hint: `skill "${s.id}" on ${l1} was refused compilation by an OLDER compiler generation; one clean success gives the evolved compiler its shot. Workflow shape: ${shape}`,
           },
         });
-      } else if (
-        s.kind === 'llm' &&
-        !s.promotionRefusedAt &&
-        s.successes >= 1 &&
-        s.successes < args.promote
-      ) {
-        const n = args.promote - s.successes;
+      } else if (s.kind === 'llm' && !s.promotionRefusedAt && s.successes >= 1) {
+        // The compile check runs after a credited success, so at least one
+        // more run is always needed, whatever the threshold.
+        const n = Math.max(1, args.promote - s.successes);
         scored.push({
           priority: CATEGORY_PRIORITY['promotion-push'],
           distance: n,
@@ -360,7 +344,6 @@ async function main(): Promise<void> {
     : [];
   const targets = selectCurriculumTargets({
     byL1,
-    trust: trustThreshold(),
     promote: promoteThreshold(),
     stampIsCurrent: refusalStampIsCurrent,
     failedFamilies,

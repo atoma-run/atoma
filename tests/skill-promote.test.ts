@@ -40,8 +40,9 @@ describe('compile effort routing', () => {
 /**
  * Tests for #C2c — skill PROMOTION llm→script + DEMOTION script→llm.
  *
- * Promotion fires when, on an approved skilled run, the matched
- * skill has crossed `TRUST_PROMOTE_THRESHOLD_SUCCESSES` with zero
+ * Promotion fires at learn time (see the compile-at-learn suite) and, on an
+ * approved skilled run, when the matched skill has crossed
+ * `TRUST_PROMOTE_THRESHOLD_SUCCESSES` (zero by default) with zero
  * recorded failures AND `ATOMA_SKILL_PROMOTE=1` is set. The L2 then
  * makes ONE Sonnet call to compile the llm body into a deterministic
  * Node script; on a clean compile the registry stashes the original
@@ -158,13 +159,12 @@ describe('L2 onApproved — skill promotion (#C2c)', () => {
     expect(after.kind).toBe('script');
     expect(after.language).toBe('node');
     expect(after.body).toMatch(/process\.argv\[2\]/);
-    // Counters are RESET by promotion, so the never-yet-executed script form
-    // is NOT immediately trusted by the no-validator deterministic dispatch
-    // (shouldTrustSkill needs 3 successes / 0 failures). It has to earn them
-    // through the validated LLM loop first.
+    // Counters are RESET by promotion: the script's record is its own. Since
+    // 2026-09-26 that record needs no clean runs before the no-validator
+    // deterministic dispatch — the fresh script is trusted until it fails.
     expect(after.failures).toBe(0);
     expect(after.successes).toBe(0);
-    expect(shouldTrustSkill(after)).toBe(false);
+    expect(shouldTrustSkill(after)).toBe(true);
     // The original llm body was stashed in the fallback sidecar so a
     // future demotion can restore it verbatim.
     expect(after.fallbackBody).toMatch(/start_static_server/);

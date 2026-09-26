@@ -107,22 +107,14 @@ describe.skipIf(process.platform === 'win32')('W14 shared learning across organi
     const learning = makeCtx();
     learning.llm.enqueueText(jsonText({ id: skillId, description: 'Inspect a workspace input file',
       when_to_use: 'When asked to verify input.txt and report its text', body: recipe }));
+    // Compile at learn (2026-09-26): the learning call site compiles what it
+    // just learned, with no earned history in between.
+    learning.llm.enqueueText(jsonText({ promotable: true, language: 'node', body: script, writes: [] }));
     await lifecycle.learnSkillFromRun({ l1Name: namespace, subTask: task, result,
-      child: L1Atom.fromType(molecule), ctx: learning });
-    expect(skillsA.loadFor(namespace)[0]).toMatchObject({ id: skillId, kind: 'llm', provenance: { mechanism: 'distilled' } });
-
-    // Eligibility history is seeded: this acceptance tests transfer across orgs,
-    // not whether a compiler or model earns trust over real-world tasks.
-    for (let i = 0; i < TRUST_PROMOTE_THRESHOLD_SUCCESSES; i++) skillsA.recordSuccess(namespace, skillId);
-    const compiling = makeCtx();
-    compiling.llm.enqueueText(jsonText({ promotable: true, language: 'node', body: script, writes: [] }));
-    await lifecycle.tryPromoteSkill({ l1Name: namespace, skillId, subTask: task, result,
-      ctx: compiling, hostTools: tools.map(tool => tool.name) });
-    expect(skillsA.loadFor(namespace)[0]).toMatchObject({ kind: 'script', successes: 0, fallbackBody: recipe });
-    for (let i = 0; i < TRUST_THRESHOLD_SUCCESSES; i++) {
-      skillsA.recordSuccess(namespace, skillId);
-      registry.recordSuccess(molecule.name);
-    }
+      child: L1Atom.fromType(molecule), ctx: learning, hostTools: tools.map(tool => tool.name) });
+    expect(learning.llm.calls).toHaveLength(2);
+    expect(skillsA.loadFor(namespace)[0]).toMatchObject({ id: skillId, kind: 'script', successes: 0, fallbackBody: recipe });
+    for (let i = 0; i < TRUST_THRESHOLD_SUCCESSES; i++) registry.recordSuccess(molecule.name);
     a.projects.transitionProjectRun({ orgId: a.viewer.orgId, projectRunId: first.runId, from: 'running', to: 'delivered',
       traceId: first.runId, stats: parseRunLog('✓ build finished') });
     await first.backend.drain?.();
@@ -135,7 +127,8 @@ describe.skipIf(process.platform === 'win32')('W14 shared learning across organi
     expect(b.projects.getProjectRun(b.viewer.orgId, first.runId)).toBeNull();
     const reloadedRegistry = new AtomRegistry(openDb(a.dbPath));
     const skillsB = new SkillRegistry(second.paths.skillsPath, { db });
-    expect(skillsB.loadFor(namespace)[0]).toMatchObject({ id: skillId, kind: 'script', successes: TRUST_THRESHOLD_SUCCESSES });
+    // Never credited anywhere, and B still dispatches it without a model call.
+    expect(skillsB.loadFor(namespace)[0]).toMatchObject({ id: skillId, kind: 'script', successes: 0 });
     const events: SkillEventInfo[] = [];
     const context = { ...makeCtx(), tools: second.backend.executor, recordSkill: (event: SkillEventInfo) => events.push(event) };
     context.llm.enqueueText(jsonText({ kind: 'reuse', target: molecule.name, confidence: 'high', reasoning: 'shared molecule' }));
@@ -144,7 +137,7 @@ describe.skipIf(process.platform === 'win32')('W14 shared learning across organi
     expect(delivered.output).toEqual({ text: 'beta source' });
     expect(context.llm.calls).toHaveLength(2); // no L1 model execution or validators
     expect(events.map(event => event.op)).toEqual(['match', 'direct', 'success']);
-    expect(skillsA.loadFor(namespace)[0]!.successes).toBe(TRUST_THRESHOLD_SUCCESSES + 1);
+    expect(skillsA.loadFor(namespace)[0]!.successes).toBe(1);
     expect(readFileSync(join(first.paths.workspacePath, 'input.txt'), 'utf8')).toBe('alpha source');
     expect(readFileSync(join(second.paths.workspacePath, 'input.txt'), 'utf8')).toBe('beta source');
     expect(existsSync(join(second.paths.workspacePath, `_skill_${skillId}.mjs`))).toBe(false);

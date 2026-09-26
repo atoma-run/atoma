@@ -657,7 +657,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
         {
           title: 'Skill utility view',
           description:
-            'Per-skill matches vs runs actually driven, the free-ride gap, a lifecycle status, merge candidates. The payload echoes the trust/promote thresholds in force — statuses are computed from them at call time.',
+            'Per-skill matches vs runs actually driven, the free-ride gap, a lifecycle status, merge candidates. The payload echoes the promote threshold in force — statuses are computed from it at call time.',
           inputSchema: { l1: z.string().optional(), sim: z.number().min(0).max(1).optional() },
           annotations: READ_ONLY,
         },
@@ -892,7 +892,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
         {
           title: 'Reset a skill’s counters',
           description:
-            'Zero one skill’s successes and failures and clear its promotion-refusal stamp, so it re-earns trust from scratch. Attributed to you and journaled on a gated host. The body is untouched.',
+            'Zero one skill’s successes and failures and clear its promotion-refusal stamp, so a script dispatches again and an llm recipe may be recompiled. Attributed to you and journaled on a gated host. The body is untouched.',
           inputSchema: { l1: z.string().min(1), id: z.string().min(1) },
           annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
         },

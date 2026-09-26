@@ -24,7 +24,7 @@ import type { Skill } from '../src/skills/types.js';
  * matching-surface overlap exposes merge candidates.
  */
 
-const OPTS = { trust: 3, promote: 5, stampIsCurrent: (g: string | undefined) => g === 'GEN-NOW' };
+const OPTS = { promote: 5, stampIsCurrent: (g: string | undefined) => g === 'GEN-NOW' };
 
 function fakeSkill(over: Partial<Skill>): Skill {
   return {
@@ -213,16 +213,22 @@ describe('skillStatus — lifecycle labels', () => {
     expect(skillStatus(fakeSkill({ failures: 1, matches: 1 }), OPTS)).toContain('blocked(reset)');
   });
 
-  it('script lifecycle: trust distance, dispatch, direct failures', () => {
+  it('script lifecycle: dispatch from the first match, blocked by a failure, direct failures', () => {
+    // No trust distance since 2026-09-26: a fresh COMPILED script (it has the
+    // fallback promotion stashed) dispatches at once.
+    const compiled = { kind: 'script' as const, language: 'node' as const, fallbackBody: '1. recipe' };
+    expect(skillStatus(fakeSkill({ ...compiled, successes: 0, matches: 0 }), OPTS)).toContain('zero-llm-dispatch');
+    expect(skillStatus(fakeSkill({ ...compiled, successes: 3, matches: 3 }), OPTS)).toContain('zero-llm-dispatch');
     expect(
-      skillStatus(fakeSkill({ kind: 'script', language: 'node', successes: 1, matches: 1 }), OPTS)
-    ).toContain('trust-in-2');
+      skillStatus(fakeSkill({ ...compiled, successes: 2, failures: 1, matches: 3 }), OPTS)
+    ).toBe('blocked(reset)');
+    // Hand-authored: no fallback to demote to, so never dispatched directly.
     expect(
       skillStatus(fakeSkill({ kind: 'script', language: 'node', successes: 3, matches: 3 }), OPTS)
-    ).toContain('zero-llm-dispatch');
+    ).toBe('no-fallback(validated-loop)');
     expect(
       skillStatus(
-        fakeSkill({ kind: 'script', language: 'node', successes: 3, matches: 3, directFailures: 1 }),
+        fakeSkill({ ...compiled, successes: 3, matches: 3, directFailures: 1 }),
         OPTS
       )
     ).toContain('direct✗1');

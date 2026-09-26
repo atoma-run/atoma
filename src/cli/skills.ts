@@ -33,7 +33,7 @@ import { parseCliArgs } from './args.js';
 // `stats`/`show` claimed "will retry" for a skill that is in fact parked.
 // One definition, imported by both the runtime and this CLI.
 import { refusalStampIsCurrent } from '../skills/generations.js';
-import { demoteAfter, promoteThreshold, trustThreshold } from '../atoms/cost.js';
+import { demoteAfter, promoteThreshold, shouldTrustSkill } from '../atoms/cost.js';
 import { computeStatsRows, similarityPairs } from '../skills/stats.js';
 import type { Skill } from '../skills/types.js';
 
@@ -200,19 +200,18 @@ function cmdShow(registry: SkillRegistry, l1: string, id: string): void {
     } else if (s.promotionRefusedAt) {
       next.push('will RETRY compilation (stamp predates the current compiler)');
     } else if (s.successes >= promoteThreshold()) {
-      next.push('eligible NOW for llm→script compilation');
+      next.push('eligible NOW — compiles at its next credited run');
     } else {
       next.push(`${promoteThreshold() - s.successes} more clean run(s) → compile attempt`);
     }
   } else {
-    if (s.failures > 0) {
-      next.push(`blocked: ${s.failures} failure(s) — dispatch stays off until \`reset\``);
-    } else if (s.successes >= trustThreshold()) {
+    if (shouldTrustSkill(s)) {
       next.push('TRUSTED — runs via zero-LLM deterministic dispatch');
+    } else if (s.failures > 0) {
+      next.push(`blocked: ${s.failures} failure(s) — dispatch stays off until \`reset\``);
     } else {
-      next.push(`${trustThreshold() - s.successes} more clean run(s) → zero-LLM dispatch`);
+      next.push('no _fallback.md — cannot be auto-demoted, so it never dispatches directly; runs through the validated loop');
     }
-    if (!s.fallbackBody) next.push('no _fallback.md — cannot be auto-demoted');
   }
   console.log(`  next        : ${next.join(' · ')}`);
   if (s.fallbackBody) {
@@ -242,7 +241,6 @@ function cmdStats(
   // groups by whatever key it is handed.
   const byL1 = new Map(namespaces.map((ns) => [labels.get(ns) ?? ns, registry.loadFor(ns)]));
   const rows = computeStatsRows(byL1, {
-    trust: trustThreshold(),
     promote: promoteThreshold(),
     stampIsCurrent: refusalStampIsCurrent,
   });
@@ -405,8 +403,8 @@ function cmdReset(registry: SkillRegistry, l1: string, id: string): void {
       (before.promotionRefusedAt ? `, promotionRefusedAt cleared` : '')
   );
   console.log(
-    `  the skill re-earns trust from scratch (deterministic dispatch after ${trustThreshold()} clean runs,` +
-      ` promotion attempt after ${promoteThreshold()}).`
+    `  a script dispatches deterministically again at once; an llm recipe re-attempts compilation` +
+      ` after ${Math.max(1, promoteThreshold())} credited run(s).`
   );
 }
 

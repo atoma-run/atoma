@@ -709,8 +709,8 @@ export function projectRunEnvironment(input: {
     ATOMA_EVENT_SKILLS: '1',
     // A RUN IS A RUN (docs/platform-trust-2026-09-15.md): promotion,
     // deterministic dispatch and the prefilter cache follow the same defaults
-    // as any run on this host — a seeded workspace enables promotion, direct
-    // dispatch is on unless the host says ATOMA_SKILL_DIRECT=0, and the cache
+    // as any run on this host — promotion is on unless the host says
+    // otherwise, direct dispatch is on unless it says ATOMA_SKILL_DIRECT=0, and the cache
     // is the platform's. Nothing is pinned to '0' here any more, and no veto
     // flag travels below; a host that wants them off says so in its own env.
     // THE SECOND GATE'S INPUT. A tenant run's child re-checks, at launch,

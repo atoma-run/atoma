@@ -291,19 +291,20 @@ export function skillsList(opts: { l1?: string } = {}): unknown {
 }
 
 /**
- * The utility view. It MUST echo the thresholds it used: statuses come from
- * `trustThreshold()` / `promoteThreshold()`, which are read at CALL time from
- * the environment, and AGENTS.md records a mid-benchmark check being misled by
- * reading `skills stats` without the round's env vars in force.
+ * The utility view. It MUST echo the threshold it used: statuses come from
+ * `promoteThreshold()`, which is read at CALL time from the environment, and
+ * AGENTS.md records a mid-benchmark check being misled by reading `skills
+ * stats` without the round's env vars in force. `trustThreshold()` is not
+ * echoed: since 2026-09-26 it governs molecule TYPES only, and no skill
+ * status reads it.
  */
 export function skillsStats(opts: { l1?: string; sim?: number } = {}): unknown {
   const dir = skillsDirPath();
   const reg = new SkillRegistry(dir);
   const labels = displayNamesByAtomId();
   const byL1 = new Map(skillNamespaces(reg, opts.l1).map((ns) => [ns, reg.loadFor(ns)]));
-  const trust = trustThreshold();
   const promote = promoteThreshold();
-  const rows = computeStatsRows(byL1, { trust, promote, stampIsCurrent: refusalStampIsCurrent }).map(
+  const rows = computeStatsRows(byL1, { promote, stampIsCurrent: refusalStampIsCurrent }).map(
     (r) => ({
       ...r,
       l1: labels.get(r.l1) ?? r.l1,
@@ -313,7 +314,7 @@ export function skillsStats(opts: { l1?: string; sim?: number } = {}): unknown {
   const sim = typeof opts.sim === 'number' && opts.sim > 0 && opts.sim <= 1 ? opts.sim : 0.5;
   return {
     skillsDir: dir,
-    thresholdsInForce: { trust, promote },
+    thresholdsInForce: { promote },
     legend:
       'matches = prefilter picks; freeRides = matched but did not drive the run (credit withheld by the adherence gate)',
     rows,
@@ -818,7 +819,6 @@ export function skillShow(opts: { l1: string; id: string }): unknown {
   const ns = resolveMoleculeRef(opts.l1, labels).atomId;
   const skill = reg.loadFor(ns).find((s) => s.id === opts.id) ?? null;
   if (!skill) return { skillsDir: dir, note: `no skill "${opts.id}" for molecule "${opts.l1}"` };
-  const trust = trustThreshold();
   const promote = promoteThreshold();
   const matches = skill.matches ?? 0;
   const driven = skill.successes + skill.failures;
@@ -826,7 +826,7 @@ export function skillShow(opts: { l1: string; id: string }): unknown {
     skillsDir: dir,
     l1: labels.get(ns) ?? ns,
     l1Key: ns,
-    thresholdsInForce: { trust, promote, demoteAfter: demoteAfter() },
+    thresholdsInForce: { promote, demoteAfter: demoteAfter() },
     caveat: SKILL_BODY_CAVEAT,
     skill: {
       id: skill.id,
@@ -856,7 +856,7 @@ export function skillShow(opts: { l1: string; id: string }): unknown {
     },
     // The same one-cell label `skills stats` prints, so the two never
     // disagree about where a skill stands.
-    status: skillStatus(skill, { trust, promote, stampIsCurrent: refusalStampIsCurrent }),
+    status: skillStatus(skill, { promote, stampIsCurrent: refusalStampIsCurrent }),
   };
 }
 
