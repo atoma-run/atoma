@@ -184,6 +184,14 @@ export function parseExecutionObservation(tool: string, args: Record<string, unk
   // `record_probe` is the shell EVIDENCE tool the writer contract prescribes
   // instead of run_shell: attesting run_shell and not it showed validators the
   // scratch commands and hid the evidence invocations (review 2.10).
+  // A WRITE is attested by its path and the tool's reply, never its content:
+  // what a validator needs is the ORDER — that a file it sees read was
+  // rewritten afterwards (`renderObservations`), which a cell once missed and
+  // judged a page on its pre-rewrite read (production run 74fe5cec).
+  if (tool === 'write_file' || tool === 'edit_file') {
+    return executionObservationSchema.parse({ kind: 'execution',
+      request: evidenceExcerpt({ path: args['path'] }, 400), response: evidenceExcerpt(raw, 300) });
+  }
   if (!['fetch_url', 'run_shell', 'record_probe', 'read_file', 'start_node_server'].includes(tool)) return null;
   const http = tool === 'fetch_url' ? servedHttpObservation(args, raw) : undefined;
   return executionObservationSchema.parse({ kind: 'execution',
@@ -304,17 +312,51 @@ export function renderObservations(records: readonly AttestationRecord[]): strin
   for (const record of records) {
     if (record.observation.kind === 'browser' && record.observation.smoke !== undefined) latest.set(record.observation.smoke, record.eventId);
   }
+  // A read is STALE when the same branch wrote that path afterwards: walked
+  // from the end, `writtenLater` holds the paths rewritten after the record
+  // at hand, and the id of the first write that did it.
+  const writtenLater = new Map<string, string>();
+  const staleBy = new Map<string, string>();
+  for (const record of [...records].reverse()) {
+    const path = requestedPath(record);
+    if (path === undefined) continue;
+    if (record.tool === 'write_file' || record.tool === 'edit_file') writtenLater.set(path, record.eventId);
+    else if (record.tool === 'read_file' && writtenLater.has(path)) staleBy.set(record.eventId, writtenLater.get(path)!);
+  }
   return records.map((record) => {
     const smoke = record.observation.kind === 'browser' ? record.observation.smoke : undefined;
     const holder = smoke === undefined ? undefined : latest.get(smoke);
-    return renderObservation(record, holder !== undefined && holder !== record.eventId ? { smokeSameAs: holder } : {});
+    return renderObservation(record, {
+      ...(holder !== undefined && holder !== record.eventId ? { smokeSameAs: holder } : {}),
+      ...(staleBy.has(record.eventId) ? { rewrittenBy: staleBy.get(record.eventId)! } : {}),
+    });
   });
 }
 
+/** The `path` an execution observation's request named, when it can be read back. */
+function requestedPath(record: AttestationRecord): string | undefined {
+  if (record.observation.kind !== 'execution') return undefined;
+  try {
+    const request: unknown = JSON.parse(record.observation.request);
+    const path = request && typeof request === 'object' ? (request as Record<string, unknown>)['path'] : undefined;
+    return typeof path === 'string' ? path.replace(/^\.\//, '') : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** The one-line rendering the supervisor shows a validator. */
-export function renderObservation(record: AttestationRecord, options: { readonly smokeSameAs?: string } = {}): string {
+export function renderObservation(
+  record: AttestationRecord,
+  options: { readonly smokeSameAs?: string; readonly rewrittenBy?: string } = {}
+): string {
   const o = record.observation;
-  if (o.kind === 'execution') return `${record.tool} (attempt=${record.attempt ?? 1}, branch=${record.branchId ?? 'root'}): request=${o.request}; observed result=${o.response}`;
+  if (o.kind === 'execution') {
+    const stale = options.rewrittenBy !== undefined
+      ? `[STALE: this file was rewritten afterwards by ${options.rewrittenBy}; this read is not its current content] `
+      : '';
+    return `${stale}${record.tool} (attempt=${record.attempt ?? 1}, branch=${record.branchId ?? 'root'}): request=${o.request}; observed result=${o.response}`;
+  }
   const bits = [
     `ok=${o.ok}`,
     `requested=${o.requestedInteractions}`,

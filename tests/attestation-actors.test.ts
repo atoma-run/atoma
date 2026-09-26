@@ -83,6 +83,25 @@ describe('the attested browser observation', () => {
     expect(lines.map((line) => /viewport=(\d+)/.exec(line)?.[1])).toEqual(['320', '375', '768']);
   });
 
+  it('marks a read the same branch rewrote afterwards as stale, and attests a write without its content (run 74fe5cec)', () => {
+    // A cell judged a page "inline CSS/JS" on a read taken before the rewrite.
+    const exec = (eventId: string, tool: string, args: Record<string, unknown>, raw: unknown) =>
+      ({ eventId, tool, observation: parseExecutionObservation(tool, args, raw)! });
+    const content = '<style>body{}</style>'.repeat(200);
+    const records = [
+      exec('r1', 'read_file', { path: 'index.html' }, { path: 'index.html', content }),
+      exec('w1', 'write_file', { path: 'index.html', content: '<link rel="stylesheet" href="styles.css">' }, { ok: true, path: 'index.html', bytes: 41 }),
+      exec('r2', 'read_file', { path: 'styles.css' }, { path: 'styles.css', content: 'body{}' }),
+      exec('r3', 'read_file', { path: './index.html' }, { path: 'index.html', content: '<link>' }),
+    ];
+    expect(records[1]!.observation.kind === 'execution' && records[1]!.observation.request).toBe('{"path":"index.html"}');
+    const lines = renderObservations(records);
+    expect(lines[0]).toMatch(/^\[STALE: this file was rewritten afterwards by w1;/);
+    expect(lines[1]).toMatch(/^write_file/);
+    expect(lines[2]).not.toContain('STALE');
+    expect(lines[3]).not.toContain('STALE');
+  });
+
   it('attests record_probe, the shell evidence tool, like run_shell', () => {
     expect(parseExecutionObservation('record_probe', { cmd: 'node test.js' }, { exitCode: 0 })).toMatchObject({ kind: 'execution' });
   });

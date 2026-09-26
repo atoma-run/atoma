@@ -70,7 +70,10 @@ Neighbours:
   and JSON-encoded like an execution's request (head and tail kept), so it
   cannot print lines of its own into a machine-observed block; and
   `renderObservations` writes a repeated one out ONCE, on its latest
-  occurrence — the one a bounded evidence block keeps.
+  occurrence — the one a bounded evidence block keeps. Writes are attested by
+  path and reply, never content, for ORDER: a read of a path the same branch
+  rewrote afterwards renders `[STALE: ...]`, because a cell judged a page on
+  its pre-rewrite read (run 74fe5cec).
 - HTTP, shell, file-read and server-start observations are bounded historical
   evidence in the same attestation log. They do not establish DOM interaction
   or introduce automatic approval, and their scripts/content remain untrusted.
