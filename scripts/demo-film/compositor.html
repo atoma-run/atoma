@@ -1,0 +1,246 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; background: #050a16; overflow: hidden; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c" width="1920" height="1080"></canvas>
+<script>
+// Draws ONE output frame from a spec Node computed. All geometry arrives in
+// output pixels; this page only paints, so the film is a pure function of
+// the edit list and the captured frames.
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = 1920;
+const H = 1080;
+const FONT = '"Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif';
+const cache = new Map();
+
+async function load(src) {
+  let img = cache.get(src);
+  if (!img) {
+    img = new Image();
+    img.src = src;
+    await img.decode();
+    cache.set(src, img);
+    if (cache.size > 8) cache.delete(cache.keys().next().value);
+  }
+  return img;
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function wrap(text, maxWidth) {
+  const lines = [];
+  for (const paragraph of text.split('\n')) {
+    let line = '';
+    for (const word of paragraph.split(' ')) {
+      const next = line ? `${line} ${word}` : word;
+      if (ctx.measureText(next).width > maxWidth && line) {
+        lines.push(line);
+        line = word;
+      } else line = next;
+    }
+    lines.push(line);
+  }
+  return lines;
+}
+
+function drawLayer(img, cam, alpha, blur) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  if (blur) ctx.filter = `blur(${blur}px) brightness(0.55)`;
+  // Captures are 2x the page; cam is in page pixels.
+  ctx.drawImage(img, cam.x * 2, cam.y * 2, cam.w * 2, cam.h * 2, 0, 0, W, H);
+  ctx.restore();
+}
+
+function drawDim(holes, alpha) {
+  if (alpha <= 0) return;
+  ctx.save();
+  ctx.fillStyle = `rgba(2, 6, 18, ${0.58 * alpha})`;
+  ctx.beginPath();
+  ctx.rect(0, 0, W, H);
+  for (const hole of holes) {
+    const r = 14;
+    const { x, y, w, h } = hole;
+    // Counter-clockwise so evenodd-free nonzero fill punches the hole.
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x, y, x, y + h, r);
+    ctx.arcTo(x, y + h, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x + w, y, r);
+    ctx.arcTo(x + w, y, x, y, r);
+    ctx.closePath();
+  }
+  ctx.fill('evenodd');
+  ctx.restore();
+}
+
+function drawHighlight(h) {
+  const { x, y, w, h: hh } = h.rect;
+  ctx.save();
+  ctx.globalAlpha = h.alpha;
+  ctx.shadowColor = 'rgba(56, 189, 248, 0.85)';
+  ctx.shadowBlur = 22;
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = h.color ?? '#38bdf8';
+  roundRect(x, y, w, hh, 14);
+  ctx.stroke();
+  ctx.restore();
+  if (!h.label) return;
+  ctx.save();
+  ctx.globalAlpha = h.alpha;
+  ctx.font = `600 25px ${FONT}`;
+  const padX = 18;
+  const tw = ctx.measureText(h.label).width;
+  const bw = tw + padX * 2;
+  const bh = 46;
+  let bx = x;
+  let by = h.labelPos === 'below' ? y + hh + 14 : y - bh - 14;
+  if (h.labelPos === 'right') { bx = x + w + 18; by = y + hh / 2 - bh / 2; }
+  if (h.labelPos === 'left') { bx = x - bw - 18; by = y + hh / 2 - bh / 2; }
+  if (h.labelPos === 'inside-top') { bx = x + 14; by = y + 14; }
+  bx = Math.max(24, Math.min(W - bw - 24, bx));
+  by = Math.max(24, Math.min(H - bh - 24, by));
+  ctx.fillStyle = 'rgba(7, 18, 38, 0.94)';
+  ctx.strokeStyle = h.color ?? '#38bdf8';
+  ctx.lineWidth = 2;
+  roundRect(bx, by, bw, bh, 12);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#e8f6ff';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(h.label, bx + padX, by + bh / 2 + 1);
+  ctx.restore();
+}
+
+function drawRipple(r) {
+  ctx.save();
+  ctx.globalAlpha = r.alpha;
+  ctx.strokeStyle = '#7dd3fc';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(125, 211, 252, 0.18)';
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawCaption(c) {
+  ctx.save();
+  ctx.globalAlpha = c.alpha;
+  const maxText = 1440;
+  ctx.font = `600 38px ${FONT}`;
+  const lines = wrap(c.text, maxText);
+  const lineH = 50;
+  const textW = Math.max(...lines.map((line) => ctx.measureText(line).width));
+  ctx.font = `700 19px ${FONT}`;
+  const kickerW = c.kicker ? ctx.measureText(c.kicker.toUpperCase()).width + 4 * c.kicker.length * 0.5 : 0;
+  const padX = 38;
+  const padY = 24;
+  const kickerH = c.kicker ? 34 : 0;
+  const bw = Math.max(textW, kickerW) + padX * 2;
+  const bh = padY * 2 + kickerH + lines.length * lineH - 8;
+  const bx = (W - bw) / 2;
+  const by = c.pos === 'top' ? 40 : H - bh - 44;
+  const lift = (1 - c.alpha) * 14;
+  ctx.translate(0, c.pos === 'top' ? -lift : lift);
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+  ctx.shadowBlur = 40;
+  ctx.fillStyle = 'rgba(6, 13, 30, 0.9)';
+  roundRect(bx, by, bw, bh, 22);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = 'rgba(125, 211, 252, 0.28)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  if (c.kicker) {
+    ctx.font = `700 19px ${FONT}`;
+    ctx.fillStyle = c.kickerColor ?? '#5eead4';
+    ctx.letterSpacing = '4px';
+    ctx.fillText(c.kicker.toUpperCase(), W / 2, by + padY + 20);
+    ctx.letterSpacing = '0px';
+  }
+  ctx.font = `600 38px ${FONT}`;
+  ctx.fillStyle = '#f5faff';
+  lines.forEach((line, i) => ctx.fillText(line, W / 2, by + padY + kickerH + 36 + i * lineH));
+  ctx.restore();
+}
+
+/** Progress: one segment per chapter along the bottom edge. */
+function drawChapter(ch) {
+  ctx.save();
+  ctx.globalAlpha = ch.alpha;
+  const n = ch.count;
+  const gap = 8;
+  const segW = (W - 2 * 48 - gap * (n - 1)) / n;
+  for (let i = 0; i < n; i++) {
+    const x = 48 + i * (segW + gap);
+    ctx.fillStyle = 'rgba(148, 163, 184, 0.22)';
+    roundRect(x, H - 14, segW, 5, 2.5);
+    ctx.fill();
+    const fill = i < ch.index ? 1 : i === ch.index ? ch.progress : 0;
+    if (fill > 0) {
+      ctx.fillStyle = '#38bdf8';
+      roundRect(x, H - 14, segW * fill, 5, 2.5);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+function drawCard(card) {
+  ctx.save();
+  ctx.globalAlpha = card.alpha;
+  ctx.textAlign = card.align ?? 'center';
+  const x = card.align === 'left' ? 150 : W / 2;
+  let y = card.y ?? 430;
+  for (const line of card.lines) {
+    ctx.font = `${line.weight ?? 600} ${line.size}px ${FONT}`;
+    ctx.fillStyle = line.color ?? '#f5faff';
+    if (line.spacing) ctx.letterSpacing = `${line.spacing}px`;
+    ctx.fillText(line.text, x, y);
+    ctx.letterSpacing = '0px';
+    y += line.gap ?? line.size * 1.35;
+  }
+  ctx.restore();
+}
+
+window.renderFrame = async (spec) => {
+  ctx.fillStyle = '#050a16';
+  ctx.fillRect(0, 0, W, H);
+  for (const layer of spec.layers) {
+    const img = await load(layer.src);
+    drawLayer(img, layer.cam, layer.alpha, layer.blur);
+  }
+  drawDim(spec.dim.holes, spec.dim.alpha);
+  for (const h of spec.highlights) drawHighlight(h);
+  for (const r of spec.ripples) drawRipple(r);
+  if (spec.card) drawCard(spec.card);
+  if (spec.caption) drawCaption(spec.caption);
+  if (spec.chapter) drawChapter(spec.chapter);
+  if (spec.fade > 0) {
+    ctx.fillStyle = `rgba(3, 6, 14, ${spec.fade})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+  return true;
+};
+window.ready = true;
+</script>
+</body>
+</html>

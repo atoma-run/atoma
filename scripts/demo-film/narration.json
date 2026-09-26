@@ -1,0 +1,31 @@
+{
+  "voice": "en-US-AndrewNeural",
+  "rate": "+0%",
+  "sentencePause": 0.45,
+  "linePause": 0.9,
+  "lines": {
+    "intro1": { "say": "This is atoma. It turns business ideas into working software." },
+    "intro2": { "say": "Describe the tool you need. Agents build it, check it, and show you every step." },
+    "projects": { "say": "Each project has a GitHub repository. Start empty, or from an existing one. Each run then opens a pull request." },
+    "goal": { "say": "Describe what you want, in plain words." },
+    "criteria": { "say": "Then say what done means. Routes with a status are checked over HTTP. Other lines are judged by review." },
+    "locked": { "say": "The list is locked before planning starts." },
+    "live1": { "say": "The run is live. Every model call and tool call appears as it happens." },
+    "live2": { "say": "A planner splits the goal, a supervisor checks each phase, and a worker uses the tools." },
+    "delivered": { "say": "Two minutes later, it is delivered, with its time, calls, tokens and cost." },
+    "acceptance": { "say": "The final check does not take the model's word. It reads what the host observed, on servers the run started." },
+    "checklist": { "say": "Each criterion is covered, with the request that proves it." },
+    "models": { "say": "Each step uses the cheapest model that can do it. Haiku routes and builds, Opus plans, Sonnet checks." },
+    "call": { "say": "Open any call to see its agent, its model, and what it produced." },
+    "published": { "say": "The result is committed to the repository, and the next run starts from it." },
+    "partial1": { "say": "When a run runs out of budget, or fails the final check, its work is kept." },
+    "partial2": { "say": "atoma says why, in plain words, and what to do next." },
+    "partial3": { "say": "Continue, and the next run picks up where it stopped." },
+    "tiers": { "say": "Choose the model for each tier. An API key, the host's subscription, or your own ChatGPT account." },
+    "rerun": { "say": "Rerun a delivered run on other models, and compare cost, time and result." },
+    "mcp": { "say": "Claude Code, or any M C P client, can drive all of this, with thirty-nine tools.", "show": "Claude Code, or any MCP client, can drive all of this, with 39 tools." },
+    "skills": { "say": "What works becomes a reusable skill, credited each time it succeeds." },
+    "trust": { "say": "And every agent earns trust from its record, and loses it on failure." },
+    "outro": { "say": "atoma is open source and self-hostable. Try it at atoma dot run.", "show": "atoma is open source and self-hostable. Try it at atoma.run." }
+  }
+}
