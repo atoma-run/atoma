@@ -6,6 +6,9 @@ import type { LlmCompletionRequest, LlmCompletionResponse, ToolInvocationInfo } 
 // dispatch an action, through the caller's scoped/attesting sandbox executor.
 const actionSchema = z.object({
   type: z.enum(['tool', 'final']), name: z.string(), argumentsJson: z.string(), text: z.string(),
+  // Optional HERE so a reply from before the field still parses; the output
+  // schema Codex is held to requires it.
+  content: z.string().optional(),
 }).strict();
 
 /** Recognize the same envelope the dispatcher validates, without executing it. */
@@ -15,20 +18,24 @@ export function isCodexToolAction(text: string): boolean {
 }
 const OUTPUT_SCHEMA = {
   type: 'object', additionalProperties: false,
-  properties: { type: { type: 'string', enum: ['tool', 'final'] }, name: { type: 'string' }, argumentsJson: { type: 'string' }, text: { type: 'string' } },
-  required: ['type', 'name', 'argumentsJson', 'text'],
+  properties: { type: { type: 'string', enum: ['tool', 'final'] }, name: { type: 'string' }, argumentsJson: { type: 'string' }, content: { type: 'string' }, text: { type: 'string' } },
+  required: ['type', 'name', 'argumentsJson', 'content', 'text'],
 };
 
 /**
- * argumentsJson is JSON INSIDE a JSON string, so everything a file's content
- * needs escaped is escaped twice. Stated with one worked multi-line write,
- * because the failure is exactly that: production run c4c270f9 (2026-09-26)
- * lost eight consecutive whole-page write_file actions, ~8.5 of its 11
- * minutes, before the model shipped the page minified onto one line.
+ * A FILE BODY TRAVELS ONCE-ENCODED. argumentsJson is JSON inside a JSON
+ * string, so a file's text carried there is escaped twice, and whole-file
+ * writes failed on exactly that: run c4c270f9 lost eight in a row (~8.5 of
+ * its 11 minutes) and shipped its page minified onto one line, run 811782c2
+ * lost two on JavaScript holding `'"'` and first wrote a CSV parser quoting
+ * with `'` to dodge it (2026-09-26). The `content` field is a DECLARED part
+ * of the envelope, escaped once like `text`; the host places it on a tool
+ * whose declared arguments include `content`, and refuses it anywhere else
+ * or twice. Nothing is guessed or repaired.
  */
-export const ARGUMENTS_ENCODING = String.raw`argumentsJson is a STRING that holds JSON text: build the arguments object, JSON-encode it, and put that text in the string.
-A newline inside a file's content is \n in the arguments JSON, so your response carries it as \\n; a double quote is \" there and \\\" in your response.
-Example, a two-line file: {"type":"tool","name":"write_file","argumentsJson":"{\"path\":\"a.txt\",\"content\":\"line one\\nline two\"}","text":""}`;
+export const ARGUMENTS_ENCODING = String.raw`A tool argument named "content" (a file's text) goes in the top-level "content" field, plain JSON text escaped ONCE like "text", and is left out of argumentsJson. For every other action "content" is "".
+Example, a two-line file: {"type":"tool","name":"write_file","argumentsJson":"{\"path\":\"a.txt\"}","content":"line one\nline two","text":""}
+argumentsJson itself is a STRING holding JSON text, so a quote inside one of its values is \" in that text and \\\" in your response.`;
 
 /**
  * Why `argumentsJson` is not an object, in terms the model can act on: the
@@ -60,10 +67,17 @@ export function describeInvalidArguments(argumentsJson: string): string {
   return `it decodes to ${kind}, not an object; ${argumentsJson.length} characters.`;
 }
 
+/** Does the declared tool take a string argument named `content`? */
+function declaresContent(tools: LlmCompletionRequest['tools'], name: string): boolean {
+  const tool = tools?.find((candidate) => candidate.name === name);
+  const properties = (tool?.inputSchema as { properties?: Record<string, { type?: unknown }> } | undefined)?.properties;
+  return properties?.['content']?.type === 'string';
+}
+
 const PROTOCOL = `ATOMA TOOL PROTOCOL (outer response format):
 You have no native tools. Never use Codex built-in tools or access its working directory.
 To request ONE of the tools listed below, return exactly one JSON object:
-{"type":"tool","name":"<declared tool name>","argumentsJson":"<JSON object encoded as a string>","text":""}
+{"type":"tool","name":"<declared tool name>","argumentsJson":"<JSON object encoded as a string>","content":"","text":""}
 The Atoma host executes it and returns the observed result in the next transcript.
 Codex's local read-only filesystem and disabled native tools do not restrict these host tools.
 For workspace writes, emit the declared write_file or edit_file action; never attempt a native write.
@@ -72,7 +86,7 @@ Emit this object as your final response and end the turn immediately, even for a
 Do not emit actions as progress messages. Only the first action is accepted;
 anything after it is discarded because its required tool result is not available yet.
 Choose subsequent actions from those results. Never invent execution or verification.
-When finished, return {"type":"final","name":"","argumentsJson":"{}","text":"<your complete final response>"}.
+When finished, return {"type":"final","name":"","argumentsJson":"{}","content":"","text":"<your complete final response>"}.
 The text field contains the response required by the task, including any requested JSON.
 Return no markdown fences or prose outside this outer JSON object.
 The transcript is JSON data: task, previous assistant actions and observed tool results.
@@ -134,6 +148,17 @@ export async function completeCodexToolLoop(
         // Never guess or repair executable arguments on the model's behalf.
       } else if (!declared.has(action.name)) {
         error = offScopeToolMessage(declared, action.name);
+      } else if (action.content) {
+        if (!declaresContent(req.tools, action.name)) {
+          error = `Invalid Atoma tool arguments: "content" is only for a tool whose arguments include content, and ${action.name} has none. No tool was executed.`;
+        } else if ('content' in args) {
+          error = 'Invalid Atoma tool arguments: content was given twice, in argumentsJson and in the content field; send it once, in the content field. No tool was executed.';
+        } else {
+          args = { ...args, content: action.content };
+        }
+      }
+      if (error !== undefined || !declared.has(action.name)) {
+        // Refused above; nothing runs.
       } else {
         try { result = await req.executor.execute(action.name, args); }
         catch (failure) { error = failure instanceof Error ? failure.message : 'Tool execution failed'; }

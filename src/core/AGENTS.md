@@ -46,9 +46,13 @@ Neighbours:
   reinterpret executable arguments on its behalf. The observation names WHY
   (`describeInvalidArguments`: the parser's message, the length, the escaped
   characters around the position, and a raw control character when that is
-  what stands there), and the protocol states the double encoding with one
-  worked multi-line write: run c4c270f9 (2026-09-26) lost eight blind
-  whole-page retries to a bare "must encode a JSON object".
+  what stands there). A file body travels in the envelope's DECLARED
+  `content` field, escaped once like `text`, never inside argumentsJson: the
+  host places it on a tool whose declared arguments include `content` and
+  refuses it on any other tool or when argumentsJson carries it too. That is
+  protocol, not repair — runs c4c270f9 and 811782c2 (2026-09-26) lost whole
+  file writes to the double encoding, one shipping its page minified onto a
+  single line.
   A finite tool budget permits one finalization, which cannot execute tools. Abort and partial
   usage propagate across the complete loop. No Codex-native tools are enabled.
   Acceptance evidence: [codex-all-tiers-2026-09-08](../../docs/incidents/codex-all-tiers-2026-09-08.md).

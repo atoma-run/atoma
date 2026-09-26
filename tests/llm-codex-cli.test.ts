@@ -997,14 +997,47 @@ describe('Codex L1 host-side action loop', () => {
     expect(result.usage).toMatchObject({ inputTokens: 24, outputTokens: 9 });
   });
 
-  it('teaches the double encoding with a worked write that decodes to a real two-line file', () => {
+  it('teaches the once-encoded content field with a worked write that decodes to a real two-line file', () => {
     const example = /Example, a two-line file: (\{.*\})$/m.exec(ARGUMENTS_ENCODING)![1]!;
-    const action = JSON.parse(example) as { argumentsJson: string };
-    expect(JSON.parse(action.argumentsJson)).toEqual({ path: 'a.txt', content: 'line one\nline two' });
+    const action = JSON.parse(example) as { argumentsJson: string; content: string };
+    expect(JSON.parse(action.argumentsJson)).toEqual({ path: 'a.txt' });
+    expect(action.content).toBe('line one\nline two');
     expect(describeInvalidArguments('[1]')).toMatch(/decodes to an array, not an object/);
     // "position" inside echoed input is not the parser's position.
     expect(describeInvalidArguments('position 12 x')).not.toContain('near');
   });
+  it('places a once-encoded file body on a tool that declares content, and refuses it elsewhere or twice', async () => {
+    // Runs c4c270f9 and 811782c2 lost whole-file writes to the double
+    // encoding of argumentsJson; the body now travels escaped once.
+    const writeFile = { name: 'write_file', description: 'write', inputSchema: { type: 'object' as const,
+      properties: { path: { type: 'string' }, content: { type: 'string' } }, required: ['path', 'content'] } };
+    const readFile = { name: 'read_file', description: 'read', inputSchema: { type: 'object' as const, properties: { path: { type: 'string' } } } };
+    const body = 'const q = \'"\';\nconsole.log(q);\n';
+    const raw = (action: Record<string, unknown>) => [
+      JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', text: JSON.stringify({ text: '', content: '', ...action }) } }),
+      JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 10, output_tokens: 3, cached_input_tokens: 2 } })];
+    const actions = [
+      { type: 'tool', name: 'write_file', argumentsJson: JSON.stringify({ path: 'q.js' }), content: body },
+      { type: 'tool', name: 'read_file', argumentsJson: JSON.stringify({ path: 'q.js' }), content: 'stray' },
+      { type: 'tool', name: 'write_file', argumentsJson: JSON.stringify({ path: 'q.js', content: 'x' }), content: body },
+      { type: 'final', name: '', argumentsJson: '{}', text: 'done' },
+    ];
+    const execute = vi.fn(async () => ({ ok: true }));
+    const observe = vi.fn();
+    const inputs: string[] = [];
+    const client = new CodexCliLlmClient({ env: {}, spawnFn: (args, input) => {
+      inputs.push(input);
+      const schemaPath = args[args.indexOf('--output-schema') + 1];
+      if (schemaPath && inputs.length === 1) expect(JSON.parse(readFileSync(schemaPath, 'utf8')).required).toContain('content');
+      return fakeChild({ lines: raw(actions.shift()!) });
+    } });
+    const result = await client.complete(req({ tools: [writeFile, readFile], executor: { execute, has: () => true }, onToolInvocation: observe }));
+    expect(result.text).toBe('done');
+    expect(execute).toHaveBeenCalledExactlyOnceWith('write_file', { path: 'q.js', content: body });
+    expect(observe.mock.calls[1]?.[0].error).toMatch(/only for a tool whose arguments include content, and read_file has none/);
+    expect(observe.mock.calls[2]?.[0].error).toMatch(/content was given twice/);
+  });
+
   it('bounds repeated invalid arguments by the existing tool budget', async () => {
     const execute = vi.fn();
     const client = new CodexCliLlmClient({ env: {}, spawnFn: () => fakeChild({ lines: messages({ type: 'tool', name: 'write_file', arguments: 'bad' }) }) });
