@@ -148,6 +148,9 @@ export async function completeCodexToolLoop(
         // Never guess or repair executable arguments on the model's behalf.
       } else if (!declared.has(action.name)) {
         error = offScopeToolMessage(declared, action.name);
+      } else if (action.content === '' && declaresContent(req.tools, action.name) && !('content' in args)) {
+        // An EMPTY file (.gitkeep, __init__.py) is a body too.
+        args = { ...args, content: '' };
       } else if (action.content) {
         if (!declaresContent(req.tools, action.name)) {
           error = `Invalid Atoma tool arguments: "content" is only for a tool whose arguments include content, and ${action.name} has none. No tool was executed.`;

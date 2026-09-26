@@ -1238,10 +1238,11 @@ export class ProjectRunCoordinator {
     } catch (error) {
       if (!(error instanceof RunLockBusyError) || error.condition !== 'held' ||
         !error.owner?.runId.startsWith('analyst:') || !this.yieldBackground) throw error;
+      let timer: NodeJS.Timeout | undefined;
       const yielded = await Promise.race([
         this.yieldBackground().catch(() => false),
-        new Promise<boolean>((resolve) => { setTimeout(() => resolve(false), PREEMPT_ANALYST_WAIT_MS).unref(); }),
-      ]);
+        new Promise<boolean>((resolve) => { timer = setTimeout(() => resolve(false), PREEMPT_ANALYST_WAIT_MS); timer.unref(); }),
+      ]).finally(() => clearTimeout(timer));
       if (!yielded) throw error;
       process.stderr.write(`[atoma projects] preempted the post-run analysis ${error.owner.runId} for ${runId}\n`);
       return this.acquireLease(runId);

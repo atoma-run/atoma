@@ -52,7 +52,9 @@ Neighbours:
   refuses it on any other tool or when argumentsJson carries it too. That is
   protocol, not repair — runs c4c270f9 and 811782c2 (2026-09-26) lost whole
   file writes to the double encoding, one shipping its page minified onto a
-  single line.
+  single line. An empty `content` is an empty file. `edit_file`'s
+  `old_string`/`new_string` still travel inside argumentsJson: extending the
+  once-encoded set to them is the next measured step, not a guess.
   A finite tool budget permits one finalization, which cannot execute tools. Abort and partial
   usage propagate across the complete loop. No Codex-native tools are enabled.
   Acceptance evidence: [codex-all-tiers-2026-09-08](../../docs/incidents/codex-all-tiers-2026-09-08.md).

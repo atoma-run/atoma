@@ -189,6 +189,9 @@ export function parseExecutionObservation(tool: string, args: Record<string, unk
   // rewritten afterwards (`renderObservations`), which a cell once missed and
   // judged a page on its pre-rewrite read (production run 74fe5cec).
   if (tool === 'write_file' || tool === 'edit_file') {
+    // An edit whose strings were identical wrote nothing: attesting it would
+    // mark a still-current read stale.
+    if (raw && typeof raw === 'object' && (raw as Record<string, unknown>)['unchanged'] === true) return null;
     return executionObservationSchema.parse({ kind: 'execution',
       request: evidenceExcerpt({ path: args['path'] }, 400), response: evidenceExcerpt(raw, 300) });
   }

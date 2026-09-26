@@ -82,7 +82,9 @@ const commandTool = {
 export async function runCodexSupervisor(options: CodexSupervisorOptions): Promise<ClaudeSessionResult> {
   const mender = !options.readEvidence;
   const originalHome = options.provider.codexHome ?? join(homedir(), '.codex');
-  const release = await acquireCodexHomeLease(originalHome, AbortSignal.timeout(options.timeoutMs));
+  // A preemption must reach the wait for the shared Codex home too, or it cannot finish in time.
+  const release = await acquireCodexHomeLease(originalHome, options.signal
+    ? AbortSignal.any([AbortSignal.timeout(options.timeoutMs), options.signal]) : AbortSignal.timeout(options.timeoutMs));
   const temporary = mkdtempSync(join(tmpdir(), 'atoma-supervisor-'));
   const profile = join(temporary, 'profile');
   const jail = join(temporary, 'jail');

@@ -546,6 +546,17 @@ describe('depth transition through the production supervision loop', () => {
       checklist: draftedList, checklistOrigin: { source: 'drafted' } });
     expect(kept.approved).toBe(true);
     expect(kept.checklist?.[0]?.judgement).toEqual({ met: false });
+    // A LANDED result: criteria of phases that never ran are unmet by
+    // construction, and the landing contract keeps the work (adversarial review).
+    const landed = context();
+    landed.llm.enqueueText(judge(false));
+    const partial = await acceptRootResult({ actor: new Actor(), task, ctx: landed, floor: [], phaseCoverage: [],
+      result: markLanded(result, [{ description: 'upload phase' }]),
+      checklist, checklistOrigin: { source: 'user', digest: 'a'.repeat(64) } });
+    expect(partial.approved).toBe(true);
+    expect(partial.checklist?.[1]?.judgement).toEqual({ met: false, reason: 'upload never exercised' });
+    // A refusal keeps the acceptor's own words for the operator.
+    expect(refused.reasoning).toContain("the acceptor's own verdict read: looks done");
   });
 
   it('refuses for good after the last remediation, without a third pass', async () => {

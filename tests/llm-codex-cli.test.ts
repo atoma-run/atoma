@@ -1020,6 +1020,7 @@ describe('Codex L1 host-side action loop', () => {
       { type: 'tool', name: 'write_file', argumentsJson: JSON.stringify({ path: 'q.js' }), content: body },
       { type: 'tool', name: 'read_file', argumentsJson: JSON.stringify({ path: 'q.js' }), content: 'stray' },
       { type: 'tool', name: 'write_file', argumentsJson: JSON.stringify({ path: 'q.js', content: 'x' }), content: body },
+      { type: 'tool', name: 'write_file', argumentsJson: JSON.stringify({ path: '.gitkeep' }), content: '' },
       { type: 'final', name: '', argumentsJson: '{}', text: 'done' },
     ];
     const execute = vi.fn(async () => ({ ok: true }));
@@ -1033,7 +1034,10 @@ describe('Codex L1 host-side action loop', () => {
     } });
     const result = await client.complete(req({ tools: [writeFile, readFile], executor: { execute, has: () => true }, onToolInvocation: observe }));
     expect(result.text).toBe('done');
-    expect(execute).toHaveBeenCalledExactlyOnceWith('write_file', { path: 'q.js', content: body });
+    expect(execute).toHaveBeenCalledTimes(2);
+    expect(execute).toHaveBeenNthCalledWith(1, 'write_file', { path: 'q.js', content: body });
+    // An empty file is a body too.
+    expect(execute).toHaveBeenNthCalledWith(2, 'write_file', { path: '.gitkeep', content: '' });
     expect(observe.mock.calls[1]?.[0].error).toMatch(/only for a tool whose arguments include content, and read_file has none/);
     expect(observe.mock.calls[2]?.[0].error).toMatch(/content was given twice/);
   });

@@ -82,6 +82,9 @@ Neighbours:
   one attempt (`preempted`). Three member starts were refused 409 in one
   production session after every run (2026-09-26). The mender, holding a
   worktree and a push, is never preempted: a run is still refused behind it.
+  Known limit: the preemption comes at lease time, before the start's later
+  refusals (capacity, a duplicate, a changed connection), so a start refused
+  there still costs the analysis its session; it restarts from scratch.
 - The mender model and checks stay in disposable Docker containers: 2 GiB RAM,
   no additional swap, one CPU, 512 MiB tmpfs, one Vitest worker. Host Codex is
   text-only and holds a dedicated ChatGPT profile; the harness alone holds the

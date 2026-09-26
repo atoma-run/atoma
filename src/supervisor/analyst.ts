@@ -368,7 +368,10 @@ export async function analyseTarget(target: AnalysisTarget, options: AnalystOpti
       onLog: options.warn,
       ...(options.signal ? { signal: options.signal } : {}),
     })).catch((error: unknown) => {
-      if (options.signal?.aborted) return null;
+      // Only the abort itself is a preemption; an unrelated failure that
+      // raced with it is still a failure.
+      if (options.signal?.aborted && (error === options.signal.reason ||
+        (error instanceof Error && options.signal.reason instanceof Error && error.message === options.signal.reason.message))) return null;
       throw error;
     });
     if (session === null) {

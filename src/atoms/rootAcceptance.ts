@@ -110,14 +110,19 @@ function judgeCoverage(
 function consistentWithCriteria(
   verdict: { readonly approved: boolean; readonly reasoning?: string },
   judged: readonly ChecklistCoverage[],
-  source: ChecklistSource
+  source: ChecklistSource,
+  landed: boolean
 ): { readonly approved: boolean; readonly reasoning?: string } {
-  if (!verdict.approved || source !== 'user') return verdict;
+  // A LANDED result stopped before some phases ran: their criteria are unmet
+  // by construction, and the landing contract keeps that work as a partial.
+  // The judgements are recorded; they never turn a landing into a refusal.
+  if (!verdict.approved || source !== 'user' || landed) return verdict;
   const unmet = judged.filter((item) => item.judgement?.met === false);
   if (unmet.length === 0) return verdict;
   return {
     approved: false,
-    reasoning: `Approved criteria judged NOT met: ${unmet.map((item) => `${item.id} ${item.behaviour}${item.judgement?.reason ? ` (${item.judgement.reason})` : ''}`).join('; ')}`,
+    reasoning: `Approved criteria judged NOT met: ${unmet.map((item) => `${item.id} ${item.behaviour}${item.judgement?.reason ? ` (${item.judgement.reason})` : ''}`).join('; ')}` +
+      (verdict.reasoning ? ` — the acceptor's own verdict read: ${verdict.reasoning}` : ''),
   };
 }
 
@@ -165,7 +170,7 @@ export async function acceptRootResult(args: {
       ...(result.unfinishedPhases?.length ? { landingBlock: LANDED_RESULT_GUIDANCE } : {}),
     }) : { approved: true, reasoning: 'No mechanical finding requires review.' };
   const judged = judgementsAsked && 'criteria' in raw ? judgeCoverage(coverage, raw.criteria) : coverage;
-  const verdict = consistentWithCriteria(raw, judged, source);
+  const verdict = consistentWithCriteria(raw, judged, source, Boolean(result.unfinishedPhases?.length));
   const produced = result.producedBy;
   return {
     attempt: ctx.attempt ?? 1, approved: verdict.approved, reasoning: verdict.reasoning ?? '',

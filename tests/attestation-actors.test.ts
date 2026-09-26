@@ -100,6 +100,8 @@ describe('the attested browser observation', () => {
     expect(lines[1]).toMatch(/^write_file/);
     expect(lines[2]).not.toContain('STALE');
     expect(lines[3]).not.toContain('STALE');
+    // An edit whose strings were identical wrote nothing, and is not a write.
+    expect(parseExecutionObservation('edit_file', { path: 'index.html' }, { ok: true, unchanged: true, replacements: 0 })).toBeNull();
   });
 
   it('attests record_probe, the shell evidence tool, like run_shell', () => {
