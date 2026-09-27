@@ -20,6 +20,8 @@ export interface WorkspaceFileSnapshot {
   readonly bytes: number;
   readonly sha256: string;
   readonly lineHashes?: readonly string[];
+  /** The first characters of a text file: what a removed or rewritten file WAS, for the acceptor. */
+  readonly head?: string;
 }
 
 /** The starting side: the seed's files, and whether a cap cut the walk short. */
@@ -44,6 +46,7 @@ export interface StartingFileChange {
   readonly status: 'removed' | 'rewritten' | 'moved' | 'changed';
   readonly before: number;
   readonly after?: number;
+  readonly startedAs?: string;
   /** Share of its starting lines still in this file, when both sides are text. */
   readonly keptHere?: number;
   /** Share of its starting lines anywhere in the delivered text files. */
@@ -86,7 +89,7 @@ export function compareStartingWorkspace(start: StartingSnapshot, now: Delivered
   for (const file of start.files) {
     const after = current.get(file.path);
     if (!after) {
-      changes.push({ path: file.path, status: 'removed', before: file.bytes });
+      changes.push({ path: file.path, status: 'removed', before: file.bytes, ...(file.head ? { startedAs: file.head } : {}) });
       continue;
     }
     if (after.sha256 === file.sha256) {
@@ -100,6 +103,7 @@ export function compareStartingWorkspace(start: StartingSnapshot, now: Delivered
       : keptHere !== undefined && keptHere < REWRITTEN_BELOW ? 'moved' : 'changed';
     changes.push({
       path: file.path, status, before: file.bytes, after: after.bytes,
+      ...(status === 'rewritten' && file.head ? { startedAs: file.head } : {}),
       ...(keptHere !== undefined ? { keptHere } : {}),
       ...(keptAnywhere !== undefined ? { keptAnywhere } : {}),
     });
@@ -114,10 +118,11 @@ const MAX_LISTED = 20;
 const pct = (value: number): string => `${Math.round(value * 100)}%`;
 
 function describe(change: StartingFileChange): string {
-  if (change.status === 'removed') return `- ${change.path}: REMOVED (${change.before} bytes at the start)`;
+  const was = change.startedAs ? `; it started as ${JSON.stringify(change.startedAs)}` : '';
+  if (change.status === 'removed') return `- ${change.path}: REMOVED (${change.before} bytes at the start)${was}`;
   const size = `${change.before} → ${change.after} bytes`;
   if (change.status === 'rewritten') {
-    return `- ${change.path}: REWRITTEN ${size}; ${pct(change.keptAnywhere!)} of its starting lines remain anywhere in the delivery`;
+    return `- ${change.path}: REWRITTEN ${size}; ${pct(change.keptAnywhere!)} of its starting lines remain anywhere in the delivery${was}`;
   }
   if (change.status === 'moved') {
     return `- ${change.path}: moved ${size}; keeps ${pct(change.keptHere!)} of its starting lines here, ${pct(change.keptAnywhere!)} across the delivered files`;

@@ -66,6 +66,9 @@ corrections of the 2026-09-24 and 2026-09-25 code reviews.
   the files it started from, so replacing work it was asked to keep no longer
   passes unnoticed; a criterion about a named file, such as the README, is
   judged on that file's content.
+- Workers can no longer overwrite a file from before the run without reading
+  it first, and the delivery review sees how each removed or rewritten file
+  started.
 - Agent types created before branch prompts were made task-free are realigned
   at start-up, so a type no longer rewrites another run's page into yours.
 - Workers are told to restore data files their checks filled, never to

@@ -161,6 +161,13 @@ Neighbours:
   spent its whole budget trying (2026-09-26). The file goes through
   `sandbox.resolve` and `lstat`: never a path or a symlink outside the jail,
   because its bytes reach the page and the trace.
+- `write_file` refuses to overwrite an existing, non-empty file that nothing
+  in this run has read or written (`.atoma*` paths and the merged probe
+  manifest excepted): work from before the run — a seeded deliverable, a
+  repository — is read before it is replaced. Runs 902b2c21 and f33379a4
+  (2026-09-27) each opened by writing a home page over the configurator the
+  task asked them to keep. The memory is per sandbox, so every phase of a run
+  shares it, and a fresh backend after a deepening starts over.
 - A `select` interaction chooses a `<select>` option by value or label, or
   sets a range, date, month, week, time, datetime-local, colour or number
   input, then fires input and change. A headless page opens no dropdown: a

@@ -220,12 +220,43 @@ function isProbeManifestPath(sandbox: ToolSandbox, path: string): boolean {
   }
 }
 
+/**
+ * The files this sandbox's tools have read or written, by resolved path. An
+ * existing file nothing in this run has seen is work from before the run —
+ * a seeded deliverable, a repository — and `write_file` refuses to overwrite
+ * it blind. Production run f33379a4 (2026-09-27): asked to keep "the existing
+ * configurator unchanged", a molecule's FIRST action wrote a home page over
+ * the 13394-byte index.html that held it, then rebuilt a stand-in; run
+ * 902b2c21 did the same the day before. One read costs one tool call.
+ */
+const SEEN_FILES = new WeakMap<ToolSandbox, Set<string>>();
+function markSeen(sandbox: ToolSandbox, abs: string): void {
+  let seen = SEEN_FILES.get(sandbox);
+  if (!seen) { seen = new Set(); SEEN_FILES.set(sandbox, seen); }
+  seen.add(abs);
+}
+function blindOverwrite(sandbox: ToolSandbox, path: string, abs: string): string | undefined {
+  if (SEEN_FILES.get(sandbox)?.has(abs)) return undefined;
+  if (path.split(/[\\/]/).some((segment) => segment.toLowerCase().startsWith('.atoma'))) return undefined;
+  let size: number;
+  try {
+    const stat = lstatSync(abs);
+    if (!stat.isFile()) return undefined;
+    size = stat.size;
+  } catch {
+    return undefined;
+  }
+  if (size === 0) return undefined;
+  return `write_file: "${path}" already exists (${size} bytes) and nothing in this run has read it. It is work from before ` +
+    `this run: read_file it first, then write the whole new version or edit_file the part that changes. Nothing was written.`;
+}
+
 export function writeFileTool(opts: BuiltinToolOptions): BuiltinTool {
   return {
     declaration: {
       name: 'write_file',
       description:
-        `Write a text file inside the workspace. Creates parent directories as needed. Overwrites existing files. Use RELATIVE paths only (e.g. "index.html", "src/main.js"). Writing ${PROBE_MANIFEST_FILENAME} preserves and merges entries from earlier phases instead of deleting them.`,
+        `Write a text file inside the workspace. Creates parent directories as needed. Overwrites an existing file only once this run has read or written it: read_file work from before the run first. Use RELATIVE paths only (e.g. "index.html", "src/main.js"). Writing ${PROBE_MANIFEST_FILENAME} preserves and merges entries from earlier phases instead of deleting them.`,
       inputSchema: {
         type: 'object',
         properties: {
@@ -246,6 +277,9 @@ export function writeFileTool(opts: BuiltinToolOptions): BuiltinTool {
         // `probeManifestWriteRefusal` for the measurement.
         const refusal = probeManifestWriteRefusal(content);
         if (refusal) throw new Error(refusal);
+      } else {
+        const blind = blindOverwrite(opts.sandbox, path, abs);
+        if (blind) throw new Error(blind);
       }
       mkdirSync(dirname(abs), { recursive: true });
       const finalContent =
@@ -253,6 +287,7 @@ export function writeFileTool(opts: BuiltinToolOptions): BuiltinTool {
           ? mergeProbeManifestWrite(readFileSync(abs, 'utf8'), content)
           : content;
       writeFileSync(abs, finalContent, 'utf8');
+      markSeen(opts.sandbox, abs);
       opts.logger?.info(`[tool:write_file] ${path} (${Buffer.byteLength(finalContent, 'utf8')} bytes)`);
       return { ok: true, path, bytes: Buffer.byteLength(finalContent, 'utf8') };
     },
@@ -402,6 +437,7 @@ export function editFileTool(opts: BuiltinToolOptions): BuiltinTool {
         ? content.split(oldString).join(newString)
         : content.replace(oldString, newString);
       writeFileSync(abs, next, 'utf8');
+      markSeen(opts.sandbox, abs);
       opts.logger?.info(
         `[tool:edit_file] ${path} (${replaceAll ? occurrences : 1} replacement${occurrences > 1 && replaceAll ? 's' : ''}, ${Buffer.byteLength(next, 'utf8')} bytes)`
       );
@@ -428,6 +464,7 @@ export function readFileTool(opts: BuiltinToolOptions): BuiltinTool {
       const path = expectString(args, 'path');
       const abs = opts.sandbox.resolve(path);
       const content = readFileSync(abs, 'utf8');
+      markSeen(opts.sandbox, abs);
       opts.logger?.debug(`[tool:read_file] ${path} (${Buffer.byteLength(content, 'utf8')} bytes)`);
       return { path, content };
     },

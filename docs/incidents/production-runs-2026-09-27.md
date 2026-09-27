@@ -153,3 +153,20 @@ forged result. No lexical detector for such a constant is proposed.
 | R23 `6c82f826` | Logistics: warehouse stock viewer, drafted checklist, 390 px phone | delivered | 225 s | $0.029 | laid out at 390x800 as the goal named; filters and slider still driven from the smoke (`dispatchEvent`), not `select` |
 | R24 `902b2c21` | Agencies: four-page site around the configurator, continuation | delivered | 647 s | $0.154 | J9 above |
 | R25 `65a7ae3c` | SaaS: notes API continuation — API key, pagination, tags, drafted checklist | delivered | 512 s | $0.102 | 401/400/pagination observed over HTTP; README criterion again judged on the file existing (J1); probe data in `notes.json` |
+
+## Verification of J9 and J10, and what they revealed
+
+| Run | Revision | Models | Outcome | Duration | Cost | What happened |
+|---|---|---|---|---|---|---|
+| R26 `f793b338` | `586a22c` | luna / terra | partial | 1823 s | $0.599 | first pass EDITED index.html (keeps 98% of its lines) — J9's stand-in did not recur; refused for an inline stylesheet (c7, correct); the remediation's molecule Glucose then wrote an unrelated "completion confirmed" page over index.html twenty times — J10 |
+| R27 `89fde222` | `c463d06` | luna / terra | failed at the budget | 1805 s | $0.549 | no off-task writes (J10 fixed); luna could not finish honestly: repeated edit_file misses on the minified one-line script it inherited |
+| R28 `f33379a4` | `c463d06` | terra / terra | delivered | 1023 s | $2.384 | the molecule's FIRST call wrote a home page over the configurator; the acceptor read `index.html: REWRITTEN 13394 → 2228 bytes; 15% of its starting lines remain anywhere` and approved anyway |
+
+**J10 — a stored prompt that still carried another run's task. Fixed** (`c463d06`):
+build bootstrap strips the task lines and diagnosis block from pre-reset rows.
+
+**J9, second half — the fact alone does not stop a blind overwrite. Fixed at the
+source**: `write_file` now refuses to overwrite an existing file nothing in the
+run has read, and the starting-workspace block quotes how each removed or
+rewritten file began (`it started as "<title>… Configurator</title>"`), so the
+acceptor sees what disappeared.

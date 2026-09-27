@@ -67,7 +67,8 @@ describe('the starting workspace', () => {
     expect(block).toContain(`- index.html: REWRITTEN ${CONFIGURATOR.length} → 56 bytes; 0% of its starting lines remain anywhere in the delivery`);
     expect(block).toContain('- about.html: moved');
     expect(block).toContain('0% of its starting lines here, 100% across the delivered files');
-    expect(block).toContain('- app.js: REMOVED (20 bytes at the start)');
+    expect(block).toContain('- app.js: REMOVED (20 bytes at the start); it started as "export const x = 1;\\n"');
+    expect(block).toContain('remain anywhere in the delivery; it started as "const step0 = computeStep(0);');
     // A one-line file is only ever changed: one edited line is no rewrite.
     expect(block).toContain('- styles.css: changed 19 → 38 bytes');
     expect(renderStartingWorkspace(undefined)).toBe('');

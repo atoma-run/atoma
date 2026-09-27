@@ -198,7 +198,7 @@ function snapshotFile(root: string, rel: string, budget: { bytes: number }): Wor
   const lineHashes = text === undefined ? undefined : [...new Set(text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean))]
     .map((line) => createHash('sha1').update(line).digest('hex').slice(0, 16));
   return { path: rel, bytes: stat.size, sha256: createHash('sha256').update(bytes).digest('hex'),
-    ...(lineHashes ? { lineHashes } : {}) };
+    ...(lineHashes && text !== undefined ? { lineHashes, head: text.slice(0, 240) } : {}) };
 }
 
 /** Every regular file under `root`, in path order, without following links, up to `cap`. */
