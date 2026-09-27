@@ -1,4 +1,5 @@
 import { SMOKE_DESIGN_GUIDANCE } from '../../atoms/prompts.js';
+import { repairTaskBakedPrompts } from '../../atoms/promptRepair.js';
 import {
   ensureCanonicalL1,
   ensureCanonicalL2,
@@ -242,6 +243,9 @@ export const buildProfile: TaskProfile = {
       const fullStack = ensureCanonicalFullStack(registry, toolDecls, tier);
       if (fullStack) log(`canonical L${tier} (full-stack): ${fullStack.name} (v${fullStack.version}) — ${fullStack.description}`);
     }
+    // Branch rows created before the capability-first reset still carry the
+    // one task they were branched for, and get reused for any other.
+    for (const name of repairTaskBakedPrompts(registry)) log(`stored prompt freed of its task: ${name}`);
   },
 
   buildTask(goal: string): Task {

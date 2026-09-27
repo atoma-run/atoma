@@ -66,6 +66,8 @@ corrections of the 2026-09-24 and 2026-09-25 code reviews.
   the files it started from, so replacing work it was asked to keep no longer
   passes unnoticed; a criterion about a named file, such as the README, is
   judged on that file's content.
+- Agent types created before branch prompts were made task-free are realigned
+  at start-up, so a type no longer rewrites another run's page into yours.
 - Workers are told to restore data files their checks filled, never to
   special-case a value a criterion names, and to prove user actions with real
   interactions; a hand-escaped file body is pointed at the content field.

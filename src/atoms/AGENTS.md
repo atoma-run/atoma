@@ -28,6 +28,13 @@ Neighbours:
 - Escalation branches a type and toggles parent fallback in a `try/finally`.
   Persist capability prompts only; task text, seed instructions and diagnostics
   belong to the current instance. Validator diagnostics are fallible evidence.
+  Rows persisted before that rule lose their task lines and diagnosis block
+  at every build bootstrap (`promptRepair.ts`; capability text appended since
+  is kept): run f793b338 (2026-09-27) handed a read-only inspection to a
+  molecule whose stored prompt still named another run's page, and it wrote
+  that page over the live site twenty times. A `registry rollback` to such a
+  version is undone by the next run; the wholesale operator repair is
+  `scripts/repair-atom-prompts.mjs`.
   Fallback uses an explicit direct-executor system role, not the delegator role.
 - `pendingStrategy` couples `plan()` and `execute()` on the same instance. Never
   call `execute()` without the corresponding plan.
