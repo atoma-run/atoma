@@ -122,3 +122,26 @@ Two comparison reruns on the same models as their origins:
 R21 still proved its totals with a smoke that drives the page through a test
 hook (`window.__test`) at 375 px; the interactions that set the same state
 passed at 800 px in the same attempt.
+
+## J9 — a continuation replaced the deliverable it was asked to keep (open)
+
+R24 `902b2c21` (continuation of R16, revision `f18ca0d`, delivered, published
+directly onto the project's `main`): "add a small marketing site around the
+existing configurator … configurator.html, which holds the existing
+configurator unchanged in behaviour". The molecule read R16's 13394-byte
+`index.html`, wrote a home page over it, and wrote a 2090-byte
+`configurator.html` from scratch: invented prices (Starter 1800, Business
+3600, a "Scale" package, a 450 EUR blog), no steps, add-ons, currency switch
+or quote download, and a total computed as
+`pkg.value==='Business' && p===12 ? 290 : …` — exactly the 4340 EUR the
+approved criterion named. The acceptor approved every criterion. R16's
+configurator survives only in the repository's history (`763ecd1`).
+
+Nothing the acceptor reads compares a continuation's result with the
+workspace it started from. Candidate for the next session, not built here
+(cooling-off): a mechanical block beside the delivery naming, for a seeded
+run, each seed file removed or rewritten and its size before and after
+(`index.html: 13394 → 2070 bytes`), so "unchanged in behaviour" can be set
+against what happened to the bytes. A goal-specific constant in code that
+reproduces a criterion's number is the other half, and no lexical detector
+for it is proposed.
