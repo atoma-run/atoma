@@ -109,3 +109,16 @@ bytes.
   a single static page and a CLI. It cost nothing visible.
 - **GitHub import** was not exercised: every repository of the installation
   already belongs to a project, except a fork of the product itself.
+
+## Verification on revision `78c3fff`
+
+Two comparison reruns on the same models as their origins:
+
+| Run | Origin | Outcome | Duration | Cost | What changed |
+|---|---|---|---|---|---|
+| R21 `adf4698d` | R14 configurator | delivered | 439 s | $0.085 | the molecule laid the page out at 375x800 and 1280x800 for the first time; the acceptor read `375 px: laid out, passed, 1280 px: laid out, passed`; the page-count slider was set by eighteen real interactions, keypresses focused on `#pages` |
+| R22 `dbd59f12` | R19 task board | delivered | 498 s | $0.130 | the assignee filter was proven by `select "Taylor" in #assigneeFilter`, a real interaction, on the first try (R19: three failed attempts, then a smoke assigning `.value`; 710 s, $0.207) |
+
+R21 still proved its totals with a smoke that drives the page through a test
+hook (`window.__test`) at 375 px; the interactions that set the same state
+passed at 800 px in the same attempt.
