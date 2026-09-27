@@ -145,3 +145,11 @@ run, each seed file removed or rewritten and its size before and after
 against what happened to the bytes. A goal-specific constant in code that
 reproduces a criterion's number is the other half, and no lexical detector
 for it is proposed.
+
+## Later runs on `f18ca0d` and `e2193a6`
+
+| Run | Use case | Outcome | Duration | Cost | Notes |
+|---|---|---|---|---|---|
+| R23 `6c82f826` | Logistics: warehouse stock viewer, drafted checklist, 390 px phone | delivered | 225 s | $0.029 | laid out at 390x800 as the goal named; filters and slider still driven from the smoke (`dispatchEvent`), not `select` |
+| R24 `902b2c21` | Agencies: four-page site around the configurator, continuation | delivered | 647 s | $0.154 | J9 above |
+| R25 `65a7ae3c` | SaaS: notes API continuation — API key, pagination, tags, drafted checklist | delivered | 512 s | $0.102 | 401/400/pagination observed over HTTP; README criterion again judged on the file existing (J1); probe data in `notes.json` |
