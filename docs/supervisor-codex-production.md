@@ -63,9 +63,13 @@ sudo journalctl -u atoma-mender -f
 
 The analyst and mender hold the existing machine-global run lease through their
 work and cleanup. New product starts are refused while this slot is reserved;
-deployment waits too. An occupied or stale lease is never recovered by a
-background supervisor. After a crash, inspect the owner and surviving processes
-before using the normal run recovery path; do not delete the lease database.
+deployment waits too. A lease that may still have work behind it is never
+recovered by a background supervisor. The one row the analyst, the mender or a
+deployment takes over is a gone owner's with nothing left behind — no process
+group, or one that no longer exists — as a killed stage leaves; it is logged
+as `reclaimed`. For any other stale row, inspect the owner and surviving
+processes before using the normal run recovery path; do not delete the lease
+database.
 
 Codex runs as a text-only app-server in an empty jail. Built-in execution,
 Apps, plugins, MCP and skills are disabled. Its private worktree command sends
@@ -75,8 +79,12 @@ never host HOME, product state, publisher credentials or Docker socket.
 
 Docker enforces 2 GiB RAM, no extra swap, one CPU and a 512 MiB tmpfs. Vitest
 runs one worker. The service itself has a separate 1 GiB cap and reduced CPU
-priority. systemd allows the current bounded attempt to finish on stop; its
-stop backstop reaps containers labeled atoma.role=mender after process death.
+priority. On stop the current attempt ends at its next safe point: the running
+command or model session is aborted, its container reaped, and the attempt is
+recorded `interrupted` so the next start resumes the finding; only a
+publication already under way finishes, within `TimeoutStopSec=10min`. The
+stop backstop reaps containers labeled atoma.role=mender after process death,
+and a mender killed anyway leaves a lease row the next taker reclaims.
 
 ## Clean up GitHub
 

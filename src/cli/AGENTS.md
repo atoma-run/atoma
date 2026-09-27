@@ -64,7 +64,8 @@ can only report that it cannot be.
 ## Deployment preflight
 
 - `deploy:preflight` is quota-free and read-only unless `--hold` is explicit.
-  Hold mode takes the machine-global run lease without stale recovery, checks
+  Hold mode takes the machine-global run lease without stale recovery (a dead
+  owner's row with no process group is reclaimed: nothing to reap), checks
   queued/running project rows and live preview rows, then keeps the lease until
   its supervising deploy process releases it. The hold process also removes
   the admission marker when its parent disappears, so an untrappable host
@@ -80,7 +81,8 @@ can only report that it cannot be.
   pausing writes — then reads the blockers again after a settle. Ready
   withdraws the announcement. It refuses (75) at its deadline, when its parent
   is gone or writes the release file, and AT ONCE when waiting cannot end
-  well: a lease whose owner is gone (only a run start recovers it), a
+  well: a gone owner's lease that recorded a process group (a run may survive
+  behind it, and only a run start's recovery may reap it), a
   `retrieval:` campaign (hours), or project rows marked live while it holds
   the slot (no driver can exist; only a server start reconciles them). A guard
   that cannot work (no identity, a marker it cannot write) exits 1, never 75:

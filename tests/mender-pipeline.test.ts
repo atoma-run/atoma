@@ -1,3 +1,4 @@
+import Database from 'better-sqlite3';
 import { runCommand } from '../src/supervisor/session.js';
 import { writeCodexStub } from './supervisorCodexFixture.js';
 import { execFileSync } from 'node:child_process';
@@ -136,6 +137,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 const mode = process.env.STUB_MODE ?? 'fix';
 writeFileSync(process.env.STUB_CLAUDE_ARGS, JSON.stringify(process.argv.slice(2)));
+if (mode === 'slow') await new Promise((resolve) => setTimeout(resolve, 60_000));
 const cwd = process.cwd();
 const failingTest = "import { add } from '../src/adder.mjs';\\nif (add(1, 2) !== 3) { console.error('add(1,2) !== 3'); process.exit(1); }\\n";
 let report = { schema: 'atoma.supervisor.mend/v1', outcome: 'fixed', title: 'make add() add', summary: 'add() returned a - b; it now returns a + b, and the test proves it.', checkedIntentionalChoices: 'src/AGENTS.md read; not a recorded shortcut.', regressionTests: ['tests/adder.test.mjs'] };
@@ -477,6 +479,60 @@ describe('the mender, end to end against a real repository', () => {
       clearInterval(timer);
       clearTimeout(deadline);
     }
+  }, TIMEOUT_MS);
+
+  it.skipIf(process.platform === 'win32')('mends over a run slot a killed stage left behind, and says so', async () => {
+    // 2026-09-27: a SIGKILLed mender's row refused deployments and every
+    // analysis for 2 h 10. After a reboot its pid may be any process's — the
+    // new mender's own included (this test's, here): the idle predicate reads
+    // birth identity, or the stage never reaches the reclaim.
+    const f = fixture();
+    const warnings: string[] = [];
+    const options = f.options({ warn: (line) => warnings.push(line) }, { STUB_MODE: 'declined' });
+    acquireRunLeaseWithoutRecovery('warm-up', options.leasePath).release();
+    const db = new Database(options.leasePath);
+    db.prepare(
+      `INSERT INTO mcp_run_lease (singleton, token, run_id, owner_pid, child_pgid, acquired_at, owner_fingerprint)
+       VALUES (1, 'killed', 'mender:killed', ?, NULL, ?, 'linux:another-boot:1')`
+    ).run(process.pid, new Date().toISOString());
+    db.close();
+    // Its file lock survived the same reboot and names this very pid.
+    mkdirSync(f.supervisor, { recursive: true });
+    writeFileSync(join(f.supervisor, 'mender.lock'), JSON.stringify({ pid: process.pid, fingerprint: 'linux:another-boot:1' }));
+
+    await mendPending(f, options);
+
+    expect(record(f)?.outcome).toBe('declined');
+    expect(warnings.some((line) => line.startsWith('reclaimed the run slot from mender:killed'))).toBe(true);
+    expect(peekRunLease(options.leasePath)).toBeNull();
+  }, TIMEOUT_MS);
+
+  it('ends an attempt at a stop, keeps the finding pending, and resumes it on the next start', async () => {
+    // A stop used to wait for the whole attempt — three hours allowed — and a
+    // SIGKILL instead left the run slot held by a dead process, refusing
+    // deployments and the analyst for 2 h 10 (2026-09-27).
+    const f = fixture();
+    const controller = new AbortController();
+    const options = f.options({ signal: controller.signal }, { STUB_MODE: 'slow' });
+    const watching = setInterval(() => {
+      if (existsSync(f.claudeArgs)) controller.abort(new Error('the mender service is stopping'));
+    }, 20);
+    try {
+      const { records } = await mendPending(f, options);
+      expect(records.map((entry) => entry.outcome)).toEqual(['interrupted']);
+    } finally {
+      clearInterval(watching);
+    }
+    expect(record(f)).toMatchObject({ outcome: 'interrupted', reason: expect.stringMatching(/next start resumes it/) });
+    expect(remoteBranches(f)).toEqual([]);
+    expect(peekRunLease(options.leasePath)).toBeNull();
+    // Nothing for anyone to act on: the start is journaled, the stop is not.
+    expect(journalKinds(f)).toEqual(['mender.started']);
+
+    const next = f.options({}, { STUB_MODE: 'declined' });
+    expect(pendingMends(next, [RUN_ID]).map((item) => item.index)).toEqual([1]);
+    await mendPending(f, next);
+    expect(record(f)?.outcome).toBe('declined');
   }, TIMEOUT_MS);
 
   it('starts no mend while the review backlog is full, and resumes once a person merged one', async () => {

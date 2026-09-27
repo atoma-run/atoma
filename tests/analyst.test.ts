@@ -1,3 +1,4 @@
+import Database from 'better-sqlite3';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -337,6 +338,26 @@ describe('analyseRun', () => {
     expect(existsSync(join(f.supervisorDir, 'verdicts', `${RUN_ID}.raw.txt`))).toBe(true);
     expect(existsSync(join(f.supervisorDir, 'verdicts', `${RUN_ID}.json`))).toBe(false);
     expect(f.journal.list({}).events).toHaveLength(0);
+  });
+
+  // 2026-09-27: a mender killed with SIGKILL left its row, and the analyst
+  // refused every analysis behind it for 2 h 10. After a reboot the dead
+  // owner's pid may be any process's — this test's, here.
+  it.skipIf(process.platform === 'win32')('analyses over a run slot a killed stage left behind, and says so', async () => {
+    const f = fixture();
+    process.env['STUB_VERDICT'] = JSON.stringify(verdict);
+    const warnings: string[] = [];
+    const options = { ...f.options(), warn: (line: string) => void warnings.push(line) };
+    acquireRunLeaseWithoutRecovery('warm-up', options.leasePath).release();
+    const db = new Database(options.leasePath);
+    db.prepare(
+      `INSERT INTO mcp_run_lease (singleton, token, run_id, owner_pid, child_pgid, acquired_at, owner_fingerprint)
+       VALUES (1, 'killed', 'mender:killed', ?, NULL, ?, 'linux:another-boot:1')`
+    ).run(process.pid, new Date().toISOString());
+    db.close();
+    expect((await analyseRun(RUN_ID, options)).outcome).toBe('analysed');
+    expect(warnings.some((line) => line.startsWith('reclaimed the run slot from mender:killed'))).toBe(true);
+    expect(peekRunLease(options.leasePath)).toBeNull();
   });
 
   it('refuses a run with no endedAt, and does not spend beside an active run', async () => {

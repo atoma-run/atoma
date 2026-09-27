@@ -31,9 +31,11 @@ SERVICE_USER="${ATOMA_DEPLOY_USER:-atoma}"
 APP_ENV="${ATOMA_DEPLOY_APP_ENV:-/home/atoma/config/atoma.env}"
 HEALTH_URL="${ATOMA_DEPLOY_HEALTH_URL:-http://127.0.0.1:4111/}"
 # How long a deployment WAITS for work already running (a run, a mend, an
-# analysis, a preview) while nothing new may start. 0 restores the old
-# behaviour: refuse at once whenever anything is busy.
-WAIT_SECONDS="${ATOMA_DEPLOY_WAIT_SECONDS:-1800}"
+# analysis, a preview) while nothing new may start. The default outlasts one
+# project run at its default budget — 60 min, plus the preparation (10), the
+# watchdog (1) and the hard reap (3) — so a run no longer makes a deployment
+# fail at its deadline. 0 restores the old behaviour: refuse at once.
+WAIT_SECONDS="${ATOMA_DEPLOY_WAIT_SECONDS:-5400}"
 # The mender runs from its OWN clone, not from the CI artefact (worktrees,
 # devDependencies, gh). These name that installation so the activator can
 # move it to the deployed revision; an absent checkout or env means "no mender

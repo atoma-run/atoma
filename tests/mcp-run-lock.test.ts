@@ -13,6 +13,7 @@ import {
   registerDeploymentPending,
   RunLockBusyError,
   runLeaseOwnerGone,
+  runLeaseOwnerLive,
 } from '../src/mcp/runLock.js';
 import { forceKillTestProcessTree } from './helpers.js';
 
@@ -144,13 +145,34 @@ describe('MCP cross-process run lease', () => {
     recovered.release();
   });
 
-  it('lets a deployment claim only an empty slot and never recover a stale owner', async () => {
-    seedStale('unfinished-run');
+  posixIt('never lets a deployment recover a stale owner whose run may still be alive', async () => {
+    // A recorded process group that still exists may be its dead server's
+    // run: only a run start's recovery, with its fingerprint checks, may reap it.
+    const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+      detached: true,
+      stdio: ['ignore', 'ignore', 'ignore'],
+    });
+    await new Promise<void>((resolveSpawn, rejectSpawn) => {
+      child.once('spawn', resolveSpawn);
+      child.once('error', rejectSpawn);
+    });
+    try {
+      const seed = inspect();
+      seed.prepare(
+        `INSERT OR REPLACE INTO mcp_run_lease
+         (singleton, token, run_id, owner_pid, child_pgid, acquired_at)
+         VALUES (1, 'dead-owner', 'unfinished-run', 99999999, ?, '2026-01-01T00:00:00.000Z')`
+      ).run(child.pid);
+      seed.close();
 
-    expect(() => acquireRunLeaseWithoutRecovery('deployment:revision', lockPath)).toThrow(
-      /will not recover or interrupt/
-    );
-    expect(peekRunLease(lockPath)?.runId).toBe('unfinished-run');
+      expect(() => acquireRunLeaseWithoutRecovery('deployment:revision', lockPath)).toThrow(
+        /will not recover or interrupt/
+      );
+      expect(peekRunLease(lockPath)?.runId).toBe('unfinished-run');
+      expect(runLeaseOwnerGone(lockPath)).toBe(true);
+    } finally {
+      forceKillTestProcessTree(child.pid);
+    }
 
     const db = inspect();
     db.prepare('DELETE FROM mcp_run_lease').run();
@@ -160,6 +182,79 @@ describe('MCP cross-process run lease', () => {
       await expect(acquireRunLease('new-run', lockPath)).rejects.toThrow(/deployment:revision/);
     } finally {
       deployment.release();
+    }
+  });
+
+  it('reclaims a gone owner whose recorded process group no longer exists', () => {
+    // A unit stop kills the owner and its group together: the row it leaves
+    // names a group that is gone, and nothing is left to reap.
+    const seed = inspect();
+    seed.prepare(
+      `INSERT OR REPLACE INTO mcp_run_lease
+       (singleton, token, run_id, owner_pid, child_pgid, acquired_at)
+       VALUES (1, 'dead-owner', 'project:killed-with-its-unit', 99999999, 99999998, '2026-01-01T00:00:00.000Z')`
+    ).run();
+    seed.close();
+    expect(runLeaseOwnerGone(lockPath)).toBe(false);
+    const lease = acquireRunLeaseWithoutRecovery('analyst:next', lockPath);
+    try {
+      expect(lease.reclaimed?.runId).toBe('project:killed-with-its-unit');
+    } finally {
+      lease.release();
+    }
+  });
+
+  it('reclaims a row whose pid now belongs to another process, and keeps one it cannot verify', () => {
+    // After a reboot the dead owner's pid may be anyone's — this process's,
+    // here. Its birth identity says it is not the owner.
+    const seed = inspect();
+    seed.prepare(
+      `INSERT OR REPLACE INTO mcp_run_lease
+       (singleton, token, run_id, owner_pid, child_pgid, acquired_at, owner_fingerprint)
+       VALUES (1, 'reused', 'mender:before-reboot', ?, NULL, ?, 'linux:another-boot:1')`
+    ).run(process.pid, new Date().toISOString());
+    seed.close();
+    expect(runLeaseOwnerLive(lockPath)).toBe(false);
+    const lease = acquireRunLeaseWithoutRecovery('mender:after-reboot', lockPath);
+    try {
+      expect(lease.reclaimed?.runId).toBe('mender:before-reboot');
+      expect(runLeaseOwnerLive(lockPath)).toBe(true);
+    } finally {
+      lease.release();
+    }
+    // A live pid recorded this boot without an identity cannot be told apart
+    // from its owner: it stays busy.
+    const unverifiable = inspect();
+    unverifiable.prepare(
+      `INSERT OR REPLACE INTO mcp_run_lease
+       (singleton, token, run_id, owner_pid, child_pgid, acquired_at, owner_fingerprint)
+       VALUES (1, 'unverifiable', 'analyst:live-maybe', ?, NULL, ?, NULL)`
+    ).run(process.pid, new Date().toISOString());
+    unverifiable.close();
+    expect(() => acquireRunLeaseWithoutRecovery('mender:next', lockPath)).toThrow(/occupied \(analyst:live-maybe/);
+    expect(runLeaseOwnerLive(lockPath)).toBe(true);
+  });
+
+  it('reclaims, and says so, a dead owner row that recorded no process group', () => {
+    // A mender killed with SIGKILL left exactly this row, and it refused two
+    // deployments and every analysis for 2 h 10 until a person deleted it
+    // (2026-09-27). There is nothing behind it to reap, only a row.
+    seedStale('mender:killed');
+    const deployment = acquireRunLeaseWithoutRecovery('deployment:revision', lockPath);
+    try {
+      expect(deployment.reclaimed).toMatchObject({ runId: 'mender:killed', ownerPid: 99999999 });
+      expect(deployment.recovered).toBeUndefined();
+      expect(peekRunLease(lockPath)?.runId).toBe('deployment:revision');
+    } finally {
+      deployment.release();
+    }
+    // A live owner is never reclaimed, whatever its row recorded.
+    const live = acquireRunLeaseWithoutRecovery('analyst:live', lockPath);
+    try {
+      expect(live.reclaimed).toBeUndefined();
+      expect(() => acquireRunLeaseWithoutRecovery('mender:next', lockPath)).toThrow(/occupied \(analyst:live/);
+    } finally {
+      live.release();
     }
   });
 
@@ -640,7 +735,7 @@ describe('a deployment waiting for the run slot', () => {
     expect(peekDeploymentPending(lockPath)).toBeNull();
   });
 
-  it('tells a gone lease owner apart from a live one, without touching either', async () => {
+  it('blocks a deployment on a gone owner only while its run may survive, and reads without touching', async () => {
     expect(runLeaseOwnerGone(lockPath)).toBe(false);
     const db = new Database(lockPath);
     db.exec(SCHEMA);
@@ -649,13 +744,16 @@ describe('a deployment waiting for the run slot', () => {
        VALUES (1, 'dead', 'mender:gone', 99999999, NULL, '2026-01-01T00:00:00.000Z')`
     ).run();
     db.close();
-    expect(runLeaseOwnerGone(lockPath)).toBe(true);
+    // Nothing behind it: the next taker reclaims it, so nothing blocks on it.
+    expect(runLeaseOwnerGone(lockPath)).toBe(false);
+    expect(runLeaseOwnerLive(lockPath)).toBe(false);
     expect(peekRunLease(lockPath)?.runId).toBe('mender:gone');
     const cleared = new Database(lockPath);
     cleared.prepare('DELETE FROM mcp_run_lease').run();
     cleared.close();
     const lease = await acquireRunLease('project:live', lockPath);
     expect(runLeaseOwnerGone(lockPath)).toBe(false);
+    expect(runLeaseOwnerLive(lockPath)).toBe(true);
     lease.release();
   });
 });

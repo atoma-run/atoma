@@ -6,6 +6,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   statSync,
   unlinkSync,
@@ -29,7 +30,14 @@ import {
   type SupervisorVerdict,
   type VerdictFinding,
 } from '../contracts/supervisorVerdict.js';
-import { acquireRunLeaseWithoutRecovery, RunLockBusyError, processExists } from '../mcp/runLock.js';
+import {
+  acquireRunLeaseWithoutRecovery,
+  processExists,
+  processFingerprint,
+  reclaimedLine,
+  recordedProcessLive,
+  RunLockBusyError,
+} from '../mcp/runLock.js';
 import { readBoundedJson } from '../sentinel/sources.js';
 import { anyRunActive } from './activity.js';
 import { truncate } from './digest.js';
@@ -178,6 +186,14 @@ export interface MenderOptions {
    * Absent means `MENDER_DEFAULT_MAX_OPEN_PULL_REQUESTS`.
    */
   readonly maxOpenPullRequests?: number;
+  /**
+   * A service stop. The attempt in flight ends at its next safe point — the
+   * untrusted command or model session running is aborted and its container
+   * reaped — and is recorded `interrupted`, which leaves the finding pending.
+   * A publication already under way (commit, push, pull request) finishes:
+   * stopping half-way through it would leave a branch nobody reviews.
+   */
+  readonly signal?: AbortSignal;
   readonly journal: PlatformEventSink | null;
   readonly log: (line: string) => void;
   readonly warn: (line: string) => void;
@@ -267,16 +283,23 @@ interface LockOutcome {
 export function acquireMenderLock(lockPath: string, warn: (line: string) => void): LockOutcome {
   if (existsSync(lockPath)) {
     try {
-      const held = JSON.parse(readFileSync(lockPath, 'utf8')) as { pid?: unknown };
+      const held = JSON.parse(readFileSync(lockPath, 'utf8')) as { pid?: unknown; fingerprint?: unknown };
       const pid = Number(held.pid);
-      if (processExists(pid)) return { ok: false, holderPid: pid };
+      // By birth identity where the lock recorded one: a lock left before a
+      // reboot names a pid that may now be any process — this mender's own
+      // included, and mends are serial here, so our own pid is never a holder.
+      const live = pid !== process.pid && (typeof held.fingerprint === 'string'
+        ? recordedProcessLive(pid, held.fingerprint)
+        : processExists(pid));
+      if (live) return { ok: false, holderPid: pid };
       warn(`stale mender lock from pid ${pid}; reclaiming`);
     } catch {
       warn('unreadable mender lock; reclaiming');
     }
   }
   mkdirSync(dirname(lockPath), { recursive: true });
-  writeFileSync(lockPath, JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() }));
+  const fingerprint = processFingerprint(process.pid);
+  writeFileSync(lockPath, JSON.stringify({ pid: process.pid, ...(fingerprint ? { fingerprint } : {}), startedAt: new Date().toISOString() }));
   return { ok: true };
 }
 
@@ -287,6 +310,16 @@ export function releaseMenderLock(lockPath: string): void {
   } catch {
     /* already gone */
   }
+}
+
+/**
+ * Does a record close its finding? Every outcome does except `interrupted`:
+ * a stop, not the finding, ended that attempt. An unreadable record closes it,
+ * the conservative answer — a person reads it before a retry.
+ */
+function recordClosesFinding(recordPath: string): boolean {
+  if (!existsSync(recordPath)) return false;
+  return readBoundedJson<MendRecord>(recordPath)?.outcome !== 'interrupted';
 }
 
 function priorRecordsWithKey(menderDir: string, key: string): MendRecord[] {
@@ -378,6 +411,9 @@ export async function mendFinding(input: MendInput, options: MenderOptions): Pro
   let lease;
   try {
     lease = acquireRunLeaseWithoutRecovery(`mender:${input.runId}`, options.leasePath);
+    if (lease.reclaimed) {
+      options.warn(reclaimedLine(lease.reclaimed));
+    }
   } catch (error) {
     if (error instanceof RunLockBusyError) return null;
     throw error;
@@ -394,10 +430,11 @@ async function mendFindingReserved(input: MendInput, options: MenderOptions): Pr
   const journal = safeSink(options.journal, options.warn);
   const { runId, index, run, finding } = input;
   const recordPath = mendRecordPath(paths.menderDir, runId, index);
-  if (existsSync(recordPath) && !options.force) {
+  if (!options.force && recordClosesFinding(recordPath)) {
     options.log(`record already exists for ${runId}#${index} (use --force to redo); skipping`);
     return readBoundedJson<MendRecord>(recordPath);
   }
+  if (options.signal?.aborted) return null;
   const key = defectKey(finding);
   const branch = branchName(runId, index, finding);
   const base = { key, branch, finding: { title: finding.title, confidence: finding.confidence } };
@@ -412,7 +449,10 @@ async function mendFindingReserved(input: MendInput, options: MenderOptions): Pr
       ...fields,
     };
     mkdirSync(paths.menderDir, { recursive: true });
-    writeFileSync(recordPath, JSON.stringify(full, null, 2));
+    // Renamed into place: a torn record would read as closing its finding.
+    const partial = `${recordPath}.${process.pid}.partial`;
+    writeFileSync(partial, JSON.stringify(full, null, 2));
+    renameSync(partial, recordPath);
     appendFileSync(
       paths.ledgerPath,
       JSON.stringify({
@@ -423,6 +463,9 @@ async function mendFindingReserved(input: MendInput, options: MenderOptions): Pr
         key,
         prUrl: full.prUrl ?? null,
         branch,
+        // An interrupted attempt's record is overwritten when it resumes; the
+        // ledger keeps what each attempt spent.
+        ...(full.mendCostUsd !== undefined ? { mendCostUsd: full.mendCostUsd } : {}),
       }) + '\n'
     );
     const facts: MendJournalFacts = {
@@ -466,6 +509,24 @@ async function mendFindingReserved(input: MendInput, options: MenderOptions): Pr
   const provider = options.provider;
   const executeUntrusted = options.executeUntrusted ?? runIsolatedMenderCommand;
   const providerFacts = { model: provider.selector, source: provider.source, baseUrl: provider.baseUrl };
+  // Handed to every long untrusted command and to the model session: aborted,
+  // they are terminated and their container reaped before the promise settles.
+  const abortable = options.signal ? { signal: options.signal } : {};
+  let sessionStarted = false;
+  // Outside the try: a stop that lands during verification is recorded with
+  // the base it was cut from and what the session it follows cost.
+  let baseSha: string | undefined;
+  let modelMeta: Pick<MendRecord, 'provider' | 'modelsServed' | 'mendCostUsd' | 'mendDurationMs' | 'mendTurns'> | undefined;
+  const interrupted = (
+    at: string,
+    fields: Pick<MendRecord, 'baseSha' | 'provider' | 'modelsServed' | 'mendCostUsd' | 'mendDurationMs' | 'mendTurns'> = {}
+  ): MendRecord => {
+    // Once the model has worked, its edits are worth a look; before, the
+    // worktree is only an install.
+    keepWorktree = sessionStarted || options.keepWorktree;
+    options.log(`stop requested: the attempt on ${runId}#${index} ends ${at}; the finding stays pending`);
+    return record({ ...fields, outcome: 'interrupted', worktree, reason: `a service stop ended the attempt ${at}; the next start resumes it` });
+  };
   try {
     if (!(await requireIdle(options, 'prepare a worktree'))) return null;
 
@@ -478,11 +539,12 @@ async function mendFindingReserved(input: MendInput, options: MenderOptions): Pr
     }
     mkdirSync(paths.worktreesDir, { recursive: true });
     await git(options.repo, ['worktree', 'add', '-B', branch, worktree, `${options.remote}/${options.base}`], options.warn);
-    const baseSha = (await git(worktree, ['rev-parse', 'HEAD'], options.warn)).stdout.trim();
+    baseSha = (await git(worktree, ['rev-parse', 'HEAD'], options.warn)).stdout.trim();
     options.log(`worktree ${worktree} on ${branch} at ${baseSha.slice(0, 10)}`);
 
+    if (options.signal?.aborted) return interrupted('before the install', { baseSha });
     options.log(`installing (${options.commands.install})`);
-    const install = await executeUntrusted(options.commands.install, [], { cwd: worktree, timeoutMs: options.timeoutMs, onLog: options.warn });
+    const install = await executeUntrusted(options.commands.install, [], { cwd: worktree, timeoutMs: options.timeoutMs, onLog: options.warn, ...abortable });
     if (install.code !== 0) {
       keepWorktree = true;
       return record({ outcome: 'harness-failed', baseSha, worktree, reason: 'install failed', output: truncate(install.stderr || install.stdout, 4000) });
@@ -503,6 +565,7 @@ async function mendFindingReserved(input: MendInput, options: MenderOptions): Pr
       return record({ outcome: 'dry-run', baseSha, provider: providerFacts });
     }
 
+    if (options.signal?.aborted) return interrupted('before the model session', { baseSha });
     if (!(await requireIdle(options, 'spend model quota'))) {
       keepWorktree = false;
       return null;
@@ -510,10 +573,11 @@ async function mendFindingReserved(input: MendInput, options: MenderOptions): Pr
     journal(mendEvent({ runId, findingIndex: index, key, branch, outcome: 'started', modelRequested: provider.selector })!);
     options.log(`mending ${runId}#${index} "${truncate(finding.title, 80)}" with ${provider.model} (${provider.source} provider)`);
     const startedAt = Date.now();
+    sessionStarted = true;
     const session = provider.transport === 'codex' ? await runCodexSupervisor({
       command: options.commands.codex ?? 'codex', provider, cwd: worktree, prompt,
       hardening: `${MENDER_HARDENING}\nUse worktree_command for all reading, editing and tests. It runs inside /work with no credentials or network.`, schema: SUPERVISOR_MEND_JSON_SCHEMA,
-      timeoutMs: options.timeoutMs, execute: executeUntrusted, onLog: options.warn,
+      timeoutMs: options.timeoutMs, execute: executeUntrusted, onLog: options.warn, ...abortable,
     }) : await runClaudeSession({
       claudeCommand: options.commands.claude,
       execute: executeUntrusted,
@@ -522,14 +586,16 @@ async function mendFindingReserved(input: MendInput, options: MenderOptions): Pr
       provider,
       timeoutMs: options.timeoutMs,
       onLog: options.warn,
+      ...abortable,
     });
-    const modelMeta = {
+    modelMeta = {
       provider: providerFacts,
       modelsServed: session.usage.served,
       mendCostUsd: session.usage.costUsd,
       mendDurationMs: session.usage.durationMs ?? Date.now() - startedAt,
       mendTurns: session.usage.turns,
     };
+    if (options.signal?.aborted) return interrupted('after the model session, before its verification', { baseSha, ...modelMeta });
     if (session.code !== 0) {
       keepWorktree = true;
       return record({ ...modelMeta, outcome: 'model-failed', baseSha, worktree, exitCode: session.code, output: truncate(session.stderr.trim() || session.stdout.trim(), 4000) });
@@ -575,7 +641,7 @@ async function mendFindingReserved(input: MendInput, options: MenderOptions): Pr
     let before: { code: number | null; stdout: string; stderr: string } | null = null;
     let testError: unknown = null;
     try {
-      before = await executeUntrusted(options.commands.test, policy.testFiles, { cwd: worktree, timeoutMs: options.timeoutMs, onLog: options.warn });
+      before = await executeUntrusted(options.commands.test, policy.testFiles, { cwd: worktree, timeoutMs: options.timeoutMs, onLog: options.warn, ...abortable });
     } catch (error) {
       testError = error;
     }
@@ -602,12 +668,13 @@ async function mendFindingReserved(input: MendInput, options: MenderOptions): Pr
       });
     }
 
+    if (options.signal?.aborted) return interrupted('before the full check', { baseSha, ...modelMeta });
     if (!(await requireIdle(options, 'run the full check'))) {
       keepWorktree = true;
       return null;
     }
     options.log(`verifying (${options.commands.check})`);
-    const check = await executeUntrusted(options.commands.check, [], { cwd: worktree, timeoutMs: options.timeoutMs, onLog: options.warn });
+    const check = await executeUntrusted(options.commands.check, [], { cwd: worktree, timeoutMs: options.timeoutMs, onLog: options.warn, ...abortable });
     const checkPassed = check.code === 0;
     if (!checkPassed) {
       keepWorktree = true;
@@ -623,6 +690,10 @@ async function mendFindingReserved(input: MendInput, options: MenderOptions): Pr
       });
     }
     const verification: MendVerification = { testFailedBefore, checkPassed, testFiles: policy.testFiles, checkCommand: options.commands.check };
+
+    // The last safe point: past it the publication runs to its end, because a
+    // stop half-way would leave a pushed branch that no pull request names.
+    if (options.signal?.aborted) return interrupted('before publication', { baseSha, ...modelMeta });
 
     // ---- commit, push, pull request: the harness's hands, never the model's ----
     await git(worktree, ['add', '-A'], options.warn);
@@ -668,6 +739,11 @@ async function mendFindingReserved(input: MendInput, options: MenderOptions): Pr
     const prUrl = /https?:\/\/\S+/.exec(pr.stdout)?.[0] ?? pr.stdout.trim();
     return record({ ...modelMeta, outcome: 'pr-opened', baseSha, sha, prUrl, report, files, diffStat, verification });
   } catch (error) {
+    // An aborted command rejects with the stop's reason: that is the stop,
+    // not a harness failure, and it must not close the finding.
+    if (options.signal?.aborted) {
+      return interrupted('while a phase ran', { ...(baseSha ? { baseSha } : {}), ...(modelMeta ?? {}) });
+    }
     keepWorktree = true;
     options.warn(`mender phase failed: ${String(error)}`);
     return record({ outcome: 'harness-failed', worktree, reason: 'A harness phase failed; inspect the service log before retrying.' });
@@ -736,7 +812,7 @@ export function pendingMends(options: MenderOptions, runIds: readonly string[]):
     const candidatesToo = analysedAt !== undefined && Date.parse(analysedAt) >= Date.parse(CANDIDATES_MENDABLE_SINCE);
     for (const { index, finding } of eligibleFindings(verdict, options.minConfidence)) {
       if (finding.kind === 'mechanism_candidate' && !candidatesToo) continue;
-      if (existsSync(mendRecordPath(paths.menderDir, runId, index)) && !options.force) continue;
+      if (!options.force && recordClosesFinding(mendRecordPath(paths.menderDir, runId, index))) continue;
       work.push({ runId, index, run: { runStatus: verdict.runStatus, grade: verdict.runAssessment.grade }, finding });
     }
   }
@@ -753,6 +829,7 @@ export async function processMends(work: readonly MendInput[], options: MenderOp
   let failures = 0;
   const records: MendRecord[] = [];
   for (const item of work) {
+    if (options.signal?.aborted) break;
     try {
       const outcome = await mendFinding(item, options);
       if (!outcome) failures += 1;
@@ -856,7 +933,7 @@ export async function runMenderLoop(args: {
         }
         if (held) options.log('review back-pressure released');
         held = null;
-        const { records } = await processMends([item], { ...options, force: false });
+        const { records } = await processMends([item], { ...options, force: false, signal });
         if (records.some((record) => record.outcome === 'pr-opened')) open += 1;
       }
     }

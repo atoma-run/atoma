@@ -5,7 +5,7 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { closeStoreHandles, openStoreHandle, storeDbPath } from '../core/stores.js';
-import { acquireRunLeaseWithoutRecovery } from '../mcp/runLock.js';
+import { acquireRunLeaseWithoutRecovery, reclaimedLine } from '../mcp/runLock.js';
 import { orgRunLimitSchema, organisationIdSchema } from '../contracts/projects.js';
 import { PlatformEventLog } from '../platform/events.js';
 import { ProjectStore } from '../projects/store.js';
@@ -78,6 +78,7 @@ export function maintenanceMain(argv: string[]): void {
   const root = process.env['ATOMA_PROJECTS_ROOT'] ?? join(homedir(), '.atoma');
   const workspaceRoot = process.env['ATOMA_LAUNCHER_WORKSPACE_ROOT'];
   const lease = acquireRunLeaseWithoutRecovery('maintenance:retention');
+  if (lease.reclaimed) process.stderr.write(`${reclaimedLine(lease.reclaimed)}\n`);
   try {
     const events = PlatformEventLog.open(dbPath);
     const count = applyRetention(db, root, workspaceRoot, input => events.append(input));

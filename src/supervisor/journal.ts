@@ -88,6 +88,10 @@ const MEND_KIND_BY_OUTCOME: Record<
   // Nothing happened to the deployment: no row.
   'skipped-duplicate': null,
   'dry-run': null,
+  // A person stopped the service, and the finding stays pending: nothing for
+  // anyone to act on. (A deployment never stops a mend in flight: its guard
+  // holds the run slot before it stops the mender.)
+  interrupted: null,
 };
 
 const MEND_SUMMARY: Record<MendJournalFacts['outcome'], string> = {
@@ -101,6 +105,7 @@ const MEND_SUMMARY: Record<MendJournalFacts['outcome'], string> = {
   'harness-failed': 'Mender harness failed',
   'skipped-duplicate': '',
   'dry-run': '',
+  interrupted: '',
 };
 
 /** Null when the outcome is bookkeeping only and no row is owed. */

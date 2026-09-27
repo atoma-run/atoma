@@ -81,6 +81,12 @@ export const mendRecordOutcomeSchema = z.enum([
   'harness-failed',
   /** `--dry-run`: worktree prepared, nothing spent. */
   'dry-run',
+  /**
+   * A service stop ended the attempt before publication. The only outcome
+   * that does not close the finding: it stays pending and the next start
+   * resumes it, because the stop, not the finding, is why it ended.
+   */
+  'interrupted',
 ]);
 export type MendRecordOutcome = z.infer<typeof mendRecordOutcomeSchema>;
 

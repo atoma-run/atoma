@@ -28,7 +28,7 @@ Neighbours:
   the system holding power (design §"Why not a resident LLM watcher").
 - ONE IDLE PREDICATE (`activity.ts`), checked before reserving the shared run slot. It is built from the repository's existing facts — the operator
   index through the sentinel's bounded reader, liveness through
-  `isIndexEntryLive`, the MCP lease through `peekRunLease` — and never from a
+  `isIndexEntryLive`, the MCP lease through `runLeaseOwnerLive` (birth identity, not pid) — and never from a
   parser on the runner's stdout. A torn index read counts as ACTIVE, and so
   does a deployment waiting for the slot (`peekDeploymentPending`): without
   it the mender took the slot back the instant each mend released it, and two
@@ -77,7 +77,9 @@ Neighbours:
   busy findings stay pending, completed or failed attempts require an explicit
   retry. No dispatch credential or auth-secret rotation through GitHub is needed.
 - Analyst and mender reserve the existing machine-global run lease, without
-  stale recovery, throughout their work and cleanup. Product admission and
+  stale recovery, throughout their work and cleanup — reclaiming only a dead
+  owner's row that recorded no process group, as a killed one of them leaves
+  (nothing to reap; logged as `reclaimed`). Product admission and
   deployment use that same slot, and the two never run together on the 4 GB
   host. Since the owner decision of 2026-09-27 a member's run PREEMPTS the
   resident ANALYST instead of being refused behind it: the coordinator asks
@@ -246,6 +248,15 @@ Neighbours:
   `supervisor/mender/`, appended to `mender.jsonl`, and journaled for every
   outcome that touched the deployment. The lock (`supervisor/mender.lock`)
   keeps mends serial on one machine; a dead holder is reclaimed.
+- A STOP ENDS THE ATTEMPT AT ITS NEXT SAFE POINT (`options.signal`, SIGTERM in
+  every mode): the running install, model session, test or check is aborted
+  and its container reaped, and the attempt is recorded `interrupted` — the
+  one outcome that does not close its finding, which the next start resumes.
+  Only a publication already under way (commit, push, pull request) finishes,
+  since stopping half-way leaves a branch nobody reviews; the unit's
+  `TimeoutStopSec=10min` bounds it. The old three-hour stop invited a SIGKILL
+  that left the run slot held by a dead process (2026-09-27). A run still
+  never preempts a mend.
 
 ## The journal
 
@@ -253,7 +264,7 @@ Neighbours:
   `mender.refused`, `mender.pr_opened`, `mender.failed` — severities and push
   audiences forced by the exhaustive maps. Only `pr_opened` and `failed` reach
   a person (platform admins): one is a review waiting, the other a worktree
-  left behind. `skipped-duplicate` and `dry-run` write no row: nothing
+  left behind. `skipped-duplicate`, `dry-run` and `interrupted` write no row: nothing
   happened to the deployment.
 - Rows are `system`, like the sentinel's, and carry FACTS ONLY (`journal.ts`):
   grade, finding kinds, defect key, branch, PR URL, cost, model served. Never
@@ -277,7 +288,7 @@ Neighbours:
   the current Node, so the pipeline tests substitute `claude`, `gh` and `npm`
   on every platform; `npm`/`npx` get a shell on Windows because they are
   `.cmd` shims, and nothing else ever does.
-- The shared host holds the run lease through cleanup. It never recovers a stale lease to make background work proceed; an occupied slot defers the finding.
+- The shared host holds the run lease through cleanup. It never recovers a stale lease that may still have work behind it to make background work proceed; an occupied slot defers the finding. The one row a stage takes over is a gone owner's with nothing left behind (no process group, or one that no longer exists): nothing to reap, and leaving it refused deployments and analyses for 2 h 10 on 2026-09-27.
 - The idle gate is a decision, not an inference. `--no-idle-gate` is a flag
   an operator explicitly passes on a dedicated machine, never a default derived from `CI=true`: an
   environment variable that silently disabled a safety gate on a developer's

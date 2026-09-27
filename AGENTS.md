@@ -220,7 +220,9 @@ separately billed `OPENAI_API_KEY`. The full contract is in
 - `release:check` is the release-readiness definition: full check, audit,
   build, the compiled MCP smoke, the compiled auth end-to-end smoke
   (`auth-release-smoke.mjs`: founder login, CLI invite, member admission),
-  and the auth/doctor/analyst/mender/backup help smokes. `npm run backup` is
+  and the auth/doctor/analyst/mender/backup help smokes. It is ONE definition,
+  `release:check:static && npm test`; CI runs the two halves side by side, and
+  the required `Hermetic checks` job passes only when both did. `npm run backup` is
   compiled (`node dist/cli/backup.js`) because the host installs with
   `npm ci --omit=dev` and has no tsx; `backup:dev` is the source path.
 - The BROWSER smoke (`viz:smoke`) is NOT in it, since 2026-08-24. It is the one

@@ -13,15 +13,17 @@ and the deployment workflow is skipped.
 
 ## What happens
 
-1. The `core` CI job builds and verifies one commit, then archives the runtime
-   files under `atoma-<full-sha>/` with a revision receipt and SHA-256 file.
+1. The `static` CI job builds and verifies one commit — the build half of
+   `release:check`, beside the test suite; the required `core` check passes
+   only when both did — then archives the runtime files under
+   `atoma-<full-sha>/` with a revision receipt and SHA-256 file.
 2. Only a successful `CI` workflow caused by a push to `main` may enter the
    `production` GitHub environment. Pull requests can never reach its secrets.
 3. The deployment job downloads the artifact from that exact CI run, verifies
    its digest, and streams it over SSH with strict host-key checking.
 4. The root-owned host activator takes a host-local deployment lock and starts
    the drain guard, which WAITS for running work rather than refusing it
-   (`ATOMA_DEPLOY_WAIT_SECONDS`, default 1800). The guard first announces the
+   (`ATOMA_DEPLOY_WAIT_SECONDS`, default 5400: one project run at its default budget, with its preparation and backstops). The guard first announces the
    deployment in the machine-global lease store: from then on no run,
    analysis, mend, maintenance or campaign may take the slot and no new preview
    may start, while open previews are no longer kept alive by their heartbeat.
@@ -29,8 +31,10 @@ and the deployment workflow is skipped.
    without stale recovery the moment it frees, waits for the last previews and
    publications, and only then writes the deployment marker that freezes
    writes. It refuses (exit 75) at its deadline, and at once when waiting
-   cannot end well: a lease whose owner process is gone, a retrieval campaign,
-   or project rows marked live while no run holds the slot.
+   cannot end well: a gone owner's lease that recorded a process group (a run
+   may survive behind it), a retrieval campaign, or project rows marked live
+   while no run holds the slot. A row a killed analysis, mend or guard left —
+   no process group, nothing to reap — it takes over and says so.
 5. While the old service still serves, it installs production dependencies,
    runs the compiled release smoke and builds an immutable `atoma-worker:<sha>`
    image; then it stops the old service, moves `atoma-worker:latest`,
@@ -394,7 +398,7 @@ deployments without deleting credentials.
   needs the activator installed from such a release (reinstall it as above).
   A drain log that never says `drain: waiting up to …` comes from an
   activator that predates waiting.
-- The deploy workflow's job timeout (75 minutes) covers the default wait plus
+- The deploy workflow's job timeout (130 minutes) covers the default wait plus
   the 30 minutes the activation and the mender rebuild always had; raising
   `ATOMA_DEPLOY_WAIT_SECONDS` means raising that timeout with it. Waiting also
   needs the service user to be able to write the directory of

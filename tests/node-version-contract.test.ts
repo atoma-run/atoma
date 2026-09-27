@@ -24,7 +24,11 @@ describe('Node version contract', () => {
     expect(ci).toContain('name: Hermetic checks (Node ${{ matrix.line }})');
     expect(ruleset).toContain('"context": "Hermetic checks (Node 24)"');
     expect(ruleset).not.toContain('Node 22');
-    expect(ci.match(/node-version:\s*\$\{\{ matrix.node \}\}/g)).toHaveLength(1);
+    // The two halves of `release:check` (static, tests) install from the
+    // matrix; the gate over them (`core`) carries the same matrix for its
+    // name. Every leg of every matrix is the pin.
+    expect(ci.match(/node-version:\s*\$\{\{ matrix.node \}\}/g)).toHaveLength(2);
+    expect([...ci.matchAll(/- node: '([^']+)'/g)].map((m) => m[1])).toEqual(Array<string>(3).fill(PIN));
     expect([...ci.matchAll(/node-version:\s*(\d\S*)/g)].map((m) => m[1])).toEqual(Array<string>(5).fill(PIN));
     expect(ci.match(new RegExp(`node-version:\\s*${PIN.replace(/\./g, '\\.')}`, 'g'))).toHaveLength(5);
     expect(readFileSync('docker/mender.Dockerfile', 'utf8')).toContain(`FROM node:${PIN}-bookworm`);

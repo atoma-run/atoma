@@ -123,7 +123,12 @@ Neighbours:
   (`~/.atoma/mcp-run-lock.db`, machine-global on purpose). A second start is
   refused; stale lease recovery must validate PIDs/PGIDs safely. Deployment
   takes that same slot through `acquireRunLeaseWithoutRecovery` and never
-  recovers an existing row.
+  recovers a row that may still have a run behind it. The one row any taker
+  there reclaims is a dead owner's that recorded NO process group — what a
+  killed analysis, mend, maintenance or guard leaves — because there is
+  nothing to reap; the lease reports it (`reclaimed`). On 2026-09-27 such a
+  row, left by a SIGKILLed mender, refused two deployments and every analysis
+  for 2 h 10 until a person deleted it.
 - A deployment WAITING for the slot is one `mcp_deployment_pending` row in the
   same store (`registerDeploymentPending`). While it lives, both acquirers
   refuse every taker inside their IMMEDIATE transaction — `condition:

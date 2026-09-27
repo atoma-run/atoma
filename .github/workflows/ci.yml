@@ -31,11 +31,13 @@ jobs:
         env:
           ATOMA_MENDER_CONTAINER_TESTS: '1'
 
-  core:
-    # The check name carries the Node LINE, not the pinned patch version: the
-    # `protect-main` ruleset requires these checks by name, and a version bump
-    # must not silently orphan a required check.
-    name: Hermetic checks (Node ${{ matrix.line }})
+  # `release:check` is ONE definition — `release:check:static && npm test` in
+  # package.json — run here as its two halves side by side. One after the
+  # other they were the whole critical path to a deployment, about 4.5 min of
+  # it (2026-09-27); side by side the longer half is. `core` below is the
+  # single required check that says both passed.
+  static:
+    name: Static checks and release build (Node ${{ matrix.line }})
     strategy:
       fail-fast: false
       matrix:
@@ -43,10 +45,54 @@ jobs:
           - node: '24.20.0'
             line: '24'
     runs-on: ubuntu-latest
-    # `viz:smoke` no longer runs here (see release:check), so this step is back
-    # to hermetic work: tests, audit, build, and the node-only release smokes.
-    # The browser arms were what made the step's cost swing ~1.7x with nothing
-    # but which machine picked the job up.
+    # `viz:smoke` no longer runs here (see release:check), so this step is
+    # hermetic work: docs, types, lint, audit, build, and the node-only release
+    # smokes. The browser arms were what made the step's cost swing ~1.7x with
+    # nothing but which machine picked the job up.
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run release:check:static
+
+      - name: Package the exact main revision for deployment
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.node == '24.20.0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="atoma-${GITHUB_SHA}"
+          mkdir -p "deployment/${root}"
+          cp -R dist docker scripts deploy src docs "deployment/${root}/"
+          cp package.json package-lock.json .env.example AGENTS.md CLAUDE.md "deployment/${root}/"
+          node scripts/supervisor-release-smoke.mjs "deployment/${root}"
+          printf '%s\n' "${GITHUB_SHA}" > "deployment/${root}/REVISION"
+          tar -C deployment -czf "deployment/${root}.tar.gz" "${root}"
+          (cd deployment && sha256sum "${root}.tar.gz" > "${root}.tar.gz.sha256")
+
+      - name: Upload immutable deployment artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.node == '24.20.0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: atoma-deploy-${{ github.sha }}
+          path: |
+            deployment/atoma-${{ github.sha }}.tar.gz
+            deployment/atoma-${{ github.sha }}.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  tests:
+    name: Test suite (Node ${{ matrix.line }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - node: '24.20.0'
+            line: '24'
+    runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
@@ -79,32 +125,33 @@ jobs:
           fi
           tail -n 3 "$RUNNER_TEMP/libreoffice.log"
           soffice --headless --version
-      - run: npm run release:check
+      - run: npm test
 
-      - name: Package the exact main revision for deployment
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.node == '24.20.0'
-        shell: bash
+  core:
+    # The check name carries the Node LINE, not the pinned patch version: the
+    # `protect-main` ruleset requires these checks by name, and a version bump
+    # must not silently orphan a required check. It is the gate over BOTH
+    # halves of `release:check`, and it runs WHATEVER they did, a cancelled
+    # run included: a job skipped — by a failed dependency or by its own
+    # `if` — reports as passing to a required check, so this one always runs
+    # and fails unless it read two successes.
+    name: Hermetic checks (Node ${{ matrix.line }})
+    needs: [static, tests]
+    if: ${{ always() }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - node: '24.20.0'
+            line: '24'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Both halves of release:check passed
         run: |
-          set -euo pipefail
-          root="atoma-${GITHUB_SHA}"
-          mkdir -p "deployment/${root}"
-          cp -R dist docker scripts deploy src docs "deployment/${root}/"
-          cp package.json package-lock.json .env.example AGENTS.md CLAUDE.md "deployment/${root}/"
-          node scripts/supervisor-release-smoke.mjs "deployment/${root}"
-          printf '%s\n' "${GITHUB_SHA}" > "deployment/${root}/REVISION"
-          tar -C deployment -czf "deployment/${root}.tar.gz" "${root}"
-          (cd deployment && sha256sum "${root}.tar.gz" > "${root}.tar.gz.sha256")
-
-      - name: Upload immutable deployment artifact
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.node == '24.20.0'
-        uses: actions/upload-artifact@v4
-        with:
-          name: atoma-deploy-${{ github.sha }}
-          path: |
-            deployment/atoma-${{ github.sha }}.tar.gz
-            deployment/atoma-${{ github.sha }}.tar.gz.sha256
-          if-no-files-found: error
-          retention-days: 14
+          echo "static: ${{ needs.static.result }}, tests: ${{ needs.tests.result }}"
+          test "${{ needs.static.result }}" = success
+          test "${{ needs.tests.result }}" = success
 
   i18n:
     name: Translate blank locale values

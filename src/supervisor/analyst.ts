@@ -13,7 +13,7 @@ import {
   type VerdictMeta,
 } from '../contracts/supervisorVerdict.js';
 import { readBoundedJson } from '../sentinel/sources.js';
-import { acquireRunLeaseWithoutRecovery, RunLockBusyError } from '../mcp/runLock.js';
+import { acquireRunLeaseWithoutRecovery, reclaimedLine, RunLockBusyError } from '../mcp/runLock.js';
 import type { VizRun, VizRunIndexEntry } from '../viz/trace.js';
 import { anyRunActive, finishedRuns } from './activity.js';
 import { dispatchMendRequests, mendRequestsFor, type DispatchConfig, type FetchLike } from './dispatch.js';
@@ -345,6 +345,9 @@ export async function analyseTarget(target: AnalysisTarget, options: AnalystOpti
   let lease;
   try {
     lease = acquireRunLeaseWithoutRecovery(`analyst:${runId}`, options.leasePath);
+    if (lease.reclaimed) {
+      options.warn(reclaimedLine(lease.reclaimed));
+    }
   } catch (error) {
     if (error instanceof RunLockBusyError) return { runId, outcome: 'refused-active', verdictPath: null };
     throw error;

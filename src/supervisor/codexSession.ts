@@ -153,8 +153,11 @@ export async function runCodexSupervisor(options: CodexSupervisorOptions): Promi
                   const remaining = options.timeoutMs - (Date.now() - startedAt);
                   if (!accepting || remaining <= 0 || !options.execute) throw new Error('Session ended');
                   const request = commandSchema.parse(params['arguments']);
+                  // The session's own stop reaches the command it is waiting
+                  // on: a mender stop must not sit out its 120-second bound.
                   const executed = await options.execute('sh', ['-c', request.command], {
                     cwd: options.cwd, env: {}, network: 'none', timeoutMs: Math.min(120_000, remaining),
+                    ...(options.signal ? { signal: options.signal } : {}),
                   });
                   output = JSON.stringify({ code: executed.code, stdout: executed.stdout.slice(-16_000), stderr: executed.stderr.slice(-8_000) });
                   success = executed.code === 0;

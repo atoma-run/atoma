@@ -91,7 +91,7 @@ corrections of the 2026-09-24 and 2026-09-25 code reviews.
 - A validator is told when a file it sees read was rewritten afterwards.
 - A production deployment waits for the work already running on the instance
   (a run, a mend, an analysis, a preview) instead of being refused behind it,
-  up to `ATOMA_DEPLOY_WAIT_SECONDS` (default 30 minutes). Nothing new starts
+  up to `ATOMA_DEPLOY_WAIT_SECONDS` (default 90 minutes, one project run at its default budget). Nothing new starts
   meanwhile and nothing running is interrupted; writes stay open until the
   activation itself and reopen as soon as the new version is healthy. A
   deployment refused because work is still busy exits 75.
@@ -107,6 +107,18 @@ corrections of the 2026-09-24 and 2026-09-25 code reviews.
   compiled code and reinstalls dependencies only when the lockfile changed.
 - CI reaches a deployment sooner: the worker image job runs beside the checks
   instead of after them, and LibreOffice installs while `npm ci` runs.
+- CI runs the release check's static half (docs, types, lint, audit, build,
+  release smokes) and its test suite side by side; `release:check` is still
+  one definition, their composition, and the required check passes only when
+  both halves did.
+- A run slot held by a stage that was killed (an analysis, a mend, a
+  deployment guard) is taken over by the next one that needs it, instead of
+  refusing deployments and analyses until a person deletes the row; a row
+  that may still have a run behind it is left to a run start's recovery.
+- Stopping the mender ends the attempt in flight within seconds: its command
+  or model session is aborted and its container removed, and the finding
+  stays pending for the next start. Only a publication already under way
+  finishes first.
 
 ## v0.4.0 — 2026-09-17
 

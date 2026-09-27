@@ -14,9 +14,12 @@ describe('the dedicated mender host', () => {
     expect(service).toContain('WorkingDirectory=/home/atoma/mender');
   });
 
-  it('lets the active attempt finish before its container cleanup backstop', () => {
+  it('ends the active attempt at its next safe point, within a bounded stop, before its container cleanup backstop', () => {
+    // Three hours of patience invited a SIGKILL that left the run slot held
+    // by a dead process (2026-09-27); a stop now interrupts the attempt, and
+    // only a publication already under way needs the minutes left.
     expect(service).toContain('KillMode=mixed');
-    expect(service).toContain('TimeoutStopSec=3h');
+    expect(service).toContain('TimeoutStopSec=10min');
     expect(service).toContain('ExecStopPost=/bin/bash /home/atoma/mender/deploy/mender-reap.sh');
     expect(service).toContain('MemoryMax=1G');
     expect(install).toContain('git checkout --detach "$MENDER_REVISION"');

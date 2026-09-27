@@ -182,7 +182,8 @@ trace evidence. Provider cache/profile state is not claimed to be reproducibly
 cold or frozen by this harness.
 
 The whole campaign holds the existing machine-global run lease. An occupied
-slot is refused without stale recovery, and each child's PGID is attached.
+slot is refused without stale recovery (a gone owner's row with nothing left
+behind is taken over), and each child's PGID is attached.
 Cancellation uses the launcher's existing process-group teardown. A surviving
 child keeps the lease and its PGID for operator recovery. Do not edit source
 or run another live workload during the campaign.

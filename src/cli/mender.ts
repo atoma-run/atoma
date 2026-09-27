@@ -173,6 +173,16 @@ async function main(): Promise<void> {
   const journal = existsSync(dbPath) ? PlatformEventLog.open(dbPath) : null;
   const log = (line: string): void => void process.stdout.write(`[mender ${new Date().toISOString()}] ${line}\n`);
   const warn = (line: string): void => void process.stderr.write(`[mender ${new Date().toISOString()}] WARN ${line}\n`);
+  // A stop ends the attempt in flight at its next safe point, in every mode:
+  // killed instead, the attempt left the run slot held by a dead process
+  // until a person deleted the row (2026-09-27).
+  const controller = new AbortController();
+  const stop = (): void => {
+    log('stopping');
+    controller.abort(new Error('the mender service is stopping'));
+  };
+  process.once('SIGINT', stop);
+  process.once('SIGTERM', stop);
   const once = args.flags['once'] === 'true';
   const verdictId = args.flags['verdict'];
   const findingFile = args.flags['finding-file'];
@@ -200,6 +210,7 @@ async function main(): Promise<void> {
       '--max-open-prs',
       MENDER_DEFAULT_MAX_OPEN_PULL_REQUESTS
     ),
+    signal: controller.signal,
     journal: journal ? (input) => void journal.append(input) : null,
     log,
     warn,
@@ -231,7 +242,7 @@ async function main(): Promise<void> {
     }
     if (!options.idleGate) log('idle gate OFF — this machine is expected to have nothing else to do');
     const { failures } = await processMends([input], options);
-    process.exitCode = failures > 0 ? 1 : 0;
+    process.exitCode = failures > 0 || controller.signal.aborted ? 1 : 0;
     return;
   }
   if (verdictId) {
@@ -251,7 +262,7 @@ async function main(): Promise<void> {
       })),
       options
     );
-    process.exitCode = failures > 0 ? 1 : 0;
+    process.exitCode = failures > 0 || controller.signal.aborted ? 1 : 0;
     return;
   }
 
@@ -261,17 +272,10 @@ async function main(): Promise<void> {
     const work = pendingMends(options, ids);
     log(`once: ${work.length} pending defect finding(s)`);
     const { failures } = await processMends(work, options);
-    process.exitCode = failures > 0 ? 1 : 0;
+    process.exitCode = failures > 0 || controller.signal.aborted ? 1 : 0;
     return;
   }
 
-  const controller = new AbortController();
-  const stop = (): void => {
-    log('stopping');
-    controller.abort();
-  };
-  process.once('SIGINT', stop);
-  process.once('SIGTERM', stop);
   log(`watching ${paths.verdictsDir} (poll ${options.pollMs}ms${options.dryRun ? ', DRY-RUN' : ''})`);
   await runMenderLoop({ options, signal: controller.signal, ...(backfill !== undefined ? { backfill } : {}) });
 }

@@ -127,7 +127,9 @@ describe('post-CI deployment pipeline', () => {
   it('waits for running work behind a guard that can, and refuses busy work as 75', () => {
     // 2026-09-27: two deployments in a row were refused behind back-to-back
     // mends, and at a steady run rate the slot never frees at all.
-    expect(hostDeploy).toContain('WAIT_SECONDS="${ATOMA_DEPLOY_WAIT_SECONDS:-1800}"');
+    // The default outlasts one project run at its default budget, with its
+    // preparation and backstops: a run no longer fails the deployment.
+    expect(hostDeploy).toContain('WAIT_SECONDS="${ATOMA_DEPLOY_WAIT_SECONDS:-5400}"');
     expect(hostDeploy).toContain('ATOMA_DEPLOY_WAIT_SECONDS must be an integer between 0 and 14400');
     // The guard runs from the OLD release: wait only when it says it can, and
     // never through `| grep -q`, whose early exit is a pipefail.
@@ -170,8 +172,8 @@ describe('post-CI deployment pipeline', () => {
     expect(lifted).toBeGreaterThan(healthy);
     expect(lifted).toBeLessThan(hostDeploy.indexOf('\nrefresh_mender\n'));
     // The job outlives the longest wait plus activation and mender refresh.
-    expect(workflow).toContain('timeout-minutes: 75');
-    expect(deployEnv).toContain('ATOMA_DEPLOY_WAIT_SECONDS=1800');
+    expect(workflow).toContain('timeout-minutes: 130');
+    expect(deployEnv).toContain('ATOMA_DEPLOY_WAIT_SECONDS=5400');
   });
 
   it('prepares the new release while the old generation serves, and stops only to switch', () => {
@@ -203,22 +205,48 @@ describe('post-CI deployment pipeline', () => {
     expect(refresh.indexOf('node_modules/.atoma-install-stamp\n    fi')).toBeGreaterThan(refresh.indexOf('HUSKY=0 npm ci'));
   });
 
-  it('proves the worker beside the hermetic checks, and installs LibreOffice during npm ci', () => {
-    // 2026-09-27: the worker job waited for `core` (1.6 min) and LibreOffice
-    // waited for npm ci (25–50 s), on the path every deployment waits for.
-    const worker = ci.slice(ci.indexOf('\n  worker:\n'));
+  it('runs release:check as its two halves side by side, gated by the one required check', () => {
+    // 2026-09-27: the worker job waited for `core` (1.6 min), LibreOffice
+    // waited for npm ci (25–50 s), and release:check ran its checks and its
+    // suite one after the other (about 4.5 min) — all on the path every
+    // deployment waits for.
+    const job = (id: string): string => {
+      const start = ci.indexOf(`\n  ${id}:\n`);
+      expect(start, `job ${id}`).toBeGreaterThan(0);
+      const next = ci.slice(start + 1).search(/\n {2}[a-z][a-z0-9-]*:\n/);
+      return next === -1 ? ci.slice(start) : ci.slice(start, start + 1 + next);
+    };
+    const scripts = (JSON.parse(readFileSync('package.json', 'utf8')) as { scripts: Record<string, string> }).scripts;
+    // ONE definition: CI runs exactly its two halves, nothing beside them.
+    expect(scripts['release:check']).toBe('npm run release:check:static && npm test');
+    expect(job('static')).toContain('- run: npm run release:check:static');
+    expect(job('static')).toContain('name: Upload immutable deployment artifact');
+    const suite = job('tests');
+    expect(suite).toContain('- run: npm test');
+    // The required check keeps its name and fails unless BOTH halves passed:
+    // a job skipped behind a failed dependency would read as passing.
+    const gate = job('core');
+    expect(gate).toContain('name: Hermetic checks (Node ${{ matrix.line }})');
+    expect(gate).toContain('needs: [static, tests]');
+    // Not `!cancelled()`: a gate skipped by its own `if` also reads as passing.
+    expect(gate).toContain('if: ${{ always() }}');
+    expect(gate).toContain('test "${{ needs.static.result }}" = success');
+    expect(gate).toContain('test "${{ needs.tests.result }}" = success');
+    expect(readFileSync('.github/rulesets/protect-main.json', 'utf8')).toContain('"context": "Hermetic checks (Node 24)"');
+    // The worker proof waits for nothing.
+    const worker = job('worker');
     expect(worker.slice(0, worker.indexOf('steps:'))).not.toContain('needs:');
-    const core = ci.slice(ci.indexOf('\n  core:\n'), ci.indexOf('\n  i18n:\n'));
-    const start = core.indexOf('name: Start installing LibreOffice');
-    const install = core.indexOf('- run: npm ci');
-    const finish = core.indexOf('name: Finish installing LibreOffice');
-    const check = core.indexOf('- run: npm run release:check');
+    // LibreOffice installs during npm ci, before the suite that needs it, and
+    // detached, or the runner would hold the step open until apt finished.
+    const start = suite.indexOf('name: Start installing LibreOffice');
+    const install = suite.indexOf('- run: npm ci');
+    const finish = suite.indexOf('name: Finish installing LibreOffice');
+    const run = suite.indexOf('- run: npm test');
     expect(start).toBeGreaterThan(0);
     expect(start).toBeLessThan(install);
     expect(install).toBeLessThan(finish);
-    expect(finish).toBeLessThan(check);
-    // Detached, or the runner would hold the step open until apt finished.
-    expect(core).toContain(') > /dev/null 2>&1 < /dev/null &');
+    expect(finish).toBeLessThan(run);
+    expect(suite).toContain(') > /dev/null 2>&1 < /dev/null &');
   });
 
   it('keeps the host activator syntactically valid Bash', () => {

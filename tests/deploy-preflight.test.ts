@@ -238,23 +238,63 @@ describe('a deployment that waits for running work', () => {
     }
   });
 
-  posixIt('refuses at once, and recovers nothing, when the slot is held by an owner that is gone', async () => {
+  posixIt('refuses at once, and recovers nothing, when a gone owner may still have a run behind it', async () => {
+    const root = temporaryRoot();
+    const lockPath = join(root, 'lock.db');
+    acquireRunLeaseWithoutRecovery('warm-up', lockPath).release();
+    // The orphaned run's group is ALIVE: its server died, it did not.
+    const orphan = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+      detached: true,
+      stdio: ['ignore', 'ignore', 'ignore'],
+    });
+    await new Promise<void>((resolveSpawn, rejectSpawn) => {
+      orphan.once('spawn', resolveSpawn);
+      orphan.once('error', rejectSpawn);
+    });
+    try {
+      const db = new Database(lockPath);
+      db.prepare(
+        `INSERT INTO mcp_run_lease (singleton, token, run_id, owner_pid, child_pgid, acquired_at)
+         VALUES (1, 'dead', 'project:orphaned', 99999999, ?, '2026-01-01T00:00:00.000Z')`
+      ).run(orphan.pid);
+      db.close();
+      const result = await waitForDeploymentSlot(
+        { runLockPath: lockPath, waitMs: 60_000, admissionMarker: join(root, 'deploy.lock'), parentPid: process.pid },
+        { sleep: async () => { throw new Error('must not wait'); }, facts: () => NOTHING, progress: () => {} }
+      );
+      expect(result).toEqual({ kind: 'refused', reason: expect.stringMatching(/project:orphaned whose owner process is gone but whose run may survive/) });
+      expect(peekRunLease(lockPath)?.runId).toBe('project:orphaned');
+      expect(peekDeploymentPending(lockPath)).toBeNull();
+    } finally {
+      try { process.kill(-orphan.pid!, 'SIGKILL'); } catch { /* already gone */ }
+    }
+  });
+
+  posixIt('takes over at once a slot a killed stage left behind, and says so', async () => {
+    // 2026-09-27: a mender killed with SIGKILL left its row, which refused two
+    // deployments until a person deleted it. It recorded no process group.
     const root = temporaryRoot();
     const lockPath = join(root, 'lock.db');
     acquireRunLeaseWithoutRecovery('warm-up', lockPath).release();
     const db = new Database(lockPath);
     db.prepare(
       `INSERT INTO mcp_run_lease (singleton, token, run_id, owner_pid, child_pgid, acquired_at)
-       VALUES (1, 'dead', 'mender:crashed', 99999999, NULL, '2026-01-01T00:00:00.000Z')`
+       VALUES (1, 'dead', 'mender:killed', 99999999, NULL, '2026-01-01T00:00:00.000Z')`
     ).run();
     db.close();
+    const progress: string[] = [];
+    const clock = fakeClock();
     const result = await waitForDeploymentSlot(
       { runLockPath: lockPath, waitMs: 60_000, admissionMarker: join(root, 'deploy.lock'), parentPid: process.pid },
-      { sleep: async () => { throw new Error('must not wait'); }, facts: () => NOTHING, progress: () => {} }
+      { now: clock.now, sleep: async (ms) => clock.advance(ms), facts: () => NOTHING, progress: (line) => progress.push(line) }
     );
-    expect(result).toEqual({ kind: 'refused', reason: expect.stringMatching(/mender:crashed whose owner process is gone/) });
-    expect(peekRunLease(lockPath)?.runId).toBe('mender:crashed');
-    expect(peekDeploymentPending(lockPath)).toBeNull();
+    try {
+      expect(result.kind).toBe('ready');
+      expect(progress).toContain('reclaimed the run slot from mender:killed (its owner, pid 99999999, is gone or recycled, and nothing it started survives)');
+      expect(peekRunLease(lockPath)?.runId).toBe(`deployment:${process.pid}`);
+    } finally {
+      if (result.kind === 'ready') result.lease.release();
+    }
   });
 
   posixIt('refuses at once for a campaign that runs for hours, and for run rows nothing drives', async () => {

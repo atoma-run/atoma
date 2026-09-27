@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { peekDeploymentPending, peekRunLease, processExists } from '../mcp/runLock.js';
+import { peekDeploymentPending, runLeaseOwnerLive } from '../mcp/runLock.js';
 import { readBoundedJson } from '../sentinel/sources.js';
 import { isIndexEntryLive } from '../viz/liveness.js';
 import type { VizRunIndexEntry } from '../viz/trace.js';
@@ -50,8 +50,10 @@ export function probeActivity(probe: ActivityProbe, now = Date.now()): Activity 
       }
     }
   }
-  const owner = peekRunLease(probe.leasePath);
-  if (owner && processExists(owner.ownerPid)) return { active: true, reason: 'lease-held' };
+  // By birth identity, not pid: a dead owner's pid reused after a reboot —
+  // by any process, the mender itself included — would otherwise read as a
+  // run forever, and the stages that reclaim such a row would never try.
+  if (runLeaseOwnerLive(probe.leasePath)) return { active: true, reason: 'lease-held' };
   if (peekDeploymentPending(probe.leasePath)) return { active: true, reason: 'deployment-pending' };
   return { active: false, reason: 'idle' };
 }

@@ -12,9 +12,14 @@ Group=atoma
 WorkingDirectory=/home/atoma/mender
 EnvironmentFile=/home/atoma/config/mender.env
 ExecStart=/usr/bin/node /home/atoma/mender/dist/cli/mender.js
-# Let the current bounded attempt reap its containers before exiting.
+# A stop ends the attempt in flight at its next safe point (the running
+# command or model session is aborted and its container reaped; it is
+# recorded `interrupted` and resumes on the next start). Only a publication
+# already under way (push, pull request) finishes first: ten minutes bounds it,
+# where three hours used to invite a SIGKILL that left the run slot held by a
+# dead process (2026-09-27).
 KillMode=mixed
-TimeoutStopSec=3h
+TimeoutStopSec=10min
 ExecStopPost=/bin/bash /home/atoma/mender/deploy/mender-reap.sh
 Restart=on-failure
 RestartSec=30

@@ -45,6 +45,13 @@ export interface RunLease {
    * publishes this on its payload.
    */
   readonly recovered?: ReapedRun;
+  /**
+   * Present when the slot was held by a row whose owner is gone and which had
+   * nothing left behind it — a killed analysis, mend or deployment, or a run
+   * whose group died with its unit — and this acquisition took it over.
+   * Nothing was reaped; the caller says so.
+   */
+  readonly reclaimed?: RunLockOwner;
   /** Persist the detached process-group id. Throws if ownership was lost. */
   attachChild(pgid: number): void;
   /** Conditional by token and safe to call twice. */
@@ -285,16 +292,34 @@ function toOwner(row: LeaseRow): RunLockOwner {
   };
 }
 
+/** The owner is dead, or its pid now belongs to another process. */
+function ownerIsGone(row: LeaseRow): boolean {
+  const identity = recordedIdentity(row.owner_pid, row.owner_fingerprint, row.acquired_at);
+  return identity === 'gone' || identity === 'mismatch';
+}
+
+/**
+ * Nothing is left to reap behind a gone owner's row: it recorded no process
+ * group, or the group it recorded no longer exists (a unit stop killed it with
+ * the owner). A group that still exists — or whose id another group now
+ * carries — keeps the row for a run start's recovery, which alone may signal.
+ */
+function nothingBehind(row: LeaseRow): boolean {
+  return row.child_pgid === null || !runProcessGroupExists(row.child_pgid);
+}
+
 function makeLease(
   db: Database.Database,
   path: string,
   owner: RunLockOwner,
-  recovered?: ReapedRun
+  recovered?: ReapedRun,
+  reclaimed?: RunLockOwner
 ): RunLease {
   let released = false;
   return {
     path,
     ...(recovered ? { recovered } : {}),
+    ...(reclaimed ? { reclaimed } : {}),
     attachChild(pgid) {
       if (released) throw new Error(`cannot attach child ${pgid}: run lease is already released`);
       const childFingerprint = processFingerprint(pgid);
@@ -448,14 +473,24 @@ export async function acquireRunLease(
 }
 
 /**
- * Claim the run slot only when it is already empty.
+ * Claim the run slot only when it is empty — or held by a row with nothing
+ * behind it.
  *
  * This is the deployment drain primitive, not run-start recovery. A deploy
  * must never decide that an existing owner is stale and reap its process
- * group merely so new code can be activated. Any row -- live, stale or
- * unverifiable -- is therefore busy. The normal run path above remains the
- * sole recovery path and retains its fingerprint checks and visible
- * `recovered` result.
+ * group merely so new code can be activated: a row that recorded a child
+ * process group is busy whatever its owner's state, and the normal run path
+ * above remains the sole recovery path, with its fingerprint checks and
+ * visible `recovered` result.
+ *
+ * A row whose owner is GONE and which has NOTHING BEHIND IT — it recorded no
+ * process group, or the one it recorded no longer exists — is the one
+ * exception, and any caller here reclaims it: there is nothing to reap, only
+ * a row. That is every row an analysis, a mend, maintenance or a deployment
+ * leaves when killed — on 2026-09-27 a mender killed with SIGKILL left one
+ * that refused two deployments and every analysis for 2 h 10, until a person
+ * deleted it by hand. The lease says so (`reclaimed`), and an unverifiable
+ * owner is still busy.
  *
  * A waiting deployment refuses every caller here too — analysis, mend,
  * maintenance, campaigns — except the deployment that registered it, which
@@ -482,12 +517,19 @@ export function acquireRunLeaseWithoutRecovery(
      VALUES (1, ?, ?, ?, NULL, ?, ?, NULL)`
   );
 
+  const deleteByToken = db.prepare('DELETE FROM mcp_run_lease WHERE singleton = 1 AND token = ?');
+
   try {
     const outcome = db.transaction(() => {
       const waiting = blockingDeployment(db, options.pendingToken);
       if (waiting) return { waiting };
       const held = read.get() as LeaseRow | undefined;
-      if (held) return { held };
+      let reclaimed: RunLockOwner | undefined;
+      if (held) {
+        if (!ownerIsGone(held) || !nothingBehind(held)) return { held };
+        deleteByToken.run(held.token);
+        reclaimed = toOwner(held);
+      }
       insert.run(
         owner.token,
         owner.runId,
@@ -495,7 +537,7 @@ export function acquireRunLeaseWithoutRecovery(
         owner.acquiredAt,
         ownerFingerprint
       );
-      return undefined;
+      return reclaimed ? { reclaimed } : undefined;
     }).immediate();
     if (outcome?.waiting) throw deploymentWaitingError(outcome.waiting);
     const existing = outcome?.held;
@@ -506,7 +548,7 @@ export function acquireRunLeaseWithoutRecovery(
         held
       );
     }
-    return makeLease(db, path, owner);
+    return makeLease(db, path, owner, undefined, outcome?.reclaimed);
   } catch (error) {
     db.close();
     throw error;
@@ -650,10 +692,12 @@ export function peekDeploymentPending(path = mcpRunLockPath()): DeploymentPendin
 
 /**
  * Is the slot held by a row whose owner process is GONE (dead, or its pid
- * recycled)? Such a row never frees itself: only the next run start's
- * recovery path does. A waiting deployment asks this so it refuses at once
- * instead of holding everyone off until its deadline for nothing — it never
- * recovers the row itself. Read-only; unverifiable reads as not gone.
+ * recycled) but whose recorded process group still exists? Such a row may
+ * still have a run behind it, which only a run start's recovery may reap; a
+ * gone owner with nothing behind is reclaimed by the next taker instead. A waiting deployment asks this after being
+ * refused, so it refuses at once instead of holding everyone off until its
+ * deadline for nothing — it never recovers such a row itself. Read-only;
+ * unverifiable reads as not gone.
  */
 export function runLeaseOwnerGone(path = mcpRunLockPath()): boolean {
   if (!existsSync(path)) return false;
@@ -667,9 +711,9 @@ export function runLeaseOwnerGone(path = mcpRunLockPath()): boolean {
     const row = db.prepare('SELECT * FROM mcp_run_lease WHERE singleton = 1').get() as
       | LeaseRow
       | undefined;
-    if (!row) return false;
-    const identity = recordedIdentity(row.owner_pid, row.owner_fingerprint, row.acquired_at);
-    return identity === 'gone' || identity === 'mismatch';
+    // Only the row a non-recovery taker must leave: a gone owner with a live
+    // group behind it. A gone owner with nothing behind is reclaimed instead.
+    return row ? ownerIsGone(row) && !nothingBehind(row) : false;
   } catch {
     return false;
   } finally {
@@ -686,4 +730,35 @@ export function runLeaseOwnerGone(path = mcpRunLockPath()): boolean {
 export function recordedProcessLive(pid: number, fingerprint: string): boolean {
   const identity = recordedIdentity(pid, fingerprint, new Date().toISOString());
   return identity === 'match' || identity === 'unverifiable';
+}
+
+/**
+ * Is the slot held by a LIVE owner? The idle predicate's question, answered by
+ * birth identity rather than by pid: a dead owner's pid reused after a reboot
+ * — by any process, the mender itself included — must not read as a run, or
+ * the stages that would reclaim the row never try. Unverifiable reads as live.
+ */
+export function runLeaseOwnerLive(path = mcpRunLockPath()): boolean {
+  if (!existsSync(path)) return false;
+  let db: Database.Database;
+  try {
+    db = new Database(path, { readonly: true, fileMustExist: true });
+  } catch {
+    return false;
+  }
+  try {
+    const row = db.prepare('SELECT * FROM mcp_run_lease WHERE singleton = 1').get() as
+      | LeaseRow
+      | undefined;
+    return row ? !ownerIsGone(row) : false;
+  } catch {
+    return false;
+  } finally {
+    db.close();
+  }
+}
+
+/** The one line every taker logs when its lease says `reclaimed`. */
+export function reclaimedLine(from: RunLockOwner): string {
+  return `reclaimed the run slot from ${from.runId} (its owner, pid ${from.ownerPid}, is gone or recycled, and nothing it started survives)`;
 }

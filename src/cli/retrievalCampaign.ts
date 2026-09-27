@@ -10,7 +10,7 @@ import {
   retrievalAttemptStartSchema, retrievalCampaignResultSchema, type RetrievalCampaignResult,
   type RetrievalRegistration, type RetrievalScheduleEntry,
 } from '../contracts/retrievalCampaign.js';
-import { acquireRunLeaseWithoutRecovery, type RunLease } from '../mcp/runLock.js';
+import { acquireRunLeaseWithoutRecovery, reclaimedLine, type RunLease } from '../mcp/runLock.js';
 import { spawnRun, withUnkillableBackstop, DEFAULT_HARD_KILL_MARGIN_MS, UNKILLABLE_BACKSTOP_EXTRA_MS } from './burnin.js';
 import {
   loadRetrievalDataset, prepareRetrievalWorkspace, readRetrievalFile, questionFor,
@@ -166,6 +166,7 @@ export async function runRetrievalCampaign(
   const host = { ...(options.hostEnv ?? process.env) };
   const versions = deps.preflight(registration);
   const lease = deps.acquire(`retrieval:${registration.spec.id}`);
+  if (lease.reclaimed) process.stderr.write(`${reclaimedLine(lease.reclaimed)}\n`);
   const out = resolve(options.out);
   let reserved = false;
   let childSettled = true;

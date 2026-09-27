@@ -23,6 +23,7 @@ import {
   peekRunLease,
   processExists,
   processFingerprint,
+  reclaimedLine,
   registerDeploymentPending,
   RunLockBusyError,
   runLeaseOwnerGone,
@@ -162,8 +163,9 @@ const LONG_HOLDERS = ['retrieval:'] as const;
  *
  * It refuses at the deadline, when its parent is gone or gave up (the release
  * file), when interrupted — and AT ONCE when waiting cannot end well: a slot
- * held by a row whose owner process is gone (only a run start's recovery
- * frees it, which the announcement forbids), a campaign that runs for hours,
+ * held by a gone owner whose recorded process group still exists (only a run
+ * start's recovery may reap it, which the announcement forbids; a gone owner
+ * with nothing behind is taken over instead), a campaign that runs for hours,
  * or project rows marked live while nothing holds the slot (no driver exists
  * for them; only a server start reconciles them).
  */
@@ -230,12 +232,16 @@ export async function waitForDeploymentSlot(
       if (!lease) {
         try {
           lease = acquireRunLeaseWithoutRecovery(runId, plan.runLockPath, { pendingToken: pending.token });
+          if (lease.reclaimed) progress(reclaimedLine(lease.reclaimed));
         } catch (error) {
           if (!(error instanceof RunLockBusyError)) throw error;
           const holder = error.owner?.runId ?? 'a row';
+          // Refused although its owner is gone: the row recorded a process
+          // group, so a run may survive behind it (a no-group row is
+          // reclaimed by the acquisition above).
           if (runLeaseOwnerGone(plan.runLockPath)) {
             return refuse(
-              `the run slot is held by ${holder} whose owner process is gone; ` +
+              `the run slot is held by ${holder} whose owner process is gone but whose run may survive; ` +
                 'the next run start recovers it, a deployment never does'
             );
           }
@@ -307,7 +313,7 @@ then waits until the release file appears or the parent process exits.
 --wait-ms <ms> makes --hold WAIT for busy work instead of refusing it: nothing
 new may take the slot or open a preview meanwhile, whatever runs finishes, and
 the admission marker is written only once the slot is clear. It refuses (75)
-at the deadline, or at once when the slot's owner process is gone.
+at the deadline, or at once when a gone owner's run may survive behind the slot.
 `;
 
 function parseArgs(argv: readonly string[]): CliOptions {
@@ -454,6 +460,7 @@ async function main(): Promise<void> {
         `deployment:${process.pid}`,
         resolve(options.runLockPath ?? mcpRunLockPath())
       );
+      if (lease.reclaimed) process.stdout.write(`${reclaimedLine(lease.reclaimed)}\n`);
     }
     const blockers = deploymentBlockers({ ...options, ignoreRunLease: options.hold });
     if (blockers.length > 0) {

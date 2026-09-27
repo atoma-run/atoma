@@ -2,7 +2,8 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { registerDeploymentPending } from '../src/mcp/runLock.js';
+import Database from 'better-sqlite3';
+import { acquireRunLeaseWithoutRecovery, registerDeploymentPending } from '../src/mcp/runLock.js';
 import { finishedRuns, probeActivity } from '../src/supervisor/activity.js';
 
 /**
@@ -48,6 +49,21 @@ describe('probeActivity', () => {
     const f = fixture();
     writeFileSync(join(f.runsDir, 'index.json'), '[{"id": "a", "startedAt": ');
     expect(probeActivity(f, NOW)).toEqual({ active: true, reason: 'index-torn' });
+  });
+
+  // The idle predicate asked "does the owner's pid exist?", so a dead owner's
+  // pid reused after a reboot read as a run forever, and the stages that
+  // reclaim such a row never tried. Birth identity decides. POSIX only.
+  it.skipIf(process.platform === 'win32')('reads a dead owner whose pid another process now carries as idle', () => {
+    const f = fixture();
+    acquireRunLeaseWithoutRecovery('warm-up', f.leasePath).release();
+    const db = new Database(f.leasePath);
+    db.prepare(
+      `INSERT INTO mcp_run_lease (singleton, token, run_id, owner_pid, child_pgid, acquired_at, owner_fingerprint)
+       VALUES (1, 'reused', 'mender:before-reboot', ?, NULL, ?, 'linux:another-boot:1')`
+    ).run(process.pid, new Date(NOW).toISOString());
+    db.close();
+    expect(probeActivity(f, NOW)).toEqual({ active: false, reason: 'idle' });
   });
 
   // The mender took the slot back the instant each mend released it and two
