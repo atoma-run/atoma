@@ -48,6 +48,7 @@ import {
 import { artifactManifestHash } from './artifacts.js';
 import { captureAcceptanceSpec, parseAcceptanceSpec } from '../run/acceptanceSpec.js';
 import type { AcceptanceSpec, ChecklistSource } from '../contracts/acceptanceChecklist.js';
+import type { DepthMode } from '../contracts/depthRouting.js';
 
 /** An acceptance list a run carries, and who wrote it. */
 export interface RunAcceptance {
@@ -460,6 +461,7 @@ interface ProjectRunRow {
   rerun_of_run_id?: string | null;
   model_overrides_json?: string | null;
   seed_json?: string | null;
+  depth?: string | null;
   trace_id: string | null;
   stats_json: string | null;
   artifact_manifest_json: string | null;
@@ -570,6 +572,7 @@ function runFromRow(row: ProjectRunRow): ProjectRun {
     ...(row.rerun_of_run_id ? { rerunOf: row.rerun_of_run_id } : {}),
     ...(row.model_overrides_json ? { modelOverrides: parseJson(row.model_overrides_json, 'model overrides') } : {}),
     ...(row.seed_json ? { seed: parseJson(row.seed_json, 'run seed') } : {}),
+    ...(row.depth ? { depth: row.depth } : {}),
     traceId: row.trace_id,
     stats: row.stats_json === null ? null : runStatsSchema.parse(parseJson(row.stats_json, 'run stats')),
     artifactManifest:
@@ -740,6 +743,7 @@ export class ProjectStore {
         ['project_runs', 'rerun_of_run_id'],
         ['project_runs', 'model_overrides_json'],
         ['project_runs', 'seed_json'],
+        ['project_runs', 'depth'],
         ['project_run_acceptance', 'source'],
         ['project_publications', 'pull_request_url'],
         ['project_publications', 'seed_commit_sha'],
@@ -1284,7 +1288,8 @@ END;
       // again would compare a row with itself.
       if (existing.requested_by_principal_id !== principalId ||
           existing.rerun_of_run_id !== parsed.rerunOf ||
-          existing.model_overrides_json !== JSON.stringify(parsed.models)) {
+          existing.model_overrides_json !== JSON.stringify(parsed.models) ||
+          (parsed.depth !== undefined && (existing.depth ?? null) !== parsed.depth)) {
         throw new ProjectStateConflict('run idempotency key was already used for different input');
       }
       return runFromRow(existing);
@@ -1342,6 +1347,8 @@ END;
     readonly origin?: {
       readonly goal: string;
       readonly acceptance: RunAcceptance | null;
+      /** The origin's depth, which a rerun keeps unless it names its own. */
+      readonly depth?: DepthMode;
     };
     readonly hostPaths: ProjectRunHostPaths;
     readonly projectRunId?: string;
@@ -1382,8 +1389,8 @@ END;
           `INSERT INTO project_runs (
              project_run_id, project_id, org_id, requested_by_principal_id, request_key,
              goal, status, workspace_path, runs_path, log_path, skills_path,
-             rerun_of_run_id, model_overrides_json, created_at, updated_at
-           ) VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?)`
+             rerun_of_run_id, model_overrides_json, depth, created_at, updated_at
+           ) VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           requestedRunId,
@@ -1398,6 +1405,7 @@ END;
           paths.skillsPath ?? null,
           rerun?.rerunOf ?? null,
           rerun ? JSON.stringify(rerun.models) : null,
+          (rerun ? rerun.depth ?? input.origin?.depth : request.depth) ?? null,
           now,
           now
         );

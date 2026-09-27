@@ -276,6 +276,9 @@ export const PROJECT_RUN_INPUT = {
   models: z.object({ l1: z.string().min(1), l2: z.string().min(1), l3: z.string().min(1) }).optional().describe(
     'With rerunOf, required: the full model selector for each tier (<api|sub|own>:<vendor>:<model>).'
   ),
+  depth: z.enum(['short', 'deep']).optional().describe(
+    'Supervision depth. short (default): an L2 cell plans and the run deepens once if it stalls. deep: an L3 tissue decomposes the goal from the start — for goals spanning several parts (API, pages, docs). On a rerun, absent keeps the origin\'s.'
+  ),
 };
 
 /**
@@ -385,6 +388,7 @@ export function projectRunTaskHandler(host: RunTaskHost, deps: ProjectRunTaskDep
         ...(criteria ? { acceptanceChecklist: criteria.items } : {}),
         ...(args.rerunOf !== undefined ? { rerunOf: args.rerunOf } : {}),
         ...(args.models !== undefined ? { models: args.models } : {}),
+        ...(args.depth !== undefined ? { depth: args.depth } : {}),
       })) as { projectRunId: string; status: string };
     } catch (error) {
       if (error instanceof ProjectHttpError) {

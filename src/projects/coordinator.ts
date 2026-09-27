@@ -1318,7 +1318,8 @@ export class ProjectRunCoordinator {
         projectId: input.projectId,
         principalId: input.principalId,
         request: input.request,
-        ...(rerun ? { origin: { goal: rerun.origin.goal, acceptance: rerun.acceptance } } : {}),
+        ...(rerun ? { origin: { goal: rerun.origin.goal, acceptance: rerun.acceptance,
+          ...(rerun.origin.depth ? { depth: rerun.origin.depth } : {}) } } : {}),
         projectRunId: candidateRunId,
         enforceCapacity: true,
         hostPaths: {
@@ -1469,6 +1470,7 @@ export class ProjectRunCoordinator {
           // caches like any run (docs/platform-trust-2026-09-15.md).
           '--container',
           ...(seedFrom ? ['--seed', seedFrom] : []),
+          ...(run.depth ? ['--depth', run.depth] : []),
         ],
         env: environment,
         onSpawn: (pid) => lease.attachChild(pid),

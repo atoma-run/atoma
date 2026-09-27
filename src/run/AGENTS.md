@@ -84,7 +84,9 @@ Neighbours:
 ## Run accounting
 
 - New ordinary build runs default to short-first supervision. `--depth deep`
-  explicitly enters through L3; `--depth short` selects the default. Baseline
+  explicitly enters through L3; `--depth short` selects the default. A project
+  run passes it from its own `depth` (since 2026-09-27; a rerun keeps its
+  origin's): before, only the CLI could ask for L3 from the start. Baseline
   and REGISTERED COMPARISON ARMS (`--comparison`) retain their existing
   protocol — and that flag exists because the rule read `--seed` until
   2026-09-23. Two unrelated populations pass `--seed`: a campaign arm seeds to
