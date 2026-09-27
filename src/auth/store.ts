@@ -12,6 +12,7 @@ import {
   type AccountSubscriptionProvider,
 } from '../contracts/accountSubscriptions.js';
 import { principalIdSchema } from '../contracts/projects.js';
+import { MODEL_SELECTOR_VENDORS, type ModelSelectorVendor } from '../contracts/modelSelector.js';
 import {
   isAccountTierSelection,
   isValidTierModelSelection,
@@ -37,14 +38,16 @@ const MAX_DISPLAY_NAME_LENGTH = 120;
 /** Provider API keys are bounded like the tokens they are (GitHub caps at 16 KiB). */
 const MAX_PROVIDER_KEY_CHARS = 16_384;
 
-export type ProviderKeyProvider = 'anthropic' | 'openai' | 'zai' | 'ollama';
+/**
+ * Every `api:` vendor may hold an organisation key, so the key space IS the
+ * vendor vocabulary (`contracts/modelSelector.ts`) — one list, and the table's
+ * CHECK constraint below is generated from it.
+ */
+export type ProviderKeyProvider = ModelSelectorVendor;
 
-export const PROVIDER_KEY_PROVIDERS: readonly ProviderKeyProvider[] = [
-  'anthropic',
-  'openai',
-  'zai',
-  'ollama',
-];
+export const PROVIDER_KEY_PROVIDERS: readonly ProviderKeyProvider[] = MODEL_SELECTOR_VENDORS;
+
+const PROVIDER_KEY_CHECK = `CHECK (provider IN (${PROVIDER_KEY_PROVIDERS.map((provider) => `'${provider}'`).join(',')}))`;
 
 /** What GET /api/org/provider-keys may reveal: presence, never bytes. */
 export interface OrgProviderKeyStatus {
@@ -232,7 +235,7 @@ CREATE TABLE IF NOT EXISTS auth_org_tier_models (
 );
 CREATE TABLE IF NOT EXISTS auth_org_provider_keys (
   org_id       TEXT NOT NULL REFERENCES auth_organisations(org_id),
-  provider     TEXT NOT NULL CHECK (provider IN ('anthropic','openai','zai','ollama')),
+  provider     TEXT NOT NULL ${PROVIDER_KEY_CHECK},
   envelope     TEXT NOT NULL,
   updated_at   TEXT NOT NULL,
   PRIMARY KEY (org_id, provider)
@@ -610,6 +613,57 @@ function migrateInvitationOrganisationScope(db: Database.Database): void {
   migrate.immediate();
 }
 
+/**
+ * Widen `auth_org_provider_keys` to today's vendor list. SQLite cannot alter a
+ * CHECK constraint, and `CREATE TABLE IF NOT EXISTS` leaves an older table's
+ * narrower one in force — so a store created before a vendor was added would
+ * refuse that vendor's key on INSERT. Rebuild the table when its stored DDL
+ * does not carry the current constraint, copying every envelope byte for
+ * byte: the AAD binds org, provider and key id, none of which change.
+ *
+ * BEGIN IMMEDIATE and a recheck inside, like the invitation convergence, so
+ * two processes opening one store converge rather than race.
+ */
+function migrateProviderKeyVendors(db: Database.Database): void {
+  const current = (): string | undefined =>
+    (
+      db
+        .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'auth_org_provider_keys'")
+        .get() as { sql: string } | undefined
+    )?.sql;
+  const upToDate = (sql: string | undefined): boolean =>
+    sql === undefined || sql.replace(/\s+/g, ' ').includes(PROVIDER_KEY_CHECK);
+  if (upToDate(current())) return;
+
+  const migrate = db.transaction((): void => {
+    if (upToDate(current())) return;
+    const staging = db
+      .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'auth_org_provider_keys_next'")
+      .get();
+    if (staging) {
+      throw new Error('provider key migration has an unexpected staging table');
+    }
+    db.exec(`
+      CREATE TABLE auth_org_provider_keys_next (
+        org_id       TEXT NOT NULL REFERENCES auth_organisations(org_id),
+        provider     TEXT NOT NULL ${PROVIDER_KEY_CHECK},
+        envelope     TEXT NOT NULL,
+        updated_at   TEXT NOT NULL,
+        PRIMARY KEY (org_id, provider)
+      );
+      INSERT INTO auth_org_provider_keys_next (org_id, provider, envelope, updated_at)
+        SELECT org_id, provider, envelope, updated_at FROM auth_org_provider_keys;
+      DROP TABLE auth_org_provider_keys;
+      ALTER TABLE auth_org_provider_keys_next RENAME TO auth_org_provider_keys;
+    `);
+    const violations = db.prepare('PRAGMA foreign_key_check(auth_org_provider_keys)').all();
+    if (violations.length > 0) {
+      throw new Error('provider key migration violated a foreign key');
+    }
+  });
+  migrate.immediate();
+}
+
 function personalOrganisationName(displayName: string): string {
   const normalized = displayName.trim() || 'Personal';
   const maxBaseLength = 255 - PERSONAL_ORG_SUFFIX.length;
@@ -655,6 +709,7 @@ export class AuthStore {
       );
     }
     migrateInvitationOrganisationScope(this.db);
+    migrateProviderKeyVendors(this.db);
     this.db.exec(AUTH_POST_MIGRATION_DDL);
   }
 

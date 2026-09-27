@@ -842,18 +842,18 @@ describe('pricing — a Codex call must never read as free', () => {
       userContent: 'u',
     });
     expect(metrics.events[0]!.model).toBe(CODEX_MODEL_FRONTIER);
-    // OK_LINES usage on the gpt-5.6-sol row ($5 in / $0.5 cached / $30 out):
-    //   2856×5/1M + 6912×0.5/1M + 13×30/1M ≈ $0.018126
-    // The /opus/i row ($25 out) would read ≈ $0.018061 — close, which is
-    // exactly why the row KEY is the assertion that matters.
-    expect(metrics.summary().totals.costUsd).toBeCloseTo(0.018126, 5);
+    // OK_LINES usage on the gpt-5.6-sol row ($4 in / $0.4 cached / $20 out,
+    // catalogue 2026-09-27):
+    //   2856×4/1M + 6912×0.4/1M + 13×20/1M ≈ $0.0144488
+    // The opus fallback (Opus 5.5, $4 / $0.2 / $20) would read ≈ $0.0130664.
+    expect(metrics.summary().totals.costUsd).toBeCloseTo(0.0144488, 6);
   });
 
   it('prices the GPT-5.6 slugs, with or without the selector', () => {
     // Unmatched models fall to 0/0/0, which would make every tiering
     // comparison flattering and false: the spend has moved to another
     // subscription, not vanished.
-    expect(pricesFor('sub:openai:gpt-5.6-sol')).toEqual({ input: 5, output: 30, cachedInput: 0.5 });
+    expect(pricesFor('sub:openai:gpt-5.6-sol')).toEqual({ input: 4, output: 20, cachedInput: 0.4 });
     expect(pricesFor('gpt-5.6-terra')).toEqual({ input: 2, output: 12, cachedInput: 0.2 });
     expect(pricesFor('api:openai:gpt-5.6-luna')).toEqual({ input: 0.2, output: 1.2, cachedInput: 0.02 });
   });
@@ -865,8 +865,8 @@ describe('pricing — a Codex call must never read as free', () => {
 
   it('does not disturb the Anthropic or GLM rows', () => {
     expect(pricesFor('claude-opus-5')).toEqual({ input: 5, output: 25, cachedInput: 0.5 });
-    expect(pricesFor('claude-sonnet-5').output).toBe(15);
-    expect(pricesFor('api:zai:glm-4.5-air').input).toBe(0.6);
+    expect(pricesFor('claude-sonnet-5').output).toBe(10);
+    expect(pricesFor('api:zai:glm-4.5-air').input).toBe(0.2);
   });
 });
 

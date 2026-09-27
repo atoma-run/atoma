@@ -9,6 +9,11 @@ import {
   CHATGPT_SUBSCRIPTION_MODELS,
   HOST_SUBSCRIPTION_ALIASES,
 } from '../contracts/runPayers.js';
+import { ZAI_DEFAULT_BASE_URL } from '../contracts/modelSelector.js';
+import { offeredCatalogModels } from './modelCatalog.js';
+
+/** Gemini API's OpenAI-compatible endpoint (an AI Studio key, not Vertex AI). */
+export const GOOGLE_DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/openai';
 
 /**
  * THE VENDOR/MODEL CATALOGUE FOR TENANT SELECTION.
@@ -28,8 +33,10 @@ import {
  *
  * The lists are EXTENDED BY DESIGN (owner decision 2026-08-27): every
  * generation a vendor still serves, so an organisation can standardise on an
- * older cheaper model if it wants. A new entry is a one-line edit here — there
- * is no second copy of any list.
+ * older cheaper model if it wants. They are DATA since 2026-09-27: the model
+ * lists and their prices live in `core/modelCatalog.json` and change through
+ * `npm run models`; what stays here is what a vendor IS — its credential,
+ * endpoint, wire protocol and listing URL. There is no second copy of either.
  *
  * The Ollama entries are SUGGESTIONS, not an inventory: that vendor is
  * self-hosted, so what actually resolves depends on the deployment pulling
@@ -57,6 +64,9 @@ export interface ProviderModelEntry {
   readonly tiers?: readonly TierNumber[];
 }
 
+/** The wire protocol a vendor's `api:` transport speaks. */
+export type ProviderWire = 'anthropic-messages' | 'openai-responses' | 'chat-completions' | 'ollama';
+
 export interface LlmProviderEntry {
   readonly id: ModelSelectorVendor;
   readonly label: string;
@@ -72,45 +82,62 @@ export interface LlmProviderEntry {
   readonly configurableEnvVars: readonly string[];
   /** True when the model list reflects a live remote inventory we cannot enumerate statically. */
   readonly suggestive: boolean;
+  readonly wire: ProviderWire;
+  /** The variable that overrides the endpoint, and the endpoint when it is unset. */
+  readonly baseUrlEnvVar: string;
+  readonly defaultBaseUrl: string;
+  /**
+   * Where the vendor lists the models it serves today, read by
+   * `npm run models -- check --live`. Null when there is no listing atoma can
+   * read with the credential it holds.
+   */
+  readonly modelListing: {
+    readonly url: string;
+    readonly auth: 'bearer' | 'anthropic';
+  } | null;
   readonly models: readonly ProviderModelEntry[];
 }
 
-const ANTHROPIC_MODELS: readonly ProviderModelEntry[] = [
-  { id: 'claude-opus-5', label: 'Claude Opus 5' },
-  { id: 'claude-sonnet-5', label: 'Claude Sonnet 5' },
-  { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5' },
-  { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 (20251001)' },
-  { id: 'claude-opus-4-5', label: 'Claude Opus 4.5' },
-  { id: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
-  { id: 'claude-opus-4-1', label: 'Claude Opus 4.1' },
-  { id: 'claude-sonnet-4-0', label: 'Claude Sonnet 4' },
-];
+/**
+ * The catalogue's offered models of one vendor, as picker entries. Evaluated
+ * when the process loads, like the prices: a model retired on a later day
+ * leaves the pickers at the first deploy after that day.
+ */
+function offeredModels(vendor: ModelSelectorVendor): readonly ProviderModelEntry[] {
+  return offeredCatalogModels(vendor).map((model) => ({
+    id: model.id,
+    label: model.label,
+    ...(model.tiers ? { tiers: model.tiers } : {}),
+  }));
+}
 
 /**
- * The OpenAI API serves the same slugs a ChatGPT subscription does, with
- * tools — so by API every tier is admissible, L1 included. Only the CLI
- * transport may restrict tier availability in its catalogue.
+ * One OpenAI-compatible Chat Completions vendor: its key, its endpoint and
+ * its listing, all under one base URL. `wire` is what `run/providers.ts`
+ * switches on; the per-vendor protocol differences live beside the client
+ * (`core/llmChatCompletions.ts`).
  */
-const OPENAI_MODELS: readonly ProviderModelEntry[] = CHATGPT_SUBSCRIPTION_MODELS.map((model) => ({
-  id: model,
-  label: modelLabel(model),
-}));
-
-const ZAI_MODELS: readonly ProviderModelEntry[] = [
-  { id: 'glm-4.5', label: 'GLM-4.5' },
-  { id: 'glm-4.5-air', label: 'GLM-4.5 Air' },
-  { id: 'glm-4.5-flash', label: 'GLM-4.5 Flash' },
-  { id: 'glm-4-32b-0414-128k', label: 'GLM-4 32B' },
-];
-
-const OLLAMA_MODELS: readonly ProviderModelEntry[] = [
-  { id: 'qwen3:8b', label: 'Qwen3 8B' },
-  { id: 'qwen3:30b-a3b', label: 'Qwen3 30B A3B' },
-  { id: 'llama3.3:70b', label: 'Llama 3.3 70B' },
-  { id: 'mistral-small3.1:latest', label: 'Mistral Small 3.1' },
-  { id: 'gemma3:27b', label: 'Gemma 3 27B' },
-  { id: 'deepseek-r1:14b', label: 'DeepSeek R1 14B' },
-];
+function chatCompletionsVendor(input: {
+  readonly id: ModelSelectorVendor;
+  readonly label: string;
+  readonly credentialEnvVar: string;
+  readonly baseUrlEnvVar: string;
+  readonly defaultBaseUrl: string;
+}): LlmProviderEntry {
+  return {
+    id: input.id,
+    label: input.label,
+    selectorPrefix: `api:${input.id}`,
+    credentialEnvVar: input.credentialEnvVar,
+    configurableEnvVars: [input.baseUrlEnvVar],
+    suggestive: false,
+    wire: 'chat-completions',
+    baseUrlEnvVar: input.baseUrlEnvVar,
+    defaultBaseUrl: input.defaultBaseUrl,
+    modelListing: { url: `${input.defaultBaseUrl.replace(/\/+$/, '')}/models`, auth: 'bearer' },
+    models: offeredModels(input.id),
+  };
+}
 
 export const LLM_PROVIDER_CATALOG: readonly LlmProviderEntry[] = [
   {
@@ -124,7 +151,11 @@ export const LLM_PROVIDER_CATALOG: readonly LlmProviderEntry[] = [
     // through the SDK's own chain in src/run/auth.ts.
     configurableEnvVars: ['ANTHROPIC_BASE_URL'],
     suggestive: false,
-    models: ANTHROPIC_MODELS,
+    wire: 'anthropic-messages',
+    baseUrlEnvVar: 'ANTHROPIC_BASE_URL',
+    defaultBaseUrl: 'https://api.anthropic.com',
+    modelListing: { url: 'https://api.anthropic.com/v1/models?limit=1000', auth: 'anthropic' },
+    models: offeredModels('anthropic'),
   },
   {
     id: 'openai',
@@ -133,8 +164,67 @@ export const LLM_PROVIDER_CATALOG: readonly LlmProviderEntry[] = [
     credentialEnvVar: 'OPENAI_API_KEY',
     configurableEnvVars: ['OPENAI_BASE_URL'],
     suggestive: false,
-    models: OPENAI_MODELS,
+    wire: 'openai-responses',
+    baseUrlEnvVar: 'OPENAI_BASE_URL',
+    defaultBaseUrl: 'https://api.openai.com/v1',
+    modelListing: { url: 'https://api.openai.com/v1/models', auth: 'bearer' },
+    models: offeredModels('openai'),
   },
+  chatCompletionsVendor({
+    id: 'google',
+    label: 'Google DeepMind',
+    credentialEnvVar: 'GEMINI_API_KEY',
+    baseUrlEnvVar: 'GEMINI_BASE_URL',
+    defaultBaseUrl: GOOGLE_DEFAULT_BASE_URL,
+  }),
+  chatCompletionsVendor({
+    id: 'xai',
+    label: 'xAI',
+    credentialEnvVar: 'XAI_API_KEY',
+    baseUrlEnvVar: 'XAI_BASE_URL',
+    defaultBaseUrl: 'https://api.x.ai/v1',
+  }),
+  // Meta's Model API. Its docs name the key MODEL_API_KEY; a name that generic
+  // collides with everything, so atoma reads it under the vendor's name.
+  chatCompletionsVendor({
+    id: 'meta',
+    label: 'Meta',
+    credentialEnvVar: 'META_API_KEY',
+    baseUrlEnvVar: 'META_BASE_URL',
+    defaultBaseUrl: 'https://api.meta.ai/v1',
+  }),
+  chatCompletionsVendor({
+    id: 'mistral',
+    label: 'Mistral AI',
+    credentialEnvVar: 'MISTRAL_API_KEY',
+    baseUrlEnvVar: 'MISTRAL_BASE_URL',
+    defaultBaseUrl: 'https://api.mistral.ai/v1',
+  }),
+  // Model Studio, International (Singapore). Alibaba now issues per-workspace
+  // hosts (`https://<workspace>.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1`)
+  // and asks new integrations to use them; the shared host below still
+  // answers, and DASHSCOPE_BASE_URL selects a workspace host.
+  chatCompletionsVendor({
+    id: 'qwen',
+    label: 'Alibaba Qwen',
+    credentialEnvVar: 'DASHSCOPE_API_KEY',
+    baseUrlEnvVar: 'DASHSCOPE_BASE_URL',
+    defaultBaseUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+  }),
+  chatCompletionsVendor({
+    id: 'deepseek',
+    label: 'DeepSeek',
+    credentialEnvVar: 'DEEPSEEK_API_KEY',
+    baseUrlEnvVar: 'DEEPSEEK_BASE_URL',
+    defaultBaseUrl: 'https://api.deepseek.com',
+  }),
+  chatCompletionsVendor({
+    id: 'moonshot',
+    label: 'Moonshot AI (Kimi)',
+    credentialEnvVar: 'MOONSHOT_API_KEY',
+    baseUrlEnvVar: 'MOONSHOT_BASE_URL',
+    defaultBaseUrl: 'https://api.moonshot.ai/v1',
+  }),
   {
     id: 'zai',
     label: 'Z.ai',
@@ -142,7 +232,13 @@ export const LLM_PROVIDER_CATALOG: readonly LlmProviderEntry[] = [
     credentialEnvVar: 'ZAI_API_KEY',
     configurableEnvVars: ['ZAI_BASE_URL'],
     suggestive: false,
-    models: ZAI_MODELS,
+    wire: 'anthropic-messages',
+    baseUrlEnvVar: 'ZAI_BASE_URL',
+    defaultBaseUrl: ZAI_DEFAULT_BASE_URL,
+    // The Anthropic-compatible endpoint lists nothing; the platform's own
+    // OpenAI-compatible API does, under the same key.
+    modelListing: { url: 'https://api.z.ai/api/paas/v4/models', auth: 'bearer' },
+    models: offeredModels('zai'),
   },
   {
     id: 'ollama',
@@ -151,7 +247,12 @@ export const LLM_PROVIDER_CATALOG: readonly LlmProviderEntry[] = [
     credentialEnvVar: null,
     configurableEnvVars: ['OLLAMA_BASE_URL', 'OLLAMA_MODEL'],
     suggestive: true,
-    models: OLLAMA_MODELS,
+    wire: 'ollama',
+    baseUrlEnvVar: 'OLLAMA_BASE_URL',
+    defaultBaseUrl: 'http://localhost:11434',
+    // Self-hosted: what resolves is whatever the deployment pulled.
+    modelListing: null,
+    models: offeredModels('ollama'),
   },
 ] as const;
 

@@ -3,6 +3,13 @@ import type {
   LlmCompletionRequest,
   LlmCompletionResponse,
 } from './types.js';
+import {
+  pricePointAt,
+  type CatalogModel,
+  type ModelCatalog,
+} from '../contracts/modelCatalog.js';
+import { MODEL_SELECTOR_VENDORS, tryParseModelSelector } from '../contracts/modelSelector.js';
+import { MODEL_CATALOG } from './modelCatalog.js';
 
 export interface LlmCallMetrics {
   readonly model: string;
@@ -33,61 +40,133 @@ export interface MetricsRecorder {
 }
 
 /**
- * USD per million tokens, approximate. Hardcoded for common Claude 4.x family
- * identifiers; unknown models fall back to zero so the summary still runs.
- * Override with a custom PriceTable in the InMemoryMetrics constructor.
+ * USD per million tokens, from the checked-in model catalogue
+ * (`core/modelCatalog.json`, schema `contracts/modelCatalog.ts`). Unknown
+ * models fall back to zero so the summary still runs. Override with a custom
+ * PriceTable in the InMemoryMetrics constructor.
  */
 export interface ModelPrices {
   readonly input: number;
   readonly output: number;
   readonly cachedInput: number;
+  /** Cache-write input where a vendor bills it apart; absent means 1.25 × input. */
+  readonly cacheWrite?: number;
 }
 
+/**
+ * First matching row wins. `match` is anything with `test(model)` — a RegExp
+ * for a hand-written table, a catalogue matcher for the default one.
+ */
 export type PriceTable = ReadonlyArray<{
-  readonly match: RegExp;
+  readonly match: { test(model: string): boolean };
   readonly prices: ModelPrices;
 }>;
 
-export const DEFAULT_PRICES: PriceTable = [
-  // Current-generation Opus (4.5 through 5) is $5/$25 — the old 15/75/1.5
-  // row was Claude 3 Opus pricing and overstated every Opus call 3×, which
-  // in turn made the "L3 always pays one Opus plan" tradeoff look 3× more
-  // expensive than it really is. Pin an older Opus 4.0/4.1 ($15/$75) via a
-  // custom PriceTable if you ever need one.
-  { match: /opus/i,   prices: { input: 5,  output: 25, cachedInput: 0.5 } },
-  { match: /sonnet/i, prices: { input: 3,  output: 15, cachedInput: 0.3 } },
-  { match: /haiku/i,  prices: { input: 1,  output: 5,  cachedInput: 0.1 } },
-  // Z.ai GLM family (matched with or without a routing prefix, e.g.
-  // "zai:glm-4.5-air"). APPROXIMATE mid-family numbers — Z.ai prices per
-  // model vary widely (Air/Flash tiers are far cheaper than flagships);
-  // override with a custom PriceTable for billing-grade accounting.
-  { match: /glm/i,    prices: { input: 0.6, output: 2.2, cachedInput: 0.11 } },
-  // OpenAI GPT-5.6 family, reached by API (`api:openai:gpt-5.6-sol`) or
-  // through the Codex CLI (`sub:openai:…`) — matched WITH or WITHOUT the
-  // selector, like the GLM row. API list prices as of 2026-08-11; cached input is 10% of
-  // base across the family. Order matters: the specific slugs must precede
-  // the generic /gpt-5/i fallback, since `pricesFor` takes the FIRST match.
-  //
-  // WHY PRICE THEM AT ALL WHEN THE SUBSCRIPTION BILLS NOTHING PER TOKEN.
-  // Because leaving them unmatched means `pricesFor` returns 0/0/0 and
-  // every Codex call reads as FREE — which would make any tiering
-  // comparison flattering and false, since the spend has merely moved to
-  // another subscription. Same convention as the claude-cli transport:
-  // what the tokens WOULD cost at API prices. Note the honest consequence
-  // for L3 — gpt-5.6-sol at $5/$30 is DEARER on output than Opus 5's
-  // $5/$25, so pinning L3 here is a subscription saving, not an API one.
-  { match: /gpt-5\.6-sol/i,   prices: { input: 5,   output: 30,  cachedInput: 0.5 } },
-  { match: /gpt-5\.6-terra/i, prices: { input: 2,   output: 12,  cachedInput: 0.2 } },
-  { match: /gpt-5\.6-luna/i,  prices: { input: 0.2, output: 1.2, cachedInput: 0.02 } },
-  // APPROXIMATE mid-family fallback for the older/smaller slugs
-  // (gpt-5.5, gpt-5.4, gpt-5.4-mini). Override with a custom PriceTable
-  // for billing-grade accounting.
-  { match: /gpt-5/i,          prices: { input: 2,   output: 12,  cachedInput: 0.2 } },
-];
+/**
+ * The priced identity of a model string, which arrives in three spellings: a
+ * full selector (`api:zai:glm-4.5-air`), the served bare id a transport
+ * reported (`glm-4.5-air`, `models/gemini-3.8-flash`), or a legacy
+ * `vendor:model` pair. A self-hosted Ollama selector names no API vendor: its
+ * tag prices through the family fallbacks, as what those tokens WOULD cost at
+ * the vendor whose weights it runs, like every subscription transport here.
+ */
+function pricedIdentity(model: string): { vendor: string | null; id: string } {
+  const selector = tryParseModelSelector(model);
+  if (selector) {
+    return {
+      vendor: selector.vendor === 'ollama' ? null : selector.vendor,
+      id: selector.model.toLowerCase(),
+    };
+  }
+  const bare = model.trim().replace(/^models\//i, '').toLowerCase();
+  const colon = bare.indexOf(':');
+  if (colon > 0 && (MODEL_SELECTOR_VENDORS as readonly string[]).includes(bare.slice(0, colon))) {
+    const vendor = bare.slice(0, colon);
+    return { vendor: vendor === 'ollama' ? null : vendor, id: bare.slice(colon + 1) };
+  }
+  return { vendor: null, id: bare };
+}
+
+/** Dated snapshots (`-20251001`, `-2026-03-05`, `-0309`) price like their family id. */
+const DATED_SUFFIX = /-(?:\d{8}|\d{4}-\d{2}-\d{2}|\d{4})$/;
+
+/**
+ * The default table, derived from the catalogue for the prices in force on
+ * `at`: every model's exact ids (retired ones too — their past calls still
+ * need pricing), then each vendor's family fallbacks. Exact rows are
+ * vendor-scoped when the priced string names its vendor, so one vendor's id
+ * can never borrow another's price.
+ */
+export function catalogPriceTable(
+  catalog: ModelCatalog = MODEL_CATALOG,
+  at: Date = new Date()
+): PriceTable {
+  const exact: Array<PriceTable[number]> = [];
+  const fallbacks: Array<PriceTable[number]> = [];
+  for (const vendor of MODEL_SELECTOR_VENDORS) {
+    const entry = catalog.vendors[vendor];
+    const priceOf = (model: CatalogModel): ModelPrices | null => {
+      const point = pricePointAt(model, at);
+      if (!point) return null;
+      return {
+        input: point.input,
+        output: point.output,
+        cachedInput: point.cachedInput,
+        ...(point.cacheWrite !== undefined ? { cacheWrite: point.cacheWrite } : {}),
+      };
+    };
+    for (const model of entry.models) {
+      const prices = priceOf(model);
+      if (!prices) continue;
+      const ids = new Set([model.id, ...(model.aliases ?? [])].map((id) => id.toLowerCase()));
+      exact.push({
+        match: {
+          test: (value) => {
+            const priced = pricedIdentity(value);
+            if (priced.vendor !== null && priced.vendor !== vendor) return false;
+            return ids.has(priced.id) || ids.has(priced.id.replace(DATED_SUFFIX, ''));
+          },
+        },
+        prices,
+      });
+    }
+    for (const fallback of entry.fallbacks ?? []) {
+      const target = entry.models.find((model) => model.id === fallback.priceOf);
+      const prices = target ? priceOf(target) : null;
+      if (!prices) continue;
+      const pattern = new RegExp(fallback.pattern, 'i');
+      fallbacks.push({
+        match: {
+          test: (value) => {
+            const priced = pricedIdentity(value);
+            if (priced.vendor !== null && priced.vendor !== vendor) return false;
+            return pattern.test(priced.id);
+          },
+        },
+        prices,
+      });
+    }
+  }
+  return [...exact, ...fallbacks];
+}
+
+/**
+ * Current prices, fixed when the process loads. A price change reaches a
+ * running server at its next deploy, like every other catalogue change.
+ */
+export const DEFAULT_PRICES: PriceTable = catalogPriceTable();
 
 export function pricesFor(model: string, table: PriceTable = DEFAULT_PRICES): ModelPrices {
   for (const entry of table) if (entry.match.test(model)) return entry.prices;
   return { input: 0, output: 0, cachedInput: 0 };
+}
+
+/**
+ * What `model` cost on `at`, from the catalogue's price HISTORY — for anything
+ * that re-prices old usage. Live recording keeps using `DEFAULT_PRICES`.
+ */
+export function pricesAt(model: string, at: Date, catalog: ModelCatalog = MODEL_CATALOG): ModelPrices {
+  return pricesFor(model, catalogPriceTable(catalog, at));
 }
 
 /**
@@ -97,7 +176,8 @@ export function pricesFor(model: string, table: PriceTable = DEFAULT_PRICES): Mo
  *    cache_creation_input_tokens + input_tokens"
  * where `input_tokens` is ONLY the content after the last cache
  * breakpoint — NOT a grand total. 5-minute cache writes are billed at
- * 1.25× the base input price.
+ * 1.25× the base input price, unless the catalogue names the vendor's own
+ * cache-write price (Z.ai and DeepSeek bill none).
  *
  * Exported so both `InMemoryMetrics.summary` and `RecordingLlmClient`
  * (viz) use the same formula — previously they had two copies that
@@ -118,7 +198,8 @@ export function estimateCostUsd(
   return (
     (usage.inputTokens * prices.input +
       usage.cacheReadInputTokens * prices.cachedInput +
-      usage.cacheCreationInputTokens * prices.input * CACHE_CREATE_MULTIPLIER_5M +
+      usage.cacheCreationInputTokens *
+        (prices.cacheWrite ?? prices.input * CACHE_CREATE_MULTIPLIER_5M) +
       usage.outputTokens * prices.output) /
     1_000_000
   );

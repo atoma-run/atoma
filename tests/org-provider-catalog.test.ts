@@ -138,7 +138,7 @@ describe('the subscriptions are neighbours, not catalogue members', () => {
   // array.
   it('stays out of the catalogue that decides what may hold a key', () => {
     const ids: string[] = [...llmProviderIds()];
-    expect(ids).toEqual(['anthropic', 'openai', 'zai', 'ollama']);
+    expect(ids).toEqual(['anthropic', 'openai', 'google', 'xai', 'meta', 'mistral', 'qwen', 'deepseek', 'moonshot', 'zai', 'ollama']);
     for (const family of [HOST_SUBSCRIPTION_FAMILY, CHATGPT_SUBSCRIPTION_FAMILY, PRINCIPAL_CHATGPT_SUBSCRIPTION_FAMILY]) {
       expect(ids).not.toContain(String(family.id));
       expect(LLM_PROVIDER_CATALOG.map((entry) => entry.selectorPrefix)).not.toContain(family.selectorPrefix);
@@ -293,7 +293,7 @@ describe('the starter gradient armed on an unconfigured account', () => {
 
 describe('provider catalogue', () => {
   it('exposes exactly the API vendors, each with the selector prefix the picker prepends', () => {
-    expect(llmProviderIds()).toEqual(['anthropic', 'openai', 'zai', 'ollama']);
+    expect(llmProviderIds()).toEqual(['anthropic', 'openai', 'google', 'xai', 'meta', 'mistral', 'qwen', 'deepseek', 'moonshot', 'zai', 'ollama']);
     for (const provider of LLM_PROVIDER_CATALOG) {
       expect(provider.models.length).toBeGreaterThan(0);
       expect(provider.selectorPrefix).toBe(`api:${provider.id}`);

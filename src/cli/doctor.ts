@@ -20,8 +20,10 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { OLLAMA_DEFAULT_BASE_URL } from '../core/llmOllama.js';
 import { tierSelectors, ZAI_DEFAULT_BASE_URL } from '../run/providers.js';
+import { LLM_PROVIDER_CATALOG, type LlmProviderEntry } from '../core/providerCatalog.js';
 import {
   referencedTransports,
+  transportOf,
   type ModelTransport,
 } from '../contracts/modelSelector.js';
 import {
@@ -345,6 +347,16 @@ async function checkPython(deps: DoctorDependencies): Promise<DoctorCheck> {
   }
 }
 
+/** The catalogue entry of a Chat Completions transport (`google-api`, …), else null. */
+function chatCompletionsVendorOf(transport: ModelTransport): LlmProviderEntry | null {
+  return (
+    LLM_PROVIDER_CATALOG.find(
+      (entry) =>
+        entry.wire === 'chat-completions' && transportOf({ mode: 'api', vendor: entry.id }) === transport
+    ) ?? null
+  );
+}
+
 async function checkProvider(
   provider: ModelTransport,
   env: NodeJS.ProcessEnv,
@@ -361,6 +373,25 @@ async function checkProvider(
         label,
         status: 'pass',
         detail: `credential configured${baseUrl ? ` · ${safeUrlLabel(baseUrl)}` : ''}`,
+      };
+    }
+
+    const chatVendor = chatCompletionsVendorOf(provider);
+    if (chatVendor) {
+      // Quota-free like every check here: presence of the key and a sane
+      // endpoint, never a request that could bill.
+      const variable = chatVendor.credentialEnvVar!;
+      if (!nonEmpty(env[variable])) throw new Error(`${variable} is not set`);
+      const baseUrl = env[chatVendor.baseUrlEnvVar]?.trim() || chatVendor.defaultBaseUrl;
+      const parsed = new URL(baseUrl);
+      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+        throw new Error(`${chatVendor.baseUrlEnvVar} must use http or https`);
+      }
+      return {
+        id: `provider:${provider}`,
+        label,
+        status: 'pass',
+        detail: `credential configured · ${safeUrlLabel(baseUrl)}`,
       };
     }
 
@@ -470,8 +501,10 @@ async function checkProvider(
       detail: `credential source available · ${source}`,
     };
   } catch {
-    const remedy =
-      provider === 'claude-cli'
+    const chatVendor = chatCompletionsVendorOf(provider);
+    const remedy = chatVendor
+      ? `Export ${chatVendor.credentialEnvVar} (optional: ${chatVendor.baseUrlEnvVar}, default ${chatVendor.defaultBaseUrl}).`
+      : provider === 'claude-cli'
         ? 'Run `claude /login`, then retry.'
         : provider === 'codex-cli'
           ? 'Run `codex login`, or pin the tier to api:openai:<model> with OPENAI_API_KEY.'

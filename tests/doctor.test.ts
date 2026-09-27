@@ -525,6 +525,35 @@ describe('atoma doctor', () => {
     expect(commands.some((command) => command.startsWith('codex login status'))).toBe(true);
   });
 
+  it('checks a Chat Completions vendor by its catalogue key and endpoint, without a request', async () => {
+    const pins = {
+      ATOMA_MODEL_L1: 'api:deepseek:deepseek-flash',
+      ATOMA_MODEL_L2: 'api:deepseek:deepseek-v4-pro',
+      ATOMA_MODEL_L3: 'api:google:gemini-3.1-pro-preview',
+    };
+    const configured = await diagnoseDoctor({
+      mode: { container: false, egress: false },
+      env: { ...pins, DEEPSEEK_API_KEY: 'configured', GEMINI_API_KEY: 'configured' },
+      dependencies: dependencies(),
+    });
+    expect(configured.providers).toEqual(['deepseek-api', 'google-api']);
+    expect(configured.checks.find((check) => check.id === 'provider:google-api')).toMatchObject({
+      status: 'pass',
+      detail: expect.stringContaining('generativelanguage.googleapis.com'),
+    });
+
+    const missing = await diagnoseDoctor({
+      mode: { container: false, egress: false },
+      env: { ...pins, GEMINI_API_KEY: 'configured' },
+      dependencies: dependencies(),
+    });
+    expect(missing.ready).toBe(false);
+    expect(missing.checks.find((check) => check.id === 'provider:deepseek-api')).toMatchObject({
+      status: 'fail',
+      remedy: expect.stringContaining('DEEPSEEK_API_KEY'),
+    });
+  });
+
   it('accepts Codex on tier 1 with its host-side tool loop', async () => {
     const report = await diagnoseDoctor({
       mode: { container: false, egress: false },

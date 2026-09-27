@@ -5,6 +5,8 @@ import { OllamaLlmClient } from '../core/llmOllama.js';
 import { OpenAiLlmClient } from '../core/llmOpenAi.js';
 import { ClaudeCliLlmClient } from '../core/llmClaudeCli.js';
 import { CodexCliLlmClient } from '../core/llmCodexCli.js';
+import { ChatCompletionsLlmClient, type ChatCompletionsVendor } from '../core/llmChatCompletions.js';
+import { findProvider } from '../core/providerCatalog.js';
 import { RunnerConfigError } from '../core/errors.js';
 import {
   formatModelSelector,
@@ -31,7 +33,7 @@ export { ZAI_DEFAULT_BASE_URL };
  * ONE construction switch per TRANSPORT (`contracts/modelSelector.ts`
  * `transportOf`). The runner, the curriculum CLI and the viz server's
  * announcement translator all build their clients here; nothing else may
- * hand-roll an anthropic/openai/zai/ollama/claude-cli/codex switch — the
+ * hand-roll a per-vendor or per-transport switch — the
  * drift class this repo has been bitten by twice (research-brief.ts lost every
  * safety guarantee the build path gained; curriculum's copy of the provider
  * switch missed an alias). Review 2026-08-14 §3.9.
@@ -52,6 +54,22 @@ export function makeTransportClient(
       return new OpenAiLlmClient({ apiKey: env['OPENAI_API_KEY'], baseUrl: env['OPENAI_BASE_URL'] });
     case 'zai-api':
       return makeZaiClient(env);
+    // The seven OpenAI-compatible Chat Completions vendors: one client class,
+    // one instance per vendor, each with its own key and endpoint.
+    case 'google-api':
+      return makeChatCompletionsClient('google', env);
+    case 'xai-api':
+      return makeChatCompletionsClient('xai', env);
+    case 'meta-api':
+      return makeChatCompletionsClient('meta', env);
+    case 'mistral-api':
+      return makeChatCompletionsClient('mistral', env);
+    case 'qwen-api':
+      return makeChatCompletionsClient('qwen', env);
+    case 'deepseek-api':
+      return makeChatCompletionsClient('deepseek', env);
+    case 'moonshot-api':
+      return makeChatCompletionsClient('moonshot', env);
     case 'ollama':
       return new OllamaLlmClient({
         baseUrl: env['OLLAMA_BASE_URL'],
@@ -86,6 +104,25 @@ function makeZaiClient(env: NodeJS.ProcessEnv): LlmClient {
       baseURL: env['ZAI_BASE_URL']?.trim() || ZAI_DEFAULT_BASE_URL,
     })
   );
+}
+
+/**
+ * Build one Chat Completions vendor's client from one environment snapshot.
+ * The key variable, the endpoint override and the default endpoint are the
+ * catalogue's (`core/providerCatalog.ts`), stated once for the runner, the
+ * coordinator's credential injection and doctor alike.
+ */
+function makeChatCompletionsClient(vendor: ChatCompletionsVendor, env: NodeJS.ProcessEnv): LlmClient {
+  const entry = findProvider(vendor);
+  if (!entry || entry.wire !== 'chat-completions' || entry.credentialEnvVar === null) {
+    throw new Error(`api:${vendor} is not a Chat Completions vendor in the provider catalogue`);
+  }
+  return new ChatCompletionsLlmClient({
+    vendor,
+    apiKey: env[entry.credentialEnvVar],
+    baseUrl: env[entry.baseUrlEnvVar]?.trim() || entry.defaultBaseUrl,
+    credentialEnvVar: entry.credentialEnvVar,
+  });
 }
 
 /** The three selectors of an environment, parsed; a missing or malformed pin throws. */

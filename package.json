@@ -47,6 +47,7 @@
     "run:build": "node dist/cli/build-app.js",
     "run:build:dev": "tsx src/cli/build-app.ts",
     "registry": "tsx src/cli/registry.ts",
+    "models": "tsx src/cli/models.ts",
     "burnin": "tsx src/cli/burnin.ts",
     "curriculum": "tsx src/cli/curriculum.ts",
     "skills": "tsx src/cli/skills.ts",

@@ -152,6 +152,9 @@ Visualizer commands and their preconditions: [src/viz/AGENTS.md](src/viz/AGENTS.
 Registry, ledger, skills, burn-in, and diagnostics:
 
 ```bash
+npm run models -- list                 # offered models and current prices per vendor
+npm run models -- refresh [--live]     # dry run: price drift vs the reference, vendor listings
+npm run models -- refresh --apply      # append changed prices as points dated today
 npm run registry -- list
 npm run registry -- show <name>
 npm run registry -- history <name>

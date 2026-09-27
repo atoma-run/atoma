@@ -229,14 +229,16 @@ describe('MetricsLlmClient', () => {
 describe('served-model-aware accounting (review 2026-08-14 §1.13)', () => {
   it('prices a codex-pinned call on the GPT slug row, not the /opus/i row', async () => {
     // resolveCodexModel maps `codex:claude-opus-5` → gpt-5.6-sol, but
-    // pricesFor('codex:claude-opus-5') hits /opus/i ($5/$25) — GPT tokens
+    // pricesFor('codex:claude-opus-5') hits the opus fallback — GPT tokens
     // billed at Claude rates. The transport now reports what it actually
     // invoked and the recorder prices on that.
     const inner = new MockLlmClient();
     inner.enqueue({
       text: 'plan',
       stopReason: 'end_turn',
-      usage: { inputTokens: 0, outputTokens: 1_000_000 },
+      // Cached input is where the two rows differ since 2026-09-27: both
+      // bill output at $20, gpt-5.6-sol reads cache at $0.4, Opus 5.5 at $0.2.
+      usage: { inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 1_000_000 },
       servedModel: 'gpt-5.6-sol',
     });
     const recorder = new InMemoryMetrics();
@@ -245,8 +247,8 @@ describe('served-model-aware accounting (review 2026-08-14 §1.13)', () => {
 
     // The per-model row is keyed by the SERVED model…
     expect(recorder.events[0]!.model).toBe('gpt-5.6-sol');
-    // …and priced on the GPT row: 1M output @ $30, where /opus/i says $25.
-    expect(recorder.summary().totals.costUsd).toBeCloseTo(30, 3);
+    // …and priced on the GPT row: 1M cached input @ $0.4, where opus says $0.2.
+    expect(recorder.summary().totals.costUsd).toBeCloseTo(0.4, 6);
   });
 
   it('a transport that omits servedModel keeps the pin — byte-compatible default', async () => {

@@ -53,8 +53,8 @@ describe('modelForTier — three required selectors, no default', () => {
       process.env['ATOMA_MODEL_L2'] = legacy;
       expect(() => modelForTier(2)).toThrow(/ATOMA_MODEL_L2=.* is not a model selector|names mode/);
     }
-    process.env['ATOMA_MODEL_L2'] = 'api:mistral:large';
-    expect(() => modelForTier(2)).toThrow(/names vendor "mistral"/);
+    process.env['ATOMA_MODEL_L2'] = 'api:cohere:command';
+    expect(() => modelForTier(2)).toThrow(/names vendor "cohere"/);
     process.env['ATOMA_MODEL_L2'] = 'sub:zai:glm-4.5';
     expect(() => modelForTier(2)).toThrow(/zai has no subscription/);
     process.env['ATOMA_MODEL_L2'] = 'api:zai:';

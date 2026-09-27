@@ -46,7 +46,26 @@ export const ZAI_DEFAULT_BASE_URL = 'https://api.z.ai/api/anthropic';
 export const MODEL_SELECTOR_MODES = ['api', 'sub', 'own'] as const;
 export type ModelSelectorMode = (typeof MODEL_SELECTOR_MODES)[number];
 
-export const MODEL_SELECTOR_VENDORS = ['anthropic', 'openai', 'zai', 'ollama'] as const;
+/**
+ * The companies whose models a run may name. Ten are reached by a vendor API
+ * key and Ollama is self-hosted; each vendor is also its own transport
+ * (`transportOf`), because a transport is one credential and one endpoint.
+ * `google` is Google DeepMind's Gemini API, `qwen` Alibaba Cloud Model Studio
+ * (DashScope), `moonshot` the Kimi platform and `zai` Z.ai's GLM platform.
+ */
+export const MODEL_SELECTOR_VENDORS = [
+  'anthropic',
+  'openai',
+  'google',
+  'xai',
+  'meta',
+  'mistral',
+  'qwen',
+  'deepseek',
+  'moonshot',
+  'zai',
+  'ollama',
+] as const;
 export type ModelSelectorVendor = (typeof MODEL_SELECTOR_VENDORS)[number];
 
 /** Vendors that offer a CLI subscription atoma can drive. */
@@ -60,13 +79,22 @@ export interface ModelSelector {
 }
 
 /**
- * How a (mode, vendor) pair is actually reached. `anthropic-api` also serves
- * Z.ai's Anthropic-compatible endpoint under its own key, which is why zai is
- * a vendor of its own here and not an anthropic base URL.
+ * How a (mode, vendor) pair is actually reached. Every `api:` vendor is its
+ * own transport — one key, one endpoint — even where two share a wire
+ * protocol: `zai-api` speaks Z.ai's Anthropic-compatible Messages endpoint,
+ * and the seven OpenAI-compatible Chat Completions vendors share one client
+ * class (`core/llmChatCompletions.ts`) built once per vendor.
  */
 export const MODEL_TRANSPORTS = [
   'anthropic-api',
   'openai-api',
+  'google-api',
+  'xai-api',
+  'meta-api',
+  'mistral-api',
+  'qwen-api',
+  'deepseek-api',
+  'moonshot-api',
   'zai-api',
   'ollama',
   'claude-cli',
@@ -82,7 +110,7 @@ export class ModelSelectorError extends Error {
 }
 
 export const MODEL_SELECTOR_GRAMMAR =
-  '<api|sub|own>:<anthropic|openai|zai|ollama>:<model>, for example api:anthropic:claude-sonnet-5, ' +
+  `<api|sub|own>:<${MODEL_SELECTOR_VENDORS.join('|')}>:<model>, for example api:anthropic:claude-sonnet-5, ` +
   'sub:anthropic:sonnet or sub:openai:gpt-5.6-sol';
 
 function isMode(value: string): value is ModelSelectorMode {
@@ -148,16 +176,7 @@ export function formatModelSelector(selector: ModelSelector): string {
 /** The transport a selector rides — the ONE statement of the mapping. */
 export function transportOf(selector: Pick<ModelSelector, 'mode' | 'vendor'>): ModelTransport {
   if (selector.mode === 'api') {
-    switch (selector.vendor) {
-      case 'anthropic':
-        return 'anthropic-api';
-      case 'openai':
-        return 'openai-api';
-      case 'zai':
-        return 'zai-api';
-      case 'ollama':
-        return 'ollama';
-    }
+    return selector.vendor === 'ollama' ? 'ollama' : `${selector.vendor}-api`;
   }
   return selector.vendor === 'anthropic' ? 'claude-cli' : 'codex-cli';
 }

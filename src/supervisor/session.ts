@@ -259,6 +259,19 @@ function providerSet(env: NodeJS.ProcessEnv, source: ProviderSource): Supervisor
       );
     case 'ollama':
       throw new ModelSelectorError(`${variable}=${raw}: no supervisor CLI can run against Ollama; use sub:anthropic, api:anthropic, api:zai or sub:openai`);
+    // Claude Code speaks the Messages API only; these vendors are reached by
+    // Chat Completions, which serves run tiers and no supervisor session.
+    case 'google':
+    case 'xai':
+    case 'meta':
+    case 'mistral':
+    case 'qwen':
+    case 'deepseek':
+    case 'moonshot':
+      throw new ModelSelectorError(
+        `${variable}=${raw}: a supervisor stage runs Claude Code or Codex, and neither can be pointed at ${selector.vendor}; ` +
+          'use sub:anthropic, api:anthropic, api:zai or sub:openai'
+      );
   }
 }
 

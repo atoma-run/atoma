@@ -102,7 +102,8 @@ describe('RecordingLlmClient — served-model-aware pricing', () => {
           return {
             text: 'plan',
             stopReason: 'end_turn',
-            usage: { inputTokens: 0, outputTokens: 1_000_000 },
+            // Both rows bill output at $20; cached input tells them apart.
+            usage: { inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 1_000_000 },
             servedModel: 'gpt-5.6-sol',
           };
         },
@@ -114,8 +115,8 @@ describe('RecordingLlmClient — served-model-aware pricing', () => {
       expect(ev.model).toBe('codex:claude-opus-5');
       // …the served identity rides alongside…
       expect(ev.servedModel).toBe('gpt-5.6-sol');
-      // …and pricing follows it: 1M output @ $30 (the /opus/i row says $25).
-      expect(ev.costUsd).toBeCloseTo(30, 3);
+      // …and pricing follows it: 1M cached input @ $0.4 (the opus row says $0.2).
+      expect(ev.costUsd).toBeCloseTo(0.4, 6);
     } finally {
       recorder.endRun();
       rmSync(dir, { recursive: true, force: true });

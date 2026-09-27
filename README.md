@@ -121,11 +121,15 @@ branch, so unpublished changes are not carried over.
 ### Choose the models, then compare them
 
 Each tier (workers, supervisors, planners) takes its own model selector, of the
-form `<api|sub|own>:<vendor>:<model>`, across Anthropic, OpenAI, Z.ai and
-Ollama: `api:` bills a key, `sub:` the host's Claude or ChatGPT subscription,
+form `<api|sub|own>:<vendor>:<model>`, across Anthropic, OpenAI, Google
+DeepMind, xAI, Meta, Mistral, Alibaba Qwen, DeepSeek, Moonshot, Z.ai and a
+self-hosted Ollama: `api:` bills a key, `sub:` the host's Claude or ChatGPT subscription,
 and `own:` the member's own ChatGPT account, whose available models Settings
 lists. The operator can delegate the host subscription to named members without
-making them administrators.
+making them administrators. The offered models and their per-token prices are
+one versioned file, `src/core/modelCatalog.json`, kept current with
+`npm run models -- refresh`: prices are a dated history, so a vendor's change
+applies from its day without re-pricing what came before.
 
 Every run records the models it was pinned to and the models the provider
 actually served. A delivered or incomplete run of a project created in atoma can

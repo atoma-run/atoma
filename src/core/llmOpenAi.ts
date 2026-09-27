@@ -41,12 +41,14 @@ import type {
 export const OPENAI_DEFAULT_MAX_OUTPUT_TOKENS = 16_384;
 
 /**
- * GPT-5 and the o-series are reasoning models: they reject `temperature` /
- * `top_p` and accept `reasoning.effort` instead. Everything else is the other
- * way round. One predicate, both decisions.
+ * GPT-5 and later and the o-series are reasoning models: they reject
+ * `temperature` / `top_p` and accept `reasoning.effort` instead. Everything
+ * else is the other way round. One predicate, both decisions. The generation
+ * is matched as a number, so GPT-6 (in the catalogue since 2026-09-27) is not
+ * sent a temperature it refuses.
  */
 export function openAiModelIsReasoning(model: string): boolean {
-  return /^(?:gpt-5|o\d)/i.test(model.trim());
+  return /^(?:gpt-(?:[5-9]|\d{2,})(?:\D|$)|o\d)/i.test(model.trim());
 }
 
 export interface OpenAiLlmClientOptions {
@@ -249,8 +251,13 @@ export class OpenAiLlmClient implements LlmClient {
 }
 
 function parseArguments(call: FunctionToolCall): Record<string, unknown> {
+  return parseToolArgumentsJson(call.arguments);
+}
+
+/** A model's tool arguments as an object; anything unparseable reads as `{}`. */
+export function parseToolArgumentsJson(raw: string | null | undefined): Record<string, unknown> {
   try {
-    const parsed = JSON.parse(call.arguments || '{}') as unknown;
+    const parsed = JSON.parse(raw || '{}') as unknown;
     return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)
       ? (parsed as Record<string, unknown>)
       : {};
@@ -280,7 +287,7 @@ function toOpenAiTools(tools: Tool[]): OpenAI.Responses.FunctionTool[] {
   }));
 }
 
-function notifyToolInvocation(
+export function notifyToolInvocation(
   cb: ((info: ToolInvocationInfo) => void) | undefined,
   info: ToolInvocationInfo
 ): void {

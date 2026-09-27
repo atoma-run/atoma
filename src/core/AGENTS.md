@@ -88,6 +88,38 @@ Neighbours:
   explicit safe flags and never inherits the interactive agent's tools.
 - Auth checks must match the selected transport without leaking credentials.
 
+## Vendors, the model catalogue and prices
+
+- Eleven vendors, each its OWN transport (`<vendor>-api`, Ollama `ollama`):
+  one key, one endpoint. Anthropic and Z.ai speak Messages
+  (`AnthropicLlmClient`), OpenAI the Responses API, and Google, xAI, Meta,
+  Mistral, Qwen, DeepSeek and Moonshot OpenAI-compatible Chat Completions
+  through ONE class, `ChatCompletionsLlmClient`, built once per vendor. What
+  a vendor IS — key variable, endpoint, wire, listing URL — is code in
+  `providerCatalog.ts`; per-vendor protocol quirks are `CHAT_COMPLETIONS_DIALECTS`
+  beside the client, and nowhere else.
+- The Chat Completions loop echoes the assistant turn VERBATIM. DeepSeek, Kimi,
+  GLM and Qwen thinking models require their `reasoning_content` back inside a
+  tool loop, and Gemini 3 its per-call `thought_signature`; a rebuilt message
+  drops both and the next round is a 400. Output is
+  `max(completion_tokens, total − prompt)` so unreported thinking still bills.
+- Which models are offered and what they cost is DATA: `modelCatalog.json`,
+  schema `contracts/modelCatalog.ts`, validated at load (an invalid file is a
+  boot failure). `DEFAULT_PRICES` is DERIVED from it; there is no second price
+  list. A billed model without a price is refused by the schema — an unpriced
+  call reads as free and flatters its tier.
+- Prices are a HISTORY. A change APPENDS a point with `since` = the day it was
+  reviewed; `pricesAt(model, date)` re-prices old usage with the numbers then
+  in force, and a scheduled change (a promotion ending) is a future point.
+  Retired models keep their entry and prices; they leave the pickers only.
+- `npm run models` (`src/cli/models.ts`) is the ONE writer and every write is
+  a dry run until `--apply`. `refresh` compares with LiteLLM's public price
+  file (native ids, vendor source URL per row) and, with `--live`, each
+  vendor's own `/models` listing — both quota-free. It PROPOSES; a person
+  applies and commits, and a push to main deploys it. `manualPrice` marks a
+  price read from the vendor's page where the reference is wrong: shown beside
+  the reference's number at every refresh, never overwritten by it.
+
 ## Cost accounting
 
 - Anthropic tool loops keep one rolling cache breakpoint: clear the prior
@@ -153,3 +185,14 @@ Neighbours:
 
 - `DEFAULT_LIMITS.maxExecIterations` and its comparison are pinned by tests;
   change semantics only with an explicit migration of the effective budget.
+- A runtime price overlay beside `modelCatalog.json` (a host file or env the
+  server reads): refused. Two price sources is the drift the catalogue ended;
+  auto-deploy already makes a reviewed commit the fastest safe update path.
+- Applying the reference's prices or new models automatically: refused. The
+  reference is a community aggregator and has been wrong (Qwen cache rates,
+  missing cache prices read as "no discount"); which models an organisation
+  may pick is a product decision. `refresh` proposes, `--apply` is a person.
+- One transport named `openai-compatible` keyed by base URL: refused. The
+  router maps a TRANSPORT to one client, so one transport for seven vendors
+  would mean one key for seven vendors — a routing error that bills the wrong
+  company.
