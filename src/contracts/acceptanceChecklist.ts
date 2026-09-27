@@ -439,7 +439,9 @@ export function renderChecklistCoverage(
     ...(options.landed
       ? ['This result LANDED before all its phases ran: NOT OBSERVED items from unfinished phases are expected.']
       : []),
-    'REVIEW items are yours to judge against the evidence.',
+    'REVIEW items are yours to judge against the evidence, and met only on what it SHOWS: a file read back, a',
+    'request and its response, a page checked after the action. A file existing, an implementation described,',
+    'a restart with no request after it, or one record where an order is claimed shows nothing by itself.',
     ...lines,
   ].join('\n');
 }

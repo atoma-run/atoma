@@ -631,6 +631,16 @@ export interface RunContext {
     signal: import('../contracts/runStats.js').RunStatSignal
   ) => void;
   /**
+   * The files a SEEDED run started from, read by the host before any model
+   * work, and a reader of the workspace as it stands now. Root acceptance
+   * compares the two (`src/contracts/startingWorkspace.ts`); absent for a run
+   * that started from an empty workspace.
+   */
+  readonly startingWorkspace?: {
+    readonly start: import('../contracts/startingWorkspace.js').StartingSnapshot;
+    readonly now: () => import('../contracts/startingWorkspace.js').DeliveredSnapshot;
+  };
+  /**
    * Optional prefilter-cache observer — see `CacheHitInfo`. Same
    * observer-only contract as `recordTrust` / `recordSkill`: absent, the
    * cache still serves, it just leaves no trace.

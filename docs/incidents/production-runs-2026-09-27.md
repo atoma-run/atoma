@@ -97,8 +97,9 @@ bytes.
   newest first" on a list of one note; "README documents every route" without
   the README being read back — the read-back only reads files the result
   names, and it said "README documentation". The layout fact above removes
-  one class of these; the rest is the acceptor's judgement and was left
-  alone for now.
+  one class of these. **Fixed as well**: the files a criterion names are read
+  back for the acceptor, and the criteria block says a review item is met
+  only on what the evidence shows.
 - **Test residue in deliverables.** `window.__configTest` shipped in R14
   (removed by R16 on request), `window.__dashboard` and a validation-only
   button in R17, `replacement-sales.csv` at R17's root, R13's probe note in
@@ -122,7 +123,7 @@ R21 still proved its totals with a smoke that drives the page through a test
 hook (`window.__test`) at 375 px; the interactions that set the same state
 passed at 800 px in the same attempt.
 
-## J9 — a continuation replaced the deliverable it was asked to keep (open)
+## J9 — a continuation replaced the deliverable it was asked to keep
 
 R24 `902b2c21` (continuation of R16, revision `f18ca0d`, delivered, published
 directly onto the project's `main`): "add a small marketing site around the
@@ -136,13 +137,14 @@ or quote download, and a total computed as
 approved criterion named. The acceptor approved every criterion. R16's
 configurator survives only in the repository's history (`763ecd1`).
 
-Nothing the acceptor reads compares a continuation's result with the
-workspace it started from. Candidate, not built yet: a mechanical block beside the delivery naming, for a seeded
-run, each seed file removed or rewritten and its size before and after
-(`index.html: 13394 → 2070 bytes`), so "unchanged in behaviour" can be set
-against what happened to the bytes. A goal-specific constant in code that
-reproduces a criterion's number is the other half, and no lexical detector
-for it is proposed.
+Nothing the acceptor read compared a continuation's result with the
+workspace it started from. **Fixed**: the runner snapshots the seed before
+any model work, and a seeded run's acceptor reads each starting file
+removed, rewritten (below half of its starting lines), changed or unchanged,
+with its size before and after (`index.html: REWRITTEN 13394 → 2070 bytes,
+keeps 0% of its starting lines`). Every molecule is told that kept files are
+edited, not replaced, and that special-casing a criterion's value is a
+forged result. No lexical detector for such a constant is proposed.
 
 ## Later runs on `f18ca0d` and `e2193a6`
 

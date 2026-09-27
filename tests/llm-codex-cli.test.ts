@@ -37,7 +37,7 @@ import { InMemoryMetrics, MetricsLlmClient, pricesFor } from '../src/core/metric
 import { RoutingLlmClient } from '../src/core/llmRouting.js';
 import type { LlmCompletionRequest, ToolExecutor } from '../src/core/types.js';
 import { PERSONAL_CODEX_PROFILE_ROOT_ENV } from '../src/core/codexHomeLease.js';
-import { makeTools } from './helpers/factories.js';
+import { makeTool, makeTools } from './helpers/factories.js';
 import { ARGUMENTS_ENCODING, describeInvalidArguments } from '../src/core/codexToolLoop.js';
 
 afterEach(() => cleanupCodexJails());
@@ -995,6 +995,20 @@ describe('Codex L1 host-side action loop', () => {
     expect(error).toContain('raw control character');
     expect(inputs[1]).toContain('raw control character');
     expect(result.usage).toMatchObject({ inputTokens: 24, outputTokens: 9 });
+  });
+
+  it('points a hand-escaped file body at the content field, for a tool that declares one', async () => {
+    // Production run 902b2c21 (2026-09-27): a whole page escaped by hand inside
+    // argumentsJson for write_file, the tool the content field exists for.
+    const observe = vi.fn();
+    const actions = [{ type: 'tool', name: 'write_file', arguments: 'bad' }, { type: 'final', text: 'done' }];
+    const client = new CodexCliLlmClient({ env: {}, spawnFn: () => fakeChild({ lines: messages(actions.shift()) }) });
+    const writeFile = makeTool('write_file', { inputSchema: { type: 'object',
+      properties: { path: { type: 'string' }, content: { type: 'string' } }, required: ['path', 'content'] } });
+    await client.complete(req({ tools: [writeFile], executor: { execute: vi.fn(), has: () => true }, onToolInvocation: observe }));
+    const error = observe.mock.calls[0]?.[0].error as string;
+    expect(error).toContain(`Put the file text in the action's "content" field`);
+    expect(error).toContain('escape quotes and newlines inside any other string value');
   });
 
   it('teaches the once-encoded content field with a worked write that decodes to a real two-line file', () => {

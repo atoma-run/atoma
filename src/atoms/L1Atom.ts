@@ -30,6 +30,12 @@ const SCRATCH_FILE_LINES: readonly string[] = [
   `- An input you write ONLY to exercise the artefact — a probe CSV, a fixture, a file to upload in a`,
   `  browser check — goes under "${SCRATCH_DIRECTORY}/" (e.g. "${SCRATCH_DIRECTORY}/invalid-rows.csv"): the host never`,
   `  publishes it. Files the task asks for (samples, docs, tests) stay where the task puts them.`,
+  `- Leave the deliverable as its user receives it: a data file your probes filled (a notes or tasks JSON store)`,
+  `  goes back to what it held before your checks — the app's initial data, or what the workspace started with.`,
+  `- Implement the rule the task states. Never special-case in code a value an acceptance criterion names:`,
+  `  a total computed as "if these exact choices, add this constant" is a forged result, not a feature.`,
+  `- Existing files you were asked to keep or extend are edited, not replaced: the host compares the files`,
+  `  this run started from with the ones it delivers.`,
 ];
 
 /**
@@ -43,8 +49,10 @@ const SCRATCH_FILE_LINES: readonly string[] = [
 export function browserProofLines(task: Task): string[] {
   const widths = namedLayoutWidths(`${task.description}\n${task.inputs ? JSON.stringify(task.inputs) : ''}`);
   return [
-    `- Choose from a <select>, or set a range, date or colour input, with the interaction`,
-    `  {type:"select", selector, value}; a click on an <option> or arrow keys on a closed select change nothing.`,
+    `- Prove what a user does with real interactions — click, type, select, upload — and let the smoke READ the`,
+    `  result; drive state from the smoke only where no control reaches it. Choose from a <select>, or set a`,
+    `  range, date or colour input, with {type:"select", selector, value}: a click on an <option> or arrow keys`,
+    `  on a closed select change nothing.`,
     ...(widths.length > 0
       ? [`- This task names ${widths.map((width) => `${width} px`).join(' and ')} wide. Lay the page out at EACH with its own`,
         `  validate_html call, viewport {width: ${widths[0]}} and so on: the default 800x600 proves nothing about another width.`]

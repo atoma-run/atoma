@@ -1,6 +1,8 @@
 import { dirname, basename, join } from 'node:path';
 import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { inheritProbeManifest, PROBE_MANIFEST_FILENAME } from '../contracts/probeManifest.js';
+import type { DeliveredSnapshot, StartingSnapshot, WorkspaceFileSnapshot } from '../contracts/startingWorkspace.js';
 
 /**
  * Stale artefacts from PREVIOUS runs pollute the current one. They land in
@@ -165,4 +167,97 @@ export function describeSeedManifest(report: SeedReport): string | null {
   return report.manifest === 'removed'
     ? `seed ${PROBE_MANIFEST_FILENAME}: not inherited, nothing replayable (${report.dropped} entries dropped)${detail}`
     : `seed ${PROBE_MANIFEST_FILENAME}: kept ${report.kept} entries${report.repaired ? ` (${report.repaired} without their run-varying stdout)` : ''}, dropped ${report.dropped} unreplayable${detail}`;
+}
+
+const SNAPSHOT_MAX_FILES = 400;
+const SNAPSHOT_MAX_FILE_BYTES = 8 * 1024 * 1024;
+const SNAPSHOT_MAX_TOTAL_BYTES = 32 * 1024 * 1024;
+const SNAPSHOT_MAX_LINE_BYTES = 512 * 1024;
+/**
+ * What is never compared: what publication leaves out (`.git`, `node_modules`,
+ * `.atoma`, `.atoma-*`, as `src/projects/artifacts.ts` spells them) and what is
+ * regenerated rather than authored. A cache sorting first would otherwise use
+ * the whole cap before the deliverable is reached (adversarial review 2026-09-27).
+ */
+const SNAPSHOT_SKIPPED = new Set(['.git', 'node_modules', '.atoma', '.next', '.nuxt', '.venv', 'venv',
+  '__pycache__', '.pytest_cache', '.cache', '.turbo', 'coverage']);
+
+function skipped(name: string): boolean {
+  const lower = name.toLowerCase();
+  return SNAPSHOT_SKIPPED.has(lower) || lower.startsWith('.atoma-');
+}
+
+/** One file, or undefined when it is not a regular file within the per-file cap. */
+function snapshotFile(root: string, rel: string, budget: { bytes: number }): WorkspaceFileSnapshot | undefined {
+  let stat;
+  try { stat = lstatSync(join(root, rel)); } catch { return undefined; }
+  if (!stat.isFile() || stat.size > SNAPSHOT_MAX_FILE_BYTES || stat.size > budget.bytes) return undefined;
+  budget.bytes -= stat.size;
+  const bytes = readFileSync(join(root, rel));
+  const text = stat.size <= SNAPSHOT_MAX_LINE_BYTES && !bytes.includes(0) ? bytes.toString('utf8') : undefined;
+  const lineHashes = text === undefined ? undefined : [...new Set(text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean))]
+    .map((line) => createHash('sha1').update(line).digest('hex').slice(0, 16));
+  return { path: rel, bytes: stat.size, sha256: createHash('sha256').update(bytes).digest('hex'),
+    ...(lineHashes ? { lineHashes } : {}) };
+}
+
+/** Every regular file under `root`, in path order, without following links, up to `cap`. */
+function walkFiles(root: string, cap: number): { paths: string[]; truncated: boolean } {
+  const paths: string[] = [];
+  let truncated = false;
+  const walk = (dir: string, prefix: string): void => {
+    let names: string[];
+    try { names = readdirSync(dir).sort(); } catch { return; }
+    for (const name of names) {
+      if (skipped(name)) continue;
+      const rel = prefix ? `${prefix}/${name}` : name;
+      let stat;
+      try { stat = lstatSync(join(dir, name)); } catch { continue; }
+      if (stat.isDirectory()) { walk(join(dir, name), rel); continue; }
+      if (!stat.isFile()) continue;
+      if (paths.length >= cap) { truncated = true; return; }
+      paths.push(rel);
+    }
+  };
+  walk(root, '');
+  return { paths, truncated };
+}
+
+/**
+ * The deliverable files a SEEDED run starts from, read before any model work
+ * (`src/contracts/startingWorkspace.ts`). `truncated` says the file cap or
+ * the byte budget cut it short, so the acceptor is told the comparison is
+ * partial rather than handed a false all-clear.
+ */
+export function snapshotStartingWorkspace(root: string): StartingSnapshot {
+  const walked = walkFiles(root, SNAPSHOT_MAX_FILES);
+  const budget = { bytes: SNAPSHOT_MAX_TOTAL_BYTES };
+  const files: WorkspaceFileSnapshot[] = [];
+  let truncated = walked.truncated;
+  for (const rel of walked.paths) {
+    const file = snapshotFile(root, rel, budget);
+    if (file) files.push(file); else truncated = true;
+  }
+  return { files, truncated };
+}
+
+/**
+ * The same files read again where the run left them — exactly the starting
+ * paths, whatever else the run added, so a new file can never push a
+ * starting one out of the comparison — plus the new files, under their own cap.
+ */
+export function snapshotDeliveredWorkspace(root: string, start: StartingSnapshot): DeliveredSnapshot {
+  const budget = { bytes: SNAPSHOT_MAX_TOTAL_BYTES };
+  const files = start.files.flatMap((file) => snapshotFile(root, file.path, budget) ?? []);
+  const known = new Set(start.files.map((file) => file.path));
+  const walked = walkFiles(root, SNAPSHOT_MAX_FILES + known.size);
+  const added: WorkspaceFileSnapshot[] = [];
+  let addedTruncated = walked.truncated;
+  for (const rel of walked.paths) {
+    if (known.has(rel)) continue;
+    if (added.length >= SNAPSHOT_MAX_FILES) { addedTruncated = true; break; }
+    const file = snapshotFile(root, rel, budget);
+    if (file) added.push(file); else addedTruncated = true;
+  }
+  return { files, added, addedTruncated };
 }

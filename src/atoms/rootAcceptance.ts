@@ -9,6 +9,7 @@ import { buildResultGateEnv, renderResultGateFindings, runResultGates } from './
 import { checkGroundTruth } from './groundTruth.js';
 import { llmVerdict } from './verdict.js';
 import { LANDED_RESULT_GUIDANCE } from './prompts.js';
+import { compareStartingWorkspace, renderStartingWorkspace } from '../contracts/startingWorkspace.js';
 import {
   coverAcceptanceChecklist,
   renderChecklistCoverage,
@@ -61,6 +62,91 @@ export function observedLayoutsBlock(ctx: RunContext): string {
   return 'BROWSER LAYOUTS OBSERVED IN THIS ATTEMPT (mechanical, from the attested observations): ' +
     [...layouts].map(([document, sizes]) => `${document} at ${[...sizes].join(', ')}`).join('; ') +
     '. validate_html laid pages out at no other size in this attempt.';
+}
+
+/** What a seeded run did to the files it started from; '' for an unseeded run or an unreadable workspace. */
+function startingWorkspaceBlock(ctx: RunContext): string {
+  const seeded = ctx.startingWorkspace;
+  if (!seeded) return '';
+  try {
+    return renderStartingWorkspace(compareStartingWorkspace(seeded.start, seeded.now()));
+  } catch {
+    return '';
+  }
+}
+
+const NAMED_PATH = /(?<![\w./-])([\w-]{2,}(?:\/[\w.-]+)*\.(?:md|markdown|txt|html?|css|m?js|cjs|ts|json|csv|py|sh|ya?ml))(?![\w/-])/gi;
+const CRITERIA_FILES_MAX = 4;
+const CRITERIA_FILE_HEAD = 1200;
+const CRITERIA_FILE_MATCHED_LINES = 15;
+const CRITERIA_TOKEN = /[a-z][a-z0-9_-]{3,}/g;
+const COMMON_WORDS = new Set(['with', 'that', 'this', 'every', 'each', 'from', 'into', 'have', 'shows', 'show', 'must',
+  'documents', 'document', 'explains', 'lists', 'links', 'file', 'files', 'example', 'examples', 'readme']);
+
+/**
+ * What of a named file reaches the acceptor: its head, and past it the lines
+ * holding a word of the criteria that name it ("curl", "route", "exit"), so a
+ * criterion about a long README is not judged on its first screen only.
+ */
+function namedFileExcerpt(content: string, words: ReadonlySet<string>): string {
+  const head = content.slice(0, CRITERIA_FILE_HEAD);
+  if (content.length <= CRITERIA_FILE_HEAD) return JSON.stringify(head);
+  const later = content.slice(CRITERIA_FILE_HEAD).split(/\r?\n/)
+    .filter((line) => [...line.toLowerCase().matchAll(CRITERIA_TOKEN)].some((match) => words.has(match[0])))
+    .slice(0, CRITERIA_FILE_MATCHED_LINES).map((line) => line.slice(0, 200));
+  return `${JSON.stringify(head)} …(cut at ${CRITERIA_FILE_HEAD} of ${content.length} chars)` +
+    (later.length > 0 ? `\n    later lines naming the criteria's words: ${JSON.stringify(later)}` : '');
+}
+
+/**
+ * The files the CRITERIA name, read back by the host, so a criterion about a
+ * document is judged on the document. Production run dc45c95b (2026-09-27):
+ * "README documents every route with a curl example" was judged met on "README
+ * exists", because the read-back only reads what the result names and it said
+ * "README documentation". A name is a workspace path the text spells
+ * ("docs/ERRORS.md") or a root Markdown file's stem ("README", "CHANGELOG").
+ * They are read even when the ground-truth block lists them, since that shows
+ * a 400-character head; a name that resolves to no file says nothing, and a
+ * path leaving the workspace root is never read.
+ */
+async function criteriaFilesBlock(ctx: RunContext, checklist: AcceptanceChecklist): Promise<string> {
+  if (checklist.length === 0 || !ctx.tools?.has('read_file')) return '';
+  const tools = baseExecutorOf(ctx.tools);
+  const text = checklist.map((item) => item.behaviour).join('\n');
+  const wanted: string[] = [...text.matchAll(NAMED_PATH)].map((match) => match[1]!);
+  if (tools.has('list_files')) {
+    try {
+      const listed = (await tools.execute('list_files', { path: '.' })) as { entries?: Array<{ name?: string; kind?: string }> } | null;
+      for (const entry of listed?.entries ?? []) {
+        const name = entry.name ?? '';
+        const stem = name.replace(/\.(?:md|markdown|txt)$/i, '');
+        if (entry.kind !== 'dir' && stem !== name && stem.length >= 4 &&
+          new RegExp(`\\b${stem.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(text)) wanted.push(name);
+      }
+    } catch { /* a listing is a bonus */ }
+  }
+  const lines: string[] = [];
+  for (const path of [...new Set(wanted)]) {
+    if (lines.length >= CRITERIA_FILES_MAX || ctx.signal?.aborted) break;
+    if (path.split('/').includes('..')) continue;
+    const stem = path.replace(/^.*\//, '').replace(/\.[^.]+$/, '').toLowerCase();
+    const naming = checklist.filter((item) => item.behaviour.toLowerCase().includes(stem)).map((item) => item.behaviour.toLowerCase());
+    const words = new Set(naming.flatMap((text) => [...text.matchAll(CRITERIA_TOKEN)].map((match) => match[0]))
+      .filter((word) => !COMMON_WORDS.has(word) && word !== stem));
+    try {
+      const read: unknown = await tools.execute('read_file', { path });
+      const content = typeof read === 'string' ? read : read && typeof read === 'object' &&
+        'content' in read && typeof read.content === 'string' ? read.content : undefined;
+      if (content === undefined) continue;
+      lines.push(`- ${path} (${content.length} chars): ${namedFileExcerpt(content, words)}`);
+    } catch {
+      // Silent, never refuting: "saves quote.txt" names a download, not a workspace file.
+    }
+  }
+  return lines.length > 0
+    ? ['FILES THE CRITERIA NAME, read back by the host (mechanical). An excerpt cut short is SILENT about what it',
+      'does not show: never judge a criterion unmet on a part of the file you were not shown.', ...lines].join('\n')
+    : '';
 }
 
 /** Root proof is stricter than phase proof: no binding or unreadable bytes never cover. */
@@ -157,12 +243,19 @@ export async function acceptRootResult(args: {
     payload: { output: result.output, summary: result.summary }, child: actor,
     ...(result.evidence ? { evidence: result.evidence } : {}) });
   const floorCoverage = await rootProofCoverage(ctx, floor);
+
   // Criteria the user approved are READ, whatever the floor says: a covered
   // floor with no finding used to approve mechanically past them.
   const userCriteria = source === 'user' && coverage.length > 0;
   const review = floor.length === 0 || gates.reviewFindings.length > 0 || probe.requiresReview ||
     floorCoverage.some((item) => item.status === 'uncovered') || userCriteria;
   const judgementsAsked = checklistBlock !== '';
+  // Read only for a validation call: nothing reads them on the mechanical path.
+  // Named files only beside criteria the acceptor is shown (a drafted
+  // review-only list renders nothing, so it names nothing either).
+  const reviewing = review && !gates.rejection;
+  const namedFilesBlock = reviewing && judgementsAsked ? await criteriaFilesBlock(ctx, checklist) : '';
+  const startingBlock = reviewing ? startingWorkspaceBlock(ctx) : '';
   const raw = gates.rejection
     ? { approved: false, reasoning: gates.rejection.reasoning }
     : review ? await llmVerdict({
@@ -173,7 +266,8 @@ export async function acceptRootResult(args: {
       groundTruthBlock: probe.block,
       mechanicalFindingsBlock: renderResultGateFindings(gates.reviewFindings),
       proofCoverageBlock: 'ROOT DELIVERY PROOF (no effect on phase credits):\n' + JSON.stringify(floorCoverage) +
-        (checklistBlock ? `\n\n${checklistBlock}\n${CRITERIA_JUDGEMENT_REQUEST}` : '') + (layoutsBlock ? `\n\n${layoutsBlock}` : ''),
+        (checklistBlock ? `\n\n${checklistBlock}\n${CRITERIA_JUDGEMENT_REQUEST}` : '') + (layoutsBlock ? `\n\n${layoutsBlock}` : '') +
+        (namedFilesBlock ? `\n\n${namedFilesBlock}` : '') + (startingBlock ? `\n\n${startingBlock}` : ''),
       // A landed run always reaches here through a validation call, because it
       // stopped before it could prove the floor. Saying what a landing IS costs
       // one block and decides whether the phases it did complete survive.

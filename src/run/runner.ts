@@ -56,7 +56,7 @@ import {
 import { declaredArtifactManifestSchema } from '../contracts/artifactManifest.js';
 import type { Logger, Plan, Result, RunContext, Task } from '../core/types.js';
 import type { TaskProfile } from './profile.js';
-import { describeSeedManifest, seedWorkspace } from './workspace.js';
+import { describeSeedManifest, seedWorkspace, snapshotDeliveredWorkspace, snapshotStartingWorkspace } from './workspace.js';
 import { draftAcceptanceChecklist } from '../atoms/acceptanceChecklist.js';
 import { readAcceptanceSource, readAcceptanceSpec } from './acceptanceSpec.js';
 
@@ -821,8 +821,10 @@ export async function startTask(
 
   // Local by default; `--container` moves the tool layer into a container
   // with only the workspace mounted and no route out. The swap is possible
-  // at ONE point because `ToolExecutor` is two methods and nothing in the
-  // control plane reads the workspace except through it.
+  // at ONE point because `ToolExecutor` is two methods and the control plane
+  // reads the workspace through it — save the host's own read of a seeded
+  // run's delivered files for root acceptance (`startingWorkspace` below),
+  // which reads the same bytes: the workspace is the mount.
   const makeBackend = async () => {
     const selectedBackend = args.container
     ? await containerToolBackend({
@@ -968,6 +970,15 @@ export async function startTask(
     recordRunStat: (signalName) => {
       runSignals[signalName] += 1;
     },
+    // Read from the SEED, which is never modified, rather than from the
+    // workspace after seeding: a deepening re-seeds, and its baseline is the
+    // same seed. The delivered side is read from the host path the tools
+    // write to (bind-mounted in a container, the launcher's run workspace
+    // remotely), by the control plane, once per reviewed acceptance.
+    ...(seedRoot ? (() => {
+      const start = snapshotStartingWorkspace(seedRoot);
+      return { startingWorkspace: { start, now: () => snapshotDeliveredWorkspace(workspaceRoot, start) } };
+    })() : {}),
     // Prefilter decisions replayed from the on-disk cache: the LLM call
     // that did NOT happen still deserves a card.
     recordCacheHit: (info) => recorder.recordCacheHit(info),

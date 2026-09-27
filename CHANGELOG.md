@@ -62,6 +62,13 @@ corrections of the 2026-09-24 and 2026-09-25 code reviews.
   the delivery review is shown whether a page was laid out at that width, and
   the planner and workers are told to check each width.
 - `write_file` and `edit_file` report sizes in bytes, not characters.
+- A run that continues an earlier deliverable is reviewed with what it did to
+  the files it started from, so replacing work it was asked to keep no longer
+  passes unnoticed; a criterion about a named file, such as the README, is
+  judged on that file's content.
+- Workers are told to restore data files their checks filled, never to
+  special-case a value a criterion names, and to prove user actions with real
+  interactions; a hand-escaped file body is pointed at the content field.
 - A Codex tool call with invalid arguments is told the parser's error and
   where it stands; the protocol shows how to encode a multi-line file.
 - A run refused because the one run slot is busy says why, without host

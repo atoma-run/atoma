@@ -141,7 +141,12 @@ export async function completeCodexToolLoop(
         // The reason, in the observation the model reads and the trace keeps:
         // a bare "must encode a JSON object" left the model regenerating the
         // whole file blind, and left nobody able to say what was wrong.
-        error = `Invalid Atoma tool arguments: argumentsJson must encode a JSON object (${describeInvalidArguments(action.argumentsJson)}) No tool was executed. Escape quotes and newlines inside string values and resend the corrected action.`;
+        error = `Invalid Atoma tool arguments: argumentsJson must encode a JSON object (${describeInvalidArguments(action.argumentsJson)}) No tool was executed. ` +
+          (declaresContent(req.tools, action.name)
+            // Production run 902b2c21 (2026-09-27): a whole page escaped by hand
+            // inside argumentsJson, for a tool the content field exists for.
+            ? `Put the file text in the action's "content" field, written as is, and keep argumentsJson to the other arguments (e.g. {"path":"index.html"}); escape quotes and newlines inside any other string value.`
+            : 'Escape quotes and newlines inside string values and resend the corrected action.');
       }
       if (error !== undefined) {
         // Return a failed observation within the existing iteration budget.
