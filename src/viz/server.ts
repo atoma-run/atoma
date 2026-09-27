@@ -12,7 +12,7 @@ import { SkillRegistry } from '../skills/registry.js';
 import { readBoundedRunFile, sortRunIndex, summarizeTraceFile } from './runIndex.js';
 import type { VizRunIndexEntry } from './trace.js';
 import { skillsDirPath, storeDbPath } from '../core/stores.js';
-import { openLedgerHandle, readLedgerTail } from '../core/ledger.js';
+import { openLedgerHandle, readLedgerTail, type LedgerEvent } from '../core/ledger.js';
 import { LAUNCHABLE_PROFILES } from '../run/profiles/index.js';
 import { assessShareability, type ShareAssessment } from '../skills/shareability.js';
 import { taxonomyForTier, type AgentRank } from '../core/taxonomy.js';
@@ -2083,6 +2083,28 @@ function displayNameForAtomId(atomId: string): string | null {
   return null;
 }
 
+/**
+ * A skill's ledger entity is `<atom-id>/<skill-id>`: its namespace is the
+ * owning molecule's STABLE id, which no reader recognises on sight. The
+ * display name rides BESIDE it as `owner`, resolved here at the typed
+ * boundary and never written back — ledger rows stay byte-honest, and
+ * `ledger check` keys on them. One lookup per distinct namespace; an id no
+ * registry knows keeps its raw entity alone.
+ */
+function labelLedgerOwners(events: readonly LedgerEvent[]): (LedgerEvent & { owner?: string })[] {
+  const names = new Map<string, string | null>();
+  return events.map((event) => {
+    const slash = event.entity.indexOf('/');
+    // A namespace-wide `skill-drop` names the namespace alone.
+    const namespace =
+      slash > 0 ? event.entity.slice(0, slash) : event.kind.startsWith('skill-') ? event.entity : null;
+    if (!namespace) return event;
+    if (!names.has(namespace)) names.set(namespace, displayNameForAtomId(namespace));
+    const owner = names.get(namespace);
+    return owner && owner !== namespace ? { ...event, owner } : event;
+  });
+}
+
 function toolNamesForAtomId(atomName: string): string[] {
   const published = skillRegistry.namespaceInfo(atomName);
   if (published) return published.tools;
@@ -3519,7 +3541,7 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
         // `readLedgerTail` is bounded, newest-first and fail-open: a store
         // without the table reads empty rather than 500-ing the admin surface.
         sendJson(res, 200, {
-          events: readLedgerTail(limit, openLedgerHandle(DBS[0]!.path)),
+          events: labelLedgerOwners(readLedgerTail(limit, openLedgerHandle(DBS[0]!.path))),
         });
         return;
       }

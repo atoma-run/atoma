@@ -2172,6 +2172,58 @@ describe('drawLedger', () => {
     expect(ctx.scrollMax.ledger).not.toBeUndefined();
   });
 
+  it('names a skill by its owner, whole, and says what each event meant', () => {
+    const ctx = createRecordingCtx();
+    const atomId = '4c1ec502-f4f1-4e44-bc09-822d5f717d0c';
+    const runId = '8e01387c-7c3b-4f4b-8419-ac91acebf565';
+    drawLedger(
+      ctx,
+      makeSnapshot(
+        { view: 'ledger' },
+        {
+          auth,
+          adminLedger: [
+            {
+              at: '2026-09-27T09:00:00.000Z',
+              kind: 'skill-success',
+              entity: `${atomId}/build-responsive-landing-page-with-live-browser-proof`,
+              owner: 'Water',
+              detail: { via: 'Methane' },
+              scope: { runId, actorType: 'principal', actorId: 'p-123456789' },
+            },
+            {
+              at: '2026-09-27T08:59:30.000Z',
+              kind: 'skill-save',
+              entity: `${atomId}/own-recipe`,
+              owner: 'Water',
+              detail: { via: 'Water', kind: 'llm', created: true },
+            },
+            {
+              at: '2026-09-27T08:59:00.000Z',
+              kind: 'type-success',
+              entity: 'Serotonin',
+              detail: { by: 'Glucose', expectedVersion: 3, novelKey: 'kept' },
+            },
+          ],
+        }
+      ),
+      1280,
+      720
+    );
+    const values = ctx.texts.map((text) => text.value);
+    // The atom id is gone from the row, and the recipe name is not cut.
+    expect(values).toContain('Water · build-responsive-landing-page-with-live-browser-proof');
+    expect(values.some((value) => value.includes(atomId))).toBe(false);
+    expect(values).toContain('executed by Methane · run 8e01387c… · principal p-123456…');
+    // A recipe run by its own owner does not repeat the owner.
+    expect(values).toContain('llm recipe · new');
+    // An unknown detail key from a newer writer shows raw rather than vanishing.
+    expect(values).toContain('credited by Glucose · version 3 · novelKey: kept');
+    // The bubble keeps everything the row shortened.
+    const bubble = ctx.tooltips.find((tooltip) => tooltip.text.includes(runId));
+    expect(bubble?.text).toContain(`${atomId}/build-responsive-landing-page-with-live-browser-proof`);
+  });
+
   it('says the catalogue has learned nothing yet', () => {
     const ctx = createRecordingCtx();
     drawLedger(ctx, makeSnapshot({ view: 'ledger' }, { auth }), 1280, 720);

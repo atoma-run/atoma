@@ -161,7 +161,7 @@ export const api = {
   adminSentinel: () => fetchJson<VizSentinelSnapshot>('/api/admin/sentinel'),
   // A SEPARATE read of the product ledger, never a merge with the journal
   // above: the two answer different questions and only share a tab.
-  adminLedger: (limit = 20) =>
+  adminLedger: (limit = 100) =>
     fetchJson<{ events: VizLedgerEvent[] }>(
       `/api/admin/ledger?limit=${encodeURIComponent(limit)}`
     ),

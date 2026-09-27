@@ -18,6 +18,7 @@ import { sleepInhibitorHint } from '../src/sentinel/resident.js';
 import { SkillRegistry } from '../src/skills/registry.js';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
+import { appendLedger } from '../src/core/ledger.js';
 
 /**
  * Process-level contract: real viz server, real SQLite and a local OAuth app.
@@ -1225,6 +1226,19 @@ describe('viz auth gate (process level)', () => {
 
   it('serves the platform audit journal to the admin alone, newest first', async () => {
     const instance = tempInstance();
+    // A skill's ledger entity is `<atom-id>/<skill-id>`; the ledger read must
+    // name the owning molecule beside it, or the screen shows an atom id.
+    const seeded = openDb(instance.dbPath);
+    let ownerId: string;
+    let ownerName: string;
+    try {
+      const registry = new AtomRegistry(seeded);
+      const owner = registry.create(1, { tools: [], params: {}, createdBy: 'seed', description: 'Owner', systemPrompt: 'Own' });
+      ownerId = owner.atomId;
+      ownerName = owner.name;
+      registry.recordSuccess(owner.name, 'Serotonin', owner.version);
+      appendLedger({ kind: 'skill-save', entity: `${ownerId}/build-thing`, detail: { kind: 'llm' } }, seeded);
+    } finally { seeded.close(); }
     const provider = await startFakeProvider({ port: await freePort(), subject: 303 });
     const port = await freePort();
     const base = `http://127.0.0.1:${port}`;
@@ -1336,9 +1350,21 @@ describe('viz auth gate (process level)', () => {
     // The product ledger is a SEPARATE read from the journal, never a merge.
     const ledger = await fetch(`${base}/api/admin/ledger?limit=5`, { headers: cookie });
     expect(ledger.status).toBe(200);
-    const ledgerBody = (await ledger.json()) as { events: unknown[] };
+    const ledgerBody = (await ledger.json()) as {
+      events: Array<{ kind: string; entity: string; owner?: string; detail?: Record<string, unknown> }>;
+    };
     expect(Array.isArray(ledgerBody.events)).toBe(true);
     expect(ledgerBody).not.toHaveProperty('nextBefore');
+    // The raw entity stays byte-honest; the owner's name rides beside it.
+    expect(ledgerBody.events[0]).toMatchObject({
+      kind: 'skill-save',
+      entity: `${ownerId}/build-thing`,
+      owner: ownerName,
+    });
+    // A type entity is already a name: nothing is resolved onto it.
+    const credit = ledgerBody.events.find((event) => event.kind === 'type-success');
+    expect(credit).toMatchObject({ entity: ownerName, detail: { by: 'Serotonin' } });
+    expect(credit).not.toHaveProperty('owner');
 
     // THE SENTINEL READ. Rule table, runs in flight across both corpora, and
     // findings — and NOTHING that claims the watch process is running, which

@@ -578,8 +578,25 @@ export interface VizSentinelSnapshot {
 export interface VizLedgerEvent {
   at: string;
   kind: string;
+  /** The raw label: `Water` for a type, `<atom-id>/<skill-id>` for a skill. */
   entity: string;
+  /** The stable key, when the row carries one. */
+  entityId?: string;
   detail?: Record<string, unknown>;
+  /** Where the event arose and who caused it; absent for a platform event. */
+  scope?: {
+    orgId?: string;
+    projectId?: string;
+    runId?: string;
+    actorType?: string;
+    actorId?: string;
+  };
+  /**
+   * The owning molecule's display name, resolved by the server from a skill
+   * entity's atom-id namespace. Absent when the namespace is already a name
+   * or no registry knows it.
+   */
+  owner?: string;
 }
 
 /** Admin plane: a freshly minted one-use invitation. Shown once, never stored. */
