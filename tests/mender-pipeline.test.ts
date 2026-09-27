@@ -103,9 +103,9 @@ function fixture(): Fixture {
         {
           kind: 'mechanism_candidate',
           title: 'Add an arithmetic sanity gate',
-          detail: 'never mended',
+          detail: 'below the confidence floor, so never mended',
           evidence: [],
-          confidence: 'high',
+          confidence: 'medium',
           proposedFix: { where: 'src/', what: 'gate', checkedIntentionalChoices: 'AGENTS.md' },
         },
         {
@@ -270,7 +270,7 @@ describe('the mender, end to end against a real repository', () => {
     const rec = record(f)!;
     expect(rec).toMatchObject({ outcome: 'pr-opened', prUrl: 'https://github.com/example/atoma/pull/42', mendCostUsd: 0.42 });
     expect(rec.verification).toMatchObject({ testFailedBefore: true, checkPassed: true, testFiles: ['tests/adder.test.mjs'] });
-    // The mechanism candidate at index 0 was never touched.
+    // The mechanism candidate at index 0 sits below the floor and was never touched.
     expect(existsSync(mendRecordPath(join(f.supervisor, 'mender'), RUN_ID, 0))).toBe(false);
 
     const [branch] = remoteBranches(f);

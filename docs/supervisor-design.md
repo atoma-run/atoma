@@ -262,11 +262,11 @@ the design below, both settling an open decision:
   stashes the source change and runs the new test files expecting a failure,
   restores them, runs the full `npm run check`, and only then commits,
   pushes and opens the PR. The model's word is recorded, never trusted.
-- **What may be mended**: a `defect` finding at or above the confidence
-  floor (`high` by default) whose `proposedFix` cites the intentional
-  choices it checked. A `mechanism_candidate` is never eligible and there is
-  deliberately no flag to make it one — a mender that took candidates would
-  ship a choice nobody made, with a commit button.
+- **What may be mended**: a `defect` or `mechanism_candidate` finding at or
+  above the confidence floor (`high` by default) whose `proposedFix` cites
+  the intentional choices it checked. A candidate's pull request proposes the
+  choice nobody has made yet and says so; the person who merges makes it
+  (owner decision 2026-09-27 — until then candidates only reached a backlog).
   `security_incident` stays an alert.
 - **What may be shipped**: changes under `src/`, `tests/` and
   `docs/incidents/` only, at least one test file, at least one source file,
@@ -328,8 +328,9 @@ inhibitor (`caffeinate`) because the machine sleeps on battery.
 
 ## Existing rules this design must keep true
 
-- Mechanism candidates are backlog entries for a person's design choice,
-  never mender work; a new mechanism is reviewed adversarially before it lands
+- Mechanism candidates are backlog entries AND, when confident and cited,
+  mender pull requests that propose the choice to a person; a new mechanism
+  is reviewed before it lands
   ([AGENTS.md](../AGENTS.md), safe working rules).
 - Never edit `src/` during a batch → the mender's worktree + compiled slots.
 - Verification is read-only; never replay model-authored commands → the

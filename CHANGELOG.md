@@ -66,6 +66,9 @@ corrections of the 2026-09-24 and 2026-09-25 code reviews.
   the files it started from, so replacing work it was asked to keep no longer
   passes unnoticed; a criterion about a named file, such as the README, is
   judged on that file's content.
+- The mender also opens a pull request for a confident finding that asks for a
+  new mechanism, marked as a design choice for the reviewer; a person still
+  merges every change.
 - Workers can no longer overwrite a file from before the run without reading
   it first, and the delivery review sees how each removed or rewritten file
   started.

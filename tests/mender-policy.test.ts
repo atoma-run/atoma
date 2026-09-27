@@ -15,8 +15,8 @@ import { menderProvider, providerChildEnv } from '../src/supervisor/session.js';
 
 /**
  * The mender's pure half. What these hold:
- *   - only a cited, confident `defect` is mendable; a mechanism candidate never
- *     is, whatever its confidence — it needs a design choice a person makes;
+ *   - only a cited, confident `defect` or `mechanism_candidate` is mendable, and
+ *     a candidate's PR says it proposes a choice for the reviewer;
  *   - trace text never reaches the model: quotes survive only for repository
  *     source refs;
  *   - the diff policy is an allowlist with a size cap and a test requirement;
@@ -42,22 +42,29 @@ const defect: VerdictFinding = {
 const candidate: VerdictFinding = { ...defect, kind: 'mechanism_candidate', title: 'Add a repeated-tool-name rule' };
 
 describe('eligibleFindings', () => {
-  it('takes a cited high-confidence defect and nothing else', () => {
+  it('takes a cited high-confidence defect or mechanism candidate, and nothing else', () => {
     const { proposedFix: _dropped, ...uncited } = defect;
     const findings: VerdictFinding[] = [
       candidate,
       defect,
       { ...defect, confidence: 'medium' },
+      { ...candidate, confidence: 'medium' },
       { ...defect, kind: 'security_incident' },
       { ...defect, kind: 'observation' },
       uncited,
     ];
-    expect(eligibleFindings({ findings })).toEqual([{ index: 1, finding: defect }]);
+    expect(eligibleFindings({ findings })).toEqual([{ index: 0, finding: candidate }, { index: 1, finding: defect }]);
   });
 
-  it('never admits a mechanism candidate, even at a lowered floor', () => {
-    const findings: VerdictFinding[] = [candidate, { ...defect, confidence: 'medium' }];
-    expect(eligibleFindings({ findings }, 'medium').map((e) => e.index)).toEqual([1]);
+  it('tells the reviewer a mechanism candidate\'s pull request proposes a choice', () => {
+    const body = (finding: VerdictFinding) => pullRequestBody({
+      report: { outcome: 'fixed', summary: 'Added the rule.', checkedIntentionalChoices: 'src/sentinel/AGENTS.md', testFiles: ['tests/x.test.ts'], sourceFiles: ['src/x.ts'] } as never,
+      finding, runId: 'run-1', key: 'k', verification: { testFailedBefore: true, checkPassed: true, testFiles: ['tests/x.test.ts'], checkCommand: 'npm run check' },
+      provider: { model: 'm', source: 'host' } as never, served: null, costUsd: null, diffStat: { files: 2, added: 10, deleted: 1 },
+    });
+    expect(body(candidate)).toContain('(`mechanism_candidate`, confidence high)');
+    expect(body(candidate)).toContain('A design choice for the reviewer.');
+    expect(body(defect)).not.toContain('A design choice for the reviewer.');
   });
 });
 

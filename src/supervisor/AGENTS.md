@@ -203,10 +203,14 @@ Neighbours:
   established and the attempt is `refused`.
 - WHAT MAY BE MENDED (`menderPolicy.ts#eligibleFindings`): a `defect` at or
   above the confidence floor (`high` by default) whose `proposedFix` cites the
-  intentional choices it checked. A `mechanism_candidate` is never eligible
-  and there is deliberately NO option to make it one — a candidate needs a
-  choice nobody has made (a threshold, a policy), and a mender that took one
-  would ship that choice with a commit button.
+  intentional choices it checked — and, since 2026-09-27 (owner decision), a
+  `mechanism_candidate` under the same bar. A candidate's remedy is a choice
+  nobody has made, so its pull request PROPOSES it: the body says so above the
+  finding, the prompt asks for the smallest mechanism against every recorded
+  incident, a fact before a gate, and a test for what it must not catch, and
+  the choice lands in `reviewerNotes`. The person who merges makes it; there
+  is still no auto-merge. Before, seventeen of seventeen findings in three
+  weeks were candidates and reached only a backlog nobody drained.
 - WHAT MAY BE SHIPPED (`checkDiffPolicy`): an allowlist — `src/`, `tests/`,
   `docs/incidents/` — at least one test file, at least one source file, at
   most `DEFAULT_MAX_DIFF_LINES` changed lines. Workflows, deploy scripts,

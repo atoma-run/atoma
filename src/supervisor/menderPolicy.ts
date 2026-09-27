@@ -27,10 +27,12 @@ export interface EligibleFinding {
  * What the mender may be asked to fix, and — the load-bearing half — what it
  * must never be asked to fix.
  *
- *   - `defect` only. A `mechanism_candidate` needs a choice nobody has made
- *     yet (a threshold, a policy); the analyst routes it to the backlog for a
- *     person, and a mender that took it would ship that choice with a commit
- *     button. There is deliberately no option to include them.
+ *   - a `defect`, and since 2026-09-27 (owner decision) a `mechanism_candidate`:
+ *     the candidate's remedy is a choice nobody has made yet (a threshold, a
+ *     policy), so its pull request PROPOSES that choice and says so, and the
+ *     person who merges makes it. Before, candidates only reached a backlog
+ *     nobody drained: seventeen of seventeen findings in three weeks, none
+ *     mended. A PR is still the only way out; nothing merges itself.
  *   - `security_incident` is an alert for a person, not a patch.
  *   - a `proposedFix` is REQUIRED: the analyst's citation rule exists because
  *     reading intentional choices was measurably not enough, and a fix with no
@@ -45,7 +47,7 @@ export function eligibleFindings(
   const floor = CONFIDENCE_RANK[minConfidence];
   const out: EligibleFinding[] = [];
   verdict.findings.forEach((finding, index) => {
-    if (finding.kind !== 'defect') return;
+    if (finding.kind !== 'defect' && finding.kind !== 'mechanism_candidate') return;
     if (CONFIDENCE_RANK[finding.confidence] < floor) return;
     if (!finding.proposedFix) return;
     out.push({ index, finding });
@@ -273,8 +275,13 @@ export function pullRequestBody(input: {
   return [
     '## What the analyst found',
     '',
-    `**${safe.title}** (\`defect\`, confidence ${safe.confidence}) on run \`${input.runId}\`.`,
+    `**${safe.title}** (\`${safe.kind}\`, confidence ${safe.confidence}) on run \`${input.runId}\`.`,
     '',
+    ...(safe.kind === 'mechanism_candidate'
+      ? ['> **A design choice for the reviewer.** This finding asked for a NEW mechanism — a rule, a threshold,',
+        '> a policy — that nobody has chosen yet. The change below proposes one; merging it is making that choice.',
+        '']
+      : []),
     safe.detail,
     '',
     '### Evidence',
