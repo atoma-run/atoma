@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { registerDeploymentPending } from '../src/mcp/runLock.js';
 import { finishedRuns, probeActivity } from '../src/supervisor/activity.js';
 
 /**
@@ -47,6 +48,20 @@ describe('probeActivity', () => {
     const f = fixture();
     writeFileSync(join(f.runsDir, 'index.json'), '[{"id": "a", "startedAt": ');
     expect(probeActivity(f, NOW)).toEqual({ active: true, reason: 'index-torn' });
+  });
+
+  // The mender took the slot back the instant each mend released it and two
+  // deployments in a row were refused (2026-09-27). A waiting deployment is
+  // activity although nothing runs yet. Needs a birth identity: POSIX only.
+  it.skipIf(process.platform === 'win32')('counts a deployment waiting for the slot as active until it withdraws', () => {
+    const f = fixture();
+    const pending = registerDeploymentPending('deployment:test', f.leasePath);
+    try {
+      expect(probeActivity(f, NOW)).toEqual({ active: true, reason: 'deployment-pending' });
+    } finally {
+      pending.release();
+    }
+    expect(probeActivity(f, NOW)).toEqual({ active: false, reason: 'idle' });
   });
 });
 

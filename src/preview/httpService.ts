@@ -3,6 +3,7 @@ import { ProjectHttpError, roleAtLeast } from '../projects/service.js';
 import type { ProjectStore } from '../projects/store.js';
 import { previewEgressHostSchema, previewOpenOptionsSchema, type PreviewOpenOptions, type PreviewSummary } from '../contracts/preview.js';
 import {
+  PreviewDeploymentPendingError,
   PreviewManager,
   PreviewQuotaError,
   PreviewUnavailableError,
@@ -214,6 +215,13 @@ export class PreviewHttpService {
   ): Promise<{ readonly status: number; readonly body: PreviewOpenResponse }> {
     this.requireMember(viewer, 'restart previews');
     this.boundRun(viewer, projectId, projectRunId);
+    // Asked BEFORE the stop: while a deployment waits the open below would be
+    // refused, and the member would have lost the preview they had.
+    try {
+      this.deps.manager.assertNoDeploymentWaiting();
+    } catch (error) {
+      throw this.asHttp(error);
+    }
     await this.deps.manager.stop(viewer.orgId, projectId, projectRunId, 'restart');
     return this.open(viewer, projectId, projectRunId, options);
   }
@@ -292,9 +300,13 @@ export class PreviewHttpService {
    * `409` for a run with nothing to preview, because the request was
    * well-formed and the run's state is the reason; `429` for capacity, with
    * the delay the caller should wait; `503` for a deployment that cannot serve
-   * previews at all, which is an operator's problem and not the member's.
+   * previews at all, which is an operator's problem and not the member's, and
+   * for one waiting to update the instance, which passes by itself.
    */
   private asHttp(error: unknown): unknown {
+    if (error instanceof PreviewDeploymentPendingError) {
+      return new ProjectHttpError(503, error.message);
+    }
     if (error instanceof PreviewUnavailableError) {
       return new ProjectHttpError(409, `preview unavailable: ${error.reason}`);
     }

@@ -124,6 +124,15 @@ Neighbours:
   refused; stale lease recovery must validate PIDs/PGIDs safely. Deployment
   takes that same slot through `acquireRunLeaseWithoutRecovery` and never
   recovers an existing row.
+- A deployment WAITING for the slot is one `mcp_deployment_pending` row in the
+  same store (`registerDeploymentPending`). While it lives, both acquirers
+  refuse every taker inside their IMMEDIATE transaction — `condition:
+  'pending'`, owner `deployment:<pid>` — except the guard presenting its
+  token, and `acquireRunLease` refuses BEFORE any recovery, so a start it turns
+  away never reaps on its behalf. Whoever already holds the slot is never
+  touched. The row lives exactly as long as its guard (same birth-identity
+  rule as a lease owner; no identity, no row), is void once the guard is
+  gone, and is deleted by the next writer; `peekDeploymentPending` only looks.
 - Cancellation is a state, not successful completion. Signal the whole
   validated child group, bound termination, retain trace/status evidence.
   `finishRun` frees the in-memory slot in `finally` even if lease deletion
@@ -313,6 +322,12 @@ Neighbours:
 
 ## Intentional choices and rejected shortcuts
 
+- The waiting deployment as a marker file beside `ATOMA_DEPLOY_LOCK_PATH`:
+  rejected. A file cannot be checked atomically with the lease row, every
+  process would need that path in its environment, and a file survives the
+  guard that wrote it — the flaw the write-freeze marker had until it named
+  its writer. The lease store is already what every taker reads under BEGIN
+  IMMEDIATE, and a dead owner voids a row by construction.
 - The MCP lease `ALTER TABLE` loop is corruption repair, not version
   migration. The lock DB lives in `~/.atoma/` outside the product store, and
   the burn-in pgid guard already documents it as writable by the run itself;

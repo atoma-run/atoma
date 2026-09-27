@@ -30,6 +30,10 @@ SERVICE_NAME="${ATOMA_DEPLOY_SERVICE:-atoma.service}"
 SERVICE_USER="${ATOMA_DEPLOY_USER:-atoma}"
 APP_ENV="${ATOMA_DEPLOY_APP_ENV:-/home/atoma/config/atoma.env}"
 HEALTH_URL="${ATOMA_DEPLOY_HEALTH_URL:-http://127.0.0.1:4111/}"
+# How long a deployment WAITS for work already running (a run, a mend, an
+# analysis, a preview) while nothing new may start. 0 restores the old
+# behaviour: refuse at once whenever anything is busy.
+WAIT_SECONDS="${ATOMA_DEPLOY_WAIT_SECONDS:-1800}"
 # The mender runs from its OWN clone, not from the CI artefact (worktrees,
 # devDependencies, gh). These name that installation so the activator can
 # move it to the deployed revision; an absent checkout or env means "no mender
@@ -42,6 +46,13 @@ MENDER_REMOTE="https://github.com/mgtf/atoma.git"
 fail() {
   echo "deployment failed: $*" >&2
   exit 1
+}
+
+# Busy work refused the deployment: nothing is broken, and running it again
+# later is the remedy. EX_TEMPFAIL, like the drain guard's own exit.
+refuse() {
+  echo "deployment refused: $*" >&2
+  exit 75
 }
 
 valid_absolute_path() {
@@ -61,10 +72,12 @@ valid_absolute_path "${MENDER_ENV}" || fail "ATOMA_DEPLOY_MENDER_ENV must be a n
 [[ "${SERVICE_USER}" =~ ^[A-Za-z_][A-Za-z0-9_-]*$ ]] || fail "invalid service user"
 [[ "${HEALTH_URL}" =~ ^http://(127\.0\.0\.1|localhost):[0-9]+/ ]] ||
   fail "ATOMA_DEPLOY_HEALTH_URL must be a loopback HTTP URL"
+[[ "${WAIT_SECONDS}" =~ ^(0|[1-9][0-9]{0,4})$ ]] && (( WAIT_SECONDS <= 14400 )) ||
+  fail "ATOMA_DEPLOY_WAIT_SECONDS must be an integer between 0 and 14400"
 [[ -f "${APP_ENV}" && ! -L "${APP_ENV}" ]] || fail "application environment is missing or symlinked: ${APP_ENV}"
 id "${SERVICE_USER}" >/dev/null 2>&1 || fail "service user does not exist: ${SERVICE_USER}"
 
-for command in node npm docker curl systemctl runuser tar sha256sum realpath getent flock findmnt soffice; do
+for command in node npm docker curl systemctl runuser tar sha256sum realpath getent flock findmnt soffice timeout; do
   command -v "${command}" >/dev/null 2>&1 || fail "required command is missing: ${command}"
 done
 
@@ -125,6 +138,10 @@ restore_previous_generation() {
 
 cleanup() {
   local status=$?
+  # A second signal must not cut the cleanup short: mid-restoration it would
+  # leave the service stopped, and before the marker is removed it would
+  # leave every write refused.
+  trap '' HUP INT TERM
   set +e
   if [[ "${status}" -ne 0 && "${ACTIVATION_STARTED}" -eq 1 ]]; then
     restore_previous_generation
@@ -155,6 +172,10 @@ trap cleanup EXIT
 trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
+# A write to a channel that died (the relayed drain progress, a log line)
+# must fail as EPIPE, not kill the shell: a builtin killed by SIGPIPE skips
+# the EXIT trap, and with it the restoration of the previous generation.
+trap '' PIPE
 
 # The archive is streamed over the authenticated SSH channel. It never sits
 # in a deploy-user-writable inbox that another local process could replace.
@@ -211,11 +232,70 @@ elif [[ -e "${CURRENT}" ]]; then
   fail "current must be a symlink"
 fi
 
+# The guard runs from the OLD release, so what it can do is that release's:
+# the first deployment after waiting was introduced still refuses busy work.
+# Captured rather than piped into `grep -q`, whose early exit would kill the
+# writer and turn a match into a pipefail.
+guard_waits() {
+  local usage
+  # Bounded: a release that hangs on `--help` must not hold the host lock.
+  usage="$(timeout 30 runuser -u "${SERVICE_USER}" -- env HOME="${SERVICE_HOME}" \
+    node "${OLD_RELEASE}/dist/cli/deploy-preflight.js" --help 2>/dev/null || true)"
+  [[ "${usage}" == *"--wait-ms"* ]]
+}
+
+# In wait mode the guard, not root, writes the freeze marker.
+marker_dir_writable_by_service() {
+  runuser -u "${SERVICE_USER}" -- test -w "$(dirname "${MARKER_PATH}")"
+}
+
+GUARD_LINES_SHOWN=0
+relay_guard_progress() {
+  local lines
+  lines="$(wc -l <"${GUARD_DIR}/stdout" 2>/dev/null || echo 0)"
+  if (( lines > GUARD_LINES_SHOWN )); then
+    sed -n "$((GUARD_LINES_SHOWN + 1)),${lines}p" "${GUARD_DIR}/stdout"
+    GUARD_LINES_SHOWN="${lines}"
+  fi
+}
+
+guard_exited() {
+  relay_guard_progress
+  local guard_status=0
+  wait "${GUARD_PID}" || guard_status=$?
+  [[ "${guard_status}" -eq 75 ]] && refuse "runtime drain refused: $(<"${GUARD_LOG}")"
+  fail "runtime drain failed (exit ${guard_status}): $(<"${GUARD_LOG}")"
+}
+
 if [[ -n "${OLD_RELEASE}" ]]; then
   MARKER_PATH="$(run_as_service_with_app_env "${OLD_RELEASE}" bash -c 'printf %s "${ATOMA_DEPLOY_LOCK_PATH:-}"')"
   valid_absolute_path "${MARKER_PATH}" || fail "ATOMA_DEPLOY_LOCK_PATH must be configured as an absolute path"
-  install -d -m 0755 "$(dirname "${MARKER_PATH}")"
-  install -m 0644 /dev/null "${MARKER_PATH}"
+  # Created when absent, for the service user who reads it — and never
+  # re-moded when present: an existing state directory keeps its own mode.
+  [[ -d "$(dirname "${MARKER_PATH}")" ]] ||
+    install -d -m 0750 -o "${SERVICE_USER}" -g "${SERVICE_GROUP}" "$(dirname "${MARKER_PATH}")"
+  GUARD_WAIT_ARGS=()
+  if (( WAIT_SECONDS > 0 )) && guard_waits; then
+    if marker_dir_writable_by_service; then
+      GUARD_WAIT_ARGS=(--wait-ms "$((WAIT_SECONDS * 1000))")
+    else
+      echo "drain: ${SERVICE_USER} cannot write $(dirname "${MARKER_PATH}"); refusing busy work at once, as before"
+    fi
+  fi
+  if (( ${#GUARD_WAIT_ARGS[@]} > 0 )); then
+    # WAIT MODE: the guard announces the deployment so nothing new starts,
+    # lets running work finish, and writes the write-freeze marker itself
+    # once the slot is clear. Freezing every write for the whole wait would
+    # have refused logins and settings for as long as a run lasts.
+    # This activator holds the host lock, so any marker already there was
+    # left by a deployment that died; it must not freeze writes for the wait.
+    rm -f -- "${MARKER_PATH}"
+    echo "drain: waiting up to ${WAIT_SECONDS}s for running work; nothing new may start meanwhile"
+  else
+    # The running release predates waiting deployments (or waiting is off):
+    # freeze writes first and refuse whatever is busy, as before.
+    install -m 0644 /dev/null "${MARKER_PATH}"
+  fi
 
   # The service user cannot traverse WORK_DIR: mktemp deliberately creates it
   # as 0700 root. Keep the private guard beneath the root-owned 0755 deploy
@@ -233,16 +313,27 @@ if [[ -n "${OLD_RELEASE}" ]]; then
       --ready-file "${GUARD_READY_FILE}" \
       --release-file "${GUARD_RELEASE_FILE}" \
       --admission-marker "${MARKER_PATH}" \
+      "${GUARD_WAIT_ARGS[@]}" \
       >"${GUARD_DIR}/stdout" 2>"${GUARD_LOG}" &
   GUARD_PID=$!
-  for _ in {1..80}; do
-    [[ -f "${GUARD_READY_FILE}" ]] && break
-    if ! kill -0 "${GUARD_PID}" 2>/dev/null; then
-      wait "${GUARD_PID}" || true
-      fail "runtime drain refused: $(<"${GUARD_LOG}")"
-    fi
-    sleep 0.25
-  done
+  if (( ${#GUARD_WAIT_ARGS[@]} > 0 )); then
+    # The guard refuses at its own deadline; this bound only catches a guard
+    # that neither became ready nor exited.
+    READY_DEADLINE=$((SECONDS + WAIT_SECONDS + 120))
+    until [[ -f "${GUARD_READY_FILE}" ]]; do
+      kill -0 "${GUARD_PID}" 2>/dev/null || guard_exited
+      (( SECONDS < READY_DEADLINE )) || fail "runtime drain did not become ready within ${WAIT_SECONDS}s"
+      relay_guard_progress
+      sleep 1
+    done
+    relay_guard_progress
+  else
+    for _ in {1..80}; do
+      [[ -f "${GUARD_READY_FILE}" ]] && break
+      kill -0 "${GUARD_PID}" 2>/dev/null || guard_exited
+      sleep 0.25
+    done
+  fi
   [[ -f "${GUARD_READY_FILE}" ]] || fail "runtime drain did not become ready"
 fi
 
@@ -279,6 +370,12 @@ done
 
 ACTIVATION_STARTED=0
 echo "deployed ${REVISION} to ${SERVICE_NAME}"
+# The new generation is healthy: writes and previews resume now, not after
+# the retention prune and the mender refresh below. The guard keeps the run
+# lease until EXIT, so no run starts beside the mender's rebuild.
+if [[ -n "${MARKER_PATH}" ]]; then
+  rm -f -- "${MARKER_PATH}"
+fi
 
 # Health has passed; keep the previous generation and five recent releases.
 # The deployment lock and drain lease remain held until EXIT. The helper is

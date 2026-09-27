@@ -89,6 +89,17 @@ corrections of the 2026-09-24 and 2026-09-25 code reviews.
   to fail on double escaping.
 - Inputs a run writes only to test its deliverable are no longer published.
 - A validator is told when a file it sees read was rewritten afterwards.
+- A production deployment waits for the work already running on the instance
+  (a run, a mend, an analysis, a preview) instead of being refused behind it,
+  up to `ATOMA_DEPLOY_WAIT_SECONDS` (default 30 minutes). Nothing new starts
+  meanwhile and nothing running is interrupted; writes stay open until the
+  activation itself and reopen as soon as the new version is healthy. A
+  deployment refused because work is still busy exits 75.
+- A write freeze left behind by a deployment that was killed, or by a reboot
+  mid-deployment, no longer refuses every write until someone deletes it.
+- The mender starts no new mend while three of its pull requests wait for a
+  person (`ATOMA_MENDER_MAX_OPEN_PRS`), so it no longer holds the run slot
+  mend after mend.
 
 ## v0.4.0 — 2026-09-17
 

@@ -36,6 +36,7 @@ import { truncate } from './digest.js';
 import { mendEvent, safeSink, type MendJournalFacts } from './journal.js';
 import { MENDER_HARDENING, MENDER_PROMPT_VERSION, buildMenderPrompt } from './menderPrompt.js';
 import {
+  MENDER_BRANCH_PREFIX,
   branchName,
   checkDiffPolicy,
   commitMessage,
@@ -171,6 +172,12 @@ export interface MenderOptions {
   /** Wait for an idle machine (watch mode) or refuse (once / one verdict). */
   readonly waitForIdle: boolean;
   readonly pollMs: number;
+  /**
+   * REVIEW BACK-PRESSURE, watch mode only: at this many open mender pull
+   * requests the service starts no mend until a person merges or closes one.
+   * Absent means `MENDER_DEFAULT_MAX_OPEN_PULL_REQUESTS`.
+   */
+  readonly maxOpenPullRequests?: number;
   readonly journal: PlatformEventSink | null;
   readonly log: (line: string) => void;
   readonly warn: (line: string) => void;
@@ -762,8 +769,53 @@ export async function processMends(work: readonly MendInput[], options: MenderOp
 export const MENDER_DEFAULT_POLL_MS = 30_000;
 
 /**
+ * How many mender pull requests may wait for a person before the service
+ * starts no new mend. Each attempt holds the machine's one run slot for about
+ * twenty minutes, refusing member runs and deployments meanwhile; past the
+ * rate at which a person merges, the pull requests only queue while the slot
+ * time is spent for real.
+ */
+export const MENDER_DEFAULT_MAX_OPEN_PULL_REQUESTS = 3;
+
+/**
+ * Open mender pull requests, or null when GitHub cannot say. Counted by head
+ * branch through the list API rather than by body search: the search index
+ * lags a pull request opened a moment ago, which is exactly the one that
+ * should close the gate. Only branches of THIS repository count — the
+ * repository is public, and a fork's `mender/…` branch would otherwise let
+ * anyone hold the gate shut.
+ */
+async function openMenderPullRequests(options: MenderOptions): Promise<number | null> {
+  try {
+    const result = await runCommand(
+      options.commands.gh,
+      ['pr', 'list', '--state', 'open', '--json', 'headRefName,isCrossRepository', '--limit', '200'],
+      { cwd: options.repo, timeoutMs: 60_000, onLog: options.warn }
+    );
+    if (result.code !== 0) {
+      options.warn(`gh pr list failed (${truncate(result.stderr.trim(), 300)})`);
+      return null;
+    }
+    const parsed: unknown = JSON.parse(result.stdout || '[]');
+    if (!Array.isArray(parsed)) return null;
+    return parsed.filter((row) => {
+      const pr = row as { headRefName?: unknown; isCrossRepository?: unknown } | null;
+      return (
+        pr?.isCrossRepository === false &&
+        typeof pr.headRefName === 'string' &&
+        pr.headRefName.startsWith(MENDER_BRANCH_PREFIX)
+      );
+    }).length;
+  } catch (error) {
+    options.warn(`gh pr list unavailable (${String(error)})`);
+    return null;
+  }
+}
+
+/**
  * Watch the verdicts directory; mend every new eligible finding once. One
- * attempt per verdict in watch mode; `--verdict` redoes.
+ * attempt per verdict in watch mode; `--verdict` redoes. The review
+ * back-pressure bounds THIS loop only: an explicit command is a person asking.
  */
 export async function runMenderLoop(args: {
   readonly options: MenderOptions;
@@ -779,12 +831,33 @@ export async function runMenderLoop(args: {
   if (args.backfill && args.backfill > 0) {
     for (const v of verdicts.slice(0, -args.backfill)) baseline.add(v.runId);
   }
+  const cap = options.maxOpenPullRequests ?? MENDER_DEFAULT_MAX_OPEN_PULL_REQUESTS;
+  // The gate line last logged, so a gate held for hours logs once, not per poll.
+  let held: string | null = null;
   while (!signal.aborted) {
     const fresh = listVerdicts(paths.verdictsDir).filter((v) => !baseline.has(v.runId));
-    if (fresh.length > 0) {
-      for (const item of pendingMends(options, fresh.map((v) => v.runId))) {
+    const work = fresh.length > 0 ? pendingMends(options, fresh.map((v) => v.runId)) : [];
+    if (work.length > 0) {
+      // Asked once per poll, never once per item: a pending queue on a busy
+      // machine would otherwise spend the GitHub API quota on answers nobody
+      // uses. A pull request opened below counts at once. GitHub unable to
+      // answer holds the gate, like a torn index in the idle predicate: a
+      // mend it cannot count is one it could not publish either.
+      let open = await openMenderPullRequests(options);
+      for (const item of work) {
         if (signal.aborted) break;
-        await processMends([item], { ...options, force: false });
+        if (open === null || open >= cap) {
+          const gate = open === null
+            ? 'GitHub cannot say how many mender pull requests are open; no mend starts until it can'
+            : `${open} mender pull request(s) are open (limit ${cap}); no mend starts until a person merges or closes one`;
+          if (gate !== held) options.log(gate);
+          held = gate;
+          break;
+        }
+        if (held) options.log('review back-pressure released');
+        held = null;
+        const { records } = await processMends([item], { ...options, force: false });
+        if (records.some((record) => record.outcome === 'pr-opened')) open += 1;
       }
     }
     if (signal.aborted) break;

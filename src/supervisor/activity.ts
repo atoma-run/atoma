@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { peekRunLease, processExists } from '../mcp/runLock.js';
+import { peekDeploymentPending, peekRunLease, processExists } from '../mcp/runLock.js';
 import { readBoundedJson } from '../sentinel/sources.js';
 import { isIndexEntryLive } from '../viz/liveness.js';
 import type { VizRunIndexEntry } from '../viz/trace.js';
@@ -22,6 +22,12 @@ import type { VizRunIndexEntry } from '../viz/trace.js';
  * own read-only accessor. A torn index read counts as ACTIVE — a run is
  * writing it — and an unreadable lease counts as unknown, which the index
  * check then decides alone.
+ *
+ * A deployment WAITING for the slot counts as active too, although nothing
+ * runs yet: it is what stops a stage from taking the slot back the moment the
+ * current holder releases it. The mender chained mends with no gap and
+ * refused two deployments in a row on 2026-09-27; the acquisition refuses
+ * such a taker anyway, and this is the same fact read before any work starts.
  */
 export interface ActivityProbe {
   readonly runsDir: string;
@@ -31,7 +37,7 @@ export interface ActivityProbe {
 export interface Activity {
   readonly active: boolean;
   /** Why, for the operator's console line. */
-  readonly reason: 'live-index-entry' | 'index-torn' | 'lease-held' | 'idle';
+  readonly reason: 'live-index-entry' | 'index-torn' | 'lease-held' | 'deployment-pending' | 'idle';
 }
 
 export function probeActivity(probe: ActivityProbe, now = Date.now()): Activity {
@@ -46,6 +52,7 @@ export function probeActivity(probe: ActivityProbe, now = Date.now()): Activity 
   }
   const owner = peekRunLease(probe.leasePath);
   if (owner && processExists(owner.ownerPid)) return { active: true, reason: 'lease-held' };
+  if (peekDeploymentPending(probe.leasePath)) return { active: true, reason: 'deployment-pending' };
   return { active: false, reason: 'idle' };
 }
 

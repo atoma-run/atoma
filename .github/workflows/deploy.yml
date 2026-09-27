@@ -25,7 +25,11 @@ jobs:
       github.event.workflow_run.head_branch == 'main' &&
       vars.ATOMA_DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # The host activator may WAIT up to ATOMA_DEPLOY_WAIT_SECONDS (default 30
+    # minutes) for running work, then gets the 30 minutes this job always had
+    # for the activation and the mender rebuild, plus margin: a job that times
+    # out mid-rebuild drops the channel under a command still writing to it.
+    timeout-minutes: 75
     environment:
       name: production
       url: ${{ vars.ATOMA_DEPLOY_URL }}

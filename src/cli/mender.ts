@@ -24,6 +24,7 @@ import { findingConfidenceSchema, type FindingConfidence } from '../contracts/su
 import {
   eligibleForVerdict,
   listVerdicts,
+  MENDER_DEFAULT_MAX_OPEN_PULL_REQUESTS,
   MENDER_DEFAULT_POLL_MS,
   mendInputFromRequest,
   menderCommandsFromEnv,
@@ -47,8 +48,8 @@ usage:
                  [--finding-file <request.json>] [--no-idle-gate] [--dry-run]
                  [--force] [--keep-worktree] [--min-confidence high|medium|low]
                  [--budget-usd <usd>] [--timeout-ms <ms>] [--max-diff-lines <n>]
-                 [--poll-ms <ms>] [--base <branch>] [--remote <name>] [--repo <path>]
-                 [--runs <dir>] [--supervisor-dir <dir>] [--db <path>]
+                 [--poll-ms <ms>] [--max-open-prs <n>] [--base <branch>] [--remote <name>]
+                 [--repo <path>] [--runs <dir>] [--supervisor-dir <dir>] [--db <path>]
 
 what it does:
   For each analyst verdict carrying a \`defect\` finding at or above the
@@ -98,6 +99,8 @@ flags:
   --timeout-ms <ms>      wall clock per phase (default 1800000)
   --max-diff-lines <n>   refuse a larger change (default ${DEFAULT_MAX_DIFF_LINES})
   --poll-ms <ms>         watch poll interval (default ${MENDER_DEFAULT_POLL_MS})
+  --max-open-prs <n>     watch mode starts no mend while this many mender pull requests are open
+                         (default ATOMA_MENDER_MAX_OPEN_PRS or ${MENDER_DEFAULT_MAX_OPEN_PULL_REQUESTS})
   --base <branch>        base branch (default main)     --remote <name>  (default origin)
   --repo <path>          checkout to cut worktrees from (default cwd)
   --runs <dir>           operator runs directory, for the idle gate (default ATOMA_RUNS_DIR or ./runs)
@@ -114,6 +117,13 @@ function positiveNumber(raw: string | undefined, label: string, fallback: number
   if (raw === undefined) return fallback;
   const value = Number(raw);
   if (!Number.isFinite(value) || value <= 0) fail(`invalid ${label}="${raw}"`);
+  return value;
+}
+
+function positiveInteger(raw: string | undefined, label: string, fallback: number): number {
+  if (raw === undefined || raw === '') return fallback;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value <= 0) fail(`invalid ${label}="${raw}"`);
   return value;
 }
 
@@ -137,7 +147,7 @@ async function main(): Promise<void> {
     booleanFlags: ['help', 'once', 'dry-run', 'force', 'keep-worktree', 'no-idle-gate'],
     valueFlags: [
       'verdict', 'finding', 'finding-file', 'backfill', 'min-confidence', 'budget-usd', 'timeout-ms', 'max-diff-lines',
-      'poll-ms', 'base', 'remote', 'repo', 'runs', 'supervisor-dir', 'db',
+      'poll-ms', 'max-open-prs', 'base', 'remote', 'repo', 'runs', 'supervisor-dir', 'db',
     ],
     undeclared: 'discard',
   });
@@ -185,6 +195,11 @@ async function main(): Promise<void> {
     idleGate: args.flags['no-idle-gate'] !== 'true',
     waitForIdle: !once && !verdictId && !findingFile,
     pollMs: positiveNumber(args.flags['poll-ms'], '--poll-ms', MENDER_DEFAULT_POLL_MS),
+    maxOpenPullRequests: positiveInteger(
+      args.flags['max-open-prs'] ?? process.env['ATOMA_MENDER_MAX_OPEN_PRS'],
+      '--max-open-prs',
+      MENDER_DEFAULT_MAX_OPEN_PULL_REQUESTS
+    ),
     journal: journal ? (input) => void journal.append(input) : null,
     log,
     warn,
@@ -196,7 +211,8 @@ async function main(): Promise<void> {
       `  verdicts   ${paths.verdictsDir}\n` +
       `  journal    ${journal ? dbPath : 'none (no product store at ' + dbPath + ')'}\n` +
       `  provider   ${provider.selector} (${provider.source}${provider.baseUrl ? `, ${provider.baseUrl}` : ''})\n` +
-      `  floor      confidence ≥ ${options.minConfidence}, defects only\n`
+      `  floor      confidence ≥ ${options.minConfidence}, defects only\n` +
+      `  review     watch mode waits while ${options.maxOpenPullRequests} mender pull request(s) are open\n`
   );
 
   const backfill = nonNegativeInteger(args.flags['backfill'], '--backfill');

@@ -60,8 +60,12 @@ export class RunLockBusyError extends Error {
     /**
      * `wedged`: the holder's server died and its run cannot be verified or
      * reaped — the slot will not free itself without an operator.
+     * `pending`: a deployment waits for the slot; `owner` is that deployment,
+     * and the slot opens again once it has run.
      */
-    readonly condition: 'held' | 'wedged' = 'held'
+    readonly condition: 'held' | 'wedged' | 'pending' = 'held',
+    /** A dead server's surviving run this acquisition destroyed before it was refused. */
+    readonly recovered?: ReapedRun
   ) {
     super(message);
     this.name = 'RunLockBusyError';
@@ -84,6 +88,14 @@ interface LeaseRow {
   child_fingerprint: string | null;
 }
 
+/**
+ * A deployment waiting for the slot: ONE row beside the lease, written only by
+ * the deployment guard and alive exactly as long as the guard that wrote it.
+ * While it lives, nothing else may TAKE the slot; whatever already holds it
+ * finishes normally. It lives here, not in a marker file, because this file is
+ * already what every taker reads under BEGIN IMMEDIATE — the refusal is atomic
+ * with the acquisition — and because a dead owner voids it by construction.
+ */
 const SCHEMA = `
   CREATE TABLE IF NOT EXISTS mcp_run_lease (
     singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
@@ -94,7 +106,15 @@ const SCHEMA = `
     acquired_at TEXT NOT NULL,
     owner_fingerprint TEXT,
     child_fingerprint TEXT
-  )
+  );
+  CREATE TABLE IF NOT EXISTS mcp_deployment_pending (
+    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+    token TEXT NOT NULL,
+    run_id TEXT NOT NULL,
+    owner_pid INTEGER NOT NULL,
+    owner_fingerprint TEXT,
+    registered_at TEXT NOT NULL
+  );
 `;
 
 const FINGERPRINT_COLUMNS = [
@@ -199,6 +219,62 @@ function recordedIdentity(
   return actual === expectedFingerprint ? 'match' : 'mismatch';
 }
 
+interface PendingRow {
+  token: string;
+  run_id: string;
+  owner_pid: number;
+  owner_fingerprint: string | null;
+  registered_at: string;
+}
+
+/** A deployment waiting for the run slot (see `registerDeploymentPending`). */
+export interface DeploymentPending {
+  readonly token: string;
+  readonly runId: string;
+  readonly ownerPid: number;
+  readonly registeredAt: string;
+}
+
+/**
+ * Same identity rule as the lease owner — an unverifiable guard is kept, a
+ * gone one is void — plus one a lease does not need: no guard outlives a boot.
+ * Without it, a row whose pid was reused by a process whose identity cannot
+ * be read (another user's, behind `hidepid`) would keep every taker out.
+ */
+function pendingIsLive(row: PendingRow): boolean {
+  if (leasePredatesCurrentBoot(row.registered_at)) return false;
+  const identity = recordedIdentity(row.owner_pid, row.owner_fingerprint, row.registered_at);
+  return identity === 'match' || identity === 'unverifiable';
+}
+
+/**
+ * The waiting deployment that refuses this acquisition, if any, read inside
+ * the caller's IMMEDIATE transaction. A row whose guard is gone is deleted by
+ * token on the way: a deployment that crashed while waiting must never leave
+ * the slot closed behind it.
+ */
+function blockingDeployment(db: Database.Database, exemptToken?: string): RunLockOwner | undefined {
+  const row = db.prepare('SELECT * FROM mcp_deployment_pending WHERE singleton = 1').get() as
+    | PendingRow
+    | undefined;
+  if (!row || row.token === exemptToken) return undefined;
+  if (!pendingIsLive(row)) {
+    db.prepare('DELETE FROM mcp_deployment_pending WHERE singleton = 1 AND token = ?').run(row.token);
+    return undefined;
+  }
+  return { token: row.token, runId: row.run_id, ownerPid: row.owner_pid, acquiredAt: row.registered_at };
+}
+
+function deploymentWaitingError(waiting: RunLockOwner, recovered?: ReapedRun): RunLockBusyError {
+  return new RunLockBusyError(
+    `a deployment is waiting for the run slot (${waiting.runId}, pid ${waiting.ownerPid}, since ${waiting.acquiredAt}); nothing new may take it until the deployment has run` +
+      (recovered ? `; the dead server's run ${recovered.runId} (group ${recovered.childPgid}) was already reaped` : ''),
+    waiting,
+    'pending',
+    recovered
+  );
+}
+
 function toOwner(row: LeaseRow): RunLockOwner {
   return {
     token: row.token,
@@ -272,10 +348,16 @@ export async function acquireRunLease(
 
   try {
     for (let attempt = 0; attempt < 5; attempt++) {
+      // A waiting deployment refuses BEFORE any recovery: a start it turns away
+      // must not first reap a dead server's surviving run on its behalf.
+      const waiting = db.transaction(() => blockingDeployment(db)).immediate();
+      if (waiting) throw deploymentWaitingError(waiting);
       const existing = read.get() as LeaseRow | undefined;
       if (!existing) {
         const claimed = db.transaction(() => {
           if (read.get() !== undefined) return false;
+          const late = blockingDeployment(db);
+          if (late) return late;
           insert.run(
             owner.token,
             owner.runId,
@@ -285,7 +367,8 @@ export async function acquireRunLease(
           );
           return true;
         }).immediate();
-        if (claimed) return makeLease(db, path, owner);
+        if (claimed === true) return makeLease(db, path, owner);
+        if (claimed) throw deploymentWaitingError(claimed);
         continue;
       }
 
@@ -338,7 +421,12 @@ export async function acquireRunLease(
 
       // Compare-and-swap under BEGIN IMMEDIATE. If another recoverer already
       // replaced the stale token, this transaction changes nothing and loops.
+      // A deployment that began waiting during the reap above (it takes
+      // seconds) still refuses this start — and the refusal says what was
+      // reaped, because the recovery has already happened.
       const claimed = db.transaction(() => {
+        const late = blockingDeployment(db);
+        if (late) return late;
         if (deleteByToken.run(stale.token).changes !== 1) return false;
         insert.run(
           owner.token,
@@ -349,7 +437,8 @@ export async function acquireRunLease(
         );
         return true;
       }).immediate();
-      if (claimed) return makeLease(db, path, owner, reaped);
+      if (claimed === true) return makeLease(db, path, owner, reaped);
+      if (claimed) throw deploymentWaitingError(claimed, reaped);
     }
     throw new RunLockBusyError(`could not acquire MCP run lease ${path} after recovery races`);
   } catch (err) {
@@ -367,10 +456,15 @@ export async function acquireRunLease(
  * unverifiable -- is therefore busy. The normal run path above remains the
  * sole recovery path and retains its fingerprint checks and visible
  * `recovered` result.
+ *
+ * A waiting deployment refuses every caller here too — analysis, mend,
+ * maintenance, campaigns — except the deployment that registered it, which
+ * presents its token.
  */
 export function acquireRunLeaseWithoutRecovery(
   runId: string,
-  path = mcpRunLockPath()
+  path = mcpRunLockPath(),
+  options: { readonly pendingToken?: string } = {}
 ): RunLease {
   const db = openLockDb(path);
   const owner: RunLockOwner = {
@@ -389,9 +483,11 @@ export function acquireRunLeaseWithoutRecovery(
   );
 
   try {
-    const existing = db.transaction(() => {
+    const outcome = db.transaction(() => {
+      const waiting = blockingDeployment(db, options.pendingToken);
+      if (waiting) return { waiting };
       const held = read.get() as LeaseRow | undefined;
-      if (held) return held;
+      if (held) return { held };
       insert.run(
         owner.token,
         owner.runId,
@@ -401,6 +497,8 @@ export function acquireRunLeaseWithoutRecovery(
       );
       return undefined;
     }).immediate();
+    if (outcome?.waiting) throw deploymentWaitingError(outcome.waiting);
+    const existing = outcome?.held;
     if (existing) {
       const held = toOwner(existing);
       throw new RunLockBusyError(
@@ -453,4 +551,139 @@ export function peekRunLease(path = mcpRunLockPath()): RunLockOwner | null {
   } finally {
     db.close();
   }
+}
+
+export interface DeploymentPendingRegistration {
+  readonly token: string;
+  /** Conditional by token and safe to call twice. */
+  release(): void;
+}
+
+/**
+ * Announce that a deployment is waiting for the run slot.
+ *
+ * From this moment nothing may TAKE the slot — no run, analysis, mend,
+ * maintenance or campaign — except the deployment presenting this token,
+ * while whatever already holds it finishes normally. Nothing is interrupted:
+ * a deployment waits for work, it never ends it. The row dies with its owner
+ * process, so a guard killed mid-wait reopens the slot by itself.
+ */
+export function registerDeploymentPending(
+  runId: string,
+  path = mcpRunLockPath()
+): DeploymentPendingRegistration {
+  // Without a birth identity the row could only be voided by pid, and a pid
+  // recycled while it waits would keep every taker out behind a dead guard.
+  const fingerprint = processFingerprint(process.pid);
+  if (!fingerprint) {
+    throw new Error('this process has no verifiable birth identity; a waiting deployment must die with its guard');
+  }
+  const db = openLockDb(path);
+  const token = randomUUID();
+  try {
+    const other = db.transaction(() => {
+      const waiting = blockingDeployment(db);
+      if (waiting) return waiting;
+      db.prepare(
+        `INSERT INTO mcp_deployment_pending
+          (singleton, token, run_id, owner_pid, owner_fingerprint, registered_at)
+         VALUES (1, ?, ?, ?, ?, ?)`
+      ).run(token, runId, process.pid, fingerprint, new Date().toISOString());
+      return undefined;
+    }).immediate();
+    if (other) {
+      throw new RunLockBusyError(
+        `another deployment is already waiting for the run slot (${other.runId}, pid ${other.ownerPid}, since ${other.acquiredAt})`,
+        other
+      );
+    }
+  } catch (error) {
+    db.close();
+    throw error;
+  }
+  let released = false;
+  return {
+    token,
+    release() {
+      if (released) return;
+      released = true;
+      try {
+        db.prepare('DELETE FROM mcp_deployment_pending WHERE singleton = 1 AND token = ?').run(token);
+      } finally {
+        db.close();
+      }
+    },
+  };
+}
+
+/**
+ * READ-ONLY view of the waiting deployment, for the idle predicate and the
+ * preview admission. Same contract as `peekRunLease`: look, never touch. A
+ * void row (its guard is gone) reads as nothing; the next writer deletes it.
+ */
+export function peekDeploymentPending(path = mcpRunLockPath()): DeploymentPending | null {
+  if (!existsSync(path)) return null;
+  let db: Database.Database;
+  try {
+    db = new Database(path, { readonly: true, fileMustExist: true });
+  } catch {
+    return null;
+  }
+  try {
+    const row = db
+      .prepare('SELECT * FROM mcp_deployment_pending WHERE singleton = 1')
+      .get() as PendingRow | undefined;
+    if (!row || !pendingIsLive(row)) return null;
+    return {
+      token: row.token,
+      runId: row.run_id,
+      ownerPid: row.owner_pid,
+      registeredAt: row.registered_at,
+    };
+  } catch {
+    // A store no deployment has waited on has no such table: nothing waits.
+    return null;
+  } finally {
+    db.close();
+  }
+}
+
+/**
+ * Is the slot held by a row whose owner process is GONE (dead, or its pid
+ * recycled)? Such a row never frees itself: only the next run start's
+ * recovery path does. A waiting deployment asks this so it refuses at once
+ * instead of holding everyone off until its deadline for nothing — it never
+ * recovers the row itself. Read-only; unverifiable reads as not gone.
+ */
+export function runLeaseOwnerGone(path = mcpRunLockPath()): boolean {
+  if (!existsSync(path)) return false;
+  let db: Database.Database;
+  try {
+    db = new Database(path, { readonly: true, fileMustExist: true });
+  } catch {
+    return false;
+  }
+  try {
+    const row = db.prepare('SELECT * FROM mcp_run_lease WHERE singleton = 1').get() as
+      | LeaseRow
+      | undefined;
+    if (!row) return false;
+    const identity = recordedIdentity(row.owner_pid, row.owner_fingerprint, row.acquired_at);
+    return identity === 'gone' || identity === 'mismatch';
+  } catch {
+    return false;
+  } finally {
+    db.close();
+  }
+}
+
+/**
+ * Is `pid` still the process that recorded `fingerprint`? For a marker that
+ * names its writer — the deployment's write freeze — so a marker left by a
+ * killed guard or a reboot stops freezing writes. Same rule as a lease owner:
+ * gone or recycled is false, an identity unreadable right now is true.
+ */
+export function recordedProcessLive(pid: number, fingerprint: string): boolean {
+  const identity = recordedIdentity(pid, fingerprint, new Date().toISOString());
+  return identity === 'match' || identity === 'unverifiable';
 }

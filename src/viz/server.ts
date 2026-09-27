@@ -199,7 +199,7 @@ import { injectAppShellSeo, robotsTxt, sitemapXml } from './seo.js';
 // The MCP run lease, read for CONTEXT only (which pid holds the run slot) and
 // never as a detector. `src/sentinel/watch.ts` already reaches for it, so this
 // adds a name, not a dependency.
-import { mcpRunLockPath } from '../mcp/runLock.js';
+import { mcpRunLockPath, peekDeploymentPending } from '../mcp/runLock.js';
 
 /**
  * Tiny read-only HTTP server that exposes runs/*.json produced by
@@ -1040,6 +1040,10 @@ const PREVIEW_RUNTIME_PROMISE: Promise<PreviewRuntime | null> = (async () => {
       return run.hostPaths.workspacePath;
     },
     probe: (hostPort) => probePreviewRelay(hostPort),
+    // The same fact the run slot refuses on, read through the lock module's
+    // read-only accessor: a deployment waiting for work to finish must not
+    // watch a new preview start in front of it.
+    deploymentPending: () => peekDeploymentPending(mcpRunLockPath()) !== null,
     log: (line) => console.error(line),
   });
   const gateway = await startPreviewGateway({

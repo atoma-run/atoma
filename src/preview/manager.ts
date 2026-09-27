@@ -1,4 +1,4 @@
-import type { PreviewErrorCode, PreviewSummary } from '../contracts/preview.js';
+import type { PreviewErrorCode, PreviewInstance, PreviewSummary } from '../contracts/preview.js';
 import type { ContainerLauncher } from '../contracts/launcher.js';
 import { mintPreviewClaim, PreviewClaimRegistry } from './claims.js';
 import type { PreviewConfig } from './config.js';
@@ -40,6 +40,12 @@ export interface PreviewManagerDeps {
   readonly workspaceOf: (orgId: string, projectId: string, projectRunId: string) => string;
   /** One request through the relay that must succeed before anything is exposed. */
   readonly probe: (hostPort: number) => Promise<boolean>;
+  /**
+   * A deployment is waiting for running work to finish. A NEW instance is
+   * refused meanwhile — it would be one more thing to wait for — while a
+   * ready one keeps serving and minting claims. Absent reads as never.
+   */
+  readonly deploymentPending?: () => boolean;
   readonly now?: () => number;
   readonly log?: (line: string) => void;
 }
@@ -53,6 +59,7 @@ export interface PreviewManagerDeps {
  */
 function previewErrorCodeFor(error: unknown): PreviewErrorCode {
   if (error instanceof PreviewRuntimeError) return error.code;
+  if (error instanceof PreviewDeploymentPendingError) return 'runtime-unavailable';
   if (error instanceof PreviewPolicyError) return error.code === 'limit' ? 'copy-limit' : 'internal';
   return 'internal';
 }
@@ -64,6 +71,14 @@ export class PreviewQuotaError extends Error {
   ) {
     super(`preview capacity reached (${scope})`);
     this.name = 'PreviewQuotaError';
+  }
+}
+
+/** No new preview while a deployment waits; the member retries in a few minutes. */
+export class PreviewDeploymentPendingError extends Error {
+  constructor() {
+    super('the instance is about to be updated and is letting the current work finish first; open this preview again once the update is done');
+    this.name = 'PreviewDeploymentPendingError';
   }
 }
 
@@ -182,6 +197,9 @@ export class PreviewManager {
     if (existing?.state === 'ready' && existing.source === 'delivered') {
       return this.claimFor(input, existing.generation, descriptor.requestedHosts);
     }
+    // Refused BEFORE the snapshot below is stopped: a member must not lose
+    // the preview they have and be refused the one they asked for.
+    this.assertNoDeploymentWaiting();
     if (existing?.state === 'ready') {
       await this.stop(input.orgId, input.projectId, input.projectRunId, 'restart');
     }
@@ -203,6 +221,12 @@ export class PreviewManager {
     const generation = opened.instance.generation;
     const ownerId = this.ownerId(input.projectRunId, generation);
     try {
+      // WRITE, THEN CHECK. The waiting deployment writes its announcement and
+      // then reads the instances; this start wrote its row and now reads the
+      // announcement — whichever order the two land in, one side sees the
+      // other, which a check before the write (in another database file)
+      // could not promise. The loser is retired by the catch below.
+      this.assertNoDeploymentWaiting();
       const host = `${previewGenerationHost(input.orgId, input.projectRunId, generation)}.${this.deps.config.domain}`;
       const approved = store.listApprovedHosts(input.orgId, input.projectId);
       const { allowed } = effectiveEgressHosts(descriptor.requestedHosts, approved, this.deps.config.allowedHosts);
@@ -331,7 +355,8 @@ export class PreviewManager {
     if (existing?.state === 'starting' || existing?.state === 'stopping') return this.pending(input);
     // A REOPEN IS A NEW SNAPSHOT, so a live generation is stopped first rather
     // than reused: a member reopening a run in flight wants the state now, not
-    // the state ten minutes ago.
+    // the state ten minutes ago. A waiting deployment refuses before that stop.
+    this.assertNoDeploymentWaiting();
     if (existing && existing.state !== 'stopped' && existing.state !== 'failed') {
       await this.stop(input.orgId, input.projectId, input.projectRunId, 'restart');
     }
@@ -350,6 +375,8 @@ export class PreviewManager {
     const generation = opened.instance.generation;
     const ownerId = this.ownerId(input.projectRunId, generation);
     try {
+      // Write, then check — see `openDelivered`.
+      this.assertNoDeploymentWaiting();
       const workspace = await this.deps.launcher.createWorkspace(ownerId);
       if (!workspace.hostPath) throw new PreviewRuntimeError('internal', 'no host-side copy');
       const sourceRoot = this.deps.workspaceOf(input.orgId, input.projectId, input.projectRunId);
@@ -499,6 +526,12 @@ export class PreviewManager {
    * A heartbeat for a generation that has moved on extends NEITHER: `touched`
    * is null and the grants of a superseded generation were revoked when it
    * was superseded.
+   *
+   * While a deployment WAITS, only the grant is renewed. An open tab would
+   * otherwise keep the container alive up to its hard bound, holding the
+   * deployment — and every member run queued behind it — for two hours; left
+   * to its idle bound, the preview keeps serving the member until it closes,
+   * and a reopen is refused with the reason.
    */
   heartbeat(
     orgId: string,
@@ -506,12 +539,14 @@ export class PreviewManager {
     generation: number,
     principalId?: string
   ): boolean {
-    const touched = this.deps.store.touchActivity({
-      orgId,
-      projectRunId,
-      generation,
-      now: new Date(this.now()),
-    });
+    const touched = this.deps.deploymentPending?.()
+      ? this.readyGeneration(orgId, projectRunId, generation)
+      : this.deps.store.touchActivity({
+          orgId,
+          projectRunId,
+          generation,
+          now: new Date(this.now()),
+        });
     if (touched === null) return false;
     if (principalId) {
       this.deps.claims.renewRun({ principalId, orgId, projectRunId, generation });
@@ -629,6 +664,17 @@ export class PreviewManager {
       stopped += 1;
     }
     return stopped;
+  }
+
+  /** The ready instance of exactly this generation, without touching its clock. */
+  private readyGeneration(orgId: string, projectRunId: string, generation: number): PreviewInstance | null {
+    const row = this.deps.store.getInstance(orgId, projectRunId);
+    return row?.state === 'ready' && row.generation === generation ? row : null;
+  }
+
+  /** Public for the restart route, which stops before it opens. */
+  assertNoDeploymentWaiting(): void {
+    if (this.deps.deploymentPending?.()) throw new PreviewDeploymentPendingError();
   }
 
   private assertCapacity(orgId: string): void {

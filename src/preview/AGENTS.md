@@ -200,6 +200,16 @@ consumers, never a second copy that drifts.
   generated code must not keep itself alive. A heartbeat for a generation that
   has moved on is not an error: the browser is a beat behind, and saying so is
   the caller's job.
+- A live preview blocks an activation, so while a deployment WAITS
+  (`deploymentPending`, the lease store's announcement) no NEW instance starts
+  — 503, "about to be updated" — and a heartbeat renews the browser's grant
+  but not the container's clock: an open tab would otherwise hold the
+  deployment, and every member run refused behind it, for the two-hour hard
+  bound. A ready preview keeps serving and minting claims until its idle bound
+  closes it. Reopen and restart are refused BEFORE they stop what the member
+  has. The check runs again right after `openInstance` commits — write, then
+  check, since the announcement lives in another database file — and the
+  loser is retired as `runtime-unavailable`.
 
 ## Bringing one up, and taking it down
 

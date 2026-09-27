@@ -211,8 +211,8 @@ separately billed `OPENAI_API_KEY`. The full contract is in
   `main` deploys that exact revision to production. Treat `git push origin
   main` as a production action; do not describe deployment as hypothetically
   disabled or propose toggling the variable for ordinary iteration. The
-  deploy preflight remains the runtime safety gate and refuses while a run or
-  preview is live.
+  deploy preflight remains the runtime safety gate: it waits for a live run or
+  preview with new work refused, refusing (75) at its deadline or sooner when waiting cannot end well.
 - The MCP is served by the compiled viz server on `/mcp` (`npm run viz:serve`);
   there is no separate MCP entrypoint since 2026-09-05.
 - `npm run auth` is the compiled identity/invitation CLI

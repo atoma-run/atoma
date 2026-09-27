@@ -19,9 +19,18 @@ and the deployment workflow is skipped.
    `production` GitHub environment. Pull requests can never reach its secrets.
 3. The deployment job downloads the artifact from that exact CI run, verifies
    its digest, and streams it over SSH with strict host-key checking.
-4. The root-owned host activator takes a host-local deployment lock, creates
-   the deployment marker, takes the machine-global run lease without stale
-   recovery, and refuses while a project run or result preview is live.
+4. The root-owned host activator takes a host-local deployment lock and starts
+   the drain guard, which WAITS for running work rather than refusing it
+   (`ATOMA_DEPLOY_WAIT_SECONDS`, default 1800). The guard first announces the
+   deployment in the machine-global lease store: from then on no run,
+   analysis, mend, maintenance or campaign may take the slot and no new preview
+   may start, while open previews are no longer kept alive by their heartbeat.
+   Nothing already running is interrupted. The guard takes the run lease
+   without stale recovery the moment it frees, waits for the last previews and
+   publications, and only then writes the deployment marker that freezes
+   writes. It refuses (exit 75) at its deadline, and at once when waiting
+   cannot end well: a lease whose owner process is gone, a retrieval campaign,
+   or project rows marked live while no run holds the slot.
 5. It stops the old service, installs production dependencies, runs the
    compiled release smoke, builds an immutable `atoma-worker:<sha>` image,
    moves `atoma-worker:latest`, and atomically switches `/home/atoma/current`.
@@ -322,8 +331,10 @@ The activator itself is root-owned and installed by hand: after changing
 `deploy/host-deploy.sh` or `scripts/prune-deploy-releases.mjs`, reinstall both
 root-owned files from the verified release using the installation commands above.
 
-After application health verification, while the deployment lock and drain lease
-are still held, release retention keeps the five most recent release directories,
+After application health verification the write freeze is lifted at once, so the
+new generation takes logins, settings and previews during what follows; the run
+lease stays with the guard, so no run starts beside the mender's rebuild. While
+the deployment lock and drain lease are still held, release retention keeps the five most recent release directories,
 the active and previous generations, and any release referenced by a process,
 top-level deployment symlink, or nested mount. Only obsolete directories with a
 matching `REVISION` receipt are removed. Runtime state and Docker images are not
@@ -361,8 +372,26 @@ deployments without deleting credentials.
 - The first automatic cutover from a version that predates the deployment
   marker must be performed in a manually drained window. Every later version
   closes new write admission before taking the run lease.
-- Busy runtime state fails the deployment; it is never cancelled or recovered.
-  Re-run the completed workflow after the work finishes.
+- Busy runtime state is WAITED FOR, never cancelled or recovered. Refusing at
+  once turned every deployment into a bet on a gap between two pieces of work:
+  on 2026-09-27 the mender chained mends back to back and two deployments in a
+  row were refused, and at a steady run rate the slot never frees at all. A
+  member who starts a run while a deployment waits is told the instance is
+  about to update; with one run slot, that start would have been refused
+  behind the running work anyway. When the wait reaches its deadline the
+  deployment fails with exit 75: re-run the completed workflow after the work
+  finishes. `ATOMA_DEPLOY_WAIT_SECONDS=0` restores the immediate refusal.
+- The guard runs from the release being replaced, so the first deployment of a
+  release that learned to wait still refuses busy work, and waiting also
+  needs the activator installed from such a release (reinstall it as above).
+  A drain log that never says `drain: waiting up to …` comes from an
+  activator that predates waiting.
+- The deploy workflow's job timeout (75 minutes) covers the default wait plus
+  the 30 minutes the activation and the mender rebuild always had; raising
+  `ATOMA_DEPLOY_WAIT_SECONDS` means raising that timeout with it. Waiting also
+  needs the service user to be able to write the directory of
+  `ATOMA_DEPLOY_LOCK_PATH`, because the guard writes the freeze itself; when it
+  cannot, the activator says so and freezes and refuses as before.
 - The worker image follows the control-plane revision. The preview image does
   not: production preview configuration is pinned to a registry digest by
   contract, so publishing and rotating that digest remains a separate release

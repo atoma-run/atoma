@@ -127,8 +127,11 @@ export function shortRunId(runId: string): string {
   return runId.split('-').pop()?.slice(0, 8) ?? 'run';
 }
 
+/** Every branch the harness publishes starts here; the review back-pressure counts by it. */
+export const MENDER_BRANCH_PREFIX = 'mender/';
+
 export function branchName(runId: string, findingIndex: number, finding: Pick<VerdictFinding, 'title'>): string {
-  return `mender/${shortRunId(runId)}-${findingIndex}-${slugify(finding.title)}`;
+  return `${MENDER_BRANCH_PREFIX}${shortRunId(runId)}-${findingIndex}-${slugify(finding.title)}`;
 }
 
 /**

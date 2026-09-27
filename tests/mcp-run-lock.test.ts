@@ -7,9 +7,12 @@ import Database from 'better-sqlite3';
 import {
   acquireRunLease,
   acquireRunLeaseWithoutRecovery,
+  peekDeploymentPending,
   peekRunLease,
   processFingerprint,
+  registerDeploymentPending,
   RunLockBusyError,
+  runLeaseOwnerGone,
 } from '../src/mcp/runLock.js';
 import { forceKillTestProcessTree } from './helpers.js';
 
@@ -492,4 +495,228 @@ describe('MCP cross-process run lease', () => {
       await Promise.all([a.closed, b.closed]);
     }
   }, 60_000);
+});
+
+/**
+ * A DEPLOYMENT WAITING FOR THE SLOT (2026-09-27): two production deployments
+ * in a row were refused because the mender chained mends with no gap, and at
+ * a steady run rate the slot never frees. The waiting deployment's row is
+ * what closes the door to new takers while it waits — without interrupting
+ * whoever is inside — and it must die with the guard that wrote it.
+ * POSIX only where a row is registered: it needs a birth identity, which
+ * Windows cannot give.
+ */
+describe('a deployment waiting for the run slot', () => {
+  let dir: string;
+  let lockPath: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'atoma-mcp-pending-'));
+    lockPath = join(dir, 'run-lock.db');
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  function seedPending(ownerPid: number, fingerprint: string | null): void {
+    const db = new Database(lockPath);
+    db.exec(`CREATE TABLE IF NOT EXISTS mcp_deployment_pending (
+      singleton INTEGER PRIMARY KEY CHECK (singleton = 1), token TEXT NOT NULL, run_id TEXT NOT NULL,
+      owner_pid INTEGER NOT NULL, owner_fingerprint TEXT, registered_at TEXT NOT NULL)`);
+    db.prepare(
+      `INSERT OR REPLACE INTO mcp_deployment_pending VALUES (1, 'void-token', 'deployment:dead', ?, ?, ?)`
+    ).run(ownerPid, fingerprint, new Date().toISOString());
+    db.close();
+  }
+
+  function pendingRows(): number {
+    const db = new Database(lockPath, { readonly: true });
+    try {
+      return (db.prepare('SELECT COUNT(*) AS n FROM mcp_deployment_pending').get() as { n: number }).n;
+    } finally {
+      db.close();
+    }
+  }
+
+  posixIt('refuses every new taker, lets only its own token through, and names itself', async () => {
+    const pending = registerDeploymentPending('deployment:test', lockPath);
+    try {
+      const refused = await acquireRunLease('project:new', lockPath).catch((error: unknown) => error);
+      expect(refused).toBeInstanceOf(RunLockBusyError);
+      expect((refused as RunLockBusyError).condition).toBe('pending');
+      expect((refused as RunLockBusyError).owner?.runId).toBe('deployment:test');
+      expect(() => acquireRunLeaseWithoutRecovery('mender:next', lockPath)).toThrow(/a deployment is waiting/);
+      expect(() => acquireRunLeaseWithoutRecovery('mender:next', lockPath, { pendingToken: 'forged' }))
+        .toThrow(/a deployment is waiting/);
+      const own = acquireRunLeaseWithoutRecovery('deployment:test', lockPath, { pendingToken: pending.token });
+      expect(peekRunLease(lockPath)?.runId).toBe('deployment:test');
+      own.release();
+    } finally {
+      pending.release();
+    }
+    // Withdrawn: the door is open again.
+    const next = await acquireRunLease('project:after', lockPath);
+    next.release();
+  });
+
+  posixIt('never interrupts the holder already inside', async () => {
+    const inside = await acquireRunLease('project:running', lockPath);
+    const pending = registerDeploymentPending('deployment:test', lockPath);
+    try {
+      inside.attachChild(process.pid);
+      expect(peekRunLease(lockPath)?.runId).toBe('project:running');
+      expect(() => acquireRunLeaseWithoutRecovery('deployment:test', lockPath, { pendingToken: pending.token }))
+        .toThrow(/occupied \(project:running/);
+      inside.release();
+      const own = acquireRunLeaseWithoutRecovery('deployment:test', lockPath, { pendingToken: pending.token });
+      own.release();
+    } finally {
+      inside.release();
+      pending.release();
+    }
+  });
+
+  posixIt('lets one deployment wait at a time', () => {
+    const first = registerDeploymentPending('deployment:first', lockPath);
+    try {
+      expect(() => registerDeploymentPending('deployment:second', lockPath))
+        .toThrow(/already waiting for the run slot \(deployment:first/);
+    } finally {
+      first.release();
+    }
+    registerDeploymentPending('deployment:second', lockPath).release();
+  });
+
+  it('reads a waiting row whose guard is gone as nothing, and deletes it on the next acquisition only', async () => {
+    seedPending(99_999_999, 'linux:dead:1');
+    expect(peekDeploymentPending(lockPath)).toBeNull();
+    // Look, never touch: the peek left the void row where it was.
+    expect(pendingRows()).toBe(1);
+    const lease = await acquireRunLease('project:after-crash', lockPath);
+    lease.release();
+    expect(pendingRows()).toBe(0);
+  });
+
+  posixIt('dies with a guard that is killed while it waits', async () => {
+    const script = [
+      "import { registerDeploymentPending } from './src/mcp/runLock.ts';",
+      "registerDeploymentPending('deployment:child', process.env['LOCK_PATH']);",
+      "process.stdout.write('WAITING');",
+      'setInterval(() => {}, 1000);',
+    ].join(' ');
+    const child = spawn(process.execPath, ['--import', 'tsx', '-e', script], {
+      cwd: process.cwd(),
+      env: { ...process.env, LOCK_PATH: lockPath },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    const exited = new Promise<void>((resolveExit) => child.once('exit', () => resolveExit()));
+    try {
+      await new Promise<void>((resolveWaiting, rejectWaiting) => {
+        const timer = setTimeout(() => rejectWaiting(new Error('child never registered')), 30_000);
+        child.stdout.on('data', (chunk: Buffer) => {
+          if (!chunk.toString().includes('WAITING')) return;
+          clearTimeout(timer);
+          resolveWaiting();
+        });
+      });
+      expect(peekDeploymentPending(lockPath)?.runId).toBe('deployment:child');
+      await expect(acquireRunLease('project:blocked', lockPath)).rejects.toThrow(/a deployment is waiting/);
+      child.kill('SIGKILL');
+      await exited;
+      expect(peekDeploymentPending(lockPath)).toBeNull();
+      const lease = await acquireRunLease('project:after', lockPath);
+      lease.release();
+    } finally {
+      if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+      await exited;
+    }
+  }, 60_000);
+
+  it('treats a store no deployment ever waited on as nothing waiting', () => {
+    const db = new Database(lockPath);
+    db.exec(LEGACY_SCHEMA);
+    db.close();
+    expect(peekDeploymentPending(lockPath)).toBeNull();
+  });
+
+  it('tells a gone lease owner apart from a live one, without touching either', async () => {
+    expect(runLeaseOwnerGone(lockPath)).toBe(false);
+    const db = new Database(lockPath);
+    db.exec(SCHEMA);
+    db.prepare(
+      `INSERT INTO mcp_run_lease (singleton, token, run_id, owner_pid, child_pgid, acquired_at)
+       VALUES (1, 'dead', 'mender:gone', 99999999, NULL, '2026-01-01T00:00:00.000Z')`
+    ).run();
+    db.close();
+    expect(runLeaseOwnerGone(lockPath)).toBe(true);
+    expect(peekRunLease(lockPath)?.runId).toBe('mender:gone');
+    const cleared = new Database(lockPath);
+    cleared.prepare('DELETE FROM mcp_run_lease').run();
+    cleared.close();
+    const lease = await acquireRunLease('project:live', lockPath);
+    expect(runLeaseOwnerGone(lockPath)).toBe(false);
+    lease.release();
+  });
+});
+
+describe('a deployment that begins waiting during a recovery', () => {
+  let dir: string;
+  let lockPath: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'atoma-mcp-pending-reap-'));
+    lockPath = join(dir, 'run-lock.db');
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  /**
+   * The reap takes seconds, and a deployment may announce itself meanwhile.
+   * The start is refused — nothing new may take the slot — but the dead
+   * server's run is already destroyed by then, and a refusal that stayed
+   * silent about it is the amnesia the `recovered` field exists to prevent.
+   */
+  posixIt('refuses the start and says what was reaped', async () => {
+    const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+      detached: true,
+      stdio: ['ignore', 'ignore', 'ignore'],
+    });
+    if (!child.pid) throw new Error('child pid unavailable');
+    await new Promise<void>((resolveSpawn, rejectSpawn) => {
+      child.once('spawn', resolveSpawn);
+      child.once('error', rejectSpawn);
+    });
+    let pending: { release(): void } | undefined;
+    try {
+      const fingerprint = processFingerprint(child.pid);
+      expect(fingerprint).toBeTruthy();
+      const db = new Database(lockPath);
+      db.exec(SCHEMA);
+      db.prepare(
+        `INSERT INTO mcp_run_lease
+         (singleton, token, run_id, owner_pid, child_pgid, acquired_at,
+          owner_fingerprint, child_fingerprint)
+         VALUES (1, 'dead-owner', 'orphaned-run', 99999999, ?, ?, NULL, ?)`
+      ).run(child.pid, new Date().toISOString(), fingerprint);
+      db.close();
+
+      const acquiring = acquireRunLease('new-run', lockPath).catch((error: unknown) => error);
+      // The acquisition is now awaiting the reap it started — its first await.
+      pending = registerDeploymentPending('deployment:test', lockPath);
+      const refused = await acquiring;
+
+      expect(refused).toBeInstanceOf(RunLockBusyError);
+      expect((refused as RunLockBusyError).condition).toBe('pending');
+      expect((refused as RunLockBusyError).owner?.runId).toBe('deployment:test');
+      expect((refused as RunLockBusyError).recovered).toEqual({ runId: 'orphaned-run', childPgid: child.pid });
+      expect((refused as Error).message).toMatch(/orphaned-run \(group \d+\) was already reaped/);
+      expect(() => process.kill(-child.pid!, 0)).toThrow();
+    } finally {
+      pending?.release();
+      forceKillTestProcessTree(child.pid);
+    }
+  }, 15_000);
 });

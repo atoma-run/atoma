@@ -124,6 +124,61 @@ describe('post-CI deployment pipeline', () => {
     expect(readFileSync('deploy/deploy.env.example', 'utf8')).toContain('ATOMA_DEPLOY_MENDER_ENV=');
   });
 
+  it('waits for running work behind a guard that can, and refuses busy work as 75', () => {
+    // 2026-09-27: two deployments in a row were refused behind back-to-back
+    // mends, and at a steady run rate the slot never frees at all.
+    expect(hostDeploy).toContain('WAIT_SECONDS="${ATOMA_DEPLOY_WAIT_SECONDS:-1800}"');
+    expect(hostDeploy).toContain('ATOMA_DEPLOY_WAIT_SECONDS must be an integer between 0 and 14400');
+    // The guard runs from the OLD release: wait only when it says it can, and
+    // never through `| grep -q`, whose early exit is a pipefail.
+    expect(hostDeploy).toContain('[[ "${usage}" == *"--wait-ms"* ]]');
+    expect(hostDeploy).not.toMatch(/--help[^\n]*\|\s*grep -q/);
+    expect(hostDeploy).toContain('GUARD_WAIT_ARGS=(--wait-ms "$((WAIT_SECONDS * 1000))")');
+    expect(hostDeploy).toContain('"${GUARD_WAIT_ARGS[@]}"');
+    // Waiting needs a guard that can, and a marker directory the service
+    // user (who writes the freeze in that mode) can write; otherwise the
+    // legacy path freezes first, as the old guard expects.
+    const choice = hostDeploy.slice(
+      hostDeploy.indexOf('if (( WAIT_SECONDS > 0 )) && guard_waits; then'),
+      hostDeploy.indexOf('if (( ${#GUARD_WAIT_ARGS[@]} > 0 )); then')
+    );
+    expect(choice.indexOf('if marker_dir_writable_by_service; then')).toBeLessThan(choice.indexOf('GUARD_WAIT_ARGS=(--wait-ms'));
+    expect(hostDeploy).toContain('runuser -u "${SERVICE_USER}" -- test -w "$(dirname "${MARKER_PATH}")"');
+    expect(hostDeploy).toContain('usage="$(timeout 30 runuser');
+    // A present state directory is never re-moded (it was reset to 0755 on
+    // every deployment); an absent one belongs to the service user.
+    expect(hostDeploy).not.toContain('install -d -m 0755 "$(dirname "${MARKER_PATH}")"');
+    const branch = hostDeploy.slice(
+      hostDeploy.indexOf('if (( ${#GUARD_WAIT_ARGS[@]} > 0 )); then'),
+      hostDeploy.indexOf('GUARD_DIR="$(mktemp -d')
+    );
+    expect(branch.indexOf('rm -f -- "${MARKER_PATH}"')).toBeGreaterThan(0);
+    expect(branch.indexOf('rm -f -- "${MARKER_PATH}"')).toBeLessThan(branch.indexOf('else'));
+    expect(branch.indexOf('install -m 0644 /dev/null "${MARKER_PATH}"')).toBeGreaterThan(branch.indexOf('else'));
+    // A second signal cannot cut the cleanup (and a restoration) short.
+    expect(hostDeploy).toMatch(/cleanup\(\) \{\n {2}local status=\$\?\n(?: {2}#[^\n]*\n)+ {2}trap '' HUP INT TERM\n/);
+    // A busy refusal is EX_TEMPFAIL, not a broken host.
+    expect(hostDeploy).toMatch(/refuse\(\) \{\n {2}echo "deployment refused: \$\*" >&2\n {2}exit 75\n\}/);
+    expect(hostDeploy).toContain('[[ "${guard_status}" -eq 75 ]] && refuse');
+    // A dead channel fails a write as EPIPE instead of killing the shell
+    // before its EXIT trap, which is what restores the previous generation.
+    expect(hostDeploy).toContain("trap '' PIPE");
+    // Writes and previews resume once the new generation is healthy, not
+    // after the retention prune and the mender rebuild.
+    const healthy = hostDeploy.indexOf('echo "deployed ${REVISION} to ${SERVICE_NAME}"');
+    const lifted = hostDeploy.indexOf('rm -f -- "${MARKER_PATH}"', healthy);
+    expect(lifted).toBeGreaterThan(healthy);
+    expect(lifted).toBeLessThan(hostDeploy.indexOf('\nrefresh_mender\n'));
+    // The job outlives the longest wait plus activation and mender refresh.
+    expect(workflow).toContain('timeout-minutes: 75');
+    expect(deployEnv).toContain('ATOMA_DEPLOY_WAIT_SECONDS=1800');
+  });
+
+  it('keeps the host activator syntactically valid Bash', () => {
+    const parsed = spawnSync('bash', ['-n', 'deploy/host-deploy.sh'], { encoding: 'utf8' });
+    expect(parsed.status, parsed.stderr).toBe(0);
+  });
+
   it('restricts the SSH key and keeps state/environment outside the release link', () => {
     expect(sshCommand).toContain('SSH_ORIGINAL_COMMAND');
     expect(sshCommand).toMatch(/\^deploy\\ \(\[0-9a-f\]\{40\}\)\\ \(\[0-9a-f\]\{64\}\)\$/);

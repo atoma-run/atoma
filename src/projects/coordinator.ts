@@ -250,9 +250,14 @@ export class ProjectRunBusy extends Error {
  * maintenance is the documented resource trade (`src/supervisor/AGENTS.md`);
  * saying so is what makes "retry in a few minutes" an honest answer.
  */
-export function tenantBusyMessage(owner: { readonly runId: string } | undefined, condition: 'held' | 'wedged' = 'held'): string {
+export function tenantBusyMessage(owner: { readonly runId: string } | undefined, condition: 'held' | 'wedged' | 'pending' = 'held'): string {
   if (condition === 'wedged') {
     return 'the run slot is held by a run the instance could not clean up; an operator has to release it before a new run can start';
+  }
+  if (condition === 'pending') {
+    // Waiting can outlast "a few minutes": the update lets the current work
+    // finish first, however long that takes.
+    return 'the instance is about to be updated and is letting the current work finish first; start this run again once the update is done';
   }
   const holder = owner?.runId ?? '';
   if (holder.startsWith('analyst:')) {

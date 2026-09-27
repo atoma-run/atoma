@@ -29,8 +29,12 @@ Neighbours:
 - ONE IDLE PREDICATE (`activity.ts`), checked before reserving the shared run slot. It is built from the repository's existing facts — the operator
   index through the sentinel's bounded reader, liveness through
   `isIndexEntryLive`, the MCP lease through `peekRunLease` — and never from a
-  parser on the runner's stdout. A torn index read counts as ACTIVE. Two
-  stages with two predicates is how one of them ends up spending beside a
+  parser on the runner's stdout. A torn index read counts as ACTIVE, and so
+  does a deployment waiting for the slot (`peekDeploymentPending`): without
+  it the mender took the slot back the instant each mend released it, and two
+  deployments in a row were refused (2026-09-27). The acquisition refuses
+  such a taker too; the predicate is the same fact read before any work.
+  Two stages with two predicates is how one of them ends up spending beside a
   batch.
 - ONE SCHEMA PER SHAPE, in `src/contracts`: `supervisorVerdict.ts`,
   `supervisorMend.ts`. The JSON Schema a headless session is held to is
@@ -213,6 +217,14 @@ Neighbours:
   weeks were candidates and reached only a backlog nobody drained. Watch mode
   takes candidates only from verdicts analysed since `CANDIDATES_MENDABLE_SINCE`:
   resuming that backlog held the run slot mend after mend and refused a deploy.
+- REVIEW BACK-PRESSURE bounds the watch loop: at `--max-open-prs` open mender
+  pull requests (`ATOMA_MENDER_MAX_OPEN_PRS`, default 3) no mend starts until
+  a person merges or closes one. Each mend holds the one slot for about twenty
+  minutes, refusing member runs and deployments; past the rate a person
+  merges, its pull requests only queue. Counted once per poll by head branch
+  (`mender/`, same repository only — a fork's branch must not hold the gate)
+  through the list API, which does not lag like search. GitHub unable to
+  answer HOLDS the gate, like a torn index. Explicit commands are not bounded.
 - WHAT MAY BE SHIPPED (`checkDiffPolicy`): an allowlist — `src/`, `tests/`,
   `docs/incidents/` — at least one test file, at least one source file, at
   most `DEFAULT_MAX_DIFF_LINES` changed lines. Workflows, deploy scripts,

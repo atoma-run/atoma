@@ -70,6 +70,24 @@ can only report that it cannot be.
   the admission marker when its parent disappears, so an untrappable host
   activator death cannot leave every write on 503. Existing work always blocks
   an activation; deployment never reaps it.
+- `--hold --wait-ms` WAITS for that work instead of refusing it
+  (`waitForDeploymentSlot`, 2026-09-27: two deployments in a row were refused
+  behind back-to-back mends). It announces the deployment in the lease store
+  (`registerDeploymentPending`) so nothing new takes the slot or opens a
+  preview, takes the lease the moment it frees, waits for previews and
+  publications, and only then writes the admission marker — `guard <pid>
+  <identity>`, renamed into place, so a marker left by a killed guard stops
+  pausing writes — then reads the blockers again after a settle. Ready
+  withdraws the announcement. It refuses (75) at its deadline, when its parent
+  is gone or writes the release file, and AT ONCE when waiting cannot end
+  well: a lease whose owner is gone (only a run start recovers it), a
+  `retrieval:` campaign (hours), or project rows marked live while it holds
+  the slot (no driver can exist; only a server start reconciles them). A guard
+  that cannot work (no identity, a marker it cannot write) exits 1, never 75:
+  75 tells the operator to run the deployment again later. The activator
+  probes `--help` for `--wait-ms` (the guard runs from the release being
+  replaced) and waits only when the service user can write the marker's
+  directory; otherwise it freezes and refuses as before.
 
 ## Backup
 
@@ -249,6 +267,14 @@ operator-owned and updated atomically with their audit receipt.
 
 ## Intentional choices and rejected shortcuts
 
+- A deployment that retries until it lands in a gap: rejected. The mender
+  chained mends with no gap and member runs can too; a retry only wins by
+  luck. A waiting deployment closes the door to new work instead, and
+  interrupting what is running (a mend, a preview, an analysis) to deploy
+  sooner was rejected with it: deployment waits for work, it never ends it.
+- The write freeze held for the whole wait: rejected. A wait can last as long
+  as a run, and the freeze refuses every login and setting; the announcement
+  closes only new work, and the freeze covers only the activation.
 - Remote completion calls in doctor: refused. Doctor is quota-free, and a
   diagnostic that spends is one nobody runs when it matters.
 - Failing doctor on a missing static-server binary: refused, it is a WARNING.

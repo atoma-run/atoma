@@ -165,6 +165,10 @@ process.exit(failed ? 1 : 0);
 import { appendFileSync } from 'node:fs';
 const args = process.argv.slice(2);
 appendFileSync(process.env.STUB_GH_LOG, JSON.stringify(args) + '\\n');
+if (args[0] === 'pr' && args[1] === 'list' && args.some((arg) => arg.includes('headRefName'))) {
+  if (process.env.STUB_GH_OPEN_MENDS === 'fail') { process.stderr.write('HTTP 502'); process.exit(1); }
+  process.stdout.write(process.env.STUB_GH_OPEN_MENDS ?? '[]'); process.exit(0);
+}
 if (args[0] === 'pr' && args[1] === 'list') { process.stdout.write(process.env.STUB_GH_LIST ?? '[]'); process.exit(0); }
 if (args[0] === 'pr' && args[1] === 'create') { process.stdout.write('https://github.com/example/atoma/pull/42\\n'); process.exit(0); }
 process.exit(2);
@@ -178,6 +182,7 @@ process.exit(2);
     delete process.env['STUB_MODE'];
     delete process.env['STUB_CHECK_FAIL'];
     delete process.env['STUB_GH_LIST'];
+    delete process.env['STUB_GH_OPEN_MENDS'];
     Object.assign(process.env, env);
     return {
       executeUntrusted: runCommand,
@@ -469,6 +474,80 @@ describe('the mender, end to end against a real repository', () => {
     } finally {
       controller.abort();
       lease.release();
+      clearInterval(timer);
+      clearTimeout(deadline);
+    }
+  }, TIMEOUT_MS);
+
+  it('starts no mend while the review backlog is full, and resumes once a person merged one', async () => {
+    // Each mend holds the one run slot for about twenty minutes. Past the rate
+    // a person merges, a pull request only queues while member runs and
+    // deployments are refused behind it (2026-09-27).
+    const f = fixture();
+    const controller = new AbortController();
+    const lines: string[] = [];
+    const mendRow = (n: number) => ({ headRefName: `mender/run${n}-1-fix`, isCrossRepository: false });
+    const options = f.options(
+      { pollMs: 20, maxOpenPullRequests: 3, log: (line) => lines.push(line) },
+      {
+        STUB_MODE: 'declined',
+        // A person's branch never counts toward the mender's backlog, nor
+        // does a fork's branch named like one: the repository is public.
+        STUB_GH_OPEN_MENDS: JSON.stringify([
+          mendRow(1), mendRow(2), mendRow(3),
+          { headRefName: 'feature/x', isCrossRepository: false },
+          { headRefName: 'mender/forged-1-fix', isCrossRepository: true },
+        ]),
+      }
+    );
+    const openListings = (): number => (existsSync(f.ghLog) ? readFileSync(f.ghLog, 'utf8') : '')
+      .split('\n').filter((line) => line.includes('headRefName')).length;
+    let merged = false;
+    const timer = setInterval(() => {
+      if (!merged && openListings() >= 4) {
+        merged = true;
+        process.env['STUB_GH_OPEN_MENDS'] = JSON.stringify([mendRow(1), mendRow(2)]);
+      }
+      if (record(f)) controller.abort();
+    }, 10);
+    const deadline = setTimeout(() => controller.abort(), 30_000);
+    try {
+      await runMenderLoop({ options, signal: controller.signal });
+      expect(openListings()).toBeGreaterThanOrEqual(4);
+      expect(record(f)?.outcome).toBe('declined');
+      // Held for several polls, said once.
+      expect(lines.filter((line) => line.includes('no mend starts until a person merges'))).toEqual([
+        '3 mender pull request(s) are open (limit 3); no mend starts until a person merges or closes one',
+      ]);
+      expect(lines).toContain('review back-pressure released');
+    } finally {
+      controller.abort();
+      clearInterval(timer);
+      clearTimeout(deadline);
+    }
+  }, TIMEOUT_MS);
+
+  it('holds the review gate when GitHub cannot say how many mender pull requests are open', async () => {
+    const f = fixture();
+    const controller = new AbortController();
+    const lines: string[] = [];
+    const options = f.options(
+      { pollMs: 20, log: (line) => lines.push(line) },
+      { STUB_MODE: 'declined', STUB_GH_OPEN_MENDS: 'fail' }
+    );
+    const timer = setInterval(() => {
+      const listings = (existsSync(f.ghLog) ? readFileSync(f.ghLog, 'utf8') : '')
+        .split('\n').filter((line) => line.includes('headRefName')).length;
+      if (listings >= 3) controller.abort();
+    }, 10);
+    const deadline = setTimeout(() => controller.abort(), 30_000);
+    try {
+      await runMenderLoop({ options, signal: controller.signal });
+      expect(record(f)).toBeNull();
+      expect(existsSync(f.claudeArgs)).toBe(false);
+      expect(lines).toContain('GitHub cannot say how many mender pull requests are open; no mend starts until it can');
+    } finally {
+      controller.abort();
       clearInterval(timer);
       clearTimeout(deadline);
     }

@@ -226,7 +226,10 @@ function seedRunningRun(a: Actor, projectId: string, key: string): string {
   return run.projectRunId;
 }
 
-function makeManager(copyOwnership?: PreviewCopyOwnership | null): PreviewManager {
+function makeManager(
+  copyOwnership?: PreviewCopyOwnership | null,
+  deploymentPending?: () => boolean
+): PreviewManager {
   return new PreviewManager({
     store: previews,
     launcher: new WorkspaceOnlyLauncher(join(root, 'copies')),
@@ -237,6 +240,7 @@ function makeManager(copyOwnership?: PreviewCopyOwnership | null): PreviewManage
     // The host owns this mapping; the test records what it seeded.
     workspaceOf: (_o, _p, runId) => workspaces.get(runId) ?? join(root, 'absent'),
     probe: async () => true,
+    ...(deploymentPending ? { deploymentPending } : {}),
     log: () => undefined,
   });
 }
@@ -555,6 +559,68 @@ describe('a run still in flight', () => {
 });
 
 
+
+describe('a deployment waiting for running work', () => {
+  it('refuses a NEW preview with 503 and keeps serving the ones already open', async () => {
+    // A live preview blocks an activation, so one opened while a deployment
+    // waits is one more thing it must wait for; the ones already open are
+    // what it is waiting for, and they keep serving.
+    let waiting = false;
+    manager = makeManager(undefined, () => waiting);
+    service = new PreviewHttpService({ manager, store: previews, projects });
+    const alice = actor('alice');
+    const projectId = seedProject(alice, 'site');
+    const open = seedDeliveredRun(alice, projectId, 'k-open');
+    const other = seedDeliveredRun(alice, projectId, 'k-other');
+    const live = seedRunningRun(alice, projectId, 'k-live');
+    const first = await service.open(viewerFor(alice), projectId, open);
+    const snapshot = await service.open(viewerFor(alice), projectId, live, { inFlight: true });
+
+    waiting = true;
+    const again = await service.open(viewerFor(alice), projectId, open);
+    expect(again.body.summary.generation).toBe(first.body.summary.generation);
+    const refused = await service.open(viewerFor(alice), projectId, other).catch((e: unknown) => e);
+    expect(status(refused)).toBe(503);
+    expect((refused as Error).message).toMatch(/about to be updated/);
+    // A reopen of a snapshot and a restart both STOP before they open: they
+    // are refused before that stop, or the member would lose what they have.
+    const reopen = await service.open(viewerFor(alice), projectId, live, { inFlight: true }).catch((e: unknown) => e);
+    expect(status(reopen)).toBe(503);
+    const restart = await service.restart(viewerFor(alice), projectId, open).catch((e: unknown) => e);
+    expect(status(restart)).toBe(503);
+    expect(previews.getInstance(alice.orgId, open)).toMatchObject({ state: 'ready', generation: first.body.summary.generation });
+    expect(previews.getInstance(alice.orgId, live)).toMatchObject({ state: 'ready', generation: snapshot.body.summary.generation });
+    expect(previews.getInstance(alice.orgId, other)?.state ?? 'stopped').toBe('stopped');
+
+    // Once the deployment ran, the same request is admitted again (freeing
+    // the org's second slot first: capacity is a separate refusal).
+    waiting = false;
+    await service.stop(viewerFor(alice), projectId, live);
+    expect((await service.open(viewerFor(alice), projectId, other)).status).toBe(200);
+  });
+});
+
+describe('a start that loses the race to a waiting deployment', () => {
+  it('writes its row, reads the announcement again, and retires itself', async () => {
+    // The announcement lives in another database file, so a check before the
+    // write promises nothing: the deployment may announce and read the
+    // instances in between. The second read, after the row is committed, is
+    // the one that cannot miss it.
+    let reads = 0;
+    manager = makeManager(undefined, () => ++reads > 1);
+    service = new PreviewHttpService({ manager, store: previews, projects });
+    const alice = actor('alice');
+    const projectId = seedProject(alice, 'site');
+    const runId = seedDeliveredRun(alice, projectId, 'k-race');
+
+    const refused = await service.open(viewerFor(alice), projectId, runId).catch((e: unknown) => e);
+
+    expect(status(refused)).toBe(503);
+    expect(reads).toBe(2);
+    expect(previews.getInstance(alice.orgId, runId)).toMatchObject({ state: 'failed', errorCode: 'runtime-unavailable' });
+    expect(previews.countLiveInstances(alice.orgId).org).toBe(0);
+  });
+});
 
 describe('failed preview startup cleans its generation', () => {
   it.each(['delivered', 'in-flight'] as const)('removes a partially materialized %s workspace on every retry', async (mode) => {
