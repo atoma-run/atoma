@@ -66,6 +66,8 @@ corrections of the 2026-09-24 and 2026-09-25 code reviews.
   the files it started from, so replacing work it was asked to keep no longer
   passes unnoticed; a criterion about a named file, such as the README, is
   judged on that file's content.
+- A project run, and a comparison rerun, can ask for deep supervision: a
+  planning tier decomposes the goal from the start instead of after a stall.
 - The mender also opens a pull request for a confident finding that asks for a
   new mechanism, marked as a design choice for the reviewer; a person still
   merges every change.

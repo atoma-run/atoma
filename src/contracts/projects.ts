@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { runStatsSchema } from './runStats.js';
 import { approvedChecklistInputSchema } from './acceptanceChecklist.js';
 import { runTierModelsSchema, storedRunTierModelsSchema } from './tierModels.js';
+import { depthModeSchema } from './depthRouting.js';
 
 /** Zero suspends admission; the host still has one global run slot. */
 export const orgRunLimitSchema = z.number().int().min(0).max(1);
@@ -241,6 +242,12 @@ export const createProjectRunInputSchema = z
      * criterion refuses the request (docs/acceptance-contract-2026-09-14.md).
      */
     acceptanceChecklist: approvedChecklistInputSchema.optional(),
+    /**
+     * Supervision depth for this run: `short` (an L2 cell plans, and the run
+     * deepens once at its fallback moment) or `deep` (an L3 tissue decomposes
+     * from the start). Absent is the profile default, `short`.
+     */
+    depth: depthModeSchema.optional(),
   })
   .strict();
 
@@ -255,6 +262,8 @@ export const rerunProjectRunInputSchema = z
     rerunOf: projectRunIdSchema,
     idempotencyKey: idempotencyKeySchema,
     models: runTierModelsSchema,
+    /** Absent keeps the origin's depth; given, the rerun compares topologies too. */
+    depth: depthModeSchema.optional(),
   })
   .strict();
 
@@ -363,6 +372,8 @@ export const projectRunSchema = z
     rerunOf: projectRunIdSchema.optional(),
     /** The run-level models a comparison rerun was launched with. */
     modelOverrides: storedRunTierModelsSchema.optional(),
+    /** The supervision depth the run was launched with; absent is the profile default. */
+    depth: depthModeSchema.optional(),
     seed: runSeedSchema.optional(),
     traceId: z.string().min(1).max(255).nullable(),
     stats: runStatsSchema.nullable(),

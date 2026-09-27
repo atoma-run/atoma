@@ -155,6 +155,33 @@ describe('comparison reruns', () => {
     expect(c.seed).toEqual({ kind: 'run', runId: a.projectRunId });
   });
 
+  it('launches the depth a run asks for, and a rerun keeps its origin\'s unless it names its own', async () => {
+    // A project run could only ever start short: `--depth` existed on the CLI
+    // and nowhere a member could reach (2026-09-27, the four-page site that
+    // never deepened before its budget ran out).
+    const f = fixture();
+    const depthOf = (call: number): string | undefined => {
+      const args = f.driver.mock.calls[call]?.[0].extraArgs ?? [];
+      const at = args.indexOf('--depth');
+      return at >= 0 ? args[at + 1] : undefined;
+    };
+    const plain = await f.start({ idempotencyKey: 'p', goal: 'Build a clock.' });
+    expect(depthOf(0)).toBeUndefined();
+    expect(plain.depth).toBeUndefined();
+    const deep = await f.start({ idempotencyKey: 'd', goal: 'Add a timezone selector.', depth: 'deep' });
+    expect(depthOf(1)).toBe('deep');
+    expect(deep.depth).toBe('deep');
+    const kept = await f.start({ idempotencyKey: 'k', rerunOf: deep.projectRunId, models: OVERRIDES });
+    expect(depthOf(2)).toBe('deep');
+    expect(kept.depth).toBe('deep');
+    const short = await f.start({ idempotencyKey: 's', rerunOf: deep.projectRunId, models: OVERRIDES, depth: 'short' });
+    expect(depthOf(3)).toBe('short');
+    expect(short.depth).toBe('short');
+    // The same key asking another depth is another request.
+    await expect(f.coordinator.start({ orgId: f.viewer.orgId, principalId: f.viewer.principalId, projectId: f.project.projectId,
+      request: { idempotencyKey: 's', rerunOf: deep.projectRunId, models: OVERRIDES, depth: 'deep' } })).rejects.toBeInstanceOf(ProjectStateConflict);
+  });
+
   it('is idempotent on its key, and refuses the key for other models or another origin', async () => {
     const f = fixture();
     await f.start({ idempotencyKey: 'r0', goal: 'Build a clock.' });
