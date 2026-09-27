@@ -210,7 +210,9 @@ Neighbours:
   incident, a fact before a gate, and a test for what it must not catch, and
   the choice lands in `reviewerNotes`. The person who merges makes it; there
   is still no auto-merge. Before, seventeen of seventeen findings in three
-  weeks were candidates and reached only a backlog nobody drained.
+  weeks were candidates and reached only a backlog nobody drained. Watch mode
+  takes candidates only from verdicts analysed since `CANDIDATES_MENDABLE_SINCE`:
+  resuming that backlog held the run slot mend after mend and refused a deploy.
 - WHAT MAY BE SHIPPED (`checkDiffPolicy`): an allowlist — `src/`, `tests/`,
   `docs/incidents/` — at least one test file, at least one source file, at
   most `DEFAULT_MAX_DIFF_LINES` changed lines. Workflows, deploy scripts,

@@ -701,6 +701,23 @@ export function readVerdict(verdictsDir: string, runId: string): SupervisorVerdi
   return parsed.success ? parsed.data : null;
 }
 
+/**
+ * When a `mechanism_candidate` became mendable. The service resumes EVERY
+ * unrecorded finding after a restart, so without this line the policy change
+ * turned three weeks of backlog into a queue of mends that held the machine's
+ * run slot back to back: the deployment after it was refused ("the run slot
+ * is occupied (mender:cc922a60…)"), as every run would have been. Older
+ * candidates stay in the backlog and are mended only when named (`--verdict`).
+ */
+export const CANDIDATES_MENDABLE_SINCE = '2026-09-27T16:00:00.000Z';
+
+/** When a stored verdict was analysed, from its `_meta`; undefined when it carries none. */
+function verdictAnalysedAt(verdictsDir: string, runId: string): string | undefined {
+  const raw = readBoundedJson<{ _meta?: { analysedAt?: unknown } }>(join(verdictsDir, `${runId}.json`));
+  const at = raw?._meta?.analysedAt;
+  return typeof at === 'string' ? at : undefined;
+}
+
 /** Every (verdict, finding) pair the mender has not yet recorded. */
 export function pendingMends(options: MenderOptions, runIds: readonly string[]): MendInput[] {
   const paths = menderPaths(options);
@@ -708,7 +725,10 @@ export function pendingMends(options: MenderOptions, runIds: readonly string[]):
   for (const runId of runIds) {
     const verdict = readVerdict(paths.verdictsDir, runId);
     if (!verdict) continue;
+    const analysedAt = verdictAnalysedAt(paths.verdictsDir, runId);
+    const candidatesToo = analysedAt !== undefined && Date.parse(analysedAt) >= Date.parse(CANDIDATES_MENDABLE_SINCE);
     for (const { index, finding } of eligibleFindings(verdict, options.minConfidence)) {
+      if (finding.kind === 'mechanism_candidate' && !candidatesToo) continue;
       if (existsSync(mendRecordPath(paths.menderDir, runId, index)) && !options.force) continue;
       work.push({ runId, index, run: { runStatus: verdict.runStatus, grade: verdict.runAssessment.grade }, finding });
     }

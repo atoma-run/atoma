@@ -15,6 +15,7 @@ import {
   mendInputFromRequest,
   mendRecordPath,
   pendingMends,
+  CANDIDATES_MENDABLE_SINCE,
   processMends,
   runMenderLoop,
   type MendRecord,
@@ -103,9 +104,9 @@ function fixture(): Fixture {
         {
           kind: 'mechanism_candidate',
           title: 'Add an arithmetic sanity gate',
-          detail: 'below the confidence floor, so never mended',
+          detail: 'analysed before candidates became mendable, so never mended here',
           evidence: [],
-          confidence: 'medium',
+          confidence: 'high',
           proposedFix: { where: 'src/', what: 'gate', checkedIntentionalChoices: 'AGENTS.md' },
         },
         {
@@ -270,7 +271,7 @@ describe('the mender, end to end against a real repository', () => {
     const rec = record(f)!;
     expect(rec).toMatchObject({ outcome: 'pr-opened', prUrl: 'https://github.com/example/atoma/pull/42', mendCostUsd: 0.42 });
     expect(rec.verification).toMatchObject({ testFailedBefore: true, checkPassed: true, testFiles: ['tests/adder.test.mjs'] });
-    // The mechanism candidate at index 0 sits below the floor and was never touched.
+    // The mechanism candidate at index 0 predates CANDIDATES_MENDABLE_SINCE and was never touched.
     expect(existsSync(mendRecordPath(join(f.supervisor, 'mender'), RUN_ID, 0))).toBe(false);
 
     const [branch] = remoteBranches(f);
@@ -472,6 +473,21 @@ describe('the mender, end to end against a real repository', () => {
       clearTimeout(deadline);
     }
   }, TIMEOUT_MS);
+
+  it('takes a confident candidate only from a verdict analysed since candidates became mendable', () => {
+    // The service resumes every unrecorded finding after a restart: without the
+    // cut-off, three weeks of backlog held the run slot back to back and the
+    // next deployment was refused (2026-09-27).
+    const f = fixture();
+    const options = f.options();
+    expect(pendingMends(options, [RUN_ID]).map((item) => item.index)).toEqual([1]);
+    const path = join(f.supervisor, 'verdicts', `${RUN_ID}.json`);
+    const stored = JSON.parse(readFileSync(path, 'utf8')) as { _meta: { analysedAt: string } };
+    stored._meta.analysedAt = new Date(Date.parse(CANDIDATES_MENDABLE_SINCE) + 60_000).toISOString();
+    writeFileSync(path, JSON.stringify(stored));
+    expect(pendingMends(options, [RUN_ID]).map((item) => [item.index, item.finding.kind]))
+      .toEqual([[0, 'mechanism_candidate'], [1, 'defect']]);
+  });
 
   it('does not run the same finding twice unless forced', async () => {
     const f = fixture();
