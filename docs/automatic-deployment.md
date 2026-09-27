@@ -31,10 +31,14 @@ and the deployment workflow is skipped.
    writes. It refuses (exit 75) at its deadline, and at once when waiting
    cannot end well: a lease whose owner process is gone, a retrieval campaign,
    or project rows marked live while no run holds the slot.
-5. It stops the old service, installs production dependencies, runs the
-   compiled release smoke, builds an immutable `atoma-worker:<sha>` image,
-   moves `atoma-worker:latest`, and atomically switches `/home/atoma/current`.
-6. Any failure after service shutdown restores the previous release symlink,
+5. While the old service still serves, it installs production dependencies,
+   runs the compiled release smoke and builds an immutable `atoma-worker:<sha>`
+   image; then it stops the old service, moves `atoma-worker:latest`,
+   atomically switches `/home/atoma/current` and starts the new one. The
+   outage is the stop, the switch and the start. A redeploy of the running
+   revision stops first, because its dependencies are the running ones.
+6. A failure while preparing leaves the old generation running, untouched.
+   Any failure after service shutdown restores the previous release symlink,
    worker tag and service; this includes a failed loopback health check.
    The lease guard also removes the admission marker if its parent dies without
    running shell cleanup. GitHub then verifies the public HTTPS path too.
@@ -320,9 +324,13 @@ Docker limits the executable checks independently of the service's memory cap.
 A person merges, and the merge follows the deployment path above.
 
 The activator moves that clone to the deployed revision at the END of every
-deployment — fetch, checkout, `npm ci`, `tsc`, the `atoma-mender:local` image,
-the unit file, restart — after the application is healthy and outside the
-rollback section. A refresh failure leaves the mender STOPPED on its previous
+deployment — fetch, checkout, `npm ci` only when the lockfile or the Node
+version changed since the last install, the release's own compiled `dist`
+(built by CI from the same revision and verified by digest, so what `tsc`
+would write), the `atoma-mender:local` image, the unit file, restart — after
+the application is healthy and outside the rollback section. That rebuild
+used to take about 90 s of every deployment, mostly `npm ci` and `tsc` on the
+4 GB host. A refresh failure leaves the mender STOPPED on its previous
 checkout and fails the deployment run so it is seen, but never restores the
 previous application generation. A host without a mender (no clone at
 `ATOMA_DEPLOY_MENDER_CHECKOUT`, no `ATOMA_DEPLOY_MENDER_ENV`) skips the phase.

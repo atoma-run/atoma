@@ -100,6 +100,13 @@ corrections of the 2026-09-24 and 2026-09-25 code reviews.
 - The mender starts no new mend while three of its pull requests wait for a
   person (`ATOMA_MENDER_MAX_OPEN_PRS`), so it no longer holds the run slot
   mend after mend.
+- A deployment's outage is the service stop, switch and start: dependencies,
+  the release smoke and the worker image are prepared while the previous
+  version still serves, and a preparation that fails leaves it running.
+- The mender's rebuild at the end of a deployment reuses the release's
+  compiled code and reinstalls dependencies only when the lockfile changed.
+- CI reaches a deployment sooner: the worker image job runs beside the checks
+  instead of after them, and LibreOffice installs while `npm ci` runs.
 
 ## v0.4.0 — 2026-09-17
 

@@ -337,14 +337,27 @@ if [[ -n "${OLD_RELEASE}" ]]; then
   [[ -f "${GUARD_READY_FILE}" ]] || fail "runtime drain did not become ready"
 fi
 
-# Once the old generation is stopped, no application process can observe the
-# release directory while npm and Docker prepare it.
+# The new release is PREPARED WHILE THE OLD GENERATION STILL SERVES: it runs
+# from its own directory and nothing reads the new one, and the mutable worker
+# tag moves only below. So the outage is the stop, the switch and the start —
+# it used to include the install, the smoke and the image build, about 30 s
+# per deployment (2026-09-27) — and a preparation that fails leaves the old
+# generation running, untouched. A redeploy of the running revision is the
+# exception: its dependencies are the running ones, so it stops first.
+prepare_release() {
+  run_as_service "${TARGET_RELEASE}" npm ci --omit=dev
+  run_as_service "${TARGET_RELEASE}" node scripts/release-smoke.mjs
+  run_as_service "${TARGET_RELEASE}" docker build \
+    -f docker/worker.Dockerfile -t "atoma-worker:${REVISION}" .
+}
+PREPARED=0
+if [[ "${TARGET_RELEASE}" != "${OLD_RELEASE}" ]]; then
+  prepare_release
+  PREPARED=1
+fi
 ACTIVATION_STARTED=1
 systemctl stop "${SERVICE_NAME}"
-run_as_service "${TARGET_RELEASE}" npm ci --omit=dev
-run_as_service "${TARGET_RELEASE}" node scripts/release-smoke.mjs
-run_as_service "${TARGET_RELEASE}" docker build \
-  -f docker/worker.Dockerfile -t "atoma-worker:${REVISION}" .
+(( PREPARED )) || prepare_release
 
 if [[ -n "${OLD_REVISION}" ]] && docker image inspect atoma-worker:latest >/dev/null 2>&1; then
   WORKER_ROLLBACK_TAG="atoma-worker:rollback-${OLD_REVISION}"
@@ -403,8 +416,14 @@ refresh_mender() {
   done
   [[ -f "${TARGET_RELEASE}/deploy/atoma-mender.service" ]] || fail "release ships no mender unit"
   systemctl stop "${MENDER_SERVICE}" || true
+  # The rebuild was about 90 s of every deployment, the run lease held
+  # throughout (2026-09-27): a full `npm ci` (43 s) and `tsc` (39 s) on this
+  # 4 GB host. Dependencies change only with the lockfile or the runtime, so
+  # an identical pair skips the reinstall; and the release was compiled by CI
+  # from this same revision and lockfile and verified by digest before this
+  # activation, so its `dist` is what `tsc` would write here.
   if ! runuser -u "${SERVICE_USER}" -- env HOME="${SERVICE_HOME}" MENDER_REVISION="${REVISION}" \
-      MENDER_REMOTE="${MENDER_REMOTE}" bash -c '
+      MENDER_REMOTE="${MENDER_REMOTE}" MENDER_RELEASE_DIST="${TARGET_RELEASE}/dist" bash -c '
     set -Eeuo pipefail
     set -a; source "$1"; set +a
     cd "$2"
@@ -412,8 +431,13 @@ refresh_mender() {
     [[ -z $(git status --porcelain) ]] || { echo "mender checkout is dirty; preserve and inspect it" >&2; exit 2; }
     git fetch --quiet origin main
     git checkout --quiet --detach "$MENDER_REVISION"
-    HUSKY=0 npm ci
-    npx tsc -p tsconfig.json
+    stamp="$(sha256sum package-lock.json | cut -d" " -f1) $(node --version)"
+    if [[ "$(cat node_modules/.atoma-install-stamp 2>/dev/null || true)" != "$stamp" ]]; then
+      HUSKY=0 npm ci
+      printf "%s\n" "$stamp" > node_modules/.atoma-install-stamp
+    fi
+    rm -rf dist
+    cp -a "$MENDER_RELEASE_DIST" dist
     docker build -f docker/mender.Dockerfile -t atoma-mender:local .
     node dist/cli/mender.js --help >/dev/null
   ' bash "${MENDER_ENV}" "${MENDER_CHECKOUT}"; then

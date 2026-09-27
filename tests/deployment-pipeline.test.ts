@@ -174,6 +174,53 @@ describe('post-CI deployment pipeline', () => {
     expect(deployEnv).toContain('ATOMA_DEPLOY_WAIT_SECONDS=1800');
   });
 
+  it('prepares the new release while the old generation serves, and stops only to switch', () => {
+    // 2026-09-27: the install, the smoke and the image build ran with the
+    // service stopped — about 30 s of outage on every deployment.
+    const prepare = hostDeploy.indexOf('if [[ "${TARGET_RELEASE}" != "${OLD_RELEASE}" ]]; then\n  prepare_release\n');
+    const stop = hostDeploy.indexOf(
+      'ACTIVATION_STARTED=1\nsystemctl stop "${SERVICE_NAME}"\n(( PREPARED )) || prepare_release\n'
+    );
+    expect(prepare).toBeGreaterThan(0);
+    expect(stop).toBeGreaterThan(prepare);
+    const body = hostDeploy.slice(hostDeploy.indexOf('prepare_release() {'), prepare);
+    expect(body).toContain('npm ci --omit=dev');
+    expect(body).toContain('node scripts/release-smoke.mjs');
+    expect(body).toContain('-f docker/worker.Dockerfile -t "atoma-worker:${REVISION}"');
+    // The mutable worker tag moves only once the old generation is stopped.
+    expect(hostDeploy.indexOf('docker tag "atoma-worker:${REVISION}" atoma-worker:latest')).toBeGreaterThan(stop);
+  });
+
+  it('rebuilds the mender from the verified release, reinstalling only for a changed lockfile', () => {
+    // 2026-09-27: `npm ci` and `tsc` took about 90 s of every deployment on
+    // the 4 GB host, with the run lease held throughout.
+    const refresh = hostDeploy.slice(hostDeploy.indexOf('refresh_mender() {'), hostDeploy.indexOf('\nrefresh_mender\n'));
+    expect(refresh).toContain('MENDER_RELEASE_DIST="${TARGET_RELEASE}/dist"');
+    expect(refresh).toContain('cp -a "$MENDER_RELEASE_DIST" dist');
+    expect(refresh).not.toContain('npx tsc');
+    expect(refresh).toContain('stamp="$(sha256sum package-lock.json | cut -d" " -f1) $(node --version)"');
+    expect(refresh.indexOf('HUSKY=0 npm ci')).toBeGreaterThan(refresh.indexOf('!= "$stamp" ]]'));
+    expect(refresh.indexOf('node_modules/.atoma-install-stamp\n    fi')).toBeGreaterThan(refresh.indexOf('HUSKY=0 npm ci'));
+  });
+
+  it('proves the worker beside the hermetic checks, and installs LibreOffice during npm ci', () => {
+    // 2026-09-27: the worker job waited for `core` (1.6 min) and LibreOffice
+    // waited for npm ci (25–50 s), on the path every deployment waits for.
+    const worker = ci.slice(ci.indexOf('\n  worker:\n'));
+    expect(worker.slice(0, worker.indexOf('steps:'))).not.toContain('needs:');
+    const core = ci.slice(ci.indexOf('\n  core:\n'), ci.indexOf('\n  i18n:\n'));
+    const start = core.indexOf('name: Start installing LibreOffice');
+    const install = core.indexOf('- run: npm ci');
+    const finish = core.indexOf('name: Finish installing LibreOffice');
+    const check = core.indexOf('- run: npm run release:check');
+    expect(start).toBeGreaterThan(0);
+    expect(start).toBeLessThan(install);
+    expect(install).toBeLessThan(finish);
+    expect(finish).toBeLessThan(check);
+    // Detached, or the runner would hold the step open until apt finished.
+    expect(core).toContain(') > /dev/null 2>&1 < /dev/null &');
+  });
+
   it('keeps the host activator syntactically valid Bash', () => {
     const parsed = spawnSync('bash', ['-n', 'deploy/host-deploy.sh'], { encoding: 'utf8' });
     expect(parsed.status, parsed.stderr).toBe(0);

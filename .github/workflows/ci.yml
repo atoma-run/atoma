@@ -50,16 +50,34 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
+      # LibreOffice (the legacy document tests) installs from apt WHILE npm ci
+      # installs from the registry. One after the other they cost 50–80 s on
+      # the job every deployment waits for (2026-09-27). The background job's
+      # own stdio is detached, or the runner would wait for it at step end;
+      # the "finish" step below waits for its status and keeps its log.
+      - name: Start installing LibreOffice for document tests
+        run: |
+          (
+            {
+              sudo apt-get update &&
+              sudo apt-get install -y --no-install-recommends \
+                libreoffice-writer libreoffice-calc libreoffice-impress
+            } > "$RUNNER_TEMP/libreoffice.log" 2>&1
+            echo $? > "$RUNNER_TEMP/libreoffice.status"
+          ) > /dev/null 2>&1 < /dev/null &
       - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
-      - name: Install LibreOffice for document tests
+      - name: Finish installing LibreOffice for document tests
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            libreoffice-writer libreoffice-calc libreoffice-impress
+          until [ -f "$RUNNER_TEMP/libreoffice.status" ]; do sleep 1; done
+          if [ "$(cat "$RUNNER_TEMP/libreoffice.status")" != 0 ]; then
+            cat "$RUNNER_TEMP/libreoffice.log"
+            exit 1
+          fi
+          tail -n 3 "$RUNNER_TEMP/libreoffice.log"
           soffice --headless --version
       - run: npm run release:check
 
@@ -314,7 +332,10 @@ jobs:
 
   worker:
     name: Fresh worker image
-    needs: core
+    # BESIDE `core`, not after it: it builds and tests its own image from its
+    # own checkout and consumes nothing `core` produces. Chained, its 1.6 min
+    # was added to every deployment's wait for no proof it did not already
+    # give on its own (2026-09-27).
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
