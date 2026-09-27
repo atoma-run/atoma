@@ -31,8 +31,8 @@ export const findingKindSchema = z.enum([
   'defect',
   /**
    * The remedy needs a DESIGN DECISION nobody has taken yet — a threshold to
-   * choose, a policy to invent — so it goes to the cooling-off backlog, never
-   * same-day. NOT a finding whose fix merely READS like a new rule: code that
+   * choose, a policy to invent — so it goes to the backlog for a person.
+   * NOT a finding whose fix merely READS like a new rule: code that
    * breaks a contract the repository already states is a `defect`, and filing
    * one here loses it (calibration of 2026-09-23, `analystPrompt.ts`).
    */

@@ -143,7 +143,7 @@ Neighbours:
   requires it through the same contract's stricter schema. Session budgets and
   finding eligibility are unchanged.
 - Routing reads FINDINGS, never the grade: `mechanism_candidate` → the dated
-  backlog (`supervisor/backlog.jsonl`, COOLING-OFF: never same-day),
+  backlog (`supervisor/backlog.jsonl`: a design choice for a person),
   `security_incident` → `supervisor/ALERTS.jsonl` plus a console warning,
   `defect` → indexed in `supervisor/defects.jsonl` AND left in the verdict for
   the mender. That index is not a work queue and never re-derives the mender's
@@ -204,8 +204,9 @@ Neighbours:
 - WHAT MAY BE MENDED (`menderPolicy.ts#eligibleFindings`): a `defect` at or
   above the confidence floor (`high` by default) whose `proposedFix` cites the
   intentional choices it checked. A `mechanism_candidate` is never eligible
-  and there is deliberately NO option to make it one — a mender that took
-  candidates would be a same-day gate with a commit button.
+  and there is deliberately NO option to make it one — a candidate needs a
+  choice nobody has made (a threshold, a policy), and a mender that took one
+  would ship that choice with a commit button.
 - WHAT MAY BE SHIPPED (`checkDiffPolicy`): an allowlist — `src/`, `tests/`,
   `docs/incidents/` — at least one test file, at least one source file, at
   most `DEFAULT_MAX_DIFF_LINES` changed lines. Workflows, deploy scripts,

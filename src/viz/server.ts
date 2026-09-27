@@ -4277,8 +4277,7 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
     // needs it. Removing that needs a server-side cache keyed on the trace's
     // mtime, or a streaming projection of the events array — and
     // `contracts/traceFields.ts` cannot return a document by construction, so
-    // neither exists today. Both are new mechanisms; COOLING-OFF puts their
-    // design outside the session that measured this one. Registered, not built.
+    // neither exists today. Both are new mechanisms. Registered, not built.
     const afterRaw = url.searchParams.get('after');
     if (afterRaw !== null) {
       const after = Number(afterRaw);

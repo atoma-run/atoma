@@ -142,7 +142,7 @@ if (['fix', 'forbidden', 'notest', 'no-mechanism'].includes(mode)) writeFileSync
 if (mode === 'fix' || mode === 'forbidden') writeFileSync(join(cwd, 'tests', 'adder.test.mjs'), failingTest);
 if (mode === 'no-mechanism') writeFileSync(join(cwd, 'tests', 'adder.test.mjs'), 'process.exit(0);\\n');
 if (mode === 'forbidden') writeFileSync(join(cwd, 'package.json'), '{ "name": "tampered" }\\n');
-if (mode === 'declined') report = { ...report, outcome: 'declined', declineReason: 'the remedy is a new gate — cooling-off' };
+if (mode === 'declined') report = { ...report, outcome: 'declined', declineReason: 'the remedy is a new gate — a design choice for a person' };
 process.stdout.write(JSON.stringify({ type: 'result', structured_output: report, total_cost_usd: 0.42, duration_ms: 1234, num_turns: 3, modelUsage: { 'claude-sonnet-5': { costUSD: 0.4, inputTokens: 10, outputTokens: 5 } } }));
 `
   );
@@ -358,7 +358,7 @@ describe('the mender, end to end against a real repository', () => {
     const { failures } = await mendPending(f, f.options({}, { STUB_MODE: 'declined' }));
     expect(failures).toBe(0);
     expect(record(f)!.outcome).toBe('declined');
-    expect(record(f)!.report?.declineReason).toMatch(/cooling-off/);
+    expect(record(f)!.report?.declineReason).toMatch(/design choice/);
     expect(remoteBranches(f)).toEqual([]);
     expect(worktrees(f)).toEqual([]);
     expect(journalKinds(f)).toEqual(['mender.started', 'mender.declined']);

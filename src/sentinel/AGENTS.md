@@ -172,9 +172,8 @@ Neighbours:
   anything an outlier, and compares only within one tool name. With two
   samples the slower one is always "3× the median"; across tool names a
   browser validation and a file read share no scale.
-- Adding a rule is adding a mechanism: it follows the COOLING-OFF contract —
-  collect incidents, design once, land reviewed — never same-day reaction to
-  the run that surfaced it. The pile so far:
+- Adding a rule is adding a mechanism: it is designed against the incidents
+  collected so far and reviewed adversarially before it lands. The pile so far:
   [the blind spot measured 2026-08-23](../../docs/incidents/sentinel-blind-spot-2026-08-23.md)
   — every content rule keys on IDENTITY (same args, same error, same tool's
   median), so a model that keeps VARYING a failing attempt is invisible: 25

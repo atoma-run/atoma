@@ -65,8 +65,7 @@ Neighbours:
   and every browser molecule as an instruction to lay the page out there.
   It is a fact beside the judgement and overrides none: a detector that
   refused on its own reading would fail as a wrong gate, which the declared
-  obligations below forbid, and it was designed in the session that
-  surfaced the incident. Making an unlaid width a hard refusal is an owner
+  obligations below forbid. Making an unlaid width a hard refusal is an owner
   decision (docs/incidents/production-runs-2026-09-27.md). When criteria are shown, the acceptor also
   judges EACH one (`criteria`, kept on the checklist items as `judgement`); a
   USER list is always read, never approved mechanically past, and an approval

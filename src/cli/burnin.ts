@@ -133,7 +133,7 @@ export function parseRunLog(log: string): RunStats {
   // finished printed its cost table, and a hung one never got there. So when
   // both markers are present and NO accounting is, the banner is unsupported
   // and the reap stands. Not a new mechanism — the same text, read for what it
-  // implies. The receipt designed 2026-08-23 stays unbuilt (COOLING-OFF).
+  // implies. The receipt designed 2026-08-23 stays unbuilt.
   const bannerUnsupported = (completed || landedOnBudget) && harnessReaped && costUsd === null && llmCalls === null;
   // A LANDING is a success-side outcome, and this reader could not say the
   // word before 2026-09-24: a landed run whose epilogue never made it to the

@@ -16,7 +16,7 @@ import { menderProvider, providerChildEnv } from '../src/supervisor/session.js';
 /**
  * The mender's pure half. What these hold:
  *   - only a cited, confident `defect` is mendable; a mechanism candidate never
- *     is, whatever its confidence — that is the COOLING-OFF contract;
+ *     is, whatever its confidence — it needs a design choice a person makes;
  *   - trace text never reaches the model: quotes survive only for repository
  *     source refs;
  *   - the diff policy is an allowlist with a size cap and a test requirement;

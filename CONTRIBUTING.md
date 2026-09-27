@@ -11,8 +11,8 @@ agents alike.
    you touch. Cost, safety and taxonomy rules are stated once, where the code
    is, and a change that violates one is declined regardless of its quality.
 2. **Open an issue first for anything beyond a bug fix.** New gates, heuristics
-   or validators are designed against collected incidents, not during the
-   session that surfaced one; see the cooling-off rule in `AGENTS.md`.
+   or validators are designed against the incidents they answer and reviewed
+   adversarially before they land; see the safe working rules in `AGENTS.md`.
 3. **Sign the CLA** ([`CLA.md`](CLA.md)) on your first pull request. The `CLA`
    workflow comments on the pull request; you sign by replying with the exact
    sentence it quotes. One signature covers your future contributions, and we

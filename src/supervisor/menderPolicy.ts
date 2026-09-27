@@ -27,10 +27,10 @@ export interface EligibleFinding {
  * What the mender may be asked to fix, and — the load-bearing half — what it
  * must never be asked to fix.
  *
- *   - `defect` only. A `mechanism_candidate` is, by the root COOLING-OFF
- *     contract, never designed the same day it is found; the analyst routes it
- *     to the backlog, and a mender that took it would be a same-day gate with
- *     a commit button. There is deliberately no option to include them.
+ *   - `defect` only. A `mechanism_candidate` needs a choice nobody has made
+ *     yet (a threshold, a policy); the analyst routes it to the backlog for a
+ *     person, and a mender that took it would ship that choice with a commit
+ *     button. There is deliberately no option to include them.
  *   - `security_incident` is an alert for a person, not a patch.
  *   - a `proposedFix` is REQUIRED: the analyst's citation rule exists because
  *     reading intentional choices was measurably not enough, and a fix with no

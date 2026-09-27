@@ -60,9 +60,8 @@ The adversarial review of that version measured it as a wrong gate: "375 x
 667 px" was read as 667, and bare prepositions turned "downscaled to 1024
 px", "thumbnails render at 256 px" and "below 768 px the nav collapses" into
 widths, each a refused delivery. The narrowed parser handles those, but a
-lexical detector that refuses is exactly what src/atoms/AGENTS.md rules out,
-and the rule would have been designed in the session that surfaced the
-incident. If the next runs still approve an unlaid width with the
+lexical detector that refuses is exactly what src/atoms/AGENTS.md rules out.
+If the next runs still approve an unlaid width with the
 instruction in place, the refusal is the owner's call.
 
 ### J7 — a `<select>` or a slider could not be driven
@@ -99,7 +98,7 @@ bytes.
   the README being read back — the read-back only reads files the result
   names, and it said "README documentation". The layout fact above removes
   one class of these; the rest is the acceptor's judgement and was left
-  alone rather than patched with another same-day rule.
+  alone for now.
 - **Test residue in deliverables.** `window.__configTest` shipped in R14
   (removed by R16 on request), `window.__dashboard` and a validation-only
   button in R17, `replacement-sales.csv` at R17's root, R13's probe note in
@@ -138,8 +137,7 @@ approved criterion named. The acceptor approved every criterion. R16's
 configurator survives only in the repository's history (`763ecd1`).
 
 Nothing the acceptor reads compares a continuation's result with the
-workspace it started from. Candidate for the next session, not built here
-(cooling-off): a mechanical block beside the delivery naming, for a seeded
+workspace it started from. Candidate, not built yet: a mechanical block beside the delivery naming, for a seeded
 run, each seed file removed or rewritten and its size before and after
 (`index.html: 13394 → 2070 bytes`), so "unchanged in behaviour" can be set
 against what happened to the bytes. A goal-specific constant in code that

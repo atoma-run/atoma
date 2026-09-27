@@ -98,9 +98,8 @@ for what a server cannot cover, and at most one appending watch holds a store
   Never a modification. Consistent with the standing rule that heuristics
   flag and never judge alone.
 
-Sentinel rules are themselves mechanisms: designing a new rule follows the
-COOLING-OFF contract (collect incidents, design once, land reviewed), never
-same-day reaction.
+Sentinel rules are themselves mechanisms: a new rule is designed against the
+collected incidents and reviewed adversarially before it lands.
 
 ## Stage 2 — the analyst (P0 validates the format)
 
@@ -120,11 +119,11 @@ batch:
   receives raw trace prose — only the structured verdict and file:line
   pointers. This is "never replay model-authored commands" applied to the
   supervisor itself.
-- **Cooling-off triage** is built into the classification: a `defect` is a
+- **Design triage** is built into the classification: a `defect` is a
   net bug with a mechanism you can point at in `src/`; anything that wants a
   NEW gate, heuristic, validator rule or prompt rule is a
-  `mechanism_candidate` and goes to a dated backlog — never implemented the
-  same day, per the root contract.
+  `mechanism_candidate` and goes to a dated backlog — a design choice a
+  person makes, never a mend.
 
 ### Verdict schema v1
 
@@ -266,8 +265,8 @@ the design below, both settling an open decision:
 - **What may be mended**: a `defect` finding at or above the confidence
   floor (`high` by default) whose `proposedFix` cites the intentional
   choices it checked. A `mechanism_candidate` is never eligible and there is
-  deliberately no flag to make it one — a mender that took candidates would be
-  a same-day gate with a commit button, the exact thing COOLING-OFF forbids.
+  deliberately no flag to make it one — a mender that took candidates would
+  ship a choice nobody made, with a commit button.
   `security_incident` stays an alert.
 - **What may be shipped**: changes under `src/`, `tests/` and
   `docs/incidents/` only, at least one test file, at least one source file,
@@ -329,8 +328,9 @@ inhibitor (`caffeinate`) because the machine sleeps on battery.
 
 ## Existing rules this design must keep true
 
-- COOLING-OFF: mechanism candidates are backlog entries, never same-day
-  implementations ([AGENTS.md](../AGENTS.md), safe working rules).
+- Mechanism candidates are backlog entries for a person's design choice,
+  never mender work; a new mechanism is reviewed adversarially before it lands
+  ([AGENTS.md](../AGENTS.md), safe working rules).
 - Never edit `src/` during a batch → the mender's worktree + compiled slots.
 - Verification is read-only; never replay model-authored commands → the
   analyst has no execution tools at all.
@@ -417,8 +417,7 @@ with the molecule's own plan text saying "the previousStepSummary shows
 pinger.js was already built and verified with all routes working. However, I
 need to follow the current task". That is a plan-shape question for
 [src/atoms](../src/atoms/AGENTS.md), it is not covered by any existing rule,
-and three dated instances is exactly what COOLING-OFF asks for before
-designing anything.
+and three dated instances are the evidence to design it against.
 
 **One real calibration defect.** The third candidate (`web-stopwatch`,
 async smokes not observing `setInterval` updates) re-proposes moving smoke

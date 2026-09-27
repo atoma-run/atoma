@@ -13,7 +13,7 @@
  * same predicate the mender gates on. Read-only by construction — the child
  * session has Read, Glob and Grep and nothing else. Verdicts land under
  * `supervisor/verdicts/`, mechanism candidates in `supervisor/backlog.jsonl`
- * (cooling-off: never same-day), security incidents in `supervisor/ALERTS.jsonl`,
+ * (a design choice for a person), security incidents in `supervisor/ALERTS.jsonl`,
  * and every verdict is one `supervisor.verdict` row in the journal when this
  * checkout has a product store.
  */

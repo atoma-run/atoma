@@ -156,7 +156,7 @@ export function verdictPromptText(runId: string): string {
   return [
     `Report on the post-mortem verdict for run "${runId}".`,
     '',
-    'Call atoma_verdict_show with that runId. Report the grade and the assessment, then each finding with its kind (a defect names a mechanism in src/; a mechanism_candidate is cooling-off backlog and never a same-day change; a security_incident is an alert for a person; an observation demands nothing), its confidence, and the evidence refs it cites. Report the analysis cost and the models served from the metadata.',
+    'Call atoma_verdict_show with that runId. Report the grade and the assessment, then each finding with its kind (a defect names a mechanism in src/; a mechanism_candidate is backlog for a design choice a person makes; a security_incident is an alert for a person; an observation demands nothing), its confidence, and the evidence refs it cites. Report the analysis cost and the models served from the metadata.',
     '',
     VERDICT_CAVEAT,
   ].join('\n');

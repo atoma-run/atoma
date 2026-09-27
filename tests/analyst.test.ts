@@ -324,7 +324,7 @@ describe('analyseRun', () => {
       fixDirection: null,
     });
     expect(row['verdictPath']).toBe(result.verdictPath);
-    // It is a defect, so it never reaches the cooling-off design queue.
+    // It is a defect, so it never reaches the design backlog.
     expect(existsSync(join(f.supervisorDir, 'backlog.jsonl'))).toBe(false);
   });
 

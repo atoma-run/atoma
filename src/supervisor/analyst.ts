@@ -42,7 +42,7 @@ import {
  *     read-only and never replays model-authored commands — that rule applies
  *     to the supervisor itself.
  *   - A `mechanism_candidate` goes to the dated backlog and nowhere else:
- *     COOLING-OFF says a new gate is never designed the day it is found.
+ *     a new gate is a design choice a person makes.
  *   - A `defect` is indexed in `defects.jsonl` AND left in the verdict for the
  *     mender. The index is not a work queue — the mender reads verdicts, as
  *     before — it is what makes the analyst's defect rate readable without
@@ -219,7 +219,7 @@ export function routeVerdict(
           evidence: finding.evidence,
           confidence: finding.confidence,
           fixDirection: finding.proposedFix ?? null,
-          coolingOff: 'design later against the full incident set, never same-day',
+          disposition: 'a design choice for a person, against the collected incidents',
         }) + '\n'
       );
     }

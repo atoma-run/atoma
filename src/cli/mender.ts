@@ -60,7 +60,7 @@ what it does:
   A person merges; merge → CI → the existing production deployment.
 
 what it never does:
-  Take a mechanism_candidate (COOLING-OFF), show the model any trace text,
+  Take a mechanism_candidate (a design choice for a person), show the model any trace text,
   merge, or run beside a live run. Refusals keep the worktree for inspection.
 
 provider:
