@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { httpObservationSchema } from './attestation.js';
+import { MAX_VIEWPORT_PX, MIN_VIEWPORT_PX, type httpObservationSchema } from './attestation.js';
 
 /**
  * THE ACCEPTANCE CHECKLIST — what a run says, before planning, it will prove.
@@ -287,17 +287,90 @@ export const checklistCoverageSchema = z.object({
    * mechanical status, never in place of it.
    */
   judgement: z.object({ met: z.boolean(), reason: z.string().max(400).optional() }).strict().optional(),
+  /**
+   * Each width the criterion's text names, and whether THIS attempt laid a
+   * page out at it: `passed` when a browser check there came back ok,
+   * `failed` when every one there failed, `not-laid-out` when none ran there.
+   */
+  layouts: z.array(z.object({
+    width: z.number().int().positive(),
+    status: z.enum(['passed', 'failed', 'not-laid-out']),
+    observationRefs: z.array(z.string()),
+  }).strict()).optional(),
 });
 export type ChecklistCoverage = z.infer<typeof checklistCoverageSchema>;
 
-/** Mechanical coverage of each item from this attempt's HTTP observations. */
+/** One browser check of this attempt: the width it laid the page out at and its verdict. */
+export interface LayoutObservation { readonly eventId: string; readonly width: number; readonly ok: boolean }
+
+// "375 px", "1280px", "375-pixel", and the widths listed before one unit:
+// "375 and 1280 px", "320, 768 or 1024px".
+const NAMED_WIDTHS = /(?<![\d.,])((?:\d{3,4}\s*(?:px)?\s*(?:,|\band\b|\bor\b|&|\/)\s*)*\d{3,4})\s*-?\s*(?:px|pixels?)\b/gi;
+// "375 x 667 px" and "1920×1080 px" name a width then a height.
+const WIDTH_BY_HEIGHT = /(?<![\d.,])(\d{3,4})\s*[x×]\s*\d{3,4}(?!\d)/gi;
+// The width must be a SCREEN's, said by what surrounds the number: a screen
+// noun after it ("a 375 px wide phone", "a 375-pixel phone"), a screen width
+// before it ("viewport width of 375 px"), or "at 375 px" read as a width —
+// followed by "wide" or "on desktop", or in a criterion about horizontal
+// scroll or overflow.
+// Element sizes and thresholds are left out: "the sidebar is fixed at 280 px
+// wide", "max width of 720 px", "thumbnails render at 256 px", "below 768 px".
+const SCREEN_AFTER = /^\s*(?:-?\s*wide\s+)?(?:screen|viewport|phone|mobile|tablet|desktop|laptop|window|display|device)s?\b/i;
+const SCREEN_WIDTH_BEFORE = /(?:\b(?:viewport|screen|window|device)s?(?:\s+widths?)?|\bat\s+widths?)(?:\s+of)?\s+(?:(?:a|an|the)\s+)?$/i;
+const AT_BEFORE = /\bat\s+(?:(?:a|an)\s+)?$/i;
+const ELEMENT_AT_BEFORE = /\b(?:is|are|fixed|set|kept|stays?|capped|limited)\s+at\s+(?:(?:a|an)\s+)?$/i;
+const WIDE_AFTER = /^\s*wide\b(?!\s+(?:banner|image|column|sidebar|panel|card|button|logo|chart|table)s?\b)/i;
+const ON_SCREEN_AFTER = /^\s*(?:on|for)\s+(?:(?:a|an|the)\s+)?(?:screen|viewport|phone|mobile|tablet|desktop|laptop|window|display|device)s?\b/i;
+const HORIZONTAL_FIT = /\bhorizontal(?:ly)?\s+scroll|\boverflow/i;
+
+/**
+ * The viewport widths a criterion's text names, in CSS px, in the order
+ * written: only a screen's width, and only one `validate_html` can lay a page
+ * out at. Production runs a939374e and 7389feee (2026-09-27) were approved on
+ * "no horizontal scroll at 375 px" with every page laid out at 800x600, the
+ * second after its own refusal had named the gap: a comparison the acceptor
+ * was shown, and did not make. What this returns is shown beside the item and
+ * handed to the planner and the molecule; it overrides no judgement.
+ */
+export function namedLayoutWidths(raw: string): number[] {
+  const text = raw.replace(WIDTH_BY_HEIGHT, '$1');
+  const widths: number[] = [];
+  for (const match of text.matchAll(NAMED_WIDTHS)) {
+    const before = text.slice(Math.max(0, match.index - 32), match.index);
+    const after = text.slice(match.index + match[0].length, match.index + match[0].length + 32);
+    const at = AT_BEFORE.test(before) && !ELEMENT_AT_BEFORE.test(before) &&
+      (WIDE_AFTER.test(after) || ON_SCREEN_AFTER.test(after) || HORIZONTAL_FIT.test(text));
+    if (!at && !SCREEN_WIDTH_BEFORE.test(before) && !SCREEN_AFTER.test(after)) continue;
+    for (const digits of match[1]!.match(/\d{3,4}/g) ?? []) {
+      const width = Number(digits);
+      if (width >= MIN_VIEWPORT_PX && width <= MAX_VIEWPORT_PX && !widths.includes(width)) widths.push(width);
+    }
+  }
+  return widths;
+}
+
+function coverLayouts(behaviour: string, layouts: readonly LayoutObservation[]): NonNullable<ChecklistCoverage['layouts']> {
+  return namedLayoutWidths(behaviour).map((width) => {
+    const there = layouts.filter((layout) => layout.width === width);
+    return {
+      width,
+      status: there.length === 0 ? 'not-laid-out' as const : there.some((layout) => layout.ok) ? 'passed' as const : 'failed' as const,
+      observationRefs: there.map((layout) => layout.eventId),
+    };
+  });
+}
+
+/** Mechanical coverage of each item from this attempt's HTTP and browser observations. */
 export function coverAcceptanceChecklist(
   checklist: AcceptanceChecklist,
-  observations: ReadonlyArray<{ readonly eventId: string; readonly http: HttpObservation }>
+  observations: ReadonlyArray<{ readonly eventId: string; readonly http: HttpObservation }>,
+  layouts: readonly LayoutObservation[] = []
 ): ChecklistCoverage[] {
   return checklist.map((item) => {
     if (item.check.kind === 'review') {
-      return { id: item.id, behaviour: item.behaviour, kind: 'review', status: 'review', observationRefs: [] };
+      const widths = coverLayouts(item.behaviour, layouts);
+      return { id: item.id, behaviour: item.behaviour, kind: 'review', status: 'review', observationRefs: [],
+        ...(widths.length > 0 ? { layouts: widths } : {}) };
     }
     const check = item.check;
     const refs = observations.filter((o) => httpCheckMatches(check, o.http)).map((o) => o.eventId);
@@ -312,7 +385,19 @@ function describeCheck(check: ChecklistCheck): string {
 
 /** The lines the PLANNER receives, in the root task's inputs. */
 export function checklistPlanningLines(checklist: AcceptanceChecklist): string[] {
-  return checklist.map((item) => `${item.id}: ${item.behaviour} (${describeCheck(item.check)})`);
+  return checklist.map((item) => {
+    const widths = item.check.kind === 'review' ? namedLayoutWidths(item.behaviour) : [];
+    const layout = widths.length > 0
+      ? `; lay the page out at ${widths.map((width) => `${width} px`).join(' and ')} wide with validate_html viewport`
+      : '';
+    return `${item.id}: ${item.behaviour} (${describeCheck(item.check)}${layout})`;
+  });
+}
+
+const LAYOUT_LABEL = { 'passed': 'laid out, passed', 'failed': 'laid out, every check there FAILED', 'not-laid-out': 'NOT LAID OUT' } as const;
+
+function describeLayouts(layouts: ChecklistCoverage['layouts']): string {
+  return layouts?.length ? `; ${layouts.map((layout) => `${layout.width} px: ${LAYOUT_LABEL[layout.status]}`).join(', ')}` : '';
 }
 
 /**
@@ -330,10 +415,11 @@ export function renderChecklistCoverage(
   options: { readonly landed?: boolean; readonly source?: ChecklistSource } = {}
 ): string {
   const user = options.source === 'user';
-  if (coverage.length === 0 || (!user && !coverage.some((entry) => entry.kind === 'http'))) return '';
+  const layouts = coverage.some((entry) => entry.layouts?.length);
+  if (coverage.length === 0 || (!user && !layouts && !coverage.some((entry) => entry.kind === 'http'))) return '';
   const lines = coverage.map((entry, i) => {
     const label = entry.status === 'covered' ? 'OBSERVED' : entry.status === 'uncovered' ? 'NOT OBSERVED' : 'REVIEW';
-    return `- [${label}] ${entry.id} ${entry.behaviour} (${describeCheck(checklist[i]!.check)})`;
+    return `- [${label}] ${entry.id} ${entry.behaviour} (${describeCheck(checklist[i]!.check)}${describeLayouts(entry.layouts)})`;
   });
   return [
     user
@@ -345,6 +431,11 @@ export function renderChecklistCoverage(
     'that request through fetch_url to a server it started, and got that status. OBSERVED is status only,',
     'not bound to the current bytes. NOT OBSERVED means no such request was seen — a request made with',
     'run_shell is invisible here — not that the behaviour is broken; weigh it with the rest of the evidence.',
+    ...(layouts
+      ? ['A width after an item is a screen width its text names. LAID OUT / NOT LAID OUT are mechanical too:',
+        'whether a validate_html call of THIS attempt laid a page out at that width. A layout at another width,',
+        'or a stylesheet read, shows nothing about that width.']
+      : []),
     ...(options.landed
       ? ['This result LANDED before all its phases ran: NOT OBSERVED items from unfinished phases are expected.']
       : []),

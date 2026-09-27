@@ -4,6 +4,7 @@ import {
   checklistPlanningLines,
   coverAcceptanceChecklist,
   httpCheckMatches,
+  namedLayoutWidths,
   parseAcceptanceChecklist,
   renderChecklistCoverage,
 } from '../src/contracts/acceptanceChecklist.js';
@@ -86,6 +87,75 @@ describe('coverage and rendering', () => {
       'c2: unknown id is 404 (GET /api/notes/:id → 404)',
       'c3: a page shows the list (judged by review)',
     ]);
+  });
+});
+
+describe('widths a criterion names', () => {
+  // Runs a939374e and 7389feee (2026-09-27): "no horizontal scroll at 375 px"
+  // was approved with every page laid out at 800x600.
+  it.each([
+    ['The layout has no horizontal scroll at 375 px wide and uses the extra width at 1280 px', [375, 1280]],
+    ['usable at 375 and 1280 pixels wide', [375, 1280]],
+    ['Works on a 320, 768 or 1024px screen', [320, 768, 1024]],
+    ['a 375-pixel phone layout', [375]],
+    ['No horizontal scroll at 375 px, and 375px again on mobile', [375]],
+    ['It must be usable on a 375 px wide phone and on a 1280 px desktop', [375, 1280]],
+    ['Readable at widths of 375 and 1280 px', [375, 1280]],
+    ['The sidebar is 240px', []],
+    ['The chart is 600 px wide on desktop', []],
+    // Width then height: the width is the first number (adversarial review 2026-09-27).
+    ['Usable on a 375 x 667 px phone', [375]],
+    ['Crisp on a 1920×1080 px desktop', [1920]],
+    ['on a 1366 x 768 px screen', [1366]],
+    // Element sizes and thresholds are not screen widths.
+    ['The main column has a max width of 720 px', []],
+    ['Content is centred with max-width 1280px', []],
+    ['The sidebar is fixed at 280 px wide', []],
+    ['Uploaded images are downscaled to 1024 px', []],
+    ['Thumbnails render at 256 px', []],
+    ['The chart renders at 600 px tall', []],
+    ['For the 3000 px wide banner image', []],
+    ['Export PNG at 1080 px', []],
+    ['Posts load on scroll at 400 px from the bottom', []],
+    ['Below 768 px the nav collapses into a menu button', []],
+    ['The viewport width of 1280 px shows two columns', [1280]],
+    ['The estimate sits beside the steps at 1280 px on desktop', [1280]],
+    ['A 100 px wide layout', []],
+    ['A 5000 px wide screen', []],
+    ['The desktop total shows 1500 EUR', []],
+  ] as const)('%s → %j', (text, widths) => {
+    expect(namedLayoutWidths(text)).toEqual(widths);
+  });
+
+  const list = parseAcceptanceChecklist({ items: [
+    { behaviour: 'No horizontal scroll at 375 px wide, and the estimate sits beside the steps at 1280 px', check: { kind: 'review' } },
+    { behaviour: 'the total is shown', check: { kind: 'review' } },
+  ] });
+
+  it('covers each width from the layouts this attempt observed', () => {
+    const coverage = coverAcceptanceChecklist(list, [], [
+      { eventId: 'b1', width: 800, ok: true },
+      { eventId: 'b2', width: 1280, ok: false },
+      { eventId: 'b3', width: 1280, ok: true },
+    ]);
+    expect(coverage[0]!.layouts).toEqual([
+      { width: 375, status: 'not-laid-out', observationRefs: [] },
+      { width: 1280, status: 'passed', observationRefs: ['b2', 'b3'] },
+    ]);
+    expect(coverage[1]!.layouts).toBeUndefined();
+    const failed = coverAcceptanceChecklist(list, [], [{ eventId: 'b4', width: 375, ok: false }]);
+    expect(failed[0]!.layouts?.[0]).toEqual({ width: 375, status: 'failed', observationRefs: ['b4'] });
+    // A DRAFTED list of review items renders once one names a width: that item adds an observation.
+    const block = renderChecklistCoverage(list, coverage);
+    expect(block).toContain('(judged by review; 375 px: NOT LAID OUT, 1280 px: laid out, passed)');
+    expect(block).toMatch(/or a stylesheet read, shows nothing about that width/);
+  });
+
+  it('tells the planner to lay the page out at each width', () => {
+    expect(checklistPlanningLines(list)[0]).toBe(
+      'c1: No horizontal scroll at 375 px wide, and the estimate sits beside the steps at 1280 px ' +
+      '(judged by review; lay the page out at 375 px and 1280 px wide with validate_html viewport)');
+    expect(checklistPlanningLines(list)[1]).toBe('c2: the total is shown (judged by review)');
   });
 });
 

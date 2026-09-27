@@ -456,6 +456,7 @@ export function probeEntryProblems(e: unknown, i: number): string[] {
         'keyup',
         'keypress',
         'upload',
+        'select',
       ]);
       inter.forEach((action, actionIndex) => {
         if (!action || typeof action !== 'object' || Array.isArray(action)) {
@@ -496,6 +497,13 @@ export function probeEntryProblems(e: unknown, i: number): string[] {
         ) {
           problems.push(
             `entry #${i} (web): interaction #${actionIndex} upload requires string selector and file`
+          );
+        } else if (
+          a['type'] === 'select' &&
+          (typeof a['selector'] !== 'string' || (typeof a['value'] !== 'string' && typeof a['value'] !== 'number'))
+        ) {
+          problems.push(
+            `entry #${i} (web): interaction #${actionIndex} select requires string selector and value`
           );
         }
       });

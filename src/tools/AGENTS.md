@@ -161,6 +161,16 @@ Neighbours:
   spent its whole budget trying (2026-09-26). The file goes through
   `sandbox.resolve` and `lstat`: never a path or a symlink outside the jail,
   because its bytes reach the page and the trace.
+- A `select` interaction chooses a `<select>` option by value or label, or
+  sets a range, date, month, week, time, datetime-local, colour or number
+  input, then fires input and change. A headless page opens no dropdown: a
+  click on an `<option>` has no bounding box, arrow keys on a closed select
+  change nothing, and no interaction could move a slider, so runs 556c9e54
+  and 068cfe14 (2026-09-27) proved filters by assigning `.value` from the
+  smoke, which executes no interaction. It refuses what a person could not
+  choose (not rendered, disabled, no such option) and warns where a slider's
+  bounds moved the value. Keyboard interactions focus their `selector` first:
+  a keypress meant for a slider went to the checkbox clicked before it.
 - `validate_html` reports `requestedInteractions`, `ignoredInteractions` and
   the served `document` digest alongside `interactionLog`. The counts are the
   CALLER's fact and the log is the runtime's; a result that carries only one

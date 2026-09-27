@@ -15,6 +15,7 @@ import { parsePayloadTolerant, parseWith, planSchema } from './json.js';
 import type { Skill } from '../skills/types.js';
 import { witnessesFromPayload, type Witness } from '../contracts/witness.js';
 import { renderObservations, type AttestationRecord } from '../contracts/attestation.js';
+import { namedLayoutWidths } from '../contracts/acceptanceChecklist.js';
 
 /**
  * Where a molecule puts what only EXERCISES the artefact. Publication and the
@@ -30,6 +31,26 @@ const SCRATCH_FILE_LINES: readonly string[] = [
   `  browser check — goes under "${SCRATCH_DIRECTORY}/" (e.g. "${SCRATCH_DIRECTORY}/invalid-rows.csv"): the host never`,
   `  publishes it. Files the task asks for (samples, docs, tests) stay where the task puts them.`,
 ];
+
+/**
+ * The browser-proof lines no stored prompt carried, at execution for the same
+ * reason as the scratch rule. Production runs 2026-09-27: molecules holding a
+ * `viewport` argument laid every page out at 800x600 under "usable at 375 px",
+ * including after a refusal that named the gap, and proved every <select> by
+ * assigning its value from the smoke, the choice tool not existing yet. The
+ * widths are read from the task and its inputs, the approved criteria among them.
+ */
+export function browserProofLines(task: Task): string[] {
+  const widths = namedLayoutWidths(`${task.description}\n${task.inputs ? JSON.stringify(task.inputs) : ''}`);
+  return [
+    `- Choose from a <select>, or set a range, date or colour input, with the interaction`,
+    `  {type:"select", selector, value}; a click on an <option> or arrow keys on a closed select change nothing.`,
+    ...(widths.length > 0
+      ? [`- This task names ${widths.map((width) => `${width} px`).join(' and ')} wide. Lay the page out at EACH with its own`,
+        `  validate_html call, viewport {width: ${widths[0]}} and so on: the default 800x600 proves nothing about another width.`]
+      : []),
+  ];
+}
 import { SkillRegistry } from '../skills/registry.js';
 import { namespaceOf, type SkillNamespace } from '../skills/namespace.js';
 import {
@@ -330,6 +351,7 @@ export class L1Atom extends Atom {
       `- On a retry, inspect the current state and complete the remaining work; do not repeat completed discovery or rewrite already-correct files.`,
       `- A requested answer/report file is a deliverable too: writing the main artifact does not replace writing that file.`,
       ...SCRATCH_FILE_LINES,
+      ...(hasValidator ? browserProofLines(task) : []),
       hasValidator
         ? `- For ANY web artifact you produce, call validate_html on the server URL.`
         : null,

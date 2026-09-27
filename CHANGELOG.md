@@ -28,6 +28,8 @@ corrections of the 2026-09-24 and 2026-09-25 code reviews.
   is refused with it.
 - A member's run preempts the post-run analysis instead of being refused
   behind it; the analysis resumes afterwards without losing its attempt.
+- Browser checks can choose an option of a drop-down list or set a slider,
+  date or colour field as a person would, and send keys to a named element.
 
 ### Fixed
 
@@ -56,6 +58,10 @@ corrections of the 2026-09-24 and 2026-09-25 code reviews.
   and the delivery review names the sizes each page was laid out at.
 - The static-web worker is told to write `<port>` in documentation, the rule
   its README is judged by.
+- For a criterion naming a screen width ("no horizontal scroll at 375 px"),
+  the delivery review is shown whether a page was laid out at that width, and
+  the planner and workers are told to check each width.
+- `write_file` and `edit_file` report sizes in bytes, not characters.
 - A Codex tool call with invalid arguments is told the parser's error and
   where it stands; the protocol shows how to encode a multi-line file.
 - A run refused because the one run slot is busy says why, without host

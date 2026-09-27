@@ -15,19 +15,27 @@ import {
   type AcceptanceChecklist,
   type ChecklistCoverage,
   type ChecklistSource,
+  type LayoutObservation,
 } from '../contracts/acceptanceChecklist.js';
 
 /**
- * Cover the checklist from the attempt's HTTP observations, taken BEFORE the
- * acceptor's own ground-truth probe runs: that probe fetches through the same
- * attesting executor, and the root must not cover a behaviour by looking.
+ * Cover the checklist from the attempt's HTTP and browser observations, taken
+ * BEFORE the acceptor's own ground-truth probe runs: that probe fetches and
+ * loads through the same attesting executor, and the root must not cover a
+ * behaviour by looking. An observation recorded without a viewport was laid
+ * out at 800x600, the only size there was before one was recorded.
  */
 function checklistCoverage(ctx: RunContext, checklist: AcceptanceChecklist): ChecklistCoverage[] {
-  const observations = (ctx.attestations?.forAttempt(ctx.attempt ?? 1) ?? []).flatMap((record) =>
+  const records = ctx.attestations?.forAttempt(ctx.attempt ?? 1) ?? [];
+  const observations = records.flatMap((record) =>
     record.observation.kind === 'execution' && record.observation.http
       ? [{ eventId: record.eventId, http: record.observation.http }]
       : []);
-  return coverAcceptanceChecklist(checklist, observations);
+  const layouts: LayoutObservation[] = records.flatMap((record) =>
+    record.observation.kind === 'browser'
+      ? [{ eventId: record.eventId, width: record.observation.viewport?.width ?? 800, ok: record.observation.ok }]
+      : []);
+  return coverAcceptanceChecklist(checklist, observations, layouts);
 }
 
 /**
@@ -36,8 +44,10 @@ function checklistCoverage(ctx: RunContext, checklist: AcceptanceChecklist): Che
  * observation line already carries its viewport; one line naming them all is
  * what lets the acceptor set "at 375 and 1280 pixels wide" against
  * "800x600" — production run 134d916a (2026-09-26) was accepted on overflow
- * checks that were only ever laid out at 800x600. No criterion text is
- * parsed: the acceptor compares.
+ * checks that were only ever laid out at 800x600. It serves the goal's own
+ * widths; a width a CRITERION names is also covered mechanically, item by
+ * item (`namedLayoutWidths`), because the acceptor, shown this line, still
+ * approved 800x600 twice (runs a939374e and 7389feee, 2026-09-27).
  */
 export function observedLayoutsBlock(ctx: RunContext): string {
   const layouts = new Map<string, Set<string>>();

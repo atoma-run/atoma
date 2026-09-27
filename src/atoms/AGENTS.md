@@ -55,9 +55,19 @@ Neighbours:
   against the root floor. The floor is not inherited by phases. The review
   reads one mechanical line naming the sizes the attempt's pages were laid
   out at (`observedLayoutsBlock`): run 134d916a was accepted on "no overflow
-  at 375 and 1280 pixels" with every check at 800x600. No criterion text is
-  parsed — a width detector is the vocabulary-frozen kind this file warns
-  about; the acceptor compares. When criteria are shown, the acceptor also
+  at 375 and 1280 pixels" with every check at 800x600. That line alone did
+  not hold: runs a939374e and 7389feee (2026-09-27) were approved on "no
+  horizontal scroll at 375 px" at 800x600 again, the second after its own
+  refusal had named the gap, and in both no molecule had laid a page out at
+  a named width. So a screen width a CRITERION names (`namedLayoutWidths`:
+  "at 375 px wide", "a 375-pixel phone", "viewport width of 1280 px") is
+  shown item by item as LAID OUT or NOT LAID OUT, and reaches the planner
+  and every browser molecule as an instruction to lay the page out there.
+  It is a fact beside the judgement and overrides none: a detector that
+  refused on its own reading would fail as a wrong gate, which the declared
+  obligations below forbid, and it was designed in the session that
+  surfaced the incident. Making an unlaid width a hard refusal is an owner
+  decision (docs/incidents/production-runs-2026-09-27.md). When criteria are shown, the acceptor also
   judges EACH one (`criteria`, kept on the checklist items as `judgement`); a
   USER list is always read, never approved mechanically past, and an approval
   that judges one of its criteria unmet is the acceptor contradicting itself,

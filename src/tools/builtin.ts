@@ -27,7 +27,7 @@ import {
 // them from this module keep working.
 export { appendHttpProbe, mergeProbeManifestWrite, mergeShellProbe, probeManifestWriteRefusal };
 import { elementForTool } from '../contracts/toolTaxonomy.js';
-import { PROBE_URL_REFUSAL_PREFIX, SMOKE_PREFLIGHT_REFUSAL_PREFIX } from '../contracts/attestation.js';
+import { MAX_VIEWPORT_PX, MIN_VIEWPORT_PX, PROBE_URL_REFUSAL_PREFIX, SMOKE_PREFLIGHT_REFUSAL_PREFIX } from '../contracts/attestation.js';
 import puppeteer, { type Browser } from 'puppeteer';
 import { processHoldsListeningPort } from './listeningPorts.js';
 
@@ -253,8 +253,8 @@ export function writeFileTool(opts: BuiltinToolOptions): BuiltinTool {
           ? mergeProbeManifestWrite(readFileSync(abs, 'utf8'), content)
           : content;
       writeFileSync(abs, finalContent, 'utf8');
-      opts.logger?.info(`[tool:write_file] ${path} (${finalContent.length} bytes)`);
-      return { ok: true, path, bytes: finalContent.length };
+      opts.logger?.info(`[tool:write_file] ${path} (${Buffer.byteLength(finalContent, 'utf8')} bytes)`);
+      return { ok: true, path, bytes: Buffer.byteLength(finalContent, 'utf8') };
     },
   };
 }
@@ -403,9 +403,9 @@ export function editFileTool(opts: BuiltinToolOptions): BuiltinTool {
         : content.replace(oldString, newString);
       writeFileSync(abs, next, 'utf8');
       opts.logger?.info(
-        `[tool:edit_file] ${path} (${replaceAll ? occurrences : 1} replacement${occurrences > 1 && replaceAll ? 's' : ''}, ${next.length} bytes)`
+        `[tool:edit_file] ${path} (${replaceAll ? occurrences : 1} replacement${occurrences > 1 && replaceAll ? 's' : ''}, ${Buffer.byteLength(next, 'utf8')} bytes)`
       );
-      return { ok: true, path, replacements: replaceAll ? occurrences : 1, bytes: next.length };
+      return { ok: true, path, replacements: replaceAll ? occurrences : 1, bytes: Buffer.byteLength(next, 'utf8') };
     },
   };
 }
@@ -428,7 +428,7 @@ export function readFileTool(opts: BuiltinToolOptions): BuiltinTool {
       const path = expectString(args, 'path');
       const abs = opts.sandbox.resolve(path);
       const content = readFileSync(abs, 'utf8');
-      opts.logger?.debug(`[tool:read_file] ${path} (${content.length} bytes)`);
+      opts.logger?.debug(`[tool:read_file] ${path} (${Buffer.byteLength(content, 'utf8')} bytes)`);
       return { path, content };
     },
   };
@@ -1617,15 +1617,15 @@ export function validateHtmlTool(opts: BuiltinToolOptions): BuiltinTool {
             // a partial enumeration of a seven-verb regex would reproduce the
             // frozen-vocabulary defect exactly.
             description:
-              'Sequence of user interactions replayed AFTER the page loads and COMPLETELY BEFORE `smoke`: the whole list runs first, then `smoke` is evaluated once, so a snapshot taken at the top of your smoke is a POST-interaction snapshot. Nothing observes the page between two interactions. Use type with selector+text for forms; keypress accepts one key name, not a whole string. MUTUALLY EXCLUSIVE with a self-driving smoke: if `smoke` itself calls a state-changing method on the page, EVERY interaction here is DISCARDED before the page opens and the smoke sees a page nobody touched. Pick one per call — replay input here and let `smoke` only READ state, or send `interactions: []` and drive every step inside the smoke.',
+              'Sequence of user interactions replayed AFTER the page loads and COMPLETELY BEFORE `smoke`: the whole list runs first, then `smoke` is evaluated once, so a snapshot taken at the top of your smoke is a POST-interaction snapshot. Nothing observes the page between two interactions. Use type with selector+text for text fields and select with selector+value for a <select> or a range/date/colour/number input; keypress accepts one key name, not a whole string. MUTUALLY EXCLUSIVE with a self-driving smoke: if `smoke` itself calls a state-changing method on the page, EVERY interaction here is DISCARDED before the page opens and the smoke sees a page nobody touched. Pick one per call — replay input here and let `smoke` only READ state, or send `interactions: []` and drive every step inside the smoke.',
             items: {
               type: 'object',
               properties: {
                 type: {
                   type: 'string',
-                  enum: ['click', 'rightclick', 'type', 'keydown', 'keyup', 'keypress', 'upload'],
+                  enum: ['click', 'rightclick', 'type', 'keydown', 'keyup', 'keypress', 'upload', 'select'],
                   description:
-                    'Event kind. "type" enters a text string into selector; "keypress" = one keydown then keyup after holdMs; "upload" attaches a workspace file to the <input type="file"> at selector, firing its input and change events as a person picking it would.',
+                    'Event kind. "type" enters a text string into selector; "keypress" = one keydown then keyup after holdMs; "upload" attaches a workspace file to the <input type="file"> at selector, firing its input and change events as a person picking it would; "select" sets the <select> at selector to the option whose value (or label) is `value`, or a range, date, month, week, time, datetime-local, colour or number input to `value`, firing input and change as a person choosing it would.',
                 },
                 file: {
                   type: 'string',
@@ -1634,7 +1634,7 @@ export function validateHtmlTool(opts: BuiltinToolOptions): BuiltinTool {
                 selector: {
                   type: 'string',
                   description:
-                    'Mouse-only. CSS selector. If omitted, x/y are used as absolute page coordinates.',
+                    'CSS selector of the target. A mouse event clicks it (if omitted, x/y are absolute page coordinates); a keyboard event focuses it first (if omitted, keys go to whatever has focus); type, select and upload fill it.',
                 },
                 x: {
                   type: 'number',
@@ -1650,6 +1650,10 @@ export function validateHtmlTool(opts: BuiltinToolOptions): BuiltinTool {
                 text: {
                   type: 'string',
                   description: 'type-only. Full text to enter in the selected form field.',
+                },
+                value: {
+                  type: 'string',
+                  description: 'select-only. The option value or label to choose, or the value to set ("East", "12", "2025-03").',
                 },
                 holdMs: {
                   type: 'number',
@@ -1956,10 +1960,13 @@ ${pageRevision}`;
               );
             } else if (it.type === 'keydown') {
               if (!it.key) throw new Error('keydown requires "key"');
+              const target = await focusKeyTarget(page, it.selector, warnings);
               await page.keyboard.down(it.key as import('puppeteer').KeyInput);
-              interactionLog.push(`keydown ${it.key}`);
+              interactionLog.push(`keydown ${it.key}${target}`);
             } else if (it.type === 'keyup') {
               if (!it.key) throw new Error('keyup requires "key"');
+              // No focus here: a keyup releases the key where the keydown left
+              // focus, which a Tab keydown has just moved on purpose.
               await page.keyboard.up(it.key as import('puppeteer').KeyInput);
               interactionLog.push(`keyup ${it.key}`);
             } else if (it.type === 'keypress') {
@@ -1981,10 +1988,11 @@ ${pageRevision}`;
                 );
               }
               const key = it.key as import('puppeteer').KeyInput;
+              const target = await focusKeyTarget(page, it.selector, warnings);
               await page.keyboard.down(key);
               await new Promise((r) => setTimeout(r, holdMs));
               await page.keyboard.up(key);
-              interactionLog.push(`keypress ${it.key} (${holdMs}ms)`);
+              interactionLog.push(`keypress ${it.key} (${holdMs}ms)${target}`);
             } else if (it.type === 'upload') {
               // THE ONE WAY TO PROVE AN UPLOAD. A click on a file input opens a
               // native chooser the headless page cannot answer, so the README's
@@ -2006,6 +2014,26 @@ ${pageRevision}`;
               if (!isFileInput) throw new Error(`upload selector ${it.selector} is not an <input type="file">`);
               await (input as import('puppeteer').ElementHandle<HTMLInputElement>).uploadFile(abs);
               interactionLog.push(`upload ${it.file} into ${it.selector}`);
+            } else if (it.type === 'select') {
+              // THE ONE WAY TO CHOOSE FROM A FORM CONTROL. A headless page opens
+              // no native <select> popup, so neither a click on an <option>
+              // ("no bounding box") nor arrow keys on a closed select change
+              // it, and nothing could set a range slider: the only proof left
+              // was a smoke assigning `.value` itself, which executes no
+              // interaction (production runs 556c9e54 and 068cfe14, 2026-09-27).
+              if (!it.selector) throw new Error('select requires "selector", the <select> or input to set');
+              if (it.value === undefined) throw new Error('select requires "value", the option or value to choose');
+              const control = await page.$(it.selector);
+              if (!control) throw new Error(`select selector ${it.selector} matched no element`);
+              const chosen = await control.evaluate(chooseControlValue, it.value);
+              if ('error' in chosen) throw new Error(`select ${it.selector}: ${chosen.error}`);
+              if (chosen.value !== it.value && chosen.label !== it.value) {
+                warnings.push(
+                  `select ${it.selector}: the control settled on ${JSON.stringify(chosen.value)}, not ${JSON.stringify(it.value)} ` +
+                    '(its min, max or step moved it); assert the value it actually holds'
+                );
+              }
+              interactionLog.push(`select ${JSON.stringify(chosen.value)} in ${it.selector}`);
             }
             // Let listeners run / raf fire.
             await new Promise((r) => setTimeout(r, 80));
@@ -2148,8 +2176,7 @@ ${pageRevision}`;
 
 /** Puppeteer's own default, kept explicit so the result can report it. */
 export const DEFAULT_VIEWPORT = Object.freeze({ width: 800, height: 600 });
-export const MIN_VIEWPORT_PX = 240;
-export const MAX_VIEWPORT_PX = 3840;
+export { MAX_VIEWPORT_PX, MIN_VIEWPORT_PX };
 
 /**
  * The layout size a `validate_html` call asked for. A malformed request is
@@ -2176,7 +2203,7 @@ export function parseViewport(raw: unknown): { width: number; height: number } {
 }
 
 export interface ParsedInteraction {
-  type: 'click' | 'rightclick' | 'type' | 'keydown' | 'keyup' | 'keypress' | 'upload';
+  type: 'click' | 'rightclick' | 'type' | 'keydown' | 'keyup' | 'keypress' | 'upload' | 'select';
   selector?: string;
   x?: number;
   y?: number;
@@ -2185,6 +2212,64 @@ export interface ParsedInteraction {
   holdMs?: number;
   /** upload-only: the workspace-relative file to attach. */
   file?: string;
+  /** select-only: the option value or label, or the control value, to choose. */
+  value?: string;
+}
+
+/**
+ * Focus the element a keyboard interaction names, so its keys reach it rather
+ * than whatever held focus: `keypress ArrowRight` meant for a slider used to
+ * go to the checkbox clicked before it (production run 068cfe14, 2026-09-27).
+ * The selector was documented as mouse-only and ignored for keys until then,
+ * so one that matches nothing is a warning and the keys go where they always
+ * went. Returns the log suffix naming the target.
+ */
+async function focusKeyTarget(page: import('puppeteer').Page, selector: string | undefined, warnings: string[]): Promise<string> {
+  if (!selector) return '';
+  try {
+    await page.focus(selector);
+    return ` on ${selector}`;
+  } catch {
+    warnings.push(`keyboard selector ${selector} matched no element; the key went to whatever had focus`);
+    return '';
+  }
+}
+
+/**
+ * Runs IN THE PAGE: sets a <select> or a value-typed <input> as a person's
+ * choice would, then fires input and change. Self-contained on purpose, since
+ * Puppeteer serialises it. A control nobody could reach (not rendered,
+ * disabled, read-only) is refused, as a click on it would fail.
+ */
+function chooseControlValue(element: Element, value: string): { value: string; label?: string } | { error: string } {
+  const settable = ['range', 'date', 'month', 'week', 'time', 'datetime-local', 'color', 'number'];
+  if (element.getClientRects().length === 0 || getComputedStyle(element).visibility === 'hidden') {
+    return { error: 'the control is not rendered, so nobody could choose from it' };
+  }
+  element.scrollIntoView({ block: 'center' });
+  if (element instanceof HTMLSelectElement) {
+    if (element.disabled) return { error: 'the <select> is disabled' };
+    const options = [...element.options];
+    const option = options.find((candidate) => candidate.value === value) ??
+      options.find((candidate) => candidate.text.trim() === value);
+    if (!option) {
+      return { error: `no <option> has the value or label ${JSON.stringify(value.slice(0, 80))}; its values are ${JSON.stringify(options.slice(0, 12).map((candidate) => candidate.value.slice(0, 40)))}` };
+    }
+    if (option.disabled) return { error: `the option ${JSON.stringify(value)} is disabled` };
+    element.value = option.value;
+  } else if (element instanceof HTMLInputElement && settable.includes(element.type)) {
+    if (element.disabled || element.readOnly) return { error: `the <input type="${element.type}"> is ${element.disabled ? 'disabled' : 'read-only'}` };
+    // The prototype setter, not the property: a framework that shadows
+    // `value` on the instance must still see the change it tracks.
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(element, value);
+  } else {
+    const type = element instanceof HTMLInputElement ? ` type="${element.type}"` : '';
+    return { error: `it is a <${element.tagName.toLowerCase()}${type}>: select sets a <select>, or a range, date, month, week, time, datetime-local, colour or number input. Use "type" for a text field and "click" for a checkbox or radio` };
+  }
+  element.dispatchEvent(new Event('input', { bubbles: true }));
+  element.dispatchEvent(new Event('change', { bubbles: true }));
+  const label = element instanceof HTMLSelectElement ? element.selectedOptions[0]?.text.trim() : undefined;
+  return { value: element.value, ...(label !== undefined ? { label } : {}) };
 }
 
 export function parseInteractions(raw: unknown): ParsedInteraction[] {
@@ -2201,7 +2286,8 @@ export function parseInteractions(raw: unknown): ParsedInteraction[] {
       t !== 'keydown' &&
       t !== 'keyup' &&
       t !== 'keypress' &&
-      t !== 'upload'
+      t !== 'upload' &&
+      t !== 'select'
     )
       continue;
     const parsed: ParsedInteraction = { type: t };
@@ -2222,6 +2308,10 @@ export function parseInteractions(raw: unknown): ParsedInteraction[] {
     }
     if (typeof rec['text'] === 'string') {
       parsed.text = rec['text'];
+    }
+    // A number is the same choice as its digits: `{ value: 12 }` for a slider.
+    if (typeof rec['value'] === 'string' || (typeof rec['value'] === 'number' && Number.isFinite(rec['value']))) {
+      parsed.value = String(rec['value']);
     }
     if (typeof rec['holdMs'] === 'number' && Number.isFinite(rec['holdMs'])) {
       parsed.holdMs = rec['holdMs'];

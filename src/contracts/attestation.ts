@@ -90,6 +90,10 @@ export const browserObservationSchema = z.object({
   viewport: z.object({ width: z.number().int().positive(), height: z.number().int().positive() }).strict().optional(),
 });
 
+/** The narrowest and widest layout `validate_html` accepts, in CSS px. */
+export const MIN_VIEWPORT_PX = 240;
+export const MAX_VIEWPORT_PX = 3840;
+
 export type ObservedDocument = z.infer<typeof observedDocumentSchema>;
 export type BrowserObservation = z.infer<typeof browserObservationSchema>;
 

@@ -559,6 +559,60 @@ describe('depth transition through the production supervision loop', () => {
     expect(refused.reasoning).toContain("the acceptor's own verdict read: looks done");
   });
 
+  it('shows the acceptor which widths a criterion names were laid out, and overrides no judgement', async () => {
+    // Runs a939374e and 7389feee (2026-09-27): "no horizontal scroll at 375 px"
+    // approved on "responsive rules present" with every page laid out at 800x600.
+    class Sized extends Executor {
+      override async execute(name: string, args: Record<string, unknown>): Promise<unknown> {
+        const raw = await super.execute(name, args);
+        const width = (args['viewport'] as { width?: number } | undefined)?.width ?? 800;
+        return name === 'validate_html' ? { ...(raw as Record<string, unknown>), viewport: { width, height: 600 } } : raw;
+      }
+    }
+    const layOut = async (ctx: RunContext, ...widths: number[]) => {
+      const fork = forkBranch(forkBranch(ctx, 'ancestor'), 'descendant');
+      for (const width of widths) await fork.tools!.execute('validate_html', { path: 'index.html', viewport: { width } });
+    };
+    const checklist = [{ id: 'c1', behaviour: 'No horizontal scroll at 375 px wide, and the estimate sits beside the steps at 1280 px',
+      check: { kind: 'review' as const } }];
+    const approve = () => jsonText({ approved: true, reasoning: 'responsive rules present',
+      criteria: [{ id: 'c1', met: true, reason: 'media queries cover both' }] });
+    const origin = { source: 'user' as const, digest: 'a'.repeat(64) };
+
+    const half = context(new Sized());
+    await layOut(half, 800, 1280);
+    half.llm.enqueueText(approve());
+    const shown = await acceptRootResult({ actor: new Actor(), task, result, ctx: half, floor, phaseCoverage: [],
+      checklist, checklistOrigin: origin });
+    expect(half.llm.calls[0]!.userContent).toContain('375 px: NOT LAID OUT, 1280 px: laid out, passed');
+    // A fact beside the judgement: making it a refusal is an owner decision
+    // (docs/incidents/production-runs-2026-09-27.md).
+    expect(shown.approved).toBe(true);
+    expect(shown.checklist?.[0]).toMatchObject({
+      judgement: { met: true, reason: 'media queries cover both' },
+      layouts: [{ width: 375, status: 'not-laid-out' }, { width: 1280, status: 'passed' }],
+    });
+    expect(acceptanceSchema.parse(shown)).toBeTruthy();
+
+    const both = context(new Sized());
+    await layOut(both, 375, 1280);
+    both.llm.enqueueText(approve());
+    const laidOut = await acceptRootResult({ actor: new Actor(), task, result, ctx: both, floor, phaseCoverage: [],
+      checklist, checklistOrigin: origin });
+    expect(both.llm.calls[0]!.userContent).toContain('375 px: laid out, passed, 1280 px: laid out, passed');
+    expect(laidOut.checklist?.[0]?.layouts?.map((layout) => layout.status)).toEqual(['passed', 'passed']);
+
+    // A drafted list of review items renders once one names a width, and an
+    // observation recorded without a viewport was laid out at 800x600.
+    const drafted = context();
+    await observe(drafted);
+    drafted.llm.enqueueText(approve());
+    const kept = await acceptRootResult({ actor: new Actor(), task, result, ctx: drafted, floor: [], phaseCoverage: [],
+      checklist, checklistOrigin: { source: 'drafted' } });
+    expect(drafted.llm.calls[0]!.userContent).toContain('375 px: NOT LAID OUT, 1280 px: NOT LAID OUT');
+    expect(kept.approved).toBe(true);
+  });
+
   it('refuses for good after the last remediation, without a third pass', async () => {
     const ctx = context();
     const stats = vi.fn();
