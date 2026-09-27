@@ -170,3 +170,13 @@ source**: `write_file` now refuses to overwrite an existing file nothing in the
 run has read, and the starting-workspace block quotes how each removed or
 rewritten file began (`it started as "<title>… Configurator</title>"`), so the
 acceptor sees what disappeared.
+
+## The mender was running a week-old checkout
+
+`atoma-mender.service` had run since 2026-09-20 on `ddff1ac`: the host's
+root-owned `/usr/local/sbin/atoma-deploy` predated the 2026-09-07 phase that
+refreshes the mender after each deployment, so no deployment log carried a
+`mender:` line. The operator reinstalled the activator and the release
+pruner from release `07bdea3` on 2026-09-27; the next deployment refreshes the
+mender's clone, image and unit to the deployed revision. It has never opened a
+pull request: every analyst finding so far was a `mechanism_candidate`.
