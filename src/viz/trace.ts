@@ -299,7 +299,7 @@ export interface VizJevEvent {
   id: string;
   ts: number;
   kind: 'jev';
-  role: 'prefilter' | 'validate-plan' | 'validate-result';
+  role: 'prefilter' | 'validate-plan' | 'validate-result' | 'learn-skill' | 'learn-event-skill';
   evaluator: string;
   servedModel?: string;
   candidates?: string[];

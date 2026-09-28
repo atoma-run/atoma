@@ -47,6 +47,16 @@ the decision with these numbers in hand.
   call. A no, or no answer, runs the model validator exactly as before, and it
   is the model that writes the remediation a refusal needs.
 
+- **The twin guard at learn time** (`SkillLifecycle.jevTwinOf`): before a
+  distilled recipe is saved, Jev is asked whether it duplicates one it would
+  compete with — the visible catalog for a task recipe, the molecule's recovery
+  recipes for an event one. A twin is not saved. This is the one Jev decision
+  whose error is cheap by construction: a wrong "twin" costs a lesson, a
+  missed twin costs what the catalog already pays today. The production
+  catalog held three recovery twins on Glucose on 2026-09-28, and the lexical
+  similarity of `skills stats --sim` still cannot tell twins from look-alikes
+  (the lowest twin pair scored 0.21, a pair of different recipes 0.27).
+
 ## Where it does not
 
 - **Root delivery acceptance.** Its contract forces a semantic review (a user
@@ -92,9 +102,11 @@ the decision with these numbers in hand.
 ## What is recorded
 
 One `jev` trace event per decision asked, answered or not: the role
-(`prefilter`, `validate-plan`, `validate-result`), the candidates, Jev's choice
+(`prefilter`, `validate-plan`, `validate-result`, `learn-skill`,
+`learn-event-skill`), the candidates, Jev's choice
 with its distribution or its yes-probabilities, the OUTCOME (`picked <t>`,
-`picked none_of_these`, `approved`, `model decides`, `deferred to the model`),
+`picked none_of_these`, `approved`, `model decides`, `deferred to the model`,
+`not saved: twin of <id>`, `saved: new recipe`, `saved as before`),
 a `failure` when there was no usable answer, duration, usage and cost. A
 prefilter outcome is what Jev PICKED, not the route: the L2 browser redirect
 may still change the child, and at L3 a pick is only a hint — the route taken

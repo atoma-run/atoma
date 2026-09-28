@@ -14,6 +14,7 @@ import {
   JEV_EVALUATOR,
   JEV_KEY_ENV,
   JEV_ORGS_ENV,
+  NEW_RECIPE,
   NO_CANDIDATE,
   createJevDecider,
   jevAdmitsOrg,
@@ -25,13 +26,15 @@ import type {
   JevChoiceRequest,
   JevDecider,
   JevDecisionInfo,
+  JevTwinRequest,
 } from '../src/core/types.js';
+import { SkillRegistry } from '../src/skills/registry.js';
 import { projectRunEnvironment } from '../src/projects/coordinator.js';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
 import { TraceRecorder } from '../src/viz/trace.js';
 import { makePlan } from './helpers/factories.js';
-import { jsonText, makeCtx } from './helpers.js';
+import { jsonText, makeCtx, nsOf } from './helpers.js';
 import { ANTHROPIC_PINS, FALLBACK_OPUS } from './tier-pins.js';
 
 /**
@@ -99,10 +102,16 @@ const choiceRequest: JevChoiceRequest = {
  * A decider that answers from fixed values and keeps what it was asked. An
  * absent value is a Jev that does not answer; `choice: null` is "none of them".
  */
-function spyDecider(opts: { choice?: string | null; approve?: number } = {}) {
+function spyDecider(opts: { choice?: string | null; approve?: number; twinOf?: string | null } = {}) {
   const chosen: JevChoiceRequest[] = [];
   const approvals: JevApprovalRequest[] = [];
+  const twins: JevTwinRequest[] = [];
   const decider: JevDecider = {
+    twin: async (request) => {
+      twins.push(request);
+      if (opts.twinOf === undefined) return null;
+      return { twinOf: opts.twinOf, confidence: 0.9 };
+    },
     choose: async (request) => {
       chosen.push(request);
       if (opts.choice === undefined) return null;
@@ -114,7 +123,7 @@ function spyDecider(opts: { choice?: string | null; approve?: number } = {}) {
       return { approved: opts.approve >= 0.5, probability: opts.approve };
     },
   };
-  return { decider, chosen, approvals };
+  return { decider, chosen, approvals, twins };
 }
 
 describe('jevAsk — the one Jev client', () => {
@@ -418,6 +427,7 @@ describe('prefilterStrategy with Jev', () => {
     const broken: JevDecider = {
       choose: () => Promise.reject(new Error('exploded')),
       approve: () => Promise.reject(new Error('exploded')),
+      twin: () => Promise.reject(new Error('exploded')),
     };
     const throwing = { ...makeCtx(), jev: broken };
     throwing.llm.enqueueText(jsonText({ kind: 'escalate', reasoning: 'no fit' }));
@@ -643,6 +653,128 @@ describe('validation with Jev', () => {
     expect(
       await jevApproval({ ctx, subject: 'PLAN', supervisorName: 'T', supervisorTier: 2, child, task: { description: 't' }, payload: {} })
     ).toBeNull();
+  });
+});
+
+describe('the Jev decider — twins', () => {
+  const twinRequest: JevTwinRequest = {
+    kind: 'event',
+    draft: {
+      id: 'recover-missing-evidence',
+      description: 'paste evidence on retry',
+      whenToUse: 'validator rejects narrative-only summaries lacking evidence',
+      body: 'Re-run the probes and paste their outputs.',
+    },
+    existing: [
+      { id: 'recover-recorded-verification-evidence', description: 'capture verification output', whenToUse: 'narrative-only summaries' },
+      { id: 'recover-undeclared-server-stop', description: 'no stop tool', whenToUse: 'plan proposes stopping a server' },
+    ],
+    actorName: 'Tracheid',
+    actorTier: 2,
+  };
+
+  it('names the existing recipe a draft duplicates, asking over the existing ones plus new_recipe', async () => {
+    const records: JevDecisionInfo[] = [];
+    const { impl, requests } = jevFetch({
+      choice: {
+        type: 'choice',
+        choice: 'recover-recorded-verification-evidence',
+        confidence: 0.8,
+        probabilities: { 'recover-recorded-verification-evidence': 0.85 },
+      },
+    });
+    const decision = await createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: impl }).twin(twinRequest);
+    expect(decision).toEqual({ twinOf: 'recover-recorded-verification-evidence', confidence: 0.8 });
+    expect(Object.keys(requests[0]!.body.questions['choice']!.criteria!)).toEqual([
+      'recover-recorded-verification-evidence',
+      'recover-undeclared-server-stop',
+      NEW_RECIPE,
+    ]);
+    expect(records[0]).toMatchObject({
+      role: 'learn-event-skill',
+      outcome: 'not saved: twin of recover-recorded-verification-evidence',
+    });
+  });
+
+  it('reads new_recipe as a new recipe, asks nothing when there is nothing to duplicate, and fails open', async () => {
+    const newOne = jevFetch({ choice: { type: 'choice', choice: NEW_RECIPE, confidence: 0.7, probabilities: { [NEW_RECIPE]: 0.8 } } });
+    const records: JevDecisionInfo[] = [];
+    expect(
+      await createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: newOne.impl }).twin(twinRequest)
+    ).toEqual({ twinOf: null, confidence: 0.7 });
+
+    const none = jevFetch(pick('Water'));
+    expect(
+      await createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: none.impl }).twin({ ...twinRequest, existing: [] })
+    ).toBeNull();
+    expect(none.requests).toHaveLength(0);
+
+    const refusing = (async () => new Response('down', { status: 503 })) as typeof fetch;
+    expect(
+      await createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: refusing }).twin(twinRequest)
+    ).toBeNull();
+    expect(records.map((r) => r.outcome)).toEqual(['saved: new recipe', 'saved as before']);
+  });
+
+  it('keeps a recovery recipe Jev judges a twin out of the catalog', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'atoma-jev-twin-'));
+    const learnBefore = process.env['ATOMA_SKILL_LEARN'];
+    try {
+      process.env['ATOMA_SKILL_LEARN'] = '1';
+      const skills = new SkillRegistry(dir);
+      const reg = new AtomRegistry(openDb(':memory:'));
+      const seed = { description: 'seed', systemPrompt: 'sys', tools: [], params: {}, createdBy: 'test' };
+      reg.create(2, seed);
+      reg.create(1, { ...seed, description: 'web builder', systemPrompt: 'You are an L1.' });
+      // An existing recovery recipe whose trigger does NOT match the rejection
+      // below, so it is not injected and the run counts as a novel event.
+      skills.save(nsOf(reg, 'Water'), {
+        id: 'recover-old',
+        description: 'capture evidence',
+        whenToUse: 'plan omits a reload persistence check',
+        kind: 'llm',
+        trigger: 'plan omits a reload persistence check',
+        body: 'Add the check.',
+      });
+      const { decider, twins } = spyDecider({ twinOf: 'recover-old' });
+      const neuron = L2Atom.fromType(reg.getByName('Tracheid')!, reg, [], skills);
+      const ctx = { ...makeCtx(), jev: decider };
+      ctx.llm.enqueueText(jsonText({ kind: 'reuse', target: 'Water', confidence: 'high', reasoning: 't' }));
+      const execute = (payload: unknown) =>
+        ctx.llm.enqueue((req) => {
+          req.onToolInvocation?.({ name: 'write_file', args: { path: 'a.txt' }, result: { ok: true }, durationMs: 1, startedAt: Date.now() });
+          return { text: jsonText(payload), stopReason: 'end_turn', usage: { inputTokens: 10, outputTokens: 10 } };
+        });
+      ctx.llm.enqueueText(jsonText({ reasoning: 'r', proposedAction: 'a', expectedOutput: 'e' }));
+      ctx.llm.enqueueText(jsonText({ approved: true, reasoning: 'plan ok' }));
+      execute({ output: 'draft', summary: 'first attempt' });
+      ctx.llm.enqueueText(jsonText({ approved: false, reasoning: 'RESULT is missing the ground-truth evidence block', scope: 'ephemeral' }));
+      ctx.llm.enqueueText(jsonText({ reasoning: 'r2', proposedAction: 'a2', expectedOutput: 'e2' }));
+      ctx.llm.enqueueText(jsonText({ approved: true, reasoning: 'plan ok' }));
+      execute({ output: 'fixed', summary: 'second attempt with evidence' });
+      ctx.llm.enqueueText(jsonText({ approved: true, reasoning: 'ok now' }));
+      ctx.llm.enqueueText('not json, no task skill');
+      ctx.llm.enqueueText(
+        jsonText({
+          id: 'recover-missing-evidence',
+          trigger: 'validator rejects result missing ground-truth evidence',
+          description: 'paste evidence on retry',
+          body: 'Re-run the probe and paste its output.',
+        })
+      );
+
+      await neuron.handleDirect({ description: 'build a page' }, ctx);
+
+      const ids = skills.loadFor(nsOf(reg, 'Water')).map((s) => s.id);
+      expect(ids).toEqual(['recover-old']);
+      expect(twins.map((t) => [t.kind, t.draft.id, t.existing.map((e) => e.id)])).toEqual([
+        ['event', 'recover-missing-evidence', ['recover-old']],
+      ]);
+    } finally {
+      if (learnBefore === undefined) delete process.env['ATOMA_SKILL_LEARN'];
+      else process.env['ATOMA_SKILL_LEARN'] = learnBefore;
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

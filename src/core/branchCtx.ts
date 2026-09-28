@@ -68,6 +68,7 @@ export function forkBranch(ctx: RunContext, branchId: string): RunContext {
     ? {
         choose: (request) => ctx.jev!.choose({ ...request, branchId: request.branchId ?? branchId }),
         approve: (request) => ctx.jev!.approve({ ...request, branchId: request.branchId ?? branchId }),
+        twin: (request) => ctx.jev!.twin({ ...request, branchId: request.branchId ?? branchId }),
       }
     : undefined;
 

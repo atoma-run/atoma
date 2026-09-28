@@ -129,6 +129,14 @@ by owner decision on 2026-09-26
   for every match, splitting the credit and failure evidence of one pattern.
   Measured 2026-08-21: one 6-task batch learned 11 skills, 6 of them three
   twin pairs.
+- THE TWIN GUARD: when `ctx.jev` is present, Jev compares each draft with the
+  recipes it would compete with — the visible catalog for a task recipe, the
+  namespace's recovery recipes for an event one — and a draft it names a twin
+  is NOT saved ([owner decision](../../docs/jev-decisions-2026-09-28.md)). No
+  answer saves as before: a wrong "twin" costs one lesson, never a recipe.
+  Measured 2026-09-28 on the production catalog: three recovery twins on
+  Glucose, never matched, and lexical overlap separates twins from
+  look-alikes no better than in August.
 - `validateProbeManifest` gates malformed machine input before dispatch.
 - Anti-redispatch state is run-scoped. A repeated deterministic output rejected
   for content must not earn credit or be dispatched again in a later phase.

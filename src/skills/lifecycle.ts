@@ -341,6 +341,40 @@ export class SkillLifecycle {
   ) {}
 
   /**
+   * The existing recipe Jev judges `draft` to duplicate, or `null` — when there
+   * is no decider, nothing to compare with, no answer, or a genuinely new
+   * recipe. Never throws: a failed check saves the draft as before.
+   */
+  private async jevTwinOf(
+    ctx: RunContext,
+    kind: 'task' | 'event',
+    draft: { readonly id: string; readonly description: string; readonly whenToUse: string; readonly body: string },
+    existing: () => readonly Skill[]
+  ): Promise<string | null> {
+    if (!ctx.jev) return null;
+    try {
+      // One entry per id: a recipe visible from several namespaces is one option.
+      const byId = new Map<string, Skill>();
+      for (const skill of existing()) if (!byId.has(skill.id)) byId.set(skill.id, skill);
+      const recipes = [...byId.values()];
+      const decision = await ctx.jev.twin({
+        kind,
+        draft: { id: draft.id, description: draft.description, whenToUse: draft.whenToUse, body: draft.body },
+        existing: recipes.map((skill) => ({
+          id: skill.id,
+          description: skill.description,
+          whenToUse: skill.trigger ?? skill.whenToUse,
+        })),
+        actorName: this.host.name,
+        actorTier: 2,
+      });
+      return decision?.twinOf ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Distill a successful run into a new skill (#3). Called from the
    * onApproved hook when ATOMA_SKILL_LEARN is on, the L1 had no
    * skill matched at prefilter time, and the supervise loop
@@ -586,6 +620,20 @@ export class SkillLifecycle {
         );
         continue;
       }
+      // THE TWIN GUARD (docs/jev-decisions-2026-09-28.md): the id guard above
+      // sees an exact id only, and a semantic twin under a fresh name is the
+      // failure this contract designs against. Jev compares the draft with the
+      // visible catalog, re-read per draft so a sibling saved just before
+      // counts; no answer saves as before.
+      const twinOf = await this.jevTwinOf(args.ctx, 'task', draft, () =>
+        guardNamespaces.flatMap((ns) => this.skills.loadFor(ns))
+      );
+      if (twinOf) {
+        args.ctx.logger.info(
+          `[${this.host.name}] skill draft "${draft.id}" not learned: Jev judged it a twin of "${twinOf}"`
+        );
+        continue;
+      }
       this.skills.save(args.l1Name, {
         id: draft.id,
         description: draft.description,
@@ -724,6 +772,17 @@ export class SkillLifecycle {
     if (this.skills.loadFor(args.l1Name).some((s) => s.id === draft.id)) {
       args.ctx.logger.debug(
         `[${this.host.name}] event skill ${draft.id} already exists for ${args.l1Name}, not overwriting`
+      );
+      return;
+    }
+    // The twin guard, as for task recipes, against this molecule's recovery
+    // recipes: three twins under fresh names were measured on one molecule.
+    const twinOf = await this.jevTwinOf(args.ctx, 'event', draft, () =>
+      this.skills.loadFor(args.l1Name).filter((s) => s.trigger)
+    );
+    if (twinOf) {
+      args.ctx.logger.info(
+        `[${this.host.name}] event skill draft "${draft.id}" not learned: Jev judged it a twin of "${twinOf}"`
       );
       return;
     }

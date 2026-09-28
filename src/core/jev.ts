@@ -7,6 +7,8 @@ import type {
   JevChoiceRequest,
   JevDecider,
   JevDecisionInfo,
+  JevTwinDecision,
+  JevTwinRequest,
 } from './types.js';
 
 /**
@@ -203,6 +205,23 @@ const CHOICE_INSTRUCTIONS: Record<JevChoiceRequest['question'], string> = {
     'An agent is about to do the task in the state. Pick the ONE stored recipe that clearly matches this task, ' +
     `or ${NO_CANDIDATE} when none does. A recipe matches when its "when to use" describes this kind of task, ` +
     'not merely when it shares tools or words with it.',
+};
+
+/** The option Jev picks when a draft recipe duplicates none of the existing ones. */
+export const NEW_RECIPE = 'new_recipe';
+
+const TWIN_INSTRUCTIONS: Record<JevTwinRequest['kind'], string> = {
+  task:
+    'A new recipe was just drafted from a successful run (the state). Does ONE of the existing recipes already ' +
+    'apply to the same kind of task and prescribe essentially the same steps, so that saving the draft would ' +
+    `create a duplicate? Pick that recipe, or ${NEW_RECIPE} when the draft covers a situation none of them ` +
+    'covers. Recipes that share tools or words but differ in what they produce, or in whether they change files, ' +
+    'are NOT duplicates.',
+  event:
+    'A new failure-recovery recipe was just drafted (the state): it says which reported failure it applies to and ' +
+    'what to do differently on the retry. Does ONE of the existing recovery recipes already react to the same ' +
+    `failure with essentially the same remedy? Pick it, or ${NEW_RECIPE} when the draft reacts to a failure none ` +
+    'of them covers.',
 };
 
 const DECOMPOSABLE_INSTRUCTIONS =
@@ -481,6 +500,62 @@ export function createJevDecider(opts: {
         costUsd: asked.result.costUsd,
       });
       return { approved, probability };
+    },
+
+    async twin(request: JevTwinRequest): Promise<JevTwinDecision | null> {
+      const role = request.kind === 'task' ? ('learn-skill' as const) : ('learn-event-skill' as const);
+      // Nothing to duplicate: no question, and nothing to record.
+      if (request.existing.length === 0) return null;
+      const base = {
+        role,
+        evaluator: JEV_EVALUATOR,
+        candidates: request.existing.map((recipe) => recipe.id),
+        ...attribution(request),
+      };
+      const options: Record<string, string> = {};
+      for (const recipe of request.existing.slice(0, JEV_MAX_OPTIONS - 1)) {
+        if (recipe.id === NEW_RECIPE) continue;
+        options[recipe.id] = `${recipe.description} — applies when: ${recipe.whenToUse}`;
+      }
+      options[NEW_RECIPE] = 'The draft covers a situation none of the existing recipes covers.';
+      if (Object.keys(options).length < 2) return null;
+      const state = {
+        draft: {
+          id: request.draft.id,
+          description: request.draft.description,
+          applies_when: request.draft.whenToUse,
+          steps: capped(request.draft.body, PLAN_CHARS),
+        },
+      };
+      const asked = await ask(
+        state,
+        { choice: { type: 'choice', instructions: TWIN_INSTRUCTIONS[request.kind], criteria: options } },
+        request.signal
+      );
+      if (!asked.ok) {
+        safeRecord({ ...base, ...unanswered, outcome: 'saved as before', failure: asked.failure, durationMs: asked.durationMs });
+        return null;
+      }
+      const choice = asked.result.answers['choice']!;
+      const picked = choice.choice!;
+      const known = picked === NEW_RECIPE || picked in options;
+      const twinOf = known && picked !== NEW_RECIPE ? picked : null;
+      safeRecord({
+        ...base,
+        ...(asked.result.servedModel ? { servedModel: asked.result.servedModel } : {}),
+        answer: {
+          choice: picked,
+          ...(choice.confidence !== undefined ? { confidence: choice.confidence } : {}),
+          ...(choice.probabilities ? { probabilities: choice.probabilities } : {}),
+        },
+        outcome: !known ? 'saved as before' : twinOf ? `not saved: twin of ${twinOf}` : 'saved: new recipe',
+        ...(known ? {} : { failure: `answer "${picked}" is not an option` }),
+        durationMs: asked.durationMs,
+        usage: { inputTokens: asked.result.inputTokens, outputTokens: asked.result.outputTokens },
+        costUsd: asked.result.costUsd,
+      });
+      if (!known) return null;
+      return { twinOf, confidence: choice.confidence ?? 0 };
     },
   };
 }

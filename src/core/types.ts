@@ -530,14 +530,43 @@ export interface JevApprovalDecision {
   readonly probability: number;
 }
 
+/** A freshly distilled recipe, before it is saved, and the recipes it could duplicate. */
+export interface JevTwinRequest {
+  /** 'task' for a distilled task recipe, 'event' for a recovery recipe. */
+  readonly kind: 'task' | 'event';
+  readonly draft: {
+    readonly id: string;
+    readonly description: string;
+    readonly whenToUse: string;
+    readonly body: string;
+  };
+  /** The recipes the draft would compete with — the visible catalog, or the namespace's event recipes. */
+  readonly existing: readonly { readonly id: string; readonly description: string; readonly whenToUse: string }[];
+  readonly actorName?: string;
+  readonly actorTier?: Tier;
+  readonly branchId?: string;
+  readonly signal?: AbortSignal;
+}
+
+export interface JevTwinDecision {
+  /** The existing recipe the draft duplicates, or `null` when it is new. */
+  readonly twinOf: string | null;
+  readonly confidence: number;
+}
+
 export interface JevDecider {
   choose(request: JevChoiceRequest): Promise<JevChoiceDecision | null>;
   approve(request: JevApprovalRequest): Promise<JevApprovalDecision | null>;
+  /**
+   * Whether a draft recipe is a SEMANTIC TWIN of an existing one — the failure
+   * the exact-id guard cannot see. A twin is not saved; `null` saves as before.
+   */
+  twin(request: JevTwinRequest): Promise<JevTwinDecision | null>;
 }
 
 /** One recorded Jev evaluation. The trace event is `VizJevEvent`. */
 export interface JevDecisionInfo {
-  readonly role: 'prefilter' | 'validate-plan' | 'validate-result';
+  readonly role: 'prefilter' | 'validate-plan' | 'validate-result' | 'learn-skill' | 'learn-event-skill';
   /** `<vendor>:<model>` as requested. */
   readonly evaluator: string;
   /** The model the service reports having served, when it says. */
