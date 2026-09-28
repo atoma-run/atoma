@@ -213,7 +213,8 @@ Neighbours:
   cannot run it. Measured 2026-09-28 in the mender container at `0d8998d`:
   the whole-tree type-aware lint aborted at the 1536 MiB heap after 191 s
   (3.5 GiB resident unbounded), so every mend reaching the old full check
-  would have been refused. The MODEL runs less still: each of its commands
+  would have been refused
+  ([incident](../../docs/incidents/mender-never-opened-2026-09-28.md)). The MODEL runs less still: each of its commands
   is bounded (`MENDER_COMMAND_BOUND_MS`, 120 s), so the prompt names the
   checks that fit. Prompt `m2` made a green full check its condition for
   `fixed`.
