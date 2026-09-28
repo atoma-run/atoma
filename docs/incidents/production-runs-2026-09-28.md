@@ -11,6 +11,7 @@ through the run's own acceptance.
 | R4 `1eafec70` | tags (validated), `?tag=&q=` filters, `GET /api/tags` | 11 min | $0.25 | delivered; every API criterion held under probing |
 | R5 `7761081b` | responsive widths, theme switch, keyboard use | 24 min | $0.48 | delivered; works, left dead files |
 | R6 `ed84d7be` | CSV export and import, remove unused files | 27 min | $0.66 | delivered after one root remediation; two defects shipped |
+| R7 `c8783210` | fix R6: unique ids on import, drop the duplicate page, empty store | 11 min | $0.27 | delivered; all three hold under probing |
 
 ## What held
 
@@ -50,6 +51,16 @@ through the run's own acceptance.
    404. R6 edited both separately (9 684 and 9 803 bytes) and its cleanup
    pass kept the unserved one, although the task asked for unused files to
    be removed.
+
+## After c0e0c99
+
+The molecule is now told to restore a filled store AFTER its last request
+that changes data (c0e0c99, deployed 04:37). R7, the first run on it, was
+asked to empty the store R6 had filled and delivered `notes.json` as `[]`
+(3 bytes), while its checks imported and exported through the running
+server. One run is a sign, not a measurement. Its import now gives a fresh
+id to a row whose id is already used or repeats within the file, and
+`public/index.html` is gone (404).
 
 ## For the supervisor
 
