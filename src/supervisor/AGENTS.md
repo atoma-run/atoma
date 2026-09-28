@@ -284,9 +284,10 @@ Neighbours:
 
 - Kinds: `supervisor.verdict`, `mender.started`, `mender.declined`,
   `mender.refused`, `mender.pr_opened`, `mender.failed` — severities and push
-  audiences forced by the exhaustive maps. Only `pr_opened` and `failed` reach
-  a person (platform admins): one is a review waiting, the other a worktree
-  left behind. `skipped-duplicate`, `dry-run` and `interrupted` write no row: nothing
+  audiences forced by the exhaustive maps. `pr_opened`, `refused` and `failed`
+  reach a person (platform admins): a review waiting, or a worktree left
+  behind. Refusals were silent until 2026-09-28, the three weeks in which no
+  mend could pass the harness's check. `skipped-duplicate`, `dry-run` and `interrupted` write no row: nothing
   happened to the deployment.
 - Rows are `system`, like the sentinel's, and carry FACTS ONLY (`journal.ts`):
   grade, finding kinds, defect key, branch, PR URL, cost, model served. Never

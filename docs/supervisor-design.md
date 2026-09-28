@@ -292,8 +292,9 @@ the design below, both settling an open decision:
 - **Journaled**: every verdict is a `supervisor.verdict` row; every mend
   that touched the deployment is a `mender.started` row followed by one of
   `mender.declined`, `mender.refused`, `mender.pr_opened`, `mender.failed`.
-  Rows carry facts only. `mender.pr_opened` and `mender.failed` push to
-  platform admins; the rest are audit-only. Not yet: any autonomy widening
+  Rows carry facts only. `mender.pr_opened`, `mender.refused` and
+  `mender.failed` push to platform admins (refusals since 2026-09-28); the
+  rest are audit-only. Not yet: any autonomy widening
   (P4). Decision 2 closes as proposal-only.
 - **Proof**: `tests/mender-pipeline.test.ts` drives the real harness against
   a real repository with a bare remote and a real SQLite journal, substituting

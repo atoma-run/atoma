@@ -125,6 +125,9 @@ corrections of the 2026-09-24 and 2026-09-25 code reviews.
   refused. The harness now runs `npm run check:changed` (the docs check and
   typecheck of the whole tree, lint and tests of the change), and CI runs the
   full check on the pull request, which the ruleset requires before a merge.
+- Platform admins are notified when the mender refuses its own fix, as they
+  are of a failure: both leave a worktree behind, and refusals used to reach
+  nobody.
 - The mender's commits can be authored by the person who answers for them
   (`ATOMA_MENDER_GIT_AUTHOR`), so the required CLA check can pass on its
   pull requests; the harness stays the committer and the commit still names

@@ -151,16 +151,27 @@ describe('PUSH_ROUTES', () => {
       // has a measured noise floor. See src/viz/push/routes.ts.
       'run.anomaly',
       'security.flagged',
-      // The supervisor's bookkeeping: only the PR waiting for review and a
-      // failure that left a worktree behind reach a person.
+      // The supervisor's bookkeeping: only the PR waiting for review, and a
+      // refusal or failure that left a worktree behind, reach a person.
       'supervisor.verdict',
       'mender.dispatched',
       'mender.started',
       'mender.declined',
-      'mender.refused',
     ] as const) {
       expect(PUSH_ROUTES[kind], kind).toBeNull();
     }
+  });
+
+  it('tells platform admins when the mender refused its own fix', () => {
+    const route = PUSH_ROUTES['mender.refused']!;
+    expect(route.audience).toEqual({ platformAdmins: true });
+    const rendered = renderPush(
+      event({ kind: 'mender.refused', runId: 'run-1', detail: { branch: 'mender/abc-0-fix', problems: ['model text'] } }),
+      'en',
+      route
+    );
+    expect(rendered.body).toBe('mender/abc-0-fix on run run-1: nothing was pushed; the worktree is kept');
+    expect(rendered.body).not.toContain('model text');
   });
 
   it('renders a missing detail value as an empty placeholder, not "undefined"', () => {

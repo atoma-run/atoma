@@ -202,14 +202,23 @@ const PUSH_ROUTE_SOURCES: Record<PlatformEventKind, PushRouteSource | null> = {
   // trains the operator to dismiss the channel. Revisit once the rules have
   // run against real batches.
   'run.anomaly': null,
-  // The supervisor's bookkeeping rows are audit-only; the two that need a
-  // person are the pull request waiting for a review and a failure that left
-  // a worktree behind. Bodies name refs and URLs, never model-authored text.
+  // The supervisor's bookkeeping rows are audit-only; the ones that need a
+  // person are the pull request waiting for a review, and a refusal or a
+  // failure, each of which leaves a worktree behind. Refusals were silent
+  // until 2026-09-28: three weeks in which no mend could pass the harness's
+  // check, and nobody was told. Bodies name refs, never model-authored text.
   'supervisor.verdict': null,
   'mender.dispatched': null,
   'mender.started': null,
   'mender.declined': null,
-  'mender.refused': null,
+  'mender.refused': {
+    audience: { platformAdmins: true },
+    vars: (event) => ({ branch: text(event, 'branch'), runId: event.runId ?? '' }),
+    copy: {
+      en: { title: 'The mender refused its own fix', body: '{{branch}} on run {{runId}}: nothing was pushed; the worktree is kept' },
+      fr: { title: 'Le mender a refusé son propre correctif', body: '{{branch}} sur le run {{runId}} : rien n’a été poussé ; le worktree est conservé' },
+    },
+  },
   'mender.pr_opened': {
     audience: { platformAdmins: true },
     vars: (event) => ({ branch: text(event, 'branch'), prUrl: text(event, 'prUrl') }),
