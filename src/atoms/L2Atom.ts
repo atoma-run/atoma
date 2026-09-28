@@ -43,6 +43,7 @@ import {
   prefilterStrategy,
   shouldTrustSkill,
   shouldTrustType,
+  jevApproval,
   trustedApproval,
   STRATEGY_MAX_TOKENS,
   TaskChildrenMemo,
@@ -1697,7 +1698,10 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
           !skillCtx.matchedSkillId &&
           skillCtx.skillMatchAttempted &&
           this.skillRegistry &&
-          process.env['ATOMA_SKILL_LEARN'] === '1'
+          process.env['ATOMA_SKILL_LEARN'] === '1' &&
+          // A run only Jev approved teaches nothing: its recipe would compile
+          // at learn time and dispatch platform-wide with no validator.
+          !(verdict?.approved === true && verdict.viaJev === true)
         ) {
           try {
             await this.learnSkillFromRun({
@@ -2067,6 +2071,10 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       });
       return approval;
     }
+    const jevApproved = ctx.jev
+      ? await jevApproval({ ctx, subject: 'PLAN', supervisorName: this.name, supervisorTier: 2, child, task, payload: plan })
+      : null;
+    if (jevApproved) return jevApproved;
     return llmVerdict({
       ctx,
       model: this.validationModel,
@@ -2208,6 +2216,37 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         `[${this.name}] trust fast-path OVERRIDDEN for ${child.name} (${type.successes}✓/${type.failures}✗): ${reviewReason} — falling through to a full verdict`
       );
     }
+    // JEV FAST PATH (docs/jev-decisions-2026-09-28.md): admissible exactly where
+    // the trust fast path is, save the earned counter — no gate finding, no
+    // uncovered obligation, a probe that requires no review. The probe it needs
+    // is handed on to the model verdict so it never runs twice — probed on
+    // `{output, summary}`, exactly what the model verdict would probe itself.
+    let groundTruth = trustedProbe;
+    if (ctx.jev && gateFindingsBlock === undefined && !proofUncovered) {
+      groundTruth ??= await checkGroundTruth({
+        ctx,
+        subject: 'RESULT',
+        payload: { output: result.output, summary: result.summary },
+        ...(result.evidence ? { evidence: result.evidence } : {}),
+        child,
+      });
+      if (!groundTruth.requiresReview) {
+        const approval = await jevApproval({
+          ctx,
+          subject: 'RESULT',
+          supervisorName: this.name,
+          supervisorTier: 2,
+          child,
+          task,
+          payload: { output: result.output, summary: result.summary },
+          ...(result.evidence ? { evidence: result.evidence } : {}),
+          groundTruthBlock: groundTruth.block,
+        });
+        if (approval) {
+          return activeScriptSkillIgnored ? { ...approval, activeSkillFollowed: false } : approval;
+        }
+      }
+    }
     // Usage-conditioned skill credit: when a skill drove this run, show the
     // validator the recipe and ask for the `activeSkillFollowed` adherence
     // signal alongside the verdict. The onApproved/onFailed hooks gate the
@@ -2220,7 +2259,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       supervisorTier: 2,
       subject: 'RESULT',
       child,
-      ...(trustedProbe ? { groundTruthBlock: trustedProbe.block } : {}),
+      ...(groundTruth ? { groundTruthBlock: groundTruth.block } : {}),
       ...(gateFindingsBlock !== undefined ? { mechanicalFindingsBlock: gateFindingsBlock } : {}),
       ...(coverageBlock ? { proofCoverageBlock: coverageBlock } : {}),
       ...(activeSkill ? { activeSkill: { id: activeSkill.id, body: activeSkill.body } } : {}),

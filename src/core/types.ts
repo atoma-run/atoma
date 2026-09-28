@@ -256,6 +256,15 @@ export type PositiveVerdict = {
    * across concurrent subtasks.
    */
   proofUncovered?: boolean;
+  /**
+   * Set by the supervisor — never by a model — when Jev, not the model
+   * validator, approved (docs/jev-decisions-2026-09-28.md). It withholds ONE
+   * consequence: distilling a NEW recipe from the run. Compile-at-learn makes a
+   * learned script dispatchable from its first match, platform-wide and with
+   * no validator, so a recipe must come from a run a model validated. Trust
+   * and the credit of a recipe that drove the run are not withheld.
+   */
+  viaJev?: true;
   /** One judgement per acceptance criterion, when the prompt listed criteria. */
   criteria?: readonly CriterionJudgement[];
 };
@@ -472,6 +481,96 @@ export interface CacheHitInfo {
 }
 
 /**
+ * JEV DECISIONS (docs/jev-decisions-2026-09-28.md, owner decision 2026-09-28):
+ * a typed decision model TAKES the bounded choices it can take — the prefilter's
+ * pick, and the approval half of plan and result validation. It never writes
+ * text, so a refusal still goes to the model validator, which writes the
+ * remediation. Every answer is recorded; `null` from either method means "Jev
+ * did not answer", and the caller then decides exactly as it did before.
+ */
+export interface JevChoiceRequest {
+  /** 'agent' for the L2/L3 child catalog, 'recipe' for the skill catalog. */
+  readonly question: 'agent' | 'recipe';
+  readonly task: { readonly description: string; readonly constraints?: readonly string[] };
+  /** The catalog AFTER exclusions — exactly what the prefilter model would see. */
+  readonly candidates: readonly { readonly name: string; readonly description: string }[];
+  readonly actorName?: string;
+  readonly actorTier?: Tier;
+  /** Fan-out lane id — stamped by `forkBranch`, like every other observer. */
+  readonly branchId?: string;
+  readonly signal?: AbortSignal;
+}
+
+export interface JevChoiceDecision {
+  /** A candidate name, or `null` for "none of them" — the prefilter's escalate. */
+  readonly target: string | null;
+  readonly confidence: number;
+  /** Jev's reading of whether the task asks for several independent deliverables. */
+  readonly decomposable: boolean;
+}
+
+export interface JevApprovalRequest {
+  readonly subject: 'PLAN' | 'RESULT';
+  readonly task: { readonly description: string; readonly constraints?: readonly string[] };
+  readonly child: { readonly name: string; readonly tier: Tier; readonly tools: readonly string[] };
+  /** The plan, or the result's `{output, summary}`. */
+  readonly payload: unknown;
+  /** Recorded observations and the host's ground-truth block, when there are any. */
+  readonly evidence?: unknown;
+  readonly groundTruth?: string;
+  readonly actorName?: string;
+  readonly actorTier?: Tier;
+  readonly branchId?: string;
+  readonly signal?: AbortSignal;
+}
+
+export interface JevApprovalDecision {
+  readonly approved: boolean;
+  /** Jev's probability that the plan or result is acceptable. */
+  readonly probability: number;
+}
+
+export interface JevDecider {
+  choose(request: JevChoiceRequest): Promise<JevChoiceDecision | null>;
+  approve(request: JevApprovalRequest): Promise<JevApprovalDecision | null>;
+}
+
+/** One recorded Jev evaluation. The trace event is `VizJevEvent`. */
+export interface JevDecisionInfo {
+  readonly role: 'prefilter' | 'validate-plan' | 'validate-result';
+  /** `<vendor>:<model>` as requested. */
+  readonly evaluator: string;
+  /** The model the service reports having served, when it says. */
+  readonly servedModel?: string;
+  /** The prefilter's candidates, when the question was a choice. */
+  readonly candidates?: readonly string[];
+  /** What Jev answered: a choice with its distribution, and/or yes-probabilities by question. */
+  readonly answer?: {
+    readonly choice?: string;
+    readonly confidence?: number;
+    readonly probabilities?: Readonly<Record<string, number>>;
+    readonly yes?: Readonly<Record<string, number>>;
+  };
+  /** What Atoma did with it: 'reuse <t>', 'escalate', 'approved', 'deferred to the model'. */
+  readonly outcome: string;
+  /**
+   * Why there is no answer: 'timeout: …', 'aborted: …', 'skipped: …', an HTTP
+   * status. Named `failure`, never `error`: trace readers (the analyst's digest)
+   * read an event's `error` as a RUN error, and a Jev outage is not one — the
+   * model took the decision instead.
+   */
+  readonly failure?: string;
+  readonly durationMs: number;
+  readonly usage: { readonly inputTokens: number; readonly outputTokens: number };
+  /** Priced with `estimateCostUsd` on Jev's own price; outside the run's LLM totals. */
+  readonly costUsd: number;
+  readonly actorName?: string;
+  readonly actorTier?: Tier;
+  readonly childName?: string;
+  readonly branchId?: string;
+}
+
+/**
  * Skill-pipeline event surfaced to the trace recorder. Mirrors the shape of
  * `VizSkillEvent` minus the storage-layer fields (id/ts/kind), so call sites
  * in L2Atom.ts emit a typed payload rather than reaching into the viz module
@@ -646,6 +745,12 @@ export interface RunContext {
    * cache still serves, it just leaves no trace.
    */
   readonly recordCacheHit?: (info: CacheHitInfo) => void;
+  /**
+   * Optional Jev decider — see `JevDecider`. Absent, every decision it could
+   * take is taken exactly as before; present, it takes the prefilter's pick and
+   * the approval half of validation, and the model takes whatever it declines.
+   */
+  readonly jev?: JevDecider;
   /** Exact subtask lifecycle metadata for timeline fork/join rendering. */
   readonly recordBranch?: (info: BranchEventInfo) => void;
   /**

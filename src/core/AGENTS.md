@@ -181,8 +181,31 @@ Neighbours:
 - The log is memory only. It is not a store, and cross-run proof reuse is out
   of scope by construction.
 
+## Jev decisions
+
+- `src/core/jev.ts` is the ONE Jev (TypeSafe) client and the `JevDecider` built
+  on it ([owner decision](../../docs/jev-decisions-2026-09-28.md)). Jev answers
+  typed questions and generates no text: it is not a tier model and is never
+  routed through `LlmClient`. Where it decides is an atoms rule
+  ([src/atoms](../atoms/AGENTS.md)); a `null` from the decider always means
+  "the model decides".
+- Which runs carry its credential is a project-run rule, stated in
+  [src/projects](../projects/AGENTS.md); `jevAdmitsOrg` is its test.
+- It is priced with `estimateCostUsd` on `JEV_PRICES`, recorded on its own
+  `jev` event, and kept out of the run's LLM totals. A decision waits at most
+  `JEV_DECISION_TIMEOUT_MS`; after `JEV_MAX_FAILURES_PER_RUN` failed calls —
+  counted over the run, never reset by a success — a run stops asking.
+
 ## Intentional choices and rejected shortcuts
 
+- Jev in `modelCatalog.json`: refused. Its vendor in `MODEL_SELECTOR_VENDORS`
+  would make `api:typesafe:*` a routable tier selector that no transport
+  serves; its one price stays beside its one client. A first-class evaluator
+  would enter the catalogue through a typed evaluation operation.
+- The Jev event's `error` field: refused, it is `failure`. The analyst's
+  digest reads any event carrying `error` as a RUN error, so a Jev outage
+  would have become defect verdicts and mender pull requests against a run
+  that did nothing wrong.
 - `DEFAULT_LIMITS.maxExecIterations` and its comparison are pinned by tests;
   change semantics only with an explicit migration of the effective budget.
 - A runtime price overlay beside `modelCatalog.json` (a host file or env the

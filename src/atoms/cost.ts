@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { AtomType } from '../registry/atomRegistry.js';
 import type {
   GenerationParams,
+  JevChoiceDecision,
   PositiveVerdict,
   RunContext,
   Task,
@@ -303,6 +304,56 @@ export function trustedApproval(type: AtomType): PositiveVerdict {
   return {
     approved: true,
     reasoning: `trust fast-path: ${type.name} has ${type.consecutiveSuccesses} consecutive successes (${type.successes} successes / ${type.failures} failures in history)`,
+  };
+}
+
+/**
+ * THE APPROVAL HALF OF VALIDATION, TAKEN BY JEV (docs/jev-decisions-2026-09-28.md).
+ *
+ * Asked ONLY where a fast path is already admissible — after the mechanical
+ * gates, with no gate finding, no uncovered proof obligation and a
+ * ground-truth probe that requires no review — which is the trust fast path's
+ * eligibility without its earned counter. Jev can only APPROVE: anything else
+ * returns `null` and the caller runs the model validator, which approves or
+ * writes the remediation a refusal needs. An approval here is an ordinary
+ * approval: it credits atom trust and skills like the trust fast path does.
+ */
+export async function jevApproval(args: {
+  readonly ctx: RunContext;
+  readonly subject: 'PLAN' | 'RESULT';
+  readonly supervisorName: string;
+  readonly supervisorTier: Tier;
+  readonly child: { readonly name: string; readonly tier: Tier; toolNames(): string[] };
+  readonly task: Task;
+  readonly payload: unknown;
+  readonly evidence?: unknown;
+  readonly groundTruthBlock?: string;
+}): Promise<PositiveVerdict | null> {
+  if (!args.ctx.jev) return null;
+  let decision;
+  try {
+    decision = await args.ctx.jev.approve({
+      subject: args.subject,
+      task: {
+        description: args.task.description,
+        ...(args.task.constraints?.length ? { constraints: args.task.constraints } : {}),
+      },
+      child: { name: args.child.name, tier: args.child.tier, tools: args.child.toolNames() },
+      payload: args.payload,
+      ...(args.evidence !== undefined ? { evidence: args.evidence } : {}),
+      ...(args.groundTruthBlock ? { groundTruth: args.groundTruthBlock } : {}),
+      actorName: args.supervisorName,
+      actorTier: args.supervisorTier,
+      signal: args.ctx.signal,
+    });
+  } catch {
+    return null;
+  }
+  if (!decision?.approved) return null;
+  return {
+    approved: true,
+    reasoning: `jev fast-path: ${args.child.name}'s ${args.subject} judged acceptable (p=${decision.probability.toFixed(2)})`,
+    viaJev: true,
   };
 }
 
@@ -615,6 +666,45 @@ export async function prefilterStrategy(args: {
       ...(args.actor ? { actorName: args.actor.name, actorTier: args.actor.tier } : {}),
     });
     return cached;
+  }
+
+  // JEV DECIDES FIRST (docs/jev-decisions-2026-09-28.md, owner decision
+  // 2026-09-28). Its pick is taken as a high-confidence reuse and its "none of
+  // them" as an escalate; the mechanical guards the callers apply afterwards
+  // (the L2 browser redirect, exclusions) still apply. It is never cached —
+  // the cache holds model decisions only — and when Jev does not answer, the
+  // model decides below exactly as it always has.
+  let jev: JevChoiceDecision | null = null;
+  if (args.ctx.jev) {
+    try {
+      jev = await args.ctx.jev.choose({
+        question: systemPrompt === SKILL_PREFILTER_SYSTEM_PROMPT ? 'recipe' : 'agent',
+        task: {
+          description: args.task.description,
+          ...(args.task.constraints?.length ? { constraints: args.task.constraints } : {}),
+        },
+        candidates: filtered,
+        ...(args.actor ? { actorName: args.actor.name, actorTier: args.actor.tier } : {}),
+        signal: args.ctx.signal,
+      });
+    } catch {
+      jev = null;
+    }
+    // The same membership check the model's answer gets below: a decider is an
+    // interface, and a pick outside the filtered catalog is never taken.
+    if (jev && jev.target !== null && !filteredNames.has(jev.target)) jev = null;
+  }
+  if (jev) {
+    const confidence = jev.confidence.toFixed(2);
+    return jev.target === null
+      ? { kind: 'escalate', reasoning: `jev: no candidate clearly fits (confidence ${confidence})` }
+      : {
+          kind: 'reuse',
+          target: jev.target,
+          confidence: 'high',
+          decomposable: jev.decomposable,
+          reasoning: `jev picked ${jev.target} (confidence ${confidence})`,
+        };
   }
 
   try {

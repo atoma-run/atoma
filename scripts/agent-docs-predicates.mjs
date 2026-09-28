@@ -65,9 +65,16 @@ export const SUBSYSTEM_LINE_BUDGET = 500;
 // room for its own. The alternative was again to shave unrelated rules, on
 // the largest subtree, to make space for the section that exists to keep
 // rules from being re-proposed.
+// 2026-09-28: src/projects sat AT the default 500 when Jev's credential had to
+// be stated beside the rule it is the one exception to
+// ("only the credentials of vendors the resolved tiers reference cross").
+// Stating it anywhere else would split one rule across two homes; condensing
+// the neighbouring credential rules would repeat the 2026-08-23 failure. 510,
+// pinned by a test like the others.
 export const SUBSYSTEM_LINE_BUDGET_OVERRIDES = new Map([
   ['src/viz/AGENTS.md', 660],
   ['src/preview/AGENTS.md', 560],
+  ['src/projects/AGENTS.md', 510],
 ]);
 
 /**

@@ -117,6 +117,10 @@ describe('subsystem line budgets', () => {
     expect(subsystemLineBudget('/repo', '/repo/src/viz/AGENTS.md', posix)).toBe(660);
   });
 
+  it('pins the src/projects exception, so the next raise is a conscious change too', () => {
+    expect(subsystemLineBudget('/repo', '/repo/src/projects/AGENTS.md', posix)).toBe(510);
+  });
+
   it('gives every other subsystem the default, on either root shape', () => {
     expect(subsystemLineBudget('C:\\repo', 'C:\\repo\\src\\atoms\\AGENTS.md', win32)).toBe(
       SUBSYSTEM_LINE_BUDGET,

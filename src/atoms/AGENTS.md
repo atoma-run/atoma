@@ -138,6 +138,13 @@ load-bearing.
   validation above the prefilter fast path.
 - `viaPrefilter` is internal and omitted from `planSchema`; an LLM must not be
   able to spoof validator bypass.
+- JEV DECIDES FIRST when `ctx.jev` is present
+  ([owner decision](../../docs/jev-decisions-2026-09-28.md)): after a prefilter
+  cache miss its pick is a high-confidence reuse and `none_of_these` an
+  escalate, never cached; and it may APPROVE a plan or result only where a
+  fast path is admissible (no gate finding, proof covered, probe not requiring
+  review), through `jevApproval`. A no or a silence is the model's decision, as
+  before. Root delivery acceptance is never Jev's.
 - Atom trust fast paths require the configured consecutive approved-result
   threshold (default 3), read through `trustThreshold()`; historical failures do
   not permanently disqualify a type. Skills retain their separate clean-lifetime
@@ -331,5 +338,10 @@ Read the archived sections before changing something that merely looks odd.
   worth the one top-tier strategy call.
 - Do not add semantic prefilter caching. It removes exactness directly below an
   unvalidated fast path.
+- Jev on that unvalidated fast path, and a Jev approval without the earned
+  counter the trust fast path needs: taken by the OWNER on 2026-09-28, against
+  both rules above, knowing a wrong pick costs about 60 decisions' savings.
+  Every decision is a `jev` event. A Jev-only approval (`viaJev`) distils no
+  new recipe: compile-at-learn would make it a validator-free script.
 - Do not introduce plan templating until a typed instantiation/validation layer
   exists; free-form substitution is another unvalidated router.

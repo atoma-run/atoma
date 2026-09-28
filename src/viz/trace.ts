@@ -289,6 +289,38 @@ export interface VizCacheEvent {
 }
 
 /**
+ * A decision asked of Jev (docs/jev-decisions-2026-09-28.md): the prefilter's
+ * pick, or the approval half of a plan or result validation. `outcome` is what
+ * Atoma did with the answer — including 'model decides' / 'deferred to the
+ * model' when Jev declined or did not answer. Its cost is its own: it is NOT
+ * folded into `totals`, which remain the run's LLM calls.
+ */
+export interface VizJevEvent {
+  id: string;
+  ts: number;
+  kind: 'jev';
+  role: 'prefilter' | 'validate-plan' | 'validate-result';
+  evaluator: string;
+  servedModel?: string;
+  candidates?: string[];
+  answer?: {
+    choice?: string;
+    confidence?: number;
+    probabilities?: Record<string, number>;
+    yes?: Record<string, number>;
+  };
+  outcome: string;
+  /** Not `error`: every reader of `event.error` would count a Jev outage as a run error. */
+  failure?: string;
+  durationMs: number;
+  usage: { inputTokens: number; outputTokens: number };
+  costUsd: number;
+  actor?: VizAtomRef;
+  child?: VizAtomRef;
+  branchId?: string;
+}
+
+/**
  * One model-visible inject, recorded the first time a complete() cites it.
  * The llm event cites the same `id`. Coaching and fallback-trace have no
  * sibling skill event — this is their timeline row.
@@ -328,6 +360,7 @@ export type VizEvent = (
   | VizTrustEvent
   | VizSkillEvent
   | VizCacheEvent
+  | VizJevEvent
   | VizContextEvent
   | VizBranchEvent
   | ({ id: string; ts: number; kind: 'topology' } & TopologyInfo)
@@ -747,6 +780,41 @@ export class TraceRecorder {
       ...(info.actorName && info.actorTier
         ? { actor: { name: info.actorName, tier: info.actorTier } }
         : {}),
+      ...(info.branchId !== undefined ? { branchId: info.branchId } : {}),
+    };
+    this.record(ev);
+  }
+
+  /** A decision asked of Jev — see VizJevEvent. */
+  recordJevDecision(info: import('../core/types.js').JevDecisionInfo): void {
+    const answer = info.answer;
+    const ev: VizJevEvent = {
+      id: randomUUID(),
+      ts: Date.now(),
+      kind: 'jev',
+      role: info.role,
+      evaluator: info.evaluator,
+      ...(info.servedModel !== undefined ? { servedModel: info.servedModel } : {}),
+      ...(info.candidates ? { candidates: [...info.candidates] } : {}),
+      ...(answer
+        ? {
+            answer: {
+              ...(answer.choice !== undefined ? { choice: answer.choice } : {}),
+              ...(answer.confidence !== undefined ? { confidence: answer.confidence } : {}),
+              ...(answer.probabilities ? { probabilities: { ...answer.probabilities } } : {}),
+              ...(answer.yes ? { yes: { ...answer.yes } } : {}),
+            },
+          }
+        : {}),
+      outcome: info.outcome,
+      ...(info.failure !== undefined ? { failure: info.failure } : {}),
+      durationMs: info.durationMs,
+      usage: { inputTokens: info.usage.inputTokens, outputTokens: info.usage.outputTokens },
+      costUsd: info.costUsd,
+      ...(info.actorName && info.actorTier
+        ? { actor: { name: info.actorName, tier: info.actorTier } }
+        : {}),
+      ...(info.childName !== undefined ? { child: { name: info.childName } } : {}),
       ...(info.branchId !== undefined ? { branchId: info.branchId } : {}),
     };
     this.record(ev);

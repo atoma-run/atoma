@@ -47,6 +47,7 @@ import { mergeTools } from './toolMerge.js';
 import {
   prefilterStrategy,
   shouldTrustType,
+  jevApproval,
   trustedApproval,
   STRATEGY_MAX_TOKENS,
   TaskChildrenMemo,
@@ -1228,6 +1229,11 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       });
       return approval;
     }
+    // Jev fast path — see L2Atom.validatePlan. Approve or defer, never refuse.
+    const jevApproved = ctx.jev
+      ? await jevApproval({ ctx, subject: 'PLAN', supervisorName: this.name, supervisorTier: 3, child, task, payload: plan })
+      : null;
+    if (jevApproved) return jevApproved;
     return llmVerdict({
       ctx,
       model: this.validationModel,
@@ -1305,6 +1311,33 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         `[${this.name}] trust fast-path OVERRIDDEN for ${child.name} (${type.successes}✓/${type.failures}✗): ${reviewReason} — falling through to a full verdict`
       );
     }
+    // Jev fast path — see L2Atom.validateResult. Today every delegated gate
+    // rejects rather than reports, so `reviewFindings` is empty here; should a
+    // reporting one be added, its finding keeps the decision with the model.
+    let groundTruth = trustedProbe;
+    if (ctx.jev && gates.reviewFindings.length === 0) {
+      groundTruth ??= await checkGroundTruth({
+        ctx,
+        subject: 'RESULT',
+        payload,
+        ...(result.evidence ? { evidence: result.evidence } : {}),
+        child,
+      });
+      if (!groundTruth.requiresReview) {
+        const approval = await jevApproval({
+          ctx,
+          subject: 'RESULT',
+          supervisorName: this.name,
+          supervisorTier: 3,
+          child,
+          task,
+          payload,
+          ...(result.evidence ? { evidence: result.evidence } : {}),
+          groundTruthBlock: groundTruth.block,
+        });
+        if (approval) return approval;
+      }
+    }
     return llmVerdict({
       ctx,
       model: this.validationModel,
@@ -1315,7 +1348,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       task,
       payload,
       ...(result.evidence ? { evidence: result.evidence } : {}),
-      ...(trustedProbe ? { groundTruthBlock: trustedProbe.block } : {}),
+      ...(groundTruth ? { groundTruthBlock: groundTruth.block } : {}),
     });
   }
 }

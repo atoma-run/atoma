@@ -1,6 +1,7 @@
 import type {
   CacheHitInfo,
   LlmClient,
+  JevDecider,
   LlmCompletionRequest,
   RunContext,
   SkillEventInfo,
@@ -59,6 +60,16 @@ export function forkBranch(ctx: RunContext, branchId: string): RunContext {
         ctx.recordCacheHit!({ ...info, branchId });
       }
     : undefined;
+  // Jev decides wherever the prefilter and the validators run — the skill
+  // prefilter and child validation are per subtask — so it is forwarded like
+  // the hooks above. Its lane is stamped the way `llm.complete` stamps one (the
+  // INNERMOST fork wins), so a Jev record sits in the lane of the decision.
+  const wrappedJev: JevDecider | undefined = ctx.jev
+    ? {
+        choose: (request) => ctx.jev!.choose({ ...request, branchId: request.branchId ?? branchId }),
+        approve: (request) => ctx.jev!.approve({ ...request, branchId: request.branchId ?? branchId }),
+      }
+    : undefined;
 
   // Run-scoped memos must be the SAME reference on every fork, or their
   // documented semantics silently narrow to branch-scoped: the memos are
@@ -113,6 +124,7 @@ export function forkBranch(ctx: RunContext, branchId: string): RunContext {
     ...(wrappedRecordSkill !== undefined ? { recordSkill: wrappedRecordSkill } : {}),
     ...(ctx.recordRunStat !== undefined ? { recordRunStat: ctx.recordRunStat } : {}),
     ...(wrappedRecordCacheHit !== undefined ? { recordCacheHit: wrappedRecordCacheHit } : {}),
+    ...(wrappedJev !== undefined ? { jev: wrappedJev } : {}),
     ...(ctx.recordBranch !== undefined ? { recordBranch: ctx.recordBranch } : {}),
     ...(ctx.recordRootPlan !== undefined ? { recordRootPlan: ctx.recordRootPlan } : {}),
     currentBranchId: branchId,

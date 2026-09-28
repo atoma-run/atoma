@@ -7,6 +7,7 @@ import { RunnerConfigError } from '../core/errors.js';
 import { containerImageDigestSchema } from '../contracts/containerImage.js';
 import { applyTierPins } from '../core/models.js';
 import { createAttestationLog } from '../core/attestation.js';
+import { jevDeciderFromEnv } from '../core/jev.js';
 import {
   formatModelSelector,
   ModelSelectorError,
@@ -952,6 +953,11 @@ export async function startTask(
     }
   }
 
+  // Jev (docs/jev-decisions-2026-09-28.md) reads the run's SNAPSHOT, like every
+  // credential: a project run's environment is the one its coordinator built,
+  // which carries the key only for an admitted organisation.
+  const jev = jevDeciderFromEnv(providerEnv, (info) => recorder.recordJevDecision(info));
+
   const ctx: RunContext = {
     ...(args.depth ? { attestations: createAttestationLog((record) => recorder.recordAttestation(record)) } : {}),
     logger: consoleLogger,
@@ -982,6 +988,7 @@ export async function startTask(
     // Prefilter decisions replayed from the on-disk cache: the LLM call
     // that did NOT happen still deserves a card.
     recordCacheHit: (info) => recorder.recordCacheHit(info),
+    ...(jev ? { jev } : {}),
     recordBranch: (info) => recorder.recordBranch(info),
     ...(artifactManifestPath && requestedRunId
       ? {

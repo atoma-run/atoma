@@ -19,6 +19,7 @@ import type {
 } from '../contracts/projects.js';
 import type { RunTierModels, TierModelPins } from '../contracts/tierModels.js';
 import { PERSONAL_CODEX_PROFILE_ROOT_ENV } from '../core/codexHomeLease.js';
+import { JEV_ENV, JEV_KEY_ENV, jevAdmitsOrg } from '../core/jev.js';
 import { skillsDirPath } from '../core/stores.js';
 import { LLM_PROVIDER_CATALOG, findProvider, isAccountTierSelection } from '../core/providerCatalog.js';
 import {
@@ -635,7 +636,8 @@ export function projectRunEnvironment(input: {
   }
   const payers: RunPayerLedger = runPayerLedgerSchema.parse(ledger);
 
-  // CREDENTIALS, ONE PER VENDOR THIS RUN REFERENCES, AND NOTHING ELSE.
+  // CREDENTIALS, ONE PER VENDOR THIS RUN REFERENCES, AND NOTHING ELSE — save
+  // Jev's, which crosses below only for an organisation the host names.
   // `CHILD_ENV_ALLOWLIST` (`src/tools/sandbox.ts`) already keeps keys out of
   // tool subprocesses, so this is not a hole being closed — it is the
   // runner's own memory and `/proc` surface being no wider than the run needs
@@ -705,6 +707,16 @@ export function projectRunEnvironment(input: {
     // subprocess already refuses every `ANTHROPIC_*` variable, so leaving it
     // in the env would only mislead about where the OTHER tiers went.
     delete environment['ANTHROPIC_BASE_URL'];
+  }
+  // JEV'S CREDENTIAL (docs/jev-decisions-2026-09-28.md) crosses only for an
+  // organisation the HOST names in ATOMA_JEV_ORGS: Jev receives each decision's
+  // state — the task text, the catalog, a plan or a result — as a third party,
+  // which an organisation that is not named never agreed to. It is not a tier
+  // credential and pays for no tier; the switch travels with it because the
+  // child cannot see the host's list.
+  if (jevAdmitsOrg(input.hostEnv, input.orgId)) {
+    environment[JEV_KEY_ENV] = input.hostEnv[JEV_KEY_ENV]!.trim();
+    environment[JEV_ENV] = '1';
   }
   Object.assign(environment, {
     ATOMA_REQUIRE_ISOLATION: '1',
