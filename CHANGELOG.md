@@ -128,6 +128,9 @@ corrections of the 2026-09-24 and 2026-09-25 code reviews.
 - A worker restores a data store its probes filled after its last request that
   changes data: a running server rewrote the store from memory and undid an
   earlier restore, so a delivery carried the probe notes.
+- A delivery refused for a single criterion, and for nothing else, is sent
+  back scoped to that criterion, keeping what was already validated, instead
+  of rebuilding the whole task (the mender's first pull request).
 - The analyst can read a section of the repository's AGENTS.md files: its
   search was case-sensitive, a lowercase query returned nothing, and two
   high-confidence defects were filed without the cited fix that makes a

@@ -48,6 +48,24 @@ describe('root remediation scope', () => {
     });
   });
 
+  // A refusal can hold more than its one unmet criterion. Scoped to that
+  // criterion, the pass would leave the rest standing and the second
+  // acceptance would refuse again, landing a partial (review of PR #6).
+  it.each([
+    ['a gate finding', (info: AcceptanceInfo): AcceptanceInfo => ({ ...info, gates: [{ id: 'unverified-claim', disposition: 'requires-review' }] })],
+    ['a probe contradiction', (info: AcceptanceInfo): AcceptanceInfo => ({ ...info, probe: { requiresReview: true, contradiction: true } })],
+    ['an unproven floor item', (info: AcceptanceInfo): AcceptanceInfo => ({ ...info, floorCoverage: [{ kind: 'dom-interaction', deliverable: 'index.html', status: 'uncovered', observationRefs: [] }] })],
+    ['another criterion no observation covered', (info: AcceptanceInfo): AcceptanceInfo => ({ ...info, checklist: [...info.checklist!, { id: 'c3', behaviour: 'GET /health 200', kind: 'http', status: 'uncovered', observationRefs: [] }] })],
+    ['another criterion whose width was never laid out', (info: AcceptanceInfo): AcceptanceInfo => ({ ...info, checklist: [...info.checklist!, { id: 'c4', behaviour: 'No scroll at 375 px', kind: 'review', status: 'review', observationRefs: [], layouts: [{ width: 375, status: 'not-laid-out', observationRefs: [] }] }] })],
+  ])('keeps the broad pass when the refusal also holds %s', (_label, widen) => {
+    const remediated = remediationTask(task, widen(refusal([
+      { id: 'c1', behaviour: 'The page remains interactive', met: true },
+      { id: 'c2', behaviour: 'README uses a durable loopback URL', met: false },
+    ])));
+    expect(remediated.inputs).not.toHaveProperty('rootRemediationScope');
+    expect(remediated.inputs?.['rootAcceptanceRefusal']).toBe('Delivery rejected');
+  });
+
   it('does not guess a focused scope when several criteria were rejected', () => {
     const remediated = remediationTask(task, refusal([
       { id: 'c1', behaviour: 'The page remains interactive', met: false },
