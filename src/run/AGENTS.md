@@ -126,8 +126,10 @@ Neighbours:
   criterion unmet and the refusal holds nothing else — no gate finding, no
   probe contradiction, no unproven floor item, no other criterion uncovered
   or with a width not laid out — the pass also receives
-  `rootRemediationScope`, that criterion and its reason, and is told to keep
-  the validated deliverables. Measured: runs `cc922a60` and `ed84d7be` were
+  `rootRemediationScope`: that criterion and its reason, the criteria judged
+  met, and the instruction to keep their deliverables and answer the WHOLE
+  refusal. A fact, never a restriction: the verdict may name another reason
+  in prose, which "fix only this" would have told the pass to ignore. Measured: runs `cc922a60` and `ed84d7be` were
   each refused for one narrow claim (a README URL, two leftover files) and
   their pass rebuilt the whole task, the first replacing a working page.
   Anything else keeps the broad pass: a scope that left a second reason

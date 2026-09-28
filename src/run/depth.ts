@@ -87,7 +87,10 @@ export function remediationTask(task: Task, acceptance: AcceptanceInfo): Task {
         behaviour: unmet[0]!.behaviour,
         ...(unmet[0]!.judgement?.reason ? { reason: unmet[0]!.judgement.reason } : {}),
       },
-      instruction: 'Preserve already validated deliverables. Diagnose and remediate only this rejected criterion, then re-run its relevant checks.',
+      metCriteria: (acceptance.checklist ?? []).filter((item) => item.judgement?.met === true).map((item) => item.id),
+      // A fact, never a restriction: the acceptor's verdict may name another
+      // reason in prose, so the pass is told to answer the refusal in full.
+      instruction: 'This is the one criterion the acceptor judged unmet. Keep the deliverables behind the criteria it judged met (metCriteria) instead of rebuilding them, and answer the whole refusal in rootAcceptanceRefusal, then re-run the checks it concerns.',
     },
   } : {};
   return {

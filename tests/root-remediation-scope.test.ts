@@ -37,15 +37,17 @@ describe('root remediation scope', () => {
     ]));
 
     expect(remediated.description).toBe(task.description);
-    expect(remediated.inputs?.['rootRemediationScope']).toEqual({
+    expect(remediated.inputs?.['rootRemediationScope']).toMatchObject({
       mode: 'single-criterion',
       criterion: {
         id: 'c2',
         behaviour: 'README uses a durable loopback URL',
         reason: 'It contains the observed numeric port',
       },
-      instruction: 'Preserve already validated deliverables. Diagnose and remediate only this rejected criterion, then re-run its relevant checks.',
+      metCriteria: ['c1'],
     });
+    // The fact rides beside the full refusal and never narrows it.
+    expect(JSON.stringify(remediated.inputs?.['rootRemediationScope'])).toContain('answer the whole refusal in rootAcceptanceRefusal');
   });
 
   // A refusal can hold more than its one unmet criterion. Scoped to that
