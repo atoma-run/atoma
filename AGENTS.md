@@ -75,8 +75,9 @@ mender-eligible defect, because the analyst must cite the section it read.
 `README.md` for the public pitch.
 
 The user communicates in French. Respond in French; keep code, comments,
-commit messages, and outward-facing documentation in English. Dated internal
-reviews and incident reports may retain the language in which they were authored.
+commit messages, pull request reviews and review comments, and outward-facing
+documentation in English. Dated internal reviews and incident reports may
+retain the language in which they were authored.
 
 ## Domain taxonomy
 
