@@ -44,6 +44,22 @@ export function markRefused(result: Result, acceptance: Pick<AcceptanceInfo, 're
 export const MAX_ROOT_REMEDIATIONS = 1;
 
 /**
+ * Whether the one criterion judged unmet is ALL the refusal holds. A refusal
+ * may also carry a gate finding, a probe contradiction, an unproven floor
+ * item, or another criterion no observation covered or no width laid out;
+ * scoped to the criterion alone, the pass would leave those standing and the
+ * second acceptance would refuse again, landing a partial the broad pass
+ * might have delivered. Any of them keeps the broad pass.
+ */
+function soleRefusalReason(acceptance: AcceptanceInfo, criterionId: string): boolean {
+  if (acceptance.gates.length > 0 || acceptance.probe.contradiction) return false;
+  if (acceptance.floorCoverage.some((item) => item.status === 'uncovered')) return false;
+  return !(acceptance.checklist ?? []).some((item) => item.id !== criterionId && (
+    item.status === 'uncovered' || (item.layouts ?? []).some((layout) => layout.status !== 'passed')
+  ));
+}
+
+/**
  * The refused task, restated with the acceptor's own reasons attached.
  *
  * The reasons ride in `inputs`, never appended to `description`: the
@@ -57,12 +73,33 @@ export const MAX_ROOT_REMEDIATIONS = 1;
  * executes it.
  */
 export function remediationTask(task: Task, acceptance: AcceptanceInfo): Task {
+  // A single criterion rejected by the root is a narrow, structured finding.
+  // Show that fact to the planner so it can repair the claim without treating
+  // the original goal as a fresh build. Do not infer scope from free-form
+  // acceptance prose: for zero or several failures, the old broad recovery is
+  // safer than guessing which artifact may be changed.
+  const unmet = acceptance.checklist?.filter((item) => item.judgement?.met === false) ?? [];
+  const focusedScope = unmet.length === 1 && soleRefusalReason(acceptance, unmet[0]!.id) ? {
+    rootRemediationScope: {
+      mode: 'single-criterion',
+      criterion: {
+        id: unmet[0]!.id,
+        behaviour: unmet[0]!.behaviour,
+        ...(unmet[0]!.judgement?.reason ? { reason: unmet[0]!.judgement.reason } : {}),
+      },
+      metCriteria: (acceptance.checklist ?? []).filter((item) => item.judgement?.met === true).map((item) => item.id),
+      // A fact, never a restriction: the acceptor's verdict may name another
+      // reason in prose, so the pass is told to answer the refusal in full.
+      instruction: 'This is the one criterion the acceptor judged unmet. Keep the deliverables behind the criteria it judged met (metCriteria) instead of rebuilding them, and answer the whole refusal in rootAcceptanceRefusal, then re-run the checks it concerns.',
+    },
+  } : {};
   return {
     ...task,
     inputs: {
       ...(task.inputs ?? {}),
       rootAcceptanceRefusal: acceptance.reasoning,
       rootAcceptanceAttempt: (Number(task.inputs?.['rootAcceptanceAttempt'] ?? 0) || 0) + 1,
+      ...focusedScope,
     },
   };
 }

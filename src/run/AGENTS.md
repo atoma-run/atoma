@@ -121,6 +121,20 @@ Neighbours:
   Measured 2026-09-23: with one pass only, a goal naming nine verifiable
   behaviours was refused twice while a goal naming six was delivered, and the
   refusals named exactly which behaviours had never been probed.
+- A REFUSAL THAT IS ONE CRITERION IS SCOPED TO IT (owner decision 2026-09-28,
+  the mender's first pull request): when the acceptor judged exactly one
+  criterion unmet and the refusal holds nothing else — no gate finding, no
+  probe contradiction, no unproven floor item, no other criterion uncovered
+  or with a width not laid out — the pass also receives
+  `rootRemediationScope`: that criterion and its reason, the criteria judged
+  met, and the instruction to keep their deliverables and answer the WHOLE
+  refusal. A fact, never a restriction: the verdict may name another reason
+  in prose, which "fix only this" would have told the pass to ignore. Measured: runs `cc922a60` and `ed84d7be` were
+  each refused for one narrow claim (a README URL, two leftover files) and
+  their pass rebuilt the whole task, the first replacing a working page.
+  Anything else keeps the broad pass: a scope that left a second reason
+  standing would be refused again and land a partial. Free-form refusal
+  prose is never parsed for a scope.
 - WORK IN HAND IS FINALIZED, landed or complete: its root acceptance runs to
   the absolute deadline + 45s (`finalizationSignal`), explicit cancellation
   and deepening still abort, and expiry keeps the work as a refused partial —

@@ -11,7 +11,7 @@ import { dispatchWithAggregation, markLanded } from '../src/atoms/dispatch.js';
 import { NON_JSON_PAYLOAD_SUMMARY_PREFIX } from '../src/atoms/json.js';
 import { buildResultGateEnv, runResultGates } from '../src/atoms/resultGates.js';
 import { PROBE_MANIFEST_FILENAME } from '../src/contracts/probeManifest.js';
-import { runDepthTask, MAX_ROOT_REMEDIATIONS } from '../src/run/depth.js';
+import { runDepthTask, MAX_ROOT_REMEDIATIONS, remediationTask } from '../src/run/depth.js';
 import { landingReasons } from '../src/contracts/runLanding.js';
 import { acceptanceSchema, type AcceptanceInfo, type PhaseCoverageRecord, type TopologyInfo } from '../src/contracts/depthRouting.js';
 import { makeCtx, jsonText } from './helpers.js';
@@ -557,6 +557,35 @@ describe('depth transition through the production supervision loop', () => {
     expect(partial.checklist?.[1]?.judgement).toEqual({ met: false, reason: 'upload never exercised' });
     // A refusal keeps the acceptor's own words for the operator.
     expect(refused.reasoning).toContain("the acceptor's own verdict read: looks done");
+  });
+
+  // Review of PR #6: the remediation scope is proven on the judgements a real
+  // acceptance records, not on a hand-built checklist, and it never tells the
+  // pass to ignore the rest of the refusal it rides beside.
+  it('scopes the remediation to the one criterion a real acceptance judged unmet', async () => {
+    const checklist = [
+      { id: 'c1', behaviour: 'the page shows the monthly total', check: { kind: 'review' as const } },
+      { id: 'c2', behaviour: 'uploading a CSV replaces the data', check: { kind: 'review' as const } },
+    ];
+    const user = context();
+    await observe(user);
+    user.llm.enqueueText(jsonText({ approved: true, reasoning: 'looks done', criteria: [
+      { id: 'c1', met: true }, { id: 'c2', met: false, reason: 'upload never exercised' }] }));
+    const refused = await acceptRootResult({ actor: new Actor(), task, result, ctx: user, floor, phaseCoverage: [],
+      checklist, checklistOrigin: { source: 'user', digest: 'a'.repeat(64) } });
+    expect(refused.approved).toBe(false);
+    const scope = remediationTask(task, refused).inputs?.['rootRemediationScope'] as { criterion: { id: string }; metCriteria: string[]; instruction: string };
+    expect(scope.criterion.id).toBe('c2');
+    expect(scope.metCriteria).toEqual(['c1']);
+    expect(scope.instruction).toContain('rootAcceptanceRefusal');
+    expect(scope.instruction).not.toMatch(/remediate only/i);
+    // A drafted list of review criteria asks for no judgement: nothing to scope on.
+    const drafted = context();
+    drafted.llm.enqueueText(jsonText({ approved: false, reasoning: 'the README names a port', criteria: [{ id: 'c2', met: false }] }));
+    const draftedRefusal = await acceptRootResult({ actor: new Actor(), task, result, ctx: drafted, floor: [], phaseCoverage: [],
+      checklist, checklistOrigin: { source: 'drafted' } });
+    expect(draftedRefusal.checklist?.some((item) => item.judgement)).toBe(false);
+    expect(remediationTask(task, draftedRefusal).inputs).not.toHaveProperty('rootRemediationScope');
   });
 
   it('shows the acceptor which widths a criterion names were laid out, and overrides no judgement', async () => {
