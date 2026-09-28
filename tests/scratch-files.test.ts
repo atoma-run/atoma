@@ -35,3 +35,21 @@ describe('scratch inputs', () => {
     expect(ctx.llm.calls[0]!.userContent).toContain(`"${SCRATCH_DIRECTORY}/"`);
   });
 });
+
+/**
+ * Production run ed84d7be (2026-09-28): the molecule restored `notes.json` to
+ * `[]` as told, then probed again; the app's server, still holding the probe
+ * notes in memory, wrote them back and the delivery carried them. There is no
+ * tool to stop that server, so the restore has to come after the last write.
+ */
+describe('a data store the probes filled', () => {
+  it('is restored after the last request that changes data, since the server rewrites it', async () => {
+    const molecule = new L1Atom({ name: 'Branched', ordinal: 7, systemPrompt: 'a stored prompt', tools: [], params: {} });
+    const ctx = makeCtx();
+    ctx.llm.enqueueText(jsonText({ output: 'done', summary: 'done' }));
+    await molecule.execute({ description: 'Add CSV import to the notes app' }, makePlan({ proposedAction: 'implement' }), ctx);
+    const prompt = ctx.llm.calls[0]!.userContent;
+    expect(prompt).toMatch(/Restore it AFTER your last request that changes data/);
+    expect(prompt).toMatch(/server you started keeps the data in memory/);
+  });
+});

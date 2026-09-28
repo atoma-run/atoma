@@ -125,6 +125,9 @@ corrections of the 2026-09-24 and 2026-09-25 code reviews.
   refused. The harness now runs `npm run check:changed` (the docs check and
   typecheck of the whole tree, lint and tests of the change), and CI runs the
   full check on the pull request, which the ruleset requires before a merge.
+- A worker restores a data store its probes filled after its last request that
+  changes data: a running server rewrote the store from memory and undid an
+  earlier restore, so a delivery carried the probe notes.
 - Platform admins are notified when the mender refuses its own fix, as they
   are of a failure: both leave a worktree behind, and refusals used to reach
   nobody.

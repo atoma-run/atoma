@@ -32,6 +32,8 @@ const SCRATCH_FILE_LINES: readonly string[] = [
   `  publishes it. Files the task asks for (samples, docs, tests) stay where the task puts them.`,
   `- Leave the deliverable as its user receives it: a data file your probes filled (a notes or tasks JSON store)`,
   `  goes back to what it held before your checks — the app's initial data, or what the workspace started with.`,
+  `  Restore it AFTER your last request that changes data: a server you started keeps the data in memory and`,
+  `  writes it back on its next change, which undoes an earlier restore.`,
   `- Implement the rule the task states. Never special-case in code a value an acceptance criterion names:`,
   `  a total computed as "if these exact choices, add this constant" is a forged result, not a feature.`,
   `- Existing files you were asked to keep or extend are edited, not replaced: the host compares the files`,
