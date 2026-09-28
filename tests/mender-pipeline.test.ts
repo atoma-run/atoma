@@ -374,6 +374,21 @@ describe('the mender, end to end against a real repository', () => {
     expect(remoteBranches(f)).toEqual([]);
   }, TIMEOUT_MS);
 
+  // The repository requires a CLA check that resolves a commit's AUTHOR to an
+  // account: the default mender author is nobody's, so its pull requests could
+  // never be green. The named person authors; the harness still commits, and
+  // the trailer still says what wrote the change.
+  it('authors the commit as the configured person and keeps the provenance trailer', async () => {
+    const f = fixture();
+    const { failures } = await mendPending(f, f.options({ gitAuthor: 'Ada Reviewer <ada@example.invalid>' }));
+    expect(failures).toBe(0);
+    const [branch] = remoteBranches(f);
+    const commit = git(f.bare, ['log', '-1', '--format=%an <%ae>%n%cn%n%B', branch!]);
+    expect(commit.split('\n')[0]).toBe('Ada Reviewer <ada@example.invalid>');
+    expect(commit.split('\n')[1]).not.toBe('Ada Reviewer');
+    expect(commit).toContain('Authored-By: atoma mender');
+  }, TIMEOUT_MS);
+
   it('records and journals a decline without touching the remote', async () => {
     const f = fixture();
     const { failures } = await mendPending(f, f.options({}, { STUB_MODE: 'declined' }));

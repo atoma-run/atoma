@@ -99,6 +99,26 @@ export const DEFAULT_MENDER_COMMANDS: MenderCommands = {
   check: 'npm run check:changed --',
 };
 
+/**
+ * Who a mend's commit names as its author. The default is no one's account,
+ * so the repository's required CLA check cannot resolve it to a signatory and
+ * every mender pull request would carry a red `cla` status. The operator names
+ * the person who answers for the mender's output (`ATOMA_MENDER_GIT_AUTHOR`);
+ * the harness stays the committer, and the `Authored-By:` trailer, the
+ * `mender/` branch and the pull request still say what wrote the change.
+ */
+export const MENDER_DEFAULT_GIT_AUTHOR = 'atoma mender <mender@atoma.invalid>';
+const GIT_AUTHOR = /^[^<>\n]*[^<>\s][^<>\n]* <[^<>\s@]+@[^<>\s@]+>$/;
+
+export function menderGitAuthorFromEnv(env: NodeJS.ProcessEnv = process.env): string {
+  const raw = env['ATOMA_MENDER_GIT_AUTHOR']?.trim();
+  if (!raw) return MENDER_DEFAULT_GIT_AUTHOR;
+  if (!GIT_AUTHOR.test(raw)) {
+    throw new Error(`ATOMA_MENDER_GIT_AUTHOR must read "Name <email>", got ${JSON.stringify(raw)}`);
+  }
+  return raw;
+}
+
 /** The `ATOMA_MENDER_CMD_*` seams, for tests and unusual hosts. */
 export function menderCommandsFromEnv(env: NodeJS.ProcessEnv = process.env): MenderCommands {
   return {
@@ -188,6 +208,8 @@ export interface MenderOptions {
    * Absent means `MENDER_DEFAULT_MAX_OPEN_PULL_REQUESTS`.
    */
   readonly maxOpenPullRequests?: number;
+  /** The commit author, `Name <email>`; absent means `MENDER_DEFAULT_GIT_AUTHOR`. */
+  readonly gitAuthor?: string;
   /**
    * A service stop. The attempt in flight ends at its next safe point — the
    * untrusted command or model session running is aborted and its container
@@ -718,7 +740,7 @@ async function mendFindingReserved(input: MendInput, options: MenderOptions): Pr
     mkdirSync(paths.menderDir, { recursive: true });
     const messagePath = join(paths.menderDir, `${runId}.${index}.commit.txt`);
     writeFileSync(messagePath, commitMessage({ report, sourceFiles: policy.sourceFiles, runId, key, verification }));
-    await git(worktree, ['commit', '--author=atoma mender <mender@atoma.invalid>', '-F', messagePath], options.warn, { timeoutMs: options.timeoutMs });
+    await git(worktree, ['commit', `--author=${options.gitAuthor ?? MENDER_DEFAULT_GIT_AUTHOR}`, '-F', messagePath], options.warn, { timeoutMs: options.timeoutMs });
     const sha = (await git(worktree, ['rev-parse', 'HEAD'], options.warn)).stdout.trim();
     await git(worktree, ['push', '-u', options.remote, branch], options.warn, { timeoutMs: 300_000 });
 

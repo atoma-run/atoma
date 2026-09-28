@@ -17,6 +17,7 @@ import {
   WITHHELD_QUOTE,
 } from '../src/supervisor/menderPolicy.js';
 import { MENDER_HARDENING, buildMenderPrompt } from '../src/supervisor/menderPrompt.js';
+import { MENDER_DEFAULT_GIT_AUTHOR, menderGitAuthorFromEnv } from '../src/supervisor/mender.js';
 import { menderProvider, providerChildEnv } from '../src/supervisor/session.js';
 
 /**
@@ -264,4 +265,18 @@ describe('the model is told the scope the harness enforces', () => {
     expect(prompt).toContain(findingJson);
     expect(prompt.replace(findingJson, '')).not.toMatch(/\{\{[A-Z_]+\}\}/);
   });
+});
+
+describe('who authors a mend', () => {
+  it('names the configured person, and nobody by default', () => {
+    expect(menderGitAuthorFromEnv({})).toBe(MENDER_DEFAULT_GIT_AUTHOR);
+    expect(menderGitAuthorFromEnv({ ATOMA_MENDER_GIT_AUTHOR: '  ' })).toBe(MENDER_DEFAULT_GIT_AUTHOR);
+    expect(menderGitAuthorFromEnv({ ATOMA_MENDER_GIT_AUTHOR: ' Ada Reviewer <ada@example.invalid> ' })).toBe('Ada Reviewer <ada@example.invalid>');
+  });
+
+  it.each(['ada@example.invalid', 'Ada Reviewer', 'Ada <ada>', '<ada@example.invalid>', 'Ada <a@b> extra', 'Ada\nEvil <a@b.c>'])(
+    'refuses %j rather than committing under a name git would guess', (value) => {
+      expect(() => menderGitAuthorFromEnv({ ATOMA_MENDER_GIT_AUTHOR: value })).toThrow(/Name <email>/);
+    }
+  );
 });

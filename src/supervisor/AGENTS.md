@@ -253,6 +253,12 @@ Neighbours:
   only for refs into the repository source and replaces every other quote
   with `WITHHELD_QUOTE`; the worktree has no `runs/` and no `supervisor/` to
   open. The PR body is built from the same sanitised view.
+- A PERSON AUTHORS, THE HARNESS COMMITS. `ATOMA_MENDER_GIT_AUTHOR` names who
+  answers for the mender's commits; the `cla` status the ruleset requires
+  resolves the AUTHOR to an account, and the default `atoma mender` author is
+  nobody's, so its pull requests could never go green. The committer, the
+  `Authored-By:` trailer, the `mender/` branch and the pull request still say
+  what wrote the change.
 - ONE DEFECT, ONE PR. `defectKey` is a normalised hash of where and title and
   rides the commit and the PR body as `Defect-Key:`; a key with an open PR or
   a local `pr-opened` record is `skipped-duplicate`. An approximation,

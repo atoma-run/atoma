@@ -26,10 +26,12 @@ import {
   CANDIDATES_MENDABLE_SINCE,
   eligibleForVerdict,
   listVerdicts,
+  MENDER_DEFAULT_GIT_AUTHOR,
   MENDER_DEFAULT_MAX_OPEN_PULL_REQUESTS,
   MENDER_DEFAULT_POLL_MS,
   mendInputFromRequest,
   menderCommandsFromEnv,
+  menderGitAuthorFromEnv,
   menderPaths,
   pendingMends,
   processMends,
@@ -87,6 +89,11 @@ commands (env, resolved inside the execution image):
   ATOMA_MENDER_CMD_CLAUDE (claude)   ATOMA_MENDER_CMD_GH (gh)
   ATOMA_MENDER_CMD_INSTALL (npm ci)  ATOMA_MENDER_CMD_TEST (npx vitest run)
   ATOMA_MENDER_CMD_CHECK (npm run check:changed --, handed the changed files)
+
+authorship:
+  ATOMA_MENDER_GIT_AUTHOR="Name <email>" names the person who answers for the
+  mender's commits; the repository's required CLA check resolves it. Unset, the
+  author is ${MENDER_DEFAULT_GIT_AUTHOR}, which no CLA signature covers.
 
 flags:
   --finding-file <path>  mend ONE request (atoma.supervisor.mend-request/v1) — what a
@@ -173,6 +180,12 @@ async function main(): Promise<void> {
   if (!looksPinned(provider.model)) {
     process.stderr.write(`atoma mender: "${provider.model}" is an alias, not a pinned model id — records made under it are not comparable over time\n`);
   }
+  let gitAuthor: string;
+  try {
+    gitAuthor = menderGitAuthorFromEnv();
+  } catch (error) {
+    fail(error instanceof Error ? error.message : String(error));
+  }
   // Journal only into a store that EXISTS (see the analyst for why).
   const journal = existsSync(dbPath) ? PlatformEventLog.open(dbPath) : null;
   const log = (line: string): void => void process.stdout.write(`[mender ${new Date().toISOString()}] ${line}\n`);
@@ -214,6 +227,7 @@ async function main(): Promise<void> {
       '--max-open-prs',
       MENDER_DEFAULT_MAX_OPEN_PULL_REQUESTS
     ),
+    gitAuthor,
     signal: controller.signal,
     journal: journal ? (input) => void journal.append(input) : null,
     log,
@@ -227,7 +241,8 @@ async function main(): Promise<void> {
       `  journal    ${journal ? dbPath : 'none (no product store at ' + dbPath + ')'}\n` +
       `  provider   ${provider.selector} (${provider.source}${provider.baseUrl ? `, ${provider.baseUrl}` : ''})\n` +
       `  floor      confidence ≥ ${options.minConfidence}, a cited fix; defects and mechanism candidates (watch mode: candidates analysed since ${CANDIDATES_MENDABLE_SINCE})\n` +
-      `  review     watch mode waits while ${options.maxOpenPullRequests} mender pull request(s) are open\n`
+      `  review     watch mode waits while ${options.maxOpenPullRequests} mender pull request(s) are open\n` +
+      `  author     ${gitAuthor}\n`
   );
 
   const backfill = nonNegativeInteger(args.flags['backfill'], '--backfill');
