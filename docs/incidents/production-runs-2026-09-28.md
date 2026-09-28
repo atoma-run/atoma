@@ -65,6 +65,19 @@ the acceptor see it. R7's import now gives a fresh id to a row whose id is
 already used or repeats within the file, and `public/index.html` is gone
 (404).
 
+## A retired host model, a minute into every run
+
+R8 (`d019cfe8`, the admin organisation's first run of the day) failed in 65
+s with `codex call failed [request-rejected]`: its account pinned
+`sub:openai:gpt-5.4-mini` on L1, and all three calls to it were rejected
+while the `gpt-5.6-terra` planner in between was served. The same slug had
+failed the same way on a personal login on 2026-09-21
+([mgf2-production-run-2026-09-21.md](mgf2-production-run-2026-09-21.md)),
+whose model list has since been discovered from Codex; the host's list is
+still static and still offered it, as its SMALL default too. Re-pinned to
+Terra, the same goal delivered in 4 min 26 (`9f5681c9`). The host list now
+offers Luna instead, and a stored Mini pin is refused before spending.
+
 ## For the supervisor
 
 None of the three produced a mend: from R4's end (03:02 UTC) to after R6's

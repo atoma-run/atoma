@@ -22,6 +22,7 @@ import { PERSONAL_CODEX_PROFILE_ROOT_ENV } from '../core/codexHomeLease.js';
 import { skillsDirPath } from '../core/stores.js';
 import { LLM_PROVIDER_CATALOG, findProvider, isAccountTierSelection } from '../core/providerCatalog.js';
 import {
+  assertServedHostChatGptModels,
   ledgerTouchesAnySubscription,
   ledgerTouchesSubscription,
   payerForSelector,
@@ -1390,6 +1391,9 @@ export class ProjectRunCoordinator {
         ...(principalCodexProfile ? { principalCodexProfile } : {}),
       });
       environment = built.environment;
+      // Before anything spends: a pin to a slug the host subscription stopped
+      // serving failed a minute in, its planner already paid (2026-09-28).
+      assertServedHostChatGptModels(Object.values(built.payers).map((row) => row.selection));
       if (principalSubscriptionTiers(built.payers).length > 0) {
         if (!this.principalCodexModelsFor) {
           throw new ProjectRunConfigurationError('ChatGPT model discovery is unavailable. Refresh your models in Settings.');

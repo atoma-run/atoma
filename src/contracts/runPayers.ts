@@ -42,14 +42,42 @@ export const HOST_SUBSCRIPTION_ALIASES = ['opus', 'sonnet', 'haiku'] as const;
 export type HostSubscriptionAlias = (typeof HOST_SUBSCRIPTION_ALIASES)[number];
 
 /**
- * Exact Codex slugs a ChatGPT subscription serves on all three tiers.
+ * Exact Codex slugs a ChatGPT subscription serves on all three tiers, frontier
+ * first and smallest last (`CODEX_MODEL_*` read them by position).
  * L1 uses Atoma's host-side tool loop through ToolSandbox.
  */
 export const CHATGPT_SUBSCRIPTION_MODELS = [
   'gpt-5.6-sol',
   'gpt-5.6-terra',
-  'gpt-5.4-mini',
+  'gpt-5.6-luna',
 ] as const;
+
+/**
+ * Slugs this list once offered that ChatGPT no longer serves. A pin stored on
+ * one stays readable, and is refused before a run spends anything: every call
+ * to `gpt-5.4-mini` came back `request-rejected` on two accounts (a personal
+ * login on 2026-09-21, the host's on 2026-09-28), so a run pinned to it failed
+ * a minute in, after its planner had already been paid for.
+ */
+export const RETIRED_CHATGPT_SUBSCRIPTION_MODELS = ['gpt-5.4-mini'] as const;
+
+/**
+ * Refuse a host ChatGPT pin the subscription no longer serves, with the words
+ * a person acts on. Personal pins are checked against their account's
+ * discovered inventory instead (`assertPersonalCodexModels`).
+ */
+export function assertServedHostChatGptModels(selections: Iterable<string | null | undefined>): void {
+  for (const value of selections) {
+    const selector = value ? tryParseModelSelector(value) : null;
+    if (selector?.mode !== 'sub' || selector.vendor !== 'openai') continue;
+    if ((CHATGPT_SUBSCRIPTION_MODELS as readonly string[]).includes(selector.model)) continue;
+    throw new Error(
+      `ChatGPT model ${selector.model} is not served by the host subscription` +
+        `${(RETIRED_CHATGPT_SUBSCRIPTION_MODELS as readonly string[]).includes(selector.model) ? ' any more' : ''}. ` +
+        `Choose ${CHATGPT_SUBSCRIPTION_MODELS.join(', ')} in Settings.`
+    );
+  }
+}
 
 export type ChatGptSubscriptionModel = string;
 

@@ -946,11 +946,21 @@ describe('auth store — per-tier model pins', () => {
     const store = freshStore();
     const { viewer } = admit(store, identity('chatgpt-pins'), 'org:owner');
     const pins = store.setModelPins(viewer.principalId, {
-      l1: 'sub:openai:gpt-5.4-mini',
+      l1: 'sub:openai:gpt-5.6-luna',
       l2: 'sub:openai:gpt-5.6-terra',
       l3: 'sub:openai:gpt-5.6-sol',
     });
     expect(store.modelPins(viewer.principalId)).toEqual(pins);
+  });
+
+  // A pin to a slug the host subscription stopped serving (gpt-5.4-mini,
+  // 2026-09-28) must read back as ITSELF: read as null, the tier would fall
+  // silently to another payer. A launch refuses it with a reason instead.
+  it('reads a retired host ChatGPT pin back as itself, never as null', () => {
+    const store = freshStore();
+    const { viewer } = admit(store, identity('retired-pin'), 'org:owner');
+    store.setModelPins(viewer.principalId, { l1: 'sub:openai:gpt-5.4-mini', l2: null, l3: null });
+    expect(store.modelPins(viewer.principalId).l1).toBe('sub:openai:gpt-5.4-mini');
   });
 });
 

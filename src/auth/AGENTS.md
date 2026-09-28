@@ -117,6 +117,13 @@ Loopback HTTP keeps its development cookie names and paths.
   generation; refresh failure exposes stale data without authorizing new pins.
   Launch refreshes the inventory before spend. No static fallback or model
   substitution. Empty accounts start with the provider-reported default only.
+- The HOST's ChatGPT models are still a static list
+  (`CHATGPT_SUBSCRIPTION_MODELS`): Sol, Terra, Luna since 2026-09-28, when
+  `gpt-5.4-mini` was retired from it after every call came back
+  `request-rejected` on two accounts. A retired slug stays a readable pin —
+  read as null, the tier would fall silently to another payer — and is refused
+  as a new pin and before a launch spends. Discovering the host's list through
+  `model/list`, as for personal logins, is the open follow-up.
 - Personal Claude/claude.ai login is unavailable until Anthropic grants the
   third-party approval its SDK terms require. Keep that a server-owned disabled
   capability, not a client flag or an emulated OAuth flow.

@@ -27,6 +27,7 @@ import {
   LLM_PROVIDER_CATALOG,
 } from '../core/providerCatalog.js';
 import {
+  assertServedHostChatGptModels,
   hostSubscriptionSummary,
   isHostSubscriptionSelection,
   isPrincipalSubscriptionSelection,
@@ -3112,6 +3113,12 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
           const changes = Object.entries(requested).filter(([tier, value]) =>
             value !== before[tier as keyof typeof before]
           ).map(([, value]) => typeof value === 'string' ? value : null);
+          // A NEW pin only: an unchanged retired one stays readable while
+          // another tier is edited, as personal pins do.
+          try { assertServedHostChatGptModels(changes); } catch (error) {
+            sendJson(res, 409, { error: error instanceof Error ? error.message : 'ChatGPT model not served' });
+            return;
+          }
           if (changes.some((value) => value && isPrincipalSubscriptionSelection(value))) {
             const inventory = await ACCOUNT_SUBSCRIPTIONS?.codexModels(viewer.principalId) ?? UNAVAILABLE_CODEX_MODELS;
             try { assertPersonalCodexModels(changes, inventory); } catch (error) {

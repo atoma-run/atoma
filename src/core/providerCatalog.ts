@@ -7,6 +7,7 @@ import {
 } from '../contracts/modelSelector.js';
 import {
   CHATGPT_SUBSCRIPTION_MODELS,
+  RETIRED_CHATGPT_SUBSCRIPTION_MODELS,
   HOST_SUBSCRIPTION_ALIASES,
 } from '../contracts/runPayers.js';
 import { ZAI_DEFAULT_BASE_URL } from '../contracts/modelSelector.js';
@@ -375,6 +376,12 @@ function subscriptionFamilyOf(
   if (!family) return null;
   if (selector.mode === 'own' && selector.vendor === 'openai') return family;
   const model = family.models.find((entry) => entry.id === selector.model);
+  // A retired host slug is still a SPELLING this family owns: a stored pin to
+  // it must read back as itself, never as null, which would silently hand the
+  // tier to another payer. It is no longer offered, and a launch refuses it
+  // (`assertServedHostChatGptModels`).
+  if (!model && family === CHATGPT_SUBSCRIPTION_FAMILY &&
+    (RETIRED_CHATGPT_SUBSCRIPTION_MODELS as readonly string[]).includes(selector.model)) return family;
   if (!model) return null;
   if (tier !== undefined && model.tiers && !model.tiers.includes(tier)) return null;
   return family;

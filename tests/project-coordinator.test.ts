@@ -1485,6 +1485,22 @@ describe('the subscription-transport door, at the coordinator', () => {
     await expectRefused(f, coordinator, driver, state, /ChatGPT/);
   });
 
+  // Run d019cfe8 (2026-09-28): a host pin to gpt-5.4-mini, which ChatGPT no
+  // longer serves, failed a minute in with "request-rejected", its planner
+  // already paid. The same pin is refused before anything spawns.
+  it('refuses a host ChatGPT pin the subscription no longer serves, before spawning', async () => {
+    const f = fixture();
+    const driver = deliveringDriver();
+    const coordinator = new ProjectRunCoordinator({
+      store: f.store, dbPath: f.dbPath, projectsRoot: f.root,
+      hostEnv: { ...haystackTestEnvironment(f.root), ...ANTHROPIC_PINS, ANTHROPIC_API_KEY: 'model-key', ATOMA_HOST_SUBSCRIPTION_ORG: f.viewer.orgId },
+      driver: driver as unknown as ProjectRunDriver, acquireLease: async () => lease(),
+      platformAdmins: () => true,
+      tierModelsFor: () => ({ l1: 'sub:openai:gpt-5.4-mini', l2: 'sub:openai:gpt-5.6-terra', l3: 'sub:openai:gpt-5.6-sol' }),
+    });
+    await expectRefused(f, coordinator, driver, 'retired-host-model', /gpt-5\.4-mini is not served by the host subscription any more/);
+  });
+
   it("resolves a personal Codex generation from the run's requesting principal", async () => {
     const f = fixture();
     const lookedUp: string[] = [];

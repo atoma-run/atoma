@@ -2354,6 +2354,17 @@ it('delegates the host subscription to a plain member, and withdraws it', async 
     // a delegation only exists inside the declared organisation.
     expect(models.hostSubscriptions?.map((offer) => offer.family.id)).toEqual(['sub:anthropic', 'sub:openai']);
     expect(models.hostSubscriptions?.every((offer) => offer.reason === undefined)).toBe(true);
+    // A NEW pin to a slug the host subscription stopped serving is refused
+    // with the reason, and changes nothing (2026-09-28, gpt-5.4-mini).
+    const retired = await fetch(`${base}/api/account/models`, {
+      method: 'PUT',
+      headers: { ...asMember, 'content-type': 'application/json', origin: base },
+      body: JSON.stringify({ pins: { l1: 'sub:openai:gpt-5.4-mini', l2: null, l3: null } }),
+    });
+    expect(retired.status).toBe(409);
+    expect(((await retired.json()) as { error: string }).error).toMatch(/not served by the host subscription any more/);
+    expect(((await (await fetch(`${base}/api/account/models`, { headers: asMember })).json()) as { pins: { l1: string | null } }).pins.l1)
+      .toBe('sub:anthropic:sonnet');
     expect((await fetch(`${base}/api/burnin`, { headers: asMember })).status).toBe(403);
     // And a delegate cannot widen the circle: the door itself stays admin-only.
     expect((await fetch(`${base}/api/org/subscription-delegates/${encodeURIComponent(founderId)}`, {
