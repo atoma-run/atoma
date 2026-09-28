@@ -57,12 +57,30 @@ export const MAX_ROOT_REMEDIATIONS = 1;
  * executes it.
  */
 export function remediationTask(task: Task, acceptance: AcceptanceInfo): Task {
+  // A single criterion rejected by the root is a narrow, structured finding.
+  // Show that fact to the planner so it can repair the claim without treating
+  // the original goal as a fresh build. Do not infer scope from free-form
+  // acceptance prose: for zero or several failures, the old broad recovery is
+  // safer than guessing which artifact may be changed.
+  const unmet = acceptance.checklist?.filter((item) => item.judgement?.met === false) ?? [];
+  const focusedScope = unmet.length === 1 ? {
+    rootRemediationScope: {
+      mode: 'single-criterion',
+      criterion: {
+        id: unmet[0]!.id,
+        behaviour: unmet[0]!.behaviour,
+        ...(unmet[0]!.judgement?.reason ? { reason: unmet[0]!.judgement.reason } : {}),
+      },
+      instruction: 'Preserve already validated deliverables. Diagnose and remediate only this rejected criterion, then re-run its relevant checks.',
+    },
+  } : {};
   return {
     ...task,
     inputs: {
       ...(task.inputs ?? {}),
       rootAcceptanceRefusal: acceptance.reasoning,
       rootAcceptanceAttempt: (Number(task.inputs?.['rootAcceptanceAttempt'] ?? 0) || 0) + 1,
+      ...focusedScope,
     },
   };
 }
