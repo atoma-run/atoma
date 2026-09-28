@@ -124,6 +124,10 @@ Neighbours:
   execution, Apps, plugins, hooks, skills, delegation and MCP are disabled;
   residual file tools see only an empty read-only jail. This is not a second
   atoma MCP surface. The same verdict schema derives Codex's nullable optionals.
+  Searches are case-insensitive and a query that matches nothing says so and
+  how to read by line: two high-confidence defects on 2026-09-27 went out
+  without a `proposedFix`, the analyst having read `src/atoms/AGENTS.md` as
+  empty through a lowercase query — and without one nothing is mendable.
 - A run with no `endedAt` is refused, never analysed: the digest of a live
   trace is a partial view and the session would spend beside the run.
 - A provider refusal of the ACCOUNT (`api_error_status: 429` in the `claude -p`

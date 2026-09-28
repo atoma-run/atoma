@@ -69,6 +69,21 @@ contradictions inside the mender itself, any one of them enough.
   `atoma mender <mender@atoma.invalid>` is nobody's account.
 - `mender.refused` now pushes to platform admins, as `mender.failed` does.
 
+## Upstream: findings the analyst could not make mendable
+
+Read once the operator MCP had platform access (11:20 UTC): the journal
+shows that on 2026-09-27 FOUR candidate mends were refused for an
+`AGENTS.md` edit alone (`src/atoms`, `src/core` twice, `src/run`), and
+four were declined. The retry of `cc922a60#0` on 2026-09-28 passed the
+diff policy and its failing-before test, and was refused as "the harness
+check is red": the host's `mender.env` still set
+`ATOMA_MENDER_CMD_CHECK` to the whole-tree `npm run check` (the start-up
+warning of 209ee82 now names it). Meanwhile two high-confidence DEFECTS
+(`c949f7e7`, `d162ee31`) and one candidate carried no `proposedFix`, the
+analyst writing that `src/atoms/AGENTS.md` "was empty in the provided
+evidence": its reader's literal filter was case-sensitive, and a lowercase
+query matches none of the file's lines.
+
 ## Still open
 
 - No mend has yet run end to end on the new contract in production.

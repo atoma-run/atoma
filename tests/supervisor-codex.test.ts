@@ -68,6 +68,24 @@ it('reads only enumerated evidence and bounds queries without executing patterns
   expect(() => reader({ path: 'src/example.ts', query: '', offset: 0, limit: 201 })).toThrow();
 });
 
+// Verdicts d162ee31 and c949f7e7 (2026-09-27) each filed a high-confidence
+// defect without a proposedFix because src/atoms/AGENTS.md "was empty in the
+// provided evidence": a lowercase query matched none of its lines. No finding
+// without a cited proposedFix is mendable.
+it('finds a section heading whatever its case, and says how to read past it', () => {
+  const root = fixture();
+  writeFileSync(join(root, 'src', 'AGENTS.md'), '# Subsystem\n\n## Intentional choices and rejected shortcuts\n\n- Do not add a cache.\n');
+  const reader = createEvidenceReader(root, {});
+  const heading = JSON.parse(reader({ path: 'src/AGENTS.md', query: 'intentional choices', offset: 0, limit: 10 })) as { total: number; lines: { line: number }[] };
+  expect(heading.total).toBe(1);
+  const section = JSON.parse(reader({ path: 'src/AGENTS.md', query: '', offset: heading.lines[0]!.line - 1, limit: 10 })) as { lines: { text: string }[] };
+  expect(section.lines.map((line) => line.text)).toContain('- Do not add a cache.');
+  const none = JSON.parse(reader({ path: 'src/AGENTS.md', query: 'no such words', offset: 0, limit: 10 })) as { total: number; hint?: string };
+  expect(none.total).toBe(0);
+  expect(none.hint).toMatch(/has \d+ lines.*empty query/);
+  expect(reader({ path: '', query: 'agents', offset: 0, limit: 10 })).toContain('src/AGENTS.md');
+});
+
 describe.skipIf(process.platform === 'win32')('Codex supervisor process boundaries', () => {
   it.each(['initialize', 'thread/start', 'turn/start'])('identifies a rejected %s without persisting provider prose', async (method) => {
     const root = fixture(); const stub = join(root, 'rejected.mjs');

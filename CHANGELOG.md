@@ -128,6 +128,10 @@ corrections of the 2026-09-24 and 2026-09-25 code reviews.
 - A worker restores a data store its probes filled after its last request that
   changes data: a running server rewrote the store from memory and undid an
   earlier restore, so a delivery carried the probe notes.
+- The analyst can read a section of the repository's AGENTS.md files: its
+  search was case-sensitive, a lowercase query returned nothing, and two
+  high-confidence defects were filed without the cited fix that makes a
+  finding mendable.
 - The mender names its check command at start-up and warns when it is the
   whole-tree `npm run check`, which a host override kept after the default
   changed.
