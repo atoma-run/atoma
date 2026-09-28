@@ -33,6 +33,7 @@ import {
   menderCommandsFromEnv,
   menderGitAuthorFromEnv,
   menderPaths,
+  wholeTreeCheckWarning,
   pendingMends,
   processMends,
   readVerdict,
@@ -242,8 +243,11 @@ async function main(): Promise<void> {
       `  provider   ${provider.selector} (${provider.source}${provider.baseUrl ? `, ${provider.baseUrl}` : ''})\n` +
       `  floor      confidence ≥ ${options.minConfidence}, a cited fix; defects and mechanism candidates (watch mode: candidates analysed since ${CANDIDATES_MENDABLE_SINCE})\n` +
       `  review     watch mode waits while ${options.maxOpenPullRequests} mender pull request(s) are open\n` +
-      `  author     ${gitAuthor}\n`
+      `  author     ${gitAuthor}\n` +
+      `  check      ${options.commands.check} <changed files>\n`
   );
+  const checkWarning = wholeTreeCheckWarning(options.commands.check);
+  if (checkWarning) warn(checkWarning);
 
   const backfill = nonNegativeInteger(args.flags['backfill'], '--backfill');
   if (findingFile) {

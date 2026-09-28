@@ -119,6 +119,18 @@ export function menderGitAuthorFromEnv(env: NodeJS.ProcessEnv = process.env): st
   return raw;
 }
 
+/**
+ * A check command that runs the whole-tree `npm run check`. The production
+ * `mender.env` still overrode it that way after 632e3f1 changed the default,
+ * so the first mend to pass its failing-before test was refused again by a
+ * lint that cannot fit the container (2026-09-28). Named at start-up rather
+ * than refused: a larger host may run the full check on purpose.
+ */
+export function wholeTreeCheckWarning(check: string): string | null {
+  if (!/\bnpm\s+run\s+check(?=\s|$)/.test(check)) return null;
+  return `ATOMA_MENDER_CMD_CHECK is "${check}": it runs the whole-tree lint, which needs about 3.5 GiB and aborts in the 2 GiB mender container; unset it to use ${DEFAULT_MENDER_COMMANDS.check}`;
+}
+
 /** The `ATOMA_MENDER_CMD_*` seams, for tests and unusual hosts. */
 export function menderCommandsFromEnv(env: NodeJS.ProcessEnv = process.env): MenderCommands {
   return {

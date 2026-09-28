@@ -17,7 +17,7 @@ import {
   WITHHELD_QUOTE,
 } from '../src/supervisor/menderPolicy.js';
 import { MENDER_HARDENING, buildMenderPrompt } from '../src/supervisor/menderPrompt.js';
-import { MENDER_DEFAULT_GIT_AUTHOR, menderGitAuthorFromEnv } from '../src/supervisor/mender.js';
+import { MENDER_DEFAULT_GIT_AUTHOR, menderGitAuthorFromEnv, wholeTreeCheckWarning } from '../src/supervisor/mender.js';
 import { menderProvider, providerChildEnv } from '../src/supervisor/session.js';
 
 /**
@@ -279,4 +279,19 @@ describe('who authors a mend', () => {
       expect(() => menderGitAuthorFromEnv({ ATOMA_MENDER_GIT_AUTHOR: value })).toThrow(/Name <email>/);
     }
   );
+});
+
+describe('a check command the container cannot run', () => {
+  // Production's mender.env kept `env NODE_OPTIONS=… npm run check` after the
+  // default became check:changed, and the first mend to reach the check was
+  // refused by the whole-tree lint again (2026-09-28).
+  it('is named at start-up when it runs the whole-tree check', () => {
+    expect(wholeTreeCheckWarning('env NODE_OPTIONS=--max-old-space-size=1536 npm run check')).toMatch(/3\.5 GiB/);
+    expect(wholeTreeCheckWarning('npm run check')).toMatch(/unset it/);
+  });
+
+  it('stays quiet for the scoped check and for a test seam', () => {
+    expect(wholeTreeCheckWarning('npm run check:changed --')).toBeNull();
+    expect(wholeTreeCheckWarning('/tmp/stubs/check.mjs')).toBeNull();
+  });
 });
