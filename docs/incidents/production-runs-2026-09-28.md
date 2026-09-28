@@ -55,12 +55,15 @@ through the run's own acceptance.
 ## After c0e0c99
 
 The molecule is now told to restore a filled store AFTER its last request
-that changes data (c0e0c99, deployed 04:37). R7, the first run on it, was
-asked to empty the store R6 had filled and delivered `notes.json` as `[]`
-(3 bytes), while its checks imported and exported through the running
-server. One run is a sign, not a measurement. Its import now gives a fresh
-id to a row whose id is already used or repeats within the file, and
-`public/index.html` is gone (404).
+that changes data (c0e0c99, deployed 04:37). R7, the first run on it,
+delivered `notes.json` as `[]`, but that is NOT evidence for the rule: its
+worker again wrote `[]` (04:51:43) and then sent one more import, which the
+server refused with 400 and so wrote nothing. Had that last import been
+valid, the server would have written its in-memory notes back, exactly as
+in R6. The prompt rule alone is weak; the fact in item 1 is what would make
+the acceptor see it. R7's import now gives a fresh id to a row whose id is
+already used or repeats within the file, and `public/index.html` is gone
+(404).
 
 ## For the supervisor
 
