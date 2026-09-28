@@ -2233,7 +2233,11 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
   // The host creates this marker before taking the run lease. Reads stay up
   // while a deployment drains, but no new durable write, run or preview may
   // enter the gap between the preflight and systemd stopping this generation.
-  if (requestWaitsForDeployment(req.method, pathname)) {
+  // `/mcp` is the exception: every MCP message is a POST, and the host serves
+  // the ones that start nothing (a read, a listing, a task's status) and
+  // answers the rest with this same 503 (`src/mcp/frozen.ts`).
+  const frozen = requestWaitsForDeployment(req.method, pathname);
+  if (frozen && pathname !== '/mcp') {
     res.setHeader('retry-after', '30');
     sendJson(res, 503, { error: 'deployment in progress; retry this request shortly' });
     return;
@@ -2242,7 +2246,7 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
   if (MCP_OAUTH && await MCP_OAUTH.handle(req, res, url)) return;
 
   if (pathname === '/mcp') {
-    await MCP_HOST.handle(req, res);
+    await MCP_HOST.handle(req, res, { frozen });
     return;
   }
 

@@ -908,7 +908,8 @@ describe('viz auth gate (process level)', () => {
     const provider = await startFakeProvider({ port: await freePort(), subject: 910 });
     const port = await freePort();
     const base = `http://127.0.0.1:${port}`;
-    const running = startViz([...instance.args, '--port', String(port)], providerEnv(provider, base));
+    const deployLock = join(instance.root, 'deploy.lock');
+    const running = startViz([...instance.args, '--port', String(port)], { ...providerEnv(provider, base), ATOMA_DEPLOY_LOCK_PATH: deployLock });
     await waitReady(running, `${base}/auth/whoami`);
     expect((await fetch(`${base}/api/tokens`)).status).toBe(401);
     const jar = new CookieJar();
@@ -945,6 +946,19 @@ describe('viz auth gate (process level)', () => {
     const listed = await (await fetch(`${base}/api/tokens`, { headers: cookie })).json() as { tokens: Array<{ tokenId: string; lastUsedAt: string | null }> };
     expect(JSON.stringify(listed)).not.toContain(token.token);
     expect(listed.tokens.find((row) => row.tokenId === token.tokenId)?.lastUsedAt).toBeTruthy();
+    // UNDER A DEPLOYMENT'S WRITE FREEZE (2026-09-28): the MCP serves what
+    // starts nothing and answers the rest 503, as the freeze does every
+    // other write. Before, every MCP POST was refused for the whole minute.
+    writeFileSync(deployLock, 'maintenance');
+    const frozenList = await fetch(token.mcpUrl, { method: 'POST', headers: sessionHeaders, body: JSON.stringify({ jsonrpc: '2.0', id: 20, method: 'tools/list' }) });
+    expect(frozenList.status).toBe(200);
+    const frozenCreate = await fetch(token.mcpUrl, { method: 'POST', headers: sessionHeaders, body: JSON.stringify({
+      jsonrpc: '2.0', id: 21, method: 'tools/call', params: { name: 'atoma_project_create', arguments: { project: {} } } }) });
+    expect(frozenCreate.status).toBe(503);
+    expect((await fetch(`${base}/api/tokens`, {
+      method: 'POST', headers: { ...cookie, origin: base, 'content-type': 'application/json' }, body: JSON.stringify({ label: 'during freeze' }),
+    })).status).toBe(503);
+    rmSync(deployLock);
     const revoked = await fetch(`${base}/api/tokens/${token.tokenId}`, { method: 'DELETE', headers: { ...cookie, origin: base } });
     expect(revoked.status).toBe(200);
     expect((await fetch(token.mcpUrl, { method: 'POST', headers: sessionHeaders, body: JSON.stringify({ jsonrpc: '2.0', id: 3, method: 'tools/list' }) })).status).toBe(401);

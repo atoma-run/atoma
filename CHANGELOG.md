@@ -128,6 +128,9 @@ corrections of the 2026-09-24 and 2026-09-25 code reviews.
 - A worker restores a data store its probes filled after its last request that
   changes data: a running server rewrote the store from memory and undid an
   earlier restore, so a delivery carried the probe notes.
+- During the minute of a deployment's activation, MCP reads (listings,
+  verdicts, run status, any read-only tool) are served instead of refused;
+  a call that would start or change something still waits.
 - An MCP client stays connected across a deployment: the session its host
   forgot on restart is reopened under the same id for the caller presenting
   it, instead of failing the next call, and an idle session now lasts a day.

@@ -62,7 +62,7 @@ Neighbours:
   An id evicted to keep a caller inside its ceiling stays gone, or the caller
   would cycle its sessions; a DELETE and an unknown shape still answer 404. They are also CEILINGED
   TWICE, because a session holds a whole server and a replay ring worth
-  megabytes and the idle sweep is thirty minutes away: a caller past
+  megabytes and the idle sweep is a day away: a caller past
   `MCP_MAX_SESSIONS_PER_CALLER` loses its OWN stalest session, and the host's
   `MCP_MAX_SESSIONS` backstop answers 503. Both are counted in `health()`, so
   a client re-initialising in a loop is visible rather than merely survived.
@@ -76,6 +76,13 @@ Neighbours:
   past `ATOMA_MCP_MAX_REQUEST_MS` (default 3h) of the CALL, reconnects
   included, its open response is closed — never the session holding other
   calls and tasks.
+- UNDER A DEPLOYMENT'S WRITE FREEZE a message is judged by what it DOES
+  (`frozen.ts`), since every MCP message is a POST: the opening, pings,
+  notifications, listings, reads, a task's status or result and a `tools/call`
+  of a tool registered `readOnlyHint: true` are served; anything else, and a
+  body over 1 MiB or not JSON, waits with the freeze's 503. Until 2026-09-28
+  every MCP POST was refused for the minute of an activation. OAuth routes
+  stay frozen: they write identities.
 - IDENTITY. Gated: `Authorization: Bearer atoma_…`, an API token a principal
   minted for ONE organisation (`/api/tokens`, or `npm run auth -- token`).
   `AuthStore.resolveApiToken` returns a fresh viewer — role and platform flag

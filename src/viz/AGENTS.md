@@ -29,9 +29,9 @@ is the wrong machine to measure frame time on.
 so a local GitHub-gated visualizer does not need a shell export. Compiled
 `viz:serve` does not load `.env`: production injects the process environment.
 `ATOMA_DEPLOY_LOCK_PATH` is a host-owned drain marker: while it exists the server
-keeps reads but refuses new mutating requests and stateful OAuth GETs with 503,
-so an activation cannot race newly admitted state. One naming its writer (`guard
-<pid> <identity>`, the waiting guard's) pauses only while that process lives.
+keeps reads but refuses new mutating requests (an MCP message by what it does:
+[src/mcp](../mcp/AGENTS.md)) and stateful OAuth GETs with 503, so an activation cannot race
+newly admitted state. One naming its writer (`guard <pid> <identity>`) pauses only while that process lives.
 
 `viz:shot` captures a PNG of the rendered client (logged-in via stubs or
 anonymous) for visual review after UI edits — [docs/viz-screenshot.md](../../docs/viz-screenshot.md).

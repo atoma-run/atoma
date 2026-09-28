@@ -10,6 +10,8 @@ const initialize = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize',
 } });
 let host: McpHttpHost;
 let hostOptions: ConstructorParameters<typeof McpHttpHost>[0];
+/** Whether the route is under a deployment's write freeze, as `server.ts` passes it. */
+let frozen = false;
 let server: Server;
 let now = 0;
 let built = 0;
@@ -25,7 +27,8 @@ async function listen(build: () => McpServer, limits = 1, perCaller = 1) {
   now = 0;
   built = 0;
   vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
-  server = createServer((req, res) => { void host.handle(req, res).catch(() => res.destroy()); });
+  frozen = false;
+  server = createServer((req, res) => { void host.handle(req, res, { frozen }).catch(() => res.destroy()); });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('missing server address');
@@ -396,4 +399,57 @@ it('carries a real SDK client across a host restart without an error or a reconn
   expect(transport.sessionId).toBe(before);
   expect(host.health()).toMatchObject({ resumed: 1, opened: 0 });
   await client.close();
+});
+
+/**
+ * The write freeze answered EVERY MCP POST 503 for the minute of an
+ * activation, a verdict read as much as a run start (2026-09-28). A call that
+ * starts nothing is served; one that starts something still waits.
+ */
+describe("a call during a deployment's write freeze", () => {
+  function post(url: string, extra: Record<string, string>, body: string) {
+    return new Promise<{ status: number; text: string; id?: string }>((resolve, reject) => {
+      const req = request(url, { method: 'POST', headers: { ...headers, authorization: 'a', ...extra } }, res => {
+        let text = '';
+        res.on('data', chunk => { text += String(chunk); });
+        res.on('end', () => resolve({ status: res.statusCode!, text, id: res.headers['mcp-session-id'] as string | undefined }));
+      });
+      req.on('error', reject);
+      requests.push(req);
+      req.end(body);
+    });
+  }
+  const tools = () => {
+    const sdk = fresh();
+    sdk.registerTool('read', { annotations: { readOnlyHint: true } }, async () => ({ content: [{ type: 'text', text: 'READ-DONE' }] }));
+    sdk.registerTool('start', { annotations: { readOnlyHint: false } }, async () => ({ content: [{ type: 'text', text: 'STARTED' }] }));
+    return sdk;
+  };
+  const on = (id: string) => ({ 'mcp-session-id': id, 'mcp-protocol-version': '2025-11-25' });
+  const callTool = (name: string) => JSON.stringify({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name } });
+
+  it('serves reads and refuses what starts something, on a live and on a resumed session', async () => {
+    const url = await listen(tools, 8, 8);
+    const opened = await post(url, {}, initialize);
+    const id = opened.id!;
+    frozen = true;
+    const read = await post(url, on(id), callTool('read'));
+    expect(read.status).toBe(200);
+    expect(read.text).toContain('READ-DONE');
+    const start = await post(url, on(id), callTool('start'));
+    expect(start.status).toBe(503);
+    expect(start.text).toContain('deployment in progress');
+    expect((await post(url, on(id), JSON.stringify({ jsonrpc: '2.0', id: 4, method: 'tools/list' }))).status).toBe(200);
+    // A new client may still open its session under the freeze.
+    expect((await post(url, {}, initialize)).status).toBe(200);
+    // The restart the freeze precedes: a forgotten session resumes, and reads.
+    await host.close();
+    host = new McpHttpHost(hostOptions);
+    const resumed = await post(url, on(id), callTool('read'));
+    expect(resumed.status).toBe(200);
+    expect(resumed.text).toContain('READ-DONE');
+    expect((await post(url, on(id), callTool('start'))).status).toBe(503);
+    frozen = false;
+    expect((await post(url, on(id), callTool('start'))).text).toContain('STARTED');
+  });
 });

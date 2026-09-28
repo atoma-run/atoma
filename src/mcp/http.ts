@@ -4,6 +4,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { LATEST_PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from '@modelcontextprotocol/sdk/types.js';
 import { SessionEventStore } from './eventStore.js';
+import { FROZEN_BODY_LIMIT_BYTES, servableWhileFrozen } from './frozen.js';
 import { callerKey, describeCaller, type McpCaller } from './identity.js';
 
 /**
@@ -197,7 +198,12 @@ export class McpHttpHost {
     return { sessions: this.sessions.size, initializing: this.pending.size, opened: this.opened, refused: this.refused, evicted: this.evicted, overflowed: this.overflowed, resumed: this.resumed, replayEvictions };
   }
 
-  async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  /**
+   * `frozen`: a deployment holds writes (`src/viz/deployment.ts`). A POST is
+   * then read here, and served only when `servableWhileFrozen` says it starts
+   * nothing; the rest waits with the freeze's own 503.
+   */
+  async handle(req: IncomingMessage, res: ServerResponse, options: { readonly frozen?: boolean } = {}): Promise<void> {
     const caller = this.options.resolveCaller(req);
     if (!caller) {
       this.refused += 1;
@@ -210,6 +216,14 @@ export class McpHttpHost {
       });
       res.end(JSON.stringify({ jsonrpc: '2.0', error: { code: -32001, message: 'a valid access token is required' }, id: null }));
       return;
+    }
+    let body: unknown;
+    if (options.frozen && req.method === 'POST') {
+      body = await readBoundedJson(req, FROZEN_BODY_LIMIT_BYTES);
+      if (body === undefined) {
+        frozenRefusal(res);
+        return;
+      }
     }
     const header = req.headers[MCP_SESSION_HEADER];
     const sessionId = Array.isArray(header) ? header[0] : header;
@@ -224,7 +238,7 @@ export class McpHttpHost {
         // some for good. Nothing of the old session comes back (its task ids,
         // subscriptions and replay ring were memory); runs never lived here.
         if (req.method !== 'DELETE' && RESUMABLE_SESSION_ID.test(sessionId) && !this.evictedIds.has(sessionId)) {
-          await this.open(req, res, caller, sessionId);
+          await this.open(req, res, caller, body, sessionId);
           return;
         }
         this.unknownSession(res);
@@ -249,7 +263,11 @@ export class McpHttpHost {
       const resumed = resumedCallStart(session.events, req);
       if (req.method === 'POST') this.pinWhileAnswering(session, res, this.now());
       else if (resumed !== undefined) this.pinWhileAnswering(session, res, resumed);
-      await session.transport.handleRequest(req, res);
+      if (body !== undefined && !servableWhileFrozen(session.server, body)) {
+        frozenRefusal(res);
+        return;
+      }
+      await session.transport.handleRequest(req, res, body);
       return;
     }
     if (req.method !== 'POST') {
@@ -258,7 +276,7 @@ export class McpHttpHost {
       return;
     }
     // A new session: the transport validates that the body is `initialize`.
-    await this.open(req, res, caller);
+    await this.open(req, res, caller, body);
   }
 
   /**
@@ -266,7 +284,7 @@ export class McpHttpHost {
    * `resumeId`, the id a client still holds after this host forgot it. Both
    * count against the same two ceilings and reserve before allocating.
    */
-  private async open(req: IncomingMessage, res: ServerResponse, caller: McpCaller, resumeId?: string): Promise<void> {
+  private async open(req: IncomingMessage, res: ServerResponse, caller: McpCaller, body: unknown, resumeId?: string): Promise<void> {
     const key = callerKey(caller);
     // This caller's own ceiling first, so a busy client reclaims from itself
     // rather than from the host — and only then the host's backstop.
@@ -332,7 +350,12 @@ export class McpHttpHost {
           // on a live session: a POST pins it while it answers.
           if (req.method === 'POST') this.pinWhileAnswering(live, res, this.now());
         }
-        await transport.handleRequest(req, res);
+        // Read already, under a freeze: classified against THIS session's tools.
+        if (body !== undefined && !servableWhileFrozen(server, body)) {
+          frozenRefusal(res);
+          return;
+        }
+        await transport.handleRequest(req, res, body);
       } finally {
         // Not an initialize, a refused one, or a throw on the way: the transport
         // has already answered, and nothing else will ever close this server —
@@ -457,5 +480,28 @@ export class McpHttpHost {
     for (const pending of this.pending.values()) pending.close();
     this.pending.clear();
     for (const session of [...this.sessions.values()]) await this.drop(session, 'host closing');
+  }
+}
+
+/** The write freeze's own answer, in the shape an MCP client reads. */
+function frozenRefusal(res: ServerResponse): void {
+  res.writeHead(503, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'retry-after': '30' });
+  res.end(JSON.stringify({ jsonrpc: '2.0', error: { code: -32000, message: 'deployment in progress; retry this request shortly' }, id: null }));
+}
+
+/** A JSON body of at most `limit` bytes, or undefined when it is larger, cut off or not JSON. */
+async function readBoundedJson(req: IncomingMessage, limit: number): Promise<unknown> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  try {
+    for await (const chunk of req) {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as string);
+      size += buffer.length;
+      if (size > limit) return undefined;
+      chunks.push(buffer);
+    }
+    return JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown;
+  } catch {
+    return undefined;
   }
 }
