@@ -69,8 +69,9 @@ import { runClaudeSession, runCommand, servedMatchesPin, type SupervisorProvider
  * repository's own checks inside a disposable container. It has no publisher
  * credentials, host HOME or engine socket, and it never sees trace text. The HARNESS — this module —
  * verifies on its own: it stashes the source change and runs the new test
- * files expecting a FAILURE, restores them, runs the full check expecting
- * success, and only then commits, pushes and opens the PR. A PERSON merges;
+ * files expecting a FAILURE, restores them, runs the check scoped to the
+ * change expecting success, and only then commits, pushes and opens the PR;
+ * CI runs the full check on it, as the ruleset requires. A PERSON merges;
  * merge → CI → the existing deploy workflow is the redeploy, so "fixed for
  * the following runs" is the PR being merged and nothing more.
  *
@@ -94,7 +95,8 @@ export const DEFAULT_MENDER_COMMANDS: MenderCommands = {
   gh: 'gh',
   install: 'npm ci',
   test: 'npx vitest run',
-  check: 'npm run check',
+  // Handed the changed files; the full `npm run check` does not fit the host.
+  check: 'npm run check:changed --',
 };
 
 /** The `ATOMA_MENDER_CMD_*` seams, for tests and unusual hosts. */
@@ -668,13 +670,16 @@ async function mendFindingReserved(input: MendInput, options: MenderOptions): Pr
       });
     }
 
-    if (options.signal?.aborted) return interrupted('before the full check', { baseSha, ...modelMeta });
-    if (!(await requireIdle(options, 'run the full check'))) {
+    if (options.signal?.aborted) return interrupted('before the harness check', { baseSha, ...modelMeta });
+    if (!(await requireIdle(options, 'run the harness check'))) {
       keepWorktree = true;
       return null;
     }
-    options.log(`verifying (${options.commands.check})`);
-    const check = await executeUntrusted(options.commands.check, [], { cwd: worktree, timeoutMs: options.timeoutMs, onLog: options.warn, ...abortable });
+    // Scoped to the change it verifies: the full check cannot run on the
+    // production host (`scripts/check-changed.mjs`), and CI runs it on the
+    // pull request before anything merges.
+    options.log(`verifying (${options.commands.check} ${files.join(' ')})`);
+    const check = await executeUntrusted(options.commands.check, files, { cwd: worktree, timeoutMs: options.timeoutMs, onLog: options.warn, ...abortable });
     const checkPassed = check.code === 0;
     if (!checkPassed) {
       keepWorktree = true;
@@ -685,7 +690,7 @@ async function mendFindingReserved(input: MendInput, options: MenderOptions): Pr
         worktree,
         report,
         files,
-        problems: ['the full check is red after the fix'],
+        problems: ['the harness check is red after the fix'],
         output: truncate(check.stdout + check.stderr, 6000),
       });
     }

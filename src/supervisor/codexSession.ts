@@ -6,6 +6,7 @@ import { acquireCodexHomeLease } from '../core/codexHomeLease.js';
 import { CODEX_TEXT_ONLY_DISABLED_FEATURES, classifyCodexDiagnostic, codexChildEnvironment } from '../core/llmCodexCli.js';
 import { jsonSchemaFromZod, type JsonSchema } from '../contracts/jsonSchema.js';
 import { CODEX_EVIDENCE_TOOL } from './codexReader.js';
+import { MENDER_COMMAND_BOUND_MS } from './menderPolicy.js';
 import { parseLooseJson, runCommand, type ClaudeSessionResult, type SupervisorProvider } from './session.js';
 
 function object(raw: unknown): Record<string, unknown> {
@@ -74,7 +75,7 @@ export function codexSupervisorConfigArgs(): string[] {
 const commandSchema = z.object({ command: z.string().min(1).max(16_000) }).strict();
 const commandTool = {
   name: 'worktree_command',
-  description: 'Run a shell command inside the isolated worktree at /work. Use for reading, editing, and testing. No network, credentials, host files, or persistent background processes. Output is capped at 24000 characters. Each command has at most 120 seconds.',
+  description: `Run a shell command inside the isolated worktree at /work. Use for reading, editing, and testing. No network, credentials, host files, or persistent background processes. Output is capped at 24000 characters. Each command has at most ${MENDER_COMMAND_BOUND_MS / 1000} seconds.`,
   inputSchema: jsonSchemaFromZod(commandSchema),
 };
 
@@ -156,7 +157,7 @@ export async function runCodexSupervisor(options: CodexSupervisorOptions): Promi
                   // The session's own stop reaches the command it is waiting
                   // on: a mender stop must not sit out its 120-second bound.
                   const executed = await options.execute('sh', ['-c', request.command], {
-                    cwd: options.cwd, env: {}, network: 'none', timeoutMs: Math.min(120_000, remaining),
+                    cwd: options.cwd, env: {}, network: 'none', timeoutMs: Math.min(MENDER_COMMAND_BOUND_MS, remaining),
                     ...(options.signal ? { signal: options.signal } : {}),
                   });
                   output = JSON.stringify({ code: executed.code, stdout: executed.stdout.slice(-16_000), stderr: executed.stderr.slice(-8_000) });

@@ -22,6 +22,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "check": "npm run docs:check && npm run typecheck && npm run lint && npm test",
+    "check:changed": "node scripts/check-changed.mjs",
     "docs:check": "node scripts/check-agent-docs.mjs && node scripts/readme-facts.mjs && node scripts/architecture-ir.mjs",
     "docs:facts": "node scripts/readme-facts.mjs",
     "docs:architecture": "node scripts/architecture-ir.mjs",

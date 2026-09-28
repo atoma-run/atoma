@@ -141,10 +141,36 @@ export function branchName(runId: string, findingIndex: number, finding: Pick<Ve
  * hooks, dependencies and the supervisor's own code are a person's decision,
  * and a "fix" that needs one is not a fix the mender may ship. The cap on
  * changed lines is the same idea by size.
+ *
+ * Stated ONCE, as lists: the patterns the harness enforces and the sentence
+ * the model is given (`MENDABLE_SCOPE`) are both built from them. The prompt
+ * once told the model to record a candidate's choice "in the subsystem
+ * AGENTS.md you changed" while this policy refused every AGENTS.md, and the
+ * only candidate mended in production was refused the instant its session
+ * ended (2026-09-27).
  */
-export const ALLOWED_PATH = /^(src\/|tests\/|docs\/incidents\/)/;
-export const PROTECTED_PATH = /^(src\/supervisor\/|src\/cli\/|src\/contracts\/supervisor)|(^|\/)AGENTS\.md$|(^|\/)CLAUDE\.md$/;
+export const MENDABLE_ROOTS = ['src/', 'tests/', 'docs/incidents/'] as const;
+/** Prefixes, matched as such: `src/contracts/supervisor` covers both of its schema files. */
+export const PROTECTED_ROOTS = ['src/supervisor/', 'src/cli/', 'src/contracts/supervisor'] as const;
+/** Refused at any depth: every agent that works here reads them as instructions. */
+export const PROTECTED_FILE_NAMES = ['AGENTS.md', 'CLAUDE.md'] as const;
+const pattern = (items: readonly string[]): string => items.map((item) => item.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+export const ALLOWED_PATH = new RegExp(`^(${pattern(MENDABLE_ROOTS)})`);
+export const PROTECTED_PATH = new RegExp(`^(${pattern(PROTECTED_ROOTS)})|(^|/)(${pattern(PROTECTED_FILE_NAMES)})$`);
+export const MENDABLE_SCOPE =
+  `only files under ${MENDABLE_ROOTS.map((root) => `\`${root}\``).join(', ')} may change, and never ` +
+  `anything under ${PROTECTED_ROOTS.map((root) => `\`${root}${root.endsWith('/') ? '' : '*'}\``).join(', ')} ` +
+  `nor any ${PROTECTED_FILE_NAMES.map((name) => `\`${name}\``).join(' or ')}, wherever it sits`;
 export const DEFAULT_MAX_DIFF_LINES = 600;
+
+/**
+ * How long ONE model-authored command may run: the Codex `worktree_command`
+ * bound, and Claude Code's own default for a Bash call. Neither the full
+ * `npm run check` nor the harness's `check:changed` fits in it, so the prompt
+ * names the checks that do and leaves the rest to the harness and CI; it used
+ * to make a green full check, run by the model, the condition for `fixed`.
+ */
+export const MENDER_COMMAND_BOUND_MS = 120_000;
 
 export interface NumstatRow {
   readonly added: number;
@@ -242,7 +268,8 @@ export function commitMessage(input: {
     '',
     `Run: ${input.runId}`,
     `Regression test fails before the fix: ${input.verification.testFailedBefore ? 'yes' : 'no'}`,
-    `Full check after the fix: ${input.verification.checkPassed ? 'green' : 'red'}`,
+    `Harness check after the fix (${input.verification.checkCommand}): ${input.verification.checkPassed ? 'green' : 'red'}`,
+    'Full check: CI, on the pull request',
     `Defect-Key: ${input.key}`,
     'Authored-By: atoma mender (supervisor stage 3, docs/supervisor-design.md)',
   ].join('\n');
@@ -307,7 +334,8 @@ export function pullRequestBody(input: {
     '## Verification (harness-run, not model-reported)',
     '',
     `- regression test FAILS before the fix: ${verification.testFailedBefore ? '✅' : '❌'} (${verification.testFiles.join(', ')})`,
-    `- full \`${verification.checkCommand}\` after the fix: ${verification.checkPassed ? '✅ green' : '❌ red'}`,
+    `- \`${verification.checkCommand}\` after the fix: ${verification.checkPassed ? '✅ green' : '❌ red'}`,
+    '- the full `npm run check` runs in CI on this pull request; the ruleset requires it before a merge',
     `- files changed: ${input.diffStat.files} · lines: +${input.diffStat.added} −${input.diffStat.deleted}`,
     '',
     '## Provenance',

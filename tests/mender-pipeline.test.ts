@@ -159,7 +159,14 @@ for (const file of process.argv.slice(2)) if (spawnSync(process.execPath, [file]
 process.exit(failed ? 1 : 0);
 `
   );
-  writeFileSync(join(stubs, 'check.mjs'), `process.exit(process.env.STUB_CHECK_FAIL === '1' ? 1 : 0);\n`);
+  writeFileSync(
+    join(stubs, 'check.mjs'),
+    `
+import { appendFileSync } from 'node:fs';
+if (process.env.STUB_CHECK_LOG) appendFileSync(process.env.STUB_CHECK_LOG, JSON.stringify(process.argv.slice(2)) + '\\n');
+process.exit(process.env.STUB_CHECK_FAIL === '1' ? 1 : 0);
+`
+  );
   writeFileSync(join(stubs, 'noop.mjs'), `process.exit(0);\n`);
   writeFileSync(
     join(stubs, 'gh.mjs'),
@@ -181,6 +188,7 @@ process.exit(2);
     // Stub behaviour rides the environment the child processes inherit.
     process.env['STUB_GH_LOG'] = ghLog;
     process.env['STUB_CLAUDE_ARGS'] = claudeArgs;
+    process.env['STUB_CHECK_LOG'] = join(root, 'check-args.jsonl');
     delete process.env['STUB_MODE'];
     delete process.env['STUB_CHECK_FAIL'];
     delete process.env['STUB_GH_LIST'];
@@ -286,7 +294,12 @@ describe('the mender, end to end against a real repository', () => {
     const message = git(f.bare, ['log', '-1', '--format=%B%n--author:%an', branch!]);
     expect(message).toMatch(/^fix\(adder\): make add\(\) add/);
     expect(message).toContain('Regression test fails before the fix: yes');
+    expect(message).toContain('Full check: CI, on the pull request');
     expect(message).toMatch(/Defect-Key: [0-9a-f]{12}/);
+    // The harness check is handed the change it verifies: the full check
+    // cannot run on the production host (scripts/check-changed.mjs).
+    const checked = readFileSync(join(f.root, 'check-args.jsonl'), 'utf8').trim().split('\n').map((line) => JSON.parse(line) as string[]);
+    expect(checked).toEqual([['src/adder.mjs', 'tests/adder.test.mjs']]);
     expect(message).toContain('--author:atoma mender');
     expect(git(f.bare, ['show', `${branch!}:src/adder.mjs`])).toContain('a + b');
     expect(git(f.bare, ['show', 'main:src/adder.mjs'])).toContain('a - b');
@@ -353,11 +366,11 @@ describe('the mender, end to end against a real repository', () => {
     expect(remoteBranches(f)).toEqual([]);
   }, TIMEOUT_MS);
 
-  it('refuses when the full check is red after the fix', async () => {
+  it('refuses when the harness check is red after the fix', async () => {
     const f = fixture();
     await mendPending(f, f.options({}, { STUB_CHECK_FAIL: '1' }));
     expect(record(f)!.outcome).toBe('refused');
-    expect(record(f)!.problems?.join()).toMatch(/full check is red/);
+    expect(record(f)!.problems?.join()).toMatch(/harness check is red/);
     expect(remoteBranches(f)).toEqual([]);
   }, TIMEOUT_MS);
 

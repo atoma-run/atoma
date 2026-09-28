@@ -10,8 +10,9 @@
  *
  * The model edits an isolated worktree and may run the repository's checks
  * there; it never commits, pushes or opens anything. The harness proves the
- * regression test fails before the fix and the full check passes after, then
- * commits, pushes and opens the PR. A person merges. Every attempt is one
+ * regression test fails before the fix and the check scoped to the change
+ * passes after, then commits, pushes and opens the PR, on which CI runs the
+ * full check. A person merges. Every attempt is one
  * record under supervisor/mender/ and — when it touched the deployment — one
  * journal row.
  */
@@ -22,6 +23,7 @@ import { mcpRunLockPath } from '../mcp/runLock.js';
 import { PlatformEventLog } from '../platform/events.js';
 import { findingConfidenceSchema, type FindingConfidence } from '../contracts/supervisorVerdict.js';
 import {
+  CANDIDATES_MENDABLE_SINCE,
   eligibleForVerdict,
   listVerdicts,
   MENDER_DEFAULT_MAX_OPEN_PULL_REQUESTS,
@@ -52,12 +54,14 @@ usage:
                  [--repo <path>] [--runs <dir>] [--supervisor-dir <dir>] [--db <path>]
 
 what it does:
-  For each analyst verdict carrying a \`defect\` finding at or above the
-  confidence floor with a cited proposedFix: cut a worktree at the tip of the
-  base branch, install, run ONE restricted headless claude session that may
-  edit src/, tests/ and docs/incidents/ and run the checks, then VERIFY on its
-  own — the new test must fail without the source change and \`npm run check\`
-  must pass with it — and only then commit, push and open the PR with gh.
+  For each analyst verdict carrying a \`defect\` or \`mechanism_candidate\`
+  finding at or above the confidence floor with a cited proposedFix: cut a
+  worktree at the tip of the base branch, install, run ONE restricted model
+  session that may edit src/, tests/ and docs/incidents/ and run the checks,
+  then VERIFY on its own — the new test must fail without the source change
+  and \`npm run check:changed\` (docs, types, the changed files' lint and
+  tests) must pass with it — and only then commit, push and open the PR with
+  gh. CI runs the full \`npm run check\` on the PR, and the ruleset requires it.
   A person merges; merge → CI → the existing production deployment.
 
 what it never does:
@@ -82,7 +86,7 @@ execution host:
 commands (env, resolved inside the execution image):
   ATOMA_MENDER_CMD_CLAUDE (claude)   ATOMA_MENDER_CMD_GH (gh)
   ATOMA_MENDER_CMD_INSTALL (npm ci)  ATOMA_MENDER_CMD_TEST (npx vitest run)
-  ATOMA_MENDER_CMD_CHECK (npm run check)
+  ATOMA_MENDER_CMD_CHECK (npm run check:changed --, handed the changed files)
 
 flags:
   --finding-file <path>  mend ONE request (atoma.supervisor.mend-request/v1) — what a
@@ -222,7 +226,7 @@ async function main(): Promise<void> {
       `  verdicts   ${paths.verdictsDir}\n` +
       `  journal    ${journal ? dbPath : 'none (no product store at ' + dbPath + ')'}\n` +
       `  provider   ${provider.selector} (${provider.source}${provider.baseUrl ? `, ${provider.baseUrl}` : ''})\n` +
-      `  floor      confidence ≥ ${options.minConfidence}, defects only\n` +
+      `  floor      confidence ≥ ${options.minConfidence}, a cited fix; defects and mechanism candidates (watch mode: candidates analysed since ${CANDIDATES_MENDABLE_SINCE})\n` +
       `  review     watch mode waits while ${options.maxOpenPullRequests} mender pull request(s) are open\n`
   );
 
@@ -251,7 +255,7 @@ async function main(): Promise<void> {
     const only = nonNegativeInteger(args.flags['finding'], '--finding');
     const eligible = eligibleForVerdict(verdict, options, only);
     if (eligible.length === 0) {
-      fail(`no eligible defect finding in ${verdictId} (kind=defect, confidence ≥ ${options.minConfidence}, proposedFix cited)`);
+      fail(`no eligible finding in ${verdictId} (kind=defect or mechanism_candidate, confidence ≥ ${options.minConfidence}, proposedFix cited)`);
     }
     const { failures } = await processMends(
       eligible.map(({ index, finding }) => ({

@@ -204,9 +204,19 @@ Neighbours:
   The dedicated local ChatGPT profile owns its refresh lifecycle. The host publisher token needs Contents and Pull requests write only; no Secrets permission. Never share the analyst profile or renew this profile elsewhere.
 - THE EXIT CONTRACT IS THE MANUAL BURN-IN LOOP'S, proven mechanically: the
   source change is stashed (untracked files included), the new test files run
-  and must FAIL, the stash is restored, the full check runs and must PASS.
-  A test that passes on the unfixed code means the mechanism is not
-  established and the attempt is `refused`.
+  and must FAIL, the stash is restored, and `npm run check:changed` runs on
+  the changed files and must PASS — the docs check and typecheck of the whole
+  tree, ESLint and the tests of the change. A test that passes on the unfixed
+  code means the mechanism is not established and the attempt is `refused`.
+  The FULL `npm run check` runs in CI on the pushed branch and the pull
+  request, and the ruleset on `main` requires it before a merge; the host
+  cannot run it. Measured 2026-09-28 in the mender container at `0d8998d`:
+  the whole-tree type-aware lint aborted at the 1536 MiB heap after 191 s
+  (3.5 GiB resident unbounded), so every mend reaching the old full check
+  would have been refused. The MODEL runs less still: each of its commands
+  is bounded (`MENDER_COMMAND_BOUND_MS`, 120 s), so the prompt names the
+  checks that fit. Prompt `m2` made a green full check its condition for
+  `fixed`.
 - WHAT MAY BE MENDED (`menderPolicy.ts#eligibleFindings`): a `defect` at or
   above the confidence floor (`high` by default) whose `proposedFix` cites the
   intentional choices it checked — and, since 2026-09-27 (owner decision), a
@@ -232,7 +242,13 @@ Neighbours:
   most `DEFAULT_MAX_DIFF_LINES` changed lines. Workflows, deploy scripts,
   hooks, dependencies and this subsystem's own code are a person's decision.
   Anything else is `refused`, nothing is pushed, and the worktree is KEPT for
-  inspection.
+  inspection. ONE SCOPE, TWO READERS: the patterns the harness enforces and
+  the sentence the model reads (`MENDABLE_SCOPE`) are built from the same
+  lists. Prompt `m2` told the model to record a candidate's choice "in the
+  subsystem `AGENTS.md` you changed", which this policy refuses at any depth,
+  and the only candidate mended in production was refused the instant its
+  session ended (2026-09-27). A candidate's choice goes in `reviewerNotes`;
+  the person who merges records it in the subsystem file.
 - TRACE TEXT NEVER REACHES THE MODEL. `sanitiseFinding` keeps evidence quotes
   only for refs into the repository source and replaces every other quote
   with `WITHHELD_QUOTE`; the worktree has no `runs/` and no `supervisor/` to

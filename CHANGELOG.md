@@ -119,6 +119,18 @@ corrections of the 2026-09-24 and 2026-09-25 code reviews.
   or model session is aborted and its container removed, and the finding
   stays pending for the next start. Only a publication already under way
   finishes first.
+- The mender can open a pull request at all. Its harness required a full
+  `npm run check` inside a 2 GiB, one-CPU container, where the whole-tree
+  lint alone needs 3.5 GiB, so every mend reaching it would have been
+  refused. The harness now runs `npm run check:changed` (the docs check and
+  typecheck of the whole tree, lint and tests of the change), and CI runs the
+  full check on the pull request, which the ruleset requires before a merge.
+- The mender no longer tells its model to do what the harness refuses: it
+  asked for a candidate's choice to be recorded in an `AGENTS.md`, refused at
+  any depth, and for a green full check that its two-minute commands cannot
+  run. The only candidate it mended was refused the moment its session
+  ended. The model now reads the scope the harness enforces, built from the
+  same lists, and runs the checks that fit.
 
 ## v0.4.0 — 2026-09-17
 

@@ -8,8 +8,9 @@ import { findingConfidenceSchema, findingKindSchema, verdictGradeSchema, verdict
  *
  * It is a REPORT, not a verdict: the harness never acts on it alone. `fixed`
  * means "the worktree holds what I claim"; the harness then proves the
- * regression test fails without the source change and the full check passes
- * with it, and only that proof opens a pull request. `declined` is a good
+ * regression test fails without the source change and the check scoped to
+ * the change passes with it, and only that proof opens a pull request, on
+ * which CI runs the full check. `declined` is a good
  * outcome — a wrong fix costs a reviewer more than no PR — and it must carry
  * its reason, because "declined" with nothing behind it is the same as a
  * timeout.

@@ -6,11 +6,17 @@ import {
   commitSubject,
   defectKey,
   eligibleFindings,
+  MENDABLE_ROOTS,
+  MENDABLE_SCOPE,
+  MENDER_COMMAND_BOUND_MS,
   parseNumstat,
+  PROTECTED_FILE_NAMES,
+  PROTECTED_ROOTS,
   pullRequestBody,
   sanitiseFinding,
   WITHHELD_QUOTE,
 } from '../src/supervisor/menderPolicy.js';
+import { MENDER_HARDENING, buildMenderPrompt } from '../src/supervisor/menderPrompt.js';
 import { menderProvider, providerChildEnv } from '../src/supervisor/session.js';
 
 /**
@@ -202,4 +208,60 @@ describe('review regressions: provider and governing code', () => {
       expect(checkDiffPolicy({ files, numstat: files.map((file) => ({ file, added: 1, deleted: 1 })) }).ok).toBe(false);
     }
   );
+});
+
+/**
+ * The only candidate mended in production (2026-09-27) was refused the instant
+ * its session ended: prompt `m2` told the model to record its choice "in the
+ * subsystem AGENTS.md you changed", which this policy refuses at any depth, and
+ * to report `fixed` only after a green full check that its 120-second commands
+ * cannot run. What the model reads is now built from what the harness enforces.
+ */
+describe('the model is told the scope the harness enforces', () => {
+  const findingJson = JSON.stringify({ title: 'a finding that mentions {{MENDABLE_SCOPE}} itself' });
+  const prompt = buildMenderPrompt({ runId: 'run-1', runStatus: 'delivered', runGrade: 'sound', findingIndex: 0, findingJson });
+  const outsideScope = (file: string): boolean => {
+    const files = [file, 'src/adder.ts', 'tests/adder.test.ts'];
+    return checkDiffPolicy({ files, numstat: [] }).problems.some((problem) => problem.includes(file));
+  };
+
+  it('refuses exactly what the sentence names, from the same lists', () => {
+    for (const root of MENDABLE_ROOTS) {
+      expect(outsideScope(`${root}fix.ts`)).toBe(false);
+      expect(MENDABLE_SCOPE).toContain(`\`${root}\``);
+    }
+    for (const root of PROTECTED_ROOTS) {
+      expect(outsideScope(`${root}${root.endsWith('/') ? 'fix' : 'Mend'}.ts`)).toBe(true);
+      expect(MENDABLE_SCOPE).toContain(`\`${root}`);
+    }
+    for (const name of PROTECTED_FILE_NAMES) {
+      expect(outsideScope(`src/atoms/${name}`)).toBe(true);
+      expect(outsideScope(name)).toBe(true);
+      expect(MENDABLE_SCOPE).toContain(`\`${name}\``);
+    }
+    expect(outsideScope('CHANGELOG.md')).toBe(true);
+    expect(outsideScope('docs/supervisor-design.md')).toBe(true);
+  });
+
+  it('states that scope in the system prompt and in the task', () => {
+    expect(MENDER_HARDENING).toContain(MENDABLE_SCOPE);
+    expect(prompt).toContain(MENDABLE_SCOPE);
+  });
+
+  it('never directs a candidate’s choice into an AGENTS.md', () => {
+    expect(prompt).not.toMatch(/record the choice in the subsystem `?AGENTS\.md/i);
+    expect(prompt).toContain('the harness refuses every `AGENTS.md`');
+    expect(prompt).toMatch(/Put the choice you made in `reviewerNotes`/);
+  });
+
+  it('does not make a check the model cannot run the condition for `fixed`', () => {
+    expect(prompt).toMatch(new RegExp(`bounded to ${MENDER_COMMAND_BOUND_MS / 1000}\\s+seconds`));
+    expect(prompt).not.toMatch(/Run it yourself before you report/);
+    expect(prompt).not.toMatch(/a failing-\s+before regression test and a green `npm run check`/);
+  });
+
+  it('fills every placeholder of its own and none inside the finding', () => {
+    expect(prompt).toContain(findingJson);
+    expect(prompt.replace(findingJson, '')).not.toMatch(/\{\{[A-Z_]+\}\}/);
+  });
 });

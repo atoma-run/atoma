@@ -260,8 +260,12 @@ the design below, both settling an open decision:
   `git` commands, no MCP, no network). It never runs `git commit`,
   `git push` or `gh`; the harness does, AFTER verifying on its own: it
   stashes the source change and runs the new test files expecting a failure,
-  restores them, runs the full `npm run check`, and only then commits,
-  pushes and opens the PR. The model's word is recorded, never trusted.
+  restores them, runs `npm run check:changed` (the docs check and typecheck
+  of the whole tree, lint and tests of the change), and only then commits,
+  pushes and opens the PR; CI runs the full `npm run check` on it, and the
+  ruleset requires it before a merge. The full check cannot run on the
+  production host: measured 2026-09-28, the whole-tree lint needs 3.5 GiB
+  against the container's 2 GiB. The model's word is recorded, never trusted.
 - **What may be mended**: a `defect` or `mechanism_candidate` finding at or
   above the confidence floor (`high` by default) whose `proposedFix` cites
   the intentional choices it checked. A candidate's pull request proposes the
@@ -282,7 +286,7 @@ the design below, both settling an open decision:
   open PR or a local `pr-opened` record is `skipped-duplicate`. It is an
   approximation and is documented as one.
 - **Never beside a run.** Same idle predicate as the analyst, asserted before
-  each heavy phase (install, model, full check); a machine-wide
+  each heavy phase (install, model, harness check); a machine-wide
   `supervisor/mender.lock` keeps mends serial. Records land in
   `supervisor/mender/<runId>.<finding>.json` and `supervisor/mender.jsonl`.
 - **Journaled**: every verdict is a `supervisor.verdict` row; every mend

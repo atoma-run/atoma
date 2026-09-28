@@ -10,7 +10,7 @@ import type { VizRunIndexEntry } from '../viz/trace.js';
  * on, answered once.
  *
  * The analyst and the mender spend the operator's model quota and the
- * mender's full check owns the machine for minutes, so neither may start
+ * mender's install and checks own the machine for minutes, so neither may start
  * beside a run (`docs/supervisor-design.md`, quota sequencing). Two stages
  * with two predicates would drift on the exact question that keeps them off a
  * live batch — which is what the out-of-product scripts had before they were
