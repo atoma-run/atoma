@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { LATEST_PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from '@modelcontextprotocol/sdk/types.js';
 import { SessionEventStore } from './eventStore.js';
 import { callerKey, describeCaller, type McpCaller } from './identity.js';
 
@@ -15,9 +16,10 @@ import { callerKey, describeCaller, type McpCaller } from './identity.js';
  * admits, and binds both to a session id. Every later request on that session
  * must present the SAME caller: a token revoked between two calls ends the
  * session with a 401 rather than riding the id it opened. Sessions are
- * in-memory and idle-swept; a host restart forgets them and a client simply
- * re-initialises — the state that matters (runs, verdicts, the journal) lives
- * in the stores, never in a session.
+ * in-memory and idle-swept, and a host restart forgets them; an authenticated
+ * caller presenting a forgotten id has it reopened in place, so a deployment
+ * is invisible to a connected client. The state that matters (runs, verdicts,
+ * the journal) lives in the stores, never in a session.
  *
  * WHAT MOVED HERE FROM THE OLD STDIO ARGUMENT. Stdio was "no socket the run
  * could reach". On a gated deployment a run holds no bearer and is inside a
@@ -41,7 +43,7 @@ import { callerKey, describeCaller, type McpCaller } from './identity.js';
  *
  * SESSIONS ARE CEILINGED TWICE. A session holds a whole `McpServer` and a
  * replay ring worth megabytes (`eventStore.ts`), and the only other reclaim
- * is the 30-minute idle sweep — so a client that re-initialises in a loop
+ * is the day-long idle sweep — so a client that re-initialises in a loop
  * would grow this map until the process died. A caller past its own ceiling
  * loses its STALEST session, which is self-limiting and costs that caller
  * only; the global ceiling refuses with 503 and is the backstop, never the
@@ -79,7 +81,18 @@ interface Session {
   readonly activePosts: Map<ServerResponse, number>;
 }
 
-export const MCP_SESSION_IDLE_MS = 30 * 60 * 1000;
+/**
+ * A day. Thirty minutes made a client back from a break meet "session
+ * expired" (2026-09-28); memory stays bounded by the two session ceilings,
+ * not by this clock, and a session swept anyway is resumed below.
+ */
+export const MCP_SESSION_IDLE_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The ids this host mints (`randomUUID`). Only an id of that shape is resumed:
+ * anything else was never ours, and answers 404 as before.
+ */
+const RESUMABLE_SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 export const MCP_MAX_REQUEST_MS = 3 * 60 * 60 * 1000;
 
 /**
@@ -114,6 +127,8 @@ export interface McpHttpHealth {
   readonly evicted: number;
   /** Sessions refused 503 by the host ceiling. Non-zero means the backstop is load-bearing. */
   readonly overflowed: number;
+  /** Unknown session ids an authenticated caller presented, reopened under the same id. */
+  readonly resumed: number;
   /** Frames the live sessions' rings dropped: replay depth a reconnect can no longer reach. */
   readonly replayEvictions: number;
 }
@@ -157,6 +172,13 @@ export class McpHttpHost {
   private refused = 0;
   private evicted = 0;
   private overflowed = 0;
+  private resumed = 0;
+  /**
+   * Sessions this host dropped ON PURPOSE to hold a caller inside its ceiling.
+   * They stay gone: resumed, each would evict the next stalest, and a caller
+   * over its share would cycle its sessions on every call. Bounded, oldest out.
+   */
+  private readonly evictedIds = new Set<string>();
 
   constructor(options: McpHttpHostOptions) {
     this.options = options;
@@ -172,7 +194,7 @@ export class McpHttpHost {
   health(): McpHttpHealth {
     let replayEvictions = 0;
     for (const session of this.sessions.values()) replayEvictions += session.events.evictions();
-    return { sessions: this.sessions.size, initializing: this.pending.size, opened: this.opened, refused: this.refused, evicted: this.evicted, overflowed: this.overflowed, replayEvictions };
+    return { sessions: this.sessions.size, initializing: this.pending.size, opened: this.opened, refused: this.refused, evicted: this.evicted, overflowed: this.overflowed, resumed: this.resumed, replayEvictions };
   }
 
   async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -194,8 +216,18 @@ export class McpHttpHost {
     if (sessionId) {
       const session = this.sessions.get(sessionId);
       if (!session) {
-        res.writeHead(404, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
-        res.end(JSON.stringify({ jsonrpc: '2.0', error: { code: -32001, message: 'unknown or expired session; initialize again' }, id: null }));
+        // A session this host no longer holds — a restart, which every
+        // deployment is, or the idle sweep — presented by a caller who
+        // authenticated just now. It is REOPENED under the same id, bound to
+        // that caller, so the client never sees the cut: until 2026-09-28 it
+        // answered 404, and a client failed one call after each deployment,
+        // some for good. Nothing of the old session comes back (its task ids,
+        // subscriptions and replay ring were memory); runs never lived here.
+        if (req.method !== 'DELETE' && RESUMABLE_SESSION_ID.test(sessionId) && !this.evictedIds.has(sessionId)) {
+          await this.open(req, res, caller, sessionId);
+          return;
+        }
+        this.unknownSession(res);
         return;
       }
       if (session.key !== callerKey(caller)) {
@@ -226,6 +258,15 @@ export class McpHttpHost {
       return;
     }
     // A new session: the transport validates that the body is `initialize`.
+    await this.open(req, res, caller);
+  }
+
+  /**
+   * Open a session for `caller`: a new one on `initialize`, or, with
+   * `resumeId`, the id a client still holds after this host forgot it. Both
+   * count against the same two ceilings and reserve before allocating.
+   */
+  private async open(req: IncomingMessage, res: ServerResponse, caller: McpCaller, resumeId?: string): Promise<void> {
     const key = callerKey(caller);
     // This caller's own ceiling first, so a busy client reclaims from itself
     // rather than from the host — and only then the host's backstop.
@@ -250,7 +291,7 @@ export class McpHttpHost {
       const events = new SessionEventStore(undefined, undefined, this.now);
       let session: Session | null = null;
       const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: () => randomUUID(),
+        sessionIdGenerator: () => resumeId ?? randomUUID(),
         // SSE responses, NEVER plain JSON. In JSON mode the SDK drops every
         // notification related to a request — a `notifications/progress` sent
         // during a `waitMs` long-poll reached nobody (measured 2026-09-07: 0 of 3
@@ -266,8 +307,9 @@ export class McpHttpHost {
           this.pending.delete(reservation);
           session = { id, transport, server, events, key, lastSeenMs: this.now(), activePosts: new Map() };
           this.sessions.set(id, session);
-          this.opened += 1;
-          this.log(`session ${id.slice(0, 8)} opened for ${describeCaller(caller)}`);
+          if (resumeId) this.resumed += 1;
+          else this.opened += 1;
+          this.log(`session ${id.slice(0, 8)} ${resumeId ? 'resumed' : 'opened'} for ${describeCaller(caller)}`);
         },
         onsessionclosed: (id) => {
           this.sessions.delete(id);
@@ -278,6 +320,18 @@ export class McpHttpHost {
       };
       try {
         await server.connect(transport);
+        if (resumeId) {
+          const initialised = await this.initialiseResumed(transport, req, resumeId);
+          const live = this.sessions.get(resumeId);
+          if (!initialised || !live) {
+            if (live) await this.drop(live, 'resume failed');
+            this.unknownSession(res);
+            return;
+          }
+          // The request that found its session gone is answered like any other
+          // on a live session: a POST pins it while it answers.
+          if (req.method === 'POST') this.pinWhileAnswering(live, res, this.now());
+        }
         await transport.handleRequest(req, res);
       } finally {
         // Not an initialize, a refused one, or a throw on the way: the transport
@@ -292,6 +346,45 @@ export class McpHttpHost {
       clearTimeout(initializationTimer);
       this.pending.delete(reservation);
     }
+  }
+
+  private unknownSession(res: ServerResponse): void {
+    res.writeHead(404, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+    res.end(JSON.stringify({ jsonrpc: '2.0', error: { code: -32001, message: 'unknown or expired session; initialize again' }, id: null }));
+  }
+
+  /**
+   * Put a fresh transport and server through the protocol's opening under a
+   * forgotten id, so the request that presented it is served as it would have
+   * been: the `initialize` the client sent before the restart, and its
+   * `notifications/initialized`, replayed here with the version the request
+   * names. The client's declared capabilities are not known again; no tool
+   * here reads them. The SDK's Node transport wraps a web-standard one, the
+   * only door to an `initialize` that is not an HTTP request; a release that
+   * moves it resumes nothing and answers 404 as before, and
+   * `tests/mcp-http-lifetimes` fails first.
+   */
+  private async initialiseResumed(transport: StreamableHTTPServerTransport, req: IncomingMessage, id: string): Promise<boolean> {
+    const web = (transport as unknown as { _webStandardTransport?: { handleRequest?: (request: Request) => Promise<Response> } })._webStandardTransport;
+    const host = req.headers.host;
+    if (typeof web?.handleRequest !== 'function' || !host) return false;
+    const header = req.headers['mcp-protocol-version'];
+    const asked = Array.isArray(header) ? header[0] : header;
+    const protocolVersion = asked && SUPPORTED_PROTOCOL_VERSIONS.includes(asked) ? asked : LATEST_PROTOCOL_VERSION;
+    const url = `http://${host}/mcp`;
+    const headers = { host, 'content-type': 'application/json', accept: 'application/json, text/event-stream' };
+    const initialize = await web.handleRequest(new Request(url, { method: 'POST', headers, body: JSON.stringify({
+      jsonrpc: '2.0', id: `resume-${id}`, method: 'initialize',
+      params: { protocolVersion, capabilities: {}, clientInfo: { name: 'atoma-resumed-session', version: '1' } },
+    }) }));
+    await initialize.text();
+    if (!initialize.ok) return false;
+    const initialized = await web.handleRequest(new Request(url, {
+      method: 'POST', headers: { ...headers, 'mcp-session-id': id, 'mcp-protocol-version': protocolVersion },
+      body: JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }),
+    }));
+    await initialized.text();
+    return initialized.status === 202;
   }
 
   /**
@@ -310,6 +403,8 @@ export class McpHttpHost {
       if (idle.length === 0) return;
       const stalest = idle.reduce((oldest, session) => (session.lastSeenMs < oldest.lastSeenMs ? session : oldest));
       this.evicted += 1;
+      this.evictedIds.add(stalest.id);
+      if (this.evictedIds.size > 1024) this.evictedIds.delete(this.evictedIds.values().next().value!);
       void this.drop(stalest, 'caller session ceiling');
     }
   }

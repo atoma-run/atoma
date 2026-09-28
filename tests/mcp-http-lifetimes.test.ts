@@ -9,6 +9,7 @@ const initialize = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize',
   protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'lifetimes', version: '1' },
 } });
 let host: McpHttpHost;
+let hostOptions: ConstructorParameters<typeof McpHttpHost>[0];
 let server: Server;
 let now = 0;
 let built = 0;
@@ -28,10 +29,12 @@ async function listen(build: () => McpServer, limits = 1, perCaller = 1) {
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('missing server address');
-  host = new McpHttpHost({ resolveCaller: req => ({ kind: 'principal', tokenId: String(req.headers['authorization'] ?? 'a'),
+  hostOptions = { resolveCaller: req => ({ kind: 'principal', tokenId: String(req.headers['authorization'] ?? 'a'),
     viewer: { principalId: String(req.headers['authorization'] ?? 'a'), orgId: 'o', orgName: 'o', displayName: 'a', displayNameSource: 'provider', kind: 'human', role: 'org:member', platformAdmin: false } }),
     buildServer: () => { built++; return build(); }, allowedHosts: [`127.0.0.1:${address.port}`],
-    now: () => now, maxSessions: limits, maxSessionsPerCaller: perCaller });
+    // The sweep tests keep their thirty-minute clock; production's day is the default.
+    now: () => now, idleMs: 30 * 60_000, maxSessions: limits, maxSessionsPerCaller: perCaller };
+  host = new McpHttpHost(hostOptions);
   return `http://127.0.0.1:${address.port}/mcp`;
 }
 function fragmented(url: string, authorization = 'a') {
@@ -297,4 +300,100 @@ describe('a call the client is still waiting for (2026-09-25 review, 1.3)', () =
     gates.shift()!();
     expect((await pending).text).toContain('FINISHED-RESULT');
   });
+});
+
+/**
+ * Every deployment restarts the host, and a restart forgot every session: the
+ * next call of every connected client answered 404, and clients failed it
+ * (2026-09-28, about ten deployments that day). An authenticated caller's
+ * forgotten id is now reopened in place; an id the host evicted on purpose,
+ * one it never minted, and a DELETE are not.
+ */
+describe('a session the host forgot', () => {
+  function post(url: string, extra: Record<string, string>, body: string, method = 'POST', authorization = 'a') {
+    return new Promise<{ status: number; text: string; id?: string }>((resolve, reject) => {
+      const req = request(url, { method, headers: { ...headers, authorization, ...extra } }, res => {
+        let text = '';
+        res.on('data', chunk => { text += String(chunk); });
+        res.on('end', () => resolve({ status: res.statusCode!, text, id: res.headers['mcp-session-id'] as string | undefined }));
+      });
+      req.on('error', reject);
+      requests.push(req);
+      req.end(body);
+    });
+  }
+  const echo = () => {
+    const sdk = fresh();
+    sdk.registerTool('echo', {}, async () => ({ content: [{ type: 'text', text: 'ECHOED' }] }));
+    return sdk;
+  };
+  const call = JSON.stringify({ jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'echo' } });
+  const on = (id: string) => ({ 'mcp-session-id': id, 'mcp-protocol-version': '2025-11-25' });
+  async function openSession(url: string): Promise<string> {
+    const opened = await post(url, {}, initialize);
+    await post(url, on(opened.id!), JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }));
+    return opened.id!;
+  }
+
+  it('is reopened under the same id after a restart, for the caller presenting it', async () => {
+    const url = await listen(echo, 8, 8);
+    const id = await openSession(url);
+    await host.close();
+    host = new McpHttpHost(hostOptions);
+    const answered = await post(url, on(id), call);
+    expect(answered.status).toBe(200);
+    expect(answered.text).toContain('ECHOED');
+    expect(answered.id).toBe(id);
+    expect(host.health()).toMatchObject({ resumed: 1, opened: 0, sessions: 1 });
+    // Resumed once: the next call rides the session like any other.
+    expect((await post(url, on(id), call)).text).toContain('ECHOED');
+    expect(host.health().resumed).toBe(1);
+    // Bound to its caller again: another identity is refused as before.
+    expect((await post(url, on(id), call, 'POST', 'b')).status).toBe(401);
+  });
+
+  it('is reopened after the idle sweep', async () => {
+    const url = await listen(echo, 8, 8);
+    const id = await openSession(url);
+    now = 25 * 60 * 60 * 1000;
+    await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
+    expect(host.health().sessions).toBe(0);
+    expect((await post(url, on(id), call)).text).toContain('ECHOED');
+    expect(host.health().resumed).toBe(1);
+  });
+
+  it('stays gone when the host evicted it, never minted it, or is asked to delete it', async () => {
+    const url = await listen(echo, 8, 1);
+    const evicted = await openSession(url);
+    now = 1_000;
+    await openSession(url);
+    expect(host.health().evicted).toBe(1);
+    expect((await post(url, on(evicted), call)).status).toBe(404);
+    expect((await post(url, on('not-a-session-this-host-minted'), call)).status).toBe(404);
+    await host.close();
+    host = new McpHttpHost(hostOptions);
+    expect((await post(url, on('4f0c6a2e-8b1d-4c3a-9e5f-7a6b5c4d3e2f'), '', 'DELETE')).status).toBe(404);
+    expect(host.health().resumed).toBe(0);
+  });
+});
+
+it('carries a real SDK client across a host restart without an error or a reconnect', async () => {
+  const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
+  const { StreamableHTTPClientTransport } = await import('@modelcontextprotocol/sdk/client/streamableHttp.js');
+  const url = await listen(() => {
+    const sdk = fresh();
+    sdk.registerTool('echo', {}, async () => ({ content: [{ type: 'text', text: 'ECHOED' }] }));
+    return sdk;
+  }, 8, 8);
+  const client = new Client({ name: 'restart-client', version: '1' });
+  const transport = new StreamableHTTPClientTransport(new URL(url), { requestInit: { headers: { authorization: 'a' } } });
+  await client.connect(transport);
+  const before = transport.sessionId;
+  expect(JSON.stringify(await client.callTool({ name: 'echo' }))).toContain('ECHOED');
+  await host.close();
+  host = new McpHttpHost(hostOptions);
+  expect(JSON.stringify(await client.callTool({ name: 'echo' }))).toContain('ECHOED');
+  expect(transport.sessionId).toBe(before);
+  expect(host.health()).toMatchObject({ resumed: 1, opened: 0 });
+  await client.close();
 });

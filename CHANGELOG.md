@@ -128,6 +128,9 @@ corrections of the 2026-09-24 and 2026-09-25 code reviews.
 - A worker restores a data store its probes filled after its last request that
   changes data: a running server rewrote the store from memory and undid an
   earlier restore, so a delivery carried the probe notes.
+- An MCP client stays connected across a deployment: the session its host
+  forgot on restart is reopened under the same id for the caller presenting
+  it, instead of failing the next call, and an idle session now lasts a day.
 - The host ChatGPT subscription offers GPT-5.6 Luna in place of GPT-5.4 Mini,
   which ChatGPT no longer serves: a run pinned to Mini failed a minute in
   with "request-rejected". A pin already stored on it is kept and named, and

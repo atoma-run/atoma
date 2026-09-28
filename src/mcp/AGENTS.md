@@ -53,8 +53,14 @@ Neighbours:
   the caller and builds a server holding exactly their tools; every later
   request must present the same caller or the session ends with a 401. Hiding
   a tool is therefore never the only guard: a revoked or demoted token cannot
-  ride the session it opened. Sessions are memory-only and idle-swept; a
-  restart forgets them and the client re-initialises. They are also CEILINGED
+  ride the session it opened. Sessions are memory-only and idle-swept (a day);
+  a restart forgets them, and an AUTHENTICATED caller presenting a forgotten
+  id of the shape this host mints has it reopened in place, bound to that
+  caller, so a deployment never fails a client's next call (2026-09-28: about
+  ten deployments that day, each one a failed call). Nothing of the old
+  session returns: task ids, subscriptions and the replay ring were memory.
+  An id evicted to keep a caller inside its ceiling stays gone, or the caller
+  would cycle its sessions; a DELETE and an unknown shape still answer 404. They are also CEILINGED
   TWICE, because a session holds a whole server and a replay ring worth
   megabytes and the idle sweep is thirty minutes away: a caller past
   `MCP_MAX_SESSIONS_PER_CALLER` loses its OWN stalest session, and the host's
