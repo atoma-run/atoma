@@ -79,10 +79,11 @@ diff policy and its failing-before test, and was refused as "the harness
 check is red": the host's `mender.env` still set
 `ATOMA_MENDER_CMD_CHECK` to the whole-tree `npm run check` (the start-up
 warning of 209ee82 now names it). Meanwhile two high-confidence DEFECTS
-(`c949f7e7`, `d162ee31`) and one candidate carried no `proposedFix`, the
-analyst writing that `src/atoms/AGENTS.md` "was empty in the provided
-evidence": its reader's literal filter was case-sensitive, and a lowercase
-query matches none of the file's lines.
+(`c949f7e7`, `d162ee31`) carried no `proposedFix`, the analyst writing that
+`src/atoms/AGENTS.md` "was empty in the provided evidence": its reader's
+literal filter was case-sensitive, and a lowercase query matches none of
+the file's lines (reproduced locally). R6's high-confidence candidate has
+no `proposedFix` either, without saying why.
 
 ## Still open
 
