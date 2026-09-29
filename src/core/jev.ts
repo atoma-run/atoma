@@ -1,5 +1,19 @@
 import { z } from 'zod';
 import { estimateCostUsd, type ModelPrices } from './metrics.js';
+import {
+  JEV_MAX_OPTIONS,
+  JEV_STATE_CHARS,
+  NEW_RECIPE,
+  NO_CANDIDATE,
+  capped,
+  headAndTail,
+  newestEvidence,
+  resultState,
+  taskState,
+  type JevAnswer,
+  type JevAnswers,
+  type JevQuestion,
+} from './jevQuestions.js';
 import type {
   JevApprovalDecision,
   JevApprovalRequest,
@@ -11,16 +25,24 @@ import type {
   JevTwinRequest,
 } from './types.js';
 
+export { NEW_RECIPE, NO_CANDIDATE, type JevAnswer, type JevAnswers, type JevQuestion };
+
 /**
  * JEV (TypeSafe) TAKES THE BOUNDED DECISIONS IT CAN TAKE.
  * =======================================================
  *
  * Owner decision of 2026-09-28 (docs/jev-decisions-2026-09-28.md): "trust Jev,
- * and we will see". Jev is a typed decision model — it answers Choice and
- * yes/no (Noul) questions over a state, far faster and cheaper than a model
- * call — so it takes the prefilter's pick and the APPROVAL half of plan and
- * result validation. It writes no text, so a refusal is always the model
+ * and we will see". Jev is a typed decision model — it answers Choice, Score
+ * and yes/no (Noul) questions over a state, far faster and cheaper than a
+ * model call — so it takes the prefilter's pick and the APPROVAL half of plan
+ * and result validation. It writes no text, so a refusal is always the model
  * validator's: that is where the remediation comes from.
+ *
+ * The decider below still asks the questions it shipped with on 2026-09-28
+ * (`legacy*`). TypeSafe's documentation, read in full on 2026-09-29,
+ * prescribes others; they are in `jevQuestions.ts`, and they decide nothing
+ * until `atoma_jev_calibrate` has measured them on the decisions the model
+ * recorded. The legacy builders are exported for that comparison.
  *
  * It is deliberately NOT in `modelCatalog.json`: adding its vendor to
  * `MODEL_SELECTOR_VENDORS` would make `api:typesafe:*` a routable tier selector
@@ -60,12 +82,13 @@ export const JEV_PRICES: ModelPrices = { input: 0.042, output: 0, cachedInput: 0
  */
 export const JEV_DECISION_TIMEOUT_MS = 2_000;
 /**
- * Failed calls after which a run stops asking Jev — counted over the whole run
- * and never reset by a success, so neither parallel lanes nor a flapping
- * service can keep a run paying timeouts: at most this many per run.
+ * Failed decisions after which a run stops asking Jev — counted over the whole
+ * run and never reset by a success, so neither parallel lanes nor a flapping
+ * service can keep a run paying timeouts: at most this many per run. A retried
+ * request that then succeeds is not a failed decision.
  */
 export const JEV_MAX_FAILURES_PER_RUN = 3;
-/** Jev's own "yes": a validation is approved at this probability or above. */
+/** The legacy approval's "yes": a validation is approved at this probability or above. */
 export const JEV_APPROVAL_THRESHOLD = 0.5;
 /**
  * Conservative, as the model prefilter is told to be: "decomposable" turns a
@@ -73,29 +96,20 @@ export const JEV_APPROVAL_THRESHOLD = 0.5;
  * server-and-page phase, run dbfaf275) must not buy one.
  */
 export const JEV_DECOMPOSABLE_THRESHOLD = 0.8;
-/** Jev's documented ceiling on the options of one Choice question. */
-const JEV_MAX_OPTIONS = 255;
-/**
- * Ceilings on what a validation state carries. jev-1.13 takes 64k tokens per
- * request, of which the state plus its single longest question may use 32k
- * (docs.typesafe.ai/models); these stay far below both.
- */
-const SUMMARY_CHARS = 6_000;
-const OUTPUT_CHARS = 14_000;
-const PLAN_CHARS = 20_000;
-const EVIDENCE_CHARS = 20_000;
-const GROUND_TRUTH_CHARS = 8_000;
+/** Jev's documented ceiling on the levels of one Score question. */
+const JEV_MAX_SCORE_LEVELS = 10;
 const EXCERPT_CHARS = 200;
-
-export type JevQuestion =
-  | { readonly type: 'choice'; readonly instructions: string; readonly criteria: Readonly<Record<string, string>> }
-  | { readonly type: 'noul'; readonly instructions: string };
+/** A retry is sent only when its wait plus a typical answer fits before the deadline. */
+const RETRY_ANSWER_ALLOWANCE_MS = 400;
+const DEFAULT_RETRY_DELAY_MS = 250;
 
 const answerSchema = z.object({
+  type: z.enum(['choice', 'noul', 'score']).optional(),
   choice: z.string().optional(),
   probabilities: z.record(z.string(), z.number().finite()).optional(),
   confidence: z.number().finite().optional(),
   noul: z.number().finite().optional(),
+  score: z.number().finite().optional(),
 });
 
 const responseSchema = z.object({
@@ -109,11 +123,11 @@ const responseSchema = z.object({
     .optional(),
 });
 
-export type JevAnswer = z.infer<typeof answerSchema>;
-
 export interface JevResult {
   readonly servedModel?: string;
-  readonly answers: Readonly<Record<string, JevAnswer>>;
+  /** `x-typesafe-request-id`, what TypeSafe support asks for. */
+  readonly requestId?: string;
+  readonly answers: JevAnswers;
   readonly inputTokens: number;
   readonly outputTokens: number;
   readonly costUsd: number;
@@ -140,9 +154,77 @@ function networkCause(error: unknown): string {
 }
 
 /**
+ * The statuses TypeSafe's SDKs retry (408, 429 and 5xx, 529 "overloaded"
+ * included). The API reference asks callers to back off on 429 and 529.
+ */
+function retryable(status: number): boolean {
+  return status === 408 || status === 429 || status >= 500;
+}
+
+/** How long the server asks us to wait: `retry-after-ms`, else `retry-after` (seconds or a date). */
+function retryDelayMs(headers: Headers): number {
+  const ms = headers.get('retry-after-ms');
+  if (ms !== null && Number.isFinite(Number(ms))) return Math.max(0, Number(ms));
+  const after = headers.get('retry-after');
+  if (after !== null) {
+    if (Number.isFinite(Number(after))) return Math.max(0, Number(after) * 1000);
+    const at = Date.parse(after);
+    if (Number.isFinite(at)) return Math.max(0, at - Date.now());
+  }
+  return DEFAULT_RETRY_DELAY_MS;
+}
+
+function pause(ms: number, signal: AbortSignal | undefined): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new JevError('aborted'));
+      return;
+    }
+    const onAbort = (): void => {
+      clearTimeout(timer);
+      reject(new JevError('aborted'));
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
+function checkShapes(questions: Readonly<Record<string, JevQuestion>>): void {
+  for (const [id, question] of Object.entries(questions)) {
+    if (question.type === 'choice') {
+      const count = Object.keys(question.criteria).length;
+      if (count < 2 || count > JEV_MAX_OPTIONS) {
+        throw new JevError(`choice "${id}" needs 2 to ${JEV_MAX_OPTIONS} options, got ${count}`);
+      }
+    } else if (question.type === 'score') {
+      const count = question.criteria.length;
+      if (count < 2 || count > JEV_MAX_SCORE_LEVELS) {
+        throw new JevError(`score "${id}" needs 2 to ${JEV_MAX_SCORE_LEVELS} levels, got ${count}`);
+      }
+    }
+  }
+}
+
+/** An answer carrying what its question's type promises, and no other type. */
+function completeAnswer(question: JevQuestion, raw: unknown): JevAnswer | null {
+  const parsed = answerSchema.safeParse(raw);
+  if (!parsed.success) return null;
+  const answer = parsed.data;
+  if (answer.type !== undefined && answer.type !== question.type) return null;
+  if (question.type === 'choice') return answer.choice !== undefined && answer.probabilities !== undefined ? answer : null;
+  if (question.type === 'score') return answer.score !== undefined && answer.probabilities !== undefined ? answer : null;
+  return answer.noul !== undefined ? answer : null;
+}
+
+/**
  * ONE request to Jev: several typed questions over one state. Throws
  * `JevError` on a refused, malformed or aborted call, or when an asked
  * question has no answer of its type; the message never carries the credential.
+ * A retryable status (408, 429, 5xx) is retried ONCE, and only when the wait
+ * the server asks for still leaves room for an answer before `deadlineAt`.
  */
 export async function jevAsk(args: {
   readonly apiKey: string;
@@ -150,66 +232,69 @@ export async function jevAsk(args: {
   readonly questions: Readonly<Record<string, JevQuestion>>;
   readonly signal?: AbortSignal;
   readonly fetchImpl?: typeof fetch;
+  /** Epoch ms after which no retry is worth waiting for. Without one, no retry. */
+  readonly deadlineAt?: number;
 }): Promise<JevResult> {
-  for (const [id, question] of Object.entries(args.questions)) {
-    if (question.type !== 'choice') continue;
-    const count = Object.keys(question.criteria).length;
-    if (count < 2 || count > JEV_MAX_OPTIONS) {
-      throw new JevError(`choice "${id}" needs 2 to ${JEV_MAX_OPTIONS} options, got ${count}`);
-    }
-  }
+  checkShapes(args.questions);
   const body = JSON.stringify({ model: JEV_MODEL, state: args.state, questions: args.questions });
-  let response: Response;
-  try {
-    response = await (args.fetchImpl ?? fetch)(JEV_ENDPOINT, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${args.apiKey}`, 'Content-Type': 'application/json' },
-      body,
-      ...(args.signal ? { signal: args.signal } : {}),
-    });
-  } catch (error) {
+  for (let attempt = 0; ; attempt++) {
+    let response: Response;
+    try {
+      response = await (args.fetchImpl ?? fetch)(JEV_ENDPOINT, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${args.apiKey}`, 'Content-Type': 'application/json' },
+        body,
+        ...(args.signal ? { signal: args.signal } : {}),
+      });
+    } catch (error) {
+      if (args.signal?.aborted) throw new JevError('aborted');
+      const message = error instanceof Error ? error.message : String(error);
+      throw new JevError(`request failed: ${scrubbed(message, args.apiKey)}${networkCause(error)}`);
+    }
+    const text = await response.text().catch(() => '');
     if (args.signal?.aborted) throw new JevError('aborted');
-    const message = error instanceof Error ? error.message : String(error);
-    throw new JevError(`request failed: ${scrubbed(message, args.apiKey)}${networkCause(error)}`);
+    if (!response.ok) {
+      if (attempt === 0 && retryable(response.status) && args.deadlineAt !== undefined) {
+        const wait = retryDelayMs(response.headers);
+        if (Date.now() + wait + RETRY_ANSWER_ALLOWANCE_MS <= args.deadlineAt) {
+          await pause(wait, args.signal);
+          continue;
+        }
+      }
+      throw new JevError(`HTTP ${response.status}${attempt > 0 ? ' after one retry' : ''}: ${scrubbed(text, args.apiKey)}`);
+    }
+    let parsed: z.infer<typeof responseSchema>;
+    try {
+      parsed = responseSchema.parse(JSON.parse(text));
+    } catch {
+      throw new JevError(`unreadable response: ${scrubbed(text, args.apiKey)}`);
+    }
+    const answers: Record<string, JevAnswer> = {};
+    for (const [id, question] of Object.entries(args.questions)) {
+      const answer = completeAnswer(question, parsed.answers[id]);
+      if (!answer) throw new JevError(`response carries no ${question.type} answer for "${id}"`);
+      answers[id] = answer;
+    }
+    const inputTokens = parsed.usage?.input_tokens ?? 0;
+    const outputTokens = parsed.usage?.output_tokens ?? 0;
+    const requestId = response.headers.get('x-typesafe-request-id');
+    return {
+      ...(parsed.model ? { servedModel: parsed.model } : {}),
+      ...(requestId ? { requestId } : {}),
+      answers,
+      inputTokens,
+      outputTokens,
+      costUsd: estimateCostUsd(
+        { inputTokens, outputTokens, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 },
+        JEV_PRICES
+      ),
+    };
   }
-  const text = await response.text().catch(() => '');
-  if (args.signal?.aborted) throw new JevError('aborted');
-  if (!response.ok) {
-    throw new JevError(`HTTP ${response.status}: ${scrubbed(text, args.apiKey)}`);
-  }
-  let parsed: z.infer<typeof responseSchema>;
-  try {
-    parsed = responseSchema.parse(JSON.parse(text));
-  } catch {
-    throw new JevError(`unreadable response: ${scrubbed(text, args.apiKey)}`);
-  }
-  const answers: Record<string, JevAnswer> = {};
-  for (const [id, question] of Object.entries(args.questions)) {
-    const answer = answerSchema.safeParse(parsed.answers[id]);
-    const complete =
-      answer.success &&
-      (question.type === 'choice'
-        ? answer.data.choice !== undefined && answer.data.probabilities !== undefined
-        : answer.data.noul !== undefined);
-    if (!complete) throw new JevError(`response carries no ${question.type} answer for "${id}"`);
-    answers[id] = answer.data;
-  }
-  const inputTokens = parsed.usage?.input_tokens ?? 0;
-  const outputTokens = parsed.usage?.output_tokens ?? 0;
-  return {
-    ...(parsed.model ? { servedModel: parsed.model } : {}),
-    answers,
-    inputTokens,
-    outputTokens,
-    costUsd: estimateCostUsd(
-      { inputTokens, outputTokens, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 },
-      JEV_PRICES
-    ),
-  };
 }
 
-/** The option Jev picks when no candidate fits — the prefilter's `escalate`. */
-export const NO_CANDIDATE = 'none_of_these';
+// ---------------------------------------------------------------------------
+// The questions the decider asks today (2026-09-28), as pure functions
+// ---------------------------------------------------------------------------
 
 const CHOICE_INSTRUCTIONS: Record<JevChoiceRequest['question'], string> = {
   agent:
@@ -229,9 +314,6 @@ const CHOICE_INSTRUCTIONS: Record<JevChoiceRequest['question'], string> = {
     'files: a recipe that only serves, verifies, probes or documents does not match a task that must change ' +
     'the code, and a recipe that builds does not match a task that must only verify.',
 };
-
-/** The option Jev picks when a draft recipe duplicates none of the existing ones. */
-export const NEW_RECIPE = 'new_recipe';
 
 const TWIN_INSTRUCTIONS: Record<JevTwinRequest['kind'], string> = {
   task:
@@ -267,48 +349,6 @@ const APPROVAL_INSTRUCTIONS: Record<JevApprovalRequest['subject'], string> = {
     '(tool outputs, probes, files read back). False when a requirement is missing, the evidence contradicts a ' +
     'claim, or a claim rests on narrative alone.',
 };
-
-function capped(value: unknown, chars: number): unknown {
-  if (value === undefined) return undefined;
-  const text = typeof value === 'string' ? value : JSON.stringify(value);
-  if (text === undefined) return undefined;
-  return text.length > chars ? `${text.slice(0, chars)}… [truncated]` : value;
-}
-
-/** A long text kept by its head AND its tail: a block's last section is often its verdict. */
-function headAndTail(text: string, chars: number): string {
-  if (text.length <= chars) return text;
-  const half = Math.floor(chars / 2);
-  return `${text.slice(0, half)}\n… [middle truncated] …\n${text.slice(-half)}`;
-}
-
-/**
- * Observations kept NEWEST first, as the model validator budgets them: a page
- * that passed early and broke after a later rewrite is judged on the break.
- */
-function newestEvidence(evidence: unknown, chars: number): unknown {
-  if (!Array.isArray(evidence)) return capped(evidence, chars);
-  const kept: unknown[] = [];
-  let used = 0;
-  for (let index = evidence.length - 1; index >= 0; index--) {
-    const size = JSON.stringify(evidence[index])?.length ?? 0;
-    if (used + size > chars) break;
-    kept.unshift(evidence[index]);
-    used += size;
-  }
-  const dropped = evidence.length - kept.length;
-  return dropped > 0 ? [`… ${dropped} older observations omitted`, ...kept] : kept;
-}
-
-/** The RESULT the model validator reads, with its summary never pushed out by a long output. */
-function resultState(payload: unknown): unknown {
-  if (payload === null || typeof payload !== 'object') return capped(payload, OUTPUT_CHARS);
-  const { summary, output } = payload as { summary?: unknown; output?: unknown };
-  return {
-    summary: capped(summary, SUMMARY_CHARS),
-    output: capped(output, OUTPUT_CHARS),
-  };
-}
 
 function choiceOptions(request: JevChoiceRequest): Record<string, string> | string {
   if (request.candidates.length + 1 > JEV_MAX_OPTIONS) {
@@ -356,12 +396,138 @@ function resolveIdenticalCandidates(
   return { target: best.names[0]!, confidence: best.mass, groupSize: best.names.length };
 }
 
-function taskState(task: JevChoiceRequest['task']): Record<string, unknown> {
+/** A pure reading of what the legacy decider does with its answer: its decision, outcome, answer and failure. */
+export interface LegacyReading<D> {
+  readonly decision: D | null;
+  readonly outcome: string;
+  readonly answer?: NonNullable<JevDecisionInfo['answer']>;
+  readonly failure?: string;
+}
+
+/** The legacy prefilter question: one Choice over the candidates, and `decomposable` at L2. */
+export function legacyChoice(
+  request: JevChoiceRequest
+): { readonly state: unknown; readonly questions: Readonly<Record<string, JevQuestion>> } | string {
+  const options = choiceOptions(request);
+  if (typeof options === 'string') return options;
+  // Decomposition matters only where a reuse can short-circuit planning:
+  // the L2 child catalog. L3 hands any pick to its strategy call anyway.
+  const asksDecomposition = request.question === 'agent' && request.actorTier !== 3;
   return {
-    task: task.description,
-    ...(task.constraints?.length ? { constraints: task.constraints } : {}),
+    state: taskState(request.task),
+    questions: {
+      choice: { type: 'choice', instructions: CHOICE_INSTRUCTIONS[request.question], criteria: options },
+      ...(asksDecomposition ? { decomposable: { type: 'noul' as const, instructions: DECOMPOSABLE_INSTRUCTIONS } } : {}),
+    },
   };
 }
+
+export function legacyReadChoice(request: JevChoiceRequest, answers: JevAnswers): LegacyReading<JevChoiceDecision> {
+  const choice = answers['choice']!;
+  const picked = choice.choice!;
+  const decomposableYes = answers['decomposable']?.noul;
+  const answer = {
+    choice: picked,
+    ...(choice.confidence !== undefined ? { confidence: choice.confidence } : {}),
+    ...(choice.probabilities ? { probabilities: choice.probabilities } : {}),
+    ...(decomposableYes !== undefined ? { yes: { decomposable: decomposableYes } } : {}),
+  };
+  const known = picked === NO_CANDIDATE || request.candidates.some((candidate) => candidate.name === picked);
+  const resolved = known ? resolveIdenticalCandidates(request.candidates, choice.probabilities ?? {}) : null;
+  const target = resolved?.target ?? null;
+  const decomposable = (decomposableYes ?? 0) >= JEV_DECOMPOSABLE_THRESHOLD;
+  const clones = resolved && resolved.groupSize > 1 ? ` (first of ${resolved.groupSize} identical)` : '';
+  return {
+    decision: known && resolved ? { target, confidence: resolved.confidence, decomposable } : null,
+    // What Jev PICKED, handed to the caller — not the route: the L2 browser
+    // redirect may still change the child, and at L3 a pick is a hint.
+    outcome: !known
+      ? 'model decides'
+      : target
+        ? `picked ${target}${clones}${decomposable ? ' (decomposable)' : ''}`
+        : `picked ${NO_CANDIDATE}`,
+    answer,
+    ...(known ? {} : { failure: `answer "${picked}" is not an option` }),
+  };
+}
+
+/** The legacy approval question: one Noul judging the whole plan or result. */
+export function legacyApproval(
+  request: JevApprovalRequest
+): { readonly state: unknown; readonly questions: Readonly<Record<string, JevQuestion>> } | string {
+  try {
+    const state = {
+      ...taskState(request.task),
+      child: { name: request.child.name, tier: request.child.tier, declaredTools: request.child.tools },
+      ...(request.subject === 'PLAN'
+        ? { plan: capped(request.payload, JEV_STATE_CHARS.plan) }
+        : { result: resultState(request.payload) }),
+      ...(request.evidence !== undefined ? { evidence: newestEvidence(request.evidence, JEV_STATE_CHARS.evidence) } : {}),
+      ...(request.groundTruth ? { groundTruth: headAndTail(request.groundTruth, JEV_STATE_CHARS.groundTruth) } : {}),
+    };
+    return { state, questions: { acceptable: { type: 'noul', instructions: APPROVAL_INSTRUCTIONS[request.subject] } } };
+  } catch (error) {
+    // A payload that cannot be serialised (a cycle, a BigInt) is the model's to judge.
+    return `unserialisable state: ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+export function legacyReadApproval(answers: JevAnswers): LegacyReading<JevApprovalDecision> {
+  const probability = answers['acceptable']!.noul!;
+  const approved = probability >= JEV_APPROVAL_THRESHOLD;
+  return {
+    decision: { approved, probability },
+    outcome: approved ? 'approved' : 'deferred to the model',
+    answer: { yes: { acceptable: probability } },
+  };
+}
+
+/** The legacy twin question: one Choice over the existing recipes and `new_recipe`, or `null` with nothing to ask. */
+export function legacyTwin(
+  request: JevTwinRequest
+): { readonly state: unknown; readonly questions: Readonly<Record<string, JevQuestion>>; readonly options: Readonly<Record<string, string>> } | null {
+  if (request.existing.length === 0) return null;
+  const options: Record<string, string> = {};
+  for (const recipe of request.existing.slice(0, JEV_MAX_OPTIONS - 1)) {
+    if (recipe.id === NEW_RECIPE) continue;
+    options[recipe.id] = `${recipe.description} — applies when: ${recipe.whenToUse}`;
+  }
+  options[NEW_RECIPE] = 'The draft covers a situation none of the existing recipes covers.';
+  if (Object.keys(options).length < 2) return null;
+  return {
+    state: {
+      draft: {
+        id: request.draft.id,
+        description: request.draft.description,
+        applies_when: request.draft.whenToUse,
+        steps: capped(request.draft.body, JEV_STATE_CHARS.plan),
+      },
+    },
+    questions: { choice: { type: 'choice', instructions: TWIN_INSTRUCTIONS[request.kind], criteria: options } },
+    options,
+  };
+}
+
+export function legacyReadTwin(options: Readonly<Record<string, string>>, answers: JevAnswers): LegacyReading<JevTwinDecision> {
+  const choice = answers['choice']!;
+  const picked = choice.choice!;
+  const known = picked === NEW_RECIPE || picked in options;
+  const twinOf = known && picked !== NEW_RECIPE ? picked : null;
+  return {
+    decision: known ? { twinOf, confidence: choice.confidence ?? 0 } : null,
+    outcome: !known ? 'saved as before' : twinOf ? `not saved: twin of ${twinOf}` : 'saved: new recipe',
+    answer: {
+      choice: picked,
+      ...(choice.confidence !== undefined ? { confidence: choice.confidence } : {}),
+      ...(choice.probabilities ? { probabilities: choice.probabilities } : {}),
+    },
+    ...(known ? {} : { failure: `answer "${picked}" is not an option` }),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// The decider
+// ---------------------------------------------------------------------------
 
 /**
  * The Jev decider. `record` receives exactly one `JevDecisionInfo` per
@@ -418,6 +584,7 @@ export function createJevDecider(opts: {
         state,
         questions,
         signal: controller.signal,
+        deadlineAt: startedAt + timeoutMs,
         ...(opts.fetchImpl ? { fetchImpl: opts.fetchImpl } : {}),
       });
       return { ok: true, result, durationMs: Date.now() - startedAt };
@@ -451,6 +618,13 @@ export function createJevDecider(opts: {
     ...(request.actorTier !== undefined ? { actorTier: request.actorTier } : {}),
     ...(request.branchId !== undefined ? { branchId: request.branchId } : {}),
   });
+  const answered = (asked: Extract<Asked, { ok: true }>) => ({
+    ...(asked.result.servedModel ? { servedModel: asked.result.servedModel } : {}),
+    ...(asked.result.requestId ? { requestId: asked.result.requestId } : {}),
+    durationMs: asked.durationMs,
+    usage: { inputTokens: asked.result.inputTokens, outputTokens: asked.result.outputTokens },
+    costUsd: asked.result.costUsd,
+  });
 
   return {
     async choose(request: JevChoiceRequest): Promise<JevChoiceDecision | null> {
@@ -460,58 +634,25 @@ export function createJevDecider(opts: {
         candidates: request.candidates.map((candidate) => candidate.name),
         ...attribution(request),
       };
-      const options = choiceOptions(request);
-      if (typeof options === 'string') {
-        safeRecord({ ...base, ...unanswered, outcome: 'model decides', failure: options, durationMs: 0 });
+      const built = legacyChoice(request);
+      if (typeof built === 'string') {
+        safeRecord({ ...base, ...unanswered, outcome: 'model decides', failure: built, durationMs: 0 });
         return null;
       }
-      // Decomposition matters only where a reuse can short-circuit planning:
-      // the L2 child catalog. L3 hands any pick to its strategy call anyway.
-      const asksDecomposition = request.question === 'agent' && request.actorTier !== 3;
-      const questions: Record<string, JevQuestion> = {
-        choice: { type: 'choice', instructions: CHOICE_INSTRUCTIONS[request.question], criteria: options },
-        ...(asksDecomposition
-          ? { decomposable: { type: 'noul' as const, instructions: DECOMPOSABLE_INSTRUCTIONS } }
-          : {}),
-      };
-      const asked = await ask(taskState(request.task), questions, request.signal);
+      const asked = await ask(built.state, built.questions, request.signal);
       if (!asked.ok) {
         safeRecord({ ...base, ...unanswered, outcome: 'model decides', failure: asked.failure, durationMs: asked.durationMs });
         return null;
       }
-      const { result } = asked;
-      const choice = result.answers['choice']!;
-      const picked = choice.choice!;
-      const decomposableYes = result.answers['decomposable']?.noul;
-      const answer = {
-        choice: picked,
-        ...(choice.confidence !== undefined ? { confidence: choice.confidence } : {}),
-        ...(choice.probabilities ? { probabilities: choice.probabilities } : {}),
-        ...(decomposableYes !== undefined ? { yes: { decomposable: decomposableYes } } : {}),
-      };
-      const known = picked === NO_CANDIDATE || request.candidates.some((candidate) => candidate.name === picked);
-      const resolved = known ? resolveIdenticalCandidates(request.candidates, choice.probabilities ?? {}) : null;
-      const target = resolved?.target ?? null;
-      const decomposable = (decomposableYes ?? 0) >= JEV_DECOMPOSABLE_THRESHOLD;
-      const clones = resolved && resolved.groupSize > 1 ? ` (first of ${resolved.groupSize} identical)` : '';
+      const reading = legacyReadChoice(request, asked.result.answers);
       safeRecord({
         ...base,
-        ...(result.servedModel ? { servedModel: result.servedModel } : {}),
-        answer,
-        // What Jev PICKED, handed to the caller — not the route: the L2 browser
-        // redirect may still change the child, and at L3 a pick is a hint.
-        outcome: !known
-          ? 'model decides'
-          : target
-            ? `picked ${target}${clones}${decomposable ? ' (decomposable)' : ''}`
-            : `picked ${NO_CANDIDATE}`,
-        ...(known ? {} : { failure: `answer "${picked}" is not an option` }),
-        durationMs: asked.durationMs,
-        usage: { inputTokens: result.inputTokens, outputTokens: result.outputTokens },
-        costUsd: result.costUsd,
+        ...answered(asked),
+        ...(reading.answer ? { answer: reading.answer } : {}),
+        outcome: reading.outcome,
+        ...(reading.failure ? { failure: reading.failure } : {}),
       });
-      if (!known || !resolved) return null;
-      return { target, confidence: resolved.confidence, decomposable };
+      return reading.decision;
     },
 
     async approve(request: JevApprovalRequest): Promise<JevApprovalDecision | null> {
@@ -522,100 +663,46 @@ export function createJevDecider(opts: {
         childName: request.child.name,
         ...attribution(request),
       };
-      let state: Record<string, unknown>;
-      try {
-        state = {
-          ...taskState(request.task),
-          child: { name: request.child.name, tier: request.child.tier, declaredTools: request.child.tools },
-          ...(request.subject === 'PLAN'
-            ? { plan: capped(request.payload, PLAN_CHARS) }
-            : { result: resultState(request.payload) }),
-          ...(request.evidence !== undefined ? { evidence: newestEvidence(request.evidence, EVIDENCE_CHARS) } : {}),
-          ...(request.groundTruth ? { groundTruth: headAndTail(request.groundTruth, GROUND_TRUTH_CHARS) } : {}),
-        };
-      } catch (error) {
-        // A payload that cannot be serialised (a cycle, a BigInt) is the model's to judge.
-        const failure = `unserialisable state: ${error instanceof Error ? error.message : String(error)}`;
-        safeRecord({ ...base, ...unanswered, outcome: 'deferred to the model', failure, durationMs: 0 });
+      const built = legacyApproval(request);
+      if (typeof built === 'string') {
+        safeRecord({ ...base, ...unanswered, outcome: 'deferred to the model', failure: built, durationMs: 0 });
         return null;
       }
-      const asked = await ask(
-        state,
-        { acceptable: { type: 'noul', instructions: APPROVAL_INSTRUCTIONS[request.subject] } },
-        request.signal
-      );
+      const asked = await ask(built.state, built.questions, request.signal);
       if (!asked.ok) {
         safeRecord({ ...base, ...unanswered, outcome: 'deferred to the model', failure: asked.failure, durationMs: asked.durationMs });
         return null;
       }
-      const probability = asked.result.answers['acceptable']!.noul!;
-      const approved = probability >= JEV_APPROVAL_THRESHOLD;
-      safeRecord({
-        ...base,
-        ...(asked.result.servedModel ? { servedModel: asked.result.servedModel } : {}),
-        answer: { yes: { acceptable: probability } },
-        outcome: approved ? 'approved' : 'deferred to the model',
-        durationMs: asked.durationMs,
-        usage: { inputTokens: asked.result.inputTokens, outputTokens: asked.result.outputTokens },
-        costUsd: asked.result.costUsd,
-      });
-      return { approved, probability };
+      const reading = legacyReadApproval(asked.result.answers);
+      safeRecord({ ...base, ...answered(asked), ...(reading.answer ? { answer: reading.answer } : {}), outcome: reading.outcome });
+      return reading.decision;
     },
 
     async twin(request: JevTwinRequest): Promise<JevTwinDecision | null> {
       const role = request.kind === 'task' ? ('learn-skill' as const) : ('learn-event-skill' as const);
+      const built = legacyTwin(request);
       // Nothing to duplicate: no question, and nothing to record.
-      if (request.existing.length === 0) return null;
+      if (!built) return null;
       const base = {
         role,
         evaluator: JEV_EVALUATOR,
         candidates: request.existing.map((recipe) => recipe.id),
         ...attribution(request),
       };
-      const options: Record<string, string> = {};
-      for (const recipe of request.existing.slice(0, JEV_MAX_OPTIONS - 1)) {
-        if (recipe.id === NEW_RECIPE) continue;
-        options[recipe.id] = `${recipe.description} — applies when: ${recipe.whenToUse}`;
-      }
-      options[NEW_RECIPE] = 'The draft covers a situation none of the existing recipes covers.';
-      if (Object.keys(options).length < 2) return null;
-      const state = {
-        draft: {
-          id: request.draft.id,
-          description: request.draft.description,
-          applies_when: request.draft.whenToUse,
-          steps: capped(request.draft.body, PLAN_CHARS),
-        },
-      };
-      const asked = await ask(
-        state,
-        { choice: { type: 'choice', instructions: TWIN_INSTRUCTIONS[request.kind], criteria: options } },
-        request.signal
-      );
+      const asked = await ask(built.state, built.questions, request.signal);
       if (!asked.ok) {
         safeRecord({ ...base, ...unanswered, outcome: 'saved as before', failure: asked.failure, durationMs: asked.durationMs });
         return null;
       }
-      const choice = asked.result.answers['choice']!;
-      const picked = choice.choice!;
-      const known = picked === NEW_RECIPE || picked in options;
-      const twinOf = known && picked !== NEW_RECIPE ? picked : null;
+      const reading = legacyReadTwin(built.options, asked.result.answers);
       safeRecord({
         ...base,
-        ...(asked.result.servedModel ? { servedModel: asked.result.servedModel } : {}),
-        answer: {
-          choice: picked,
-          ...(choice.confidence !== undefined ? { confidence: choice.confidence } : {}),
-          ...(choice.probabilities ? { probabilities: choice.probabilities } : {}),
-        },
-        outcome: !known ? 'saved as before' : twinOf ? `not saved: twin of ${twinOf}` : 'saved: new recipe',
-        ...(known ? {} : { failure: `answer "${picked}" is not an option` }),
-        durationMs: asked.durationMs,
-        usage: { inputTokens: asked.result.inputTokens, outputTokens: asked.result.outputTokens },
-        costUsd: asked.result.costUsd,
+        ...answered(asked),
+        ...(reading.answer ? { answer: reading.answer } : {}),
+        outcome: reading.outcome,
+        ...(reading.failure ? { failure: reading.failure } : {}),
       });
-      if (!known) return null;
-      return { twinOf, confidence: choice.confidence ?? 0 };
+      return reading.decision;
     },
   };
 }
@@ -631,6 +718,11 @@ function listedOrgs(value: string | undefined): Set<string> {
 export function jevAdmitsOrg(hostEnv: NodeJS.ProcessEnv, orgId: string | undefined): boolean {
   if (!orgId || !hostEnv[JEV_KEY_ENV]?.trim()) return false;
   return listedOrgs(hostEnv[JEV_ORGS_ENV]).has(orgId);
+}
+
+/** The organisations whose project runs Jev decides for on this host — none without the key. */
+export function jevAdmittedOrgs(hostEnv: NodeJS.ProcessEnv): string[] {
+  return [...listedOrgs(hostEnv[JEV_ORGS_ENV])].filter((orgId) => jevAdmitsOrg(hostEnv, orgId));
 }
 
 const ORG_ID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

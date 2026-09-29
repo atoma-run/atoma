@@ -492,8 +492,13 @@ export interface JevChoiceRequest {
   /** 'agent' for the L2/L3 child catalog, 'recipe' for the skill catalog. */
   readonly question: 'agent' | 'recipe';
   readonly task: { readonly description: string; readonly constraints?: readonly string[] };
-  /** The catalog AFTER exclusions — exactly what the prefilter model would see. */
-  readonly candidates: readonly { readonly name: string; readonly description: string }[];
+  /**
+   * The catalog AFTER exclusions — exactly what the prefilter model would see,
+   * plus an optional `detail` only the documented questions read: the opening
+   * of a recipe's body, as TypeSafe's skill-suggestion cookbook re-reads its
+   * shortlist with it.
+   */
+  readonly candidates: readonly { readonly name: string; readonly description: string; readonly detail?: string }[];
   readonly actorName?: string;
   readonly actorTier?: Tier;
   /** Fan-out lane id — stamped by `forkBranch`, like every other observer. */
@@ -571,14 +576,20 @@ export interface JevDecisionInfo {
   readonly evaluator: string;
   /** The model the service reports having served, when it says. */
   readonly servedModel?: string;
-  /** The prefilter's candidates, when the question was a choice. */
+  /** TypeSafe's `x-typesafe-request-id` for this call: what its support asks for. */
+  readonly requestId?: string;
+  /** The prefilter's candidates, or the recipes a twin check compared, when there were some. */
   readonly candidates?: readonly string[];
-  /** What Jev answered: a choice with its distribution, and/or yes-probabilities by question. */
+  /**
+   * What Jev answered: a choice with its distribution, yes-probabilities by
+   * question, and a twin check's pairwise scores by recipe id.
+   */
   readonly answer?: {
     readonly choice?: string;
     readonly confidence?: number;
     readonly probabilities?: Readonly<Record<string, number>>;
     readonly yes?: Readonly<Record<string, number>>;
+    readonly scores?: Readonly<Record<string, number>>;
   };
   /** What Atoma did with it: 'reuse <t>', 'escalate', 'approved', 'deferred to the model'. */
   readonly outcome: string;

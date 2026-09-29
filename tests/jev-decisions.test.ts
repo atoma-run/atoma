@@ -64,10 +64,10 @@ interface JevRequestBody {
   questions: Record<string, { type: string; instructions: string; criteria?: Record<string, string> }>;
 }
 
-function respond(answers: Record<string, unknown>): Response {
+function respond(answers: Record<string, unknown>, headers: Record<string, string> = {}): Response {
   return new Response(
     JSON.stringify({ model: 'jev-1.13.0', answers, usage: { input_tokens: 1000, output_tokens: 0 } }),
-    { status: 200, headers: { 'Content-Type': 'application/json' } }
+    { status: 200, headers: { 'Content-Type': 'application/json', ...headers } }
   );
 }
 
@@ -170,10 +170,14 @@ describe('jevAsk — the one Jev client', () => {
     }
   });
 
-  it('refuses a response missing an asked answer, and a Choice with fewer than two options', async () => {
+  it('refuses a missing answer, one of another type, and out-of-bounds Choices and Scores', async () => {
     const empty = (async () => respond({})) as typeof fetch;
     await expect(
       jevAsk({ apiKey: KEY, state: 's', questions: { ok: { type: 'noul', instructions: 'x' } }, fetchImpl: empty })
+    ).rejects.toThrow(/no noul answer for "ok"/);
+    const mistyped = (async () => respond({ ok: { type: 'score', noul: 0.4, score: 1, probabilities: {} } })) as typeof fetch;
+    await expect(
+      jevAsk({ apiKey: KEY, state: 's', questions: { ok: { type: 'noul', instructions: 'x' } }, fetchImpl: mistyped })
     ).rejects.toThrow(/no noul answer for "ok"/);
     await expect(
       jevAsk({
@@ -183,6 +187,58 @@ describe('jevAsk — the one Jev client', () => {
         fetchImpl: empty,
       })
     ).rejects.toThrow(/2 to 255 options/);
+    await expect(
+      jevAsk({
+        apiKey: KEY,
+        state: 's',
+        questions: { s: { type: 'score', instructions: 'x', criteria: Array.from({ length: 11 }, (_, i) => `level ${i}`) } },
+        fetchImpl: empty,
+      })
+    ).rejects.toThrow(/2 to 10 levels/);
+  });
+
+  it('retries a 429 once when the wait it asks for fits the deadline, and keeps the request id', async () => {
+    let sent = 0;
+    const limited = (async () => {
+      sent += 1;
+      return sent === 1
+        ? new Response('slow down', { status: 429, headers: { 'retry-after-ms': '5' } })
+        : respond({ ok: { type: 'noul', noul: 0.9 } }, { 'x-typesafe-request-id': 'req-42' });
+    }) as typeof fetch;
+    const result = await jevAsk({
+      apiKey: KEY,
+      state: 's',
+      questions: { ok: { type: 'noul', instructions: 'x' } },
+      fetchImpl: limited,
+      deadlineAt: Date.now() + 2_000,
+    });
+    expect(sent).toBe(2);
+    expect(result.answers['ok']!.noul).toBe(0.9);
+    expect(result.requestId).toBe('req-42');
+  });
+
+  it('does not retry past the deadline, nor without one, nor a refusal', async () => {
+    for (const [status, retryAfter, deadlineAt] of [
+      [529, '10', Date.now() + 2_000],
+      [529, '0', undefined],
+      [422, '0', Date.now() + 2_000],
+    ] as const) {
+      let sent = 0;
+      const failing = (async () => {
+        sent += 1;
+        return new Response('no', { status, headers: { 'retry-after': retryAfter } });
+      }) as typeof fetch;
+      await expect(
+        jevAsk({
+          apiKey: KEY,
+          state: 's',
+          questions: { ok: { type: 'noul', instructions: 'x' } },
+          fetchImpl: failing,
+          ...(deadlineAt !== undefined ? { deadlineAt } : {}),
+        })
+      ).rejects.toThrow(new RegExp(`HTTP ${status}`));
+      expect(sent).toBe(1);
+    }
   });
 });
 
@@ -294,10 +350,10 @@ describe('the Jev decider — choices', () => {
   it('stops asking after three failed calls in a run, whatever succeeded between them', async () => {
     let sent = 0;
     // Fails, succeeds, then fails for good: a success must not reset the count,
-    // or a flapping service would keep a run paying timeouts.
+    // or a flapping service would keep a run paying timeouts. A 422 is not retried.
     const flapping = (async () => {
       sent += 1;
-      return sent === 2 ? respond(pick('Water')) : new Response('overloaded', { status: 529 });
+      return sent === 2 ? respond(pick('Water')) : new Response('malformed', { status: 422 });
     }) as typeof fetch;
     const records: JevDecisionInfo[] = [];
     const decider = createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: flapping });
@@ -314,14 +370,30 @@ describe('the Jev decider — choices', () => {
     await decider.choose(choiceRequest);
     expect(sent).toBe(4);
     expect(records.map((r) => r.failure ?? r.outcome)).toEqual([
-      expect.stringMatching(/HTTP 529/),
+      expect.stringMatching(/HTTP 422/),
       'picked Water',
       `a candidate is named ${NO_CANDIDATE}`,
       expect.stringMatching(/255 candidates exceed/),
-      expect.stringMatching(/HTTP 529/),
-      expect.stringMatching(/HTTP 529/),
+      expect.stringMatching(/HTTP 422/),
+      expect.stringMatching(/HTTP 422/),
       'skipped: 3 failed calls in this run',
     ]);
+  });
+
+  it('counts a request retried into an answer as no failure, and records its request id', async () => {
+    let sent = 0;
+    const overloadedOnce = (async () => {
+      sent += 1;
+      return sent % 2 === 1
+        ? new Response('overloaded', { status: 529, headers: { 'retry-after-ms': '1' } })
+        : respond(pick('Water'), { 'x-typesafe-request-id': `req-${sent}` });
+    }) as typeof fetch;
+    const records: JevDecisionInfo[] = [];
+    const decider = createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: overloadedOnce });
+    for (let run = 0; run < 4; run++) await decider.choose(choiceRequest);
+    expect(sent).toBe(8);
+    expect(records.map((r) => r.outcome)).toEqual(Array(4).fill('picked Water'));
+    expect(records.map((r) => r.requestId)).toEqual(['req-2', 'req-4', 'req-6', 'req-8']);
   });
 
   it('sends nothing for a run already cancelled, and tells a cancellation from a timeout', async () => {

@@ -302,12 +302,16 @@ export interface VizJevEvent {
   role: 'prefilter' | 'validate-plan' | 'validate-result' | 'learn-skill' | 'learn-event-skill';
   evaluator: string;
   servedModel?: string;
+  /** TypeSafe's `x-typesafe-request-id`. */
+  requestId?: string;
   candidates?: string[];
   answer?: {
     choice?: string;
     confidence?: number;
     probabilities?: Record<string, number>;
     yes?: Record<string, number>;
+    /** A twin check's pairwise scores by recipe id (0 different … 2 the same). */
+    scores?: Record<string, number>;
   };
   outcome: string;
   /** Not `error`: every reader of `event.error` would count a Jev outage as a run error. */
@@ -795,6 +799,7 @@ export class TraceRecorder {
       role: info.role,
       evaluator: info.evaluator,
       ...(info.servedModel !== undefined ? { servedModel: info.servedModel } : {}),
+      ...(info.requestId !== undefined ? { requestId: info.requestId } : {}),
       ...(info.candidates ? { candidates: [...info.candidates] } : {}),
       ...(answer
         ? {
@@ -803,6 +808,7 @@ export class TraceRecorder {
               ...(answer.confidence !== undefined ? { confidence: answer.confidence } : {}),
               ...(answer.probabilities ? { probabilities: { ...answer.probabilities } } : {}),
               ...(answer.yes ? { yes: { ...answer.yes } } : {}),
+              ...(answer.scores ? { scores: { ...answer.scores } } : {}),
             },
           }
         : {}),

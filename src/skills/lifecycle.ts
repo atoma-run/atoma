@@ -367,6 +367,8 @@ export class SkillLifecycle {
         })),
         actorName: this.host.name,
         actorTier: 2,
+        // A cancelled run sends nothing, learning included.
+        ...(ctx.signal ? { signal: ctx.signal } : {}),
       });
       return decision?.twinOf ?? null;
     } catch {
