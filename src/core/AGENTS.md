@@ -195,6 +195,18 @@ Neighbours:
   `jev` event, and kept out of the run's LLM totals. A decision waits at most
   `JEV_DECISION_TIMEOUT_MS`; after `JEV_MAX_FAILURES_PER_RUN` failed calls —
   counted over the run, never reset by a success — a run stops asking.
+- `jevAsk` retries a 408, 429 or 5xx ONCE, honouring `retry-after-ms` or
+  `retry-after`, and only when the wait still leaves room for an answer before
+  the decision's deadline; a request retried into an answer is not a failed
+  call. `JEV_MODEL` is the versioned id, never `jev-latest`: the alias moves on
+  release, and a threshold is measured on one version.
+- `src/core/jevQuestions.ts` holds the questions TypeSafe's documentation
+  prescribes — atomic Choices and Nouls, problem flags where TRUE is wrong, a
+  middle band left to the model — and EVERY threshold they are read against,
+  in one file. Since 2026-09-29 they decide nothing: the decider asks its
+  2026-09-28 questions (`legacy*` in `jev.ts`) until `atoma_jev_calibrate`
+  ([src/mcp](../mcp/AGENTS.md)) has measured the new ones on the model's
+  recorded decisions. A threshold moves with a measurement, never by feel.
 
 ## Intentional choices and rejected shortcuts
 

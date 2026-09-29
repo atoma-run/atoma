@@ -145,6 +145,11 @@ load-bearing.
   fast path is admissible (no gate finding, proof covered, probe not requiring
   review), through `jevApproval`. A no or a silence is the model's decision, as
   before. Root delivery acceptance is never Jev's.
+- The Jev calibration (`jevCalibration.ts`) reads prefilter and validation
+  prompts back out of traces, so the LAYOUT of what `prefilterStrategy` and
+  `llmVerdict` send is a contract with it: `tests/jev-calibration.test.ts`
+  renders with the production code and parses the result, and a prompt change
+  keeps it passing or changes the parser with it.
 - Atom trust fast paths require the configured consecutive approved-result
   threshold (default 3), read through `trustThreshold()`; historical failures do
   not permanently disqualify a type. Skills retain their separate clean-lifetime

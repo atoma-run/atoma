@@ -20,6 +20,8 @@ import { McpHttpHost, type McpHttpHostOptions } from '../src/mcp/http.js';
 import { callerTier, type McpCaller } from '../src/mcp/identity.js';
 import { buildServer } from '../src/mcp/server.js';
 import { MCP_TOOL_NAMES, MCP_TOOLS, visibleTools, type McpToolDeps } from '../src/mcp/tools.js';
+import { forgetJevCalibrationsForTest } from '../src/mcp/jevCalibrate.js';
+import { JEV_ENDPOINT } from '../src/core/jev.js';
 import { SessionTaskStore, projectRunTaskHandler, type RunTaskHost } from '../src/mcp/tasks.js';
 import { CallToolResultSchema, CreateTaskResultSchema, LoggingMessageNotificationSchema } from '@modelcontextprotocol/sdk/types.js';
 import { ProjectStore } from '../src/projects/store.js';
@@ -241,6 +243,9 @@ describe('the catalogue by tier', () => {
     // self-service: an org admin never sees the row, a platform admin does.
     expect(asAdmin).not.toContain('atoma_subscription_delegates');
     expect(asPlatform).toContain('atoma_subscription_delegates');
+    // Sending an organisation's recorded prompts to TypeSafe is the platform's call.
+    expect(asAdmin).not.toContain('atoma_jev_calibrate');
+    expect(asPlatform).toContain('atoma_jev_calibrate');
     // The tray needs the host's notification builder; this host has none, so
     // the platform ladder is the whole table minus that one row.
     expect(asPlatform).toEqual(MCP_TOOL_NAMES.filter((name) => !['atoma_notifications', 'atoma_benchmark_start'].includes(name)));
@@ -252,6 +257,7 @@ describe('the catalogue by tier', () => {
     expect(asOperator).not.toContain('atoma_projects_list');
     expect(asOperator).not.toContain('atoma_journal_tail');
     expect(asOperator).not.toContain('atoma_notifications');
+    expect(asOperator).not.toContain('atoma_jev_calibrate');
     expect(asOperator).toContain('atoma_operator_run_start');
     expect(asOperator).toContain('atoma_registry_list');
     expect(asOperator).toContain('atoma_run_trace');
@@ -1233,6 +1239,78 @@ it('journals a platform-admin MCP trace read under the foreign organisation', as
     expect(events[0]).toMatchObject({ actorId: a.viewer.principalId, orgId: b.viewer.orgId, detail: { surface: 'mcp.trace' } });
   } finally { await client.close(); }
 });
+it('calibrates Jev over MCP on the admitted organisations only, and reads its answers again for free', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'atoma-mcp-jev-calibrate-'));
+  dirs.push(root);
+  const a = projectRetrievalFixture(root, { subject: 'admin', slug: 'admin' });
+  const b = projectRetrievalFixture(root, { subject: 'admitted', slug: 'admitted' });
+  const c = projectRetrievalFixture(root, { subject: 'excluded', slug: 'excluded' });
+  const writeTrace = (fixture: typeof a, task: string, startedAt: string) => {
+    const run = fixture.makeRun();
+    mkdirSync(run.layout.runsPath, { recursive: true });
+    writeFileSync(join(run.layout.runsPath, `${run.run.projectRunId}.json`), JSON.stringify({
+      id: run.run.projectRunId, label: task, startedAt,
+      events: [{ id: `${fixture.viewer.orgId}-prefilter`, kind: 'llm', ts: 1, role: 'prefilter', actor: { name: 'Idioblast', tier: 2 },
+        systemPrompt: 'You pre-filter catalog lookups.',
+        userContent: [`Task: ${task}`, '', 'Catalog:', '  - Water: builds web pages', '  - Methane: builds JSON APIs'].join('\n'),
+        response: JSON.stringify({ kind: 'reuse', target: 'Water', confidence: 'high', reasoning: 'x' }) }],
+    }));
+  };
+  writeTrace(a, 'Build the admin page.', '2026-09-27T10:00:00.000Z');
+  writeTrace(b, 'Build the admitted page.', '2026-09-27T11:00:00.000Z');
+  writeTrace(c, 'Build the SECRET-C page.', '2026-09-27T12:00:00.000Z');
+  const journal = PlatformEventLog.open(a.dbPath);
+  const service = new ProjectService({ store: a.projects, github: null,
+    coordinator: {} as ProjectRunCoordinator, auditRead: read => journal.recordCrossOrgRead(read) });
+  const bodies: string[] = [];
+  const realFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', async (url: string | URL | Request, init?: RequestInit) => {
+    const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url;
+    if (href !== JEV_ENDPOINT) return realFetch(url, init);
+    bodies.push(init!.body as string);
+    const questions = (JSON.parse(init!.body as string) as { questions: Record<string, { type: string; criteria?: object }> }).questions;
+    const answers = Object.fromEntries(Object.entries(questions).map(([id, question]) => {
+      if (question.type === 'noul') return [id, { type: 'noul', noul: id === 'fits::agent_1' ? 0.9 : 0.05 }];
+      const first = Object.keys(question.criteria!)[0]!;
+      return [id, { type: 'choice', choice: first, confidence: 0.9, probabilities: { [first]: 0.9 } }];
+    }));
+    return new Response(JSON.stringify({ model: 'jev-1.13.0', answers, usage: { input_tokens: 100, output_tokens: 0 } }), { status: 200 });
+  });
+  vi.stubEnv('TYPESAFE_API_KEY', 'ts-key');
+  vi.stubEnv('ATOMA_JEV_ORGS', `${a.viewer.orgId},${b.viewer.orgId}`);
+  const { url } = await listen(() => ({ kind: 'principal', viewer: { ...a.viewer, platformAdmin: true }, tokenId: 'admin' }),
+    { ...NO_TENANT, auth: a.auth, projects: { store: a.projects, service }, journal });
+  const client = await connect(url);
+  type Payload = { resultId: string; orgs: string[]; window: { decisions: number; nextOffset: number | null };
+    report: { prefilter: { documented: { agree: number; deferred: number } }[] } };
+  try {
+    const asked = await client.callTool({ name: 'atoma_jev_calibrate', arguments: { since: '2026-09-26', until: '2026-09-29' } });
+    expect(asked.isError).not.toBe(true);
+    const payload = asked.structuredContent as Payload;
+    expect(payload.orgs).toEqual([a.viewer.orgId, b.viewer.orgId]);
+    expect(payload.window).toMatchObject({ decisions: 2, nextOffset: null });
+    expect(payload.report.prefilter[0]!.documented.agree).toBe(2);
+    // Both designs on two decisions: four requests, none carrying the excluded organisation's text.
+    expect(bodies).toHaveLength(4);
+    expect(bodies.join(' ')).not.toContain('SECRET-C');
+    // The foreign admitted organisation's read is journaled; the excluded one is never read.
+    expect(journal.list({ kind: 'admin.cross_org_read' }).events.map((event) => event.orgId)).toEqual([b.viewer.orgId]);
+    const again = await client.callTool({ name: 'atoma_jev_calibrate', arguments: { resultIds: [payload.resultId], thresholds: { fit: 0.95 } } });
+    expect(again.isError).not.toBe(true);
+    expect(bodies).toHaveLength(4);
+    expect((again.structuredContent as Payload).report.prefilter[0]!.documented.deferred).toBe(2);
+    vi.stubEnv('ATOMA_JEV_ORGS', '');
+    const refused = await client.callTool({ name: 'atoma_jev_calibrate', arguments: {} });
+    expect(refused.isError).toBe(true);
+    expect(JSON.stringify(refused.content)).toContain('no organisation is admitted to Jev');
+  } finally {
+    await client.close();
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+    forgetJevCalibrationsForTest();
+  }
+});
+
 it('reads complete diagnostics over HTTP with lossless pages and organisation isolation', async () => {
   const root = mkdtempSync(join(tmpdir(), 'atoma-mcp-detail-'));
   dirs.push(root);

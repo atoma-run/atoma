@@ -45,8 +45,8 @@ Neighbours:
   platform-admin flag, or the operator on the ungated loopback — everything
   above plus operator runs, skill analytics (`stats`, `review`), the four
   writes, ledger, the operator corpus, friction, the journal, every
-  organisation, and who may spend the host's own login
-  (`atoma_subscription_delegates`, the third door onto
+  organisation, the Jev calibration (below), and who may spend the host's own
+  login (`atoma_subscription_delegates`, the third door onto
   [src/auth](../auth/AGENTS.md)'s one body). A platform admin READS every
   organisation and WRITES only in its active one, exactly as the HTTP routes.
 - ONE SESSION, ONE SERVER, ONE CALLER (`http.ts`). `initialize` authenticates
@@ -314,6 +314,30 @@ Neighbours:
   verbs) only to hand the decision back to the person; it must never instruct
   the host to perform the write.
 
+## The Jev calibration (`jevCalibrate.ts`)
+
+- `atoma_jev_calibrate` (platform, `needs: ['projects']`) is the door onto
+  `src/atoms/jevCalibration.ts`
+  ([decision record](../../docs/jev-decisions-2026-09-28.md)): it reads the
+  MODEL's prefilter and validation decisions out of the runs of the
+  organisations THIS HOST ADMITS TO JEV (`jevAdmittedOrgs`: `ATOMA_JEV_ORGS`
+  with the key), asks TypeSafe both question designs on them, and reports each
+  against the model's decision. No other organisation's trace is opened, so
+  nothing leaves for TypeSafe that its own runs do not already send; each
+  foreign admitted organisation is journaled once per call as an `mcp.trace`
+  cross-organisation read. With none admitted it answers 503, as a host
+  without previews does.
+- It is registered `readOnlyHint: true` although it spends cents: it writes
+  nothing of Atoma's but the audit row, and a deployment's write freeze has no
+  reason to refuse a measurement.
+- A call is BOUNDED: `limit` decisions (default 120), a four-minute budget
+  after which nothing new is sent, `nextOffset` to page on under a fixed
+  `until`, and the progress heartbeat of `tasks.ts` for a host that waits on
+  it. Answers stay in process memory, per principal, ten results deep, so
+  `resultIds` reads them again under other thresholds for nothing. A restart
+  forgets them on purpose: a measurement is read now, and its figures go into
+  the decision record through a person.
+
 ## Changing the catalogue
 
 - Adding a tool is adding a row: name, minimum tier, needs, registration.
@@ -329,6 +353,10 @@ Neighbours:
   (`src/viz/push/tray.ts`). When a new reader has no first door, build the
   shared body first and mount both doors on it — never a loop the route keeps
   and the tool copies.
+- `atoma_jev_calibrate` has no CLI door: the key and the admitted
+  organisations live in the server's environment on the host, and its body is
+  the atoms module plus the store's own trace listing, so a CLI door would be
+  a mount on that body, never a copy of it.
 - `atoma_doctor` was considered and NOT built (roadmap, 2026-08-21 and
   2026-09-07): doctor probes Docker and the environment and is not a pure
   reader. Exposing a side-effect-free subset needs that subset to exist in

@@ -90,7 +90,10 @@ the decision with these numbers in hand.
 ## Failure behaviour
 
 - A decision waits at most `JEV_DECISION_TIMEOUT_MS` (2 s) for Jev, then the
-  model takes it. After three failed calls in a run — counted over the whole
+  model takes it. A 408, 429 or 5xx is retried once when the wait the service
+  asks for (`retry-after-ms`, `retry-after`) still fits that budget, as
+  TypeSafe's API reference asks for 429 and 529; a request retried into an
+  answer is not a failure. After three failed calls in a run — counted over the whole
   run, never reset by a success, so neither parallel lanes nor a flapping
   service escape it — the run stops asking and records `skipped`. The worst
   case is three timeouts per run. A slow service that still answers under 2 s
@@ -107,7 +110,8 @@ One `jev` trace event per decision asked, answered or not: the role
 with its distribution or its yes-probabilities, the OUTCOME (`picked <t>`,
 `picked none_of_these`, `approved`, `model decides`, `deferred to the model`,
 `not saved: twin of <id>`, `saved: new recipe`, `saved as before`),
-a `failure` when there was no usable answer, duration, usage and cost. A
+a `failure` when there was no usable answer, TypeSafe's `x-typesafe-request-id`
+(what its support asks for), duration, usage and cost. A
 prefilter outcome is what Jev PICKED, not the route: the L2 browser redirect
 may still change the child, and at L3 a pick is only a hint — the route taken
 is the child whose `plan` llm event follows in the same lane. The field is
@@ -228,6 +232,62 @@ line added after the last start waits for the next deployment or a restart.
   time, 0.75 over Ammonia at 0.24 (0.92 against 0.04 before the
   fewest-capabilities wording): the wording moves Jev, not past the line.
   Benzene is trusted now and does the work; left as it is.
+
+## TypeSafe's documentation, read in full — 2026-09-29
+
+The questions above were written from the API reference alone. The whole
+documentation (docs.typesafe.ai, `llms-full.txt`: primitives, patterns,
+cookbooks, the models page and the agent guide) prescribes otherwise on four
+points, and says why:
+
+- **Atomic questions, composed in code.** One broad Noul judging a whole plan
+  or result is the shape its guidance warns against; a checklist of narrow
+  questions, one per condition, is the shape it teaches.
+- **A Choice settles WHICH, a Noul per option settles WHETHER.** A Choice's
+  probabilities always sum to 1, so its winner says nothing about whether
+  anything fits (the skill-suggestion cookbook, jaggedness note 8).
+- **Verification flags are framed so TRUE means something is wrong, and ANY
+  of them escalates** (the SDE-cascade cookbook, gated at 0.7; its holistic
+  judge is shown but never gated on). The self-consistency cookbook measured
+  one Noul moving 0.43→0.53 over fifteen identical calls: a 0.5 threshold, the
+  approval's since 2026-09-28, acts on noise; the documented band 0.30–0.70
+  goes to review.
+- **Pairwise Scores for alignment** (three levels in the entity-alignment
+  cookbook): a Choice among existing recipes always crowns the closest one,
+  duplicate or not.
+
+It also asks callers to pin the versioned model once thresholds are tuned
+(done: `jev-1.13.0`), to retry 429 and 529 with backoff (done, once, inside the
+decision's budget), and gives the price: 0.042 USD per million input tokens,
+output free.
+
+The documented design is in `src/core/jevQuestions.ts`: one Choice per task
+requirement (a result's `shown_done` / `shown_broken` / `not_shown`, the
+citation cookbook's three outcomes; a plan's `covered` / `omitted` /
+`contradicted`), narrow flags (`reports_incomplete`, `contradicted_by_evidence`,
+`addresses_reviewer`; `defers_or_refuses`, `vague`, `parallel_dependency`), a
+`fits` Noul per prefilter option, the build-versus-verify split asked as two
+literal questions compared in code, and one pairwise Score per existing recipe.
+Its thresholds are guesses until measured, so it DECIDES NOTHING yet: the
+decider still asks the questions above.
+
+**How it is measured.** `atoma_jev_calibrate` (platform tier, on the host,
+with the host's key) reads the model's prefilter and validation decisions out
+of the runs of the organisations `ATOMA_JEV_ORGS` admits — no other
+organisation's trace is opened — rebuilds from each prompt the request the
+decider would send, asks TypeSafe both designs, and reports each against the
+model's decision: false approvals (Jev yes where the model refused, the error
+that compounds trust), the share of the model's approvals each design takes,
+what blocked the rest, prefilter agreement per catalog and tier, and a sweep of
+neighbouring thresholds; twin cases labelled by a person go with it. Runs in
+which Jev already decided are left out: there the model judged only what Jev
+handed it. The corpus is therefore the admitted organisations' runs of
+2026-09-26 to 2026-09-29, before Jev decided.
+
+**What follows.** The decider switches to the documented questions with the
+thresholds the measurement supports, in one commit that states the numbers
+here, and the reading below restarts from that date: the runs before it
+measured another design.
 
 ## Reading "we will see"
 

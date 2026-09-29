@@ -157,7 +157,7 @@ export const PROGRESS_HEARTBEAT_MS = 30_000;
  * nowhere to go. Such a host follows `tasks/get` / `tasks/result`; carrying
  * progress on the `tasks/result` stream is not built.
  */
-function requestHeartbeat(
+export function requestHeartbeat(
   extra: {
     readonly _meta?: { readonly progressToken?: string | number };
     readonly taskRequestedTtl?: number | null;
