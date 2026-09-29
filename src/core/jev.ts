@@ -61,6 +61,12 @@ export const JEV_DECISION_TIMEOUT_MS = 2_000;
 export const JEV_MAX_FAILURES_PER_RUN = 3;
 /** Jev's own "yes": a validation is approved at this probability or above. */
 export const JEV_APPROVAL_THRESHOLD = 0.5;
+/**
+ * Conservative, as the model prefilter is told to be: "decomposable" turns a
+ * reuse into a full cell plan call, so a lukewarm yes (0.6 on a coupled
+ * server-and-page phase, run dbfaf275) must not buy one.
+ */
+export const JEV_DECOMPOSABLE_THRESHOLD = 0.8;
 /** Jev's documented ceiling on the options of one Choice question. */
 const JEV_MAX_OPTIONS = 255;
 /** Ceilings on what a validation state carries (Jev's context is 32k tokens). */
@@ -226,9 +232,14 @@ const TWIN_INSTRUCTIONS: Record<JevTwinRequest['kind'], string> = {
     'of them covers.',
 };
 
+// The model prefilter's own criterion (PREFILTER_SYSTEM_PROMPT): orthogonal
+// only, coupled by default. A decomposable reuse costs a full cell plan call,
+// which is exactly what the prefilter decision exists to save.
 const DECOMPOSABLE_INSTRUCTIONS =
-  'Does the task in the state ask for several independent deliverables that are better planned as separate ' +
-  'subtasks, rather than one piece of work a single agent can carry end to end?';
+  'Does the task in the state ask for several GENUINELY ORTHOGONAL deliverables — pieces that share no code, ' +
+  'no references and do not depend on one another, like three unrelated pages or three separate datasets? ' +
+  'Answer false for one artefact, and for pieces of one feature that belong together: a server and the page ' +
+  'that calls it, a library and its tests, code and the README that documents it.';
 
 const APPROVAL_INSTRUCTIONS: Record<JevApprovalRequest['subject'], string> = {
   PLAN:
@@ -298,6 +309,36 @@ function choiceOptions(request: JevChoiceRequest): Record<string, string> | stri
       ? 'No candidate clearly has the capability this task needs.'
       : 'No stored recipe clearly matches this task.';
   return options;
+}
+
+/**
+ * Jev's pick, READ OVER IDENTICAL DESCRIPTIONS. Candidates described alike are
+ * one option to a reader of descriptions: Jev spreads its probability across
+ * them (run dbfaf275: four full-stack clones at 0.19–0.23, raw confidence
+ * 0.15), and its raw argmax is then a coin toss among clones. So probability
+ * is summed per description, the heaviest group wins against
+ * `none_of_these`, and within it the FIRST candidate in catalog order is
+ * taken — the registry lists by creation, so that is the canonical type
+ * the others were branched from.
+ */
+function resolveIdenticalCandidates(
+  candidates: JevChoiceRequest['candidates'],
+  probabilities: Readonly<Record<string, number>>
+): { readonly target: string | null; readonly confidence: number; readonly groupSize: number } {
+  const groups = new Map<string, string[]>();
+  for (const candidate of candidates) {
+    const names = groups.get(candidate.description) ?? [];
+    names.push(candidate.name);
+    groups.set(candidate.description, names);
+  }
+  let best: { names: string[]; mass: number } | null = null;
+  for (const names of groups.values()) {
+    const mass = names.reduce((sum, name) => sum + (probabilities[name] ?? 0), 0);
+    if (!best || mass > best.mass) best = { names, mass };
+  }
+  const none = probabilities[NO_CANDIDATE] ?? 0;
+  if (!best || none >= best.mass) return { target: null, confidence: none, groupSize: 0 };
+  return { target: best.names[0]!, confidence: best.mass, groupSize: best.names.length };
 }
 
 function taskState(task: JevChoiceRequest['task']): Record<string, unknown> {
@@ -434,8 +475,10 @@ export function createJevDecider(opts: {
         ...(decomposableYes !== undefined ? { yes: { decomposable: decomposableYes } } : {}),
       };
       const known = picked === NO_CANDIDATE || request.candidates.some((candidate) => candidate.name === picked);
-      const target = picked === NO_CANDIDATE ? null : picked;
-      const decomposable = (decomposableYes ?? 0) >= JEV_APPROVAL_THRESHOLD;
+      const resolved = known ? resolveIdenticalCandidates(request.candidates, choice.probabilities ?? {}) : null;
+      const target = resolved?.target ?? null;
+      const decomposable = (decomposableYes ?? 0) >= JEV_DECOMPOSABLE_THRESHOLD;
+      const clones = resolved && resolved.groupSize > 1 ? ` (first of ${resolved.groupSize} identical)` : '';
       safeRecord({
         ...base,
         ...(result.servedModel ? { servedModel: result.servedModel } : {}),
@@ -445,15 +488,15 @@ export function createJevDecider(opts: {
         outcome: !known
           ? 'model decides'
           : target
-            ? `picked ${target}${decomposable ? ' (decomposable)' : ''}`
+            ? `picked ${target}${clones}${decomposable ? ' (decomposable)' : ''}`
             : `picked ${NO_CANDIDATE}`,
         ...(known ? {} : { failure: `answer "${picked}" is not an option` }),
         durationMs: asked.durationMs,
         usage: { inputTokens: result.inputTokens, outputTokens: result.outputTokens },
         costUsd: result.costUsd,
       });
-      if (!known) return null;
-      return { target, confidence: choice.confidence ?? 0, decomposable };
+      if (!known || !resolved) return null;
+      return { target, confidence: resolved.confidence, decomposable };
     },
 
     async approve(request: JevApprovalRequest): Promise<JevApprovalDecision | null> {

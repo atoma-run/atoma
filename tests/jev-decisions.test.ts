@@ -188,7 +188,8 @@ describe('the Jev decider — choices', () => {
     const decider = createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: impl });
     const decision = await decider.choose(choiceRequest);
 
-    expect(decision).toEqual({ target: 'Methane', confidence: 0.9, decomposable: true });
+    // Confidence is the probability mass of the chosen candidate's description group.
+    expect(decision).toEqual({ target: 'Methane', confidence: 0.95, decomposable: true });
     const body = requests[0]!.body;
     expect(Object.keys(body.questions['choice']!.criteria!)).toEqual(['Water', 'Methane', NO_CANDIDATE]);
     expect(body.state).toEqual({ task: 'build a landing page', constraints: ['no dependencies'] });
@@ -212,9 +213,50 @@ describe('the Jev decider — choices', () => {
     });
     const decider = createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: impl });
     const decision = await decider.choose({ ...choiceRequest, question: 'recipe' });
-    expect(decision).toEqual({ target: null, confidence: 0.7, decomposable: false });
+    expect(decision).toEqual({ target: null, confidence: 0.8, decomposable: false });
     expect(Object.keys(requests[0]!.body.questions)).toEqual(['choice']);
     expect(records[0]!.outcome).toBe(`picked ${NO_CANDIDATE}`);
+  });
+
+  it('reads a pick over identically described clones as their group, and takes the canonical first', async () => {
+    // Run dbfaf275: four full-stack clones at 0.19-0.23 and a raw argmax on an
+    // untrusted clone at confidence 0.15.
+    const same = 'Node full-stack app builder and verifier';
+    const clones: JevChoiceRequest = {
+      ...choiceRequest,
+      candidates: [
+        { name: 'Methane', description: 'Node HTTP server builder' },
+        { name: 'CarbonDioxide', description: same },
+        { name: 'Ethanol', description: same },
+        { name: 'Dopamine', description: same },
+      ],
+    };
+    const records: JevDecisionInfo[] = [];
+    const { impl } = jevFetch({
+      choice: {
+        type: 'choice',
+        choice: 'Ethanol',
+        confidence: 0.15,
+        probabilities: { Methane: 0.09, CarbonDioxide: 0.23, Ethanol: 0.23, Dopamine: 0.21, [NO_CANDIDATE]: 0.02 },
+      },
+      decomposable: { type: 'noul', noul: 0.6 },
+    });
+    const decision = await createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: impl }).choose(clones);
+    expect(decision?.target).toBe('CarbonDioxide');
+    expect(decision?.confidence).toBeCloseTo(0.67, 10);
+    // 0.6 on a coupled phase is below the conservative decomposition bar.
+    expect(decision?.decomposable).toBe(false);
+    expect(records[0]!.outcome).toBe('picked CarbonDioxide (first of 3 identical)');
+    expect(records[0]!.answer?.choice).toBe('Ethanol');
+  });
+
+  it('lets none_of_these win only when it outweighs the best description group', async () => {
+    const { impl } = jevFetch({
+      choice: { type: 'choice', choice: NO_CANDIDATE, confidence: 0.3, probabilities: { Water: 0.3, Methane: 0.3, [NO_CANDIDATE]: 0.4 } },
+      decomposable: { type: 'noul', noul: 0.1 },
+    });
+    const decision = await createJevDecider({ apiKey: KEY, record: () => {}, fetchImpl: impl }).choose(choiceRequest);
+    expect(decision?.target).toBeNull();
   });
 
   it('asks no decomposition question at L3, where a pick is only a hint', async () => {

@@ -197,6 +197,14 @@ line added after the last start waits for the next deployment or a restart.
   does not use. The child pick was Ethanol, an untrusted clone whose
   description is identical to CarbonDioxide's: Jev cannot tell them apart any
   more than the model could — the open catalogue question of 2026-09-16.
+- `dbfaf275` (deep, guestbook DELETE): the child pick had a raw confidence of
+  0.15 — four full-stack clones at 0.19–0.23 — and "decomposable" at 0.6 bought
+  a full Terra cell plan per phase (16 s and 23 s), the prefilter's savings
+  spent again. Two fixes: a pick is now read over IDENTICAL descriptions (mass
+  summed per description, the group's first candidate in catalog order, the
+  canonical type, is taken), and the decomposition question carries the model
+  prefilter's own criterion — genuinely orthogonal only — with a conservative
+  0.8 threshold.
 
 ## Reading "we will see"
 
