@@ -117,6 +117,15 @@ tokens, the Cloudflare Workers AI listing read 2026-09-28; the direct API's
 price is ASSUMED equal until the TypeSafe console says otherwise), recorded on
 the event and kept out of the run's LLM totals.
 
+In the run view each event is a near-white `Jev · <role>` card with its own
+`JEV` filter chip, shown only on a run that holds one (2026-09-29; until then
+the card fell to the generic branch: title `jev`, no body, a bare clock). The
+body is the outcome and any failure; the badge is read FROM the outcome
+strings above (`→ <pick>`, `✓ approved`, `↑ model decides`, `↑ escalate`,
+`✕ duplicate recipe`, `✓ new recipe`; none for `saved as before`), so
+rewording one in `src/core/jev.ts` fails `tests/jev-decisions.test.ts`, which
+renders cards from the real decider through the real recorder.
+
 ## Who lets Jev decide, and what leaves the platform
 
 - A PROJECT run lets Jev decide only when the host environment names its

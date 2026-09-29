@@ -98,10 +98,45 @@ export function timelineBranchLabel(
 }
 
 
+/**
+ * A Jev decision's badge, read from the `outcome` `src/core/jev.ts` records
+ * (docs/jev-decisions-2026-09-28.md). The card fell to the generic branch —
+ * title `jev`, no body, a bare clock — so a run Jev had decided for looked
+ * like one it never touched (owner report, 2026-09-29). `saved as before` is
+ * Jev NOT answering a twin question, which is not a decision and gets none.
+ */
+export function jevDecision(event: VizEvent, t: GpuTranslate): string {
+  const outcome = scalar(event['outcome']);
+  if (outcome === 'approved') return t('outcome.approved');
+  if (outcome === 'model decides' || outcome === 'deferred to the model') return t('card.jev.deferred');
+  if (outcome === 'picked none_of_these') return t('outcome.escalate');
+  if (outcome === 'saved: new recipe') return t('card.jev.newRecipe');
+  if (outcome.startsWith('not saved: twin of ')) return t('card.jev.twin');
+  const picked = /^picked (\S+)/.exec(outcome);
+  return picked ? `→ ${truncate(picked[1]!, 18)}` : '';
+}
+
+/**
+ * What Jev answered, as a percentage: the approval's probability of
+ * `acceptable`, else the chosen option's confidence. The prefilter also
+ * carries a `decomposable` probability, which is not the pick's.
+ */
+export function jevAnswerLabel(event: VizEvent, t: GpuTranslate): string {
+  const answer = event['answer'];
+  if (!answer || typeof answer !== 'object') return '';
+  const { yes, confidence } = answer as { yes?: Record<string, unknown>; confidence?: unknown };
+  const acceptable = yes?.['acceptable'];
+  const percent = (value: number) => Math.round(value * 100);
+  if (typeof acceptable === 'number') return t('card.jev.probability', { value: percent(acceptable) });
+  if (typeof confidence === 'number') return t('card.jev.confidence', { value: percent(confidence) });
+  return '';
+}
+
 export function eventDecision(event: VizEvent, t: GpuTranslate): string {
   if (event.kind === 'acceptance') {
     return t(event.approved ? 'outcome.approved' : 'outcome.rejected');
   }
+  if (event.kind === 'jev') return jevDecision(event, t);
   if (event.kind !== 'llm') return '';
   const parsed = tryParseJson(event.response) as Record<string, unknown> | undefined;
   if (!parsed || Array.isArray(parsed)) return '';
@@ -239,6 +274,8 @@ export function gpuEventCardCopy(event: VizEvent, t: GpuTranslate): GpuEventCard
           ? skillEventTitle(event, t)
           : event.kind === 'topology' || event.kind === 'acceptance'
             ? t(`depth.${event.kind}`)
+          : event.kind === 'jev'
+            ? t('card.jev.title', { role: event.role ?? '' })
           : `${event.kind}${event.op ? ` · ${event.op}` : ''}`;
   const meta = [
     event.actor?.name ? `L${event.actor.tier ?? '?'} ${event.actor.name}` : '',
@@ -291,6 +328,9 @@ export function gpuEventCardCopy(event: VizEvent, t: GpuTranslate): GpuEventCard
     body = event.preview ?? '';
   } else if (event.kind === 'cache') {
     body = [scalar(event.outcome), event.reasoning].filter(Boolean).join(' · ');
+  } else if (event.kind === 'jev') {
+    // `failure`, not `error`: a Jev outage is the model deciding, not a run error.
+    body = [scalar(event['outcome']), scalar(event['failure'])].filter(Boolean).join(' · ');
   } else if (event.kind === 'registry' && !body) {
     body = [
       event.snapshot?.name ?? event.name,
@@ -333,7 +373,15 @@ export function gpuEventCardCopy(event: VizEvent, t: GpuTranslate): GpuEventCard
                 ].filter(Boolean).join(' · ')
             : event.kind === 'registry'
               ? [registryVersionLabel, time].filter(Boolean).join(' · ')
-              : [event.model, time].filter(Boolean).join(' · ');
+              : event.kind === 'jev'
+                ? [
+                    event.servedModel ?? scalar(event['evaluator']),
+                    jevAnswerLabel(event, t),
+                    fmtMs(event.durationMs),
+                    fmtCost(event.costUsd),
+                    time,
+                  ].filter(Boolean).join(' · ')
+                : [event.model, time].filter(Boolean).join(' · ');
   return { title, meta, body, footer, decision: eventDecision(event, t) };
 }
 

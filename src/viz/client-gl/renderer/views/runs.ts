@@ -444,8 +444,11 @@ export function drawRuns(
   const rolesVisible =
     runFilters.kind === 'all' ||
     runFilters.kind === 'llm';
+  // LLM roles only: a Jev decision carries a role too, and `learn-skill` would
+  // otherwise become a chip that the role filter (LLM-only) cannot match.
   const roleNames = rolesVisible
-    ? [...new Set(run.events.flatMap((event) => event.role ? [event.role] : []))]
+    ? [...new Set(run.events.flatMap((event) =>
+        (event.kind === 'llm' || event.kind === 'llm-start') && event.role ? [event.role] : []))]
     : [];
   const filterLayout = layoutRunFilterBlocks({
     originX: leftX + 14,
@@ -1711,7 +1714,9 @@ function drawEventDetail(
     ctx.root,
     event.kind === 'llm' || event.kind === 'llm-start'
       ? eventRoleLabel(event.role, snapshot.t)
-      : event.kind,
+      : event.kind === 'jev'
+        ? snapshot.t('card.jev.title', { role: eventRoleLabel(event.role, snapshot.t) })
+        : event.kind,
     x + 18,
     y + 16,
     {

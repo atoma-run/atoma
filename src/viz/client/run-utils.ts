@@ -488,6 +488,7 @@ export interface EventFilters {
 export const EVENT_KIND_FILTERS = [
   'all',
   'llm',
+  'jev',
   'tool',
   'trust',
   'skill',
@@ -506,7 +507,7 @@ export function visibleEventKindFilters(
   return EVENT_KIND_FILTERS.filter(
     (kind) =>
       (kind !== 'cache' || hasCache) && (kind !== 'context' || hasContext) &&
-      (!['topology', 'acceptance'].includes(kind) || events.some((event) => event.kind === kind))
+      (!['jev', 'topology', 'acceptance'].includes(kind) || events.some((event) => event.kind === kind))
   );
 }
 

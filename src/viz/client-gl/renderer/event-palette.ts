@@ -29,6 +29,11 @@ export const EVENT_KIND_COLOR: Record<string, number> = {
   branch: 0x94a3b8,
   topology: 0xf97316,
   acceptance: 0xa3e635,
+  // Near-white, the one value no hue in this table claims: a Jev decision
+  // stands in for a model call, so it must not read as one of the warm LLM
+  // family, and the free hues left (between the greens, between the pinks)
+  // would each pass for a neighbour.
+  jev: 0xe2e8f0,
 };
 
 /**

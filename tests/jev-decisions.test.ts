@@ -35,6 +35,10 @@ import { projectRunEnvironment } from '../src/projects/coordinator.js';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
 import { TraceRecorder } from '../src/viz/trace.js';
+import { gpuEventCardCopy } from '../src/viz/client-gl/renderer/copy.js';
+import { translate } from '../src/viz/client/i18n-catalog.js';
+import { visibleEventKindFilters } from '../src/viz/client/run-utils.js';
+import type { VizEvent as ClientVizEvent } from '../src/viz/client/types.js';
 import { makePlan } from './helpers/factories.js';
 import { jsonText, makeCtx, nsOf } from './helpers.js';
 import { ANTHROPIC_PINS, FALLBACK_OPUS } from './tier-pins.js';
@@ -931,5 +935,106 @@ describe('the jev trace event', () => {
     ]);
     // The failure never masquerades as an event error.
     expect(jevEvents.every((e) => e['error'] === undefined)).toBe(true);
+  });
+});
+
+describe('the jev card in the run view', () => {
+  let runsDir: string;
+  beforeEach(() => {
+    runsDir = mkdtempSync(join(tmpdir(), 'atoma-jev-card-'));
+  });
+  afterEach(() => rmSync(runsDir, { recursive: true, force: true }));
+
+  const t = (key: string, vars?: Record<string, unknown>) => translate('en', key, vars);
+
+  /**
+   * The card reads the outcome strings the decider writes, so these go through
+   * the real decider and the real recorder rather than hand-written events: a
+   * reworded outcome in `jev.ts` must fail here, not blank a badge in production.
+   */
+  async function cardsFor(ask: (decider: JevDecider) => Promise<unknown>, answers: Record<string, unknown>) {
+    const recorder = new TraceRecorder(runsDir);
+    recorder.beginRun({ description: 'goal' });
+    const { impl } = jevFetch(answers);
+    await ask(createJevDecider({ apiKey: KEY, record: (info) => recorder.recordJevDecision(info), fetchImpl: impl }));
+    return jevEventsOf(recorder).map((event) => gpuEventCardCopy(event, t));
+  }
+
+  /** What the client receives: the recorded events, as JSON off the wire. */
+  function jevEventsOf(recorder: TraceRecorder): ClientVizEvent[] {
+    const events = JSON.parse(JSON.stringify(recorder.endRun()!.events)) as ClientVizEvent[];
+    return events.filter((event) => event.kind === 'jev');
+  }
+
+  const approval: JevApprovalRequest = {
+    subject: 'RESULT',
+    task: { description: 'build an API' },
+    child: { name: 'Methane', tier: 1, tools: ['write_file'] },
+    payload: { output: 'done', summary: 'routes probed' },
+    actorName: 'Idioblast',
+    actorTier: 2,
+  };
+  const twin: JevTwinRequest = {
+    kind: 'task',
+    draft: { id: 'serve-api', description: 'serve an API', whenToUse: 'api goals', body: 'steps' },
+    existing: [{ id: 'serve-json-api', description: 'serve a JSON API', whenToUse: 'api goals' }],
+    actorName: 'Idioblast',
+    actorTier: 2,
+  };
+
+  it('names the decision, the pick and what it cost', async () => {
+    const [card] = await cardsFor((d) => d.choose(choiceRequest), pick('Methane'));
+    expect(card).toMatchObject({ title: 'Jev · prefilter', decision: '→ Methane', body: 'picked Methane' });
+    expect(card!.meta).toContain('L2 Idioblast');
+    expect(card!.footer).toMatch(/^jev-1\.13\.0 · conf 90% · \d+ms · \$0\.0000 · /);
+  });
+
+  it('badges an approval, and a lukewarm yes as the model deciding', async () => {
+    const [approved] = await cardsFor((d) => d.approve(approval), { acceptable: { type: 'noul', noul: 0.83 } });
+    expect(approved).toMatchObject({ title: 'Jev · validate-result', decision: '✓ approved' });
+    expect(approved!.footer).toContain('p 83%');
+    const [deferred] = await cardsFor((d) => d.approve(approval), { acceptable: { type: 'noul', noul: 0.2 } });
+    expect(deferred).toMatchObject({ decision: '↑ model decides', body: 'deferred to the model' });
+  });
+
+  it('badges none-of-these as an escalation', async () => {
+    const [card] = await cardsFor((d) => d.choose(choiceRequest), {
+      choice: { type: 'choice', choice: NO_CANDIDATE, confidence: 0.7, probabilities: { [NO_CANDIDATE]: 0.8 } },
+      decomposable: { type: 'noul', noul: 0.1 },
+    });
+    expect(card!.decision).toBe('↑ escalate');
+  });
+
+  it('badges a twin verdict both ways', async () => {
+    const [duplicate] = await cardsFor((d) => d.twin(twin), {
+      choice: { type: 'choice', choice: 'serve-json-api', confidence: 0.8, probabilities: { 'serve-json-api': 0.85 } },
+    });
+    expect(duplicate).toMatchObject({ title: 'Jev · learn-skill', decision: '✕ duplicate recipe' });
+    const [fresh] = await cardsFor((d) => d.twin(twin), {
+      choice: { type: 'choice', choice: NEW_RECIPE, confidence: 0.8, probabilities: { [NEW_RECIPE]: 0.85 } },
+    });
+    expect(fresh!.decision).toBe('✓ new recipe');
+  });
+
+  it('shows why Jev did not answer, without calling it a run error', async () => {
+    const recorder = new TraceRecorder(runsDir);
+    recorder.beginRun({ description: 'goal' });
+    const decider = createJevDecider({
+      apiKey: KEY,
+      record: (info) => recorder.recordJevDecision(info),
+      fetchImpl: hangingFetch,
+      timeoutMs: 5,
+    });
+    await decider.approve(approval);
+    const [event] = jevEventsOf(recorder);
+    const card = gpuEventCardCopy(event!, t);
+    expect(card.decision).toBe('↑ model decides');
+    expect(card.body).toMatch(/^deferred to the model · timeout/);
+  });
+
+  it('offers a Jev filter only on a run Jev decided for', () => {
+    const without = [{ id: 'l1', kind: 'llm', ts: 1 }];
+    expect(visibleEventKindFilters(without)).not.toContain('jev');
+    expect(visibleEventKindFilters([...without, { id: 'j1', kind: 'jev', ts: 2 }])).toContain('jev');
   });
 });
