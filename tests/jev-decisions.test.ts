@@ -30,6 +30,7 @@ import type {
   JevTwinRequest,
 } from '../src/core/types.js';
 import { SkillRegistry } from '../src/skills/registry.js';
+import { runTraceFile } from '../src/mcp/readers.js';
 import { projectRunEnvironment } from '../src/projects/coordinator.js';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
@@ -866,5 +867,27 @@ describe('the jev trace event', () => {
       costUsd: 0.000042,
     });
     expect(run.totals).toMatchObject({ calls: 0, costUsd: 0 });
+  });
+
+  it('shows its outcome and failure in the MCP trace summary', () => {
+    const recorder = new TraceRecorder(runsDir);
+    const run = recorder.beginRun({ description: 'goal' });
+    const base = {
+      evaluator: JEV_EVALUATOR,
+      durationMs: 1,
+      usage: { inputTokens: 0, outputTokens: 0 },
+      costUsd: 0,
+    };
+    recorder.recordJevDecision({ ...base, role: 'prefilter', outcome: 'picked Methane' });
+    recorder.recordJevDecision({ ...base, role: 'validate-result', outcome: 'deferred to the model', failure: 'timeout: no answer within 2000 ms' });
+    recorder.endRun();
+    const summary = runTraceFile(join(runsDir, `${run.id}.json`), {}) as { events: Record<string, unknown>[] };
+    const jevEvents = summary.events.filter((e) => e['kind'] === 'jev');
+    expect(jevEvents.map((e) => [e['role'], e['outcome'], e['failure']])).toEqual([
+      ['prefilter', 'picked Methane', undefined],
+      ['validate-result', 'deferred to the model', 'timeout: no answer within 2000 ms'],
+    ]);
+    // The failure never masquerades as an event error.
+    expect(jevEvents.every((e) => e['error'] === undefined)).toBe(true);
   });
 });

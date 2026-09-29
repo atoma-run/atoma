@@ -168,6 +168,25 @@ writes `[atoma runner] jev: deciding` to its log — readable through
 also hold `jev` events. The service reads `atoma.env` only when it starts: a
 line added after the last start waits for the next deployment or a restart.
 
+## First production runs, 2026-09-29
+
+- `455a4f43` (revision `e461fb6`): no `jev` event. The host line had been
+  added after the service's last start, and nothing said so — hence the boot
+  and run-log lines above.
+- `a5e5f2a1` (short, notes API, `a4265d0`): Jev took both prefilter decisions,
+  Methane at 0.81 in 433 ms and `build-in-memory-json-api` at 0.64 in 263 ms,
+  where the model had taken 4.7 s and 6.0 s on the previous run of the same
+  project. 4 model calls, delivered. Methane is trusted, so no approval was
+  Jev's.
+- `3e4aaed1` (deep, static page, new project): eight Jev decisions, 214–433 ms
+  each — the L3 hint, two child and two recipe picks, one plan and two result
+  approvals (p = 0.73 and 0.87) — then root acceptance approved the delivery.
+  7 model calls. Tracheid's third consecutive success came from a Jev
+  approval, so its next result took the trust fast path: the compounding
+  named above, observed on the first deep run. One literal pick: the README
+  phase went to Benzene (0.92, "project documentation" in its description)
+  over Ammonia (0.04); it did the work, with one needless documentation search.
+
 ## Reading "we will see"
 
 After two weeks, or sooner if runs degrade, from the `jev` events and what
