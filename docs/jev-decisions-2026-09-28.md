@@ -160,8 +160,13 @@ are platform-wide — they open the trust fast path in every organisation's
 runs, admitted or not — and carry no provenance. Reverting them means
 reconstructing them from the traces (a `jev` event with outcome `approved`
 followed by that child's `recordSuccess`) and correcting the counters by hand.
-Nothing announces Jev at boot, so a mistyped organisation id turns it off
-silently: the first run after a deployment must hold `jev` events.
+The server says at boot whether Jev decides (`describeJevAdmission`: "jev:
+deciding in project runs of N organisation(s)", or why it is off, naming any
+entry that is not an organisation id), and every run that lets Jev decide
+writes `[atoma runner] jev: deciding` to its log — readable through
+`atoma_run_trace` with `section: log`. The first run after a deployment must
+also hold `jev` events. The service reads `atoma.env` only when it starts: a
+line added after the last start waits for the next deployment or a restart.
 
 ## Reading "we will see"
 

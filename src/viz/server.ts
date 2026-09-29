@@ -16,6 +16,7 @@ import { openLedgerHandle, readLedgerTail, type LedgerEvent } from '../core/ledg
 import { LAUNCHABLE_PROFILES } from '../run/profiles/index.js';
 import { assessShareability, type ShareAssessment } from '../skills/shareability.js';
 import { taxonomyForTier, type AgentRank } from '../core/taxonomy.js';
+import { describeJevAdmission } from '../core/jev.js';
 import { elementForTool } from '../contracts/toolTaxonomy.js';
 import { authPublicOrigin, openAuthGate, vizAuthEnabled } from '../auth/gate.js';
 import { AUTH_COPY } from '../auth/copy.js';
@@ -4518,6 +4519,10 @@ server.listen(cli.port, cli.host, () => {
   } else if (EVENTS && PROJECTS_RUNTIME) {
     console.log('analyst: off (ATOMA_VIZ_ANALYST=1 to analyse finished runs on this host)');
   }
+  // docs/jev-decisions-2026-09-28.md: without this line a missing key or a
+  // mistyped organisation id turns Jev off with nothing saying so.
+  const jevStatus = describeJevAdmission(process.env);
+  if (jevStatus) console.log(jevStatus);
   console.log(
     AUTH_RUNTIME
       ? `mcp: ${new URL('/mcp', AUTH_RUNTIME.publicOrigin).href} (bearer API token from /api/tokens or npm run auth -- token)`

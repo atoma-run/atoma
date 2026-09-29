@@ -573,6 +573,24 @@ export function jevAdmitsOrg(hostEnv: NodeJS.ProcessEnv, orgId: string | undefin
   return listedOrgs(hostEnv[JEV_ORGS_ENV]).has(orgId);
 }
 
+const ORG_ID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * One line saying whether the HOST lets Jev decide, and why not — printed at
+ * server start, because a missing key or a slug written for an id otherwise
+ * turns Jev off in silence. `null` when the host asks nothing of Jev.
+ */
+export function describeJevAdmission(hostEnv: NodeJS.ProcessEnv): string | null {
+  const orgs = [...listedOrgs(hostEnv[JEV_ORGS_ENV])];
+  const hasKey = Boolean(hostEnv[JEV_KEY_ENV]?.trim());
+  if (orgs.length === 0) return hasKey ? `jev: off (${JEV_KEY_ENV} is set but ${JEV_ORGS_ENV} names no organisation)` : null;
+  if (!hasKey) return `jev: off (${JEV_ORGS_ENV} names ${orgs.length} organisation(s) but ${JEV_KEY_ENV} is absent)`;
+  const malformed = orgs.filter((id) => !ORG_ID_SHAPE.test(id));
+  const suffix =
+    malformed.length > 0 ? `; not organisation ids, so they match no run: ${malformed.join(', ')}` : '';
+  return `jev: deciding in project runs of ${orgs.length - malformed.length} organisation(s) (${JEV_EVALUATOR})${suffix}`;
+}
+
 /**
  * The decider a run gets from its environment snapshot: present only when the
  * switch is `1` and the credential is there, absent otherwise.

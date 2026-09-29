@@ -17,6 +17,7 @@ import {
   NEW_RECIPE,
   NO_CANDIDATE,
   createJevDecider,
+  describeJevAdmission,
   jevAdmitsOrg,
   jevAsk,
   jevDeciderFromEnv,
@@ -796,6 +797,18 @@ describe('who lets Jev decide', () => {
     runId: '3c584a3c-933d-4488-ac44-4cdcc8e66f31',
     artifactManifestPath: '/control/manifest.json',
   };
+
+  it('says at boot whether the host lets Jev decide, and why not', () => {
+    const org = 'd28f40d2-14d7-45c7-bce3-928dcb0041a6';
+    expect(describeJevAdmission({})).toBeNull();
+    expect(describeJevAdmission({ [JEV_KEY_ENV]: KEY })).toMatch(/off .*names no organisation/);
+    expect(describeJevAdmission({ [JEV_ORGS_ENV]: org })).toMatch(/off .*TYPESAFE_API_KEY is absent/);
+    expect(describeJevAdmission({ [JEV_KEY_ENV]: KEY, [JEV_ORGS_ENV]: `${org}, my-org-slug` })).toBe(
+      `jev: deciding in project runs of 1 organisation(s) (${JEV_EVALUATOR}); ` +
+        'not organisation ids, so they match no run: my-org-slug'
+    );
+    expect(JSON.stringify(describeJevAdmission({ [JEV_KEY_ENV]: KEY, [JEV_ORGS_ENV]: org }))).not.toContain(KEY);
+  });
 
   it('admits an organisation only when the host holds the key and names it', () => {
     expect(jevAdmitsOrg(HOST, 'org-a')).toBe(true);

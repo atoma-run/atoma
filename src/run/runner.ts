@@ -7,7 +7,7 @@ import { RunnerConfigError } from '../core/errors.js';
 import { containerImageDigestSchema } from '../contracts/containerImage.js';
 import { applyTierPins } from '../core/models.js';
 import { createAttestationLog } from '../core/attestation.js';
-import { jevDeciderFromEnv } from '../core/jev.js';
+import { JEV_ENV, JEV_EVALUATOR, JEV_KEY_ENV, jevDeciderFromEnv } from '../core/jev.js';
 import {
   formatModelSelector,
   ModelSelectorError,
@@ -957,6 +957,12 @@ export async function startTask(
   // credential: a project run's environment is the one its coordinator built,
   // which carries the key only for an admitted organisation.
   const jev = jevDeciderFromEnv(providerEnv, (info) => recorder.recordJevDecision(info));
+  // On STDERR: stdout is the burn-in API. The project run log carries both, so
+  // whether Jev decided in a run can be read from its log, not guessed.
+  if (jev) process.stderr.write(`[atoma runner] jev: deciding (${JEV_EVALUATOR})\n`);
+  else if (providerEnv[JEV_ENV] === '1') {
+    process.stderr.write(`[atoma runner] jev: off (${JEV_ENV}=1 but ${JEV_KEY_ENV} is absent)\n`);
+  }
 
   const ctx: RunContext = {
     ...(args.depth ? { attestations: createAttestationLog((record) => recorder.recordAttestation(record)) } : {}),
