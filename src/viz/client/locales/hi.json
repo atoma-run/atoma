@@ -1213,5 +1213,14 @@
   "admin.ledgerFact.namespace": "संपूर्ण नेमस्पेस",
   "admin.ledgerFact.run": "run {{value}}",
   "admin.ledgerFact.project": "परियोजना {{value}}",
-  "admin.ledgerFact.actor": "{{type}} {{id}}"
+  "admin.ledgerFact.actor": "{{type}} {{id}}",
+  "card.jev.title": "Jev · {{role}}",
+  "card.jev.deferred": "↑ मॉडल तय करता है",
+  "card.jev.newRecipe": "✓ नई रेसिपी",
+  "card.jev.twin": "✕ डुप्लिकेट रेसिपी",
+  "card.jev.probability": "p {{value}}%",
+  "card.jev.confidence": "विश्वास {{value}}%",
+  "filters.jev": "Jev",
+  "detail.role.learn-skill": "रेसिपी सीखना",
+  "detail.role.learn-event-skill": "रिकवरी रेसिपी सीखना"
 }

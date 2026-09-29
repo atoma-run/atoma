@@ -1213,5 +1213,14 @@
   "admin.ledgerFact.namespace": "namespace entier",
   "admin.ledgerFact.run": "run {{value}}",
   "admin.ledgerFact.project": "projet {{value}}",
-  "admin.ledgerFact.actor": "{{type}} {{id}}"
+  "admin.ledgerFact.actor": "{{type}} {{id}}",
+  "card.jev.title": "Jev · {{role}}",
+  "card.jev.deferred": "↑ décision du modèle",
+  "card.jev.newRecipe": "✓ nouvelle recette",
+  "card.jev.twin": "✕ recette en double",
+  "card.jev.probability": "p {{value}} %",
+  "card.jev.confidence": "conf {{value}} %",
+  "filters.jev": "Jev",
+  "detail.role.learn-skill": "Apprentissage de recette",
+  "detail.role.learn-event-skill": "Apprentissage de recette de récupération"
 }

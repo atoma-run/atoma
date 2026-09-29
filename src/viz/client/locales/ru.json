@@ -1213,5 +1213,14 @@
   "admin.ledgerFact.namespace": "всё пространство имён",
   "admin.ledgerFact.run": "run {{value}}",
   "admin.ledgerFact.project": "проект {{value}}",
-  "admin.ledgerFact.actor": "{{type}} {{id}}"
+  "admin.ledgerFact.actor": "{{type}} {{id}}",
+  "card.jev.title": "Jev · {{role}}",
+  "card.jev.deferred": "↑ решает модель",
+  "card.jev.newRecipe": "✓ новый рецепт",
+  "card.jev.twin": "✕ дубликат рецепта",
+  "card.jev.probability": "p {{value}}%",
+  "card.jev.confidence": "увер. {{value}}%",
+  "filters.jev": "Jev",
+  "detail.role.learn-skill": "Изучение рецептов",
+  "detail.role.learn-event-skill": "Изучение рецептов восстановления"
 }

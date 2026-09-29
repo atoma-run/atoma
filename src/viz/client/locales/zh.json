@@ -1213,5 +1213,14 @@
   "admin.ledgerFact.namespace": "整个命名空间",
   "admin.ledgerFact.run": "run {{value}}",
   "admin.ledgerFact.project": "项目 {{value}}",
-  "admin.ledgerFact.actor": "{{type}} {{id}}"
+  "admin.ledgerFact.actor": "{{type}} {{id}}",
+  "card.jev.title": "Jev · {{role}}",
+  "card.jev.deferred": "↑ 由模型决定",
+  "card.jev.newRecipe": "✓ 新配方",
+  "card.jev.twin": "✕ 重复配方",
+  "card.jev.probability": "概率 {{value}}%",
+  "card.jev.confidence": "置信度 {{value}}%",
+  "filters.jev": "Jev",
+  "detail.role.learn-skill": "配方学习",
+  "detail.role.learn-event-skill": "恢复配方学习"
 }

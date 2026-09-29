@@ -1213,5 +1213,14 @@
   "admin.ledgerFact.namespace": "مکمل نیم اسپیس",
   "admin.ledgerFact.run": "run {{value}}",
   "admin.ledgerFact.project": "پروجیکٹ {{value}}",
-  "admin.ledgerFact.actor": "{{type}} {{id}}"
+  "admin.ledgerFact.actor": "{{type}} {{id}}",
+  "card.jev.title": "Jev · {{role}}",
+  "card.jev.deferred": "↑ ماڈل فیصلہ کرتا ہے",
+  "card.jev.newRecipe": "✓ نیا نسخہ",
+  "card.jev.twin": "✕ نقلی نسخہ",
+  "card.jev.probability": "p {{value}}%",
+  "card.jev.confidence": "اعتماد {{value}}%",
+  "filters.jev": "Jev",
+  "detail.role.learn-skill": "نسخہ سیکھنا",
+  "detail.role.learn-event-skill": "بحالی کا نسخہ سیکھنا"
 }

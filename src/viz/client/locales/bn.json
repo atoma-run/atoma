@@ -1213,5 +1213,14 @@
   "admin.ledgerFact.namespace": "সম্পূর্ণ নেমস্পেস",
   "admin.ledgerFact.run": "run {{value}}",
   "admin.ledgerFact.project": "প্রকল্প {{value}}",
-  "admin.ledgerFact.actor": "{{type}} {{id}}"
+  "admin.ledgerFact.actor": "{{type}} {{id}}",
+  "card.jev.title": "Jev · {{role}}",
+  "card.jev.deferred": "↑ মডেল সিদ্ধান্ত নেয়",
+  "card.jev.newRecipe": "✓ নতুন রেসিপি",
+  "card.jev.twin": "✕ অনুরূপ রেসিপি",
+  "card.jev.probability": "p {{value}}%",
+  "card.jev.confidence": "আস্থা {{value}}%",
+  "filters.jev": "Jev",
+  "detail.role.learn-skill": "রেসিপি শেখা",
+  "detail.role.learn-event-skill": "পুনরুদ্ধার রেসিপি শেখা"
 }
