@@ -198,9 +198,11 @@ export const NO_CANDIDATE = 'none_of_these';
 const CHOICE_INSTRUCTIONS: Record<JevChoiceRequest['question'], string> = {
   agent:
     'A supervisor must hand the task in the state to ONE of the candidate agent types, or to none of them. ' +
-    'Pick the candidate whose described capability clearly fits what the task needs. If no candidate clearly ' +
-    `fits, pick ${NO_CANDIDATE}: a wrong pick costs a whole supervision cycle, while ${NO_CANDIDATE} only ` +
-    'hands the task to a supervisor that plans it.',
+    'Pick the candidate whose described capability clearly fits what the task needs. When several candidates ' +
+    'can do it, pick the one with the fewest capabilities the task does not use: a word the task shares with ' +
+    'a capability it does not need (a README is written, not searched for) is no reason to pick that ' +
+    `candidate. If no candidate clearly fits, pick ${NO_CANDIDATE}: a wrong pick costs a whole supervision ` +
+    `cycle, while ${NO_CANDIDATE} only hands the task to a supervisor that plans it.`,
   recipe:
     'An agent is about to do the task in the state. Pick the ONE stored recipe that clearly matches this task, ' +
     `or ${NO_CANDIDATE} when none does. A recipe matches when its "when to use" describes this kind of task, ` +

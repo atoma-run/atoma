@@ -186,6 +186,17 @@ line added after the last start waits for the next deployment or a restart.
   named above, observed on the first deep run. One literal pick: the README
   phase went to Benzene (0.92, "project documentation" in its description)
   over Ammonia (0.04); it did the work, with one needless documentation search.
+- `45d27925` / `235a1935` (CLI, new project): Ammonia picked, no recipe fit
+  (`none_of_these`), the twin guard judged the distilled recipe new, and the
+  next run of the project had Jev pick that recipe at 0.86 — learn, check,
+  reuse, end to end.
+- `46d8e11e` (deep, full-stack guestbook): thirteen Jev decisions, seven of
+  them approvals; Protoplast became trusted on Jev approvals alone. The
+  README phase went to Benzene again, the second time in two, so the agent
+  question now asks for the candidate with the FEWEST capabilities the task
+  does not use. The child pick was Ethanol, an untrusted clone whose
+  description is identical to CarbonDioxide's: Jev cannot tell them apart any
+  more than the model could — the open catalogue question of 2026-09-16.
 
 ## Reading "we will see"
 
