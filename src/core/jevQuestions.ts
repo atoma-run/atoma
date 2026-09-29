@@ -81,8 +81,12 @@ export const JEV_THRESHOLDS = {
   pickConfidence: 0.5,
   /** The picked option's absolute `fits` Noul must reach this to be reused. */
   fit: 0.7,
-  /** Every option's `fits` below this: none fits, and the prefilter escalates. */
-  noFit: 0.3,
+  /**
+   * Every option's `fits` below this: none fits, and the prefilter escalates.
+   * 0.3 escalated six recipe decisions the model reused (their best fit
+   * 0.20–0.27, first calibration of 2026-09-29); 0.2 hands those to the model.
+   */
+  noFit: 0.2,
   /** A task or recipe that changes files, read from its Noul. */
   changesFiles: 0.7,
   /** ... and one that clearly does not. */
@@ -505,7 +509,14 @@ const PLAN_REQUIREMENT_CRITERIA: Record<string, JevJson> = {
   },
 };
 
-/** Problem flags: TRUE means something is wrong, so ANY of them escalates (the SDE-cascade gate). */
+/**
+ * Problem flags: TRUE means something is wrong, so ANY of them escalates (the
+ * SDE-cascade gate). A `contradicted_by_evidence` flag was measured and
+ * removed (first calibration of 2026-09-29): it read 0.06–0.87 on the results
+ * the model approved and 0.16–0.63 on those it refused, no signal, and it
+ * blocked 18 of 23 approvals. What evidence contradicts is asked per
+ * requirement instead, as `shown_broken`.
+ */
 const RESULT_FLAGS: Record<string, JevQuestion> = {
   reports_incomplete: {
     type: 'noul',
@@ -513,14 +524,6 @@ const RESULT_FLAGS: Record<string, JevQuestion> = {
     criteria: {
       true: 'It admits unfinished, skipped, deferred or failed work, or a limitation that leaves part of the task undone.',
       false: 'It reports the task done, or only notes a choice made within the task.',
-    },
-  },
-  contradicted_by_evidence: {
-    type: 'noul',
-    instructions: 'Does an observation in `evidence` or `groundTruth` contradict a claim `result` makes?',
-    criteria: {
-      true: 'A recorded observation says otherwise than the result: an error, a failing check, a different value or status.',
-      false: 'No observation contradicts what the result claims.',
     },
   },
   addresses_reviewer: {
@@ -548,6 +551,25 @@ const PARALLEL_DEPENDENCY: JevQuestion = {
   type: 'noul',
   instructions:
     'Do the subtasks of `plan` run in parallel although one of them needs what another produces (a file, a URL, a result)?',
+};
+
+/**
+ * Asked of a MOLECULE's plan, the one that runs tools itself. The model
+ * validator refuses a plan needing a tool its child does not declare, and the
+ * first calibration's one false approval was exactly that: a plan that stopped
+ * and restarted a server with no stop tool declared (run 811782c2), every
+ * requirement covered at 0.99 or above.
+ */
+const NEEDS_UNDECLARED_TOOL: JevQuestion = {
+  type: 'noul',
+  instructions: 'Does `plan` propose an action that none of the tools in `child.declaredTools` can perform?',
+  criteria: {
+    true: {
+      what: 'A step needs a capability that no declared tool provides.',
+      examples: ['stopping or restarting a server when no declared tool stops one', 'a browser check when no declared tool loads a page'],
+    },
+    false: 'Every proposed action is reading, reasoning, or a use of a declared tool.',
+  },
 };
 
 export interface JevApprovalPlan {
@@ -614,6 +636,8 @@ export function buildApproval(request: JevApprovalRequest): JevApprovalPlan | st
   });
   const flags = { ...(request.subject === 'RESULT' ? RESULT_FLAGS : PLAN_FLAGS) };
   if (request.subject === 'PLAN' && parallelSubtasks(request.payload)) flags['parallel_dependency'] = PARALLEL_DEPENDENCY;
+  // A cell's plan delegates; only a molecule's plan names tool actions.
+  if (request.subject === 'PLAN' && request.child.tier === 1) flags['needs_undeclared_tool'] = NEEDS_UNDECLARED_TOOL;
   Object.assign(questions, flags);
   return { kind: 'approval', request, requirements, flags: Object.keys(flags), state, questions };
 }

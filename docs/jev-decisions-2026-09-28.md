@@ -264,12 +264,12 @@ output free.
 The documented design is in `src/core/jevQuestions.ts`: one Choice per task
 requirement (a result's `shown_done` / `shown_broken` / `not_shown`, the
 citation cookbook's three outcomes; a plan's `covered` / `omitted` /
-`contradicted`), narrow flags (`reports_incomplete`, `contradicted_by_evidence`,
-`addresses_reviewer`; `defers_or_refuses`, `vague`, `parallel_dependency`), a
-`fits` Noul per prefilter option, the build-versus-verify split asked as two
-literal questions compared in code, and one pairwise Score per existing recipe.
-Its thresholds are guesses until measured, so it DECIDES NOTHING yet: the
-decider still asks the questions above.
+`contradicted`), narrow flags (`reports_incomplete`, `addresses_reviewer`;
+`defers_or_refuses`, `vague`, `parallel_dependency`, and for a molecule's plan
+`needs_undeclared_tool`), a `fits` Noul per prefilter option, the
+build-versus-verify split asked as two literal questions compared in code, and
+one pairwise Score per existing recipe. Its thresholds are guesses until
+measured, so it DECIDES NOTHING yet: the decider still asks the questions above.
 
 **How it is measured.** `atoma_jev_calibrate` (platform tier, on the host,
 with the host's key) reads the model's prefilter and validation decisions out
@@ -283,6 +283,40 @@ neighbouring thresholds; twin cases labelled by a person go with it. Runs in
 which Jev already decided are left out: there the model judged only what Jev
 handed it. The corpus is therefore the admitted organisations' runs of
 2026-09-26 to 2026-09-29, before Jev decided.
+
+**First measurement, 2026-09-29** (50 traces, 9 left out because Jev decided
+in them; 170 model decisions and 6 labelled twin cases; 0.034 USD; median
+262 ms, p95 564 ms; no failed request). The model decision is the reference:
+
+| | documented questions | questions of 2026-09-28 |
+|---|---|---|
+| plan approvals, 40 (3 refused by the model) | 1 false approval, 84 % of the model's approvals taken | 2 false approvals, 78 % |
+| result approvals, 28 (5 refused) | 0 false approvals, 17 % taken | 0 false approvals, 87 % taken |
+| agent picks at L2, 48 | 23 agree, 4 disagree, 21 to the model | 33 agree, 15 disagree |
+| recipe picks at L2, 49 | 25 agree, 7 disagree, 17 to the model | 36 agree, 13 disagree |
+| twin cases, 6 | 6 right at every threshold from 1.0 to 1.75 | 5 right |
+
+It changed the questions before they decide anything:
+
+- The 2026-09-28 plan question does not discriminate: it put two of the three
+  plans the model refused at 0.81, above most it approved (0.33–0.85). The
+  documented plan questions' one false approval was a plan that stopped and
+  restarted a server with no stop tool declared, every requirement covered at
+  0.99 or above: a molecule's plan is now also asked `needs_undeclared_tool`,
+  the check the old question named and the documented set had lost.
+- Its result question took 87 % of the approvals with none false, but on a
+  thin line: the model's refusals read 0.12–0.47 and nine of its approvals
+  0.48–0.59, inside the drift the self-consistency cookbook measured on
+  identical calls.
+- The documented result flag `contradicted_by_evidence` carried no signal —
+  0.06–0.87 on results the model approved, 0.16–0.63 on those it refused —
+  and blocked 18 of the 23 approvals. It is removed; what evidence contradicts
+  is asked per requirement as `shown_broken`.
+- Six recipe decisions the model reused escalated because every recipe's
+  `fits` read under 0.3 (best 0.20–0.27): `noFit` is now 0.2, which hands them
+  to the model and leaves 2 of 49 recipe decisions in disagreement.
+
+The changed questions are measured again before the switch.
 
 **What follows.** The decider switches to the documented questions with the
 thresholds the measurement supports, in one commit that states the numbers

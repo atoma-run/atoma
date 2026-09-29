@@ -130,7 +130,7 @@ describe('the prefilter: a Choice for which, a Noul per option for whether', () 
     // A Choice's probabilities sum to 1: its winner says nothing about WHETHER anything fits.
     const nothingFits = readChoice(
       plan,
-      answersFor(plan.questions, { choice: choiceAnswer('agent_2'), 'fits::agent_1': noulAnswer(0.1), 'fits::agent_2': noulAnswer(0.2) })
+      answersFor(plan.questions, { choice: choiceAnswer('agent_2'), 'fits::agent_1': noulAnswer(0.1), 'fits::agent_2': noulAnswer(0.15) })
     );
     expect(nothingFits.decision).toMatchObject({ target: null });
     expect(nothingFits.outcome).toBe(`picked ${NO_CANDIDATE}`);
@@ -243,13 +243,9 @@ describe('approvals: one question per requirement, and flags where TRUE is wrong
 
   it('approves when every requirement is shown and no flag is raised, reading the weakest link', () => {
     const plan = built(buildApproval(approvalRequest));
-    expect(Object.keys(plan.questions)).toEqual([
-      'requirement_1',
-      'requirement_2',
-      'reports_incomplete',
-      'contradicted_by_evidence',
-      'addresses_reviewer',
-    ]);
+    // No holistic "contradicted by evidence" flag: measured without signal, it
+    // is asked per requirement as `shown_broken`.
+    expect(Object.keys(plan.questions)).toEqual(['requirement_1', 'requirement_2', 'reports_incomplete', 'addresses_reviewer']);
     expect(plan.questions['requirement_2']!.instructions).toBe('What do `evidence` and `groundTruth` show about `requirements[1]`?');
     expect(Object.keys((plan.questions['requirement_1'] as { criteria: object }).criteria)).toEqual(['shown_done', 'shown_broken', 'not_shown']);
     const state = plan.state as Record<string, unknown>;
@@ -291,7 +287,7 @@ describe('approvals: one question per requirement, and flags where TRUE is wrong
   it('asks a plan whether it covers each requirement, and about a parallel dependency only when it runs in parallel', () => {
     const payload = { reasoning: 'r', proposedAction: 'write both', expectedOutput: 'e' };
     const plan = built(buildApproval({ ...approvalRequest, subject: 'PLAN', payload }));
-    expect(Object.keys(plan.questions)).toEqual(['requirement_1', 'requirement_2', 'defers_or_refuses', 'vague']);
+    expect(Object.keys(plan.questions)).toEqual(['requirement_1', 'requirement_2', 'defers_or_refuses', 'vague', 'needs_undeclared_tool']);
     expect(Object.keys((plan.questions['requirement_1'] as { criteria: object }).criteria)).toEqual(['covered', 'omitted', 'contradicted']);
     expect((plan.state as Record<string, unknown>)['plan']).toEqual(payload);
     expect(readApproval(plan, answersFor(plan.questions)).decision?.approved).toBe(true);
@@ -303,6 +299,20 @@ describe('approvals: one question per requirement, and flags where TRUE is wrong
       })
     );
     expect(Object.keys(parallel.questions)).toContain('parallel_dependency');
+  });
+
+  it("asks a molecule's plan whether it needs a tool the child does not declare, and a cell's plan never", () => {
+    // Run 811782c2: every requirement covered at 0.99, yet the plan stopped a server with no stop tool.
+    const payload = { reasoning: 'r', proposedAction: 'start the server, stop it, restart it', expectedOutput: 'e' };
+    const molecule = built(buildApproval({ ...approvalRequest, subject: 'PLAN', payload }));
+    const reading = readApproval(molecule, answersFor(molecule.questions, { needs_undeclared_tool: noulAnswer(0.8) }));
+    expect(reading.decision?.approved).toBe(false);
+    expect(reading.outcome).toBe('deferred to the model (needs_undeclared_tool 0.80)');
+    expect(reading.causes).toEqual(['flag:needs_undeclared_tool']);
+    const cell = built(
+      buildApproval({ ...approvalRequest, subject: 'PLAN', payload, child: { name: 'Tracheid', tier: 2, tools: ['write_file'] } })
+    );
+    expect(Object.keys(cell.questions)).not.toContain('needs_undeclared_tool');
   });
 
   it('refuses locally a task that states no requirement', () => {
