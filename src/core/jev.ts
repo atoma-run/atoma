@@ -209,10 +209,15 @@ const CHOICE_INSTRUCTIONS: Record<JevChoiceRequest['question'], string> = {
     'a capability it does not need (a README is written, not searched for) is no reason to pick that ' +
     `candidate. If no candidate clearly fits, pick ${NO_CANDIDATE}: a wrong pick costs a whole supervision ` +
     `cycle, while ${NO_CANDIDATE} only hands the task to a supervisor that plans it.`,
+  // The build-versus-verify split is the confusion the skills contract names
+  // (same vocabulary, opposite work); run fd64b07e picked a serve-and-validate
+  // recipe at 0.54 for a task that had to change the page.
   recipe:
     'An agent is about to do the task in the state. Pick the ONE stored recipe that clearly matches this task, ' +
     `or ${NO_CANDIDATE} when none does. A recipe matches when its "when to use" describes this kind of task, ` +
-    'not merely when it shares tools or words with it.',
+    'not merely when it shares tools or words with it. First decide whether the task must create or change ' +
+    'files: a recipe that only serves, verifies, probes or documents does not match a task that must change ' +
+    'the code, and a recipe that builds does not match a task that must only verify.',
 };
 
 /** The option Jev picks when a draft recipe duplicates none of the existing ones. */

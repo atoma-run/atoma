@@ -205,6 +205,17 @@ line added after the last start waits for the next deployment or a restart.
   canonical type, is taken), and the decomposition question carries the model
   prefilter's own criterion — genuinely orthogonal only — with a conservative
   0.8 threshold.
+- `e9a60a26` (deep, guestbook PUT, after both fixes): "picked CarbonDioxide
+  (first of 4 identical)", no decomposition, the trusted canonical's fast
+  path — 506 s and 7 model calls where the same shape took 855 s and 9.
+- `fd64b07e` (deep, pomodoro break mode): the page-changing phase got the
+  verify-only `serve-and-validate-static-page` at 0.54 over
+  `build-self-contained-static-page` at 0.40 — the build-versus-verify
+  confusion the skills contract names — so the recipe question now asks first
+  whether the task must change files. The README went to Benzene a third
+  time, 0.75 over Ammonia at 0.24 (0.92 against 0.04 before the
+  fewest-capabilities wording): the wording moves Jev, not past the line.
+  Benzene is trusted now and does the work; left as it is.
 
 ## Reading "we will see"
 
