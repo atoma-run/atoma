@@ -34,7 +34,10 @@ the decision with these numbers in hand.
   catalog (a routing hint to the strategy call there) and the skill catalog.
   After a cache miss, Jev picks a candidate — taken as a high-confidence reuse,
   with a `decomposable` flag from a second question on the agent catalog — or
-  `none_of_these`, taken as an escalate. No model call then. The mechanical
+  `none_of_these`, taken as an escalate. No model call then. Since the switch
+  of 2026-09-29 (below) a pick Jev is unsure of — a lukewarm Choice, or a pick
+  whose own `fits` question does not say yes — is the model's; at L3 it is no
+  hint rather than a model call. The mechanical
   guards the callers apply afterwards still apply: the L2 browser redirect,
   exclusions of children that already failed the task. Jev decisions are never
   cached: the cache holds model decisions only, and a cached model decision is
@@ -45,12 +48,16 @@ the decision with these numbers in hand.
   obligation, and a ground-truth probe that requires no review — the trust fast
   path's eligibility without its earned counter. A yes approves with no model
   call. A no, or no answer, runs the model validator exactly as before, and it
-  is the model that writes the remediation a refusal needs.
+  is the model that writes the remediation a refusal needs. Since the switch
+  Jev reads the model validator's own evidence lines — transport-observed
+  only, never the child's declared probes — and a yes means every requirement
+  shown (or, for a plan, covered) and no flag raised.
 
 - **The twin guard at learn time** (`SkillLifecycle.jevTwinOf`): before a
   distilled recipe is saved, Jev is asked whether it duplicates one it would
   compete with — the visible catalog for a task recipe, the molecule's recovery
-  recipes for an event one. A twin is not saved. This is the one Jev decision
+  recipes for an event one — since the switch, one pairwise Score per existing
+  recipe. A twin is not saved. This is the one Jev decision
   whose error is cheap by construction: a wrong "twin" costs a lesson, a
   missed twin costs what the catalog already pays today. The production
   catalog held three recovery twins on Glucose on 2026-09-28, and the lexical
@@ -107,9 +114,11 @@ the decision with these numbers in hand.
 One `jev` trace event per decision asked, answered or not: the role
 (`prefilter`, `validate-plan`, `validate-result`, `learn-skill`,
 `learn-event-skill`), the candidates, Jev's choice
-with its distribution or its yes-probabilities, the OUTCOME (`picked <t>`,
-`picked none_of_these`, `approved`, `model decides`, `deferred to the model`,
-`not saved: twin of <id>`, `saved: new recipe`, `saved as before`),
+with its distribution, its yes-probabilities by question (an approval's
+`acceptable` is its weakest requirement or flag) and a twin check's pairwise
+scores, the OUTCOME (`picked <t>`, `picked none_of_these`, `approved`,
+`model decides (<why>)`, `no hint (<why>)` at L3, `deferred to the model
+(<why>)`, `not saved: twin of <id>`, `saved: new recipe`, `saved as before`),
 a `failure` when there was no usable answer, TypeSafe's `x-typesafe-request-id`
 (what its support asks for), duration, usage and cost. A
 prefilter outcome is what Jev PICKED, not the route: the L2 browser redirect
@@ -128,10 +137,12 @@ In the run view each event is a near-white `Jev · <role>` card with its own
 `JEV` filter chip, shown only on a run that holds one (2026-09-29; until then
 the card fell to the generic branch: title `jev`, no body, a bare clock). The
 body is the outcome and any failure; the badge is read FROM the outcome
-strings above (`→ <pick>`, `✓ approved`, `↑ model decides`, `↑ escalate`,
-`✕ duplicate recipe`, `✓ new recipe`; none for `saved as before`), so
-rewording one in `src/core/jev.ts` fails `tests/jev-decisions.test.ts`, which
-renders cards from the real decider through the real recorder.
+strings above (`→ <pick>`, `✓ approved`, `↑ model decides` for any deferral,
+`↑ escalate` for `none_of_these` and `no hint`, `✕ duplicate recipe`,
+`✓ new recipe`; none for `saved as before`), reading a deferral by its prefix,
+so rewording one in `src/core/jevQuestions.ts` fails
+`tests/jev-decisions.test.ts`, which renders cards from the real decider
+through the real recorder.
 
 ## Who lets Jev decide, and what leaves the platform
 
@@ -265,11 +276,10 @@ The documented design is in `src/core/jevQuestions.ts`: one Choice per task
 requirement (a result's `shown_done` / `shown_broken` / `not_shown`, the
 citation cookbook's three outcomes; a plan's `covered` / `omitted` /
 `contradicted`), narrow flags (`reports_incomplete`, `addresses_reviewer`;
-`defers_or_refuses`, `vague`, `parallel_dependency`, and for a molecule's plan
-`needs_undeclared_tool`), a `fits` Noul per prefilter option, the
-build-versus-verify split asked as two literal questions compared in code, and
-one pairwise Score per existing recipe. Its thresholds are guesses until
-measured, so it DECIDES NOTHING yet: the decider still asks the questions above.
+`defers_or_refuses`, `vague`, `parallel_dependency`), a `fits` Noul per
+prefilter option, the build-versus-verify split asked as two literal questions
+compared in code, and one pairwise Score per existing recipe. It decided
+nothing until two measurements had set its questions and thresholds.
 
 **How it is measured.** `atoma_jev_calibrate` (platform tier, on the host,
 with the host's key) reads the model's prefilter and validation decisions out
@@ -302,31 +312,63 @@ It changed the questions before they decide anything:
   plans the model refused at 0.81, above most it approved (0.33–0.85). The
   documented plan questions' one false approval was a plan that stopped and
   restarted a server with no stop tool declared, every requirement covered at
-  0.99 or above: a molecule's plan is now also asked `needs_undeclared_tool`,
-  the check the old question named and the documented set had lost.
+  0.99 or above: a molecule's plan was also asked `needs_undeclared_tool`, the
+  check the old question named and the documented set had lost.
 - Its result question took 87 % of the approvals with none false, but on a
   thin line: the model's refusals read 0.12–0.47 and nine of its approvals
   0.48–0.59, inside the drift the self-consistency cookbook measured on
   identical calls.
 - The documented result flag `contradicted_by_evidence` carried no signal —
   0.06–0.87 on results the model approved, 0.16–0.63 on those it refused —
-  and blocked 18 of the 23 approvals. It is removed; what evidence contradicts
-  is asked per requirement as `shown_broken`.
+  and blocked 18 of the 23 approvals. It was removed; what evidence
+  contradicts is asked per requirement as `shown_broken`.
 - Six recipe decisions the model reused escalated because every recipe's
-  `fits` read under 0.3 (best 0.20–0.27): `noFit` is now 0.2, which hands them
+  `fits` read under 0.3 (best 0.20–0.27): `noFit` became 0.2, which hands them
   to the model and leaves 2 of 49 recipe decisions in disagreement.
 
-The changed questions are measured again before the switch.
+**Second measurement, 2026-09-29**, the same 170 decisions asked again with
+those changes (0.034 USD). The 472 answers asked twice drifted by 0.00 at the
+median and 0.17 at most, always in the middle band; one prefilter pick of 102
+flipped, a near tie (0.34 against 0.32). The 2026-09-28 result question,
+asked again, took 18 of the model's approvals where it had taken 20: its
+boundary at 0.5 is where the drift is.
 
-**What follows.** The decider switches to the documented questions with the
-thresholds the measurement supports, in one commit that states the numbers
-here, and the reading below restarts from that date: the runs before it
+- `needs_undeclared_tool` does not work: it read 0.48 on the plan it was meant
+  to catch and 0.75–0.92 on thirteen plans the model approved — Jev sees tool
+  NAMES, not what they do. It is not asked; the one false plan approval stays,
+  and the 2026-09-28 question makes it too.
+- Without `contradicted_by_evidence` the result questions took 35 % of the
+  model's approvals at a 0.8 bar and 48 % at 0.7, with no false approval at
+  any bar from 0.6 to 0.9: the refused results read 0.19 or less on their
+  weakest requirement, and the one that did not (0.83) reported itself
+  incomplete (`reports_incomplete` 0.74).
+
+**The switch, 2026-09-29.** The decider now asks the documented questions:
+
+| threshold | value | why |
+|---|---|---|
+| `requirementShown` (result) | 0.7 | the documented band's edge; refusals at 0.19 or less, plus 0.17 of drift, stay far below |
+| `requirementCovered` (plan) | 0.8 | a refused plan read 0.61 (then 0.58); 0.61 + 0.17 stays under 0.8 |
+| `flag` | 0.3 | the band's lower edge: a false approval compounds trust, a deferral costs one model call |
+| `pickConfidence`, `fit` | 0.5, 0.7 | agent picks: 21 agree, 4 disagree, 23 to the model; `fit` 0.5 takes ten more, three of them against the model |
+| `noFit` | 0.2 | above |
+| `twin` | 1.5 | right on all six cases from 1.0 to 1.75 |
+
+What it trades, on these decisions: Jev takes about half the prefilter picks
+it took (the rest go to the model, about 6 s each) and disagrees with the
+model on 16 % of the agent picks it takes instead of 33 %; it approves 84 % of
+the plans the model approves (78 % before) with one false approval instead of
+two, and about half the results (87 % before, on the thin line above) with
+none. The reading below restarts from this switch: the runs before it
 measured another design.
 
 ## Reading "we will see"
 
-After two weeks, or sooner if runs degrade, from the `jev` events and what
-followed them in the same traces:
+Two weeks after the switch of 2026-09-29 (so around 2026-10-13), or sooner if
+runs degrade, from the `jev` events and what followed them in the same traces;
+the runs before the switch measured the 2026-09-28 questions. After it, the
+model decides only what Jev hands it, so `atoma_jev_calibrate` with
+`includeJevRuns` measures that sample — the deferrals — never Jev's own yes:
 
 1. **Prefilter picks later refused**: a reuse whose child's plan or result the
    supervisor then rejected, escalated, or deepened — against the same rate on

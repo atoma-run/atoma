@@ -4,6 +4,7 @@ import type {
   GenerationParams,
   JevChoiceDecision,
   PositiveVerdict,
+  Result,
   RunContext,
   Task,
   Tier,
@@ -12,6 +13,7 @@ import { modelForTier } from '../core/models.js';
 import { taxonomyForTier } from '../core/taxonomy.js';
 import { parseWith } from './json.js';
 import { prefilterCacheGet, prefilterCacheKey, prefilterCachePut } from './prefilterCache.js';
+import { renderTransportEvidence } from './verdict.js';
 
 /**
  * A child type is "trusted" when it has accumulated enough clean successes to
@@ -326,10 +328,18 @@ export async function jevApproval(args: {
   readonly child: { readonly name: string; readonly tier: Tier; toolNames(): string[] };
   readonly task: Task;
   readonly payload: unknown;
-  readonly evidence?: unknown;
+  readonly evidence?: Result['evidence'];
   readonly groundTruthBlock?: string;
 }): Promise<PositiveVerdict | null> {
   if (!args.ctx.jev) return null;
+  // The model validator's own evidence lines: transport-observed witnesses
+  // only, budgeted the same way, so Jev never reads the child's declared
+  // probes as observations.
+  const rendered = args.subject === 'RESULT' && args.evidence ? renderTransportEvidence(args.evidence) : undefined;
+  const evidence =
+    rendered && rendered.lines.length + rendered.omitted > 0
+      ? [...(rendered.omitted > 0 ? [`${rendered.omitted} earlier observations omitted`] : []), ...rendered.lines]
+      : undefined;
   let decision;
   try {
     decision = await args.ctx.jev.approve({
@@ -340,7 +350,7 @@ export async function jevApproval(args: {
       },
       child: { name: args.child.name, tier: args.child.tier, tools: args.child.toolNames() },
       payload: args.payload,
-      ...(args.evidence !== undefined ? { evidence: args.evidence } : {}),
+      ...(evidence ? { evidence } : {}),
       ...(args.groundTruthBlock ? { groundTruth: args.groundTruthBlock } : {}),
       actorName: args.supervisorName,
       actorTier: args.supervisorTier,
@@ -526,6 +536,11 @@ export type PrefilterOutcome = z.infer<typeof prefilterResponseSchema>;
 export interface CatalogEntry {
   readonly name: string;
   readonly description: string;
+  /**
+   * Jev only: the opening of a recipe's body. The model prefilter's prompt and
+   * its cache key are built from `name` and `description` alone.
+   */
+  readonly detail?: string;
 }
 
 /**

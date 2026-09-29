@@ -104,12 +104,15 @@ export function timelineBranchLabel(
  * title `jev`, no body, a bare clock — so a run Jev had decided for looked
  * like one it never touched (owner report, 2026-09-29). `saved as before` is
  * Jev NOT answering a twin question, which is not a decision and gets none.
+ * A deferral carries its reason in parentheses (`model decides (confidence
+ * 0.42)`), and an L3 routing hint Jev was unsure of is `no hint (…)`: the
+ * strategy call then routes without one, which is what an escalate means there.
  */
 export function jevDecision(event: VizEvent, t: GpuTranslate): string {
   const outcome = scalar(event['outcome']);
   if (outcome === 'approved') return t('outcome.approved');
-  if (outcome === 'model decides' || outcome === 'deferred to the model') return t('card.jev.deferred');
-  if (outcome === 'picked none_of_these') return t('outcome.escalate');
+  if (outcome.startsWith('model decides') || outcome.startsWith('deferred to the model')) return t('card.jev.deferred');
+  if (outcome === 'picked none_of_these' || outcome.startsWith('no hint')) return t('outcome.escalate');
   if (outcome === 'saved: new recipe') return t('card.jev.newRecipe');
   if (outcome.startsWith('not saved: twin of ')) return t('card.jev.twin');
   const picked = /^picked (\S+)/.exec(outcome);
@@ -117,9 +120,10 @@ export function jevDecision(event: VizEvent, t: GpuTranslate): string {
 }
 
 /**
- * What Jev answered, as a percentage: the approval's probability of
- * `acceptable`, else the chosen option's confidence. The prefilter also
- * carries a `decomposable` probability, which is not the pick's.
+ * What Jev answered, as a percentage: an approval's `acceptable` (its weakest
+ * requirement or problem flag), else the chosen option's confidence. The
+ * prefilter also carries `fits` and `decomposable` probabilities, which are
+ * not the pick's.
  */
 export function jevAnswerLabel(event: VizEvent, t: GpuTranslate): string {
   const answer = event['answer'];

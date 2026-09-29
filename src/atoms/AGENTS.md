@@ -143,8 +143,10 @@ load-bearing.
   cache miss its pick is a high-confidence reuse and `none_of_these` an
   escalate, never cached; and it may APPROVE a plan or result only where a
   fast path is admissible (no gate finding, proof covered, probe not requiring
-  review), through `jevApproval`. A no or a silence is the model's decision, as
-  before. Root delivery acceptance is never Jev's.
+  review), through `jevApproval`, which hands it the model validator's own
+  transport-observed evidence lines (`renderTransportEvidence`), never the
+  child's declared probes. A no, an unsure answer or a silence is the model's
+  decision, as before. Root delivery acceptance is never Jev's.
 - The Jev calibration (`jevCalibration.ts`) reads prefilter and validation
   prompts back out of traces, so the LAYOUT of what `prefilterStrategy` and
   `llmVerdict` send is a contract with it: `tests/jev-calibration.test.ts`

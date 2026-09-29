@@ -203,10 +203,12 @@ Neighbours:
 - `src/core/jevQuestions.ts` holds the questions TypeSafe's documentation
   prescribes — atomic Choices and Nouls, problem flags where TRUE is wrong, a
   middle band left to the model — and EVERY threshold they are read against,
-  in one file. Since 2026-09-29 they decide nothing: the decider asks its
-  2026-09-28 questions (`legacy*` in `jev.ts`) until `atoma_jev_calibrate`
-  ([src/mcp](../mcp/AGENTS.md)) has measured the new ones on the model's
-  recorded decisions. A threshold moves with a measurement, never by feel.
+  in one file. The decider asks them since 2026-09-29, at thresholds
+  `atoma_jev_calibrate` ([src/mcp](../mcp/AGENTS.md)) measured on the model's
+  recorded decisions; the 2026-09-28 questions (`legacy*` in `jev.ts`) stay
+  as the baseline every calibration compares with. A question or a threshold
+  changes with a measurement, never by feel, and each is written up in the
+  decision record with its numbers.
 
 ## Intentional choices and rejected shortcuts
 

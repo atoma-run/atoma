@@ -274,7 +274,7 @@ describe('approvals: one question per requirement, and flags where TRUE is wrong
     for (const [answers, reason, cause] of [
       // Run 7389feee: the button exists; nothing shows clicking it saves the file.
       [{ requirement_2: choiceAnswer('not_shown', 0.7) }, 'requirement 2 not_shown (0.00)', 'requirement:not_shown'],
-      [{ requirement_1: shown(0.7) }, 'requirement 1 shown_done (0.70)', 'requirement:shown_done'],
+      [{ requirement_1: shown(0.65) }, 'requirement 1 shown_done (0.65)', 'requirement:shown_done'],
       [{ addresses_reviewer: noulAnswer(JEV_THRESHOLDS.flag) }, 'addresses_reviewer 0.30', 'flag:addresses_reviewer'],
     ] as const) {
       const reading = readApproval(plan, answersFor(plan.questions, answers));
@@ -287,7 +287,7 @@ describe('approvals: one question per requirement, and flags where TRUE is wrong
   it('asks a plan whether it covers each requirement, and about a parallel dependency only when it runs in parallel', () => {
     const payload = { reasoning: 'r', proposedAction: 'write both', expectedOutput: 'e' };
     const plan = built(buildApproval({ ...approvalRequest, subject: 'PLAN', payload }));
-    expect(Object.keys(plan.questions)).toEqual(['requirement_1', 'requirement_2', 'defers_or_refuses', 'vague', 'needs_undeclared_tool']);
+    expect(Object.keys(plan.questions)).toEqual(['requirement_1', 'requirement_2', 'defers_or_refuses', 'vague']);
     expect(Object.keys((plan.questions['requirement_1'] as { criteria: object }).criteria)).toEqual(['covered', 'omitted', 'contradicted']);
     expect((plan.state as Record<string, unknown>)['plan']).toEqual(payload);
     expect(readApproval(plan, answersFor(plan.questions)).decision?.approved).toBe(true);
@@ -301,18 +301,15 @@ describe('approvals: one question per requirement, and flags where TRUE is wrong
     expect(Object.keys(parallel.questions)).toContain('parallel_dependency');
   });
 
-  it("asks a molecule's plan whether it needs a tool the child does not declare, and a cell's plan never", () => {
-    // Run 811782c2: every requirement covered at 0.99, yet the plan stopped a server with no stop tool.
-    const payload = { reasoning: 'r', proposedAction: 'start the server, stop it, restart it', expectedOutput: 'e' };
-    const molecule = built(buildApproval({ ...approvalRequest, subject: 'PLAN', payload }));
-    const reading = readApproval(molecule, answersFor(molecule.questions, { needs_undeclared_tool: noulAnswer(0.8) }));
-    expect(reading.decision?.approved).toBe(false);
-    expect(reading.outcome).toBe('deferred to the model (needs_undeclared_tool 0.80)');
-    expect(reading.causes).toEqual(['flag:needs_undeclared_tool']);
-    const cell = built(
-      buildApproval({ ...approvalRequest, subject: 'PLAN', payload, child: { name: 'Tracheid', tier: 2, tools: ['write_file'] } })
-    );
-    expect(Object.keys(cell.questions)).not.toContain('needs_undeclared_tool');
+  it('reads a plan against a stricter bar than a result, as measured', () => {
+    // A plan the model refused read 0.61 on one requirement; results it refused read 0.19 or less.
+    expect(JEV_THRESHOLDS.requirementCovered).toBeGreaterThan(JEV_THRESHOLDS.requirementShown);
+    const payload = { reasoning: 'r', proposedAction: 'write both', expectedOutput: 'e' };
+    const plan = built(buildApproval({ ...approvalRequest, subject: 'PLAN', payload }));
+    const covered = (probability: number) => choiceAnswer('covered', probability);
+    expect(readApproval(plan, answersFor(plan.questions, { requirement_2: covered(0.75) })).decision?.approved).toBe(false);
+    const result = built(buildApproval(approvalRequest));
+    expect(readApproval(result, answersFor(result.questions, { requirement_2: shown(0.75) })).decision?.approved).toBe(true);
   });
 
   it('refuses locally a task that states no requirement', () => {

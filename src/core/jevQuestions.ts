@@ -64,12 +64,24 @@ export type JevAnswers = Readonly<Record<string, JevAnswer>>;
  * EVERY THRESHOLD Jev's answers are read against. Probabilities in the band
  * between an ACT threshold and a REFUSE one are handed to the model: the
  * self-consistency cookbooks measured one Noul moving 0.43→0.53 over fifteen
- * identical calls, so acting at 0.5 is acting on noise.
+ * identical calls, so acting at 0.5 is acting on noise. On Atoma's own
+ * decisions (two calibrations of 2026-09-29, 472 answers asked twice) the
+ * median drift was 0.00 and the largest 0.17, always in that middle band.
  */
 export const JEV_THRESHOLDS = {
-  /** A result requirement is SHOWN met only at this probability of `shown_done`. */
-  requirementShown: 0.8,
-  /** A plan requirement is COVERED only at this probability of `covered`. */
+  /**
+   * A result requirement is SHOWN met only at this probability of `shown_done`
+   * — the documented band's edge. Measured on 2026-09-29: the model's refused
+   * results read 0.19 or less on their weakest requirement (the one exception
+   * is caught by `reports_incomplete` at 0.74), and the largest drift between
+   * two identical calls was 0.17; 0.7 took 48 % of its approvals, 0.8 35 %.
+   */
+  requirementShown: 0.7,
+  /**
+   * A plan requirement is COVERED only at this probability of `covered`.
+   * Stricter than a result's on measurement: a plan the model refused read
+   * 0.61 (then 0.58), and 0.61 plus the 0.17 drift stays under 0.8.
+   */
   requirementCovered: 0.8,
   /**
    * A problem flag (TRUE = something is wrong) at or above this hands the
@@ -553,24 +565,12 @@ const PARALLEL_DEPENDENCY: JevQuestion = {
     'Do the subtasks of `plan` run in parallel although one of them needs what another produces (a file, a URL, a result)?',
 };
 
-/**
- * Asked of a MOLECULE's plan, the one that runs tools itself. The model
- * validator refuses a plan needing a tool its child does not declare, and the
- * first calibration's one false approval was exactly that: a plan that stopped
- * and restarted a server with no stop tool declared (run 811782c2), every
- * requirement covered at 0.99 or above.
- */
-const NEEDS_UNDECLARED_TOOL: JevQuestion = {
-  type: 'noul',
-  instructions: 'Does `plan` propose an action that none of the tools in `child.declaredTools` can perform?',
-  criteria: {
-    true: {
-      what: 'A step needs a capability that no declared tool provides.',
-      examples: ['stopping or restarting a server when no declared tool stops one', 'a browser check when no declared tool loads a page'],
-    },
-    false: 'Every proposed action is reading, reasoning, or a use of a declared tool.',
-  },
-};
+// NOT ASKED: whether a molecule's plan needs a tool its child does not declare.
+// The first calibration's one false plan approval was such a plan (run
+// 811782c2: it stopped and restarted a server, and no tool stops one), so the
+// second asked `needs_undeclared_tool`. It read 0.48 on that plan and 0.75–0.92
+// on thirteen plans the model approved: Jev sees tool NAMES, not what they do.
+// The miss stays, and the questions of 2026-09-28 make it too.
 
 export interface JevApprovalPlan {
   readonly kind: 'approval';
@@ -636,8 +636,6 @@ export function buildApproval(request: JevApprovalRequest): JevApprovalPlan | st
   });
   const flags = { ...(request.subject === 'RESULT' ? RESULT_FLAGS : PLAN_FLAGS) };
   if (request.subject === 'PLAN' && parallelSubtasks(request.payload)) flags['parallel_dependency'] = PARALLEL_DEPENDENCY;
-  // A cell's plan delegates; only a molecule's plan names tool actions.
-  if (request.subject === 'PLAN' && request.child.tier === 1) flags['needs_undeclared_tool'] = NEEDS_UNDECLARED_TOOL;
   Object.assign(questions, flags);
   return { kind: 'approval', request, requirements, flags: Object.keys(flags), state, questions };
 }

@@ -22,6 +22,7 @@ import {
   jevAsk,
   jevDeciderFromEnv,
 } from '../src/core/jev.js';
+import { JEV_THRESHOLDS } from '../src/core/jevQuestions.js';
 import type {
   JevApprovalRequest,
   JevChoiceRequest,
@@ -46,10 +47,11 @@ import { ANTHROPIC_PINS, FALLBACK_OPUS } from './tier-pins.js';
 /**
  * Jev takes the bounded decisions (docs/jev-decisions-2026-09-28.md): the
  * prefilter's pick, and the APPROVAL half of plan and result validation. These
- * pin what makes that safe to run: Jev only acts where it is asked, a refusal
- * or a silence hands the decision back to the model exactly as before, a
- * failing service cannot hold a run, the credential appears in nothing
- * recorded, and it crosses into a project run only for a named organisation.
+ * pin what makes that safe to run: Jev only acts where it is asked, and only
+ * on answers the questions' thresholds read as clear; a refusal, an uncertain
+ * answer or a silence hands the decision back to the model exactly as before;
+ * a failing service cannot hold a run; the credential appears in nothing
+ * recorded; and it crosses into a project run only for a named organisation.
  */
 
 const KEY = 'ts-secret-key-0123456789';
@@ -58,10 +60,16 @@ const CATALOG = [
   { name: 'Methane', description: 'builds and probes Node HTTP JSON APIs' },
 ];
 
+interface QuestionBody {
+  type: 'choice' | 'noul' | 'score';
+  instructions: unknown;
+  criteria?: unknown;
+}
+
 interface JevRequestBody {
   model: string;
   state: Record<string, unknown>;
-  questions: Record<string, { type: string; instructions: string; criteria?: Record<string, string> }>;
+  questions: Record<string, QuestionBody>;
 }
 
 function respond(answers: Record<string, unknown>, headers: Record<string, string> = {}): Response {
@@ -71,24 +79,47 @@ function respond(answers: Record<string, unknown>, headers: Record<string, strin
   );
 }
 
-/** A fetch answering with `answers`, keeping every request body it received. */
-function jevFetch(answers: Record<string, unknown>) {
+/** A clear answer of the question's type: a confident first option, a low noul, the lowest level. */
+function defaultAnswer(question: QuestionBody): unknown {
+  if (question.type === 'noul') return { type: 'noul', noul: 0.05 };
+  if (question.type === 'score') {
+    return { type: 'score', score: 0, confidence: 0.95, probabilities: { '0': 0.97, '1': 0.03, '2': 0 } };
+  }
+  const first = Object.keys(question.criteria as Record<string, unknown>)[0]!;
+  return { type: 'choice', choice: first, confidence: 0.95, probabilities: { [first]: 0.97 } };
+}
+
+const choiceAnswer = (choice: string, probability = 0.95, confidence = probability) => ({
+  type: 'choice',
+  choice,
+  confidence,
+  probabilities: { [choice]: probability },
+});
+const noulAnswer = (noul: number) => ({ type: 'noul', noul });
+const scoreAnswer = (score: number, confidence = 0.9) => ({ type: 'score', score, confidence, probabilities: {} });
+
+/**
+ * A fetch that answers EVERY question asked — `answer(id, question)` when it
+ * returns something, a clear default otherwise — keeping each request.
+ */
+function jevServer(answer: (id: string, question: QuestionBody) => unknown = () => undefined) {
   const requests: { url: string; body: JevRequestBody; headers: Record<string, string> }[] = [];
   const impl = (async (url: string | URL | Request, init?: RequestInit) => {
+    const body = JSON.parse(init?.body as string) as JevRequestBody;
     requests.push({
       url: typeof url === 'string' ? url : url instanceof URL ? url.href : url.url,
-      body: JSON.parse(init?.body as string) as JevRequestBody,
+      body,
       headers: init?.headers as Record<string, string>,
     });
+    const answers: Record<string, unknown> = {};
+    for (const [id, question] of Object.entries(body.questions)) answers[id] = answer(id, question) ?? defaultAnswer(question);
     return respond(answers);
   }) as typeof fetch;
   return { impl, requests };
 }
 
-const pick = (choice: string, decomposable = 0.1) => ({
-  choice: { type: 'choice', choice, confidence: 0.9, probabilities: { [choice]: 0.95 } },
-  decomposable: { type: 'noul', noul: decomposable },
-});
+/** Answers keyed by question id; anything unlisted gets the clear default. */
+const answering = (answers: Record<string, unknown>) => jevServer((id) => answers[id]);
 
 /** A fetch that never answers until its signal aborts. */
 const hangingFetch = ((_url: string | URL | Request, init?: RequestInit) =>
@@ -103,6 +134,9 @@ const choiceRequest: JevChoiceRequest = {
   actorName: 'Idioblast',
   actorTier: 2,
 };
+
+/** In CATALOG order: agent_1 is Water, agent_2 is Methane. */
+const pickMethane = { choice: choiceAnswer('agent_2'), 'fits::agent_2': noulAnswer(0.9), 'fits::agent_1': noulAnswer(0.2) };
 
 /**
  * A decider that answers from fixed values and keeps what it was asked. An
@@ -134,7 +168,7 @@ function spyDecider(opts: { choice?: string | null; approve?: number; twinOf?: s
 
 describe('jevAsk — the one Jev client', () => {
   it('posts the typed questions with the bearer credential and prices the answer', async () => {
-    const { impl, requests } = jevFetch(pick('Water'));
+    const { impl, requests } = answering({ choice: choiceAnswer('Water'), decomposable: noulAnswer(0.1) });
     const result = await jevAsk({
       apiKey: KEY,
       state: { task: 'build a page' },
@@ -203,7 +237,7 @@ describe('jevAsk — the one Jev client', () => {
       sent += 1;
       return sent === 1
         ? new Response('slow down', { status: 429, headers: { 'retry-after-ms': '5' } })
-        : respond({ ok: { type: 'noul', noul: 0.9 } }, { 'x-typesafe-request-id': 'req-42' });
+        : respond({ ok: noulAnswer(0.9) }, { 'x-typesafe-request-id': 'req-42' });
     }) as typeof fetch;
     const result = await jevAsk({
       apiKey: KEY,
@@ -243,45 +277,61 @@ describe('jevAsk — the one Jev client', () => {
 });
 
 describe('the Jev decider — choices', () => {
-  it('takes a pick, asks with a none-of-these option, and records what it did', async () => {
+  it('acts on a confident pick whose own fits question says yes, and records what it did', async () => {
     const records: JevDecisionInfo[] = [];
-    const { impl, requests } = jevFetch(pick('Methane', 0.8));
-    const decider = createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: impl });
-    const decision = await decider.choose(choiceRequest);
-
-    // Confidence is the probability mass of the chosen candidate's description group.
+    const { impl, requests } = answering({ ...pickMethane, decomposable: noulAnswer(0.85) });
+    const decision = await createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: impl }).choose(
+      choiceRequest
+    );
     expect(decision).toEqual({ target: 'Methane', confidence: 0.95, decomposable: true });
     const body = requests[0]!.body;
-    expect(Object.keys(body.questions['choice']!.criteria!)).toEqual(['Water', 'Methane', NO_CANDIDATE]);
+    // Opaque keys: the chemistry names mean nothing to a literal reader.
+    expect(Object.keys(body.questions['choice']!.criteria as object)).toEqual(['agent_1', 'agent_2', NO_CANDIDATE]);
+    expect(Object.keys(body.questions)).toEqual(['choice', 'fits::agent_1', 'fits::agent_2', 'decomposable']);
     expect(body.state).toEqual({ task: 'build a landing page', constraints: ['no dependencies'] });
+    expect(JSON.stringify(body)).not.toContain('Methane');
     expect(records).toHaveLength(1);
     expect(records[0]).toMatchObject({
       role: 'prefilter',
       evaluator: JEV_EVALUATOR,
       candidates: ['Water', 'Methane'],
       outcome: 'picked Methane (decomposable)',
-      answer: { choice: 'Methane', yes: { decomposable: 0.8 } },
+      answer: { choice: 'Methane', confidence: 0.95, yes: { 'fits:Methane': 0.9, 'fits:Water': 0.2, decomposable: 0.85 } },
       actorName: 'Idioblast',
       costUsd: 0.000042,
     });
     expect(JSON.stringify(records)).not.toContain(KEY);
   });
 
-  it('reads none-of-these as an escalate, and asks the recipe question without decomposition', async () => {
-    const records: JevDecisionInfo[] = [];
-    const { impl, requests } = jevFetch({
-      choice: { type: 'choice', choice: NO_CANDIDATE, confidence: 0.7, probabilities: { [NO_CANDIDATE]: 0.8 } },
-    });
-    const decider = createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: impl });
-    const decision = await decider.choose({ ...choiceRequest, question: 'recipe' });
-    expect(decision).toEqual({ target: null, confidence: 0.8, decomposable: false });
-    expect(Object.keys(requests[0]!.body.questions)).toEqual(['choice']);
-    expect(records[0]!.outcome).toBe(`picked ${NO_CANDIDATE}`);
+  it('hands an unsure pick to the model: low confidence, or a pick that does not itself fit', async () => {
+    for (const [answers, reason] of [
+      [{ ...pickMethane, choice: choiceAnswer('agent_2', 0.45) }, 'confidence 0.45'],
+      [{ ...pickMethane, 'fits::agent_2': noulAnswer(0.5) }, 'Methane fits at 0.50'],
+    ] as const) {
+      const records: JevDecisionInfo[] = [];
+      const { impl } = answering(answers);
+      expect(await createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: impl }).choose(choiceRequest)).toBeNull();
+      expect(records[0]!.outcome).toBe(`model decides (${reason})`);
+    }
   });
 
-  it('reads a pick over identically described clones as their group, and takes the canonical first', async () => {
-    // Run dbfaf275: four full-stack clones at 0.19-0.23 and a raw argmax on an
-    // untrusted clone at confidence 0.15.
+  it('escalates only when every option says it does not fit, whatever the Choice ranked first', async () => {
+    const records: JevDecisionInfo[] = [];
+    // A Choice's probabilities sum to 1: its winner says nothing about WHETHER anything fits.
+    const { impl } = answering({ choice: choiceAnswer('agent_2'), 'fits::agent_1': noulAnswer(0.1), 'fits::agent_2': noulAnswer(0.15) });
+    const decision = await createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: impl }).choose(
+      choiceRequest
+    );
+    expect(decision).toMatchObject({ target: null });
+    expect(records[0]!.outcome).toBe(`picked ${NO_CANDIDATE}`);
+
+    const disagreeing = answering({ choice: choiceAnswer(NO_CANDIDATE), 'fits::agent_1': noulAnswer(0.8) });
+    expect(await createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: disagreeing.impl }).choose(choiceRequest)).toBeNull();
+    expect(records[1]!.outcome).toBe('model decides (none_of_these, yet a candidate fits at 0.80)');
+  });
+
+  it('asks identically described clones as one option, and takes the canonical first', async () => {
+    // Run dbfaf275: four full-stack clones split the mass and made the argmax a coin toss.
     const same = 'Node full-stack app builder and verifier';
     const clones: JevChoiceRequest = {
       ...choiceRequest,
@@ -293,42 +343,74 @@ describe('the Jev decider — choices', () => {
       ],
     };
     const records: JevDecisionInfo[] = [];
-    const { impl } = jevFetch({
-      choice: {
-        type: 'choice',
-        choice: 'Ethanol',
-        confidence: 0.15,
-        probabilities: { Methane: 0.09, CarbonDioxide: 0.23, Ethanol: 0.23, Dopamine: 0.21, [NO_CANDIDATE]: 0.02 },
-      },
-      decomposable: { type: 'noul', noul: 0.6 },
+    const { impl, requests } = answering({
+      choice: choiceAnswer('agent_2', 0.85),
+      'fits::agent_2': noulAnswer(0.9),
+      // 0.6 on a coupled phase is below the conservative decomposition bar.
+      decomposable: noulAnswer(0.6),
     });
     const decision = await createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: impl }).choose(clones);
-    expect(decision?.target).toBe('CarbonDioxide');
-    expect(decision?.confidence).toBeCloseTo(0.67, 10);
-    // 0.6 on a coupled phase is below the conservative decomposition bar.
-    expect(decision?.decomposable).toBe(false);
+    expect(Object.keys(requests[0]!.body.questions['choice']!.criteria as object)).toEqual(['agent_1', 'agent_2', NO_CANDIDATE]);
+    expect(decision).toEqual({ target: 'CarbonDioxide', confidence: 0.85, decomposable: false });
     expect(records[0]!.outcome).toBe('picked CarbonDioxide (first of 3 identical)');
-    expect(records[0]!.answer?.choice).toBe('Ethanol');
   });
 
-  it('lets none_of_these win only when it outweighs the best description group', async () => {
-    const { impl } = jevFetch({
-      choice: { type: 'choice', choice: NO_CANDIDATE, confidence: 0.3, probabilities: { Water: 0.3, Methane: 0.3, [NO_CANDIDATE]: 0.4 } },
-      decomposable: { type: 'noul', noul: 0.1 },
+  it('at L3 gives a routing hint or none, never a model call, and asks no decomposition', async () => {
+    const records: JevDecisionInfo[] = [];
+    const l3 = { ...choiceRequest, actorTier: 3 as const };
+    // A lukewarm Choice is still a hint when the option fits at all...
+    const lukewarm = answering({ ...pickMethane, choice: choiceAnswer('agent_2', 0.4), 'fits::agent_2': noulAnswer(0.4) });
+    expect(await createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: lukewarm.impl }).choose(l3)).toMatchObject({
+      target: 'Methane',
     });
-    const decision = await createJevDecider({ apiKey: KEY, record: () => {}, fetchImpl: impl }).choose(choiceRequest);
-    expect(decision?.target).toBeNull();
+    expect(Object.keys(lukewarm.requests[0]!.body.questions)).not.toContain('decomposable');
+    // ...and a disagreeing one is no hint rather than a model call.
+    const disagreeing = answering({ choice: choiceAnswer(NO_CANDIDATE), 'fits::agent_2': noulAnswer(0.8) });
+    expect(await createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: disagreeing.impl }).choose(l3)).toMatchObject({
+      target: null,
+    });
+    expect(records[1]!.outcome).toMatch(/^no hint \(/);
   });
 
-  it('asks no decomposition question at L3, where a pick is only a hint', async () => {
-    const { impl, requests } = jevFetch(pick('Water'));
-    await createJevDecider({ apiKey: KEY, record: () => {}, fetchImpl: impl }).choose({ ...choiceRequest, actorTier: 3 });
-    expect(Object.keys(requests[0]!.body.questions)).toEqual(['choice']);
+  it('asks the recipe question by recipe id, with the opening of each body, and reads build against verify', async () => {
+    const recipes: JevChoiceRequest = {
+      question: 'recipe',
+      task: { description: 'add a break mode to the pomodoro page' },
+      candidates: [
+        { name: 'serve-and-validate-static-page', description: 'serve and validate a page', detail: '1. start_static_server 2. validate_html' },
+        { name: 'build-self-contained-static-page', description: 'build a page', detail: '1. write_file index.html' },
+      ],
+      actorName: 'Idioblast',
+      actorTier: 2,
+    };
+    const records: JevDecisionInfo[] = [];
+    // Run fd64b07e: the verify-only recipe for a task that had to change the page.
+    const { impl, requests } = answering({
+      choice: choiceAnswer('serve-and-validate-static-page', 0.8),
+      'fits::serve-and-validate-static-page': noulAnswer(0.85),
+      task_changes_files: noulAnswer(0.9),
+      'changes_files::serve-and-validate-static-page': noulAnswer(0.1),
+    });
+    const decision = await createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: impl }).choose(recipes);
+    expect(decision).toBeNull();
+    expect(records[0]!.outcome).toBe('model decides (serve-and-validate-static-page changes no files for a task that must)');
+    const questions = requests[0]!.body.questions;
+    expect(Object.keys(questions['choice']!.criteria as object)).toEqual([
+      'serve-and-validate-static-page',
+      'build-self-contained-static-page',
+      NO_CANDIDATE,
+    ]);
+    expect((questions['choice']!.criteria as Record<string, unknown>)['serve-and-validate-static-page']).toEqual({
+      what: 'serve and validate a page',
+      opening_steps: '1. start_static_server 2. validate_html',
+    });
+    expect(Object.keys(questions)).toContain('task_changes_files');
+    expect(Object.keys(questions)).not.toContain('decomposable');
   });
 
   it('hands back an answer that is not an option', async () => {
     const records: JevDecisionInfo[] = [];
-    const { impl } = jevFetch(pick('Ghost'));
+    const { impl } = answering({ choice: choiceAnswer('Ghost') });
     const decision = await createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: impl }).choose(
       choiceRequest
     );
@@ -347,13 +429,14 @@ describe('the Jev decider — choices', () => {
     expect(records[0]).not.toHaveProperty('error');
   });
 
-  it('stops asking after three failed calls in a run, whatever succeeded between them', async () => {
+  it('stops asking after three failed decisions in a run, whatever succeeded between them', async () => {
     let sent = 0;
     // Fails, succeeds, then fails for good: a success must not reset the count,
     // or a flapping service would keep a run paying timeouts. A 422 is not retried.
-    const flapping = (async () => {
+    const good = answering(pickMethane).impl;
+    const flapping = (async (url: string | URL | Request, init?: RequestInit) => {
       sent += 1;
-      return sent === 2 ? respond(pick('Water')) : new Response('malformed', { status: 422 });
+      return sent === 2 ? good(url, init) : new Response('malformed', { status: 422 });
     }) as typeof fetch;
     const records: JevDecisionInfo[] = [];
     const decider = createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: flapping });
@@ -363,7 +446,7 @@ describe('the Jev decider — choices', () => {
     await decider.choose({ ...choiceRequest, candidates: [{ name: NO_CANDIDATE, description: 'x' }] });
     await decider.choose({
       ...choiceRequest,
-      candidates: Array.from({ length: 255 }, (_, i) => ({ name: `atom-${i}`, description: 'd' })),
+      candidates: Array.from({ length: 255 }, (_, i) => ({ name: `atom-${i}`, description: `d${i}` })),
     });
     await decider.choose(choiceRequest);
     await decider.choose(choiceRequest);
@@ -371,7 +454,7 @@ describe('the Jev decider — choices', () => {
     expect(sent).toBe(4);
     expect(records.map((r) => r.failure ?? r.outcome)).toEqual([
       expect.stringMatching(/HTTP 422/),
-      'picked Water',
+      'picked Methane',
       `a candidate is named ${NO_CANDIDATE}`,
       expect.stringMatching(/255 candidates exceed/),
       expect.stringMatching(/HTTP 422/),
@@ -380,25 +463,24 @@ describe('the Jev decider — choices', () => {
     ]);
   });
 
-  it('counts a request retried into an answer as no failure, and records its request id', async () => {
+  it('counts a request retried into an answer as no failure', async () => {
     let sent = 0;
-    const overloadedOnce = (async () => {
+    const good = answering(pickMethane).impl;
+    const overloadedOnce = (async (url: string | URL | Request, init?: RequestInit) => {
       sent += 1;
-      return sent % 2 === 1
-        ? new Response('overloaded', { status: 529, headers: { 'retry-after-ms': '1' } })
-        : respond(pick('Water'), { 'x-typesafe-request-id': `req-${sent}` });
+      return sent % 2 === 1 ? new Response('overloaded', { status: 529, headers: { 'retry-after-ms': '1' } }) : good(url, init);
     }) as typeof fetch;
     const records: JevDecisionInfo[] = [];
     const decider = createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: overloadedOnce });
     for (let run = 0; run < 4; run++) await decider.choose(choiceRequest);
     expect(sent).toBe(8);
-    expect(records.map((r) => r.outcome)).toEqual(Array(4).fill('picked Water'));
-    expect(records.map((r) => r.requestId)).toEqual(['req-2', 'req-4', 'req-6', 'req-8']);
+    expect(records.map((r) => r.outcome)).toEqual(Array(4).fill('picked Methane'));
+    expect(records.every((r) => r.failure === undefined)).toBe(true);
   });
 
   it('sends nothing for a run already cancelled, and tells a cancellation from a timeout', async () => {
     const records: JevDecisionInfo[] = [];
-    const { impl, requests } = jevFetch(pick('Water'));
+    const { impl, requests } = answering(pickMethane);
     const cancelled = new AbortController();
     cancelled.abort();
     expect(
@@ -425,65 +507,114 @@ describe('the Jev decider — choices', () => {
       record: () => {
         throw new Error('disk full');
       },
-      fetchImpl: jevFetch(pick('Water')).impl,
+      fetchImpl: answering(pickMethane).impl,
     });
-    expect(await decider.choose(choiceRequest)).toMatchObject({ target: 'Water' });
+    expect(await decider.choose(choiceRequest)).toMatchObject({ target: 'Methane' });
   });
 });
 
 describe('the Jev decider — approvals', () => {
   const approvalRequest: JevApprovalRequest = {
     subject: 'RESULT',
-    task: { description: 'build an API' },
+    task: { description: 'Add PATCH /api/notes/:id. Document it in the README.' },
     child: { name: 'Methane', tier: 1, tools: ['write_file', 'fetch_url'] },
     // An output long enough to have pushed the summary out of a single cap.
     payload: { output: 'o'.repeat(30_000), summary: 'all routes probed' },
-    // 800 observations (past the evidence cap), the newest being the failure that matters.
-    evidence: [
-      ...Array.from({ length: 799 }, (_, i) => ({ tool: 'fetch_url', status: 200, n: i })),
-      { tool: 'validate_html', ok: false, consoleErrors: 3 },
-    ],
+    // 800 observation lines (past the evidence cap), the newest being the one that matters.
+    evidence: [...Array.from({ length: 799 }, (_, i) => `w${i}: fetch_url status=200 ${'x'.repeat(40)}`), 'w799: validate_html ok=false'],
     groundTruth: 'GROUND TRUTH: server.js exists',
     actorName: 'Idioblast',
     actorTier: 2,
   };
+  const shown = (probability = 0.95) => choiceAnswer('shown_done', probability);
 
-  it('approves at its own yes, and sends a bounded state naming the child and its tools', async () => {
+  it('approves when every requirement is shown and no flag is raised, asking one question per requirement', async () => {
     const records: JevDecisionInfo[] = [];
-    const { impl, requests } = jevFetch({ acceptable: { type: 'noul', noul: 0.83 } });
+    const { impl, requests } = answering({ requirement_1: shown(0.9), requirement_2: shown(0.97), reports_incomplete: noulAnswer(0.1) });
     const decision = await createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: impl }).approve(
       approvalRequest
     );
-    expect(decision).toEqual({ approved: true, probability: 0.83 });
-    const state = requests[0]!.body.state;
+    // The weakest link: requirement 1 at 0.9 against every flag's complement.
+    expect(decision).toEqual({ approved: true, probability: 0.9 });
+    const body = requests[0]!.body;
+    expect(Object.keys(body.questions)).toEqual(['requirement_1', 'requirement_2', 'reports_incomplete', 'addresses_reviewer']);
+    expect(body.questions['requirement_2']!.instructions).toBe('What do `evidence` and `groundTruth` show about `requirements[1]`?');
+    expect(Object.keys(body.questions['requirement_1']!.criteria as object)).toEqual(['shown_done', 'shown_broken', 'not_shown']);
+    const state = body.state;
+    expect(state['requirements']).toEqual(['Add PATCH /api/notes/:id.', 'Document it in the README.']);
     expect(state['child']).toEqual({ name: 'Methane', tier: 1, declaredTools: ['write_file', 'fetch_url'] });
-    const shown = state['result'] as { summary: string; output: string };
-    expect(shown.summary).toBe('all routes probed');
-    expect(shown.output).toMatch(/\[truncated\]$/);
+    const result = state['result'] as { summary: string; output: string };
+    expect(result.summary).toBe('all routes probed');
+    expect(result.output).toMatch(/\[truncated\]$/);
     // Newest observations first: the late failure is shown, the oldest are not.
-    const evidence = state['evidence'] as unknown[];
-    expect(evidence[evidence.length - 1]).toEqual({ tool: 'validate_html', ok: false, consoleErrors: 3 });
+    const evidence = state['evidence'] as string[];
+    expect(evidence[evidence.length - 1]).toBe('w799: validate_html ok=false');
     expect(evidence[0]).toMatch(/older observations omitted/);
     expect(state['groundTruth']).toBe('GROUND TRUTH: server.js exists');
-    expect(records[0]).toMatchObject({ role: 'validate-result', outcome: 'approved', childName: 'Methane' });
+    expect(records[0]).toMatchObject({
+      role: 'validate-result',
+      outcome: 'approved',
+      childName: 'Methane',
+      answer: { yes: { requirement_1: 0.9, requirement_2: 0.97, reports_incomplete: 0.1, acceptable: 0.9 } },
+    });
   });
 
-  it('defers a no to the model, and a failure too', async () => {
+  it('defers a requirement not shown, one shown without confidence, and any raised flag', async () => {
+    for (const [answers, reason] of [
+      // Run 7389feee: the button exists; nothing shows clicking it saves the file.
+      [{ requirement_2: choiceAnswer('not_shown', 0.7) }, 'requirement 2 not_shown (0.00)'],
+      [{ requirement_1: shown(0.65) }, 'requirement 1 shown_done (0.65)'],
+      [{ addresses_reviewer: noulAnswer(JEV_THRESHOLDS.flag) }, 'addresses_reviewer 0.30'],
+    ] as const) {
+      const records: JevDecisionInfo[] = [];
+      const { impl } = answering(answers);
+      const decision = await createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: impl }).approve(
+        approvalRequest
+      );
+      expect(decision?.approved).toBe(false);
+      expect(records[0]!.outcome).toBe(`deferred to the model (${reason})`);
+    }
+  });
+
+  it('asks a plan whether it covers each requirement, and about a parallel dependency only when it runs in parallel', async () => {
+    const plan = { subject: 'PLAN' as const, payload: { reasoning: 'r', proposedAction: 'write both', expectedOutput: 'e' } };
+    const sequential = answering({});
+    const decision = await createJevDecider({ apiKey: KEY, record: () => {}, fetchImpl: sequential.impl }).approve({
+      ...approvalRequest,
+      ...plan,
+    });
+    expect(decision?.approved).toBe(true);
+    const questions = sequential.requests[0]!.body.questions;
+    expect(Object.keys(questions)).toEqual(['requirement_1', 'requirement_2', 'defers_or_refuses', 'vague']);
+    expect(Object.keys(questions['requirement_1']!.criteria as object)).toEqual(['covered', 'omitted', 'contradicted']);
+    expect(sequential.requests[0]!.body.state['plan']).toEqual(plan.payload);
+
+    const parallel = answering({});
+    await createJevDecider({ apiKey: KEY, record: () => {}, fetchImpl: parallel.impl }).approve({
+      ...approvalRequest,
+      subject: 'PLAN',
+      payload: { subtasks: [{ description: 'a' }, { description: 'b' }], aggregation: { mode: 'concat' } },
+    });
+    expect(Object.keys(parallel.requests[0]!.body.questions)).toContain('parallel_dependency');
+  });
+
+  it('defers a failure, and refuses locally a task that states no requirement', async () => {
     const records: JevDecisionInfo[] = [];
-    const no = jevFetch({ acceptable: { type: 'noul', noul: 0.2 } });
-    expect(
-      await createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: no.impl }).approve({
-        ...approvalRequest,
-        subject: 'PLAN',
-      })
-    ).toEqual({ approved: false, probability: 0.2 });
     const refusing = (async () => new Response('bad key', { status: 401 })) as typeof fetch;
     expect(
       await createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: refusing }).approve(approvalRequest)
     ).toBeNull();
-    expect(records.map((r) => [r.role, r.outcome])).toEqual([
-      ['validate-plan', 'deferred to the model'],
-      ['validate-result', 'deferred to the model'],
+    const { impl, requests } = answering({});
+    expect(
+      await createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: impl }).approve({
+        ...approvalRequest,
+        task: { description: ' ' },
+      })
+    ).toBeNull();
+    expect(requests).toHaveLength(0);
+    expect(records.map((r) => [r.role, r.outcome, r.failure])).toEqual([
+      ['validate-result', 'deferred to the model', expect.stringMatching(/HTTP 401/)],
+      ['validate-result', 'deferred to the model', 'the task states no requirement to check'],
     ]);
   });
 
@@ -571,6 +702,18 @@ describe('prefilterStrategy with Jev', () => {
     expect(chosen[0]!.candidates.map((c) => c.name)).toEqual(['Water']);
   });
 
+  it("keeps a recipe body's opening out of the model's prompt and cache key", async () => {
+    const ctx = makeCtx();
+    ctx.llm.enqueueText(jsonText({ kind: 'escalate', reasoning: 'model' }));
+    await prefilterStrategy({
+      ctx,
+      task: { description: 'x' },
+      catalog: [{ name: 'serve-page', description: 'serves a page', detail: 'SECRET-OPENING write_file' }],
+      systemPrompt: SKILL_PREFILTER_SYSTEM_PROMPT,
+    });
+    expect(ctx.llm.calls[0]!.userContent).not.toContain('SECRET-OPENING');
+  });
+
   it('serves a cached model decision before asking Jev, and never caches a Jev decision', async () => {
     process.env['ATOMA_PREFILTER_CACHE'] = join(dir, 'cache.db');
     resetPrefilterCacheForTests();
@@ -598,7 +741,11 @@ describe('prefilterStrategy with Jev', () => {
     const records: JevDecisionInfo[] = [];
     const root = {
       ...makeCtx(),
-      jev: createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: jevFetch(pick('Water')).impl }),
+      jev: createJevDecider({
+        apiKey: KEY,
+        record: (i) => records.push(i),
+        fetchImpl: answering({ choice: choiceAnswer('agent_1'), 'fits::agent_1': noulAnswer(0.9) }).impl,
+      }),
     };
     const inner = forkBranch(forkBranch(root, 'outer'), 'inner');
     expect(inner.jev).toBeDefined();
@@ -744,6 +891,25 @@ describe('validation with Jev', () => {
     expect(calls.filter((c) => c === 'read_file')).toHaveLength(1);
   });
 
+  it("shows Jev the model validator's evidence lines: transport-observed only, never declared probes", async () => {
+    const { decider, approvals } = spyDecider({ approve: 0.9 });
+    const ctx = { ...makeCtx(), jev: decider };
+    await jevApproval({
+      ctx,
+      subject: 'RESULT',
+      supervisorName: 'Tracheid',
+      supervisorTier: 2,
+      child: { name: 'Water', tier: 1, toolNames: () => ['validate_html'] },
+      task: { description: 'build a page' },
+      payload: { output: 'x', summary: 's' },
+      evidence: [
+        { source: 'recorded-probe', cmd: 'curl localhost', stdout: 'I say it works', match: true },
+        { source: 'transport-observed', eventId: 'e1', tool: 'validate_html', observed: 'validate_html: ok=true' },
+      ],
+    });
+    expect(approvals[0]!.evidence).toEqual(['e1: validate_html: ok=true']);
+  });
+
   it('marks a Jev approval so no recipe is learned from it', async () => {
     const { l2, l1 } = untrustedL2();
     const ctx = { ...makeCtx(), jev: spyDecider({ approve: 0.9 }).decider };
@@ -789,42 +955,44 @@ describe('the Jev decider — twins', () => {
     existing: [
       { id: 'recover-recorded-verification-evidence', description: 'capture verification output', whenToUse: 'narrative-only summaries' },
       { id: 'recover-undeclared-server-stop', description: 'no stop tool', whenToUse: 'plan proposes stopping a server' },
+      // The draft's own id is never a candidate twin of itself.
+      { id: 'recover-missing-evidence', description: 'paste evidence on retry', whenToUse: 'narrative-only summaries' },
     ],
     actorName: 'Tracheid',
     actorTier: 2,
   };
 
-  it('names the existing recipe a draft duplicates, asking over the existing ones plus new_recipe', async () => {
+  it('names the existing recipe a draft duplicates, from one pairwise Score per existing recipe', async () => {
     const records: JevDecisionInfo[] = [];
-    const { impl, requests } = jevFetch({
-      choice: {
-        type: 'choice',
-        choice: 'recover-recorded-verification-evidence',
-        confidence: 0.8,
-        probabilities: { 'recover-recorded-verification-evidence': 0.85 },
-      },
+    const { impl, requests } = answering({
+      'twin::recover-recorded-verification-evidence': scoreAnswer(1.8, 0.8),
+      'twin::recover-undeclared-server-stop': scoreAnswer(0.1),
     });
     const decision = await createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: impl }).twin(twinRequest);
     expect(decision).toEqual({ twinOf: 'recover-recorded-verification-evidence', confidence: 0.8 });
-    expect(Object.keys(requests[0]!.body.questions['choice']!.criteria!)).toEqual([
-      'recover-recorded-verification-evidence',
-      'recover-undeclared-server-stop',
-      NEW_RECIPE,
-    ]);
+    const questions = requests[0]!.body.questions;
+    expect(Object.keys(questions)).toEqual(['twin::recover-recorded-verification-evidence', 'twin::recover-undeclared-server-stop']);
+    expect(questions['twin::recover-undeclared-server-stop']).toMatchObject({
+      type: 'score',
+      instructions: { existing_recipe: { description: 'no stop tool', applies_when: 'plan proposes stopping a server' } },
+    });
+    expect((questions['twin::recover-undeclared-server-stop']!.criteria as unknown[]).length).toBe(3);
     expect(records[0]).toMatchObject({
       role: 'learn-event-skill',
+      candidates: ['recover-recorded-verification-evidence', 'recover-undeclared-server-stop'],
       outcome: 'not saved: twin of recover-recorded-verification-evidence',
+      answer: { scores: { 'recover-recorded-verification-evidence': 1.8, 'recover-undeclared-server-stop': 0.1 } },
     });
   });
 
-  it('reads new_recipe as a new recipe, asks nothing when there is nothing to duplicate, and fails open', async () => {
-    const newOne = jevFetch({ choice: { type: 'choice', choice: NEW_RECIPE, confidence: 0.7, probabilities: { [NEW_RECIPE]: 0.8 } } });
+  it('keeps a merely related draft, asks nothing when there is nothing to compare, and fails open', async () => {
+    const related = answering({ 'twin::recover-recorded-verification-evidence': scoreAnswer(1.2) });
     const records: JevDecisionInfo[] = [];
     expect(
-      await createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: newOne.impl }).twin(twinRequest)
-    ).toEqual({ twinOf: null, confidence: 0.7 });
+      await createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: related.impl }).twin(twinRequest)
+    ).toEqual({ twinOf: null, confidence: 0.9 });
 
-    const none = jevFetch(pick('Water'));
+    const none = answering({});
     expect(
       await createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: none.impl }).twin({ ...twinRequest, existing: [] })
     ).toBeNull();
@@ -960,13 +1128,14 @@ describe('the jev trace event', () => {
   });
   afterEach(() => rmSync(runsDir, { recursive: true, force: true }));
 
-  it('is recorded with its own cost and stays out of the run LLM totals', () => {
+  it('is recorded with its own cost and request id, and stays out of the run LLM totals', () => {
     const recorder = new TraceRecorder(runsDir);
     recorder.beginRun({ description: 'goal' });
     recorder.recordJevDecision({
       role: 'validate-result',
       evaluator: JEV_EVALUATOR,
-      answer: { yes: { acceptable: 0.83 } },
+      requestId: 'req-7',
+      answer: { yes: { requirement_1: 0.9, acceptable: 0.9 } },
       outcome: 'approved',
       durationMs: 180,
       usage: { inputTokens: 1000, outputTokens: 0 },
@@ -976,15 +1145,27 @@ describe('the jev trace event', () => {
       childName: 'Methane',
       branchId: 'b1',
     });
+    recorder.recordJevDecision({
+      role: 'learn-skill',
+      evaluator: JEV_EVALUATOR,
+      answer: { choice: NEW_RECIPE, confidence: 0.9, scores: { 'serve-api': 0.4 } },
+      outcome: 'saved: new recipe',
+      durationMs: 90,
+      usage: { inputTokens: 500, outputTokens: 0 },
+      costUsd: 0.000021,
+    });
     const run = recorder.endRun()!;
-    expect(run.events.find((e) => e.kind === 'jev')).toMatchObject({
+    const events = run.events.filter((e) => e.kind === 'jev');
+    expect(events[0]).toMatchObject({
       kind: 'jev',
       outcome: 'approved',
+      requestId: 'req-7',
       actor: { name: 'Idioblast', tier: 2 },
       child: { name: 'Methane' },
       branchId: 'b1',
       costUsd: 0.000042,
     });
+    expect(events[1]).toMatchObject({ answer: { scores: { 'serve-api': 0.4 } } });
     expect(run.totals).toMatchObject({ calls: 0, costUsd: 0 });
   });
 
@@ -1028,7 +1209,7 @@ describe('the jev card in the run view', () => {
   async function cardsFor(ask: (decider: JevDecider) => Promise<unknown>, answers: Record<string, unknown>) {
     const recorder = new TraceRecorder(runsDir);
     recorder.beginRun({ description: 'goal' });
-    const { impl } = jevFetch(answers);
+    const { impl } = answering(answers);
     await ask(createJevDecider({ apiKey: KEY, record: (info) => recorder.recordJevDecision(info), fetchImpl: impl }));
     return jevEventsOf(recorder).map((event) => gpuEventCardCopy(event, t));
   }
@@ -1056,36 +1237,41 @@ describe('the jev card in the run view', () => {
   };
 
   it('names the decision, the pick and what it cost', async () => {
-    const [card] = await cardsFor((d) => d.choose(choiceRequest), pick('Methane'));
+    const [card] = await cardsFor((d) => d.choose(choiceRequest), { ...pickMethane, choice: choiceAnswer('agent_2', 0.9) });
     expect(card).toMatchObject({ title: 'Jev · prefilter', decision: '→ Methane', body: 'picked Methane' });
     expect(card!.meta).toContain('L2 Idioblast');
     expect(card!.footer).toMatch(/^jev-1\.13\.0 · conf 90% · \d+ms · \$0\.0000 · /);
   });
 
-  it('badges an approval, and a lukewarm yes as the model deciding', async () => {
-    const [approved] = await cardsFor((d) => d.approve(approval), { acceptable: { type: 'noul', noul: 0.83 } });
+  it('badges an approval with its weakest link, and a deferral as the model deciding', async () => {
+    const [approved] = await cardsFor((d) => d.approve(approval), { requirement_1: choiceAnswer('shown_done', 0.83) });
     expect(approved).toMatchObject({ title: 'Jev · validate-result', decision: '✓ approved' });
     expect(approved!.footer).toContain('p 83%');
-    const [deferred] = await cardsFor((d) => d.approve(approval), { acceptable: { type: 'noul', noul: 0.2 } });
-    expect(deferred).toMatchObject({ decision: '↑ model decides', body: 'deferred to the model' });
+    const [deferred] = await cardsFor((d) => d.approve(approval), { requirement_1: choiceAnswer('not_shown', 0.8) });
+    expect(deferred!.decision).toBe('↑ model decides');
+    expect(deferred!.body).toBe('deferred to the model (requirement 1 not_shown (0.00))');
   });
 
-  it('badges none-of-these as an escalation', async () => {
-    const [card] = await cardsFor((d) => d.choose(choiceRequest), {
-      choice: { type: 'choice', choice: NO_CANDIDATE, confidence: 0.7, probabilities: { [NO_CANDIDATE]: 0.8 } },
-      decomposable: { type: 'noul', noul: 0.1 },
+  it('badges an unsure pick as the model deciding, and none-of-these or no hint as an escalation', async () => {
+    const [unsure] = await cardsFor((d) => d.choose(choiceRequest), { ...pickMethane, choice: choiceAnswer('agent_2', 0.3) });
+    expect(unsure!.decision).toBe('↑ model decides');
+    const [none] = await cardsFor((d) => d.choose(choiceRequest), {
+      choice: choiceAnswer(NO_CANDIDATE, 0.8),
+      'fits::agent_1': noulAnswer(0.1),
+      'fits::agent_2': noulAnswer(0.1),
     });
-    expect(card!.decision).toBe('↑ escalate');
+    expect(none!.decision).toBe('↑ escalate');
+    const [noHint] = await cardsFor((d) => d.choose({ ...choiceRequest, actorTier: 3 }), {
+      choice: choiceAnswer(NO_CANDIDATE, 0.8),
+      'fits::agent_1': noulAnswer(0.6),
+    });
+    expect(noHint!.decision).toBe('↑ escalate');
   });
 
   it('badges a twin verdict both ways', async () => {
-    const [duplicate] = await cardsFor((d) => d.twin(twin), {
-      choice: { type: 'choice', choice: 'serve-json-api', confidence: 0.8, probabilities: { 'serve-json-api': 0.85 } },
-    });
+    const [duplicate] = await cardsFor((d) => d.twin(twin), { 'twin::serve-json-api': scoreAnswer(1.9, 0.8) });
     expect(duplicate).toMatchObject({ title: 'Jev · learn-skill', decision: '✕ duplicate recipe' });
-    const [fresh] = await cardsFor((d) => d.twin(twin), {
-      choice: { type: 'choice', choice: NEW_RECIPE, confidence: 0.8, probabilities: { [NEW_RECIPE]: 0.85 } },
-    });
+    const [fresh] = await cardsFor((d) => d.twin(twin), { 'twin::serve-json-api': scoreAnswer(0.4, 0.8) });
     expect(fresh!.decision).toBe('✓ new recipe');
   });
 

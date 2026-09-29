@@ -520,8 +520,12 @@ export interface JevApprovalRequest {
   readonly child: { readonly name: string; readonly tier: Tier; readonly tools: readonly string[] };
   /** The plan, or the result's `{output, summary}`. */
   readonly payload: unknown;
-  /** Recorded observations and the host's ground-truth block, when there are any. */
-  readonly evidence?: unknown;
+  /**
+   * The transport-observed evidence lines exactly as the model validator reads
+   * them (`renderTransportEvidence`) — never the child's own declared probes.
+   */
+  readonly evidence?: readonly string[];
+  /** The host's ground-truth block, when there is one. */
   readonly groundTruth?: string;
   readonly actorName?: string;
   readonly actorTier?: Tier;

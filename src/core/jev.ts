@@ -5,9 +5,15 @@ import {
   JEV_STATE_CHARS,
   NEW_RECIPE,
   NO_CANDIDATE,
+  buildApproval,
+  buildChoice,
+  buildTwin,
   capped,
   headAndTail,
   newestEvidence,
+  readApproval,
+  readChoice,
+  readTwin,
   resultState,
   taskState,
   type JevAnswer,
@@ -38,11 +44,11 @@ export { NEW_RECIPE, NO_CANDIDATE, type JevAnswer, type JevAnswers, type JevQues
  * and result validation. It writes no text, so a refusal is always the model
  * validator's: that is where the remediation comes from.
  *
- * The decider below still asks the questions it shipped with on 2026-09-28
- * (`legacy*`). TypeSafe's documentation, read in full on 2026-09-29,
- * prescribes others; they are in `jevQuestions.ts`, and they decide nothing
- * until `atoma_jev_calibrate` has measured them on the decisions the model
- * recorded. The legacy builders are exported for that comparison.
+ * The decider asks the questions TypeSafe's documentation prescribes
+ * (`jevQuestions.ts`, read in full on 2026-09-29), read against thresholds
+ * `atoma_jev_calibrate` measured on the decisions the model recorded. The
+ * questions it shipped with on 2026-09-28 (`legacy*`) stay exported as the
+ * baseline every later calibration is compared with.
  *
  * It is deliberately NOT in `modelCatalog.json`: adding its vendor to
  * `MODEL_SELECTOR_VENDORS` would make `api:typesafe:*` a routable tier selector
@@ -88,13 +94,9 @@ export const JEV_DECISION_TIMEOUT_MS = 2_000;
  * request that then succeeds is not a failed decision.
  */
 export const JEV_MAX_FAILURES_PER_RUN = 3;
-/** The legacy approval's "yes": a validation is approved at this probability or above. */
+/** The 2026-09-28 approval's "yes", kept for the baseline: approved at this probability or above. */
 export const JEV_APPROVAL_THRESHOLD = 0.5;
-/**
- * Conservative, as the model prefilter is told to be: "decomposable" turns a
- * reuse into a full cell plan call, so a lukewarm yes (0.6 on a coupled
- * server-and-page phase, run dbfaf275) must not buy one.
- */
+/** The 2026-09-28 decomposition bar, kept for the baseline. */
 export const JEV_DECOMPOSABLE_THRESHOLD = 0.8;
 /** Jev's documented ceiling on the levels of one Score question. */
 const JEV_MAX_SCORE_LEVELS = 10;
@@ -293,7 +295,7 @@ export async function jevAsk(args: {
 }
 
 // ---------------------------------------------------------------------------
-// The questions the decider asks today (2026-09-28), as pure functions
+// The questions the decider asked on 2026-09-28: the calibration's baseline
 // ---------------------------------------------------------------------------
 
 const CHOICE_INSTRUCTIONS: Record<JevChoiceRequest['question'], string> = {
@@ -634,23 +636,24 @@ export function createJevDecider(opts: {
         candidates: request.candidates.map((candidate) => candidate.name),
         ...attribution(request),
       };
-      const built = legacyChoice(request);
-      if (typeof built === 'string') {
-        safeRecord({ ...base, ...unanswered, outcome: 'model decides', failure: built, durationMs: 0 });
+      const plan = buildChoice(request);
+      if (typeof plan === 'string') {
+        safeRecord({ ...base, ...unanswered, outcome: 'model decides', failure: plan, durationMs: 0 });
         return null;
       }
-      const asked = await ask(built.state, built.questions, request.signal);
+      const asked = await ask(plan.state, plan.questions, request.signal);
       if (!asked.ok) {
         safeRecord({ ...base, ...unanswered, outcome: 'model decides', failure: asked.failure, durationMs: asked.durationMs });
         return null;
       }
-      const reading = legacyReadChoice(request, asked.result.answers);
+      const reading = readChoice(plan, asked.result.answers);
+      const stray = reading.causes?.includes('not_an_option') ? asked.result.answers['choice']?.choice : undefined;
       safeRecord({
         ...base,
         ...answered(asked),
-        ...(reading.answer ? { answer: reading.answer } : {}),
+        answer: reading.answer,
         outcome: reading.outcome,
-        ...(reading.failure ? { failure: reading.failure } : {}),
+        ...(stray !== undefined ? { failure: `answer "${stray}" is not an option` } : {}),
       });
       return reading.decision;
     },
@@ -663,45 +666,39 @@ export function createJevDecider(opts: {
         childName: request.child.name,
         ...attribution(request),
       };
-      const built = legacyApproval(request);
-      if (typeof built === 'string') {
-        safeRecord({ ...base, ...unanswered, outcome: 'deferred to the model', failure: built, durationMs: 0 });
+      const plan = buildApproval(request);
+      if (typeof plan === 'string') {
+        safeRecord({ ...base, ...unanswered, outcome: 'deferred to the model', failure: plan, durationMs: 0 });
         return null;
       }
-      const asked = await ask(built.state, built.questions, request.signal);
+      const asked = await ask(plan.state, plan.questions, request.signal);
       if (!asked.ok) {
         safeRecord({ ...base, ...unanswered, outcome: 'deferred to the model', failure: asked.failure, durationMs: asked.durationMs });
         return null;
       }
-      const reading = legacyReadApproval(asked.result.answers);
-      safeRecord({ ...base, ...answered(asked), ...(reading.answer ? { answer: reading.answer } : {}), outcome: reading.outcome });
+      const reading = readApproval(plan, asked.result.answers);
+      safeRecord({ ...base, ...answered(asked), answer: reading.answer, outcome: reading.outcome });
       return reading.decision;
     },
 
     async twin(request: JevTwinRequest): Promise<JevTwinDecision | null> {
       const role = request.kind === 'task' ? ('learn-skill' as const) : ('learn-event-skill' as const);
-      const built = legacyTwin(request);
+      const plan = buildTwin(request);
       // Nothing to duplicate: no question, and nothing to record.
-      if (!built) return null;
+      if (!plan) return null;
       const base = {
         role,
         evaluator: JEV_EVALUATOR,
-        candidates: request.existing.map((recipe) => recipe.id),
+        candidates: plan.ids,
         ...attribution(request),
       };
-      const asked = await ask(built.state, built.questions, request.signal);
+      const asked = await ask(plan.state, plan.questions, request.signal);
       if (!asked.ok) {
         safeRecord({ ...base, ...unanswered, outcome: 'saved as before', failure: asked.failure, durationMs: asked.durationMs });
         return null;
       }
-      const reading = legacyReadTwin(built.options, asked.result.answers);
-      safeRecord({
-        ...base,
-        ...answered(asked),
-        ...(reading.answer ? { answer: reading.answer } : {}),
-        outcome: reading.outcome,
-        ...(reading.failure ? { failure: reading.failure } : {}),
-      });
+      const reading = readTwin(plan, asked.result.answers);
+      safeRecord({ ...base, ...answered(asked), answer: reading.answer, outcome: reading.outcome });
       return reading.decision;
     },
   };

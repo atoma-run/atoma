@@ -1344,6 +1344,8 @@ export class SkillLifecycle {
       catalog: tagged.map(({ skill: s }) => ({
         name: s.id,
         description: `${s.description}. When to use: ${s.whenToUse}`,
+        // Jev alone reads the body's opening (the model's prompt and cache key do not).
+        detail: s.body,
       })),
       systemPrompt: SKILL_PREFILTER_SYSTEM_PROMPT,
       actor: { name: this.host.name, tier: 2 },
