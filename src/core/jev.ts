@@ -29,7 +29,14 @@ import type {
  */
 
 export const JEV_ENDPOINT = 'https://api.typesafe.ai/v1/systemone';
-export const JEV_MODEL = 'jev-latest';
+/**
+ * The VERSIONED id, never the `jev-latest` alias. The alias moves when a
+ * release ships, and TypeSafe's models page says to pin the version once
+ * thresholds are tuned against it (docs.typesafe.ai/models, read 2026-09-29):
+ * every question and threshold below was measured on 1.13.0. A new version is
+ * adopted by changing this line after re-measuring, on our schedule.
+ */
+export const JEV_MODEL = 'jev-1.13.0';
 export const JEV_EVALUATOR = `typesafe:${JEV_MODEL}`;
 
 /** The credential. Crosses into a project run only for an admitted organisation. */
@@ -40,11 +47,10 @@ export const JEV_ENV = 'ATOMA_JEV';
 export const JEV_ORGS_ENV = 'ATOMA_JEV_ORGS';
 
 /**
- * USD per million tokens, as `ModelPrices` expects. Read 2026-09-28 from the
- * Cloudflare Workers AI listing of the model
- * (https://developers.cloudflare.com/ai/models/typesafe/jev/: input 0.042,
- * output and cached input 0). The TypeSafe docs publish no price page, so the
- * direct API's price is ASSUMED equal until an invoice says otherwise.
+ * USD per million tokens, as `ModelPrices` expects. TypeSafe's models page
+ * (docs.typesafe.ai/models, read 2026-09-29) prices jev-1.13 at $0.042 per
+ * million INPUT tokens and makes output tokens free; the Cloudflare Workers AI
+ * listing read on 2026-09-28 says the same.
  */
 export const JEV_PRICES: ModelPrices = { input: 0.042, output: 0, cachedInput: 0 };
 
@@ -69,7 +75,11 @@ export const JEV_APPROVAL_THRESHOLD = 0.5;
 export const JEV_DECOMPOSABLE_THRESHOLD = 0.8;
 /** Jev's documented ceiling on the options of one Choice question. */
 const JEV_MAX_OPTIONS = 255;
-/** Ceilings on what a validation state carries (Jev's context is 32k tokens). */
+/**
+ * Ceilings on what a validation state carries. jev-1.13 takes 64k tokens per
+ * request, of which the state plus its single longest question may use 32k
+ * (docs.typesafe.ai/models); these stay far below both.
+ */
 const SUMMARY_CHARS = 6_000;
 const OUTPUT_CHARS = 14_000;
 const PLAN_CHARS = 20_000;

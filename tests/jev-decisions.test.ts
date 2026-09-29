@@ -146,7 +146,8 @@ describe('jevAsk — the one Jev client', () => {
     });
     expect(requests[0]!.url).toBe(JEV_ENDPOINT);
     expect(requests[0]!.headers['Authorization']).toBe(`Bearer ${KEY}`);
-    expect(requests[0]!.body.model).toBe('jev-latest');
+    // The versioned id, never the moving alias: thresholds are measured on it.
+    expect(requests[0]!.body.model).toBe('jev-1.13.0');
     expect(Object.keys(requests[0]!.body.questions)).toEqual(['choice', 'decomposable']);
     expect(result.answers['choice']!.choice).toBe('Water');
     expect(result.answers['decomposable']!.noul).toBe(0.1);

@@ -113,9 +113,12 @@ may still change the child, and at L3 a pick is only a hint — the route taken
 is the child whose `plan` llm event follows in the same lane. The field is
 `failure`, never `error`: the analyst's digest reads any event `error` as a run
 error. Cost is `estimateCostUsd` on `JEV_PRICES` (0.042 USD per million input
-tokens, the Cloudflare Workers AI listing read 2026-09-28; the direct API's
-price is ASSUMED equal until the TypeSafe console says otherwise), recorded on
-the event and kept out of the run's LLM totals.
+tokens, output free: TypeSafe's models page read 2026-09-29, which the
+Cloudflare Workers AI listing of 2026-09-28 matches), recorded on the event and
+kept out of the run's LLM totals. Requests name the versioned model
+`jev-1.13.0`, never the `jev-latest` alias: the alias moves when TypeSafe ships
+a release, and its models page says to pin the version once thresholds are
+tuned against it. `servedModel` on each event is what answered.
 
 In the run view each event is a near-white `Jev · <role>` card with its own
 `JEV` filter chip, shown only on a run that holds one (2026-09-29; until then
