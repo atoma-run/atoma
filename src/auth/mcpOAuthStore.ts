@@ -8,6 +8,9 @@ export const MCP_REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 export const MCP_CODE_TTL_MS = 5 * 60 * 1000;
 const CLIENT_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 const MAX_CLIENTS = 10_000;
+/** Metadata clients count apart, so they never crowd out registrations, nor these them. */
+const MAX_METADATA_CLIENTS = 2_000;
+const METADATA_CLIENT = "client_id LIKE 'https://%'";
 const MAX_CODES = 1_024;
 export const oauthHash = (value: string): string => createHash('sha256').update(value).digest('hex');
 const secret = (): string => randomBytes(32).toString('base64url');
@@ -58,12 +61,32 @@ export class McpOAuthStore {
   register(clientName: string, redirectUris: string[]): McpOAuthClient {
     return this.db.transaction(() => {
       this.db.prepare('DELETE FROM auth_mcp_clients WHERE expires_at <= ?').run(this.now());
-      const { count } = this.db.prepare('SELECT count(*) AS count FROM auth_mcp_clients').get() as { count: number };
+      const { count } = this.db.prepare(`SELECT count(*) AS count FROM auth_mcp_clients WHERE NOT ${METADATA_CLIENT}`).get() as { count: number };
       if (count >= MAX_CLIENTS) throw new Error('OAuth client capacity reached');
       const client = { client_id: randomUUID(), client_name: clientName, redirect_uris: redirectUris };
       this.db.prepare('INSERT INTO auth_mcp_clients VALUES (?, ?, ?, ?)')
         .run(client.client_id, clientName, JSON.stringify(redirectUris), this.now() + CLIENT_TTL_MS);
       return client;
+    })();
+  }
+
+  /**
+   * A client that named itself by a metadata document, as its document read
+   * when a person allowed it: the token, refresh and revocation endpoints then
+   * find it like a registered one, for as long as the grant it received can
+   * be renewed. The URL id cannot collide with a registered id, which is
+   * always a UUID. A withdrawn document takes effect at the next
+   * authorization; an issued grant runs its course, as a registered one does.
+   */
+  rememberMetadataClient(client: McpOAuthClient): void {
+    this.db.transaction(() => {
+      this.db.prepare('DELETE FROM auth_mcp_clients WHERE expires_at <= ?').run(this.now());
+      const known = this.db.prepare('SELECT 1 FROM auth_mcp_clients WHERE client_id = ?').get(client.client_id);
+      const { count } = this.db.prepare(`SELECT count(*) AS count FROM auth_mcp_clients WHERE ${METADATA_CLIENT}`).get() as { count: number };
+      if (!known && count >= MAX_METADATA_CLIENTS) throw new Error('OAuth client capacity reached');
+      this.db.prepare('INSERT OR REPLACE INTO auth_mcp_clients VALUES (?, ?, ?, ?)')
+        .run(client.client_id, client.client_name, JSON.stringify(client.redirect_uris),
+          this.now() + MCP_REFRESH_TTL_MS + MCP_CODE_TTL_MS);
     })();
   }
 

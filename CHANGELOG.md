@@ -17,6 +17,10 @@ corrections of the 2026-09-24 and 2026-09-25 code reviews.
   Set the limits in Settings or with `npm run settings`; every change is
   journaled, and a ceiling below a request the host exports is refused. An
   instance where nobody has set one behaves exactly as before.
+- MCP OAuth: clients can identify themselves by a Client ID Metadata Document
+  (an HTTPS URL as `client_id`), the registration the 2026-07-28
+  specification prefers. The consent page shows the address the document was
+  read at. Dynamic client registration keeps working.
 - MCP: `atoma_mcp_health`, for a platform admin: which protocol version each
   client speaks, counted since the server started — the evidence for when
   2025-11-25 support can go.

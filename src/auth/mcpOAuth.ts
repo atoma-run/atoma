@@ -6,6 +6,7 @@ import type { AuthGate } from './gate.js';
 import { MCP_CODE_TTL_MS, MCP_OAUTH_SCOPE, oauthHash } from './mcpOAuthStore.js';
 import { authCookieName, parseCookieHeader, retireSessionCookie, serializeCookie, SESSION_COOKIE } from './sessions.js';
 import { BoundedFixedWindowRateLimiter } from './rate-limit.js';
+import { ClientMetadataResolver, isAllowedRedirectUri, metadataClientUrl, type FetchDocument, type MetadataClient } from './clientMetadata.js';
 import type { PlatformEventSink } from '../contracts/platformEvents.js';
 
 const RETURN_COOKIE = 'atoma_mcp_return';
@@ -13,16 +14,9 @@ const MAX_PENDING = 1_024;
 const fresh = (): string => randomBytes(32).toString('base64url');
 const escape = (s: string): string => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
-function redirectUri(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return !url.username && !url.password && !url.hash &&
-      (url.protocol === 'https:' || (url.protocol === 'http:' && ['127.0.0.1', '[::1]', 'localhost'].includes(url.hostname)));
-  } catch { return false; }
-}
 const registrationSchema = z.object({
   client_name: z.string().trim().min(1).max(80).refine(value => !hasControlCharacters(value)).default('MCP client'),
-  redirect_uris: z.array(z.string().max(2048).refine(redirectUri)).min(1).max(10),
+  redirect_uris: z.array(z.string().max(2048).refine(isAllowedRedirectUri)).min(1).max(10),
   token_endpoint_auth_method: z.literal('none').default('none'),
   grant_types: z.array(z.enum(['authorization_code', 'refresh_token'])).default(['authorization_code', 'refresh_token']),
   response_types: z.array(z.literal('code')).default(['code']),
@@ -30,6 +24,8 @@ const registrationSchema = z.object({
 interface Pending {
   clientId: string; redirectUri: string; challenge: string; state: string | null; resource: string;
   expiresAt: number; sessionHash?: string; principalId?: string; orgId?: string;
+  /** A metadata client as its document read: remembered only when a code is issued. */
+  described?: MetadataClient;
 }
 
 async function body(req: IncomingMessage): Promise<string> {
@@ -61,18 +57,40 @@ function params(raw: string): URLSearchParams {
   return result;
 }
 
+/**
+ * What the consent page can say about who is asking. A metadata client's
+ * description was read at its URL, shown whole: on a shared host (a CDN, a
+ * bucket) the domain alone would vouch for anyone who can publish there. The
+ * name is never verified. A connection returning to loopback can be claimed
+ * by any program on the machine, so the page says so for THIS request's
+ * return address (MCP authorization 2026-07-28).
+ */
+function consentClientNotice(clientId: string, redirectUri: string): string {
+  const described = metadataClientUrl(clientId)
+    ? `<p>Its description was read at <code>${escape(clientId)}</code>.</p>` : '';
+  const warning = new URL(redirectUri).protocol === 'http:'
+    ? '<p><strong>This connection returns to a program on your own computer.</strong> Any program there could use this name; continue only if you started this connection from an application you trust.</p>'
+    : '';
+  return described + warning;
+}
+
 /** OAuth routes are mounted before the browser API gate, only on authenticated deployments. */
 export class McpOAuth {
   private readonly pending = new Map<string, Pending>();
   private readonly rate = new BoundedFixedWindowRateLimiter(60, 60_000, 1_024);
+  private readonly clientMetadata: ClientMetadataResolver;
   readonly resource: string;
   readonly metadataUrl: string;
 
   constructor(private readonly options: {
     gate: AuthGate; origin: URL; clientAddress: (req: IncomingMessage) => string; emit: PlatformEventSink;
+    /** Tests only: the outbound fetch of a client metadata document. */
+    fetchClientMetadata?: FetchDocument;
   }) {
     this.resource = new URL('/mcp', options.origin).href;
     this.metadataUrl = new URL('/.well-known/oauth-protected-resource/mcp', options.origin).href;
+    this.clientMetadata = new ClientMetadataResolver({ ownHost: options.origin.host,
+      ...(options.fetchClientMetadata ? { fetchDocument: options.fetchClientMetadata } : {}) });
   }
 
   /** Only an opaque pending request can resume after the existing upstream login. */
@@ -99,7 +117,7 @@ export class McpOAuth {
         response_types_supported: ['code'], grant_types_supported: ['authorization_code', 'refresh_token'],
         token_endpoint_auth_methods_supported: ['none'], revocation_endpoint_auth_methods_supported: ['none'],
         code_challenge_methods_supported: ['S256'], scopes_supported: [MCP_OAUTH_SCOPE],
-        authorization_response_iss_parameter_supported: true,
+        authorization_response_iss_parameter_supported: true, client_id_metadata_document_supported: true,
       });
       return true;
     }
@@ -164,7 +182,12 @@ export class McpOAuth {
     let id = form.get('request');
     let pending = id ? this.pending.get(id) : undefined;
     if (!id && req.method === 'GET') {
-      const client = auth.mcpOAuth.client(query.get('client_id') ?? '');
+      const clientId = query.get('client_id') ?? '';
+      // A URL id is read from its document at EVERY authorization request (the
+      // resolver caches). Nothing is written until consent issues a code.
+      const described = metadataClientUrl(clientId)
+        ? await this.clientMetadata.resolve(clientId, this.options.clientAddress(req)) : null;
+      const client = described ?? auth.mcpOAuth.client(clientId);
       const callback = query.get('redirect_uri') ?? '';
       const challenge = query.get('code_challenge') ?? '';
       if (!client || !client.redirect_uris.includes(callback)) throw new Error('unregistered callback');
@@ -184,7 +207,7 @@ export class McpOAuth {
       if (this.pending.size >= MAX_PENDING) throw new Error('authorization capacity reached');
       id = fresh();
       pending = { clientId: client.client_id, redirectUri: callback, challenge, state: query.get('state'),
-        resource: this.resource, expiresAt: now + MCP_CODE_TTL_MS };
+        resource: this.resource, expiresAt: now + MCP_CODE_TTL_MS, ...(described ? { described } : {}) };
       this.pending.set(id, pending);
     }
     if (!id || !pending) throw new Error('expired authorization request');
@@ -217,6 +240,9 @@ export class McpOAuth {
       const callback = new URL(pending.redirectUri);
       callback.searchParams.set('iss', this.options.origin.origin);
       if (pending.state !== null) callback.searchParams.set('state', pending.state);
+      // The token, refresh and revocation endpoints find a metadata client by
+      // this row, written only for a client a person just allowed.
+      if (form.get('decision') === 'allow' && pending.described) auth.mcpOAuth.rememberMetadataClient(pending.described);
       if (form.get('decision') === 'allow') callback.searchParams.set('code', auth.mcpOAuth.code({
         clientId: pending.clientId, redirectUri: pending.redirectUri, challenge: pending.challenge,
         resource: pending.resource, viewer,
@@ -227,7 +253,7 @@ export class McpOAuth {
     // Consent binds the displayed identity and organisation to this exact session.
     if (pending.sessionHash && pending.sessionHash !== binding) throw new Error('authorization belongs to another session');
     pending.sessionHash = binding; pending.principalId = viewer.principalId; pending.orgId = viewer.orgId;
-    const client = auth.mcpOAuth.client(pending.clientId);
+    const client = pending.described ?? auth.mcpOAuth.client(pending.clientId);
     if (!client) throw new Error('expired client');
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store',
       // no-referrer makes browser form POSTs send Origin: null, failing the consent guard.
@@ -236,7 +262,7 @@ export class McpOAuth {
       'content-security-policy': `default-src 'none'; style-src 'unsafe-inline'; form-action 'self' ${new URL(pending.redirectUri).origin}; frame-ancestors 'none'; base-uri 'none'` });
     res.end(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Connect to Atoma</title><style>body{font:17px system-ui;background:#101918;color:#e7eeeb;max-width:560px;margin:12vh auto;padding:24px;line-height:1.6}button{font:inherit;padding:10px 24px;margin:16px 12px 0 0;border-radius:8px;cursor:pointer}code{overflow-wrap:anywhere}</style>
-<h1>Connect to Atoma</h1><p><strong>${escape(client.client_name)}</strong> wants access to your Atoma account.</p>
+<h1>Connect to Atoma</h1><p><strong>${escape(client.client_name)}</strong> wants access to your Atoma account.</p>${consentClientNotice(client.client_id, pending.redirectUri)}
 <dl><dt>Account</dt><dd>${escape(viewer.displayName)}</dd>${auth.listLoginIdentities(viewer.principalId).map(identity => `<dt>${escape(identity.provider)} account</dt><dd>${escape(identity.email ?? identity.subject)}</dd>`).join('')}
 <dt>Organisation</dt><dd>${escape(viewer.orgName)}</dd><dt>Role</dt><dd>${escape(viewer.role.replace('org:', ''))}${viewer.platformAdmin ? ' · Platform administrator' : ''}</dd></dl>
 <p>${viewer.role === 'org:viewer' && !viewer.platformAdmin ? 'This connection can read the information available to your account. It cannot start runs.' : 'This connection can use your current MCP permissions, including starting runs and consuming the configured AI provider quota.'}${viewer.platformAdmin ? ' Your platform administrator access is included.' : ''}</p>

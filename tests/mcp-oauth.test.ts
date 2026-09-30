@@ -21,12 +21,15 @@ let base: string;
 let viewer: Viewer;
 let cookie: string;
 let events: PlatformEventInput[];
+/** The client metadata documents the fake web serves, and the URLs the server fetched. */
+let documents: Map<string, string>;
+let fetched: string[];
 const callback = 'http://127.0.0.1:54321/callback';
 const verifier = randomBytes(32).toString('base64url');
 const challenge = createHash('sha256').update(verifier).digest('base64url');
 
 beforeEach(async () => {
-  db = new Database(':memory:'); auth = new AuthStore(db); events = [];
+  db = new Database(':memory:'); auth = new AuthStore(db); events = []; documents = new Map(); fetched = [];
   viewer = auth.completeLogin({ provider: 'github', subject: 'oauth-test', displayName: 'OAuth Test', email: null, emailVerified: false }, null)!.viewer;
   cookie = `${SESSION_COOKIE}=${issueSession(auth, viewer, { secure: false }).token}`;
   server = createServer();
@@ -36,7 +39,12 @@ beforeEach(async () => {
     const tokens = parseCookieHeader(req.headers.cookie).filter(c => c.name === SESSION_COOKIE);
     return tokens.length === 1 ? auth.resolveSession(tokens[0]!.value) : null;
   } };
-  const oauth = new McpOAuth({ gate, origin: new URL(base), clientAddress: () => 'local', emit: e => { events.push(e); } });
+  const oauth = new McpOAuth({ gate, origin: new URL(base), clientAddress: () => 'local', emit: e => { events.push(e); },
+    fetchClientMetadata: (url) => {
+      fetched.push(url.href);
+      const body = documents.get(url.href);
+      return body === undefined ? Promise.reject(new Error('404')) : Promise.resolve({ body, cacheControl: undefined });
+    } });
   mcp = new McpHttpHost({ resourceMetadataUrl: oauth.metadataUrl, allowedHosts: [new URL(base).host],
     resolveCaller: req => {
       const resolved = auth.resolveApiToken(req.headers.authorization?.replace(/^Bearer /, '') ?? '');
@@ -88,6 +96,53 @@ function exchange(clientId: string, authorizationCode: string, changes: Record<s
 interface Tokens { access_token: string; refresh_token: string; expires_in: number }
 
 describe('MCP OAuth over HTTP', () => {
+  it('admits a client by its metadata document: fetched, verified, shown by domain, remembered for its tokens', async () => {
+    const discovery = await fetch(`${base}/.well-known/oauth-authorization-server`).then(r => r.json());
+    expect(discovery).toMatchObject({ client_id_metadata_document_supported: true });
+    const clientId = 'https://client.example/oauth/metadata.json';
+    documents.set(clientId, JSON.stringify({ client_id: clientId, client_name: 'Codex <test>', redirect_uris: [callback] }));
+    const page = await consent(clientId);
+    expect(page.status).toBe(200);
+    const html = await page.text();
+    expect(html).toContain(`Its description was read at <code>${clientId}</code>`);
+    expect(html).toContain('returns to a program on your own computer');
+    // Nothing is written for a client nobody has allowed yet.
+    expect(auth.mcpOAuth.client(clientId)).toBeNull();
+    const request = /name="request" value="([^"]+)"/.exec(html)![1]!;
+    const approved = await post('/oauth/authorize', { request, decision: 'allow' }, { cookie, origin: base });
+    expect(auth.mcpOAuth.client(clientId)).toMatchObject({ client_name: 'Codex <test>' });
+    const authorizationCode = new URL(approved.headers.get('location')!).searchParams.get('code')!;
+    // The token endpoint never fetches: it finds the client the authorization remembered.
+    const response = await exchange(clientId, authorizationCode);
+    expect(response.status).toBe(200);
+    const tokens = await response.json() as Tokens;
+    const refreshed = await post('/oauth/token', { grant_type: 'refresh_token', client_id: clientId, refresh_token: tokens.refresh_token, resource: `${base}/mcp` });
+    expect(refreshed.status).toBe(200);
+    const client = new Client({ name: 'oauth-cimd', version: '1' });
+    try {
+      await client.connect(new StreamableHTTPClientTransport(new URL(`${base}/mcp`), { requestInit: { headers: { Authorization: `Bearer ${(await refreshed.json() as Tokens).access_token}` } } }));
+      expect((await client.callTool({ name: 'atoma_families', arguments: {} })).isError).not.toBe(true);
+    } finally { await client.close(); }
+    expect(fetched).toEqual([clientId]);
+  });
+
+  it('refuses a metadata client whose document does not vouch for the request, without redirecting', async () => {
+    const clientId = 'https://client.example/oauth/metadata.json';
+    documents.set(clientId, JSON.stringify({ client_id: 'https://other.example/metadata.json', client_name: 'Other', redirect_uris: [callback] }));
+    const mismatched = await consent(clientId);
+    expect(mismatched.status).toBe(400);
+    expect(mismatched.headers.get('location')).toBeNull();
+    const narrow = 'https://client.example/narrow.json';
+    documents.set(narrow, JSON.stringify({ client_id: narrow, client_name: 'Narrow', redirect_uris: ['http://127.0.0.1:9/elsewhere'] }));
+    expect((await consent(narrow)).status).toBe(400);
+    // Not a metadata URL: looked up as a registered id, never fetched.
+    expect((await consent('https://client.example:8443/oauth/metadata.json')).status).toBe(400);
+    expect((await consent('http://client.example/oauth/metadata.json')).status).toBe(400);
+    expect(fetched).toEqual([clientId, narrow]);
+    // Nothing unverified reached the token endpoint's client table.
+    expect(auth.mcpOAuth.client(clientId)).toBeNull();
+  });
+
   it('switches accounts without granting access or reusing the displayed consent', async () => {
     auth.grantPlatformAdmin(viewer.principalId);
     const clientId = await register();

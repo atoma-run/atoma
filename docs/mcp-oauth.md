@@ -67,11 +67,35 @@ identifies the runner, not the generated application's publication commit.
   authorization server and the `mcp` scope. Unauthenticated `/mcp` responses
   include this URL in `WWW-Authenticate`.
 - `/.well-known/oauth-authorization-server`: endpoints, public-client
-  authentication (`none`), authorization code/refresh grants, S256 and issuer
-  identification in the authorization response.
+  authentication (`none`), authorization code/refresh grants, S256, issuer
+  identification in the authorization response, and
+  `client_id_metadata_document_supported`.
+- Client ID Metadata Documents (the 2026-07-28 spec's preferred registration,
+  since 2026-09-30): a `client_id` that is an HTTPS URL on a DNS name, the
+  default port and a real path, in canonical form, is read from that URL at
+  every authorization request (`src/auth/clientMetadata.ts`). The document
+  must name exactly that `client_id`, a `client_name`, allowed redirects, and
+  no client authentication but `none`. The fetch connects only to public
+  addresses that are not this machine's own — checked in the socket's own
+  lookup, every address of the answer, resolved with c-ares so a silent
+  nameserver cannot hold libuv's thread pool — goes through no proxy
+  (`agent: false`), follows no redirect, reads at most 5 KiB within 5 s and
+  never targets this server's host. An anonymous GET can trigger it, so it is
+  bounded to 5 fetches a minute per client address, 30 for the process and 4
+  at once, and concurrent requests for one id share one fetch. A document is
+  cached for its `max-age` clamped to 5 min–24 h and served past it while a
+  new fetch cannot be read; a document that now says something else is
+  refused for a minute. Only a consent that issues a code writes the client
+  row the token, refresh and revocation endpoints read — metadata clients
+  have their own cap (2,000) apart from registrations and last as long as the
+  grant can be renewed. A withdrawn document takes effect at the next
+  authorization; an issued grant runs its course. Consent shows the document
+  URL whole (a domain alone would vouch for anyone publishing on a shared
+  host) and warns when the connection returns to loopback.
 - `/oauth/register`: bounded RFC 7591 public-client registration, HTTPS or HTTP
   loopback redirects, no wildcard matching. Registration lasts 90 days.
-  Client metadata URL fetching is not advertised; Codex can use DCR.
+  Deprecated by the 2026-07-28 spec and kept for the clients that use it
+  (Codex among them).
 - `/oauth/authorize`: code flow only, exact registered redirect, S256 PKCE,
   canonical resource, optional `mcp` scope. Five-minute pending requests; a
   same-origin consent POST is bound to the displayed browser session and org.
@@ -82,7 +106,7 @@ identifies the runner, not the generated application's publication commit.
 - `/oauth/revoke`: RFC 7009, client-bound access or refresh token, generic success
   for unknown credentials. Existing Settings/CLI revocation also blocks refresh.
 
-Redirect targets are never fetched by the server. Metadata uses the configured
+Redirect targets are never fetched by the server; the metadata document is the only client-chosen URL it reads. Metadata uses the configured
 origin, never forwarded request headers. Browser consent sends no cross-origin referrer and
 cannot be framed. Its form policy permits the registered callback origin so a
 desktop client's separate loopback port can receive the consent redirect.

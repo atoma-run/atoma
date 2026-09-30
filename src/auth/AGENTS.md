@@ -137,8 +137,11 @@ Loopback HTTP keeps its development cookie names and paths.
   and only a same-origin POST grants access. No arbitrary login return URL.
 - S256 PKCE, exact registered redirects (HTTPS or HTTP loopback), resource
   binding to the canonical `/mcp`, one-use codes and rotating refresh tokens
-  are mandatory. DCR is supported; client metadata URL fetching is not
-  advertised. Names supplied by a client are not verified identities.
+  are mandatory. Client ID Metadata Documents and DCR are both supported;
+  `clientMetadata.ts` is the ONE fetch of a client-chosen URL and holds every
+  SSRF bound (public addresses checked in the socket lookup, no redirect,
+  size, time, rate, cache). Names supplied by a client are not verified
+  identities; a metadata client's domain is.
 - `mcpOAuthStore.ts` extends the PRIMARY store with clients, hashed codes,
   grants and hashed refresh history. API-token rows remain the authority for
   principal/org identity, live roles, listing and revocation. Access expires
