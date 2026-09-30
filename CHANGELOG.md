@@ -60,6 +60,11 @@ corrections of the 2026-09-24 and 2026-09-25 code reviews.
 
 ### Fixed
 
+- Project document search no longer times out searches that work: its budget
+  per query is 10 seconds instead of 2, measured against the 1.9–2 seconds
+  a production search takes. A timed-out search stops every later search of
+  its run, so the old budget had cost whole runs their search. Campaigns
+  registered with the old budget stay readable.
 - A rerun row naming a model the catalogue later retires no longer breaks its
   project's run list, later runs and offline retention.
 - Work in hand at the deadline — landed or complete, a refused result whose

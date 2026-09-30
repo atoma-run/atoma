@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from 'node:util';
-import { DEFAULT_PROJECT_RETRIEVAL_LIMITS } from '../contracts/projectRetrieval.js';
+import { DEFAULT_PROJECT_RETRIEVAL_LIMITS, HISTORICAL_PROJECT_RETRIEVAL_LIMITS } from '../contracts/projectRetrieval.js';
 import { PROJECT_RETRIEVAL_BM25 } from '../contracts/projectRetrievalCorpus.js';
 import { retrievalIndexConfig } from '../projects/retrievalCorpus.js';
 import { execFileSync } from 'node:child_process';
@@ -23,7 +23,7 @@ export function retrievalCampaignPolicy(spec: RetrievalCampaignSpec): RetrievalR
 
 /** Historical SQLite settings retained solely to validate archived registrations. */
 export function retrievalTreatmentSettings(): Extract<NonNullable<RetrievalCampaignSpec['treatment']>, { backend: 'sqlite-fts5' }> {
-  return { backend: 'sqlite-fts5', index: retrievalIndexConfig(), queryLimits: DEFAULT_PROJECT_RETRIEVAL_LIMITS, ranking: PROJECT_RETRIEVAL_BM25 };
+  return { backend: 'sqlite-fts5', index: retrievalIndexConfig(), queryLimits: HISTORICAL_PROJECT_RETRIEVAL_LIMITS, ranking: PROJECT_RETRIEVAL_BM25 };
 }
 
 /** Inputs executed by the source runner, its scorer, build and image recipe. */
@@ -91,8 +91,11 @@ export function validateRetrievalRegistration(
     throw new Error('registered retrieval backend settings differ from the historical SQLite defaults');
   }
   const treatment = registration.spec.treatment;
+  // A registration made before the budget was raised recorded the historical
+  // limits; it stays readable, and executes only on its own source revision.
   if (treatment?.backend === 'haystack' && (!isDeepStrictEqual(treatment.index, retrievalIndexConfig()) ||
-      !isDeepStrictEqual(treatment.queryLimits, DEFAULT_PROJECT_RETRIEVAL_LIMITS))) {
+      ![DEFAULT_PROJECT_RETRIEVAL_LIMITS, HISTORICAL_PROJECT_RETRIEVAL_LIMITS].some(
+        (limits) => isDeepStrictEqual(treatment.queryLimits, limits)))) {
     throw new Error('registered Haystack settings differ from the shared corpus/query defaults');
   }
   for (const id of registration.spec.questionIds) {

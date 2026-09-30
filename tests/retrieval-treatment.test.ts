@@ -57,6 +57,11 @@ describe('registered Haystack treatment', () => {
     expect(retrievalCampaignSpecSchema.safeParse({ ...r.spec, treatment: undefined }).success).toBe(false);
     const changed = JSON.parse(JSON.stringify(r)); changed.spec.treatment.queryLimits.maxResults = 4;
     expect(() => validateRetrievalRegistration(changed, dataset)).toThrow('settings');
+    // The archived 2 s budget stays readable; any other budget is a changed setting.
+    const archived = JSON.parse(JSON.stringify(r)); archived.spec.treatment.queryLimits.timeoutMs = 2000;
+    expect(validateRetrievalRegistration(archived, dataset)).toEqual(archived);
+    const drifted = JSON.parse(JSON.stringify(r)); drifted.spec.treatment.queryLimits.timeoutMs = 5000;
+    expect(() => validateRetrievalRegistration(drifted, dataset)).toThrow('settings');
     expect(retrievalCampaignSpecSchema.safeParse({ ...r.spec, kind: 'agentic-characterization' }).success).toBe(false);
     expect(retrievalCampaignSpecSchema.safeParse({ ...r.spec, kind: 'agentic-characterization',
       treatment: undefined, decision: undefined, haystackInvocation: 'search-first' }).success).toBe(false);

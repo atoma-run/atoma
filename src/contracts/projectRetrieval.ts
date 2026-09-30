@@ -67,9 +67,24 @@ export const projectRetrievalLimitsSchema = z.object({
   timeoutMs: z.number().int().min(1).max(30000),
 }).strict().refine(l => l.maxCandidates >= l.maxResults, 'candidate limit is below result limit').readonly();
 export type ProjectRetrievalLimits = z.infer<typeof projectRetrievalLimitsSchema>;
-export const DEFAULT_PROJECT_RETRIEVAL_LIMITS = projectRetrievalLimitsSchema.parse({
+/**
+ * The limits every campaign registered through 2026-09-30 recorded. The 2 s
+ * budget came from the SQLite FTS5 backend; archived registrations keep it
+ * and stay readable against it.
+ */
+export const HISTORICAL_PROJECT_RETRIEVAL_LIMITS = projectRetrievalLimitsSchema.parse({
   maxQueryBytes: 2048, maxResults: 5, maxCandidates: 50,
   maxExcerptBytes: 1600, maxResponseBytes: 12000, timeoutMs: 2000,
+});
+/**
+ * Haystack answered in 1.86–2.0 s per query in production (2026-09-30), so a
+ * 2 s budget timed out searches that were working — and a timeout kills the
+ * run's Haystack process, failing every later search of that run. Ten
+ * seconds is five times the measured cost; the run's own deadline still caps
+ * each call.
+ */
+export const DEFAULT_PROJECT_RETRIEVAL_LIMITS = projectRetrievalLimitsSchema.parse({
+  ...HISTORICAL_PROJECT_RETRIEVAL_LIMITS, timeoutMs: 10_000,
 });
 
 /** Materialized backend query; terms are data, never a raw FTS expression. */

@@ -224,10 +224,23 @@ describe('host search cancellation and lifecycle', () => {
     });
     const pending = host(binding).execute({ query: 'price' });
     const signal = await started.promise;
-    await vi.advanceTimersByTimeAsync(2000);
+    await vi.advanceTimersByTimeAsync(DEFAULT_PROJECT_RETRIEVAL_LIMITS.timeoutMs);
     expect(await pending).toEqual({ ok: false, status: 'timed_out' });
     expect(signal.aborted).toBe(true);
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('lets a search that takes what Haystack takes in production answer', async () => {
+    // 2026-09-30: Haystack answered in 1.86–2.0 s per query in production and
+    // the 2 s default budget timed out the slower ones.
+    vi.useFakeTimers();
+    const binding = retrievalTestBinding();
+    binding.service.search.mockImplementation(() => new Promise((resolve) => {
+      setTimeout(() => resolve(retrievalTestResult([retrievalTestPassage('The refund window is 14 days.')])), 2_500);
+    }));
+    const pending = host(binding).execute({ query: 'refund' });
+    await vi.advanceTimersByTimeAsync(2_500);
+    expect(await pending).toMatchObject({ ok: true, status: 'ok' });
   });
 
   it('honors the shorter run deadline and refuses work after it', async () => {
@@ -245,7 +258,7 @@ describe('host search cancellation and lifecycle', () => {
     vi.useFakeTimers();
     const binding = retrievalTestBinding();
     binding.service.authorize.mockImplementation(async () => {
-      vi.setSystemTime(Date.now() + 3000);
+      vi.setSystemTime(Date.now() + DEFAULT_PROJECT_RETRIEVAL_LIMITS.timeoutMs + 1000);
       return true;
     });
     expect(await host(binding).execute({ query: 'price' })).toEqual({ ok: false, status: 'timed_out' });
@@ -258,7 +271,7 @@ describe('host search cancellation and lifecycle', () => {
     binding.service.dispose.mockImplementation(() => new Promise(() => {}));
     const tool = host(binding);
     const closing = expect(tool.close()).rejects.toThrow(/disposal timed out/);
-    await vi.advanceTimersByTimeAsync(2000);
+    await vi.advanceTimersByTimeAsync(DEFAULT_PROJECT_RETRIEVAL_LIMITS.timeoutMs);
     await closing;
     expect(binding.service.dispose).toHaveBeenCalledTimes(1);
     expect(vi.getTimerCount()).toBe(0);
