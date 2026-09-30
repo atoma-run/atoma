@@ -30,6 +30,23 @@ const baseSeed = {
 };
 
 describe('VALIDATION_SYSTEM_PROMPT — tier contract and PLAN/RESULT rubric', () => {
+  it('holds narration to be no evidence in either direction (run b9dc4d0b)', () => {
+    // Root acceptance refused a correct page on a README sentence claiming an
+    // observed failure, while the transport record in its own input showed
+    // the behaviour right; the remediation that followed shipped a regression.
+    // Scoped, not absolute: the values of the LATEST observation of the file as
+    // it stands decide, never the child's ok flag; a failure they show is still
+    // refused as a failure; an unrefuted failure report still counts.
+    const rule = VALIDATION_SYSTEM_PROMPT.replace(/\n\s*'?\s*/g, ' ');
+    expect(rule).toMatch(/contradicts the LATEST recorded observation of the file as it now stands/);
+    expect(rule).toMatch(/judge by the values that observation shows against the task, not by its ok flag/);
+    expect(rule).toMatch(/If the values show the requirement MET, reject for the claim alone/);
+    expect(rule).toMatch(/If they show a FAILURE, reject for the failure whatever the prose says/);
+    expect(rule).toMatch(/A report of failure no observation refutes still counts against the result/);
+    // At root only the reasoning reaches the remediation, so it carries the scope.
+    expect(rule).toMatch(/"reasoning": "Only README\.md is wrong: .*The page needs no change\."/);
+  });
+
   it('states the tiering contract explicitly', () => {
     expect(VALIDATION_SYSTEM_PROMPT).toMatch(/TIERING CONTRACT/);
     // Tier responsibilities must be enumerated.
