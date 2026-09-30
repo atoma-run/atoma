@@ -12,6 +12,7 @@ its source before the next run.
 | 036ef18a | wordfreq CLI: `--min-length` | 486 s | $0.16 | 8 | delivered |
 | 7265dd9b | guestbook: a `q` search parameter and box | 467 s | $0.17 | 9 | delivered |
 | 0a989a58 | pomodoro page: keyboard shortcuts | 605 s | $0.15 | 10 | delivered |
+| b9dc4d0b | pomodoro page: a focus-length select | 1,629 s | $0.46 | 21 | delivered after a root remediation, with a regression |
 
 ## A verified execution rejected as "non-JSON" (8606cf38)
 
@@ -60,11 +61,48 @@ withholding every such recipe from the model's catalog, after an adversarial
 review that also made Jev escalate itself when nothing left fits, see
 [What the model is offered after a deferral](../jev-decisions-2026-09-28.md#what-the-model-is-offered-after-a-deferral-2026-09-30).
 
+## A correct page refused on prose, and a regression shipped by the remediation (b9dc4d0b)
+
+The first run on ff7242b shows the withhold working: both build phases read
+"model decides (…; not offered: serve-and-validate-static-page)". The rest of
+the run went wrong on words, not on code.
+
+- The build phase's two reset probes asserted the requirement and passed
+  (select 2700 → reset → `45:00`; select 900 → reset → `15:00`), but its
+  summary said "reset restored 45:00 and 15:00 selections".
+- The documentation phase turned that into a README sentence claiming the
+  display returns to 45:00 while the select shows 15 minutes, "as observed
+  during validation". Jev approved the phase, and so did both audits.
+- Root acceptance refused the delivery: "Validation evidence shows reset
+  restored 45:00 while the Focus select was 15 minutes". Its own input held the
+  transport record of the 900 → `15:00` probe, which refutes that; the README
+  was the only defect.
+- The remediation re-planned both phases on that false diagnosis. It rewrote
+  index.html whole (584 s, twelve validations), changed no reset logic, and
+  changed the long-break mode line from `Long break` — the label run 8606cf38
+  was asked for — to `Mode: Long Break`. No probe checked it, the acceptance
+  passed, and the change is in the delivered repository.
+
+Two more signals went unused in the first pass: two session-counter smokes
+returned `ok:false` (their fixture set `select.value = '15'`, which matches no
+option), no later probe proved that behaviour, and the summary said "session
+counter checks passed"; the L2 validator approved. The last executed
+observation was `ok:true`, so the validation ledger raised nothing, as
+designed: it judges the document, not each claim.
+
 ## Open
 
+- **Earlier runs' requirements are not replayed.** The inherited
+  `.atoma-probes.json` held smokes asserting `textContent === 'Long break'`;
+  nothing replays inherited web entries at acceptance, so a regression of an
+  earlier run's requirement ships unless the current run happens to test it.
+- **A document's claim about what was observed decides a verdict.** The root
+  validator took a README sentence over the transport record in its own input.
+  The validator prompt says self-reported success is not evidence; it says
+  nothing of a claimed observation in the other direction.
 - **Project search times out at its 2-second budget.** 7265dd9b's only
-  `search_project_docs` call returned `timed_out` after 2,005 ms; 036ef18a's
-  succeeded in 1,860 ms. The budget is `DEFAULT_PROJECT_RETRIEVAL_LIMITS`,
+  `search_project_docs` call returned `timed_out` after 2,005 ms, b9dc4d0b's
+  after 2,007 ms; 036ef18a's succeeded in 1,860 ms. The budget is `DEFAULT_PROJECT_RETRIEVAL_LIMITS`,
   inherited from the SQLite backend, and a call that overruns it kills the
   run's Haystack process, so every later search in the run fails. Raising it
   touches every archived retrieval registration, which records `timeoutMs:
