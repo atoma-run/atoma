@@ -324,7 +324,10 @@ Neighbours:
   designs on them, and reports each against the model's decision. Each
   foreign organisation is journaled once per call as an `mcp.trace`
   cross-organisation read. With Jev off on the host (`ATOMA_JEV=0`, or no
-  key) it answers 503, as a host without previews does.
+  key) it answers 503, as a host without previews does. Every answer also
+  carries the AUDIT sample of the window (`jev-audit` events: the model
+  judging a share of Jev's approvals), and `auditsOnly` reads just that — no
+  key needed, nothing sent to TypeSafe.
 - It is registered `readOnlyHint: true` although it spends cents: it writes
   nothing of Atoma's but the audit row, and a deployment's write freeze has no
   reason to refuse a measurement.

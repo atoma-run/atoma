@@ -126,6 +126,8 @@ export function forkBranch(ctx: RunContext, branchId: string): RunContext {
     ...(ctx.recordRunStat !== undefined ? { recordRunStat: ctx.recordRunStat } : {}),
     ...(wrappedRecordCacheHit !== undefined ? { recordCacheHit: wrappedRecordCacheHit } : {}),
     ...(wrappedJev !== undefined ? { jev: wrappedJev } : {}),
+    // One registry for the run: the runner awaits it before closing the trace.
+    ...(ctx.jevAudit !== undefined ? { jevAudit: ctx.jevAudit } : {}),
     ...(ctx.recordBranch !== undefined ? { recordBranch: ctx.recordBranch } : {}),
     ...(ctx.recordRootPlan !== undefined ? { recordRootPlan: ctx.recordRootPlan } : {}),
     currentBranchId: branchId,

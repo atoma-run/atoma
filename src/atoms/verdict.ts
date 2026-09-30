@@ -755,6 +755,11 @@ export async function llmVerdict(args: {
    * property of the whole run, and a phase supervisor never sees one.
    */
   landingBlock?: string;
+  /**
+   * An audit of a Jev approval (`jevApproval`): the same verdict, recorded
+   * under the `jev-audit` role so no reader counts it as the run's validation.
+   */
+  audit?: boolean;
 }): Promise<Verdict> {
   // `Subject kind` is repeated as its own field so the validator cannot miss
   // the PLAN-vs-RESULT distinction — the bar is different between the two and
@@ -849,7 +854,7 @@ export async function llmVerdict(args: {
     userContent,
     params: VALIDATION_PARAMS,
     signal: args.ctx.signal,
-    role: args.subject === 'PLAN' ? 'validate-plan' : 'validate-result',
+    role: args.audit ? 'jev-audit' : args.subject === 'PLAN' ? 'validate-plan' : 'validate-result',
     actor: { name: args.supervisorName, tier: args.supervisorTier },
     child: { name: args.child.name, tier: args.child.tier },
     subject: args.subject,

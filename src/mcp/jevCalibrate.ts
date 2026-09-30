@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { statSync } from 'node:fs';
 import { z } from 'zod';
 import {
+  auditReport,
   calibrate,
   calibrationDetails,
   calibrationReport,
@@ -72,6 +73,10 @@ export const JEV_CALIBRATE_INPUT = {
     .boolean()
     .optional()
     .describe('Also read runs in which Jev decided; there the model decisions are a sample Jev chose.'),
+  auditsOnly: z
+    .boolean()
+    .optional()
+    .describe('Only read the audit sample — the model validator judging a share of Jev approvals — for the window; nothing is sent to TypeSafe.'),
   twins: z
     .object({
       recipes: z.record(z.string().min(1).max(200), recipeInput),
@@ -155,7 +160,9 @@ export async function jevCalibrateCall(
     args.details ? { details: calibrationDetails(records, { thresholds, ...args.details }) } : {};
 
   if (args.resultIds) {
-    const asking = [args.since, args.until, args.offset, args.limit, args.twins, args.includeJevRuns].some((value) => value !== undefined);
+    const asking = [args.since, args.until, args.offset, args.limit, args.twins, args.includeJevRuns, args.auditsOnly].some(
+      (value) => value !== undefined
+    );
     if (asking) throw new ProjectHttpError(400, 'resultIds reads earlier answers again; pass the window only when asking');
     const records: CalibrationRecord[] = [];
     for (const id of args.resultIds) {
@@ -169,7 +176,8 @@ export async function jevCalibrateCall(
   }
 
   const env = input.env ?? process.env;
-  if (!jevEnabled(env)) {
+  // Reading the audit sample asks TypeSafe nothing, so it needs no key.
+  if (!args.auditsOnly && !jevEnabled(env)) {
     throw new ProjectHttpError(503, `Jev is off on this host (${JEV_ENV}=0, or ${JEV_KEY_ENV} is absent)`);
   }
   const orgs = input.orgIds();
@@ -190,6 +198,15 @@ export async function jevCalibrateCall(
     ...(args.until ? { until: args.until } : {}),
     ...(args.includeJevRuns ? { includeJevRuns: true } : {}),
   });
+  const audits = auditReport(corpus.audits);
+  if (args.auditsOnly) {
+    return {
+      orgs,
+      window: { since: args.since ?? null, until: args.until ?? null, traces: corpus.traces },
+      audits,
+      note: 'Each audit is the model validator judging a plan or result Jev had approved; the model is the reference, not ground truth.',
+    };
+  }
   const offset = args.offset ?? 0;
   const window = corpus.decisions.slice(offset, offset + (args.limit ?? DEFAULT_LIMIT));
   const calibration = await calibrate({
@@ -218,6 +235,7 @@ export async function jevCalibrateCall(
     ineligible: calibration.ineligible,
     unasked: calibration.unasked,
     report: calibrationReport(calibration.records, reading),
+    audits,
     ...detailsOf(calibration.records),
     note:
       'The model decision is the reference, not ground truth. Recipe candidates are asked without their opening steps: ' +

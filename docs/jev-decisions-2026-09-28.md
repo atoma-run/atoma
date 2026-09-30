@@ -386,6 +386,26 @@ terms must name TypeSafe.
   day. The operator's privacy notice, which lives outside this repository,
   must name TypeSafe as a recipient too.
 
+## The audit sample, 2026-09-30
+
+Once Jev decides, the model judges only what Jev hands it, so nothing in a
+trace says whether a Jev APPROVAL was right: TypeSafe's guidance is to test
+thresholds against your own data, and after the switch there was none for
+Jev's yes. So a share of Jev's approvals, `JEV_AUDIT_RATE` (10 %), is also
+judged by the model validator — the very verdict each call site runs without
+Jev — in the background, and recorded as a `jev-audit` llm event.
+
+- It decides nothing. Jev's approval stands whatever the model says; a model
+  refusal is counted as a Jev false approval, measured against the model.
+- Its own role keeps it out of every reader that counts validations (friction,
+  the run report, the calibration corpus), and tells the analyst what it is.
+- It costs one model validation per audited approval, on the run's bill, and
+  no wall time: the run waits for the audits still in flight only when it has
+  finished, at most `JEV_AUDIT_SETTLE_MS` (60 s), before closing its trace.
+- `atoma_jev_calibrate` reports the sample for any window — per subject, how
+  many audited, how many the model refused, and which — and `auditsOnly: true`
+  reads just that, without the key and without sending anything to TypeSafe.
+
 ## Reading "we will see"
 
 Two weeks after the switch of 2026-09-29 (so around 2026-10-13), or sooner if
@@ -398,7 +418,9 @@ model decides only what Jev hands it, so `atoma_jev_calibrate` with
    supervisor then rejected, escalated, or deepened — against the same rate on
    the model's picks before the change.
 2. **Jev approvals refused above**: an L2 approval whose phase root acceptance
-   then refused, and an approval followed by a run that did not deliver.
+   then refused, and an approval followed by a run that did not deliver — and,
+   directly, the audit sample: the share of audited approvals the model
+   refused (`atoma_jev_calibrate` with `auditsOnly: true`).
 3. **Wall time and spend** per run against the 2026-09-26/28 baseline above,
    and Jev's own latency and failures from the host.
 4. **Trust inflation**: atom types whose consecutive-success counter was

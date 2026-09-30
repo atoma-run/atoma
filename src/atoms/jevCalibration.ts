@@ -73,35 +73,66 @@ export function isRecipePrefilter(systemPrompt: unknown): boolean {
   return typeof systemPrompt === 'string' && systemPrompt.startsWith('You match a subtask against a catalog of learned skills');
 }
 
+/**
+ * One audit a trace records (`jev-audit`): the model validator's verdict on a
+ * plan or result Jev had already approved. A refusal is a Jev false approval,
+ * measured against the model; `null` when the call failed or did not parse.
+ */
+export interface RecordedAudit {
+  readonly runId: string;
+  readonly eventId: string;
+  readonly subject: 'PLAN' | 'RESULT';
+  readonly child: string;
+  readonly approvedByModel: boolean | null;
+}
+
 export interface TraceDecisions {
   readonly startedAt: string | null;
   /** The Jev evaluations the trace records. */
   readonly jevEvents: number;
   readonly decisions: readonly RecordedDecision[];
+  readonly audits: readonly RecordedAudit[];
 }
 
 /**
  * The model decisions one trace holds: its prefilter and phase-validation
  * `llm` events. Root acceptance is left out — it is never Jev's — and so is a
- * call that failed before answering.
+ * call that failed before answering. Its audits of Jev approvals are read
+ * apart: they are the model judging what Jev decided, not a decision.
  */
 export function decisionsOfTrace(trace: unknown, meta: { readonly runId: string; readonly orgId: string }): TraceDecisions {
   const run = trace as { startedAt?: unknown; events?: unknown } | null;
   const startedAt = typeof run?.startedAt === 'string' ? run.startedAt : null;
   const events = Array.isArray(run?.events) ? (run.events as unknown[]) : [];
   const decisions: RecordedDecision[] = [];
+  const audits: RecordedAudit[] = [];
   let jevEvents = 0;
   for (const raw of events) {
     const event = raw as {
       id?: unknown;
       kind?: unknown;
       role?: unknown;
+      subject?: unknown;
       actor?: { name?: unknown; tier?: unknown };
+      child?: { name?: unknown };
       systemPrompt?: unknown;
       userContent?: unknown;
       response?: unknown;
+      error?: unknown;
     } | null;
     if (event?.kind === 'jev') jevEvents += 1;
+    if (event?.kind === 'llm' && event.role === 'jev-audit' && typeof event.id === 'string') {
+      if (event.subject === 'PLAN' || event.subject === 'RESULT') {
+        audits.push({
+          runId: meta.runId,
+          eventId: event.id,
+          subject: event.subject,
+          child: typeof event.child?.name === 'string' ? event.child.name : '?',
+          approvedByModel: event.error == null && typeof event.response === 'string' ? modelApproved(event.response) : null,
+        });
+      }
+      continue;
+    }
     if (event?.kind !== 'llm' || typeof event.role !== 'string' || !ROLES.has(event.role)) continue;
     if (typeof event.id !== 'string' || typeof event.userContent !== 'string' || typeof event.response !== 'string') continue;
     const name = event.actor?.name;
@@ -119,7 +150,7 @@ export function decisionsOfTrace(trace: unknown, meta: { readonly runId: string;
       response: event.response,
     });
   }
-  return { startedAt, jevEvents, decisions };
+  return { startedAt, jevEvents, decisions, audits };
 }
 
 /** One run's trace, as the door hands it over: read only when it can hold the window. */
@@ -135,6 +166,8 @@ export interface CorpusTrace {
 export interface Corpus {
   /** Oldest run first, each run's decisions in the order it took them. */
   readonly decisions: readonly RecordedDecision[];
+  /** Every audit in the window, runs Jev decided in included: that is where audits are. */
+  readonly audits: readonly RecordedAudit[];
   readonly traces: {
     readonly read: number;
     readonly inWindow: number;
@@ -154,6 +187,7 @@ export function collectCorpus(opts: {
   const sinceMs = opts.since ? Date.parse(opts.since) : -Infinity;
   const untilMs = opts.until ? Date.parse(opts.until) : Infinity;
   const runs: TraceDecisions[] = [];
+  const audits: RecordedAudit[] = [];
   let read = 0;
   let unreadable = 0;
   let withJev = 0;
@@ -168,6 +202,7 @@ export function collectCorpus(opts: {
     }
     const startedMs = Date.parse(found.startedAt);
     if (!(startedMs >= sinceMs && startedMs < untilMs)) continue;
+    audits.push(...found.audits);
     if (found.jevEvents > 0 && !opts.includeJevRuns) {
       withJev += 1;
       continue;
@@ -177,7 +212,31 @@ export function collectCorpus(opts: {
   runs.sort((a, b) => Date.parse(a.startedAt!) - Date.parse(b.startedAt!));
   return {
     decisions: runs.flatMap((run) => run.decisions),
+    audits,
     traces: { read, inWindow: runs.length + withJev, unreadable, withJev },
+  };
+}
+
+/**
+ * What the audit sample says, per subject: of the Jev approvals the model
+ * also judged, how many it would have refused — the false approvals the model
+ * no longer sees once Jev decides. Reading it sends nothing to TypeSafe.
+ */
+export function auditReport(audits: readonly RecordedAudit[], listLimit = 25): Record<string, unknown> {
+  return {
+    subjects: (['PLAN', 'RESULT'] as const).map((subject) => {
+      const rows = audits.filter((audit) => audit.subject === subject);
+      const judged = rows.filter((audit) => audit.approvedByModel !== null);
+      const refused = judged.filter((audit) => audit.approvedByModel === false);
+      return {
+        subject,
+        audited: rows.length,
+        judged: judged.length,
+        refusedByModel: refused.length,
+        falseApprovalShare: share(refused.length, judged.length),
+        refusals: refused.slice(0, listLimit).map(({ runId, eventId, child }) => ({ runId, eventId, child })),
+      };
+    }),
   };
 }
 

@@ -29,6 +29,7 @@ import type {
   JevDecisionInfo,
   JevTwinDecision,
   JevTwinRequest,
+  RunContext,
 } from './types.js';
 
 export { NEW_RECIPE, NO_CANDIDATE, type JevAnswer, type JevAnswers, type JevQuestion };
@@ -102,6 +103,15 @@ export const JEV_DECISION_TIMEOUT_MS = 2_000;
  * request that then succeeds is not a failed decision.
  */
 export const JEV_MAX_FAILURES_PER_RUN = 3;
+/**
+ * The share of Jev's approvals the model validator also judges, in the
+ * background (2026-09-30): once Jev decides, the model sees only what Jev
+ * defers, and without this sample a false approval would go unmeasured. Each
+ * audited approval costs one model validation and decides nothing.
+ */
+export const JEV_AUDIT_RATE = 0.1;
+/** Longest a finished run waits for the audits still in flight before it closes its trace. */
+export const JEV_AUDIT_SETTLE_MS = 60_000;
 /** The 2026-09-28 approval's "yes", kept for the baseline: approved at this probability or above. */
 export const JEV_APPROVAL_THRESHOLD = 0.5;
 /** The 2026-09-28 decomposition bar, kept for the baseline. */
@@ -708,6 +718,45 @@ export function createJevDecider(opts: {
       const reading = readTwin(plan, asked.result.answers);
       safeRecord({ ...base, ...answered(asked), answer: reading.answer, outcome: reading.outcome });
       return reading.decision;
+    },
+  };
+}
+
+/**
+ * A run's audit registry (`RunContext.jevAudit`): `defer` starts an audit off
+ * the run's path, and `settle` waits, at most `withinMs`, for the ones still
+ * in flight — the runner calls it before closing the trace, so what the audits
+ * recorded is in it. An audit that fails is dropped: it measures, it never
+ * decides, and a model call that failed has already recorded its error.
+ */
+export function createJevAudit(rate: number = JEV_AUDIT_RATE): {
+  readonly audit: NonNullable<RunContext['jevAudit']>;
+  readonly settle: (withinMs: number) => Promise<void>;
+} {
+  const pending = new Set<Promise<void>>();
+  return {
+    audit: {
+      rate,
+      defer: (work) => {
+        const running: Promise<void> = Promise.resolve()
+          .then(work)
+          .then(
+            () => undefined,
+            () => undefined
+          )
+          .finally(() => pending.delete(running));
+        pending.add(running);
+      },
+    },
+    settle: async (withinMs) => {
+      if (pending.size === 0) return;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const bound = new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, withinMs);
+        timer.unref?.();
+      });
+      await Promise.race([Promise.allSettled([...pending]), bound]);
+      clearTimeout(timer);
     },
   };
 }

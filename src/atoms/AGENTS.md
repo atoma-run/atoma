@@ -147,6 +147,12 @@ load-bearing.
   transport-observed evidence lines (`renderTransportEvidence`), never the
   child's declared probes. A no, an unsure answer or a silence is the model's
   decision, as before. Root delivery acceptance is never Jev's.
+- THE JEV AUDIT: every `jevApproval` call site hands it `audit`, the very model
+  verdict it runs without Jev (one `modelVerdict` function per validation, so
+  the audit cannot drift from the real verdict). A `ctx.jevAudit.rate` share of
+  Jev's approvals defers it, under the `jev-audit` role, off the run's path. It
+  decides NOTHING — Jev's approval stands whatever the model says — and its
+  role keeps it out of every reader that counts validations.
 - The Jev calibration (`jevCalibration.ts`) reads prefilter and validation
   prompts back out of traces, so the LAYOUT of what `prefilterStrategy` and
   `llmVerdict` send is a contract with it: `tests/jev-calibration.test.ts`

@@ -23,6 +23,12 @@ export const LLM_CALL_ROLES = [
   'fallback-execute',
   /** The run's acceptance checklist, drafted once before planning. */
   'draft-checklist',
+  /**
+   * The model validator judging, in the background, a plan or result Jev
+   * already approved: a measurement that decides nothing, under its own role
+   * so no reader counts it as the run's validation.
+   */
+  'jev-audit',
 ] as const;
 
 export type LlmCallRole = (typeof LLM_CALL_ROLES)[number];

@@ -35,6 +35,7 @@ export interface VizLlmEvent {
     | 'fallback-plan'
     | 'fallback-execute'
     | 'draft-checklist'
+    | 'jev-audit'
     | 'unknown';
   model: string;
   /**

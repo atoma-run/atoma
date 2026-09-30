@@ -319,6 +319,12 @@ export function trustedApproval(type: AtomType): PositiveVerdict {
  * returns `null` and the caller runs the model validator, which approves or
  * writes the remediation a refusal needs. An approval here is an ordinary
  * approval: it credits atom trust and skills like the trust fast path does.
+ *
+ * `audit` is the model verdict the caller would have run without Jev. A
+ * `ctx.jevAudit.rate` share of Jev's approvals hands it to `ctx.jevAudit.defer`,
+ * so the model judges them too, off the run's path and under the `jev-audit`
+ * role: Jev's approval stands whatever the model says, and the trace keeps how
+ * often the model would have refused.
  */
 export async function jevApproval(args: {
   readonly ctx: RunContext;
@@ -330,6 +336,7 @@ export async function jevApproval(args: {
   readonly payload: unknown;
   readonly evidence?: Result['evidence'];
   readonly groundTruthBlock?: string;
+  readonly audit?: () => Promise<unknown>;
 }): Promise<PositiveVerdict | null> {
   if (!args.ctx.jev) return null;
   // The model validator's own evidence lines: transport-observed witnesses
@@ -360,6 +367,8 @@ export async function jevApproval(args: {
     return null;
   }
   if (!decision?.approved) return null;
+  const auditing = args.ctx.jevAudit;
+  if (auditing && args.audit && Math.random() < auditing.rate) auditing.defer(args.audit);
   return {
     approved: true,
     reasoning: `jev fast-path: ${args.child.name}'s ${args.subject} judged acceptable (p=${decision.probability.toFixed(2)})`,

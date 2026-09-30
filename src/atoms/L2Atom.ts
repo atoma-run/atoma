@@ -2071,24 +2071,37 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       });
       return approval;
     }
+    // ONE model verdict, whether it decides or audits a Jev approval.
+    const modelVerdict = (audit: boolean) =>
+      llmVerdict({
+        ctx,
+        model: this.validationModel,
+        supervisorName: this.name,
+        supervisorTier: 2,
+        subject: 'PLAN',
+        child,
+        task,
+        payload: plan,
+        // Inject the description of anything the plan wants to delegate to,
+        // so Haiku doesn't judge "delegate to L1 Fluorine" from the name
+        // alone and hallucinate what Fluorine does.
+        targetContext: buildTargetContext(plan, this.registry),
+        ...(audit ? { audit: true } : {}),
+      });
     const jevApproved = ctx.jev
-      ? await jevApproval({ ctx, subject: 'PLAN', supervisorName: this.name, supervisorTier: 2, child, task, payload: plan })
+      ? await jevApproval({
+          ctx,
+          subject: 'PLAN',
+          supervisorName: this.name,
+          supervisorTier: 2,
+          child,
+          task,
+          payload: plan,
+          audit: () => modelVerdict(true),
+        })
       : null;
     if (jevApproved) return jevApproved;
-    return llmVerdict({
-      ctx,
-      model: this.validationModel,
-      supervisorName: this.name,
-      supervisorTier: 2,
-      subject: 'PLAN',
-      child,
-      task,
-      payload: plan,
-      // Inject the description of anything the plan wants to delegate to,
-      // so Haiku doesn't judge "delegate to L1 Fluorine" from the name
-      // alone and hallucinate what Fluorine does.
-      targetContext: buildTargetContext(plan, this.registry),
-    });
+    return modelVerdict(false);
   }
 
   async validateResult(child: L1Atom, result: Result, task: Task, ctx: RunContext): Promise<Verdict> {
@@ -2222,6 +2235,30 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     // is handed on to the model verdict so it never runs twice — probed on
     // `{output, summary}`, exactly what the model verdict would probe itself.
     let groundTruth = trustedProbe;
+    // Usage-conditioned skill credit: when a skill drove this run, show the
+    // validator the recipe and ask for the `activeSkillFollowed` adherence
+    // signal alongside the verdict. The onApproved/onFailed hooks gate the
+    // skill's counter bumps on it — a child that ignored the recipe proves
+    // nothing about it, and unearned successes arm the promotion trigger.
+    // ONE model verdict, whether it decides or audits a Jev approval; it reads
+    // `groundTruth` when it is called, after the Jev path has probed.
+    const modelVerdict = (audit: boolean) =>
+      llmVerdict({
+        ctx,
+        model: this.validationModel,
+        supervisorName: this.name,
+        supervisorTier: 2,
+        subject: 'RESULT',
+        child,
+        ...(groundTruth ? { groundTruthBlock: groundTruth.block } : {}),
+        ...(gateFindingsBlock !== undefined ? { mechanicalFindingsBlock: gateFindingsBlock } : {}),
+        ...(coverageBlock ? { proofCoverageBlock: coverageBlock } : {}),
+        ...(activeSkill ? { activeSkill: { id: activeSkill.id, body: activeSkill.body } } : {}),
+        task,
+        payload: { output: result.output, summary: result.summary },
+        ...(result.evidence ? { evidence: result.evidence } : {}),
+        ...(audit ? { audit: true } : {}),
+      });
     if (ctx.jev && gateFindingsBlock === undefined && !proofUncovered) {
       groundTruth ??= await checkGroundTruth({
         ctx,
@@ -2241,32 +2278,14 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
           payload: { output: result.output, summary: result.summary },
           ...(result.evidence ? { evidence: result.evidence } : {}),
           groundTruthBlock: groundTruth.block,
+          audit: () => modelVerdict(true),
         });
         if (approval) {
           return activeScriptSkillIgnored ? { ...approval, activeSkillFollowed: false } : approval;
         }
       }
     }
-    // Usage-conditioned skill credit: when a skill drove this run, show the
-    // validator the recipe and ask for the `activeSkillFollowed` adherence
-    // signal alongside the verdict. The onApproved/onFailed hooks gate the
-    // skill's counter bumps on it — a child that ignored the recipe proves
-    // nothing about it, and unearned successes arm the promotion trigger.
-    const verdict = await llmVerdict({
-      ctx,
-      model: this.validationModel,
-      supervisorName: this.name,
-      supervisorTier: 2,
-      subject: 'RESULT',
-      child,
-      ...(groundTruth ? { groundTruthBlock: groundTruth.block } : {}),
-      ...(gateFindingsBlock !== undefined ? { mechanicalFindingsBlock: gateFindingsBlock } : {}),
-      ...(coverageBlock ? { proofCoverageBlock: coverageBlock } : {}),
-      ...(activeSkill ? { activeSkill: { id: activeSkill.id, body: activeSkill.body } } : {}),
-      task,
-      payload: { output: result.output, summary: result.summary },
-      ...(result.evidence ? { evidence: result.evidence } : {}),
-    });
+    const verdict = await modelVerdict(false);
     const adherenceAdjusted = activeScriptSkillIgnored
       ? { ...verdict, activeSkillFollowed: false }
       : verdict;

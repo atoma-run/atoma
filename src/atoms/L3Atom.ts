@@ -1229,24 +1229,37 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       });
       return approval;
     }
+    // ONE model verdict, whether it decides or audits a Jev approval.
+    const modelVerdict = (audit: boolean) =>
+      llmVerdict({
+        ctx,
+        model: this.validationModel,
+        supervisorName: this.name,
+        supervisorTier: 3,
+        subject: 'PLAN',
+        child,
+        task,
+        payload: plan,
+        // Inject the downstream-target description so Haiku can judge the
+        // routing on facts, not on name-based guesses.
+        targetContext: buildTargetContext(plan, this.registry),
+        ...(audit ? { audit: true } : {}),
+      });
     // Jev fast path — see L2Atom.validatePlan. Approve or defer, never refuse.
     const jevApproved = ctx.jev
-      ? await jevApproval({ ctx, subject: 'PLAN', supervisorName: this.name, supervisorTier: 3, child, task, payload: plan })
+      ? await jevApproval({
+          ctx,
+          subject: 'PLAN',
+          supervisorName: this.name,
+          supervisorTier: 3,
+          child,
+          task,
+          payload: plan,
+          audit: () => modelVerdict(true),
+        })
       : null;
     if (jevApproved) return jevApproved;
-    return llmVerdict({
-      ctx,
-      model: this.validationModel,
-      supervisorName: this.name,
-      supervisorTier: 3,
-      subject: 'PLAN',
-      child,
-      task,
-      payload: plan,
-      // Inject the downstream-target description so Haiku can judge the
-      // routing on facts, not on name-based guesses.
-      targetContext: buildTargetContext(plan, this.registry),
-    });
+    return modelVerdict(false);
   }
 
   async validateResult(child: L2Atom, result: Result, task: Task, ctx: RunContext): Promise<Verdict> {
@@ -1315,6 +1328,22 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     // rejects rather than reports, so `reviewFindings` is empty here; should a
     // reporting one be added, its finding keeps the decision with the model.
     let groundTruth = trustedProbe;
+    // ONE model verdict, whether it decides or audits a Jev approval; it reads
+    // `groundTruth` when it is called, after the Jev path has probed.
+    const modelVerdict = (audit: boolean) =>
+      llmVerdict({
+        ctx,
+        model: this.validationModel,
+        supervisorName: this.name,
+        supervisorTier: 3,
+        subject: 'RESULT',
+        child,
+        task,
+        payload,
+        ...(result.evidence ? { evidence: result.evidence } : {}),
+        ...(groundTruth ? { groundTruthBlock: groundTruth.block } : {}),
+        ...(audit ? { audit: true } : {}),
+      });
     if (ctx.jev && gates.reviewFindings.length === 0) {
       groundTruth ??= await checkGroundTruth({
         ctx,
@@ -1334,21 +1363,11 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
           payload,
           ...(result.evidence ? { evidence: result.evidence } : {}),
           groundTruthBlock: groundTruth.block,
+          audit: () => modelVerdict(true),
         });
         if (approval) return approval;
       }
     }
-    return llmVerdict({
-      ctx,
-      model: this.validationModel,
-      supervisorName: this.name,
-      supervisorTier: 3,
-      subject: 'RESULT',
-      child,
-      task,
-      payload,
-      ...(result.evidence ? { evidence: result.evidence } : {}),
-      ...(groundTruth ? { groundTruthBlock: groundTruth.block } : {}),
-    });
+    return modelVerdict(false);
   }
 }

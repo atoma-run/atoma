@@ -7,7 +7,7 @@ import { RunnerConfigError } from '../core/errors.js';
 import { containerImageDigestSchema } from '../contracts/containerImage.js';
 import { applyTierPins } from '../core/models.js';
 import { createAttestationLog } from '../core/attestation.js';
-import { JEV_ENV, JEV_EVALUATOR, JEV_KEY_ENV, jevDeciderFromEnv } from '../core/jev.js';
+import { JEV_AUDIT_SETTLE_MS, JEV_ENV, JEV_EVALUATOR, JEV_KEY_ENV, createJevAudit, jevDeciderFromEnv } from '../core/jev.js';
 import {
   formatModelSelector,
   ModelSelectorError,
@@ -964,6 +964,9 @@ export async function startTask(
   if (jev) process.stderr.write(`[atoma runner] jev: deciding (${JEV_EVALUATOR})\n`);
   else if (providerEnv[JEV_ENV] === '0') process.stderr.write(`[atoma runner] jev: off (${JEV_ENV}=0)\n`);
   else process.stderr.write(`[atoma runner] jev: off (${JEV_KEY_ENV} is absent)\n`);
+  // A share of Jev's approvals is also judged by the model, off the run's path,
+  // so its false approvals stay measured (docs/jev-decisions-2026-09-28.md).
+  const jevAudit = jev ? createJevAudit() : undefined;
 
   const ctx: RunContext = {
     ...(args.depth ? { attestations: createAttestationLog((record) => recorder.recordAttestation(record)) } : {}),
@@ -996,6 +999,7 @@ export async function startTask(
     // that did NOT happen still deserves a card.
     recordCacheHit: (info) => recorder.recordCacheHit(info),
     ...(jev ? { jev } : {}),
+    ...(jevAudit ? { jevAudit: jevAudit.audit } : {}),
     recordBranch: (info) => recorder.recordBranch(info),
     ...(artifactManifestPath && requestedRunId
       ? {
@@ -1149,6 +1153,9 @@ export async function startTask(
       retrievalPrepared = true;
       const result = await handle(task, ctx);
       clearTimeout(watchdog);
+      // Audits still in flight record into this run's trace before it closes;
+      // one that outlasts the bound is dropped, since it measures and decides nothing.
+      await jevAudit?.settle(JEV_AUDIT_SETTLE_MS);
       // A run lands for either of TWO typed reasons, and they compose: the
       // deadline left phases unrun (`markLanded`), or root delivery acceptance
       // refused the result (`markRefused`). `isLanded` is the one derivation

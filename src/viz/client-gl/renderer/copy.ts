@@ -152,7 +152,9 @@ export function eventDecision(event: VizEvent, t: GpuTranslate): string {
         ? t('outcome.escalate')
         : '';
   }
-  if (event.role === 'validate-plan' || event.role === 'validate-result') {
+  // An audit badges the MODEL's verdict on what Jev approved: a rejection
+  // there is a Jev false approval, measured, never the run's decision.
+  if (event.role === 'validate-plan' || event.role === 'validate-result' || event.role === 'jev-audit') {
     return parsed['approved'] === true
       ? t('outcome.approved')
       : parsed['approved'] === false
@@ -409,6 +411,8 @@ export function nowDescription(t: GpuTranslate, event: VizEvent): string {
       return t('now.doing.skill', vars);
     case 'draft-checklist':
       return t('now.doing.draftChecklist', vars);
+    case 'jev-audit':
+      return t('now.doing.jevAudit', vars);
     default:
       return t('now.doing.unknown', vars);
   }

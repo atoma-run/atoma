@@ -1259,6 +1259,18 @@ it('calibrates Jev over MCP on every organisation, and reads its answers again f
   writeTrace(a, 'Build the admin page.', '2026-09-27T10:00:00.000Z');
   writeTrace(b, 'Build the second page.', '2026-09-27T11:00:00.000Z');
   writeTrace(c, 'Build the third page.', '2026-09-27T12:00:00.000Z');
+  // A run Jev decided in: its decisions stay out of the corpus, its audit does not.
+  const jevRun = c.makeRun();
+  mkdirSync(jevRun.layout.runsPath, { recursive: true });
+  writeFileSync(join(jevRun.layout.runsPath, `${jevRun.run.projectRunId}.json`), JSON.stringify({
+    id: jevRun.run.projectRunId, label: 'Jev run', startedAt: '2026-09-27T13:00:00.000Z',
+    events: [
+      { id: 'jev-1', kind: 'jev', ts: 1, role: 'validate-result', outcome: 'approved' },
+      { id: 'audit-1', kind: 'llm', ts: 2, role: 'jev-audit', subject: 'RESULT', actor: { name: 'Idioblast', tier: 2 },
+        child: { name: 'Water', tier: 1 }, systemPrompt: 'sys', userContent: 'prompt',
+        response: JSON.stringify({ approved: false, reasoning: 'no proof' }) },
+    ],
+  }));
   const journal = PlatformEventLog.open(a.dbPath);
   const service = new ProjectService({ store: a.projects, github: null,
     coordinator: {} as ProjectRunCoordinator, auditRead: read => journal.recordCrossOrgRead(read) });
@@ -1306,6 +1318,14 @@ it('calibrates Jev over MCP on every organisation, and reads its answers again f
     const refused = await client.callTool({ name: 'atoma_jev_calibrate', arguments: {} });
     expect(refused.isError).toBe(true);
     expect(JSON.stringify(refused.content)).toContain('Jev is off on this host');
+    // The audit sample reads without the key and sends nothing.
+    const audits = await client.callTool({ name: 'atoma_jev_calibrate', arguments: { auditsOnly: true, since: '2026-09-26' } });
+    expect(audits.isError).not.toBe(true);
+    expect(bodies).toHaveLength(6);
+    expect((audits.structuredContent as { audits: { subjects: unknown[] } }).audits.subjects).toEqual([
+      expect.objectContaining({ subject: 'PLAN', audited: 0 }),
+      expect.objectContaining({ subject: 'RESULT', audited: 1, refusedByModel: 1, falseApprovalShare: 1 }),
+    ]);
   } finally {
     await client.close();
     vi.unstubAllGlobals();

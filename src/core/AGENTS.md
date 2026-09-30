@@ -211,6 +211,13 @@ Neighbours:
   as the baseline every calibration compares with. A question or a threshold
   changes with a measurement, never by feel, and each is written up in the
   decision record with its numbers.
+- The AUDIT keeps Jev measured once the model no longer sees its approvals:
+  `JEV_AUDIT_RATE` of them are also judged by the model validator in the
+  background (`createJevAudit`, carried as `RunContext.jevAudit` and forwarded
+  by `forkBranch`). The runner awaits the audits still in flight, at most
+  `JEV_AUDIT_SETTLE_MS`, before it closes the trace; one that fails or
+  outlasts the bound is dropped. Each audit is one model call on the run's
+  bill, and it never changes a decision.
 
 ## Intentional choices and rejected shortcuts
 
