@@ -6,7 +6,21 @@
       "Skill(claude-api:*)",
       "WebFetch(domain:docs.github.com)",
       "WebSearch",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(npx tsc *)",
+      "Bash(npx vitest *)",
+      "Bash(npx eslint *)",
+      "Bash(npm run docs:check)",
+      "Bash(npm run release:check:static)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git fetch *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push origin HEAD:main)",
+      "Bash(gh run *)",
+      "Bash(grep *)"
     ],
     "additionalDirectories": [
       "/tmp",
