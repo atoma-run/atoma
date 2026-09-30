@@ -9,6 +9,7 @@ import {
   ensureCanonicalL1,
   ensureCanonicalL2,
   ensureCanonicalFullStack,
+  ensureCanonicalFileScribeL1,
   ensureCanonicalHttpL1,
   bucketIdForTools,
 } from '../src/atoms/capability.js';
@@ -17,7 +18,11 @@ import {
   isReportedWebProbe,
 } from '../src/contracts/probeManifest.js';
 import { makeTools } from './helpers/factories.js';
-import { HTTP_PORTABLE_DOC_GUIDANCE, STATIC_PORTABLE_DOC_GUIDANCE } from '../src/atoms/prompts.js';
+import {
+  HTTP_PORTABLE_DOC_GUIDANCE,
+  SCRIBE_PORTABLE_DOC_GUIDANCE,
+  STATIC_PORTABLE_DOC_GUIDANCE,
+} from '../src/atoms/prompts.js';
 import { buildNarrowL1Prompt } from '../src/atoms/L2Atom.js';
 
 const WEB_TOOLS = makeTools([
@@ -112,6 +117,25 @@ describe('ensureCanonicalL1 / ensureCanonicalL2 — idempotent bootstrap', () =>
     const before = ensureCanonicalL1(stale, WEB_TOOLS, SMOKE);
     stale.patch(before.name, { systemPromptReplace: before.systemPrompt.replace(STATIC_PORTABLE_DOC_GUIDANCE, '') }, 'test', 'older prompt');
     expect(ensureCanonicalL1(stale, WEB_TOOLS, SMOKE).systemPrompt).toContain(STATIC_PORTABLE_DOC_GUIDANCE);
+  });
+
+  it('tells the file scribe the same rule, since it writes the documentation phase (run 8606cf38)', () => {
+    // Its inputs carry the previous phase's live URL; it copied that URL into
+    // README.md as the entry point and the review refused it.
+    const fileTools = makeTools(['write_file', 'edit_file', 'read_file', 'list_files', 'run_shell']);
+    const reg = new AtomRegistry(openDb(':memory:'));
+    const scribe = ensureCanonicalFileScribeL1(reg, fileTools);
+    expect(scribe.systemPrompt).toContain(SCRIBE_PORTABLE_DOC_GUIDANCE);
+    // A molecule branched on file tools is built from the generic template.
+    expect(buildNarrowL1Prompt('update the README', fileTools)).toContain(SCRIBE_PORTABLE_DOC_GUIDANCE);
+    // The store's row is re-aligned on the next boot, and the changed type
+    // re-earns its trust like any behaviour patch.
+    for (let i = 0; i < 4; i++) reg.recordSuccess(scribe.name);
+    reg.patch(scribe.name, { systemPromptReplace: scribe.systemPrompt.replace(`${SCRIBE_PORTABLE_DOC_GUIDANCE}\n\n`, '') }, 'test', 'older prompt');
+    for (let i = 0; i < 4; i++) reg.recordSuccess(scribe.name);
+    const refreshed = ensureCanonicalFileScribeL1(reg, fileTools);
+    expect(refreshed.systemPrompt).toContain(SCRIBE_PORTABLE_DOC_GUIDANCE);
+    expect(refreshed.consecutiveSuccesses).toBe(0);
   });
 
   it('EVERY probe discriminant the web L1 prompt teaches is one the reader recognises', () => {

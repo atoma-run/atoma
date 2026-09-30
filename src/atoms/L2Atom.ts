@@ -81,6 +81,7 @@ export {
 } from '../skills/lifecycle.js';
 import {
   HTTP_PORTABLE_DOC_GUIDANCE,
+  SCRIBE_PORTABLE_DOC_GUIDANCE,
   STATIC_PORTABLE_DOC_GUIDANCE,
   FALLBACK_VERIFICATION_GUIDANCE,
   FALLBACK_SYSTEM_PROMPT,
@@ -223,6 +224,8 @@ export function buildNarrowL1Prompt(
       `Call tools sequentially to produce the deliverable. Use ONLY the`,
       `tools you were handed — do NOT invoke anything that isn't in your`,
       `declared tool list.`,
+      ``,
+      SCRIBE_PORTABLE_DOC_GUIDANCE,
       ``,
       ...GROUND_TRUTH_EVIDENCE_LINES,
     ];

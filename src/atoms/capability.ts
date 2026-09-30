@@ -1,7 +1,12 @@
 import type { Tier, Tool } from '../core/types.js';
 import { manifestWriterLines, WEB_PROBE_DISCRIMINANT } from '../contracts/probeManifest.js';
 import type { AtomRegistry, AtomType } from '../registry/atomRegistry.js';
-import { HTTP_PORTABLE_DOC_GUIDANCE, SMOKE_DESIGN_GUIDANCE, STATIC_PORTABLE_DOC_GUIDANCE } from './prompts.js';
+import {
+  HTTP_PORTABLE_DOC_GUIDANCE,
+  SCRIBE_PORTABLE_DOC_GUIDANCE,
+  SMOKE_DESIGN_GUIDANCE,
+  STATIC_PORTABLE_DOC_GUIDANCE,
+} from './prompts.js';
 import { HOST_TOOL_NAMES } from '../contracts/toolTaxonomy.js';
 
 /**
@@ -840,6 +845,8 @@ export const CANONICAL_FILESCRIBE_L1_SYSTEM_PROMPT_LINES: readonly string[] = [
   `  routes one of those to you is wrong — surface it in your summary`,
   `  and return whatever file you legitimately wrote. Do NOT grow your`,
   `  remit silently.`,
+  ``,
+  SCRIBE_PORTABLE_DOC_GUIDANCE,
   ``,
   ...GROUND_TRUTH_EVIDENCE_LINES,
 ];

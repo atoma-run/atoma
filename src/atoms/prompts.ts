@@ -466,6 +466,22 @@ export const STATIC_PORTABLE_DOC_GUIDANCE = [
   `the task itself requires that fixed port: write \`localhost:<port>\`.`,
 ].join('\n');
 
+/**
+ * The same rule for the file scribe, which writes a documentation phase. It
+ * starts no server, but its inputs carry the URL the previous phase served:
+ * run 8606cf38 (2026-09-30) wrote `http://localhost:43977/` into README.md as
+ * "the static page entry point used for verification", the review refused
+ * it, and the phase ran a second time.
+ */
+export const SCRIBE_PORTABLE_DOC_GUIDANCE = [
+  ...PORT_PLACEHOLDER_LINES,
+  `A URL or port an earlier phase reports ("served at", a bound URL,`,
+  `LISTENING_ON_PORT=<N>) is run evidence: cite it in your summary, never in`,
+  `README or docs, where it reads \`http://localhost:<port>\` and`,
+  `\`LISTENING_ON_PORT=<port>\`. The review flags ANY numeric loopback port in`,
+  `docs, unless the task itself requires that fixed port.`,
+].join('\n');
+
 /** Durable HTTP docs must not capture the one port assigned to this run. */
 export const HTTP_PORTABLE_DOC_GUIDANCE = [
   ...PORT_PLACEHOLDER_LINES,

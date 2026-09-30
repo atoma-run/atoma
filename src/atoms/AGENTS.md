@@ -247,6 +247,9 @@ load-bearing.
   `STATIC_PORTABLE_DOC_GUIDANCE` beside the HTTP molecules' guidance: it was
   never told, and wrote its measured URL into the README in two production
   runs (cc922a60, 5a5f1e27), the second after being handed the first refusal.
+  The file scribe and the generic L1 template carry
+  `SCRIBE_PORTABLE_DOC_GUIDANCE`: a documentation phase is theirs, its inputs
+  carry the previous phase's URL, and run 8606cf38 copied it into the README.
 - Node-server children keep file read-back even when they also have browser
   tools. Only a loopback response with status 200 and HTML content appends a
   browser probe; JSON responses and expected root 404s are not browser failures.
