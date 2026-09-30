@@ -374,11 +374,12 @@ cleanup is mandatory on every exit path.
 ## MCP server
 
 Orientation only — the contract lives in [src/mcp](src/mcp/AGENTS.md). ONE MCP
-for everyone over HTTP on `/mcp`, a tiered catalogue whose visibility follows
-the caller's role, bearer API tokens for identity, and runs serialised by
-memory state and a SQLite lease. The catalogue is a compatibility contract for
-every registered client. Decision record:
-[docs/mcp-one-surface-2026-09-05.md](docs/mcp-one-surface-2026-09-05.md).
+for everyone over HTTP on `/mcp`, speaking protocols 2025-11-25 and 2026-07-28,
+a tiered catalogue whose visibility follows the caller's role, bearer API tokens
+for identity, runs serialised by memory state and a SQLite lease. The catalogue
+is a compatibility contract for every registered client. Decision records:
+[docs/mcp-one-surface-2026-09-05.md](docs/mcp-one-surface-2026-09-05.md),
+[docs/mcp-two-eras-2026-09-30.md](docs/mcp-two-eras-2026-09-30.md).
 
 ## Testing and linting
 

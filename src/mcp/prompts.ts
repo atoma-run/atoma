@@ -37,8 +37,8 @@
  * not elements a run can invoke.
  */
 
-import { completable } from '@modelcontextprotocol/sdk/server/completable.js';
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { completable } from '@modelcontextprotocol/server';
+import type { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { LAUNCHABLE_PROFILES, type LaunchableProfile } from '../run/profiles/index.js';
 import {

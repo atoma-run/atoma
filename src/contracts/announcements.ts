@@ -58,8 +58,7 @@ export const announcementTextsSchema = z
   .record(localeKeySchema, announcementTextSchema)
   .refine((texts) => SUPPORTED_LOCALES.every((locale) => texts[locale] !== undefined), {
     message: 'every supported language needs a title and a body',
-  })
-  .transform((texts) => texts as Record<Locale, AnnouncementText>);
+  });
 
 export const announcementRequestSchema = z
   .object({

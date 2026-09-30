@@ -7,7 +7,7 @@ import {
   setSubscriptionDelegate,
 } from '../auth/subscriptionDelegates.js';
 import type { PlatformEventSink } from '../contracts/platformEvents.js';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer, type ServerContext } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import type { RetrievalCampaignStart } from '../cli/retrievalCampaignHost.js';
 import type { AuthStore, Viewer } from '../auth/store.js';
@@ -24,7 +24,7 @@ import { sentinelRuleTable } from '../sentinel/rules.js';
 import type { ResidentAnalystHealth } from '../supervisor/resident.js';
 import type { PushLocale } from '../viz/push/routes.js';
 import type { TrayPage } from '../viz/push/tray.js';
-import { callerTier, tierAllows, type McpCaller, type McpTier } from './identity.js';
+import { callerKey, callerTier, tierAllows, type McpCaller, type McpTier } from './identity.js';
 import { registerPrompts } from './prompts.js';
 import {
   costs,
@@ -52,17 +52,20 @@ import { JEV_CALIBRATE_INPUT, jevCalibrateCall } from './jevCalibrate.js';
 import {
   OPERATOR_RUN_INPUT,
   BENCHMARK_RUN_INPUT,
-  benchmarkRunTaskHandler,
+  CallerTasks,
   PROGRESS_HEARTBEAT_MS,
   PROJECT_RUN_INPUT,
-  SessionTaskStore,
-  TASKS_CAPABILITY,
+  ProjectRunTasks,
   attachRunLogging,
-  operatorRunTaskHandler,
-  projectRunTaskHandler,
+  benchmarkRunTask,
+  operatorRunTask,
+  progressChannelOf,
+  projectRunTask,
   requestHeartbeat,
-  type RunTaskHost,
+  runSynchronously,
+  type TaskStart,
 } from './tasks.js';
+import { installTaskProtocol, type ProtocolEraName } from './taskWire.js';
 import {
   RunRejected,
   cancelRun as cancelOperatorRun,
@@ -138,6 +141,9 @@ export interface McpToolDeps {
     before?: number;
     limit?: number;
   }) => TrayPage;
+  /** Tests only: how often a task suggests polling, and how often a waiting caller hears progress. */
+  readonly taskPollMs?: number;
+  readonly taskHeartbeatMs?: number;
 }
 
 export type McpToolNeed = 'projects' | 'auth' | 'journal' | 'operator-runs' | 'notifications' | 'benchmarks';
@@ -155,8 +161,46 @@ export interface McpToolContext {
   readonly deps: McpToolDeps;
   /** The viewer for tenant tools; throws on the operator path, which has none. */
   readonly viewer: () => Viewer;
-  /** The session's task store, run-logging follower and close-time cleanups (`tasks.ts`). */
-  readonly tasks: RunTaskHost;
+  /** The protocol era this server answers: 2025-11-25 (`legacy`) or 2026-07-28 (`modern`). */
+  readonly era: ProtocolEraName;
+  /** The caller's tasks, the start tools registered here, the run log follower and close-time cleanups. */
+  readonly tasks: ServerTasks;
+}
+
+export interface ServerTasks {
+  readonly tasks: CallerTasks;
+  /** Hands an operator run to the session's log (2025 era); a no-op elsewhere. */
+  readonly follow: (runId: string) => void;
+  /** The start tools this server registered, for `installTaskProtocol`. */
+  readonly starts: Map<string, TaskStart<unknown>>;
+  readonly cleanups: (() => void)[];
+}
+
+/**
+ * A START tool: listed and called like any tool — without task augmentation
+ * it answers when the run ends, telling a caller that sent a `progressToken`
+ * the run is alive — and a TASK when the call asks for one, which
+ * `installTaskProtocol` routes to `taskStart.start` on either wire.
+ */
+function registerStartTool(
+  server: McpServer,
+  ctx: McpToolContext,
+  name: string,
+  config: { title: string; description: string; inputSchema: z.ZodRawShape; annotations: Record<string, boolean> },
+  taskStart: TaskStart<unknown>
+): void {
+  server.registerTool(name, config as never, (async (args: unknown, request: ServerContext) =>
+    runSynchronously(ctx.tasks.tasks, await taskStart.start(args), progressChannelOf(request), ctx.deps.taskHeartbeatMs ?? PROGRESS_HEARTBEAT_MS)) as never);
+  ctx.tasks.starts.set(name, taskStart);
+}
+
+/** Every task `caller` can reach on this host: its own in-memory ones, and its project runs when it may start them. */
+export function callerTasksFor(caller: McpCaller, deps: McpToolDeps): CallerTasks {
+  const projects = deps.projects;
+  const projectRuns = projects && caller.kind === 'principal' && tierAllows(callerTier(caller), 'member')
+    ? new ProjectRunTasks({ viewer: () => caller.viewer, service: projects.service, ...(deps.taskPollMs !== undefined ? { pollMs: deps.taskPollMs } : {}) })
+    : null;
+  return new CallerTasks(callerKey(caller), projectRuns);
 }
 
 type ToolResult = {
@@ -446,17 +490,20 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
     tier: 'member',
     needs: ['projects'],
     register: (server, ctx) =>
-      server.experimental.tasks.registerToolTask(
+      registerStartTool(
+        server,
+        ctx,
         'atoma_run_start',
         {
           title: 'Start a project run',
           description:
-            'Start a run in one of your organisation’s projects, as an MCP TASK: the call answers with a task id, tasks/get reports the run’s status, tasks/result returns the final atoma_run_status payload, tasks/cancel cancels the run. Called without task augmentation it returns when the run ends (minutes). Runs are SERIALISED on this instance (one at a time, a second is queued or refused) and spend the organisation’s configured provider. The goal is prose describing the artefact; do not name tools in it. acceptanceCriteria, optional, are the criteria the run is judged against instead of a list it drafts itself. rerunOf with models starts a comparison rerun of an earlier run instead of a new one: no goal, no criteria. idempotencyKey makes the call idempotent.',
+            'Start a run in one of your organisation’s projects, as an MCP TASK: the call answers with a task id, tasks/get reports the run’s status and, once it ends, the final atoma_run_status payload (tasks/result on the 2025-11-25 protocol), tasks/cancel cancels the run. Called without task augmentation it returns when the run ends (minutes). Runs are SERIALISED on this instance (one at a time, a second is queued or refused) and spend the organisation’s configured provider. The goal is prose describing the artefact; do not name tools in it. acceptanceCriteria, optional, are the criteria the run is judged against instead of a list it drafts itself. rerunOf with models starts a comparison rerun of an earlier run instead of a new one: no goal, no criteria. idempotencyKey makes the call idempotent.',
           inputSchema: PROJECT_RUN_INPUT,
           annotations: MUTATING,
-          execution: { taskSupport: 'optional' },
         },
-        projectRunTaskHandler(ctx.tasks, { viewer: ctx.viewer, service: tenant(ctx).service })
+        projectRunTask(ctx.tasks.tasks, {
+          viewer: ctx.viewer, service: tenant(ctx).service, ...(ctx.deps.taskPollMs !== undefined ? { pollMs: ctx.deps.taskPollMs } : {}),
+        }) as TaskStart<unknown>
       ),
   },
   {
@@ -543,30 +590,30 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
     name: 'atoma_benchmark_start',
     tier: 'platform',
     needs: ['benchmarks'],
-    register: (server, ctx) => server.experimental.tasks.registerToolTask('atoma_benchmark_start', {
+    register: (server, ctx) => registerStartTool(server, ctx, 'atoma_benchmark_start', {
       title: 'Start a registered retrieval benchmark',
       description: 'Execute an immutable CLI retrieval registration with isolated per-attempt stores and the real frontier reference agent. Uses host subscriptions and the global run lease. Requires committed matching source and an installed pinned worker. Visible in Runs to platform admins. Follow as an MCP task; tasks/cancel stops the campaign. No arbitrary dataset or output paths. Results are development evidence, not a production benefit claim.',
       inputSchema: BENCHMARK_RUN_INPUT,
       annotations: MUTATING,
-      execution: { taskSupport: 'optional' },
-    }, benchmarkRunTaskHandler(ctx.tasks, ctx.deps.benchmarkStart!)),
+    }, benchmarkRunTask(ctx.tasks.tasks, ctx.deps.benchmarkStart!) as TaskStart<unknown>),
   },
   {
     name: 'atoma_operator_run_start',
     tier: 'platform',
     needs: ['operator-runs'],
     register: (server, ctx) =>
-      server.experimental.tasks.registerToolTask(
+      registerStartTool(
+        server,
+        ctx,
         'atoma_operator_run_start',
         {
           title: 'Start an OPERATOR run',
           description:
-            `Start a run in the instance’s OPERATOR corpus (not a project): the machine’s own runner, credentials and shared build workspace, as an MCP TASK — the call answers with a task id, tasks/get reports the run’s output tail as its status line, tasks/result returns the final atoma_operator_run_status payload, tasks/cancel cancels the run; called without task augmentation it returns when the run ends (minutes). DESTRUCTIVE: the workspace is archived first unless keepWorkspace, and the run mutates the registry, the skill store and the ledger. SERIALISED with every other run on the machine. Families: ${families().families.map((f) => `"${f.id}"`).join(', ')}.`,
+            `Start a run in the instance’s OPERATOR corpus (not a project): the machine’s own runner, credentials and shared build workspace, as an MCP TASK — the call answers with a task id, tasks/get reports the run’s output tail as its status line and, once it ends, the final atoma_operator_run_status payload (tasks/result on the 2025-11-25 protocol), tasks/cancel cancels the run; called without task augmentation it returns when the run ends (minutes). DESTRUCTIVE: the workspace is archived first unless keepWorkspace, and the run mutates the registry, the skill store and the ledger. SERIALISED with every other run on the machine. Families: ${families().families.map((f) => `"${f.id}"`).join(', ')}.`,
           inputSchema: OPERATOR_RUN_INPUT,
           annotations: MUTATING,
-          execution: { taskSupport: 'optional' },
         },
-        operatorRunTaskHandler(ctx.tasks, (args) => startOperatorRunFor(ctx, args))
+        operatorRunTask(ctx.tasks.tasks, (args) => startOperatorRunFor(ctx, args), ctx.tasks.follow) as TaskStart<unknown>
       ),
   },
   {
@@ -1022,11 +1069,11 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
         (args, extra) =>
           guarded(async () => {
             const { service, store, viewer } = tenant(ctx);
-            const heartbeat = requestHeartbeat(extra, PROGRESS_HEARTBEAT_MS);
+            const heartbeat = requestHeartbeat(progressChannelOf(extra), PROGRESS_HEARTBEAT_MS);
             try {
               const orgIds = () => ctx.deps.auth!.listOrganisations().map((organisation) => organisation.orgId);
               return await jevCalibrateCall(
-                { projects: { service, store }, viewer, orgIds, signal: extra.signal, progress: heartbeat.note },
+                { projects: { service, store }, viewer, orgIds, signal: extra.mcpReq.signal, progress: heartbeat.note },
                 args
               );
             } finally {
@@ -1106,20 +1153,26 @@ export interface BuildServerInput {
   readonly deps: McpToolDeps;
   readonly version: string;
   readonly instructions: string;
+  /** Which protocol era this server answers; a 2025-era session unless told otherwise. */
+  readonly era?: ProtocolEraName;
 }
 
-/** One server per session, holding exactly the caller's tools. */
+/**
+ * One server holding exactly the caller's tools: per SESSION on the 2025 era,
+ * per REQUEST on the 2026 era (`http.ts`). Tasks belong to the caller, not to
+ * the server (`tasks.ts`); the run log follows only the runs a 2025 session
+ * started.
+ */
 export function buildServerForCaller(input: BuildServerInput): McpServer {
-  // Tasks and logging are session-scoped like everything else here: the task
-  // store lives and dies with this server, and the run log follows only the
-  // runs this session started (`tasks.ts`).
-  const taskStore = new SessionTaskStore();
+  const era = input.era ?? 'legacy';
   const server = new McpServer(
     { name: 'atoma', version: input.version },
-    { instructions: input.instructions, capabilities: { tasks: TASKS_CAPABILITY, logging: {} }, taskStore }
+    // Logging is deprecated on the 2026 era and has no session stream there to carry a run log.
+    { instructions: input.instructions, capabilities: era === 'legacy' ? { logging: {} } : {} }
   );
-  const cleanups: (() => void)[] = [() => taskStore.close()];
+  const cleanups: (() => void)[] = [];
   const tier = callerTier(input.caller);
+  const tasks = callerTasksFor(input.caller, input.deps);
   const ctx: McpToolContext = {
     caller: input.caller,
     tier,
@@ -1128,9 +1181,11 @@ export function buildServerForCaller(input: BuildServerInput): McpServer {
       if (input.caller.kind !== 'principal') throw new McpToolRefused('this tool needs a signed-in principal');
       return input.caller.viewer;
     },
-    tasks: { store: taskStore, follow: attachRunLogging(server, cleanups), cleanups },
+    era,
+    tasks: { tasks, follow: era === 'legacy' ? attachRunLogging(server, cleanups) : () => {}, starts: new Map(), cleanups },
   };
   for (const spec of visibleTools(input.caller, input.deps)) spec.register(server, ctx);
+  installTaskProtocol(server, era, tasks, ctx.tasks.starts);
   const previousClose = server.server.onclose;
   server.server.onclose = () => {
     previousClose?.();
@@ -1138,7 +1193,7 @@ export function buildServerForCaller(input: BuildServerInput): McpServer {
   };
   // Resources follow the tools' tiers (`resources.ts`): every caller gets the
   // families, a principal its organisation's runs, the platform tier the
-  // operator corpus — and a subscription tells a session when a run ends.
+  // operator corpus — and a subscription tells a client when a run ends.
   registerResources(server, ctx);
   // The prompt surface drives the operator readers (trace files, registry
   // names, molecule names) and completes over the operator store, so it

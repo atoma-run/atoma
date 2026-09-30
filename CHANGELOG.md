@@ -8,6 +8,13 @@ corrections of the 2026-09-24 and 2026-09-25 code reviews.
 
 ### Added
 
+- MCP: the `/mcp` route also speaks protocol revision 2026-07-28 — no
+  session, a server per request, the tasks extension for run starts
+  (`tasks/get` with the result inline, `tasks/cancel`), and
+  `subscriptions/listen` for finished runs — beside 2025-11-25, which keeps
+  its sessions, replay, tasks, subscriptions and run log. The host's
+  `health()` counts which protocol version and client each connection
+  speaks.
 - Acceptance criteria approved before launch, one per line in the console, the
   CLI (`--criteria <file>`) or over MCP; without them a run drafts its own
   checklist with one call to the cheapest tier. Criteria are stored immutably
@@ -30,6 +37,14 @@ corrections of the 2026-09-24 and 2026-09-25 code reviews.
   behind it; the analysis resumes afterwards without losing its attempt.
 - Browser checks can choose an option of a drop-down list or set a slider,
   date or colour field as a person would, and send keys to a named element.
+
+### Changed
+
+- The MCP server runs on the TypeScript MCP SDK v2, and the codebase on zod 4.
+  A call to a tool the caller cannot see is now the protocol's -32602 error
+  instead of a tool result marked as an error, as the specification
+  prescribes. An operator run's task belongs to the caller that started it,
+  not to its session, so a reconnecting client still finds it.
 
 ### Fixed
 

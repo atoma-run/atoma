@@ -1,7 +1,7 @@
 import { createServer, request, type Server, type ClientRequest } from 'node:http';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
+import { NodeStreamableHTTPServerTransport } from '@modelcontextprotocol/node';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { McpHttpHost, mcpMaxRequestMsFromEnv, MCP_MAX_REQUEST_MS, STANDALONE_SSE_STREAM_ID } from '../src/mcp/http.js';
 
 const headers = { 'content-type': 'application/json', accept: 'application/json, text/event-stream' };
@@ -23,7 +23,7 @@ afterEach(async () => {
   if (server) await new Promise<void>(resolve => server.close(() => resolve()));
   vi.useRealTimers();
 });
-async function listen(build: () => McpServer, limits = 1, perCaller = 1) {
+async function listen(build: () => McpServer, limits = 1, perCaller = 1, bodyTimeoutMs?: number) {
   now = 0;
   built = 0;
   vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
@@ -36,7 +36,8 @@ async function listen(build: () => McpServer, limits = 1, perCaller = 1) {
     viewer: { principalId: String(req.headers['authorization'] ?? 'a'), orgId: 'o', orgName: 'o', displayName: 'a', displayNameSource: 'provider', kind: 'human', role: 'org:member', platformAdmin: false } }),
     buildServer: () => { built++; return build(); }, allowedHosts: [`127.0.0.1:${address.port}`],
     // The sweep tests keep their thirty-minute clock; production's day is the default.
-    now: () => now, idleMs: 30 * 60_000, maxSessions: limits, maxSessionsPerCaller: perCaller };
+    now: () => now, idleMs: 30 * 60_000, maxSessions: limits, maxSessionsPerCaller: perCaller,
+    ...(bodyTimeoutMs !== undefined ? { bodyTimeoutMs } : {}) };
   host = new McpHttpHost(hostOptions);
   return `http://127.0.0.1:${address.port}/mcp`;
 }
@@ -55,34 +56,34 @@ function fragmented(url: string, authorization = 'a') {
   return { req: req!, response };
 }
 const fresh = () => new McpServer({ name: 'test', version: '1' });
-it.each([1, 2])('reserves caller and global capacity before fragmented initialize bodies (limit=%s)', async limit => {
+/*
+ * A body still arriving holds a socket and nothing else: the era of a POST is
+ * read from its body (2026-09-30), so no place is reserved and no server built
+ * until it is complete, and one that does not arrive in time is closed. Until
+ * then the reservation was taken first, which only a 2025-only host could do.
+ */
+it.each([1, 2])('builds nothing for fragmented initialize bodies until they arrive, then holds the ceilings (limit=%s)', async limit => {
   const url = await listen(fresh, limit);
   const first = fragmented(url);
-  await vi.waitFor(() => expect(built).toBe(1));
-  const second = fragmented(url);
-  expect((await second.response).status).toBe(503);
-  second.req.end(initialize.slice(10));
-  expect(built).toBe(1);
-  if (limit === 1) {
-    const other = fragmented(url, 'b');
-    expect((await other.response).status).toBe(503);
-    other.req.end(initialize.slice(10));
-  }
+  const second = fragmented(url, 'b');
+  await new Promise(resolve => setTimeout(resolve, 50));
+  expect(built).toBe(0);
+  expect(host.health()).toMatchObject({ sessions: 0, initializing: 0 });
   first.req.end(initialize.slice(10));
   expect((await first.response).status).toBe(200);
-  expect(host.health().sessions).toBe(1);
+  second.req.end(initialize.slice(10));
+  // At a host ceiling of one, the second caller's opening is refused; at two it has its own.
+  expect((await second.response).status).toBe(limit === 1 ? 503 : 200);
+  expect(host.health().sessions).toBe(limit);
 });
-it('releases invalid and disconnected initialization reservations', async () => {
-  const url = await listen(fresh);
+it('closes a body that does not arrive in time, and answers an unreadable one without building a server', async () => {
+  const url = await listen(fresh, 1, 1, 100);
   const invalid = fragmented(url);
   invalid.req.end('invalid');
   expect((await invalid.response).status).toBe(400);
-  const abandoned = fragmented(url);
-  const closed = abandoned.response.catch(() => undefined);
-  await vi.waitFor(() => expect(built).toBe(2));
-  abandoned.req.destroy();
-  await closed;
-  await new Promise(resolve => setImmediate(resolve));
+  const stalled = fragmented(url);
+  await expect(stalled.response).rejects.toThrow();
+  expect(built).toBe(0);
   const valid = fragmented(url);
   valid.req.end(initialize.slice(10));
   expect((await valid.response).status).toBe(200);
@@ -158,7 +159,7 @@ it('reads the request ceiling from the deployment, refusing a value it cannot ho
 });
 
 it('names the SDK standalone stream id it relies on', () => {
-  const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined }) as unknown as Record<string, unknown>;
+  const transport = new NodeStreamableHTTPServerTransport({ sessionIdGenerator: undefined }) as unknown as Record<string, unknown>;
   const inner = (transport['_webStandardTransport'] ?? transport) as Record<string, unknown>;
   expect(inner['_standaloneSseStreamId']).toBe(STANDALONE_SSE_STREAM_ID);
 });

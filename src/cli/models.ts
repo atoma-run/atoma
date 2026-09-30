@@ -300,7 +300,7 @@ async function add(path: string, catalog: ModelCatalog, target: string | undefin
   const model: CatalogModel = {
     id,
     label,
-    ...(tiers ? { tiers: tiers as CatalogModel['tiers'] } : {}),
+    ...(tiers ? { tiers } : {}),
     ...(aliases && aliases.length > 0 ? { aliases } : {}),
     ...(manual ? { manualPrice: true as const } : {}),
     prices: point ? [point] : [],

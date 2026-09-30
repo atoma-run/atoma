@@ -50,7 +50,7 @@ export function jsonSchemaFromZod(schema: z.ZodType): JsonSchema {
       if (checks.length > 0) throw new Error(`jsonSchemaFromZod: unsupported object check "${checks[0]!.check}"`);
       const properties: Record<string, JsonSchema> = {};
       const required: string[] = [];
-      for (const [key, child] of Object.entries(object.shape as Record<string, z.ZodType>)) {
+      for (const [key, child] of Object.entries(object.shape)) {
         if (child._zod.def.type === 'optional') {
           properties[key] = jsonSchemaFromZod((child as z.ZodOptional).unwrap() as z.ZodType);
         } else {

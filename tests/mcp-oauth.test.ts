@@ -6,7 +6,7 @@ import { AuthStore, type Viewer } from '../src/auth/store.js';
 import { McpOAuth } from '../src/auth/mcpOAuth.js';
 import { issueSession, parseCookieHeader, SESSION_COOKIE } from '../src/auth/sessions.js';
 import { McpHttpHost } from '../src/mcp/http.js';
-import { buildServer } from '../src/mcp/server.js';
+import { mcpHostWiring } from '../src/mcp/server.js';
 import { auth as sdkAuth, type OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js';
 import type { OAuthTokens, OAuthClientInformationMixed } from '@modelcontextprotocol/sdk/shared/auth.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -43,7 +43,7 @@ beforeEach(async () => {
       if (!resolved) return null;
       const { tokenId, ...identity } = resolved;
       return { kind: 'principal', viewer: identity, tokenId };
-    }, buildServer: caller => buildServer(caller, { projects: null, auth, journal: null, operatorRuns: false }) });
+    }, ...mcpHostWiring({ projects: null, auth, journal: null, operatorRuns: false }) });
   server.on('request', (req, res) => {
     void (async () => {
       if (await oauth.handle(req, res, new URL(req.url!, base))) return;

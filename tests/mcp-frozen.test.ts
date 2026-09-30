@@ -1,4 +1,4 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 import { describe, expect, it } from 'vitest';
 import { servableWhileFrozen } from '../src/mcp/frozen.js';
 
@@ -16,7 +16,7 @@ describe('servableWhileFrozen', () => {
   const call = (name: string) => ({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name } });
 
   it('serves the protocol opening, listings, reads and read-only tools', () => {
-    for (const method of ['initialize', 'ping', 'tools/list', 'resources/read', 'prompts/get', 'tasks/get', 'tasks/result']) {
+    for (const method of ['initialize', 'ping', 'tools/list', 'resources/read', 'prompts/get', 'tasks/get', 'tasks/result', 'server/discover', 'subscriptions/listen']) {
       expect(servableWhileFrozen(server, { jsonrpc: '2.0', id: 1, method }), method).toBe(true);
     }
     expect(servableWhileFrozen(server, { jsonrpc: '2.0', method: 'notifications/initialized' })).toBe(true);

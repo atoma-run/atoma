@@ -19,15 +19,17 @@
  * platform tier. Registration is per session, like the tools, so an URI a
  * caller may not read is not merely refused — it is not there.
  *
- * SUBSCRIPTIONS ARE PER SESSION AND DIE WITH IT. The set of subscribed URIs
- * lives on the session's server; the run-finished listeners (this process's
- * operator runs, the journal's `run.finished`/`run.cancelled` rows for project
- * runs) are unhooked when the server closes, so no notification is ever
- * written to a transport that is gone.
+ * SUBSCRIPTIONS, BY ERA. On the 2025 era they are per session and die with
+ * it: the set of subscribed URIs lives on the session's server, and the
+ * run-finished listeners (this process's operator runs, the journal's
+ * `run.finished`/`run.cancelled` rows for project runs) are unhooked when the
+ * server closes, so no notification is ever written to a transport that is
+ * gone. The 2026 era has no session: a client opens `subscriptions/listen`
+ * naming the URIs it follows, and the HTTP host publishes the same two events
+ * onto that stream (`publishResourceEvents`), once for the process.
  */
 
-import { ResourceTemplate, type McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { SubscribeRequestSchema, UnsubscribeRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { ResourceTemplate, type McpServer } from '@modelcontextprotocol/server';
 import { ProjectHttpError } from '../projects/service.js';
 import { tierAllows } from './identity.js';
 import { completeTraceFile, families, runTrace, runsList } from './readers.js';
@@ -63,23 +65,60 @@ function one(value: string | string[] | undefined): string {
   return decodeURIComponent(raw ?? '');
 }
 
+/** What a finished run tells the clients following it, whichever era carries it. */
+export interface ResourceEvents {
+  readonly updated: (uri: string) => void;
+  readonly listChanged: () => void;
+}
+
+/**
+ * The two run-finished sources, turned into resource events: a project run's
+ * `run.finished` / `run.cancelled` journal row, and this process's operator
+ * runs (whose end also writes a trace, so the trace listing changed). Returns
+ * the unhook.
+ */
+export function publishResourceEvents(
+  journal: McpToolContext['deps']['journal'],
+  operatorRuns: boolean,
+  events: ResourceEvents
+): () => void {
+  const cleanups: (() => void)[] = [];
+  const unsubscribe = journal?.subscribe?.((event) => {
+    if (event.kind !== 'run.finished' && event.kind !== 'run.cancelled') return;
+    if (!event.projectId || !event.runId) return;
+    events.updated(projectRunUri(event.projectId, event.runId));
+  });
+  if (unsubscribe) cleanups.push(unsubscribe);
+  if (operatorRuns) {
+    cleanups.push(onRunFinished((record) => {
+      events.updated(operatorRunUri(record.runId));
+      events.listChanged();
+    }));
+  }
+  return () => { for (const cleanup of cleanups.splice(0)) cleanup(); };
+}
+
 export function registerResources(server: McpServer, ctx: McpToolContext): void {
   const subscribed = new Set<string>();
   const cleanups: (() => void)[] = [];
 
   // The subscribe capability is not something the SDK infers from a
   // registration, so it is declared here — before `connect`, which is when
-  // capabilities are frozen. The handlers keep the per-session set; a
-  // notification is sent only for a URI the session asked about.
+  // capabilities are frozen. On the 2026 era it is what makes the SDK honour
+  // `resourceSubscriptions` on a `subscriptions/listen` stream.
   server.server.registerCapabilities({ resources: { subscribe: true, listChanged: true } });
-  server.server.setRequestHandler(SubscribeRequestSchema, ({ params }) => {
-    subscribed.add(params.uri);
-    return {};
-  });
-  server.server.setRequestHandler(UnsubscribeRequestSchema, ({ params }) => {
-    subscribed.delete(params.uri);
-    return {};
-  });
+  if (ctx.era === 'legacy') {
+    // The 2025 handlers keep the per-session set; a notification is sent only
+    // for a URI the session asked about.
+    server.server.setRequestHandler('resources/subscribe', ({ params }) => {
+      subscribed.add(params.uri);
+      return {};
+    });
+    server.server.setRequestHandler('resources/unsubscribe', ({ params }) => {
+      subscribed.delete(params.uri);
+      return {};
+    });
+  }
   const updated = (uri: string): void => {
     if (!subscribed.has(uri)) return;
     void server.server.sendResourceUpdated({ uri }).catch(() => {});
@@ -133,12 +172,6 @@ export function registerResources(server: McpServer, ctx: McpToolContext): void 
         }
       }
     );
-    const unsubscribe = ctx.deps.journal?.subscribe?.((event) => {
-      if (event.kind !== 'run.finished' && event.kind !== 'run.cancelled') return;
-      if (!event.projectId || !event.runId) return;
-      updated(projectRunUri(event.projectId, event.runId));
-    });
-    if (unsubscribe) cleanups.push(unsubscribe);
   }
 
   if (tierAllows(ctx.tier, 'platform') && ctx.deps.operatorRuns) {
@@ -189,13 +222,16 @@ export function registerResources(server: McpServer, ctx: McpToolContext): void 
       },
       (uri, variables) => jsonContents(uri, runStatus({ runId: one(variables['runId']) }))
     );
-    cleanups.push(
-      onRunFinished((record) => {
-        updated(operatorRunUri(record.runId));
-        // A finished run wrote a trace: the trace listing changed for everyone.
-        server.sendResourceListChanged();
-      })
-    );
+  }
+
+  // A 2025 session hears of the runs it subscribed to; on the 2026 era the
+  // host publishes the same events once for the process.
+  if (ctx.era === 'legacy') {
+    cleanups.push(publishResourceEvents(
+      ctx.caller.kind === 'principal' && ctx.deps.projects ? ctx.deps.journal : null,
+      tierAllows(ctx.tier, 'platform') && ctx.deps.operatorRuns,
+      { updated, listChanged: () => server.sendResourceListChanged() }
+    ));
   }
 
   const previous = server.server.onclose;

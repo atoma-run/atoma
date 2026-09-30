@@ -19,11 +19,18 @@ Neighbours:
 
 ## One surface, tiered (decision 2026-09-05)
 
-- ONE MCP, ONE TRANSPORT. Streamable HTTP on `/mcp`, and nothing else. The
-  stdio server is gone: its argument ("no socket the run could reach")
-  described a product installed on the operator's machine, and the product is
-  a deployed server with organisations, principals and a journal. Record and
-  reasoning: [`docs/mcp-one-surface-2026-09-05.md`](../../docs/mcp-one-surface-2026-09-05.md).
+- ONE MCP, ONE ROUTE, TWO PROTOCOL ERAS. Streamable HTTP on `/mcp`, and
+  nothing else. The stdio server is gone: its argument ("no socket the run
+  could reach") described a product installed on the operator's machine, and
+  the product is a deployed server with organisations, principals and a
+  journal ([`docs/mcp-one-surface-2026-09-05.md`](../../docs/mcp-one-surface-2026-09-05.md)).
+  Since 2026-09-30 the route answers protocol 2025-11-25 (a session per
+  `initialize`) AND 2026-07-28 (no session, a server per request through the
+  SDK's `createMcpHandler`); `isLegacyRequest` decides, and a request naming a
+  session is 2025. The 2025 era stays whole — sessions, replay, tasks,
+  subscriptions, the run log — because the clients in use still speak it
+  (`health().clients` counts who speaks what): see
+  [`docs/mcp-two-eras-2026-09-30.md`](../../docs/mcp-two-eras-2026-09-30.md).
   Do not add a second transport for a special case; make the case a tier.
 - THE CATALOGUE IS ONE TABLE (`tools.ts#MCP_TOOLS`): every tool names its
   MINIMUM TIER and what it NEEDS from the host. `tools/list` for a caller,
@@ -49,7 +56,8 @@ Neighbours:
   login (`atoma_subscription_delegates`, the third door onto
   [src/auth](../auth/AGENTS.md)'s one body). A platform admin READS every
   organisation and WRITES only in its active one, exactly as the HTTP routes.
-- ONE SESSION, ONE SERVER, ONE CALLER (`http.ts`). `initialize` authenticates
+- ONE SESSION, ONE SERVER, ONE CALLER on the 2025 era (`http.ts`); a 2026
+  request has no session and is authenticated and served on its own. `initialize` authenticates
   the caller and builds a server holding exactly their tools; every later
   request must present the same caller or the session ends with a 401. Hiding
   a tool is therefore never the only guard: a revoked or demoted token cannot
@@ -67,8 +75,10 @@ Neighbours:
   `MCP_MAX_SESSIONS_PER_CALLER` loses its OWN stalest session, and the host's
   `MCP_MAX_SESSIONS` backstop answers 503. Both are counted in `health()`, so
   a client re-initialising in a loop is visible rather than merely survived.
-  Initializations reserve both ceilings before allocation; a caller whose
-  slots are all pending receives 503. Incomplete bodies expire after 30s.
+  A POST body is read before anything is reserved or built (its era is in
+  it), and one that has not arrived in `MCP_BODY_TIMEOUT_MS` (30s) is closed;
+  an `initialize` then reserves both ceilings before allocation, and a caller
+  whose slots are all pending receives 503.
   A call still ANSWERING — a POST, or the GET resuming with `Last-Event-ID`
   the stream of a call whose response is still owed — pins its session
   against the idle sweep AND against `reclaim`, which then answers 503 rather
@@ -80,8 +90,10 @@ Neighbours:
 - UNDER A DEPLOYMENT'S WRITE FREEZE a message is judged by what it DOES
   (`frozen.ts`), since every MCP message is a POST: the opening, pings,
   notifications, listings, reads, a task's status or result and a `tools/call`
-  of a tool registered `readOnlyHint: true` are served; anything else, and a
-  body over 1 MiB or not JSON, waits with the freeze's 503. Until 2026-09-28
+  of a tool registered `readOnlyHint: true` are served — on 2026 also
+  `server/discover` and `subscriptions/listen`, judged against a server built
+  for the caller; anything else, and a body over 1 MiB or not JSON, waits with
+  the freeze's 503. Until 2026-09-28
   every MCP POST was refused for the minute of an activation. OAuth routes
   stay frozen: they write identities.
 - IDENTITY. Gated: `Authorization: Bearer atoma_…`, an API token a principal
@@ -91,11 +103,11 @@ Neighbours:
   are `token.created` / `token.revoked` journal rows. Ungated: the caller is
   the operator, by possession of the machine, as for the CLI; there is no
   token to present and no organisation to act in.
-- HOST IS PINNED, AND ORIGIN BESIDE IT. The transport's DNS-rebinding
-  protection carries `allowedHosts` — the public origin's host (gated) or the
+- HOST IS PINNED, AND ORIGIN BESIDE IT, for both eras by the host itself
+  (`admitted`: the SDK's 2026 handler checks neither). `allowedHosts` — the public origin's host (gated) or the
   loopback host:port (ungated) — which is the control that defeats rebinding:
   a page on an attacker domain still sends that domain as Host. `allowedOrigins`
-  pins the Origin, and the SDK checks it ONLY when the header is present, so a
+  pins the Origin, checked ONLY when the header is present, so a
   CLI client that sends none is untouched. Say which does what: Origin is
   defence in depth, since nothing here emits CORS headers and MCP's required
   headers are not CORS-safelisted, so a cross-origin page never gets past a
@@ -173,78 +185,81 @@ Neighbours:
   without creating product project rows. Operator guide:
   [benchmark MCP integration](../../docs/benchmark-mcp-viz-2026-09-09.md).
 
-- BOTH START TOOLS ARE MCP TASKS (spec 2025-11-25, SDK experimental
-  `registerToolTask`): `atoma_run_start` (member) and
-  `atoma_operator_run_start` (platform) answer a task-augmented call with a
-  task id; `tasks/get` reports `working` with a status line, `tasks/result`
-  blocks until the terminal result — the status tool's payload — and
-  `tasks/cancel` cancels the run. There is NO "start, then poll" contract and
-  NO long-poll: the status tools are plain readers, and a host that wants to
-  follow a run drives the task, subscribes to the run's resource, or reads the
-  run log. The `waitMs` long-poll and its `notifications/progress` were
-  removed on 2026-09-07, the day the tasks landed, so that one contract exists.
-- `taskSupport: 'optional'` is the SPEC'S fallback, not a second contract: a
-  host that does not augment the call gets the SDK's own drive and the
-  terminal result when the run ends — a synchronous call, minutes long, over
-  the SSE stream that keeps alive and replays. A refused start is a task that
-  fails at once, never a hung call. A caller that sent a `progressToken` hears
-  `notifications/progress` with the run's status line at once and every 30s
-  (`requestHeartbeat`): the SDK's drive is silent, and Claude Code aborts a
-  call with "no response or progress for 300s" while the run carries on
-  (2026-09-26). This is the protocol's liveness for ONE open call, not the
-  removed `waitMs` channel: no token, no notification, and it stops at the
-  first send that fails.
+- THE START TOOLS ARE MCP TASKS on both eras (`tasks.ts` holds the model,
+  `taskWire.ts` each wire; SDK v2 has no task runtime). 2025-11-25: a
+  `tools/call` carrying `task` answers `{task}`; `tasks/get` reports
+  `working` with a status line, `tasks/result` blocks until the terminal
+  result — the status tool's payload —, `tasks/cancel` cancels the run and
+  `tasks/list` lists; the capability is `tasks`, and the start tools list
+  `execution.taskSupport: 'optional'`. 2026-07-28: a request declaring
+  `io.modelcontextprotocol/tasks` on its capabilities gets `{resultType:
+  'task'}`; `tasks/get` answers WITH the result inline, `tasks/cancel` and
+  `tasks/update` acknowledge, fields are `ttlMs`/`pollIntervalMs`, and since
+  `failed` means a JSON-RPC error there, a run that ended — even badly — is
+  `completed` with the payload that says how. The SDK refuses `tasks/*` on
+  that era before any handler runs, so the HTTP host answers them
+  (`answerModernTaskRequest`); and since the callback the SDK gives a tool
+  never sees `params.task`, the task path of `tools/call` wraps the handler
+  its `McpServer` installed (`installTaskProtocol`). There is NO "start, then
+  poll" contract and NO long-poll: the status tools are plain readers. The
+  `waitMs` long-poll and its `notifications/progress` went on 2026-09-07.
+- WITHOUT A TASK the start is a synchronous call (`runSynchronously`): the
+  terminal result when the run ends, minutes later. A refused start is a task
+  that fails at once, never a hung call. A caller that sent a `progressToken`
+  hears `notifications/progress` with the run's status line at once and every
+  30s (`requestHeartbeat`): Claude Code aborts a call with "no response or
+  progress for 300s" while the run carries on (2026-09-26). No token, no
+  notification; it stops at the first send that fails, and a call the client
+  cancels stops waiting while its run goes on.
 - `atoma_run_start.acceptanceCriteria` takes one criterion per ENTRY in the
   console's line grammar (`parseChecklistLines`), not the structured shape: one
   grammar for every human entry point, and a JSON Schema free of transforms.
   An entry that does not parse to exactly one criterion fails the task before
   the service is called.
-- `createTask` calls the very start the HTTP routes call (`startRun`,
-  `startProjectRunFromInput`), and the cancel hook calls the cancel tool's
-  body (`cancelRun`, `cancelProjectRun`). The operator watcher turns each
-  output chunk into the status line (bounded, marked untrusted) and the run's
-  end into the result.
+- A start calls the very start the HTTP routes call (`startRun`,
+  `startProjectRunFromInput`), and cancelling calls the cancel tool's body
+  (`cancelRun`, `cancelProjectRun`). The operator watcher turns each output
+  chunk into the status line (bounded, marked untrusted; the progress line
+  carries the chunk count only) and the run's end into the result.
 - A PROJECT RUN'S TASK IS THE RUN (`ProjectRunTasks`, 2026-09-30). Its id is
-  `project-run:<projectId>:<projectRunId>`, and `tasks/get`, `tasks/result`
-  and `tasks/cancel` read and cancel the run through `ProjectService` on every
-  call; nothing of it is in memory, so it answers in a new session, after a
-  restart, after a sweep or an eviction. It is BOUND to its authorization
+  `project-run:<projectId>:<projectRunId>`, and every task request, on either
+  era, reads or cancels the run through `ProjectService`; nothing of it is in
+  memory, so it answers in any session, in a session-less 2026 request, after
+  a restart. It is BOUND to its authorization
   context: the run's `orgId` and `requestedByPrincipalId` must be the
-  session's viewer's, or the answer is the "not found" of an unknown id — an
+  caller's viewer's, or the answer is the "not found" of an unknown id — an
   org member who may read the run through `atoma_run_status` still cannot
   follow or cancel another principal's task, and a missing field fails
   closed. The TTL it reports is the coordinator's preparation + run +
   hard-backstop budget plus `TASK_RESULT_GRACE_MS`, and like the SDK's store
   it keeps a task one TTL after the run ENDS, then answers "not found".
-  `tasks/list` leads with exactly the tasks `tasks/get` answers (the spec's
+  The 2025 `tasks/list` names exactly the tasks a read answers (the spec's
   MUST) — the principal's live runs and those ended within a TTL, read through
-  `ProjectService.runsRequestedBy`, at most 50 — then the memory page. A run
-  the console started is that principal's task too. The store refuses to
-  write such a task (`storeTaskResult`, any status but `cancelled`). The only
-  poll left is the heartbeat's, while a caller waits without augmentation. A
-  refusal before a run exists stays an in-memory task that fails at once.
-  Operator runs die with this process (below), so theirs would be a durable
-  id for a dead run: not done.
-- THE SDK'S `tasks/cancel` ONLY FLIPS THE STORE. `SessionTaskStore` wraps the
-  SDK's in-memory store and intercepts the transition to `cancelled` to reach
-  the run. A cancelled operator task has no result by the SDK's rule (a
-  result is stored once, never on a terminal task); its last word is
-  `tasks/get`, and the run's own final status stays readable through the
-  status tool. A project task is `cancelled` once its run is, whichever door
-  cancelled it, with the status payload as its result. The spec wants it
+  `ProjectService.runsRequestedBy`, at most 50 — then its in-memory ones. A
+  run the console started is that principal's task too. Nothing polls it but
+  a synchronous start waiting on it. A refusal before a run exists is an
+  in-memory task that fails at once. Operator runs die with this process
+  (below), so theirs would be a durable id for a dead run: not done.
+- CANCELLING: an in-memory task turns `cancelled` at once and reaches its
+  run, and its result is the run's status as it then is; a project task is
+  `cancelled` once its run is, whichever door cancelled it, with the status
+  payload as its result. The 2025 spec wants it
   `cancelled` BEFORE the answer to `tasks/cancel` and for good, while the run
   lands only once its abort is through (or otherwise, if too late): the
   process remembers the cancelled task ids (bounded, after the binding check),
   and a restart forgets them, after which the run's final status speaks.
-- OPERATOR AND BENCHMARK TASKS LIVE WITH THE SESSION, like the event ring and
-  the subscriptions: the store is per server. Watchers are unhooked in
-  `onclose`. A restart forgets those task ids, never the runs' evidence.
-- THE TRANSPORT ANSWERS ON SSE, NEVER PLAIN JSON. `enableJsonResponse` makes
+- OPERATOR AND BENCHMARK TASKS, AND REFUSALS, LIVE IN THIS PROCESS'S MEMORY
+  (`MEMORY_TASKS`), bound to their caller (`callerKey`), not to a session: the
+  2026 era has none, and a 2025 client that reconnects keeps them. A finished
+  one is swept one ttl after it ends. A restart forgets them, never the runs'
+  evidence.
+- THE 2025 TRANSPORT ANSWERS ON SSE, NEVER PLAIN JSON. `enableJsonResponse` makes
   the SDK drop every notification related to a request (measured 2026-09-07:
   0 of 3 delivered), and the standalone stream is what carries the run log and
   the resource updates. A script reading `/mcp` by hand parses SSE frames
   (`scripts/release-smoke.mjs#readResponseFrame`).
-- EVERY FRAME IS REPLAYABLE. Each session's transport holds a
+- EVERY 2025 FRAME IS REPLAYABLE (the 2026 era dropped resumability: a cut
+  request is re-sent, which is what tasks are for). Each session's transport holds a
   `SessionEventStore` (`eventStore.ts`): a bounded in-memory ring that stamps
   frames with ids so a client cut mid-call reconnects with `Last-Event-ID`
   and receives the frames it missed, the response included. The ring dies
@@ -257,7 +272,8 @@ Neighbours:
   stream, oldest first. The ring is bounded by BOTH a frame count and a byte
   budget, because a log frame carries the child's chunk verbatim and a pipe
   read is up to 64 KiB — the count alone is not a memory bound.
-- THE RUN LOG: the server declares `logging`, and the session that started an
+- THE RUN LOG, 2025 only (logging is deprecated in 2026 and has no session
+  stream there; the task's status line is the run's voice): the server declares `logging`, and the session that started an
   operator run receives each output chunk as `notifications/message` (`info`,
   logger `atoma.run.<runId>`, `untrusted: true`) and one `notice` when it
   ends. Only runs the session started are followed; the SDK filters by the
@@ -276,7 +292,7 @@ Neighbours:
   `atoma://operator-runs/{runId}` through `runStatus`, `atoma://projects/
   {projectId}/runs/{runId}` through `ProjectService.projectRunStatus`,
   `atoma://families` through `families`. A URI carries no way to ask for more.
-- Registration follows the tools' tiers and needs, per session: the operator
+- Registration follows the tools' tiers and needs, per server: the operator
   corpus only at the platform tier on a host with `operatorRuns`, a project
   run only for a principal on a host with organisations. Listings are menus,
   capped at `RESOURCE_LIST_LIMIT`; the trace template completes over
@@ -287,7 +303,11 @@ Neighbours:
   finished operator run also sends `list_changed` (a new trace exists). The
   listeners are unhooked in the server's `onclose`, so nothing is ever written
   to a transport that is gone. The capability is declared BEFORE `connect`
-  (`registerCapabilities`), which is when the SDK freezes it.
+  (`registerCapabilities`), which is when the SDK freezes it. On 2026 a
+  client names the URIs it follows on `subscriptions/listen`; the host
+  publishes the same events once for the process onto the SDK's bus
+  (`publishResourceEvents`), which delivers each to the listeners that named
+  its URI — as on 2025, a URI is not checked against the caller's tier.
 
 ## Operator writes (`writes.ts`)
 
@@ -435,6 +455,15 @@ Neighbours:
   lose. The host ceiling refuses, because there the cost falls on everyone.
   The one refusal at the caller's ceiling is when EVERY one of its sessions is
   answering a call: dropping one would cut a call in flight, not a leak.
+- Serving 2025 clients through the SDK v2 default (`legacy: 'stateless'`)
+  was rejected (2026-09-30): a stateless 2025 server has no session, so no
+  replay ring, no subscriptions, no run log and no GET stream, for the clients
+  that actually connect. The 2025 era keeps its sessionful transport until
+  `health().clients` says it is no longer spoken; then it goes, with its text.
+- Reserving a session's place before reading a POST body was the old order:
+  the era is in the body, and reserving for every session-less POST would
+  count a 2026 client's concurrent requests against session ceilings. A body
+  still arriving holds a socket, never a place or a server, for 30s at most.
 - Keeping stdio "for local development" was considered and dropped
   (2026-09-05): `npm run viz` already serves loopback ungated, so the local
   MCP is the same URL on `127.0.0.1`, and a second transport was code kept

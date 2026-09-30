@@ -1,5 +1,4 @@
-import type { EventStore, EventId, StreamId } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import type { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
+import type { EventId, EventStore, JSONRPCMessage, StreamId } from '@modelcontextprotocol/server';
 
 /**
  * THE REPLAY BUFFER BEHIND ONE SESSION'S SSE STREAMS.

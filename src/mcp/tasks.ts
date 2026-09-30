@@ -1,7 +1,5 @@
-import { InMemoryTaskStore } from '@modelcontextprotocol/sdk/experimental/tasks';
-import type { CreateTaskOptions, TaskRequestHandlerExtra, TaskStore, ToolTaskHandler } from '@modelcontextprotocol/sdk/experimental/tasks';
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { CallToolResult, Request, RequestId, Result, Task } from '@modelcontextprotocol/sdk/types.js';
+import { randomBytes } from 'node:crypto';
+import type { CallToolResult, McpServer, ServerContext } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { retrievalRegistrationSchema } from '../contracts/retrievalCampaign.js';
 import { MAX_CHECKLIST_ITEMS, parseChecklistLines } from '../contracts/acceptanceChecklist.js';
@@ -21,143 +19,62 @@ import {
 } from './run.js';
 
 /**
- * RUNS ARE MCP TASKS (spec 2025-11-25, SDK experimental).
+ * RUNS ARE MCP TASKS, in both protocol eras.
  *
  * A run takes minutes. A TASK is the protocol's own name for that shape: the
  * tool call answers with a task id, `tasks/get` reports `working` with a
- * status line, `tasks/result` blocks until the terminal result, `tasks/cancel`
- * stops the work. Both start tools ARE tasks; there is no separate "start,
- * then poll" contract and no long-poll — a host that speaks tasks needs no
- * atoma-specific polling logic, and the status tools are plain readers.
+ * status line, and the terminal state carries the result — the status tool's
+ * payload. The three start tools ARE tasks; there is no separate "start, then
+ * poll" contract and no long-poll, and the status tools are plain readers.
  *
- * WHAT A TASK IS HERE. `createTask` calls the very `startRun` /
- * `startProjectRunFromInput` the HTTP routes call, the run is the same record
- * in `run.ts` or the same row in the tenant store, and the result is the same
- * status payload the status tool answers. Cancelling the task cancels the run
- * through the same `cancelRun` / `cancelProjectRun` the cancel tools use.
+ * TWO WIRES, ONE MODEL. The 2025-11-25 era carries tasks in the core protocol
+ * (`task` on `tools/call`, `tasks/get|result|cancel|list`, `ttl`,
+ * `pollInterval`); the 2026-07-28 era moved them to the
+ * `io.modelcontextprotocol/tasks` extension (`resultType: 'task'`, `tasks/get`
+ * with the result inline, `tasks/cancel`, `ttlMs`, `pollIntervalMs`, no
+ * `tasks/result` and no `tasks/list`). The SDK v2 implements neither
+ * (`registerToolTask` and its stores were removed), so the model is here —
+ * `TaskState`, `CallerTasks` — and `taskWire.ts` speaks it on each wire.
+ *
+ * WHAT A TASK IS HERE. A start calls the very `startRun` /
+ * `startProjectRunFromInput` the HTTP routes call; the run is the same record
+ * in `run.ts` or the same row in the tenant store; the result is the status
+ * tool's payload; cancelling calls the cancel tools' bodies.
  *
  * A PROJECT RUN'S TASK IS THE RUN. Its id names the run
- * (`project-run:<projectId>:<projectRunId>`), and `tasks/get`, `tasks/result`
- * and `tasks/cancel` read and cancel it through the tenant store, where the
- * run's truth lives. Nothing about it is held in memory, so the id outlives
- * the session that minted it: a new session, a restart, an evicted or swept
- * session all answer it. It is bound to its authorization context — the
- * principal that started the run, in the organisation of the token — and
- * answers "not found" to anyone else, exactly as for an id that never existed.
+ * (`project-run:<projectId>:<projectRunId>`), and every read goes to the
+ * tenant store, where the run's truth lives. Nothing about it is held in
+ * memory, so it answers in any session and after a restart. It is bound to
+ * the authorization context that started it — that principal, in the
+ * organisation of the token — and answers "not found" to anyone else, as an
+ * unknown id does.
  *
- * OPERATOR AND BENCHMARK TASKS LIVE WITH THE SESSION. Their store is in
- * memory and per session: the operator run is a child of this process and
- * dies with it, so a restart forgets the task ids and the runs stay
- * reachable by run id through the status tools and the resources. A task's
- * `ttl` is the run's timeout plus a margin, so a host that comes back late
- * still finds the result.
+ * OPERATOR AND BENCHMARK TASKS, and refusals, live in this process's memory
+ * (`MEMORY_TASKS`), bound to the caller that created them: the operator run is
+ * a child of this process and dies with it, so a restart forgets those ids and
+ * the runs stay reachable through the status tools and the resources. The
+ * 2026 era has no session to hang them on, so they belong to the caller, not
+ * to a session.
  *
- * THE SDK'S CANCEL ONLY FLIPS THE STORE. `tasks/cancel` marks the task
- * cancelled and nothing more; the store here intercepts that transition and
- * cancels the run behind it. A cancelled task has no result by the SDK's own
- * rule (results are stored once, never on a terminal task), so its final
- * word is `tasks/get`, and the run's own final status stays readable through
- * the status tool.
- *
- * `taskSupport: 'optional'` is the SPEC'S fallback, not a second contract: a
- * host that does not augment the call gets the SDK's own drive and the
- * terminal result when the run ends — a synchronous run, minutes long, over a
- * stream that keeps alive and replays.
+ * WITHOUT TASK AUGMENTATION the start is a synchronous call: it answers with
+ * the terminal result when the run ends, and a caller that sent a
+ * `progressToken` hears the run's status line at once and every 30s.
  */
 
-/** Retention margin added to the run budget; the SDK renews the full TTL at terminal. */
+/** Retention margin added to the run budget; a finished task is kept one ttl after it ends. */
 export const TASK_RESULT_GRACE_MS = 10 * 60 * 1000;
-/** How often `tasks/result` re-checks a working task, and how often the project watcher reads the store. */
+/** The poll interval a task suggests, and how often a synchronous start re-reads its task. */
 export const TASK_POLL_INTERVAL_MS = 2_000;
 /** The status line is model output; it is bounded like every tail. */
 const STATUS_LINE_CHARS = 200;
 
-/**
- * The SDK's in-memory store with TWO additions: a hook on the transition to
- * `cancelled`, so `tasks/cancel` reaches the run; and the project run tasks,
- * which are not stored here at all but answered by `ProjectRunTasks` from the
- * tenant store. Everything else is the reference behaviour — ids, ttl sweeps,
- * the once-only result. The SDK's ids are 32 hex characters, so they never
- * carry the project prefix and the two kinds cannot collide.
- */
-export class SessionTaskStore implements TaskStore {
-  private readonly inner = new InMemoryTaskStore();
-  private readonly cancelHooks = new Map<string, () => void>();
-  private projectRuns: ProjectRunTasks | null = null;
-
-  onCancel(taskId: string, hook: () => void): void {
-    this.cancelHooks.set(taskId, hook);
-  }
-
-  /** Set by `atoma_run_start`'s registration: a session without it answers no project run task. */
-  answerProjectRuns(source: ProjectRunTasks): void {
-    this.projectRuns = source;
-  }
-
-  createTask(taskParams: CreateTaskOptions, requestId: RequestId, request: Request, sessionId?: string): Promise<Task> {
-    return this.inner.createTask(taskParams, requestId, request, sessionId);
-  }
-
-  async getTask(taskId: string, sessionId?: string): Promise<Task | null> {
-    if (isProjectRunTaskId(taskId)) return this.projectRuns?.task(taskId) ?? null;
-    return this.inner.getTask(taskId, sessionId);
-  }
-
-  async storeTaskResult(taskId: string, status: 'completed' | 'failed', result: Result, sessionId?: string): Promise<void> {
-    if (isProjectRunTaskId(taskId)) throw new Error(`Task ${taskId} follows its run; its result is the run's status`);
-    await this.inner.storeTaskResult(taskId, status, result, sessionId);
-    this.cancelHooks.delete(taskId);
-  }
-
-  async getTaskResult(taskId: string, sessionId?: string): Promise<Result> {
-    if (isProjectRunTaskId(taskId)) {
-      if (!this.projectRuns) throw new Error(`Task with ID ${taskId} not found`);
-      return this.projectRuns.result(taskId);
-    }
-    return this.inner.getTaskResult(taskId, sessionId);
-  }
-
-  async updateTaskStatus(taskId: string, status: Task['status'], statusMessage?: string, sessionId?: string): Promise<void> {
-    if (isProjectRunTaskId(taskId)) {
-      if (!this.projectRuns) throw new Error(`Task with ID ${taskId} not found`);
-      if (status !== 'cancelled') throw new Error(`Task ${taskId} follows its run; only cancellation reaches it`);
-      await this.projectRuns.cancel(taskId);
-      return;
-    }
-    await this.inner.updateTaskStatus(taskId, status, statusMessage, sessionId);
-    if (status === 'cancelled') {
-      const hook = this.cancelHooks.get(taskId);
-      this.cancelHooks.delete(taskId);
-      hook?.();
-    }
-  }
-
-  /** The caller's project run tasks lead the first page; the memory store's pages follow under its own cursor. */
-  async listTasks(cursor?: string, sessionId?: string): Promise<{ tasks: Task[]; nextCursor?: string }> {
-    const page = await this.inner.listTasks(cursor, sessionId);
-    if (cursor !== undefined || !this.projectRuns) return page;
-    return { ...page, tasks: [...this.projectRuns.list(), ...page.tasks] };
-  }
-
-  /** Clears the ttl timers; called when the session's server closes. */
-  close(): void {
-    this.inner.cleanup();
-    this.cancelHooks.clear();
-  }
-}
-
-/** The capability a server declares to accept task-augmented `tools/call`, and to list and cancel. */
-export const TASKS_CAPABILITY = { list: {}, cancel: {}, requests: { tools: { call: {} } } } as const;
-
-type ToolResult = CallToolResult;
-
-function jsonResult(payload: unknown): ToolResult {
+export function jsonResult(payload: unknown): CallToolResult {
   const structured =
     payload !== null && typeof payload === 'object' && !Array.isArray(payload) ? { structuredContent: payload as Record<string, unknown> } : {};
   return { content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }], ...structured };
 }
 
-function errorResult(message: string): ToolResult {
+function errorResult(message: string): CallToolResult {
   return { content: [{ type: 'text', text: message }], isError: true };
 }
 
@@ -167,41 +84,203 @@ function statusLine(prefix: string, tail: string): string {
   return line.length > 0 ? `${prefix} — untrusted model output: ${line}` : prefix;
 }
 
-/** Fire-and-forget store updates: a task that vanished (ttl, cancel) must never throw into a listener. */
-function quietly(work: () => Promise<unknown>): void {
-  void work().catch(() => {});
+/* ----------------------------------------------------------------- model */
+
+export type TaskStatus = 'working' | 'input_required' | 'completed' | 'failed' | 'cancelled';
+
+/**
+ * One task, era-neutral. `ttl` and `pollInterval` are milliseconds; the 2026
+ * wire renames them `ttlMs` / `pollIntervalMs`. `progress` is the status line
+ * WITHOUT model output, for the progress heartbeat.
+ */
+export interface TaskState {
+  readonly taskId: string;
+  readonly status: TaskStatus;
+  readonly statusMessage?: string;
+  readonly createdAt: string;
+  readonly lastUpdatedAt: string;
+  readonly ttl: number | null;
+  readonly pollInterval: number;
+  readonly progress?: string;
 }
+
+export function isTerminal(status: TaskStatus): boolean {
+  return status === 'completed' || status === 'failed' || status === 'cancelled';
+}
+
+/** Not found, for an id that never existed and for one this caller may not follow alike. */
+export class TaskNotFound extends Error {
+  constructor(taskId: string) {
+    super(`Task not found: ${taskId}`);
+  }
+}
+
+/** A cancellation the task cannot take: terminal already, or refused by the run's own cancel. */
+export class TaskCancelRefused extends Error {}
+
+interface MemoryTask {
+  state: TaskState;
+  readonly owner: string;
+  result?: CallToolResult;
+  /** The result of a task cancelled before it stored one: the run's status now. */
+  resultNow?: () => CallToolResult;
+  onCancel?: () => void;
+  sweep?: NodeJS.Timeout;
+}
+
+/** How many tasks this process remembers at most; past it the oldest finished one goes first. */
+const MAX_MEMORY_TASKS = 10_000;
+
+/**
+ * The in-memory tasks: ids are 32 hex characters (never the project prefix),
+ * each bound to its owner (`callerKey`), swept one `ttl` after it ends — the
+ * SDK v1 store's rule, which renewed the ttl at the terminal transition.
+ */
+export class MemoryTasks {
+  private readonly tasks = new Map<string, MemoryTask>();
+
+  create(owner: string, options: { readonly ttl: number; readonly pollInterval: number; readonly statusMessage?: string }): TaskState {
+    const taskId = randomBytes(16).toString('hex');
+    const now = new Date().toISOString();
+    const entry: MemoryTask = {
+      owner,
+      state: {
+        taskId, status: 'working', createdAt: now, lastUpdatedAt: now, ttl: options.ttl, pollInterval: options.pollInterval,
+        ...(options.statusMessage ? { statusMessage: options.statusMessage, progress: options.statusMessage } : {}),
+      },
+    };
+    this.tasks.set(taskId, entry);
+    this.sweepAfter(entry, options.ttl);
+    this.bound();
+    return entry.state;
+  }
+
+  private sweepAfter(entry: MemoryTask, ms: number): void {
+    if (entry.sweep) clearTimeout(entry.sweep);
+    entry.sweep = setTimeout(() => this.tasks.delete(entry.state.taskId), ms);
+    entry.sweep.unref();
+  }
+
+  private bound(): void {
+    if (this.tasks.size <= MAX_MEMORY_TASKS) return;
+    for (const [taskId, entry] of this.tasks) {
+      if (!isTerminal(entry.state.status)) continue;
+      if (entry.sweep) clearTimeout(entry.sweep);
+      this.tasks.delete(taskId);
+      if (this.tasks.size <= MAX_MEMORY_TASKS) return;
+    }
+  }
+
+  private entry(owner: string, taskId: string): MemoryTask | null {
+    const entry = this.tasks.get(taskId);
+    return entry && entry.owner === owner ? entry : null;
+  }
+
+  get(owner: string, taskId: string): TaskState | null {
+    return this.entry(owner, taskId)?.state ?? null;
+  }
+
+  /** A working task's new status line; ignored once the task is terminal. */
+  update(taskId: string, statusMessage: string, progress?: string): void {
+    const entry = this.tasks.get(taskId);
+    if (!entry || isTerminal(entry.state.status)) return;
+    entry.state = { ...entry.state, statusMessage, progress: progress ?? statusMessage, lastUpdatedAt: new Date().toISOString() };
+  }
+
+  /** The once-only result. A cancelled task keeps its status and takes the result as its last word. */
+  finish(taskId: string, status: 'completed' | 'failed', result: CallToolResult): void {
+    const entry = this.tasks.get(taskId);
+    if (!entry || entry.result) return;
+    entry.result = result;
+    if (entry.state.status === 'cancelled') return;
+    entry.state = { ...entry.state, status, lastUpdatedAt: new Date().toISOString() };
+    if (entry.state.ttl !== null) this.sweepAfter(entry, entry.state.ttl);
+  }
+
+  onCancel(taskId: string, hook: () => void, resultNow?: () => CallToolResult): void {
+    const entry = this.tasks.get(taskId);
+    if (!entry) return;
+    entry.onCancel = hook;
+    if (resultNow) entry.resultNow = resultNow;
+  }
+
+  cancel(owner: string, taskId: string): TaskState {
+    const entry = this.entry(owner, taskId);
+    if (!entry) throw new TaskNotFound(taskId);
+    if (isTerminal(entry.state.status)) throw new TaskCancelRefused(`Cannot cancel task in terminal status: ${entry.state.status}`);
+    entry.state = { ...entry.state, status: 'cancelled', statusMessage: 'Client cancelled task execution.', lastUpdatedAt: new Date().toISOString() };
+    if (entry.state.ttl !== null) this.sweepAfter(entry, entry.state.ttl);
+    const hook = entry.onCancel;
+    entry.onCancel = undefined;
+    hook?.();
+    return entry.state;
+  }
+
+  /** The final result, or null while the task is working. */
+  result(owner: string, taskId: string): CallToolResult | null {
+    const entry = this.entry(owner, taskId);
+    if (!entry) throw new TaskNotFound(taskId);
+    if (!isTerminal(entry.state.status)) return null;
+    return entry.result ?? entry.resultNow?.() ?? errorResult('the task was cancelled before it produced a result');
+  }
+
+  list(owner: string): TaskState[] {
+    return [...this.tasks.values()].filter((entry) => entry.owner === owner).map((entry) => entry.state).reverse();
+  }
+
+  forgetAll(): void {
+    for (const entry of this.tasks.values()) if (entry.sweep) clearTimeout(entry.sweep);
+    this.tasks.clear();
+  }
+}
+
+export const MEMORY_TASKS = new MemoryTasks();
+
+/** Tests only: a fresh process's task memory. */
+export function forgetTasksForTest(): void {
+  MEMORY_TASKS.forgetAll();
+  CANCEL_REQUESTED.clear();
+}
+
+/* ------------------------------------------------------------- heartbeat */
 
 /** How often a caller waiting on a run hears that it is alive. */
 export const PROGRESS_HEARTBEAT_MS = 30_000;
+const HEARTBEAT_MIN_GAP_MS = 5_000;
+
+/** Where a call's progress goes: its token, its abort signal, its own stream. */
+export interface ProgressChannel {
+  readonly progressToken?: string | number;
+  readonly signal?: AbortSignal;
+  readonly notify: (notification: { method: 'notifications/progress'; params: { progressToken: string | number; progress: number; message?: string } }) => Promise<void>;
+}
+
+/** The progress channel of one v2 request, in either era. */
+export function progressChannelOf(ctx: ServerContext): ProgressChannel {
+  const token = (ctx.mcpReq._meta as { progressToken?: string | number } | undefined)?.progressToken;
+  return {
+    ...(token !== undefined ? { progressToken: token } : {}),
+    signal: ctx.mcpReq.signal,
+    notify: (notification) => ctx.mcpReq.notify(notification),
+  };
+}
 
 /**
  * `notifications/progress` for the caller that asked for them with a
- * `progressToken`. A call WITHOUT task augmentation is one response the
- * client waits minutes for, and the SDK's automatic polling says nothing
- * meanwhile: Claude Code gives up on a server that sends "no response or
+ * `progressToken`. A synchronous start is one response the client waits
+ * minutes for: Claude Code gives up on a server that sends "no response or
  * progress for 300s" while the run it started carries on (production
  * 2026-09-26, every run past five minutes). The heartbeat sends the run's
- * current status line at once and every `everyMs`; it stops with the run,
- * with the session, when the caller cancels the call, and at the first send
- * that fails — the stream is gone.
- *
- * NOT for a task-augmented call: its tools/call is answered at once with the
- * task, the SDK then drops that request's stream, and a later heartbeat has
- * nowhere to go. Such a host follows `tasks/get` / `tasks/result`; carrying
- * progress on the `tasks/result` stream is not built.
+ * current status line at once and every `everyMs`; it stops with the run, when
+ * the caller cancels the call, and at the first send that fails — the stream
+ * is gone. No token, no notification.
  */
 export function requestHeartbeat(
-  extra: {
-    readonly _meta?: { readonly progressToken?: string | number };
-    readonly taskRequestedTtl?: number | null;
-    readonly signal?: AbortSignal;
-    readonly sendNotification: (notification: { method: 'notifications/progress'; params: { progressToken: string | number; progress: number; message?: string } }) => Promise<void>;
-  },
+  channel: ProgressChannel,
   everyMs: number
 ): { readonly note: (message: string) => void; readonly stop: () => void; readonly alive: () => boolean } {
-  const token = extra._meta?.progressToken;
-  if (token === undefined || extra.taskRequestedTtl !== undefined) return { note: () => {}, stop: () => {}, alive: () => false };
+  const token = channel.progressToken;
+  if (token === undefined) return { note: () => {}, stop: () => {}, alive: () => false };
   let alive = true;
   let progress = 0;
   let message = '';
@@ -210,7 +289,7 @@ export function requestHeartbeat(
     if (!alive) return;
     progress += 1;
     sentAt = Date.now();
-    void extra.sendNotification({ method: 'notifications/progress', params: { progressToken: token, progress, ...(message ? { message } : {}) } })
+    void channel.notify({ method: 'notifications/progress', params: { progressToken: token, progress, ...(message ? { message } : {}) } })
       .catch(() => { stop(); });
   };
   const timer = setInterval(send, everyMs);
@@ -218,11 +297,11 @@ export function requestHeartbeat(
   const stop = (): void => {
     alive = false;
     clearInterval(timer);
-    extra.signal?.removeEventListener('abort', stop);
+    channel.signal?.removeEventListener('abort', stop);
   };
   // A cancelled call's sends return silently rather than fail, so the
   // failure path alone would keep this timer until the run ended.
-  extra.signal?.addEventListener('abort', stop, { once: true });
+  channel.signal?.addEventListener('abort', stop, { once: true });
   // A new status line goes out at once, but never more than one per
   // `HEARTBEAT_MIN_GAP_MS`: an operator run changes its line on every chunk.
   const note = (next: string): void => {
@@ -233,56 +312,7 @@ export function requestHeartbeat(
   return { note, stop, alive: () => alive };
 }
 
-const HEARTBEAT_MIN_GAP_MS = 5_000;
-
-/**
- * Shared skeleton: `getTask` and `getTaskResult` read the store, and every
- * handler's `createTask` is the start followed by a lifecycle watcher. A
- * domain refusal becomes a task that is created and fails at once with an
- * `isError` result, so a host drives one path.
- */
-function handlerWith<Args extends z.ZodRawShape>(createTask: ToolTaskHandler<Args>['createTask']): ToolTaskHandler<Args> {
-  const getTask = async (_args: unknown, extra: TaskRequestHandlerExtra) => ({ ...(await extra.taskStore.getTask(extra.taskId)) });
-  const getTaskResult = async (_args: unknown, extra: TaskRequestHandlerExtra) => (await extra.taskStore.getTaskResult(extra.taskId)) as CallToolResult;
-  return { createTask, getTask, getTaskResult } as ToolTaskHandler<Args>;
-}
-
-export interface RunTaskHost {
-  readonly store: SessionTaskStore;
-  /** Told when a run started here should be followed by the session's logging. */
-  readonly follow: (runId: string) => void;
-  /** Registered cleanups run when the session's server closes. */
-  readonly cleanups: (() => void)[];
-}
-
-export const BENCHMARK_RUN_INPUT = { registration: retrievalRegistrationSchema };
-
-/** Registered campaigns use the same task/cancellation protocol as runs. */
-export function benchmarkRunTaskHandler(host: RunTaskHost, start: RetrievalCampaignStart): ToolTaskHandler<typeof BENCHMARK_RUN_INPUT> {
-  return handlerWith<typeof BENCHMARK_RUN_INPUT>(async (args, extra) => {
-    const task = await extra.taskStore.createTask({
-      ttl: args.registration.spec.maxWallMs + TASK_RESULT_GRACE_MS, pollInterval: TASK_POLL_INTERVAL_MS,
-    });
-    const abort = new AbortController();
-    host.store.onCancel(task.taskId, () => abort.abort());
-    await extra.taskStore.updateTaskStatus(task.taskId, 'working', `campaign ${args.registration.spec.id} validating`);
-    // A disconnected session stops observing; it does not cancel the campaign.
-    let observing = true;
-    host.cleanups.push(() => { observing = false; });
-    const progress = (message: string) => {
-      if (observing) quietly(() => extra.taskStore.updateTaskStatus(task.taskId, 'working', message));
-    };
-    void Promise.resolve().then(() => start(args.registration, abort.signal, progress)).then(
-      report => { if (observing) quietly(() => extra.taskStore.storeTaskResult(task.taskId,
-        report.reason === 'completed' ? 'completed' : 'failed', jsonResult(report))); },
-      error => { if (observing) quietly(() => extra.taskStore.storeTaskResult(task.taskId, 'failed',
-        errorResult(`campaign refused or aborted: ${String(error).slice(0, 1000)}`))); }
-    );
-    return { task: await extra.taskStore.getTask(task.taskId) };
-  });
-}
-
-/* -------------------------------------------------------------- operator */
+/* ---------------------------------------------------------------- inputs */
 
 /** The start tools' arguments, defined once here and imported by the catalogue. */
 export const OPERATOR_RUN_INPUT = {
@@ -315,52 +345,7 @@ export const PROJECT_RUN_INPUT = {
   ),
 };
 
-/**
- * `atoma_operator_run_start`: the watcher turns each output chunk into the
- * task's status line and the run's end into the task's result — the
- * `atoma_operator_run_status` payload.
- */
-export function operatorRunTaskHandler(
-  host: RunTaskHost,
-  start: (args: StartRunInput) => Promise<RunRecordPublic>,
-  heartbeatMs: number = PROGRESS_HEARTBEAT_MS
-): ToolTaskHandler<typeof OPERATOR_RUN_INPUT> {
-  return handlerWith<typeof OPERATOR_RUN_INPUT>(async (args, extra) => {
-    const timeoutMs = args.timeoutMs ?? DEFAULT_RUN_TIMEOUT_MS;
-    const task = await extra.taskStore.createTask({ ttl: timeoutMs + TASK_RESULT_GRACE_MS, pollInterval: TASK_POLL_INTERVAL_MS });
-    let record: RunRecordPublic;
-    try {
-      record = await start(args);
-    } catch (error) {
-      if (error instanceof RunRejected) {
-        await extra.taskStore.storeTaskResult(task.taskId, 'failed', errorResult(`refused: ${error.message}`));
-        return { task: await extra.taskStore.getTask(task.taskId) };
-      }
-      throw error;
-    }
-    host.follow(record.runId);
-    host.store.onCancel(task.taskId, () => void cancelOperatorRun({ runId: record.runId }));
-    const heartbeat = requestHeartbeat(extra, heartbeatMs);
-    const unhookOutput = onRunOutput((update) => {
-      if (update.runId !== record.runId) return;
-      // The chunk count only: the tail is model output, and a progress line is not the place for it.
-      heartbeat.note(`run ${record.runId} running, ${update.chunks} chunks`);
-      quietly(() => extra.taskStore.updateTaskStatus(task.taskId, 'working', statusLine(`run ${record.runId} running, ${update.chunks} chunks`, update.tail)));
-    });
-    const unhookFinish = onRunFinished((finished) => {
-      if (finished.runId !== record.runId) return;
-      unhookOutput();
-      unhookFinish();
-      heartbeat.stop();
-      const status = finished.status === 'finished' ? 'completed' : 'failed';
-      quietly(() => extra.taskStore.storeTaskResult(task.taskId, status, jsonResult(runStatus({ runId: record.runId }))));
-    });
-    host.cleanups.push(unhookOutput, unhookFinish, heartbeat.stop);
-    heartbeat.note(`run ${record.runId} started (${record.family})`);
-    await extra.taskStore.updateTaskStatus(task.taskId, 'working', `run ${record.runId} started (${record.family})`);
-    return { task: await extra.taskStore.getTask(task.taskId) };
-  });
-}
+export const BENCHMARK_RUN_INPUT = { registration: retrievalRegistrationSchema };
 
 /* --------------------------------------------------------------- project */
 
@@ -373,7 +358,7 @@ export interface ProjectRunTaskDeps {
     cancelProjectRun(viewer: Viewer, projectId: string, projectRunId: string): Promise<unknown>;
     runsRequestedBy(viewer: Viewer, endedSince: string, limit: number): unknown[];
   };
-  /** Injectable clock for the poller; production uses `setTimeout`. */
+  /** The poll interval a project task suggests; tests shorten it. */
   readonly pollMs?: number;
   /** How often a waiting caller that sent a progressToken hears from the run. */
   readonly heartbeatMs?: number;
@@ -397,7 +382,7 @@ export function projectRunTaskId(projectId: string, projectRunId: string): strin
   return `${PROJECT_TASK_PREFIX}${projectId}:${projectRunId}`;
 }
 
-function isProjectRunTaskId(taskId: string): boolean {
+export function isProjectRunTaskId(taskId: string): boolean {
   return taskId.startsWith(PROJECT_TASK_PREFIX);
 }
 
@@ -420,8 +405,8 @@ interface ProjectRunSnapshot {
 }
 
 /**
- * Project run tasks cancelled through `tasks/cancel`, process-wide: the spec
- * wants the task `cancelled` BEFORE the answer and for good, while the run
+ * Project run tasks cancelled through `tasks/cancel`, process-wide: the 2025
+ * spec wants the task `cancelled` BEFORE the answer and for good, while the run
  * only lands `cancelled` once its abort is through — or lands otherwise, if
  * the abort came too late. Read only after the binding check, bounded, and
  * forgotten by a restart, after which the run's own final status speaks.
@@ -429,19 +414,19 @@ interface ProjectRunSnapshot {
 const CANCEL_REQUESTED = new Set<string>();
 const MAX_CANCEL_REQUESTED = 1_000;
 
-/** How many project run tasks one `tasks/list` names; runs are serialised per instance, so a principal has few live ones. */
+/** How many project run tasks one listing names; runs are serialised per instance, so a principal has few live ones. */
 const MAX_LISTED_PROJECT_TASKS = 50;
 
 /**
  * The project run tasks, answered from the tenant store on every read. A task
- * is found only when the run is readable by this session's viewer AND was
+ * is found only when the run is readable by this caller's viewer AND was
  * started by that principal in that organisation: the spec binds a task to
  * the authorization context that created it, and every other caller — an org
  * member reading the run through `atoma_run_status`, a platform admin reading
  * across organisations — gets the "not found" an unknown id gets. A missing
- * binding field fails closed. Like the SDK's store, a finished task is kept
- * one `ttl` after it ends and then answers "not found"; `tasks/list` names
- * exactly the tasks `tasks/get` answers.
+ * binding field fails closed. Like the SDK's old store, a finished task is
+ * kept one `ttl` after it ends and then answers "not found"; the listing names
+ * exactly the tasks a read answers.
  */
 export class ProjectRunTasks {
   constructor(private readonly deps: ProjectRunTaskDeps) {}
@@ -454,8 +439,12 @@ export class ProjectRunTasks {
     }
   }
 
-  private ttl(): number {
+  ttl(): number {
     return this.deps.service.runTaskBudgetMs() + TASK_RESULT_GRACE_MS;
+  }
+
+  pollInterval(): number {
+    return this.deps.pollMs ?? TASK_POLL_INTERVAL_MS;
   }
 
   /** Still running, or ended within one `ttl`: the one retention rule, for a read and for the listing. */
@@ -484,34 +473,33 @@ export class ProjectRunTasks {
     return this.bound(viewer, snapshot) ? { ref, viewer, snapshot } : null;
   }
 
-  private asTask(taskId: string, projectRunId: string, snapshot: ProjectRunSnapshot): Task {
+  private asTask(taskId: string, projectRunId: string, snapshot: ProjectRunSnapshot): TaskState {
     const now = new Date().toISOString();
     const cancelled = CANCEL_REQUESTED.has(taskId) || snapshot.status === 'cancelled';
+    const line = cancelled && !PROJECT_TERMINAL.has(snapshot.status)
+      ? `run ${projectRunId} cancellation requested, ${snapshot.status}`
+      : `run ${projectRunId} ${snapshot.status}`;
     return {
       taskId,
       status: cancelled ? 'cancelled'
         : !PROJECT_TERMINAL.has(snapshot.status) ? 'working'
         : PROJECT_COMPLETED.has(snapshot.status) ? 'completed' : 'failed',
-      statusMessage: cancelled && !PROJECT_TERMINAL.has(snapshot.status)
-        ? `run ${projectRunId} cancellation requested, ${snapshot.status}`
-        : `run ${projectRunId} ${snapshot.status}`,
+      statusMessage: line,
+      progress: line,
       createdAt: typeof snapshot.createdAt === 'string' ? snapshot.createdAt : now,
       lastUpdatedAt: typeof snapshot.updatedAt === 'string' ? snapshot.updatedAt : now,
       ttl: this.ttl(),
-      pollInterval: this.deps.pollMs ?? TASK_POLL_INTERVAL_MS,
+      pollInterval: this.pollInterval(),
     };
   }
 
-  task(taskId: string): Task | null {
+  task(taskId: string): TaskState | null {
     const found = this.read(taskId);
     return found ? this.asTask(taskId, found.ref.projectRunId, found.snapshot) : null;
   }
 
-  /**
-   * The caller's tasks, newest first: the runs it started in its
-   * organisation, by the same binding and retention as a read.
-   */
-  list(): Task[] {
+  /** The caller's tasks, newest first: the runs it started in its organisation, by the same binding and retention as a read. */
+  list(): TaskState[] {
     const viewer = this.viewer();
     if (!viewer) return [];
     const endedSince = new Date(Date.now() - this.ttl()).toISOString();
@@ -523,110 +511,260 @@ export class ProjectRunTasks {
 
   /**
    * The `atoma_run_status` payload once the task is terminal — a cancelled
-   * task's included, whose run may still be winding down; before that, the
-   * in-memory store's refusal.
+   * task's included, whose run may still be winding down; null before that.
    */
-  result(taskId: string): CallToolResult {
+  result(taskId: string): CallToolResult | null {
     const found = this.read(taskId);
-    if (!found) throw new Error(`Task with ID ${taskId} not found`);
-    if (this.asTask(taskId, found.ref.projectRunId, found.snapshot).status === 'working') throw new Error(`Task ${taskId} has no result stored`);
+    if (!found) throw new TaskNotFound(taskId);
+    if (this.asTask(taskId, found.ref.projectRunId, found.snapshot).status === 'working') return null;
     return jsonResult(found.snapshot);
   }
 
   /** `tasks/cancel`: the cancel tool's body, and its refusal in its words; the task is `cancelled` from then on. */
-  async cancel(taskId: string): Promise<void> {
+  async cancel(taskId: string): Promise<TaskState> {
     const found = this.read(taskId);
-    if (!found) throw new Error(`Task with ID ${taskId} not found`);
+    if (!found) throw new TaskNotFound(taskId);
+    const current = this.asTask(taskId, found.ref.projectRunId, found.snapshot);
+    if (isTerminal(current.status)) throw new TaskCancelRefused(`Cannot cancel task in terminal status: ${current.status}`);
     try {
       await this.deps.service.cancelProjectRun(found.viewer, found.ref.projectId, found.ref.projectRunId);
     } catch (error) {
-      if (error instanceof ProjectHttpError) throw new Error(`refused (${error.status}): ${error.message}`);
+      if (error instanceof ProjectHttpError) throw new TaskCancelRefused(`refused (${error.status}): ${error.message}`);
       throw error;
     }
     CANCEL_REQUESTED.add(taskId);
     if (CANCEL_REQUESTED.size > MAX_CANCEL_REQUESTED) CANCEL_REQUESTED.delete(CANCEL_REQUESTED.values().next().value!);
+    return this.task(taskId) ?? { ...current, status: 'cancelled' };
   }
+}
+
+/* ---------------------------------------------------------- caller facade */
+
+/**
+ * Every task one caller can reach: its in-memory tasks (by `owner`, its
+ * `callerKey`) and, when it may start project runs, its project run tasks.
+ * The wires (`taskWire.ts`) and the synchronous starts read tasks only
+ * through this, so the binding is applied in one place.
+ */
+export class CallerTasks {
+  constructor(
+    readonly owner: string,
+    readonly projectRuns: ProjectRunTasks | null,
+    private readonly memory: MemoryTasks = MEMORY_TASKS
+  ) {}
+
+  get(taskId: string): TaskState | null {
+    if (isProjectRunTaskId(taskId)) return this.projectRuns?.task(taskId) ?? null;
+    return this.memory.get(this.owner, taskId);
+  }
+
+  /** The terminal result, or null while the task works. Throws `TaskNotFound`. */
+  result(taskId: string): CallToolResult | null {
+    if (isProjectRunTaskId(taskId)) {
+      if (!this.projectRuns) throw new TaskNotFound(taskId);
+      return this.projectRuns.result(taskId);
+    }
+    return this.memory.result(this.owner, taskId);
+  }
+
+  /** Throws `TaskNotFound` or `TaskCancelRefused`; answers the task as it now is. */
+  async cancel(taskId: string): Promise<TaskState> {
+    if (isProjectRunTaskId(taskId)) {
+      if (!this.projectRuns) throw new TaskNotFound(taskId);
+      return this.projectRuns.cancel(taskId);
+    }
+    return this.memory.cancel(this.owner, taskId);
+  }
+
+  /** The caller's project run tasks, then its in-memory ones, newest first within each. */
+  list(): TaskState[] {
+    return [...(this.projectRuns?.list() ?? []), ...this.memory.list(this.owner)];
+  }
+
+  /** Waits until the task is terminal (re-reading it every `pollInterval`), telling `onState` of each read. */
+  async settle(taskId: string, signal: AbortSignal | undefined, onState?: (state: TaskState) => void): Promise<TaskState> {
+    for (;;) {
+      const state = this.get(taskId);
+      if (!state) throw new TaskNotFound(taskId);
+      onState?.(state);
+      if (isTerminal(state.status)) return state;
+      await sleep(state.pollInterval, signal);
+    }
+  }
+
+  refuse(message: string, ttl: number, pollInterval = TASK_POLL_INTERVAL_MS): TaskState {
+    const state = this.memory.create(this.owner, { ttl, pollInterval });
+    this.memory.finish(state.taskId, 'failed', errorResult(message));
+    return this.memory.get(this.owner, state.taskId)!;
+  }
+}
+
+function sleep(ms: number, signal: AbortSignal | undefined): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(new Error('Request cancelled'));
+    const timer = setTimeout(() => { signal?.removeEventListener('abort', aborted); resolve(); }, ms);
+    const aborted = (): void => { clearTimeout(timer); reject(new Error('Request cancelled')); };
+    signal?.addEventListener('abort', aborted, { once: true });
+  });
+}
+
+/* ---------------------------------------------------------------- starts */
+
+/** What a start tool registers: its argument schema, and the start that answers a task. */
+export interface TaskStart<Args> {
+  readonly schema: z.ZodType<Args>;
+  readonly start: (args: Args) => Promise<TaskState>;
+}
+
+/**
+ * `atoma_operator_run_start`: the watcher turns each output chunk into the
+ * task's status line and the run's end into its result — the
+ * `atoma_operator_run_status` payload. `follow` hands the run to the session's
+ * log (the 2025 era's `notifications/message`).
+ */
+export function operatorRunTask(
+  tasks: CallerTasks,
+  start: (args: StartRunInput) => Promise<RunRecordPublic>,
+  follow: (runId: string) => void
+): TaskStart<z.infer<z.ZodObject<typeof OPERATOR_RUN_INPUT>>> {
+  return {
+    schema: z.object(OPERATOR_RUN_INPUT),
+    start: async (args) => {
+      const ttl = (args.timeoutMs ?? DEFAULT_RUN_TIMEOUT_MS) + TASK_RESULT_GRACE_MS;
+      let record: RunRecordPublic;
+      try {
+        record = await start(args);
+      } catch (error) {
+        if (error instanceof RunRejected) return tasks.refuse(`refused: ${error.message}`, ttl);
+        throw error;
+      }
+      const started = `run ${record.runId} started (${record.family})`;
+      const task = MEMORY_TASKS.create(tasks.owner, { ttl, pollInterval: TASK_POLL_INTERVAL_MS, statusMessage: started });
+      follow(record.runId);
+      const current = () => jsonResult(runStatus({ runId: record.runId }));
+      MEMORY_TASKS.onCancel(task.taskId, () => void cancelOperatorRun({ runId: record.runId }), current);
+      const unhookOutput = onRunOutput((update) => {
+        if (update.runId !== record.runId) return;
+        // The progress line carries the chunk count only: the tail is model output.
+        const prefix = `run ${record.runId} running, ${update.chunks} chunks`;
+        MEMORY_TASKS.update(task.taskId, statusLine(prefix, update.tail), prefix);
+      });
+      const unhookFinish = onRunFinished((finished) => {
+        if (finished.runId !== record.runId) return;
+        unhookOutput();
+        unhookFinish();
+        MEMORY_TASKS.finish(task.taskId, finished.status === 'finished' ? 'completed' : 'failed', current());
+      });
+      return task;
+    },
+  };
+}
+
+/** `atoma_benchmark_start`: a registered campaign, with the same task and cancellation protocol as a run. */
+export function benchmarkRunTask(
+  tasks: CallerTasks,
+  start: RetrievalCampaignStart
+): TaskStart<z.infer<z.ZodObject<typeof BENCHMARK_RUN_INPUT>>> {
+  return {
+    schema: z.object(BENCHMARK_RUN_INPUT),
+    start: async (args) => {
+      const task = MEMORY_TASKS.create(tasks.owner, {
+        ttl: args.registration.spec.maxWallMs + TASK_RESULT_GRACE_MS,
+        pollInterval: TASK_POLL_INTERVAL_MS,
+        statusMessage: `campaign ${args.registration.spec.id} validating`,
+      });
+      const abort = new AbortController();
+      MEMORY_TASKS.onCancel(task.taskId, () => abort.abort());
+      const progress = (message: string) => MEMORY_TASKS.update(task.taskId, message);
+      void Promise.resolve().then(() => start(args.registration, abort.signal, progress)).then(
+        (report) => MEMORY_TASKS.finish(task.taskId, report.reason === 'completed' ? 'completed' : 'failed', jsonResult(report)),
+        (error) => MEMORY_TASKS.finish(task.taskId, 'failed', errorResult(`campaign refused or aborted: ${String(error).slice(0, 1000)}`))
+      );
+      return task;
+    },
+  };
 }
 
 /**
  * `atoma_run_start`: the start, then a task that IS the run
- * (`ProjectRunTasks`). A refusal before any run exists — a criterion that
- * does not parse, a service refusal — is an ordinary in-memory task that
- * fails at once. The one thing this handler keeps is the progress heartbeat
- * of a caller waiting without augmentation: it reads the run once every
- * `pollInterval` while that heartbeat lives, and never otherwise.
+ * (`ProjectRunTasks`). A refusal before any run exists — a criterion that does
+ * not parse, a service refusal — is an in-memory task that fails at once.
  */
-export function projectRunTaskHandler(host: RunTaskHost, deps: ProjectRunTaskDeps): ToolTaskHandler<typeof PROJECT_RUN_INPUT> {
-  const pollMs = deps.pollMs ?? TASK_POLL_INTERVAL_MS;
-  const runs = new ProjectRunTasks(deps);
-  host.store.answerProjectRuns(runs);
-  return handlerWith<typeof PROJECT_RUN_INPUT>(async (args, extra) => {
-    const refuse = async (message: string) => {
-      const task = await extra.taskStore.createTask({ ttl: deps.service.runTaskBudgetMs() + TASK_RESULT_GRACE_MS, pollInterval: pollMs });
-      await extra.taskStore.storeTaskResult(task.taskId, 'failed', errorResult(message));
-      return { task: await extra.taskStore.getTask(task.taskId) };
-    };
-    const viewer = deps.viewer();
-    let started: { projectRunId: string; status: string };
-    // The same line grammar as the console and the CLI: one parser, and a
-    // criterion that does not parse refuses the call rather than vanishing.
-    const parsed = args.acceptanceCriteria?.map((entry) => parseChecklistLines(entry));
-    const invalid = (parsed ?? []).flatMap((entry, index) => entry.errors.length > 0 || entry.items.length !== 1
-      ? [`entry ${index + 1}: ${entry.errors[0]?.message ?? 'must hold exactly one criterion'}`] : []);
-    if (invalid.length > 0) return refuse(`refused (400): invalid acceptance criteria — ${invalid.join('; ')}`);
-    const criteria = parsed ? { items: parsed.flatMap((entry) => entry.items) } : null;
-    try {
-      // Forwarded as given: the service's one schema decides which combination
-      // is a run and which a rerun, and refuses every other one with 400.
-      started = (await deps.service.startProjectRunFromInput(viewer, args.projectId, {
-        ...(args.goal !== undefined ? { goal: args.goal } : {}),
-        idempotencyKey: args.idempotencyKey ?? `mcp-task-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
-        ...(criteria ? { acceptanceChecklist: criteria.items } : {}),
-        ...(args.rerunOf !== undefined ? { rerunOf: args.rerunOf } : {}),
-        ...(args.models !== undefined ? { models: args.models } : {}),
-        ...(args.depth !== undefined ? { depth: args.depth } : {}),
-      })) as { projectRunId: string; status: string };
-    } catch (error) {
-      if (error instanceof ProjectHttpError) return refuse(`refused (${error.status}): ${error.message}`);
-      throw error;
-    }
-    const runId = started.projectRunId;
-    const taskId = projectRunTaskId(args.projectId, runId);
-    const task = runs.task(taskId);
-    // The run this viewer just started is readable by it; were it not, the task could never be followed.
-    if (!task) return refuse(`run ${runId} started but is not readable by this caller`);
-    const heartbeat = requestHeartbeat(extra, deps.heartbeatMs ?? PROGRESS_HEARTBEAT_MS);
-    let timer: NodeJS.Timeout | null = null;
-    const stop = (): void => {
-      heartbeat.stop();
-      if (timer) clearTimeout(timer);
-    };
-    host.cleanups.push(stop);
-    const tick = (): void => {
-      const current = heartbeat.alive() ? runs.task(taskId) : null;
-      if (!current || current.status !== 'working') return stop();
-      heartbeat.note(current.statusMessage ?? `run ${runId}`);
-      timer = setTimeout(tick, pollMs);
-      timer.unref();
-    };
-    heartbeat.note(task.statusMessage ?? `run ${runId}`);
-    if (heartbeat.alive()) {
-      timer = setTimeout(tick, pollMs);
-      timer.unref();
-    }
-    return { task };
-  });
+export function projectRunTask(
+  tasks: CallerTasks,
+  deps: ProjectRunTaskDeps
+): TaskStart<z.infer<z.ZodObject<typeof PROJECT_RUN_INPUT>>> {
+  return {
+    schema: z.object(PROJECT_RUN_INPUT),
+    start: async (args) => {
+      const runs = tasks.projectRuns;
+      const ttl = deps.service.runTaskBudgetMs() + TASK_RESULT_GRACE_MS;
+      const refuse = (message: string) => tasks.refuse(message, ttl, deps.pollMs ?? TASK_POLL_INTERVAL_MS);
+      if (!runs) return refuse('refused: project runs are not available to this caller');
+      const viewer = deps.viewer();
+      // The same line grammar as the console and the CLI: one parser, and a
+      // criterion that does not parse refuses the call rather than vanishing.
+      const parsed = args.acceptanceCriteria?.map((entry) => parseChecklistLines(entry));
+      const invalid = (parsed ?? []).flatMap((entry, index) => entry.errors.length > 0 || entry.items.length !== 1
+        ? [`entry ${index + 1}: ${entry.errors[0]?.message ?? 'must hold exactly one criterion'}`] : []);
+      if (invalid.length > 0) return refuse(`refused (400): invalid acceptance criteria — ${invalid.join('; ')}`);
+      const criteria = parsed ? { items: parsed.flatMap((entry) => entry.items) } : null;
+      let started: { projectRunId: string };
+      try {
+        // Forwarded as given: the service's one schema decides which combination
+        // is a run and which a rerun, and refuses every other one with 400.
+        started = (await deps.service.startProjectRunFromInput(viewer, args.projectId, {
+          ...(args.goal !== undefined ? { goal: args.goal } : {}),
+          idempotencyKey: args.idempotencyKey ?? `mcp-task-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+          ...(criteria ? { acceptanceChecklist: criteria.items } : {}),
+          ...(args.rerunOf !== undefined ? { rerunOf: args.rerunOf } : {}),
+          ...(args.models !== undefined ? { models: args.models } : {}),
+          ...(args.depth !== undefined ? { depth: args.depth } : {}),
+        })) as { projectRunId: string };
+      } catch (error) {
+        if (error instanceof ProjectHttpError) return refuse(`refused (${error.status}): ${error.message}`);
+        throw error;
+      }
+      const task = runs.task(projectRunTaskId(args.projectId, started.projectRunId));
+      // The run this viewer just started is readable by it; were it not, the task could never be followed.
+      return task ?? refuse(`run ${started.projectRunId} started but is not readable by this caller`);
+    },
+  };
+}
+
+/**
+ * A start without task augmentation: the task runs to its end and the call
+ * answers with its result, the heartbeat telling a caller that sent a
+ * `progressToken` the run is alive. A call the client cancels stops waiting;
+ * its run goes on.
+ */
+export async function runSynchronously(
+  tasks: CallerTasks,
+  task: TaskState,
+  channel: ProgressChannel,
+  heartbeatMs: number = PROGRESS_HEARTBEAT_MS
+): Promise<CallToolResult> {
+  const heartbeat = requestHeartbeat(channel, heartbeatMs);
+  try {
+    const settled = await tasks.settle(task.taskId, channel.signal, (state) => {
+      if (state.progress) heartbeat.note(state.progress);
+    });
+    return tasks.result(settled.taskId) ?? errorResult(`task ${settled.taskId} ended without a result`);
+  } finally {
+    heartbeat.stop();
+  }
 }
 
 /* --------------------------------------------------------------- logging */
 
 /**
- * `notifications/message` for the runs a session started. The session's
- * client sets the level it wants (`logging/setLevel`) and the SDK filters by
- * it; without a level, everything at `info` and above goes out. Each chunk is
- * one message under the logger `atoma.run.<runId>`, and the run's end is one
- * `notice`. Only runs THIS session started are followed: a session that never
- * started a run hears nothing about the machine's other runs.
+ * `notifications/message` for the runs a 2025-era session started. The
+ * session's client sets the level it wants (`logging/setLevel`) and the SDK
+ * filters by it; without a level, everything at `info` and above goes out.
+ * Each chunk is one message under the logger `atoma.run.<runId>`, and the
+ * run's end is one `notice`. Only runs THIS session started are followed. The
+ * 2026 era deprecates logging and has no session stream to carry it: there
+ * the task's status line is the run's voice.
  */
 export function attachRunLogging(server: McpServer, cleanups: (() => void)[]): (runId: string) => void {
   const followed = new Set<string>();

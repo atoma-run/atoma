@@ -22,10 +22,13 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { McpServer } from '@modelcontextprotocol/server';
+import type { McpHttpHostOptions } from './http.js';
 import type { McpCaller } from './identity.js';
+import { publishResourceEvents } from './resources.js';
+import type { ProtocolEraName } from './taskWire.js';
 import { repoRoot } from './run.js';
-import { buildServerForCaller, type McpToolDeps } from './tools.js';
+import { buildServerForCaller, callerTasksFor, type McpToolDeps } from './tools.js';
 
 /**
  * Server-level usage guidance. Exported so a test can hold it to the same rule
@@ -43,9 +46,11 @@ repeat work gets cheaper.
 Starting a run is DESTRUCTIVE and SERIALISED. One run happens at a time; by default the shared build
 workspace is archived first, and a run mutates the agent registry, the skill store and the lifecycle
 ledger, and spends model quota. Runs take minutes and the start tools are MCP TASKS: call
-atoma_run_start with task augmentation, then drive the run through tasks/get, tasks/result and
-tasks/cancel (atoma_run_cancel also works); called without augmentation the start returns when the run
-ends. The session that started an operator run also receives its output as notifications/message.
+atoma_run_start as a task (task augmentation on protocol 2025-11-25, the io.modelcontextprotocol/tasks
+extension on 2026-07-28), then follow the run with tasks/get — and tasks/result on 2025-11-25 — and stop
+it with tasks/cancel (atoma_run_cancel also works); called without either the start returns when the run
+ends. On 2025-11-25 the session that started an operator run also receives its output as
+notifications/message.
 
 Everything else here is a pure reader over the persisted state. Two payloads carry caveats you should
 repeat rather than paraphrase: atoma_skills_review is a MECHANICAL pre-screen and never a sharing
@@ -67,8 +72,24 @@ journal.`;
 
 
 /** The server one caller's session gets: exactly their tier's tools. */
-export function buildServer(caller: McpCaller, deps: McpToolDeps): McpServer {
-  return buildServerForCaller({ caller, deps, version: packageVersion(), instructions: INSTRUCTIONS });
+export function buildServer(caller: McpCaller, deps: McpToolDeps, era: ProtocolEraName = 'legacy'): McpServer {
+  return buildServerForCaller({ caller, deps, version: packageVersion(), instructions: INSTRUCTIONS, era });
+}
+
+/**
+ * What the HTTP host needs from the catalogue, in one place for the viz server
+ * and the tests: a server per caller and era, the caller's tasks for the 2026
+ * `tasks/*` requests, and the run-finished events for 2026 listeners — a
+ * project run's for a host with organisations, an operator run's for a host
+ * that runs them, as the 2025 sessions hook them.
+ */
+export function mcpHostWiring(deps: McpToolDeps): Pick<McpHttpHostOptions, 'buildServer' | 'tasksFor' | 'resourceEvents' | 'serverInfo'> {
+  return {
+    buildServer: (caller, era) => buildServer(caller, deps, era),
+    tasksFor: (caller) => callerTasksFor(caller, deps),
+    resourceEvents: (events) => publishResourceEvents(deps.projects ? deps.journal : null, deps.operatorRuns, events),
+    serverInfo: { name: 'atoma', version: packageVersion() },
+  };
 }
 
 export function packageVersion(): string {

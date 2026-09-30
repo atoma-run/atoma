@@ -192,7 +192,7 @@ import { analystProvider } from '../supervisor/session.js';
 import { McpOAuth } from '../auth/mcpOAuth.js';
 import { McpHttpHost, mcpMaxRequestMsFromEnv } from '../mcp/http.js';
 import type { McpCaller } from '../mcp/identity.js';
-import { buildServer as buildMcpServer } from '../mcp/server.js';
+import { mcpHostWiring } from '../mcp/server.js';
 import { repoRoot, signalActiveRunOnExit } from '../mcp/run.js';
 import type { McpToolDeps } from '../mcp/tools.js';
 import { retrievalCampaignHost } from '../cli/retrievalCampaignHost.js';
@@ -1313,7 +1313,7 @@ const MCP_HOST = new McpHttpHost({
     const { tokenId, ...viewer } = resolved;
     return { kind: 'principal', viewer, tokenId };
   },
-  buildServer: (caller) => buildMcpServer(caller, MCP_DEPS),
+  ...mcpHostWiring(MCP_DEPS),
   allowedHosts: AUTH_RUNTIME
     ? [AUTH_RUNTIME.publicOrigin.host]
     : [`127.0.0.1:${cli.port}`, `localhost:${cli.port}`, `[::1]:${cli.port}`],

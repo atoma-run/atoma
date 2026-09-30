@@ -1,4 +1,4 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { McpServer } from '@modelcontextprotocol/server';
 
 /**
  * WHAT AN MCP CALL MAY DO WHILE A DEPLOYMENT HOLDS WRITES.
@@ -32,6 +32,9 @@ const READ_ONLY_METHODS = new Set([
   'tasks/get',
   'tasks/list',
   'tasks/result',
+  // 2026-07-28: the opening is a discovery, and change notifications a listen stream.
+  'server/discover',
+  'subscriptions/listen',
 ]);
 
 /** The largest body read to classify it; past it the call simply waits. */

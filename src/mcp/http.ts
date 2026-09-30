@@ -1,11 +1,21 @@
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { LATEST_PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from '@modelcontextprotocol/sdk/types.js';
+import {
+  DEFAULT_MAX_REQUEST_BODY_SIZE,
+  LATEST_PROTOCOL_VERSION,
+  SUPPORTED_PROTOCOL_VERSIONS,
+  createMcpHandler,
+  isLegacyRequest,
+  type McpHttpHandler,
+  type McpServer,
+} from '@modelcontextprotocol/server';
+import { NodeStreamableHTTPServerTransport } from '@modelcontextprotocol/node';
 import { SessionEventStore } from './eventStore.js';
 import { FROZEN_BODY_LIMIT_BYTES, servableWhileFrozen } from './frozen.js';
 import { callerKey, describeCaller, type McpCaller } from './identity.js';
+import type { ResourceEvents } from './resources.js';
+import { answerModernTaskRequest, isModernTaskRequest, type ProtocolEraName } from './taskWire.js';
+import type { CallerTasks } from './tasks.js';
 
 /**
  * THE MCP OVER HTTP — one route on the viz server, `/mcp`, speaking the
@@ -42,6 +52,16 @@ import { callerKey, describeCaller, type McpCaller } from './identity.js';
  * stopped at a preflight this server never answers. Both are passed, and
  * neither is described as doing the other's work.
  *
+ * TWO PROTOCOL ERAS ON ONE ROUTE (2026-09-30). A 2025-11-25 client opens a
+ * session with `initialize` and everything below applies to it. A 2026-07-28
+ * client carries its protocol version and capabilities on every request and
+ * has no session: its requests go to the SDK's per-request handler
+ * (`createMcpHandler`), which builds a server for the caller each time, and
+ * the tasks extension's `tasks/*` requests — which that handler refuses — are
+ * answered here (`taskWire.ts`). `isLegacyRequest` decides; a request that
+ * names a session is always 2025. Host and Origin are checked here for both,
+ * because the 2026 handler checks neither.
+ *
  * SESSIONS ARE CEILINGED TWICE. A session holds a whole `McpServer` and a
  * replay ring worth megabytes (`eventStore.ts`), and the only other reclaim
  * is the day-long idle sweep — so a client that re-initialises in a loop
@@ -54,7 +74,17 @@ import { callerKey, describeCaller, type McpCaller } from './identity.js';
 export interface McpHttpHostOptions {
   /** Null → 401. The host never guesses an identity. */
   readonly resolveCaller: (req: IncomingMessage) => McpCaller | null;
-  readonly buildServer: (caller: McpCaller) => McpServer;
+  /** A server for `caller` answering `era`: once per session (2025) or once per request (2026). */
+  readonly buildServer: (caller: McpCaller, era: ProtocolEraName) => McpServer;
+  /** The caller's tasks, for the 2026 `tasks/*` requests this host answers itself. Absent: none are found. */
+  readonly tasksFor?: (caller: McpCaller) => CallerTasks;
+  /**
+   * Hooks this process's run-finished events onto the 2026 `subscriptions/listen`
+   * streams; returns the unhook. The 2025 sessions hook their own (`resources.ts`).
+   */
+  readonly resourceEvents?: (events: ResourceEvents) => () => void;
+  /** Stamped on the 2026 results this host answers itself, as the SDK stamps its own. */
+  readonly serverInfo?: { readonly name: string; readonly version: string };
   /** `Host` values this route answers; anything else is 403 by the transport. */
   readonly allowedHosts: readonly string[];
   /** `Origin` values this route answers WHEN the header is sent; an absent Origin is unaffected. */
@@ -68,12 +98,14 @@ export interface McpHttpHostOptions {
   /** Live sessions one caller may hold. Past it, that caller's stalest session is dropped. */
   readonly maxSessionsPerCaller?: number;
   readonly now?: () => number;
+  /** How long a POST body may take to arrive; past it the request is closed. */
+  readonly bodyTimeoutMs?: number;
   readonly logger?: (line: string) => void;
 }
 
 interface Session {
   readonly id: string;
-  readonly transport: StreamableHTTPServerTransport;
+  readonly transport: NodeStreamableHTTPServerTransport;
   readonly server: McpServer;
   /** The session's replay ring, held so `health()` can report the depth it lost. */
   readonly events: SessionEventStore;
@@ -113,6 +145,8 @@ export function mcpMaxRequestMsFromEnv(env: NodeJS.ProcessEnv = process.env): nu
   return value;
 }
 export const MCP_SESSION_HEADER = 'mcp-session-id';
+/** How long a POST body may take to arrive. */
+export const MCP_BODY_TIMEOUT_MS = 30_000;
 /** The host's backstop. At 4 MiB of replay ring apiece this bounds the rings at ~512 MiB. */
 export const MCP_MAX_SESSIONS = 128;
 /** One caller's share. A client needs one session; a handful covers a reconnect storm. */
@@ -132,7 +166,17 @@ export interface McpHttpHealth {
   readonly resumed: number;
   /** Frames the live sessions' rings dropped: replay depth a reconnect can no longer reach. */
   readonly replayEvictions: number;
+  /** 2026-07-28 requests served since start; a 2026 client has no session to count. */
+  readonly modernRequests: number;
+  /**
+   * Who speaks what: `<protocol version> <client name>` → sessions opened
+   * (2025) or requests (2026). How the migration to 2026 is measured; bounded.
+   */
+  readonly clients: Readonly<Record<string, number>>;
 }
+
+/** How many distinct `<version> <client>` pairs `health()` keeps; past it they count under `other`. */
+const MAX_CLIENT_KINDS = 64;
 
 /**
  * The SDK's id for the standalone GET notification stream
@@ -174,6 +218,10 @@ export class McpHttpHost {
   private evicted = 0;
   private overflowed = 0;
   private resumed = 0;
+  private modernRequests = 0;
+  private readonly clients = new Map<string, number>();
+  private readonly modern: McpHttpHandler;
+  private readonly unhookResourceEvents: () => void;
   /**
    * Sessions this host dropped ON PURPOSE to hold a caller inside its ceiling.
    * They stay gone: resumed, each would evict the next stalest, and a caller
@@ -190,12 +238,54 @@ export class McpHttpHost {
     const idleMs = options.idleMs ?? MCP_SESSION_IDLE_MS;
     this.sweeper = setInterval(() => void this.sweep(idleMs), Math.max(60_000, Math.min(idleMs, 5 * 60_000)));
     this.sweeper.unref();
+    // The 2026 handler builds one server per REQUEST, for the caller this host
+    // authenticated and handed over as `authInfo.extra.caller`. 2025 traffic
+    // never reaches it (`legacy: 'reject'`): the sessions below serve it.
+    this.modern = createMcpHandler((context) => {
+      const caller = (context.authInfo?.extra as { caller?: McpCaller } | undefined)?.caller;
+      if (!caller) throw new Error('a 2026-era request reached the MCP handler without an authenticated caller');
+      return options.buildServer(caller, 'modern');
+    }, { legacy: 'reject', onerror: (error) => this.log(`2026 request failed: ${error.message}`) });
+    this.unhookResourceEvents = options.resourceEvents?.({
+      updated: (uri) => this.modern.notify.resourceUpdated(uri),
+      listChanged: () => this.modern.notify.resourcesChanged(),
+    }) ?? (() => {});
   }
 
   health(): McpHttpHealth {
     let replayEvictions = 0;
     for (const session of this.sessions.values()) replayEvictions += session.events.evictions();
-    return { sessions: this.sessions.size, initializing: this.pending.size, opened: this.opened, refused: this.refused, evicted: this.evicted, overflowed: this.overflowed, resumed: this.resumed, replayEvictions };
+    return {
+      sessions: this.sessions.size, initializing: this.pending.size, opened: this.opened, refused: this.refused, evicted: this.evicted,
+      overflowed: this.overflowed, resumed: this.resumed, replayEvictions, modernRequests: this.modernRequests,
+      clients: Object.fromEntries(this.clients),
+    };
+  }
+
+  /** Counts one client kind: a 2025 `initialize`, or one 2026 request. */
+  private countClient(protocolVersion: unknown, clientInfo: unknown): void {
+    const version = typeof protocolVersion === 'string' ? protocolVersion.slice(0, 20) : 'unknown';
+    const name = clientInfo && typeof clientInfo === 'object' && typeof (clientInfo as { name?: unknown }).name === 'string'
+      ? (clientInfo as { name: string }).name.slice(0, 60) : 'unknown';
+    let kind = `${version} ${name}`;
+    if (!this.clients.has(kind) && this.clients.size >= MAX_CLIENT_KINDS) kind = 'other';
+    this.clients.set(kind, (this.clients.get(kind) ?? 0) + 1);
+  }
+
+  /**
+   * Host pinned, Origin pinned when sent — for both eras, since the 2026
+   * handler checks neither. Answers 403 and returns false when refused.
+   */
+  private admitted(req: IncomingMessage, res: ServerResponse): boolean {
+    const host = req.headers.host;
+    const origin = req.headers.origin;
+    const reason = !host || !this.options.allowedHosts.includes(host) ? `Invalid Host header: ${host ?? '(none)'}`
+      : origin !== undefined && this.options.allowedOrigins && !this.options.allowedOrigins.includes(origin) ? `Invalid Origin header: ${origin}`
+      : null;
+    if (!reason) return true;
+    res.writeHead(403, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+    res.end(JSON.stringify({ jsonrpc: '2.0', error: { code: -32000, message: reason }, id: null }));
+    return false;
   }
 
   /**
@@ -217,16 +307,34 @@ export class McpHttpHost {
       res.end(JSON.stringify({ jsonrpc: '2.0', error: { code: -32001, message: 'a valid access token is required' }, id: null }));
       return;
     }
+    if (!this.admitted(req, res)) return;
+    // Every POST is read here, once: its era is decided from the body, and the
+    // transports are handed the parsed message rather than the stream.
     let body: unknown;
-    if (options.frozen && req.method === 'POST') {
-      body = await readBoundedJson(req, FROZEN_BODY_LIMIT_BYTES);
+    if (req.method === 'POST') {
+      // Nothing is reserved or allocated while a body is still arriving, and one
+      // that has not arrived in `bodyTimeoutMs` is closed: a fragmented body
+      // holds a socket, never a session's place or a server.
+      const deadline = setTimeout(() => { req.destroy(); res.destroy(); }, this.options.bodyTimeoutMs ?? MCP_BODY_TIMEOUT_MS);
+      deadline.unref();
+      try {
+        body = await readBoundedJson(req, options.frozen ? FROZEN_BODY_LIMIT_BYTES : DEFAULT_MAX_REQUEST_BODY_SIZE);
+      } finally {
+        clearTimeout(deadline);
+      }
+      if (res.destroyed) return;
       if (body === undefined) {
-        frozenRefusal(res);
+        if (options.frozen) frozenRefusal(res);
+        else unreadableBody(res);
         return;
       }
     }
     const header = req.headers[MCP_SESSION_HEADER];
     const sessionId = Array.isArray(header) ? header[0] : header;
+    if (!sessionId && req.method === 'POST' && !(await isLegacyRequest(webRequestOf(req), body))) {
+      await this.handleModern(req, res, caller, body, options);
+      return;
+    }
     if (sessionId) {
       const session = this.sessions.get(sessionId);
       if (!session) {
@@ -238,7 +346,7 @@ export class McpHttpHost {
         // some for good. Nothing of the old session comes back (its task ids,
         // subscriptions and replay ring were memory); runs never lived here.
         if (req.method !== 'DELETE' && RESUMABLE_SESSION_ID.test(sessionId) && !this.evictedIds.has(sessionId)) {
-          await this.open(req, res, caller, body, sessionId);
+          await this.open(req, res, caller, body, sessionId, options.frozen === true);
           return;
         }
         this.unknownSession(res);
@@ -263,7 +371,7 @@ export class McpHttpHost {
       const resumed = resumedCallStart(session.events, req);
       if (req.method === 'POST') this.pinWhileAnswering(session, res, this.now());
       else if (resumed !== undefined) this.pinWhileAnswering(session, res, resumed);
-      if (body !== undefined && !servableWhileFrozen(session.server, body)) {
+      if (options.frozen && body !== undefined && !servableWhileFrozen(session.server, body)) {
         frozenRefusal(res);
         return;
       }
@@ -276,7 +384,59 @@ export class McpHttpHost {
       return;
     }
     // A new session: the transport validates that the body is `initialize`.
-    await this.open(req, res, caller, body);
+    const opening = body as { method?: unknown; params?: { protocolVersion?: unknown; clientInfo?: unknown } } | undefined;
+    if (opening?.method === 'initialize') this.countClient(opening.params?.protocolVersion, opening.params?.clientInfo);
+    await this.open(req, res, caller, body, undefined, options.frozen === true);
+  }
+
+  /**
+   * One 2026-07-28 request: the tasks extension's methods answered here, the
+   * rest through the SDK's per-request handler. Under a write freeze a POST
+   * that starts nothing is served, judged against this caller's tools.
+   */
+  private async handleModern(
+    req: IncomingMessage,
+    res: ServerResponse,
+    caller: McpCaller,
+    body: unknown,
+    options: { readonly frozen?: boolean }
+  ): Promise<void> {
+    this.modernRequests += 1;
+    const meta = (body as { params?: { _meta?: Record<string, unknown> } } | undefined)?.params?._meta;
+    this.countClient(meta?.['io.modelcontextprotocol/protocolVersion'], meta?.['io.modelcontextprotocol/clientInfo']);
+    if (options.frozen && !servableWhileFrozen(this.options.buildServer(caller, 'modern'), body)) {
+      frozenRefusal(res);
+      return;
+    }
+    // A call that outlives the request ceiling is closed, as a 2025 one is.
+    const ceiling = setTimeout(() => {
+      this.log('a 2026 response past the request ceiling was closed');
+      res.destroy();
+    }, this.options.maxRequestMs ?? MCP_MAX_REQUEST_MS);
+    ceiling.unref();
+    res.once('close', () => clearTimeout(ceiling));
+    if (isModernTaskRequest(body)) {
+      const method = req.headers['mcp-method'];
+      if (method !== undefined && method !== body.method) {
+        res.writeHead(400, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+        res.end(JSON.stringify({ jsonrpc: '2.0', id: body.id, error: { code: -32020, message: `Mcp-Method header ${String(method)} does not match the body's ${String(body.method)}` } }));
+        return;
+      }
+      const tasks = this.options.tasksFor?.(caller);
+      const answer = tasks
+        ? await answerModernTaskRequest(tasks, body, this.options.serverInfo ?? { name: 'atoma', version: '0' })
+        : { jsonrpc: '2.0', id: body.id, error: { code: -32602, message: 'Failed to retrieve task: Task not found' } };
+      res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+      res.end(JSON.stringify(answer));
+      return;
+    }
+    const abort = new AbortController();
+    res.once('close', () => abort.abort());
+    const response = await this.modern.fetch(webRequestOf(req, abort.signal), {
+      parsedBody: body,
+      authInfo: { token: 'atoma-caller', clientId: callerKey(caller), scopes: [], extra: { caller } },
+    });
+    await sendWebResponse(res, response);
   }
 
   /**
@@ -284,7 +444,7 @@ export class McpHttpHost {
    * `resumeId`, the id a client still holds after this host forgot it. Both
    * count against the same two ceilings and reserve before allocating.
    */
-  private async open(req: IncomingMessage, res: ServerResponse, caller: McpCaller, body: unknown, resumeId?: string): Promise<void> {
+  private async open(req: IncomingMessage, res: ServerResponse, caller: McpCaller, body: unknown, resumeId?: string, frozen = false): Promise<void> {
     const key = callerKey(caller);
     // This caller's own ceiling first, so a busy client reclaims from itself
     // rather than from the host — and only then the host's backstop.
@@ -305,22 +465,18 @@ export class McpHttpHost {
     const initializationTimer = setTimeout(closePending, 30_000);
     initializationTimer.unref();
     try {
-      const server = this.options.buildServer(caller);
+      const server = this.options.buildServer(caller, 'legacy');
       const events = new SessionEventStore(undefined, undefined, this.now);
       let session: Session | null = null;
-      const transport = new StreamableHTTPServerTransport({
+      const transport = new NodeStreamableHTTPServerTransport({
         sessionIdGenerator: () => resumeId ?? randomUUID(),
         // SSE responses, NEVER plain JSON. In JSON mode the SDK drops every
         // notification related to a request — a `notifications/progress` sent
         // during a `waitMs` long-poll reached nobody (measured 2026-09-07: 0 of 3
         // delivered, against 3 of 3 over SSE). The stream is also what the event
-        // store replays after a cut connection (`Last-Event-ID`).
+        // store replays after a cut connection (`Last-Event-ID`). Host and
+        // Origin were checked by `admitted`, for both eras.
         eventStore: events,
-        enableDnsRebindingProtection: true,
-        allowedHosts: [...this.options.allowedHosts],
-        // Checked only when the request carries an Origin, so a CLI client that
-        // sends none is untouched. Absent here, the SDK skips the check entirely.
-        ...(this.options.allowedOrigins ? { allowedOrigins: [...this.options.allowedOrigins] } : {}),
         onsessioninitialized: (id) => {
           this.pending.delete(reservation);
           session = { id, transport, server, events, key, lastSeenMs: this.now(), activePosts: new Map() };
@@ -351,7 +507,7 @@ export class McpHttpHost {
           if (req.method === 'POST') this.pinWhileAnswering(live, res, this.now());
         }
         // Read already, under a freeze: classified against THIS session's tools.
-        if (body !== undefined && !servableWhileFrozen(server, body)) {
+        if (frozen && body !== undefined && !servableWhileFrozen(server, body)) {
           frozenRefusal(res);
           return;
         }
@@ -387,13 +543,14 @@ export class McpHttpHost {
    * moves it resumes nothing and answers 404 as before, and
    * `tests/mcp-http-lifetimes` fails first.
    */
-  private async initialiseResumed(transport: StreamableHTTPServerTransport, req: IncomingMessage, id: string): Promise<boolean> {
+  private async initialiseResumed(transport: NodeStreamableHTTPServerTransport, req: IncomingMessage, id: string): Promise<boolean> {
     const web = (transport as unknown as { _webStandardTransport?: { handleRequest?: (request: Request) => Promise<Response> } })._webStandardTransport;
     const host = req.headers.host;
     if (typeof web?.handleRequest !== 'function' || !host) return false;
     const header = req.headers['mcp-protocol-version'];
     const asked = Array.isArray(header) ? header[0] : header;
-    const protocolVersion = asked && SUPPORTED_PROTOCOL_VERSIONS.includes(asked) ? asked : LATEST_PROTOCOL_VERSION;
+    // A session is a 2025 thing: the resumed opening names a 2025 version.
+    const protocolVersion = asked && SUPPORTED_PROTOCOL_VERSIONS.includes(asked) && asked < '2026' ? asked : LATEST_PROTOCOL_VERSION;
     const url = `http://${host}/mcp`;
     const headers = { host, 'content-type': 'application/json', accept: 'application/json, text/event-stream' };
     const initialize = await web.handleRequest(new Request(url, { method: 'POST', headers, body: JSON.stringify({
@@ -477,6 +634,8 @@ export class McpHttpHost {
 
   async close(): Promise<void> {
     clearInterval(this.sweeper);
+    this.unhookResourceEvents();
+    await this.modern.close().catch(() => {});
     for (const pending of this.pending.values()) pending.close();
     this.pending.clear();
     for (const session of [...this.sessions.values()]) await this.drop(session, 'host closing');
@@ -487,6 +646,52 @@ export class McpHttpHost {
 function frozenRefusal(res: ServerResponse): void {
   res.writeHead(503, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'retry-after': '30' });
   res.end(JSON.stringify({ jsonrpc: '2.0', error: { code: -32000, message: 'deployment in progress; retry this request shortly' }, id: null }));
+}
+
+/** A body this host cannot read — too large, cut off, or not JSON — answered as the SDK answers it. */
+function unreadableBody(res: ServerResponse): void {
+  res.writeHead(400, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+  res.end(JSON.stringify({ jsonrpc: '2.0', error: { code: -32700, message: 'Parse error: the body is not JSON, or is larger than the host reads' }, id: null }));
+}
+
+/**
+ * The web `Request` the SDK's 2026 entry and `isLegacyRequest` read, built
+ * from the headers alone: the body was read already and travels parsed.
+ */
+function webRequestOf(req: IncomingMessage, signal?: AbortSignal): Request {
+  const headers = new Headers();
+  for (const [name, value] of Object.entries(req.headers)) {
+    if (value === undefined || name.startsWith(':') || name === 'content-length' || name === 'transfer-encoding') continue;
+    if (Array.isArray(value)) for (const item of value) headers.append(name, item);
+    else headers.set(name, value);
+  }
+  return new Request(`http://${req.headers.host ?? 'localhost'}${req.url ?? '/mcp'}`, {
+    method: req.method ?? 'POST', headers, ...(signal ? { signal } : {}),
+  });
+}
+
+/** A web `Response` written to the Node one, streamed, and cancelled when the client goes. */
+async function sendWebResponse(res: ServerResponse, response: Response): Promise<void> {
+  const headers: Record<string, string> = {};
+  response.headers.forEach((value, name) => { headers[name] = value; });
+  res.writeHead(response.status, headers);
+  if (!response.body) {
+    res.end();
+    return;
+  }
+  const reader = response.body.getReader();
+  res.once('close', () => { void reader.cancel().catch(() => {}); });
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      res.write(value);
+    }
+  } catch {
+    // The client went away mid-stream; nothing is owed to it any more.
+  } finally {
+    res.end();
+  }
 }
 
 /** A JSON body of at most `limit` bytes, or undefined when it is larger, cut off or not JSON. */
