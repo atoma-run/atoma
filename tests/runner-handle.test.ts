@@ -9,6 +9,11 @@ import {
 } from '../src/run/runner.js';
 import { ANTHROPIC_PINS, CLAUDE_CLI_PINS, OLLAMA_PINS } from './tier-pins.js';
 import { buildProfile } from '../src/run/profiles/build.js';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { closeStoreHandles } from '../src/core/stores.js';
+import { PlatformSettingsStore } from '../src/platform/settings.js';
 
 /**
  * Review §3.5: runTask used to BE the process (park-forever, process.exit on
@@ -86,6 +91,7 @@ describe('startTask — typed config errors before any side effect', () => {
     'ATOMA_MODEL_L3',
     'ATOMA_REQUIRE_ISOLATION',
     'ATOMA_CONTAINER',
+    buildProfile.envVars.dbPath,
   ] as const;
   const before = new Map<string, string | undefined>();
   beforeEach(() => {
@@ -105,6 +111,41 @@ describe('startTask — typed config errors before any side effect', () => {
     process.env[buildProfile.envVars.timeoutMs] = 'abc';
     await expect(startTask(buildProfile, [])).rejects.toThrow(RunnerConfigError);
     await expect(startTask(buildProfile, [])).rejects.toThrow(/expected positive integer/);
+  });
+
+  /**
+   * THE BACKSTOP AT THE PROCESS BOUNDARY.
+   *
+   * The coordinator refuses a tenant budget above the platform ceiling, but
+   * it is not in front of every run: an operator's own `npm run run:build`
+   * exports `ATOMA_BUILD_TIMEOUT_MS` and reaches the runner directly, and
+   * `spawnRun` writes that same variable from whatever budget its caller
+   * chose. This is the check that makes the ceiling binding rather than
+   * advisory — and it must REFUSE, not clamp, so a run never quietly gets two
+   * hours when its operator asked for six.
+   */
+  it('refuses a run budget above a stated platform ceiling', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'atoma-runner-ceiling-'));
+    try {
+      const dbPath = join(root, 'atoma.db');
+      PlatformSettingsStore.open(dbPath).set({ 'run.timeoutMaxMs': 600_000 }, null);
+      process.env[buildProfile.envVars.dbPath] = dbPath;
+      process.env[buildProfile.envVars.timeoutMs] = '1800000';
+      await expect(startTask(buildProfile, ['goal'])).rejects.toThrow(RunnerConfigError);
+      await expect(startTask(buildProfile, ['goal'])).rejects.toThrow(
+        /exceeds the platform ceiling run\.timeoutMaxMs=600000/
+      );
+      // At the ceiling exactly, the launch proceeds past this check — proved
+      // by the NEXT refusal in the ordered gauntlet rather than by a real
+      // run, which would need a provider.
+      process.env[buildProfile.envVars.timeoutMs] = '600000';
+      await expect(
+        startTask(buildProfile, ['--seed', '/nonexistent/atoma-seed-dir', 'goal'])
+      ).rejects.toThrow(/--seed: no such directory/);
+    } finally {
+      closeStoreHandles();
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it('rejects a missing --seed directory before touching anything', async () => {

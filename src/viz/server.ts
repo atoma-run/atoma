@@ -146,7 +146,21 @@ import {
   type AnnouncementDetail,
 } from '../contracts/announcements.js';
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES } from '../contracts/locales.js';
-import { PLATFORM_EVENT_DETAIL_MAX_CHARS } from '../contracts/platformEvents.js';
+import {
+  PLATFORM_EVENT_DETAIL_MAX_CHARS,
+  PLATFORM_EVENT_SUMMARY_MAX_CHARS,
+} from '../contracts/platformEvents.js';
+import {
+  PLATFORM_SETTING_KEYS,
+  PLATFORM_SETTING_SPECS,
+  platformSettingsUpdateSchema,
+  type PlatformLimits,
+  type PlatformSettingSpec,
+} from '../contracts/platformSettings.js';
+import {
+  PlatformSettingsStore,
+  type PlatformSettingRow,
+} from '../platform/settings.js';
 import { buildTierClients } from '../run/providers.js';
 import { RoutingLlmClient } from '../core/llmRouting.js';
 import type { LlmClient } from '../core/types.js';
@@ -515,6 +529,20 @@ const EVENTS: PlatformEventLog | null = AUTH_RUNTIME
   : null;
 
 /**
+ * PLATFORM SETTINGS — the run limits a platform admin may re-state.
+ *
+ * Gated only, on the same reasoning as `EVENTS`: the flag that authorises a
+ * write does not exist on the ungated developer path, and opening the table
+ * there would create a group in a store the viz may hold read-only. An
+ * operator with no server still writes rows through `npm run settings`, and
+ * the run path reads them from the store directly — this handle is the HTTP
+ * surface's, not the run path's.
+ */
+const SETTINGS: PlatformSettingsStore | null = AUTH_RUNTIME
+  ? PlatformSettingsStore.open(DBS[0]!.path)
+  : null;
+
+/**
  * Fail-open emit helper. `EVENTS` is null on the ungated path, and `append`
  * itself never throws, so no call site needs a guard or a try/catch.
  */
@@ -805,6 +833,11 @@ const PROJECTS_RUNTIME: ProjectsRuntime | null = (() => {
     describeDeliveredPreview: (subject) => {
       recordDeliveredPreview(previewStore, subject);
     },
+    // THE PLATFORM'S RUN LIMITS, asked per run rather than captured now: this
+    // server outlives every save an admin makes in the Settings form, and a
+    // limit that needed a restart would be a limit nobody trusts. Absent
+    // without a gate, where no admin exists to have stated one.
+    ...(SETTINGS ? { platformLimits: () => SETTINGS.limits() } : {}),
     // Accounts choose their own per-tier models in Settings; without a gate
     // there are no accounts and the operator's host pins are the only pins.
     ...(AUTH?.store
@@ -3559,6 +3592,106 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
         sendJson(res, 200, {
           events: labelLedgerOwners(readLedgerTail(limit, openLedgerHandle(DBS[0]!.path))),
         });
+        return;
+      }
+      // THE RUN LIMITS OF THIS INSTANCE — read by any platform admin,
+      // written by any platform admin, journaled either way.
+      //
+      // The response carries FOUR things, and the fourth is why the screen is
+      // honest: the catalog (bounds and units, so the form validates the same
+      // way the server does), what an admin has STATED, what the run path
+      // will therefore USE, and the ENVIRONMENT value currently exported for
+      // each entry that names a variable. Without that last field the form
+      // would show a default of 15 minutes on a deployment whose
+      // `ATOMA_PROJECT_TIMEOUT_MS` says 40 — the same omission the org-models
+      // screen fixed with `operatorDefaults`.
+      if (pathname === '/api/admin/settings') {
+        if (!SETTINGS) {
+          sendJson(res, 404, { error: 'platform settings require the auth gate' });
+          return;
+        }
+        const snapshot = (): {
+          catalog: readonly PlatformSettingSpec[];
+          rows: PlatformSettingRow[];
+          limits: PlatformLimits;
+          env: Record<string, string | null>;
+        } => ({
+          catalog: PLATFORM_SETTING_SPECS,
+          rows: SETTINGS.rows(),
+          limits: SETTINGS.limits(),
+          env: Object.fromEntries(
+            PLATFORM_SETTING_SPECS.map((spec) => [
+              spec.key,
+              spec.env ? (process.env[spec.env]?.trim() || null) : null,
+            ])
+          ),
+        });
+        if (req.method === 'GET') {
+          sendJson(res, 200, snapshot());
+          return;
+        }
+        if (!methodAllowed(req, res, 'PUT')) return;
+        if (!sameOrigin(req, res)) return;
+        let body: unknown;
+        try {
+          body = JSON.parse((await readBodyBounded(req, 4_096)).toString('utf8') || '{}');
+        } catch {
+          sendJson(res, 400, { error: 'request body is not valid JSON' });
+          return;
+        }
+        const request = platformSettingsUpdateSchema.safeParse(body);
+        if (!request.success) {
+          sendJson(res, 400, {
+            error: request.error.issues[0]?.message ?? 'invalid platform settings',
+          });
+          return;
+        }
+        const { set, clear } = request.data;
+        if (Object.keys(set).length === 0 && clear.length === 0) {
+          sendJson(res, 400, { error: 'nothing to set or clear' });
+          return;
+        }
+        // BEFORE, so the journal names what actually moved. An admin who
+        // re-saves an unchanged form must not produce an audit row claiming a
+        // change, and "raised from 15 to 40 minutes" is the only version of
+        // this row that answers a question later.
+        const before = SETTINGS.limits();
+        try {
+          if (clear.length > 0) SETTINGS.clear(clear);
+          if (Object.keys(set).length > 0) SETTINGS.set(set, viewer.principalId);
+        } catch (error) {
+          sendJson(res, 400, {
+            error: (error instanceof Error ? error.message : String(error)).slice(0, 500),
+          });
+          return;
+        }
+        const after = SETTINGS.limits();
+        const changed = PLATFORM_SETTING_KEYS.filter((key) => before[key] !== after[key]);
+        if (changed.length > 0) {
+          // BOUNDED BEFORE IT IS EMITTED. Eight moved keys spell ~290
+          // characters and the summary column holds 200, and the journal is
+          // fail-open — an oversized row is DROPPED, so an unbounded summary
+          // would lose the audit trail for exactly the largest change. The
+          // count leads so a truncated line still says how much moved, and
+          // `detail` carries every key either way.
+          const listed = changed.map((key) => `${key} ${before[key]}→${after[key]}`).join(', ');
+          const prefix = `Platform run limits updated (${changed.length}): `;
+          const room = PLATFORM_EVENT_SUMMARY_MAX_CHARS - prefix.length;
+          emit({
+            kind: 'platform.settings_updated',
+            actorType: 'principal',
+            actorId: viewer.principalId,
+            summary:
+              prefix + (listed.length <= room ? listed : `${listed.slice(0, room - 1)}…`),
+            detail: {
+              changed: Object.fromEntries(
+                changed.map((key) => [key, { from: before[key], to: after[key] }])
+              ),
+              cleared: clear.filter((key) => !(key in set)),
+            },
+          });
+        }
+        sendJson(res, 200, snapshot());
         return;
       }
       if (pathname === '/api/admin/organisations') {

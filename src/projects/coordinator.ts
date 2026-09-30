@@ -22,6 +22,7 @@ import { PERSONAL_CODEX_PROFILE_ROOT_ENV } from '../core/codexHomeLease.js';
 import { JEV_ENV, JEV_KEY_ENV, jevEnabled } from '../core/jev.js';
 import { skillsDirPath } from '../core/stores.js';
 import { LLM_PROVIDER_CATALOG, findProvider, isAccountTierSelection } from '../core/providerCatalog.js';
+import { DEFAULT_PLATFORM_LIMITS, type PlatformLimits } from '../contracts/platformSettings.js';
 import {
   assertServedHostChatGptModels,
   ledgerTouchesAnySubscription,
@@ -206,6 +207,18 @@ export interface ProjectCoordinatorOptions {
   readonly describeDeliveredPreview?: (input: DeliveredPreviewSubject) => void;
   readonly cwd?: string;
   readonly timeoutMs?: number;
+  /**
+   * THE PLATFORM'S OWN LIMITS, read fresh per run.
+   *
+   * A FUNCTION and not a value, for the same reason it is injected rather
+   * than opened here: the coordinator outlives every settings change a
+   * platform admin makes in the viz, so a value captured at construction
+   * would mean "restart the server to change a limit" — and the dependency
+   * arrow points from the server at the domain, so this module must not learn
+   * where the settings table lives. Absent means the shipped constants, which
+   * is what every caller outside a gated deployment gets.
+   */
+  readonly platformLimits?: () => PlatformLimits;
 }
 
 /** What the coordinator knows about a delivered run's deliverable. */
@@ -972,9 +985,14 @@ export function landedRunDetail(stats: Pick<RunStats, 'landingReasons'>, log: st
  * src/atoms/dispatch.ts) and records the run `partial` instead of discarding
  * them. Explicit operator budgets still take precedence.
  *
+ * Since the platform-settings catalog a platform admin may also re-state this
+ * default and NARROW the maximum (`run.timeoutDefaultMs`, `run.timeoutMaxMs`).
+ *
  * Bounded on both ends because the child derives two later deadlines from it:
- * the runner's watchdog fires at budget + 60s and the harness hard-reaps at
- * budget + 180s, so an absurd value moves those too.
+ * the runner's watchdog fires at budget + its grace (60s by default,
+ * `run.watchdogGraceMs`) and the harness hard-reaps at budget + 180s, so an
+ * absurd value moves those too. That is why an admin's ceiling may only
+ * narrow `MAX_PROJECT_RUN_TIMEOUT_MS`, never raise it.
  */
 export const DEFAULT_PROJECT_RUN_TIMEOUT_MS = 60 * 60 * 1_000;
 export const MIN_PROJECT_RUN_TIMEOUT_MS = 60 * 1_000;
@@ -1002,9 +1020,15 @@ export const PROJECT_RUN_PREPARATION_TIMEOUT_MS = 10 * 60 * 1_000;
 
 /**
  * Resolve the budget: an explicit argument wins over the host environment,
- * which wins over the default. A malformed or out-of-range value is a REFUSAL,
- * never a silent fallback — a run that quietly gets the default when the
- * operator asked for 40 is the defect this replaces, wearing a different hat.
+ * which wins over the platform default (`run.timeoutDefaultMs`,
+ * `DEFAULT_PROJECT_RUN_TIMEOUT_MS` when no admin has stated one). A malformed
+ * or out-of-range value is a REFUSAL, never a silent fallback — a run that
+ * quietly gets the default when the operator asked for 40 is the defect this
+ * replaces, wearing a different hat, and that is exactly why the platform
+ * CEILING refuses rather than clamps: the same argument applies to an admin's
+ * limit as to a constant.
+ *
+ * The ceiling can only NARROW `MAX_PROJECT_RUN_TIMEOUT_MS` — see the body.
  *
  * Deliberately NOT named `ATOMA_BUILD_TIMEOUT_MS`: that variable belongs to the
  * child, is written by `spawnRun` from this value, and two names for one number
@@ -1012,19 +1036,30 @@ export const PROJECT_RUN_PREPARATION_TIMEOUT_MS = 10 * 60 * 1_000;
  */
 export function projectRunTimeoutMs(
   hostEnv: NodeJS.ProcessEnv = process.env,
-  explicitMs?: number
+  explicitMs?: number,
+  limits: PlatformLimits = DEFAULT_PLATFORM_LIMITS
 ): number {
+  // A PLATFORM ADMIN MAY ONLY NARROW THIS. `MAX_PROJECT_RUN_TIMEOUT_MS` is
+  // what the child's watchdog and the burn-in reaper were sized against, so
+  // `Math.min` and not the setting alone: raising the ceiling past the
+  // constant would move two deadlines this module does not own.
+  const ceilingMs = Math.min(MAX_PROJECT_RUN_TIMEOUT_MS, limits['run.timeoutMaxMs']);
+  // The admin's DEFAULT, still bounded by the ceiling — a default above the
+  // ceiling is a contradiction, and refusing it here would fail every run on
+  // an instance whose two settings disagree, which is a worse answer than
+  // honouring the tighter of the two.
+  const defaultMs = Math.min(limits['run.timeoutDefaultMs'], ceilingMs);
   const raw = explicitMs ?? hostEnv[PROJECT_RUN_TIMEOUT_ENV];
-  if (raw === undefined || raw === '') return DEFAULT_PROJECT_RUN_TIMEOUT_MS;
+  if (raw === undefined || raw === '') return defaultMs;
   const parsed = typeof raw === 'number' ? raw : Number(raw.trim());
   if (!Number.isSafeInteger(parsed)) {
     throw new ProjectRunConfigurationError(
       `invalid project run timeout "${String(raw)}" (expected an integer in milliseconds)`
     );
   }
-  if (parsed < MIN_PROJECT_RUN_TIMEOUT_MS || parsed > MAX_PROJECT_RUN_TIMEOUT_MS) {
+  if (parsed < MIN_PROJECT_RUN_TIMEOUT_MS || parsed > ceilingMs) {
     throw new ProjectRunConfigurationError(
-      `project run timeout ${parsed}ms is outside ${MIN_PROJECT_RUN_TIMEOUT_MS}..${MAX_PROJECT_RUN_TIMEOUT_MS}ms`
+      `project run timeout ${parsed}ms is outside ${MIN_PROJECT_RUN_TIMEOUT_MS}..${ceilingMs}ms`
     );
   }
   return parsed;
@@ -1083,7 +1118,8 @@ export class ProjectRunCoordinator {
   private readonly onSubscriptionTransport?: (info: SubscriptionTransportUse) => void;
   private readonly describeDeliveredPreview?: (input: DeliveredPreviewSubject) => void;
   private readonly cwd: string;
-  private readonly timeoutMs: number;
+  private readonly explicitTimeoutMs?: number;
+  private readonly platformLimits: () => PlatformLimits;
   private readonly active = new Map<string, ActiveRun>();
   private readonly idleWaiters = new Set<() => void>();
 
@@ -1116,7 +1152,24 @@ export class ProjectRunCoordinator {
       this.describeDeliveredPreview = options.describeDeliveredPreview;
     }
     this.cwd = options.cwd ?? repoRoot();
-    this.timeoutMs = projectRunTimeoutMs(this.hostEnv, options.timeoutMs);
+    if (options.timeoutMs !== undefined) this.explicitTimeoutMs = options.timeoutMs;
+    this.platformLimits = options.platformLimits ?? (() => DEFAULT_PLATFORM_LIMITS);
+    // RESOLVED TWICE ON PURPOSE. Once here so a malformed
+    // `ATOMA_PROJECT_TIMEOUT_MS` or an out-of-range flag fails at
+    // CONSTRUCTION — a server that boots and then refuses every run is a
+    // worse answer than one that refuses to boot — and again per run, in
+    // `runTimeoutMs`, so a platform admin's change reaches the next launch
+    // without a restart. The value is deliberately NOT cached from this call.
+    this.runTimeoutMs();
+  }
+
+  /**
+   * The budget for the NEXT run: the explicit argument, else the host
+   * environment, else the platform default — all bounded by the platform
+   * ceiling. See `projectRunTimeoutMs` for the precedence and the refusals.
+   */
+  private runTimeoutMs(): number {
+    return projectRunTimeoutMs(this.hostEnv, this.explicitTimeoutMs, this.platformLimits());
   }
 
   /**
@@ -1272,7 +1325,7 @@ export class ProjectRunCoordinator {
 
   /** Preparation and the child's hard backstop belong to the task's lifetime too. */
   runTaskBudgetMs(): number {
-    return PROJECT_RUN_PREPARATION_TIMEOUT_MS + this.timeoutMs + DEFAULT_HARD_KILL_MARGIN_MS + UNKILLABLE_BACKSTOP_EXTRA_MS;
+    return PROJECT_RUN_PREPARATION_TIMEOUT_MS + this.runTimeoutMs() + DEFAULT_HARD_KILL_MARGIN_MS + UNKILLABLE_BACKSTOP_EXTRA_MS;
   }
 
   async start(input: {
@@ -1482,7 +1535,7 @@ export class ProjectRunCoordinator {
       const preparationDeadlineAt = Date.now() + PROJECT_RUN_PREPARATION_TIMEOUT_MS;
       const launch = () => this.driver({
         goal: run.goal,
-        timeoutMs: this.timeoutMs,
+        timeoutMs: this.runTimeoutMs(),
         logPath: paths.logPath,
         cwd: this.cwd,
         npmScript: 'run:build',

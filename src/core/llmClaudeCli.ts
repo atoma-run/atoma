@@ -175,10 +175,31 @@ export class ClaudeCliLlmClient implements LlmClient {
   private readonly maxIter: number;
   private readonly callTimeoutMs: number;
 
-  constructor(opts: { maxToolIterations?: number; callTimeoutMs?: number } = {}) {
+  /**
+   * `callTimeoutCeilingMs` is the PLATFORM setting `llm.callTimeoutMs`, and it
+   * binds whatever the other two sources asked for — an explicit option, the
+   * env var, or the default. It is a separate option rather than a second
+   * spelling of `callTimeoutMs` because the two answer different questions:
+   * one is a request, the other is the most this deployment permits, and
+   * collapsing them would let a caller's request overrule the ceiling.
+   */
+  constructor(
+    opts: {
+      maxToolIterations?: number;
+      callTimeoutMs?: number;
+      callTimeoutCeilingMs?: number;
+    } = {}
+  ) {
     this.maxIter = Math.max(1, opts.maxToolIterations ?? DEFAULT_MAX_TOOL_ITERATIONS);
-    this.callTimeoutMs =
-      opts.callTimeoutMs && opts.callTimeoutMs > 0 ? opts.callTimeoutMs : cliCallTimeoutMs();
+    const requested =
+      opts.callTimeoutMs && opts.callTimeoutMs > 0
+        ? Math.floor(opts.callTimeoutMs)
+        : cliCallTimeoutMs();
+    const ceiling =
+      opts.callTimeoutCeilingMs !== undefined && opts.callTimeoutCeilingMs > 0
+        ? Math.floor(opts.callTimeoutCeilingMs)
+        : null;
+    this.callTimeoutMs = ceiling === null ? requested : Math.min(requested, ceiling);
   }
 
   async complete(req: LlmCompletionRequest): Promise<LlmCompletionResponse> {

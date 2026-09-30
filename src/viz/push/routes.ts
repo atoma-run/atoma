@@ -396,6 +396,12 @@ const PUSH_ROUTE_SOURCES: Record<PlatformEventKind, PushRouteSource | null> = {
   },
   // The minter already knows; the journal keeps the record.
   'invitation.created': null,
+  // Journal-only, on the same reasoning: the admin who moved the limit is the
+  // one holding the form, and every other admin reads the new value in that
+  // same screen. A push would announce a number the recipient can already see
+  // — and the audit row is what answers "who moved it", which is the question
+  // that actually outlives the change.
+  'platform.settings_updated': null,
   'auth.rate_limited': null,
   'auth.state_flood': {
     audience: { platformAdmins: true },

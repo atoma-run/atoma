@@ -826,7 +826,7 @@ describe('viz auth gate (process level)', () => {
     for (const path of ['/api/skills', '/api/registries']) {
       expect((await fetch(`${base}${path}`, { headers: cookie })).status).toBe(200);
     }
-    for (const path of ['/api/burnin', '/api/admin/organisations']) {
+    for (const path of ['/api/burnin', '/api/admin/organisations', '/api/admin/settings']) {
       const refused = await fetch(`${base}${path}`, { headers: cookie });
       expect(refused.status).toBe(403);
     }
@@ -859,7 +859,8 @@ describe('viz auth gate (process level)', () => {
 
     // The flag rides the very next request: no re-login, no session refresh.
     const whoamiAfter = await fetch(`${base}/auth/whoami`, { headers: cookie });
-    expect(await whoamiAfter.json()).toMatchObject({ authenticated: true, platformAdmin: true });
+    const admin = await whoamiAfter.json() as { principalId: string };
+    expect(admin).toMatchObject({ authenticated: true, platformAdmin: true });
     expect(await (await fetch(`${base}/api/runs`, { headers: cookie })).json()).toMatchObject([{ id: benchmark.start.runId }]);
     expect(await (await fetch(`${base}/api/runs/${benchmark.start.runId}`, { headers: cookie })).json()).toEqual(benchmark.trace);
     expect((await fetch(`${base}/api/burnin`, { headers: cookie })).status).toBe(200);
@@ -894,12 +895,106 @@ describe('viz auth gate (process level)', () => {
     expect(invitation.role).toBe('org:member');
     expect(invitation.url).toContain(`invite=${encodeURIComponent(invitation.token)}`);
 
+    // ---- THE INSTANCE'S RUN LIMITS. Same plane, same gate, and the same
+    // same-origin rule as the invitation above: this surface decides what
+    // every run on the deployment may consume.
+    const settingsBefore = await fetch(`${base}/api/admin/settings`, { headers: cookie });
+    expect(settingsBefore.status).toBe(200);
+    const snapshot = await settingsBefore.json() as {
+      catalog: Array<{ key: string; min: number; max: number; kind: string }>;
+      rows: Array<{ key: string }>;
+      limits: Record<string, number>;
+      env: Record<string, string | null>;
+    };
+    // A fresh instance states NOTHING and still reports every effective
+    // limit — the property that makes "no rows" mean "shipped defaults".
+    expect(snapshot.rows).toEqual([]);
+    expect(snapshot.limits['run.timeoutMaxMs']).toBe(7_200_000);
+    expect(snapshot.limits['run.tokenMaxTotal']).toBe(0);
+    expect(snapshot.catalog.some((spec) => spec.key === 'run.costMaxUsd')).toBe(true);
+    // The env column reports what a launcher would ask for, so the form does
+    // not show a default the deployment has already overridden.
+    expect(snapshot.env['run.timeoutDefaultMs']).toBeNull();
+
+    const crossSiteSettings = await fetch(`${base}/api/admin/settings`, {
+      method: 'PUT',
+      headers: { ...cookie, 'content-type': 'application/json', origin: 'https://evil.example' },
+      body: JSON.stringify({ set: { 'run.tokenMaxTotal': 1_000 } }),
+    });
+    expect(crossSiteSettings.status).toBe(403);
+    // Out of range is a 400 that names the bounds, never a silent clamp.
+    const outOfRange = await fetch(`${base}/api/admin/settings`, {
+      method: 'PUT',
+      headers: { ...cookie, 'content-type': 'application/json', origin: base },
+      body: JSON.stringify({ set: { 'run.timeoutMaxMs': 172_800_000 } }),
+    });
+    expect(outOfRange.status).toBe(400);
+    // An unknown key is refused too: the catalog IS the schema.
+    const unknownKey = await fetch(`${base}/api/admin/settings`, {
+      method: 'PUT',
+      headers: { ...cookie, 'content-type': 'application/json', origin: base },
+      body: JSON.stringify({ set: { 'run.inventedByAClient': 5 } }),
+    });
+    expect(unknownKey.status).toBe(400);
+
+    const tightened = await fetch(`${base}/api/admin/settings`, {
+      method: 'PUT',
+      headers: { ...cookie, 'content-type': 'application/json', origin: base },
+      body: JSON.stringify({ set: { 'run.timeoutMaxMs': 1_800_000, 'run.costMaxUsd': 2.5 } }),
+    });
+    expect(tightened.status).toBe(200);
+    const applied = await tightened.json() as {
+      rows: Array<{ key: string; updatedBy: string | null }>;
+      limits: Record<string, number>;
+    };
+    expect(applied.limits['run.timeoutMaxMs']).toBe(1_800_000);
+    // To the cent: the one entry priced in dollars must survive the column.
+    expect(applied.limits['run.costMaxUsd']).toBe(2.5);
+    expect(applied.rows.map((row) => row.key)).toEqual(['run.timeoutMaxMs', 'run.costMaxUsd']);
+    // Attributable to the admin who pressed Save, not to the server.
+    expect(applied.rows[0]!.updatedBy).toBe(admin.principalId);
+
+    // The change is in the audit journal, at SECURITY severity, naming what
+    // moved — the question the run rows that follow cannot answer.
+    const journal = await (await fetch(`${base}/api/admin/events?limit=20`, { headers: cookie }))
+      .json() as { events: Array<{ kind: string; severity: string; summary: string }> };
+    const settingsRow = journal.events.find((event) => event.kind === 'platform.settings_updated');
+    expect(settingsRow?.severity).toBe('security');
+    expect(settingsRow?.summary).toContain('run.timeoutMaxMs 7200000→1800000');
+
+    // Clearing REMOVES the row rather than writing the default back.
+    const cleared = await fetch(`${base}/api/admin/settings`, {
+      method: 'PUT',
+      headers: { ...cookie, 'content-type': 'application/json', origin: base },
+      body: JSON.stringify({ clear: ['run.timeoutMaxMs', 'run.costMaxUsd'] }),
+    });
+    expect(cleared.status).toBe(200);
+    const back = await cleared.json() as { rows: unknown[]; limits: Record<string, number> };
+    expect(back.rows).toEqual([]);
+    expect(back.limits['run.timeoutMaxMs']).toBe(7_200_000);
+    // POST is not a write here, and an empty request changes nothing.
+    expect(
+      (await fetch(`${base}/api/admin/settings`, {
+        method: 'POST',
+        headers: { ...cookie, 'content-type': 'application/json', origin: base },
+        body: '{}',
+      })).status
+    ).toBe(405);
+    expect(
+      (await fetch(`${base}/api/admin/settings`, {
+        method: 'PUT',
+        headers: { ...cookie, 'content-type': 'application/json', origin: base },
+        body: '{}',
+      })).status
+    ).toBe(400);
+
     // Revocation closes the door again on the next request.
     expect(
       runAuthCli(['node', 'auth', 'revoke-admin', '--principal', 'fake@example.com', '--db', instance.dbPath], {})
     ).toBe(0);
     expect((await fetch(`${base}/api/burnin`, { headers: cookie })).status).toBe(403);
     expect((await fetch(`${base}/api/admin/organisations`, { headers: cookie })).status).toBe(403);
+    expect((await fetch(`${base}/api/admin/settings`, { headers: cookie })).status).toBe(403);
   });
 
 

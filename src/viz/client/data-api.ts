@@ -18,6 +18,7 @@ import type {
   VizLedgerEvent,
   VizNotificationPage,
   VizPlatformEventPage,
+  VizPlatformSettings,
   VizSentinelSnapshot,
   VizGitHubInstallation,
   VizProject,
@@ -159,6 +160,14 @@ export const api = {
     return fetchJson<VizPlatformEventPage>(`/api/admin/events?${params.toString()}`);
   },
   adminSentinel: () => fetchJson<VizSentinelSnapshot>('/api/admin/sentinel'),
+  // THE INSTANCE'S RUN LIMITS. PUT and not POST for the same reason the
+  // model surfaces use it: the request replaces the stated set, and the
+  // response is the whole snapshot again — the form never computes what it
+  // now shows, so a server-side clamp or refusal cannot be papered over by
+  // an optimistic client update.
+  adminSettings: () => fetchJson<VizPlatformSettings>('/api/admin/settings'),
+  saveAdminSettings: (body: { set?: Record<string, number>; clear?: string[] }) =>
+    mutateJson<VizPlatformSettings>('/api/admin/settings', body, 'PUT'),
   // A SEPARATE read of the product ledger, never a merge with the journal
   // above: the two answer different questions and only share a tab.
   adminLedger: (limit = 100) =>

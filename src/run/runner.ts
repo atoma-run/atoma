@@ -24,6 +24,13 @@ import {
 import { referencedTransports } from '../contracts/modelSelector.js';
 import { InMemoryMetrics, MetricsLlmClient, subscriptionCostUsd } from '../core/metrics.js';
 import { DEFAULT_LIMITS } from '../core/limits.js';
+import {
+  RunBudgetExceededError,
+  RunBudgetMeter,
+  ToolIterationCeilingLlmClient,
+} from '../core/runBudget.js';
+import { ceilingOf } from '../contracts/platformSettings.js';
+import { platformLimitsFor } from '../platform/settings.js';
 import { openDb } from '../registry/db.js';
 import { skillsDirPath } from '../core/stores.js';
 import { L3Atom } from '../atoms/L3Atom.js';
@@ -629,6 +636,27 @@ export async function startTask(
     args,
     resolveIsolationRequirement(process.env, opts?.requireIsolation)
   );
+  // The WORKSPACE is per-family; the STORE is not. A catalog of atom types
+  // and skills is deliberately cross-family — `resolveCreationDescription`
+  // strips task themes from descriptions precisely so a type earns reuse
+  // outside the family that spawned it — so partitioning the registry by
+  // family fought the one property it exists to have. The profile still names
+  // the env var (a family COULD point elsewhere); today they all name
+  // `ATOMA_DB_PATH`. See src/core/stores.ts for the four drifted copies this
+  // replaced.
+  //
+  // Resolved HERE, above the budget checks, rather than beside `openDb` where
+  // it used to sit: the platform limits live in that same store and the very
+  // first of them bounds the timeout below. It is a pure env read with no
+  // side effect, so hoisting it changes nothing about launch ordering — and
+  // the ordering rule the block above states (validate every fallible
+  // argument before mutating anything) is what requires the limits to be in
+  // hand before the workspace is touched.
+  const dbPath = process.env[profile.envVars.dbPath] ?? profile.defaults.dbPath;
+  // PLATFORM LIMITS — what a platform admin has re-stated for this instance.
+  // Read from the product store, fail-open to the shipped constants: a
+  // missing or torn settings table must never stop a run from launching.
+  const platformLimits = platformLimitsFor(dbPath);
   const timeoutRaw = process.env[profile.envVars.timeoutMs];
   const timeoutMs = Number(timeoutRaw ?? (useClaudeCli ? 15 * 60 * 1000 : 10 * 60 * 1000));
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
@@ -636,12 +664,33 @@ export async function startTask(
       `invalid ${profile.envVars.timeoutMs}="${timeoutRaw}" (expected positive integer in ms)`
     );
   }
+  // THE CEILING IS A REFUSAL, NOT A CLAMP. The coordinator already refuses a
+  // tenant budget above it, so reaching here means a launcher exported the
+  // variable directly — and a run that quietly got two hours when its
+  // operator asked for six is the defect `projectRunTimeoutMs` was written to
+  // stop, wearing a different hat. This is the backstop at the process
+  // boundary the parent's check cannot cover: an operator's own
+  // `npm run run:build` has no coordinator in front of it.
+  const timeoutCeilingMs = platformLimits['run.timeoutMaxMs'];
+  if (timeoutMs > timeoutCeilingMs) {
+    throw new RunnerConfigError(
+      `${profile.envVars.timeoutMs}=${timeoutMs} exceeds the platform ceiling ` +
+        `run.timeoutMaxMs=${timeoutCeilingMs} — raise it in Settings (platform admin) ` +
+        `or with: npm run settings -- set run.timeoutMaxMs <ms>`
+    );
+  }
   const seedRoot = args.seed ? resolve(args.seed) : undefined;
   if (seedRoot && !existsSync(seedRoot)) {
     throw new RunnerConfigError(`--seed: no such directory: ${seedRoot}`);
   }
   console.log(`run timeout: ${Math.round(timeoutMs / 1000)}s`);
-  const signal = AbortSignal.timeout(timeoutMs);
+  // TWO REASONS ONE RUN CAN BE CUT SHORT, ONE SIGNAL. The deadline is a timer
+  // and fires on its own; a token or spend ceiling is only knowable when a
+  // call returns, so `RunBudgetMeter` aborts this controller instead. Joining
+  // them means every existing listener — the supervise loop, each transport,
+  // the tool loops — obeys both without knowing there is a second.
+  const budgetAbort = new AbortController();
+  const signal = AbortSignal.any([AbortSignal.timeout(timeoutMs), budgetAbort.signal]);
   // Stamped HERE, at the same instant as the abort clock. Computing it after
   // setup (workspace archive, store open, container boot)
   // overstated the deadline by the whole setup cost, and `capToolIterations`
@@ -711,15 +760,6 @@ export async function startTask(
     );
   }
 
-  // The WORKSPACE is per-family; the STORE is not. A catalog of atom types
-  // and skills is deliberately cross-family — `resolveCreationDescription`
-  // strips task themes from descriptions precisely so a type earns reuse
-  // outside the family that spawned it — so partitioning the registry by
-  // family fought the one property it exists to have. The profile still names
-  // the env var (a family COULD point elsewhere); today they all name
-  // `ATOMA_DB_PATH`. See src/core/stores.ts for the four drifted copies this
-  // replaced.
-  const dbPath = process.env[profile.envVars.dbPath] ?? profile.defaults.dbPath;
   const workspaceRoot = resolve(
     process.env[profile.envVars.workspace] ?? profile.defaults.workspace
   );
@@ -788,14 +828,40 @@ export async function startTask(
   };
   // ONE construction switch per transport, shared with curriculum and the viz
   // server (review §3.9): only the transports the three selectors reach are
-  // built, each from the run's SNAPSHOT. Observability wraps the ROUTER, so
-  // calls are recorded once, with the payer and vendor visible in the model id.
+  // built, each from the run's SNAPSHOT, and each with the platform's
+  // per-call ceilings. Observability wraps the ROUTER, so calls are recorded
+  // once, with the payer and vendor visible in the model id.
   const routedClient = new RoutingLlmClient(buildTierClients(providerEnv, {
     allowOwn: suppliedProviderEnv !== undefined,
+    limits: platformLimits,
   }));
-  const llm = new MetricsLlmClient(
-    new RecordingLlmClient(routedClient, recorder),
-    metrics
+  // THE PLATFORM'S OWN CEILINGS, at the two places they are knowable.
+  //
+  // The METER wraps the recorder rather than the client: every call already
+  // flows through `MetricsLlmClient`, which records a successful call AND the
+  // partial usage of a failed one, so this is the one seam that sees
+  // everything the run paid for without a second accounting path. It reuses
+  // the ONE cost formula, so a run cancelled for spending $5 and the summary
+  // printed beside it cannot disagree about what $5 meant.
+  //
+  // The TOOL-ITERATION cap wraps outermost, because a tool budget is a
+  // request field and this is the last moment it can be lowered — and
+  // outermost also means the trace records the value the transport was
+  // actually given, not the one the tier asked for.
+  const budgetMeter = new RunBudgetMeter(
+    metrics,
+    {
+      tokens: ceilingOf(platformLimits, 'run.tokenMaxTotal'),
+      costUsd: ceilingOf(platformLimits, 'run.costMaxUsd'),
+    },
+    (error) => {
+      console.error(`\n✗ ${error.message} — cancelling the run`);
+      budgetAbort.abort(error);
+    }
+  );
+  const llm = new ToolIterationCeilingLlmClient(
+    new MetricsLlmClient(new RecordingLlmClient(routedClient, recorder), budgetMeter),
+    ceilingOf(platformLimits, 'llm.maxToolIterations')
   );
   console.log(`tier models: ${describeTierSelectors(selectors)}`);
   console.log(`llm transports: ${referencedTransports(selectors).join(', ')}`);
@@ -1109,8 +1175,12 @@ export async function startTask(
   // past a hard timer; this brings the same guarantee in-process so a
   // MANUALLY launched run cannot outlive its deadline either. The grace
   // period lets the normal abort path finish cleanly first — the watchdog
-  // only fires when that path itself is stuck.
-  const WATCHDOG_GRACE_MS = 60_000;
+  // only fires when that path itself is stuck. The grace is a platform
+  // SETTING (`run.watchdogGraceMs`) rather than a constant, because how long
+  // a clean teardown needs is a property of the host — a container backend
+  // tearing down a network and a headless Chrome is not a laptop — and
+  // 60_000 remains the default for every instance that states nothing.
+  const watchdogGraceMs = platformLimits['run.watchdogGraceMs'];
   const onWedged =
     opts?.onWedged ??
     (() => {
@@ -1121,7 +1191,7 @@ export async function startTask(
     });
   const watchdog = setTimeout(() => {
     console.error(
-      `\n✗ watchdog: the run is still unfinished ${Math.round((timeoutMs + WATCHDOG_GRACE_MS) / 1000)}s in,` +
+      `\n✗ watchdog: the run is still unfinished ${Math.round((timeoutMs + watchdogGraceMs) / 1000)}s in,` +
         ` past its ${Math.round(timeoutMs / 1000)}s deadline — the transport is wedged (dropped connection?).` +
         ` Persisting the partial trace and exiting so nothing is left running.`
     );
@@ -1144,7 +1214,7 @@ export async function startTask(
     }
     console.error(formatRunStatsEpilogue(machineRunStats('failed', metrics, runSignals)));
     onWedged();
-  }, timeoutMs + WATCHDOG_GRACE_MS);
+  }, timeoutMs + watchdogGraceMs);
 
   let retrievalPrepared = !prepareRetrieval;
   const settled = (async (): Promise<RunOutcome> => {
@@ -1243,7 +1313,15 @@ export async function startTask(
       // Everything stays best-effort: a diagnostic crash must not mask
       // the underlying error.
       const errMsg = (err as Error).message ?? String(err);
-      const isTimeout = signal.aborted && (err === signal.reason ||
+      // A BUDGET CEILING IS NOT A TIMEOUT, and it must not be reported as
+      // one. The two reach here through the same joined signal, so the test
+      // below would call a token ceiling a timeout — the run had hours of wall
+      // clock left. Checked FIRST, on the typed reason rather than on message
+      // text, because that is the only version of this test a future message
+      // edit cannot break.
+      const budgetExceeded =
+        signal.reason instanceof RunBudgetExceededError ? signal.reason : null;
+      const isTimeout = budgetExceeded === null && signal.aborted && (err === signal.reason ||
         (err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')));
       const run = recorder.currentRun;
       let postMortem = '';
@@ -1258,10 +1336,20 @@ export async function startTask(
         }
       }
       recorder.endRun({
-        error: isTimeout ? `run aborted after ${Math.round(timeoutMs / 1000)}s budget` : errMsg,
+        error: budgetExceeded
+          ? budgetExceeded.message
+          : isTimeout
+            ? `run aborted after ${Math.round(timeoutMs / 1000)}s budget`
+            : errMsg,
       });
       console.error('\n--- run failed ---');
-      console.error(isTimeout ? `⏱ TIMEOUT after ${Math.round(timeoutMs / 1000)}s — budget exhausted` : `✖ ${errMsg}`);
+      console.error(
+        budgetExceeded
+          ? `⛔ PLATFORM CEILING — ${budgetExceeded.message}`
+          : isTimeout
+            ? `⏱ TIMEOUT after ${Math.round(timeoutMs / 1000)}s — budget exhausted`
+            : `✖ ${errMsg}`
+      );
       if (postMortem) {
         console.error('');
         console.error(postMortem);

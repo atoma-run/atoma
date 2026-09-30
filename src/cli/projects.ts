@@ -35,6 +35,7 @@ import { GitHubAppClient } from '../github/client.js';
 import { snapshotGitHubAppConfig } from '../github/config.js';
 import { resolveGitHubUserAccessToken } from '../github/tokens.js';
 import { PlatformEventLog } from '../platform/events.js';
+import { PlatformSettingsStore } from '../platform/settings.js';
 import { eventLabel } from '../contracts/platformEvents.js';
 import {
   createProjectInputSchema,
@@ -546,6 +547,10 @@ async function main(): Promise<void> {
     platformAdmins: (id) => auth.isPlatformAdmin(id),
     subscriptionDelegates: (id, orgId) => auth.isSubscriptionDelegate(id, orgId),
     tierModelsFor: (id) => auth.modelPins(id),
+    // Same store, same limits. A run launched from a terminal must be bound
+    // by the ceiling a platform admin stated in the browser — an operator
+    // path that ignored it would make the ceiling advisory.
+    platformLimits: () => PlatformSettingsStore.open(dbPath).limits(),
     // The org levels of the precedence chain, resolved against the SAME
     // store the browser path uses. The operator CLI passes `--as`, so the
     // run is attributed to a principal whose org carries these defaults;

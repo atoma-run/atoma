@@ -8,6 +8,12 @@ corrections of the 2026-09-24 and 2026-09-25 code reviews.
 
 ### Added
 
+- Run limits a platform admin can change without a redeployment: the project
+  run budget's default and ceiling, token and spend ceilings that stop a run
+  mid-way, the watchdog grace, the per-call ceilings of the Claude and Codex
+  CLIs and a tool-iteration ceiling. Set them in Settings or with
+  `npm run settings`; every change is journaled. An instance where nobody has
+  set one behaves exactly as before.
 - MCP: the `/mcp` route also speaks protocol revision 2026-07-28 — no
   session, a server per request, the tasks extension for run starts
   (`tasks/get` with the result inline, `tasks/cancel`), and

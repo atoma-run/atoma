@@ -148,6 +148,19 @@ export const platformEventKindSchema = z.enum([
   'token.created',
   'token.revoked',
   /**
+   * A platform admin re-stated one of the instance's run limits — the
+   * wall-clock ceiling, the token or spend ceiling, a call timeout. SECURITY,
+   * not `info`, and the reasoning is the same as for `admin.granted`: these
+   * are the numbers that bound what any run on this instance may consume, so
+   * "who raised the token ceiling to 40 million, and when" is a question the
+   * run rows that follow cannot answer — they are written by whoever
+   * launches, which may be someone else entirely.
+   *
+   * The `detail` carries the KEYS that changed with their before/after
+   * numbers. Eight bounded integers: no credential, no path, no prose.
+   */
+  'platform.settings_updated',
+  /**
    * An organisation admin changed the org's per-tier model defaults or its
    * provider credentials. Journaled, never pushed: routine self-service on
    * a multi-org instance, but the audit trail must answer "who pointed
@@ -371,6 +384,7 @@ export const PLATFORM_EVENT_SEVERITY: Record<PlatformEventKind, PlatformEventSev
   'invitation.created': 'security',
   'token.created': 'security',
   'token.revoked': 'security',
+  'platform.settings_updated': 'security',
   // Self-service preference changes: worth the audit trail, not an alert.
   'org.models_updated': 'info',
   'org.provider_key_set': 'info',

@@ -40,7 +40,7 @@ Use it when a rule's rationale matters, not as default session context.
 | `src/launcher/` | [src/launcher/AGENTS.md](src/launcher/AGENTS.md) | the one holder of container-engine access: profiles, networks, orphan reconciliation |
 | `src/preview/` | [src/preview/AGENTS.md](src/preview/AGENTS.md) | result preview: deliverable classification, byte policy, instance state |
 | `src/github/` | [src/github/AGENTS.md](src/github/AGENTS.md) | GitHub App install, webhooks, repository creation |
-| `src/platform/` | [src/platform/AGENTS.md](src/platform/AGENTS.md) | the control-plane audit journal and the one source of notifications |
+| `src/platform/` | [src/platform/AGENTS.md](src/platform/AGENTS.md) | the control-plane audit journal, the one source of notifications, the admin-settable run limits |
 | `src/cli/` | [src/cli/AGENTS.md](src/cli/AGENTS.md) | operator commands, doctor, burn-in and friction reporting |
 | `src/sentinel/` | [src/sentinel/AGENTS.md](src/sentinel/AGENTS.md) | mechanical live watch over runs in flight: rules, sources, hosts |
 | `src/supervisor/` | [src/supervisor/AGENTS.md](src/supervisor/AGENTS.md) | post-mortem analyst and the mender: verdicts, idle gate, worktree, pull requests |
@@ -328,7 +328,7 @@ load-bearing and they are stated once, where the call sites are.
 - The gated deployment surfaces are storage contracts too, one file each:
   - [src/auth](src/auth/AGENTS.md) — identity, organisations, invitations
   - [src/projects](src/projects/AGENTS.md) — org-scoped run storage
-  - [src/platform](src/platform/AGENTS.md) — the audit journal
+  - [src/platform](src/platform/AGENTS.md) — the audit journal and the run limits
   - [src/viz](src/viz/AGENTS.md) — the HTTP surfaces and push
   - [src/contracts](src/contracts/AGENTS.md) — probe manifests
 

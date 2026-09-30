@@ -21,6 +21,7 @@ import {
   type TierNumber,
   ZAI_DEFAULT_BASE_URL,
 } from '../contracts/modelSelector.js';
+import type { PlatformLimits } from '../contracts/platformSettings.js';
 import { makeAnthropicClient } from './auth.js';
 
 // Z.ai speaks the Messages API, so the existing AnthropicLlmClient (tool
@@ -44,9 +45,15 @@ export { ZAI_DEFAULT_BASE_URL };
  */
 export function makeTransportClient(
   transport: ModelTransport,
-  opts: { readonly env?: NodeJS.ProcessEnv; readonly anthropic?: Anthropic } = {}
+  opts: { readonly env?: NodeJS.ProcessEnv; readonly anthropic?: Anthropic; readonly limits?: PlatformLimits } = {}
 ): LlmClient {
   const env = opts.env ?? process.env;
+  // PLATFORM CEILINGS ON A SINGLE CALL, carried the same way the credential
+  // snapshot is: passed in, never read from a store here. This module builds
+  // transports and must stay ignorant of where policy lives — an absent
+  // `limits` means "whatever the transport's own default and env var say",
+  // which is what every caller outside a run gets.
+  const limits = opts.limits;
   switch (transport) {
     case 'anthropic-api':
       return new AnthropicLlmClient(opts.anthropic ?? makeAnthropicClient(env));
@@ -79,13 +86,14 @@ export function makeTransportClient(
     // exactly why `assertTransportHonoursCredentials` refuses it whenever the
     // parent did not authorise the tier.
     case 'claude-cli':
-      return new ClaudeCliLlmClient();
+      // It DOES take the limits: a deployment's ceiling on one call is not a credential.
+      return new ClaudeCliLlmClient(limits ? { callTimeoutCeilingMs: limits['llm.callTimeoutMs'] } : {});
     // Local Codex CLI on a ChatGPT login, with a scoped host-side tool loop
     // for L1. Native Codex tools remain disabled. The client captures THIS
     // run's environment snapshot: CODEX_HOME selects the authorised principal
     // profile, while its subprocess allowlist strips every API/provider key.
     case 'codex-cli':
-      return new CodexCliLlmClient({ env });
+      return new CodexCliLlmClient({ env, ...(limits ? { callTimeoutCeilingMs: limits['llm.codexCallTimeoutMs'] } : {}) });
   }
 }
 
@@ -141,7 +149,7 @@ export function tierSelectors(
  */
 export function buildTierClients(
   env: NodeJS.ProcessEnv = process.env,
-  opts: { readonly allowOwn?: boolean; readonly anthropic?: Anthropic } = {}
+  opts: { readonly allowOwn?: boolean; readonly anthropic?: Anthropic; readonly limits?: PlatformLimits } = {}
 ): Partial<Record<ModelTransport, LlmClient>> {
   const selectors = tierSelectors(env, { allowOwn: opts.allowOwn ?? false });
   const out: Partial<Record<ModelTransport, LlmClient>> = {};
@@ -149,6 +157,7 @@ export function buildTierClients(
     out[transport] = makeTransportClient(transport, {
       env,
       ...(opts.anthropic ? { anthropic: opts.anthropic } : {}),
+      ...(opts.limits ? { limits: opts.limits } : {}),
     });
   }
   return out;

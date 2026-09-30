@@ -335,6 +335,7 @@ list. These values come from the host snapshot, never a tenant prompt.
   does. `deadlineAt` used to be stamped above that work and the child got the
   remainder, which is the arithmetic behind `run aborted after 1787s budget` on
   a 1800s setting. Moving it off the budget must not make it unbounded.
+- A platform admin may re-state the default and only NARROW the ceiling, per run: [src/platform](../platform/AGENTS.md).
 
 ## A landed run: `partial`
 

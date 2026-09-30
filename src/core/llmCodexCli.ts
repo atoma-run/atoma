@@ -572,14 +572,25 @@ export class CodexCliLlmClient implements LlmClient {
   private readonly profileHome: string | undefined;
   private jail: { cwd: string; root: string } | undefined;
 
+  /**
+   * `callTimeoutCeilingMs` is the platform setting `llm.codexCallTimeoutMs`
+   * and binds every other source — see the same option on
+   * `ClaudeCliLlmClient` for why a ceiling is not a second spelling of a
+   * requested timeout.
+   */
   constructor(
-    opts: { callTimeoutMs?: number; spawnFn?: CodexSpawn; env?: NodeJS.ProcessEnv } = {}
+    opts: { callTimeoutMs?: number; callTimeoutCeilingMs?: number; spawnFn?: CodexSpawn; env?: NodeJS.ProcessEnv } = {}
   ) {
     const sourceEnv = { ...(opts.env ?? process.env) };
-    this.callTimeoutMs =
+    const requested =
       opts.callTimeoutMs && opts.callTimeoutMs > 0
-        ? opts.callTimeoutMs
+        ? Math.floor(opts.callTimeoutMs)
         : codexCallTimeoutMs(sourceEnv);
+    const ceiling =
+      opts.callTimeoutCeilingMs !== undefined && opts.callTimeoutCeilingMs > 0
+        ? Math.floor(opts.callTimeoutCeilingMs)
+        : null;
+    this.callTimeoutMs = ceiling === null ? requested : Math.min(requested, ceiling);
     this.spawnFn = opts.spawnFn ?? defaultCodexSpawn;
     this.modelEnv = Object.freeze({
       ATOMA_CODEX_MODEL: sourceEnv['ATOMA_CODEX_MODEL'],

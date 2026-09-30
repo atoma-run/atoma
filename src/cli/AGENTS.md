@@ -1,7 +1,7 @@
 # CLI — AGENTS.md
 
-`src/cli/` owns the operator commands: doctor, auth, registry, ledger, skills,
-burn-in, curriculum, benchmark, backup and friction.
+`src/cli/` owns the operator commands: doctor, auth, settings, registry, ledger,
+skills, burn-in, curriculum, benchmark, backup and friction.
 
 Read [`AGENTS.md`](../../AGENTS.md) first: it holds the cross-cutting rules.
 Everything below is stated once, here, and is not repeated at the root.
@@ -266,6 +266,25 @@ operator-owned and updated atomically with their audit receipt.
   whose epilogue never reached the log read as `error` — the one thing it
   certainly was not. It stays ranked below `delivered`: the runner prints
   exactly one banner, so a log carrying both is a goal echoing one of them.
+
+## Platform run limits
+
+```bash
+npm run settings -- list                       # the instance's run limits
+npm run settings -- set run.tokenMaxTotal 5000000
+npm run settings -- unset run.tokenMaxTotal    # back to the shipped default
+npm run settings:dev -- list
+```
+
+- `npm run settings` is the operator path to the instance-wide run limits, and
+  it needs no server, gate or session, for the same reason `auth grant-admin`
+  does: a deployment whose ceiling is what broke the browser must still be
+  recoverable. A missing store is a REFUSAL for every subcommand, `list`
+  included — opening one would create an empty file and report "nothing
+  stated", which reads as "this instance has no limits".
+- Its rows carry no principal and it journals with `actorType: 'cli'`:
+  audited, notifying nobody. The contract is stated once in
+  [`src/platform`](../platform/AGENTS.md).
 
 ## Intentional choices and rejected shortcuts
 

@@ -71,6 +71,19 @@ Neighbours:
   orphans still running. A flag that starts a run where the kill sequence
   cannot work restores exactly that.
 
+## Platform run limits
+
+- The runner reads the instance's run limits from the product store at launch
+  (`platformLimitsFor`), REFUSES a wall-clock budget above the platform
+  ceiling with a `RunnerConfigError`, arms the watchdog grace from them, and
+  composes the token/spend/tool-iteration ceilings around the LLM client. The
+  whole contract — precedence, the refuse-never-clamp rule, why the abort is
+  not a throw — is stated once in [`src/platform`](../platform/AGENTS.md).
+- `makeBaseClient` and `buildReferencedProviders` take the limits the same way
+  they take a credential snapshot: PASSED IN, never read from a store here.
+  An absent `limits` means the transport's own default and env var, which is
+  what every caller outside a run gets.
+
 ## Provider construction
 
 - Provider construction has one switch per TRANSPORT: `makeTransportClient`

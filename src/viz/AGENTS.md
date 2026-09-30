@@ -520,7 +520,7 @@ npm run viz:mark-turn:analyze
   organisation's projects and run traces, and manages organisations through
   `/api/admin/organisations` and `/api/admin/invitations` (same-origin POST); writes stay
   bound to the viewer's ACTIVE organisation for admins too. `visibleViews` is the one nav
-  definition; the ungated developer path is unchanged.
+  definition; the ungated developer path is unchanged. `/api/admin/settings`: run limits, [src/platform](../platform/AGENTS.md).
 - The server FOLDS every configured store at startup (`openDb`); read-only handles never fold,
   and an unfoldable store is logged, never served as duplicates ([src/registry](../registry/AGENTS.md)).
 - Registry and Skills are WORKSPACE destinations for every authenticated role (Registry since

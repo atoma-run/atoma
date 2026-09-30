@@ -192,6 +192,14 @@ Neighbours:
 - Summary helpers distinguish host and requester subscription spend; both use
   the same structured `runPayerDetail` ledger.
 
+## The platform's run limits
+
+- `platformSettings.ts` holds the CLOSED CATALOG of admin-settable run limits
+  and derives its schemas from it. The whole contract — the two kinds, the
+  refuse-never-clamp rule, why the resolver reads no environment, and every
+  enforcement site — is stated once in
+  [`src/platform`](../platform/AGENTS.md). Read it before adding an entry.
+
 ## Publication receipts
 
 - An artifact manifest with `source: workspace` records the complete filtered

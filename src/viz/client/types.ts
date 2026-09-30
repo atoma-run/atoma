@@ -460,6 +460,55 @@ export interface VizOrgModels {
 }
 
 /**
+ * ONE PLATFORM RUN LIMIT, as the admin surface receives it.
+ *
+ * `key`, `unit` and `kind` are plain strings for the same reason
+ * `VizPlatformEvent` keeps its unions off the wire: a viewer may be running
+ * an older bundle than the server, and a settings form that hid every row it
+ * could not type would hide exactly the limit that was just added. The form
+ * renders an unknown unit as a bare number and an unknown kind without a
+ * chip, and the bounds the server sent still constrain the input.
+ *
+ * The server is the authority on bounds. The form mirrors them onto the
+ * `<input>` so a typo is caught before the round trip, never so the client
+ * decides what is allowed.
+ */
+export interface VizPlatformSettingSpec {
+  key: string;
+  unit: string;
+  kind: string;
+  min: number;
+  max: number;
+  fallback: number;
+  zeroMeansUnlimited: boolean;
+  /** The env var a launcher uses for this entry, or null. */
+  env: string | null;
+  /** Where the number is read in the source, for an operator tracing a change. */
+  readAt: string;
+  /** Operator-facing English from the contract, rendered as sent. */
+  summary: string;
+}
+
+/** One limit a platform admin has actually stated. */
+export interface VizPlatformSettingRow {
+  key: string;
+  value: number;
+  updatedAt: string;
+  /** Principal id, or null for a row written by the operator CLI. */
+  updatedBy: string | null;
+}
+
+/** The platform run limits: the catalog, what is stated, and what is in force. */
+export interface VizPlatformSettings {
+  catalog: VizPlatformSettingSpec[];
+  rows: VizPlatformSettingRow[];
+  /** Effective value per key — what the run path will use. */
+  limits: Record<string, number>;
+  /** The value currently exported for each entry that names an env var. */
+  env: Record<string, string | null>;
+}
+
+/**
  * One row of the platform audit journal.
  *
  * `kind` and `severity` are DELIBERATELY plain strings, not the server's
