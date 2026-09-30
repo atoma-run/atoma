@@ -123,6 +123,9 @@ describe('the 2026-07-28 era', () => {
     const viewerClient = await modernClient(url, 'viewer');
     try {
       expect(member.getProtocolEra()).toBe('modern');
+      // Both eras name the server with its mark and site (2026-09-30).
+      expect(member.getServerVersion()).toMatchObject({ name: 'atoma', websiteUrl: 'https://atoma.run',
+        icons: [{ mimeType: 'image/svg+xml', src: expect.stringMatching(/^data:image\/svg\+xml;base64,/) }] });
       const memberTools = (await member.listTools()).tools.map((tool) => tool.name);
       const viewerTools = (await viewerClient.listTools()).tools.map((tool) => tool.name);
       expect(memberTools).toContain('atoma_run_start');

@@ -411,6 +411,10 @@ Neighbours:
   `tests/mcp-server-json.test.ts` fails when it drifts; publishing it
   (`mcp-publisher login dns --domain atoma.run`, then `publish`) is an
   operator action, never CI.
+- A result that names runs LINKS them (`resource_link`, at most 20, after the
+  text block), and only to resources this caller's server registered: a link
+  is one it may read or subscribe to. `serverInfo` carries the mark as a data
+  URI (`icon.ts`, the favicon's bytes, checked by `mcp-server-json.test.ts`).
 - A reader the MCP grows is a reader the CLI or the viz already has, reached
   through a second door: `skillShow` mirrors `skills show`, `ledgerTail`
   `ledger tail`, the tray builder is shared with `/api/notifications`

@@ -26,6 +26,7 @@ import type { ResidentAnalystHealth } from '../supervisor/resident.js';
 import type { PushLocale } from '../viz/push/routes.js';
 import type { TrayPage } from '../viz/push/tray.js';
 import { callerKey, callerTier, tierAllows, type McpCaller, type McpTier } from './identity.js';
+import { ATOMA_ICONS } from './icon.js';
 import { registerPrompts } from './prompts.js';
 import {
   costs,
@@ -48,7 +49,7 @@ import {
   verdictShow,
   verdictsList,
 } from './readers.js';
-import { registerResources } from './resources.js';
+import { operatorRunUri, operatorTraceUri, projectRunUri, registerResources } from './resources.js';
 import { JEV_CALIBRATE_INPUT, jevCalibrateCall } from './jevCalibrate.js';
 import {
   OPERATOR_RUN_INPUT,
@@ -206,11 +207,75 @@ export function callerTasksFor(caller: McpCaller, deps: McpToolDeps): CallerTask
   return new CallerTasks(callerKey(caller), projectRuns);
 }
 
+type ResourceLink = { type: 'resource_link'; uri: string; name: string; mimeType: string; description?: string };
 type ToolResult = {
-  content: { type: 'text'; text: string }[];
+  content: ({ type: 'text'; text: string } | ResourceLink)[];
   structuredContent?: Record<string, unknown>;
   isError?: boolean;
 };
+
+/** How many runs one result names as links: a list of pointers, not a second copy. */
+const MAX_RESOURCE_LINKS = 20;
+
+/**
+ * A result that names runs also LINKS them (`resource_link`, protocol
+ * 2025-06-18 and later): the resource a client can read or subscribe to by
+ * itself instead of the model re-reading the payload. Only resources this
+ * caller's server registered are linked, so a link is always one it may
+ * follow. The text block stays first: hosts that read `content[0]` see what
+ * they always saw.
+ */
+function withLinks(result: ToolResult, links: readonly Omit<ResourceLink, 'type' | 'mimeType'>[]): ToolResult {
+  if (result.isError || links.length === 0) return result;
+  return {
+    ...result,
+    content: [
+      ...result.content,
+      ...links.slice(0, MAX_RESOURCE_LINKS).map((link) => ({ type: 'resource_link' as const, mimeType: 'application/json', ...link })),
+    ],
+  };
+}
+
+const record = (value: unknown): Record<string, unknown> | null =>
+  value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+const text = (value: unknown): string | null => (typeof value === 'string' && value.length > 0 ? value : null);
+
+/** Links to the project runs a payload names: one run, or a list of them. */
+function projectRunLinks(projectId: string) {
+  return (payload: unknown) =>
+    (Array.isArray(payload) ? payload : [payload]).flatMap((entry) => {
+      const run = record(entry);
+      const runId = text(run?.['projectRunId']);
+      if (!runId) return [];
+      const status = text(run?.['status']);
+      return [{ uri: projectRunUri(projectId, runId), name: `run ${runId.slice(0, 8)}`, ...(status ? { description: status } : {}) }];
+    });
+}
+
+/** Links to the operator runs a status payload names: one run, or `runs`. */
+function operatorRunLinks(payload: unknown) {
+  const status = record(payload);
+  const runs = Array.isArray(status?.['runs']) ? (status['runs'] as unknown[]) : [payload];
+  return runs.flatMap((entry) => {
+    const run = record(entry);
+    const runId = text(run?.['runId']);
+    if (!runId) return [];
+    const state = text(run?.['status']);
+    return [{ uri: operatorRunUri(runId), name: `operator run ${runId.slice(0, 8)}`, ...(state ? { description: state } : {}) }];
+  });
+}
+
+/** Links to the operator traces a `runs_list` payload names. */
+function operatorTraceLinks(payload: unknown) {
+  const listed = record(payload);
+  return (Array.isArray(listed?.['runs']) ? (listed['runs'] as unknown[]) : []).flatMap((entry) => {
+    const run = record(entry);
+    const file = text(run?.['file']);
+    if (!file || run?.['note']) return [];
+    const label = text(run?.['label']);
+    return [{ uri: operatorTraceUri(file), name: file, ...(label ? { description: label } : {}) }];
+  });
+}
 
 /**
  * Every payload goes out TWICE: as the text block every host renders, and as
@@ -262,9 +327,13 @@ function errorResult(message: string): ToolResult {
 }
 
 /** Domain refusals become tool errors the host can show; anything else propagates. */
-async function guarded(work: () => unknown): Promise<ToolResult> {
+async function guarded(
+  work: () => unknown,
+  links: (payload: unknown) => readonly Omit<ResourceLink, 'type' | 'mimeType'>[] = () => []
+): Promise<ToolResult> {
   try {
-    return jsonResult(await work());
+    const payload = await work();
+    return withLinks(jsonResult(payload), links(payload));
   } catch (error) {
     if (error instanceof ProjectHttpError) return errorResult(`refused (${error.status}): ${error.message}`);
     if (error instanceof RunRejected) return errorResult(`refused: ${error.message}`);
@@ -339,7 +408,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
           inputSchema: { projectId: z.string().min(1) },
           annotations: READ_ONLY,
         },
-        (args) => guarded(() => tenant(ctx).service.listProjectRuns(ctx.viewer(), args.projectId))
+        (args) => guarded(() => tenant(ctx).service.listProjectRuns(ctx.viewer(), args.projectId), projectRunLinks(args.projectId))
       ),
   },
   {
@@ -360,7 +429,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
           guarded(() => {
             const { service, viewer } = tenant(ctx);
             return service.projectRunStatus(viewer, args.projectId, args.runId);
-          })
+          }, projectRunLinks(args.projectId))
       ),
   },
   {
@@ -633,7 +702,10 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
           inputSchema: { runId: z.string().optional() },
           annotations: READ_ONLY,
         },
-        (args) => jsonResult(operatorRunStatus(args.runId !== undefined ? { runId: args.runId } : {}))
+        (args) => {
+          const status = operatorRunStatus(args.runId !== undefined ? { runId: args.runId } : {});
+          return withLinks(jsonResult(status), operatorRunLinks(status));
+        }
       ),
   },
   {
@@ -754,7 +826,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
     name: 'atoma_runs_list',
     tier: 'platform',
     needs: [],
-    register: (server) =>
+    register: (server, ctx) =>
       server.registerTool(
         'atoma_runs_list',
         {
@@ -763,7 +835,11 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
           inputSchema: { last: z.number().int().positive().optional() },
           annotations: READ_ONLY,
         },
-        (args) => jsonResult(runsList(args))
+        (args) => {
+          const listed = runsList(args);
+          // The trace resources exist only where the host runs operator runs.
+          return withLinks(jsonResult(listed), ctx.deps.operatorRuns ? operatorTraceLinks(listed) : []);
+        }
       ),
   },
   {
@@ -1197,7 +1273,7 @@ export interface BuildServerInput {
 export function buildServerForCaller(input: BuildServerInput): McpServer {
   const era = input.era ?? 'legacy';
   const server = new McpServer(
-    { name: 'atoma', version: input.version },
+    { name: 'atoma', title: 'atoma', version: input.version, websiteUrl: 'https://atoma.run', icons: ATOMA_ICONS },
     // Logging is deprecated on the 2026 era and has no session stream there to carry a run log.
     { instructions: input.instructions, capabilities: era === 'legacy' ? { logging: {} } : {} }
   );

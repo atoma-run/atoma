@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { ATOMA_ICONS, ATOMA_MARK_SVG } from '../src/mcp/icon.js';
 import { packageVersion } from '../src/mcp/server.js';
 
 /**
@@ -53,6 +54,12 @@ describe('server.json, the registry entry for the MCP', () => {
     expect(server.remotes[0]!.headers).toEqual([
       expect.objectContaining({ name: 'Authorization', isRequired: false, isSecret: true }),
     ]);
+  });
+
+  it('shows the same mark in serverInfo as the site serves', () => {
+    expect(ATOMA_MARK_SVG).toBe(readFileSync('src/viz/public/favicon.svg', 'utf8').replace(/\r\n/g, '\n'));
+    const [icon] = ATOMA_ICONS;
+    expect(Buffer.from(icon!.src.replace('data:image/svg+xml;base64,', ''), 'base64').toString('utf8')).toBe(ATOMA_MARK_SVG);
   });
 
   it('points its icons at files the server actually serves', () => {

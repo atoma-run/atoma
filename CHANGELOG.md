@@ -21,6 +21,9 @@ corrections of the 2026-09-24 and 2026-09-25 code reviews.
   (an HTTPS URL as `client_id`), the registration the 2026-07-28
   specification prefers. The consent page shows the address the document was
   read at. Dynamic client registration keeps working.
+- MCP: results that name runs link them as resources a client can open or
+  subscribe to, and the server shows the atoma mark in clients that display
+  one.
 - MCP: `atoma_mcp_health`, for a platform admin: which protocol version each
   client speaks, counted since the server started — the evidence for when
   2025-11-25 support can go.

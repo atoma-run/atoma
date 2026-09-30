@@ -15,7 +15,7 @@ import { SkillRegistry } from '../src/skills/registry.js';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
 import { resetRunsForTest, startRun, type RunDriver } from '../src/mcp/run.js';
-import { FAMILIES_URI, operatorRunUri } from '../src/mcp/resources.js';
+import { FAMILIES_URI, operatorRunUri, projectRunUri } from '../src/mcp/resources.js';
 import { McpHttpHost, type McpHttpHostOptions } from '../src/mcp/http.js';
 import { callerTier, type McpCaller } from '../src/mcp/identity.js';
 import { buildServer, mcpHostWiring } from '../src/mcp/server.js';
@@ -300,6 +300,14 @@ it('exposes the persisted Git destination over MCP without claiming a PR was mer
     expect(JSON.parse((result.content as { type: string; text: string }[])[0]!.text)).toEqual(result.structuredContent);
     const listed = await client.callTool({ name: 'atoma_project_runs', arguments: { projectId: f.project.projectId } });
     expect(JSON.parse((listed.content as { type: string; text: string }[])[0]!.text)).toEqual([result.structuredContent]);
+    // Both results LINK the run, and the link is a resource this caller can read.
+    const link = { type: 'resource_link', uri: projectRunUri(f.project.projectId, run.projectRunId), mimeType: 'application/json' };
+    expect(result.content).toEqual([expect.objectContaining({ type: 'text' }), expect.objectContaining(link)]);
+    expect(listed.content).toEqual([expect.objectContaining({ type: 'text' }), expect.objectContaining(link)]);
+    const read = await client.readResource({ uri: link.uri });
+    expect(JSON.parse((read.contents[0] as { text: string }).text)).toEqual(result.structuredContent);
+    // A 2025 client names the server with its mark too.
+    expect(client.getServerVersion()).toMatchObject({ name: 'atoma', icons: [expect.objectContaining({ mimeType: 'image/svg+xml' })] });
   } finally { await client.close(); }
 });
 
@@ -1026,6 +1034,12 @@ describe('runs as tasks, and the run log', () => {
     const status = await client.callTool({ name: 'atoma_operator_run_status', arguments: {} });
     const seen = (status.structuredContent as { runs: { status: string }[] }).runs.map((run) => run.status);
     expect(seen).toEqual(['cancelled', 'finished']);
+    // Each run is linked to its resource, and the link reads back the same run.
+    const links = (status.content as { type: string; uri?: string }[]).filter((block) => block.type === 'resource_link');
+    const ids = (status.structuredContent as { runs: { runId: string }[] }).runs.map((run) => run.runId);
+    expect(links.map((link) => link.uri)).toEqual(ids.map((runId) => operatorRunUri(runId)));
+    const read = await client.readResource({ uri: links[0]!.uri! });
+    expect(JSON.parse((read.contents[0] as { text: string }).text)).toMatchObject({ runId: ids[0] });
     await client.close();
   });
 

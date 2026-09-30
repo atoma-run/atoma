@@ -108,6 +108,7 @@ const mcpSmoke = async (base) => {
   if (!initialized?.capabilities?.completions) throw new Error('compiled MCP does not advertise the completions capability');
   if (!initialized?.capabilities?.tasks?.requests?.tools?.call) throw new Error('compiled MCP does not advertise task-augmented tools/call');
   if (!initialized?.capabilities?.logging) throw new Error('compiled MCP does not advertise the logging capability');
+  if (!initialized?.serverInfo?.icons?.[0]?.src?.startsWith('data:image/svg+xml;base64,')) throw new Error('compiled MCP names no icon');
   await notify('notifications/initialized');
   const { tools } = await call('tools/list');
   if (!Array.isArray(tools) || tools.length === 0) throw new Error('compiled MCP listed no tools');
@@ -150,6 +151,10 @@ const mcpSmoke = async (base) => {
   const templates = (await call('resources/templates/list', {}))?.resourceTemplates ?? [];
   if (!templates.some((template) => template.uriTemplate === 'atoma://runs/{file}')) {
     throw new Error('compiled MCP does not offer the operator trace resource template');
+  }
+  const listedRuns = await call('tools/call', { name: 'atoma_runs_list', arguments: {} });
+  if (!listedRuns?.content?.some((block) => block.type === 'resource_link' && block.uri === 'atoma://runs/diagnostic-smoke.json')) {
+    throw new Error('atoma_runs_list does not link the traces it lists');
   }
   const costsResult = await call('tools/call', { name: 'atoma_costs', arguments: {} });
   if (!costsResult?.structuredContent || typeof costsResult.structuredContent.runsScanned !== 'number') {
