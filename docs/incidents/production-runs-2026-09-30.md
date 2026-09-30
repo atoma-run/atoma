@@ -14,6 +14,8 @@ its source before the next run.
 | 0a989a58 | pomodoro page: keyboard shortcuts | 605 s | $0.15 | 10 | delivered |
 | b9dc4d0b | pomodoro page: a focus-length select | 1,629 s | $0.46 | 21 | delivered after a root remediation, with a regression |
 | 04ea696f | pomodoro page: the "Long break" line back | 667 s | $0.18 | 11 | delivered a page its verification phase replaced |
+| cdc34023 | pomodoro page: the replaced page restored | 726 s | $0.22 | 7 | delivered, every criterion met, README carries verification residue |
+| 0399bd82 | rerun of 04ea696f on 527b3b55 | 663 s | $0.20 | 7 | delivered the page with only its label changed |
 
 ## A verified execution rejected as "non-JSON" (8606cf38)
 
@@ -188,6 +190,26 @@ in memory.
 - Host half, which never follows a link a container made:
   [src/run](../../src/run/AGENTS.md).
 
+## After the fix (cdc34023, 0399bd82)
+
+Both runs ran on 527b3b55.
+
+The repair, cdc34023, was asked for the page before 04ea696f replaced it,
+criterion by criterion. It met all eleven: title, mode lines, button order,
+the 15/25/45 select, the counter, the two shortcuts and the status line. It
+also turned the dark theme into a light one, which no criterion named.
+
+Its two phases both declared outputs, so nothing was restored. The existing
+`write_file` guard refused a rewrite of the page before it was read, and the
+molecule read it first. `search_project_docs` answered in 2.7 s.
+
+The comparison rerun of 04ea696f, 0399bd82, had the same goal, the same
+starting page and the same models. Its plan again ended in a read-only
+review. This time that review read and inspected without writing. The
+acceptor read "READ-ONLY PHASES — … changed nothing: …", and the delivered
+page is b9dc4d0b's with only the label changed: 5863 → 5857 bytes, 99% of
+its lines kept.
+
 ## Open
 
 - **Earlier runs' requirements are not replayed.** The inherited
@@ -207,8 +229,13 @@ in memory.
   2000` and is validated against the current default. It needs a measurement
   of where the time goes on the host (the hybrid reranker is the likely part)
   before a number is chosen.
-- **The repository holds 04ea696f's replaced page** (commit f73c0b0c). A
-  repair run goes after the restoration deploys.
+- **READMEs carry verification residue.** cdc34023's README ends with a
+  "Verification evidence" section: smoke values, a SHA-256, line numbers and
+  source quotes. Earlier READMEs of the same project list observed values
+  such as "`1499` seconds remaining". The recipe that writes them,
+  `write-verified-readme`, says to write the document "from that evidence"
+  and to document "validation semantics". The documentation prompts do not
+  say what a reader-facing document leaves out.
 - **Restored work inside a tissue's phase is still credited below it.** The
   molecules of a restored L3 phase are judged and credited by their cell
   before the phase ends, so only the cell's own trust is withheld.
