@@ -254,6 +254,8 @@ describe('post-CI deployment pipeline', () => {
   it('gives up on a stalled LibreOffice install with its log instead of holding the job', () => {
     // 2026-09-30: apt stalled in the background and the finish step waited
     // for its status file until the 25-minute job timeout, with no log.
+    const suite = ci.slice(ci.indexOf('\n  tests:\n'), ci.indexOf('\n  core:\n'));
+    expect(suite.length).toBeGreaterThan(0);
     const block = (name: string): string => {
       const at = ci.indexOf(`name: ${name}`);
       expect(at, name).toBeGreaterThan(0);
@@ -270,7 +272,19 @@ describe('post-CI deployment pipeline', () => {
     for (const option of ['Acquire::Retries=', 'Acquire::http::Timeout=', 'Acquire::https::Timeout=', 'DPkg::Lock::Timeout=']) {
       expect(start).toContain(option);
     }
-    expect(start.match(/\$apt_opts/g)).toHaveLength(2);
+    expect(start.match(/\$apt_opts/g)).toHaveLength(3);
+    // The same day the mirror itself was the stall: apt installs from a cached
+    // archive directory, restored before the install starts and made readable
+    // for the save, which runs before the suite so a red suite still keeps it.
+    const restored = suite.indexOf('uses: actions/cache/restore@');
+    const saved = suite.indexOf('uses: actions/cache/save@');
+    expect(restored).toBeGreaterThan(0);
+    expect(restored).toBeLessThan(suite.indexOf('name: Start installing LibreOffice'));
+    expect(saved).toBeGreaterThan(suite.indexOf('name: Finish installing LibreOffice'));
+    expect(saved).toBeLessThan(suite.indexOf('- run: npm test'));
+    expect(start).toContain('Dir::Cache::Archives=$HOME/.cache/libreoffice-debs');
+    expect(start).toContain('APT::Keep-Downloaded-Packages=true');
+    expect(block('Finish installing LibreOffice for document tests')).toContain('chown -R');
     // The finish step itself, run with no status file ever written: `sleep`
     // is stubbed so its whole bounded wait elapses at once.
     const temp = mkdtempSync(join(tmpdir(), 'atoma-libreoffice-'));

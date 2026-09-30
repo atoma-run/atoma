@@ -103,15 +103,30 @@ jobs:
       # the "finish" step below waits for its status and keeps its log.
       # A stalled mirror or a held dpkg lock hung this for the whole 25-minute
       # job, with no log, on 2026-09-30: every apt wait is bounded, and so is
-      # the finish step, which prints the log when it gives up.
+      # the finish step, which prints the log when it gives up. The same day
+      # the bound fired: the Azure mirror took over ten minutes on the ~100 MB
+      # of packages. So the .debs are CACHED, keyed by the runner image, and
+      # a new image restores the previous image's set and fetches only what
+      # changed; the mirror serves the package lists and nothing else.
+      - name: Key the LibreOffice package cache by runner image
+        id: libreoffice-key
+        run: echo "key=libreoffice-debs-${ImageOS}-${ImageVersion}" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache/restore@v6
+        id: libreoffice-cache
+        with:
+          path: ~/.cache/libreoffice-debs
+          key: ${{ steps.libreoffice-key.outputs.key }}
+          restore-keys: libreoffice-debs-
       - name: Start installing LibreOffice for document tests
         run: |
-          apt_opts='-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o DPkg::Lock::Timeout=120'
+          mkdir -p ~/.cache/libreoffice-debs
+          apt_opts="-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o DPkg::Lock::Timeout=120 -o Dir::Cache::Archives=$HOME/.cache/libreoffice-debs -o APT::Keep-Downloaded-Packages=true"
           (
             {
               sudo apt-get $apt_opts update &&
               sudo apt-get $apt_opts install -y --no-install-recommends \
-                libreoffice-writer libreoffice-calc libreoffice-impress
+                libreoffice-writer libreoffice-calc libreoffice-impress &&
+              sudo apt-get $apt_opts autoclean
             } > "$RUNNER_TEMP/libreoffice.log" 2>&1
             echo $? > "$RUNNER_TEMP/libreoffice.status"
           ) > /dev/null 2>&1 < /dev/null &
@@ -138,6 +153,18 @@ jobs:
           fi
           tail -n 3 "$RUNNER_TEMP/libreoffice.log"
           soffice --headless --version
+          # apt wrote the cache as root, and its partial/ as _apt with 0700:
+          # the save below runs as the runner user and must read it all.
+          sudo rm -rf ~/.cache/libreoffice-debs/partial
+          sudo chown -R "$(id -u):$(id -g)" ~/.cache/libreoffice-debs
+          echo "$(ls ~/.cache/libreoffice-debs/*.deb | wc -l) packages in the cache"
+      # Saved as soon as the install succeeded, not at job end: a red suite
+      # must not send the next run back to the mirror.
+      - uses: actions/cache/save@v6
+        if: steps.libreoffice-cache.outputs.cache-hit != 'true'
+        with:
+          path: ~/.cache/libreoffice-debs
+          key: ${{ steps.libreoffice-key.outputs.key }}
       - run: npm test
 
   core:
