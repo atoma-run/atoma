@@ -263,6 +263,17 @@ export function parseWith<S extends z.ZodTypeAny>(
   schema: S,
   text: string
 ): z.infer<S> {
+  return parseWithEx(schema, text).data;
+}
+
+/**
+ * `parseWith`, flagging a result that only a repair produced. Not every
+ * repair loses content (escaping raw newlines does not), but any may.
+ */
+export function parseWithEx<S extends z.ZodTypeAny>(
+  schema: S,
+  text: string
+): { data: z.infer<S>; repaired: boolean } {
   let primaryErr: unknown = null;
   // A REPAIRED primary parse is schema-valid but potentially amputated (the
   // repair closes an unterminated string, silently dropping whatever came
@@ -275,7 +286,7 @@ export function parseWith<S extends z.ZodTypeAny>(
     const { value: raw, repaired } = extractJsonEx(text);
     const parsed = schema.safeParse(raw);
     if (parsed.success) {
-      if (!repaired) return parsed.data;
+      if (!repaired) return { data: parsed.data, repaired: false };
       repairedFallback = { data: parsed.data, size: safeSize(parsed.data) };
     } else {
       primaryErr = new ValidationError(
@@ -313,12 +324,12 @@ export function parseWith<S extends z.ZodTypeAny>(
       if (repairedFallback !== null && safeSize(again.data) <= repairedFallback.size) {
         continue;
       }
-      return again.data;
+      return { data: again.data, repaired: false };
     } catch {
       continue;
     }
   }
-  if (repairedFallback !== null) return repairedFallback.data;
+  if (repairedFallback !== null) return { data: repairedFallback.data, repaired: true };
   if (primaryErr instanceof ValidationError) throw primaryErr;
   throw new ValidationError(
     `schema validation failed: ${
@@ -532,15 +543,200 @@ export function parsePayloadTolerant(text: string): {
   summary: string;
 } {
   try {
-    const p = parseWith(resultPayloadSchema, text);
-    return { output: p.output, summary: p.summary };
+    const { data, repaired } = parseWithEx(resultPayloadSchema, text);
+    // A repaired parse can be schema-valid yet amputated. The salvaged
+    // reading keeps every character of the summary, so it wins whenever it
+    // carries more of it — but never over a payload that parsed as written.
+    if (repaired) {
+      const salvaged = salvageResultEnvelope(text);
+      if (salvaged !== null && salvaged.summary.length > data.summary.length) return salvaged;
+    }
+    return { output: data.output, summary: data.summary };
   } catch {
+    const salvaged = salvageResultEnvelope(text);
+    if (salvaged !== null) return salvaged;
     const trimmed = text.trim();
     return {
       output: trimmed,
       summary: `${NON_JSON_PAYLOAD_SUMMARY_PREFIX} (${trimmed.length} chars)`,
     };
   }
+}
+
+const ENVELOPE_OPEN_RE = /^\s*(?:```(?:json)?\s*)?\{\s*"output"\s*:\s*/;
+const ENVELOPE_SUMMARY_KEY_RE = /^\s*,\s*"summary"\s*:\s*"/;
+const ENVELOPE_CLOSE_RE = /"\s*\}\s*(?:```\s*)?$/;
+const JSON_LITERAL_RE = /^(?:-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null)/;
+
+/**
+ * Re-read a `{"output": …, "summary": "…"}` envelope whose SUMMARY is not a
+ * valid JSON string. The result-reporting contract asks an L1 to paste its
+ * validate_html outcome verbatim into `summary`, and that outcome is itself
+ * JSON: pasted as `-> {"ok":true,"checks":{…}}` with its quotes bare, beside
+ * real newlines, it ends the string at the first inner quote. Measured
+ * 2026-09-30 (run 8606cf38): strict parse and jsonrepair both failed, the
+ * result became a non-JSON fallback, the `non-json-envelope` gate rejected an
+ * execution whose every check had passed, and the L1 ran it again — 372 s
+ * thrown away. With the newlines escaped and only the quotes bare, jsonrepair
+ * "succeeds" instead: its unescaped-quote heuristic ends the string at the
+ * next delimiter, the colon of `http:`, and hands the validator the first
+ * 216 of the summary's 1,387 chars.
+ *
+ * The contract puts the summary LAST, so its extent is structural: everything
+ * between `"summary":"` and the `"}` that closes the response. That reading is
+ * attempted only where it cannot be wrong about where the summary ends. The
+ * envelope is the whole response (a json fence around it is allowed),
+ * `output` comes first and parses on its own, no other key sits between the
+ * two, and EVERY bare quote of the body belongs to JSON the summary pasted —
+ * an object or array that parses by itself. A bare quote anywhere else means
+ * the summary may end earlier than the response does: a key after it, a
+ * second envelope, text after the envelope, a cut inside the paste. The
+ * adversarial review of 2026-09-30 measured each of those shapes fusing into
+ * a wrong summary, or a wrong output, when this reader took the last `"}` on
+ * trust; so it gives up there, and the text keeps the path it had.
+ *
+ * Nothing here competes with a lossless reading: an envelope that parses as
+ * written, or once its raw control characters are escaped, returns null.
+ */
+export function salvageResultEnvelope(text: string): { output: unknown; summary: string } | null {
+  const open = ENVELOPE_OPEN_RE.exec(text);
+  const close = ENVELOPE_CLOSE_RE.exec(text);
+  if (open === null || close === null) return null;
+  const envelope = text.slice(text.indexOf('{'), close.index + close[0].indexOf('}') + 1);
+  if (parsesAsJson(envelope) || parsesAsJson(escapeControlCharsInStrings(envelope))) return null;
+  const valueStart = open[0].length;
+  const valueEnd = jsonValueEnd(text, valueStart);
+  if (valueEnd === -1) return null;
+  const key = ENVELOPE_SUMMARY_KEY_RE.exec(text.slice(valueEnd));
+  if (key === null) return null;
+  const bodyStart = valueEnd + key[0].length;
+  if (bodyStart > close.index) return null;
+  const summary = decodePastedJsonBody(text.slice(bodyStart, close.index));
+  if (summary === null) return null;
+  try {
+    const output: unknown = JSON.parse(escapeControlCharsInStrings(text.slice(valueStart, valueEnd)));
+    return { output, summary };
+  } catch {
+    return null;
+  }
+}
+
+function parsesAsJson(raw: string): boolean {
+  try {
+    JSON.parse(raw);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Index just past the JSON value starting at `start`, or -1. */
+function jsonValueEnd(s: string, start: number): number {
+  const c = s[start];
+  if (c === '{' || c === '[') {
+    const end = findBalancedEnd(s, start);
+    return end === -1 ? -1 : end + 1;
+  }
+  if (c === '"') {
+    for (let i = start + 1; i < s.length; i++) {
+      if (s[i] === '\\') i++;
+      else if (s[i] === '"') return i + 1;
+    }
+    return -1;
+  }
+  const literal = JSON_LITERAL_RE.exec(s.slice(start));
+  return literal === null ? -1 : start + literal[0].length;
+}
+
+function controlEscape(ch: string): string {
+  return `\\u${ch.charCodeAt(0).toString(16).padStart(4, '0')}`;
+}
+
+/** Escape raw control characters inside JSON string literals; nothing else changes. */
+function escapeControlCharsInStrings(raw: string): string {
+  let out = '';
+  let inString = false;
+  let escape = false;
+  for (const ch of raw) {
+    if (escape) {
+      escape = false;
+      out += ch;
+    } else if (inString && ch === '\\') {
+      escape = true;
+      out += ch;
+    } else if (ch === '"') {
+      inString = !inString;
+      out += ch;
+    } else {
+      out += inString && ch < ' ' ? controlEscape(ch) : ch;
+    }
+  }
+  return out;
+}
+
+/** Bounds on the pasted-JSON scan, so that no body makes it quadratic. */
+const PASTED_BODY_MAX_CHARS = 64_000;
+const PASTED_JSON_MAX_CANDIDATES = 256;
+
+/**
+ * Decode a summary body whose only bare quotes belong to JSON it pasted, or
+ * return null when a bare quote sits anywhere else. A pasted object or array
+ * is kept verbatim: its escapes are the paste's own. The text between them is
+ * JSON-decoded, a lone backslash standing for itself, unless the body carries
+ * raw control characters. Then nothing in it was escaped, and it is kept
+ * verbatim too, so `C:\new` keeps its backslash.
+ */
+function decodePastedJsonBody(body: string): string | null {
+  if (body.length > PASTED_BODY_MAX_CHARS) return null;
+  const escaped = !hasRawControlChar(body);
+  let out = '';
+  let prose = '';
+  let candidates = 0;
+  for (let i = 0; i < body.length; ) {
+    const ch = body[i]!;
+    if ((ch === '{' || ch === '[') && candidates < PASTED_JSON_MAX_CANDIDATES) {
+      candidates++;
+      const end = findBalancedEnd(body, i);
+      if (end !== -1 && parsesAsJson(body.slice(i, end + 1))) {
+        out += escaped ? decodeJsonStringBody(prose) : prose;
+        out += body.slice(i, end + 1);
+        prose = '';
+        i = end + 1;
+        continue;
+      }
+    }
+    if (ch === '"') return null;
+    const pair = ch === '\\' && escaped && i + 1 < body.length;
+    prose += pair ? ch + body[i + 1]! : ch;
+    i += pair ? 2 : 1;
+  }
+  return out + (escaped ? decodeJsonStringBody(prose) : prose);
+}
+
+function hasRawControlChar(s: string): boolean {
+  for (let i = 0; i < s.length; i++) if (s.charCodeAt(i) < 0x20) return true;
+  return false;
+}
+
+/** JSON-decode a string body holding no bare quote; a lone backslash stands for itself. */
+function decodeJsonStringBody(prose: string): string {
+  let s = '';
+  for (let i = 0; i < prose.length; i++) {
+    const ch = prose[i]!;
+    const next = prose[i + 1];
+    if (ch !== '\\') {
+      s += ch;
+    } else if (next !== undefined && '"\\/bfnrt'.includes(next)) {
+      s += ch + next;
+      i++;
+    } else if (next === 'u' && /^[0-9a-fA-F]{4}$/.test(prose.slice(i + 2, i + 6))) {
+      s += prose.slice(i, i + 6);
+      i += 5;
+    } else {
+      s += '\\\\';
+    }
+  }
+  return JSON.parse(`"${s}"`) as string;
 }
 
 /**

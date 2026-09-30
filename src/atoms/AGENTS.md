@@ -358,3 +358,12 @@ Read the archived sections before changing something that merely looks odd.
   new recipe: compile-at-learn would make it a validator-free script.
 - Do not introduce plan templating until a typed instantiation/validation layer
   exists; free-form substitution is another unvalidated router.
+- `salvageResultEnvelope` reads a malformed summary STRUCTURALLY — everything
+  between `"summary":"` and the closing `"}` — only when the envelope is the
+  whole response with `output` first and every bare quote of the summary
+  belongs to JSON it pasted, and it competes only with a repair, never with a
+  payload that parsed as written. Taking the last `"}` on trust fused a key
+  after the summary, a second envelope or a cut paste into the result in 685
+  of 20,000 fuzzed envelopes that the old path read correctly (review
+  2026-09-30). Do not widen it to prose quotes, prose-wrapped or summary-first
+  envelopes on inference: none was observed.

@@ -6,6 +6,7 @@ import {
   toolInvocationSucceeded,
   withAutomaticLoopbackHttpRecording,
 } from '../src/atoms/L1Atom.js';
+import { buildResultGateEnv, runResultGates } from '../src/atoms/resultGates.js';
 import type { ToolExecutor } from '../src/core/types.js';
 import { makeCtx, jsonText } from './helpers.js';
 import { makePlan } from './helpers/factories.js';
@@ -231,6 +232,36 @@ All gameplay controls wired up. No console errors.`;
     );
     expect(result.output).toEqual({ url: 'http://localhost:8000/' });
     expect(result.summary).toBe('built + validated');
+  });
+
+  it('reads a summary that pasted its JSON evidence unescaped, so the envelope gate lets it through (run 8606cf38)', async () => {
+    // Every check of that execution had passed, but its summary carried the
+    // validate_html result as bare-quoted JSON beside raw newlines: the parse
+    // fell back to non-JSON, `non-json-envelope` rejected the result, and the
+    // L1 ran the whole execution again (372 s).
+    const summary = [
+      'Long break mode added and validated.',
+      '== GROUND TRUTH ==',
+      'served at http://localhost:33149/',
+      'validate_html: ok=true, consoleErrors=0, failedRequests=0',
+      `smoke: (() => ({ok:true}))() -> {"ok":true,"checks":{"longMode":true,"paused":true},"mode":"longBreak"} `,
+      'observed state: mode=longBreak, status=Paused.',
+    ].join('\n');
+    const ctx = makeCtx();
+    ctx.llm.enqueueText(`{"output":{"url":"http://localhost:33149/","files":["index.html"]},"summary":"${summary}"}`);
+    const task = { description: 'Add a long-break mode to index.html' };
+    const result = await new L1Atom(base).execute(
+      task,
+      makePlan({ reasoning: 'r', proposedAction: 'a', expectedOutput: 'e' }),
+      ctx
+    );
+    expect(result.output).toEqual({ url: 'http://localhost:33149/', files: ['index.html'] });
+    expect(result.summary).toBe(summary);
+    const gates = await runResultGates(
+      buildResultGateEnv({ task, result, childName: 'Water', childToolNames: [], ctx }),
+      new Set()
+    );
+    expect(gates.rejection).toBeNull();
   });
 
   it('prefixes the summary with [INTERNAL VALIDATION FAILED] when last validate_html returned ok:false (#3)', async () => {

@@ -12,6 +12,7 @@ import {
   repairTruncatedJson,
   repairPrematureClose,
   resultPayloadSchema,
+  salvageResultEnvelope,
   verdictSchema,
   isEffectivelyEmptyMods,
 } from '../src/atoms/json.js';
@@ -172,6 +173,121 @@ describe('nested ``` fence inside a JSON string (evidence-destruction regression
       '{"output":"the real deliverable","summary":"the actual evidence block"}';
     const parsed = parseWith(resultPayloadSchema, text);
     expect(parsed.output).toBe('the real deliverable');
+  });
+});
+
+/**
+ * Run 8606cf38 (2026-09-30): the L1 pasted its validate_html outcome, itself
+ * JSON, into `summary` without escaping its quotes, beside raw newlines. The
+ * result became a non-JSON fallback, the `non-json-envelope` gate rejected a
+ * fully verified execution, and it ran again for 372 s. With the newlines
+ * escaped, jsonrepair instead cut the summary at the colon of `http:`.
+ */
+describe('a summary that pastes JSON evidence without escaping it (run 8606cf38)', () => {
+  const smokeResult =
+    '{"ok":true,"checks":{"longMode":true,"paused":true},"mode":"longBreak","display":"14:59"}';
+  const summary = [
+    'Long break mode added and validated with preserved timer controls.',
+    '== GROUND TRUTH ==',
+    'index.html (4314 bytes) — list_files: index.html',
+    'served at http://localhost:33149/',
+    'validate_html: ok=true, consoleErrors=0, failedRequests=0',
+    `smoke: (() => { const t=window.__timer; return {ok:t.mode==='longBreak'}; })() -> ${smokeResult} `,
+    'observed state: mode=longBreak, display=14:59, status=Paused.',
+  ].join('\n');
+  const output = {
+    url: 'http://localhost:33149/',
+    files: ['index.html'],
+    probes: [{ probe: 'web', ok: true, smokeResult: JSON.parse(smokeResult) as unknown }],
+  };
+  // What the model emitted: a well-formed output, then the summary between
+  // quotes with its newlines raw and its inner quotes bare.
+  const emitted = `{"output":${JSON.stringify(output)},"summary":"${summary}"}`;
+
+  it('recovers the whole summary and the output', () => {
+    expect(() => JSON.parse(emitted)).toThrow();
+    expect(parsePayloadTolerant(emitted)).toEqual({ output, summary });
+  });
+
+  it('keeps the summary whole where jsonrepair would cut it at `http:`', () => {
+    const newlinesEscaped = `{"output":${JSON.stringify(output)},"summary":"${summary.replace(/\n/g, '\\n')}"}`;
+    expect(parsePayloadTolerant(newlinesEscaped)).toEqual({ output, summary });
+  });
+
+  it('reads a fenced envelope the same way', () => {
+    expect(parsePayloadTolerant('```json\n' + emitted + '\n```')).toEqual({ output, summary });
+  });
+
+  it('decodes the escapes around the paste and keeps the paste verbatim', () => {
+    // No raw control character: the model escaped what it wrote itself.
+    const body = 'path C:\\work, escaped \\"x\\", newline\\nend -> {"text":"a\\nb"}';
+    expect(parsePayloadTolerant(`{"output":"README.md","summary":"${body}"}`)).toEqual({
+      output: 'README.md',
+      summary: 'path C:\\work, escaped "x", newline\nend -> {"text":"a\\nb"}',
+    });
+  });
+
+  it('keeps every backslash of a body that escaped nothing', () => {
+    // Raw newlines say the model escaped nothing, so `\n` in a path is not one.
+    const body = `built C:\\Users\\mgf\\new\\build\\files\\temp\nsmoke -> ${smokeResult}`;
+    expect(parsePayloadTolerant(`{"output":"ok","summary":"${body}"}`)).toEqual({ output: 'ok', summary: body });
+  });
+
+  it('escapes raw control characters inside the output strings', () => {
+    const text = `{"output":{"smoke":"line one\nline two"},"summary":"${summary}"}`;
+    expect(parsePayloadTolerant(text)).toEqual({
+      output: { smoke: 'line one\nline two' },
+      summary,
+    });
+  });
+
+  it('leaves an envelope that parses losslessly to the strict path', () => {
+    const wellFormed = JSON.stringify({ output, summary });
+    expect(salvageResultEnvelope(wellFormed)).toBeNull();
+    expect(parsePayloadTolerant(wellFormed)).toEqual({ output, summary });
+    // Raw newlines alone are a lossless repair, whatever follows the summary.
+    const rawNewlines = '{"output":1,"summary":"clean\nsummary","note":"n"}';
+    expect(salvageResultEnvelope(rawNewlines)).toBeNull();
+    expect(parsePayloadTolerant(rawNewlines)).toEqual({ output: 1, summary: 'clean\nsummary' });
+  });
+
+  it('never fuses two envelopes, or an envelope and what follows it', () => {
+    // Each of these read as ONE summary, or the first envelope's output, when
+    // the last `"}` of the response was taken for the summary's end.
+    const last = { output: 'final', summary: 'the final evidence' };
+    const twoWellFormed = `${JSON.stringify({ output: 'draft', summary: 'first attempt' })}\n${JSON.stringify(last)}`;
+    expect(salvageResultEnvelope(twoWellFormed)).toBeNull();
+    expect(parsePayloadTolerant(twoWellFormed)).toEqual(last);
+    for (const text of [
+      `{"output":"draft","summary":"first -> {"ok":true,"checks":{"title":"ok"}}"}\n{"output":"final","summary":"second -> {"ok":true}"}`,
+      '{"output":"a","summary":"line1\nline2"}\n{"note":"x"}',
+      '{"output":"a","summary":"line1\nline2 -> {"ok":true}"}\n```json\n{"note":"x"}\n```',
+      '```json\n{"output": 1, "summary": "the word "quoted" here"}\n```\n```json\n{"output": 2, "summary": "second"}\n```',
+      `{"output":1,"summary":"${summary}","note":"n"}`,
+    ]) {
+      expect(salvageResultEnvelope(text)).toBeNull();
+    }
+  });
+
+  it('does not take a cut inside the paste for the end of the envelope', () => {
+    // Nothing in the text says the response was cut; the paste that never
+    // closes, or closes on the response's last quote, does.
+    expect(salvageResultEnvelope('{"output": "see below", "summary": "I could not finish. Config: {"mode":"fast"}')).toBeNull();
+    const cut = `{"output":{"url":"u"},"summary":"validated\nsmoke -> {"ok":true,"display":"14:59"}`;
+    expect(salvageResultEnvelope(cut)).toBeNull();
+  });
+
+  it('does not guess where the envelope is ambiguous', () => {
+    // Prose before the envelope, a summary-first envelope, text after it and
+    // a key between output and summary all keep the reading they had before.
+    expect(salvageResultEnvelope(`Here is the result:\n${emitted}`)).toBeNull();
+    expect(salvageResultEnvelope(`{"summary":"${summary}","output":${JSON.stringify(output)}}`)).toBeNull();
+    expect(salvageResultEnvelope(`${emitted}\nLet me know if you need more.`)).toBeNull();
+    expect(
+      salvageResultEnvelope(`{"output":${JSON.stringify(output)},"notes":"n","summary":"${summary}"}`)
+    ).toBeNull();
+    // A bare quote in the prose itself, outside anything pasted.
+    expect(salvageResultEnvelope('{"output":1,"summary":"the "quoted"\nword -> {"ok":true}"}')).toBeNull();
   });
 });
 
