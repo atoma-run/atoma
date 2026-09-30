@@ -22,11 +22,11 @@ import { buildServer } from '../src/mcp/server.js';
 import { MCP_TOOL_NAMES, MCP_TOOLS, visibleTools, type McpToolDeps } from '../src/mcp/tools.js';
 import { forgetJevCalibrationsForTest } from '../src/mcp/jevCalibrate.js';
 import { JEV_ENDPOINT } from '../src/core/jev.js';
-import { SessionTaskStore, projectRunTaskHandler, type RunTaskHost } from '../src/mcp/tasks.js';
+import { SessionTaskStore, projectRunTaskHandler, type ProjectRunTaskDeps, type RunTaskHost } from '../src/mcp/tasks.js';
 import { CallToolResultSchema, CreateTaskResultSchema, LoggingMessageNotificationSchema } from '@modelcontextprotocol/sdk/types.js';
 import { ProjectStore } from '../src/projects/store.js';
 import { ProjectRunCoordinator } from '../src/projects/coordinator.js';
-import { ProjectService } from '../src/projects/service.js';
+import { ProjectHttpError, ProjectService } from '../src/projects/service.js';
 import { acquireRunLease } from '../src/mcp/runLock.js';
 import { ANTHROPIC_PINS } from './tier-pins.js';
 import { benchmarkRegistration } from './helpers/retrievalBenchmark.js';
@@ -189,6 +189,88 @@ it('reuses a project run across MCP sessions while its real lease is held', asyn
     await coordinator.waitForIdle();
     await first.close();
     await second.close();
+  }
+});
+
+it('answers a project run task on a host that did not mint it — a restart — for the principal that started the run only', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'atoma-mcp-durable-task-'));
+  dirs.push(root);
+  const dbPath = join(root, 'store.db');
+  const auth = AuthStore.open(dbPath);
+  const login = auth.completeLogin({
+    provider: 'github', subject: 'owner', displayName: 'Owner',
+    email: null, emailVerified: false,
+  }, null)!;
+  const store = ProjectStore.open(dbPath);
+  const project = store.createProject({
+    orgId: login.viewer.orgId, principalId: login.viewer.principalId,
+    project: { name: 'Board', slug: 'board', repositoryTarget: {
+      installationId: '123', owner: 'owner', name: 'board', visibility: 'private',
+    } },
+  });
+  // Each launch waits on its own promise, which `finish` settles or the run's abort ends, as spawnRun's would.
+  let finish: (output: string) => void = () => undefined;
+  let launches = 0;
+  const coordinator = new ProjectRunCoordinator({
+    store, dbPath, projectsRoot: root,
+    hostEnv: { ...haystackTestEnvironment(root), PATH: process.env['PATH'], ...ANTHROPIC_PINS, ANTHROPIC_API_KEY: 'test-key' },
+    acquireLease: (id) => acquireRunLease(id, join(root, 'lease.db')),
+    driver: (input) => new Promise<string>((resolve) => {
+      launches++;
+      finish = resolve;
+      input.signal?.addEventListener('abort', () => resolve('--- run cancelled ---\n'), { once: true });
+    }),
+  });
+  const service = new ProjectService({ store, coordinator, github: null });
+  const deps: McpToolDeps = { ...NO_TENANT, projects: { store, service }, auth };
+  // A member of the same organisation who did not start the run: it may read the run, not follow its task.
+  const colleague: Viewer = { ...login.viewer, principalId: '00000000-0000-4000-8000-000000000001', displayName: 'Colleague', role: 'org:member' };
+  const resolveCaller = (req: IncomingMessage): McpCaller => req.headers.authorization === 'Bearer colleague'
+    ? { kind: 'principal', viewer: colleague, tokenId: 'colleague' }
+    : { kind: 'principal', viewer: login.viewer, tokenId: 'owner' };
+  const before = await listen(resolveCaller, deps);
+  const client = await connect(before.url);
+  let after: Client | null = null;
+  let other: Client | null = null;
+  try {
+    const created = await client.request(
+      { method: 'tools/call', params: { name: 'atoma_run_start', arguments: { projectId: project.projectId, goal: 'Build a board.' } } },
+      CreateTaskResultSchema, { task: { ttl: 60_000 } },
+    );
+    const [run] = store.listProjectRuns(login.viewer.orgId, project.projectId)!;
+    expect(created.task.taskId).toBe(`project-run:${project.projectId}:${run!.projectRunId}`);
+    // The host that minted the task is gone, and every session and task store with it.
+    await client.close();
+    await before.host.close();
+    const restarted = await listen(resolveCaller, deps);
+    after = await connect(restarted.url);
+    expect(await after.experimental.tasks.getTask(created.task.taskId)).toMatchObject({ status: 'working' });
+    expect((await after.experimental.tasks.listTasks()).tasks.map((task) => task.taskId)).toEqual([created.task.taskId]);
+    other = await connect(restarted.url, 'colleague');
+    await expect(other.experimental.tasks.getTask(created.task.taskId)).rejects.toThrow(/not found/i);
+    await expect(other.experimental.tasks.cancelTask(created.task.taskId)).rejects.toThrow(/not found/i);
+    expect((await other.experimental.tasks.listTasks()).tasks).toEqual([]);
+    await vi.waitFor(() => expect(launches).toBe(1));
+    finish('--- run failed ---\n');
+    await coordinator.waitForIdle();
+    const ended = store.getProjectRun(login.viewer.orgId, run!.projectRunId)!;
+    expect(['delivered', 'partial', 'failed', 'cancelled']).toContain(ended.status);
+    const result = await after.experimental.tasks.getTaskResult(created.task.taskId, CallToolResultSchema);
+    expect(result.structuredContent).toMatchObject({ projectRunId: run!.projectRunId, status: ended.status });
+    // tasks/cancel over the wire answers `cancelled`, as the spec requires, and reaches the run.
+    const second = await after.request(
+      { method: 'tools/call', params: { name: 'atoma_run_start', arguments: { projectId: project.projectId, goal: 'Build it again.' } } },
+      CreateTaskResultSchema, { task: { ttl: 60_000 } },
+    );
+    expect(second.task.taskId).toMatch(/^project-run:/);
+    expect(await after.experimental.tasks.cancelTask(second.task.taskId)).toMatchObject({ status: 'cancelled' });
+    await coordinator.waitForIdle();
+    expect(await after.experimental.tasks.getTask(second.task.taskId)).toMatchObject({ status: 'cancelled' });
+  } finally {
+    finish('--- run failed ---\n');
+    await coordinator.waitForIdle();
+    await after?.close();
+    await other?.close();
   }
 });
 
@@ -957,18 +1039,24 @@ describe('runs as tasks, and the run log', () => {
     await client.close();
   });
 
-  it('follows atoma_run_start through the tenant store, and cancels the run on tasks/cancel', async () => {
-    const statuses = ['queued', 'running', 'running', 'delivered'];
-    const cancelled: string[] = [];
-    const service = {
-      startProjectRunFromInput: async (_v: unknown, _p: string, body: unknown) => ({ projectRunId: 'run-1', status: 'queued', goal: (body as { goal: string }).goal }),
-      projectRunStatus: () => ({ projectRunId: 'run-1', status: statuses.length > 1 ? statuses.shift()! : statuses[0]! }),
-      runTaskBudgetMs: () => 2 * 60 * 60 * 1000,
-      cancelProjectRun: async (_v: unknown, _p: string, runId: string) => { cancelled.push(runId); return { cancelled: runId }; },
-    };
+  /**
+   * A project run as `ProjectService.projectRunStatus` presents it: the binding
+   * fields are what a task is checked against. Run ids are unique per test,
+   * because a `tasks/cancel` is remembered process-wide.
+   */
+  const projectRun = (status: string, projectRunId: string, extra: Record<string, unknown> = {}) => ({
+    projectId: 'p-1', projectRunId, status, orgId: 'org-1', requestedByPrincipalId: 'p-org:member',
+    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), endedAt: null, ...extra,
+  });
+
+  /** One session's task store with `atoma_run_start` registered on it, as `buildServerForCaller` does for a member. */
+  function projectTaskSession(service: ProjectRunTaskDeps['service'], options: { as?: Viewer; pollMs?: number; heartbeatMs?: number } = {}) {
     const store = new SessionTaskStore();
     const host: RunTaskHost = { store, follow: () => {}, cleanups: [] };
-    const handler = projectRunTaskHandler(host, { viewer: () => viewer('org:member'), service, pollMs: 10 });
+    const handler = projectRunTaskHandler(host, {
+      viewer: () => options.as ?? viewer('org:member'), service, pollMs: options.pollMs ?? 10,
+      ...(options.heartbeatMs !== undefined ? { heartbeatMs: options.heartbeatMs } : {}),
+    });
     const requestStore = {
       createTask: (params: { ttl?: number | null; pollInterval?: number }) => store.createTask(params, 1, { method: 'tools/call' }),
       getTask: async (taskId: string) => (await store.getTask(taskId))!,
@@ -977,156 +1065,247 @@ describe('runs as tasks, and the run log', () => {
       updateTaskStatus: (taskId: string, status: 'working' | 'input_required' | 'completed' | 'failed' | 'cancelled', message?: string) => store.updateTaskStatus(taskId, status, message),
     };
     const extra = { taskStore: requestStore, signal: new AbortController().signal, requestId: 1, sendNotification: async () => {}, sendRequest: async () => ({}) } as never;
-    const created = await handler.createTask({ projectId: 'p-1', goal: 'ship it', idempotencyKey: undefined, acceptanceCriteria: undefined, rerunOf: undefined, models: undefined, depth: undefined }, extra);
-    expect(created.task.status).toBe('working');
-    expect(created.task.statusMessage).toBe('run run-1 queued');
-    await tick(120);
-    const done = await store.getTask(created.task.taskId);
-    expect(done?.status).toBe('completed');
-    const result = (await store.getTaskResult(created.task.taskId)) as { structuredContent: { status: string } };
-    expect(result.structuredContent.status).toBe('delivered');
-    // A second task, cancelled the way the SDK's tasks/cancel handler does it: the run is cancelled too.
-    statuses.splice(0, statuses.length, 'running');
-    const second = await handler.createTask({ projectId: 'p-1', goal: 'stop me', idempotencyKey: undefined, acceptanceCriteria: undefined, rerunOf: undefined, models: undefined, depth: undefined }, extra);
-    await store.updateTaskStatus(second.task.taskId, 'cancelled', 'Client cancelled task execution.');
-    expect(cancelled).toEqual(['run-1']);
-    for (const cleanup of host.cleanups) cleanup();
-    store.close();
+    const close = () => {
+      for (const cleanup of host.cleanups) cleanup();
+      store.close();
+    };
+    return { store, host, handler, extra, close };
+  }
+
+  /** A tenant service over a map of run statuses: every read is a read of the map. */
+  function projectRunsService(prefix: string, extra: Partial<ProjectRunTaskDeps['service']> = {}) {
+    const runs = new Map<string, Record<string, unknown>>();
+    let next = 0;
+    const cancelled: string[] = [];
+    const service: ProjectRunTaskDeps['service'] = {
+      startProjectRunFromInput: async () => {
+        const run = projectRun('queued', `${prefix}-${++next}`);
+        runs.set(run.projectRunId, run);
+        return run;
+      },
+      projectRunStatus: (_v: unknown, projectId: string, runId: string) => {
+        const run = runs.get(runId);
+        if (!run || projectId !== 'p-1') throw new ProjectHttpError(404, 'project run not found');
+        return { ...run, updatedAt: new Date().toISOString() };
+      },
+      runTaskBudgetMs: () => 2 * 60 * 60 * 1000,
+      cancelProjectRun: async (_v: unknown, _p: string, runId: string) => { cancelled.push(runId); return {}; },
+      runsRequestedBy: () => [...runs.values()].reverse(),
+      ...extra,
+    };
+    const set = (runId: string, status: string, fields: Record<string, unknown> = {}) => runs.set(runId, { ...runs.get(runId)!, status, ...fields });
+    return { service, runs, set, cancelled };
+  }
+
+  const PROJECT_ARGS = { projectId: 'p-1', goal: 'ship it', idempotencyKey: undefined, acceptanceCriteria: undefined, rerunOf: undefined, models: undefined, depth: undefined };
+
+  it('answers atoma_run_start as a task that IS the run: every read goes to the tenant store', async () => {
+    const tenant = projectRunsService('is-run');
+    const session = projectTaskSession(tenant.service);
+    try {
+      const created = await session.handler.createTask(PROJECT_ARGS, session.extra);
+      expect(created.task).toMatchObject({
+        taskId: 'project-run:p-1:is-run-1', status: 'working', statusMessage: 'run is-run-1 queued',
+        ttl: 2 * 60 * 60 * 1000 + 10 * 60 * 1000, pollInterval: 10,
+      });
+      tenant.set('is-run-1', 'running');
+      expect(await session.store.getTask(created.task.taskId)).toMatchObject({ status: 'working', statusMessage: 'run is-run-1 running' });
+      await expect(session.store.getTaskResult(created.task.taskId)).rejects.toThrow(/has no result/);
+      // Nothing but the run moves it: the store refuses to be written for it.
+      await expect(session.store.storeTaskResult(created.task.taskId, 'completed', { content: [] })).rejects.toThrow(/follows its run/);
+      await expect(session.store.updateTaskStatus(created.task.taskId, 'working', 'x')).rejects.toThrow(/only cancellation/);
+      tenant.set('is-run-1', 'delivered', { endedAt: new Date().toISOString() });
+      expect(await session.store.getTask(created.task.taskId)).toMatchObject({ status: 'completed', statusMessage: 'run is-run-1 delivered' });
+      expect(await session.store.getTaskResult(created.task.taskId)).toMatchObject({ structuredContent: { status: 'delivered', projectRunId: 'is-run-1' } });
+      // A run the cancel tool (or the console) cancelled is a cancelled task, with the status payload as its result.
+      await session.handler.createTask(PROJECT_ARGS, session.extra);
+      tenant.set('is-run-2', 'cancelled', { endedAt: new Date().toISOString() });
+      expect(await session.store.getTask('project-run:p-1:is-run-2')).toMatchObject({ status: 'cancelled' });
+      expect(await session.store.getTaskResult('project-run:p-1:is-run-2')).toMatchObject({ structuredContent: { status: 'cancelled' } });
+      // tasks/list names every task tasks/get answers, newest first, before the memory store's page.
+      expect((await session.store.listTasks()).tasks.map((task) => task.taskId)).toEqual(['project-run:p-1:is-run-2', 'project-run:p-1:is-run-1']);
+    } finally {
+      session.close();
+    }
+  });
+
+  it('cancels a project run on tasks/cancel, refuses in the cancel tool’s words, and keeps the task cancelled whatever the run does next', async () => {
+    let refuse = true;
+    const tenant = projectRunsService('cancel-run');
+    tenant.service.cancelProjectRun = async (_v: unknown, _p: string, runId: string) => {
+      if (refuse) throw new ProjectHttpError(403, 'org:member role or above is required to cancel runs');
+      tenant.cancelled.push(runId);
+      return {};
+    };
+    const session = projectTaskSession(tenant.service);
+    try {
+      const created = await session.handler.createTask(PROJECT_ARGS, session.extra);
+      tenant.set('cancel-run-1', 'running');
+      await expect(session.store.updateTaskStatus(created.task.taskId, 'cancelled')).rejects.toThrow(/refused \(403\)/);
+      expect(await session.store.getTask(created.task.taskId)).toMatchObject({ status: 'working' });
+      refuse = false;
+      await session.store.updateTaskStatus(created.task.taskId, 'cancelled');
+      expect(tenant.cancelled).toEqual(['cancel-run-1']);
+      // `cancelled` before the answer, though the run's abort is still going through.
+      expect(await session.store.getTask(created.task.taskId)).toMatchObject({
+        status: 'cancelled', statusMessage: 'run cancel-run-1 cancellation requested, running',
+      });
+      expect(await session.store.getTaskResult(created.task.taskId)).toMatchObject({ structuredContent: { status: 'running' } });
+      // And for good, even in another session, even if the run lands otherwise.
+      tenant.set('cancel-run-1', 'delivered', { endedAt: new Date().toISOString() });
+      const later = projectTaskSession(tenant.service);
+      expect(await later.store.getTask(created.task.taskId)).toMatchObject({ status: 'cancelled', statusMessage: 'run cancel-run-1 delivered' });
+      later.close();
+    } finally {
+      session.close();
+    }
+  });
+
+  it('answers a project run task in a session that did not start it, for its own principal in its own organisation only', async () => {
+    const tenant = projectRunsService('bound-run');
+    const first = projectTaskSession(tenant.service);
+    const created = await first.handler.createTask(PROJECT_ARGS, first.extra);
+    first.close();
+    tenant.set('bound-run-1', 'running');
+    // A new session of the same caller — a reconnect, a restart, a swept or evicted session.
+    const later = projectTaskSession(tenant.service);
+    const otherPrincipal = projectTaskSession(tenant.service, { as: { ...viewer('org:member'), principalId: 'p-someone-else' } });
+    const otherOrg = projectTaskSession(tenant.service, { as: { ...viewer('org:member'), orgId: 'org-2' } });
+    const withoutRuns = new SessionTaskStore();
+    try {
+      expect(await later.store.getTask(created.task.taskId)).toMatchObject({ taskId: 'project-run:p-1:bound-run-1', status: 'working' });
+      expect((await later.store.listTasks()).tasks.map((task) => task.taskId)).toEqual([created.task.taskId]);
+      // The binding is the principal AND the organisation, whoever else may read the run.
+      for (const session of [otherPrincipal, otherOrg]) {
+        expect(await session.store.getTask(created.task.taskId)).toBeNull();
+        expect((await session.store.listTasks()).tasks).toEqual([]);
+        await expect(session.store.updateTaskStatus(created.task.taskId, 'cancelled')).rejects.toThrow(/not found/);
+        await expect(session.store.getTaskResult(created.task.taskId)).rejects.toThrow(/not found/);
+      }
+      expect(tenant.cancelled).toEqual([]);
+      // A missing binding fails closed, and a shape this host never mints is simply unknown.
+      const unbound = projectTaskSession({ ...tenant.service, projectRunStatus: () => ({ projectRunId: 'bound-run-1', status: 'running' }) });
+      expect(await unbound.store.getTask(created.task.taskId)).toBeNull();
+      unbound.close();
+      for (const id of ['project-run:p-1', 'project-run:p-1:bound-run-1:extra', 'project-run::bound-run-1', 'project-run:p-2:bound-run-1']) {
+        expect(await later.store.getTask(id)).toBeNull();
+      }
+      // A session whose tier has no atoma_run_start answers none.
+      expect(await withoutRuns.getTask(created.task.taskId)).toBeNull();
+    } finally {
+      later.close();
+      otherPrincipal.close();
+      otherOrg.close();
+      withoutRuns.close();
+    }
   });
 
   it('tells a caller waiting on atoma_run_start that the run is alive, when it sent a progressToken (2026-09-26)', async () => {
     // Claude Code aborts a call that sends "no response or progress for 300s";
     // every production run past five minutes was cut that way while it ran on.
-    const statuses = ['queued', 'running', 'running', 'running', 'running', 'running', 'running', 'delivered'];
-    const service = {
-      startProjectRunFromInput: async () => ({ projectRunId: 'run-1', status: 'queued' }),
-      projectRunStatus: () => ({ projectRunId: 'run-1', status: statuses.length > 1 ? statuses.shift()! : statuses[0]! }),
-      runTaskBudgetMs: () => 60_000,
-      cancelProjectRun: async () => ({}),
-    };
-    const store = new SessionTaskStore();
-    const host: RunTaskHost = { store, follow: () => {}, cleanups: [] };
-    const handler = projectRunTaskHandler(host, { viewer: () => viewer('org:member'), service, pollMs: 10, heartbeatMs: 15 });
-    const requestStore = {
-      createTask: (params: { ttl?: number | null; pollInterval?: number }) => store.createTask(params, 1, { method: 'tools/call' }),
-      getTask: async (taskId: string) => (await store.getTask(taskId))!,
-      storeTaskResult: (taskId: string, status: 'completed' | 'failed', result: { content: unknown[] }) => store.storeTaskResult(taskId, status, result),
-      getTaskResult: (taskId: string) => store.getTaskResult(taskId),
-      updateTaskStatus: (taskId: string, status: 'working' | 'input_required' | 'completed' | 'failed' | 'cancelled', message?: string) => store.updateTaskStatus(taskId, status, message),
-    };
+    const tenant = projectRunsService('alive-run');
+    const reads = vi.fn(tenant.service.projectRunStatus);
+    tenant.service.projectRunStatus = reads;
+    const session = projectTaskSession(tenant.service, { heartbeatMs: 15 });
     const sent: { progressToken: string | number; progress: number; message?: string }[] = [];
-    const extra = { taskStore: requestStore, signal: new AbortController().signal, requestId: 1, _meta: { progressToken: 'tok-1' },
-      sendNotification: async (notification: { params: (typeof sent)[number] }) => { sent.push(notification.params); }, sendRequest: async () => ({}) } as never;
-    const args = { projectId: 'p-1', goal: 'ship it', idempotencyKey: undefined, acceptanceCriteria: undefined, rerunOf: undefined, models: undefined, depth: undefined };
-    const created = await handler.createTask(args, extra);
-    await vi.waitFor(async () => expect((await store.getTask(created.task.taskId))?.status).toBe('completed'));
-    const settled = sent.length;
-    await tick(60);
-    expect(sent[0]).toEqual({ progressToken: 'tok-1', progress: 1, message: 'run run-1 queued' });
-    expect(sent.map((entry) => entry.message)).toContain('run run-1 running');
-    // Heartbeats between status changes, strictly increasing, and silence once the run ended.
-    expect(sent.length).toBeGreaterThan(2);
-    expect(sent.every((entry, index) => entry.progress === index + 1)).toBe(true);
-    expect(sent.length).toBe(settled);
-    // No token, no notification: a caller that did not ask hears nothing.
-    const quiet: unknown[] = [];
-    statuses.splice(0, statuses.length, 'running', 'delivered');
-    await handler.createTask(args, { ...(extra as object), _meta: {}, sendNotification: async (n: unknown) => { quiet.push(n); } } as never);
-    await tick(60);
-    expect(quiet).toEqual([]);
-    // A task-augmented call is answered at once and followed through tasks/*.
-    statuses.splice(0, statuses.length, 'running', 'running', 'running', 'running', 'delivered');
-    await handler.createTask(args, { ...(extra as object), taskRequestedTtl: 60_000, sendNotification: async (n: unknown) => { quiet.push(n); } } as never);
-    await tick(60);
-    expect(quiet).toEqual([]);
-    // A cancelled call hears nothing more, though its run goes on.
-    statuses.splice(0, statuses.length, ...Array.from({ length: 30 }, () => 'running'), 'delivered');
-    const cancelled = new AbortController();
-    const afterCancel: unknown[] = [];
-    await handler.createTask(args, { ...(extra as object), signal: cancelled.signal,
-      sendNotification: async (n: unknown) => { afterCancel.push(n); } } as never);
-    await tick(20);
-    cancelled.abort();
-    const atCancel = afterCancel.length;
-    await tick(60);
-    expect(atCancel).toBeGreaterThan(0);
-    expect(afterCancel.length).toBe(atCancel);
-    for (const cleanup of host.cleanups) cleanup();
-    store.close();
+    const extra = { ...(session.extra as object), _meta: { progressToken: 'tok-1' },
+      sendNotification: async (notification: { params: (typeof sent)[number] }) => { sent.push(notification.params); } } as never;
+    try {
+      const created = await session.handler.createTask(PROJECT_ARGS, extra);
+      tenant.set('alive-run-1', 'running');
+      await tick(60);
+      tenant.set('alive-run-1', 'delivered', { endedAt: new Date().toISOString() });
+      await vi.waitFor(async () => expect((await session.store.getTask(created.task.taskId))?.status).toBe('completed'));
+      await tick(30);
+      const settled = sent.length;
+      await tick(60);
+      expect(sent[0]).toEqual({ progressToken: 'tok-1', progress: 1, message: 'run alive-run-1 queued' });
+      expect(sent.map((entry) => entry.message)).toContain('run alive-run-1 running');
+      // Heartbeats between status changes, strictly increasing, and silence once the run ended.
+      expect(sent.length).toBeGreaterThan(2);
+      expect(sent.every((entry, index) => entry.progress === index + 1)).toBe(true);
+      expect(sent.length).toBe(settled);
+      // No token, no notification, and no read of the run of its own: the store answers the task.
+      const quiet: unknown[] = [];
+      await session.handler.createTask(PROJECT_ARGS, { ...(session.extra as object), _meta: {}, sendNotification: async (n: unknown) => { quiet.push(n); } } as never);
+      tenant.set('alive-run-2', 'running');
+      const before = reads.mock.calls.length;
+      await tick(60);
+      expect(quiet).toEqual([]);
+      expect(reads.mock.calls.length).toBe(before);
+      // A task-augmented call is answered at once and followed through tasks/*.
+      await session.handler.createTask(PROJECT_ARGS, { ...(extra as object), taskRequestedTtl: 60_000, sendNotification: async (n: unknown) => { quiet.push(n); } } as never);
+      tenant.set('alive-run-3', 'running');
+      await tick(60);
+      expect(quiet).toEqual([]);
+      // A cancelled call hears nothing more, though its run goes on.
+      const cancelled = new AbortController();
+      const afterCancel: unknown[] = [];
+      await session.handler.createTask(PROJECT_ARGS, { ...(extra as object), signal: cancelled.signal,
+        sendNotification: async (n: unknown) => { afterCancel.push(n); } } as never);
+      tenant.set('alive-run-4', 'running');
+      await tick(20);
+      cancelled.abort();
+      const atCancel = afterCancel.length;
+      await tick(60);
+      expect(atCancel).toBeGreaterThan(0);
+      expect(afterCancel.length).toBe(atCancel);
+    } finally {
+      session.close();
+    }
   });
 
   it('parses atoma_run_start acceptanceCriteria with the console grammar, and refuses a bad entry before any run', async () => {
     const bodies: unknown[] = [];
-    const service = {
-      startProjectRunFromInput: async (_v: unknown, _p: string, body: unknown) => { bodies.push(body); return { projectRunId: 'run-1', status: 'queued' }; },
-      projectRunStatus: () => ({ projectRunId: 'run-1', status: 'delivered' }),
-      runTaskBudgetMs: () => 60_000,
-      cancelProjectRun: async () => ({}),
-    };
-    const store = new SessionTaskStore();
-    const host: RunTaskHost = { store, follow: () => {}, cleanups: [] };
-    const handler = projectRunTaskHandler(host, { viewer: () => viewer('org:member'), service, pollMs: 10 });
-    const requestStore = {
-      createTask: (params: { ttl?: number | null; pollInterval?: number }) => store.createTask(params, 1, { method: 'tools/call' }),
-      getTask: async (taskId: string) => (await store.getTask(taskId))!,
-      storeTaskResult: (taskId: string, status: 'completed' | 'failed', result: { content: unknown[] }) => store.storeTaskResult(taskId, status, result),
-      getTaskResult: (taskId: string) => store.getTaskResult(taskId),
-      updateTaskStatus: (taskId: string, status: 'working' | 'input_required' | 'completed' | 'failed' | 'cancelled', message?: string) => store.updateTaskStatus(taskId, status, message),
-    };
-    const extra = { taskStore: requestStore, signal: new AbortController().signal, requestId: 1, sendNotification: async () => {}, sendRequest: async () => ({}) } as never;
-    await handler.createTask({ projectId: 'p-1', goal: 'notes API', idempotencyKey: 'k-1',
-      acceptanceCriteria: ['GET /api/notes/:id 404 — unknown id is refused', 'The README explains how to start it'], rerunOf: undefined, models: undefined, depth: undefined }, extra);
-    expect(bodies).toEqual([{ goal: 'notes API', idempotencyKey: 'k-1', acceptanceChecklist: [
-      { behaviour: 'unknown id is refused', check: { kind: 'http', method: 'GET', path: '/api/notes/:id', status: 404 } },
-      { behaviour: 'The README explains how to start it', check: { kind: 'review' } },
-    ] }]);
-    const refused = await handler.createTask({ projectId: 'p-1', goal: 'notes API', idempotencyKey: 'k-2',
-      acceptanceCriteria: ['fine', 'two\ncriteria'], rerunOf: undefined, models: undefined, depth: undefined }, extra);
-    expect(bodies).toHaveLength(1);
-    expect(refused.task.status).toBe('failed');
-    const result = (await store.getTaskResult(refused.task.taskId)) as { content: Array<{ text: string }> };
-    expect(result.content[0]!.text).toContain('entry 2: must hold exactly one criterion');
-    for (const cleanup of host.cleanups) cleanup();
-    store.close();
+    const tenant = projectRunsService('criteria-run');
+    const start = tenant.service.startProjectRunFromInput;
+    tenant.service.startProjectRunFromInput = async (v, p, body) => { bodies.push(body); return start(v, p, body); };
+    const session = projectTaskSession(tenant.service);
+    try {
+      await session.handler.createTask({ projectId: 'p-1', goal: 'notes API', idempotencyKey: 'k-1',
+        acceptanceCriteria: ['GET /api/notes/:id 404 — unknown id is refused', 'The README explains how to start it'], rerunOf: undefined, models: undefined, depth: undefined }, session.extra);
+      expect(bodies).toEqual([{ goal: 'notes API', idempotencyKey: 'k-1', acceptanceChecklist: [
+        { behaviour: 'unknown id is refused', check: { kind: 'http', method: 'GET', path: '/api/notes/:id', status: 404 } },
+        { behaviour: 'The README explains how to start it', check: { kind: 'review' } },
+      ] }]);
+      const refused = await session.handler.createTask({ projectId: 'p-1', goal: 'notes API', idempotencyKey: 'k-2',
+        acceptanceCriteria: ['fine', 'two\ncriteria'], rerunOf: undefined, models: undefined, depth: undefined }, session.extra);
+      expect(bodies).toHaveLength(1);
+      expect(refused.task.status).toBe('failed');
+      const result = (await session.store.getTaskResult(refused.task.taskId)) as { content: Array<{ text: string }> };
+      expect(result.content[0]!.text).toContain('entry 2: must hold exactly one criterion');
+    } finally {
+      session.close();
+    }
   });
 
-
-  it.each(['delivered', 'partial', 'failed', 'cancelled'] as const)('retains a two-hour project task through preparation and completion (%s)', async terminal => {
+  it.each(['delivered', 'partial', 'failed', 'cancelled'] as const)('keeps a finished two-hour project task one ttl after its run ends, without a poll of its own (%s)', async terminal => {
     vi.useFakeTimers();
-    const store = new SessionTaskStore();
-    const host: RunTaskHost = { store, follow: () => {}, cleanups: [] };
-    let runStatus = 'running';
-    const read = vi.fn(() => ({ projectRunId: 'long-run', status: runStatus }));
-    const service = {
-      runTaskBudgetMs: () => 133 * 60_000,
-      startProjectRunFromInput: async () => ({ projectRunId: 'long-run', status: 'running' }),
-      projectRunStatus: read,
-      cancelProjectRun: async () => ({}),
-    };
-    const handler = projectRunTaskHandler(host, { viewer: () => viewer('org:member'), service, pollMs: 60_000 });
-    const requestStore = {
-      createTask: (params: { ttl?: number | null; pollInterval?: number }) => store.createTask(params, 1, { method: 'tools/call' }),
-      getTask: async (taskId: string) => (await store.getTask(taskId))!,
-      storeTaskResult: (taskId: string, status: 'completed' | 'failed', result: { content: unknown[] }) => store.storeTaskResult(taskId, status, result),
-      getTaskResult: (taskId: string) => store.getTaskResult(taskId),
-      updateTaskStatus: (taskId: string, status: 'working' | 'input_required' | 'completed' | 'failed' | 'cancelled', message?: string) => store.updateTaskStatus(taskId, status, message),
-    };
-    const extra = { taskStore: requestStore, signal: new AbortController().signal, requestId: 1, sendNotification: async () => {}, sendRequest: async () => ({}) } as never;
+    const tenant = projectRunsService(`long-${terminal}`, { runTaskBudgetMs: () => 133 * 60_000 });
+    const read = vi.fn(tenant.service.projectRunStatus);
+    tenant.service.projectRunStatus = read;
+    const session = projectTaskSession(tenant.service, { pollMs: 60_000 });
+    const ttl = 133 * 60_000 + 10 * 60_000;
     try {
-      const created = await handler.createTask({ projectId: 'p', goal: 'long', idempotencyKey: undefined, acceptanceCriteria: undefined, rerunOf: undefined, models: undefined, depth: undefined }, extra);
-      await vi.advanceTimersByTimeAsync(131 * 60_000);
-      expect(await store.getTask(created.task.taskId)).toMatchObject({ status: 'working' });
-      runStatus = terminal;
-      await vi.advanceTimersByTimeAsync(60_000);
-      expect(await store.getTask(created.task.taskId)).toMatchObject({ status: ['delivered', 'partial'].includes(terminal) ? 'completed' : 'failed' });
-      expect(await store.getTaskResult(created.task.taskId)).toMatchObject({ structuredContent: { status: terminal } });
+      const created = await session.handler.createTask(PROJECT_ARGS, session.extra);
+      tenant.set(`long-${terminal}-1`, 'running');
       const reads = read.mock.calls.length;
-      await vi.advanceTimersByTimeAsync(5 * 60_000);
+      await vi.advanceTimersByTimeAsync(131 * 60_000);
       expect(read).toHaveBeenCalledTimes(reads);
-      expect(await store.getTaskResult(created.task.taskId)).toMatchObject({ structuredContent: { status: terminal } });
+      expect(await session.store.getTask(created.task.taskId)).toMatchObject({ status: 'working' });
+      tenant.set(`long-${terminal}-1`, terminal, { endedAt: new Date().toISOString() });
+      const status = terminal === 'cancelled' ? 'cancelled' : ['delivered', 'partial'].includes(terminal) ? 'completed' : 'failed';
+      expect(await session.store.getTask(created.task.taskId)).toMatchObject({ status });
+      // One ttl after the run ENDED, as the SDK's store renews it at terminal — not after it began.
+      await vi.advanceTimersByTimeAsync(ttl - 60_000);
+      expect(await session.store.getTaskResult(created.task.taskId)).toMatchObject({ structuredContent: { status: terminal } });
+      expect((await session.store.listTasks()).tasks.map((task) => task.taskId)).toEqual([created.task.taskId]);
+      await vi.advanceTimersByTimeAsync(2 * 60_000);
+      expect(await session.store.getTask(created.task.taskId)).toBeNull();
+      await expect(session.store.getTaskResult(created.task.taskId)).rejects.toThrow(/not found/);
+      expect((await session.store.listTasks()).tasks).toEqual([]);
     } finally {
-      for (const cleanup of host.cleanups) cleanup();
-      store.close();
+      session.close();
       vi.useRealTimers();
     }
   });

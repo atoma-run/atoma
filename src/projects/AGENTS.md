@@ -146,6 +146,9 @@ list. These values come from the host snapshot, never a tenant prompt.
   into its own `runs/<runId>/traces` directory, so there is no shared index to
   poll and `status = 'running'` is the only fact. Cross-org by construction,
   like `listAllRunTraces`, because its caller is platform-wide.
+- `listRunsRequestedBy()` is the MCP's task listing ([src/mcp](../mcp/AGENTS.md)):
+  one principal's runs in its own organisation, live or ended since a cut-off,
+  keyed on who STARTED the run, never on who may read it (a platform admin too).
 - Such a reader must not WRITE here. A `running` row that outlived its process
   is repaired by `reconcileInterrupted` at the next boot, never by the
   observer that noticed it. `hasProjectTables` exists so a reader can ask

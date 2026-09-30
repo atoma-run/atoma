@@ -36,11 +36,21 @@ import {
  * status payload the status tool answers. Cancelling the task cancels the run
  * through the same `cancelRun` / `cancelProjectRun` the cancel tools use.
  *
- * TASKS LIVE WITH THE SESSION. The store is in memory and per session, like
- * the session itself, the event ring and the subscriptions: a restart forgets
- * the task ids, never the runs, which stay reachable by run id through the
- * status tools and the resources. A task's `ttl` is the run's timeout plus a
- * margin, so a host that comes back late still finds the result.
+ * A PROJECT RUN'S TASK IS THE RUN. Its id names the run
+ * (`project-run:<projectId>:<projectRunId>`), and `tasks/get`, `tasks/result`
+ * and `tasks/cancel` read and cancel it through the tenant store, where the
+ * run's truth lives. Nothing about it is held in memory, so the id outlives
+ * the session that minted it: a new session, a restart, an evicted or swept
+ * session all answer it. It is bound to its authorization context — the
+ * principal that started the run, in the organisation of the token — and
+ * answers "not found" to anyone else, exactly as for an id that never existed.
+ *
+ * OPERATOR AND BENCHMARK TASKS LIVE WITH THE SESSION. Their store is in
+ * memory and per session: the operator run is a child of this process and
+ * dies with it, so a restart forgets the task ids and the runs stay
+ * reachable by run id through the status tools and the resources. A task's
+ * `ttl` is the run's timeout plus a margin, so a host that comes back late
+ * still finds the result.
  *
  * THE SDK'S CANCEL ONLY FLIPS THE STORE. `tasks/cancel` marks the task
  * cancelled and nothing more; the store here intercepts that transition and
@@ -63,36 +73,57 @@ export const TASK_POLL_INTERVAL_MS = 2_000;
 const STATUS_LINE_CHARS = 200;
 
 /**
- * The SDK's in-memory store with ONE addition: a hook on the transition to
- * `cancelled`, so `tasks/cancel` reaches the run. Everything else is the
- * reference behaviour — ids, ttl sweeps, the once-only result.
+ * The SDK's in-memory store with TWO additions: a hook on the transition to
+ * `cancelled`, so `tasks/cancel` reaches the run; and the project run tasks,
+ * which are not stored here at all but answered by `ProjectRunTasks` from the
+ * tenant store. Everything else is the reference behaviour — ids, ttl sweeps,
+ * the once-only result. The SDK's ids are 32 hex characters, so they never
+ * carry the project prefix and the two kinds cannot collide.
  */
 export class SessionTaskStore implements TaskStore {
   private readonly inner = new InMemoryTaskStore();
   private readonly cancelHooks = new Map<string, () => void>();
+  private projectRuns: ProjectRunTasks | null = null;
 
   onCancel(taskId: string, hook: () => void): void {
     this.cancelHooks.set(taskId, hook);
+  }
+
+  /** Set by `atoma_run_start`'s registration: a session without it answers no project run task. */
+  answerProjectRuns(source: ProjectRunTasks): void {
+    this.projectRuns = source;
   }
 
   createTask(taskParams: CreateTaskOptions, requestId: RequestId, request: Request, sessionId?: string): Promise<Task> {
     return this.inner.createTask(taskParams, requestId, request, sessionId);
   }
 
-  getTask(taskId: string, sessionId?: string): Promise<Task | null> {
+  async getTask(taskId: string, sessionId?: string): Promise<Task | null> {
+    if (isProjectRunTaskId(taskId)) return this.projectRuns?.task(taskId) ?? null;
     return this.inner.getTask(taskId, sessionId);
   }
 
   async storeTaskResult(taskId: string, status: 'completed' | 'failed', result: Result, sessionId?: string): Promise<void> {
+    if (isProjectRunTaskId(taskId)) throw new Error(`Task ${taskId} follows its run; its result is the run's status`);
     await this.inner.storeTaskResult(taskId, status, result, sessionId);
     this.cancelHooks.delete(taskId);
   }
 
-  getTaskResult(taskId: string, sessionId?: string): Promise<Result> {
+  async getTaskResult(taskId: string, sessionId?: string): Promise<Result> {
+    if (isProjectRunTaskId(taskId)) {
+      if (!this.projectRuns) throw new Error(`Task with ID ${taskId} not found`);
+      return this.projectRuns.result(taskId);
+    }
     return this.inner.getTaskResult(taskId, sessionId);
   }
 
   async updateTaskStatus(taskId: string, status: Task['status'], statusMessage?: string, sessionId?: string): Promise<void> {
+    if (isProjectRunTaskId(taskId)) {
+      if (!this.projectRuns) throw new Error(`Task with ID ${taskId} not found`);
+      if (status !== 'cancelled') throw new Error(`Task ${taskId} follows its run; only cancellation reaches it`);
+      await this.projectRuns.cancel(taskId);
+      return;
+    }
     await this.inner.updateTaskStatus(taskId, status, statusMessage, sessionId);
     if (status === 'cancelled') {
       const hook = this.cancelHooks.get(taskId);
@@ -101,8 +132,11 @@ export class SessionTaskStore implements TaskStore {
     }
   }
 
-  listTasks(cursor?: string, sessionId?: string): Promise<{ tasks: Task[]; nextCursor?: string }> {
-    return this.inner.listTasks(cursor, sessionId);
+  /** The caller's project run tasks lead the first page; the memory store's pages follow under its own cursor. */
+  async listTasks(cursor?: string, sessionId?: string): Promise<{ tasks: Task[]; nextCursor?: string }> {
+    const page = await this.inner.listTasks(cursor, sessionId);
+    if (cursor !== undefined || !this.projectRuns) return page;
+    return { ...page, tasks: [...this.projectRuns.list(), ...page.tasks] };
   }
 
   /** Clears the ttl timers; called when the session's server closes. */
@@ -165,9 +199,9 @@ export function requestHeartbeat(
     readonly sendNotification: (notification: { method: 'notifications/progress'; params: { progressToken: string | number; progress: number; message?: string } }) => Promise<void>;
   },
   everyMs: number
-): { readonly note: (message: string) => void; readonly stop: () => void } {
+): { readonly note: (message: string) => void; readonly stop: () => void; readonly alive: () => boolean } {
   const token = extra._meta?.progressToken;
-  if (token === undefined || extra.taskRequestedTtl !== undefined) return { note: () => {}, stop: () => {} };
+  if (token === undefined || extra.taskRequestedTtl !== undefined) return { note: () => {}, stop: () => {}, alive: () => false };
   let alive = true;
   let progress = 0;
   let message = '';
@@ -196,7 +230,7 @@ export function requestHeartbeat(
     message = next;
     if (Date.now() - sentAt >= Math.min(everyMs, HEARTBEAT_MIN_GAP_MS)) send();
   };
-  return { note, stop };
+  return { note, stop, alive: () => alive };
 }
 
 const HEARTBEAT_MIN_GAP_MS = 5_000;
@@ -337,6 +371,7 @@ export interface ProjectRunTaskDeps {
     startProjectRunFromInput(viewer: Viewer, projectId: string, body: unknown): Promise<unknown>;
     projectRunStatus(viewer: Viewer, projectId: string, projectRunId: string): unknown;
     cancelProjectRun(viewer: Viewer, projectId: string, projectRunId: string): Promise<unknown>;
+    runsRequestedBy(viewer: Viewer, endedSince: string, limit: number): unknown[];
   };
   /** Injectable clock for the poller; production uses `setTimeout`. */
   readonly pollMs?: number;
@@ -355,17 +390,182 @@ const PROJECT_TERMINAL = new Set(['delivered', 'partial', 'failed', 'cancelled']
  */
 const PROJECT_COMPLETED = new Set(['delivered', 'partial']);
 
+const PROJECT_TASK_PREFIX = 'project-run:';
+
+/** A project run's task id: it names the run, so any session of the same caller can answer it. */
+export function projectRunTaskId(projectId: string, projectRunId: string): string {
+  return `${PROJECT_TASK_PREFIX}${projectId}:${projectRunId}`;
+}
+
+function isProjectRunTaskId(taskId: string): boolean {
+  return taskId.startsWith(PROJECT_TASK_PREFIX);
+}
+
+/** Both halves are UUIDs, which hold no colon; anything else is not a task this host minted. */
+function parseProjectRunTaskId(taskId: string): { projectId: string; projectRunId: string } | null {
+  if (!isProjectRunTaskId(taskId)) return null;
+  const parts = taskId.slice(PROJECT_TASK_PREFIX.length).split(':');
+  return parts.length === 2 && parts[0] && parts[1] ? { projectId: parts[0], projectRunId: parts[1] } : null;
+}
+
+interface ProjectRunSnapshot {
+  readonly projectId?: unknown;
+  readonly projectRunId?: unknown;
+  readonly status: string;
+  readonly orgId?: unknown;
+  readonly requestedByPrincipalId?: unknown;
+  readonly createdAt?: unknown;
+  readonly updatedAt?: unknown;
+  readonly endedAt?: unknown;
+}
+
 /**
- * `atoma_run_start`: the watcher reads the tenant store once every
- * `pollInterval` — the truth about a project run lives there, not in this
- * process — and ends the task when the run reaches a terminal status, with
- * the `atoma_run_status` payload as the result. The poll stops with the task
- * (result stored, cancelled, swept) or with the session.
+ * Project run tasks cancelled through `tasks/cancel`, process-wide: the spec
+ * wants the task `cancelled` BEFORE the answer and for good, while the run
+ * only lands `cancelled` once its abort is through — or lands otherwise, if
+ * the abort came too late. Read only after the binding check, bounded, and
+ * forgotten by a restart, after which the run's own final status speaks.
+ */
+const CANCEL_REQUESTED = new Set<string>();
+const MAX_CANCEL_REQUESTED = 1_000;
+
+/** How many project run tasks one `tasks/list` names; runs are serialised per instance, so a principal has few live ones. */
+const MAX_LISTED_PROJECT_TASKS = 50;
+
+/**
+ * The project run tasks, answered from the tenant store on every read. A task
+ * is found only when the run is readable by this session's viewer AND was
+ * started by that principal in that organisation: the spec binds a task to
+ * the authorization context that created it, and every other caller — an org
+ * member reading the run through `atoma_run_status`, a platform admin reading
+ * across organisations — gets the "not found" an unknown id gets. A missing
+ * binding field fails closed. Like the SDK's store, a finished task is kept
+ * one `ttl` after it ends and then answers "not found"; `tasks/list` names
+ * exactly the tasks `tasks/get` answers.
+ */
+export class ProjectRunTasks {
+  constructor(private readonly deps: ProjectRunTaskDeps) {}
+
+  private viewer(): Viewer | null {
+    try {
+      return this.deps.viewer();
+    } catch {
+      return null;
+    }
+  }
+
+  private ttl(): number {
+    return this.deps.service.runTaskBudgetMs() + TASK_RESULT_GRACE_MS;
+  }
+
+  /** Still running, or ended within one `ttl`: the one retention rule, for a read and for the listing. */
+  private retained(snapshot: ProjectRunSnapshot): boolean {
+    if (!PROJECT_TERMINAL.has(snapshot.status)) return true;
+    const ended = typeof snapshot.endedAt === 'string' ? snapshot.endedAt : snapshot.updatedAt;
+    return typeof ended === 'string' && Date.parse(ended) + this.ttl() >= Date.now();
+  }
+
+  private bound(viewer: Viewer, snapshot: ProjectRunSnapshot): boolean {
+    return snapshot.orgId === viewer.orgId && snapshot.requestedByPrincipalId === viewer.principalId && this.retained(snapshot);
+  }
+
+  /** The run behind a task id, or null for an id this caller may not follow. */
+  read(taskId: string): { readonly ref: { projectId: string; projectRunId: string }; readonly viewer: Viewer; readonly snapshot: ProjectRunSnapshot } | null {
+    const ref = parseProjectRunTaskId(taskId);
+    const viewer = this.viewer();
+    if (!ref || !viewer) return null;
+    let snapshot: ProjectRunSnapshot;
+    try {
+      snapshot = this.deps.service.projectRunStatus(viewer, ref.projectId, ref.projectRunId) as ProjectRunSnapshot;
+    } catch (error) {
+      if (error instanceof ProjectHttpError) return null;
+      throw error;
+    }
+    return this.bound(viewer, snapshot) ? { ref, viewer, snapshot } : null;
+  }
+
+  private asTask(taskId: string, projectRunId: string, snapshot: ProjectRunSnapshot): Task {
+    const now = new Date().toISOString();
+    const cancelled = CANCEL_REQUESTED.has(taskId) || snapshot.status === 'cancelled';
+    return {
+      taskId,
+      status: cancelled ? 'cancelled'
+        : !PROJECT_TERMINAL.has(snapshot.status) ? 'working'
+        : PROJECT_COMPLETED.has(snapshot.status) ? 'completed' : 'failed',
+      statusMessage: cancelled && !PROJECT_TERMINAL.has(snapshot.status)
+        ? `run ${projectRunId} cancellation requested, ${snapshot.status}`
+        : `run ${projectRunId} ${snapshot.status}`,
+      createdAt: typeof snapshot.createdAt === 'string' ? snapshot.createdAt : now,
+      lastUpdatedAt: typeof snapshot.updatedAt === 'string' ? snapshot.updatedAt : now,
+      ttl: this.ttl(),
+      pollInterval: this.deps.pollMs ?? TASK_POLL_INTERVAL_MS,
+    };
+  }
+
+  task(taskId: string): Task | null {
+    const found = this.read(taskId);
+    return found ? this.asTask(taskId, found.ref.projectRunId, found.snapshot) : null;
+  }
+
+  /**
+   * The caller's tasks, newest first: the runs it started in its
+   * organisation, by the same binding and retention as a read.
+   */
+  list(): Task[] {
+    const viewer = this.viewer();
+    if (!viewer) return [];
+    const endedSince = new Date(Date.now() - this.ttl()).toISOString();
+    return (this.deps.service.runsRequestedBy(viewer, endedSince, MAX_LISTED_PROJECT_TASKS) as ProjectRunSnapshot[])
+      .flatMap((snapshot) => typeof snapshot.projectId === 'string' && typeof snapshot.projectRunId === 'string' && this.bound(viewer, snapshot)
+        ? [this.asTask(projectRunTaskId(snapshot.projectId, snapshot.projectRunId), snapshot.projectRunId, snapshot)]
+        : []);
+  }
+
+  /**
+   * The `atoma_run_status` payload once the task is terminal — a cancelled
+   * task's included, whose run may still be winding down; before that, the
+   * in-memory store's refusal.
+   */
+  result(taskId: string): CallToolResult {
+    const found = this.read(taskId);
+    if (!found) throw new Error(`Task with ID ${taskId} not found`);
+    if (this.asTask(taskId, found.ref.projectRunId, found.snapshot).status === 'working') throw new Error(`Task ${taskId} has no result stored`);
+    return jsonResult(found.snapshot);
+  }
+
+  /** `tasks/cancel`: the cancel tool's body, and its refusal in its words; the task is `cancelled` from then on. */
+  async cancel(taskId: string): Promise<void> {
+    const found = this.read(taskId);
+    if (!found) throw new Error(`Task with ID ${taskId} not found`);
+    try {
+      await this.deps.service.cancelProjectRun(found.viewer, found.ref.projectId, found.ref.projectRunId);
+    } catch (error) {
+      if (error instanceof ProjectHttpError) throw new Error(`refused (${error.status}): ${error.message}`);
+      throw error;
+    }
+    CANCEL_REQUESTED.add(taskId);
+    if (CANCEL_REQUESTED.size > MAX_CANCEL_REQUESTED) CANCEL_REQUESTED.delete(CANCEL_REQUESTED.values().next().value!);
+  }
+}
+
+/**
+ * `atoma_run_start`: the start, then a task that IS the run
+ * (`ProjectRunTasks`). A refusal before any run exists — a criterion that
+ * does not parse, a service refusal — is an ordinary in-memory task that
+ * fails at once. The one thing this handler keeps is the progress heartbeat
+ * of a caller waiting without augmentation: it reads the run once every
+ * `pollInterval` while that heartbeat lives, and never otherwise.
  */
 export function projectRunTaskHandler(host: RunTaskHost, deps: ProjectRunTaskDeps): ToolTaskHandler<typeof PROJECT_RUN_INPUT> {
   const pollMs = deps.pollMs ?? TASK_POLL_INTERVAL_MS;
+  const runs = new ProjectRunTasks(deps);
+  host.store.answerProjectRuns(runs);
   return handlerWith<typeof PROJECT_RUN_INPUT>(async (args, extra) => {
-    const task = await extra.taskStore.createTask({ ttl: deps.service.runTaskBudgetMs() + TASK_RESULT_GRACE_MS, pollInterval: pollMs });
+    const refuse = async (message: string) => {
+      const task = await extra.taskStore.createTask({ ttl: deps.service.runTaskBudgetMs() + TASK_RESULT_GRACE_MS, pollInterval: pollMs });
+      await extra.taskStore.storeTaskResult(task.taskId, 'failed', errorResult(message));
+      return { task: await extra.taskStore.getTask(task.taskId) };
+    };
     const viewer = deps.viewer();
     let started: { projectRunId: string; status: string };
     // The same line grammar as the console and the CLI: one parser, and a
@@ -373,11 +573,7 @@ export function projectRunTaskHandler(host: RunTaskHost, deps: ProjectRunTaskDep
     const parsed = args.acceptanceCriteria?.map((entry) => parseChecklistLines(entry));
     const invalid = (parsed ?? []).flatMap((entry, index) => entry.errors.length > 0 || entry.items.length !== 1
       ? [`entry ${index + 1}: ${entry.errors[0]?.message ?? 'must hold exactly one criterion'}`] : []);
-    if (invalid.length > 0) {
-      await extra.taskStore.storeTaskResult(task.taskId, 'failed',
-        errorResult(`refused (400): invalid acceptance criteria — ${invalid.join('; ')}`));
-      return { task: await extra.taskStore.getTask(task.taskId) };
-    }
+    if (invalid.length > 0) return refuse(`refused (400): invalid acceptance criteria — ${invalid.join('; ')}`);
     const criteria = parsed ? { items: parsed.flatMap((entry) => entry.items) } : null;
     try {
       // Forwarded as given: the service's one schema decides which combination
@@ -391,58 +587,34 @@ export function projectRunTaskHandler(host: RunTaskHost, deps: ProjectRunTaskDep
         ...(args.depth !== undefined ? { depth: args.depth } : {}),
       })) as { projectRunId: string; status: string };
     } catch (error) {
-      if (error instanceof ProjectHttpError) {
-        await extra.taskStore.storeTaskResult(task.taskId, 'failed', errorResult(`refused (${error.status}): ${error.message}`));
-        return { task: await extra.taskStore.getTask(task.taskId) };
-      }
+      if (error instanceof ProjectHttpError) return refuse(`refused (${error.status}): ${error.message}`);
       throw error;
     }
     const runId = started.projectRunId;
-    host.store.onCancel(task.taskId, () => void deps.service.cancelProjectRun(viewer, args.projectId, runId).catch(() => {}));
+    const taskId = projectRunTaskId(args.projectId, runId);
+    const task = runs.task(taskId);
+    // The run this viewer just started is readable by it; were it not, the task could never be followed.
+    if (!task) return refuse(`run ${runId} started but is not readable by this caller`);
     const heartbeat = requestHeartbeat(extra, deps.heartbeatMs ?? PROGRESS_HEARTBEAT_MS);
-    let stopped = false;
     let timer: NodeJS.Timeout | null = null;
     const stop = (): void => {
-      stopped = true;
       heartbeat.stop();
       if (timer) clearTimeout(timer);
     };
     host.cleanups.push(stop);
-    let lastStatus = started.status;
-    const tick = async (): Promise<void> => {
-      if (stopped) return;
-      const current = await host.store.getTask(task.taskId);
-      if (stopped || !current || ['cancelled', 'completed', 'failed'].includes(current.status)) {
-        stop();
-        return;
-      }
-      let snapshot: { status: string } | null = null;
-      try {
-        snapshot = deps.service.projectRunStatus(viewer, args.projectId, runId) as { status: string };
-      } catch {
-        // The run row vanished or the viewer lost access: the task cannot follow it any more.
-        stop();
-        quietly(() => extra.taskStore.storeTaskResult(task.taskId, 'failed', errorResult(`run ${runId} is no longer readable`)));
-        return;
-      }
-      if (snapshot.status !== lastStatus) {
-        lastStatus = snapshot.status;
-        heartbeat.note(`run ${runId} ${snapshot.status}`);
-        quietly(() => extra.taskStore.updateTaskStatus(task.taskId, 'working', `run ${runId} ${snapshot.status}`));
-      }
-      if (PROJECT_TERMINAL.has(snapshot.status)) {
-        stop();
-        quietly(() => extra.taskStore.storeTaskResult(task.taskId, PROJECT_COMPLETED.has(String(snapshot.status)) ? 'completed' : 'failed', jsonResult(snapshot)));
-        return;
-      }
-      timer = setTimeout(() => { void tick(); }, pollMs);
+    const tick = (): void => {
+      const current = heartbeat.alive() ? runs.task(taskId) : null;
+      if (!current || current.status !== 'working') return stop();
+      heartbeat.note(current.statusMessage ?? `run ${runId}`);
+      timer = setTimeout(tick, pollMs);
       timer.unref();
     };
-    heartbeat.note(`run ${runId} ${started.status}`);
-    await extra.taskStore.updateTaskStatus(task.taskId, 'working', `run ${runId} ${started.status}`);
-    timer = setTimeout(() => { void tick(); }, pollMs);
-    timer.unref();
-    return { task: await extra.taskStore.getTask(task.taskId) };
+    heartbeat.note(task.statusMessage ?? `run ${runId}`);
+    if (heartbeat.alive()) {
+      timer = setTimeout(tick, pollMs);
+      timer.unref();
+    }
+    return { task };
   });
 }
 

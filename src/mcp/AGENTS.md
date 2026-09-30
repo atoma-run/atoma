@@ -58,7 +58,8 @@ Neighbours:
   id of the shape this host mints has it reopened in place, bound to that
   caller, so a deployment never fails a client's next call (2026-09-28: about
   ten deployments that day, each one a failed call). Nothing of the old
-  session returns: task ids, subscriptions and the replay ring were memory.
+  session returns: operator task ids, subscriptions and the replay ring were
+  memory. A project run's task id is not session state and answers anywhere.
   An id evicted to keep a caller inside its ceiling stays gone, or the caller
   would cycle its sessions; a DELETE and an unknown shape still answer 404. They are also CEILINGED
   TWICE, because a session holds a whole server and a replay ring worth
@@ -202,18 +203,42 @@ Neighbours:
   `startProjectRunFromInput`), and the cancel hook calls the cancel tool's
   body (`cancelRun`, `cancelProjectRun`). The operator watcher turns each
   output chunk into the status line (bounded, marked untrusted) and the run's
-  end into the result; the project watcher reads the tenant store once every
-  `TASK_POLL_INTERVAL_MS`, because a project run's truth lives there.
+  end into the result.
+- A PROJECT RUN'S TASK IS THE RUN (`ProjectRunTasks`, 2026-09-30). Its id is
+  `project-run:<projectId>:<projectRunId>`, and `tasks/get`, `tasks/result`
+  and `tasks/cancel` read and cancel the run through `ProjectService` on every
+  call; nothing of it is in memory, so it answers in a new session, after a
+  restart, after a sweep or an eviction. It is BOUND to its authorization
+  context: the run's `orgId` and `requestedByPrincipalId` must be the
+  session's viewer's, or the answer is the "not found" of an unknown id — an
+  org member who may read the run through `atoma_run_status` still cannot
+  follow or cancel another principal's task, and a missing field fails
+  closed. The TTL it reports is the coordinator's preparation + run +
+  hard-backstop budget plus `TASK_RESULT_GRACE_MS`, and like the SDK's store
+  it keeps a task one TTL after the run ENDS, then answers "not found".
+  `tasks/list` leads with exactly the tasks `tasks/get` answers (the spec's
+  MUST) — the principal's live runs and those ended within a TTL, read through
+  `ProjectService.runsRequestedBy`, at most 50 — then the memory page. A run
+  the console started is that principal's task too. The store refuses to
+  write such a task (`storeTaskResult`, any status but `cancelled`). The only
+  poll left is the heartbeat's, while a caller waits without augmentation. A
+  refusal before a run exists stays an in-memory task that fails at once.
+  Operator runs die with this process (below), so theirs would be a durable
+  id for a dead run: not done.
 - THE SDK'S `tasks/cancel` ONLY FLIPS THE STORE. `SessionTaskStore` wraps the
   SDK's in-memory store and intercepts the transition to `cancelled` to reach
-  the run. A cancelled task has no result by the SDK's rule (a result is
-  stored once, never on a terminal task); its last word is `tasks/get`, and
-  the run's own final status stays readable through the status tool.
-- TASKS LIVE WITH THE SESSION, like the event ring and the subscriptions: the
-  store is per server. Project task TTL uses the coordinator's effective
-  preparation + run + hard-backstop budget, plus `TASK_RESULT_GRACE_MS`, not
-  the operator default. Polling stops on terminal, missing or cancelled tasks;
-  watchers are unhooked in `onclose`. A restart forgets task ids, never runs.
+  the run. A cancelled operator task has no result by the SDK's rule (a
+  result is stored once, never on a terminal task); its last word is
+  `tasks/get`, and the run's own final status stays readable through the
+  status tool. A project task is `cancelled` once its run is, whichever door
+  cancelled it, with the status payload as its result. The spec wants it
+  `cancelled` BEFORE the answer to `tasks/cancel` and for good, while the run
+  lands only once its abort is through (or otherwise, if too late): the
+  process remembers the cancelled task ids (bounded, after the binding check),
+  and a restart forgets them, after which the run's final status speaks.
+- OPERATOR AND BENCHMARK TASKS LIVE WITH THE SESSION, like the event ring and
+  the subscriptions: the store is per server. Watchers are unhooked in
+  `onclose`. A restart forgets those task ids, never the runs' evidence.
 - THE TRANSPORT ANSWERS ON SSE, NEVER PLAIN JSON. `enableJsonResponse` makes
   the SDK drop every notification related to a request (measured 2026-09-07:
   0 of 3 delivered), and the standalone stream is what carries the run log and
@@ -394,6 +419,13 @@ Neighbours:
   long-poll never delivered its progress line in the JSON transport mode it
   shipped with. Do not re-add a wait parameter to a reader; a host that wants
   to wait drives the task.
+- A durable project task as a ROW — a task table beside the lease, or a task
+  id column on `project_runs` — was rejected (2026-09-30): it is a second
+  record of what the run row already says, and a product store is not added
+  for it. The run's own ids make the task id, and the binding check makes a
+  guessable id worthless. Binding it to whoever may READ the run was rejected
+  too: MCP binds a task to the context that created it, and cancelling is a
+  write another member's token must not reach through a task id.
 - A bigger ring was the obvious answer to a run log evicting a response, and
   it is the wrong one: the log outgrows any constant, so the ring is fair per
   stream instead and its size stops being the thing that decides correctness.

@@ -1033,3 +1033,44 @@ describe('a repository belongs to one project', () => {
     });
   });
 });
+
+describe('ProjectStore — one principal’s runs, as the MCP lists its tasks', () => {
+  it('lists a principal’s live runs and those that ended since the cut-off, in its organisation only, newest first', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      const alice = actor('Alice');
+      const bob = actor('Bob');
+      db.prepare(`INSERT INTO auth_memberships (org_id, principal_id, role, created_at) VALUES (?, ?, 'org:member', ?)`)
+        .run(alice.orgId, bob.principalId, new Date().toISOString());
+      const project = createProject(alice);
+      const make = (who: Actor, key: string, at: string) => {
+        vi.setSystemTime(new Date(at));
+        return store.createProjectRun({
+          orgId: alice.orgId, projectId: project.projectId, principalId: who.principalId,
+          request: runRequest(key), hostPaths: hostPaths(key),
+        })!.run;
+      };
+      const deliver = (runId: string, at: string) => {
+        vi.setSystemTime(new Date(at));
+        store.transitionProjectRun({ orgId: alice.orgId, projectRunId: runId, from: 'queued', to: 'running' });
+        store.transitionProjectRun({ orgId: alice.orgId, projectRunId: runId, from: 'running', to: 'delivered', traceId: `trace-${runId}`, stats: deliveredStats });
+      };
+      const old = make(alice, 'old', '2026-09-30T06:00:00.000Z');
+      deliver(old.projectRunId, '2026-09-30T08:00:00.000Z');
+      // Created before the cut-off, ended after it: what counts is when it ENDED.
+      const longRun = make(alice, 'long', '2026-09-30T07:00:00.000Z');
+      deliver(longRun.projectRunId, '2026-09-30T09:30:00.000Z');
+      const live = make(alice, 'live', '2026-09-30T05:00:00.000Z');
+      const colleagues = make(bob, 'bob', '2026-09-30T10:00:00.000Z');
+      const cutoff = '2026-09-30T09:00:00.000Z';
+      expect(store.listRunsRequestedBy(alice.orgId, alice.principalId, cutoff, 10).map((run) => run.projectRunId))
+        .toEqual([longRun.projectRunId, live.projectRunId]);
+      expect(store.listRunsRequestedBy(alice.orgId, bob.principalId, cutoff, 10).map((run) => run.projectRunId))
+        .toEqual([colleagues.projectRunId]);
+      expect(store.listRunsRequestedBy(bob.orgId, alice.principalId, cutoff, 10)).toEqual([]);
+      expect(store.listRunsRequestedBy(alice.orgId, alice.principalId, cutoff, 1)).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

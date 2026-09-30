@@ -1509,6 +1509,28 @@ END;
     ).map(runFromRow);
   }
 
+  /**
+   * One principal's runs in one organisation that are still queued or
+   * running, or that ended at or after `endedSince`, newest first: what the
+   * MCP lists as that principal's tasks. A terminal row without `ended_at`
+   * counts from its last update. Timestamps are `toISOString()` everywhere,
+   * so the comparison is lexical.
+   */
+  listRunsRequestedBy(orgIdInput: string, principalIdInput: string, endedSinceInput: string, limit: number): ProjectRun[] {
+    const orgId = organisationIdSchema.parse(orgIdInput);
+    const principalId = principalIdSchema.parse(principalIdInput);
+    const endedSince = new Date(endedSinceInput).toISOString();
+    return (
+      this.db
+        .prepare(
+          `SELECT * FROM project_runs WHERE org_id = ? AND requested_by_principal_id = ?
+             AND (status IN ('queued','running') OR COALESCE(ended_at, updated_at) >= ?)
+           ORDER BY created_at DESC, project_run_id ASC LIMIT ?`
+        )
+        .all(orgId, principalId, endedSince, limit) as ProjectRunRow[]
+    ).map(runFromRow);
+  }
+
   projectRunSummary(
     orgIdInput: string,
     projectIdInput: string

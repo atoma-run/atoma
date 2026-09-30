@@ -319,6 +319,19 @@ export class ProjectService {
     return this.present(run, this.store.getPublicationForRun(orgId, run.projectRunId));
   }
 
+  /**
+   * The runs this viewer STARTED in its organisation that are live or ended
+   * at or after `endedSince`, newest first: the MCP's `tasks/list`, which must
+   * name every run task the principal can follow. Never another principal's
+   * and never another organisation's — a platform admin's included, because
+   * a task belongs to the context that started it, not to whoever may read
+   * the run.
+   */
+  runsRequestedBy(viewer: Viewer, endedSince: string, limit: number): unknown[] {
+    return this.store.listRunsRequestedBy(viewer.orgId, viewer.principalId, endedSince, limit)
+      .map((run) => this.present(run, this.store.getPublicationForRun(viewer.orgId, run.projectRunId)));
+  }
+
   /** The coordinator owns the budget; MCP only adds result retention. */
   runTaskBudgetMs(): number {
     return this.coordinator.runTaskBudgetMs();

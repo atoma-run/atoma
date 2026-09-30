@@ -134,6 +134,12 @@ corrections of the 2026-09-24 and 2026-09-25 code reviews.
 - An MCP client stays connected across a deployment: the session its host
   forgot on restart is reopened under the same id for the caller presenting
   it, instead of failing the next call, and an idle session now lasts a day.
+- A project run's MCP task outlives the session that started it: its id
+  (`project-run:<project>:<run>`) answers `tasks/get`, `tasks/result` and
+  `tasks/cancel` from any session of the person who started the run, after a
+  restart too, and "not found" to anyone else. `tasks/cancel` answers
+  `cancelled` at once, a cancelled run is a cancelled task rather than a
+  failed one, and `tasks/list` names that person's live and recent runs.
 - The host ChatGPT subscription offers GPT-5.6 Luna in place of GPT-5.4 Mini,
   which ChatGPT no longer serves: a run pinned to Mini failed a minute in
   with "request-rejected". A pin already stored on it is kept and named, and
