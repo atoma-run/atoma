@@ -514,6 +514,14 @@ export interface JevChoiceDecision {
   readonly decomposable: boolean;
 }
 
+/**
+ * Jev hands the pick to the model, which is not offered these candidates: the
+ * recipes whose file changes Jev read as contradicting the task's.
+ */
+export interface JevChoiceDeferral {
+  readonly withhold: readonly string[];
+}
+
 export interface JevApprovalRequest {
   readonly subject: 'PLAN' | 'RESULT';
   readonly task: { readonly description: string; readonly constraints?: readonly string[] };
@@ -564,7 +572,8 @@ export interface JevTwinDecision {
 }
 
 export interface JevDecider {
-  choose(request: JevChoiceRequest): Promise<JevChoiceDecision | null>;
+  /** `null`: the model decides, as without Jev; a deferral also names what it is not offered. */
+  choose(request: JevChoiceRequest): Promise<JevChoiceDecision | JevChoiceDeferral | null>;
   approve(request: JevApprovalRequest): Promise<JevApprovalDecision | null>;
   /**
    * Whether a draft recipe is a SEMANTIC TWIN of an existing one — the failure
@@ -597,6 +606,8 @@ export interface JevDecisionInfo {
   };
   /** What Atoma did with it: 'reuse <t>', 'escalate', 'approved', 'deferred to the model'. */
   readonly outcome: string;
+  /** A skill pick handed to the model: the recipes it was not offered (`JevChoiceDeferral`). */
+  readonly withheld?: readonly string[];
   /**
    * Why there is no answer: 'timeout: …', 'aborted: …', 'skipped: …', an HTTP
    * status. Named `failure`, never `error`: trace readers (the analyst's digest)

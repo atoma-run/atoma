@@ -24,6 +24,7 @@ import type {
   JevApprovalDecision,
   JevApprovalRequest,
   JevChoiceDecision,
+  JevChoiceDeferral,
   JevChoiceRequest,
   JevDecider,
   JevDecisionInfo,
@@ -647,7 +648,7 @@ export function createJevDecider(opts: {
   });
 
   return {
-    async choose(request: JevChoiceRequest): Promise<JevChoiceDecision | null> {
+    async choose(request: JevChoiceRequest): Promise<JevChoiceDecision | JevChoiceDeferral | null> {
       const base = {
         role: 'prefilter' as const,
         evaluator: JEV_EVALUATOR,
@@ -671,9 +672,10 @@ export function createJevDecider(opts: {
         ...answered(asked),
         answer: reading.answer,
         outcome: reading.outcome,
+        ...(reading.withhold ? { withheld: reading.withhold } : {}),
         ...(stray !== undefined ? { failure: `answer "${stray}" is not an option` } : {}),
       });
-      return reading.decision;
+      return reading.decision ?? (reading.withhold ? { withhold: reading.withhold } : null);
     },
 
     async approve(request: JevApprovalRequest): Promise<JevApprovalDecision | null> {

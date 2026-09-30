@@ -359,7 +359,11 @@ Read the archived sections before changing something that merely looks odd.
   counter the trust fast path needs: taken by the OWNER on 2026-09-28, against
   both rules above, knowing a wrong pick costs about 60 decisions' savings.
   Every decision is a `jev` event. A Jev-only approval (`viaJev`) distils no
-  new recipe: compile-at-learn would make it a validator-free script.
+  new recipe: compile-at-learn would make it a validator-free script. A skill
+  pick Jev hands to the model reaches it without the recipes Jev read as
+  contradicting the task on files: offered one, the model injected a
+  verify-only recipe into a build phase (run 0a989a58, one of the two such
+  deferrals measured), and when nothing left fits Jev escalates itself.
 - Do not introduce plan templating until a typed instantiation/validation layer
   exists; free-form substitution is another unvalidated router.
 - `salvageResultEnvelope` reads a malformed summary STRUCTURALLY — everything

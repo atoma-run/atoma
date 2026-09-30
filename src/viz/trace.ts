@@ -315,6 +315,8 @@ export interface VizJevEvent {
     scores?: Record<string, number>;
   };
   outcome: string;
+  /** A skill pick handed to the model: the recipes it was not offered. */
+  withheld?: string[];
   /** Not `error`: every reader of `event.error` would count a Jev outage as a run error. */
   failure?: string;
   durationMs: number;
@@ -814,6 +816,7 @@ export class TraceRecorder {
           }
         : {}),
       outcome: info.outcome,
+      ...(info.withheld ? { withheld: [...info.withheld] } : {}),
       ...(info.failure !== undefined ? { failure: info.failure } : {}),
       durationMs: info.durationMs,
       usage: { inputTokens: info.usage.inputTokens, outputTokens: info.usage.outputTokens },

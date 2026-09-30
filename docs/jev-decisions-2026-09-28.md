@@ -37,11 +37,14 @@ the decision with these numbers in hand.
   `none_of_these`, taken as an escalate. No model call then. Since the switch
   of 2026-09-29 (below) a pick Jev is unsure of — a lukewarm Choice, or a pick
   whose own `fits` question does not say yes — is the model's; at L3 it is no
-  hint rather than a model call. The mechanical
+  hint rather than a model call. When the model decides a skill pick, it is
+  not offered the recipes Jev read as contradicting the task on files (below,
+  2026-09-30). The mechanical
   guards the callers apply afterwards still apply: the L2 browser redirect,
   exclusions of children that already failed the task. Jev decisions are never
   cached: the cache holds model decisions only, and a cached model decision is
-  still served before Jev is asked.
+  still served before Jev is asked — save one made on a catalog Jev narrowed,
+  which is looked up after Jev withholds the same recipes again.
 - **The approval half of plan and result validation** (L2 and L3,
   `jevApproval`). Jev is asked only where a fast path is already admissible:
   after the mechanical gates, with no gate finding, no uncovered proof
@@ -405,6 +408,44 @@ Jev — in the background, and recorded as a `jev-audit` llm event.
 - `atoma_jev_calibrate` reports the sample for any window — per subject, how
   many audited, how many the model refused, and which — and `auditsOnly: true`
   reads just that, without the key and without sending anything to TypeSafe.
+
+## What the model is offered after a deferral, 2026-09-30
+
+Jev refuses its own recipe pick when the recipe and the task read decisively
+opposite on files: `task_changes_files` at or above `changesFiles` (0.7) and
+the recipe's `changes_files` below `keepsFiles` (0.3), or the reverse. It then
+handed the pick to the model with the whole catalog, and the model, never told
+why, could take the very recipe Jev had refused.
+
+Measured on every recipe deferral recorded since the files question was first
+asked: 14 runs from 2026-09-29 to 2026-09-30, read from their `jev` events.
+Three recipe picks went to the model; two had a contradicting recipe, both
+times the verify-only `serve-and-validate-static-page` that Jev itself ranked
+first (`changes_files` 0.16 and 0.17 against a task at 0.97). The model
+injected it in 0a989a58, into a phase that had to change the page, and it
+earned that phase's success credit; in 8606cf38 it chose the build recipe.
+Every other recipe offered read between 0.92 and 0.96, so the same decisions
+follow from any threshold pair across that gap. (Run fd64b07e of 2026-09-29
+predates the question: Jev picked that recipe itself.)
+
+The same reading now withholds every such recipe from the model's catalog
+whenever the model decides a skill pick (`JevChoiceDeferral`): on those three
+deferrals it changes the one wrong pick and nothing else. The trace outcome
+names them (`…; not offered: <ids>`) and the `jev` event carries them as
+`withheld`. Nothing changes when Jev picks, at L3, for agent catalogs, or for a
+recipe or task read in the middle band. When nothing left fits — every
+remaining recipe below `noFit`, or none remaining — Jev escalates itself,
+`picked none_of_these (…; nothing else fits)`, badged as an escalation: the
+worker runs unguided, which the prefilter prompt calls safe, rather than the
+model being handed a catalog Jev reads as fitting nothing. A wrong withhold
+therefore costs the model a narrower choice or the phase its guidance; a
+wrong injection misleads the worker and credits the recipe for a run it did
+not drive.
+
+Known limit: a model decision cached for the whole catalog (up to seven days,
+`src/atoms/prefilterCache.ts`) is still served before Jev is asked, so a
+byte-identical subtask can still be handed a recipe Jev would withhold. The
+runs that showed the rest: [production runs, 2026-09-30](incidents/production-runs-2026-09-30.md).
 
 ## Reading "we will see"
 

@@ -635,47 +635,49 @@ export async function prefilterStrategy(args: {
         .join(', ')}`,
     };
   }
-  const filteredNames = new Set(filtered.map((c) => c.name));
-
-  const catalogLines = filtered.map((c) => `  - ${c.name}: ${c.description}`);
-  const userContent = [
-    args.actor
-      ? `You are ${taxonomyForTier(args.actor.tier).rank} "${args.actor.name}" (tier ${args.actor.tier}) running a prefilter catalog lookup.`
-      : '',
-    args.actor ? `` : '',
-    `Task: ${args.task.description}`,
-    args.task.constraints?.length
-      ? `Constraints:\n${args.task.constraints.map((c) => `- ${c}`).join('\n')}`
-      : '',
-    args.exclude && args.exclude.size > 0
-      ? `Already tried and failed THIS task (do NOT pick these): ${[...args.exclude].join(', ')}`
-      : '',
-    ``,
-    `Catalog:`,
-    catalogLines.join('\n'),
-  ]
-    .filter((l) => typeof l === 'string')
-    .join('\n');
-
   const model = args.model ?? modelForTier(1);
   const systemPrompt = args.systemPrompt ?? PREFILTER_SYSTEM_PROMPT;
-  // Decision cache (FrugalGPT completion-cache analog): temperature-0 +
-  // constant prompt makes the decision a pure function of these inputs, so
-  // a repeat pair is served from disk — zero tokens, and under claude-cli
-  // zero subprocess spawn. The key hashes every decision input (NOT the
-  // actor preamble, which is trace attribution); see prefilterCache.ts for
-  // the expiry/eviction bounds. Only PARSED outcomes are cached — the
-  // error-path escalate below never is.
-  const cacheKey = prefilterCacheKey({
-    systemPrompt,
-    model,
-    taskDescription: args.task.description,
-    ...(args.task.constraints ? { constraints: args.task.constraints } : {}),
-    excluded: args.exclude ? [...args.exclude] : [],
-    catalogLines,
-  });
-  const cached = prefilterCacheGet(cacheKey);
-  if (cached) {
+  /** What the model is shown for a catalog, and the cache key of its answer. */
+  const modelInputs = (offered: readonly CatalogEntry[]) => {
+    const catalogLines = offered.map((c) => `  - ${c.name}: ${c.description}`);
+    const userContent = [
+      args.actor
+        ? `You are ${taxonomyForTier(args.actor.tier).rank} "${args.actor.name}" (tier ${args.actor.tier}) running a prefilter catalog lookup.`
+        : '',
+      args.actor ? `` : '',
+      `Task: ${args.task.description}`,
+      args.task.constraints?.length
+        ? `Constraints:\n${args.task.constraints.map((c) => `- ${c}`).join('\n')}`
+        : '',
+      args.exclude && args.exclude.size > 0
+        ? `Already tried and failed THIS task (do NOT pick these): ${[...args.exclude].join(', ')}`
+        : '',
+      ``,
+      `Catalog:`,
+      catalogLines.join('\n'),
+    ]
+      .filter((l) => typeof l === 'string')
+      .join('\n');
+    // Decision cache (FrugalGPT completion-cache analog): temperature-0 +
+    // constant prompt makes the decision a pure function of these inputs, so
+    // a repeat pair is served from disk — zero tokens, and under claude-cli
+    // zero subprocess spawn. The key hashes every decision input (NOT the
+    // actor preamble, which is trace attribution); see prefilterCache.ts for
+    // the expiry/eviction bounds. Only PARSED outcomes are cached — the
+    // error-path escalate below never is.
+    const cacheKey = prefilterCacheKey({
+      systemPrompt,
+      model,
+      taskDescription: args.task.description,
+      ...(args.task.constraints ? { constraints: args.task.constraints } : {}),
+      excluded: args.exclude ? [...args.exclude] : [],
+      catalogLines,
+    });
+    return { names: new Set(offered.map((c) => c.name)), userContent, cacheKey };
+  };
+  const whole = modelInputs(filtered);
+  const filteredNames = whole.names;
+  const served = (cached: PrefilterOutcome): PrefilterOutcome => {
     const outcome = cached.kind === 'reuse' ? `reuse ${cached.target}` : 'escalate';
     args.ctx.logger.debug(`[prefilter] decision served from cache (${outcome})`);
     // Observer: a cache hit replaces an LLM call, so without an event of
@@ -690,18 +692,23 @@ export async function prefilterStrategy(args: {
       ...(args.actor ? { actorName: args.actor.name, actorTier: args.actor.tier } : {}),
     });
     return cached;
-  }
+  };
+  const cached = prefilterCacheGet(whole.cacheKey);
+  if (cached) return served(cached);
 
   // JEV DECIDES FIRST (docs/jev-decisions-2026-09-28.md, owner decision
   // 2026-09-28). Its pick is taken as a high-confidence reuse and its "none of
   // them" as an escalate; the mechanical guards the callers apply afterwards
   // (the L2 browser redirect, exclusions) still apply. It is never cached —
   // the cache holds model decisions only — and when Jev does not answer, the
-  // model decides below exactly as it always has.
+  // model decides below exactly as it always has — save the recipes Jev
+  // withholds because their file changes contradict the task's: the model is
+  // not offered those (JevChoiceDeferral).
   let jev: JevChoiceDecision | null = null;
+  let withheld: ReadonlySet<string> = new Set();
   if (args.ctx.jev) {
     try {
-      jev = await args.ctx.jev.choose({
+      const answer = await args.ctx.jev.choose({
         question: systemPrompt === SKILL_PREFILTER_SYSTEM_PROMPT ? 'recipe' : 'agent',
         task: {
           description: args.task.description,
@@ -711,6 +718,8 @@ export async function prefilterStrategy(args: {
         ...(args.actor ? { actorName: args.actor.name, actorTier: args.actor.tier } : {}),
         signal: args.ctx.signal,
       });
+      if (answer && 'withhold' in answer) withheld = new Set(answer.withhold);
+      else jev = answer;
     } catch {
       jev = null;
     }
@@ -731,6 +740,16 @@ export async function prefilterStrategy(args: {
         };
   }
 
+  const offered = filtered.filter((c) => !withheld.has(c.name));
+  if (offered.length === 0) {
+    return { kind: 'escalate', reasoning: `jev: every recipe contradicts the task on files (${[...withheld].join(', ')})` };
+  }
+  const { names: offeredNames, userContent, cacheKey } = offered.length === filtered.length ? whole : modelInputs(offered);
+  if (offered.length !== filtered.length) {
+    const narrowed = prefilterCacheGet(cacheKey);
+    if (narrowed) return served(narrowed);
+  }
+
   try {
     const resp = await args.ctx.llm.complete({
       model,
@@ -745,7 +764,7 @@ export async function prefilterStrategy(args: {
     // The three parsed-outcome returns below all cache: each is a
     // deterministic function of the model's parsed answer, so serving it
     // again for identical inputs is exactly what the live call would do.
-    if (outcome.kind === 'reuse' && !filteredNames.has(outcome.target)) {
+    if (outcome.kind === 'reuse' && !offeredNames.has(outcome.target)) {
       const rewritten: PrefilterOutcome = {
         kind: 'escalate',
         reasoning: `prefilter returned unknown or excluded target "${outcome.target}"`,

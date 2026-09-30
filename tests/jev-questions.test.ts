@@ -206,13 +206,80 @@ describe('the prefilter: a Choice for which, a Noul per option for whether', () 
       answersFor(plan.questions, {
         choice: choiceAnswer('serve-and-validate-static-page', 0.8),
         'fits::serve-and-validate-static-page': noulAnswer(0.85),
+        'fits::build-self-contained-static-page': noulAnswer(0.66),
         task_changes_files: noulAnswer(0.9),
         'changes_files::serve-and-validate-static-page': noulAnswer(0.1),
+        'changes_files::build-self-contained-static-page': noulAnswer(0.92),
       })
     );
     expect(reading.decision).toBeNull();
-    expect(reading.outcome).toBe('model decides (serve-and-validate-static-page changes no files for a task that must)');
+    expect(reading.outcome).toBe(
+      'model decides (serve-and-validate-static-page changes no files for a task that must; not offered: serve-and-validate-static-page)'
+    );
     expect(reading.causes).toEqual(['files']);
+    // Run 0a989a58: offered it, the model injected it. It is withheld now.
+    expect(reading.withhold).toEqual(['serve-and-validate-static-page']);
+  });
+
+  it('withholds from the model every recipe read decisively against the task on files, and only those', () => {
+    const candidates = [
+      { name: 'serve-and-validate-static-page', description: 'serve and validate a page' },
+      { name: 'build-self-contained-static-page', description: 'build a page' },
+      { name: 'build-page-clone', description: 'build a page' },
+      { name: 'update-docs', description: 'update the docs' },
+    ];
+    const plan = built(buildChoice({ question: 'recipe', task: { description: 't' }, candidates, actorTier: 2 }));
+    const read = (task: number, serve: number, build: number, docs: number) =>
+      readChoice(
+        plan,
+        answersFor(plan.questions, {
+          // A lukewarm Choice, so the model decides whatever the files say.
+          choice: choiceAnswer('update-docs', 0.4),
+          'fits::update-docs': noulAnswer(0.8),
+          task_changes_files: noulAnswer(task),
+          'changes_files::serve-and-validate-static-page': noulAnswer(serve),
+          'changes_files::build-self-contained-static-page': noulAnswer(build),
+          'changes_files::update-docs': noulAnswer(docs),
+        })
+      );
+    // A task that changes files: the recipe that keeps them is withheld.
+    expect(read(0.97, 0.16, 0.92, 0.5).withhold).toEqual(['serve-and-validate-static-page']);
+    // A task that keeps them: every recipe that changes files, clones included.
+    expect(read(0.1, 0.16, 0.92, 0.5).withhold).toEqual(['build-self-contained-static-page', 'build-page-clone']);
+    // A task read in the middle band withholds nothing, nor do middle-band recipes.
+    expect(read(0.5, 0.16, 0.92, 0.5).withhold).toBeUndefined();
+    expect(read(0.97, 0.35, 0.92, 0.5).withhold).toBeUndefined();
+    // Jev's own pick needs no model, so nothing is withheld from one.
+    const picked = readChoice(
+      plan,
+      answersFor(plan.questions, {
+        choice: choiceAnswer('update-docs', 0.9),
+        'fits::update-docs': noulAnswer(0.9),
+        task_changes_files: noulAnswer(0.97),
+        'changes_files::serve-and-validate-static-page': noulAnswer(0.16),
+        'changes_files::build-self-contained-static-page': noulAnswer(0.92),
+        'changes_files::update-docs': noulAnswer(0.9),
+      })
+    );
+    expect(picked.decision).toMatchObject({ target: 'update-docs' });
+    expect(picked.withhold).toBeUndefined();
+    // Withheld, what is left must still fit: otherwise it is an escalate, not
+    // a model call on a catalog Jev reads as fitting nothing.
+    const leftUnfit = readChoice(
+      plan,
+      answersFor(plan.questions, {
+        choice: choiceAnswer('serve-and-validate-static-page', 0.8),
+        'fits::serve-and-validate-static-page': noulAnswer(0.9),
+        'fits::update-docs': noulAnswer(0.1),
+        task_changes_files: noulAnswer(0.97),
+        'changes_files::serve-and-validate-static-page': noulAnswer(0.1),
+        'changes_files::build-self-contained-static-page': noulAnswer(0.2),
+        'changes_files::update-docs': noulAnswer(0.9),
+      })
+    );
+    expect(leftUnfit.decision).toEqual({ target: null, confidence: 0.8, decomposable: false });
+    expect(leftUnfit.outcome).toMatch(/^picked none_of_these \(.*not offered: serve-and-validate-static-page, build-self-contained-static-page, build-page-clone; nothing else fits\)$/);
+    expect(leftUnfit.causes).toEqual(['files', 'withheld']);
   });
 
   it('refuses locally what it cannot ask, and hands back an answer that is not an option', () => {

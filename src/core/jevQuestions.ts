@@ -226,7 +226,7 @@ export function taskRequirements(description: string): string[] {
 }
 
 export interface JevReading<D> {
-  /** `null`: the model decides, exactly as without Jev. */
+  /** `null`: the model decides, as without Jev save the `withhold` below. */
   readonly decision: D | null;
   /** What Atoma did with the answer, for the trace (the viz badges these). */
   readonly outcome: string;
@@ -237,6 +237,11 @@ export interface JevReading<D> {
    * the calibration counts over many decisions. Absent when Jev decided.
    */
   readonly causes?: readonly string[];
+  /**
+   * Choice only, when the model decides: candidates it is not offered, the
+   * recipes whose file changes Jev read as contradicting the task's.
+   */
+  readonly withhold?: readonly string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -427,10 +432,49 @@ export function readChoice(
     yes,
   };
   const hint = plan.request.actorTier === 3;
+  // ONE reading of a recipe that contradicts the task on files, both read
+  // decisively: it bars Jev's own pick below, and it keeps the recipe out of
+  // what the model is offered when Jev hands it the pick. Runs fd64b07e and
+  // 0a989a58: Jev refused the verify-only recipe for a task that had to
+  // change the page, and the model, never told why, injected it.
+  const clash = (name: string): 'verifies' | 'builds' | null => {
+    const recipeChanges = changes[name];
+    if (taskChanges === undefined || recipeChanges === undefined) return null;
+    if (taskChanges >= thresholds.changesFiles && recipeChanges < thresholds.keepsFiles) return 'verifies';
+    if (taskChanges < thresholds.keepsFiles && recipeChanges >= thresholds.changesFiles) return 'builds';
+    return null;
+  };
+  const withhold = plan.options.filter((option) => clash(option.names[0]!) !== null).flatMap((option) => option.names);
+  const offeredFit = Math.max(
+    0,
+    ...plan.options.filter((option) => !withhold.includes(option.names[0]!)).map((option) => fits[option.names[0]!] ?? 0)
+  );
+  /**
+   * The model decides, save what Jev withholds; and when nothing it would be
+   * offered fits, it is not asked at all: the prefilter escalates, as when
+   * nothing fits (review 2026-09-30).
+   */
+  const handOver = (cause: string, why?: string): JevReading<JevChoiceDecision> => {
+    const because = (...parts: readonly (string | undefined)[]): string => {
+      const text = parts.filter((part) => part !== undefined).join('; ');
+      return text ? ` (${text})` : '';
+    };
+    if (withhold.length === 0) return { decision: null, outcome: `model decides${because(why)}`, answer, causes: [cause] };
+    const notOffered = `not offered: ${listed(withhold)}`;
+    if (offeredFit < thresholds.noFit) {
+      return {
+        decision: { target: null, confidence, decomposable: false },
+        outcome: `picked ${NO_CANDIDATE}${because(why, notOffered, 'nothing else fits')}`,
+        answer,
+        causes: [cause, 'withheld'],
+      };
+    }
+    return { decision: null, outcome: `model decides${because(why, notOffered)}`, answer, causes: [cause], withhold };
+  };
   const uncertain = (cause: string, why: string): JevReading<JevChoiceDecision> =>
     hint
       ? { decision: { target: null, confidence, decomposable: false }, outcome: `no hint (${why})`, answer, causes: [cause] }
-      : { decision: null, outcome: `model decides (${why})`, answer, causes: [cause] };
+      : handOver(cause, why);
   const bestFit = Math.max(0, ...Object.values(fits));
   const noneFits = bestFit < thresholds.noFit;
   const escalate: JevReading<JevChoiceDecision> = {
@@ -444,7 +488,8 @@ export function readChoice(
   }
   const option = byKey.get(choice.choice!);
   if (!option) {
-    return { decision: null, outcome: 'model decides', answer, causes: ['not_an_option'] };
+    // An answer outside the options is the model's at every tier, as before.
+    return hint ? { decision: null, outcome: 'model decides', answer, causes: ['not_an_option'] } : handOver('not_an_option');
   }
   const target = option.names[0]!;
   const fit = fits[target] ?? 0;
@@ -457,16 +502,12 @@ export function readChoice(
   }
   if (confidence < thresholds.pickConfidence) return uncertain('confidence', `confidence ${round2(confidence)}`);
   if (fit < thresholds.fit) return uncertain('fit', `${target} fits at ${round2(fit)}`);
-  const recipeChanges = changes[target];
-  if (taskChanges !== undefined && recipeChanges !== undefined) {
-    const buildsForVerify = taskChanges < thresholds.keepsFiles && recipeChanges >= thresholds.changesFiles;
-    const verifiesForBuild = taskChanges >= thresholds.changesFiles && recipeChanges < thresholds.keepsFiles;
-    if (buildsForVerify || verifiesForBuild) {
-      return uncertain(
-        'files',
-        verifiesForBuild ? `${target} changes no files for a task that must` : `${target} changes files for a task that must not`
-      );
-    }
+  const targetClash = clash(target);
+  if (targetClash !== null) {
+    return uncertain(
+      'files',
+      targetClash === 'verifies' ? `${target} changes no files for a task that must` : `${target} changes files for a task that must not`
+    );
   }
   const decomposable = (decomposableYes ?? 0) >= thresholds.decomposable;
   return {
@@ -474,6 +515,11 @@ export function readChoice(
     outcome: pickedOutcome(option, decomposable),
     answer,
   };
+}
+
+/** A bounded list of names for a trace outcome. */
+function listed(names: readonly string[]): string {
+  return names.length <= 5 ? names.join(', ') : `${names.slice(0, 5).join(', ')} and ${names.length - 5} more`;
 }
 
 function pickedOutcome(option: JevChoiceOption, decomposable: boolean): string {

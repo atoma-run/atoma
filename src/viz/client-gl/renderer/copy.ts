@@ -107,12 +107,16 @@ export function timelineBranchLabel(
  * A deferral carries its reason in parentheses (`model decides (confidence
  * 0.42)`), and an L3 routing hint Jev was unsure of is `no hint (…)`: the
  * strategy call then routes without one, which is what an escalate means there.
+ * `picked none_of_these (…; not offered: …; nothing else fits)` is an escalate
+ * too: once the recipes contradicting the task are withheld, nothing fits.
  */
 export function jevDecision(event: VizEvent, t: GpuTranslate): string {
   const outcome = scalar(event['outcome']);
   if (outcome === 'approved') return t('outcome.approved');
   if (outcome.startsWith('model decides') || outcome.startsWith('deferred to the model')) return t('card.jev.deferred');
-  if (outcome === 'picked none_of_these' || outcome.startsWith('no hint')) return t('outcome.escalate');
+  if (outcome === 'picked none_of_these' || outcome.startsWith('picked none_of_these (') || outcome.startsWith('no hint')) {
+    return t('outcome.escalate');
+  }
   if (outcome === 'saved: new recipe') return t('card.jev.newRecipe');
   if (outcome.startsWith('not saved: twin of ')) return t('card.jev.twin');
   const picked = /^picked (\S+)/.exec(outcome);

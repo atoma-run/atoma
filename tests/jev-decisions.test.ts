@@ -388,12 +388,20 @@ describe('the Jev decider — choices', () => {
     const { impl, requests } = answering({
       choice: choiceAnswer('serve-and-validate-static-page', 0.8),
       'fits::serve-and-validate-static-page': noulAnswer(0.85),
+      'fits::build-self-contained-static-page': noulAnswer(0.66),
       task_changes_files: noulAnswer(0.9),
       'changes_files::serve-and-validate-static-page': noulAnswer(0.1),
+      'changes_files::build-self-contained-static-page': noulAnswer(0.92),
     });
     const decision = await createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: impl }).choose(recipes);
-    expect(decision).toBeNull();
-    expect(records[0]!.outcome).toBe('model decides (serve-and-validate-static-page changes no files for a task that must)');
+    // The model decides, and is not offered the recipe that verifies only
+    // (run 0a989a58: offered it, the model injected it for the build task).
+    expect(decision).toEqual({ withhold: ['serve-and-validate-static-page'] });
+    expect(records[0]!.outcome).toBe(
+      'model decides (serve-and-validate-static-page changes no files for a task that must; not offered: serve-and-validate-static-page)'
+    );
+    // Structured, so a reading counts withholds without parsing the outcome.
+    expect(records[0]!.withheld).toEqual(['serve-and-validate-static-page']);
     const questions = requests[0]!.body.questions;
     expect(Object.keys(questions['choice']!.criteria as object)).toEqual([
       'serve-and-validate-static-page',
@@ -701,6 +709,36 @@ describe('prefilterStrategy with Jev', () => {
     });
     expect(chosen[0]!.question).toBe('recipe');
     expect(chosen[0]!.candidates.map((c) => c.name)).toEqual(['Water']);
+  });
+
+  it('does not offer the model a recipe Jev withholds, and escalates when it withholds them all', async () => {
+    const recipes = [
+      { name: 'serve-and-validate-static-page', description: 'serves and validates a page' },
+      { name: 'build-self-contained-static-page', description: 'builds a page' },
+    ];
+    const withholding = (withhold: string[]): JevDecider => ({
+      choose: async () => ({ withhold }),
+      approve: async () => null,
+      twin: async () => null,
+    });
+    const ctx = { ...makeCtx(), jev: withholding(['serve-and-validate-static-page']) };
+    ctx.llm.enqueueText(jsonText({ kind: 'reuse', target: 'serve-and-validate-static-page', confidence: 'high', reasoning: 'serves' }));
+    const outcome = await prefilterStrategy({
+      ctx,
+      task: { description: 'add keyboard shortcuts to the page' },
+      catalog: recipes,
+      systemPrompt: SKILL_PREFILTER_SYSTEM_PROMPT,
+    });
+    expect(ctx.llm.calls[0]!.userContent).not.toContain('serve-and-validate-static-page');
+    expect(ctx.llm.calls[0]!.userContent).toContain('build-self-contained-static-page');
+    // A withheld recipe the model names anyway is refused like any stranger.
+    expect(outcome).toMatchObject({ kind: 'escalate' });
+
+    const none = { ...makeCtx(), jev: withholding(recipes.map((r) => r.name)) };
+    expect(
+      await prefilterStrategy({ ctx: none, task: { description: 'x' }, catalog: recipes, systemPrompt: SKILL_PREFILTER_SYSTEM_PROMPT })
+    ).toMatchObject({ kind: 'escalate', reasoning: expect.stringContaining('contradicts the task on files') });
+    expect(none.llm.calls).toHaveLength(0);
   });
 
   it("keeps a recipe body's opening out of the model's prompt and cache key", async () => {
@@ -1263,6 +1301,39 @@ describe('the jev card in the run view', () => {
       'fits::agent_1': noulAnswer(0.6),
     });
     expect(noHint!.decision).toBe('↑ escalate');
+  });
+
+  it('badges as an escalation a recipe pick left with nothing that fits once withheld recipes are gone', async () => {
+    const recipes: JevChoiceRequest = {
+      question: 'recipe',
+      task: { description: 'add keyboard shortcuts to the pomodoro page' },
+      candidates: [
+        { name: 'serve-and-validate-static-page', description: 'serve and validate a page' },
+        { name: 'build-text-frequency-cli', description: 'build a word-count CLI' },
+      ],
+      actorName: 'Tracheid',
+      actorTier: 2,
+    };
+    let decision: unknown;
+    const [card] = await cardsFor(
+      async (d) => {
+        decision = await d.choose(recipes);
+      },
+      {
+        choice: choiceAnswer('serve-and-validate-static-page', 0.8),
+        'fits::serve-and-validate-static-page': noulAnswer(0.9),
+        'fits::build-text-frequency-cli': noulAnswer(0.05),
+        task_changes_files: noulAnswer(0.97),
+        'changes_files::serve-and-validate-static-page': noulAnswer(0.1),
+        'changes_files::build-text-frequency-cli': noulAnswer(0.95),
+      }
+    );
+    // Not a model call on a catalog Jev reads as fitting nothing: an escalate.
+    expect(decision).toMatchObject({ target: null });
+    expect(card!.decision).toBe('↑ escalate');
+    expect(card!.body).toBe(
+      'picked none_of_these (serve-and-validate-static-page changes no files for a task that must; not offered: serve-and-validate-static-page; nothing else fits)'
+    );
   });
 
   it('badges a twin verdict both ways', async () => {
