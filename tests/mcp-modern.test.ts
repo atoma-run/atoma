@@ -10,7 +10,7 @@ import { operatorRunUri } from '../src/mcp/resources.js';
 import type { McpCaller } from '../src/mcp/identity.js';
 import { resetRunsForTest, type RunDriver } from '../src/mcp/run.js';
 import { mcpHostWiring } from '../src/mcp/server.js';
-import { forgetTasksForTest } from '../src/mcp/tasks.js';
+import { MemoryTasks, forgetTasksForTest } from '../src/mcp/tasks.js';
 import { TASKS_EXTENSION } from '../src/mcp/taskWire.js';
 import type { McpToolDeps } from '../src/mcp/tools.js';
 
@@ -245,5 +245,121 @@ describe('the 2026-07-28 era', () => {
     });
     expect(response.status).toBe(400);
     expect(((await response.json()) as { error: { code: number } }).error.code).toBe(-32020);
+  });
+});
+
+/*
+ * The 2026-09-30 adversarial review of this port, one regression each. The
+ * numbers are the review's.
+ */
+describe('the 2026-09-30 review of the two-era port', () => {
+  it('finishes an operator task whose run ended before its watchers were hooked (1)', async () => {
+    // A driver settled at once — what spawnRun does on a host that cannot run —
+    // ended the run a microtask before the task listened for its end.
+    const settled: RunDriver = () => Promise.resolve('--- run failed ---\n');
+    const { url } = await listen(() => ({ kind: 'operator' }), { ...NO_TENANT, operatorRunDriver: settled, operatorRunLease: lease });
+    const created = await modernRequest(url, 'tools/call', { name: 'atoma_operator_run_start', arguments: { goal: 'ends at once' } });
+    const taskId = created.body.result!['taskId'] as string;
+    await tick(50);
+    expect((await modernRequest(url, 'tasks/get', { taskId })).body.result).toMatchObject({ status: 'completed' });
+    // And the synchronous start answers instead of waiting out the task's ttl.
+    const sync = await Promise.race([
+      modernRequest(url, 'tools/call', { name: 'atoma_operator_run_start', arguments: { goal: 'ends at once, synchronously' } }, { tasks: false }),
+      tick(5_000).then(() => null),
+    ]);
+    expect(sync?.body.result).toMatchObject({ structuredContent: expect.objectContaining({ status: expect.any(String) }) });
+  });
+
+  it('holds a caller to its own number of listen streams, and a listener to what its tier may follow (2, 3)', async () => {
+    const callers: Record<string, McpCaller> = { member: { kind: 'principal', viewer: viewer('org:member'), tokenId: 'm' } };
+    const { url } = await listen((req) => callers[String(req.headers.authorization).replace('Bearer ', '')] ?? { kind: 'operator' }, NO_TENANT);
+    const listenBody = (notifications: Record<string, unknown>) => JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'subscriptions/listen', params: {
+      notifications, _meta: { 'io.modelcontextprotocol/protocolVersion': MODERN, 'io.modelcontextprotocol/clientCapabilities': {} },
+    } });
+    const open: AbortController[] = [];
+    const headersFor = (bearer: string) => ({
+      'content-type': 'application/json', accept: 'application/json, text/event-stream', 'mcp-protocol-version': MODERN,
+      'mcp-method': 'subscriptions/listen', authorization: `Bearer ${bearer}`,
+    });
+    try {
+      // What a member may follow: not the operator corpus, and no listing notice.
+      const abort = new AbortController();
+      open.push(abort);
+      const first = await fetch(url, { method: 'POST', signal: abort.signal, headers: headersFor('member'),
+        body: listenBody({ resourceSubscriptions: [operatorRunUri('someone-elses-run'), 'atoma://families'], resourcesListChanged: true }) });
+      const reader = first.body!.getReader();
+      const { value } = await reader.read();
+      const acknowledged = new TextDecoder().decode(value);
+      expect(acknowledged).toContain('notifications/subscriptions/acknowledged');
+      expect(acknowledged).toContain('atoma://families');
+      expect(acknowledged).not.toContain('someone-elses-run');
+      expect(acknowledged).not.toContain('resourcesListChanged');
+      // Seven more are this caller's share; the next is refused, and nobody else's is.
+      for (let i = 1; i < 8; i++) {
+        const more = new AbortController();
+        open.push(more);
+        const response = await fetch(url, { method: 'POST', signal: more.signal, headers: headersFor('member'), body: listenBody({ toolsListChanged: true }) });
+        expect(response.status).toBe(200);
+      }
+      const refused = await fetch(url, { method: 'POST', headers: headersFor('member'), body: listenBody({ toolsListChanged: true }) });
+      expect(refused.status).toBe(429);
+      const other = new AbortController();
+      open.push(other);
+      expect((await fetch(url, { method: 'POST', signal: other.signal, headers: headersFor('operator'), body: listenBody({ toolsListChanged: true }) })).status).toBe(200);
+    } finally {
+      for (const abort of open) abort.abort();
+    }
+  });
+
+  it('answers invalid task arguments as a tool error, as the SDK answers any call (5)', async () => {
+    const { url } = await listen(() => ({ kind: 'operator' }), NO_TENANT);
+    const invalid = await modernRequest(url, 'tools/call', { name: 'atoma_operator_run_start', arguments: { goal: '' } });
+    expect(invalid.body.error).toBeUndefined();
+    expect(invalid.body.result).toMatchObject({ isError: true });
+    expect(JSON.stringify(invalid.body.result)).toMatch(/Invalid arguments/);
+  });
+
+  it('checks a task request it answers itself as the SDK checks every 2026 request (6)', async () => {
+    const { url } = await listen(() => ({ kind: 'operator' }), NO_TENANT);
+    const send = (headers: Record<string, string>, meta: Record<string, unknown>) => fetch(url, {
+      method: 'POST',
+      headers: { accept: 'application/json, text/event-stream', ...headers },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tasks/get', params: { taskId: 't', _meta: meta } }),
+    });
+    const envelope = { 'io.modelcontextprotocol/protocolVersion': MODERN, 'io.modelcontextprotocol/clientCapabilities': {} };
+    const complete = { 'content-type': 'application/json', 'mcp-protocol-version': MODERN, 'mcp-method': 'tasks/get' };
+    expect((await send({ ...complete, 'content-type': 'text/plain' }, envelope)).status).toBe(415);
+    expect((await send({ 'content-type': 'application/json', 'mcp-method': 'tasks/get' }, envelope)).status).toBe(400);
+    expect((await send({ 'content-type': 'application/json', 'mcp-protocol-version': MODERN }, envelope)).status).toBe(400);
+    expect((await send(complete, envelope)).status).toBe(200);
+  });
+
+  it('keeps one caller from crowding the others out of health().clients (8)', async () => {
+    const { url, host } = await listen(() => ({ kind: 'operator' }), NO_TENANT);
+    for (let i = 0; i < 10; i++) {
+      await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', 'mcp-protocol-version': MODERN, 'mcp-method': 'tools/list' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: i, method: 'tools/list', params: { _meta: {
+          'io.modelcontextprotocol/protocolVersion': MODERN, 'io.modelcontextprotocol/clientInfo': { name: `noise-${i}`, version: '0' },
+          'io.modelcontextprotocol/clientCapabilities': {},
+        } } }),
+      }).then((response) => response.text());
+    }
+    const kinds = Object.keys(host.health().clients);
+    expect(kinds.filter((kind) => kind.includes('noise-'))).toHaveLength(4);
+    expect(host.health().clients['other']).toBe(6);
+  });
+  it('evicts a caller’s own finished tasks past its share, never another caller’s (4)', () => {
+    const memory = new MemoryTasks();
+    const theirs = memory.create('platform-admin', { ttl: 60_000, pollInterval: 1_000 });
+    memory.finish(theirs.taskId, 'completed', { content: [] });
+    for (let i = 0; i < 1_100; i++) {
+      const refusal = memory.create('noisy-member', { ttl: 60_000, pollInterval: 1_000 });
+      memory.finish(refusal.taskId, 'failed', { content: [], isError: true });
+    }
+    expect(memory.get('platform-admin', theirs.taskId)).toMatchObject({ status: 'completed' });
+    expect(memory.list('noisy-member').length).toBeLessThanOrEqual(1_000);
+    memory.forgetAll();
   });
 });

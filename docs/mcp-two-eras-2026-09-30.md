@@ -36,7 +36,7 @@ That count is what decides when the 2025 era can go.
 | Identity | bearer checked per request, session bound to its caller | bearer checked per request |
 | Replay | `Last-Event-ID` over a per-session ring | none (the revision removed it) |
 | Tasks | `task` on `tools/call`; `tasks/get`, `tasks/result`, `tasks/cancel`, `tasks/list` | the tasks extension: `resultType: 'task'`, `tasks/get` with the result inline, `tasks/cancel`, `tasks/update` |
-| Change notifications | `resources/subscribe` per session | `subscriptions/listen`, fed by the host's run-finished events |
+| Change notifications | `resources/subscribe` per session | `subscriptions/listen`, fed by the host's run-finished events, each filter narrowed to what the caller's tier may follow, at most 8 streams per caller |
 | Run log | `notifications/message` to the session that started the run | none: the task's status line |
 | Host / Origin | checked by the host (`admitted`) | the same check |
 | Deployment write freeze | judged per message | judged per message, against a server built for the caller |

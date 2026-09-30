@@ -25,7 +25,7 @@ import { join } from 'node:path';
 import type { McpServer } from '@modelcontextprotocol/server';
 import type { McpHttpHostOptions } from './http.js';
 import type { McpCaller } from './identity.js';
-import { publishResourceEvents } from './resources.js';
+import { mayFollowResource, publishResourceEvents } from './resources.js';
 import type { ProtocolEraName } from './taskWire.js';
 import { repoRoot } from './run.js';
 import { buildServerForCaller, callerTasksFor, type McpToolDeps } from './tools.js';
@@ -83,12 +83,13 @@ export function buildServer(caller: McpCaller, deps: McpToolDeps, era: ProtocolE
  * project run's for a host with organisations, an operator run's for a host
  * that runs them, as the 2025 sessions hook them.
  */
-export function mcpHostWiring(deps: McpToolDeps): Pick<McpHttpHostOptions, 'buildServer' | 'tasksFor' | 'resourceEvents' | 'serverInfo'> {
+export function mcpHostWiring(deps: McpToolDeps): Pick<McpHttpHostOptions, 'buildServer' | 'tasksFor' | 'resourceEvents' | 'serverInfo' | 'mayFollow'> {
   return {
     buildServer: (caller, era) => buildServer(caller, deps, era),
     tasksFor: (caller) => callerTasksFor(caller, deps),
     resourceEvents: (events) => publishResourceEvents(deps.projects ? deps.journal : null, deps.operatorRuns, events),
     serverInfo: { name: 'atoma', version: packageVersion() },
+    mayFollow: (caller, uri) => mayFollowResource(caller, deps, uri),
   };
 }
 

@@ -78,7 +78,10 @@ Neighbours:
   A POST body is read before anything is reserved or built (its era is in
   it), and one that has not arrived in `MCP_BODY_TIMEOUT_MS` (30s) is closed;
   an `initialize` then reserves both ceilings before allocation, and a caller
-  whose slots are all pending receives 503.
+  whose slots are all pending receives 503. The opening has its own 30s
+  deadline, cleared the moment the session exists: until 2026-09-30 it stayed
+  armed through the reopening request's whole response, and cut the first
+  long call after every deployment.
   A call still ANSWERING — a POST, or the GET resuming with `Last-Event-ID`
   the stream of a call whose response is still owed — pins its session
   against the idle sweep AND against `reclaim`, which then answers 503 rather
@@ -198,9 +201,11 @@ Neighbours:
   `failed` means a JSON-RPC error there, a run that ended — even badly — is
   `completed` with the payload that says how. The SDK refuses `tasks/*` on
   that era before any handler runs, so the HTTP host answers them
-  (`answerModernTaskRequest`); and since the callback the SDK gives a tool
+  (`answerModernTaskRequest`), after the checks the SDK's entry would make
+  (JSON body, the 2026 version in header and envelope, `Mcp-Method`); and since the callback the SDK gives a tool
   never sees `params.task`, the task path of `tools/call` wraps the handler
-  its `McpServer` installed (`installTaskProtocol`). There is NO "start, then
+  its `McpServer` installed (`installTaskProtocol`), answering bad arguments
+  and a failing start as tool errors, as the SDK's own path does. There is NO "start, then
   poll" contract and NO long-poll: the status tools are plain readers. The
   `waitMs` long-poll and its `notifications/progress` went on 2026-09-07.
 - WITHOUT A TASK the start is a synchronous call (`runSynchronously`): the
@@ -251,7 +256,10 @@ Neighbours:
 - OPERATOR AND BENCHMARK TASKS, AND REFUSALS, LIVE IN THIS PROCESS'S MEMORY
   (`MEMORY_TASKS`), bound to their caller (`callerKey`), not to a session: the
   2026 era has none, and a 2025 client that reconnects keeps them. A finished
-  one is swept one ttl after it ends. A restart forgets them, never the runs'
+  one is swept one ttl after it ends; past 1,000 a caller loses its OWN
+  oldest finished ones, never another caller's. An operator run that ended
+  before its watchers were hooked (a driver settled at once) is read at once,
+  or its task would stay `working`. A restart forgets them, never the runs'
   evidence.
 - THE 2025 TRANSPORT ANSWERS ON SSE, NEVER PLAIN JSON. `enableJsonResponse` makes
   the SDK drop every notification related to a request (measured 2026-09-07:
@@ -307,7 +315,11 @@ Neighbours:
   client names the URIs it follows on `subscriptions/listen`; the host
   publishes the same events once for the process onto the SDK's bus
   (`publishResourceEvents`), which delivers each to the listeners that named
-  its URI — as on 2025, a URI is not checked against the caller's tier.
+  its URI. Because that bus is one for everyone, the host narrows each listen
+  filter to what the caller's tier registers (`mayFollowResource`; the
+  list-changed notice at the platform tier only), and holds a caller to
+  `MCP_MAX_LISTENS_PER_CALLER` open streams (429 past it) under the process's
+  `MCP_MAX_LISTENS`.
 
 ## Operator writes (`writes.ts`)
 

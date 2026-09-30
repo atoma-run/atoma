@@ -31,7 +31,7 @@
 
 import { ResourceTemplate, type McpServer } from '@modelcontextprotocol/server';
 import { ProjectHttpError } from '../projects/service.js';
-import { tierAllows } from './identity.js';
+import { callerTier, tierAllows, type McpCaller } from './identity.js';
 import { completeTraceFile, families, runTrace, runsList } from './readers.js';
 import { onRunFinished, runStatus } from './run.js';
 import type { McpToolContext } from './tools.js';
@@ -63,6 +63,29 @@ function jsonContents(uri: URL, payload: unknown) {
 function one(value: string | string[] | undefined): string {
   const raw = Array.isArray(value) ? value[0] : value;
   return decodeURIComponent(raw ?? '');
+}
+
+/**
+ * Whether `caller` may follow `uri` on a 2026 listen stream — the resources
+ * its own tier registers: the families for everyone, the operator corpus at
+ * the platform tier on a host that runs it, a project run of the caller's own
+ * organisation. A 2025 session only hears of what its tier registered, since
+ * only those listeners are hooked; the 2026 bus is one for the process, so the
+ * listen filter is narrowed to this instead.
+ */
+export function mayFollowResource(caller: McpCaller, deps: McpToolContext['deps'], uri: string): boolean {
+  if (uri === FAMILIES_URI) return true;
+  if (uri.startsWith('atoma://runs/') || uri.startsWith('atoma://operator-runs/')) {
+    return deps.operatorRuns && tierAllows(callerTier(caller), 'platform');
+  }
+  const project = /^atoma:\/\/projects\/([^/]+)\/runs\/([^/]+)$/.exec(uri);
+  if (!project || caller.kind !== 'principal' || !deps.projects) return false;
+  try {
+    const run = deps.projects.store.getProjectRun(caller.viewer.orgId, decodeURIComponent(project[2]!));
+    return run !== null && run.projectId === decodeURIComponent(project[1]!);
+  } catch {
+    return false;
+  }
 }
 
 /** What a finished run tells the clients following it, whichever era carries it. */

@@ -110,11 +110,18 @@ export function installTaskProtocol(
     const start = typeof params['name'] === 'string' ? starts.get(params['name']) : undefined;
     const augmented = era === 'legacy' ? params['task'] !== undefined : declaresTasksExtension(ctx);
     if (!start || !augmented) return original(request, ctx);
+    // As the SDK's own call path answers them: a tool error, not a protocol one (review 2026-09-30, 5).
+    const toolError = (text: string) => ({ content: [{ type: 'text', text }], isError: true });
     const parsed = start.schema.safeParse(params['arguments'] ?? {});
     if (!parsed.success) {
-      throw new ProtocolError(ProtocolErrorCode.InvalidParams, `Input validation error: Invalid arguments for tool ${String(params['name'])}: ${z.prettifyError(parsed.error)}`);
+      return toolError(`Input validation error: Invalid arguments for tool ${String(params['name'])}: ${z.prettifyError(parsed.error)}`);
     }
-    const state = await start.start(parsed.data);
+    let state: TaskState;
+    try {
+      state = await start.start(parsed.data);
+    } catch (error) {
+      return toolError(error instanceof Error ? error.message : String(error));
+    }
     return era === 'legacy' ? { content: [], task: legacyTask(state) } : { resultType: 'task', ...modernTask(state) };
   });
 }
@@ -164,7 +171,7 @@ interface JsonRpcRequest {
   readonly jsonrpc?: unknown;
   readonly id?: unknown;
   readonly method?: unknown;
-  readonly params?: { readonly taskId?: unknown; readonly inputResponses?: unknown };
+  readonly params?: { readonly taskId?: unknown; readonly inputResponses?: unknown; readonly _meta?: Record<string, unknown> };
 }
 
 /** Whether `message` is one JSON-RPC request the host answers for the tasks extension. */

@@ -32,9 +32,11 @@ const READ_ONLY_METHODS = new Set([
   'tasks/get',
   'tasks/list',
   'tasks/result',
-  // 2026-07-28: the opening is a discovery, and change notifications a listen stream.
+  // 2026-07-28: the opening is a discovery, change notifications a listen
+  // stream, and `tasks/update` an acknowledgement (no task here asks for input).
   'server/discover',
   'subscriptions/listen',
+  'tasks/update',
 ]);
 
 /** The largest body read to classify it; past it the call simply waits. */

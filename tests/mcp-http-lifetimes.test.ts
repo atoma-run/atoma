@@ -356,6 +356,28 @@ describe('a session the host forgot', () => {
     expect((await post(url, on(id), call, 'POST', 'b')).status).toBe(401);
   });
 
+  it('answers a first call on the reopened session that outlasts the opening deadline (2026-09-30 review)', async () => {
+    // Until 2026-09-30 the opening's 30s timer stayed armed until the reopening
+    // request's WHOLE response had streamed, so after every deployment a first
+    // call longer than that — a synchronous run start, a blocking tasks/result —
+    // was cut. The deadline bounds the opening only.
+    const slow = () => {
+      const sdk = fresh();
+      sdk.registerTool('echo', {}, async () => {
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        return { content: [{ type: 'text', text: 'ECHOED' }] };
+      });
+      return sdk;
+    };
+    const url = await listen(slow, 8, 8);
+    const id = await openSession(url);
+    await host.close();
+    host = new McpHttpHost({ ...hostOptions, openTimeoutMs: 100 });
+    const answered = await post(url, on(id), call);
+    expect(answered.status).toBe(200);
+    expect(answered.text).toContain('ECHOED');
+  });
+
   it('is reopened after the idle sweep', async () => {
     const url = await listen(echo, 8, 8);
     const id = await openSession(url);

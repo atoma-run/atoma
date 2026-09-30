@@ -128,8 +128,13 @@ interface MemoryTask {
   sweep?: NodeJS.Timeout;
 }
 
-/** How many tasks this process remembers at most; past it the oldest finished one goes first. */
-const MAX_MEMORY_TASKS = 10_000;
+/**
+ * How many tasks one caller keeps in memory; past it that caller's oldest
+ * finished one goes first, never another caller's (review 2026-09-30, 4). The
+ * process-wide backstop does the same across callers.
+ */
+const MAX_MEMORY_TASKS_PER_OWNER = 1_000;
+const MAX_MEMORY_TASKS = 50_000;
 
 /**
  * The in-memory tasks: ids are 32 hex characters (never the project prefix),
@@ -151,7 +156,7 @@ export class MemoryTasks {
     };
     this.tasks.set(taskId, entry);
     this.sweepAfter(entry, options.ttl);
-    this.bound();
+    this.bound(owner);
     return entry.state;
   }
 
@@ -161,13 +166,16 @@ export class MemoryTasks {
     entry.sweep.unref();
   }
 
-  private bound(): void {
-    if (this.tasks.size <= MAX_MEMORY_TASKS) return;
+  private bound(owner: string): void {
+    let mine = 0;
+    for (const entry of this.tasks.values()) if (entry.owner === owner) mine += 1;
     for (const [taskId, entry] of this.tasks) {
-      if (!isTerminal(entry.state.status)) continue;
+      if (mine <= MAX_MEMORY_TASKS_PER_OWNER && this.tasks.size <= MAX_MEMORY_TASKS) return;
+      const over = mine > MAX_MEMORY_TASKS_PER_OWNER ? entry.owner === owner : true;
+      if (!over || !isTerminal(entry.state.status)) continue;
       if (entry.sweep) clearTimeout(entry.sweep);
       this.tasks.delete(taskId);
-      if (this.tasks.size <= MAX_MEMORY_TASKS) return;
+      if (entry.owner === owner) mine -= 1;
     }
   }
 
@@ -412,7 +420,8 @@ interface ProjectRunSnapshot {
  * forgotten by a restart, after which the run's own final status speaks.
  */
 const CANCEL_REQUESTED = new Set<string>();
-const MAX_CANCEL_REQUESTED = 1_000;
+/** Bounded memory, so "for good" means for the last this-many cancels; a run landing after that shows its own status. */
+const MAX_CANCEL_REQUESTED = 10_000;
 
 /** How many project run tasks one listing names; runs are serialised per instance, so a principal has few live ones. */
 const MAX_LISTED_PROJECT_TASKS = 50;
@@ -649,13 +658,20 @@ export function operatorRunTask(
         const prefix = `run ${record.runId} running, ${update.chunks} chunks`;
         MEMORY_TASKS.update(task.taskId, statusLine(prefix, update.tail), prefix);
       });
-      const unhookFinish = onRunFinished((finished) => {
-        if (finished.runId !== record.runId) return;
+      const settle = (status: string): void => {
         unhookOutput();
         unhookFinish();
-        MEMORY_TASKS.finish(task.taskId, finished.status === 'finished' ? 'completed' : 'failed', current());
+        MEMORY_TASKS.finish(task.taskId, status === 'finished' ? 'completed' : 'failed', current());
+      };
+      const unhookFinish = onRunFinished((finished) => {
+        if (finished.runId === record.runId) settle(finished.status);
       });
-      return task;
+      // A run that ended before the hooks were in place — a driver settled at
+      // once, a host that cannot run — finished in an earlier microtask and
+      // will never be heard of again: read its end now (review 2026-09-30, 1).
+      const now = (runStatus({ runId: record.runId }) as { status?: string }).status;
+      if (now !== undefined && now !== 'running' && now !== 'cancelling') settle(now);
+      return MEMORY_TASKS.get(tasks.owner, task.taskId) ?? task;
     },
   };
 }

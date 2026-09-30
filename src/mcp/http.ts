@@ -12,7 +12,7 @@ import {
 import { NodeStreamableHTTPServerTransport } from '@modelcontextprotocol/node';
 import { SessionEventStore } from './eventStore.js';
 import { FROZEN_BODY_LIMIT_BYTES, servableWhileFrozen } from './frozen.js';
-import { callerKey, describeCaller, type McpCaller } from './identity.js';
+import { callerKey, callerTier, describeCaller, type McpCaller } from './identity.js';
 import type { ResourceEvents } from './resources.js';
 import { answerModernTaskRequest, isModernTaskRequest, type ProtocolEraName } from './taskWire.js';
 import type { CallerTasks } from './tasks.js';
@@ -85,6 +85,11 @@ export interface McpHttpHostOptions {
   readonly resourceEvents?: (events: ResourceEvents) => () => void;
   /** Stamped on the 2026 results this host answers itself, as the SDK stamps its own. */
   readonly serverInfo?: { readonly name: string; readonly version: string };
+  /**
+   * Whether `caller` may hear of `uri` on a 2026 `subscriptions/listen`, where
+   * one process-wide bus serves every listener. Absent: only `atoma://families`.
+   */
+  readonly mayFollow?: (caller: McpCaller, uri: string) => boolean;
   /** `Host` values this route answers; anything else is 403 by the transport. */
   readonly allowedHosts: readonly string[];
   /** `Origin` values this route answers WHEN the header is sent; an absent Origin is unaffected. */
@@ -100,6 +105,8 @@ export interface McpHttpHostOptions {
   readonly now?: () => number;
   /** How long a POST body may take to arrive; past it the request is closed. */
   readonly bodyTimeoutMs?: number;
+  /** How long a session's opening may take; the calls it then answers are bounded by `maxRequestMs`. */
+  readonly openTimeoutMs?: number;
   readonly logger?: (line: string) => void;
 }
 
@@ -177,6 +184,11 @@ export interface McpHttpHealth {
 
 /** How many distinct `<version> <client>` pairs `health()` keeps; past it they count under `other`. */
 const MAX_CLIENT_KINDS = 64;
+/** How many kinds one caller may name; past it its requests count under `other`, so no token fills the table. */
+const MAX_CLIENT_KINDS_PER_CALLER = 4;
+/** 2026 `subscriptions/listen` streams one caller may hold open, and the process. */
+export const MCP_MAX_LISTENS_PER_CALLER = 8;
+export const MCP_MAX_LISTENS = 512;
 
 /**
  * The SDK's id for the standalone GET notification stream
@@ -220,6 +232,10 @@ export class McpHttpHost {
   private resumed = 0;
   private modernRequests = 0;
   private readonly clients = new Map<string, number>();
+  /** The kinds each caller has named, bounded by `MAX_CLIENT_KINDS_PER_CALLER`. */
+  private readonly kindsByCaller = new Map<string, Set<string>>();
+  /** Open 2026 listen streams per caller. */
+  private readonly listens = new Map<string, number>();
   private readonly modern: McpHttpHandler;
   private readonly unhookResourceEvents: () => void;
   /**
@@ -245,7 +261,7 @@ export class McpHttpHost {
       const caller = (context.authInfo?.extra as { caller?: McpCaller } | undefined)?.caller;
       if (!caller) throw new Error('a 2026-era request reached the MCP handler without an authenticated caller');
       return options.buildServer(caller, 'modern');
-    }, { legacy: 'reject', onerror: (error) => this.log(`2026 request failed: ${error.message}`) });
+    }, { legacy: 'reject', maxSubscriptions: MCP_MAX_LISTENS, onerror: (error) => this.log(`2026 request failed: ${error.message}`) });
     this.unhookResourceEvents = options.resourceEvents?.({
       updated: (uri) => this.modern.notify.resourceUpdated(uri),
       listChanged: () => this.modern.notify.resourcesChanged(),
@@ -262,12 +278,21 @@ export class McpHttpHost {
     };
   }
 
-  /** Counts one client kind: a 2025 `initialize`, or one 2026 request. */
-  private countClient(protocolVersion: unknown, clientInfo: unknown): void {
+  /**
+   * Counts one client kind: a 2025 `initialize`, or one 2026 request. The name
+   * is the client's own claim, so each caller adds at most a few kinds and the
+   * table at most `MAX_CLIENT_KINDS`: one token cannot push the real clients
+   * under `other` (review 2026-09-30, 8).
+   */
+  private countClient(caller: McpCaller, protocolVersion: unknown, clientInfo: unknown): void {
     const version = typeof protocolVersion === 'string' ? protocolVersion.slice(0, 20) : 'unknown';
     const name = clientInfo && typeof clientInfo === 'object' && typeof (clientInfo as { name?: unknown }).name === 'string'
       ? (clientInfo as { name: string }).name.slice(0, 60) : 'unknown';
     let kind = `${version} ${name}`;
+    const key = callerKey(caller);
+    const named = this.kindsByCaller.get(key) ?? new Set<string>();
+    if (!named.has(kind) && (named.size >= MAX_CLIENT_KINDS_PER_CALLER || this.kindsByCaller.size >= 4 * MAX_CLIENT_KINDS)) kind = 'other';
+    else if (!named.has(kind)) this.kindsByCaller.set(key, named.add(kind));
     if (!this.clients.has(kind) && this.clients.size >= MAX_CLIENT_KINDS) kind = 'other';
     this.clients.set(kind, (this.clients.get(kind) ?? 0) + 1);
   }
@@ -385,7 +410,7 @@ export class McpHttpHost {
     }
     // A new session: the transport validates that the body is `initialize`.
     const opening = body as { method?: unknown; params?: { protocolVersion?: unknown; clientInfo?: unknown } } | undefined;
-    if (opening?.method === 'initialize') this.countClient(opening.params?.protocolVersion, opening.params?.clientInfo);
+    if (opening?.method === 'initialize') this.countClient(caller, opening.params?.protocolVersion, opening.params?.clientInfo);
     await this.open(req, res, caller, body, undefined, options.frozen === true);
   }
 
@@ -403,7 +428,7 @@ export class McpHttpHost {
   ): Promise<void> {
     this.modernRequests += 1;
     const meta = (body as { params?: { _meta?: Record<string, unknown> } } | undefined)?.params?._meta;
-    this.countClient(meta?.['io.modelcontextprotocol/protocolVersion'], meta?.['io.modelcontextprotocol/clientInfo']);
+    this.countClient(caller, meta?.['io.modelcontextprotocol/protocolVersion'], meta?.['io.modelcontextprotocol/clientInfo']);
     if (options.frozen && !servableWhileFrozen(this.options.buildServer(caller, 'modern'), body)) {
       frozenRefusal(res);
       return;
@@ -416,10 +441,12 @@ export class McpHttpHost {
     ceiling.unref();
     res.once('close', () => clearTimeout(ceiling));
     if (isModernTaskRequest(body)) {
-      const method = req.headers['mcp-method'];
-      if (method !== undefined && method !== body.method) {
-        res.writeHead(400, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
-        res.end(JSON.stringify({ jsonrpc: '2.0', id: body.id, error: { code: -32020, message: `Mcp-Method header ${String(method)} does not match the body's ${String(body.method)}` } }));
+      // What the SDK's own entry checks before a 2026 request reaches a
+      // handler, repeated because this one never reaches it (review 2026-09-30, 6).
+      const refusal = modernTaskRequestRefusal(req, body);
+      if (refusal) {
+        res.writeHead(refusal.status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+        res.end(JSON.stringify({ jsonrpc: '2.0', id: body.id, error: { code: refusal.code, message: refusal.message } }));
         return;
       }
       const tasks = this.options.tasksFor?.(caller);
@@ -430,13 +457,48 @@ export class McpHttpHost {
       res.end(JSON.stringify(answer));
       return;
     }
+    let forwarded = body;
+    if (isListen(body)) {
+      // One bus serves every 2026 listener, so a caller names only what it may
+      // hear of, and holds a bounded number of streams (review 2026-09-30, 2 and 3).
+      const key = callerKey(caller);
+      const open = this.listens.get(key) ?? 0;
+      if (open >= MCP_MAX_LISTENS_PER_CALLER) {
+        res.writeHead(429, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'retry-after': '30' });
+        res.end(JSON.stringify({ jsonrpc: '2.0', id: body.id, error: { code: -32000, message: `at most ${MCP_MAX_LISTENS_PER_CALLER} open subscriptions/listen streams per caller` } }));
+        return;
+      }
+      this.listens.set(key, open + 1);
+      res.once('close', () => {
+        const left = (this.listens.get(key) ?? 1) - 1;
+        if (left > 0) this.listens.set(key, left);
+        else this.listens.delete(key);
+      });
+      forwarded = this.followable(caller, body);
+    }
     const abort = new AbortController();
     res.once('close', () => abort.abort());
     const response = await this.modern.fetch(webRequestOf(req, abort.signal), {
-      parsedBody: body,
+      parsedBody: forwarded,
       authInfo: { token: 'atoma-caller', clientId: callerKey(caller), scopes: [], extra: { caller } },
     });
     await sendWebResponse(res, response);
+  }
+
+  /**
+   * A listen request narrowed to what `caller` may hear of: the resource URIs
+   * `mayFollow` admits, and the list-changed notice only at the platform tier,
+   * the only one listing the operator traces whose end changes a listing.
+   */
+  private followable(caller: McpCaller, body: ListenRequest): ListenRequest {
+    const filter = body.params.notifications;
+    const mayFollow = this.options.mayFollow ?? ((_caller: McpCaller, uri: string) => uri === 'atoma://families');
+    const uris = Array.isArray(filter.resourceSubscriptions)
+      ? filter.resourceSubscriptions.filter((uri): uri is string => typeof uri === 'string' && mayFollow(caller, uri))
+      : undefined;
+    const notifications: Record<string, unknown> = { ...filter, ...(uris ? { resourceSubscriptions: uris } : {}) };
+    if (callerTier(caller) !== 'platform') delete notifications['resourcesListChanged'];
+    return { ...body, params: { ...body.params, notifications } };
   }
 
   /**
@@ -462,7 +524,10 @@ export class McpHttpHost {
     const reservation = Symbol(key);
     const closePending = () => { req.destroy(); res.destroy(); };
     this.pending.set(reservation, { key, close: closePending });
-    const initializationTimer = setTimeout(closePending, 30_000);
+    // Bounds the OPENING only: cleared the moment the session exists, so the
+    // first call on a session resumed after a restart is not cut at 30s with
+    // it (review 2026-09-30, pre-existing since 2026-09-28).
+    const initializationTimer = setTimeout(closePending, this.options.openTimeoutMs ?? MCP_BODY_TIMEOUT_MS);
     initializationTimer.unref();
     try {
       const server = this.options.buildServer(caller, 'legacy');
@@ -478,6 +543,7 @@ export class McpHttpHost {
         // Origin were checked by `admitted`, for both eras.
         eventStore: events,
         onsessioninitialized: (id) => {
+          clearTimeout(initializationTimer);
           this.pending.delete(reservation);
           session = { id, transport, server, events, key, lastSeenMs: this.now(), activePosts: new Map() };
           this.sessions.set(id, session);
@@ -646,6 +712,39 @@ export class McpHttpHost {
 function frozenRefusal(res: ServerResponse): void {
   res.writeHead(503, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'retry-after': '30' });
   res.end(JSON.stringify({ jsonrpc: '2.0', error: { code: -32000, message: 'deployment in progress; retry this request shortly' }, id: null }));
+}
+
+interface ListenRequest {
+  readonly id?: unknown;
+  readonly method: 'subscriptions/listen';
+  readonly params: { readonly notifications: { readonly resourceSubscriptions?: unknown[] } & Record<string, unknown> } & Record<string, unknown>;
+}
+
+function isListen(body: unknown): body is ListenRequest {
+  const message = body as { method?: unknown; params?: { notifications?: unknown } } | null;
+  return !!message && typeof message === 'object' && !Array.isArray(message) && message.method === 'subscriptions/listen'
+    && !!message.params?.notifications && typeof message.params.notifications === 'object';
+}
+
+/**
+ * The checks the SDK's 2026 entry makes, for a `tasks/*` request this host
+ * answers itself: a JSON body, the protocol version in the header AND the
+ * envelope, and `Mcp-Method` naming the body's method.
+ */
+function modernTaskRequestRefusal(req: IncomingMessage, body: { method?: unknown; params?: { _meta?: Record<string, unknown> } }):
+  { status: number; code: number; message: string } | null {
+  const contentType = String(req.headers['content-type'] ?? '');
+  if (!contentType.toLowerCase().startsWith('application/json')) return { status: 415, code: -32000, message: 'Unsupported Media Type: Content-Type must be application/json' };
+  const headerVersion = req.headers['mcp-protocol-version'];
+  const claimed = body.params?._meta?.['io.modelcontextprotocol/protocolVersion'];
+  if (typeof claimed !== 'string' || claimed < '2026' || headerVersion !== claimed) {
+    return { status: 400, code: -32602, message: 'Invalid params: the MCP-Protocol-Version header and the request envelope must name the same 2026 revision' };
+  }
+  const method = req.headers['mcp-method'];
+  if (method !== body.method) {
+    return { status: 400, code: -32020, message: `Mcp-Method header ${String(method)} does not match the body's ${String(body.method)}` };
+  }
+  return null;
 }
 
 /** A body this host cannot read — too large, cut off, or not JSON — answered as the SDK answers it. */
