@@ -1,5 +1,7 @@
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
@@ -247,6 +249,45 @@ describe('post-CI deployment pipeline', () => {
     expect(install).toBeLessThan(finish);
     expect(finish).toBeLessThan(run);
     expect(suite).toContain(') > /dev/null 2>&1 < /dev/null &');
+  });
+
+  it('gives up on a stalled LibreOffice install with its log instead of holding the job', () => {
+    // 2026-09-30: apt stalled in the background and the finish step waited
+    // for its status file until the 25-minute job timeout, with no log.
+    const block = (name: string): string => {
+      const at = ci.indexOf(`name: ${name}`);
+      expect(at, name).toBeGreaterThan(0);
+      const lines = ci.slice(ci.indexOf('run: |\n', at) + 'run: |\n'.length).split('\n');
+      const body: string[] = [];
+      for (const line of lines) {
+        if (line.trim() !== '' && !line.startsWith(' '.repeat(10))) break;
+        body.push(line.slice(10));
+      }
+      return body.join('\n');
+    };
+    // Every apt wait is bounded: the mirror, and the dpkg lock.
+    const start = block('Start installing LibreOffice for document tests');
+    for (const option of ['Acquire::Retries=', 'Acquire::http::Timeout=', 'Acquire::https::Timeout=', 'DPkg::Lock::Timeout=']) {
+      expect(start).toContain(option);
+    }
+    expect(start.match(/\$apt_opts/g)).toHaveLength(2);
+    // The finish step itself, run with no status file ever written: `sleep`
+    // is stubbed so its whole bounded wait elapses at once.
+    const temp = mkdtempSync(join(tmpdir(), 'atoma-libreoffice-'));
+    try {
+      writeFileSync(join(temp, 'libreoffice.log'), 'E: stalled on the mirror\n');
+      const finish = block('Finish installing LibreOffice for document tests');
+      const ran = spawnSync('bash', ['-c', `sleep() { :; }\n${finish}`], {
+        encoding: 'utf8',
+        env: { ...process.env, RUNNER_TEMP: temp.replace(/\\/g, '/') },
+        timeout: 30_000,
+      });
+      expect(ran.status, ran.stderr).toBe(1);
+      expect(ran.stdout).toContain('::error::LibreOffice install still running');
+      expect(ran.stdout).toContain('E: stalled on the mirror');
+    } finally {
+      rmSync(temp, { recursive: true, force: true });
+    }
   });
 
   it('keeps the host activator syntactically valid Bash', () => {
