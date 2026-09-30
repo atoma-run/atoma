@@ -11,7 +11,7 @@ import {
   type CorpusTrace,
 } from '../atoms/jevCalibration.js';
 import type { Viewer } from '../auth/store.js';
-import { JEV_KEY_ENV, JEV_ORGS_ENV, jevAdmittedOrgs } from '../core/jev.js';
+import { JEV_ENV, JEV_KEY_ENV, jevEnabled } from '../core/jev.js';
 import { JEV_THRESHOLDS, type JevThresholds } from '../core/jevQuestions.js';
 import { ProjectHttpError, type ProjectService } from '../projects/service.js';
 import type { ProjectStore } from '../projects/store.js';
@@ -19,12 +19,12 @@ import { readBoundedRunFile } from '../viz/runIndex.js';
 
 /**
  * `atoma_jev_calibrate` — the door onto `src/atoms/jevCalibration.ts`
- * (docs/jev-decisions-2026-09-28.md). It exists because the key and the list
- * of admitted organisations live in THIS process's environment on the host,
- * and nowhere else: the calibration reads the model decisions of those
- * organisations' runs only, sends them to the same service their runs already
- * reach, and keeps what came back in memory so another reading of the same
- * answers costs nothing.
+ * (docs/jev-decisions-2026-09-28.md). It exists because the key lives in THIS
+ * process's environment on the host, and nowhere else: the calibration reads
+ * the model decisions of every organisation's runs — Jev decides in all of
+ * them since 2026-09-30 — sends them to the same service those runs reach,
+ * and keeps what came back in memory so another reading of the same answers
+ * costs nothing.
  *
  * Results are held per principal and die with the process: a calibration is
  * a measurement to read now, not a record. The figures that matter are
@@ -140,6 +140,8 @@ export async function jevCalibrateCall(
   input: {
     readonly projects: { readonly service: ProjectService; readonly store: ProjectStore };
     readonly viewer: Viewer;
+    /** Every organisation on the instance, read at call time: a new one is in. */
+    readonly orgIds: () => readonly string[];
     readonly env?: NodeJS.ProcessEnv;
     readonly fetchImpl?: typeof fetch;
     readonly signal?: AbortSignal;
@@ -167,14 +169,14 @@ export async function jevCalibrateCall(
   }
 
   const env = input.env ?? process.env;
-  const orgs = jevAdmittedOrgs(env);
-  if (orgs.length === 0) {
-    throw new ProjectHttpError(503, `no organisation is admitted to Jev on this host (${JEV_ORGS_ENV} with ${JEV_KEY_ENV})`);
+  if (!jevEnabled(env)) {
+    throw new ProjectHttpError(503, `Jev is off on this host (${JEV_ENV}=0, or ${JEV_KEY_ENV} is absent)`);
   }
+  const orgs = input.orgIds();
   const twins = args.twins ? twinCases(args.twins) : [];
   if (typeof twins === 'string') throw new ProjectHttpError(400, twins);
   // A cross-organisation read is journaled before anything is read, exactly
-  // as `atoma_run_trace` journals one; only the admitted organisations are.
+  // as `atoma_run_trace` journals one.
   for (const orgId of orgs) input.projects.service.auditRead(input.viewer, orgId, 'mcp.trace');
   const traces: CorpusTrace[] = orgs.flatMap((orgId) =>
     input.projects.store.listOrgRunTraces(orgId).map((row) => {

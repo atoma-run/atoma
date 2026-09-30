@@ -4519,10 +4519,9 @@ server.listen(cli.port, cli.host, () => {
   } else if (EVENTS && PROJECTS_RUNTIME) {
     console.log('analyst: off (ATOMA_VIZ_ANALYST=1 to analyse finished runs on this host)');
   }
-  // docs/jev-decisions-2026-09-28.md: without this line a missing key or a
-  // mistyped organisation id turns Jev off with nothing saying so.
-  const jevStatus = describeJevAdmission(process.env);
-  if (jevStatus) console.log(jevStatus);
+  // docs/jev-decisions-2026-09-28.md: Jev is on by default for every run, so
+  // without this line a missing key would turn it off with nothing saying so.
+  console.log(describeJevAdmission(process.env));
   console.log(
     AUTH_RUNTIME
       ? `mcp: ${new URL('/mcp', AUTH_RUNTIME.publicOrigin).href} (bearer API token from /api/tokens or npm run auth -- token)`

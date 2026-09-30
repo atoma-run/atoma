@@ -19,7 +19,7 @@ import type {
 } from '../contracts/projects.js';
 import type { RunTierModels, TierModelPins } from '../contracts/tierModels.js';
 import { PERSONAL_CODEX_PROFILE_ROOT_ENV } from '../core/codexHomeLease.js';
-import { JEV_ENV, JEV_KEY_ENV, jevAdmitsOrg } from '../core/jev.js';
+import { JEV_ENV, JEV_KEY_ENV, jevEnabled } from '../core/jev.js';
 import { skillsDirPath } from '../core/stores.js';
 import { LLM_PROVIDER_CATALOG, findProvider, isAccountTierSelection } from '../core/providerCatalog.js';
 import {
@@ -708,15 +708,18 @@ export function projectRunEnvironment(input: {
     // in the env would only mislead about where the OTHER tiers went.
     delete environment['ANTHROPIC_BASE_URL'];
   }
-  // JEV'S CREDENTIAL (docs/jev-decisions-2026-09-28.md) crosses only for an
-  // organisation the HOST names in ATOMA_JEV_ORGS: Jev receives each decision's
-  // state — the task text, the catalog, a plan or a result — as a third party,
-  // which an organisation that is not named never agreed to. It is not a tier
-  // credential and pays for no tier; the switch travels with it because the
-  // child cannot see the host's list.
-  if (jevAdmitsOrg(input.hostEnv, input.orgId)) {
+  // JEV'S CREDENTIAL (docs/jev-decisions-2026-09-28.md) crosses into EVERY
+  // organisation's runs, unless the platform switch is off (owner decision
+  // 2026-09-30): Jev receives each decision's state — the task text, the
+  // catalog, a plan or a result — as a third party, which the service terms
+  // state. It is not a tier credential and pays for no tier; the switch
+  // travels with it because this environment is an allowlist.
+  if (jevEnabled(input.hostEnv)) {
     environment[JEV_KEY_ENV] = input.hostEnv[JEV_KEY_ENV]!.trim();
     environment[JEV_ENV] = '1';
+  } else if (input.hostEnv[JEV_ENV] === '0') {
+    // Said in the run log as the platform's choice, not as a missing key.
+    environment[JEV_ENV] = '0';
   }
   Object.assign(environment, {
     ATOMA_REQUIRE_ISOLATION: '1',

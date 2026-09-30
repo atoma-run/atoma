@@ -18,9 +18,9 @@ import {
   NO_CANDIDATE,
   createJevDecider,
   describeJevAdmission,
-  jevAdmitsOrg,
   jevAsk,
   jevDeciderFromEnv,
+  jevEnabled,
 } from '../src/core/jev.js';
 import { JEV_THRESHOLDS } from '../src/core/jevQuestions.js';
 import type {
@@ -618,13 +618,14 @@ describe('the Jev decider — approvals', () => {
     ]);
   });
 
-  it('is present only with both the switch and the credential in the snapshot', () => {
+  it('is present whenever the snapshot holds the credential, unless its switch is 0', () => {
     const record = (): void => {};
     expect(jevDeciderFromEnv({}, record)).toBeUndefined();
     expect(jevDeciderFromEnv({ [JEV_ENV]: '1' }, record)).toBeUndefined();
-    expect(jevDeciderFromEnv({ [JEV_KEY_ENV]: KEY }, record)).toBeUndefined();
-    expect(jevDeciderFromEnv({ [JEV_ENV]: 'true', [JEV_KEY_ENV]: KEY }, record)).toBeUndefined();
+    // On by default (owner decision 2026-09-30): the key alone is enough.
+    expect(jevDeciderFromEnv({ [JEV_KEY_ENV]: KEY }, record)).toBeDefined();
     expect(jevDeciderFromEnv({ [JEV_ENV]: '1', [JEV_KEY_ENV]: KEY }, record)).toBeDefined();
+    expect(jevDeciderFromEnv({ [JEV_ENV]: '0', [JEV_KEY_ENV]: KEY }, record)).toBeUndefined();
   });
 });
 
@@ -1073,9 +1074,8 @@ describe('who lets Jev decide', () => {
     ...ANTHROPIC_PINS,
     ANTHROPIC_API_KEY: 'host-key',
     [JEV_KEY_ENV]: KEY,
+    // Read until 2026-09-30; now it limits nothing, and never crosses into a run.
     [JEV_ORGS_ENV]: 'org-a, org-b',
-    // A host-level switch must never reach a tenant run by itself.
-    [JEV_ENV]: '1',
   };
   const BASE = {
     dbPath: '/control/atoma.db',
@@ -1087,37 +1087,34 @@ describe('who lets Jev decide', () => {
   };
 
   it('says at boot whether the host lets Jev decide, and why not', () => {
-    const org = 'd28f40d2-14d7-45c7-bce3-928dcb0041a6';
-    expect(describeJevAdmission({})).toBeNull();
-    expect(describeJevAdmission({ [JEV_KEY_ENV]: KEY })).toMatch(/off .*names no organisation/);
-    expect(describeJevAdmission({ [JEV_ORGS_ENV]: org })).toMatch(/off .*TYPESAFE_API_KEY is absent/);
-    expect(describeJevAdmission({ [JEV_KEY_ENV]: KEY, [JEV_ORGS_ENV]: `${org}, my-org-slug` })).toBe(
-      `jev: deciding in project runs of 1 organisation(s) (${JEV_EVALUATOR}); ` +
-        'not organisation ids, so they match no run: my-org-slug'
+    expect(describeJevAdmission({})).toBe('jev: off (TYPESAFE_API_KEY is absent, so no run can ask it)');
+    expect(describeJevAdmission({ [JEV_KEY_ENV]: KEY })).toBe(`jev: deciding in every run (${JEV_EVALUATOR})`);
+    expect(describeJevAdmission({ [JEV_KEY_ENV]: KEY, [JEV_ENV]: '0' })).toBe('jev: off for every run (ATOMA_JEV=0)');
+    expect(describeJevAdmission(HOST)).toBe(
+      `jev: deciding in every run (${JEV_EVALUATOR}); ATOMA_JEV_ORGS is no longer read and can be removed`
     );
-    expect(JSON.stringify(describeJevAdmission({ [JEV_KEY_ENV]: KEY, [JEV_ORGS_ENV]: org }))).not.toContain(KEY);
+    expect(describeJevAdmission(HOST)).not.toContain(KEY);
   });
 
-  it('admits an organisation only when the host holds the key and names it', () => {
-    expect(jevAdmitsOrg(HOST, 'org-a')).toBe(true);
-    expect(jevAdmitsOrg(HOST, 'org-b')).toBe(true);
-    expect(jevAdmitsOrg(HOST, 'org-c')).toBe(false);
-    expect(jevAdmitsOrg(HOST, undefined)).toBe(false);
-    expect(jevAdmitsOrg({ ...HOST, [JEV_KEY_ENV]: ' ' }, 'org-a')).toBe(false);
-    expect(jevAdmitsOrg({ ...HOST, [JEV_ORGS_ENV]: '' }, 'org-a')).toBe(false);
+  it('lets Jev decide for every organisation, existing or new, unless the platform switch is off', () => {
+    expect(jevEnabled(HOST)).toBe(true);
+    expect(jevEnabled({ ...HOST, [JEV_ENV]: '1' })).toBe(true);
+    expect(jevEnabled({ ...HOST, [JEV_ENV]: '0' })).toBe(false);
+    expect(jevEnabled({ ...HOST, [JEV_KEY_ENV]: ' ' })).toBe(false);
   });
 
-  it('forwards the key and the switch into an admitted project run, and nothing into any other', () => {
-    const admitted = projectRunEnvironment({ ...BASE, hostEnv: HOST, orgId: 'org-a' }).environment;
-    expect(admitted[JEV_KEY_ENV]).toBe(KEY);
-    expect(admitted[JEV_ENV]).toBe('1');
-    expect(admitted[JEV_ORGS_ENV]).toBeUndefined();
-
-    for (const orgId of ['org-c', undefined]) {
-      const other = projectRunEnvironment({ ...BASE, hostEnv: HOST, ...(orgId ? { orgId } : {}) }).environment;
-      expect(other[JEV_KEY_ENV]).toBeUndefined();
-      expect(other[JEV_ENV]).toBeUndefined();
+  it('forwards the key and the switch into every project run, and nothing once the platform switch is off', () => {
+    // Named or not in the old list, created today or never seen before: all the same.
+    for (const orgId of ['org-a', 'org-c', 'e22494f2-3ef2-442d-8fd3-87b0e4c0c3c1', undefined]) {
+      const run = projectRunEnvironment({ ...BASE, hostEnv: HOST, ...(orgId ? { orgId } : {}) }).environment;
+      expect(run[JEV_KEY_ENV]).toBe(KEY);
+      expect(run[JEV_ENV]).toBe('1');
+      expect(run[JEV_ORGS_ENV]).toBeUndefined();
     }
+    const off = projectRunEnvironment({ ...BASE, hostEnv: { ...HOST, [JEV_ENV]: '0' }, orgId: 'org-a' }).environment;
+    expect(off[JEV_KEY_ENV]).toBeUndefined();
+    // The run log then says the platform turned Jev off, not that a key is missing.
+    expect(off[JEV_ENV]).toBe('0');
   });
 });
 

@@ -954,15 +954,16 @@ export async function startTask(
   }
 
   // Jev (docs/jev-decisions-2026-09-28.md) reads the run's SNAPSHOT, like every
-  // credential: a project run's environment is the one its coordinator built,
-  // which carries the key only for an admitted organisation.
+  // credential: a project run's environment is the one its coordinator built.
+  // Every run holding the key lets Jev decide unless the switch it inherited
+  // is `0`, the platform's off position.
   const jev = jevDeciderFromEnv(providerEnv, (info) => recorder.recordJevDecision(info));
   // On STDERR: stdout is the burn-in API. The project run log carries both, so
-  // whether Jev decided in a run can be read from its log, not guessed.
+  // whether Jev decided in a run can be read from its log, not guessed — and
+  // since Jev is expected in every run, so is why it did not.
   if (jev) process.stderr.write(`[atoma runner] jev: deciding (${JEV_EVALUATOR})\n`);
-  else if (providerEnv[JEV_ENV] === '1') {
-    process.stderr.write(`[atoma runner] jev: off (${JEV_ENV}=1 but ${JEV_KEY_ENV} is absent)\n`);
-  }
+  else if (providerEnv[JEV_ENV] === '0') process.stderr.write(`[atoma runner] jev: off (${JEV_ENV}=0)\n`);
+  else process.stderr.write(`[atoma runner] jev: off (${JEV_KEY_ENV} is absent)\n`);
 
   const ctx: RunContext = {
     ...(args.depth ? { attestations: createAttestationLog((record) => recorder.recordAttestation(record)) } : {}),

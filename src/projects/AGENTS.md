@@ -65,8 +65,10 @@ list. These values come from the host snapshot, never a tenant prompt.
   (`ANTHROPIC_BASE_URL`, `OPENAI_BASE_URL`, …): a tenant's key belongs to its
   own issuer, the host's gateway applies to the host's own credential only.
 - ONE other credential crosses: Jev's `TYPESAFE_API_KEY`, with `ATOMA_JEV=1`,
-  and only for an organisation the host names in `ATOMA_JEV_ORGS` — Jev
-  receives task, catalog, plan and result text as a third party
+  into EVERY organisation's runs unless the platform switch `ATOMA_JEV=0` is
+  set on the host (then only `ATOMA_JEV=0` crosses, so the run log says why) —
+  Jev receives task, catalog, plan and result text as a third party, which the
+  service terms state
   ([owner decision](../../docs/jev-decisions-2026-09-28.md)).
 - `api:openai` is OpenAI's API with function tools, admissible on every tier
   from the org's or the host's `OPENAI_API_KEY`. `sub:openai`/`own:openai`

@@ -316,17 +316,15 @@ Neighbours:
 
 ## The Jev calibration (`jevCalibrate.ts`)
 
-- `atoma_jev_calibrate` (platform, `needs: ['projects']`) is the door onto
-  `src/atoms/jevCalibration.ts`
+- `atoma_jev_calibrate` (platform, `needs: ['auth', 'projects']`) is the door
+  onto `src/atoms/jevCalibration.ts`
   ([decision record](../../docs/jev-decisions-2026-09-28.md)): it reads the
-  MODEL's prefilter and validation decisions out of the runs of the
-  organisations THIS HOST ADMITS TO JEV (`jevAdmittedOrgs`: `ATOMA_JEV_ORGS`
-  with the key), asks TypeSafe both question designs on them, and reports each
-  against the model's decision. No other organisation's trace is opened, so
-  nothing leaves for TypeSafe that its own runs do not already send; each
-  foreign admitted organisation is journaled once per call as an `mcp.trace`
-  cross-organisation read. With none admitted it answers 503, as a host
-  without previews does.
+  MODEL's prefilter and validation decisions out of every organisation's runs
+  — Jev decides in all of them since 2026-09-30 — asks TypeSafe both question
+  designs on them, and reports each against the model's decision. Each
+  foreign organisation is journaled once per call as an `mcp.trace`
+  cross-organisation read. With Jev off on the host (`ATOMA_JEV=0`, or no
+  key) it answers 503, as a host without previews does.
 - It is registered `readOnlyHint: true` although it spends cents: it writes
   nothing of Atoma's but the audit row, and a deployment's write freeze has no
   reason to refuse a measurement.

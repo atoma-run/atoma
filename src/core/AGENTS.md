@@ -189,8 +189,10 @@ Neighbours:
   routed through `LlmClient`. Where it decides is an atoms rule
   ([src/atoms](../atoms/AGENTS.md)); a `null` from the decider always means
   "the model decides".
-- Which runs carry its credential is a project-run rule, stated in
-  [src/projects](../projects/AGENTS.md); `jevAdmitsOrg` is its test.
+- EVERY run holding the key lets Jev decide, whatever its organisation, unless
+  the platform switch `ATOMA_JEV=0` is set (owner decision 2026-09-30):
+  `jevEnabled` is the host's test, `jevDeciderFromEnv` the run's. How the key
+  reaches a project run is stated in [src/projects](../projects/AGENTS.md).
 - It is priced with `estimateCostUsd` on `JEV_PRICES`, recorded on its own
   `jev` event, and kept out of the run's LLM totals. A decision waits at most
   `JEV_DECISION_TIMEOUT_MS`; after `JEV_MAX_FAILURES_PER_RUN` failed calls —

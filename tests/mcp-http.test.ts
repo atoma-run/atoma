@@ -1239,12 +1239,12 @@ it('journals a platform-admin MCP trace read under the foreign organisation', as
     expect(events[0]).toMatchObject({ actorId: a.viewer.principalId, orgId: b.viewer.orgId, detail: { surface: 'mcp.trace' } });
   } finally { await client.close(); }
 });
-it('calibrates Jev over MCP on the admitted organisations only, and reads its answers again for free', async () => {
+it('calibrates Jev over MCP on every organisation, and reads its answers again for free', async () => {
   const root = mkdtempSync(join(tmpdir(), 'atoma-mcp-jev-calibrate-'));
   dirs.push(root);
   const a = projectRetrievalFixture(root, { subject: 'admin', slug: 'admin' });
-  const b = projectRetrievalFixture(root, { subject: 'admitted', slug: 'admitted' });
-  const c = projectRetrievalFixture(root, { subject: 'excluded', slug: 'excluded' });
+  const b = projectRetrievalFixture(root, { subject: 'second', slug: 'second' });
+  const c = projectRetrievalFixture(root, { subject: 'third', slug: 'third' });
   const writeTrace = (fixture: typeof a, task: string, startedAt: string) => {
     const run = fixture.makeRun();
     mkdirSync(run.layout.runsPath, { recursive: true });
@@ -1257,8 +1257,8 @@ it('calibrates Jev over MCP on the admitted organisations only, and reads its an
     }));
   };
   writeTrace(a, 'Build the admin page.', '2026-09-27T10:00:00.000Z');
-  writeTrace(b, 'Build the admitted page.', '2026-09-27T11:00:00.000Z');
-  writeTrace(c, 'Build the SECRET-C page.', '2026-09-27T12:00:00.000Z');
+  writeTrace(b, 'Build the second page.', '2026-09-27T11:00:00.000Z');
+  writeTrace(c, 'Build the third page.', '2026-09-27T12:00:00.000Z');
   const journal = PlatformEventLog.open(a.dbPath);
   const service = new ProjectService({ store: a.projects, github: null,
     coordinator: {} as ProjectRunCoordinator, auditRead: read => journal.recordCrossOrgRead(read) });
@@ -1277,7 +1277,6 @@ it('calibrates Jev over MCP on the admitted organisations only, and reads its an
     return new Response(JSON.stringify({ model: 'jev-1.13.0', answers, usage: { input_tokens: 100, output_tokens: 0 } }), { status: 200 });
   });
   vi.stubEnv('TYPESAFE_API_KEY', 'ts-key');
-  vi.stubEnv('ATOMA_JEV_ORGS', `${a.viewer.orgId},${b.viewer.orgId}`);
   const { url } = await listen(() => ({ kind: 'principal', viewer: { ...a.viewer, platformAdmin: true }, tokenId: 'admin' }),
     { ...NO_TENANT, auth: a.auth, projects: { store: a.projects, service }, journal });
   const client = await connect(url);
@@ -1287,22 +1286,26 @@ it('calibrates Jev over MCP on the admitted organisations only, and reads its an
     const asked = await client.callTool({ name: 'atoma_jev_calibrate', arguments: { since: '2026-09-26', until: '2026-09-29' } });
     expect(asked.isError).not.toBe(true);
     const payload = asked.structuredContent as Payload;
-    expect(payload.orgs).toEqual([a.viewer.orgId, b.viewer.orgId]);
-    expect(payload.window).toMatchObject({ decisions: 2, nextOffset: null });
-    expect(payload.report.prefilter[0]!.documented.agree).toBe(2);
-    // Both designs on two decisions: four requests, none carrying the excluded organisation's text.
-    expect(bodies).toHaveLength(4);
-    expect(bodies.join(' ')).not.toContain('SECRET-C');
-    // The foreign admitted organisation's read is journaled; the excluded one is never read.
-    expect(journal.list({ kind: 'admin.cross_org_read' }).events.map((event) => event.orgId)).toEqual([b.viewer.orgId]);
+    // Every organisation on the instance, none named anywhere (owner decision 2026-09-30).
+    const everyOrg = [a.viewer.orgId, b.viewer.orgId, c.viewer.orgId].sort();
+    expect([...payload.orgs].sort()).toEqual(everyOrg);
+    expect(payload.window).toMatchObject({ decisions: 3, nextOffset: null });
+    expect(payload.report.prefilter[0]!.documented.agree).toBe(3);
+    // Both designs on three decisions: six requests.
+    expect(bodies).toHaveLength(6);
+    expect(bodies.join(' ')).toContain('Build the third page.');
+    // Each foreign organisation's read is journaled; the caller's own is not a cross-organisation read.
+    const reads = journal.list({ kind: 'admin.cross_org_read' }).events.map((event) => event.orgId).sort();
+    expect(reads).toEqual([b.viewer.orgId, c.viewer.orgId].sort());
     const again = await client.callTool({ name: 'atoma_jev_calibrate', arguments: { resultIds: [payload.resultId], thresholds: { fit: 0.95 } } });
     expect(again.isError).not.toBe(true);
-    expect(bodies).toHaveLength(4);
-    expect((again.structuredContent as Payload).report.prefilter[0]!.documented.deferred).toBe(2);
-    vi.stubEnv('ATOMA_JEV_ORGS', '');
+    expect(bodies).toHaveLength(6);
+    expect((again.structuredContent as Payload).report.prefilter[0]!.documented.deferred).toBe(3);
+    // The platform switch turns it off, as it turns Jev off in every run.
+    vi.stubEnv('ATOMA_JEV', '0');
     const refused = await client.callTool({ name: 'atoma_jev_calibrate', arguments: {} });
     expect(refused.isError).toBe(true);
-    expect(JSON.stringify(refused.content)).toContain('no organisation is admitted to Jev');
+    expect(JSON.stringify(refused.content)).toContain('Jev is off on this host');
   } finally {
     await client.close();
     vi.unstubAllGlobals();

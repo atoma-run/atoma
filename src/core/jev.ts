@@ -67,11 +67,19 @@ export const JEV_ENDPOINT = 'https://api.typesafe.ai/v1/systemone';
 export const JEV_MODEL = 'jev-1.13.0';
 export const JEV_EVALUATOR = `typesafe:${JEV_MODEL}`;
 
-/** The credential. Crosses into a project run only for an admitted organisation. */
+/** The credential Jev needs. Every run holding it lets Jev decide, unless the platform switch is off. */
 export const JEV_KEY_ENV = 'TYPESAFE_API_KEY';
-/** The run child's switch, written by the coordinator; an operator sets it by hand. */
+/**
+ * The PLATFORM switch, ON by default (owner decision 2026-09-30: every
+ * organisation, existing or new, and every run). `0` on the host turns Jev off
+ * for every run it launches, which inherit it; the coordinator writes `1` into
+ * a project run's environment beside the key.
+ */
 export const JEV_ENV = 'ATOMA_JEV';
-/** HOST only: comma-separated organisation ids whose project runs let Jev decide. */
+/**
+ * No longer read. Until 2026-09-30 it named the organisations whose project
+ * runs let Jev decide; it is named here only for the boot line to say so.
+ */
 export const JEV_ORGS_ENV = 'ATOMA_JEV_ORGS';
 
 /**
@@ -704,51 +712,40 @@ export function createJevDecider(opts: {
   };
 }
 
-function listedOrgs(value: string | undefined): Set<string> {
-  return new Set((value ?? '').split(',').map((id) => id.trim()).filter(Boolean));
-}
-
 /**
- * Whether a project run of `orgId` lets Jev decide: the host holds the
- * credential AND names that organisation. Anything missing answers no.
+ * Whether the runs a host launches let Jev decide: in EVERY organisation,
+ * existing or new, and every run, whenever the host holds the credential and
+ * its platform switch is not `0` — the owner's "toutes les orgs, existantes ou
+ * nouvelles, et tous les runs doivent utiliser Jev" (2026-09-30), taken knowing
+ * that each decision's state then reaches TypeSafe for organisations that are
+ * not the operator's. Until then only the organisations the host named in
+ * `ATOMA_JEV_ORGS` did.
  */
-export function jevAdmitsOrg(hostEnv: NodeJS.ProcessEnv, orgId: string | undefined): boolean {
-  if (!orgId || !hostEnv[JEV_KEY_ENV]?.trim()) return false;
-  return listedOrgs(hostEnv[JEV_ORGS_ENV]).has(orgId);
+export function jevEnabled(hostEnv: NodeJS.ProcessEnv): boolean {
+  return hostEnv[JEV_ENV] !== '0' && Boolean(hostEnv[JEV_KEY_ENV]?.trim());
 }
-
-/** The organisations whose project runs Jev decides for on this host — none without the key. */
-export function jevAdmittedOrgs(hostEnv: NodeJS.ProcessEnv): string[] {
-  return [...listedOrgs(hostEnv[JEV_ORGS_ENV])].filter((orgId) => jevAdmitsOrg(hostEnv, orgId));
-}
-
-const ORG_ID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * One line saying whether the HOST lets Jev decide, and why not — printed at
- * server start, because a missing key or a slug written for an id otherwise
- * turns Jev off in silence. `null` when the host asks nothing of Jev.
+ * One line saying whether the HOST lets Jev decide, printed at server start:
+ * Jev is expected in every run, so a missing key is said, never silent, and a
+ * leftover `ATOMA_JEV_ORGS` is said to limit nothing any more.
  */
-export function describeJevAdmission(hostEnv: NodeJS.ProcessEnv): string | null {
-  const orgs = [...listedOrgs(hostEnv[JEV_ORGS_ENV])];
-  const hasKey = Boolean(hostEnv[JEV_KEY_ENV]?.trim());
-  if (orgs.length === 0) return hasKey ? `jev: off (${JEV_KEY_ENV} is set but ${JEV_ORGS_ENV} names no organisation)` : null;
-  if (!hasKey) return `jev: off (${JEV_ORGS_ENV} names ${orgs.length} organisation(s) but ${JEV_KEY_ENV} is absent)`;
-  const malformed = orgs.filter((id) => !ORG_ID_SHAPE.test(id));
-  const suffix =
-    malformed.length > 0 ? `; not organisation ids, so they match no run: ${malformed.join(', ')}` : '';
-  return `jev: deciding in project runs of ${orgs.length - malformed.length} organisation(s) (${JEV_EVALUATOR})${suffix}`;
+export function describeJevAdmission(hostEnv: NodeJS.ProcessEnv): string {
+  const leftover = hostEnv[JEV_ORGS_ENV]?.trim() ? `; ${JEV_ORGS_ENV} is no longer read and can be removed` : '';
+  if (hostEnv[JEV_ENV] === '0') return `jev: off for every run (${JEV_ENV}=0)${leftover}`;
+  if (!hostEnv[JEV_KEY_ENV]?.trim()) return `jev: off (${JEV_KEY_ENV} is absent, so no run can ask it)${leftover}`;
+  return `jev: deciding in every run (${JEV_EVALUATOR})${leftover}`;
 }
 
 /**
- * The decider a run gets from its environment snapshot: present only when the
- * switch is `1` and the credential is there, absent otherwise.
+ * The decider a run gets from its environment snapshot: present whenever the
+ * credential is there, unless the switch the run inherited is `0`.
  */
 export function jevDeciderFromEnv(
   env: NodeJS.ProcessEnv,
   record: (info: JevDecisionInfo) => void
 ): JevDecider | undefined {
-  if (env[JEV_ENV] !== '1') return undefined;
+  if (env[JEV_ENV] === '0') return undefined;
   const apiKey = env[JEV_KEY_ENV]?.trim();
   if (!apiKey) return undefined;
   return createJevDecider({ apiKey, record });

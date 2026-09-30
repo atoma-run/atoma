@@ -1,6 +1,7 @@
 # Shared-learning service terms
 
-Service terms dated 2026-09-20 for the hosted service at
+Service terms dated 2026-09-20, updated 2026-09-30 (decisions taken by
+TypeSafe), for the hosted service at
 [atoma.run](https://atoma.run), implementing the owner's commons decision.
 Publication of these terms does not itself record any individual user's acceptance.
 
@@ -53,6 +54,20 @@ boundaries, misuse credentials, or submit material you are not entitled to use.
 Review generated results before relying on, distributing or deploying them.
 Generated results and learned recipes can contain errors; reuse and trust
 history do not guarantee correctness or suitability.
+
+## Decisions taken by TypeSafe
+
+Every run uses TypeSafe's Jev decision model ([typesafe.ai](https://typesafe.ai)),
+under the operator's account and at the operator's cost, for bounded decisions:
+which agent or learned recipe takes a step, whether a plan or a result can be
+approved without a model review, and whether a newly learned recipe duplicates
+an existing one. For each such decision the service sends TypeSafe that
+decision's content: the step's task text and constraints, the descriptions of
+the candidate agents or recipes, and the plan or result under review with
+excerpts of its recorded tool evidence. TypeSafe processes it under its own
+terms and may retain it. The operator can turn this off for the whole service;
+a decision TypeSafe does not take is taken by the run's model instead. Final
+delivery acceptance is never TypeSafe's.
 
 ## Retention and withdrawal
 

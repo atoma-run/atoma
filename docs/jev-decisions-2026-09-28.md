@@ -146,11 +146,15 @@ through the real recorder.
 
 ## Who lets Jev decide, and what leaves the platform
 
-- A PROJECT run lets Jev decide only when the host environment names its
-  organisation in `ATOMA_JEV_ORGS`. The coordinator then forwards
-  `TYPESAFE_API_KEY` and the child switch `ATOMA_JEV=1`, and nothing otherwise;
-  a host-level switch never reaches a tenant run by itself. An OPERATOR run
-  lets it decide when its own environment sets `ATOMA_JEV=1` beside the key.
+- EVERY run lets Jev decide — every organisation's project runs, existing or
+  new, operator runs, local runs, benchmark attempts — whenever its
+  environment holds `TYPESAFE_API_KEY`, unless the PLATFORM switch
+  `ATOMA_JEV=0` is set on the host (owner decision of 2026-09-30, below). The
+  coordinator forwards the key and `ATOMA_JEV=1` into every project run, or
+  `ATOMA_JEV=0` when the platform switch is off; operator runs inherit the
+  host's environment, switch included. Until 2026-09-30 only the organisations
+  the host named in `ATOMA_JEV_ORGS` did, and an operator run needed
+  `ATOMA_JEV=1` by hand.
 - Each question sends TypeSafe the decision's state: the task text and
   constraints; for the prefilter, the candidates' descriptions, which come
   from the platform commons (capability descriptions, and the ids, descriptions
@@ -158,9 +162,8 @@ through the real recorder.
   for a validation, the plan or the result (summary and output capped
   separately), its recorded evidence (newest observations kept first, as the
   model validator budgets them) and the ground-truth block (head and tail).
-  On 2026-09-28 every run that fed the commons was the owner's; NOTHING
-  enforces that, and the first run of another organisation that creates an
-  agent type or learns a recipe puts its text in what admitted runs send.
+  Since 2026-09-30 that is every organisation's run content, not only the
+  operator's, and the service terms (`docs/platform-commons-terms.md`) say so.
 - TypeSafe's legal page (docs.typesafe.ai/legal) offers zero data retention to
   enterprise customers on request, commits not to train on customer data
   without consent, and reserves the right to process telemetry, classifications
@@ -176,24 +179,23 @@ On the host, in `/home/atoma/config/atoma.env`:
 
 ```dotenv
 TYPESAFE_API_KEY=<key>
-ATOMA_JEV_ORGS=<org id>,<org id>
+# ATOMA_JEV=0   # the platform switch: uncomment to turn Jev off for every run
 ```
 
-It takes effect when the service next starts, which a deployment does after
-its preflight. Removing `ATOMA_JEV_ORGS` (or the key) and restarting hands
-every NEW decision back to the model without a code change. It does not undo
-what Jev's decisions already earned: trust counters credited on Jev approvals
-are platform-wide — they open the trust fast path in every organisation's
-runs, admitted or not — and carry no provenance. Reverting them means
+`ATOMA_JEV_ORGS` is no longer read; the boot line says so while it is still
+there. A change takes effect when the service next starts, which a deployment
+does after its preflight. `ATOMA_JEV=0` (or removing the key) and a restart
+hand every NEW decision back to the model without a code change. It does not
+undo what Jev's decisions already earned: trust counters credited on Jev
+approvals are platform-wide and carry no provenance. Reverting them means
 reconstructing them from the traces (a `jev` event with outcome `approved`
 followed by that child's `recordSuccess`) and correcting the counters by hand.
 The server says at boot whether Jev decides (`describeJevAdmission`: "jev:
-deciding in project runs of N organisation(s)", or why it is off, naming any
-entry that is not an organisation id), and every run that lets Jev decide
-writes `[atoma runner] jev: deciding` to its log — readable through
-`atoma_run_trace` with `section: log`. The first run after a deployment must
-also hold `jev` events. The service reads `atoma.env` only when it starts: a
-line added after the last start waits for the next deployment or a restart.
+deciding in every run", or why it is off), and every run writes to its log
+either `[atoma runner] jev: deciding` or why not (`ATOMA_JEV=0`, or the key
+absent) — readable through `atoma_run_trace` with `section: log`. The service
+reads `atoma.env` only when it starts: a line added after the last start waits
+for the next deployment or a restart.
 
 ## First production runs, 2026-09-29
 
@@ -283,8 +285,8 @@ nothing until two measurements had set its questions and thresholds.
 
 **How it is measured.** `atoma_jev_calibrate` (platform tier, on the host,
 with the host's key) reads the model's prefilter and validation decisions out
-of the runs of the organisations `ATOMA_JEV_ORGS` admits — no other
-organisation's trace is opened — rebuilds from each prompt the request the
+of the runs of the organisations Jev decides for — on 2026-09-29 the two
+`ATOMA_JEV_ORGS` named, since 2026-09-30 all of them — rebuilds from each prompt the request the
 decider would send, asks TypeSafe both designs, and reports each against the
 model's decision: false approvals (Jev yes where the model refused, the error
 that compounds trust), the share of the model's approvals each design takes,
@@ -362,6 +364,28 @@ two, and about half the results (87 % before, on the thin line above) with
 none. The reading below restarts from this switch: the runs before it
 measured another design.
 
+## Every organisation, every run — owner decision 2026-09-30
+
+The owner's words: "toutes les orgs, existantes ou nouvelles, et tous les runs
+doivent utiliser Jev, ce n'est pas optionnel (on peut prévoir un flag au niveau
+plateforme pour éventuellement désactiver Jev mais par défaut Jev doit être
+activé)". Asked first whether organisations that are not the operator's should
+be included — their decision states then reach TypeSafe, a processor they had
+not been told about — the owner chose every organisation, knowing the service
+terms must name TypeSafe.
+
+- `ATOMA_JEV_ORGS` is no longer read. A host holding `TYPESAFE_API_KEY` lets
+  Jev decide in every run it launches; `ATOMA_JEV=0` on the host is the one
+  platform switch, and it reaches every run (`jevEnabled`, `jevDeciderFromEnv`).
+- Benchmark attempts are runs too, so their atoma arms now decide with Jev.
+  Rounds registered before 2026-09-30 ran without it; a round after it is a
+  different system, and its write-up says so.
+- The calibration reads every organisation's model decisions, each foreign
+  organisation's read journaled as before.
+- `docs/platform-commons-terms.md` states what reaches TypeSafe, dated the same
+  day. The operator's privacy notice, which lives outside this repository,
+  must name TypeSafe as a recipient too.
+
 ## Reading "we will see"
 
 Two weeks after the switch of 2026-09-29 (so around 2026-10-13), or sooner if
@@ -380,6 +404,7 @@ model decides only what Jev hands it, so `atoma_jev_calibrate` with
 4. **Trust inflation**: atom types whose consecutive-success counter was
    earned on Jev approvals.
 
-If (1) or (2) rises past what the saved seconds pay for, remove `ATOMA_JEV_ORGS`.
+If (1) or (2) rises past what the saved seconds pay for, set the platform
+switch `ATOMA_JEV=0` on the host and restart.
 If it is ever worth making Jev a first-class evaluator, it enters
 `modelCatalog.json` through a typed evaluation operation first.
