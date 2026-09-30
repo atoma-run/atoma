@@ -17,6 +17,9 @@ corrections of the 2026-09-24 and 2026-09-25 code reviews.
   Set the limits in Settings or with `npm run settings`; every change is
   journaled, and a ceiling below a request the host exports is refused. An
   instance where nobody has set one behaves exactly as before.
+- MCP: `atoma_mcp_health`, for a platform admin: which protocol version each
+  client speaks, counted since the server started — the evidence for when
+  2025-11-25 support can go.
 - MCP: `server.json`, the MCP Registry entry for the deployed server
   (`run.atoma/atoma`, streamable HTTP on `https://atoma.run/mcp`). Clients
   sign in through OAuth, or send an API token as `Authorization`.

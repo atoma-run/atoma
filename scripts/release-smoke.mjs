@@ -112,7 +112,7 @@ const mcpSmoke = async (base) => {
   const { tools } = await call('tools/list');
   if (!Array.isArray(tools) || tools.length === 0) throw new Error('compiled MCP listed no tools');
   const names = tools.map((tool) => tool.name);
-  for (const required of ['atoma_operator_run_start', 'atoma_operator_run_cancel', 'atoma_registry_list', 'atoma_run_trace', 'atoma_skills_show', 'atoma_ledger_tail', 'atoma_costs', 'atoma_skill_reset', 'atoma_registry_rollback']) {
+  for (const required of ['atoma_operator_run_start', 'atoma_operator_run_cancel', 'atoma_registry_list', 'atoma_run_trace', 'atoma_skills_show', 'atoma_ledger_tail', 'atoma_costs', 'atoma_mcp_health', 'atoma_skill_reset', 'atoma_registry_rollback']) {
     if (!names.includes(required)) throw new Error(`compiled MCP is missing ${required}`);
   }
   const startTool = tools.find((tool) => tool.name === 'atoma_operator_run_start');
@@ -154,6 +154,11 @@ const mcpSmoke = async (base) => {
   const costsResult = await call('tools/call', { name: 'atoma_costs', arguments: {} });
   if (!costsResult?.structuredContent || typeof costsResult.structuredContent.runsScanned !== 'number') {
     throw new Error('atoma_costs returned no structured content');
+  }
+  // The compiled server wires the host's own counters: this smoke's session is in them.
+  const mcpHealth = (await call('tools/call', { name: 'atoma_mcp_health', arguments: {} }))?.structuredContent?.mcp;
+  if (!mcpHealth || !Object.keys(mcpHealth.clients ?? {}).some((kind) => kind.endsWith(' atoma-release-smoke'))) {
+    throw new Error('atoma_mcp_health did not count the smoke client');
   }
   const { prompts } = await call('prompts/list');
   if (!Array.isArray(prompts) || prompts.length < 4) {

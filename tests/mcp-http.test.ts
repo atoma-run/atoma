@@ -303,6 +303,22 @@ it('exposes the persisted Git destination over MCP without claiming a PR was mer
   } finally { await client.close(); }
 });
 
+it('tells a platform admin which protocol each client speaks, itself included', async () => {
+  // 2026-09-30: the host counted `<version> <client>` pairs and nothing read
+  // them, so nobody could say which protocol production clients speak.
+  // The deps are built before the host that serves them, as in src/viz/server.ts.
+  const counted: { host?: McpHttpHost } = {};
+  const { url, host } = await listen(() => ({ kind: 'operator' }), { ...NO_TENANT, mcpHealth: () => counted.host!.health() });
+  counted.host = host;
+  const client = await connect(url);
+  try {
+    const result = await client.callTool({ name: 'atoma_mcp_health', arguments: {} });
+    const mcp = (result.structuredContent as { mcp: { sessions: number; clients: Record<string, number> } }).mcp;
+    expect(mcp.sessions).toBe(1);
+    expect(Object.entries(mcp.clients)).toEqual([[expect.stringMatching(/^\d{4}-\d{2}-\d{2} test$/), 1]]);
+  } finally { await client.close(); }
+});
+
 describe('the catalogue by tier', () => {
   it('shows each caller its ladder and nothing above it', () => {
     const names = (caller: McpCaller, deps: McpToolDeps) => visibleTools(caller, deps).map((t) => t.name);
@@ -346,7 +362,7 @@ describe('the catalogue by tier', () => {
     expect(asOperator).toContain('atoma_run_trace');
     // The operator-only readers and writes the roadmap owed, all platform-tier:
     // skill analytics and the four lifecycle writes included.
-    for (const owed of ['atoma_ledger_tail', 'atoma_costs', 'atoma_skills_stats', 'atoma_skills_review', 'atoma_verdicts_list', 'atoma_verdict_show', 'atoma_sentinel_health', 'atoma_skill_reset', 'atoma_skill_drop', 'atoma_skill_merge', 'atoma_registry_rollback']) {
+    for (const owed of ['atoma_ledger_tail', 'atoma_costs', 'atoma_skills_stats', 'atoma_skills_review', 'atoma_verdicts_list', 'atoma_verdict_show', 'atoma_sentinel_health', 'atoma_mcp_health', 'atoma_skill_reset', 'atoma_skill_drop', 'atoma_skill_merge', 'atoma_registry_rollback']) {
       expect(asOperator).toContain(owed);
       expect(asAdmin).not.toContain(owed);
     }

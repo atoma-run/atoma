@@ -20,6 +20,7 @@ import { ProjectHttpError, roleAtLeast, type ProjectService } from '../projects/
 import type { ProjectStore } from '../projects/store.js';
 import { resolveProjectRunTraceFile } from '../projects/store.js';
 import type { SentinelHealth } from '../sentinel/resident.js';
+import type { McpHttpHealth } from './http.js';
 import { sentinelRuleTable } from '../sentinel/rules.js';
 import type { ResidentAnalystHealth } from '../supervisor/resident.js';
 import type { PushLocale } from '../viz/push/routes.js';
@@ -134,6 +135,8 @@ export interface McpToolDeps {
   /** The resident watch's health and the analyst's, read at call time. */
   readonly sentinel?: () => SentinelHealth;
   readonly analyst?: () => ResidentAnalystHealth | null;
+  /** This MCP host's own counters — who speaks which protocol — read at call time. */
+  readonly mcpHealth?: () => McpHttpHealth;
   /** The viewer's notification tray — the same builder `/api/notifications` reads. */
   readonly notifications?: (input: {
     principalId: string;
@@ -931,6 +934,34 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
               ? 'sentinel.armed false with a reason is a fact about this host, not a failure; the analyst is null where it is not enabled (ATOMA_VIZ_ANALYST=1).'
               : 'this host exposes no resident watch',
           })
+      ),
+  },
+  {
+    name: 'atoma_mcp_health',
+    tier: 'platform',
+    needs: [],
+    register: (server, ctx) =>
+      server.registerTool(
+        'atoma_mcp_health',
+        {
+          title: 'Who speaks which MCP protocol',
+          description:
+            'This MCP host’s counters since the server started: open 2025-11-25 sessions, 2026-07-28 requests, and `clients` — `<protocol version> <client name>` → sessions opened (2025) or requests (2026). The evidence for when 2025 support can go. Client names are what each client declared about itself. Zero tokens: this reads counters.',
+          outputSchema: {
+            mcp: z.record(z.string(), z.unknown()).nullable(),
+            note: z.string(),
+          },
+          annotations: READ_ONLY,
+        },
+        () => {
+          const mcp = ctx.deps.mcpHealth?.() ?? null;
+          return jsonResult({
+            mcp,
+            note: mcp
+              ? 'counted since this server process started: a deployment resets them. A client appears once it opened a session (2025) or sent a request (2026).'
+              : 'this host exposes no MCP counters',
+          });
+        }
       ),
   },
   {

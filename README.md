@@ -160,7 +160,7 @@ Compatible clients such as Claude Code or Codex can start runs, pass acceptance
 criteria, request reruns and read traces, costs and diagnostics, with the same
 organisation permissions as the web console.
 
-**Forty tools.** The visible subset depends on the caller's role.
+**Forty-one tools.** The visible subset depends on the caller's role.
 See the [MCP connection and authorization guide](docs/mcp-oauth.md).
 
 ### A platform that reviews its own runs
@@ -265,7 +265,7 @@ ready for production. See the [changelog](CHANGELOG.md) for what changed.
 | Version | `0.4.0` |
 | Node | 24.20+ (`.nvmrc` 24.20.0, `engines` >=24) |
 | Subsystems under their own contract | 18 |
-| MCP tools | 40 |
+| MCP tools | 41 |
 | Curated agent names | 118 molecules · 40 cells · 20 tissues |
 | Controlled benchmark rounds | 12 (`benchmark/RESULT.md` + `ROUND<n>.md`) |
 | Interface locales | 13 catalogs — 1 source, 12 translated |

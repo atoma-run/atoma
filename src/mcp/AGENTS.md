@@ -29,7 +29,7 @@ Neighbours:
   SDK's `createMcpHandler`); `isLegacyRequest` decides, and a request naming a
   session is 2025. The 2025 era stays whole — sessions, replay, tasks,
   subscriptions, the run log — because the clients in use still speak it
-  (`health().clients` counts who speaks what): see
+  (`health().clients` counts who speaks what; `atoma_mcp_health` reads it): see
   [`docs/mcp-two-eras-2026-09-30.md`](../../docs/mcp-two-eras-2026-09-30.md).
   Do not add a second transport for a special case; make the case a tier.
 - THE CATALOGUE IS ONE TABLE (`tools.ts#MCP_TOOLS`): every tool names its
@@ -402,7 +402,7 @@ Neighbours:
   With it come a behavioural test in `tests/mcp-http.test.ts` (which tier sees
   it, what it refuses), the release smoke if it is operator-visible, and the
   README sentence `docs:check` derives from the table (the spelled-out count
-  in `scripts/repo-facts.mjs` runs to forty; extend the table before the
+  in `scripts/repo-facts.mjs` runs to fifty; extend the table before the
   catalogue passes it). Removing or renaming one is a compatibility change for
   every registered client and is stated in the changelog.
 - `server.json` (repository root) is the MCP Registry entry for the deployed

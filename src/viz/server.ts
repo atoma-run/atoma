@@ -1314,6 +1314,8 @@ const MCP_DEPS: McpToolDeps = {
   preview: () => PREVIEW_RUNTIME?.service ?? null,
   sentinel: () => sentinelHealth(),
   analyst: () => ANALYST?.health() ?? null,
+  // Read at call time, after MCP_HOST below exists: no tool runs before the bind.
+  mcpHealth: () => MCP_HOST.health(),
   ...(EVENTS && AUTH?.store
     ? {
         notifications: (input) =>
