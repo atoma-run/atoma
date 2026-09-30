@@ -1096,6 +1096,8 @@ export function ensureCanonicalProjectDocsL1(registry: AtomRegistry, tools: read
     'Cite exact original quotes, relative paths, source digests and line spans. Unavailable or denied search is not evidence that a fact is absent.',
     'Read current workspace files before editing them. Preserve unrelated content and verify any change with the appropriate read-back or bounded shell probe.',
     'Return a concise result supported by observed source evidence and report what remains unverified.',
+    // It writes documentation phases as the file scribe does (run 036ef18a).
+    SCRIBE_PORTABLE_DOC_GUIDANCE,
   ].join('\n') : CANONICAL_FILESCRIBE_L1_SYSTEM_PROMPT_LINES.join('\n');
   if (existing) return registry.patch(existing.name, {
     addTools: scoped, ...(!enabled ? { removeTools: [search] } : {}),

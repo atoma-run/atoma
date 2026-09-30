@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
 import { ensureCanonicalProjectDocsL1, ensureCanonicalFileScribeL1, ensureCanonicalL1, ensureCanonicalHttpL1 } from '../src/atoms/capability.js';
+import { SCRIBE_PORTABLE_DOC_GUIDANCE } from '../src/atoms/prompts.js';
 import { projectRetrievalDeclaration } from '../src/tools/projectRetrieval.js';
 import { makeTools } from './helpers/factories.js';
 
@@ -28,5 +29,13 @@ describe('dedicated project documentation molecule', () => {
       expect(ensureCanonicalProjectDocsL1(registry, all)).toMatchObject({ atomId: added.atomId, successes: 1, failures: 1, consecutiveSuccesses: 0 });
       for (const type of unrelated) expect(registry.getByName(type.name)).toMatchObject({ version: type.version, successes: 1, failures: 0, consecutiveSuccesses: 1, tools: type.tools });
     } finally { db.close(); }
+  });
+
+  it('knows the README port rule, since it writes documentation phases too (run 036ef18a)', () => {
+    const registry = new AtomRegistry(openDb(':memory:'));
+    const worker = makeTools(['write_file', 'edit_file', 'read_file', 'list_files', 'run_shell', 'record_probe']);
+    expect(ensureCanonicalProjectDocsL1(registry, [...worker, projectRetrievalDeclaration])!.systemPrompt)
+      .toContain(SCRIBE_PORTABLE_DOC_GUIDANCE);
+    expect(ensureCanonicalProjectDocsL1(registry, worker)!.systemPrompt).toContain(SCRIBE_PORTABLE_DOC_GUIDANCE);
   });
 });
