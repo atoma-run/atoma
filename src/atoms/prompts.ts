@@ -448,8 +448,20 @@ export const STANDING_PROOF_PLANNING_GUIDANCE = [
  * source — and earlier READMEs of the same project listed "`1499` seconds
  * remaining" beside each button. The evidence is real; its reader is the
  * validator, through the result's summary, not the person who opens the
- * README. Taught to every molecule that writes documentation, never to a
- * planner.
+ * README.
+ *
+ * It covers what an earlier check left in a document too (owner decision
+ * 2026-10-01). Runs 1ed071e3 and 9854553c wrote clean sections and kept, as
+ * "unrelated content", the evidence sections earlier runs had written: one
+ * cited the SHA-256 and line numbers of a page that no longer existed, the
+ * other listed the probes of every flag but the new one, and was the only
+ * place stating the CLI's error messages.
+ *
+ * RUNTIME TEXT, not a stored prompt: every molecule with a file-writing tool
+ * reads it when it plans and when it executes (`L1Atom`), as it reads the
+ * scratch rule, and so do a cell or tissue executing their own plan with
+ * tools. The stored prompts of molecules created before the rule never
+ * carried it, trusted ones included (review 2026-10-01). No planner does.
  */
 export const READER_FACING_DOC_GUIDANCE = [
   `A DOCUMENT IS FOR ITS READER. README and docs say what the artefact does and`,
@@ -457,9 +469,21 @@ export const READER_FACING_DOC_GUIDANCE = [
   `results, digests, line numbers, quotes of the artefact's code, "verified" or`,
   `"confirmed" notes — is run evidence: report it in your summary, never in a`,
   `document you deliver, unless the task asks that document to record it. Usage`,
-  `examples, example output, exit codes and statuses are behaviour: state them as`,
-  `what the artefact does, never as what a check observed. .atoma-probes.json is`,
-  `a record, not a document.`,
+  `examples, example output, exit codes, statuses and the versions or platforms`,
+  `it supports are behaviour: state them as what the artefact does, never as what`,
+  `a check observed.`,
+  `When the task has you write or update a README or other doc (never a page,`,
+  `code or data file), remove what an earlier check left in it — a verification`,
+  `or probe evidence section, a digest or line numbers cited as proof of a check,`,
+  `a "verified" or "observed" note — even where it still holds, and do not copy`,
+  `it into your summary. Restate, from the current source code or this run's`,
+  `recorded probes (never by re-running them), any exit code or error message`,
+  `documented only there. Keep such a record only when the task asks that`,
+  `document to keep or record it; an instruction to preserve unrelated or`,
+  `existing content does not. A document or section that exists to record`,
+  `results (a test report, a benchmark or verification log, a changelog) keeps`,
+  `its entries. .atoma-probes.json is a record, not a document: none of this`,
+  `touches it.`,
 ].join('\n');
 
 /** The one rule, for any server this run starts: its port dies with it. */
@@ -485,7 +509,6 @@ export const STATIC_PORTABLE_DOC_GUIDANCE = [
   `the page and the widths, not the port it was served on. The review flags ANY`,
   `numeric loopback port in docs, a conventional one such as \`localhost:8000\``,
   `too, unless the task itself requires that fixed port: write \`localhost:<port>\`.`,
-  READER_FACING_DOC_GUIDANCE,
 ].join('\n');
 
 /**
@@ -502,7 +525,6 @@ export const SCRIBE_PORTABLE_DOC_GUIDANCE = [
   `README or docs, where it reads \`http://localhost:<port>\` and`,
   `\`LISTENING_ON_PORT=<port>\`. The review flags ANY numeric loopback port in`,
   `docs, unless the task itself requires that fixed port.`,
-  READER_FACING_DOC_GUIDANCE,
 ].join('\n');
 
 /** Durable HTTP docs must not capture the one port assigned to this run. */

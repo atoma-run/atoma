@@ -16,6 +16,8 @@ its source before the next run.
 | 04ea696f | pomodoro page: the "Long break" line back | 667 s | $0.18 | 11 | delivered a page its verification phase replaced |
 | cdc34023 | pomodoro page: the replaced page restored | 726 s | $0.22 | 7 | delivered, every criterion met, README carries verification residue |
 | 0399bd82 | rerun of 04ea696f on 527b3b55 | 663 s | $0.20 | 7 | delivered the page with only its label changed |
+| 1ed071e3 | pomodoro page: a tab title | 626 s | $0.19 | 7 | delivered; new README text clean, an earlier evidence section kept |
+| 9854553c | wordfreq CLI: `--exclude` | 581 s | $0.19 | 10 | delivered; new README text clean, an earlier evidence section kept |
 
 ## A verified execution rejected as "non-JSON" (8606cf38)
 
@@ -268,6 +270,56 @@ says to state them as what the artefact does.
 "observed URLs, statuses, and outcomes" in documentation, are dropped once
 the rule ships, so that the next documentation phase learns a new recipe
 under it. A skill reset would not have been enough, since it keeps the body.
+
+## The rule on its first runs (1ed071e3, 9854553c)
+
+Both runs ran on f82ee3ad, after both recipes were dropped.
+
+- 1ed071e3 added the tab title with one line in `render()` and changed
+  nothing else. Benzene wrote a "Browser-tab title" section that states
+  behaviour only. The digest, line numbers and observed values went into its
+  summary, as the rule asks. Its `search_project_docs` call answered in
+  3,985 ms, which the old 2-second budget would have cut off.
+- 9854553c's `--exclude` works: case-insensitive, and an empty list or a
+  missing value exits 1. We checked it by hand, combinations included.
+  Ammonia documented it with examples and their exact output.
+
+Both READMEs kept, as unrelated content, the evidence section an earlier run
+had written, and in both it was now false:
+
+- the pomodoro's cites the SHA-256 and line numbers of a page that no longer
+  exists;
+- the CLI's lists the probes of every flag but the new one.
+
+The planner's documentation task said "preserve all unrelated README
+content". The project-docs prompt says "Preserve unrelated content".
+
+Owner decision 2026-10-01: a document a molecule edits loses the record an
+earlier run left in it. What the document states as behaviour stays, and
+"preserve unrelated content" does not cover such a record. The validator
+prompt says the removal is never a reason to reject.
+
+The accepted risk is that a measurement an earlier task asked the document
+to record goes too: the "unless the task asks" clause only sees the current
+task.
+
+Two adversarial reviews shaped the change:
+
+- **The rule missed most molecules.** Stored prompts written before f82ee3ad
+  never carried it, and Serotonin, which is trusted, wrote 1ed071e3's page
+  from one of those. The rule is now runtime text: every molecule that can
+  write a file reads it when it plans and when it executes, and no stored
+  prompt carries a copy.
+- **Its trigger was too wide.** It applies only when the task writes or
+  updates a README or other doc, never a page, code or data file. A verifier
+  that cleaned a README it was not asked to touch would be restored as damage.
+- **Its conditions were too loose.** A record stays only when the task asks
+  the document to keep or record it; an instruction to preserve unrelated
+  content does not count. A document or section that exists to record results
+  keeps its entries.
+- **Its validator section was too narrow.** It now covers plans as well as
+  results. It excludes usage examples, example output, exit codes and the
+  entries of recording documents.
 
 ## Open
 

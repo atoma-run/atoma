@@ -16,6 +16,7 @@ import type { Skill } from '../skills/types.js';
 import { witnessesFromPayload, type Witness } from '../contracts/witness.js';
 import { renderObservations, type AttestationRecord } from '../contracts/attestation.js';
 import { namedLayoutWidths } from '../contracts/acceptanceChecklist.js';
+import { READER_FACING_DOC_GUIDANCE } from './prompts.js';
 
 /**
  * Where a molecule puts what only EXERCISES the artefact. Publication and the
@@ -26,6 +27,11 @@ import { namedLayoutWidths } from '../contracts/acceptanceChecklist.js';
  * molecule, branches included, without re-earning anyone's trust.
  */
 export const SCRATCH_DIRECTORY = '.atoma-scratch';
+
+/** A molecule that can write a file can write a document: it reads the documentation rule. */
+function writesFiles(tools: readonly { readonly name: string }[]): boolean {
+  return tools.some((tool) => tool.name === 'write_file' || tool.name === 'edit_file' || tool.name === 'run_shell');
+}
 const SCRATCH_FILE_LINES: readonly string[] = [
   `- An input you write ONLY to exercise the artefact — a probe CSV, a fixture, a file to upload in a`,
   `  browser check — goes under "${SCRATCH_DIRECTORY}/" (e.g. "${SCRATCH_DIRECTORY}/invalid-rows.csv"): the host never`,
@@ -308,6 +314,7 @@ export class L1Atom extends Atom {
       `required claim fails, read the offending file, fix it with edit_file, and`,
       `re-validate. A clean console alone is not success: return success only`,
       `when the required claims pass.`,
+      writesFiles(this.tools) ? READER_FACING_DOC_GUIDANCE : '',
       ``,
       `CRITICAL — plan shape (aspirational, no literal payloads):`,
       `Describe your intended tool sequence in the "proposedAction" field as PROSE`,
@@ -410,6 +417,7 @@ export class L1Atom extends Atom {
       hasValidator
         ? `  only when required claims pass; otherwise report what failed or remains unverified.`
         : null,
+      writesFiles(this.tools) ? READER_FACING_DOC_GUIDANCE : null,
       ``,
       `When and only when the work is truly done, produce the final result as JSON:`,
       `{"output": <any>, "summary": "<headline plus observed evidence and any unverified requirements>"}`,

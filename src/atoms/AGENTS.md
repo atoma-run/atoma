@@ -292,11 +292,18 @@ load-bearing.
   decision 2026-09-30): what a verification observed — measured values, smoke
   and probe results, digests, line numbers, source quotes — goes in the
   result's summary, never in a README or doc, unless the task asks that
-  document to record it. Every molecule that writes documentation carries it,
-  through the scribe and static guidance, the HTTP and full-stack prompts;
-  the planners do not. Run cdc34023's README closed on a "Verification
-  evidence" section, and the project-docs prompt's "cite … source digests and
-  line spans" now says where: in the result.
+  document to record it. A task that writes or updates a document (never a
+  page, code or data file) removes what an earlier check left in it, even
+  where it still holds; "preserve unrelated content" does not cover that
+  record, and a document or section that exists to record results keeps its
+  entries (owner decision 2026-10-01: runs 1ed071e3 and 9854553c kept such
+  sections, then false). The rule is RUNTIME text, read by
+  every molecule with a file-writing tool when it plans and executes, and by
+  the fallback executors: stored prompts of molecules created before it,
+  trusted ones included, never carried it. No stored prompt and no planner
+  carries a copy. The validator prompt's own section says the removal is
+  correct for a plan or a result, and the project-docs prompt says its
+  "cite … source digests and line spans" goes in the result.
 - Node-server children keep file read-back even when they also have browser
   tools. Only a loopback response with status 200 and HTML content appends a
   browser probe; JSON responses and expected root 404s are not browser failures.

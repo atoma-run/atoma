@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { L1Atom } from '../src/atoms/L1Atom.js';
 import { L2Atom } from '../src/atoms/L2Atom.js';
 import { L3Atom } from '../src/atoms/L3Atom.js';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
@@ -8,7 +9,7 @@ import { ensureCanonicalProjectDocsL1 } from '../src/atoms/capability.js';
 import { VALIDATION_SYSTEM_PROMPT } from '../src/atoms/verdict.js';
 import { HOST_TOOL_NAMES } from '../src/contracts/toolTaxonomy.js';
 import { FALLBACK_OPUS } from './tier-pins.js';
-import { makeCtx } from './helpers.js';
+import { jsonText, makeCtx } from './helpers.js';
 import { makePlan, makeTools } from './helpers/factories.js';
 import type { RunContext, ToolExecutor } from '../src/core/types.js';
 
@@ -16,10 +17,15 @@ import type { RunContext, ToolExecutor } from '../src/core/types.js';
  * A DELIVERED DOCUMENT IS FOR ITS READER (owner decision 2026-09-30). Run
  * cdc34023's README closed on a "Verification evidence" section — smoke
  * values, a SHA-256, line numbers, quotes of the source — and earlier READMEs
- * listed "`1499` seconds remaining" beside each button. Every molecule that
- * writes documentation is told what a document leaves out
- * (tests/canonical-bootstrap.test.ts); these cases pin the other paths.
+ * listed "`1499` seconds remaining" beside each button.
+ *
+ * And a document a molecule edits loses what an earlier check left in it
+ * (owner decision 2026-10-01): runs 1ed071e3 and 9854553c wrote clean
+ * sections and kept, as "unrelated content", evidence sections that were by
+ * then false.
  */
+
+const flat = (text: string): string => text.replace(/\s+/g, ' ');
 
 const reply = (value: unknown) => ({ text: JSON.stringify(value), stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } });
 
@@ -61,6 +67,20 @@ const twoPhases = {
 };
 
 describe('a delivered document is for its reader', () => {
+  it('reaches every molecule that can write a file when it plans and executes, whatever its stored prompt', async () => {
+    // Serotonin, trusted and on the fast path, wrote 1ed071e3's page from a
+    // prompt stored before the rule existed (review 2026-10-01).
+    for (const [tools, reads] of [[['write_file', 'read_file'], true], [['edit_file'], true], [['run_shell'], true], [['read_file', 'fetch_url'], false]] as const) {
+      const molecule = new L1Atom({ name: 'Serotonin', ordinal: 3, systemPrompt: 'a web molecule prompt stored before the rule', tools: makeTools([...tools]), params: {} });
+      const ctx = makeCtx();
+      ctx.llm.enqueueText(jsonText({ reasoning: 'r', proposedAction: 'edit the README', expectedOutput: 'README' }));
+      ctx.llm.enqueueText(jsonText({ output: 'done', summary: 'done' }));
+      const plan = await molecule.plan({ description: 'Update README.md' }, ctx);
+      await molecule.execute({ description: 'Update README.md' }, plan, ctx);
+      expect(ctx.llm.calls.map((call) => call.userContent.includes(READER_FACING_DOC_GUIDANCE))).toEqual([reads, reads]);
+    }
+  });
+
   it('reaches a fallback executor that writes files, and never one without tools', async () => {
     const { reg, l3, l2 } = registry();
     for (const withTools of [true, false]) {
@@ -94,12 +114,34 @@ describe('a delivered document is for its reader', () => {
     expect(cellLlm.byRole.get('plan')![0]).not.toContain(READER_FACING_DOC_GUIDANCE);
   });
 
-  it('tells the project-docs molecule its citations go in its result, and the validator to coach no observation note', () => {
+  it('removes what an earlier check left in a document it edits, even where it still holds (owner decision 2026-10-01)', () => {
+    const rule = flat(READER_FACING_DOC_GUIDANCE);
+    // Only on a documentation task: a verifier cleaning a README would be
+    // restored as damage, and a page is no document (review 2026-10-01).
+    expect(rule).toContain('When the task has you write or update a README or other doc (never a page, code or data file), remove what an earlier check left in it');
+    expect(rule).toContain('a "verified" or "observed" note — even where it still holds, and do not copy it into your summary.');
+    // 9854553c's evidence section was the only place stating the CLI's errors.
+    expect(rule).toContain('Restate, from the current source code or this run\'s recorded probes (never by re-running them), any exit code or error message documented only there.');
+    expect(rule).toContain('Keep such a record only when the task asks that document to keep or record it; an instruction to preserve unrelated or existing content does not.');
+    expect(rule).toContain('A document or section that exists to record results (a test report, a benchmark or verification log, a changelog) keeps its entries.');
+    expect(rule).toContain('statuses and the versions or platforms it supports are behaviour');
+    expect(rule).toContain('.atoma-probes.json is a record, not a document: none of this touches it.');
+  });
+
+  it('tells the project-docs molecule where its citations go and what preserving never covers', () => {
     const tools = makeTools(['write_file', 'edit_file', 'read_file', 'list_files', 'run_shell', HOST_TOOL_NAMES[0]]);
-    const docs = ensureCanonicalProjectDocsL1(new AtomRegistry(openDb(':memory:')), tools)!;
-    expect(docs.systemPrompt).toContain('In your result, cite exact original quotes, relative paths, source digests and line spans.');
-    expect(docs.systemPrompt).toContain(READER_FACING_DOC_GUIDANCE);
-    expect(VALIDATION_SYSTEM_PROMPT).toContain('State what Clear does, with no observation note');
-    expect(VALIDATION_SYSTEM_PROMPT).not.toContain('Rewrite that sentence from the recorded check');
+    const docs = ensureCanonicalProjectDocsL1(new AtomRegistry(openDb(':memory:')), tools)!.systemPrompt;
+    expect(docs).toContain('In your result, cite exact original quotes, relative paths, source digests and line spans.');
+    expect(docs).toContain('Preserve unrelated content (a record of what an earlier check observed is not unrelated content)');
+  });
+
+  it('tells every validator, for a plan as for a result, that removing such a record is correct', () => {
+    const prompt = flat(VALIDATION_SYSTEM_PROMPT);
+    expect(prompt).toContain('never reject a plan or result for that removal, nor ask for it back, unless the task names that record and asks the document to keep or record it.');
+    expect(prompt).toContain('An instruction to preserve, keep or extend other content is not such a request.');
+    expect(prompt).toContain('never usage examples, example output or exit codes, nor the entries of a document or section that exists to record results');
+    expect(prompt.indexOf('== DOCUMENTS AND WHAT EARLIER CHECKS OBSERVED ==')).toBeLessThan(prompt.indexOf('If Subject kind is PLAN:'));
+    expect(prompt).not.toContain('follows the documentation rule');
+    expect(prompt).toContain('State what Clear does, with no observation note');
   });
 });
