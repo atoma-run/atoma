@@ -96,7 +96,21 @@ export const POINTER_LIGHT_GLSL = /* glsl */ `
   }
 `;
 
-export const POINTER_LIGHT_WGSL = /* wgsl */ `
+/**
+ * How far the pointer light reaches, in halo radii. At twice the radius the
+ * halo is exp(-8.8) ≈ 1.5e-4: with the brightest illumination term (0.675) at
+ * the tuning's maximum intensity (2.5×) that is 0.07 of one 8-bit step, so
+ * nothing past it is visible. The bounded light draws exactly this disc's box.
+ */
+export const POINTER_LIGHT_REACH_RADII = 2;
+
+/**
+ * THE pointer-light shading, shared by both WebGPU carriers: `sampleColor` is
+ * the lit layer's premultiplied colour at `screenPx`, and the result is the
+ * light to ADD to it. Derivatives come from the 2×2 fragment quad, so the call
+ * must stay in uniform control flow.
+ */
+const POINTER_LIGHT_WGSL_SHARED = /* wgsl */ `
   struct GlobalFilterUniforms {
     uInputSize: vec4<f32>,
     uInputPixel: vec4<f32>,
@@ -157,12 +171,7 @@ export const POINTER_LIGHT_WGSL = /* wgsl */ `
     return dot(color, vec3(0.2126, 0.7152, 0.0722));
   }
 
-  @fragment
-  fn mainFragment(
-    @location(0) uv: vec2<f32>,
-    @location(1) screenPx: vec2<f32>
-  ) -> @location(0) vec4<f32> {
-    var sampleColor = textureSample(uTexture, uSampler, uv);
+  fn pointerLightTerm(sampleColor: vec4<f32>, screenPx: vec2<f32>) -> vec3<f32> {
     let sampleLuminance = luminance(sampleColor.rgb);
     let gradient = vec2(dpdx(sampleLuminance), dpdy(sampleLuminance));
     let alphaGradient = vec2(dpdx(sampleColor.a), dpdy(sampleColor.a));
@@ -182,10 +191,47 @@ export const POINTER_LIGHT_WGSL = /* wgsl */ `
     // Twin of the GLSL above — interior wash for UI, crystal is not in this
     // filtered layer.
     let illumination = halo * (0.075 + edgeResponse * (0.24 + facing * 0.36));
-    sampleColor.r += lightColor.r * illumination * pointerLight.uStrength * sampleColor.a;
-    sampleColor.g += lightColor.g * illumination * pointerLight.uStrength * sampleColor.a;
-    sampleColor.b += lightColor.b * illumination * pointerLight.uStrength * sampleColor.a;
-    return sampleColor;
+    return lightColor * illumination * pointerLight.uStrength * sampleColor.a;
+  }
+`;
+
+/**
+ * The full-stage carrier: `stage` rendered alone into the filter's input,
+ * lit, and composited over what lies beneath it (the far field).
+ */
+export const POINTER_LIGHT_WGSL = /* wgsl */ `
+  ${POINTER_LIGHT_WGSL_SHARED}
+
+  @fragment
+  fn mainFragment(
+    @location(0) uv: vec2<f32>,
+    @location(1) screenPx: vec2<f32>
+  ) -> @location(0) vec4<f32> {
+    let sampleColor = textureSample(uTexture, uSampler, uv);
+    return vec4(sampleColor.rgb + pointerLightTerm(sampleColor, screenPx), sampleColor.a);
+  }
+`;
+
+/**
+ * The bounded carrier: a `blendRequired` filter over the light's reach alone.
+ * Pixi copies the pixels ALREADY drawn there into `uBackTexture`, the shader
+ * returns only the light, and the filter's `add` blend lays it on — the same
+ * premultiplied sum the full-stage carrier writes, over a box instead of the
+ * whole screen. The layer beneath must be `stage` alone for the two to agree,
+ * which is why it is chosen only while the far field is detached.
+ */
+export const POINTER_LIGHT_BOUNDED_WGSL = /* wgsl */ `
+  ${POINTER_LIGHT_WGSL_SHARED}
+
+  @group(0) @binding(3) var uBackTexture: texture_2d<f32>;
+
+  @fragment
+  fn mainFragment(
+    @location(0) uv: vec2<f32>,
+    @location(1) screenPx: vec2<f32>
+  ) -> @location(0) vec4<f32> {
+    let beneath = textureSample(uBackTexture, uSampler, uv);
+    return vec4(pointerLightTerm(beneath, screenPx), 0.0);
   }
 `;
 

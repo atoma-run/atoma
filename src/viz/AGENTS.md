@@ -66,7 +66,7 @@ npm run viz:mark-turn:analyze
   goes there, never back into the class.
 - Scrollable GPU content goes through `createScrollPane` (bounded + masked);
   the wheel handler FAILS CLOSED on `scrollMax`, so a view that never declares
-  its max does not scroll. Wheel ticks and one-finger touch drags share ONE router (`scrollAt`): the drag names its pane from where the finger LANDED and converts travel through the live camera. The canvas declares `touch-action: pan-y`, never `none` — the browser's `pointercancel` on a recognised pan is what keeps Pixi from reporting a tap on the row the finger began on (2026-09-15: a phone could neither scroll nor read the rail). Cull by skipping draws, not by stopping the layout cursor. Detail panes report `detailBounds`/`detailScrollMax`. Runs retains a bounded row window under a fixed mask. Reproject hit targets and shadow anchors on scroll; window crossings, changed data/selection/filters, resize and camera travel rebuild. Retained listeners dispatch to the latest React callback.
+  its max does not scroll. Wheel ticks and one-finger touch drags share ONE router (`scrollAt`): the drag names its pane from where the finger LANDED and converts travel through the live camera. The canvas declares `touch-action: pan-y`, never `none` — the browser's `pointercancel` on a recognised pan is what keeps Pixi from reporting a tap on the row the finger began on (2026-09-15: a phone could neither scroll nor read the rail). Cull by skipping draws, not by stopping the layout cursor. Detail panes report `detailBounds`/`detailScrollMax`. Runs retains a bounded row window under a fixed mask. Reproject hit targets and shadow anchors on scroll; window crossings, changed data/selection/filters, resize and camera travel rebuild, and a window left with under half its overscan re-centres in the first still pause, so a crossing rarely lands mid-gesture. Retained listeners dispatch to the latest React callback.
 - `prefersReducedMotion()` (`renderer/motion.ts`) is the only reduced-motion
   source in the GL client. Every animation system consults it and JUMPS to its
   final state — exit effects are skipped entirely, never left running.
@@ -76,7 +76,7 @@ npm run viz:mark-turn:analyze
 - Keep GPU animation state out of React/Zustand hot paths. Use mutable samples
   read once per frame; do not rebuild the scene for pointer motion. A subtree
   that MUTATES EVERY FRAME draws into its own render group (`ctx.animatedLayer`,
-  ONE per band): Pixi re-uploads a group's whole batch when anything in it moves. Frame cost is measured, never guessed: `npm run viz:frame-probe` ([record](../../docs/incidents/gpu-frame-cost-2026-09-06.md)).
+  ONE per band): Pixi re-uploads a group's whole batch when anything in it moves. Frame cost is measured, never guessed: `npm run viz:frame-probe` ([record](../../docs/incidents/gpu-frame-cost-2026-09-06.md), [2026-09-30](../../docs/incidents/gpu-fps-2026-09-30.md)), with vsync UNLOCKED for cost: at 60 fps an integrated GPU down-clocks, so its pass timestamps read load, not cost. A LIVE run's own refresh (its growing trace, the run index, a project's run list while one is live) waits for a still reader — pointer and wheel quiet 400ms, one rebuild a second, never over 3s — and nothing a reader causes waits: `renderer/live-refresh.ts`.
 - The hover bubble is ONE bubble, on its own sibling layer above the crystal,
   and it obeys the rule above: views declare RECTANGLES per render through
   `ctx.tooltip` (local coordinates, projected while the parent transform is
@@ -98,8 +98,8 @@ npm run viz:mark-turn:analyze
   buffer. Pixi skips disabled filters, so the buffer stops being touched, ages
   out and is destroyed, while `BindGroupSystem._hash` keeps serving a cached
   bind group that points at it — every later `queue.submit` is then a
-  validation error, permanently. Today only the pointer-light filter has that
-  lifetime.
+  validation error, permanently. Today only the pointer light has that lifetime,
+  and its two carriers share ONE uniform group, pinned once.
 - Timeline card bodies use ONE direct shared `Mesh` for all visible faces. Its
   shader samples the CC0 diffuse + normal bitmaps once each and derives the
   specular term analytically; chrome remains ordinary Graphics in underlay and
@@ -113,7 +113,7 @@ npm run viz:mark-turn:analyze
   owns composition, hit testing and the shared cast-shadow painter. Render the
   resting icons once, normalise optical size from their rendered alpha area,
   use the one gold material across the set, and throttle pointer-light updates.
-  Live textures match display pixels including hover, without mipmaps. Derive the white shadow mask on Pixi's device from the one uploaded face; never restore a shadow canvas upload. Inactive nav/filter/agent chips settle after entry/interaction; icon relighting stays independently live.
+  Live textures match display pixels including hover, without mipmaps. Derive the white shadow mask on Pixi's device from the one uploaded face; never restore a shadow canvas upload. Inactive nav/filter/agent chips settle after entry/interaction; icon relighting stays independently live. Motion means activity: metric tiles pulse only for a LIVE run, and a finished run's settle after their entrance.
   The folder alone keeps its pale document material and a near-front rest pose
   so its pocket, rear tab and papers remain legible at rail size. Preserve the
   artist-authored GLB normals: recomputing them smears bevel lighting across
@@ -127,7 +127,7 @@ npm run viz:mark-turn:analyze
   locale-aware absolute formatter for persisted timestamps and omit seconds by
   default. Keep seconds only on operational surfaces where sub-minute ordering
   matters. Relative timestamps may reuse that absolute formatter for their
-  expanded label instead of exposing ISO strings.
+  expanded label instead of exposing ISO strings. Formatters come from its `dateTimeFormat` cache: a `toLocale*String` call builds a new `Intl.DateTimeFormat` every time, and one per card was a fifth of a Runs rebuild.
 - Pixi 8.19.0 WebGPU GC also unloads in-use static uniform buffers (global
   uniforms, batcher UBOs) whose values have not changed, with the same
   destroyed-buffer submit (pixijs#12080). The engine fix (pixijs#12147) is
@@ -362,9 +362,9 @@ npm run viz:mark-turn:analyze
   cannot reach the nav ungrouped and silently vanish. Settings has no rail row
   on purpose — the account menu is its entrance, and a second one would put one
   job in two places.
-- THE OVERLAY STACK IS FOUR LAYERS AND ONE FILTER, in one fixed order:
+- THE OVERLAY STACK IS FOUR LAYERS AND ONE LIGHT, in one fixed order:
   `ambientRoot` (far field) < `stage` — EVERY product surface: chrome, views,
-  panels, overlay menus, and the layer THE POINTER-LIGHT FILTER APPLIES TO —
+  panels, overlay menus, and the layer THE POINTER LIGHT APPLIES TO — < (`lightRoot`, childless: on WebGPU with the far field detached it carries the light as a `blendRequired` filter over the light's reach alone, the same shading `stage`'s full-screen filter applies elsewhere, 2-3ms cheaper per lit frame; `?atomaLight=full` forces the latter)
   < `markRoot` (the retained crystal and avatar orbs, reached only through
   `retainAtomaMark`/`retainAvatarOrb`) < `tooltipRoot` (the one hover bubble;
   nothing ever mounts above it). A surface mounted above `stage` escapes the

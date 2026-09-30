@@ -1,4 +1,5 @@
 import { elementForTool } from '../../../contracts/toolTaxonomy.js';
+import { clockTime } from '../../client/date-format.js';
 import {
   fmtCost,
   fmtMs,
@@ -347,13 +348,7 @@ export function gpuEventCardCopy(event: VizEvent, t: GpuTranslate): GpuEventCard
       event.snapshot?.description,
     ].filter(Boolean).join(' · ');
   }
-  const time = Number.isFinite(event.ts)
-    ? new Date(event.ts).toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    })
-    : '';
+  const time = clockTime(event.ts);
   const registryVersion = event.snapshot?.version ?? event.version;
   const registryVersionLabel = typeof registryVersion === 'number' && Number.isFinite(registryVersion)
     ? `v${registryVersion}`

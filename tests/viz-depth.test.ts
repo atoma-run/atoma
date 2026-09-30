@@ -53,10 +53,11 @@ describe('viz visual depth contract', () => {
 
   it('lights only the Pixi foreground while leaving the ambient field unfiltered', () => {
     const renderer = readFileSync('src/viz/client-gl/gpu-renderer.ts', 'utf8');
-    // Layer ORDER, bottom to top: the ambient field, the filtered UI stage,
-    // the crystal, and the hover bubble last so it draws over all of them.
+    // Layer ORDER, bottom to top: the ambient field, the lit UI stage and the
+    // light's bounded carrier, the crystal, and the hover bubble last so it
+    // draws over all of them.
     expect(renderer).toMatch(
-      /stage\.addChild\(this\.ambientRoot, this\.stage, this\.markRoot, this\.tooltipRoot\)/
+      /stage\.addChild\(this\.ambientRoot, this\.stage, this\.lightRoot, this\.markRoot, this\.tooltipRoot\)/
     );
     // The bubble is chrome, not lit surface: the pointer light must not smear
     // the text a reader opened it to read.
@@ -65,6 +66,11 @@ describe('viz visual depth contract', () => {
     expect(renderer).toMatch(/this\.stage\.filters = \[filter\]/);
     expect(renderer).not.toMatch(/this\.ambientRoot\.filters\s*=/);
     expect(renderer).not.toMatch(/this\.markRoot\.filters\s*=/);
+    // The bounded carrier relights whatever lies beneath it, so it is chosen
+    // only while the ambient field is detached; the full-stage filter, which
+    // never saw the field, carries the light over it.
+    expect(renderer).toMatch(/this\.lightRoot\.filters = \[probe\]/);
+    expect(renderer).toMatch(/const bounded = probe !== null && !this\.farFieldActive;/);
     expect(renderer).toMatch(/attachAtomaMark\(\s*this\.markRoot/);
     expect(renderer).toMatch(/createFarField\(/);
     expect(renderer).toMatch(/FAR_FIELD_LABEL/);

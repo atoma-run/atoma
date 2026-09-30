@@ -30,6 +30,7 @@ import {
   type StructuredDetailSection,
 } from '../../../client/structured-detail.js';
 import type { AtomView, RunStatus } from '../../../client/run-utils.js';
+import { clockTime } from '../../../client/date-format.js';
 import type { VizEvent, VizRun } from '../../../client/types.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
@@ -919,14 +920,6 @@ export function drawRuns(
   // The two bookends: the run's own start and end are steps of the story,
   // not decorations. They replace the tiny rail ticks that said "START" and
   // "END" without ever saying WHAT ended (2026-08-15 review).
-  const clockTime = (ms: number): string =>
-    Number.isFinite(ms)
-      ? new Date(ms).toLocaleTimeString([], {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-        })
-      : '';
   /**
    * The run's opening and closing cards. They carried a two-line layout —
    * title at `y + 8`, facts at `y + 28` — from when a row was 64px tall. At
@@ -1169,7 +1162,7 @@ export function drawRuns(
     }
   };
   applyScroll(scrollY);
-  ctx.runsScroll = { origin: scrollY, min: minScroll, max: maxScroll, move: applyScroll };
+  ctx.runsScroll = { origin: scrollY, min: minScroll, max: maxScroll, overscan, move: applyScroll };
 
   if (twoPane) {
     const secondaryFrame = ctx.panel(
@@ -1327,8 +1320,10 @@ function drawRunStatGrid(
   ];
   const accents = [GPU_COLORS.cyan, GPU_COLORS.tiers[3], GPU_COLORS.primary, GPU_COLORS.success];
   const statWidth = (width - RUN_STAT_GAP) / 2;
-  // Tiles pulse and scan every frame: one render group for the grid.
+  // A live run's tiles pulse and scan every frame: one render group for the
+  // grid. A finished run's settle after their entrance.
   const tiles = ctx.animatedLayer(parent, `${idPrefix}.tiles`);
+  const live = isRunLive(run);
   stats.forEach(([label, value], index) => {
     const column = index % 2;
     const row = Math.floor(index / 2);
@@ -1341,7 +1336,8 @@ function drawRunStatGrid(
       y + row * (RUN_STAT_HEIGHT + RUN_STAT_GAP),
       statWidth,
       RUN_STAT_HEIGHT,
-      accents[index] ?? GPU_COLORS.primary
+      accents[index] ?? GPU_COLORS.primary,
+      live
     );
   });
   return RUN_STAT_HEIGHT * 2 + RUN_STAT_GAP;

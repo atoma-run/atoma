@@ -34,6 +34,31 @@ export function GpuSurface({
   const renderCount = useRef(0);
   const lastLayoutRevision = useRef<string | null>(null);
   const state = useGpuStore();
+  const metricsRef = useRef(onMetrics);
+  useLayoutEffect(() => { metricsRef.current = onMetrics; }, [onMetrics]);
+  // After EVERY scene the renderer draws: the ones this component asks for,
+  // and a live run's refresh the renderer held back until the reader was still.
+  const publish = useCallback(() => {
+    const current = renderer.current;
+    if (!current) return;
+    const metrics = current.getMetrics();
+    if (host.current) {
+      host.current.dataset['gpuBackend'] = metrics.backend;
+      host.current.dataset['gpuObjects'] = String(metrics.objectCount);
+      // Rebuild cost and label retention, published for the smoke. Written on
+      // every render rather than sampled, because the interesting renders are
+      // the ones a wheel tick provokes — there is nothing to poll between them.
+      host.current.dataset['gpuRenderMs'] = metrics.renderMs.toFixed(3);
+      host.current.dataset['gpuLabelsCreated'] = String(metrics.labelsCreated);
+      host.current.dataset['gpuLabelsReused'] = String(metrics.labelsReused);
+      // A monotonic rebuild count. The tuning smoke needs to prove a rebuild
+      // actually happened MID-DRAG — without it, "the value still changed"
+      // would pass on a page that never re-rendered at all.
+      renderCount.current += 1;
+      host.current.dataset['gpuRenderCount'] = String(renderCount.current);
+    }
+    metricsRef.current(metrics);
+  }, []);
 
   useEffect(() => {
     if (!host.current) return;
@@ -46,6 +71,7 @@ export function GpuSurface({
         const created = new Renderer();
         next = created;
         renderer.current = created;
+        created.onDeferredRender = publish;
         await created.init(currentHost);
         if (cancelled) created.destroy();
         else setReady(true);
@@ -69,7 +95,7 @@ export function GpuSurface({
     const layoutRevision = `${resizeVersion}:${cameraRevision}`;
     const forceRebuild = layoutRevision !== lastLayoutRevision.current;
     lastLayoutRevision.current = layoutRevision;
-    current.render({
+    const rendered = current.render({
       state,
       data,
       releaseVersion,
@@ -84,24 +110,10 @@ export function GpuSurface({
         store.setRunPickerScrollY(store.runPickerScrollY + delta);
       },
     }, forceRebuild);
-    const metrics = current.getMetrics();
-    if (host.current) {
-      host.current.dataset['gpuBackend'] = metrics.backend;
-      host.current.dataset['gpuObjects'] = String(metrics.objectCount);
-      // Rebuild cost and label retention, published for the smoke. Written on
-      // every render rather than sampled, because the interesting renders are
-      // the ones a wheel tick provokes — there is nothing to poll between them.
-      host.current.dataset['gpuRenderMs'] = metrics.renderMs.toFixed(3);
-      host.current.dataset['gpuLabelsCreated'] = String(metrics.labelsCreated);
-      host.current.dataset['gpuLabelsReused'] = String(metrics.labelsReused);
-      // A monotonic rebuild count. The tuning smoke needs to prove a rebuild
-      // actually happened MID-DRAG — without it, "the value still changed"
-      // would pass on a page that never re-rendered at all.
-      renderCount.current += 1;
-      host.current.dataset['gpuRenderCount'] = String(renderCount.current);
-    }
-    onMetrics(metrics);
-  }, [activate, cameraRevision, data, onMetrics, ready, releaseVersion, resizeVersion, state, t]);
+    // Nothing was drawn while the tab is inactive or a live refresh waits:
+    // the renderer publishes that scene itself when it lands.
+    if (rendered) publish();
+  }, [activate, cameraRevision, data, publish, ready, releaseVersion, resizeVersion, state, t]);
 
   return <div ref={host} className="gpu-ui-host" />;
 }

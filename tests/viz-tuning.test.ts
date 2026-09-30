@@ -19,6 +19,7 @@ import {
 } from '../src/viz/client-gl/renderer/cast-shadow.js';
 import { POINTER_LIGHT_RADIUS_PX } from '../src/viz/client-gl/pointer-light.js';
 import {
+  POINTER_LIGHT_BOUNDED_WGSL,
   POINTER_LIGHT_GLSL,
   POINTER_LIGHT_WGSL,
 } from '../src/viz/client-gl/renderer/shaders.js';
@@ -227,7 +228,7 @@ describe('both shader backends carry the tuning uniforms', () => {
   // exists in one backend and not the other is not: the WebGL fallback would
   // silently ignore the light knobs while WebGPU honoured them.
   it('declares uRadiusScale and uHueShift in GLSL and WGSL alike', () => {
-    for (const source of [POINTER_LIGHT_GLSL, POINTER_LIGHT_WGSL]) {
+    for (const source of [POINTER_LIGHT_GLSL, POINTER_LIGHT_WGSL, POINTER_LIGHT_BOUNDED_WGSL]) {
       expect(source).toContain('uRadiusScale');
       expect(source).toContain('uHueShift');
       expect(source).toContain('rotateHue');
@@ -235,7 +236,7 @@ describe('both shader backends carry the tuning uniforms', () => {
   });
 
   it('no longer divides by a hardcoded radius in either backend', () => {
-    for (const source of [POINTER_LIGHT_GLSL, POINTER_LIGHT_WGSL]) {
+    for (const source of [POINTER_LIGHT_GLSL, POINTER_LIGHT_WGSL, POINTER_LIGHT_BOUNDED_WGSL]) {
       expect(source).not.toMatch(/distancePx \/ 150\.0/);
       expect(source).not.toMatch(/distancePx \/ 34\.0/);
     }
@@ -245,7 +246,7 @@ describe('both shader backends carry the tuning uniforms', () => {
     // Interior wash is what makes cards and buttons read as lit. It is also
     // a disc on any filled mesh, so the arrival gem must not sit under this
     // filter — the shell shader does that reflection.
-    for (const source of [POINTER_LIGHT_GLSL, POINTER_LIGHT_WGSL]) {
+    for (const source of [POINTER_LIGHT_GLSL, POINTER_LIGHT_WGSL, POINTER_LIGHT_BOUNDED_WGSL]) {
       expect(source).toMatch(/halo \* \(0\.075 \+ edgeResponse \* \(0\.24 \+ facing \* 0\.36\)\)/);
     }
   });
@@ -254,7 +255,7 @@ describe('both shader backends carry the tuning uniforms', () => {
     // The filter covers the whole stage at device resolution. A caustic here
     // duplicated the far-field reconstruction and made UI at every depth act
     // like one receiver plane; it now carries only the local pointer wash.
-    for (const source of [POINTER_LIGHT_GLSL, POINTER_LIGHT_WGSL]) {
+    for (const source of [POINTER_LIGHT_GLSL, POINTER_LIGHT_WGSL, POINTER_LIGHT_BOUNDED_WGSL]) {
       expect(source).not.toContain('causticField');
       expect(source).not.toContain('uCaustic');
       expect(source).not.toContain('crystalCast');
@@ -278,12 +279,17 @@ describe('both shader backends carry the tuning uniforms', () => {
       new URL('../src/viz/client-gl/gpu-renderer.ts', import.meta.url),
       'utf8'
     );
+    // ONE uniform group feeds both carriers of the light.
     const resources =
-      renderer.split('pointerLight: {')[1]?.split('\n        },')[0] ?? '';
-    const declared = [...resources.matchAll(/^\s{10}(u[A-Za-z0-9]+):/gm)].map(
+      renderer.split('const pointerLight = new UniformGroup({')[1]?.split('\n    });')[0] ?? '';
+    const declared = [...resources.matchAll(/^\s{6}(u[A-Za-z0-9]+):/gm)].map(
       (match) => match[1]
     );
     expect(declared).toEqual(order);
+    const boundedStruct = POINTER_LIGHT_BOUNDED_WGSL.split('struct PointerLightUniforms')[1]
+      ?.split('};')[0];
+    expect(boundedStruct).toBe(struct);
+    expect(renderer.match(/resources: \{ pointerLight \}/g)).toHaveLength(2);
   });
 });
 

@@ -1,4 +1,5 @@
 import { Container, Rectangle } from 'pixi.js';
+import { dateTimeFormat } from '../../../client/date-format.js';
 import type { LaunchProfile, VizProjectRun } from '../../../client/types.js';
 import { BUTTON_LABEL_INSET } from '../../gpu-renderer.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
@@ -86,10 +87,12 @@ const PROJECT_INFO_TEXT_Y = 15;
 const PROJECT_NAME_Y = 7;
 const PROJECT_METADATA_Y = 28;
 
+const PROJECT_CREATED_OPTIONS: Intl.DateTimeFormatOptions = { dateStyle: 'medium' };
+
 function projectCreatedDate(createdAt: string, locale: string): string {
   const date = new Date(createdAt);
   if (Number.isNaN(date.getTime())) return createdAt;
-  return date.toLocaleDateString(locale, { dateStyle: 'medium' });
+  return dateTimeFormat(locale, PROJECT_CREATED_OPTIONS).format(date);
 }
 
 /**

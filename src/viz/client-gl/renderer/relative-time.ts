@@ -1,4 +1,4 @@
-import { formatDateTime } from '../../client/date-format.js';
+import { dateTimeFormat, formatDateTime } from '../../client/date-format.js';
 
 /**
  * ONE relative-time vocabulary, for every timestamp the GPU client shows.
@@ -102,13 +102,15 @@ export function relativeTime(
   return t(parts.key, parts.vars);
 }
 
+const ABSOLUTE_DATE_OPTIONS: Intl.DateTimeFormatOptions = {
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric',
+};
+
 /** Past the horizon: a date, without the time of day the bubble already holds. */
 function absoluteDate(at: number, locale: string): string {
-  return new Date(at).toLocaleDateString(locale, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
+  return dateTimeFormat(locale, ABSOLUTE_DATE_OPTIONS).format(at);
 }
 
 /** Epoch ms from an ISO string or a number, or null if it will not parse. */

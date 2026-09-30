@@ -1597,6 +1597,85 @@ describe('the nav rail', () => {
     }
   });
 
+  it('holds a live run\'s own refresh while the reader moves, never past the maximum', () => {
+    // 2026-09-30: every poll of a live run rebuilt the whole scene (22-60ms on
+    // an integrated GPU, about once a second), so watching a run in flight was
+    // the one screen that stuttered under the pointer.
+    vi.useFakeTimers({
+      toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'performance', 'Date'],
+    });
+    vi.stubGlobal('document', { hidden: false, hasFocus: () => true });
+    const renderer = new GpuRenderer();
+    const internals = renderer as unknown as {
+      initialized: boolean;
+      app: unknown;
+      snapshot: GpuRenderSnapshot | null;
+      lastInteractionAt: number;
+      lastRebuildAt: number;
+      renderScene: (snapshot: GpuRenderSnapshot) => void;
+    };
+    internals.app = { canvas: { closest: () => null } };
+    internals.initialized = true;
+    const drawn: GpuRenderSnapshot[] = [];
+    vi.spyOn(internals, 'renderScene').mockImplementation((snapshot) => {
+      internals.snapshot = snapshot;
+      internals.lastRebuildAt = performance.now();
+      drawn.push(snapshot);
+    });
+    const landed = vi.fn();
+    renderer.onDeferredRender = landed;
+    const run = (events: number): VizRun => ({
+      id: 'run-live',
+      label: 'live',
+      startedAt: new Date(Date.now() - 60_000).toISOString(),
+      events: Array.from({ length: events }, (_, index) => ({
+        id: `event-${index}`,
+        ts: Date.now() - 50_000 + index * 1_000,
+        kind: 'llm',
+      })),
+    });
+    try {
+      vi.advanceTimersByTime(5_000);
+      const first = makeSnapshot({ view: 'runs' }, { run: run(3) });
+      expect(renderer.render(first)).toBe(true);
+      vi.advanceTimersByTime(2_000);
+      // The reader moves; the trace grows. Nothing is drawn yet.
+      internals.lastInteractionAt = performance.now();
+      const grown = { ...first, data: { ...first.data, run: run(4) } };
+      expect(renderer.render(grown)).toBe(false);
+      expect(drawn).toEqual([first]);
+      // Still for the quiet window: the newest refresh lands, and is published.
+      const newest = { ...first, data: { ...first.data, run: run(5) } };
+      expect(renderer.render(newest)).toBe(false);
+      vi.advanceTimersByTime(400);
+      expect(drawn).toEqual([first, newest]);
+      expect(landed).toHaveBeenCalledOnce();
+
+      // A reader who never stops still sees the run move within the maximum.
+      const moving = setInterval(() => { internals.lastInteractionAt = performance.now(); }, 50);
+      const later = { ...newest, data: { ...newest.data, run: run(6) } };
+      renderer.render(later);
+      vi.advanceTimersByTime(2_950);
+      expect(drawn).toHaveLength(2);
+      vi.advanceTimersByTime(100);
+      expect(drawn).toEqual([first, newest, later]);
+      clearInterval(moving);
+
+      // What the reader causes is drawn at once, fresh data included.
+      internals.lastInteractionAt = performance.now();
+      const waiting = { ...later, data: { ...later.data, run: run(7) } };
+      expect(renderer.render(waiting)).toBe(false);
+      const selected = makeSnapshot({ view: 'runs', selectedEventId: 'event-1' }, { run: run(7) });
+      expect(renderer.render(selected)).toBe(true);
+      expect(drawn.at(-1)).toBe(selected);
+      vi.advanceTimersByTime(5_000);
+      expect(drawn.at(-1)).toBe(selected);
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('breaks the end-of-transition identity guard BEFORE tearing the app down', () => {
     // 2026-08-27, 3.14. Two transition completions re-render from a
     // `requestAnimationFrame` guarded only by `this.snapshot === <the snapshot
@@ -6235,7 +6314,7 @@ describe('FPS follow-ups', () => {
     internals.anchorCastShadows = () => {};
     internals.updateCastShadows = () => {};
     const rebuild = vi.spyOn(internals, 'renderScene').mockImplementation(() => {});
-    renderer.runsScroll = { origin: 0, min: 0, max: 200, move };
+    renderer.runsScroll = { origin: 0, min: 0, max: 200, overscan: 200, move };
     renderer.scrollMax.runs = 1000;
     const at = (y: number) => ({ ...first, state: { ...first.state, scrollY: { ...first.state.scrollY, runs: y } } });
     internals.snapshot = first;
@@ -6253,6 +6332,67 @@ describe('FPS follow-ups', () => {
     internals.host = { clientWidth: 900, clientHeight: 800 };
     renderer.render(at(60));
     expect(rebuild).toHaveBeenCalledTimes(5);
+  });
+
+  it('re-centres the retained window in the pause after a scroll, not mid-gesture', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
+    const renderer = new GpuRenderer();
+    const first = makeSnapshot({ view: 'runs' });
+    const internals = renderer as unknown as {
+      initialized: boolean;
+      snapshot: GpuRenderSnapshot;
+      runsScrollWidth: number;
+      runsScrollHeight: number;
+      lastInteractionAt: number;
+      anchorCastShadows(): void;
+      updateCastShadows(): void;
+      renderScene(snapshot: GpuRenderSnapshot): void;
+      app: unknown;
+    };
+    internals.initialized = true;
+    internals.app = { screen: { width: 1280, height: 800 }, canvas: { closest: () => null } };
+    internals.runsScrollWidth = 1280;
+    internals.runsScrollHeight = 800;
+    internals.anchorCastShadows = () => {};
+    internals.updateCastShadows = () => {};
+    const drawn: GpuRenderSnapshot[] = [];
+    vi.spyOn(internals, 'renderScene').mockImplementation((snapshot) => {
+      drawn.push(snapshot);
+      internals.snapshot = snapshot;
+      renderer.runsScroll = {
+        origin: snapshot.state.scrollY.runs,
+        min: Math.max(0, snapshot.state.scrollY.runs - 800),
+        max: snapshot.state.scrollY.runs + 800,
+        overscan: 800,
+        move: () => {},
+      };
+    });
+    const landed = vi.fn();
+    renderer.onDeferredRender = landed;
+    const at = (y: number) => ({ ...first, state: { ...first.state, scrollY: { ...first.state.scrollY, runs: y } } });
+    try {
+      renderer.scrollMax.runs = 5_000;
+      renderer.render(at(1_000), true);
+      expect(drawn).toHaveLength(1);
+      // Well inside the window: moved, and kept after the pause.
+      internals.lastInteractionAt = performance.now();
+      renderer.render(at(1_300));
+      vi.advanceTimersByTime(1_000);
+      expect(drawn).toHaveLength(1);
+      // Past half the overscan: nothing is rebuilt while the wheel turns...
+      internals.lastInteractionAt = performance.now();
+      renderer.render(at(1_500));
+      vi.advanceTimersByTime(300);
+      internals.lastInteractionAt = performance.now();
+      vi.advanceTimersByTime(300);
+      expect(drawn).toHaveLength(1);
+      // ...and the window is rebuilt around the reader once they stop.
+      vi.advanceTimersByTime(200);
+      expect(drawn).toEqual([at(1_000), at(1_500)]);
+      expect(landed).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

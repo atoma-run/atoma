@@ -17,6 +17,7 @@ import {
   Ticker,
   type FederatedPointerEvent,
   type Texture,
+  UniformGroup,
   UPDATE_PRIORITY,
 } from 'pixi.js';
 import { matchesSearchQuery, runSearchText } from '../client/search.js';
@@ -110,12 +111,18 @@ import {
   TUNING_ROW_HEIGHT,
 } from './renderer/tuning-layout.js';
 import {
+  POINTER_LIGHT_RADIUS_PX,
   pointerClientToRenderer,
   readPointerLight,
   movePointerLight,
   hidePointerLight,
 } from './pointer-light.js';
 import { TooltipLayer } from './renderer/tooltip.js';
+import {
+  LIVE_REFRESH_QUIET_MS,
+  classifySnapshotChange,
+  liveRefreshDecision,
+} from './renderer/live-refresh.js';
 import { publishSceneCapture, type SceneStill } from './scene-capture.js';
 import { cubeTurnPlan } from './cube-turn.js';
 import { viewFrameGutterRects } from './renderer/view-frame.js';
@@ -419,8 +426,10 @@ export {
 export { TUNING_ROW_HEIGHT as TUNING_PANEL_ROW_HEIGHT } from './renderer/tuning-layout.js';
 import { type FilterBlockLayout } from './renderer/chip-layout.js';
 import {
+  POINTER_LIGHT_BOUNDED_WGSL,
   POINTER_LIGHT_GLSL,
   POINTER_LIGHT_GLSL_VERTEX,
+  POINTER_LIGHT_REACH_RADII,
   POINTER_LIGHT_WGSL,
 } from './renderer/shaders.js';
 import { readTuning, setTuningValue } from './tuning-live.js';
@@ -511,6 +520,14 @@ export class GpuRenderer {
    */
   root: Container = this.stage;
   /**
+   * The pointer light's BOUNDED carrier, drawn right after `stage` and before
+   * everything the light must not touch. It holds no children: its filter
+   * copies what `stage` drew inside the light's reach and adds the light
+   * there, instead of re-rendering the whole stage through a full-screen
+   * filter. See `routePointerLight`.
+   */
+  readonly lightRoot = new Container();
+  /**
    * Crystals live HERE, not under `root`. The pointer-light filter flattens
    * `root` and its interior wash is a disc on any filled mesh — including the
    * arrival gem. Sibling, drawn after, so the header gem still sits on the
@@ -561,23 +578,50 @@ export class GpuRenderer {
   private initialized = false;
   private suspended = false;
   private pendingSnapshot: GpuRenderSnapshot | null = null;
+  /** A live run's refresh waiting for a still reader (`renderer/live-refresh.ts`). */
+  private deferredRefresh: {
+    snapshot: GpuRenderSnapshot;
+    since: number;
+    timer: ReturnType<typeof setTimeout>;
+  } | null = null;
+  /** Last pointer move, wheel tick or touch drag, on `performance.now()`. */
+  private lastInteractionAt = Number.NEGATIVE_INFINITY;
+  private lastPointerRevision = -1;
+  private lastRebuildAt = Number.NEGATIVE_INFINITY;
+  /**
+   * Told after a render nobody asked for — a waiting live refresh landing —
+   * so the host can publish the new scene's metrics as it does after its own.
+   */
+  onDeferredRender: (() => void) | null = null;
 
   private readonly syncRenderActivity = () => {
     const suspended = document.hidden || !document.hasFocus();
     this.suspended = suspended;
     if (suspended) {
+      const waiting = this.deferredRefresh?.snapshot;
+      this.dropDeferredRefresh();
+      if (waiting) this.pendingSnapshot = waiting;
       this.app.stop();
       return;
     }
     if (!this.initialized) return;
     const pending = this.pendingSnapshot;
     this.pendingSnapshot = null;
-    if (pending) this.render(pending, true);
+    if (pending && this.render(pending, true)) this.onDeferredRender?.();
     this.app.start();
   };
   private snapshot: GpuRenderSnapshot | null = null;
   /** The current bounded timeline window; dropped before scene teardown. */
-  runsScroll: { origin: number; min: number; max: number; move: (offset: number) => void } | null = null;
+  runsScroll: {
+    origin: number;
+    min: number;
+    max: number;
+    /** The rows built beyond the viewport on each side, in scroll pixels. */
+    overscan: number;
+    move: (offset: number) => void;
+  } | null = null;
+  /** Re-centres the retained window once the reader stops (`recenterRunsWindow`). */
+  private runsRecenterTimer: ReturnType<typeof setTimeout> | null = null;
   private runsScrollWidth = 0;
   private runsScrollHeight = 0;
 
@@ -601,6 +645,12 @@ export class GpuRenderer {
   /** Click spins survive the scene rebuild caused by activating a nav tab. */
   private readonly navIconSpins = new Map<string, NavIconSpinState>();
   private pointerLightFilter: Filter | null = null;
+  /** The bounded carrier on `lightRoot` (WebGPU only); shares the uniforms. */
+  private pointerLightProbe: Filter | null = null;
+  /** The light's reach in source-plane pixels, the probe's `filterArea`. */
+  private readonly pointerLightArea = new Rectangle();
+  /** Whether the light is lit this frame; `routePointerLight` picks the carrier. */
+  private pointerLightOn = false;
   private pointerLightUniforms: {
     uLightPx: Float32Array;
     uStrength: number;
@@ -826,6 +876,7 @@ export class GpuRenderer {
    */
   private scrollAt(clientX: number, clientY: number, deltaY: number, shiftKey: boolean) {
     if (!this.snapshot) return;
+    this.lastInteractionAt = performance.now();
     if (!this.snapshot.state.entered && this.turnSliderBounds) {
       const local = this.clientToRendererPosition(clientX, clientY);
       if (this.turnSliderBounds.contains(local.x, local.y)) {
@@ -963,9 +1014,14 @@ export class GpuRenderer {
    * the last render, so the pointer is converted the same way.
    */
   private readonly updateTooltip = () => {
+    const pointer = readPointerLight();
+    // The same sample tells a waiting live refresh whether the reader moved.
+    if (pointer.revision !== this.lastPointerRevision) {
+      this.lastPointerRevision = pointer.revision;
+      this.lastInteractionAt = performance.now();
+    }
     const tooltip = this.tooltipLayer;
     if (!tooltip) return;
-    const pointer = readPointerLight();
     const local = this.clientToRendererPosition(pointer.clientX, pointer.clientY);
     tooltip.update(
       { x: local.x, y: local.y, active: pointer.trackingActive },
@@ -1025,7 +1081,7 @@ export class GpuRenderer {
         this.lightRendererY,
         0
       );
-      filter.enabled = false;
+      this.pointerLightOn = false;
       return;
     }
 
@@ -1040,7 +1096,16 @@ export class GpuRenderer {
     this.timelineCardMaterial?.updateLight(local.x, local.y, uniforms.uStrength);
     uniforms.uRadiusScale = tuning.lightHeight * this.cameraRenderTransform.a;
     uniforms.uHueShift = tuning.lightHue;
-    filter.enabled = true;
+    // The reach in the SOURCE plane: `lightRoot` sits under the camera, so
+    // Pixi maps this box through the same transform the halo is drawn with.
+    // Two pixels more keep the edge quads' derivatives inside the copy.
+    const reach = POINTER_LIGHT_REACH_RADII * POINTER_LIGHT_RADIUS_PX *
+      Math.max(0.05, tuning.lightHeight) + 2;
+    this.pointerLightArea.x = local.x - reach;
+    this.pointerLightArea.y = local.y - reach;
+    this.pointerLightArea.width = reach * 2;
+    this.pointerLightArea.height = reach * 2;
+    this.pointerLightOn = true;
     // Published for the shadow cast, which runs right after on the same
     // ticker. Recomputing it there would mean a SECOND
     // getBoundingClientRect() per frame, and each one flushes layout.
@@ -1049,6 +1114,17 @@ export class GpuRenderer {
   };
 
   private installPointerLightFilter() {
+    // ONE uniform group for both carriers: one light, one set of values, and
+    // one buffer for `updatePointerLight` to pin against the GC.
+    const pointerLight = new UniformGroup({
+      uLightPx: { value: new Float32Array([0, 0]), type: 'vec2<f32>' },
+      uStrength: { value: 0, type: 'f32' },
+      // Live tuning, read off the ticker sample every frame. Both default
+      // to the identity, so a session that never opens the panel renders
+      // exactly what it rendered before these existed.
+      uRadiusScale: { value: 1, type: 'f32' },
+      uHueShift: { value: 0, type: 'f32' },
+    });
     const filter = Filter.from({
       gl: {
         vertex: POINTER_LIGHT_GLSL_VERTEX,
@@ -1064,33 +1140,68 @@ export class GpuRenderer {
           entryPoint: 'mainFragment',
         },
       },
-      resources: {
-        pointerLight: {
-          uLightPx: { value: new Float32Array([0, 0]), type: 'vec2<f32>' },
-          uStrength: { value: 0, type: 'f32' },
-          // Live tuning, read off the ticker sample every frame. Both default
-          // to the identity, so a session that never opens the panel renders
-          // exactly what it rendered before these existed.
-          uRadiusScale: { value: 1, type: 'f32' },
-          uHueShift: { value: 0, type: 'f32' },
-        },
-      },
+      resources: { pointerLight },
       padding: 0,
       resolution: 'inherit',
       antialias: 'inherit',
     });
     filter.enabled = false;
     this.pointerLightFilter = filter;
-    this.pointerLightUniforms = filter.resources['pointerLight'].uniforms as {
-      uLightPx: Float32Array;
-      uStrength: number;
-      uRadiusScale: number;
-      uHueShift: number;
-    };
+    this.pointerLightUniforms = pointerLight.uniforms;
     this.stage.filters = [filter];
+    // WebGL has no back-buffer copy unless every frame renders offscreen
+    // (`useBackBuffer`), which costs more than it saves: the full-stage
+    // carrier stays the only one there. `?atomaLight=full` keeps it on WebGPU
+    // too for one session — the A/B the smoke and the frame probe compare.
+    const fullOnly = new URLSearchParams(location.search).get('atomaLight') === 'full';
+    if (this.metrics.backend === 'webgpu' && !fullOnly) {
+      const probe = Filter.from({
+        gpu: {
+          vertex: {
+            source: POINTER_LIGHT_BOUNDED_WGSL,
+            entryPoint: 'mainVertex',
+          },
+          fragment: {
+            source: POINTER_LIGHT_BOUNDED_WGSL,
+            entryPoint: 'mainFragment',
+          },
+        },
+        resources: { pointerLight },
+        padding: 0,
+        resolution: 'inherit',
+        // Its own input is empty: nothing to multisample.
+        antialias: 'off',
+        blendRequired: true,
+        blendMode: 'add',
+      });
+      probe.enabled = false;
+      this.pointerLightProbe = probe;
+      this.lightRoot.filterArea = this.pointerLightArea;
+      this.lightRoot.filters = [probe];
+    }
     this.app.ticker.add(this.updatePointerLight);
     // AFTER the light: it damps `pointerLightStrength`, which shadows read.
     this.app.ticker.add(this.updateCastShadows);
+  }
+
+  /**
+   * ONE LIGHT, TWO CARRIERS, and this is where one is chosen, right before the
+   * frame is drawn. The full-stage filter renders `stage` alone into a
+   * screen-sized target and lights every pixel: 2-3.4ms of every lit frame on
+   * an integrated GPU at 1920×970 (2026-09-30), almost all of it outside the
+   * light's reach. The probe copies the reach alone out of what `stage` drew
+   * and adds the same light there — identical pixels, provided what lies
+   * under the reach IS `stage` alone. The far field breaks that (the stage
+   * filter never lit it), so the hero and a pointer coupled into the compact
+   * crystal keep the full-stage carrier.
+   */
+  private routePointerLight() {
+    const filter = this.pointerLightFilter;
+    if (!filter) return;
+    const probe = this.pointerLightProbe;
+    const bounded = probe !== null && !this.farFieldActive;
+    filter.enabled = this.pointerLightOn && !bounded;
+    if (probe) probe.enabled = this.pointerLightOn && bounded;
   }
 
   /** Keep the one compiled receiver across scene rebuilds and pointer interactions. */
@@ -1158,6 +1269,7 @@ export class GpuRenderer {
     this.setFarFieldActive(this.farFieldScenery || readMarkFieldLight().length > 0 ||
       readMarkFieldCaustic() !== null);
     if (this.farFieldActive) this.tickFarField(this.app.ticker);
+    this.routePointerLight();
     this.app.renderer.render({
       container: this.app.stage,
       transform: this.cameraRenderTransform,
@@ -1290,7 +1402,8 @@ export class GpuRenderer {
     this.ambientRoot.eventMode = 'none';
     this.markRoot.eventMode = 'none';
     this.tooltipRoot.eventMode = 'none';
-    this.app.stage.addChild(this.ambientRoot, this.stage, this.markRoot, this.tooltipRoot);
+    this.lightRoot.eventMode = 'none';
+    this.app.stage.addChild(this.ambientRoot, this.stage, this.lightRoot, this.markRoot, this.tooltipRoot);
     this.tooltipLayer = new TooltipLayer(this.tooltipRoot);
     this.app.ticker.add(this.updateTooltip);
     this.farField = createFarField();
@@ -1359,7 +1472,9 @@ export class GpuRenderer {
         setMarkBeadVisible,
         movePointerLight,
         hidePointerLight,
-        pointerLightFilter: () => this.pointerLightFilter,
+        // Whichever carrier holds the light this frame (see routePointerLight).
+        pointerLightFilter: () =>
+          this.pointerLightProbe?.enabled ? this.pointerLightProbe : this.pointerLightFilter,
         // Cached by the LAST DRAW, not the next requested camera frame.
         cameraRenderTransform: () => ({ ...this.app.stage.worldTransform }),
         // Where the controls are, and what the live tuning holds. A drag is
@@ -1416,6 +1531,10 @@ export class GpuRenderer {
     // every HMR reload. Nulling it here is what makes those guards false.
     this.snapshot = null;
     this.pendingSnapshot = null;
+    this.dropDeferredRefresh();
+    this.onDeferredRender = null;
+    if (this.runsRecenterTimer) clearTimeout(this.runsRecenterTimer);
+    this.runsRecenterTimer = null;
     this.suspended = true;
     this.app.stop();
     window.removeEventListener('focus', this.syncRenderActivity);
@@ -1442,8 +1561,13 @@ export class GpuRenderer {
     this.castShadows = [];
     this.stage.filters = null;
     this.stage.filterArea = undefined;
+    this.lightRoot.filters = null;
+    this.lightRoot.filterArea = undefined;
     this.pointerLightFilter?.destroy();
     this.pointerLightFilter = null;
+    this.pointerLightProbe?.destroy();
+    this.pointerLightProbe = null;
+    this.pointerLightOn = false;
     this.pointerLightUniforms = null;
     this.pointerLightStrength = 0;
     // A re-initialised renderer builds a NEW filter with a new buffer.
@@ -1499,25 +1623,108 @@ export class GpuRenderer {
   }
 
   /**
-   * Timed wrapper over the scene rebuild. `renderMs` is what a wheel tick
-   * actually costs, and it is the metric the smoke budgets — the rAF interval
-   * it also samples saturates at vsync and cannot show this.
+   * Draws `snapshot`, or keeps it waiting when it is only a live run's own
+   * refresh and the reader is moving (`renderer/live-refresh.ts`). Returns
+   * whether anything was drawn now; a waiting refresh lands later through
+   * `onDeferredRender`.
    */
-  render(snapshot: GpuRenderSnapshot, forceRebuild = false) {
+  render(snapshot: GpuRenderSnapshot, forceRebuild = false): boolean {
     // Keep only the latest data while inactive; rebuilding can itself upload
     // textures. Camera callbacks are gated separately from the Pixi ticker.
     if (this.suspended) {
+      this.dropDeferredRefresh();
       this.pendingSnapshot = snapshot;
+      return false;
+    }
+    const previous = this.snapshot;
+    if (previous && snapshot === previous) {
+      // The renderer redrawing what is on screen (its own scroll state, a
+      // transition settling) happens now, and a waiting refresh rides along:
+      // the rebuild is paid for either way.
+      const waiting = this.deferredRefresh?.snapshot;
+      this.dropDeferredRefresh();
+      return this.renderTimed(waiting ?? snapshot, forceRebuild);
+    }
+    if (!forceRebuild && previous) {
+      const change = classifySnapshotChange(snapshot, previous);
+      if ((change === 'live-refresh' || change === 'live-refresh+scroll') &&
+          this.deferLiveRefresh(snapshot)) {
+        if (change === 'live-refresh') return false;
+        // Move the retained timeline over the data already on screen. A
+        // window crossing rebuilds anyway, so it takes the fresh data along.
+        if (this.renderTimed({ ...snapshot, data: previous.data }, false, true)) return true;
+      }
+    }
+    this.dropDeferredRefresh();
+    return this.renderTimed(snapshot, forceRebuild);
+  }
+
+  /**
+   * Timed wrapper over the scene rebuild. `renderMs` is what a wheel tick
+   * actually costs, and it is the metric the smoke budgets — the rAF interval
+   * it also samples saturates at vsync and cannot show this. `scrollOnly`
+   * tries the retained Runs window and never rebuilds.
+   */
+  private renderTimed(snapshot: GpuRenderSnapshot, forceRebuild: boolean, scrollOnly = false): boolean {
+    const startedAt = performance.now();
+    let rendered = true;
+    try {
+      if (scrollOnly) rendered = this.tryScrollRuns(snapshot);
+      else if (forceRebuild || !this.tryScrollRuns(snapshot)) this.renderScene(snapshot);
+    } finally {
+      if (rendered) {
+        this.metrics.renderMs = performance.now() - startedAt;
+        this.metrics.labelsCreated = this.labels.created;
+        this.metrics.labelsReused = this.labels.reused;
+      }
+    }
+    return rendered;
+  }
+
+  /**
+   * Parks a live refresh while the reader moves, or answers false when it
+   * should be drawn now. A refresh already waiting keeps its arrival time, so
+   * `LIVE_REFRESH_MAX_DEFER_MS` bounds the wait however the pointer behaves.
+   */
+  private deferLiveRefresh(snapshot: GpuRenderSnapshot): boolean {
+    const now = performance.now();
+    const waiting = this.deferredRefresh;
+    const decision = liveRefreshDecision({
+      now,
+      lastInteractionAt: this.lastInteractionAt,
+      lastRebuildAt: this.lastRebuildAt,
+      deferredSince: waiting?.since ?? null,
+      moving: sceneCameraIsMoving(this.app.canvas) ||
+        this.app.canvas.closest('.gpu-cube')?.getAttribute('data-cube-turn') === 'turning',
+    });
+    if (!decision.defer) return false;
+    if (waiting) clearTimeout(waiting.timer);
+    this.deferredRefresh = {
+      snapshot,
+      since: waiting?.since ?? now,
+      timer: setTimeout(this.flushDeferredRefresh, decision.retryInMs),
+    };
+    return true;
+  }
+
+  private readonly flushDeferredRefresh = () => {
+    const waiting = this.deferredRefresh;
+    if (!waiting || !this.initialized) return;
+    if (this.suspended) {
+      this.dropDeferredRefresh();
+      this.pendingSnapshot = waiting.snapshot;
       return;
     }
-    const startedAt = performance.now();
-    try {
-      if (forceRebuild || !this.tryScrollRuns(snapshot)) this.renderScene(snapshot);
-    } finally {
-      this.metrics.renderMs = performance.now() - startedAt;
-      this.metrics.labelsCreated = this.labels.created;
-      this.metrics.labelsReused = this.labels.reused;
-    }
+    if (this.deferLiveRefresh(waiting.snapshot)) return;
+    this.dropDeferredRefresh();
+    this.renderTimed(waiting.snapshot, false);
+    this.onDeferredRender?.();
+  };
+
+  private dropDeferredRefresh() {
+    if (!this.deferredRefresh) return;
+    clearTimeout(this.deferredRefresh.timer);
+    this.deferredRefresh = null;
   }
 
   private tryScrollRuns(snapshot: GpuRenderSnapshot): boolean {
@@ -1547,10 +1754,47 @@ export class GpuRenderer {
     this.snapshot = snapshot;
     this.anchorCastShadows();
     this.updateCastShadows();
+    this.scheduleRunsRecenter();
     return true;
   }
 
+  private scheduleRunsRecenter(delayMs = LIVE_REFRESH_QUIET_MS) {
+    if (this.runsRecenterTimer) clearTimeout(this.runsRecenterTimer);
+    this.runsRecenterTimer = setTimeout(this.recenterRunsWindow, delayMs);
+  }
+
+  /**
+   * A crossing of the retained window rebuilds the scene mid-gesture, the
+   * one scroll frame that still drops. Rebuilding once the reader is still,
+   * around wherever they stopped, moves that cost into the pause: the next
+   * gesture starts with a full overscan on both sides. A window with half its
+   * overscan or more left on each side is kept; a scroll end is no side.
+   */
+  private readonly recenterRunsWindow = () => {
+    this.runsRecenterTimer = null;
+    const snapshot = this.snapshot;
+    const window = this.runsScroll;
+    if (!snapshot || !window || !this.initialized || this.suspended ||
+        snapshot.state.view !== 'runs') return;
+    const quietFor = performance.now() - this.lastInteractionAt;
+    if (quietFor < LIVE_REFRESH_QUIET_MS || sceneCameraIsMoving(this.app.canvas)) {
+      this.scheduleRunsRecenter(Math.max(16, LIVE_REFRESH_QUIET_MS - quietFor));
+      return;
+    }
+    const scrollMax = this.scrollMax.runs ?? 0;
+    const offset = Math.max(0, Math.min(scrollMax, snapshot.state.scrollY.runs));
+    const ahead = offset >= scrollMax ? Number.POSITIVE_INFINITY : window.max - offset;
+    const behind = offset <= 0 ? Number.POSITIVE_INFINITY : offset - window.min;
+    if (Math.min(ahead, behind) >= window.overscan / 2) return;
+    // The scene on screen, redrawn around the offset it already shows.
+    if (this.render(snapshot)) this.onDeferredRender?.();
+  };
+
   private renderScene(snapshot: GpuRenderSnapshot) {
+    this.lastRebuildAt = performance.now();
+    // A rebuild centres the window wherever it is drawn.
+    if (this.runsRecenterTimer) clearTimeout(this.runsRecenterTimer);
+    this.runsRecenterTimer = null;
     this.runsScroll = null;
     this.runsScrollWidth = this.app.screen.width;
     this.runsScrollHeight = this.app.screen.height;
@@ -3651,6 +3895,13 @@ export class GpuRenderer {
     return container;
   }
 
+  /**
+   * A metric tile. Its pulse, scanline and telemetry bars say "this is still
+   * moving", so they run only for a `live` subject; any other tile enters,
+   * settles on its resting pose and stops writing, the way idle chips do —
+   * a finished run's four tiles cost 48 Graphics updates and a 42KB band
+   * upload on every frame they sat still (2026-09-30).
+   */
   statCard(
     parent: Container,
     id: string,
@@ -3660,7 +3911,8 @@ export class GpuRenderer {
     y: number,
     width: number,
     height: number,
-    accent: number
+    accent: number,
+    live = false
   ) {
     const firstAppearance = !prefersReducedMotion() && !this.seenAnimatedControls.has(id);
     this.seenAnimatedControls.add(id);
@@ -3712,27 +3964,44 @@ export class GpuRenderer {
 
     let elapsed = firstAppearance ? -Number(id.replace(/\D/g, '').slice(-1) || 0) * 35 : performance.now();
     container.alpha = firstAppearance ? 0 : 1;
-    const animate = (ticker: Ticker) => {
-      if (!prefersReducedMotion()) elapsed += ticker.deltaMS;
-      const entrance = Math.max(0, Math.min(1, elapsed / 320));
+    // `phase` drives the motion; a settled tile holds phase 0, which is
+    // mid-pulse with the telemetry bars at fixed, varied heights.
+    const pose = (entrance: number, phase: number) => {
       const eased = 1 - (1 - entrance) ** 3;
       container.alpha = eased;
       container.position.y = y + (1 - eased) * 7;
-      const pulse = 0.5 + Math.sin(elapsed / 330) * 0.5;
+      const pulse = 0.5 + Math.sin(phase / 330) * 0.5;
       glow.alpha = 0.06 + pulse * 0.11;
       topRail.alpha = 0.34 + pulse * 0.28;
-      scanline.y = 4 + (Math.max(0, elapsed) * 0.025) % Math.max(8, height - 8);
+      // A scan that no longer moves is not a scan.
+      scanline.visible = live;
+      scanline.y = 4 + (Math.max(0, phase) * 0.025) % Math.max(8, height - 8);
       scanline.alpha = 0.025 + pulse * 0.045;
       valueText.alpha = 0.9 + pulse * 0.1;
       labelText.alpha = 0.72 + pulse * 0.18;
       telemetry.forEach((bar, index) => {
-        const level = 2 + (Math.sin(elapsed / 210 + index * 1.37) * 0.5 + 0.5) * 7;
+        const level = 2 + (Math.sin(phase / 210 + index * 1.37) * 0.5 + 0.5) * 7;
         bar.height = level;
         bar.y = height - 5 - level;
         bar.alpha = 0.13 + level / 12;
       });
     };
-    this.addTicker(animate);
+    const entranceAt = (ms: number) => Math.max(0, Math.min(1, ms / 320));
+    if (!live && entranceAt(elapsed) >= 1) {
+      pose(1, 0);
+    } else {
+      const animate = (ticker: Ticker) => {
+        if (!prefersReducedMotion()) elapsed += ticker.deltaMS;
+        const entrance = entranceAt(elapsed);
+        pose(entrance, live ? elapsed : 0);
+        if (!live && entrance >= 1) {
+          this.app.ticker.remove(animate);
+          this.tickerCallbacks.delete(animate);
+        }
+      };
+      this.addTicker(animate);
+      animate({ deltaMS: 0 } as Ticker);
+    }
     parent.addChild(container);
     return container;
   }

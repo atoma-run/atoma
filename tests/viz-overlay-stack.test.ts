@@ -6,10 +6,14 @@ import { describe, expect, it } from 'vitest';
 /**
  * THE OVERLAY STACK CONTRACT — the rule that ends the recurring z-order bug.
  *
- * The GL client renders four layers, in one fixed order, with one filter:
+ * The GL client renders four layers, in one fixed order, with one light:
  *
- *   ambientRoot  <  stage  <  markRoot  <  tooltipRoot
- *                     ^ pointer-light filter applies HERE
+ *   ambientRoot  <  stage  < (lightRoot) <  markRoot  <  tooltipRoot
+ *                     ^ the pointer light applies HERE
+ *
+ * `lightRoot` is not a surface: it holds no children, only the light's
+ * bounded carrier, which relights what `stage` drew beneath it. Nothing is
+ * mounted on it and nothing draws between it and `stage`.
  *
  * Every product surface (chrome, views, panels, overlay menus) draws into
  * `stage`: that is what makes it receive the pointer light and sit UNDER the
@@ -56,20 +60,30 @@ describe('the GL overlay stack', () => {
   it('mounts exactly four layers, in the light-then-bubble order', () => {
     const mounts = renderer.match(/this\.app\.stage\.addChild\([^)]*\)/g) ?? [];
     // ONE mount call, naming all four layers in order: ambient scenery under
-    // everything, product surfaces next (the lit ones), the retained crystal
-    // and orbs above them, and the hover bubble on top of it all. A second
-    // mount call would be a fifth layer nothing in the contract places.
+    // everything, product surfaces next (the lit ones) with the light's
+    // bounded carrier straight after them, the retained crystal and orbs
+    // above, and the hover bubble on top of it all. A second mount call would
+    // be a fifth layer nothing in the contract places.
     expect(mounts).toEqual([
-      'this.app.stage.addChild(this.ambientRoot, this.stage, this.markRoot, this.tooltipRoot)',
+      'this.app.stage.addChild(this.ambientRoot, this.stage, this.lightRoot, this.markRoot, this.tooltipRoot)',
     ]);
+    // The carrier is a filter host, never a surface: nothing is mounted on it.
+    expect(renderer).not.toMatch(/lightRoot\.addChild/);
   });
 
   it('applies the pointer light to stage, and to stage alone', () => {
     const assignments = renderer.match(/this\.\w+(?:\.\w+)*\.filters\s*=\s*[^;]+/g) ?? [];
-    // Install and teardown, both on `stage`. A filter on markRoot would smear
-    // the crystal; one on tooltipRoot would smear the text a reader opened
-    // the bubble to read; a filter missing from stage un-lights the product.
-    expect(assignments).toEqual(['this.stage.filters = [filter]', 'this.stage.filters = null']);
+    // Install and teardown of the full-stage carrier on `stage`, and of the
+    // bounded one on `lightRoot`, which lights only what `stage` drew under
+    // it. A filter on markRoot would smear the crystal; one on tooltipRoot
+    // would smear the text a reader opened the bubble to read; a light
+    // missing from both un-lights the product.
+    expect(assignments).toEqual([
+      'this.stage.filters = [filter]',
+      'this.lightRoot.filters = [probe]',
+      'this.stage.filters = null',
+      'this.lightRoot.filters = null',
+    ]);
   });
 
   it('keeps views off the layers above the light', () => {
