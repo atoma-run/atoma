@@ -1,0 +1,39 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "run.atoma/atoma",
+  "title": "atoma",
+  "description": "Start and follow atoma builds; read their runs, traces, agent registry and skill catalogue.",
+  "version": "0.4.0",
+  "websiteUrl": "https://atoma.run",
+  "repository": {
+    "url": "https://github.com/mgtf/atoma",
+    "source": "github",
+    "id": "1213948861"
+  },
+  "icons": [
+    {
+      "src": "https://atoma.run/favicon.svg",
+      "mimeType": "image/svg+xml",
+      "sizes": ["any"]
+    },
+    {
+      "src": "https://atoma.run/apple-touch-icon.png",
+      "mimeType": "image/png",
+      "sizes": ["180x180"]
+    }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://atoma.run/mcp",
+      "headers": [
+        {
+          "name": "Authorization",
+          "description": "Optional. \"Bearer atoma_…\", an API token minted in Settings for one organisation. Without it, the client signs in through OAuth.",
+          "isRequired": false,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

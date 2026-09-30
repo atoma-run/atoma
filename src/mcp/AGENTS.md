@@ -405,6 +405,12 @@ Neighbours:
   in `scripts/repo-facts.mjs` runs to forty; extend the table before the
   catalogue passes it). Removing or renaming one is a compatibility change for
   every registered client and is stated in the changelog.
+- `server.json` (repository root) is the MCP Registry entry for the deployed
+  `/mcp`: namespace `run.atoma`, proved by the domain, the header optional
+  because OAuth signs a client in. It carries `package.json`'s version and
+  `tests/mcp-server-json.test.ts` fails when it drifts; publishing it
+  (`mcp-publisher login dns --domain atoma.run`, then `publish`) is an
+  operator action, never CI.
 - A reader the MCP grows is a reader the CLI or the viz already has, reached
   through a second door: `skillShow` mirrors `skills show`, `ledgerTail`
   `ledger tail`, the tray builder is shared with `/api/notifications`

@@ -17,6 +17,9 @@ corrections of the 2026-09-24 and 2026-09-25 code reviews.
   Set the limits in Settings or with `npm run settings`; every change is
   journaled, and a ceiling below a request the host exports is refused. An
   instance where nobody has set one behaves exactly as before.
+- MCP: `server.json`, the MCP Registry entry for the deployed server
+  (`run.atoma/atoma`, streamable HTTP on `https://atoma.run/mcp`). Clients
+  sign in through OAuth, or send an API token as `Authorization`.
 - MCP: the `/mcp` route also speaks protocol revision 2026-07-28 — no
   session, a server per request, the tasks extension for run starts
   (`tasks/get` with the result inline, `tasks/cancel`), and
