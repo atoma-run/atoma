@@ -1223,5 +1223,20 @@
   "filters.jev": "Jev",
   "detail.role.learn-skill": "Apprentissage de recette",
   "detail.role.learn-event-skill": "Apprentissage de recette de récupération",
-  "now.doing.jevAudit": "{{actor}} vérifie en arrière-plan un verdict que Jev a déjà rendu sur le travail de {{child}}."
+  "now.doing.jevAudit": "{{actor}} vérifie en arrière-plan un verdict que Jev a déjà rendu sur le travail de {{child}}.",
+  "settings.platformLimits": "Limites des runs de la plateforme",
+  "settings.platformLimitsHint": "Les budgets absolus auxquels chaque run de cette instance est soumis. Un plafond s’impose quelle que soit la valeur demandée par un lanceur ; une valeur par défaut ne s’applique que si aucune valeur n’est demandée. Les modifications prennent effet au prochain run et sont consignées dans le journal d’audit.",
+  "settings.platformLimitsSaved": "Limite enregistrée",
+  "settings.platformLimitsCleared": "Retour à la valeur par défaut d’origine",
+  "settings.platformLimitReset": "Valeur par défaut",
+  "settings.platformLimitCeiling": "plafond — s’impose à chaque run",
+  "settings.platformLimitDefaultKind": "valeur par défaut — un lanceur peut toujours demander plus",
+  "settings.platformLimitEffective": "en vigueur : {{value}}",
+  "settings.platformLimitStated": "définie par {{who}} le {{date}}",
+  "settings.platformLimitUnstated": "aucune valeur définie — utilisation de la valeur par défaut d’origine",
+  "settings.platformLimitByCli": "la CLI de l’opérateur",
+  "settings.platformLimitRange": "{{min}}–{{max}} {{unit}}",
+  "settings.platformLimitUnlimited": "illimité",
+  "settings.platformLimitEnvSet": "{{name}}={{value}}",
+  "settings.platformLimitEnvUnset": "{{name}} non définie"
 }

@@ -1223,5 +1223,20 @@
   "filters.jev": "Jev",
   "detail.role.learn-skill": "रेसिपी सीखना",
   "detail.role.learn-event-skill": "रिकवरी रेसिपी सीखना",
-  "now.doing.jevAudit": "{{child}} के काम पर Jev द्वारा पहले ही दिए गए फैसले की {{actor}} द्वारा बैकग्राउंड में जाँच की जा रही है।"
+  "now.doing.jevAudit": "{{child}} के काम पर Jev द्वारा पहले ही दिए गए फैसले की {{actor}} द्वारा बैकग्राउंड में जाँच की जा रही है।",
+  "settings.platformLimits": "प्लेटफ़ॉर्म run सीमाएँ",
+  "settings.platformLimitsHint": "इस इंस्टेंस पर हर run इन कठोर बजटों से बंधा है। उच्चतम सीमा किसी लॉन्चर द्वारा माँगी गई मात्रा को सीमित करती है; डिफ़ॉल्ट केवल तब लागू होता है, जब कुछ भी न माँगा गया हो। बदलाव अगले run से प्रभावी होते हैं और ऑडिट जर्नल में दर्ज किए जाते हैं।",
+  "settings.platformLimitsSaved": "सीमा सहेजी गई",
+  "settings.platformLimitsCleared": "प्रदत्त डिफ़ॉल्ट पर वापस",
+  "settings.platformLimitReset": "डिफ़ॉल्ट",
+  "settings.platformLimitCeiling": "उच्चतम सीमा — हर run को सीमित करती है",
+  "settings.platformLimitDefaultKind": "डिफ़ॉल्ट — लॉन्चर अब भी अधिक माँग सकता है",
+  "settings.platformLimitEffective": "लागू: {{value}}",
+  "settings.platformLimitStated": "{{who}} द्वारा {{date}} को सेट किया गया",
+  "settings.platformLimitUnstated": "कुछ भी सेट नहीं — प्रदत्त डिफ़ॉल्ट का उपयोग हो रहा है",
+  "settings.platformLimitByCli": "ऑपरेटर CLI",
+  "settings.platformLimitRange": "{{min}}–{{max}} {{unit}}",
+  "settings.platformLimitUnlimited": "असीमित",
+  "settings.platformLimitEnvSet": "{{name}}={{value}}",
+  "settings.platformLimitEnvUnset": "{{name}} सेट नहीं है"
 }

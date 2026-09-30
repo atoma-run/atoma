@@ -1223,5 +1223,20 @@
   "filters.jev": "Jev",
   "detail.role.learn-skill": "Pembelajaran resep",
   "detail.role.learn-event-skill": "Pembelajaran resep pemulihan",
-  "now.doing.jevAudit": "{{actor}} sedang memeriksa di latar belakang penilaian yang telah diberikan Jev atas pekerjaan {{child}}."
+  "now.doing.jevAudit": "{{actor}} sedang memeriksa di latar belakang penilaian yang telah diberikan Jev atas pekerjaan {{child}}.",
+  "settings.platformLimits": "Batas run platform",
+  "settings.platformLimitsHint": "Anggaran mutlak yang membatasi setiap run pada instans ini. Batas atas membatasi apa pun yang diminta peluncur; nilai bawaan hanya berlaku jika tidak ada permintaan. Perubahan berlaku pada run berikutnya dan dicatat dalam jurnal audit.",
+  "settings.platformLimitsSaved": "Batas disimpan",
+  "settings.platformLimitsCleared": "Kembali ke nilai bawaan",
+  "settings.platformLimitReset": "Bawaan",
+  "settings.platformLimitCeiling": "batas atas — membatasi setiap run",
+  "settings.platformLimitDefaultKind": "bawaan — peluncur masih dapat meminta lebih banyak",
+  "settings.platformLimitEffective": "berlaku: {{value}}",
+  "settings.platformLimitStated": "ditetapkan oleh {{who}} pada {{date}}",
+  "settings.platformLimitUnstated": "belum ada yang ditetapkan — menggunakan nilai bawaan",
+  "settings.platformLimitByCli": "CLI operator",
+  "settings.platformLimitRange": "{{min}}–{{max}} {{unit}}",
+  "settings.platformLimitUnlimited": "tanpa batas",
+  "settings.platformLimitEnvSet": "{{name}}={{value}}",
+  "settings.platformLimitEnvUnset": "{{name}} tidak ditetapkan"
 }

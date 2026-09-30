@@ -1223,5 +1223,20 @@
   "filters.jev": "Jev",
   "detail.role.learn-skill": "تعلّم الوصفات",
   "detail.role.learn-event-skill": "تعلّم وصفات الاسترداد",
-  "now.doing.jevAudit": "يتحقق {{actor}} في الخلفية من حكم سبق أن أصدره Jev بشأن عمل {{child}}."
+  "now.doing.jevAudit": "يتحقق {{actor}} في الخلفية من حكم سبق أن أصدره Jev بشأن عمل {{child}}.",
+  "settings.platformLimits": "حدود run للمنصة",
+  "settings.platformLimitsHint": "الميزانيات الصارمة التي يخضع لها كل run في هذه النسخة. يقيّد السقف أي قيمة يطلبها المُشغِّل، بينما لا تُطبَّق القيمة الافتراضية إلا عند عدم طلب أي قيمة. تسري التغييرات على run التالي وتُسجَّل في سجل التدقيق.",
+  "settings.platformLimitsSaved": "حُفظ الحد",
+  "settings.platformLimitsCleared": "العودة إلى القيمة الافتراضية المرفقة",
+  "settings.platformLimitReset": "الافتراضي",
+  "settings.platformLimitCeiling": "السقف — يقيّد كل run",
+  "settings.platformLimitDefaultKind": "الافتراضي — لا يزال بإمكان المُشغِّل طلب المزيد",
+  "settings.platformLimitEffective": "الساري: {{value}}",
+  "settings.platformLimitStated": "ضبطه {{who}} بتاريخ {{date}}",
+  "settings.platformLimitUnstated": "لم يُضبط شيء — تُستخدم القيمة الافتراضية المرفقة",
+  "settings.platformLimitByCli": "واجهة سطر الأوامر للمشغّل",
+  "settings.platformLimitRange": "{{min}}–{{max}} {{unit}}",
+  "settings.platformLimitUnlimited": "غير محدود",
+  "settings.platformLimitEnvSet": "{{name}}={{value}}",
+  "settings.platformLimitEnvUnset": "لم يُعيَّن {{name}}"
 }

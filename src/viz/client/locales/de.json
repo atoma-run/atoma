@@ -1223,5 +1223,20 @@
   "filters.jev": "Jev",
   "detail.role.learn-skill": "Rezepte lernen",
   "detail.role.learn-event-skill": "Wiederherstellungsrezepte lernen",
-  "now.doing.jevAudit": "{{actor}} prüft im Hintergrund ein Urteil, das Jev bereits zur Arbeit von {{child}} abgegeben hat."
+  "now.doing.jevAudit": "{{actor}} prüft im Hintergrund ein Urteil, das Jev bereits zur Arbeit von {{child}} abgegeben hat.",
+  "settings.platformLimits": "Plattformlimits für runs",
+  "settings.platformLimitsHint": "Die verbindlichen Budgets, an die jeder run auf dieser Instanz gebunden ist. Eine Obergrenze begrenzt jeden vom Launcher angeforderten Wert; ein Standardwert gilt nur, wenn nichts angefordert wird. Änderungen gelten ab dem nächsten run und werden im Auditprotokoll erfasst.",
+  "settings.platformLimitsSaved": "Limit gespeichert",
+  "settings.platformLimitsCleared": "Mitgelieferter Standardwert wiederhergestellt",
+  "settings.platformLimitReset": "Standardwert",
+  "settings.platformLimitCeiling": "Obergrenze — begrenzt jeden run",
+  "settings.platformLimitDefaultKind": "Standardwert — ein Launcher kann weiterhin mehr anfordern",
+  "settings.platformLimitEffective": "wirksam: {{value}}",
+  "settings.platformLimitStated": "festgelegt von {{who}} am {{date}}",
+  "settings.platformLimitUnstated": "nichts festgelegt — mitgelieferter Standardwert wird verwendet",
+  "settings.platformLimitByCli": "die Betreiber-CLI",
+  "settings.platformLimitRange": "{{min}}–{{max}} {{unit}}",
+  "settings.platformLimitUnlimited": "unbegrenzt",
+  "settings.platformLimitEnvSet": "{{name}}={{value}}",
+  "settings.platformLimitEnvUnset": "{{name}} nicht gesetzt"
 }

@@ -1223,5 +1223,20 @@
   "filters.jev": "Jev",
   "detail.role.learn-skill": "Изучение рецептов",
   "detail.role.learn-event-skill": "Изучение рецептов восстановления",
-  "now.doing.jevAudit": "{{actor}} в фоновом режиме проверяет вердикт, который Jev уже вынес по работе {{child}}."
+  "now.doing.jevAudit": "{{actor}} в фоновом режиме проверяет вердикт, который Jev уже вынес по работе {{child}}.",
+  "settings.platformLimits": "Платформенные лимиты run",
+  "settings.platformLimitsHint": "Жёсткие бюджеты, ограничивающие каждый run на этом экземпляре. Верхний предел ограничивает любой запрос средства запуска, а значение по умолчанию применяется, только если ничего не запрошено. Изменения вступают в силу при следующем run и записываются в журнал аудита.",
+  "settings.platformLimitsSaved": "Лимит сохранён",
+  "settings.platformLimitsCleared": "Возвращено исходное значение по умолчанию",
+  "settings.platformLimitReset": "По умолчанию",
+  "settings.platformLimitCeiling": "верхний предел — ограничивает каждый run",
+  "settings.platformLimitDefaultKind": "по умолчанию — средство запуска всё ещё может запросить больше",
+  "settings.platformLimitEffective": "действует: {{value}}",
+  "settings.platformLimitStated": "кто задал: {{who}}; дата: {{date}}",
+  "settings.platformLimitUnstated": "ничего не задано — используется исходное значение по умолчанию",
+  "settings.platformLimitByCli": "CLI оператора",
+  "settings.platformLimitRange": "{{min}}–{{max}} {{unit}}",
+  "settings.platformLimitUnlimited": "без ограничений",
+  "settings.platformLimitEnvSet": "{{name}}={{value}}",
+  "settings.platformLimitEnvUnset": "переменная {{name}} не задана"
 }

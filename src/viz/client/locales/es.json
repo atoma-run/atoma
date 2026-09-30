@@ -1223,5 +1223,20 @@
   "filters.jev": "Jev",
   "detail.role.learn-skill": "Aprendizaje de recetas",
   "detail.role.learn-event-skill": "Aprendizaje de recetas de recuperación",
-  "now.doing.jevAudit": "{{actor}} está comprobando, en segundo plano, un veredicto que Jev ya emitió sobre el trabajo de {{child}}."
+  "now.doing.jevAudit": "{{actor}} está comprobando, en segundo plano, un veredicto que Jev ya emitió sobre el trabajo de {{child}}.",
+  "settings.platformLimits": "Límites de run de la plataforma",
+  "settings.platformLimitsHint": "Los presupuestos estrictos a los que está sujeto cada run en esta instancia. Un límite máximo restringe cualquier valor solicitado por un iniciador; un valor predeterminado solo se aplica cuando no se solicita ninguno. Los cambios entran en vigor en el siguiente run y se registran en el diario de auditoría.",
+  "settings.platformLimitsSaved": "Límite guardado",
+  "settings.platformLimitsCleared": "Se restauró el valor predeterminado original",
+  "settings.platformLimitReset": "Predeterminado",
+  "settings.platformLimitCeiling": "límite máximo — restringe todos los run",
+  "settings.platformLimitDefaultKind": "predeterminado — un iniciador puede solicitar un valor mayor",
+  "settings.platformLimitEffective": "en vigor: {{value}}",
+  "settings.platformLimitStated": "establecido por {{who}} el {{date}}",
+  "settings.platformLimitUnstated": "sin configurar — se usa el valor predeterminado original",
+  "settings.platformLimitByCli": "la CLI del operador",
+  "settings.platformLimitRange": "{{min}}–{{max}} {{unit}}",
+  "settings.platformLimitUnlimited": "sin límite",
+  "settings.platformLimitEnvSet": "{{name}}={{value}}",
+  "settings.platformLimitEnvUnset": "{{name}} no definida"
 }

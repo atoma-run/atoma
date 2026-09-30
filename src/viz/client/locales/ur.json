@@ -1223,5 +1223,20 @@
   "filters.jev": "Jev",
   "detail.role.learn-skill": "نسخہ سیکھنا",
   "detail.role.learn-event-skill": "بحالی کا نسخہ سیکھنا",
-  "now.doing.jevAudit": "{{actor}} پس منظر میں {{child}} کے کام پر Jev کے پہلے سے دیے گئے فیصلے کی جانچ کر رہے ہیں۔"
+  "now.doing.jevAudit": "{{actor}} پس منظر میں {{child}} کے کام پر Jev کے پہلے سے دیے گئے فیصلے کی جانچ کر رہے ہیں۔",
+  "settings.platformLimits": "پلیٹ فارم پر run کی حدود",
+  "settings.platformLimitsHint": "اس انسٹینس پر ہر run ان قطعی بجٹ کی پابند ہے۔ لانچر جو بھی طلب کرے، حدِ اعلیٰ اسے محدود کرتی ہے؛ طے شدہ قدر صرف تب لاگو ہوتی ہے جب کوئی درخواست نہ ہو۔ تبدیلیاں اگلی run پر نافذ ہوتی ہیں اور آڈٹ جرنل میں درج کی جاتی ہیں۔",
+  "settings.platformLimitsSaved": "حد محفوظ ہو گئی",
+  "settings.platformLimitsCleared": "فراہم کردہ طے شدہ قدر بحال ہو گئی",
+  "settings.platformLimitReset": "طے شدہ",
+  "settings.platformLimitCeiling": "حدِ اعلیٰ — ہر run کو پابند کرتی ہے",
+  "settings.platformLimitDefaultKind": "طے شدہ — لانچر اب بھی زیادہ کی درخواست کر سکتا ہے",
+  "settings.platformLimitEffective": "نافذ: {{value}}",
+  "settings.platformLimitStated": "{{who}} نے {{date}} کو مقرر کیا",
+  "settings.platformLimitUnstated": "کچھ مقرر نہیں — فراہم کردہ طے شدہ قدر استعمال ہو رہی ہے",
+  "settings.platformLimitByCli": "آپریٹر CLI",
+  "settings.platformLimitRange": "{{min}}–{{max}} {{unit}}",
+  "settings.platformLimitUnlimited": "لامحدود",
+  "settings.platformLimitEnvSet": "{{name}}={{value}}",
+  "settings.platformLimitEnvUnset": "{{name}} سیٹ نہیں ہے"
 }

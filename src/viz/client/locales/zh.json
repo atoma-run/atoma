@@ -1223,5 +1223,20 @@
   "filters.jev": "Jev",
   "detail.role.learn-skill": "配方学习",
   "detail.role.learn-event-skill": "恢复配方学习",
-  "now.doing.jevAudit": "{{actor}}正在后台复核Jev已对{{child}}的工作作出的裁定。"
+  "now.doing.jevAudit": "{{actor}}正在后台复核Jev已对{{child}}的工作作出的裁定。",
+  "settings.platformLimits": "平台 run 限制",
+  "settings.platformLimitsHint": "此实例上每个 run 都必须遵守的硬性预算。上限会约束启动器请求的任何值；默认值仅在未请求任何值时适用。更改将在下一个 run 生效，并记录在审计日志中。",
+  "settings.platformLimitsSaved": "限制已保存",
+  "settings.platformLimitsCleared": "已恢复为随附默认值",
+  "settings.platformLimitReset": "默认值",
+  "settings.platformLimitCeiling": "上限—约束每个 run",
+  "settings.platformLimitDefaultKind": "默认值—启动器仍可请求更多",
+  "settings.platformLimitEffective": "当前生效：{{value}}",
+  "settings.platformLimitStated": "由{{who}}于{{date}}设置",
+  "settings.platformLimitUnstated": "未设置—使用随附默认值",
+  "settings.platformLimitByCli": "运维人员 CLI",
+  "settings.platformLimitRange": "{{min}}–{{max}} {{unit}}",
+  "settings.platformLimitUnlimited": "无限制",
+  "settings.platformLimitEnvSet": "{{name}}={{value}}",
+  "settings.platformLimitEnvUnset": "未设置{{name}}"
 }
