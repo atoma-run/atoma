@@ -93,6 +93,12 @@ counter checks passed"; the L2 validator approved. The last executed
 observation was `ok:true`, so the validation ledger raised nothing, as
 designed: it judges the document, not each claim.
 
+Fixed in bc91e25b: a summary or document that states what was observed is a
+claim too. The latest recorded observation of the file as it stands decides,
+read against the task and in both directions. Values showing the requirement
+met refuse the claim alone and say the artefact needs no change; values
+showing a failure refuse the failure.
+
 ## A verification phase that replaced the page it verified (04ea696f)
 
 The corrective run for b9dc4d0b's regression asked for one label back
@@ -210,32 +216,71 @@ acceptor read "READ-ONLY PHASES — … changed nothing: …", and the delivered
 page is b9dc4d0b's with only the label changed: 5863 → 5857 bytes, 99% of
 its lines kept.
 
+## Project search at its 2-second budget (7265dd9b, b9dc4d0b)
+
+7265dd9b's only `search_project_docs` call returned `timed_out` after
+2,005 ms, b9dc4d0b's after 2,007 ms; 036ef18a's succeeded in 1,860 ms. The
+budget, `DEFAULT_PROJECT_RETRIEVAL_LIMITS`, came from the removed SQLite
+backend, and a call that overran it killed the run's Haystack process, so
+every later search in the run failed.
+
+Fixed in ab93554a: the default budget is 10 s, and the run deadline still caps
+each call. Registrations archived with the 2 s budget keep validating against
+it; any other budget is refused as a changed setting. cdc34023's search took
+2.7 s and answered.
+
+## What a README leaves out (cdc34023)
+
+cdc34023's README ends with a "Verification evidence" section: smoke values,
+a SHA-256, line numbers and source quotes. Earlier READMEs of the same project
+list observed values such as "`1499` seconds remaining". The evidence is
+correct, but it was written for the validator, not for the person who opens
+the README. The documentation prompts said which port a README must not name
+and nothing of what else a document leaves out. The recipe that wrote most
+of them, `write-verified-readme` (18 successes), says to write the document
+"from that evidence" and to document "validation semantics".
+
+Owner decision 2026-09-30: a delivered document is for its reader.
+`READER_FACING_DOC_GUIDANCE` tells every molecule that writes documentation
+that what a verification observed goes in its result's summary, never in a
+README or doc, unless the task asks that document to record it. It reaches
+the scribe and static guidance, the HTTP and full-stack prompts, and a cell
+or tissue that executes its own plan with tools. The planners do not carry
+it.
+
+Its adversarial review found three places that taught the opposite, now
+changed:
+
+- The tissue's planning line said a documentation phase "reports evidence
+  that already exists". It now points that phase at the recorded probes as
+  its source, never as content for the document.
+- The project-docs prompt said "cite exact original quotes, … source digests
+  and line spans" without saying where. It now says in the result.
+- Validation example 11 coached a wrong README sentence to be rewritten "from
+  the recorded check". It now asks for what Clear does, with no observation
+  note.
+
+The review also found the first wording could be read as removing usage
+examples, example output and exit codes. Those are behaviour, and the rule
+says to state them as what the artefact does.
+
+`write-verified-readme` and Glucose's `record-node-app-probes`, which records
+"observed URLs, statuses, and outcomes" in documentation, are dropped once
+the rule ships, so that the next documentation phase learns a new recipe
+under it. A skill reset would not have been enough, since it keeps the body.
+
 ## Open
 
 - **Earlier runs' requirements are not replayed.** The inherited
   `.atoma-probes.json` held smokes asserting `textContent === 'Long break'`;
   nothing replays inherited web entries at acceptance, so a regression of an
   earlier run's requirement ships unless the current run happens to test it.
-- **A document's claim about what was observed decides a verdict.** The root
-  validator took a README sentence over the transport record in its own input.
-  The validator prompt says self-reported success is not evidence; it says
-  nothing of a claimed observation in the other direction.
-- **Project search times out at its 2-second budget.** 7265dd9b's only
-  `search_project_docs` call returned `timed_out` after 2,005 ms, b9dc4d0b's
-  after 2,007 ms; 036ef18a's succeeded in 1,860 ms. The budget is `DEFAULT_PROJECT_RETRIEVAL_LIMITS`,
-  inherited from the SQLite backend, and a call that overruns it kills the
-  run's Haystack process, so every later search in the run fails. Raising it
-  touches every archived retrieval registration, which records `timeoutMs:
-  2000` and is validated against the current default. It needs a measurement
-  of where the time goes on the host (the hybrid reranker is the likely part)
-  before a number is chosen.
-- **READMEs carry verification residue.** cdc34023's README ends with a
-  "Verification evidence" section: smoke values, a SHA-256, line numbers and
-  source quotes. Earlier READMEs of the same project list observed values
-  such as "`1499` seconds remaining". The recipe that writes them,
-  `write-verified-readme`, says to write the document "from that evidence"
-  and to document "validation semantics". The documentation prompts do not
-  say what a reader-facing document leaves out.
+- **Molecules created before a prompt change keep the old prompt.** A
+  canonical molecule takes each new prompt at bootstrap and loses its trust
+  streak once. The other molecules keep theirs until
+  `scripts/repair-atom-prompts.mjs --apply` runs on the host, and until then
+  a run may create an equivalent molecule beside one of them. That covers the
+  web template's `edit_file` step from 527b3b55 and the reader-facing rule.
 - **Restored work inside a tissue's phase is still credited below it.** The
   molecules of a restored L3 phase are judged and credited by their cell
   before the phase ends, so only the cell's own trust is withheld.

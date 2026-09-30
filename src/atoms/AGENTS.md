@@ -288,6 +288,15 @@ load-bearing.
   `SCRIBE_PORTABLE_DOC_GUIDANCE`: documentation phases go to either molecule,
   their inputs carry the previous phase's URL, and run 8606cf38 copied it into
   the README.
+- A delivered document is for its reader (`READER_FACING_DOC_GUIDANCE`, owner
+  decision 2026-09-30): what a verification observed — measured values, smoke
+  and probe results, digests, line numbers, source quotes — goes in the
+  result's summary, never in a README or doc, unless the task asks that
+  document to record it. Every molecule that writes documentation carries it,
+  through the scribe and static guidance, the HTTP and full-stack prompts;
+  the planners do not. Run cdc34023's README closed on a "Verification
+  evidence" section, and the project-docs prompt's "cite … source digests and
+  line spans" now says where: in the result.
 - Node-server children keep file read-back even when they also have browser
   tools. Only a loopback response with status 200 and HTML content appends a
   browser probe; JSON responses and expected root 404s are not browser failures.

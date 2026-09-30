@@ -441,6 +441,27 @@ export const STANDING_PROOF_PLANNING_GUIDANCE = [
   `since the record invalidated.`,
 ].join('\n');
 
+/**
+ * What a delivered document leaves out: what a verification observed. Owner
+ * decision 2026-09-30, after run cdc34023's README closed on a "Verification
+ * evidence" section — smoke values, a SHA-256, line numbers and quotes of the
+ * source — and earlier READMEs of the same project listed "`1499` seconds
+ * remaining" beside each button. The evidence is real; its reader is the
+ * validator, through the result's summary, not the person who opens the
+ * README. Taught to every molecule that writes documentation, never to a
+ * planner.
+ */
+export const READER_FACING_DOC_GUIDANCE = [
+  `A DOCUMENT IS FOR ITS READER. README and docs say what the artefact does and`,
+  `how to use it. What a verification OBSERVED — measured values, smoke or probe`,
+  `results, digests, line numbers, quotes of the artefact's code, "verified" or`,
+  `"confirmed" notes — is run evidence: report it in your summary, never in a`,
+  `document you deliver, unless the task asks that document to record it. Usage`,
+  `examples, example output, exit codes and statuses are behaviour: state them as`,
+  `what the artefact does, never as what a check observed. .atoma-probes.json is`,
+  `a record, not a document.`,
+].join('\n');
+
 /** The one rule, for any server this run starts: its port dies with it. */
 const PORT_PLACEHOLDER_LINES = [
   `HTTP DOCUMENTATION USES A PORT PLACEHOLDER. In README/docs and durable`,
@@ -460,10 +481,11 @@ const PORT_PLACEHOLDER_LINES = [
 export const STATIC_PORTABLE_DOC_GUIDANCE = [
   ...PORT_PLACEHOLDER_LINES,
   `The URL start_static_server returned belongs in run evidence/results only,`,
-  `never in README or docs: a README that records measurements names the page`,
-  `and the widths, not the port it was served on. The review flags ANY numeric`,
-  `loopback port in docs, a conventional one such as \`localhost:8000\` too, unless`,
-  `the task itself requires that fixed port: write \`localhost:<port>\`.`,
+  `never in README or docs: a README the task asks to record measurements names`,
+  `the page and the widths, not the port it was served on. The review flags ANY`,
+  `numeric loopback port in docs, a conventional one such as \`localhost:8000\``,
+  `too, unless the task itself requires that fixed port: write \`localhost:<port>\`.`,
+  READER_FACING_DOC_GUIDANCE,
 ].join('\n');
 
 /**
@@ -480,6 +502,7 @@ export const SCRIBE_PORTABLE_DOC_GUIDANCE = [
   `README or docs, where it reads \`http://localhost:<port>\` and`,
   `\`LISTENING_ON_PORT=<port>\`. The review flags ANY numeric loopback port in`,
   `docs, unless the task itself requires that fixed port.`,
+  READER_FACING_DOC_GUIDANCE,
 ].join('\n');
 
 /** Durable HTTP docs must not capture the one port assigned to this run. */

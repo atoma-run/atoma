@@ -63,6 +63,7 @@ import {
   HTTP_PORTABLE_DOC_GUIDANCE,
   FALLBACK_VERIFICATION_GUIDANCE,
   FALLBACK_SYSTEM_PROMPT,
+  READER_FACING_DOC_GUIDANCE,
   recoveryContext,
   carryTaskCoaching,
   LITERAL_CONTRACT_PRESERVATION_GUIDANCE,
@@ -531,9 +532,10 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       // cost 46-51s. The restated invariant is what turns a writer into a
       // re-verifier: it makes the phase responsible for state it never
       // touched, so it proves that state from scratch.
-      `A phase whose deliverable is DOCUMENTATION reports evidence that`,
-      `already exists: point it at the recorded probes and let it re-run`,
-      `only what is not recorded yet. Do NOT hand it re-verification duties`,
+      `A phase whose deliverable is DOCUMENTATION describes an artefact whose`,
+      `proof already exists: point it at the recorded probes as its source,`,
+      `never as content for the document, and let it re-run only what is not`,
+      `recorded yet. Do NOT hand it re-verification duties`,
       `or workspace invariants to uphold ("make sure X still exists",`,
       `"re-run each command to capture its output"). A documentation phase`,
       `asked to re-establish state stages destructive experiments to`,
@@ -1213,6 +1215,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       task.inputs ? `Inputs: ${JSON.stringify(task.inputs)}` : '',
       `Plan: ${JSON.stringify(plan)}`,
       FALLBACK_VERIFICATION_GUIDANCE,
+      hasTools ? READER_FACING_DOC_GUIDANCE : '',
       `Return JSON: {"output", "summary"} once the work is done.`,
     ]
       .filter((l): l is string => typeof l === 'string' && l.length > 0)

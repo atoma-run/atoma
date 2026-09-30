@@ -20,6 +20,7 @@ import {
 import { makeTools } from './helpers/factories.js';
 import {
   HTTP_PORTABLE_DOC_GUIDANCE,
+  READER_FACING_DOC_GUIDANCE,
   SCRIBE_PORTABLE_DOC_GUIDANCE,
   STATIC_PORTABLE_DOC_GUIDANCE,
 } from '../src/atoms/prompts.js';
@@ -117,6 +118,24 @@ describe('ensureCanonicalL1 / ensureCanonicalL2 — idempotent bootstrap', () =>
     const before = ensureCanonicalL1(stale, WEB_TOOLS, SMOKE);
     stale.patch(before.name, { systemPromptReplace: before.systemPrompt.replace(STATIC_PORTABLE_DOC_GUIDANCE, '') }, 'test', 'older prompt');
     expect(ensureCanonicalL1(stale, WEB_TOOLS, SMOKE).systemPrompt).toContain(STATIC_PORTABLE_DOC_GUIDANCE);
+  });
+
+  it('tells every molecule that writes documentation what a delivered document leaves out, and no planner (owner decision 2026-09-30)', () => {
+    // Run cdc34023's README closed on a "Verification evidence" section:
+    // smoke values, a SHA-256, line numbers, quotes of the source.
+    const fileTools = makeTools(['write_file', 'edit_file', 'read_file', 'list_files', 'run_shell']);
+    const httpTools = makeTools(['write_file', 'read_file', 'list_files', 'run_shell', 'start_node_server', 'fetch_url']);
+    const fullStackTools = makeTools(['write_file', 'edit_file', 'read_file', 'list_files', 'run_shell', 'start_node_server', 'fetch_url', 'validate_html']);
+    const reg = new AtomRegistry(openDb(':memory:'));
+    expect(ensureCanonicalL1(reg, WEB_TOOLS, SMOKE).systemPrompt).toContain(READER_FACING_DOC_GUIDANCE);
+    expect(ensureCanonicalFileScribeL1(reg, fileTools).systemPrompt).toContain(READER_FACING_DOC_GUIDANCE);
+    expect(ensureCanonicalHttpL1(reg, httpTools).systemPrompt).toContain(READER_FACING_DOC_GUIDANCE);
+    expect(CANONICAL_HTTP_L1_SYSTEM_PROMPT_LINES).toContain(READER_FACING_DOC_GUIDANCE);
+    for (const tools of [WEB_TOOLS, fileTools, httpTools, fullStackTools]) {
+      expect(buildNarrowL1Prompt('update the README', tools)).toContain(READER_FACING_DOC_GUIDANCE);
+    }
+    // The planner renders the HTTP port rule too; it writes no document.
+    expect(HTTP_PORTABLE_DOC_GUIDANCE).not.toContain(READER_FACING_DOC_GUIDANCE);
   });
 
   it('tells the file scribe the same rule, since it writes the documentation phase (run 8606cf38)', () => {

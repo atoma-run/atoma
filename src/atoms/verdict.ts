@@ -541,7 +541,7 @@ export const VALIDATION_SYSTEM_PROMPT = [
   '  Correct verdict: {"approved": false, "reasoning": "Only README.md is',
   '  wrong: it says the list keeps 3 items after Clear; the recorded check',
   '  shows 0. The page needs no change.", "modifications": {"additionalContext":',
-  '  "Rewrite that sentence from the recorded check; leave the page unchanged."},',
+  '  "State what Clear does, with no observation note; leave the page unchanged."},',
   '  "scope": "ephemeral"}',
   '  Why: the observed values, read against the task, outrank prose in either',
   '  direction. Refusing the page on the README\'s sentence sends a correct',

@@ -86,6 +86,7 @@ import {
   STATIC_PORTABLE_DOC_GUIDANCE,
   FALLBACK_VERIFICATION_GUIDANCE,
   FALLBACK_SYSTEM_PROMPT,
+  READER_FACING_DOC_GUIDANCE,
   recoveryContext,
   carryTaskCoaching,
   LITERAL_CONTRACT_PRESERVATION_GUIDANCE,
@@ -2049,6 +2050,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       ``,
       `Plan: ${JSON.stringify(plan)}`,
       FALLBACK_VERIFICATION_GUIDANCE,
+      hasTools ? READER_FACING_DOC_GUIDANCE : '',
       ``,
       `Return JSON: {"output", "summary"} once the work is done.`,
     ]
