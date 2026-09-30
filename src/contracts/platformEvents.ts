@@ -243,7 +243,7 @@ const summarySchema = z
   });
 
 const detailSchema = z
-  .record(z.unknown())
+  .record(z.string(), z.unknown())
   .refine((value) => JSON.stringify(value).length <= PLATFORM_EVENT_DETAIL_MAX_CHARS, {
     message: `detail must serialise to at most ${PLATFORM_EVENT_DETAIL_MAX_CHARS} characters`,
   });

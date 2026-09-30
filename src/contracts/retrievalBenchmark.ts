@@ -65,7 +65,7 @@ export const retrievalQuestionSchema = z.object({
     probePath: relativePath,
     referencePath: relativePath,
     referenceSha256: retrievalDigestSchema,
-    expectedPreview: z.record(z.unknown()),
+    expectedPreview: z.record(z.string(), z.unknown()),
   }).strict().optional(),
 }).strict().superRefine((q, ctx) => {
   const unique = new Set(q.requestedFacts.map(f => f.key));

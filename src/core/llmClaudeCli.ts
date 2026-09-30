@@ -575,7 +575,7 @@ export function jsonSchemaToZodShape(schema: Record<string, unknown>): Record<st
         break;
       }
       case 'object':
-        zt = z.record(z.unknown());
+        zt = z.record(z.string(), z.unknown());
         break;
       default:
         zt = z.unknown();

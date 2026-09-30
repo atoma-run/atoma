@@ -406,7 +406,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
             limit: z.number().int().positive().max(50).optional(),
           },
           outputSchema: {
-            notifications: z.array(z.record(z.unknown())),
+            notifications: z.array(z.record(z.string(), z.unknown())),
             nextBefore: z.number().nullable(),
           },
           annotations: READ_ONLY,
@@ -435,7 +435,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
           title: 'Create a project',
           description:
             'Create a project in your organisation, bound to a GitHub installation linked to it (atoma_projects_list shows the installations through the web console). The payload shape is the console’s: name, slug, family, repositoryTarget { installationId, owner, name, visibility }.',
-          inputSchema: { project: z.record(z.unknown()).describe('createProjectInput, as the web console sends it.') },
+          inputSchema: { project: z.record(z.string(), z.unknown()).describe('createProjectInput, as the web console sends it.') },
           annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
         },
         (args) => guarded(() => tenant(ctx).service.createProjectFromInput(ctx.viewer(), args.project))
@@ -524,7 +524,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
           title: 'Organisation model defaults',
           description:
             'Read the organisation’s per-tier model defaults, or set them (pass models: { l1, l2, l3 }, each a catalogue model id or null). A subscription can never be an organisation default.',
-          inputSchema: { models: z.record(z.unknown()).optional().describe('Omit to read.') },
+          inputSchema: { models: z.record(z.string(), z.unknown()).optional().describe('Omit to read.') },
           annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
         },
         (args) =>
@@ -782,7 +782,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
             entity: z.string().min(1).optional(),
             kind: z.string().min(1).optional(),
           },
-          outputSchema: { ledger: z.string(), total: z.number(), events: z.array(z.record(z.unknown())), note: z.string().optional() },
+          outputSchema: { ledger: z.string(), total: z.number(), events: z.array(z.record(z.string(), z.unknown())), note: z.string().optional() },
           annotations: READ_ONLY,
         },
         (args) =>
@@ -811,12 +811,12 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
             runsDir: z.string(),
             window: z.number(),
             runsScanned: z.number(),
-            totals: z.record(z.unknown()),
-            perModel: z.array(z.record(z.unknown())),
-            perTier: z.array(z.record(z.unknown())),
-            perRole: z.array(z.record(z.unknown())),
-            trend: z.record(z.unknown()),
-            runs: z.array(z.record(z.unknown())),
+            totals: z.record(z.string(), z.unknown()),
+            perModel: z.array(z.record(z.string(), z.unknown())),
+            perTier: z.array(z.record(z.string(), z.unknown())),
+            perRole: z.array(z.record(z.string(), z.unknown())),
+            trend: z.record(z.string(), z.unknown()),
+            runs: z.array(z.record(z.string(), z.unknown())),
           },
           annotations: READ_ONLY,
         },
@@ -869,9 +869,9 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
           description:
             'Whether this host’s resident sentinel is armed (and why not, when it is not), its tick statistics, the mechanical rule table it applies, and the resident analyst’s queue and last result. Zero tokens: this reads counters.',
           outputSchema: {
-            sentinel: z.record(z.unknown()).nullable(),
-            rules: z.array(z.record(z.unknown())),
-            analyst: z.record(z.unknown()).nullable(),
+            sentinel: z.record(z.string(), z.unknown()).nullable(),
+            rules: z.array(z.record(z.string(), z.unknown())),
+            analyst: z.record(z.string(), z.unknown()).nullable(),
           },
           annotations: READ_ONLY,
         },

@@ -83,7 +83,8 @@ export class SocketLauncher implements ContainerLauncher {
           timer = setTimeout(() => this.fail(new Error('Launcher request timed out; outcome unknown')), LAUNCHER_REQUEST_TIMEOUT_MS);
           this.socket.write(`${JSON.stringify(request)}\n`);
         });
-        return launcherResults[request.op].parse(raw);
+        // zod 4 infers the union of every op's result through a generic index; the op fixes it.
+        return launcherResults[request.op].parse(raw) as z.infer<(typeof launcherResults)[R['op']]>;
       } finally {
         clearTimeout(timer);
         this.socket.unref();

@@ -24,17 +24,35 @@ import { z } from 'zod';
  */
 export type JsonSchema = Record<string, unknown>;
 
-export function jsonSchemaFromZod(schema: z.ZodTypeAny): JsonSchema {
-  const def = schema._def as { typeName: z.ZodFirstPartyTypeKind } & Record<string, unknown>;
-  switch (def.typeName) {
-    case z.ZodFirstPartyTypeKind.ZodObject: {
-      const object = schema as z.AnyZodObject;
+/** One zod 4 check, as its definition names it (`min_length`, `number_format`, `custom`, …). */
+interface CheckDef {
+  readonly check: string;
+  readonly minimum?: number;
+  readonly maximum?: number;
+  readonly value?: number;
+  readonly inclusive?: boolean;
+  readonly format?: string;
+}
+
+function checksOf(schema: z.ZodType): CheckDef[] {
+  return (schema._zod.def.checks ?? []).map((check) => check._zod.def as CheckDef);
+}
+
+export function jsonSchemaFromZod(schema: z.ZodType): JsonSchema {
+  const def = schema._zod.def;
+  // A refinement is a `custom` check on the node itself (zod 4 has no
+  // wrapper for it): it has no JSON Schema form, the node's shape is what the
+  // model is held to, and zod enforces the predicate on the way back.
+  const checks = checksOf(schema).filter((check) => check.check !== 'custom');
+  switch (def.type) {
+    case 'object': {
+      const object = schema as z.ZodObject;
+      if (checks.length > 0) throw new Error(`jsonSchemaFromZod: unsupported object check "${checks[0]!.check}"`);
       const properties: Record<string, JsonSchema> = {};
       const required: string[] = [];
-      for (const [key, child] of Object.entries(object.shape as Record<string, z.ZodTypeAny>)) {
-        const childDef = child._def as { typeName: z.ZodFirstPartyTypeKind };
-        if (childDef.typeName === z.ZodFirstPartyTypeKind.ZodOptional) {
-          properties[key] = jsonSchemaFromZod((child as z.ZodOptional<z.ZodTypeAny>).unwrap());
+      for (const [key, child] of Object.entries(object.shape as Record<string, z.ZodType>)) {
+        if (child._zod.def.type === 'optional') {
+          properties[key] = jsonSchemaFromZod((child as z.ZodOptional).unwrap() as z.ZodType);
         } else {
           properties[key] = jsonSchemaFromZod(child);
           required.push(key);
@@ -42,43 +60,45 @@ export function jsonSchemaFromZod(schema: z.ZodTypeAny): JsonSchema {
       }
       const out: JsonSchema = { type: 'object', properties };
       if (required.length > 0) out['required'] = required;
-      if (object._def.unknownKeys === 'strict') out['additionalProperties'] = false;
+      // `.strict()` is a catch-all of `never`: no other key is admitted.
+      if (object._zod.def.catchall?._zod.def.type === 'never') out['additionalProperties'] = false;
       return out;
     }
-    case z.ZodFirstPartyTypeKind.ZodString: {
+    case 'string': {
       const out: JsonSchema = { type: 'string' };
-      for (const check of (schema as z.ZodString)._def.checks) {
-        if (check.kind === 'min') out['minLength'] = check.value;
-        else if (check.kind === 'max') out['maxLength'] = check.value;
-        else throw new Error(`jsonSchemaFromZod: unsupported string check "${check.kind}"`);
+      for (const check of checks) {
+        if (check.check === 'min_length') out['minLength'] = check.minimum;
+        else if (check.check === 'max_length') out['maxLength'] = check.maximum;
+        else throw new Error(`jsonSchemaFromZod: unsupported string check "${check.check}"`);
       }
       return out;
     }
-    case z.ZodFirstPartyTypeKind.ZodNumber: {
+    case 'number': {
       const out: JsonSchema = { type: 'number' };
-      for (const check of (schema as z.ZodNumber)._def.checks) {
-        if (check.kind === 'int') out['type'] = 'integer';
-        else if (check.kind === 'min') out['minimum'] = check.value;
-        else if (check.kind === 'max') out['maximum'] = check.value;
-        else throw new Error(`jsonSchemaFromZod: unsupported number check "${check.kind}"`);
+      for (const check of checks) {
+        if (check.check === 'number_format' && check.format === 'safeint') out['type'] = 'integer';
+        else if (check.check === 'greater_than' && check.inclusive) out['minimum'] = check.value;
+        else if (check.check === 'less_than' && check.inclusive) out['maximum'] = check.value;
+        else throw new Error(`jsonSchemaFromZod: unsupported number check "${check.check}"`);
       }
       return out;
     }
-    case z.ZodFirstPartyTypeKind.ZodBoolean:
+    case 'boolean':
       return { type: 'boolean' };
-    case z.ZodFirstPartyTypeKind.ZodEnum:
-      return { enum: [...(schema as z.ZodEnum<[string, ...string[]]>).options] };
-    case z.ZodFirstPartyTypeKind.ZodLiteral:
-      return { enum: [(schema as z.ZodLiteral<unknown>).value] };
-    case z.ZodFirstPartyTypeKind.ZodArray:
-      return { type: 'array', items: jsonSchemaFromZod((schema as z.ZodArray<z.ZodTypeAny>).element) };
-    case z.ZodFirstPartyTypeKind.ZodEffects:
-      // A refinement has no JSON Schema form; the wrapped shape is what the
-      // model is held to, and zod enforces the predicate on the way back.
-      return jsonSchemaFromZod((schema as z.ZodEffects<z.ZodTypeAny>).innerType());
-    case z.ZodFirstPartyTypeKind.ZodOptional:
+    case 'enum':
+      return { enum: [...(schema as z.ZodEnum).options] };
+    case 'literal': {
+      const values = (schema as z.ZodLiteral).values;
+      if (values.size !== 1) throw new Error('jsonSchemaFromZod: a literal must name exactly one value');
+      return { enum: [...values] };
+    }
+    case 'array':
+      // Length bounds are not expressed, as they never were: zod enforces
+      // them on the way back in, like a refinement.
+      return { type: 'array', items: jsonSchemaFromZod((schema as z.ZodArray).element as z.ZodType) };
+    case 'optional':
       throw new Error('jsonSchemaFromZod: optional is only supported as an object property');
     default:
-      throw new Error(`jsonSchemaFromZod: unsupported zod node "${def.typeName}"`);
+      throw new Error(`jsonSchemaFromZod: unsupported zod node "${def.type}"`);
   }
 }

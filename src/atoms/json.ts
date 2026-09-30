@@ -854,7 +854,7 @@ export const subtaskSpecSchema = z.object({
   // which is the documented meaning ("omit entirely"); the failure direction
   // is "no routing hint", never "wrong routing".
   inputs: z
-    .record(z.unknown())
+    .record(z.string(), z.unknown())
     .nullable()
     .optional()
     .transform((v) => v ?? undefined),
@@ -916,11 +916,13 @@ export const aggregationSpecSchema = z.object({
   // section in AGENTS.md): accept null at the parse boundary and
   // normalise to undefined via transform so the rest of the code sees
   // the clean `string | undefined` shape.
+  // `.optional()` last: zod 4 makes a key whose schema ends in a transform
+  // required in the output type, and an absent key never reaches it anyway.
   instruction: z
     .string()
     .nullable()
-    .optional()
-    .transform((v) => v ?? undefined),
+    .transform((v) => v ?? undefined)
+    .optional(),
 });
 
 /**
@@ -974,7 +976,7 @@ export const planSchema = z.preprocess(
     expectedOutput: z.string().default(''),
     proposedAction: z.string().optional(),
     toolCalls: z
-      .array(z.object({ name: z.string(), args: z.record(z.unknown()) }))
+      .array(z.object({ name: z.string(), args: z.record(z.string(), z.unknown()) }))
       .optional(),
     // NOTE: the Plan interface in types.ts also carries a
     // `viaPrefilter?: boolean` flag used by supervisor.validatePlan as
@@ -1003,7 +1005,7 @@ export const atomModificationsSchema = z.object({
       z.object({
         name: z.string(),
         description: z.string(),
-        inputSchema: z.record(z.unknown()),
+        inputSchema: z.record(z.string(), z.unknown()),
       })
     )
     .optional(),
@@ -1206,7 +1208,7 @@ export function parseVerdict(text: string): z.infer<typeof verdictSchema> {
 const toolObjectSchema = z.object({
   name: z.string(),
   description: z.string(),
-  inputSchema: z.record(z.unknown()),
+  inputSchema: z.record(z.string(), z.unknown()),
 });
 
 /**
