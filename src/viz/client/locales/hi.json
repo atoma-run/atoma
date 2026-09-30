@@ -1222,5 +1222,6 @@
   "card.jev.confidence": "विश्वास {{value}}%",
   "filters.jev": "Jev",
   "detail.role.learn-skill": "रेसिपी सीखना",
-  "detail.role.learn-event-skill": "रिकवरी रेसिपी सीखना"
+  "detail.role.learn-event-skill": "रिकवरी रेसिपी सीखना",
+  "now.doing.jevAudit": "{{child}} के काम पर Jev द्वारा पहले ही दिए गए फैसले की {{actor}} द्वारा बैकग्राउंड में जाँच की जा रही है।"
 }

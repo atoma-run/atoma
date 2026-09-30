@@ -1222,5 +1222,6 @@
   "card.jev.confidence": "keyakinan {{value}}%",
   "filters.jev": "Jev",
   "detail.role.learn-skill": "Pembelajaran resep",
-  "detail.role.learn-event-skill": "Pembelajaran resep pemulihan"
+  "detail.role.learn-event-skill": "Pembelajaran resep pemulihan",
+  "now.doing.jevAudit": "{{actor}} sedang memeriksa di latar belakang penilaian yang telah diberikan Jev atas pekerjaan {{child}}."
 }

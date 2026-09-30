@@ -1222,5 +1222,6 @@
   "card.jev.confidence": "conf {{value}} %",
   "filters.jev": "Jev",
   "detail.role.learn-skill": "Apprentissage de recette",
-  "detail.role.learn-event-skill": "Apprentissage de recette de récupération"
+  "detail.role.learn-event-skill": "Apprentissage de recette de récupération",
+  "now.doing.jevAudit": "{{actor}} vérifie en arrière-plan un verdict que Jev a déjà rendu sur le travail de {{child}}."
 }

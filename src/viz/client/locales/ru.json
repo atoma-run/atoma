@@ -1222,5 +1222,6 @@
   "card.jev.confidence": "увер. {{value}}%",
   "filters.jev": "Jev",
   "detail.role.learn-skill": "Изучение рецептов",
-  "detail.role.learn-event-skill": "Изучение рецептов восстановления"
+  "detail.role.learn-event-skill": "Изучение рецептов восстановления",
+  "now.doing.jevAudit": "{{actor}} в фоновом режиме проверяет вердикт, который Jev уже вынес по работе {{child}}."
 }

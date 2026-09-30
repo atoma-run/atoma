@@ -1222,5 +1222,6 @@
   "card.jev.confidence": "信頼度 {{value}}%",
   "filters.jev": "Jev",
   "detail.role.learn-skill": "レシピ学習",
-  "detail.role.learn-event-skill": "復旧レシピ学習"
+  "detail.role.learn-event-skill": "復旧レシピ学習",
+  "now.doing.jevAudit": "{{actor}}がバックグラウンドで、{{child}}の作業に対してJevがすでに下した判定を確認しています。"
 }

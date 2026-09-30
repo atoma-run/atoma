@@ -1222,5 +1222,6 @@
   "card.jev.confidence": "اعتماد {{value}}%",
   "filters.jev": "Jev",
   "detail.role.learn-skill": "نسخہ سیکھنا",
-  "detail.role.learn-event-skill": "بحالی کا نسخہ سیکھنا"
+  "detail.role.learn-event-skill": "بحالی کا نسخہ سیکھنا",
+  "now.doing.jevAudit": "{{actor}} پس منظر میں {{child}} کے کام پر Jev کے پہلے سے دیے گئے فیصلے کی جانچ کر رہے ہیں۔"
 }

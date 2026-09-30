@@ -1222,5 +1222,6 @@
   "card.jev.confidence": "আস্থা {{value}}%",
   "filters.jev": "Jev",
   "detail.role.learn-skill": "রেসিপি শেখা",
-  "detail.role.learn-event-skill": "পুনরুদ্ধার রেসিপি শেখা"
+  "detail.role.learn-event-skill": "পুনরুদ্ধার রেসিপি শেখা",
+  "now.doing.jevAudit": "{{actor}} ব্যাকগ্রাউন্ডে {{child}}-এর কাজ সম্পর্কে Jev আগে যে রায় দিয়েছে, তা যাচাই করছে।"
 }

@@ -1222,5 +1222,6 @@
   "card.jev.confidence": "الثقة {{value}}٪",
   "filters.jev": "Jev",
   "detail.role.learn-skill": "تعلّم الوصفات",
-  "detail.role.learn-event-skill": "تعلّم وصفات الاسترداد"
+  "detail.role.learn-event-skill": "تعلّم وصفات الاسترداد",
+  "now.doing.jevAudit": "يتحقق {{actor}} في الخلفية من حكم سبق أن أصدره Jev بشأن عمل {{child}}."
 }
