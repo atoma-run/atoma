@@ -2,7 +2,7 @@ import type { Atom } from '../core/atom.js';
 import { setMaxListeners } from 'node:events';
 import type { Result, RunContext, Task, ToolExecutor } from '../core/types.js';
 import { attestingExecutor, createAttestationLog } from '../core/attestation.js';
-import { abortedByDeadline, finalizationSignal, landingSignal, withinSignal } from '../atoms/cost.js';
+import { abortedForLanding, finalizationSignal, landingSignal, withinSignal } from '../atoms/cost.js';
 import { acceptRootResult } from '../atoms/rootAcceptance.js';
 import { outOfPhaseBudget } from '../core/limits.js';
 import type { AcceptanceInfo, DepthMode, PhaseCoverageRecord, ProofFloor, TopologyInfo } from '../contracts/depthRouting.js';
@@ -207,7 +207,7 @@ export async function runDepthTask(args: {
         try {
           result = await handle(currentTask, attemptCtx);
         } catch (error) {
-          if (refused && !cancellation.signal.aborted && abortedByDeadline(ctx)) {
+          if (refused && !cancellation.signal.aborted && abortedForLanding(ctx)) {
             const reasoning = refused.acceptance.reasoning.trim() || 'the root acceptor gave no reason';
             return markRefused(refused.result, {
               reasoning: `${reasoning} — the remediation pass was cut by the run deadline before it completed a phase`,
@@ -221,10 +221,10 @@ export async function runDepthTask(args: {
         // landed one was kept. Deepening and explicit cancellation still abort.
         cancellation.signal.throwIfAborted();
         const landed = Boolean(result.unfinishedPhases?.length);
-        if (!abortedByDeadline(ctx)) attemptCtx.signal.throwIfAborted();
+        if (!abortedForLanding(ctx)) attemptCtx.signal.throwIfAborted();
         const explicitCancellation = new AbortController();
         const forwardCancellation = () => {
-          if (!abortedByDeadline(ctx)) explicitCancellation.abort(ctx.signal.reason);
+          if (!abortedForLanding(ctx)) explicitCancellation.abort(ctx.signal.reason);
         };
         ctx.signal.addEventListener('abort', forwardCancellation, { once: true });
         // Deadline + grace, absolute. Without a run deadline a landed result keeps
@@ -245,7 +245,7 @@ export async function runDepthTask(args: {
           // A real error before the deadline is still an error. Once the clock
           // is involved — the window closed, or the run deadline passed — the
           // work in hand is kept, never delivered, and no new pass is opened.
-          if (!acceptanceCtx.signal.aborted && !abortedByDeadline(ctx)) throw error;
+          if (!acceptanceCtx.signal.aborted && !abortedForLanding(ctx)) throw error;
           return markRefused(result, { reasoning: 'Root acceptance could not finish within the landing budget' });
         } finally {
           ctx.signal.removeEventListener('abort', forwardCancellation);

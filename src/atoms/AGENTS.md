@@ -218,9 +218,12 @@ load-bearing.
   sub-results — KEEPS them, landed (`synthesizeOrKeep`), and names what
   happened in the unfinished step; cancellation and deepening rethrow.
   Sequential aggregation makes no call and needs none. A `TimeoutError` is
-  the run deadline only beside a `ctx.deadlineAt` (`abortedByDeadline`):
+  the run deadline only beside a `ctx.deadlineAt` (`abortedForLanding`):
   without one it is a library caller's own timeout, honoured as a
-  cancellation, never a window to finalize in.
+  cancellation, never a window to finalize in. A platform token/spend
+  ceiling (`RunBudgetExceededError`) lands exactly as the deadline does and
+  spends nothing more: the run's client refuses every call after it
+  (owner decision 2026-09-30, [src/platform](../platform/AGENTS.md)).
 
 ## Verification and ground truth
 

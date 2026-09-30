@@ -148,6 +148,66 @@ describe('startTask — typed config errors before any side effect', () => {
     }
   });
 
+  /*
+   * The 2026-09-30 review of the ported limits: an instance with no row must
+   * launch what it launched before, and a ceiling refuses a REQUEST, never
+   * the runner's own default. Each is proved by the next refusal in the
+   * ordered gauntlet (`--seed`), as above.
+   */
+  it('launches a three-hour operator run when no ceiling is stated', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'atoma-runner-no-ceiling-'));
+    try {
+      process.env[buildProfile.envVars.dbPath] = join(root, 'atoma.db');
+      process.env[buildProfile.envVars.timeoutMs] = String(3 * 60 * 60 * 1000);
+      await expect(
+        startTask(buildProfile, ['--seed', '/nonexistent/atoma-seed-dir', 'goal'])
+      ).rejects.toThrow(/--seed: no such directory/);
+    } finally {
+      closeStoreHandles();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('bounds its own default by a stated ceiling instead of refusing it', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'atoma-runner-default-'));
+    try {
+      const dbPath = join(root, 'atoma.db');
+      PlatformSettingsStore.open(dbPath).set({ 'run.timeoutMaxMs': 300_000 }, null);
+      process.env[buildProfile.envVars.dbPath] = dbPath;
+      delete process.env[buildProfile.envVars.timeoutMs];
+      await expect(
+        startTask(buildProfile, ['--seed', '/nonexistent/atoma-seed-dir', 'goal'])
+      ).rejects.toThrow(/--seed: no such directory/);
+    } finally {
+      closeStoreHandles();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a per-call timeout requested above a stated ceiling, and leaves one alone without a row', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'atoma-runner-call-ceiling-'));
+    const previous = process.env['ATOMA_CLI_CALL_TIMEOUT_MS'];
+    try {
+      const dbPath = join(root, 'atoma.db');
+      process.env[buildProfile.envVars.dbPath] = dbPath;
+      process.env[buildProfile.envVars.timeoutMs] = '600000';
+      process.env['ATOMA_CLI_CALL_TIMEOUT_MS'] = '900000';
+      // No row: the exported call timeout is a request nobody bounds.
+      await expect(
+        startTask(buildProfile, ['--seed', '/nonexistent/atoma-seed-dir', 'goal'])
+      ).rejects.toThrow(/--seed: no such directory/);
+      PlatformSettingsStore.open(dbPath).set({ 'llm.callTimeoutMs': 60_000 }, null);
+      await expect(startTask(buildProfile, ['goal'])).rejects.toThrow(
+        /ATOMA_CLI_CALL_TIMEOUT_MS=900000 is exported and exceeds llm\.callTimeoutMs=60000/
+      );
+    } finally {
+      if (previous === undefined) delete process.env['ATOMA_CLI_CALL_TIMEOUT_MS'];
+      else process.env['ATOMA_CLI_CALL_TIMEOUT_MS'] = previous;
+      closeStoreHandles();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('rejects a missing --seed directory before touching anything', async () => {
     process.env[buildProfile.envVars.timeoutMs] = '60000';
     await expect(

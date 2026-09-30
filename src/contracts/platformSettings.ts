@@ -153,8 +153,14 @@ export const PLATFORM_SETTINGS: Record<PlatformSettingKey, PlatformSettingSpec> 
     key: 'run.watchdogGraceMs',
     unit: 'ms',
     kind: 'default',
-    min: 5_000,
-    max: 900_000,
+    // BOUNDED BY TWO DEADLINES THIS MODULE DOES NOT OWN (2026-09-30 review).
+    // Below, the 45s finalization window (`FINALIZATION_GRACE_MS`) runs INSIDE
+    // this grace: a shorter one kills a run while it lands, recording `failed`
+    // what would have been `partial`. Above, the harness hard-reaps at
+    // deadline + 180s (`DEFAULT_HARD_KILL_MARGIN_MS`): a longer grace means the
+    // group-kill always wins and the trace never closes. The test pins both.
+    min: 60_000,
+    max: 150_000,
     fallback: 60_000,
     zeroMeansUnlimited: false,
     env: null,
@@ -165,25 +171,31 @@ export const PLATFORM_SETTINGS: Record<PlatformSettingKey, PlatformSettingSpec> 
     key: 'llm.callTimeoutMs',
     unit: 'ms',
     kind: 'ceiling',
+    // 0 = no ceiling, and it is the fallback: the call timeout that shipped is
+    // a DEFAULT its env var may raise, so an instance with no row must not
+    // bound it (2026-09-30 review). A stated ceiling is at least 30s.
     min: 30_000,
     max: 3_600_000,
-    fallback: 600_000,
-    zeroMeansUnlimited: false,
+    fallback: 0,
+    zeroMeansUnlimited: true,
     env: 'ATOMA_CLI_CALL_TIMEOUT_MS',
     readAt: 'src/core/llmClaudeCli.ts#cliCallTimeoutMs',
-    summary: 'Hard ceiling on one Claude-CLI call inactivity timeout.',
+    summary: 'Hard ceiling on one Claude-CLI call inactivity timeout; 0 disables it.',
   },
   'llm.codexCallTimeoutMs': {
     key: 'llm.codexCallTimeoutMs',
     unit: 'ms',
     kind: 'ceiling',
+    // 0 = no ceiling, and it is the fallback: the call timeout that shipped is
+    // a DEFAULT its env var may raise, so an instance with no row must not
+    // bound it (2026-09-30 review). A stated ceiling is at least 30s.
     min: 30_000,
     max: 3_600_000,
-    fallback: 600_000,
-    zeroMeansUnlimited: false,
+    fallback: 0,
+    zeroMeansUnlimited: true,
     env: 'ATOMA_CODEX_CALL_TIMEOUT_MS',
     readAt: 'src/core/llmCodexCli.ts#codexCallTimeoutMs',
-    summary: 'Hard ceiling on one Codex-CLI call inactivity timeout.',
+    summary: 'Hard ceiling on one Codex-CLI call inactivity timeout; 0 disables it.',
   },
   'llm.maxToolIterations': {
     key: 'llm.maxToolIterations',
@@ -278,6 +290,9 @@ export function assertPlatformSettingValue(key: PlatformSettingKey, value: numbe
   if (spec.unit !== 'usd' && !Number.isSafeInteger(value)) {
     throw new PlatformSettingError(`${key} must be an integer (${spec.unit})`);
   }
+  // An entry whose zero means "no ceiling" takes 0 below its minimum: the
+  // minimum bounds a STATED ceiling, not its absence.
+  if (spec.zeroMeansUnlimited && value === 0) return value;
   if (value < spec.min || value > spec.max) {
     throw new PlatformSettingError(
       `${key}=${value} is outside ${spec.min}..${spec.max} (${spec.unit})`
@@ -300,6 +315,58 @@ export function resolvePlatformLimits(
     out[key] = stated === undefined ? PLATFORM_SETTINGS[key].fallback : stated;
   }
   return out;
+}
+
+/**
+ * The environment variables a CEILING bounds: each names a REQUEST the host
+ * may export, which the ceiling refuses at launch when it asks for more.
+ * `run.timeoutMaxMs` bounds the project budget (`spec.env` of the default,
+ * since that is where the request lands); the call timeouts bound their own.
+ */
+export const CEILING_REQUEST_ENV: Readonly<Partial<Record<PlatformSettingKey, string>>> = {
+  'run.timeoutMaxMs': 'ATOMA_PROJECT_TIMEOUT_MS',
+  'llm.callTimeoutMs': 'ATOMA_CLI_CALL_TIMEOUT_MS',
+  'llm.codexCallTimeoutMs': 'ATOMA_CODEX_CALL_TIMEOUT_MS',
+};
+
+/**
+ * The ceilings in `limits` that an exported request in `env` exceeds, in
+ * words an admin can act on. A save that would create one is REFUSED (the
+ * form, the CLI), because from that moment every run asking for that request
+ * would be refused — the 2026-09-30 review found a saved ceiling below
+ * `ATOMA_PROJECT_TIMEOUT_MS` failing every project run. It reads the env it is
+ * GIVEN, so the resolver stays environment-free.
+ */
+export function ceilingConflicts(
+  limits: PlatformLimits,
+  env: Readonly<Record<string, string | undefined>>,
+  keys: readonly PlatformSettingKey[] = Object.keys(CEILING_REQUEST_ENV) as PlatformSettingKey[]
+): string[] {
+  const conflicts: string[] = [];
+  for (const key of keys) {
+    const variable = CEILING_REQUEST_ENV[key];
+    if (!variable) continue;
+    const ceiling = ceilingOf(limits, key);
+    const raw = env[variable]?.trim();
+    if (ceiling === null || !raw) continue;
+    const requested = Number(raw);
+    if (Number.isFinite(requested) && requested > ceiling) {
+      conflicts.push(`${variable}=${raw} is exported and exceeds ${key}=${ceiling}: raise the ceiling or unset the variable first`);
+    }
+  }
+  return conflicts;
+}
+
+/**
+ * The wall-clock ceiling a RUNNER-LEVEL launch obeys: the stated one, when an
+ * admin narrowed it below the shipped value, else none. The operator's own
+ * runner never had a ceiling, and an instance with no row must launch exactly
+ * what it launched before (2026-09-30 review); project runs are bounded by the
+ * coordinator, which always applies `MAX_PROJECT_RUN_TIMEOUT_MS`.
+ */
+export function narrowedRunTimeoutCeilingMs(limits: PlatformLimits): number | null {
+  const value = limits['run.timeoutMaxMs'];
+  return value < PLATFORM_SETTINGS['run.timeoutMaxMs'].fallback ? value : null;
 }
 
 /** The limits of an instance where no admin has stated anything. */

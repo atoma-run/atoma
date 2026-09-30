@@ -151,6 +151,7 @@ import {
   PLATFORM_EVENT_SUMMARY_MAX_CHARS,
 } from '../contracts/platformEvents.js';
 import {
+  ceilingConflicts,
   PLATFORM_SETTING_KEYS,
   PLATFORM_SETTING_SPECS,
   platformSettingsUpdateSchema,
@@ -3651,11 +3652,23 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
           sendJson(res, 400, { error: 'nothing to set or clear' });
           return;
         }
-        // BEFORE, so the journal names what actually moved. An admin who
-        // re-saves an unchanged form must not produce an audit row claiming a
-        // change, and "raised from 15 to 40 minutes" is the only version of
-        // this row that answers a question later.
+        // A CEILING BELOW AN EXPORTED REQUEST IS REFUSED before anything is
+        // written: from that moment every run asking for it would be refused
+        // (2026-09-30 review — a saved ceiling below ATOMA_PROJECT_TIMEOUT_MS
+        // failed every project run). The admin raises the ceiling or has the
+        // variable unset first.
+        const conflicts = ceilingConflicts(SETTINGS.proposed(set, clear).limits, process.env);
+        if (conflicts.length > 0) {
+          sendJson(res, 400, { error: conflicts.join('; ').slice(0, 500) });
+          return;
+        }
+        // BEFORE, so the journal names what actually moved — in the STATED
+        // rows, not only in the effective numbers: stating a value equal to
+        // today's default still pins the key against a later default change,
+        // and that decision needs its audit row. An admin who re-saves an
+        // unchanged form produces none.
         const before = SETTINGS.limits();
+        const statedBefore = SETTINGS.overrides();
         try {
           if (clear.length > 0) SETTINGS.clear(clear);
           if (Object.keys(set).length > 0) SETTINGS.set(set, viewer.principalId);
@@ -3666,7 +3679,8 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
           return;
         }
         const after = SETTINGS.limits();
-        const changed = PLATFORM_SETTING_KEYS.filter((key) => before[key] !== after[key]);
+        const statedAfter = SETTINGS.overrides();
+        const changed = PLATFORM_SETTING_KEYS.filter((key) => before[key] !== after[key] || statedBefore[key] !== statedAfter[key]);
         if (changed.length > 0) {
           // BOUNDED BEFORE IT IS EMITTED. Eight moved keys spell ~290
           // characters and the summary column holds 200, and the journal is
@@ -3685,7 +3699,7 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
               prefix + (listed.length <= room ? listed : `${listed.slice(0, room - 1)}…`),
             detail: {
               changed: Object.fromEntries(
-                changed.map((key) => [key, { from: before[key], to: after[key] }])
+                changed.map((key) => [key, { from: before[key], to: after[key], stated: statedAfter[key] !== undefined }])
               ),
               cleared: clear.filter((key) => !(key in set)),
             },

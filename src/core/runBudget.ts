@@ -38,9 +38,18 @@ import type { LlmClient, LlmCompletionRequest, LlmCompletionResponse } from './t
  * as a transport error from whichever call happened to cross the line, and
  * `MetricsLlmClient` would have already recorded it. Instead the meter calls
  * `onExceeded` ONCE and the runner aborts the run's own controller: the
- * in-flight calls stop on the signal they already listen to, the trace closes
- * through the path that closes it for a timeout, and the reason is a typed
- * error the failure path can name instead of "This operation was aborted".
+ * in-flight calls stop on the signal they already listen to, and the reason
+ * is a typed error the run can name instead of "This operation was aborted".
+ *
+ * THEN LAND, AND SPEND NOTHING MORE. A ceiling lands the run exactly as the
+ * deadline does (`abortedForLanding`, src/atoms/cost.ts): the phases already
+ * accepted are kept and the run is `partial`, so neither the work nor what it
+ * cost is lost and the next run continues from it (owner decision
+ * 2026-09-30). Landing still asks for a synthesis and a root acceptance on
+ * fresh signals, so `BudgetGateLlmClient` refuses every call made after the
+ * ceiling fired, with the same typed error and without reaching a transport:
+ * the synthesis keeps the sub-results as they are, root acceptance ends
+ * refused-and-kept, and the spend stops where the ceiling said.
  *
  * WHAT THE COST CEILING MEANS ON A SUBSCRIPTION. The same thing every other
  * cost figure in this repository means there: what the tokens WOULD cost at
@@ -107,7 +116,7 @@ export class RunBudgetMeter implements MetricsRecorder {
   private readonly onExceeded: (error: RunBudgetExceededError) => void;
   private tokens = 0;
   private costUsd = 0;
-  private fired = false;
+  private fired: RunBudgetExceededError | null = null;
 
   constructor(
     inner: MetricsRecorder,
@@ -126,6 +135,11 @@ export class RunBudgetMeter implements MetricsRecorder {
     return { tokens: this.tokens, costUsd: this.costUsd };
   }
 
+  /** The ceiling that fired, or null while the run is within its budget. */
+  exceeded(): RunBudgetExceededError | null {
+    return this.fired;
+  }
+
   record(call: LlmCallMetrics): void {
     // The inner recorder FIRST and unconditionally: the run summary, the CSV
     // and the trace must carry the call that crossed the line, not stop one
@@ -138,14 +152,28 @@ export class RunBudgetMeter implements MetricsRecorder {
     // and an operator does not need four rows saying the same thing.
     const { tokens, costUsd } = this.ceilings;
     if (tokens !== null && this.tokens > tokens) {
-      this.fired = true;
-      this.onExceeded(new RunBudgetExceededError('tokens', this.tokens, tokens));
-      return;
+      this.fired = new RunBudgetExceededError('tokens', this.tokens, tokens);
+    } else if (costUsd !== null && this.costUsd > costUsd) {
+      this.fired = new RunBudgetExceededError('cost', this.costUsd, costUsd);
     }
-    if (costUsd !== null && this.costUsd > costUsd) {
-      this.fired = true;
-      this.onExceeded(new RunBudgetExceededError('cost', this.costUsd, costUsd));
-    }
+    if (this.fired) this.onExceeded(this.fired);
+  }
+}
+
+/**
+ * Refuses every call once the run's ceiling has fired, with the ceiling's own
+ * typed error and without touching the transport — see "THEN LAND" above.
+ */
+export class BudgetGateLlmClient implements LlmClient {
+  constructor(
+    private readonly inner: LlmClient,
+    private readonly meter: Pick<RunBudgetMeter, 'exceeded'>
+  ) {}
+
+  async complete(req: LlmCompletionRequest): Promise<LlmCompletionResponse> {
+    const exceeded = this.meter.exceeded();
+    if (exceeded) throw exceeded;
+    return this.inner.complete(req);
   }
 }
 

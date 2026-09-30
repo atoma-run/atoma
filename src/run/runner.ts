@@ -25,11 +25,12 @@ import { referencedTransports } from '../contracts/modelSelector.js';
 import { InMemoryMetrics, MetricsLlmClient, subscriptionCostUsd } from '../core/metrics.js';
 import { DEFAULT_LIMITS } from '../core/limits.js';
 import {
+  BudgetGateLlmClient,
   RunBudgetExceededError,
   RunBudgetMeter,
   ToolIterationCeilingLlmClient,
 } from '../core/runBudget.js';
-import { ceilingOf } from '../contracts/platformSettings.js';
+import { ceilingConflicts, ceilingOf, narrowedRunTimeoutCeilingMs } from '../contracts/platformSettings.js';
 import { platformLimitsFor } from '../platform/settings.js';
 import { openDb } from '../registry/db.js';
 import { skillsDirPath } from '../core/stores.js';
@@ -657,8 +658,18 @@ export async function startTask(
   // Read from the product store, fail-open to the shipped constants: a
   // missing or torn settings table must never stop a run from launching.
   const platformLimits = platformLimitsFor(dbPath);
+  // THE WALL-CLOCK CEILING binds here only when an admin NARROWED it below the
+  // shipped value: this runner never had a ceiling of its own, and an
+  // instance with no row must launch exactly what it launched before — an
+  // operator's three-hour `npm run run:build` included (2026-09-30 review).
+  const statedCeilingMs = narrowedRunTimeoutCeilingMs(platformLimits);
   const timeoutRaw = process.env[profile.envVars.timeoutMs];
-  const timeoutMs = Number(timeoutRaw ?? (useClaudeCli ? 15 * 60 * 1000 : 10 * 60 * 1000));
+  // A budget nobody asked for is the default, bounded by the ceiling — the
+  // runner must not refuse its own default. A REQUEST above it is refused below.
+  const defaultTimeoutMs = useClaudeCli ? 15 * 60 * 1000 : 10 * 60 * 1000;
+  const timeoutMs = timeoutRaw === undefined
+    ? Math.min(defaultTimeoutMs, statedCeilingMs ?? defaultTimeoutMs)
+    : Number(timeoutRaw);
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
     throw new RunnerConfigError(
       `invalid ${profile.envVars.timeoutMs}="${timeoutRaw}" (expected positive integer in ms)`
@@ -671,13 +682,20 @@ export async function startTask(
   // stop, wearing a different hat. This is the backstop at the process
   // boundary the parent's check cannot cover: an operator's own
   // `npm run run:build` has no coordinator in front of it.
-  const timeoutCeilingMs = platformLimits['run.timeoutMaxMs'];
+  const timeoutCeilingMs = statedCeilingMs ?? Number.POSITIVE_INFINITY;
   if (timeoutMs > timeoutCeilingMs) {
     throw new RunnerConfigError(
       `${profile.envVars.timeoutMs}=${timeoutMs} exceeds the platform ceiling ` +
         `run.timeoutMaxMs=${timeoutCeilingMs} — raise it in Settings (platform admin) ` +
         `or with: npm run settings -- set run.timeoutMaxMs <ms>`
     );
+  }
+  // A per-call timeout REQUESTED above a stated ceiling is refused, never
+  // clamped, like the wall clock above; one nobody requested is bounded by it
+  // in the client (`callTimeoutCeilingMs`).
+  const callConflicts = ceilingConflicts(platformLimits, { ...process.env, ...providerEnv }, ['llm.callTimeoutMs', 'llm.codexCallTimeoutMs']);
+  if (callConflicts.length > 0) {
+    throw new RunnerConfigError(`${callConflicts.join('; ')} (npm run settings -- list)`);
   }
   const seedRoot = args.seed ? resolve(args.seed) : undefined;
   if (seedRoot && !existsSync(seedRoot)) {
@@ -859,8 +877,10 @@ export async function startTask(
       budgetAbort.abort(error);
     }
   );
+  // The GATE sits outside the metrics: a call it refuses reaches no transport
+  // and costs nothing, so there is nothing to record.
   const llm = new ToolIterationCeilingLlmClient(
-    new MetricsLlmClient(new RecordingLlmClient(routedClient, recorder), budgetMeter),
+    new BudgetGateLlmClient(new MetricsLlmClient(new RecordingLlmClient(routedClient, recorder), budgetMeter), budgetMeter),
     ceilingOf(platformLimits, 'llm.maxToolIterations')
   );
   console.log(`tier models: ${describeTierSelectors(selectors)}`);
@@ -1278,7 +1298,10 @@ export async function startTask(
       console.log(
         `\nrun recorded in ${recorder.runsDir} — start the visualizer: npm run viz`
       );
-      const reasons = landingReasons(result);
+      // A run the platform ceiling stopped says so FIRST: it is why the phases
+      // below never ran, and what the next run of the project continues from.
+      const ceiling = landed ? budgetMeter.exceeded() : null;
+      const reasons = [...(ceiling ? [`stopped at the platform ceiling: ${ceiling.message}`] : []), ...landingReasons(result)];
       console.log(formatRunStatsEpilogue(
         machineRunStats(landed ? 'partial' : 'delivered', metrics, runSignals, reasons)
       ));

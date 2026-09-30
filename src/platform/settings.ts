@@ -134,6 +134,21 @@ export class PlatformSettingsStore {
   }
 
   /**
+   * What the stated rows WOULD be after clearing `clear` and stating `set`, and
+   * the limits they resolve to — for a caller that must judge a change before
+   * making it (a ceiling below an exported request is refused). Writes nothing.
+   */
+  proposed(
+    set: Readonly<Partial<Record<PlatformSettingKey, number>>>,
+    clear: readonly PlatformSettingKey[]
+  ): { readonly stated: PlatformSettingOverrides; readonly limits: PlatformLimits } {
+    const stated: PlatformSettingOverrides = { ...this.overrides() };
+    for (const key of clear) delete stated[key];
+    Object.assign(stated, set);
+    return { stated, limits: resolvePlatformLimits(stated) };
+  }
+
+  /**
    * State one or more values. Validated against the catalog FIRST, all of
    * them, and only then written in one transaction: a form that sent four
    * numbers of which the third is out of range must change nothing, or the

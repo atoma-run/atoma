@@ -214,19 +214,30 @@ export function finalizationSignal(deadlineAt?: number): AbortSignal | undefined
 }
 
 /**
- * Did the RUN DEADLINE abort this context's signal — as opposed to an explicit
+ * Did the run reach one of its two BUDGETS — as opposed to an explicit
  * cancellation or a deepening, which are interruptions and never a landing?
- * The runner's deadline is `AbortSignal.timeout`, whose reason is a
- * `TimeoutError` DOMException (an `Error` on Node 24), and it always states
- * `deadlineAt`. Without one there is no run deadline: a library caller's own
- * `AbortSignal.timeout` is that caller asking to stop, so it is honoured as a
- * cancellation, never a licence to finalize unbounded (2026-09-25 adversarial
- * review).
+ *
+ *   - the RUN DEADLINE: the runner's `AbortSignal.timeout`, whose reason is a
+ *     `TimeoutError` DOMException (an `Error` on Node 24);
+ *   - a PLATFORM CEILING on tokens or spend (`src/core/runBudget.ts`): the
+ *     runner aborts the same signal with a `RunBudgetExceededError`. It lands
+ *     exactly as the deadline does — the phases already accepted are kept and
+ *     the run is `partial`, so the next run of the project continues from them
+ *     (owner decision 2026-09-30: reaching a ceiling must lose neither the work
+ *     nor what it cost). No landing step spends past it: once a ceiling fires
+ *     the run's client refuses every new call, so a synthesis falls back to
+ *     the sub-results as they are and root acceptance ends refused-and-kept.
+ *
+ * Both always come with `deadlineAt`. Without one there is no run budget: a
+ * library caller's own `AbortSignal.timeout` is that caller asking to stop, so
+ * it is honoured as a cancellation, never a licence to finalize unbounded
+ * (2026-09-25 adversarial review). The reason is matched by NAME: this module
+ * does not import the runner's budget code, and the name is the contract.
  */
-export function abortedByDeadline(ctx: { readonly signal?: AbortSignal; readonly deadlineAt?: number }): boolean {
+export function abortedForLanding(ctx: { readonly signal?: AbortSignal; readonly deadlineAt?: number }): boolean {
   if (ctx.deadlineAt === undefined || !ctx.signal?.aborted) return false;
   const reason: unknown = ctx.signal.reason;
-  return reason instanceof Error && reason.name === 'TimeoutError';
+  return reason instanceof Error && (reason.name === 'TimeoutError' || reason.name === 'RunBudgetExceededError');
 }
 
 /**

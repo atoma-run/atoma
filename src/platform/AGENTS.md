@@ -110,11 +110,25 @@ Design, polling basis and deferred tests: [W11](../../docs/cross-org-read-audit.
 - THE COORDINATOR AND THE RUNNER READ THE LIMITS FRESH, PER RUN. The viz
   server outlives every save, so `ProjectRunCoordinator` takes
   `platformLimits` as a FUNCTION — the dependency arrow points from the server
-  at the domain, exactly as it does for the event sink — and resolves it once
-  more at construction only to fail fast on a malformed environment. The
-  runner re-checks the wall-clock ceiling itself: `spawnRun` writes
-  `ATOMA_BUILD_TIMEOUT_MS` from whatever budget its caller chose, and an
-  operator's own `npm run run:build` has no coordinator in front of it.
+  at the domain, exactly as it does for the event sink. Construction checks
+  the environment against the SHIPPED limits only, so a saved ceiling can
+  never keep the server from booting; each `start` resolves the admin's
+  limits BEFORE reserving the run, refusing that run alone (400), and
+  `runTaskBudgetMs` never throws. The runner re-checks the wall-clock ceiling
+  itself, and so does the MCP operator launcher before it takes the slot —
+  but only a ceiling NARROWED below the shipped value
+  (`narrowedRunTimeoutCeilingMs`): the operator's runner never had one. A
+  budget nobody requested is the default bounded by the ceiling; a REQUEST
+  above it is refused.
+- A CEILING BELOW AN EXPORTED REQUEST IS REFUSED ON SAVE (`ceilingConflicts`,
+  the form and the CLI, judged on `proposed()` before anything is written):
+  from that moment every run asking for it would be refused. The runner
+  refuses an exported call timeout above a stated call ceiling. With no row
+  the call timeouts have NO ceiling (fallback 0): they shipped as defaults
+  their env var may raise, and a ceiling equal to the default clamped them.
+- `run.watchdogGraceMs` stays inside two deadlines this module does not own:
+  at least `FINALIZATION_GRACE_MS` + 15s, since landing runs inside the grace,
+  and under the harness hard-kill margin (180s), or the trace never closes.
 - THE TOKEN AND SPEND CEILINGS ABORT, THEY DO NOT THROW.
   `src/core/runBudget.ts` decorates the METRICS RECORDER — the one seam that
   already sees successful calls and the partial usage of failed ones — reuses
@@ -124,6 +138,14 @@ Design, polling basis and deferred tests: [W11](../../docs/cross-org-read-audit.
   A budget abort is reported as a CEILING, never as a timeout: the run had
   wall clock left, and the failure path tests the typed reason, not the
   message text.
+- A CEILING LANDS THE RUN, AND SPENDS NOTHING MORE (owner decision 2026-09-30:
+  reaching it must lose neither the work nor what it cost). The abort reason
+  is a landing reason like the deadline (`abortedForLanding`,
+  [src/atoms](../atoms/AGENTS.md)): accepted phases are kept, the run is
+  `partial` and the next run of the project continues from it, the ceiling
+  named first among its landing reasons. `BudgetGateLlmClient` refuses every
+  call after the ceiling fired, so a landing synthesis keeps the sub-results
+  and root acceptance ends refused-and-kept, without reaching a transport.
 - A TOOL-ITERATION CEILING ONLY EVER LOWERS. A request that named no budget
   is bounded by `min(ceiling, DEFAULT_MAX_TOOL_ITERATIONS)` — a limit that
   raised a 24-iteration default to 50 would increase spend, which is not a

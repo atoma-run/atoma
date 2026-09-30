@@ -47,6 +47,7 @@ import {
   projectRunTimeoutMs,
 } from '../src/projects/coordinator.js';
 import type { LlmClient, LlmCompletionRequest } from '../src/core/types.js';
+import { makeTransportClient } from '../src/run/providers.js';
 
 const roots: string[] = [];
 
@@ -77,12 +78,36 @@ describe('the catalog ships today’s constants, unchanged', () => {
       DEFAULT_PROJECT_RUN_TIMEOUT_MS
     );
     expect(PLATFORM_SETTINGS['run.timeoutMaxMs'].fallback).toBe(MAX_PROJECT_RUN_TIMEOUT_MS);
-    expect(PLATFORM_SETTINGS['llm.callTimeoutMs'].fallback).toBe(DEFAULT_CLI_CALL_TIMEOUT_MS);
-    expect(PLATFORM_SETTINGS['llm.codexCallTimeoutMs'].fallback).toBe(
-      DEFAULT_CODEX_CALL_TIMEOUT_MS
-    );
+    // The call timeouts shipped as DEFAULTS their env var may raise, so with no
+    // row there is NO ceiling on them (2026-09-30 review): a fallback equal to
+    // the default made the env var unable to raise a timeout any more.
+    for (const key of ['llm.callTimeoutMs', 'llm.codexCallTimeoutMs'] as const) {
+      expect(PLATFORM_SETTINGS[key].zeroMeansUnlimited, key).toBe(true);
+      expect(ceilingOf(DEFAULT_PLATFORM_LIMITS, key), key).toBeNull();
+    }
     // 60s of watchdog grace, and the value the runner used as a literal.
     expect(PLATFORM_SETTINGS['run.watchdogGraceMs'].fallback).toBe(60_000);
+  });
+
+  it('leaves an exported call timeout as it was when no row is stated', () => {
+    vi.stubEnv('ATOMA_CLI_CALL_TIMEOUT_MS', '900000');
+    try {
+      const claude = makeTransportClient('claude-cli', { limits: DEFAULT_PLATFORM_LIMITS }) as unknown as { callTimeoutMs: number };
+      const codex = makeTransportClient('codex-cli', {
+        env: { ...process.env, ATOMA_CODEX_CALL_TIMEOUT_MS: '900000' }, limits: DEFAULT_PLATFORM_LIMITS,
+      }) as unknown as { callTimeoutMs: number };
+      expect(claude.callTimeoutMs).toBe(900_000);
+      expect(codex.callTimeoutMs).toBe(900_000);
+      // And with nothing exported, the shipped defaults.
+      vi.stubEnv('ATOMA_CLI_CALL_TIMEOUT_MS', '');
+      delete process.env['ATOMA_CLI_CALL_TIMEOUT_MS'];
+      expect((makeTransportClient('claude-cli', { limits: DEFAULT_PLATFORM_LIMITS }) as unknown as { callTimeoutMs: number }).callTimeoutMs)
+        .toBe(DEFAULT_CLI_CALL_TIMEOUT_MS);
+      expect((makeTransportClient('codex-cli', { env: {}, limits: DEFAULT_PLATFORM_LIMITS }) as unknown as { callTimeoutMs: number }).callTimeoutMs)
+        .toBe(DEFAULT_CODEX_CALL_TIMEOUT_MS);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it('leaves the two spend ceilings and the tool loop DISABLED by default', () => {
@@ -102,7 +127,8 @@ describe('the catalog ships today’s constants, unchanged', () => {
 
   it('states bounds that contain the default, for every entry', () => {
     for (const spec of PLATFORM_SETTING_SPECS) {
-      expect(spec.min, spec.key).toBeLessThanOrEqual(spec.fallback);
+      // A disabled ceiling's 0 sits below the minimum of a STATED one.
+      if (!(spec.zeroMeansUnlimited && spec.fallback === 0)) expect(spec.min, spec.key).toBeLessThanOrEqual(spec.fallback);
       expect(spec.max, spec.key).toBeGreaterThanOrEqual(spec.fallback);
       expect(spec.summary.length, spec.key).toBeGreaterThan(0);
       expect(spec.readAt.length, spec.key).toBeGreaterThan(0);

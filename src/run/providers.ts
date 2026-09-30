@@ -21,7 +21,7 @@ import {
   type TierNumber,
   ZAI_DEFAULT_BASE_URL,
 } from '../contracts/modelSelector.js';
-import type { PlatformLimits } from '../contracts/platformSettings.js';
+import { ceilingOf, type PlatformLimits } from '../contracts/platformSettings.js';
 import { makeAnthropicClient } from './auth.js';
 
 // Z.ai speaks the Messages API, so the existing AnthropicLlmClient (tool
@@ -87,17 +87,26 @@ export function makeTransportClient(
     // parent did not authorise the tier.
     case 'claude-cli':
       // It DOES take the limits: a deployment's ceiling on one call is not a credential.
-      return new ClaudeCliLlmClient(limits ? { callTimeoutCeilingMs: limits['llm.callTimeoutMs'] } : {});
+      return new ClaudeCliLlmClient(callCeiling(limits, 'llm.callTimeoutMs'));
     // Local Codex CLI on a ChatGPT login, with a scoped host-side tool loop
     // for L1. Native Codex tools remain disabled. The client captures THIS
     // run's environment snapshot: CODEX_HOME selects the authorised principal
     // profile, while its subprocess allowlist strips every API/provider key.
     case 'codex-cli':
-      return new CodexCliLlmClient({ env, ...(limits ? { callTimeoutCeilingMs: limits['llm.codexCallTimeoutMs'] } : {}) });
+      return new CodexCliLlmClient({ env, ...callCeiling(limits, 'llm.codexCallTimeoutMs') });
   }
 }
 
 /** Build the Anthropic-compatible Z.ai transport from one environment snapshot. */
+/** A per-call ceiling as a client option: none when there are no limits, or the entry is disabled. */
+function callCeiling(
+  limits: PlatformLimits | undefined,
+  key: 'llm.callTimeoutMs' | 'llm.codexCallTimeoutMs'
+): { callTimeoutCeilingMs?: number } {
+  const ceiling = limits ? ceilingOf(limits, key) : null;
+  return ceiling === null ? {} : { callTimeoutCeilingMs: ceiling };
+}
+
 function makeZaiClient(env: NodeJS.ProcessEnv): LlmClient {
   const apiKey = env['ZAI_API_KEY'];
   if (!apiKey || apiKey.trim().length === 0) {

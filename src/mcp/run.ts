@@ -36,6 +36,8 @@
  * committed cost curve.
  */
 
+import { narrowedRunTimeoutCeilingMs } from '../contracts/platformSettings.js';
+import { platformLimitsFor } from '../platform/settings.js';
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -281,9 +283,17 @@ export function validateStartInput(input: StartRunInput): {
       `unknown family "${familyId}" — known: ${LAUNCHABLE_PROFILES.map((p) => p.profile.id).join(', ')} (call atoma_families)`
     );
   }
-  const timeoutMs = input.timeoutMs ?? DEFAULT_RUN_TIMEOUT_MS;
+  // The platform ceiling the runner will apply, applied HERE first so a start
+  // it would refuse never takes the run slot: a request above it is refused,
+  // and the default (which this door always forwards as a request) is bounded
+  // by it rather than refused in the child.
+  const ceilingMs = narrowedRunTimeoutCeilingMs(platformLimitsFor());
+  const timeoutMs = input.timeoutMs ?? Math.min(DEFAULT_RUN_TIMEOUT_MS, ceilingMs ?? DEFAULT_RUN_TIMEOUT_MS);
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0 || Math.floor(timeoutMs) !== timeoutMs) {
     throw new RunRejected(`timeoutMs must be a positive integer in ms (got ${String(input.timeoutMs)})`);
+  }
+  if (ceilingMs !== null && timeoutMs > ceilingMs) {
+    throw new RunRejected(`timeoutMs=${timeoutMs} exceeds the platform ceiling run.timeoutMaxMs=${ceilingMs} (npm run settings -- list)`);
   }
   return { family: familyId, npmScript: launchable.npmScript, timeoutMs };
 }

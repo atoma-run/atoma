@@ -17,6 +17,7 @@
 import { existsSync } from 'node:fs';
 import {
   assertPlatformSettingValue,
+  ceilingConflicts,
   PLATFORM_SETTING_KEYS,
   PLATFORM_SETTING_SPECS,
   PLATFORM_SETTINGS,
@@ -199,17 +200,26 @@ function run(argv: readonly string[]): void {
     const key = parseKey(rest[0]);
     const value = parseValue(PLATFORM_SETTINGS[key], rest[1]);
     const before = store.limits();
+    const statedBefore = store.overrides()[key];
     try {
       assertPlatformSettingValue(key, value);
     } catch (error) {
       fail(error instanceof PlatformSettingError ? error.message : String(error));
     }
+    // A ceiling below a request THIS shell exports is refused, as the form
+    // refuses one below the server's. The service may run with another
+    // environment: the form is the check that sees that one.
+    const conflicts = ceilingConflicts(store.proposed({ [key]: value }, []).limits, process.env);
+    if (conflicts.length > 0) fail(conflicts.join('; '));
     // `null` and not a synthetic id: no principal made this change. The
     // column is an audit reference, and inventing one would be a lie a later
     // reader has no way to detect.
     const after = store.set({ [key]: value }, null);
-    if (before[key] === after[key]) {
-      console.log(`${key} is already ${formatValue(PLATFORM_SETTINGS[key], after[key])}`);
+    // Already STATED at this value: nothing moved. Stating a value equal to
+    // today's default is still a change — it pins the key against a later
+    // default change — and is journaled like any other.
+    if (statedBefore === value) {
+      console.log(`${key} is already stated as ${formatValue(PLATFORM_SETTINGS[key], after[key])}`);
       return;
     }
     journal(PlatformEventLog.open(dbPath), [{ key, from: before[key], to: after[key] }]);

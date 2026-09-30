@@ -1,6 +1,6 @@
 import { outOfPhaseBudget } from '../core/limits.js';
 import type { LlmCompletionResponse, Plan, Result, RunContext } from '../core/types.js';
-import { abortedByDeadline, landingSignal, withinSignal } from './cost.js';
+import { abortedForLanding, landingSignal, withinSignal } from './cost.js';
 
 type Subtask = Plan['subtasks'][number];
 
@@ -53,10 +53,11 @@ export interface DispatchOutcome {
  * is nothing to deliver, and a landing that reported zero phases would be a
  * failure wearing a softer word.
  *
- * `ctx.signal` is the run's deadline signal and nothing else: operator
- * cancellation reaches a run as process teardown, not as an abort on this
- * signal (`runTask`). So `signal.aborted` unambiguously means "the deadline
- * fired", which is what makes the distinction below safe to draw.
+ * `ctx.signal` is the run's BUDGET signal and nothing else: the deadline, or a
+ * platform token/spend ceiling (`abortedForLanding`, src/atoms/cost.ts).
+ * Operator cancellation reaches a run as process teardown, not as an abort on
+ * this signal (`runTask`). So `signal.aborted` unambiguously means "a budget
+ * ran out", which is what makes the distinction below safe to draw.
  */
 export async function dispatchWithAggregation(
   subtasks: readonly Subtask[],
@@ -103,7 +104,7 @@ export async function dispatchWithAggregation(
         // the first phase closed.
         if (out.length > 0 && ctx.signal.aborted) {
           ctx.logger.warn(
-            `[dispatch] landing on ${out.length}/${subtasks.length} phase(s): the run deadline aborted phase #${idx + 1}`
+            `[dispatch] landing on ${out.length}/${subtasks.length} phase(s): the run budget (deadline or ceiling) aborted phase #${idx + 1}`
           );
           return { results: out, unfinished: subtasks.slice(idx) };
         }
@@ -149,7 +150,7 @@ export async function dispatchWithAggregation(
   // original meaning, whatever else settled. Only the deadline lands.
   if (!ctx.signal.aborted || fulfilled.length === 0) throw failure;
   ctx.logger.warn(
-    `[dispatch] landing on ${fulfilled.length}/${subtasks.length} branch(es): the run deadline cut the rest`
+    `[dispatch] landing on ${fulfilled.length}/${subtasks.length} branch(es): the run budget (deadline or ceiling) cut the rest`
   );
   return { results: fulfilled, unfinished };
 }
@@ -202,8 +203,8 @@ export async function synthesizeOrKeep(
   try {
     return { response: await withinSignal(call(signal), signal) };
   } catch (error) {
-    if (ctx.signal.aborted && !abortedByDeadline(ctx)) throw error;
-    if (!landed && !abortedByDeadline(ctx)) throw error;
+    if (ctx.signal.aborted && !abortedForLanding(ctx)) throw error;
+    if (!landed && !abortedForLanding(ctx)) throw error;
     // Say what actually happened: a landing synthesis may also fail outright.
     const keptBecause = !landed ? 'the run deadline fell during it'
       : signal.aborted ? 'its landing window closed'

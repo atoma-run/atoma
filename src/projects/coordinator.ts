@@ -1154,13 +1154,16 @@ export class ProjectRunCoordinator {
     this.cwd = options.cwd ?? repoRoot();
     if (options.timeoutMs !== undefined) this.explicitTimeoutMs = options.timeoutMs;
     this.platformLimits = options.platformLimits ?? (() => DEFAULT_PLATFORM_LIMITS);
-    // RESOLVED TWICE ON PURPOSE. Once here so a malformed
-    // `ATOMA_PROJECT_TIMEOUT_MS` or an out-of-range flag fails at
+    // RESOLVED TWICE ON PURPOSE. Once here, against the SHIPPED limits, so a
+    // malformed `ATOMA_PROJECT_TIMEOUT_MS` or an out-of-range flag fails at
     // CONSTRUCTION — a server that boots and then refuses every run is a
-    // worse answer than one that refuses to boot — and again per run, in
-    // `runTimeoutMs`, so a platform admin's change reaches the next launch
-    // without a restart. The value is deliberately NOT cached from this call.
-    this.runTimeoutMs();
+    // worse answer than one that refuses to boot. NOT against the admin's
+    // limits: a ceiling saved below the exported variable would then keep the
+    // server from booting at all, and every push deploys (2026-09-30 review).
+    // Again per run, in `start` before anything is reserved, where the
+    // admin's limits refuse that run alone and a change reaches the next
+    // launch without a restart. The value is deliberately NOT cached.
+    projectRunTimeoutMs(this.hostEnv, this.explicitTimeoutMs);
   }
 
   /**
@@ -1325,7 +1328,15 @@ export class ProjectRunCoordinator {
 
   /** Preparation and the child's hard backstop belong to the task's lifetime too. */
   runTaskBudgetMs(): number {
-    return PROJECT_RUN_PREPARATION_TIMEOUT_MS + this.runTimeoutMs() + DEFAULT_HARD_KILL_MARGIN_MS + UNKILLABLE_BACKSTOP_EXTRA_MS;
+    // A reader (the MCP task TTL), so it never throws: a budget the current
+    // limits refuse is refused at `start`, and the TTL still needs a number.
+    let runMs: number;
+    try {
+      runMs = this.runTimeoutMs();
+    } catch {
+      runMs = MAX_PROJECT_RUN_TIMEOUT_MS;
+    }
+    return PROJECT_RUN_PREPARATION_TIMEOUT_MS + runMs + DEFAULT_HARD_KILL_MARGIN_MS + UNKILLABLE_BACKSTOP_EXTRA_MS;
   }
 
   async start(input: {
@@ -1340,6 +1351,9 @@ export class ProjectRunCoordinator {
     const existing = findRetry();
     if (existing) return existing;
     this.store.assertRunCapacity(input.orgId);
+    // The platform limits in force NOW, before the run is reserved: a budget
+    // they refuse is this run's 400, never a row left to fail at launch.
+    this.runTimeoutMs();
     // Every new project run carries search. Validate before taking the lease or
     // reserving a run; read-only service startup and idempotent retries still work.
     let retrievalLaunch: ReturnType<typeof readHaystackLaunch>;
