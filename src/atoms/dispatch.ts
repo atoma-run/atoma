@@ -1,5 +1,8 @@
 import { outOfPhaseBudget } from '../core/limits.js';
-import type { LlmCompletionResponse, Plan, Result, RunContext } from '../core/types.js';
+import type { LlmCompletionResponse, Plan, Result, RunContext, Task } from '../core/types.js';
+import { renderRestorationPrefix, restorationMatters } from '../contracts/readOnlyPhase.js';
+import type { AttestationRecord } from '../contracts/attestation.js';
+import { baseExecutorOf } from '../core/attestation.js';
 import { abortedForLanding, landingSignal, withinSignal } from './cost.js';
 
 type Subtask = Plan['subtasks'][number];
@@ -153,6 +156,119 @@ export async function dispatchWithAggregation(
     `[dispatch] landing on ${fulfilled.length}/${subtasks.length} branch(es): the run budget (deadline or ceiling) cut the rest`
   );
   return { results: fulfilled, unfinished };
+}
+
+/**
+ * One execution of a READ-ONLY phase (`Task.readOnly`), between a photograph
+ * of the workspace and its restoration (`src/contracts/readOnlyPhase.ts`):
+ * whatever it changed is put back before anything validates it, and its
+ * result says what was put back. On a throw the workspace is restored too,
+ * and the error goes on unchanged. A task not marked read-only, or a context
+ * without the host capability, runs untouched.
+ *
+ * Called where a read-only phase STARTS — the tissue's phase dispatch, or a
+ * root cell's own — around every path that executes it (`aroundExecute`, and
+ * a cell's deterministic script dispatch), never again below it.
+ *
+ * What the execution recorded rides the restoration: its attestations, and
+ * the paths its own element writes named. When the phase changed files ITSELF
+ * (`restorationDamaged`) root acceptance counts none of those attestations,
+ * and the Node servers it started are stopped: one it restarted on code the
+ * restore put back would go on answering from the undone version (second
+ * adversarial review, 2026-09-30). Dispatch is sequential here — parallel
+ * plans are never marked — so what the attempt's log gained meanwhile is this
+ * execution's.
+ */
+export async function withinReadOnlyPhase<R extends Result | null>(
+  ctx: RunContext,
+  task: Task,
+  execute: () => Promise<R>,
+  options: { readonly script?: true } = {}
+): Promise<R> {
+  const phases = task.readOnly ? ctx.readOnlyPhases : undefined;
+  if (!phases) return execute();
+  const attempt = ctx.attempt ?? 1;
+  const recordedBefore = ctx.attestations?.forAttempt(attempt).length ?? 0;
+  const recorded = (): readonly AttestationRecord[] => (ctx.attestations?.forAttempt(attempt) ?? []).slice(recordedBefore);
+  const end = async () => {
+    const records = recorded();
+    const restoration = guard.end({
+      observations: records.map((record) => record.eventId),
+      writes: requestedPaths(records, ['write_file', 'edit_file'], 'path'),
+      serverEntries: requestedPaths(records, ['start_node_server'], 'entry'),
+      commands: records.flatMap((record) =>
+        (record.tool === 'run_shell' || record.tool === 'record_probe') && record.observation.kind === 'execution'
+          ? [record.observation.request] : []),
+      ...(options.script ? { ownsEveryChange: true as const } : {}),
+    });
+    // What the disk went back to, no process it started may keep answering
+    // for: a server restarted on code the restore put back answered from the
+    // undone version (second review).
+    if (restoration.paths.some((path) => path.restored)) await stopServersStarted(ctx, records);
+    return restoration;
+  };
+  const guard = phases.begin(task.description, attempt);
+  let result: R;
+  try {
+    result = await execute();
+  } catch (error) {
+    await end();
+    throw error;
+  }
+  const restoration = await end();
+  if (result === null || !restorationMatters(restoration)) return result;
+  return {
+    ...result,
+    summary: `${renderRestorationPrefix(restoration)} ${result.summary}`,
+    readOnlyRestoration: { restoration, summary: result.summary },
+  };
+}
+
+/** The value one attested tool call's JSON excerpt holds at `key`, when it parses. */
+function excerptField(excerpt: string, key: string): unknown {
+  try {
+    const parsed: unknown = JSON.parse(excerpt);
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>)[key] : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The path argument (`key`) each of an execution's calls to `tools` named. */
+function requestedPaths(records: readonly AttestationRecord[], tools: readonly string[], key: string): string[] {
+  return records.flatMap((record) => {
+    if (!tools.includes(record.tool) || record.observation.kind !== 'execution') return [];
+    const path = excerptField(record.observation.request, key);
+    return typeof path === 'string' ? [path] : [];
+  });
+}
+
+/**
+ * Stop the Node servers an execution started (`start_node_server` reports
+ * its pid and spawns it as a group leader), through the tools' own shell and
+ * a fixed command: the process lives where the tools do, in the container
+ * when there is one. Its group first, so what it spawned stops with it.
+ */
+async function stopServersStarted(ctx: RunContext, records: readonly AttestationRecord[]): Promise<void> {
+  const pids = records.flatMap((record) => {
+    if (record.tool !== 'start_node_server' || record.observation.kind !== 'execution') return [];
+    const pid = excerptField(record.observation.response, 'pid');
+    return typeof pid === 'number' && Number.isSafeInteger(pid) && pid > 1 ? [String(pid)] : [];
+  });
+  if (pids.length === 0) return;
+  if (!ctx.tools?.has('run_shell')) {
+    ctx.logger.warn(`[read-only phase] cannot stop the server(s) the restored execution started (pid ${pids.join(', ')}): no shell`);
+    return;
+  }
+  try {
+    await baseExecutorOf(ctx.tools).execute('run_shell', {
+      command: 'node',
+      args: ['-e', 'for (const pid of process.argv.slice(1)) { try { process.kill(-Number(pid), "SIGTERM"); } catch { try { process.kill(Number(pid), "SIGTERM"); } catch {} } }', ...pids],
+    });
+    ctx.logger.warn(`[read-only phase] stopped ${pids.length} server(s) the restored execution started: pid ${pids.join(', ')}`);
+  } catch (error) {
+    ctx.logger.warn(`[read-only phase] could not stop the servers the restored execution started: ${String(error)}`);
+  }
 }
 
 /**

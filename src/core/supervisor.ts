@@ -64,6 +64,15 @@ export interface SupervisionHooks<C extends Atom> {
    * can decline to blame a skill the validator observed being ignored.
    */
   onFailed?(child: C, reason: string, lastResultVerdict?: Verdict): Promise<void>;
+
+  /**
+   * Optional: surrounds EVERY execution of this task — the child's, a
+   * branched child's, and the parent's own fallback — and returns what the
+   * validation then reads. A read-only phase is photographed and restored here
+   * (`withinReadOnlyPhase`, src/atoms/dispatch.ts), so its validator judges
+   * the workspace as it stands, whatever path wrote to it.
+   */
+  aroundExecute?(execute: () => Promise<Result>): Promise<Result>;
 }
 
 const now = (): string => new Date().toISOString();
@@ -225,6 +234,8 @@ export async function superviseLoop<C extends Atom>(
 ): Promise<Result> {
   const trace: TraceEntry[] = [];
   let current: C = child;
+  const run = (execute: () => Promise<Result>): Promise<Result> =>
+    hooks.aroundExecute ? hooks.aroundExecute(execute) : execute();
   // One-shot branch retry: when a branchOnEscalation hook returns a fresh
   // child instance, we run ONE more full supervise cycle with it (resetting
   // the iteration counters and rejection-streak trackers) before giving up
@@ -320,7 +331,7 @@ export async function superviseLoop<C extends Atom>(
 
         if (ctx.signal.aborted) throw ctx.signal.reason ?? new Error('aborted');
 
-        const result = await current.execute(task, plan, ctx);
+        const result = await run(() => current.execute(task, plan, ctx));
         trace.push({ kind: 'execute', ts: now(), atom: current.name, payload: result });
 
         const v2 = await parent.validateResult(current, result, task, ctx);
@@ -424,7 +435,7 @@ export async function superviseLoop<C extends Atom>(
         const plan = await parent.plan(task, ctx);
         trace.push({ kind: 'plan', ts: now(), atom: parent.name, payload: plan });
 
-        const result = await parent.execute(task, plan, ctx);
+        const result = await run(() => parent.execute(task, plan, ctx));
         trace.push({
           kind: 'execute',
           ts: now(),

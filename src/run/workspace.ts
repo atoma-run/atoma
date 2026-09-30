@@ -182,10 +182,12 @@ const SNAPSHOT_MAX_LINE_BYTES = 512 * 1024;
 const SNAPSHOT_SKIPPED = new Set(['.git', 'node_modules', '.atoma', '.next', '.nuxt', '.venv', 'venv',
   '__pycache__', '.pytest_cache', '.cache', '.turbo', 'coverage']);
 
-function skipped(name: string): boolean {
+/** A name no workspace snapshot reads, at any depth; the read-only phase restore never touches one either. */
+export function skippedBySnapshot(name: string): boolean {
   const lower = name.toLowerCase();
   return SNAPSHOT_SKIPPED.has(lower) || lower.startsWith('.atoma-');
 }
+const skipped = skippedBySnapshot;
 
 /** One file, or undefined when it is not a regular file within the per-file cap. */
 function snapshotFile(root: string, rel: string, budget: { bytes: number }): WorkspaceFileSnapshot | undefined {

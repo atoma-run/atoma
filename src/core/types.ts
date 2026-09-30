@@ -18,6 +18,18 @@ export interface Task {
    */
   readonly outputs?: readonly string[];
   /**
+   * The ROOT plan declared this phase READ-ONLY: a sequential decomposition
+   * of two phases or more gave it no `outputs`, which the planning contract
+   * reserves for phases that read and verify ("Omit the key only on read-only
+   * phases"). The root plan is the L3's, or a root cell's own (never a
+   * prefilter reuse, which dispatches the whole task). Every execution of the
+   * phase then runs between a photograph of the workspace and its restoration
+   * (`src/contracts/readOnlyPhase.ts`): run 04ea696f's verification phase
+   * replaced the page it was asked to verify, and run f793b338's "read-only
+   * inspect" subtask overwrote a home page 23 times without reading it.
+   */
+  readonly readOnly?: true;
+  /**
    * Proof obligations DECLARED by the plan that authored this subtask. An
    * obligation no transport-observed attestation covers never rejects the
    * deliverable: it forces validator review and withholds the METHOD-level
@@ -184,6 +196,16 @@ export interface Result {
    * `landedResult()` in `src/run/runner.ts` for the one derivation both feed.
    */
   readonly unfinishedPhases?: readonly string[];
+  /**
+   * Set by `withinReadOnlyPhase`, never by a model, when a READ-ONLY phase's
+   * execution changed files the runtime then put back
+   * (`src/contracts/readOnlyPhase.ts`). `summary` is what its executor wrote,
+   * beneath the runtime's `[READ-ONLY PHASE RESTORED …]` line: the gates that
+   * read a banner at the head of a summary read it there. Its presence
+   * withholds the method-level credit an approval would give, as
+   * `PositiveVerdict.proofUncovered` does.
+   */
+  readonly readOnlyRestoration?: import('../contracts/readOnlyPhase.js').ResultRestoration;
   /**
    * Why ROOT DELIVERY ACCEPTANCE refused this result, when it did.
    *
@@ -794,6 +816,13 @@ export interface RunContext {
     readonly start: import('../contracts/startingWorkspace.js').StartingSnapshot;
     readonly now: () => import('../contracts/startingWorkspace.js').DeliveredSnapshot;
   };
+  /**
+   * The host's photograph and restore of READ-ONLY phases (`Task.readOnly`,
+   * `src/run/readOnlyPhase.ts`), bound to the host path the tools write to.
+   * Absent in library and test contexts: a phase marked read-only then runs
+   * like any other. Forwarded by `forkBranch`; its restorations are the run's.
+   */
+  readonly readOnlyPhases?: import('../contracts/readOnlyPhase.js').ReadOnlyPhases;
   /**
    * Optional prefilter-cache observer — see `CacheHitInfo`. Same
    * observer-only contract as `recordTrust` / `recordSkill`: absent, the

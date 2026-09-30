@@ -70,6 +70,31 @@ Neighbours:
   several processes deep, and a cancellation that reported success over
   orphans still running. A flag that starts a run where the kill sequence
   cannot work restores exactly that.
+- `readOnlyPhasesFor(workspaceRoot)` (`readOnlyPhase.ts`) is the host half of
+  the read-only phase ([src/atoms](../atoms/AGENTS.md)). It reads and writes
+  the workspace while the tools' processes still run beside it, so no path is
+  trusted between two operations: on Linux every step below the root goes
+  through `/proc/self/fd/<directory fd>/<name>` and opens `O_NOFOLLOW`, so a
+  directory a container replaced by a link to a host path can neither receive
+  restored bytes nor lose files through it; on darwin every ancestor is
+  re-checked before each change, which narrows that window without closing
+  it. Names are read as bytes. A file is put back as a NEW inode, never
+  written through a hard link; a created name holding a photographed file's
+  inode is removed only while the photographed name is listed too (otherwise
+  it is a case-only rename on a case-insensitive volume, and the file
+  itself). Files are compared by their bytes, since a same-size rewrite within
+  one kernel tick leaves every stat field as it was, and one modified in the
+  last two seconds is read twice so torn bytes are never kept. The root's
+  mode comes back first, and a directory's before its contents (through an
+  `O_PATH` descriptor when its mode forbids opening it). It restores what it
+  photographed first and removes what the phase added second, on a budget
+  each, and removes nothing inside a directory it could not list whole; such
+  a photograph is partial, and a partial one is always reported. A SQLite
+  database — by its header at the photograph or NOW — and its `-wal`/`-shm`/
+  `-journal`, and a file a process was writing when the phase started, are
+  left as they are and reported: replacing a database under a live
+  connection shipped the phase's own rows and lost another process's (review
+  2026-09-30).
 
 ## Platform run limits
 

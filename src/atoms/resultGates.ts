@@ -3,6 +3,7 @@ import { baseExecutorOf } from '../core/attestation.js';
 import { stripLiteralContractBlock } from './prompts.js';
 import { NON_JSON_PAYLOAD_SUMMARY_PREFIX } from './json.js';
 import { INTERNAL_VALIDATION_FAILED_PREFIX } from './L1Atom.js';
+import { READ_ONLY_RESTORED_PREFIX } from '../contracts/readOnlyPhase.js';
 import { DURABLE_HTTP_PORT_LITERAL_RE } from './groundTruth.js';
 import {
   PROBE_MANIFEST_FILENAME,
@@ -377,7 +378,7 @@ const RESULT_GATES: readonly ResultGate[] = [
     appliesToDelegatedResult: true,
     check: (env) =>
       Promise.resolve(
-        env.result.summary.startsWith(NON_JSON_PAYLOAD_SUMMARY_PREFIX)
+        executorSummary(env.result).startsWith(NON_JSON_PAYLOAD_SUMMARY_PREFIX)
           ? {
               reasoning:
                 'the executor did not emit the required final {"output","summary"} JSON envelope',
@@ -394,12 +395,34 @@ const RESULT_GATES: readonly ResultGate[] = [
     appliesToDelegatedResult: true,
     check: (env) =>
       Promise.resolve(
-        env.result.summary.startsWith(INTERNAL_VALIDATION_FAILED_PREFIX)
+        !env.task.readOnly && executorSummary(env.result).startsWith(INTERNAL_VALIDATION_FAILED_PREFIX)
           ? {
               reasoning:
                 'the result explicitly reports that its final validate_html call failed',
               coaching:
                 'Your last validate_html result was not ok. Read its exact errors/smokeResult, fix the artefact or the assertion, and re-run validation until ok:true before returning the final JSON.',
+            }
+          : null
+      ),
+  },
+  {
+    // The same banner on a READ-ONLY phase (`Task.readOnly`) is a finding, not
+    // a fault: whatever the phase changes is undone when it ends, so coaching
+    // it to fix the artefact only loops (adversarial review 2026-09-30: three
+    // identical rejections, then an escalation, a branch and a fallback). The
+    // validator reads it with the read-only rule instead.
+    id: 'read-only-validation-failed',
+    disposition: 'requires-review',
+    appliesToDelegatedResult: true,
+    check: (env) =>
+      Promise.resolve(
+        env.task.readOnly && executorSummary(env.result).startsWith(INTERNAL_VALIDATION_FAILED_PREFIX)
+          ? {
+              reasoning:
+                'a READ-ONLY phase reports that its final validate_html call failed: a defect in the files is its finding, ' +
+                'never a fix to make where changes are undone; a wrong assertion is for the phase itself to correct',
+              coaching:
+                'This phase is read-only. If your assertion was wrong, correct the check and validate again; if the artefact is wrong, say exactly what is wrong in your result.',
             }
           : null
       ),
@@ -459,6 +482,18 @@ const RESULT_GATES: readonly ResultGate[] = [
 
 /** Stable order, exported for the pipeline test that pins it. */
 export const RESULT_GATE_IDS: readonly string[] = RESULT_GATES.map((g) => g.id);
+
+/**
+ * The summary as the executor wrote it: beneath the runtime's restoration line
+ * on a restored read-only phase, where the banners the gates read would
+ * otherwise be hidden.
+ */
+function executorSummary(result: Result): string {
+  // A wrapper that rewrote the summary since (a landing) left the field stale.
+  return result.readOnlyRestoration && result.summary.startsWith(READ_ONLY_RESTORED_PREFIX)
+    ? result.readOnlyRestoration.summary
+    : result.summary;
+}
 
 export async function runResultGates(
   env: ResultGateEnv,

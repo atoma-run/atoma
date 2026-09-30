@@ -66,6 +66,7 @@ import { declaredArtifactManifestSchema } from '../contracts/artifactManifest.js
 import type { Logger, Plan, Result, RunContext, Task } from '../core/types.js';
 import type { TaskProfile } from './profile.js';
 import { describeSeedManifest, seedWorkspace, snapshotDeliveredWorkspace, snapshotStartingWorkspace } from './workspace.js';
+import { readOnlyPhasesFor } from './readOnlyPhase.js';
 import { draftAcceptanceChecklist } from '../atoms/acceptanceChecklist.js';
 import { readAcceptanceSource, readAcceptanceSpec } from './acceptanceSpec.js';
 
@@ -1081,6 +1082,10 @@ export async function startTask(
       const start = snapshotStartingWorkspace(seedRoot);
       return { startingWorkspace: { start, now: () => snapshotDeliveredWorkspace(workspaceRoot, start) } };
     })() : {}),
+    // A phase the root plan gave no outputs is photographed and restored on
+    // the same host path (src/contracts/readOnlyPhase.ts): a deepening
+    // re-seeds that path, and a phase never spans two attempts.
+    readOnlyPhases: readOnlyPhasesFor(workspaceRoot, (line) => consoleLogger.warn(line)),
     // Prefilter decisions replayed from the on-disk cache: the LLM call
     // that did NOT happen still deserves a card.
     recordCacheHit: (info) => recorder.recordCacheHit(info),

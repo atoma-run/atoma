@@ -69,7 +69,8 @@ export {
 export { extractRecordedProbes } from '../contracts/witness.js';
 import { SkillLifecycle, resultHasSuccessfulToolAction } from '../skills/lifecycle.js';
 import { llmVerdict, undeclaredToolMentions} from './verdict.js';
-import { dispatchWithAggregation, keptWithoutSynthesis, markLanded, synthesizeOrKeep, type DispatchOutcome } from './dispatch.js';
+import { dispatchWithAggregation, keptWithoutSynthesis, markLanded, synthesizeOrKeep, withinReadOnlyPhase, type DispatchOutcome } from './dispatch.js';
+import { restorationDamaged } from '../contracts/readOnlyPhase.js';
 export { llmVerdict, VALIDATION_SYSTEM_PROMPT } from './verdict.js';
 import { skillContextBlock } from '../skills/lifecycle.js';
 export {
@@ -127,6 +128,22 @@ import { namespaceOf, skillEventExecutor, type SkillNamespace } from '../skills/
 
 
 
+
+/**
+ * Did the molecule of `branchId` write a workspace file through an element?
+ * Runtime files (`.atoma-*`) are its own records and inputs, never a change.
+ */
+function wroteInBranch(ctx: RunContext, branchId: string): boolean {
+  return (ctx.attestations?.forBranch(branchId) ?? []).some((record) => {
+    if ((record.tool !== 'write_file' && record.tool !== 'edit_file') || record.observation.kind !== 'execution') return false;
+    try {
+      const path: unknown = (JSON.parse(record.observation.request) as Record<string, unknown>)['path'];
+      return typeof path === 'string' && !path.replace(/^\.\//, '').split('/').some((part) => part.toLowerCase().startsWith('.atoma-'));
+    } catch {
+      return true;
+    }
+  });
+}
 
 /**
  * Fresh narrow-responsibility system prompt used when `branchOnEscalation`
@@ -195,7 +212,8 @@ export function buildNarrowL1Prompt(
   } else if (bucket === 'web-artefact-build+validate') {
     bucketBody = [
       `Call tools sequentially to produce the deliverable:`,
-      `  1. write_file the complete source`,
+      `  1. write_file the complete source of a NEW page; to change an existing`,
+      `     page, read_file it and edit_file what changes`,
       `  2. start_static_server to serve it (port 0 = OS-assigned is fine)`,
       `  3. validate_html on the returned URL with appropriate interactions`,
       `     and a smoke check that asserts the key state transitions`,
@@ -690,6 +708,15 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         total: subtasks.length,
         aggregationMode: plan.aggregation.mode,
         ctx,
+        // Only a ROOT cell's own sequential decomposition declares phases: a
+        // cell below a tissue runs inside the tissue's phase (its context is
+        // a fork, with a branch id), a prefilter reuse is one dispatch of the
+        // whole task, and parallel subtasks share the workspace at the same
+        // moment. Run f793b338: such a plan's "read-only inspect" subtask
+        // overwrote the home page 23 times without reading it.
+        undeclaredIsReadOnly:
+          ctx.currentBranchId === undefined && !plan.viaPrefilter &&
+          plan.aggregation.mode === 'sequential' && plan.subtasks.length >= 2,
       })
     );
   }
@@ -711,6 +738,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     total: number;
     aggregationMode: Plan['aggregation']['mode'];
     ctx: RunContext;
+    undeclaredIsReadOnly: boolean;
   }): Promise<Result> {
     const {
       subtask,
@@ -720,10 +748,13 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       total,
       aggregationMode,
       ctx,
+      undeclaredIsReadOnly,
     } = args;
     const l1Type = this.resolveL1ForSubtask(subtask, strategy, parentTask, idx, ctx);
     this.triedChildren.mark(l1Type.name);
     const l1 = L1Atom.fromType(l1Type);
+    // This cell's own root plan made the subtask read-only: the phase starts here.
+    const readOnlyHere = undeclaredIsReadOnly && !subtask.outputs?.length && !parentTask.readOnly;
     const seedContext = this.pendingSeedContext.get(l1Type.atomId);
     if (seedContext) {
       l1.injectContext({ source: 'coaching', text: seedContext });
@@ -735,6 +766,11 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       // Structured output intent travels with the task: the skill dispatch
       // gates read it as authoritative instead of regex-recovering it.
       ...(subtask.outputs && subtask.outputs.length > 0 ? { outputs: subtask.outputs } : {}),
+      // A read-only phase stays read-only below it, as a MARK: its validators
+      // and gates read it (second review: a molecule inside a tissue's
+      // read-only phase was rejected six times and coached to fix), while the
+      // photograph and restore happen once, where the phase starts.
+      ...(parentTask.readOnly || readOnlyHere ? { readOnly: true as const } : {}),
       // Proof obligations travel the same way, and INHERIT: an obligation
       // declared one tier up (an L3 phase whose whole point is DOM
       // behaviour) must reach the supervisor that actually watches the
@@ -854,15 +890,19 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
           ctx.tools &&
           process.env['ATOMA_SKILL_DIRECT'] !== '0'
         ) {
-          const direct = await this.runScriptSkillDirect(
-            skills.skill,
-            skills.ownerNs,
+          // A read-only subtask's script runs photographed and restored too.
+          const matched = skills;
+          const dispatch = () => this.runScriptSkillDirect(
+            matched.skill,
+            matched.ownerNs,
             // The atom that runs it, which under the shared catalog is not
             // the atom whose namespace supplied it.
             l1Type,
             subTask,
             ctx
           );
+          // Every change a script run makes is its own.
+          const direct = await (readOnlyHere ? withinReadOnlyPhase(ctx, subTask, dispatch, { script: true }) : dispatch());
           if (direct) {
             // ANTI-REDISPATCH GUARD (epoch-5 run 5, the $1.63 lesson). A
             // trusted script is DETERMINISTIC: same workspace → the
@@ -892,7 +932,14 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
               );
             } else {
               memo.set(skills.skill.id, [...seen.slice(-7), direct.summary]);
-              this.lifecycle()?.commitScriptSkillDirect(skills.skill, skills.ownerNs, ctx, l1Type);
+              // A script that changed files in a read-only subtask is not
+              // credited: the runtime had to put its work back. Below a
+              // tissue's read-only phase that restoration comes later, too
+              // late to tell: no script run there is credited.
+              const restoredHere = direct.readOnlyRestoration && restorationDamaged(direct.readOnlyRestoration.restoration);
+              if (!restoredHere && !(subTask.readOnly && !readOnlyHere)) {
+                this.lifecycle()?.commitScriptSkillDirect(skills.skill, skills.ownerNs, ctx, l1Type);
+              }
               return direct;
             }
           }
@@ -952,6 +999,10 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     // (we only distill a recovery pattern for a NOVEL event, mirroring
     // C3's "we looked and found nothing" rule).
     const eventState = { injected: false };
+    // Fork a branch-scoped ctx so every LLM/tool/trust event recorded
+    // inside this supervise loop carries a unique branchId. Viz renders
+    // each branch as its own lane instead of interleaving them.
+    const branchId = randomUUID();
     const hooks = this.makeL1Hooks(ctx, subtask.description, {
       l1Name: namespaceOf(l1Type),
       subTask,
@@ -959,12 +1010,9 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       matchedSkillId,
       visibleNamespaces: this.skillRegistry ? visibleNsForHooks : undefined,
       eventState,
+      branchId,
+      readOnlyHere,
     });
-
-    // Fork a branch-scoped ctx so every LLM/tool/trust event recorded
-    // inside this supervise loop carries a unique branchId. Viz renders
-    // each branch as its own lane instead of interleaving them.
-    const branchId = randomUUID();
     const branchInfo = {
       branchId,
       ...(ctx.currentBranchId ? { parentBranchId: ctx.currentBranchId } : {}),
@@ -977,8 +1025,13 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     };
     ctx.recordBranch?.({ op: 'start', ...branchInfo });
     const branchCtx = forkBranch(ctx, branchId);
+    // A read-only subtask of this cell's own root plan is photographed and
+    // restored around every execution of it, before its result is judged.
+    const phaseHooks: SupervisionHooks<L1Atom> = readOnlyHere
+      ? { ...hooks, aroundExecute: (execute) => withinReadOnlyPhase(ctx, subTask, execute) }
+      : hooks;
     try {
-      const res = await superviseLoop<L1Atom>(this, l1, subTask, branchCtx, hooks);
+      const res = await superviseLoop<L1Atom>(this, l1, subTask, branchCtx, phaseHooks);
       // Event-skill distillation (#E1) — a RECOVERED run (rejections in the
       // trace, ultimately approved, not a fallback deliverable) carries the
       // failure→fix delta worth keying on the event signature. Opportunistic:
@@ -1087,6 +1140,8 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     if (process.env['ATOMA_SKILL_LEARN'] !== '1') return;
     if (!this.skillRegistry) return;
     if (args.eventSkillInjected) return;
+    // A read-only subtask's recovery may be a fix the restoration undid.
+    if (args.subTask.readOnly) return;
     if (args.res.producedBy.viaFallback) return;
     if (!resultHasSuccessfulToolAction(args.res)) return;
     const hadRejection = args.res.trace.some(
@@ -1278,6 +1333,10 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       visibleNamespaces?: readonly string[];
       /** Mutated by the event-skill injector; read by the post-loop learning gate. */
       eventState: { injected: boolean };
+      /** The branch the molecule's tool calls are attested under. */
+      branchId: string;
+      /** This cell's own plan made the subtask read-only (else the mark, if any, came from above). */
+      readOnlyHere: boolean;
     }
   ): SupervisionHooks<L1Atom> {
     // EVENT-DRIVEN recovery injection (#E1). On a rejection (or the
@@ -1587,13 +1646,21 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         // filtered away distilled a recipe teaching the next run to drive
         // state through `window.__*` hooks, and that recipe was then matched,
         // injected and credited.
-        if (verdict?.approved === true && verdict.proofUncovered === true) {
-          ctx.recordRunStat?.('uncovered-obligation');
+        // The same withholding for a READ-ONLY subtask that changed files
+        // itself: it did not do what its plan said, whatever its report proves.
+        // Below a tissue's read-only phase the restoration comes after this
+        // approval, so the molecule's own attested writes decide (third
+        // review: the molecule that rewrote the page kept its trust).
+        const restored = (result.readOnlyRestoration !== undefined && restorationDamaged(result.readOnlyRestoration.restoration)) ||
+          (skillCtx.subTask.readOnly === true && !skillCtx.readOnlyHere && wroteInBranch(ctx, skillCtx.branchId));
+        if (verdict?.approved === true && (verdict.proofUncovered === true || restored)) {
+          if (!restored) ctx.recordRunStat?.('uncovered-obligation');
           const withheldSkillId = child.activeSkillId();
           const withheldNs = child.activeSkillOwner() ?? namespaceOf(child);
           ctx.logger.warn(
-            `[${this.name}] ${child.name}: RESULT approved but a declared proof obligation is UNCOVERED — ` +
-              `atom trust success, skill credit, distillation and promotion are all WITHHELD`
+            `[${this.name}] ${child.name}: RESULT approved but ` +
+              (restored ? 'the runtime put back files this read-only subtask changed' : 'a declared proof obligation is UNCOVERED') +
+              ` — atom trust success, skill credit, distillation and promotion are all WITHHELD`
           );
           if (withheldSkillId && this.skillRegistry) {
             ctx.recordSkill?.({
@@ -1604,8 +1671,9 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
               skillId: withheldSkillId,
               actorName: this.name,
               actorTier: 2,
-              reasoning:
-                'success NOT credited — a declared proof obligation has no transport-observed attestation',
+              reasoning: restored
+                ? 'success NOT credited — the runtime put back files this read-only subtask changed'
+                : 'success NOT credited — a declared proof obligation has no transport-observed attestation',
             });
           }
           return;
@@ -1704,7 +1772,10 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
           process.env['ATOMA_SKILL_LEARN'] === '1' &&
           // A run only Jev approved teaches nothing: its recipe would compile
           // at learn time and dispatch platform-wide with no validator.
-          !(verdict?.approved === true && verdict.viaJev === true)
+          !(verdict?.approved === true && verdict.viaJev === true) &&
+          // Nor does a read-only subtask, whose writes the restoration of its
+          // phase undoes after this approval: its recipe could teach them.
+          !skillCtx.subTask.readOnly
         ) {
           try {
             await this.learnSkillFromRun({

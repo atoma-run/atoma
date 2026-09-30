@@ -4,6 +4,7 @@ import { parseVerdict } from './json.js';
 import { transportWitnesses } from '../contracts/witness.js';
 import { probeGroundTruth } from './groundTruth.js';
 import { BUILTIN_TOOL_NAMES, HOST_TOOL_NAMES } from '../contracts/toolTaxonomy.js';
+import { READ_ONLY_TASK_LINE } from '../contracts/readOnlyPhase.js';
 
 /**
  * VERDICT ENGINE — extracted from L2Atom (structural slice 2b).
@@ -147,6 +148,14 @@ export const VALIDATION_SYSTEM_PROMPT = [
   '  failure whatever the prose says. A report of failure no observation refutes',
   '  still counts against the result. A bracketed "[INTERNAL VALIDATION FAILED …"',
   '  prefix is the runtime\'s, not narration.',
+  '  "Task mode: READ-ONLY PHASE" and "[READ-ONLY PHASE RESTORED …" are the',
+  '  runtime\'s too: that work had no outputs, and whatever it changes is put back',
+  '  when it ends (the prefix lists what was). What it observed while its changes',
+  '  stood is gone, and a fix it reports was undone. Such a RESULT is judged on',
+  '  what it established about the files as they now stand, and these rules take',
+  '  precedence over asking for a fix: never reject it for a restoration, nor to',
+  '  have a defect fixed where changes are undone — a defect it states is a',
+  '  finding, for a phase with outputs or the root to fix.',
   '  If the user message contains a "GROUND-TRUTH EVIDENCE" block, that block is',
   '  the supervisor\'s OWN independent probe: a browser re-run of validate_html,',
   '  an HTTP request, a file read-back or a quoted-span check, depending on the',
@@ -857,6 +866,7 @@ export async function llmVerdict(args: {
     `Subject kind: ${subjectHint}`,
     `Plan kind: ${planKindHint}`,
     `Task: ${args.task.description}`,
+    args.task.readOnly ? READ_ONLY_TASK_LINE : '',
     args.targetContext ? `Delegation target(s):\n${args.targetContext}` : '',
     `${args.subject}: ${JSON.stringify(args.payload)}`,
     groundTruthBlock,

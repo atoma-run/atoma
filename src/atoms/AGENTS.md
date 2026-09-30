@@ -195,6 +195,40 @@ load-bearing.
   receives it fans the group out. One L3 phase per orthogonal artefact
   serialises work that shares no file — see
   [parallel fan-in 2026-08-16](../../docs/incidents/parallel-fanin-2026-08-16.md).
+- A phase of a SEQUENTIAL root plan the PLANNER wrote with two phases or more
+  (counted before `routeCrossBucketVerification` splits one) that declares no
+  `outputs` is READ-ONLY (`Task.readOnly`) — the tissue's plan, or a root
+  cell's own (a fork carries `currentBranchId`; a prefilter reuse is one
+  dispatch of the whole task). A one-phase plan is the whole task, and
+  parallel phases share the workspace at the same moment, so neither is
+  marked. Runs 04ea696f (2026-09-30: a verification phase replaced the page it
+  verified, and that page shipped) and f793b338 (2026-09-27: an inspect
+  subtask overwrote a home page 23 times).
+- Every execution of a read-only phase — the child's, a branch's, the
+  parent's fallback, a compiled script's — runs between a host photograph of
+  the workspace and its restoration (`withinReadOnlyPhase` through
+  `SupervisionHooks.aroundExecute`, once, where the phase starts; host half in
+  [src/run](../run/AGENTS.md)). The mark itself inherits: every task below
+  the phase is `readOnly` too, so its validators read `READ_ONLY_TASK_LINE`, a
+  failed final validation is a review finding (`read-only-validation-failed`)
+  rather than a coached rejection, and no recipe or event skill is distilled
+  from it. When the execution changed something, its result starts with
+  `[READ-ONLY PHASE RESTORED …` and carries `Result.readOnlyRestoration`,
+  beneath which the banner gates read; whenever the disk was put back, the
+  Node servers the execution started are stopped. A restoration is DAMAGE
+  when the phase owned a path it put back (`executionOwns`: its element
+  writes named it, a server it started runs it, a shell or probe command
+  names it, or it was a compiled script): then its attestations count for no
+  root acceptance, its probe manifest goes back with the rest, and trust,
+  skill credit and promotion are withheld as `proofUncovered` withholds them —
+  below a tissue's phase, where the restoration comes after the approval, a
+  molecule's own attested element writes decide. A side effect of verifying
+  — a server rewriting its data file — is put back and reported, and only a
+  browser observation whose document digest no longer matches is set aside.
+  `.atoma-scratch/`, snapshot-skipped names and SQLite databases stay. The
+  root acceptor reads every read-only phase of the attempt, one that changed
+  nothing included, and never approves past them mechanically: no read-only
+  phase can fix the defect it finds.
 - REACHING THE RUN DEADLINE LANDS A DISPATCH; it does not discard it.
   `dispatchWithAggregation` returns `{results, unfinished}`: sequential refuses
   to OPEN a phase under `MIN_PHASE_LANDING_MS` of remaining wall clock and keeps
@@ -369,6 +403,21 @@ Read the archived sections before changing something that merely looks odd.
   deferrals measured), and when nothing left fits Jev escalates itself.
 - Do not introduce plan templating until a typed instantiation/validation layer
   exists; free-form substitution is another unvalidated router.
+- A read-only phase is RESTORED when it ends, never refused its writes. The
+  refusal was built and reviewed first (2026-09-30): a verifier that found a
+  real defect was coached by the internal-validation gate to fix what the
+  fence refused, spent its retries and a branch, and the cell's fallback,
+  which the fence did not reach, rewrote the page anyway; a shell, a compiled
+  script and a recipe's scratch file each passed it. Restoring covers every
+  writer and leaves supervision as it is. What it costs: a fix such a phase
+  makes is undone, so the defect is left to a phase with outputs or to root
+  acceptance — the validator rule says so, and never rejects a read-only phase
+  to have it fixed where changes are undone. A mutating phase whose plan
+  forgot its outputs is undone too; none was, among the 36 root phases of
+  the deep runs and the short runs' root-cell plans measured on 2026-09-30,
+  and a restoration names every file it lost. Do not tell a read-only
+  molecule to change nothing: obeyed, it reported a failure the gate then
+  coached it to fix, three identical rejections deep (review 2026-09-30).
 - `salvageResultEnvelope` reads a malformed summary STRUCTURALLY — everything
   between `"summary":"` and the closing `"}` — only when the envelope is the
   whole response with `output` first and every bare quote of the summary

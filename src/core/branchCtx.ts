@@ -130,6 +130,8 @@ export function forkBranch(ctx: RunContext, branchId: string): RunContext {
     ...(ctx.jevAudit !== undefined ? { jevAudit: ctx.jevAudit } : {}),
     ...(ctx.recordBranch !== undefined ? { recordBranch: ctx.recordBranch } : {}),
     ...(ctx.recordRootPlan !== undefined ? { recordRootPlan: ctx.recordRootPlan } : {}),
+    // One host workspace, one list of restorations for the run's acceptor.
+    ...(ctx.readOnlyPhases !== undefined ? { readOnlyPhases: ctx.readOnlyPhases } : {}),
     currentBranchId: branchId,
   };
   return out;

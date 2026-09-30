@@ -11,6 +11,15 @@ import { llmVerdict } from './verdict.js';
 import { LANDED_RESULT_GUIDANCE } from './prompts.js';
 import { compareStartingWorkspace, renderStartingWorkspace } from '../contracts/startingWorkspace.js';
 import {
+  renderRestorationsBlock,
+  restorationDamaged,
+  restorationMatters,
+  staleObservations,
+  type ReadOnlyRestoration,
+} from '../contracts/readOnlyPhase.js';
+import type { AttestationRecord } from '../contracts/attestation.js';
+import type { Witness } from '../contracts/witness.js';
+import {
   coverAcceptanceChecklist,
   renderChecklistCoverage,
   type AcceptanceChecklist,
@@ -26,8 +35,8 @@ import {
  * behaviour by looking. An observation recorded without a viewport was laid
  * out at 800x600, the only size there was before one was recorded.
  */
-function checklistCoverage(ctx: RunContext, checklist: AcceptanceChecklist): ChecklistCoverage[] {
-  const records = ctx.attestations?.forAttempt(ctx.attempt ?? 1) ?? [];
+function checklistCoverage(ctx: RunContext, checklist: AcceptanceChecklist, stale: ReadonlySet<string>): ChecklistCoverage[] {
+  const records = acceptedRecords(ctx, stale);
   const observations = records.flatMap((record) =>
     record.observation.kind === 'execution' && record.observation.http
       ? [{ eventId: record.eventId, http: record.observation.http }]
@@ -50,9 +59,9 @@ function checklistCoverage(ctx: RunContext, checklist: AcceptanceChecklist): Che
  * item (`namedLayoutWidths`), because the acceptor, shown this line, still
  * approved 800x600 twice (runs a939374e and 7389feee, 2026-09-27).
  */
-export function observedLayoutsBlock(ctx: RunContext): string {
+export function observedLayoutsBlock(ctx: RunContext, stale: ReadonlySet<string> = new Set()): string {
   const layouts = new Map<string, Set<string>>();
-  for (const record of ctx.attestations?.forAttempt(ctx.attempt ?? 1) ?? []) {
+  for (const record of acceptedRecords(ctx, stale)) {
     if (record.observation.kind !== 'browser') continue;
     const document = record.observation.document?.path ?? '(page not bound to a workspace file)';
     const size = record.observation.viewport ? `${record.observation.viewport.width}x${record.observation.viewport.height}` : 'an unrecorded size';
@@ -73,6 +82,63 @@ function startingWorkspaceBlock(ctx: RunContext): string {
   } catch {
     return '';
   }
+}
+
+/** Every read-only execution of this attempt, whether it changed anything or not. */
+function readOnlyRestorationsOf(ctx: RunContext): ReadOnlyRestoration[] {
+  return (ctx.readOnlyPhases?.restorations() ?? []).filter((restoration) => restoration.attempt === (ctx.attempt ?? 1));
+}
+
+/** A workspace file's sha256 as the host reads it back now, memoised for one acceptance. */
+type WorkspaceDigest = (path: string) => Promise<string | undefined>;
+
+function workspaceDigests(ctx: RunContext): WorkspaceDigest {
+  const reads = new Map<string, Promise<string | undefined>>();
+  return (path) => {
+    if (!reads.has(path)) reads.set(path, (async () => {
+      try {
+        if (!ctx.tools?.has('read_file')) return undefined;
+        const read: unknown = await baseExecutorOf(ctx.tools).execute('read_file', { path });
+        const content = typeof read === 'string' ? read : read && typeof read === 'object' &&
+          'content' in read && typeof read.content === 'string' ? read.content : undefined;
+        return content === undefined ? undefined : createHash('sha256').update(content).digest('hex');
+      } catch { return undefined; }
+    })());
+    return reads.get(path)!;
+  };
+}
+
+/**
+ * The attempt's attestations no acceptance may count. Everything a DAMAGED
+ * read-only execution recorded (its own writes were put back: adversarial
+ * review 2026-09-30, a verifier rewrote index.html, laid its page out at
+ * 375 px, and the 375 px criterion read as passed). And a browser observation
+ * any other restored execution made of a document whose bytes are no longer
+ * the ones it saw. A verifier whose probes only made a server rewrite its
+ * data file keeps the rest of its evidence (second review).
+ */
+async function staleRecordIds(ctx: RunContext, digest: WorkspaceDigest): Promise<ReadonlySet<string>> {
+  const restorations = readOnlyRestorationsOf(ctx);
+  const stale = new Set(staleObservations(restorations));
+  const suspect = new Set(restorations.filter((restoration) => restorationMatters(restoration) && !restorationDamaged(restoration))
+    .flatMap((restoration) => restoration.observations));
+  if (suspect.size === 0) return stale;
+  for (const record of ctx.attestations?.forAttempt(ctx.attempt ?? 1) ?? []) {
+    if (!suspect.has(record.eventId) || record.observation.kind !== 'browser' || !record.observation.document) continue;
+    if (await digest(record.observation.document.path) !== record.observation.document.sha256) stale.add(record.eventId);
+  }
+  return stale;
+}
+
+function acceptedRecords(ctx: RunContext, stale: ReadonlySet<string>): readonly AttestationRecord[] {
+  const records = ctx.attestations?.forAttempt(ctx.attempt ?? 1) ?? [];
+  return stale.size === 0 ? records : records.filter((record) => !stale.has(record.eventId));
+}
+
+/** A result's witnesses without the transport ones no acceptance may count. */
+function acceptedEvidence(evidence: readonly Witness[] | undefined, stale: ReadonlySet<string>): readonly Witness[] | undefined {
+  if (!evidence || stale.size === 0) return evidence;
+  return evidence.filter((witness) => !(witness.source === 'transport-observed' && stale.has(witness.eventId)));
 }
 
 const NAMED_PATH = /(?<![\w./-])([\w-]{2,}(?:\/[\w.-]+)*\.(?:md|markdown|txt|html?|css|m?js|cjs|ts|json|csv|py|sh|ya?ml))(?![\w/-])/gi;
@@ -150,21 +216,13 @@ async function criteriaFilesBlock(ctx: RunContext, checklist: AcceptanceChecklis
 }
 
 /** Root proof is stricter than phase proof: no binding or unreadable bytes never cover. */
-export async function rootProofCoverage(ctx: RunContext, floor: ProofFloor): Promise<AcceptanceInfo['floorCoverage']> {
-  const records = ctx.attestations?.forAttempt(ctx.attempt ?? 1) ?? [];
-  const reads = new Map<string, Promise<string | undefined>>();
-  const digest = (path: string): Promise<string | undefined> => {
-    if (!reads.has(path)) reads.set(path, (async () => {
-      try {
-        if (!ctx.tools?.has('read_file')) return undefined;
-        const read: unknown = await baseExecutorOf(ctx.tools).execute('read_file', { path });
-        const content = typeof read === 'string' ? read : read && typeof read === 'object' &&
-          'content' in read && typeof read.content === 'string' ? read.content : undefined;
-        return content === undefined ? undefined : createHash('sha256').update(content).digest('hex');
-      } catch { return undefined; }
-    })());
-    return reads.get(path)!;
-  };
+export async function rootProofCoverage(
+  ctx: RunContext,
+  floor: ProofFloor,
+  known?: { readonly digest: WorkspaceDigest; readonly stale: ReadonlySet<string> }
+): Promise<AcceptanceInfo['floorCoverage']> {
+  const digest = known?.digest ?? workspaceDigests(ctx);
+  const records = acceptedRecords(ctx, known?.stale ?? await staleRecordIds(ctx, digest));
   return Promise.all(floor.map(async ({ obligation, deliverable }) => {
     const current = await digest(deliverable);
     const matches = records.filter((record) => record.observation.kind === 'browser' && establishesDomInteraction(record) &&
@@ -233,22 +291,29 @@ export async function acceptRootResult(args: {
   const { actor, task, result, ctx, floor } = args;
   const checklist = args.checklist ?? [];
   const source = args.checklistOrigin?.source ?? 'drafted';
-  const coverage = checklistCoverage(ctx, checklist);
+  const digest = workspaceDigests(ctx);
+  const stale = await staleRecordIds(ctx, digest);
+  const coverage = checklistCoverage(ctx, checklist, stale);
   const checklistBlock = renderChecklistCoverage(checklist, coverage,
     { landed: Boolean(result.unfinishedPhases?.length), source });
-  const layoutsBlock = observedLayoutsBlock(ctx);
+  const layoutsBlock = observedLayoutsBlock(ctx, stale);
   const gates = await runResultGates(buildResultGateEnv({ task, result, ctx,
     childName: actor.name, childToolNames: actor.toolNames() }), ctx.mechanicalResultRejections, 'delegated');
+  const evidence = acceptedEvidence(result.evidence, stale);
   const probe = await checkGroundTruth({ ctx, subject: 'RESULT',
     payload: { output: result.output, summary: result.summary }, child: actor,
-    ...(result.evidence ? { evidence: result.evidence } : {}) });
-  const floorCoverage = await rootProofCoverage(ctx, floor);
+    ...(evidence ? { evidence } : {}) });
+  const floorCoverage = await rootProofCoverage(ctx, floor, { digest, stale });
 
   // Criteria the user approved are READ, whatever the floor says: a covered
   // floor with no finding used to approve mechanically past them.
   const userCriteria = source === 'user' && coverage.length > 0;
+  // A read-only phase cannot fix what it finds, and one that changed files
+  // was put back with any fix it made: a floor an earlier phase covered
+  // cannot say either, so any read-only phase of the attempt is read.
+  const restorations = readOnlyRestorationsOf(ctx);
   const review = floor.length === 0 || gates.reviewFindings.length > 0 || probe.requiresReview ||
-    floorCoverage.some((item) => item.status === 'uncovered') || userCriteria;
+    floorCoverage.some((item) => item.status === 'uncovered') || userCriteria || restorations.length > 0;
   const judgementsAsked = checklistBlock !== '';
   // Read only for a validation call: nothing reads them on the mechanical path.
   // Named files only beside criteria the acceptor is shown (a drafted
@@ -256,18 +321,20 @@ export async function acceptRootResult(args: {
   const reviewing = review && !gates.rejection;
   const namedFilesBlock = reviewing && judgementsAsked ? await criteriaFilesBlock(ctx, checklist) : '';
   const startingBlock = reviewing ? startingWorkspaceBlock(ctx) : '';
+  const restorationsBlock = reviewing ? renderRestorationsBlock(restorations) : '';
   const raw = gates.rejection
     ? { approved: false, reasoning: gates.rejection.reasoning }
     : review ? await llmVerdict({
       ctx, model: modelForTier(1), supervisorName: 'run-root', supervisorTier: 3,
       subject: 'RESULT', child: actor, task,
       payload: { output: result.output, summary: result.summary, producedBy: result.producedBy },
-      ...(result.evidence ? { evidence: result.evidence } : {}),
+      ...(evidence ? { evidence } : {}),
       groundTruthBlock: probe.block,
       mechanicalFindingsBlock: renderResultGateFindings(gates.reviewFindings),
       proofCoverageBlock: 'ROOT DELIVERY PROOF (no effect on phase credits):\n' + JSON.stringify(floorCoverage) +
         (checklistBlock ? `\n\n${checklistBlock}\n${CRITERIA_JUDGEMENT_REQUEST}` : '') + (layoutsBlock ? `\n\n${layoutsBlock}` : '') +
-        (namedFilesBlock ? `\n\n${namedFilesBlock}` : '') + (startingBlock ? `\n\n${startingBlock}` : ''),
+        (namedFilesBlock ? `\n\n${namedFilesBlock}` : '') + (startingBlock ? `\n\n${startingBlock}` : '') +
+        (restorationsBlock ? `\n\n${restorationsBlock}` : ''),
       // A landed run always reaches here through a validation call, because it
       // stopped before it could prove the floor. Saying what a landing IS costs
       // one block and decides whether the phases it did complete survive.

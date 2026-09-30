@@ -18,7 +18,8 @@ import {
 } from '../registry/atomRegistry.js';
 import { modelForTier } from '../core/models.js';
 import { capToolIterations } from '../core/limits.js';
-import { dispatchWithAggregation, keptWithoutSynthesis, markLanded, synthesizeOrKeep, type DispatchOutcome } from './dispatch.js';
+import { dispatchWithAggregation, keptWithoutSynthesis, markLanded, synthesizeOrKeep, withinReadOnlyPhase, type DispatchOutcome } from './dispatch.js';
+import { restorationDamaged } from '../contracts/readOnlyPhase.js';
 import { acceptL3RootPlan } from './l3RootPlan.js';
 import { L2Atom } from './L2Atom.js';
 import { buildResultGateEnv, runResultGates } from './resultGates.js';
@@ -217,6 +218,13 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
 
   private registry: AtomRegistry;
   private pendingStrategy: L3Strategy | null = null;
+  /**
+   * How many phases the PLANNER wrote, before `routeCrossBucketVerification`
+   * split any: whether a phase is read-only is the plan's word, and a
+   * one-phase plan split in two is still the whole task (adversarial review
+   * 2026-09-30: both halves were marked and the whole build was put back).
+   */
+  private pendingPlannedPhases: number | null = null;
   private l2Peers: L2Atom[] = [];
   private triedChildren = new TaskChildrenMemo();
   private pendingSeedContext = new Map<string, string>();
@@ -684,6 +692,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       rawPlan !== null &&
       (rawPlan as Record<string, unknown>)['aggregation'] === undefined;
     if (aggregationWasOmitted) plan.aggregation = { mode: 'sequential' };
+    const plannedPhases = plan.subtasks.length;
     const routed = preservePlanLiteralContracts(
       routeCrossBucketVerification(plan, this.registry),
       task.description
@@ -695,6 +704,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     // strategy — a reuse-shaped plan dispatched under a `create` seed built
     // for a different decomposition.
     this.pendingStrategy = strategy;
+    this.pendingPlannedPhases = plannedPhases;
     return routed;
   }
 
@@ -703,10 +713,12 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
 
     const strategy = this.pendingStrategy;
     this.pendingStrategy = null;
+    const plannedPhases = this.pendingPlannedPhases ?? plan.subtasks.length;
+    this.pendingPlannedPhases = null;
     if (!strategy) return this.selfExecute(task, plan, ctx);
 
     const subtasks = plan.subtasks;
-    const dispatched = await this.dispatchSubtasks(subtasks, plan, strategy, task, ctx);
+    const dispatched = await this.dispatchSubtasks(subtasks, plan, strategy, task, ctx, plannedPhases);
     const landed = dispatched.unfinished.length > 0;
     return markLanded(
       await this.aggregate(dispatched.results, plan.aggregation, task, ctx, landed),
@@ -748,7 +760,8 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     plan: Plan,
     strategy: L3Strategy,
     task: Task,
-    ctx: RunContext
+    ctx: RunContext,
+    plannedPhases: number
   ): Promise<DispatchOutcome> {
     this.planChildAliases.clear();
     return dispatchWithAggregation(subtasks, plan, ctx, (subtask, idx) => {
@@ -762,6 +775,13 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         aggregationMode: plan.aggregation.mode,
         hooks,
         ctx,
+        // A phase of a sequential decomposition declares its outputs or
+        // reads only. A plan the planner wrote as one phase is the whole task
+        // (however routing split it), a single-action plan the schema coerced
+        // into one has no outputs to declare, and parallel phases share the
+        // workspace at the same moment: restoring one would undo what its
+        // siblings wrote.
+        undeclaredIsReadOnly: plan.aggregation.mode === 'sequential' && plannedPhases >= 2,
       });
     });
   }
@@ -775,6 +795,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     aggregationMode: Plan['aggregation']['mode'];
     hooks: SupervisionHooks<L2Atom>;
     ctx: RunContext;
+    undeclaredIsReadOnly: boolean;
   }): Promise<Result> {
     const {
       subtask,
@@ -785,6 +806,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       aggregationMode,
       hooks,
       ctx,
+      undeclaredIsReadOnly,
     } = args;
     const l2Type = this.resolveL2ForSubtask(subtask, strategy, parentTask, idx, ctx);
     this.triedChildren.mark(l2Type.name);
@@ -800,8 +822,16 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       description: subtask.description,
       ...(subtask.inputs ? { inputs: subtask.inputs } : {}),
       // Structured output intent travels with the task: the skill dispatch
-      // gates read it as authoritative instead of regex-recovering it.
-      ...(subtask.outputs && subtask.outputs.length > 0 ? { outputs: subtask.outputs } : {}),
+      // gates read it as authoritative instead of regex-recovering it. A
+      // phase the root plan gave NO outputs is read-only by the planning
+      // contract ("Omit the key only on read-only phases"): run 04ea696f's
+      // verification phase, which declared none, replaced the page it was
+      // verifying, and that page was delivered.
+      ...(subtask.outputs && subtask.outputs.length > 0
+        ? { outputs: subtask.outputs }
+        : undeclaredIsReadOnly
+          ? { readOnly: true as const }
+          : {}),
       // Proof obligations must cross THIS boundary too. Measured on the first
       // armed control (2026-08-22): the L3 planner declared
       // `proofObligations: ["dom-interaction"]` on its phase, this line
@@ -831,8 +861,13 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     };
     ctx.recordBranch?.({ op: 'start', ...branchInfo });
     const branchCtx = forkBranch(ctx, branchId);
+    // A read-only phase is photographed and restored around every execution
+    // of it, the cell's and a fallback's alike, before its result is judged.
+    const phaseHooks: SupervisionHooks<L2Atom> = subTask.readOnly
+      ? { ...hooks, aroundExecute: (execute) => withinReadOnlyPhase(ctx, subTask, execute) }
+      : hooks;
     try {
-      return await superviseLoop<L2Atom>(this, l2, subTask, branchCtx, hooks);
+      return await superviseLoop<L2Atom>(this, l2, subTask, branchCtx, phaseHooks);
     } finally {
       ctx.recordBranch?.({ op: 'end', ...branchInfo });
     }
@@ -1001,7 +1036,12 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         fresh.injectContext({ source: 'coaching', text: recoveryContext(subtaskDescription, diagnostic) });
         return fresh;
       },
-      onApproved: async (child, _result) => {
+      onApproved: async (child, result) => {
+        // A read-only phase that changed files itself earns its cell no trust.
+        if (result.readOnlyRestoration && restorationDamaged(result.readOnlyRestoration.restoration)) {
+          ctx.logger.warn(`[${this.name}] ${child.name}: phase approved, but the runtime put back files it changed — trust success WITHHELD`);
+          return;
+        }
         this.registry.recordSuccess(child.name, this.name, child.registryVersion());
       },
       onFailed: async (child, _reason) => {
