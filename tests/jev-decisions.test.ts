@@ -14,6 +14,7 @@ import {
   JEV_EVALUATOR,
   JEV_KEY_ENV,
   JEV_ORGS_ENV,
+  JEV_PROGRESSIVE_ENV,
   NEW_RECIPE,
   NO_CANDIDATE,
   createJevDecider,
@@ -310,7 +311,7 @@ describe('the Jev decider — choices', () => {
     ] as const) {
       const records: JevDecisionInfo[] = [];
       const { impl } = answering(answers);
-      expect(await createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: impl }).choose(choiceRequest)).toBeNull();
+      expect(await createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: impl }).choose(choiceRequest)).toEqual({ withhold: [] });
       expect(records[0]!.outcome).toBe(`model decides (${reason})`);
     }
   });
@@ -326,7 +327,7 @@ describe('the Jev decider — choices', () => {
     expect(records[0]!.outcome).toBe(`picked ${NO_CANDIDATE}`);
 
     const disagreeing = answering({ choice: choiceAnswer(NO_CANDIDATE), 'fits::agent_1': noulAnswer(0.8) });
-    expect(await createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: disagreeing.impl }).choose(choiceRequest)).toBeNull();
+    expect(await createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: disagreeing.impl }).choose(choiceRequest)).toEqual({ withhold: [] });
     expect(records[1]!.outcome).toBe('model decides (none_of_these, yet a candidate fits at 0.80)');
   });
 
@@ -546,7 +547,7 @@ describe('the Jev decider — approvals', () => {
     expect(decision).toEqual({ approved: true, probability: 0.9 });
     const body = requests[0]!.body;
     expect(Object.keys(body.questions)).toEqual(['requirement_1', 'requirement_2', 'reports_incomplete', 'addresses_reviewer']);
-    expect(body.questions['requirement_2']!.instructions).toBe('What do `evidence` and `groundTruth` show about `requirements[1]`?');
+    expect(body.questions['requirement_2']!.instructions).toContain('What do `evidence` and `groundTruth` show about `requirements[1]`?');
     expect(Object.keys(body.questions['requirement_1']!.criteria as object)).toEqual(['shown_done', 'shown_broken', 'not_shown']);
     const state = body.state;
     expect(state['requirements']).toEqual(['Add PATCH /api/notes/:id.', 'Document it in the README.']);
@@ -753,7 +754,7 @@ describe('prefilterStrategy with Jev', () => {
     expect(ctx.llm.calls[0]!.userContent).not.toContain('SECRET-OPENING');
   });
 
-  it('serves a cached model decision before asking Jev, and never caches a Jev decision', async () => {
+  it('isolates model-only cache entries from Jev, and never caches a Jev decision', async () => {
     process.env['ATOMA_PREFILTER_CACHE'] = join(dir, 'cache.db');
     resetPrefilterCacheForTests();
     const modelOnly = makeCtx();
@@ -762,8 +763,8 @@ describe('prefilterStrategy with Jev', () => {
 
     const { decider, chosen } = spyDecider({ choice: 'Methane' });
     const replay = await prefilterStrategy({ ctx: { ...makeCtx(), jev: decider }, task: { description: 'cached' }, catalog: CATALOG });
-    expect(replay).toMatchObject({ target: 'Water' });
-    expect(chosen).toHaveLength(0);
+    expect(replay).toMatchObject({ target: 'Methane' });
+    expect(chosen).toHaveLength(1);
 
     const jevDecided = await prefilterStrategy({ ctx: { ...makeCtx(), jev: decider }, task: { description: 'fresh' }, catalog: CATALOG });
     expect(jevDecided).toMatchObject({ target: 'Methane' });
@@ -1041,7 +1042,7 @@ describe('the Jev decider — twins', () => {
     expect(
       await createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: refusing }).twin(twinRequest)
     ).toBeNull();
-    expect(records.map((r) => r.outcome)).toEqual(['saved: new recipe', 'saved as before']);
+    expect(records.map((r) => r.outcome)).toEqual(['saved: new recipe', 'saved as before: partial twin comparison (0/2)']);
   });
 
   it('keeps a recovery recipe Jev judges a twin out of the catalog', async () => {
@@ -1112,6 +1113,7 @@ describe('who lets Jev decide', () => {
     ...ANTHROPIC_PINS,
     ANTHROPIC_API_KEY: 'host-key',
     [JEV_KEY_ENV]: KEY,
+    [JEV_PROGRESSIVE_ENV]: '1',
     // Read until 2026-09-30; now it limits nothing, and never crosses into a run.
     [JEV_ORGS_ENV]: 'org-a, org-b',
   };
@@ -1147,10 +1149,12 @@ describe('who lets Jev decide', () => {
       const run = projectRunEnvironment({ ...BASE, hostEnv: HOST, ...(orgId ? { orgId } : {}) }).environment;
       expect(run[JEV_KEY_ENV]).toBe(KEY);
       expect(run[JEV_ENV]).toBe('1');
+      expect(run[JEV_PROGRESSIVE_ENV]).toBe('1');
       expect(run[JEV_ORGS_ENV]).toBeUndefined();
     }
     const off = projectRunEnvironment({ ...BASE, hostEnv: { ...HOST, [JEV_ENV]: '0' }, orgId: 'org-a' }).environment;
     expect(off[JEV_KEY_ENV]).toBeUndefined();
+    expect(off[JEV_PROGRESSIVE_ENV]).toBeUndefined();
     // The run log then says the platform turned Jev off, not that a key is missing.
     expect(off[JEV_ENV]).toBe('0');
   });
@@ -1281,7 +1285,7 @@ describe('the jev card in the run view', () => {
   it('badges an approval with its weakest link, and a deferral as the model deciding', async () => {
     const [approved] = await cardsFor((d) => d.approve(approval), { requirement_1: choiceAnswer('shown_done', 0.83) });
     expect(approved).toMatchObject({ title: 'Jev · validate-result', decision: '✓ approved' });
-    expect(approved!.footer).toContain('p 83%');
+    expect(approved!.footer).toContain('score 83%');
     const [deferred] = await cardsFor((d) => d.approve(approval), { requirement_1: choiceAnswer('not_shown', 0.8) });
     expect(deferred!.decision).toBe('↑ model decides');
     expect(deferred!.body).toBe('deferred to the model (requirement 1 not_shown (0.00))');

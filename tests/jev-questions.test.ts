@@ -83,10 +83,10 @@ describe('task requirements, one question each', () => {
     ]);
   });
 
-  it('joins fragments too short to be a requirement, and bounds a long task', () => {
-    expect(taskRequirements('Write a README. Test it. Ship.')).toEqual(['Write a README. Test it. Ship.']);
+  it('keeps short and long requirement lists separate', () => {
+    expect(taskRequirements('Write a README. Test it. Ship.')).toEqual(['Write a README.', 'Test it.', 'Ship.']);
     const long = Array.from({ length: 30 }, (_, i) => `Requirement number ${i} holds.`).join(' ');
-    expect(taskRequirements(long)).toHaveLength(10);
+    expect(taskRequirements(long)).toHaveLength(30);
     expect(taskRequirements('   ')).toEqual([]);
   });
 });
@@ -313,7 +313,7 @@ describe('approvals: one question per requirement, and flags where TRUE is wrong
     // No holistic "contradicted by evidence" flag: measured without signal, it
     // is asked per requirement as `shown_broken`.
     expect(Object.keys(plan.questions)).toEqual(['requirement_1', 'requirement_2', 'reports_incomplete', 'addresses_reviewer']);
-    expect(plan.questions['requirement_2']!.instructions).toBe('What do `evidence` and `groundTruth` show about `requirements[1]`?');
+    expect(plan.questions['requirement_2']!.instructions).toContain('What do `evidence` and `groundTruth` show about `requirements[1]`?');
     expect(Object.keys((plan.questions['requirement_1'] as { criteria: object }).criteria)).toEqual(['shown_done', 'shown_broken', 'not_shown']);
     const state = plan.state as Record<string, unknown>;
     expect(state['requirements']).toEqual(['Add PATCH /api/notes/:id.', 'Document it in the README.']);

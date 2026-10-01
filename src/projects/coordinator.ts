@@ -19,7 +19,7 @@ import type {
 } from '../contracts/projects.js';
 import type { RunTierModels, TierModelPins } from '../contracts/tierModels.js';
 import { PERSONAL_CODEX_PROFILE_ROOT_ENV } from '../core/codexHomeLease.js';
-import { JEV_ENV, JEV_KEY_ENV, jevEnabled } from '../core/jev.js';
+import { JEV_ENV, JEV_KEY_ENV, JEV_PROGRESSIVE_ENV, jevEnabled } from '../core/jev.js';
 import { skillsDirPath } from '../core/stores.js';
 import { LLM_PROVIDER_CATALOG, findProvider, isAccountTierSelection } from '../core/providerCatalog.js';
 import { DEFAULT_PLATFORM_LIMITS, type PlatformLimits } from '../contracts/platformSettings.js';
@@ -730,6 +730,7 @@ export function projectRunEnvironment(input: {
   if (jevEnabled(input.hostEnv)) {
     environment[JEV_KEY_ENV] = input.hostEnv[JEV_KEY_ENV]!.trim();
     environment[JEV_ENV] = '1';
+    if (input.hostEnv[JEV_PROGRESSIVE_ENV] === '1') environment[JEV_PROGRESSIVE_ENV] = '1';
   } else if (input.hostEnv[JEV_ENV] === '0') {
     // Said in the run log as the platform's choice, not as a missing key.
     environment[JEV_ENV] = '0';

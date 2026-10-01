@@ -551,6 +551,10 @@ export interface JevChoiceDeferral {
 export interface JevApprovalRequest {
   readonly subject: 'PLAN' | 'RESULT';
   readonly task: { readonly description: string; readonly constraints?: readonly string[] };
+  /** Explicitly scoped to this child task; never inherit the root checklist from Task.inputs. */
+  readonly criteria?: readonly import('../contracts/acceptanceChecklist.js').ChecklistItem[];
+  /** Existing plan-declared obligations of THIS phase, not the root proof floor. */
+  readonly obligations?: Task['proofObligations'];
   readonly child: { readonly name: string; readonly tier: Tier; readonly tools: readonly string[] };
   /** The plan, or the result's `{output, summary}`. */
   readonly payload: unknown;
@@ -569,7 +573,7 @@ export interface JevApprovalRequest {
 
 export interface JevApprovalDecision {
   readonly approved: boolean;
-  /** Jev's probability that the plan or result is acceptable. */
+  /** Minimum requirement confidence / inverse flag score; NOT P(all requirements met). */
   readonly probability: number;
 }
 
@@ -584,7 +588,7 @@ export interface JevTwinRequest {
     readonly body: string;
   };
   /** The recipes the draft would compete with — the visible catalog, or the namespace's event recipes. */
-  readonly existing: readonly { readonly id: string; readonly description: string; readonly whenToUse: string }[];
+  readonly existing: readonly { readonly id: string; readonly description: string; readonly whenToUse: string; readonly body?: string }[];
   readonly actorName?: string;
   readonly actorTier?: Tier;
   readonly branchId?: string;
@@ -598,6 +602,8 @@ export interface JevTwinDecision {
 }
 
 export interface JevDecider {
+  /** Exact policy/question/input identity for guarded model fallback caching. Absent disables its reuse. */
+  choiceCacheKey?(request: JevChoiceRequest): string;
   /** `null`: the model decides, as without Jev; a deferral also names what it is not offered. */
   choose(request: JevChoiceRequest): Promise<JevChoiceDecision | JevChoiceDeferral | null>;
   approve(request: JevApprovalRequest): Promise<JevApprovalDecision | null>;
@@ -610,6 +616,7 @@ export interface JevDecider {
 
 /** One recorded Jev evaluation. The trace event is `VizJevEvent`. */
 export interface JevDecisionInfo {
+  readonly coverage?: { readonly compared: number; readonly total: number; readonly complete: boolean };
   readonly role: 'prefilter' | 'validate-plan' | 'validate-result' | 'learn-skill' | 'learn-event-skill';
   /** `<vendor>:<model>` as requested. */
   readonly evaluator: string;
@@ -629,6 +636,7 @@ export interface JevDecisionInfo {
     readonly probabilities?: Readonly<Record<string, number>>;
     readonly yes?: Readonly<Record<string, number>>;
     readonly scores?: Readonly<Record<string, number>>;
+    readonly distributions?: Readonly<Record<string, Readonly<Record<string, number>>>>;
   };
   /** What Atoma did with it: 'reuse <t>', 'escalate', 'approved', 'deferred to the model'. */
   readonly outcome: string;

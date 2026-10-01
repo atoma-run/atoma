@@ -67,6 +67,7 @@ export function forkBranch(ctx: RunContext, branchId: string): RunContext {
   const wrappedJev: JevDecider | undefined = ctx.jev
     ? {
         choose: (request) => ctx.jev!.choose({ ...request, branchId: request.branchId ?? branchId }),
+        ...(ctx.jev.choiceCacheKey ? { choiceCacheKey: (request: Parameters<JevDecider['choose']>[0]) => ctx.jev!.choiceCacheKey!(request) } : {}),
         approve: (request) => ctx.jev!.approve({ ...request, branchId: request.branchId ?? branchId }),
         twin: (request) => ctx.jev!.twin({ ...request, branchId: request.branchId ?? branchId }),
       }

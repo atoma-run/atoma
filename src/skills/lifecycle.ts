@@ -364,6 +364,7 @@ export class SkillLifecycle {
           id: skill.id,
           description: skill.description,
           whenToUse: skill.trigger ?? skill.whenToUse,
+          body: skill.body,
         })),
         actorName: this.host.name,
         actorTier: 2,

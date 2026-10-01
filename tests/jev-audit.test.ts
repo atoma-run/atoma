@@ -186,13 +186,14 @@ describe('reading the audit sample', () => {
     expect(corpus.audits).toHaveLength(3);
     expect(auditReport(corpus.audits)).toEqual({
       subjects: [
-        { subject: 'PLAN', audited: 1, judged: 1, refusedByModel: 0, falseApprovalShare: 0, refusals: [] },
+        { subject: 'PLAN', audited: 1, judged: 1, refusedByModel: 0, falseApprovalShare: 0, modelDisagreementShare: 0, refusals: [] },
         {
           subject: 'RESULT',
           audited: 2,
           judged: 1,
           refusedByModel: 1,
           falseApprovalShare: 1,
+          modelDisagreementShare: 1,
           refusals: [{ runId: 'r', eventId: 'a1', child: 'Water' }],
         },
       ],

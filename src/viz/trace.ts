@@ -297,6 +297,7 @@ export interface VizCacheEvent {
  * folded into `totals`, which remain the run's LLM calls.
  */
 export interface VizJevEvent {
+  coverage?: import('../core/types.js').JevDecisionInfo['coverage'];
   id: string;
   ts: number;
   kind: 'jev';
@@ -313,6 +314,7 @@ export interface VizJevEvent {
     yes?: Record<string, number>;
     /** A twin check's pairwise scores by recipe id (0 different … 2 the same). */
     scores?: Record<string, number>;
+    distributions?: Record<string, Readonly<Record<string, number>>>;
   };
   outcome: string;
   /** A skill pick handed to the model: the recipes it was not offered. */
@@ -800,6 +802,7 @@ export class TraceRecorder {
       ts: Date.now(),
       kind: 'jev',
       role: info.role,
+      ...(info.coverage ? { coverage: { ...info.coverage } } : {}),
       evaluator: info.evaluator,
       ...(info.servedModel !== undefined ? { servedModel: info.servedModel } : {}),
       ...(info.requestId !== undefined ? { requestId: info.requestId } : {}),
@@ -812,6 +815,7 @@ export class TraceRecorder {
               ...(answer.probabilities ? { probabilities: { ...answer.probabilities } } : {}),
               ...(answer.yes ? { yes: { ...answer.yes } } : {}),
               ...(answer.scores ? { scores: { ...answer.scores } } : {}),
+              ...(answer.distributions ? { distributions: { ...answer.distributions } } : {}),
             },
           }
         : {}),

@@ -1,4 +1,5 @@
 import { openStoreHandle, storeDbPath } from '../core/stores.js';
+import { createHash } from 'node:crypto';
 import type { PrefilterOutcome } from './cost.js';
 
 /**
@@ -77,7 +78,7 @@ export function prefilterCacheDbPath(): string {
   return v && v !== '0' ? v : storeDbPath();
 }
 
-/** djb2 over the canonical inputs — stable, dependency-free, short keys. */
+/** SHA-256 over framed canonical inputs, including any preceding decision policy. */
 export function prefilterCacheKey(args: {
   systemPrompt: string;
   model: string;
@@ -85,26 +86,18 @@ export function prefilterCacheKey(args: {
   constraints?: readonly string[];
   excluded: readonly string[];
   catalogLines: readonly string[];
+  policy?: string;
 }): string {
-  const canonical = [
+  const canonical = JSON.stringify([
     args.systemPrompt,
     `model:${args.model}`,
     `task:${args.taskDescription}`,
-    `constraints:${(args.constraints ?? []).join('|')}`,
-    `excluded:${[...args.excluded].sort().join('|')}`,
-    `catalog:${args.catalogLines.join('\n')}`,
-  ].join(' ');
-  let h = 5381;
-  for (let i = 0; i < canonical.length; i++) {
-    h = ((h << 5) + h + canonical.charCodeAt(i)) >>> 0;
-  }
-  // Two passes with different seeds shrink accidental-collision odds while
-  // keeping the key short and deterministic.
-  let h2 = 52711;
-  for (let i = canonical.length - 1; i >= 0; i--) {
-    h2 = ((h2 << 5) + h2 + canonical.charCodeAt(i)) >>> 0;
-  }
-  return `${h.toString(36)}-${h2.toString(36)}-${canonical.length.toString(36)}`;
+    args.constraints ?? [],
+    [...args.excluded].sort(),
+    args.catalogLines,
+    args.policy ?? 'model-only-v2',
+  ]);
+  return createHash('sha256').update(canonical).digest('hex');
 }
 
 let warnedOnce = false;

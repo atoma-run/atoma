@@ -3,6 +3,7 @@ import type { AtomType } from '../registry/atomRegistry.js';
 import type {
   GenerationParams,
   JevChoiceDecision,
+  JevChoiceRequest,
   PositiveVerdict,
   Result,
   RunContext,
@@ -347,6 +348,7 @@ export async function jevApproval(args: {
   readonly payload: unknown;
   readonly evidence?: Result['evidence'];
   readonly groundTruthBlock?: string;
+  readonly criteria?: import('../core/types.js').JevApprovalRequest['criteria'];
   readonly audit?: () => Promise<unknown>;
 }): Promise<PositiveVerdict | null> {
   if (!args.ctx.jev) return null;
@@ -368,6 +370,8 @@ export async function jevApproval(args: {
       },
       child: { name: args.child.name, tier: args.child.tier, tools: args.child.toolNames() },
       payload: args.payload,
+      ...(args.criteria ? { criteria: args.criteria } : {}),
+      ...(args.task.proofObligations ? { obligations: args.task.proofObligations } : {}),
       ...(evidence ? { evidence } : {}),
       ...(args.groundTruthBlock ? { groundTruth: args.groundTruthBlock } : {}),
       actorName: args.supervisorName,
@@ -382,7 +386,7 @@ export async function jevApproval(args: {
   if (auditing && args.audit && Math.random() < auditing.rate) auditing.defer(args.audit);
   return {
     approved: true,
-    reasoning: `jev fast-path: ${args.child.name}'s ${args.subject} judged acceptable (p=${decision.probability.toFixed(2)})`,
+    reasoning: `jev fast-path: ${args.child.name}'s ${args.subject} judged acceptable (decision score=${decision.probability.toFixed(2)})`,
     viaJev: true,
   };
 }
@@ -654,6 +658,16 @@ export async function prefilterStrategy(args: {
   }
   const model = args.model ?? modelForTier(1);
   const systemPrompt = args.systemPrompt ?? PREFILTER_SYSTEM_PROMPT;
+  const jevRequest: JevChoiceRequest = {
+    question: systemPrompt === SKILL_PREFILTER_SYSTEM_PROMPT ? 'recipe' : 'agent',
+    task: { description: args.task.description, ...(args.task.constraints ? { constraints: args.task.constraints } : {}) },
+    candidates: filtered,
+    ...(args.actor ? { actorName: args.actor.name, actorTier: args.actor.tier } : {}),
+    signal: args.ctx.signal,
+  };
+  const policy = args.ctx.jev?.choiceCacheKey?.(jevRequest);
+  // An outage or an unknown custom decider may not populate a guarded cache.
+  let cacheWritable = !args.ctx.jev;
   /** What the model is shown for a catalog, and the cache key of its answer. */
   const modelInputs = (offered: readonly CatalogEntry[]) => {
     const catalogLines = offered.map((c) => `  - ${c.name}: ${c.description}`);
@@ -689,6 +703,7 @@ export async function prefilterStrategy(args: {
       ...(args.task.constraints ? { constraints: args.task.constraints } : {}),
       excluded: args.exclude ? [...args.exclude] : [],
       catalogLines,
+      ...(policy ? { policy } : {}),
     });
     return { names: new Set(offered.map((c) => c.name)), userContent, cacheKey };
   };
@@ -710,7 +725,7 @@ export async function prefilterStrategy(args: {
     });
     return cached;
   };
-  const cached = prefilterCacheGet(whole.cacheKey);
+  const cached = !args.ctx.jev || policy ? prefilterCacheGet(whole.cacheKey) : null;
   if (cached) return served(cached);
 
   // JEV DECIDES FIRST (docs/jev-decisions-2026-09-28.md, owner decision
@@ -725,16 +740,8 @@ export async function prefilterStrategy(args: {
   let withheld: ReadonlySet<string> = new Set();
   if (args.ctx.jev) {
     try {
-      const answer = await args.ctx.jev.choose({
-        question: systemPrompt === SKILL_PREFILTER_SYSTEM_PROMPT ? 'recipe' : 'agent',
-        task: {
-          description: args.task.description,
-          ...(args.task.constraints?.length ? { constraints: args.task.constraints } : {}),
-        },
-        candidates: filtered,
-        ...(args.actor ? { actorName: args.actor.name, actorTier: args.actor.tier } : {}),
-        signal: args.ctx.signal,
-      });
+      const answer = await args.ctx.jev.choose(jevRequest);
+      cacheWritable = !!policy && !!answer && 'withhold' in answer;
       if (answer && 'withhold' in answer) withheld = new Set(answer.withhold);
       else jev = answer;
     } catch {
@@ -761,11 +768,7 @@ export async function prefilterStrategy(args: {
   if (offered.length === 0) {
     return { kind: 'escalate', reasoning: `jev: every recipe contradicts the task on files (${[...withheld].join(', ')})` };
   }
-  const { names: offeredNames, userContent, cacheKey } = offered.length === filtered.length ? whole : modelInputs(offered);
-  if (offered.length !== filtered.length) {
-    const narrowed = prefilterCacheGet(cacheKey);
-    if (narrowed) return served(narrowed);
-  }
+  const { names: offeredNames, userContent } = offered.length === filtered.length ? whole : modelInputs(offered);
 
   try {
     const resp = await args.ctx.llm.complete({
@@ -786,7 +789,7 @@ export async function prefilterStrategy(args: {
         kind: 'escalate',
         reasoning: `prefilter returned unknown or excluded target "${outcome.target}"`,
       };
-      prefilterCachePut(cacheKey, rewritten);
+      if (cacheWritable) prefilterCachePut(whole.cacheKey, rewritten);
       return rewritten;
     }
     // Force-match guard: if Haiku self-labels the fit as "low" (or omits
@@ -804,10 +807,10 @@ export async function prefilterStrategy(args: {
         kind: 'escalate',
         reasoning: `prefilter low-confidence reuse of "${outcome.target}" (${outcome.reasoning}) — treated as escalate`,
       };
-      prefilterCachePut(cacheKey, rewritten);
+      if (cacheWritable) prefilterCachePut(whole.cacheKey, rewritten);
       return rewritten;
     }
-    prefilterCachePut(cacheKey, outcome);
+    if (cacheWritable) prefilterCachePut(whole.cacheKey, outcome);
     return outcome;
   } catch (err) {
     // Error-path escalate: NEVER cached — an LLM hiccup must not become a

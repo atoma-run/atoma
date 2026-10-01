@@ -1,8 +1,11 @@
 import { z } from 'zod';
+import { createHash } from 'node:crypto';
 import { estimateCostUsd, type ModelPrices } from './metrics.js';
 import {
   JEV_MAX_OPTIONS,
   JEV_STATE_CHARS,
+  JEV_THRESHOLDS,
+  MAX_TWIN_CANDIDATES,
   NEW_RECIPE,
   NO_CANDIDATE,
   buildApproval,
@@ -78,6 +81,7 @@ export const JEV_KEY_ENV = 'TYPESAFE_API_KEY';
  * a project run's environment beside the key.
  */
 export const JEV_ENV = 'ATOMA_JEV';
+export const JEV_PROGRESSIVE_ENV = 'ATOMA_JEV_PROGRESSIVE_RECIPES';
 /**
  * No longer read. Until 2026-09-30 it named the organisations whose project
  * runs let Jev decide; it is named here only for the boot line to say so.
@@ -551,8 +555,8 @@ export function legacyReadTwin(options: Readonly<Record<string, string>>, answer
 // ---------------------------------------------------------------------------
 
 /**
- * The Jev decider. `record` receives exactly one `JevDecisionInfo` per
- * decision asked, answered or not. Never throws: every failure is recorded and
+ * The Jev decider. `record` receives one `JevDecisionInfo` per request or
+ * locally refused stage. Never throws: every failure is recorded and
  * answered with `null`, which hands the decision back to the model.
  */
 export function createJevDecider(opts: {
@@ -561,6 +565,8 @@ export function createJevDecider(opts: {
   readonly fetchImpl?: typeof fetch;
   readonly timeoutMs?: number;
   readonly maxFailures?: number;
+  /** Experimental two-stage recipe selection; keep single-pass as the measured default. */
+  readonly progressiveRecipes?: boolean;
 }): JevDecider {
   const timeoutMs = opts.timeoutMs ?? JEV_DECISION_TIMEOUT_MS;
   const maxFailures = opts.maxFailures ?? JEV_MAX_FAILURES_PER_RUN;
@@ -583,8 +589,11 @@ export function createJevDecider(opts: {
   async function ask(
     state: unknown,
     questions: Readonly<Record<string, JevQuestion>>,
-    signal: AbortSignal | undefined
+    signal: AbortSignal | undefined,
+    deadlineAt = Date.now() + timeoutMs
   ): Promise<Asked> {
+    const remainingMs = Math.min(timeoutMs, deadlineAt - Date.now());
+    if (remainingMs <= 0) return { ok: false, failure: 'timeout: decision deadline reached', durationMs: 0 };
     if (signal?.aborted) return { ok: false, failure: 'aborted: the run was cancelled', durationMs: 0 };
     if (failures >= maxFailures) {
       return { ok: false, failure: `skipped: ${failures} failed calls in this run`, durationMs: 0 };
@@ -597,7 +606,7 @@ export function createJevDecider(opts: {
     const timer = setTimeout(() => {
       timedOut = true;
       controller.abort();
-    }, timeoutMs);
+    }, remainingMs);
     timer.unref?.();
     try {
       const result = await jevAsk({
@@ -605,7 +614,7 @@ export function createJevDecider(opts: {
         state,
         questions,
         signal: controller.signal,
-        deadlineAt: startedAt + timeoutMs,
+        deadlineAt: startedAt + remainingMs,
         ...(opts.fetchImpl ? { fetchImpl: opts.fetchImpl } : {}),
       });
       return { ok: true, result, durationMs: Date.now() - startedAt };
@@ -648,19 +657,50 @@ export function createJevDecider(opts: {
   });
 
   return {
+    choiceCacheKey(request) {
+      const plan = buildChoice(request);
+      return createHash('sha256').update(JSON.stringify({
+        model: JEV_MODEL, thresholds: JEV_THRESHOLDS,
+        questions: typeof plan === 'string' ? plan : { state: plan.state, questions: plan.questions, options: plan.options },
+        tier: request.actorTier,
+        progressive: opts.progressiveRecipes === true, policy: 'guarded-model-fallback-v1',
+      })).digest('hex');
+    },
     async choose(request: JevChoiceRequest): Promise<JevChoiceDecision | JevChoiceDeferral | null> {
+      const deadlineAt = Date.now() + timeoutMs;
       const base = {
         role: 'prefilter' as const,
         evaluator: JEV_EVALUATOR,
         candidates: request.candidates.map((candidate) => candidate.name),
         ...attribution(request),
       };
-      const plan = buildChoice(request);
+      let selected = request;
+      if (opts.progressiveRecipes && request.question === 'recipe' && request.candidates.length > 3) {
+        const roster = buildChoice({ ...request, candidates: request.candidates.map(({ name, description }) => ({ name, description })) });
+        if (typeof roster === 'string') {
+          safeRecord({ ...base, ...unanswered, outcome: 'model decides', failure: roster, durationMs: 0 });
+          return null;
+        }
+        // Ranking is relative only. It NEVER approves a recipe or declares that none fits.
+        const ranked = await ask(roster.state, { choice: roster.questions['choice']! }, request.signal, deadlineAt);
+        if (!ranked.ok) {
+          safeRecord({ ...base, ...unanswered, outcome: 'model decides', failure: ranked.failure, durationMs: ranked.durationMs });
+          return null;
+        }
+        safeRecord({ ...base, ...answered(ranked), outcome: 'ranked recipe shortlist',
+          answer: { probabilities: ranked.result.answers['choice']?.probabilities ?? {} } });
+        const probabilities = ranked.result.answers['choice']?.probabilities;
+        if (!probabilities) return null;
+        const shortlist = [...roster.options].sort((a, b) => (probabilities[b.key] ?? 0) - (probabilities[a.key] ?? 0)).slice(0, 3);
+        const names = new Set(shortlist.flatMap((option) => option.names));
+        selected = { ...request, candidates: request.candidates.filter((candidate) => names.has(candidate.name)) };
+      }
+      const plan = buildChoice(selected);
       if (typeof plan === 'string') {
         safeRecord({ ...base, ...unanswered, outcome: 'model decides', failure: plan, durationMs: 0 });
         return null;
       }
-      const asked = await ask(plan.state, plan.questions, request.signal);
+      const asked = await ask(plan.state, plan.questions, request.signal, deadlineAt);
       if (!asked.ok) {
         safeRecord({ ...base, ...unanswered, outcome: 'model decides', failure: asked.failure, durationMs: asked.durationMs });
         return null;
@@ -675,7 +715,11 @@ export function createJevDecider(opts: {
         ...(reading.withhold ? { withheld: reading.withhold } : {}),
         ...(stray !== undefined ? { failure: `answer "${stray}" is not an option` } : {}),
       });
-      return reading.decision ?? (reading.withhold ? { withhold: reading.withhold } : null);
+      // A shortlist cannot prove absence from the entire roster. The model sees
+      // the original catalog on deferral, minus only positively incompatible recipes.
+      if (selected !== request && reading.decision?.target === null) return { withhold: reading.withhold ?? [] };
+      if (stray !== undefined) return null;
+      return reading.decision ?? { withhold: reading.withhold ?? [] };
     },
 
     async approve(request: JevApprovalRequest): Promise<JevApprovalDecision | null> {
@@ -703,23 +747,31 @@ export function createJevDecider(opts: {
 
     async twin(request: JevTwinRequest): Promise<JevTwinDecision | null> {
       const role = request.kind === 'task' ? ('learn-skill' as const) : ('learn-event-skill' as const);
-      const plan = buildTwin(request);
-      // Nothing to duplicate: no question, and nothing to record.
-      if (!plan) return null;
-      const base = {
-        role,
-        evaluator: JEV_EVALUATOR,
-        candidates: plan.ids,
-        ...attribution(request),
-      };
-      const asked = await ask(plan.state, plan.questions, request.signal);
-      if (!asked.ok) {
-        safeRecord({ ...base, ...unanswered, outcome: 'saved as before', failure: asked.failure, durationMs: asked.durationMs });
-        return null;
+      const deadlineAt = Date.now() + timeoutMs;
+      const unique = [...new Map(request.existing.filter((recipe) => recipe.id !== request.draft.id && recipe.id !== NEW_RECIPE)
+        .map((recipe) => [recipe.id, recipe])).values()];
+      let last: JevTwinDecision | null = null;
+      for (let offset = 0; offset < unique.length; offset += MAX_TWIN_CANDIDATES) {
+        const plan = buildTwin({ ...request, existing: unique.slice(offset, offset + MAX_TWIN_CANDIDATES) });
+        if (!plan) continue;
+        const base = { role, evaluator: JEV_EVALUATOR, candidates: plan.ids, ...attribution(request) };
+        const asked = await ask(plan.state, plan.questions, request.signal, deadlineAt);
+        if (!asked.ok) {
+          safeRecord({ ...base, ...unanswered, outcome: `saved as before: partial twin comparison (${offset}/${unique.length})`,
+            coverage: { compared: offset, total: unique.length, complete: false },
+            failure: asked.failure, durationMs: asked.durationMs });
+          return null;
+        }
+        const reading = readTwin(plan, asked.result.answers);
+        const compared = offset + plan.ids.length;
+        const outcome = reading.decision?.twinOf ? reading.outcome
+          : compared === unique.length ? 'saved: new recipe' : `comparison batch: no twin (${compared}/${unique.length})`;
+        safeRecord({ ...base, ...answered(asked), answer: reading.answer, outcome,
+          coverage: { compared, total: unique.length, complete: compared === unique.length } });
+        last = reading.decision;
+        if (last?.twinOf) return last;
       }
-      const reading = readTwin(plan, asked.result.answers);
-      safeRecord({ ...base, ...answered(asked), answer: reading.answer, outcome: reading.outcome });
-      return reading.decision;
+      return last;
     },
   };
 }
@@ -799,5 +851,5 @@ export function jevDeciderFromEnv(
   if (env[JEV_ENV] === '0') return undefined;
   const apiKey = env[JEV_KEY_ENV]?.trim();
   if (!apiKey) return undefined;
-  return createJevDecider({ apiKey, record });
+  return createJevDecider({ apiKey, record, progressiveRecipes: env[JEV_PROGRESSIVE_ENV] === '1' });
 }

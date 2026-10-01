@@ -204,6 +204,8 @@ export async function jevCalibrateCall(
       orgs,
       window: { since: args.since ?? null, until: args.until ?? null, traces: corpus.traces },
       audits,
+        outcomeRuns: corpus.outcomes.length,
+        outcomes: corpus.outcomes.slice(-25),
       note: 'Each audit is the model validator judging a plan or result Jev had approved; the model is the reference, not ground truth.',
     };
   }

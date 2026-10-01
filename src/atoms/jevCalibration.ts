@@ -12,6 +12,7 @@ import {
   type JevQuestion,
   type JevThresholds,
 } from '../core/jevQuestions.js';
+import { jevOutcomeReport } from './jevOutcomes.js';
 import {
   jevAsk,
   legacyApproval,
@@ -164,6 +165,7 @@ export interface CorpusTrace {
 }
 
 export interface Corpus {
+  readonly outcomes: readonly ReturnType<typeof jevOutcomeReport>[];
   /** Oldest run first, each run's decisions in the order it took them. */
   readonly decisions: readonly RecordedDecision[];
   /** Every audit in the window, runs Jev decided in included: that is where audits are. */
@@ -187,6 +189,7 @@ export function collectCorpus(opts: {
   const sinceMs = opts.since ? Date.parse(opts.since) : -Infinity;
   const untilMs = opts.until ? Date.parse(opts.until) : Infinity;
   const runs: TraceDecisions[] = [];
+  const outcomes: ReturnType<typeof jevOutcomeReport>[] = [];
   const audits: RecordedAudit[] = [];
   let read = 0;
   let unreadable = 0;
@@ -203,6 +206,7 @@ export function collectCorpus(opts: {
     const startedMs = Date.parse(found.startedAt);
     if (!(startedMs >= sinceMs && startedMs < untilMs)) continue;
     audits.push(...found.audits);
+    if (found.jevEvents > 0) outcomes.push(jevOutcomeReport(parsed, trace.runId));
     if (found.jevEvents > 0 && !opts.includeJevRuns) {
       withJev += 1;
       continue;
@@ -210,9 +214,11 @@ export function collectCorpus(opts: {
     runs.push(found);
   }
   runs.sort((a, b) => Date.parse(a.startedAt!) - Date.parse(b.startedAt!));
+  outcomes.sort((a, b) => Date.parse(a.startedAt!) - Date.parse(b.startedAt!));
   return {
     decisions: runs.flatMap((run) => run.decisions),
     audits,
+    outcomes,
     traces: { read, inWindow: runs.length + withJev, unreadable, withJev },
   };
 }
@@ -234,6 +240,7 @@ export function auditReport(audits: readonly RecordedAudit[], listLimit = 25): R
         judged: judged.length,
         refusedByModel: refused.length,
         falseApprovalShare: share(refused.length, judged.length),
+        modelDisagreementShare: share(refused.length, judged.length),
         refusals: refused.slice(0, listLimit).map(({ runId, eventId, child }) => ({ runId, eventId, child })),
       };
     }),
