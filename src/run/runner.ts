@@ -948,7 +948,7 @@ export async function startTask(
   // Every call of the run loses the host-replay argument, whoever makes it:
   // only the replay's own calls, straight to the backend, keep it.
   const runTools = (executor: ToolExecutor): ToolExecutor =>
-    modelFacingExecutor(inheritedChecks ? gatedExecutor(executor, inheritedChecks.ready) : executor);
+    modelFacingExecutor(inheritedChecks ? gatedExecutor(executor, inheritedChecks.ready, () => inheritedChecks.waiting()) : executor);
   const toolDecls = backend.toolDecls;
 
   console.log(`workspace: ${backend.rootLabel}`);
@@ -1033,7 +1033,8 @@ export async function startTask(
         },
         restart: async () => {
           // A deepening before the run-start replay settled would archive
-          // the workspace under it.
+          // the workspace under it; waiting for it ends its extension.
+          inheritedChecks?.waiting();
           await inheritedChecks?.ready;
           if (!backend.drain) throw new Error('Depth routing backend cannot confirm process exit');
           await backend.drain();

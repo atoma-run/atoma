@@ -61,6 +61,13 @@ export interface InheritedReplayLimits {
   readonly maxAbandoned: number;
   /** The run-start replay, which every molecule's first tool call waits for. */
   readonly baselineWallMs: number;
+  /**
+   * Past `baselineWallMs`, the run-start replay goes on while no tool call of
+   * the run waits for it, up to this. Planning usually outlasts the budget:
+   * run 0b51e494's first tool call came 37 s after its replay stopped at 60 s,
+   * with 20 of 40 checks tried and none of its dead ones reached.
+   */
+  readonly extendedWallMs: number;
   /** One acceptance's replay. */
   readonly acceptanceWallMs: number;
   /** Left before the run deadline for the acceptor's own verdict. */
@@ -74,15 +81,23 @@ export const DEFAULT_INHERITED_REPLAY_LIMITS: InheritedReplayLimits = Object.fre
   slowestCheckMs: 8_000,
   maxAbandoned: 3,
   baselineWallMs: 60_000,
-  acceptanceWallMs: 60_000,
+  extendedWallMs: 150_000,
+  // Room for the 40 checks the extended start replay may keep: run 0b51e494
+  // replayed 40 passing calls in 60 s.
+  acceptanceWallMs: 90_000,
   verdictReserveMs: 90_000,
 });
 
-/** Every tool call waits for `ready` first, so the run-start replay sees the workspace untouched. */
-export function gatedExecutor(executor: ToolExecutor, ready: Promise<void>): ToolExecutor {
+/**
+ * Every tool call waits for `ready` first, so the run-start replay sees the
+ * workspace untouched; `onWait` tells the replay a call is waiting, which ends
+ * its extension past the budget.
+ */
+export function gatedExecutor(executor: ToolExecutor, ready: Promise<void>, onWait?: () => void): ToolExecutor {
   return {
     has: (name: string) => executor.has(name),
     async execute(name: string, args: Record<string, unknown>): Promise<unknown> {
+      onWait?.();
       await ready;
       return executor.execute(name, args);
     },
@@ -257,6 +272,8 @@ export function inheritedChecksFor(args: {
   const curate = args.seedLanded !== true;
   // The manifest as the replay wrote it, for `reseeded`.
   let rewritten: string | undefined;
+  // A tool call of the run is waiting at the gate: the replay stops at its budget.
+  let callWaiting = false;
   const ready: Promise<void> = (async () => {
     const started = now();
     let stopped: ReplayStop | undefined;
@@ -282,7 +299,11 @@ export function inheritedChecksFor(args: {
       const check = item.check;
       if (args.signal?.aborted) { stopped = 'aborted'; break; }
       if (args.deadlineAt !== undefined && now() + 2 * limits.perCallMs + limits.verdictReserveMs > args.deadlineAt) { stopped = 'deadline'; break; }
-      if (now() - started > limits.baselineWallMs) { stopped = 'budget'; break; }
+      // Past its budget, the replay goes on only while no tool call waits for
+      // it, and never past the extended cap. A call that arrives mid-check
+      // waits for that check's second replay at most.
+      const elapsed = now() - started;
+      if (elapsed > limits.baselineWallMs && (callWaiting || elapsed > limits.extendedWallMs)) { stopped = callWaiting ? 'budget' : 'cap'; break; }
       considered += 1;
       if (tooSlow(check)) { cannotRun += 1; note ??= `a check needs ${minimumReplayMs(check)} ms, past the ${limits.slowestCheckMs} ms a check may take`; continue; }
       // A failed start replay is a stale check; one that could not run says
@@ -376,10 +397,13 @@ export function inheritedChecksFor(args: {
   return {
     ready,
     async baseline(): Promise<InheritedBaseline> {
+      // Whatever waits for the start replay ends its extension.
+      callWaiting = true;
       await ready;
       return baseline;
     },
     async compare(options): Promise<InheritedChecksReport> {
+      callWaiting = true;
       await ready;
       const started = now();
       const listed: ListedCheck[] = [];
@@ -422,6 +446,9 @@ export function inheritedChecksFor(args: {
         baseline, replayed, stillPassing, flaky, notReplayed: kept.length - replayed,
         ...(stopped ? { stopped } : {}), listed, ...(newPageError ? { newPageError } : {}),
       };
+    },
+    waiting(): void {
+      callWaiting = true;
     },
     reseeded(): void {
       // The seed copy wrote the manifest this replay read, without its marks;

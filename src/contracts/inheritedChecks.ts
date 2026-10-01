@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { inheritProbeManifest, probeEntryKind, probeEntryProblems } from './probeManifest.js';
-import { isPreflightRefusal, MAX_VIEWPORT_PX, MIN_VIEWPORT_PX } from './attestation.js';
+import { recordedViewport, servableCheckFile, webEntryIdentity } from './webCheck.js';
+import { isPreflightRefusal } from './attestation.js';
 
 /**
  * INHERITED BROWSER CHECKS: the web entries a seeded run inherits in
@@ -39,43 +40,19 @@ export interface InheritedWebCheck {
   readonly waitMs?: number;
 }
 
+export { servableCheckFile };
+
 /** A smoke is an expression a page evaluates; past this size it is not a check anyone wrote by hand. */
 export const MAX_INHERITED_SMOKE_CHARS = 20_000;
 /** A recorded settle time is replayed up to this; `validate_html` clamps it further. */
 export const MAX_REPLAY_WAIT_MS = 10_000;
 
-/** Letters, digits, `_ - . /` and spaces: a path that reaches a prompt as itself. */
-const SERVABLE_PATH = /^[\p{L}\p{N}_\-. /]+$/u;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-/**
- * The page path a static server rooted at the workspace serves for this entry,
- * or null. Only a relative HTML path of plain characters is one: no scheme,
- * leading slash, backslash, quote or control character, no `.` or `..`
- * segment, and nothing under an `.atoma` directory. The host still requires a
- * regular file at that path, reached through no symlink.
- */
-export function servableCheckFile(file: string): string | null {
-  if (file.length === 0 || file.length > 512 || !SERVABLE_PATH.test(file) || file.startsWith('/')) return null;
-  const parts = file.replace(/^\.\//, '').split('/');
-  if (parts.some((part) => part.trim() !== part || part === '' || part === '.' || part === '..' || part.startsWith('.atoma'))) return null;
-  return /\.html?$/i.test(file) ? parts.join('/') : null;
-}
 
-/** The entry's recorded viewport; `null` when one is present but no size validate_html accepts. */
-function viewportOf(entry: Record<string, unknown>): InheritedWebCheck['viewport'] | null | undefined {
-  const raw = entry['viewport'];
-  if (raw === undefined) return undefined;
-  if (!isRecord(raw)) return null;
-  const px = (value: unknown): value is number =>
-    typeof value === 'number' && Number.isInteger(value) && value >= MIN_VIEWPORT_PX && value <= MAX_VIEWPORT_PX;
-  if (!px(raw['width'])) return null;
-  if (raw['height'] !== undefined && !px(raw['height'])) return null;
-  return { width: raw['width'], ...(px(raw['height']) ? { height: raw['height'] } : {}) };
-}
 
 function waitOf(entry: Record<string, unknown>): number | undefined {
   const raw = entry['waitMs'];
@@ -133,9 +110,9 @@ export interface IndexedCheck {
   readonly deadSince?: string;
 }
 
-/** What makes two inherited entries one check: what a replay runs. */
+/** What makes two inherited entries one check: the manifest's web identity, on the normalised check. */
 function checkKey(check: InheritedWebCheck): string {
-  return JSON.stringify([check.file, check.interactions, check.smoke, check.viewport ?? null, check.waitMs ?? null]);
+  return webEntryIdentity({ ...check });
 }
 
 /** The name a dead mark gives its own check. */
@@ -172,7 +149,7 @@ export function indexInheritedChecks(manifestRaw: string): {
     if (file === null || typeof smoke !== 'string' || smoke.trim().length === 0 || smoke.length > MAX_INHERITED_SMOKE_CHARS) continue;
     const interactions: unknown = entry['interactions'] ?? [];
     if (!Array.isArray(interactions) || !interactions.every(isRecord)) continue;
-    const viewport = viewportOf(entry);
+    const viewport = recordedViewport(entry['viewport']);
     if (viewport === null) continue;
     const waitMs = waitOf(entry);
     const check: InheritedWebCheck = { file, interactions, smoke, ...(viewport ? { viewport } : {}), ...(waitMs !== undefined ? { waitMs } : {}) };
@@ -315,8 +292,12 @@ export interface ListedCheck {
   readonly detail: string;
 }
 
-/** Why a replay stopped before its last check. */
-export const REPLAY_STOPS = ['deadline', 'budget', 'abandoned', 'server', 'aborted'] as const;
+/**
+ * Why a replay stopped before its last check. `budget`: its time ran out (at
+ * the start, with a tool call of the run waiting); `cap`: the run-start
+ * replay ran on while nothing waited, up to its extended cap.
+ */
+export const REPLAY_STOPS = ['deadline', 'budget', 'cap', 'abandoned', 'server', 'aborted'] as const;
 export type ReplayStop = (typeof REPLAY_STOPS)[number];
 
 /** What the run-start replay did, carried into every report so the trace shows it. */
@@ -375,6 +356,8 @@ export interface InheritedChecksRuntime {
   baseline(): Promise<InheritedBaseline>;
   /** Replays the kept checks on the workspace as it stands. */
   compare(options: { readonly deadlineAt?: number; readonly signal?: AbortSignal }): Promise<InheritedChecksReport>;
+  /** A tool call of the run is waiting for `ready`: the run-start replay stops at its budget. */
+  waiting(): void;
   /**
    * After `ready`, once a deepening copied the seed back: puts the run-start
    * replay's dead marks on the manifest again, when it is the one it read.
@@ -405,11 +388,35 @@ function quoted(text: string): string {
   return JSON.stringify(text.length > QUOTED_CHARS ? `${text.slice(0, QUOTED_CHARS)}…` : text);
 }
 
+const STEP_SELECTOR_CHARS = 60;
+const STEP_VALUE_CHARS = 40;
+const capped = (text: string, max: number): string => (text.length > max ? `${text.slice(0, max)}…` : text);
+
+/** A key as a person names it: the space bar is "Space"; anything but a plain name is quoted. */
+function keyName(key: string): string {
+  if (key === ' ') return 'Space';
+  return /^[A-Za-z0-9]+$/.test(key) ? capped(key, STEP_VALUE_CHARS) : JSON.stringify(capped(key, STEP_VALUE_CHARS));
+}
+
+/**
+ * Each interaction as a person would say it: its type, its target, and the
+ * key, text, value or file it sends, each capped so no step pushes a later
+ * one past the block's own cut. Run 0b51e494 (2026-10-01) showed the
+ * acceptor and the remediation "click #start, keypress, keypress r": the
+ * space bar, pressed while the Start button had focus, was gone from both.
+ */
 export function stepsOf(check: InheritedWebCheck): string {
   return check.interactions.map((step) => {
-    const target = typeof step['selector'] === 'string' ? step['selector'] : typeof step['key'] === 'string' ? step['key'] : '';
-    return `${typeof step['type'] === 'string' ? step['type'] : '?'} ${target}`.trim();
-  }).join(', ');
+    const parts = [typeof step['type'] === 'string' ? capped(step['type'], STEP_VALUE_CHARS) : '?'];
+    if (typeof step['selector'] === 'string') parts.push(capped(step['selector'], STEP_SELECTOR_CHARS));
+    else if (typeof step['x'] === 'number' && typeof step['y'] === 'number') parts.push(`at ${step['x']},${step['y']}`);
+    if (typeof step['key'] === 'string') parts.push(keyName(step['key']));
+    for (const field of ['text', 'value', 'file']) {
+      const sent = step[field];
+      if (typeof sent === 'string' || typeof sent === 'number') parts.push(JSON.stringify(capped(String(sent), STEP_VALUE_CHARS)));
+    }
+    return parts.join(' ');
+  }).join(' → ');
 }
 
 export function smokeText(smoke: string): string {

@@ -1,5 +1,8 @@
 import { z } from 'zod';
 import { Script } from 'node:vm';
+import { webEntryIdentity } from './webCheck.js';
+
+export { webEntryIdentity };
 
 /**
  * PROBE MANIFEST — THE machine-readable verification interface.
@@ -712,7 +715,8 @@ export function manifestWriterLines(kind: 'shell' | 'http' | 'web'): string[] {
       `"${PROBE_MANIFEST_FILENAME}" in the workspace root:`,
       ...exampleLines(EXAMPLE_WEB_ENTRY),
       `One entry per DISTINCT validation you performed, in the order you ran`,
-      `them; merge by file+smoke if the file already exists. WHY: the served`,
+      `them; one with the same file, interactions, smoke, viewport and waitMs`,
+      `as an entry already there replaces it. WHY: the served`,
       `URL is EPHEMERAL (a fresh port every run) but the FILE, the`,
       `interactions and the smoke expression are stable — recording those`,
       `three makes a later pass able to re-serve the artefact and replay the`,
@@ -871,9 +875,11 @@ export function manifestReaderLines(): string[] {
  *
  *   SHELL  keyed by `cmd` — re-running an invocation after a fix REPLACES
  *          its stale record in place, never accumulating duplicates.
- *   WEB    keyed by `file` + `smoke` — the same validation re-run REPLACES
- *          its record; a different smoke on the same file is a DISTINCT
- *          validation and keeps its own entry.
+ *   WEB    keyed by what a replay runs (`webEntryIdentity`): `file`,
+ *          `interactions`, `smoke`, `viewport`, `waitMs`. The same validation
+ *          re-run REPLACES its record; a different smoke, or the same smoke
+ *          after different interactions, is a DISTINCT validation and keeps
+ *          its own entry.
  *   HTTP   NO identity: an HTTP manifest is a SEQUENCE. The same route
  *          legitimately appears several times with different outcomes (a
  *          real CRUD manifest recorded POST /recipes four times: 201, 400
@@ -920,14 +926,11 @@ export function matchesShellIdentity(candidate: unknown, cmd: string): boolean {
   return isPlainRecord(candidate) && candidate['cmd'] === cmd;
 }
 
-/** WEB identity — does `candidate` occupy the identity slot for file+smoke? */
-export function matchesWebIdentity(candidate: unknown, file: unknown, smoke: unknown): boolean {
-  return (
-    isPlainRecord(candidate) &&
-    candidate['probe'] === 'web' &&
-    candidate['file'] === file &&
-    candidate['smoke'] === smoke
-  );
+
+
+/** WEB identity — does `candidate` occupy the identity slot of `entry`? */
+export function matchesWebIdentity(candidate: unknown, entry: Readonly<Record<string, unknown>>): boolean {
+  return isPlainRecord(candidate) && candidate['probe'] === 'web' && webEntryIdentity(candidate) === webEntryIdentity(entry);
 }
 
 /**
@@ -976,7 +979,7 @@ export function probeManifestWriteRefusal(incomingRaw: string): string | null {
 /**
  * Structural merge for a MODEL-authored whole-document manifest write
  * (write_file). Shell entries replace by `cmd`, web entries replace by
- * `file`+`smoke`, anything else appends unless it is an exact duplicate.
+ * `webEntryIdentity`, anything else appends unless it is an exact duplicate.
  * Corrupt input → the incoming document passes through verbatim (see the
  * policy block above).
  */
@@ -1006,9 +1009,7 @@ export function mergeProbeManifestWrite(existingRaw: string, incomingRaw: string
       const cmd = entry['cmd'];
       replaceIndex = merged.findIndex((candidate) => matchesShellIdentity(candidate, cmd));
     } else if (entry['probe'] === 'web') {
-      replaceIndex = merged.findIndex((candidate) =>
-        matchesWebIdentity(candidate, entry['file'], entry['smoke'])
-      );
+      replaceIndex = merged.findIndex((candidate) => matchesWebIdentity(candidate, entry));
     } else if (merged.some((candidate) => JSON.stringify(candidate) === JSON.stringify(entry))) {
       continue;
     }

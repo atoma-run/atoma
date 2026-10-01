@@ -23,6 +23,7 @@ import {
   mergeProbeManifestWrite as contractMergeProbeManifestWrite,
   mergeShellProbe as contractMergeShellProbe,
   validateProbeManifest,
+  webEntryIdentity,
 } from '../src/contracts/probeManifest.js';
 
 /**
@@ -555,7 +556,7 @@ describe('one merge contract — all three consumers share src/contracts/probeMa
     ).toBe(false);
   });
 
-  it('web identity is file+smoke — the same pair replaces, a different smoke stays distinct', () => {
+  it('web identity is what a replay runs — the same check replaces, a different smoke or different interactions stay distinct', () => {
     const web = (smoke: string, expected: string) => ({
       probe: 'web',
       file: 'index.html',
@@ -581,20 +582,44 @@ describe('one merge contract — all three consumers share src/contracts/probeMa
       )
     ) as { entries: Record<string, unknown>[] };
     expect(appended.entries).toHaveLength(2);
-    expect(
-      matchesWebIdentity(
-        web('window.__test.ok === true', 'true'),
-        'index.html',
-        'window.__test.ok === true'
+    expect(matchesWebIdentity(web('window.__test.ok === true', 'true'), web('window.__test.ok === true', 'false'))).toBe(true);
+    expect(matchesWebIdentity(web('window.__test.ok === true', 'true'), web('window.__test.count === 3', 'true'))).toBe(false);
+  });
+
+  it('keeps two checks that read one smoke after different interactions, even within one write (run 0b51e494)', () => {
+    const state = "JSON.stringify(window.__test.state())";
+    const pressed = (key: string, extra: Record<string, unknown> = {}) => ({
+      probe: 'web', file: 'index.html', interactions: [{ type: 'click', selector: '#start' }, { type: 'keypress', key }],
+      smoke: state, expected: '"paused"', ...extra,
+    });
+    const merged = JSON.parse(
+      mergeProbeManifestWrite(
+        JSON.stringify({ version: 1, entries: [] }),
+        JSON.stringify({ version: 1, entries: [pressed(' '), pressed('s')] })
       )
-    ).toBe(true);
-    expect(
-      matchesWebIdentity(
-        web('window.__test.ok === true', 'true'),
-        'index.html',
-        'window.__test.count === 3'
-      )
-    ).toBe(false);
+    ) as { entries: Record<string, unknown>[] };
+    expect(merged.entries.map((entry) => (entry['interactions'] as Array<Record<string, unknown>>)[1]!['key'])).toEqual([' ', 's']);
+    // The same check written again, its interaction keys in another order, replaces it.
+    const again = { ...pressed('s', { expected: '"running"' }), interactions: [{ selector: '#start', type: 'click' }, { key: 's', type: 'keypress' }] };
+    const rewritten = JSON.parse(
+      mergeProbeManifestWrite(JSON.stringify(merged), JSON.stringify({ version: 1, entries: [again] }))
+    ) as { entries: Record<string, unknown>[] };
+    expect(rewritten.entries).toHaveLength(2);
+    expect(rewritten.entries[1]!['expected']).toBe('"running"');
+    // A viewport makes it another check.
+    expect(matchesWebIdentity(pressed('s'), pressed('s', { viewport: { width: 375, height: 812 } }))).toBe(false);
+    expect(webEntryIdentity(pressed('s'))).toBe(webEntryIdentity({ ...pressed('s'), interactions: again.interactions }));
+  });
+
+  it('reads web identity as validate_html reads the call: unread fields, defaults, a number value and a ./ path change nothing', () => {
+    const entry = { probe: 'web', file: 'index.html', smoke: 'window.ok', expected: 'true',
+      interactions: [{ type: 'keypress', key: 'r' }, { type: 'select', selector: '#len', value: '12' }] };
+    const same = { probe: 'web', file: './index.html', smoke: 'window.ok', expected: 'false', waitMs: 500,
+      interactions: [{ type: 'keypress', key: 'r', holdMs: 120, note: 'reset' }, { type: 'select', selector: '#len', value: 12 }] };
+    expect(webEntryIdentity(same)).toBe(webEntryIdentity(entry));
+    // What the tool does read makes another check.
+    expect(webEntryIdentity({ ...entry, waitMs: 800 })).not.toBe(webEntryIdentity(entry));
+    expect(webEntryIdentity({ ...entry, interactions: [{ type: 'keypress', key: 'r', holdMs: 400 }, entry.interactions[1]] })).not.toBe(webEntryIdentity(entry));
   });
 
   it('supersedes removes exactly the stale SHELL entry and can never touch http/web entries', () => {

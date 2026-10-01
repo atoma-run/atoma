@@ -106,7 +106,9 @@ Neighbours:
   design staged a copy there, and its review broke it (a tree the run's own
   processes can still change). Caps: 40 checks, a warm-up call, 10 s a call
   (past it, that check is unrun; the third ends the replay), checks needing
-  over 8 s skipped, 60 s for the start, 60 s per acceptance, and a 90 s
+  over 8 s skipped, 60 s for the start (going on while nothing waits for
+  it, up to 150 s; `stopped: cap` when that ran out), 90 s per acceptance,
+  and a 90 s
   verdict reserve before the deadline. The host's one write: a check whose
   two start replays lost a hook or an element, with no refused request and
   no page error, is marked dead in the run's manifest and replayed last.

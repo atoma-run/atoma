@@ -50,8 +50,13 @@ every tool call wait until that replay has settled. The baseline's own calls
 go straight to the backend.
 
 The replay mostly overlaps the root planner's first model call (about 25 s),
-which uses no tool. It is bounded: 60 s of checks plus the call under way,
-about 80 s at worst, after which every tool call proceeds. Nothing is staged
+which uses no tool. A tool call that arrives is held 80 s at worst: 60 s
+of checks plus the check under way. Past the 60 s, the replay goes on while
+nothing waits for it, up to 150 s plus the check under way: run 0b51e494's
+first tool call came 37 s after its replay stopped, with 20 of 40 checks
+tried. A tool call, a deepening or the acceptance that arrives then waits for
+one check at most. The log says `stopped: cap` when the 150 s ran out with
+nothing waiting. Nothing is staged
 or copied. The host's one write is the dead marks it leaves on the run's
 manifest before the gate opens (see Known limits). Deepening keeps the
 baseline, since it restarts from the same seed, waits for it before
@@ -201,9 +206,10 @@ ALSO emit "inherited": [{"id": "r1", "asked": true|false, "reason": "<at most 15
     unrun, and the replay goes on; the third ends it.
   - A check whose own settle time and key holds need more than 8 s is
     skipped: it would time out on every run.
-  - 60 s of baseline wall time.
-  - At acceptance, a check starts only when its two calls plus a 90 s
-    verdict reserve still fit before the run deadline.
+  - 60 s of baseline wall time, extended while nothing waits for it, up to
+    150 s.
+  - At acceptance, 90 s of wall time, and a check starts only when its two
+    calls plus a 90 s verdict reserve still fit before the run deadline.
 - **Servers.** One static server per run, started by the host through the
   base executor and reused by the baseline and every acceptance. A server
   that fails to start means "not replayed", never "stale".
@@ -287,6 +293,17 @@ intentional-choices section each name the exception and link here.
     file is gone, are never removed: the point is closed for dead hooks and
     elements only. With 40 live checks or more, marked ones are never
     selected, so never revived or removed.
+- **Coverage.** The replay keeps what its time reaches, newest first. In
+  0b51e494 that was 20 checks of a 63-entry manifest. Older requirements
+  are replayed only when planning leaves time.
+- **Manifest growth.** Web identity is what a replay runs, so a check
+  recorded again with a different interaction, viewport or settle time is a
+  new entry beside the old one. An old one whose value changed is never
+  removed; while among the newest 40, it costs a replay on every run.
+- **A read-only first phase.** It photographs the workspace when it
+  begins, which may be before the start replay writes its marks. If that
+  phase then changes a file, its restoration puts the unmarked manifest
+  back, and the next run marks the same checks again.
 - **The container arm.** The Docker job replays in the host mode on the
   worker image's own chromium: a smoke's verdict, a throw, a 404, and a
   WebSocket to another port of the container, which a molecule's own call

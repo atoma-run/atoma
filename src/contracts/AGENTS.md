@@ -24,9 +24,14 @@ Neighbours:
   `.atoma-probes.json`; machine writers merge entries, and model hand-edits are
   refused.
 - Manifest MERGE semantics have one definition: `src/contracts/probeManifest.ts`
-  owns entry identity per shape (shell by `cmd`, web by `file`+`smoke`, http =
-  ordered append) and documents the three writers' corrupt-input policies side
-  by side. Never re-implement a merge in a tool.
+  owns entry identity per shape (shell by `cmd`, web by `webEntryIdentity`,
+  http = ordered append) and documents the three writers' corrupt-input
+  policies side by side. Never re-implement a merge in a tool. Web identity
+  is what a replay runs (file, interactions, smoke, viewport, settle time),
+  read as `validate_html` reads a call: `webCheck.ts` holds that reading
+  (`parseInteractions`, the defaults and caps), which the tool, the merge and
+  the inherited-check replay all import. A Space check and an S check
+  reading one smoke are two checks (run 0b51e494).
 - A SEEDED workspace inherits the manifest as a replay baseline, filtered by
   `inheritProbeManifest`: an entry `probeEntryProblems` rejects is dropped, one
   by one (HTTP included — a seeded HTTP list is several runs' appends, not one

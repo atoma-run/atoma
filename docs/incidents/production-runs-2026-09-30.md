@@ -22,6 +22,7 @@ its source before the next run.
 | c1d1b230 | pomodoro page: a B shortcut | 717 s | $0.22 | 11 | delivered; evidence section gone, one "verified" line kept |
 | d99354c5 | wordfreq CLI: the README restored | 403 s | $0.09 | 5 | delivered; every flag's example and output and every error message back |
 | 41711050 | pomodoro page: an L shortcut | 614 s | $0.16 | 7 | delivered; first inherited-check replay in the container, nothing listed |
+| 0b51e494 | pomodoro page: an S shortcut | 1,404 s | $0.33 | 16 | landed partial; the replay caught a regression twice and the remediation did not fix it |
 
 ## A verified execution rejected as "non-JSON" (8606cf38)
 
@@ -358,6 +359,48 @@ Two adversarial reviews shaped the change:
   results. It excludes usage examples, example output, exit codes and the
   entries of recording documents.
 
+## A guard that swallowed every shortcut (0b51e494)
+
+The goal added an S shortcut that starts or pauses the timer, "except while
+focus is in a form control". The web molecule added the S branch, then
+widened the keyboard guard from `input,select,textarea` to
+`input,select,textarea,button`. Space, R, B, L and S then did nothing while
+a button had focus, as one does right after a click on Start. Its cell
+accepted the phase on the trust fast path (17 consecutive successes),
+without a validation call.
+
+- **The replay caught it, twice.** Of the 20 checks kept at the start, 18
+  still passed on the delivery. Two failed twice: Space, then R, after a
+  click on Start, and B after a click on Start. The acceptor judged both
+  unasked and refused the delivery, the remediation's acceptance refused it
+  again, and the run landed.
+- **The remediation saw the steps without the space bar.** The listed steps
+  read "click #start, keypress, keypress r": a key was printed only for a
+  step without a selector, and a blank one vanished. The remediation
+  molecule reproduced the failure, then wrote index.html back byte for byte.
+  Steps now name the key (Space), and the text, value or file a step sends.
+- **Two checks recorded in one write became one.** The molecule recorded a
+  Space check and an S check that read one state smoke. Under a file+smoke
+  identity, the S entry replaced the Space one in the same write, and the S
+  check left asserts that S does nothing after a click on Start: the
+  regression itself. Web identity is now what a replay runs (file,
+  interactions, smoke, viewport, settle time), for the merge and the replay
+  alike. The canonical web prompt's merge line says the same, which resets
+  that molecule's trust streak once.
+- **No check was marked dead.** The replay tried the 20 newest of its 40
+  selected checks, all live, and its 60 s ran out before the older, dead
+  ones. The first tool call came 37 s after it stopped. The replay now goes
+  on while no tool call waits, up to 150 s.
+- **A 75 KB read.** After writing the manifest, the web molecule read
+  `.atoma-probes.json` back: 63 entries, 75 KB. Its next turn took 324 s,
+  and the run's 14 luna calls read 723k input tokens. `write_file` answers a
+  manifest write with the merged size, many times what the molecule sent,
+  and nothing says why.
+- **A recipe's whole-file step.** The injected recipe
+  `patch-verified-static-ui` says "write_file <entry>, changing only the
+  requested UI behavior". The first pass edited the page with `edit_file`;
+  the remediation pass wrote index.html back whole, byte for byte.
+
 ## Open
 
 - **Earlier runs' requirements were not replayed.** The inherited
@@ -386,6 +429,15 @@ Two adversarial reviews shaped the change:
   - **Container arm:** the Docker job now replays in the host mode on the
     worker image's chromium, with a WebSocket to another container port
     that a molecule's call reaches and the dead proxy refuses.
+- **Recipes that rewrite a file whole.** `build-text-frequency-cli`
+  (README) and `patch-verified-static-ui` (index.html) both carry a
+  `write_file` step for a file that exists. Distillation keeps the step the
+  trace showed, and no reader turns it into an edit.
+- **Manifest read-backs.** A manifest that grows by every run's checks costs
+  every molecule that reads it back (75 KB in 0b51e494).
+- **A landed run's listed checks.** 0b51e494 landed with two listed checks.
+  The next run starts from its page, where both fail at the start, so they
+  are not kept and never compared: only the landing reasons carry them.
 - **Molecules created before a prompt change keep the old prompt.** A
   canonical molecule takes each new prompt at bootstrap and loses its trust
   streak once. The other molecules keep theirs until

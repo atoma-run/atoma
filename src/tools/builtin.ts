@@ -29,6 +29,17 @@ export { appendHttpProbe, mergeProbeManifestWrite, mergeShellProbe, probeManifes
 import { elementForTool } from '../contracts/toolTaxonomy.js';
 import { MAX_VIEWPORT_PX, MIN_VIEWPORT_PX, PROBE_URL_REFUSAL_PREFIX, SMOKE_PREFLIGHT_REFUSAL_PREFIX } from '../contracts/attestation.js';
 import { HOST_REPLAY_ARG } from '../contracts/inheritedChecks.js';
+import {
+  DEFAULT_HOLD_MS,
+  DEFAULT_WAIT_MS,
+  MAX_HOLD_MS,
+  MAX_WAIT_MS,
+  parseInteractions,
+  type ParsedInteraction,
+} from '../contracts/webCheck.js';
+// What a browser check runs is read once, in src/contracts/webCheck.ts;
+// re-exported so consumers and tests importing them from here keep working.
+export { MAX_HOLD_MS, MAX_WAIT_MS, parseInteractions, type ParsedInteraction };
 import puppeteer, { type Browser } from 'puppeteer';
 import { processHoldsListeningPort } from './listeningPorts.js';
 
@@ -1746,7 +1757,7 @@ export function validateHtmlTool(opts: BuiltinToolOptions): BuiltinTool {
       const requestedWaitMs =
         typeof args['waitMs'] === 'number' && Number.isFinite(args['waitMs'])
           ? Math.max(0, Math.floor(args['waitMs']))
-          : 500;
+          : DEFAULT_WAIT_MS;
       const waitMs = Math.min(requestedWaitMs, MAX_WAIT_MS);
       // THE HOST'S REPLAY of a check an earlier run recorded
       // (docs/inherited-checks-replay-2026-10-01.md). Undeclared, and stripped
@@ -2041,7 +2052,7 @@ ${pageRevision}`;
               const requestedHoldMs =
                 typeof it.holdMs === 'number' && Number.isFinite(it.holdMs)
                   ? Math.max(0, Math.floor(it.holdMs))
-                  : 120;
+                  : DEFAULT_HOLD_MS;
               const holdMs = Math.min(requestedHoldMs, MAX_HOLD_MS);
               if (holdMs < requestedHoldMs) {
                 // Say WHY and give the technique that works — a silent clamp
@@ -2304,19 +2315,6 @@ export function parseViewport(raw: unknown): { width: number; height: number } {
   return { width: dimension('width', undefined), height: dimension('height', DEFAULT_VIEWPORT.height) };
 }
 
-export interface ParsedInteraction {
-  type: 'click' | 'rightclick' | 'type' | 'keydown' | 'keyup' | 'keypress' | 'upload' | 'select';
-  selector?: string;
-  x?: number;
-  y?: number;
-  key?: string;
-  text?: string;
-  holdMs?: number;
-  /** upload-only: the workspace-relative file to attach. */
-  file?: string;
-  /** select-only: the option value or label, or the control value, to choose. */
-  value?: string;
-}
 
 /**
  * Focus the element a keyboard interaction names, so its keys reach it rather
@@ -2374,54 +2372,6 @@ function chooseControlValue(element: Element, value: string): { value: string; l
   return { value: element.value, ...(label !== undefined ? { label } : {}) };
 }
 
-export function parseInteractions(raw: unknown): ParsedInteraction[] {
-  if (!Array.isArray(raw)) return [];
-  const out: ParsedInteraction[] = [];
-  for (const item of raw) {
-    if (!item || typeof item !== 'object') continue;
-    const rec = item as Record<string, unknown>;
-    const t = rec['type'];
-    if (
-      t !== 'click' &&
-      t !== 'rightclick' &&
-      t !== 'type' &&
-      t !== 'keydown' &&
-      t !== 'keyup' &&
-      t !== 'keypress' &&
-      t !== 'upload' &&
-      t !== 'select'
-    )
-      continue;
-    const parsed: ParsedInteraction = { type: t };
-    if (typeof rec['file'] === 'string' && rec['file']) {
-      parsed.file = rec['file'];
-    }
-    if (typeof rec['selector'] === 'string' && rec['selector']) {
-      parsed.selector = rec['selector'];
-    }
-    if (typeof rec['x'] === 'number' && Number.isFinite(rec['x'])) {
-      parsed.x = rec['x'];
-    }
-    if (typeof rec['y'] === 'number' && Number.isFinite(rec['y'])) {
-      parsed.y = rec['y'];
-    }
-    if (typeof rec['key'] === 'string' && rec['key']) {
-      parsed.key = rec['key'];
-    }
-    if (typeof rec['text'] === 'string') {
-      parsed.text = rec['text'];
-    }
-    // A number is the same choice as its digits: `{ value: 12 }` for a slider.
-    if (typeof rec['value'] === 'string' || (typeof rec['value'] === 'number' && Number.isFinite(rec['value']))) {
-      parsed.value = String(rec['value']);
-    }
-    if (typeof rec['holdMs'] === 'number' && Number.isFinite(rec['holdMs'])) {
-      parsed.holdMs = rec['holdMs'];
-    }
-    out.push(parsed);
-  }
-  return out;
-}
 
 /**
  * Interactions are fully replayed before smoke evaluation. Repeated state
@@ -2609,28 +2559,7 @@ export function uniqueNormalizedIdSelector(
  */
 export const SMOKE_STUCK_WINDOW = 10;
 
-/**
- * Upper bound on a single `keypress` hold, in ms.
- *
- * A headless browser runs in REAL TIME and cannot fast-forward. Measured
- * 2026-08-09 on a Quiz Timer task: the model asked for
- * `keypress (270500ms)` — 4.5 minutes of held key — trying to advance an
- * in-page countdown to zero. The tool obeyed, the call took 273s, and the
- * run's wall-clock tripled. It is never a real interaction: no user holds a
- * key for minutes, and the app under test cannot be steered that way. So the
- * hold is clamped and the caller is TOLD, with the technique that does work
- * (expose a hook and drive the clock from `smoke`) — a clamp the model
- * cannot see just turns a 273s dead end into a 3s mystery.
- */
-export const MAX_HOLD_MS = 3_000;
 
-/**
- * Upper bound on the post-load settle `waitMs`. Same class as MAX_HOLD_MS —
- * unbounded model-supplied durations convert arithmetic slips straight into
- * dead wall-clock. The largest legitimate value observed across 208 archived
- * calls is 6000ms, so this leaves real headroom.
- */
-export const MAX_WAIT_MS = 15_000;
 
 /**
  * Wall-clock ceiling for the whole interaction phase of ONE call.

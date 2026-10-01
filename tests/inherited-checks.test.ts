@@ -14,7 +14,9 @@ import {
   minimumReplayMs,
   renderInheritedChecksBlock,
   servableCheckFile,
+  stepsOf,
   type InheritedChecksReport,
+  type InheritedChecksRuntime,
   type InheritedWebCheck,
   type ListedCheck,
 } from '../src/contracts/inheritedChecks.js';
@@ -161,6 +163,20 @@ describe('one host replay', () => {
     ]) {
       expect(judgeReplay(check(LONG_BREAK), raw).outcome).toBe('cannot-run');
     }
+  });
+
+  it('says each step with the key, text or value it sends: the space bar is Space (run 0b51e494)', () => {
+    expect(stepsOf(check(LONG_BREAK, { interactions: [
+      { type: 'click', selector: '#start' }, { type: 'keypress', key: ' ' }, { type: 'keypress', key: 'r' },
+      { type: 'type', selector: '#name', text: 'Ada' }, { type: 'select', selector: '#focus-length', value: '45' },
+      { type: 'click', x: 10, y: 20 },
+    ] }))).toBe('click #start → keypress Space → keypress r → type #name "Ada" → select #focus-length "45" → click at 10,20');
+    // A long text never pushes the key after it past the acceptor's 160-character cut.
+    const long = stepsOf(check(LONG_BREAK, { interactions: [{ type: 'type', selector: '#notes', text: 'x'.repeat(300) }, { type: 'keypress', key: ' ' }] }));
+    expect(long.length).toBeLessThan(120);
+    expect(long.endsWith('→ keypress Space')).toBe(true);
+    // A key that is not a plain name is quoted: a comma never reads as a separator.
+    expect(stepsOf(check(LONG_BREAK, { interactions: [{ type: 'keypress', key: ',' }, { type: 'keypress', key: ' a' }] }))).toBe('keypress "," → keypress " a"');
   });
 
   it('names the requests the host refused, for the host to compare with the start', () => {
@@ -434,6 +450,57 @@ describe('the host replay of a run', () => {
     ]);
   });
 
+  it('goes on past its budget while no tool call waits, stops at the next check once one does, and never past its cap', async () => {
+    const smokes = ['(() => ({ ok: 1 }))()', '(() => ({ ok: 2 }))()', '(() => ({ ok: 3 }))()', '(() => ({ ok: 4 }))()'];
+    const root = workspace({ ...PAGE, '.atoma-probes.json': manifest(smokes.map((smoke) => web(smoke))) });
+    // Every check is past the budget from the first one on.
+    // `ready`, not `baseline()`: reading the record waits for the replay, and ends its extension.
+    const free = inheritedChecksFor({ workspaceRoot: root, executor: () => new Backend({}), log: () => undefined, limits: { baselineWallMs: -1 } })!;
+    await free.ready;
+    expect(await free.baseline()).toEqual({ selected: 4, considered: 4, kept: 4, cannotRun: 0 });
+    // A molecule's call arrives while the second check replays: that check ends, and the replay with it.
+    const waited = new Backend({});
+    const replay = waited.execute.bind(waited);
+    const held: { runtime?: InheritedChecksRuntime } = {};
+    waited.execute = async (name, args) => {
+      if (args['smoke'] === smokes[2]) held.runtime!.waiting();
+      return replay(name, args);
+    };
+    held.runtime = inheritedChecksFor({ workspaceRoot: root, executor: () => waited, log: () => undefined, limits: { baselineWallMs: -1 } })!;
+    await held.runtime.ready;
+    expect(await held.runtime.baseline()).toEqual({ selected: 4, considered: 2, kept: 2, cannotRun: 0, stopped: 'budget' });
+    // Reading the record waits for the replay too: it ends the extension at once.
+    const read = inheritedChecksFor({ workspaceRoot: root, executor: () => new Backend({}), log: () => undefined, limits: { baselineWallMs: -1 } })!;
+    expect(await read.baseline()).toEqual({ selected: 4, considered: 0, kept: 0, cannotRun: 0, stopped: 'budget' });
+    expect(waited.replays().map((args) => args['smoke'])).toEqual([smokes[3], smokes[3], smokes[2], smokes[2]]);
+    const capped = inheritedChecksFor({ workspaceRoot: root, executor: () => new Backend({}), log: () => undefined, limits: { baselineWallMs: -1, extendedWallMs: -1 } })!;
+    await capped.ready;
+    expect(await capped.baseline()).toEqual({ selected: 4, considered: 0, kept: 0, cannotRun: 0, stopped: 'cap' });
+    // Within its budget, a waiting call stops nothing.
+    const early = new Backend({});
+    const earlyReplay = early.execute.bind(early);
+    const within: { runtime?: InheritedChecksRuntime } = {};
+    early.execute = async (name, args) => {
+      if (args['smoke'] === smokes[3]) within.runtime!.waiting();
+      return earlyReplay(name, args);
+    };
+    within.runtime = inheritedChecksFor({ workspaceRoot: root, executor: () => early, log: () => undefined })!;
+    expect(await within.runtime.baseline()).toEqual({ selected: 4, considered: 4, kept: 4, cannotRun: 0 });
+  });
+
+  it('tells the replay a tool call is waiting before the call waits', async () => {
+    let release!: () => void;
+    const ready = new Promise<void>((resolve) => { release = resolve; });
+    const events: string[] = [];
+    const gate = gatedExecutor({ has: () => true, execute: async (name) => { events.push(`ran ${name}`); return {}; } }, ready, () => events.push('waiting'));
+    const call = gate.execute('read_file', { path: 'index.html' });
+    await Promise.resolve();
+    expect(events).toEqual(['waiting']);
+    release();
+    await call;
+    expect(events).toEqual(['waiting', 'ran read_file']);
+  });
+
   it('leaves no mark on a check that passed, honoured or not', async () => {
     const back = "(() => ({ ok: document.getElementById('mode') !== null }))()";
     const root = workspace({ ...PAGE, '.atoma-probes.json': manifest([
@@ -630,6 +697,7 @@ describe('root acceptance of a page an earlier run shaped', () => {
         baseline: async () => ({ selected: 6, considered: 5, kept: 4, cannotRun: 1, note: 'a check needs 12000 ms' }),
         compare: async () => { compared += 1; return report(listedChecks, { baseline: { selected: 6, considered: 5, kept: 4, cannotRun: 1, note: 'a check needs 12000 ms' }, replayed: 4, stillPassing: 4 - listedChecks.length }); },
         reseeded: () => undefined,
+        waiting: () => undefined,
       },
     };
     // The floor is covered: without a listed check, this delivery would be approved with no model call.
@@ -685,7 +753,7 @@ describe('root acceptance of a page an earlier run shaped', () => {
     let compared = 0;
     const ctx: RunContext = { ...base, attempt: 1, startingWorkspace: { start, now: () => snapshotDeliveredWorkspace(seed, start) },
       inheritedChecks: { ready: Promise.resolve(), baseline: async () => ({ selected: 2, considered: 2, kept: 2, cannotRun: 0 }),
-        compare: async () => { compared += 1; return report([]); }, reseeded: () => undefined } };
+        compare: async () => { compared += 1; return report([]); }, reseeded: () => undefined, waiting: () => undefined } };
     base.llm.enqueueText(jsonText({ approved: true, reasoning: 'ok' }));
     const info = await acceptRootResult({ actor: new Actor(), task, result, ctx, floor: [], phaseCoverage: [] });
     expect(compared).toBe(0);
