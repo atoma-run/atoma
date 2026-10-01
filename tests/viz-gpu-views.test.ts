@@ -3020,7 +3020,7 @@ describe('drawProjects', () => {
   // call; rendering `$1.0200` on a run row reads as a defect, and it was
   // invisible only while the status column truncated the cost away entirely.
   it('prices a run in whole cents, and never rounds a real cost to free', () => {
-    const verdictFor = (costUsd: number | null) => {
+    const verdictFor = (costUsd: number | null, lowerBound = false) => {
       const ctx = createRecordingCtx();
       drawProjects(
         ctx,
@@ -3042,6 +3042,7 @@ describe('drawProjects', () => {
                   tokens: 12500,
                   llmCalls: 7,
                   jevCalls: 9,
+                  jevCallsLowerBound: lowerBound,
                   error: null,
                   createdAt: '2026-08-20T00:01:00.000Z',
                   endedAt: '2026-08-20T00:02:00.000Z',
@@ -3055,7 +3056,9 @@ describe('drawProjects', () => {
         720
       );
       const card = ctx.buttons.find(button => button.id === 'project.run.trace-1')!;
-      const metrics = ctx.texts.find(text => String(text.value).includes('Jev API calls: 9'))!;
+      const metrics = ctx.texts.find(text => String(text.value).includes('Jev API calls:'))!;
+      expect(metrics.value).toContain(lowerBound ? 'Jev API calls: ≥ 9' : 'Jev API calls: 9');
+      if (lowerBound) expect(ctx.tooltips.some(tooltip => tooltip.text.includes('Minimum confirmed'))).toBe(true);
       expect(metrics.value).toContain('Tokens: 12,500');
       expect(metrics.value).toContain('LLM calls: 7');
       expect(metrics.x).toBe(card.x + BUTTON_LABEL_INSET);
@@ -3068,6 +3071,7 @@ describe('drawProjects', () => {
     };
 
     expect(verdictFor(1.02)).toBe('delivered · $1.02');
+    expect(verdictFor(1.02, true)).toBe('delivered · $1.02');
     expect(verdictFor(12.3456)).toBe('delivered · $12.35');
     // Sub-cent spend is not free, and must not print as `$0.00`.
     expect(verdictFor(0.0004)).toBe('delivered · <$0.01');

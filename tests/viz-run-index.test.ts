@@ -37,6 +37,17 @@ describe('viz run index', () => {
     ])).toMatchObject({ tokens: 0, calls: 3, jevCalls: 3 });
     expect(summarize([])).toMatchObject({ jevCalls: 0 });
     expect(summarize([{ kind: 'jev' }])).toMatchObject({ jevCalls: null });
+    expect(summarize([
+      { kind: 'jev', answer: { yes: { acceptable: 0.9 } } },
+      { kind: 'jev', requestId: 'req-old' },
+      { kind: 'jev', failure: 'skipped: circuit open', durationMs: 0 },
+      { kind: 'jev', failure: 'timeout', durationMs: 2000 },
+      { kind: 'jev', requestCount: 2 },
+      { kind: 'jev', requestCount: 0, answer: {} },
+    ])).toMatchObject({ jevCalls: 4, jevCallsLowerBound: true });
+    expect(summarize([{ kind: 'jev', answer: null }, { kind: 'jev', answer: [] }]))
+      .toMatchObject({ jevCalls: null, jevCallsLowerBound: true });
+    expect(summarize([{ kind: 'jev', requestCount: 3 }])).not.toHaveProperty('jevCallsLowerBound');
   });
   it('summarizes a persisted trace and sorts newest first', () => {
     root = mkdtempSync(join(tmpdir(), 'atoma-run-index-'));

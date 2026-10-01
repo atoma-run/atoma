@@ -759,7 +759,8 @@ export function drawProjects(
           run.durationS == null ? '—' : fmtMs(run.durationS * 1000),
           snapshot.t('projects.runTokens', { value: run.tokens?.toLocaleString(snapshot.state.locale) ?? '—' }),
           snapshot.t('projects.runLlmCalls', { value: run.llmCalls?.toLocaleString(snapshot.state.locale) ?? '—' }),
-          snapshot.t('projects.runJevCalls', { value: run.jevCalls?.toLocaleString(snapshot.state.locale) ?? '—' }),
+          snapshot.t('projects.runJevCalls', { value: run.jevCalls == null ? '—'
+            : (run.jevCallsLowerBound ? '≥ ' : '') + run.jevCalls.toLocaleString(snapshot.state.locale) }),
         ];
         ctx.button(pane.content, 'project.run.' + (run.traceId ?? run.projectRunId), 'button',
           run.goal.replace(/\s+/g, ' '), runColumnX, cursor, goalWidth, cardHeight,
@@ -777,7 +778,9 @@ export function drawProjects(
           const metricY = cursor + 68 + metricIndex * 18;
           ctx.text(pane.content, copy, textX, metricY,
             { size: 9, color: GPU_COLORS.muted, width: textWidth, singleLine: true });
-          ctx.tooltip(pane.content, { x: textX, y: metricY, width: textWidth, height: 14, text: copy });
+          const tooltip = run.jevCallsLowerBound && (!compactRunRows || metricIndex === metricRows.length - 1)
+            ? copy + '\n' + snapshot.t('projects.runJevCallsLowerBound') : copy;
+          ctx.tooltip(pane.content, { x: textX, y: metricY, width: textWidth, height: 14, text: tooltip });
         });
         const extraY = cursor + (compactRunRows ? RUN_COMPACT_CARD_HEIGHT : RUN_CARD_HEIGHT);
         if (run.publication?.status === 'published' && run.publication.pullRequestUrl) {

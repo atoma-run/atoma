@@ -298,6 +298,7 @@ export interface VizProjectRun {
   tokens?: number | null;
   llmCalls?: number | null;
   jevCalls?: number | null;
+  jevCallsLowerBound?: boolean;
   durationS: number | null;
   error: string | null;
   createdAt: string;

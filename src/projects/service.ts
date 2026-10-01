@@ -108,6 +108,7 @@ function publicRun(
     tokens: trace?.tokens ?? null,
     llmCalls: run.stats?.llmCalls ?? trace?.calls ?? null,
     jevCalls: trace?.jevCalls ?? null,
+    jevCallsLowerBound: trace?.jevCallsLowerBound ?? false,
     // The per-tier selectors this run was RESOLVED to, from the immutable payer
     // ledger written at start: what a relaunch on other models is compared
     // against. Null for a run started before the ledger existed.

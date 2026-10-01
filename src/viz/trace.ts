@@ -391,8 +391,9 @@ export type VizEvent = (
 export const RUN_INDEX_GOAL_MAX = 200;
 
 export interface VizRunIndexEntry {
-  /** Null/absent for legacy traces that did not record HTTP attempt counts. */
+  /** Recorded HTTP attempts, or a lower bound recovered from legacy responses. */
   jevCalls?: number | null;
+  jevCallsLowerBound?: boolean;
   id: string;
   label: string;
   /** The run's goal, for surfaces with room for more than the label. */

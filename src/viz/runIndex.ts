@@ -126,17 +126,26 @@ export function summarizeTraceFile(file: string): VizRunIndexEntry | null {
       entry.tokens = input + output;
     }
     if (Array.isArray(run.events)) {
-      let calls: number | null = 0;
+      let calls = 0;
+      let lowerBound = false;
       for (const event of run.events as unknown[]) {
         if (!event || typeof event !== 'object' || !('kind' in event) || event.kind !== 'jev') continue;
         if (!('requestCount' in event) || typeof event.requestCount !== 'number' ||
             !Number.isInteger(event.requestCount) || event.requestCount < 0) {
-          calls = null;
-          break;
+          // Older events record answers, but not HTTP retries. A response
+          // proves at least one request; local skips and opaque failures do
+          // not. Preserve that evidence without presenting an exact total.
+          lowerBound = true;
+          if (('requestId' in event && typeof event.requestId === 'string' && event.requestId.length > 0) ||
+              ('answer' in event && event.answer !== null && typeof event.answer === 'object' && !Array.isArray(event.answer))) {
+            calls += 1;
+          }
+          continue;
         }
         calls += event.requestCount;
       }
-      entry.jevCalls = calls;
+      entry.jevCalls = lowerBound && calls === 0 ? null : calls;
+      if (lowerBound) entry.jevCallsLowerBound = true;
     }
     if (typeof run.endedAt === 'string') entry.endedAt = run.endedAt;
     if (typeof run.durationMs === 'number') entry.durationMs = run.durationMs;

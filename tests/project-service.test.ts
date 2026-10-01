@@ -394,6 +394,13 @@ describe('ProjectService — roles, IDOR and slug identity', () => {
       const listed = svc.listProjectRuns(alice, created.projectId) as Record<string, unknown>[];
       expect(listed[0]?.['traceId']).toBe(reserved!.run.projectRunId);
       expect(listed[0]).toMatchObject({ tokens: 125, llmCalls: 7, jevCalls: 2, costUsd: 0.12 });
+      writeFileSync(join(runsPath, `${reserved!.run.projectRunId}.json`), JSON.stringify({
+        id: reserved!.run.projectRunId, label: 'historical project run',
+        startedAt: '2026-09-30T09:50:27.984Z',
+        events: Array.from({ length: 7 }, () => ({ kind: 'jev', answer: { choice: 'Idioblast' } })),
+      }));
+      expect((svc.listProjectRuns(alice, created.projectId) as Record<string, unknown>[])[0])
+        .toMatchObject({ jevCalls: 7, jevCallsLowerBound: true });
       expect(JSON.stringify(listed[0])).not.toContain(root);
     } finally {
       rmSync(root, { recursive: true, force: true });
