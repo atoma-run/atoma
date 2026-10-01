@@ -31,6 +31,7 @@ its source before the next run.
 | ff102525 | pomodoro page: a P shortcut, and server.js deleted | 1,805 s | $0.54 | 27 | failed at the deadline; a correct fallback refused, then two rules on one test contradicted each other |
 | 3cbef119 | pomodoro page: the same goal, after both fixes | 983 s | $0.28 | 16 | delivered and published; the missing fields proven in one call, the page left as it was |
 | 9ad606d9 | pomodoro page: an Extend button and an E shortcut | 761 s | $0.21 | 9 | delivered and published; no replay, the README still says five buttons |
+| 13f7cce0 | pomodoro page: the README's button count | 245 s | $0.09 | 9 | delivered and published; the replay back, 31 checks kept and all still passing |
 
 ## A verified execution rejected as "non-JSON" (8606cf38)
 
@@ -640,6 +641,17 @@ only what the goal named.
   then have removed their checks as dead.
 - **A count left behind.** The README lists six buttons under "The five
   buttons appear in this order". No validator noticed.
+
+## The replay back (13f7cce0)
+
+The run corrected "five buttons" to "six" with one edit, on b5f5365d, the
+first run since 81375f01 whose seed classified as a static page.
+
+- **At the start:** 40 checks selected, 34 tried in 77 s before the
+  extended budget ran out, 31 passed twice and were kept, one was marked
+  dead.
+- **At acceptance:** all 31 replayed and still passed; nothing was listed,
+  and the acceptance approved on its first validation call.
 
 ## Open
 
