@@ -485,7 +485,7 @@ describe('write_file refuses an unparseable probe manifest — the production pa
     writeFileSync(manifestPath(), '{"version":1,"entries":[', 'utf8');
     const tool = writeFileTool({ sandbox });
     const repaired = JSON.stringify({ version: 1, entries: [{ cmd: 'node fixed.js', exitCode: 0 }] });
-    await tool.execute({ path: PROBE_MANIFEST_FILENAME, content: repaired });
+    expect(await tool.execute({ path: PROBE_MANIFEST_FILENAME, content: repaired })).not.toHaveProperty('merged');
     expect(JSON.parse(readFileSync(manifestPath(), 'utf8')).entries).toEqual([
       { cmd: 'node fixed.js', exitCode: 0 },
     ]);
@@ -495,6 +495,19 @@ describe('write_file refuses an unparseable probe manifest — the production pa
     const tool = writeFileTool({ sandbox });
     await tool.execute({ path: 'notes.json', content: 'not json at all' });
     expect(readFileSync(join(root, 'notes.json'), 'utf8')).toBe('not json at all');
+  });
+
+  it('says what a manifest write merged, so nothing reads every earlier entry back (run 0b51e494)', async () => {
+    const tool = writeFileTool({ sandbox });
+    const earlier = JSON.stringify({ version: 1, entries: [{ cmd: 'node a.js', exitCode: 0 }, { cmd: 'node b.js', exitCode: 0 }] });
+    expect(await tool.execute({ path: PROBE_MANIFEST_FILENAME, content: earlier })).not.toHaveProperty('merged');
+    const added = JSON.stringify({ version: 1, entries: [{ cmd: 'node c.js', exitCode: 0 }] });
+    expect(await tool.execute({ path: PROBE_MANIFEST_FILENAME, content: added }))
+      .toMatchObject({ ok: true, merged: { sent: 1, total: 3, note: '2 entries already recorded were kept beside yours (write_file merges and never removes one); no need to read the file back' } });
+    // A bad entry the merge keeps is said, never reassured away.
+    writeFileSync(manifestPath(), JSON.stringify({ version: 1, entries: [{ probe: 'reset_after_increments', file: 'index.html', smoke: 'true', expected: 'true' }] }));
+    const fixed = await tool.execute({ path: PROBE_MANIFEST_FILENAME, content: JSON.stringify({ version: 1, entries: [{ probe: 'web', file: 'index.html', smoke: 'true', expected: 'true' }] }) });
+    expect(fixed).toMatchObject({ merged: { sent: 1, total: 2, note: expect.stringContaining('the manifest fails its check') } });
   });
 });
 

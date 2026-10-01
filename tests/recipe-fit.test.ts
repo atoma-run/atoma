@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { SKILL_PREFILTER_SYSTEM_PROMPT } from '../src/atoms/cost.js';
 import { CANONICAL_FILESCRIBE_L1_SYSTEM_PROMPT_LINES } from '../src/atoms/capability.js';
 import { isRecipePrefilter } from '../src/atoms/jevCalibration.js';
+import { skillContextBlock } from '../src/skills/lifecycle.js';
+import { eventSkillBlock } from '../src/skills/events.js';
+import { renderActiveSkillBlock } from '../src/atoms/verdict.js';
+import { READER_FACING_DOC_GUIDANCE } from '../src/atoms/prompts.js';
 
 /**
  * A documentation phase is not a build. Runs 9854553c and fa8b6ce3
@@ -21,6 +25,22 @@ describe('which recipe fits a documentation phase', () => {
     expect(prompt).not.toContain('fixtures and docs');
     // Jev's calibration still tells this prompt from the agent one.
     expect(isRecipePrefilter(SKILL_PREFILTER_SYSTEM_PROMPT)).toBe(true);
+  });
+
+  it('tells a molecule following a recipe what no step changes (runs 0b51e494, dadeea78)', () => {
+    const edit = 'A file the workspace already holds is changed with edit_file, even where a step says write_file, unless the subtask says to discard what it holds or to put an earlier version back.';
+    const rerun = 'A step that says not to rerun covers only what an earlier run recorded, never a new example.';
+    const recipe = '2. write_file <entry>, changing only the requested UI behavior.';
+    for (const block of [skillContextBlock({ id: 'patch-verified-static-ui', body: recipe }), eventSkillBlock({ id: 'recover', body: 'rewrite index.html', trigger: 'x' })]) {
+      expect(flat(block)).toContain(edit);
+      expect(flat(block)).toContain(rerun);
+      expect(flat(block)).toContain(".atoma-probes.json is never edit_file'd");
+    }
+    // The validator judging adherence reads them with the recipe: obeying them is following it.
+    expect(flat(renderActiveSkillBlock({ id: 'patch-verified-static-ui', body: recipe }))).toContain(edit);
+    // A script recipe runs verbatim: none of this applies to it.
+    expect(skillContextBlock({ id: 's', body: 'console.log(1)', kind: 'script', language: 'node' })).not.toContain('Two things no recipe step changes');
+    expect(flat(READER_FACING_DOC_GUIDANCE)).toContain('An example output you add is copied from a tool result of this run (a command or request you ran, or an entry this run recorded), never composed;');
   });
 
   it('teaches the file scribe to edit a file that exists, never to write it again whole', () => {

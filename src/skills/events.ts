@@ -86,6 +86,26 @@ export const LEARNED_CONTENT_TRUST_BOUNDARY_LINES: readonly string[] = [
 ];
 
 /**
+ * What no step of an injected recipe changes. A recipe keeps the tools the
+ * trace it was distilled from showed. Run 0b51e494 (2026-10-01): a
+ * remediation following "write_file <entry>" rewrote a page whole, byte for
+ * byte. Run dadeea78: a recipe's "do not rerun recorded behavior checks"
+ * left a new README example's output worked out, never run. The adherence
+ * check shows the validator these lines with the recipe, so following them is
+ * following it.
+ */
+export const RECIPE_STEP_LIMITS: readonly string[] = [
+  `Two things no recipe step changes.`,
+  `- A file the workspace already holds is changed with edit_file, even where`,
+  `  a step says write_file, unless the subtask says to discard what it holds`,
+  `  or to put an earlier version back. .atoma files are outside this:`,
+  `  .atoma-probes.json is never edit_file'd; the recording tools add to it,`,
+  `  and write_file merges into it.`,
+  `- A step that says not to rerun covers only what an earlier run recorded,`,
+  `  never a new example.`,
+];
+
+/**
  * Context block injected into the retrying/branched L1. Distinct
  * delimiters from `== ACTIVE SKILL ==` on purpose: an event skill is
  * NOT the driving recipe (no `setActiveSkill`, no adherence/credit
@@ -99,6 +119,7 @@ export function eventSkillBlock(skill: Pick<Skill, 'id' | 'body' | 'trigger'>): 
     `The supervisor rejected a previous attempt with a complaint matching a`,
     `known failure pattern${skill.trigger ? ` ("${skill.trigger}")` : ''}. Apply this`,
     `recovery guidance to the NEXT attempt:`,
+    ...RECIPE_STEP_LIMITS,
     ``,
     skill.body.trim(),
     ``,

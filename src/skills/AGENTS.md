@@ -77,6 +77,17 @@ by owner decision on 2026-09-26
   hidden workspace state the prefilter cannot inspect.
 - The skill prefilter runs only when candidates exist. Injection is guidance;
   it never guarantees adherence or credit.
+- Two things no recipe step changes (`RECIPE_STEP_LIMITS`, in the llm and the
+  event blocks; never in a script block, which runs verbatim):
+  - A file that exists is changed with edit_file where a step says write_file,
+    unless the subtask says to discard it or put an earlier version back.
+  - A "do not rerun" step never covers a new example.
+
+  Distilled recipes keep the tools their traces showed: run 0b51e494 rewrote
+  a page whole, byte for byte, by such a step, and dadeea78 left a README
+  example's output worked out. The adherence check shows the validator the
+  same lines with the recipe, so obeying them never costs the recipe its
+  credit.
 - Credit is usage-conditioned. Atom-type counters move with child outcomes;
   skill counters move only when the skill demonstrably drove the attempt.
 - Updates after failure are opportunistic. Invalid skill JSON must not fail an

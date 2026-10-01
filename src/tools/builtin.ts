@@ -11,6 +11,7 @@ import {
   PROBE_MANIFEST_FILENAME,
   appendHttpProbe,
   mergeProbeManifestWrite,
+  validateProbeManifest,
   probeManifestWriteRefusal,
   mergeShellProbe,
   SMOKE_TWO_CALL_LINES,
@@ -294,15 +295,44 @@ export function writeFileTool(opts: BuiltinToolOptions): BuiltinTool {
         if (blind) throw new Error(blind);
       }
       mkdirSync(dirname(abs), { recursive: true });
-      const finalContent =
-        isManifest && existsSync(abs)
-          ? mergeProbeManifestWrite(readFileSync(abs, 'utf8'), content)
-          : content;
+      const merging = isManifest && existsSync(abs);
+      const finalContent = merging ? mergeProbeManifestWrite(readFileSync(abs, 'utf8'), content) : content;
       writeFileSync(abs, finalContent, 'utf8');
       markSeen(opts.sandbox, abs);
       opts.logger?.info(`[tool:write_file] ${path} (${Buffer.byteLength(finalContent, 'utf8')} bytes)`);
-      return { ok: true, path, bytes: Buffer.byteLength(finalContent, 'utf8') };
+      // A merged manifest is many times what the call sent: say why, so the
+      // caller has no reason to read every earlier phase's entries back (run
+      // 0b51e494 read 75 KB, and its next turn took 324 s).
+      const merged = merging ? manifestMergeSummary(content, finalContent) : undefined;
+      return { ok: true, path, bytes: Buffer.byteLength(finalContent, 'utf8'), ...(merged ? { merged } : {}) };
     },
+  };
+}
+
+/**
+ * Entries the call sent, and entries the merged manifest now holds; undefined
+ * when either is unreadable, or when the file holds just what was sent.
+ */
+function manifestMergeSummary(sent: string, merged: string): { sent: number; total: number; note: string } | undefined {
+  const count = (text: string): number | undefined => {
+    try {
+      const entries: unknown = (JSON.parse(text) as { entries?: unknown }).entries;
+      return Array.isArray(entries) ? entries.length : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+  const ofCall = count(sent);
+  const total = count(merged);
+  if (ofCall === undefined || total === undefined || total <= ofCall) return undefined;
+  const kept = `${total - ofCall} entries already recorded were kept beside yours (write_file merges and never removes one)`;
+  const problem = validateProbeManifest(merged)[0];
+  return {
+    sent: ofCall,
+    total,
+    note: problem === undefined
+      ? `${kept}; no need to read the file back`
+      : `${kept}, and the manifest fails its check: ${problem.slice(0, 200)}`,
   };
 }
 

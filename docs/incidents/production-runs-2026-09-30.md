@@ -23,6 +23,7 @@ its source before the next run.
 | d99354c5 | wordfreq CLI: the README restored | 403 s | $0.09 | 5 | delivered; every flag's example and output and every error message back |
 | 41711050 | pomodoro page: an L shortcut | 614 s | $0.16 | 7 | delivered; first inherited-check replay in the container, nothing listed |
 | 0b51e494 | pomodoro page: an S shortcut | 1,404 s | $0.33 | 16 | landed partial; the replay caught a regression twice and the remediation did not fix it |
+| dadeea78 | wordfreq CLI: a usage line and a combined example | 157 s | $0.03 | 7 | delivered; README edited in place, the new example's output worked out and never run |
 
 ## A verified execution rejected as "non-JSON" (8606cf38)
 
@@ -401,6 +402,34 @@ without a validation call.
   requested UI behavior". The first pass edited the page with `edit_file`;
   the remediation pass wrote index.html back whole, byte for byte.
 
+## A README example nobody ran (dadeea78)
+
+The goal added a usage line and one example combining three flags, "with its
+exact output", to the CLI's README. The model's recipe matcher reused
+`document-verified-shortcut`, a recipe learned while documenting a page's
+shortcut; `build-text-frequency-cli` was offered and not picked. The file
+scribe edited the README in place, twice, and kept every line it had. The
+example's output is correct, but nothing ran it: the recipe says "Do not
+rerun recorded behavior checks", and nothing had recorded this command. The
+cell's validator accepted the output as "consistent with sample.txt", and the
+root's reading-back did not reach it.
+
+- **The recipe's step decided.** An injected llm recipe now carries two
+  limits no step overrides. A file that exists is edited where a step says
+  write_file, unless the subtask says to discard it or put an earlier
+  version back. A "do not rerun" step never covers a new example. The
+  adherence check shows the validator the same limits, so a molecule that
+  obeys them keeps the recipe its credit.
+- **The reader-facing rule says it once.** An example output a molecule adds
+  is copied from a tool result of the run, never composed. A value that
+  changes between runs shows as a placeholder, and an example nothing ran
+  shows its command alone. Only the molecule's text changed: a validator
+  still approves a worked-out output.
+- **The manifest write says what it merged.** `write_file` on an existing
+  manifest now answers with the entries sent and the total on disk. It says
+  that earlier entries were kept beside the new ones, and that the file need
+  not be read back, unless the merged manifest fails its check.
+
 ## Open
 
 - **Earlier runs' requirements were not replayed.** The inherited
@@ -431,10 +460,13 @@ without a validation call.
     that a molecule's call reaches and the dead proxy refuses.
 - **Recipes that rewrite a file whole.** `build-text-frequency-cli`
   (README) and `patch-verified-static-ui` (index.html) both carry a
-  `write_file` step for a file that exists. Distillation keeps the step the
-  trace showed, and no reader turns it into an edit.
+  `write_file` step for a file that exists. The injected block now limits
+  such a step; distillation still writes it.
 - **Manifest read-backs.** A manifest that grows by every run's checks costs
-  every molecule that reads it back (75 KB in 0b51e494).
+  every molecule that reads it back (75 KB in 0b51e494). The merge's answer
+  now says why the file is larger; nothing else stops the read.
+- **An unobserved example output is approved.** The rule reaches the
+  molecule only; no validator asks where an example's output came from.
 - **A landed run's listed checks.** 0b51e494 landed with two listed checks.
   The next run starts from its page, where both fail at the start, so they
   are not kept and never compared: only the landing reasons carry them.

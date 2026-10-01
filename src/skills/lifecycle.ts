@@ -27,7 +27,7 @@ import {
   scriptScratchFilename,
 } from './abi.js';
 import { hostAllowsLoopbackNetwork, scanScriptBody } from './scriptScan.js';
-import { LEARNED_CONTENT_TRUST_BOUNDARY_LINES } from './events.js';
+import { LEARNED_CONTENT_TRUST_BOUNDARY_LINES, RECIPE_STEP_LIMITS } from './events.js';
 import { REFUSAL_GENERATION, refusalStampIsCurrent } from './generations.js';
 import { undeclaredToolMentions } from '../atoms/verdict.js';
 import { skillEventExecutor, type SkillNamespace } from './namespace.js';
@@ -294,6 +294,7 @@ export function skillContextBlock(skill: {
     `learned from prior successful runs and is the FASTEST path to a clean`,
     `result. Deviate only when the subtask explicitly asks for something the`,
     `recipe does not cover.`,
+    ...RECIPE_STEP_LIMITS,
     ``,
     skill.body.trim(),
     ``,

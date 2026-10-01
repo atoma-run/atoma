@@ -301,7 +301,9 @@ load-bearing.
   every molecule with a file-writing tool when it plans and executes, and by
   the fallback executors: stored prompts of molecules created before it,
   trusted ones included, never carried it. No stored prompt and no planner
-  carries a copy. The validator prompt's own section says the removal is
+  carries a copy. An example output a molecule adds is copied from a tool
+  result of the run, never composed (run dadeea78 worked one out and it was
+  approved); only the molecule's text says so, and no validator checks it. The validator prompt's own section says the removal is
   correct for a plan or a result, and the project-docs prompt says its
   "cite … source digests and line spans" goes in the result.
 - Node-server children keep file read-back even when they also have browser

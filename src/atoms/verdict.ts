@@ -5,6 +5,7 @@ import { transportWitnesses } from '../contracts/witness.js';
 import { probeGroundTruth } from './groundTruth.js';
 import { BUILTIN_TOOL_NAMES, HOST_TOOL_NAMES } from '../contracts/toolTaxonomy.js';
 import { READ_ONLY_TASK_LINE } from '../contracts/readOnlyPhase.js';
+import { RECIPE_STEP_LIMITS } from '../skills/events.js';
 
 /**
  * VERDICT ENGINE — extracted from L2Atom (structural slice 2b).
@@ -694,6 +695,8 @@ export function renderActiveSkillBlock(skill: { id: string; body: string }): str
     `--- recipe ---`,
     body,
     `--- end recipe ---`,
+    `The child was given these limits with it; a step done within them is a step followed:`,
+    ...RECIPE_STEP_LIMITS,
     `Per the ACTIVE SKILL ADHERENCE section: also emit "activeSkillFollowed" in your verdict JSON.`,
   ].join('\n');
 }

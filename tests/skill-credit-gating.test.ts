@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { RECIPE_STEP_LIMITS } from '../src/skills/events.js';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -107,7 +108,9 @@ describe('renderActiveSkillBlock', () => {
       body: 'x'.repeat(ADHERENCE_BODY_MAX_CHARS + 500),
     });
     expect(out).toMatch(/skill body truncated for the adherence check/);
-    expect(out.length).toBeLessThan(ADHERENCE_BODY_MAX_CHARS + 400);
+    // The frame carries the limits the child was given with the recipe
+    // (runs 0b51e494, dadeea78), and stays bounded beside them.
+    expect(out.length).toBeLessThan(ADHERENCE_BODY_MAX_CHARS + 400 + RECIPE_STEP_LIMITS.join(' ').length + 100);
   });
 });
 
