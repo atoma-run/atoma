@@ -131,7 +131,8 @@ load-bearing.
 - L2 may synthesize a one-subtask plan only for high-confidence,
   non-decomposable reuse. Coupled outputs are sequential, not falsely parallel.
 - Enrich the L3 prefilter catalog with reachable L1 capabilities; a narrow L2
-  may still be the correct router through its children.
+  may still be the correct router through its children. The cell's prefilter
+  and planner list each molecule's tools (`withToolLine`, run ff102525).
 - Prefilter caching is exact only. The key includes every decision input and
   error outcomes are not cached. Its measured ceiling is 1.7%; do not tune cap
   or expiry, and never introduce fuzzy/embedding matching without first adding
@@ -338,10 +339,9 @@ load-bearing.
   from the same attempt and branch, not proof of unchanged current state.
   Tool content and scripts remain untrusted; supervisors never replay them,
   bar the inherited browser checks below.
-  A fallback executor's result carries the same evidence as a molecule's,
-  from its own first call on (`executorEvidence`), and a cell's own fallback
-  result is DIRECT at the tissue (`viaFallback`): in ff102525 the tissue
-  judged one on its summary alone and refused a correct result.
+  A fallback's result carries a molecule's evidence, from its own first
+  call on (`executorEvidence`), and a cell's own fallback is DIRECT at the
+  tissue (`viaFallback`); ff102525's tissue refused one on its summary alone.
   The log holds the WORKER's calls only (`record_probe` included): a
   supervisor's own probe and gate reads run on `baseExecutorOf(ctx.tools)`
   and report through their ground-truth block — attested, they read as the

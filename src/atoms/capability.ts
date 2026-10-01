@@ -127,6 +127,20 @@ const AUXILIARY_TOOLS: Readonly<Record<string, string>> = {
 };
 
 /**
+ * A molecule's routing-catalog entry: its capability label, then the tools it
+ * can call on a continuation line, the layout the Jev calibration reads back
+ * (`parsePrefilterPrompt`). Routing was asked to match a "tool signature" it
+ * was never shown: run ff102525 (2026-10-01) gave a file deletion to a
+ * molecule none of whose tools deletes a file, and six plans were refused.
+ * The names are sorted: the entry is part of the prefilter cache key and of
+ * Jev's grouping of identical candidates, and seed order is no capability.
+ */
+export function withToolLine(description: string, tools: readonly { readonly name: string }[]): string {
+  if (tools.length === 0) return description;
+  return `${description}\n    tools: ${tools.map((tool) => tool.name).sort().join(', ')}`;
+}
+
+/**
  * Canonical capability description for a set of tools at a given tier.
  * Deterministic — two atoms with the same tool signature AND the same
  * tier always get the same string, so prefilter (which matches on

@@ -59,6 +59,7 @@ import {
   WEB_GROUND_TRUTH_EVIDENCE_LINES,
   lastResultVerdictSkillFollowed,
   resolveCreationDescription,
+  withToolLine,
 } from './capability.js';
 import { checkGroundTruth, type GroundTruthCheck } from './groundTruth.js';
 export {
@@ -377,7 +378,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         // the tier) and just pads the prompt with repetitive noise.
         catalog: catalog.map((t) => ({
           name: t.name,
-          description: stripBranchProvenance(t.description),
+          description: withToolLine(stripBranchProvenance(t.description), t.tools),
         })),
         exclude: this.triedChildren.excluded(),
         actor: { name: this.name, tier: 2 },
@@ -393,10 +394,18 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
             ctx.logger.warn(
               `[${this.name}] browser-verification task was prefiltered to ${prefilter.target}, which lacks validate_html — routing to ${webCandidate.name}`
             );
+            // The pick may hold a tool the web molecule lacks, a deletion in the
+            // same task: the plan then splits the task instead of handing it
+            // whole to a molecule that cannot do all of it (run ff102525).
+            const lacking = (selected?.tools ?? []).filter(
+              (tool) => !webCandidate.tools.some((own) => own.name === tool.name)
+            );
             prefilter = {
               ...prefilter,
               target: webCandidate.name,
-              reasoning: `${prefilter.reasoning}; mechanically redirected because real browser verification requires validate_html`,
+              ...(lacking.length > 0 ? { decomposable: true } : {}),
+              reasoning: `${prefilter.reasoning}; mechanically redirected because real browser verification requires validate_html` +
+                (lacking.length > 0 ? `; ${webCandidate.name} lacks ${lacking.map((tool) => tool.name).join(', ')}, so the plan splits the task` : ''),
             };
           }
         }
@@ -540,7 +549,10 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       `  starts its trust from zero. "create" only when the REQUIRED CAPABILITY`,
       `  diverges — a tool the subtask needs that no catalog L1 holds, or a`,
       `  workflow shape (HTTP probe loop vs browser loop vs file authoring) that`,
-      `  no catalog L1 performs.`,
+      `  no catalog L1 performs. Each entry's "tools:" line is all that L1 can`,
+      `  call: give a subtask only to an L1 whose tools can do all of it, the one`,
+      `  with the fewest tools the subtask does not use, and split a subtask that`,
+      `  needs tools no single L1 holds before you "create" an L1 for it.`,
       ``,
       `CRITICAL — "preferredChild" naming rule:`,
       `  - If you set "preferredChild" on a subtask, it MUST be the EXACT name of`,
@@ -557,7 +569,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       `L1 catalog (elements):`,
       catalog.length === 0
         ? '  (empty — no elements exist yet; "reuse" is not possible)'
-        : catalog.map((t) => `  - ${t.name}: ${t.description}`).join('\n'),
+        : catalog.map((t) => `  - ${t.name}: ${withToolLine(t.description, t.tools)}`).join('\n'),
       ``,
       // Prefilter hint from the decomposable short-circuit. Haiku has
       // already identified a reusable child but flagged the task as
