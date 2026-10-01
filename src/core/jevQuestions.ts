@@ -505,7 +505,13 @@ export function readChoice(
   }
   const decomposable = (decomposableYes ?? 0) >= thresholds.decomposable;
   return {
-    decision: { target, confidence, decomposable },
+    decision: {
+      target, confidence, decomposable,
+      ...(taskChanges !== undefined && taskChanges < thresholds.keepsFiles
+        ? { fileEffect: 'read-only' as const }
+        : taskChanges !== undefined && taskChanges >= thresholds.changesFiles
+          ? { fileEffect: 'mutating' as const } : {}),
+    },
     outcome: pickedOutcome(option, decomposable),
     answer,
   };

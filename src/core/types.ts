@@ -4,6 +4,8 @@ export type Tier = 1 | 2 | 3;
 
 export interface Task {
   readonly description: string;
+  /** Semantic file intent from a recipe prefilter; never a restoration-policy flag. */
+  readonly fileEffect?: import('../contracts/fileEffect.js').FileEffect;
   readonly inputs?: Record<string, unknown>;
   readonly constraints?: string[];
   /**
@@ -165,6 +167,8 @@ export interface Result {
   readonly output: unknown;
   readonly summary: string;
   readonly toolCallResults?: unknown[];
+  /** Transport saw record_probe persist a command result, including an expected nonzero exit. */
+  readonly recordedCommandProbes?: true;
   /** Transport-observed proof that an injected script skill's scratch body ran. */
   readonly activeScriptSkillExecuted?: boolean;
   readonly trace: TraceEntry[];
@@ -553,6 +557,8 @@ export interface JevChoiceDecision {
   readonly confidence: number;
   /** Jev's reading of whether the task asks for several independent deliverables. */
   readonly decomposable: boolean;
+  /** Existing task_changes_files answer, when decisive; no additional question. */
+  readonly fileEffect?: import('../contracts/fileEffect.js').FileEffect;
 }
 
 /**

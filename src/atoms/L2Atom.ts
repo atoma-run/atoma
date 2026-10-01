@@ -917,7 +917,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
             // The atom that runs it, which under the shared catalog is not
             // the atom whose namespace supplied it.
             l1Type,
-            subTask,
+            matched.task,
             ctx
           );
           // Every change a script run makes is its own.
@@ -1101,7 +1101,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     readerToolNames: readonly string[],
     subTask: Task,
     ctx: RunContext
-  ): Promise<{ skill: Skill; ownerNs: SkillNamespace; reasoning: string } | null> {
+  ): Promise<{ skill: Skill; ownerNs: SkillNamespace; reasoning: string; task: Task } | null> {
     return (
       (await this.lifecycle()?.matchSkill(namespaces, readerToolNames, subTask, ctx)) ?? null
     );
@@ -1127,6 +1127,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     ctx: RunContext;
     visibleNamespaces?: readonly string[];
     hostTools?: readonly string[];
+    verificationOnly?: boolean;
   }): Promise<void> {
     await this.lifecycle()?.learnSkillFromRun(args);
   }
@@ -1770,22 +1771,27 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
               `[${this.name}] skill promotion attempt errored: ${(err as Error).message}`
             );
           }
-        } else if (
+        }
+        const novel = !skillId && !skillCtx.matchedSkillId;
+        const canExtractVerification = result.recordedCommandProbes &&
+          verdict?.activeSkillFollowed !== false &&
+          (!skillId || this.skillRegistry?.loadFor(skillNs).find((skill) => skill.id === skillId)?.kind === 'llm');
+        if (
           // Skill auto-creation (C3). Fires when ALL of:
           //   - L2 attempted a skill match for this subtask;
-          //   - no skill matched (the run was novel);
+          //   - the run was novel, or an observed command probe can teach a
+          //     verification sibling beside a reused LLM build recipe;
           //   - the run was approved (i.e. it's a clean reusable pattern);
           //   - the env flag ATOMA_SKILL_LEARN is on. Direct library use is
           //     opt-in; runTask sets it on by default unless disabled because
           //     forgetting the flag was the measured dominant failure mode.
-          !skillId &&
-          // Both scopes must be empty: no tag on the approved INSTANCE and
+          // Primary distillation requires both scopes empty: no approved INSTANCE tag and
           // no match recorded for the SUBTASK. After an escalation branch
           // the instance tag is gone while the subtask fact remains — a run
           // where a recipe matched is not novel, whatever instance finished
-          // it (learning there distilled near-duplicate skills that then
-          // competed with the matched one in the prefilter).
-          !skillCtx.matchedSkillId &&
+          // it. Such runs extract only the verification sibling, through the
+          // same exact-id and semantic-twin guards as ordinary learning.
+          (novel || canExtractVerification) &&
           skillCtx.skillMatchAttempted &&
           this.skillRegistry &&
           process.env['ATOMA_SKILL_LEARN'] === '1' &&
@@ -1803,6 +1809,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
               result,
               child,
               ctx,
+              verificationOnly: !novel,
               ...(skillCtx.visibleNamespaces
                 ? { visibleNamespaces: skillCtx.visibleNamespaces }
                 : {}),

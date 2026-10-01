@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { fileEffectSchema } from '../contracts/fileEffect.js';
 import type { AtomType } from '../registry/atomRegistry.js';
 import type {
   GenerationParams,
@@ -539,7 +540,11 @@ export const SKILL_PREFILTER_SYSTEM_PROMPT = [
   '  Missing confidence is treated as "low" (conservative default).',
   '',
   'Respond with ONE JSON object, no prose, no markdown, starting with "{":',
-  '  {"kind": "reuse", "target": "<exact skill id>", "confidence": "high"|"low", "reasoning": "<one short sentence>"}',
+  '  {"kind": "reuse", "target": "<exact skill id>", "confidence": "high"|"low", "fileEffect": "read-only"|"mutating", "reasoning": "<one short sentence>"}',
+  'For every reuse, classify what the TASK requires: fileEffect is read-only',
+  'for inspection or replay of existing checks, mutating for creating or changing',
+  'code, pages, documents or data. Interpret negation and quoted text semantically.',
+  'Scratch files used only to execute a check are not a requested file change.',
   'OR',
   '  {"kind": "escalate", "reasoning": "<one short sentence>"}',
 ].join('\n');
@@ -566,6 +571,7 @@ export const prefilterResponseSchema = z.discriminatedUnion('kind', [
     // reuse target preserved as a routing hint. Default is false (most
     // single-artefact tasks).
     decomposable: z.boolean().optional(),
+    fileEffect: fileEffectSchema.optional().catch(undefined),
     reasoning: z.string(),
   }),
   z.object({ kind: z.literal('escalate'), reasoning: z.string() }),
@@ -770,6 +776,7 @@ export async function prefilterStrategy(args: {
           target: jev.target,
           confidence: 'high',
           decomposable: jev.decomposable,
+          ...(jev.fileEffect ? { fileEffect: jev.fileEffect } : {}),
           reasoning: `jev picked ${jev.target} (confidence ${confidence})`,
         };
   }

@@ -1,4 +1,5 @@
 import path from 'node:path';
+import type { FileEffect } from '../contracts/fileEffect.js';
 import { extractResultFilePaths } from '../atoms/groundTruth.js';
 import { stripLiteralContractBlock } from '../atoms/prompts.js';
 
@@ -329,15 +330,15 @@ export function subtaskMutationTargetPaths(description: string): string[] {
 }
 
 /**
- * Output intent for one subtask, from the STRUCTURED channel when the plan
- * declared it, from the lexical grammar otherwise.
+ * Output intent for one subtask: declared paths, then host read-only policy
+ * or semantic prefilter intent, then the legacy lexical grammar.
  *
  * The plan call authors both the description AND (since 2026-08-14, review
  * §3.3) an optional `outputs` array of workspace-relative paths the subtask
  * must create or modify. When present and non-empty it is AUTHORITATIVE:
  * mutation classification and the target set come from it verbatim, and the
- * incident-grown grammar below never runs. When absent (models
- * that ignore the field) the lexical grammar is the fallback. An empty or
+ * incident-grown grammar below never runs. Without a declaration or a
+ * decisive semantic answer, the lexical grammar is the fallback. An empty or
  * blank-only array is treated as UNDECLARED, not as read-only: a lazy `[]`
  * on a genuinely mutating subtask would otherwise skip the before/after
  * dispatch gate and reopen the round-5 phantom-success class.
@@ -346,12 +347,14 @@ export interface SubtaskOutputIntent {
   readonly mutating: boolean;
   /** Full workspace-relative output paths (deduped, order preserved). */
   readonly targetPaths: readonly string[];
-  readonly source: 'declared' | 'lexical';
+  readonly source: 'declared' | 'semantic' | 'lexical';
 }
 
 export function subtaskOutputIntent(subTask: {
   readonly description: string;
   readonly outputs?: readonly string[];
+  readonly readOnly?: true;
+  readonly fileEffect?: FileEffect;
 }): SubtaskOutputIntent {
   const declared = [
     ...new Set((subTask.outputs ?? []).map((p) => p.trim()).filter((p) => p.length > 0)),
@@ -359,11 +362,14 @@ export function subtaskOutputIntent(subTask: {
   if (declared.length > 0) {
     return { mutating: true, targetPaths: declared, source: 'declared' };
   }
-  const mutating = subtaskMutatesFiles(subTask.description);
+  if (subTask.readOnly || subTask.fileEffect === 'read-only') {
+    return { mutating: false, targetPaths: [], source: subTask.readOnly ? 'declared' : 'semantic' };
+  }
+  const mutating = subTask.fileEffect === 'mutating' || subtaskMutatesFiles(subTask.description);
   return {
     mutating,
     targetPaths: mutating ? subtaskMutationTargetPaths(subTask.description) : [],
-    source: 'lexical',
+    source: subTask.fileEffect ? 'semantic' : 'lexical',
   };
 }
 
@@ -387,12 +393,16 @@ export function scriptCanServeSubtask(
   description: string,
   opts?: {
     readonly outputs?: readonly string[];
+    readonly readOnly?: true;
+    readonly fileEffect?: FileEffect;
     readonly declaredWrites?: readonly string[];
   }
 ): boolean {
   const intent = subtaskOutputIntent({
     description: stripLiteralContractBlock(description),
     ...(opts?.outputs ? { outputs: opts.outputs } : {}),
+    ...(opts?.readOnly ? { readOnly: true } : {}),
+    ...(opts?.fileEffect ? { fileEffect: opts.fileEffect } : {}),
   });
   if (!intent.mutating) return true; // nothing to protect
   const targets = [...new Set(intent.targetPaths.map((t) => path.basename(t)))];

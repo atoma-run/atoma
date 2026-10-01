@@ -621,6 +621,42 @@ fallback. This pilot proves the learn → Jev → compile → direct-execution c
 when verification is its own task. Generalizing it needs reliable extraction
 and structured verification intent, not additional vocabulary in the fallback.
 
+## Closing the pilot gaps (2026-10-02)
+
+The independent extraction is triggered by the L1 transport observing a
+successful `record_probe` persistence, including expected nonzero exits. It
+does not depend on summary wording or the first 64 observed calls. When an
+approved build omits a usable optional verification draft, one separate L2
+distillation asks for that sibling or an explicit null reason. A reused LLM
+build recipe can teach the sibling without being distilled again. Primary
+parse errors or temporary failures do not lose the verification opportunity;
+extraction errors do not lose the primary. There is no permanent refusal or
+retry cooldown here. This costs one extra L2 call per eligible omission;
+Jev still handles twin detection and compilation eligibility. It does not
+guarantee that every build contains a useful compilable subrecipe.
+
+For dispatch, the shared `fileEffect` contract carries the task's semantic
+file intent from the existing recipe prefilter to both capability filtering
+and direct execution. Jev's existing file-change question already supplied
+this information; decisive answers now survive decoding. The model fallback
+returns the same field. There are no new Jev questions or threshold changes.
+The old lexical fallback remains for absent or uncertain answers, but cannot
+veto a confident semantic reading of negated build verbs. Declared output
+paths remain authoritative; this field is not the host's `readOnly` snapshot
+and restoration policy.
+
+Adversarial review covered the accepted mechanisms against the archived
+phantom-success/output-gate cases, August recipe twins, September build versus
+verify misrouting, read-only restoration and the five-attempt pilot above.
+The production-path regressions exercise L1 observation and L2 approval,
+late and negative-exit probes, forged summary claims, primary/extractor
+failures, reused builds, exact-id preservation, Jev twins and toolset refusal.
+The original negated production request dispatches through both real Jev
+decoding with mocked HTTP and model-prefilter fallback. Boundary tests keep
+the uncertainty band and declared-output precedence intact. Existing output,
+credit, visibility, read-only restoration and prefilter regressions also pass.
+No lexical vocabulary or host restoration rule was expanded.
+
 ## Reading "we will see"
 
 Two weeks after the switch of 2026-09-29 (so around 2026-10-13), or sooner if
