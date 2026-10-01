@@ -559,6 +559,68 @@ Mocked tests cross the actual L2 learning/credit/demotion hooks, the bounded
 Jev client and recorded client-facing trace. They prove control flow and
 accounting only; they do not measure the semantic rows of this table.
 
+### Executable verification pilot, 2026-10-02
+
+Production now contains a learned, compiled and directly reused Node recipe:
+`Ammonia/recheck-recorded-command-probes`. The
+[saved evidence](skill-subrecipe-pilot-2026-10-02.json) contains all five launch
+results, four complete trace summaries, the distillation and compilation
+responses, Jev decisions, execution evidence, fixture sources and local checks.
+The four trace-producing runs occurred on 2026-10-01 UTC, under release
+`3de709e3`; the record is dated in the operator's local timezone. No recipe was manually installed and no
+production counters were reset.
+
+The pilot separated API construction from replaying its recorded checks. The
+build created a dependency-free Node HTTP harness and three command probes:
+a passing manifest, an intentionally wrong expected response, and malformed
+input. Their recorded exit codes are `[0, 1, 1]`; an expected nonzero exit is
+a successful comparison, not a broken recipe. Build distillation omitted the
+optional verification draft and the whole build recipe was refused by the
+compiler. A separate verification request then learned a sibling recipe while
+preserving the build recipe. Jev allowed compilation (obstacle scores
+`0.12 / 0.18 / 0.17`, 244 ms, $0.000174048), and L2 produced the Node script.
+
+The first reuse ran that script through the supervised L1 path. The lexical
+output-intent fallback read negative wording such as "not a build" as
+mutating, with no output path to prove, and skipped direct dispatch. Rephrasing
+the same verification request without those verbs enabled the existing direct
+path. Trace `2026-10-01T21-46-15-936-1d3067fa.json` records `match`, `direct`
+and `success`, one deterministic phase, and no dispatch fallback. All three
+recorded comparisons passed. The skill ended with two matches, two successes,
+zero failures and zero direct failures.
+
+That final run took 14 seconds wall time. The recipe execution made **zero L1
+plan/execute calls**; the whole run still made three LLM calls for its checklist,
+routing and root acceptance ($0.0026863), plus two Jev evaluations ($0.00026901).
+This is one recipe on one fixture workspace, not a controlled performance or
+cost comparison. The script uses the existing compiler contract's trailing
+newline tolerance for recorded streams; it does not promise arbitrary strict
+byte identity.
+
+Offline checks replayed the compiled body and production fixture sources on
+Node 24.20.0. The positive case reproduced all three comparisons. Six negative
+cases (stdout, exit-code and stderr mismatches, empty manifest, unsupported
+HTTP probe shape, and missing manifest) each exited 1 with a diagnostic and
+no success envelope. All watched fixture/script bytes stayed unchanged. These
+checks did not deliberately fail or demote the production recipe. The evidence
+embeds the input, harness and observations; to reproduce, save `localVerification.input`
+as `skill-subrecipe-pilot-input.json` beside the source in
+`localVerification.harness`, then execute that `.mjs` file with the pinned Node.
+
+The launch exercise also exposed a separate MCP defect: the server's project
+retrieval configuration leaked into operator launches, which have no tenant
+receipt. Commit `3de709e3` removes that configuration only from the operator
+child environment. A real child-process regression crosses the failing runner
+boundary. [CI 36928835610](https://github.com/mgtf/atoma/actions/runs/36928835610)
+and [deployment 36929343786](https://github.com/mgtf/atoma/actions/runs/36929343786)
+passed before the successful runs.
+
+Remaining work is explicit: optional extraction during a broad build is still
+unreliable, and a valid verification request can still hit the lexical mutation
+fallback. This pilot proves the learn → Jev → compile → direct-execution chain
+when verification is its own task. Generalizing it needs reliable extraction
+and structured verification intent, not additional vocabulary in the fallback.
+
 ## Reading "we will see"
 
 Two weeks after the switch of 2026-09-29 (so around 2026-10-13), or sooner if
