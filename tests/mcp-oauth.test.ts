@@ -233,7 +233,9 @@ describe('MCP OAuth over HTTP', () => {
     expect(auth.resolveApiToken(tokens.access_token)).not.toBeNull();
     expect((await exchange(clientId, authCode)).status).toBe(400);
     expect(auth.resolveApiToken(tokens.access_token)).toBeNull();
-    expect(events.map(e => e.kind)).toContain('token.revoked');
+    expect(events.filter(e => e.kind === 'token.revoked')).toMatchObject([
+      { detail: { clientId, reason: 'authorization_code_reuse' } },
+    ]);
   });
 
   it('rotates refresh tokens, detects reuse and enforces access expiry and current roles', async () => {
@@ -248,6 +250,34 @@ describe('MCP OAuth over HTTP', () => {
     expect(auth.resolveApiToken(refreshed.access_token)?.role).toBe('org:viewer');
     expect((await post('/oauth/token', data)).status).toBe(400);
     expect(auth.resolveApiToken(refreshed.access_token)).toBeNull();
+    expect(events.filter(e => e.kind === 'token.revoked')).toMatchObject([
+      { detail: { clientId, reason: 'refresh_token_reuse' } },
+    ]);
+  });
+
+  it('journals concurrent refresh reuse once and rejects the winning credentials at the MCP boundary', async () => {
+    const clientId = await register(); const authCode = await code(clientId);
+    const tokens = await (await exchange(clientId, authCode)).json() as Tokens;
+    const tokenId = auth.resolveApiToken(tokens.access_token)!.tokenId;
+    const data = { grant_type: 'refresh_token', client_id: clientId, refresh_token: tokens.refresh_token, resource: `${base}/mcp` };
+    // Two HTTP requests share one refresh credential, as independent client instances can.
+    const responses = await Promise.all([post('/oauth/token', data), post('/oauth/token', data)]);
+    expect(responses.map(r => r.status).sort()).toEqual([200, 400]);
+    const rotated = await responses.find(r => r.status === 200)!.json() as Tokens;
+    expect(await responses.find(r => r.status === 400)!.json()).toEqual({ error: 'invalid_grant' });
+    const denied = await fetch(`${base}/mcp`, { headers: { Authorization: `Bearer ${rotated.access_token}` } });
+    expect(denied.status).toBe(401);
+    expect((await post('/oauth/token', { ...data, refresh_token: rotated.refresh_token })).status).toBe(400);
+    expect((await post('/oauth/token', data)).status).toBe(400);
+    expect(events.filter(e => e.kind === 'token.revoked')).toEqual([{
+      kind: 'token.revoked', actorType: 'principal', actorId: viewer.principalId,
+      orgId: viewer.orgId, summary: 'MCP OAuth authorization revoked',
+      detail: { tokenId, clientId, reason: 'refresh_token_reuse' },
+    }]);
+    for (const secret of [authCode, tokens.access_token, tokens.refresh_token, rotated.access_token, rotated.refresh_token]) {
+      expect(JSON.stringify(events)).not.toContain(secret);
+      expect(JSON.stringify(events)).not.toContain(createHash('sha256').update(secret).digest('hex'));
+    }
   });
 
   it('requires explicit consent bound to the displayed browser session, origin and organisation', async () => {
@@ -331,8 +361,12 @@ describe('MCP OAuth over HTTP', () => {
     const clientId = await register(); const tokens = await (await exchange(clientId, await code(clientId))).json() as Tokens;
     await post('/oauth/revoke', { client_id: await register(), token: tokens.refresh_token });
     expect(auth.resolveApiToken(tokens.access_token)).not.toBeNull();
+    expect(events.filter(e => e.kind === 'token.revoked')).toHaveLength(0);
     await post('/oauth/revoke', { client_id: clientId, token: tokens.refresh_token });
     expect(auth.resolveApiToken(tokens.access_token)).toBeNull();
-    expect(events.map(e => e.kind)).toContain('token.revoked');
+    await post('/oauth/revoke', { client_id: clientId, token: tokens.refresh_token });
+    expect(events.filter(e => e.kind === 'token.revoked')).toMatchObject([
+      { detail: { clientId, reason: 'client_revocation' } },
+    ]);
   });
 });

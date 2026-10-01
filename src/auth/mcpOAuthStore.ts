@@ -48,7 +48,11 @@ interface CodeRow {
   code_hash: string; client_id: string; redirect_uri: string; challenge: string;
   resource: string; principal_id: string; org_id: string; expires_at: number; token_id: string | null;
 }
-type Revoked = (receipt: { tokenId: string; principalId: string; orgId: string }) => void;
+export interface McpOAuthRevocation {
+  tokenId: string; principalId: string; orgId: string; clientId: string;
+  reason: 'authorization_code_reuse' | 'refresh_token_reuse' | 'client_revocation';
+}
+type Revoked = (receipt: McpOAuthRevocation) => void;
 interface GrantRow {
   token_id: string; client_id: string; resource: string; refresh_expires_at: number;
   principal_id: string; org_id: string; revoked_at: string | null; used: number;
@@ -119,7 +123,7 @@ export class McpOAuthStore {
         !/^[A-Za-z0-9._~-]{43,128}$/.test(input.verifier) ||
         createHash('sha256').update(input.verifier).digest('base64url') !== row.challenge) return null;
       // A valid replay revokes the authorization it previously redeemed.
-      if (row.token_id) { if (auth.revokeApiToken(row.principal_id, row.token_id)) onRevoked?.({ tokenId: row.token_id, principalId: row.principal_id, orgId: row.org_id }); return null; }
+      if (row.token_id) { if (auth.revokeApiToken(row.principal_id, row.token_id)) onRevoked?.({ tokenId: row.token_id, principalId: row.principal_id, orgId: row.org_id, clientId: row.client_id, reason: 'authorization_code_reuse' }); return null; }
       const client = this.client(input.clientId);
       if (!client || !this.member(row.principal_id, row.org_id)) return null;
       const minted = auth.createApiToken({ principalId: row.principal_id, orgId: row.org_id, label: `OAuth: ${client.client_name}` });
@@ -138,7 +142,7 @@ export class McpOAuthStore {
         .get(oauthHash(input.token)) as GrantRow | undefined;
       if (!row || row.client_id !== input.clientId || row.resource !== input.resource || row.revoked_at ||
         row.refresh_expires_at <= this.now() || !this.client(input.clientId)) return null;
-      if (row.used) { if (auth.revokeApiToken(row.principal_id, row.token_id)) onRevoked?.({ tokenId: row.token_id, principalId: row.principal_id, orgId: row.org_id }); return null; }
+      if (row.used) { if (auth.revokeApiToken(row.principal_id, row.token_id)) onRevoked?.({ tokenId: row.token_id, principalId: row.principal_id, orgId: row.org_id, clientId: row.client_id, reason: 'refresh_token_reuse' }); return null; }
       if (!this.member(row.principal_id, row.org_id)) return null;
       this.db.prepare('UPDATE auth_mcp_refresh SET used = 1 WHERE token_hash = ?').run(oauthHash(input.token));
       const access = `atoma_${secret()}`;
@@ -170,7 +174,7 @@ export class McpOAuthStore {
       WHERE g.client_id = ? AND (t.token_hash = ? OR t.token_id IN
         (SELECT token_id FROM auth_mcp_refresh WHERE token_hash = ?))`)
       .get(clientId, oauthHash(token), oauthHash(token)) as { token_id: string; principal_id: string; org_id: string } | undefined;
-    if (row && auth.revokeApiToken(row.principal_id, row.token_id)) onRevoked?.({ tokenId: row.token_id, principalId: row.principal_id, orgId: row.org_id });
+    if (row && auth.revokeApiToken(row.principal_id, row.token_id)) onRevoked?.({ tokenId: row.token_id, principalId: row.principal_id, orgId: row.org_id, clientId, reason: 'client_revocation' });
     return;
   }
 

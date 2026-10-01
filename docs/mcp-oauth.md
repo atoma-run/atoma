@@ -151,6 +151,15 @@ revocation so replay can revoke the current generation. The existing auth sweep
 prunes expired protocol state. No new secret-encryption key or product store is
 required. Existing API tokens retain their current behavior.
 
+OAuth `token.revoked` journal entries include `clientId` and `reason`:
+`authorization_code_reuse`, `refresh_token_reuse`, or `client_revocation`
+(the client called `/oauth/revoke`). No credential or credential hash is logged.
+Older entries lack the reason and cannot distinguish these cases. Concurrent
+refreshes using the same credential produce one successful rotation and one
+reuse rejection, which revokes even the newly issued credentials. A reuse event
+establishes repetition, not whether it came from concurrent clients, a retry
+after a lost response, or credential theft.
+
 Wire tests exercise consent, client/resource/PKCE binding, replay, rotation,
 expiry, live roles and revocation. The process-level auth test follows upstream
 login back to consent; the auth release smoke exchanges OAuth credentials and

@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { z } from 'zod';
 import type { AuthGate } from './gate.js';
-import { MCP_CODE_TTL_MS, MCP_OAUTH_SCOPE, oauthHash } from './mcpOAuthStore.js';
+import { MCP_CODE_TTL_MS, MCP_OAUTH_SCOPE, oauthHash, type McpOAuthRevocation } from './mcpOAuthStore.js';
 import { authCookieName, parseCookieHeader, retireSessionCookie, serializeCookie, SESSION_COOKIE } from './sessions.js';
 import { BoundedFixedWindowRateLimiter } from './rate-limit.js';
 import { ClientMetadataResolver, isAllowedRedirectUri, matchesRegisteredRedirect, metadataClientUrl, type FetchDocument, type MetadataClient } from './clientMetadata.js';
@@ -168,9 +168,10 @@ export class McpOAuth {
     return true;
   }
 
-  private readonly revoked = (receipt: { tokenId: string; principalId: string; orgId: string }): void => {
+  private readonly revoked = (receipt: McpOAuthRevocation): void => {
     this.options.emit({ kind: 'token.revoked', actorType: 'principal', actorId: receipt.principalId,
-      orgId: receipt.orgId, summary: 'MCP OAuth authorization revoked', detail: { tokenId: receipt.tokenId } });
+      orgId: receipt.orgId, summary: 'MCP OAuth authorization revoked',
+      detail: { tokenId: receipt.tokenId, clientId: receipt.clientId, reason: receipt.reason } });
   };
 
   private async authorize(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
