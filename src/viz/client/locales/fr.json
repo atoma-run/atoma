@@ -1218,7 +1218,7 @@
   "card.jev.deferred": "↑ décision du modèle",
   "card.jev.newRecipe": "✓ nouvelle recette",
   "card.jev.twin": "✕ recette en double",
-  "card.jev.probability": "p {{value}} %",
+  "card.jev.probability": "score {{value}} %",
   "card.jev.confidence": "conf {{value}} %",
   "filters.jev": "Jev",
   "detail.role.learn-skill": "Apprentissage de recette",

@@ -1218,7 +1218,7 @@
   "card.jev.deferred": "↑ ماڈل فیصلہ کرتا ہے",
   "card.jev.newRecipe": "✓ نیا نسخہ",
   "card.jev.twin": "✕ نقلی نسخہ",
-  "card.jev.probability": "p {{value}}%",
+  "card.jev.probability": "اسکور {{value}}٪",
   "card.jev.confidence": "اعتماد {{value}}%",
   "filters.jev": "Jev",
   "detail.role.learn-skill": "نسخہ سیکھنا",

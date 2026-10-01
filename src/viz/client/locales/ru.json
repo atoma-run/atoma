@@ -1218,7 +1218,7 @@
   "card.jev.deferred": "↑ решает модель",
   "card.jev.newRecipe": "✓ новый рецепт",
   "card.jev.twin": "✕ дубликат рецепта",
-  "card.jev.probability": "p {{value}}%",
+  "card.jev.probability": "оценка {{value}}%",
   "card.jev.confidence": "увер. {{value}}%",
   "filters.jev": "Jev",
   "detail.role.learn-skill": "Изучение рецептов",

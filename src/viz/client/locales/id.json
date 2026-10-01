@@ -1218,7 +1218,7 @@
   "card.jev.deferred": "↑ model memutuskan",
   "card.jev.newRecipe": "✓ resep baru",
   "card.jev.twin": "✕ resep duplikat",
-  "card.jev.probability": "p {{value}}%",
+  "card.jev.probability": "skor {{value}}%",
   "card.jev.confidence": "keyakinan {{value}}%",
   "filters.jev": "Jev",
   "detail.role.learn-skill": "Pembelajaran resep",

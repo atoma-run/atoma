@@ -1218,7 +1218,7 @@
   "card.jev.deferred": "↑ मॉडल तय करता है",
   "card.jev.newRecipe": "✓ नई रेसिपी",
   "card.jev.twin": "✕ डुप्लिकेट रेसिपी",
-  "card.jev.probability": "p {{value}}%",
+  "card.jev.probability": "स्कोर {{value}}%",
   "card.jev.confidence": "विश्वास {{value}}%",
   "filters.jev": "Jev",
   "detail.role.learn-skill": "रेसिपी सीखना",

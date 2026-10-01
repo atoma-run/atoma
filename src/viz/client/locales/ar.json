@@ -1218,7 +1218,7 @@
   "card.jev.deferred": "↑ يقرر النموذج",
   "card.jev.newRecipe": "✓ وصفة جديدة",
   "card.jev.twin": "✕ وصفة مكررة",
-  "card.jev.probability": "p {{value}}٪",
+  "card.jev.probability": "النتيجة {{value}}٪",
   "card.jev.confidence": "الثقة {{value}}٪",
   "filters.jev": "Jev",
   "detail.role.learn-skill": "تعلّم الوصفات",

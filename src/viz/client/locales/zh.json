@@ -1218,7 +1218,7 @@
   "card.jev.deferred": "↑ 由模型决定",
   "card.jev.newRecipe": "✓ 新配方",
   "card.jev.twin": "✕ 重复配方",
-  "card.jev.probability": "概率 {{value}}%",
+  "card.jev.probability": "评分 {{value}}%",
   "card.jev.confidence": "置信度 {{value}}%",
   "filters.jev": "Jev",
   "detail.role.learn-skill": "配方学习",

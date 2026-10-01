@@ -1218,7 +1218,7 @@
   "card.jev.deferred": "↑ o modelo decide",
   "card.jev.newRecipe": "✓ nova receita",
   "card.jev.twin": "✕ receita duplicada",
-  "card.jev.probability": "p {{value}}%",
+  "card.jev.probability": "pontuação {{value}}%",
   "card.jev.confidence": "conf {{value}}%",
   "filters.jev": "Jev",
   "detail.role.learn-skill": "Aprendizagem de receitas",

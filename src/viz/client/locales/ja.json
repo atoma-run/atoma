@@ -1218,7 +1218,7 @@
   "card.jev.deferred": "↑ モデルが判断",
   "card.jev.newRecipe": "✓ 新しいレシピ",
   "card.jev.twin": "✕ 重複レシピ",
-  "card.jev.probability": "p {{value}}%",
+  "card.jev.probability": "スコア {{value}}%",
   "card.jev.confidence": "信頼度 {{value}}%",
   "filters.jev": "Jev",
   "detail.role.learn-skill": "レシピ学習",
