@@ -244,6 +244,7 @@ export interface VizProject {
   repositoryFullName: string | null;
   repositoryUrl: string | null;
   repositoryError: string | null;
+  costUsd?: number | null;
   runCount?: number;
   lastRunAt?: string | null;
   createdAt: string;
@@ -294,6 +295,9 @@ export interface VizProjectRun {
   costUsd: number | null;
   /** The per-tier selectors the run was resolved to; null before it started. */
   models?: Record<'l1' | 'l2' | 'l3', { selection: string; provider: string; payer: string; source: string }> | null;
+  tokens?: number | null;
+  llmCalls?: number | null;
+  jevCalls?: number | null;
   durationS: number | null;
   error: string | null;
   createdAt: string;

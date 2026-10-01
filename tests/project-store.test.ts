@@ -90,6 +90,28 @@ function hostPaths(run: string = randomUUID()) {
   };
 }
 
+it('aggregates recorded spend across all project runs and keeps organisation scoping', () => {
+  const alice = actor('Alice');
+  const bob = actor('Bob');
+  const project = createProject(alice);
+  expect(store.projectRunSummary(alice.orgId, project.projectId)).toMatchObject({ runCount: 0, costUsd: 0 });
+  for (const [index, status] of (['delivered', 'failed', 'cancelled'] as const).entries()) {
+    const run = store.createProjectRun({
+      orgId: alice.orgId, projectId: project.projectId, principalId: alice.principalId,
+      request: runRequest('cost-' + index), hostPaths: hostPaths('cost-' + index),
+    })!.run;
+    store.transitionProjectRun({ orgId: alice.orgId, projectRunId: run.projectRunId, from: 'queued', to: 'running' });
+    store.transitionProjectRun({ orgId: alice.orgId, projectRunId: run.projectRunId, from: 'running', to: status,
+      traceId: 'trace-' + index,
+      ...(status === 'delivered' ? {} : { error: 'Stopped during verification' }),
+      stats: { ...deliveredStats, outcome: status, costUsd: (index + 1) / 10 },
+    });
+  }
+  expect(store.projectRunSummary(alice.orgId, project.projectId).costUsd).toBeCloseTo(0.6);
+  expect(store.projectRunSummary(alice.orgId, project.projectId).runCount).toBe(3);
+  expect(store.projectRunSummary(bob.orgId, project.projectId)).toMatchObject({ runCount: 0, costUsd: 0 });
+});
+
 const deliveredStats: RunStats = {
   outcome: 'delivered',
   costUsd: 0.12,

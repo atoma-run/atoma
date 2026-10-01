@@ -511,6 +511,7 @@ describe('the Jev decider — choices', () => {
     await decider.choose(choiceRequest);
     await decider.choose(choiceRequest);
     expect(sent).toBe(4);
+    expect(records.map(r => r.requestCount)).toEqual([1, 1, 0, 0, 1, 1, 0]);
     expect(records.map((r) => r.failure ?? r.outcome)).toEqual([
       expect.stringMatching(/HTTP 422/),
       'picked Methane',
@@ -533,6 +534,7 @@ describe('the Jev decider — choices', () => {
     const decider = createJevDecider({ apiKey: KEY, record: (i) => records.push(i), fetchImpl: overloadedOnce });
     for (let run = 0; run < 4; run++) await decider.choose(choiceRequest);
     expect(sent).toBe(8);
+    expect(records.map(r => r.requestCount)).toEqual([2, 2, 2, 2]);
     expect(records.map((r) => r.outcome)).toEqual(Array(4).fill('picked Methane'));
     expect(records.every((r) => r.failure === undefined)).toBe(true);
   });
@@ -1224,6 +1226,7 @@ describe('the jev trace event', () => {
       role: 'validate-result',
       evaluator: JEV_EVALUATOR,
       requestId: 'req-7',
+      requestCount: 2,
       answer: { yes: { requirement_1: 0.9, acceptable: 0.9 } },
       outcome: 'approved',
       durationMs: 180,
@@ -1249,6 +1252,7 @@ describe('the jev trace event', () => {
       kind: 'jev',
       outcome: 'approved',
       requestId: 'req-7',
+      requestCount: 2,
       actor: { name: 'Idioblast', tier: 2 },
       child: { name: 'Methane' },
       branchId: 'b1',

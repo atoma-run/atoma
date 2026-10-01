@@ -2700,6 +2700,7 @@ describe('drawProjects', () => {
       repositoryUrl: null,
       repositoryError: null,
       runCount: 3,
+      costUsd: 1.23,
       lastRunAt: '2026-08-26T12:00:00.000Z',
       createdAt: '2026-08-20T00:00:00.000Z',
       updatedAt: '2026-08-20T00:00:00.000Z',
@@ -2717,6 +2718,7 @@ describe('drawProjects', () => {
     expect(privateCtx.texts.some((text) => text.value === 'atoma-org/weather-lab')).toBe(true);
     expect(privateCtx.texts.some((text) => String(text.value).includes('Created'))).toBe(true);
     expect(privateCtx.texts.some((text) => String(text.value).includes('3 runs'))).toBe(true);
+    expect(privateCtx.texts.some((text) => String(text.value).startsWith('3 runs · $1.23'))).toBe(true);
     expect(privateCtx.texts.some((text) => String(text.value).includes('last run'))).toBe(true);
     expect(privateCtx.privateRepositoryIcons).toHaveLength(1);
 
@@ -2892,8 +2894,8 @@ describe('drawProjects', () => {
     expect(linkOrigin.x + repositoryLink.width).toBeLessThanOrEqual(rightEdge);
     expect(status.node.anchor.x).toBe(0);
     const verdict = ctx.texts.find((text) => String(text.value).startsWith('delivered'));
-    expect(verdict!.parent.toGlobal({ x: verdict!.x, y: verdict!.y }).x).toBe(rightEdge);
-    expect(verdict!.node.anchor.x).toBe(1);
+    expect(verdict!.parent.toGlobal({ x: verdict!.x, y: verdict!.y }).x).toBe(column.x + 34 + BUTTON_LABEL_INSET);
+    expect(verdict!.node.anchor.x).toBe(0);
     expect(rightEdge).toBeGreaterThan(staleCap);
     expect(ctx.texts.some((text) => text.value === 'atoma-org/weather-lab')).toBe(false);
     expect(ctx.privateRepositoryIcons).toHaveLength(1);
@@ -2969,7 +2971,7 @@ describe('drawProjects', () => {
   // The status column was a FIXED 108px reservation, so a row surrendered the
   // same width to `queued` as to `delivered · $12.34` and truncated the label a
   // reader actually came for to pay for space nothing drew in.
-  it('sizes the status column to the widest status on screen, not a constant', () => {
+  it('keeps the full run card width regardless of status length', () => {
     const runWith = (
       status: VizProjectRun['status'],
       costUsd: number | null
@@ -3004,13 +3006,12 @@ describe('drawProjects', () => {
       return ctx.buttons.find((button) => button.id.startsWith('project.run.'))!.width;
     };
 
-    // Short verdicts leave more room for the goal than long ones do.
+    // Status is inside the card, so it never takes width from the goal.
     const short = goalWidthFor([runWith('queued', null)]);
     const long = goalWidthFor([runWith('delivered', 12.34)]);
-    expect(short).toBeGreaterThan(long);
+    expect(short).toBe(long);
 
-    // And the widest verdict present sets the column for EVERY row, so the
-    // goals stay in one straight left-aligned column rather than ragged.
+    // Mixed verdicts keep the same full-width cards.
     const mixed = goalWidthFor([runWith('queued', null), runWith('delivered', 12.34)]);
     expect(mixed).toBe(long);
   });
@@ -3038,6 +3039,9 @@ describe('drawProjects', () => {
                   traceId: 'trace-1',
                   costUsd,
                   durationS: 12,
+                  tokens: 12500,
+                  llmCalls: 7,
+                  jevCalls: 9,
                   error: null,
                   createdAt: '2026-08-20T00:01:00.000Z',
                   endedAt: '2026-08-20T00:02:00.000Z',
@@ -3050,6 +3054,14 @@ describe('drawProjects', () => {
         1000,
         720
       );
+      const card = ctx.buttons.find(button => button.id === 'project.run.trace-1')!;
+      const metrics = ctx.texts.find(text => String(text.value).includes('Jev API calls: 9'))!;
+      expect(metrics.value).toContain('Tokens: 12,500');
+      expect(metrics.value).toContain('LLM calls: 7');
+      expect(metrics.x).toBe(card.x + BUTTON_LABEL_INSET);
+      expect(metrics.y).toBeGreaterThan(card.y + 30);
+      expect(metrics.y + 12).toBeLessThan(card.y + card.height);
+      expect(ctx.tooltips.length).toBeGreaterThanOrEqual(2);
       return String(
         ctx.texts.find((text) => String(text.value).startsWith('delivered'))!.value
       );
@@ -3085,12 +3097,13 @@ describe('drawProjects', () => {
     for (const [description, run] of [
       ['an error line', withSecondLine({ error: 'runner finished with outcome failed' })],
       [
-        'a commit receipt',
+        'a pull request receipt',
         withSecondLine({
           status: 'delivered',
           publication: {
             status: 'published',
             commitSha: '0123456789abcdef',
+            pullRequestUrl: 'https://github.com/atoma-org/weather-lab/pull/1',
             repositoryUrl: 'https://github.com/atoma-org/weather-lab',
           },
         }),
@@ -3115,15 +3128,17 @@ describe('drawProjects', () => {
       const secondLine = ctx.texts.find(
         (text) =>
           String(text.value).includes('runner finished') ||
-          String(text.value).startsWith('0123456789')
+          String(text.value) === t('projects.pullRequest')
       );
       expect(secondLine, `missing second line: ${description}`).toBeTruthy();
       const secondLineTop = secondLine!.parent.toGlobal({
         x: secondLine!.x,
         y: secondLine!.y,
       }).y;
-      // Below the button's box, not merely below its top edge.
-      expect(secondLineTop).toBeGreaterThanOrEqual(titleTop + title.height);
+      // Secondary information stays below metrics, inside the card.
+      expect(secondLineTop).toBeGreaterThan(titleTop + 68);
+      expect(secondLineTop + 12).toBeLessThanOrEqual(titleTop + title.height);
+      expect(ctx.texts.some(text => String(text.value).includes('0123456789'))).toBe(false);
 
       // ...and on the LABEL's vertical, not the button's border. The error
       // used to start at the button's x while the goal it explains started

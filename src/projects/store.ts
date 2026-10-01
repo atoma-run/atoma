@@ -1534,16 +1534,17 @@ END;
   projectRunSummary(
     orgIdInput: string,
     projectIdInput: string
-  ): { runCount: number; lastRunAt: string | null } {
+  ): { runCount: number; lastRunAt: string | null; costUsd: number | null } {
     const orgId = organisationIdSchema.parse(orgIdInput);
     const projectId = projectIdSchema.parse(projectIdInput);
     const row = this.db
       .prepare(
-        `SELECT COUNT(*) AS run_count, MAX(created_at) AS last_run_at
+        `SELECT COUNT(*) AS run_count, MAX(created_at) AS last_run_at,
+           SUM(json_extract(stats_json, '$.costUsd')) AS cost_usd
          FROM project_runs WHERE project_id = ? AND org_id = ?`
       )
-      .get(projectId, orgId) as { run_count: number; last_run_at: string | null };
-    return { runCount: row.run_count, lastRunAt: row.last_run_at };
+      .get(projectId, orgId) as { run_count: number; last_run_at: string | null; cost_usd: number | null };
+    return { runCount: row.run_count, lastRunAt: row.last_run_at, costUsd: row.run_count === 0 ? 0 : row.cost_usd };
   }
 
   /**

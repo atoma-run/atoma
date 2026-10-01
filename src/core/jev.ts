@@ -586,8 +586,8 @@ export function createJevDecider(opts: {
   };
 
   type Asked =
-    | { readonly ok: true; readonly result: JevResult; readonly durationMs: number }
-    | { readonly ok: false; readonly failure: string; readonly durationMs: number };
+    | { readonly ok: true; readonly result: JevResult; readonly durationMs: number; readonly requestCount: number }
+    | { readonly ok: false; readonly failure: string; readonly durationMs: number; readonly requestCount: number };
 
   /** One bounded call, with the breaker and the run's cancellation applied. */
   async function ask(
@@ -597,11 +597,12 @@ export function createJevDecider(opts: {
     deadlineAt = Date.now() + timeoutMs
   ): Promise<Asked> {
     const remainingMs = Math.min(timeoutMs, deadlineAt - Date.now());
-    if (remainingMs <= 0) return { ok: false, failure: 'timeout: decision deadline reached', durationMs: 0 };
-    if (signal?.aborted) return { ok: false, failure: 'aborted: the run was cancelled', durationMs: 0 };
+    if (remainingMs <= 0) return { ok: false, failure: 'timeout: decision deadline reached', durationMs: 0, requestCount: 0 };
+    if (signal?.aborted) return { ok: false, failure: 'aborted: the run was cancelled', durationMs: 0, requestCount: 0 };
     if (failures >= maxFailures) {
-      return { ok: false, failure: `skipped: ${failures} failed calls in this run`, durationMs: 0 };
+      return { ok: false, failure: `skipped: ${failures} failed calls in this run`, durationMs: 0, requestCount: 0 };
     }
+    let requestCount = 0;
     const startedAt = Date.now();
     const controller = new AbortController();
     let timedOut = false;
@@ -619,9 +620,12 @@ export function createJevDecider(opts: {
         questions,
         signal: controller.signal,
         deadlineAt: startedAt + remainingMs,
-        ...(opts.fetchImpl ? { fetchImpl: opts.fetchImpl } : {}),
+        fetchImpl: (...args) => {
+          requestCount += 1;
+          return (opts.fetchImpl ?? fetch)(...args);
+        },
       });
-      return { ok: true, result, durationMs: Date.now() - startedAt };
+      return { ok: true, result, durationMs: Date.now() - startedAt, requestCount };
     } catch (error) {
       const cancelled = !timedOut && signal?.aborted === true;
       if (!cancelled) failures += 1;
@@ -635,6 +639,7 @@ export function createJevDecider(opts: {
               ? error.message
               : String(error),
         durationMs: Date.now() - startedAt,
+        requestCount,
       };
     } finally {
       clearTimeout(timer);
@@ -642,7 +647,7 @@ export function createJevDecider(opts: {
     }
   }
 
-  const unanswered = { usage: { inputTokens: 0, outputTokens: 0 }, costUsd: 0 };
+  const unanswered = { requestCount: 0, usage: { inputTokens: 0, outputTokens: 0 }, costUsd: 0 };
   const attribution = (request: {
     readonly actorName?: string;
     readonly actorTier?: JevDecisionInfo['actorTier'];
@@ -656,6 +661,7 @@ export function createJevDecider(opts: {
     ...(asked.result.servedModel ? { servedModel: asked.result.servedModel } : {}),
     ...(asked.result.requestId ? { requestId: asked.result.requestId } : {}),
     durationMs: asked.durationMs,
+    requestCount: asked.requestCount,
     usage: { inputTokens: asked.result.inputTokens, outputTokens: asked.result.outputTokens },
     costUsd: asked.result.costUsd,
   });
@@ -688,7 +694,7 @@ export function createJevDecider(opts: {
         // Ranking is relative only. It NEVER approves a recipe or declares that none fits.
         const ranked = await ask(roster.state, { choice: roster.questions['choice']! }, request.signal, deadlineAt);
         if (!ranked.ok) {
-          safeRecord({ ...base, ...unanswered, outcome: 'model decides', failure: ranked.failure, durationMs: ranked.durationMs });
+          safeRecord({ ...base, ...unanswered, outcome: 'model decides', failure: ranked.failure, durationMs: ranked.durationMs, requestCount: ranked.requestCount });
           return null;
         }
         safeRecord({ ...base, ...answered(ranked), outcome: 'ranked recipe shortlist',
@@ -706,7 +712,7 @@ export function createJevDecider(opts: {
       }
       const asked = await ask(plan.state, plan.questions, request.signal, deadlineAt);
       if (!asked.ok) {
-        safeRecord({ ...base, ...unanswered, outcome: 'model decides', failure: asked.failure, durationMs: asked.durationMs });
+        safeRecord({ ...base, ...unanswered, outcome: 'model decides', failure: asked.failure, durationMs: asked.durationMs, requestCount: asked.requestCount });
         return null;
       }
       const reading = readChoice(plan, asked.result.answers);
@@ -741,7 +747,7 @@ export function createJevDecider(opts: {
       }
       const asked = await ask(plan.state, plan.questions, request.signal);
       if (!asked.ok) {
-        safeRecord({ ...base, ...unanswered, outcome: 'deferred to the model', failure: asked.failure, durationMs: asked.durationMs });
+        safeRecord({ ...base, ...unanswered, outcome: 'deferred to the model', failure: asked.failure, durationMs: asked.durationMs, requestCount: asked.requestCount });
         return null;
       }
       const reading = readApproval(plan, asked.result.answers);
@@ -759,7 +765,7 @@ export function createJevDecider(opts: {
       }
       const asked = await ask(plan.state, plan.questions, request.signal);
       if (!asked.ok) {
-        safeRecord({ ...base, ...unanswered, outcome: 'deferred to the model', failure: asked.failure, durationMs: asked.durationMs });
+        safeRecord({ ...base, ...unanswered, outcome: 'deferred to the model', failure: asked.failure, durationMs: asked.durationMs, requestCount: asked.requestCount });
         return null;
       }
       const reading = readCompilation(asked.result.answers);
@@ -781,7 +787,7 @@ export function createJevDecider(opts: {
         if (!asked.ok) {
           safeRecord({ ...base, ...unanswered, outcome: `saved as before: partial twin comparison (${offset}/${unique.length})`,
             coverage: { compared: offset, total: unique.length, complete: false },
-            failure: asked.failure, durationMs: asked.durationMs });
+            failure: asked.failure, durationMs: asked.durationMs, requestCount: asked.requestCount });
           return null;
         }
         const reading = readTwin(plan, asked.result.answers);

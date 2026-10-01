@@ -122,7 +122,22 @@ export function summarizeTraceFile(file: string): VizRunIndexEntry | null {
     if (goal) entry.goal = runLabelFromGoal(goal, RUN_INDEX_GOAL_MAX);
     const input = typeof run.totals?.inputTokens === 'number' ? run.totals.inputTokens : 0;
     const output = typeof run.totals?.outputTokens === 'number' ? run.totals.outputTokens : 0;
-    if (input + output > 0) entry.tokens = input + output;
+    if (typeof run.totals?.inputTokens === 'number' && typeof run.totals.outputTokens === 'number') {
+      entry.tokens = input + output;
+    }
+    if (Array.isArray(run.events)) {
+      let calls: number | null = 0;
+      for (const event of run.events as unknown[]) {
+        if (!event || typeof event !== 'object' || !('kind' in event) || event.kind !== 'jev') continue;
+        if (!('requestCount' in event) || typeof event.requestCount !== 'number' ||
+            !Number.isInteger(event.requestCount) || event.requestCount < 0) {
+          calls = null;
+          break;
+        }
+        calls += event.requestCount;
+      }
+      entry.jevCalls = calls;
+    }
     if (typeof run.endedAt === 'string') entry.endedAt = run.endedAt;
     if (typeof run.durationMs === 'number') entry.durationMs = run.durationMs;
     if (run.degraded === true) entry.degraded = true;

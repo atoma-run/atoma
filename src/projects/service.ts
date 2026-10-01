@@ -1,3 +1,4 @@
+import { summarizeTraceFile } from '../viz/runIndex.js';
 import type { IncomingMessage } from 'node:http';
 import type { Viewer } from '../auth/store.js';
 import { roleAtLeast } from '../auth/store.js';
@@ -98,11 +99,15 @@ function publicRun(
     runsPath: run.hostPaths.runsPath,
     traceId: run.traceId,
   });
+  const trace = traceFile ? summarizeTraceFile(traceFile) : null;
   return {
     ...base,
     error: redacted(base.error),
     traceId: run.traceId ?? (traceFile ? run.projectRunId : null),
-    costUsd: run.stats?.costUsd ?? null,
+    costUsd: run.stats?.costUsd ?? trace?.costUsd ?? null,
+    tokens: trace?.tokens ?? null,
+    llmCalls: run.stats?.llmCalls ?? trace?.calls ?? null,
+    jevCalls: trace?.jevCalls ?? null,
     // The per-tier selectors this run was RESOLVED to, from the immutable payer
     // ledger written at start: what a relaunch on other models is compared
     // against. Null for a run started before the ledger existed.
@@ -131,7 +136,8 @@ function publicRun(
 
 function publicProject(
   project: Project,
-  runSummary: { runCount: number; lastRunAt: string | null } = {
+  runSummary: { runCount: number; lastRunAt: string | null; costUsd: number | null } = {
+    costUsd: 0,
     runCount: 0,
     lastRunAt: null,
   }

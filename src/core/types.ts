@@ -650,6 +650,8 @@ export interface JevDecider {
 
 /** One recorded Jev evaluation. The trace event is `VizJevEvent`. */
 export interface JevDecisionInfo {
+  /** HTTP attempts, including retries; zero for a locally skipped decision. */
+  requestCount?: number;
   readonly coverage?: { readonly compared: number; readonly total: number; readonly complete: boolean };
   readonly role: 'prefilter' | 'validate-plan' | 'validate-result' | 'learn-skill' | 'learn-event-skill' | 'compile-skill';
   /** `<vendor>:<model>` as requested. */

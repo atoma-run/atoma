@@ -19,6 +19,25 @@ afterEach(() => {
 });
 
 describe('viz run index', () => {
+  it('counts Jev HTTP attempts, preserves unknown legacy counts and reports zero tokens', () => {
+    root = mkdtempSync(join(tmpdir(), 'atoma-run-index-'));
+    const file = join(root, 'metrics.json');
+    const summarize = (events: unknown[]) => {
+      writeFileSync(file, JSON.stringify({
+        id: 'metrics', label: 'metrics', startedAt: '2026-10-02T00:00:00Z',
+        totals: { calls: 3, inputTokens: 0, outputTokens: 0 }, events,
+      }));
+      return summarizeTraceFile(file);
+    };
+    expect(summarize([
+      { kind: 'jev', requestCount: 2 },
+      { kind: 'jev', requestCount: 1, failure: 'timeout' },
+      { kind: 'jev', requestCount: 0, failure: 'skipped' },
+      { kind: 'llm' },
+    ])).toMatchObject({ tokens: 0, calls: 3, jevCalls: 3 });
+    expect(summarize([])).toMatchObject({ jevCalls: 0 });
+    expect(summarize([{ kind: 'jev' }])).toMatchObject({ jevCalls: null });
+  });
   it('summarizes a persisted trace and sorts newest first', () => {
     root = mkdtempSync(join(tmpdir(), 'atoma-run-index-'));
     const file = join(root, 'run.json');

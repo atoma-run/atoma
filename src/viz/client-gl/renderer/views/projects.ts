@@ -1,12 +1,12 @@
-import { Container, Rectangle } from 'pixi.js';
+import { Container, Graphics, Rectangle } from 'pixi.js';
 import { dateTimeFormat } from '../../../client/date-format.js';
 import type { LaunchProfile, VizProjectRun } from '../../../client/types.js';
 import { BUTTON_LABEL_INSET } from '../../gpu-renderer.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { projectGuidanceOpen } from '../../store.js';
 import { GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
-import { truncate } from '../copy.js';
-import { relativeTime } from '../relative-time.js';
+import { fmtMs } from '../../../client/run-utils.js';
+import { relativeTime, timestampTooltip } from '../relative-time.js';
 import { createScrollPane } from '../scroll-pane.js';
 import { drawViewFrame, viewFrame, VIEW_FRAME_CONTENT_TOP, VIEW_FRAME_PAD } from '../view-frame.js';
 
@@ -39,36 +39,10 @@ const COMPACT_ROW_HEIGHT = ROW_HEIGHT;
 const SELECTED_PROJECT_DETAIL_HEIGHT = ROW_HEIGHT;
 const SELECTED_PROJECT_COMPACT_DETAIL_HEIGHT = ROW_HEIGHT;
 const COMPACT_PROJECT_PANEL_WIDTH = 400;
-const RUN_ROW_HEIGHT = 46;
-/**
- * Extra vertical room for a second line — commit hash or error — stacked
- * BELOW the run button in wide (non-compact) rows. The button itself keeps
- * `RUN_BUTTON_HEIGHT`'s single-line height; this is purely appended row
- * height, so the second line's text never falls inside the button's label.
- */
+const RUN_CARD_HEIGHT = 92;
+const RUN_COMPACT_CARD_HEIGHT = 128;
+const RUN_ROW_GAP = 14;
 const RUN_SECOND_LINE_EXTRA = 20;
-/** Height of the run goal button itself; the row height above adds the air. */
-const RUN_BUTTON_HEIGHT = 32;
-/** Non-compact: where the second line starts, measured from the row's top. */
-const RUN_SECOND_LINE_Y = RUN_BUTTON_HEIGHT + 4;
-/**
- * The status column was a FIXED 108px reservation: every row surrendered the
- * same width whether the verdict read `delivered · $12.34` or just `queued`,
- * so the label a reader came for — the project name, the run goal — was
- * truncated to pay for space nothing drew in, AND `delivered · $1.02` still
- * did not fit in it, losing its own cost to an ellipsis. Both halves of that
- * are the same mistake: guessing a width instead of measuring one.
- */
-/** Floor: below this the column is too narrow to read a verdict in. */
-const STATUS_COL_MIN = 44;
-/**
- * Ceiling, as a SHARE of the card rather than a constant. A verdict is
- * secondary to the goal beside it, so it may never take more than this of the
- * row however long a locale makes it; on a wide card that is generous enough
- * that nothing truncates, and on a narrow one the goal still wins.
- */
-const STATUS_COL_MAX_SHARE = 0.3;
-/** Font size the status/verdict labels are drawn at, and measured at. */
 const STATUS_FONT_SIZE = 10;
 /** The linked mesh carries inset detail, so its full box must be visibly larger than the copy. */
 export const REPOSITORY_ICON_SIZE = 42;
@@ -95,25 +69,6 @@ function projectCreatedDate(createdAt: string, locale: string): string {
   return dateTimeFormat(locale, PROJECT_CREATED_OPTIONS).format(date);
 }
 
-/**
- * The status column, MEASURED against the real glyphs of the statuses on
- * screen. Pixi is the only honest source here — a character count cannot tell
- * `delivered · $12.34` from `queued` in pixels — and `CanvasTextMetrics`
- * caches per font, so this costs a map lookup rather than a rasterisation.
- */
-function statusColumnWidth(
-  ctx: RendererCtx,
-  labels: readonly string[],
-  panelWidth: number
-): number {
-  let widest = 0;
-  for (const label of labels) {
-    widest = Math.max(widest, ctx.measureText(label, { size: STATUS_FONT_SIZE, mono: true }));
-  }
-  // +2 so a sub-pixel measurement cannot clip the final glyph.
-  const ceiling = Math.max(STATUS_COL_MIN, panelWidth * STATUS_COL_MAX_SHARE);
-  return Math.min(ceiling, Math.max(STATUS_COL_MIN, Math.ceil(widest) + 2));
-}
 /**
  * The repository link under the status needs more room than the status word:
  * at 108 it wrapped mid-URL. Reserved by the name/slug column on every row, so
@@ -179,10 +134,10 @@ function runRowHeight(run: VizProjectRun, compact = false, newest = false): numb
   const hasSecondLine = Boolean(
     showsPartialGuidance(run, newest) ||
     (run.error && run.status !== 'partial') ||
-    (run.publication?.status === 'published' && run.publication.commitSha)
+    (run.publication?.status === 'published' && run.publication.pullRequestUrl)
   );
-  if (!compact) return hasSecondLine ? RUN_ROW_HEIGHT + RUN_SECOND_LINE_EXTRA : RUN_ROW_HEIGHT;
-  return hasSecondLine ? 68 : 54;
+  return (compact ? RUN_COMPACT_CARD_HEIGHT : RUN_CARD_HEIGHT) + RUN_ROW_GAP +
+    (hasSecondLine ? RUN_SECOND_LINE_EXTRA : 0);
 }
 
 const STATUS_COLORS: Record<string, number> = {
@@ -565,30 +520,6 @@ export function drawProjects(
   const innerWidth = layout.panelWidth - 36;
   const runColumnX = layout.x + 34;
   const compactRunRows = layout.panelWidth < COMPACT_PROJECT_PANEL_WIDTH;
-  // The status column hugs the card's INNER RIGHT EDGE and its labels are
-  // anchored to that edge. Capping it at `columnX + 560` left a wide gap
-  // between the verdict and the card border on any panel past ~700px, so the
-  // column a reader scans down floated in the middle of the row. `statusX` is
-  // still the column's LEFT edge — the copy beside it measures against that.
-  // Inset from the ROW's own right edge, not flush with it: the row button
-  // spans `innerWidth`, so a status anchored to the panel edge sat exactly on
-  // that button's border with nothing between text and stroke.
-  const statusRight = layout.x + layout.panelWidth - 18 - PROJECTS_ROW_PAD;
-  // The column is only as wide as the verdicts it must hold. Gather the copy
-  // the VISIBLE rows will draw — a hidden project's longer status must not
-  // reserve width nothing renders — and measure that.
-  const statusCopy: string[] = [];
-  projects.forEach((project, index) => {
-    if (projectHidden(index, selectedIndex)) return;
-    statusCopy.push(statusLabel(snapshot.t, project.repositoryStatus, 'projects.repoStatus'));
-    if (index !== selectedIndex) return;
-    for (const run of expandedRunList[index] ?? []) {
-      const cost = run.costUsd === null ? '' : ` · ${runCost(run.costUsd)}`;
-      statusCopy.push(`${statusLabel(snapshot.t, run.status, 'projects.runStatus')}${cost}`);
-    }
-  });
-  const statusCol = statusColumnWidth(ctx, statusCopy, layout.panelWidth);
-  const statusX = statusRight - statusCol;
   let cursor = listOffset + layout.listTop;
   projects.forEach((project, index) => {
     // A selection filters the list to its own card. Same rule the measuring
@@ -677,17 +608,12 @@ export function drawProjects(
         ? relativeTime(lastRunAt, snapshot.t, snapshot.state.locale)
         : '';
       const metadata = [
+        runCount === undefined ? null : snapshot.t('projects.cardRuns', { count: runCount }),
+        project.costUsd == null ? null : runCost(project.costUsd),
         snapshot.t('projects.cardCreated', {
           date: projectCreatedDate(project.createdAt, snapshot.state.locale),
         }),
-        runCount === undefined
-          ? null
-          : lastRunAgo
-            ? snapshot.t('projects.cardRunsWithLast', {
-                count: runCount,
-                ago: lastRunAgo,
-              })
-            : snapshot.t('projects.cardRuns', { count: runCount }),
+        lastRunAgo ? snapshot.t('projects.cardLastRun', { ago: lastRunAgo }) : null,
       ].filter((value): value is string => value !== null).join(' · ');
       ctx.text(
         pane.content,
@@ -814,105 +740,58 @@ export function drawProjects(
       cursor += RUNS_HEADING_HEIGHT;
       runs.forEach((run, runIndex) => {
         const newest = runIndex === 0;
-        const statusText = statusLabel(snapshot.t, run.status, 'projects.runStatus');
-        const cost = run.costUsd === null ? '' : ` · ${runCost(run.costUsd)}`;
         const rowHeight = runRowHeight(run, compactRunRows, newest);
-        const goalWidth = compactRunRows
-          ? Math.max(0, layout.panelWidth - 52)
-          : Math.max(0, statusX - runColumnX - 12);
-        ctx.button(
-          pane.content,
-          `project.run.${run.traceId ?? run.projectRunId}`,
-          'button',
-          // NO character-count bound here: `button` fits the label against the
-          // real glyphs and its own width. A 70-char pre-truncation on top of
-          // that only ever cut a goal the button had room for.
-          run.goal.replace(/\s+/g, ' '),
-          runColumnX,
-          cursor,
-          goalWidth,
-          // A FIXED single-line height, independent of `rowHeight`: the extra
-          // height a second line needs is appended AFTER the button, never
-          // folded into it, or the button grows tall enough that its own
-          // vertically-centred label lands under the second line's text.
-          RUN_BUTTON_HEIGHT,
-          false,
-          snapshot.onActivate
-        );
-        // NO character-count pre-truncation: the column was MEASURED to hold
-        // exactly this copy, and a `/7` estimate on top of it was what cut
-        // `delivered · $1.02` down to `delivered · $1…` — dropping the cost,
-        // which is the half of the verdict a reader is scanning for.
-        // `singleLine` still fits it against the real glyphs as a backstop.
-        const status = ctx.text(
-          pane.content,
-          `${statusText}${cost}`,
-          compactRunRows ? runColumnX : statusRight,
-          cursor + (compactRunRows ? 34 : 9),
-          {
-            size: 10,
-            color: statusColor(run.status),
-            mono: true,
-            width: compactRunRows ? goalWidth : statusCol,
-            singleLine: true,
-          }
-        );
-        if (!compactRunRows) status.anchor.x = 1;
-        if (run.publication && run.publication.status === 'published' && run.publication.commitSha) {
-          const commit = ctx.text(
-            pane.content,
-            run.publication.pullRequestUrl ? snapshot.t('projects.pullRequest') : truncate(run.publication.commitSha, 12),
-            compactRunRows ? runColumnX : statusRight,
-            cursor + (compactRunRows ? 48 : RUN_SECOND_LINE_Y),
-            {
-              size: 9,
-              color: GPU_COLORS.success,
-              mono: true,
-              width: compactRunRows ? goalWidth : statusCol,
-              singleLine: true,
-            }
-          );
-          if (!compactRunRows) commit.anchor.x = 1;
-          if (run.publication.pullRequestUrl) {
-            ctx.linkRegion(pane.content, `project.pullRequest.${run.projectRunId}`,
-              snapshot.t('projects.pullRequest'), compactRunRows ? runColumnX : statusRight - statusCol,
-              cursor + (compactRunRows ? 34 : RUN_SECOND_LINE_Y - 14),
-              compactRunRows ? goalWidth : statusCol, 22, snapshot.onActivate);
-          }
+        const cardHeight = rowHeight - RUN_ROW_GAP;
+        const goalWidth = Math.max(0, layout.panelWidth - 52);
+        const textX = runColumnX + BUTTON_LABEL_INSET;
+        const textWidth = goalWidth - BUTTON_LABEL_INSET * 2;
+        const rail = new Graphics();
+        const railX = runColumnX - 12;
+        rail.moveTo(railX, cursor + (newest ? 16 : -RUN_ROW_GAP));
+        rail.lineTo(railX, cursor + (runIndex === runs.length - 1 ? 16 : rowHeight));
+        rail.stroke({ color: GPU_COLORS.border, width: 2 });
+        rail.circle(railX, cursor + 16, 4).fill(statusColor(run.status));
+        pane.content.addChild(rail);
+        const statusText = statusLabel(snapshot.t, run.status, 'projects.runStatus');
+        const cost = run.costUsd === null ? '' : ' · ' + runCost(run.costUsd);
+        const date = relativeTime(run.createdAt, snapshot.t, snapshot.state.locale) || run.createdAt;
+        const metrics = [
+          run.durationS == null ? '—' : fmtMs(run.durationS * 1000),
+          snapshot.t('projects.runTokens', { value: run.tokens?.toLocaleString(snapshot.state.locale) ?? '—' }),
+          snapshot.t('projects.runLlmCalls', { value: run.llmCalls?.toLocaleString(snapshot.state.locale) ?? '—' }),
+          snapshot.t('projects.runJevCalls', { value: run.jevCalls?.toLocaleString(snapshot.state.locale) ?? '—' }),
+        ];
+        ctx.button(pane.content, 'project.run.' + (run.traceId ?? run.projectRunId), 'button',
+          run.goal.replace(/\s+/g, ' '), runColumnX, cursor, goalWidth, cardHeight,
+          false, snapshot.onActivate, GPU_COLORS.primary, false, false, undefined, 9,
+          [run.goal, date, statusText + cost, ...metrics].join(' · '));
+        ctx.text(pane.content, date, textX, cursor + 30,
+          { size: 9, color: GPU_COLORS.muted, width: textWidth, singleLine: true });
+        const exact = timestampTooltip(run.createdAt, snapshot.state.locale);
+        if (exact) ctx.tooltip(pane.content, { x: textX, y: cursor + 30, width: textWidth, height: 14, text: exact });
+        ctx.text(pane.content, statusText + cost, textX, cursor + 49,
+          { size: 10, color: statusColor(run.status), width: textWidth, singleLine: true });
+        const metricRows = compactRunRows ? [metrics.slice(0, 2), metrics.slice(2, 3), metrics.slice(3)] : [metrics];
+        metricRows.forEach((values, metricIndex) => {
+          const copy = values.join(' · ');
+          const metricY = cursor + 68 + metricIndex * 18;
+          ctx.text(pane.content, copy, textX, metricY,
+            { size: 9, color: GPU_COLORS.muted, width: textWidth, singleLine: true });
+          ctx.tooltip(pane.content, { x: textX, y: metricY, width: textWidth, height: 14, text: copy });
+        });
+        const extraY = cursor + (compactRunRows ? RUN_COMPACT_CARD_HEIGHT : RUN_CARD_HEIGHT);
+        if (run.publication?.status === 'published' && run.publication.pullRequestUrl) {
+          ctx.text(pane.content, snapshot.t('projects.pullRequest'), textX, extraY,
+            { size: 9, color: GPU_COLORS.primary, width: textWidth, singleLine: true });
+          ctx.linkRegion(pane.content, 'project.pullRequest.' + run.projectRunId, snapshot.t('projects.pullRequest'),
+            textX, extraY - 3, textWidth, 18, snapshot.onActivate);
         } else if (showsPartialGuidance(run, newest)) {
-          // Warning, not error: nothing is broken, the work is unfinished.
-          const guidanceX = runColumnX + BUTTON_LABEL_INSET;
-          const guidanceWidth = goalWidth - BUTTON_LABEL_INSET;
-          ctx.text(
-            pane.content,
-            ctx.fitText(
-              snapshot.t(run.rerunOf ? 'projects.runPartial.rerun'
-                : project.repositoryTarget.source ? 'projects.runPartial.imported' : 'projects.runPartial.continue'),
-              guidanceWidth,
-              { size: 9 }
-            ),
-            guidanceX,
-            cursor + (compactRunRows ? 48 : RUN_SECOND_LINE_Y),
-            { size: 9, color: GPU_COLORS.warning, width: guidanceWidth, singleLine: true }
-          );
+          ctx.text(pane.content, snapshot.t(run.rerunOf ? 'projects.runPartial.rerun'
+            : project.repositoryTarget.source ? 'projects.runPartial.imported' : 'projects.runPartial.continue'),
+            textX, extraY, { size: 9, color: GPU_COLORS.warning, width: textWidth, singleLine: true });
         } else if (run.error && run.status !== 'partial') {
-          const boundedError = run.error.replace(/\s+/g, ' ');
-          // Starts on the LABEL's vertical, not the button's border: this line
-          // belongs to the goal above it, and at `runColumnX` it hung 10px out
-          // to the left of the text it explains.
-          const errorX = runColumnX + BUTTON_LABEL_INSET;
-          ctx.text(
-            pane.content,
-            ctx.fitText(boundedError, goalWidth - BUTTON_LABEL_INSET, { size: 9 }),
-            errorX,
-            cursor + (compactRunRows ? 48 : RUN_SECOND_LINE_Y),
-            {
-              size: 9,
-              color: GPU_COLORS.error,
-              width: goalWidth - BUTTON_LABEL_INSET,
-              singleLine: true,
-            }
-          );
+          ctx.text(pane.content, run.error.replace(/\s+/g, ' '), textX, extraY,
+            { size: 9, color: GPU_COLORS.error, width: textWidth, singleLine: true });
         }
         cursor += rowHeight;
       });

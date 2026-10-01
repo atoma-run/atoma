@@ -298,6 +298,7 @@ export interface VizCacheEvent {
  * folded into `totals`, which remain the run's LLM calls.
  */
 export interface VizJevEvent {
+  requestCount?: JevDecisionInfo['requestCount'];
   coverage?: import('../core/types.js').JevDecisionInfo['coverage'];
   id: string;
   ts: number;
@@ -390,6 +391,8 @@ export type VizEvent = (
 export const RUN_INDEX_GOAL_MAX = 200;
 
 export interface VizRunIndexEntry {
+  /** Null/absent for legacy traces that did not record HTTP attempt counts. */
+  jevCalls?: number | null;
   id: string;
   label: string;
   /** The run's goal, for surfaces with room for more than the label. */
@@ -810,6 +813,7 @@ export class TraceRecorder {
       id: randomUUID(),
       ts: Date.now(),
       kind: 'jev',
+      ...(info.requestCount !== undefined ? { requestCount: info.requestCount } : {}),
       role: info.role,
       ...(info.coverage ? { coverage: { ...info.coverage } } : {}),
       evaluator: info.evaluator,
