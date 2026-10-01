@@ -88,7 +88,7 @@ describe('a seeded static-page run', () => {
       // Where python can serve the page, nothing but the full catch passes:
       // a broken host server start must not hide behind the fallback.
       if (spawnSync('python3', ['--version']).status === 0) {
-        expect(baseline).toMatch(/^inherited checks: 1 of 1 passed twice/);
+        expect(baseline).toMatch(/^inherited checks: 1 of 1 tried passed twice/);
         expect(rootPrompt).toContain('INHERITED BROWSER CHECKS (host replay, mechanical)');
         expect(rootPrompt).toContain('Mode: Long Break');
       } else {

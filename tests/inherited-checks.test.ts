@@ -157,7 +157,7 @@ const listed = (smoke: string, cause: ListedCheck['cause'], file = 'index.html')
   ({ check: check(smoke, { file }), cause, detail: `detail of ${smoke.slice(0, 20)}` });
 
 const report = (items: ListedCheck[], extra: Partial<InheritedChecksReport> = {}): InheritedChecksReport =>
-  ({ baseline: { considered: 12, kept: 10, cannotRun: 0 }, replayed: 10, stillPassing: 10 - items.length, flaky: 0, notReplayed: 0, listed: items, ...extra });
+  ({ baseline: { selected: 12, considered: 12, kept: 10, cannotRun: 0 }, replayed: 10, stillPassing: 10 - items.length, flaky: 0, notReplayed: 0, listed: items, ...extra });
 
 describe('what the acceptor reads', () => {
   it('groups the listed checks by cause, five at most, then one item for the rest that names its first check', () => {
@@ -255,7 +255,7 @@ describe('the host replay of a run', () => {
     await molecule.execute('write_file', { path: 'index.html', content: 'x' });
     // The server, the warm-up, then the newest check twice, the flaky one twice, the stale one once.
     expect(seenByMolecule).toEqual(['write_file: 1 baseline line, 7 host calls']);
-    expect(lines.at(-1)).toMatch(/^inherited checks: 1 of 3 passed twice on the starting page, in \d+ s$/);
+    expect(lines.at(-1)).toMatch(/^inherited checks: 1 of 3 tried passed twice on the starting page \(3 selected\), in \d+ s$/);
     // Every call went through the host mode, at the host's own server.
     const all = backend.calls.filter((entry) => entry.name === 'validate_html');
     expect(all.every((entry) => entry.args[HOST_REPLAY_ARG] === true && entry.args['url'] === 'http://localhost:4321/index.html')).toBe(true);
@@ -277,7 +277,7 @@ describe('the host replay of a run', () => {
     // Failed twice, for two causes: still failed twice.
     backend.answers[moved] = [observed({ smokeOk: false, smokeResult: { ok: false } }), observed({ smokeOk: false, smokeThrew: true, smokeResult: { ok: false, error: 'TypeError' } })];
     const found = await runtime.compare({});
-    expect(found).toMatchObject({ baseline: { considered: 4, kept: 4, cannotRun: 0 }, replayed: 3, stillPassing: 0, flaky: 1, notReplayed: 1 });
+    expect(found).toMatchObject({ baseline: { selected: 4, considered: 4, kept: 4, cannotRun: 0 }, replayed: 3, stillPassing: 0, flaky: 1, notReplayed: 1 });
     expect(found.listed.map((entry) => [entry.check.smoke, entry.cause])).toEqual([[regressed, 'value-changed'], [moved, 'element-missing']]);
     expect(found.listed[0]!.detail).toContain('Mode: Long Break');
   });
@@ -308,7 +308,7 @@ describe('the host replay of a run', () => {
     expect(backend.calls.length).toBe(before);
     // Nor does the start replay eat into it.
     const late = inheritedChecksFor({ workspaceRoot: root, executor: () => new Backend({}), deadlineAt: Date.now() + 60_000, log: () => undefined })!;
-    expect(await late.baseline()).toEqual({ considered: 0, kept: 0, cannotRun: 0, stopped: 'deadline' });
+    expect(await late.baseline()).toEqual({ selected: 1, considered: 0, kept: 0, cannotRun: 0, stopped: 'deadline' });
   });
 
   it('counts a call past its cap as that check unrun, goes on, and stops after three', async () => {
@@ -318,9 +318,10 @@ describe('the host replay of a run', () => {
     const lines: string[] = [];
     const runtime = inheritedChecksFor({ workspaceRoot: root, executor: () => backend, log: (line) => lines.push(line), limits: { perCallMs: 20 } })!;
     await runtime.ready;
-    expect(lines.at(-1)).toContain('0 of 5 passed twice on the starting page (stopped: abandoned)');
-    // The record says why nothing was kept: "0 kept" never reads as "all stale".
-    expect((await runtime.compare({})).baseline).toEqual({ considered: 3, kept: 0, cannotRun: 3, stopped: 'abandoned', note: 'a call passed the 20 ms cap' });
+    expect(lines.at(-1)).toContain('0 of 3 tried passed twice on the starting page (5 selected, stopped: abandoned)');
+    // The record says why nothing was kept: "0 kept" never reads as "all stale",
+    // and the checks the replay never reached are counted (run 41711050).
+    expect((await runtime.compare({})).baseline).toEqual({ selected: 5, considered: 3, kept: 0, cannotRun: 3, stopped: 'abandoned', note: 'a call passed the 20 ms cap' });
   });
 
   it('skips a check whose own waits outlast the cap, and keeps replaying the rest', async () => {
@@ -427,8 +428,8 @@ describe('root acceptance of a page an earlier run shaped', () => {
       startingWorkspace: { start, now: () => snapshotDeliveredWorkspace(now, start) },
       inheritedChecks: {
         ready: Promise.resolve(),
-        baseline: async () => ({ considered: 5, kept: 4, cannotRun: 1, note: 'a check needs 12000 ms' }),
-        compare: async () => { compared += 1; return report(listedChecks, { baseline: { considered: 5, kept: 4, cannotRun: 1, note: 'a check needs 12000 ms' }, replayed: 4, stillPassing: 4 - listedChecks.length }); },
+        baseline: async () => ({ selected: 6, considered: 5, kept: 4, cannotRun: 1, note: 'a check needs 12000 ms' }),
+        compare: async () => { compared += 1; return report(listedChecks, { baseline: { selected: 6, considered: 5, kept: 4, cannotRun: 1, note: 'a check needs 12000 ms' }, replayed: 4, stillPassing: 4 - listedChecks.length }); },
       },
     };
     // The floor is covered: without a listed check, this delivery would be approved with no model call.
@@ -446,7 +447,7 @@ describe('root acceptance of a page an earlier run shaped', () => {
     expect(prompt).toContain('- r1 "index.html" after "click #long-break" — value changed');
     expect(info.approved).toBe(false);
     expect(info.reasoning).toMatch(/^Inherited checks the acceptor judged changed without the task asking: r1 "index\.html"/);
-    expect(info.inheritedChecks).toMatchObject({ considered: 5, kept: 4, baselineCannotRun: 1, baselineNote: 'a check needs 12000 ms', replayed: 4, stillPassing: 3, listed: 1,
+    expect(info.inheritedChecks).toMatchObject({ selected: 6, considered: 5, kept: 4, baselineCannotRun: 1, baselineNote: 'a check needs 12000 ms', replayed: 4, stillPassing: 3, listed: 1,
       items: [{ id: 'r1', asked: false, reason: 'the task asked for a select only', checks: [{ cause: 'value-changed', steps: 'click #long-break' }] }] });
     // The remediation pass is told which check to restore, and how it was checked.
     const next = remediationTask(task, info);
@@ -483,7 +484,7 @@ describe('root acceptance of a page an earlier run shaped', () => {
     const base = makeCtx();
     let compared = 0;
     const ctx: RunContext = { ...base, attempt: 1, startingWorkspace: { start, now: () => snapshotDeliveredWorkspace(seed, start) },
-      inheritedChecks: { ready: Promise.resolve(), baseline: async () => ({ considered: 2, kept: 2, cannotRun: 0 }),
+      inheritedChecks: { ready: Promise.resolve(), baseline: async () => ({ selected: 2, considered: 2, kept: 2, cannotRun: 0 }),
         compare: async () => { compared += 1; return report([]); } } };
     base.llm.enqueueText(jsonText({ approved: true, reasoning: 'ok' }));
     const info = await acceptRootResult({ actor: new Actor(), task, result, ctx, floor: [], phaseCoverage: [] });

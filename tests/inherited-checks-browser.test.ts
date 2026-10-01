@@ -159,7 +159,7 @@ describe('the b9dc4d0b regression, replayed', () => {
     const runtime = inheritedChecksFor({ workspaceRoot: root, executor: () => tools, log: (line) => lines.push(line) })!;
     expect(runtime).toBeDefined();
     await runtime.ready;
-    expect(lines.at(-1)).toMatch(/^inherited checks: 1 of 2 passed twice on the starting page/);
+    expect(lines.at(-1)).toMatch(/^inherited checks: 1 of 2 tried passed twice on the starting page \(2 selected\)/);
     // The delivery: the label an earlier run asked for is gone.
     writeFileSync(join(root, 'index.html'), PAGE('Mode: Long Break'));
     const report = await runtime.compare({});

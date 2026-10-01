@@ -21,6 +21,7 @@ its source before the next run.
 | fa8b6ce3 | wordfreq CLI: `--format csv` | 1,457 s | $0.44 | 17 | delivered; evidence section gone, README rewritten whole and three earlier runs' examples lost |
 | c1d1b230 | pomodoro page: a B shortcut | 717 s | $0.22 | 11 | delivered; evidence section gone, one "verified" line kept |
 | d99354c5 | wordfreq CLI: the README restored | 403 s | $0.09 | 5 | delivered; every flag's example and output and every error message back |
+| 41711050 | pomodoro page: an L shortcut | 614 s | $0.16 | 7 | delivered; first inherited-check replay in the container, nothing listed |
 
 ## A verified execution rejected as "non-JSON" (8606cf38)
 
@@ -363,9 +364,18 @@ Two adversarial reviews shaped the change:
   `.atoma-probes.json` held smokes asserting `textContent === 'Long break'`,
   and nothing replayed inherited web entries. Owner decision 2026-10-01: the
   host replays them for a static page, at the start and at acceptance, and the
-  acceptor decides ([design](../inherited-checks-replay-2026-10-01.md)). Most
-  of this project's entries target hooks and ids the page no longer has, so
-  only the checks that still passed when a run began are compared.
+  acceptor decides ([design](../inherited-checks-replay-2026-10-01.md),
+  a697acaa). Most of this project's entries target hooks and ids the page no
+  longer has, so only the checks that still passed when a run began are
+  compared. Its first production run, 41711050, ran in the worker container
+  on Debian's chromium:
+  - **At the start:** of 40 checks selected, the 60 s budget reached 27, and
+    17 passed twice, in 45 calls. The replay overlapped the planning; the
+    first molecule tool call came about 9 s after it ended.
+  - **At acceptance:** all 17 still passed, in 17 calls, and nothing was
+    listed.
+  - **Clarity fix:** the log said "17 of 40" and the record "27 considered".
+    Both now name the selected, tried and kept counts.
 - **Molecules created before a prompt change keep the old prompt.** A
   canonical molecule takes each new prompt at bootstrap and loses its trust
   streak once. The other molecules keep theirs until

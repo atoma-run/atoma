@@ -348,7 +348,7 @@ function inheritedSummary(
   const byId = new Map((judgements ?? []).map((judgement) => [judgement.id, judgement]));
   const { baseline } = report;
   return {
-    considered: baseline.considered, kept: baseline.kept, baselineCannotRun: baseline.cannotRun,
+    selected: baseline.selected, considered: baseline.considered, kept: baseline.kept, baselineCannotRun: baseline.cannotRun,
     ...(baseline.stopped ? { baselineStopped: baseline.stopped } : {}),
     ...(baseline.note ? { baselineNote: baseline.note.slice(0, 240) } : {}),
     replayed: report.replayed, stillPassing: report.stillPassing, flaky: report.flaky,
@@ -372,7 +372,7 @@ async function baselineOnly(
 ): Promise<NonNullable<AcceptanceInfo['inheritedChecks']>> {
   const baseline = await runtime.baseline();
   return {
-    considered: baseline.considered, kept: baseline.kept, baselineCannotRun: baseline.cannotRun,
+    selected: baseline.selected, considered: baseline.considered, kept: baseline.kept, baselineCannotRun: baseline.cannotRun,
     ...(baseline.stopped ? { baselineStopped: baseline.stopped } : {}),
     ...(baseline.note ? { baselineNote: baseline.note.slice(0, 240) } : {}),
     replayed: 0, stillPassing: 0, flaky: 0, notReplayed: baseline.kept, listed: 0, notCompared, items: [],

@@ -230,7 +230,13 @@ export type ReplayStop = (typeof REPLAY_STOPS)[number];
 
 /** What the run-start replay did, carried into every report so the trace shows it. */
 export interface InheritedBaseline {
-  /** Checks taken from the manifest and replayed, or skipped, at the start. */
+  /**
+   * Checks the caps took from the manifest. Run 41711050 (2026-10-01) logged
+   * "17 of 40" and recorded 27 considered: the 13 its 60 s never reached
+   * appeared nowhere in the record.
+   */
+  readonly selected: number;
+  /** Selected checks the start replay reached: replayed, or skipped as too slow. */
   readonly considered: number;
   /** Checks that passed twice on the page the run started from. */
   readonly kept: number;
@@ -400,6 +406,8 @@ const recordedCheckSchema = z.object({ cause: z.enum(REPLAY_CAUSES), steps: z.st
 
 /** What `AcceptanceInfo` records of one acceptance's replay, the run-start replay included. */
 export const inheritedChecksSummarySchema = z.object({
+  /** Absent on the records written before it existed (run 41711050). */
+  selected: z.number().int().nonnegative().optional(),
   considered: z.number().int().nonnegative(),
   kept: z.number().int().nonnegative(),
   baselineCannotRun: z.number().int().nonnegative(),

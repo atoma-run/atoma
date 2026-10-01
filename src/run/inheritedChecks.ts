@@ -201,7 +201,7 @@ export function inheritedChecksFor(args: {
   // delivered failure beside a NEW one says the delivery added a dependency
   // the replay cannot serve, and nothing about the check.
   const kept: Array<{ readonly check: InheritedWebCheck; readonly pageErrors: boolean; readonly blocked: ReadonlySet<string> }> = [];
-  let baseline: InheritedBaseline = { considered: 0, kept: 0, cannotRun: 0 };
+  let baseline: InheritedBaseline = { selected: checks.length, considered: 0, kept: 0, cannotRun: 0 };
   const ready: Promise<void> = (async () => {
     const started = now();
     let stopped: ReplayStop | undefined;
@@ -238,9 +238,9 @@ export function inheritedChecksFor(args: {
       if (passes === 2) kept.push({ check, pageErrors: startErrors, blocked: startBlocked });
       if (abandoned >= limits.maxAbandoned) { stopped = 'abandoned'; break; }
     }
-    baseline = { considered, kept: kept.length, cannotRun, ...(stopped ? { stopped } : {}), ...(note ? { note } : {}) };
-    args.log(`inherited checks: ${kept.length} of ${checks.length} passed twice on the starting page` +
-      `${stopped ? ` (stopped: ${stopped})` : ''}, in ${Math.round((now() - started) / 1000)} s`);
+    baseline = { selected: checks.length, considered, kept: kept.length, cannotRun, ...(stopped ? { stopped } : {}), ...(note ? { note } : {}) };
+    args.log(`inherited checks: ${kept.length} of ${considered} tried passed twice on the starting page ` +
+      `(${checks.length} selected${stopped ? `, stopped: ${stopped}` : ''}), in ${Math.round((now() - started) / 1000)} s`);
   })().catch((error: unknown) => {
     args.log(`inherited checks: the run-start replay failed: ${error instanceof Error ? error.message : String(error)}`);
   });
