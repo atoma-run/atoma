@@ -1,5 +1,6 @@
 import { modelFacingExecutor } from '../core/attestation.js';
 import { branchRecordCount, executorEvidence } from './executorEvidence.js';
+import { fallbackObligationLines, proveFallback } from './fallbackProof.js';
 import { Atom, type Supervisor } from '../core/atom.js';
 import type {
   GenerationParams,
@@ -40,10 +41,11 @@ import {
   parseTwoJson,
   planSchema,
   type L3Strategy,
+  NON_JSON_PAYLOAD_SUMMARY_PREFIX,
 } from './json.js';
 import { superviseLoop, type SupervisionHooks } from '../core/supervisor.js';
 import { forkBranch } from '../core/branchCtx.js';
-import { effectiveObligations } from './proofCoverage.js';
+import { effectiveObligations, anyUncovered, renderProofCoverage } from './proofCoverage.js';
 import { randomUUID } from 'node:crypto';
 import { RegistryNotFoundError } from '../core/errors.js';
 import { mergeTools } from './toolMerge.js';
@@ -1042,10 +1044,16 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         fresh.injectContext({ source: 'coaching', text: recoveryContext(subtaskDescription, diagnostic) });
         return fresh;
       },
-      onApproved: async (child, result) => {
+      onApproved: async (child, result, verdict) => {
         // A read-only phase that changed files itself earns its cell no trust.
         if (result.readOnlyRestoration && restorationDamaged(result.readOnlyRestoration.restoration)) {
           ctx.logger.warn(`[${this.name}] ${child.name}: phase approved, but the runtime put back files it changed — trust success WITHHELD`);
+          return;
+        }
+        // Nor does a fallback of its own that never proved what the phase declared.
+        if (verdict?.approved === true && verdict.proofUncovered === true) {
+          ctx.recordRunStat?.('uncovered-obligation');
+          ctx.logger.warn(`[${this.name}] ${child.name}: phase approved, but its fallback's declared proof obligation is UNCOVERED — trust success WITHHELD`);
           return;
         }
         this.registry.recordSuccess(child.name, this.name, child.registryVersion());
@@ -1085,6 +1093,9 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     const unfinishedBelow = subResults.flatMap((result) => result.unfinishedPhases ?? []);
     const unfinishedField =
       unfinishedBelow.length > 0 ? { unfinishedPhases: unfinishedBelow } : {};
+    // A fallback's proof below rides up to the tier that judges this aggregate.
+    const coverageBelow = subResults.flatMap((result) => result.proofCoverage ?? []);
+    const coverageField = coverageBelow.length > 0 ? { proofCoverage: coverageBelow } : {};
     if (aggregation.mode === 'sequential') {
       // For phased pipelines, the FINAL phase's result is the deliverable.
       // The earlier phases produced intermediate state on disk that the
@@ -1101,6 +1112,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         producedBy: { tier: 3, name: this.name, viaFallback: false },
         ...evidenceField,
         ...unfinishedField,
+        ...coverageField,
       };
     }
     if (aggregation.mode === 'concat') {
@@ -1115,6 +1127,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         producedBy: { tier: 3, name: this.name, viaFallback: false },
         ...evidenceField,
         ...unfinishedField,
+        ...coverageField,
       };
     }
     const userContent = [
@@ -1151,6 +1164,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       producedBy: { tier: 3, name: this.name, viaFallback: false },
       ...evidenceField,
       ...unfinishedField,
+      ...coverageField,
     };
   }
 
@@ -1222,6 +1236,8 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       hasTools ? READER_FACING_DOC_GUIDANCE : '',
       hasTools && this.tools.some((tool) => tool.name === 'edit_file') ? EXISTING_FILE_GUIDANCE : '',
       hasValidator ? TEST_ONLY_ELEMENT_GUIDANCE : '',
+      // The phase's declared proof, heard as a molecule hears it.
+      ...(hasTools ? fallbackObligationLines(task, hasValidator) : []),
       `Return JSON: {"output", "summary"} once the work is done.`,
     ]
       .filter((l): l is string => typeof l === 'string' && l.length > 0)
@@ -1241,7 +1257,45 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         maxToolIterations: capToolIterations(hasValidator ? 40 : 24, ctx.deadlineAt),
       })
     );
-    const { output, summary } = parsePayloadTolerant(resp.text);
+    const first = parsePayloadTolerant(resp.text);
+    // What its own calls proved of the phase's obligations; one bounded turn
+    // runs a missing proof when the deadline leaves room (`proveFallback`).
+    const proof = await proveFallback({
+      ctx,
+      task,
+      since,
+      holdsTools: hasTools,
+      validatesPages: hasValidator,
+      previousSummary: first.summary,
+      actorName: this.name,
+      proofTurn: async (proofContent, iterations) => (await ctx.llm.complete(
+        this.toLlmRequest('fallback-execute', {
+          systemPromptOverride: FALLBACK_SYSTEM_PROMPT,
+          model: modelForTier(1),
+          userContent: proofContent,
+          ...(ctx.tools ? { tools: [...this.tools], executor: modelFacingExecutor(ctx.tools) } : {}),
+          params: this.params,
+          signal: ctx.signal,
+          maxToolIterations: capToolIterations(iterations, ctx.deadlineAt),
+        })
+      )).text,
+    });
+    // The deliverable stays the first turn's output; what the proof turn
+    // observed is added to its summary, never put in its place (review 2026-10-01).
+    const second = proof.proofTurnText === null ? null : parsePayloadTolerant(proof.proofTurnText);
+    const output = first.output;
+    const summary = second !== null && !second.summary.startsWith(NON_JSON_PAYLOAD_SUMMARY_PREFIX)
+      ? `${first.summary}\n[proof turn] ${second.summary}`
+      : first.summary;
+    if (proof.coverage.length > 0) {
+      ctx.recordPhaseCoverage?.({
+        attempt: ctx.attempt ?? 1,
+        ...(ctx.currentBranchId ? { branchId: ctx.currentBranchId } : {}),
+        acceptor: { name: this.name, tier: this.tier },
+        executor: { name: this.name, tier: this.tier },
+        obligations: proof.coverage.map((item) => ({ ...item, eventIds: [...item.eventIds] })),
+      });
+    }
     return {
       output,
       summary,
@@ -1250,6 +1304,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       // What the transport saw this fallback do, as a molecule's result
       // carries it: without it, its validator judges the summary alone.
       evidence: executorEvidence(output, ctx, since),
+      ...(proof.coverage.length > 0 ? { proofCoverage: proof.coverage } : {}),
     };
   }
 
@@ -1336,6 +1391,10 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         modifications: { additionalContext: gates.rejection.coaching },
       };
     }
+    // What a fallback's own calls proved of its phase's obligations, carried by
+    // its result (`proveFallback`): a molecule's supervisor checks that itself.
+    const fallbackCoverage = result.proofCoverage ?? [];
+    const proofUncovered = anyUncovered(fallbackCoverage);
     const type = this.registry.getByName(child.name);
     // Mirror of L2.validateResult: the trust fast-path skips the LLM
     // validator but NOT the ground-truth probe — it costs no tokens, and a
@@ -1345,7 +1404,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     // never to an outright reject.
     const payload = { output: result.output, summary: result.summary };
     let trustedProbe: GroundTruthCheck | null = null;
-    if (type && child.matchesRegistryVersion(type) && shouldTrustType(type)) {
+    if (type && child.matchesRegistryVersion(type) && shouldTrustType(type) && !proofUncovered) {
       trustedProbe = await checkGroundTruth({
         ctx,
         subject: 'RESULT',
@@ -1399,9 +1458,10 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         // DIRECT; a peer's result, mutualized, still carries the peer's name.
         ...(result.producedBy?.viaFallback && result.producedBy.name === child.name ? { viaFallback: true } : {}),
         ...(groundTruth ? { groundTruthBlock: groundTruth.block } : {}),
+        ...(fallbackCoverage.length > 0 ? { proofCoverageBlock: renderProofCoverage(fallbackCoverage) } : {}),
         ...(audit ? { audit: true } : {}),
       });
-    if (ctx.jev && gates.reviewFindings.length === 0) {
+    if (ctx.jev && gates.reviewFindings.length === 0 && !proofUncovered) {
       groundTruth ??= await checkGroundTruth({
         ctx,
         subject: 'RESULT',
@@ -1425,6 +1485,8 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         if (approval) return approval;
       }
     }
-    return modelVerdict(false);
+    const verdict = await modelVerdict(false);
+    // Rides the verdict to `onApproved`, which withholds the cell's credit.
+    return proofUncovered && verdict.approved ? { ...verdict, proofUncovered: true } : verdict;
   }
 }

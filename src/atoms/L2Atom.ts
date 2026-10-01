@@ -1,6 +1,7 @@
 import { Atom, type Peerable, type Supervisor } from '../core/atom.js';
 import { modelFacingExecutor } from '../core/attestation.js';
 import { branchRecordCount, executorEvidence } from './executorEvidence.js';
+import { fallbackObligationLines, proveFallback } from './fallbackProof.js';
 import type {
   GenerationParams,
   NegativeVerdict,
@@ -29,6 +30,7 @@ import {
   parsePlanWithFallback,
   parseTwoJson,
   planSchema,
+  NON_JSON_PAYLOAD_SUMMARY_PREFIX,
 } from './json.js';
 import { superviseLoop, type SupervisionHooks } from '../core/supervisor.js';
 import { forkBranch } from '../core/branchCtx.js';
@@ -1916,6 +1918,9 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     const unfinishedBelow = subResults.flatMap((result) => result.unfinishedPhases ?? []);
     const unfinishedField =
       unfinishedBelow.length > 0 ? { unfinishedPhases: unfinishedBelow } : {};
+    // A fallback's proof below rides up to the tier that judges this aggregate.
+    const coverageBelow = subResults.flatMap((result) => result.proofCoverage ?? []);
+    const coverageField = coverageBelow.length > 0 ? { proofCoverage: coverageBelow } : {};
     if (aggregation.mode === 'sequential') {
       // Phased pipeline: the FINAL phase carries the deliverable. See
       // L3Atom.aggregate sequential branch for full rationale.
@@ -1930,6 +1935,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         producedBy: { tier: 2, name: this.name, viaFallback: false },
         ...evidenceField,
         ...unfinishedField,
+        ...coverageField,
       };
     }
     if (aggregation.mode === 'concat') {
@@ -1944,6 +1950,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         producedBy: { tier: 2, name: this.name, viaFallback: false },
         ...evidenceField,
         ...unfinishedField,
+        ...coverageField,
       };
     }
     // llm-synthesize
@@ -1981,6 +1988,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       producedBy: { tier: 2, name: this.name, viaFallback: false },
       ...evidenceField,
       ...unfinishedField,
+      ...coverageField,
     };
   }
 
@@ -2069,6 +2077,8 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       hasTools ? READER_FACING_DOC_GUIDANCE : '',
       hasTools && this.tools.some((tool) => tool.name === 'edit_file') ? EXISTING_FILE_GUIDANCE : '',
       hasValidator ? TEST_ONLY_ELEMENT_GUIDANCE : '',
+      // The phase's declared proof, heard as a molecule hears it.
+      ...(hasTools ? fallbackObligationLines(task, hasValidator) : []),
       ``,
       `Return JSON: {"output", "summary"} once the work is done.`,
     ]
@@ -2091,7 +2101,45 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         maxToolIterations: capToolIterations(hasValidator ? 40 : 24, ctx.deadlineAt),
       })
     );
-    const { output, summary } = parsePayloadTolerant(resp.text);
+    const first = parsePayloadTolerant(resp.text);
+    // What its own calls proved of the phase's obligations; one bounded turn
+    // runs a missing proof when the deadline leaves room (`proveFallback`).
+    const proof = await proveFallback({
+      ctx,
+      task,
+      since,
+      holdsTools: hasTools,
+      validatesPages: hasValidator,
+      previousSummary: first.summary,
+      actorName: this.name,
+      proofTurn: async (proofContent, iterations) => (await ctx.llm.complete(
+        this.toLlmRequest('fallback-execute', {
+          systemPromptOverride: FALLBACK_SYSTEM_PROMPT,
+          model: modelForTier(1),
+          userContent: proofContent,
+          ...(ctx.tools ? { tools: [...this.tools], executor: modelFacingExecutor(ctx.tools) } : {}),
+          params: this.params,
+          signal: ctx.signal,
+          maxToolIterations: capToolIterations(iterations, ctx.deadlineAt),
+        })
+      )).text,
+    });
+    // The deliverable stays the first turn's output; what the proof turn
+    // observed is added to its summary, never put in its place (review 2026-10-01).
+    const second = proof.proofTurnText === null ? null : parsePayloadTolerant(proof.proofTurnText);
+    const output = first.output;
+    const summary = second !== null && !second.summary.startsWith(NON_JSON_PAYLOAD_SUMMARY_PREFIX)
+      ? `${first.summary}\n[proof turn] ${second.summary}`
+      : first.summary;
+    if (proof.coverage.length > 0) {
+      ctx.recordPhaseCoverage?.({
+        attempt: ctx.attempt ?? 1,
+        ...(ctx.currentBranchId ? { branchId: ctx.currentBranchId } : {}),
+        acceptor: { name: this.name, tier: this.tier },
+        executor: { name: this.name, tier: this.tier },
+        obligations: proof.coverage.map((item) => ({ ...item, eventIds: [...item.eventIds] })),
+      });
+    }
     return {
       output,
       summary,
@@ -2100,6 +2148,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       // What the transport saw this fallback do, as a molecule's result
       // carries it: without it, its validator judges the summary alone.
       evidence: executorEvidence(output, ctx, since),
+      ...(proof.coverage.length > 0 ? { proofCoverage: proof.coverage } : {}),
     };
   }
 

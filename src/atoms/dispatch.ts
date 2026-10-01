@@ -349,6 +349,9 @@ export function keptWithoutSynthesis(
     trace: [],
     producedBy,
     ...(evidence.length > 0 ? { evidence } : {}),
+    ...(subResults.some((result) => result.proofCoverage?.length)
+      ? { proofCoverage: subResults.flatMap((result) => result.proofCoverage ?? []) }
+      : {}),
     unfinishedPhases: [
       ...subResults.flatMap((result) => result.unfinishedPhases ?? []),
       `synthesis of ${subResults.length} sub-results (${why})`,

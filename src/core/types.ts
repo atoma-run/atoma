@@ -197,6 +197,21 @@ export interface Result {
    */
   readonly unfinishedPhases?: readonly string[];
   /**
+   * What a FALLBACK executor's own calls proved of its task's declared
+   * obligations, computed by the host from the attestation log
+   * (`proveFallback`, src/atoms/fallbackProof.ts), never by a model. A
+   * molecule's coverage is its supervisor's to compute; a fallback has none
+   * in its own loop, so the coverage rides its result, through every
+   * aggregate, to the tier that judges it. An uncovered entry withholds that
+   * tier's credit, as `PositiveVerdict.proofUncovered` does.
+   */
+  readonly proofCoverage?: readonly {
+    readonly obligation: import('../contracts/attestation.js').ProofObligation;
+    readonly covered: boolean;
+    readonly reason: string;
+    readonly eventIds: readonly string[];
+  }[];
+  /**
    * Set by `withinReadOnlyPhase`, never by a model, when a READ-ONLY phase's
    * execution changed files the runtime then put back
    * (`src/contracts/readOnlyPhase.ts`). `summary` is what its executor wrote,

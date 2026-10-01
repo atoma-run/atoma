@@ -91,10 +91,12 @@ async function documentStillMatches(
 export async function checkProofCoverage(args: {
   ctx: RunContext;
   obligations: readonly ProofObligation[];
+  /** The branch records to read from: a fallback's own calls start after its molecules'. */
+  since?: number;
 }): Promise<ProofCoverage[]> {
   const { ctx, obligations } = args;
   if (obligations.length === 0) return [];
-  const records = ctx.attestations?.forBranch(ctx.currentBranchId) ?? [];
+  const records = (ctx.attestations?.forBranch(ctx.currentBranchId) ?? []).slice(args.since ?? 0);
   const out: ProofCoverage[] = [];
   for (const obligation of obligations) {
     if (obligation !== 'dom-interaction') continue;

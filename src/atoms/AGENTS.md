@@ -318,17 +318,14 @@ load-bearing.
   molecule, in a correction phase with no recipe, wrote a restored page
   again whole.
 - A control the page lacks, needed only to test a behaviour (a text field to
-  prove a shortcut is ignored there), never goes into the page. One
-  validate_html call, once the page's other checks pass, proves it: real
-  interactions set up the state, and the smoke creates the control inline
-  off-screen, focuses and keys it, checks the focus and that state, and
-  removes it, calling none of the methods `smokeDrivesOwnState` knows, so
-  the interactions run and cover dom-interaction. That detector knows method
-  names only (a hook-driven smoke beside one click covers too); only the
-  validator prompt says such a smoke proves nothing. `TEST_ONLY_ELEMENT_GUIDANCE`
-  reaches validate_html molecules (plan and execute) and the fallbacks; the
-  validator prompt and both obligation texts agree. Runs 81375f01 and
-  ff102525 (999 s adding and removing fields between two contradicting rules).
+  prove a shortcut is ignored there), never goes into the page. One call,
+  after the page's other checks pass, proves it: real interactions set up
+  the state, and the smoke creates the control inline off-screen, focuses
+  and keys it, checks focus and state, and removes it, calling none of the
+  methods `smokeDrivesOwnState` knows (method names only: a hook-driven smoke
+  beside one click covers too, and only the validator prompt refuses it).
+  `TEST_ONLY_ELEMENT_GUIDANCE`, the validator prompt and both obligation texts
+  agree. Runs 81375f01 and ff102525 (999 s between two contradicting rules).
 - Node-server children keep file read-back even when they also have browser
   tools. Only a loopback response with status 200 and HTML content appends a
   browser probe; JSON responses and expected root 404s are not browser failures.
@@ -342,6 +339,9 @@ load-bearing.
   A fallback's result carries a molecule's evidence, from its own first
   call on (`executorEvidence`), and a cell's own fallback is DIRECT at the
   tissue (`viaFallback`); ff102525's tissue refused one on its summary alone.
+  A fallback hears its phase's proof obligation, gets ONE bounded proof turn
+  when its calls left it uncovered and time allows, and carries `proofCoverage`
+  to the judging tier, which withholds its credit (`fallbackProof.ts`).
   The log holds the WORKER's calls only (`record_probe` included): a
   supervisor's own probe and gate reads run on `baseExecutorOf(ctx.tools)`
   and report through their ground-truth block — attested, they read as the
@@ -429,8 +429,8 @@ load-bearing.
   guessed file set produces false staleness, and a silently withheld credit is
   the failure mode this contract exists to remove.
 - Withholding is honoured at L2, the tier that supervises tool-bearing
-  children. L3 credits its L2 as before; do not duplicate the gate there
-  without measuring what a second one changes.
+  children, and at L3 only for what a cell's own fallback proved
+  (`Result.proofCoverage`); a molecule's coverage is never read twice.
 
 ## Model output parsing
 
