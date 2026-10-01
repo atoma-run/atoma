@@ -274,7 +274,7 @@
     },
     "sweep": true,
     "details": {
-      "limit": 100,
+      "limit": 50,
       "offset": 0
     }
   }

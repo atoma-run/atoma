@@ -1,0 +1,1619 @@
+{
+  "measuredAt": "2026-10-01T20:58:03.679Z",
+  "deployedRevision": "7367f975f1afb6ba0201101874b19d85a6ca671d",
+  "endpoint": "https://atoma.run/mcp",
+  "corpus": "jev-compilation-calibration-2026-10-01.json",
+  "method": "14 distinct reviewer-labelled recipes, 3 repeated assessments each; labels were committed before measurement. The page size alone was corrected from 100 to the MCP maximum of 50 before the accepted call. Labels are not execution ground truth; no script was generated or executed.",
+  "productionRecipes": [
+    {
+      "skillId": "build-in-memory-json-api",
+      "owner": "Methane",
+      "status": "promotion-eligible",
+      "successes": 24,
+      "failures": 2,
+      "promotionRefusedAt": null
+    },
+    {
+      "skillId": "build-node-network-dashboard",
+      "owner": "Glucose",
+      "status": "promotion-eligible",
+      "successes": 11,
+      "failures": 3,
+      "promotionRefusedAt": null
+    },
+    {
+      "skillId": "build-responsive-static-multipage-site",
+      "owner": "Water",
+      "status": "promotion-eligible",
+      "successes": 2,
+      "failures": 1,
+      "promotionRefusedAt": null
+    },
+    {
+      "skillId": "patch-verified-static-ui",
+      "owner": "Serotonin",
+      "status": "promotion-eligible",
+      "successes": 13,
+      "failures": 2,
+      "promotionRefusedAt": null
+    }
+  ],
+  "result": {
+    "resultId": "1998255c-be50-49f6-a98d-1e095e26bd61",
+    "unasked": 0,
+    "report": {
+      "thresholds": {
+        "requirementShown": 0.7,
+        "requirementCovered": 0.8,
+        "flag": 0.3,
+        "pickConfidence": 0.5,
+        "fit": 0.7,
+        "noFit": 0.2,
+        "changesFiles": 0.7,
+        "keepsFiles": 0.3,
+        "decomposable": 0.8,
+        "twin": 1.5,
+        "compilationObstacle": 0.8,
+        "compilationClear": 0.2
+      },
+      "totals": {
+        "records": 42,
+        "answered": 42,
+        "failed": 0,
+        "failures": [],
+        "legacyFailed": 0,
+        "costUsd": 0.006614,
+        "latencyMs": {
+          "median": 258,
+          "p95": 340,
+          "max": 351
+        },
+        "inputTokens": {
+          "median": 3723,
+          "max": 3949
+        },
+        "servedModels": [
+          "jev-1.13.0"
+        ]
+      },
+      "approvals": [],
+      "prefilter": [],
+      "compilation": {
+        "cases": 42,
+        "labelled": 42,
+        "allowed": 18,
+        "postponed": 21,
+        "deferred": 3,
+        "falsePostponements": 0,
+        "falseAllowances": 0,
+        "sweep": [
+          {
+            "compilationObstacle": 0.7,
+            "cases": 42,
+            "labelled": 42,
+            "allowed": 18,
+            "postponed": 21,
+            "deferred": 3,
+            "falsePostponements": 0,
+            "falseAllowances": 0
+          },
+          {
+            "compilationObstacle": 0.8,
+            "cases": 42,
+            "labelled": 42,
+            "allowed": 18,
+            "postponed": 21,
+            "deferred": 3,
+            "falsePostponements": 0,
+            "falseAllowances": 0
+          },
+          {
+            "compilationObstacle": 0.9,
+            "cases": 42,
+            "labelled": 42,
+            "allowed": 18,
+            "postponed": 16,
+            "deferred": 8,
+            "falsePostponements": 0,
+            "falseAllowances": 0
+          },
+          {
+            "compilationObstacle": 0.95,
+            "cases": 42,
+            "labelled": 42,
+            "allowed": 18,
+            "postponed": 7,
+            "deferred": 17,
+            "falsePostponements": 0,
+            "falseAllowances": 0
+          }
+        ]
+      }
+    },
+    "details": [
+      {
+        "kind": "compilation",
+        "id": "build-in-memory-json-api#1",
+        "requestIds": [
+          "req_01a0f941f5507cff8613d7d403f1283f"
+        ],
+        "skillId": "build-in-memory-json-api",
+        "expected": false,
+        "requestHash": "8af485da315d9e8dc102b01e08f84592303978d8c59d7cbe9c25fca9244be3c5",
+        "documented": "compilation postponed: unavailable_capability; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.72,
+          "unavailable_capability": 0.89,
+          "unspecified_inputs": 0.44
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "build-in-memory-json-api#2",
+        "requestIds": [
+          "req_01a0f941f55c7cbbb9ee6673dd1b464c"
+        ],
+        "skillId": "build-in-memory-json-api",
+        "expected": false,
+        "requestHash": "8af485da315d9e8dc102b01e08f84592303978d8c59d7cbe9c25fca9244be3c5",
+        "documented": "compilation postponed: unavailable_capability; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.69,
+          "unavailable_capability": 0.87,
+          "unspecified_inputs": 0.47
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "build-in-memory-json-api#3",
+        "requestIds": [
+          "req_01a0f941f55675b3a362dc31329e1b01"
+        ],
+        "skillId": "build-in-memory-json-api",
+        "expected": false,
+        "requestHash": "8af485da315d9e8dc102b01e08f84592303978d8c59d7cbe9c25fca9244be3c5",
+        "documented": "compilation postponed: unavailable_capability; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.7,
+          "unavailable_capability": 0.88,
+          "unspecified_inputs": 0.46
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "build-node-network-dashboard#4",
+        "requestIds": [
+          "req_01a0f941f55a736da6909bbacbd8ef46"
+        ],
+        "skillId": "build-node-network-dashboard",
+        "expected": false,
+        "requestHash": "4322f3f97a9f752700f0d71e3ddc22de13c32fad95ec67db55bf6fe59562c681",
+        "documented": "compilation postponed: semantic_judgment, unavailable_capability; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.81,
+          "unavailable_capability": 0.94,
+          "unspecified_inputs": 0.49
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "build-node-network-dashboard#5",
+        "requestIds": [
+          "req_01a0f941f65d7332bad04b95cd94e5f7"
+        ],
+        "skillId": "build-node-network-dashboard",
+        "expected": false,
+        "requestHash": "4322f3f97a9f752700f0d71e3ddc22de13c32fad95ec67db55bf6fe59562c681",
+        "documented": "compilation postponed: semantic_judgment, unavailable_capability; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.8,
+          "unavailable_capability": 0.94,
+          "unspecified_inputs": 0.46
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "build-node-network-dashboard#6",
+        "requestIds": [
+          "req_01a0f941f6657407a7b8cd594c593490"
+        ],
+        "skillId": "build-node-network-dashboard",
+        "expected": false,
+        "requestHash": "4322f3f97a9f752700f0d71e3ddc22de13c32fad95ec67db55bf6fe59562c681",
+        "documented": "compilation postponed: semantic_judgment, unavailable_capability; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.8,
+          "unavailable_capability": 0.94,
+          "unspecified_inputs": 0.45
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "build-responsive-static-multipage-site#7",
+        "requestIds": [
+          "req_01a0f941f66378f5ae7616440f56bd1d"
+        ],
+        "skillId": "build-responsive-static-multipage-site",
+        "expected": false,
+        "requestHash": "4326aab29dd8cedbfd61bc94e3ea345e5afcc182340f4cf0d746fd3b6292a69b",
+        "documented": "compilation postponed: unavailable_capability; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.79,
+          "unavailable_capability": 0.88,
+          "unspecified_inputs": 0.45
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "build-responsive-static-multipage-site#8",
+        "requestIds": [
+          "req_01a0f941f66f7be88f3014613b51ffcc"
+        ],
+        "skillId": "build-responsive-static-multipage-site",
+        "expected": false,
+        "requestHash": "4326aab29dd8cedbfd61bc94e3ea345e5afcc182340f4cf0d746fd3b6292a69b",
+        "documented": "compilation postponed: unavailable_capability; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.78,
+          "unavailable_capability": 0.89,
+          "unspecified_inputs": 0.46
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "build-responsive-static-multipage-site#9",
+        "requestIds": [
+          "req_01a0f941f7607324bf781ebcea4a4677"
+        ],
+        "skillId": "build-responsive-static-multipage-site",
+        "expected": false,
+        "requestHash": "4326aab29dd8cedbfd61bc94e3ea345e5afcc182340f4cf0d746fd3b6292a69b",
+        "documented": "compilation postponed: unavailable_capability; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.78,
+          "unavailable_capability": 0.9,
+          "unspecified_inputs": 0.43
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "patch-verified-static-ui#10",
+        "requestIds": [
+          "req_01a0f941f78f7dd2b8ab0558a36c2f0e"
+        ],
+        "skillId": "patch-verified-static-ui",
+        "expected": false,
+        "requestHash": "e12381e8ca3442255f2627aba3edb57bb9a216c0db0651516aae53e91376b193",
+        "documented": "compilation postponed: unavailable_capability; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.62,
+          "unavailable_capability": 0.92,
+          "unspecified_inputs": 0.37
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "patch-verified-static-ui#11",
+        "requestIds": [
+          "req_01a0f941f78f792ea8fc64e721fc2ee1"
+        ],
+        "skillId": "patch-verified-static-ui",
+        "expected": false,
+        "requestHash": "e12381e8ca3442255f2627aba3edb57bb9a216c0db0651516aae53e91376b193",
+        "documented": "compilation postponed: unavailable_capability; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.66,
+          "unavailable_capability": 0.93,
+          "unspecified_inputs": 0.35
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "patch-verified-static-ui#12",
+        "requestIds": [
+          "req_01a0f941f7c47ddfb8975f62f12260c9"
+        ],
+        "skillId": "patch-verified-static-ui",
+        "expected": false,
+        "requestHash": "e12381e8ca3442255f2627aba3edb57bb9a216c0db0651516aae53e91376b193",
+        "documented": "compilation postponed: unavailable_capability; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.63,
+          "unavailable_capability": 0.92,
+          "unspecified_inputs": 0.36
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-verify-file-hashes#13",
+        "requestIds": [
+          "req_01a0f941f84b7e3fbc558bacd40022f1"
+        ],
+        "skillId": "calibration-verify-file-hashes",
+        "expected": true,
+        "requestHash": "8d80115841280e1eb671cae118194b4e552e3e864c97b61df6a7aa5ff0b77c32",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.05,
+          "unavailable_capability": 0.06,
+          "unspecified_inputs": 0.12
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-verify-file-hashes#14",
+        "requestIds": [
+          "req_01a0f941f8667d359c433b91fba0466d"
+        ],
+        "skillId": "calibration-verify-file-hashes",
+        "expected": true,
+        "requestHash": "8d80115841280e1eb671cae118194b4e552e3e864c97b61df6a7aa5ff0b77c32",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.06,
+          "unavailable_capability": 0.06,
+          "unspecified_inputs": 0.12
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-verify-file-hashes#15",
+        "requestIds": [
+          "req_01a0f941f87d7c6488c2b97b619ca1ae"
+        ],
+        "skillId": "calibration-verify-file-hashes",
+        "expected": true,
+        "requestHash": "8d80115841280e1eb671cae118194b4e552e3e864c97b61df6a7aa5ff0b77c32",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.06,
+          "unavailable_capability": 0.07,
+          "unspecified_inputs": 0.13
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-verify-markdown-section-counts#16",
+        "requestIds": [
+          "req_01a0f941f8bf72aabcd6266a3a05cfb7"
+        ],
+        "skillId": "calibration-verify-markdown-section-counts",
+        "expected": true,
+        "requestHash": "0ad6512a9cd6d354d1426f6454d4b97ee68484590f681349fd42d14d7828ffeb",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.09,
+          "unavailable_capability": 0.09,
+          "unspecified_inputs": 0.16
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-verify-markdown-section-counts#17",
+        "requestIds": [
+          "req_01a0f941f93d7d449834e0acab26a598"
+        ],
+        "skillId": "calibration-verify-markdown-section-counts",
+        "expected": true,
+        "requestHash": "0ad6512a9cd6d354d1426f6454d4b97ee68484590f681349fd42d14d7828ffeb",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.1,
+          "unavailable_capability": 0.1,
+          "unspecified_inputs": 0.17
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-verify-markdown-section-counts#18",
+        "requestIds": [
+          "req_01a0f941f94970c7ad4bed446e088d28"
+        ],
+        "skillId": "calibration-verify-markdown-section-counts",
+        "expected": true,
+        "requestHash": "0ad6512a9cd6d354d1426f6454d4b97ee68484590f681349fd42d14d7828ffeb",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.09,
+          "unavailable_capability": 0.09,
+          "unspecified_inputs": 0.16
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-render-readme-from-manifest#19",
+        "requestIds": [
+          "req_01a0f941f96d7596a952ff70aa6955d3"
+        ],
+        "skillId": "calibration-render-readme-from-manifest",
+        "expected": true,
+        "requestHash": "531b00dfbede459c3afbe78d27f9f2dd3807b68a975e84070b4527f38e50e8fc",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.1,
+          "unavailable_capability": 0.1,
+          "unspecified_inputs": 0.17
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-render-readme-from-manifest#20",
+        "requestIds": [
+          "req_01a0f941f9c47c518bba574ef4149b9e"
+        ],
+        "skillId": "calibration-render-readme-from-manifest",
+        "expected": true,
+        "requestHash": "531b00dfbede459c3afbe78d27f9f2dd3807b68a975e84070b4527f38e50e8fc",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.09,
+          "unavailable_capability": 0.1,
+          "unspecified_inputs": 0.15
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-render-readme-from-manifest#21",
+        "requestIds": [
+          "req_01a0f941fa267b3da6ab71a9ebe273cd"
+        ],
+        "skillId": "calibration-render-readme-from-manifest",
+        "expected": true,
+        "requestHash": "531b00dfbede459c3afbe78d27f9f2dd3807b68a975e84070b4527f38e50e8fc",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.1,
+          "unavailable_capability": 0.1,
+          "unspecified_inputs": 0.15
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-exact-literal-edits#22",
+        "requestIds": [
+          "req_01a0f941fa4875e3aa2c0c038f858bc3"
+        ],
+        "skillId": "calibration-exact-literal-edits",
+        "expected": true,
+        "requestHash": "13bd18b7f633b85b9ad38769e7dbd6db9d94bc7ea64bb536c167cbb34a224371",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.05,
+          "unavailable_capability": 0.07,
+          "unspecified_inputs": 0.15
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-exact-literal-edits#23",
+        "requestIds": [
+          "req_01a0f941fa717fe08d9df243e94c2c54"
+        ],
+        "skillId": "calibration-exact-literal-edits",
+        "expected": true,
+        "requestHash": "13bd18b7f633b85b9ad38769e7dbd6db9d94bc7ea64bb536c167cbb34a224371",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.05,
+          "unavailable_capability": 0.07,
+          "unspecified_inputs": 0.14
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-exact-literal-edits#24",
+        "requestIds": [
+          "req_01a0f941fac27ed683b76cd2af6e1177"
+        ],
+        "skillId": "calibration-exact-literal-edits",
+        "expected": true,
+        "requestHash": "13bd18b7f633b85b9ad38769e7dbd6db9d94bc7ea64bb536c167cbb34a224371",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.05,
+          "unavailable_capability": 0.07,
+          "unspecified_inputs": 0.14
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-replay-installed-browser-harness#25",
+        "requestIds": [
+          "req_01a0f941fb3e74a8b6ed4c1ae2b49784"
+        ],
+        "skillId": "calibration-replay-installed-browser-harness",
+        "expected": true,
+        "requestHash": "41f48832529d39fdb6097fa2e77ba93745978d1d699de600c3471b128ba120fd",
+        "documented": "deferred to the model (uncertain compilation obstacles)",
+        "compilable": null,
+        "yes": {
+          "semantic_judgment": 0.12,
+          "unavailable_capability": 0.33,
+          "unspecified_inputs": 0.2
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-replay-installed-browser-harness#26",
+        "requestIds": [
+          "req_01a0f941fb4c75b2931697009f3c78ca"
+        ],
+        "skillId": "calibration-replay-installed-browser-harness",
+        "expected": true,
+        "requestHash": "41f48832529d39fdb6097fa2e77ba93745978d1d699de600c3471b128ba120fd",
+        "documented": "deferred to the model (uncertain compilation obstacles)",
+        "compilable": null,
+        "yes": {
+          "semantic_judgment": 0.13,
+          "unavailable_capability": 0.31,
+          "unspecified_inputs": 0.21
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-replay-installed-browser-harness#27",
+        "requestIds": [
+          "req_01a0f941fb7a7fa5810789e70678c18f"
+        ],
+        "skillId": "calibration-replay-installed-browser-harness",
+        "expected": true,
+        "requestHash": "41f48832529d39fdb6097fa2e77ba93745978d1d699de600c3471b128ba120fd",
+        "documented": "deferred to the model (uncertain compilation obstacles)",
+        "compilable": null,
+        "yes": {
+          "semantic_judgment": 0.11,
+          "unavailable_capability": 0.3,
+          "unspecified_inputs": 0.2
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-replay-installed-http-harness#28",
+        "requestIds": [
+          "req_01a0f941fbcd7338afbe12783f25b5fd"
+        ],
+        "skillId": "calibration-replay-installed-http-harness",
+        "expected": true,
+        "requestHash": "b1e685e25f1f6927344125c8eead50e71b13434b145e15df02e2731ea897273e",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.11,
+          "unavailable_capability": 0.13,
+          "unspecified_inputs": 0.19
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-replay-installed-http-harness#29",
+        "requestIds": [
+          "req_01a0f941fc2f7599ab85e5954c626e99"
+        ],
+        "skillId": "calibration-replay-installed-http-harness",
+        "expected": true,
+        "requestHash": "b1e685e25f1f6927344125c8eead50e71b13434b145e15df02e2731ea897273e",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.11,
+          "unavailable_capability": 0.11,
+          "unspecified_inputs": 0.2
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-replay-installed-http-harness#30",
+        "requestIds": [
+          "req_01a0f941fc4d705cbbbd62a7e7e3e9e1"
+        ],
+        "skillId": "calibration-replay-installed-http-harness",
+        "expected": true,
+        "requestHash": "b1e685e25f1f6927344125c8eead50e71b13434b145e15df02e2731ea897273e",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.1,
+          "unavailable_capability": 0.12,
+          "unspecified_inputs": 0.19
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-csv-statistics-from-spec#31",
+        "requestIds": [
+          "req_01a0f941fc967739b31845c6d53b29dc"
+        ],
+        "skillId": "calibration-csv-statistics-from-spec",
+        "expected": true,
+        "requestHash": "9880ec1e392a09c46fd4ffa51eeccc894b905ad2d7587961960743284cecab23",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.06,
+          "unavailable_capability": 0.08,
+          "unspecified_inputs": 0.13
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-csv-statistics-from-spec#32",
+        "requestIds": [
+          "req_01a0f941fcda72428e9983c0075f5b98"
+        ],
+        "skillId": "calibration-csv-statistics-from-spec",
+        "expected": true,
+        "requestHash": "9880ec1e392a09c46fd4ffa51eeccc894b905ad2d7587961960743284cecab23",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.06,
+          "unavailable_capability": 0.07,
+          "unspecified_inputs": 0.14
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-csv-statistics-from-spec#33",
+        "requestIds": [
+          "req_01a0f941fd327a7e89113a4d6888dd74"
+        ],
+        "skillId": "calibration-csv-statistics-from-spec",
+        "expected": true,
+        "requestHash": "9880ec1e392a09c46fd4ffa51eeccc894b905ad2d7587961960743284cecab23",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.06,
+          "unavailable_capability": 0.07,
+          "unspecified_inputs": 0.14
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-interpret-new-docs#34",
+        "requestIds": [
+          "req_01a0f941fd487d48a2459be80f78ce74"
+        ],
+        "skillId": "calibration-interpret-new-docs",
+        "expected": false,
+        "requestHash": "b8097ce4359aa283f3de5e6d2b85705b65d22246b55554cfa16a67c0264ba9a6",
+        "documented": "compilation postponed: semantic_judgment; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.95,
+          "unavailable_capability": 0.74,
+          "unspecified_inputs": 0.53
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-interpret-new-docs#35",
+        "requestIds": [
+          "req_01a0f941fd8e7a11906361179759bb1d"
+        ],
+        "skillId": "calibration-interpret-new-docs",
+        "expected": false,
+        "requestHash": "b8097ce4359aa283f3de5e6d2b85705b65d22246b55554cfa16a67c0264ba9a6",
+        "documented": "compilation postponed: semantic_judgment; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.94,
+          "unavailable_capability": 0.78,
+          "unspecified_inputs": 0.52
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-interpret-new-docs#36",
+        "requestIds": [
+          "req_01a0f941fdd77e178e9685b32a52bcf9"
+        ],
+        "skillId": "calibration-interpret-new-docs",
+        "expected": false,
+        "requestHash": "b8097ce4359aa283f3de5e6d2b85705b65d22246b55554cfa16a67c0264ba9a6",
+        "documented": "compilation postponed: semantic_judgment; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.94,
+          "unavailable_capability": 0.72,
+          "unspecified_inputs": 0.56
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-browser-without-harness#37",
+        "requestIds": [
+          "req_01a0f941fe0d7a4c89684ea9b101ee48"
+        ],
+        "skillId": "calibration-browser-without-harness",
+        "expected": false,
+        "requestHash": "7dc9656cc4e04006e67ece34f9afb80455ac00752ae45047daf08956d22b1d38",
+        "documented": "compilation postponed: semantic_judgment, unavailable_capability; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.8,
+          "unavailable_capability": 0.97,
+          "unspecified_inputs": 0.27
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-browser-without-harness#38",
+        "requestIds": [
+          "req_01a0f941fe3576c886c2fd191d265676"
+        ],
+        "skillId": "calibration-browser-without-harness",
+        "expected": false,
+        "requestHash": "7dc9656cc4e04006e67ece34f9afb80455ac00752ae45047daf08956d22b1d38",
+        "documented": "compilation postponed: unavailable_capability; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.78,
+          "unavailable_capability": 0.97,
+          "unspecified_inputs": 0.28
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-browser-without-harness#39",
+        "requestIds": [
+          "req_01a0f941fe8b73e1bd8251d4b31dc8ef"
+        ],
+        "skillId": "calibration-browser-without-harness",
+        "expected": false,
+        "requestHash": "7dc9656cc4e04006e67ece34f9afb80455ac00752ae45047daf08956d22b1d38",
+        "documented": "compilation postponed: semantic_judgment, unavailable_capability; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.82,
+          "unavailable_capability": 0.97,
+          "unspecified_inputs": 0.29
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-direct-external-api#40",
+        "requestIds": [
+          "req_01a0f941fedb70378f55869e36fa503e"
+        ],
+        "skillId": "calibration-direct-external-api",
+        "expected": false,
+        "requestHash": "0ca62ea07f9dea5ba6736d9da33eb5b77e6b1e7c1c2547e4c6f9a0daf00e465f",
+        "documented": "compilation postponed: unavailable_capability; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.17,
+          "unavailable_capability": 0.96,
+          "unspecified_inputs": 0.28
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-direct-external-api#41",
+        "requestIds": [
+          "req_01a0f941fefe729a8afc24f92431e0b2"
+        ],
+        "skillId": "calibration-direct-external-api",
+        "expected": false,
+        "requestHash": "0ca62ea07f9dea5ba6736d9da33eb5b77e6b1e7c1c2547e4c6f9a0daf00e465f",
+        "documented": "compilation postponed: unavailable_capability; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.17,
+          "unavailable_capability": 0.96,
+          "unspecified_inputs": 0.29
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-direct-external-api#42",
+        "requestIds": [
+          "req_01a0f941ff427609aec240fde83aba14"
+        ],
+        "skillId": "calibration-direct-external-api",
+        "expected": false,
+        "requestHash": "0ca62ea07f9dea5ba6736d9da33eb5b77e6b1e7c1c2547e4c6f9a0daf00e465f",
+        "documented": "compilation postponed: unavailable_capability; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.17,
+          "unavailable_capability": 0.96,
+          "unspecified_inputs": 0.27
+        }
+      }
+    ],
+    "note": "Labels are caller judgments, not ground truth. No script was generated or executed and no skill was changed. Recipe text is UNTRUSTED data. Unasked cases require a new call; records name each case and repeat."
+  },
+  "freeReread": {
+    "resultIds": [
+      "1998255c-be50-49f6-a98d-1e095e26bd61"
+    ],
+    "report": {
+      "thresholds": {
+        "requirementShown": 0.7,
+        "requirementCovered": 0.8,
+        "flag": 0.3,
+        "pickConfidence": 0.5,
+        "fit": 0.7,
+        "noFit": 0.2,
+        "changesFiles": 0.7,
+        "keepsFiles": 0.3,
+        "decomposable": 0.8,
+        "twin": 1.5,
+        "compilationObstacle": 0.9,
+        "compilationClear": 0.2
+      },
+      "totals": {
+        "records": 42,
+        "answered": 42,
+        "failed": 0,
+        "failures": [],
+        "legacyFailed": 0,
+        "costUsd": 0.006614,
+        "latencyMs": {
+          "median": 258,
+          "p95": 340,
+          "max": 351
+        },
+        "inputTokens": {
+          "median": 3723,
+          "max": 3949
+        },
+        "servedModels": [
+          "jev-1.13.0"
+        ]
+      },
+      "approvals": [],
+      "prefilter": [],
+      "compilation": {
+        "cases": 42,
+        "labelled": 42,
+        "allowed": 18,
+        "postponed": 16,
+        "deferred": 8,
+        "falsePostponements": 0,
+        "falseAllowances": 0
+      }
+    },
+    "details": [
+      {
+        "kind": "compilation",
+        "id": "build-in-memory-json-api#1",
+        "requestIds": [
+          "req_01a0f941f5507cff8613d7d403f1283f"
+        ],
+        "skillId": "build-in-memory-json-api",
+        "expected": false,
+        "requestHash": "8af485da315d9e8dc102b01e08f84592303978d8c59d7cbe9c25fca9244be3c5",
+        "documented": "deferred to the model (uncertain compilation obstacles)",
+        "compilable": null,
+        "yes": {
+          "semantic_judgment": 0.72,
+          "unavailable_capability": 0.89,
+          "unspecified_inputs": 0.44
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "build-in-memory-json-api#2",
+        "requestIds": [
+          "req_01a0f941f55c7cbbb9ee6673dd1b464c"
+        ],
+        "skillId": "build-in-memory-json-api",
+        "expected": false,
+        "requestHash": "8af485da315d9e8dc102b01e08f84592303978d8c59d7cbe9c25fca9244be3c5",
+        "documented": "deferred to the model (uncertain compilation obstacles)",
+        "compilable": null,
+        "yes": {
+          "semantic_judgment": 0.69,
+          "unavailable_capability": 0.87,
+          "unspecified_inputs": 0.47
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "build-in-memory-json-api#3",
+        "requestIds": [
+          "req_01a0f941f55675b3a362dc31329e1b01"
+        ],
+        "skillId": "build-in-memory-json-api",
+        "expected": false,
+        "requestHash": "8af485da315d9e8dc102b01e08f84592303978d8c59d7cbe9c25fca9244be3c5",
+        "documented": "deferred to the model (uncertain compilation obstacles)",
+        "compilable": null,
+        "yes": {
+          "semantic_judgment": 0.7,
+          "unavailable_capability": 0.88,
+          "unspecified_inputs": 0.46
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "build-node-network-dashboard#4",
+        "requestIds": [
+          "req_01a0f941f55a736da6909bbacbd8ef46"
+        ],
+        "skillId": "build-node-network-dashboard",
+        "expected": false,
+        "requestHash": "4322f3f97a9f752700f0d71e3ddc22de13c32fad95ec67db55bf6fe59562c681",
+        "documented": "compilation postponed: unavailable_capability; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.81,
+          "unavailable_capability": 0.94,
+          "unspecified_inputs": 0.49
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "build-node-network-dashboard#5",
+        "requestIds": [
+          "req_01a0f941f65d7332bad04b95cd94e5f7"
+        ],
+        "skillId": "build-node-network-dashboard",
+        "expected": false,
+        "requestHash": "4322f3f97a9f752700f0d71e3ddc22de13c32fad95ec67db55bf6fe59562c681",
+        "documented": "compilation postponed: unavailable_capability; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.8,
+          "unavailable_capability": 0.94,
+          "unspecified_inputs": 0.46
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "build-node-network-dashboard#6",
+        "requestIds": [
+          "req_01a0f941f6657407a7b8cd594c593490"
+        ],
+        "skillId": "build-node-network-dashboard",
+        "expected": false,
+        "requestHash": "4322f3f97a9f752700f0d71e3ddc22de13c32fad95ec67db55bf6fe59562c681",
+        "documented": "compilation postponed: unavailable_capability; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.8,
+          "unavailable_capability": 0.94,
+          "unspecified_inputs": 0.45
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "build-responsive-static-multipage-site#7",
+        "requestIds": [
+          "req_01a0f941f66378f5ae7616440f56bd1d"
+        ],
+        "skillId": "build-responsive-static-multipage-site",
+        "expected": false,
+        "requestHash": "4326aab29dd8cedbfd61bc94e3ea345e5afcc182340f4cf0d746fd3b6292a69b",
+        "documented": "deferred to the model (uncertain compilation obstacles)",
+        "compilable": null,
+        "yes": {
+          "semantic_judgment": 0.79,
+          "unavailable_capability": 0.88,
+          "unspecified_inputs": 0.45
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "build-responsive-static-multipage-site#8",
+        "requestIds": [
+          "req_01a0f941f66f7be88f3014613b51ffcc"
+        ],
+        "skillId": "build-responsive-static-multipage-site",
+        "expected": false,
+        "requestHash": "4326aab29dd8cedbfd61bc94e3ea345e5afcc182340f4cf0d746fd3b6292a69b",
+        "documented": "deferred to the model (uncertain compilation obstacles)",
+        "compilable": null,
+        "yes": {
+          "semantic_judgment": 0.78,
+          "unavailable_capability": 0.89,
+          "unspecified_inputs": 0.46
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "build-responsive-static-multipage-site#9",
+        "requestIds": [
+          "req_01a0f941f7607324bf781ebcea4a4677"
+        ],
+        "skillId": "build-responsive-static-multipage-site",
+        "expected": false,
+        "requestHash": "4326aab29dd8cedbfd61bc94e3ea345e5afcc182340f4cf0d746fd3b6292a69b",
+        "documented": "compilation postponed: unavailable_capability; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.78,
+          "unavailable_capability": 0.9,
+          "unspecified_inputs": 0.43
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "patch-verified-static-ui#10",
+        "requestIds": [
+          "req_01a0f941f78f7dd2b8ab0558a36c2f0e"
+        ],
+        "skillId": "patch-verified-static-ui",
+        "expected": false,
+        "requestHash": "e12381e8ca3442255f2627aba3edb57bb9a216c0db0651516aae53e91376b193",
+        "documented": "compilation postponed: unavailable_capability; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.62,
+          "unavailable_capability": 0.92,
+          "unspecified_inputs": 0.37
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "patch-verified-static-ui#11",
+        "requestIds": [
+          "req_01a0f941f78f792ea8fc64e721fc2ee1"
+        ],
+        "skillId": "patch-verified-static-ui",
+        "expected": false,
+        "requestHash": "e12381e8ca3442255f2627aba3edb57bb9a216c0db0651516aae53e91376b193",
+        "documented": "compilation postponed: unavailable_capability; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.66,
+          "unavailable_capability": 0.93,
+          "unspecified_inputs": 0.35
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "patch-verified-static-ui#12",
+        "requestIds": [
+          "req_01a0f941f7c47ddfb8975f62f12260c9"
+        ],
+        "skillId": "patch-verified-static-ui",
+        "expected": false,
+        "requestHash": "e12381e8ca3442255f2627aba3edb57bb9a216c0db0651516aae53e91376b193",
+        "documented": "compilation postponed: unavailable_capability; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.63,
+          "unavailable_capability": 0.92,
+          "unspecified_inputs": 0.36
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-verify-file-hashes#13",
+        "requestIds": [
+          "req_01a0f941f84b7e3fbc558bacd40022f1"
+        ],
+        "skillId": "calibration-verify-file-hashes",
+        "expected": true,
+        "requestHash": "8d80115841280e1eb671cae118194b4e552e3e864c97b61df6a7aa5ff0b77c32",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.05,
+          "unavailable_capability": 0.06,
+          "unspecified_inputs": 0.12
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-verify-file-hashes#14",
+        "requestIds": [
+          "req_01a0f941f8667d359c433b91fba0466d"
+        ],
+        "skillId": "calibration-verify-file-hashes",
+        "expected": true,
+        "requestHash": "8d80115841280e1eb671cae118194b4e552e3e864c97b61df6a7aa5ff0b77c32",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.06,
+          "unavailable_capability": 0.06,
+          "unspecified_inputs": 0.12
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-verify-file-hashes#15",
+        "requestIds": [
+          "req_01a0f941f87d7c6488c2b97b619ca1ae"
+        ],
+        "skillId": "calibration-verify-file-hashes",
+        "expected": true,
+        "requestHash": "8d80115841280e1eb671cae118194b4e552e3e864c97b61df6a7aa5ff0b77c32",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.06,
+          "unavailable_capability": 0.07,
+          "unspecified_inputs": 0.13
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-verify-markdown-section-counts#16",
+        "requestIds": [
+          "req_01a0f941f8bf72aabcd6266a3a05cfb7"
+        ],
+        "skillId": "calibration-verify-markdown-section-counts",
+        "expected": true,
+        "requestHash": "0ad6512a9cd6d354d1426f6454d4b97ee68484590f681349fd42d14d7828ffeb",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.09,
+          "unavailable_capability": 0.09,
+          "unspecified_inputs": 0.16
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-verify-markdown-section-counts#17",
+        "requestIds": [
+          "req_01a0f941f93d7d449834e0acab26a598"
+        ],
+        "skillId": "calibration-verify-markdown-section-counts",
+        "expected": true,
+        "requestHash": "0ad6512a9cd6d354d1426f6454d4b97ee68484590f681349fd42d14d7828ffeb",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.1,
+          "unavailable_capability": 0.1,
+          "unspecified_inputs": 0.17
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-verify-markdown-section-counts#18",
+        "requestIds": [
+          "req_01a0f941f94970c7ad4bed446e088d28"
+        ],
+        "skillId": "calibration-verify-markdown-section-counts",
+        "expected": true,
+        "requestHash": "0ad6512a9cd6d354d1426f6454d4b97ee68484590f681349fd42d14d7828ffeb",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.09,
+          "unavailable_capability": 0.09,
+          "unspecified_inputs": 0.16
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-render-readme-from-manifest#19",
+        "requestIds": [
+          "req_01a0f941f96d7596a952ff70aa6955d3"
+        ],
+        "skillId": "calibration-render-readme-from-manifest",
+        "expected": true,
+        "requestHash": "531b00dfbede459c3afbe78d27f9f2dd3807b68a975e84070b4527f38e50e8fc",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.1,
+          "unavailable_capability": 0.1,
+          "unspecified_inputs": 0.17
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-render-readme-from-manifest#20",
+        "requestIds": [
+          "req_01a0f941f9c47c518bba574ef4149b9e"
+        ],
+        "skillId": "calibration-render-readme-from-manifest",
+        "expected": true,
+        "requestHash": "531b00dfbede459c3afbe78d27f9f2dd3807b68a975e84070b4527f38e50e8fc",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.09,
+          "unavailable_capability": 0.1,
+          "unspecified_inputs": 0.15
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-render-readme-from-manifest#21",
+        "requestIds": [
+          "req_01a0f941fa267b3da6ab71a9ebe273cd"
+        ],
+        "skillId": "calibration-render-readme-from-manifest",
+        "expected": true,
+        "requestHash": "531b00dfbede459c3afbe78d27f9f2dd3807b68a975e84070b4527f38e50e8fc",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.1,
+          "unavailable_capability": 0.1,
+          "unspecified_inputs": 0.15
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-exact-literal-edits#22",
+        "requestIds": [
+          "req_01a0f941fa4875e3aa2c0c038f858bc3"
+        ],
+        "skillId": "calibration-exact-literal-edits",
+        "expected": true,
+        "requestHash": "13bd18b7f633b85b9ad38769e7dbd6db9d94bc7ea64bb536c167cbb34a224371",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.05,
+          "unavailable_capability": 0.07,
+          "unspecified_inputs": 0.15
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-exact-literal-edits#23",
+        "requestIds": [
+          "req_01a0f941fa717fe08d9df243e94c2c54"
+        ],
+        "skillId": "calibration-exact-literal-edits",
+        "expected": true,
+        "requestHash": "13bd18b7f633b85b9ad38769e7dbd6db9d94bc7ea64bb536c167cbb34a224371",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.05,
+          "unavailable_capability": 0.07,
+          "unspecified_inputs": 0.14
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-exact-literal-edits#24",
+        "requestIds": [
+          "req_01a0f941fac27ed683b76cd2af6e1177"
+        ],
+        "skillId": "calibration-exact-literal-edits",
+        "expected": true,
+        "requestHash": "13bd18b7f633b85b9ad38769e7dbd6db9d94bc7ea64bb536c167cbb34a224371",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.05,
+          "unavailable_capability": 0.07,
+          "unspecified_inputs": 0.14
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-replay-installed-browser-harness#25",
+        "requestIds": [
+          "req_01a0f941fb3e74a8b6ed4c1ae2b49784"
+        ],
+        "skillId": "calibration-replay-installed-browser-harness",
+        "expected": true,
+        "requestHash": "41f48832529d39fdb6097fa2e77ba93745978d1d699de600c3471b128ba120fd",
+        "documented": "deferred to the model (uncertain compilation obstacles)",
+        "compilable": null,
+        "yes": {
+          "semantic_judgment": 0.12,
+          "unavailable_capability": 0.33,
+          "unspecified_inputs": 0.2
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-replay-installed-browser-harness#26",
+        "requestIds": [
+          "req_01a0f941fb4c75b2931697009f3c78ca"
+        ],
+        "skillId": "calibration-replay-installed-browser-harness",
+        "expected": true,
+        "requestHash": "41f48832529d39fdb6097fa2e77ba93745978d1d699de600c3471b128ba120fd",
+        "documented": "deferred to the model (uncertain compilation obstacles)",
+        "compilable": null,
+        "yes": {
+          "semantic_judgment": 0.13,
+          "unavailable_capability": 0.31,
+          "unspecified_inputs": 0.21
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-replay-installed-browser-harness#27",
+        "requestIds": [
+          "req_01a0f941fb7a7fa5810789e70678c18f"
+        ],
+        "skillId": "calibration-replay-installed-browser-harness",
+        "expected": true,
+        "requestHash": "41f48832529d39fdb6097fa2e77ba93745978d1d699de600c3471b128ba120fd",
+        "documented": "deferred to the model (uncertain compilation obstacles)",
+        "compilable": null,
+        "yes": {
+          "semantic_judgment": 0.11,
+          "unavailable_capability": 0.3,
+          "unspecified_inputs": 0.2
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-replay-installed-http-harness#28",
+        "requestIds": [
+          "req_01a0f941fbcd7338afbe12783f25b5fd"
+        ],
+        "skillId": "calibration-replay-installed-http-harness",
+        "expected": true,
+        "requestHash": "b1e685e25f1f6927344125c8eead50e71b13434b145e15df02e2731ea897273e",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.11,
+          "unavailable_capability": 0.13,
+          "unspecified_inputs": 0.19
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-replay-installed-http-harness#29",
+        "requestIds": [
+          "req_01a0f941fc2f7599ab85e5954c626e99"
+        ],
+        "skillId": "calibration-replay-installed-http-harness",
+        "expected": true,
+        "requestHash": "b1e685e25f1f6927344125c8eead50e71b13434b145e15df02e2731ea897273e",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.11,
+          "unavailable_capability": 0.11,
+          "unspecified_inputs": 0.2
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-replay-installed-http-harness#30",
+        "requestIds": [
+          "req_01a0f941fc4d705cbbbd62a7e7e3e9e1"
+        ],
+        "skillId": "calibration-replay-installed-http-harness",
+        "expected": true,
+        "requestHash": "b1e685e25f1f6927344125c8eead50e71b13434b145e15df02e2731ea897273e",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.1,
+          "unavailable_capability": 0.12,
+          "unspecified_inputs": 0.19
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-csv-statistics-from-spec#31",
+        "requestIds": [
+          "req_01a0f941fc967739b31845c6d53b29dc"
+        ],
+        "skillId": "calibration-csv-statistics-from-spec",
+        "expected": true,
+        "requestHash": "9880ec1e392a09c46fd4ffa51eeccc894b905ad2d7587961960743284cecab23",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.06,
+          "unavailable_capability": 0.08,
+          "unspecified_inputs": 0.13
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-csv-statistics-from-spec#32",
+        "requestIds": [
+          "req_01a0f941fcda72428e9983c0075f5b98"
+        ],
+        "skillId": "calibration-csv-statistics-from-spec",
+        "expected": true,
+        "requestHash": "9880ec1e392a09c46fd4ffa51eeccc894b905ad2d7587961960743284cecab23",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.06,
+          "unavailable_capability": 0.07,
+          "unspecified_inputs": 0.14
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-csv-statistics-from-spec#33",
+        "requestIds": [
+          "req_01a0f941fd327a7e89113a4d6888dd74"
+        ],
+        "skillId": "calibration-csv-statistics-from-spec",
+        "expected": true,
+        "requestHash": "9880ec1e392a09c46fd4ffa51eeccc894b905ad2d7587961960743284cecab23",
+        "documented": "compilation attempt allowed",
+        "compilable": true,
+        "yes": {
+          "semantic_judgment": 0.06,
+          "unavailable_capability": 0.07,
+          "unspecified_inputs": 0.14
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-interpret-new-docs#34",
+        "requestIds": [
+          "req_01a0f941fd487d48a2459be80f78ce74"
+        ],
+        "skillId": "calibration-interpret-new-docs",
+        "expected": false,
+        "requestHash": "b8097ce4359aa283f3de5e6d2b85705b65d22246b55554cfa16a67c0264ba9a6",
+        "documented": "compilation postponed: semantic_judgment; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.95,
+          "unavailable_capability": 0.74,
+          "unspecified_inputs": 0.53
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-interpret-new-docs#35",
+        "requestIds": [
+          "req_01a0f941fd8e7a11906361179759bb1d"
+        ],
+        "skillId": "calibration-interpret-new-docs",
+        "expected": false,
+        "requestHash": "b8097ce4359aa283f3de5e6d2b85705b65d22246b55554cfa16a67c0264ba9a6",
+        "documented": "compilation postponed: semantic_judgment; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.94,
+          "unavailable_capability": 0.78,
+          "unspecified_inputs": 0.52
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-interpret-new-docs#36",
+        "requestIds": [
+          "req_01a0f941fdd77e178e9685b32a52bcf9"
+        ],
+        "skillId": "calibration-interpret-new-docs",
+        "expected": false,
+        "requestHash": "b8097ce4359aa283f3de5e6d2b85705b65d22246b55554cfa16a67c0264ba9a6",
+        "documented": "compilation postponed: semantic_judgment; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.94,
+          "unavailable_capability": 0.72,
+          "unspecified_inputs": 0.56
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-browser-without-harness#37",
+        "requestIds": [
+          "req_01a0f941fe0d7a4c89684ea9b101ee48"
+        ],
+        "skillId": "calibration-browser-without-harness",
+        "expected": false,
+        "requestHash": "7dc9656cc4e04006e67ece34f9afb80455ac00752ae45047daf08956d22b1d38",
+        "documented": "compilation postponed: unavailable_capability; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.8,
+          "unavailable_capability": 0.97,
+          "unspecified_inputs": 0.27
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-browser-without-harness#38",
+        "requestIds": [
+          "req_01a0f941fe3576c886c2fd191d265676"
+        ],
+        "skillId": "calibration-browser-without-harness",
+        "expected": false,
+        "requestHash": "7dc9656cc4e04006e67ece34f9afb80455ac00752ae45047daf08956d22b1d38",
+        "documented": "compilation postponed: unavailable_capability; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.78,
+          "unavailable_capability": 0.97,
+          "unspecified_inputs": 0.28
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-browser-without-harness#39",
+        "requestIds": [
+          "req_01a0f941fe8b73e1bd8251d4b31dc8ef"
+        ],
+        "skillId": "calibration-browser-without-harness",
+        "expected": false,
+        "requestHash": "7dc9656cc4e04006e67ece34f9afb80455ac00752ae45047daf08956d22b1d38",
+        "documented": "compilation postponed: unavailable_capability; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.82,
+          "unavailable_capability": 0.97,
+          "unspecified_inputs": 0.29
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-direct-external-api#40",
+        "requestIds": [
+          "req_01a0f941fedb70378f55869e36fa503e"
+        ],
+        "skillId": "calibration-direct-external-api",
+        "expected": false,
+        "requestHash": "0ca62ea07f9dea5ba6736d9da33eb5b77e6b1e7c1c2547e4c6f9a0daf00e465f",
+        "documented": "compilation postponed: unavailable_capability; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.17,
+          "unavailable_capability": 0.96,
+          "unspecified_inputs": 0.28
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-direct-external-api#41",
+        "requestIds": [
+          "req_01a0f941fefe729a8afc24f92431e0b2"
+        ],
+        "skillId": "calibration-direct-external-api",
+        "expected": false,
+        "requestHash": "0ca62ea07f9dea5ba6736d9da33eb5b77e6b1e7c1c2547e4c6f9a0daf00e465f",
+        "documented": "compilation postponed: unavailable_capability; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.17,
+          "unavailable_capability": 0.96,
+          "unspecified_inputs": 0.29
+        }
+      },
+      {
+        "kind": "compilation",
+        "id": "calibration-direct-external-api#42",
+        "requestIds": [
+          "req_01a0f941ff427609aec240fde83aba14"
+        ],
+        "skillId": "calibration-direct-external-api",
+        "expected": false,
+        "requestHash": "0ca62ea07f9dea5ba6736d9da33eb5b77e6b1e7c1c2547e4c6f9a0daf00e465f",
+        "documented": "compilation postponed: unavailable_capability; reconsider on next credited success",
+        "compilable": false,
+        "yes": {
+          "semantic_judgment": 0.17,
+          "unavailable_capability": 0.96,
+          "unspecified_inputs": 0.27
+        }
+      }
+    ]
+  }
+}

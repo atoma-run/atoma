@@ -25,8 +25,8 @@ import type {
  * Every builder here is pure: it turns a decider request into a state and its
  * questions, and a reader turns Jev's answers into a decision. The decider in
  * `jev.ts` sends them; `src/atoms/jevCalibration.ts` measures them on the
- * decisions the model recorded. Compilation's new band is explicitly pending
- * live calibration; the other thresholds below have that recorded measurement.
+ * decisions the model recorded. Compilation's initial band was retained after
+ * the 2026-10-01 production sample; it is not an accuracy guarantee.
  * Questions and thresholds live in this one file, as TypeSafe's guidance asks,
  * so a review reads them together.
  */
@@ -114,7 +114,7 @@ export const JEV_THRESHOLDS = {
   decomposable: 0.8,
   /** A pairwise Score at or above this rounds to "the same recipe". */
   twin: 1.5,
-  /** Initial compilation band, not a calibrated correctness guarantee; see the 2026-10-01 decision record. */
+  /** Retained after 14 labelled recipes × 3 production evaluations; see the 2026-10-01 decision record. */
   compilationObstacle: 0.8,
   compilationClear: 0.2,
 } as const;

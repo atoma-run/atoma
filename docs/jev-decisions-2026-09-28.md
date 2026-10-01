@@ -467,16 +467,12 @@ workspace input can be a checked precondition, not a reason to reject the
 recipe. Requests over 32,000 characters go directly to the compiler instead
 of judging a truncated recipe.
 
-The initial operating band is **uncalibrated**: an obstacle at or above 0.8
+The operating band, retained after the initial measurement below: an obstacle at or above 0.8
 postpones the attempt; all obstacles at or below 0.2 allow a compile attempt;
 the middle band leaves the decision to the compiler. These numbers do not
-inherit the accuracy measured for routing or validation. No real Jev call
-has measured these new questions in this checkout because it has no
-`TYPESAFE_API_KEY`. The owner then explicitly authorised deployment followed
-by testing in production, with a calibration MCP extension if useful. Include
-the four failed recipes, known compiled manifest/markdown verifiers, and
-the adversarial cases below; repeat identical calls and record false
-postponements against an independently reviewed compilability label. The
+inherit the accuracy measured for routing or validation. This checkout has no
+`TYPESAFE_API_KEY`; the owner explicitly authorised deployment followed by
+testing in production, with a calibration MCP extension if useful. The
 existing `atoma_jev_calibrate` now accepts `compilations`: up to 20 supplied
 recipes, each repeated 1–5 times, using the live compiler prompt and Jev
 question builder. It reads no run corpus in this mode, generates and executes
@@ -486,6 +482,47 @@ different thresholds for free. The existing four-minute budget and host
 platform-admin permissions apply. A cancelled/budget-limited call reports
 unasked cases rather than calling them correct. Tests cross the real MCP
 SDK client, including schema limits, mutually exclusive modes and free rereads.
+
+### Production measurement — 2026-10-01
+
+Revision `7367f975f1afb6ba0201101874b19d85a6ca671d` passed the full CI and
+deployed successfully. The MCP then reported all four historical-failure
+recipes as `promotion-eligible`, preserving their failure counts (2, 3, 1,
+2) and successes (24, 11, 2, 13); no reset was performed.
+
+The [input corpus](jev-compilation-calibration-2026-10-01.json) was committed
+before the first live measurement: 14 distinct recipes, 7 labelled compilable
+and 7 not compilable, including the four production recipes and 10 authored
+controls. Each was assessed three times. The only request correction before
+the accepted call was `details.limit: 100 → 50`, the MCP pagination maximum;
+the cases and labels did not change. No illustrative run result was invented.
+
+The [saved MCP results](jev-compilation-results-2026-10-01.json) contain every
+request hash, provider request ID, score, label and outcome. Jev served
+`jev-1.13.0`: **42 answers, zero request failures, $0.006614**, median 258 ms,
+p95 340 ms per request. Six positive recipes were allowed on all repeats
+(18 evaluations). The existing browser-harness wrapper fell in the middle
+band on all three repeats and was deferred to the compiler, never blocked.
+All seven negative recipes were postponed on all repeats (21 evaluations).
+Thus no false postponement or false allowance was observed against these
+preassigned labels. The four production recipes remain non-compilable as
+whole recipes in this sample; eligibility means their historical counters
+no longer veto evaluation, not that scripts have been created.
+
+Rereading the same answers at obstacle threshold 0.9, without new provider
+calls, produced 18 allowed, 16 postponed and 8 deferred, also with no labelled
+error. There is no evidence here to change the shipped 0.2/0.8 band. Scores
+varied across repetitions, but the three-way outcome did not at that band.
+
+This is a small, deliberately chosen sample: 14 distinct cases, not 42
+independent recipes. The labels are reviewer judgments, not execution ground
+truth; none of these calls generated or executed a script. Correct final
+labels do not validate each obstacle's explanation: notably, the API recipe
+was postponed for `unavailable_capability` while its open-ended semantics
+also matter. The measurement is not a general accuracy guarantee or proof
+that compilation saves money on production tasks.
+
+### Retry and failure behavior
 
 A Jev no is never cached or saved as `promotionRefusedAt`. The next
 learning/credited-success opportunity asks again, without resetting counters,

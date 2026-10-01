@@ -212,12 +212,12 @@ Neighbours:
   as the baseline every calibration compares with. A question or a threshold
   changes with a measurement, never by feel, and each is written up in the
   decision record with its numbers.
-- The proposed `compile-skill` questions use the same bounded client, cost
-  accounting and trace events. Their initial 0.2/0.8 band is UNCALIBRATED;
-  mock tests prove retry/fallback behavior, not semantic accuracy. The owner
-  authorised deployment followed by production calibration on 2026-10-01,
-  using `atoma_jev_calibrate.compilations` with the host-held key
-  ([pending measurement](../../docs/jev-decisions-2026-09-28.md#compilation-eligibility-owner-decision-2026-10-01)).
+- The `compile-skill` questions use the same bounded client, cost accounting
+  and trace events. Their 0.2/0.8 band was retained after the 2026-10-01
+  production sample: 14 labelled recipes, 3 evaluations each, no observed
+  false postponement, and 3 deferrals. Labels are reviewer judgments, not
+  executed-script proof; mock tests establish retry/fallback behavior
+  ([measurement](../../docs/jev-decisions-2026-09-28.md#compilation-eligibility-owner-decision-2026-10-01)).
 - The AUDIT keeps Jev measured once the model no longer sees its approvals:
   `JEV_AUDIT_RATE` of them are also judged by the model validator in the
   background (`createJevAudit`, carried as `RunContext.jevAudit` and forwarded
