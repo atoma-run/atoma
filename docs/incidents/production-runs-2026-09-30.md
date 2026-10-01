@@ -381,8 +381,8 @@ Two adversarial reviews shaped the change:
     element, with no refused request and no page error, is now marked in the
     run's manifest; a later run that finds it dead again removes it beside a
     check of its page that passed. A changed value is never dead, and a run
-    seeded from a landed one marks nothing
-    ([design, Known limits](../inherited-checks-replay-2026-10-01.md#known-limits)).
+    seeded from a landed one marks nothing (7259e099,
+    [design, Known limits](../inherited-checks-replay-2026-10-01.md#known-limits)).
   - **Container arm:** the Docker job now replays in the host mode on the
     worker image's chromium, with a WebSocket to another container port
     that a molecule's call reaches and the dead proxy refuses.
@@ -408,7 +408,7 @@ Two adversarial reviews shaped the change:
   `edit_file` changes one that exists; that canonical prompt change resets
   its trust streak once. Both runs were the model's pick, which this covers.
   Jev answers before the model, and its files question cannot tell a README
-  edit from a build, so a recipe Jev picks is not covered.
+  edit from a build, so a recipe Jev picks is not covered (7259e099).
 - **Identical full-stack molecules.** Five branches share CarbonDioxide's
   description and tools; Jev takes the canonical first ("first of 4
   identical"), so they cost catalogue space, not decisions.
