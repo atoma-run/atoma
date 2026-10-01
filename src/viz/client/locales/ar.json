@@ -1238,5 +1238,6 @@
   "settings.platformLimitRange": "{{min}}–{{max}} {{unit}}",
   "settings.platformLimitUnlimited": "غير محدود",
   "settings.platformLimitEnvSet": "{{name}}={{value}}",
-  "settings.platformLimitEnvUnset": "لم يُعيَّن {{name}}"
+  "settings.platformLimitEnvUnset": "لم يُعيَّن {{name}}",
+  "settings.tab.limits": "حدود run"
 }

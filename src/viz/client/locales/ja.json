@@ -1238,5 +1238,6 @@
   "settings.platformLimitRange": "{{min}}～{{max}} {{unit}}",
   "settings.platformLimitUnlimited": "無制限",
   "settings.platformLimitEnvSet": "{{name}}={{value}}",
-  "settings.platformLimitEnvUnset": "{{name}}は未設定"
+  "settings.platformLimitEnvUnset": "{{name}}は未設定",
+  "settings.tab.limits": "runの制限"
 }

@@ -1238,5 +1238,6 @@
   "settings.platformLimitRange": "{{min}}–{{max}} {{unit}}",
   "settings.platformLimitUnlimited": "असीमित",
   "settings.platformLimitEnvSet": "{{name}}={{value}}",
-  "settings.platformLimitEnvUnset": "{{name}} सेट नहीं है"
+  "settings.platformLimitEnvUnset": "{{name}} सेट नहीं है",
+  "settings.tab.limits": "run की सीमाएँ"
 }
