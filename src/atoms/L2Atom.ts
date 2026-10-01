@@ -1821,8 +1821,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         this.registry.recordFailure(child.name, this.name);
         // USAGE-CONDITIONED BLAME (mirror of onApproved's credit gate, and
         // the more damaging direction): a failure recorded against a skill
-        // the child visibly ignored is unearned — and `failures > 0` blocks
-        // promotion PERMANENTLY until an operator `skills reset`. Withhold
+        // the child visibly ignored is unearned. Withhold
         // the blame (and the demotion check, whose premise "the script
         // proved fragile" is equally false) when the last RESULT validator
         // affirmatively reported non-adherence. The atom-type failure above
@@ -1861,9 +1860,9 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
           // body from the `_fallback.md` sidecar. The script form
           // proved fragile on this task; reverting to the LLM-driven
           // recipe lets future runs adapt where the fixed script
-          // couldn't. The `failures > 0` clause inside tryPromoteSkill
-          // then blocks accidental re-promotion until counters are
-          // reset by the operator.
+          // couldn't. demoteToLlm stamps the failed compiler generation,
+          // so unchanged recompilation waits for a recipe/compiler change
+          // or an explicit operator reset.
           const matched = this.skillRegistry.loadFor(blameNs).find((s) => s.id === skillId);
           if (matched && matched.kind === 'script' && matched.fallbackBody) {
             const restored = this.skillRegistry.demoteToLlm(blameNs, skillId);

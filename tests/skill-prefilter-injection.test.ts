@@ -5,7 +5,9 @@ import { tmpdir } from 'node:os';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
 import { L1Atom } from '../src/atoms/L1Atom.js';
-import { L2Atom, skillContextBlock } from '../src/atoms/L2Atom.js';
+import { L2Atom, skillContextBlock, COMPILE_PROMPT_GENERATION } from '../src/atoms/L2Atom.js';
+import type { Skill } from '../src/skills/types.js';
+import type { SkillEventInfo } from '../src/core/types.js';
 import {
   PREFILTER_SYSTEM_PROMPT,
   SKILL_PREFILTER_SYSTEM_PROMPT,
@@ -220,7 +222,7 @@ describe('L2.runSubtask — skill prefilter + injection (C2a)', () => {
     expect(refreshed[0]!.failures).toBe(0);
   });
 
-  it('bumps the skill failure counter through the onFailed hook when the run escalates', async () => {
+  it.each(['llm', 'script'] as const)('records failure and stamps any demotion through onFailed (kind: %s)', async (kind) => {
     skills.save(nsOf(reg, 'Water'), {
       id: 'web-build-loop',
       description: 'd',
@@ -228,10 +230,17 @@ describe('L2.runSubtask — skill prefilter + injection (C2a)', () => {
       kind: 'llm',
       body: 'b',
     });
+    if (kind === 'script') skills.promoteToScript({
+      l1Name: nsOf(reg, 'Water'), skillId: 'web-build-loop', language: 'node',
+      scriptBody: 'console.log(1)', compiledGeneration: COMPILE_PROMPT_GENERATION,
+    });
     // No trust fast-path here — we want the full validate cycle so we
     // can drive a rejection cascade and trigger the onFailed hook.
     const neuron = L2Atom.fromType(reg.getByName('Tracheid')!, reg, [], skills);
-    const ctx = makeCtx();
+    const demotions: Skill[] = [];
+    const ctx = { ...makeCtx(), recordSkill: (event: SkillEventInfo) => {
+      if (event.op === 'demote') demotions.push(skills.loadFor(nsOf(reg, 'Water'))[0]!);
+    } };
     // Tier prefilter -> Water.
     ctx.llm.enqueueText(
       jsonText({ kind: 'reuse', target: 'Water', confidence: 'high', reasoning: 't' })
@@ -291,6 +300,11 @@ describe('L2.runSubtask — skill prefilter + injection (C2a)', () => {
     const refreshed = skills.loadFor(nsOf(reg, 'Water'));
     expect(refreshed[0]!.failures).toBeGreaterThanOrEqual(1);
     expect(refreshed[0]!.successes).toBe(0);
+    if (kind === 'script') {
+      expect(demotions).toHaveLength(1);
+      expect(demotions[0]).toMatchObject({ kind: 'llm', failures: 1,
+        promotionRefusedGeneration: COMPILE_PROMPT_GENERATION });
+    } else expect(demotions).toHaveLength(0);
 
     // The revision prompt must carry the same generality constraint as the
     // distillation prompt: "fix the failure" is an invitation to hardcode

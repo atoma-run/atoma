@@ -99,10 +99,18 @@ by owner decision on 2026-09-26
   with the run it was distilled from as the compile example. The promote
   threshold (`ATOMA_PROMOTE_THRESHOLD`) defaults to ZERO; an uncompiled
   recipe (learned while promotion was off, or under a raised threshold)
-  compiles at its next credited success. The compiler's refusal is stamped
-  and is the answer until the body or the compiler changes. The price is one
-  compile call per learned draft, on the post-approval path, including twins
-  and recipes that will never match again.
+  is reconsidered at its next credited success. Historical `failures` do NOT
+  veto compilation (owner decision 2026-10-01): Jev assesses the current recipe
+  against the complete compile request and runtime contract. A confident
+  obstacle postpones this attempt only; it writes no refusal stamp and is
+  rechecked at the next learning/credit opportunity, without a cooldown or
+  earned-success streak. No answer or uncertainty lets the compiler decide.
+  The owner authorised deployment then live MCP calibration on 2026-10-01; see the
+  [decision record](../../docs/jev-decisions-2026-09-28.md#compilation-eligibility-owner-decision-2026-10-01).
+  Compiler/scan refusals retain their generation-scoped stamps. Every
+  `demoteToLlm` stamps the generation that produced the failed script, for
+  both supervised and deterministic failures; a body/compiler change or an
+  operator reset permits another attempt. Jev never authorizes execution.
 - Promotion is ON by default for every run, seeded or from scratch. Only
   `ATOMA_SKILL_PROMOTE=1` counts as an explicit opt-in; any other explicit
   value disables it, and `--no-promote-skills` is the final veto over the env.
@@ -162,7 +170,8 @@ by owner decision on 2026-09-26
   only the earned-run wait kept such a script from running unwatched. Never
   manufacture a fallback after trust was already lost.
 - Event-recovery skills match failure classes mid-run and carry zero LLM cost.
-  Their triggers describe reusable failure classes, never task themes.
+  Their triggers describe reusable failure classes, never task themes; they
+  are excluded from compilation and its curriculum targets.
 - `skills drop`, `merge`, `reset`, `forgive`, and review are operator-only
   lifecycle actions. Preserve provenance and emit ledger events. `forgive`
   retracts MISATTRIBUTED increments surgically (negative integer deltas,

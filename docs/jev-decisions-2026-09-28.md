@@ -447,6 +447,81 @@ Known limit: a model decision cached for the whole catalog (up to seven days,
 byte-identical subtask can still be handed a recipe Jev would withhold. The
 runs that showed the rest: [production runs, 2026-09-30](incidents/production-runs-2026-09-30.md).
 
+## Compilation eligibility: owner decision 2026-10-01
+
+The owner explicitly asked to replace the lifetime `failures > 0` veto with
+Jev and to retry frequently: Jev's cost is not a reason to park a recipe.
+The production investigation found four LLM recipes blocked by this counter:
+`build-in-memory-json-api`, `build-node-network-dashboard`,
+`build-responsive-static-multipage-site`, and `patch-verified-static-ui`.
+Those counters describe executions, sometimes of earlier recipe bodies; they
+do not establish whether the current recipe can be encoded as a program.
+
+`tryPromoteSkill` now asks Jev with the COMPLETE prompt it would send to the
+compiler, plus the host's network capability. Three atomic Nouls ask about
+execution-time semantic judgment, unavailable runtime capabilities, and
+inputs/expectations left to invention. The runtime has no L1 tool RPC and
+cannot install dependencies. A known executable workspace harness can make
+a probe mechanical; merely naming a browser tool cannot. A missing future
+workspace input can be a checked precondition, not a reason to reject the
+recipe. Requests over 32,000 characters go directly to the compiler instead
+of judging a truncated recipe.
+
+The initial operating band is **uncalibrated**: an obstacle at or above 0.8
+postpones the attempt; all obstacles at or below 0.2 allow a compile attempt;
+the middle band leaves the decision to the compiler. These numbers do not
+inherit the accuracy measured for routing or validation. No real Jev call
+has measured these new questions in this checkout because it has no
+`TYPESAFE_API_KEY`. The owner then explicitly authorised deployment followed
+by testing in production, with a calibration MCP extension if useful. Include
+the four failed recipes, known compiled manifest/markdown verifiers, and
+the adversarial cases below; repeat identical calls and record false
+postponements against an independently reviewed compilability label. The
+existing `atoma_jev_calibrate` now accepts `compilations`: up to 20 supplied
+recipes, each repeated 1–5 times, using the live compiler prompt and Jev
+question builder. It reads no run corpus in this mode, generates and executes
+no script, and mutates no recipe. Expected labels stay local. `details` gives
+the exact request hash and scores per sample; `resultIds` rereads them against
+different thresholds for free. The existing four-minute budget and host
+platform-admin permissions apply. A cancelled/budget-limited call reports
+unasked cases rather than calling them correct. Tests cross the real MCP
+SDK client, including schema limits, mutually exclusive modes and free rereads.
+
+A Jev no is never cached or saved as `promotionRefusedAt`. The next
+learning/credited-success opportunity asks again, without resetting counters,
+waiting for a new body, or earning a streak. No key, disabled Jev, timeout,
+invalid answer, circuit breaker, or a custom decider throwing leaves the
+compiler in charge. An aborted run does not start a compile. Each evaluation
+records a `compile-skill` Jev event with scores, outcome, latency and cost.
+Jev generates no script and its yes changes none of the compiler, static-scan,
+dispatch or deliverable checks.
+
+Compiler/scan refusals still wait for a body/compiler change or operator reset;
+cheap reevaluation does not imply repeatedly invoking the generating model.
+Removing the lifetime veto exposed another dependency: supervised script
+demotion had relied on it to prevent immediate re-promotion, while direct
+dispatch failures already stamped their compiler generation. `demoteToLlm`
+now owns that stamp for BOTH paths. It records the generation that produced
+the failing script, so an improved compiler gets a chance. Failure counters
+remain intact until the existing promotion/reset operations. Recovery-event
+recipes remain guidance and never enter compilation.
+
+Adversarial review against the recorded failure mechanisms:
+
+| Evidence or counterexample | Required behavior |
+|---|---|
+| Budget-kill blame from 2026-08-21; revised recipes retaining old failures | Neither implies non-compilability; history cannot veto the current recipe |
+| Arbitrary UI design or semantic documentation rewriting | Assess reusable execution, not whether the compiler can hardcode one example |
+| Markdown verifier and manifest replay; spawn-only HTTP harness | Tool names alone must not cause rejection; structured inputs can remove judgment |
+| Browser interaction without an executable harness | Do not assume the compiled Node script can invoke L1 browser tools |
+| Task-specific documentation literals, quoted commands, scoped markdown counts | Preserve the full compile contract; Jev's yes is not proof the generated program is correct |
+| A failed script compiled by the current versus an older compiler | Park only the current generation; never resurrect the lifetime counter veto |
+| Jev false no, middle-band answer, malformed response, outage or cancellation | Retry the no next time; other uncertainty falls back; cancellation starts no compile |
+
+Mocked tests cross the actual L2 learning/credit/demotion hooks, the bounded
+Jev client and recorded client-facing trace. They prove control flow and
+accounting only; they do not measure the semantic rows of this table.
+
 ## Reading "we will see"
 
 Two weeks after the switch of 2026-09-29 (so around 2026-10-13), or sooner if

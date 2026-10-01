@@ -373,6 +373,13 @@ Neighbours:
 
 ## The Jev calibration (`jevCalibrate.ts`)
 
+- `compilations` measures only caller-supplied recipes (at most 20, repeated
+  at most 5 times) through the LIVE compilation prompt and Jev questions.
+  Independent expected labels stay local; `null` is unlabelled. It generates
+  and executes no script, reads no run corpus, and mutates no skill. It is
+  exclusive with trace windows, twins and audits. The same bounded client,
+  memory results, cost report and `resultIds` rereading apply; details carry
+  request hashes, raw scores and false postponements (owner decision 2026-10-01).
 - `atoma_jev_calibrate` (platform, `needs: ['auth', 'projects']`) is the door
   onto `src/atoms/jevCalibration.ts`
   ([decision record](../../docs/jev-decisions-2026-09-28.md)): it reads the

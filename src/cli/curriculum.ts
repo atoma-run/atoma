@@ -21,8 +21,8 @@ import { unfoldedRegistryPredicate } from '../registry/db.js';
  *   3. failed-family-retry — burn-in families with failed rows (Voyager
  *      re-proposes failures; a family that never delivered is exactly the
  *      signal worth another shot).
- * Skills with failures > 0 are SKIPPED — they need `skills reset` (an
- * operator judgment), not more runs. Compiled scripts are never targets:
+ * LLM failure history does not block a new compilation assessment.
+ * Compiled scripts and event-recovery recipes are never targets:
  * since 2026-09-26 one without a failure already dispatches with zero LLM
  * calls, so there is no maturation left for a run to buy (the former
  * `script-maturation` category).
@@ -87,9 +87,9 @@ export function selectCurriculumTargets(args: {
   const scored: { target: CurriculumTarget; priority: number; distance: number }[] = [];
   for (const [l1, skills] of args.byL1) {
     for (const s of skills) {
-      // failures > 0 is a dead-end only `skills reset` clears — more runs
-      // cannot move these, so proposing tasks for them wastes the batch.
-      if (s.failures > 0) continue;
+      // LLM failure history does not veto compilation. Script dispatch still
+      // requires its own clean record; recovery recipes are never compiled.
+      if (s.kind === 'script' || s.trigger) continue;
       const shape = `${s.description} — when to use: ${s.whenToUse}`;
       if (
         s.kind === 'llm' &&
@@ -354,7 +354,7 @@ async function main(): Promise<void> {
     console.log(
       'no curriculum targets: no skill is one nudge from a lifecycle transition and no burn-in family has failures.'
     );
-    console.log('(skills with failures > 0 need `skills reset` first — runs cannot move them.)');
+    console.log('(current compiler refusals wait for a body/compiler change or an operator reset.)');
     return;
   }
 

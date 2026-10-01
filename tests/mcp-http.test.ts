@@ -22,6 +22,7 @@ import { buildServer, mcpHostWiring } from '../src/mcp/server.js';
 import { MCP_TOOL_NAMES, MCP_TOOLS, visibleTools, type McpToolDeps } from '../src/mcp/tools.js';
 import { forgetJevCalibrationsForTest } from '../src/mcp/jevCalibrate.js';
 import { JEV_ENDPOINT } from '../src/core/jev.js';
+import { buildCompileSkillPrompt } from '../src/skills/compilePrompt.js';
 import { CallerTasks, ProjectRunTasks, forgetTasksForTest, projectRunTask, runSynchronously, type ProjectRunTaskDeps } from '../src/mcp/tasks.js';
 import { CallToolResultSchema, CreateTaskResultSchema, LoggingMessageNotificationSchema } from '@modelcontextprotocol/sdk/types.js';
 import { ProjectStore } from '../src/projects/store.js';
@@ -1467,7 +1468,7 @@ it('calibrates Jev over MCP on every organisation, and reads its answers again f
     bodies.push(init!.body as string);
     const questions = (JSON.parse(init!.body as string) as { questions: Record<string, { type: string; criteria?: object }> }).questions;
     const answers = Object.fromEntries(Object.entries(questions).map(([id, question]) => {
-      if (question.type === 'noul') return [id, { type: 'noul', noul: id === 'fits::agent_1' ? 0.9 : 0.05 }];
+      if (question.type === 'noul') return [id, { type: 'noul', noul: id === 'semantic_judgment' ? 0.85 : id === 'fits::agent_1' ? 0.9 : 0.05 }];
       const first = Object.keys(question.criteria!)[0]!;
       return [id, { type: 'choice', choice: first, confidence: 0.9, probabilities: { [first]: 0.9 } }];
     }));
@@ -1498,6 +1499,39 @@ it('calibrates Jev over MCP on every organisation, and reads its answers again f
     expect(again.isError).not.toBe(true);
     expect(bodies).toHaveLength(6);
     expect((again.structuredContent as Payload).report.prefilter[0]!.documented.deferred).toBe(3);
+    const recipe = {
+      skillId: 'replay-probes', description: 'Replay recorded checks', whenToUse: 'Verify a delivered API',
+      body: 'Read the probe manifest and replay its recorded expectations.', hostTools: ['fetch_url'],
+      subTaskDescription: 'Recheck the API', resultSummary: 'Recorded probes passed', expected: true,
+    };
+    const compilation = await client.callTool({ name: 'atoma_jev_calibrate', arguments: {
+      compilations: { cases: [recipe], repeats: 2 }, details: { limit: 10 }, sweep: true,
+    } });
+    expect(compilation.isError).not.toBe(true);
+    const compiled = compilation.structuredContent as { resultId: string; report: Record<string, unknown> };
+    expect(compiled.report).toMatchObject({ compilation: { cases: 2, falsePostponements: 2 } });
+    expect(bodies).toHaveLength(8); // only two compilation evaluations, no trace replay
+    const compilationRequest = JSON.parse(bodies[6]!) as { state: Record<string, unknown> };
+    expect(compilationRequest.state).toMatchObject({
+      compile_request: buildCompileSkillPrompt({ skillId: recipe.skillId, skillDescription: recipe.description,
+        skillWhenToUse: recipe.whenToUse, skillBody: recipe.body,
+        subTaskDescription: recipe.subTaskDescription, resultSummary: recipe.resultSummary }),
+      runtime: { direct_loopback_network: true },
+    });
+    expect(compilationRequest.state).not.toHaveProperty('expected');
+    expect(journal.list({ kind: 'admin.cross_org_read' }).events).toHaveLength(2);
+    const recalculated = await client.callTool({ name: 'atoma_jev_calibrate', arguments: {
+      resultIds: [compiled.resultId], thresholds: { compilationObstacle: 0.9 },
+    } });
+    expect(recalculated.isError).not.toBe(true);
+    expect(recalculated.structuredContent).toMatchObject({ report: { compilation: { falsePostponements: 0, deferred: 2 } } });
+    for (const extra of [{ auditsOnly: true }, { since: '2026-09-26' }, { resultIds: [compiled.resultId] }]) {
+      const invalid = await client.callTool({ name: 'atoma_jev_calibrate', arguments: { compilations: { cases: [recipe] }, ...extra } });
+      expect(invalid.isError).toBe(true);
+    }
+    const overBudget = await client.callTool({ name: 'atoma_jev_calibrate', arguments: { compilations: { cases: [recipe], repeats: 6 } } });
+    expect(overBudget.isError).toBe(true);
+    expect(bodies).toHaveLength(8);
     // The platform switch turns it off, as it turns Jev off in every run.
     vi.stubEnv('ATOMA_JEV', '0');
     const refused = await client.callTool({ name: 'atoma_jev_calibrate', arguments: {} });
@@ -1506,7 +1540,7 @@ it('calibrates Jev over MCP on every organisation, and reads its answers again f
     // The audit sample reads without the key and sends nothing.
     const audits = await client.callTool({ name: 'atoma_jev_calibrate', arguments: { auditsOnly: true, since: '2026-09-26' } });
     expect(audits.isError).not.toBe(true);
-    expect(bodies).toHaveLength(6);
+    expect(bodies).toHaveLength(8);
     expect((audits.structuredContent as { audits: { subjects: unknown[] } }).audits.subjects).toEqual([
       expect.objectContaining({ subject: 'PLAN', audited: 0 }),
       expect.objectContaining({ subject: 'RESULT', audited: 1, refusedByModel: 1, falseApprovalShare: 1 }),

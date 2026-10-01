@@ -27,6 +27,7 @@ import { JEV_THRESHOLDS } from '../src/core/jevQuestions.js';
 import type {
   JevApprovalRequest,
   JevChoiceRequest,
+  JevCompilationRequest,
   JevDecider,
   JevDecisionInfo,
   JevTwinRequest,
@@ -135,6 +136,55 @@ const choiceRequest: JevChoiceRequest = {
   actorName: 'Idioblast',
   actorTier: 2,
 };
+
+describe('Jev compilation eligibility', () => {
+  const request: JevCompilationRequest = {
+    skillId: 'replay-recorded-probes', prompt: 'Read the manifest and compare the recorded probes; refuse a mismatch.',
+    allowLoopbackNetwork: false, actorName: 'Tracheid', actorTier: 2,
+  };
+
+  it.each([
+    [0.05, true], [0.2, true], [0.5, null], [0.8, false], [0.95, false],
+  ] as const)('reads obstacle probability %s as %s and records its own cost', async (probability, expected) => {
+    const { impl, requests } = jevServer(() => noulAnswer(probability));
+    const records: JevDecisionInfo[] = [];
+    const decider = createJevDecider({ apiKey: KEY, fetchImpl: impl, record: (event) => records.push(event) });
+    const answer = await decider.compilable!(request);
+    expect(answer?.compilable ?? null).toBe(expected);
+    expect(requests[0]!.body.state['compile_request']).toBe(request.prompt);
+    expect(requests[0]!.body.state['runtime']).toMatchObject({ direct_loopback_network: false, tool_rpc: false });
+    expect(records[0]).toMatchObject({ role: 'compile-skill', actorName: 'Tracheid', candidates: [request.skillId] });
+    expect(records[0]!.costUsd).toBeGreaterThan(0);
+  });
+
+  it('postpones on one clear obstacle, never from a majority vote', async () => {
+    const { impl } = answering({ semantic_judgment: noulAnswer(0.05), unavailable_capability: noulAnswer(0.95), unspecified_inputs: noulAnswer(0.1) });
+    const answer = await createJevDecider({ apiKey: KEY, fetchImpl: impl, record: () => {} }).compilable!(request);
+    expect(answer).toEqual({ compilable: false, obstacles: ['unavailable_capability'] });
+  });
+
+  it('does not cache a no and defers errors, cancellation, malformed or incomplete answers to the compiler', async () => {
+    const { impl, requests } = jevServer(() => noulAnswer(0.95));
+    const decider = createJevDecider({ apiKey: KEY, fetchImpl: impl, record: () => {} });
+    await decider.compilable!(request);
+    await decider.compilable!(request);
+    expect(requests).toHaveLength(2);
+    expect(await decider.compilable!({ ...request, signal: AbortSignal.abort() })).toBeNull();
+    expect(requests).toHaveLength(2);
+    for (const invalid of [noulAnswer(1.2), { type: 'choice', choice: 'yes' }]) {
+      const server = jevServer(() => invalid);
+      expect(await createJevDecider({ apiKey: KEY, fetchImpl: server.impl, record: () => {} }).compilable!(request)).toBeNull();
+    }
+    expect(await createJevDecider({ apiKey: KEY, fetchImpl: hangingFetch, timeoutMs: 10, record: () => {} }).compilable!(request)).toBeNull();
+  });
+
+  it('hands an oversized recipe to the compiler instead of judging an excerpt', async () => {
+    const { impl, requests } = jevServer();
+    const decider = createJevDecider({ apiKey: KEY, fetchImpl: impl, record: () => {} });
+    expect(await decider.compilable!({ ...request, prompt: 'x'.repeat(32_001) })).toBeNull();
+    expect(requests).toHaveLength(0);
+  });
+});
 
 /** In CATALOG order: agent_1 is Water, agent_2 is Methane. */
 const pickMethane = { choice: choiceAnswer('agent_2'), 'fits::agent_2': noulAnswer(0.9), 'fits::agent_1': noulAnswer(0.2) };
@@ -1280,6 +1330,16 @@ describe('the jev card in the run view', () => {
     expect(card).toMatchObject({ title: 'Jev · prefilter', decision: '→ Methane', body: 'picked Methane' });
     expect(card!.meta).toContain('L2 Idioblast');
     expect(card!.footer).toMatch(/^jev-1\.13\.0 · conf 90% · \d+ms · \$0\.0000 · /);
+  });
+
+  it('preserves a compilation postponement through the recorder and the client card', async () => {
+    const [card] = await cardsFor((d) => d.compilable!({
+      skillId: 'build-page', prompt: 'Write and design an arbitrary page',
+      allowLoopbackNetwork: false, actorName: 'Idioblast', actorTier: 2,
+    }), { semantic_judgment: noulAnswer(0.95), unavailable_capability: noulAnswer(0.05), unspecified_inputs: noulAnswer(0.05) });
+    expect(card).toMatchObject({ title: 'Jev · compile-skill',
+      body: 'compilation postponed: semantic_judgment; reconsider on next credited success' });
+    expect(card!.meta).toContain('L2 Idioblast');
   });
 
   it('badges an approval with its weakest link, and a deferral as the model deciding', async () => {

@@ -666,9 +666,9 @@ export class SkillLifecycle {
     // has earned credit. Every draft is SAVED before any compile starts, so a
     // compile that errors or times out cannot cost a sibling draft its body.
     // The ordinary promotion gates decide: the policy switch, a zero
-    // threshold (an operator may raise it), the refusal stamp. A refusal is
-    // stamped there, so the recipe stays kind:llm and is not recompiled
-    // until its body or the compiler changes.
+    // threshold (an operator may raise it), the refusal stamp, then Jev.
+    // Compiler refusals are stamped until a body/compiler change. Jev's
+    // postponements are not: the next credited success asks it again.
     for (const skillId of learned) {
       try {
         await this.tryPromoteSkill({
@@ -902,13 +902,11 @@ export class SkillLifecycle {
    * stashes the original llm body in `_fallback.md` so demotion can
    * restore it.
    *
-   * The trigger condition is `successes >= promoteThreshold() &&
-   * failures === 0 && kind === 'llm'`. The `failures === 0` clause
-   * also blocks RE-promotion after a demotion (which bumps `failures`
-   * via `recordFailure` upstream), so a script that broke and got
-   * rolled back doesn't immediately get re-compiled on the next
-   * success — the operator has to reset the counter to invite
-   * another attempt.
+   * Historical LLM failures are not evidence that the CURRENT recipe cannot
+   * compile. Jev checks that recipe on every eligible attempt; its no only
+   * postpones this call, and silence/uncertainty leaves the compiler in charge.
+   * Compiler/scan refusals and demotions retain their generation-aware stamps:
+   * rechecking cheap eligibility must not regenerate the same broken script.
    *
    * Cost: ONE Sonnet call (~$0.01) per promotion attempt. If the model
    * declines (returns `promotable: false`), no script is saved and the
@@ -937,7 +935,7 @@ export class SkillLifecycle {
     const skill = skills.find((s) => s.id === args.skillId);
     if (!skill) return;
     if (skill.kind !== 'llm') return;
-    if (skill.failures > 0) return;
+    if (skill.trigger) return; // Event recovery is guidance, never a script.
     if (skill.successes < promoteThreshold()) return;
     if (skill.promotionRefusedAt && !refusalStampIsCurrent(skill.promotionRefusedGeneration)) {
       // The stamp predates the CURRENT compiler. Its premise ("recompiling
@@ -964,17 +962,47 @@ export class SkillLifecycle {
       );
       return;
     }
+    const userContent = buildCompileSkillPrompt({
+      skillId: skill.id,
+      skillDescription: skill.description,
+      skillWhenToUse: skill.whenToUse,
+      skillBody: skill.body,
+      subTaskDescription: args.subTask.description,
+      resultSummary: args.result.summary,
+    });
+    if (args.ctx.signal?.aborted) return;
+    if (args.ctx.jev?.compilable) {
+      try {
+        const decision = await args.ctx.jev.compilable({
+          skillId: skill.id,
+          prompt: userContent,
+          allowLoopbackNetwork: hostAllowsLoopbackNetwork(args.hostTools ?? []),
+          actorName: this.host.name,
+          actorTier: 2,
+          ...(args.ctx.signal ? { signal: args.ctx.signal } : {}),
+        });
+        if (decision?.compilable === false) {
+          args.ctx.logger.info(
+            `[${this.host.name}] skill "${args.skillId}" compile postponed by Jev (${decision.obstacles.join(', ')}); reconsidering at the next credited success`
+          );
+          // A Jev no is never a promotion-refusal stamp. It is inexpensive to
+          // ask again, even with identical input, and a false no must recover.
+          return;
+        }
+      } catch {
+        // Custom deciders may throw; the compiler remains the fallback.
+      }
+    }
+    if (args.ctx.signal?.aborted) return;
     args.ctx.logger.info(
-      `[${this.host.name}] skill "${args.skillId}" eligible for promotion (${skill.successes} successes / 0 failures); attempting compile`
+      `[${this.host.name}] skill "${args.skillId}" eligible for promotion (${skill.successes} successes / ${skill.failures} historical failures); attempting compile`
     );
     let compiled:
       | { promotable: true; language: 'node'; body: string; writes?: readonly string[] }
       | { promotable: false; reason: string };
     try {
       compiled = await this.compileSkillToScript({
-        skill,
-        subTask: args.subTask,
-        result: args.result,
+        userContent,
         ctx: args.ctx,
       });
     } catch (err) {
@@ -1129,25 +1157,14 @@ export class SkillLifecycle {
    * doesn't over-generalise the parameter surface.
    */
   private async compileSkillToScript(args: {
-    skill: import('../skills/types.js').Skill;
-    subTask: Task;
-    result: Result;
+    userContent: string;
     ctx: RunContext;
   }): Promise<
     | { promotable: true; language: 'node'; body: string; writes?: readonly string[] }
     | { promotable: false; reason: string }
   > {
-    const userContent = buildCompileSkillPrompt({
-      skillId: args.skill.id,
-      skillDescription: args.skill.description,
-      skillWhenToUse: args.skill.whenToUse,
-      skillBody: args.skill.body,
-      subTaskDescription: args.subTask.description,
-      resultSummary: args.result.summary,
-    });
-
     const resp = await args.ctx.llm.complete(this.host.toLlmRequest('skill', {
-      userContent,
+      userContent: args.userContent,
       // `effort: 'medium'` is load-bearing on the claude-cli transport,
       // where maxTokens is advisory-only: at the default 'high' a compile
       // ran ~7 minutes / ~20k thinking+output tokens through the subprocess
@@ -1642,7 +1659,11 @@ export class SkillLifecycle {
   ): void {
     const streak = this.skills.markDirectFailure(l1Name, skill.id);
     if (streak < demoteAfter()) return;
-    const demoted = this.skills.demoteToLlm(l1Name, skill.id);
+    const demoted = this.skills.demoteToLlm(
+      l1Name,
+      skill.id,
+      `compiled form failed ${streak} consecutive deterministic dispatches`
+    );
     if (!demoted) {
       // No _fallback.md (hand-authored script) — nothing to restore.
       // `shouldTrustSkill` keeps such a script off deterministic dispatch,
@@ -1656,23 +1677,6 @@ export class SkillLifecycle {
       `[${this.host.name}] script skill "${skill.id}" demoted to llm after ${streak} consecutive deterministic failures (fallback recipe restored)`
     );
     ctx.recordRunStat?.('demotion');
-    // Stamp the refusal too, or the demotion OSCILLATES: the restored llm
-    // form re-earns the promotion threshold, compile re-runs on the same body,
-    // produces the same structurally brittle script, and the cycle repeats — one
-    // Sonnet call plus two wasted dispatches per lap. The stamp parks
-    // re-compilation until the BODY changes (save() clears it), which is the
-    // only event that could change the compile's outcome. NOTE: demoteToLlm
-    // just rewrote SKILL.md via save(), so the stamp must be set AFTER it.
-    // Stamp the generation that COMPILED the failing script — not the one in
-    // force now. If the compiler has since evolved, iteration-1's gate treats
-    // this stamp as stale and lets the new compiler try (a script produced by
-    // compiler A failing says nothing about compiler B's output).
-    this.skills.markPromotionRefused(
-      l1Name,
-      skill.id,
-      `auto-demoted: compiled form failed ${streak} consecutive deterministic dispatches — recompiling the SAME body with the SAME compiler would reproduce it; revise the body or wait for a compiler change`,
-      skill.compiledGeneration ?? COMPILE_PROMPT_GENERATION
-    );
     ctx.recordSkill?.({
       op: 'demote',
       l1Name: this.displayName(l1Name),

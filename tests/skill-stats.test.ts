@@ -210,7 +210,8 @@ describe('skillStatus — lifecycle labels', () => {
         OPTS
       )
     ).toContain('refusal-stale(will-retry)');
-    expect(skillStatus(fakeSkill({ failures: 1, matches: 1 }), OPTS)).toContain('blocked(reset)');
+    expect(skillStatus(fakeSkill({ successes: 5, failures: 1, matches: 6 }), OPTS)).toBe('promotion-eligible');
+    expect(skillStatus(fakeSkill({ failures: 1, matches: 1 }), OPTS)).not.toContain('blocked(reset)');
   });
 
   it('script lifecycle: dispatch from the first match, blocked by a failure, direct failures', () => {

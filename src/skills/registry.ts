@@ -21,6 +21,7 @@ import { join, resolve } from 'node:path';
 import { skillNamespaceInfoSchema, type SkillNamespaceInfo } from '../contracts/skillCatalog.js';
 import type { Skill, SkillFrontmatter, SkillLanguage, SkillMeta, SkillProvenance } from './types.js';
 import { asStoredNamespace, type SkillNamespace } from './namespace.js';
+import { COMPILE_PROMPT_GENERATION } from './compilePrompt.js';
 import {
   IMPORTED_META_FILENAME,
   bumpMetaRow,
@@ -1011,14 +1012,14 @@ export class SkillRegistry {
    * `recordFailure` upstream — that's what triggers demotion in the
    * first place). The `_fallback.md` sidecar is INTENTIONALLY left in
    * place: keeping it lets a future re-promotion compare against the
-   * historical body, and a `failures > 0` gate at promote-attempt
-   * time blocks accidental re-promotion until counters are reset.
+   * historical body. Every demotion stamps the compiler generation that
+   * produced the failed script to prevent unchanged recompilation.
    *
    * No-op (returns null) when the skill doesn't exist, isn't currently
    * kind:script, or has no fallback body — the caller should treat
    * those as "nothing to demote" rather than as errors.
    */
-  demoteToLlm(l1Name: string, skillId: string): Skill | null {
+  demoteToLlm(l1Name: string, skillId: string, reason = 'compiled form failed supervised execution'): Skill | null {
     const dir = this.skillDir(l1Name, skillId);
     const skillFile = join(dir, 'SKILL.md');
     if (!existsSync(skillFile)) return null;
@@ -1029,7 +1030,8 @@ export class SkillRegistry {
     if (!existsSync(fallbackPath)) return null;
     const fallbackBody = readFileSync(fallbackPath, 'utf8').trim();
     if (!fallbackBody) return null;
-    if (this.peekMeta(l1Name, skillId) === null) return null;
+    const meta = this.peekMeta(l1Name, skillId);
+    if (meta === null) return null;
     // Preserve the script being retired BEFORE save() overwrites it. Never
     // fatal: a post-mortem aid must not be able to block the safety action it
     // documents.
@@ -1046,7 +1048,16 @@ export class SkillRegistry {
       body: fallbackBody,
     });
     this.recordEvent({ kind: 'demote', entity: `${l1Name}/${skillId}` }, this.writeStore());
-    return demoted;
+    // save() clears body-bound stamps, so stamp AFTER restoring the recipe.
+    // Both supervised and deterministic failures use this path. A failure of
+    // compiler A must not park the recipe against an improved compiler B.
+    const stamped = this.markPromotionRefused(
+      l1Name,
+      skillId,
+      `auto-demoted: ${reason}; revise the recipe or wait for a compiler change before recompiling`,
+      meta.compiledGeneration ?? COMPILE_PROMPT_GENERATION
+    );
+    return { ...demoted, ...stamped };
   }
 
   /**
@@ -1054,10 +1065,9 @@ export class SkillRegistry {
    * counters AND drops `promotionRefusedAt` — the reset expresses an
    * explicit operator judgment that the skill deserves a fresh start,
    * which includes a fresh Sonnet compile attempt once it re-earns the
-   * promotion threshold. This is the only sanctioned way out of the
-   * two dead-ends the automatic gates create: `failures > 0` blocks
-   * re-promotion forever after a demotion, and a compile-refusal stamp
-   * parks an unchanged body indefinitely.
+   * promotion threshold. This permits an immediate retry without revising
+   * a failed script or waiting for a compiler-generation change.
+   * Historical failures of an LLM recipe do not block compilation.
    *
    * Returns the fresh meta, or null when the skill doesn't exist (we
    * never create a record for a non-existent skill).

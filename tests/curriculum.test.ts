@@ -75,7 +75,7 @@ describe('selectCurriculumTargets', () => {
     expect(targets[0]!.hint).toMatch(/is 1 clean success\(es\) from the llm→script compile/);
   });
 
-  it('skips blocked skills (failures > 0), refused-current-gen, and never-driven llm skills', () => {
+  it('reconsiders LLM recipes with failures, but skips current refusals and never-driven recipes', () => {
     const byL1 = new Map([
       [
         'Water',
@@ -92,7 +92,7 @@ describe('selectCurriculumTargets', () => {
         ],
       ],
     ]);
-    expect(selectCurriculumTargets({ byL1, ...GEN })).toEqual([]);
+    expect(selectCurriculumTargets({ byL1, ...GEN }).map((target) => target.skillId)).toEqual(['blocked']);
   });
 
   it('orders by category priority then distance, and caps the batch', () => {

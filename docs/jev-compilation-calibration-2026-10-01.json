@@ -1,0 +1,281 @@
+{
+  "date": "2026-10-01",
+  "purpose": "Pre-labelled compilation-eligibility calibration, fixed before the first live request. These labels are reviewer judgments, not execution proof.",
+  "labels": {
+    "compilable": 7,
+    "notCompilable": 7
+  },
+  "productionSources": [
+    {
+      "skillId": "build-in-memory-json-api",
+      "owner": "Methane",
+      "updatedAt": "2026-09-29T07:58:33.457Z",
+      "successes": 24,
+      "failures": 2
+    },
+    {
+      "skillId": "build-node-network-dashboard",
+      "owner": "Glucose",
+      "updatedAt": "2026-09-12T10:25:54.356Z",
+      "successes": 11,
+      "failures": 3
+    },
+    {
+      "skillId": "build-responsive-static-multipage-site",
+      "owner": "Water",
+      "updatedAt": "2026-09-27T08:57:39.284Z",
+      "successes": 2,
+      "failures": 1
+    },
+    {
+      "skillId": "patch-verified-static-ui",
+      "owner": "Serotonin",
+      "updatedAt": "2026-10-01T12:52:25.809Z",
+      "successes": 13,
+      "failures": 2
+    }
+  ],
+  "examples": "No invented run evidence: example task is the recipe trigger and example result is empty.",
+  "request": {
+    "compilations": {
+      "repeats": 3,
+      "cases": [
+        {
+          "skillId": "build-in-memory-json-api",
+          "description": "Build and smoke-test a dependency-free Node HTTP JSON API with in-memory state.",
+          "whenToUse": "Task asks for a built-in-module Node HTTP JSON API with validated CRUD routes and no dependencies.",
+          "body": "1. write_file each required artifact; use only built-in Node modules and derive host, port, persistence paths, startup signaling, and response contract from the task.\n2. Implement JSON responses, parsing, validation, in-memory state, requested routes, and durable writes. Reload persisted state at startup, tolerate a missing initial store, serialize mutations to prevent overlapping writes, and implement atomic persistence via a same-directory temporary file followed by rename.\n3. write_file <readme> with derived startup, persistence, API, UI, and CLI examples.\n4. start_node_server <entry> with an OS-assigned test port when supported; capture its emitted listening port. First use fetch_url read-only probes for health, empty-list, missing-resource, malformed/invalid input, and unknown-route behavior; record status, JSON body, and relevant headers.\n5. Use fetch_url to exercise every requested mutation and evaluation path, including duplicate/conflict, update, delete, and post-delete missing behavior. Verify returned payloads, status codes, ordering, validation error shape, and state transitions with follow-up GET requests; capture probe details rather than reporting unsupported success.\n6. Verify persistence and durability explicitly: mutate a record, read <file> to confirm valid expected JSON, stop cleanly, restart with the same persistence location, rediscover the port, and fetch the record. Inspect the write implementation or test concurrent mutations to confirm writes are serialized and use temp-file-plus-rename atomic replacement.",
+          "hostTools": [
+            "write_file",
+            "edit_file",
+            "read_file",
+            "list_files",
+            "run_shell",
+            "fetch_url",
+            "start_node_server"
+          ],
+          "subTaskDescription": "Task asks for a built-in-module Node HTTP JSON API with validated CRUD routes and no dependencies.",
+          "resultSummary": "",
+          "expected": false
+        },
+        {
+          "skillId": "build-node-network-dashboard",
+          "description": "Build and verify a dependency-free Node dashboard with a real upstream check.",
+          "whenToUse": "Task asks for a small Node web app that fetches an external resource server-side and shows its status in a browser UI.",
+          "body": "1. Inspect existing files and preserve documented routes/contracts; derive a fixed server-side target map from requirements, never accept client URLs or hosts.\n2. Write/update `<server>` with Node HTTP/HTTPS, configured bind/port logging, bounded upstream requests and buffering, truthful timing/byte/error JSON, and no filesystem writes.\n3. Build accessible `<page>` and assets with explicit loading, empty, success, and error states; persist only real results defensively and label browser-local/on-demand limitations.\n4. Add dependency-free regression tests for health, static assets, preserved routes, and unknown-target refusal without external calls; add package metadata and run docs.\n5. On one live OS-assigned server URL, first capture read-only machine evidence for health, preserved APIs, assets, target listing, and invalid-target refusal; perform each required real upstream check only the required number of times. Then use a real browser on that same URL with selector-based actions to exercise every required primary, per-target, filter, persistence/reload, export, clear, and keyboard flow, recording visible truthful fields and resulting state after each action. Inspect required responsive viewports and capture console/request logs; if any interaction, console error, failed request, or assertion fails, repair only the observed defect and rerun affected probes. Run HTML validation on each served HTML document as a final release gate; repair every reported markup error and rerun validation until it succeeds, retaining the successful result. Report only checks actually completed and never describe failed validation as final verification.",
+          "hostTools": [
+            "write_file",
+            "edit_file",
+            "read_file",
+            "list_files",
+            "start_static_server",
+            "validate_html"
+          ],
+          "subTaskDescription": "Task asks for a small Node web app that fetches an external resource server-side and shows its status in a browser UI.",
+          "resultSummary": "",
+          "expected": false
+        },
+        {
+          "skillId": "build-responsive-static-multipage-site",
+          "description": "Build a shared, responsive static multi-page site with interactive UI states.",
+          "whenToUse": "Task asks to create or update several linked static pages with shared navigation, responsive menus, and client-side interactions.",
+          "body": "1. read_file existing pages to preserve required behavior and derive all required routes, states, values, and acceptance criteria.\n2. write_file shared stylesheet and pages; use identical nav with an accurate current-page marker.\n3. Add accessible menu toggle, responsive layout, and requested client-side states with valid HTML and no external dependency failures.\n4. start_static_server.\n5. validate_html every required route and interaction: navigation, calculations, filters, forms, mobile viewport, console, and requests.\n6. edit_file only for observed defects; revalidate until all checks pass.\n7. Emit the required final `{\"output\",\"summary\"}` JSON envelope only after successful final validation; if validation cannot pass, report the blocking failure rather than claiming completion.",
+          "hostTools": [
+            "write_file",
+            "edit_file",
+            "read_file",
+            "list_files",
+            "start_static_server",
+            "validate_html"
+          ],
+          "subTaskDescription": "Task asks to create or update several linked static pages with shared navigation, responsive menus, and client-side interactions.",
+          "resultSummary": "",
+          "expected": false
+        },
+        {
+          "skillId": "patch-verified-static-ui",
+          "description": "Apply a narrowly scoped static UI correction and browser-verify it.",
+          "whenToUse": "Task asks to change one existing static-page UI label or behavior while preserving all other controls.",
+          "body": "1. list_files and read_file <entry> to locate targeted state/rendering and identify task-specified obsolete artifacts; confirm a deletion-capable tool is available before planning any required removal.\n2. Edit only <entry> for the requested UI behavior; delete every explicitly unwanted <file> with the available deletion-capable operation, preserving unrelated controls and presentation.\n3. start_static_server for <entry> on an OS-assigned port.\n4. validate_html through the requested real interactions, including relevant focus contexts; confirm deleted artifacts are absent, smoke-check requested output and preserved behavior/elements, and verify zero console errors or failed requests.",
+          "hostTools": [
+            "write_file",
+            "edit_file",
+            "read_file",
+            "list_files",
+            "start_static_server",
+            "validate_html"
+          ],
+          "subTaskDescription": "Task asks to change one existing static-page UI label or behavior while preserving all other controls.",
+          "resultSummary": "",
+          "expected": false
+        },
+        {
+          "skillId": "calibration-verify-file-hashes",
+          "description": "Verify files against a machine-readable checksum manifest.",
+          "whenToUse": "Verify files against a machine-readable checksum manifest.",
+          "body": "Read checksums.json from the workspace. Its schema is {files:[{path:string,sha256:string}]}. Reject missing files, invalid schema and paths outside the workspace. Compute SHA-256 for every listed file with Node built-ins, compare all digests exactly, and report the counts and observations. Do not mutate files. On any mismatch exit nonzero; otherwise emit the required output/summary JSON envelope. Every variable path and expected digest comes from the manifest.",
+          "hostTools": [
+            "read_file",
+            "write_file",
+            "edit_file",
+            "list_files",
+            "run_shell"
+          ],
+          "subTaskDescription": "Verify files against a machine-readable checksum manifest.",
+          "resultSummary": "",
+          "expected": true
+        },
+        {
+          "skillId": "calibration-verify-markdown-section-counts",
+          "description": "Verify named markdown sections against structured count constraints.",
+          "whenToUse": "Verify named markdown sections against structured count constraints.",
+          "body": "Read markdown-checks.json with schema {checks:[{path:string,heading:string,minBullets:integer}]}. Read each declared Markdown file. Locate each exact heading, end its section at the next heading of the same or shallower depth, ignore fenced code, and count Markdown bullet list items only inside that section. Compare with the declared minimum. Never apply a count to sibling sections. Reject malformed inputs and ambiguous duplicate headings with nonzero exit. Emit measured counts and the required JSON envelope on success; do not edit files.",
+          "hostTools": [
+            "read_file",
+            "write_file",
+            "edit_file",
+            "list_files",
+            "run_shell"
+          ],
+          "subTaskDescription": "Verify named markdown sections against structured count constraints.",
+          "resultSummary": "",
+          "expected": true
+        },
+        {
+          "skillId": "calibration-render-readme-from-manifest",
+          "description": "Render deterministic usage documentation from structured, already verified examples.",
+          "whenToUse": "Render deterministic usage documentation from structured, already verified examples.",
+          "body": "Read usage-manifest.json with schema {title:string,description:string,examples:[{command:string,stdout:string}],destination:string}. All prose and values are supplied verbatim in this machine input; do not infer CLI arguments from source or invent examples. Write exactly the fixed template: H1 title, description paragraph, and one fenced shell command and fenced text stdout per example, preserving all arguments and quotes. Validate the schema and workspace-relative destination first, refusing nonzero if absent or invalid. Emit the required JSON result with the destination.",
+          "hostTools": [
+            "read_file",
+            "write_file",
+            "edit_file",
+            "list_files",
+            "run_shell"
+          ],
+          "subTaskDescription": "Render deterministic usage documentation from structured, already verified examples.",
+          "resultSummary": "",
+          "expected": true
+        },
+        {
+          "skillId": "calibration-exact-literal-edits",
+          "description": "Apply exact literal replacements from a structured edit manifest.",
+          "whenToUse": "Apply exact literal replacements from a structured edit manifest.",
+          "body": "Read edits.json with schema {edits:[{path:string,before:string,after:string}]}. For each edit require the before string to occur exactly once in its workspace-relative target file. Validate all edits in memory before writing. Replace exactly that occurrence, preserving all other bytes. Empty or ambiguous matches, absent files, out-of-workspace paths and malformed inputs cause a nonzero exit. There is no semantic editing or design choice: replacement bytes are complete inputs. Emit changed paths in the standard output/summary envelope.",
+          "hostTools": [
+            "read_file",
+            "write_file",
+            "edit_file",
+            "list_files",
+            "run_shell"
+          ],
+          "subTaskDescription": "Apply exact literal replacements from a structured edit manifest.",
+          "resultSummary": "",
+          "expected": true
+        },
+        {
+          "skillId": "calibration-replay-installed-browser-harness",
+          "description": "Replay an existing browser verification harness whose checks are already executable.",
+          "whenToUse": "Replay an existing browser verification harness whose checks are already executable.",
+          "body": "Read browser-replay.json with schema {entry:string,args:string[],expectedExit:integer}. The recipe applies to workspaces that already contain the executable Node browser harness and all its installed browser dependencies; do not install packages, synthesize tests or call L1 tools. Check the declared entry exists under the workspace, then spawn process.execPath with that entry and the exact arguments, bounded to 30 seconds. Capture stdout/stderr and compare exit status with expectedExit. Missing harness or dependencies fail nonzero. The harness owns browser interactions and assertions; this wrapper only replays it and emits the required evidence envelope on success.",
+          "hostTools": [
+            "read_file",
+            "write_file",
+            "edit_file",
+            "list_files",
+            "run_shell"
+          ],
+          "subTaskDescription": "Replay an existing browser verification harness whose checks are already executable.",
+          "resultSummary": "",
+          "expected": true
+        },
+        {
+          "skillId": "calibration-replay-installed-http-harness",
+          "description": "Replay an existing HTTP test harness without direct networking in the wrapper.",
+          "whenToUse": "Replay an existing HTTP test harness without direct networking in the wrapper.",
+          "body": "Read replay.json containing {entry:string,args:string[],expectedExit:integer}. Require a workspace-relative existing executable Node test harness whose dependencies are already installed. Spawn it with the exact arguments and a timeout. It handles its own local server and HTTP checks. The wrapper imports only fs and child_process, compares the actual exit status with expectedExit, and reports stdout/stderr as observed evidence. Missing inputs, timeout or mismatch fail nonzero. No direct networking, invented checks or dependency installation.",
+          "hostTools": [
+            "read_file",
+            "write_file",
+            "edit_file",
+            "list_files",
+            "start_static_server",
+            "validate_html"
+          ],
+          "subTaskDescription": "Replay an existing HTTP test harness without direct networking in the wrapper.",
+          "resultSummary": "",
+          "expected": true
+        },
+        {
+          "skillId": "calibration-csv-statistics-from-spec",
+          "description": "Compute CSV statistics with a fixed algorithm and structured input parameters.",
+          "whenToUse": "Compute CSV statistics with a fixed algorithm and structured input parameters.",
+          "body": "Read statistics.json with schema {input:string,delimiter:string,column:string,output:string}. Parse RFC 4180 quoted CSV using the supplied single-character delimiter; locate the exact header column. Ignore empty cells and reject every other non-finite numeric value. Compute count, sum, arithmetic mean, min and max over finite values. Write these named fields as JSON to the configured workspace-relative output; for zero numeric rows write count 0 and the other fields null. Reject malformed schemas, CSV or unsafe paths nonzero. Use only Node built-ins and emit the required envelope. No heuristic column selection or inferred expectations.",
+          "hostTools": [
+            "read_file",
+            "write_file",
+            "edit_file",
+            "list_files",
+            "run_shell"
+          ],
+          "subTaskDescription": "Compute CSV statistics with a fixed algorithm and structured input parameters.",
+          "resultSummary": "",
+          "expected": true
+        },
+        {
+          "skillId": "calibration-interpret-new-docs",
+          "description": "Rewrite documentation to reflect an arbitrary requested behavior.",
+          "whenToUse": "Rewrite documentation to reflect an arbitrary requested behavior.",
+          "body": "Read all project documentation and the natural-language task. Determine which explanations are outdated, infer the intended behavior from the code, choose appropriate new examples, rewrite the affected sections in clear prose and validate semantic consistency. Inputs do not include replacement strings, templates or a structured behavior schema.",
+          "hostTools": [
+            "read_file",
+            "write_file",
+            "edit_file",
+            "list_files",
+            "run_shell"
+          ],
+          "subTaskDescription": "Rewrite documentation to reflect an arbitrary requested behavior.",
+          "resultSummary": "",
+          "expected": false
+        },
+        {
+          "skillId": "calibration-browser-without-harness",
+          "description": "Verify real browser keyboard interactions with only L1 browser tools.",
+          "whenToUse": "Verify real browser keyboard interactions with only L1 browser tools.",
+          "body": "Invoke the L1 validate_html tool to open the current page, discover the correct focus target, press the requested key combination, and judge whether the visible state matches the user intent. The workspace has no executable browser harness and no installed browser library or browser binary. Node scripts cannot call the L1 tool RPC. Do not skip these interactions.",
+          "hostTools": [
+            "read_file",
+            "write_file",
+            "edit_file",
+            "list_files",
+            "start_static_server",
+            "validate_html"
+          ],
+          "subTaskDescription": "Verify real browser keyboard interactions with only L1 browser tools.",
+          "resultSummary": "",
+          "expected": false
+        },
+        {
+          "skillId": "calibration-direct-external-api",
+          "description": "Fetch current third-party data directly from an external HTTPS API.",
+          "whenToUse": "Fetch current third-party data directly from an external HTTPS API.",
+          "body": "Read request.json with a required absolute public HTTPS URL and destination. The compiled script must itself call fetch on that public URL and write the exact response. There is no local cache or workspace harness; no loopback substitute is acceptable. The recipe requires direct external networking and cannot satisfy the task without it.",
+          "hostTools": [
+            "read_file",
+            "write_file",
+            "run_shell",
+            "fetch_url"
+          ],
+          "subTaskDescription": "Fetch current third-party data directly from an external HTTPS API.",
+          "resultSummary": "",
+          "expected": false
+        }
+      ]
+    },
+    "sweep": true,
+    "details": {
+      "limit": 100,
+      "offset": 0
+    }
+  }
+}

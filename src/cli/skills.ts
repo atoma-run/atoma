@@ -11,11 +11,9 @@ import { unfoldedRegistryPredicate } from '../registry/db.js';
  *
  * Defaults: --dir from ATOMA_SKILLS_DIR env or ./skills.
  *
- * `reset` is the operator escape hatch for the two promotion dead-ends:
- * a demoted script's `failures > 0` blocks re-promotion forever, and a
- * Sonnet compile refusal stamps `promotionRefusedAt` which parks an
- * unchanged body indefinitely. Resetting zeroes both counters and drops
- * the refusal stamp — the skill re-earns promotion from scratch.
+ * `reset` is the operator escape hatch for script dispatch failures and
+ * generation-scoped compiler refusals. LLM failure history does not veto
+ * compilation. Resetting zeroes both counters and drops the refusal stamp.
  */
 
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
@@ -192,17 +190,17 @@ function cmdShow(registry: SkillRegistry, l1: string, id: string): void {
   // Lifecycle position: what has to happen next, and whether anything blocks
   // it. Without this an operator sees counters but not the CONSEQUENCE.
   const next: string[] = [];
-  if (s.kind === 'llm') {
-    if (s.failures > 0) {
-      next.push(`blocked: ${s.failures} failure(s) recorded — \`reset\` to clear`);
-    } else if (s.promotionRefusedAt && refusalStampIsCurrent(s.promotionRefusedGeneration)) {
+  if (s.trigger) {
+    next.push('event recovery guidance — never compiled');
+  } else if (s.kind === 'llm') {
+    if (s.promotionRefusedAt && refusalStampIsCurrent(s.promotionRefusedGeneration)) {
       next.push('blocked: refused by the CURRENT compiler — revise the body or `reset`');
     } else if (s.promotionRefusedAt) {
       next.push('will RETRY compilation (stamp predates the current compiler)');
     } else if (s.successes >= promoteThreshold()) {
-      next.push('eligible NOW — compiles at its next credited run');
+      next.push('eligible NOW — Jev/compiler reconsiders at its next credited run');
     } else {
-      next.push(`${promoteThreshold() - s.successes} more clean run(s) → compile attempt`);
+      next.push(`${promoteThreshold() - s.successes} more credited success(es) → compilation assessment`);
     }
   } else {
     if (shouldTrustSkill(s)) {
@@ -438,9 +436,9 @@ function help(unknown?: string): void {
       '                              only; script/event skills refused.',
       '  reset <l1> <skill-id>     — zero counters AND clear the promotion-',
       '                              refusal stamp. Operator escape hatch for',
-      '                              the failures>0 / promotionRefusedAt',
-      '                              dead-ends; the skill re-earns trust from',
-      '                              scratch.',
+      '                              script trust failures and current',
+      '                              compiler refusals. Historical llm',
+      '                              failures do not block compilation.',
     '  forgive <l1> <skill-id> --failures N [--successes M] --reason "..."',
     '                            — retract N misattributed failure(s)',
     '                              (and/or M successes): environment or',

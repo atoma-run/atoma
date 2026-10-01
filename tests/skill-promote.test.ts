@@ -24,6 +24,8 @@ import {
 } from '../src/atoms/cost.js';
 import { SkillRegistry } from '../src/skills/registry.js';
 import { compileEffortForModel } from '../src/skills/lifecycle.js';
+import { createJevDecider } from '../src/core/jev.js';
+import type { JevDecisionInfo } from '../src/core/types.js';
 import { makeCtx, jsonText , nsOf} from './helpers.js';
 
 describe('compile effort routing', () => {
@@ -42,8 +44,9 @@ describe('compile effort routing', () => {
  *
  * Promotion fires at learn time (see the compile-at-learn suite) and, on an
  * approved skilled run, when the matched skill has crossed
- * `TRUST_PROMOTE_THRESHOLD_SUCCESSES` (zero by default) with zero
- * recorded failures AND `ATOMA_SKILL_PROMOTE=1` is set. The L2 then
+ * `TRUST_PROMOTE_THRESHOLD_SUCCESSES` (zero by default)
+ * AND `ATOMA_SKILL_PROMOTE=1` is set. Historical LLM failures do
+ * not veto a fresh Jev/compiler assessment. The L2 then
  * makes ONE Sonnet call to compile the llm body into a deterministic
  * Node script; on a clean compile the registry stashes the original
  * llm body in `_fallback.md` and rewrites SKILL.md with `kind: script`.
@@ -52,8 +55,7 @@ describe('compile effort routing', () => {
  * escalates: the failure counter has been bumped via `recordFailure`
  * upstream, and the supervise-loop's `onFailed` hook restores the
  * fallback as the new body + flips kind back to 'llm'. The
- * `failures > 0` clause inside `tryPromoteSkill` then blocks
- * accidental re-promotion until counters are reset.
+ * generation-scoped refusal stamp then blocks unchanged re-promotion.
  */
 
 const seed = {
@@ -248,6 +250,74 @@ describe('L2 onApproved — skill promotion (#C2c)', () => {
     expect(compileCall.params?.effort).toBe('medium');
   });
 
+  it.each([false, true])('reconsiders a Jev no despite old LLM failures (recipe revised: %s), through the real L2 path', async (revised) => {
+    process.env['ATOMA_SKILL_PROMOTE'] = '1';
+    const ns = nsOf(reg, 'Water');
+    skills.recordFailure(ns, 'web-build-loop');
+    skills.recordFailure(ns, 'web-build-loop');
+    if (revised) {
+      const previous = skills.loadFor(ns)[0]!;
+      skills.save(ns, { id: previous.id, description: previous.description,
+        whenToUse: previous.whenToUse, kind: 'llm', body: 'Read the probe manifest and replay its recorded expectations.' });
+    }
+    let obstacle = 0.95;
+    const records: JevDecisionInfo[] = [];
+    const prompts: string[] = [];
+    const fetchImpl = (async (_url, init) => {
+      if (typeof init?.body !== 'string') throw new Error('expected a JSON request body');
+      const body = JSON.parse(init.body) as { state: { compile_request: string }; questions: Record<string, unknown> };
+      prompts.push(body.state.compile_request);
+      return new Response(JSON.stringify({
+        answers: Object.fromEntries(Object.keys(body.questions).map((key) => [key, { type: 'noul', noul: obstacle }])),
+        usage: { input_tokens: 100, output_tokens: 0 },
+      }));
+    }) as typeof fetch;
+    const decider = createJevDecider({ apiKey: 'test', fetchImpl, record: (event) => records.push(event) });
+    const run = async (compile: boolean) => {
+      // Only compilation uses Jev here; the actual L2 credit hook owns the call.
+      const ctx = { ...makeCtx(),
+        jev: { ...decider, choose: async () => null, approve: async () => null, twin: async () => null } };
+      ctx.llm.enqueueText(jsonText({ kind: 'reuse', target: 'Water', confidence: 'high', reasoning: 'fit' }));
+      ctx.llm.enqueueText(jsonText({ kind: 'reuse', target: 'web-build-loop', confidence: 'high', reasoning: 'fit' }));
+      ctx.llm.enqueueText(jsonText({ reasoning: 'r', proposedAction: 'a', expectedOutput: 'e' }));
+      ctx.llm.enqueueText(jsonText({ output: 'ok', summary: 'built' }));
+      if (compile) ctx.llm.enqueueText(jsonText({ promotable: true, language: 'node', body: 'console.log(JSON.stringify({output:"ok", summary:"done"}));' }));
+      await L2Atom.fromType(reg.getByName('Tracheid')!, reg, [], skills).handleDirect({ description: 'build a page' }, ctx);
+      return ctx;
+    };
+    const first = await run(false);
+    expect(first.llm.calls).toHaveLength(4);
+    expect(skills.loadFor(ns)[0]).toMatchObject({ kind: 'llm', failures: 2 });
+    expect(skills.loadFor(ns)[0]!.promotionRefusedAt).toBeUndefined();
+    obstacle = 0.05;
+    const second = await run(true);
+    expect(second.llm.calls).toHaveLength(5);
+    expect(prompts).toHaveLength(2);
+    expect(prompts[1]).toBe(second.llm.calls.at(-1)!.userContent);
+    expect(records.map((event) => event.role)).toEqual(['compile-skill', 'compile-skill']);
+    expect(records[0]!.outcome).toContain('postponed');
+    expect(records[1]!.outcome).toBe('compilation attempt allowed');
+    expect(skills.loadFor(ns)[0]).toMatchObject({ kind: 'script', successes: 0, failures: 0 });
+  });
+
+  it.each(['absent', 'uncertain', 'throwing'] as const)('lets the compiler judge historical failures when Jev is %s', async (mode) => {
+    process.env['ATOMA_SKILL_PROMOTE'] = '1';
+    const ns = nsOf(reg, 'Water');
+    skills.recordFailure(ns, 'web-build-loop');
+    const ctx = { ...makeCtx(), ...(mode !== 'absent' ? { jev: {
+      choose: async () => null, approve: async () => null, twin: async () => null,
+      compilable: async () => { if (mode === 'throwing') throw new Error('service unavailable'); return null; },
+    } } : {}) };
+    ctx.llm.enqueueText(jsonText({ kind: 'reuse', target: 'Water', confidence: 'high', reasoning: 'fit' }));
+    ctx.llm.enqueueText(jsonText({ kind: 'reuse', target: 'web-build-loop', confidence: 'high', reasoning: 'fit' }));
+    ctx.llm.enqueueText(jsonText({ reasoning: 'r', proposedAction: 'a', expectedOutput: 'e' }));
+    ctx.llm.enqueueText(jsonText({ output: 'ok', summary: 'built' }));
+    ctx.llm.enqueueText(jsonText({ promotable: false, reason: 'still needs design judgment' }));
+    await L2Atom.fromType(reg.getByName('Tracheid')!, reg, [], skills).handleDirect({ description: 'build a page' }, ctx);
+    expect(ctx.llm.calls).toHaveLength(5);
+    expect(skills.loadFor(ns)[0]).toMatchObject({ kind: 'llm', failures: 1, promotionRefusedReason: 'still needs design judgment' });
+  });
+
   it('persists compiler-declared writes, unioned with statically proven targets (review §3.3)', async () => {
     process.env['ATOMA_SKILL_PROMOTE'] = '1';
     const neuron = L2Atom.fromType(reg.getByName('Tracheid')!, reg, [], skills);
@@ -281,12 +351,15 @@ describe('L2 onApproved — skill promotion (#C2c)', () => {
     expect(after.declaredWrites).toEqual(['README.md', '.atoma-probes.json']);
   });
 
-  it('does NOT promote when the skill has any failures recorded (gate prevents thrash after demotion)', async () => {
+  it('does NOT recompile an unchanged script demoted after a supervised failure', async () => {
     process.env['ATOMA_SKILL_PROMOTE'] = '1';
-    // One failure puts the skill out of promotion eligibility even
-    // though successes >= threshold. Simulates the "demoted earlier,
-    // operator hasn't reset counters" state.
-    skills.recordFailure(nsOf(reg, 'Water'), 'web-build-loop');
+    const ns = nsOf(reg, 'Water');
+    skills.promoteToScript({
+      l1Name: ns, skillId: 'web-build-loop', language: 'node',
+      scriptBody: 'console.log(1)', compiledGeneration: COMPILE_PROMPT_GENERATION,
+    });
+    skills.recordFailure(ns, 'web-build-loop');
+    skills.demoteToLlm(ns, 'web-build-loop');
 
     const neuron = L2Atom.fromType(reg.getByName('Tracheid')!, reg, [], skills);
     const ctx = makeCtx();
@@ -305,9 +378,11 @@ describe('L2 onApproved — skill promotion (#C2c)', () => {
 
     await neuron.handleDirect({ description: 'build a small web thing' }, ctx);
 
+    expect(ctx.llm.calls).toHaveLength(4);
     const after = skills.loadFor(nsOf(reg, 'Water')).find((s) => s.id === 'web-build-loop')!;
     expect(after.kind).toBe('llm');
     expect(after.failures).toBe(1);
+    expect(after.promotionRefusedGeneration).toBe(COMPILE_PROMPT_GENERATION);
   });
 
   it('does NOT promote when Sonnet refuses (promotable: false)', async () => {
@@ -711,11 +786,12 @@ describe('demotion stamps the COMPILING generation, not the current one', () => 
     expect(promoted.compiledGeneration).toBe('oldgen01');
 
     // Demotion path stamps the compiling generation…
-    skills.markPromotionRefused(asStoredNamespace('Water'), 's', 'auto-demoted: …', promoted.compiledGeneration);
+    skills.demoteToLlm(asStoredNamespace('Water'), 's');
     const stamped = skills.loadFor(asStoredNamespace('Water'))[0]!;
     expect(stamped.promotionRefusedGeneration).toBe('oldgen01');
     // …which differs from today's compiler, so the gate treats it as stale.
     expect(stamped.promotionRefusedGeneration).not.toBe(REFUSAL_GENERATION);
+    expect(refusalStampIsCurrent(stamped.promotionRefusedGeneration)).toBe(false);
     rmSync(dir, { recursive: true, force: true });
   });
 });

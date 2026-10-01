@@ -51,7 +51,7 @@ export function trustThreshold(): number {
 }
 
 /**
- * Credited successes (with zero failures) before an llm skill attempts
+ * Credited successes before an llm skill attempts
  * compilation. Zero by default, which means AT LEARN TIME — see
  * TRUST_PROMOTE_THRESHOLD_SUCCESSES. An operator may raise it for one run.
  */
@@ -65,8 +65,8 @@ export function demoteAfter(): number {
 }
 
 /**
- * Credited SUCCESSES an `kind: 'llm'` skill needs, with zero recorded
- * failures, before the supervisor attempts to PROMOTE it to a deterministic
+ * Credited SUCCESSES a `kind: 'llm'` skill needs before the supervisor
+ * assesses it with Jev and attempts to PROMOTE it to a deterministic
  * `kind: 'script'` body via one compile call. ZERO since 2026-09-26 (owner
  * decision, docs/compile-at-learn-2026-09-26.md): a recipe that CAN be
  * compiled is compiled the moment it is learned, from the very run it was
@@ -82,16 +82,15 @@ export function demoteAfter(): number {
  * recipes compiled at their first attempt and irreducible-reasoning recipes
  * were refused with the same rationale at any count. What the count still
  * bought was a match-surface sample: only a recipe that had been matched
- * and credited paid for a compile. At zero, every learned draft pays for
- * its compile, including twins and recipes that will never match again.
+ * and credited paid for a compile. At zero, every learned draft is assessed;
+ * Jev may postpone the compile and reconsider at its next credited success.
  * The downstream gates — compiler refusal, static scan, generation-stamped
  * anti-thrash, the post-promotion counter RESET, the deliverable gate and
  * the demotion streak — carry the safety, as they already did.
  *
  * Demotion (a failure on the script form) restores the original llm body
- * from the `_fallback.md` sidecar and increments `failures`; the
- * `failures > 0` gate then blocks re-promotion until the operator resets
- * the counters or deletes the skill.
+ * from the `_fallback.md` sidecar and stamps the failed compiler generation.
+ * Historical LLM failures do not veto compilation (owner decision 2026-10-01).
  */
 export const TRUST_PROMOTE_THRESHOLD_SUCCESSES = 0;
 

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import type { ContextCitation, ContextSource } from '../contracts/llmTrace.js';
 import type { AtomType } from '../registry/atomRegistry.js';
-import type { Task, Tier } from '../core/types.js';
+import type { JevDecisionInfo, Task, Tier } from '../core/types.js';
 import type { AcceptanceInfo, TopologyInfo } from '../contracts/depthRouting.js';
 import { isLanded } from '../contracts/runLanding.js';
 
@@ -302,7 +302,7 @@ export interface VizJevEvent {
   id: string;
   ts: number;
   kind: 'jev';
-  role: 'prefilter' | 'validate-plan' | 'validate-result' | 'learn-skill' | 'learn-event-skill';
+  role: JevDecisionInfo['role'];
   evaluator: string;
   servedModel?: string;
   /** TypeSafe's `x-typesafe-request-id`. */

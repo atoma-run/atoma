@@ -53,6 +53,13 @@ deliverable gate, and the `--no-direct-skills` / `ATOMA_SKILL_DIRECT=0` kill
 switch. Direct library use of the L2 hooks stays opt-in (`=== '1'`), like
 learning.
 
+Update, 2026-10-01: the lifetime `failures > 0` compilation veto is removed.
+Jev assesses the current recipe at each eligible opportunity; its refusal is
+temporary, and an uncertain/unavailable answer falls back to the compiler.
+Demotions instead stamp the generation that produced the failed script.
+The owner authorised deployment followed by live MCP calibration. See the
+[compilation eligibility decision](jev-decisions-2026-09-28.md#compilation-eligibility-owner-decision-2026-10-01).
+
 ## Why the old wait could go
 
 The 2026-08-07 threshold experiment (batches 14–15) found that the success

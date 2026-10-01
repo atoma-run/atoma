@@ -616,6 +616,23 @@ export interface JevTwinDecision {
   readonly confidence: number;
 }
 
+/** The exact request the compiler will receive, without historical trust counters. */
+export interface JevCompilationRequest {
+  readonly skillId: string;
+  readonly prompt: string;
+  readonly allowLoopbackNetwork: boolean;
+  readonly actorName?: string;
+  readonly actorTier?: Tier;
+  readonly branchId?: string;
+  readonly signal?: AbortSignal;
+}
+
+export interface JevCompilationDecision {
+  /** False postpones this attempt only; it must never become a persisted refusal. */
+  readonly compilable: boolean;
+  readonly obstacles: readonly string[];
+}
+
 export interface JevDecider {
   /** Exact policy/question/input identity for guarded model fallback caching. Absent disables its reuse. */
   choiceCacheKey?(request: JevChoiceRequest): string;
@@ -627,19 +644,21 @@ export interface JevDecider {
    * the exact-id guard cannot see. A twin is not saved; `null` saves as before.
    */
   twin(request: JevTwinRequest): Promise<JevTwinDecision | null>;
+  /** Optional for custom deciders; absent/null leaves the decision to the compiler. */
+  compilable?(request: JevCompilationRequest): Promise<JevCompilationDecision | null>;
 }
 
 /** One recorded Jev evaluation. The trace event is `VizJevEvent`. */
 export interface JevDecisionInfo {
   readonly coverage?: { readonly compared: number; readonly total: number; readonly complete: boolean };
-  readonly role: 'prefilter' | 'validate-plan' | 'validate-result' | 'learn-skill' | 'learn-event-skill';
+  readonly role: 'prefilter' | 'validate-plan' | 'validate-result' | 'learn-skill' | 'learn-event-skill' | 'compile-skill';
   /** `<vendor>:<model>` as requested. */
   readonly evaluator: string;
   /** The model the service reports having served, when it says. */
   readonly servedModel?: string;
   /** TypeSafe's `x-typesafe-request-id` for this call: what its support asks for. */
   readonly requestId?: string;
-  /** The prefilter's candidates, or the recipes a twin check compared, when there were some. */
+  /** Prefilter candidates, recipes compared for twins, or the compilation candidate. */
   readonly candidates?: readonly string[];
   /**
    * What Jev answered: a choice with its distribution, yes-probabilities by

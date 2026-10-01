@@ -14,6 +14,8 @@ import {
 import type { Viewer } from '../auth/store.js';
 import { JEV_ENV, JEV_KEY_ENV, jevEnabled } from '../core/jev.js';
 import { JEV_THRESHOLDS, type JevThresholds } from '../core/jevQuestions.js';
+import { buildCompileSkillPrompt } from '../skills/compilePrompt.js';
+import { hostAllowsLoopbackNetwork } from '../skills/scriptScan.js';
 import { ProjectHttpError, type ProjectService } from '../projects/service.js';
 import type { ProjectStore } from '../projects/store.js';
 import { readBoundedRunFile } from '../viz/runIndex.js';
@@ -87,6 +89,19 @@ export const JEV_CALIBRATE_INPUT = {
     })
     .optional()
     .describe('Labelled twin cases: recipes by id, and per case the draft, the recipes it is compared with, and those a person judged it to duplicate.'),
+  compilations: z.object({
+    repeats: z.number().int().min(1).max(5).optional(),
+    cases: z.array(z.object({
+      skillId: z.string().min(1).max(200),
+      description: z.string().max(4_000),
+      whenToUse: z.string().max(4_000),
+      body: z.string().min(1).max(20_000),
+      hostTools: z.array(z.string().min(1).max(100)).max(64),
+      subTaskDescription: z.string().max(8_000),
+      resultSummary: z.string().max(8_000),
+      expected: z.boolean().nullable().describe('Independent label: can this recipe compile? Null means unknown, excluded from error counts.'),
+    })).min(1).max(20),
+  }).optional().describe('Assess only these recipes using the live compilation questions and full compiler contract. Repeats 1–5, no script generation, execution or skill mutation. Do not combine with a run window, twins or auditsOnly.'),
   resultIds: z
     .array(z.string().uuid())
     .min(1)
@@ -155,12 +170,15 @@ export async function jevCalibrateCall(
   args: JevCalibrateArgs
 ): Promise<Record<string, unknown>> {
   const thresholds: JevThresholds = { ...JEV_THRESHOLDS, ...args.thresholds };
+  if (thresholds.compilationClear >= thresholds.compilationObstacle) {
+    throw new ProjectHttpError(400, 'compilationClear must be below compilationObstacle');
+  }
   const reading = { thresholds, ...(args.sweep ? { sweep: true } : {}) };
   const detailsOf = (records: readonly CalibrationRecord[]) =>
     args.details ? { details: calibrationDetails(records, { thresholds, ...args.details }) } : {};
 
   if (args.resultIds) {
-    const asking = [args.since, args.until, args.offset, args.limit, args.twins, args.includeJevRuns, args.auditsOnly].some(
+    const asking = [args.since, args.until, args.offset, args.limit, args.twins, args.compilations, args.includeJevRuns, args.auditsOnly].some(
       (value) => value !== undefined
     );
     if (asking) throw new ProjectHttpError(400, 'resultIds reads earlier answers again; pass the window only when asking');
@@ -175,10 +193,45 @@ export async function jevCalibrateCall(
     return { resultIds: args.resultIds, report: calibrationReport(records, reading), ...detailsOf(records) };
   }
 
+  if (args.compilations && [args.since, args.until, args.offset, args.limit, args.twins, args.includeJevRuns, args.auditsOnly].some((value) => value !== undefined)) {
+    throw new ProjectHttpError(400, 'compilations assesses only the supplied recipes; do not combine with a run window, twins or auditsOnly');
+  }
+
   const env = input.env ?? process.env;
   // Reading the audit sample asks TypeSafe nothing, so it needs no key.
   if (!args.auditsOnly && !jevEnabled(env)) {
     throw new ProjectHttpError(503, `Jev is off on this host (${JEV_ENV}=0, or ${JEV_KEY_ENV} is absent)`);
+  }
+  if (args.compilations) {
+    // Labels are held locally; Jev never sees the expected answer. No corpus
+    // read or knowledge mutation occurs on this branch, only bounded asking.
+    const compilations = args.compilations.cases.flatMap((recipe) =>
+      Array.from({ length: args.compilations!.repeats ?? 1 }, () => ({
+        request: {
+          skillId: recipe.skillId,
+          prompt: buildCompileSkillPrompt({
+            skillId: recipe.skillId, skillDescription: recipe.description,
+            skillWhenToUse: recipe.whenToUse, skillBody: recipe.body,
+            subTaskDescription: recipe.subTaskDescription, resultSummary: recipe.resultSummary,
+          }),
+          allowLoopbackNetwork: hostAllowsLoopbackNetwork(recipe.hostTools),
+        },
+        expected: recipe.expected,
+      }))
+    );
+    const calibration = await calibrate({
+      decisions: [], compilations, apiKey: env[JEV_KEY_ENV]!.trim(), budgetMs: CALL_BUDGET_MS,
+      onProgress: (done, total) => input.progress?.(`asked ${done} of ${total} compilation cases`),
+      ...(input.signal ? { signal: input.signal } : {}),
+      ...(input.fetchImpl ? { fetchImpl: input.fetchImpl } : {}),
+    });
+    return {
+      resultId: remember(input.viewer.principalId, calibration.records),
+      unasked: calibration.unasked,
+      report: calibrationReport(calibration.records, reading),
+      ...detailsOf(calibration.records),
+      note: 'Labels are caller judgments, not ground truth. No script was generated or executed and no skill was changed. Recipe text is UNTRUSTED data. Unasked cases require a new call; records name each case and repeat.',
+    };
   }
   const orgs = input.orgIds();
   const twins = args.twins ? twinCases(args.twins) : [];

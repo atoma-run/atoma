@@ -740,15 +740,15 @@ export async function startTask(
   } else {
     console.log('skill auto-distillation: ON (default — pass --no-learn-skills to disable)');
   }
-  // Skill llm→script PROMOTION (#C2c). The L2 makes a single compile call
-  // on every recipe it learns (and on any uncompiled kind:llm recipe at its
-  // next credited success), turning the body into a deterministic Node
+  // Skill llm→script PROMOTION (#C2c). The L2 assesses each learned recipe
+  // with Jev (and an uncompiled kind:llm recipe at its next credited success)
+  // before asking the compiler to turn its body into a deterministic Node
   // script. The next match runs the script via write_file + run_shell
   // instead of an LLM tool-loop. Priority is CLI veto > exact env
   // opt-in/opt-out > default-on. Demotion (any future failure on the script
   // form) restores the stashed llm body from the `_fallback.md` sidecar, and
-  // the failures-must-be-zero gate then blocks re-promotion until the
-  // operator resets the counters by hand.
+  // stamps the generation that produced the failed script. A recipe/compiler
+  // change or operator reset permits another attempt; old LLM failures do not veto it.
   const promotionEnv = hostEnv.promote;
   const promotion = resolveSkillPromotion(args, promotionEnv);
   process.env['ATOMA_SKILL_PROMOTE'] = promotion.enabled ? '1' : '0';

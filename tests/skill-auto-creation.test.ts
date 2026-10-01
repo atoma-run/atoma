@@ -682,6 +682,27 @@ describe('L2 onApproved — compile at learn (owner decision 2026-09-26)', () =>
     );
   }
 
+  it.each([true, false])('asks Jev about a newly learned recipe before any credited run (compilable: %s)', async (compilable) => {
+    const inspected: string[] = [];
+    const ctx = { ...makeCtx(), jev: {
+      choose: async () => null, approve: async () => null, twin: async () => null,
+      compilable: async (request: { prompt: string }) => {
+        inspected.push(request.prompt);
+        return { compilable, obstacles: compilable ? [] : ['semantic_judgment'] };
+      },
+    } };
+    novelApprovedRun(ctx);
+    if (compilable) ctx.llm.enqueueText(JSON.stringify({ promotable: true, language: 'node', body: SCRIPT_BODY }));
+    await L2Atom.fromType(reg.getByName('Tracheid')!, reg, [], skills)
+      .handleDirect({ description: 'write the report and check it' }, ctx);
+    expect(inspected).toHaveLength(1);
+    expect(inspected[0]).toContain('write-and-check-report');
+    expect(ctx.llm.calls).toHaveLength(compilable ? 6 : 5);
+    const learned = skills.loadFor(nsOf(reg, 'Water')).find((s) => s.id === 'write-and-check-report')!;
+    expect(learned.kind).toBe(compilable ? 'script' : 'llm');
+    expect(learned.promotionRefusedAt).toBeUndefined();
+  });
+
   it('compiles the recipe it just learned, before any credited run', async () => {
     const events: SkillEventInfo[] = [];
     const ctx = { ...makeCtx(), recordSkill: (e: SkillEventInfo) => events.push(e) };

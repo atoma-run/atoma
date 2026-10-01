@@ -60,8 +60,7 @@ export function skillStatus(
     return parts.join(' ');
   }
   if (s.kind === 'llm') {
-    if (s.failures > 0) parts.push('blocked(reset)');
-    else if (s.promotionRefusedAt && opts.stampIsCurrent(s.promotionRefusedGeneration))
+    if (s.promotionRefusedAt && opts.stampIsCurrent(s.promotionRefusedGeneration))
       parts.push('refused(current-gen)');
     else if (s.promotionRefusedAt) parts.push('refusal-stale(will-retry)');
     else if (s.successes >= opts.promote) parts.push('promotion-eligible');

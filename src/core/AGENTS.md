@@ -186,8 +186,9 @@ Neighbours:
 - `src/core/jev.ts` is the ONE Jev (TypeSafe) client and the `JevDecider` built
   on it ([owner decision](../../docs/jev-decisions-2026-09-28.md)). Jev answers
   typed questions and generates no text: it is not a tier model and is never
-  routed through `LlmClient`. Where it decides is an atoms rule
-  ([src/atoms](../atoms/AGENTS.md)); a `null` from the decider always means
+  routed through `LlmClient`. Routing/validation follow
+  [src/atoms](../atoms/AGENTS.md), compilation follows
+  [src/skills](../skills/AGENTS.md); a `null` from the decider always means
   "the model decides".
 - EVERY run holding the key lets Jev decide, whatever its organisation, unless
   the platform switch `ATOMA_JEV=0` is set (owner decision 2026-09-30):
@@ -211,6 +212,12 @@ Neighbours:
   as the baseline every calibration compares with. A question or a threshold
   changes with a measurement, never by feel, and each is written up in the
   decision record with its numbers.
+- The proposed `compile-skill` questions use the same bounded client, cost
+  accounting and trace events. Their initial 0.2/0.8 band is UNCALIBRATED;
+  mock tests prove retry/fallback behavior, not semantic accuracy. The owner
+  authorised deployment followed by production calibration on 2026-10-01,
+  using `atoma_jev_calibrate.compilations` with the host-held key
+  ([pending measurement](../../docs/jev-decisions-2026-09-28.md#compilation-eligibility-owner-decision-2026-10-01)).
 - The AUDIT keeps Jev measured once the model no longer sees its approvals:
   `JEV_AUDIT_RATE` of them are also judged by the model validator in the
   background (`createJevAudit`, carried as `RunContext.jevAudit` and forwarded

@@ -1,11 +1,14 @@
+import { createHash } from 'node:crypto';
 import {
   JEV_THRESHOLDS,
   NEW_RECIPE,
   buildApproval,
   buildChoice,
+  buildCompilation,
   buildTwin,
   readApproval,
   readChoice,
+  readCompilation,
   readTwin,
   type JevAnswers,
   type JevChoiceOption,
@@ -22,7 +25,7 @@ import {
   legacyReadTwin,
   legacyTwin,
 } from '../core/jev.js';
-import type { JevApprovalRequest, JevChoiceRequest, JevTwinRequest, Tier } from '../core/types.js';
+import type { JevApprovalRequest, JevChoiceRequest, JevCompilationRequest, JevTwinRequest, Tier } from '../core/types.js';
 
 /**
  * JEV CALIBRATION — the documented questions (`src/core/jevQuestions.ts`)
@@ -479,7 +482,21 @@ export interface TwinRecord extends RecordBase {
   readonly expected: readonly string[];
 }
 
-export type CalibrationRecord = PrefilterRecord | ApprovalRecord | TwinRecord;
+/** Caller-labelled eligibility only: calibration never generates or executes a script. */
+export interface CompilationCase {
+  readonly request: JevCompilationRequest;
+  readonly expected: boolean | null;
+}
+
+export interface CompilationRecord extends RecordBase {
+  readonly kind: 'compilation';
+  readonly skillId: string;
+  readonly expected: boolean | null;
+  /** The exact state and questions asked, including the full compiler contract. */
+  readonly requestHash: string;
+}
+
+export type CalibrationRecord = PrefilterRecord | ApprovalRecord | TwinRecord | CompilationRecord;
 
 type Asking = { readonly state: unknown; readonly questions: Readonly<Record<string, JevQuestion>> };
 type Outcome = Omit<RecordBase, 'id'>;
@@ -516,6 +533,7 @@ export interface Calibration {
 export async function calibrate(args: {
   readonly decisions: readonly RecordedDecision[];
   readonly twins?: readonly TwinCase[];
+  readonly compilations?: readonly CompilationCase[];
   readonly apiKey: string;
   readonly fetchImpl?: typeof fetch;
   readonly signal?: AbortSignal;
@@ -529,6 +547,18 @@ export async function calibrate(args: {
   let unparsed = 0;
   const ineligible = { PLAN: 0, RESULT: 0 };
   const jobs: Job[] = [];
+  for (const [index, compilation] of (args.compilations ?? []).entries()) {
+    const plan = buildCompilation(compilation.request);
+    const requestHash = createHash('sha256').update(JSON.stringify(plan)).digest('hex');
+    jobs.push({
+      documented: plan,
+      legacy: null,
+      finish: (outcome) => ({
+        kind: 'compilation', id: `${compilation.request.skillId}#${index + 1}`,
+        skillId: compilation.request.skillId, expected: compilation.expected, requestHash, ...outcome,
+      }),
+    });
+  }
   for (const twin of args.twins ?? []) {
     const plan = buildTwin(twin.request);
     const legacy = legacyTwin(twin.request);
@@ -793,6 +823,19 @@ function twinRows(rows: readonly TwinRecord[], thresholds: JevThresholds) {
 
 const bucketOf = (row: PrefilterRecord): string => `${row.question}@L${row.actorTier ?? '?'}`;
 
+function compilationCells(rows: readonly CompilationRecord[], thresholds: JevThresholds) {
+  const readings = rows.map((row) => ({ row, decision: readCompilation(row.answers!, thresholds).decision }));
+  return {
+    cases: rows.length,
+    labelled: rows.filter((row) => row.expected !== null).length,
+    allowed: readings.filter(({ decision }) => decision?.compilable === true).length,
+    postponed: readings.filter(({ decision }) => decision?.compilable === false).length,
+    deferred: readings.filter(({ decision }) => decision === null).length,
+    falsePostponements: readings.filter(({ row, decision }) => row.expected === true && decision?.compilable === false).length,
+    falseAllowances: readings.filter(({ row, decision }) => row.expected === false && decision?.compilable === true).length,
+  };
+}
+
 /**
  * What the records say under `thresholds`: per subject, how often each design
  * approves what the model refused (the error that compounds trust) and how
@@ -811,6 +854,7 @@ export function calibrationReport(
   const approvals = answered.filter((record): record is ApprovalRecord => record.kind === 'approval');
   const prefilters = answered.filter((record): record is PrefilterRecord => record.kind === 'prefilter');
   const twins = answered.filter((record): record is TwinRecord => record.kind === 'twin');
+  const compilations = answered.filter((record): record is CompilationRecord => record.kind === 'compilation');
   const durations = answered.flatMap((record) => (record.durationMs !== undefined ? [record.durationMs] : []));
   const tokens = answered.flatMap((record) => (record.inputTokens !== undefined ? [record.inputTokens] : []));
 
@@ -879,6 +923,13 @@ export function calibrationReport(
     },
     approvals: approvalBuckets,
     prefilter: prefilterBuckets,
+    ...(compilations.length ? { compilation: {
+      ...compilationCells(compilations, thresholds),
+      ...(opts.sweep ? { sweep: [0.7, 0.8, 0.9, 0.95].map((compilationObstacle) => ({
+        compilationObstacle,
+        ...compilationCells(compilations, { ...thresholds, compilationObstacle }),
+      })) } : {}),
+    } } : {}),
     ...(twinTable.length
       ? {
           twins: {
@@ -918,6 +969,12 @@ export function calibrationDetails(
       ...(record.failure ? { failure: record.failure } : {}),
       ...(record.requestIds ? { requestIds: record.requestIds } : {}),
     };
+    if (record.kind === 'compilation') {
+      const reading = record.answers ? readCompilation(record.answers, thresholds) : null;
+      return { ...common, skillId: record.skillId, expected: record.expected,
+        requestHash: record.requestHash, documented: reading?.outcome ?? null,
+        compilable: reading?.decision?.compilable ?? null, yes: reading?.answer.yes ?? null };
+    }
     if (record.kind === 'approval') {
       const reading = record.answers ? readApprovalRecord(record, thresholds) : null;
       return {

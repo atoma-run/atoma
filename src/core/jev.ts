@@ -10,12 +10,14 @@ import {
   NO_CANDIDATE,
   buildApproval,
   buildChoice,
+  buildCompilation,
   buildTwin,
   capped,
   headAndTail,
   newestEvidence,
   readApproval,
   readChoice,
+  readCompilation,
   readTwin,
   resultState,
   taskState,
@@ -29,6 +31,8 @@ import type {
   JevChoiceDecision,
   JevChoiceDeferral,
   JevChoiceRequest,
+  JevCompilationDecision,
+  JevCompilationRequest,
   JevDecider,
   JevDecisionInfo,
   JevTwinDecision,
@@ -741,6 +745,24 @@ export function createJevDecider(opts: {
         return null;
       }
       const reading = readApproval(plan, asked.result.answers);
+      safeRecord({ ...base, ...answered(asked), answer: reading.answer, outcome: reading.outcome });
+      return reading.decision;
+    },
+
+    async compilable(request: JevCompilationRequest): Promise<JevCompilationDecision | null> {
+      const base = { role: 'compile-skill' as const, evaluator: JEV_EVALUATOR,
+        candidates: [request.skillId], ...attribution(request) };
+      const plan = buildCompilation(request);
+      if (typeof plan === 'string') {
+        safeRecord({ ...base, ...unanswered, outcome: 'deferred to the model', failure: plan, durationMs: 0 });
+        return null;
+      }
+      const asked = await ask(plan.state, plan.questions, request.signal);
+      if (!asked.ok) {
+        safeRecord({ ...base, ...unanswered, outcome: 'deferred to the model', failure: asked.failure, durationMs: asked.durationMs });
+        return null;
+      }
+      const reading = readCompilation(asked.result.answers);
       safeRecord({ ...base, ...answered(asked), answer: reading.answer, outcome: reading.outcome });
       return reading.decision;
     },

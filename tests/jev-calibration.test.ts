@@ -18,7 +18,7 @@ import {
   type RecordedDecision,
 } from '../src/atoms/jevCalibration.js';
 import { JEV_ENDPOINT } from '../src/core/jev.js';
-import { JEV_THRESHOLDS } from '../src/core/jevQuestions.js';
+import { JEV_THRESHOLDS, buildCompilation } from '../src/core/jevQuestions.js';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
 import type { Witness } from '../src/contracts/witness.js';
@@ -293,6 +293,39 @@ function fakeJev(answer: (id: string, body: Body) => unknown = () => undefined, 
 }
 
 describe('calibrating: both designs, on the same decisions', () => {
+  it('asks the live compilation questions without labels, and re-reads their raw scores', async () => {
+    const request = { skillId: 'replay-probes', prompt: 'Read a recorded manifest and replay its checks.', allowLoopbackNetwork: false };
+    const { impl, bodies } = fakeJev((id) => ({ type: 'noul', noul: id === 'semantic_judgment' ? 0.85 : 0.05 }));
+    const calibration = await calibrate({ decisions: [], compilations: [
+      { request, expected: true }, { request, expected: false }, { request, expected: null },
+    ], apiKey: 'k', fetchImpl: impl });
+    expect(bodies).toHaveLength(3); // no legacy request and no generating model
+    const plan = buildCompilation(request);
+    if (typeof plan === 'string') throw new Error(plan);
+    expect(bodies[0]).toMatchObject({ state: plan.state, questions: plan.questions });
+    expect(bodies[0]).toEqual(bodies[1]);
+    expect(bodies[1]).toEqual(bodies[2]); // changing the label cannot change what Jev sees
+    expect(calibration.records.map((row) => row.id)).toEqual(['replay-probes#1', 'replay-probes#2', 'replay-probes#3']);
+    expect(calibrationReport(calibration.records)).toMatchObject({ compilation: {
+      cases: 3, labelled: 2, postponed: 3, falsePostponements: 1, falseAllowances: 0, deferred: 0,
+    } });
+    expect(calibrationReport(calibration.records, { thresholds: { ...JEV_THRESHOLDS, compilationObstacle: 0.9 }, sweep: true }))
+      .toMatchObject({ compilation: { postponed: 0, falsePostponements: 0, deferred: 3, sweep: expect.any(Array) } });
+    expect(calibrationDetails(calibration.records)[0]).toMatchObject({
+      skillId: request.skillId, expected: true, compilable: false,
+      requestHash: expect.stringMatching(/^[a-f0-9]{64}$/), yes: { semantic_judgment: 0.85 },
+    });
+  });
+
+  it('reports unasked compilation cases when cancelled without spending or inventing answers', async () => {
+    const { impl, bodies } = fakeJev();
+    const calibration = await calibrate({ decisions: [], compilations: [{
+      request: { skillId: 'x', prompt: 'mechanical recipe', allowLoopbackNetwork: false }, expected: true,
+    }], apiKey: 'k', signal: AbortSignal.abort(), fetchImpl: impl });
+    expect(calibration).toMatchObject({ records: [], unasked: 1 });
+    expect(bodies).toHaveLength(0);
+  });
+
   it('asks the documented and the legacy questions, and reads a false approval against the model', async () => {
     const pick = await prefilterPrompt();
     const result = await resultPrompt();
