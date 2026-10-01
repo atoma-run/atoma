@@ -52,6 +52,18 @@ export function isAllowedRedirectUri(value: string): boolean {
   } catch { return false; }
 }
 
+/** RFC 8252 loopback callbacks may choose a port; every other byte stays exact. */
+export function matchesRegisteredRedirect(callback: string, registered: string): boolean {
+  if (!isAllowedRedirectUri(callback) || !isAllowedRedirectUri(registered)) return false;
+  if (callback === registered) return true;
+  // Compare the original strings, not URL-normalized paths, hosts or escapes.
+  // localhost is already an allowed loopback spelling in the registration contract.
+  const loopback = /^(http:\/\/(?:127\.0\.0\.1|\[::1\]|localhost))(?::[0-9]+)?(\/.*)$/;
+  const actual = loopback.exec(callback);
+  const expected = loopback.exec(registered);
+  return actual !== null && expected !== null && actual[1] === expected[1] && actual[2] === expected[2];
+}
+
 /**
  * A client id that names a metadata document: HTTPS, a DNS name, the default
  * port, a path other than `/`, no query, fragment, credentials or dot

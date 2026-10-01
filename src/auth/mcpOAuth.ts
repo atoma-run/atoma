@@ -6,7 +6,7 @@ import type { AuthGate } from './gate.js';
 import { MCP_CODE_TTL_MS, MCP_OAUTH_SCOPE, oauthHash } from './mcpOAuthStore.js';
 import { authCookieName, parseCookieHeader, retireSessionCookie, serializeCookie, SESSION_COOKIE } from './sessions.js';
 import { BoundedFixedWindowRateLimiter } from './rate-limit.js';
-import { ClientMetadataResolver, isAllowedRedirectUri, metadataClientUrl, type FetchDocument, type MetadataClient } from './clientMetadata.js';
+import { ClientMetadataResolver, isAllowedRedirectUri, matchesRegisteredRedirect, metadataClientUrl, type FetchDocument, type MetadataClient } from './clientMetadata.js';
 import type { PlatformEventSink } from '../contracts/platformEvents.js';
 
 const RETURN_COOKIE = 'atoma_mcp_return';
@@ -190,7 +190,7 @@ export class McpOAuth {
       const client = described ?? auth.mcpOAuth.client(clientId);
       const callback = query.get('redirect_uri') ?? '';
       const challenge = query.get('code_challenge') ?? '';
-      if (!client || !client.redirect_uris.includes(callback)) throw new Error('unregistered callback');
+      if (!client || !client.redirect_uris.some(uri => matchesRegisteredRedirect(callback, uri))) throw new Error('unregistered callback');
       if ((query.get('state')?.length ?? 0) > 2048) throw new Error('state too large');
       const error = query.get('response_type') !== 'code' ? 'unsupported_response_type'
         : query.get('code_challenge_method') !== 'S256' || !/^[A-Za-z0-9_-]{43}$/.test(challenge) ? 'invalid_request'

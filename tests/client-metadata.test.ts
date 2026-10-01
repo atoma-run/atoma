@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   cacheLifetimeMs, ClientMetadataError, ClientMetadataResolver, fetchClientMetadataDocument, guardedLookup,
-  isPublicAddress, metadataClientUrl, parseClientMetadata,
+  isPublicAddress, matchesRegisteredRedirect, metadataClientUrl, parseClientMetadata,
 } from '../src/auth/clientMetadata.js';
 
 /**
@@ -17,6 +17,26 @@ import {
  */
 
 const ID = 'https://client.example/oauth/metadata.json';
+
+describe('registered callback matching', () => {
+  it('ignores only the port of an HTTP loopback callback', () => {
+    for (const host of ['127.0.0.1', '[::1]', 'localhost']) {
+      expect(matchesRegisteredRedirect(`http://${host}:55661/callback?x=1`, `http://${host}/callback?x=1`)).toBe(true);
+      expect(matchesRegisteredRedirect(`http://${host}:55661/callback`, `http://${host}:1234/callback`)).toBe(true);
+    }
+    expect(matchesRegisteredRedirect('https://client.example/cb', 'https://client.example/cb')).toBe(true);
+    for (const candidate of [
+      'http://localhost:55661/callback', 'http://[::1]:55661/callback', 'http://127.0.0.2:55661/callback',
+      'https://127.0.0.1:55661/callback', 'http://127.0.0.1:55661/other',
+      'http://127.0.0.1:55661/callback?x=1', 'http://127.0.0.1:55661/callback#fragment',
+      'http://user@127.0.0.1:55661/callback', 'http://127.0.0.1.evil.example:55661/callback',
+      'http://127.0.0.1:55661/a/../callback', 'http://127.0.0.1:55661/%63allback',
+      'http://2130706433:55661/callback', 'http://127.0.0.1:99999/callback',
+    ]) expect(matchesRegisteredRedirect(candidate, 'http://127.0.0.1/callback'), candidate).toBe(false);
+    expect(matchesRegisteredRedirect('https://client.example:444/cb', 'https://client.example/cb')).toBe(false);
+    expect(matchesRegisteredRedirect('https://127.0.0.1:444/cb', 'https://127.0.0.1/cb')).toBe(false);
+  });
+});
 const document = (changes: Record<string, unknown> = {}) => JSON.stringify({
   client_id: ID, client_name: 'Example client', redirect_uris: ['http://127.0.0.1:3000/callback'], ...changes,
 });

@@ -96,6 +96,31 @@ function exchange(clientId: string, authorizationCode: string, changes: Record<s
 interface Tokens { access_token: string; refresh_token: string; expires_in: number }
 
 describe('MCP OAuth over HTTP', () => {
+  it.each(['127.0.0.1', 'localhost', '[::1]'])('accepts an ephemeral HTTP loopback port for %s and binds the code to that exact callback', async (host) => {
+    const clientId = 'https://chatgpt.com/oauth/codex/client.json';
+    const registered = `http://${host}/callback`;
+    const actual = `http://${host}:55661/callback`;
+    documents.set(clientId, JSON.stringify({ client_id: clientId, client_name: 'Codex',
+      application_type: 'native', redirect_uris: [registered], token_endpoint_auth_method: 'none' }));
+    for (const id of [clientId, await register([registered])]) {
+      const page = await consent(id, { redirect_uri: actual });
+      expect(page.status).toBe(200);
+      const html = await page.text();
+      expect(html).toContain(actual);
+      const request = /name="request" value="([^"]+)"/.exec(html)![1]!;
+      const approved = await post('/oauth/authorize', { request, decision: 'allow' }, { cookie, origin: base });
+      expect(approved.status).toBe(302);
+      const location = new URL(approved.headers.get('location')!);
+      expect(location.origin + location.pathname).toBe(actual);
+      const authorizationCode = location.searchParams.get('code')!;
+      expect((await exchange(id, authorizationCode, { redirect_uri: registered })).status).toBe(400);
+      const response = await exchange(id, authorizationCode, { redirect_uri: actual });
+      expect(response.status).toBe(200);
+      const tokens = await response.json() as Tokens;
+      expect(auth.resolveApiToken(tokens.access_token)?.principalId).toBe(viewer.principalId);
+    }
+  });
+
   it('admits a client by its metadata document: fetched, verified, shown by domain, remembered for its tokens', async () => {
     const discovery = await fetch(`${base}/.well-known/oauth-authorization-server`).then(r => r.json());
     expect(discovery).toMatchObject({ client_id_metadata_document_supported: true });
@@ -244,7 +269,7 @@ describe('MCP OAuth over HTTP', () => {
         body: JSON.stringify({ redirect_uris: [uri] }) })).status).toBe(400);
     }
     const clientId = await register();
-    for (const invalid of ([{ code_challenge_method: 'plain' }, { redirect_uri: 'http://127.0.0.1:123/callback' }, { resource: 'https://other.example/mcp' }] as Record<string, string>[])) {
+    for (const invalid of ([{ code_challenge_method: 'plain' }, { redirect_uri: 'http://127.0.0.1:123/other' }, { resource: 'https://other.example/mcp' }] as Record<string, string>[])) {
       const r = await consent(clientId, invalid);
       if (invalid['redirect_uri']) { expect(r.status).toBe(400); expect(r.headers.get('location')).toBeNull(); }
       else { expect(r.status).toBe(302); expect(new URL(r.headers.get('location')!).searchParams.has('error')).toBe(true); }

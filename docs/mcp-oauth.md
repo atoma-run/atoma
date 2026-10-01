@@ -96,12 +96,15 @@ identifies the runner, not the generated application's publication commit.
   loopback redirects, no wildcard matching. Registration lasts 90 days.
   Deprecated by the 2026-07-28 spec and kept for the clients that use it
   (Codex among them).
-- `/oauth/authorize`: code flow only, exact registered redirect, S256 PKCE,
+- `/oauth/authorize`: code flow only, exact registered redirect except for the
+  HTTP loopback port ([RFC 8252](https://www.rfc-editor.org/rfc/rfc8252#section-7.3):
+  desktop clients choose a free port), S256 PKCE,
   canonical resource, optional `mcp` scope. Five-minute pending requests; a
   same-origin consent POST is bound to the displayed browser session and org.
 - `/oauth/token`: form-encoded exchange or refresh, bound to client and resource.
-  Codes last five minutes; access tokens one hour; refresh authorization 30 days
-  absolutely. A refresh rotates both credentials. Reuse of a correctly bound
+  The code exchange requires the exact redirect used at authorization, including
+  its chosen loopback port. Codes last five minutes; access tokens one hour;
+  refresh authorization 30 days absolutely. A refresh rotates both credentials. Reuse of a correctly bound
   redeemed code or refresh token revokes the grant.
 - `/oauth/revoke`: RFC 7009, client-bound access or refresh token, generic success
   for unknown credentials. Existing Settings/CLI revocation also blocks refresh.

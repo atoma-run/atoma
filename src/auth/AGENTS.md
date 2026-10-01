@@ -135,7 +135,8 @@ Loopback HTTP keeps its development cookie names and paths.
   login returns through an opaque, expiring request id; consent binds the
   displayed principal and active organisation to the exact browser session,
   and only a same-origin POST grants access. No arbitrary login return URL.
-- S256 PKCE, exact registered redirects (HTTPS or HTTP loopback), resource
+- S256 PKCE, exact registered redirects (HTTPS or HTTP loopback, with only
+  the HTTP loopback port allowed to vary per RFC 8252), resource
   binding to the canonical `/mcp`, one-use codes and rotating refresh tokens
   are mandatory. Client ID Metadata Documents and DCR are both supported;
   `clientMetadata.ts` is the ONE fetch of a client-chosen URL and holds every
