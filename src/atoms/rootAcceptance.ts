@@ -22,6 +22,7 @@ import {
   type InheritedChecksReport,
   type InheritedJudgement,
   type ShownInheritedItem,
+  type EarlierListedItem,
 } from '../contracts/inheritedChecks.js';
 import {
   renderRestorationsBlock,
@@ -335,6 +336,27 @@ function consistentWithInherited(
 }
 
 /**
+ * An approval of a remediation whose replay did not re-check what the
+ * previous acceptance listed says nothing about that listing: it is refused,
+ * and the run lands with the reason, which the next run reads. A landed
+ * result is refused too: it stays partial either way, and the refusal is
+ * what carries the listing forward.
+ */
+function consistentWithRecheck(
+  verdict: { readonly approved: boolean; readonly reasoning?: string },
+  earlier: readonly EarlierListedItem[],
+  unrechecked: string | undefined
+): { readonly approved: boolean; readonly reasoning?: string } {
+  if (!verdict.approved || unrechecked === undefined) return verdict;
+  return {
+    approved: false,
+    reasoning: `This run's previous acceptance listed changes it did not judge asked for ` +
+      `(${earlier.map((item) => `${item.id} ${item.summary.slice(0, 200)}`).join('; ')}), ` +
+      `and ${unrechecked}: nothing shows they were undone` + (verdict.reasoning ? ` — the acceptor's own verdict read: ${verdict.reasoning}` : ''),
+  };
+}
+
+/**
  * What the trace keeps of one acceptance's replay, the run-start one
  * included: a run that kept no check says why, so "0 kept" never reads as
  * "every check stale" when the server, the cap or the worker image was the
@@ -396,6 +418,8 @@ export async function acceptRootResult(args: {
   checklist?: AcceptanceChecklist;
   /** A `user` list is the host-held approved one; its digest rides the acceptance record. */
   checklistOrigin?: { readonly source: ChecklistSource; readonly digest?: string };
+  /** The acceptance that refused this attempt's previous pass, when this one closes a remediation. */
+  previousAcceptance?: AcceptanceInfo;
 }): Promise<AcceptanceInfo> {
   const { actor, task, result, ctx, floor } = args;
   const checklist = args.checklist ?? [];
@@ -419,6 +443,23 @@ export async function acceptRootResult(args: {
   const comparison = ctx.inheritedChecks && !gates.rejection ? startingComparison(ctx) : undefined;
   const inherited = await inheritedReplay(ctx, comparison);
   const inheritedItems = inherited?.items ?? [];
+  // A remediation answers what this run's previous acceptance listed. Unless
+  // this replay re-checked every check the run kept, nothing shows the
+  // listing is gone: run 5dff35b0's second replay stopped at the deadline
+  // before its first check, and the page the first acceptance refused was
+  // approved and published.
+  // Held by the host (depth.ts passes the refused pass's own record), never
+  // read back from task inputs; every item not judged asked for counts.
+  const earlier: EarlierListedItem[] = (args.previousAcceptance?.inheritedChecks?.items ?? [])
+    .filter((item) => item.asked !== true)
+    .slice(0, 10)
+    .map((item, index) => ({ id: `p${index + 1}`, summary: item.summary.slice(0, 600) }));
+  const unrechecked = earlier.length === 0 || gates.rejection || !ctx.inheritedChecks ? undefined
+    : inherited ? (inherited.report.notReplayed > 0
+      ? `${inherited.report.notReplayed} of the ${inherited.report.baseline.kept} inherited checks were not replayed` +
+        (inherited.report.stopped ? ` (stopped: ${inherited.report.stopped})` : '')
+      : undefined)
+      : comparison === undefined ? 'the starting workspace could not be read, so no inherited check was replayed' : undefined;
 
   // Criteria the user approved are READ, whatever the floor says: a covered
   // floor with no finding used to approve mechanically past them.
@@ -429,7 +470,9 @@ export async function acceptRootResult(args: {
   const restorations = readOnlyRestorationsOf(ctx);
   const review = floor.length === 0 || gates.reviewFindings.length > 0 || probe.requiresReview ||
     floorCoverage.some((item) => item.status === 'uncovered') || userCriteria || restorations.length > 0 ||
-    inheritedItems.length > 0;
+    inheritedItems.length > 0 || (inherited?.report.notReplayed ?? 0) > 0 ||
+    // Refused below whatever it says; the call keeps the acceptor's own reading in the record.
+    unrechecked !== undefined;
   const judgementsAsked = checklistBlock !== '';
   // Read only for a validation call: nothing reads them on the mechanical path.
   // Named files only beside criteria the acceptor is shown (a drafted
@@ -438,7 +481,7 @@ export async function acceptRootResult(args: {
   const namedFilesBlock = reviewing && judgementsAsked ? await criteriaFilesBlock(ctx, checklist) : '';
   const startingBlock = reviewing ? renderStartingWorkspace(comparison ?? startingComparison(ctx)) : '';
   const restorationsBlock = reviewing ? renderRestorationsBlock(restorations) : '';
-  const inheritedBlock = reviewing && inherited ? renderInheritedChecksBlock(inherited.report, inheritedItems) : '';
+  const inheritedBlock = reviewing && inherited ? renderInheritedChecksBlock(inherited.report, inheritedItems, earlier) : '';
   const raw = gates.rejection
     ? { approved: false, reasoning: gates.rejection.reasoning }
     : review ? await llmVerdict({
@@ -460,7 +503,9 @@ export async function acceptRootResult(args: {
   const judged = judgementsAsked && 'criteria' in raw ? judgeCoverage(coverage, raw.criteria) : coverage;
   const landed = Boolean(result.unfinishedPhases?.length);
   const inheritedJudgements = 'inherited' in raw ? raw.inherited : undefined;
-  const verdict = consistentWithInherited(consistentWithCriteria(raw, judged, source, landed), inheritedItems, inheritedJudgements, landed);
+  const verdict = consistentWithRecheck(
+    consistentWithInherited(consistentWithCriteria(raw, judged, source, landed), inheritedItems, inheritedJudgements, landed),
+    earlier, unrechecked);
   const produced = result.producedBy;
   return {
     attempt: ctx.attempt ?? 1, approved: verdict.approved, reasoning: verdict.reasoning ?? '',

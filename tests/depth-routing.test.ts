@@ -13,6 +13,11 @@ import { buildResultGateEnv, runResultGates } from '../src/atoms/resultGates.js'
 import { PROBE_MANIFEST_FILENAME } from '../src/contracts/probeManifest.js';
 import { runDepthTask, MAX_ROOT_REMEDIATIONS, remediationTask } from '../src/run/depth.js';
 import { landingReasons } from '../src/contracts/runLanding.js';
+import type { InheritedChecksReport, ListedCheck } from '../src/contracts/inheritedChecks.js';
+import { snapshotDeliveredWorkspace, snapshotStartingWorkspace } from '../src/run/workspace.js';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { acceptanceSchema, type AcceptanceInfo, type PhaseCoverageRecord, type TopologyInfo } from '../src/contracts/depthRouting.js';
 import { makeCtx, jsonText } from './helpers.js';
 import { makePlan, makeTools } from './helpers/factories.js';
@@ -442,6 +447,45 @@ describe('depth transition through the production supervision loop', () => {
     ]);
     expect(out.summary).toContain('REFUSED AT DELIVERY');
     expect(out.summary).toContain('INCOMPLETE');
+  });
+
+  it('lands a remediation whose inherited replay stopped before re-checking what the first acceptance listed (run 5dff35b0)', async () => {
+    const seed = mkdtempSync(join(tmpdir(), 'atoma-depth-inherited-seed-'));
+    const delivered = mkdtempSync(join(tmpdir(), 'atoma-depth-inherited-now-'));
+    try {
+      writeFileSync(join(seed, 'index.html'), '<p id="mode">Long break</p>\n');
+      writeFileSync(join(delivered, 'index.html'), '<p>rewritten</p>\n');
+      const start = snapshotStartingWorkspace(seed);
+      const listed: ListedCheck = {
+        check: { file: 'index.html', interactions: [{ type: 'click', selector: '#long-break' }], smoke: '(() => ({ ok: true }))()' },
+        cause: 'element-missing', detail: 'interaction click failed: selector #long-break not found',
+      };
+      const baseline = { selected: 4, considered: 4, kept: 4, cannotRun: 0 };
+      // The first acceptance lists the rewrite; the remediation's replay meets the deadline first.
+      const replays: InheritedChecksReport[] = [
+        { baseline, replayed: 4, stillPassing: 3, flaky: 0, notReplayed: 0, listed: [listed] },
+        { baseline, replayed: 0, stillPassing: 0, flaky: 0, notReplayed: 4, stopped: 'deadline', listed: [] },
+      ];
+      const base = context();
+      const ctx = { ...base,
+        startingWorkspace: { start, now: () => snapshotDeliveredWorkspace(delivered, start) },
+        inheritedChecks: { ready: Promise.resolve(), baseline: async () => baseline, compare: async () => replays.shift()!,
+          reseeded: () => undefined, waiting: () => undefined } };
+      base.llm.enqueueText(jsonText({ approved: false, reasoning: 'the rewrite lost the mode line', scope: 'ephemeral', modifications: {},
+        inherited: [{ id: 'r1', asked: false }] }));
+      base.llm.enqueueText(jsonText({ approved: true, reasoning: 'the page validates' }));
+      const accepted = vi.fn();
+      const out = await runDepthTask({
+        mode: 'short', task, floor: [], restart: vi.fn(), onTopology: vi.fn(), onAcceptance: accepted, ctx,
+        createExecutor: () => ({ actor: new Actor(), handle: async () => result }),
+      });
+      expect(accepted.mock.calls.map(([info]) => info.approved)).toEqual([false, false]);
+      expect(landingReasons(out)).toEqual([expect.stringMatching(
+        /^refused at delivery: This run's previous acceptance listed changes it did not judge asked for \(p1 "index\.html" after "click #long-break".*4 of the 4 inherited checks were not replayed \(stopped: deadline\)/)]);
+    } finally {
+      rmSync(seed, { recursive: true, force: true });
+      rmSync(delivered, { recursive: true, force: true });
+    }
   });
 
   it('hands a refusal back for ONE more pass, in the same attempt and workspace', async () => {

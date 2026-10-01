@@ -1,3 +1,4 @@
+import { EARLIER_LISTED_INPUT } from '../contracts/inheritedChecks.js';
 import type { Atom } from '../core/atom.js';
 import { setMaxListeners } from 'node:events';
 import type { Result, RunContext, Task, ToolExecutor } from '../core/types.js';
@@ -78,7 +79,7 @@ function inheritedChecksInput(acceptance: AcceptanceInfo): Record<string, unknow
   // undo the request (review 2026-10-01).
   const items = (acceptance.inheritedChecks?.items ?? []).filter((item) => item.asked === false);
   return items.length === 0 ? {} : {
-    inheritedChecksNoLongerPassing: items.map(({ id, file, summary, checks }) => ({ id, file, summary, checks })),
+    [EARLIER_LISTED_INPUT]: items.map(({ id, file, summary, checks }) => ({ id, file, summary, checks })),
   };
 }
 
@@ -103,10 +104,12 @@ export function remediationTask(task: Task, acceptance: AcceptanceInfo): Task {
       instruction: 'This is the one criterion the acceptor judged unmet. Keep the deliverables behind the criteria it judged met (metCriteria) instead of rebuilding them, and answer the whole refusal in rootAcceptanceRefusal, then re-run the checks it concerns.',
     },
   } : {};
+  // The listing is the LATEST acceptance's: an earlier pass's never rides on.
+  const { [EARLIER_LISTED_INPUT]: _stale, ...inputs } = task.inputs ?? {};
   return {
     ...task,
     inputs: {
-      ...(task.inputs ?? {}),
+      ...inputs,
       rootAcceptanceRefusal: acceptance.reasoning,
       rootAcceptanceAttempt: (Number(task.inputs?.['rootAcceptanceAttempt'] ?? 0) || 0) + 1,
       ...focusedScope,
@@ -251,7 +254,10 @@ export async function runDepthTask(args: {
         try {
           acceptance = await withinSignal(acceptRootResult({ actor, task: currentTask, result, ctx: acceptanceCtx,
             floor: args.floor, phaseCoverage, ...(args.checklist ? { checklist: args.checklist } : {}),
-            ...(args.checklistOrigin ? { checklistOrigin: args.checklistOrigin } : {}) }), acceptanceCtx.signal);
+            ...(args.checklistOrigin ? { checklistOrigin: args.checklistOrigin } : {}),
+            // The refused pass's own record: a remediation's acceptance must
+            // re-check what that one listed (run 5dff35b0).
+            ...(refused ? { previousAcceptance: refused.acceptance } : {}) }), acceptanceCtx.signal);
           acceptanceCtx.signal.throwIfAborted();
         } catch (error) {
           cancellation.signal.throwIfAborted();

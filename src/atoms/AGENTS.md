@@ -332,6 +332,14 @@ load-bearing.
   one cause is LISTED. A listed check forces review, the acceptor judges each
   `asked`, and an approval judging one unasked is refused as one judging a
   user criterion unmet is; only items judged unasked reach the remediation.
+  The acceptance after that remediation fails CLOSED. depth.ts hands it
+  the refused pass's record (`previousAcceptance`), and every item listed
+  there and not judged asked for counts. Unless its replay re-ran every
+  kept check, its approval is refused and the run lands (run 5dff35b0
+  approved and published a page its first acceptance had refused, after a
+  second replay that the deadline stopped before its first check).
+  A replay that left kept checks unrun says so in the block and forces the
+  review.
   The replays use `validate_html`'s host mode on the base executor: never
   attested, they cover no checklist item or floor and earn no credit. A check
   is judged by its smoke verdict, never by console noise. What a file STARTING

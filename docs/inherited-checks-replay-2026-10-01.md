@@ -180,6 +180,21 @@ ALSO emit "inherited": [{"id": "r1", "asked": true|false, "reason": "<at most 15
   the remediation task's inputs as `inheritedChecksNoLongerPassing`, each
   with its first checks, so the next pass knows which behaviour to restore.
   An unjudged item is never sent: it may be a rebuild the task asked for.
+- **A remediation re-checks, or it is refused.** The acceptance after a
+  remediation receives the refused pass's own record from depth.ts, never
+  from the task's inputs. Every item it listed and did not judge asked for
+  counts, unjudged ones included. Unless this replay re-ran every check the
+  run kept, an approval is refused, a landed one too, and the run lands
+  with a reason naming those items for the next run. They are shown under
+  their own ids, `p1`, `p2`…, after the judgement request: judging one id
+  twice once washed a regression out, and any `asked: false` for an id now
+  stands.
+  Run 5dff35b0: its second replay stopped at the deadline before its first
+  check, its acceptor saw no block at all, and the page the first acceptance
+  had refused was approved and published.
+- **A short replay is said.** Whenever the replay left kept checks unrun
+  (stopped, or a check that could not run), the block tells the acceptor how
+  many and why, and the review is forced; silence is never a pass.
 - **Trace.** `AcceptanceInfo.inheritedChecks` records the run-start replay
   (checks considered, kept, how many could not run, why it stopped, the first
   reason) and the acceptance's (replayed, still passing, flaky, listed, not
@@ -300,6 +315,11 @@ intentional-choices section each name the exception and link here.
   recorded again with a different interaction, viewport or settle time is a
   new entry beside the old one. An old one whose value changed is never
   removed; while among the newest 40, it costs a replay on every run.
+- **A remediation refused for an unrelated check.** One kept check that
+  times out or cannot run leaves the replay short, so a remediation whose
+  listed checks all passed again is refused and lands. The replay does not
+  yet run the listed checks first; landing costs an unpublished partial, never
+  a published regression.
 - **A read-only first phase.** It photographs the workspace when it
   begins, which may be before the start replay writes its marks. If that
   phase then changes a file, its restoration puts the unmarked manifest

@@ -24,6 +24,7 @@ its source before the next run.
 | 41711050 | pomodoro page: an L shortcut | 614 s | $0.16 | 7 | delivered; first inherited-check replay in the container, nothing listed |
 | 0b51e494 | pomodoro page: an S shortcut | 1,404 s | $0.33 | 16 | landed partial; the replay caught a regression twice and the remediation did not fix it |
 | dadeea78 | wordfreq CLI: a usage line and a combined example | 157 s | $0.03 | 7 | delivered; README edited in place, the new example's output worked out and never run |
+| 5dff35b0 | pomodoro page: the shortcuts repaired | 1,732 s | $0.43 | 23 | delivered and published a rewritten page the first acceptance had refused |
 
 ## A verified execution rejected as "non-JSON" (8606cf38)
 
@@ -429,6 +430,40 @@ root's reading-back did not reach it.
   manifest now answers with the entries sent and the total on disk. It says
   that earlier entries were kept beside the new ones, and that the file need
   not be read back, unless the merged manifest fails its check.
+
+## A refused rewrite, approved on a replay that never ran (5dff35b0)
+
+The goal repaired 0b51e494's regression: the shortcuts were to work again
+while a button had focus, "Change nothing else". The run started from
+0b51e494's landed page. Its start replay ran 83 s, 23 s past its budget,
+until the first tool call waited; it kept 29 of 35 checks, and, the seed
+having landed, it marked nothing.
+
+- **Phase 1 fixed it.** The web molecule removed `button` from the guard
+  with one edit_file and observed every shortcut working after a click on
+  Start.
+- **Phase 2 rewrote the page.** Its recipe, `serve-and-validate-static-page`,
+  matched by the model for "browser-validate … and minimally repair", led a
+  plan that said "First I will write_file the complete index.html source".
+  The molecule did, without reading the page first, and both its plan and
+  its result passed on the trust fast path. The page lost its countdown,
+  Pause, the session counter and the mode line.
+- **The first acceptance caught it.** Its replay listed 29 checks under one
+  item, "index.html was REWRITTEN", and the acceptor judged it not asked for.
+- **The second acceptance never looked.** The remediation worked on the
+  rewritten page as if it were the page to keep. When it ended, about 90 s
+  were left, and a replay needs 110 s to start a check: it replayed none.
+  The block rendered empty, so the acceptor saw nothing about the 29 checks.
+  It approved, although STARTING WORKSPACE said "REWRITTEN 4745 → 4558 bytes;
+  47% of its starting lines remain". The run delivered and published it.
+- **Now:** the acceptance after a remediation is refused unless its replay
+  re-ran every kept check, and a replay that left checks unrun says so and
+  forces the review. The recipe limits of edf54cb0 (an existing file is
+  edited, not rewritten, unless the subtask says to discard it) were not yet
+  deployed for this run.
+- **Left in the project:** the published page is the rewrite. The next run
+  starts from it, without a landing, so its start replay will mark dead the
+  29 checks of the page as it was.
 
 ## Open
 
