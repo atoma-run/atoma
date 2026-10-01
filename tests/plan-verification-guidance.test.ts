@@ -320,24 +320,48 @@ describe('cross-bucket browser routing', () => {
         },
       ],
     });
-    const l2 = L2Atom.fromType(registry.getByName('Tracheid')!, registry);
+    // A toolless pick: everything it holds, the web molecule holds too.
+    registry.create(1, { ...seed, description: 'scribe' });
+    const task = {
+      description:
+        'Validate the UI in a real browser with selector-based interactions and zero console errors.',
+    };
+    const prefilterPick = (target: string) =>
+      jsonText({ kind: 'reuse', target, confidence: 'high', reasoning: 'owns the UI' });
+
+    // The pick holds nothing the web molecule lacks: the redirect stays a
+    // fast path, one prefilter call and no planner.
+    const fast = L2Atom.fromType(registry.getByName('Tracheid')!, registry);
+    const fastCtx = makeCtx();
+    fastCtx.llm.enqueueText(prefilterPick('Ammonia'));
+    const fastPlan = await fast.plan(task, fastCtx);
+    expect(fastPlan.subtasks[0]!.preferredChild).toBe('Water');
+    expect(fastCtx.llm.calls).toHaveLength(1);
+
+    // The pick holds start_node_server, which the web molecule lacks: since
+    // ba878b06 (run ff102525) the redirect defers to the planner so the task
+    // can split, with the web molecule as the hint, instead of handing the
+    // whole task to a molecule that may not be able to do all of it.
+    const split = L2Atom.fromType(registry.getByName('Tracheid')!, registry);
     const ctx = makeCtx();
+    ctx.llm.enqueueText(prefilterPick('Methane'));
     ctx.llm.enqueueText(
-      jsonText({
-        kind: 'reuse',
-        target: 'Methane',
-        confidence: 'high',
-        reasoning: 'server owns the UI',
-      })
+      jsonTextPair(
+        { strategy: 'reuse', target: 'Water', reasoning: 'stub' },
+        {
+          reasoning: 'stub',
+          subtasks: [{ description: task.description, preferredChild: 'Water' }],
+          aggregation: { mode: 'concat' },
+          expectedOutput: 'stub',
+        }
+      )
     );
-    const plan = await l2.plan(
-      {
-        description:
-          'Validate the UI in a real browser with selector-based interactions and zero console errors.',
-      },
-      ctx
-    );
+    const plan = await split.plan(task, ctx);
     expect(plan.subtasks[0]!.preferredChild).toBe('Water');
-    expect(ctx.llm.calls).toHaveLength(1);
+    expect(ctx.llm.calls).toHaveLength(2);
+    const planPrompt = ctx.llm.calls[1]!.userContent;
+    expect(planPrompt).toMatch(/== PREFILTER HINT ==/);
+    expect(planPrompt).toMatch(/identified "Water" as the reusable L1/);
+    expect(planPrompt).toMatch(/Water lacks start_node_server, so the plan splits the task/);
   });
 });
