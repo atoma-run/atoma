@@ -29,7 +29,6 @@ import { useAuthController } from './session-controller.js';
 import { GpuDomBridge, SettingsProfileForm } from './DomBridge.js';
 import { McpAccess } from './McpAccessPanel.js';
 import { OrgModelsForm } from './OrgModelsForm.js';
-import { PlatformLimitsForm } from './PlatformLimitsForm.js';
 import { EntryVeilLayer } from './EntryVeilLayer.js';
 import { PreviewPlane } from './PreviewPlane.js';
 import { usePreviewSession } from './usePreviewSession.js';
@@ -1137,7 +1136,6 @@ function GpuAppContent({
             state.view === 'settings' &&
             authSnapshot !== null &&
             authSnapshot.viewer.activeOrganisation !== null ? (
-              <>
               <OrgModelsForm
                 t={t}
                 locale={state.locale}
@@ -1168,24 +1166,6 @@ function GpuAppContent({
                   onError={setAccountError}
                 />
               </OrgModelsForm>
-              {/* THE INSTANCE'S RUN LIMITS, below this account's models and
-                  above nothing: an admin is also a member, and the settings
-                  they own for themselves come first. Rendered in the same
-                  DOM slot rather than through a second bridge prop — the
-                  slot is a `ReactNode`, and one more prop threaded through
-                  DomBridge and GpuApp would buy nothing but two more
-                  signatures to keep in step. */}
-              {authSnapshot.viewer.platformAdmin ? (
-                <PlatformLimitsForm
-                  t={t}
-                  enabled={true}
-                  overlaysInert={
-                    state.accountMenuOpen || state.localeMenuOpen || state.notificationsMenuOpen
-                  }
-                  onError={setAccountError}
-                />
-              ) : null}
-              </>
             ) : null
           }
         />

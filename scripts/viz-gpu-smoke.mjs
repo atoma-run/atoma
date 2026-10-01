@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import puppeteer from 'puppeteer';
 import { assertLiveMarkBead, assertPointerLitMark } from './viz-mark-bead-probe.mjs';
 import { assertMobileProjects } from './viz-mobile-probe.mjs';
+import { DEFAULT_PLATFORM_LIMITS, PLATFORM_SETTING_SPECS } from '../dist/contracts/platformSettings.js';
 
 const packageMetadata = JSON.parse(
   await readFile(new URL('../package.json', import.meta.url), 'utf8')
@@ -1996,6 +1997,9 @@ try {
           pendingInvitations: 0,
         },
         '/api/tokens': { mode: 'bearer', mcpUrl: 'https://atoma.example.com/mcp', tokens: [] },
+        '/api/admin/settings': {
+          catalog: PLATFORM_SETTING_SPECS, limits: DEFAULT_PLATFORM_LIMITS, rows: [], env: {},
+        },
         // Settings mounts the subscription reader even on its General tab.
         '/api/account/subscriptions': {
           claude: { provider: 'claude', state: 'unavailable', connectedAt: null, lastVerifiedAt: null, reason: 'provider-approval-required' },
@@ -2442,6 +2446,25 @@ try {
         accountPickers: document.querySelectorAll('[id^="accountmodel-"]').length,
         orgPickers: document.querySelectorAll('[id^="orgmodel-"]').length,
       }));
+      // Admin limits share the settings scroll body; a second fixed overlay
+      // used to paint all its fields over General and the tab bar.
+      await accountPage.waitForSelector('[id^="platform-limit-"]');
+      const limitsHidden = await accountPage.$eval('[id^="platform-limit-"]', input => !input.checkVisibility());
+      if (!limitsHidden) throw new Error('Platform limits overlap General');
+      await accountPage.click('#settings-tab-limits');
+      const limitsLayout = await accountPage.evaluate(() => {
+        const panel = document.querySelector('#settings-panel-limits');
+        const tabs = document.querySelector('.gpu-settings-tabs');
+        return {
+          bodies: document.querySelectorAll('.gpu-org-models-form').length,
+          panels: [...document.querySelectorAll('[role="tabpanel"]')].filter(p => p.checkVisibility()).length,
+          belowTabs: panel.getBoundingClientRect().top >= tabs.getBoundingClientRect().bottom,
+          fields: [...panel.querySelectorAll('input')].every(input => input.checkVisibility()),
+        };
+      });
+      if (limitsLayout.bodies !== 1 || limitsLayout.panels !== 1 || !limitsLayout.belowTabs || !limitsLayout.fields) {
+        throw new Error(`Settings limits overlap: ${JSON.stringify(limitsLayout)}`);
+      }
       // MCP is a DOM settings tab. Native disclosures must actually hide the
       // manual-token form, while remaining usable when explicitly opened.
       await accountPage.click('#settings-tab-mcp');

@@ -30,12 +30,10 @@ import type { VizPlatformSettings, VizPlatformSettingSpec } from '../client/type
 export function PlatformLimitsForm({
   t,
   enabled,
-  overlaysInert,
   onError,
 }: {
   t: (key: string, vars?: Record<string, unknown>) => string;
   enabled: boolean;
-  overlaysInert: boolean;
   onError: (message: string | null) => void;
 }) {
   const [settings, setSettings] = useState<VizPlatformSettings | null>(null);
@@ -96,10 +94,7 @@ export function PlatformLimitsForm({
   const stated = new Map(settings.rows.map((row) => [row.key, row]));
 
   return (
-    <div
-      className={`gpu-panel-skin gpu-org-models-form${overlaysInert ? ' gpu-overlays-veiled' : ''}`}
-      inert={overlaysInert}
-    >
+    <>
       <p className="gpu-org-models-title">{t('settings.platformLimits')}</p>
       <p className="gpu-org-models-hint">{t('settings.platformLimitsHint')}</p>
       {settings.catalog.map((spec) => {
@@ -193,7 +188,7 @@ export function PlatformLimitsForm({
           {status}
         </span>
       ) : null}
-    </div>
+    </>
   );
 }
 

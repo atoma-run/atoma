@@ -24,6 +24,8 @@
  *                        project surfaces all render as a member would see
  *                        them. Without it: the ungated developer rendering.
  *   --repository-mode <pull-request|fork>  Show an existing-repository create form.
+ *   --platform-admin     With --auth, include platform administrator controls.
+ *   --settings-tab <id>   Settings panel to capture (default general).
  *   --select-first       Click the first project row after arrival (the run
  *                        list + run form state).
  *   --notifications      Open the header bell's notification tray after
@@ -54,6 +56,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer';
 import { assertMobileProjects } from './viz-mobile-probe.mjs';
+import { DEFAULT_PLATFORM_LIMITS, PLATFORM_SETTING_SPECS } from '../src/contracts/platformSettings.ts';
 
 const READY_TIMEOUT_MS = 60_000;
 
@@ -65,6 +68,8 @@ const has = (name) => process.argv.includes(name);
 
 const view = arg('--view', 'Projects');
 const authed = has('--auth');
+const platformAdmin = has('--platform-admin');
+const settingsTab = arg('--settings-tab', 'general');
 const tuning = has('--tuning');
 const selectFirst = has('--select-first');
 const repositoryMode = arg('--repository-mode', '');
@@ -157,10 +162,19 @@ function gatedStubs() {
       displayNameSource: 'provider',
       avatarUrl: null,
       role: 'org:owner',
-      platformAdmin: false,
+      platformAdmin,
       activeOrganisation: { id: 'org-a', name: 'Analytical Engines', role: 'org:owner' },
       organisations: [{ id: 'org-a', name: 'Analytical Engines', role: 'org:owner' }],
       providers: [{ id: 'github', label: 'GitHub' }],
+    },
+    '/api/admin/settings': {
+      catalog: PLATFORM_SETTING_SPECS, limits: DEFAULT_PLATFORM_LIMITS, rows: [], env: {},
+    },
+    '/api/tokens': { mode: 'bearer', mcpUrl: 'https://atoma.example.com/mcp', tokens: [] },
+    '/api/account/subscriptions': {
+      claude: { provider: 'claude', state: 'unavailable', connectedAt: null, lastVerifiedAt: null, reason: 'provider-approval-required' },
+      codex: { provider: 'codex', state: 'disconnected', connectedAt: null, lastVerifiedAt: null, reason: null },
+      codexAttempt: null,
     },
     // The tray as the SERVER would answer it: copy pre-rendered per row.
     '/api/notifications': {
@@ -706,6 +720,28 @@ try {
     );
     if (view === 'Settings') {
       await page.waitForSelector('.gpu-org-models-form', { timeout: READY_TIMEOUT_MS });
+      await page.click(`#settings-tab-${settingsTab}`);
+      if (platformAdmin) await page.waitForSelector('[id^="platform-limit-"]');
+      const geometry = await page.evaluate(() => {
+        const body = document.querySelector('.gpu-org-models-form');
+        const tabs = body.querySelector('[role="tablist"]');
+        const panels = [...body.querySelectorAll('[role="tabpanel"]')].filter(panel => panel.checkVisibility());
+        const panel = panels[0];
+        const bounds = body.getBoundingClientRect();
+        return {
+          bodies: document.querySelectorAll('.gpu-org-models-form').length,
+          panels: panels.length,
+          belowTabs: panel?.getBoundingClientRect().top >= tabs.getBoundingClientRect().bottom,
+          fieldsContained: [...panel.querySelectorAll('input')].every(input => {
+            const rect = input.getBoundingClientRect();
+            return rect.left >= bounds.left && rect.right <= bounds.right;
+          }),
+        };
+      });
+      if (geometry.bodies !== 1 || geometry.panels !== 1 || !geometry.belowTabs || !geometry.fieldsContained) {
+        throw new Error(`Settings layout overlaps: ${JSON.stringify(geometry)}`);
+      }
+      console.log(`viz settings layout ok: ${settingsTab}, ${width}x${height}`);
     }
     await page.waitForFunction(
       () => document.querySelector('.gpu-scene-camera')?.getAttribute('data-scene-camera-motion') === 'settled',

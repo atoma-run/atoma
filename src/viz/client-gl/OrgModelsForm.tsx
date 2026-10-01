@@ -28,8 +28,9 @@ import type {
   VizOrgModels,
 } from '../client/types.js';
 import { useAccountSubscriptions } from './queries.js';
+import { PlatformLimitsForm } from './PlatformLimitsForm.js';
 
-/** The five Settings sections, in tab order. ONE list: the bar and the panels both walk it. */
+/** Settings sections in tab order; platform limits are visible only to platform admins. */
 /**
  * Tab ORDER is the reading order of a first setup: who you are, then what pays
  * for a run (a subscription, else a key), then the models those choices make
@@ -37,7 +38,7 @@ import { useAccountSubscriptions } from './queries.js';
  * tabs because an empty account arms its tiers from the subscription it just
  * connected, so the pins are already filled by the time it is reached.
  */
-export const SETTINGS_TABS = ['general', 'subscriptions', 'keys', 'models', 'mcp'] as const;
+export const SETTINGS_TABS = ['general', 'subscriptions', 'keys', 'models', 'mcp', 'limits'] as const;
 export type SettingsTab = (typeof SETTINGS_TABS)[number];
 
 /**
@@ -101,6 +102,8 @@ export function OrgModelsForm({
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
   const [draftKeys, setDraftKeys] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
+  const tabs = SETTINGS_TABS.filter((tab) => tab !== 'limits' || platformAdmin);
+  const selectedTab = tabs.includes(activeTab) ? activeTab : 'general';
   const queryClient = useQueryClient();
   const canUsePersonalSubscriptions =
     organisation !== null && roleCanUsePersonalSubscriptions(organisation.viewerRole);
@@ -207,16 +210,16 @@ export function OrgModelsForm({
   };
 
   const onTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>): void => {
-    const index = SETTINGS_TABS.indexOf(activeTab);
+    const index = tabs.indexOf(selectedTab);
     const step =
       event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
     let next: SettingsTab | null = null;
     if (step !== 0) {
-      next = SETTINGS_TABS[(index + step + SETTINGS_TABS.length) % SETTINGS_TABS.length]!;
+      next = tabs[(index + step + tabs.length) % tabs.length]!;
     } else if (event.key === 'Home') {
-      next = SETTINGS_TABS[0];
+      next = tabs[0]!;
     } else if (event.key === 'End') {
-      next = SETTINGS_TABS[SETTINGS_TABS.length - 1]!;
+      next = tabs[tabs.length - 1]!;
     }
     if (next === null) return;
     event.preventDefault();
@@ -270,7 +273,7 @@ export function OrgModelsForm({
     id: `settings-panel-${tab}`,
     'aria-labelledby': `settings-tab-${tab}`,
     className: 'gpu-settings-panel',
-    hidden: tab !== activeTab,
+    hidden: tab !== selectedTab,
   });
 
   return (
@@ -279,16 +282,16 @@ export function OrgModelsForm({
       inert={overlaysInert}
     >
       <div className="gpu-settings-tabs" role="tablist" aria-label={t('settings.tabs')}>
-        {SETTINGS_TABS.map((tab) => (
+        {tabs.map((tab) => (
           <button
             key={tab}
             type="button"
             role="tab"
             id={`settings-tab-${tab}`}
             className="gpu-settings-tab"
-            aria-selected={tab === activeTab}
+            aria-selected={tab === selectedTab}
             aria-controls={`settings-panel-${tab}`}
-            tabIndex={tab === activeTab ? 0 : -1}
+            tabIndex={tab === selectedTab ? 0 : -1}
             onClick={() => selectTab(tab)}
             onKeyDown={onTabKeyDown}
           >
@@ -296,6 +299,12 @@ export function OrgModelsForm({
           </button>
         ))}
       </div>
+
+      {platformAdmin ? (
+        <section {...panelProps('limits')}>
+          <PlatformLimitsForm t={t} enabled={enabled} onError={onError} />
+        </section>
+      ) : null}
 
       {status ? (
         <span role="status" className="gpu-org-models-status">

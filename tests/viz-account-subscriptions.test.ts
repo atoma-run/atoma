@@ -16,6 +16,7 @@ import {
   type PersonalSubscriptionsPanelProps,
 } from '../src/viz/client-gl/OrgModelsForm.js';
 import { api } from '../src/viz/client/data-api.js';
+import { DEFAULT_PLATFORM_LIMITS, PLATFORM_SETTING_SPECS } from '../src/contracts/platformSettings.js';
 import { translate } from '../src/viz/client/i18n-catalog.js';
 import type {
   VizAccountModels,
@@ -123,7 +124,8 @@ function orgModelsForm(
   viewerRole: string,
   enabled = true,
   children?: ReactNode,
-  profile?: ReactNode
+  profile?: ReactNode,
+  platformAdmin = false
 ) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -137,7 +139,7 @@ function orgModelsForm(
           locale: 'en',
           enabled,
           canManageOrg: false,
-          platformAdmin: false,
+          platformAdmin,
           organisation: organisation(viewerRole),
           overlaysInert: false,
           onError: vi.fn(),
@@ -211,6 +213,7 @@ describe('personal subscription settings', () => {
   );
 
   it('splits the body into five tabs and keeps every panel mounted, hidden', async () => {
+    const adminSettings = vi.spyOn(api, 'adminSettings');
     vi.spyOn(api, 'accountModels').mockResolvedValue(ACCOUNT_MODELS);
     vi.spyOn(api, 'orgModels').mockResolvedValue(ORG_MODELS);
     vi.spyOn(api, 'accountSubscriptions').mockResolvedValue(DISCONNECTED);
@@ -232,6 +235,7 @@ describe('personal subscription settings', () => {
       'Atoma MCP',
     ]);
     expect(tabs[0]).toHaveAttribute('aria-selected', 'true');
+    expect(adminSettings).not.toHaveBeenCalled();
     // Every panel is in the DOM (a minted MCP token must survive a tab
     // switch); only the active one is visible.
     const panels = container.querySelectorAll('[role="tabpanel"]');
@@ -249,6 +253,33 @@ describe('personal subscription settings', () => {
     expect(screen.getByRole('tab', { name: 'General' })).toHaveAttribute('aria-selected', 'true');
     await user.keyboard('{ArrowLeft}');
     expect(screen.getByRole('tab', { name: 'Atoma MCP' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('contains admin limits in the one settings body and preserves drafts between tabs', async () => {
+    vi.spyOn(api, 'accountModels').mockResolvedValue(ACCOUNT_MODELS);
+    vi.spyOn(api, 'orgModels').mockResolvedValue(ORG_MODELS);
+    vi.spyOn(api, 'accountSubscriptions').mockResolvedValue(DISCONNECTED);
+    vi.spyOn(api, 'adminSettings').mockResolvedValue({
+      catalog: [...PLATFORM_SETTING_SPECS], limits: DEFAULT_PLATFORM_LIMITS, rows: [], env: {},
+    });
+    const user = userEvent.setup();
+    const { container } = orgModelsForm('org:owner', true, undefined, undefined, true);
+    const limit = await screen.findByLabelText('run.tokenMaxTotal');
+    expect(limit).not.toBeVisible();
+    expect(container.querySelectorAll('.gpu-org-models-form')).toHaveLength(1);
+    expect(limit.closest('#settings-panel-limits')).not.toBeNull();
+    await user.click(screen.getByRole('tab', { name: 'Run limits' }));
+    expect(limit).toBeVisible();
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('id', 'settings-panel-limits');
+    await user.clear(limit);
+    await user.type(limit, '12345');
+    await user.click(screen.getByRole('tab', { name: 'Atoma MCP' }));
+    await user.keyboard('{ArrowRight}');
+    expect(screen.getByRole('tab', { name: 'Run limits' })).toHaveFocus();
+    expect(limit).toHaveValue(12345);
+    await user.keyboard('{ArrowRight}');
+    expect(screen.getByRole('tab', { name: 'General' })).toHaveFocus();
+    expect(limit).not.toBeVisible();
   });
 
   it('shows the profile and the organisation in General, with a formatted join date', async () => {
