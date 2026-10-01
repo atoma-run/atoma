@@ -1239,5 +1239,9 @@
   "settings.platformLimitUnlimited": "без ограничений",
   "settings.platformLimitEnvSet": "{{name}}={{value}}",
   "settings.platformLimitEnvUnset": "переменная {{name}} не задана",
-  "settings.tab.limits": "Лимиты run"
+  "settings.tab.limits": "Лимиты run",
+  "projects.runTokens": "Токены: {{value}}",
+  "projects.runLlmCalls": "Вызовы LLM: {{value}}",
+  "projects.runJevCalls": "Вызовы API Jev: {{value}}",
+  "projects.cardLastRun": "последний run {{ago}}"
 }

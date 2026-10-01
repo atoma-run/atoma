@@ -1239,5 +1239,9 @@
   "settings.platformLimitUnlimited": "ilimitado",
   "settings.platformLimitEnvSet": "{{name}}={{value}}",
   "settings.platformLimitEnvUnset": "{{name}} não definida",
-  "settings.tab.limits": "Limites de run"
+  "settings.tab.limits": "Limites de run",
+  "projects.runTokens": "Tokens: {{value}}",
+  "projects.runLlmCalls": "Chamadas LLM: {{value}}",
+  "projects.runJevCalls": "Chamadas à API Jev: {{value}}",
+  "projects.cardLastRun": "último run {{ago}}"
 }

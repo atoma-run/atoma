@@ -282,6 +282,22 @@ describe('the prefilter: a Choice for which, a Noul per option for whether', () 
     expect(leftUnfit.causes).toEqual(['files', 'withheld']);
   });
 
+  it.each([
+    [0.29, 'read-only'], [0.3, undefined], [0.69, undefined], [0.7, 'mutating'],
+  ])('forwards file intent only outside the existing uncertainty band (%s)', (probability, effect) => {
+    const plan = built(buildChoice({
+      question: 'recipe', task: { description: 'Check the recorded behavior, not a build.' },
+      candidates: [{ name: 'replay', description: 'Replay recorded behavior' }], actorTier: 2,
+    }));
+    const reading = readChoice(plan, answersFor(plan.questions, {
+      choice: choiceAnswer('replay'), 'fits::replay': noulAnswer(0.99),
+      task_changes_files: noulAnswer(probability),
+      'changes_files::replay': noulAnswer(probability),
+    }));
+    expect(reading.decision?.target).toBe('replay');
+    expect(reading.decision?.fileEffect).toBe(effect);
+  });
+
   it('refuses locally what it cannot ask, and hands back an answer that is not an option', () => {
     expect(buildChoice({ ...choiceRequest, candidates: [{ name: NO_CANDIDATE, description: 'x' }] })).toMatch(/is named/);
     expect(

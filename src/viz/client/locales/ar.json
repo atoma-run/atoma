@@ -1239,5 +1239,9 @@
   "settings.platformLimitUnlimited": "غير محدود",
   "settings.platformLimitEnvSet": "{{name}}={{value}}",
   "settings.platformLimitEnvUnset": "لم يُعيَّن {{name}}",
-  "settings.tab.limits": "حدود run"
+  "settings.tab.limits": "حدود run",
+  "projects.runTokens": "الرموز: {{value}}",
+  "projects.runLlmCalls": "استدعاءات LLM: {{value}}",
+  "projects.runJevCalls": "استدعاءات واجهة Jev API: {{value}}",
+  "projects.cardLastRun": "آخر run منذ {{ago}}"
 }

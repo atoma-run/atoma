@@ -94,6 +94,14 @@ by owner decision on 2026-09-26
   otherwise valid run, and an unchanged body is not a revision.
 - Auto-created/revised skill bodies must stay within the owner's toolset and
   generalize beyond the triggering task. No task-specific literals.
+- An approved L1 run that actually persisted a command `record_probe` gets one
+  independent verification extraction if primary distillation omitted a usable
+  sibling. The transport witness includes expected nonzero exits and survives
+  the bounded tool-call list; model prose cannot supply it. Reused LLM build
+  recipes take only this extraction path. Learning, approval and read-only
+  phase gates still apply, as do toolset, exact-id and Jev twin guards. No probe
+  means no extra call; extraction failure preserves the primary and a later
+  approved build may retry. This is one L2 call, not a free Jev evaluation.
 - A recipe that CAN be compiled IS compiled, the moment it is learned:
   `learnSkillFromRun` saves every draft, then runs `tryPromoteSkill` on each,
   with the run it was distilled from as the compile example. The promote
@@ -127,6 +135,12 @@ by owner decision on 2026-09-26
   resolver and persisted on the recipe's trust row. The lexical grammar in
   `scriptTargets.ts` is the FALLBACK for legacy plans/scripts — never grow it
   a new clause for a phrasing the declared field would have carried.
+  Without output paths, the skill prefilter supplies semantic `fileEffect`:
+  Jev reuses its existing decisive `task_changes_files` answer; model fallback
+  supplies the same shared contract. Capability filtering waits for this answer
+  before applying lexical intent, and direct dispatch uses the same resolved
+  Task. Declared output paths always win. Semantic intent never sets the host's
+  `readOnly` restoration policy; uncertainty or omission keeps the old fallback.
 - Script stdout ends with exactly one JSON envelope containing non-null `output`
   and string `summary`. Malformed envelopes and `FAILED`/`ERROR` summary prefixes
   fall back to the validated LLM path; do not invent a separate `ok` field.

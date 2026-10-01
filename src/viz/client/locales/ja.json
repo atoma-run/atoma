@@ -1239,5 +1239,9 @@
   "settings.platformLimitUnlimited": "無制限",
   "settings.platformLimitEnvSet": "{{name}}={{value}}",
   "settings.platformLimitEnvUnset": "{{name}}は未設定",
-  "settings.tab.limits": "runの制限"
+  "settings.tab.limits": "runの制限",
+  "projects.runTokens": "トークン：{{value}}",
+  "projects.runLlmCalls": "LLM呼び出し：{{value}}",
+  "projects.runJevCalls": "Jev API呼び出し：{{value}}",
+  "projects.cardLastRun": "前回のrun：{{ago}}"
 }

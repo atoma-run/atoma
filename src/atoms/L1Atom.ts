@@ -462,6 +462,7 @@ export class L1Atom extends Atom {
     // later pre-flight refusal, which observed nothing (`validationLedger.ts`).
     const validation = new ValidationLedger();
     const observedToolCalls: Array<{ name: string; ok: boolean }> = [];
+    let recordedCommandProbes = false;
     const writtenSkillScratchFiles = new Set<string>();
     let activeScriptSkillExecuted = false;
     const onToolInvocation = (info: ToolInvocationInfo): void => {
@@ -470,6 +471,13 @@ export class L1Atom extends Atom {
       // built a CLI, and two recipes were learned from that fiction. Names +
       // success bits prove an action happened without retaining tool payloads.
       const succeeded = toolInvocationSucceeded(info);
+      // A negative test can exit nonzero and still be a correctly recorded
+      // probe. This witness is independent of the bounded action-name list.
+      if (info.name === 'record_probe' && info.error === undefined &&
+        info.result && typeof info.result === 'object' &&
+        (info.result as Record<string, unknown>)['recorded'] === true) {
+        recordedCommandProbes = true;
+      }
       if (observedToolCalls.length < 64) {
         observedToolCalls.push({ name: info.name, ok: succeeded });
       }
@@ -547,6 +555,7 @@ export class L1Atom extends Atom {
       // that the transport observed NO tool action. Test and library producers may
       // omit the field and remain backward-compatible at upper tiers.
       toolCallResults: observedToolCalls,
+      ...(recordedCommandProbes ? { recordedCommandProbes: true as const } : {}),
       ...(this.activeSkillIdField !== null ? { activeScriptSkillExecuted } : {}),
       // Typed witnesses, attached at production time: the child's recorded
       // probes become first-class evidence the upper tiers can weigh
