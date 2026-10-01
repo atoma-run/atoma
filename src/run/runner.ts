@@ -67,6 +67,9 @@ import type { Logger, Plan, Result, RunContext, Task } from '../core/types.js';
 import type { TaskProfile } from './profile.js';
 import { describeSeedManifest, seedWorkspace, snapshotDeliveredWorkspace, snapshotStartingWorkspace } from './workspace.js';
 import { readOnlyPhasesFor } from './readOnlyPhase.js';
+import { gatedExecutor, inheritedChecksFor } from './inheritedChecks.js';
+import { modelFacingExecutor } from '../core/attestation.js';
+import type { ToolExecutor } from '../core/types.js';
 import { draftAcceptanceChecklist } from '../atoms/acceptanceChecklist.js';
 import { readAcceptanceSource, readAcceptanceSpec } from './acceptanceSpec.js';
 
@@ -931,6 +934,18 @@ export async function startTask(
     : selectedBackend;
   };
   let backend = await makeBackend();
+  // THE INHERITED CHECKS (docs/inherited-checks-replay-2026-10-01.md): a
+  // seeded static-page run replays, now, the browser checks earlier runs
+  // recorded, on the untouched seed. Every tool call of the run waits for
+  // that replay, and root acceptance compares the delivered page against the
+  // checks that held. The replay's own calls go to the backend directly.
+  const inheritedChecks = seedRoot && args.depth && !args.baseline
+    ? inheritedChecksFor({ workspaceRoot, executor: () => backend.executor, signal, deadlineAt, log: (line) => console.log(line) })
+    : undefined;
+  // Every call of the run loses the host-replay argument, whoever makes it:
+  // only the replay's own calls, straight to the backend, keep it.
+  const runTools = (executor: ToolExecutor): ToolExecutor =>
+    modelFacingExecutor(inheritedChecks ? gatedExecutor(executor, inheritedChecks.ready) : executor);
   const toolDecls = backend.toolDecls;
 
   console.log(`workspace: ${backend.rootLabel}`);
@@ -1014,6 +1029,9 @@ export async function startTask(
           return { actor: tissue, handle: (task, context) => tissue.handle(task, context) };
         },
         restart: async () => {
+          // A deepening before the run-start replay settled would archive
+          // the workspace under it.
+          await inheritedChecks?.ready;
           if (!backend.drain) throw new Error('Depth routing backend cannot confirm process exit');
           await backend.drain();
           signal.throwIfAborted();
@@ -1028,7 +1046,7 @@ export async function startTask(
             signal.throwIfAborted();
           }
           backend = replacement;
-          return backend.executor;
+          return runTools(backend.executor);
         },
         onTopology: (info) => recorder.recordTopology(info),
         onAcceptance: (info) => recorder.recordAcceptance(info),
@@ -1062,7 +1080,7 @@ export async function startTask(
     deadlineAt,
     llm,
     limits: DEFAULT_LIMITS,
-    tools: backend.executor,
+    tools: runTools(backend.executor),
     requireObservedToolAction: true,
     // Surface trust fast-path decisions in the trace so the viz lane
     // shows "why no L2 LLM call was needed" instead of an empty gap.
@@ -1086,6 +1104,7 @@ export async function startTask(
     // the same host path (src/contracts/readOnlyPhase.ts): a deepening
     // re-seeds that path, and a phase never spans two attempts.
     readOnlyPhases: readOnlyPhasesFor(workspaceRoot, (line) => consoleLogger.warn(line)),
+    ...(inheritedChecks ? { inheritedChecks } : {}),
     // Prefilter decisions replayed from the on-disk cache: the LLM call
     // that did NOT happen still deserves a card.
     recordCacheHit: (info) => recorder.recordCacheHit(info),

@@ -912,6 +912,7 @@ export async function llmVerdict(args: {
   // so downstream consumers only ever see `boolean | undefined`.
   const activeSkillFollowed = raw.activeSkillFollowed ?? undefined;
   const criteria = raw.criteria ?? undefined;
-  if (raw.approved) return { ...raw, activeSkillFollowed, criteria };
-  return { ...raw, branchName: raw.branchName ?? undefined, activeSkillFollowed, criteria };
+  const inherited = raw.inherited ?? undefined;
+  if (raw.approved) return { ...raw, activeSkillFollowed, criteria, inherited };
+  return { ...raw, branchName: raw.branchName ?? undefined, activeSkillFollowed, criteria, inherited };
 }

@@ -9,7 +9,20 @@ import { buildResultGateEnv, renderResultGateFindings, runResultGates } from './
 import { checkGroundTruth } from './groundTruth.js';
 import { llmVerdict } from './verdict.js';
 import { LANDED_RESULT_GUIDANCE } from './prompts.js';
-import { compareStartingWorkspace, renderStartingWorkspace } from '../contracts/startingWorkspace.js';
+import {
+  compareStartingWorkspace,
+  renderStartingWorkspace,
+  type StartingWorkspaceComparison,
+} from '../contracts/startingWorkspace.js';
+import {
+  contradictedItems,
+  inheritedChecksItems,
+  recordedChecks,
+  renderInheritedChecksBlock,
+  type InheritedChecksReport,
+  type InheritedJudgement,
+  type ShownInheritedItem,
+} from '../contracts/inheritedChecks.js';
 import {
   renderRestorationsBlock,
   restorationDamaged,
@@ -73,15 +86,34 @@ export function observedLayoutsBlock(ctx: RunContext, stale: ReadonlySet<string>
     '. validate_html laid pages out at no other size in this attempt.';
 }
 
-/** What a seeded run did to the files it started from; '' for an unseeded run or an unreadable workspace. */
-function startingWorkspaceBlock(ctx: RunContext): string {
+/** What a seeded run did to the files it started from; undefined for an unseeded run or an unreadable workspace. */
+function startingComparison(ctx: RunContext): StartingWorkspaceComparison | undefined {
   const seeded = ctx.startingWorkspace;
-  if (!seeded) return '';
+  if (!seeded) return undefined;
   try {
-    return renderStartingWorkspace(compareStartingWorkspace(seeded.start, seeded.now()));
+    return compareStartingWorkspace(seeded.start, seeded.now());
   } catch {
-    return '';
+    return undefined;
   }
+}
+
+/**
+ * The host's replay of the checks earlier runs recorded, on the page this run
+ * delivers (docs/inherited-checks-replay-2026-10-01.md). Only a run that
+ * changed a file has something to regress, and a result a gate already
+ * refused is not replayed.
+ */
+async function inheritedReplay(
+  ctx: RunContext,
+  comparison: StartingWorkspaceComparison | undefined
+): Promise<{ readonly report: InheritedChecksReport; readonly items: ShownInheritedItem[] } | undefined> {
+  if (!ctx.inheritedChecks || !comparison || (comparison.changes.length === 0 && comparison.added.length === 0)) return undefined;
+  const report = await ctx.inheritedChecks.compare({
+    ...(ctx.deadlineAt !== undefined ? { deadlineAt: ctx.deadlineAt } : {}),
+    ...(ctx.signal ? { signal: ctx.signal } : {}),
+  });
+  const rewritten = new Set(comparison.changes.filter((change) => change.status === 'rewritten').map((change) => change.path));
+  return { report, items: inheritedChecksItems(report, rewritten) };
 }
 
 /** Every read-only execution of this attempt, whether it changed anything or not. */
@@ -280,6 +312,73 @@ function consistentWithCriteria(
   };
 }
 
+/**
+ * An approval that judges a listed inherited check `asked: false` says the
+ * delivery changed, unasked, a behaviour an earlier run required: the
+ * acceptor's own statement refuses it, as `consistentWithCriteria` does for
+ * an unmet criterion. A landed result keeps its landing.
+ */
+function consistentWithInherited(
+  verdict: { readonly approved: boolean; readonly reasoning?: string },
+  items: readonly ShownInheritedItem[],
+  judgements: readonly InheritedJudgement[] | undefined,
+  landed: boolean
+): { readonly approved: boolean; readonly reasoning?: string } {
+  if (!verdict.approved || landed) return verdict;
+  const contradicted = contradictedItems(items, judgements);
+  if (contradicted.length === 0) return verdict;
+  return {
+    approved: false,
+    reasoning: `Inherited checks the acceptor judged changed without the task asking: ${contradicted.map((item) => `${item.id} ${item.summary}`).join('; ')}` +
+      (verdict.reasoning ? ` — the acceptor's own verdict read: ${verdict.reasoning}` : ''),
+  };
+}
+
+/**
+ * What the trace keeps of one acceptance's replay, the run-start one
+ * included: a run that kept no check says why, so "0 kept" never reads as
+ * "every check stale" when the server, the cap or the worker image was the
+ * reason (review 2026-10-01).
+ */
+function inheritedSummary(
+  report: InheritedChecksReport,
+  items: readonly ShownInheritedItem[],
+  judgements: readonly InheritedJudgement[] | undefined
+): NonNullable<AcceptanceInfo['inheritedChecks']> {
+  const byId = new Map((judgements ?? []).map((judgement) => [judgement.id, judgement]));
+  const { baseline } = report;
+  return {
+    considered: baseline.considered, kept: baseline.kept, baselineCannotRun: baseline.cannotRun,
+    ...(baseline.stopped ? { baselineStopped: baseline.stopped } : {}),
+    ...(baseline.note ? { baselineNote: baseline.note.slice(0, 240) } : {}),
+    replayed: report.replayed, stillPassing: report.stillPassing, flaky: report.flaky,
+    notReplayed: report.notReplayed, listed: report.listed.length,
+    ...(report.stopped ? { stopped: report.stopped } : {}),
+    ...(report.newPageError ? { newPageError: report.newPageError.slice(0, 240) } : {}),
+    items: items.map((item) => {
+      const judgement = byId.get(item.id);
+      return {
+        id: item.id, file: item.file, summary: item.summary.slice(0, 600), checks: recordedChecks(item),
+        ...(judgement ? { asked: judgement.asked, ...(judgement.reason ? { reason: judgement.reason.slice(0, 400) } : {}) } : {}),
+      };
+    }),
+  };
+}
+
+/** The record of an acceptance that compared nothing: the run-start replay, and why. */
+async function baselineOnly(
+  runtime: NonNullable<RunContext['inheritedChecks']>,
+  notCompared: 'unchanged' | 'refused' | 'unreadable'
+): Promise<NonNullable<AcceptanceInfo['inheritedChecks']>> {
+  const baseline = await runtime.baseline();
+  return {
+    considered: baseline.considered, kept: baseline.kept, baselineCannotRun: baseline.cannotRun,
+    ...(baseline.stopped ? { baselineStopped: baseline.stopped } : {}),
+    ...(baseline.note ? { baselineNote: baseline.note.slice(0, 240) } : {}),
+    replayed: 0, stillPassing: 0, flaky: 0, notReplayed: baseline.kept, listed: 0, notCompared, items: [],
+  };
+}
+
 /** A delivery verdict only: no registry, learning hook, or remediation lives here. */
 export async function acceptRootResult(args: {
   actor: Atom; task: Task; result: Result; ctx: RunContext; floor: ProofFloor;
@@ -304,6 +403,11 @@ export async function acceptRootResult(args: {
     payload: { output: result.output, summary: result.summary }, child: actor,
     ...(evidence ? { evidence } : {}) });
   const floorCoverage = await rootProofCoverage(ctx, floor, { digest, stale });
+  // Read once for the replay's trigger, and reused by the STARTING WORKSPACE
+  // block: the host's replays serve files and never write one.
+  const comparison = ctx.inheritedChecks && !gates.rejection ? startingComparison(ctx) : undefined;
+  const inherited = await inheritedReplay(ctx, comparison);
+  const inheritedItems = inherited?.items ?? [];
 
   // Criteria the user approved are READ, whatever the floor says: a covered
   // floor with no finding used to approve mechanically past them.
@@ -313,15 +417,17 @@ export async function acceptRootResult(args: {
   // cannot say either, so any read-only phase of the attempt is read.
   const restorations = readOnlyRestorationsOf(ctx);
   const review = floor.length === 0 || gates.reviewFindings.length > 0 || probe.requiresReview ||
-    floorCoverage.some((item) => item.status === 'uncovered') || userCriteria || restorations.length > 0;
+    floorCoverage.some((item) => item.status === 'uncovered') || userCriteria || restorations.length > 0 ||
+    inheritedItems.length > 0;
   const judgementsAsked = checklistBlock !== '';
   // Read only for a validation call: nothing reads them on the mechanical path.
   // Named files only beside criteria the acceptor is shown (a drafted
   // review-only list renders nothing, so it names nothing either).
   const reviewing = review && !gates.rejection;
   const namedFilesBlock = reviewing && judgementsAsked ? await criteriaFilesBlock(ctx, checklist) : '';
-  const startingBlock = reviewing ? startingWorkspaceBlock(ctx) : '';
+  const startingBlock = reviewing ? renderStartingWorkspace(comparison ?? startingComparison(ctx)) : '';
   const restorationsBlock = reviewing ? renderRestorationsBlock(restorations) : '';
+  const inheritedBlock = reviewing && inherited ? renderInheritedChecksBlock(inherited.report, inheritedItems) : '';
   const raw = gates.rejection
     ? { approved: false, reasoning: gates.rejection.reasoning }
     : review ? await llmVerdict({
@@ -334,14 +440,16 @@ export async function acceptRootResult(args: {
       proofCoverageBlock: 'ROOT DELIVERY PROOF (no effect on phase credits):\n' + JSON.stringify(floorCoverage) +
         (checklistBlock ? `\n\n${checklistBlock}\n${CRITERIA_JUDGEMENT_REQUEST}` : '') + (layoutsBlock ? `\n\n${layoutsBlock}` : '') +
         (namedFilesBlock ? `\n\n${namedFilesBlock}` : '') + (startingBlock ? `\n\n${startingBlock}` : '') +
-        (restorationsBlock ? `\n\n${restorationsBlock}` : ''),
+        (restorationsBlock ? `\n\n${restorationsBlock}` : '') + (inheritedBlock ? `\n\n${inheritedBlock}` : ''),
       // A landed run always reaches here through a validation call, because it
       // stopped before it could prove the floor. Saying what a landing IS costs
       // one block and decides whether the phases it did complete survive.
       ...(result.unfinishedPhases?.length ? { landingBlock: LANDED_RESULT_GUIDANCE } : {}),
     }) : { approved: true, reasoning: 'No mechanical finding requires review.' };
   const judged = judgementsAsked && 'criteria' in raw ? judgeCoverage(coverage, raw.criteria) : coverage;
-  const verdict = consistentWithCriteria(raw, judged, source, Boolean(result.unfinishedPhases?.length));
+  const landed = Boolean(result.unfinishedPhases?.length);
+  const inheritedJudgements = 'inherited' in raw ? raw.inherited : undefined;
+  const verdict = consistentWithInherited(consistentWithCriteria(raw, judged, source, landed), inheritedItems, inheritedJudgements, landed);
   const produced = result.producedBy;
   return {
     attempt: ctx.attempt ?? 1, approved: verdict.approved, reasoning: verdict.reasoning ?? '',
@@ -354,6 +462,9 @@ export async function acceptRootResult(args: {
     floorCoverage, phaseCoverage: [...args.phaseCoverage],
     ...(judged.length > 0 ? { checklist: judged, checklistSource: source,
       ...(args.checklistOrigin?.digest ? { checklistDigest: args.checklistOrigin.digest } : {}) } : {}),
+    ...(inherited ? { inheritedChecks: inheritedSummary(inherited.report, inheritedItems, inheritedJudgements) }
+      : ctx.inheritedChecks ? { inheritedChecks: await baselineOnly(ctx.inheritedChecks, gates.rejection ? 'refused' : comparison ? 'unchanged' : 'unreadable') }
+        : {}),
     basis: review && !gates.rejection ? 'validation-call' : 'mechanical',
   };
 }

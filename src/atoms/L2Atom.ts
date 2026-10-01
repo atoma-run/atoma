@@ -1,4 +1,5 @@
 import { Atom, type Peerable, type Supervisor } from '../core/atom.js';
+import { modelFacingExecutor } from '../core/attestation.js';
 import type {
   GenerationParams,
   NegativeVerdict,
@@ -2065,7 +2066,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         // into an instant provider error on a live web run.
         model: hasTools ? modelForTier(1) : this.model,
         userContent,
-        ...(hasTools ? { tools: [...this.tools], executor: ctx.tools } : {}),
+        ...(hasTools ? { tools: [...this.tools], executor: modelFacingExecutor(ctx.tools) } : {}),
         params: this.params,
         signal: ctx.signal,
         maxToolIterations: capToolIterations(hasValidator ? 40 : 24, ctx.deadlineAt),

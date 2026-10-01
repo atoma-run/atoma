@@ -95,6 +95,19 @@ Neighbours:
   left as they are and reported: replacing a database under a live
   connection shipped the phase's own rows and lost another process's (review
   2026-09-30).
+- A seeded static-page run replays the browser checks it inherited on the
+  UNTOUCHED seed as soon as its backend exists (`inheritedChecksFor`,
+  [docs/inherited-checks-replay-2026-10-01.md](../../docs/inherited-checks-replay-2026-10-01.md)),
+  and `gatedExecutor` makes every tool call of the run wait for it; a
+  deepening waits for it before archiving. `runTools` also strips the
+  host-replay argument from every call. The replay's own calls go to the
+  backend, read through a getter because a deepening replaces it, on one
+  static server per backend. Nothing is written into the workspace: the
+  first design staged a copy there, and its review broke it (a tree the run's
+  own processes can still change). Caps: 40 checks, a warm-up call, 10 s a
+  call (past it, that check is unrun; the third ends the replay), checks
+  needing over 8 s skipped, 60 s for the start, 60 s per acceptance, and a
+  90 s verdict reserve before the deadline.
 
 ## Platform run limits
 

@@ -72,6 +72,16 @@ function soleRefusalReason(acceptance: AcceptanceInfo, criterionId: string): boo
  * this run, exactly as a validator's rejection already does, and nothing here
  * executes it.
  */
+function inheritedChecksInput(acceptance: AcceptanceInfo): Record<string, unknown> {
+  // Only what the acceptor judged NOT asked for: an unjudged item may be a
+  // rebuild the task asked for, and a remediation told to restore it would
+  // undo the request (review 2026-10-01).
+  const items = (acceptance.inheritedChecks?.items ?? []).filter((item) => item.asked === false);
+  return items.length === 0 ? {} : {
+    inheritedChecksNoLongerPassing: items.map(({ id, file, summary, checks }) => ({ id, file, summary, checks })),
+  };
+}
+
 export function remediationTask(task: Task, acceptance: AcceptanceInfo): Task {
   // A single criterion rejected by the root is a narrow, structured finding.
   // Show that fact to the planner so it can repair the claim without treating
@@ -100,6 +110,10 @@ export function remediationTask(task: Task, acceptance: AcceptanceInfo): Task {
       rootAcceptanceRefusal: acceptance.reasoning,
       rootAcceptanceAttempt: (Number(task.inputs?.['rootAcceptanceAttempt'] ?? 0) || 0) + 1,
       ...focusedScope,
+      // Checks earlier runs recorded that held when this run began and fail
+      // on its delivery, minus the ones the acceptor said the task asked to
+      // change (docs/inherited-checks-replay-2026-10-01.md).
+      ...inheritedChecksInput(acceptance),
     },
   };
 }

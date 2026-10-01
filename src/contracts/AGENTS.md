@@ -52,6 +52,11 @@ Neighbours:
   `establishesDomInteraction`; its second call changes state once before the
   reset because a reset on a fresh page proves nothing. Generic vocabulary
   only — control, milestone, reset — never one widget's names.
+- `probeEntryKind` is the ONE kind dispatch of a manifest entry: the health
+  check and the inherited-check replay (`inheritedChecks.ts`) both call it.
+  `inheritedChecks.ts` owns which inherited web entries are checks, how one
+  host replay is judged (its smoke verdict, never the page's console), and the
+  block and judgement shapes root acceptance reads.
 
 ## Proof attestation
 

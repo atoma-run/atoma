@@ -1,3 +1,4 @@
+import { inheritedJudgementSchema } from '../contracts/inheritedChecks.js';
 import { z } from 'zod';
 import { jsonrepair, JSONRepairError } from 'jsonrepair';
 import { ValidationError } from '../core/errors.js';
@@ -1083,11 +1084,17 @@ export function coerceVerdictDefaults(raw: unknown): unknown {
   const needsAsfCoercion =
     asf !== undefined && asf !== null && typeof asf !== 'boolean';
   const needsCriteriaCoercion = obj['criteria'] !== undefined && obj['criteria'] !== null;
-  const out: Record<string, unknown> = needsAsfCoercion || needsCriteriaCoercion || obj['approved'] === false ? { ...obj } : obj;
+  const needsInheritedCoercion = obj['inherited'] !== undefined && obj['inherited'] !== null;
+  const out: Record<string, unknown> = needsAsfCoercion || needsCriteriaCoercion || needsInheritedCoercion || obj['approved'] === false ? { ...obj } : obj;
   if (needsCriteriaCoercion) {
     const criteria = coerceCriteria(obj['criteria']);
     if (criteria === undefined) delete out['criteria'];
     else out['criteria'] = criteria;
+  }
+  if (needsInheritedCoercion) {
+    const inherited = coerceInherited(obj['inherited']);
+    if (inherited === undefined) delete out['inherited'];
+    else out['inherited'] = inherited;
   }
   if (needsAsfCoercion) {
     if (asf === 'true') out['activeSkillFollowed'] = true;
@@ -1112,6 +1119,27 @@ export function coerceVerdictDefaults(raw: unknown): unknown {
         ac.slice(0, REMEDIATION_FEEDBACK_MAX_CHARS) +
         ' [... remediation feedback truncated: keep it short and actionable ...]',
     };
+  }
+  return out;
+}
+
+/**
+ * One judgement per inherited check root acceptance listed: `asked` is the
+ * acceptor's word that the task asked for that change. The shape is the
+ * contract's (src/contracts/inheritedChecks.ts); it is read as tolerantly as
+ * the criteria below.
+ */
+const inheritedJudgementsSchema = z.array(inheritedJudgementSchema);
+
+function coerceInherited(raw: unknown): Array<{ id: string; asked: boolean; reason?: string }> | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const out: Array<{ id: string; asked: boolean; reason?: string }> = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object') continue;
+    const e = entry as Record<string, unknown>;
+    const asked = e['asked'] === true || e['asked'] === 'true' ? true : e['asked'] === false || e['asked'] === 'false' ? false : undefined;
+    if (typeof e['id'] !== 'string' || !e['id'] || e['id'].length > 40 || asked === undefined) continue;
+    out.push({ id: e['id'], asked, ...(typeof e['reason'] === 'string' ? { reason: e['reason'].slice(0, 400) } : {}) });
   }
   return out;
 }
@@ -1152,6 +1180,7 @@ export const verdictSchema = z
       // normalises null → undefined at the parse boundary.
       activeSkillFollowed: z.boolean().nullish(),
       criteria: criterionJudgementsSchema.nullish(),
+      inherited: inheritedJudgementsSchema.nullish(),
     }),
     z.object({
       approved: z.literal(false),
@@ -1166,6 +1195,7 @@ export const verdictSchema = z
       branchName: z.string().nullish(),
       activeSkillFollowed: z.boolean().nullish(),
       criteria: criterionJudgementsSchema.nullish(),
+      inherited: inheritedJudgementsSchema.nullish(),
     }),
   ])
   // A rejected verdict targeting the canonical type (`patch` or `branch`)

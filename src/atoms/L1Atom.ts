@@ -15,6 +15,7 @@ import { parsePayloadTolerant, parseWith, planSchema } from './json.js';
 import type { Skill } from '../skills/types.js';
 import { witnessesFromPayload, type Witness } from '../contracts/witness.js';
 import { renderObservations, type AttestationRecord } from '../contracts/attestation.js';
+import { modelFacingExecutor } from '../core/attestation.js';
 import { namedLayoutWidths } from '../contracts/acceptanceChecklist.js';
 import { READER_FACING_DOC_GUIDANCE } from './prompts.js';
 
@@ -477,7 +478,7 @@ export class L1Atom extends Atom {
         userContent,
         tools: this.tools,
         params: this.params,
-        executor: ctx.tools ? withAutomaticLoopbackHttpRecording(ctx.tools) : undefined,
+        executor: ctx.tools ? modelFacingExecutor(withAutomaticLoopbackHttpRecording(ctx.tools)) : undefined,
         signal: ctx.signal,
         onToolInvocation,
       // Iterative build-app style tasks (write_file → start_server →

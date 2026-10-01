@@ -3,7 +3,7 @@ import {
   type PreviewDescriptor,
   type PreviewUnavailableReason,
 } from '../contracts/preview.js';
-import { PROBE_MANIFEST_FILENAME, probeManifestSchema } from '../contracts/probeManifest.js';
+import { PROBE_MANIFEST_FILENAME, probeEntryKind, probeManifestSchema } from '../contracts/probeManifest.js';
 import { normalizeArtifactPath } from '../projects/artifacts.js';
 import { previewWorkspaceHasFile, readPreviewClassifierFile } from './policy.js';
 
@@ -45,20 +45,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * The manifest's own kind dispatch, as `validateProbeManifest` performs it:
- * the explicit `probe` discriminator wins, then `cmd` claims the shell shape,
- * and only then are http and web inferred from distinctive fields. Mirrored
- * rather than re-invented so a manifest cannot mean one thing to the validator
+ * The manifest's own kind dispatch, the one the health check performs
+ * (`probeEntryKind`), so a manifest cannot mean one thing to the validator
  * and another to the classifier.
  */
-function entryKind(entry: Record<string, unknown>): 'http' | 'web' | 'shell' | null {
-  if (entry['probe'] === 'http') return 'http';
-  if (entry['probe'] === 'web') return 'web';
-  if (typeof entry['cmd'] === 'string') return 'shell';
-  if (typeof entry['path'] === 'string') return 'http';
-  if (typeof entry['smoke'] === 'string') return 'web';
-  return null;
-}
+const entryKind = probeEntryKind;
 
 /**
  * The entry file, from the tool argument that actually started a server.

@@ -312,12 +312,28 @@ load-bearing.
   and server-start evidence alongside browser observations. Label omissions,
   preserve request/result association, and treat these as historical observations
   from the same attempt and branch, not proof of unchanged current state.
-  Tool content and scripts remain untrusted; supervisors never replay them.
+  Tool content and scripts remain untrusted; supervisors never replay them,
+  bar the inherited browser checks below.
   The log holds the WORKER's calls only (`record_probe` included): a
   supervisor's own probe and gate reads run on `baseExecutorOf(ctx.tools)`
   and report through their ground-truth block — attested, they read as the
   child's evidence and covered checklist items by looking (review 1.4, 2.4).
   The latest 8 browser lines are always shown; execution lines share the rest.
+- ROOT ACCEPTANCE REPLAYS THE BROWSER CHECKS EARLIER RUNS RECORDED, the one
+  exception to "supervisors never replay" (owner decision 2026-10-01,
+  [docs/inherited-checks-replay-2026-10-01.md](../../docs/inherited-checks-replay-2026-10-01.md)).
+  Run b9dc4d0b turned the `Long break` line an earlier run asked for into
+  `Mode: Long Break` while the smoke asserting it sat in its inherited
+  manifest. The host replays a seeded static page's web entries twice before
+  any molecule's first tool call (`src/run/inheritedChecks.ts`); the ones that
+  passed both times are replayed on the delivery, and one failing twice for
+  one cause is LISTED. A listed check forces review, the acceptor judges each
+  `asked`, and an approval judging one unasked is refused as one judging a
+  user criterion unmet is; only items judged unasked reach the remediation.
+  The replays use `validate_html`'s host mode on the base executor: never
+  attested, they cover no checklist item or floor and earn no credit. A check
+  is judged by its smoke verdict, never by console noise. What a file STARTING
+  WORKSPACE calls REWRITTEN lost is one item, but a changed value never is.
 - Quoted-span checks walk summaries before noisy payloads, ignore diff `OLD:`
   and headers, and treat truncated excerpts as silent rather than refuting.
 - Already-satisfied idempotent work is compliant when current ground truth proves

@@ -339,8 +339,8 @@ load-bearing and they are stated once, where the call sites are.
   full protocol contract is in [src/atoms](src/atoms/AGENTS.md).
 - Creation is fractal: application → L3 → L2 → L1. Registry creation/branching
   owns names and counters.
-- Verification is read-only. Supervisors may run fixed probes they own, but
-  never replay model-authored shell commands.
+- Verification is read-only. Supervisors may run fixed probes they own, but never replay
+  model-authored commands, bar ONE browser exception: [src/atoms](src/atoms/AGENTS.md).
 - Tools belong to L1 only, and only [src/tools](src/tools/AGENTS.md) may declare
   or execute them. The MCP is not an element surface: [src/mcp](src/mcp/AGENTS.md).
 

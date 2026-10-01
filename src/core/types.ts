@@ -289,6 +289,8 @@ export type PositiveVerdict = {
   viaJev?: true;
   /** One judgement per acceptance criterion, when the prompt listed criteria. */
   criteria?: readonly CriterionJudgement[];
+  /** One judgement per inherited check root acceptance listed (src/contracts/inheritedChecks.ts). */
+  inherited?: readonly import('../contracts/inheritedChecks.js').InheritedJudgement[];
 };
 /** A validator's judgement of ONE acceptance criterion, by its checklist id. */
 export interface CriterionJudgement {
@@ -306,6 +308,8 @@ export type NegativeVerdict = {
   activeSkillFollowed?: boolean;
   /** See PositiveVerdict.criteria. */
   criteria?: readonly CriterionJudgement[];
+  /** See PositiveVerdict.inherited. */
+  inherited?: readonly import('../contracts/inheritedChecks.js').InheritedJudgement[];
 };
 export type Verdict = PositiveVerdict | NegativeVerdict;
 
@@ -823,6 +827,14 @@ export interface RunContext {
    * like any other. Forwarded by `forkBranch`; its restorations are the run's.
    */
   readonly readOnlyPhases?: import('../contracts/readOnlyPhase.js').ReadOnlyPhases;
+  /**
+   * The host's replay of the browser checks earlier runs recorded, for a
+   * seeded static-page run (`src/run/inheritedChecks.ts`,
+   * docs/inherited-checks-replay-2026-10-01.md). Root acceptance compares the
+   * delivered page against the checks that held when the run began. Absent
+   * for every other run.
+   */
+  readonly inheritedChecks?: import('../contracts/inheritedChecks.js').InheritedChecksRuntime;
   /**
    * Optional prefilter-cache observer — see `CacheHitInfo`. Same
    * observer-only contract as `recordTrust` / `recordSkill`: absent, the

@@ -18,6 +18,9 @@ its source before the next run.
 | 0399bd82 | rerun of 04ea696f on 527b3b55 | 663 s | $0.20 | 7 | delivered the page with only its label changed |
 | 1ed071e3 | pomodoro page: a tab title | 626 s | $0.19 | 7 | delivered; new README text clean, an earlier evidence section kept |
 | 9854553c | wordfreq CLI: `--exclude` | 581 s | $0.19 | 10 | delivered; new README text clean, an earlier evidence section kept |
+| fa8b6ce3 | wordfreq CLI: `--format csv` | 1,457 s | $0.44 | 17 | delivered; evidence section gone, README rewritten whole and three earlier runs' examples lost |
+| c1d1b230 | pomodoro page: a B shortcut | 717 s | $0.22 | 11 | delivered; evidence section gone, one "verified" line kept |
+| d99354c5 | wordfreq CLI: the README restored | 403 s | $0.09 | 5 | delivered; every flag's example and output and every error message back |
 
 ## A verified execution rejected as "non-JSON" (8606cf38)
 
@@ -303,6 +306,39 @@ The accepted risk is that a measurement an earlier task asked the document
 to record goes too: the "unless the task asks" clause only sees the current
 task.
 
+### The removal on its first runs (fa8b6ce3, c1d1b230)
+
+Both runs ran on a5d66759, and in both the documentation molecule's prompt
+carried the rule.
+
+- **c1d1b230 (pomodoro).** Ammonia edited the README: the "Verification
+  evidence" section went, and the new B shortcut was documented. The line
+  "The verified static entry point is `http://localhost:<port>/` when served
+  locally." stayed, because it sits in another section.
+- **fa8b6ce3 (CLI).** The "Recorded CLI probe evidence" section went, but
+  with it went content three earlier runs had asked for: the `--json`
+  example and its output, and the exact outputs of `--min-length` and
+  `--exclude`. The error messages were not restated either. The root planner
+  had asked for it in so many words: "Update README.md through a full on-disk
+  file write". It was reading the task constraint every build run carries,
+  "The L1 worker must actually create the files on disk via the write_file
+  tool", written in April against molecules that answered with code instead
+  of writing it. The phase also matched the build recipe
+  `build-text-frequency-cli`, whose step 4 reads "write_file … README with a
+  real invocation and exact output", as 9854553c's had.
+
+Fixed in de4a7f48:
+- the constraint says write_file for a new file, edit_file to change an
+  existing one;
+- the rule says to remove what an earlier check left wherever it sits, a
+  single "verified" line included.
+
+Run d99354c5, on de4a7f48, restored the README with edit_file. It has an
+example and its exact output for every flag, and a section stating each
+error message with its exit status 1. All of them match the CLI byte for
+byte, checked by hand over 6 commands and 21 error invocations. The usage
+line printed without a file, and a combined example, are still missing.
+
 Two adversarial reviews shaped the change:
 
 - **The rule missed most molecules.** Stored prompts written before f82ee3ad
@@ -323,10 +359,13 @@ Two adversarial reviews shaped the change:
 
 ## Open
 
-- **Earlier runs' requirements are not replayed.** The inherited
-  `.atoma-probes.json` held smokes asserting `textContent === 'Long break'`;
-  nothing replays inherited web entries at acceptance, so a regression of an
-  earlier run's requirement ships unless the current run happens to test it.
+- **Earlier runs' requirements were not replayed.** The inherited
+  `.atoma-probes.json` held smokes asserting `textContent === 'Long break'`,
+  and nothing replayed inherited web entries. Owner decision 2026-10-01: the
+  host replays them for a static page, at the start and at acceptance, and the
+  acceptor decides ([design](../inherited-checks-replay-2026-10-01.md)). Most
+  of this project's entries target hooks and ids the page no longer has, so
+  only the checks that still passed when a run began are compared.
 - **Molecules created before a prompt change keep the old prompt.** A
   canonical molecule takes each new prompt at bootstrap and loses its trust
   streak once. The other molecules keep theirs until
@@ -337,7 +376,12 @@ Two adversarial reviews shaped the change:
   molecules of a restored L3 phase are judged and credited by their cell
   before the phase ends, so only the cell's own trust is withheld.
 - **Whole-file rewrites.** 0a989a58's web molecule regenerated index.html with
-  `write_file` (a 104 s turn) where the prompt asks for `edit_file`.
+  `write_file` (a 104 s turn) where the prompt asks for `edit_file`. The task
+  constraint of every build run said "via the write_file tool" until
+  de4a7f48. Whether that was the cause here is not established.
+- **A documentation phase matches a build recipe.** 9854553c and fa8b6ce3
+  both injected `build-text-frequency-cli` into a README task. The model
+  matched it as "the skill's CLI documentation workflow".
 - **Identical full-stack molecules.** Five branches share CarbonDioxide's
   description and tools; Jev takes the canonical first ("first of 4
   identical"), so they cost catalogue space, not decisions.

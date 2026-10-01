@@ -28,6 +28,7 @@ import {
 export { appendHttpProbe, mergeProbeManifestWrite, mergeShellProbe, probeManifestWriteRefusal };
 import { elementForTool } from '../contracts/toolTaxonomy.js';
 import { MAX_VIEWPORT_PX, MIN_VIEWPORT_PX, PROBE_URL_REFUSAL_PREFIX, SMOKE_PREFLIGHT_REFUSAL_PREFIX } from '../contracts/attestation.js';
+import { HOST_REPLAY_ARG } from '../contracts/inheritedChecks.js';
 import puppeteer, { type Browser } from 'puppeteer';
 import { processHoldsListeningPort } from './listeningPorts.js';
 
@@ -1747,6 +1748,10 @@ export function validateHtmlTool(opts: BuiltinToolOptions): BuiltinTool {
           ? Math.max(0, Math.floor(args['waitMs']))
           : 500;
       const waitMs = Math.min(requestedWaitMs, MAX_WAIT_MS);
+      // THE HOST'S REPLAY of a check an earlier run recorded
+      // (docs/inherited-checks-replay-2026-10-01.md). Undeclared, and stripped
+      // from every call a model makes: it reads and writes no stuck tracker.
+      const hostReplay = Object.prototype.hasOwnProperty.call(args, HOST_REPLAY_ARG) && args[HOST_REPLAY_ARG] === true;
       const viewport = parseViewport(args['viewport']);
       let interactions = parseInteractions(args['interactions']);
       // Captured BEFORE the smoke filter empties the list below: the count
@@ -1816,13 +1821,24 @@ export function validateHtmlTool(opts: BuiltinToolOptions): BuiltinTool {
       }
 
       const browser = await getBrowser();
-      const page = await browser.newPage();
+      // A host replay opens its page in a context of its own, so no storage
+      // or cookie of a molecule's call, or of another replay, reaches it. The
+      // context's proxy is dead for everything but the page's own origin:
+      // request interception never sees a WebSocket handshake, a service
+      // worker's own fetches or a popup's requests, which reached a stranger
+      // loopback port in the review of 2026-10-01. The page's own APIs stay
+      // as they are, so feature detection keeps working.
+      const context = hostReplay
+        ? await browser.createBrowserContext({ proxyServer: HOST_REPLAY_DEAD_PROXY, proxyBypassList: ['<-loopback>', hostOf(url)] })
+        : undefined;
+      const page = await (context ?? browser).newPage();
+      const closePage = (): Promise<void> => (context ? context.close() : page.close());
       try {
         await page.setViewport(viewport);
       } catch (error) {
         // Before the main try/finally: a page the call opened is closed on
         // every exit path, this one included (review 2.14).
-        await page.close().catch(() => {});
+        await closePage().catch(() => {});
         throw error;
       }
       const errors: string[] = [];
@@ -1865,8 +1881,22 @@ export function validateHtmlTool(opts: BuiltinToolOptions): BuiltinTool {
         opts.logger?.info(
           `[tool:validate_html] loading ${url}` +
             (interactions.length ? ` (+${interactions.length} interactions)` : '') +
-            (smoke ? ' (+smoke)' : '')
+            (smoke ? ' (+smoke)' : '') +
+            (hostReplay ? ' (host replay)' : '')
         );
+        if (hostReplay) {
+          // A replayed smoke is JavaScript an earlier run wrote: its page
+          // reaches its own origin only, never another loopback port, the
+          // egress proxy or a file URL. What interception does not see, the
+          // context's dead proxy refuses.
+          const pageOrigin = originOf(url);
+          await page.setRequestInterception(true);
+          page.on('request', (request) => {
+            const target = request.url();
+            const allowed = /^(?:data|blob):/i.test(target) || originOf(target) === pageOrigin;
+            (allowed ? request.continue() : request.abort('blockedbyclient')).catch(() => undefined);
+          });
+        }
         // `domcontentloaded` waits only for HTML parse — adequate for
         // local static files, which are what start_static_server serves.
         // The earlier `networkidle0` wait was 500ms+ of guaranteed idle
@@ -1917,7 +1947,7 @@ ${pageRevision}`;
         // smoke failing before an edit and passing after it is normal
         // convergence, not oscillation — a live widget run proved the old
         // smoke-only key false-blocked a repaired page.
-        if (smoke !== undefined && stuck.isStuck(smoke, layoutRevision)) {
+        if (!hostReplay && smoke !== undefined && stuck.isStuck(smoke, layoutRevision)) {
           return {
             ok: false,
             url,
@@ -1932,7 +1962,7 @@ ${pageRevision}`;
             viewport,
           };
         }
-        if (smoke !== undefined && stuck.isOscillating(smoke, layoutRevision)) {
+        if (!hostReplay && smoke !== undefined && stuck.isOscillating(smoke, layoutRevision)) {
           return {
             ok: false,
             url,
@@ -2102,13 +2132,23 @@ ${pageRevision}`;
 
         let smokeResult: unknown;
         let smokeOk = true;
+        // A host replay tells a smoke that threw from one that returned
+        // `{ ok: false, error: … }` on purpose: the first lost a hook or an
+        // element, the second observed a changed value.
+        let smokeThrew = false;
         if (smoke) {
           try {
             smokeResult = await page.evaluate(
               // We wrap the snippet so callers can write either an expression
               // ("x > 0") or a full statement block ("const y=...; return y>0").
-              `(() => { try { const __r = (${smoke}); return __r; } catch (e) { return { ok: false, error: String(e) }; } })()`
+              hostReplay
+                ? `(async () => { try { return await (${smoke}); } catch (e) { return { ok: false, error: String(e), ${HOST_SMOKE_THREW}: true }; } })()`
+                : `(() => { try { const __r = (${smoke}); return __r; } catch (e) { return { ok: false, error: String(e) }; } })()`
             );
+            if (hostReplay && smokeResult !== null && typeof smokeResult === 'object' && HOST_SMOKE_THREW in smokeResult) {
+              smokeThrew = true;
+              delete (smokeResult as Record<string, unknown>)[HOST_SMOKE_THREW];
+            }
             smokeOk = isSmokeOk(smokeResult);
             // The styling override is the ONE gate that turns a passing smoke
             // into a failure, so its two error lines used to say "smoke check
@@ -2134,13 +2174,15 @@ ${pageRevision}`;
             }
           } catch (err) {
             smokeOk = false;
+            smokeThrew = true;
             const raw = (err as Error).message;
             const explained = diagnoseSmokeEvaluationError(raw) ?? raw;
             smokeResult = { error: explained };
             errors.push(`smoke evaluation threw: ${explained}`);
           }
-          // Record outcome for the stuck-detector above.
-          stuck.record(smoke, smokeOk, layoutRevision);
+          // Record outcome for the stuck-detector above. A host replay is
+          // no molecule's attempt, and never counts as one.
+          if (!hostReplay) stuck.record(smoke, smokeOk, layoutRevision);
         }
 
         // Does the DOCUMENT declare an icon? Read it AFTER interactions so a
@@ -2174,6 +2216,10 @@ ${pageRevision}`;
           viewport,
           ...(document ? { document } : {}),
           ...(smoke ? { smokeResult } : {}),
+          // The smoke's own verdict, apart from console noise, and the
+          // response status: what a host replay judges a check by.
+          ...(hostReplay && smoke ? { smokeOk, smokeThrew } : {}),
+          ...(hostReplay && navigation ? { httpStatus: navigation.status() } : {}),
         };
       } catch (err) {
         // Navigation failed, so the icon-link probe is unavailable; treating
@@ -2205,10 +2251,29 @@ ${pageRevision}`;
           ...(document ? { document } : {}),
         };
       } finally {
-        await page.close().catch(() => undefined);
+        await closePage().catch(() => undefined);
       }
     },
   };
+}
+
+/** Marks a host replay's smoke that threw, inside the page; removed from the result. */
+const HOST_SMOKE_THREW = '__atomaHostSmokeThrew';
+
+/**
+ * The proxy a host replay's browser context sends everything but the page's
+ * own origin to. Nothing answers there: the discard port, on loopback, inside
+ * a container with no network or on the host.
+ */
+const HOST_REPLAY_DEAD_PROXY = 'http://127.0.0.1:9';
+
+/** `host:port` of a URL, as a proxy bypass list names it. */
+function hostOf(rawUrl: string): string {
+  try {
+    return new URL(rawUrl).host;
+  } catch {
+    return rawUrl;
+  }
 }
 
 /** Puppeteer's own default, kept explicit so the result can report it. */

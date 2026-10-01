@@ -376,6 +376,27 @@ export function validateProbeManifest(raw: string): string[] {
 }
 
 /**
+ * The manifest's kind dispatch: the explicit `probe` discriminator wins, then
+ * `cmd` claims the shell shape, and only then are http and web inferred from
+ * their distinctive fields. The health check, the preview classifier
+ * (src/preview/descriptor.ts) and the inherited-check replay
+ * (`src/contracts/inheritedChecks.ts`) dispatch through this one function.
+ */
+export function probeEntryKind(en: Record<string, unknown>): 'http' | 'web' | 'shell' | null {
+  return en['probe'] === 'http'
+    ? 'http'
+    : en['probe'] === 'web'
+      ? 'web'
+      : typeof en['cmd'] === 'string'
+        ? 'shell'
+        : typeof en['path'] === 'string'
+          ? 'http'
+          : typeof en['smoke'] === 'string'
+            ? 'web'
+            : null;
+}
+
+/**
  * The per-entry half of `validateProbeManifest`, exported so the seed copy
  * (`inheritProbeManifest`) judges an inherited entry by the SAME rules the
  * health check reports — one definition of a well-formed entry, not two.
@@ -397,18 +418,7 @@ export function probeEntryProblems(e: unknown, i: number): string[] {
       `entry #${i}: "probe" must be the literal "http" or "web", got ${JSON.stringify(en['probe'])} — scenario labels belong in the smoke/note, not in the discriminator`
     );
   }
-  const kind =
-    en['probe'] === 'http'
-      ? 'http'
-      : en['probe'] === 'web'
-        ? 'web'
-        : typeof en['cmd'] === 'string'
-          ? 'shell'
-          : typeof en['path'] === 'string'
-            ? 'http'
-            : typeof en['smoke'] === 'string'
-              ? 'web'
-              : null;
+  const kind = probeEntryKind(en);
   if (kind === 'http') {
     if (typeof en['method'] !== 'string') problems.push(`entry #${i} (http): missing string "method"`);
     if (typeof en['path'] !== 'string') problems.push(`entry #${i} (http): missing string "path"`);

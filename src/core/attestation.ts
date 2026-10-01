@@ -6,6 +6,7 @@ import {
   type AttestationLog,
   type AttestationRecord,
 } from '../contracts/attestation.js';
+import { HOST_REPLAY_ARG } from '../contracts/inheritedChecks.js';
 
 /**
  * THE ATTESTATION SEAM.
@@ -105,6 +106,25 @@ export function attestingExecutor(
     },
   };
   return wrapper;
+}
+
+/**
+ * The executor a MODEL's tool calls go through: it never forwards an argument
+ * only the host may pass. `hostReplay` is the supervisor's replay mode of
+ * `validate_html` (docs/inherited-checks-replay-2026-10-01.md), which reads
+ * and writes no stuck tracker. A molecule, a fallback executor or the
+ * benchmark baseline agent that passed it would otherwise get the host's
+ * mode.
+ */
+export function modelFacingExecutor(executor: ToolExecutor): ToolExecutor {
+  return {
+    has: (name: string) => executor.has(name),
+    execute(name: string, args: Record<string, unknown>): Promise<unknown> {
+      if (!Object.prototype.hasOwnProperty.call(args, HOST_REPLAY_ARG)) return executor.execute(name, args);
+      const { [HOST_REPLAY_ARG]: _hostOnly, ...rest } = args;
+      return executor.execute(name, rest);
+    },
+  };
 }
 
 /** The un-wrapped executor beneath any number of attesting wrappers. */

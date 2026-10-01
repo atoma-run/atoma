@@ -1,3 +1,4 @@
+import { modelFacingExecutor } from '../core/attestation.js';
 import { capToolIterations } from '../core/limits.js';
 import { modelForTier } from '../core/models.js';
 import type { Result, RunContext, Task, Tool } from '../core/types.js';
@@ -129,7 +130,7 @@ export async function runFrontierBaseline(
     systemPrompt: BASELINE_SYSTEM_PROMPT,
     userContent: renderBaselineUserContent(task),
     tools: [...tools],
-    executor: ctx.tools,
+    ...(ctx.tools ? { executor: modelFacingExecutor(ctx.tools) } : {}),
     signal: ctx.signal,
     // Same wall-clock cap as the atoma arm (benchmark discipline: both arms
     // share budgets and watchdog) — an uncapped baseline could PLAN more

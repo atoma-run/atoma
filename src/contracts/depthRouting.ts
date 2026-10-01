@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { PROOF_OBLIGATIONS } from './attestation.js';
 import { checklistCoverageSchema, checklistSourceSchema } from './acceptanceChecklist.js';
+import { inheritedChecksSummarySchema } from './inheritedChecks.js';
 
 /** Runtime-owned experiment inputs and evidence. Never parsed from model prose. */
 export const depthModeSchema = z.enum(['deep', 'short']);
@@ -43,6 +44,8 @@ export const acceptanceSchema = z.object({
   checklistSource: checklistSourceSchema.optional(),
   /** The host's digest of a USER list, the same one the project store holds for the run. */
   checklistDigest: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  /** The host's replay of the checks earlier runs recorded (docs/inherited-checks-replay-2026-10-01.md). */
+  inheritedChecks: inheritedChecksSummarySchema.optional(),
   basis: z.enum(['mechanical', 'validation-call']),
 });
 export type AcceptanceInfo = z.infer<typeof acceptanceSchema>;

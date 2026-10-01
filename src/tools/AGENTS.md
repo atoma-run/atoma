@@ -201,8 +201,24 @@ Neighbours:
   document. Absence is a weaker observation and never a failure, and it
   attests content correspondence at that instant, not the application's
   dependency chain.
+- `validate_html`'s HOST REPLAY mode (`hostReplay: true`) replays a check an
+  earlier run recorded, for root acceptance
+  ([docs/inherited-checks-replay-2026-10-01.md](../../docs/inherited-checks-replay-2026-10-01.md)).
+  Each call opens a fresh browser context whose proxy is dead for everything
+  but the page's own origin, which covers what request interception never
+  sees (a WebSocket handshake, a service worker's own fetches, a popup); a
+  page-level stub of those APIs was tried, escaped by a popup, and broke
+  feature detection. The stuck and oscillation tracker is neither read nor
+  written, and the result carries `smokeOk`, `smokeThrew` and the response's
+  `httpStatus`.
 
 ## Intentional choices and rejected shortcuts
+
+- `hostReplay` is UNDECLARED, read as an own property only, and stripped
+  from every call of a run and from every model-facing executor
+  (`modelFacingExecutor`, src/core/attestation.ts): a molecule that passed it
+  would escape the stuck tracker built to stop its loops. Do not declare it in
+  the schema, and do not read it anywhere but in `validate_html`.
 
 - A SYNCHRONOUS smoke observes only what the page has already committed, so
   the canonical state-driving shape (`SMOKE_CANONICAL_STATE_SHAPE`) is ASYNC

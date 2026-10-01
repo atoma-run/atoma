@@ -1,3 +1,4 @@
+import { modelFacingExecutor } from '../core/attestation.js';
 import { Atom, type Supervisor } from '../core/atom.js';
 import type {
   GenerationParams,
@@ -1227,7 +1228,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         // Tier-3 Codex can plan this fallback but cannot safely execute tools.
         model: hasTools ? modelForTier(1) : this.model,
         userContent,
-        ...(hasTools ? { tools: [...this.tools], executor: ctx.tools } : {}),
+        ...(hasTools ? { tools: [...this.tools], executor: modelFacingExecutor(ctx.tools) } : {}),
         params: this.params,
         signal: ctx.signal,
         maxToolIterations: capToolIterations(hasValidator ? 40 : 24, ctx.deadlineAt),
