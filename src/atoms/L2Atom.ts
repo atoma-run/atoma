@@ -1,5 +1,6 @@
 import { Atom, type Peerable, type Supervisor } from '../core/atom.js';
 import { modelFacingExecutor } from '../core/attestation.js';
+import { branchRecordCount, executorEvidence } from './executorEvidence.js';
 import type {
   GenerationParams,
   NegativeVerdict,
@@ -2061,6 +2062,8 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     ]
       .filter((l): l is string => typeof l === 'string' && l.length > 0)
       .join('\n');
+    // Its own calls start here: the branch already holds those of the molecules it replaces.
+    const since = branchRecordCount(ctx);
     const resp = await ctx.llm.complete(
       this.toLlmRequest('fallback-execute', {
         systemPromptOverride: FALLBACK_SYSTEM_PROMPT,
@@ -2082,6 +2085,9 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       summary,
       trace: [],
       producedBy: { tier: 2, name: this.name, viaFallback: true },
+      // What the transport saw this fallback do, as a molecule's result
+      // carries it: without it, its validator judges the summary alone.
+      evidence: executorEvidence(output, ctx, since),
     };
   }
 

@@ -766,6 +766,13 @@ export async function llmVerdict(args: {
   /** Typed child evidence; payload parsing remains the fallback. */
   evidence?: Result['evidence'];
   /**
+   * The RESULT is the child's own fallback: it executed the work itself. A
+   * caller that hands the validator only `output` and `summary` says so here,
+   * since the payload then carries no `producedBy` (run ff102525: a cell's
+   * fallback result read as a DELEGATION at the tissue).
+   */
+  viaFallback?: boolean;
+  /**
    * Optional pre-formatted description of the atoms the plan references
    * (usually the DELEGATION target's name + description + trust counters).
    * Injected verbatim into userContent so Haiku doesn't have to guess what
@@ -836,8 +843,8 @@ export async function llmVerdict(args: {
   // DELEGATION — enumeration is the downstream L1's responsibility, not
   // theirs). Without this hint, Haiku rejected perfectly valid L2 delegation
   // plans for "missing VISIBLE deliverables", starving the run of tool calls.
-  const fallback = args.child.isFallbackMode() ||
-    (args.subject === 'RESULT' && (args.payload as Result).producedBy?.viaFallback === true);
+  const fallback = args.child.isFallbackMode() || (args.subject === 'RESULT' &&
+    (args.viaFallback === true || (args.payload as Result).producedBy?.viaFallback === true));
   const planKind: 'DIRECT' | 'DELEGATION' = args.child.tier === 1 || fallback ? 'DIRECT' : 'DELEGATION';
   const planKindHint =
     planKind === 'DIRECT'

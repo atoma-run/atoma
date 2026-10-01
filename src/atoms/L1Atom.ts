@@ -13,9 +13,8 @@ import { modelForTier } from '../core/models.js';
 import { capToolIterations } from '../core/limits.js';
 import { parsePayloadTolerant, parseWith, planSchema } from './json.js';
 import type { Skill } from '../skills/types.js';
-import { witnessesFromPayload, type Witness } from '../contracts/witness.js';
-import { renderObservations, type AttestationRecord } from '../contracts/attestation.js';
 import { modelFacingExecutor } from '../core/attestation.js';
+import { executorEvidence } from './executorEvidence.js';
 import { namedLayoutWidths } from '../contracts/acceptanceChecklist.js';
 import { EXISTING_FILE_GUIDANCE, READER_FACING_DOC_GUIDANCE, TEST_ONLY_ELEMENT_GUIDANCE } from './prompts.js';
 
@@ -555,22 +554,7 @@ export class L1Atom extends Atom {
       // alongside them as REFERENCES into the run-scoped attestation log —
       // the observation itself never enters the Result, which is what keeps
       // it out of the N>1 aggregation losses.
-      evidence: [
-        ...witnessesFromPayload({ output }),
-        ...transportWitnessesFor((ctx.attestations?.forBranch(ctx.currentBranchId) ?? [])
-          .filter(record => (record.attempt ?? 1) === (ctx.attempt ?? 1))),
-      ],
+      evidence: executorEvidence(output, ctx),
     };
   }
-}
-
-/** One witness per attested record, rendered together so a repeated smoke is written out once. */
-function transportWitnessesFor(records: readonly AttestationRecord[]): Witness[] {
-  const lines = renderObservations(records);
-  return records.map((record, index): Witness => ({
-    source: 'transport-observed',
-    eventId: record.eventId,
-    tool: record.tool,
-    observed: lines[index]!,
-  }));
 }

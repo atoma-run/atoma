@@ -340,6 +340,10 @@ load-bearing.
   from the same attempt and branch, not proof of unchanged current state.
   Tool content and scripts remain untrusted; supervisors never replay them,
   bar the inherited browser checks below.
+  A fallback executor's result carries the same evidence as a molecule's,
+  from its own first call on (`executorEvidence`), and a cell's own fallback
+  result is DIRECT at the tissue (`viaFallback`): in ff102525 the tissue
+  judged one on its summary alone and refused a correct result.
   The log holds the WORKER's calls only (`record_probe` included): a
   supervisor's own probe and gate reads run on `baseExecutorOf(ctx.tools)`
   and report through their ground-truth block — attested, they read as the

@@ -28,6 +28,7 @@ its source before the next run.
 | 495c20ef | pomodoro page: restored after 5dff35b0 | 1,816 s | $0.51 | 18 | landed, refused twice, nothing published; 22 checks marked dead |
 | c195ba35 | pomodoro page: four details fixed | 423 s | $0.13 | 8 | delivered and published; three edits, one listed check judged asked, approved first time |
 | 81375f01 | pomodoro page: an F shortcut, after the prompt repair | 1,816 s | $0.51 | 36 | landed, unpublished; a planned test put hidden fields back, caught by an inherited check |
+| ff102525 | pomodoro page: a P shortcut, and server.js deleted | 1,805 s | $0.54 | 27 | failed at the deadline; a correct fallback refused, then two rules on one test contradicted each other |
 
 ## A verified execution rejected as "non-JSON" (8606cf38)
 
@@ -557,6 +558,45 @@ every tier-1 and tier-2 trust streak. This run added an F shortcut on top.
   its smoke and removes it before returning, never in the page; and the
   repair script uses the bootstrap's own project-docs prompt.
 
+## A fallback judged blind, and two rules for one test (ff102525)
+
+The goal added a P shortcut, ignored in a text field, a select or a
+textarea, put P on the hint line and in the README, and deleted the
+`server.js` that 81375f01 had added. It started from 81375f01's landed
+workspace.
+
+- **No replay.** The stray `server.js` classified the workspace as a Node
+  application, so none of the 118 inherited checks was replayed.
+- **A deletion routed to a molecule that cannot delete.** The cell's
+  prefilter, which sees names and descriptions only, picked the web
+  molecule at high confidence. None of its tools deletes a file. Six plans
+  were refused for that, the cell rewrote the shared recipe twice, and its
+  fallback took over.
+- **A correct fallback, refused.** The fallback edited the page, deleted
+  `server.js` with `run_shell` and ran five browser checks. Its result
+  carried none of them. The tissue's validator saw its summary,
+  a load-only probe and "Plan kind: DELEGATION", and refused it as
+  unsupported narration.
+- **Two rules that contradicted each other.** The phase went back to a
+  web molecule with `dom-interaction`, and its subtask asked for real
+  keyboard interactions in each form control. The molecule first did what
+  81375f01's fix said: its smoke created a text field and a textarea,
+  pressed P in each, and removed them. The same prompt says a smoke that
+  drives the page is not dom-interaction proof, and an interaction reaches
+  only an element the page has. Over 999 s it added hidden fields to the
+  page seven times and removed them six; the last ones stayed. The README
+  phase never ran.
+- **Now:**
+  - A control the page does not have is proven in one validate_html call.
+    Its interactions set up the state the key would change. Its smoke then
+    creates the control, presses the key on it, compares the state and
+    removes it. The validators, the planners and the dom-interaction
+    obligation say the same. The rule reaches the molecule's plan and the
+    fallback executors.
+  - A fallback's result carries the transport's observations of its own
+    calls, as a molecule's does, never those of the molecules it replaced,
+    and a cell's own fallback reads as DIRECT at the tissue.
+
 ## Open
 
 - **Earlier runs' requirements were not replayed.** The inherited
@@ -607,6 +647,15 @@ every tier-1 and tier-2 trust streak. This run added an F shortcut on top.
 - **A landed run's listed checks.** 0b51e494 landed with two listed checks.
   The next run starts from its page, where both fail at the start, so they
   are not kept and never compared: only the landing reasons carry them.
+- **The prefilter does not see tools.** It is asked to match a "tool
+  signature" from names and descriptions, and ff102525 routed a deletion to
+  a molecule with no tool for it. Showing tools changes what Jev reads.
+- **A fallback's proof obligations are not checked.** Phase coverage is
+  recorded where a cell validates a molecule; a cell's fallback result is
+  validated by the tissue, which records none.
+- **A recipe rewritten for a routing mistake.** After ff102525's six refused
+  plans, the cell's escalation updates added a deletion step to the shared
+  `patch-verified-static-ui` recipe.
 - **Molecules created before a prompt change keep the old prompt.** A
   canonical molecule takes each new prompt at bootstrap and loses its trust
   streak once. The other molecules keep theirs until

@@ -1,0 +1,38 @@
+import { renderObservations } from '../contracts/attestation.js';
+import { witnessesFromPayload, type Witness } from '../contracts/witness.js';
+import type { RunContext } from '../core/types.js';
+
+type BranchView = Pick<RunContext, 'attestations' | 'currentBranchId' | 'attempt'>;
+
+/** How many records this context's branch holds now: where an executor's own calls begin. */
+export function branchRecordCount(ctx: BranchView): number {
+  return ctx.attestations?.forBranch(ctx.currentBranchId).length ?? 0;
+}
+
+/**
+ * The evidence an EXECUTOR's result carries, a molecule's or a supervisor's
+ * fallback: the probes its output declares, then one witness per call the
+ * transport attested in its branch during its attempt, from record `since`
+ * on, rendered together so a repeated smoke is written out once.
+ *
+ * A fallback passes `since`: it runs in the branch of the molecules it
+ * replaces, and what they observed is not its work. Its result carried no
+ * evidence at all until run ff102525 (2026-10-01), whose tissue validator saw
+ * none of a cell fallback's five browser checks and refused a correct result
+ * as narration.
+ */
+export function executorEvidence(output: unknown, ctx: BranchView, since = 0): Witness[] {
+  const records = (ctx.attestations?.forBranch(ctx.currentBranchId) ?? [])
+    .slice(since)
+    .filter((record) => (record.attempt ?? 1) === (ctx.attempt ?? 1));
+  const lines = renderObservations(records);
+  return [
+    ...witnessesFromPayload({ output }),
+    ...records.map((record, index): Witness => ({
+      source: 'transport-observed',
+      eventId: record.eventId,
+      tool: record.tool,
+      observed: lines[index]!,
+    })),
+  ];
+}

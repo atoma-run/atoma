@@ -1,4 +1,5 @@
 import { modelFacingExecutor } from '../core/attestation.js';
+import { branchRecordCount, executorEvidence } from './executorEvidence.js';
 import { Atom, type Supervisor } from '../core/atom.js';
 import type {
   GenerationParams,
@@ -1225,6 +1226,8 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     ]
       .filter((l): l is string => typeof l === 'string' && l.length > 0)
       .join('\n');
+    // Its own calls start here: the branch already holds those of the molecules it replaces.
+    const since = branchRecordCount(ctx);
     const resp = await ctx.llm.complete(
       this.toLlmRequest('fallback-execute', {
         systemPromptOverride: FALLBACK_SYSTEM_PROMPT,
@@ -1244,6 +1247,9 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       summary,
       trace: [],
       producedBy: { tier: 3, name: this.name, viaFallback: true },
+      // What the transport saw this fallback do, as a molecule's result
+      // carries it: without it, its validator judges the summary alone.
+      evidence: executorEvidence(output, ctx, since),
     };
   }
 
@@ -1389,6 +1395,9 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         task,
         payload,
         ...(result.evidence ? { evidence: result.evidence } : {}),
+        // The payload above drops `producedBy`. The cell's OWN fallback is
+        // DIRECT; a peer's result, mutualized, still carries the peer's name.
+        ...(result.producedBy?.viaFallback && result.producedBy.name === child.name ? { viaFallback: true } : {}),
         ...(groundTruth ? { groundTruthBlock: groundTruth.block } : {}),
         ...(audit ? { audit: true } : {}),
       });
