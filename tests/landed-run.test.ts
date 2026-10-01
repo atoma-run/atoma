@@ -248,6 +248,28 @@ describe('what a landed result says about itself', () => {
     expect(marked.unfinishedPhases).toEqual(['smoke the API', 'package']);
   });
 
+  it('does not report a completed phase as unfinished when a later phase times out', async () => {
+    const dispatchPlan = plan('sequential', ['edit and read back README.md', 'run final validation']);
+    const ctx = ctxAbortedMidPhase();
+    const dispatched = await dispatchWithAggregation(
+      dispatchPlan.subtasks,
+      dispatchPlan,
+      ctx,
+      async (_subtask, idx) => {
+        if (idx === 1) throw new Error('The operation was aborted due to timeout');
+        return {
+          ...result('README.md documents the shortcut and guard'),
+          // A lower landing can carry this phase name upward. The completed
+          // dispatch state, rather than model prose, establishes that it ran.
+          unfinishedPhases: ['edit and read back README.md'],
+        };
+      }
+    );
+
+    const marked = markLanded(dispatched.results[0]!, dispatched.unfinished, dispatched.completed);
+    expect(marked.unfinishedPhases).toEqual(['run final validation']);
+  });
+
   it('leaves a complete dispatch untouched', () => {
     const complete = result('done');
     expect(markLanded(complete, [])).toBe(complete);

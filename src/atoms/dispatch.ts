@@ -20,6 +20,8 @@ type Subtask = Plan['subtasks'][number];
 export interface DispatchOutcome {
   readonly results: Result[];
   readonly unfinished: readonly Subtask[];
+  /** Subtasks whose child returned a result, kept in dispatch order. */
+  readonly completed: readonly Subtask[];
 }
 
 /**
@@ -80,7 +82,7 @@ export async function dispatchWithAggregation(
         ctx.logger.warn(
           `[dispatch] landing on ${out.length}/${subtasks.length} phase(s): too little run budget left to open the next one`
         );
-        return { results: out, unfinished: subtasks.slice(idx) };
+        return { results: out, unfinished: subtasks.slice(idx), completed: subtasks.slice(0, idx) };
       }
       const baseSubtask = subtasks[idx]!;
       const subtask =
@@ -109,7 +111,7 @@ export async function dispatchWithAggregation(
           ctx.logger.warn(
             `[dispatch] landing on ${out.length}/${subtasks.length} phase(s): the run budget (deadline or ceiling) aborted phase #${idx + 1}`
           );
-          return { results: out, unfinished: subtasks.slice(idx) };
+          return { results: out, unfinished: subtasks.slice(idx), completed: subtasks.slice(0, idx) };
         }
         throw err;
       }
@@ -121,7 +123,7 @@ export async function dispatchWithAggregation(
       // must keep reading the current phase only.
       previousOutputs = baseSubtask.outputs;
     }
-    return { results: out, unfinished: [] };
+    return { results: out, unfinished: [], completed: subtasks };
   }
   const pending = subtasks.map((subtask, idx) => runOne(subtask, idx));
   // `allSettled` unconditionally, where it used to be reserved for depth
@@ -133,6 +135,7 @@ export async function dispatchWithAggregation(
   // its siblings have settled rather than immediately.
   const settled = await Promise.allSettled(pending);
   const fulfilled: Result[] = [];
+  const completed: Subtask[] = [];
   const unfinished: Subtask[] = [];
   let failure: unknown;
   let failed = false;
@@ -140,6 +143,7 @@ export async function dispatchWithAggregation(
     const item = settled[idx]!;
     if (item.status === 'fulfilled') {
       fulfilled.push(item.value);
+      completed.push(subtasks[idx]!);
       continue;
     }
     unfinished.push(subtasks[idx]!);
@@ -148,14 +152,14 @@ export async function dispatchWithAggregation(
       failure = item.reason;
     }
   }
-  if (!failed) return { results: fulfilled, unfinished: [] };
+  if (!failed) return { results: fulfilled, unfinished: [], completed };
   // A rejection that is NOT the deadline is a real failure and keeps its
   // original meaning, whatever else settled. Only the deadline lands.
   if (!ctx.signal.aborted || fulfilled.length === 0) throw failure;
   ctx.logger.warn(
     `[dispatch] landing on ${fulfilled.length}/${subtasks.length} branch(es): the run budget (deadline or ceiling) cut the rest`
   );
-  return { results: fulfilled, unfinished };
+  return { results: fulfilled, unfinished, completed };
 }
 
 /**
@@ -280,9 +284,16 @@ async function stopServersStarted(ctx: RunContext, records: readonly Attestation
  *
  * A complete dispatch passes through untouched, so call sites need no branch.
  */
-export function markLanded(result: Result, unfinished: readonly Subtask[]): Result {
+export function markLanded(
+  result: Result,
+  unfinished: readonly Subtask[],
+  completed: readonly Subtask[] = []
+): Result {
   if (unfinished.length === 0) return result;
   const phases = unfinished.map((subtask) => subtask.description);
+  const completedPhases = new Set(completed.map((subtask) => subtask.description));
+  const inheritedUnfinished = (result.unfinishedPhases ?? [])
+    .filter((phase) => !completedPhases.has(phase));
   return {
     ...result,
     summary:
@@ -291,7 +302,7 @@ export function markLanded(result: Result, unfinished: readonly Subtask[]): Resu
     // Union with what came from below: an L2 that landed inside one L3 phase
     // makes the whole run partial, and its unfinished phases must survive the
     // aggregate that wraps it.
-    unfinishedPhases: [...(result.unfinishedPhases ?? []), ...phases],
+    unfinishedPhases: [...inheritedUnfinished, ...phases],
   };
 }
 

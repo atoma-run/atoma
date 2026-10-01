@@ -669,7 +669,8 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     const landed = dispatched.unfinished.length > 0;
     return markLanded(
       await this.aggregate(dispatched.results, plan.aggregation, task, ctx, landed),
-      dispatched.unfinished
+      dispatched.unfinished,
+      dispatched.completed
     );
   }
 
