@@ -4,7 +4,7 @@ Statut : diagnostic du corpus local accessible, incomplet pour la plateforme.
 Code examiné : `25457edf02cc999106be79835e52c36220bdb2f4`.
 Révision de l'audit après relecture des argv, logs et événements d'outils.
 Aucun run payant, changement du runner ou lancement de l'analyste.
-Le [contrat d'acceptation proposé](acceptance-contract-2026-09-14.md)
+Le [contrat d'acceptation proposé](../../acceptance-contract-2026-09-14.md)
 accompagne ce diagnostic ; il n'est pas implémenté.
 
 ## 1. Périmètre et exclusions
@@ -13,12 +13,12 @@ Deux CSV suivis dans Git sont exploitables :
 
 | Source | Lignes | SHA-256 |
 |---|---:|---|
-| [21 août](../burnin/results-2026-08-21.csv) | 28 | `dd12f6340c914d4e049a9722039fb9dd99192576aff2091bc1d688fcc127e474` |
-| [22 août, phase redundancy A3](../burnin/results-phase-redundancy-a3-2026-08-22.csv) | 6 | `96285606c4d2c26f13edbb6db44c4c917564b161326d33a00bd4c00eb3390553` |
+| [21 août](../../../burnin/results-2026-08-21.csv) | 28 | `dd12f6340c914d4e049a9722039fb9dd99192576aff2091bc1d688fcc127e474` |
+| [22 août, phase redundancy A3](../../../burnin/results-phase-redundancy-a3-2026-08-22.csv) | 6 | `96285606c4d2c26f13edbb6db44c4c917564b161326d33a00bd4c00eb3390553` |
 
 Ils restent deux cohortes distinctes. Les répétitions de tâches, changements
 de code et états d'apprentissage interdisent d'en déduire un gain causal entre
-les dates. Le [record du burn-in](incidents/burn-in-2026-08-21.md)
+les dates. Le [record du burn-in](../../incidents/burn-in-2026-08-21.md)
 identifie les 28 runs du premier CSV comme des constructions depuis zéro et
 les trois runs de maintenance seedés comme **absents du CSV**. Ces trois runs
 ne sont pas reconstruits à partir des seuls chiffres narratifs.
@@ -29,7 +29,7 @@ Inventaire local complémentaire, sans exploration des workspaces applicatifs :
   contient une seule ligne projet livrée, correspondant à une démonstration.
   Les 19 traces JSON retrouvées sous `~/.atoma/orgs` et
   `~/.atoma/projects` portent le libellé du générateur
-  [preview-demo](../scripts/preview-demo.mjs). Elles sont exclues.
+  [preview-demo](../../../scripts/preview-demo.mjs). Elles sont exclues.
 - WSL Debian : quatre traces de runs projet du 2 septembre et leurs logs
   ont été retrouvés sous `/home/mgf/.atoma/orgs/*/projects/*/runs/*`.
   Les 21 autres traces portant le libellé de démonstration sont exclues,
@@ -62,7 +62,7 @@ exclues. Les présentes données ne mesurent pas le nouveau défaut short-first.
 | Dispatch déterministe | Compteur présent sur 34/34 lignes CSV et 4/4 épilogues | Tous à zéro dans ce corpus ; les trois maintenances seedées manquent au CSV |
 | Restauration après sinistre | Non mesurée | Aucun backup restauré pendant cet audit ; pas de RPO/RTO démontré |
 
-Le [schéma des stats](../src/contracts/runStats.ts) ne persiste ni le seed,
+Le [schéma des stats](../../../src/contracts/runStats.ts) ne persiste ni le seed,
 ni la révision du code, ni le mode demandé. Son défaut `deepenings = 0`
 sert la compatibilité de lecture : ce n'est pas une observation historique.
 Cela ne dispense pas de lire les métadonnées de lancement présentes dans les
@@ -72,7 +72,7 @@ une occurrence de `--seed` citée dans une réponse du modèle comme preuve.
 
 Pour reconstruire le seed d'un projet, conserver trois niveaux : **observé**,
 **inféré**, **inconnu**. Le
-[coordinateur](../src/projects/coordinator.ts) sélectionne un run livré dont
+[coordinateur](../../../src/projects/coordinator.ts) sélectionne un run livré dont
 le workspace existe encore ; il peut sauter une livraison. Pour les projets
 importés, `prepareRun` remplace cette source par un snapshot GitHub. L'ordre
 des livraisons seul ne prouve donc pas l'origine effective. La parenté du
@@ -141,7 +141,7 @@ défaut fonctionnel final. Leur coût isolé n'est pas mesuré. Le contrat
 d'acceptation établira la conformité finale ; les événements d'outils restent
 nécessaires pour mesurer le travail perdu avant cette conformité.
 
-Le [dossier de reproduction du premier `write_file`](incidents/worker-first-write-2026-09-14.md)
+Le [dossier de reproduction du premier `write_file`](../../incidents/worker-first-write-2026-09-14.md)
 retrouve une correction déjà commitée le 2 septembre (`5d697fd`) : création
 du dossier de montage côté hôte avant Docker. Son message mentionne un `chown`
 opérateur pendant le run historique ; la livraison ne prouve donc pas une
@@ -206,18 +206,18 @@ mesure des défauts du livrable demande une preuve fonctionnelle indépendante.
 
 ## 5. Décisions et suite bornée
 
-Complément après reconnexion OAuth : le [rapprochement MCP de production](incidents/production-audit-2026-09-14.md)
+Complément après reconnexion OAuth : le [rapprochement MCP de production](../../incidents/production-audit-2026-09-14.md)
 mesure 15 demandes projet, dont 13 avec traces accessibles, et conserve les
 désaccords entre verdict et issue finale. Cet export de lectures bornées ne
 remplace pas le snapshot primaire demandé ci-dessous.
 
 1. Collecter le corpus récent via l'accès administrateur de l'opérateur,
    puis rapprocher le snapshot SQLite, les traces, logs, verdicts et bases Git
-   capturées. Les [chemins de déploiement](automatic-deployment.md) sont explicites :
+   capturées. Les [chemins de déploiement](../../automatic-deployment.md) sont explicites :
    store `/home/atoma/state/atoma.db`, runs opérateur `/home/atoma/state/runs`,
    projets `/home/atoma/state/projects` (`ATOMA_PROJECTS_ROOT`), donc runs projet
    sous `orgs/<org>/projects/<project>/runs/<run>` de cette racine. Le
-   [guide superviseur](supervisor-codex-production.md) fixe les verdicts sous
+   [guide superviseur](../../supervisor-codex-production.md) fixe les verdicts sous
    `/home/atoma/state/supervisor`. Vérifier les overrides effectifs sur l'hôte.
    La clé CI est limitée à la commande forcée de déploiement ; elle n'est pas
    un accès shell de collecte.
@@ -228,7 +228,7 @@ remplace pas le snapshot primaire demandé ci-dessous.
    release installée avec `npm ci --omit=dev` : la commande est désormais
    compilée (`node dist/cli/backup.js`), avec `backup:dev` pour la source, et
    se lance depuis `/home/atoma/current` avec l'environnement du service.
-   Toutefois, au moment de l'audit, [son implémentation](../src/cli/backup.ts)
+   Toutefois, au moment de l'audit, [son implémentation](../../../src/cli/backup.ts)
    ne collectait automatiquement **ni `ATOMA_PROJECTS_ROOT` ni
    `ATOMA_SUPERVISOR_DIR`**. Complété le même jour, après l'audit : l'export
    capture désormais le corpus projet (`orgs/` de la racine projets, sans
@@ -249,7 +249,7 @@ remplace pas le snapshot primaire demandé ci-dessous.
    place du seed au deepening, coût cumulé et crédit des phases déjà apprises
    doivent être explicités. Le dispatch compilé des projets reste désactivé.
 4. « Repartir de N » désignera, si retenu, un **nouveau run seedé depuis N**.
-   La [publication actuelle](../src/projects/AGENTS.md) ajoute et met à jour
+   La [publication actuelle](../../../src/projects/AGENTS.md) ajoute et met à jour
    sur l'arbre parent, sans supprimer les fichiers absents. Les fichiers
    ajoutés après N peuvent donc rester publiés. Un vrai retour à l'état N
    dépend d'un contrat de suppression et de sa mise en œuvre ; ce n'est pas

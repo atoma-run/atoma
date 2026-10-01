@@ -13,7 +13,7 @@
 > host is a separate claim and is not made here.
 
 The backup now includes store, skills, operator runs, archives, project corpus
-and supervisor records. [`scripts/restore-drill.py`](../scripts/restore-drill.py)
+and supervisor records. [`scripts/restore-drill.py`](../../../scripts/restore-drill.py)
 adds a repeatable **offline exercise**, without starting the viz, applying
 migrations, reconciling interrupted runs or enabling publication/provider work.
 It uses Python 3's standard library; it is an operator/development script,
@@ -71,7 +71,7 @@ running service, and no restored application is executed by this script.
 
 ## Regression evidence
 
-[`tests/restore-drill.test.ts`](../tests/restore-drill.test.ts) creates a real
+[`tests/restore-drill.test.ts`](../../../tests/restore-drill.test.ts) creates a real
 ProjectStore with a finished run, uses the production backup writer and starts
 the Python exercise as a separate process. It verifies restored file bytes,
 unchanged source status, corruption refusal before allocation, destination
@@ -86,7 +86,7 @@ remain dependent on an authenticated export from the production host.
 
 ## Live exercise
 
-The [dated live-run record](incidents/recovery-live-2026-09-14.md) preserves two
+The [dated live-run record](../../incidents/recovery-live-2026-09-14.md) preserves two
 real operator runs, including one deadline failure, their generic artifacts,
 compressed traces, independent DOM and pointer checks, and the recovery report.
 The six-tier snapshot restored successfully; its project/supervisor tiers were

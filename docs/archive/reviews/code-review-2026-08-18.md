@@ -3,7 +3,7 @@
 Date : 2026-08-18.
 Méthode : lecture des commits `027ae42..08fc043` (HEAD), puis re-vérification
 manuelle des chemins de production à HEAD. Les findings de
-[`docs/code-review-2026-08-14.md`](code-review-2026-08-14.md) déjà fermés par
+[`docs/archive/reviews/code-review-2026-08-14.md`](code-review-2026-08-14.md) déjà fermés par
 les batches runtime 1–10 ne sont pas re-litigés. Convention : **✓ = lu dans le
 code actuel**. Les numéros de ligne référencent HEAD `08fc043`.
 

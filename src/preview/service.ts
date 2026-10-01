@@ -16,7 +16,7 @@ import { effectiveEgressHosts, PreviewStore } from './store.js';
  * still describing itself as a tiny read-only server, and the 2026-08-26
  * Lovable review named it the concrete gap to close: "amincir l'adaptateur
  * HTTP et extraire les services par strangler", starting with one coherent
- * group rather than a rewrite (`docs/lovable-lessons-atoma-2026-08-26.md` §1
+ * group rather than a rewrite (`docs/archive/reviews/lovable-lessons-atoma-2026-08-26.md` §1
  * and §3-P1). The preview is a new coherent group, so it is born extracted:
  * routes translate a request and call in here; the CLI calls the same
  * functions; both stay testable without a socket.

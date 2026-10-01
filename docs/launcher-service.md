@@ -118,9 +118,9 @@ with fake engines, volume identity and projections, failed removal, lease
 expiry, and a process-held lock plus SIGKILL journal replay. Execution of these
 tests passed in [CI at `4788dfd`](https://github.com/mgtf/atoma/actions/runs/35478666242).
 A real container smoke also passed for RPC, workspace separation and graceful
-restart on 2026-09-20. The [assembled W13 scenario](saas-stack-acceptance-2026-09-20.md) also passed;
+restart on 2026-09-20. The [assembled W13 scenario](archive/releases/saas-stack-acceptance-2026-09-20.md) also passed;
 process-crash recovery remains separate from its graceful restart.
-See the [current receipt](saas-acceptance-2026-09-20.md).
+See the [current receipt](archive/releases/saas-acceptance-2026-09-20.md).
 
 ## Reference stack
 
@@ -129,4 +129,4 @@ W7 packages the shared path and loopback requirements in
 `ATOMA_WORKER_IMAGE` into project children, and both callers and launcher use
 the same exact published digest reference. Web and launcher image builds and
 compiled help smokes passed locally on 2026-09-20. The deterministic Linux/gVisor stack
-scenario also passed; its [scope](saas-stack-acceptance-2026-09-20.md) remains explicit.
+scenario also passed; its [scope](archive/releases/saas-stack-acceptance-2026-09-20.md) remains explicit.

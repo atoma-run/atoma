@@ -42,7 +42,7 @@ import type { PhaseCoverageRecord } from '../src/contracts/depthRouting.js';
  * state through `window.__*` hooks. Every test below pins one link of the
  * chain that made that possible.
  *
- * See docs/supervisor-attestation-a1-review-2026-08-22.md.
+ * See docs/archive/reviews/supervisor-attestation-a1-review-2026-08-22.md.
  */
 
 /** The cold counter case: requested interactions, none executed. */

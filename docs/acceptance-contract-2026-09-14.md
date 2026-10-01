@@ -4,7 +4,7 @@ Status: proposed; two narrowed slices built on 2026-09-25 — the
 [drafted checklist](acceptance-checklist-2026-09-25.md) and the
 [user-approved list](#built-the-user-approved-list-2026-09-25). Neither
 implements dispositions, artifact binding or a verification reserve. Companion:
-[coverage and local value audit](value-audit-2026-09-14.md).
+[coverage and local value audit](archive/reviews/value-audit-2026-09-14.md).
 This document specifies a reviewable boundary before extending the runner.
 It does not establish a measured improvement in delivery quality or cost.
 

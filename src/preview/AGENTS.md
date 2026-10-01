@@ -15,9 +15,9 @@ Neighbours:
 - [`src/viz`](../viz/AGENTS.md) — the HTTP adapter and the GPU surface
 
 Design of record:
-[`docs/result-preview-design-2026-08-28.md`](../../docs/result-preview-design-2026-08-28.md),
+[`docs/archive/designs/result-preview-design-2026-08-28.md`](../../docs/archive/designs/result-preview-design-2026-08-28.md),
 under the deployment shape fixed in
-[`docs/deployment-docker-launcher-2026-08-28.md`](../../docs/deployment-docker-launcher-2026-08-28.md).
+[`docs/archive/designs/deployment-docker-launcher-2026-08-28.md`](../../docs/archive/designs/deployment-docker-launcher-2026-08-28.md).
 Built: classification, byte policy, instance state, the container runtime, the
 claim and origin model, the gateway, the manager that orders them, the
 gated HTTP surface and the GPU client. The Node path's isolation is
@@ -518,7 +518,7 @@ born extracted rather than added to `src/viz/server.ts`, which already composes
 almost the whole control plane while still describing itself as tiny — the
 concrete gap the Lovable review named, whose remedy is to strangle it one
 coherent group at a time
-([`docs/lovable-lessons-atoma-2026-08-26.md`](../../docs/lovable-lessons-atoma-2026-08-26.md)).
+([`docs/archive/reviews/lovable-lessons-atoma-2026-08-26.md`](../../docs/archive/reviews/lovable-lessons-atoma-2026-08-26.md)).
 A new preview route belongs in the adapter as one call; new preview BEHAVIOUR
 belongs here.
 
@@ -535,7 +535,7 @@ belongs here.
 - **Live preview of a run in flight.** It races L1 on the same workspace and
   ports. The compatible shape is a snapshot contract at phase boundaries, which
   is deferred and has its own review
-  ([`docs/live-preview-direction-2026-08-31.md`](../../docs/live-preview-direction-2026-08-31.md)).
+  ([`docs/archive/designs/live-preview-direction-2026-08-31.md`](../../docs/archive/designs/live-preview-direction-2026-08-31.md)).
 - **A reusable or shareable preview URL.** v1 mints a one-time claim.
 - **`npm install` at open time.** A missing `node_modules` is a bounded failure,
   not a network operation on a member's click.

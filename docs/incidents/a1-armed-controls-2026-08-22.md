@@ -7,7 +7,7 @@ was found and fixed by arm 1 (`33ad67d`), and one **design limit** was
 measured that the review did not anticipate. No stop condition fired.
 
 This is step 6 of
-[`docs/supervisor-attestation-a1-review-2026-08-22.md`](../supervisor-attestation-a1-review-2026-08-22.md)
+[`docs/archive/reviews/supervisor-attestation-a1-review-2026-08-22.md`](../archive/reviews/supervisor-attestation-a1-review-2026-08-22.md)
 §7. Steps 1-5 landed in `ea9e2ec`. Until these two arms run, the contract is
 implemented and unmeasured.
 

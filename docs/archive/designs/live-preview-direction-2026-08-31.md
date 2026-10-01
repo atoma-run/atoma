@@ -12,7 +12,7 @@
 > implémentation atterrisse.
 
 Ce dossier complète la
-[revue d'architecture du 26 août](lovable-lessons-atoma-2026-08-26.md), qui
+[revue d'architecture du 26 août](../reviews/lovable-lessons-atoma-2026-08-26.md), qui
 couvrait migration, orchestration et boucles d'apprentissage. Il couvre la
 **présentation** : ce que l'utilisateur de Lovable voit pendant que l'agent
 construit, et comment Atoma adopte ce chemin sans céder ses invariants.

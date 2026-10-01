@@ -24,7 +24,7 @@ confirmées ne figurent pas dans ce rapport. C'est une revue orientée risques d
 une attestation de release.
 
 Convention : **✓ = lu dans le code à cette référence ; reproduit = expérience
-locale rejouée, décrite dans l'[annexe de preuves](incidents/code-review-2026-09-25-evidence.md)**.
+locale rejouée, décrite dans l'[annexe de preuves](../../incidents/code-review-2026-09-25-evidence.md)**.
 Les lignes mentionnées sont celles de `149f141`. Aucun correctif n'est appliqué
 par cette revue.
 
@@ -605,7 +605,7 @@ au propriétaire.
 
 Statut : findings ouverts, aucun correctif de code appliqué. Cette revue
 ajoute seulement ce rapport, son annexe de preuves et son entrée dans
-l'[index des revues](code-reviews.md), dont elle corrige deux comptes de
+l'[index des revues](../../code-reviews.md), dont elle corrige deux comptes de
 commits (D8). Les arbitrages déjà documentés restent distingués des défauts ;
 aucune nouvelle gate de contenu n'est conçue ici.
 

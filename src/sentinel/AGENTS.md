@@ -58,7 +58,7 @@ Neighbours:
   so the journal collects what calibration needs; `off` disarms it. The
   derivation and score live in `src/contracts/trajectory.ts` because the
   analyst's digest reads them too. Design, pilot and the two stages this row
-  gates: [trajectory predictability, 2026-09-09](../../docs/trajectory-predictability-design-2026-09-09.md).
+  gates: [trajectory predictability, 2026-09-09](../../docs/archive/experiments/trajectory-predictability-design-2026-09-09.md).
 
 ## The watch and the loop
 

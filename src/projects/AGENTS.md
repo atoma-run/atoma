@@ -116,7 +116,7 @@ list. These values come from the host snapshot, never a tenant prompt.
   and the child refuses any `sub:`/`own:` tier its parent did not list. The
   stored value is data; the two authority checks are what make it a transport.
 - Design and the owner's decisions:
-  [docs/subscription-per-tier-design-2026-08-28.md](../../docs/subscription-per-tier-design-2026-08-28.md)
+  [docs/archive/designs/subscription-per-tier-design-2026-08-28.md](../../docs/archive/designs/subscription-per-tier-design-2026-08-28.md)
   (its `host-subscription:` / `claude-cli:` spellings predate the selector
   grammar of 2026-09-07).
 

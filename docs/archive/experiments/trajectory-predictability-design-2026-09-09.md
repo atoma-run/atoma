@@ -333,9 +333,9 @@ wasted calls in the skills lifecycle.
 - The introspection-probe stencil ablation the owner shared on 2026-09-09
   (baseline 5,760 epochs; full stencil 1,920; `[-1,+1]` 3.08x; `k=0` 2.55x;
   `k=-1` 1.52x).
-- [sentinel blind spot, 2026-08-23](incidents/sentinel-blind-spot-2026-08-23.md)
-- [supervisor-held proof attestation (A1), 2026-08-22](supervisor-attestation-a1-review-2026-08-22.md)
-- [engineering record, 2026-08-14](incidents/engineering-record-2026-08-14.md#considered-and-rejected-do-not-re-propose-naively)
+- [sentinel blind spot, 2026-08-23](../../incidents/sentinel-blind-spot-2026-08-23.md)
+- [supervisor-held proof attestation (A1), 2026-08-22](../reviews/supervisor-attestation-a1-review-2026-08-22.md)
+- [engineering record, 2026-08-14](../../incidents/engineering-record-2026-08-14.md#considered-and-rejected-do-not-re-propose-naively)
 
 ## 13. Implementation note, 2026-09-09
 

@@ -1,7 +1,7 @@
 # Reproductions — revue de code du 25 septembre 2026
 
 Ces reproductions documentent la révision `149f141`, avant toute correction.
-Elles étayent les findings de la [revue du 25 septembre](../code-review-2026-09-25.md) ;
+Elles étayent les findings de la [revue du 25 septembre](../archive/reviews/code-review-2026-09-25.md) ;
 ce ne sont pas des résultats attendus d'une future suite de non-régression.
 Référence : `149f1416d78bee852f02d8f80dd105f34416dba7`.
 

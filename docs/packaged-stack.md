@@ -1,7 +1,7 @@
 # Packaged Linux stack (W7)
 
 Implemented on 2026-09-19. Web and launcher image builds and compiled help
-smokes passed on 2026-09-20, followed by [W13 deterministic stack acceptance](saas-stack-acceptance-2026-09-20.md). See the [evidence receipt](saas-acceptance-2026-09-20.md). This is a reference deployment definition,
+smokes passed on 2026-09-20, followed by [W13 deterministic stack acceptance](archive/releases/saas-stack-acceptance-2026-09-20.md). See the [evidence receipt](archive/releases/saas-acceptance-2026-09-20.md). This is a reference deployment definition,
 not evidence that the instance is ready to admit mutually distrusting tenants.
 
 ## Runtime boundary
@@ -35,6 +35,13 @@ This reference image supports API model transports; subscription CLI binaries,
 hybrid embedding models and the source-checkout mender are not included.
 Do not enable subscription selectors until deploying an explicitly extended,
 pinned image and verifying the corresponding login/run flow.
+
+Jev's TypeSafe client is part of the compiled runtime and needs no additional
+container or subscription CLI. With `TYPESAFE_API_KEY` in web's environment,
+the coordinator forwards it to every organisation's run; `ATOMA_JEV=0`
+disables it globally. Decision requests use host-side HTTPS to
+`api.typesafe.ai`, independently of the worker/preview egress policy. Task and
+evidence excerpts reach TypeSafe; see [service terms](platform-commons-terms.md#decisions-taken-by-typesafe).
 
 ## Build and publish from one revision
 
@@ -91,6 +98,13 @@ Configure API model selectors and organisation BYO keys through Settings, or
 provide explicit host tier pins and credentials as described in
 [.env.example](../.env.example). Do not put secrets in image build arguments.
 
+For Jev, add `TYPESAFE_API_KEY=<key>` to private `web.env`. No organisation
+allowlist is needed; the former `ATOMA_JEV_ORGS` is ignored. On subsequent
+environment changes, use preflight and recreate web through Compose so the
+container receives the new values; a plain container restart retains its old
+environment. The server and runner logs state whether Jev is active. See
+[configuration and diagnostics](automatic-deployment.md#jev-decisions-for-every-organisation).
+
 Point DNS for the public host and `*.<preview-domain>` to this host. Provision
 `web.crt`, `web.key`, `preview.crt`, `preview.key` under `/srv/atoma/certs`; the
 preview certificate must cover the wildcard. [Caddyfile](../deploy/Caddyfile)
@@ -113,13 +127,21 @@ compiled auth CLI inside web for subsequent invitations.
 
 ## Operations and remaining evidence
 
+Platform run limits can be changed in Settings or through the compiled CLI
+inside web (`docker compose ... exec web npm run settings -- list`). These
+numeric overrides are stored with product data, audited and read fresh on
+each run, without recreating the container. See [defaults, ceilings and CLI
+examples](automatic-deployment.md#run-limits-without-a-redeployment); for this
+stack use the store path configured inside web rather than the systemd host's
+`/home/atoma/state/atoma.db`.
+
 Use `docker compose ... exec web npm run deploy:preflight` before an update;
 exit 75 means a run/preview is live and the update must wait. Preserve the
 product directory, workspaces, launcher state and separately escrowed secrets.
 Backups run with `ATOMA_LAUNCHER_WORKSPACE_ROOT` also capture its `projects/`
 projection as a mandatory `workspaces.tar.gz` tier (manifest layout version 2).
 Restore with `scripts/restore-drill.py`; an absent projection fails the drill.
-The [hosted backup/restore drill](saas-hosted-recovery-2026-09-20.md) passed W8-b
+The [hosted backup/restore drill](archive/releases/saas-hosted-recovery-2026-09-20.md) passed W8-b
 with separately recovered key material and measured offline timings. Never copy live SQLite files without the supported
 backup procedure, and do not restore launcher state over a running daemon.
 
@@ -132,8 +154,8 @@ protocol. Follow [launcher-service.md](launcher-service.md) for lease recovery.
 
 W13 passed for the deterministic assembled boundary on 2026-09-20. Hosted
 restore (W8-b) subsequently passed. W14 corpus/trace isolation also
-passed on this stack; see [shared-learning acceptance](shared-learning-acceptance.md).
-See the [measured scope](saas-stack-acceptance-2026-09-20.md); no production
+passed on this stack; see [shared-learning acceptance](archive/releases/shared-learning-acceptance.md).
+See the [measured scope](archive/releases/saas-stack-acceptance-2026-09-20.md); no production
 migration or process-crash recovery is inferred from a graceful restart.
 
 Compose syntax: [Docker service reference](https://docs.docker.com/reference/compose-file/services/).

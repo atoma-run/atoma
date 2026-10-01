@@ -1,7 +1,7 @@
 # How atoma works
 
 *A high-level technical tour: the components, how they fit together, and what happens
-during a run. Updated against the v0.2.0 source on 2026-09-07. Written for a CTO, an architect, or an engineer doing technical due
+during a run. Updated against the v0.4.0 source on 2026-10-01. Written for a CTO, an architect, or an engineer doing technical due
 diligence — enough depth to judge the design, not enough to need the source open.*
 
 [← back to the README](../README.md) · for the multi-tenant target state, see
@@ -60,10 +60,10 @@ Two consequences fall out of that split:
 - **Tool execution is separated from supervision.** On the SUPERVISED path only the bottom tier
   is handed atoma's tool executor, so supervisors cannot mutate the workspace through the
   framework. The one application-level exception is deliberate and labelled in code: after
-  supervision has failed outright, a supervisor takes over for a last-resort turn using the L1 model route. The Codex CLI
-  transport is a narrower provider caveat: Codex cannot disable its own built-ins, so L2/L3 run
-  read-only in an empty directory and may still perform internal read-only tool turns; Codex is
-  structurally refused at L1.
+  supervision has failed outright, a supervisor takes over for a last-resort turn using the L1 model route.
+  Codex supports all three tiers: at L1, a structured action loop sends only
+  declared tool calls through Atoma's executor, with Codex's native tools
+  disabled. Subscription credentials stay in host-side private profiles.
 - **Every hand-off is supervised.** The link from L3 to L2 and the link from L2 to L1 run the
   *same* protocol: plan → judge the plan → execute → judge the result. It is one implementation,
   never duplicated inside the agent classes.
@@ -89,7 +89,7 @@ graph TB
         GITHUB["GitHub App"]
         PREVIEW["Ephemeral previews<br/>delivered or in-flight snapshots"]
         LAUNCHER["Launcher<br/>container-engine access"]
-        JOURNAL["Platform journal<br/>notifications"]
+        JOURNAL["Platform journal<br/>notifications · run limits"]
         SENTINEL["Sentinel: live, no LLM"]
         ANALYST["Analyst: ended runs, read-only"]
         MENDER["Mender: isolated fixes → PR<br/>human merge"]
@@ -99,8 +99,8 @@ graph TB
         direction LR
         RUNNER["<b>Runner</b><br/><i>family-independent</i><br/>budget · signals · watchdog"]
         PROFILE["<b>TaskProfile</b><br/><i>the only per-family part</i><br/>workspace · seeds · constraints"]
-        PROVIDERS["<b>Provider routing</b><br/>Anthropic · Claude · Ollama<br/>Z.ai · Codex — mixable per tier"]
-        BACKEND["<b>Tool backend</b><br/>local sandbox <i>default</i><br/>container <i>opt-in</i>"]
+        PROVIDERS["<b>Provider routing</b><br/>API · host subscription · personal login<br/>mixable per tier"]
+        BACKEND["<b>Tool backend</b><br/>local operator sandbox<br/>containers for project runs"]
     end
 
     subgraph ORCH[" 🧠 Orchestration — one protocol at every hand-off "]
@@ -113,11 +113,13 @@ graph TB
         VERD["<b>Verdict engine</b><br/>approve / reject<br/>+ scope"]
     end
 
+    JEV["<b>TypeSafe Jev</b><br/>typed routing · intermediate approvals<br/>recipe equivalence · model fallback"]
+
     subgraph EXEC[" 🔒 Execution and isolation "]
         direction LR
         TOOLS["<b>10 builtin tools</b><br/>files · shell · record_probe<br/>servers · fetch · browser"]
         SANDBOX["<b>ToolSandbox</b><br/>path jail · env allowlist<br/>process-group kill"]
-        CONT["<b>Container executor</b><br/><i>opt-in</i>"]
+        CONT["<b>Container executor</b><br/>project runs · operator opt-in"]
         EGRESS["<b>Egress proxy</b><br/><i>opt-in · default-deny</i>"]
     end
 
@@ -163,7 +165,8 @@ graph TB
     MENDER --> JOURNAL
     MCP --> PROJECTS
     RUN ==> RUNNER
-    RUNNER ==> L3B
+    RUNNER ==> L2B
+    RUNNER -. deep .-> L3B
     L3B ==> L2B ==> L1B
     L1B ==> TOOLS
     L2B -.-> VERIFY
@@ -172,6 +175,10 @@ graph TB
     CURR -.-> MEM
     OPS -.-> MEM
     ORCH -.-> OBS
+    PREF -.-> JEV
+    VERD -.-> JEV
+    SKILLS -.-> JEV
+    JEV -.-> TRACE
 
     style ORCH fill:#f5f3ff,stroke:#6b21a8
     style MEM fill:#fefce8,stroke:#a16207
@@ -198,14 +205,15 @@ development step.
 | **Control plane** | Auth and projects | OAuth identities, active organisations, API tokens, per-tier model settings, project run admission and artifact manifests |
 | | GitHub App | Installation separate from login; idempotent publication of a delivered run, with retry after publication failure |
 | | Preview and launcher | Classify web results, serve isolated ephemeral generations, and keep container-engine access in one subsystem |
-| | Platform journal and notifications | Attributable control-plane events, member run notifications and curated platform-admin alerts |
+| | Platform journal, notifications and settings | Attributable events, member notifications, platform-admin alerts and persistent run limits read at each launch |
 | | Sentinel / analyst / mender | Live mechanical watch; optional read-only post-mortems; isolated correction PRs requiring human merge |
 | **Runtime** | Runner | Everything family-independent: provider choice, sandbox, budget, abort signals, watchdog, trace, post-mortem |
 | | TaskProfile | The *only* per-family part: workspace prep, seed agents, task constraints |
-| | Provider routing | Five provider routes over four transports; a tier can be pinned to a different vendor than its neighbours. Codex is L2/L3 only |
+| | Provider routing | API, host subscription and personal subscription transports; each tier has its own required model selector. Codex supports all tiers through the host-side action loop |
+| | Jev decider | TypeSafe's typed decision API beside the tier models: routing, eligible intermediate approvals and recipe equivalence, with model fallback |
 | **Orchestration** | L3 tissues / L2 cells / L1 molecules | Decompose · route and judge · execute |
 | | Supervise loop | The single plan→judge→execute→judge protocol, shared by both hand-offs |
-| | Prefilter | A cheap-model scan answering "does something we already have fit this?" before any expensive call |
+| | Prefilter | Exact cached model fallback, then Jev when enabled, then a cheap-model scan answering "does something we already have fit this?" |
 | | Verdict engine | Approve or reject, and at what scope: tweak this instance, amend the stored type, or branch a variant |
 | **Memory** | Agent registry | SQLite table of agent types with full version history and trust counters |
 | | Skill library | On-disk recipes and compiled scripts, with their own counters |
@@ -213,7 +221,7 @@ development step.
 | | Routing cache | Memoises identical routing decisions (see §7 for why it is deliberately weak) |
 | **Execution** | ToolSandbox | Path jail, credential-stripped child environment, throwaway HOME, process-group kill |
 | | 10 builtin tools | Write, edit, read, list files; run a shell command; run-and-record a verification probe; start a static or Node server; fetch a URL; drive a headless browser |
-| | Container executor | *Opt-in.* Tools run in a disposable container with only the workspace mounted and no network route |
+| | Container executor | Required for authenticated project runs; opt-in for local operator runs. Tools run in a disposable container with only the workspace mounted and no network route by default |
 | | Egress proxy | *Opt-in.* Per-run private network with a default-deny, anchored host allowlist |
 | **Verification** | Ground-truth probes | Zero-token evidence gathering: re-read files, load the page, cross-check the worker's own record |
 | | Probe manifest | `.atoma-probes.json` — machine-readable record of every verified invocation |
@@ -293,7 +301,9 @@ lives:
    internal marker cannot be supplied by the model. A second model verdict on
    the same bounded routing choice would add cost without new evidence.
 3. A child with a clean track record is **approved with no model call**.
-4. Otherwise, a cheap-model verdict.
+4. Where the approval fast path is admissible, **Jev may approve**; a refusal,
+   uncertain answer or unavailable decision falls through to the cheap-model
+   verdict. Jev does not write rejection guidance.
 
 On the *result* side, trusted approval is deliberately **not blind**: the zero-token reality probe runs
 first, and a hard contradiction — a claimed file missing or empty, a page that will not load —
@@ -306,6 +316,47 @@ instructions is created and given exactly one clean attempt, and if that also fa
 uses the L1 model route to do the work itself — with the result explicitly stamped as fallback-produced so nobody
 mistakes it for a normal delivery.
 
+### Jev: bounded decisions beside the model tiers
+
+Jev is TypeSafe's typed decision model, pinned in `src/core/jev.ts` to
+`jev-1.13.0`. It is not a fourth agent tier or an `ATOMA_MODEL_L*` selector.
+It chooses among existing agents or recipes, can approve intermediate plans
+and results after the mechanical gates permit it, and checks whether a newly
+learned recipe duplicates one already held. Planning, execution, rejection
+guidance and root delivery acceptance remain with the existing model paths.
+A Jev-only approval does not trigger recipe distillation or compilation.
+
+`TYPESAFE_API_KEY` enables it for every run and organisation by default;
+`ATOMA_JEV=0` is the global off switch. Decision state sent to TypeSafe includes
+task constraints, candidate descriptions or recipe excerpts, plans/results and
+bounded transport-observed evidence. Approval questions test individual
+requirements; missing observations do not become proof. Ambiguous answers go
+to the model. Each decision has a two-second deadline, and after three failed
+decisions in a run the decider stops making further requests.
+
+When a recipe conflicts with whether the task must change files, it is withheld
+from the model's fallback catalogue. Cached fallback decisions are exact and
+bound to the Jev model, thresholds, questions, candidate bodies, inputs and
+selection mode; older model-only entries cannot bypass Jev. An experimental
+`ATOMA_JEV_PROGRESSIVE_RECIPES=1` setting first ranks recipe groups and then
+examines a shortlist within the same deadline. It is off by default and has
+no measured quality advantage established by the policy change.
+
+Each `jev` trace event records the decision, fallback or failure, latency,
+usage and separate cost. A random 10% of eligible Jev approvals also receive
+the ordinary model verdict in the background (`jev-audit`). This audit does
+not overturn the approval; it measures disagreement with the model, which is
+not independent ground truth. Pending audits may take up to 60 seconds to
+settle when a run finishes.
+
+Platform administrators can use `atoma_jev_calibrate` to compare questions and
+thresholds against recorded model decisions. `auditsOnly: true` reads the
+existing audit sample and bounded cost/outcome report without a TypeSafe call;
+ordinary calibration sends recorded decision context and incurs TypeSafe cost.
+See the [decision record](jev-decisions-2026-09-28.md),
+[October policy corrections](jev-policy-2026-10-01.md) and
+[service terms](platform-commons-terms.md#decisions-taken-by-typesafe).
+
 ---
 
 ## 4. Flow — how a repeatable phase gets compiled away
@@ -314,7 +365,7 @@ Historical evidence, not a current-release performance claim: across the first e
 controlled rounds the compiled path fired 14 times, 11 of them in a single round whose
 deliverables turned out wrong. The lifecycle below has guarded promotion and dispatch; what is
 missing is demand for it on the task families measured so far. See
-[`hybrid-skills-design.md`](hybrid-skills-design.md) for the most recent attempt to change
+[`hybrid-skills-design.md`](archive/experiments/hybrid-skills-design.md) for the most recent attempt to change
 that — designed, measured and refused.
 
 ```mermaid
@@ -379,8 +430,9 @@ checkout. The account survives in the archived engineering record linked from
 
 ## 5. Flow — how a result is proven
 
-The supervisor never takes the worker's word for it, and never re-runs the worker's commands
-either. It gathers evidence with tools it owns.
+The supervisor gathers evidence with tools it owns rather than trusting the
+worker's account. It never re-runs model-authored shell commands. The bounded
+exception for inherited browser checks is described below.
 
 ```mermaid
 graph TB
@@ -428,6 +480,24 @@ withholds L2's child trust credit, skill credit, distillation and promotion. An
 observation bound to a document whose digest changed is stale. Acceptance of a
 result and permission to learn from its method are separate decisions.
 
+**Existing static pages carry regression checks forward.** Before the first
+worker tool call, the host replays inherited browser checks twice on the
+untouched seed. Checks that pass both times are tested again at delivery;
+repeatable failures go to root acceptance to decide whether the user asked
+for the change. Unrequested regressions block delivery and feed remediation.
+After remediation, an incomplete recheck cannot silently clear the earlier
+refusal. Missing hooks are marked and only pruned on a later qualifying run,
+alongside a passing check of the same page. This is bounded browser replay,
+not general command replay; its observations earn no checklist or learning
+credit. See [the replay contract](inherited-checks-replay-2026-10-01.md).
+
+**Verification phases preserve the deliverable.** A read-only phase snapshots
+the workspace and restores changes made by file tools or shell commands, with
+explicit exceptions for live databases and files being written by another
+process. Workers must read existing files before changing them, and final
+review receives the starting-file evidence. A seeded deepening preserves the
+original seed and probe manifest rather than starting from an empty workspace.
+
 ---
 
 ## 6. Where state lives
@@ -454,15 +524,15 @@ graph LR
 ```
 
 **One primary product database, with operational exceptions.** Agent types, their
-version history, the lifecycle ledger, routing cache, auth, projects and platform
-journal use the primary SQLite store. This consolidation is deliberate:
+version history, the lifecycle ledger, routing cache, auth, projects, platform
+journal and run-limit overrides use the primary SQLite store. This consolidation is deliberate:
 when the ledger was a sibling file, a counter and its audit event could be written in separate
 steps, so an ill-timed crash left the integrity checker reporting a state that could not
 otherwise occur. They now share a transaction.
 
 **Recipes stay on disk, and that is a decision rather than an omission.** `SKILL.md` is the
 portable interchange format — it can be read, grepped, hand-edited and exported to other agent
-tooling verbatim. Sidecars carry skill counters and provenance. Project workspaces, traces and skills
+tooling verbatim. Sidecars carry skill counters and provenance. Project workspaces and traces
 live below `orgs/<orgId>/projects/<projectId>/`; the registry and the skills
 catalog are the platform's, one of each, and every run — the operator's or an
 organisation's — reads them and earns trust on them alike
@@ -542,10 +612,10 @@ Typical roles in the measured normal path; counts are not hard limits or current
 
 | Slot | Model tier | Typical count | Note |
 |---|---|---|---|
-| Top-level plan | frontier | **1** | One strategy call on the normal path; root replanning or synthesis can add calls. A shortcut existed and was removed: collapsing it produced monolithic deliverables with no per-phase checkpoint |
-| Routing scans | cheap | ~5–7 | One per phase; short-circuits the expensive call when something already fits |
+| Top-level plan | frontier | **1 on the deep path** | Default short runs enter at L2; deep runs and deepening add L3 strategy. Replanning or synthesis can add calls |
+| Routing scans | Jev, then cheap-model fallback | Varies by phase and reuse | Exact cache hits and decisive Jev answers avoid the model scan |
 | Mid-tier plans | mid | **0 on the happy path** | Skipped entirely when the routing scan finds a clear match |
-| Reviews | cheap | 0 on trusted components | Replaced by the zero-token probe |
+| Reviews | Jev or cheap model | Varies with trust, gates and audits | Mechanical probes remain; root acceptance stays independent of Jev |
 | Execution | cheap | the bulk of tokens | Long tool loops; prompt caching is monitored live in every run summary |
 | Compiled phases | — | **0 calls**, but rare | Two tool calls and a strict JSON parse. Present in 45 of 156 corpus runs; across the historical controlled-run rows it fired once in 54 build runs and 13 times in 30 maintenance runs |
 
@@ -553,6 +623,19 @@ Typical roles in the measured normal path; counts are not hard limits or current
 enough to clear the provider's minimum cacheable size; trimming it below that threshold silently
 disables caching with no error. The cache-read column in the run summary is the operator's live
 check that it is still working.
+
+**Jev has its own accounting.** Its usage and estimated cost live on `jev`
+events, outside the run's LLM totals and LLM token/spend ceilings. Sampled
+model audits are LLM calls and do count there. Include both when comparing
+whole-run cost; a model-only total is not the whole bill when Jev is active.
+The calibration report's savings estimates use same-run model samples and
+remain unknown when no reference sample exists.
+
+**Platform limits are read per run.** Administrators can persist defaults and
+ceilings through Settings or `npm run settings`, without restarting the server.
+Explicit launch requests override defaults but cannot exceed a binding ceiling.
+Token or LLM spend ceilings abort further calls and retain completed work as a
+partial run. See [the operating guide](automatic-deployment.md#run-limits-without-a-redeployment).
 
 ---
 
@@ -594,6 +677,7 @@ Recorded so nobody has to discover it in a demo:
 | Question | Where |
 |---|---|
 | Why does mechanism X exist? | `AGENTS.md` for the active contract, then its linked engineering-record entry |
+| Where does Jev decide, and how is it evaluated? | [Decision record](jev-decisions-2026-09-28.md) · [Policy and evidence corrections](jev-policy-2026-10-01.md) |
 | What was tried and rejected? | `docs/incidents/engineering-record-2026-08-14.md` § *Considered and rejected* |
 | What would a hosted deployment require? | [`saas-architecture.md`](saas-architecture.md) Layer 2 invariants and Layer 3 remaining work (W1–W14) |
 | What does a real run look like? | `npm run viz` for existing traces; `npm run viz:demo` writes a mocked run, and `npm run preview:demo` opens a seeded authenticated preview without paid inference |

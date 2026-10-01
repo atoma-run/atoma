@@ -11,12 +11,12 @@ cannot see which of them were already reasoned through will re-design them.
 | what | where | state |
 |---|---|---|
 | browser-probe discriminant, one taught literal | `3ee624d` | done, regression-tested |
-| supervisor-held proof attestation (A1), steps 1-6 | [review](supervisor-attestation-a1-review-2026-08-22.md), `ea9e2ec` | done and MEASURED |
+| supervisor-held proof attestation (A1), steps 1-6 | [review](../reviews/supervisor-attestation-a1-review-2026-08-22.md), `ea9e2ec` | done and MEASURED |
 | L3 → L2 obligation threading | `33ad67d` | done; found by the armed control, not by tests |
-| platform-admin door for the subscription transport | [src/projects](../src/projects/AGENTS.md), `a6ff7e1` | done |
-| `npm run projects` (org-scoped runs from a terminal) | [src/cli](../src/cli/AGENTS.md), `a6ff7e1` | done |
-| depth-1 trace reader: a large trace stops erasing a delivery | [src/contracts](../src/contracts/AGENTS.md) | done; 11 new tests fail on the old reader |
-| incremental publication: every delivered run reaches the repository | [src/github](../src/github/AGENTS.md) | done and VERIFIED against real GitHub — commit `c28afe4f`, `parents 1`, `baseSha f66b0fff` |
+| platform-admin door for the subscription transport | [src/projects](../../../src/projects/AGENTS.md), `a6ff7e1` | done |
+| `npm run projects` (org-scoped runs from a terminal) | [src/cli](../../../src/cli/AGENTS.md), `a6ff7e1` | done |
+| depth-1 trace reader: a large trace stops erasing a delivery | [src/contracts](../../../src/contracts/AGENTS.md) | done; 11 new tests fail on the old reader |
+| incremental publication: every delivered run reaches the repository | [src/github](../../../src/github/AGENTS.md) | done and VERIFIED against real GitHub — commit `c28afe4f`, `parents 1`, `baseSha f66b0fff` |
 
 ## Reasoned through, deliberately not built
 
@@ -27,7 +27,7 @@ here is a pointer and a one-line status, never a restatement.
    `ATOMA_SKILL_LEARN` and `ATOMA_EVENT_SKILLS` to `1` in
    `projectRunEnvironment`, while `ATOMA_SKILL_PROMOTE` and
    `ATOMA_SKILL_DIRECT` stay `0`. Rationale and the boundary it respects:
-   [platform-skill-offer-review §8 step 1](platform-skill-offer-review-2026-08-23.md).
+   [platform-skill-offer-review §8 step 1](../reviews/platform-skill-offer-review-2026-08-23.md).
    Needs none of the new machinery, and it is the whole product benefit minus
    the cross-tenant part. CORRECTION to how this entry first read: it is NOT
    only a variable change. The coordinator also passes `--no-learn-skills
@@ -38,18 +38,18 @@ here is a pointer and a one-line status, never a restatement.
    from the previous delivered workspace, itself a promotion-enabling signal,
    which is why that veto is there.
 2. **Behavioural attestation for `kind: script` candidates.**
-   [§3.2 and §8 step 2](platform-skill-offer-review-2026-08-23.md). To be
+   [§3.2 and §8 step 2](../reviews/platform-skill-offer-review-2026-08-23.md). To be
    measured against §4.1(e)'s nine obfuscated payloads BEFORE it is wired to
    any decision.
 3. **The offer dossier and the journaled operator approval.**
-   [§3.3, §3.4, §8 step 3](platform-skill-offer-review-2026-08-23.md). Blocked
+   [§3.3, §3.4, §8 step 3](../reviews/platform-skill-offer-review-2026-08-23.md). Blocked
    on one operator choice, not on code: which reviewer-fatigue
    counter-measure from §6, stated in the contract rather than discovered
    later.
 4. **The A1 design limit: a PHASED plan distils outside the gate.** Measured,
    recorded, and left unfixed under the cooling-off rule. Three candidate
    directions, none accepted:
-   [armed controls record](incidents/a1-armed-controls-2026-08-22.md#the-design-limit-this-measured).
+   [armed controls record](../../incidents/a1-armed-controls-2026-08-22.md#the-design-limit-this-measured).
    Whoever picks this up designs it against all of the session's incidents at
    once, not this one alone.
 
@@ -96,7 +96,7 @@ The coordinator drives a project run with `--container --no-learn-skills
 ## Left open by the watch-placement commit (2026-08-23)
 
 The mechanical watch now lives inside the gated viz server
-([src/viz](../src/viz/AGENTS.md), [src/sentinel](../src/sentinel/AGENTS.md)).
+([src/viz](../../../src/viz/AGENTS.md), [src/sentinel](../../../src/sentinel/AGENTS.md)).
 Five questions were reasoned through during that review and deliberately not
 answered in it, each because answering it is its own change:
 
@@ -128,7 +128,7 @@ answered in it, each because answering it is its own change:
 
 ## Left open by the repository-visibility commit (2026-08-23)
 
-The public/private choice landed ([src/projects](../src/projects/AGENTS.md)).
+The public/private choice landed ([src/projects](../../../src/projects/AGENTS.md)).
 Three adjacent gaps were verified during its review and deliberately not built,
 because each is its own change and none is on the path the choice opens:
 
@@ -157,7 +157,7 @@ because each is its own change and none is on the path the choice opens:
 The first end-to-end project run delivered and could not publish: `POST
 /git/blobs` answers `409 "Git Repository is empty."` in a fresh repository, so
 the publisher's whole flow was unreachable against real GitHub while every
-test mocked the client. Fixed ([src/github](../src/github/AGENTS.md)) and
+test mocked the client. Fixed ([src/github](../../../src/github/AGENTS.md)) and
 verified against a throwaway repository. Three things that run stopped at:
 
 1. **The CLI cannot CREATE a project.** It can list, run and publish, so an
@@ -355,7 +355,7 @@ cost (`stats_json` populated on `failed`), which run `a786358a` had lost.
 Fifteen agents: two grounding, four independent designs, eight adversarial
 reviewers (a security lens and a contract lens per design), one synthesis.
 What shipped is the depth-1 projecting reader
-([`src/contracts/traceFields.ts`](../src/contracts/traceFields.ts)). Three
+([`src/contracts/traceFields.ts`](../../../src/contracts/traceFields.ts)). Three
 receipt-based designs were rejected, and the reason is item 1.
 
 1. **THE RECEIPT CHANNEL IS FORGEABLE FROM THE TENANT'S GOAL.** The most
@@ -852,7 +852,7 @@ Not code — these cannot be done from an agent session.
   measurement that depends on skill learning cannot be run as a project run
   while item 1 is unbuilt — and after item 1, still not one that depends on
   promotion or deterministic dispatch. See
-  [src/projects](../src/projects/AGENTS.md).
+  [src/projects](../../../src/projects/AGENTS.md).
 - The armed-control method earned its keep: the L3 threading defect was
   invisible to 2419 green unit tests because every one of them declared the
   obligation at the tier that consumes it. A gate that crosses tiers needs a

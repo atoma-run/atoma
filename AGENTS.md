@@ -449,7 +449,7 @@ Read the archived sections before changing something that merely looks odd.
   `scripts/architecture-ir.mjs`. Rendering it needs a third-party Archify
   checkout and is development tooling — `docs:check` never renders, and CI
   never clones it. Full rationale:
-  [`docs/documentation-freshness-2026-09-04.md`](docs/documentation-freshness-2026-09-04.md).
+  [`docs/archive/designs/documentation-freshness-2026-09-04.md`](docs/archive/designs/documentation-freshness-2026-09-04.md).
 
 ## Historical evidence
 
@@ -473,24 +473,24 @@ The frozen record contains the full dated reasoning behind these rules:
 - [production runs, second day: criteria widths never laid out, form controls that could not be chosen — 2026-09-27](docs/incidents/production-runs-2026-09-27.md)
 - [production runs, third day: a restored store refilled by its own server, and why the mender never opened a PR — 2026-09-28](docs/incidents/production-runs-2026-09-28.md)
 - [compile at learn, dispatch at first match — owner decision 2026-09-26](docs/compile-at-learn-2026-09-26.md)
-- [external code review](docs/code-review-2026-08-14.md)
-- [code review 2026-08-18](docs/code-review-2026-08-18.md)
-- [supervisor-held proof attestation (A1) design review 2026-08-22](docs/supervisor-attestation-a1-review-2026-08-22.md)
-- [offering a skill to the platform catalog, design review 2026-08-23](docs/platform-skill-offer-review-2026-08-23.md)
-- [decided, not built — session snapshot 2026-08-23](docs/decided-not-built-2026-08-23.md)
-- [lessons from Lovable — internal architecture review 2026-08-26](docs/lovable-lessons-atoma-2026-08-26.md)
-- [per-tier host subscription — design and implementation record 2026-08-28](docs/subscription-per-tier-design-2026-08-28.md)
-- [presenting the app under development — Lovable UI study and adopted direction 2026-08-31](docs/live-preview-direction-2026-08-31.md)
+- [external code review](docs/archive/reviews/code-review-2026-08-14.md)
+- [code review 2026-08-18](docs/archive/reviews/code-review-2026-08-18.md)
+- [supervisor-held proof attestation (A1) design review 2026-08-22](docs/archive/reviews/supervisor-attestation-a1-review-2026-08-22.md)
+- [offering a skill to the platform catalog, design review 2026-08-23](docs/archive/reviews/platform-skill-offer-review-2026-08-23.md)
+- [decided, not built — session snapshot 2026-08-23](docs/archive/designs/decided-not-built-2026-08-23.md)
+- [lessons from Lovable — internal architecture review 2026-08-26](docs/archive/reviews/lovable-lessons-atoma-2026-08-26.md)
+- [per-tier host subscription — design and implementation record 2026-08-28](docs/archive/designs/subscription-per-tier-design-2026-08-28.md)
+- [presenting the app under development — Lovable UI study and adopted direction 2026-08-31](docs/archive/designs/live-preview-direction-2026-08-31.md)
 - [previewing a run in flight — decision and contract 2026-09-02](docs/in-flight-preview-2026-09-02.md)
-- [public release — licence, protections and remaining steps 2026-09-06](docs/public-release-2026-09-06.md)
-- [trajectory predictability as a trust regulariser — design proposal 2026-09-09](docs/trajectory-predictability-design-2026-09-09.md)
-- [value audit and local evidence coverage 2026-09-14](docs/value-audit-2026-09-14.md)
+- [public release — licence, protections and remaining steps 2026-09-06](docs/archive/releases/public-release-2026-09-06.md)
+- [trajectory predictability as a trust regulariser — design proposal 2026-09-09](docs/archive/experiments/trajectory-predictability-design-2026-09-09.md)
+- [value audit and local evidence coverage 2026-09-14](docs/archive/reviews/value-audit-2026-09-14.md)
 - [user acceptance contract proposal 2026-09-14](docs/acceptance-contract-2026-09-14.md)
-- [offline recovery exercise and regression evidence 2026-09-14](docs/recovery-drill-2026-09-14.md)
-- [release soak v0.1.0](docs/release-soak-v0.1.0.md)
-- [release acceptance v0.1.1](docs/release-acceptance-v0.1.1.md)
-- [release acceptance v0.1.3](docs/release-acceptance-v0.1.3.md)
-- [hybrid skills design](docs/hybrid-skills-design.md)
+- [offline recovery exercise and regression evidence 2026-09-14](docs/archive/releases/recovery-drill-2026-09-14.md)
+- [release soak v0.1.0](docs/archive/releases/release-soak-v0.1.0.md)
+- [release acceptance v0.1.1](docs/archive/releases/release-acceptance-v0.1.1.md)
+- [release acceptance v0.1.3](docs/archive/releases/release-acceptance-v0.1.3.md)
+- [hybrid skills design](docs/archive/experiments/hybrid-skills-design.md)
 - [SaaS architecture boundary](docs/saas-architecture.md)
 
 Archive files are evidence, not normative imports. Never use an unquoted

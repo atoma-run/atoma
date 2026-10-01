@@ -32,6 +32,23 @@ MCP request, exactly as for manually minted API tokens.
 
 ## Diagnosing a run through MCP
 
+### Protocols, tasks and run resources
+
+The same `/mcp` route supports 2025-11-25 (sessions and resumable streams)
+and 2026-07-28 (per-request discovery and the tasks extension). Project run
+tasks are backed by persisted project runs and bound to the initiating
+principal and organisation, so reconnecting does not lose the task. Operator
+and benchmark tasks remain in server memory; they survive a client reconnect,
+not a server restart. Replies that name runs include resource links, with
+change subscriptions appropriate to each protocol.
+
+Platform admins can call `atoma_mcp_health` to inspect client/protocol counts
+since server startup. The repository's [server.json](../server.json) describes
+the hosted endpoint for MCP Registry publication. See the
+[two-protocol contract](mcp-two-eras-2026-09-30.md) for wire details.
+
+### Trace evidence and Jev
+
 `atoma_run_trace` accepts the project `runId` (or an operator `file` at the
 platform tier). Its default summary pages events with `offset`, `limit` and
 `nextOffset`, including recorded durations, acceptance decisions and excerpts.
@@ -60,6 +77,14 @@ checkout's Git HEAD and dirty state during development, plus the Node runtime
 and platform. A missing receipt/checkout is unknown. Old traces are never
 backfilled with the revision of the server reading them today. Provenance
 identifies the runner, not the generated application's publication commit.
+
+Jev decisions appear in trace summaries with their outcome and any fallback or
+failure; use the full event for recorded distributions, coverage,
+latency and separate cost. The runner log states whether Jev is enabled.
+Platform admins can read sampled model comparisons with
+`atoma_jev_calibrate` and `auditsOnly: true`, which sends nothing to TypeSafe.
+Ordinary calibration makes paid decision requests using the host's key and
+recorded run context. See [Jev's evaluation boundary](how-it-works.md#jev-bounded-decisions-beside-the-model-tiers).
 
 ## Wire contract
 

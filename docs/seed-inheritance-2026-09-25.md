@@ -20,7 +20,7 @@ that surfaced the incidents designed nothing, this one designs once.
    reproduced by test. Depth routing's restart archives the workspace and
    builds a new backend over an EMPTY directory. That was decided on
    2026-09-13 for runs that carried no seed ("seeded comparison runs retain
-   their existing protocol", [depth experiment](depth-routing-experiment-2026-09-13.md)).
+   their existing protocol", [depth experiment](archive/experiments/depth-routing-experiment-2026-09-13.md)).
    On 2026-09-23 `2102979` put every project run through depth routing, so
    a project run that deepened rebuilt its corpus from nothing, and the next
    run seeded from that reduced workspace. The decision's rationale — the

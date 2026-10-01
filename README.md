@@ -153,12 +153,47 @@ goal asks for. They never replay shell commands a model wrote. Every verdict,
 retry and refusal is in the timeline, and the console is available in thirteen
 languages, on desktop and mobile.
 
+For an existing static page, the host also replays browser checks recorded by
+earlier runs before editing begins and again before delivery. Regressions go
+to the final review, which distinguishes requested changes from lost behaviour.
+Read-only phases restore the files they changed, and workers read existing
+files before editing them. See [inherited browser checks](docs/inherited-checks-replay-2026-10-01.md).
+
+### Jev handles bounded decisions
+
+TypeSafe's **Jev** helps choose an agent or recipe, approve intermediate plans
+and results when the evidence permits it, and avoid learning equivalent
+recipes twice. It answers structured questions; the run's models still plan,
+write code and explain refusals. Uncertain or unavailable answers go back to
+those models, and final delivery acceptance stays independent of Jev.
+
+Jev is enabled for every organisation when the host has `TYPESAFE_API_KEY`,
+unless the operator sets `ATOMA_JEV=0`. Decision context, including task text
+and evidence excerpts, is sent to TypeSafe as described in the
+[service terms](docs/platform-commons-terms.md#decisions-taken-by-typesafe).
+The timeline records its decisions, latency and separate cost; a sample of
+approvals is reviewed by the model for comparison. See the
+[architecture guide](docs/how-it-works.md#jev-bounded-decisions-beside-the-model-tiers).
+
+### Adjust run limits without redeploying
+
+Platform administrators can change run budgets, token and spend ceilings,
+call timeouts and tool-iteration limits in Settings or with `npm run settings`.
+Changes are recorded in the audit journal and apply to new runs. A token or
+spend ceiling stops further model calls and preserves completed phases as an
+incomplete run. See [operating run limits](docs/automatic-deployment.md#run-limits-without-a-redeployment).
+
 ### Connect an existing agent through MCP
 
 The console serves an HTTP MCP endpoint at `https://<your-instance>/mcp`.
 Compatible clients such as Claude Code or Codex can start runs, pass acceptance
 criteria, request reruns and read traces, costs and diagnostics, with the same
 organisation permissions as the web console.
+
+One endpoint supports both MCP protocol revisions 2025-11-25 and 2026-07-28.
+OAuth clients can connect through browser consent, including clients identified
+by a metadata URL. Project run tasks survive a client reconnect, and results
+link to run resources that compatible clients can open or follow.
 
 **Forty-one tools.** The visible subset depends on the caller's role.
 See the [MCP connection and authorization guide](docs/mcp-oauth.md).
@@ -276,9 +311,13 @@ ready for production. See the [changelog](CHANGELOG.md) for what changed.
 
 ## Documentation
 
+Browse the [documentation index](docs/README.md) for current guides and the
+[archive](docs/archive/README.md) for historical designs, reviews and release evidence.
+
 | I want to… | Read |
 | --- | --- |
 | Understand the architecture | [How it works](docs/how-it-works.md) |
+| Understand Jev and its evaluation | [Architecture](docs/how-it-works.md#jev-bounded-decisions-beside-the-model-tiers) · [Decision record](docs/jev-decisions-2026-09-28.md) · [Latest policy corrections](docs/jev-policy-2026-10-01.md) |
 | Know what runs share with each other | [Shared-learning terms](docs/platform-commons-terms.md) |
 | Use your own ChatGPT account | [Personal model discovery](docs/personal-model-discovery.md) |
 | Develop locally or contribute | [Development setup](docs/development-setup.md) · [Contributing](CONTRIBUTING.md) |

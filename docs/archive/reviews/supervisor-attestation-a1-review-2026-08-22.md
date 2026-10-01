@@ -2,7 +2,7 @@
 
 Status: **ACCEPTED, LANDED and MEASURED, 2026-08-22.** Steps 1-6 of §9 are
 done. The armed controls ran from a virgin store and are recorded in
-[`a1-armed-controls-2026-08-22.md`](incidents/a1-armed-controls-2026-08-22.md):
+[`a1-armed-controls-2026-08-22.md`](../../incidents/a1-armed-controls-2026-08-22.md):
 the negative control found and fixed an implementation defect (`33ad67d`), then
 withheld as specified; the positive control kept its credit. No stop condition
 fired. One **design limit** the review did not anticipate was measured — see
@@ -21,8 +21,8 @@ adds the acceptance controls in §7. What did not change: the contract's
 shape, its dispositions, and the fact that nothing here is accepted.
 
 This review answers the reserved A1 direction recorded in
-[`docs/incidents/supervisor-attestation-evidence-2026-08-22.md`](incidents/supervisor-attestation-evidence-2026-08-22.md),
-after the cooling-off period the root [`AGENTS.md`](../AGENTS.md) requires.
+[`docs/incidents/supervisor-attestation-evidence-2026-08-22.md`](../../incidents/supervisor-attestation-evidence-2026-08-22.md),
+after the cooling-off period the root [`AGENTS.md`](../../../AGENTS.md) requires.
 The inventory's nine facts are the acceptance criteria; §5 works through them
 one at a time and states where the proposal fails.
 
@@ -55,13 +55,13 @@ The proposal is not a new concept. It is the second instance of one already
 in production, and reviewing it as a generalisation rather than an invention
 is the point of this section.
 
-[`L1Atom`](../src/atoms/L1Atom.ts) derives `activeScriptSkillExecuted` from
+[`L1Atom`](../../../src/atoms/L1Atom.ts) derives `activeScriptSkillExecuted` from
 its tool loop: a `run_shell` invocation that actually ran a scratch file the
 skill wrote, observed at the transport, not claimed in prose. `L2Atom` turns
 the negative of that into `activeScriptSkillIgnored` and overrides the
 validator on **both** result paths — the trust fast path and the full verdict
 — with `{ ...verdict, activeSkillFollowed: false }`
-([`L2Atom.ts`](../src/atoms/L2Atom.ts), the `validateResult` tail). A model
+([`L2Atom.ts`](../../../src/atoms/L2Atom.ts), the `validateResult` tail). A model
 narration cannot argue with it.
 
 So the repository already holds that (a) a transport-observed boolean may
@@ -84,7 +84,7 @@ contract needs.
 error lists, but its declared type is `unknown` and `interactionLog` exists
 only in tool-description prose; the local, worker and container executors
 forward the value without parsing it. The contract declares the browser
-observation as a schema in [`src/contracts`](../src/contracts/AGENTS.md) —
+observation as a schema in [`src/contracts`](../../../src/contracts/AGENTS.md) —
 one schema, one home, per that subsystem's rule — carrying at minimum:
 
 - the **requested** interactions, and the **executed** interaction log, as
@@ -133,7 +133,7 @@ what their own failure means differs.
 
 **Observability dividend, worth naming because it is free.** `VizToolEvent`
 is emitted only from the `onToolInvocation` observer on an LLM request
-([`recordingLlm.ts`](../src/viz/recordingLlm.ts)). Supervisor probes bypass
+([`recordingLlm.ts`](../../../src/viz/recordingLlm.ts)). Supervisor probes bypass
 it, so today **no supervisor action appears in the trace at all** — not the
 file read-back, not the manifest read, not the clean-load `validate_html`.
 Their only trace is the prose the supervisor pasted into its own prompt, and
@@ -209,7 +209,7 @@ other trace is "a counter that did not move, which reads identically to
 *nothing happened*". A1's withholding reuses that op rather than inventing a
 second one. The **trust** side has no equivalent, so the contract adds one:
 a `RunStatSignal` member and its counter in
-[`runStats.ts`](../src/contracts/runStats.ts), beside `escalations`,
+[`runStats.ts`](../../../src/contracts/runStats.ts), beside `escalations`,
 `promotions` and `deterministicPhases`, counting uncovered obligations per
 run. That is also the accounting signal the inventory noted was missing, and
 it is what makes a withheld run distinguishable from a quiet one in the CSV.
@@ -236,7 +236,7 @@ it is what makes a withheld run distinguishable from a quiet one in the CSV.
    and cheaply: the contract adds retention, not probe cost. No extra tool
    call, no extra model call. *Residual:* the two fields must survive the
    worker and container protocols, which today forward `unknown`. That is
-   real work in [`src/tools`](../src/tools/AGENTS.md), not a formality.
+   real work in [`src/tools`](../../../src/tools/AGENTS.md), not a formality.
 2. **A model-authored manifest is replay intent, not proof.** Passes only
    because §3.3 refuses to relabel it. *Residual:* until the web manifest's
    writer moves into `validate_html`, the strongest **on-disk** web record
@@ -285,7 +285,7 @@ it is what makes a withheld run distinguishable from a quiet one in the CSV.
 9. **Shell, HTTP and web manifests have different ownership.** Passes: the
    observer is per-record, and the existing machine writers are recognised
    rather than re-implemented. Manifest merge semantics stay in
-   [`probeManifest.ts`](../src/contracts/probeManifest.ts).
+   [`probeManifest.ts`](../../../src/contracts/probeManifest.ts).
 
 ## 6. What still stands after revision 2
 
@@ -320,7 +320,7 @@ it is what makes a withheld run distinguishable from a quiet one in the CSV.
 ## 7. Acceptance controls
 
 The contract is a behavioural claim, so it needs a pre-registered test, per
-the benchmark discipline in the root [`AGENTS.md`](../AGENTS.md): both arms
+the benchmark discipline in the root [`AGENTS.md`](../../../AGENTS.md): both arms
 on the same day and the same code path, thresholds recorded with the results.
 
 Two task shapes from the cold session are the controls, and they are already

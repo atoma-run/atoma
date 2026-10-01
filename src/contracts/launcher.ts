@@ -16,7 +16,7 @@ import { z } from 'zod';
  *   INVARIANT 2  exactly one component — the launcher — holds Docker API
  *                access, under its own OS identity.
  *
- * Design of record: `docs/deployment-docker-launcher-2026-08-28.md` §2.
+ * Design of record: `docs/archive/designs/deployment-docker-launcher-2026-08-28.md` §2.
  *
  * WHAT MAKES THIS CONTRACT NARROW, and why that is the whole point: a caller
  * names a PROFILE and supplies identity plus the few values that profile

@@ -4,7 +4,7 @@ import { z } from 'zod';
  * TRAJECTORY SIGNATURES — what one Molecule execution DID, as the ordered names
  * of the elements it invoked, keyed on the Molecule and the skill it was handed.
  * ==============================================================================
- * The design record is `docs/trajectory-predictability-design-2026-09-09.md`.
+ * The design record is `docs/archive/experiments/trajectory-predictability-design-2026-09-09.md`.
  * The transposed idea: a system whose internal path is predictable from its
  * input generalises, and the error of a cheap predictor of that path is a
  * usable signal. Atoma trains no weights, so the signal cannot steer a run; it

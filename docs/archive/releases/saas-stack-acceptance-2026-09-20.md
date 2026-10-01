@@ -19,8 +19,8 @@ Dockerfile after compiling the fix. No image or state was installed in productio
 The temporary registry references in the report are evidence identifiers, not
 public download links.
 
-[`packaged-stack-smoke.mjs`](../scripts/packaged-stack-smoke.mjs) and
-[`packaged-stack-workload.mjs`](../scripts/packaged-stack-workload.mjs) proved:
+[`packaged-stack-smoke.mjs`](../../../scripts/packaged-stack-smoke.mjs) and
+[`packaged-stack-workload.mjs`](../../../scripts/packaged-stack-workload.mjs) proved:
 
 1. Clean Compose startup and service readiness, using HTTPS with a fixture
    certificate trusted by the driver. TLS verification stayed enabled.
@@ -91,7 +91,7 @@ scenario against a production engine: launcher startup reconciles old resources.
 The harness refuses an existing product database or labelled Atoma resources.
 
 Build the four application images from compiled output as described in
-[packaged-stack.md](packaged-stack.md). Push them as
+[packaged-stack.md](../../packaged-stack.md). Push them as
 `localhost:5000/{web,launcher,worker,preview}:w13` to the disposable registry;
 push Caddy as `localhost:5000/gateway:w13`, and pull `docker:28.3.2-cli`.
 The harness obtains the real digests from those tags, never from image IDs.

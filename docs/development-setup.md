@@ -180,6 +180,14 @@ run lease (`~/.atoma/mcp-run-lock.db`) is machine-global on purpose. Parallel
 *editing* in two `git worktree` checkouts is fine and is described in
 [`AGENTS.md`](../AGENTS.md).
 
+If `TYPESAFE_API_KEY` is present in the run's environment, Jev takes bounded
+routing and approval decisions by default. Set `ATOMA_JEV=0` to evaluate the
+model-only path. It is separate from the three required tier selectors and
+sends decision context to TypeSafe. The runner log states whether it is active;
+see [Jev configuration and diagnostics](automatic-deployment.md#jev-decisions-for-every-organisation).
+Record that setting when comparing runs: Jev calls and sampled model audits
+change both the decision path and its cost.
+
 ## If something is red
 
 - **`docs:check` fails on a link or a budget.** The message names the file and

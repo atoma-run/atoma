@@ -5,7 +5,7 @@
 > Status: **consolidated design, not implemented.** This document supersedes
 > and replaces three same-day drafts (`docs/sandbox-cl.md`, `docs/sandbox-co.md`,
 > `docs/sandbox-gr.md`), deleted at consolidation; their arbitration is recorded
-> in [`docs/deployment-docker-launcher-2026-08-28.md`](deployment-docker-launcher-2026-08-28.md),
+> in [`docs/archive/designs/deployment-docker-launcher-2026-08-28.md`](deployment-docker-launcher-2026-08-28.md),
 > which also fixes the deployment shape this design builds on (SaaS on Linux,
 > atoma shipped as Docker images, a single in-house **launcher** as the only
 > holder of Docker API access). Normative rules stay in the `AGENTS.md` files
@@ -20,9 +20,9 @@ in the visualizer, and *uses* it — navigation, forms, same-origin fetch,
 WebSockets, ephemeral server-side state.
 
 "Sandbox" is not this feature's name: it stays the word of
-[`ToolSandbox`](../src/tools/sandbox.ts), which is in-process L1 tool
+[`ToolSandbox`](../../../src/tools/sandbox.ts), which is in-process L1 tool
 confinement, **not an isolation boundary**
-([F1](saas-architecture.md#3-prerequisite-f1-the-sandbox-is-not-an-isolation-boundary)).
+([F1](../../saas-architecture.md#3-prerequisite-f1-the-sandbox-is-not-an-isolation-boundary)).
 The iframe `sandbox` attribute is a browser mechanism, not the product name.
 UI copy (English, `en.json` only): *Preview*.
 

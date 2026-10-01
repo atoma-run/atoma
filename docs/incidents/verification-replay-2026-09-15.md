@@ -254,7 +254,7 @@ call 1 even though the taught shape says both calls are accepted. The review
 of this change reproduced it against the real guard. It is a false positive
 of the token match, not of the teaching, and the detector is not relaxed
 here (cooling-off); it joins the erased-state items in
-[decided, not built](../decided-not-built-2026-08-23.md) for the next
+[decided, not built](../archive/designs/decided-not-built-2026-08-23.md) for the next
 contract designed against the full corpus.
 
 **Campaign 2, invalid for the tool half — and what it taught anyway.** Same

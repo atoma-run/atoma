@@ -2661,7 +2661,7 @@ export const CDP_PROTOCOL_TIMEOUT_MS = 30_000;
  * This NAMES the predicate's real requirement, which is a requirement on HOW
  * the aggregate is spelled. It does not widen it: widening
  * `smokeOkIncludesStyling` changes a disposition and is recorded in
- * `docs/decided-not-built-2026-08-23.md`, not built here.
+ * `docs/archive/designs/decided-not-built-2026-08-23.md`, not built here.
  */
 export function renderStylingAggregateOverride(
   smoke: string,

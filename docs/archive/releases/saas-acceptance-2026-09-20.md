@@ -87,7 +87,7 @@ retrieved key. Observed snapshot age was 42.4 seconds at receipt; offline
 extraction/integrity took 10.99 seconds. No secrets or customer payloads are
 committed. The first incomplete snapshot remains unchanged historical evidence.
 
-**W12 completed:** the [hosted-service terms](platform-commons-terms.md) are
+**W12 completed:** the [hosted-service terms](../../platform-commons-terms.md) are
 published in this public repository and linked from the README. They include
 Matthieu Foillard's confirmed identity, Athens postal address and `mgf@iotanet.net`
 support/privacy contact. Publication is not evidence of individual acceptance;

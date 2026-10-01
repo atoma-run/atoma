@@ -13,7 +13,7 @@ resolve a name. A passing result is those refusals. Nothing here calls a model.
 
 This document is the OPERATOR side. The subsystem contract is
 [`src/preview/AGENTS.md`](../src/preview/AGENTS.md); the design of record is
-[`docs/result-preview-design-2026-08-28.md`](result-preview-design-2026-08-28.md).
+[`docs/archive/designs/result-preview-design-2026-08-28.md`](archive/designs/result-preview-design-2026-08-28.md).
 
 ## Trying it on a laptop first
 
@@ -54,7 +54,7 @@ else — an HTTPS origin, a LAN address, a gateway on `0.0.0.0` — still refuse
 
 A compose reference for a containerised control plane. That topology — atoma
 web, the launcher in its own container, worker and preview images — is
-[decided and not built](deployment-docker-launcher-2026-08-28.md): the launcher
+[decided and not built](archive/designs/deployment-docker-launcher-2026-08-28.md): the launcher
 runs IN-PROCESS today. A compose file describing containers nobody starts would
 be a development-only path advertised as a release contract.
 

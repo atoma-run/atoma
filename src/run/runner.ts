@@ -139,7 +139,7 @@ export interface RunnerArgs {
    * carried `probes: []` and published anyway. The depth design had already
    * settled the intent: "The default is resolved inside `startTask`, so CLI,
    * MCP and project launches all inherit it"
-   * (`docs/depth-routing-experiment-2026-09-13.md`).
+   * (`docs/archive/experiments/depth-routing-experiment-2026-09-13.md`).
    */
   comparison: boolean;
   /** Optional immutable worker identity, used by registered experiments. */
@@ -364,7 +364,7 @@ export function resolveSkillPromotion(
  * fixed. Reading those two as one is what removed root delivery acceptance
  * from every project run after a project's first; the depth design had already
  * settled it ("CLI, MCP and project launches all inherit it",
- * `docs/depth-routing-experiment-2026-09-13.md`).
+ * `docs/archive/experiments/depth-routing-experiment-2026-09-13.md`).
  */
 export function resolveSupervisionDepth(
   args: Pick<RunnerArgs, 'depth' | 'baseline' | 'comparison'>,

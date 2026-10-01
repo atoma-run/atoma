@@ -20,7 +20,7 @@ import { pidsListeningOn, processHoldsListeningPort } from '../src/tools/listeni
 
 /**
  * A browser observation is bound to the document it was TAKEN AGAINST, or to
- * nothing (docs/depth-routing-experiment-2026-09-13.md §5.2, decision 7).
+ * nothing (docs/archive/experiments/depth-routing-experiment-2026-09-13.md §5.2, decision 7).
  *
  * The old binding mapped the URL's pathname to a sandbox file BEFORE the page
  * opened and checked only that the host was loopback. Its own comment said it

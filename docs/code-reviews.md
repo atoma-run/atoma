@@ -5,11 +5,15 @@ of the last documentation edit. A retired report remains addressable in Git.
 For the next review, start at the last examined revision below and inspect
 subsequent corrective commits as well.
 
-- **2026-09-25** — [report](code-review-2026-09-25.md) and
+Report files live in the [documentation archive](archive/README.md#reviews).
+Moving a report does not change the revision it examined or the next review's
+starting point.
+
+- **2026-09-25** — [report](archive/reviews/code-review-2026-09-25.md) and
   [reproduction evidence](incidents/code-review-2026-09-25-evidence.md).
   Window `923bbab..149f141`, 31 commits, including the closure commit
   `159ab36` of the previous review, whose five findings it re-examines.
-- **2026-09-24** — [report](code-review-2026-09-24.md) and
+- **2026-09-24** — [report](archive/reviews/code-review-2026-09-24.md) and
   [reproduction evidence](incidents/code-review-2026-09-24-evidence.md).
   Window `01ed50c..923bbab`, 343 commits. Corrections and their verification
   are recorded in the report's closure section.
@@ -21,11 +25,11 @@ subsequent corrective commits as well.
   Read with `git show dc6c079:docs/code-review-2026-08-20.md`.
   Both August 20 and August 27 reports were retired by `4766f8a`; this does
   not move the next review's starting point back to August 18.
-- **2026-08-18** — [report](code-review-2026-08-18.md), window
+- **2026-08-18** — [report](archive/reviews/code-review-2026-08-18.md), window
   `027ae42..08fc043`, 104 commits.
-- **2026-08-14** — [external review](code-review-2026-08-14.md),
+- **2026-08-14** — [external review](archive/reviews/code-review-2026-08-14.md),
   August 4–14, 296 commits; examined `a56ee0c` plus the then-current worktree.
 
-Focused design reviews, including [A1 attestation](supervisor-attestation-a1-review-2026-08-22.md)
-and [platform skill offers](platform-skill-offer-review-2026-08-23.md), do not
+Focused design reviews, including [A1 attestation](archive/reviews/supervisor-attestation-a1-review-2026-08-22.md)
+and [platform skill offers](archive/reviews/platform-skill-offer-review-2026-08-23.md), do not
 replace a general code review's baseline.

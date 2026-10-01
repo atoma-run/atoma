@@ -28,7 +28,7 @@ this document.
 ## 0. Vocabulary, first
 
 This repository has been bitten by one word carrying two meanings
-([offer review](platform-skill-offer-review-2026-08-23.md) §0). Five terms,
+([offer review](../reviews/platform-skill-offer-review-2026-08-23.md) §0). Five terms,
 one meaning each:
 
 - **Escalation** is TAKEN. In `superviseLoop` (`src/core/supervisor.ts`) an
@@ -141,9 +141,9 @@ strategy and validator calls, trust skips, retries, and the extra work paid
 when short deepens. Count those calls and their cost by role in both arms;
 the common root acceptance remains in both. `[r6]` The
 engineering record priced the removed L3 shortcut at about $0.10 per run
-([record](incidents/engineering-record-2026-08-14.md), "Prefilter
+([record](../../incidents/engineering-record-2026-08-14.md), "Prefilter
 decomposable hint"), and round 10 attributed the control's lead over atoma's
-warm asymptote to that one call ([ROUND10](../benchmark/ROUND10.md)). That
+warm asymptote to that one call ([ROUND10](../../../benchmark/ROUND10.md)). That
 historical number is context, not an estimate of the whole intervention.
 The registered decision criterion is the total cost per scorer-verified
 result (§8), including failures and deepenings.
@@ -374,7 +374,7 @@ served while the root file is unchanged does not; a stale origin does not.
   carry the attempt id. The abandoned attempt's evidence stays in the run
   trace for the reader; the final acceptance reads only the accepted attempt
   (§5). Nothing from the abandoned attempt's workspace or prose enters the
-  L3 prompt (R2, [saas-architecture](saas-architecture.md#engineering-rules-to-apply-now)).
+  L3 prompt (R2, [saas-architecture](../../saas-architecture.md#engineering-rules-to-apply-now)).
 - **Trust and skills earned inside the abandoned attempt stand within the
   run, and never reach a later pair** (decision 4). Each L1 result the entry
   cell accepted was an I1-compliant acceptance, and distillation is
@@ -409,7 +409,7 @@ because the traces are the evidence.
 ## 8. Pre-registration — a pilot, stated as one `[r2]` `[r3]`
 
 To be written before any run, with the discipline of
-[`benchmark/PROTOCOL.md`](../benchmark/PROTOCOL.md).
+[`benchmark/PROTOCOL.md`](../../../benchmark/PROTOCOL.md).
 
 - **What the pilot can conclude.** Eight paired goals can show a
   difference worth a registered follow-up and can produce mechanisms from
@@ -434,7 +434,7 @@ To be written before any run, with the discipline of
   disagreement between the root acceptor and the scorer in both directions
   `[r3]`.
 - **Family.** A Node HTTP server plus a served browser page, the shape of
-  the [2026-09-07 incident](incidents/notes-app-browser-phase-2026-09-07.md),
+  the [2026-09-07 incident](../../incidents/notes-app-browser-phase-2026-09-07.md),
   under the §5.2 constraint that `index.html` sits at the workspace root
   and is served at `/`. It makes the one obligation member,
   `dom-interaction`, applicable and bindable; and it is where the deep path
@@ -501,7 +501,7 @@ To be written before any run, with the discipline of
 ## 10. Tests that cross tiers
 
 The 2026-08-23 lesson stands: a gate that crosses tiers needs a test that
-crosses them ([decided, not built](decided-not-built-2026-08-23.md), facts).
+crosses them ([decided, not built](../designs/decided-not-built-2026-08-23.md), facts).
 Each test runs the production path with mocked providers unless stated.
 
 1. Arm A, every L2 escalates, L3 self-executes: the result reaches the

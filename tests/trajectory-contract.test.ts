@@ -19,7 +19,7 @@ import {
 import type { VizRun, VizRunIndexEntry } from '../src/viz/trace.js';
 
 /**
- * Trajectory signatures (Stage A of docs/trajectory-predictability-design-2026-09-09.md).
+ * Trajectory signatures (Stage A of docs/archive/experiments/trajectory-predictability-design-2026-09-09.md).
  *
  * What these hold: one execution is one `llmEventId` and is complete only once
  * its `llm` event is in the window; the injected skill keys the execution it

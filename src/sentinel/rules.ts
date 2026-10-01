@@ -275,7 +275,7 @@ const RULES: readonly SentinelRule[] = [
     id: 'trajectory-drift',
     kind: 'run.anomaly',
     check: (env) => {
-      // Stage A of docs/trajectory-predictability-design-2026-09-09.md: the
+      // Stage A of docs/archive/experiments/trajectory-predictability-design-2026-09-09.md: the
       // ordered element names one Molecule execution emitted, scored against
       // the credited executions of the same Molecule and skill in FINISHED
       // runs of this corpus. It observes and journals; it decides nothing.

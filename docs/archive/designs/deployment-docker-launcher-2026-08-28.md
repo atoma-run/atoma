@@ -5,7 +5,7 @@
 > Status: **direction decided, not implemented**. This document records the
 > deployment target and the launcher architecture that the result-preview
 > design (and any future run-execution change) must build against. It is
-> evidence in the `docs/decided-not-built-2026-08-23.md` pattern, not a
+> evidence in the `docs/archive/designs/decided-not-built-2026-08-23.md` pattern, not a
 > normative contract: `AGENTS.md` files remain the runtime rules until an
 > implementation lands and links back here.
 

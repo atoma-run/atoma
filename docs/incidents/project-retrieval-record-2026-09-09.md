@@ -1325,7 +1325,7 @@ private facts have been removed, especially when paraphrased.
 `exportSkillToSpec` faithfully retains that sentence. It is an operator-invoked
 format conversion, not a platform catalogue admission path; the fixture does
 not send an export to another tenant. The
-[catalogue-offer review](../platform-skill-offer-review-2026-08-23.md) remains a
+[catalogue-offer review](../archive/reviews/platform-skill-offer-review-2026-08-23.md) remains a
 design, not an implemented automatic distribution gate. The current MCP and
 HTTP catalogues reserve operator skill/registry APIs to the platform tier.
 Their API authorization does not protect the internal registry reuse channel

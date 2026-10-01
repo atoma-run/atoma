@@ -22,7 +22,7 @@ import { afterEach } from 'vitest';
 /**
  * MEASURED 2026-08-23, project run `a786358a`: 25 `validate_html` calls, 14
  * failures, and the six-agent review of that trace
- * (`docs/decided-not-built-2026-08-23.md`) found that the expensive modes were
+ * (`docs/archive/designs/decided-not-built-2026-08-23.md`) found that the expensive modes were
  * not refusals but MESSAGES — a gate reporting a finding the code never made,
  * a discard reported only as a fact with no consequence, and the one piece of
  * new information placed at the tail of the longest string in the error.

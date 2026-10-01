@@ -111,7 +111,7 @@ can only report that it cannot be.
   workspace and the MCP lease — and it excludes `node_modules`, recorded in
   the manifest under `excluded`. The supervisor tier follows
   `supervisorDirPath`. Both were missing until 2026-09-14, when the
-  [value audit](../../docs/value-audit-2026-09-14.md) found the corpus it had
+  [value audit](../../docs/archive/reviews/value-audit-2026-09-14.md) found the corpus it had
   to reconcile outside every captured tier.
 - With `ATOMA_LAUNCHER_WORKSPACE_ROOT`, it also captures the `projects/`
   projection as mandatory `workspaces.tar.gz` (layout version 2). Older snapshots
@@ -145,7 +145,7 @@ can only report that it cannot be.
   --dest <new-directory>`, not a service start or a compiled product command.
   It verifies hashes, extracts regular files into an isolated destination and
   checks SQLite plus project-file correspondence without migrations or writes
-  to the source. Scope and exit dispositions: [recovery exercise](../../docs/recovery-drill-2026-09-14.md).
+  to the source. Scope and exit dispositions: [recovery exercise](../../docs/archive/releases/recovery-drill-2026-09-14.md).
 
 ## Burn-in and friction
 
@@ -213,7 +213,7 @@ can only report that it cannot be.
 - This makes forging the banner USELESS, not impossible. Nothing in a text
   stream can be unforgeable; the durable fix is a receipt the tenant cannot
   write, which is registered in
-  [`docs/decided-not-built-2026-08-23.md`](../../docs/decided-not-built-2026-08-23.md).
+  [`docs/archive/designs/decided-not-built-2026-08-23.md`](../../docs/archive/designs/decided-not-built-2026-08-23.md).
 
 ## Sentinel
 

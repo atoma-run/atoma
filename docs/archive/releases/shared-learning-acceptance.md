@@ -7,7 +7,7 @@ day; see the [machine-readable receipt](saas-w14-report-2026-09-20.json).
 
 ## Executed scenario
 
-[shared-learning-acceptance.test.ts](../tests/shared-learning-acceptance.test.ts)
+[shared-learning-acceptance.test.ts](../../../tests/shared-learning-acceptance.test.ts)
 uses two authenticated organisations, their registered project runs, one product
 store and one explicitly recorded platform skill root. It exercises:
 
@@ -48,8 +48,8 @@ Windows skips this execution scenario; typechecking it is not acceptance.
 
 ## Assembled isolation acceptance
 
-The extended [stack driver](../scripts/packaged-stack-smoke.mjs) executes
-[corpus acceptance](../scripts/packaged-stack-privacy.mjs) inside the real web
+The extended [stack driver](../../../scripts/packaged-stack-smoke.mjs) executes
+[corpus acceptance](../../../scripts/packaged-stack-privacy.mjs) inside the real web
 image, using its installed Python BM25 engine and production receipt, authority
 and search implementations. No ranking mock or model call is used.
 

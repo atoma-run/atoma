@@ -81,4 +81,4 @@ or calls notification delivery directly.
 
 These regression checks passed in [CI at `4788dfd`](https://github.com/mgtf/atoma/actions/runs/35478666242),
 alongside TypeScript, lint and documentation checks. W13/W14 hosted acceptance
-remains separate; see the [receipt](saas-acceptance-2026-09-20.md).
+remains separate; see the [receipt](archive/releases/saas-acceptance-2026-09-20.md).

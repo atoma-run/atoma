@@ -2,7 +2,7 @@
 
 Owner decision, implemented the same day. It extends the per-tier
 subscription design of
-[2026-08-28](subscription-per-tier-design-2026-08-28.md), whose vocabulary
+[2026-08-28](archive/designs/subscription-per-tier-design-2026-08-28.md), whose vocabulary
 (`host-subscription:`) predates the selector grammar of 2026-09-07; read that
 record first for why the door exists at all.
 

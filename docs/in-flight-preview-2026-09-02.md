@@ -3,9 +3,9 @@
 > Décision de conception · Atoma · 2 septembre 2026
 >
 > Statut : **décidée et implémentée**. Elle complète le
-> [design result preview du 28 août](result-preview-design-2026-08-28.md), dont
+> [design result preview du 28 août](archive/designs/result-preview-design-2026-08-28.md), dont
 > le §18 rejetait le preview d'un run en vol, et réalise le palier C de la
-> [direction du 31 août](live-preview-direction-2026-08-31.md).
+> [direction du 31 août](archive/designs/live-preview-direction-2026-08-31.md).
 
 ## 1. Ce que le rejet visait vraiment
 

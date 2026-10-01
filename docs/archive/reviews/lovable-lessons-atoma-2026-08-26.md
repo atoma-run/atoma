@@ -47,8 +47,8 @@ refactorings ont changé ensemble. Source :
   multi-tenant.
 
 Repères dans le dépôt :
-[configuration Vite](../vite.config.ts) et
-[garde du bundle viz](../scripts/viz-build.mjs).
+[configuration Vite](../../../vite.config.ts) et
+[garde du bundle viz](../../../scripts/viz-build.mjs).
 
 ### Écarts concrets
 
@@ -64,8 +64,8 @@ Repères dans le dépôt :
   est statique : mesurer avant d’introduire du lazy loading.
 
 Repères dans le dépôt :
-[serveur viz](../src/viz/server.ts) et
-[exécuteur du worker](../src/tools/containerExecutor.ts).
+[serveur viz](../../../src/viz/server.ts) et
+[exécuteur du worker](../../../src/tools/containerExecutor.ts).
 
 ### Ce qu’il ne faut pas copier
 
@@ -190,8 +190,8 @@ servi la requête.
   control plane et le data plane peuvent évoluer séparément.
 
 Repères dans le dépôt :
-[trajectoire SaaS](saas-architecture.md) et
-[backends d’outils](../src/run/toolBackend.ts).
+[trajectoire SaaS](../../saas-architecture.md) et
+[backends d’outils](../../../src/run/toolBackend.ts).
 
 ### Critère de succès
 
@@ -393,10 +393,10 @@ et Tissue décompose.
    pins comme kill switch.
 
 Repères dans le dépôt :
-[modèles](../src/core/models.ts),
-[<code>superviseLoop</code>](../src/core/supervisor.ts),
-[trace LLM](../src/viz/recordingLlm.ts) et
-[Round 12](../benchmark/ROUND12.md).
+[modèles](../../../src/core/models.ts),
+[<code>superviseLoop</code>](../../../src/core/supervisor.ts),
+[trace LLM](../../../src/viz/recordingLlm.ts) et
+[Round 12](../../../benchmark/ROUND12.md).
 
 ### Ce qu’il ne faut pas importer de Lovable
 
@@ -581,11 +581,11 @@ doublons/spirales, si le triage actionnable reste trop faible, ou si le succès
 scoré ne s’améliore pas à coût total égal.
 
 Repères dans le dépôt :
-[règles Sentinel](../src/sentinel/rules.ts),
-[rapport de friction](../src/viz/friction.ts),
-[event skills](../src/skills/events.ts),
-[cycle de vie des skills](../src/skills/lifecycle.ts) et
-[incident sur l’angle mort de Sentinel](incidents/sentinel-blind-spot-2026-08-23.md).
+[règles Sentinel](../../../src/sentinel/rules.ts),
+[rapport de friction](../../../src/viz/friction.ts),
+[event skills](../../../src/skills/events.ts),
+[cycle de vie des skills](../../../src/skills/lifecycle.ts) et
+[incident sur l’angle mort de Sentinel](../../incidents/sentinel-blind-spot-2026-08-23.md).
 
 ### Décision recommandée aujourd’hui
 

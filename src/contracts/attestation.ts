@@ -16,7 +16,7 @@ import { z } from 'zod';
  * clicks were all filtered away was approved on its own narration, and the
  * skill distilled from it taught the next run to drive state through
  * `window.__*` hooks. See
- * `docs/supervisor-attestation-a1-review-2026-08-22.md` for the contract and
+ * `docs/archive/reviews/supervisor-attestation-a1-review-2026-08-22.md` for the contract and
  * `docs/incidents/supervisor-attestation-evidence-2026-08-22.md` for the
  * evidence.
  *

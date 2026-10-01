@@ -9,7 +9,7 @@ permission heuristic or runtime fix is proposed. The cooling-off rule applies.
 The API run `dee609e4-4c81-4866-9170-eed46318ef2c` on 2026-09-02
 recorded four failed `write_file` calls (`EACCES` on `/workspace/bookmarks-api.js`),
 three failed server starts and one rejected shell command, then a delivered
-runner epilogue. The [audit](../value-audit-2026-09-14.md) records trace and log
+runner epilogue. The [audit](../archive/reviews/value-audit-2026-09-14.md) records trace and log
 hashes. Later successful shell writes alone do not establish that the tool and
 shell had different permissions at the same instant.
 

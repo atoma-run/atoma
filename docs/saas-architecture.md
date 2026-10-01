@@ -1,7 +1,7 @@
 # atoma hosted architecture
 
-> **CURRENT REVIEW: 2026-09-20.** Implementation and executed checks reconciled
-> against `4788dfd`; [acceptance receipt](saas-acceptance-2026-09-20.md) records
+> **LAST EXECUTED HOSTED ACCEPTANCE REVIEW: 2026-09-20.** Implementation and executed checks reconciled
+> against `4788dfd`; [acceptance receipt](archive/releases/saas-acceptance-2026-09-20.md) records
 > the green CI/deployment, local admin MCP check and completed hosted recovery.
 > The owner authorised isolated runtime tests on 2026-09-20.
 >
@@ -26,7 +26,36 @@
 > to make it one. What remains is the production boundary and the
 > operational substrate for the shape that IS supported.
 
-## 1. Current state — 2026-09-20
+## 1. Current state — 2026-09-20, with source updates through 2026-10-01
+
+### Changes since the acceptance review
+
+These source changes extend the product described below; they do not establish
+a new hosted acceptance run or change the shared-learning boundary:
+
+- **Jev decisions across all organisations.** The host's `TYPESAFE_API_KEY`
+  enables TypeSafe's decision service for every run, unless `ATOMA_JEV=0`.
+  Task, catalogue, plan/result and evidence excerpts cross that third-party
+  boundary. Jev handles bounded routing, eligible intermediate approvals and
+  recipe equivalence; final delivery acceptance stays independent. Decisions,
+  separate costs and sampled model audits are traced. See the
+  [current design](how-it-works.md#jev-bounded-decisions-beside-the-model-tiers)
+  and [service terms](platform-commons-terms.md#decisions-taken-by-typesafe).
+- **Platform-wide run limits.** Audited numeric overrides in the primary
+  store apply at the next run without redeployment. Settings and the compiled
+  `settings` CLI expose defaults and ceilings, including tokens and estimated
+  LLM spend. This is separate from per-organisation concurrency and does not
+  implement rebilling. See [operations](automatic-deployment.md#run-limits-without-a-redeployment).
+- **MCP compatibility and persisted project tasks.** One `/mcp` endpoint
+  speaks 2025-11-25 and 2026-07-28, accepts OAuth metadata-document clients
+  alongside dynamic registration, and exposes project run tasks across client
+  reconnects. The same organisation and platform permissions apply. See
+  [MCP connection and diagnostics](mcp-oauth.md).
+- **Continuing existing work.** Incomplete runs preserve completed phases;
+  comparison reruns retain the original starting workspace. Seeded static
+  pages replay inherited browser checks before editing and at delivery, while
+  read-only phases restore workspace changes within their documented bounds.
+  See [verification](how-it-works.md#5-flow--how-a-result-is-proven).
 
 ### What the product is
 
@@ -64,7 +93,8 @@ The following claims are **not** supported:
   acceptance passed on an isolated engine, not on the production host);
 - isolation between mutually untrusted organisations;
 - a dedicated one-organisation deployment (self-signup creates organisations);
-- financial run budgets or metered rebilling. Per-org concurrency admission and
+- per-organisation financial allocations or metered rebilling. Platform-wide
+  per-run LLM spend ceilings are implemented as described above. Per-org concurrency admission and
   offline run-byte retention are implemented and regression-tested in W9/W10.
 
 ### Ownership model
@@ -163,7 +193,7 @@ cloning.
 The model-authored Element worker has an OS boundary. W1 now implements an
 optional separate launcher service over a private socket, with its own image
 ([setup](launcher-service.md)). The real service/worker/volume smoke passed
-on 2026-09-20; the [W13 deterministic stack acceptance](saas-stack-acceptance-2026-09-20.md)
+on 2026-09-20; the [W13 deterministic stack acceptance](archive/releases/saas-stack-acceptance-2026-09-20.md)
 also passed later that day.
 Without `ATOMA_LAUNCHER_SOCKET`, `DockerLauncher` remains in-process.
 The service issues named volumes with a shared file projection. W2 adds a launcher-issued
@@ -173,7 +203,7 @@ limitations. W13 now accepts the assembled mechanical boundary in an isolated
 environment; no production topology migration is claimed.
 
 The decided target remains Linux, Docker images and one separate launcher
-([decision](deployment-docker-launcher-2026-08-28.md)). The web container never
+([decision](archive/designs/deployment-docker-launcher-2026-08-28.md)). The web container never
 mounts `docker.sock`; closed profiles cover workers, egress and previews;
 W3 implements volumes, leases, TTLs and orphan recovery; the real container
 smoke verified graceful restart and retained files; W13 then passed on the
@@ -181,13 +211,13 @@ assembled stack. Process-crash recovery remains outside that graceful scenario.
 Image definitions exist for worker, preview, mender, launcher and web. W7 adds
 the [reference stack](packaged-stack.md), digest validation and a restricted build
 context. Web/launcher image builds and compiled help smokes passed on
-2026-09-20, followed by the [isolated stack acceptance](saas-stack-acceptance-2026-09-20.md).
+2026-09-20, followed by the [isolated stack acceptance](archive/releases/saas-stack-acceptance-2026-09-20.md).
 ### Storage decision, closed
 
 Gate 0 selected hardened SQLite on 2026-09-18. W4, W5 and W6 now persist skill
 counters, payer attribution and scoped lifecycle events in the product store.
 The launcher keeps only machine-local operational state and is not another
-product-store writer. [The earlier PostgreSQL analysis](postgresql-migration-analysis-2026-09-02.md)
+product-store writer. [The earlier PostgreSQL analysis](archive/experiments/postgresql-migration-analysis-2026-09-02.md)
 remains historical input if measured topology or contention reopens the decision.
 
 ## 2. Normative invariants
@@ -452,15 +482,15 @@ Decision 6 settles it.
 | **W4a** | Registry write-transaction correctness | **done** (`8a4f2ff`) | — | All eleven registry write transactions are `.immediate()`; both product-store open paths set `busy_timeout` explicitly instead of inheriting the driver default; a regression allocates ordinals across connections and processes. This is R8 for the STORE, owed under either Gate 0 branch. It does NOT close `_meta.json` file concurrency — that is W4. |
 | **W5** | Durable payer ledger for every run | **done** (`5154832`): `project_run_payers`, three immutable rows per run, written in the queued→running transaction; the coordinator resolves payers through `payerForSelector` | — (the org-scoped cost READ surface waits on decision 3) | The three-row `RunPayerLedger` is persisted for API-key-only runs too, in the same transaction as the queued→running transition (T10). The coordinator resolves payers THROUGH `payerForSelector`, the contract's canonical rule. The synthetic benchmark control (`retrievalProjectAttempt`) transitions its accounting run directly and records no payer; it spends nothing. |
 | **W6** | Scoped lifecycle attribution | **done** (2026-09-18): `lifecycle_events` carries `org_id`, `project_id`, `run_id`, `actor_type`, `actor_id` and `entity_id`; one `ensureLedgerSchema` on both open paths; the runner, the MCP writes and the CLI set the scope; `ledger check` compares types by `atom_id` | — | Backfill rule taken by the owner: resolve each label against the current store, leave NULL what does not resolve, rewrite nothing. The ordering constraint held: the migration is one function called from `openDb` and from the cached handle, and `tests/ledger.test.ts` drives a legacy-shaped store through each path first, then a pre-column store through the backfill. A read-only reader on an unmigrated snapshot still reads it, without scope or id. |
-| **W7** | Web, launcher images and a reference stack | **implemented; W13 stack acceptance passed (2026-09-20):** web image with Haystack, Linux Compose with TLS gateway, shared paths, worker pin propagation, digest checker and `.dockerignore`; [setup and limitations](packaged-stack.md) | W1–W3 runtime acceptance; real published image refs, Linux Engine 28+, runsc, OAuth and TLS provisioning | Image builds, clean isolated Compose boot and W13 mechanical acceptance passed; [scope and limits](saas-stack-acceptance-2026-09-20.md). |
+| **W7** | Web, launcher images and a reference stack | **implemented; W13 stack acceptance passed (2026-09-20):** web image with Haystack, Linux Compose with TLS gateway, shared paths, worker pin propagation, digest checker and `.dockerignore`; [setup and limitations](packaged-stack.md) | W1–W3 runtime acceptance; real published image refs, Linux Engine 28+, runsc, OAuth and TLS provisioning | Image builds, clean isolated Compose boot and W13 mechanical acceptance passed; [scope and limits](archive/releases/saas-stack-acceptance-2026-09-20.md). |
 | **W8-a** | A restore drill valid on the deployed shape | **done for the fixture** (`bdb6bf9`); NOT yet run against a snapshot from the real host | — | The drill distinguishes a tier NOT APPLICABLE to a deployment from one expected and lost — ignoring `skipped` wholesale would make it falsely reassuring. It passes on a production-shaped fixture, which proves the fix; a real snapshot from the host is verified separately and proves more. The manifest records that `store.db` needs an externally held `ATOMA_SECRET_ENCRYPTION_KEY` to yield usable organisation keys, without containing it. |
-| **W8-b** | Hosted backup and disaster recovery | **Done:** [hosted recovery receipt](saas-hosted-recovery-2026-09-20.md), complete inventory, 15 runs, eight decrypted envelopes; observed snapshot age 42.4 s and offline restore 10.99 s. W13 separately proves assembled-stack restore/restart | — | A restore drill on the packaged stack and documented RPO/RTO. Proving recovery requires retrieving the encryption key separately and decrypting under control; documenting the dependency is not that proof. Secret ROTATION is distinct from restoration and is its own work: there is no re-encryption implementation in `src/auth/`, and the AAD binds the key identity, so rotation means decrypt-under-old then re-encrypt-under-new for every row plus the GitHub token wrapping key. |
+| **W8-b** | Hosted backup and disaster recovery | **Done:** [hosted recovery receipt](archive/releases/saas-hosted-recovery-2026-09-20.md), complete inventory, 15 runs, eight decrypted envelopes; observed snapshot age 42.4 s and offline restore 10.99 s. W13 separately proves assembled-stack restore/restart | — | A restore drill on the packaged stack and documented RPO/RTO. Proving recovery requires retrieving the encryption key separately and decrypting under control; documenting the dependency is not that proof. Secret ROTATION is distinct from restoration and is its own work: there is no re-encryption implementation in `src/auth/`, and the AAD binds the key identity, so rotation means decrypt-under-old then re-encrypt-under-new for every row plus the GitHub token wrapping key. |
 | **W9** | Trace and workspace retention | **done; regressions passed in CI at `4788dfd`** | W8-a; real purge requires a verified host backup | Operator-run 90-day retention, dry-run default, offline apply under the global lease, canonical path checks, durable deletion receipts and retained run metadata. Current project seeds and unfinished publications are held. [Contract and commands](project-maintenance.md). |
 | **W10** | Per-organisation run admission | **done; regressions passed in CI at `4788dfd`** | Decision 3: concurrency only, no financial budget | Persistent per-org limit (one by default, zero suspends), checked before the global lease and inside reservation; idempotent retries preserved. Operator CLI and organisation settings display. [Contract and commands](project-maintenance.md). |
 | **W11** | Audited cross-organisation admin read | **done; regressions passed in CI at `4788dfd`:** all five widening paths share a durable per-admin/per-org one-hour receipt, security journal row and owner notification; missing audit refuses the read. [Design and executed checks](cross-org-read-audit.md) | Decision 1 taken; HTTP/MCP regression checks passed | Retained platform-admin read is attributable and journaled without per-poll flooding. No temporary grant or expiry column, per decision 1. |
 | **W12** | Platform terms | **Done:** [hosted-service terms and confirmed operator contact](platform-commons-terms.md), published in the public repository and linked from its README | — | Terms of use covering what a run contributes to and consumes from the commons; separate from AGPL-3.0. |
-| **W13** | Packaged-stack acceptance | **done for the deterministic assembled boundary (2026-09-20)**: [scenario, regression and report](saas-stack-acceptance-2026-09-20.md) | — | Boots the stack; proves founder login, invitation, role enforcement, Element-workload isolation, delivery, restart, backup/restore and denied control-plane reachability from the worker network. |
-| **W14** | Shared-learning acceptance | **Shared arm passed in CI at `4788dfd`:** `tests/shared-learning-acceptance.test.ts` covers A distillation/promotion → B deterministic dispatch with shared counters and B attribution; [scope and limits](shared-learning-acceptance.md). **Isolation arm passed on the assembled stack on 2026-09-20:** real Python corpus search and scoped full/delta HTTP trace reads; see the same receipt | W13 for the isolation half only | Two organisations on one stack: no cross-org trace/workspace/corpus read. The SHARED half — a recipe learned by one organisation dispatched by the other's next run — is assertable in one process since 2026-09-15 and needs no stack; it is the only mechanical proof that the decision was implemented and not merely documented. |
+| **W13** | Packaged-stack acceptance | **done for the deterministic assembled boundary (2026-09-20)**: [scenario, regression and report](archive/releases/saas-stack-acceptance-2026-09-20.md) | — | Boots the stack; proves founder login, invitation, role enforcement, Element-workload isolation, delivery, restart, backup/restore and denied control-plane reachability from the worker network. |
+| **W14** | Shared-learning acceptance | **Shared arm passed in CI at `4788dfd`:** `tests/shared-learning-acceptance.test.ts` covers A distillation/promotion → B deterministic dispatch with shared counters and B attribution; [scope and limits](archive/releases/shared-learning-acceptance.md). **Isolation arm passed on the assembled stack on 2026-09-20:** real Python corpus search and scoped full/delta HTTP trace reads; see the same receipt | W13 for the isolation half only | Two organisations on one stack: no cross-org trace/workspace/corpus read. The SHARED half — a recipe learned by one organisation dispatched by the other's next run — is assertable in one process since 2026-09-15 and needs no stack; it is the only mechanical proof that the decision was implemented and not merely documented. |
 
 Order: ~~W8-a~~ → ~~W4a~~ → ~~W5~~ → ~~W6~~ → ~~Gate 0~~ → ~~W4~~ → ~~W0~~ → ~~W1~~ →
 ~~W2~~ → ~~W3~~ → ~~W7~~ → ~~W13~~ → ~~W14~~. W8-a and W4a landed on 2026-09-17, W5, W6 and W4 on
@@ -479,7 +509,7 @@ read.
 
 Outside that sequence: decision 1 was taken on 2026-09-18 (retained,
 journaled). W9/W10/W11 and the shared-learning arm of W14 passed CI at
-`4788dfd`. W12's terms are published with the operator's confirmed contact. The [acceptance receipt](saas-acceptance-2026-09-20.md)
+`4788dfd`. W12's terms are published with the operator's confirmed contact. The [acceptance receipt](archive/releases/saas-acceptance-2026-09-20.md)
 records final closure and scope limits; completed checks do not need repeating
 without a relevant code change.
 
@@ -548,21 +578,21 @@ T3, Track A or Track B resolve through the legacy map below.
 | Date | Finding or decision | Disposition | Evidence |
 |---|---|---|---|
 | 2026-08-09–14 | In-process `ToolSandbox` was not an OS boundary; an allowlisted shell child could traverse or use absolute paths. | Worker isolation and egress topology implemented; production launcher still missing. | [engineering record](incidents/engineering-record-2026-08-14.md#saas--multi-tenancy--docssaas-architecturemd), `tests/workspace-outside-repo.test.ts`, `tests/container-isolation.test.ts` |
-| 2026-08-09–14 | A global skill body plus global trust could transfer execution rights or sabotage counters across tenants. | Led to the body/trust split premise, later withdrawn (2026-09-15). The threat is unchanged and is why mutually distrusting organisations are unsupported. | [archived attack chain](incidents/saas-architecture-evidence-through-2026-08-28.md#41-the-evidence); [offer review](platform-skill-offer-review-2026-08-23.md) |
+| 2026-08-09–14 | A global skill body plus global trust could transfer execution rights or sabotage counters across tenants. | Led to the body/trust split premise, later withdrawn (2026-09-15). The threat is unchanged and is why mutually distrusting organisations are unsupported. | [archived attack chain](incidents/saas-architecture-evidence-through-2026-08-28.md#41-the-evidence); [offer review](archive/reviews/platform-skill-offer-review-2026-08-23.md) |
 | 2026-08-09 | `scanScriptBody` accepted 8 of 9 concat-obfuscated payloads; one host class skipped the external-URL check. | Hygiene filter only; never an authorization gate (R5). | [archived reproduction](incidents/saas-architecture-evidence-through-2026-08-28.md#41-the-evidence); `tests/script-scan.test.ts` |
 | 2026-08-09 | An all-dot atom/skill component escaped the skills root; removed ordinals could resurrect a namespace. | Both fixed at persistence/path boundaries. | `tests/atom-name-path-escape.test.ts`, `tests/registry-remove.test.ts` |
-| 2026-08-17–18 | Identity audit mapped 221 sites; 163 would break on a blind name→id flip. | UUID identity, one namespace derivation and display resolution landed. | [archived identity audit](incidents/saas-architecture-evidence-through-2026-08-28.md#92b-what-the-nameid-flip-actually-requires-mapped-2026-08-17); [code review 2026-08-18](code-review-2026-08-18.md), `tests/atom-identity.test.ts` |
+| 2026-08-17–18 | Identity audit mapped 221 sites; 163 would break on a blind name→id flip. | UUID identity, one namespace derivation and display resolution landed. | [archived identity audit](incidents/saas-architecture-evidence-through-2026-08-28.md#92b-what-the-nameid-flip-actually-requires-mapped-2026-08-17); [code review 2026-08-18](archive/reviews/code-review-2026-08-18.md), `tests/atom-identity.test.ts` |
 | 2026-08-17–18 | Provider auth mutated ambient env and killed the process; tier pins could escape the snapshot. | Per-run snapshot, `RunnerConfigError`, tier-pin application landed. | `src/run/auth.ts`, `tests/provider-selection.test.ts` |
 | 2026-08-20 | Auth/projects/GitHub gate landed while registry and trust remained instance-global. | Multi-org control plane is current. | commit `4459dc0` |
-| 2026-08-23 | Four-post offer workflow proposed: pre-screen, script attestation, powerless dossier, human approval. | Design only; obsolete since 2026-09-15 — there is no boundary for a body to cross. | [platform skill offer review](platform-skill-offer-review-2026-08-23.md), [session snapshot](decided-not-built-2026-08-23.md) |
-| 2026-08-27–28 | Encrypted BYO keys and per-tier model precedence landed; narrow operator host-subscription exception decided and implemented. | Current behaviour; no consumer-subscription passthrough. | [subscription decision](subscription-per-tier-design-2026-08-28.md), commit `6a033b3` |
-| 2026-08-28 | Deployment selected Docker images plus one in-house launcher; Kubernetes deferred behind the interface. | Closed contract and in-process backend implemented; separate service, images, stack and volumes missing (W1–W3, W7). | [launcher decision](deployment-docker-launcher-2026-08-28.md), [launcher contract](../src/launcher/AGENTS.md) |
-| 2026-09-02 | PostgreSQL migration analysis. | Input to Gate 0, not a decision. | [analysis](postgresql-migration-analysis-2026-09-02.md) |
+| 2026-08-23 | Four-post offer workflow proposed: pre-screen, script attestation, powerless dossier, human approval. | Design only; obsolete since 2026-09-15 — there is no boundary for a body to cross. | [platform skill offer review](archive/reviews/platform-skill-offer-review-2026-08-23.md), [session snapshot](archive/designs/decided-not-built-2026-08-23.md) |
+| 2026-08-27–28 | Encrypted BYO keys and per-tier model precedence landed; narrow operator host-subscription exception decided and implemented. | Current behaviour; no consumer-subscription passthrough. | [subscription decision](archive/designs/subscription-per-tier-design-2026-08-28.md), commit `6a033b3` |
+| 2026-08-28 | Deployment selected Docker images plus one in-house launcher; Kubernetes deferred behind the interface. | Closed contract and in-process backend implemented; separate service, images, stack and volumes missing (W1–W3, W7). | [launcher decision](archive/designs/deployment-docker-launcher-2026-08-28.md), [launcher contract](../src/launcher/AGENTS.md) |
+| 2026-09-02 | PostgreSQL migration analysis. | Input to Gate 0, not a decision. | [analysis](archive/experiments/postgresql-migration-analysis-2026-09-02.md) |
 | 2026-09-04 | Principal-scoped Codex device login, private profiles, personal payer rows. | Current; extended to L1 later. Personal Claude login unavailable. | `src/auth/subscriptionProfiles.ts`, `src/contracts/runPayers.ts` |
-| 2026-09-06 | Premise: skills are a commons; the organisation bounds trust and execution rights, not knowledge. | Superseded 2026-09-15: the organisation bounds neither knowledge nor trust. | [public release record](public-release-2026-09-06.md) |
+| 2026-09-06 | Premise: skills are a commons; the organisation bounds trust and execution rights, not knowledge. | Superseded 2026-09-15: the organisation bounds neither knowledge nor trust. | [public release record](archive/releases/public-release-2026-09-06.md) |
 | 2026-09-08 review | Codex on all tiers, three-row payer ledger, compiled auth/MCP OAuth smoke. | Reconciled state at the time. | `scripts/auth-release-smoke.mjs`, `tests/project-coordinator.test.ts` |
 | 2026-09-09 | Per-owner registry: `atom_types` keyed by `operator` or `(orgId, projectId)`; each project bootstrapped and trusted its own copies. Downstream privacy audit of retrieval paraphrase. | Folded back 2026-09-15 with backup (`*.before-platform-registry-<uuid>.db`, `atom_id_merges`). The privacy risk is unchanged; its partition answer is withdrawn. | [ownership record](project-registry-ownership-2026-09-09.md), [retrieval record](incidents/project-retrieval-record-2026-09-09.md) |
-| 2026-09-14 | Offline recovery drill on the local store; acceptance-contract proposal. | Local evidence only; W8 needs the hosted equivalent. | [recovery drill](recovery-drill-2026-09-14.md), [acceptance contract](acceptance-contract-2026-09-14.md) |
+| 2026-09-14 | Offline recovery drill on the local store; acceptance-contract proposal. | Local evidence only; W8 needs the hosted equivalent. | [recovery drill](archive/releases/recovery-drill-2026-09-14.md), [acceptance contract](acceptance-contract-2026-09-14.md) |
 | 2026-09-15 morning | Per-project skill trust (`.trust/<project>/<sha>/`), project runs unable to promote/dispatch/drop/merge. | Folded back the same day (`reconcilePlatformSkills`). | commit `9e1d670` → `2911881` |
 | 2026-09-15 | **A run is a run.** One registry, one catalogue, one trust, one lifecycle. Promotion, dispatch and the prefilter cache at host defaults for tenant runs. Recoverable atom trust. | Current design. Mutually distrusting organisations on one instance are not a supported shape. | [platform trust](platform-trust-2026-09-15.md), [recoverable trust](recoverable-trust-2026-09-15.md), commits `2911881`, `63f5317`, `418b25d`, `5d0e0ac` |
 | 2026-09-16 review | This reconciliation: Track A/B retired, T2/T3/R1 rewritten, remaining work listed as W1–W14. | No new acceptance run; no closure of Gate 0. | this document at `76c041f` |
@@ -664,8 +694,8 @@ npm run release:check
 npm run doctor -- --container
 ```
 
-Release acceptances [v0.1.1](release-acceptance-v0.1.1.md) and
-[v0.1.3](release-acceptance-v0.1.3.md) prove packaged MCP, worker/egress and
+Release acceptances [v0.1.1](archive/releases/release-acceptance-v0.1.1.md) and
+[v0.1.3](archive/releases/release-acceptance-v0.1.3.md) prove packaged MCP, worker/egress and
 compiled lifecycle properties from their dates; they predate the multi-org,
 BYO and host-subscription control plane. `release:check` runs
 [`scripts/auth-release-smoke.mjs`](../scripts/auth-release-smoke.mjs) against
@@ -674,4 +704,4 @@ admission, PKCE, MCP OAuth, session gating, logout — with a loopback identity
 provider and a temporary store. That verifies the packaged auth path, not a
 hosted container stack or live inference funding. W13 subsequently passed a
 deterministic assembled-stack scenario, followed by W14 corpus/trace isolation. See the
-[current evidence receipt](saas-acceptance-2026-09-20.md).
+[current evidence receipt](archive/releases/saas-acceptance-2026-09-20.md).

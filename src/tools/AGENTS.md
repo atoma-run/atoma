@@ -239,7 +239,7 @@ Neighbours:
   self-driving smoke can never receive the erased-state refusal. Consulting
   all three keeps the report order-independent. Closing the hole itself would
   change a disposition and is NOT done here — see
-  [`docs/decided-not-built-2026-08-23.md`](../../docs/decided-not-built-2026-08-23.md).
+  [`docs/archive/designs/decided-not-built-2026-08-23.md`](../../docs/archive/designs/decided-not-built-2026-08-23.md).
 - A refused call is still ATTESTED. The pre-flight early return carries
   `requestedInteractions`, `ignoredInteractions` and the discard warning,
   because a refusal reporting none of them is indistinguishable from a call

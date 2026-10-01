@@ -444,7 +444,7 @@ The exemption was not an oversight, it was a misread: `--seed` was carrying
 arm seeds to hold its protocol fixed; a project run seeds to continue its own
 corpus. The depth design had already settled the intent — "The default is
 resolved inside `startTask`, so CLI, MCP and project launches all inherit it"
-([depth routing](../depth-routing-experiment-2026-09-13.md)) — so this is a
+([depth routing](../archive/experiments/depth-routing-experiment-2026-09-13.md)) — so this is a
 contract the code did not keep, which is what p5 calls a `defect`. Fixed by
 naming the intent: `--comparison`, passed by `benchmark.ts` and
 `retrievalCampaign.ts`, and `resolveSupervisionDepth` exported and tested

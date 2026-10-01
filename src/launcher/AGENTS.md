@@ -14,7 +14,7 @@ Neighbours:
 - [`src/cli`](../cli/AGENTS.md) — doctor's engine checks
 
 Design of record:
-[`docs/deployment-docker-launcher-2026-08-28.md`](../../docs/deployment-docker-launcher-2026-08-28.md) §2.
+[`docs/archive/designs/deployment-docker-launcher-2026-08-28.md`](../../docs/archive/designs/deployment-docker-launcher-2026-08-28.md) §2.
 
 ## The two invariants
 

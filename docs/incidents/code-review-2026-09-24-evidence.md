@@ -3,7 +3,7 @@
 
 Ces reproductions documentent la révision `923bbab`, avant correction.
 Les tests de non-régression et les résultats après correction sont recensés
-dans la [section de fermeture de la revue](../code-review-2026-09-24.md#7-corrections-du-24-septembre).
+dans la [section de fermeture de la revue](../archive/reviews/code-review-2026-09-24.md#7-corrections-du-24-septembre).
 Les scripts historiques ne sont pas le protocole de validation du code corrigé.
 Référence : `923bbabb7ed01b2dc82f0dbe41018808c3dfed28`.
 

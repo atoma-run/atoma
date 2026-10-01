@@ -3,11 +3,11 @@
 Status: **design review. One contract proposed, no code written, nothing
 accepted.** It answers the operator's ask of 2026-08-23: have the supervisor
 do the platform-level review that
-[`saas-architecture.md`](saas-architecture.md) §4.2(2) requires.
+[`saas-architecture.md`](../../saas-architecture.md) §4.2(2) requires.
 
 The short answer is that the supervisor can do most of it and must not do the
 last part, and the reason is already written in
-[`supervisor-design.md`](supervisor-design.md). What follows is the contract
+[`supervisor-design.md`](../../supervisor-design.md). What follows is the contract
 that splits those, examined against §4.1's chain point by point.
 
 ## 0. A word, first, because this repo has been bitten by one
@@ -50,7 +50,7 @@ after that verdict.
 
 ## 2. The one thing the supervisor must not be
 
-[`supervisor-design.md`](supervisor-design.md) settles this before we get to
+[`supervisor-design.md`](../../supervisor-design.md) settles this before we get to
 it:
 
 > **The watcher is the top injection surface.** Run output, trace text and

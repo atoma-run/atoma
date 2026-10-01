@@ -25,10 +25,10 @@ Les changements visuels sont couverts par les contrôles de compilation et
 les tests existants, sans inspection interactive du rendu.
 
 Convention : **✓ = lu dans le code à cette référence ; reproduit = expérience
-locale décrite dans l'[annexe de preuves](incidents/code-review-2026-09-24-evidence.md)**.
+locale décrite dans l'[annexe de preuves](../../incidents/code-review-2026-09-24-evidence.md)**.
 Les lignes mentionnées sont celles de `923bbab`. Aucun correctif produit
 n'était appliqué lors de ce constat ; les corrections ultérieures sont consignées
-dans la section 7. L'[index des revues](code-reviews.md) conserve les bases historiques.
+dans la section 7. L'[index des revues](../../code-reviews.md) conserve les bases historiques.
 
 ## Vue d'ensemble
 
@@ -457,7 +457,7 @@ restent des preuves de l'état antérieur, pas des résultats réécrits.
 - **Origine de la reprise (2.C) :** l'aide du formulaire indique la base du
   prochain run selon son origine ; les notifications disent simplement
   « partial »/« partiel ». Le seed GitHub intentionnel reste inchangé.
-- **Découvrabilité (2.D) :** nouvel [index des revues](code-reviews.md), lié
+- **Découvrabilité (2.D) :** nouvel [index des revues](../../code-reviews.md), lié
   depuis le README, avec fenêtres, révisions et commandes de lecture des
   documents retirés.
 - **Extraction (3.5) :** la réconciliation des previews terminales reste dans

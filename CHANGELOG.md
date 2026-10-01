@@ -2,12 +2,24 @@
 
 ## Unreleased
 
-Acceptance criteria a person approves before launch, incomplete runs kept and
-explained, comparison reruns on other models, complete MCP diagnostics, and the
-corrections of the 2026-09-24 and 2026-09-25 code reviews.
+Jev decision routing and audits, inherited browser regression checks, live
+platform run limits, two MCP protocol generations, acceptance criteria approved
+before launch, incomplete runs kept and explained, and comparison reruns.
 
 ### Added
 
+- TypeSafe Jev for bounded agent/recipe selection, eligible intermediate
+  approvals and semantic recipe deduplication. Enabled for every organisation
+  when the host has `TYPESAFE_API_KEY`, with the global `ATOMA_JEV=0` switch.
+  Uncertain or unavailable decisions fall back to the model; final delivery
+  acceptance stays independent. Decisions and separate costs appear in traces
+  and the console, and platform MCP `atoma_jev_calibrate` compares recorded
+  decisions and a background sample of model audits.
+- Inherited browser regression checks for seeded static pages: establish the
+  passing checks before editing, replay them at delivery and ask root
+  acceptance whether a regression was requested. Dead checks are marked and
+  only pruned on a later qualifying run. A remediation cannot clear an earlier
+  regression refusal when its recheck was incomplete.
 - Run limits a platform admin can change without a redeployment: the project
   run budget's default and ceiling, token and spend ceilings, the watchdog
   grace, the per-call ceilings of the Claude and Codex CLIs and a
@@ -70,6 +82,20 @@ corrections of the 2026-09-24 and 2026-09-25 code reviews.
 
 ### Fixed
 
+- Jev approval questions include task constraints and scoped proof obligations;
+  model fallback caching is bound to the decision policy and candidate bodies.
+  Recipe twin comparisons cover the catalogue in bounded batches. Cost reports
+  distinguish audit costs and unavailable baselines; experimental two-stage
+  recipe selection remains off by default. See the
+  [policy correction record](docs/jev-policy-2026-10-01.md).
+- Read-only phases restore workspace files changed by their tools or shell
+  commands, with live-database and concurrent-writer exceptions. Verification
+  observations stay out of delivered documentation, and build recipes are
+  withheld from documentation-only phases.
+- Seeded workers are directed to edit existing files after reading them;
+  browser-check identity and assertion messages stay readable across runs.
+- Polling a live run no longer repeatedly rebuilds unchanged Runs-view content,
+  reducing UI stutter; platform run limits have their own Settings tab.
 - Project document search no longer times out searches that work: its budget
   per query is 10 seconds instead of 2, measured against the 1.9–2 seconds
   a production search takes. A timed-out search stops every later search of
@@ -242,7 +268,7 @@ trust for the whole platform. Everything landed since v0.3.0.
   and to the process holding its port. Build runs now default to short-first
   supervision with safe deepening.
 - Trajectory drift journaling in the sentinel — stage A of
-  `docs/trajectory-predictability-design-2026-09-09.md`: observe, journal,
+  `docs/archive/experiments/trajectory-predictability-design-2026-09-09.md`: observe, journal,
   decide nothing. `src/contracts/trajectory.ts` owns the signature, key and
   score shapes and the pure derivation over trace events; the score is a
   length-normalised edit distance over element names, never args or results.
@@ -1023,7 +1049,7 @@ MCP cancellation from the published v0.1.1 archive.
 - The broader first HTTP attempt exhausted its 600-second budget despite a
   correct final artefact; it remains recorded as a failed diagnostic, not an
   acceptance success.
-- Full evidence: [`docs/release-acceptance-v0.1.1.md`](docs/release-acceptance-v0.1.1.md).
+- Full evidence: [`docs/archive/releases/release-acceptance-v0.1.1.md`](docs/archive/releases/release-acceptance-v0.1.1.md).
 
 ## v0.1.1 — 2026-08-12
 

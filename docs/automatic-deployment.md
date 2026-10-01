@@ -1,15 +1,16 @@
 # Automatic deployment after GitHub CI
 
-This is the deployment path the repository supports today: one compiled Atoma
+This guide describes the production auto-deployment path: one compiled Atoma
 process on an existing Linux host, with Docker Engine available to its
-in-process launcher and a reverse proxy in front. It does **not** claim that
-the future web/launcher image topology in
-[`deployment-docker-launcher-2026-08-28.md`](deployment-docker-launcher-2026-08-28.md)
-has been built.
+in-process launcher and a reverse proxy in front. The separate
+[packaged Linux stack](packaged-stack.md) provides the web/launcher/Caddy
+container topology; it has its own provisioning and acceptance guide.
 
-The workflow is disabled until an operator explicitly arms it. With no host
-configuration, a successful CI run produces a short-lived immutable artifact
-and the deployment workflow is skipped.
+Production auto-deployment is armed: `ATOMA_DEPLOY_ENABLED=true`. Each
+successful CI run triggered by a push to `main` deploys that exact revision,
+subject to the runtime drain/preflight gate below. A push to `main` is a
+production action. A newly configured fork still needs the host, credentials
+and repository configuration described here before it can deploy.
 
 ## What happens
 
@@ -157,6 +158,68 @@ ATOMA_SUPERVISOR_DIR=/home/atoma/state/supervisor
 # `supervisor` here to quiet a red drill — that is the drill working.
 ATOMA_BACKUP_OPTIONAL_TIERS=archive
 ```
+
+### Jev decisions for every organisation
+
+Add the host's TypeSafe credential to the same private `atoma.env` file:
+
+```dotenv
+TYPESAFE_API_KEY=<key>
+# ATOMA_JEV=0   # global off switch; otherwise enabled when the key is present
+```
+
+Every organisation's runs receive this decision service by default, including
+new organisations. `ATOMA_JEV_ORGS` is retired and ignored. Jev is separate from
+the three tier selectors and uses the host credential, not an organisation's
+model key. Its outbound HTTPS request goes from the run host to
+`api.typesafe.ai`; enabling worker or preview egress is not required.
+Decision context reaches TypeSafe as described in the
+[shared-learning terms](platform-commons-terms.md#decisions-taken-by-typesafe).
+
+The service reads this file at startup. Apply changes through the normal
+deployment/preflight lifecycle, preserving work in flight. At boot it reports
+`jev: deciding in every run` or why Jev is off; each runner log also records
+admission, readable through `atoma_run_trace` with `section: "log"`. No key,
+`ATOMA_JEV=0`, uncertain answers and unavailable decisions leave the relevant
+decision to the run's model. Disabling Jev does not undo trust already earned.
+
+Jev's costs are recorded on `jev` trace events outside LLM totals and LLM
+spend ceilings. Sampled model audits (`jev-audit`) do count as LLM calls.
+Platform MCP `atoma_jev_calibrate` with `auditsOnly: true` reads existing audit
+and cost reports without contacting TypeSafe; other calibration requests send
+recorded decision context and incur cost. See [how Jev works](how-it-works.md#jev-bounded-decisions-beside-the-model-tiers).
+
+### Run limits without a redeployment
+
+A platform admin can use Settings → Platform run limits to adjust the project
+run timeout default and ceiling, token and LLM spend ceilings, watchdog grace,
+Claude/Codex call-timeout ceilings and the tool-iteration ceiling. The same
+operations are available through the compiled CLI, against the live product
+store, without a running web server:
+
+```bash
+npm run settings -- list --db /home/atoma/state/atoma.db
+npm run settings -- set run.costMaxUsd 5 --db /home/atoma/state/atoma.db
+npm run settings -- unset run.costMaxUsd --db /home/atoma/state/atoma.db
+```
+
+The set/unset lines illustrate a spend ceiling and its removal; choose values
+for the instance before applying them. Run as the service account with the
+host's environment when checking conflicts with exported timeout requests.
+Overrides live in `platform_settings` in the primary store, survive releases
+and are included in its backup. Each change is journaled and takes effect at
+the next run; it does not reconfigure a run already in flight.
+
+A default applies only when the launcher asks for no value. A ceiling binds:
+an excessive launch request is refused, and a token or spend ceiling reached
+during execution stops further LLM calls while keeping completed phases.
+Usage is checked when calls report it, so the call that crosses a ceiling has
+already incurred its cost. For subscription transports the dollar figure is
+the API-equivalent estimate, not a per-token subscription charge.
+`unset` removes the override so future shipped defaults can apply. The form
+and CLI show bounds and units; only entries explicitly marked unlimited accept
+zero with that meaning. A ceiling conflicting with a timeout exported by the
+admin process is refused before saving.
 
 ### ChatGPT subscription on all three tiers
 

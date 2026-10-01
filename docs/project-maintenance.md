@@ -98,4 +98,4 @@ and symlink ancestors. These checks passed in [CI at `4788dfd`](https://github.c
 The cutoff and launcher projection have a dedicated fixture. The restore-drill
 suite also passed a backup/restore round trip after production retention,
 distinguishing completed expiry from interrupted deletion. No live purge is
-claimed; see the [receipt](saas-acceptance-2026-09-20.md).
+claimed; see the [receipt](archive/releases/saas-acceptance-2026-09-20.md).

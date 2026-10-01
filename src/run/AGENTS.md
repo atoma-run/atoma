@@ -48,7 +48,7 @@ Neighbours:
   injected only by the coordinator after its host-authority or exact-principal
   check. The same authority applies to Codex L1. See
   [src/projects](../projects/AGENTS.md) for who may arm a tier, and
-  `docs/subscription-per-tier-design-2026-08-28.md` for why.
+  `docs/archive/designs/subscription-per-tier-design-2026-08-28.md` for why.
 
 ## Run host
 
@@ -212,7 +212,7 @@ Neighbours:
   replacement; container removal is confirmed by the engine before egress
   teardown. An unavailable engine or remaining worker prevents replacement.
 - Design and remaining measurement protocol:
-  [depth experiment](../../docs/depth-routing-experiment-2026-09-13.md).
+  [depth experiment](../../docs/archive/experiments/depth-routing-experiment-2026-09-13.md).
 - `seedWorkspace` is the ONE seed copy, at launch and at the deepening
   restart: a seeded run's "fresh" state is its seed, not an empty directory.
   The 2026-09-13 decision to restart empty predates seeded runs being

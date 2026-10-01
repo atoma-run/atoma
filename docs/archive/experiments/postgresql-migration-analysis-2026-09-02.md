@@ -4,7 +4,7 @@
 > contract. Repository state reviewed: `bcfc6d6`.**
 >
 > This note closes the investigation requested by
-> [SaaS architecture decision gate 0](saas-architecture.md#decision-gate-0--hardened-sqlite-or-postgresql).
+> [SaaS architecture decision gate 0](../../saas-architecture.md#decision-gate-0--hardened-sqlite-or-postgresql).
 > It recommends PostgreSQL for a shared, multi-node, high-concurrency SaaS.
 > It does not claim that changing the database alone makes the current product
 > safe for mutually untrusted organisations.
