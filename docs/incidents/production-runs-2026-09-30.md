@@ -27,6 +27,7 @@ its source before the next run.
 | 5dff35b0 | pomodoro page: the shortcuts repaired | 1,732 s | $0.43 | 23 | delivered and published a rewritten page the first acceptance had refused |
 | 495c20ef | pomodoro page: restored after 5dff35b0 | 1,816 s | $0.51 | 18 | landed, refused twice, nothing published; 22 checks marked dead |
 | c195ba35 | pomodoro page: four details fixed | 423 s | $0.13 | 8 | delivered and published; three edits, one listed check judged asked, approved first time |
+| 81375f01 | pomodoro page: an F shortcut, after the prompt repair | 1,816 s | $0.51 | 36 | landed, unpublished; a planned test put hidden fields back, caught by an inherited check |
 
 ## A verified execution rejected as "non-JSON" (8606cf38)
 
@@ -527,6 +528,34 @@ ran on c2ed5921, seeded from 495c20ef's landed page.
 - **Published.** A browser drive of the published page confirmed the four
   fixes and every shortcut with a button focused. The project's main is
   whole again, two runs after 5dff35b0 published the rewrite.
+
+## A test that put the fields back (81375f01)
+
+The operator applied `scripts/repair-atom-prompts.mjs` at 08:28, which reset
+every tier-1 and tier-2 trust streak. This run added an F shortcut on top.
+
+- **No fast path.** Twelve validations went to a model and nine to Jev;
+  no `trust` event appeared.
+- **Edits only.** Every change to an existing file was an edit after a
+  read. A manifest written empty kept its 105 entries.
+- **12 checks marked dead.** The seed had been delivered.
+- **The plan asked for a test the page could not take.** The tissue asked
+  to prove F is ignored in a text field and a textarea; the page has
+  neither. The web molecule added hidden ones to the page, undoing the
+  run before, and Jev approved the result. The first acceptance's replay
+  caught it: c195ba35's own "no test fields" check failed on three
+  entries, and the acceptor judged them regressions.
+- **Then the clock.** The remediation removed the fields. The tissue then
+  refused it on a probe that a later passing one had superseded. A
+  full-stack branch added an unrequested `server.js`, and a README check
+  was refused falsely. The last acceptance's replay was aborted by the
+  deadline, and the run landed (fail-closed).
+- **The repair missed a marker.** The script had no branch for the
+  project-docs molecule. It gave it a generic prompt, and the next
+  bootstrap put the canonical one back, two versions later.
+- **Now:** a molecule that validates a page creates a test-only control in
+  its smoke and removes it before returning, never in the page; and the
+  repair script uses the bootstrap's own project-docs prompt.
 
 ## Open
 

@@ -316,6 +316,12 @@ load-bearing.
   and the recipe blocks carry the same lines. Run 495c20ef's trusted web
   molecule, in a correction phase with no recipe, wrote a restored page
   again whole.
+- A control the page lacks, needed only to test a behaviour (a text field to
+  prove a shortcut is ignored there), is created by the smoke and removed
+  before it returns, never added to the page (`TEST_ONLY_ELEMENT_GUIDANCE`,
+  runtime text for every molecule with validate_html). In run 81375f01, a
+  plan asked for such a test and the molecule put hidden fields back into
+  the page.
 - Node-server children keep file read-back even when they also have browser
   tools. Only a loopback response with status 200 and HTML content appends a
   browser probe; JSON responses and expected root 404s are not browser failures.

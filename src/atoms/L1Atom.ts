@@ -17,7 +17,7 @@ import { witnessesFromPayload, type Witness } from '../contracts/witness.js';
 import { renderObservations, type AttestationRecord } from '../contracts/attestation.js';
 import { modelFacingExecutor } from '../core/attestation.js';
 import { namedLayoutWidths } from '../contracts/acceptanceChecklist.js';
-import { EXISTING_FILE_GUIDANCE, READER_FACING_DOC_GUIDANCE } from './prompts.js';
+import { EXISTING_FILE_GUIDANCE, READER_FACING_DOC_GUIDANCE, TEST_ONLY_ELEMENT_GUIDANCE } from './prompts.js';
 
 /**
  * Where a molecule puts what only EXERCISES the artefact. Publication and the
@@ -372,6 +372,7 @@ export class L1Atom extends Atom {
       `- On a retry, inspect the current state and complete the remaining work; do not repeat completed discovery or rewrite already-correct files.`,
       `- A requested answer/report file is a deliverable too: writing the main artifact does not replace writing that file.`,
       ...SCRATCH_FILE_LINES,
+      hasValidator ? TEST_ONLY_ELEMENT_GUIDANCE : null,
       ...(hasValidator ? browserProofLines(task) : []),
       hasValidator
         ? `- For ANY web artifact you produce, call validate_html on the server URL.`

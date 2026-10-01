@@ -4,7 +4,7 @@ import { L2Atom } from '../src/atoms/L2Atom.js';
 import { L3Atom } from '../src/atoms/L3Atom.js';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
-import { EXISTING_FILE_GUIDANCE, READER_FACING_DOC_GUIDANCE } from '../src/atoms/prompts.js';
+import { EXISTING_FILE_GUIDANCE, READER_FACING_DOC_GUIDANCE, TEST_ONLY_ELEMENT_GUIDANCE } from '../src/atoms/prompts.js';
 import { ensureCanonicalProjectDocsL1 } from '../src/atoms/capability.js';
 import { VALIDATION_SYSTEM_PROMPT } from '../src/atoms/verdict.js';
 import { HOST_TOOL_NAMES } from '../src/contracts/toolTaxonomy.js';
@@ -95,6 +95,18 @@ describe('a delivered document is for its reader', () => {
     expect(rule).toContain('Never write_file over a file the workspace already holds, even where your instructions or a recipe step say to');
     expect(rule).toContain('Restoring a behaviour is an edit.');
     expect(rule).toContain('.atoma-probes.json is outside this rule.');
+  });
+
+  it('tells a molecule that validates a page to create a test-only control in its smoke, never in the page (run 81375f01)', async () => {
+    for (const [tools, reads] of [[['write_file', 'edit_file', 'start_static_server', 'validate_html'], true], [['write_file', 'edit_file', 'read_file'], false]] as const) {
+      const molecule = new L1Atom({ name: 'Water', ordinal: 1, systemPrompt: 'a web molecule prompt', tools: makeTools([...tools]), params: {} });
+      const ctx = makeCtx();
+      ctx.llm.enqueueText(jsonText({ output: 'done', summary: 'done' }));
+      await molecule.execute({ description: 'Add an F shortcut, ignored in text fields' }, makePlan({ proposedAction: 'edit and validate' }), ctx);
+      expect(ctx.llm.calls[0]!.userContent.includes(TEST_ONLY_ELEMENT_GUIDANCE)).toBe(reads);
+    }
+    expect(TEST_ONLY_ELEMENT_GUIDANCE).toContain('is created by the smoke while it runs');
+    expect(TEST_ONLY_ELEMENT_GUIDANCE).toContain('It never goes into a file you deliver.');
   });
 
   it('reaches a fallback executor that can edit a file, and never one without edit_file', async () => {

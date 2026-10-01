@@ -510,6 +510,19 @@ export const EXISTING_FILE_RULE: readonly string[] = [
 ];
 export const EXISTING_FILE_GUIDANCE = EXISTING_FILE_RULE.join('\n');
 
+/**
+ * A control the page does not have, needed only to test a behaviour, lives
+ * in the smoke. Run 81375f01 (2026-10-01): a plan asked to prove a shortcut
+ * is ignored in a text field and a textarea the page has none of, and the
+ * web molecule added hidden ones to the page, undoing the run before it
+ * that had removed exactly such fields.
+ */
+export const TEST_ONLY_ELEMENT_GUIDANCE = [
+  `- A page element you need ONLY to exercise the page (a text field or textarea to prove a shortcut is`,
+  `  ignored there) is created by the smoke while it runs, its keys dispatched from the smoke, and removed`,
+  `  before the smoke returns. It never goes into a file you deliver.`,
+].join('\n');
+
 /** The one rule, for any server this run starts: its port dies with it. */
 const PORT_PLACEHOLDER_LINES = [
   `HTTP DOCUMENTATION USES A PORT PLACEHOLDER. In README/docs and durable`,
