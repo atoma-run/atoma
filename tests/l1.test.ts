@@ -264,6 +264,26 @@ All gameplay controls wired up. No console errors.`;
     expect(gates.rejection).toBeNull();
   });
 
+  it('reads a summary written inside output one brace short, so the envelope gate lets it through (run 3cbef119)', async () => {
+    // Every check had passed; the parse fell back to non-JSON, the gate
+    // rejected the result, and a second execution re-ran them all (389 s).
+    const ctx = makeCtx();
+    ctx.llm.enqueueText('{"output":{"url":"http://localhost:42827/","files":["index.html"],"summary":"P pauses a running countdown.\\n== GROUND TRUTH ==\\nvalidate_html: ok=true"}');
+    const task = { description: 'Add a P shortcut to index.html' };
+    const result = await new L1Atom(base).execute(
+      task,
+      makePlan({ reasoning: 'r', proposedAction: 'a', expectedOutput: 'e' }),
+      ctx
+    );
+    expect(result.output).toEqual({ url: 'http://localhost:42827/', files: ['index.html'] });
+    expect(result.summary).toBe('P pauses a running countdown.\n== GROUND TRUTH ==\nvalidate_html: ok=true');
+    const gates = await runResultGates(
+      buildResultGateEnv({ task, result, childName: 'Water', childToolNames: [], ctx }),
+      new Set()
+    );
+    expect(gates.rejection).toBeNull();
+  });
+
   it('prefixes the summary with [INTERNAL VALIDATION FAILED] when last validate_html returned ok:false (#3)', async () => {
     // Observed in the backgammon timeout run: the L1 called validate_html,
     // saw ok:false on its LAST invocation, but then declared success via

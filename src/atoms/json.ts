@@ -554,7 +554,7 @@ export function parsePayloadTolerant(text: string): {
     }
     return { output: data.output, summary: data.summary };
   } catch {
-    const salvaged = salvageResultEnvelope(text);
+    const salvaged = salvageResultEnvelope(text) ?? salvageNestedSummary(text);
     if (salvaged !== null) return salvaged;
     const trimmed = text.trim();
     return {
@@ -620,6 +620,85 @@ export function salvageResultEnvelope(text: string): { output: unknown; summary:
   } catch {
     return null;
   }
+}
+
+const ENVELOPE_FENCE_OPEN_RE = /^\s*```(?:json)?\s*/;
+const ENVELOPE_FENCE_CLOSE_RE = /\s*```\s*$/;
+const NESTED_ENVELOPE_OPEN_RE = /^\{\s*"output"\s*:\s*\{/;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * The member names of the object opening at `start` of a JSON text, in SOURCE
+ * order and with duplicates kept, or null when it never closes. A parsed
+ * object cannot answer either: `JSON.parse` keeps the last of two equal keys
+ * and `Object.keys` lists integer-like keys first.
+ */
+function sourceMemberNames(s: string, start: number): string[] | null {
+  const names: string[] = [];
+  const colon = /\s*:/y;
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  let stringStart = -1;
+  for (let i = start; i < s.length; i++) {
+    const c = s[i]!;
+    if (inString) {
+      if (escape) escape = false;
+      else if (c === '\\') escape = true;
+      else if (c === '"') {
+        inString = false;
+        colon.lastIndex = i + 1;
+        if (depth === 1 && colon.test(s)) names.push(JSON.parse(s.slice(stringStart, i + 1)) as string);
+      }
+    } else if (c === '"') {
+      inString = true;
+      stringStart = i;
+    } else if (c === '{' || c === '[') depth++;
+    else if ((c === '}' || c === ']') && --depth === 0) return names;
+  }
+  return null;
+}
+
+/**
+ * Re-read an envelope that wrote its summary INSIDE `output` and so came out
+ * one brace short: `{"output":{…,"summary":"…"}`. Measured 2026-10-01 (run
+ * 3cbef119): every check of the web molecule had passed, the result became a
+ * non-JSON fallback, the `non-json-envelope` gate rejected it, and a second
+ * execution re-ran every check, 389 s. jsonrepair closes the brace but leaves
+ * the summary nested, which the schema refuses.
+ *
+ * Read only where both readings of the slip agree, the summary nested or
+ * `output` left open: the response (a json fence around it allowed) is an
+ * envelope that does not parse as written and parses once ONE closing brace
+ * is appended; in the source, its only member is one `output`, an object
+ * whose members are all distinct and whose LAST one is the string `summary`.
+ * That member is lifted out and the rest stays the output. A response cut
+ * exactly after an output whose own last member is a `summary` reads the
+ * same way, and a brace missing deeper inside `output` moves a member into
+ * its neighbour; neither can be told from the slip (review 2026-10-01).
+ */
+export function salvageNestedSummary(text: string): { output: unknown; summary: string } | null {
+  const body = text.replace(ENVELOPE_FENCE_OPEN_RE, '').replace(ENVELOPE_FENCE_CLOSE_RE, '').trim();
+  const open = NESTED_ENVELOPE_OPEN_RE.exec(body);
+  if (open === null || parsesAsJson(escapeControlCharsInStrings(body))) return null;
+  const closed = escapeControlCharsInStrings(`${body}}`);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(closed);
+  } catch {
+    return null;
+  }
+  const top = sourceMemberNames(closed, 0);
+  if (top === null || top.length !== 1 || top[0] !== 'output') return null;
+  const members = sourceMemberNames(closed, open[0].length - 1);
+  if (members === null || new Set(members).size !== members.length || members[members.length - 1] !== 'summary') return null;
+  const output = isRecord(parsed) ? parsed['output'] : undefined;
+  if (!isRecord(output) || typeof output['summary'] !== 'string') return null;
+  const { summary, ...rest } = output;
+  return { output: rest, summary };
 }
 
 function parsesAsJson(raw: string): boolean {

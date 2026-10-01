@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import {
   extractJson,
   extractJsonEx,
@@ -12,6 +13,7 @@ import {
   repairTruncatedJson,
   repairPrematureClose,
   resultPayloadSchema,
+  salvageNestedSummary,
   salvageResultEnvelope,
   verdictSchema,
   isEffectivelyEmptyMods,
@@ -288,6 +290,86 @@ describe('a summary that pastes JSON evidence without escaping it (run 8606cf38)
     ).toBeNull();
     // A bare quote in the prose itself, outside anything pasted.
     expect(salvageResultEnvelope('{"output":1,"summary":"the "quoted"\nword -> {"ok":true}"}')).toBeNull();
+  });
+});
+
+/**
+ * Run 3cbef119 (2026-10-01): the web molecule wrote its summary inside
+ * `output` and closed one brace short. Every check had passed; the result
+ * became a non-JSON fallback and a second execution re-ran them all, 389 s.
+ */
+describe('a summary written inside output, one brace short (run 3cbef119)', () => {
+  const output = {
+    url: 'http://localhost:42827/',
+    files: ['index.html'],
+    probes: [{ probe: 'web', ok: true, smokeResult: { ok: true, checks: { runningBefore: true, inputSuppressed: true } } }],
+  };
+  const summary = [
+    'Focus Timer keyboard regression checks passed.',
+    '== GROUND TRUTH ==',
+    "smoke: (() => { return {ok:true}; })() -> {ok:true,status:'Paused'}",
+    "observed: hint contains 'P pause'.",
+  ].join('\n');
+  // The output's members, its closing brace left out: the summary goes in there.
+  const members = JSON.stringify(output).slice(0, -1);
+  const emitted = `{"output":${members},"summary":${JSON.stringify(summary)}}`;
+
+  it('lifts the summary out and keeps the rest as the output', () => {
+    expect(() => JSON.parse(emitted)).toThrow();
+    expect(parsePayloadTolerant(emitted)).toEqual({ output, summary });
+  });
+
+  it('reads it fenced, or with raw newlines in its strings, the same way', () => {
+    expect(parsePayloadTolerant('```json\n' + emitted + '\n```')).toEqual({ output, summary });
+    // The summary pasted between quotes as it is, its newlines raw.
+    expect(parsePayloadTolerant(`{"output":${members},"summary":"${summary}"}`)).toEqual({ output, summary });
+  });
+
+  it('reads the response the web molecule sent', () => {
+    const real = readFileSync(new URL('./fixtures/nested-summary-3cbef119.txt', import.meta.url), 'utf8');
+    expect(() => JSON.parse(real)).toThrow();
+    const read = parsePayloadTolerant(real);
+    expect(read.summary).toMatch(/^Focus Timer keyboard regression checks passed\.\n== GROUND TRUTH ==/);
+    expect(read.summary).toMatch(/hint contains 'P pause'\.$/);
+    expect(Object.keys(read.output as object)).toEqual(['url', 'files', 'probes']);
+  });
+
+  it('accepts what it cannot tell from the slip: a cut right after an output ending in its own summary', () => {
+    // Recorded, not endorsed: a data member named `summary` becomes the
+    // evidence summary when the response stops exactly there.
+    expect(salvageNestedSummary('{"output":{"title":"Q3","summary":"Revenue up 4%"}')).toEqual({
+      output: { title: 'Q3' }, summary: 'Revenue up 4%',
+    });
+  });
+
+  it('does not guess where the shape is anything else', () => {
+    for (const text of [
+      // Well formed, the summary nested on purpose: nothing is missing.
+      `{"output":${members},"summary":"s"}}`,
+      // Two members named summary, one of them the output's own.
+      '{"output":{"url":"u","summary":"Revenue up 4%","summary":"Checks passed"}',
+      // An integer-like key after the summary, which Object.keys lists first.
+      '{"output":{"url":"u","summary":"s","404":"x"}',
+      // Two outputs, or two envelopes.
+      '{"output":{"draft":true},"output":{"url":"u","summary":"s"}',
+      '{"output":{"a":1},"summary":"first"}\n{"output":{"url":"u","summary":"s"}',
+      // A trailing comma.
+      '{"output":{"url":"u","summary":"s",}',
+      // Two braces short.
+      '{"output":{"a":{"b":1,"summary":"s"}',
+      // The summary is not the last member of output.
+      '{"output":{"summary":"s","url":"u"}',
+      // Prose before, or text after, the envelope.
+      `Result: ${emitted}`,
+      `${emitted}\nLet me know.`,
+      // The output is not an object.
+      '{"output":"x","summary":"s"',
+      // The nested summary is not a string.
+      '{"output":{"url":"u","summary":{"ok":true}}',
+    ]) {
+      expect(salvageNestedSummary(text)).toBeNull();
+    }
+    expect(parsePayloadTolerant(`${emitted}\nLet me know.`).summary).toMatch(/^fallback produced non-JSON output/);
   });
 });
 

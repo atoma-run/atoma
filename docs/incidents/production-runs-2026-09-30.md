@@ -29,6 +29,7 @@ its source before the next run.
 | c195ba35 | pomodoro page: four details fixed | 423 s | $0.13 | 8 | delivered and published; three edits, one listed check judged asked, approved first time |
 | 81375f01 | pomodoro page: an F shortcut, after the prompt repair | 1,816 s | $0.51 | 36 | landed, unpublished; a planned test put hidden fields back, caught by an inherited check |
 | ff102525 | pomodoro page: a P shortcut, and server.js deleted | 1,805 s | $0.54 | 27 | failed at the deadline; a correct fallback refused, then two rules on one test contradicted each other |
+| 3cbef119 | pomodoro page: the same goal, after both fixes | 983 s | $0.28 | 16 | delivered and published; the missing fields proven in one call, the page left as it was |
 
 ## A verified execution rejected as "non-JSON" (8606cf38)
 
@@ -596,6 +597,29 @@ workspace.
   - A fallback's result carries the transport's observations of its own
     calls, as a molecule's does, never those of the molecules it replaced,
     and a cell's own fallback reads as DIRECT at the tissue.
+
+## The same goal, after both fixes (3cbef119)
+
+The run repeated ff102525's goal on b4f01226 and 3936ec0b, from the same
+seed.
+
+- **Routing.** The tissue put the page edit and the deletion in one phase,
+  and Jev gave it to the file scribe, which has `run_shell`. `rm` is not on
+  the allowlist; the scribe deleted the file through `bash`.
+- **The missing fields, as taught.** One validate_html call clicked Start
+  for real. Its smoke then created an input and a textarea off-screen,
+  focused each, sent P to it, checked the Running state was kept, and
+  removed it. The select was proven with a real keypress on
+  `#focus-length`. Every observation was bound to the digest of the page
+  that shipped: no field went into it.
+- **One brace short.** The web molecule's final answer put its summary
+  inside `output` and was one `}` short. The result became non-JSON, the
+  gate rejected it, and a second execution of 389 s re-ran every check.
+  The tolerant parser now lifts such a summary out.
+- **No replay yet.** The seed still held `server.js`, so the inherited
+  checks were not replayed. The next run starts without it.
+- **Published.** main gained P and F: F came with 81375f01's landed
+  workspace, which this run started from. The README now documents both.
 
 ## Open
 

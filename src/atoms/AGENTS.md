@@ -318,18 +318,16 @@ load-bearing.
   again whole.
 - A control the page lacks, needed only to test a behaviour (a text field to
   prove a shortcut is ignored there), never goes into the page. One
-  validate_html call, once the page's other checks pass, proves it: its
-  interactions set up the state the key would change, and its smoke creates
-  the control inline off-screen, focuses it, keys it, checks the focus and
-  that state, and removes it. Such a smoke calls none of the methods
-  `smokeDrivesOwnState` knows, so the interactions run and cover
-  dom-interaction. That detector knows method names only: a hook-driven
-  smoke beside one click covers too, and only the validator prompt says it
-  proves nothing (`TEST_ONLY_ELEMENT_GUIDANCE`: every molecule with
-  validate_html, plan and execute, and the fallback executors; the validator
-  prompt, `PROOF_OBLIGATION_GUIDANCE` and `proofObligationLines` agree).
-  Runs 81375f01 (hidden fields put back) and ff102525 (999 s adding and
-  removing them between two rules that contradicted each other).
+  validate_html call, once the page's other checks pass, proves it: real
+  interactions set up the state, and the smoke creates the control inline
+  off-screen, focuses and keys it, checks the focus and that state, and
+  removes it, calling none of the methods `smokeDrivesOwnState` knows, so
+  the interactions run and cover dom-interaction. That detector knows method
+  names only (a hook-driven smoke beside one click covers too); only the
+  validator prompt says such a smoke proves nothing. `TEST_ONLY_ELEMENT_GUIDANCE`
+  reaches validate_html molecules (plan and execute) and the fallbacks; the
+  validator prompt and both obligation texts agree. Runs 81375f01 and
+  ff102525 (999 s adding and removing fields between two contradicting rules).
 - Node-server children keep file read-back even when they also have browser
   tools. Only a loopback response with status 200 and HTML content appends a
   browser probe; JSON responses and expected root 404s are not browser failures.
@@ -496,4 +494,6 @@ Read the archived sections before changing something that merely looks odd.
   after the summary, a second envelope or a cut paste into the result in 685
   of 20,000 fuzzed envelopes that the old path read correctly (review
   2026-09-30). Do not widen it to prose quotes, prose-wrapped or summary-first
-  envelopes on inference: none was observed.
+  envelopes on inference: none was observed. `salvageNestedSummary` reads a
+  summary written inside `output` one brace short (run 3cbef119), checking
+  names in the source; the well-formed nested shape stays refused.
