@@ -54,7 +54,8 @@ export function landingReasons(result: LandingSignals | null | undefined): strin
   const phases = result.unfinishedPhases ?? [];
   if (phases.length > 0) {
     reasons.push(
-      `reached its budget with ${phases.length} phase(s) never run: ${phases.join(' | ')}`
+      // The words markLanded uses (#8): a phase cut mid-flight did run.
+      `reached its budget with ${phases.length} unfinished phase(s) that did not complete with an accepted result: ${phases.join(' | ')}`
     );
   }
   if (result.refusal) reasons.push(`refused at delivery: ${result.refusal}`);

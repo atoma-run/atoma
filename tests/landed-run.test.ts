@@ -325,10 +325,10 @@ function landedDriver() {
     return (
       formatRunStatsEpilogue({
         ...PARTIAL_STATS,
-        landingReasons: ['reached its budget with 1 phase(s) never run: write the README'],
+        landingReasons: ['reached its budget with 1 unfinished phase(s) that did not complete with an accepted result: write the README'],
       }) +
       '\n◐ build LANDED — the work is in the workspace and was NOT delivered.\n' +
-      '  reached its budget with 1 phase(s) never run: write the README\n'
+      '  reached its budget with 1 unfinished phase(s) that did not complete with an accepted result: write the README\n'
     );
   });
 }

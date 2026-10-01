@@ -442,7 +442,7 @@ describe('depth transition through the production supervision loop', () => {
     expect(out.unfinishedPhases).toEqual(['write the README']);
     expect(out.refusal).toBe('Still no README');
     expect(landingReasons(out)).toEqual([
-      'reached its budget with 1 phase(s) never run: write the README',
+      'reached its budget with 1 unfinished phase(s) that did not complete with an accepted result: write the README',
       'refused at delivery: Still no README',
     ]);
     expect(out.summary).toContain('REFUSED AT DELIVERY');
