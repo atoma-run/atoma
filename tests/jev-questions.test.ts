@@ -291,8 +291,8 @@ describe('the prefilter: a Choice for which, a Noul per option for whether', () 
     }));
     const reading = readChoice(plan, answersFor(plan.questions, {
       choice: choiceAnswer('replay'), 'fits::replay': noulAnswer(0.99),
-      task_changes_files: noulAnswer(probability as number),
-      'changes_files::replay': noulAnswer(probability as number),
+      task_changes_files: noulAnswer(probability),
+      'changes_files::replay': noulAnswer(probability),
     }));
     expect(reading.decision?.target).toBe('replay');
     expect(reading.decision?.fileEffect).toBe(effect);

@@ -181,7 +181,8 @@ describe('production verification extraction and semantic dispatch', () => {
     const { ctx, events } = verifier();
     const questions: string[][] = [];
     const fetchImpl: typeof fetch = async (_url, init) => {
-      const body = JSON.parse(String(init?.body)) as { questions: Record<string, { type: string; criteria?: Record<string, unknown> }> };
+      if (typeof init?.body !== 'string') throw new Error('Expected a JSON request body');
+      const body = JSON.parse(init.body) as { questions: Record<string, { type: string; criteria?: Record<string, unknown> }> };
       questions.push(Object.keys(body.questions));
       const answers = Object.fromEntries(Object.entries(body.questions).map(([id, q]) => [
         id, q.type === 'choice'
