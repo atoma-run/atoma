@@ -1,4 +1,7 @@
-import { describe, it, expect, afterEach, beforeEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
+import { spawnSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
+import { HAYSTACK_LAUNCH_ENV } from '../src/contracts/retrievalHaystack.js';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, posix, win32 } from 'node:path';
@@ -184,6 +187,42 @@ describe('MCP run tool — argv assembly and validation', () => {
 describe('MCP run tool — serialisation', () => {
   beforeEach(() => resetRunsForTest());
   afterEach(() => resetRunsForTest());
+
+  it('keeps the server retrieval configuration out of the real operator child', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'atoma-operator-env-'));
+    const config = JSON.stringify({ python: process.execPath, settings: { mode: 'bm25' }, runtimeSha256: 'a'.repeat(64) });
+    vi.stubEnv(HAYSTACK_LAUNCH_ENV, config);
+    try {
+      const runner = pathToFileURL(join(repoRoot(), 'src/run/runner.ts')).href;
+      const profile = pathToFileURL(join(repoRoot(), 'src/run/profiles/build.ts')).href;
+      let error = '';
+      await startTestRun({ goal: 'Verify recorded API probes.' }, opts => {
+        // Cross the process boundary and the real runner's launch validation.
+        // A deliberately invalid budget stops BEFORE providers or workspaces;
+        // the regression used to stop earlier, at the tenant receipt guard.
+        const child = spawnSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e',
+          `import { startTask } from ${JSON.stringify(runner)}; import { buildProfile } from ${JSON.stringify(profile)};
+           try { await startTask(buildProfile, ['Verify recorded API probes.']); }
+           catch (error) { console.error(error.message); process.exitCode = 2; }`], {
+          cwd: repoRoot(), encoding: 'utf8', timeout: 20_000,
+          env: { ...(opts.env ?? process.env), ATOMA_BUILD_TIMEOUT_MS: '0',
+            ATOMA_MODEL_L1: 'api:ollama:test', ATOMA_MODEL_L2: 'api:ollama:test', ATOMA_MODEL_L3: 'api:ollama:test',
+            ATOMA_DB_PATH: join(root, 'store.db'), ATOMA_TENANT_RUN: undefined, ATOMA_RUN_ID: undefined },
+        });
+        expect(child.error).toBeUndefined();
+        expect(child.status).toBe(2);
+        error = child.stderr;
+        return Promise.resolve(error);
+      });
+      await waitForRunIdle();
+      expect(error).toContain('invalid ATOMA_BUILD_TIMEOUT_MS');
+      expect(error).not.toContain('exclusive tenant run receipt');
+      expect(process.env[HAYSTACK_LAUNCH_ENV]).toBe(config);
+    } finally {
+      vi.unstubAllEnvs();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 
   /**
    * One run at a time is a CORRECTNESS requirement, not politeness: the build

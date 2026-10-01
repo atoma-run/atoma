@@ -37,6 +37,7 @@
  */
 
 import { narrowedRunTimeoutCeilingMs } from '../contracts/platformSettings.js';
+import { HAYSTACK_LAUNCH_ENV } from '../contracts/retrievalHaystack.js';
 import { platformLimitsFor } from '../platform/settings.js';
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -444,6 +445,11 @@ export async function startRun(
       cleanWorkspace: input.keepWorkspace !== true,
       extraArgs: buildRunArgs(input),
       extraEnv: buildRunEnvOverrides(input),
+      // The server needs this runtime configuration for PROJECT launches.
+      // Its presence in an operator child would request tenant retrieval
+      // without a receipt and stop the run before it starts. Keep the host's
+      // configuration intact; only the coordinator may pass it to a run.
+      env: { ...process.env, [HAYSTACK_LAUNCH_ENV]: undefined },
       onChunk: (chunk) => {
         record.chunks++;
         record.tail = (record.tail + chunk).slice(-PROGRESS_TAIL_CHARS);
