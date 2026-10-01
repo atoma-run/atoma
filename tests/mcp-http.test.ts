@@ -706,6 +706,34 @@ describe('the platform commons over MCP — registry and skill catalog', () => {
       expect(wholeSkills.structuredContent).toMatchObject({ skillsDir: join(dir, 'skills') });
     } finally { await asViewer.close(); await asPlatform.close(); }
   });
+
+  it('answers atoma_ledger_tail through the SDK client, which validates every field against the output schema', async () => {
+    // The reader states `scanned` and `returned` beside the events; the schema
+    // once omitted both, and the SDK client (additionalProperties:false) then
+    // refused the whole result — observed live on 2026-10-01, while the reader
+    // called directly kept passing. Exercise the boundary the client applies.
+    const dir = mkdtempSync(join(tmpdir(), 'atoma-mcp-ledger-'));
+    dirs.push(dir);
+    for (const k of ['ATOMA_DB_PATH', 'ATOMA_SKILLS_DIR']) saved[k] = process.env[k];
+    process.env['ATOMA_DB_PATH'] = join(dir, 'atoma.db');
+    process.env['ATOMA_SKILLS_DIR'] = join(dir, 'skills');
+    const reg = new SkillRegistry(join(dir, 'skills'));
+    reg.save('mol-1', { id: 's1', description: 'd', whenToUse: 'w', kind: 'llm', body: 'b' });
+    reg.recordSuccess('mol-1', 's1');
+    closeStoreHandles();
+
+    const { url } = await listen(() => ({ kind: 'operator' }), NO_TENANT);
+    const client = await connect(url);
+    try {
+      // listTools caches the output schemas the client validates against.
+      expect(await toolNames(client)).toContain('atoma_ledger_tail');
+      const all = await client.callTool({ name: 'atoma_ledger_tail', arguments: { limit: 5 } });
+      expect(all.isError).toBeFalsy();
+      expect(all.structuredContent).toMatchObject({ total: 2, scanned: 2, returned: 2, events: [{ kind: 'skill-success' }, { kind: 'skill-save' }] });
+      const filtered = await client.callTool({ name: 'atoma_ledger_tail', arguments: { kind: 'skill-save' } });
+      expect(filtered.structuredContent).toMatchObject({ returned: 1, events: [{ kind: 'skill-save', entity: 'mol-1/s1' }] });
+    } finally { await client.close(); }
+  });
 });
 
 describe('preview, notifications and the tray over MCP', () => {

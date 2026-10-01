@@ -908,7 +908,18 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
             entity: z.string().min(1).optional(),
             kind: z.string().min(1).optional(),
           },
-          outputSchema: { ledger: z.string(), total: z.number(), events: z.array(z.record(z.string(), z.unknown())), note: z.string().optional() },
+          outputSchema: {
+            ledger: z.string(),
+            total: z.number(),
+            // How far a FILTERED tail scanned and how many rows came back. The
+            // SDK client validates structured content against this schema with
+            // additionalProperties:false, so a field the reader emits and the
+            // schema omits refuses the whole result (seen live 2026-10-01).
+            scanned: z.number().optional(),
+            returned: z.number().optional(),
+            events: z.array(z.record(z.string(), z.unknown())),
+            note: z.string().optional(),
+          },
           annotations: READ_ONLY,
         },
         (args) =>
