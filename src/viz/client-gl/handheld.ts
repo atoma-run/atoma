@@ -9,8 +9,9 @@
  * whose every pointer is coarse and none of them can hover is a phone or a
  * tablet without a trackpad; a touch laptop keeps its mouse and passes.
  *
- * Used for mobile layout only; authentication and entry are shared with desktop.
- * `?atomaHandheld=1` lets a desktop rehearse the mobile layout.
+ * Mobile visitors acknowledge the notice before ordinary login or entry.
+ * The acknowledgement lasts for the session. `?atomaHandheld=1` lets a
+ * desktop rehearse that journey without device emulation.
  */
 
 const HANDHELD_QUERY = '(any-pointer: coarse) and (any-hover: none)';

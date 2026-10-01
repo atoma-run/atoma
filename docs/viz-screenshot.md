@@ -28,7 +28,7 @@ npm run viz:shot -- --url http://127.0.0.1:5173     # attach to a dev stack alre
 npm run viz:shot -- --debug                         # page console + failed requests on stderr
 npm run viz:shot -- --width 528 --height 800        # narrow/compact layouts
 npm run viz:shot -- --auth --select-first --touch-probe  # native mobile swipe regression
-npm run viz:shot -- --handheld                      # phone: direct login or authenticated project entry
+npm run viz:shot -- --handheld                      # phone: notice, acknowledgement, then login
 ```
 
 PNGs default to `screenshots/<view>-<auth-mode>-<camera>.png` (git-ignored). Viewport
@@ -57,10 +57,12 @@ exercise either camera pose. The same probe is part of `viz:smoke`.
   its trace are stubbed too, so `--view Runs` renders a full run: summary card
   with the metric tiles, branch filter chips, and a two-phase forked timeline.
 - **`--handheld`** — emulates a phone (390×844, DPR 3, native touch). Captures
-  `<out>-gate.png` and taps the real canvas entry control. Anonymous entry
-  must reach the OAuth route (intercepted before external sign-in); with
-  `--auth`, entry must reach the project form without a disclaimer and writes
-  `<out>-projects.png`. The pointer-capability media query must match.
+  `<out>-gate.png` and taps the real canvas Continue. The white-out unmounts
+  the scene and shows the mobile notice (`<out>-notice.png`); Continue appears
+  after two seconds. Acknowledgement survives a full reload. Anonymous entry
+  then reaches the OAuth route (intercepted before external sign-in); with
+  `--auth`, entry reaches the project form and writes `<out>-projects.png`.
+  The pointer-capability media query must match.
 - **`--select-first`** — clicks the first project row through the canvas hit
   targets (`?atomaDiag=1`), so the expanded run list and the run form render.
 - **`--scroll-end`** — Settings only: scrolls `.gpu-org-models-form` to its

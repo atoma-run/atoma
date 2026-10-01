@@ -149,7 +149,7 @@ export function drawWelcome(
   width: number,
   height: number
 ): void {
-  const handheld = snapshot.state.handheld;
+  const handheld = snapshot.state.handheld && !snapshot.state.handheldAccepted;
   const layout = welcomeLayout(width, height, handheld);
   ctx.retainAtomaMark(layout.markX, layout.markY, layout.scale, {
     bobPx: FLOAT_AMPLITUDE_PX,
@@ -188,7 +188,41 @@ export function drawWelcome(
   );
   tagline.anchor.set(0.5, 0);
   const login = snapshot.data.login;
-  if (login) {
+  if (handheld) {
+    // Before acknowledgement, ONE Continue opens the mobile notice instead
+    // of OAuth. GpuApp owns the white-out; handheldBlocked drives feedback
+    // on both the canvas and its accessible mirror.
+    const blocked = snapshot.state.handheldBlocked;
+    ctx.button(
+      ctx.root,
+      'welcome.continue',
+      'button',
+      blocked ? snapshot.t('welcome.handheld.blocked') : snapshot.t('welcome.continue'),
+      layout.buttonX,
+      layout.buttonY,
+      layout.buttonWidth,
+      layout.buttonHeight,
+      false,
+      snapshot.onActivate,
+      GPU_COLORS.primary,
+      true,
+      false,
+      undefined,
+      undefined,
+      undefined,
+      blocked
+    );
+    if (blocked) {
+      const hint = ctx.text(
+        ctx.root,
+        snapshot.t('welcome.handheld.hint'),
+        layout.copyX,
+        layout.buttonY + layout.buttonHeight + 14,
+        { size: 12, color: GPU_COLORS.muted, width: layout.copyWidth, alpha: 0.9 }
+      );
+      hint.anchor.set(0.5, 0);
+    }
+  } else if (login) {
     // TENANCY LANDED: the continue control IS the login now. One button per
     // configured provider, and a bounced login failure renders under them
     // from the catalogs — never raw query-string text.

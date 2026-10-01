@@ -39,8 +39,8 @@
  *                        exercising the real return transition.
  *   --tuning             Open the floating Scene Tuning window.
  *   --handheld           A phone (390x844, touch as the only pointer): the
- *                        direct login or authenticated entry (-gate and
- *                        -projects PNGs beside --out).
+ *                        mobile notice then login or authenticated entry
+ *                        (-gate, -notice and -projects PNGs beside --out).
  *   --out <path>         PNG destination. Default:
  *                        screenshots/<view>-<auth-mode>-<camera>.png
  *   --url <base>         Attach to an already-running UI server instead of
@@ -475,7 +475,7 @@ function fixtureTrace() {
   };
 }
 
-/** Prove the real touch entry: provider login or direct authenticated admission. */
+/** Prove mobile acknowledgement before provider login or authenticated admission. */
 async function captureHandheldGate(page) {
   if (!await page.evaluate(() => matchMedia('(any-pointer: coarse) and (any-hover: none)').matches)) {
     throw new Error('--handheld: touch media query did not match');
@@ -484,6 +484,28 @@ async function captureHandheldGate(page) {
   const stem = outPath.replace(/\.png$/i, '');
   await mkdir(dirname(outPath), { recursive: true });
   await page.screenshot({ path: stem + '-gate.png' });
+  const welcome = await page.evaluate(() => {
+    const handle = globalThis.__ATOMA_GPU__;
+    const row = handle.hitTargets().find(entry => entry.id === 'welcome.continue');
+    if (!row || handle.hitTargets().some(entry => entry.id.startsWith('login.provider.'))) {
+      throw new Error('Mobile acknowledgement must precede provider login');
+    }
+    return handle.projectRendererPoint(row.x + row.width / 2, row.y + row.height / 2);
+  });
+  await page.touchscreen.tap(welcome.x, welcome.y);
+  await page.waitForSelector('.gpu-handheld-veil[data-phase="white"]', { timeout: READY_TIMEOUT_MS });
+  if (await page.$('.gpu-scene-host')) throw new Error('Mobile notice must unmount the GPU scene');
+  if (await page.$('.gpu-handheld-veil__continue')) throw new Error('Mobile Continue appeared before its delay');
+  await page.waitForSelector('.gpu-handheld-veil__continue', { timeout: READY_TIMEOUT_MS });
+  await page.screenshot({ path: stem + '-notice.png' });
+  await page.tap('.gpu-handheld-veil__continue');
+  await page.waitForSelector('.gpu-handheld-veil', { hidden: true, timeout: READY_TIMEOUT_MS });
+  if (await page.evaluate(() => sessionStorage.getItem('atoma.viz.handheldAccepted')) !== '1') {
+    throw new Error('Mobile acknowledgement was not persisted for OAuth');
+  }
+  // Rebuild the whole app to prove the acknowledgement survives navigation.
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForFunction(() => globalThis.__ATOMA_GPU__?.hitTargets().some(entry => entry.id === 'welcome.continue' || entry.id.startsWith('login.provider.')), { timeout: READY_TIMEOUT_MS });
   const target = await page.evaluate(() => {
     const handle = globalThis.__ATOMA_GPU__;
     const row = handle.hitTargets().find(entry => entry.id === 'welcome.continue' || entry.id.startsWith('login.provider.'));

@@ -261,7 +261,8 @@ export interface GpuUiState {
   /**
    * The visitor's device has only coarse, hover-less pointers — a phone or a
    * tablet. ONE sample of `isHandheldDevice()`, refreshed when its media
-   * query changes. Layout only: mobile uses ordinary product admission.
+   * query changes. Entry requires acknowledging the mobile notice once per
+   * session before the ordinary login or product entry.
    */
   handheld: boolean;
   handheldAccepted: boolean;
@@ -409,7 +410,7 @@ function initialHandheldAccepted(): boolean {
   }
 }
 
-export const useGpuStore = create<GpuUiState>()((set) => ({
+export const useGpuStore = create<GpuUiState>()((set, get) => ({
   // The app opens on PROJECTS: it is the authenticated launch surface. Runs
   // is where you go to watch what you started, a second step rather than the
   // arrival. Ungated developer mode gets its no-project-routes empty state.
@@ -465,7 +466,9 @@ export const useGpuStore = create<GpuUiState>()((set) => ({
     announce: 0,
     settings: 0,
   },
-  entered: initialEntered(),
+  // A handheld browser that once entered on the desktop path — or before
+  // this gate existed — must not walk past it on the persisted bit alone.
+  entered: HANDHELD_AT_LOAD && !initialHandheldAccepted() ? false : initialEntered(),
   handheld: HANDHELD_AT_LOAD,
   handheldAccepted: initialHandheldAccepted(),
   acceptHandheld: () => {
@@ -483,6 +486,11 @@ export const useGpuStore = create<GpuUiState>()((set) => ({
   tuningPanelOpen: initialTuningPanelOpen(),
   announcementResetSignal: 0,
   enter: () => {
+    // Show the mobile disclaimer until the visitor explicitly accepts it.
+    if (get().handheld && !get().handheldAccepted) {
+      set({ handheldBlocked: true });
+      return;
+    }
     try {
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem('atoma.viz.entered', '1');
@@ -509,7 +517,7 @@ export const useGpuStore = create<GpuUiState>()((set) => ({
         localeMenuOpen: false,
         notificationsMenuOpen: false,
       }),
-  setHandheld: (handheld) => set({ handheld }),
+  setHandheld: (handheld) => set(handheld && !get().handheldAccepted ? { handheld: true, entered: false } : { handheld }),
   blockHandheld: () => set({ handheldBlocked: true }),
   // The three chrome menus are exclusive: opening one closes the others, so
   // two overlays can never contest the same corner of the header.

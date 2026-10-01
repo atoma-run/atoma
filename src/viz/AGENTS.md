@@ -284,7 +284,7 @@ npm run viz:mark-turn:analyze
   unroutable-view fallback lands on Projects too. On the ungated developer path
   project routes do not exist, so Projects shows its explanatory empty state
   and the DOM mutation form is absent.
-- Handheld devices use the same login and entry flow as desktop. `isHandheldDevice()` (`client-gl/handheld.ts`) remains the one pointer-capability predicate for mobile layout; changing device capability must never revoke entry. No mobile disclaimer or white-out interrupts authentication.
+- Handheld onboarding is required (owner reaffirmed 2026-10-02): crystal → Continue → white-out → mobile notice → Continue after two seconds → ordinary login/product entry. `isHandheldDevice()` (`client-gl/handheld.ts`) is the ONE pointer-capability predicate; `?atomaHandheld=1` rehearses it. Canvas and DOM entry share `useHandheldWhiteout`; the scene unmounts at white, reduced motion skips the animation, and acknowledgement persists in sessionStorage across OAuth/reloads. Before acknowledgement, neither a stored desktop entry nor a live device change may bypass the notice. Do not remove this journey as a “temporary disclaimer” or replace it with direct login without an explicit owner request. `viz:shot --handheld` proves the canvas path.
 - The ADMIN PLANE is FIVE views, one per job — Organisations (`admin`), the
   platform journal, the catalogue ledger, the Sentinel, and Announcements —
   under one nav heading. It was one tab holding several: three questions on one
