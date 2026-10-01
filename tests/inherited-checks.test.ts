@@ -634,6 +634,17 @@ describe('the host replay of a run', () => {
     expect(inheritedChecksFor({ workspaceRoot: linked, executor: () => new Backend({}), log: () => undefined })).toBeUndefined();
   });
 
+  it('replays a page whose probed server was deleted (runs 81375f01, 3cbef119)', async () => {
+    const stale = workspace({ ...PAGE, '.atoma-probes.json': manifest([web(LONG_BREAK), { probe: 'http', method: 'GET', path: '/', status: 200, entry: 'server.js' }]) });
+    const lines: string[] = [];
+    const runtime = inheritedChecksFor({ workspaceRoot: stale, executor: () => new Backend({}), log: (line) => lines.push(line) })!;
+    expect(await runtime.baseline()).toMatchObject({ selected: 1, kept: 1 });
+    expect(lines.join('\n')).not.toContain('not replayed');
+    // A Node project beside the same probes is still never replayed.
+    const node = workspace({ ...PAGE, 'package.json': '{}', '.atoma-probes.json': manifest([web(LONG_BREAK), { probe: 'http', method: 'GET', path: '/', status: 200, entry: 'server.js' }]) });
+    expect(inheritedChecksFor({ workspaceRoot: node, executor: () => new Backend({}), log: () => undefined })).toBeUndefined();
+  });
+
   it('starts its server again on the backend a deepening put in place', async () => {
     const root = workspace({ ...PAGE, '.atoma-probes.json': manifest([web(LONG_BREAK)]) });
     let backend = new Backend({});

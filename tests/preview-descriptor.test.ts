@@ -281,6 +281,53 @@ describe('an http probe classifies the deliverable as node', () => {
     });
   });
 
+  it('classifies static when every probed server file is gone and a browser validated a page still here (runs 81375f01, 3cbef119)', () => {
+    const stale = { [PROBE_MANIFEST_FILENAME]: manifest(WEB_ENTRY, httpEntry({ entry: 'server.js' }), httpEntry({ entry: 'server.js', path: '/health' })), 'index.html': '<!doctype html>\n' };
+    expect(classifyDeliveredWorkspace(workspace(stale))).toEqual({
+      availability: 'available',
+      kind: 'static',
+      entry: null,
+      unavailableReason: null,
+    });
+    // Each of these keeps the reading it had.
+    // The stamp read as node reads it, and the page under any HTML spelling.
+    expect(classifyDeliveredWorkspace(workspace({ ...stale, [PROBE_MANIFEST_FILENAME]: manifest({ ...WEB_ENTRY, file: 'Page.HTM' }, httpEntry({ entry: './server.js' })), 'Page.HTM': '<p>x</p>\n' })).kind).toBe('static');
+    const unchanged: Record<string, string>[] = [
+      // The server is still there: node.
+      { ...stale, 'server.js': '// serves the page\n' },
+      { ...stale, [PROBE_MANIFEST_FILENAME]: manifest(WEB_ENTRY, httpEntry({ entry: './server.js' })), 'server.js': '// serves the page\n' },
+      // One http probe names no file: it cannot be tied to the one that went.
+      { ...stale, [PROBE_MANIFEST_FILENAME]: manifest(WEB_ENTRY, httpEntry({ entry: 'server.js' }), httpEntry()) },
+      // No browser probe, only an index.html.
+      { ...stale, [PROBE_MANIFEST_FILENAME]: manifest(httpEntry({ entry: 'server.js' })) },
+      // The page the browser probe named is gone too, or is no page.
+      { [PROBE_MANIFEST_FILENAME]: manifest(WEB_ENTRY, httpEntry({ entry: 'server.js' })), 'other.html': '<p>x</p>\n' },
+      { ...stale, [PROBE_MANIFEST_FILENAME]: manifest({ ...WEB_ENTRY, file: 'server.js' }, httpEntry({ entry: 'server.js' })) },
+      // A Node project: renamed, cleaned or deleted, its server is not stray.
+      { ...stale, 'package.json': JSON.stringify({ main: 'dist/server.js' }), 'src/server.ts': '// built away\n' },
+      { ...stale, 'package.json': JSON.stringify({ dependencies: { express: '^4' } }) },
+      // A stamp node would resolve further, and something is still there.
+      { ...stale, [PROBE_MANIFEST_FILENAME]: manifest(WEB_ENTRY, httpEntry({ entry: 'src/server' })) },
+      { ...stale, [PROBE_MANIFEST_FILENAME]: manifest(WEB_ENTRY, httpEntry({ entry: 'srv.js' })), 'srv.js/index.js': '// a directory named srv.js\n' },
+    ];
+    expect(unchanged.map((files) => classifyDeliveredWorkspace(workspace(files)))).toMatchObject([
+      { kind: 'node', entry: 'server.js' },
+      { kind: 'node', entry: 'server.js' },
+      ...new Array(8).fill({ unavailableReason: 'not-runnable' }),
+    ]);
+  });
+
+  it('reads the same through the in-flight manifest root', () => {
+    const source = workspace({ [PROBE_MANIFEST_FILENAME]: manifest(WEB_ENTRY, httpEntry({ entry: 'server.js' })), 'index.html': '<!doctype html>\n' });
+    const frozen = workspace({ 'index.html': '<!doctype html>\n' });
+    expect(classifyDeliveredWorkspace(frozen, { manifestRoot: source }).kind).toBe('static');
+  });
+
+  it('declines a package.json that is a directory, and throws nothing', () => {
+    const root = workspace({ [PROBE_MANIFEST_FILENAME]: manifest(httpEntry()), 'package.json/x': '' });
+    expect(classifyDeliveredWorkspace(root).unavailableReason).toBe('workspace-unreadable');
+  });
+
   it('stays not-runnable for an http deliverable even beside an index.html', () => {
     // An http probe means node (`src/preview/AGENTS.md`): the served page is
     // produced by a server, and serving its source statically would preview

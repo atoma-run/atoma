@@ -1,3 +1,6 @@
+import { lstatSync } from 'node:fs';
+import path from 'node:path';
+import { servableCheckFile } from '../contracts/webCheck.js';
 import {
   previewDescriptorSchema,
   type PreviewDescriptor,
@@ -76,6 +79,66 @@ function stampedEntry(entries: readonly unknown[]): string | null {
     }
   }
   return null;
+}
+
+/** A workspace-relative path, or null when the value is not one. */
+function relativePath(value: unknown): string | null {
+  if (typeof value !== 'string' || value.length === 0) return null;
+  try {
+    return normalizeArtifactPath(value);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Nothing at all is at `stamp`, and node would have run it as written: a
+ * `.js`, `.mjs` or `.cjs` path, never one node resolves further (`server`,
+ * a directory). A link or a directory there is something; only ENOENT is not.
+ */
+function stampedServerGone(workspaceRoot: string, stamp: string): boolean {
+  if (!JS_ENTRY.test(stamp)) return false;
+  try {
+    lstatSync(path.join(path.resolve(workspaceRoot), ...stamp.split('/')));
+    return false;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'ENOENT';
+  }
+}
+
+/** Anything named `package.json` at the root: the mark of a Node project, whatever became of its server. */
+function hasPackageJson(workspaceRoot: string): boolean {
+  try {
+    lstatSync(path.join(path.resolve(workspaceRoot), 'package.json'));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * True when the http probes describe a server this workspace no longer holds
+ * and a browser validated a page it still does. Asked only once no node entry
+ * resolves. Every http entry stamps the script its server ran from, nothing
+ * is left at any of them, no `package.json` says this is a Node project, and
+ * a web entry names a servable HTML file that is here. The manifest keeps
+ * every run's probes: run 81375f01 (2026-10-01) added a stray `server.js` and
+ * probed it, 3cbef119 deleted it, and its two http entries left the static
+ * page `not-runnable`, with no preview and no replay of its inherited checks.
+ * The review of 2026-10-01 measured renamed, cleaned or deleted Node servers,
+ * stamps node resolves further and servers behind a link turning `static`
+ * under a looser test, and the replay then removing their checks as dead.
+ */
+function httpProbesOutlivedTheirServer(workspaceRoot: string, entries: readonly unknown[]): boolean {
+  const records = entries.filter(isRecord);
+  const stamps = records.filter((entry) => entryKind(entry) === 'http').map((entry) => relativePath(entry['entry']));
+  if (stamps.length === 0 || stamps.some((stamp) => stamp === null || !stampedServerGone(workspaceRoot, stamp))) return false;
+  if (hasPackageJson(workspaceRoot)) return false;
+  return records.some((entry) => {
+    if (entryKind(entry) !== 'web') return false;
+    const file = typeof entry['file'] === 'string' ? servableCheckFile(entry['file']) : null;
+    return file !== null && previewWorkspaceHasFile(workspaceRoot, file);
+  });
 }
 
 /** `package.json`'s `main`, only when it names a regular file in this tree. */
@@ -164,20 +227,35 @@ export function classifyDeliveredWorkspace(
     .map(entryKind);
 
   if (kinds.includes('http')) {
-    const resolved =
-      usableEntry(workspaceRoot, stampedEntry(entries ?? [])) ??
-      usableEntry(workspaceRoot, packageMainEntry(workspaceRoot)) ??
-      NODE_ENTRY_FALLBACKS.map((name) => usableEntry(workspaceRoot, name)).find(
-        (name): name is string => name !== null
-      ) ??
-      null;
-    if (resolved === null) return unavailable('not-runnable');
-    return {
-      availability: 'available',
-      kind: 'node',
-      entry: resolved,
-      unavailableReason: null,
-    };
+    let resolved = usableEntry(workspaceRoot, stampedEntry(entries ?? []));
+    if (resolved === null) {
+      let main: string | null;
+      try {
+        main = packageMainEntry(workspaceRoot);
+      } catch {
+        // A package.json that is a link or no regular file is refused by the
+        // read: a workspace the host declines to describe, like an unreadable
+        // manifest, and never a throw out of the delivery path (review 2026-10-01).
+        return unavailable('workspace-unreadable');
+      }
+      resolved =
+        usableEntry(workspaceRoot, main) ??
+        NODE_ENTRY_FALLBACKS.map((name) => usableEntry(workspaceRoot, name)).find(
+          (name): name is string => name !== null
+        ) ??
+        null;
+    }
+    if (resolved !== null) {
+      return {
+        availability: 'available',
+        kind: 'node',
+        entry: resolved,
+        unavailableReason: null,
+      };
+    }
+    // Probes of a server that is gone say nothing about this workspace; the
+    // page a browser validated is what remains. Otherwise it is not runnable.
+    if (!httpProbesOutlivedTheirServer(workspaceRoot, entries ?? [])) return unavailable('not-runnable');
   }
 
   // A web probe means a browser validated a page in this workspace; the page

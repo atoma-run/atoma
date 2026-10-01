@@ -30,6 +30,7 @@ its source before the next run.
 | 81375f01 | pomodoro page: an F shortcut, after the prompt repair | 1,816 s | $0.51 | 36 | landed, unpublished; a planned test put hidden fields back, caught by an inherited check |
 | ff102525 | pomodoro page: a P shortcut, and server.js deleted | 1,805 s | $0.54 | 27 | failed at the deadline; a correct fallback refused, then two rules on one test contradicted each other |
 | 3cbef119 | pomodoro page: the same goal, after both fixes | 983 s | $0.28 | 16 | delivered and published; the missing fields proven in one call, the page left as it was |
+| 9ad606d9 | pomodoro page: an Extend button and an E shortcut | 761 s | $0.21 | 9 | delivered and published; no replay, the README still says five buttons |
 
 ## A verified execution rejected as "non-JSON" (8606cf38)
 
@@ -621,6 +622,25 @@ seed.
 - **Published.** main gained P and F: F came with 81375f01's landed
   workspace, which this run started from. The README now documents both.
 
+## A deleted server that still decided the kind (9ad606d9)
+
+The first run seeded without `server.js` added an Extend button and an E
+shortcut, in two phases and nine calls, and the published diff touches
+only what the goal named.
+
+- **Still no replay.** The run start logged "128 not replayed, the
+  workspace is not a static page (not-runnable)". The manifest keeps every
+  run's probes, and the two http probes of the deleted `server.js` made the
+  classifier read a node app with no entry. The page's preview was
+  unavailable for the same reason.
+- **Now:** when every http probe stamps a script of which nothing is left,
+  no `package.json` exists, and a web probe names a page that is still
+  there, the workspace is static. A looser first version turned renamed,
+  cleaned or deleted Node servers static in review, and the replay would
+  then have removed their checks as dead.
+- **A count left behind.** The README lists six buttons under "The five
+  buttons appear in this order". No validator noticed.
+
 ## Open
 
 - **Earlier runs' requirements were not replayed.** The inherited
@@ -671,6 +691,14 @@ seed.
 - **A landed run's listed checks.** 0b51e494 landed with two listed checks.
   The next run starts from its page, where both fail at the start, so they
   are not kept and never compared: only the landing reasons carry them.
+- **Stale http probes are never pruned.** The classifier now reads past
+  them in one shape. One later unstamped http probe would bring the page
+  back to `not-runnable`, and a client `app.js` beside them is still read
+  as a node entry. A Node server renamed with no root `package.json`
+  (`server.mjs`, a `server/` subproject) still reads static.
+- **A count the edit made false.** 9ad606d9's README kept "five buttons"
+  beside a sixth; neither the writer's rules nor a validator ask for counts
+  an addition changes.
 - **The prefilter does not see tools.** It is asked to match a "tool
   signature" from names and descriptions, and ff102525 routed a deletion to
   a molecule with no tool for it. Showing tools changes what Jev reads.
