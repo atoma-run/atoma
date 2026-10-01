@@ -4,7 +4,7 @@ import { L2Atom } from '../src/atoms/L2Atom.js';
 import { L3Atom } from '../src/atoms/L3Atom.js';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
-import { READER_FACING_DOC_GUIDANCE } from '../src/atoms/prompts.js';
+import { EXISTING_FILE_GUIDANCE, READER_FACING_DOC_GUIDANCE } from '../src/atoms/prompts.js';
 import { ensureCanonicalProjectDocsL1 } from '../src/atoms/capability.js';
 import { VALIDATION_SYSTEM_PROMPT } from '../src/atoms/verdict.js';
 import { HOST_TOOL_NAMES } from '../src/contracts/toolTaxonomy.js';
@@ -78,6 +78,43 @@ describe('a delivered document is for its reader', () => {
       const plan = await molecule.plan({ description: 'Update README.md' }, ctx);
       await molecule.execute({ description: 'Update README.md' }, plan, ctx);
       expect(ctx.llm.calls.map((call) => call.userContent.includes(READER_FACING_DOC_GUIDANCE))).toEqual([reads, reads]);
+    }
+  });
+
+  it('tells every molecule that can edit a file to edit what exists, whatever its stored prompt (run 495c20ef)', async () => {
+    for (const [tools, reads] of [[['write_file', 'edit_file', 'read_file'], true], [['edit_file'], true], [['write_file', 'read_file'], false], [['run_shell'], false]] as const) {
+      const molecule = new L1Atom({ name: 'Serotonin', ordinal: 3, systemPrompt: 'a web molecule prompt stored before the rule', tools: makeTools([...tools]), params: {} });
+      const ctx = makeCtx();
+      ctx.llm.enqueueText(jsonText({ reasoning: 'r', proposedAction: 'fix the title', expectedOutput: 'page' }));
+      ctx.llm.enqueueText(jsonText({ output: 'done', summary: 'done' }));
+      const plan = await molecule.plan({ description: 'Fix the tab title of index.html' }, ctx);
+      await molecule.execute({ description: 'Fix the tab title of index.html' }, plan, ctx);
+      expect(ctx.llm.calls.map((call) => call.userContent.includes(EXISTING_FILE_GUIDANCE))).toEqual([reads, reads]);
+    }
+    const rule = flat(EXISTING_FILE_GUIDANCE);
+    expect(rule).toContain('Never write_file over a file the workspace already holds, even where your instructions or a recipe step say to');
+    expect(rule).toContain('Restoring a behaviour is an edit.');
+    expect(rule).toContain('.atoma-probes.json is outside this rule.');
+  });
+
+  it('reaches a fallback executor that can edit a file, and never one without edit_file', async () => {
+    for (const withEdit of [true, false]) {
+      const reg = new AtomRegistry(openDb(':memory:'));
+      const tools = makeTools(withEdit ? ['write_file', 'edit_file', 'read_file'] : ['write_file', 'read_file']);
+      const seed = { description: 'seed', systemPrompt: 'sys', params: {}, createdBy: 'test', tools };
+      const cell = L2Atom.fromType(reg.create(2, seed), reg);
+      cell.setFallbackMode(true);
+      const cellLlm = recordingLlm(twoPhases);
+      await cell.execute({ description: 'fix the page' }, makePlan({ reasoning: 'r', proposedAction: 'p', expectedOutput: 'e' }),
+        { ...makeCtx(), llm: cellLlm.llm, tools: executor });
+      const tissue = L3Atom.buildWithModel(reg.create(3, seed), reg, FALLBACK_OPUS);
+      tissue.setFallbackMode(true);
+      const tissueLlm = recordingLlm(twoPhases);
+      await tissue.execute({ description: 'fix the page' }, makePlan({ reasoning: 'r', proposedAction: 'p', expectedOutput: 'e' }),
+        { ...makeCtx(), llm: tissueLlm.llm, tools: executor });
+      for (const [content] of [cellLlm.byRole.get('fallback-execute')!, tissueLlm.byRole.get('fallback-execute')!]) {
+        expect(content!.includes(EXISTING_FILE_GUIDANCE)).toBe(withEdit);
+      }
     }
   });
 

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { inheritProbeManifest, probeEntryKind, probeEntryProblems } from './probeManifest.js';
-import { recordedViewport, servableCheckFile, webEntryIdentity } from './webCheck.js';
+import { falseBooleanFields, recordedViewport, servableCheckFile, webEntryIdentity } from './webCheck.js';
 import { isPreflightRefusal } from './attestation.js';
 
 /**
@@ -278,7 +278,16 @@ export function judgeReplay(check: InheritedWebCheck, raw: unknown): ReplayVerdi
   }
   if (raw['smokeOk'] === true) return { outcome: 'passed', pageErrors, blocked };
   if (raw['smokeOk'] === false) {
-    return { outcome: 'failed', cause: 'value-changed', detail: bounded(`the smoke returned ${JSON.stringify(smokeResult) ?? 'nothing'}`), pageErrors, blocked };
+    // The failed assertions lead, as validate_html's own message does: run
+    // 495c20ef's acceptor read `checks: {mode: true, running: true, status:
+    // false}` as a timer still running, when only a test hook's missing
+    // `status` had failed. Only the taught `checks` record names assertions;
+    // a false field elsewhere may be state.
+    const checks = isRecord(smokeResult) && isRecord(smokeResult['checks']) ? smokeResult['checks'] : undefined;
+    const named = checks ? falseBooleanFields(checks).map((name) => `checks.${name}`) : [];
+    const returned = JSON.stringify(smokeResult) ?? 'nothing';
+    const detail = named.length > 0 ? `the smoke's failed checks: ${named.join(', ')}; it returned ${returned}` : `the smoke returned ${returned}`;
+    return { outcome: 'failed', cause: 'value-changed', detail: bounded(detail), pageErrors, blocked };
   }
   return { outcome: 'cannot-run', detail: 'validate_html answered no smoke verdict' };
 }
@@ -384,8 +393,8 @@ const CAUSE_LABEL: Record<ReplayCause, string> = {
 };
 
 /** Page-produced or model-written text, as data: JSON-quoted and capped. */
-function quoted(text: string): string {
-  return JSON.stringify(text.length > QUOTED_CHARS ? `${text.slice(0, QUOTED_CHARS)}…` : text);
+function quoted(text: string, max = QUOTED_CHARS): string {
+  return JSON.stringify(text.length > max ? `${text.slice(0, max)}…` : text);
 }
 
 const STEP_SELECTOR_CHARS = 60;
@@ -426,7 +435,7 @@ export function smokeText(smoke: string): string {
 function describeCheck(listed: ListedCheck): string {
   const steps = stepsOf(listed.check);
   return `${quoted(listed.check.file)}${steps ? ` after ${quoted(steps)}` : ''} — ${CAUSE_LABEL[listed.cause]}: ` +
-    `asserts ${quoted(smokeText(listed.check.smoke))}; ${quoted(listed.detail)}`;
+    `asserts ${quoted(smokeText(listed.check.smoke))}; ${quoted(listed.detail, REPLAY_DETAIL_CHARS)}`;
 }
 
 function countCauses(checks: readonly ListedCheck[]): string {
@@ -467,12 +476,21 @@ export function inheritedChecksItems(report: InheritedChecksReport, rewritten: R
     if (remainder.length > 0) {
       const files = [...new Set(remainder.map((listed) => listed.check.file))];
       items.push({ id: nextId(), file: files.join(', '), checks: remainder,
-        summary: `${remainder.length} more check(s) of ${files.map(quoted).join(', ')} — ${CAUSE_LABEL[cause]}; the first: ${describeCheck(remainder[0]!)}` });
+        summary: `${remainder.length} more check(s) of ${files.map((file) => quoted(file)).join(', ')} — ${CAUSE_LABEL[cause]}; the first: ${describeCheck(remainder[0]!)}` });
     }
   }
   return items;
 }
 
+/**
+ * Kept as worded since a697acaa. A rewording that defined the CHANGE and
+ * named the cases of `asked: true` was tested offline on the recorded root
+ * acceptance prompts of runs 495c20ef and 5dff35b0 (2026-10-01, luna, 24 and
+ * 14 calls) and matched the expected judgements LESS often on 495c20ef
+ * (74% of items against 95%), with no gain on 5dff35b0. The model judges
+ * whether the checked behaviour is required, not what changed; no wording
+ * tried here moved that (docs/incidents/production-runs-2026-09-30.md).
+ */
 export const INHERITED_JUDGEMENT_REQUEST =
   'ALSO emit "inherited" in your verdict JSON: one entry per item above, ' +
   '[{"id": "r1", "asked": true|false, "reason": "<at most 15 words>"}], asked meaning the task asked for, or directly caused, that change.';

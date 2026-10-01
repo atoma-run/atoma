@@ -306,6 +306,16 @@ load-bearing.
   approved); only the molecule's text says so, and no validator checks it. The validator prompt's own section says the removal is
   correct for a plan or a result, and the project-docs prompt says its
   "cite … source digests and line spans" goes in the result.
+- A file that exists is never written again whole (`EXISTING_FILE_RULE`):
+  it is edited, even where a stored prompt or a recipe step says
+  write_file, and restoring a behaviour is an edit. The exceptions, each
+  after a read: the subtask says to replace, rebuild or redesign the file as
+  a whole, keeping what it does not ask to change, or the molecule puts back
+  what its own checks changed. Like the reader-facing rule it is RUNTIME
+  text, for every molecule with edit_file and for the fallback executors,
+  and the recipe blocks carry the same lines. Run 495c20ef's trusted web
+  molecule, in a correction phase with no recipe, wrote a restored page
+  again whole.
 - Node-server children keep file read-back even when they also have browser
   tools. Only a loopback response with status 200 and HTML content appends a
   browser probe; JSON responses and expected root 404s are not browser failures.

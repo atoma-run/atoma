@@ -25,6 +25,7 @@ its source before the next run.
 | 0b51e494 | pomodoro page: an S shortcut | 1,404 s | $0.33 | 16 | landed partial; the replay caught a regression twice and the remediation did not fix it |
 | dadeea78 | wordfreq CLI: a usage line and a combined example | 157 s | $0.03 | 7 | delivered; README edited in place, the new example's output worked out and never run |
 | 5dff35b0 | pomodoro page: the shortcuts repaired | 1,732 s | $0.43 | 23 | delivered and published a rewritten page the first acceptance had refused |
+| 495c20ef | pomodoro page: restored after 5dff35b0 | 1,816 s | $0.51 | 18 | landed, refused twice, nothing published; 22 checks marked dead |
 
 ## A verified execution rejected as "non-JSON" (8606cf38)
 
@@ -465,6 +466,47 @@ having landed, it marked nothing.
   starts from it, without a landing, so its start replay will mark dead the
   29 checks of the page as it was.
 
+## The restoration, and an acceptor that read `asked` backwards (495c20ef)
+
+The goal described the page in full, to undo 5dff35b0's rewrite. It ran on
+5f5535d7.
+
+- **The start replay reached every check.** It ran 109 s, past its 60 s
+  budget while planning ran, and tried all 40 selected checks: 16 passed
+  twice and 22 were marked dead, the old page's hooks being gone.
+- **Edits, and no read-back.** The first phase's write_file over the
+  unread page was refused, so it read the page and edited it. No molecule
+  read the 100 KB manifest back; each write said what it merged.
+- **The acceptor misread a check.** Two checks returned
+  `{"mode":true,"remaining":true,"running":true,"status":false}`: the mode
+  switched and the timer stopped, and only the restored page's test hook
+  lacked `status`. The acceptor refused on "B/L leave the timer running".
+  A changed value's detail now leads with the smoke's failed `checks`.
+- **It read `asked` backwards twice.** One item's reason said the task
+  redefines S, and its flag said `asked: false`; another flagged unasked the
+  test inputs the restoration removed. A rewording that defined the CHANGE
+  and named the cases of `asked: true` was replayed offline on the recorded
+  root acceptance prompts, on luna:
+  - 495c20ef: it matched the expected judgements less often than the
+    wording in production, 74% of items against 95% (57% against 76% with
+    production's own argument shape).
+  - 5dff35b0, and a variant of it with a goal silent about the rest: both
+    wordings refused every sample.
+
+  The model judges whether the checked behaviour is required, not what
+  changed, and it read failed `checks` as broken behaviour under both. The
+  wording stays as it was.
+- **A correction rewrote the page.** The remediation's second phase, with
+  no recipe, wrote the page again whole. A runtime line already said that
+  existing files are "edited, not replaced", and this trusted molecule's
+  stored prompt still taught "write_file the complete source". The rule for
+  a file that exists is now one definition, read at runtime by every
+  molecule with edit_file and by the fallback executors, and it holds even
+  where the molecule's instructions or a recipe say write_file.
+- **The net held.** The remediation ran out of time and its acceptance
+  replayed none of the 16 checks; the block said so, and the run landed,
+  unpublished.
+
 ## Open
 
 - **Earlier runs' requirements were not replayed.** The inherited
@@ -502,6 +544,16 @@ having landed, it marked nothing.
   now says why the file is larger; nothing else stops the read.
 - **An unobserved example output is approved.** The rule reaches the
   molecule only; no validator asks where an example's output came from.
+- **A landing keeps an unaccepted phase's bytes.** 495c20ef's second
+  remediation phase ran 495 s and was cut; its page stayed in the
+  workspace, which the next run starts from, while the result's evidence
+  named the previous one.
+- **Checks bound to a test hook's shape.** Each rewrite of this page exposed
+  a different `window.__test`, so its checks cannot pass on any other
+  version; restoring the page fails them all, and the acceptor reads those
+  failures as broken behaviour (offline replay of 495c20ef, both wordings).
+- **`asked` read as "is this behaviour required".** The acceptor judges the
+  check's expectation, not the change; no wording tried moved it.
 - **A landed run's listed checks.** 0b51e494 landed with two listed checks.
   The next run starts from its page, where both fail at the start, so they
   are not kept and never compared: only the landing reasons carry them.

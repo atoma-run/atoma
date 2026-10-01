@@ -164,3 +164,49 @@ export function webEntryIdentity(entry: Readonly<Record<string, unknown>>): stri
     typeof wait === 'number' && Number.isFinite(wait) ? Math.min(Math.max(0, Math.floor(wait)), MAX_WAIT_MS) : DEFAULT_WAIT_MS,
   ]);
 }
+
+/**
+ * Dotted paths of every `false` boolean in a structured smoke result, `ok`
+ * itself excluded.
+ *
+ * MEASURED 2026-08-23, project run `a786358a`: twelve smoke failures whose
+ * only report was the pasted result object, so the caller had to diagnose
+ * its own output to find which of a dozen fields came back false —
+ * `themeToggledToDark`, `beforeResetElapsedGreaterThanZero`. The names were
+ * in our hands and we were not saying them, and the 500-char truncation of
+ * the pasted object could cut off the very field that failed.
+ *
+ * It NAMES, it does not judge: `isSmokeOk` keeps an explicit `ok` as the
+ * only authority, because raw state legitimately contains false booleans.
+ * Bounded in depth and count so a large state dump cannot turn one error
+ * line into a page.
+ */
+export const FALSE_FIELD_LIMIT = 12;
+export const FALSE_FIELD_DEPTH = 3;
+
+export function falseBooleanFields(
+  value: unknown,
+  maxDepth = FALSE_FIELD_DEPTH,
+  maxFields = FALSE_FIELD_LIMIT
+): string[] {
+  const out: string[] = [];
+  const walk = (node: unknown, path: string, depth: number): void => {
+    if (out.length >= maxFields || depth > maxDepth) return;
+    if (node === null || typeof node !== 'object') return;
+    for (const [key, child] of Object.entries(node as Record<string, unknown>)) {
+      if (out.length >= maxFields) return;
+      const here = path ? `${path}.${key}` : key;
+      if (child === false) {
+        if (here !== 'ok') out.push(here);
+      } else if (child !== null && typeof child === 'object') {
+        walk(child, here, depth + 1);
+      }
+    }
+  };
+  walk(smokeResultRecord(value), '', 1);
+  return out;
+}
+
+function smokeResultRecord(value: unknown): unknown {
+  return Array.isArray(value) ? { ...value } : value;
+}

@@ -17,7 +17,7 @@ import { witnessesFromPayload, type Witness } from '../contracts/witness.js';
 import { renderObservations, type AttestationRecord } from '../contracts/attestation.js';
 import { modelFacingExecutor } from '../core/attestation.js';
 import { namedLayoutWidths } from '../contracts/acceptanceChecklist.js';
-import { READER_FACING_DOC_GUIDANCE } from './prompts.js';
+import { EXISTING_FILE_GUIDANCE, READER_FACING_DOC_GUIDANCE } from './prompts.js';
 
 /**
  * Where a molecule puts what only EXERCISES the artefact. Publication and the
@@ -33,6 +33,9 @@ export const SCRATCH_DIRECTORY = '.atoma-scratch';
 function writesFiles(tools: readonly { readonly name: string }[]): boolean {
   return tools.some((tool) => tool.name === 'write_file' || tool.name === 'edit_file' || tool.name === 'run_shell');
 }
+function editsFiles(tools: readonly { readonly name: string }[]): boolean {
+  return tools.some((tool) => tool.name === 'edit_file');
+}
 const SCRATCH_FILE_LINES: readonly string[] = [
   `- An input you write ONLY to exercise the artefact — a probe CSV, a fixture, a file to upload in a`,
   `  browser check — goes under "${SCRATCH_DIRECTORY}/" (e.g. "${SCRATCH_DIRECTORY}/invalid-rows.csv"): the host never`,
@@ -43,8 +46,7 @@ const SCRATCH_FILE_LINES: readonly string[] = [
   `  writes it back on its next change, which undoes an earlier restore.`,
   `- Implement the rule the task states. Never special-case in code a value an acceptance criterion names:`,
   `  a total computed as "if these exact choices, add this constant" is a forged result, not a feature.`,
-  `- Existing files you were asked to keep or extend are edited, not replaced: the host compares the files`,
-  `  this run started from with the ones it delivers.`,
+  `- The host compares the files this run started from with the ones it delivers.`,
 ];
 
 /**
@@ -316,6 +318,7 @@ export class L1Atom extends Atom {
       `re-validate. A clean console alone is not success: return success only`,
       `when the required claims pass.`,
       writesFiles(this.tools) ? READER_FACING_DOC_GUIDANCE : '',
+      editsFiles(this.tools) ? EXISTING_FILE_GUIDANCE : '',
       ``,
       `CRITICAL — plan shape (aspirational, no literal payloads):`,
       `Describe your intended tool sequence in the "proposedAction" field as PROSE`,
@@ -419,6 +422,7 @@ export class L1Atom extends Atom {
         ? `  only when required claims pass; otherwise report what failed or remains unverified.`
         : null,
       writesFiles(this.tools) ? READER_FACING_DOC_GUIDANCE : null,
+      editsFiles(this.tools) ? EXISTING_FILE_GUIDANCE : null,
       ``,
       `When and only when the work is truly done, produce the final result as JSON:`,
       `{"output": <any>, "summary": "<headline plus observed evidence and any unverified requirements>"}`,

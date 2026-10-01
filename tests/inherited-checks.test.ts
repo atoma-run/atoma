@@ -55,6 +55,8 @@ function manifest(entries: unknown[]): string {
   return JSON.stringify({ version: 1, entries });
 }
 
+const flat = (text: string): string => text.replace(/\s+/g, ' ');
+
 const check = (smoke: string, extra: Partial<InheritedWebCheck> = {}): InheritedWebCheck =>
   ({ file: 'index.html', interactions: [], smoke, ...extra });
 
@@ -177,6 +179,22 @@ describe('one host replay', () => {
     expect(long.endsWith('→ keypress Space')).toBe(true);
     // A key that is not a plain name is quoted: a comma never reads as a separator.
     expect(stepsOf(check(LONG_BREAK, { interactions: [{ type: 'keypress', key: ',' }, { type: 'keypress', key: ' a' }] }))).toBe('keypress "," → keypress " a"');
+  });
+
+  it("leads a changed value's detail with the smoke's failed checks, and only those (run 495c20ef)", () => {
+    const smokeResult = { ok: false, checks: { mode: true, remaining: true, running: true, status: false }, running: false, mode: 'focus' };
+    const verdict = judgeReplay(check(LONG_BREAK), observed({ smokeOk: false, smokeResult }));
+    expect(verdict.outcome === 'failed' && verdict.detail).toMatch(/^the smoke's failed checks: checks\.status; it returned \{"ok":false,"checks":/);
+    // A false field outside `checks` is state, never named as a failed check.
+    expect(verdict.outcome === 'failed' && verdict.detail).not.toContain('checks.status, running');
+    const flatState = judgeReplay(check(LONG_BREAK), observed({ smokeOk: false, smokeResult: { ok: false, running: false, mode: 'long' } }));
+    expect(flatState.outcome === 'failed' && flatState.detail).toBe('the smoke returned {"ok":false,"running":false,"mode":"long"}');
+    // The acceptor reads the detail at its own cap, so the returned state survives the quote.
+    const regressed: ListedCheck = { check: check(LONG_BREAK), cause: 'value-changed', detail: verdict.outcome === 'failed' ? verdict.detail : '' };
+    const block = renderInheritedChecksBlock(report([regressed]), inheritedChecksItems(report([regressed]), new Set()));
+    expect(block).toContain('"mode\\":\\"focus\\"');
+    // The judgement keeps the wording an offline replay could not improve on.
+    expect(flat(block)).toContain('For each item: did the task ask for this change, or directly cause it? If not, it is a regression');
   });
 
   it('names the requests the host refused, for the host to compare with the start', () => {

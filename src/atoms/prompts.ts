@@ -491,6 +491,25 @@ export const READER_FACING_DOC_GUIDANCE = [
   `touches it.`,
 ].join('\n');
 
+/**
+ * THE rule for a file that exists, one definition: read at RUNTIME by every
+ * molecule with edit_file when it plans and executes and by the fallback
+ * executors (`EXISTING_FILE_GUIDANCE`), and carried by the recipe blocks'
+ * limits (src/skills/events.ts). Stored prompts of molecules created before a
+ * canonical prompt changed never carried it: in run 495c20ef (2026-10-01) a
+ * trusted web molecule, in a correction phase, wrote the restored page again
+ * whole and changed its tab title and its controls; in 5dff35b0 a recipe's
+ * "write_file the complete source" lost a countdown.
+ */
+export const EXISTING_FILE_RULE: readonly string[] = [
+  `Never write_file over a file the workspace already holds, even where your instructions or a recipe step say to:`,
+  `change it with edit_file, only where it must change. Restoring a behaviour is an edit. Two exceptions, each after`,
+  `reading the file: the subtask says to replace, rebuild or redesign that file as a whole, and you keep every id, hook,`,
+  `label and behaviour it does not ask to change; or you put back what your own checks changed. .atoma-probes.json is`,
+  `outside this rule.`,
+];
+export const EXISTING_FILE_GUIDANCE = EXISTING_FILE_RULE.join('\n');
+
 /** The one rule, for any server this run starts: its port dies with it. */
 const PORT_PLACEHOLDER_LINES = [
   `HTTP DOCUMENTATION USES A PORT PLACEHOLDER. In README/docs and durable`,

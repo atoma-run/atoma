@@ -28,13 +28,13 @@ describe('which recipe fits a documentation phase', () => {
   });
 
   it('tells a molecule following a recipe what no step changes (runs 0b51e494, dadeea78)', () => {
-    const edit = 'A file the workspace already holds is changed with edit_file, even where a step says write_file, unless the subtask says to discard what it holds or to put an earlier version back.';
+    const edit = 'Never write_file over a file the workspace already holds, even where your instructions or a recipe step say to: change it with edit_file, only where it must change. Restoring a behaviour is an edit.';
     const rerun = 'A step that says not to rerun covers only what an earlier run recorded, never a new example.';
     const recipe = '2. write_file <entry>, changing only the requested UI behavior.';
     for (const block of [skillContextBlock({ id: 'patch-verified-static-ui', body: recipe }), eventSkillBlock({ id: 'recover', body: 'rewrite index.html', trigger: 'x' })]) {
       expect(flat(block)).toContain(edit);
       expect(flat(block)).toContain(rerun);
-      expect(flat(block)).toContain(".atoma-probes.json is never edit_file'd");
+      expect(flat(block)).toContain('.atoma-probes.json is outside this rule.');
     }
     // The validator judging adherence reads them with the recipe: obeying them is following it.
     expect(flat(renderActiveSkillBlock({ id: 'patch-verified-static-ui', body: recipe }))).toContain(edit);
