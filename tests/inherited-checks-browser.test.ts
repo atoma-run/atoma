@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createServer, type Server } from 'node:http';
@@ -159,7 +159,12 @@ describe('the b9dc4d0b regression, replayed', () => {
     const runtime = inheritedChecksFor({ workspaceRoot: root, executor: () => tools, log: (line) => lines.push(line) })!;
     expect(runtime).toBeDefined();
     await runtime.ready;
-    expect(lines.at(-1)).toMatch(/^inherited checks: 1 of 2 tried passed twice on the starting page \(2 selected\)/);
+    expect(lines.at(-1)).toMatch(/^inherited checks: 1 of 2 tried passed twice on the starting page \(2 selected; 1 marked dead, 0 removed, 0 revived\)/);
+    // In a real Chrome too, the check whose hook is gone is marked, and only it.
+    const marked = JSON.parse(readFileSync(join(root, '.atoma-probes.json'), 'utf8')) as { entries: Array<Record<string, unknown>> };
+    expect(marked.entries[0]).toMatchObject({ smoke: STALE_CHECK.smoke, deadSince: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) });
+    expect(marked.entries[0]!.deadReason).toEqual(expect.any(String));
+    expect(marked.entries[1]).not.toHaveProperty('deadSince');
     // The delivery: the label an earlier run asked for is gone.
     writeFileSync(join(root, 'index.html'), PAGE('Mode: Long Break'));
     const report = await runtime.compare({});
@@ -167,8 +172,27 @@ describe('the b9dc4d0b regression, replayed', () => {
     expect(report.listed).toHaveLength(1);
     expect(report.listed[0]).toMatchObject({ cause: 'value-changed' });
     expect(report.listed[0]!.detail).toContain('Mode: Long Break');
-    // The host wrote nothing into the workspace.
+    // Beside the manifest's marks, the host wrote nothing into the workspace.
     expect(readdirSync(root).sort()).toEqual(['.atoma-probes.json', 'index.html']);
+  }, 120_000);
+
+  it('marks the checks whose hook or element is gone, and the next run removes them beside the one that still passes', async () => {
+    // An interaction whose button no longer exists: Chrome's own wording
+    // is what decides an element is gone.
+    const GONE_CLICK = { probe: 'web', file: 'index.html', interactions: [{ type: 'click', selector: '#short-break' }], smoke: '(() => ({ ok: true }))()', expected: '{"ok":true}' };
+    const { root, tools } = workspace({
+      'index.html': PAGE('Long break'),
+      '.atoma-probes.json': JSON.stringify({ version: 1, entries: [STALE_CHECK, GONE_CLICK, LONG_BREAK_CHECK] }),
+    });
+    const first = inheritedChecksFor({ workspaceRoot: root, executor: () => tools, log: () => undefined })!;
+    expect(await first.baseline()).toMatchObject({ kept: 1, markedDead: 2 });
+    const marked = JSON.parse(readFileSync(join(root, '.atoma-probes.json'), 'utf8')) as { entries: Array<Record<string, unknown>> };
+    expect(marked.entries.map((entry) => entry['deadReason'])).toEqual([
+      expect.stringContaining('the smoke threw'), expect.stringContaining('selector #short-break not found'), undefined,
+    ]);
+    const second = inheritedChecksFor({ workspaceRoot: root, executor: () => tools, log: () => undefined })!;
+    expect(await second.baseline()).toMatchObject({ kept: 1, pruned: 2 });
+    expect((JSON.parse(readFileSync(join(root, '.atoma-probes.json'), 'utf8')) as { entries: unknown[] }).entries).toEqual([LONG_BREAK_CHECK]);
   }, 120_000);
 
   it('lists nothing when the delivery kept the line', async () => {

@@ -349,6 +349,7 @@ function inheritedSummary(
   const { baseline } = report;
   return {
     selected: baseline.selected, considered: baseline.considered, kept: baseline.kept, baselineCannotRun: baseline.cannotRun,
+    ...deadCounts(baseline),
     ...(baseline.stopped ? { baselineStopped: baseline.stopped } : {}),
     ...(baseline.note ? { baselineNote: baseline.note.slice(0, 240) } : {}),
     replayed: report.replayed, stillPassing: report.stillPassing, flaky: report.flaky,
@@ -365,6 +366,14 @@ function inheritedSummary(
   };
 }
 
+function deadCounts(baseline: { readonly markedDead?: number; readonly pruned?: number; readonly revived?: number }): Record<string, number> {
+  return {
+    ...(baseline.markedDead ? { markedDead: baseline.markedDead } : {}),
+    ...(baseline.pruned ? { pruned: baseline.pruned } : {}),
+    ...(baseline.revived ? { revived: baseline.revived } : {}),
+  };
+}
+
 /** The record of an acceptance that compared nothing: the run-start replay, and why. */
 async function baselineOnly(
   runtime: NonNullable<RunContext['inheritedChecks']>,
@@ -373,6 +382,7 @@ async function baselineOnly(
   const baseline = await runtime.baseline();
   return {
     selected: baseline.selected, considered: baseline.considered, kept: baseline.kept, baselineCannotRun: baseline.cannotRun,
+    ...deadCounts(baseline),
     ...(baseline.stopped ? { baselineStopped: baseline.stopped } : {}),
     ...(baseline.note ? { baselineNote: baseline.note.slice(0, 240) } : {}),
     replayed: 0, stillPassing: 0, flaky: 0, notReplayed: baseline.kept, listed: 0, notCompared, items: [],
@@ -404,7 +414,8 @@ export async function acceptRootResult(args: {
     ...(evidence ? { evidence } : {}) });
   const floorCoverage = await rootProofCoverage(ctx, floor, { digest, stale });
   // Read once for the replay's trigger, and reused by the STARTING WORKSPACE
-  // block: the host's replays serve files and never write one.
+  // block: the acceptance replays serve files and write none (the start
+  // replay's dead marks touch only the manifest, which no snapshot reads).
   const comparison = ctx.inheritedChecks && !gates.rejection ? startingComparison(ctx) : undefined;
   const inherited = await inheritedReplay(ctx, comparison);
   const inheritedItems = inherited?.items ?? [];

@@ -940,7 +940,10 @@ export async function startTask(
   // that replay, and root acceptance compares the delivered page against the
   // checks that held. The replay's own calls go to the backend directly.
   const inheritedChecks = seedRoot && args.depth && !args.baseline
-    ? inheritedChecksFor({ workspaceRoot, executor: () => backend.executor, signal, deadlineAt, log: (line) => console.log(line) })
+    ? inheritedChecksFor({
+        workspaceRoot, executor: () => backend.executor, signal, deadlineAt, log: (line) => console.log(line),
+        seedLanded: decodePreviousLanding(process.env[PREVIOUS_LANDING_ENV]).length > 0,
+      })
     : undefined;
   // Every call of the run loses the host-replay argument, whoever makes it:
   // only the replay's own calls, straight to the backend, keep it.
@@ -1040,6 +1043,7 @@ export async function startTask(
           // `seedWorkspace`. A failed copy throws and fails the run, with the
           // first attempt still intact in its `.prevN` archive.
           seed();
+          inheritedChecks?.reseeded();
           const replacement = await makeBackend();
           if (signal.aborted) {
             await replacement.cleanup();

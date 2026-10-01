@@ -37,7 +37,12 @@ Neighbours:
   is built on it. Do not stamp provenance into entries: web entries and
   compiled verifiers rewrite them whole, so a stamp depends on its writers.
   Attempt-scoped observation is the witness channel
-  ([seed inheritance](../../docs/seed-inheritance-2026-09-25.md)).
+  ([seed inheritance](../../docs/seed-inheritance-2026-09-25.md)). The ONE
+  stamp is the host's dead mark (`deadSince`, `deadReason`, `deadCheck`),
+  and it is written so its writers cannot make it lie. It is honoured only
+  on the check its `deadCheck` digest names, and only when every entry of
+  that check carries it: a mark copied onto fresh evidence is ignored, and
+  one a writer drops only delays a removal.
 - The browser-probe discriminant has ONE taught literal
   (`WEB_PROBE_DISCRIMINANT`), and both the manifest writer block and the web
   canonical prompt's `output.probes` example are generated from it. Aliases
@@ -55,8 +60,9 @@ Neighbours:
 - `probeEntryKind` is the ONE kind dispatch of a manifest entry: the health
   check and the inherited-check replay (`inheritedChecks.ts`) both call it.
   `inheritedChecks.ts` owns which inherited web entries are checks, how one
-  host replay is judged (its smoke verdict, never the page's console), and the
-  block and judgement shapes root acceptance reads.
+  host replay is judged (its smoke verdict, never the page's console), the
+  block and judgement shapes root acceptance reads, and the `deadSince` /
+  `deadReason` marks a web entry carries once a run found its check dead.
 
 ## Proof attestation
 

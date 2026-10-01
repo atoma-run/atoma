@@ -1,12 +1,13 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync, readFileSync, renameSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync, readFileSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ContainerToolExecutor, workerRunArgs } from '../src/tools/containerExecutor.js';
 import { containerToolBackend } from '../src/run/toolBackend.js';
 import { egressObjectId } from '../src/tools/egressSidecar.js';
 import { drainLines, encodeMessage, isWorkerHello } from '../src/tools/containerProtocol.js';
+import { HOST_REPLAY_ARG } from '../src/contracts/inheritedChecks.js';
 
 /**
  * The isolation primitive, proven against a real container.
@@ -288,6 +289,47 @@ describeDocker('a containerised run cannot reach the stores', () => {
     expect(probed.status).toBe(200);
     expect(probed.body).toContain('"ok":true');
   }, 90_000);
+
+  it('replays an inherited check in the host mode, on the worker image\'s own browser', async () => {
+    // docs/inherited-checks-replay-2026-10-01.md: the worker drives Debian's
+    // chromium, not Puppeteer's Chrome, and root acceptance depends on its
+    // host mode: the smoke's verdict, a throw, the status, the dead proxy.
+    await exec.execute('write_file', { path: 'replay.html', content: '<!doctype html><title>t</title><p id="mode">Long break</p>' });
+    await exec.execute('write_file', { path: 'ws-server.js', content: [
+      "const http = require('http'); const fs = require('fs');",
+      "const s = http.createServer((q, r) => r.end('x'));",
+      "s.on('upgrade', (q, socket) => { fs.writeFileSync('upgraded-' + q.url.replace(/[^a-z]/g, '') + '.txt', 'yes'); socket.destroy(); });",
+      "s.listen(0, '127.0.0.1', () => console.log('LISTENING_ON_PORT=' + s.address().port));",
+    ].join('\n') });
+    const stranger = (await exec.execute('start_node_server', { entry: 'ws-server.js' })) as { ok?: boolean; url?: string };
+    expect(stranger.ok, JSON.stringify(stranger)).toBe(true);
+    const strangerPort = new URL(stranger.url!).port;
+    const served = (await exec.execute('start_static_server', {})) as { url: string };
+    const page = `${served.url.replace(/\/$/, '')}/replay.html`;
+    const replay = (smoke: string, url = page) =>
+      exec.execute('validate_html', { url, smoke, [HOST_REPLAY_ARG]: true }) as Promise<Record<string, unknown>>;
+    expect(await replay("(() => ({ ok: document.getElementById('mode').textContent === 'Long break' }))()"))
+      .toMatchObject({ smokeOk: true, smokeThrew: false, httpStatus: 200, document: { path: 'replay.html' } });
+    expect(await replay('(() => window.__timer.mode)()')).toMatchObject({ smokeOk: false, smokeThrew: true });
+    expect(await replay('(() => ({ ok: true }))()', page.replace('replay.html', 'gone.html'))).toMatchObject({ httpStatus: 404 });
+    // The server destroys every upgraded socket, so the page sees an error
+    // either way: only the file the upgrade writes tells reached from refused.
+    const socketSmoke = (path: string) => `(async () => {
+      const own = await fetch('/replay.html').then((r) => r.ok, () => false);
+      const socket = await new Promise((resolve) => {
+        try { const ws = new WebSocket('ws://127.0.0.1:${strangerPort}/${path}'); ws.onopen = () => resolve('open'); ws.onerror = () => resolve('error'); setTimeout(() => resolve('timeout'), 3000); }
+        catch (e) { resolve('threw'); }
+      });
+      return { ok: own && socket !== 'open', own, socket };
+    })()`;
+    // The control: a molecule's own call reaches the stranger port.
+    const reached = await exec.execute('validate_html', { url: page, smoke: socketSmoke('control') });
+    expect(existsSync(join(workspace, 'upgraded-control.txt')), JSON.stringify(reached)).toBe(true);
+    // The host mode's dead proxy refuses it.
+    const confined = await replay(socketSmoke('replay'));
+    expect(confined['smokeOk'], JSON.stringify(confined['smokeResult'])).toBe(true);
+    expect(existsSync(join(workspace, 'upgraded-replay.txt'))).toBe(false);
+  }, 120_000);
 
   it('keeps HTTP loopback working when proxied egress is enabled', async () => {
     const egressWorkspace = join(dir, 'egress-ws');

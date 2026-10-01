@@ -1,11 +1,13 @@
 import { createHash } from 'node:crypto';
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
+  checkDigest,
   contradictedItems,
   HOST_REPLAY_ARG,
+  indexInheritedChecks,
   inheritedChecksItems,
   inheritedWebChecks,
   judgeReplay,
@@ -25,7 +27,7 @@ import { acceptRootResult } from '../src/atoms/rootAcceptance.js';
 import { L1Atom } from '../src/atoms/L1Atom.js';
 import { NON_JSON_PAYLOAD_SUMMARY_PREFIX } from '../src/atoms/json.js';
 import { remediationTask } from '../src/run/depth.js';
-import { snapshotDeliveredWorkspace, snapshotStartingWorkspace } from '../src/run/workspace.js';
+import { seedWorkspace, snapshotDeliveredWorkspace, snapshotStartingWorkspace } from '../src/run/workspace.js';
 import { Atom } from '../src/core/atom.js';
 import type { AcceptanceInfo } from '../src/contracts/depthRouting.js';
 import type { Plan, Result, RunContext, Task, ToolExecutor, Verdict } from '../src/core/types.js';
@@ -125,11 +127,26 @@ describe('one host replay', () => {
     expect(judgeReplay(check(LONG_BREAK), observed({ smokeOk: false, smokeResult: { ok: false, error: 'expected Long break' } })))
       .toMatchObject({ outcome: 'failed', cause: 'value-changed' });
     expect(judgeReplay(check(STALE), observed({ smokeOk: false, smokeThrew: true, smokeResult: { ok: false, error: "TypeError: Cannot read properties of undefined (reading 'mode')" } })))
-      .toMatchObject({ outcome: 'failed', cause: 'element-missing' });
+      .toMatchObject({ outcome: 'failed', cause: 'element-missing', missing: 'hook' });
     const clicks = check(LONG_BREAK, { interactions: [{ type: 'click', selector: '#long-break' }] });
-    expect(judgeReplay(clicks, observed({ smokeOk: true, requested: 1, ran: 0, errors: ['interaction click failed: no element matches #long-break'] })))
-      .toMatchObject({ outcome: 'failed', cause: 'element-missing', detail: 'interaction click failed: no element matches #long-break' });
+    expect(judgeReplay(clicks, observed({ smokeOk: true, requested: 1, ran: 0, errors: ['interaction click failed: selector #long-break not found'] })))
+      .toMatchObject({ outcome: 'failed', cause: 'element-missing', detail: 'interaction click failed: selector #long-break not found', missing: 'element' });
     expect(judgeReplay(check(LONG_BREAK), observed({ smokeOk: true, file: null, status: 404 }))).toMatchObject({ outcome: 'failed', cause: 'page-gone' });
+  });
+
+  it('names what a failed replay lost only when the page lost it: never a value, a page, a hidden element or a smoke the browser could not run', () => {
+    const lost = (raw: unknown, which: InheritedWebCheck = check(LONG_BREAK)) => {
+      const verdict = judgeReplay(which, raw);
+      return verdict.outcome === 'failed' ? verdict.missing ?? 'nothing' : verdict.outcome;
+    };
+    expect(lost(observed({ smokeOk: false, smokeResult: { ok: false } }))).toBe('nothing');
+    // The file is a regular file of the workspace: a 404 is the server's.
+    expect(lost(observed({ smokeOk: true, file: null, status: 404 }))).toBe('nothing');
+    const clicks = check(LONG_BREAK, { interactions: [{ type: 'click', selector: '#long-break' }] });
+    expect(lost(observed({ smokeOk: true, requested: 1, ran: 0, errors: ['interaction click failed: selector #long-break has no bounding box'] }), clicks)).toBe('nothing');
+    expect(lost(observed({ smokeOk: true, requested: 1, ran: 0, errors: ['interaction select failed: select selector #mode matched no element'] }), clicks)).toBe('element');
+    // A destroyed context or a crashed renderer is still listed at acceptance, and never dead.
+    expect(lost(observed({ smokeOk: false, smokeThrew: true, smokeResult: { error: 'Target closed' }, errors: ['smoke evaluation threw: Target closed'] }))).toBe('nothing');
   });
 
   it('cannot run when nothing about the check was observed, or when the host itself blocked what the page needed', () => {
@@ -253,9 +270,10 @@ describe('the host replay of a run', () => {
       return {};
     } }, runtime.ready);
     await molecule.execute('write_file', { path: 'index.html', content: 'x' });
-    // The server, the warm-up, then the newest check twice, the flaky one twice, the stale one once.
-    expect(seenByMolecule).toEqual(['write_file: 1 baseline line, 7 host calls']);
-    expect(lines.at(-1)).toMatch(/^inherited checks: 1 of 3 tried passed twice on the starting page \(3 selected\), in \d+ s$/);
+    // The server, the warm-up, then the newest check twice, the flaky one twice,
+    // and the one whose hook is gone twice: a dead check is confirmed before it is marked.
+    expect(seenByMolecule).toEqual(['write_file: 1 baseline line, 8 host calls']);
+    expect(lines.at(-1)).toMatch(/^inherited checks: 1 of 3 tried passed twice on the starting page \(3 selected; 1 marked dead, 0 removed, 0 revived\), in \d+ s$/);
     // Every call went through the host mode, at the host's own server.
     const all = backend.calls.filter((entry) => entry.name === 'validate_html');
     expect(all.every((entry) => entry.args[HOST_REPLAY_ARG] === true && entry.args['url'] === 'http://localhost:4321/index.html')).toBe(true);
@@ -332,6 +350,187 @@ describe('the host replay of a run', () => {
     await runtime.ready;
     expect(backend.replays().map((args) => args['smoke'])).toEqual([LONG_BREAK, LONG_BREAK]);
     expect((await runtime.compare({})).baseline).toMatchObject({ considered: 2, kept: 1, cannotRun: 1 });
+  });
+
+  it('marks a check dead when both start replays lost its hook, replays it after every live one, and the next run removes it', async () => {
+    const dead = "(() => window.__timer.mode)()";
+    const changed = "(() => ({ ok: document.title === 'Old' }))()";
+    const root = workspace({ ...PAGE, '.atoma-probes.json': manifest([web(dead), web(changed), web(LONG_BREAK)]) });
+    const backend = new Backend({
+      [dead]: [observed({ smokeOk: false, smokeThrew: true, smokeResult: { ok: false, error: "TypeError: Cannot read properties of undefined (reading 'mode')" } })],
+      [changed]: [observed({ smokeOk: false, smokeResult: { ok: false } })],
+    });
+    const runtime = inheritedChecksFor({ workspaceRoot: root, executor: () => backend, log: () => undefined, now: () => Date.parse('2026-10-01T12:00:00Z') })!;
+    expect(await runtime.baseline()).toMatchObject({ kept: 1, markedDead: 1 });
+    const entries = (JSON.parse(readFileSync(join(root, '.atoma-probes.json'), 'utf8')) as { entries: Array<Record<string, unknown>> }).entries;
+    // Marked, not removed: one run never deletes a check.
+    expect(entries).toHaveLength(3);
+    expect(entries[0]).toMatchObject({ smoke: dead, deadSince: '2026-10-01', deadReason: expect.stringContaining('the smoke threw'), deadCheck: checkDigest(check(dead)) });
+    // A changed value is a regression a fix can undo: never dead.
+    expect(entries[1]).not.toHaveProperty('deadSince');
+    // The next run replays it after the live checks, finds it dead again
+    // beside a check of its page that passed, and removes it.
+    const next = new Backend({ [dead]: backend.answers[dead]!, [changed]: backend.answers[changed]! });
+    const second = inheritedChecksFor({ workspaceRoot: root, executor: () => next, log: () => undefined })!;
+    expect(await second.baseline()).toMatchObject({ kept: 1, pruned: 1 });
+    expect(next.replays().map((args) => args['smoke'])).toEqual([LONG_BREAK, LONG_BREAK, changed, dead, dead]);
+    const after = (JSON.parse(readFileSync(join(root, '.atoma-probes.json'), 'utf8')) as { entries: Array<Record<string, unknown>> }).entries;
+    expect(after.map((entry) => entry['smoke'])).toEqual([changed, LONG_BREAK]);
+  });
+
+  it('removes a check an earlier run marked dead once it is dead again, and lifts the mark of one that passes', async () => {
+    const dead = "(() => window.__timer.mode)()";
+    const back = "(() => ({ ok: document.getElementById('mode') !== null }))()";
+    const root = workspace({ ...PAGE, '.atoma-probes.json': manifest([
+      web(dead, { deadSince: '2026-09-30', deadReason: 'the smoke threw', deadCheck: checkDigest(check(dead)) }),
+      web(back, { deadSince: '2026-09-30', deadReason: 'interaction click failed', deadCheck: checkDigest(check(back)) }),
+      { cmd: 'node --check app.js', exitCode: 0 },
+    ]) });
+    const backend = new Backend({ [dead]: [observed({ smokeOk: false, smokeThrew: true, smokeResult: { ok: false, error: 'TypeError' } })] });
+    const lines: string[] = [];
+    const runtime = inheritedChecksFor({ workspaceRoot: root, executor: () => backend, log: (line) => lines.push(line) })!;
+    expect(await runtime.baseline()).toMatchObject({ kept: 1, pruned: 1, revived: 1 });
+    expect(lines.at(-1)).toContain('; 0 marked dead, 1 removed, 1 revived');
+    const entries = (JSON.parse(readFileSync(join(root, '.atoma-probes.json'), 'utf8')) as { entries: Array<Record<string, unknown>> }).entries;
+    expect(entries).toEqual([{ ...web(back) }, { cmd: 'node --check app.js', exitCode: 0 }]);
+  });
+
+  it('never calls dead a check that died once and then passed, nor rewrites a manifest when nothing changed', async () => {
+    const flaky = "(() => window.__slow.ready)()";
+    const raw = manifest([web(flaky), web(LONG_BREAK)]);
+    const root = workspace({ ...PAGE, '.atoma-probes.json': raw });
+    const backend = new Backend({ [flaky]: [observed({ smokeOk: false, smokeThrew: true, smokeResult: { ok: false, error: 'TypeError' } }), observed({ smokeOk: true })] });
+    const runtime = inheritedChecksFor({ workspaceRoot: root, executor: () => backend, log: () => undefined })!;
+    expect(await runtime.baseline()).toMatchObject({ kept: 1 });
+    expect((await runtime.baseline()).markedDead).toBeUndefined();
+    expect(readFileSync(join(root, '.atoma-probes.json'), 'utf8')).toBe(raw);
+  });
+
+  const threw = () => [observed({ smokeOk: false, smokeThrew: true, smokeResult: { ok: false, error: 'TypeError' } })];
+  const entriesOf = (root: string) =>
+    (JSON.parse(readFileSync(join(root, '.atoma-probes.json'), 'utf8')) as { entries: Array<Record<string, unknown>> }).entries;
+
+  it('ignores a mark copied onto another check, and one only some copies of a check carry', async () => {
+    const copied = '(() => window.__copy.mode)()';
+    const twice = '(() => window.__twice.mode)()';
+    const mark = (smoke: string) => ({ deadSince: '2026-09-30', deadReason: 'the smoke threw', deadCheck: checkDigest(check(smoke)) });
+    const root = workspace({ ...PAGE, '.atoma-probes.json': manifest([
+      // A writer copied a marked entry to record a new check.
+      web(copied, mark('(() => window.__other.mode)()')),
+      web(twice, mark(twice)),
+      // The same check recorded again, without the mark.
+      web(twice, { expected: '{"ok":true,"again":true}' }),
+      web(LONG_BREAK),
+    ]) });
+    const backend = new Backend({ [copied]: threw(), [twice]: threw() });
+    const runtime = inheritedChecksFor({ workspaceRoot: root, executor: () => backend, log: () => undefined, now: () => Date.parse('2026-10-01T12:00:00Z') })!;
+    // Neither is removed at this first death: both are marked, each under its own name.
+    expect(await runtime.baseline()).toEqual({ selected: 3, considered: 3, kept: 1, cannotRun: 0, markedDead: 2 });
+    expect(entriesOf(root).map((entry) => [entry['deadSince'], entry['deadCheck']])).toEqual([
+      ['2026-10-01', checkDigest(check(copied))],
+      ['2026-10-01', checkDigest(check(twice))],
+      ['2026-10-01', checkDigest(check(twice))],
+      [undefined, undefined],
+    ]);
+  });
+
+  it('leaves no mark on a check that passed, honoured or not', async () => {
+    const back = "(() => ({ ok: document.getElementById('mode') !== null }))()";
+    const root = workspace({ ...PAGE, '.atoma-probes.json': manifest([
+      web(back, { deadSince: '2026-09-30', deadReason: 'the smoke threw', deadCheck: checkDigest(check(back)) }),
+      web(back, { expected: '{"ok":true,"again":true}' }),
+    ]) });
+    const runtime = inheritedChecksFor({ workspaceRoot: root, executor: () => new Backend({}), log: () => undefined })!;
+    // One copy carried no mark, so nothing was revived: the other's goes all the same.
+    expect(await runtime.baseline()).toEqual({ selected: 1, considered: 1, kept: 1, cannotRun: 0 });
+    expect(entriesOf(root).some((entry) => 'deadSince' in entry || 'deadReason' in entry || 'deadCheck' in entry)).toBe(false);
+  });
+
+  it('never calls a check dead beside a request the host refused, a page error, or a smoke the browser could not evaluate', async () => {
+    const cdn = '(() => window.Chart.version)()';
+    const erring = '(() => window.app.mode)()';
+    const crashed = '(() => window.__crash.mode)()';
+    const raw = manifest([web(cdn), web(erring), web(crashed), web(LONG_BREAK)]);
+    const root = workspace({ ...PAGE, '.atoma-probes.json': raw });
+    const backend = new Backend({
+      // Under egress, a page's CDN script is one the host replay may not fetch.
+      [cdn]: [observed({ smokeOk: false, smokeThrew: true, smokeResult: { ok: false, error: 'TypeError' },
+        failedRequests: [{ url: 'https://cdn.example/chart.js', reason: 'net::ERR_BLOCKED_BY_CLIENT' }] })],
+      [erring]: [observed({ smokeOk: false, smokeThrew: true, smokeResult: { ok: false, error: 'TypeError' }, errors: ['pageerror: app is not defined'] })],
+      [crashed]: [observed({ smokeOk: false, smokeThrew: true, smokeResult: { error: 'Target closed' }, errors: ['smoke evaluation threw: Target closed'] })],
+    });
+    const runtime = inheritedChecksFor({ workspaceRoot: root, executor: () => backend, log: () => undefined })!;
+    expect(await runtime.baseline()).toEqual({ selected: 4, considered: 4, kept: 1, cannotRun: 0 });
+    // Each failed once, and none was replayed again to confirm a death.
+    expect(backend.replays().map((args) => args['smoke'])).toEqual([LONG_BREAK, LONG_BREAK, crashed, erring, cdn]);
+    expect(readFileSync(join(root, '.atoma-probes.json'), 'utf8')).toBe(raw);
+  });
+
+  it('removes a dead check only beside a check of its own page that passed', async () => {
+    const dead = '(() => window.__timer.mode)()';
+    const alone = { file: 'other.html', deadSince: '2026-09-30', deadReason: 'the smoke threw', deadCheck: checkDigest(check(dead, { file: 'other.html' })) };
+    const root = workspace({ ...PAGE, 'other.html': '<p>other</p>', '.atoma-probes.json': manifest([web(dead, alone), web(LONG_BREAK)]) });
+    const backend = new Backend({ [dead]: [observed({ smokeOk: false, smokeThrew: true, smokeResult: { ok: false, error: 'TypeError' }, file: 'other.html' })] });
+    const runtime = inheritedChecksFor({ workspaceRoot: root, executor: () => backend, log: () => undefined })!;
+    // Dead twice, marked by an earlier run: but nothing on other.html passed.
+    expect(await runtime.baseline()).toEqual({ selected: 2, considered: 2, kept: 1, cannotRun: 0 });
+    expect(backend.replays().map((args) => args['smoke'])).toEqual([LONG_BREAK, LONG_BREAK, dead, dead]);
+    expect(entriesOf(root)[0]).toMatchObject({ smoke: dead, deadSince: '2026-09-30' });
+  });
+
+  it('marks and removes nothing after a seed run that landed: its acceptance may have listed the check it then broke', async () => {
+    const raw = manifest([web(STALE, { deadSince: '2026-09-30', deadReason: 'the smoke threw', deadCheck: checkDigest(check(STALE)) }), web('(() => window.__new.mode)()'), web(LONG_BREAK)]);
+    const root = workspace({ ...PAGE, '.atoma-probes.json': raw });
+    const backend = new Backend({ [STALE]: threw(), '(() => window.__new.mode)()': threw() });
+    const runtime = inheritedChecksFor({ workspaceRoot: root, executor: () => backend, log: () => undefined, seedLanded: true })!;
+    expect(await runtime.baseline()).toEqual({ selected: 3, considered: 3, kept: 1, cannotRun: 0 });
+    // No death is confirmed, since none would be recorded.
+    expect(backend.replays().map((args) => args['smoke'])).toEqual([LONG_BREAK, LONG_BREAK, '(() => window.__new.mode)()', STALE]);
+    expect(readFileSync(join(root, '.atoma-probes.json'), 'utf8')).toBe(raw);
+  });
+
+  it('puts its marks back once a deepening copied the seed again, and on no other manifest', async () => {
+    const raw = manifest([web(STALE), web(LONG_BREAK)]);
+    const root = workspace({ ...PAGE, '.atoma-probes.json': raw });
+    const runtime = inheritedChecksFor({ workspaceRoot: root, executor: () => new Backend({ [STALE]: threw() }), log: () => undefined })!;
+    await runtime.ready;
+    const marked = readFileSync(join(root, '.atoma-probes.json'), 'utf8');
+    expect(marked).toContain('"deadSince"');
+    // The restart's seed copy writes back the manifest the replay read.
+    writeFileSync(join(root, '.atoma-probes.json'), raw);
+    runtime.reseeded();
+    expect(readFileSync(join(root, '.atoma-probes.json'), 'utf8')).toBe(marked);
+    const other = manifest([web(LONG_BREAK)]);
+    writeFileSync(join(root, '.atoma-probes.json'), other);
+    runtime.reseeded();
+    expect(readFileSync(join(root, '.atoma-probes.json'), 'utf8')).toBe(other);
+  });
+
+  it('keeps its marks through the seed copy the next run starts from', async () => {
+    const seed = workspace({ ...PAGE, '.atoma-probes.json': manifest([web(STALE), web(LONG_BREAK)]) });
+    await inheritedChecksFor({ workspaceRoot: seed, executor: () => new Backend({ [STALE]: threw() }), log: () => undefined })!.ready;
+    const next = mkdtempSync(join(tmpdir(), 'atoma-inherited-next-'));
+    dirs.push(next);
+    expect(seedWorkspace(seed, next)).toMatchObject({ manifest: 'kept', kept: 2, dropped: 0 });
+    const copied = readFileSync(join(next, '.atoma-probes.json'), 'utf8');
+    expect(copied).toBe(readFileSync(join(seed, '.atoma-probes.json'), 'utf8'));
+    expect(indexInheritedChecks(copied)!.checks.map((item) => [item.check.smoke, item.deadSince !== undefined])).toEqual([[LONG_BREAK, false], [STALE, true]]);
+  });
+
+  it('marks and removes nothing when the manifest cannot be replaced, and leaves no file behind', async () => {
+    // Windows ignores a read-only directory, and root writes through one; CI runs this on Linux.
+    if (process.platform === 'win32' || process.getuid?.() === 0) return;
+    const raw = manifest([web(STALE), web(LONG_BREAK)]);
+    const root = workspace({ ...PAGE, '.atoma-probes.json': raw });
+    chmodSync(root, 0o555);
+    try {
+      const runtime = inheritedChecksFor({ workspaceRoot: root, executor: () => new Backend({ [STALE]: threw() }), log: () => undefined })!;
+      expect(await runtime.baseline()).toEqual({ selected: 2, considered: 2, kept: 1, cannotRun: 0, note: 'the manifest could not be rewritten: no check was marked or removed' });
+      expect(readFileSync(join(root, '.atoma-probes.json'), 'utf8')).toBe(raw);
+      expect(readdirSync(root).sort()).toEqual(['.atoma-probes.json', 'index.html']);
+    } finally {
+      chmodSync(root, 0o755);
+    }
   });
 
   it('replays nothing for a Node app, whose smokes can change its server data, nor for a page reached through a link', () => {
@@ -430,6 +629,7 @@ describe('root acceptance of a page an earlier run shaped', () => {
         ready: Promise.resolve(),
         baseline: async () => ({ selected: 6, considered: 5, kept: 4, cannotRun: 1, note: 'a check needs 12000 ms' }),
         compare: async () => { compared += 1; return report(listedChecks, { baseline: { selected: 6, considered: 5, kept: 4, cannotRun: 1, note: 'a check needs 12000 ms' }, replayed: 4, stillPassing: 4 - listedChecks.length }); },
+        reseeded: () => undefined,
       },
     };
     // The floor is covered: without a listed check, this delivery would be approved with no model call.
@@ -485,7 +685,7 @@ describe('root acceptance of a page an earlier run shaped', () => {
     let compared = 0;
     const ctx: RunContext = { ...base, attempt: 1, startingWorkspace: { start, now: () => snapshotDeliveredWorkspace(seed, start) },
       inheritedChecks: { ready: Promise.resolve(), baseline: async () => ({ selected: 2, considered: 2, kept: 2, cannotRun: 0 }),
-        compare: async () => { compared += 1; return report([]); } } };
+        compare: async () => { compared += 1; return report([]); }, reseeded: () => undefined } };
     base.llm.enqueueText(jsonText({ approved: true, reasoning: 'ok' }));
     const info = await acceptRootResult({ actor: new Actor(), task, result, ctx, floor: [], phaseCoverage: [] });
     expect(compared).toBe(0);

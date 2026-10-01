@@ -376,6 +376,16 @@ Two adversarial reviews shaped the change:
     listed.
   - **Clarity fix:** the log said "17 of 40" and the record "27 considered".
     Both now name the selected, tried and kept counts.
+  - **Dead checks:** ten of its 27 start replays went to checks whose hooks
+    were gone. A check whose two start replays both lost a hook or an
+    element, with no refused request and no page error, is now marked in the
+    run's manifest; a later run that finds it dead again removes it beside a
+    check of its page that passed. A changed value is never dead, and a run
+    seeded from a landed one marks nothing
+    ([design, Known limits](../inherited-checks-replay-2026-10-01.md#known-limits)).
+  - **Container arm:** the Docker job now replays in the host mode on the
+    worker image's chromium, with a WebSocket to another container port
+    that a molecule's call reaches and the dead proxy refuses.
 - **Molecules created before a prompt change keep the old prompt.** A
   canonical molecule takes each new prompt at bootstrap and loses its trust
   streak once. The other molecules keep theirs until
@@ -391,7 +401,14 @@ Two adversarial reviews shaped the change:
   de4a7f48. Whether that was the cause here is not established.
 - **A documentation phase matches a build recipe.** 9854553c and fa8b6ce3
   both injected `build-text-frequency-cli` into a README task. The model
-  matched it as "the skill's CLI documentation workflow".
+  matched it as "the skill's CLI documentation workflow". The recipe matcher
+  now reads that a recipe which builds an artefact (writes or rewrites its
+  code) does not fit a task that only documents or only verifies one. The
+  file scribe's first step now says `write_file` is for a new file and
+  `edit_file` changes one that exists; that canonical prompt change resets
+  its trust streak once. Both runs were the model's pick, which this covers.
+  Jev answers before the model, and its files question cannot tell a README
+  edit from a build, so a recipe Jev picks is not covered.
 - **Identical full-stack molecules.** Five branches share CarbonDioxide's
   description and tools; Jev takes the canonical first ("first of 4
   identical"), so they cost catalogue space, not decisions.

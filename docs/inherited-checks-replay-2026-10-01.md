@@ -52,10 +52,12 @@ go straight to the backend.
 The replay mostly overlaps the root planner's first model call (about 25 s),
 which uses no tool. It is bounded: 60 s of checks plus the call under way,
 about 80 s at worst, after which every tool call proceeds. Nothing is staged
-or copied, and the host writes nothing into the workspace. Deepening keeps the
-baseline, since it restarts from the same seed, and waits for it before
-archiving the workspace. Root remediation continues on the delivered
-workspace and is compared against the same baseline.
+or copied. The host's one write is the dead marks it leaves on the run's
+manifest before the gate opens (see Known limits). Deepening keeps the
+baseline, since it restarts from the same seed, waits for it before
+archiving the workspace, and puts the marks back on the copied manifest.
+Root remediation continues on the delivered workspace and is compared
+against the same baseline.
 
 A check is **kept** only when two baseline replays pass. A kept check is one
 that held, reliably, on the page the run began with. A check that is stale,
@@ -229,6 +231,10 @@ who can commit to it. This is an exception, bounded as follows:
 - **What it counts for.** The host's calls go through the base executor and
   are never attested. They cover no checklist item and no proof floor, and
   they earn no credit.
+- **What it writes.** No replay call writes a file. The host itself marks
+  dead checks in `.atoma-probes.json`, and removes the ones an earlier run
+  marked, before the gate opens. That is the one stamp the manifest carries,
+  and its exception is recorded in src/contracts.
 
 The root AGENTS.md invariant, the src/atoms contract and the src/tools
 intentional-choices section each name the exception and link here.
@@ -244,14 +250,48 @@ intentional-choices section each name the exception and link here.
 - **The start is not re-checked.** At acceptance the starting page no
   longer exists, so it cannot be replayed again. Passing twice at the start
   stands in for that.
-- **No pruning.** Stale entries are never removed, so each costs one
-  baseline replay, up to the caps. Pruning belongs to the manifest's owner
-  (src/contracts) and is a follow-up.
-- **No container arm yet.** The worker image drives Debian's chromium, not
-  Puppeteer's Chrome, and no test replays a check across that boundary. Until
-  the Docker job gains a host-replay arm, the first container run's
-  `AcceptanceInfo.inheritedChecks` (considered, kept, `baselineNote`) is the
-  evidence.
+- **Dead checks are marked, then removed, for a lost hook or element only.**
+  Run 41711050 spent ten of its 27 start replays on checks whose hooks were
+  gone. A check is DEAD when both start replays lost its target, with no
+  request refused and no page error beside it: the smoke threw inside the
+  page (a hook it reads is gone), or an interaction's selector matched no
+  element.
+  - **First run.** Its entries are marked in the run's manifest: `deadSince`,
+    `deadReason`, and `deadCheck`, the digest of the check the mark was left
+    on. It is then replayed after every live check.
+  - **Later run.** Dead again, it is removed, but only beside a check of the
+    same page that passed twice. The replay could load that page and read its
+    hooks, and the page keeps a check: an empty manifest reads as malformed,
+    and preview finds a page by its checks. Passing again, its mark goes.
+  - **Never dead.** A changed value, since a fix to the page can make that
+    check pass again. A 404, since the file is a regular file of the
+    workspace and the server failed. A smoke the browser could not evaluate:
+    a destroyed context, a crashed renderer. A failure beside a refused
+    request or a page error: a CDN script the replay may not fetch would
+    kill every check of its page, on every run.
+  - **A landed seed changes nothing.** When the seed run landed (partial, or
+    refused at delivery), its acceptance may have listed a check whose
+    regression it shipped, and that check is dead at this start. Such a run
+    marks and removes nothing.
+  - **A stamp kept honest.** A writer that copies a marked entry to record
+    a new check copies its mark too. A mark naming another check is ignored,
+    and a check counts as marked only when every entry it came from carries
+    its mark: one recorded again without it starts over. A writer that drops
+    a mark only delays a removal.
+  - **Where.** The host replaces the manifest before the gate opens,
+    through a new file renamed over it. A failed write leaves it whole and
+    marks nothing.
+  - **What it cannot do.** A check that went dead because a delivered run
+    broke what it guards, unreplayed there (past the caps, or already
+    stale), is removed too. Checks whose value changed, and entries whose
+    file is gone, are never removed: the point is closed for dead hooks and
+    elements only. With 40 live checks or more, marked ones are never
+    selected, so never revived or removed.
+- **The container arm.** The Docker job replays in the host mode on the
+  worker image's own chromium: a smoke's verdict, a throw, a 404, and a
+  WebSocket to another port of the container, which a molecule's own call
+  reaches and the dead proxy refuses. Run 41711050, the first container run,
+  came before it.
 
 ## Incidents, each on its own run
 

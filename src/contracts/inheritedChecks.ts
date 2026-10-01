@@ -1,5 +1,6 @@
+import { createHash } from 'node:crypto';
 import { z } from 'zod';
-import { inheritProbeManifest, probeEntryKind } from './probeManifest.js';
+import { inheritProbeManifest, probeEntryKind, probeEntryProblems } from './probeManifest.js';
 import { isPreflightRefusal, MAX_VIEWPORT_PX, MIN_VIEWPORT_PX } from './attestation.js';
 
 /**
@@ -93,19 +94,79 @@ function waitOf(entry: Record<string, unknown>): number | undefined {
  */
 export function inheritedWebChecks(manifestRaw: string): InheritedWebCheck[] {
   const inherited = inheritProbeManifest(manifestRaw);
-  if (inherited.text === null) return [];
-  let entries: unknown;
+  return inherited.text === null ? [] : (indexInheritedChecks(inherited.text)?.checks ?? []).map((indexed) => indexed.check);
+}
+
+/**
+ * The marks the host leaves on an inherited web entry whose check its
+ * run-start replay found DEAD: both start replays lost the check's target, a
+ * hook the smoke reads (it threw inside the page) or an element an interaction
+ * names (no element matched), with no request refused and no page error
+ * beside it. The page the check was written against no longer has what it
+ * reads, so it can never pass as written. A changed VALUE is never dead: a fix
+ * can make that check pass again.
+ *
+ * Dead once, an entry is marked and replayed after every live one; dead again
+ * in a later run, it is removed from the run's manifest; passing again, its
+ * mark goes. The run that marks it keeps it, so one slow start never deletes
+ * a check (review 2026-10-01: "stale entries are never pruned", and a
+ * project's manifest held more dead checks than live ones).
+ *
+ * These are the one stamp the manifest carries, and `deadCheck` is why it may
+ * (src/contracts/AGENTS.md). A writer that copies an entry to record a new
+ * check copies its marks too, and a mark on fresh evidence would have it
+ * removed at its first death. The mark names the check it was left on, by
+ * `checkDigest`, and one on any other check is ignored; a check counts as
+ * marked only when every entry it came from carries its mark. A writer that
+ * drops a mark only delays a removal.
+ */
+export const DEAD_SINCE_FIELD = 'deadSince' as const;
+export const DEAD_REASON_FIELD = 'deadReason' as const;
+export const DEAD_CHECK_FIELD = 'deadCheck' as const;
+
+/** One check of a manifest, and every entry it came from. */
+export interface IndexedCheck {
+  readonly check: InheritedWebCheck;
+  /** Positions, in the manifest's `entries`, of the entries this check came from. */
+  readonly entries: readonly number[];
+  /** Set when an earlier run's start replay found the check dead, and marked every one of its entries. */
+  readonly deadSince?: string;
+}
+
+/** What makes two inherited entries one check: what a replay runs. */
+function checkKey(check: InheritedWebCheck): string {
+  return JSON.stringify([check.file, check.interactions, check.smoke, check.viewport ?? null, check.waitMs ?? null]);
+}
+
+/** The name a dead mark gives its own check. */
+export function checkDigest(check: InheritedWebCheck): string {
+  return createHash('sha256').update(checkKey(check)).digest('hex').slice(0, 16);
+}
+
+/**
+ * Every check of a manifest with its source entries: live checks first, then
+ * those an earlier run marked dead, each group in manifest order from the
+ * END. Two identical checks are one, and their entries are all listed.
+ * Undefined when the text is not a version-1 manifest.
+ */
+export function indexInheritedChecks(manifestRaw: string): {
+  readonly document: Record<string, unknown>;
+  readonly entries: readonly unknown[];
+  readonly checks: readonly IndexedCheck[];
+} | undefined {
+  let document: unknown;
   try {
-    entries = (JSON.parse(inherited.text) as { entries?: unknown }).entries;
+    document = JSON.parse(manifestRaw);
   } catch {
-    return [];
+    return undefined;
   }
-  if (!Array.isArray(entries)) return [];
-  const seen = new Set<string>();
-  const checks: InheritedWebCheck[] = [];
+  if (!isRecord(document) || document['version'] !== 1 || !Array.isArray(document['entries'])) return undefined;
+  const entries = document['entries'] as unknown[];
+  const byKey = new Map<string, { check: InheritedWebCheck; digest: string; entries: number[]; marked: boolean; deadSince?: string }>();
+  const order: string[] = [];
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     const entry: unknown = entries[index];
-    if (!isRecord(entry) || probeEntryKind(entry) !== 'web') continue;
+    if (!isRecord(entry) || probeEntryKind(entry) !== 'web' || probeEntryProblems(entry, index).length > 0) continue;
     const file = typeof entry['file'] === 'string' ? servableCheckFile(entry['file']) : null;
     const smoke = entry['smoke'];
     if (file === null || typeof smoke !== 'string' || smoke.trim().length === 0 || smoke.length > MAX_INHERITED_SMOKE_CHARS) continue;
@@ -114,12 +175,25 @@ export function inheritedWebChecks(manifestRaw: string): InheritedWebCheck[] {
     const viewport = viewportOf(entry);
     if (viewport === null) continue;
     const waitMs = waitOf(entry);
-    const key = JSON.stringify([file, interactions, smoke, viewport ?? null, waitMs ?? null]);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    checks.push({ file, interactions, smoke, ...(viewport ? { viewport } : {}), ...(waitMs !== undefined ? { waitMs } : {}) });
+    const check: InheritedWebCheck = { file, interactions, smoke, ...(viewport ? { viewport } : {}), ...(waitMs !== undefined ? { waitMs } : {}) };
+    const key = checkKey(check);
+    const known = byKey.get(key);
+    const digest = known?.digest ?? checkDigest(check);
+    const since = entry[DEAD_SINCE_FIELD];
+    const deadSince = typeof since === 'string' && entry[DEAD_CHECK_FIELD] === digest ? since : undefined;
+    if (known) {
+      known.entries.push(index);
+      known.marked &&= deadSince !== undefined;
+      continue;
+    }
+    order.push(key);
+    byKey.set(key, { check, digest, entries: [index], marked: deadSince !== undefined, ...(deadSince !== undefined ? { deadSince } : {}) });
   }
-  return checks;
+  const indexed: IndexedCheck[] = order.map((key) => {
+    const { check, entries: from, marked, deadSince } = byKey.get(key)!;
+    return { check, entries: from, ...(marked && deadSince ? { deadSince } : {}) };
+  });
+  return { document, entries, checks: [...indexed.filter((item) => !item.deadSince), ...indexed.filter((item) => item.deadSince)] };
 }
 
 /**
@@ -165,10 +239,21 @@ export type ReplayCause = (typeof REPLAY_CAUSES)[number];
  * (`blocked`). Only the host, holding the start replays, can tell a request
  * the delivery added from one the page always made (review 2026-10-01: a
  * page loading one web font had every regression read as "cannot run").
+ *
+ * A failed replay that lost the check's target says which (`missing`): the
+ * smoke threw inside the page, so a hook it reads is gone, or an
+ * interaction's selector matched no element. A smoke the browser could not
+ * evaluate at all (a destroyed context, a crashed renderer) fails as
+ * element-missing too, so the acceptor still sees it, but names nothing
+ * missing: only `missing` can make a check dead at the start.
  */
 export type ReplayVerdict =
   | { readonly outcome: 'passed'; readonly pageErrors: readonly string[]; readonly blocked: readonly string[] }
-  | { readonly outcome: 'failed'; readonly cause: ReplayCause; readonly detail: string; readonly pageErrors: readonly string[]; readonly blocked: readonly string[] }
+  | {
+      readonly outcome: 'failed'; readonly cause: ReplayCause; readonly detail: string;
+      readonly pageErrors: readonly string[]; readonly blocked: readonly string[];
+      readonly missing?: 'hook' | 'element';
+    }
   | { readonly outcome: 'cannot-run'; readonly detail: string };
 
 export const REPLAY_DETAIL_CHARS = 240;
@@ -177,6 +262,10 @@ const bounded = (text: string): string => text.length > REPLAY_DETAIL_CHARS ? `$
 const TOOL_LINE = /^(?:interaction |smoke |navigation failed|url rejected|the page served)/;
 /** What the host replay's request interception, or its dead proxy, reports. */
 const BLOCKED_BY_HOST = /ERR_BLOCKED_BY_CLIENT|ERR_PROXY_CONNECTION_FAILED|ERR_TUNNEL_CONNECTION_FAILED/;
+/** `validate_html`'s line for an interaction whose selector matched nothing. */
+const NO_ELEMENT = /^interaction \S+ failed: (?:(?:upload|select) )?selector .+ (?:not found|matched no element)/;
+/** `validate_html`'s line when the browser could not evaluate the smoke at all. */
+const SMOKE_NOT_EVALUATED = 'smoke evaluation threw';
 
 export function judgeReplay(check: InheritedWebCheck, raw: unknown): ReplayVerdict {
   if (!isRecord(raw)) return { outcome: 'cannot-run', detail: 'validate_html returned no result' };
@@ -202,11 +291,13 @@ export function judgeReplay(check: InheritedWebCheck, raw: unknown): ReplayVerdi
   const smokeResult = raw['smokeResult'];
   if (ran < expected) {
     const step = errors.find((entry) => entry.startsWith('interaction ')) ?? `${expected - ran} of ${expected} interactions did not run`;
-    return { outcome: 'failed', cause: 'element-missing', detail: bounded(step), pageErrors, blocked };
+    const lost = errors.some((entry) => NO_ELEMENT.test(entry));
+    return { outcome: 'failed', cause: 'element-missing', detail: bounded(step), pageErrors, blocked, ...(lost ? { missing: 'element' as const } : {}) };
   }
   if (raw['smokeThrew'] === true) {
     const error = isRecord(smokeResult) && typeof smokeResult['error'] === 'string' ? smokeResult['error'] : 'an exception';
-    return { outcome: 'failed', cause: 'element-missing', detail: bounded(`the smoke threw: ${error}`), pageErrors, blocked };
+    const inPage = !errors.some((entry) => entry.startsWith(SMOKE_NOT_EVALUATED));
+    return { outcome: 'failed', cause: 'element-missing', detail: bounded(`the smoke threw: ${error}`), pageErrors, blocked, ...(inPage ? { missing: 'hook' as const } : {}) };
   }
   if (raw['smokeOk'] === true) return { outcome: 'passed', pageErrors, blocked };
   if (raw['smokeOk'] === false) {
@@ -242,6 +333,15 @@ export interface InheritedBaseline {
   readonly kept: number;
   /** Considered checks whose start replay could not run, the too-slow included. */
   readonly cannotRun: number;
+  /** Dead for the first time: marked, and kept in the manifest. */
+  readonly markedDead?: number;
+  /**
+   * Dead again after an earlier run's mark, beside a check of the same page
+   * that passed twice: removed from the run's manifest.
+   */
+  readonly pruned?: number;
+  /** Marked dead by an earlier run, passing again: the mark removed. */
+  readonly revived?: number;
   readonly stopped?: ReplayStop;
   /** The first reason a start replay could not run. */
   readonly note?: string;
@@ -275,6 +375,11 @@ export interface InheritedChecksRuntime {
   baseline(): Promise<InheritedBaseline>;
   /** Replays the kept checks on the workspace as it stands. */
   compare(options: { readonly deadlineAt?: number; readonly signal?: AbortSignal }): Promise<InheritedChecksReport>;
+  /**
+   * After `ready`, once a deepening copied the seed back: puts the run-start
+   * replay's dead marks on the manifest again, when it is the one it read.
+   */
+  reseeded(): void;
 }
 
 /* ─────────────────────── what the acceptor reads ─────────────────────── */
@@ -411,6 +516,9 @@ export const inheritedChecksSummarySchema = z.object({
   considered: z.number().int().nonnegative(),
   kept: z.number().int().nonnegative(),
   baselineCannotRun: z.number().int().nonnegative(),
+  markedDead: z.number().int().nonnegative().optional(),
+  pruned: z.number().int().nonnegative().optional(),
+  revived: z.number().int().nonnegative().optional(),
   baselineStopped: z.enum(REPLAY_STOPS).optional(),
   baselineNote: z.string().optional(),
   replayed: z.number().int().nonnegative(),

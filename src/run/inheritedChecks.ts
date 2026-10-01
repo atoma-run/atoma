@@ -1,15 +1,21 @@
-import { lstatSync, readFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
+import { closeSync, lstatSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ToolExecutor } from '../core/types.js';
 import { PROBE_MANIFEST_FILENAME } from '../contracts/probeManifest.js';
 import { classifyDeliveredWorkspace } from '../preview/descriptor.js';
 import {
+  checkDigest,
+  DEAD_CHECK_FIELD,
+  DEAD_REASON_FIELD,
+  DEAD_SINCE_FIELD,
   HOST_REPLAY_ARG,
-  inheritedWebChecks,
+  indexInheritedChecks,
   judgeReplay,
   minimumReplayMs,
   type InheritedBaseline,
   type InheritedChecksReport,
+  type IndexedCheck,
   type InheritedChecksRuntime,
   type InheritedWebCheck,
   type ListedCheck,
@@ -35,9 +41,11 @@ import {
  * only, no stuck tracker), it goes through the backend's base executor and is
  * never attested, and what it finds only informs the acceptor.
  *
- * Nothing here writes into the workspace: the review of the first design
+ * The replay stages nothing in the workspace: the review of the first design
  * (2026-10-01) broke a staged copy of the starting page, which the host would
- * have written into a tree the run's own processes could still change.
+ * have written into a tree the run's own processes could still change. Its
+ * one write is the manifest's dead marks (`rewriteManifest`), before any
+ * molecule's first tool call.
  */
 
 export interface InheritedReplayLimits {
@@ -119,6 +127,35 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+/**
+ * Replaces the run's manifest, host-side, while `gatedExecutor` still holds
+ * every tool call of the run and python's static server only reads. The text
+ * goes to a new file beside it, created exclusively, then renamed over it: a
+ * failed write leaves the manifest whole (a truncated one would be dropped by
+ * the next seed), and the rename replaces the name itself, never what a link
+ * or a second hard link points at.
+ */
+function rewriteManifest(root: string, text: string): boolean {
+  const path = join(root, PROBE_MANIFEST_FILENAME);
+  const temp = join(root, `${PROBE_MANIFEST_FILENAME}.${process.pid}.${randomBytes(6).toString('hex')}.tmp`);
+  let opened = false;
+  try {
+    if (!lstatSync(path).isFile()) return false;
+    const fd = openSync(temp, 'wx');
+    opened = true;
+    try {
+      writeFileSync(fd, text);
+    } finally {
+      closeSync(fd);
+    }
+    renameSync(temp, path);
+    return true;
+  } catch {
+    if (opened) rmSync(temp, { force: true });
+    return false;
+  }
+}
+
 export function pageUrl(origin: string, file: string): string {
   return `${origin}/${file.split('/').map(encodeURIComponent).join('/')}`;
 }
@@ -140,6 +177,12 @@ export function inheritedChecksFor(args: {
   readonly log: (line: string) => void;
   readonly limits?: Partial<InheritedReplayLimits>;
   readonly now?: () => number;
+  /**
+   * The seed run LANDED (partial, or refused at delivery). Its acceptance may
+   * have listed a check whose regression it then shipped, and that check is
+   * dead at this start: such a run marks and removes nothing.
+   */
+  readonly seedLanded?: boolean;
 }): InheritedChecksRuntime | undefined {
   const limits: InheritedReplayLimits = { ...DEFAULT_INHERITED_REPLAY_LIMITS, ...args.limits };
   const now = args.now ?? Date.now;
@@ -151,14 +194,16 @@ export function inheritedChecksFor(args: {
   } catch {
     return undefined;
   }
-  const inherited = inheritedWebChecks(raw);
-  if (inherited.length === 0) return undefined;
+  const index = indexInheritedChecks(raw);
+  const inherited = index?.checks ?? [];
+  if (!index || inherited.length === 0) return undefined;
   const classification = classifyDeliveredWorkspace(args.workspaceRoot);
   if (classification.kind !== 'static') {
     args.log(`inherited checks: ${inherited.length} not replayed, the workspace is not a static page (${classification.kind ?? classification.unavailableReason ?? 'unknown'})`);
     return undefined;
   }
-  const checks = inherited.filter((check) => regularWorkspaceFile(args.workspaceRoot, check.file)).slice(0, limits.maxChecks);
+  const selected: IndexedCheck[] = inherited.filter((item) => regularWorkspaceFile(args.workspaceRoot, item.check.file)).slice(0, limits.maxChecks);
+  const checks = selected.map((item) => item.check);
   const tools = args.executor();
   if (checks.length === 0 || !tools.has('start_static_server') || !tools.has('validate_html')) return undefined;
 
@@ -202,6 +247,16 @@ export function inheritedChecksFor(args: {
   // the replay cannot serve, and nothing about the check.
   const kept: Array<{ readonly check: InheritedWebCheck; readonly pageErrors: boolean; readonly blocked: ReadonlySet<string> }> = [];
   let baseline: InheritedBaseline = { selected: checks.length, considered: 0, kept: 0, cannotRun: 0 };
+  // A dead check is one whose start replays both lost its target, a hook or an
+  // element, with nothing the host refused and no page error beside it. A
+  // failure only the host replay has (a CDN script it may not fetch, a page
+  // error its context raises) would repeat on every run and confirm nothing.
+  const dead = (verdict: ReplayVerdict | 'abandoned'): verdict is Extract<ReplayVerdict, { outcome: 'failed' }> =>
+    verdict !== 'abandoned' && verdict.outcome === 'failed' && verdict.missing !== undefined &&
+    verdict.blocked.length === 0 && verdict.pageErrors.length === 0;
+  const curate = args.seedLanded !== true;
+  // The manifest as the replay wrote it, for `reseeded`.
+  let rewritten: string | undefined;
   const ready: Promise<void> = (async () => {
     const started = now();
     let stopped: ReplayStop | undefined;
@@ -215,7 +270,16 @@ export function inheritedChecksFor(args: {
       // The first call may launch the browser: it is not any check's.
       await raced(args.executor().execute('validate_html', { url: pageUrl(at, checks[0]!.file), [HOST_REPLAY_ARG]: true }), limits.warmUpMs);
     }
-    for (const check of at === undefined ? [] : checks) {
+    const deadNow: Array<{ readonly item: IndexedCheck; readonly detail: string }> = [];
+    const unmarks = new Set<number>();
+    let revived = 0;
+    // Any mark, honoured or not: a check that passed carries none.
+    const carriesMark = (position: number): boolean => {
+      const entry = index.entries[position];
+      return isRecord(entry) && [DEAD_SINCE_FIELD, DEAD_REASON_FIELD, DEAD_CHECK_FIELD].some((field) => field in entry);
+    };
+    for (const item of at === undefined ? [] : selected) {
+      const check = item.check;
       if (args.signal?.aborted) { stopped = 'aborted'; break; }
       if (args.deadlineAt !== undefined && now() + 2 * limits.perCallMs + limits.verdictReserveMs > args.deadlineAt) { stopped = 'deadline'; break; }
       if (now() - started > limits.baselineWallMs) { stopped = 'budget'; break; }
@@ -224,23 +288,87 @@ export function inheritedChecksFor(args: {
       // A failed start replay is a stale check; one that could not run says
       // nothing either way, and is counted apart.
       let passes = 0;
+      let deaths = 0;
+      let deathDetail = '';
       let startErrors = false;
       const startBlocked = new Set<string>();
       for (let pass = 0; pass < 2; pass += 1) {
         const outcome = await replay(check, at!);
         if (outcome === 'abandoned') { abandoned += 1; cannotRun += 1; note ??= `a call passed the ${limits.perCallMs} ms cap`; break; }
         if (outcome.outcome === 'cannot-run') { cannotRun += 1; note ??= outcome.detail; break; }
-        if (outcome.outcome !== 'passed') break;
+        if (curate && dead(outcome) && passes === 0) {
+          // Confirmed by a second replay before it is called dead.
+          deaths += 1;
+          deathDetail = outcome.detail;
+          continue;
+        }
+        if (outcome.outcome !== 'passed' || deaths > 0) break;
         passes += 1;
         startErrors ||= outcome.pageErrors.length > 0;
         for (const url of outcome.blocked) startBlocked.add(url);
       }
-      if (passes === 2) kept.push({ check, pageErrors: startErrors, blocked: startBlocked });
+      if (passes === 2) {
+        kept.push({ check, pageErrors: startErrors, blocked: startBlocked });
+        if (curate) {
+          if (item.deadSince) revived += 1;
+          for (const position of item.entries) if (carriesMark(position)) unmarks.add(position);
+        }
+      } else if (deaths === 2) {
+        deadNow.push({ item, detail: deathDetail });
+      }
       if (abandoned >= limits.maxAbandoned) { stopped = 'abandoned'; break; }
     }
-    baseline = { selected: checks.length, considered, kept: kept.length, cannotRun, ...(stopped ? { stopped } : {}), ...(note ? { note } : {}) };
+    // A marked check dead again is removed only beside a check of its page
+    // that passed twice: the replay loaded that page and read its hooks, so
+    // the loss is the check's, and the page keeps a check (an empty manifest
+    // reads as malformed, and preview finds a page by its checks).
+    const livePages = new Set(kept.map(({ check }) => check.file));
+    const marks = new Map<number, { readonly detail: string; readonly digest: string }>();
+    const prunes = new Set<number>();
+    let markedDead = 0;
+    let pruned = 0;
+    for (const { item, detail } of deadNow) {
+      if (!item.deadSince) {
+        markedDead += 1;
+        const digest = checkDigest(item.check);
+        for (const entry of item.entries) marks.set(entry, { detail, digest });
+      } else if (livePages.has(item.check.file)) {
+        pruned += 1;
+        for (const entry of item.entries) prunes.add(entry);
+      }
+    }
+    // The dead marks and removals reach the manifest before any molecule acts.
+    if (marks.size + unmarks.size + prunes.size > 0) {
+      const today = new Date(now()).toISOString().slice(0, 10);
+      const entries = index.entries.flatMap((entry, position) => {
+        if (prunes.has(position)) return [];
+        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return [entry];
+        const record = { ...(entry as Record<string, unknown>) };
+        if (unmarks.has(position)) {
+          delete record[DEAD_SINCE_FIELD]; delete record[DEAD_REASON_FIELD]; delete record[DEAD_CHECK_FIELD];
+        }
+        const mark = marks.get(position);
+        if (mark !== undefined) {
+          record[DEAD_SINCE_FIELD] = today; record[DEAD_REASON_FIELD] = mark.detail.slice(0, 160); record[DEAD_CHECK_FIELD] = mark.digest;
+        }
+        return [record];
+      });
+      const text = `${JSON.stringify({ ...index.document, version: 1, entries }, null, 2)}\n`;
+      if (entries.length > 0 && rewriteManifest(args.workspaceRoot, text)) {
+        rewritten = text;
+      } else {
+        markedDead = 0; pruned = 0; revived = 0;
+        note ??= 'the manifest could not be rewritten: no check was marked or removed';
+      }
+    }
+    baseline = {
+      selected: checks.length, considered, kept: kept.length, cannotRun,
+      ...(markedDead ? { markedDead } : {}), ...(pruned ? { pruned } : {}), ...(revived ? { revived } : {}),
+      ...(stopped ? { stopped } : {}), ...(note ? { note } : {}),
+    };
+    const deadNote = markedDead + pruned + revived > 0 ? `; ${markedDead} marked dead, ${pruned} removed, ${revived} revived` : '';
     args.log(`inherited checks: ${kept.length} of ${considered} tried passed twice on the starting page ` +
-      `(${checks.length} selected${stopped ? `, stopped: ${stopped}` : ''}), in ${Math.round((now() - started) / 1000)} s`);
+      `(${checks.length} selected${stopped ? `, stopped: ${stopped}` : ''}${deadNote}), in ${Math.round((now() - started) / 1000)} s`);
   })().catch((error: unknown) => {
     args.log(`inherited checks: the run-start replay failed: ${error instanceof Error ? error.message : String(error)}`);
   });
@@ -294,6 +422,17 @@ export function inheritedChecksFor(args: {
         baseline, replayed, stillPassing, flaky, notReplayed: kept.length - replayed,
         ...(stopped ? { stopped } : {}), listed, ...(newPageError ? { newPageError } : {}),
       };
+    },
+    reseeded(): void {
+      // The seed copy wrote the manifest this replay read, without its marks;
+      // any other manifest is left as it is.
+      if (rewritten === undefined) return;
+      try {
+        if (readFileSync(join(args.workspaceRoot, PROBE_MANIFEST_FILENAME), 'utf8') !== raw) return;
+      } catch {
+        return;
+      }
+      if (!rewriteManifest(args.workspaceRoot, rewritten)) args.log('inherited checks: the dead marks could not be written again after the restart');
     },
   };
 }

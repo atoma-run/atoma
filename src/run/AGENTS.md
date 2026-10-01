@@ -102,12 +102,19 @@ Neighbours:
   deepening waits for it before archiving. `runTools` also strips the
   host-replay argument from every call. The replay's own calls go to the
   backend, read through a getter because a deepening replaces it, on one
-  static server per backend. Nothing is written into the workspace: the
-  first design staged a copy there, and its review broke it (a tree the run's
-  own processes can still change). Caps: 40 checks, a warm-up call, 10 s a
-  call (past it, that check is unrun; the third ends the replay), checks
-  needing over 8 s skipped, 60 s for the start, 60 s per acceptance, and a
-  90 s verdict reserve before the deadline.
+  static server per backend. Nothing is staged in the workspace: the first
+  design staged a copy there, and its review broke it (a tree the run's own
+  processes can still change). Caps: 40 checks, a warm-up call, 10 s a call
+  (past it, that check is unrun; the third ends the replay), checks needing
+  over 8 s skipped, 60 s for the start, 60 s per acceptance, and a 90 s
+  verdict reserve before the deadline. The host's one write: a check whose
+  two start replays lost a hook or an element, with no refused request and
+  no page error, is marked dead in the run's manifest and replayed last.
+  Dead again in a later run, it is removed beside a check of its page that
+  passed; passing again, its mark goes. One run never deletes a check, a
+  run seeded from a landed one (`PREVIOUS_LANDING_ENV`) marks nothing, and
+  a deepening puts the marks back after its seed copy. The manifest is
+  replaced through a new file renamed over it.
 
 ## Platform run limits
 

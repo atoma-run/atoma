@@ -483,6 +483,10 @@ export const PREFILTER_SYSTEM_PROMPT = [
  * for skills, so they're gone here. The confidence self-check stays: the
  * low→escalate guard in `prefilterStrategy` applies uniformly to both prompts.
  */
+// "Only documents or only verifies": runs 9854553c and fa8b6ce3 (2026-09-30)
+// matched a recipe that builds a word-frequency CLI to a README update, and
+// its "write_file … README" step had the README rewritten whole, dropping the
+// examples three earlier runs had asked for.
 export const SKILL_PREFILTER_SYSTEM_PROMPT = [
   'You match a subtask against a catalog of learned skills — reusable how-to',
   'recipes attached to the worker atom that will execute the task.',
@@ -507,7 +511,9 @@ export const SKILL_PREFILTER_SYSTEM_PROMPT = [
   '    learned on a movie API applies to a book API.',
   '  - "escalate" when the recipe\'s workflow is structurally different — it',
   '    scaffolds an HTTP server but the task writes a static page; it seeds a',
-  '    database but the task scrapes a website.',
+  '    database but the task scrapes a website; it BUILDS an artefact (writes',
+  '    or rewrites its code) but the task only documents or only verifies one',
+  '    that already exists.',
   '',
   'Confidence self-check:',
   '  When you choose "reuse", label your OWN confidence in the fit:',

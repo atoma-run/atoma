@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -7,6 +7,7 @@ import { buildTierClients } from '../src/run/providers.js';
 import { startTask, resetHostLifecycleSnapshotForTests } from '../src/run/runner.js';
 import { buildProfile } from '../src/run/profiles/build.js';
 import { closeStoreHandles } from '../src/core/stores.js';
+import { PREVIOUS_LANDING_ENV } from '../src/contracts/runLanding.js';
 import { makePlan } from './helpers/factories.js';
 import { OLLAMA_PINS } from './tier-pins.js';
 
@@ -28,14 +29,20 @@ const PAGE = (line: string) => `<!doctype html><html><head><title>Focus Timer</t
 <script>document.getElementById('long-break').addEventListener('click', () => { document.getElementById('mode').textContent = ${JSON.stringify(line)}; });</script>
 </body></html>`;
 
+// Written against a page hook the seed no longer has: dead at the start.
+const STALE = { probe: 'web', file: 'index.html', smoke: "(() => ({ ok: window.__timer.mode === 'longBreak' }))()", expected: '{"ok":true}' };
+
 describe('a seeded static-page run', () => {
-  it('replays the inherited checks before any molecule touches the page, and shows the acceptor the one the delivery broke', async () => {
+  it.each([
+    ['delivered', false],
+    ['landed', true],
+  ])('replays the inherited checks before any molecule touches the page, and shows the acceptor the one the delivery broke (seed run %s)', async (_label, landed) => {
     const root = mkdtempSync(join(tmpdir(), 'atoma-inherited-runner-'));
     const workspace = join(root, 'workspace');
     const seedDir = join(root, 'seed');
     mkdirSync(seedDir);
     writeFileSync(join(seedDir, 'index.html'), PAGE('Long break'));
-    writeFileSync(join(seedDir, '.atoma-probes.json'), JSON.stringify({ version: 1, entries: [{
+    writeFileSync(join(seedDir, '.atoma-probes.json'), JSON.stringify({ version: 1, entries: [STALE, {
       probe: 'web', file: 'index.html', interactions: [{ type: 'click', selector: '#long-break' }],
       smoke: "(() => ({ ok: document.getElementById('mode').textContent === 'Long break', mode: document.getElementById('mode').textContent }))()",
       expected: '{"ok":true}',
@@ -45,6 +52,8 @@ describe('a seeded static-page run', () => {
       // Room for the acceptance replay before the deadline's verdict reserve.
       ATOMA_BUILD_WORKSPACE: workspace, ATOMA_BUILD_TIMEOUT_MS: '600000', ATOMA_CONTAINER: '0',
       ATOMA_REQUIRE_ISOLATION: '0', ATOMA_PREFILTER_CACHE: '0',
+      // What the project coordinator sets when the seed run landed partial.
+      ...(landed ? { [PREVIOUS_LANDING_ENV]: JSON.stringify(['refused at delivery: the fixture']) } : {}),
     })) vi.stubEnv(key, value);
     resetHostLifecycleSnapshotForTests();
     const logs: string[] = [];
@@ -88,9 +97,15 @@ describe('a seeded static-page run', () => {
       // Where python can serve the page, nothing but the full catch passes:
       // a broken host server start must not hide behind the fallback.
       if (spawnSync('python3', ['--version']).status === 0) {
-        expect(baseline).toMatch(/^inherited checks: 1 of 1 tried passed twice/);
+        expect(baseline).toMatch(/^inherited checks: 1 of 2 tried passed twice/);
         expect(rootPrompt).toContain('INHERITED BROWSER CHECKS (host replay, mechanical)');
         expect(rootPrompt).toContain('Mode: Long Break');
+        // The hook-less check is marked in the run's manifest, unless the
+        // seed landed: its acceptance may have listed the check it broke.
+        const stale = (JSON.parse(readFileSync(join(workspace, '.atoma-probes.json'), 'utf8')) as { entries: Array<Record<string, unknown>> }).entries[0]!;
+        expect(stale['smoke']).toBe(STALE.smoke);
+        if (landed) expect(stale).not.toHaveProperty('deadSince');
+        else expect(stale['deadSince']).toEqual(expect.any(String));
       } else {
         expect(baseline).toContain('(stopped: server)');
       }
