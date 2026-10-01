@@ -26,6 +26,7 @@ its source before the next run.
 | dadeea78 | wordfreq CLI: a usage line and a combined example | 157 s | $0.03 | 7 | delivered; README edited in place, the new example's output worked out and never run |
 | 5dff35b0 | pomodoro page: the shortcuts repaired | 1,732 s | $0.43 | 23 | delivered and published a rewritten page the first acceptance had refused |
 | 495c20ef | pomodoro page: restored after 5dff35b0 | 1,816 s | $0.51 | 18 | landed, refused twice, nothing published; 22 checks marked dead |
+| c195ba35 | pomodoro page: four details fixed | 423 s | $0.13 | 8 | delivered and published; three edits, one listed check judged asked, approved first time |
 
 ## A verified execution rejected as "non-JSON" (8606cf38)
 
@@ -506,6 +507,26 @@ The goal described the page in full, to undo 5dff35b0's rewrite. It ran on
 - **The net held.** The remediation ran out of time and its acceptance
   replayed none of the 16 checks; the block said so, and the run landed,
   unpublished.
+
+## Four details, edited in place (c195ba35)
+
+The last run of the day fixed what 495c20ef left: the tab title, two
+visible test fields, the sessions line's place and a README sentence. It
+ran on c2ed5921, seeded from 495c20ef's landed page.
+
+- **Edits only.** The web molecule changed index.html with three edit_file
+  calls, each after a fresh read (6080 → 6242 → 5819 → 5799 bytes), and the
+  README took one. Its stored prompt and its recipe still say
+  `write_file`; the runtime rule won.
+- **No read-back.** Its manifest write answered "102 entries already
+  recorded were kept beside yours …; no need to read the file back", and it
+  did not read the 113 KB file.
+- **One listed check, judged right.** Of 8 checks kept at the start, 7
+  still passed; the eighth lost the test field the task removed, and the
+  acceptor judged it asked for and approved.
+- **Published.** A browser drive of the published page confirmed the four
+  fixes and every shortcut with a button focused. The project's main is
+  whole again, two runs after 5dff35b0 published the rewrite.
 
 ## Open
 
