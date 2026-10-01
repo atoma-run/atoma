@@ -273,7 +273,8 @@ async function stopServersStarted(ctx: RunContext, records: readonly Attestation
 
 /**
  * Stamp a landed dispatch's aggregate so no reader downstream can mistake it
- * for a complete one. Phases that never ran are named, and the summary says
+ * for a complete one. Phases that did not complete with an accepted result
+ * are named, and the summary says
  * INCOMPLETE in its first word — the validators, the trace and the operator
  * all read that string, and the previous behaviour's whole defect was that
  * nothing distinguished "three phases of four" from "four of four".
@@ -286,7 +287,7 @@ export function markLanded(result: Result, unfinished: readonly Subtask[]): Resu
   return {
     ...result,
     summary:
-      `INCOMPLETE — the run deadline landed this plan with ${phases.length} phase(s) never run: ` +
+      `INCOMPLETE — the run deadline landed this plan with ${phases.length} unfinished phase(s) that did not complete with an accepted result: ` +
       `${phases.join(' | ')}. Delivered so far: ${result.summary}`,
     // Union with what came from below: an L2 that landed inside one L3 phase
     // makes the whole run partial, and its unfinished phases must survive the

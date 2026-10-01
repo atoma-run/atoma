@@ -129,6 +129,9 @@ describe('a sequential dispatch landing on the run deadline', () => {
     expect(ran).toEqual([0]);
     expect(outcome.results.map((r) => r.summary)).toEqual(['phase 1']);
     expect(outcome.unfinished.map((s) => s.description)).toEqual(['harden', 'document']);
+    const marked = markLanded(outcome.results[0]!, outcome.unfinished);
+    expect(marked.summary).toContain('2 unfinished phase(s) that did not complete with an accepted result');
+    expect(marked.summary).not.toContain('never run');
   });
 
   it('keeps the completed phases when the deadline aborts the phase in flight', async () => {
@@ -147,6 +150,9 @@ describe('a sequential dispatch landing on the run deadline', () => {
     );
     expect(outcome.results).toHaveLength(3);
     expect(outcome.unfinished.map((s) => s.description)).toEqual(['package']);
+    const marked = markLanded(outcome.results[0]!, outcome.unfinished);
+    expect(marked.summary).toContain('1 unfinished phase(s) that did not complete with an accepted result');
+    expect(marked.summary).not.toContain('never run');
   });
 
   it('still throws when the deadline lands before any phase completed', async () => {
@@ -232,7 +238,7 @@ describe('a parallel dispatch landing on the run deadline', () => {
 });
 
 describe('what a landed result says about itself', () => {
-  it('names the phases that never ran and marks the summary INCOMPLETE', () => {
+  it('names the phases that did not complete and marks the summary INCOMPLETE', () => {
     const marked = markLanded(result('wrote index.html'), [
       { description: 'write the README' },
     ] as Plan['subtasks']);
