@@ -382,6 +382,9 @@ export const PROOF_OBLIGATION_GUIDANCE = [
   `external interaction when the smoke drives its own state — so a phase that`,
   `declares this obligation must reach the affordance through selector-based`,
   `interactions, not through a test hook.`,
+  `A key that must be ignored in a control the page never renders (a text field,`,
+  `a textarea) is proven by a smoke that creates that control: say so in the`,
+  `subtask, never "real input" into such a control or adding it to the page.`,
   `Declaring it separates artifact approval from method credit; leaving it out`,
   `when the task names user input leaves that method`,
   `unproven WITHOUT activating this credit guard. Only a DECLARED but`,
@@ -512,15 +515,30 @@ export const EXISTING_FILE_GUIDANCE = EXISTING_FILE_RULE.join('\n');
 
 /**
  * A control the page does not have, needed only to test a behaviour, lives
- * in the smoke. Run 81375f01 (2026-10-01): a plan asked to prove a shortcut
- * is ignored in a text field and a textarea the page has none of, and the
- * web molecule added hidden ones to the page, undoing the run before it
- * that had removed exactly such fields.
+ * in the smoke, and the call's interactions set up what the key would change.
+ * Run 81375f01 (2026-10-01): a plan asked to prove a shortcut is ignored in a
+ * text field and a textarea the page has none of, and the web molecule added
+ * hidden ones to the page, undoing the run before it. Run ff102525: told to
+ * create them in the smoke, and also that a self-driving smoke never counts
+ * as dom-interaction proof, it oscillated for 999 s between the two and left
+ * them in. A smoke that only creates, focuses, keys and removes its own
+ * element calls no state-changing method (`smokeDrivesOwnState`), so the
+ * interactions run and the one call is real interaction; the validator
+ * prompt and the obligation lines say the same, and
+ * tests/smoke-two-call-coverage.test.ts feeds the call through the guards
+ * and the coverage check.
  */
 export const TEST_ONLY_ELEMENT_GUIDANCE = [
   `- A page element you need ONLY to exercise the page (a text field or textarea to prove a shortcut is`,
-  `  ignored there) is created by the smoke while it runs, its keys dispatched from the smoke, and removed`,
-  `  before the smoke returns. It never goes into a file you deliver.`,
+  `  ignored there) never goes into a file you deliver: the page never renders it, so no interaction`,
+  `  reaches it. Prove it in one validate_html call, once the page's other checks pass. Its interactions set`,
+  `  up the state the key would change; the page's own controls, a select included, are driven only by`,
+  `  interactions. Its smoke creates the element, styles it inline off-screen (never display:none, hidden`,
+  `  or disabled), appends it, focuses it with .focus(), dispatches the key ON it with bubbles: true, and`,
+  `  removes it before returning. Its ok needs the element focused when the key goes, the state before`,
+  `  the key to be the one the interactions made, and the key to leave it so. Never .click() it or add a`,
+  `  class to it: the runtime then drops the interactions. A false self-check means fix the smoke, never`,
+  `  the page.`,
 ].join('\n');
 
 /** The one rule, for any server this run starts: its port dies with it. */

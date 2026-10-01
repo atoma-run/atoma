@@ -65,6 +65,7 @@ import {
   FALLBACK_VERIFICATION_GUIDANCE,
   FALLBACK_SYSTEM_PROMPT,
   EXISTING_FILE_GUIDANCE,
+  TEST_ONLY_ELEMENT_GUIDANCE,
   READER_FACING_DOC_GUIDANCE,
   recoveryContext,
   carryTaskCoaching,
@@ -1219,6 +1220,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       FALLBACK_VERIFICATION_GUIDANCE,
       hasTools ? READER_FACING_DOC_GUIDANCE : '',
       hasTools && this.tools.some((tool) => tool.name === 'edit_file') ? EXISTING_FILE_GUIDANCE : '',
+      hasValidator ? TEST_ONLY_ELEMENT_GUIDANCE : '',
       `Return JSON: {"output", "summary"} once the work is done.`,
     ]
       .filter((l): l is string => typeof l === 'string' && l.length > 0)

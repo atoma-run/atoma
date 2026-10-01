@@ -317,11 +317,19 @@ load-bearing.
   molecule, in a correction phase with no recipe, wrote a restored page
   again whole.
 - A control the page lacks, needed only to test a behaviour (a text field to
-  prove a shortcut is ignored there), is created by the smoke and removed
-  before it returns, never added to the page (`TEST_ONLY_ELEMENT_GUIDANCE`,
-  runtime text for every molecule with validate_html). In run 81375f01, a
-  plan asked for such a test and the molecule put hidden fields back into
-  the page.
+  prove a shortcut is ignored there), never goes into the page. One
+  validate_html call, once the page's other checks pass, proves it: its
+  interactions set up the state the key would change, and its smoke creates
+  the control inline off-screen, focuses it, keys it, checks the focus and
+  that state, and removes it. Such a smoke calls none of the methods
+  `smokeDrivesOwnState` knows, so the interactions run and cover
+  dom-interaction. That detector knows method names only: a hook-driven
+  smoke beside one click covers too, and only the validator prompt says it
+  proves nothing (`TEST_ONLY_ELEMENT_GUIDANCE`: every molecule with
+  validate_html, plan and execute, and the fallback executors; the validator
+  prompt, `PROOF_OBLIGATION_GUIDANCE` and `proofObligationLines` agree).
+  Runs 81375f01 (hidden fields put back) and ff102525 (999 s adding and
+  removing them between two rules that contradicted each other).
 - Node-server children keep file read-back even when they also have browser
   tools. Only a loopback response with status 200 and HTML content appends a
   browser probe; JSON responses and expected root 404s are not browser failures.

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { L1Atom } from '../src/atoms/L1Atom.js';
+import { L1Atom, proofObligationLines } from '../src/atoms/L1Atom.js';
 import { L2Atom } from '../src/atoms/L2Atom.js';
 import { L3Atom } from '../src/atoms/L3Atom.js';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
-import { EXISTING_FILE_GUIDANCE, READER_FACING_DOC_GUIDANCE, TEST_ONLY_ELEMENT_GUIDANCE } from '../src/atoms/prompts.js';
+import { EXISTING_FILE_GUIDANCE, PROOF_OBLIGATION_GUIDANCE, READER_FACING_DOC_GUIDANCE, TEST_ONLY_ELEMENT_GUIDANCE } from '../src/atoms/prompts.js';
 import { ensureCanonicalProjectDocsL1 } from '../src/atoms/capability.js';
 import { VALIDATION_SYSTEM_PROMPT } from '../src/atoms/verdict.js';
 import { HOST_TOOL_NAMES } from '../src/contracts/toolTaxonomy.js';
@@ -97,16 +97,58 @@ describe('a delivered document is for its reader', () => {
     expect(rule).toContain('.atoma-probes.json is outside this rule.');
   });
 
-  it('tells a molecule that validates a page to create a test-only control in its smoke, never in the page (run 81375f01)', async () => {
+  it('tells a molecule that validates a page to prove a control the page lacks from its smoke, never in the page (runs 81375f01, ff102525)', async () => {
     for (const [tools, reads] of [[['write_file', 'edit_file', 'start_static_server', 'validate_html'], true], [['write_file', 'edit_file', 'read_file'], false]] as const) {
       const molecule = new L1Atom({ name: 'Water', ordinal: 1, systemPrompt: 'a web molecule prompt', tools: makeTools([...tools]), params: {} });
       const ctx = makeCtx();
+      ctx.llm.enqueueText(jsonText({ reasoning: 'r', proposedAction: 'edit and validate', expectedOutput: 'page' }));
       ctx.llm.enqueueText(jsonText({ output: 'done', summary: 'done' }));
-      await molecule.execute({ description: 'Add an F shortcut, ignored in text fields' }, makePlan({ proposedAction: 'edit and validate' }), ctx);
-      expect(ctx.llm.calls[0]!.userContent.includes(TEST_ONLY_ELEMENT_GUIDANCE)).toBe(reads);
+      const task = { description: 'Add a P shortcut, ignored in text fields', proofObligations: ['dom-interaction' as const] };
+      const plan = await molecule.plan(task, ctx);
+      await molecule.execute(task, plan, ctx);
+      // It plans with the rule and executes with it, and the obligation names
+      // the same exception, so the two never contradict; a molecule that
+      // cannot validate a page hears neither.
+      expect(ctx.llm.calls.map((call) => call.userContent.includes(TEST_ONLY_ELEMENT_GUIDANCE))).toEqual([reads, reads]);
+      expect(ctx.llm.calls.map((call) => flat(call.userContent).includes('The one element a smoke may send a key to: one the page never renders')))
+        .toEqual([reads, reads]);
     }
-    expect(TEST_ONLY_ELEMENT_GUIDANCE).toContain('is created by the smoke while it runs');
-    expect(TEST_ONLY_ELEMENT_GUIDANCE).toContain('It never goes into a file you deliver.');
+    const rule = flat(TEST_ONLY_ELEMENT_GUIDANCE);
+    expect(rule).toContain('never goes into a file you deliver');
+    expect(rule).toContain("Prove it in one validate_html call, once the page's other checks pass. Its interactions set up the state the key would change; the page's own controls, a select included, are driven only by interactions.");
+    expect(rule).toContain('styles it inline off-screen (never display:none, hidden or disabled), appends it, focuses it with .focus(), dispatches the key ON it with bubbles: true, and removes it before returning');
+    expect(rule).toContain('Its ok needs the element focused when the key goes, the state before the key to be the one the interactions made, and the key to leave it so.');
+    expect(rule).toContain('Never .click() it or add a class to it: the runtime then drops the interactions. A false self-check means fix the smoke, never the page.');
+    expect(proofObligationLines({ description: 'x', proofObligations: ['dom-interaction'] }).join('\n')).not.toMatch(/never renders/);
+  });
+
+  it('tells the judges and the planners the same (ff102525 review)', () => {
+    const section = flat(VALIDATION_SYSTEM_PROMPT.slice(VALIDATION_SYSTEM_PROMPT.indexOf('== A CONTROL THE PAGE DOES NOT HAVE ==')));
+    expect(section).toContain('a control the page never renders and the task does not ask it to have');
+    expect(section).toContain('Never reject a plan or result for proving it this way, nor ask for the control in the page or for real input into it; a changed state, or a state before the key that the interactions did not make, is still a failure.');
+    expect(section).toContain("a smoke that clicks, dispatches to or drives the page's own elements or hooks proves nothing about them.");
+    expect(flat(PROOF_OBLIGATION_GUIDANCE)).toContain('is proven by a smoke that creates that control: say so in the subtask, never "real input" into such a control or adding it to the page.');
+  });
+
+  it('reaches a fallback executor that can validate a page', async () => {
+    for (const withBrowser of [true, false]) {
+      const reg = new AtomRegistry(openDb(':memory:'));
+      const tools = makeTools(withBrowser ? ['write_file', 'edit_file', 'read_file', 'validate_html'] : ['write_file', 'edit_file', 'read_file']);
+      const seed = { description: 'seed', systemPrompt: 'sys', params: {}, createdBy: 'test', tools };
+      const cell = L2Atom.fromType(reg.create(2, seed), reg);
+      cell.setFallbackMode(true);
+      const cellLlm = recordingLlm(twoPhases);
+      await cell.execute({ description: 'add a shortcut' }, makePlan({ reasoning: 'r', proposedAction: 'p', expectedOutput: 'e' }),
+        { ...makeCtx(), llm: cellLlm.llm, tools: executor });
+      const tissue = L3Atom.buildWithModel(reg.create(3, seed), reg, FALLBACK_OPUS);
+      tissue.setFallbackMode(true);
+      const tissueLlm = recordingLlm(twoPhases);
+      await tissue.execute({ description: 'add a shortcut' }, makePlan({ reasoning: 'r', proposedAction: 'p', expectedOutput: 'e' }),
+        { ...makeCtx(), llm: tissueLlm.llm, tools: executor });
+      for (const [content] of [cellLlm.byRole.get('fallback-execute')!, tissueLlm.byRole.get('fallback-execute')!]) {
+        expect(content!.includes(TEST_ONLY_ELEMENT_GUIDANCE)).toBe(withBrowser);
+      }
+    }
   });
 
   it('reaches a fallback executor that can edit a file, and never one without edit_file', async () => {

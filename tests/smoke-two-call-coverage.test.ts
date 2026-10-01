@@ -339,3 +339,74 @@ describe('the real tool hands the shape out', () => {
     expect(res.document).toBeUndefined();
   });
 });
+
+/**
+ * The call TEST_ONLY_ELEMENT_GUIDANCE teaches (runs 81375f01 and ff102525,
+ * 2026-10-01): real interactions set up the state the key would change, then
+ * a smoke creates a field the page never renders, styles it inline, appends
+ * and focuses it, keys it and removes it, and its ok checks the focus and the
+ * state the interactions made. Built from the rule's words, as a molecule
+ * would build it.
+ */
+const TEST_ONLY_CONTROL_CALL = {
+  interactions: [{ type: 'click', selector: '#controlFromSource' }],
+  smoke:
+    "(() => { const field = document.createElement('textarea'); field.style.cssText = 'position:fixed;left:-9999px'; " +
+    "document.body.append(field); field.focus(); const focused = document.activeElement === field; " +
+    "const before = document.querySelector('#readout').textContent; " +
+    "field.dispatchEvent(new KeyboardEvent('keydown', { key: 'p', bubbles: true })); " +
+    "const after = document.querySelector('#readout').textContent; field.remove(); " +
+    "return { ok: focused && before === '1' && after === before, focused, before, after }; })()",
+};
+
+describe('the test-only control call the rule teaches', () => {
+  it('passes every pre-flight guard and keeps its interactions', () => {
+    const interactions = parseInteractions([...TEST_ONLY_CONTROL_CALL.interactions]);
+    expect(interactions).toHaveLength(1);
+    expect(preflightSmokeRefusals(TEST_ONLY_CONTROL_CALL.smoke, interactions)).toEqual([]);
+    expect(smokeDrivesOwnState(TEST_ONLY_CONTROL_CALL.smoke)).toBe(false);
+  });
+
+  it('COVERS dom-interaction on its own, through the production seam', async () => {
+    const { root, phase } = phaseCtx();
+    const result = await validate(phase, TEST_ONLY_CONTROL_CALL);
+    expect(result['ok']).toBe(true);
+    expect(result['ignoredInteractions']).toBe(0);
+    expect((result['interactionLog'] as string[]).length).toBe(1);
+    const coverage = await checkProofCoverage({ ctx: phase, obligations: ['dom-interaction'] });
+    expect(coverage[0]!.covered).toBe(true);
+    expect(coverage[0]!.eventIds).toEqual(root.attestations!.forBranch('phase-1').map((r) => r.eventId));
+  });
+
+  it('covers nothing as ff102525 first sent it: the state set through a hook, no interactions', async () => {
+    const { phase } = phaseCtx();
+    const hooked = TEST_ONLY_CONTROL_CALL.smoke.replace('(() => { ', '(() => { window.__test.start(); ');
+    await validate(phase, { interactions: [], smoke: hooked });
+    const coverage = await checkProofCoverage({ ctx: phase, obligations: ['dom-interaction'] });
+    expect(coverage[0]!.covered).toBe(false);
+  });
+
+  it('a known hole: the same hook beside one click still covers', async () => {
+    // The discard predicate knows a fixed set of method names and `.start(` is
+    // not one of them. Only the validator prompt's section on a control the
+    // page does not have says a smoke driving the page's hooks proves nothing.
+    const { phase } = phaseCtx();
+    const hooked = TEST_ONLY_CONTROL_CALL.smoke.replace('(() => { ', '(() => { window.__test.start(); ');
+    expect(smokeDrivesOwnState(hooked)).toBe(false);
+    await validate(phase, { ...TEST_ONLY_CONTROL_CALL, smoke: hooked });
+    const coverage = await checkProofCoverage({ ctx: phase, obligations: ['dom-interaction'] });
+    expect(coverage[0]!.covered).toBe(true);
+  });
+
+  it.each([
+    ['clicks a control of the page', "document.querySelector('#controlFromSource').click(); field.focus();"],
+    ['clicks its own field to focus it', 'field.click(); field.focus();'],
+    ['adds a class to its field', "field.classList.add('sr-only'); field.focus();"],
+  ])('loses its interactions once the smoke %s', async (_name, focusing) => {
+    const { phase } = phaseCtx();
+    const result = await validate(phase, { ...TEST_ONLY_CONTROL_CALL, smoke: TEST_ONLY_CONTROL_CALL.smoke.replace('field.focus();', focusing) });
+    expect(result['ignoredInteractions']).toBe(1);
+    const coverage = await checkProofCoverage({ ctx: phase, obligations: ['dom-interaction'] });
+    expect(coverage[0]!.covered).toBe(false);
+  });
+});

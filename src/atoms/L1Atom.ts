@@ -142,7 +142,7 @@ function escapeRegex(value: string): string {
  * found no executed interaction, and every credit for a correct page was
  * withheld. The supervisor's rule is unchanged; the worker now hears it.
  */
-export function proofObligationLines(task: Task): string[] {
+export function proofObligationLines(task: Task, validatesPages = false): string[] {
   if (!task.proofObligations?.includes('dom-interaction')) return [];
   return [
     `PROOF OBLIGATION "dom-interaction": this phase must prove REAL user input`,
@@ -156,6 +156,15 @@ export function proofObligationLines(task: Task): string[] {
     `proof into TWO validate_html calls — the control up to the milestone with a`,
     `read-only smoke, then one change plus the reset with a read-only smoke — never`,
     `into a smoke that drives the steps itself.`,
+    // The rule this names reaches only a molecule with validate_html.
+    ...(validatesPages
+      ? [
+          `The one element a smoke may send a key to: one the page never renders, which`,
+          `the smoke creates, focuses and removes to prove the key is ignored there,`,
+          `after the call's own interactions set up the state (the rule for a test-only`,
+          `element). It never goes into the page.`,
+        ]
+      : []),
   ];
 }
 
@@ -304,7 +313,7 @@ export class L1Atom extends Atom {
       ``,
       `Task: ${task.description}`,
       task.inputs ? `Inputs: ${JSON.stringify(task.inputs)}` : '',
-      ...proofObligationLines(task),
+      ...proofObligationLines(task, this.tools.some((t) => t.name === 'validate_html')),
       task.constraints?.length ? `Constraints:\n${task.constraints.map((c) => `- ${c}`).join('\n')}` : '',
       ``,
       `Tools available at execute time:`,
@@ -319,6 +328,7 @@ export class L1Atom extends Atom {
       `when the required claims pass.`,
       writesFiles(this.tools) ? READER_FACING_DOC_GUIDANCE : '',
       editsFiles(this.tools) ? EXISTING_FILE_GUIDANCE : '',
+      this.tools.some((t) => t.name === 'validate_html') ? TEST_ONLY_ELEMENT_GUIDANCE : '',
       ``,
       `CRITICAL — plan shape (aspirational, no literal payloads):`,
       `Describe your intended tool sequence in the "proposedAction" field as PROSE`,
@@ -358,7 +368,7 @@ export class L1Atom extends Atom {
       ``,
       `Task: ${task.description}`,
       task.inputs ? `Inputs: ${JSON.stringify(task.inputs)}` : '',
-      ...proofObligationLines(task),
+      ...proofObligationLines(task, hasValidator),
       ``,
       `Approved plan:`,
       JSON.stringify(plan, null, 2),
@@ -393,7 +403,13 @@ export class L1Atom extends Atom {
         ? `  resulting state, or send interactions: [] and drive every step inside`
         : null,
       hasValidator
-        ? `  the smoke — never both, a self-driving smoke discards the interactions.`
+        ? `  the smoke — never both: a smoke that drives the page's state proves nothing about its input, and one`
+        : null,
+      hasValidator
+        ? `  that calls .click(), .add(), .reset(), .clear(), .increment(), .advance() or .increase() on anything`
+        : null,
+      hasValidator
+        ? `  also drops the interactions.`
         : null,
       hasValidator
         ? `  The smoke asserts that state actually changed. Example for a grid:`
