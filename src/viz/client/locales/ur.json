@@ -1239,5 +1239,9 @@
   "settings.platformLimitUnlimited": "لامحدود",
   "settings.platformLimitEnvSet": "{{name}}={{value}}",
   "settings.platformLimitEnvUnset": "{{name}} سیٹ نہیں ہے",
-  "settings.tab.limits": "run کی حدود"
+  "settings.tab.limits": "run کی حدود",
+  "projects.runTokens": "ٹوکنز: {{value}}",
+  "projects.runLlmCalls": "LLM کالز: {{value}}",
+  "projects.runJevCalls": "Jev API کالز: {{value}}",
+  "projects.cardLastRun": "آخری run {{ago}}"
 }

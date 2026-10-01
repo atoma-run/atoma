@@ -1239,5 +1239,9 @@
   "settings.platformLimitUnlimited": "tanpa batas",
   "settings.platformLimitEnvSet": "{{name}}={{value}}",
   "settings.platformLimitEnvUnset": "{{name}} tidak ditetapkan",
-  "settings.tab.limits": "Batas run"
+  "settings.tab.limits": "Batas run",
+  "projects.runTokens": "Token: {{value}}",
+  "projects.runLlmCalls": "Panggilan LLM: {{value}}",
+  "projects.runJevCalls": "Panggilan API Jev: {{value}}",
+  "projects.cardLastRun": "run terakhir {{ago}}"
 }
