@@ -7,6 +7,7 @@ import type { ContextCitation, ContextSource } from '../contracts/llmTrace.js';
 import type { AtomType } from '../registry/atomRegistry.js';
 import type { Task, Tier } from '../core/types.js';
 import type { AcceptanceInfo, TopologyInfo } from '../contracts/depthRouting.js';
+import { isLanded } from '../contracts/runLanding.js';
 
 /**
  * Minimal structured event log for the web visualizer. One run corresponds to
@@ -446,6 +447,14 @@ export interface VizRunIndexEntry {
    * "✕ cancelled" instead of "● LIVE" once the user has killed them.
    */
   cancelled?: boolean;
+  /**
+   * True when the run ended with a result that LANDED: unfinished phases, or a
+   * refusal at delivery (`isLanded`, the one derivation the run header, the
+   * runner and the supervisor digest share). A list holds no result, so a
+   * landed run read as delivered there: the project run list put a tick on
+   * run 81375f01 while its header said incomplete (2026-10-01).
+   */
+  landed?: boolean;
   costUsd?: number;
   calls?: number;
   /** Present when the index row is a project run (gated viz). */
@@ -889,6 +898,7 @@ export class TraceRecorder {
     if (this.run.durationMs !== undefined) entry.durationMs = this.run.durationMs;
     if (this.run.degraded) entry.degraded = true;
     if (this.run.cancelled) entry.cancelled = true;
+    if (isLanded(this.run.result)) entry.landed = true;
     // Inflight flag: partial persists during the run carry it; the
     // final endRun persist (which sets endedAt) clears it. `lastEventAt`
     // rides along so a consumer holding only the index can tell a live run

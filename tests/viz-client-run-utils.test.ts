@@ -400,6 +400,9 @@ describe('what happened to a run, asked of the index', () => {
       .toBe('cancelled');
     expect(runIndexStatus(entry({ hasError: true, endedAt: new Date().toISOString() }))).toBe('failed');
     expect(runIndexStatus(entry({ endedAt: new Date().toISOString() }))).toBe('delivered');
+    // A landed run is partial in a list too, as in its header; an error still wins.
+    expect(runIndexStatus(entry({ landed: true, endedAt: new Date().toISOString() }))).toBe('partial');
+    expect(runIndexStatus(entry({ landed: true, hasError: true, endedAt: new Date().toISOString() }))).toBe('failed');
   });
 
   it('tells a live run from one that died without its closing stamp', () => {

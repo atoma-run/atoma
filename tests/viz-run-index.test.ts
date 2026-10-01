@@ -59,6 +59,19 @@ describe('viz run index', () => {
     expect(sorted.map((entry) => entry.id)).toEqual(['newer', 'older']);
   });
 
+  it('flags a landed run, so a list never shows it as delivered (run 81375f01)', () => {
+    root = mkdtempSync(join(tmpdir(), 'atoma-run-index-'));
+    const trace = (name: string, result: unknown) => {
+      const file = join(root!, `${name}.json`);
+      writeFileSync(file, JSON.stringify({ id: name, label: name, startedAt: '2026-10-01T08:33:00.000Z', endedAt: '2026-10-01T09:03:36.000Z', result }));
+      return summarizeTraceFile(file);
+    };
+    expect(trace('cut', { output: 'page', summary: 'INCOMPLETE', unfinishedPhases: ['document F'] })).toMatchObject({ landed: true, hasError: false });
+    expect(trace('refused', { output: 'page', summary: 'REFUSED', refusal: 'the replay re-ran no check' })).toMatchObject({ landed: true });
+    expect(trace('delivered', { output: 'page', summary: 'done' })).not.toHaveProperty('landed');
+    expect(trace('no-result', undefined)).not.toHaveProperty('landed');
+  });
+
   it('skips torn JSON rather than inventing a row', () => {
     root = mkdtempSync(join(tmpdir(), 'atoma-run-index-'));
     mkdirSync(root, { recursive: true });
@@ -239,6 +252,8 @@ describe('the row reads a stated set of trace members', () => {
       'events',
       'id',
       'label',
+      // Whether the run landed: a list shows a partial run as one (run 81375f01).
+      'result',
       'startedAt',
       'task',
       'totals',

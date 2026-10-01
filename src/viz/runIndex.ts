@@ -1,6 +1,7 @@
 import { lstatSync, readFileSync } from 'node:fs';
 import { MAX_TRACE_BYTES } from '../contracts/traceFields.js';
 import { RUN_INDEX_GOAL_MAX, runLabelFromGoal, type VizRun, type VizRunIndexEntry } from './trace.js';
+import { isLanded } from '../contracts/runLanding.js';
 
 /**
  * The members this row is built from, PINNED AGAINST `VizRun` so renaming one
@@ -19,6 +20,7 @@ export const TRACE_HEADER_KEYS = [
   'degraded',
   'cancelled',
   'totals',
+  'result',
   'events',
 ] as const satisfies readonly (keyof VizRun)[];
 
@@ -125,6 +127,7 @@ export function summarizeTraceFile(file: string): VizRunIndexEntry | null {
     if (typeof run.durationMs === 'number') entry.durationMs = run.durationMs;
     if (run.degraded === true) entry.degraded = true;
     if (run.cancelled === true) entry.cancelled = true;
+    if (run.result !== null && typeof run.result === 'object' && isLanded(run.result)) entry.landed = true;
     if (typeof run.totals?.calls === 'number') entry.calls = run.totals.calls;
     if (typeof run.totals?.costUsd === 'number') entry.costUsd = run.totals.costUsd;
     // Gated and benchmark indexes are rebuilt from traces, unlike the

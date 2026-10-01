@@ -17,6 +17,8 @@ export interface RunIndexEntry {
   inFlight?: boolean;
   lastEventAt?: number;
   cancelled?: boolean;
+  /** The run's result landed (`isLanded`): it delivered part of its plan, or was refused at delivery. */
+  landed?: boolean;
   costUsd?: number;
   calls?: number;
   projectId?: string;

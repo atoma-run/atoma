@@ -87,7 +87,10 @@ export function runStatus(run: VizRun, now = Date.now()): RunStatus {
 export function runIndexStatus(entry: RunIndexEntry, now = Date.now()): RunStatus {
   if (entry.cancelled) return 'cancelled';
   if (!entry.endedAt) return isIndexEntryLive(entry, now) ? 'live' : 'abandoned';
-  return entry.hasError ? 'failed' : 'delivered';
+  if (entry.hasError) return 'failed';
+  // The index carries `isLanded` as a flag, so a list and the run header say
+  // the same thing: a landed run is partial, never a tick.
+  return entry.landed ? 'partial' : 'delivered';
 }
 
 /**
