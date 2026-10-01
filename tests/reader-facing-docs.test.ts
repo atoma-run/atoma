@@ -119,7 +119,9 @@ describe('a delivered document is for its reader', () => {
     // Only on a documentation task: a verifier cleaning a README would be
     // restored as damage, and a page is no document (review 2026-10-01).
     expect(rule).toContain('When the task has you write or update a README or other doc (never a page, code or data file), remove what an earlier check left in it');
-    expect(rule).toContain('a "verified" or "observed" note — even where it still holds, and do not copy it into your summary.');
+    // c1d1b230 removed the evidence section and kept "The verified static entry point…" in another one.
+    expect(rule).toContain('remove what an earlier check left in it, wherever it sits:');
+    expect(rule).toContain('a single "verified" or "observed" line. Remove it even where it still holds, and do not copy it into your summary.');
     // 9854553c's evidence section was the only place stating the CLI's errors.
     expect(rule).toContain('Restate, from the current source code or this run\'s recorded probes (never by re-running them), any exit code or error message documented only there.');
     expect(rule).toContain('Keep such a record only when the task asks that document to keep or record it; an instruction to preserve unrelated or existing content does not.');

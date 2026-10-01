@@ -106,6 +106,14 @@ describe('build profile — the seeds survived the move byte-for-byte', () => {
     expect(joined).toMatch(/start_node_server \+ fetch_url/);
     expect(joined).toMatch(/run_shell executing the artefact/);
   });
+
+  it('asks for an edit of an existing file, never a rewrite through write_file (run fa8b6ce3)', () => {
+    // "via the write_file tool" became a planner's "full on-disk file write"
+    // of a seeded README, which lost the examples three earlier runs asked for.
+    const [files] = buildProfile.buildTask('extend the CLI').constraints ?? [];
+    expect(files).toContain('write_file for a new file, edit_file to change an existing one');
+    expect(files).not.toContain('via the write_file tool');
+  });
 });
 
 describe('runner CLI parsing — the declared grammar is load-bearing', () => {

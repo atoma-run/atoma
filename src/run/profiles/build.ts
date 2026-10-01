@@ -75,7 +75,12 @@ export const MERISTEM_DESCRIPTION =
  * MATCHES THE ARTEFACT" rule, not to the harness.
  */
 export const BUILD_TASK_CONSTRAINTS: readonly string[] = [
-  'The L1 worker must actually create the files on disk via the write_file tool.',
+  // A molecule that answers with code in its reply writes nothing: the files
+  // are on disk or they are not delivered. "via the write_file tool" read as
+  // "rewrite it whole" on a seeded project: run fa8b6ce3's planner asked its
+  // documentation phase for "a full on-disk file write", and the README lost
+  // the examples and outputs three earlier runs had asked for (2026-10-01).
+  'The L1 worker must actually create or change the files on disk with its file tools: write_file for a new file, edit_file to change an existing one. Content pasted in a reply is not a file.',
   'The deliverable must be VERIFIED with the probe matching its nature: ' +
     'static browser pages via start_static_server + validate_html; pages backed by a Node API ' +
     'via start_node_server + fetch_url + validate_html against the SAME Node server, iterating ' +
