@@ -1,3 +1,8 @@
+/** Keep secondary copy legible; measurement and rendering use the same floor. */
+export function gpuTextSize(size = 13): number {
+  return Math.max(12, size);
+}
+
 /** Supersample cached glyphs, not the full scene's MSAA/filter targets. */
 export function gpuTextRasterOptions() {
   const ratio = typeof devicePixelRatio === 'number' ? devicePixelRatio : 1;

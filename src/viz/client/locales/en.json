@@ -74,6 +74,8 @@
   "skill.title": "Skill",
   "skill.namespace": "Molecule namespace",
   "skill.kind": "Kind",
+  "skill.kind.llm": "LLM — model-guided recipe",
+  "skill.kind.script": "SCRIPT — compiled script",
   "skill.description": "Description",
   "skill.whenToUse": "When to use",
   "skill.counters": "Counters",

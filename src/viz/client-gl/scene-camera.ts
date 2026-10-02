@@ -292,6 +292,13 @@ function cssNumber(value: number): string {
 }
 
 function matrix3dCss(matrix: Matrix3): string {
+  // Face-on poses are affine. Let the browser rasterise DOM text at the
+  // displayed scale instead of forcing it through a 3D texture layer.
+  if (Math.abs(matrix[6]) < 1e-12 && Math.abs(matrix[7]) < 1e-12) {
+    const w = matrix[8];
+    const affine = [matrix[0], matrix[3], matrix[1], matrix[4], matrix[2], matrix[5]];
+    return `matrix(${affine.map(value => cssNumber(value / w)).join(', ')})`;
+  }
   // CSS matrix3d is column-major. This embeds the 3x3 plane homography in a
   // 4x4 matrix whose homogeneous w performs the pinhole divide.
   const values = [

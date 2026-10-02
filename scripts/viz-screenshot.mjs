@@ -350,9 +350,10 @@ function gatedStubs() {
     [`/api/projects/${projectId}/runs`]: runs,
     '/api/registries': [registry],
     '/api/registry/atoma': { registry, types: [sharedMolecule] },
-    '/api/skills': [{ l1Name: 'shared-molecule', l1Label: 'Water', count: 1 }],
-    '/api/skills/shared-molecule': [{ id: 'verify-browser-behaviour', description: 'Verify browser behaviour with an observed interaction.', whenToUse: 'When a browser interaction needs verification.', kind: 'llm', successes: 0, failures: 0, updatedAt: '2026-09-15T00:00:00.000Z' }],
+    '/api/skills': [{ l1Name: 'shared-molecule', l1Label: 'Water', count: 2 }],
+    '/api/skills/shared-molecule': [{ id: 'verify-browser-behaviour', description: 'Verify browser behaviour with an observed interaction.', whenToUse: 'When a browser interaction needs verification.', kind: 'llm', successes: 0, failures: 0, updatedAt: '2026-09-15T00:00:00.000Z' }, { id: 'replay-recorded-checks', description: 'Replay the recorded checks.', kind: 'script', language: 'javascript', successes: 4, failures: 0, updatedAt: '2026-09-15T00:00:00.000Z' }],
     '/api/skills/shared-molecule/verify-browser-behaviour': { id: 'verify-browser-behaviour', description: 'Verify browser behaviour with an observed interaction.', whenToUse: 'When a browser interaction needs verification.', kind: 'llm', successes: 0, failures: 0, updatedAt: '2026-09-15T00:00:00.000Z', body: 'Establish the initial state. Activate the relevant control. Inspect the resulting state and report the observed evidence.' },
+    '/api/skills/shared-molecule/replay-recorded-checks': { id: 'replay-recorded-checks', description: 'Replay the recorded checks.', kind: 'script', language: 'javascript', successes: 4, failures: 0, updatedAt: '2026-09-15T00:00:00.000Z', body: 'console.log("Recorded checks passed");' },
     // The Runs view auto-selects the newest index entry and loads its trace,
     // so these two stubs make `--view Runs` render the full run surface:
     // summary card, metric tiles, branch filter chips and the timeline.

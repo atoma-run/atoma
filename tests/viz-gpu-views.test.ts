@@ -4228,6 +4228,24 @@ describe('drawSkills scrolling honesty and search', () => {
     skillsByNamespace: { 'ammonia-atom-id': skills },
   };
 
+  it('identifies both execution kinds with an icon tooltip and accessible row name', () => {
+    const ctx = createRecordingCtx();
+    const pair = [makeSkill('guided', { kind: 'llm' }), makeSkill('compiled', { kind: 'script' })];
+    drawSkills(ctx, makeSnapshot({ view: 'skills' }, {
+      ...data, skillsByNamespace: { 'ammonia-atom-id': pair },
+    }), WIDTH, HEIGHT);
+    expect(ctx.tooltips.map(tip => tip.text)).toEqual([
+      I18N_CATALOGS.en['skill.kind.llm'], I18N_CATALOGS.en['skill.kind.script'],
+    ]);
+    for (const [index, skill] of pair.entries()) {
+      const row = ctx.metrics.hitTargets.find(target => target.id.endsWith(`::${skill.id}`))!;
+      expect(row.label).toContain(ctx.tooltips[index]!.text);
+      const tip = ctx.tooltips[index]!;
+      expect(tip.x).toBeGreaterThan(row.x);
+      expect(tip.x + tip.width).toBeLessThanOrEqual(row.x + row.width);
+    }
+  });
+
   it('reports list overflow through scrollMax.skills', () => {
     const ctx = createRecordingCtx();
     drawSkills(ctx, makeSnapshot({ view: 'skills' }, data), WIDTH, HEIGHT);

@@ -127,7 +127,7 @@ import { publishSceneCapture, type SceneStill } from './scene-capture.js';
 import { cubeTurnPlan } from './cube-turn.js';
 import { viewFrameGutterRects } from './renderer/view-frame.js';
 import { navRowDistance, navRowGroup, type GpuUiState, type ViewName } from './store.js';
-import { GPU_COLORS, GPU_LAYOUT, gpuTextRasterOptions, sidebarWidthForViewport } from './theme.js';
+import { GPU_COLORS, GPU_LAYOUT, gpuTextRasterOptions, gpuTextSize, sidebarWidthForViewport } from './theme.js';
 import { VIZ_VISUAL_DEPTH } from './visual-depth.js';
 import type { AuthUiSnapshot } from './AuthControls.js';
 import {
@@ -2837,7 +2837,7 @@ export class GpuRenderer {
    * built: mutating one would invalidate every label drawn with it.
    */
   private textStyle(options: TextOptions): { style: TextStyle; key: string } {
-    const size = options.size ?? 12;
+    const size = gpuTextSize(options.size);
     const weight = options.weight ?? '400';
     const color = options.color ?? GPU_COLORS.text;
     const mono = options.mono ?? false;
@@ -3568,8 +3568,11 @@ export class GpuRenderer {
 
     // The label box tracks the face: 11px renders ~16px tall, so centre on
     // labelSize + 5 rather than a constant tied to the default face.
-    const labelBox = labelSize + 5;
-    const labelText = this.text(container, label, width / 2, Math.max(3, (height - labelBox) / 2), {
+    const labelBox = gpuTextSize(labelSize) + 5;
+    const fittedLabel = this.fitText(label, Math.max(0, width - 22), {
+      size: labelSize, weight: '700',
+    });
+    const labelText = this.text(container, fittedLabel, width / 2, Math.max(3, (height - labelBox) / 2), {
       // Built BRIGHT and tinted down, never re-coloured through the style —
       // the style is shared, so `style.fill = …` recolours every label using it.
       size: labelSize,
@@ -4070,11 +4073,11 @@ export class GpuRenderer {
       // The last `width / 6.2` in this file, which is the estimate `fitText`
       // exists to replace and which its own docs already call wrong in both
       // directions on a proportional face.
-      this.fitText(label, Math.max(0, width - 44), { size: 10 }),
+      this.fitText(label, Math.max(0, width - 44), { size: 12, weight: active ? '700' : '600' }),
       34,
       Math.max(5, (height - 16) / 2),
       {
-        size: 10,
+        size: 12,
         color: active ? GPU_COLORS.text : 0xa9b5ca,
         weight: active ? '700' : '600',
       }

@@ -39,8 +39,8 @@ const COMPACT_ROW_HEIGHT = ROW_HEIGHT;
 const SELECTED_PROJECT_DETAIL_HEIGHT = ROW_HEIGHT;
 const SELECTED_PROJECT_COMPACT_DETAIL_HEIGHT = ROW_HEIGHT;
 const COMPACT_PROJECT_PANEL_WIDTH = 400;
-const RUN_CARD_HEIGHT = 92;
-const RUN_COMPACT_CARD_HEIGHT = 128;
+const RUN_CARD_HEIGHT = 100;
+const RUN_COMPACT_CARD_HEIGHT = 140;
 const RUN_ROW_GAP = 14;
 const RUN_SECOND_LINE_EXTRA = 20;
 const STATUS_FONT_SIZE = 10;
@@ -766,21 +766,21 @@ export function drawProjects(
           run.goal.replace(/\s+/g, ' '), runColumnX, cursor, goalWidth, cardHeight,
           false, snapshot.onActivate, GPU_COLORS.primary, false, false, undefined, 9,
           [run.goal, date, statusText + cost, ...metrics].join(' · '));
-        ctx.text(pane.content, date, textX, cursor + 30,
-          { size: 9, color: GPU_COLORS.muted, width: textWidth, singleLine: true });
+        ctx.text(pane.content, date, textX, cursor + 32,
+          { size: 12, color: GPU_COLORS.muted, width: textWidth, singleLine: true });
         const exact = timestampTooltip(run.createdAt, snapshot.state.locale);
-        if (exact) ctx.tooltip(pane.content, { x: textX, y: cursor + 30, width: textWidth, height: 14, text: exact });
-        ctx.text(pane.content, statusText + cost, textX, cursor + 49,
-          { size: 10, color: statusColor(run.status), width: textWidth, singleLine: true });
+        if (exact) ctx.tooltip(pane.content, { x: textX, y: cursor + 32, width: textWidth, height: 18, text: exact });
+        ctx.text(pane.content, statusText + cost, textX, cursor + 54,
+          { size: 12, color: statusColor(run.status), width: textWidth, singleLine: true });
         const metricRows = compactRunRows ? [metrics.slice(0, 2), metrics.slice(2, 3), metrics.slice(3)] : [metrics];
         metricRows.forEach((values, metricIndex) => {
           const copy = values.join(' · ');
-          const metricY = cursor + 68 + metricIndex * 18;
+          const metricY = cursor + 76 + metricIndex * 20;
           ctx.text(pane.content, copy, textX, metricY,
-            { size: 9, color: GPU_COLORS.muted, width: textWidth, singleLine: true });
+            { size: 12, color: GPU_COLORS.muted, width: textWidth, singleLine: true });
           const tooltip = run.jevCallsLowerBound && (!compactRunRows || metricIndex === metricRows.length - 1)
             ? copy + '\n' + snapshot.t('projects.runJevCallsLowerBound') : copy;
-          ctx.tooltip(pane.content, { x: textX, y: metricY, width: textWidth, height: 14, text: tooltip });
+          ctx.tooltip(pane.content, { x: textX, y: metricY, width: textWidth, height: 18, text: tooltip });
         });
         const extraY = cursor + (compactRunRows ? RUN_COMPACT_CARD_HEIGHT : RUN_CARD_HEIGHT);
         if (run.publication?.status === 'published' && run.publication.pullRequestUrl) {

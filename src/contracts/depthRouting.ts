@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { PROOF_OBLIGATIONS } from './attestation.js';
 import { checklistCoverageSchema, checklistSourceSchema } from './acceptanceChecklist.js';
-import { inheritedChecksSummarySchema } from './inheritedChecks.js';
+import { inheritedChecksSummarySchema } from './inheritedChecksSummary.js';
 
 /** Runtime-owned experiment inputs and evidence. Never parsed from model prose. */
 export const depthModeSchema = z.enum(['deep', 'short']);

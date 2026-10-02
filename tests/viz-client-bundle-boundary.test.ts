@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { build } from 'esbuild';
 import { ABANDONED_AFTER_MS, isIndexEntryLive, isRunLive } from '../src/viz/liveness.js';
 import * as runUtils from '../src/viz/client/run-utils.js';
 
@@ -55,6 +56,19 @@ function runtimeImportSpecifiers(source: string): string[] {
 }
 
 describe('the Vite bundle boundary', () => {
+  it('loads the shared acceptance schemas without Node builtins, even without tree shaking', async () => {
+    // Dev Vite evaluates imports that a production build can discard. The
+    // replay summary once pulled node:vm into the browser through depthRouting.
+    await expect(build({
+      entryPoints: ['src/contracts/depthRouting.ts'],
+      bundle: true,
+      platform: 'browser',
+      format: 'esm',
+      treeShaking: false,
+      write: false,
+      logLevel: 'silent',
+    })).resolves.toHaveProperty('errors', []);
+  });
   it('has no server-side runtime import from src/viz/client/', () => {
     const offenders: string[] = [];
     for (const file of sourceFiles('src')) {

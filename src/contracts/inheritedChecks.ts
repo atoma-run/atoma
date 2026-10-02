@@ -1,8 +1,11 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
+import { REPLAY_CAUSES, type ReplayCause, type ReplayStop, type recordedCheckSchema } from './inheritedChecksSummary.js';
 import { inheritProbeManifest, probeEntryKind, probeEntryProblems } from './probeManifest.js';
 import { falseBooleanFields, recordedViewport, servableCheckFile, webEntryIdentity } from './webCheck.js';
 import { isPreflightRefusal } from './attestation.js';
+
+export { REPLAY_CAUSES, REPLAY_STOPS, inheritedChecksSummarySchema, type ReplayCause, type ReplayStop, type InheritedChecksSummary } from './inheritedChecksSummary.js';
 
 /**
  * INHERITED BROWSER CHECKS: the web entries a seeded run inherits in
@@ -194,10 +197,6 @@ export function minimumReplayMs(check: InheritedWebCheck): number {
 
 /* ───────────────────────── one replay ───────────────────────── */
 
-/** Why a check no longer passes. */
-export const REPLAY_CAUSES = ['value-changed', 'element-missing', 'page-gone'] as const;
-export type ReplayCause = (typeof REPLAY_CAUSES)[number];
-
 /**
  * What one host replay observed, judged by the CHECK and never by the page:
  * console errors and failed requests decide nothing (a font a network-none
@@ -300,14 +299,6 @@ export interface ListedCheck {
   /** The second delivered replay's detail: page-produced text, bounded. */
   readonly detail: string;
 }
-
-/**
- * Why a replay stopped before its last check. `budget`: its time ran out (at
- * the start, with a tool call of the run waiting); `cap`: the run-start
- * replay ran on while nothing waited, up to its extended cap.
- */
-export const REPLAY_STOPS = ['deadline', 'budget', 'cap', 'abandoned', 'server', 'aborted'] as const;
-export type ReplayStop = (typeof REPLAY_STOPS)[number];
 
 /** What the run-start replay did, carried into every report so the trace shows it. */
 export interface InheritedBaseline {
@@ -573,38 +564,6 @@ export function contradictedItems(
   const unasked = new Set((judgements ?? []).filter((judgement) => !judgement.asked).map((judgement) => judgement.id));
   return items.filter((item) => unasked.has(item.id));
 }
-
-const recordedCheckSchema = z.object({ cause: z.enum(REPLAY_CAUSES), steps: z.string(), smoke: z.string(), detail: z.string() });
-
-/** What `AcceptanceInfo` records of one acceptance's replay, the run-start replay included. */
-export const inheritedChecksSummarySchema = z.object({
-  /** Absent on the records written before it existed (run 41711050). */
-  selected: z.number().int().nonnegative().optional(),
-  considered: z.number().int().nonnegative(),
-  kept: z.number().int().nonnegative(),
-  baselineCannotRun: z.number().int().nonnegative(),
-  markedDead: z.number().int().nonnegative().optional(),
-  pruned: z.number().int().nonnegative().optional(),
-  revived: z.number().int().nonnegative().optional(),
-  baselineStopped: z.enum(REPLAY_STOPS).optional(),
-  baselineNote: z.string().optional(),
-  replayed: z.number().int().nonnegative(),
-  stillPassing: z.number().int().nonnegative(),
-  flaky: z.number().int().nonnegative(),
-  notReplayed: z.number().int().nonnegative(),
-  listed: z.number().int().nonnegative(),
-  stopped: z.enum(REPLAY_STOPS).optional(),
-  /** Why this acceptance compared nothing: no file changed, a gate refused, or the workspace could not be read. */
-  notCompared: z.enum(['unchanged', 'refused', 'unreadable']).optional(),
-  newPageError: z.string().optional(),
-  items: z.array(z.object({
-    id: z.string(), file: z.string(), summary: z.string(),
-    /** Up to five of the item's checks, so a refusal and its remediation can name what to restore. */
-    checks: z.array(recordedCheckSchema),
-    asked: z.boolean().optional(), reason: z.string().optional(),
-  })),
-});
-export type InheritedChecksSummary = z.infer<typeof inheritedChecksSummarySchema>;
 
 /** The item's first checks, as the summary and the remediation carry them. */
 export function recordedChecks(item: ShownInheritedItem): z.infer<typeof recordedCheckSchema>[] {

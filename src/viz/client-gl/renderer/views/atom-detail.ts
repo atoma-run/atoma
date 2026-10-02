@@ -104,7 +104,7 @@ export function drawAtomDetail(
         .map((tool) => {
           const element = elementForTool(tool);
           return element
-            ? `${element.symbol} · ${element.name} (#${element.number}) · ${tool}`
+            ? `${element.symbol} · ${tool}`
             : tool;
         })
         .join('   '),

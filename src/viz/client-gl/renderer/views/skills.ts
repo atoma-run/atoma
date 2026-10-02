@@ -1,4 +1,4 @@
-import { Rectangle } from 'pixi.js';
+import { Graphics, Rectangle } from 'pixi.js';
 import { matchesSearchQuery, skillSearchText } from '../../../client/search.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
@@ -55,11 +55,15 @@ export function drawSkills(
     y += 24;
     for (const skill of skills) {
       if (pane.visible(y, y + 31)) {
+        const script = skill.kind === 'script';
+        const kind = snapshot.t(script ? 'skill.kind.script' : 'skill.kind.llm');
+        const label = `${skill.id} · ✓${skill.successes}/✗${skill.failures}`;
+        const accent = script ? GPU_COLORS.warning : GPU_COLORS.primary;
         ctx.button(
           pane.content,
           `skill.select.${namespace.l1Name}::${skill.id}`,
           'button',
-          `${skill.id} · ✓${skill.successes}/✗${skill.failures}`,
+          label,
           16,
           y,
           leftWidth - 32,
@@ -67,8 +71,30 @@ export function drawSkills(
           snapshot.state.selectedSkill?.l1Name === namespace.l1Name &&
             snapshot.state.selectedSkill.id === skill.id,
           snapshot.onActivate,
-          skill.kind === 'script' ? GPU_COLORS.warning : GPU_COLORS.primary
+          accent,
+          false,
+          false,
+          leftWidth - 76,
+          undefined,
+          `${label} · ${kind}`
         );
+        // Reserve a fixed gutter so long names cannot cover the kind icon.
+        const iconX = leftWidth - 44;
+        const icon = new Graphics();
+        icon.position.set(iconX, y + 8);
+        icon.eventMode = 'none';
+        if (script) {
+          icon.moveTo(5, 2).lineTo(0, 7).lineTo(5, 12);
+          icon.moveTo(13, 2).lineTo(18, 7).lineTo(13, 12);
+          icon.moveTo(11, 0).lineTo(7, 14);
+        } else {
+          icon.roundRect(0, 0, 18, 11, 3);
+          icon.moveTo(4, 11).lineTo(4, 15).lineTo(9, 11);
+          icon.moveTo(4, 5).lineTo(14, 5);
+        }
+        icon.stroke({ color: accent, width: 1.5 });
+        pane.content.addChild(icon);
+        ctx.tooltip(pane.content, { x: iconX - 4, y, width: 26, height: 31, text: kind });
       }
       y += 36;
     }

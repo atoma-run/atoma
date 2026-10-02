@@ -452,6 +452,7 @@ export function drawRuns(
         (event.kind === 'llm' || event.kind === 'llm-start') && event.role ? [event.role] : []))]
     : [];
   const filterLayout = layoutRunFilterBlocks({
+    measure: (label, size) => ctx.measureText(label, { size, weight: '700' }),
     originX: leftX + 14,
     originY: filterY,
     maxWidth: leftWidth - 28,
@@ -798,10 +799,7 @@ export function drawRuns(
       : 16;
   const railX = (lane: number) => leftX + railInset + lane * laneSpacing;
   const cardBaseX = railX(timeline.maxLane) + labelGutter;
-  const cardBaseWidth = Math.min(
-    520,
-    leftX + leftWidth - cardRightPadding - cardBaseX
-  );
+  const cardBaseWidth = leftX + leftWidth - cardRightPadding - cardBaseX;
   const rowCenterY = (row: number) =>
     listY +
     contentTopPadding +
@@ -1235,6 +1233,7 @@ function drawAtomLanes(
   maxWidth: number
 ): number {
   const atomLayout = layoutAtomLaneBlocks({
+    measureText: (label) => ctx.measureText(label, { size: 12, weight: '700' }),
     originX,
     originY,
     maxWidth,

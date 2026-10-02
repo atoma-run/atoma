@@ -26,7 +26,7 @@ import { GPU_COLORS, gpuTextRasterOptions } from '../theme.js';
 const OPEN_DELAY_MS = 350;
 const PADDING_X = 9;
 const PADDING_Y = 6;
-const FONT_SIZE = 11;
+const FONT_SIZE = 12;
 /**
  * Gap between the pointer and the bubble. Asymmetric ON PURPOSE, measured
  * against a real hover: the client draws its own arrow cursor, which extends

@@ -36,7 +36,7 @@ export function gpuFilterButtonWidthCompact(label: string) {
 export const FILTER_BLOCK_PAD = 8;
 export const FILTER_BLOCK_GAP = 12;
 export const FILTER_BUTTON_HEIGHT = 27;
-export const FILTER_BUTTON_HEIGHT_COMPACT = 21;
+export const FILTER_BUTTON_HEIGHT_COMPACT = 26;
 export const FILTER_BUTTON_LABEL_SIZE = 11;
 export const FILTER_BUTTON_LABEL_SIZE_COMPACT = 8;
 export const ATOM_BUTTON_HEIGHT = 28;
@@ -81,7 +81,7 @@ function placeChipBlock(
   let innerW = insetX;
   const placed: FilterChipLayout[] = [];
   for (const chip of chips) {
-    const width = widthOf(chip.label);
+    const width = Math.min(Math.max(0, maxRow - insetX), widthOf(chip.label));
     if (x > 0 && insetX + x + width > maxRow) {
       x = 0;
       y += buttonH + gap;
@@ -153,16 +153,25 @@ export function layoutRunFilterBlocks(options: {
   maxWidth: number;
   kinds: readonly FilterChipSpec[];
   roles: readonly FilterChipSpec[] | null;
+  measure?: (label: string, size: number) => number;
 }): { kinds: FilterBlockLayout; roles: FilterBlockLayout | null; bottom: number } {
   const pad = FILTER_BLOCK_PAD;
   const buttonH = FILTER_BUTTON_HEIGHT;
   const maxInner = Math.max(buttonH, options.maxWidth - pad * 2);
+  const kindWidth = options.measure
+    ? (label: string) => Math.max(FILTER_CHIP_MIN_WIDTH,
+      Math.ceil(options.measure!(label, FILTER_BUTTON_LABEL_SIZE)) + FILTER_CHIP_TEXT_PAD)
+    : gpuFilterButtonWidth;
+  const roleWidth = options.measure
+    ? (label: string) => Math.max(FILTER_CHIP_MIN_WIDTH_COMPACT,
+      Math.ceil(options.measure!(label, FILTER_BUTTON_LABEL_SIZE_COMPACT)) + FILTER_CHIP_TEXT_PAD_COMPACT)
+    : gpuFilterButtonWidthCompact;
   const kinds = placeChipBlock(
     options.kinds,
     options.originX,
     options.originY,
     maxInner,
-    gpuFilterButtonWidth,
+    kindWidth,
     buttonH
   );
   if (!options.roles?.length) {
@@ -174,7 +183,7 @@ export function layoutRunFilterBlocks(options: {
     options.originX,
     options.originY + kinds.height + FILTER_BLOCK_GAP,
     maxInner,
-    gpuFilterButtonWidthCompact,
+    roleWidth,
     FILTER_BUTTON_HEIGHT_COMPACT,
     0,
     10
@@ -184,7 +193,7 @@ export function layoutRunFilterBlocks(options: {
     options.originX + kinds.width + FILTER_BLOCK_GAP,
     options.originY,
     maxInner,
-    gpuFilterButtonWidthCompact,
+    roleWidth,
     FILTER_BUTTON_HEIGHT_COMPACT,
     0,
     10
@@ -215,19 +224,24 @@ export function layoutAtomLaneBlocks(options: {
   originY: number;
   maxWidth: number;
   lanes: readonly AtomLaneSpec[];
+  measureText?: (label: string) => number;
 }): { lanes: AtomLaneBlockLayout[]; bottom: number } {
   const pad = FILTER_BLOCK_PAD;
   const buttonH = ATOM_BUTTON_HEIGHT;
   const maxInner = Math.max(buttonH, options.maxWidth - pad * 2);
 
   const measure = (lane: AtomLaneSpec, originX: number, originY: number, maxRow: number) => {
-    const labelW = gpuLaneLabelWidth(lane.label);
+    const labelW = options.measureText
+      ? Math.ceil(options.measureText(lane.label)) + 18
+      : gpuLaneLabelWidth(lane.label);
     const block = placeChipBlock(
       lane.names.map((name) => ({ id: `atom.${name}`, label: name })),
       originX,
       originY,
       maxRow,
-      gpuAtomButtonWidth,
+      options.measureText
+        ? (label) => Math.max(80, Math.ceil(options.measureText!(label)) + 48)
+        : gpuAtomButtonWidth,
       buttonH,
       labelW
     );
