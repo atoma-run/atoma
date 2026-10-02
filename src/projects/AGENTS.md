@@ -150,6 +150,15 @@ list. These values come from the host snapshot, never a tenant prompt.
   whether this store has a control plane without `ProjectStore.open`'s DDL
   creating one.
 
+## Run titles
+
+- Every run that ENDS is named once (`runTitle.ts`): one line, written by the
+  HOST's `api:` tier-1 model on the host's credential, after the terminal
+  transition, off the lease. Platform-paid, so `stats` stay the run's spend and
+  the cost is the title's receipt; a `sub:`/`own:` tier 1 names nothing, since a
+  tenant's goal must not cross a machine login. The trigger makes it immutable.
+- It is model text: display copy beside the goal, never in a journal `detail`.
+
 ## Repository visibility
 
 - It is chosen ONCE, at project creation, and it is IRREVERSIBLE: no update

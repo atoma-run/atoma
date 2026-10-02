@@ -474,6 +474,11 @@ export interface VizRunIndexEntry {
   projectSlug?: string;
   /** Set on a comparison rerun: the run it re-ran. It never continues the project. */
   rerunOf?: string;
+  /**
+   * The project run's short title, joined from its row (`src/projects/runTitle.ts`).
+   * Absent until the run ended and was named; lists then fall back to the goal.
+   */
+  title?: string;
 }
 
 export interface VizRunTotals {

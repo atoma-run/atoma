@@ -13,6 +13,9 @@ import {
   createProjectRunInputSchema,
   rerunProjectRunInputSchema,
   runSeedSchema,
+  runTitleReceiptSchema,
+  runTitleSchema,
+  type RunTitleReceipt,
   startProjectRunInputSchema,
   idempotencyKeySchema,
   organisationIdSchema,
@@ -462,6 +465,8 @@ interface ProjectRunRow {
   model_overrides_json?: string | null;
   seed_json?: string | null;
   depth?: string | null;
+  title?: string | null;
+  title_receipt_json?: string | null;
   trace_id: string | null;
   stats_json: string | null;
   artifact_manifest_json: string | null;
@@ -560,6 +565,7 @@ function runFromRow(row: ProjectRunRow): ProjectRun {
     requestedByPrincipalId: row.requested_by_principal_id,
     requestKey: row.request_key,
     goal: row.goal,
+    ...(row.title ? { title: row.title } : {}),
     bytesExpiredAt: row.bytes_expired_at ?? null,
     status: row.status,
     hostPaths: {
@@ -744,6 +750,8 @@ export class ProjectStore {
         ['project_runs', 'model_overrides_json'],
         ['project_runs', 'seed_json'],
         ['project_runs', 'depth'],
+        ['project_runs', 'title'],
+        ['project_runs', 'title_receipt_json'],
         ['project_run_acceptance', 'source'],
         ['project_publications', 'pull_request_url'],
         ['project_publications', 'seed_commit_sha'],
@@ -770,6 +778,13 @@ BEFORE UPDATE OF seed_json ON project_runs
 WHEN OLD.seed_json IS NOT NULL AND NEW.seed_json IS NOT OLD.seed_json
 BEGIN
   SELECT RAISE(ABORT, 'a recorded run seed is immutable');
+END;
+CREATE TRIGGER IF NOT EXISTS project_runs_title_immutable
+BEFORE UPDATE OF title, title_receipt_json ON project_runs
+WHEN OLD.title IS NOT NULL
+  AND (NEW.title IS NOT OLD.title OR NEW.title_receipt_json IS NOT OLD.title_receipt_json)
+BEGIN
+  SELECT RAISE(ABORT, 'a recorded run title is immutable');
 END;
 `);
       // ONE PROJECT PER REPOSITORY, per organisation, COMPARED THE WAY GITHUB
@@ -990,10 +1005,11 @@ END;
     projectName: string;
     projectSlug: string;
     rerunOf?: string;
+    title?: string;
   }> {
     const rows = this.db
       .prepare(
-        `SELECT r.org_id, r.project_run_id, r.trace_id, r.runs_path, r.project_id, p.name AS project_name, p.slug AS project_slug, r.rerun_of_run_id
+        `SELECT r.org_id, r.project_run_id, r.trace_id, r.runs_path, r.project_id, p.name AS project_name, p.slug AS project_slug, r.rerun_of_run_id, r.title
          FROM project_runs r
          JOIN projects p ON p.project_id = r.project_id AND p.org_id = r.org_id
          ORDER BY r.created_at DESC, r.project_run_id ASC`
@@ -1007,6 +1023,7 @@ END;
       project_name: string;
       project_slug: string;
       rerun_of_run_id?: string | null;
+      title?: string | null;
     }>;
     const out: Array<{
       id: string;
@@ -1016,6 +1033,7 @@ END;
       projectName: string;
       projectSlug: string;
       rerunOf?: string;
+      title?: string;
     }> = [];
     for (const row of rows) {
       const file = resolveProjectRunTraceFile({
@@ -1032,6 +1050,7 @@ END;
         projectName: row.project_name,
         projectSlug: row.project_slug,
         ...(row.rerun_of_run_id ? { rerunOf: row.rerun_of_run_id } : {}),
+        ...(row.title ? { title: row.title } : {}),
       });
     }
     return out;
@@ -1487,6 +1506,41 @@ END;
     if (changed !== 1) throw new ProjectStateConflict('run seed already recorded or run is not running');
   }
 
+  /**
+   * Name an ENDED run, once. A compare-and-set like `recordRunSeed`, and the
+   * trigger refuses any later rewrite: a second naming attempt (a retry, a
+   * second process) changes nothing and answers false. `updated_at` is left
+   * alone on purpose — the run did not change, only its display copy arrived.
+   */
+  recordRunTitle(input: {
+    readonly orgId: string;
+    readonly projectRunId: string;
+    readonly title: string;
+    readonly receipt: RunTitleReceipt;
+  }): boolean {
+    const orgId = organisationIdSchema.parse(input.orgId);
+    const projectRunId = projectRunIdSchema.parse(input.projectRunId);
+    const title = runTitleSchema.parse(input.title);
+    const receipt = runTitleReceiptSchema.parse(input.receipt);
+    return this.db
+      .prepare(`UPDATE project_runs SET title = ?, title_receipt_json = ?
+        WHERE org_id = ? AND project_run_id = ? AND title IS NULL
+          AND status IN ('delivered','partial','failed','cancelled')`)
+      .run(title, JSON.stringify(receipt), orgId, projectRunId).changes === 1;
+  }
+
+  /** What naming this run cost; null when it was never named. */
+  getRunTitleReceipt(orgIdInput: string, projectRunIdInput: string): RunTitleReceipt | null {
+    const orgId = organisationIdSchema.parse(orgIdInput);
+    const projectRunId = projectRunIdSchema.parse(projectRunIdInput);
+    const row = this.db
+      .prepare('SELECT title_receipt_json FROM project_runs WHERE org_id = ? AND project_run_id = ?')
+      .get(orgId, projectRunId) as { title_receipt_json: string | null } | undefined;
+    return row?.title_receipt_json
+      ? runTitleReceiptSchema.parse(parseJson(row.title_receipt_json, 'run title receipt'))
+      : null;
+  }
+
   /** A platform admin's READ across organisations; never a write path. */
   getProjectRunAnyOrg(projectRunIdInput: string): ProjectRun | null {
     const projectRunId = projectRunIdSchema.parse(projectRunIdInput);
@@ -1558,11 +1612,12 @@ END;
     projectName: string;
     projectSlug: string;
     rerunOf?: string;
+    title?: string;
   }> {
     const orgId = organisationIdSchema.parse(orgIdInput);
     const rows = this.db
       .prepare(
-        `SELECT r.project_run_id, r.trace_id, r.runs_path, r.project_id, p.name AS project_name, p.slug AS project_slug, r.rerun_of_run_id
+        `SELECT r.project_run_id, r.trace_id, r.runs_path, r.project_id, p.name AS project_name, p.slug AS project_slug, r.rerun_of_run_id, r.title
          FROM project_runs r
          JOIN projects p ON p.project_id = r.project_id AND p.org_id = r.org_id
          WHERE r.org_id = ?
@@ -1576,6 +1631,7 @@ END;
       project_name: string;
       project_slug: string;
       rerun_of_run_id?: string | null;
+      title?: string | null;
     }>;
     const out: Array<{
       id: string;
@@ -1584,6 +1640,7 @@ END;
       projectName: string;
       projectSlug: string;
       rerunOf?: string;
+      title?: string;
     }> = [];
     for (const row of rows) {
       const file = resolveProjectRunTraceFile({
@@ -1599,6 +1656,7 @@ END;
         projectName: row.project_name,
         projectSlug: row.project_slug,
         ...(row.rerun_of_run_id ? { rerunOf: row.rerun_of_run_id } : {}),
+        ...(row.title ? { title: row.title } : {}),
       });
     }
     return out;

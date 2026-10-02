@@ -111,6 +111,7 @@ import {
   DEFAULT_PROJECTS_ROOT,
   ProjectRunCoordinator,
 } from '../projects/coordinator.js';
+import { hostRunTitler } from '../projects/runTitle.js';
 import { GitHubPublisher } from '../projects/publisher.js';
 import { ProjectHttpError, ProjectService, roleAtLeast } from '../projects/service.js';
 import { PreviewStore } from '../preview/store.js';
@@ -642,8 +643,9 @@ const PUSH_RUNTIME: PushRuntime | null = (() => {
 })();
 
 /**
- * THE VIZ SERVER'S ONLY LLM CLIENT, and it exists for exactly one thing:
- * drafting announcement translations for an admin to review.
+ * THE VIZ SERVER'S OWN LLM CLIENT, and it exists for exactly one thing:
+ * drafting announcement translations for an admin to review. (Run titles
+ * are the coordinator's, on their own host-credential client: `runTitle.ts`.)
  *
  * Built on FIRST USE and never at boot. A control plane that constructed a
  * provider at startup would demand a credential from every deployment that
@@ -834,6 +836,9 @@ const PROJECTS_RUNTIME: ProjectsRuntime | null = (() => {
     describeDeliveredPreview: (subject) => {
       recordDeliveredPreview(previewStore, subject);
     },
+    // Every ended run is named once, on the host's tier-1 model and credential
+    // (`src/projects/runTitle.ts`): the run selector shows that line, not the goal.
+    runTitler: hostRunTitler(process.env),
     // THE PLATFORM'S RUN LIMITS, asked per run rather than captured now: this
     // server outlives every save an admin makes in the Settings form, and a
     // limit that needed a restart would be a limit nobody trusts. Absent
@@ -1734,6 +1739,7 @@ function listOrganisationRunIndex(orgId: string): VizRunIndexEntry[] {
       projectName: row.projectName,
       projectSlug: row.projectSlug,
       ...(row.rerunOf ? { rerunOf: row.rerunOf } : {}),
+      ...(row.title ? { title: row.title } : {}),
     });
   }
   return sortRunIndex(entries);
@@ -1753,6 +1759,7 @@ function listAllRunIndex(viewer: Viewer): VizRunIndexEntry[] {
       projectName: row.projectName,
       projectSlug: row.projectSlug,
       ...(row.rerunOf ? { rerunOf: row.rerunOf } : {}),
+      ...(row.title ? { title: row.title } : {}),
     });
   }
   return sortRunIndex(entries);

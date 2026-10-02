@@ -5389,8 +5389,10 @@ export class GpuRenderer {
         // COMPACT form — capped at 80 characters when the run was recorded —
         // and this row is as wide as the panel. The label remains the fallback
         // for an index that predates the goal, or a run that never had one.
+        // A named run shows its TITLE first: a goal is up to 4 000 characters
+        // of specification, and one row cannot say which run it is with that.
         `${RUN_STATUS_GLYPH[status]} ${run.projectSlug ? `${run.projectSlug} · ` : ''}${
-          run.goal ?? run.label.replace(/^(?:build-app|baseline):\s*/i, '')
+          run.title ?? run.goal ?? run.label.replace(/^(?:build-app|baseline):\s*/i, '')
         }`,
         x + 5,
         rowY + 2,

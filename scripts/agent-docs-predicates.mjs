@@ -71,10 +71,13 @@ export const SUBSYSTEM_LINE_BUDGET = 500;
 // Stating it anywhere else would split one rule across two homes; condensing
 // the neighbouring credential rules would repeat the 2026-08-23 failure. 510,
 // pinned by a test like the others.
+// 2026-10-02: 510 → 520 for the run-title rule (who pays, which model, why
+// never a machine login). It owns its own section; squeezing it into the
+// one free line would have dropped its reasons.
 export const SUBSYSTEM_LINE_BUDGET_OVERRIDES = new Map([
   ['src/viz/AGENTS.md', 660],
   ['src/preview/AGENTS.md', 560],
-  ['src/projects/AGENTS.md', 510],
+  ['src/projects/AGENTS.md', 520],
 ]);
 
 /**

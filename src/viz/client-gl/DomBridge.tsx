@@ -240,7 +240,7 @@ export function DomBridge({
   const selectedProjectLabel = selectedProjectName && selectedProjectName.length > 48
     ? `${selectedProjectName.slice(0, 47)}…`
     : selectedProjectName;
-  const runValue = focusedInput === 'run' ? search.run : selectedRun?.label ?? '';
+  const runValue = focusedInput === 'run' ? search.run : selectedRun?.title ?? selectedRun?.label ?? '';
   const filteredRuns = runs.filter((run) =>
     matchesSearchQuery(runSearchText(run), search.run)
   );
@@ -346,7 +346,7 @@ export function DomBridge({
         </label>
         <div data-viz-live aria-live="polite" aria-atomic="true">
           {t(`nav.${view}`)}
-          {selectedRun ? ` — ${selectedRun.label}` : ''}
+          {selectedRun ? ` — ${selectedRun.title ?? selectedRun.label}` : ''}
         </div>
         {projectActionsEnabled && view === 'projects' && projects.length > 0 ? (
           <section aria-label={t('nav.projects')}>

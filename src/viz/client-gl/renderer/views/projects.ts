@@ -778,7 +778,8 @@ export function drawProjects(
             : (run.jevCallsLowerBound ? '≥ ' : '') + run.jevCalls.toLocaleString(snapshot.state.locale) }),
         ];
         ctx.button(pane.content, 'project.run.' + (run.traceId ?? run.projectRunId), 'button',
-          run.goal.replace(/\s+/g, ' '), runColumnX, cursor, goalWidth, cardHeight,
+          // The short title once the run was named; the bubble keeps the whole goal.
+          run.title ?? run.goal.replace(/\s+/g, ' '), runColumnX, cursor, goalWidth, cardHeight,
           false, snapshot.onActivate, GPU_COLORS.primary, false, false, undefined, 9,
           [run.goal, date, statusText + cost, ...metrics].join(' · '));
         ctx.text(pane.content, date, textX, cursor + 32,

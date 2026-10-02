@@ -610,8 +610,8 @@ npm run viz:mark-turn:analyze
   draft is in progress preserves it. It follows the canvas-control method
   above: the reset signal lives in the shared GPU store, and the real-GPU smoke
   drives the active Pixi hit target after a complete stubbed send.
-  `src/viz/push/translate.ts` is the server's ONLY LLM call site: tier 1,
-  built on first use so no deployment is asked for a credential it never
+  `src/viz/push/translate.ts` is viz's ONLY LLM call site (run titles are
+  src/projects'): tier 1, built on first use so no deployment is asked for a credential it never
   needs, and returning `null` (never a partial draft) whenever the
   provider is absent or the reply unreadable — the form then asks the
   admin to write the other languages. The segment (`src/viz/push/

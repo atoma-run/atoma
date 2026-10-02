@@ -171,7 +171,7 @@ export function registerResources(server: McpServer, ctx: McpToolContext): void 
               resources.push({
                 uri: projectRunUri(project.projectId, run.projectRunId),
                 name: `${project.slug} · ${run.projectRunId.slice(0, 8)}`,
-                description: `${run.status} — ${run.goal.slice(0, 80)}`,
+                description: `${run.status} — ${run.title ?? run.goal.slice(0, 80)}`,
                 mimeType: JSON_MIME,
               });
             }

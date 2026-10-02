@@ -25,6 +25,7 @@ import {
   SECRET_ENCRYPTION_ENV,
 } from '../auth/secretEncryption.js';
 import { DEFAULT_PROJECT_RUN_TIMEOUT_MS, hostSubscriptionPinsOf, ProjectRunCoordinator } from '../projects/coordinator.js';
+import { hostRunTitler } from '../projects/runTitle.js';
 import { PreviewStore } from '../preview/store.js';
 import { recordDeliveredPreview } from '../preview/service.js';
 import { GitHubPublisher } from '../projects/publisher.js';
@@ -541,6 +542,9 @@ async function main(): Promise<void> {
     describeDeliveredPreview: (subject) => {
       recordDeliveredPreview(previewStore, subject);
     },
+    // Named like a browser run, so a terminal run is not the one row the
+    // selector prints whole.
+    runTitler: hostRunTitler(process.env),
     // BOTH authorities, or the guard above is a lie: it lets a delegate
     // through and the coordinator then refuses them, because an absent
     // resolver means no (fail-closed, by design).
