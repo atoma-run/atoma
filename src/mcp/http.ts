@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import {
   DEFAULT_MAX_REQUEST_BODY_SIZE,
@@ -129,10 +129,12 @@ interface Session {
 export const MCP_SESSION_IDLE_MS = 24 * 60 * 60 * 1000;
 
 /**
- * The ids this host mints (`randomUUID`). Only an id of that shape is resumed:
+ * The ids this host mints bind a random UUID to the caller identity and tier.
+ * Only an id with the matching owner binding is resumed:
  * anything else was never ours, and answers 404 as before.
  */
-const RESUMABLE_SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const RESUMABLE_SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.[0-9a-f]{64}$/;
+function sessionOwner(key: string): string { return createHash('sha256').update(key).digest('hex'); }
 export const MCP_MAX_REQUEST_MS = 3 * 60 * 60 * 1000;
 
 /**
@@ -370,7 +372,7 @@ export class McpHttpHost {
         // answered 404, and a client failed one call after each deployment,
         // some for good. Nothing of the old session comes back (its task ids,
         // subscriptions and replay ring were memory); runs never lived here.
-        if (req.method !== 'DELETE' && RESUMABLE_SESSION_ID.test(sessionId) && !this.evictedIds.has(sessionId)) {
+        if (req.method !== 'DELETE' && RESUMABLE_SESSION_ID.test(sessionId) && sessionId.endsWith(`.${sessionOwner(callerKey(caller))}`) && !this.evictedIds.has(sessionId)) {
           await this.open(req, res, caller, body, sessionId, options.frozen === true);
           return;
         }
@@ -380,7 +382,7 @@ export class McpHttpHost {
       if (session.key !== callerKey(caller)) {
         // The session was opened by a different identity or tier than the one
         // now presenting it — a revoked and re-minted token, a role change.
-        await this.drop(session, 'caller changed');
+        // A different caller must not destroy the rightful owner's session.
         res.writeHead(401, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
         res.end(JSON.stringify({ jsonrpc: '2.0', error: { code: -32001, message: 'session does not belong to this caller' }, id: null }));
         return;
@@ -534,7 +536,7 @@ export class McpHttpHost {
       const events = new SessionEventStore(undefined, undefined, this.now);
       let session: Session | null = null;
       const transport = new NodeStreamableHTTPServerTransport({
-        sessionIdGenerator: () => resumeId ?? randomUUID(),
+        sessionIdGenerator: () => resumeId ?? `${randomUUID()}.${sessionOwner(key)}`,
         // SSE responses, NEVER plain JSON. In JSON mode the SDK drops every
         // notification related to a request — a `notifications/progress` sent
         // during a `waitMs` long-poll reached nobody (measured 2026-09-07: 0 of 3
@@ -561,7 +563,7 @@ export class McpHttpHost {
       try {
         await server.connect(transport);
         if (resumeId) {
-          const initialised = await this.initialiseResumed(transport, req, resumeId);
+          const initialised = await this.initialiseResumed(transport, req, resumeId, caller);
           const live = this.sessions.get(resumeId);
           if (!initialised || !live) {
             if (live) await this.drop(live, 'resume failed');
@@ -609,7 +611,7 @@ export class McpHttpHost {
    * moves it resumes nothing and answers 404 as before, and
    * `tests/mcp-http-lifetimes` fails first.
    */
-  private async initialiseResumed(transport: NodeStreamableHTTPServerTransport, req: IncomingMessage, id: string): Promise<boolean> {
+  private async initialiseResumed(transport: NodeStreamableHTTPServerTransport, req: IncomingMessage, id: string, caller: McpCaller): Promise<boolean> {
     const web = (transport as unknown as { _webStandardTransport?: { handleRequest?: (request: Request) => Promise<Response> } })._webStandardTransport;
     const host = req.headers.host;
     if (typeof web?.handleRequest !== 'function' || !host) return false;
@@ -630,7 +632,9 @@ export class McpHttpHost {
       body: JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }),
     }));
     await initialized.text();
-    return initialized.status === 202;
+    if (initialized.status !== 202) return false;
+    this.countClient(caller, protocolVersion, { name: 'atoma-resumed-session' });
+    return true;
   }
 
   /**

@@ -54,6 +54,7 @@ export const MAX_ROOT_REMEDIATIONS = 1;
  */
 function soleRefusalReason(acceptance: AcceptanceInfo, criterionId: string): boolean {
   if (acceptance.gates.length > 0 || acceptance.probe.contradiction) return false;
+  if ((acceptance.inheritedChecks?.items.length ?? 0) > 0 || (acceptance.inheritedChecks?.notReplayed ?? 0) > 0 || acceptance.inheritedChecks?.stopped || acceptance.inheritedChecks?.baselineStopped) return false;
   if (acceptance.floorCoverage.some((item) => item.status === 'uncovered')) return false;
   return !(acceptance.checklist ?? []).some((item) => item.id !== criterionId && (
     item.status === 'uncovered' || (item.layouts ?? []).some((layout) => layout.status !== 'passed')

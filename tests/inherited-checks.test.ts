@@ -744,6 +744,15 @@ describe('root acceptance of a page an earlier run shaped', () => {
     return { info, base, compared: () => compared };
   }
 
+  it('shows a failed starting replay even when it established no baseline', async () => {
+    const { base, info } = await acceptance({ approved: true, reasoning: 'reviewed with unknown inherited state' }, [], {
+      replay: { baseline: { selected: 2, considered: 0, kept: 0, cannotRun: 0, stopped: 'server' },
+        replayed: 0, stillPassing: 0, notReplayed: 0 },
+    });
+    expect(base.llm.calls[0]!.userContent).toContain('Starting replay stopped: server');
+    expect(info.inheritedChecks?.baselineStopped).toBe('server');
+  });
+
   it('forces a review a covered floor would have skipped, and refuses an approval that says the change was not asked for', async () => {
     const { info, base } = await acceptance({ approved: true, reasoning: 'the select works', inherited: [{ id: 'r1', asked: false, reason: 'the task asked for a select only' }] }, [regression]);
     expect(base.llm.calls).toHaveLength(1);

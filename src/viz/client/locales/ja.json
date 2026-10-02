@@ -1192,7 +1192,7 @@
   "run.partial.details": "技術的な詳細",
   "projects.runPartial.rerun": "比較用の再runは未完了です。プロジェクトの横に残り、プロジェクトの次のrunでは、プロジェクト自体の作業が続行されます。",
   "run.partial.next.rerun": "この比較用の再runは、比較のためプロジェクトの横に残ります。プロジェクトの次のrunでは、このrunではなく、プロジェクト自体の作業が続行されます。",
-  "run.partial.next.superseded": "その後、このプロジェクトの後続のrunが完了したため、プロジェクトの次のrunでは、このrunではなく、その後続のrunから続行されます。",
+  "run.partial.next.superseded": "",
   "depth.checklist.judged_one": "{{count}}件の基準のうち{{met}}件を満たしていると判定",
   "depth.checklist.judged_other": "{{count}}件の基準のうち{{met}}件を満たしていると判定",
   "admin.ledgerFact.by": "{{value}}による",

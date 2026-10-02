@@ -26,6 +26,7 @@ interface Pending {
   expiresAt: number; sessionHash?: string; principalId?: string; orgId?: string;
   /** A metadata client as its document read: remembered only when a code is issued. */
   described?: MetadataClient;
+  authorizationQuery?: string;
 }
 
 async function body(req: IncomingMessage): Promise<string> {
@@ -182,8 +183,28 @@ export class McpOAuth {
     const form = req.method === 'POST' ? params(await body(req)) : query;
     let id = form.get('request');
     let pending = id ? this.pending.get(id) : undefined;
+    const viewer = this.options.gate.resolve(req);
+    const session = singleCookie(req, authCookieName(SESSION_COOKIE, this.options.origin.protocol === 'https:'));
+    if (pending?.authorizationQuery && viewer && session) {
+      if (req.method !== 'GET') throw new Error('consent has not been displayed');
+      this.pending.delete(id!);
+      await this.authorize(req, res, new URL(`/oauth/authorize?${pending.authorizationQuery}`, this.options.origin));
+      return;
+    }
     if (!id && req.method === 'GET') {
       const clientId = query.get('client_id') ?? '';
+      // Anonymous requests can preserve a bounded login continuation, but cannot
+      // spend the shared outbound metadata budget before authenticating.
+      if (metadataClientUrl(clientId) && (!viewer || !session)) {
+        if (this.pending.size >= MAX_PENDING || url.search.length > 8192) throw new Error('authorization capacity reached');
+        id = fresh();
+        pending = { clientId, redirectUri: '', challenge: '', state: null, resource: this.resource,
+          expiresAt: now + MCP_CODE_TTL_MS, authorizationQuery: query.toString() };
+        this.pending.set(id, pending);
+        res.setHeader('set-cookie', serializeCookie(RETURN_COOKIE, id, { secure: this.options.origin.protocol === 'https:',
+          path: '/auth', maxAgeSeconds: MCP_CODE_TTL_MS / 1000 }));
+        redirect(res, '/auth/login'); return;
+      }
       // A URL id is read from its document at EVERY authorization request (the
       // resolver caches). Nothing is written until consent issues a code.
       const described = metadataClientUrl(clientId)
@@ -212,8 +233,7 @@ export class McpOAuth {
       this.pending.set(id, pending);
     }
     if (!id || !pending) throw new Error('expired authorization request');
-    const viewer = this.options.gate.resolve(req);
-    const session = singleCookie(req, authCookieName(SESSION_COOKIE, this.options.origin.protocol === 'https:'));
+
     if (!viewer || !session) {
       if (req.method !== 'GET') { json(res, 401, { error: 'login_required' }); return; }
       res.setHeader('set-cookie', serializeCookie(RETURN_COOKIE, id, { secure: this.options.origin.protocol === 'https:',

@@ -135,9 +135,9 @@ const DEFAULT_RETRY_DELAY_MS = 250;
 const answerSchema = z.object({
   type: z.enum(['choice', 'noul', 'score']).optional(),
   choice: z.string().optional(),
-  probabilities: z.record(z.string(), z.number().finite()).optional(),
-  confidence: z.number().finite().optional(),
-  noul: z.number().finite().optional(),
+  probabilities: z.record(z.string(), z.number().min(0).max(1)).optional(),
+  confidence: z.number().min(0).max(1).optional(),
+  noul: z.number().min(0).max(1).optional(),
   score: z.number().finite().optional(),
 });
 

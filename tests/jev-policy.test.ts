@@ -119,13 +119,33 @@ describe('Jev policy regression paths', () => {
         task: { description: 'Build a file' }, catalog: [{ name: 'build', description: 'Build a file', detail: 'Write then verify' }] };
       await prefilterStrategy(args);
       await prefilterStrategy(args);
-      expect(bodies).toHaveLength(1);
+      expect(bodies).toHaveLength(2);
       expect(ctx.llm.calls).toHaveLength(1);
       await prefilterStrategy({ ...args, catalog: [{ ...args.catalog[0]!, detail: 'Only inspect' }] });
-      expect(bodies).toHaveLength(2);
+      expect(bodies).toHaveLength(3);
       const changed = createJevDecider({ apiKey: 'test', fetchImpl, progressiveRecipes: true, record: () => undefined });
       await prefilterStrategy({ ...args, ctx: { ...ctx, jev: changed } });
-      expect(bodies).toHaveLength(3);
+      expect(bodies).toHaveLength(4);
+    } finally { resetPrefilterCacheForTests(); rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  it('rechecks exclusions before reusing a cached model fallback', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'jev-exclusions-'));
+    vi.stubEnv('ATOMA_PREFILTER_CACHE', join(dir, 'cache.db'));
+    try {
+      let withhold = ['b'];
+      const choose = vi.fn(async () => ({ withhold }));
+      const ctx = { ...makeCtx(), jev: { choose, choiceCacheKey: () => 'same-policy',
+        approve: async () => null, twin: async () => null } };
+      ctx.llm.enqueueText(jsonText({ kind: 'reuse', target: 'a', confidence: 'high', reasoning: 'fits' }));
+      ctx.llm.enqueueText(jsonText({ kind: 'reuse', target: 'b', confidence: 'high', reasoning: 'fits' }));
+      const args = { ctx, task: { description: 'Build' }, catalog: [
+        { name: 'a', description: 'Build A' }, { name: 'b', description: 'Build B' }] };
+      expect(await prefilterStrategy(args)).toMatchObject({ target: 'a' });
+      withhold = ['a'];
+      expect(await prefilterStrategy(args)).toMatchObject({ target: 'b' });
+      expect(choose).toHaveBeenCalledTimes(2);
+      expect(ctx.llm.calls).toHaveLength(2);
     } finally { resetPrefilterCacheForTests(); rmSync(dir, { recursive: true, force: true }); }
   });
 

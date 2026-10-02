@@ -281,7 +281,10 @@ function judgeCoverage(
   coverage: readonly ChecklistCoverage[],
   judgements: readonly CriterionJudgement[] | undefined
 ): ChecklistCoverage[] {
-  const byId = new Map((judgements ?? []).map((judgement) => [judgement.id, judgement]));
+  const byId = new Map<string, CriterionJudgement>();
+  for (const judgement of judgements ?? []) {
+    if (byId.get(judgement.id)?.met !== false) byId.set(judgement.id, judgement);
+  }
   return coverage.map((item) => {
     const judgement = byId.get(item.id);
     return judgement ? { ...item, judgement: { met: judgement.met, ...(judgement.reason ? { reason: judgement.reason.slice(0, 400) } : {}) } } : item;
@@ -304,6 +307,8 @@ function consistentWithCriteria(
   // by construction, and the landing contract keeps that work as a partial.
   // The judgements are recorded; they never turn a landing into a refusal.
   if (!verdict.approved || source !== 'user' || landed) return verdict;
+  const missing = judged.filter((item) => !item.judgement);
+  if (missing.length > 0) return { approved: false, reasoning: `Acceptance omitted judgements for user criteria: ${missing.map((item) => item.id).join(', ')}` };
   const unmet = judged.filter((item) => item.judgement?.met === false);
   if (unmet.length === 0) return verdict;
   return {
@@ -471,6 +476,7 @@ export async function acceptRootResult(args: {
   const review = floor.length === 0 || gates.reviewFindings.length > 0 || probe.requiresReview ||
     floorCoverage.some((item) => item.status === 'uncovered') || userCriteria || restorations.length > 0 ||
     inheritedItems.length > 0 || (inherited?.report.notReplayed ?? 0) > 0 ||
+    inherited?.report.baseline.stopped !== undefined ||
     // Refused below whatever it says; the call keeps the acceptor's own reading in the record.
     unrechecked !== undefined;
   const judgementsAsked = checklistBlock !== '';

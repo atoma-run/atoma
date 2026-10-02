@@ -1,3 +1,6 @@
+import * as jevModule from '../src/core/jev.js';
+import { L3Atom } from '../src/atoms/L3Atom.js';
+import { TraceRecorder } from '../src/viz/trace.js';
 import { mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -113,5 +116,50 @@ describe('task-driven tissue selection through the real runner', () => {
       closeStoreHandles();
       rmSync(root, { recursive: true, force: true });
     }
+  });
+});
+
+describe('pending audits at runner shutdown', () => {
+  it.each(['failure', 'shutdown'] as const)('keeps pending audit work before closing a trace on %s', async mode => {
+    const root = mkdtempSync(join(tmpdir(), 'atoma-audit-close-'));
+    for (const [key, value] of Object.entries({ ...OLLAMA_PINS,
+      ATOMA_DB_PATH: join(root, 'store.db'), ATOMA_LEDGER_DB: join(root, 'store.db'),
+      ATOMA_SKILLS_DIR: join(root, 'skills'), ATOMA_RUNS_DIR: join(root, 'runs'),
+      ATOMA_BUILD_WORKSPACE: join(root, 'workspace'), ATOMA_BUILD_TIMEOUT_MS: '60000',
+      ATOMA_CONTAINER: '0', ATOMA_REQUIRE_ISOLATION: '0', ATOMA_PREFILTER_CACHE: '0',
+    })) vi.stubEnv(key, value);
+    resetHostLifecycleSnapshotForTests();
+    for (const method of ['log', 'warn', 'error'] as const) vi.spyOn(console, method).mockImplementation(() => {});
+    vi.spyOn(jevModule, 'jevDeciderFromEnv').mockReturnValue({ choose: async () => null, approve: async () => null, twin: async () => null });
+    vi.mocked(buildTierClients).mockReturnValue({ ollama: { complete: async () => ({
+      text: JSON.stringify({ action: 'reuse', name: 'Meristem', reasoning: 'fixture' }),
+      usage: { inputTokens: 0, outputTokens: 0 }, stopReason: 'end_turn',
+    }) } });
+    let finishedAudit = false;
+    let started!: () => void;
+    const startedWork = new Promise<void>(resolveStarted => { started = resolveStarted; });
+    let stop!: () => void;
+    const hanging = new Promise<never>((_resolve, reject) => { stop = () => reject(new Error('stopped')); });
+    // Only await this promise in the shutdown case, so it never rejects unobserved.
+    vi.spyOn(L3Atom.prototype, 'handle').mockImplementation(async (_task, ctx) => {
+      ctx.jevAudit!.defer(async () => { await new Promise(resolveAudit => setTimeout(resolveAudit, 80)); finishedAudit = true; });
+      started();
+      if (mode === 'failure') throw new Error('execution failed');
+      return hanging;
+    });
+    const closeStates: boolean[] = [];
+    const end = TraceRecorder.prototype.endRun;
+    vi.spyOn(TraceRecorder.prototype, 'endRun').mockImplementation(function (this: TraceRecorder, options) {
+      closeStates.push(finishedAudit); return end.call(this, options);
+    });
+    let handle: Awaited<ReturnType<typeof startTask>> | undefined;
+    try {
+      handle = await startTask(buildProfile, ['--no-learn-skills', '--no-direct-skills', 'Audit closure fixture']);
+      await startedWork;
+      if (mode === 'shutdown') { await handle.shutdown(); stop(); }
+      await handle.settled;
+      expect(closeStates.length).toBeGreaterThan(0);
+      expect(closeStates.every(Boolean)).toBe(true);
+    } finally { await handle?.shutdown(); closeStoreHandles(); rmSync(root, { recursive: true, force: true }); }
   });
 });

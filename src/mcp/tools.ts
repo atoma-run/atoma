@@ -948,6 +948,8 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
             runsDir: z.string(),
             window: z.number(),
             runsScanned: z.number(),
+            unparseable: z.number(),
+            note: z.string(),
             totals: z.record(z.string(), z.unknown()),
             perModel: z.array(z.record(z.string(), z.unknown())),
             perTier: z.array(z.record(z.string(), z.unknown())),
@@ -1009,6 +1011,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
             sentinel: z.record(z.string(), z.unknown()).nullable(),
             rules: z.array(z.record(z.string(), z.unknown())),
             analyst: z.record(z.string(), z.unknown()).nullable(),
+            note: z.string(),
           },
           annotations: READ_ONLY,
         },
@@ -1045,7 +1048,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
           return jsonResult({
             mcp,
             note: mcp
-              ? 'counted since this server process started: a deployment resets them. A client appears once it opened a session (2025) or sent a request (2026).'
+              ? 'counted since this server process started: a deployment resets them. A client appears once it opened or resumed a session (2025; resumed clients have a synthetic name) or sent a request (2026).'
               : 'this host exposes no MCP counters',
           });
         }

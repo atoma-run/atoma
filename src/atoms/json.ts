@@ -1247,7 +1247,7 @@ function coerceCriteria(raw: unknown): Array<{ id: string; met: boolean; reason?
     const e = entry as Record<string, unknown>;
     const met = e['met'] === true || e['met'] === 'true' ? true : e['met'] === false || e['met'] === 'false' ? false : undefined;
     if (typeof e['id'] !== 'string' || !e['id'] || e['id'].length > 40 || met === undefined) continue;
-    out.push({ id: e['id'], met, ...(typeof e['reason'] === 'string' ? { reason: e['reason'].slice(0, 400) } : {}) });
+    out.push({ id: e['id'].trim().replace(/^c?\s*(\d+)$/i, 'c$1'), met, ...(typeof e['reason'] === 'string' ? { reason: e['reason'].slice(0, 400) } : {}) });
   }
   return out;
 }

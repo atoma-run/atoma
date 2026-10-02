@@ -73,8 +73,12 @@ describe('tierSelectors — the three required pins, parsed once', () => {
     });
   });
 
+  it.each(['gpt-5.4-mini', 'unknown-model'])('rejects unavailable host Codex pin %s before provider construction', model => {
+    expect(() => tierSelectors({ ...KEYED, ATOMA_MODEL_L1: `sub:openai:${model}` })).toThrow(/not served by the host subscription/);
+  });
+
   it('accepts Codex on L1 for its host-side tool loop', () => {
-    expect(tierSelectors({ ...KEYED, ATOMA_MODEL_L1: 'sub:openai:gpt-5.4-mini' })[1]).toEqual({ mode: 'sub', vendor: 'openai', model: 'gpt-5.4-mini' });
+    expect(tierSelectors({ ...KEYED, ATOMA_MODEL_L1: 'sub:openai:gpt-5.6-luna' })[1]).toEqual({ mode: 'sub', vendor: 'openai', model: 'gpt-5.6-luna' });
   });
 
   it('describes the gradient for the run banner', () => {

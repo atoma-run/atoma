@@ -1534,8 +1534,8 @@ function drawPartialContinueControl(
   width: number
 ): number {
   // A rerun has nothing to continue: the project's next run continues its own
-  // line. Nor has a superseded partial: that line has moved past it.
-  if (!guidance.project || guidance.rerun || (guidance.superseded && !guidance.project.repositoryTarget.source)) return 0;
+  // line. A newer run may have lost its workspace, so it never hides this action.
+  if (!guidance.project || guidance.rerun) return 0;
   const height = 30;
   const label = snapshot.t(guidance.carriesOver ? 'run.partial.action.continue' : 'run.partial.action.retry');
   const labelWidth = Math.ceil(ctx.measureText(label, { size: 11, weight: '600' })) + 20;

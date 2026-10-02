@@ -257,13 +257,14 @@ export function pricePointFromSource(
   since: string,
   current: ModelPricePoint | null = null
 ): ModelPricePoint {
+  const cacheWrite = price.cacheWrite ?? current?.cacheWrite;
   return {
     since,
     input: price.input,
     output: price.output,
     cachedInput: price.cachedInput ?? current?.cachedInput ?? price.input,
-    ...(price.cacheWrite !== undefined && !samePrice(price.cacheWrite, price.input * 1.25)
-      ? { cacheWrite: price.cacheWrite }
+    ...(cacheWrite !== undefined && !samePrice(cacheWrite, price.input * 1.25)
+      ? { cacheWrite }
       : {}),
     ...(price.source ? { source: price.source } : {}),
   };

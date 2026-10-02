@@ -250,7 +250,20 @@ export function snapshotStartingWorkspace(root: string): StartingSnapshot {
  */
 export function snapshotDeliveredWorkspace(root: string, start: StartingSnapshot): DeliveredSnapshot {
   const budget = { bytes: SNAPSHOT_MAX_TOTAL_BYTES };
-  const files = start.files.flatMap((file) => snapshotFile(root, file.path, budget) ?? []);
+  const unreadable: string[] = [];
+  const files = start.files.flatMap((file) => {
+    try {
+      const snapshot = snapshotFile(root, file.path, budget);
+      if (snapshot) return [snapshot];
+      // Only a confirmed absent name establishes removal; a cap or a read
+      // failure cannot say what happened to the starting file.
+      lstatSync(join(root, file.path));
+      unreadable.push(file.path);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') unreadable.push(file.path);
+    }
+    return [];
+  });
   const known = new Set(start.files.map((file) => file.path));
   const walked = walkFiles(root, SNAPSHOT_MAX_FILES + known.size);
   const added: WorkspaceFileSnapshot[] = [];
@@ -261,5 +274,5 @@ export function snapshotDeliveredWorkspace(root: string, start: StartingSnapshot
     const file = snapshotFile(root, rel, budget);
     if (file) added.push(file); else addedTruncated = true;
   }
-  return { files, added, addedTruncated };
+  return { files, added, addedTruncated, ...(unreadable.length ? { unreadable } : {}) };
 }

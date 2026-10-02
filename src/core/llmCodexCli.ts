@@ -1,3 +1,4 @@
+import { withPartialUsage } from './metrics.js';
 import { CODEX_MODEL_CAPABILITIES_ENV, codexModelSchema } from '../contracts/codexModels.js';
 import { completeCodexToolLoop, isCodexToolAction } from './codexToolLoop.js';
 import { spawn } from 'node:child_process';
@@ -758,8 +759,7 @@ export class CodexCliLlmClient implements LlmClient {
 
     if (timedOut || req.signal?.aborted) {
       const failure = timedOut ? new CodexTransportError('timeout') : req.signal?.reason ?? new Error('aborted');
-      try { failure.partialUsage = foldCodexEvents(lines).usage; } catch { /* Frozen abort reason. */ }
-      throw failure;
+      throw withPartialUsage(failure, foldCodexEvents(lines).usage);
     }
 
     if (spawnFailed) {

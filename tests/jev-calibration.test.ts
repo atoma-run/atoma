@@ -332,6 +332,28 @@ describe('calibrating: both designs, on the same decisions', () => {
     });
   });
 
+  it('records interrupted earlier jobs so resuming never replays a later paid success', async () => {
+    const prompt = await prefilterPrompt();
+    const decisions = [0, 1, 2].map(i => ({ ...decision('prefilter', prompt,
+      jsonText({ kind: 'escalate', reasoning: 'x' })), eventId: `p${i}` }));
+    const abort = new AbortController();
+    const { impl } = fakeJev();
+    let calls = 0;
+    const fetchImpl: typeof fetch = async (url, init) => {
+      if (++calls === 1) return new Promise<Response>((_resolve, reject) => {
+        init!.signal!.addEventListener('abort', () => reject(new Error('cancelled')), { once: true });
+      });
+      return impl(url, init);
+    };
+    const result = await calibrate({ decisions, apiKey: 'k', fetchImpl, concurrency: 2, signal: abort.signal,
+      onProgress: () => abort.abort() });
+    expect(result.records.map(record => record.id)).toEqual(['p0', 'p1']);
+    expect(result.records[0]).toHaveProperty('failure');
+    expect(result.records[1]).toHaveProperty('answers');
+    expect(result.resumeAt).toBe(2);
+    expect(result.unasked).toBe(1);
+  });
+
   it('reports unasked compilation cases when cancelled without spending or inventing answers', async () => {
     const { impl, bodies } = fakeJev();
     const calibration = await calibrate({ decisions: [], compilations: [{

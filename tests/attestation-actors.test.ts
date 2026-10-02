@@ -104,6 +104,19 @@ describe('the attested browser observation', () => {
     expect(parseExecutionObservation('edit_file', { path: 'index.html' }, { ok: true, unchanged: true, replacements: 0 })).toBeNull();
   });
 
+  it.each(['././index.html', `${'nested/'.repeat(150)}index.html`])('keeps file identity outside truncated excerpts: %s', path => {
+    const at = (eventId: string, tool: string, file: string) => ({ eventId, tool,
+      observation: parseExecutionObservation(tool, { path: file }, tool === 'read_file' ? { content: 'old' } : { ok: true })! });
+    const lines = renderObservations([at('read', 'read_file', path), at('write', 'write_file', path.replace(/^(\.\/)+/, ''))]);
+    expect(lines[0]).toContain('STALE');
+  });
+
+  it('does not conflate a literal backslash in a file name with a directory separator', () => {
+    const read = { eventId: 'read', tool: 'read_file', observation: parseExecutionObservation('read_file', { path: String.raw`a\b` }, { content: 'old' })! };
+    const write = { eventId: 'write', tool: 'write_file', observation: parseExecutionObservation('write_file', { path: 'a/b' }, { ok: true })! };
+    expect(renderObservations([read, write])[0]).not.toContain('STALE');
+  });
+
   it('attests record_probe, the shell evidence tool, like run_shell', () => {
     expect(parseExecutionObservation('record_probe', { cmd: 'node test.js' }, { exitCode: 0 })).toMatchObject({ kind: 'execution' });
   });

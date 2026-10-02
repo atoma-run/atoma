@@ -682,6 +682,24 @@ describe('L2 onApproved — compile at learn (owner decision 2026-09-26)', () =>
     );
   }
 
+  it('compares a task draft only with task recipes, never recovery recipes', async () => {
+    skills.save(nsOf(reg, 'Water'), { id: 'recovery', description: 'Recover', whenToUse: 'after failure',
+      trigger: 'validation failed', kind: 'llm', body: 'repair' });
+    const candidates: string[] = [];
+    const ctx = { ...makeCtx(), jev: {
+      choose: async () => null, approve: async () => null,
+      twin: async (request: import('../src/core/types.js').JevTwinRequest) => {
+        candidates.push(...request.existing.map(recipe => recipe.id)); return null;
+      }, compilable: async () => ({ compilable: false, obstacles: ['semantic_judgment'] }),
+    } };
+    novelApprovedRun(ctx);
+    await L2Atom.fromType(reg.getByName('Tracheid')!, reg, [], skills)
+      .handleDirect({ description: 'write the report and check it' }, ctx);
+    expect(candidates).toContain('unrelated');
+    expect(candidates).not.toContain('recovery');
+    expect(skills.loadFor(nsOf(reg, 'Water')).some(recipe => recipe.id === 'write-and-check-report')).toBe(true);
+  });
+
   it.each([true, false])('asks Jev about a newly learned recipe before any credited run (compilable: %s)', async (compilable) => {
     const inspected: string[] = [];
     const ctx = { ...makeCtx(), jev: {

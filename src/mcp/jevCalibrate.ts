@@ -129,7 +129,8 @@ const RESULTS = new Map<string, StoredResult>();
 function remember(principalId: string, records: readonly CalibrationRecord[]): string {
   const id = randomUUID();
   RESULTS.set(id, { principalId, createdAt: new Date().toISOString(), records });
-  while (RESULTS.size > MAX_RESULTS) RESULTS.delete(RESULTS.keys().next().value!);
+  const own = [...RESULTS].filter(([, result]) => result.principalId === principalId);
+  for (const [oldId] of own.slice(0, Math.max(0, own.length - MAX_RESULTS))) RESULTS.delete(oldId);
   return id;
 }
 

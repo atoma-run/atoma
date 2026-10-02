@@ -2,7 +2,7 @@
 
 import '@testing-library/jest-dom/vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { createElement, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -280,6 +280,31 @@ describe('personal subscription settings', () => {
     await user.keyboard('{ArrowRight}');
     expect(screen.getByRole('tab', { name: 'General' })).toHaveFocus();
     expect(limit).not.toBeVisible();
+  });
+
+  it('lets an admin save zero for an unlimited ceiling while rejecting values below its positive minimum', async () => {
+    vi.spyOn(api, 'accountModels').mockResolvedValue(ACCOUNT_MODELS);
+    vi.spyOn(api, 'orgModels').mockResolvedValue(ORG_MODELS);
+    vi.spyOn(api, 'accountSubscriptions').mockResolvedValue(DISCONNECTED);
+    const settings = { catalog: [...PLATFORM_SETTING_SPECS],
+      limits: { ...DEFAULT_PLATFORM_LIMITS, 'llm.codexCallTimeoutMs': 60_000 }, rows: [], env: {} };
+    vi.spyOn(api, 'adminSettings').mockResolvedValue(settings);
+    const save = vi.spyOn(api, 'saveAdminSettings').mockResolvedValue({ ...settings,
+      limits: { ...settings.limits, 'llm.codexCallTimeoutMs': 0 } });
+    const user = userEvent.setup();
+    orgModelsForm('org:owner', true, undefined, undefined, true);
+    const input = await screen.findByLabelText('llm.codexCallTimeoutMs');
+    await user.click(screen.getByRole('tab', { name: 'Run limits' }));
+    const button = within(input.closest('.gpu-org-models-row') as HTMLElement).getByRole('button', { name: 'Save' });
+    await user.clear(input);
+    await user.type(input, '1');
+    expect(button).toBeDisabled();
+    await user.clear(input);
+    await user.type(input, '0');
+    expect(input).toBeValid();
+    expect(button).toBeEnabled();
+    await user.click(button);
+    await waitFor(() => expect(save).toHaveBeenCalledWith({ set: { 'llm.codexCallTimeoutMs': 0 } }));
   });
 
   it('shows the profile and the organisation in General, with a formatted join date', async () => {

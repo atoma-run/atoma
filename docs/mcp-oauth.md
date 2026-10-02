@@ -171,3 +171,8 @@ References: [MCP authorization](https://modelcontextprotocol.io/specification/20
 [RFC 7591](https://www.rfc-editor.org/rfc/rfc7591),
 [RFC 7009](https://www.rfc-editor.org/rfc/rfc7009),
 [Codex MCP configuration](https://learn.chatgpt.com/docs/extend/mcp?surface=cli).
+
+Compatibility note: HTTP `localhost` callbacks remain accepted for existing clients.
+RFC 8252 §8.3 recommends loopback IP literals instead; new clients should use
+`127.0.0.1` or `[::1]`. The ephemeral-port rule also applies to the compatibility
+spelling, while the remaining callback bytes must match exactly.

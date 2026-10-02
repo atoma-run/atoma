@@ -1,3 +1,4 @@
+import { assertServedHostChatGptModels } from '../contracts/runPayers.js';
 import Anthropic from '@anthropic-ai/sdk';
 import type { LlmClient } from '../core/types.js';
 import { AnthropicLlmClient } from '../core/llm.js';
@@ -10,6 +11,7 @@ import { findProvider } from '../core/providerCatalog.js';
 import { RunnerConfigError } from '../core/errors.js';
 import {
   formatModelSelector,
+  ModelSelectorError,
   readTierSelectors,
   referencedTransports,
   selectorSpendsSubscription,
@@ -145,7 +147,10 @@ export function tierSelectors(
   env: NodeJS.ProcessEnv = process.env,
   opts: { readonly allowOwn?: boolean } = {}
 ): Record<TierNumber, ModelSelector> {
-  return readTierSelectors(env, opts);
+  const selectors = readTierSelectors(env, opts);
+  try { assertServedHostChatGptModels(Object.values(selectors).map(formatModelSelector)); }
+  catch (error) { throw new ModelSelectorError(error instanceof Error ? error.message : String(error)); }
+  return selectors;
 }
 
 /**

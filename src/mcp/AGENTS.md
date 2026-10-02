@@ -16,7 +16,6 @@ Neighbours:
 - [`src/projects`](../projects/AGENTS.md) — the tenant runs the member tools drive
 - [`src/run`](../run/AGENTS.md) — the launcher the operator run tools spawn
 - [`src/registry`](../registry/AGENTS.md), [`src/skills`](../skills/AGENTS.md) — what the platform readers read
-
 ## One surface, tiered (decision 2026-09-05)
 
 - ONE MCP, ONE ROUTE, TWO PROTOCOL ERAS. Streamable HTTP on `/mcp`, and
@@ -63,11 +62,12 @@ Neighbours:
   a tool is therefore never the only guard: a revoked or demoted token cannot
   ride the session it opened. Sessions are memory-only and idle-swept (a day);
   a restart forgets them, and an AUTHENTICATED caller presenting a forgotten
-  id of the shape this host mints has it reopened in place, bound to that
-  caller, so a deployment never fails a client's next call (2026-09-28: about
+  id with its matching caller/tier hash reopens it. Legacy UUID-only ids must
+  initialize again; another caller cannot resume or destroy
+  the owner's session. This keeps deployments from failing a client's next call (2026-09-28: about
   ten deployments that day, each one a failed call). Nothing of the old
-  session returns: operator task ids, subscriptions and the replay ring were
-  memory. A project run's task id is not session state and answers anywhere.
+  session returns: operator task ids, subscriptions and the replay ring were memory.
+  A project run's task id is not session state and answers anywhere.
   An id evicted to keep a caller inside its ceiling stays gone, or the caller
   would cycle its sessions; a DELETE and an unknown shape still answer 404. They are also CEILINGED
   TWICE, because a session holds a whole server and a replay ring worth

@@ -637,3 +637,70 @@ monotonie du déploiement).
 Statut : findings ouverts, aucun correctif appliqué. Cette revue ajoute ce
 rapport, son [annexe de preuves](../../incidents/code-review-2026-10-02-evidence.md)
 et son entrée dans l'[index des revues](../../code-reviews.md).
+
+
+## 9. Corrections dans le workspace — 2026-10-02
+
+Cette section suit les corrections après la revue ; elle ne change ni sa
+fenêtre ni ses constats à `cc631bb6`. La PR du mender #10 (`67aab1aa`,
+« limit direct-answer tasks to one no-tool branch ») est postérieure à cette
+fenêtre et n'en fait pas partie. Aucun merge ou déploiement n'est effectué
+par cette passe.
+
+| Constats | Correction |
+| --- | --- |
+| 1.1, 1.2 | Schémas de sortie MCP complets et comptage explicite des sessions reprises. Les tests passent par le SDK et le serveur HTTP. |
+| 1.3 | Une analyse interrompue pendant l'attente du profil Codex est classée `preempted`, quelle que soit la forme de l'erreur d'annulation. |
+| 1.4 | Les sorties erreur, arrêt et watchdog attendent les audits Jev dans la même borne que le succès avant de fermer la trace. Tests du runner réel sur erreur et arrêt. |
+| 1.5 | Chaque critère utilisateur doit avoir un jugement ; identifiants numériques et `C1` normalisés, doublons contradictoires conservateurs. Listes rédigées et résultats partiels gardent leur contrat. |
+| 1.6, 1.7 | Pins ChatGPT indisponibles refusés avant construction des clients ; prix de cache-write nul préservé et affiché par le CLI. |
+| 1.8 | La valeur zéro « illimité » suit le même validateur dans le contrat HTTP, le store et le formulaire administrateur. |
+| 1.9, 1.10 | Un fichier non comparable n'est plus déclaré supprimé. Un replay initial interrompu reste visible même avec zéro baseline établie. |
+| 1.11, 1.12 | Les régressions héritées empêchent une remédiation limitée à un seul critère ; les recettes de récupération sont exclues de la recherche de jumeaux des recettes de tâche. |
+| 2.1 | Le texte dit que la reprise dépend des workspaces encore présents ; un run plus récent ne masque plus l'action de reprise. |
+| 2.2, 2.3 | Le marqueur du chemin de déploiement sans attente nomme son processus et son identité de naissance ; le garde suit cette identité durant attente et maintien. Test du fragment shell réel et de son expiration. |
+| 2.5 | Chaque appel reçoit une erreur portant sa propre copie de consommation ; une raison d'annulation partagée ou gelée n'est jamais modifiée. |
+| 2.6, 2.7 | Le cache du fallback suit le catalogue réellement proposé après les exclusions Jev ; probabilités, confiance et noul bornés à [0, 1]. |
+| 2.8 | Toute calibration commencée laisse un résultat, même interrompu, pour que le curseur ne refacture pas un résultat ultérieur déjà acquis. |
+| 2.9, 2.10, 2.12 | Les diagnostics de fichiers absents et d'ancêtres modifiés cachent les chemins hôte ; la rédaction couvre les graphies JSON, URI et Windows. |
+| 2.11 | Le téléchargement CIMD attend l'authentification ; la continuation de login conserve la requête sans déclencher de réseau anonyme. |
+| 2.13 | Les nouveaux identifiants de session portent le hash de leur identité et rôle ; un tiers ne peut reprendre une session oubliée ni détruire celle du propriétaire. Les anciens UUID seuls exigent une réinitialisation après redémarrage. |
+| 2.14, 2.15 | Le budget admis est conservé pendant la préparation ; l'identité complète du fichier attesté est séparée des extraits tronqués et normalisée pour la détection des lectures périmées. |
+| D4–D8, D10–D11 | Commentaires et réserves documentaires alignés ; rétention de dix calibrations par principal ; constantes de replay partagées ; colonnes ledger/journal mesurées. |
+
+Restent des décisions de produit/opérateur : **2.4** (ordre des déploiements),
+**D1** (visibilité des payeurs), **D2** (persistance des listes rédigées) et
+**D9** (consentement de l'auteur CLA du mender). **D3** et **D12** restent les
+limites explicites déjà décrites, pas des correctifs silencieux.
+
+Validation exécutée sur Node 24.20.0 après `npm ci` :
+
+- `docs:check`, les deux projets TypeScript, `npm audit` (zéro vulnérabilité)
+  et `npm run build` passent.
+- Les 915 fichiers suivis admissibles à ESLint passent avec la configuration
+  du dépôt, par lots séquentiels de 40. `eslint .` dépasse la mémoire de cette
+  machine ; augmenter son heap à 3 Go entraîne également une interruption.
+  Les derniers fichiers modifiés ont été relintés séparément. Aucune règle
+  n'a été désactivée.
+- Tous les smokes compilés de `release:check:static` passent : MCP,
+  authentification de bout en bout et aides des CLIs.
+- `npm test -- --maxWorkers=2` : 5 162 réussis, 20 ignorés, deux échecs dans
+  des fixtures de `runner-handle` utilisant encore `gpt-5.4-mini`. Ces
+  fixtures de lancement valide utilisent désormais `gpt-5.6-luna` ; le
+  refus du modèle retiré a son propre test. La relance finale des quatre
+  suites concernées (`runner-handle`, `viz-account-subscriptions`,
+  `attestation-actors`, `depth-routing`) passe : **95/95**, avec le nouveau
+  test de sauvegarde de zéro depuis le formulaire.
+- Le smoke OAuth dans Chrome passe. Le smoke GPU échoue à
+  `viz-mark-bead-probe.mjs:212` (`assertPointerLitMark`, délai de 10 secondes).
+  **Le même échec, à la même ligne, est reproduit sur HEAD sans les
+  corrections**, archivé et reconstruit dans `/tmp/atoma-review-baseline`.
+  Chrome utilise SwiftShader ; les performances matérielles ne sont pas
+  mesurées. Le smoke n'a pas été affaibli et n'est pas déclaré vert.
+- `git diff --check` passe. Ces validations précèdent le commit et le push
+  demandés ensuite par le propriétaire.
+
+La commande monolithique `release:check` n'est donc pas déclarée réussie :
+ses étapes ont été vérifiées séparément pour tenir dans la mémoire disponible.
+Les logs de cette session sont dans `/tmp/atoma-review-*.log`, et Chrome dans
+`/tmp/atoma-review-browser` (variable `PUPPETEER_CACHE_DIR` pour les tests).

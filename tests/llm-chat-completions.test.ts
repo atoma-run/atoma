@@ -212,6 +212,21 @@ describe('ChatCompletionsLlmClient', () => {
     expect((await run('xai', 'grok-build-0.1'))['reasoning_effort']).toBeUndefined();
   });
 
+  it.each([false, true])('isolates partial usage for a shared error (frozen: %s)', async frozen => {
+    const reason = new Error('shared cancellation');
+    if (frozen) Object.freeze(reason);
+    const errors = await Promise.all([70, 120].map(async tokens => {
+      const { client: sdk } = fakeSdk([completion({ role: 'assistant', content: null,
+        tool_calls: [{ id: 'c', type: 'function', function: { name: 'read_file', arguments: '{}' } }] },
+      { prompt_tokens: tokens, completion_tokens: 7, total_tokens: tokens + 7 }), reason]);
+      return client('meta', sdk).complete(request({ tools: [READ_TOOL], executor: executor(async () => 'r') }))
+        .catch((error: unknown) => error as Error & { partialUsage: { inputTokens: number } });
+    }));
+    expect(errors).toMatchObject([{ partialUsage: { inputTokens: 70 } }, { partialUsage: { inputTokens: 120 } }]);
+    expect(errors[0]).not.toBe(errors[1]);
+    expect(reason).not.toHaveProperty('partialUsage');
+  });
+
   it('keeps the paid tokens on an error that leaves the loop', async () => {
     const { client: sdk } = fakeSdk([
       completion(

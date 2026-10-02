@@ -1,3 +1,4 @@
+import { withPartialUsage } from './metrics.js';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
@@ -429,12 +430,7 @@ function attachPartialUsage(
   err: Error,
   usages: readonly LlmCompletionResponse['usage'][]
 ): Error {
-  try {
-    (err as Error & { partialUsage?: object }).partialUsage = sumUsage(usages);
-  } catch {
-    // frozen/exotic errors can't carry properties — fine.
-  }
-  return err;
+  return withPartialUsage(err, sumUsage(usages));
 }
 
 function sumUsage(usages: readonly LlmCompletionResponse['usage'][]): LlmCompletionResponse['usage'] {

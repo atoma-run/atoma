@@ -1359,7 +1359,7 @@ export class ProjectRunCoordinator {
     this.store.assertRunCapacity(input.orgId);
     // The platform limits in force NOW, before the run is reserved: a budget
     // they refuse is this run's 400, never a row left to fail at launch.
-    this.runTimeoutMs();
+    const timeoutMs = this.runTimeoutMs();
     // Every new project run carries search. Validate before taking the lease or
     // reserving a run; read-only service startup and idempotent retries still work.
     let retrievalLaunch: ReturnType<typeof readHaystackLaunch>;
@@ -1555,7 +1555,7 @@ export class ProjectRunCoordinator {
       const preparationDeadlineAt = Date.now() + PROJECT_RUN_PREPARATION_TIMEOUT_MS;
       const launch = () => this.driver({
         goal: run.goal,
-        timeoutMs: this.runTimeoutMs(),
+        timeoutMs,
         logPath: paths.logPath,
         cwd: this.cwd,
         npmScript: 'run:build',

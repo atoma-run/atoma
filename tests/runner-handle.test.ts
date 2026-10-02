@@ -222,7 +222,7 @@ describe('startTask — typed config errors before any side effect', () => {
 
   it('accepts Codex L1 and reaches the next launch validation', async () => {
     process.env[buildProfile.envVars.timeoutMs] = 'abc';
-    process.env['ATOMA_MODEL_L1'] = 'sub:openai:gpt-5.4-mini';
+    process.env['ATOMA_MODEL_L1'] = 'sub:openai:gpt-5.6-luna';
     await expect(startTask(buildProfile, ['goal'])).rejects.toThrow(/expected positive integer/);
   });
 
@@ -290,7 +290,7 @@ describe('startTask — typed config errors before any side effect', () => {
     process.env[buildProfile.envVars.timeoutMs] = '60000';
     delete process.env['ATOMA_MODEL_L1'];
     await expect(startTask(buildProfile, ['goal'], {
-      providerEnv: { ...OLLAMA_PINS, ATOMA_MODEL_L1: 'sub:openai:gpt-5.4-mini' },
+      providerEnv: { ...OLLAMA_PINS, ATOMA_MODEL_L1: 'sub:openai:gpt-5.6-luna' },
     })).rejects.toThrow(/cannot honour a supplied credential snapshot/);
   });
 
@@ -298,7 +298,7 @@ describe('startTask — typed config errors before any side effect', () => {
     // Inverse: the host has a leftover pin; the run was handed its own
     // environment without one and must serve the default, not inherit the
     // ambient detonation.
-    process.env['ATOMA_MODEL_L1'] = 'sub:openai:gpt-5.4-mini';
+    process.env['ATOMA_MODEL_L1'] = 'sub:openai:gpt-5.6-luna';
     process.env[buildProfile.envVars.timeoutMs] = 'abc';
     await expect(
       startTask(buildProfile, ['goal'], { providerEnv: { ...OLLAMA_PINS } })

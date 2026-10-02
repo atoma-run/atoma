@@ -371,10 +371,9 @@ export async function analyseTarget(target: AnalysisTarget, options: AnalystOpti
       onLog: options.warn,
       ...(options.signal ? { signal: options.signal } : {}),
     })).catch((error: unknown) => {
-      // Only the abort itself is a preemption; an unrelated failure that
-      // raced with it is still a failure.
-      if (options.signal?.aborted && (error === options.signal.reason ||
-        (error instanceof Error && options.signal.reason instanceof Error && error.message === options.signal.reason.message))) return null;
+      // Cancellation may come from the profile lease or a child transport,
+      // which need not preserve the signal reason's identity or message.
+      if (options.signal?.aborted) return null;
       throw error;
     });
     if (session === null) {

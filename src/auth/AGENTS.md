@@ -139,7 +139,9 @@ Loopback HTTP keeps its development cookie names and paths.
   the HTTP loopback port allowed to vary per RFC 8252), resource
   binding to the canonical `/mcp`, one-use codes and rotating refresh tokens
   are mandatory. Client ID Metadata Documents and DCR are both supported;
-  `clientMetadata.ts` is the ONE fetch of a client-chosen URL and holds every
+  metadata fetching waits for an authenticated browser session, so anonymous
+  requests cannot exhaust its shared outbound budget. `clientMetadata.ts` is
+  the ONE fetch of a client-chosen URL and holds every
   SSRF bound (public addresses checked in the socket lookup, no redirect,
   size, time, rate, cache). Names supplied by a client are not verified
   identities; a metadata client's domain is.

@@ -19,7 +19,8 @@ import type { RunIndexEntry, VizProject, VizRun } from '../client/types.js';
  *     so an unpublished partial change is not carried over, and EXCEPT a
  *     comparison rerun, which sits beside the project and never seeds it
  *     (2026-09-25 review, 2.7), and EXCEPT a partial a later run of the same
- *     line has since superseded: the next run starts from that one. Saying
+ *     line has since superseded: the next run picks the latest workspace still
+ *     available, which this index cannot identify. Saying
  *     "it picks up from here" there would be the one sentence on this card
  *     that is false.
  *
@@ -45,8 +46,9 @@ export interface PartialRunGuidance {
   /** A comparison rerun: kept beside the project, never continued by it. */
   readonly rerun: boolean;
   /**
-   * A later run of the project's own line finished with work to seed (not
-   * failed, cancelled, live or a rerun): the next run continues from it. The
+   * A later run of the project's own line finished (not failed, cancelled,
+   * live or a rerun). Its workspace may have expired; the index cannot prove
+   * which work the next run will seed. The
    * Projects view shows guidance on its newest row only, for the same reason.
    */
   readonly superseded: boolean;

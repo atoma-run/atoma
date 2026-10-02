@@ -626,3 +626,13 @@ describe('every key is wired to something', () => {
     }
   });
 });
+
+it('round-trips unlimited zero through the HTTP contract and persisted settings', () => {
+  const { store } = openStore();
+  for (const spec of PLATFORM_SETTING_SPECS.filter((entry) => entry.zeroMeansUnlimited)) {
+    const overrides = platformSettingOverridesSchema.parse({ [spec.key]: 0 });
+    store.set(overrides, null);
+    expect(store.overrides()[spec.key]).toBe(0);
+    expect(store.rows().find((row) => row.key === spec.key)?.value).toBe(0);
+  }
+});

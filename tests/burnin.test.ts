@@ -260,7 +260,7 @@ describe('burnin provider attribution', () => {
     expect(
       burninProviderInfo({
         ATOMA_MODEL_L1: 'sub:anthropic:haiku',
-        ATOMA_MODEL_L2: 'sub:openai:gpt-5.4-mini',
+        ATOMA_MODEL_L2: 'sub:openai:gpt-5.6-luna',
         ATOMA_MODEL_L3: 'sub:openai:gpt-5.6-sol',
       })
     ).toEqual({

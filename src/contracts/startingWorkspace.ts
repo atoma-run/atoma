@@ -35,6 +35,7 @@ export interface DeliveredSnapshot {
   readonly files: readonly WorkspaceFileSnapshot[];
   readonly added: readonly WorkspaceFileSnapshot[];
   readonly addedTruncated: boolean;
+  readonly unreadable?: readonly string[];
 }
 
 export interface StartingFileChange {
@@ -43,7 +44,7 @@ export interface StartingFileChange {
    * `moved`: most of its starting lines left this file but live in another
    * delivered file — code moved from index.html to app.js is not code lost.
    */
-  readonly status: 'removed' | 'rewritten' | 'moved' | 'changed';
+  readonly status: 'unreadable' | 'removed' | 'rewritten' | 'moved' | 'changed';
   readonly before: number;
   readonly after?: number;
   readonly startedAs?: string;
@@ -78,7 +79,7 @@ function share(start: readonly string[], present: ReadonlySet<string>): number {
   return kept / start.length;
 }
 
-const STATUS_ORDER = { removed: 0, rewritten: 1, moved: 2, changed: 3 } as const;
+const STATUS_ORDER = { unreadable: 0, removed: 1, rewritten: 2, moved: 3, changed: 4 } as const;
 
 export function compareStartingWorkspace(start: StartingSnapshot, now: DeliveredSnapshot): StartingWorkspaceComparison {
   const current = new Map(now.files.map((file) => [file.path, file]));
@@ -89,7 +90,7 @@ export function compareStartingWorkspace(start: StartingSnapshot, now: Delivered
   for (const file of start.files) {
     const after = current.get(file.path);
     if (!after) {
-      changes.push({ path: file.path, status: 'removed', before: file.bytes, ...(file.head ? { startedAs: file.head } : {}) });
+      changes.push({ path: file.path, status: now.unreadable?.includes(file.path) ? 'unreadable' : 'removed', before: file.bytes, ...(file.head ? { startedAs: file.head } : {}) });
       continue;
     }
     if (after.sha256 === file.sha256) {
@@ -119,6 +120,7 @@ const pct = (value: number): string => `${Math.round(value * 100)}%`;
 
 function describe(change: StartingFileChange): string {
   const was = change.startedAs ? `; it started as ${JSON.stringify(change.startedAs)}` : '';
+  if (change.status === 'unreadable') return `- ${change.path}: NOT COMPARED (read unavailable or snapshot cap exceeded); removal and preservation are unverified`;
   if (change.status === 'removed') return `- ${change.path}: REMOVED (${change.before} bytes at the start)${was}`;
   const size = `${change.before} → ${change.after} bytes`;
   if (change.status === 'rewritten') {

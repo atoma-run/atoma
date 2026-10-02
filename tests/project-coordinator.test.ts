@@ -1,3 +1,4 @@
+import { DEFAULT_PLATFORM_LIMITS } from '../src/contracts/platformSettings.js';
 import { haystackTestEnvironment } from './helpers/haystack.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
@@ -699,6 +700,23 @@ describe('ProjectRunCoordinator', () => {
       expect(finished.traceId).toBe(run.projectRunId);
       expect(() => f.store.reservePublication({ orgId: f.viewer.orgId, projectRunId: run.projectRunId, idempotencyKey: 'manual' })).toThrow(/publication requires/);
     }
+  });
+
+  it('launches with the budget admitted before asynchronous preparation', async () => {
+    const f = fixture();
+    let limits = { ...DEFAULT_PLATFORM_LIMITS, 'run.timeoutDefaultMs': 600_000 };
+    const driver = vi.fn(async (_options: SpawnRunOptions) => formatRunStatsEpilogue(DELIVERED_STATS));
+    const coordinator = new ProjectRunCoordinator({ store: f.store, dbPath: f.dbPath, projectsRoot: f.root,
+      hostEnv: { ...haystackTestEnvironment(f.root), ...ANTHROPIC_PINS, ANTHROPIC_API_KEY: 'model-key' },
+      platformLimits: () => limits, driver,
+      acquireLease: async () => { limits = { ...limits, 'run.timeoutDefaultMs': 120_000 }; return lease(); },
+      publisher: { publish: vi.fn().mockResolvedValue(undefined) },
+    });
+    await coordinator.start({ orgId: f.viewer.orgId, principalId: f.viewer.principalId, projectId: f.project.projectId,
+      request: { idempotencyKey: 'stable-budget', goal: 'Build a page' } });
+    await coordinator.waitForIdle();
+    expect(driver).toHaveBeenCalledOnce();
+    expect(driver.mock.calls[0]![0].timeoutMs).toBe(600_000);
   });
 
   it('isolates, verifies and publishes a delivered project run', async () => {

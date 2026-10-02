@@ -45,9 +45,9 @@ import type { JevApprovalRequest, JevChoiceRequest, JevCompilationRequest, JevTw
  * what Jev approved has no reference at all.
  *
  * Everything here is handed its traces, its key and its transport. The door is
- * `atoma_jev_calibrate` (src/mcp/tools.ts), which reads only the organisations
- * the host admits to Jev, so nothing leaves for TypeSafe that their own runs do
- * not already send.
+ * `atoma_jev_calibrate` (src/mcp/tools.ts), which reads all organisations, including
+ * historical decisions from before Jev was enabled. The platform operator
+ * selects that window; each foreign organisation read is journaled.
  */
 
 // ---------------------------------------------------------------------------
@@ -697,7 +697,6 @@ export async function calibrate(args: {
             ...(documented.result.servedModel ? { servedModel: documented.result.servedModel } : {}),
           });
         } catch (error) {
-          if (args.signal?.aborted) return;
           records[index] = job.finish({ failure: messageOf(error), costUsd: 0 });
         }
       }
@@ -707,7 +706,8 @@ export async function calibrate(args: {
   };
   await Promise.all(Array.from({ length: Math.max(1, args.concurrency ?? 4) }, () => worker()));
   const kept = records.filter((record): record is CalibrationRecord => record !== undefined);
-  // Workers take jobs in order, so what was not asked is a tail of the list.
+  // Every claimed job has a record, including interrupted requests. Only
+  // unclaimed jobs form the tail resumed by the next call.
   const firstUnasked = jobs.findIndex((job, index) => records[index] === undefined && job.decisionIndex !== undefined);
   return {
     records: kept,

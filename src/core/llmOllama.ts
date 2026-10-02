@@ -1,3 +1,4 @@
+import { withPartialUsage } from './metrics.js';
 import type {
   LlmClient,
   LlmCompletionRequest,
@@ -202,17 +203,7 @@ export class OllamaLlmClient implements LlmClient {
     // lost every token it had already paid for: MetricsLlmClient recorded
     // zeros for the six completed rounds (review 2026-08-14 §1.13).
     const raise = (err: unknown): never => {
-      try {
-        (err as { partialUsage?: object }).partialUsage = {
-          inputTokens: aggInput,
-          outputTokens: aggOutput,
-          cacheCreationInputTokens: 0,
-          cacheReadInputTokens: 0,
-        };
-      } catch {
-        // frozen/exotic abort reasons can't carry properties — fine.
-      }
-      throw err;
+      throw withPartialUsage(err, { inputTokens: aggInput, outputTokens: aggOutput, cacheCreationInputTokens: 0, cacheReadInputTokens: 0 });
     };
 
     for (let iter = 0; iter < budget; iter++) {

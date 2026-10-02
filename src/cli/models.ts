@@ -156,9 +156,9 @@ function money(value: number | undefined): string {
 }
 
 function priceLabel(
-  point: { readonly input: number; readonly output: number; readonly cachedInput?: number } | null
+  point: { readonly input: number; readonly output: number; readonly cachedInput?: number; readonly cacheWrite?: number } | null
 ): string {
-  return point ? `${money(point.input)}/${money(point.output)}/${money(point.cachedInput)}` : 'unpriced';
+  return point ? `${money(point.input)}/${money(point.output)}/${money(point.cachedInput)} (cache write ${money(point.cacheWrite ?? point.input * 1.25)})` : 'unpriced';
 }
 
 function write(path: string, catalog: ModelCatalog, apply: boolean): void {

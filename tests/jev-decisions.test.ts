@@ -255,6 +255,14 @@ describe('jevAsk — the one Jev client', () => {
     }
   });
 
+  it.each([-0.1, 1.1])('refuses out-of-range probability %s at the transport boundary', async value => {
+    for (const answer of [noulAnswer(value), { type: 'noul', noul: 0.1, confidence: value },
+      { type: 'noul', noul: 0.1, probabilities: { yes: value } }]) {
+      await expect(jevAsk({ apiKey: KEY, state: 's', questions: { ok: { type: 'noul', instructions: 'x' } },
+        fetchImpl: async () => respond({ ok: answer }) })).rejects.toThrow();
+    }
+  });
+
   it('refuses a missing answer, one of another type, and out-of-bounds Choices and Scores', async () => {
     const empty = (async () => respond({})) as typeof fetch;
     await expect(

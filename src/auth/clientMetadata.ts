@@ -27,7 +27,7 @@ const CACHE_MAX_MS = 24 * 60 * 60_000;
 /** A refused or unreachable document is not fetched again for this long. */
 const FAILURE_TTL_MS = 60_000;
 const MAX_CACHED = 512;
-/** Fetches per minute for the whole process: an anonymous GET can trigger one. */
+/** Fetches per minute for the whole process, admitted after browser authentication. */
 const FETCHES_PER_MINUTE = 30;
 /** Fetches per minute for one requesting address, so one address cannot spend the process's budget. */
 const FETCHES_PER_REQUESTER = 5;

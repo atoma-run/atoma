@@ -325,6 +325,11 @@ describe('ProjectService — roles, IDOR and slug identity', () => {
     expect(status.error).toBe(`ENOENT: no such file or directory, open '<project>/${runId}/workspace/package.json' (skills /data/skills2 kept)`);
     expect(status.publication.error).toBe(`git push failed in <project>/runs/${runId}/repository-seed`);
     expect(JSON.stringify(svc.listProjectRuns(alice, created.projectId))).not.toContain('/srv/volumes');
+    for (const encoded of [encodeURIComponent(projectRoot), `file://${projectRoot}`]) {
+      db.prepare('UPDATE project_runs SET error = ? WHERE project_run_id = ?').run(`${encoded}/workspace`, runId);
+      expect(svc.projectRunStatus(alice, created.projectId, runId)).toMatchObject({ error: expect.stringContaining('<project>/workspace') });
+    }
+
   });
 
   it.each(['direct', 'pull-request', 'legacy', 'failed', 'publishing'] as const)(

@@ -6723,7 +6723,7 @@ describe('incomplete (partial) runs guide the next step', () => {
     const superseded = draw([later]);
     expect(superseded.texts).toContain(t('run.partial.next.superseded'));
     expect(superseded.texts).not.toContain(t('run.partial.next.continue'));
-    expect(superseded.continues).toBe(false);
+    expect(superseded.continues).toBe(true);
     // A later run that failed, is still live, or is a comparison rerun seeds
     // nothing: this partial is still what the next run continues.
     const { endedAt: _ended, ...live } = later;

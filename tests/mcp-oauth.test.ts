@@ -121,6 +121,22 @@ describe('MCP OAuth over HTTP', () => {
     }
   });
 
+  it('defers anonymous metadata fetches until the login continuation authenticates', async () => {
+    const clientId = 'https://client.example/oauth/metadata.json';
+    documents.set(clientId, JSON.stringify({ client_id: clientId, client_name: 'Codex', redirect_uris: [callback] }));
+    const query = new URLSearchParams({ response_type: 'code', client_id: clientId, redirect_uri: callback,
+      code_challenge: challenge, code_challenge_method: 'S256', resource: `${base}/mcp` });
+    const anonymous = await fetch(`${base}/oauth/authorize?${query}`, { redirect: 'manual' });
+    expect(anonymous.headers.get('location')).toBe('/auth/login');
+    expect(fetched).toEqual([]);
+    const continuation = parseCookieHeader(anonymous.headers.get('set-cookie') ?? '')
+      .find(value => value.name === 'atoma_mcp_return')!.value;
+    const page = await fetch(`${base}/oauth/authorize?request=${continuation}`, { headers: { cookie }, redirect: 'manual' });
+    expect(page.status).toBe(200);
+    expect(await page.text()).toContain('Connect to Atoma');
+    expect(fetched).toEqual([clientId]);
+  });
+
   it('admits a client by its metadata document: fetched, verified, shown by domain, remembered for its tokens', async () => {
     const discovery = await fetch(`${base}/.well-known/oauth-authorization-server`).then(r => r.json());
     expect(discovery).toMatchObject({ client_id_metadata_document_supported: true });
