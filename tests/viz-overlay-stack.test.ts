@@ -127,7 +127,9 @@ describe('the GL overlay stack', () => {
 
     // The preview modal has its own frame and disables the scene underneath.
     expect(plane.includes('gpu-panel-skin')).toBe(false);
-    expect(app).toMatch(/inert=\{previewOpen\}/);
+    // Either overlay must disable the scene; mobile onboarding adds a
+    // second reason without weakening the preview's unconditional lock.
+    expect(app).toMatch(/className="gpu-scene-host"\s+inert=\{previewOpen\s*\|\|\s*handheldPhase !== 'idle'\}/);
     const rule = styles.match(/\.gpu-preview-backdrop\s*\{[^}]*\}/);
     expect(rule).not.toBeNull();
     expect(rule![0]).toContain('position: fixed');
