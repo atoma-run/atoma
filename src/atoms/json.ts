@@ -1,5 +1,6 @@
 import { inheritedJudgementSchema } from '../contracts/inheritedChecks.js';
 import { z } from 'zod';
+import { deliveryKindSchema, executionModeSchema } from '../contracts/taskExecution.js';
 import { jsonrepair, JSONRepairError } from 'jsonrepair';
 import { ValidationError } from '../core/errors.js';
 import { isProofObligation } from '../contracts/attestation.js';
@@ -923,6 +924,7 @@ export function parsePlanWithFallback(
  */
 export const subtaskSpecSchema = z.object({
   description: z.string(),
+  executionMode: executionModeSchema.nullish().transform((value) => value ?? undefined),
   // Null-tolerance, same pattern as `outputs`/`proofObligations` below —
   // which DOCUMENTED the pattern while these two fields, in the same object,
   // stayed plain `.optional()`. MEASURED 2026-08-23, project run `d771d166`:
@@ -1042,6 +1044,7 @@ export const planSchema = z.preprocess(
   },
   z.object({
     reasoning: z.string(),
+    delivery: deliveryKindSchema.nullish().transform((value) => value ?? undefined),
     subtasks: z.array(subtaskSpecSchema).min(1),
     aggregation: aggregationSpecSchema.default({ mode: 'concat' }),
     // `expectedOutput` is informational (it surfaces in the trace +
@@ -1244,7 +1247,7 @@ function coerceCriteria(raw: unknown): Array<{ id: string; met: boolean; reason?
     const e = entry as Record<string, unknown>;
     const met = e['met'] === true || e['met'] === 'true' ? true : e['met'] === false || e['met'] === 'false' ? false : undefined;
     if (typeof e['id'] !== 'string' || !e['id'] || e['id'].length > 40 || met === undefined) continue;
-    out.push({ id: e['id'], met, ...(typeof e['reason'] === 'string' ? { reason: e['reason'].slice(0, 400) } : {}) });
+    out.push({ id: e['id'].trim().replace(/^c?\s*(\d+)$/i, 'c$1'), met, ...(typeof e['reason'] === 'string' ? { reason: e['reason'].slice(0, 400) } : {}) });
   }
   return out;
 }

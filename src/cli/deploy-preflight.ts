@@ -21,7 +21,7 @@ import {
   acquireRunLeaseWithoutRecovery,
   mcpRunLockPath,
   peekRunLease,
-  processExists,
+  recordedProcessLive,
   processFingerprint,
   reclaimedLine,
   registerDeploymentPending,
@@ -187,7 +187,7 @@ export async function waitForDeploymentSlot(
   }));
   const facts = hooks.facts ?? (() =>
     deploymentBlockerFacts({ dbPath: plan.dbPath, runLockPath: plan.runLockPath, ignoreRunLease: true }));
-  const parentAlive = hooks.parentAlive ?? (() => processExists(plan.parentPid));
+  const parentAlive = hooks.parentAlive ?? watchDeploymentParent(plan.parentPid);
   const progress = hooks.progress ?? ((line: string) => void process.stdout.write(`${line}\n`));
   const pollMs = plan.pollMs ?? 1_000;
   const progressMs = plan.progressMs ?? 60_000;
@@ -373,7 +373,14 @@ function parseArgs(argv: readonly string[]): CliOptions {
   };
 }
 
-async function waitForRelease(parentPid: number, releaseFile: string): Promise<void> {
+/** Capture the birth identity once, before waiting or holding the deployment slot. */
+export function watchDeploymentParent(parentPid: number): () => boolean {
+  const fingerprint = processFingerprint(parentPid);
+  if (!fingerprint) throw new Error('cannot identify the deployment parent');
+  return () => recordedProcessLive(parentPid, fingerprint);
+}
+
+async function waitForRelease(parentAlive: () => boolean, releaseFile: string): Promise<void> {
   await new Promise<void>((resolveWait) => {
     let settled = false;
     const finish = (): void => {
@@ -383,7 +390,7 @@ async function waitForRelease(parentPid: number, releaseFile: string): Promise<v
       resolveWait();
     };
     const timer = setInterval(() => {
-      if (existsSync(releaseFile) || !processExists(parentPid)) finish();
+      if (existsSync(releaseFile) || !parentAlive()) finish();
     }, 250);
     // A hangup too: dying on it would skip the lease release and leave a
     // dead `deployment:` row that only a run start's recovery ever clears.
@@ -409,6 +416,7 @@ async function main(): Promise<void> {
 
   let lease: RunLease | undefined;
   try {
+    const parentAlive = options.hold && options.parentPid ? watchDeploymentParent(options.parentPid) : undefined;
     if (options.hold && options.waitMs !== undefined) {
       if (!options.parentPid || !options.readyFile || !options.releaseFile || !options.admissionMarker) {
         throw new Error(
@@ -431,7 +439,7 @@ async function main(): Promise<void> {
           parentPid: options.parentPid,
           releaseFile: resolve(options.releaseFile),
         },
-        { signal: interrupted.signal }
+        { signal: interrupted.signal, ...(parentAlive ? { parentAlive } : {}) }
       );
       for (const signal of signals) process.removeListener(signal, interrupt);
       if (result.kind === 'refused') {
@@ -442,7 +450,7 @@ async function main(): Promise<void> {
       lease = result.lease;
       writeFileSync(resolve(options.readyFile), 'ready\n', { flag: 'wx' });
       process.stdout.write('deployment lease acquired\n');
-      await waitForRelease(options.parentPid, resolve(options.releaseFile));
+      await waitForRelease(parentAlive!, resolve(options.releaseFile));
       return;
     }
     if (options.hold) {
@@ -475,7 +483,7 @@ async function main(): Promise<void> {
 
     writeFileSync(resolve(options.readyFile!), 'ready\n', { flag: 'wx' });
     process.stdout.write('deployment lease acquired\n');
-    await waitForRelease(options.parentPid!, resolve(options.releaseFile!));
+    await waitForRelease(parentAlive!, resolve(options.releaseFile!));
   } catch (error) {
     process.stderr.write(`deployment preflight failed: ${error instanceof Error ? error.message : String(error)}\n`);
     // 75 means busy work, and the activator tells the operator to run the

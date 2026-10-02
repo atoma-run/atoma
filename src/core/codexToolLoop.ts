@@ -1,3 +1,4 @@
+import { withPartialUsage } from './metrics.js';
 import { z } from 'zod';
 import { BUDGET_EXHAUSTED_HINT, DEFAULT_MAX_TOOL_ITERATIONS, offScopeToolMessage, truncateToolResultContent } from './llm.js';
 import type { LlmCompletionRequest, LlmCompletionResponse, ToolInvocationInfo } from './types.js';
@@ -181,7 +182,6 @@ export async function completeCodexToolLoop(
   } catch (error) {
     const partial = (error as { partialUsage?: LlmCompletionResponse['usage'] })?.partialUsage;
     if (partial) addUsage(partial);
-    try { (error as { partialUsage?: typeof usage }).partialUsage = { ...usage }; } catch { /* Frozen abort reason. */ }
-    throw error;
+    throw withPartialUsage(error, usage);
   }
 }

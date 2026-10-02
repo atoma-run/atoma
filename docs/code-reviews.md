@@ -9,6 +9,12 @@ Report files live in the [documentation archive](archive/README.md#reviews).
 Moving a report does not change the revision it examined or the next review's
 starting point.
 
+- **2026-10-02** — [report](archive/reviews/code-review-2026-10-02.md) and
+  [reproduction evidence](incidents/code-review-2026-10-02-evidence.md).
+  Window `149f141..cc631bb6`, 170 commits, including the closure commits
+  (`654c404`..`c252885`) of the previous review, whose findings it re-examines
+  in section 6. Corrective work and remaining owner decisions are tracked in
+  section 9.
 - **2026-09-25** — [report](archive/reviews/code-review-2026-09-25.md) and
   [reproduction evidence](incidents/code-review-2026-09-25-evidence.md).
   Window `923bbab..149f141`, 31 commits, including the closure commit

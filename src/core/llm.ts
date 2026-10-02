@@ -1,3 +1,4 @@
+import { withPartialUsage } from './metrics.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { modelSupportsEffort, modelSupportsSamplingParams } from './models.js';
 import type {
@@ -75,12 +76,7 @@ export class AnthropicLlmClient implements LlmClient {
     // recorded zeros, burn-in rows showed llm=? / cost=null, and the
     // cost curve silently understated exactly the runs that hurt most.
     const raise = (err: unknown): never => {
-      try {
-        (err as { partialUsage?: typeof agg }).partialUsage = { ...agg };
-      } catch {
-        // frozen/exotic abort reasons can't carry properties — fine.
-      }
-      throw err;
+      throw withPartialUsage(err, agg);
     };
 
     const sendRequest = (

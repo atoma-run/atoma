@@ -99,6 +99,7 @@ export function persistDeclaredArtifactManifest(path: string, runId: string, pla
     version: 1,
     runId,
     generatedAt: new Date().toISOString(),
+    ...(plan.delivery ? { delivery: plan.delivery } : {}),
     outputs,
   });
   const target = resolve(path);
@@ -1202,6 +1203,7 @@ export async function startTask(
     torn = true;
     console.log('\nshutting down sandbox children...');
     if (recorder.currentRun !== null) {
+      await jevAudit?.settle(JEV_AUDIT_SETTLE_MS);
       recorder.endRun({
         error: 'run cancelled by user (signal received)',
         cancelled: true,
@@ -1267,7 +1269,7 @@ export async function startTask(
       // sandbox's process-level exit handler SIGKILLs tracked children.
       process.exit(1);
     });
-  const watchdog = setTimeout(() => {
+  const handleWedged = async (): Promise<void> => {
     console.error(
       `\n✗ watchdog: the run is still unfinished ${Math.round((timeoutMs + watchdogGraceMs) / 1000)}s in,` +
         ` past its ${Math.round(timeoutMs / 1000)}s deadline — the transport is wedged (dropped connection?).` +
@@ -1275,6 +1277,7 @@ export async function startTask(
     );
     try {
       if (recorder.currentRun !== null) {
+        await jevAudit?.settle(JEV_AUDIT_SETTLE_MS);
         recorder.endRun({ error: 'watchdog: deadline exceeded, transport wedged', cancelled: true });
       } else {
         console.error('   (no current run to close — the trace was already finalised)');
@@ -1292,7 +1295,8 @@ export async function startTask(
     }
     console.error(formatRunStatsEpilogue(machineRunStats('failed', metrics, runSignals)));
     onWedged();
-  }, timeoutMs + watchdogGraceMs);
+  };
+  const watchdog = setTimeout(() => { void handleWedged(); }, timeoutMs + watchdogGraceMs);
 
   let retrievalPrepared = !prepareRetrieval;
   const settled = (async (): Promise<RunOutcome> => {
@@ -1416,6 +1420,7 @@ export async function startTask(
           // swallow — we're already in the error path, don't pile on
         }
       }
+      await jevAudit?.settle(JEV_AUDIT_SETTLE_MS);
       recorder.endRun({
         error: budgetExceeded
           ? budgetExceeded.message

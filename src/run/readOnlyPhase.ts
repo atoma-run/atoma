@@ -188,7 +188,7 @@ function checkChain(dir: Dir): void {
   if (dir.fd !== undefined) return;
   for (const path of dir.chain) {
     const stats = lstatSync(path);
-    if (!stats.isDirectory() || stats.isSymbolicLink()) throw new Error(`${path} stopped being a directory`);
+    if (!stats.isDirectory() || stats.isSymbolicLink()) throw new Error('a workspace ancestor stopped being a directory');
   }
 }
 

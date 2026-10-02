@@ -344,16 +344,18 @@ describe('a session the host forgot', () => {
     const id = await openSession(url);
     await host.close();
     host = new McpHttpHost(hostOptions);
+    expect((await post(url, on(id), call, 'POST', 'b')).status).toBe(404);
     const answered = await post(url, on(id), call);
     expect(answered.status).toBe(200);
     expect(answered.text).toContain('ECHOED');
     expect(answered.id).toBe(id);
-    expect(host.health()).toMatchObject({ resumed: 1, opened: 0, sessions: 1 });
+    expect(host.health()).toMatchObject({ resumed: 1, opened: 0, sessions: 1, clients: { '2025-11-25 atoma-resumed-session': 1 } });
     // Resumed once: the next call rides the session like any other.
     expect((await post(url, on(id), call)).text).toContain('ECHOED');
     expect(host.health().resumed).toBe(1);
     // Bound to its caller again: another identity is refused as before.
     expect((await post(url, on(id), call, 'POST', 'b')).status).toBe(401);
+    expect((await post(url, on(id), call)).text).toContain('ECHOED');
   });
 
   it('answers a first call on the reopened session that outlasts the opening deadline (2026-09-30 review)', async () => {

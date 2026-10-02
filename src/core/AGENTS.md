@@ -114,7 +114,9 @@ Neighbours:
   call reads as free and flatters its tier.
 - Prices are a HISTORY. A change APPENDS a point with `since` = the day it was
   reviewed; `pricesAt(model, date)` re-prices old usage with the numbers then
-  in force, and a scheduled change (a promotion ending) is a future point.
+  in force through an explicit helper (not a production repricing job). A scheduled
+  change is a future point; live prices are captured at process startup, so
+  that point takes effect only after restarting on or after its date.
   Retired models keep their entry and prices; they leave the pickers only.
 - `npm run models` (`src/cli/models.ts`) is the ONE writer and every write is
   a dry run until `--apply`. `refresh` compares with LiteLLM's public price

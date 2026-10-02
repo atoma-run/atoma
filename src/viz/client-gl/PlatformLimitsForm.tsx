@@ -103,7 +103,8 @@ export function PlatformLimitsForm({
         const typed = draft[spec.key] ?? String(effective);
         const parsed = Number(typed);
         const inRange =
-          typed.trim() !== '' && Number.isFinite(parsed) && parsed >= spec.min && parsed <= spec.max;
+          typed.trim() !== '' && Number.isFinite(parsed) && parsed <= spec.max &&
+          (parsed >= spec.min || (spec.zeroMeansUnlimited && parsed === 0));
         const inputId = `platform-limit-${spec.key}`;
         return (
           <div key={spec.key}>
@@ -114,7 +115,7 @@ export function PlatformLimitsForm({
                 className="gpu-dom-input"
                 type="number"
                 inputMode="decimal"
-                min={spec.min}
+                min={spec.zeroMeansUnlimited ? 0 : spec.min}
                 max={spec.max}
                 step={spec.unit === 'usd' ? 0.01 : 1}
                 disabled={busy}

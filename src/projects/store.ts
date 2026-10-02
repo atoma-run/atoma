@@ -1882,7 +1882,8 @@ END;
       // one once it landed, so a landed run is offered for download and seeds
       // the next run (of a project created in atoma), but never publishes and,
       // since 159ab36, is not previewed either.
-      if (run.status !== 'delivered' || !run.artifactManifestHash) {
+      if (run.status !== 'delivered' || !run.artifactManifestHash ||
+          run.artifactManifest?.delivery === 'text' || !run.artifactManifest?.files.length) {
         throw new ProjectStateConflict('publication requires a delivered run with artifacts');
       }
       // THE CHOKE POINT for every publication path: a comparison rerun is a

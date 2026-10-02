@@ -439,7 +439,7 @@ describe('the HTTP host', () => {
     await client.close();
   });
 
-  it('ends a session whose caller changed, and does not let one caller ride another’s session', async () => {
+  it('refuses a different caller without destroying the original session', async () => {
     let current: McpCaller | null = { kind: 'principal', viewer: viewer('org:admin'), tokenId: 'a' };
     const { url, host } = await listen(() => current, TENANT_HOST);
     const client = await connect(url);
@@ -451,7 +451,10 @@ describe('the HTTP host', () => {
     // Re-minted as a lesser role: the old session id is not honoured either.
     current = { kind: 'principal', viewer: viewer('org:viewer'), tokenId: 'b' };
     await expect(client.listTools()).rejects.toThrow();
-    expect(host.health().sessions).toBe(0);
+    expect(host.health().sessions).toBe(1);
+    current = { kind: 'principal', viewer: viewer('org:admin'), tokenId: 'a' };
+    expect(await toolNames(client)).toContain('atoma_org_members');
+    await client.close();
   });
 });
 
@@ -706,6 +709,20 @@ describe('the platform commons over MCP — registry and skill catalog', () => {
       const wholeSkills = await asPlatform.callTool({ name: 'atoma_skills_list', arguments: {} });
       expect(wholeSkills.structuredContent).toMatchObject({ skillsDir: join(dir, 'skills') });
     } finally { await asViewer.close(); await asPlatform.close(); }
+  });
+
+  it('validates every declared operator output schema through the SDK client', async () => {
+    const { url } = await listen(() => ({ kind: 'operator' }), NO_TENANT);
+    const client = await connect(url);
+    try {
+      const tools = (await client.listTools()).tools.filter((tool) => tool.outputSchema);
+      expect(tools.map((tool) => tool.name)).toEqual(expect.arrayContaining(['atoma_costs', 'atoma_sentinel_health']));
+      for (const tool of tools) {
+        const result = await client.callTool({ name: tool.name, arguments: {} });
+        expect(result.isError, tool.name).toBeFalsy();
+        expect(result.structuredContent, tool.name).toBeDefined();
+      }
+    } finally { await client.close(); }
   });
 
   it('answers atoma_ledger_tail through the SDK client, which validates every field against the output schema', async () => {

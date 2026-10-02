@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { taskContextLines } from './taskContext.js';
 import { fileEffectSchema } from '../contracts/fileEffect.js';
 import type { AtomType } from '../registry/atomRegistry.js';
 import type {
@@ -368,7 +369,8 @@ export async function jevApproval(args: {
         description: args.task.description,
         ...(args.task.constraints?.length ? { constraints: args.task.constraints } : {}),
       },
-      child: { name: args.child.name, tier: args.child.tier, tools: args.child.toolNames() },
+      context: taskContextLines(args.task),
+      child: { name: args.child.name, tier: args.child.tier, tools: args.task.executionMode === 'reasoning' ? [] : args.child.toolNames() },
       payload: args.payload,
       ...(args.criteria ? { criteria: args.criteria } : {}),
       ...(args.task.proofObligations ? { obligations: args.task.proofObligations } : {}),
@@ -741,7 +743,7 @@ export async function prefilterStrategy(args: {
     });
     return cached;
   };
-  const cached = !args.ctx.jev || policy ? prefilterCacheGet(whole.cacheKey) : null;
+  const cached = !args.ctx.jev ? prefilterCacheGet(whole.cacheKey) : null;
   if (cached) return served(cached);
 
   // JEV DECIDES FIRST (docs/jev-decisions-2026-09-28.md, owner decision
@@ -785,7 +787,13 @@ export async function prefilterStrategy(args: {
   if (offered.length === 0) {
     return { kind: 'escalate', reasoning: `jev: every recipe contradicts the task on files (${[...withheld].join(', ')})` };
   }
-  const { names: offeredNames, userContent } = offered.length === filtered.length ? whole : modelInputs(offered);
+  const { names: offeredNames, userContent, cacheKey } = offered.length === filtered.length ? whole : modelInputs(offered);
+  // Jev's live exclusions are an input, not a property of the full catalog.
+  // Reconsult it before reusing a model decision over the resulting catalog.
+  if (args.ctx.jev && cacheWritable) {
+    const narrowed = prefilterCacheGet(cacheKey);
+    if (narrowed) return served(narrowed);
+  }
 
   try {
     const resp = await args.ctx.llm.complete({
@@ -806,7 +814,7 @@ export async function prefilterStrategy(args: {
         kind: 'escalate',
         reasoning: `prefilter returned unknown or excluded target "${outcome.target}"`,
       };
-      if (cacheWritable) prefilterCachePut(whole.cacheKey, rewritten);
+      if (cacheWritable) prefilterCachePut(cacheKey, rewritten);
       return rewritten;
     }
     // Force-match guard: if Haiku self-labels the fit as "low" (or omits
@@ -824,10 +832,10 @@ export async function prefilterStrategy(args: {
         kind: 'escalate',
         reasoning: `prefilter low-confidence reuse of "${outcome.target}" (${outcome.reasoning}) — treated as escalate`,
       };
-      if (cacheWritable) prefilterCachePut(whole.cacheKey, rewritten);
+      if (cacheWritable) prefilterCachePut(cacheKey, rewritten);
       return rewritten;
     }
-    if (cacheWritable) prefilterCachePut(whole.cacheKey, outcome);
+    if (cacheWritable) prefilterCachePut(cacheKey, outcome);
     return outcome;
   } catch (err) {
     // Error-path escalate: NEVER cached — an LLM hiccup must not become a

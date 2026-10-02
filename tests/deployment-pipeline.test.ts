@@ -158,7 +158,7 @@ describe('post-CI deployment pipeline', () => {
     );
     expect(branch.indexOf('rm -f -- "${MARKER_PATH}"')).toBeGreaterThan(0);
     expect(branch.indexOf('rm -f -- "${MARKER_PATH}"')).toBeLessThan(branch.indexOf('else'));
-    expect(branch.indexOf('install -m 0644 /dev/null "${MARKER_PATH}"')).toBeGreaterThan(branch.indexOf('else'));
+    expect(branch.indexOf('PARENT_STAT=')).toBeGreaterThan(branch.indexOf('else'));
     // A second signal cannot cut the cleanup (and a restoration) short.
     expect(hostDeploy).toMatch(/cleanup\(\) \{\n {2}local status=\$\?\n(?: {2}#[^\n]*\n)+ {2}trap '' HUP INT TERM\n/);
     // A busy refusal is EX_TEMPFAIL, not a broken host.

@@ -4,6 +4,7 @@ import { renderRestorationPrefix, restorationMatters } from '../contracts/readOn
 import type { AttestationRecord } from '../contracts/attestation.js';
 import { baseExecutorOf } from '../core/attestation.js';
 import { abortedForLanding, landingSignal, withinSignal } from './cost.js';
+import { previousResultInput } from './taskContext.js';
 
 type Subtask = Plan['subtasks'][number];
 
@@ -71,6 +72,7 @@ export async function dispatchWithAggregation(
   if (plan.aggregation.mode === 'sequential') {
     const out: Result[] = [];
     let previousSummary: string | undefined;
+    let previousResult: unknown;
     let previousOutputs: readonly string[] | undefined;
     for (let idx = 0; idx < subtasks.length; idx++) {
       // The floor is checked BEFORE the phase is built, and never on a
@@ -90,6 +92,7 @@ export async function dispatchWithAggregation(
               inputs: {
                 ...(baseSubtask.inputs ?? {}),
                 previousStepSummary: previousSummary,
+                previousStepResult: previousResult,
                 previousStepIndex: idx - 1,
                 ...(previousOutputs && previousOutputs.length > 0
                   ? { previousStepOutputs: previousOutputs }
@@ -115,6 +118,7 @@ export async function dispatchWithAggregation(
       }
       out.push(r);
       previousSummary = r.summary;
+      previousResult = previousResultInput(r.output);
       // Declared writes of THIS phase become the next phase's structured
       // handover. Do not merge them into the next subtask's `outputs`:
       // that field is what THIS phase creates, and skill/promotion gates

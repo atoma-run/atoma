@@ -366,7 +366,7 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
       let reply: unknown;
       if (req.role === 'prefilter') reply = { kind: 'reuse', target: leafName, confidence: 'high', reasoning: 'Reuse the canonical executor' };
       else if (req.role === 'validate-plan') reply = { approved: true, reasoning: 'Plan approved' };
-      else if (req.role === 'validate-result') reply = { approved: true, reasoning: 'Accepted' };
+      else if (req.role === 'validate-result') reply = { approved: true, reasoning: 'Accepted', criteria: [{ id: 'c1', met: true }, { id: 'c2', met: true }] };
       else if (req.role === 'plan' && req.actor?.tier !== 1) reply = [
         { strategy: 'reuse', target: leafName, reasoning: 'One server phase' },
         makePlan({ subtasks: [{ description: 'Write and probe server.cjs', outputs: ['server.cjs'] }], aggregation: { mode: 'sequential' } }),

@@ -32,8 +32,6 @@ const LIST_TOP = 8;
 const ROW_HEIGHT = 36;
 /** Compact splits the first line in two. */
 const ROW_HEIGHT_COMPACT = 52;
-const STAMP_WIDTH = 118;
-const KIND_WIDTH = 170;
 /** Characters of a run, project or actor id shown before the bubble carries the rest. */
 const SHORT_ID = 8;
 
@@ -243,8 +241,11 @@ export function drawLedger(
   );
   const rowX = columnX + 8;
   const rowRight = columnX + innerWidth - 8;
-  const kindX = rowX + STAMP_WIDTH + 14;
-  const subjectX = compact ? rowX : kindX + KIND_WIDTH + 10;
+  const stampWidth = Math.min(innerWidth * 0.3, Math.max(0, ...ledger.map(entry =>
+    ctx.measureText(relativeTime(entry.at, snapshot.t, snapshot.state.locale) || truncate(entry.at, 19), { size: 9 }))));
+  const kindWidth = Math.min(innerWidth * 0.3, Math.max(0, ...ledger.map(entry => ctx.measureText(entry.kind, { size: 9, mono: true }))));
+  const kindX = rowX + stampWidth + 14;
+  const subjectX = compact ? rowX : kindX + kindWidth + 10;
   const subjectWidth = Math.max(0, rowRight - subjectX);
   let rowY = cursor + 8;
   for (const entry of ledger) {
@@ -255,17 +256,17 @@ export function drawLedger(
         relativeTime(entry.at, snapshot.t, snapshot.state.locale) || truncate(entry.at, 19),
         rowX,
         rowY,
-        { size: 9, color: GPU_COLORS.muted, width: STAMP_WIDTH, singleLine: true }
+        { size: 9, color: GPU_COLORS.muted, width: stampWidth, singleLine: true }
       );
       const exactAt = timestampTooltip(entry.at, snapshot.state.locale);
       if (exactAt) {
-        ctx.tooltip(pane.content, { x: rowX, y: rowY, width: STAMP_WIDTH, height: 13, text: exactAt });
+        ctx.tooltip(pane.content, { x: rowX, y: rowY, width: stampWidth, height: 13, text: exactAt });
       }
       ctx.text(pane.content, entry.kind, kindX, rowY, {
         size: 9,
         color: KIND_COLORS[entry.kind] ?? GPU_COLORS.muted,
         mono: true,
-        width: compact ? Math.max(0, rowRight - kindX) : KIND_WIDTH,
+        width: compact ? Math.max(0, rowRight - kindX) : kindWidth,
         singleLine: true,
       });
       const subjectY = rowY + (compact ? 16 : 0);

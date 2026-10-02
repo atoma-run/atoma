@@ -249,6 +249,21 @@ export interface PartialUsage {
   readonly cacheReadInputTokens: number;
 }
 
+/** Each call owns its error usage, even when concurrent calls share an abort reason. */
+export function withPartialUsage(reason: unknown, usage: Partial<PartialUsage>): Error {
+  const error = new Error(reason instanceof Error ? reason.message : String(reason), { cause: reason });
+  if (reason instanceof Error) {
+    // Preserve transport/budget error classification without mutating the reason.
+    Object.setPrototypeOf(error, Object.getPrototypeOf(reason));
+    Object.defineProperty(error, 'name', { value: reason.name, configurable: true });
+    for (const key of Object.keys(reason)) {
+      if (key !== 'partialUsage') Object.defineProperty(error, key, Object.getOwnPropertyDescriptor(reason, key)!);
+    }
+  }
+  Object.defineProperty(error, 'partialUsage', { value: { ...usage }, enumerable: true });
+  return error;
+}
+
 export function partialUsageOf(err: unknown): PartialUsage | undefined {
   if (err === null || (typeof err !== 'object' && typeof err !== 'function')) return undefined;
   const p = (err as { partialUsage?: unknown }).partialUsage;

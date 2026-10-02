@@ -1,3 +1,4 @@
+import { withPartialUsage } from './metrics.js';
 import OpenAI from 'openai';
 import {
   BUDGET_EXHAUSTED_HINT,
@@ -88,12 +89,7 @@ export class OpenAiLlmClient implements LlmClient {
     const reasoning = openAiModelIsReasoning(req.model);
     const agg = { inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 0 };
     const raise = (err: unknown): never => {
-      try {
-        (err as { partialUsage?: typeof agg }).partialUsage = { ...agg };
-      } catch {
-        // frozen/exotic abort reasons can't carry properties — fine.
-      }
-      throw err;
+      throw withPartialUsage(err, agg);
     };
     const accumulate = (response: OpenAiResponse): void => {
       const usage = response.usage;

@@ -595,7 +595,7 @@ export function runTraceFile(
   opts: TraceReadOptions,
   label: string = path
 ): unknown {
-  if (!existsSync(path)) return { note: `no trace at ${path}` };
+  if (!existsSync(path)) return { note: `no trace at ${label}` };
   const read = readBoundedRunFile(path);
   if (!read.ok) return { note: `trace unavailable: ${read.reason}` };
   const run = JSON.parse(read.bytes.toString('utf8')) as VizRun;

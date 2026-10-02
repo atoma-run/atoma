@@ -45,9 +45,9 @@ import type { JevApprovalRequest, JevChoiceRequest, JevCompilationRequest, JevTw
  * what Jev approved has no reference at all.
  *
  * Everything here is handed its traces, its key and its transport. The door is
- * `atoma_jev_calibrate` (src/mcp/tools.ts), which reads only the organisations
- * the host admits to Jev, so nothing leaves for TypeSafe that their own runs do
- * not already send.
+ * `atoma_jev_calibrate` (src/mcp/tools.ts), which reads all organisations, including
+ * historical decisions from before Jev was enabled. The platform operator
+ * selects that window; each foreign organisation read is journaled.
  */
 
 // ---------------------------------------------------------------------------
@@ -328,9 +328,20 @@ export function parseValidationPrompt(
   const payloadAt = lines.findIndex((line) => line.startsWith(`${subject}: `));
   if (!child || taskAt < 0 || payloadAt < taskAt) return null;
   const taskEnd = lines.findIndex((line, index) => index > taskAt && line.startsWith('Delegation target(s):'));
-  const description = [lines[taskAt]!.slice('Task: '.length), ...lines.slice(taskAt + 1, taskEnd > taskAt ? taskEnd : payloadAt)]
+  const taskLines = lines.slice(taskAt + 1, taskEnd > taskAt ? taskEnd : payloadAt);
+  const isContext = (line: string) => line.startsWith('Inputs (originalTask ') || line.startsWith('Constraints: ') || line.startsWith('Execution mode: ');
+  const context = taskLines.filter(isContext);
+  const description = [lines[taskAt]!.slice('Task: '.length), ...taskLines.filter((line) => !isContext(line))]
     .join('\n')
     .trim();
+  let constraints: string[] | undefined;
+  const constraintsLine = context.find((line) => line.startsWith('Constraints: '));
+  if (constraintsLine) {
+    try {
+      const parsed: unknown = JSON.parse(constraintsLine.slice('Constraints: '.length));
+      if (Array.isArray(parsed) && parsed.every((value) => typeof value === 'string')) constraints = parsed;
+    } catch { /* Historical prose stays context, never invented structured requirements. */ }
+  }
   let payload: unknown;
   try {
     payload = JSON.parse(lines[payloadAt]!.slice(`${subject}: `.length));
@@ -358,7 +369,8 @@ export function parseValidationPrompt(
   return {
     request: {
       subject,
-      task: { description },
+      task: { description, ...(constraints ? { constraints } : {}) },
+      ...(context.length ? { context } : {}),
       child: { name: child[1]!, tier: Number(child[2]) as Tier, tools },
       payload,
       ...(evidence.length ? { evidence } : {}),
@@ -685,7 +697,6 @@ export async function calibrate(args: {
             ...(documented.result.servedModel ? { servedModel: documented.result.servedModel } : {}),
           });
         } catch (error) {
-          if (args.signal?.aborted) return;
           records[index] = job.finish({ failure: messageOf(error), costUsd: 0 });
         }
       }
@@ -695,7 +706,8 @@ export async function calibrate(args: {
   };
   await Promise.all(Array.from({ length: Math.max(1, args.concurrency ?? 4) }, () => worker()));
   const kept = records.filter((record): record is CalibrationRecord => record !== undefined);
-  // Workers take jobs in order, so what was not asked is a tail of the list.
+  // Every claimed job has a record, including interrupted requests. Only
+  // unclaimed jobs form the tail resumed by the next call.
   const firstUnasked = jobs.findIndex((job, index) => records[index] === undefined && job.decisionIndex !== undefined);
   return {
     records: kept,

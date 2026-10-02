@@ -162,6 +162,7 @@ export const executionObservationSchema = z.object({
   request: z.string(),
   response: z.string(),
   http: httpObservationSchema.optional(),
+  filePath: z.string().optional(),
 });
 
 function servedHttpObservation(args: Record<string, unknown>, raw: unknown): z.infer<typeof httpObservationSchema> | undefined {
@@ -197,11 +198,13 @@ export function parseExecutionObservation(tool: string, args: Record<string, unk
     // mark a still-current read stale.
     if (raw && typeof raw === 'object' && (raw as Record<string, unknown>)['unchanged'] === true) return null;
     return executionObservationSchema.parse({ kind: 'execution',
+      ...(typeof args['path'] === 'string' ? { filePath: args['path'] } : {}),
       request: evidenceExcerpt({ path: args['path'] }, 400), response: evidenceExcerpt(raw, 300) });
   }
   if (!['fetch_url', 'run_shell', 'record_probe', 'read_file', 'start_node_server'].includes(tool)) return null;
   const http = tool === 'fetch_url' ? servedHttpObservation(args, raw) : undefined;
   return executionObservationSchema.parse({ kind: 'execution',
+    ...(tool === 'read_file' && typeof args['path'] === 'string' ? { filePath: args['path'] } : {}),
     request: evidenceExcerpt(args, 800), response: evidenceExcerpt(raw, 1600), ...(http ? { http } : {}) });
 }
 
@@ -343,10 +346,20 @@ export function renderObservations(records: readonly AttestationRecord[]): strin
 /** The `path` an execution observation's request named, when it can be read back. */
 function requestedPath(record: AttestationRecord): string | undefined {
   if (record.observation.kind !== 'execution') return undefined;
+  const normalize = (path: string): string => {
+    const parts: string[] = [];
+    for (const part of path.split('/')) {
+      if (part === '.' || part === '') continue;
+      if (part === '..' && parts.length && parts.at(-1) !== '..') parts.pop();
+      else parts.push(part);
+    }
+    return (path.startsWith('/') ? '/' : '') + parts.join('/');
+  };
+  if (record.observation.filePath !== undefined) return normalize(record.observation.filePath);
   try {
     const request: unknown = JSON.parse(record.observation.request);
     const path = request && typeof request === 'object' ? (request as Record<string, unknown>)['path'] : undefined;
-    return typeof path === 'string' ? path.replace(/^\.\//, '') : undefined;
+    return typeof path === 'string' ? normalize(path) : undefined;
   } catch {
     return undefined;
   }

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { stageReviewsSchema } from '../src/contracts/supervisorVerdict.js';
+import { acquireLocalCodexHomeLease } from '../src/core/codexHomeLease.js';
 import { closeStoreHandles } from '../src/core/stores.js';
 import { PlatformEventLog } from '../src/platform/events.js';
 import { analyseRun, analyseTarget, pendingRuns, pendingTargets, resolveTarget, runAnalystLoop, type AnalyseResult, type AnalystOptions } from '../src/supervisor/analyst.js';
@@ -437,6 +438,28 @@ describe('analyseRun', () => {
 });
 
 describe('a member run preempting the analysis (owner decision 2026-09-27)', () => {
+  it('keeps its attempt when preempted while waiting for the Codex profile lease', async () => {
+    const f = fixture();
+    const codexHome = join(f.root, 'codex-profile');
+    mkdirSync(codexHome);
+    mkdirSync(join(f.root, 'src'));
+    mkdirSync(join(f.root, 'docs'));
+    writeFileSync(join(f.root, 'AGENTS.md'), '# Test contract');
+    const release = await acquireLocalCodexHomeLease(codexHome);
+    const controller = new AbortController();
+    try {
+      const pending = analyseRun(RUN_ID, f.options({
+        provider: { selector: 'sub:openai:gpt-5.6-sol', transport: 'codex', model: 'gpt-5.6-sol', codexHome, baseUrl: null, authToken: null, source: 'analyst' },
+        signal: controller.signal,
+      }));
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      controller.abort(new Error('preempted by a product run'));
+      expect((await pending).outcome).toBe('preempted');
+      expect(peekRunLease(f.options().leasePath)).toBeNull();
+      expect(existsSync(join(f.supervisorDir, 'verdicts', `${RUN_ID}.json`))).toBe(false);
+    } finally { release(); }
+  });
+
   it('ends the session, writes no verdict, releases the slot and says preempted', async () => {
     const f = fixture();
     process.env['STUB_HANG'] = '1';

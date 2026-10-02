@@ -270,7 +270,7 @@ describe('L2.execute — fan-out over N orthogonal subtasks', () => {
       /You are molecule.*tier 1/.test(c.userContent)
     );
     expect(l1PlanCalls.length).toBeGreaterThanOrEqual(2);
-    expect(l1PlanCalls[0]!.userContent).toContain('Inputs: {"seed":1}');
-    expect(l1PlanCalls[1]!.userContent).toContain('Inputs: {"seed":2}');
+    expect(l1PlanCalls[0]!.userContent).toContain('Inputs: {"seed":1,"originalTask":{"description":"t"}}');
+    expect(l1PlanCalls[1]!.userContent).toContain('Inputs: {"seed":2,"originalTask":{"description":"t"}}');
   });
 });

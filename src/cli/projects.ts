@@ -666,7 +666,9 @@ async function main(): Promise<void> {
   // THE OTHER HALF. A delivered run whose artifact never reached GitHub is
   // exactly the outcome this command used to report as success, so the
   // publication's own state is printed beside the run's.
-  if (status === 'delivered') {
+  if (status === 'delivered' && finished?.artifactManifest?.delivery === 'text') {
+    process.stdout.write('  text response delivered in the run trace; no repository publication required\n');
+  } else if (status === 'delivered') {
     const publication = projects.getPublicationForRun(target.orgId, run.projectRunId);
     if (!publication) {
       process.stdout.write(

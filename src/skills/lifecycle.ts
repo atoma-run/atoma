@@ -685,7 +685,7 @@ export class SkillLifecycle {
       // visible catalog, re-read per draft so a sibling saved just before
       // counts; no answer saves as before.
       const twinOf = await this.jevTwinOf(args.ctx, 'task', draft, () =>
-        guardNamespaces.flatMap((ns) => this.skills.loadFor(ns))
+        guardNamespaces.flatMap((ns) => this.skills.loadFor(ns)).filter((skill) => !skill.trigger)
       );
       if (twinOf) {
         args.ctx.logger.info(

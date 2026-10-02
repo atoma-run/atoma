@@ -150,3 +150,14 @@ describe('what the root acceptor reads', () => {
     expect(prompt).not.toContain('FILES THE CRITERIA NAME');
   });
 });
+
+it('reports an oversized starting file as unverified, never removed', () => {
+  const root = dir();
+  writeFileSync(join(root, 'large.txt'), Buffer.alloc(6 * 1024 * 1024, 'a'));
+  const start = snapshotStartingWorkspace(root);
+  writeFileSync(join(root, 'large.txt'), Buffer.alloc(9 * 1024 * 1024, 'b'));
+  const comparison = compareStartingWorkspace(start, snapshotDeliveredWorkspace(root, start));
+  expect(comparison.changes[0]?.status).toBe('unreadable');
+  expect(renderStartingWorkspace(comparison)).toContain('NOT COMPARED');
+  expect(renderStartingWorkspace(comparison)).not.toContain('REMOVED');
+});

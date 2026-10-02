@@ -56,11 +56,21 @@ describe('Jev policy regression paths', () => {
     await jevApproval({ ctx, subject: 'PLAN', supervisorName: 'Cell', supervisorTier: 2,
       child: { name: 'Water', tier: 1, toolNames: () => [] },
       task: { description: 'Verify the button', constraints: ['Do not change files'], proofObligations: ['dom-interaction'],
-        inputs: { acceptanceChecklist: [{ id: 'c1', behaviour: 'Unrelated final delivery requirement' }] } }, payload: {} });
+        inputs: { acceptanceChecklist: [{ id: 'c1', behaviour: 'Unrelated final delivery requirement' }],
+          originalTask: { description: 'The button is named Save.', inputs: { acceptanceChecklist: [{ behaviour: 'Root-only criterion' }] } },
+          previousStepResult: 'The button was rendered.' } }, payload: {} });
     const state = JSON.stringify(bodies[0]!.state);
     expect(state).toContain('dom-interaction');
     expect(state).toContain('Do not change files');
     expect(state).not.toContain('Unrelated final delivery requirement');
+    expect(state).not.toContain('Root-only criterion');
+    expect(state).toContain('The button is named Save.');
+    expect(state).toContain('The button was rendered.');
+    expect((bodies[0]!.state as { requirements: string[] }).requirements).toEqual([
+      'Verify the button',
+      'Phase proof obligation: dom-interaction: DOM interactions must actually be executed and observed by the host, not merely claimed or requested.',
+      'Constraint: Do not change files',
+    ]);
   });
 
   it('finds a twin beyond the old first-48 limit, with symmetric recipe bodies', async () => {
@@ -109,13 +119,33 @@ describe('Jev policy regression paths', () => {
         task: { description: 'Build a file' }, catalog: [{ name: 'build', description: 'Build a file', detail: 'Write then verify' }] };
       await prefilterStrategy(args);
       await prefilterStrategy(args);
-      expect(bodies).toHaveLength(1);
+      expect(bodies).toHaveLength(2);
       expect(ctx.llm.calls).toHaveLength(1);
       await prefilterStrategy({ ...args, catalog: [{ ...args.catalog[0]!, detail: 'Only inspect' }] });
-      expect(bodies).toHaveLength(2);
+      expect(bodies).toHaveLength(3);
       const changed = createJevDecider({ apiKey: 'test', fetchImpl, progressiveRecipes: true, record: () => undefined });
       await prefilterStrategy({ ...args, ctx: { ...ctx, jev: changed } });
-      expect(bodies).toHaveLength(3);
+      expect(bodies).toHaveLength(4);
+    } finally { resetPrefilterCacheForTests(); rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  it('rechecks exclusions before reusing a cached model fallback', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'jev-exclusions-'));
+    vi.stubEnv('ATOMA_PREFILTER_CACHE', join(dir, 'cache.db'));
+    try {
+      let withhold = ['b'];
+      const choose = vi.fn(async () => ({ withhold }));
+      const ctx = { ...makeCtx(), jev: { choose, choiceCacheKey: () => 'same-policy',
+        approve: async () => null, twin: async () => null } };
+      ctx.llm.enqueueText(jsonText({ kind: 'reuse', target: 'a', confidence: 'high', reasoning: 'fits' }));
+      ctx.llm.enqueueText(jsonText({ kind: 'reuse', target: 'b', confidence: 'high', reasoning: 'fits' }));
+      const args = { ctx, task: { description: 'Build' }, catalog: [
+        { name: 'a', description: 'Build A' }, { name: 'b', description: 'Build B' }] };
+      expect(await prefilterStrategy(args)).toMatchObject({ target: 'a' });
+      withhold = ['a'];
+      expect(await prefilterStrategy(args)).toMatchObject({ target: 'b' });
+      expect(choose).toHaveBeenCalledTimes(2);
+      expect(ctx.llm.calls).toHaveLength(2);
     } finally { resetPrefilterCacheForTests(); rmSync(dir, { recursive: true, force: true }); }
   });
 

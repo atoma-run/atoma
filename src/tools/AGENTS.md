@@ -46,6 +46,9 @@ Neighbours:
   Default egress includes package registries and the shared public resource
   hosts in `contracts/webResources.ts`. Chromium receives the worker proxy
   explicitly; its loopback bypass keeps local application probes direct.
+- Document retrieval shares one Haystack process per run. A search timeout
+  kills that process; subsequent searches in the same run return `unavailable`.
+  The 10-second deadline bounds work but does not restart the retrieval service.
 - Cleanup is mandatory on success, failure, timeout, signal, and hard-exit paths.
   Network teardown races need bounded retry.
 - `ToolSandbox.drain()` is the stronger local contract before workspace

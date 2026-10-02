@@ -47,6 +47,8 @@ import { superviseLoop, type SupervisionHooks } from '../core/supervisor.js';
 import { forkBranch } from '../core/branchCtx.js';
 import { effectiveObligations, anyUncovered, renderProofCoverage } from './proofCoverage.js';
 import { randomUUID } from 'node:crypto';
+import { delegatedTaskContext } from './taskContext.js';
+import { TASK_EXECUTION_GUIDANCE } from '../contracts/taskExecution.js';
 import { RegistryNotFoundError } from '../core/errors.js';
 import { mergeTools } from './toolMerge.js';
 import {
@@ -660,6 +662,8 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       `do NOT call them yourself):`,
       toolCatalog,
       ``,
+      TASK_EXECUTION_GUIDANCE,
+      task.executionMode === 'reasoning' ? 'This task and every descendant are reasoning-only; tools are disabled.' : '',
       `Task: ${task.description}`,
       task.inputs ? `Inputs: ${JSON.stringify(task.inputs)}` : '',
       task.constraints?.length ? `Constraints:\n${task.constraints.map((c) => `- ${c}`).join('\n')}` : '',
@@ -669,7 +673,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       `Shape:`,
       `[`,
       `  {"strategy": "reuse"|"create", "target": "<name>"?, "seed"?: {"description": "...", "tools": [], "params": {}}, "reasoning": "..."},`,
-      `  {"reasoning": "...", "subtasks": [{"description": "...", "preferredChild": "<L2-name>"?, "inputs": {}?, "outputs": ["<file the subtask creates/modifies>", ...]}, ...], "aggregation": {"mode": "concat"|"llm-synthesize"|"sequential", "instruction": "..."?}, "expectedOutput": "..."}`,
+      `  {"reasoning": "...", "delivery": "text"|"files", "subtasks": [{"description": "...", "executionMode": "reasoning"|"tools", "preferredChild": "<L2-name>"?, "inputs": {}?, "outputs": ["<file the subtask creates/modifies>", ...]}, ...], "aggregation": {"mode": "concat"|"llm-synthesize"|"sequential", "instruction": "..."?}, "expectedOutput": "..."}`,
       `]`,
       `Every file-mutating subtask MUST include "outputs". Omit the key only on read-only phases.`,
       `The first character of your response MUST be "[". Do NOT call any tools.`,
@@ -836,7 +840,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     this.l2Peers.push(l2);
     const subTask: Task = {
       description: subtask.description,
-      ...(subtask.inputs ? { inputs: subtask.inputs } : {}),
+      ...delegatedTaskContext(parentTask, subtask),
       // Structured output intent travels with the task: the skill dispatch
       // gates read it as authoritative instead of regex-recovering it. A
       // phase the root plan gave NO outputs is read-only by the planning
@@ -1182,12 +1186,14 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     // that — otherwise earlier runs produced plans that said "I'll write
     // index.html" but ran in a tools-less completion that could only emit
     // markdown, leaving no file on disk.
-    const hasTools = this.tools.length > 0 && ctx.tools !== undefined;
+    const hasTools = task.executionMode !== 'reasoning' && this.tools.length > 0 && ctx.tools !== undefined;
     const toolCatalog = hasTools
       ? this.tools.map((t) => `  - ${t.name}: ${t.description}`).join('\n')
       : '(no tools available — reasoning-only answer)';
     const userContent = [
       `You are tissue "${this.name}" (tier 3) in FALLBACK: do the task yourself, no delegation.`,
+      TASK_EXECUTION_GUIDANCE,
+      task.executionMode === 'reasoning' ? 'This task and every descendant are reasoning-only; tools are disabled.' : '',
       `Task: ${task.description}`,
       task.inputs ? `Inputs: ${JSON.stringify(task.inputs)}` : '',
       hasTools
@@ -1196,7 +1202,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       `Tools:`,
       toolCatalog,
       `IMPORTANT: emit ONE JSON object, NOT an array. Shape exactly:`,
-      `{"reasoning": "...", "proposedAction": "...", "expectedOutput": "..."}`,
+      `{"reasoning": "...", "delivery": "text"|"files", "proposedAction": "...", "expectedOutput": "..."}`,
       `Your regular mode uses a [strategy, plan] array — that mode is OFF here.`,
       `The first character of your response MUST be "{".`,
     ]
@@ -1217,7 +1223,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     return parsePlanWithFallback(resp.text, {
       reasoning: `fallback: could not parse a plan from the LLM response; proceeding with direct execution of the task`,
       proposedAction: `execute the task directly using the available tools (${
-        this.tools.map((t) => t.name).join(', ') || 'none'
+        (hasTools ? this.tools : []).map((t) => t.name).join(', ') || 'none'
       })`,
       expectedOutput: task.description,
     });
@@ -1230,13 +1236,15 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     // start a server) produce only prose and the user gets nothing on disk.
     // When `ctx.tools` isn't wired (research-brief-style runs), we fall back
     // to the old reasoning-only behaviour.
-    const hasTools = this.tools.length > 0 && ctx.tools !== undefined;
+    const hasTools = task.executionMode !== 'reasoning' && this.tools.length > 0 && ctx.tools !== undefined;
     const hasValidator = hasTools && this.tools.some((t) => t.name === 'validate_html');
     const userContent = [
       `You are tissue "${this.name}" (tier 3) in FALLBACK: L2/L1 supervision failed, you are now the executor.`,
       hasTools
         ? 'You HAVE tool access in this fallback turn. Use the tools to actually perform the work — do NOT just describe it. Relative paths for file tools ("index.html", not "/abs/index.html").'
         : 'You have NO tool access; produce a reasoning-only answer. Do not claim to have written files or started servers.',
+      TASK_EXECUTION_GUIDANCE,
+      task.executionMode === 'reasoning' ? 'This task and every descendant are reasoning-only; tools are disabled.' : '',
       `Task: ${task.description}`,
       task.inputs ? `Inputs: ${JSON.stringify(task.inputs)}` : '',
       `Plan: ${JSON.stringify(plan)}`,

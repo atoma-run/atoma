@@ -1,3 +1,4 @@
+import { DEFAULT_PLATFORM_LIMITS } from '../src/contracts/platformSettings.js';
 import { haystackTestEnvironment } from './helpers/haystack.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
@@ -657,6 +658,67 @@ describe('project run environment', () => {
 });
 
 describe('ProjectRunCoordinator', () => {
+  it.each(['text', 'partial', 'files', 'text-with-seed'] as const)('finalizes %s delivery without confusing an answer with a repository artifact', async (kind) => {
+    const f = fixture();
+    const publisher = { publish: vi.fn().mockResolvedValue(undefined) };
+    const describeDeliveredPreview = vi.fn();
+    const stats: RunStats = { ...DELIVERED_STATS, outcome: kind === 'partial' ? 'partial' : 'delivered' };
+    const driver = vi.fn(async (options: SpawnRunOptions) => {
+      const env = options.env!;
+      const workspace = env['ATOMA_BUILD_WORKSPACE']!;
+      const runs = env['ATOMA_RUNS_DIR']!;
+      const runId = env['ATOMA_RUN_ID']!;
+      mkdirSync(workspace, { recursive: true });
+      mkdirSync(runs, { recursive: true });
+      if (kind === 'text-with-seed') writeFileSync(join(workspace, 'existing.txt'), 'unchanged input');
+      writeFileSync(env['ATOMA_ARTIFACT_MANIFEST_PATH']!, JSON.stringify({
+        version: 1, runId, generatedAt: new Date().toISOString(), outputs: [],
+        ...(kind.startsWith('text') ? { delivery: 'text' } : {}),
+      }));
+      writeFileSync(join(runs, `${runId}.json`), JSON.stringify({
+        id: runId, endedAt: new Date().toISOString(), result: { output: 'P 0–4; Q 4–6. Bound 6.', summary: 'proved' },
+      }));
+      return formatRunStatsEpilogue(stats);
+    });
+    const coordinator = new ProjectRunCoordinator({
+      store: f.store, dbPath: f.dbPath, projectsRoot: f.root,
+      hostEnv: { ...haystackTestEnvironment(f.root), ...ANTHROPIC_PINS, ANTHROPIC_API_KEY: 'model-key' },
+      driver, acquireLease: async () => lease(), publisher, describeDeliveredPreview,
+    });
+    const run = await coordinator.start({
+      orgId: f.viewer.orgId, principalId: f.viewer.principalId, projectId: f.project.projectId,
+      request: { idempotencyKey: 'text-delivery', goal: 'Give a direct scheduling proof, without writing files.' },
+    });
+    await coordinator.waitForIdle();
+    const finished = f.store.getProjectRun(f.viewer.orgId, run.projectRunId)!;
+    expect(finished.status).toBe(kind === 'files' ? 'failed' : kind === 'partial' ? 'partial' : 'delivered');
+    expect(finished.stats?.costUsd).toBe(stats.costUsd);
+    expect(publisher.publish).not.toHaveBeenCalled();
+    expect(describeDeliveredPreview).not.toHaveBeenCalled();
+    if (kind !== 'files') {
+      expect(finished.artifactManifest?.files).toHaveLength(kind === 'text-with-seed' ? 1 : 0);
+      expect(finished.traceId).toBe(run.projectRunId);
+      expect(() => f.store.reservePublication({ orgId: f.viewer.orgId, projectRunId: run.projectRunId, idempotencyKey: 'manual' })).toThrow(/publication requires/);
+    }
+  });
+
+  it('launches with the budget admitted before asynchronous preparation', async () => {
+    const f = fixture();
+    let limits = { ...DEFAULT_PLATFORM_LIMITS, 'run.timeoutDefaultMs': 600_000 };
+    const driver = vi.fn(async (_options: SpawnRunOptions) => formatRunStatsEpilogue(DELIVERED_STATS));
+    const coordinator = new ProjectRunCoordinator({ store: f.store, dbPath: f.dbPath, projectsRoot: f.root,
+      hostEnv: { ...haystackTestEnvironment(f.root), ...ANTHROPIC_PINS, ANTHROPIC_API_KEY: 'model-key' },
+      platformLimits: () => limits, driver,
+      acquireLease: async () => { limits = { ...limits, 'run.timeoutDefaultMs': 120_000 }; return lease(); },
+      publisher: { publish: vi.fn().mockResolvedValue(undefined) },
+    });
+    await coordinator.start({ orgId: f.viewer.orgId, principalId: f.viewer.principalId, projectId: f.project.projectId,
+      request: { idempotencyKey: 'stable-budget', goal: 'Build a page' } });
+    await coordinator.waitForIdle();
+    expect(driver).toHaveBeenCalledOnce();
+    expect(driver.mock.calls[0]![0].timeoutMs).toBe(600_000);
+  });
+
   it('isolates, verifies and publishes a delivered project run', async () => {
     const f = fixture();
     const runLease = lease();

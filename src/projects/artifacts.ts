@@ -341,6 +341,8 @@ export function secureReadWorkspaceFile(
 export function buildWorkspaceArtifactManifest(input: {
   readonly workspaceRoot: string;
   readonly limits?: Partial<ArtifactLimits>;
+  readonly delivery?: import('../contracts/taskExecution.js').DeliveryKind;
+  readonly allowEmpty?: boolean;
 }): BuiltArtifactManifest {
   try {
     return inventoryWorkspace(input);
@@ -360,6 +362,8 @@ export function buildWorkspaceArtifactManifest(input: {
 function inventoryWorkspace(input: {
   readonly workspaceRoot: string;
   readonly limits?: Partial<ArtifactLimits>;
+  readonly delivery?: import('../contracts/taskExecution.js').DeliveryKind;
+  readonly allowEmpty?: boolean;
 }): BuiltArtifactManifest {
   const limits = resolvedLimits(input.limits);
   const root = path.resolve(input.workspaceRoot);
@@ -402,9 +406,15 @@ function inventoryWorkspace(input: {
       handle.closeSync();
     }
   }
-  if (!files.length) throw new ArtifactPolicyError('empty', 'finished workspace contains no publishable files');
-  const built = buildArtifactManifest({ ...input, declaredPaths: files });
-  const manifest = artifactManifestSchema.parse({ ...built.manifest, source: 'workspace' });
+  if (!files.length && input.delivery !== 'text' && !input.allowEmpty) {
+    throw new ArtifactPolicyError('empty', 'finished workspace contains no publishable files');
+  }
+  const inventory = files.length
+    ? buildArtifactManifest({ ...input, declaredPaths: files }).manifest
+    : { version: 1, files: [], totalBytes: 0 };
+  const manifest = artifactManifestSchema.parse({
+    ...inventory, source: 'workspace', ...(input.delivery ? { delivery: input.delivery } : {}),
+  });
   return { manifest, hash: artifactManifestHash(manifest) };
 }
 
@@ -477,7 +487,7 @@ export function revalidateArtifactManifest(input: {
     throw new ArtifactPolicyError('hash', 'artifact manifest hash does not match its contents');
   }
   const rebuilt = expected.source === 'workspace'
-    ? buildWorkspaceArtifactManifest(input)
+    ? buildWorkspaceArtifactManifest({ ...input, delivery: expected.delivery, allowEmpty: expected.files.length === 0 })
     : buildArtifactManifest({
         workspaceRoot: input.workspaceRoot,
         declaredPaths: expected.files.map((file) => file.path),

@@ -296,7 +296,15 @@ if [[ -n "${OLD_RELEASE}" ]]; then
   else
     # The running release predates waiting deployments (or waiting is off):
     # freeze writes first and refuse whatever is busy, as before.
-    install -m 0644 /dev/null "${MARKER_PATH}"
+    # Match runLock's Linux birth identity, including the boot: an abandoned
+    # fallback freeze must expire when this activator dies or the host reboots.
+    PARENT_STAT="$(<"/proc/$$/stat")"
+    read -r -a PARENT_FIELDS <<< "${PARENT_STAT##*) }"
+    PARENT_BOOT="$(</proc/sys/kernel/random/boot_id)"
+    [[ -n "${PARENT_BOOT}" && "${PARENT_FIELDS[19]:-}" =~ ^[0-9]+$ ]] || fail "cannot identify deployment parent"
+    printf 'guard %s linux:%s:%s\n' "$$" "${PARENT_BOOT}" "${PARENT_FIELDS[19]}" > "${MARKER_PATH}.$$.partial"
+    chmod 0644 "${MARKER_PATH}.$$.partial"
+    mv -f -- "${MARKER_PATH}.$$.partial" "${MARKER_PATH}"
   fi
 
   # The service user cannot traverse WORK_DIR: mktemp deliberately creates it

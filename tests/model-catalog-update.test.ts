@@ -12,6 +12,7 @@ import {
   diffLiveListing,
   fetchLiveListing,
   parseLiteLlmPrices,
+  pricePointFromSource,
   retireModel,
   setModelPrice,
   type FetchJson,
@@ -145,7 +146,7 @@ describe('npm run models', () => {
 
     const dry = run('refresh');
     expect(dry.status, dry.stderr).toBe(0);
-    expect(dry.stdout).toMatch(/anthropic:claude-sonnet-5 +2\/10\/0\.2 → 3\/15\/0\.3/);
+    expect(dry.stdout).toMatch(/anthropic:claude-sonnet-5 +2\/10\/0\.2 \(cache write 2\.5\) → 3\/15\/0\.3 \(cache write 3\.75\)/);
     expect(dry.stdout).toMatch(/dry run/);
     expect(readFileSync(catalogPath, 'utf8')).toBe(original);
 
@@ -160,4 +161,13 @@ describe('npm run models', () => {
     expect(refused.status).toBe(1);
     expect(refused.stderr).toMatch(/expected <vendor>:<model-id>/);
   }, 60_000);
+});
+
+it('preserves every known free cache-write price when the reference omits it', () => {
+  const points = Object.values(catalog().vendors).flatMap((vendor) => vendor.models.flatMap((model) => model.prices)).filter((point) => point.cacheWrite === 0);
+  expect(points.length).toBeGreaterThan(0);
+  for (const current of points) {
+    const next = pricePointFromSource({ input: current.input + 0.1, output: current.output, toolCalling: true }, '2026-10-02', current);
+    expect(next.cacheWrite).toBe(0);
+  }
 });

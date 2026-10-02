@@ -6,6 +6,21 @@ import { declaredArtifactManifestSchema } from '../src/contracts/artifactManifes
 import { persistDeclaredArtifactManifest } from '../src/run/runner.js';
 
 describe('declared artifact manifest contract', () => {
+  it('persists text delivery across the runner/coordinator file boundary', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'atoma-text-manifest-'));
+    try {
+      const file = join(dir, 'manifest.json');
+      persistDeclaredArtifactManifest(file, 'text-run', {
+        reasoning: 'answer directly', delivery: 'text',
+        subtasks: [{ description: 'prove the bound', executionMode: 'reasoning' }],
+        aggregation: { mode: 'sequential' }, expectedOutput: 'proof',
+      });
+      expect(declaredArtifactManifestSchema.parse(JSON.parse(readFileSync(file, 'utf8')))).toMatchObject({ delivery: 'text', outputs: [] });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('accepts one runner-owned manifest and rejects path-shaped run ids', () => {
     expect(declaredArtifactManifestSchema.parse({
       version: 1,

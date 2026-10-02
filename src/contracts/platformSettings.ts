@@ -232,7 +232,7 @@ export const platformSettingOverridesSchema = z
         // `usd` is the one non-integer unit: a $2.50 ceiling is a reasonable
         // thing to ask for, and rounding it to $3 would be a surprise.
         const base = spec.unit === 'usd' ? z.number() : z.number().int();
-        return [key, base.min(spec.min).max(spec.max).optional()];
+        return [key, base.max(spec.max).refine((value) => value >= spec.min || (spec.zeroMeansUnlimited && value === 0), { message: `must be at least ${spec.min}${spec.zeroMeansUnlimited ? ' or 0 (unlimited)' : ''}` }).optional()];
       })
     ) as { [K in PlatformSettingKey]: z.ZodOptional<z.ZodNumber> }
   )

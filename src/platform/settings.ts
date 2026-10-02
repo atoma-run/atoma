@@ -96,8 +96,8 @@ export class PlatformSettingsStore {
     for (const row of raw) {
       const key = platformSettingKeySchema.safeParse(row.key);
       if (!key.success) continue;
-      const spec = PLATFORM_SETTINGS[key.data];
-      if (!Number.isFinite(row.value) || row.value < spec.min || row.value > spec.max) continue;
+      try { assertPlatformSettingValue(key.data, row.value); }
+      catch { continue; }
       out.push({
         key: key.data,
         value: row.value,

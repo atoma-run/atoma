@@ -1,3 +1,4 @@
+import { withPartialUsage } from './metrics.js';
 import OpenAI from 'openai';
 import {
   BUDGET_EXHAUSTED_HINT,
@@ -168,12 +169,7 @@ export class ChatCompletionsLlmClient implements LlmClient {
         : undefined;
     const agg = { inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 0 };
     const raise = (err: unknown): never => {
-      try {
-        (err as { partialUsage?: typeof agg }).partialUsage = { ...agg };
-      } catch {
-        // frozen/exotic abort reasons can't carry properties — fine.
-      }
-      throw err;
+      throw withPartialUsage(err, agg);
     };
     const accumulate = (completion: ChatCompletion): void => {
       const usage = completion.usage;

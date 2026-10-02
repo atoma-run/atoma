@@ -87,7 +87,8 @@ export function drawJournalRow(
     : options.withDate
       ? clockDate(event.at)
       : clockTime(event.at);
-  const stampWidth = relative ? 118 : options.withDate ? 132 : 64;
+  const stampWidth = Math.min(innerWidth * 0.35, ctx.measureText(stamp, { size: 9, mono: !relative }));
+  const actorWidth = Math.min(innerWidth * 0.25, ctx.measureText(event.actorType, { size: 9, mono: true }));
   ctx.text(parent, stamp, x + 8, y, {
     size: 9,
     color: GPU_COLORS.muted,
@@ -108,19 +109,19 @@ export function drawJournalRow(
     size: 10,
     color,
     mono: true,
-    width: compact ? Math.max(0, innerWidth - stampWidth - 22) : 200,
+    width: compact ? Math.max(0, innerWidth - stampWidth - 22) : Math.max(0, innerWidth - stampWidth - actorWidth - 30),
   });
   ctx.text(parent, truncate(event.summary, 96), x + 8, y + (compact ? 32 : 15), {
     size: 10,
     color: GPU_COLORS.text,
-    width: compact ? Math.max(0, innerWidth - 16) : innerWidth - 120,
+    width: Math.max(0, innerWidth - 16),
   });
   ctx.text(
     parent,
     event.actorType,
-    compact ? x + 8 : x + innerWidth - 84,
+    compact ? x + 8 : x + innerWidth - actorWidth - 8,
     y + (compact ? 17 : 0),
-    { size: 9, color: GPU_COLORS.muted, mono: true, width: compact ? Math.max(0, innerWidth - 16) : 84 }
+    { size: 9, color: GPU_COLORS.muted, mono: true, width: compact ? Math.max(0, innerWidth - 16) : actorWidth }
   );
   if (options.extra) {
     ctx.text(parent, options.extra, x + 8, y + (compact ? 44 : 30), {

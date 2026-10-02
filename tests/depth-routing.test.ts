@@ -552,6 +552,17 @@ describe('depth transition through the production supervision loop', () => {
     for (const prompt of verdictPrompts) expect(prompt).toContain('- [REVIEW] c1 the page shows the monthly total');
   });
 
+  it.each([undefined, [], [{ id: 'bogus', met: true }], [{ id: ' C1 ', met: false }], [{ id: '1', met: false }],
+    [{ id: 'c1', met: false }, { id: 'C1', met: true }], [{ id: 'c1', met: true }, { id: '1', met: false }]])(
+    'refuses an approval missing or contradicting its user criterion judgement: %j', async (criteria) => {
+      const ctx = context();
+      ctx.llm.enqueueText(jsonText({ approved: true, reasoning: 'done', criteria }));
+      const accepted = await acceptRootResult({ actor: new Actor(), task, result, ctx, floor: [], phaseCoverage: [],
+        checklist: [{ id: 'c1', behaviour: 'shows the total', check: { kind: 'review' } }],
+        checklistOrigin: { source: 'user', digest: 'a'.repeat(64) } });
+      expect(accepted.approved).toBe(false);
+    });
+
   it('records one judgement per criterion, and refuses an approval that judges a user criterion unmet', async () => {
     // A person who approved criteria could not tell which ones the delivery
     // was judged to meet: one prose verdict covered the whole list (2026-09-26).
@@ -623,6 +634,9 @@ describe('depth transition through the production supervision loop', () => {
     expect(scope.metCriteria).toEqual(['c1']);
     expect(scope.instruction).toContain('rootAcceptanceRefusal');
     expect(scope.instruction).not.toMatch(/remediate only/i);
+    const inherited = { considered: 1, baselineCannotRun: 0, replayed: 1, stillPassing: 0, flaky: 0, listed: 1, kept: 1, notReplayed: 0, items: [
+      { id: 'r1', file: 'index.html', summary: 'removed behaviour', checks: [], asked: false } ] };
+    expect(remediationTask(task, { ...refused, inheritedChecks: inherited }).inputs?.['rootRemediationScope']).toBeUndefined();
     // A drafted list of review criteria asks for no judgement: nothing to scope on.
     const drafted = context();
     drafted.llm.enqueueText(jsonText({ approved: false, reasoning: 'the README names a port', criteria: [{ id: 'c2', met: false }] }));

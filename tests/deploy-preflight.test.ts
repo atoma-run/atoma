@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   deploymentBlockers,
+  watchDeploymentParent,
   waitForDeploymentSlot,
   type DeploymentBlockerFacts,
 } from '../src/cli/deploy-preflight.js';
@@ -134,6 +135,31 @@ async function waitFor(predicate: () => boolean, timeoutMs: number, what: string
     await new Promise((resolveWait) => setTimeout(resolveWait, 25));
   }
 }
+
+it.skipIf(process.platform !== 'linux')('the fallback marker expires with its actual shell writer', async () => {
+  const root = temporaryRoot();
+  const marker = join(root, 'freeze');
+  const script = readFileSync('deploy/host-deploy.sh', 'utf8');
+  const start = script.indexOf('    PARENT_STAT=');
+  const end = script.indexOf('\n  fi', start);
+  const child = spawn('bash', ['-c', `set -e; MARKER_PATH="$1"; ${script.slice(start, end)}; echo ready; read -r release`, 'test', marker],
+    { stdio: ['pipe', 'pipe', 'pipe'] });
+  try {
+    await new Promise<void>((resolveReady, reject) => {
+      child.once('error', reject); child.stdout.once('data', () => resolveReady());
+      child.once('exit', code => reject(new Error(`writer exited ${code}`)));
+    });
+    const alive = watchDeploymentParent(child.pid!);
+    expect(alive()).toBe(true);
+    expect(readFileSync(marker, 'utf8').trim()).toBe(`guard ${child.pid} ${processFingerprint(child.pid!)}`);
+    expect(requestWaitsForDeployment('POST', '/api/projects', { ATOMA_DEPLOY_LOCK_PATH: marker })).toBe(true);
+    const exited = new Promise<void>(resolveExit => child.once('exit', () => resolveExit()));
+    child.stdin.end('release\n');
+    await exited;
+    expect(alive()).toBe(false);
+    expect(requestWaitsForDeployment('POST', '/api/projects', { ATOMA_DEPLOY_LOCK_PATH: marker })).toBe(false);
+  } finally { child.kill(); }
+});
 
 describe('a deployment that waits for running work', () => {
   posixIt('waits for the holder, refuses new takers meanwhile, then freezes writes and re-reads before it is ready', async () => {

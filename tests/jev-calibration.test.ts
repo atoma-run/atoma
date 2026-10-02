@@ -175,6 +175,21 @@ describe('reading the model validation prompt back', () => {
     expect(parseValidationPrompt(decision('validate-result', prompt))?.eligible).toBe(false);
   });
 
+  it('keeps inherited facts separate from phase requirements when replaying a reasoning validation', async () => {
+    const { l1 } = atoms();
+    const ctx = makeCtx();
+    ctx.llm.enqueueText(jsonText({ approved: true, reasoning: 'correct' }));
+    await llmVerdict({ ctx, model: 'm', supervisorName: 'Cell', supervisorTier: 2, subject: 'RESULT', child: l1,
+      task: { description: 'Audit the bound.', executionMode: 'reasoning', constraints: ['No files'],
+        inputs: { originalTask: { description: 'P=4, Q=2 on R.' }, previousStepResult: '6' } },
+      payload: { output: '6 is optimal', summary: 'proved' } });
+    const parsed = parseValidationPrompt(decision('validate-result', ctx.llm.calls[0]!.userContent));
+    expect(parsed?.request.task).toEqual({ description: 'Audit the bound.', constraints: ['No files'] });
+    expect(parsed?.request.context?.join('\n')).toContain('P=4, Q=2 on R.');
+    expect(parsed?.request.context?.join('\n')).toContain('Tools are disabled');
+    expect(parsed?.request.child.tools).toEqual([]);
+  });
+
   it("recovers a delegation plan and the tools its delegator's children inherit", async () => {
     const { l2 } = atoms();
     const ctx = makeCtx();
@@ -315,6 +330,28 @@ describe('calibrating: both designs, on the same decisions', () => {
       skillId: request.skillId, expected: true, compilable: false,
       requestHash: expect.stringMatching(/^[a-f0-9]{64}$/), yes: { semantic_judgment: 0.85 },
     });
+  });
+
+  it('records interrupted earlier jobs so resuming never replays a later paid success', async () => {
+    const prompt = await prefilterPrompt();
+    const decisions = [0, 1, 2].map(i => ({ ...decision('prefilter', prompt,
+      jsonText({ kind: 'escalate', reasoning: 'x' })), eventId: `p${i}` }));
+    const abort = new AbortController();
+    const { impl } = fakeJev();
+    let calls = 0;
+    const fetchImpl: typeof fetch = async (url, init) => {
+      if (++calls === 1) return new Promise<Response>((_resolve, reject) => {
+        init!.signal!.addEventListener('abort', () => reject(new Error('cancelled')), { once: true });
+      });
+      return impl(url, init);
+    };
+    const result = await calibrate({ decisions, apiKey: 'k', fetchImpl, concurrency: 2, signal: abort.signal,
+      onProgress: () => abort.abort() });
+    expect(result.records.map(record => record.id)).toEqual(['p0', 'p1']);
+    expect(result.records[0]).toHaveProperty('failure');
+    expect(result.records[1]).toHaveProperty('answers');
+    expect(result.resumeAt).toBe(2);
+    expect(result.unasked).toBe(1);
   });
 
   it('reports unasked compilation cases when cancelled without spending or inventing answers', async () => {

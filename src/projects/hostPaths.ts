@@ -35,7 +35,12 @@ export function redactHostPaths(text: string, redactions: readonly HostPathRedac
   for (const { path, label } of ordered) {
     const trimmed = path.replace(/[\\/]+$/, '');
     if (trimmed.length <= 1) continue;
-    out = out.replace(new RegExp(`(?<![\\w.-])${escapeRegExp(trimmed)}(?![\\w.-])`, 'g'), () => label);
+    const slash = trimmed.replaceAll('\\', '/');
+    const forms = new Set([trimmed, slash, JSON.stringify(trimmed).slice(1, -1),
+      encodeURI(trimmed), encodeURI(slash), encodeURIComponent(trimmed), encodeURIComponent(slash)]);
+    for (const form of [...forms].sort((a, b) => b.length - a.length)) {
+      out = out.replace(new RegExp(`(?<![\\w.-])${escapeRegExp(form)}(?![\\w.-])`, 'gi'), () => label);
+    }
   }
   return out;
 }
