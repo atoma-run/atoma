@@ -2716,4 +2716,3 @@
     "scope": "Two production runs on one fixture family. New-sibling save/compile, omitted/invalid primary responses, retry, twin guards and uncertain-intent behavior are covered by mocked production-path regressions. No production counters or recipes were reset."
   }
 }
-
