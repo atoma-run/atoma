@@ -28,6 +28,8 @@
  *   --settings-tab <id>   Settings panel to capture (default general).
  *   --select-first       Click the first project row after arrival (the run
  *                        list + run form state).
+ *   --result             Open Result through its real canvas control (Runs,
+ *                        or Projects with --select-first).
  *   --notifications      Open the header bell's notification tray after
  *                        arrival (gated only: the tray exists with an account).
  *   --account-menu       Open the account menu on the profile orb after
@@ -72,6 +74,7 @@ const platformAdmin = has('--platform-admin');
 const settingsTab = arg('--settings-tab', 'general');
 const tuning = has('--tuning');
 const selectFirst = has('--select-first');
+const showResult = has('--result');
 const repositoryMode = arg('--repository-mode', '');
 const notifications = has('--notifications');
 const accountMenu = has('--account-menu');
@@ -348,6 +351,9 @@ function gatedStubs() {
       updatedAt: '2026-08-20T00:00:00.000Z',
     }],
     [`/api/projects/${projectId}/runs`]: runs,
+    ...Object.fromEntries(runs.filter(run => run.traceId).map(run => [`/api/runs/${run.traceId}`, {
+      ...fixtureTrace(), id: run.traceId, task: { description: run.goal },
+    }])),
     '/api/registries': [registry],
     '/api/registry/atoma': { registry, types: [sharedMolecule] },
     '/api/skills': [{ l1Name: 'shared-molecule', l1Label: 'Water', count: 2 }],
@@ -471,7 +477,7 @@ function fixtureTrace() {
     endedAt: '2026-08-23T10:21:34.000Z',
     durationMs: 1_293_740,
     events,
-    result: { summary: 'Frontend delivered against the existing API.', producedBy: { tier: 3, name: 'Meristem' } },
+    result: { output: { answer: 'The original system has 15 reachable states.\n\nA shortest counterexample takes four transitions. The corrected system has 12 reachable states and preserves the invariant.', conclusion: 'Safety alone does not imply eventual progress without fairness.' }, summary: 'Analysis completed from the supplied transition rules.', producedBy: { tier: 3, name: 'Meristem' } },
     totals: { calls: 26, inputTokens: 10_181, outputTokens: 80_380, costUsd: 1.69 },
   };
 }
@@ -825,6 +831,18 @@ try {
       if (!spot) throw new Error('--select-first: no selectable row on screen');
       await page.mouse.click(spot.x, spot.y);
       await page.evaluate(() => new Promise((resolveWait) => setTimeout(resolveWait, 800)));
+    }
+
+    if (showResult) {
+      await page.waitForFunction(() => globalThis.__ATOMA_GPU__?.hitTargets().some(entry => entry.id.startsWith('result.open.')), { timeout: READY_TIMEOUT_MS });
+      const spot = await page.evaluate(() => {
+        const handle = globalThis.__ATOMA_GPU__;
+        const target = handle.hitTargets().find(entry => entry.id.startsWith('result.open.'));
+        return handle.projectRendererPoint(target.x + target.width / 2, target.y + target.height / 2);
+      });
+      await page.mouse.click(spot.x, spot.y);
+      await page.waitForFunction(() => globalThis.__ATOMA_GPU__?.hitTargets().some(entry => entry.id === 'result.download'), { timeout: READY_TIMEOUT_MS });
+      await page.evaluate(() => new Promise(resolveWait => setTimeout(resolveWait, 500)));
     }
 
     if (accountMenu) {

@@ -78,6 +78,7 @@ import {
 } from './store.js';
 import type { VizAdminInvitation } from '../client/types.js';
 import { openGitHubRepository } from './repository-link.js';
+import { resultText, resultFileUrl } from './run-result.js';
 
 const RELEASE_VERSION = __ATOMA_RELEASE_VERSION__;
 
@@ -197,6 +198,8 @@ function GpuAppContent({
     state.view === 'runs' && apiReady,
     runsQuery.data?.find((entry) => entry.id === state.selectedRunId)
   );
+  const resultQuery = useRunTrace(state.resultRunId,
+    apiReady && (state.view === 'runs' || state.view === 'projects'));
   const registriesQuery = useRegistries(state.view === 'registry' && apiReady);
   const registryQuery = useRegistry(
     state.selectedRegistryId,
@@ -262,6 +265,10 @@ function GpuAppContent({
         : {},
     [projectRunsQuery.data, selectedProject]
   );
+  const resultProjectId = state.view === 'projects' ? selectedProject?.projectId
+    : runsQuery.data?.find(run => run.id === state.resultRunId)?.projectId ?? selectedProject?.projectId;
+  const resultProjectRunsQuery = useProjectRuns(resultProjectId ?? null,
+    authed && !!state.resultRunId && (state.view === 'runs' || state.view === 'projects'));
 
   // The project run behind the selected trace. A run reached from anywhere
   // else — the runs index, a burn-in row, a deep link — has no project run to
@@ -680,6 +687,37 @@ function GpuAppContent({
   }, [projectBusy, queryClient, t]);
 
   const activate = useCallback((id: string) => {
+    if (id === 'result.close') { useGpuStore.getState().selectResult(null); return; }
+    if (id.startsWith('result.open.')) {
+      useGpuStore.getState().selectResult(id.slice('result.open.'.length));
+      return;
+    }
+    if (id === 'result.copy' || id === 'result.download' || id.startsWith('result.file.')) {
+      const resultId = useGpuStore.getState().resultRunId;
+      if (!resultId) return;
+      if (id.startsWith('result.file.')) {
+        const rows = queryClient.getQueryData<import('../client/types.js').VizProjectRun[]>(['viz', 'project', resultProjectId, 'runs']) ?? [];
+        const row = rows.find(row => row.traceId === resultId || row.projectRunId === resultId);
+        const path = decodeURIComponent(id.slice('result.file.'.length));
+        if (row?.artifactManifest?.files.some(file => file.path === path)) openGitHubRepository(resultFileUrl(row, path));
+        return;
+      }
+      const run = queryClient.getQueryData<import('../client/types.js').VizRun>(['viz', 'run', resultId]);
+      if (!run || run.id !== resultId) return;
+      const text = resultText(run);
+      if (text === null) return;
+      if (id === 'result.copy') {
+        void (navigator.clipboard?.writeText(text) ?? Promise.reject(new Error('Clipboard unavailable'))).then(
+          () => { if (useGpuStore.getState().resultRunId === resultId) useGpuStore.getState().setResultActionStatus('copied'); },
+          () => { if (useGpuStore.getState().resultRunId === resultId) useGpuStore.getState().setResultActionStatus('failed'); });
+      } else {
+        const url = URL.createObjectURL(new Blob([JSON.stringify(run.result, null, 2)], { type: 'application/json' }));
+        const link = document.createElement('a');
+        link.href = url; link.download = `result-${run.id}.json`; link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+      return;
+    }
     const store = useGpuStore.getState();
     // The menu's own open/closed state is UI, not identity, so it is handled
     // here rather than delegated to the auth controller.
@@ -949,6 +987,8 @@ function GpuAppContent({
     }
   }, [
     activateAuth,
+    queryClient,
+    resultProjectId,
     authSnapshot,
     arrive,
     loadOlderEvents,
@@ -1008,6 +1048,8 @@ function GpuAppContent({
     auth: authSnapshot,
     runs: runsQuery.data ?? [],
     run: runQuery.data ?? null,
+    resultRun: resultQuery.data?.id === state.resultRunId ? resultQuery.data : null,
+    resultFailed: resultQuery.isError,
     registries: registriesQuery.data ?? [],
     registry: registryQuery.data ?? null,
     skillNamespaces: namespacesQuery.data ?? [],
@@ -1017,7 +1059,8 @@ function GpuAppContent({
     burnin: burninQuery.data ?? null,
     profiles: profilesQuery.data?.profiles ?? [],
     projects: projectsQuery.data ?? [],
-    projectRuns,
+    projectRuns: resultProjectId && resultProjectRunsQuery.data
+      ? { ...projectRuns, [resultProjectId]: resultProjectRunsQuery.data } : projectRuns,
     githubInstallations: githubInstallationsQuery.data ?? [],
     adminOrganisations: adminOrganisationsQuery.data ?? [],
     adminEvents: adminEventsQuery.data?.pages.flatMap((page) => page.events) ?? [],
@@ -1073,6 +1116,11 @@ function GpuAppContent({
     registriesQuery.data,
     registryQuery.data,
     runQuery.data,
+    resultQuery.data,
+    resultQuery.isError,
+    resultProjectId,
+    resultProjectRunsQuery.data,
+    state.resultRunId,
     runsQuery.data,
     skillDetailQuery.data,
     skillDetailQuery.isError,

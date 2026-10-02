@@ -34,6 +34,7 @@ import {
   setReducedMotionOverrideForTests,
 } from '../src/viz/client-gl/renderer/motion.js';
 import { drawBurnin } from '../src/viz/client-gl/renderer/views/burnin.js';
+import { drawResultPanel } from '../src/viz/client-gl/renderer/views/result.js';
 import {
   COMPACT_VALUE_MAX_CHARS,
   DETAIL_CARD_MIN_WIDTH,
@@ -606,6 +607,8 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     sceneCameraMode: 'overview',
     locale: 'en',
     selectedRunId: null,
+    resultRunId: null,
+    resultActionStatus: null,
     selectedEventId: null,
     selectedAtomName: null,
     selectedRegistryId: null,
@@ -668,6 +671,8 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     setView: noop,
     setLocale: noop,
     selectRun: noop,
+    selectResult: noop,
+    setResultActionStatus: noop,
     selectEvent: noop,
     selectAtom: noop,
     selectRegistry: noop,
@@ -2886,7 +2891,7 @@ describe('drawProjects', () => {
     const listGlobal = listPanel!.parent.toGlobal({ x: listPanel!.x, y: listPanel!.y });
     expect(listGlobal.x).toBe(projectsColumn(1280).x);
     expect(listPanel!.parent.toGlobal({ x: 0, y: 0 }).y).toBe(
-      projectsGpuContentTop('run')
+      projectsGpuContentTop('run') + 42
     );
 
     // Project metadata forms one sequence inside the framed row. In detail,
@@ -4779,6 +4784,80 @@ describe('attachAtomaMark glass layering', () => {
 // ---------------------------------------------------------------------------
 
 const GUIDANCE_PROJECT_ID = '3c584a3c-933d-4488-ac44-4cdcc8e66f31';
+
+describe('the shared final result panel', () => {
+  it.each([390, 1200])('shows the recorded answer with bounded scrolling at width %i', width => {
+    const ctx = createRecordingCtx();
+    const run = makeRun([], { result: { output: { answer: 'A paragraph.\n'.repeat(200) }, summary: 'Final reasoning.' } });
+    drawResultPanel(ctx, makeSnapshot({ resultRunId: run.id }, { resultRun: run }), 10, 100, width - 20, 400);
+    expect(ctx.texts.some(text => text.value.startsWith('A paragraph.'))).toBe(true);
+    expect(ctx.buttons.some(button => button.id === 'result.copy')).toBe(true);
+    expect(ctx.buttons.some(button => button.id === 'result.download')).toBe(true);
+    expect(ctx.detailScrollMax).toBeGreaterThan(0);
+    expect(ctx.detailBounds?.height).toBe(340);
+    expect(containersWithMask(ctx.root).length).toBeGreaterThan(0);
+  });
+
+  it('does not flash a previous run’s answer while another result loads', () => {
+    const ctx = createRecordingCtx();
+    drawResultPanel(ctx, makeSnapshot({ resultRunId: 'new-run' }, {
+      resultRun: makeRun([], { result: { output: 'OLD ANSWER' } }), resultFailed: true,
+    }), 0, 0, 600, 500);
+    expect(ctx.texts.some(text => text.value.includes('OLD ANSWER'))).toBe(false);
+    expect(ctx.texts.some(text => text.value === t('result.unavailable'))).toBe(true);
+    expect(ctx.buttons.some(button => button.id === 'result.copy')).toBe(false);
+  });
+
+  it('labels partial work and does not invent an output from its summary', () => {
+    const ctx = createRecordingCtx();
+    const run = makeRun([], { result: { summary: 'Some work done.', unfinishedPhases: ['audit'] } });
+    drawResultPanel(ctx, makeSnapshot({ resultRunId: run.id }, { resultRun: run }), 0, 0, 600, 500);
+    expect(ctx.texts.some(text => text.value === t('result.notFinal'))).toBe(true);
+    expect(ctx.texts.some(text => text.value === t('result.noOutput'))).toBe(true);
+    expect(ctx.buttons.some(button => button.id === 'result.copy')).toBe(false);
+  });
+
+  it('keeps published files accessible when the trace is unavailable', () => {
+    const ctx = createRecordingCtx();
+    drawResultPanel(ctx, makeSnapshot({ resultRunId: 'expired-trace' }, {
+      resultRun: null, resultFailed: true,
+      projectRuns: { project: [{ projectId: 'project', projectRunId: 'row', traceId: 'expired-trace',
+        goal: 'A vector drawing', status: 'delivered', costUsd: 0, durationS: 1, error: null,
+        createdAt: '2026-10-02T00:00:00Z', endedAt: '2026-10-02T00:00:01Z',
+        bytesExpiredAt: '2026-10-03T00:00:00Z',
+        publication: { status: 'published', repositoryUrl: 'https://github.com/example/drawing', commitSha: 'a'.repeat(40) },
+        artifactManifest: { version: 1, source: 'workspace', totalBytes: 12,
+          files: [{ path: 'plate.svg', size: 12, mode: '100644', sha256: 'b'.repeat(64) }] },
+      }] },
+    }), 0, 0, 600, 500);
+    expect(ctx.buttons.some(button => button.id === 'result.file.plate.svg')).toBe(true);
+    expect(ctx.texts.some(text => text.value === t('result.expired'))).toBe(true);
+    expect(ctx.buttons.some(button => button.id === 'result.copy')).toBe(false);
+  });
+
+  it('opens a result inside the project, independently of the selected Runs trace', () => {
+    const project = guidanceProject();
+    const run = makeRun([], { id: 'historical', result: { output: 'Historical answer' } });
+    const ctx = createRecordingCtx();
+    drawProjects(ctx, makeSnapshot({ view: 'projects', selectedProjectId: project.projectId, resultRunId: run.id }, {
+      projects: [project], resultRun: run, run: makeRun([], { result: { output: 'OTHER RUN' } }),
+      projectRuns: { [project.projectId]: [{ projectId: project.projectId, projectRunId: 'row', traceId: run.id,
+        goal: 'An earlier proof', status: 'delivered', costUsd: 0, durationS: 1, error: null,
+        createdAt: run.startedAt, endedAt: run.endedAt!, publication: null }] },
+    }), 1000, 900);
+    expect(ctx.texts.some(text => text.value === 'Historical answer')).toBe(true);
+    expect(ctx.texts.some(text => text.value === 'OTHER RUN')).toBe(false);
+    expect(ctx.buttons.some(button => button.id === 'result.close')).toBe(true);
+  });
+
+  it.each([500, 1200])('opens the result from Runs even without a secondary pane at width %i', width => {
+    const run = makeRun([], { result: { output: 'Final answer' } });
+    const ctx = createRecordingCtx();
+    drawRuns(ctx, makeSnapshot({ view: 'runs', selectedRunId: run.id, resultRunId: run.id }, { run, resultRun: run }), width, 900);
+    expect(ctx.texts.some(text => text.value === 'Final answer')).toBe(true);
+    expect(ctx.buttons.some(button => button.id === 'result.close')).toBe(true);
+  });
+});
 
 function guidanceProject(): VizProject {
   return {

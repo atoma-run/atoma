@@ -150,6 +150,8 @@ export interface GpuDataSnapshot {
   auth: AuthUiSnapshot | null;
   runs: RunIndexEntry[];
   run: VizRun | null;
+  resultRun?: VizRun | null;
+  resultFailed?: boolean;
   registries: RegistrySummary[];
   registry: { registry: RegistrySummary; types: RegistryType[] } | null;
   skillNamespaces: SkillNamespace[];
@@ -1869,7 +1871,9 @@ export class GpuRenderer {
     if (!snapshot.state.notificationsMenuOpen) this.notificationsScrollY = 0;
     this.turnSliderBounds = null;
     const nextDetailKey =
-      snapshot.state.view === 'runs'
+      snapshot.state.resultRunId && (snapshot.state.view === 'runs' || snapshot.state.view === 'projects')
+        ? `result:${snapshot.state.resultRunId}`
+        : snapshot.state.view === 'runs'
         ? snapshot.state.selectedEventId
           ? `event:${snapshot.state.selectedEventId}`
           : snapshot.state.selectedAtomName

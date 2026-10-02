@@ -72,6 +72,7 @@ import {
   VIEW_FRAME_TITLE_Y,
 } from '../view-frame.js';
 import { drawAtomDetail } from './atom-detail.js';
+import { drawResultPanel } from './result.js';
 import {
   PARTIAL_CONTINUE_PREFIX,
   partialRunGuidance,
@@ -333,7 +334,9 @@ export function drawRuns(
     ctx.scrollMax.runs = 0;
     return;
   }
-  const { top, twoPane, rightWidth, leftWidth, leftX, rightX } = runsPaneLayout(width);
+  const layout = runsPaneLayout(width);
+  const { top, twoPane, rightWidth, leftWidth, leftX, rightX } = snapshot.state.resultRunId === run.id
+    ? { ...layout, twoPane: false, leftWidth: width - GPU_LAYOUT.gap * 2 } : layout;
 
   const primaryFrame = ctx.panel(
     ctx.root,
@@ -421,6 +424,15 @@ export function drawRuns(
   // card on the right pane; a single-pane viewport has no summary card, so
   // both keep a row here instead.
   let filterTop = top + 72 + RUNS_PROJECT_TITLE_HEIGHT;
+  ctx.button(ctx.root, `result.open.${run.id}`, 'button', snapshot.t('result.title'),
+    leftX + 14, filterTop, Math.min(180, leftWidth - 28), 30, false, snapshot.onActivate);
+  filterTop += 40;
+  if (snapshot.state.resultRunId === run.id) {
+    drawResultPanel(ctx, snapshot, leftX, filterTop, width - leftX - GPU_LAYOUT.gap,
+      Math.max(100, height - filterTop - GPU_LAYOUT.gap));
+    ctx.scrollMax.runs = 0;
+    return;
+  }
   if (!twoPane) {
     filterTop +=
       drawRunStatGrid(
@@ -430,7 +442,7 @@ export function drawRuns(
         ctx.root,
         'runs.stat',
         leftX + 14,
-        top + 60 + RUNS_PROJECT_TITLE_HEIGHT,
+        filterTop,
         leftWidth - 28
       ) +
       FILTER_BLOCK_GAP;

@@ -9,6 +9,8 @@ import { fmtMs } from '../../../client/run-utils.js';
 import { relativeTime, timestampTooltip } from '../relative-time.js';
 import { createScrollPane } from '../scroll-pane.js';
 import { drawViewFrame, viewFrame, VIEW_FRAME_CONTENT_TOP, VIEW_FRAME_PAD } from '../view-frame.js';
+import { drawResultPanel } from './result.js';
+import { latestDeliveredResult } from '../../run-result.js';
 
 /**
  * Projects view: the organisation's projects, their GitHub repository state
@@ -136,7 +138,7 @@ function runRowHeight(run: VizProjectRun, compact = false, newest = false): numb
     (run.error && run.status !== 'partial') ||
     (run.publication?.status === 'published' && run.publication.pullRequestUrl)
   );
-  return (compact ? RUN_COMPACT_CARD_HEIGHT : RUN_CARD_HEIGHT) + RUN_ROW_GAP +
+  return (compact ? RUN_COMPACT_CARD_HEIGHT : RUN_CARD_HEIGHT) + RUN_ROW_GAP + 38 +
     (hasSecondLine ? RUN_SECOND_LINE_EXTRA : 0);
 }
 
@@ -436,9 +438,22 @@ export function drawProjects(
   // so an UNGATED instance renders none — and reserving the band it would have
   // occupied left a ~260px hole between the title and the copy explaining why
   // there is nothing here. Reserve the band only when the form is really there.
-  const contentTop = snapshot.data.auth === null
+  let contentTop = snapshot.data.auth === null
     ? frame.contentTop
     : projectsGpuContentTop(formMode, width);
+  const resultRows = selectedProject ? runsByProject[selectedProject.projectId] ?? [] : [];
+  if (snapshot.state.resultRunId && resultRows.some(run => (run.traceId ?? run.projectRunId) === snapshot.state.resultRunId)) {
+    drawResultPanel(ctx, snapshot, frame.innerX, contentTop, frame.innerWidth,
+      Math.max(100, frame.bottom - contentTop - VIEW_FRAME_PAD));
+    ctx.scrollMax.projects = 0;
+    return;
+  }
+  const latestResult = latestDeliveredResult(resultRows);
+  if (latestResult) {
+    ctx.button(ctx.root, `result.open.${latestResult.traceId}`, 'button', snapshot.t('result.latest'),
+      frame.innerX, contentTop, Math.min(300, frame.innerWidth), 30, false, snapshot.onActivate);
+    contentTop += 42;
+  }
   if (projects.length === 0) {
     // Ungated deployments have no organisations, so projects cannot exist and
     // their API routes are absent — say that, instead of coaching the viewer
@@ -741,7 +756,7 @@ export function drawProjects(
       runs.forEach((run, runIndex) => {
         const newest = runIndex === 0;
         const rowHeight = runRowHeight(run, compactRunRows, newest);
-        const cardHeight = rowHeight - RUN_ROW_GAP;
+        const cardHeight = rowHeight - RUN_ROW_GAP - 38;
         const goalWidth = Math.max(0, layout.panelWidth - 52);
         const textX = runColumnX + BUTTON_LABEL_INSET;
         const textWidth = goalWidth - BUTTON_LABEL_INSET * 2;
@@ -796,6 +811,8 @@ export function drawProjects(
           ctx.text(pane.content, run.error.replace(/\s+/g, ' '), textX, extraY,
             { size: 9, color: GPU_COLORS.error, width: textWidth, singleLine: true });
         }
+        ctx.button(pane.content, `result.open.${run.traceId ?? run.projectRunId}`, 'button', snapshot.t('result.title'),
+          runColumnX, cursor + cardHeight + 4, Math.min(180, goalWidth), 30, false, snapshot.onActivate);
         cursor += rowHeight;
       });
     } else if (selected && runs.length === 0) {

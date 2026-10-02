@@ -1,6 +1,7 @@
 import type { CodexModelInventory } from '../../contracts/codexModels.js';
 import type { AccountSubscriptionsResponse } from '../../contracts/accountSubscriptions.js';
 import type { AcceptanceInfo, TopologyInfo } from '../../contracts/depthRouting.js';
+import type { ArtifactManifest } from '../../contracts/projects.js';
 
 export interface RunIndexEntry {
   id: string;
@@ -285,6 +286,8 @@ export interface VizPreviewOpen {
 }
 
 export interface VizProjectRun {
+  artifactManifest?: ArtifactManifest | null;
+  bytesExpiredAt?: string | null;
   projectRunId: string;
   projectId: string;
   goal: string;
