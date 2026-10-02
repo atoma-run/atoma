@@ -44,6 +44,9 @@ const COMPACT_PROJECT_PANEL_WIDTH = 400;
 const RUN_CARD_HEIGHT = 100;
 const RUN_COMPACT_CARD_HEIGHT = 140;
 const RUN_ROW_GAP = 14;
+const RUN_RESULT_GAP = 14;
+const RUN_RESULT_HEIGHT = 32;
+const RUN_RESULT_SPACE = RUN_RESULT_GAP + RUN_RESULT_HEIGHT;
 const RUN_SECOND_LINE_EXTRA = 20;
 const STATUS_FONT_SIZE = 10;
 /** The linked mesh carries inset detail, so its full box must be visibly larger than the copy. */
@@ -138,7 +141,7 @@ function runRowHeight(run: VizProjectRun, compact = false, newest = false): numb
     (run.error && run.status !== 'partial') ||
     (run.publication?.status === 'published' && run.publication.pullRequestUrl)
   );
-  return (compact ? RUN_COMPACT_CARD_HEIGHT : RUN_CARD_HEIGHT) + RUN_ROW_GAP + 38 +
+  return (compact ? RUN_COMPACT_CARD_HEIGHT : RUN_CARD_HEIGHT) + RUN_ROW_GAP + RUN_RESULT_SPACE +
     (hasSecondLine ? RUN_SECOND_LINE_EXTRA : 0);
 }
 
@@ -756,7 +759,7 @@ export function drawProjects(
       runs.forEach((run, runIndex) => {
         const newest = runIndex === 0;
         const rowHeight = runRowHeight(run, compactRunRows, newest);
-        const cardHeight = rowHeight - RUN_ROW_GAP - 38;
+        const cardHeight = rowHeight - RUN_ROW_GAP - RUN_RESULT_SPACE;
         const goalWidth = Math.max(0, layout.panelWidth - 52);
         const textX = runColumnX + BUTTON_LABEL_INSET;
         const textWidth = goalWidth - BUTTON_LABEL_INSET * 2;
@@ -813,7 +816,7 @@ export function drawProjects(
             { size: 9, color: GPU_COLORS.error, width: textWidth, singleLine: true });
         }
         ctx.button(pane.content, `result.open.${run.traceId ?? run.projectRunId}`, 'button', snapshot.t('result.title'),
-          runColumnX, cursor + cardHeight + 4, Math.min(180, goalWidth), 30, false, snapshot.onActivate);
+          runColumnX, cursor + cardHeight + RUN_RESULT_GAP, Math.min(180, goalWidth), RUN_RESULT_HEIGHT, false, snapshot.onActivate);
         cursor += rowHeight;
       });
     } else if (selected && runs.length === 0) {
