@@ -26,8 +26,9 @@ export function reasoningPrompt(task: Task, plan?: Plan): string {
   return [
     plan ? REASONING_EXECUTION_GUIDANCE : REASONING_PLAN_GUIDANCE,
     `Task: ${task.description}`,
-    task.inputs ? `Inputs: ${JSON.stringify(task.inputs)}` : '',
-    task.constraints?.length ? `Constraints: ${JSON.stringify(task.constraints)}` : '',
+    ...taskContextLines(task),
+    'Answer only the current Task. originalTask supplies facts and constraints, not additional phases to solve.',
+    'Use previousStepResult as prior work; do not regenerate it unless this task asks for a correction or final synthesis.',
     plan ? `Your plan has been APPROVED: ${JSON.stringify(plan)}` : '',
     plan ? 'Return JSON: {"output": <your complete answer>, "summary": "concise conclusion"}.'
       : 'Plan your reasoning. Return JSON: {"reasoning": "...", "proposedAction": "...", "expectedOutput": "..."}.',

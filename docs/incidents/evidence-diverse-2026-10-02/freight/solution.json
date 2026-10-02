@@ -1,0 +1,49 @@
+{
+  "instance": {
+    "supplies": {"A": 7, "B": 9, "C": 8},
+    "demands": {"X": 8, "Y": 6, "Z": 10},
+    "costs": [[4, 6, 8], [5, 3, 7], [6, 5, 2]],
+    "forbidden_routes": ["A->Z"],
+    "capacity_constraints": {"B->Y": 4},
+    "integrality": "nonnegative integer shipments"
+  },
+  "scenarios": [
+    {
+      "name": "baseline",
+      "capacities": {"B->Y": 4},
+      "matrix": [[5, 2, 0], [3, 4, 2], [0, 0, 8]],
+      "objective_value": 89,
+      "cost_recomputation": "5*4 + 2*6 + 3*5 + 4*3 + 2*7 + 8*2 = 89",
+      "row_sums": [7, 9, 8],
+      "column_sums": [8, 6, 10],
+      "forbidden_route_value": 0,
+      "unique_optimum": true,
+      "optimal_matrix_count": 1,
+      "lower_bound_certificate": "C >= 105 - 4*k = 89"
+    },
+    {
+      "name": "increased_capacity",
+      "capacities": {"B->Y": 5},
+      "matrix": [[6, 1, 0], [2, 5, 2], [0, 0, 8]],
+      "objective_value": 85,
+      "cost_recomputation": "6*4 + 1*6 + 2*5 + 5*3 + 2*7 + 8*2 = 85",
+      "row_sums": [7, 9, 8],
+      "column_sums": [8, 6, 10],
+      "forbidden_route_value": 0,
+      "unique_optimum": true,
+      "optimal_matrix_count": 1,
+      "lower_bound_certificate": "C >= 105 - 4*k = 85"
+    }
+  ],
+  "certificate": {
+    "parameterization": {
+      "a": "x_AX",
+      "b": "x_BY",
+      "z": "x_BZ",
+      "matrix": [["a", "7-a", 0], ["9-b-z", "b", "z"], ["b+z-a-1", "a-b-1", "10-z"]]
+    },
+    "objective": "C = 96 - 3*a - b + 6*z",
+    "inequality_chain": "a >= b+1, z >= a+1-b, so C >= 102+3*a-7*b >= 105-4*b >= 105-4*k",
+    "uniqueness_condition": "Equality requires b=k, a=k+1, z=2; these determine every matrix entry."
+  }
+}

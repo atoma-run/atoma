@@ -157,6 +157,7 @@ export function assertPublishableArtifactPath(canonicalPath: string): void {
     if (
       lower === '.git' ||
       lower === 'node_modules' ||
+      lower === '__pycache__' ||
       lower === '.atoma' ||
       lower.startsWith('.atoma-') ||
       secretLike(segment)

@@ -377,10 +377,6 @@ const INJECTION_SIGNATURES: readonly { id: string; pattern: RegExp }[] = [
     // material. Loopback is excluded: that is the run's own server.
     pattern: /https?:\/\/(?!localhost|127\.0\.0\.1)[^\s"']{4,80}[?&](?:data|payload|dump|exfil|token|key)=/i,
   },
-  {
-    id: 'long-base64-blob',
-    pattern: /[A-Za-z0-9+/]{240,}={0,2}/,
-  },
 ];
 
 /**

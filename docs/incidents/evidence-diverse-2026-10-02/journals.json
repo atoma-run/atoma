@@ -1,0 +1,499 @@
+[
+  {
+    "status": "fulfilled",
+    "value": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"events\": [\n    {\n      \"seq\": 989,\n      \"at\": \"2026-10-02T21:05:57.858Z\",\n      \"kind\": \"supervisor.verdict\",\n      \"severity\": \"info\",\n      \"actorType\": \"system\",\n      \"actorId\": null,\n      \"orgId\": \"d28f40d2-14d7-45c7-bce3-928dcb0041a6\",\n      \"projectId\": \"10157114-9caf-4786-b088-0bf7461a863b\",\n      \"runId\": \"d9bf3716-ab47-406f-97e7-d5791c595f45\",\n      \"summary\": \"Analyst graded a delivered run sound, no actionable finding\",\n      \"detail\": {\n        \"stage\": \"analyst\",\n        \"runStatus\": \"delivered\",\n        \"grade\": \"sound\",\n        \"worstFindingKind\": null,\n        \"findingKinds\": {\n          \"observation\": 0,\n          \"mechanism_candidate\": 0,\n          \"defect\": 0,\n          \"security_incident\": 0\n        },\n        \"modelRequested\": \"sub:openai:gpt-5.6-sol\",\n        \"modelsServed\": [\n          \"gpt-5.6-sol\"\n        ],\n        \"analysisCostUsd\": null,\n        \"verdictPath\": \"/home/atoma/state/supervisor/verdicts/d9bf3716-ab47-406f-97e7-d5791c595f45.json\"\n      }\n    },\n    {\n      \"seq\": 985,\n      \"at\": \"2026-10-02T20:58:28.873Z\",\n      \"kind\": \"run.finished\",\n      \"severity\": \"info\",\n      \"actorType\": \"principal\",\n      \"actorId\": \"36bbb732-d581-41e3-b8b5-c39e93fd32b9\",\n      \"orgId\": \"d28f40d2-14d7-45c7-bce3-928dcb0041a6\",\n      \"projectId\": \"10157114-9caf-4786-b088-0bf7461a863b\",\n      \"runId\": \"d9bf3716-ab47-406f-97e7-d5791c595f45\",\n      \"summary\": \"Run delivered: Solve a self-contained operations-research problem and deliver a decision report, not an application. Three warehouses …\",\n      \"detail\": {\n        \"status\": \"delivered\",\n        \"goal\": \"Solve a self-contained operations-research problem and deliver a decision report, not an application. Three warehouses …\"\n      }\n    },\n    {\n      \"seq\": 984,\n      \"at\": \"2026-10-02T20:58:28.818Z\",\n      \"kind\": \"publication.published\",\n      \"severity\": \"info\",\n      \"actorType\": \"principal\",\n      \"actorId\": \"36bbb732-d581-41e3-b8b5-c39e93fd32b9\",\n      \"orgId\": \"d28f40d2-14d7-45c7-bce3-928dcb0041a6\",\n      \"projectId\": \"10157114-9caf-4786-b088-0bf7461a863b\",\n      \"runId\": \"d9bf3716-ab47-406f-97e7-d5791c595f45\",\n      \"summary\": \"Published to mgtf/atoma-l3-freight-allocation-20261003\",\n      \"detail\": {\n        \"repository\": \"mgtf/atoma-l3-freight-allocation-20261003\",\n        \"url\": \"https://github.com/mgtf/atoma-l3-freight-allocation-20261003\",\n        \"commitSha\": \"5d2c7d0035cdde3365c95f48ceb5e1dc4611c604\",\n        \"baseSha\": null,\n        \"publishKind\": \"created\",\n        \"files\": 3\n      }\n    },\n    {\n      \"seq\": 980,\n      \"at\": \"2026-10-02T20:47:41.569Z\",\n      \"kind\": \"run.started\",\n      \"severity\": \"info\",\n      \"actorType\": \"principal\",\n      \"actorId\": \"36bbb732-d581-41e3-b8b5-c39e93fd32b9\",\n      \"orgId\": \"d28f40d2-14d7-45c7-bce3-928dcb0041a6\",\n      \"projectId\": \"10157114-9caf-4786-b088-0bf7461a863b\",\n      \"runId\": \"d9bf3716-ab47-406f-97e7-d5791c595f45\",\n      \"summary\": \"Run started: Solve a self-contained operations-research problem and deliver a decision report, not an application. Three warehouses …\"\n    },\n    {\n      \"seq\": 979,\n      \"at\": \"2026-10-02T20:47:41.543Z\",\n      \"kind\": \"run.host_subscription\",\n      \"severity\": \"security\",\n      \"actorType\": \"principal\",\n      \"actorId\": \"36bbb732-d581-41e3-b8b5-c39e93fd32b9\",\n      \"orgId\": \"d28f40d2-14d7-45c7-bce3-928dcb0041a6\",\n      \"projectId\": \"10157114-9caf-4786-b088-0bf7461a863b\",\n      \"runId\": \"d9bf3716-ab47-406f-97e7-d5791c595f45\",\n      \"summary\": \"Run spent the host subscription on l1, l2, l3\",\n      \"detail\": {\n        \"payers\": {\n          \"l1\": {\n            \"payer\": \"host-subscription\",\n            \"provider\": \"codex-cli\",\n            \"source\": \"account\"\n          },\n          \"l2\": {\n            \"payer\": \"host-subscription\",\n            \"provider\": \"codex-cli\",\n            \"source\": \"account\"\n          },\n          \"l3\": {\n            \"payer\": \"host-subscription\",\n            \"provider\": \"codex-cli\",\n            \"source\": \"account\"\n          }\n        },\n        \"subscriptionTiers\": [\n          \"l1\",\n          \"l2\",\n          \"l3\"\n        ],\n        \"principalSubscriptionTiers\": []\n      }\n    }\n  ],\n  \"nextBefore\": null\n}"
+        }
+      ],
+      "structuredContent": {
+        "events": [
+          {
+            "seq": 989,
+            "at": "2026-10-02T21:05:57.858Z",
+            "kind": "supervisor.verdict",
+            "severity": "info",
+            "actorType": "system",
+            "actorId": null,
+            "orgId": "d28f40d2-14d7-45c7-bce3-928dcb0041a6",
+            "projectId": "10157114-9caf-4786-b088-0bf7461a863b",
+            "runId": "d9bf3716-ab47-406f-97e7-d5791c595f45",
+            "summary": "Analyst graded a delivered run sound, no actionable finding",
+            "detail": {
+              "stage": "analyst",
+              "runStatus": "delivered",
+              "grade": "sound",
+              "worstFindingKind": null,
+              "findingKinds": {
+                "observation": 0,
+                "mechanism_candidate": 0,
+                "defect": 0,
+                "security_incident": 0
+              },
+              "modelRequested": "sub:openai:gpt-5.6-sol",
+              "modelsServed": [
+                "gpt-5.6-sol"
+              ],
+              "analysisCostUsd": null,
+              "verdictPath": "/home/atoma/state/supervisor/verdicts/d9bf3716-ab47-406f-97e7-d5791c595f45.json"
+            }
+          },
+          {
+            "seq": 985,
+            "at": "2026-10-02T20:58:28.873Z",
+            "kind": "run.finished",
+            "severity": "info",
+            "actorType": "principal",
+            "actorId": "36bbb732-d581-41e3-b8b5-c39e93fd32b9",
+            "orgId": "d28f40d2-14d7-45c7-bce3-928dcb0041a6",
+            "projectId": "10157114-9caf-4786-b088-0bf7461a863b",
+            "runId": "d9bf3716-ab47-406f-97e7-d5791c595f45",
+            "summary": "Run delivered: Solve a self-contained operations-research problem and deliver a decision report, not an application. Three warehouses …",
+            "detail": {
+              "status": "delivered",
+              "goal": "Solve a self-contained operations-research problem and deliver a decision report, not an application. Three warehouses …"
+            }
+          },
+          {
+            "seq": 984,
+            "at": "2026-10-02T20:58:28.818Z",
+            "kind": "publication.published",
+            "severity": "info",
+            "actorType": "principal",
+            "actorId": "36bbb732-d581-41e3-b8b5-c39e93fd32b9",
+            "orgId": "d28f40d2-14d7-45c7-bce3-928dcb0041a6",
+            "projectId": "10157114-9caf-4786-b088-0bf7461a863b",
+            "runId": "d9bf3716-ab47-406f-97e7-d5791c595f45",
+            "summary": "Published to mgtf/atoma-l3-freight-allocation-20261003",
+            "detail": {
+              "repository": "mgtf/atoma-l3-freight-allocation-20261003",
+              "url": "https://github.com/mgtf/atoma-l3-freight-allocation-20261003",
+              "commitSha": "5d2c7d0035cdde3365c95f48ceb5e1dc4611c604",
+              "baseSha": null,
+              "publishKind": "created",
+              "files": 3
+            }
+          },
+          {
+            "seq": 980,
+            "at": "2026-10-02T20:47:41.569Z",
+            "kind": "run.started",
+            "severity": "info",
+            "actorType": "principal",
+            "actorId": "36bbb732-d581-41e3-b8b5-c39e93fd32b9",
+            "orgId": "d28f40d2-14d7-45c7-bce3-928dcb0041a6",
+            "projectId": "10157114-9caf-4786-b088-0bf7461a863b",
+            "runId": "d9bf3716-ab47-406f-97e7-d5791c595f45",
+            "summary": "Run started: Solve a self-contained operations-research problem and deliver a decision report, not an application. Three warehouses …"
+          },
+          {
+            "seq": 979,
+            "at": "2026-10-02T20:47:41.543Z",
+            "kind": "run.host_subscription",
+            "severity": "security",
+            "actorType": "principal",
+            "actorId": "36bbb732-d581-41e3-b8b5-c39e93fd32b9",
+            "orgId": "d28f40d2-14d7-45c7-bce3-928dcb0041a6",
+            "projectId": "10157114-9caf-4786-b088-0bf7461a863b",
+            "runId": "d9bf3716-ab47-406f-97e7-d5791c595f45",
+            "summary": "Run spent the host subscription on l1, l2, l3",
+            "detail": {
+              "payers": {
+                "l1": {
+                  "payer": "host-subscription",
+                  "provider": "codex-cli",
+                  "source": "account"
+                },
+                "l2": {
+                  "payer": "host-subscription",
+                  "provider": "codex-cli",
+                  "source": "account"
+                },
+                "l3": {
+                  "payer": "host-subscription",
+                  "provider": "codex-cli",
+                  "source": "account"
+                }
+              },
+              "subscriptionTiers": [
+                "l1",
+                "l2",
+                "l3"
+              ],
+              "principalSubscriptionTiers": []
+            }
+          }
+        ],
+        "nextBefore": null
+      }
+    }
+  },
+  {
+    "status": "fulfilled",
+    "value": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"events\": [\n    {\n      \"seq\": 999,\n      \"at\": \"2026-10-02T21:33:30.151Z\",\n      \"kind\": \"supervisor.verdict\",\n      \"severity\": \"info\",\n      \"actorType\": \"system\",\n      \"actorId\": null,\n      \"orgId\": \"d28f40d2-14d7-45c7-bce3-928dcb0041a6\",\n      \"projectId\": \"204b8cb7-1bcf-439b-89af-8c3acec3be11\",\n      \"runId\": \"4bc9b3cd-96e9-49a4-9615-fe4b9ad2f511\",\n      \"summary\": \"Analyst graded a delivered run wasteful, worst finding mechanism_candidate\",\n      \"detail\": {\n        \"stage\": \"analyst\",\n        \"runStatus\": \"delivered\",\n        \"grade\": \"wasteful\",\n        \"worstFindingKind\": \"mechanism_candidate\",\n        \"findingKinds\": {\n          \"observation\": 0,\n          \"mechanism_candidate\": 1,\n          \"defect\": 0,\n          \"security_incident\": 0\n        },\n        \"modelRequested\": \"sub:openai:gpt-5.6-sol\",\n        \"modelsServed\": [\n          \"gpt-5.6-sol\"\n        ],\n        \"analysisCostUsd\": null,\n        \"verdictPath\": \"/home/atoma/state/supervisor/verdicts/4bc9b3cd-96e9-49a4-9615-fe4b9ad2f511.json\"\n      }\n    },\n    {\n      \"seq\": 988,\n      \"at\": \"2026-10-02T21:04:57.527Z\",\n      \"kind\": \"run.finished\",\n      \"severity\": \"info\",\n      \"actorType\": \"principal\",\n      \"actorId\": \"36bbb732-d581-41e3-b8b5-c39e93fd32b9\",\n      \"orgId\": \"d28f40d2-14d7-45c7-bce3-928dcb0041a6\",\n      \"projectId\": \"204b8cb7-1bcf-439b-89af-8c3acec3be11\",\n      \"runId\": \"4bc9b3cd-96e9-49a4-9615-fe4b9ad2f511\",\n      \"summary\": \"Run delivered: Act as a field linguist analyzing a deliberately fictional language, using only this complete corpus. Corpus: \\\"kam velm…\",\n      \"detail\": {\n        \"status\": \"delivered\",\n        \"goal\": \"Act as a field linguist analyzing a deliberately fictional language, using only this complete corpus. Corpus: \\\"kam velm…\"\n      }\n    },\n    {\n      \"seq\": 987,\n      \"at\": \"2026-10-02T20:58:52.511Z\",\n      \"kind\": \"run.started\",\n      \"severity\": \"info\",\n      \"actorType\": \"principal\",\n      \"actorId\": \"36bbb732-d581-41e3-b8b5-c39e93fd32b9\",\n      \"orgId\": \"d28f40d2-14d7-45c7-bce3-928dcb0041a6\",\n      \"projectId\": \"204b8cb7-1bcf-439b-89af-8c3acec3be11\",\n      \"runId\": \"4bc9b3cd-96e9-49a4-9615-fe4b9ad2f511\",\n      \"summary\": \"Run started: Act as a field linguist analyzing a deliberately fictional language, using only this complete corpus. Corpus: \\\"kam velm…\"\n    },\n    {\n      \"seq\": 986,\n      \"at\": \"2026-10-02T20:58:52.485Z\",\n      \"kind\": \"run.host_subscription\",\n      \"severity\": \"security\",\n      \"actorType\": \"principal\",\n      \"actorId\": \"36bbb732-d581-41e3-b8b5-c39e93fd32b9\",\n      \"orgId\": \"d28f40d2-14d7-45c7-bce3-928dcb0041a6\",\n      \"projectId\": \"204b8cb7-1bcf-439b-89af-8c3acec3be11\",\n      \"runId\": \"4bc9b3cd-96e9-49a4-9615-fe4b9ad2f511\",\n      \"summary\": \"Run spent the host subscription on l1, l2, l3\",\n      \"detail\": {\n        \"payers\": {\n          \"l1\": {\n            \"payer\": \"host-subscription\",\n            \"provider\": \"codex-cli\",\n            \"source\": \"account\"\n          },\n          \"l2\": {\n            \"payer\": \"host-subscription\",\n            \"provider\": \"codex-cli\",\n            \"source\": \"account\"\n          },\n          \"l3\": {\n            \"payer\": \"host-subscription\",\n            \"provider\": \"codex-cli\",\n            \"source\": \"account\"\n          }\n        },\n        \"subscriptionTiers\": [\n          \"l1\",\n          \"l2\",\n          \"l3\"\n        ],\n        \"principalSubscriptionTiers\": []\n      }\n    }\n  ],\n  \"nextBefore\": null\n}"
+        }
+      ],
+      "structuredContent": {
+        "events": [
+          {
+            "seq": 999,
+            "at": "2026-10-02T21:33:30.151Z",
+            "kind": "supervisor.verdict",
+            "severity": "info",
+            "actorType": "system",
+            "actorId": null,
+            "orgId": "d28f40d2-14d7-45c7-bce3-928dcb0041a6",
+            "projectId": "204b8cb7-1bcf-439b-89af-8c3acec3be11",
+            "runId": "4bc9b3cd-96e9-49a4-9615-fe4b9ad2f511",
+            "summary": "Analyst graded a delivered run wasteful, worst finding mechanism_candidate",
+            "detail": {
+              "stage": "analyst",
+              "runStatus": "delivered",
+              "grade": "wasteful",
+              "worstFindingKind": "mechanism_candidate",
+              "findingKinds": {
+                "observation": 0,
+                "mechanism_candidate": 1,
+                "defect": 0,
+                "security_incident": 0
+              },
+              "modelRequested": "sub:openai:gpt-5.6-sol",
+              "modelsServed": [
+                "gpt-5.6-sol"
+              ],
+              "analysisCostUsd": null,
+              "verdictPath": "/home/atoma/state/supervisor/verdicts/4bc9b3cd-96e9-49a4-9615-fe4b9ad2f511.json"
+            }
+          },
+          {
+            "seq": 988,
+            "at": "2026-10-02T21:04:57.527Z",
+            "kind": "run.finished",
+            "severity": "info",
+            "actorType": "principal",
+            "actorId": "36bbb732-d581-41e3-b8b5-c39e93fd32b9",
+            "orgId": "d28f40d2-14d7-45c7-bce3-928dcb0041a6",
+            "projectId": "204b8cb7-1bcf-439b-89af-8c3acec3be11",
+            "runId": "4bc9b3cd-96e9-49a4-9615-fe4b9ad2f511",
+            "summary": "Run delivered: Act as a field linguist analyzing a deliberately fictional language, using only this complete corpus. Corpus: \"kam velm…",
+            "detail": {
+              "status": "delivered",
+              "goal": "Act as a field linguist analyzing a deliberately fictional language, using only this complete corpus. Corpus: \"kam velm…"
+            }
+          },
+          {
+            "seq": 987,
+            "at": "2026-10-02T20:58:52.511Z",
+            "kind": "run.started",
+            "severity": "info",
+            "actorType": "principal",
+            "actorId": "36bbb732-d581-41e3-b8b5-c39e93fd32b9",
+            "orgId": "d28f40d2-14d7-45c7-bce3-928dcb0041a6",
+            "projectId": "204b8cb7-1bcf-439b-89af-8c3acec3be11",
+            "runId": "4bc9b3cd-96e9-49a4-9615-fe4b9ad2f511",
+            "summary": "Run started: Act as a field linguist analyzing a deliberately fictional language, using only this complete corpus. Corpus: \"kam velm…"
+          },
+          {
+            "seq": 986,
+            "at": "2026-10-02T20:58:52.485Z",
+            "kind": "run.host_subscription",
+            "severity": "security",
+            "actorType": "principal",
+            "actorId": "36bbb732-d581-41e3-b8b5-c39e93fd32b9",
+            "orgId": "d28f40d2-14d7-45c7-bce3-928dcb0041a6",
+            "projectId": "204b8cb7-1bcf-439b-89af-8c3acec3be11",
+            "runId": "4bc9b3cd-96e9-49a4-9615-fe4b9ad2f511",
+            "summary": "Run spent the host subscription on l1, l2, l3",
+            "detail": {
+              "payers": {
+                "l1": {
+                  "payer": "host-subscription",
+                  "provider": "codex-cli",
+                  "source": "account"
+                },
+                "l2": {
+                  "payer": "host-subscription",
+                  "provider": "codex-cli",
+                  "source": "account"
+                },
+                "l3": {
+                  "payer": "host-subscription",
+                  "provider": "codex-cli",
+                  "source": "account"
+                }
+              },
+              "subscriptionTiers": [
+                "l1",
+                "l2",
+                "l3"
+              ],
+              "principalSubscriptionTiers": []
+            }
+          }
+        ],
+        "nextBefore": null
+      }
+    }
+  },
+  {
+    "status": "fulfilled",
+    "value": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"events\": [\n    {\n      \"seq\": 1000,\n      \"at\": \"2026-10-02T21:34:34.310Z\",\n      \"kind\": \"supervisor.verdict\",\n      \"severity\": \"info\",\n      \"actorType\": \"system\",\n      \"actorId\": null,\n      \"orgId\": \"d28f40d2-14d7-45c7-bce3-928dcb0041a6\",\n      \"projectId\": \"579a918a-43e3-4aaa-a391-9efb117efec9\",\n      \"runId\": \"40b185c4-b702-4064-831f-909fbbe503fa\",\n      \"summary\": \"Analyst graded a delivered run sound, no actionable finding\",\n      \"detail\": {\n        \"stage\": \"analyst\",\n        \"runStatus\": \"delivered\",\n        \"grade\": \"sound\",\n        \"worstFindingKind\": null,\n        \"findingKinds\": {\n          \"observation\": 1,\n          \"mechanism_candidate\": 0,\n          \"defect\": 0,\n          \"security_incident\": 0\n        },\n        \"modelRequested\": \"sub:openai:gpt-5.6-sol\",\n        \"modelsServed\": [\n          \"gpt-5.6-sol\"\n        ],\n        \"analysisCostUsd\": null,\n        \"verdictPath\": \"/home/atoma/state/supervisor/verdicts/40b185c4-b702-4064-831f-909fbbe503fa.json\"\n      }\n    },\n    {\n      \"seq\": 994,\n      \"at\": \"2026-10-02T21:20:17.056Z\",\n      \"kind\": \"run.finished\",\n      \"severity\": \"info\",\n      \"actorType\": \"principal\",\n      \"actorId\": \"36bbb732-d581-41e3-b8b5-c39e93fd32b9\",\n      \"orgId\": \"d28f40d2-14d7-45c7-bce3-928dcb0041a6\",\n      \"projectId\": \"579a918a-43e3-4aaa-a391-9efb117efec9\",\n      \"runId\": \"40b185c4-b702-4064-831f-909fbbe503fa\",\n      \"summary\": \"Run delivered: Compose an original eight-bar two-voice miniature in C major and deliver an actual Standard MIDI File miniature.mid, a …\",\n      \"detail\": {\n        \"status\": \"delivered\",\n        \"goal\": \"Compose an original eight-bar two-voice miniature in C major and deliver an actual Standard MIDI File miniature.mid, a …\"\n      }\n    },\n    {\n      \"seq\": 993,\n      \"at\": \"2026-10-02T21:20:17.036Z\",\n      \"kind\": \"publication.published\",\n      \"severity\": \"info\",\n      \"actorType\": \"principal\",\n      \"actorId\": \"36bbb732-d581-41e3-b8b5-c39e93fd32b9\",\n      \"orgId\": \"d28f40d2-14d7-45c7-bce3-928dcb0041a6\",\n      \"projectId\": \"579a918a-43e3-4aaa-a391-9efb117efec9\",\n      \"runId\": \"40b185c4-b702-4064-831f-909fbbe503fa\",\n      \"summary\": \"Published to mgtf/atoma-l3-counterpoint-midi-20261003\",\n      \"detail\": {\n        \"repository\": \"mgtf/atoma-l3-counterpoint-midi-20261003\",\n        \"url\": \"https://github.com/mgtf/atoma-l3-counterpoint-midi-20261003\",\n        \"commitSha\": \"1b32d35c4c94a22822f484b324f31f4fb6c962c0\",\n        \"baseSha\": null,\n        \"publishKind\": \"created\",\n        \"files\": 6\n      }\n    },\n    {\n      \"seq\": 992,\n      \"at\": \"2026-10-02T21:12:53.947Z\",\n      \"kind\": \"security.flagged\",\n      \"severity\": \"security\",\n      \"actorType\": \"system\",\n      \"actorId\": null,\n      \"orgId\": \"d28f40d2-14d7-45c7-bce3-928dcb0041a6\",\n      \"projectId\": \"579a918a-43e3-4aaa-a391-9efb117efec9\",\n      \"runId\": \"40b185c4-b702-4064-831f-909fbbe503fa\",\n      \"summary\": \"long-base64-blob signature in a run_shell result\",\n      \"detail\": {\n        \"ruleId\": \"long-base64-blob\",\n        \"tool\": \"run_shell\",\n        \"eventId\": \"459746d6-5d4b-42ed-b88a-e70c5e09bb15\",\n        \"untrustedExcerpt\": \"4d546864000000060001000301e04d54726b0000001400ff510307a12000ff580404021808f800ff2f004d54726b0000012400903c588360803c0000903e588360803e000090405883608040000090415883608041000090435883608043000090415883\",\n        \"dedupeKey\": \"injection-signature:long-base64-blob:459746d6-5d4b-42ed-b88a-e70c5e09bb15\",\n        \"corpus\": \"project\",\n        \"watch\": \"viz-server\",\n        \"leaseOwnerPid\": 144385,\n        \"leaseRunId\": \"project:40b185c4-b702-4064-831f-909fbbe503fa\"\n      }\n    },\n    {\n      \"seq\": 991,\n      \"at\": \"2026-10-02T21:06:23.380Z\",\n      \"kind\": \"run.started\",\n      \"severity\": \"info\",\n      \"actorType\": \"principal\",\n      \"actorId\": \"36bbb732-d581-41e3-b8b5-c39e93fd32b9\",\n      \"orgId\": \"d28f40d2-14d7-45c7-bce3-928dcb0041a6\",\n      \"projectId\": \"579a918a-43e3-4aaa-a391-9efb117efec9\",\n      \"runId\": \"40b185c4-b702-4064-831f-909fbbe503fa\",\n      \"summary\": \"Run started: Compose an original eight-bar two-voice miniature in C major and deliver an actual Standard MIDI File miniature.mid, a …\"\n    },\n    {\n      \"seq\": 990,\n      \"at\": \"2026-10-02T21:06:23.359Z\",\n      \"kind\": \"run.host_subscription\",\n      \"severity\": \"security\",\n      \"actorType\": \"principal\",\n      \"actorId\": \"36bbb732-d581-41e3-b8b5-c39e93fd32b9\",\n      \"orgId\": \"d28f40d2-14d7-45c7-bce3-928dcb0041a6\",\n      \"projectId\": \"579a918a-43e3-4aaa-a391-9efb117efec9\",\n      \"runId\": \"40b185c4-b702-4064-831f-909fbbe503fa\",\n      \"summary\": \"Run spent the host subscription on l1, l2, l3\",\n      \"detail\": {\n        \"payers\": {\n          \"l1\": {\n            \"payer\": \"host-subscription\",\n            \"provider\": \"codex-cli\",\n            \"source\": \"account\"\n          },\n          \"l2\": {\n            \"payer\": \"host-subscription\",\n            \"provider\": \"codex-cli\",\n            \"source\": \"account\"\n          },\n          \"l3\": {\n            \"payer\": \"host-subscription\",\n            \"provider\": \"codex-cli\",\n            \"source\": \"account\"\n          }\n        },\n        \"subscriptionTiers\": [\n          \"l1\",\n          \"l2\",\n          \"l3\"\n        ],\n        \"principalSubscriptionTiers\": []\n      }\n    }\n  ],\n  \"nextBefore\": null\n}"
+        }
+      ],
+      "structuredContent": {
+        "events": [
+          {
+            "seq": 1000,
+            "at": "2026-10-02T21:34:34.310Z",
+            "kind": "supervisor.verdict",
+            "severity": "info",
+            "actorType": "system",
+            "actorId": null,
+            "orgId": "d28f40d2-14d7-45c7-bce3-928dcb0041a6",
+            "projectId": "579a918a-43e3-4aaa-a391-9efb117efec9",
+            "runId": "40b185c4-b702-4064-831f-909fbbe503fa",
+            "summary": "Analyst graded a delivered run sound, no actionable finding",
+            "detail": {
+              "stage": "analyst",
+              "runStatus": "delivered",
+              "grade": "sound",
+              "worstFindingKind": null,
+              "findingKinds": {
+                "observation": 1,
+                "mechanism_candidate": 0,
+                "defect": 0,
+                "security_incident": 0
+              },
+              "modelRequested": "sub:openai:gpt-5.6-sol",
+              "modelsServed": [
+                "gpt-5.6-sol"
+              ],
+              "analysisCostUsd": null,
+              "verdictPath": "/home/atoma/state/supervisor/verdicts/40b185c4-b702-4064-831f-909fbbe503fa.json"
+            }
+          },
+          {
+            "seq": 994,
+            "at": "2026-10-02T21:20:17.056Z",
+            "kind": "run.finished",
+            "severity": "info",
+            "actorType": "principal",
+            "actorId": "36bbb732-d581-41e3-b8b5-c39e93fd32b9",
+            "orgId": "d28f40d2-14d7-45c7-bce3-928dcb0041a6",
+            "projectId": "579a918a-43e3-4aaa-a391-9efb117efec9",
+            "runId": "40b185c4-b702-4064-831f-909fbbe503fa",
+            "summary": "Run delivered: Compose an original eight-bar two-voice miniature in C major and deliver an actual Standard MIDI File miniature.mid, a …",
+            "detail": {
+              "status": "delivered",
+              "goal": "Compose an original eight-bar two-voice miniature in C major and deliver an actual Standard MIDI File miniature.mid, a …"
+            }
+          },
+          {
+            "seq": 993,
+            "at": "2026-10-02T21:20:17.036Z",
+            "kind": "publication.published",
+            "severity": "info",
+            "actorType": "principal",
+            "actorId": "36bbb732-d581-41e3-b8b5-c39e93fd32b9",
+            "orgId": "d28f40d2-14d7-45c7-bce3-928dcb0041a6",
+            "projectId": "579a918a-43e3-4aaa-a391-9efb117efec9",
+            "runId": "40b185c4-b702-4064-831f-909fbbe503fa",
+            "summary": "Published to mgtf/atoma-l3-counterpoint-midi-20261003",
+            "detail": {
+              "repository": "mgtf/atoma-l3-counterpoint-midi-20261003",
+              "url": "https://github.com/mgtf/atoma-l3-counterpoint-midi-20261003",
+              "commitSha": "1b32d35c4c94a22822f484b324f31f4fb6c962c0",
+              "baseSha": null,
+              "publishKind": "created",
+              "files": 6
+            }
+          },
+          {
+            "seq": 992,
+            "at": "2026-10-02T21:12:53.947Z",
+            "kind": "security.flagged",
+            "severity": "security",
+            "actorType": "system",
+            "actorId": null,
+            "orgId": "d28f40d2-14d7-45c7-bce3-928dcb0041a6",
+            "projectId": "579a918a-43e3-4aaa-a391-9efb117efec9",
+            "runId": "40b185c4-b702-4064-831f-909fbbe503fa",
+            "summary": "long-base64-blob signature in a run_shell result",
+            "detail": {
+              "ruleId": "long-base64-blob",
+              "tool": "run_shell",
+              "eventId": "459746d6-5d4b-42ed-b88a-e70c5e09bb15",
+              "untrustedExcerpt": "4d546864000000060001000301e04d54726b0000001400ff510307a12000ff580404021808f800ff2f004d54726b0000012400903c588360803c0000903e588360803e000090405883608040000090415883608041000090435883608043000090415883",
+              "dedupeKey": "injection-signature:long-base64-blob:459746d6-5d4b-42ed-b88a-e70c5e09bb15",
+              "corpus": "project",
+              "watch": "viz-server",
+              "leaseOwnerPid": 144385,
+              "leaseRunId": "project:40b185c4-b702-4064-831f-909fbbe503fa"
+            }
+          },
+          {
+            "seq": 991,
+            "at": "2026-10-02T21:06:23.380Z",
+            "kind": "run.started",
+            "severity": "info",
+            "actorType": "principal",
+            "actorId": "36bbb732-d581-41e3-b8b5-c39e93fd32b9",
+            "orgId": "d28f40d2-14d7-45c7-bce3-928dcb0041a6",
+            "projectId": "579a918a-43e3-4aaa-a391-9efb117efec9",
+            "runId": "40b185c4-b702-4064-831f-909fbbe503fa",
+            "summary": "Run started: Compose an original eight-bar two-voice miniature in C major and deliver an actual Standard MIDI File miniature.mid, a …"
+          },
+          {
+            "seq": 990,
+            "at": "2026-10-02T21:06:23.359Z",
+            "kind": "run.host_subscription",
+            "severity": "security",
+            "actorType": "principal",
+            "actorId": "36bbb732-d581-41e3-b8b5-c39e93fd32b9",
+            "orgId": "d28f40d2-14d7-45c7-bce3-928dcb0041a6",
+            "projectId": "579a918a-43e3-4aaa-a391-9efb117efec9",
+            "runId": "40b185c4-b702-4064-831f-909fbbe503fa",
+            "summary": "Run spent the host subscription on l1, l2, l3",
+            "detail": {
+              "payers": {
+                "l1": {
+                  "payer": "host-subscription",
+                  "provider": "codex-cli",
+                  "source": "account"
+                },
+                "l2": {
+                  "payer": "host-subscription",
+                  "provider": "codex-cli",
+                  "source": "account"
+                },
+                "l3": {
+                  "payer": "host-subscription",
+                  "provider": "codex-cli",
+                  "source": "account"
+                }
+              },
+              "subscriptionTiers": [
+                "l1",
+                "l2",
+                "l3"
+              ],
+              "principalSubscriptionTiers": []
+            }
+          }
+        ],
+        "nextBefore": null
+      }
+    }
+  },
+  {
+    "status": "fulfilled",
+    "value": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"events\": [\n    {\n      \"seq\": 998,\n      \"at\": \"2026-10-02T21:32:20.378Z\",\n      \"kind\": \"run.finished\",\n      \"severity\": \"info\",\n      \"actorType\": \"principal\",\n      \"actorId\": \"36bbb732-d581-41e3-b8b5-c39e93fd32b9\",\n      \"orgId\": \"d28f40d2-14d7-45c7-bce3-928dcb0041a6\",\n      \"projectId\": \"72fdfe6e-0481-4599-a73e-38307685322a\",\n      \"runId\": \"c21011cb-101b-4958-962d-1f4c60236339\",\n      \"summary\": \"Run delivered: Reconstruct a small fictional 1890 warehouse ledger without silently resolving ambiguity. Deliver normalized.csv, audit…\",\n      \"detail\": {\n        \"status\": \"delivered\",\n        \"goal\": \"Reconstruct a small fictional 1890 warehouse ledger without silently resolving ambiguity. Deliver normalized.csv, audit…\"\n      }\n    },\n    {\n      \"seq\": 997,\n      \"at\": \"2026-10-02T21:32:20.351Z\",\n      \"kind\": \"publication.published\",\n      \"severity\": \"info\",\n      \"actorType\": \"principal\",\n      \"actorId\": \"36bbb732-d581-41e3-b8b5-c39e93fd32b9\",\n      \"orgId\": \"d28f40d2-14d7-45c7-bce3-928dcb0041a6\",\n      \"projectId\": \"72fdfe6e-0481-4599-a73e-38307685322a\",\n      \"runId\": \"c21011cb-101b-4958-962d-1f4c60236339\",\n      \"summary\": \"Published to mgtf/atoma-l3-ledger-reconstruction-20261003\",\n      \"detail\": {\n        \"repository\": \"mgtf/atoma-l3-ledger-reconstruction-20261003\",\n        \"url\": \"https://github.com/mgtf/atoma-l3-ledger-reconstruction-20261003\",\n        \"commitSha\": \"fb3a220d32327034bda3bb0f49acf9878b02b4d0\",\n        \"baseSha\": null,\n        \"publishKind\": \"created\",\n        \"files\": 3\n      }\n    },\n    {\n      \"seq\": 996,\n      \"at\": \"2026-10-02T21:20:49.255Z\",\n      \"kind\": \"run.started\",\n      \"severity\": \"info\",\n      \"actorType\": \"principal\",\n      \"actorId\": \"36bbb732-d581-41e3-b8b5-c39e93fd32b9\",\n      \"orgId\": \"d28f40d2-14d7-45c7-bce3-928dcb0041a6\",\n      \"projectId\": \"72fdfe6e-0481-4599-a73e-38307685322a\",\n      \"runId\": \"c21011cb-101b-4958-962d-1f4c60236339\",\n      \"summary\": \"Run started: Reconstruct a small fictional 1890 warehouse ledger without silently resolving ambiguity. Deliver normalized.csv, audit…\"\n    },\n    {\n      \"seq\": 995,\n      \"at\": \"2026-10-02T21:20:49.242Z\",\n      \"kind\": \"run.host_subscription\",\n      \"severity\": \"security\",\n      \"actorType\": \"principal\",\n      \"actorId\": \"36bbb732-d581-41e3-b8b5-c39e93fd32b9\",\n      \"orgId\": \"d28f40d2-14d7-45c7-bce3-928dcb0041a6\",\n      \"projectId\": \"72fdfe6e-0481-4599-a73e-38307685322a\",\n      \"runId\": \"c21011cb-101b-4958-962d-1f4c60236339\",\n      \"summary\": \"Run spent the host subscription on l1, l2, l3\",\n      \"detail\": {\n        \"payers\": {\n          \"l1\": {\n            \"payer\": \"host-subscription\",\n            \"provider\": \"codex-cli\",\n            \"source\": \"account\"\n          },\n          \"l2\": {\n            \"payer\": \"host-subscription\",\n            \"provider\": \"codex-cli\",\n            \"source\": \"account\"\n          },\n          \"l3\": {\n            \"payer\": \"host-subscription\",\n            \"provider\": \"codex-cli\",\n            \"source\": \"account\"\n          }\n        },\n        \"subscriptionTiers\": [\n          \"l1\",\n          \"l2\",\n          \"l3\"\n        ],\n        \"principalSubscriptionTiers\": []\n      }\n    }\n  ],\n  \"nextBefore\": null\n}"
+        }
+      ],
+      "structuredContent": {
+        "events": [
+          {
+            "seq": 998,
+            "at": "2026-10-02T21:32:20.378Z",
+            "kind": "run.finished",
+            "severity": "info",
+            "actorType": "principal",
+            "actorId": "36bbb732-d581-41e3-b8b5-c39e93fd32b9",
+            "orgId": "d28f40d2-14d7-45c7-bce3-928dcb0041a6",
+            "projectId": "72fdfe6e-0481-4599-a73e-38307685322a",
+            "runId": "c21011cb-101b-4958-962d-1f4c60236339",
+            "summary": "Run delivered: Reconstruct a small fictional 1890 warehouse ledger without silently resolving ambiguity. Deliver normalized.csv, audit…",
+            "detail": {
+              "status": "delivered",
+              "goal": "Reconstruct a small fictional 1890 warehouse ledger without silently resolving ambiguity. Deliver normalized.csv, audit…"
+            }
+          },
+          {
+            "seq": 997,
+            "at": "2026-10-02T21:32:20.351Z",
+            "kind": "publication.published",
+            "severity": "info",
+            "actorType": "principal",
+            "actorId": "36bbb732-d581-41e3-b8b5-c39e93fd32b9",
+            "orgId": "d28f40d2-14d7-45c7-bce3-928dcb0041a6",
+            "projectId": "72fdfe6e-0481-4599-a73e-38307685322a",
+            "runId": "c21011cb-101b-4958-962d-1f4c60236339",
+            "summary": "Published to mgtf/atoma-l3-ledger-reconstruction-20261003",
+            "detail": {
+              "repository": "mgtf/atoma-l3-ledger-reconstruction-20261003",
+              "url": "https://github.com/mgtf/atoma-l3-ledger-reconstruction-20261003",
+              "commitSha": "fb3a220d32327034bda3bb0f49acf9878b02b4d0",
+              "baseSha": null,
+              "publishKind": "created",
+              "files": 3
+            }
+          },
+          {
+            "seq": 996,
+            "at": "2026-10-02T21:20:49.255Z",
+            "kind": "run.started",
+            "severity": "info",
+            "actorType": "principal",
+            "actorId": "36bbb732-d581-41e3-b8b5-c39e93fd32b9",
+            "orgId": "d28f40d2-14d7-45c7-bce3-928dcb0041a6",
+            "projectId": "72fdfe6e-0481-4599-a73e-38307685322a",
+            "runId": "c21011cb-101b-4958-962d-1f4c60236339",
+            "summary": "Run started: Reconstruct a small fictional 1890 warehouse ledger without silently resolving ambiguity. Deliver normalized.csv, audit…"
+          },
+          {
+            "seq": 995,
+            "at": "2026-10-02T21:20:49.242Z",
+            "kind": "run.host_subscription",
+            "severity": "security",
+            "actorType": "principal",
+            "actorId": "36bbb732-d581-41e3-b8b5-c39e93fd32b9",
+            "orgId": "d28f40d2-14d7-45c7-bce3-928dcb0041a6",
+            "projectId": "72fdfe6e-0481-4599-a73e-38307685322a",
+            "runId": "c21011cb-101b-4958-962d-1f4c60236339",
+            "summary": "Run spent the host subscription on l1, l2, l3",
+            "detail": {
+              "payers": {
+                "l1": {
+                  "payer": "host-subscription",
+                  "provider": "codex-cli",
+                  "source": "account"
+                },
+                "l2": {
+                  "payer": "host-subscription",
+                  "provider": "codex-cli",
+                  "source": "account"
+                },
+                "l3": {
+                  "payer": "host-subscription",
+                  "provider": "codex-cli",
+                  "source": "account"
+                }
+              },
+              "subscriptionTiers": [
+                "l1",
+                "l2",
+                "l3"
+              ],
+              "principalSubscriptionTiers": []
+            }
+          }
+        ],
+        "nextBefore": null
+      }
+    }
+  }
+]

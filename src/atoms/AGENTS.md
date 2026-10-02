@@ -435,9 +435,9 @@ load-bearing.
 ## Model output parsing
 
 - All model-output JSON parsing lives in `src/atoms/json.ts`. Preserve raw text
-  on parse failure; never guess a structure.
-- Nested Markdown fences can hide evidence. Keep fence-aware extraction and its
-  adversarial tests.
+  on parse failure; never guess a structure. After tool work, one tool-free
+  formatting turn may repair it (24,000 chars, 60s, with 60s run time left).
+  Preserve witnesses, validation, raw failures and fence-aware tests; never replay tools for formatting.
 
 ## Intentional choices and rejected shortcuts
 

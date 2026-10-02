@@ -123,6 +123,8 @@ describe('reasoning delivery across production delegation', () => {
         expect(req.userContent).toContain('suppliedValue');
         expect(req.userContent).not.toContain('forged replacement');
         if (req.userContent.includes('Task: Audit')) {
+          expect(req.userContent).toContain('Answer only the current Task.');
+          expect(req.userContent).toContain('do not regenerate it unless this task asks for a correction or final synthesis');
           expect(req.userContent).toContain('previousStepResult');
           expect(req.userContent).toContain(JSON.stringify(firstAnswer));
         }

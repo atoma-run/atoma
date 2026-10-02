@@ -50,6 +50,17 @@ function expectPolicyError(
 }
 
 describe('project artifact manifest construction', () => {
+  it('omits Python interpreter caches from inventory and explicit publication', () => {
+    mkdirSync(join(root, 'src', '__pycache__'), { recursive: true });
+    writeFileSync(join(root, 'src', '__pycache__', 'verify.cpython-311.pyc'), 'cache');
+    writeFileSync(join(root, 'src', 'verify.py'), 'print("ok")');
+    const built = buildWorkspaceArtifactManifest({ workspaceRoot: root });
+    expect(built.manifest.files.map((file) => file.path)).toEqual(['src/verify.py']);
+    expectPolicyError(() => buildArtifactManifest({
+      workspaceRoot: root,
+      declaredPaths: ['src/__pycache__/verify.cpython-311.pyc'],
+    }), 'excluded');
+  });
   it('revalidates an empty text delivery and detects files added after completion', () => {
     const built = buildWorkspaceArtifactManifest({ workspaceRoot: root, delivery: 'text' });
     expect(built.manifest).toEqual({ version: 1, source: 'workspace', delivery: 'text', files: [], totalBytes: 0 });

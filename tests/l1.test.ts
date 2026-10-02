@@ -1,4 +1,5 @@
 import { asStoredNamespace } from '../src/skills/namespace.js';
+import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import {
   L1Atom,
@@ -19,6 +20,54 @@ describe('L1Atom', () => {
     tools: [],
     params: { temperature: 0 },
   };
+
+  it.each([true, false])('repairs the MIDI final envelope without replaying tools (repair succeeds: %s)', async (succeeds) => {
+    const raw = readFileSync(new URL('./fixtures/midi-malformed-final.txt', import.meta.url), 'utf8');
+    const ctx = makeCtx();
+    ctx.llm.enqueue((request) => {
+      request.onToolInvocation?.({ name: 'record_probe', args: {}, result: { recorded: true }, durationMs: 1, startedAt: 1 });
+      return { text: raw, stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } };
+    });
+    ctx.llm.enqueue((request) => {
+      expect(request.tools).toBeUndefined();
+      expect(request.executor).toBeUndefined();
+      expect(request.onToolInvocation).toBeUndefined();
+      expect(request.userContent).toContain(JSON.stringify(raw));
+      expect(request.systemPrompt).toContain('Preserve its claims, evidence, failures and uncertainty');
+      return { text: succeeds ? jsonText({ output: { files: ['miniature.mid'] }, summary: 'Recorded MIDI verification passed.' }) : 'still malformed', stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } };
+    });
+    const result = await new L1Atom(base).execute({ description: 'Write and verify MIDI.' }, makePlan(), ctx);
+    expect(ctx.llm.calls).toHaveLength(2);
+    expect(result.toolCallResults).toEqual([{ name: 'record_probe', ok: true }]);
+    expect(result.recordedCommandProbes).toBe(true);
+    if (succeeds) expect(result.output).toEqual({ files: ['miniature.mid'] });
+    else {
+      expect(result.output).toBe(raw.trim());
+      expect(result.summary).toContain('fallback produced non-JSON output');
+    }
+  });
+
+  it.each(['valid', 'no-actions', 'deadline', 'oversized'])('does not buy a formatting call for %s', async (scenario) => {
+    const ctx = { ...makeCtx(), ...(scenario === 'deadline' ? { deadlineAt: Date.now() + 10_000 } : {}) };
+    ctx.llm.enqueue((request) => {
+      if (scenario !== 'no-actions') request.onToolInvocation?.({ name: 'read_file', args: {}, result: 'ok', durationMs: 1, startedAt: 1 });
+      return { text: scenario === 'valid' ? jsonText({ output: 'ok', summary: 'done' }) : 'x'.repeat(scenario === 'oversized' ? 24_001 : 10), stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } };
+    });
+    await new L1Atom(base).execute({ description: 'Inspect the result' }, makePlan(), ctx);
+    expect(ctx.llm.calls).toHaveLength(1);
+  });
+
+  it('propagates cancellation during formatting repair', async () => {
+    const controller = new AbortController();
+    const ctx = { ...makeCtx(), signal: controller.signal };
+    ctx.llm.enqueue((request) => {
+      request.onToolInvocation?.({ name: 'read_file', args: {}, result: 'ok', durationMs: 1, startedAt: 1 });
+      return { text: 'malformed result', stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } };
+    });
+    const cancellation = new Error('cancelled by operator');
+    ctx.llm.enqueue(() => { controller.abort(cancellation); throw cancellation; });
+    await expect(new L1Atom(base).execute({ description: 'Inspect' }, makePlan(), ctx)).rejects.toBe(cancellation);
+  });
 
   it('exposes the effective remaining tool budget to execution without raising it', async () => {
     const ctx = { ...makeCtx(), deadlineAt: Date.now() + 80_000 };

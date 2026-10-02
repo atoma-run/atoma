@@ -209,6 +209,11 @@ by owner decision on 2026-09-26
 
 ## Intentional choices and rejected shortcuts
 
+- Skill distillation, revision and compilation use a dedicated author role through
+  the host request builder, preserving actor/context citations without inheriting
+  the L2 delegation schema. The role participates in the compiler generation so
+  old schema-conflict refusals may be reassessed (freight run d9bf3716).
+
 - Do not report compilation as the source of build-task savings. Eight rounds
   support tiering, earned trust, and recipe reuse; compilation dispatched mainly
   on maintenance and did not pay on from-scratch decomposition.
