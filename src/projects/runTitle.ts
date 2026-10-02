@@ -152,6 +152,45 @@ export function hostRunTitleConfig(
   return { model, env };
 }
 
+export interface RunTitleBackfillItem {
+  readonly orgId: string;
+  readonly projectRunId: string;
+  readonly status: string;
+  /** Present once named; absent on a dry run or when naming gave up. */
+  readonly title?: string;
+  readonly costUsd?: number;
+}
+
+/**
+ * Name the runs that ENDED BEFORE titles existed, with the same call and the
+ * same write-once store method a run's own end uses. Sequential on purpose:
+ * one bounded call at a time, so a backfill never bursts the platform key. A
+ * dry run (`apply: false`) only lists what would be named and spends nothing.
+ */
+export async function backfillRunTitles(input: {
+  readonly store: {
+    listUntitledEndedRuns(): Array<{ orgId: string; projectRunId: string; goal: string; status: string }>;
+    recordRunTitle(run: { orgId: string; projectRunId: string; title: string; receipt: RunTitleReceipt }): boolean;
+  };
+  readonly titler: RunTitler;
+  readonly apply: boolean;
+  readonly onItem?: (item: RunTitleBackfillItem) => void;
+}): Promise<RunTitleBackfillItem[]> {
+  const items: RunTitleBackfillItem[] = [];
+  for (const run of input.store.listUntitledEndedRuns()) {
+    let item: RunTitleBackfillItem = { orgId: run.orgId, projectRunId: run.projectRunId, status: run.status };
+    if (input.apply) {
+      const named = await input.titler({ goal: run.goal });
+      if (named && input.store.recordRunTitle({ orgId: run.orgId, projectRunId: run.projectRunId, ...named })) {
+        item = { ...item, title: named.title, costUsd: named.receipt.costUsd };
+      }
+    }
+    items.push(item);
+    input.onItem?.(item);
+  }
+  return items;
+}
+
 /**
  * The host's titler, built on FIRST USE: a deployment that never finishes a
  * run never constructs a provider, and one that cannot name runs says why

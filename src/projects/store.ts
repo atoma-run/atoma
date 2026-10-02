@@ -1529,6 +1529,20 @@ END;
       .run(title, JSON.stringify(receipt), orgId, projectRunId).changes === 1;
   }
 
+  /**
+   * Ended runs of EVERY organisation that carry no title yet, newest first:
+   * the operator backfill's work list (`projects titles`). Read-only.
+   */
+  listUntitledEndedRuns(): Array<{ orgId: string; projectRunId: string; goal: string; status: string }> {
+    return (
+      this.db
+        .prepare(`SELECT org_id, project_run_id, goal, status FROM project_runs
+          WHERE title IS NULL AND status IN ('delivered','partial','failed','cancelled')
+          ORDER BY created_at DESC, project_run_id ASC`)
+        .all() as Array<{ org_id: string; project_run_id: string; goal: string; status: string }>
+    ).map((row) => ({ orgId: row.org_id, projectRunId: row.project_run_id, goal: row.goal, status: row.status }));
+  }
+
   /** What naming this run cost; null when it was never named. */
   getRunTitleReceipt(orgIdInput: string, projectRunIdInput: string): RunTitleReceipt | null {
     const orgId = organisationIdSchema.parse(orgIdInput);

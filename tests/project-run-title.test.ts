@@ -12,6 +12,7 @@ import { closeStoreHandles } from '../src/core/stores.js';
 import type { LlmClient, LlmCompletionRequest, LlmCompletionResponse } from '../src/core/types.js';
 import { ProjectRunCoordinator, type ProjectRunDriver } from '../src/projects/coordinator.js';
 import {
+  backfillRunTitles,
   hostRunTitleConfig,
   hostRunTitler,
   runTitlerFor,
@@ -369,5 +370,40 @@ describe('the stored title is written once', () => {
     expect(f.store.recordRunTitle({
       orgId: f.viewer.orgId, projectRunId: queued!.run.projectRunId, title: 'Too early', receipt: RECEIPT,
     })).toBe(false);
+  });
+});
+
+describe('the operator backfill names runs that ended before titles existed', () => {
+  it('lists without spending, then names each once, then has nothing left', async () => {
+    const f = fixture();
+    // Two runs that ended with NO titler wired: the production state before 2026-10-02.
+    const first = await runOnce(f, coordinatorFor(f, deliveringDriver()), 'backfill-1');
+    const second = await runOnce(f, coordinatorFor(f, deliveringDriver()), 'backfill-2');
+    expect(first.row.title).toBeUndefined();
+
+    const titler = fixedTitler();
+    const dry = await backfillRunTitles({ store: f.store, titler: titler as RunTitler, apply: false });
+    expect(dry.map((item) => item.projectRunId).sort())
+      .toEqual([first.started.projectRunId, second.started.projectRunId].sort());
+    expect(titler).not.toHaveBeenCalled();
+    expect(dry.every((item) => item.title === undefined)).toBe(true);
+
+    const applied = await backfillRunTitles({ store: f.store, titler: titler as RunTitler, apply: true });
+    expect(titler).toHaveBeenCalledTimes(2);
+    expect(applied.every((item) => item.title === 'SOS sound file for a Morse exhibit')).toBe(true);
+    expect(f.store.getProjectRun(f.viewer.orgId, second.started.projectRunId)?.title)
+      .toBe('SOS sound file for a Morse exhibit');
+
+    expect(await backfillRunTitles({ store: f.store, titler: titler as RunTitler, apply: true })).toEqual([]);
+    expect(titler).toHaveBeenCalledTimes(2);
+  });
+
+  it('leaves a run untitled, and listed again, when naming gives up', async () => {
+    const f = fixture();
+    await runOnce(f, coordinatorFor(f, deliveringDriver()), 'backfill-null');
+    const applied = await backfillRunTitles({ store: f.store, titler: async () => null, apply: true });
+    expect(applied).toHaveLength(1);
+    expect(applied[0]!.title).toBeUndefined();
+    expect(f.store.listUntitledEndedRuns()).toHaveLength(1);
   });
 });

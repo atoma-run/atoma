@@ -25,7 +25,7 @@ import {
   SECRET_ENCRYPTION_ENV,
 } from '../auth/secretEncryption.js';
 import { DEFAULT_PROJECT_RUN_TIMEOUT_MS, hostSubscriptionPinsOf, ProjectRunCoordinator } from '../projects/coordinator.js';
-import { hostRunTitler } from '../projects/runTitle.js';
+import { backfillRunTitles, hostRunTitler } from '../projects/runTitle.js';
 import { PreviewStore } from '../preview/store.js';
 import { recordDeliveredPreview } from '../preview/service.js';
 import { GitHubPublisher } from '../projects/publisher.js';
@@ -58,6 +58,14 @@ usage:
   npm run projects -- run --project <slug-or-id> --as <principal-id-or-email> "<goal>"
                           [--criteria <file>] [--db path]
   npm run projects -- publish --project <slug-or-id> --as <who> --run <run-id> [--db path]
+  npm run projects -- titles [--apply] [--db path]
+
+titles:
+  Names every ENDED run of every organisation that has no short title yet —
+  the runs that ended before titles existed. Same call, same model (the
+  host's api: ATOMA_MODEL_L1 and its credential) and same write-once store
+  method as a run's own end. A DRY RUN until --apply: it lists the runs and
+  spends nothing. One call at a time; a run naming gives up on stays untitled.
 
 acceptance criteria:
   --criteria names a text file with ONE criterion per line, the grammar the
@@ -113,6 +121,7 @@ flags:
   --as <id-or-email>         principal the run is attributed to (required)
   --run <run-id>             the delivered run to publish (publish only)
   --timeout <seconds>        run budget, 60..7200, default ${DEFAULT_PROJECT_RUN_TIMEOUT_MS / 1000} (run only)
+  --apply                    name the listed runs (titles only; otherwise a dry run)
   --help                     show this help`;
 
 function safeTerminal(value: string): string {
@@ -310,7 +319,7 @@ function resolveProject(
 async function main(): Promise<void> {
   applyCheckoutDotenvForSourceEntry();
   const args = parseCliArgs(process.argv, {
-    booleanFlags: ['help'],
+    booleanFlags: ['help', 'apply'],
     valueFlags: [
       'db',
       'project',
@@ -390,6 +399,35 @@ async function main(): Promise<void> {
 
   if (command === 'create') {
     createProject(auth, projects, dbPath, args.flags);
+    return;
+  }
+
+  if (command === 'titles') {
+    const apply = args.flags['apply'] === 'true';
+    let named = 0;
+    let costUsd = 0;
+    const items = await backfillRunTitles({
+      store: projects,
+      titler: hostRunTitler(process.env),
+      apply,
+      onItem: (item) => {
+        if (item.title) {
+          named += 1;
+          costUsd += item.costUsd ?? 0;
+        }
+        process.stdout.write(
+          `${item.projectRunId}  ${item.status.padEnd(9)}  ${
+            item.title ? safeTerminal(item.title) : apply ? '(not named)' : '(would be named)'
+          }\n`
+        );
+      },
+    });
+    process.stdout.write(
+      apply
+        ? `\nnamed ${named} of ${items.length} run(s), $${costUsd.toFixed(4)}\n`
+        : `\n${items.length} run(s) without a title — dry run, nothing spent; pass --apply to name them\n`
+    );
+    if (apply && named < items.length) process.exitCode = 1;
     return;
   }
 
