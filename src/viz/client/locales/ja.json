@@ -1243,5 +1243,6 @@
   "projects.runTokens": "トークン：{{value}}",
   "projects.runLlmCalls": "LLM呼び出し：{{value}}",
   "projects.runJevCalls": "Jev API呼び出し：{{value}}",
-  "projects.cardLastRun": "前回のrun：{{ago}}"
+  "projects.cardLastRun": "前回のrun：{{ago}}",
+  "projects.runJevCallsLowerBound": "記録されたJevレスポンスで確認された最小値です。古いトレースでは、すべてのHTTP試行や再試行がカウントされていません。"
 }

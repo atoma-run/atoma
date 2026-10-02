@@ -1243,5 +1243,6 @@
   "projects.runTokens": "الرموز: {{value}}",
   "projects.runLlmCalls": "استدعاءات LLM: {{value}}",
   "projects.runJevCalls": "استدعاءات واجهة Jev API: {{value}}",
-  "projects.cardLastRun": "آخر run منذ {{ago}}"
+  "projects.cardLastRun": "آخر run منذ {{ago}}",
+  "projects.runJevCallsLowerBound": "الحد الأدنى الذي تؤكده استجابات Jev المسجّلة. لم تحتسب سجلات التتبّع الأقدم كل محاولة HTTP أو إعادة محاولة."
 }

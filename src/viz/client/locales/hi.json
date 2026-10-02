@@ -1243,5 +1243,6 @@
   "projects.runTokens": "टोकन: {{value}}",
   "projects.runLlmCalls": "LLM कॉल: {{value}}",
   "projects.runJevCalls": "Jev API कॉल: {{value}}",
-  "projects.cardLastRun": "पिछला run {{ago}}"
+  "projects.cardLastRun": "पिछला run {{ago}}",
+  "projects.runJevCallsLowerBound": "रिकॉर्ड किए गए Jev जवाबों से पुष्टि की गई न्यूनतम संख्या। पुराने ट्रेस में हर HTTP प्रयास या पुनः प्रयास की गणना नहीं की गई थी।"
 }

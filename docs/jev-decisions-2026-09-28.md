@@ -657,6 +657,33 @@ the uncertainty band and declared-output precedence intact. Existing output,
 credit, visibility, read-only restoration and prefilter regressions also pass.
 No lexical vocabulary or host restoration rule was expanded.
 
+Production validation on release `f6ee893b` is preserved in
+[`skill-subrecipe-followup-2026-10-02.json`](skill-subrecipe-followup-2026-10-02.json),
+including both complete trace summaries and paged detail evidence.
+[CI 36941548604](https://github.com/mgtf/atoma/actions/runs/36941548604)
+passed (386 test files, 3 skipped), and
+[deployment 36941982796](https://github.com/mgtf/atoma/actions/runs/36941982796)
+succeeded after a live preview released the preflight. This task did not
+interrupt that preview or alter production recipes/counters manually.
+
+- `2026-10-01T23-55-23-079-666962e1.json` repeats the original negated
+  verification request unchanged. Jev read `task_changes_files=0.06`; the
+  trace records match, direct dispatch and success, all three comparisons
+  passed, and no L1 plan/execute call or fallback. The whole run still used
+  two LLM calls for checklist and acceptance; this is not a zero-LLM run.
+- `2026-10-01T23-55-59-872-7b03d8e6.json` reused the LLM build recipe and
+  recorded five command probes (exit codes `0,1,1,1,1`). The independent L2
+  extraction ran once (6.811 seconds, $0.009752 equivalent subscription
+  cost) and returned the existing verifier id with the reason that it already
+  covers the workflow. No duplicate was saved and the build recipe retained
+  its original provenance. The compiled verifier ended at three successes,
+  zero failures and zero direct failures.
+
+These two runs confirm the two repaired production paths on one fixture
+family. Creating and compiling a new sibling when none exists, temporary
+extraction failure/retry and adversarial cases are regression-test evidence,
+not additional live-production measurements.
+
 ## Reading "we will see"
 
 Two weeks after the switch of 2026-09-29 (so around 2026-10-13), or sooner if

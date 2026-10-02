@@ -1243,5 +1243,6 @@
   "projects.runTokens": "Tokens: {{value}}",
   "projects.runLlmCalls": "Chamadas LLM: {{value}}",
   "projects.runJevCalls": "Chamadas à API Jev: {{value}}",
-  "projects.cardLastRun": "último run {{ago}}"
+  "projects.cardLastRun": "último run {{ago}}",
+  "projects.runJevCallsLowerBound": "Mínimo confirmado pelas respostas do Jev gravadas. Os rastreios mais antigos não contabilizavam todas as tentativas HTTP nem todas as novas tentativas."
 }
