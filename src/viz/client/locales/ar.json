@@ -1192,7 +1192,7 @@
   "run.partial.details": "التفاصيل التقنية",
   "projects.runPartial.rerun": "لم يكتمل run المقارنة المُعاد. ويظل بجوار المشروع؛ أما run التالي للمشروع فيتابع عمل المشروع نفسه.",
   "run.partial.next.rerun": "يظل run المقارنة المُعاد هذا بجوار المشروع لأغراض المقارنة: يتابع run التالي للمشروع عمل المشروع نفسه، لا عمل هذا run.",
-  "run.partial.next.superseded": "",
+  "run.partial.next.superseded": "اكتمل run لاحق لهذا المشروع. يستخدم run التالي أحدث مساحة عمل لا تزال متاحة؛ وإذا لم تبقَ أيٌّ منها، فسيبدأ من جديد.",
   "depth.checklist.judged_one": "المعيار الذي اعتُبر مستوفًى: {{met}} من أصل {{count}}",
   "depth.checklist.judged_other": "المعايير التي اعتُبرت مستوفاة: {{met}} من أصل {{count}}",
   "admin.ledgerFact.by": "بواسطة {{value}}",

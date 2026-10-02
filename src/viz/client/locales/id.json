@@ -1192,7 +1192,7 @@
   "run.partial.details": "Detail teknis",
   "projects.runPartial.rerun": "run ulang perbandingan, belum selesai. run ini tetap berada di samping proyek; run proyek berikutnya melanjutkan pekerjaannya sendiri.",
   "run.partial.next.rerun": "run ulang perbandingan ini tetap berada di samping proyek untuk perbandingan: run proyek berikutnya melanjutkan pekerjaan proyek sendiri, bukan run ini.",
-  "run.partial.next.superseded": "",
+  "run.partial.next.superseded": "run yang lebih baru untuk proyek ini telah selesai. run berikutnya menggunakan ruang kerja terbaru yang masih tersedia; jika tidak ada yang tersisa, run dimulai dari awal.",
   "depth.checklist.judged_one": "{{met}} dari {{count}} kriteria dinilai terpenuhi",
   "depth.checklist.judged_other": "{{met}} dari {{count}} kriteria dinilai terpenuhi",
   "admin.ledgerFact.by": "oleh {{value}}",

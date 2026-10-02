@@ -1192,7 +1192,7 @@
   "run.partial.details": "Détails techniques",
   "projects.runPartial.rerun": "Run de comparaison relancé, non terminé. Il reste à côté du projet ; le prochain run du projet poursuit son propre travail.",
   "run.partial.next.rerun": "Ce run de comparaison relancé reste à côté du projet à des fins de comparaison : le prochain run du projet poursuit le travail propre au projet, pas celui de ce run.",
-  "run.partial.next.superseded": "",
+  "run.partial.next.superseded": "Un run ultérieur de ce projet est terminé. Le prochain run utilise le workspace disponible le plus récent ; s’il n’en reste aucun, il repart de zéro.",
   "depth.checklist.judged_one": "{{met}} critère sur {{count}} jugé rempli",
   "depth.checklist.judged_other": "{{met}} critères sur {{count}} jugés remplis",
   "admin.ledgerFact.by": "par {{value}}",
