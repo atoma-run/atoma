@@ -7,7 +7,6 @@ Read [`AGENTS.md`](../../AGENTS.md) first: it holds the cross-cutting rules.
 Everything below is stated once, here, and is not repeated at the root.
 
 Neighbours:
-
 - [`src/auth`](../auth/AGENTS.md) — the identities projects belong to
 - [`src/github`](../github/AGENTS.md) — where publication lands
 - [`src/platform`](../platform/AGENTS.md) — the journal this domain emits into
@@ -19,7 +18,6 @@ Project runs enable isolated, proxied egress by default. The operator may set
 list. These values come from the host snapshot, never a tenant prompt.
 
 ## Scoping and storage
-
 - Projects, GitHub App installations and publications are organisation-scoped;
   a run belongs to exactly one project and a project to exactly one
   organisation. Gated `/api/runs` lists that org's project traces from
@@ -34,7 +32,6 @@ list. These values come from the host snapshot, never a tenant prompt.
   STORED spec in `ATOMA_ACCEPTANCE_SPEC`, never the request's.
 
 ## Tier selectors and credentials
-
 - Every tier of a project run resolves to one full selector,
   `<api|sub|own>:<vendor>:<model>` ([src/contracts](../contracts/AGENTS.md)
   `modelSelector.ts`), by walking a rerun's run level > account pin >
@@ -76,7 +73,6 @@ list. These values come from the host snapshot, never a tenant prompt.
   host-side tool loop and ToolSandbox.
 
 ## Subscription selectors
-
 - A `sub:` selector spends the HOST's own login session (Claude Code for
   anthropic, Codex for openai) and cannot honour a supplied credential — for a
   tenant that would be one account billing another. It is ADMISSIBLE BY CHAIN
@@ -121,7 +117,6 @@ list. These values come from the host snapshot, never a tenant prompt.
   grammar of 2026-09-07).
 
 ## Per-tier personal Codex subscription
-
 - `own:openai:<model>` is an ACCOUNT-only selector on any tier. The
   coordinator resolves it from the requesting principal's exact private Codex
   generation at launch, records payer `principal-subscription`, and injects
@@ -239,6 +234,11 @@ list. These values come from the host snapshot, never a tenant prompt.
   contradictions itself.
 
 ## Delivery, and the evidence it is decided from
+
+- Declared text deliveries retain their answer in the trace and may have an empty
+  inventory; they never preview or publish, even with input files. Empty partials
+  remain partial; ordinary empty file deliveries still fail. Legacy hashes stay.
+  [Contract and evidence](../../docs/incidents/text-delivery-2026-10-02.md).
 
 - New delivery manifests inventory every publishable regular file in the
   finished workspace, including files child work added after the root plan.

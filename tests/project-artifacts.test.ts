@@ -50,6 +50,15 @@ function expectPolicyError(
 }
 
 describe('project artifact manifest construction', () => {
+  it('revalidates an empty text delivery and detects files added after completion', () => {
+    const built = buildWorkspaceArtifactManifest({ workspaceRoot: root, delivery: 'text' });
+    expect(built.manifest).toEqual({ version: 1, source: 'workspace', delivery: 'text', files: [], totalBytes: 0 });
+    const input = { workspaceRoot: root, manifest: built.manifest, expectedHash: built.hash };
+    expect(() => revalidateArtifactManifest(input)).not.toThrow();
+    writeFileSync(join(root, 'added.txt'), 'new bytes');
+    expect(() => revalidateArtifactManifest(input)).toThrow();
+  });
+
   it('publishes only declared regular files with stable hashes, modes and ordering', () => {
     mkdirSync(join(root, 'bin'));
     writeFileSync(join(root, 'README.md'), 'hello\n');

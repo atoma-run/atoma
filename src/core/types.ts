@@ -4,6 +4,8 @@ export type Tier = 1 | 2 | 3;
 
 export interface Task {
   readonly description: string;
+  readonly originalTask?: Pick<Task, 'description' | 'inputs' | 'constraints'>;
+  readonly executionMode?: import('../contracts/taskExecution.js').ExecutionMode;
   /** Semantic file intent from a recipe prefilter; never a restoration-policy flag. */
   readonly fileEffect?: import('../contracts/fileEffect.js').FileEffect;
   readonly inputs?: Record<string, unknown>;
@@ -90,6 +92,7 @@ export interface GenerationParams {
  */
 export interface SubtaskSpec {
   readonly description: string;
+  readonly executionMode?: import('../contracts/taskExecution.js').ExecutionMode;
   readonly inputs?: Record<string, unknown>;
   readonly preferredChild?: string;
   /** See `Task.outputs` — threaded verbatim onto the child Task. */
@@ -141,6 +144,7 @@ export interface AggregationSpec {
  */
 export interface Plan {
   readonly reasoning: string;
+  readonly delivery?: import('../contracts/taskExecution.js').DeliveryKind;
   readonly subtasks: readonly SubtaskSpec[];
   readonly aggregation: AggregationSpec;
   readonly expectedOutput: string;
@@ -579,6 +583,8 @@ export interface JevChoiceDeferral {
 export interface JevApprovalRequest {
   readonly subject: 'PLAN' | 'RESULT';
   readonly task: { readonly description: string; readonly constraints?: readonly string[] };
+  /** Original facts and prior work, distinct from requirements of the current phase. */
+  readonly context?: readonly string[];
   /** Explicitly scoped to this child task; never inherit the root checklist from Task.inputs. */
   readonly criteria?: readonly import('../contracts/acceptanceChecklist.js').ChecklistItem[];
   /** Existing plan-declared obligations of THIS phase, not the root proof floor. */

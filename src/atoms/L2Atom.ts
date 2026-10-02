@@ -41,6 +41,8 @@ import {
   renderProofCoverage,
 } from './proofCoverage.js';
 import { randomUUID } from 'node:crypto';
+import { delegatedTaskContext } from './taskContext.js';
+import { TASK_EXECUTION_GUIDANCE } from '../contracts/taskExecution.js';
 import { RegistryNotFoundError } from '../core/errors.js';
 import { mergeTools } from './toolMerge.js';
 import {
@@ -606,6 +608,8 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       `needs a tool you do not hold, "mutualize" to the peer that lists it, or`,
       `scope the subtask to what your tools can prove and state the limit.`,
       ``,
+      TASK_EXECUTION_GUIDANCE,
+      task.executionMode === 'reasoning' ? 'This task and every descendant are reasoning-only; tools are disabled.' : '',
       `Task: ${task.description}`,
       task.inputs ? `Inputs: ${JSON.stringify(task.inputs)}` : '',
       task.constraints?.length ? `Constraints:\n${task.constraints.map((c) => `- ${c}`).join('\n')}` : '',
@@ -615,7 +619,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       `Shape:`,
       `[`,
       `  {"strategy": "reuse"|"create"|"mutualize", "target": "<name>"?, "seed"?: {"description": "...", "tools": [], "params": {}}, "reasoning": "..."},`,
-      `  {"reasoning": "...", "subtasks": [{"description": "...", "preferredChild": "<L1-name>"?, "inputs": {}?, "outputs": ["<file the subtask creates/modifies>", ...]}, ...], "aggregation": {"mode": "concat"|"llm-synthesize"|"sequential", "instruction": "..."?}, "expectedOutput": "..."}`,
+      `  {"reasoning": "...", "delivery": "text"|"files", "subtasks": [{"description": "...", "executionMode": "reasoning"|"tools", "preferredChild": "<L1-name>"?, "inputs": {}?, "outputs": ["<file the subtask creates/modifies>", ...]}, ...], "aggregation": {"mode": "concat"|"llm-synthesize"|"sequential", "instruction": "..."?}, "expectedOutput": "..."}`,
       `]`,
       `Every file-mutating subtask MUST include "outputs". Omit the key only on read-only subtasks.`,
       `The first character of your response MUST be "[". Do NOT call any tools.`,
@@ -781,7 +785,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     }
     const subTask: Task = {
       description: subtask.description,
-      ...(subtask.inputs ? { inputs: subtask.inputs } : {}),
+      ...delegatedTaskContext(parentTask, subtask),
       // Structured output intent travels with the task: the skill dispatch
       // gates read it as authoritative instead of regex-recovering it.
       ...(subtask.outputs && subtask.outputs.length > 0 ? { outputs: subtask.outputs } : {}),
@@ -820,7 +824,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     // matched (observed: 4 replay-twins in 2 days, all operator-merged).
     let matchedSkillId: string | undefined;
     let visibleNsForHooks: readonly string[] | undefined;
-    if (this.skillRegistry) {
+    if (this.skillRegistry && subTask.executionMode !== 'reasoning') {
       skillMatchAttempted = true;
       // SHARED-CATALOG VISIBILITY (commit B): resolved ONCE per subtask,
       // here where l1Type and its tools are in hand. Donor namespaces are
@@ -1370,7 +1374,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     // never stacks twice on one instance.
     const injectedEventSkills = new Map<string, L1Atom>();
     const injectEventSkill = (child: L1Atom, eventText: string): void => {
-      if (process.env['ATOMA_EVENT_SKILLS'] === '0' || !this.skillRegistry) return;
+      if (process.env['ATOMA_EVENT_SKILLS'] === '0' || !this.skillRegistry || skillCtx.subTask.executionMode === 'reasoning') return;
       if (!eventText.trim()) return;
       const candidates = this.skillRegistry.loadFor(skillCtx.l1Name).filter((s) => s.trigger);
       const match = matchEventSkill(eventText, candidates);
@@ -2019,13 +2023,15 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
    * rightly rejected that and the 10-minute deadline ran out.
    */
   private async selfPlan(task: Task, ctx: RunContext): Promise<Plan> {
-    const hasTools = this.tools.length > 0 && ctx.tools !== undefined;
+    const hasTools = task.executionMode !== 'reasoning' && this.tools.length > 0 && ctx.tools !== undefined;
     const toolCatalog = hasTools
       ? this.tools.map((t) => `  - ${t.name}: ${t.description}`).join('\n')
       : '(no tools available — reasoning-only answer)';
     const userContent = [
       `You are cell "${this.name}" (tier 2) in FALLBACK mode: do the task yourself, no delegation.`,
       ``,
+      TASK_EXECUTION_GUIDANCE,
+      task.executionMode === 'reasoning' ? 'This task and every descendant are reasoning-only; tools are disabled.' : '',
       `Task: ${task.description}`,
       task.inputs ? `Inputs: ${JSON.stringify(task.inputs)}` : '',
       hasTools
@@ -2035,7 +2041,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       toolCatalog,
       ``,
       `IMPORTANT: emit ONE JSON object, NOT an array. Shape exactly:`,
-      `{"reasoning": "...", "proposedAction": "...", "expectedOutput": "..."}`,
+      `{"reasoning": "...", "delivery": "text"|"files", "proposedAction": "...", "expectedOutput": "..."}`,
       `Your regular mode uses a [strategy, plan] array — that mode is OFF here.`,
       `The first character of your response MUST be "{".`,
     ]
@@ -2060,14 +2066,14 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     return parsePlanWithFallback(resp.text, {
       reasoning: `fallback: could not parse a plan from the LLM response; proceeding with direct execution of the task`,
       proposedAction: `execute the task directly using the available tools (${
-        this.tools.map((t) => t.name).join(', ') || 'none'
+        (hasTools ? this.tools : []).map((t) => t.name).join(', ') || 'none'
       })`,
       expectedOutput: task.description,
     });
   }
 
   private async selfExecute(task: Task, plan: Plan, ctx: RunContext): Promise<Result> {
-    const hasTools = this.tools.length > 0 && ctx.tools !== undefined;
+    const hasTools = task.executionMode !== 'reasoning' && this.tools.length > 0 && ctx.tools !== undefined;
     const hasValidator = hasTools && this.tools.some((t) => t.name === 'validate_html');
     const userContent = [
       `You are "${this.name}" (tier 2) in FALLBACK: L1 supervision failed, you are now the executor.`,
@@ -2075,6 +2081,8 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         ? 'You HAVE tool access in this fallback turn. Use the tools to actually perform the work — do NOT just describe it. Relative paths for file tools ("index.html", not "/abs/index.html").'
         : 'You have NO tool access; produce a reasoning-only answer. Do not claim to have written files or run commands.',
       ``,
+      TASK_EXECUTION_GUIDANCE,
+      task.executionMode === 'reasoning' ? 'This task and every descendant are reasoning-only; tools are disabled.' : '',
       `Task: ${task.description}`,
       task.inputs ? `Inputs: ${JSON.stringify(task.inputs)}` : '',
       ``,

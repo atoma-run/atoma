@@ -56,11 +56,21 @@ describe('Jev policy regression paths', () => {
     await jevApproval({ ctx, subject: 'PLAN', supervisorName: 'Cell', supervisorTier: 2,
       child: { name: 'Water', tier: 1, toolNames: () => [] },
       task: { description: 'Verify the button', constraints: ['Do not change files'], proofObligations: ['dom-interaction'],
-        inputs: { acceptanceChecklist: [{ id: 'c1', behaviour: 'Unrelated final delivery requirement' }] } }, payload: {} });
+        inputs: { acceptanceChecklist: [{ id: 'c1', behaviour: 'Unrelated final delivery requirement' }],
+          originalTask: { description: 'The button is named Save.', inputs: { acceptanceChecklist: [{ behaviour: 'Root-only criterion' }] } },
+          previousStepResult: 'The button was rendered.' } }, payload: {} });
     const state = JSON.stringify(bodies[0]!.state);
     expect(state).toContain('dom-interaction');
     expect(state).toContain('Do not change files');
     expect(state).not.toContain('Unrelated final delivery requirement');
+    expect(state).not.toContain('Root-only criterion');
+    expect(state).toContain('The button is named Save.');
+    expect(state).toContain('The button was rendered.');
+    expect((bodies[0]!.state as { requirements: string[] }).requirements).toEqual([
+      'Verify the button',
+      'Phase proof obligation: dom-interaction: DOM interactions must actually be executed and observed by the host, not merely claimed or requested.',
+      'Constraint: Do not change files',
+    ]);
   });
 
   it('finds a twin beyond the old first-48 limit, with symmetric recipe bodies', async () => {

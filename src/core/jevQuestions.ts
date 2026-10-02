@@ -664,6 +664,7 @@ export function buildApproval(request: JevApprovalRequest): JevApprovalPlan | st
       task: request.task.description,
       constraints: request.task.constraints ?? [],
       requirements,
+      ...(request.context?.length ? { context: capped(request.context, JEV_STATE_CHARS.plan) } : {}),
       child: { name: request.child.name, tier: request.child.tier, declaredTools: request.child.tools },
       ...(request.subject === 'PLAN'
         ? { plan: capped(request.payload, JEV_STATE_CHARS.plan) }

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { taskContextLines } from './taskContext.js';
 import { fileEffectSchema } from '../contracts/fileEffect.js';
 import type { AtomType } from '../registry/atomRegistry.js';
 import type {
@@ -368,7 +369,8 @@ export async function jevApproval(args: {
         description: args.task.description,
         ...(args.task.constraints?.length ? { constraints: args.task.constraints } : {}),
       },
-      child: { name: args.child.name, tier: args.child.tier, tools: args.child.toolNames() },
+      context: taskContextLines(args.task),
+      child: { name: args.child.name, tier: args.child.tier, tools: args.task.executionMode === 'reasoning' ? [] : args.child.toolNames() },
       payload: args.payload,
       ...(args.criteria ? { criteria: args.criteria } : {}),
       ...(args.task.proofObligations ? { obligations: args.task.proofObligations } : {}),

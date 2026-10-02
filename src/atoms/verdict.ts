@@ -5,6 +5,7 @@ import { transportWitnesses } from '../contracts/witness.js';
 import { probeGroundTruth } from './groundTruth.js';
 import { BUILTIN_TOOL_NAMES, HOST_TOOL_NAMES } from '../contracts/toolTaxonomy.js';
 import { READ_ONLY_TASK_LINE } from '../contracts/readOnlyPhase.js';
+import { taskContextLines } from './taskContext.js';
 import { RECIPE_STEP_LIMITS } from '../skills/events.js';
 
 /**
@@ -893,11 +894,14 @@ export async function llmVerdict(args: {
     // app-task-tracker run's UI-verification phase was approved while
     // planning seven validate_html calls on an HTTP-bucket child.
     planKind === 'DIRECT'
-      ? `Child's DECLARED TOOLS (its ONLY executable surface): ${args.child.toolNames().join(', ') || '(none)'}`
-      : `Tools inherited by NEW children created by this delegator: ${args.child.toolNames().join(', ') || '(none)'}. Existing children retain their own declared tools. The delegator does not call these tools itself.`,
+      ? `Child's DECLARED TOOLS (its ONLY executable surface): ${(args.task.executionMode === 'reasoning' ? [] : args.child.toolNames()).join(', ') || '(none)'}`
+      : args.task.executionMode === 'reasoning'
+        ? 'No tools are available to this delegator or any descendant for this reasoning-only task.'
+        : `Tools inherited by NEW children created by this delegator: ${args.child.toolNames().join(', ') || '(none)'}. Existing children retain their own declared tools. The delegator does not call these tools itself.`,
     `Subject kind: ${subjectHint}`,
     `Plan kind: ${planKindHint}`,
     `Task: ${args.task.description}`,
+    ...taskContextLines(args.task),
     args.task.readOnly ? READ_ONLY_TASK_LINE : '',
     args.targetContext ? `Delegation target(s):\n${args.targetContext}` : '',
     `${args.subject}: ${JSON.stringify(args.payload)}`,

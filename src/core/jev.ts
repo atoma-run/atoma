@@ -487,6 +487,7 @@ export function legacyApproval(
   try {
     const state = {
       ...taskState(request.task),
+      ...(request.context?.length ? { context: capped(request.context, JEV_STATE_CHARS.plan) } : {}),
       child: { name: request.child.name, tier: request.child.tier, declaredTools: request.child.tools },
       ...(request.subject === 'PLAN'
         ? { plan: capped(request.payload, JEV_STATE_CHARS.plan) }

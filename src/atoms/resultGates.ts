@@ -299,6 +299,7 @@ const RESULT_GATES: readonly ResultGate[] = [
     disposition: 'reject',
     check: (env) => {
       if (!env.requireObservedToolAction) return Promise.resolve(null);
+      if (env.task.executionMode === 'reasoning') return Promise.resolve(null);
       if (env.result.toolCallResults === undefined) return Promise.resolve(null);
       if (resultHasSuccessfulToolAction(env.result)) return Promise.resolve(null);
       return Promise.resolve({

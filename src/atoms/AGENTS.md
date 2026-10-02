@@ -7,14 +7,12 @@ Read [`AGENTS.md`](../../AGENTS.md) first: it holds the cross-cutting rules.
 Everything below is stated once, here, and is not repeated at the root.
 
 Neighbours:
-
 - [`src/core`](../core/AGENTS.md) — transports, models and cost accounting
 - [`src/tools`](../tools/AGENTS.md) — the elements L1 invokes
 - [`src/skills`](../skills/AGENTS.md) — the recipes injected into planning
 - [`src/registry`](../registry/AGENTS.md) — atom identity and trust storage
 
 ## Supervision protocol
-
 - `superviseLoop` is the only plan → validate → execute → validate protocol.
   L2 and L3 reuse it for children; never duplicate that loop in concrete
   atoms. The L3 root `handle` is plan → execute (no parent). A parallel
@@ -47,7 +45,6 @@ Neighbours:
   every `forkBranch`; add fork-propagation coverage for new optional fields.
 
 ## Root delivery acceptance in depth routing
-
 - The depth runner's `rootAcceptance.ts` owns delivery acceptance:
   delegated result gates retain their dispositions, `probe.requiresReview`
   forces review. Explicit profile floors require an executed DOM interaction
@@ -104,7 +101,6 @@ Neighbours:
   wording follows the analyst's on purpose: one definition of a landing, served
   to both judges. A phase supervisor never receives it — landing is a property
   of the whole run.
-
 - THE ACCEPTANCE CHECKLIST ([design](../../docs/acceptance-checklist-2026-09-25.md))
   is drafted once per depth-routed run by `draftAcceptanceChecklist`
   (cheapest tier, role `draft-checklist`, actor `run-checklist`), reaches the
@@ -183,6 +179,10 @@ load-bearing.
   the cheapest model's minimum and confirm `cache_read` on multi-call runs.
 
 ## Aggregation and dispatch shape
+
+- Delegation preserves original task inputs/constraints and preceding phase results.
+  Declared reasoning mode disables tools/skills through descendants and fallbacks;
+  only its observed-action gate is skipped. [Contract and review](../../docs/incidents/text-delivery-2026-10-02.md).
 
 - `llm-synthesize` merges text without tools; file assembly requires an L1 phase.
 - Aggregation is behavioral: `concat` and `llm-synthesize` dispatch orthogonal

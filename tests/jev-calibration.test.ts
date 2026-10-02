@@ -175,6 +175,21 @@ describe('reading the model validation prompt back', () => {
     expect(parseValidationPrompt(decision('validate-result', prompt))?.eligible).toBe(false);
   });
 
+  it('keeps inherited facts separate from phase requirements when replaying a reasoning validation', async () => {
+    const { l1 } = atoms();
+    const ctx = makeCtx();
+    ctx.llm.enqueueText(jsonText({ approved: true, reasoning: 'correct' }));
+    await llmVerdict({ ctx, model: 'm', supervisorName: 'Cell', supervisorTier: 2, subject: 'RESULT', child: l1,
+      task: { description: 'Audit the bound.', executionMode: 'reasoning', constraints: ['No files'],
+        inputs: { originalTask: { description: 'P=4, Q=2 on R.' }, previousStepResult: '6' } },
+      payload: { output: '6 is optimal', summary: 'proved' } });
+    const parsed = parseValidationPrompt(decision('validate-result', ctx.llm.calls[0]!.userContent));
+    expect(parsed?.request.task).toEqual({ description: 'Audit the bound.', constraints: ['No files'] });
+    expect(parsed?.request.context?.join('\n')).toContain('P=4, Q=2 on R.');
+    expect(parsed?.request.context?.join('\n')).toContain('Tools are disabled');
+    expect(parsed?.request.child.tools).toEqual([]);
+  });
+
   it("recovers a delegation plan and the tools its delegator's children inherit", async () => {
     const { l2 } = atoms();
     const ctx = makeCtx();

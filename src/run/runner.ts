@@ -99,6 +99,7 @@ export function persistDeclaredArtifactManifest(path: string, runId: string, pla
     version: 1,
     runId,
     generatedAt: new Date().toISOString(),
+    ...(plan.delivery ? { delivery: plan.delivery } : {}),
     outputs,
   });
   const target = resolve(path);

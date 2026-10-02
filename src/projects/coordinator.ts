@@ -1672,6 +1672,8 @@ export class ProjectRunCoordinator {
       }
       const built = buildWorkspaceArtifactManifest({
         workspaceRoot: reservedRun.hostPaths.workspacePath,
+        ...(declarations.delivery ? { delivery: declarations.delivery } : {}),
+        allowEmpty: landed,
       });
       const completed = this.store.completeProjectRun({
         orgId: reservedRun.orgId,
@@ -1702,7 +1704,8 @@ export class ProjectRunCoordinator {
       // artefact the judge said was unproven. A landed run is still readable
       // (its manifest and its bytes are kept and seeded) — it is just not
       // offered as something to click.
-      if (this.describeDeliveredPreview && !landed) {
+      const fileDelivery = built.manifest.delivery !== 'text' && built.manifest.files.length > 0;
+      if (this.describeDeliveredPreview && !landed && fileDelivery) {
         try {
           this.describeDeliveredPreview({
             orgId: reservedRun.orgId,
@@ -1723,7 +1726,7 @@ export class ProjectRunCoordinator {
       // as incomplete afterwards.
       // Nor ever for a comparison rerun: its repository is the project's
       // line, and the rerun is a measurement beside it.
-      if (this.publisher && !landed && !completed.rerunOf) {
+      if (this.publisher && !landed && !completed.rerunOf && fileDelivery) {
         await this.publisher.publish({
           project,
           run: completed,

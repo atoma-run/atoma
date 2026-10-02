@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { deliveryKindSchema } from './taskExecution.js';
 import { runStatsSchema } from './runStats.js';
 import { approvedChecklistInputSchema } from './acceptanceChecklist.js';
 import { runTierModelsSchema, storedRunTierModelsSchema } from './tierModels.js';
@@ -310,11 +311,15 @@ export const artifactManifestSchema = z
     version: z.literal(1),
     // Absent on legacy plan-only manifests. Never infer complete coverage.
     source: z.literal('workspace').optional(),
-    files: z.array(artifactFileSchema).min(1),
+    delivery: deliveryKindSchema.optional(),
+    files: z.array(artifactFileSchema),
     totalBytes: z.number().int().nonnegative(),
   })
   .strict()
   .superRefine((manifest, ctx) => {
+    if (manifest.files.length === 0 && manifest.source !== 'workspace') {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['files'], message: 'only a workspace inventory may be empty' });
+    }
     const paths = new Set<string>();
     let total = 0;
     let previous = '';

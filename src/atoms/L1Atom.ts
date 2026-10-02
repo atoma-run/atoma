@@ -1,4 +1,6 @@
 import { Atom } from '../core/atom.js';
+import { REASONING_EXECUTION_GUIDANCE } from '../contracts/taskExecution.js';
+import { reasoningPrompt } from './taskContext.js';
 import type {
   Plan,
   Result,
@@ -299,11 +301,12 @@ export class L1Atom extends Atom {
   }
 
   async plan(task: Task, ctx: RunContext): Promise<Plan> {
+    const tools = task.executionMode === 'reasoning' ? [] : this.tools;
     const toolCatalog =
-      this.tools.length === 0
+      tools.length === 0
         ? '(no tools available — describe your output in the plan text)'
-        : this.tools.map((t) => `  - ${t.name}: ${t.description}`).join('\n');
-    const userContent = [
+        : tools.map((t) => `  - ${t.name}: ${t.description}`).join('\n');
+    const userContent = task.executionMode === 'reasoning' ? reasoningPrompt(task) : [
       `You are molecule "${this.name}" (tier 1 / molecule ordinal ${this.ordinal}).`,
       `You are the ONLY tier allowed to execute tools; in taxonomy, those tools are elements.`,
       `You cannot delegate further.`,
@@ -350,6 +353,7 @@ export class L1Atom extends Atom {
     // perform the work during planning and return prose instead of a plan JSON.
     const resp = await ctx.llm.complete(
       this.toLlmRequest('plan', {
+        ...(task.executionMode === 'reasoning' ? { systemPromptOverride: REASONING_EXECUTION_GUIDANCE } : {}),
         userContent,
         params: this.params,
         signal: ctx.signal,
@@ -360,9 +364,10 @@ export class L1Atom extends Atom {
   }
 
   async execute(task: Task, plan: Plan, ctx: RunContext): Promise<Result> {
-    const hasValidator = this.tools.some((t) => t.name === 'validate_html');
+    const tools = task.executionMode === 'reasoning' ? [] : this.tools;
+    const hasValidator = tools.some((t) => t.name === 'validate_html');
     const maxToolIterations = capToolIterations(hasValidator ? 40 : 24, ctx.deadlineAt);
-    const userContent = [
+    const userContent = task.executionMode === 'reasoning' ? reasoningPrompt(task, plan) : [
       `You are molecule "${this.name}" (tier 1). Your plan has been APPROVED. Execute it now.`,
       ``,
       `Task: ${task.description}`,
@@ -503,10 +508,11 @@ export class L1Atom extends Atom {
 
     const resp = await ctx.llm.complete(
       this.toLlmRequest('execute', {
+        ...(task.executionMode === 'reasoning' ? { systemPromptOverride: REASONING_EXECUTION_GUIDANCE } : {}),
         userContent,
-        tools: this.tools,
+        tools,
         params: this.params,
-        executor: ctx.tools ? modelFacingExecutor(withAutomaticLoopbackHttpRecording(ctx.tools)) : undefined,
+        executor: task.executionMode !== 'reasoning' && ctx.tools ? modelFacingExecutor(withAutomaticLoopbackHttpRecording(ctx.tools)) : undefined,
         signal: ctx.signal,
         onToolInvocation,
       // Iterative build-app style tasks (write_file → start_server →
