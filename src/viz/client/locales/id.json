@@ -1244,5 +1244,7 @@
   "projects.runLlmCalls": "Panggilan LLM: {{value}}",
   "projects.runJevCalls": "Panggilan API Jev: {{value}}",
   "projects.cardLastRun": "run terakhir {{ago}}",
-  "projects.runJevCallsLowerBound": "Minimum yang dikonfirmasi oleh respons Jev yang tercatat. Jejak lama tidak menghitung setiap percobaan HTTP atau percobaan ulang."
+  "projects.runJevCallsLowerBound": "Minimum yang dikonfirmasi oleh respons Jev yang tercatat. Jejak lama tidak menghitung setiap percobaan HTTP atau percobaan ulang.",
+  "skill.kind.llm": "LLM — resep berpanduan model",
+  "skill.kind.script": "SCRIPT — skrip terkompilasi"
 }

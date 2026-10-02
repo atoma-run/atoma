@@ -1244,5 +1244,7 @@
   "projects.runLlmCalls": "LLM 调用：{{value}}",
   "projects.runJevCalls": "Jev API 调用：{{value}}",
   "projects.cardLastRun": "上次 run：{{ago}}",
-  "projects.runJevCallsLowerBound": "根据已记录的 Jev 响应确认的最低值。较旧的跟踪记录未统计每次 HTTP 尝试或重试。"
+  "projects.runJevCallsLowerBound": "根据已记录的 Jev 响应确认的最低值。较旧的跟踪记录未统计每次 HTTP 尝试或重试。",
+  "skill.kind.llm": "LLM — 模型引导的配方",
+  "skill.kind.script": "SCRIPT — 已编译脚本"
 }

@@ -1244,5 +1244,7 @@
   "projects.runLlmCalls": "Appels LLM : {{value}}",
   "projects.runJevCalls": "Appels à l’API Jev : {{value}}",
   "projects.cardLastRun": "dernier run {{ago}}",
-  "projects.runJevCallsLowerBound": "Minimum confirmé par les réponses Jev enregistrées. Les anciennes traces ne comptaient pas chaque tentative HTTP ni chaque nouvelle tentative."
+  "projects.runJevCallsLowerBound": "Minimum confirmé par les réponses Jev enregistrées. Les anciennes traces ne comptaient pas chaque tentative HTTP ni chaque nouvelle tentative.",
+  "skill.kind.llm": "LLM — recette guidée par un modèle",
+  "skill.kind.script": "SCRIPT — script compilé"
 }

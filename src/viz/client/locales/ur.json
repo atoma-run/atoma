@@ -1244,5 +1244,7 @@
   "projects.runLlmCalls": "LLM کالز: {{value}}",
   "projects.runJevCalls": "Jev API کالز: {{value}}",
   "projects.cardLastRun": "آخری run {{ago}}",
-  "projects.runJevCallsLowerBound": "ریکارڈ شدہ Jev جوابات سے کم از کم تعداد کی تصدیق ہوئی۔ پرانے ٹریسز میں ہر HTTP کوشش یا دوبارہ کوشش شمار نہیں کی گئی تھی۔"
+  "projects.runJevCallsLowerBound": "ریکارڈ شدہ Jev جوابات سے کم از کم تعداد کی تصدیق ہوئی۔ پرانے ٹریسز میں ہر HTTP کوشش یا دوبارہ کوشش شمار نہیں کی گئی تھی۔",
+  "skill.kind.llm": "LLM — ماڈل کی رہنمائی والی ترکیب",
+  "skill.kind.script": "SCRIPT — کمپائل شدہ اسکرپٹ"
 }

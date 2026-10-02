@@ -1244,5 +1244,7 @@
   "projects.runLlmCalls": "Вызовы LLM: {{value}}",
   "projects.runJevCalls": "Вызовы API Jev: {{value}}",
   "projects.cardLastRun": "последний run {{ago}}",
-  "projects.runJevCallsLowerBound": "Минимум, подтверждённый записанными ответами Jev. В более старых трассировках учитывались не все попытки HTTP-запросов и повторы."
+  "projects.runJevCallsLowerBound": "Минимум, подтверждённый записанными ответами Jev. В более старых трассировках учитывались не все попытки HTTP-запросов и повторы.",
+  "skill.kind.llm": "LLM — рецепт под управлением модели",
+  "skill.kind.script": "SCRIPT — скомпилированный скрипт"
 }

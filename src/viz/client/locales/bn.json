@@ -1244,5 +1244,7 @@
   "projects.runLlmCalls": "LLM কল: {{value}}",
   "projects.runJevCalls": "Jev API কল: {{value}}",
   "projects.cardLastRun": "সর্বশেষ run {{ago}}",
-  "projects.runJevCallsLowerBound": "রেকর্ড করা Jev প্রতিক্রিয়ার ভিত্তিতে নিশ্চিত সর্বনিম্ন সংখ্যা। পুরোনো ট্রেসগুলোতে প্রতিটি HTTP প্রচেষ্টা বা পুনঃচেষ্টা গণনা করা হয়নি।"
+  "projects.runJevCallsLowerBound": "রেকর্ড করা Jev প্রতিক্রিয়ার ভিত্তিতে নিশ্চিত সর্বনিম্ন সংখ্যা। পুরোনো ট্রেসগুলোতে প্রতিটি HTTP প্রচেষ্টা বা পুনঃচেষ্টা গণনা করা হয়নি।",
+  "skill.kind.llm": "LLM — মডেল-নির্দেশিত রেসিপি",
+  "skill.kind.script": "SCRIPT — কম্পাইল করা স্ক্রিপ্ট"
 }

@@ -1244,5 +1244,7 @@
   "projects.runLlmCalls": "LLM-Aufrufe: {{value}}",
   "projects.runJevCalls": "Jev-API-Aufrufe: {{value}}",
   "projects.cardLastRun": "letzter run {{ago}}",
-  "projects.runJevCallsLowerBound": "Durch aufgezeichnete Jev-Antworten bestätigtes Minimum. Ältere Traces erfassten nicht jeden HTTP-Versuch oder Wiederholungsversuch."
+  "projects.runJevCallsLowerBound": "Durch aufgezeichnete Jev-Antworten bestätigtes Minimum. Ältere Traces erfassten nicht jeden HTTP-Versuch oder Wiederholungsversuch.",
+  "skill.kind.llm": "LLM — modellgesteuertes Rezept",
+  "skill.kind.script": "SCRIPT — kompiliertes Skript"
 }

@@ -1244,5 +1244,7 @@
   "projects.runLlmCalls": "LLM呼び出し：{{value}}",
   "projects.runJevCalls": "Jev API呼び出し：{{value}}",
   "projects.cardLastRun": "前回のrun：{{ago}}",
-  "projects.runJevCallsLowerBound": "記録されたJevレスポンスで確認された最小値です。古いトレースでは、すべてのHTTP試行や再試行がカウントされていません。"
+  "projects.runJevCallsLowerBound": "記録されたJevレスポンスで確認された最小値です。古いトレースでは、すべてのHTTP試行や再試行がカウントされていません。",
+  "skill.kind.llm": "LLM — モデル誘導型レシピ",
+  "skill.kind.script": "SCRIPT — コンパイル済みスクリプト"
 }
