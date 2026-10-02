@@ -1,0 +1,823 @@
+{
+  "revision": "fc65f6175a35bcc5829a98c33d17a647864bdbec",
+  "requests": [
+    {
+      "projectId": "72fdfe6e-0481-4599-a73e-38307685322a",
+      "idempotencyKey": "ledger-checker-repair-20261003-v1",
+      "goal": "Repair the existing historical ledger deliverable, chiefly verify_ledger.py. Preserve the supplied raw candidate data and the correct two surviving reconstructions. An independent audit found two checker defects: changing audit.md from 'Exactly two sequences survive:' to 'Exactly three sequences survive:' still exits 0, while replacing the correct phrase listing '+12, +17' with '+12 and +17' exits 1. Fix both semantically within an explicitly documented, bounded report format; do not claim arbitrary natural-language verification. Add repeatable regression checks that operate on isolated copies: original passes; that false count fails; equivalent ambiguity wording passes; normalized.csv t3 identified_delta +6 changed to +8 fails; falsely identifying t1 as only +12 fails. Keep audit.md accurate and reader-facing and preserve unrelated correct content. Run and report the checks and their exit codes. Deliver the updated offline files, not a website.",
+      "acceptanceCriteria": [
+        "The unchanged correct ledger passes verification and retains exactly two surviving reconstructions.",
+        "A report claiming three survivors is rejected; replacing '+12, +17' with '+12 and +17' remains accepted.",
+        "Wrong t3 +8 and falsely identified t1 +12 are rejected on isolated test copies.",
+        "Regression checks are reproducible and checker limitations are documented without claiming general prose understanding."
+      ]
+    },
+    {
+      "projectId": "579a918a-43e3-4aaa-a391-9efb117efec9",
+      "idempotencyKey": "music-octave-repair-20261003-v1",
+      "goal": "Correct the octave terminology in the existing composition.md. Use scientific pitch notation consistently: MIDI 60 is C4 (middle C), MIDI 72 is C5, and MIDI 48 is C3. The final melody note is MIDI 72; it is incorrectly described as middle C and C4 in the current document. Correct both passages while retaining the actual melody, bass, timing and other correct content. Preserve miniature.mid byte-for-byte (SHA-256 b725ccea04eb9df40daf44a09db56a8769427518ecce499341be79a870d279cd), score.csv and the generator and verifier. Verify the existing MIDI without regenerating it; report evidence in the result summary. Deliver only the necessary documentation change. The final workspace inventory must exclude interpreter cache directories.",
+      "acceptanceCriteria": [
+        "composition.md consistently labels MIDI 72 as C5, MIDI 60 as middle C/C4 and MIDI 48 as C3.",
+        "miniature.mid has SHA-256 b725ccea04eb9df40daf44a09db56a8769427518ecce499341be79a870d279cd; score and scripts remain unchanged.",
+        "Existing MIDI verification passes without regenerating the composition."
+      ]
+    },
+    {
+      "projectId": "e26b595c-f88f-4539-9ed6-b229cbdf48ef",
+      "idempotencyKey": "poetry-seasons-20261003-v1",
+      "goal": "Write an original English poem about a lighthouse keeper passing through four seasons. Deliver only the final poem and a concise constraint audit directly in the response; no files, code, tools, websites or external research are needed. The poem has exactly four stanzas of four lines each. Every poetic line has exactly six whitespace-separated words; avoid hyphens, numerals and contractions so counting is unambiguous. The first letters of its sixteen lines, read vertically, must spell LIGHTHOUSEKEEPER. The final words of the four stanzas must be respectively thaw, sun, leaves, snow. Stanzas should progress from spring to summer to autumn to winter, with a coherent emotional arc rather than a word list. After the poem, give a separate numbered audit of the sixteen word counts and the acrostic. Do not reproduce the poem multiple times in the final response.",
+      "acceptanceCriteria": [
+        "The poem has four stanzas of four lines and all sixteen lines contain exactly six whitespace-separated words.",
+        "The line initials spell LIGHTHOUSEKEEPER; stanza final words are thaw, sun, leaves, snow in that order.",
+        "The original poem follows spring, summer, autumn and winter with coherent lighthouse imagery; audit is separate."
+      ]
+    },
+    {
+      "projectId": "0bfc1681-fefe-46e1-a832-bfdfe0703410",
+      "idempotencyKey": "protocol-state-audit-20261003-v1",
+      "goal": "Create an offline, standard-library Python model-checking study of two-process mutual exclusion. No UI or web server. Model sequential consistency with state (pc0,pc1,flag0,flag1,turn), initially (0,0,false,false,0). Each transition advances exactly one process i, j=1-i: pc=0 sets flag[i]=true and pc[i]=1; pc=1 sets turn=j and pc[i]=2; pc=2 advances to pc[i]=3 iff not flag[j] OR turn==i; pc=3 exits by setting flag[i]=false and pc[i]=0. All other components stay unchanged. pc=3 denotes critical section. Exhaustively BFS every reachable state, recording every labeled edge, and check that both pcs are never 3 and that every reachable state enables at least one transition. Compare a buggy variant changing ONLY the pc=2 guard to not flag[j]; all other transitions stay identical. Find and emit a shortest reachable deadlock trace in the buggy variant, and state whether mutual exclusion still holds. Deliver model_check.py, results.json containing canonical states and edges for BOTH variants, and analysis.md explaining assumptions and results. Add reproducible checks that replay every counterexample transition and compare reported counts to independently recomputed graph counts. Explicitly distinguish deadlock-freedom from fairness/starvation-freedom: do not claim that the stated checks prove fairness. Keep proof observations in the final summary, with reader-facing explanations in the document.",
+      "acceptanceCriteria": [
+        "Both state graphs exhaust exactly the stated atomic transition systems from (0,0,false,false,0).",
+        "The correct variant has no mutual exclusion violation or deadlock; the buggy variant includes a shortest replayable deadlock trace.",
+        "results.json contains states, labeled edges and counts for both variants; executable checks verify them.",
+        "analysis.md distinguishes deadlock-freedom from starvation-freedom; only Python standard library and offline files are needed."
+      ]
+    }
+  ],
+  "protocolOracle": {
+    "correct": {
+      "buggy": false,
+      "states": [
+        [
+          0,
+          0,
+          false,
+          false,
+          0
+        ],
+        [
+          1,
+          0,
+          true,
+          false,
+          0
+        ],
+        [
+          0,
+          1,
+          false,
+          true,
+          0
+        ],
+        [
+          2,
+          0,
+          true,
+          false,
+          1
+        ],
+        [
+          1,
+          1,
+          true,
+          true,
+          0
+        ],
+        [
+          0,
+          2,
+          false,
+          true,
+          0
+        ],
+        [
+          3,
+          0,
+          true,
+          false,
+          1
+        ],
+        [
+          2,
+          1,
+          true,
+          true,
+          1
+        ],
+        [
+          1,
+          2,
+          true,
+          true,
+          0
+        ],
+        [
+          0,
+          3,
+          false,
+          true,
+          0
+        ],
+        [
+          0,
+          0,
+          false,
+          false,
+          1
+        ],
+        [
+          3,
+          1,
+          true,
+          true,
+          1
+        ],
+        [
+          2,
+          2,
+          true,
+          true,
+          0
+        ],
+        [
+          2,
+          2,
+          true,
+          true,
+          1
+        ],
+        [
+          1,
+          3,
+          true,
+          true,
+          0
+        ],
+        [
+          1,
+          0,
+          true,
+          false,
+          1
+        ],
+        [
+          0,
+          1,
+          false,
+          true,
+          1
+        ],
+        [
+          3,
+          2,
+          true,
+          true,
+          0
+        ],
+        [
+          2,
+          3,
+          true,
+          true,
+          1
+        ],
+        [
+          1,
+          1,
+          true,
+          true,
+          1
+        ]
+      ],
+      "edges": [
+        {
+          "from": 0,
+          "to": 1,
+          "process": 0
+        },
+        {
+          "from": 0,
+          "to": 2,
+          "process": 1
+        },
+        {
+          "from": 1,
+          "to": 3,
+          "process": 0
+        },
+        {
+          "from": 1,
+          "to": 4,
+          "process": 1
+        },
+        {
+          "from": 2,
+          "to": 4,
+          "process": 0
+        },
+        {
+          "from": 2,
+          "to": 5,
+          "process": 1
+        },
+        {
+          "from": 3,
+          "to": 6,
+          "process": 0
+        },
+        {
+          "from": 3,
+          "to": 7,
+          "process": 1
+        },
+        {
+          "from": 4,
+          "to": 7,
+          "process": 0
+        },
+        {
+          "from": 4,
+          "to": 8,
+          "process": 1
+        },
+        {
+          "from": 5,
+          "to": 8,
+          "process": 0
+        },
+        {
+          "from": 5,
+          "to": 9,
+          "process": 1
+        },
+        {
+          "from": 6,
+          "to": 10,
+          "process": 0
+        },
+        {
+          "from": 6,
+          "to": 11,
+          "process": 1
+        },
+        {
+          "from": 7,
+          "to": 12,
+          "process": 1
+        },
+        {
+          "from": 8,
+          "to": 13,
+          "process": 0
+        },
+        {
+          "from": 9,
+          "to": 14,
+          "process": 0
+        },
+        {
+          "from": 9,
+          "to": 0,
+          "process": 1
+        },
+        {
+          "from": 10,
+          "to": 15,
+          "process": 0
+        },
+        {
+          "from": 10,
+          "to": 16,
+          "process": 1
+        },
+        {
+          "from": 11,
+          "to": 16,
+          "process": 0
+        },
+        {
+          "from": 11,
+          "to": 17,
+          "process": 1
+        },
+        {
+          "from": 12,
+          "to": 17,
+          "process": 0
+        },
+        {
+          "from": 13,
+          "to": 18,
+          "process": 1
+        },
+        {
+          "from": 14,
+          "to": 18,
+          "process": 0
+        },
+        {
+          "from": 14,
+          "to": 1,
+          "process": 1
+        },
+        {
+          "from": 15,
+          "to": 3,
+          "process": 0
+        },
+        {
+          "from": 15,
+          "to": 19,
+          "process": 1
+        },
+        {
+          "from": 16,
+          "to": 19,
+          "process": 0
+        },
+        {
+          "from": 16,
+          "to": 5,
+          "process": 1
+        },
+        {
+          "from": 17,
+          "to": 5,
+          "process": 0
+        },
+        {
+          "from": 18,
+          "to": 3,
+          "process": 1
+        },
+        {
+          "from": 19,
+          "to": 7,
+          "process": 0
+        },
+        {
+          "from": 19,
+          "to": 8,
+          "process": 1
+        }
+      ],
+      "deadlocks": [],
+      "violations": [],
+      "traces": []
+    },
+    "buggy": {
+      "buggy": true,
+      "states": [
+        [
+          0,
+          0,
+          false,
+          false,
+          0
+        ],
+        [
+          1,
+          0,
+          true,
+          false,
+          0
+        ],
+        [
+          0,
+          1,
+          false,
+          true,
+          0
+        ],
+        [
+          2,
+          0,
+          true,
+          false,
+          1
+        ],
+        [
+          1,
+          1,
+          true,
+          true,
+          0
+        ],
+        [
+          0,
+          2,
+          false,
+          true,
+          0
+        ],
+        [
+          3,
+          0,
+          true,
+          false,
+          1
+        ],
+        [
+          2,
+          1,
+          true,
+          true,
+          1
+        ],
+        [
+          1,
+          2,
+          true,
+          true,
+          0
+        ],
+        [
+          0,
+          3,
+          false,
+          true,
+          0
+        ],
+        [
+          0,
+          0,
+          false,
+          false,
+          1
+        ],
+        [
+          3,
+          1,
+          true,
+          true,
+          1
+        ],
+        [
+          2,
+          2,
+          true,
+          true,
+          0
+        ],
+        [
+          2,
+          2,
+          true,
+          true,
+          1
+        ],
+        [
+          1,
+          3,
+          true,
+          true,
+          0
+        ],
+        [
+          1,
+          0,
+          true,
+          false,
+          1
+        ],
+        [
+          0,
+          1,
+          false,
+          true,
+          1
+        ],
+        [
+          3,
+          2,
+          true,
+          true,
+          0
+        ],
+        [
+          2,
+          3,
+          true,
+          true,
+          1
+        ],
+        [
+          1,
+          1,
+          true,
+          true,
+          1
+        ]
+      ],
+      "edges": [
+        {
+          "from": 0,
+          "to": 1,
+          "process": 0
+        },
+        {
+          "from": 0,
+          "to": 2,
+          "process": 1
+        },
+        {
+          "from": 1,
+          "to": 3,
+          "process": 0
+        },
+        {
+          "from": 1,
+          "to": 4,
+          "process": 1
+        },
+        {
+          "from": 2,
+          "to": 4,
+          "process": 0
+        },
+        {
+          "from": 2,
+          "to": 5,
+          "process": 1
+        },
+        {
+          "from": 3,
+          "to": 6,
+          "process": 0
+        },
+        {
+          "from": 3,
+          "to": 7,
+          "process": 1
+        },
+        {
+          "from": 4,
+          "to": 7,
+          "process": 0
+        },
+        {
+          "from": 4,
+          "to": 8,
+          "process": 1
+        },
+        {
+          "from": 5,
+          "to": 8,
+          "process": 0
+        },
+        {
+          "from": 5,
+          "to": 9,
+          "process": 1
+        },
+        {
+          "from": 6,
+          "to": 10,
+          "process": 0
+        },
+        {
+          "from": 6,
+          "to": 11,
+          "process": 1
+        },
+        {
+          "from": 7,
+          "to": 12,
+          "process": 1
+        },
+        {
+          "from": 8,
+          "to": 13,
+          "process": 0
+        },
+        {
+          "from": 9,
+          "to": 14,
+          "process": 0
+        },
+        {
+          "from": 9,
+          "to": 0,
+          "process": 1
+        },
+        {
+          "from": 10,
+          "to": 15,
+          "process": 0
+        },
+        {
+          "from": 10,
+          "to": 16,
+          "process": 1
+        },
+        {
+          "from": 11,
+          "to": 16,
+          "process": 0
+        },
+        {
+          "from": 11,
+          "to": 17,
+          "process": 1
+        },
+        {
+          "from": 14,
+          "to": 18,
+          "process": 0
+        },
+        {
+          "from": 14,
+          "to": 1,
+          "process": 1
+        },
+        {
+          "from": 15,
+          "to": 3,
+          "process": 0
+        },
+        {
+          "from": 15,
+          "to": 19,
+          "process": 1
+        },
+        {
+          "from": 16,
+          "to": 19,
+          "process": 0
+        },
+        {
+          "from": 16,
+          "to": 5,
+          "process": 1
+        },
+        {
+          "from": 17,
+          "to": 5,
+          "process": 0
+        },
+        {
+          "from": 18,
+          "to": 3,
+          "process": 1
+        },
+        {
+          "from": 19,
+          "to": 7,
+          "process": 0
+        },
+        {
+          "from": 19,
+          "to": 8,
+          "process": 1
+        }
+      ],
+      "deadlocks": [
+        12,
+        13
+      ],
+      "violations": [],
+      "traces": [
+        [
+          {
+            "from": [
+              0,
+              0,
+              false,
+              false,
+              0
+            ],
+            "to": [
+              1,
+              0,
+              true,
+              false,
+              0
+            ],
+            "process": 0
+          },
+          {
+            "from": [
+              1,
+              0,
+              true,
+              false,
+              0
+            ],
+            "to": [
+              2,
+              0,
+              true,
+              false,
+              1
+            ],
+            "process": 0
+          },
+          {
+            "from": [
+              2,
+              0,
+              true,
+              false,
+              1
+            ],
+            "to": [
+              2,
+              1,
+              true,
+              true,
+              1
+            ],
+            "process": 1
+          },
+          {
+            "from": [
+              2,
+              1,
+              true,
+              true,
+              1
+            ],
+            "to": [
+              2,
+              2,
+              true,
+              true,
+              0
+            ],
+            "process": 1
+          }
+        ],
+        [
+          {
+            "from": [
+              0,
+              0,
+              false,
+              false,
+              0
+            ],
+            "to": [
+              1,
+              0,
+              true,
+              false,
+              0
+            ],
+            "process": 0
+          },
+          {
+            "from": [
+              1,
+              0,
+              true,
+              false,
+              0
+            ],
+            "to": [
+              1,
+              1,
+              true,
+              true,
+              0
+            ],
+            "process": 1
+          },
+          {
+            "from": [
+              1,
+              1,
+              true,
+              true,
+              0
+            ],
+            "to": [
+              1,
+              2,
+              true,
+              true,
+              0
+            ],
+            "process": 1
+          },
+          {
+            "from": [
+              1,
+              2,
+              true,
+              true,
+              0
+            ],
+            "to": [
+              2,
+              2,
+              true,
+              true,
+              1
+            ],
+            "process": 0
+          }
+        ]
+      ]
+    }
+  }
+}
