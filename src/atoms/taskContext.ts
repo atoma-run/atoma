@@ -1,6 +1,11 @@
 import type { Plan, SubtaskSpec, Task } from '../core/types.js';
 import { REASONING_EXECUTION_GUIDANCE } from '../contracts/taskExecution.js';
 
+/** Keep tool-free planning on the Plan contract; answer-envelope guidance is execution-only. */
+export const REASONING_PLANNING_GUIDANCE = `This is the planning phase for a reasoning-only task. No tools are available.
+Plan how to solve the supplied task directly from its facts and previous phase results.
+Do not answer the task yet and do not return an output/summary result envelope.`;
+
 /** Shared task evidence for model and Jev validation; the current phase remains the scope. */
 export function taskContextLines(task: Task): string[] {
   const inputs = task.inputs ? { ...task.inputs } : undefined;

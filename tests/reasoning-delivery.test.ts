@@ -15,6 +15,32 @@ import type { Task } from '../src/core/types.js';
 const seed = { description: 'analysis', systemPrompt: 'Always write an answer file.', tools: makeTools(['write_file']), params: {}, createdBy: 'test' };
 
 describe('reasoning delivery across production delegation', () => {
+  it('keeps result-envelope coaching out of a recovered reasoning plan', async () => {
+    const reg = new AtomRegistry(openDb(':memory:'));
+    const atom = L1Atom.fromType(reg.create(1, seed));
+    const ctx = makeCtx();
+    ctx.llm.enqueue((req) => {
+      // Reproduce a model following the system instruction over the plan shape.
+      const conflicting = req.systemPrompt.includes('actual answer and its reasoning in output');
+      return {
+        text: jsonText(conflicting
+          ? { output: '6', summary: 'repaired envelope' }
+          : { reasoning: 'add directly', proposedAction: 'derive the sum', expectedOutput: '6' }),
+        stopReason: 'end_turn', usage: { inputTokens: 10, outputTokens: 10 },
+      };
+    });
+
+    const plan = await atom.plan({
+      description: 'Recover after the prior result lacked an output/summary envelope.',
+      executionMode: 'reasoning',
+    }, ctx);
+
+    expect(plan).toMatchObject({ reasoning: 'add directly', proposedAction: 'derive the sum' });
+    expect(ctx.llm.calls[0]!.systemPrompt).toContain('planning phase');
+    expect(ctx.llm.calls[0]!.systemPrompt).not.toContain('actual answer and its reasoning in output');
+    expect(ctx.llm.calls[0]!.userContent).toContain('"reasoning"');
+  });
+
   it('gives validators the same facts and the effective tool-free surface', async () => {
     const ctx = makeCtx();
     const reg = new AtomRegistry(openDb(':memory:'));
