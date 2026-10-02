@@ -373,13 +373,13 @@ cleanup is mandatory on every exit path.
 
 ## MCP server
 
-Orientation only — the contract lives in [src/mcp](src/mcp/AGENTS.md). ONE MCP
-for everyone over HTTP on `/mcp`, speaking protocols 2025-11-25 and 2026-07-28,
-a tiered catalogue whose visibility follows the caller's role, bearer API tokens
-for identity, runs serialised by memory state and a SQLite lease. The catalogue
-is a compatibility contract for every registered client. Decision records:
-[docs/mcp-one-surface-2026-09-05.md](docs/mcp-one-surface-2026-09-05.md),
-[docs/mcp-two-eras-2026-09-30.md](docs/mcp-two-eras-2026-09-30.md).
+**Production investigation starts with the Atoma MCP at `https://atoma.run/mcp`**. For run analysis (including "the latest run"), status, traces, projects or supervisor findings, discover its tools and test a relevant read-only call first.
+Identify the run from production records and page its evidence to the end. Do not start with local `runs/`, demo fixtures, browser automation or SSH.
+If tools are not exposed, check MCP discovery/configuration and report the exact missing capability or connection error before falling back. An empty tool/resource listing does not prove the configured server is absent.
+Never start a run or spend model quota merely to test connectivity.
+
+The server contract lives in [src/mcp](src/mcp/AGENTS.md): ONE HTTP MCP on `/mcp`, protocols 2025-11-25 and 2026-07-28, a role-tiered catalogue, bearer API tokens, runs serialised by memory state and a SQLite lease.
+The catalogue is a compatibility contract for every registered client. Decisions: [one surface](docs/mcp-one-surface-2026-09-05.md), [two eras](docs/mcp-two-eras-2026-09-30.md).
 
 ## Testing and linting
 
