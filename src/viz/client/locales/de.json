@@ -93,7 +93,7 @@
   "welcome.turn": "Runde",
   "welcome.turnLive": "Live",
   "welcome.bead": "Bead",
-  "launch.help.build": "Beschreibe EIN ausführbares Artefakt und das Verhalten, das es haben muss. Gib sein Format an — eine einzelne index.html-Seite, einen Node-HTTP-Server oder ein CLI-Skript bzw. eine Konfigurations- oder Dokumentdatei — und beschreibe dann das konkrete Verhalten sowie alle festen Vorgaben (Rastergröße, Routen und Statuscodes, argv und Exit-Codes). Halte es klein und eigenständig: Der Arbeitsbereich ist anfangs leer, daher muss der Run alles Benötigte selbst erstellen können. Nenne KEINE Tools, Phasen oder Prüfschritte — der Planer wählt diese anhand der Art des Artefakts aus, und ihre explizite Nennung führt nachweislich zu verschwendeten Phasen. Die Überprüfung erfolgt automatisch und entspricht dem Format: Eine Seite wird in einem Headless-Browser geladen, ein Server erhält echte Anfragen und ein CLI wird tatsächlich aufgerufen.",
+  "launch.help.build": "Beschreiben Sie das gewünschte Ergebnis und etwaige Einschränkungen. Erläutern Sie bei einem importierten Repository, was geprüft oder geändert werden soll. Atoma wählt die für Ihre Anfrage erforderlichen Fähigkeiten aus. Das Ergebnis kann eine Erklärung, eine Analyse, ein Dokument oder funktionsfähige Software sein; die Überprüfung richtet sich nach dem gewünschten Ergebnis.",
   "nav.refresh": "Aktualisieren",
   "nav.refresh.title": "Liste neu laden",
   "nav.selectRun": "Run auswählen",

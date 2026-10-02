@@ -93,7 +93,7 @@
   "welcome.turn": "Turno",
   "welcome.turnLive": "Em direto",
   "welcome.bead": "Conta",
-  "launch.help.build": "Descreva UM artefacto executável e o comportamento que deve ter. Indique o formato — uma única página index.html, um servidor HTTP Node ou um script CLI / ficheiro de configuração / documento —, depois o comportamento concreto e quaisquer restrições rígidas (tamanho da grelha, rotas e códigos de estado, argv e códigos de saída). Mantenha-o pequeno e autónomo: o espaço de trabalho começa vazio, portanto tudo o que a run precisa deve ser algo que possa criar. NÃO indique ferramentas, fases ou etapas de verificação — o planeador escolhe-as com base na natureza do artefacto, e explicitá-las é uma fonte comprovada de fases desperdiçadas. A verificação é automática e corresponde ao formato: uma página é carregada num navegador sem interface gráfica, um servidor recebe pedidos reais e uma CLI é efetivamente invocada.",
+  "launch.help.build": "Descreva o resultado pretendido e quaisquer restrições. Para um repositório importado, explique o que deve ser analisado ou alterado. O atoma seleciona as capacidades necessárias para o seu pedido. O resultado pode ser uma explicação, uma análise, um documento ou software funcional; a verificação depende do resultado solicitado.",
   "nav.refresh": "Atualizar",
   "nav.refresh.title": "Recarregar a lista",
   "nav.selectRun": "Selecionar uma run",

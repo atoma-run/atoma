@@ -93,7 +93,7 @@
   "welcome.turn": "Giliran",
   "welcome.turnLive": "Langsung",
   "welcome.bead": "Manik",
-  "launch.help.build": "Jelaskan SATU artefak yang dapat dijalankan dan perilaku yang harus dimilikinya. Sebutkan bentuknya — satu halaman index.html, server HTTP Node, atau skrip CLI / file konfigurasi / dokumen — lalu perilaku konkret dan batasan wajib apa pun (ukuran kisi, rute dan kode status, argv dan kode keluar). Buat tetap kecil dan mandiri: ruang kerja dimulai dalam keadaan kosong, jadi semua yang dibutuhkan run harus dapat dibuatnya sendiri. JANGAN sebutkan alat, fase, atau langkah verifikasi — perencana memilihnya berdasarkan sifat artefak, dan menjabarkannya terbukti menyebabkan fase yang sia-sia. Verifikasi dilakukan otomatis dan sesuai dengan bentuknya: halaman dimuat di browser headless, server menerima permintaan nyata, dan CLI benar-benar dijalankan.",
+  "launch.help.build": "Jelaskan hasil yang Anda inginkan beserta batasannya. Untuk repositori yang diimpor, jelaskan apa yang perlu diperiksa atau diubah. Atoma memilih kemampuan yang diperlukan untuk permintaan Anda. Hasilnya dapat berupa penjelasan, analisis, dokumen, atau perangkat lunak yang berfungsi; verifikasi dilakukan sesuai hasil yang diminta.",
   "nav.refresh": "Segarkan",
   "nav.refresh.title": "Muat ulang daftar",
   "nav.selectRun": "Pilih run",

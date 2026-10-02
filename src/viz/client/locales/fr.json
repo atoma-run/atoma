@@ -93,7 +93,7 @@
   "welcome.turn": "Rotation",
   "welcome.turnLive": "Live",
   "welcome.bead": "Boule",
-  "launch.help.build": "Décris UN artefact exécutable et le comportement attendu. Précise sa forme — une page index.html unique, un serveur HTTP Node, ou un script CLI / fichier de config / document — puis le comportement concret et les contraintes fermes (taille de grille, routes et codes de statut, arguments et codes de sortie). Reste petit et autonome : le workspace démarre vide, donc tout ce dont le run a besoin doit pouvoir être créé par lui. Ne nomme NI outils, NI phases, NI étapes de vérification — le planificateur les déduit de la nature de l'artefact, et les expliciter est une cause mesurée de phases gaspillées. La vérification est automatique et suit la forme : une page est chargée dans un navigateur headless, un serveur reçoit de vraies requêtes, une CLI est réellement invoquée.",
+  "launch.help.build": "Décris le résultat que tu souhaites et les éventuelles contraintes. Pour un dépôt importé, explique ce qu’il faut examiner ou modifier. Atoma sélectionne les capacités nécessaires à ta demande. Le résultat peut être une explication, une analyse, un document ou un logiciel fonctionnel ; la vérification est adaptée au résultat demandé.",
   "nav.refresh": "Rafraîchir",
   "nav.refresh.title": "Recharger la liste",
   "nav.selectRun": "Sélectionner un run",
