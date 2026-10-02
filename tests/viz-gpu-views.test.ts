@@ -4064,7 +4064,7 @@ describe('drawRegistry scrolling honesty', () => {
     expect(values.indexOf('USER INSTRUCTION')).toBeLessThan(values.indexOf('SYSTEM PROMPT'));
     expect(values).toContain('You are a helper.');
     expect(values).toContain('L1 Molecule · #7 · v2 · ✓2/✗0');
-    expect(values).toContain('Li · Lithium (#3) · read_file');
+    expect(values).toContain('Li · read_file');
 
     // Empty type-level parameters say what their emptiness MEANS; a raw `{}`
     // made an ordinary default look like missing or broken data.

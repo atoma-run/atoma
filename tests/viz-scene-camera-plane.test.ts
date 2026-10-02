@@ -27,8 +27,8 @@ const frames = new Map<number, FrameRequestCallback>();
 
 /** The painted scene scale: `forward[0]` of a face-on pose is its scale. */
 function paintedScale(plane: HTMLElement): number {
-  const match = /^matrix3d\((.*)\)$/.exec(plane.style.transform);
-  if (!match) throw new Error(`not a matrix3d: ${plane.style.transform}`);
+  const match = /^matrix\((.*)\)$/.exec(plane.style.transform);
+  if (!match) throw new Error(`not an affine matrix: ${plane.style.transform}`);
   return Number(match[1]!.split(',')[0]);
 }
 

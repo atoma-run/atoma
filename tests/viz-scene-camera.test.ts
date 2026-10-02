@@ -40,6 +40,15 @@ describe('the global scene camera', () => {
           interpolateSceneCamera(from, to, progress), width, height
         );
         const frame = buildSceneCameraFrame(camera, width, height);
+        // Face-on frames avoid a 3D texture layer while preserving the same
+        // projection for HTML, canvas vertices and pointer hit testing.
+        const css = /^matrix\((.*)\)$/.exec(frame.cssTransform);
+        expect(css).not.toBeNull();
+        const values = css![1]!.split(',').map(Number);
+        expect(values).toHaveLength(6);
+        const expected = [frame.forward[0], frame.forward[3], frame.forward[1],
+          frame.forward[4], frame.forward[2], frame.forward[5]];
+        values.forEach((value, index) => expect(value).toBeCloseTo(expected[index]!, 9));
         // Include unequal renderer/DOM sizes, not only the usual 1:1 case.
         const rendererWidth = width * 1.5;
         const rendererHeight = height * 2;
@@ -64,10 +73,10 @@ describe('the global scene camera', () => {
     }
   });
 
-  it('publishes the exact homography as one CSS matrix3d', () => {
+  it('publishes the exact perspective homography as one CSS matrix3d', () => {
     const width = 1_280;
     const height = 720;
-    const camera = sceneCameraForMode('focus', width, height);
+    const camera = { ...sceneCameraForMode('focus', width, height), pitchDegrees: 12, yawDegrees: 8 };
     const frame = buildSceneCameraFrame(camera, width, height);
     const values = matrix3dValues(sceneCameraCssTransform(camera, width, height));
     expect(values).toHaveLength(16);
@@ -104,12 +113,7 @@ describe('the global scene camera', () => {
         expect(projectScenePoint(point, width, height, camera)).toEqual(point);
         expect(unprojectScenePoint(point, width, height, camera)).toEqual(point);
       }
-      expect(matrix3dValues(sceneCameraCssTransform(camera, width, height))).toEqual([
-        1, 0, 0, 0,
-        0, 1, 0, 0,
-        0, 0, 1, 0,
-        0, 0, 0, 1,
-      ]);
+      expect(sceneCameraCssTransform(camera, width, height)).toBe('matrix(1, 0, 0, 1, 0, 0)');
     }
   });
 
