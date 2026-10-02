@@ -96,17 +96,20 @@ describe('VALIDATION_SYSTEM_PROMPT — tier contract and PLAN/RESULT rubric', ()
     );
   });
 
-  it('does not coach a requested conclusion over a recorded counterexample', () => {
+  it('separates mathematical witnesses from fallible feedback and execution claims', () => {
     const rule = VALIDATION_SYSTEM_PROMPT.replace(/\n\s*'?\s*/g, ' ');
-    expect(rule).toMatch(/RECORDED COUNTEREXAMPLES OVERRIDE REQUESTED CONCLUSIONS/);
-    expect(rule).toMatch(/Never coach the next attempt to delete, hide or disregard those demonstrated cases/);
-    expect(rule).toMatch(/state the contradiction and report the evidence-supported conclusion/);
+    expect(rule).toContain('neither changes those facts nor becomes a user requirement');
+    expect(rule).toContain('A valid mathematical witness needs no tool execution');
+    expect(rule).toContain('an asserted count or an invalid transition proves nothing');
+    expect(rule).toContain('identify the specific invalid step and violated rule');
   });
 
-  it('does not promote an unsupported counterexample claim to evidence', () => {
+  it('scopes execution counterexamples to the state they observed', () => {
     const rule = VALIDATION_SYSTEM_PROMPT.replace(/\n\s*'?\s*/g, ' ');
-    expect(rule).toMatch(/Narration, an unexecuted example, or a proposed trace is not a recorded counterexample/);
-    expect(rule).toMatch(/continue to reject conclusions that the recorded evidence does not support/);
+    expect(rule).toContain('an unexecuted example is not an observation');
+    expect(rule).toContain('a relevant repair followed by a check of the same behaviour may supersede them');
+    expect(rule).toContain('unrelated passing check alone does not refute an observed failure');
+    expect(rule).toContain('a later failure still defeats an earlier success');
   });
 
   it('teaches validators to heal description drift via descriptionReplace', () => {
