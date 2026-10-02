@@ -96,6 +96,19 @@ describe('VALIDATION_SYSTEM_PROMPT — tier contract and PLAN/RESULT rubric', ()
     );
   });
 
+  it('does not coach a requested conclusion over a recorded counterexample', () => {
+    const rule = VALIDATION_SYSTEM_PROMPT.replace(/\n\s*'?\s*/g, ' ');
+    expect(rule).toMatch(/RECORDED COUNTEREXAMPLES OVERRIDE REQUESTED CONCLUSIONS/);
+    expect(rule).toMatch(/Never coach the next attempt to delete, hide or disregard those demonstrated cases/);
+    expect(rule).toMatch(/state the contradiction and report the evidence-supported conclusion/);
+  });
+
+  it('does not promote an unsupported counterexample claim to evidence', () => {
+    const rule = VALIDATION_SYSTEM_PROMPT.replace(/\n\s*'?\s*/g, ' ');
+    expect(rule).toMatch(/Narration, an unexecuted example, or a proposed trace is not a recorded counterexample/);
+    expect(rule).toMatch(/continue to reject conclusions that the recorded evidence does not support/);
+  });
+
   it('teaches validators to heal description drift via descriptionReplace', () => {
     // Description drift is a real observed cost sink — stale "Mario
     // platformer" descriptions on a type now used for Minesweeper confused
