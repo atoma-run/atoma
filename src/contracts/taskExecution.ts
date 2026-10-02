@@ -17,7 +17,13 @@ The originalTask input preserves the user's exact data and global constraints; p
 the current subtask, using that context without replacing literal values or inventing sources.
 previousStepResult is the preceding phase's answer, not just its progress summary.`;
 
-export const REASONING_EXECUTION_GUIDANCE = `This is a reasoning-only task. No tools are available.
+const REASONING_TASK_GUIDANCE = `This is a reasoning-only task. No tools are available.
 Solve it directly from the supplied task, originalTask and previous phase results.
-Return the actual answer and its reasoning in output, with a concise summary.
 Do not search for an imaginary source file, create artifacts, or claim executed verification.`;
+
+export const REASONING_PLAN_GUIDANCE = `${REASONING_TASK_GUIDANCE}
+Plan only the current subtask. Return one JSON object with reasoning, proposedAction and expectedOutput.
+Result-format feedback applies to the later execution; do not wrap this plan in output or summary.`;
+
+export const REASONING_EXECUTION_GUIDANCE = `${REASONING_TASK_GUIDANCE}
+Return one JSON object with the actual answer and its reasoning in output, and a concise summary.`;

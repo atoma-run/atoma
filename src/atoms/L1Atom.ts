@@ -1,5 +1,5 @@
 import { Atom } from '../core/atom.js';
-import { REASONING_EXECUTION_GUIDANCE } from '../contracts/taskExecution.js';
+import { REASONING_EXECUTION_GUIDANCE, REASONING_PLAN_GUIDANCE } from '../contracts/taskExecution.js';
 import { reasoningPrompt } from './taskContext.js';
 import type {
   Plan,
@@ -353,7 +353,7 @@ export class L1Atom extends Atom {
     // perform the work during planning and return prose instead of a plan JSON.
     const resp = await ctx.llm.complete(
       this.toLlmRequest('plan', {
-        ...(task.executionMode === 'reasoning' ? { systemPromptOverride: REASONING_EXECUTION_GUIDANCE } : {}),
+        ...(task.executionMode === 'reasoning' ? { systemPromptOverride: REASONING_PLAN_GUIDANCE } : {}),
         userContent,
         params: this.params,
         signal: ctx.signal,

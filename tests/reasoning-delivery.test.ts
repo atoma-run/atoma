@@ -15,6 +15,53 @@ import type { Task } from '../src/core/types.js';
 const seed = { description: 'analysis', systemPrompt: 'Always write an answer file.', tools: makeTools(['write_file']), params: {}, createdBy: 'test' };
 
 describe('reasoning delivery across production delegation', () => {
+  it('recovers a prose result through L2 supervision without asking the replan for a result envelope', async () => {
+    const reg = new AtomRegistry(openDb(':memory:'));
+    const molecule = reg.create(1, seed);
+    const cell = L2Atom.fromType(reg.create(2, seed), reg);
+    const execute = vi.fn(async () => { throw new Error('reasoning must not invoke an element'); });
+    const ctx = { ...makeCtx(), requireObservedToolAction: true, tools: { has: () => true, execute } };
+    const task: Task = { description: 'Compute the next-red probability from the supplied urns.', executionMode: 'reasoning' };
+    let plans = 0;
+    let executions = 0;
+    for (let n = 0; n < 16; n++) ctx.llm.enqueue((req) => {
+      let answer: unknown;
+      if (req.role === 'prefilter') {
+        answer = { kind: 'reuse', target: molecule.name, confidence: 1, decomposable: false, reasoning: 'fits' };
+      } else if (req.role === 'plan' && req.actor?.tier === 2) {
+        answer = [{ strategy: 'reuse', target: molecule.name, reasoning: 'reuse' }, {
+          reasoning: 'delegate arithmetic', subtasks: [{ description: task.description, executionMode: 'reasoning' }],
+          aggregation: { mode: 'sequential' }, expectedOutput: 'exact fraction',
+        }];
+      } else if (req.role === 'plan') {
+        plans++;
+        expect(req.systemPrompt).toContain('Return one JSON object with reasoning, proposedAction and expectedOutput');
+        expect(req.systemPrompt).not.toContain('Return the actual answer and its reasoning in output');
+        if (plans === 2) {
+          expect(req.systemPrompt).toContain('During planning, return the requested plan JSON');
+          expect(req.systemPrompt).toContain('During execution,');
+        }
+        answer = { reasoning: 'condition on each urn', proposedAction: 'compute a posterior mixture', expectedOutput: '22/45' };
+      } else if (req.role === 'execute') {
+        executions++;
+        expect(req.tools ?? []).toEqual([]);
+        expect(req.executor).toBeUndefined();
+        expect(req.systemPrompt).toContain('Return one JSON object with the actual answer');
+        if (executions === 1) return { text: 'The exact probability is 22/45.', stopReason: 'end_turn', usage: { inputTokens: 10, outputTokens: 10 } };
+        answer = { output: '22/45', summary: 'Posterior mixture computed.' };
+      } else {
+        answer = { approved: true, reasoning: 'correct' };
+      }
+      return { text: jsonText(answer), stopReason: 'end_turn', usage: { inputTokens: 10, outputTokens: 10 } };
+    });
+    const plan = await cell.plan(task, ctx);
+    const result = await cell.execute(task, plan, ctx);
+    expect(result.output).toBe('22/45');
+    expect(plans).toBe(2);
+    expect(executions).toBe(2);
+    expect(execute).not.toHaveBeenCalled();
+  });
+
   it('gives validators the same facts and the effective tool-free surface', async () => {
     const ctx = makeCtx();
     const reg = new AtomRegistry(openDb(':memory:'));

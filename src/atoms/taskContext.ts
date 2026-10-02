@@ -1,5 +1,5 @@
 import type { Plan, SubtaskSpec, Task } from '../core/types.js';
-import { REASONING_EXECUTION_GUIDANCE } from '../contracts/taskExecution.js';
+import { REASONING_EXECUTION_GUIDANCE, REASONING_PLAN_GUIDANCE } from '../contracts/taskExecution.js';
 
 /** Shared task evidence for model and Jev validation; the current phase remains the scope. */
 export function taskContextLines(task: Task): string[] {
@@ -24,7 +24,7 @@ export function taskContextLines(task: Task): string[] {
 
 export function reasoningPrompt(task: Task, plan?: Plan): string {
   return [
-    REASONING_EXECUTION_GUIDANCE,
+    plan ? REASONING_EXECUTION_GUIDANCE : REASONING_PLAN_GUIDANCE,
     `Task: ${task.description}`,
     task.inputs ? `Inputs: ${JSON.stringify(task.inputs)}` : '',
     task.constraints?.length ? `Constraints: ${JSON.stringify(task.constraints)}` : '',

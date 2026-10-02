@@ -384,7 +384,7 @@ const RESULT_GATES: readonly ResultGate[] = [
               reasoning:
                 'the executor did not emit the required final {"output","summary"} JSON envelope',
               coaching:
-                'Your tool work may already be complete. Do not call a return/output tool and do not narrate the result as prose. Emit one final JSON object directly as assistant text: {"output": <actual result>, "summary": "<evidence-backed summary>"}.',
+                'Your work may already be complete. During planning, return the requested plan JSON; do not wrap the plan in output or summary. During execution, do not call a return/output tool or narrate the result as prose: emit one final JSON object directly as assistant text: {"output": <actual result>, "summary": "<evidence-backed summary>"}.',
             }
           : null
       ),
