@@ -102,5 +102,50 @@ disposition, retry budget, or supervision sequence and adds no model call.
 The regression drives real L2 delegation and L1 execution: a prose first answer
 is rejected, the actual coaching reaches the next planning request, and a second
 execution returns the accepted envelope with no tool access. Existing fallback
-coverage still exercises tiers 1, 2 and 3. This correction needs its own deployed
-rerun; the successful scheduling runs above do not validate it.
+coverage still exercises tiers 1, 2 and 3. The successful scheduling runs above
+do not validate this separate correction; its deployed rerun follows below.
+
+## Deployed correction and audio experiment
+
+Commit `bf349326822a2b9d7e41e40cd1b813cced70bc69` passed CI `37015770454`
+(5,166 tests passed, 20 skipped) and deploy `37016314014`. Both following runs
+record that exact release receipt. The CI suite also resolved four local
+failures caused by copying Windows working-tree line endings into Linux; the
+same four passed locally after exporting canonical Git bytes plus the patch.
+
+| Run | Elapsed | LLM calls | Subscription-equivalent USD | Outcome |
+| --- | --- | --- | --- | --- |
+| `1f54627c-5901-4f46-b8ab-761748a9565e` | 221.099 s | 13 | 0.0754 | Bayesian analysis delivered as text; Phloem reused. |
+| `102556e8-0e7e-40c5-9009-4841206e48a0` | 499.333 s | 9 | 0.1944 | Offline SOS WAV, generator, verifier and README delivered and published; Meristem reused. |
+
+Jev selected Phloem directly on the rerun. Its three sequential reasoning phases
+gave the correct exact tables and both predictions, used no elements, and passed
+root acceptance `eb2a0bf4-c589-4fc6-861f-0f2ceed8a6b3` without remediation or
+escalation. This rerun did not reproduce a malformed answer; the mocked regression
+is the direct proof that malformed-result coaching reaches a valid replan.
+
+The audio run tested artifact production outside web applications. Its positive
+probe `968fcc45-d707-46ce-9900-1f12e78c9f84` exited 0; negative probe
+`18ca7514-8d50-4b4b-b342-1b02003a41d1` exited 1 and reported a mismatch at PCM
+sample 0. A direct `rm` was refused by the shell allowlist
+(`528483b6-6a59-4218-8835-164948de7b51`); the molecule recovered using the
+documented bash invocation, removed only its corrupted scratch copy, and a later
+listing confirmed the scratch directory was empty. This recovered refusal remains
+in the trace. The initial synchronous MCP call timed out at 300 seconds; status
+readers confirmed the same server-side run continued, without restarting it.
+
+Root acceptance `bbb5463a-f0fd-4b68-9c11-89e37b9c6691` approved the artifact.
+The four published files are at commit
+[`7334889bbe04e17f51b22afbdc2020b789c36d24`](https://github.com/mgtf/atoma-l3-morse-audio-20261002/tree/7334889bbe04e17f51b22afbdc2020b789c36d24).
+An independent audit read the published WAV bytes, without executing the generated
+scripts: the canonical 44-byte header and every signed PCM sample match the fixed
+specification (8,000 Hz, 22,400 samples, 2.8 seconds, nine tones). Its SHA-256 is
+`1bf1e3beec729807ce60b4869c5a68787e3376e957b7c5bde1d562a7c94cfad5`, identical
+to the run inventory. Both complete metadata documents and all 60/73 summary
+events were read through their ends.
+
+The mender independently opened [PR #11](https://github.com/mgtf/atoma/pull/11)
+for the Bayesian failure. It was not integrated: its diff applies planning-only
+system guidance to execution too, and leaves execution guidance inside the
+planning user prompt. The landed correction keeps both phases distinct and
+tests the actual coaching/replan/execution sequence.
