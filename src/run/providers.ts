@@ -82,12 +82,10 @@ export function makeTransportClient(
         baseUrl: env['OLLAMA_BASE_URL'],
         defaultModel: env['OLLAMA_MODEL'],
       });
-    // Takes no env: it binds to a machine-local `claude /login`, which is
-    // exactly why `assertTransportHonoursCredentials` refuses it whenever the
-    // parent did not authorise the tier.
+    // Login location and model overrides belong to this credential snapshot.
+    // The ordinary run still requires the parent's tier authorisation.
     case 'claude-cli':
-      // It DOES take the limits: a deployment's ceiling on one call is not a credential.
-      return new ClaudeCliLlmClient(callCeiling(limits, 'llm.callTimeoutMs'));
+      return new ClaudeCliLlmClient({ env, ...callCeiling(limits, 'llm.callTimeoutMs') });
     // Local Codex CLI on a ChatGPT login, with a scoped host-side tool loop
     // for L1. Native Codex tools remain disabled. The client captures THIS
     // run's environment snapshot: CODEX_HOME selects the authorised principal

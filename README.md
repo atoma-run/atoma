@@ -167,6 +167,12 @@ recipes twice. It answers structured questions; the run's models still plan,
 write code and explain refusals. Uncertain or unavailable answers go back to
 those models, and final delivery acceptance stays independent of Jev.
 
+The initial goal and starting repository guide the root tissue choice. Jev
+selects a suitable registered L3; if the choice is uncertain or no tissue fits,
+a bounded model call reuses one or requests a new capability. New tissue prompts
+are authored by the platform's pinned L3 model using the platform's credentials.
+The legacy `run:build` command also accepts analysis and explanation tasks.
+
 Jev is enabled for every organisation when the host has `TYPESAFE_API_KEY`,
 unless the operator sets `ATOMA_JEV=0`. Decision context, including task text
 and evidence excerpts, is sent to TypeSafe as described in the

@@ -63,8 +63,13 @@ import {
   type RunStatSignal,
 } from '../contracts/runStats.js';
 import { declaredArtifactManifestSchema } from '../contracts/artifactManifest.js';
-import type { Logger, Plan, Result, RunContext, Task } from '../core/types.js';
+import type { LlmClient, Logger, Plan, Result, RunContext, Task } from '../core/types.js';
 import type { TaskProfile } from './profile.js';
+import { seedTissueCatalog } from './tissues.js';
+import { selectTissue } from './tissueRouting.js';
+import { capturePlatformTissueAuthor, platformTissueAuthor, type TissueAuthor } from './tissueAuthor.js';
+import { PLATFORM_TISSUE_AUTHOR_ENV } from '../contracts/tissueRouting.js';
+import { readRoutingRepository } from './routingRepository.js';
 import { describeSeedManifest, seedWorkspace, snapshotDeliveredWorkspace, snapshotStartingWorkspace } from './workspace.js';
 import { readOnlyPhasesFor } from './readOnlyPhase.js';
 import { gatedExecutor, inheritedChecksFor } from './inheritedChecks.js';
@@ -468,6 +473,7 @@ interface HostLifecycleEnv {
   readonly modelL1: string | undefined;
   readonly modelL2: string | undefined;
   readonly modelL3: string | undefined;
+  readonly tissueAuthor: string | undefined;
 }
 let hostLifecycleEnv: HostLifecycleEnv | null = null;
 /** Exported for tests and embedders; production callers never need it. */
@@ -479,6 +485,9 @@ export function hostLifecycleSnapshot(): HostLifecycleEnv {
     modelL1: process.env['ATOMA_MODEL_L1'],
     modelL2: process.env['ATOMA_MODEL_L2'],
     modelL3: process.env['ATOMA_MODEL_L3'],
+    tissueAuthor: process.env['ATOMA_TENANT_RUN'] === '1'
+      ? process.env[PLATFORM_TISSUE_AUTHOR_ENV]
+      : capturePlatformTissueAuthor(process.env),
   };
   return hostLifecycleEnv;
 }
@@ -549,6 +558,9 @@ export async function startTask(
   // intent". Same sticky-env fix as the lifecycle toggles, for the three
   // tier pins that modelForTier and the router must read in lockstep (T10).
   const hostEnv = hostLifecycleSnapshot();
+  const authorSnapshot = providerEnv['ATOMA_TENANT_RUN'] === '1'
+    ? providerEnv[PLATFORM_TISSUE_AUTHOR_ENV]
+    : hostEnv.tissueAuthor;
   applyTierPins(
     suppliedProviderEnv ?? {
       ATOMA_MODEL_L1: hostEnv.modelL1,
@@ -577,7 +589,8 @@ export async function startTask(
   const resolvedDepth = resolveSupervisionDepth(args, profile.depthExperiment?.defaultMode);
   if (resolvedDepth) args.depth = resolvedDepth;
   if (args.depth && !profile.depthExperiment) throw new RunnerConfigError('This profile has no supervision depth contract');
-  const goal = args.goal ?? profile.defaultGoal;
+  const goal = args.goal?.trim();
+  if (!goal) throw new RunnerConfigError('A task goal is required. Describe the outcome you want.');
   // AMBIENT BY DESIGN, unlike the lifecycle toggles and tier pins: the
   // project coordinator sets these on a per-run CHILD PROCESS env, so two
   // runs can never share them in production. A library embedder calling
@@ -883,10 +896,13 @@ export async function startTask(
   );
   // The GATE sits outside the metrics: a call it refuses reaches no transport
   // and costs nothing, so there is nothing to record.
-  const llm = new ToolIterationCeilingLlmClient(
-    new BudgetGateLlmClient(new MetricsLlmClient(new RecordingLlmClient(routedClient, recorder), budgetMeter), budgetMeter),
+  const observeClient = (client: LlmClient): LlmClient => new ToolIterationCeilingLlmClient(
+    new BudgetGateLlmClient(new MetricsLlmClient(new RecordingLlmClient(client, recorder), budgetMeter), budgetMeter),
     ceilingOf(platformLimits, 'llm.maxToolIterations')
   );
+  const llm = observeClient(routedClient);
+  let author: TissueAuthor | undefined;
+  const getTissueAuthor = (): TissueAuthor => author ??= platformTissueAuthor(authorSnapshot, observeClient, platformLimits);
   console.log(`tier models: ${describeTierSelectors(selectors)}`);
   console.log(`llm transports: ${referencedTransports(selectors).join(', ')}`);
   if (useClaudeCli && process.env['ATOMA_CLAUDE_MODEL']) {
@@ -909,6 +925,9 @@ export async function startTask(
     if (manifestLine) console.log(manifestLine);
   };
   seed();
+  // Capture the starting repository before a backend or inherited probe can
+  // run its code. The prompt remains the task; these bounded bytes are context.
+  const routingRepository = args.baseline ? undefined : readRoutingRepository(workspaceRoot);
 
   // Local by default; `--container` moves the tool layer into a container
   // with only the workspace mounted and no route out. The swap is possible
@@ -972,8 +991,17 @@ export async function startTask(
     handle = (t, c) => runFrontierBaseline(t, c, toolDecls);
   } else {
     const seedCtx = { registry, toolDecls, log: (line: string) => console.log(line) };
-    const initialL3Type = args.depth ? undefined : profile.seedL3(seedCtx);
+    const buildTissue = seedTissueCatalog(seedCtx);
     profile.seedCatalog(seedCtx);
+    let selectedTissue: Awaited<ReturnType<typeof selectTissue>> | undefined;
+    const tissueFor = async (task: Task, context: RunContext) => {
+      // Registered comparison arms retain their original fixed entry protocol.
+      selectedTissue ??= args.comparison ? buildTissue : await selectTissue({
+        registry, toolDecls: backend.toolDecls, task, repository: routingRepository!, ctx: context,
+        author: getTissueAuthor,
+      });
+      return L3Atom.fromType(selectedTissue, registry, skillRegistry);
+    };
 
     // Skill store — shared by every atom in the run. Bodies are
     // filesystem-backed under ATOMA_SKILLS_DIR (default ./skills); their
@@ -1015,7 +1043,7 @@ export async function startTask(
                 checklistOrigin: { source: 'user' as const, digest: acceptanceSpec.digest } }
             : { checklist: await draftAcceptanceChecklist(c, t.description) }),
         mode: args.depth!, task: t, ctx: c, floor: t.proofFloor!,
-        createExecutor: (mode) => {
+        createExecutor: async (mode) => {
           const currentSeed = { ...seedCtx, toolDecls: backend.toolDecls };
           if (mode === 'short') {
             const entry = experiment.entryCell(currentSeed);
@@ -1028,7 +1056,7 @@ export async function startTask(
               return cell.execute(task, plan, context);
             } };
           }
-          const tissue = L3Atom.fromType(profile.seedL3(currentSeed), registry, skillRegistry);
+          const tissue = await tissueFor(t, c);
           return { actor: tissue, handle: (task, context) => tissue.handle(task, context) };
         },
         restart: async () => {
@@ -1057,9 +1085,7 @@ export async function startTask(
         onAcceptance: (info) => recorder.recordAcceptance(info),
       });
     } else {
-      const l3 = L3Atom.fromType(initialL3Type!, registry, skillRegistry);
-      console.log(`L3 ${l3.name} using model ${l3.model}`);
-      handle = (t, c) => l3.handle(t, c);
+      handle = async (t, c) => (await tissueFor(t, c)).handle(t, c);
     }
   }
 
@@ -1146,7 +1172,10 @@ export async function startTask(
   // It is DATA ABOUT A PREVIOUS RUN, never an instruction — the same standing
   // every validator rejection already has.
   const previousLanding = decodePreviousLanding(process.env[PREVIOUS_LANDING_ENV]);
-  const builtTask = profile.buildTask(goal);
+  const builtTask: Task = {
+    description: goal,
+    ...(routingRepository ? { inputs: { startingRepository: routingRepository } } : {}),
+  };
   const withLanding = previousLanding.length > 0
     ? { ...builtTask, inputs: { ...(builtTask.inputs ?? {}), previousRunLanding: previousLanding } }
     : builtTask;

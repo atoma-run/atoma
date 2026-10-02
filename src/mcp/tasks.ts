@@ -349,7 +349,7 @@ export const PROJECT_RUN_INPUT = {
     'With rerunOf, required: the full model selector for each tier (<api|sub|own>:<vendor>:<model>).'
   ),
   depth: z.enum(['short', 'deep']).optional().describe(
-    'Supervision depth. short (default): an L2 cell plans and the run deepens once if it stalls. deep: an L3 tissue decomposes the goal from the start — for goals spanning several parts (API, pages, docs). On a rerun, absent keeps the origin\'s.'
+    'Supervision depth. deep (default): choose an L3 tissue from the task and starting repository, then decompose the goal. short: an L2 cell plans and the run selects an L3 once if it stalls. On a rerun, absent keeps the origin\'s.'
   ),
 };
 

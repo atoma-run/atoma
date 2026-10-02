@@ -193,8 +193,10 @@ Neighbours:
   `l1`, `l2`, `l3`, each naming the resolved selector, the transport that
   served it (`transportOf`), the payer kind and the chain level it came from.
   There is no `base` row any more because there is no base transport: every
-  call carries its full selector, so nothing is paid by an account the ledger
-  does not name.
+  ordinary tier call carries its full selector. Shared catalog authorship is a
+  separate platform operation: its `platform-tissue-author` trace actor names
+  host-paid calls independently of the customer's three tier rows
+  ([contract](../../docs/tissue-routing-2026-10-02.md)).
 - THE PAYER IS THE SELECTOR'S FIRST SEGMENT (`payerForSelector`): `sub:` is
   `host-subscription`, `own:` is `principal-subscription`, `api:` is `org-key`
   when the organisation brought the vendor's key, else `host-key`, or

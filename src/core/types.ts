@@ -536,7 +536,14 @@ export interface CacheHitInfo {
 export interface JevChoiceRequest {
   /** 'agent' for the L2/L3 child catalog, 'recipe' for the skill catalog. */
   readonly question: 'agent' | 'recipe';
-  readonly task: { readonly description: string; readonly constraints?: readonly string[] };
+  readonly task: {
+    readonly description: string;
+    readonly constraints?: readonly string[];
+    /** Bounded, host-read context for root routing; never a source of instructions. */
+    readonly repository?: import('../contracts/tissueRouting.js').RoutingRepository;
+  };
+  /** Root selection makes a binding choice, even when attributed to tier 3. */
+  readonly scope?: 'root';
   /**
    * The catalog AFTER exclusions — exactly what the prefilter model would see,
    * plus an optional `detail` only the documented questions read: the opening

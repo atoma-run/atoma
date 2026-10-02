@@ -25,8 +25,23 @@ Neighbours:
   that owns process death: exit 2 on config errors, exit 1 on failure,
   park-forever on delivery, SIGINT/SIGTERM → shutdown. Its stdout is an API
   (burn-in parses it) — the handle refactor kept it byte-identical. A
-  `TaskProfile` contributes only family-specific workspace, seed, canonical
-  catalog, constraints, and env names.
+  `TaskProfile` retains workspace setup, canonical child catalog, help and
+  legacy env names. It never chooses a tissue or adds task constraints.
+- `selectTissue` (`tissueRouting.ts`) selects the root from the task and a
+  bounded host-read starting repository (`routingRepository.ts`), after the
+  trace and run context exist. Jev makes a binding Choice with the existing
+  confidence/fit thresholds; uncertainty, absence or outage uses one bounded
+  tier-1 model call. That call may reuse an offered identity or request a new
+  capability; only `platform-tissue-author` writes its reusable method, using
+  the HOST's `ATOMA_MODEL_L3` and credential snapshot (`tissueAuthor.ts`),
+  never the run's pins, keys or personal login. One text-only, high-effort call
+  shares the run's recording and budget meter, then `createOrReuse(3)` owns
+  allocation. Missing platform configuration refuses creation, not reuse.
+  Tools, parameters and delegation discipline remain host-owned.
+  Repository excerpts are untrusted context, never persisted agent prompts.
+  `tissues.ts` seeds the existing builder as a candidate, not a default route;
+  bootstrap recognizes its provenance so a custom Meristem is never replaced.
+  See [routing decision and review](../../docs/tissue-routing-2026-10-02.md).
 - The three `ATOMA_MODEL_L*` selectors are REQUIRED and parsed at LAUNCH
   (`tierSelectors`, a `RunnerConfigError` on a missing or malformed pin), AFTER
   `applyTierPins` so a snapshot-only pin is what the run sees and an ambient
@@ -143,8 +158,9 @@ Neighbours:
 
 ## Run accounting
 
-- New ordinary build runs default to short-first supervision. `--depth deep`
-  explicitly enters through L3; `--depth short` selects the default. A project
+- New ordinary runs default to deep supervision through the selected tissue.
+  `--depth short` explicitly retains direct L2 entry and selects an L3 only
+  when it deepens. A project
   run passes it from its own `depth` (since 2026-09-27; a rerun keeps its
   origin's): before, only the CLI could ask for L3 from the start. Baseline
   and REGISTERED COMPARISON ARMS (`--comparison`) retain their existing

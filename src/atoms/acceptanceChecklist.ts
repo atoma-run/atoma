@@ -22,7 +22,7 @@ import {
 export const CHECKLIST_ACTOR = { name: 'run-checklist', tier: 1 } as const;
 
 export const CHECKLIST_SYSTEM_PROMPT = [
-  'You turn a software goal into a short checklist of behaviours a finished delivery must show.',
+  'You turn a task goal into a short checklist of outcomes a finished delivery must show, including analysis and explanations when requested.',
   'Output ONE JSON object and nothing else: {"items": [{"behaviour": string, "check": {...}}]}.',
   '',
   'RULES',

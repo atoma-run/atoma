@@ -66,7 +66,8 @@ describe('a seeded static-page run', () => {
     vi.mocked(buildTierClients).mockReturnValue({ ollama: { complete: async (req) => {
       let reply: unknown;
       const role = req.role;
-      if (role === 'prefilter') reply = { outcome: 'escalate', reasoning: 'Exercise decomposition' };
+      if (req.actor?.name === 'run-router') reply = { action: 'reuse', name: 'Meristem', reasoning: 'Build fixture' };
+      else if (role === 'prefilter') reply = { outcome: 'escalate', reasoning: 'Exercise decomposition' };
       else if (role === 'validate-plan') reply = { approved: true, reasoning: 'Plan approved' };
       else if (role === 'validate-result') {
         if (req.actor?.name === 'run-root') rootPrompt = req.userContent;
@@ -90,7 +91,7 @@ describe('a seeded static-page run', () => {
     } } });
     let handle: Awaited<ReturnType<typeof startTask>> | undefined;
     try {
-      handle = await startTask(buildProfile, ['--seed', seedDir, '--no-learn-skills', '--no-direct-skills', 'Change the long-break line']);
+      handle = await startTask(buildProfile, ['--depth', 'short', '--seed', seedDir, '--no-learn-skills', '--no-direct-skills', 'Change the long-break line']);
       await handle.settled;
       expect(baselineDoneAtFirstToolCall).toBe(true);
       const baseline = logs.find((line) => line.startsWith('inherited checks: '))!;
@@ -98,7 +99,7 @@ describe('a seeded static-page run', () => {
       // a broken host server start must not hide behind the fallback.
       if (spawnSync('python3', ['--version']).status === 0) {
         expect(baseline).toMatch(/^inherited checks: 1 of 2 tried passed twice/);
-        expect(rootPrompt).toContain('INHERITED BROWSER CHECKS (host replay, mechanical)');
+        expect(rootPrompt, logs.join('\n')).toContain('INHERITED BROWSER CHECKS (host replay, mechanical)');
         expect(rootPrompt).toContain('Mode: Long Break');
         // The hook-less check is marked in the run's manifest, unless the
         // seed landed: its acceptance may have listed the check it broke.

@@ -6,10 +6,11 @@ import { openDb } from '../src/registry/db.js';
 import { defaultBuiltinTools } from '../src/tools/builtin.js';
 import { ToolSandbox } from '../src/tools/sandbox.js';
 import {
-  buildProfile,
   MERISTEM_SYSTEM_PROMPT,
   MERISTEM_DESCRIPTION,
-} from '../src/run/profiles/build.js';
+  seedTissueCatalog,
+} from '../src/run/tissues.js';
+import { buildProfile } from '../src/run/profiles/build.js';
 import {
   runTask,
   parseRunnerArgs,
@@ -29,10 +30,10 @@ import { RunnerConfigError } from '../src/core/errors.js';
  *
  * The refactor had to be a pure MOVE, and two things make that non-obvious:
  *
- *  1. SEEDS. `seedL3` re-aligns the persisted tier-3 prompt whenever the
- *     constant changes, and `AtomRegistry.patch` ZEROES trust counters. A
+ *  1. SEEDS. `seedTissueCatalog` re-aligns the canonical tier-3 prompt whenever the
+ *     constant changes, and `AtomRegistry.patch` resets the trust streak while preserving totals. A
  *     single character drifting during the move would have been the first
- *     tier-3 patch in the project's history. The baseline below pins the
+ *     tier-3 patch in the project's history. The 2026-10-02 owner correction extends the
  *     post-taxonomy Meristem tissue prompt.
  *
  *  2. STDOUT. `src/cli/burnin.ts` parses the run's console output to build
@@ -41,16 +42,16 @@ import { RunnerConfigError } from '../src/core/errors.js';
  *     reclassifies every future run.
  */
 
-const MERISTEM_PROMPT_SHA16 = '84e5c2227a6fad8a';
+const MERISTEM_PROMPT_SHA16 = 'd22aca5eae613f94';
 
 function sha16(s: string): string {
   return createHash('sha256').update(s).digest('hex').slice(0, 16);
 }
 
-describe('build profile — the seeds survived the move byte-for-byte', () => {
-  it('the tier-3 prompt still hashes to what the live store held', () => {
+describe('build profile — canonical seed and child catalog', () => {
+  it('the tier-3 seed pins the intentional multi-cell prompt correction', () => {
     expect(sha16(MERISTEM_SYSTEM_PROMPT)).toBe(MERISTEM_PROMPT_SHA16);
-    expect(MERISTEM_SYSTEM_PROMPT.length).toBe(977);
+    expect(MERISTEM_SYSTEM_PROMPT.length).toBe(1141);
   });
 
   it('seeding twice on a fresh store does not bump the version', () => {
@@ -61,7 +62,7 @@ describe('build profile — the seeds survived the move byte-for-byte', () => {
     const log = (): void => undefined;
     const ctx = { registry: reg, toolDecls: tools, log };
 
-    const first = buildProfile.seedL3(ctx);
+    const first = seedTissueCatalog(ctx);
     expect(first.systemPrompt).toBe(MERISTEM_SYSTEM_PROMPT);
     expect(first.description).toBe(MERISTEM_DESCRIPTION);
     buildProfile.seedCatalog(ctx);
@@ -71,7 +72,7 @@ describe('build profile — the seeds survived the move byte-for-byte', () => {
       .map((t) => `${t.name}:v${t.version}`)
       .sort();
 
-    const second = buildProfile.seedL3(ctx);
+    const second = seedTissueCatalog(ctx);
     buildProfile.seedCatalog(ctx);
     const versionsAfterSecond = reg
       .listByTier(1)
@@ -89,30 +90,17 @@ describe('build profile — the seeds survived the move byte-for-byte', () => {
       (t) => t.declaration
     );
     const ctx = { registry: reg, toolDecls: tools, log: (): void => undefined };
-    buildProfile.seedL3(ctx);
+    seedTissueCatalog(ctx);
     buildProfile.seedCatalog(ctx);
     expect(reg.listByTier(1)).toHaveLength(4);
     expect(reg.listByTier(2)).toHaveLength(3);
     expect(reg.listByTier(3)).toHaveLength(1);
   });
 
-  it('carries the artefact-neutral task constraints', () => {
-    const task = buildProfile.buildTask('do a thing');
-    expect(task.description).toBe('do a thing');
-    expect(task.constraints).toHaveLength(3);
-    // The web pattern must NOT be the only verification named — that bias is
-    // exactly what the greet-cli run exposed.
-    const joined = (task.constraints ?? []).join(' ');
-    expect(joined).toMatch(/start_node_server \+ fetch_url/);
-    expect(joined).toMatch(/run_shell executing the artefact/);
-  });
-
-  it('asks for an edit of an existing file, never a rewrite through write_file (run fa8b6ce3)', () => {
-    // "via the write_file tool" became a planner's "full on-disk file write"
-    // of a seeded README, which lost the examples three earlier runs asked for.
-    const [files] = buildProfile.buildTask('extend the CLI').constraints ?? [];
-    expect(files).toContain('write_file for a new file, edit_file to change an existing one');
-    expect(files).not.toContain('via the write_file tool');
+  it('keeps launch configuration independent of task constraints and root identity', () => {
+    expect(buildProfile).not.toHaveProperty('seedL3');
+    expect(buildProfile).not.toHaveProperty('buildTask');
+    expect(buildProfile.depthExperiment?.defaultMode).toBe('deep');
   });
 });
 

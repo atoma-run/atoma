@@ -3,6 +3,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { truncateToolResultContent, DEFAULT_MAX_TOOL_ITERATIONS } from './llm.js';
 import { modelSupportsEffort } from './models.js';
+import { PLATFORM_TISSUE_AUTHOR_ENV } from '../contracts/tissueRouting.js';
 import type {
   LlmClient,
   LlmCompletionRequest,
@@ -61,7 +62,7 @@ import type {
  * as `AnthropicLlmClient`: only when the caller pinned it AND the declared
  * model (the tier pin, before alias resolution) supports the param.
  */
-export function cliEffortFor(req: LlmCompletionRequest): 'low' | 'medium' | 'high' | undefined {
+export function cliEffortFor(req: LlmCompletionRequest, env: NodeJS.ProcessEnv = process.env): 'low' | 'medium' | 'high' | undefined {
   if (req.params?.effort === undefined) return undefined;
   // Gate on the RESOLVED alias, exactly like cliThinkingFor below — NOT on
   // the raw pin. modelSupportsEffort is anchored on /^claude-/, so a
@@ -72,7 +73,7 @@ export function cliEffortFor(req: LlmCompletionRequest): 'low' | 'medium' | 'hig
   // tokens and was killed by the run deadline. 'sonnet'/'opus' aliases
   // take the pin; 'haiku' never carries one (atoma never sends it there);
   // anything else falls back to the id-based capability check.
-  const alias = resolveCliModel(req.model);
+  const alias = resolveCliModel(req.model, env);
   if (alias === 'sonnet' || alias === 'opus') return req.params.effort;
   if (alias === 'haiku') return undefined;
   if (!modelSupportsEffort(req.model)) return undefined;
@@ -94,8 +95,8 @@ export function cliEffortFor(req: LlmCompletionRequest): 'low' | 'medium' | 'hig
  * CLI's adaptive default — that matches the API too, and their plan calls
  * are already bounded by the `effort` pin.
  */
-export function cliThinkingFor(req: LlmCompletionRequest): { type: 'disabled' } | undefined {
-  return resolveCliModel(req.model) === 'haiku' ? { type: 'disabled' } : undefined;
+export function cliThinkingFor(req: LlmCompletionRequest, env: NodeJS.ProcessEnv = process.env): { type: 'disabled' } | undefined {
+  return resolveCliModel(req.model, env) === 'haiku' ? { type: 'disabled' } : undefined;
 }
 
 
@@ -164,8 +165,8 @@ export function isCliQuotaRefusalText(text: string): boolean {
  */
 export const DEFAULT_CLI_CALL_TIMEOUT_MS = 10 * 60 * 1000;
 
-export function cliCallTimeoutMs(): number {
-  const raw = process.env['ATOMA_CLI_CALL_TIMEOUT_MS'];
+export function cliCallTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = env['ATOMA_CLI_CALL_TIMEOUT_MS'];
   if (raw === undefined) return DEFAULT_CLI_CALL_TIMEOUT_MS;
   const n = Number(raw);
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : DEFAULT_CLI_CALL_TIMEOUT_MS;
@@ -174,6 +175,7 @@ export function cliCallTimeoutMs(): number {
 export class ClaudeCliLlmClient implements LlmClient {
   private readonly maxIter: number;
   private readonly callTimeoutMs: number;
+  private readonly env: NodeJS.ProcessEnv;
 
   /**
    * `callTimeoutCeilingMs` is the PLATFORM setting `llm.callTimeoutMs`, and it
@@ -188,13 +190,15 @@ export class ClaudeCliLlmClient implements LlmClient {
       maxToolIterations?: number;
       callTimeoutMs?: number;
       callTimeoutCeilingMs?: number;
+      env?: NodeJS.ProcessEnv;
     } = {}
   ) {
+    this.env = Object.freeze(subscriptionTransportEnv(opts.env ?? process.env));
     this.maxIter = Math.max(1, opts.maxToolIterations ?? DEFAULT_MAX_TOOL_ITERATIONS);
     const requested =
       opts.callTimeoutMs && opts.callTimeoutMs > 0
         ? Math.floor(opts.callTimeoutMs)
-        : cliCallTimeoutMs();
+        : cliCallTimeoutMs(this.env);
     const ceiling =
       opts.callTimeoutCeilingMs !== undefined && opts.callTimeoutCeilingMs > 0
         ? Math.floor(opts.callTimeoutCeilingMs)
@@ -296,7 +300,7 @@ export class ClaudeCliLlmClient implements LlmClient {
     // Resolved ONCE and reported back as `servedModel`: this transport maps
     // tier pins onto CLI aliases (haiku/sonnet/opus), so pricing on the raw
     // pin would misattribute the tokens (review 2026-08-14 §1.13).
-    const served = resolveCliModel(req.model);
+    const served = resolveCliModel(req.model, this.env);
     try {
       bumpDeadline();
       const toolOptions = hasTools
@@ -315,8 +319,8 @@ export class ClaudeCliLlmClient implements LlmClient {
           ...(toolOptions.toolAliases ? { toolAliases: toolOptions.toolAliases } : {}),
           permissionMode: 'bypassPermissions',
           allowDangerouslySkipPermissions: true,
-          ...(cliEffortFor(req) ? { effort: cliEffortFor(req) } : {}),
-          ...(cliThinkingFor(req) ? { thinking: cliThinkingFor(req) } : {}),
+          ...(cliEffortFor(req, this.env) ? { effort: cliEffortFor(req, this.env) } : {}),
+          ...(cliThinkingFor(req, this.env) ? { thinking: cliThinkingFor(req, this.env) } : {}),
           ...(resumeSessionId ? { resume: resumeSessionId, strictMcpConfig: true, mcpServers: {}, allowedTools: [] } : {}),
           maxTurns: resumeSessionId ? 1 : hasTools ? budget : 2,
           abortController: abort,
@@ -330,7 +334,7 @@ export class ClaudeCliLlmClient implements LlmClient {
           // named (design 2026-08-28, D9). So the whole `ANTHROPIC_*` family
           // goes, plus the two gateway switches that reroute Claude Code to
           // another vendor's account.
-          env: subscriptionTransportEnv(process.env),
+          env: { ...this.env },
         },
       });
 
@@ -467,6 +471,7 @@ export function subscriptionTransportEnv(source: NodeJS.ProcessEnv): NodeJS.Proc
   // account whose bill is not the operator's login.
   delete env['CLAUDE_CODE_USE_BEDROCK'];
   delete env['CLAUDE_CODE_USE_VERTEX'];
+  delete env[PLATFORM_TISSUE_AUTHOR_ENV];
   return env;
 }
 
@@ -474,14 +479,14 @@ export function subscriptionTransportEnv(source: NodeJS.ProcessEnv): NodeJS.Proc
  * Map atoma's pinned per-tier model ids onto Claude Code model aliases.
  * Exported for tests.
  */
-export function resolveCliModel(model: string): string {
+export function resolveCliModel(model: string, env: NodeJS.ProcessEnv = process.env): string {
   // Debug-only escape hatch: collapse EVERY tier onto one model. This
   // deliberately breaks the cheapest-model-that-can-answer gradient — its
   // only legitimate uses are tier-isolation debugging and smoke tests.
   // PER-TIER selection does not live here: it's the provider-agnostic
   // ATOMA_MODEL_L1/L2/L3 (src/core/models.ts), whose values arrive as
   // req.model — aliases like 'sonnet' pass straight through below.
-  const override = process.env['ATOMA_CLAUDE_MODEL'];
+  const override = env['ATOMA_CLAUDE_MODEL'];
   if (override && override.trim().length > 0) return override.trim();
   if (/haiku/i.test(model)) return 'haiku';
   if (/sonnet/i.test(model)) return 'sonnet';

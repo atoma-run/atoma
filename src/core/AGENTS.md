@@ -70,6 +70,10 @@ Neighbours:
   own session, with tools and MCP servers disabled. Both queries' usage is
   retained, including when finalization fails; finalization never recurses.
 - Claude CLI and Codex CLI transports run with user tools/config isolated.
+  Both capture their supplied environment at construction, including login
+  location and model overrides; a separate platform author cannot inherit
+  the customer's ambient login or debug model. Claude strips the internal
+  tissue-author credential envelope before spawning, as Codex's allowlist does.
   Project `.claude/settings.json` never grants shell permission; personal grants
   belong in ignored local settings. Codex MCP registration is local too. A
   principal Codex transport receives an allowlisted environment snapshot and a
@@ -212,6 +216,10 @@ Neighbours:
   as the baseline every calibration compares with. A question or a threshold
   changes with a measurement, never by feel, and each is written up in the
   decision record with its numbers.
+- A root Choice (`scope: root`) is binding: it keeps the existing confidence
+  and absolute-fit thresholds even if the caller attributes it to tier 3.
+  The weaker L3 child-routing hint is never used to select a root tissue.
+  Its bounded repository context and scope are included in the policy key.
 - The `compile-skill` questions use the same bounded client, cost accounting
   and trace events. Their 0.2/0.8 band was retained after the 2026-10-01
   production sample: 14 labelled recipes, 3 evaluations each, no observed

@@ -21,6 +21,24 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
 
 const { ClaudeCliLlmClient } = await import('../src/core/llmClaudeCli.js');
 
+it('uses the captured platform login and model even after ambient customer configuration changes', async () => {
+  const env = { HOME: '/platform', CLAUDE_CONFIG_DIR: '/platform/claude', ATOMA_PLATFORM_TISSUE_AUTHOR: 'secret envelope' };
+  const client = new ClaudeCliLlmClient({ env });
+  env.CLAUDE_CONFIG_DIR = '/mutated';
+  queryMock.mockImplementationOnce(resultOnlyStream({ type: 'result', subtype: 'success', result: 'authored', usage: { input_tokens: 1, output_tokens: 1 } }));
+  const previous = process.env['ATOMA_CLAUDE_MODEL'];
+  process.env['ATOMA_CLAUDE_MODEL'] = 'haiku';
+  try {
+    await client.complete({ model: 'opus', systemPrompt: 's', userContent: 'u', params: { effort: 'high' } });
+    const options = queryMock.mock.calls[0]![0].options;
+    expect(options).toMatchObject({ model: 'opus', effort: 'high', tools: [], env: { HOME: '/platform', CLAUDE_CONFIG_DIR: '/platform/claude' } });
+    expect(options.env).not.toHaveProperty('ATOMA_PLATFORM_TISSUE_AUTHOR');
+  } finally {
+    if (previous === undefined) delete process.env['ATOMA_CLAUDE_MODEL'];
+    else process.env['ATOMA_CLAUDE_MODEL'] = previous;
+  }
+});
+
 const REQ = {
   model: 'claude-haiku-4-5',
   systemPrompt: 's',

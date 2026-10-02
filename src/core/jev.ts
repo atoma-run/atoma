@@ -673,6 +673,7 @@ export function createJevDecider(opts: {
         model: JEV_MODEL, thresholds: JEV_THRESHOLDS,
         questions: typeof plan === 'string' ? plan : { state: plan.state, questions: plan.questions, options: plan.options },
         tier: request.actorTier,
+        scope: request.scope,
         progressive: opts.progressiveRecipes === true, policy: 'guarded-model-fallback-v1',
       })).digest('hex');
     },

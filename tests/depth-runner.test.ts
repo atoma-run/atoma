@@ -69,7 +69,8 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
     vi.mocked(buildTierClients).mockReturnValue({ ollama: { complete: async (req) => {
       calls.push(req);
       let reply: unknown;
-      if (req.role === 'prefilter' && req.systemPrompt === SKILL_PREFILTER_SYSTEM_PROMPT) reply = {
+      if (req.actor?.name === 'run-router') reply = { action: 'reuse', name: 'Meristem', reasoning: 'Build fixture' };
+      else if (req.role === 'prefilter' && req.systemPrompt === SKILL_PREFILTER_SYSTEM_PROMPT) reply = {
         kind: 'reuse', target: recipe.id, confidence: 'high', reasoning: 'Match the recipe' };
       else if (req.role === 'prefilter') reply = { kind: 'reuse', target: req.actor?.tier === 3 ? cellName : leafName,
         confidence: deadline ? 'low' : 'high', reasoning: 'Reuse the canonical executor' };
@@ -134,9 +135,9 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
         expect(existsSync(join(root, 'workspace', 'server.js'))).toBe(true);
       }
       expect(trace.events.filter((event) => event.kind === 'topology')).toMatchObject([
-        { mode: mode === 'default' ? 'short' : mode, attempt: 1 },
+        { mode: mode === 'default' ? 'deep' : mode, attempt: 1 },
       ]);
-      if (mode !== 'deep') expect(calls.some((req) => req.actor?.tier === 3 && req.actor.name !== 'run-root')).toBe(false);
+      if (mode === 'short') expect(calls.some((req) => req.actor?.tier === 3 && req.actor.name !== 'run-root')).toBe(false);
       expect(trace.events.filter((event) => event.kind === 'acceptance'), trace.error).toMatchObject([
         { approved: rootApproved, floorCoverage: [], phaseCoverage: [{ obligations: [] }] },
       ]);
@@ -189,7 +190,8 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
         expect(readdirSync(root).some((name) => name.startsWith('workspace.prev'))).toBe(true);
         expect(() => process.kill(serverPid!, 0)).toThrow();
       }
-      if (role === 'prefilter') reply = { outcome: 'escalate', reasoning: 'Exercise decomposition' };
+      if (req.actor?.name === 'run-router') reply = { action: 'reuse', name: 'Meristem', reasoning: 'Build fixture' };
+      else if (role === 'prefilter') reply = { outcome: 'escalate', reasoning: 'Exercise decomposition' };
       else if (role === 'validate-plan') reply = { approved: true, reasoning: 'Plan approved' };
       else if (role === 'validate-result') reply = { approved: false, reasoning: 'Fixture rejects output', scope: 'ephemeral', modifications: {} };
       else if (role === 'plan' && req.actor?.tier !== 1) reply = [
@@ -217,7 +219,7 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
     } } });
     let handle: Awaited<ReturnType<typeof startTask>> | undefined;
     try {
-      handle = await startTask(buildProfile, ['--clean-workspace', '--no-learn-skills', '--no-direct-skills', 'Build index.html']);
+      handle = await startTask(buildProfile, ['--depth', 'short', '--clean-workspace', '--no-learn-skills', '--no-direct-skills', 'Build index.html']);
       // `partial` since 2026-09-24: this run deepened, was refused at delivery,
       // and its second attempt's workspace holds real files. What the test is
       // about is below and unchanged — the abandoned server is reaped, the
@@ -306,7 +308,7 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
       handle = await startTask({ ...buildProfile, seedCatalog(seed) {
         buildProfile.seedCatalog(seed);
         leafName = ensureCanonicalFullStack(seed.registry, seed.toolDecls, 1)!.name;
-      } }, ['--clean-workspace', '--no-learn-skills', '--no-direct-skills', 'Node API: GET /api/notes lists notes; GET /api/notes/:id is 404 when unknown']);
+      } }, ['--depth', 'short', '--clean-workspace', '--no-learn-skills', '--no-direct-skills', 'Node API: GET /api/notes lists notes; GET /api/notes/:id is 404 when unknown']);
       expect(await handle.settled).toEqual({ outcome: 'delivered' });
       expect(calls.filter((req) => req.role === 'draft-checklist')).toHaveLength(1);
       // The high-confidence reuse shortcut makes no L2 plan call and forwards
@@ -384,7 +386,7 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
       handle = await startTask({ ...buildProfile, seedCatalog(seed) {
         buildProfile.seedCatalog(seed);
         leafName = ensureCanonicalFullStack(seed.registry, seed.toolDecls, 1)!.name;
-      } }, ['--clean-workspace', '--no-learn-skills', '--no-direct-skills', 'Node API: GET /api/notes lists notes']);
+      } }, ['--depth', 'short', '--clean-workspace', '--no-learn-skills', '--no-direct-skills', 'Node API: GET /api/notes lists notes']);
       expect(await handle.settled).toEqual({ outcome: 'delivered' });
       expect(calls.filter((req) => req.role === 'draft-checklist')).toHaveLength(0);
       const planning = calls.filter((req) => req.role === 'plan').map((req) => req.userContent).join('\n');
@@ -479,7 +481,8 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
         expect(manifest.entries).toEqual([{ cmd: 'node corpus-check.js', exitCode: 0 }]);
         deepSawSeed = true;
       }
-      if (role === 'prefilter') reply = { outcome: 'escalate', reasoning: 'Exercise decomposition' };
+      if (req.actor?.name === 'run-router') reply = { action: 'reuse', name: 'Meristem', reasoning: 'Build fixture' };
+      else if (role === 'prefilter') reply = { outcome: 'escalate', reasoning: 'Exercise decomposition' };
       else if (role === 'validate-plan') reply = { approved: true, reasoning: 'Plan approved' };
       else if (role === 'validate-result') reply = { approved: false, reasoning: 'Fixture rejects output', scope: 'ephemeral', modifications: {} };
       else if (role === 'plan' && req.actor?.tier !== 1) reply = [
@@ -502,7 +505,7 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
     } } });
     let handle: Awaited<ReturnType<typeof startTask>> | undefined;
     try {
-      handle = await startTask(buildProfile, ['--seed', seedDir, '--no-learn-skills', '--no-direct-skills', 'Build index.html']);
+      handle = await startTask(buildProfile, ['--depth', 'short', '--seed', seedDir, '--no-learn-skills', '--no-direct-skills', 'Build index.html']);
       const settled = await handle.settled;
       const archive = join(root, 'workspace.prev1');
       expect(existsSync(join(archive, 'abandoned.txt'))).toBe(true);

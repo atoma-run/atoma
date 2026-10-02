@@ -109,8 +109,13 @@ describe('startTask — typed config errors before any side effect', () => {
 
   it('rejects an invalid timeout with RunnerConfigError (the CLI maps it to exit 2)', async () => {
     process.env[buildProfile.envVars.timeoutMs] = 'abc';
-    await expect(startTask(buildProfile, [])).rejects.toThrow(RunnerConfigError);
-    await expect(startTask(buildProfile, [])).rejects.toThrow(/expected positive integer/);
+    await expect(startTask(buildProfile, ['goal'])).rejects.toThrow(RunnerConfigError);
+    await expect(startTask(buildProfile, ['goal'])).rejects.toThrow(/expected positive integer/);
+  });
+
+  it('requires a goal instead of silently running a sample application', async () => {
+    await expect(startTask(buildProfile, [])).rejects.toThrow(/task goal is required/);
+    await expect(startTask(buildProfile, ['   '])).rejects.toThrow(/task goal is required/);
   });
 
   /**

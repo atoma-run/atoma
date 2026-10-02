@@ -237,9 +237,14 @@ development step.
 
 ## 3. Flow — a task, end to end
 
-The sequence below shows the full topology selected by `--depth deep` or
-reached after deepening. The default short path enters at L2 and returns its
-result directly to the runner's final acceptance.
+The default path selects an L3 tissue from the goal and starting repository.
+Jev chooses among registered capabilities; an uncertain or missing match falls
+back to a bounded tier-1 call that can reuse a tissue or request a new capability.
+Only the platform's pinned `ATOMA_MODEL_L3` authors a new tissue's reusable method,
+using platform credentials through a separate client. The customer's model and
+login never replace this platform author.
+The explicit `--depth short` path enters at L2 and returns its result to the
+runner's final acceptance, selecting an L3 only if it needs to deepen.
 
 ```mermaid
 sequenceDiagram
@@ -252,6 +257,7 @@ sequenceDiagram
 
     U->>R: npm run run:build -- "<goal>"
     R->>R: pick provider · open stores · prepare workspace<br/>seed the standard agents · set budget + watchdog
+    R->>R: goal + repository context → Jev tissue choice<br/>model reuse or creation when needed
     R->>L3: handle(task)
 
     Note over L3: cheap scan first — used only as a hint

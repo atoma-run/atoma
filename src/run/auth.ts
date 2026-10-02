@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { RunnerConfigError } from '../core/errors.js';
+import { findProvider } from '../core/providerCatalog.js';
 
 /**
  * Build the Anthropic client from the SDK's native credential chain
@@ -23,7 +24,7 @@ import { RunnerConfigError } from '../core/errors.js';
  * is what lets a single process serve more than one credential (invariant
  * T10 in docs/saas-architecture.md); it defaults to `process.env` so every
  * existing single-tenant call site is unchanged. LIMIT, stated because it
- * is not obvious: only the API key and bearer token are snapshot inputs.
+ * is not obvious: the key, bearer token and endpoint are snapshot inputs.
  * When both are absent the SDK falls through to profile / workload-identity
  * resolution, which reads the real `process.env` and the config directory
  * itself — a per-run snapshot cannot redirect that half without
@@ -73,7 +74,10 @@ export function makeAnthropicClient(env: NodeJS.ProcessEnv = process.env): Anthr
       : 'CLI OAuth profile (ant auth login)';
 
   try {
-    const client = new Anthropic({ apiKey, authToken });
+    const client = new Anthropic({
+      apiKey, authToken,
+      baseURL: env['ANTHROPIC_BASE_URL']?.trim() || findProvider('anthropic')!.defaultBaseUrl,
+    });
     console.log(`anthropic auth: ${source}`);
     return client;
   } catch (err) {

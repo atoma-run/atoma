@@ -150,7 +150,8 @@ export function withAcceptanceChecklist(task: Task, checklist: AcceptanceCheckli
 /** The existing atom protocol executes each attempt; this owns only their lifetime. */
 export async function runDepthTask(args: {
   mode: DepthMode; task: Task; ctx: RunContext; floor: ProofFloor;
-  createExecutor: (mode: DepthMode) => { actor: Atom; handle: (task: Task, ctx: RunContext) => Promise<Result> };
+  createExecutor: (mode: DepthMode) => { actor: Atom; handle: (task: Task, ctx: RunContext) => Promise<Result> }
+    | Promise<{ actor: Atom; handle: (task: Task, ctx: RunContext) => Promise<Result> }>;
   restart: () => Promise<ToolExecutor>;
   onTopology: (info: TopologyInfo) => void;
   onAcceptance: (info: AcceptanceInfo) => void;
@@ -179,7 +180,7 @@ export async function runDepthTask(args: {
     const mode = attempt === 1 ? args.mode : 'deep';
     args.onTopology({ at: attempt === 1 ? 'entry' : 'deepening', mode,
       reason: attempt === 1 ? 'arm' : 'fallback-moment', attempt });
-    const { actor, handle } = args.createExecutor(mode);
+    const { actor, handle } = await args.createExecutor(mode);
     const cancellation = new AbortController();
     const attemptSignal = AbortSignal.any([ctx.signal, cancellation.signal]);
     setMaxListeners(0, attemptSignal);

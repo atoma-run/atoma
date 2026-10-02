@@ -245,7 +245,7 @@ export const createProjectRunInputSchema = z
     /**
      * Supervision depth for this run: `short` (an L2 cell plans, and the run
      * deepens once at its fallback moment) or `deep` (an L3 tissue decomposes
-     * from the start). Absent is the profile default, `short`.
+     * from the start). Absent uses `deep`, with a tissue chosen for the task.
      */
     depth: depthModeSchema.optional(),
   })

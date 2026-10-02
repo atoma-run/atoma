@@ -9,6 +9,8 @@ import { parseRunLog, spawnRun, DEFAULT_HARD_KILL_MARGIN_MS, UNKILLABLE_BACKSTOP
 import { encodePreviousLanding, PREVIOUS_LANDING_ENV } from '../contracts/runLanding.js';
 import { ACCEPTANCE_SOURCE_ENV, ACCEPTANCE_SPEC_ENV } from '../contracts/acceptanceChecklist.js';
 import { encodeAcceptanceSpec } from '../run/acceptanceSpec.js';
+import { capturePlatformTissueAuthor } from '../run/tissueAuthor.js';
+import { PLATFORM_TISSUE_AUTHOR_ENV } from '../contracts/tissueRouting.js';
 import { declaredArtifactManifestSchema } from '../contracts/artifactManifest.js';
 import type {
   ArtifactManifest,
@@ -537,6 +539,9 @@ export function projectRunEnvironment(input: {
     if (value !== undefined) environment[key] = value;
   }
   environment['NODE_ENV'] = 'production';
+  // Shared catalog authorship is platform work, independent of the run's payer.
+  // Capture the host L3 and its credential before any account/org override.
+  environment[PLATFORM_TISSUE_AUTHOR_ENV] = capturePlatformTissueAuthor(input.hostEnv);
   // THE HOST'S OLLAMA ENDPOINT crosses on every run: it selects no payer
   // (self-hosted, priced at zero), so unlike a vendor gateway URL it is safe
   // beside a BYO key and on a subscription run alike. Forwarded BEFORE tier

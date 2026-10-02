@@ -60,16 +60,16 @@ list. These values come from the host snapshot, never a tenant prompt.
   presuming localhost is exactly what detonates. The endpoint is the
   operator's infrastructure: an org picks ollama models, never an ollama
   destination (a tenant URL would be SSRF from the platform's own process).
-- Only the credentials of vendors the RESOLVED tiers reference cross into the
+- For ordinary tiers, only their RESOLVED vendors' credentials cross into the
   child, and a BYO key crosses WITHOUT the host's gateway variables
   (`ANTHROPIC_BASE_URL`, `OPENAI_BASE_URL`, …): a tenant's key belongs to its
   own issuer, the host's gateway applies to the host's own credential only.
-- ONE other credential crosses: Jev's `TYPESAFE_API_KEY`, with `ATOMA_JEV=1`,
-  into EVERY organisation's runs unless the platform switch `ATOMA_JEV=0` is
-  set on the host (then only `ATOMA_JEV=0` crosses, so the run log says why) —
-  Jev receives task, catalog, plan and result text as a third party, which the
-  service terms state
-  ([owner decision](../../docs/jev-decisions-2026-09-28.md)).
+- Shared tissue authorship captures the HOST's `ATOMA_MODEL_L3` and credential
+  before customer overrides; [contract](../../docs/tissue-routing-2026-10-02.md) owns authority, the envelope and subprocess isolation.
+- Jev's `TYPESAFE_API_KEY` and `ATOMA_JEV=1` cross into EVERY organisation's runs;
+  host `ATOMA_JEV=0` forwards only that switch, so logs explain the refusal.
+  Jev receives task, catalog, plan and result text as a third party, as the service
+  terms state ([owner decision](../../docs/jev-decisions-2026-09-28.md)).
 - `api:openai` is OpenAI's API with function tools, admissible on every tier
   from the org's or the host's `OPENAI_API_KEY`. `sub:openai`/`own:openai`
   are the Codex CLI on a ChatGPT login; L1 actions pass through Atoma's
