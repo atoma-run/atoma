@@ -306,6 +306,21 @@ describe('what a visitor can read', () => {
     expect(renderShowcaseIndex([], null)).not.toContain('type="module"');
   });
 
+  it('shows no placeholder while the real crystal loads, and never leaves an empty host', () => {
+    const assets = { markScript: '/showcase-assets/atoma-mark.js?v=0123456789abcdef' };
+    const loading = renderShowcaseIndex([], null, assets);
+    // The static crystal is hidden while the module loads...
+    expect(loading).toContain('<body class="marks-pending">');
+    expect(loading).toContain('.marks-pending .mark:not(.mark-live):not(.mark-failed)>*{visibility:hidden;');
+    // ...and comes back if it fails, never loads (a delayed reveal), or JavaScript is off.
+    expect(loading).toContain('animation:mark-reveal 0s 4s forwards');
+    expect(loading).toContain('<noscript><style>.marks-pending .mark>*{visibility:visible!important}</style></noscript>');
+    // Without a module to wait for, the static crystal is simply shown.
+    const plain = renderShowcaseIndex([], null);
+    expect(plain).toContain('<body>');
+    expect(plain).not.toContain('<noscript>');
+  });
+
   it('writes clean head metadata on every page, and nothing stray before the header', () => {
     const w = world();
     const id = seedRun(w, w.admin, { goal: 'Goal', title: 'A title', files: ['a.md'] });

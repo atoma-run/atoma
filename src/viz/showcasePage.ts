@@ -129,6 +129,8 @@ nav.top a{color:#c9d4e6;text-decoration:none;font-size:15px;padding:12px 14px;mi
 .mark{position:relative;display:inline-block;flex:none}
 .mark>.mark-canvas{position:absolute;inset:0;width:100%!important;height:100%!important}
 .mark.mark-live>:not(.mark-canvas){visibility:hidden}
+.marks-pending .mark:not(.mark-live):not(.mark-failed)>*{visibility:hidden;animation:mark-reveal 0s 4s forwards}
+@keyframes mark-reveal{to{visibility:visible}}
 .mark-receiver-live>.mark-canvas{position:absolute;left:0;top:0;z-index:0;pointer-events:none}
 .mark-receiver-live .stage{background:none}
 main.story{position:relative}main.story>.wrap{position:relative;z-index:1}
@@ -244,8 +246,9 @@ ${canonical ? `<link rel="canonical" href="${esc(canonical)}">` : ''}
 ${input.home && input.origin ? homeSocialMeta(input.origin, { title: input.title, description: input.description }).join('\n') : socialFallback(input.title, input.description, canonical)}
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <style>${CSS}</style>
+${input.assets.markScript ? '<noscript><style>.marks-pending .mark>*{visibility:visible!important}</style></noscript>' : ''}
 </head>
-<body>
+<body${input.assets.markScript ? ' class="marks-pending"' : ''}>
 ${input.body}
 ${input.script ? `<script>${FILTER_SCRIPT}</script>` : ''}
 ${input.assets.markScript ? `<script type="module" src="${esc(input.assets.markScript)}"></script>` : ''}

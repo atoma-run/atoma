@@ -638,7 +638,7 @@ npm run viz:mark-turn:analyze
   escaped, one script pinned by hash in its CSP. English only.
 - Its crystals are the REAL Pixi mark (`showcase-mark.ts`, built alone by
   `vite.showcase.config.ts`: as a second app input it would leave the lazy
-  renderer chunk), over a static SVG that stays when WebGL does not. ONE per
+  renderer chunk), over a static SVG hidden while it loads, shown if it fails. ONE per
   page is lit: drawn over its `data-atoma-receiver` section, behind content, on
   `createFarField` (scenery off) so its light and caustics reach the background;
   the others snapshot and restore the page-global field light around each frame.

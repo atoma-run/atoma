@@ -165,6 +165,8 @@ const lit = hosts.find((host) => host.closest('[data-atoma-receiver]'));
 for (const host of hosts) {
   const receiver = host === lit ? host.closest<HTMLElement>('[data-atoma-receiver]') : null;
   (receiver ? mountLit(host, receiver) : mountPlain(host)).catch(() => {
-    // No WebGL, a lost context, a blocked shader: the static crystal stays.
+    // No WebGL, a lost context, a blocked shader: show the static crystal the
+    // page kept hidden while this loaded.
+    host.classList.add('mark-failed');
   });
 }
