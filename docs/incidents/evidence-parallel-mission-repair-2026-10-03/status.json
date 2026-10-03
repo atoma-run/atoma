@@ -1,0 +1,224 @@
+{
+  "projectRunId": "bcf35298-b65e-4380-8994-a17431e9c564",
+  "projectId": "e5431908-38f6-4d1e-b30a-ea2122c052cd",
+  "orgId": "d28f40d2-14d7-45c7-bce3-928dcb0041a6",
+  "requestedByPrincipalId": "36bbb732-d581-41e3-b8b5-c39e93fd32b9",
+  "requestKey": "parallel-mission-manifest-repair-20261003-v1",
+  "goal": "Repair the publication-integrity defect in this project's existing offline mission dossier. This is a narrow maintenance task on the seeded files, not a rebuild of the four analyses.\n\nObserved defect in the previous delivered run: manifest.json names .atoma-probes.json although that internal journal is intentionally excluded from Git publication. The 20 ordinary entries have correct SHA-256 values. verify_all.py passes without validating manifest.json. Preserve every byte under packing/, schedule/, routing/ and quality/ and preserve all mathematical findings.\n\nRead the existing integration files. Repair manifest generation and verify_all.py so the delivered package is independently verifiable after publication, without an Atoma journal or other runtime state. Define the deliverable inventory independently of the manifest entries; check that the manifest lists every delivered regular file except itself exactly once, with its actual SHA-256. Do not assume that being present in the workspace makes a file deliverable. Atoma excludes .git, node_modules, __pycache__, .atoma, any path component starting .atoma-, .github/workflows and credential-like paths. For this existing dossier the published input set is the four stream directories plus README.md, dossier.md, verify_all.py and manifest.json; any additional maintenance files you deliver must also be inventoried. Never publish or require internal journals.\n\nKeep the original four stream checks and disposable result-corruption checks. Add persistent regression tests for the package boundary: a clean publication-shaped copy with no internal journal passes; a manifest referencing an internal journal, a missing delivered file, an altered file/hash, an omitted entry, a duplicate entry, a path escaping the package, and an unexpected ordinary file each fail for the intended manifest-integrity reason. Perform negative tests only in disposable copies; prove the original delivery files are unchanged by verification. Manifest checks must read bytes and never run commands from manifest content.\n\nUpdate reproduction instructions to explain when/how to regenerate the inventory and how to verify a downloaded checkout. Regenerate the manifest after all final edits. Run the existing and new checks against a copy of exactly the publishable files, not merely the live workspace. Record actual evidence; do not claim independent proof from replaying an old successful command. Do not change the platform's exclusion policy or expose .atoma-probes.json. Final answer: concise changes, checks and limitations.",
+  "title": "Fix manifest to exclude internal journal and add verification tests",
+  "status": "delivered",
+  "bytesExpiredAt": null,
+  "seed": {
+    "kind": "run",
+    "runId": "8738f263-a6b6-4084-897e-a57fc2ea4786"
+  },
+  "traceId": "bcf35298-b65e-4380-8994-a17431e9c564",
+  "stats": {
+    "outcome": "delivered",
+    "costUsd": 0.3979,
+    "subscriptionCostUsd": 0.3979,
+    "llmCalls": 10,
+    "opusCalls": 0,
+    "sonnetCalls": 0,
+    "haikuCalls": 0,
+    "otherCalls": 10,
+    "deterministicPhases": 0,
+    "escalations": 0,
+    "learnedSkills": 0,
+    "learnedEventSkills": 0,
+    "promotions": 0,
+    "refusals": 0,
+    "compileErrors": 0,
+    "demotions": 0,
+    "dispatchFallbacks": 0,
+    "uncoveredObligations": 0,
+    "deepenings": 0,
+    "rootRemediations": 1,
+    "landingReasons": []
+  },
+  "artifactManifest": {
+    "version": 1,
+    "source": "workspace",
+    "delivery": "files",
+    "files": [
+      {
+        "path": "dossier.md",
+        "size": 3617,
+        "sha256": "27da12b071a5e1cc0a799d09aa214d3d2efe470b5e3007b2f3712c1586a77b5f",
+        "mode": "100644"
+      },
+      {
+        "path": "manifest.json",
+        "size": 2635,
+        "sha256": "5334c2dad1e8c66c4e6da598fc414c4fe96810eef0a69bddec2300d532eed974",
+        "mode": "100644"
+      },
+      {
+        "path": "packing/input.json",
+        "size": 535,
+        "sha256": "0ab08b082819903e1c547ed2ced84eb30bd5466e7a290a74732866d2bcaaaa8e",
+        "mode": "100644"
+      },
+      {
+        "path": "packing/report.md",
+        "size": 1635,
+        "sha256": "676935ae0af229dc5b5768fce435b1e7e62a539f3358fdcba4d2dcbe59b8647f",
+        "mode": "100644"
+      },
+      {
+        "path": "packing/result.json",
+        "size": 852,
+        "sha256": "ca56b04605baa609104b7c343fea499185e8f2d1f44f7918692d80dae69dd87f",
+        "mode": "100644"
+      },
+      {
+        "path": "packing/solve.py",
+        "size": 4134,
+        "sha256": "5a17d31b1d6ce0a21affe51c783acea49ab5652b55a3d288a7b5606797515e5e",
+        "mode": "100644"
+      },
+      {
+        "path": "quality/cleaned.csv",
+        "size": 134,
+        "sha256": "0c80ea08abcd54519f2d1751d831cfbc1944b6c2e7e0a448accf9a5cffc7bb0a",
+        "mode": "100644"
+      },
+      {
+        "path": "quality/input.json",
+        "size": 500,
+        "sha256": "ad427580dc7014ffec942b11c25079e9bc6a929908038ad5bbd135947a0745e0",
+        "mode": "100644"
+      },
+      {
+        "path": "quality/report.md",
+        "size": 826,
+        "sha256": "aa45aab9d1df12484854acddefb0b176e8044ba271820f161abacceefc9a0d0d",
+        "mode": "100644"
+      },
+      {
+        "path": "quality/result.json",
+        "size": 758,
+        "sha256": "acc3c3d6eda530a4fa4a3d9cde62f8f251d1ad670f3709c031f4075186c733d6",
+        "mode": "100644"
+      },
+      {
+        "path": "quality/solve.py",
+        "size": 6072,
+        "sha256": "9727e5927083c3b9e6a8bb03cfa00a7ff3b331ef823b623b1664e3c9a2439272",
+        "mode": "100644"
+      },
+      {
+        "path": "README.md",
+        "size": 1834,
+        "sha256": "007c5d80f88a32b0f9f3a87eaef841f6d30580cd4f31202db43f6dfc7d36c0a9",
+        "mode": "100644"
+      },
+      {
+        "path": "routing/input.json",
+        "size": 278,
+        "sha256": "b25c953c854a7ab02edbd878f8dff1869833aa7900822ba653679338ec5e35e1",
+        "mode": "100644"
+      },
+      {
+        "path": "routing/report.md",
+        "size": 1585,
+        "sha256": "96dd7aaa74af1e8c1a4f9ec1f2ca939c84348869d24d9d0cea668975748392a9",
+        "mode": "100644"
+      },
+      {
+        "path": "routing/result.json",
+        "size": 57486,
+        "sha256": "78971c74c6cf4aaf99a365343e5b723bca409f55d840aa7f08d50a6d1626afd7",
+        "mode": "100644"
+      },
+      {
+        "path": "routing/solve.py",
+        "size": 4061,
+        "sha256": "a67dda1a37b4b53ce1ed3f9a8dd9cb15ed8b3744e1f60c3db960a769aae7724e",
+        "mode": "100644"
+      },
+      {
+        "path": "schedule/input.json",
+        "size": 488,
+        "sha256": "2b38a9ea108f2fc8edb77287ef4430c7e70bd99b1a44d96eee9c32c259ff4e5d",
+        "mode": "100644"
+      },
+      {
+        "path": "schedule/report.md",
+        "size": 2062,
+        "sha256": "e85c7c1cf5795c68d10d274e5b06dce85b000fd5d9972979e88d0e3268f46e18",
+        "mode": "100644"
+      },
+      {
+        "path": "schedule/result.json",
+        "size": 2584,
+        "sha256": "c600f3624039610be285e7f5fabec85f2a71992e9f7a65a9285c62f4c75fba28",
+        "mode": "100644"
+      },
+      {
+        "path": "schedule/solve.py",
+        "size": 4582,
+        "sha256": "97640f7b4a6d37e3ec00d457cc2fa1d4dafe655302827d92a71606a52c1bad43",
+        "mode": "100644"
+      },
+      {
+        "path": "verify_all.py",
+        "size": 13396,
+        "sha256": "8be7d64eccb64c1ed8f9179d0e3e716fc7ca1a2144b2f6438cb2bd34e45c6e83",
+        "mode": "100644"
+      }
+    ],
+    "totalBytes": 110054
+  },
+  "artifactManifestHash": "dc079ffa283e5e902799725d696266202cfea14f868403fa5281f5d5492b8b1f",
+  "error": null,
+  "createdAt": "2026-10-03T13:41:32.803Z",
+  "startedAt": "2026-10-03T13:41:32.856Z",
+  "endedAt": "2026-10-03T13:59:46.522Z",
+  "updatedAt": "2026-10-03T13:59:46.524Z",
+  "costUsd": 0.3979,
+  "tokens": 943171,
+  "llmCalls": 10,
+  "jevCalls": 7,
+  "jevCallsLowerBound": false,
+  "models": {
+    "l1": {
+      "selection": "sub:openai:gpt-5.6-luna",
+      "provider": "codex-cli",
+      "payer": "host-subscription",
+      "source": "account"
+    },
+    "l2": {
+      "selection": "sub:openai:gpt-5.6-terra",
+      "provider": "codex-cli",
+      "payer": "host-subscription",
+      "source": "account"
+    },
+    "l3": {
+      "selection": "sub:openai:gpt-5.6-sol",
+      "provider": "codex-cli",
+      "payer": "host-subscription",
+      "source": "account"
+    }
+  },
+  "durationS": 1093.666,
+  "publication": {
+    "status": "published",
+    "repositoryFullName": "mgtf/atoma-parallel-mission-20261003",
+    "repositoryUrl": "https://github.com/mgtf/atoma-parallel-mission-20261003",
+    "git": {
+      "branch": "main",
+      "baseBranch": "main",
+      "defaultBranch": "main",
+      "publishKind": "extended",
+      "mode": "direct"
+    },
+    "remoteState": "not-checked",
+    "mergeStatus": "not-applicable",
+    "baseSha": "e928a44ad9dac3fbd9fbbdd7fae5bbacd45df98a",
+    "error": null,
+    "publishedAt": "2026-10-03T13:59:56.959Z",
+    "updatedAt": "2026-10-03T13:59:56.959Z",
+    "commitSha": "9928280dec39e9804ed9be1b8d416cced93ade7f"
+  }
+}

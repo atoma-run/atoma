@@ -1,0 +1,224 @@
+{
+  "projectRunId": "afb236ab-ac87-495a-b8ea-f03f92da8e70",
+  "projectId": "e5431908-38f6-4d1e-b30a-ea2122c052cd",
+  "orgId": "d28f40d2-14d7-45c7-bce3-928dcb0041a6",
+  "requestedByPrincipalId": "36bbb732-d581-41e3-b8b5-c39e93fd32b9",
+  "requestKey": "parallel-mission-runtime-exclusions-20261003-v1",
+  "goal": "Fix one remaining regression in the existing verify_all.py. The previous repair made manifest.json correct, and all original analysis files remain unchanged. However the published commit 9928280dec39e9804ed9be1b8d416cced93ade7f fails its README command in a normal Git checkout: \"manifest integrity: unexpected ordinary file: .git/HEAD\". A disposable package with local runtime state also fails on .atoma/cache.\n\nMake a narrow patch. Use ONE shared path-exclusion predicate for publishable_files(), the ordinary-file inventory in validate_manifest(), manifest-entry rejection, and regression fixtures. Match excluded path components case-insensitively: .git, node_modules, __pycache__, .atoma, and anything starting .atoma-. Also exclude root .github/workflows and credential-like files (.env, .env.* except *.example, .npmrc, .netrc, .pypirc, credentials, credentials.json, secrets, .secrets, id_rsa, id_ed25519, secret/secrets json/yaml/yml/toml/txt, and pem/key/p12/pfx/keystore extensions). Excluded workspace files must be ignored by the delivered inventory, but a manifest entry naming one must be rejected. Never read or execute their contents for verification. Preserve rejection of unexpected ordinary files, missing/altered/omitted/duplicate/escaping entries.\n\nAdd a persistent POSITIVE regression: a disposable publication copy with harmless dummy .git/HEAD, .git/config, .atoma/cache, .atoma-probes.json, node_modules/example/index.js and quality/__pycache__/example.pyc still passes manifest validation and full verification. Its manifest must remain unchanged. Add a negative regression explicitly listing an excluded file in the manifest. Keep existing clean-copy and corruption tests. Confirm full verification does not change original files. Keep the four analysis directories and dossier.md byte-identical. Keep maintenance scope to verify_all.py, README.md only if needed, and the regenerated manifest.json. Regenerate manifest last, run the complete verifier, read back the final changed files, and report concrete evidence. No new analyses or website.",
+  "title": "Fix verifier false alarms on .git and cache files",
+  "status": "delivered",
+  "bytesExpiredAt": null,
+  "seed": {
+    "kind": "run",
+    "runId": "bcf35298-b65e-4380-8994-a17431e9c564"
+  },
+  "traceId": "afb236ab-ac87-495a-b8ea-f03f92da8e70",
+  "stats": {
+    "outcome": "delivered",
+    "costUsd": 0.2586,
+    "subscriptionCostUsd": 0.2586,
+    "llmCalls": 8,
+    "opusCalls": 0,
+    "sonnetCalls": 0,
+    "haikuCalls": 0,
+    "otherCalls": 8,
+    "deterministicPhases": 0,
+    "escalations": 0,
+    "learnedSkills": 1,
+    "learnedEventSkills": 0,
+    "promotions": 0,
+    "refusals": 1,
+    "compileErrors": 0,
+    "demotions": 0,
+    "dispatchFallbacks": 0,
+    "uncoveredObligations": 0,
+    "deepenings": 0,
+    "rootRemediations": 0,
+    "landingReasons": []
+  },
+  "artifactManifest": {
+    "version": 1,
+    "source": "workspace",
+    "delivery": "files",
+    "files": [
+      {
+        "path": "dossier.md",
+        "size": 3617,
+        "sha256": "27da12b071a5e1cc0a799d09aa214d3d2efe470b5e3007b2f3712c1586a77b5f",
+        "mode": "100644"
+      },
+      {
+        "path": "manifest.json",
+        "size": 2635,
+        "sha256": "c4fd573854f82e4cb81f905f8c30e2476c8a3fc1180a13059f57c3fe1e6e8d20",
+        "mode": "100644"
+      },
+      {
+        "path": "packing/input.json",
+        "size": 535,
+        "sha256": "0ab08b082819903e1c547ed2ced84eb30bd5466e7a290a74732866d2bcaaaa8e",
+        "mode": "100644"
+      },
+      {
+        "path": "packing/report.md",
+        "size": 1635,
+        "sha256": "676935ae0af229dc5b5768fce435b1e7e62a539f3358fdcba4d2dcbe59b8647f",
+        "mode": "100644"
+      },
+      {
+        "path": "packing/result.json",
+        "size": 852,
+        "sha256": "ca56b04605baa609104b7c343fea499185e8f2d1f44f7918692d80dae69dd87f",
+        "mode": "100644"
+      },
+      {
+        "path": "packing/solve.py",
+        "size": 4134,
+        "sha256": "5a17d31b1d6ce0a21affe51c783acea49ab5652b55a3d288a7b5606797515e5e",
+        "mode": "100644"
+      },
+      {
+        "path": "quality/cleaned.csv",
+        "size": 134,
+        "sha256": "0c80ea08abcd54519f2d1751d831cfbc1944b6c2e7e0a448accf9a5cffc7bb0a",
+        "mode": "100644"
+      },
+      {
+        "path": "quality/input.json",
+        "size": 500,
+        "sha256": "ad427580dc7014ffec942b11c25079e9bc6a929908038ad5bbd135947a0745e0",
+        "mode": "100644"
+      },
+      {
+        "path": "quality/report.md",
+        "size": 826,
+        "sha256": "aa45aab9d1df12484854acddefb0b176e8044ba271820f161abacceefc9a0d0d",
+        "mode": "100644"
+      },
+      {
+        "path": "quality/result.json",
+        "size": 758,
+        "sha256": "acc3c3d6eda530a4fa4a3d9cde62f8f251d1ad670f3709c031f4075186c733d6",
+        "mode": "100644"
+      },
+      {
+        "path": "quality/solve.py",
+        "size": 6072,
+        "sha256": "9727e5927083c3b9e6a8bb03cfa00a7ff3b331ef823b623b1664e3c9a2439272",
+        "mode": "100644"
+      },
+      {
+        "path": "README.md",
+        "size": 1834,
+        "sha256": "007c5d80f88a32b0f9f3a87eaef841f6d30580cd4f31202db43f6dfc7d36c0a9",
+        "mode": "100644"
+      },
+      {
+        "path": "routing/input.json",
+        "size": 278,
+        "sha256": "b25c953c854a7ab02edbd878f8dff1869833aa7900822ba653679338ec5e35e1",
+        "mode": "100644"
+      },
+      {
+        "path": "routing/report.md",
+        "size": 1585,
+        "sha256": "96dd7aaa74af1e8c1a4f9ec1f2ca939c84348869d24d9d0cea668975748392a9",
+        "mode": "100644"
+      },
+      {
+        "path": "routing/result.json",
+        "size": 57486,
+        "sha256": "78971c74c6cf4aaf99a365343e5b723bca409f55d840aa7f08d50a6d1626afd7",
+        "mode": "100644"
+      },
+      {
+        "path": "routing/solve.py",
+        "size": 4061,
+        "sha256": "a67dda1a37b4b53ce1ed3f9a8dd9cb15ed8b3744e1f60c3db960a769aae7724e",
+        "mode": "100644"
+      },
+      {
+        "path": "schedule/input.json",
+        "size": 488,
+        "sha256": "2b38a9ea108f2fc8edb77287ef4430c7e70bd99b1a44d96eee9c32c259ff4e5d",
+        "mode": "100644"
+      },
+      {
+        "path": "schedule/report.md",
+        "size": 2062,
+        "sha256": "e85c7c1cf5795c68d10d274e5b06dce85b000fd5d9972979e88d0e3268f46e18",
+        "mode": "100644"
+      },
+      {
+        "path": "schedule/result.json",
+        "size": 2584,
+        "sha256": "c600f3624039610be285e7f5fabec85f2a71992e9f7a65a9285c62f4c75fba28",
+        "mode": "100644"
+      },
+      {
+        "path": "schedule/solve.py",
+        "size": 4582,
+        "sha256": "97640f7b4a6d37e3ec00d457cc2fa1d4dafe655302827d92a71606a52c1bad43",
+        "mode": "100644"
+      },
+      {
+        "path": "verify_all.py",
+        "size": 15294,
+        "sha256": "1e48993c6b17e0e28c6832a5948744730f78bd8a382b786ff6d69af915cdc715",
+        "mode": "100644"
+      }
+    ],
+    "totalBytes": 111952
+  },
+  "artifactManifestHash": "37985f75ec256c2b19c9ed7e0ce3345b74b3ff53fe4d99c42a37c9fbcfb2c731",
+  "error": null,
+  "createdAt": "2026-10-03T14:03:32.603Z",
+  "startedAt": "2026-10-03T14:03:32.632Z",
+  "endedAt": "2026-10-03T14:12:47.588Z",
+  "updatedAt": "2026-10-03T14:12:47.589Z",
+  "costUsd": 0.2586,
+  "tokens": 626854,
+  "llmCalls": 8,
+  "jevCalls": 6,
+  "jevCallsLowerBound": false,
+  "models": {
+    "l1": {
+      "selection": "sub:openai:gpt-5.6-luna",
+      "provider": "codex-cli",
+      "payer": "host-subscription",
+      "source": "account"
+    },
+    "l2": {
+      "selection": "sub:openai:gpt-5.6-terra",
+      "provider": "codex-cli",
+      "payer": "host-subscription",
+      "source": "account"
+    },
+    "l3": {
+      "selection": "sub:openai:gpt-5.6-sol",
+      "provider": "codex-cli",
+      "payer": "host-subscription",
+      "source": "account"
+    }
+  },
+  "durationS": 554.956,
+  "publication": {
+    "status": "published",
+    "repositoryFullName": "mgtf/atoma-parallel-mission-20261003",
+    "repositoryUrl": "https://github.com/mgtf/atoma-parallel-mission-20261003",
+    "git": {
+      "branch": "main",
+      "baseBranch": "main",
+      "defaultBranch": "main",
+      "publishKind": "extended",
+      "mode": "direct"
+    },
+    "remoteState": "not-checked",
+    "mergeStatus": "not-applicable",
+    "baseSha": "9928280dec39e9804ed9be1b8d416cced93ade7f",
+    "error": null,
+    "publishedAt": "2026-10-03T14:12:57.858Z",
+    "updatedAt": "2026-10-03T14:12:57.858Z",
+    "commitSha": "7ea13916145f83ad54319ac8428e38a316333d79"
+  }
+}

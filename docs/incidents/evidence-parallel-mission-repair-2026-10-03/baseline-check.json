@@ -1,0 +1,5 @@
+{
+  "exit_code": 1,
+  "stdout": "",
+  "stderr": "Traceback (most recent call last):\n  File \"C:\\Users\\mgf\\dev\\atoma\\docs\\incidents\\evidence-parallel-mission-repair-2026-10-03\\check-repair.py\", line 66, in <module>\n    assert (proc.returncode == 0) == (case == 'clean'), receipts[case]\nAssertionError: {'exit_code': 0, 'stdout': 'packing --check passed\\nschedule --check passed\\nrouting --check passed\\nquality --check passed\\npacking independent objective/feasibility passed\\nschedule independent feasibility passed\\nrouting independent physical-walk checks passed\\nquality independent retained-row checks passed\\npacking disposable corruption rejected\\nschedule disposable corruption rejected\\nrouting disposable corruption rejected\\nquality disposable corruption rejected\\noriginal stream artifacts preserved byte-for-byte\\nverify_all passed\\n', 'stderr': ''}\n"
+}

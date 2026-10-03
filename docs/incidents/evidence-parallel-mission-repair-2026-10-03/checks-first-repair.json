@@ -1,0 +1,22 @@
+{
+  "published_manifest": {
+    "exit_code": 0,
+    "stdout": "{\n  \"published_files\": 21,\n  \"manifest_entries\": 20,\n  \"matching_hashes\": 20,\n  \"missing_files\": [],\n  \"hash_mismatches\": [],\n  \"unlisted_files\": [],\n  \"duplicate_entries\": []\n}\n",
+    "stderr": ""
+  },
+  "independent_results": {
+    "exit_code": 0,
+    "stdout": "{\n  \"packing\": [\n    39,\n    19\n  ],\n  \"schedule\": [\n    8,\n    10\n  ],\n  \"routing\": [\n    19,\n    25\n  ],\n  \"quality_retained\": 5,\n  \"independent_checks\": \"passed\"\n}\n",
+    "stderr": ""
+  },
+  "checkout_verifier": {
+    "exit_code": 1,
+    "stdout": "packing --check passed\nschedule --check passed\nrouting --check passed\nquality --check passed\npacking independent objective/feasibility passed\nschedule independent feasibility passed\nrouting independent physical-walk checks passed\nquality independent retained-row checks passed\npacking disposable corruption rejected\nschedule disposable corruption rejected\nrouting disposable corruption rejected\nquality disposable corruption rejected\n",
+    "stderr": "Traceback (most recent call last):\n  File \"C:\\Users\\mgf\\dev\\atoma\\.atoma-scratch\\parallel-mission-repair-20261003\\verify_all.py\", line 289, in <module>\n    raise SystemExit(main())\n  File \"C:\\Users\\mgf\\dev\\atoma\\.atoma-scratch\\parallel-mission-repair-20261003\\verify_all.py\", line 277, in main\n    validate_manifest(ROOT)\n  File \"C:\\Users\\mgf\\dev\\atoma\\.atoma-scratch\\parallel-mission-repair-20261003\\verify_all.py\", line 165, in validate_manifest\n    raise integrity_error(f\"unexpected ordinary file: {unexpected[0]}\")\nAssertionError: manifest integrity: unexpected ordinary file: .git/HEAD\n"
+  },
+  "repair_regressions": {
+    "exit_code": 1,
+    "stdout": "",
+    "stderr": "Traceback (most recent call last):\n  File \"C:\\Users\\mgf\\dev\\atoma\\docs\\incidents\\evidence-parallel-mission-repair-2026-10-03\\check-repair.py\", line 72, in <module>\n    assert (proc.returncode == 0) == (case in ('clean', 'runtime_exclusions')), receipts[case]\nAssertionError: {'exit_code': 1, 'stdout': 'packing --check passed\\nschedule --check passed\\nrouting --check passed\\nquality --check passed\\npacking independent objective/feasibility passed\\nschedule independent feasibility passed\\nrouting independent physical-walk checks passed\\nquality independent retained-row checks passed\\npacking disposable corruption rejected\\nschedule disposable corruption rejected\\nrouting disposable corruption rejected\\nquality disposable corruption rejected\\n', 'stderr': 'Traceback (most recent call last):\\n  File \"C:\\\\Users\\\\mgf\\\\AppData\\\\Local\\\\Temp\\\\atoma-package-regression-cxsv08d8\\\\verify_all.py\", line 289, in <module>\\n    raise SystemExit(main())\\n  File \"C:\\\\Users\\\\mgf\\\\AppData\\\\Local\\\\Temp\\\\atoma-package-regression-cxsv08d8\\\\verify_all.py\", line 277, in main\\n    validate_manifest(ROOT)\\n  File \"C:\\\\Users\\\\mgf\\\\AppData\\\\Local\\\\Temp\\\\atoma-package-regression-cxsv08d8\\\\verify_all.py\", line 165, in validate_manifest\\n    raise integrity_error(f\"unexpected ordinary file: {unexpected[0]}\")\\nAssertionError: manifest integrity: unexpected ordinary file: .atoma/cache\\n'}\n"
+  }
+}

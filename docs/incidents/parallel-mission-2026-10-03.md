@@ -8,6 +8,11 @@ intentionally excludes. The delivered verifier passes without noticing this.
 This is a successful parallel-execution experiment, not full acceptance of the
 delivered package.
 
+Follow-up: [two targeted repair runs](parallel-mission-repair-2026-10-03.md)
+corrected the generated inventory and verifier; independent checks pass on
+publication `7ea13916145f83ad54319ac8428e38a316333d79`. The original evidence below
+is retained unchanged.
+
 ## Reproducible evidence
 
 - Source/deployed revision: `543db6d611078c218d8acf0dc3881f56ea1333ce`.

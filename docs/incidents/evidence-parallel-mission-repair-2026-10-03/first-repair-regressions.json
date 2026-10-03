@@ -1,0 +1,59 @@
+{
+  "analysis_files_unchanged": 17,
+  "originals_preserved": true,
+  "failures": [
+    "runtime_exclusions"
+  ],
+  "cases": {
+    "clean": {
+      "exit_code": 0,
+      "stdout": "packing --check passed\nschedule --check passed\nrouting --check passed\nquality --check passed\npacking independent objective/feasibility passed\nschedule independent feasibility passed\nrouting independent physical-walk checks passed\nquality independent retained-row checks passed\npacking disposable corruption rejected\nschedule disposable corruption rejected\nrouting disposable corruption rejected\nquality disposable corruption rejected\nmanifest internal regression rejected\nmanifest missing regression rejected\nmanifest altered regression rejected\nmanifest omitted regression rejected\nmanifest duplicate regression rejected\nmanifest escaping regression rejected\nmanifest unexpected regression rejected\nclean publication-shaped copy passed\noriginal stream trees and dossier preserved byte-for-byte\nverify_all passed\n",
+      "stderr": ""
+    },
+    "runtime_exclusions": {
+      "exit_code": 1,
+      "stdout": "packing --check passed\nschedule --check passed\nrouting --check passed\nquality --check passed\npacking independent objective/feasibility passed\nschedule independent feasibility passed\nrouting independent physical-walk checks passed\nquality independent retained-row checks passed\npacking disposable corruption rejected\nschedule disposable corruption rejected\nrouting disposable corruption rejected\nquality disposable corruption rejected\n",
+      "stderr": "Traceback (most recent call last):\n  File \"C:\\Users\\mgf\\AppData\\Local\\Temp\\atoma-package-regression-eefhwzx8\\verify_all.py\", line 289, in <module>\n    raise SystemExit(main())\n  File \"C:\\Users\\mgf\\AppData\\Local\\Temp\\atoma-package-regression-eefhwzx8\\verify_all.py\", line 277, in main\n    validate_manifest(ROOT)\n  File \"C:\\Users\\mgf\\AppData\\Local\\Temp\\atoma-package-regression-eefhwzx8\\verify_all.py\", line 165, in validate_manifest\n    raise integrity_error(f\"unexpected ordinary file: {unexpected[0]}\")\nAssertionError: manifest integrity: unexpected ordinary file: .atoma/cache\n"
+    },
+    "internal_reference": {
+      "exit_code": 1,
+      "stdout": "packing --check passed\nschedule --check passed\nrouting --check passed\nquality --check passed\npacking independent objective/feasibility passed\nschedule independent feasibility passed\nrouting independent physical-walk checks passed\nquality independent retained-row checks passed\npacking disposable corruption rejected\nschedule disposable corruption rejected\nrouting disposable corruption rejected\nquality disposable corruption rejected\n",
+      "stderr": "Traceback (most recent call last):\n  File \"C:\\Users\\mgf\\AppData\\Local\\Temp\\atoma-package-regression-9v96dpo1\\verify_all.py\", line 289, in <module>\n    raise SystemExit(main())\n  File \"C:\\Users\\mgf\\AppData\\Local\\Temp\\atoma-package-regression-9v96dpo1\\verify_all.py\", line 277, in main\n    validate_manifest(ROOT)\n  File \"C:\\Users\\mgf\\AppData\\Local\\Temp\\atoma-package-regression-9v96dpo1\\verify_all.py\", line 186, in validate_manifest\n    raise integrity_error(f\"internal runtime path: {rel}\")\nAssertionError: manifest integrity: internal runtime path: .atoma-probes.json\n"
+    },
+    "missing_file": {
+      "exit_code": 1,
+      "stdout": "packing --check passed\nschedule --check passed\nrouting --check passed\nquality --check passed\npacking independent objective/feasibility passed\nschedule independent feasibility passed\nrouting independent physical-walk checks passed\nquality independent retained-row checks passed\npacking disposable corruption rejected\nschedule disposable corruption rejected\nrouting disposable corruption rejected\nquality disposable corruption rejected\n",
+      "stderr": "Traceback (most recent call last):\n  File \"C:\\Users\\mgf\\AppData\\Local\\Temp\\atoma-package-regression-x3djk2wr\\verify_all.py\", line 289, in <module>\n    raise SystemExit(main())\n  File \"C:\\Users\\mgf\\AppData\\Local\\Temp\\atoma-package-regression-x3djk2wr\\verify_all.py\", line 277, in main\n    validate_manifest(ROOT)\n  File \"C:\\Users\\mgf\\AppData\\Local\\Temp\\atoma-package-regression-x3djk2wr\\verify_all.py\", line 196, in validate_manifest\n    raise integrity_error(f\"missing delivered file: {rel}\")\nAssertionError: manifest integrity: missing delivered file: README.md\n"
+    },
+    "altered_file": {
+      "exit_code": 1,
+      "stdout": "packing --check passed\nschedule --check passed\nrouting --check passed\nquality --check passed\npacking independent objective/feasibility passed\nschedule independent feasibility passed\nrouting independent physical-walk checks passed\nquality independent retained-row checks passed\npacking disposable corruption rejected\nschedule disposable corruption rejected\nrouting disposable corruption rejected\nquality disposable corruption rejected\n",
+      "stderr": "Traceback (most recent call last):\n  File \"C:\\Users\\mgf\\AppData\\Local\\Temp\\atoma-package-regression-i_3qcov3\\verify_all.py\", line 289, in <module>\n    raise SystemExit(main())\n  File \"C:\\Users\\mgf\\AppData\\Local\\Temp\\atoma-package-regression-i_3qcov3\\verify_all.py\", line 277, in main\n    validate_manifest(ROOT)\n  File \"C:\\Users\\mgf\\AppData\\Local\\Temp\\atoma-package-regression-i_3qcov3\\verify_all.py\", line 199, in validate_manifest\n    raise integrity_error(f\"altered file/hash: {rel}\")\nAssertionError: manifest integrity: altered file/hash: README.md\n"
+    },
+    "wrong_hash": {
+      "exit_code": 1,
+      "stdout": "packing --check passed\nschedule --check passed\nrouting --check passed\nquality --check passed\npacking independent objective/feasibility passed\nschedule independent feasibility passed\nrouting independent physical-walk checks passed\nquality independent retained-row checks passed\npacking disposable corruption rejected\nschedule disposable corruption rejected\nrouting disposable corruption rejected\nquality disposable corruption rejected\n",
+      "stderr": "Traceback (most recent call last):\n  File \"C:\\Users\\mgf\\AppData\\Local\\Temp\\atoma-package-regression-eqn3elvp\\verify_all.py\", line 289, in <module>\n    raise SystemExit(main())\n  File \"C:\\Users\\mgf\\AppData\\Local\\Temp\\atoma-package-regression-eqn3elvp\\verify_all.py\", line 277, in main\n    validate_manifest(ROOT)\n  File \"C:\\Users\\mgf\\AppData\\Local\\Temp\\atoma-package-regression-eqn3elvp\\verify_all.py\", line 199, in validate_manifest\n    raise integrity_error(f\"altered file/hash: {rel}\")\nAssertionError: manifest integrity: altered file/hash: README.md\n"
+    },
+    "omitted_entry": {
+      "exit_code": 1,
+      "stdout": "packing --check passed\nschedule --check passed\nrouting --check passed\nquality --check passed\npacking independent objective/feasibility passed\nschedule independent feasibility passed\nrouting independent physical-walk checks passed\nquality independent retained-row checks passed\npacking disposable corruption rejected\nschedule disposable corruption rejected\nrouting disposable corruption rejected\nquality disposable corruption rejected\n",
+      "stderr": "Traceback (most recent call last):\n  File \"C:\\Users\\mgf\\AppData\\Local\\Temp\\atoma-package-regression-oxxwnxgp\\verify_all.py\", line 289, in <module>\n    raise SystemExit(main())\n  File \"C:\\Users\\mgf\\AppData\\Local\\Temp\\atoma-package-regression-oxxwnxgp\\verify_all.py\", line 277, in main\n    validate_manifest(ROOT)\n  File \"C:\\Users\\mgf\\AppData\\Local\\Temp\\atoma-package-regression-oxxwnxgp\\verify_all.py\", line 202, in validate_manifest\n    raise integrity_error(f\"omitted entry: {missing[0]}\")\nAssertionError: manifest integrity: omitted entry: README.md\n"
+    },
+    "duplicate_entry": {
+      "exit_code": 1,
+      "stdout": "packing --check passed\nschedule --check passed\nrouting --check passed\nquality --check passed\npacking independent objective/feasibility passed\nschedule independent feasibility passed\nrouting independent physical-walk checks passed\nquality independent retained-row checks passed\npacking disposable corruption rejected\nschedule disposable corruption rejected\nrouting disposable corruption rejected\nquality disposable corruption rejected\n",
+      "stderr": "Traceback (most recent call last):\n  File \"C:\\Users\\mgf\\AppData\\Local\\Temp\\atoma-package-regression-ydx8sujw\\verify_all.py\", line 289, in <module>\n    raise SystemExit(main())\n  File \"C:\\Users\\mgf\\AppData\\Local\\Temp\\atoma-package-regression-ydx8sujw\\verify_all.py\", line 277, in main\n    validate_manifest(ROOT)\n  File \"C:\\Users\\mgf\\AppData\\Local\\Temp\\atoma-package-regression-ydx8sujw\\verify_all.py\", line 188, in validate_manifest\n    raise integrity_error(f\"duplicate entry: {rel}\")\nAssertionError: manifest integrity: duplicate entry: README.md\n"
+    },
+    "escaping_path": {
+      "exit_code": 1,
+      "stdout": "packing --check passed\nschedule --check passed\nrouting --check passed\nquality --check passed\npacking independent objective/feasibility passed\nschedule independent feasibility passed\nrouting independent physical-walk checks passed\nquality independent retained-row checks passed\npacking disposable corruption rejected\nschedule disposable corruption rejected\nrouting disposable corruption rejected\nquality disposable corruption rejected\n",
+      "stderr": "Traceback (most recent call last):\n  File \"C:\\Users\\mgf\\AppData\\Local\\Temp\\atoma-package-regression-i71pz63z\\verify_all.py\", line 289, in <module>\n    raise SystemExit(main())\n  File \"C:\\Users\\mgf\\AppData\\Local\\Temp\\atoma-package-regression-i71pz63z\\verify_all.py\", line 277, in main\n    validate_manifest(ROOT)\n  File \"C:\\Users\\mgf\\AppData\\Local\\Temp\\atoma-package-regression-i71pz63z\\verify_all.py\", line 184, in validate_manifest\n    raise integrity_error(f\"escaping path: {rel}\")\nAssertionError: manifest integrity: escaping path: ../outside.txt\n"
+    },
+    "unexpected_file": {
+      "exit_code": 1,
+      "stdout": "packing --check passed\nschedule --check passed\nrouting --check passed\nquality --check passed\npacking independent objective/feasibility passed\nschedule independent feasibility passed\nrouting independent physical-walk checks passed\nquality independent retained-row checks passed\npacking disposable corruption rejected\nschedule disposable corruption rejected\nrouting disposable corruption rejected\nquality disposable corruption rejected\n",
+      "stderr": "Traceback (most recent call last):\n  File \"C:\\Users\\mgf\\AppData\\Local\\Temp\\atoma-package-regression-u9owjims\\verify_all.py\", line 289, in <module>\n    raise SystemExit(main())\n  File \"C:\\Users\\mgf\\AppData\\Local\\Temp\\atoma-package-regression-u9owjims\\verify_all.py\", line 277, in main\n    validate_manifest(ROOT)\n  File \"C:\\Users\\mgf\\AppData\\Local\\Temp\\atoma-package-regression-u9owjims\\verify_all.py\", line 165, in validate_manifest\n    raise integrity_error(f\"unexpected ordinary file: {unexpected[0]}\")\nAssertionError: manifest integrity: unexpected ordinary file: unexpected.txt\n"
+    }
+  }
+}
