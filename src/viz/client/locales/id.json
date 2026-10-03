@@ -1261,5 +1261,6 @@
   "result.filesPublished": "Tautan file membuka revisi persis yang dipublikasikan untuk run ini di GitHub, tempat Anda dapat melihat atau mengunduhnya.",
   "result.filesUnavailable": "Tidak ada revisi yang dipublikasikan untuk file-file ini. File tersebut tidak dapat dibuka di GitHub dari run ini.",
   "result.expired": "File lokal telah kedaluwarsa. File yang dipublikasikan mungkin masih tersedia di GitHub.",
-  "launch.guidance": "Jelaskan hasil yang Anda inginkan beserta batasannya. Untuk repositori yang diimpor, jelaskan apa yang perlu diperiksa atau diubah. Atoma memilih kemampuan yang diperlukan untuk permintaan Anda. Hasilnya dapat berupa penjelasan, analisis, dokumen, atau perangkat lunak yang berfungsi; verifikasi mengikuti hasil yang diminta."
+  "launch.guidance": "Jelaskan hasil yang Anda inginkan beserta batasannya. Untuk repositori yang diimpor, jelaskan apa yang perlu diperiksa atau diubah. Atoma memilih kemampuan yang diperlukan untuk permintaan Anda. Hasilnya dapat berupa penjelasan, analisis, dokumen, atau perangkat lunak yang berfungsi; verifikasi mengikuti hasil yang diminta.",
+  "settings.mcpCodexTimeout": "Secara default, Codex berhenti menunggu panggilan alat setelah 300 detik, sedangkan run memerlukan waktu beberapa menit. Tambahkan tool_timeout_sec = 10800 di bawah server atoma dalam ~/.codex/config.toml (panduan penyiapan di bawah menyertakannya); codex mcp add tidak dapat mengaturnya."
 }

@@ -1261,5 +1261,6 @@
   "result.filesPublished": "文件链接将打开此run在GitHub上已发布的确切修订版本，你可以在那里查看或下载文件。",
   "result.filesUnavailable": "这些文件没有可用的已发布修订版本，无法从此run在GitHub上打开。",
   "result.expired": "本地文件已过期。已发布的文件可能仍可在GitHub上获取。",
-  "launch.guidance": "描述你希望实现的结果及任何约束条件。对于导入的代码仓库，请说明要检查或更改的内容。Atoma 会选择完成请求所需的能力。结果可以是说明、分析、文档或可运行的软件；验证将依据所请求的结果进行。"
+  "launch.guidance": "描述你希望实现的结果及任何约束条件。对于导入的代码仓库，请说明要检查或更改的内容。Atoma 会选择完成请求所需的能力。结果可以是说明、分析、文档或可运行的软件；验证将依据所请求的结果进行。",
+  "settings.mcpCodexTimeout": "Codex 默认会在等待工具调用300秒后停止等待，而一个 run 需要几分钟。请在 ~/.codex/config.toml 的 atoma 服务器配置下添加 tool_timeout_sec = 10800（下方的设置帮助已包含此项）；codex mcp add 无法设置此项。"
 }
