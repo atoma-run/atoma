@@ -7,6 +7,8 @@ import { homedir } from 'node:os';
 import path from 'node:path';
 import { parseRunLog, spawnRun, DEFAULT_HARD_KILL_MARGIN_MS, UNKILLABLE_BACKSTOP_EXTRA_MS, type RunStats } from '../cli/burnin.js';
 import { encodePreviousLanding, PREVIOUS_LANDING_ENV } from '../contracts/runLanding.js';
+import { PREVIOUS_RESULTS_ENV } from '../contracts/previousRunResults.js';
+import { previousResultsFor } from './previousResults.js';
 import { ACCEPTANCE_SOURCE_ENV, ACCEPTANCE_SPEC_ENV } from '../contracts/acceptanceChecklist.js';
 import { encodeAcceptanceSpec } from '../run/acceptanceSpec.js';
 import { capturePlatformTissueAuthor } from '../run/tissueAuthor.js';
@@ -1618,6 +1620,11 @@ export class ProjectRunCoordinator {
           ? encodePreviousLanding(seedRun?.stats?.landingReasons)
           : null;
         if (landing) environment[PREVIOUS_LANDING_ENV] = landing;
+        // Text is a deliverable too. Comparisons use their origin's seed;
+        // imported repository snapshots must not inherit a different workspace's history.
+        const previousResults = seedFrom === seedRun?.hostPaths.workspacePath
+          ? previousResultsFor(this.store, seedRun ?? null) : undefined;
+        if (previousResults) environment[PREVIOUS_RESULTS_ENV] = previousResults;
         // THE USER'S APPROVED CRITERIA, read back from the STORE the
         // reservation wrote them to, never from the request: the child runs
         // against the captured version, and a row that no longer matches its

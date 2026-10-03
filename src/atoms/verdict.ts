@@ -831,6 +831,8 @@ export async function llmVerdict(args: {
    * under the `jev-audit` role so no reader counts it as the run's validation.
    */
   audit?: boolean;
+  /** Blinded, model-authored analysis; never a ground-truth probe. Root text review only. */
+  independentTextReference?: string;
 }): Promise<Verdict> {
   // `Subject kind` is repeated as its own field so the validator cannot miss
   // the PLAN-vs-RESULT distinction — the bar is different between the two and
@@ -914,6 +916,7 @@ export async function llmVerdict(args: {
     args.mechanicalFindingsBlock ?? '',
     args.proofCoverageBlock ?? '',
     args.landingBlock ?? '',
+    args.independentTextReference ?? '',
     // Adherence is a RESULT-phase judgment: a plan merely STATES intent to
     // follow the recipe, only the executed work can demonstrate it. Plan
     // verdicts therefore never carry the block even when a skill is active.

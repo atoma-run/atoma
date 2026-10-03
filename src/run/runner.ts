@@ -38,6 +38,7 @@ import { L3Atom } from '../atoms/L3Atom.js';
 import { L2Atom } from '../atoms/L2Atom.js';
 import { depthModeSchema, type DepthMode } from '../contracts/depthRouting.js';
 import { decodePreviousLanding, isLanded, landingReasons, PREVIOUS_LANDING_ENV } from '../contracts/runLanding.js';
+import { withPreviousRunInputs } from './taskInputs.js';
 import { runDepthTask } from './depth.js';
 import { SkillRegistry } from '../skills/registry.js';
 import { reconcilePlatformSkills } from '../skills/migratePlatform.js';
@@ -1164,14 +1165,11 @@ export async function startTask(
   //
   // It is DATA ABOUT A PREVIOUS RUN, never an instruction — the same standing
   // every validator rejection already has.
-  const previousLanding = decodePreviousLanding(process.env[PREVIOUS_LANDING_ENV]);
   const builtTask: Task = {
     description: goal,
     ...(routingRepository ? { inputs: { startingRepository: routingRepository } } : {}),
   };
-  const withLanding = previousLanding.length > 0
-    ? { ...builtTask, inputs: { ...(builtTask.inputs ?? {}), previousRunLanding: previousLanding } }
-    : builtTask;
+  const withLanding = withPreviousRunInputs(builtTask, process.env);
   const task = args.depth ? {
     ...withLanding,
     proofFloor: DEPTH_CONTRACT.floor.map((item) => ({ ...item })),

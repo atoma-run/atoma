@@ -248,6 +248,7 @@ list. These values come from the host snapshot, never a tenant prompt.
   inventory; they never preview or publish, even with input files. Empty partials
   remain partial; ordinary empty file deliveries still fail. Legacy hashes stay.
   [Contract and evidence](../../docs/incidents/text-delivery-2026-10-02.md).
+  `previousResultsFor` carries text from at most three actual seed hops as bounded untrusted context, oldest first, preserving status and marking truncation/unavailability. Comparisons use their origin's seed; fresh imports inherit none. No new store or publication decision. [Review](../../docs/text-review-and-history-2026-10-03.md).
 
 - New delivery manifests inventory every publishable regular file in the
   finished workspace, including files child work added after the root plan.

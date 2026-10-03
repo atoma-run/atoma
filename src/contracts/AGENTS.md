@@ -129,6 +129,12 @@ Neighbours:
 
 ## Reading a trace without holding it
 
+- `previousRunResults.ts` owns the bounded text-history environment envelope:
+  three entries, 24,000 encoded characters, explicit truncation/unavailability.
+  This optional context reader may parse a finished trace below MAX_TRACE_BYTES;
+  it never changes the shape-only delivery decision described below. Oversized,
+  missing or malformed source traces yield an unavailable context entry.
+
 - `src/contracts/traceFields.ts` owns the ONE projecting reader over a run
   trace: `readTraceTopLevelFields` enumerates the document's DEPTH-1 members in
   bytes and returns only what its caller named — VALUES for members whose

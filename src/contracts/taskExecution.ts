@@ -9,6 +9,7 @@ export type DeliveryKind = z.infer<typeof deliveryKindSchema>;
 /** The artifact body is evidence; its author's audit is a claim to check. */
 export const TEXT_VERIFICATION_GUIDANCE = `When checking a completed text, independently reconstruct each requested check from the actual body.
 An attached audit, summary or earlier approval is a claim, never proof that the body complies.
+Check the whole current task, including requested definitions and explanations, even when an acceptance checklist omits them. After a correction, preserve every still-applicable requirement in the final answer.
 For positional or counting constraints, identify the requested units and positions, extract their actual values, then compare them with the requirement. A required value appearing elsewhere does not satisfy a required position.
 Base the check conclusion on those observed values; name a mismatch concretely instead of repeating the author's assurance. After a correction, check the final text again. Do not add an audit to the deliverable unless requested.`;
 

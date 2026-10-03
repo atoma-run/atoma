@@ -1,6 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { execFileSync } from 'node:child_process';
 import Database from 'better-sqlite3';
 import { afterAll, describe, expect, it, vi } from 'vitest';
 
@@ -9,8 +10,10 @@ import { MIN_PHASE_LANDING_MS, outOfPhaseBudget } from '../src/core/limits.js';
 import { AuthStore } from '../src/auth/store.js';
 import { ProjectStore, PROJECT_TABLES_DDL } from '../src/projects/store.js';
 import { ProjectRunCoordinator, previousSeedRun } from '../src/projects/coordinator.js';
+import { previousResultsFor } from '../src/projects/previousResults.js';
 import { formatRunStatsEpilogue } from '../src/contracts/runStats.js';
 import { decodePreviousLanding, PREVIOUS_LANDING_ENV } from '../src/contracts/runLanding.js';
+import { decodePreviousResults, PREVIOUS_RESULTS_ENV } from '../src/contracts/previousRunResults.js';
 import type { RunStats } from '../src/contracts/runStats.js';
 import type { Plan, Result, RunContext } from '../src/core/types.js';
 import { makeCtx } from './helpers.js';
@@ -344,7 +347,7 @@ function landedDriver() {
  * its two production forms; until the trace check separated integrity from
  * publishability, it was coerced straight back to `failed`.
  */
-function refusedDriver() {
+function refusedDriver(textOutput?: string) {
   return vi.fn(async (options: { env?: Record<string, string | undefined>; onSpawn?: (pid: number) => void; extraArgs?: readonly string[] }) => {
     const env = options.env ?? {};
     const workspace = env['ATOMA_BUILD_WORKSPACE']!;
@@ -357,7 +360,8 @@ function refusedDriver() {
     writeFileSync(join(workspace, 'flags.mjs'), 'export const ok = true;\n', 'utf8');
     writeFileSync(
       declarations,
-      JSON.stringify({ version: 1, runId, generatedAt: new Date().toISOString(), outputs: ['flags.mjs'] }),
+      JSON.stringify({ version: 1, runId, generatedAt: new Date().toISOString(), outputs: ['flags.mjs'],
+        ...(textOutput !== undefined ? { delivery: 'text' } : {}) }),
       'utf8'
     );
     writeFileSync(
@@ -367,6 +371,7 @@ function refusedDriver() {
         endedAt: new Date().toISOString(),
         degraded: true,
         result: {
+          ...(textOutput !== undefined ? { output: textOutput } : {}),
           summary: 'REFUSED AT DELIVERY — …',
           refusal: 'DELETE and restart persistence remain unverified',
           producedBy: { tier: 3, name: 'Meristem', viaFallback: true },
@@ -405,6 +410,50 @@ describe('a run refused at delivery, across the coordinator boundary', () => {
       ...extras,
     });
   }
+
+  it('carries successive text answers through the coordinator environment into a child task', async () => {
+    const f = fixture();
+    const first = coordinatorFor(f, refusedDriver('011 encodes as 0111010; 100 encodes as 1001011.'));
+    const original = await first.start({ orgId: f.viewer.orgId, principalId: f.viewer.principalId,
+      projectId: f.project.projectId, request: { idempotencyKey: 'text-1', goal: 'List the codebook.' } });
+    await first.waitForIdle();
+    const secondDriver = refusedDriver('There are four differing positions.');
+    const second = coordinatorFor(f, secondDriver);
+    const audit = await second.start({ orgId: f.viewer.orgId, principalId: f.viewer.principalId,
+      projectId: f.project.projectId, request: { idempotencyKey: 'text-2', goal: 'Audit the disputed entry.' } });
+    await second.waitForIdle();
+    expect(decodePreviousResults(secondDriver.mock.calls[0]![0].env?.[PREVIOUS_RESULTS_ENV])?.runs)
+      .toMatchObject([{ runId: original.projectRunId, output: '011 encodes as 0111010; 100 encodes as 1001011.', status: 'partial', unavailable: false }]);
+
+    const thirdDriver = refusedDriver('The received word is also the codeword for 011.');
+    const third = coordinatorFor(f, thirdDriver);
+    await third.start({ orgId: f.viewer.orgId, principalId: f.viewer.principalId,
+      projectId: f.project.projectId, request: { idempotencyKey: 'text-3', goal: 'Explain the relation to the original codebook.' } });
+    await third.waitForIdle();
+    const env = thirdDriver.mock.calls[0]![0].env!;
+    const history = decodePreviousResults(env[PREVIOUS_RESULTS_ENV]);
+    expect(history?.runs.map(run => run.runId)).toEqual([original.projectRunId, audit.projectRunId]);
+    // Actual process boundary, using the same task-input function as runner.ts.
+    const rendered = execFileSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e',
+      "import {withPreviousRunInputs} from './src/run/taskInputs.ts'; import {reasoningPrompt} from './src/atoms/taskContext.ts'; process.stdout.write(reasoningPrompt(withPreviousRunInputs({description:'Explain the original codebook.'},process.env)));"],
+    { cwd: process.cwd(), env: { ...process.env, [PREVIOUS_RESULTS_ENV]: env[PREVIOUS_RESULTS_ENV] }, encoding: 'utf8', windowsHide: true });
+    expect(rendered).toContain('011 encodes as 0111010');
+    expect(rendered).toContain('There are four differing positions');
+    expect(rendered).toContain('untrusted historical work');
+    expect(thirdDriver.mock.calls[0]![0].extraArgs?.join(' ')).not.toContain('0111010');
+    const comparisonDriver = refusedDriver('Comparison output must not seed another run.');
+    const comparison = coordinatorFor(f, comparisonDriver);
+    await comparison.start({ orgId: f.viewer.orgId, principalId: f.viewer.principalId,
+      projectId: f.project.projectId, request: { idempotencyKey: 'text-comparison', rerunOf: audit.projectRunId,
+        models: { l1: 'api:anthropic:claude-haiku-4-5', l2: 'api:anthropic:claude-sonnet-5', l3: 'api:anthropic:claude-opus-5' } } });
+    await comparison.waitForIdle();
+    expect(decodePreviousResults(comparisonDriver.mock.calls[0]![0].env?.[PREVIOUS_RESULTS_ENV])?.runs.map(run => run.runId))
+      .toEqual([original.projectRunId]);
+    writeFileSync(join(original.hostPaths.runsPath, `${original.projectRunId}.json`), '{broken');
+    const incomplete = decodePreviousResults(previousResultsFor(f.store, f.store.getProjectRun(f.viewer.orgId, audit.projectRunId)));
+    expect(incomplete?.runs[0]).toMatchObject({ runId: original.projectRunId, unavailable: true, output: '' });
+    expect(incomplete?.runs[1]).toMatchObject({ runId: audit.projectRunId, unavailable: false, output: 'There are four differing positions.' });
+  });
 
   it('records partial, keeps the work, never publishes and offers no preview', async () => {
     // Production run 6ab0ae3b spent thirty minutes and 0.42 USD writing real

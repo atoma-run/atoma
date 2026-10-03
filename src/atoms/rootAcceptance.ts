@@ -9,6 +9,7 @@ import type { AcceptanceInfo, PhaseCoverageRecord, ProofFloor } from '../contrac
 import { buildResultGateEnv, renderResultGateFindings, runResultGates } from './resultGates.js';
 import { checkGroundTruth } from './groundTruth.js';
 import { llmVerdict } from './verdict.js';
+import { textReviewReference } from './textReview.js';
 import { LANDED_RESULT_GUIDANCE } from './prompts.js';
 import {
   compareStartingWorkspace,
@@ -491,11 +492,14 @@ export async function acceptRootResult(args: {
   const startingBlock = reviewing ? renderStartingWorkspace(comparison ?? startingComparison(ctx)) : '';
   const restorationsBlock = reviewing ? renderRestorationsBlock(restorations) : '';
   const inheritedBlock = reviewing && inherited ? renderInheritedChecksBlock(inherited.report, inheritedItems, earlier) : '';
+  const textReference = reviewing && args.delivery === 'text'
+    ? await textReviewReference(ctx, task, checklist) : undefined;
   const raw = gates.rejection
     ? { approved: false, reasoning: gates.rejection.reasoning }
     : review ? await llmVerdict({
       ctx, model: modelForTier(args.delivery === 'text' ? 2 : 1), supervisorName: 'run-root', supervisorTier: 3,
       subject: 'RESULT', child: actor, task,
+      ...(textReference ? { independentTextReference: textReference } : {}),
       payload: { output: result.output, summary: result.summary, producedBy: result.producedBy },
       ...(evidence ? { evidence } : {}),
       groundTruthBlock: probe.block,
