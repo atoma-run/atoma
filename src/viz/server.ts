@@ -112,6 +112,13 @@ import {
   ProjectRunCoordinator,
 } from '../projects/coordinator.js';
 import { hostRunTitler } from '../projects/runTitle.js';
+import { createShowcaseSource, showcaseEnabled, type ShowcaseSource } from './showcase.js';
+import {
+  renderShowcaseEntry,
+  renderShowcaseIndex,
+  renderShowcaseNotFound,
+  SHOWCASE_SECURITY_HEADERS,
+} from './showcasePage.js';
 import { GitHubPublisher } from '../projects/publisher.js';
 import { ProjectHttpError, ProjectService, roleAtLeast } from '../projects/service.js';
 import { PreviewStore } from '../preview/store.js';
@@ -981,6 +988,18 @@ const PROJECTS_RUNTIME: ProjectsRuntime | null = (() => {
     resolveUserAccessToken,
   };
 })();
+
+/**
+ * THE PUBLIC SHOWCASE (`showcase.ts`): the platform admin's delivered runs for
+ * anyone, signed in or not. FAIL CLOSED three ways: the host must opt in
+ * (`ATOMA_PUBLIC_SHOWCASE=1`), the gate must be on (an ungated developer path
+ * has no notion of an admin), and a projects store must exist. `null` means
+ * the routes answer 404, indistinguishable from a path that was never there.
+ */
+const SHOWCASE: ShowcaseSource | null =
+  AUTH_RUNTIME && PROJECTS_RUNTIME && showcaseEnabled()
+    ? createShowcaseSource(PROJECTS_RUNTIME.store)
+    : null;
 
 /**
  * THE PREVIEW RUNTIME, hosted here for the same reason the watch is.
@@ -4019,6 +4038,43 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
     return;
   }
 
+  // THE PUBLIC SHOWCASE. No session is read, and none is needed: the pages
+  // carry only the allow-listed projection of a platform admin's delivered
+  // runs (`showcase.ts`). GET only, its own CSP, and a short public cache so a
+  // crowd costs one store read a minute.
+  if (pathname === '/showcase' || pathname.startsWith('/showcase/')) {
+    if (!methodAllowed(req, res, 'GET')) return;
+    if (!SHOWCASE) {
+      send(res, 404, 'not found', 'text/plain; charset=utf-8');
+      return;
+    }
+    const origin = AUTH_RUNTIME?.publicOrigin ?? null;
+    let html: string;
+    let code = 200;
+    if (pathname === '/showcase' || pathname === '/showcase/') {
+      html = renderShowcaseIndex(SHOWCASE.entries(), origin);
+    } else {
+      const entry = SHOWCASE.entry(pathname.slice('/showcase/'.length));
+      if (entry) {
+        const answers = new Map(
+          entry.episodes.map((episode) => [episode.id, SHOWCASE.answer(entry.id, episode.id)] as const)
+        );
+        html = renderShowcaseEntry(entry, answers, origin);
+      } else {
+        html = renderShowcaseNotFound();
+        code = 404;
+      }
+    }
+    res.writeHead(code, {
+      ...SHOWCASE_SECURITY_HEADERS,
+      'content-type': 'text/html; charset=utf-8',
+      'content-length': Buffer.byteLength(html),
+      'cache-control': code === 200 ? 'public, max-age=60' : 'no-store',
+    });
+    res.end(html);
+    return;
+  }
+
   if (pathname === '/robots.txt') {
     if (!methodAllowed(req, res, 'GET')) return;
     send(
@@ -4040,7 +4096,7 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
     send(
       res,
       200,
-      sitemapXml(AUTH_RUNTIME.publicOrigin),
+      sitemapXml(AUTH_RUNTIME.publicOrigin, { showcase: SHOWCASE !== null }),
       'application/xml; charset=utf-8',
       'public, max-age=3600'
     );

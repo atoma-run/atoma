@@ -99,14 +99,15 @@ export function robotsTxt(publicOrigin: URL | null): string {
   ].join('\n');
 }
 
-export function sitemapXml(publicOrigin: URL): string {
-  const canonical = escapeAttribute(new URL('/', publicOrigin).href);
+export function sitemapXml(publicOrigin: URL, options: { readonly showcase?: boolean } = {}): string {
+  const locations = [new URL('/', publicOrigin).href];
+  // Listed only while the host publishes the showcase: a sitemap naming a 404
+  // would teach crawlers to distrust the rest.
+  if (options.showcase) locations.push(new URL('/showcase', publicOrigin).href);
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
-    '  <url>',
-    `    <loc>${canonical}</loc>`,
-    '  </url>',
+    ...locations.flatMap((location) => ['  <url>', `    <loc>${escapeAttribute(location)}</loc>`, '  </url>']),
     '</urlset>',
     '',
   ].join('\n');

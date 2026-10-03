@@ -623,6 +623,16 @@ npm run viz:mark-turn:analyze
   The router refuses to deliver a push that renders no title. The composer
   is its own admin view (above), not a form at the foot of another.
 
+## Public showcase
+
+- `/showcase` and `/showcase/<run id>` serve a platform admin's DELIVERED runs
+  to anyone, no session. Fail closed: off unless `ATOMA_PUBLIC_SHOWCASE=1`, gate
+  on, and a 404 otherwise. The set is one store query
+  (`listShowcaseRuns`), the projection an allow-list (`showcase.ts`): title,
+  request, numbers, file NAMES, a text answer; never identities, paths,
+  repositories or bytes. Server-rendered, every value escaped, one script
+  pinned by hash in its own CSP. Not an i18n surface: English only for now.
+
 ## Intentional choices and rejected shortcuts
 
 - `vite-plugin-pwa`: rejected and restated here because it looks like the

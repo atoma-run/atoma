@@ -1555,6 +1555,30 @@ END;
       : null;
   }
 
+  /**
+   * THE RUNS THE PUBLIC SHOWCASE MAY SHOW: delivered, not a comparison rerun,
+   * and REQUESTED BY A PLATFORM ADMIN. Both facts are decided here, in one
+   * query, so no caller can widen the set: the page receives only these rows
+   * and projects them again (`src/viz/showcase.ts`). Oldest first, the newest
+   * `limit` kept. A store with no auth table has no admin, so the answer is
+   * empty rather than "everyone". Read-only.
+   */
+  listShowcaseRuns(limit = 500): ProjectRun[] {
+    const hasAdmins = this.db
+      .prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'auth_platform_admins'`)
+      .get();
+    if (!hasAdmins) return [];
+    const rows = this.db
+      .prepare(
+        `SELECT r.* FROM project_runs r
+           JOIN auth_platform_admins a ON a.principal_id = r.requested_by_principal_id
+          WHERE r.status = 'delivered' AND r.rerun_of_run_id IS NULL
+          ORDER BY r.created_at DESC, r.project_run_id ASC LIMIT ?`
+      )
+      .all(Math.max(1, Math.min(2_000, Math.floor(limit)))) as ProjectRunRow[];
+    return rows.map(runFromRow).reverse();
+  }
+
   /** A platform admin's READ across organisations; never a write path. */
   getProjectRunAnyOrg(projectRunIdInput: string): ProjectRun | null {
     const projectRunId = projectRunIdSchema.parse(projectRunIdInput);
