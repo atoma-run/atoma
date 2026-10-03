@@ -25,7 +25,7 @@ import { dispatchWithAggregation, keptWithoutSynthesis, markLanded, synthesizeOr
 import { restorationDamaged } from '../contracts/readOnlyPhase.js';
 import { acceptL3RootPlan } from './l3RootPlan.js';
 import { L2Atom } from './L2Atom.js';
-import { buildResultGateEnv, runResultGates } from './resultGates.js';
+import { buildResultGateEnv, renderResultGateFindings, runResultGates, withoutExecutorLoopFacts } from './resultGates.js';
 import {
   buildTargetContext,
   checkGroundTruth,
@@ -1087,7 +1087,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     landed = false
   ): Promise<Result> {
     if (subResults.length === 1) {
-      return subResults[0]!;
+      return withoutExecutorLoopFacts(subResults[0]!);
     }
     const evidence = subResults.flatMap((result) => result.evidence ?? []);
     const evidenceField = evidence.length > 0 ? { evidence } : {};
@@ -1313,6 +1313,8 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       // carries it: without it, its validator judges the summary alone.
       evidence: executorEvidence(output, ctx, since),
       ...(proof.coverage.length > 0 ? { proofCoverage: proof.coverage } : {}),
+      // Its own loop's fact, as a molecule's result carries it (`tool-budget-exhausted` gate).
+      ...(resp.toolBudgetExhausted ? { toolBudgetExhausted: true as const } : {}),
     };
   }
 
@@ -1399,6 +1401,12 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         modifications: { additionalContext: gates.rejection.coaching },
       };
     }
+    // A reporting delegated gate (`read-only-validation-failed`,
+    // `tool-budget-exhausted`) never rejects: its finding takes the result off
+    // both fast paths and reaches the model verdict, as at L2. The trust path
+    // here used to ignore it, on the belief that every delegated gate rejected.
+    const gateFindingsBlock =
+      gates.reviewFindings.length > 0 ? renderResultGateFindings(gates.reviewFindings) : undefined;
     // What a fallback's own calls proved of its phase's obligations, carried by
     // its result (`proveFallback`): a molecule's supervisor checks that itself.
     const fallbackCoverage = result.proofCoverage ?? [];
@@ -1412,7 +1420,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     // never to an outright reject.
     const payload = { output: result.output, summary: result.summary };
     let trustedProbe: GroundTruthCheck | null = null;
-    if (type && child.matchesRegistryVersion(type) && shouldTrustType(type) && !proofUncovered) {
+    if (type && child.matchesRegistryVersion(type) && shouldTrustType(type) && gateFindingsBlock === undefined && !proofUncovered) {
       trustedProbe = await checkGroundTruth({
         ctx,
         subject: 'RESULT',
@@ -1445,9 +1453,8 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         `[${this.name}] trust fast-path OVERRIDDEN for ${child.name} (${type.successes}✓/${type.failures}✗): ${reviewReason} — falling through to a full verdict`
       );
     }
-    // Jev fast path — see L2Atom.validateResult. Today every delegated gate
-    // rejects rather than reports, so `reviewFindings` is empty here; should a
-    // reporting one be added, its finding keeps the decision with the model.
+    // Jev fast path — see L2Atom.validateResult: a review finding keeps the
+    // decision with the model.
     let groundTruth = trustedProbe;
     // ONE model verdict, whether it decides or audits a Jev approval; it reads
     // `groundTruth` when it is called, after the Jev path has probed.
@@ -1466,10 +1473,11 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         // DIRECT; a peer's result, mutualized, still carries the peer's name.
         ...(result.producedBy?.viaFallback && result.producedBy.name === child.name ? { viaFallback: true } : {}),
         ...(groundTruth ? { groundTruthBlock: groundTruth.block } : {}),
+        ...(gateFindingsBlock !== undefined ? { mechanicalFindingsBlock: gateFindingsBlock } : {}),
         ...(fallbackCoverage.length > 0 ? { proofCoverageBlock: renderProofCoverage(fallbackCoverage) } : {}),
         ...(audit ? { audit: true } : {}),
       });
-    if (ctx.jev && gates.reviewFindings.length === 0 && !proofUncovered) {
+    if (ctx.jev && gateFindingsBlock === undefined && !proofUncovered) {
       groundTruth ??= await checkGroundTruth({
         ctx,
         subject: 'RESULT',

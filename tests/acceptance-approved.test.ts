@@ -7,6 +7,7 @@ import { afterAll, describe, expect, it, vi } from 'vitest';
 import {
   ACCEPTANCE_SOURCE_ENV,
   ACCEPTANCE_SPEC_ENV,
+  MAX_CHECKLIST_BEHAVIOUR_CHARS,
   MAX_CHECKLIST_ITEMS,
   approvedChecklistInputSchema,
   coverAcceptanceChecklist,
@@ -67,7 +68,12 @@ describe('the line grammar', () => {
   it('reports a bad line by number and a thirteenth criterion, instead of dropping either', () => {
     const tooLong = parseChecklistLines(`ok\n${'x'.repeat(161)}`);
     expect(tooLong.items).toHaveLength(1);
-    expect(tooLong.errors.map((error) => error.line)).toEqual([2]);
+    expect(tooLong.errors).toEqual([{ line: 2, message: "this criterion's text is 161 characters; at most 160" }]);
+    // The bound is the TEXT's: an http line's method, path and status are not counted, and the message says so.
+    const httpText = `POST /api/loans/:id/renew 409 — ${'y'.repeat(MAX_CHECKLIST_BEHAVIOUR_CHARS)}`;
+    expect(parseChecklistLines(httpText).errors).toEqual([]);
+    expect(parseChecklistLines(`${httpText}z`).errors).toEqual([{ line: 1,
+      message: "this criterion's text is 161 characters; at most 160 (its method, path and status are not counted)" }]);
     const many = parseChecklistLines(Array.from({ length: MAX_CHECKLIST_ITEMS + 1 }, (_, i) => `criterion ${i}`).join('\n'));
     expect(many.errors).toEqual([{ line: 0, message: `at most ${MAX_CHECKLIST_ITEMS} criteria` }]);
   });

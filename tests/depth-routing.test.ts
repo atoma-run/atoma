@@ -1171,4 +1171,65 @@ describe('work in hand at the deadline is finalized, landed or complete (2026-09
         return result;
       } }) })).rejects.toThrow('Cancelled by operator');
   });
+
+  // Production run dfa20873 (2026-10-03): on the thirty-minute ceiling its
+  // first phase closed only through a false trust approval. Taken off the
+  // fast path, that phase is cut by the deadline before anything is accepted,
+  // and until this landing the run FAILED: `previousSeedRun` skips a failed
+  // run, so every relaunch of the project started from nothing again.
+  const threePhases = makePlan({
+    subtasks: [
+      { description: 'Create server.js and its tests' },
+      { description: 'Create public/index.html' },
+      { description: 'Write README.md' },
+    ],
+    aggregation: { mode: 'sequential' },
+  });
+
+  it('lands a first pass the deadline cut before any phase, with every planned phase unfinished', async () => {
+    const ctx = context();
+    const controller = new AbortController();
+    const accepted = vi.fn();
+    const out = await runDepthTask({ mode: 'short', task, floor: [],
+      ctx: { ...ctx, signal: controller.signal, deadlineAt: Date.now() + 90_000 }, restart: vi.fn(), onTopology: vi.fn(),
+      onAcceptance: accepted, createExecutor: () => ({ actor: new Actor(), handle: async (_task, current) => {
+        current.recordRootPlan?.(threePhases);
+        controller.abort(new DOMException('Execution deadline', 'TimeoutError'));
+        current.signal.throwIfAborted();
+        return result;
+      } }) });
+    expect(out.unfinishedPhases).toEqual(['Create server.js and its tests', 'Create public/index.html', 'Write README.md']);
+    expect(out.output).toBeNull();
+    expect(out.refusal).toBeUndefined();
+    expect(out.summary).toMatch(/^INCOMPLETE — the run budget ended before any of its 3 planned phase\(s\)/);
+    expect(landingReasons(out)[0]).toMatch(/^reached its budget with 3 unfinished phase\(s\)/);
+    // Nothing was judged: no root acceptance was opened on a pass that accepted no phase.
+    expect(accepted).not.toHaveBeenCalled();
+    expect(ctx.llm.calls).toHaveLength(0);
+  });
+
+  it('still fails a first pass the deadline cut before its root plan existed', async () => {
+    const ctx = context();
+    const controller = new AbortController();
+    await expect(runDepthTask({ mode: 'short', task, floor: [],
+      ctx: { ...ctx, signal: controller.signal, deadlineAt: Date.now() + 90_000 }, restart: vi.fn(), onTopology: vi.fn(),
+      onAcceptance: vi.fn(), createExecutor: () => ({ actor: new Actor(), handle: async (_task, current) => {
+        controller.abort(new DOMException('Execution deadline', 'TimeoutError'));
+        current.signal.throwIfAborted();
+        return result;
+      } }) })).rejects.toThrow('Execution deadline');
+  });
+
+  it('still treats an explicit cancellation of a planned first pass as an interruption', async () => {
+    const ctx = context();
+    const controller = new AbortController();
+    await expect(runDepthTask({ mode: 'short', task, floor: [],
+      ctx: { ...ctx, signal: controller.signal, deadlineAt: Date.now() + 90_000 }, restart: vi.fn(), onTopology: vi.fn(),
+      onAcceptance: vi.fn(), createExecutor: () => ({ actor: new Actor(), handle: async (_task, current) => {
+        current.recordRootPlan?.(threePhases);
+        controller.abort(new Error('Cancelled by operator'));
+        current.signal.throwIfAborted();
+        return result;
+      } }) })).rejects.toThrow('Cancelled by operator');
+  });
 });

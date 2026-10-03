@@ -140,6 +140,7 @@ export class OpenAiLlmClient implements LlmClient {
     let previousResponseId: string | undefined;
     let finalResponse: OpenAiResponse | null = null;
     let syntheticFinalText: string | null = null;
+    let budgetExhausted = false;
 
     for (let iter = 0; iter < budget; iter++) {
       const response = await send(input, previousResponseId, false);
@@ -222,6 +223,7 @@ export class OpenAiLlmClient implements LlmClient {
         );
         accumulate(finalResp);
         finalResponse = finalResp;
+        budgetExhausted = true;
         break;
       }
       input = outputs;
@@ -242,6 +244,7 @@ export class OpenAiLlmClient implements LlmClient {
         cacheReadInputTokens: agg.cacheReadInputTokens || undefined,
       },
       servedModel: finalResponse.model,
+      ...(budgetExhausted ? { toolBudgetExhausted: true as const } : {}),
     };
   }
 }

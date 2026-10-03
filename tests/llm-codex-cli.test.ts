@@ -959,6 +959,21 @@ describe('Codex L1 host-side action loop', () => {
     expect(calls).toBe(2);
     expect(execute).toHaveBeenCalledTimes(1);
   });
+  it('marks a final answer written on the forced finalization turn, and only that one (run dfa20873)', async () => {
+    const execute = vi.fn(async () => 'ok');
+    const actions = [
+      { type: 'tool', name: 'write_file', arguments: { path: 'a.txt', content: 'x' } },
+      { type: 'final', text: '{"output":{"status":"incomplete"},"summary":"budget ran out"}' },
+    ];
+    const exhausted = new CodexCliLlmClient({ env: {}, spawnFn: () => fakeChild({ lines: messages(actions.shift()) }) });
+    const forced = await exhausted.complete(req({ tools: makeTools(['write_file']), executor: { execute, has: () => true }, maxToolIterations: 1 }));
+    expect(forced.text).toContain('incomplete');
+    expect(forced.toolBudgetExhausted).toBe(true);
+    const early = new CodexCliLlmClient({ env: {}, spawnFn: () => fakeChild({ lines: messages({ type: 'final', text: 'done' }) }) });
+    const natural = await early.complete(req({ tools: makeTools(['write_file']), executor: { execute, has: () => true }, maxToolIterations: 1 }));
+    expect(natural.text).toBe('done');
+    expect(natural.toolBudgetExhausted).toBeUndefined();
+  });
   it('returns invalid arguments without execution so the next turn can correct them', async () => {
     const execute = vi.fn(async () => 'written');
     const observe = vi.fn();

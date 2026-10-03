@@ -128,6 +128,9 @@ describe('AnthropicLlmClient tool-iteration budget', () => {
 
     expect(resp.text).toBe(finalText);
     expect(calls.length).toBe(3);
+    // A transport fact the executor carries onto its Result: the text came
+    // from the forced finalization turn (run dfa20873, 2026-10-03).
+    expect(resp.toolBudgetExhausted).toBe(true);
 
     // Every call keeps the tool declarations (dropping them would invalidate
     // the whole prompt cache on the loop's largest request); the finalization
@@ -169,6 +172,7 @@ describe('AnthropicLlmClient tool-iteration budget', () => {
     expect(resp.text).toBe(finalText);
     expect(calls.length).toBe(1);
     expect(calls[0]!.hadTools).toBe(true);
+    expect(resp.toolBudgetExhausted).toBeUndefined();
   });
 
   it('invokes onToolInvocation for each successful tool call with args + result', async () => {

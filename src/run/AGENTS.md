@@ -221,6 +221,13 @@ Neighbours:
   and deepening still abort, and expiry keeps the work as a refused partial —
   never an approval, never another pass. A remediation pass the deadline cuts
   before it accepts a phase lands on the refused first pass (review 1.2).
+  A FIRST pass the run budget cuts before any phase is accepted lands too once
+  its root plan exists (`landedBeforeAnyPhase`): every planned phase
+  unfinished, nothing judged, and its workspace seeds the next run. On the
+  thirty-minute production ceiling a phase too large for one run otherwise
+  failed every time, each relaunch starting from nothing (run dfa20873,
+  2026-10-03, closed its first phase only through a false trust approval).
+  Cut before its root plan, or cancelled explicitly, a pass still fails.
 - Only the first short attempt may deepen, at the existing supervision
   fallback moment after its branch retry. Cancel and drain all branches,
   confirm tool processes have exited, archive the workspace, then construct

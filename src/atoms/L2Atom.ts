@@ -126,6 +126,7 @@ import {
   buildResultGateEnv,
   renderResultGateFindings,
   runResultGates,
+  withoutExecutorLoopFacts,
 } from './resultGates.js';
 import type { Skill } from '../skills/types.js';
 import type { SkillRegistry } from '../skills/registry.js';
@@ -1921,7 +1922,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     if (subResults.length === 1) {
       // Degenerate fan-out (N=1): preserve the exact pre-fan-out shape so
       // existing call sites and tests see no difference.
-      return subResults[0]!;
+      return withoutExecutorLoopFacts(subResults[0]!);
     }
     const evidence = subResults.flatMap((result) => result.evidence ?? []);
     const evidenceField = evidence.length > 0 ? { evidence } : {};
@@ -2164,6 +2165,8 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       // carries it: without it, its validator judges the summary alone.
       evidence: executorEvidence(output, ctx, since),
       ...(proof.coverage.length > 0 ? { proofCoverage: proof.coverage } : {}),
+      // Its own loop's fact, as a molecule's result carries it (`tool-budget-exhausted` gate).
+      ...(resp.toolBudgetExhausted ? { toolBudgetExhausted: true as const } : {}),
     };
   }
 

@@ -251,6 +251,18 @@ export interface Result {
    * refusal travels with it so the next run knows what was unproven.
    */
   readonly refusal?: string;
+  /**
+   * Set by the executor whose OWN tool loop wrote this result on the forced
+   * finalization turn after its iteration budget ran out
+   * (`LlmCompletionResponse.toolBudgetExhausted`), never by a model and never
+   * copied by an aggregate. The `tool-budget-exhausted` result gate turns it
+   * into a review finding, so no trust or Jev fast path approves such a
+   * result unread: production run dfa20873 (2026-10-03) trust-approved and
+   * credited a molecule whose loop the deadline had cut to three iterations,
+   * whose output read {"status":"incomplete"}, on a phase its cell had just
+   * rejected three times for the same missing evidence.
+   */
+  readonly toolBudgetExhausted?: true;
 }
 
 export type MutationScope = 'ephemeral' | 'branch' | 'patch';
@@ -467,6 +479,13 @@ export interface LlmCompletionResponse {
    * verbatim and may omit the field.
    */
   servedModel?: string;
+  /**
+   * Set by a tool loop, never by a model, when its iteration budget ran out
+   * and `text` came from the forced tools-disabled finalization turn
+   * (`BUDGET_EXHAUSTED_HINT`). The executor that ran the loop carries it onto
+   * `Result.toolBudgetExhausted`.
+   */
+  toolBudgetExhausted?: true;
 }
 
 export interface LlmClient {

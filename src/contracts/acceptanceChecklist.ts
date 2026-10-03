@@ -190,6 +190,17 @@ export function parseChecklistLines(text: string): {
             ...(status ? { status: Number(status) } : {}) },
         }
       : { behaviour: line, check: { kind: 'review' as const } };
+    // Said in the caller's terms: the bound is on the criterion's TEXT, which
+    // for an http line excludes its method, path and status. zod's own
+    // "expected string to have <=160 characters" named no field, and the MCP
+    // entry it reached was bounded at 400 (run start refused 2026-10-03).
+    const chars = candidate.behaviour.trim().length;
+    if (chars > MAX_CHECKLIST_BEHAVIOUR_CHARS) {
+      errors.push({ line: index + 1, message:
+        `this criterion's text is ${chars} characters; at most ${MAX_CHECKLIST_BEHAVIOUR_CHARS}` +
+        (http && rest ? ' (its method, path and status are not counted)' : '') });
+      return;
+    }
     const parsed = approvedChecklistItemInputSchema.safeParse(candidate);
     if (!parsed.success) {
       errors.push({ line: index + 1, message: parsed.error.issues[0]?.message ?? 'invalid criterion' });

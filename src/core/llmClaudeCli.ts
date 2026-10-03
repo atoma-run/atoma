@@ -255,7 +255,7 @@ export class ClaudeCliLlmClient implements LlmClient {
         onToolInvocation: undefined,
         userContent: 'The tool iteration budget is exhausted. Tools are disabled. Return the final answer in the format required by the original request, using only the work and observations already recorded in this session. State any unfinished work accurately; do not claim unobserved success or request more tools.',
       }, response.resumeSessionId);
-      return { ...final, usage: sumUsage([response.usage, final.usage]) };
+      return { ...final, usage: sumUsage([response.usage, final.usage]), toolBudgetExhausted: true };
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
       const partial = (err as Error & { partialUsage?: LlmCompletionResponse['usage'] }).partialUsage;

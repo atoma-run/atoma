@@ -6,6 +6,7 @@ import { L2Atom } from '../src/atoms/L2Atom.js';
 import { L3Atom } from '../src/atoms/L3Atom.js';
 import { TRUST_THRESHOLD_SUCCESSES } from '../src/atoms/cost.js';
 import { INTERNAL_VALIDATION_FAILED_PREFIX } from '../src/atoms/L1Atom.js';
+import { withoutExecutorLoopFacts } from '../src/atoms/resultGates.js';
 import { FALLBACK_OPUS } from './tier-pins.js';
 import { makeCtx } from './helpers.js';
 import { makePlan } from './helpers/factories.js';
@@ -205,6 +206,91 @@ describe('trust fast-path in validators', () => {
 
     expect(trustEvents).toHaveLength(0);
     expect(ctx.llm.calls).toHaveLength(1);
+  });
+
+  // Production run dfa20873 (2026-10-03): a molecule the deadline had cut to
+  // three tool iterations answered {"status":"incomplete"}, its cell's trust
+  // fast path approved and credited it, then the tissue's trust fast path
+  // approved the phase. The transport's finalization fact now takes such a
+  // result off both fast paths at both tiers; the model decides.
+  const exhausted = (tier: 1 | 2, name: string, viaFallback: boolean) => ({
+    output: { entry: 'server.js', status: 'incomplete' },
+    summary: 'Existing artifacts were inspected, but verification could not be completed because the tool budget was exhausted.',
+    trace: [],
+    toolCallResults: [{ name: 'list_files', args: {}, result: '[]' }],
+    toolBudgetExhausted: true as const,
+    producedBy: { tier, name, viaFallback },
+  });
+  const reject = JSON.stringify({ approved: false, reasoning: 'the result reports its HTTP probes were never run', scope: 'ephemeral' });
+
+  it("L2 hands a trusted molecule's budget-exhausted result to the model instead of the trust fast path", async () => {
+    const reg = new AtomRegistry(openDb(':memory:'));
+    reg.create(2, seed);
+    const l1Type = reg.create(1, seed);
+    for (let i = 0; i < TRUST_THRESHOLD_SUCCESSES; i++) reg.recordSuccess(l1Type.name);
+    const l2 = L2Atom.fromType(reg.getByName('Tracheid')!, reg);
+    const l1 = L1Atom.fromType(reg.getByName('Water')!);
+    const events: TrustFastPathInfo[] = [];
+    const ctx = { ...makeCtx(), recordTrust: (event: TrustFastPathInfo) => events.push(event) };
+    ctx.llm.enqueueText(reject);
+    const v = await l2.validateResult(l1, exhausted(1, 'Water', false), { description: 'build and probe the API' }, ctx);
+    expect(v.approved).toBe(false);
+    expect(events).toHaveLength(0);
+    expect(ctx.llm.calls).toHaveLength(1);
+    expect(ctx.llm.calls[0]!.userContent).toContain('[tool-budget-exhausted]');
+    // The same result without the transport fact keeps the earned fast path.
+    const { toolBudgetExhausted: _fact, ...complete } = exhausted(1, 'Water', false);
+    void _fact;
+    const trusted = await l2.validateResult(l1, complete, { description: 'build and probe the API' }, ctx);
+    expect(trusted.approved).toBe(true);
+    expect(ctx.llm.calls).toHaveLength(1);
+  });
+
+  it("L3 hands a trusted cell's budget-exhausted fallback result to the model", async () => {
+    const reg = new AtomRegistry(openDb(':memory:'));
+    const l3Type = reg.create(3, seed);
+    const l2Type = reg.create(2, seed);
+    for (let i = 0; i < TRUST_THRESHOLD_SUCCESSES; i++) reg.recordSuccess(l2Type.name);
+    const l3 = L3Atom.buildWithModel(l3Type, reg, FALLBACK_OPUS);
+    const l2 = L2Atom.fromType(l2Type, reg);
+    const events: TrustFastPathInfo[] = [];
+    const ctx = { ...makeCtx(), recordTrust: (event: TrustFastPathInfo) => events.push(event) };
+    ctx.llm.enqueueText(reject);
+    const v = await l3.validateResult(l2, exhausted(2, l2.name, true), { description: 'build and probe the API' }, ctx);
+    expect(v.approved).toBe(false);
+    expect(events).toHaveLength(0);
+    expect(ctx.llm.calls).toHaveLength(1);
+    expect(ctx.llm.calls[0]!.userContent).toContain('[tool-budget-exhausted]');
+  });
+
+  it("L3 no longer trusts past a reporting delegated gate: a read-only phase's failed validation reaches the model", async () => {
+    const reg = new AtomRegistry(openDb(':memory:'));
+    const l3Type = reg.create(3, seed);
+    const l2Type = reg.create(2, seed);
+    for (let i = 0; i < TRUST_THRESHOLD_SUCCESSES; i++) reg.recordSuccess(l2Type.name);
+    const l3 = L3Atom.buildWithModel(l3Type, reg, FALLBACK_OPUS);
+    const l2 = L2Atom.fromType(l2Type, reg);
+    const ctx = makeCtx();
+    ctx.llm.enqueueText(JSON.stringify({ approved: true, reasoning: "the finding is the phase's report", scope: 'ephemeral' }));
+    const v = await l3.validateResult(l2, {
+      output: null,
+      summary: `${INTERNAL_VALIDATION_FAILED_PREFIX}: the button does not respond`,
+      trace: [],
+      producedBy: { tier: 2, name: l2.name, viaFallback: false },
+    }, { description: 'verify the page', readOnly: true }, ctx);
+    expect(v.approved).toBe(true);
+    expect(ctx.llm.calls).toHaveLength(1);
+    expect(ctx.llm.calls[0]!.userContent).toContain('[read-only-validation-failed]');
+  });
+
+  it("an aggregate passing one result up drops the executor's loop fact its supervisor already judged", () => {
+    const only = exhausted(1, 'Water', false);
+    const passed = withoutExecutorLoopFacts(only);
+    expect(passed.toolBudgetExhausted).toBeUndefined();
+    expect(passed.summary).toBe(only.summary);
+    expect(passed.toolCallResults).toBe(only.toolCallResults);
+    const plain = { output: 1, summary: 's', trace: [], producedBy: { tier: 1 as const, name: 'Water', viaFallback: false } };
+    expect(withoutExecutorLoopFacts(plain)).toBe(plain);
   });
 
   it('L3 validators skip LLM calls once the child L2 type is trusted', async () => {

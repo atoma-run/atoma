@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import type { CallToolResult, McpServer, ServerContext } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { retrievalRegistrationSchema } from '../contracts/retrievalCampaign.js';
-import { MAX_CHECKLIST_ITEMS, parseChecklistLines } from '../contracts/acceptanceChecklist.js';
+import { MAX_CHECKLIST_BEHAVIOUR_CHARS, MAX_CHECKLIST_ITEMS, parseChecklistLines } from '../contracts/acceptanceChecklist.js';
 import type { RetrievalCampaignStart } from '../cli/retrievalCampaignHost.js';
 import { ProjectHttpError } from '../projects/service.js';
 import type { Viewer } from '../auth/store.js';
@@ -339,7 +339,9 @@ export const PROJECT_RUN_INPUT = {
   goal: z.string().min(1).max(MAX_GOAL_CHARS).optional().describe('Required for a new run; omitted for a rerun, which re-asks its origin’s goal.'),
   idempotencyKey: z.string().min(1).max(200).optional().describe('Idempotency key; the same key returns the same run.'),
   acceptanceCriteria: z.array(z.string().min(1).max(400)).min(1).max(MAX_CHECKLIST_ITEMS).optional().describe(
-    'Acceptance criteria you approve for this run, one per entry. "GET /api/notes/:id 404 — unknown id is refused" is an HTTP criterion (status optional, any 2xx without one); any other text is judged by review. The run is checked against exactly these; one malformed entry refuses the call.'
+    'Acceptance criteria you approve for this run, one per entry. "GET /api/notes/:id 404 — unknown id is refused" is an HTTP criterion (status optional, any 2xx without one); any other text is judged by review. ' +
+    `A criterion's text is at most ${MAX_CHECKLIST_BEHAVIOUR_CHARS} characters, not counting an HTTP criterion's method, path and status. ` +
+    'The run is checked against exactly these; one malformed entry refuses the call.'
   ),
   rerunOf: z.string().min(1).optional().describe(
     'A COMPARISON RERUN of this delivered or partial run of the same project: same goal, same acceptance list, same starting workspace, on the models you pass. It is never published and never seeds a later run.'

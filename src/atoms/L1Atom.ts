@@ -582,6 +582,7 @@ export class L1Atom extends Atom {
       // that the transport observed NO tool action. Test and library producers may
       // omit the field and remain backward-compatible at upper tiers.
       toolCallResults: observedToolCalls,
+      ...(resp.toolBudgetExhausted ? { toolBudgetExhausted: true as const } : {}),
       ...(recordedCommandProbes ? { recordedCommandProbes: true as const } : {}),
       ...(this.activeSkillIdField !== null ? { activeScriptSkillExecuted } : {}),
       // Typed witnesses, attached at production time: the child's recorded

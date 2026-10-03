@@ -137,7 +137,9 @@ export async function completeCodexToolLoop(
       let action: z.infer<typeof actionSchema>;
       try { action = actionSchema.parse(JSON.parse(response.text)); }
       catch { throw new Error('Codex returned an invalid Atoma tool-protocol response'); }
-      if (action.type === 'final') return { ...response, text: action.text, usage };
+      if (action.type === 'final') {
+        return { ...response, text: action.text, usage, ...(finalizing ? { toolBudgetExhausted: true as const } : {}) };
+      }
       if (finalizing) throw new Error('Codex requested a tool after its tool budget was exhausted');
       transcript.push({ role: 'assistant', content: action });
       const startedAt = Date.now();

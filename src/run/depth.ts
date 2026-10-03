@@ -34,6 +34,25 @@ export function markRefused(result: Result, acceptance: Pick<AcceptanceInfo, 're
 }
 
 /**
+ * The result of a first pass the run budget cut before any phase was
+ * accepted: no output, every planned phase unfinished, so the run is
+ * `partial` and its workspace seeds the next run (`previousSeedRun`). The
+ * summary keeps `markLanded`'s `INCOMPLETE —` head, because readers that
+ * explain a run from prose look for it.
+ */
+export function landedBeforeAnyPhase(actor: Pick<Atom, 'name' | 'tier'>, phases: readonly string[]): Result {
+  return {
+    output: null,
+    summary:
+      `INCOMPLETE — the run budget ended before any of its ${phases.length} planned phase(s) completed with an accepted result: ` +
+      `${phases.join(' | ')}. Nothing was accepted; the workspace keeps what those phases wrote, unverified.`,
+    trace: [],
+    producedBy: { tier: actor.tier, name: actor.name, viaFallback: false },
+    unfinishedPhases: [...phases],
+  };
+}
+
+/**
  * How many times one attempt may be handed its refusal and sent back.
  *
  * ONE. The refusal names what went unverified, so the second pass is aimed;
@@ -225,8 +244,10 @@ export async function runDepthTask(args: {
       for (;;) {
         let result: Result;
         let delivery: DeliveryKind | undefined;
+        let rootPhases: readonly string[] = [];
         const passCtx: RunContext = { ...attemptCtx, recordRootPlan: (plan) => {
           delivery = plan.delivery;
+          rootPhases = plan.subtasks.map((subtask) => subtask.description);
           attemptCtx.recordRootPlan?.(plan);
         } };
         try {
@@ -237,6 +258,17 @@ export async function runDepthTask(args: {
             return markRefused(refused.result, {
               reasoning: `${reasoning} — the remediation pass was cut by the run deadline before it completed a phase`,
             });
+          }
+          // THE FIRST PASS, cut by the run budget before any of its phases was
+          // accepted, still wrote real work: it lands with every phase it
+          // planned unfinished, so the next run of the project starts from
+          // those files instead of from nothing. On a thirty-minute ceiling a
+          // phase too large to close in one run otherwise failed every time,
+          // each relaunch starting over (production run dfa20873, 2026-10-03,
+          // closed its first phase only through a false trust approval). A
+          // pass cut before its root plan existed has run no phase and fails.
+          if (!refused && rootPhases.length > 0 && !cancellation.signal.aborted && abortedForLanding(ctx)) {
+            return landedBeforeAnyPhase(actor, rootPhases);
           }
           throw error;
         }

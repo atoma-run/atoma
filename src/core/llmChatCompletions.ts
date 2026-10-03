@@ -218,6 +218,7 @@ export class ChatCompletionsLlmClient implements LlmClient {
     ];
     let finalCompletion: ChatCompletion | null = null;
     let syntheticFinalText: string | null = null;
+    let budgetExhausted = false;
 
     for (let iter = 0; iter < budget; iter++) {
       const completion = await send(messages, false);
@@ -258,6 +259,7 @@ export class ChatCompletionsLlmClient implements LlmClient {
         const finalResp = await send(messages, true);
         accumulate(finalResp);
         finalCompletion = finalResp;
+        budgetExhausted = true;
         break;
       }
     }
@@ -278,6 +280,7 @@ export class ChatCompletionsLlmClient implements LlmClient {
       },
       // Gemini's compatibility layer may answer with the resource name.
       servedModel: finalCompletion.model.replace(/^models\//, ''),
+      ...(budgetExhausted ? { toolBudgetExhausted: true as const } : {}),
     };
   }
 

@@ -141,6 +141,7 @@ export class AnthropicLlmClient implements LlmClient {
     const budget = Math.max(1, req.maxToolIterations ?? DEFAULT_MAX_TOOL_ITERATIONS);
     let finalResponse: Anthropic.Messages.Message | null = null;
     let syntheticFinalText: string | null = null;
+    let budgetExhausted = false;
 
     for (let iter = 0; iter < budget; iter++) {
       // Short-circuit the tool loop between iterations as soon as the caller
@@ -314,6 +315,7 @@ export class AnthropicLlmClient implements LlmClient {
         const finalResp = await sendWithSamplingFallback({ disableTools: true });
         accumulate(finalResp);
         finalResponse = finalResp;
+        budgetExhausted = true;
         break;
       }
 
@@ -342,6 +344,7 @@ export class AnthropicLlmClient implements LlmClient {
         cacheCreationInputTokens: agg.cacheCreationInputTokens || undefined,
         cacheReadInputTokens: agg.cacheReadInputTokens || undefined,
       },
+      ...(budgetExhausted ? { toolBudgetExhausted: true as const } : {}),
     };
   }
 }

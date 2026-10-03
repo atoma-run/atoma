@@ -407,6 +407,7 @@ export class OllamaLlmClient implements LlmClient {
       // configured defaultModel here, so pricing on req.model would bill
       // Claude rates for local/GLM tokens (review 2026-08-14 §1.13).
       servedModel: model,
+      ...(stopReason === 'tool_budget_exhausted' ? { toolBudgetExhausted: true as const } : {}),
     };
   }
 }

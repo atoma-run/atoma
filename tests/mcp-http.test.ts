@@ -23,7 +23,8 @@ import { MCP_TOOL_NAMES, MCP_TOOLS, visibleTools, type McpToolDeps } from '../sr
 import { forgetJevCalibrationsForTest } from '../src/mcp/jevCalibrate.js';
 import { JEV_ENDPOINT } from '../src/core/jev.js';
 import { buildCompileSkillPrompt } from '../src/skills/compilePrompt.js';
-import { CallerTasks, ProjectRunTasks, forgetTasksForTest, projectRunTask, runSynchronously, type ProjectRunTaskDeps } from '../src/mcp/tasks.js';
+import { CallerTasks, PROJECT_RUN_INPUT, ProjectRunTasks, forgetTasksForTest, projectRunTask, runSynchronously, type ProjectRunTaskDeps } from '../src/mcp/tasks.js';
+import { MAX_CHECKLIST_BEHAVIOUR_CHARS } from '../src/contracts/acceptanceChecklist.js';
 import { CallToolResultSchema, CreateTaskResultSchema, LoggingMessageNotificationSchema } from '@modelcontextprotocol/sdk/types.js';
 import { ProjectStore } from '../src/projects/store.js';
 import { ProjectRunCoordinator } from '../src/projects/coordinator.js';
@@ -1300,6 +1301,14 @@ describe('runs as tasks, and the run log', () => {
     expect(bodies).toHaveLength(1);
     expect(refused.status).toBe('failed');
     expect(tasks.result(refused.taskId)).toMatchObject({ isError: true, content: [{ text: expect.stringContaining('entry 2: must hold exactly one criterion') }] });
+    // The advertised entry bound (400) covers an http line's method and path; the TEXT bound is 160,
+    // and both the description and the refusal say so (a client following the schema was refused, 2026-10-03).
+    expect(PROJECT_RUN_INPUT.acceptanceCriteria.description).toContain(`at most ${MAX_CHECKLIST_BEHAVIOUR_CHARS} characters`);
+    const tooLong = await start.start({ projectId: 'p-1', goal: 'notes API', idempotencyKey: 'k-3',
+      acceptanceCriteria: ['fine', `The UI ${'x'.repeat(MAX_CHECKLIST_BEHAVIOUR_CHARS)}`] });
+    expect(bodies).toHaveLength(1);
+    expect(tasks.result(tooLong.taskId)).toMatchObject({ isError: true, content: [{ text: expect.stringContaining(
+      `entry 2: this criterion's text is ${MAX_CHECKLIST_BEHAVIOUR_CHARS + 7} characters; at most ${MAX_CHECKLIST_BEHAVIOUR_CHARS}`) }] });
   });
 
   it.each(['delivered', 'partial', 'failed', 'cancelled'] as const)('keeps a finished two-hour project task one ttl after its run ends, without a poll of its own (%s)', async terminal => {

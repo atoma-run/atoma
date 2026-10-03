@@ -58,6 +58,8 @@ Neighbours:
   scope and duplicate checks. Empty new_string is deletion; legacy envelopes remain readable.
   A finite tool budget permits one finalization, which cannot execute tools. Abort and partial
   usage propagate across the complete loop. No Codex-native tools are enabled.
+  Every transport's loop marks a text written on that finalization turn `toolBudgetExhausted`;
+  the executor carries it onto its `Result`, where a result gate keeps it off every fast path.
   Acceptance evidence: [codex-all-tiers-2026-09-08](../../docs/incidents/codex-all-tiers-2026-09-08.md).
 - Effort settings belong on strategy calls only. Validators and prefilters are
   deterministic and cheap.

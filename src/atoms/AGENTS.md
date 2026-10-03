@@ -401,9 +401,9 @@ load-bearing.
   trust fast-path and attach a `MECHANICAL GATE FINDINGS` block to the full
   verdict. Workspace reads are cached per validation cycle. A new incident adds
   a table row with a stated disposition, never a new inline `if`.
-- The same table applies envelope and explicit validation failures to L2
-  results at L3 before trust (`appliesToDelegatedResult`). Leaf action, disk
-  and proof checks stay at L2; delegated results are not leaf executions.
+- The same table applies envelope and explicit validation failures to L2 results at L3 before trust
+  (`appliesToDelegatedResult`); a reporting one (`read-only-validation-failed`, `tool-budget-exhausted`) takes
+  L3's trust and Jev paths away as at L2 (run dfa20873). Leaf action, disk and proof checks stay at L2.
 
 ## Declared proof obligations
 

@@ -407,6 +407,32 @@ const RESULT_GATES: readonly ResultGate[] = [
       ),
   },
   {
+    // A transport fact, not a reading of prose: the executor's own tool loop
+    // ran out of iterations and the result was written on the forced
+    // tools-disabled turn (`Result.toolBudgetExhausted`). The result may still
+    // be complete, so it never rejects; it only takes the result off every
+    // fast path. Production run dfa20873 (2026-10-03): a molecule the deadline
+    // had cut to three iterations answered {"status":"incomplete"} and the
+    // trust fast path approved and credited it, then the tissue's trust fast
+    // path approved the phase.
+    id: 'tool-budget-exhausted',
+    disposition: 'requires-review',
+    appliesToDelegatedResult: true,
+    check: (env) =>
+      Promise.resolve(
+        env.result.toolBudgetExhausted
+          ? {
+              reasoning:
+                'the executor used its whole tool-iteration budget and wrote this result on the forced tools-disabled turn, ' +
+                'so work its summary reports as unfinished or unverified was not done',
+              coaching:
+                'every requirement of the task shown met by the recorded tool evidence; anything the result itself names as unfinished, ' +
+                'unverified or not run is a reason to reject with that work named',
+            }
+          : null
+      ),
+  },
+  {
     // The same banner on a READ-ONLY phase (`Task.readOnly`) is a finding, not
     // a fault: whatever the phase changes is undone when it ends, so coaching
     // it to fix the artefact only loops (adversarial review 2026-09-30: three
@@ -494,6 +520,18 @@ function executorSummary(result: Result): string {
   return result.readOnlyRestoration && result.summary.startsWith(READ_ONLY_RESTORED_PREFIX)
     ? result.readOnlyRestoration.summary
     : result.summary;
+}
+
+/**
+ * An executor's own loop facts stop at its direct supervisor, which has judged
+ * them by the time an aggregate passes its one result up: the tier above would
+ * otherwise review the same exhausted loop again.
+ */
+export function withoutExecutorLoopFacts(result: Result): Result {
+  if (!result.toolBudgetExhausted) return result;
+  const passed: { -readonly [K in keyof Result]?: Result[K] } = { ...result };
+  delete passed.toolBudgetExhausted;
+  return passed as Result;
 }
 
 export async function runResultGates(
