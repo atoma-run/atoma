@@ -2,10 +2,13 @@
 
 # <img src="src/viz/public/favicon.svg" width="40" height="40" alt="" align="top"> atoma
 
-### Turn business ideas into working software.
+### Watch a request turn into finished work.
 
-Describe the tool your team needs. atoma coordinates AI agents to build it,
-checks the result against what you asked for, and lets you inspect every step.
+Ask for a drawing, a sound, a report, a data study, a proof or a piece of
+software. atoma coordinates AI agents to produce it, checks the result against
+what you asked for, and lets you inspect every step. The bounded decisions
+along the way, such as which agent takes a task or whether a plan is approved,
+are taken by TypeSafe's [Jev](#jev-handles-bounded-decisions).
 
 **[Open atoma.run →](https://atoma.run)**
 
