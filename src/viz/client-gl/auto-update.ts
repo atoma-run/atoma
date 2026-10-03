@@ -79,7 +79,9 @@ export function startAutoUpdate(options: AutoUpdateOptions): { check(): Promise<
     if (!current || stopped || checking || reloading || document.visibilityState !== 'visible') return;
     checking = true;
     try {
-      const response = await fetch('/', {
+      // The shell's own address: a signed-out visitor at `/app` would be
+      // answered with the showcase at `/`, which names no build to compare.
+      const response = await fetch(window.location.pathname === '/app' ? '/app' : '/', {
         cache: 'no-store', credentials: 'same-origin', redirect: 'error',
         signal: AbortSignal.any([abort.signal, AbortSignal.timeout(10_000)]),
       });

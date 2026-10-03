@@ -625,13 +625,17 @@ npm run viz:mark-turn:analyze
 
 ## Public showcase
 
-- `/showcase` and `/showcase/<run id>` serve a platform admin's DELIVERED runs
-  to anyone, no session. Fail closed: off unless `ATOMA_PUBLIC_SHOWCASE=1`, gate
-  on, and a 404 otherwise. The set is one store query
-  (`listShowcaseRuns`), the projection an allow-list (`showcase.ts`): title,
-  request, numbers, file NAMES, a text answer; never identities, paths,
-  repositories or bytes. Server-rendered, every value escaped, one script
-  pinned by hash in its own CSP. Not an i18n surface: English only for now.
+- With `ATOMA_PUBLIC_SHOWCASE=1` it IS the home page: a bare `/` from a visitor
+  with no session (`servesShowcaseHome`; a query string means the shell, which
+  reads `?authNotice=`/`?invite=`). Everyone else, and `/app`, get the app shell:
+  the arrival gate and handheld notice stay the way in ("Sign in" links to
+  `/app`). Stories are `/showcase/<run id>`; both send `no-store`, or the
+  service worker would keep one as its offline `/`.
+- It shows a platform admin's DELIVERED runs. Fail closed: opt-in, gate on, else
+  404. One store query (`listShowcaseRuns`), an allow-list projection
+  (`showcase.ts`): title, request, numbers, file NAMES, a text answer; never
+  identities, paths, repositories or bytes. Server-rendered, all values
+  escaped, one script pinned by hash in its CSP. English only.
 
 ## Intentional choices and rejected shortcuts
 

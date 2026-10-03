@@ -25,6 +25,45 @@ function replaceTitle(html: string, title: string): string {
   return html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeAttribute(title)}</title>`);
 }
 
+/** Social-card and structured-data lines for the page served at `/`: shared by both home pages. */
+export function homeSocialMeta(
+  publicOrigin: URL,
+  copy: { readonly title: string; readonly description: string } = { title: SEO_TITLE, description: SEO_DESCRIPTION }
+): string[] {
+  const canonical = new URL('/', publicOrigin).href;
+  const socialImage = new URL(SEO_SOCIAL_IMAGE_PATH, publicOrigin).href;
+  const structuredData = JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': ['SoftwareApplication', 'WebApplication'],
+    name: 'Atoma',
+    applicationCategory: 'DeveloperApplication',
+    operatingSystem: 'Web',
+    description: copy.description,
+    url: canonical,
+    image: socialImage,
+    sameAs: ['https://github.com/mgtf/atoma'],
+  }).replaceAll('<', '\\u003c');
+  return [
+    '  <meta property="og:type" content="website" />',
+    '  <meta property="og:site_name" content="Atoma" />',
+    '  <meta property="og:locale" content="en_US" />',
+    `  <meta property="og:title" content="${escapeAttribute(copy.title)}" />`,
+    `  <meta property="og:description" content="${escapeAttribute(copy.description)}" />`,
+    `  <meta property="og:url" content="${escapeAttribute(canonical)}" />`,
+    `  <meta property="og:image" content="${escapeAttribute(socialImage)}" />`,
+    '  <meta property="og:image:type" content="image/png" />',
+    '  <meta property="og:image:width" content="1200" />',
+    '  <meta property="og:image:height" content="630" />',
+    '  <meta property="og:image:alt" content="Atoma — frontier reasoning once per task" />',
+    '  <meta name="twitter:card" content="summary_large_image" />',
+    `  <meta name="twitter:title" content="${escapeAttribute(copy.title)}" />`,
+    `  <meta name="twitter:description" content="${escapeAttribute(copy.description)}" />`,
+    `  <meta name="twitter:image" content="${escapeAttribute(socialImage)}" />`,
+    '  <meta name="twitter:image:alt" content="Atoma — frontier reasoning once per task" />',
+    `  <script type="application/ld+json">${structuredData}</script>`,
+  ];
+}
+
 function seoBlock(publicOrigin: URL | null): string {
   if (!publicOrigin) {
     return [
@@ -35,42 +74,13 @@ function seoBlock(publicOrigin: URL | null): string {
   }
 
   const canonical = new URL('/', publicOrigin).href;
-  const socialImage = new URL(SEO_SOCIAL_IMAGE_PATH, publicOrigin).href;
-  const structuredData = JSON.stringify({
-    '@context': 'https://schema.org',
-    '@type': ['SoftwareApplication', 'WebApplication'],
-    name: 'Atoma',
-    applicationCategory: 'DeveloperApplication',
-    operatingSystem: 'Web',
-    description: SEO_DESCRIPTION,
-    url: canonical,
-    image: socialImage,
-    sameAs: ['https://github.com/mgtf/atoma'],
-  }).replaceAll('<', '\\u003c');
-
   return [
     '<!-- ATOMA_SEO_START -->',
     `  <meta name="description" content="${escapeAttribute(SEO_DESCRIPTION)}" />`,
     '  <meta name="author" content="Atoma" />',
     '  <meta name="robots" content="index, follow, max-image-preview:large" />',
     `  <link rel="canonical" href="${escapeAttribute(canonical)}" />`,
-    '  <meta property="og:type" content="website" />',
-    '  <meta property="og:site_name" content="Atoma" />',
-    '  <meta property="og:locale" content="en_US" />',
-    `  <meta property="og:title" content="${escapeAttribute(SEO_TITLE)}" />`,
-    `  <meta property="og:description" content="${escapeAttribute(SEO_DESCRIPTION)}" />`,
-    `  <meta property="og:url" content="${escapeAttribute(canonical)}" />`,
-    `  <meta property="og:image" content="${escapeAttribute(socialImage)}" />`,
-    '  <meta property="og:image:type" content="image/png" />',
-    '  <meta property="og:image:width" content="1200" />',
-    '  <meta property="og:image:height" content="630" />',
-    '  <meta property="og:image:alt" content="Atoma — frontier reasoning once per task" />',
-    '  <meta name="twitter:card" content="summary_large_image" />',
-    `  <meta name="twitter:title" content="${escapeAttribute(SEO_TITLE)}" />`,
-    `  <meta name="twitter:description" content="${escapeAttribute(SEO_DESCRIPTION)}" />`,
-    `  <meta name="twitter:image" content="${escapeAttribute(socialImage)}" />`,
-    '  <meta name="twitter:image:alt" content="Atoma — frontier reasoning once per task" />',
-    `  <script type="application/ld+json">${structuredData}</script>`,
+    ...homeSocialMeta(publicOrigin),
     '<!-- ATOMA_SEO_END -->',
   ].join('\n');
 }
@@ -99,11 +109,10 @@ export function robotsTxt(publicOrigin: URL | null): string {
   ].join('\n');
 }
 
-export function sitemapXml(publicOrigin: URL, options: { readonly showcase?: boolean } = {}): string {
-  const locations = [new URL('/', publicOrigin).href];
-  // Listed only while the host publishes the showcase: a sitemap naming a 404
-  // would teach crawlers to distrust the rest.
-  if (options.showcase) locations.push(new URL('/showcase', publicOrigin).href);
+export function sitemapXml(publicOrigin: URL, options: { readonly paths?: readonly string[] } = {}): string {
+  // Extra paths are the showcase's story pages, passed only while it is
+  // published: a sitemap naming a 404 would teach crawlers to distrust the rest.
+  const locations = [new URL('/', publicOrigin).href, ...(options.paths ?? []).map((path) => new URL(path, publicOrigin).href)];
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',

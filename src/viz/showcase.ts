@@ -25,6 +25,21 @@ import { readBoundedRunFile } from './runIndex.js';
 export const SHOWCASE_ENV = 'ATOMA_PUBLIC_SHOWCASE';
 export const showcaseEnabled = (env: NodeJS.ProcessEnv = process.env): boolean => env[SHOWCASE_ENV] === '1';
 
+/**
+ * Does THIS request get the showcase as its home page? Only a bare `/` from a
+ * visitor with no session, while it is published. A query string always means
+ * the app shell: `?authNotice=`, `?invite=` and the rehearsal flags are read
+ * by it, and an arrival bounced back from a failed login must still see why.
+ */
+export function servesShowcaseHome(input: {
+  readonly enabled: boolean;
+  readonly pathname: string;
+  readonly search: string;
+  readonly hasSession: boolean;
+}): boolean {
+  return input.enabled && input.pathname === '/' && input.search === '' && !input.hasSession;
+}
+
 export const SHOWCASE_TITLE_MAX = 80;
 export const SHOWCASE_ANSWER_MAX = 8_000;
 export const SHOWCASE_FILES_MAX = 12;

@@ -112,7 +112,7 @@ import {
   ProjectRunCoordinator,
 } from '../projects/coordinator.js';
 import { hostRunTitler } from '../projects/runTitle.js';
-import { createShowcaseSource, showcaseEnabled, type ShowcaseSource } from './showcase.js';
+import { createShowcaseSource, servesShowcaseHome, showcaseEnabled, type ShowcaseSource } from './showcase.js';
 import {
   renderShowcaseEntry,
   renderShowcaseIndex,
@@ -1495,6 +1495,22 @@ function assetContentType(file: string): string {
     default:
       return 'application/octet-stream';
   }
+}
+
+/**
+ * A showcase page: its own CSP, and `no-store` on purpose. The service worker
+ * keeps every navigation response as its offline copy of `/` unless the
+ * response forbids it, and a visitor's story must not become a signed-in
+ * member's offline app shell. The data is cached on the server (a minute).
+ */
+function sendShowcase(res: import('node:http').ServerResponse, code: number, html: string): void {
+  res.writeHead(code, {
+    ...SHOWCASE_SECURITY_HEADERS,
+    'content-type': 'text/html; charset=utf-8',
+    'content-length': Buffer.byteLength(html),
+    'cache-control': 'no-store',
+  });
+  res.end(html);
 }
 
 function send(
@@ -3996,7 +4012,28 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
     }
   }
 
-  if (pathname === '/' || pathname === '/index.html') {
+  // THE HOME PAGE. With the showcase published, a visitor with no session who
+  // asks for a bare `/` gets the showcase; everyone else gets the app shell.
+  // The test is `servesShowcaseHome`: a query string always means the shell,
+  // because `?authNotice=`, `?invite=` and the rehearsal flags are read by it.
+  if (
+    SHOWCASE &&
+    req.method === 'GET' &&
+    servesShowcaseHome({
+      pathname,
+      search: url.search,
+      hasSession: Boolean(AUTH?.resolve(req)),
+      enabled: true,
+    })
+  ) {
+    sendShowcase(res, 200, renderShowcaseIndex(SHOWCASE.entries(), AUTH_RUNTIME?.publicOrigin ?? null));
+    return;
+  }
+
+  // `/app` is the same shell under a name the showcase can link to: the
+  // arrival gate (crystal, handheld notice, sign-in) for a visitor who wants
+  // in. It is not a second page to index, and a dev server sees `/`.
+  if (pathname === '/' || pathname === '/index.html' || pathname === '/app') {
     // The app shell goes to EVERY browser, authenticated or not: the arrival
     // gate (crystal, tagline) IS the login surface — a new visitor's first
     // touch is the product, not a bare server form. The shell contains no
@@ -4004,7 +4041,7 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
     // only names the configured providers; the no-JS fallback keeps the
     // plain selector at /auth/login.
     if (DEV_UI_URL) {
-      const target = new URL(`${pathname}${url.search}`, DEV_UI_URL);
+      const target = new URL(`${pathname === '/app' ? '/' : pathname}${url.search}`, DEV_UI_URL);
       res.writeHead(307, {
         location: target.href,
         'content-length': '0',
@@ -4019,7 +4056,8 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
     }
     const html = injectAppShellSeo(
       readFileSync(UI_HTML_PATH, 'utf8'),
-      AUTH_RUNTIME?.publicOrigin ?? null
+      // `/app` carries the no-origin block: noindex and no canonical.
+      pathname === '/app' ? null : (AUTH_RUNTIME?.publicOrigin ?? null)
     );
     // `no-cache` permits the service worker's offline copy while requiring
     // normal HTTP caches to revalidate. With the gate on, the login-capable
@@ -4038,40 +4076,30 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
     return;
   }
 
-  // THE PUBLIC SHOWCASE. No session is read, and none is needed: the pages
-  // carry only the allow-listed projection of a platform admin's delivered
-  // runs (`showcase.ts`). GET only, its own CSP, and a short public cache so a
-  // crowd costs one store read a minute.
+  // THE SHOWCASE'S STORY PAGES. No session is read, and none is needed: the
+  // pages carry only the allow-listed projection of a platform admin's
+  // delivered runs (`showcase.ts`). GET only and its own CSP. `/showcase`
+  // itself is the home page now, so it answers with a redirect to `/`.
   if (pathname === '/showcase' || pathname.startsWith('/showcase/')) {
     if (!methodAllowed(req, res, 'GET')) return;
     if (!SHOWCASE) {
       send(res, 404, 'not found', 'text/plain; charset=utf-8');
       return;
     }
-    const origin = AUTH_RUNTIME?.publicOrigin ?? null;
-    let html: string;
-    let code = 200;
     if (pathname === '/showcase' || pathname === '/showcase/') {
-      html = renderShowcaseIndex(SHOWCASE.entries(), origin);
-    } else {
-      const entry = SHOWCASE.entry(pathname.slice('/showcase/'.length));
-      if (entry) {
-        const answers = new Map(
-          entry.episodes.map((episode) => [episode.id, SHOWCASE.answer(entry.id, episode.id)] as const)
-        );
-        html = renderShowcaseEntry(entry, answers, origin);
-      } else {
-        html = renderShowcaseNotFound();
-        code = 404;
-      }
+      res.writeHead(301, { location: '/', 'content-length': '0', 'cache-control': 'public, max-age=3600' });
+      res.end();
+      return;
     }
-    res.writeHead(code, {
-      ...SHOWCASE_SECURITY_HEADERS,
-      'content-type': 'text/html; charset=utf-8',
-      'content-length': Buffer.byteLength(html),
-      'cache-control': code === 200 ? 'public, max-age=60' : 'no-store',
-    });
-    res.end(html);
+    const entry = SHOWCASE.entry(pathname.slice('/showcase/'.length));
+    if (!entry) {
+      sendShowcase(res, 404, renderShowcaseNotFound());
+      return;
+    }
+    const answers = new Map(
+      entry.episodes.map((episode) => [episode.id, SHOWCASE.answer(entry.id, episode.id)] as const)
+    );
+    sendShowcase(res, 200, renderShowcaseEntry(entry, answers, AUTH_RUNTIME?.publicOrigin ?? null));
     return;
   }
 
@@ -4096,7 +4124,9 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
     send(
       res,
       200,
-      sitemapXml(AUTH_RUNTIME.publicOrigin, { showcase: SHOWCASE !== null }),
+      sitemapXml(AUTH_RUNTIME.publicOrigin, {
+        paths: SHOWCASE ? SHOWCASE.entries().slice(0, 200).map((entry) => `/showcase/${entry.id}`) : [],
+      }),
       'application/xml; charset=utf-8',
       'public, max-age=3600'
     );

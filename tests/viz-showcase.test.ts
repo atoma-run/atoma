@@ -14,6 +14,7 @@ import {
   buildShowcase,
   classifyShowcase,
   createShowcaseSource,
+  servesShowcaseHome,
   titleFromGoal,
   SHOWCASE_TTL_MS,
 } from '../src/viz/showcase.js';
@@ -349,40 +350,84 @@ async function boot(w: World, extra: Record<string, string>): Promise<string> {
   throw new Error(`server not ready\n${stderr.join('')}`);
 }
 
+describe('the home page', () => {
+  const home = { enabled: true, pathname: '/', search: '', hasSession: false };
+
+  it('is the showcase only for a bare / from a visitor with no session', () => {
+    expect(servesShowcaseHome(home)).toBe(true);
+    expect(servesShowcaseHome({ ...home, hasSession: true })).toBe(false);
+    expect(servesShowcaseHome({ ...home, enabled: false })).toBe(false);
+    expect(servesShowcaseHome({ ...home, pathname: '/index.html' })).toBe(false);
+    expect(servesShowcaseHome({ ...home, pathname: '/app' })).toBe(false);
+  });
+
+  it('leaves every query string to the app shell, which reads them', () => {
+    for (const search of ['?authNotice=providerRefused', '?invite=abc', '?atomaHandheld=1', '?x=']) {
+      expect(servesShowcaseHome({ ...home, search })).toBe(false);
+    }
+  });
+
+  it('sends a visitor in through /app, and carries the product identity', () => {
+    const html = renderShowcaseIndex([], new URL('https://atoma.example.com'));
+    expect(html).toContain('<title>Atoma — Watch a request turn into finished work</title>');
+    expect(html).toContain('rel="canonical" href="https://atoma.example.com/"');
+    expect(html).toContain('property="og:image" content="https://atoma.example.com/og-card.png"');
+    expect(html).toContain('application/ld+json');
+    expect(html).toContain('href="/app"');
+    expect(html).not.toContain('href="/auth/login"');
+    expect(html).not.toContain('href="/showcase"');
+  });
+});
+
 describe('the real server', () => {
-  it('serves the showcase to anyone, without a session, when the host opted in', async () => {
+  it('serves the showcase as the home page to anyone, without a session', async () => {
     const w = world();
     const id = seedRun(w, w.admin, { goal: 'Admin goal', title: 'An admin title', files: ['README.md'] });
     seedRun(w, w.member, { goal: 'MEMBER SECRET GOAL', title: 'Member secret title', files: ['README.md'] });
     closeStoreHandles();
     const origin = await boot(w, { ATOMA_PUBLIC_SHOWCASE: '1' });
 
-    const index = await fetch(`${origin}/showcase`);
-    expect(index.status).toBe(200);
-    expect(index.headers.get('content-security-policy')).toContain("default-src 'none'");
-    expect(index.headers.get('set-cookie')).toBeNull();
-    const html = await index.text();
+    const home = await fetch(`${origin}/`);
+    expect(home.status).toBe(200);
+    expect(home.headers.get('content-security-policy')).toContain("default-src 'none'");
+    expect(home.headers.get('set-cookie')).toBeNull();
+    expect(home.headers.get('cache-control')).toBe('no-store');
+    const html = await home.text();
     expect(html).toContain('An admin title');
+    expect(html).toContain(`rel="canonical" href="${origin}/"`);
     expect(html).not.toContain('MEMBER SECRET GOAL');
     expect(html).not.toContain('Member secret title');
     expect(html).toContain(`href="/showcase/${id}"`);
+    // A stale or forged cookie is just no session.
+    const forged = await fetch(`${origin}/`, { headers: { cookie: 'atoma_session=forged' } });
+    expect(await forged.text()).toContain('An admin title');
 
+    // The app shell stays reachable, and a query string always means the shell.
+    for (const path of ['/app', '/index.html', '/?authNotice=providerRefused', '/?invite=abc']) {
+      expect(await (await fetch(`${origin}${path}`)).text()).not.toContain('Finished and checked');
+    }
+
+    const redirect = await fetch(`${origin}/showcase`, { redirect: 'manual' });
+    expect(redirect.status).toBe(301);
+    expect(redirect.headers.get('location')).toBe('/');
     const story = await fetch(`${origin}/showcase/${id}`);
     expect(story.status).toBe(200);
     expect(await story.text()).toContain('An admin title');
     expect((await fetch(`${origin}/showcase/${randomUUID()}`)).status).toBe(404);
     expect((await fetch(`${origin}/showcase`, { method: 'POST' })).status).toBe(405);
 
-    expect(await (await fetch(`${origin}/sitemap.xml`)).text()).toContain('/showcase</loc>');
+    const sitemap = await (await fetch(`${origin}/sitemap.xml`)).text();
+    expect(sitemap).toContain(`/showcase/${id}</loc>`);
     // The control plane is untouched: runs still need a session.
     expect((await fetch(`${origin}/api/runs`)).status).toBe(401);
   });
 
-  it('answers 404, like a path that never existed, unless the host opted in', async () => {
+  it('keeps the app as the home page, and answers 404 for stories, unless the host opted in', async () => {
     const w = world();
     const id = seedRun(w, w.admin, { goal: 'Admin goal', title: 'An admin title', files: ['README.md'] });
     closeStoreHandles();
     const origin = await boot(w, {});
+    expect(await (await fetch(`${origin}/`)).text()).not.toContain('Finished and checked');
     expect((await fetch(`${origin}/showcase`)).status).toBe(404);
     expect((await fetch(`${origin}/showcase/${id}`)).status).toBe(404);
     expect(await (await fetch(`${origin}/sitemap.xml`)).text()).not.toContain('/showcase');

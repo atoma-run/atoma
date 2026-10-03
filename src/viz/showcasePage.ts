@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { homeSocialMeta } from './seo.js';
 import {
   SHOWCASE_KINDS,
   type ShowcaseEntry,
@@ -192,6 +193,16 @@ const LOGO =
 const CRYSTAL =
   '<svg width="260" height="330" viewBox="0 0 400 480" role="img" aria-label="The Atoma crystal"><path d="M200 20 20 240 140 262Z" fill="#efc14a" fill-opacity=".92"/><path d="M200 20 140 262 268 258Z" fill="#f59e0b" fill-opacity=".9"/><path d="M200 20 268 258 380 240Z" fill="#8b5cf6" fill-opacity=".9"/><path d="M200 460 20 240 140 262Z" fill="#0f9f92" fill-opacity=".92"/><path d="M200 460 140 262 268 258Z" fill="#2563eb" fill-opacity=".9"/><path d="M200 460 268 258 380 240Z" fill="#db2777" fill-opacity=".88"/><path d="M200 20 20 240 200 460 380 240Z" fill="none" stroke="#f8fbff" stroke-opacity=".25" stroke-width="2"/><circle cx="200" cy="240" r="30" fill="#dff1ff"/></svg>';
 
+function socialFallback(title: string, description: string, canonical: string | null): string {
+  return [
+    '<meta property="og:type" content="website">',
+    '<meta property="og:site_name" content="Atoma">',
+    `<meta property="og:title" content="${esc(title)}">`,
+    `<meta property="og:description" content="${esc(description)}">`,
+    ...(canonical ? [`<meta property="og:url" content="${esc(canonical)}">`] : []),
+  ].join('"""+B+"""n');
+}
+
 function page(input: {
   readonly title: string;
   readonly description: string;
@@ -199,6 +210,8 @@ function page(input: {
   readonly pathname: string;
   readonly body: string;
   readonly script?: boolean;
+  /** The page served at `/`: it carries the product's social card and structured data. */
+  readonly home?: boolean;
 }): string {
   const canonical = input.origin ? new URL(input.pathname, input.origin).href : null;
   const robots = canonical
@@ -212,11 +225,8 @@ function page(input: {
 <title>${esc(input.title)}</title>
 <meta name="description" content="${esc(input.description)}">
 ${robots}
-${canonical ? `<link rel="canonical" href="${esc(canonical)}">\n<meta property="og:url" content="${esc(canonical)}">` : ''}
-<meta property="og:type" content="website">
-<meta property="og:site_name" content="Atoma">
-<meta property="og:title" content="${esc(input.title)}">
-<meta property="og:description" content="${esc(input.description)}">
+${canonical ? `<link rel="canonical" href="${esc(canonical)}">` : ''}
+${input.home && input.origin ? homeSocialMeta(input.origin, { title: input.title, description: input.description }).join('\n') : socialFallback(input.title, input.description, canonical)}
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <style>${CSS}</style>
 </head>
@@ -229,15 +239,15 @@ ${input.script ? `<script>${FILTER_SCRIPT}</script>` : ''}
 }
 
 function header(): string {
-  return `<header class="top"><a class="brand" href="/showcase">${LOGO}<span>Atoma</span><span class="pill">Live showcase</span></a>
-<nav class="top" aria-label="Site"><a href="/showcase#feed">Finished work</a><a href="/auth/login">Sign in</a><a class="primary" href="/auth/login">Start your own</a></nav></header>`;
+  return `<header class="top"><a class="brand" href="/">${LOGO}<span>Atoma</span><span class="pill">Live showcase</span></a>
+<nav class="top" aria-label="Site"><a href="/#feed">Finished work</a><a href="/app">Sign in</a><a class="primary" href="/app">Start your own</a></nav></header>`;
 }
 
 function closing(): string {
   return `<section class="cta-band"><div class="wrap"><div class="box">
 <h2 class="display">Have a request of your own?</h2>
 <p>Describe the outcome you want. Atoma works on it in a private project and gives you the same story: every step, every check, and the finished result.</p>
-<a class="btn primary" style="align-self:flex-start" href="/auth/login">Start your own</a></div></div></section>
+<a class="btn primary" style="align-self:flex-start" href="/app">Start your own</a></div></div></section>
 <footer class="bottom">atoma.run · Every story on this page is real work, shown as it was delivered.</footer>`;
 }
 
@@ -274,7 +284,7 @@ export function renderShowcaseIndex(entries: readonly ShowcaseEntry[], origin: U
 <div class="wrap in"><div>
 <h1 class="display">Watch a request turn into finished work.</h1>
 <p class="lead">A drawing, a sound, a report, a data study, a proof, a piece of software. Atoma takes on requests and works on them in the open. Only work that was delivered and passed its checks is shown here.</p>
-<div class="cta"><a class="btn primary" href="#feed">See finished work</a><a class="btn ghost" href="/auth/login">Start your own</a></div></div>
+<div class="cta"><a class="btn primary" href="#feed">See finished work</a><a class="btn ghost" href="/app">Start your own</a></div></div>
 <div class="stage"><div class="halo"></div><div class="bob"><div class="crystal">${CRYSTAL}</div></div></div></div></section>
 <section class="feed" id="feed"><div class="wrap">
 <div class="feedhead"><div><h2>Finished and checked</h2><p>Every piece of work here was delivered. Some grew over several requests: each step is shown, and each one kept what already worked.</p></div>
@@ -283,13 +293,16 @@ ${entries.length ? `<div class="cards">${entries.map(card).join('')}</div>` : '<
 </div></section>
 ${closing()}`;
   return page({
-    title: 'Atoma — Finished work, in the open',
+    // Plain words, like the page: the product's technical SEO line names
+    // agents, and this home is written for people who have never heard of them.
+    title: 'Atoma — Watch a request turn into finished work',
     description:
       'Watch requests turn into finished, checked work: drawings, sounds, reports, data studies, proofs and software.',
     origin,
-    pathname: '/showcase',
+    pathname: '/',
     body,
     script: true,
+    home: true,
   });
 }
 
@@ -335,7 +348,7 @@ export function renderShowcaseEntry(
   const first = entry.episodes[0]!;
   const body = `${header()}
 <main class="story"><div class="wrap">
-<a class="crumb" href="/showcase">← All finished work</a>
+<a class="crumb" href="/">← All finished work</a>
 <h1 class="display">${esc(first.title)}</h1>
 <div class="facts"><span style="color:${KIND_COLOR[entry.kind]}">${esc(KIND_NOUN[entry.kind])}</span><span>${entry.episodes.length > 1 ? `${entry.episodes.length} deliveries` : '1 delivery'}</span><span>${esc(formatDuration(entry.totalDurationS))} in total</span><span>${esc(formatCost(entry.totalCostUsd))} in total</span></div>
 ${entry.episodes.map((episode, index) => episodeSection(episode, index, entry.episodes.length, answers.get(episode.id) ?? null, entry.kind)).join('\n')}
@@ -355,7 +368,7 @@ export function renderShowcaseNotFound(): string {
     title: 'Not found — Atoma',
     description: 'This story is not available.',
     origin: null,
-    pathname: '/showcase',
-    body: `${header()}<main class="story"><div class="wrap"><a class="crumb" href="/showcase">← All finished work</a><h1 class="display">This story is not available.</h1></div></main>${closing()}`,
+    pathname: '/',
+    body: `${header()}<main class="story"><div class="wrap"><a class="crumb" href="/">← All finished work</a><h1 class="display">This story is not available.</h1></div></main>${closing()}`,
   });
 }
