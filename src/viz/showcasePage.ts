@@ -190,9 +190,9 @@ ol.steps li.back .dot{background:var(--warn)}
 ol.steps b{display:block;color:#f8fbff;font-weight:650}
 ol.steps span{font-size:14px;color:#b9c5da}
 .answer{white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;background:#0b1424;border:1px solid var(--line);border-radius:12px;padding:16px;max-height:420px;overflow:auto;color:#dbe6f6}
-.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(108px,1fr));gap:10px}
 .stats div{background:var(--raised);border-radius:12px;padding:12px}
-.stats small{display:block;font-size:12px;color:#8a99b4}.stats strong{font-size:17px}
+.stats small{display:block;font-size:12px;color:#8a99b4}.stats strong{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .flist{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none}
 .flist li{display:flex;justify-content:space-between;gap:12px;padding:8px 12px;border-radius:8px;background:var(--raised);font:13px ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}
 .flist em{font-style:normal;color:#8a99b4;white-space:nowrap}
@@ -200,7 +200,7 @@ ol.steps span{font-size:14px;color:#b9c5da}
 @keyframes turn{0%,100%{transform:rotateY(-26deg) rotateX(6deg)}50%{transform:rotateY(26deg) rotateX(-4deg)}}
 @keyframes bob{from{transform:translateY(-6px)}to{transform:translateY(6px)}}
 @media (prefers-reduced-motion:reduce){.hero,.crystal,.bob{animation:none}}
-@media (max-width:640px){.act{border-right:0;border-bottom:1px solid #1f3350}.stats{grid-template-columns:1fr}}
+@media (max-width:640px){.act{border-right:0;border-bottom:1px solid #1f3350}}
 `;
 
 const LOGO =
