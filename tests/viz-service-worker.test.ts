@@ -332,9 +332,10 @@ describe('viz service worker push notifications', () => {
     );
   });
 
-  it('click focuses an existing window before opening a new one', async () => {
+  it('click routes an existing window in place before opening a new one', async () => {
     const focus = vi.fn(async () => undefined);
-    harness.matchAll.mockResolvedValueOnce([{ focus }]);
+    const postMessage = vi.fn();
+    harness.matchAll.mockResolvedValueOnce([{ focus, postMessage }]);
     let work: Promise<unknown> | undefined;
     const close = vi.fn();
     harness.handlers.get('notificationclick')?.({
@@ -346,6 +347,8 @@ describe('viz service worker push notifications', () => {
     await work;
     expect(close).toHaveBeenCalledOnce();
     expect(focus).toHaveBeenCalledOnce();
+    // Handed the link, never navigated: the tab keeps what it had on screen.
+    expect(postMessage).toHaveBeenCalledWith({ type: 'atoma.notification.open', url: '/' });
     expect(harness.openWindow).not.toHaveBeenCalled();
 
     harness.handlers.get('notificationclick')?.({

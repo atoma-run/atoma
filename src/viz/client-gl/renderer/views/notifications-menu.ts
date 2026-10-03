@@ -7,6 +7,7 @@ import { drawScrollbarThumb } from '../scroll-pane.js';
 import { SEVERITY_COLORS } from './journal-row.js';
 import { relativeTime, timestampTooltip } from '../relative-time.js';
 import { anchoredMenuPosition, type LocaleMenuAnchor } from './locale-menu.js';
+import { notificationTarget, type NotificationViewer } from '../../notification-target.js';
 
 /**
  * THE NOTIFICATION TRAY — the bell between the locale control and the profile
@@ -214,47 +215,9 @@ export function notificationsMenuLayout(
   };
 }
 
-/** What the tray knows about the viewer when it resolves a row's destination. */
-export interface NotificationViewer {
-  readonly platformAdmin: boolean;
-  readonly activeOrgId: string | null;
-}
-
-/**
- * Where one notification LEADS, as an activation id — or null when the app
- * holds no better surface than the row itself. The rules are deliberately
- * conservative: org-scoped destinations require the event's organisation to
- * be the viewer's ACTIVE one, because Projects and Settings render the active
- * organisation and a click that lands on the wrong org's list is worse than
- * no link. A platform admin can always reach the run corpus and the journal,
- * so their trace links cross organisations and their fallback is the journal
- * row every notification came from.
- */
-export function notificationTarget(
-  notification: VizNotification,
-  viewer: NotificationViewer
-): string | null {
-  const sameOrg =
-    typeof notification.orgId === 'string' &&
-    notification.orgId !== '' &&
-    notification.orgId === viewer.activeOrgId;
-  if (notification.traceId && (viewer.platformAdmin || sameOrg)) {
-    return `notifications.go.run.${notification.traceId}`;
-  }
-  if (notification.projectId && sameOrg) {
-    return `notifications.go.project.${notification.projectId}`;
-  }
-  if (notification.kind === 'org.member_joined' && sameOrg) {
-    return 'notifications.go.view.settings';
-  }
-  if (notification.kind === 'github.installation_status' && sameOrg) {
-    return 'notifications.go.view.projects';
-  }
-  // Every notification is a journal row; for the operator the journal IS the
-  // detail surface of last resort. Members have no journal, so no fallback.
-  if (viewer.platformAdmin) return 'notifications.go.view.journal';
-  return null;
-}
+// The destination rule lives outside the renderer so the app shell can apply
+// it to a push click without pulling Pixi into the entry chunk.
+export { notificationTarget, type NotificationViewer } from '../../notification-target.js';
 
 /** What the renderer needs back for wheel routing over the open tray. */
 export interface NotificationsMenuScrollRegion {

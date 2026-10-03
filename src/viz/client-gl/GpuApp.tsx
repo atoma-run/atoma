@@ -43,6 +43,10 @@ import { SceneTuningPanel } from './SceneTuningPanel.js';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, pendingApiMutations } from '../client/data-api.js';
 import { startAutoUpdate, restoreUpdateNavigation, saveUpdateNavigation } from './auto-update.js';
+import { startNavigationHistory } from './navigation-history.js';
+import { listenForNotificationLinks, takeLaunchNotificationLink } from './notification-link.js';
+import { notificationTarget } from './notification-target.js';
+import type { NotificationLink } from '../../contracts/notificationLink.js';
 import {
   useAccountModels,
   useAdminEventsPages,
@@ -464,6 +468,17 @@ function GpuAppContent({
       ? `${authSnapshot.viewer.principalId}:${authSnapshot.viewer.activeOrganisation?.id ?? 'none'}` : 'ungated';
     restoreUpdateNavigation(scope, visibleViews(authSnapshot));
   }, [apiReady, authSnapshot]);
+  // Back/Forward start recording only after that restore, so putting the tab
+  // back where an update found it is the first entry, not a navigation.
+  const navigationScope = authSnapshot
+    ? `${authSnapshot.viewer.principalId}:${authSnapshot.viewer.activeOrganisation?.id ?? 'none'}` : 'ungated';
+  useEffect(() => {
+    if (!apiReady) return undefined;
+    return startNavigationHistory({
+      scope: navigationScope,
+      routable: (view) => isRoutableView(view, updateState.current.authSnapshot),
+    });
+  }, [apiReady, navigationScope]);
   useEffect(() => {
     if (!import.meta.env.PROD) return;
     const updater = startAutoUpdate({
@@ -1003,6 +1018,27 @@ function GpuAppContent({
     runsQuery.data,
     stopPreview,
   ]);
+
+  // A push click opens its subject the way the tray row for the same event
+  // would: one rule, `notificationTarget`, against the viewer as it is NOW.
+  // Declared after the history recorder, so the arrival is its own entry and
+  // Back returns to where the viewer was.
+  const activateRef = useRef(activate);
+  activateRef.current = activate;
+  useEffect(() => {
+    if (!apiReady) return undefined;
+    const open = (link: NotificationLink): void => {
+      const auth = updateState.current.authSnapshot;
+      const target = notificationTarget(link, {
+        platformAdmin: auth?.viewer.platformAdmin === true,
+        activeOrgId: auth?.viewer.activeOrganisation?.id ?? null,
+      });
+      if (target) activateRef.current(target);
+    };
+    const launch = takeLaunchNotificationLink();
+    if (launch) open(launch);
+    return listenForNotificationLinks(open);
+  }, [apiReady]);
 
   const loading =
     (state.view === 'projects' && (projectsQuery.isLoading || githubInstallationsQuery.isLoading)) ||

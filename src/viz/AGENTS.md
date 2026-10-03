@@ -257,7 +257,7 @@ npm run viz:mark-turn:analyze
   or pending API mutation, and outside settings, announcements, admin admission
   and tuning. Tab-local navigation is restored once for the same principal/org;
   no drafts or secrets are persisted. A failed/stale reload is rate-limited.
-  Existing clients need one ordinary reload to acquire this updater.
+  Existing clients need one ordinary reload to acquire this updater. Back/Forward: `client-gl/navigation-history.ts` mirrors WHERE the viewer is (view, camera mode, selected project/run/atom/skill/docs theme) into session history — one entry per navigation, coalesced per microtask, the URL never changed (ids stay out of the address bar; a deep link is its own decision). A selection filled from nothing is a REPLACE (GpuApp's auto-select would otherwise make Back a no-op); scroll, filters and menus are not places. Entries carry the principal:organisation scope and are ignored under another.
 - `vite-plugin-pwa` remains rejected: `devOptions` does not unregister workers,
   and `generateSW` cannot emit our push/click handlers. `injectManifest` would
   retain `sw.js` but add Workbox to the shipped bundle and change the build's
@@ -596,7 +596,7 @@ npm run viz:mark-turn:analyze
   `.tsx` carrying a React provider must not reach the server).
   The worker logs whether `showNotification` was accepted or rejected with
   the notification tag only, never the title or body: DevTools diagnostics
-  must be observable without copying operator or project text into a log.
+  must be observable without copying operator or project text into a log. A CLICK opens the event's subject: the router writes it into the URL (`contracts/notificationLink.ts`: kind, org, project, run trace — ids only), the worker posts it to an open tab (never navigates it: the tab keeps its screen) or opens a window on it, and the app resolves it with `notificationTarget`, the tray's ONE rule, then strips it from the address bar.
 - OPERATOR ANNOUNCEMENTS (`platform.announcement`) are the ONE push whose
   words a human writes, and the only route with an audience wider than an
   organisation. Two steps, and the split is the safety property:

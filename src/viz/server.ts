@@ -744,6 +744,7 @@ if (EVENTS && PUSH_RUNTIME && AUTH?.store) {
   const router = new NotificationRouter({
     notifier: PUSH_RUNTIME.notifier,
     directory: audienceDirectory(AUTH.store),
+    traceIdFor: (event) => projectRunTraceId(event.orgId, event.runId),
   });
   EVENTS.subscribe((event) => router.handle(event));
 }
