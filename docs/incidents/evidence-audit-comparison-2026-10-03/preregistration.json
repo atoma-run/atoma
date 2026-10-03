@@ -1,0 +1,68 @@
+{
+  "date": "2026-10-03",
+  "purpose": "Diagnostic follow-up of unresolved false text approvals; not a controlled benchmark.",
+  "protocol": "Serial default-model run, then identical comparison with only L1 switched to Terra. Preserve actual release, selected atoms and all evidence. No source edits during runs.",
+  "goal": "Audit these four independent editorial cases using only the supplied text. Return a compact table with case, actual observations, compliant/noncompliant, and any disagreement with the author's claim. Do not rewrite candidates. No tools, files, code or external research.\nRules for EACH candidate: two stanzas, two lines per stanza; exactly four whitespace-separated words per line; line initials STAR; stanza-final words dawn then dusk. Ignore the author's claim when deriving observations.\n\nCase A:\nSilent boats greet dawn\nTall reeds shelter birds\n\nAmber lanterns guide sailors\nResting crews await dusk\nAuthor claim: all rules pass, stanza endings dawn and dusk.\n\nCase B:\nSilent boats drift home\nTall reeds welcome dawn\n\nAmber lanterns guide sailors\nResting crews await dusk\nAuthor claim: invalid, first stanza ends home.\n\nCase C:\nSilent boats drift home\nTall green reeds welcome dawn\n\nAmber lanterns guide sailors\nResting crews await dusk\nAuthor claim: all four lines have four words and all rules pass.\n\nCase D:\nSilent boats drift home\nTall reeds welcome dawn\n\nAmber lanterns guide sailors\nResting crews await dusk\nAuthor claim: all rules pass.\n\nReport the four counts, initials, and actual two ending words for every case. Treat each independently, including any identical candidates.",
+  "expected": {
+    "A": {
+      "counts": [
+        4,
+        4,
+        4,
+        4
+      ],
+      "initials": "STAR",
+      "endings": [
+        "birds",
+        "dusk"
+      ],
+      "compliant": false,
+      "authorCorrect": false
+    },
+    "B": {
+      "counts": [
+        4,
+        4,
+        4,
+        4
+      ],
+      "initials": "STAR",
+      "endings": [
+        "dawn",
+        "dusk"
+      ],
+      "compliant": true,
+      "authorCorrect": false
+    },
+    "C": {
+      "counts": [
+        4,
+        5,
+        4,
+        4
+      ],
+      "initials": "STAR",
+      "endings": [
+        "dawn",
+        "dusk"
+      ],
+      "compliant": false,
+      "authorCorrect": false
+    },
+    "D": {
+      "counts": [
+        4,
+        4,
+        4,
+        4
+      ],
+      "initials": "STAR",
+      "endings": [
+        "dawn",
+        "dusk"
+      ],
+      "compliant": true,
+      "authorCorrect": true
+    }
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "goal": "Study a fictional fair division problem, directly as text; no code, files, tools or external research. Four indivisible exhibit slots a,b,c,d must be allocated to two artists A and B, exactly two slots each. Utilities are additive, with no payments. A values (a,b,c,d)=(8,5,4,1); B values them (2,6,3,9). Enumerate all six feasible allocations, giving A's bundle, B's bundle and both utilities. An allocation Pareto-dominates another if both utilities are at least as high and one is strictly higher. Determine the complete Pareto frontier, every allocation maximizing total utility, and every allocation maximizing the product of utilities. An allocation is envy-free if each artist values their own bundle at least as highly as the other's using their OWN valuations; classify all six. A curator claims: \"Giving a,b to A and c,d to B is the unique Pareto-optimal allocation and maximizes both total utility and product.\" Audit every part of that claim. State the limits of the conclusion: these numbers are hypothetical preferences, not evidence about real people.",
+  "oracle": [
+    {
+      "A": "ab",
+      "B": "cd",
+      "uA": 13,
+      "uB": 12,
+      "total": 25,
+      "product": 156,
+      "envyFree": true,
+      "pareto": true
+    },
+    {
+      "A": "ac",
+      "B": "bd",
+      "uA": 12,
+      "uB": 15,
+      "total": 27,
+      "product": 180,
+      "envyFree": true,
+      "pareto": true
+    },
+    {
+      "A": "ad",
+      "B": "bc",
+      "uA": 9,
+      "uB": 9,
+      "total": 18,
+      "product": 81,
+      "envyFree": false,
+      "pareto": false
+    },
+    {
+      "A": "bc",
+      "B": "ad",
+      "uA": 9,
+      "uB": 11,
+      "total": 20,
+      "product": 99,
+      "envyFree": true,
+      "pareto": false
+    },
+    {
+      "A": "bd",
+      "B": "ac",
+      "uA": 6,
+      "uB": 5,
+      "total": 11,
+      "product": 30,
+      "envyFree": false,
+      "pareto": false
+    },
+    {
+      "A": "cd",
+      "B": "ab",
+      "uA": 5,
+      "uB": 8,
+      "total": 13,
+      "product": 40,
+      "envyFree": false,
+      "pareto": false
+    }
+  ],
+  "method": "Enumerate all six two-slot bundles; complementary bundle is B's. Compute dominance and envy from supplied values before launch."
+}

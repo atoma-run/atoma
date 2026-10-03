@@ -1,0 +1,59 @@
+{
+  "change": "Only B's value for d changes from 9 to 0. All other values and exactly-two-slots constraint preserved.",
+  "oracle": [
+    {
+      "A": "ab",
+      "uA": 13,
+      "uB": 3,
+      "total": 16,
+      "product": 39,
+      "envyFree": false,
+      "pareto": true
+    },
+    {
+      "A": "ac",
+      "uA": 12,
+      "uB": 6,
+      "total": 18,
+      "product": 72,
+      "envyFree": true,
+      "pareto": true
+    },
+    {
+      "A": "ad",
+      "uA": 9,
+      "uB": 9,
+      "total": 18,
+      "product": 81,
+      "envyFree": true,
+      "pareto": true
+    },
+    {
+      "A": "bc",
+      "uA": 9,
+      "uB": 2,
+      "total": 11,
+      "product": 18,
+      "envyFree": false,
+      "pareto": false
+    },
+    {
+      "A": "bd",
+      "uA": 6,
+      "uB": 5,
+      "total": 11,
+      "product": 30,
+      "envyFree": false,
+      "pareto": false
+    },
+    {
+      "A": "cd",
+      "uA": 5,
+      "uB": 8,
+      "total": 13,
+      "product": 40,
+      "envyFree": false,
+      "pareto": false
+    }
+  ]
+}
