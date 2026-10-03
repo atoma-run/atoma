@@ -167,7 +167,7 @@ describe('McpAccessPanel', () => {
     expect(screen.getByTestId('mcp-connect-command')).not.toHaveTextContent('mcp login');
     await userEvent.click(screen.getByText('Setup help for Codex and Claude Code'));
     expect(screen.getByTestId('mcp-connect-command')).not.toHaveTextContent('--header');
-    expect(screen.getByTestId('mcp-oauth-config').textContent).toBe('[mcp_servers.atoma-local]\nurl = "http://127.0.0.1:4111/mcp"');
+    expect(screen.getByTestId('mcp-oauth-config').textContent).toBe('[mcp_servers.atoma-local]\nurl = "http://127.0.0.1:4111/mcp"\ntool_timeout_sec = 10800');
   });
 });
 
