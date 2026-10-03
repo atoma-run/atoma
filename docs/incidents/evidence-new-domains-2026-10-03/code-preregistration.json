@@ -1,0 +1,211 @@
+{
+  "goal": "Analyze this fully specified fictional error-correcting code as a mathematical exercise, directly as text. No tools, files, code or external research. Three data bits (a,b,c) are encoded, left to right, as seven bits (a,b,c,a XOR b,b XOR c,a XOR c,a XOR b XOR c), where XOR is addition modulo 2. List all eight data words and their codewords. Define Hamming distance as the number of differing positions and compute the minimum distance between distinct codewords. For received strings R1=1111100, R2=1110100, R3=0111010, show distances to all eight codewords and the COMPLETE set of nearest data words, identifying whether nearest decoding is unique. Give changed bit positions for any unique correction, using positions 1 through 7 from the left. A technician claims: \"Because the code corrects one flipped bit, nearest decoding is always unique even after two flips; R2 must be data 101.\" Audit both claims using the actual candidate sets. Distinguish a valid unique correction under an at-most-one-flip assumption from a guess when that assumption is absent. Do not break ties arbitrarily or infer probabilities not given.",
+  "oracle": {
+    "words": [
+      {
+        "data": "000",
+        "word": "0000000"
+      },
+      {
+        "data": "001",
+        "word": "0010111"
+      },
+      {
+        "data": "010",
+        "word": "0101101"
+      },
+      {
+        "data": "011",
+        "word": "0111010"
+      },
+      {
+        "data": "100",
+        "word": "1001011"
+      },
+      {
+        "data": "101",
+        "word": "1011100"
+      },
+      {
+        "data": "110",
+        "word": "1100110"
+      },
+      {
+        "data": "111",
+        "word": "1110001"
+      }
+    ],
+    "receives": [
+      {
+        "received": "1111100",
+        "min": 1,
+        "nearest": [
+          {
+            "data": "101",
+            "word": "1011100",
+            "distance": 1
+          }
+        ],
+        "distances": [
+          {
+            "data": "000",
+            "word": "0000000",
+            "distance": 5
+          },
+          {
+            "data": "001",
+            "word": "0010111",
+            "distance": 5
+          },
+          {
+            "data": "010",
+            "word": "0101101",
+            "distance": 3
+          },
+          {
+            "data": "011",
+            "word": "0111010",
+            "distance": 3
+          },
+          {
+            "data": "100",
+            "word": "1001011",
+            "distance": 5
+          },
+          {
+            "data": "101",
+            "word": "1011100",
+            "distance": 1
+          },
+          {
+            "data": "110",
+            "word": "1100110",
+            "distance": 3
+          },
+          {
+            "data": "111",
+            "word": "1110001",
+            "distance": 3
+          }
+        ]
+      },
+      {
+        "received": "1110100",
+        "min": 2,
+        "nearest": [
+          {
+            "data": "101",
+            "word": "1011100",
+            "distance": 2
+          },
+          {
+            "data": "110",
+            "word": "1100110",
+            "distance": 2
+          },
+          {
+            "data": "111",
+            "word": "1110001",
+            "distance": 2
+          }
+        ],
+        "distances": [
+          {
+            "data": "000",
+            "word": "0000000",
+            "distance": 4
+          },
+          {
+            "data": "001",
+            "word": "0010111",
+            "distance": 4
+          },
+          {
+            "data": "010",
+            "word": "0101101",
+            "distance": 4
+          },
+          {
+            "data": "011",
+            "word": "0111010",
+            "distance": 4
+          },
+          {
+            "data": "100",
+            "word": "1001011",
+            "distance": 6
+          },
+          {
+            "data": "101",
+            "word": "1011100",
+            "distance": 2
+          },
+          {
+            "data": "110",
+            "word": "1100110",
+            "distance": 2
+          },
+          {
+            "data": "111",
+            "word": "1110001",
+            "distance": 2
+          }
+        ]
+      },
+      {
+        "received": "0111010",
+        "min": 0,
+        "nearest": [
+          {
+            "data": "011",
+            "word": "0111010",
+            "distance": 0
+          }
+        ],
+        "distances": [
+          {
+            "data": "000",
+            "word": "0000000",
+            "distance": 4
+          },
+          {
+            "data": "001",
+            "word": "0010111",
+            "distance": 4
+          },
+          {
+            "data": "010",
+            "word": "0101101",
+            "distance": 4
+          },
+          {
+            "data": "011",
+            "word": "0111010",
+            "distance": 0
+          },
+          {
+            "data": "100",
+            "word": "1001011",
+            "distance": 4
+          },
+          {
+            "data": "101",
+            "word": "1011100",
+            "distance": 4
+          },
+          {
+            "data": "110",
+            "word": "1100110",
+            "distance": 4
+          },
+          {
+            "data": "111",
+            "word": "1110001",
+            "distance": 4
+          }
+        ]
+      }
+    ],
+    "minDistance": 4
+  }
+}

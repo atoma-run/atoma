@@ -1,0 +1,70 @@
+{
+  "goal": "Solve this fictional timing-constraint problem directly as text, with no tools, files, code or external research. Event times A,B,C,D,E are integers; time differences are inclusive and events have zero duration. A=0; 2<=B-A<=4; 3<=C-A<=5; 2<=D-B<=3; 1<=D-C<=2; E-D=2; E<=7. List EVERY feasible tuple (A,B,C,D,E), then the tight earliest/latest interval for each event. Provide a witness attaining the minimum E and one attaining the maximum E. Explain why individual feasible intervals do not imply that every combination of values within those intervals is jointly feasible, giving one concrete counterexample. Audit the coordinator's claim \"Because B may be 4 and D may be 4, choosing B=4 and D=4 together is feasible.\" Use only the stated constraints, not scheduling conventions or unstated resource limits.",
+  "oracle": {
+    "solutions": [
+      {
+        "A": 0,
+        "B": 2,
+        "C": 3,
+        "D": 4,
+        "E": 6
+      },
+      {
+        "A": 0,
+        "B": 2,
+        "C": 3,
+        "D": 5,
+        "E": 7
+      },
+      {
+        "A": 0,
+        "B": 2,
+        "C": 4,
+        "D": 5,
+        "E": 7
+      },
+      {
+        "A": 0,
+        "B": 3,
+        "C": 3,
+        "D": 5,
+        "E": 7
+      },
+      {
+        "A": 0,
+        "B": 3,
+        "C": 4,
+        "D": 5,
+        "E": 7
+      }
+    ],
+    "intervals": {
+      "A": [
+        0,
+        0
+      ],
+      "B": [
+        2,
+        3
+      ],
+      "C": [
+        3,
+        4
+      ],
+      "D": [
+        4,
+        5
+      ],
+      "E": [
+        6,
+        7
+      ]
+    }
+  },
+  "followup": {
+    "change": "E<=7 becomes E<=5",
+    "feasible": false,
+    "proof": "C>=3, D>=C+1>=4, E=D+2>=6 contradict E<=5.",
+    "minimumDeadline": 6
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "projectId": "3b0a64ec-3989-4d7e-af04-1a0dcc88af3b",
+  "idempotencyKey": "new-domains-code-audit-20261003-v1",
+  "goal": "Audit one disputed entry from the previous mathematical answer, directly as text without tools, files, code or external research. Received word R3=0111010 and the codeword for data 100 is 1001011. The previous answer reported their Hamming distance as 6 while also asserting that every two distinct codewords in the code have distance 4. Recompute the distance independently: show positions 1 through 7 from the left, each pair of bits, and whether that position differs; give the complete differing-position set and its count. Decide whether the reported value 6 is correct, explicitly correct it if needed, and explain the consistency with the pairwise-distance assertion. Only audit this entry; do not rewrite unrelated tables.",
+  "acceptanceCriteria": [
+    "All seven bit pairs, their equality status, and the complete differing-position set match the supplied strings.",
+    "The distance is the actual count of differing positions and any incorrect prior value is explicitly corrected.",
+    "The audit explains consistency with the distinct-codeword distance claim and stays scoped to the disputed entry."
+  ]
+}

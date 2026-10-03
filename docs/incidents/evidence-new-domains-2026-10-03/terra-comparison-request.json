@@ -1,0 +1,10 @@
+{
+  "projectId": "3b0a64ec-3989-4d7e-af04-1a0dcc88af3b",
+  "rerunOf": "2ff3b86f-66b2-4b7b-be0a-d5b81bac81e1",
+  "models": {
+    "l1": "sub:openai:gpt-5.6-terra",
+    "l2": "sub:openai:gpt-5.6-terra",
+    "l3": "sub:openai:gpt-5.6-sol"
+  },
+  "idempotencyKey": "new-domains-code-terra-20261003-v1"
+}

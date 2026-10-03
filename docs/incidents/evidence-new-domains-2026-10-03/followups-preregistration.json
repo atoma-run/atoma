@@ -1,0 +1,22 @@
+{
+  "codeFollow": {
+    "projectId": "3b0a64ec-3989-4d7e-af04-1a0dcc88af3b",
+    "idempotencyKey": "new-domains-code-follow-20261003-v1",
+    "goal": "Update only the decoding of R2=1110100 for the code (a,b,c,a XOR b,b XOR c,a XOR c,a XOR b XOR c). The original nearest data candidates were 101,110,111, all at distance 2. New trusted information: the originally transmitted codeword had bit 4 equal to 1 (positions numbered from the left), and at most two bits were flipped. Identify ALL candidates satisfying both facts, the transmitted codeword if uniquely determined, and the flipped positions. Explain why this additional evidence can resolve the ambiguity but does not justify the technician's earlier unconditional claim that R2 must be data 101. Return a concise text update only; do not repeat the full code table or analyses of R1 and R3. No tools, files, code, or external research.",
+    "acceptanceCriteria": [
+      "All candidates satisfying both the fourth-bit observation and at-most-two-flips bound are considered.",
+      "The unique data, codeword and flipped positions are correct and distinguished from the original ambiguous inference.",
+      "The answer only updates R2 without repeating unrelated analyses."
+    ]
+  },
+  "timeFollow": {
+    "projectId": "6eef0d8f-5e6d-4cda-853a-86a1cf8fc47b",
+    "idempotencyKey": "new-domains-time-follow-20261003-v1",
+    "goal": "Update this integer event timing problem after changing only the final deadline to E<=5: A=0; 2<=B-A<=4; 3<=C-A<=5; 2<=D-B<=3; 1<=D-C<=2; E-D=2. Events have zero duration and differences are inclusive. Determine feasibility, give a short proof using the stated constraints, and find the smallest replacement upper deadline for E that restores feasibility, with a complete witness tuple (A,B,C,D,E). Return only the changed feasibility result, proof, minimum feasible deadline and witness, directly as text. Do not repeat the former solution table or invent resource constraints. No tools, files, code or external research.",
+    "acceptanceCriteria": [
+      "Feasibility of the tightened deadline is established with a valid constraint-based proof.",
+      "The smallest feasible replacement deadline and a complete valid witness are supplied.",
+      "The response stays scoped to the deadline change."
+    ]
+  }
+}

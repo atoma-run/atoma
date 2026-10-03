@@ -1,0 +1,13 @@
+{
+  "runId": "12cf7e36-8d24-43e9-ade9-92cbf58e3a4c",
+  "startResult": {
+    "content": [
+      {
+        "type": "text",
+        "text": "tool call error: tool call failed for `atoma/atoma_run_start`\n\nCaused by:\n    timed out awaiting tools/call after 300s"
+      }
+    ],
+    "isError": true
+  },
+  "observation": "Start call timed out after 300 seconds. A subsequent read-only atoma_run_status returned running, and trace events continued. No duplicate start was issued."
+}
