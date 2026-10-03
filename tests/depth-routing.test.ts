@@ -7,6 +7,7 @@ import { superviseLoop } from '../src/core/supervisor.js';
 import type { Plan, Result, RunContext, Task, Tier, ToolExecutor, Verdict } from '../src/core/types.js';
 import { modelForTier } from '../src/core/models.js';
 import { rootProofCoverage, acceptRootResult } from '../src/atoms/rootAcceptance.js';
+import { executorEvidence } from '../src/atoms/executorEvidence.js';
 import { dispatchWithAggregation, markLanded } from '../src/atoms/dispatch.js';
 import { NON_JSON_PAYLOAD_SUMMARY_PREFIX } from '../src/atoms/json.js';
 import { buildResultGateEnv, runResultGates } from '../src/atoms/resultGates.js';
@@ -67,6 +68,109 @@ async function observe(ctx: RunContext, branch = 'descendant', path = 'index.htm
 }
 
 describe('root delivery coverage', () => {
+  it('bounds refresh attempts even when every current read fails', async () => {
+    let unavailable = false;
+    let readAttempts = 0;
+    const base: ToolExecutor = {
+      has: (name) => ['read_file', 'write_file'].includes(name),
+      execute: async (name) => {
+        if (name === 'write_file') return { ok: true };
+        readAttempts++;
+        if (unavailable) throw new Error('unavailable');
+        return { content: 'OBSOLETE_CONTENT' };
+      },
+    };
+    const ctx = { ...makeCtx(), tools: base, attempt: 1, attestations: createAttestationLog() };
+    const branch = forkBranch(ctx, 'phase');
+    for (let index = 0; index < 6; index++) {
+      await branch.tools!.execute('read_file', { path: `file-${index}.txt` });
+      await branch.tools!.execute('write_file', { path: `file-${index}.txt` });
+    }
+    unavailable = true;
+    readAttempts = 0;
+    ctx.llm.enqueue(req => {
+      expect(req.userContent).not.toContain('OBSOLETE_CONTENT');
+      expect(req.userContent).toContain('2 further file reads omitted');
+      return { text: jsonText({ approved: false, reasoning: 'Current content unavailable.', scope: 'ephemeral', modifications: {} }),
+        stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } };
+    });
+    await acceptRootResult({ actor: new Actor(3, false, []), task: { description: 'Repair documentation.' },
+      result: { ...result, evidence: executorEvidence({}, branch) }, ctx, floor: [], phaseCoverage: [] });
+    expect(readAttempts).toBe(4);
+  });
+
+  it.each(['same phase', 'later phase'])('replaces obsolete README evidence with current host reads: %s', async (scope) => {
+    const old = 'Obsolete documentation: OLD_README_SENTINEL';
+    const current = '# Dossier\n' + 'Background context.\n'.repeat(90) + '\nRegenerate the manifest:\npython3 verify_all.py --write-manifest\n';
+    let content = old;
+    const reads: string[] = [];
+    const base: ToolExecutor = {
+      has: (name) => ['read_file', 'edit_file'].includes(name),
+      execute: async (name, args) => {
+        if (name === 'edit_file') { content = String(args['new_string']); return { ok: true }; }
+        reads.push(String(args['path']));
+        return { content };
+      },
+    };
+    const ctx = { ...makeCtx(), tools: base, attempt: 1, attestations: createAttestationLog() };
+    const first = forkBranch(ctx, 'first');
+    await first.tools!.execute('read_file', { path: './README.md' });
+    // The first phase may already have frozen its witness before the edit.
+    const earlyEvidence = executorEvidence({}, first);
+    const writer = scope === 'same phase' ? first : forkBranch(ctx, 'second');
+    await writer.tools!.execute('edit_file', { path: 'README.md', new_string: current });
+    const evidence = scope === 'same phase' ? executorEvidence({}, first) : earlyEvidence;
+    const logBefore = JSON.stringify(ctx.attestations.forAttempt(1));
+    const readsBefore = reads.length;
+    ctx.llm.enqueue(req => {
+      expect(req.userContent).not.toContain('OLD_README_SENTINEL');
+      expect(req.userContent).toContain('superseded read result omitted');
+      expect(req.userContent).toContain('python3 verify_all.py --write-manifest');
+      return { text: jsonText({ approved: true, reasoning: 'Current instructions are present.',
+        criteria: [{ id: 'c1', met: true }] }), stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } };
+    });
+    const accepted = await acceptRootResult({ actor: new Actor(3, false, []),
+      task: { description: 'Explain how to regenerate the manifest with verify_all.py.' },
+      result: { ...result, evidence }, ctx, floor: [], phaseCoverage: [],
+      // Like run bcf35298: this criterion does NOT name README.
+      checklist: [{ id: 'c1', behaviour: 'Instructions explain manifest regeneration.', check: { kind: 'review' } }],
+      checklistOrigin: { source: 'user' },
+    });
+    expect(accepted.approved).toBe(true);
+    expect(reads.slice(readsBefore)).toEqual(['README.md']);
+    expect(ctx.llm.calls).toHaveLength(1);
+    expect(JSON.stringify(ctx.attestations.forAttempt(1))).toBe(logBefore);
+    expect(logBefore).toContain('OLD_README_SENTINEL');
+  });
+
+  it.each(['unreadable', 'still wrong'])('does not turn retired evidence into automatic acceptance: %s', async (state) => {
+    let content = 'OLD_DOCUMENT_SENTINEL';
+    let unavailable = false;
+    const base: ToolExecutor = {
+      has: (name) => ['read_file', 'write_file'].includes(name),
+      execute: async (name) => {
+        if (name === 'write_file') { content = 'CURRENT_DOCUMENT_STILL_WRONG'; return { ok: true }; }
+        if (unavailable) throw new Error('read unavailable');
+        return { content };
+      },
+    };
+    const ctx = { ...makeCtx(), tools: base, attempt: 1, attestations: createAttestationLog() };
+    const branch = forkBranch(ctx, 'phase');
+    await branch.tools!.execute('read_file', { path: 'instructions.txt' });
+    await branch.tools!.execute('write_file', { path: 'instructions.txt' });
+    unavailable = state === 'unreadable';
+    ctx.llm.enqueue(req => {
+      expect(req.userContent).not.toContain('OLD_DOCUMENT_SENTINEL');
+      expect(req.userContent).toContain(unavailable ? 'current read unavailable' : content);
+      return { text: jsonText({ approved: false, reasoning: 'Correct current instructions have not been established.',
+        scope: 'ephemeral', modifications: {} }), stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } };
+    });
+    const accepted = await acceptRootResult({ actor: new Actor(3, false, []), task: { description: 'Repair instructions.' },
+      result: { ...result, evidence: executorEvidence({}, branch) }, ctx, floor: [], phaseCoverage: [] });
+    expect(accepted.approved).toBe(false);
+    expect(ctx.llm.calls).toHaveLength(1);
+  });
+
   it('reviews the actual text beside a false audit using independent textual-check guidance', async () => {
     const ctx = makeCtx();
     const output = readFileSync(new URL('./fixtures/poetry-false-audit.txt', import.meta.url), 'utf8');

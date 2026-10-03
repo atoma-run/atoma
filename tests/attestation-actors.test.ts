@@ -97,6 +97,10 @@ describe('the attested browser observation', () => {
     expect(records[1]!.observation.kind === 'execution' && records[1]!.observation.request).toBe('{"path":"index.html"}');
     const lines = renderObservations(records);
     expect(lines[0]).toMatch(/^\[STALE: this file was rewritten afterwards by w1;/);
+    expect(lines[0]).not.toContain('<style>');
+    expect(lines[0]).toContain('superseded read result omitted');
+    // Rendering never erases the historical observation from the log.
+    expect(records[0]!.observation.kind === 'execution' && records[0]!.observation.response).toContain('<style>');
     expect(lines[1]).toMatch(/^write_file/);
     expect(lines[2]).not.toContain('STALE');
     expect(lines[3]).not.toContain('STALE');

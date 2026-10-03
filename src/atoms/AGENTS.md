@@ -82,8 +82,7 @@ Neighbours:
   lines survive anywhere in the delivery; moved when they survive in other
   files; changed; unchanged; new — the delivered side reads exactly the
   starting paths, so no cap can report a kept file removed), because run
-  902b2c21 (2026-09-27) replaced the
-  configurator it was asked to keep with a stand-in computing the criterion's
+  902b2c21 (2026-09-27) replaced the configurator it was asked to keep with a stand-in computing the criterion's
   number, and nothing it read said so. And the files the criteria NAME
   ("docs/ERRORS.md", or a root Markdown stem such as "README") are read back
   when the ground-truth block does not already show them: run dc45c95b's
@@ -91,6 +90,7 @@ Neighbours:
   past it, the lines holding the criterion's words; a cut excerpt is silent
   about the rest, and a name that resolves to no file is silent — "saves
   quote.txt" names a download. Both are read only for a validation call.
+  Superseded reads also get bounded current excerpts; unknown stays unknown, old bytes stay out. [Contract and review](../../docs/stale-file-evidence-2026-10-03.md).
 - A LANDED result carries `LANDED_RESULT_GUIDANCE` to that validator, and
   nothing else does. A landed run stopped before it could prove the floor, so
   `floorCoverage` is uncovered BY CONSTRUCTION and the verdict is always a

@@ -322,25 +322,33 @@ export function renderObservations(records: readonly AttestationRecord[]): strin
   for (const record of records) {
     if (record.observation.kind === 'browser' && record.observation.smoke !== undefined) latest.set(record.observation.smoke, record.eventId);
   }
-  // A read is STALE when the same branch wrote that path afterwards: walked
-  // from the end, `writtenLater` holds the paths rewritten after the record
-  // at hand, and the id of the first write that did it.
+  const superseded = supersededFileReads(records);
+  return records.map((record) => {
+    const smoke = record.observation.kind === 'browser' ? record.observation.smoke : undefined;
+    const holder = smoke === undefined ? undefined : latest.get(smoke);
+    const rewritten = superseded.get(record.eventId);
+    return renderObservation(record, {
+      ...(holder !== undefined && holder !== record.eventId ? { smokeSameAs: holder } : {}),
+      ...(rewritten ? { rewrittenBy: rewritten.rewrittenBy } : {}),
+    });
+  });
+}
+
+/** Known later writes in the supplied observation scope; never infer shell effects. */
+export function supersededFileReads(records: readonly AttestationRecord[]): ReadonlyMap<string, {
+  readonly path: string; readonly rewrittenBy: string;
+}> {
   const writtenLater = new Map<string, string>();
-  const staleBy = new Map<string, string>();
+  const superseded = new Map<string, { path: string; rewrittenBy: string }>();
   for (const record of [...records].reverse()) {
     const path = requestedPath(record);
     if (path === undefined) continue;
     if (record.tool === 'write_file' || record.tool === 'edit_file') writtenLater.set(path, record.eventId);
-    else if (record.tool === 'read_file' && writtenLater.has(path)) staleBy.set(record.eventId, writtenLater.get(path)!);
+    else if (record.tool === 'read_file' && writtenLater.has(path)) {
+      superseded.set(record.eventId, { path, rewrittenBy: writtenLater.get(path)! });
+    }
   }
-  return records.map((record) => {
-    const smoke = record.observation.kind === 'browser' ? record.observation.smoke : undefined;
-    const holder = smoke === undefined ? undefined : latest.get(smoke);
-    return renderObservation(record, {
-      ...(holder !== undefined && holder !== record.eventId ? { smokeSameAs: holder } : {}),
-      ...(staleBy.has(record.eventId) ? { rewrittenBy: staleBy.get(record.eventId)! } : {}),
-    });
-  });
+  return superseded;
 }
 
 /** The `path` an execution observation's request named, when it can be read back. */
@@ -375,7 +383,13 @@ export function renderObservation(
     const stale = options.rewrittenBy !== undefined
       ? `[STALE: this file was rewritten afterwards by ${options.rewrittenBy}; this read is not its current content] `
       : '';
-    return `${stale}${record.tool} (attempt=${record.attempt ?? 1}, branch=${record.branchId ?? 'root'}): request=${o.request}; observed result=${o.response}`;
+    // A warning beside obsolete bytes still let a root reviewer reject a
+    // repaired README on those bytes (run bcf35298). Keep the observation in
+    // the log, but make its decision-context rendering content-free.
+    const response = options.rewrittenBy !== undefined
+      ? '[superseded read result omitted; no evidence of current content]'
+      : o.response;
+    return `${stale}${record.tool} (attempt=${record.attempt ?? 1}, branch=${record.branchId ?? 'root'}): request=${o.request}; observed result=${response}`;
   }
   const bits = [
     `ok=${o.ok}`,

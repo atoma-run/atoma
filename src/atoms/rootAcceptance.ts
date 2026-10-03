@@ -4,7 +4,7 @@ import type { Atom } from '../core/atom.js';
 import type { CriterionJudgement, Result, RunContext, Task } from '../core/types.js';
 import { modelForTier } from '../core/models.js';
 import type { DeliveryKind } from '../contracts/taskExecution.js';
-import { establishesDomInteraction } from '../contracts/attestation.js';
+import { establishesDomInteraction, renderObservation, supersededFileReads } from '../contracts/attestation.js';
 import type { AcceptanceInfo, PhaseCoverageRecord, ProofFloor } from '../contracts/depthRouting.js';
 import { buildResultGateEnv, renderResultGateFindings, runResultGates } from './resultGates.js';
 import { checkGroundTruth } from './groundTruth.js';
@@ -210,8 +210,10 @@ function namedFileExcerpt(content: string, words: ReadonlySet<string>): string {
  * a 400-character head; a name that resolves to no file says nothing, and a
  * path leaving the workspace root is never read.
  */
-async function criteriaFilesBlock(ctx: RunContext, checklist: AcceptanceChecklist): Promise<string> {
-  if (checklist.length === 0 || !ctx.tools?.has('read_file')) return '';
+async function criteriaFilesBlock(
+  ctx: RunContext, checklist: AcceptanceChecklist, refreshPaths: readonly string[], taskDescription: string
+): Promise<string> {
+  if (!ctx.tools?.has('read_file') || (checklist.length === 0 && refreshPaths.length === 0)) return '';
   const tools = baseExecutorOf(ctx.tools);
   const text = checklist.map((item) => item.behaviour).join('\n');
   const wanted: string[] = [...text.matchAll(NAMED_PATH)].map((match) => match[1]!);
@@ -226,26 +228,33 @@ async function criteriaFilesBlock(ctx: RunContext, checklist: AcceptanceChecklis
       }
     } catch { /* a listing is a bonus */ }
   }
+  wanted.push(...refreshPaths);
   const lines: string[] = [];
-  for (const path of [...new Set(wanted)]) {
-    if (lines.length >= CRITERIA_FILES_MAX || ctx.signal?.aborted) break;
-    if (path.split('/').includes('..')) continue;
+  const paths = [...new Set(wanted)].filter((path) => !path.split('/').includes('..') && !/^(?:\/|[a-z]:)/i.test(path));
+  let attempted = 0;
+  for (const path of paths) {
+    if (attempted >= CRITERIA_FILES_MAX || ctx.signal?.aborted) break;
+    attempted++;
     const stem = path.replace(/^.*\//, '').replace(/\.[^.]+$/, '').toLowerCase();
     const naming = checklist.filter((item) => item.behaviour.toLowerCase().includes(stem)).map((item) => item.behaviour.toLowerCase());
+    if (refreshPaths.includes(path)) naming.push(taskDescription.toLowerCase(), text.toLowerCase());
     const words = new Set(naming.flatMap((text) => [...text.matchAll(CRITERIA_TOKEN)].map((match) => match[0]))
       .filter((word) => !COMMON_WORDS.has(word) && word !== stem));
     try {
       const read: unknown = await tools.execute('read_file', { path });
       const content = typeof read === 'string' ? read : read && typeof read === 'object' &&
         'content' in read && typeof read.content === 'string' ? read.content : undefined;
-      if (content === undefined) continue;
-      lines.push(`- ${path} (${content.length} chars): ${namedFileExcerpt(content, words)}`);
+      if (content === undefined) throw new Error('read returned no content');
+      const label = /^[\w./-]+$/.test(path) ? path : JSON.stringify(path);
+      lines.push(`- ${label} (${content.length} chars): ${namedFileExcerpt(content, words)}`);
     } catch {
       // Silent, never refuting: "saves quote.txt" names a download, not a workspace file.
+      if (refreshPaths.includes(path)) lines.push(`- ${JSON.stringify(path)}: current read unavailable; superseded contents remain omitted. This establishes no current content or absence.`);
     }
   }
+  if (attempted < paths.length) lines.push(`${paths.length - attempted} further file reads omitted by the bound or cancellation; their current contents are unknown.`);
   return lines.length > 0
-    ? ['FILES THE CRITERIA NAME, read back by the host (mechanical). An excerpt cut short is SILENT about what it',
+    ? [`FILES THE CRITERIA NAME${refreshPaths.length ? ' OR WHOSE READS WERE SUPERSEDED' : ''}, read back by the host (mechanical). An excerpt cut short is SILENT about what it`,
       'does not show: never judge a criterion unmet on a part of the file you were not shown.', ...lines].join('\n')
     : '';
 }
@@ -435,13 +444,25 @@ export async function acceptRootResult(args: {
   const source = args.checklistOrigin?.source ?? 'drafted';
   const digest = workspaceDigests(ctx);
   const stale = await staleRecordIds(ctx, digest);
+  const records = acceptedRecords(ctx, stale);
+  const superseded = supersededFileReads(records);
+  const recordsById = new Map(records.map((record) => [record.eventId, record]));
   const coverage = checklistCoverage(ctx, checklist, stale);
   const checklistBlock = renderChecklistCoverage(checklist, coverage,
     { landed: Boolean(result.unfinishedPhases?.length), source });
   const layoutsBlock = observedLayoutsBlock(ctx, stale);
   const gates = await runResultGates(buildResultGateEnv({ task, result, ctx,
     childName: actor.name, childToolNames: actor.toolNames() }), ctx.mechanicalResultRejections, 'delegated');
-  const evidence = acceptedEvidence(result.evidence, stale);
+  // A previous phase may have rendered its witness before a later phase
+  // edited the same file. Re-render those reads from host-held records.
+  const evidence = acceptedEvidence(result.evidence, stale)?.map((witness) => {
+    if (witness.source !== 'transport-observed') return witness;
+    const rewritten = superseded.get(witness.eventId);
+    const record = recordsById.get(witness.eventId);
+    return rewritten && record
+      ? { ...witness, observed: renderObservation(record, { rewrittenBy: rewritten.rewrittenBy }) }
+      : witness;
+  });
   const probe = await checkGroundTruth({ ctx, subject: 'RESULT',
     payload: { output: result.output, summary: result.summary }, child: actor,
     ...(evidence ? { evidence } : {}) });
@@ -485,10 +506,11 @@ export async function acceptRootResult(args: {
     unrechecked !== undefined;
   const judgementsAsked = checklistBlock !== '';
   // Read only for a validation call: nothing reads them on the mechanical path.
-  // Named files only beside criteria the acceptor is shown (a drafted
-  // review-only list renders nothing, so it names nothing either).
+  // Named criteria files and superseded reads share one bounded reader.
+  // A criterion need not spell a filename for a superseded read to refresh.
   const reviewing = review && !gates.rejection;
-  const namedFilesBlock = reviewing && judgementsAsked ? await criteriaFilesBlock(ctx, checklist) : '';
+  const namedFilesBlock = reviewing ? await criteriaFilesBlock(ctx, judgementsAsked ? checklist : [],
+    [...new Set([...superseded.values()].map((read) => read.path))], task.description) : '';
   const startingBlock = reviewing ? renderStartingWorkspace(comparison ?? startingComparison(ctx)) : '';
   const restorationsBlock = reviewing ? renderRestorationsBlock(restorations) : '';
   const inheritedBlock = reviewing && inherited ? renderInheritedChecksBlock(inherited.report, inheritedItems, earlier) : '';
