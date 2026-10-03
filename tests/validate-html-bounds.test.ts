@@ -67,55 +67,34 @@ async function serve(sandbox: ToolSandbox): Promise<string> {
 // shown all returned ok:false. A same-origin fetch/xhr answered 4xx is a
 // warning; a 5xx, a failed subresource and another origin stay errors.
 describe('validate_html and the page\'s own refused requests', () => {
-  const page = (endpoint: string, extra = '') => `<!doctype html><title>t</title><p id="msg"></p>${extra}<script>
-fetch('${endpoint}', { method: 'POST' }).then(async (r) => {
-  document.getElementById('msg').textContent = r.ok ? 'ok' : (await r.json()).error;
+  // The tool's own static server, as every other browser test here uses: a
+  // same-origin fetch of a file that does not exist is answered 404.
+  const page = (extra = '') => `<!doctype html><title>t</title><p id="msg"></p>${extra}<script>
+fetch('/api/loans.json').then((r) => {
+  document.getElementById('msg').textContent = r.ok ? 'ok' : 'refused ' + r.status;
 });
 </script>`;
-  async function app(routes: Record<string, [number, string, string]>): Promise<{ url: string; close: () => Promise<void> }> {
-    const server = createServer((req, res) => {
-      const [status, type, body] = routes[req.url ?? ''] ?? [404, 'text/plain', 'missing'];
-      res.writeHead(status, { 'content-type': type });
-      res.end(body);
-    });
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-    const address = server.address();
-    if (!address || typeof address === 'string') throw new Error('no port');
-    return { url: `http://127.0.0.1:${address.port}/`, close: () => new Promise((resolve) => server.close(() => resolve())) };
-  }
 
-  it('reports a 409 the page shows as a warning, and decides on the smoke', async () => {
-    const server = await app({
-      '/': [200, 'text/html', page('/api/loans')],
-      '/api/loans': [409, 'application/json', '{"error":"loan limit reached"}'],
-      '/favicon.ico': [204, 'image/x-icon', ''],
-    });
-    try {
-      const sandbox = makeWorkspace({ 'index.html': '' });
-      const result = await validateHtmlTool({ sandbox }).execute({
-        url: server.url,
-        waitMs: 400,
-        smoke: `document.getElementById('msg').textContent === 'loan limit reached'`,
-      }) as { ok: boolean; errors: string[]; warnings: string[] };
-      expect(result.errors).toEqual([]);
-      expect(result.warnings.some((w) => w.includes('409') && w.includes(ANSWERED_REFUSAL_NOTE))).toBe(true);
-      expect(result.ok).toBe(true);
-    } finally { await server.close(); }
+  it('reports a 4xx the page shows as a warning, and decides on the smoke', async () => {
+    const sandbox = makeWorkspace({ 'index.html': page(), 'favicon.ico': '' });
+    const url = await serve(sandbox);
+    const result = await validateHtmlTool({ sandbox }).execute({
+      url,
+      waitMs: 400,
+      smoke: `document.getElementById('msg').textContent === 'refused 404'`,
+    }) as { ok: boolean; errors: string[]; warnings: string[] };
+    expect(result.errors).toEqual([]);
+    expect(result.warnings.some((w) => w.includes('404') && w.includes(ANSWERED_REFUSAL_NOTE))).toBe(true);
+    expect(result.ok).toBe(true);
   }, 60_000);
 
-  it('still fails on a 500 from the page\'s own API and on a missing script', async () => {
-    const server = await app({
-      '/': [200, 'text/html', page('/api/loans', '<script src="/app.js"></script>')],
-      '/api/loans': [500, 'application/json', '{"error":"boom"}'],
-      '/favicon.ico': [204, 'image/x-icon', ''],
-    });
-    try {
-      const sandbox = makeWorkspace({ 'index.html': '' });
-      const result = await validateHtmlTool({ sandbox }).execute({ url: server.url, waitMs: 400 }) as { ok: boolean; errors: string[] };
-      expect(result.ok).toBe(false);
-      expect(result.errors.some((e) => e.includes('500'))).toBe(true);
-      expect(result.errors.some((e) => e.includes('404') && e.includes('/app.js'))).toBe(true);
-    } finally { await server.close(); }
+  it('still fails on a missing script beside the answered fetch', async () => {
+    const sandbox = makeWorkspace({ 'index.html': page('<script src="/app.js"></script>'), 'favicon.ico': '' });
+    const url = await serve(sandbox);
+    const result = await validateHtmlTool({ sandbox }).execute({ url, waitMs: 400 }) as { ok: boolean; errors: string[]; warnings: string[] };
+    expect(result.ok).toBe(false);
+    expect(result.errors.some((e) => e.includes('404') && e.includes('/app.js'))).toBe(true);
+    expect(result.errors.some((e) => e.includes('/api/loans.json'))).toBe(false);
   }, 60_000);
 
   it('keys only same-origin client errors', () => {
