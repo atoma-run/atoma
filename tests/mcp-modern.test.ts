@@ -228,9 +228,9 @@ describe('the 2026-07-28 era', () => {
     const { driver } = scriptedDriver();
     let frozen = true;
     const { url } = await listen(() => ({ kind: 'operator' }), { ...NO_TENANT, operatorRunDriver: driver, operatorRunLease: lease }, () => frozen);
-    const read = await modernRequest(url, 'tools/call', { name: 'atoma_registry_list', arguments: {} });
+    const read = await modernRequest(url, 'tools/list', {});
     expect(read.status).toBe(200);
-    expect(read.body.result).toMatchObject({ structuredContent: expect.any(Object) });
+    expect(read.body.result).toMatchObject({ tools: expect.any(Array) });
     const start = await modernRequest(url, 'tools/call', { name: 'atoma_operator_run_start', arguments: { goal: 'not now' } });
     expect(start.status).toBe(503);
     expect((await modernRequest(url, 'tasks/get', { taskId: 'none' })).status).toBe(200);
