@@ -116,7 +116,7 @@ header.top{display:flex;align-items:center;justify-content:space-between;gap:16p
 .brand{display:flex;align-items:center;gap:12px;text-decoration:none;color:#f8fbff;font-weight:800;font-size:22px;letter-spacing:-.04em}
 .pill{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#9cc4ff;border:1px solid #2b4668;border-radius:999px;padding:5px 10px}
 nav.top{display:flex;align-items:center;gap:8px}
-nav.top a{color:#c9d4e6;text-decoration:none;font-size:15px;padding:12px 14px;min-height:44px;display:inline-flex;align-items:center}
+nav.top a{color:#c9d4e6;text-decoration:none;font-size:15px;padding:12px 14px;min-height:44px;display:inline-flex;align-items:center;white-space:nowrap}
 .btn{display:inline-flex;align-items:center;min-height:48px;padding:0 22px;border-radius:12px;font-weight:700;font-size:16px;text-decoration:none}
 .btn.primary,nav.top a.primary{background:var(--primary);color:#07111f}
 .btn.ghost{border:1px solid #426386;color:var(--text)}
@@ -159,7 +159,7 @@ section.feed{padding:64px 0 88px;background:#0b1424}
 .badge i{width:7px;height:7px;border-radius:2px;display:inline-block}
 .files{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-start;min-width:0;flex:0 1 auto}
 .card .vis .files{max-height:84px;overflow:hidden}
-.files span{padding:4px 8px;border-radius:7px;background:rgba(5,9,19,.55);font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:#c9d4e6}
+.files span{max-width:100%;overflow-wrap:anywhere;padding:4px 8px;border-radius:7px;background:rgba(5,9,19,.55);font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:#c9d4e6}
 .card .body{padding:20px 22px 22px;display:flex;flex-direction:column;gap:14px;flex-grow:1}
 .card h3{font-size:21px;line-height:1.25;letter-spacing:-.01em;color:#f8fbff;text-wrap:pretty}
 .meta{display:flex;justify-content:space-between;gap:10px;font-size:13px;color:#8a99b4}
@@ -201,7 +201,7 @@ ol.steps span{font-size:14px;color:#b9c5da}
 @keyframes turn{0%,100%{transform:rotateY(-26deg) rotateX(6deg)}50%{transform:rotateY(26deg) rotateX(-4deg)}}
 @keyframes bob{from{transform:translateY(-6px)}to{transform:translateY(6px)}}
 @media (prefers-reduced-motion:reduce){.hero,.crystal,.bob{animation:none}}
-@media (max-width:640px){.act{border-right:0;border-bottom:1px solid #1f3350}}
+@media (max-width:640px){.act{border-right:0;border-bottom:1px solid #1f3350}header.top{padding:12px 16px;gap:8px}.brand{gap:8px;font-size:20px}.brand .pill,nav.top a.secondary{display:none}nav.top{gap:4px}nav.top a{padding:10px 10px;font-size:14px}.wrap{padding:0 16px}.hero{margin-top:-68px;padding:104px 0 48px}.stage{height:300px}.mark-hero{width:230px;height:290px}.cta-band .box{padding:24px}}
 `;
 
 const LOGO =
@@ -260,7 +260,7 @@ ${input.assets.markScript ? `<script type="module" src="${esc(input.assets.markS
 
 function header(): string {
   return `<header class="top"><a class="brand" href="/"><span class="mark mark-logo" data-atoma-mark="logo">${LOGO}</span><span>Atoma</span><span class="pill">Live showcase</span></a>
-<nav class="top" aria-label="Site"><a href="/#feed">Finished work</a><a href="/app">Sign in</a><a class="primary" href="/app">Start your own</a></nav></header>`;
+<nav class="top" aria-label="Site"><a class="secondary" href="/#feed">Finished work</a><a href="/app">Sign in</a><a class="primary" href="/app">Start your own</a></nav></header>`;
 }
 
 function closing(): string {
