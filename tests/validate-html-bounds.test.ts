@@ -12,6 +12,8 @@ import {
   interactionPhaseBudgetMs,
   INTERACTION_PHASE_BUDGET_MS,
   MAX_HOLD_MS,
+  answeredRefusalKey,
+  ANSWERED_REFUSAL_NOTE,
 } from '../src/tools/builtin.js';
 
 /**
@@ -58,6 +60,72 @@ async function serve(sandbox: ToolSandbox): Promise<string> {
   expect(res.ok, `static server failed to boot: ${JSON.stringify(res)}`).toBe(true);
   return res.url;
 }
+
+// Production run 1d42ac2a (2026-10-03): the criteria required the page to show
+// the server's refusal, and Chrome logs every 4xx a fetch receives as a console
+// error, so 29 validate_html calls on a page whose smoke proved the refusal was
+// shown all returned ok:false. A same-origin fetch/xhr answered 4xx is a
+// warning; a 5xx, a failed subresource and another origin stay errors.
+describe('validate_html and the page\'s own refused requests', () => {
+  const page = (endpoint: string, extra = '') => `<!doctype html><title>t</title><p id="msg"></p>${extra}<script>
+fetch('${endpoint}', { method: 'POST' }).then(async (r) => {
+  document.getElementById('msg').textContent = r.ok ? 'ok' : (await r.json()).error;
+});
+</script>`;
+  async function app(routes: Record<string, [number, string, string]>): Promise<{ url: string; close: () => Promise<void> }> {
+    const server = createServer((req, res) => {
+      const [status, type, body] = routes[req.url ?? ''] ?? [404, 'text/plain', 'missing'];
+      res.writeHead(status, { 'content-type': type });
+      res.end(body);
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('no port');
+    return { url: `http://127.0.0.1:${address.port}/`, close: () => new Promise((resolve) => server.close(() => resolve())) };
+  }
+
+  it('reports a 409 the page shows as a warning, and decides on the smoke', async () => {
+    const server = await app({
+      '/': [200, 'text/html', page('/api/loans')],
+      '/api/loans': [409, 'application/json', '{"error":"loan limit reached"}'],
+      '/favicon.ico': [204, 'image/x-icon', ''],
+    });
+    try {
+      const sandbox = makeWorkspace({ 'index.html': '' });
+      const result = await validateHtmlTool({ sandbox }).execute({
+        url: server.url,
+        waitMs: 400,
+        smoke: `document.getElementById('msg').textContent === 'loan limit reached'`,
+      }) as { ok: boolean; errors: string[]; warnings: string[] };
+      expect(result.errors).toEqual([]);
+      expect(result.warnings.some((w) => w.includes('409') && w.includes(ANSWERED_REFUSAL_NOTE))).toBe(true);
+      expect(result.ok).toBe(true);
+    } finally { await server.close(); }
+  }, 60_000);
+
+  it('still fails on a 500 from the page\'s own API and on a missing script', async () => {
+    const server = await app({
+      '/': [200, 'text/html', page('/api/loans', '<script src="/app.js"></script>')],
+      '/api/loans': [500, 'application/json', '{"error":"boom"}'],
+      '/favicon.ico': [204, 'image/x-icon', ''],
+    });
+    try {
+      const sandbox = makeWorkspace({ 'index.html': '' });
+      const result = await validateHtmlTool({ sandbox }).execute({ url: server.url, waitMs: 400 }) as { ok: boolean; errors: string[] };
+      expect(result.ok).toBe(false);
+      expect(result.errors.some((e) => e.includes('500'))).toBe(true);
+      expect(result.errors.some((e) => e.includes('404') && e.includes('/app.js'))).toBe(true);
+    } finally { await server.close(); }
+  }, 60_000);
+
+  it('keys only same-origin client errors', () => {
+    const at = 'http://localhost:8123/';
+    expect(answeredRefusalKey('http://localhost:8123/api/x', 409, at)).toBe('409 http://localhost:8123/api/x');
+    expect(answeredRefusalKey('http://localhost:8123/api/x', 500, at)).toBeNull();
+    expect(answeredRefusalKey('http://other:8123/api/x', 404, at)).toBeNull();
+    expect(answeredRefusalKey('http://localhost:8123/api/x', 200, at)).toBeNull();
+  });
+});
 
 describe('validate_html form input', () => {
   it('loads external assets through the configured proxy while serving loopback directly', async () => {

@@ -1921,6 +1921,15 @@ export function validateHtmlTool(opts: BuiltinToolOptions): BuiltinTool {
           reason: req.failure()?.errorText ?? 'unknown',
         });
       });
+      // The page's own API answering a client error (`answeredRefusalKey`).
+      const answeredRefusals = new Set<string>();
+      page.on('response', (response) => {
+        const kind = response.request().resourceType();
+        if (kind === 'fetch' || kind === 'xhr') {
+          const key = answeredRefusalKey(response.url(), response.status(), url);
+          if (key) answeredRefusals.add(key);
+        }
+      });
 
       try {
         opts.logger?.info(
@@ -2236,7 +2245,9 @@ ${pageRevision}`;
           .evaluate(`!!document.querySelector('link[rel~="icon"]')`)
           .then((v) => v === true)
           .catch(() => false);
-        const pageErrors = mergeConsoleErrors(consoleErrors, url, declaresIcon);
+        const refusals = consoleErrors.filter((entry) => isAnsweredRefusalConsoleError(entry, answeredRefusals, url));
+        for (const entry of refusals) warnings.push(`${entry.text} [source: ${entry.loc}] — ${ANSWERED_REFUSAL_NOTE}`);
+        const pageErrors = mergeConsoleErrors(consoleErrors.filter((entry) => !refusals.includes(entry)), url, declaresIcon);
         const realFailedRequests = failedRequests.filter(
           (r) => !isSpeculativeFaviconRequest(r.url, url, declaresIcon)
         );
@@ -2800,6 +2811,43 @@ export function isSpeculativeFaviconRequest(
  * An entry with no source location is ALWAYS kept: absent evidence that it is
  * the favicon, the honest default is to report it.
  */
+/**
+ * A page's own fetch/xhr ANSWERED with a client error (4xx) by its own origin.
+ * Chrome logs every such response as a console error, so a page that must
+ * show the server's refusal (a 409 on a loan past the limit) could never
+ * validate: production run 1d42ac2a (2026-10-03) spent 29 validate_html calls
+ * and forty minutes on a page whose smoke proved the refusal was shown, each
+ * call ok:false on "Failed to load resource: ... 409 (Conflict)". Such an
+ * entry is reported as a warning instead; the smoke decides whether the page
+ * handled it. A 5xx, another origin, a script, stylesheet, image or document
+ * that failed, and a request that never got an answer stay errors.
+ */
+export function answeredRefusalKey(responseUrl: string, status: number, pageUrl: string): string | null {
+  if (status < 400 || status > 499) return null;
+  try {
+    if (new URL(responseUrl).origin !== new URL(pageUrl).origin) return null;
+  } catch {
+    return null;
+  }
+  return `${status} ${responseUrl}`;
+}
+
+const ANSWERED_STATUS_RE = /^Failed to load resource: the server responded with a status of (4\d\d)\b/;
+
+export const ANSWERED_REFUSAL_NOTE =
+  'the page\'s own request was answered with a client error; not counted as an error, assert in the smoke that the page handles it';
+
+export function isAnsweredRefusalConsoleError(
+  entry: { readonly text: string; readonly loc?: string },
+  answered: ReadonlySet<string>,
+  pageUrl: string
+): boolean {
+  const status = ANSWERED_STATUS_RE.exec(entry.text)?.[1];
+  if (!status || !entry.loc) return false;
+  const key = answeredRefusalKey(entry.loc, Number(status), pageUrl);
+  return key !== null && answered.has(key);
+}
+
 export function mergeConsoleErrors(
   captured: ReadonlyArray<{ text: string; loc?: string }>,
   pageUrl: string,

@@ -77,7 +77,10 @@ Neighbours:
   deadline.
 - `validate_html` treats smoke input as a JS expression, bounds every supplied
   duration, and ignores Chrome's own favicon 404. Browser console errors remain
-  evidence but not every one is a mechanical failure.
+  evidence but not every one is a mechanical failure: a same-origin fetch/xhr
+  ANSWERED 4xx is a warning, since a page that must show the server's refusal
+  could never validate (run 1d42ac2a: 29 calls, 40 minutes); the smoke judges
+  it. A 5xx, another origin and a failed subresource stay errors.
 - Do not relax `detectBrittleComputedStyleLiteral` (the rgb()/rgba()-literal
   pre-flight refusal). Measured across six batches on 2026-08-21 (15 firings
   over seven web runs): every refusal was followed by in-run compliance at
