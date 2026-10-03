@@ -4,7 +4,6 @@ import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildTierClients } from '../src/run/providers.js';
 import { startTask, resetHostLifecycleSnapshotForTests } from '../src/run/runner.js';
-import { buildProfile } from '../src/run/profiles/build.js';
 import { parseRunLog } from '../src/cli/burnin.js';
 import { baseExecutorOf } from '../src/core/attestation.js';
 import { ensureCanonicalFullStack } from '../src/atoms/capability.js';
@@ -104,14 +103,14 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
     } } });
     let handle: Awaited<ReturnType<typeof startTask>> | undefined;
     try {
-      handle = await startTask({ ...buildProfile, seedCatalog(seed) {
-        buildProfile.seedCatalog(seed);
+      handle = await startTask([...(mode === 'default' ? [] : ['--depth', mode]), '--clean-workspace', 'Build a page backed by server.js'], { seedCatalog(seed, canonical) {
+        canonical(seed);
         registry = seed.registry;
         const leaf = ensureCanonicalFullStack(seed.registry, seed.toolDecls, 1)!;
         leafName = leaf.name; leafId = leaf.atomId;
         cellName = ensureCanonicalFullStack(seed.registry, seed.toolDecls, 2)!.name;
         if (matched) skills.save(leafId, recipe);
-      } }, [...(mode === 'default' ? [] : ['--depth', mode]), '--clean-workspace', 'Build a page backed by server.js']);
+      } });
       // A refused delivery LANDS since 2026-09-24: the run kept every byte it
       // wrote and seeds the next run, so the outcome is `partial`, not
       // `failed`. What this test is about is unchanged and is asserted below —
@@ -219,7 +218,7 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
     } } });
     let handle: Awaited<ReturnType<typeof startTask>> | undefined;
     try {
-      handle = await startTask(buildProfile, ['--depth', 'short', '--clean-workspace', '--no-learn-skills', '--no-direct-skills', 'Build index.html']);
+      handle = await startTask(['--depth', 'short', '--clean-workspace', '--no-learn-skills', '--no-direct-skills', 'Build index.html']);
       // `partial` since 2026-09-24: this run deepened, was refused at delivery,
       // and its second attempt's workspace holds real files. What the test is
       // about is below and unchanged — the abandoned server is reaped, the
@@ -305,10 +304,10 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
     } } });
     let handle: Awaited<ReturnType<typeof startTask>> | undefined;
     try {
-      handle = await startTask({ ...buildProfile, seedCatalog(seed) {
-        buildProfile.seedCatalog(seed);
+      handle = await startTask(['--depth', 'short', '--clean-workspace', '--no-learn-skills', '--no-direct-skills', 'Node API: GET /api/notes lists notes; GET /api/notes/:id is 404 when unknown'], { seedCatalog(seed, canonical) {
+        canonical(seed);
         leafName = ensureCanonicalFullStack(seed.registry, seed.toolDecls, 1)!.name;
-      } }, ['--depth', 'short', '--clean-workspace', '--no-learn-skills', '--no-direct-skills', 'Node API: GET /api/notes lists notes; GET /api/notes/:id is 404 when unknown']);
+      } });
       expect(await handle.settled).toEqual({ outcome: 'delivered' });
       expect(calls.filter((req) => req.role === 'draft-checklist')).toHaveLength(1);
       // The high-confidence reuse shortcut makes no L2 plan call and forwards
@@ -383,10 +382,10 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
     } } });
     let handle: Awaited<ReturnType<typeof startTask>> | undefined;
     try {
-      handle = await startTask({ ...buildProfile, seedCatalog(seed) {
-        buildProfile.seedCatalog(seed);
+      handle = await startTask(['--depth', 'short', '--clean-workspace', '--no-learn-skills', '--no-direct-skills', 'Node API: GET /api/notes lists notes'], { seedCatalog(seed, canonical) {
+        canonical(seed);
         leafName = ensureCanonicalFullStack(seed.registry, seed.toolDecls, 1)!.name;
-      } }, ['--depth', 'short', '--clean-workspace', '--no-learn-skills', '--no-direct-skills', 'Node API: GET /api/notes lists notes']);
+      } });
       expect(await handle.settled).toEqual({ outcome: 'delivered' });
       expect(calls.filter((req) => req.role === 'draft-checklist')).toHaveLength(0);
       const planning = calls.filter((req) => req.role === 'plan').map((req) => req.userContent).join('\n');
@@ -432,7 +431,7 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
     const complete = vi.fn();
     vi.mocked(buildTierClients).mockReturnValue({ ollama: { complete } });
     try {
-      await expect(startTask(buildProfile, [...argv, '--clean-workspace', 'Build a notes API']))
+      await expect(startTask([...argv, '--clean-workspace', 'Build a notes API']))
         .rejects.toThrow(error);
       expect(complete).not.toHaveBeenCalled();
     } finally {
@@ -505,7 +504,7 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
     } } });
     let handle: Awaited<ReturnType<typeof startTask>> | undefined;
     try {
-      handle = await startTask(buildProfile, ['--depth', 'short', '--seed', seedDir, '--no-learn-skills', '--no-direct-skills', 'Build index.html']);
+      handle = await startTask(['--depth', 'short', '--seed', seedDir, '--no-learn-skills', '--no-direct-skills', 'Build index.html']);
       const settled = await handle.settled;
       const archive = join(root, 'workspace.prev1');
       expect(existsSync(join(archive, 'abandoned.txt'))).toBe(true);

@@ -333,7 +333,6 @@ function gatedStubs() {
       name: 'Stopwatch E2E two',
       slug: 'stopwatch-e2e-two',
       status: 'active',
-      family: 'build',
       repositoryTarget: {
         installationId: '501',
         owner: 'example',
@@ -397,16 +396,18 @@ function gatedStubs() {
     '/api/github/installations': [],
     // WITHOUT this stub the page reload-loops: the checkout `.env` usually arms
     // the auth gate, the browser has no session cookie, and the client treats
-    // the resulting 401 on /api/profiles as an expired session.
-    '/api/profiles': [{
-      id: 'build',
-      label: 'Build',
-      help: 'Describe the artifact to build and its acceptance criteria in one or two sentences.',
-      examples: [
-        'Build a single-page stopwatch in index.html: start, stop and reset buttons, no external dependencies.',
-        'Add a lap button to the stopwatch: each press records the current elapsed time in a list below the controls.',
-      ],
-    }],
+    // the resulting 401 on /api/goal-guidance as an expired session.
+    '/api/goal-guidance': {
+      launchEnabled: false,
+      guidance: {
+        npmScript: 'run:build',
+        help: 'Describe the artifact to build and its acceptance criteria in one or two sentences.',
+        examples: [
+          'Build a single-page stopwatch in index.html: start, stop and reset buttons, no external dependencies.',
+          'Add a lap button to the stopwatch: each press records the current elapsed time in a list below the controls.',
+        ],
+      },
+    },
   };
 }
 

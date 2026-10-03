@@ -1309,7 +1309,7 @@ try {
       ? SOFTWARE_SCROLL_REBUILD_P95_MAX
       : SCROLL_REBUILD_P95_MAX;
     // Six tabs, matching `visibleViews(null)` on the ungated developer path
-    // plus the return to Runs. There is no Launch tab: the family guidance
+    // plus the return to Runs. There is no Launch tab: the goal guidance
     // lives inside the project run form.
     const views = ['Projects', 'Registry', 'Skills', 'Burn-in', 'Docs', 'Runs'];
     for (const label of views) {
@@ -2021,7 +2021,6 @@ try {
             name: 'Wide Glyph Project',
             slug: 'm'.repeat(48),
             status: 'active',
-            family: 'build',
             repositoryTarget: {
               installationId: '501',
               owner: 'm'.repeat(48),

@@ -1,44 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { BUILTIN_TOOL_VOCABULARY } from '../src/atoms/verdict.js';
 import { launchCommand } from '../src/viz/client/launch-utils.js';
 import { I18N_CATALOGS } from '../src/viz/client/i18n-catalog.js';
-import { LAUNCHABLE_PROFILES, findLaunchable } from '../src/run/profiles/index.js';
-
-describe('launchable profiles are all describable', () => {
-  it('every family carries a label, real help and examples', () => {
-    expect(LAUNCHABLE_PROFILES.length).toBeGreaterThan(0);
-    for (const { profile } of LAUNCHABLE_PROFILES) {
-      const guidance = profile.guidance;
-      expect(guidance.label.trim(), `${profile.id}: empty label`).not.toBe('');
-      expect(guidance.help.length, `${profile.id}: help too short`).toBeGreaterThan(200);
-      expect(guidance.examples.length, `${profile.id}: needs examples`).toBeGreaterThanOrEqual(2);
-      for (const example of guidance.examples) expect(example.trim()).not.toBe('');
-    }
-  });
-
-  it('every family names an npm script that actually exists', () => {
-    const scripts = JSON.parse(readFileSync('package.json', 'utf8')).scripts as Record<string, string>;
-    for (const { profile, npmScript } of LAUNCHABLE_PROFILES) {
-      expect(scripts[npmScript], `${profile.id} points at missing script "${npmScript}"`).toBeTruthy();
-    }
-  });
-
-  it('the guidance never tells a user to name a tool in their goal', () => {
-    for (const { profile } of LAUNCHABLE_PROFILES) {
-      const corpus = [profile.guidance.help, ...profile.guidance.examples].join(' \n ');
-      for (const tool of BUILTIN_TOOL_VOCABULARY) {
-        expect(corpus, `${profile.id}: guidance names "${tool}"`).not.toContain(tool);
-      }
-    }
-  });
-
-  it('resolves known ids and rejects unknown or traversal-shaped ids', () => {
-    expect(findLaunchable('build')?.npmScript).toBe('run:build');
-    expect(findLaunchable('nope')).toBeUndefined();
-    expect(findLaunchable('../etc/passwd')).toBeUndefined();
-  });
-});
 
 describe('viz full-GL build contract with MUI fallback', () => {
   const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
@@ -315,10 +278,8 @@ describe('viz i18n catalogs stay in parity', () => {
   it('the Launch tab keys are present in both', () => {
     for (const key of [
       'nav.launch',
-      'launch.family',
       'launch.goal',
       'launch.command',
-      'pane.selectLaunch',
       'welcome.continue',
       'welcome.version',
       'welcome.turn',
@@ -350,7 +311,7 @@ describe('the generated command quotes the goal', () => {
   it('escapes embedded double quotes', () => {
     expect(
       launchCommand(
-        { id: 'build', npmScript: 'run:build', label: 'Build', help: '', examples: [] },
+        { npmScript: 'run:build', help: '', examples: [] },
         'Build a CLI that prints "hello"'
       )
     ).toBe('npm run run:build -- "Build a CLI that prints \\"hello\\""');

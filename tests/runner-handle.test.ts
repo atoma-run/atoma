@@ -8,7 +8,7 @@ import {
   startTask,
 } from '../src/run/runner.js';
 import { ANTHROPIC_PINS, CLAUDE_CLI_PINS, OLLAMA_PINS } from './tier-pins.js';
-import { buildProfile } from '../src/run/profiles/build.js';
+import { RUN_ENV } from '../src/run/setup.js';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -85,13 +85,13 @@ describe('host lifecycle snapshot — the sticky-env fix', () => {
 
 describe('startTask — typed config errors before any side effect', () => {
   const RUNNER_VARS = [
-    buildProfile.envVars.timeoutMs,
+    RUN_ENV.timeoutMs,
     'ATOMA_MODEL_L1',
     'ATOMA_MODEL_L2',
     'ATOMA_MODEL_L3',
     'ATOMA_REQUIRE_ISOLATION',
     'ATOMA_CONTAINER',
-    buildProfile.envVars.dbPath,
+    RUN_ENV.dbPath,
   ] as const;
   const before = new Map<string, string | undefined>();
   beforeEach(() => {
@@ -108,14 +108,14 @@ describe('startTask — typed config errors before any side effect', () => {
   });
 
   it('rejects an invalid timeout with RunnerConfigError (the CLI maps it to exit 2)', async () => {
-    process.env[buildProfile.envVars.timeoutMs] = 'abc';
-    await expect(startTask(buildProfile, ['goal'])).rejects.toThrow(RunnerConfigError);
-    await expect(startTask(buildProfile, ['goal'])).rejects.toThrow(/expected positive integer/);
+    process.env[RUN_ENV.timeoutMs] = 'abc';
+    await expect(startTask(['goal'])).rejects.toThrow(RunnerConfigError);
+    await expect(startTask(['goal'])).rejects.toThrow(/expected positive integer/);
   });
 
   it('requires a goal instead of silently running a sample application', async () => {
-    await expect(startTask(buildProfile, [])).rejects.toThrow(/task goal is required/);
-    await expect(startTask(buildProfile, ['   '])).rejects.toThrow(/task goal is required/);
+    await expect(startTask([])).rejects.toThrow(/task goal is required/);
+    await expect(startTask(['   '])).rejects.toThrow(/task goal is required/);
   });
 
   /**
@@ -134,18 +134,18 @@ describe('startTask — typed config errors before any side effect', () => {
     try {
       const dbPath = join(root, 'atoma.db');
       PlatformSettingsStore.open(dbPath).set({ 'run.timeoutMaxMs': 600_000 }, null);
-      process.env[buildProfile.envVars.dbPath] = dbPath;
-      process.env[buildProfile.envVars.timeoutMs] = '1800000';
-      await expect(startTask(buildProfile, ['goal'])).rejects.toThrow(RunnerConfigError);
-      await expect(startTask(buildProfile, ['goal'])).rejects.toThrow(
+      process.env[RUN_ENV.dbPath] = dbPath;
+      process.env[RUN_ENV.timeoutMs] = '1800000';
+      await expect(startTask(['goal'])).rejects.toThrow(RunnerConfigError);
+      await expect(startTask(['goal'])).rejects.toThrow(
         /exceeds the platform ceiling run\.timeoutMaxMs=600000/
       );
       // At the ceiling exactly, the launch proceeds past this check — proved
       // by the NEXT refusal in the ordered gauntlet rather than by a real
       // run, which would need a provider.
-      process.env[buildProfile.envVars.timeoutMs] = '600000';
+      process.env[RUN_ENV.timeoutMs] = '600000';
       await expect(
-        startTask(buildProfile, ['--seed', '/nonexistent/atoma-seed-dir', 'goal'])
+        startTask(['--seed', '/nonexistent/atoma-seed-dir', 'goal'])
       ).rejects.toThrow(/--seed: no such directory/);
     } finally {
       closeStoreHandles();
@@ -162,10 +162,10 @@ describe('startTask — typed config errors before any side effect', () => {
   it('launches a three-hour operator run when no ceiling is stated', async () => {
     const root = mkdtempSync(join(tmpdir(), 'atoma-runner-no-ceiling-'));
     try {
-      process.env[buildProfile.envVars.dbPath] = join(root, 'atoma.db');
-      process.env[buildProfile.envVars.timeoutMs] = String(3 * 60 * 60 * 1000);
+      process.env[RUN_ENV.dbPath] = join(root, 'atoma.db');
+      process.env[RUN_ENV.timeoutMs] = String(3 * 60 * 60 * 1000);
       await expect(
-        startTask(buildProfile, ['--seed', '/nonexistent/atoma-seed-dir', 'goal'])
+        startTask(['--seed', '/nonexistent/atoma-seed-dir', 'goal'])
       ).rejects.toThrow(/--seed: no such directory/);
     } finally {
       closeStoreHandles();
@@ -178,10 +178,10 @@ describe('startTask — typed config errors before any side effect', () => {
     try {
       const dbPath = join(root, 'atoma.db');
       PlatformSettingsStore.open(dbPath).set({ 'run.timeoutMaxMs': 300_000 }, null);
-      process.env[buildProfile.envVars.dbPath] = dbPath;
-      delete process.env[buildProfile.envVars.timeoutMs];
+      process.env[RUN_ENV.dbPath] = dbPath;
+      delete process.env[RUN_ENV.timeoutMs];
       await expect(
-        startTask(buildProfile, ['--seed', '/nonexistent/atoma-seed-dir', 'goal'])
+        startTask(['--seed', '/nonexistent/atoma-seed-dir', 'goal'])
       ).rejects.toThrow(/--seed: no such directory/);
     } finally {
       closeStoreHandles();
@@ -194,15 +194,15 @@ describe('startTask — typed config errors before any side effect', () => {
     const previous = process.env['ATOMA_CLI_CALL_TIMEOUT_MS'];
     try {
       const dbPath = join(root, 'atoma.db');
-      process.env[buildProfile.envVars.dbPath] = dbPath;
-      process.env[buildProfile.envVars.timeoutMs] = '600000';
+      process.env[RUN_ENV.dbPath] = dbPath;
+      process.env[RUN_ENV.timeoutMs] = '600000';
       process.env['ATOMA_CLI_CALL_TIMEOUT_MS'] = '900000';
       // No row: the exported call timeout is a request nobody bounds.
       await expect(
-        startTask(buildProfile, ['--seed', '/nonexistent/atoma-seed-dir', 'goal'])
+        startTask(['--seed', '/nonexistent/atoma-seed-dir', 'goal'])
       ).rejects.toThrow(/--seed: no such directory/);
       PlatformSettingsStore.open(dbPath).set({ 'llm.callTimeoutMs': 60_000 }, null);
-      await expect(startTask(buildProfile, ['goal'])).rejects.toThrow(
+      await expect(startTask(['goal'])).rejects.toThrow(
         /ATOMA_CLI_CALL_TIMEOUT_MS=900000 is exported and exceeds llm\.callTimeoutMs=60000/
       );
     } finally {
@@ -214,16 +214,16 @@ describe('startTask — typed config errors before any side effect', () => {
   });
 
   it('rejects a missing --seed directory before touching anything', async () => {
-    process.env[buildProfile.envVars.timeoutMs] = '60000';
+    process.env[RUN_ENV.timeoutMs] = '60000';
     await expect(
-      startTask(buildProfile, ['--seed', '/nonexistent/atoma-seed-dir', 'goal'])
+      startTask(['--seed', '/nonexistent/atoma-seed-dir', 'goal'])
     ).rejects.toThrow(/--seed: no such directory/);
   });
 
   it('accepts Codex L1 and reaches the next launch validation', async () => {
-    process.env[buildProfile.envVars.timeoutMs] = 'abc';
+    process.env[RUN_ENV.timeoutMs] = 'abc';
     process.env['ATOMA_MODEL_L1'] = 'sub:openai:gpt-5.6-luna';
-    await expect(startTask(buildProfile, ['goal'])).rejects.toThrow(/expected positive integer/);
+    await expect(startTask(['goal'])).rejects.toThrow(/expected positive integer/);
   });
 
   it('refuses claude-cli at LAUNCH when the caller supplied a credential snapshot', async () => {
@@ -231,24 +231,24 @@ describe('startTask — typed config errors before any side effect', () => {
     // key, so a supplied credential would be silently ignored and the work
     // would bill the host's subscription. Failing before any spend is the
     // same shape as the codex L1 refusal above.
-    process.env[buildProfile.envVars.timeoutMs] = '60000';
+    process.env[RUN_ENV.timeoutMs] = '60000';
     const snapshot: NodeJS.ProcessEnv = {
       ...CLAUDE_CLI_PINS,
       ANTHROPIC_API_KEY: 'sk-ant-tenant-key',
     };
     await expect(
-      startTask(buildProfile, ['goal'], { providerEnv: snapshot })
+      startTask(['goal'], { providerEnv: snapshot })
     ).rejects.toThrow(RunnerConfigError);
     await expect(
-      startTask(buildProfile, ['goal'], { providerEnv: snapshot })
+      startTask(['goal'], { providerEnv: snapshot })
     ).rejects.toThrow(/cannot honour a supplied credential snapshot/);
   });
 
   it('refuses the local backend at LAUNCH when isolation is required (T1)', async () => {
-    process.env[buildProfile.envVars.timeoutMs] = '60000';
+    process.env[RUN_ENV.timeoutMs] = '60000';
     process.env['ATOMA_REQUIRE_ISOLATION'] = '1';
-    await expect(startTask(buildProfile, ['goal'])).rejects.toThrow(RunnerConfigError);
-    await expect(startTask(buildProfile, ['goal'])).rejects.toThrow(/not a boundary/);
+    await expect(startTask(['goal'])).rejects.toThrow(RunnerConfigError);
+    await expect(startTask(['goal'])).rejects.toThrow(/not a boundary/);
   });
 
   it('a run cannot unlock its own jail through the environment it supplies', async () => {
@@ -256,10 +256,10 @@ describe('startTask — typed config errors before any side effect', () => {
     // every provider decision, but the isolation requirement is read from the
     // HOST environment. A tenant handed control of both would simply switch
     // the boundary off.
-    process.env[buildProfile.envVars.timeoutMs] = '60000';
+    process.env[RUN_ENV.timeoutMs] = '60000';
     process.env['ATOMA_REQUIRE_ISOLATION'] = '1';
     await expect(
-      startTask(buildProfile, ['goal'], {
+      startTask(['goal'], {
         providerEnv: { ...OLLAMA_PINS, ATOMA_REQUIRE_ISOLATION: '0' },
       })
     ).rejects.toThrow(/not a boundary/);
@@ -271,8 +271,8 @@ describe('startTask — typed config errors before any side effect', () => {
     // deliberately invalid timeout instead.
     process.env['ATOMA_REQUIRE_ISOLATION'] = '1';
     process.env['ATOMA_CONTAINER'] = '1';
-    process.env[buildProfile.envVars.timeoutMs] = 'abc';
-    await expect(startTask(buildProfile, ['goal'])).rejects.toThrow(/expected positive integer/);
+    process.env[RUN_ENV.timeoutMs] = 'abc';
+    await expect(startTask(['goal'])).rejects.toThrow(/expected positive integer/);
   });
 
   it('leaves the developer path alone: claude-cli with NO snapshot is accepted', async () => {
@@ -282,14 +282,14 @@ describe('startTask — typed config errors before any side effect', () => {
     // run fails later — here on the deliberately invalid timeout, which only
     // gets evaluated once the transport has been accepted.
     Object.assign(process.env, CLAUDE_CLI_PINS);
-    process.env[buildProfile.envVars.timeoutMs] = 'abc';
-    await expect(startTask(buildProfile, ['goal'])).rejects.toThrow(/expected positive integer/);
+    process.env[RUN_ENV.timeoutMs] = 'abc';
+    await expect(startTask(['goal'])).rejects.toThrow(/expected positive integer/);
   });
 
   it('still requires parent authorization for a snapshot-only Codex L1 pin', async () => {
-    process.env[buildProfile.envVars.timeoutMs] = '60000';
+    process.env[RUN_ENV.timeoutMs] = '60000';
     delete process.env['ATOMA_MODEL_L1'];
-    await expect(startTask(buildProfile, ['goal'], {
+    await expect(startTask(['goal'], {
       providerEnv: { ...OLLAMA_PINS, ATOMA_MODEL_L1: 'sub:openai:gpt-5.6-luna' },
     })).rejects.toThrow(/cannot honour a supplied credential snapshot/);
   });
@@ -299,16 +299,16 @@ describe('startTask — typed config errors before any side effect', () => {
     // environment without one and must serve the default, not inherit the
     // ambient detonation.
     process.env['ATOMA_MODEL_L1'] = 'sub:openai:gpt-5.6-luna';
-    process.env[buildProfile.envVars.timeoutMs] = 'abc';
+    process.env[RUN_ENV.timeoutMs] = 'abc';
     await expect(
-      startTask(buildProfile, ['goal'], { providerEnv: { ...OLLAMA_PINS } })
+      startTask(['goal'], { providerEnv: { ...OLLAMA_PINS } })
     ).rejects.toThrow(/expected positive integer/);
   });
 
   it('refuses a machine-bound tier pin inside an otherwise key-bearing snapshot', async () => {
-    process.env[buildProfile.envVars.timeoutMs] = '60000';
+    process.env[RUN_ENV.timeoutMs] = '60000';
     await expect(
-      startTask(buildProfile, ['goal'], {
+      startTask(['goal'], {
         providerEnv: {
           ...ANTHROPIC_PINS,
           ANTHROPIC_API_KEY: 'sk-ant-tenant',
@@ -324,9 +324,9 @@ describe('startTask — typed config errors before any side effect', () => {
     // transport guard and fails later on the invalid timeout IN THE SNAPSHOT's
     // absence — proving the snapshot, not the ambient value, drove selection.
     Object.assign(process.env, CLAUDE_CLI_PINS);
-    process.env[buildProfile.envVars.timeoutMs] = 'abc';
+    process.env[RUN_ENV.timeoutMs] = 'abc';
     await expect(
-      startTask(buildProfile, ['goal'], {
+      startTask(['goal'], {
         providerEnv: { ...OLLAMA_PINS },
       })
     ).rejects.toThrow(/expected positive integer/);

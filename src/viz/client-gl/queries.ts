@@ -129,10 +129,10 @@ export function useBurnin(active: boolean) {
   });
 }
 
-export function useProfiles(active: boolean) {
+export function useGoalGuidance(active: boolean) {
   return useQuery({
-    queryKey: ['viz', 'profiles'],
-    queryFn: api.profiles,
+    queryKey: ['viz', 'goal-guidance'],
+    queryFn: api.goalGuidance,
     enabled: active,
     staleTime: Infinity,
   });

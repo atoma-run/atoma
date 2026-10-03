@@ -228,7 +228,6 @@ export const createProjectInputSchema = z
     name: projectNameSchema,
     slug: projectSlugSchema,
     initialPrompt: projectPromptSchema.default(''),
-    family: z.string().min(1).max(40).regex(/^[a-z][a-z0-9-]*$/).default('build'),
     repositoryTarget: repositoryTargetSchema,
   })
   .strict();
@@ -241,7 +240,6 @@ export const projectSchema = z
     name: projectNameSchema,
     slug: projectSlugSchema,
     initialPrompt: projectPromptSchema,
-    family: z.string().min(1).max(40),
     status: projectStatusSchema,
     repositoryTarget: repositoryTargetSchema,
     repositoryStatus: repositoryStatusSchema,

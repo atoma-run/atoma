@@ -51,7 +51,6 @@ import { assessShareability } from '../skills/shareability.js';
 import { computeFrictionRows, extractFrictionEvents } from '../viz/friction.js';
 import type { FrictionEvent } from '../viz/friction.js';
 import type { VizRun, VizTierModels } from '../viz/trace.js';
-import { LAUNCHABLE_PROFILES } from '../run/profiles/index.js';
 import { taxonomyForTier } from '../core/taxonomy.js';
 import { elementForTool } from '../contracts/toolTaxonomy.js';
 
@@ -111,34 +110,6 @@ function familyMapFromCsv(csvPath: string): Map<string, string> {
     if (trace && family) map.set(trace, family);
   }
   return map;
-}
-
-/* ------------------------------------------------------------------ families */
-
-/**
- * The launchable task families and how to phrase a goal for each.
- *
- * This makes the MCP server the THIRD consumer of `TaskProfile` (runner → the
- * viz project run form → here), which is the whole architectural argument for
- * `TaskProfileGuidance` being required rather than optional. It also inherits
- * the ban that `tests/viz-launch-profiles.test.ts` already enforces over
- * `LAUNCHABLE_PROFILES`: the guidance must never teach a user to name a
- * builtin tool in a goal (commit ae63e06 removed exactly that from subtask
- * descriptions; teaching it one level up, in the human's own words, would
- * reintroduce it).
- */
-export function families(): {
-  families: { id: string; label: string; help: string; examples: string[]; npmScript: string }[];
-} {
-  return {
-    families: LAUNCHABLE_PROFILES.map((p) => ({
-      id: p.profile.id,
-      label: p.profile.guidance.label,
-      help: p.profile.guidance.help,
-      examples: [...p.profile.guidance.examples],
-      npmScript: p.npmScript,
-    })),
-  };
 }
 
 /* ------------------------------------------------------------------ registry */

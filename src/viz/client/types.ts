@@ -224,10 +224,9 @@ export interface BurninRow {
   provider: string;
 }
 
-export interface LaunchProfile {
-  id: string;
+/** How to phrase a goal, and the shell command that starts a run (`/api/goal-guidance`). */
+export interface GoalGuidance {
   npmScript: string;
-  label: string;
   help: string;
   examples: string[];
 }

@@ -30,7 +30,6 @@ import { ATOMA_ICONS } from './icon.js';
 import { registerPrompts } from './prompts.js';
 import {
   costs,
-  families,
   friction,
   ledgerCheck,
   ledgerTail,
@@ -363,22 +362,6 @@ function tenant(ctx: McpToolContext): { service: ProjectService; store: ProjectS
 export const MCP_TOOLS: readonly McpToolSpec[] = [
   /* ---------------------------------------------------------------- viewer */
   {
-    name: 'atoma_families',
-    tier: 'viewer',
-    needs: [],
-    register: (server) =>
-      server.registerTool(
-        'atoma_families',
-        {
-          title: 'List task families',
-          description:
-            'The task families a run can target, each with guidance on how to phrase a goal and example goals. Call this before atoma_run_start if you are unsure how to word a goal.',
-          annotations: READ_ONLY,
-        },
-        () => jsonResult(families())
-      ),
-  },
-  {
     name: 'atoma_projects_list',
     tier: 'viewer',
     needs: ['projects'],
@@ -550,7 +533,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
         {
           title: 'Create a project',
           description:
-            'Create a project in your organisation, bound to a GitHub installation linked to it (atoma_projects_list shows the installations through the web console). The payload shape is the console’s: name, slug, family, repositoryTarget { installationId, owner, name, visibility }.',
+            'Create a project in your organisation, bound to a GitHub installation linked to it (atoma_projects_list shows the installations through the web console). The payload shape is the console’s: name, slug, repositoryTarget { installationId, owner, name, visibility }.',
           inputSchema: { project: z.record(z.string(), z.unknown()).describe('createProjectInput, as the web console sends it.') },
           annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
         },
@@ -681,7 +664,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
         {
           title: 'Start an OPERATOR run',
           description:
-            `Start a run in the instance’s OPERATOR corpus (not a project): the machine’s own runner, credentials and shared build workspace, as an MCP TASK — the call answers with a task id, tasks/get reports the run’s output tail as its status line and, once it ends, the final atoma_operator_run_status payload (tasks/result on the 2025-11-25 protocol), tasks/cancel cancels the run; called without task augmentation it returns when the run ends (minutes). DESTRUCTIVE: the workspace is archived first unless keepWorkspace, and the run mutates the registry, the skill store and the ledger. SERIALISED with every other run on the machine. Families: ${families().families.map((f) => `"${f.id}"`).join(', ')}.`,
+            `Start a run in the instance’s OPERATOR corpus (not a project): the machine’s own runner, credentials and shared build workspace, as an MCP TASK — the call answers with a task id, tasks/get reports the run’s output tail as its status line and, once it ends, the final atoma_operator_run_status payload (tasks/result on the 2025-11-25 protocol), tasks/cancel cancels the run; called without task augmentation it returns when the run ends (minutes). DESTRUCTIVE: the workspace is archived first unless keepWorkspace, and the run mutates the registry, the skill store and the ledger. SERIALISED with every other run on the machine.`,
           inputSchema: OPERATOR_RUN_INPUT,
           annotations: MUTATING,
         },
@@ -1312,9 +1295,8 @@ export function buildServerForCaller(input: BuildServerInput): McpServer {
     previousClose?.();
     for (const cleanup of cleanups.splice(0)) cleanup();
   };
-  // Resources follow the tools' tiers (`resources.ts`): every caller gets the
-  // families, a principal its organisation's runs, the platform tier the
-  // operator corpus — and a subscription tells a client when a run ends.
+  // Resources follow the tools' tiers (`resources.ts`): a principal gets its
+  // organisation's runs, the platform tier the operator corpus — and a subscription tells a client when a run ends.
   registerResources(server, ctx);
   // The prompt surface drives the operator readers (trace files, registry
   // names, molecule names) and completes over the operator store, so it

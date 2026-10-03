@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { I18N_CATALOGS, translate } from '../src/viz/client/i18n-catalog.js';
 import type {
   BurninRow,
-  LaunchProfile,
+  GoalGuidance,
   RegistrySummary,
   RegistryType,
   RunIndexEntry,
@@ -711,7 +711,7 @@ function makeData(overrides: Partial<GpuDataSnapshot> = {}): GpuDataSnapshot {
     skillDetail: null,
     skillDetailFailed: false,
     burnin: null,
-    profiles: [],
+    guidance: null,
     projects: [],
     projectRuns: {},
     githubInstallations: [],
@@ -848,11 +848,9 @@ function makeBurninRow(index: number, overrides: Partial<BurninRow> = {}): Burni
   };
 }
 
-const LAUNCH_PROFILE: LaunchProfile = {
-  id: 'build',
+const LAUNCH_GUIDANCE: GoalGuidance = {
   npmScript: 'run:build',
-  label: 'Build applications',
-  help: 'Long help text describing the family.',
+  help: 'Long help text describing the guidance.',
   examples: Array.from({ length: 8 }, (_, index) => `Example goal number ${index + 1}`),
 };
 
@@ -2990,7 +2988,7 @@ describe('drawProjects', () => {
         ctx,
         makeSnapshot(
           { view: 'projects', selectedProjectId },
-          { projects: [guidanceProject(), other], profiles: [LAUNCH_PROFILE] }
+          { projects: [guidanceProject(), other], guidance: LAUNCH_GUIDANCE }
         ),
         1000,
         720
@@ -3038,7 +3036,7 @@ describe('drawProjects', () => {
           { view: 'projects', selectedProjectId: GUIDANCE_PROJECT_ID },
           {
             projects: [guidanceProject()],
-            profiles: [LAUNCH_PROFILE],
+            guidance: LAUNCH_GUIDANCE,
             projectRuns: { [GUIDANCE_PROJECT_ID]: runs },
           }
         ),
@@ -3070,7 +3068,7 @@ describe('drawProjects', () => {
           { view: 'projects', selectedProjectId: GUIDANCE_PROJECT_ID },
           {
             projects: [guidanceProject()],
-            profiles: [LAUNCH_PROFILE],
+            guidance: LAUNCH_GUIDANCE,
             projectRuns: {
               [GUIDANCE_PROJECT_ID]: [
                 {
@@ -3162,7 +3160,7 @@ describe('drawProjects', () => {
           { view: 'projects', selectedProjectId: GUIDANCE_PROJECT_ID },
           {
             projects: [guidanceProject()],
-            profiles: [LAUNCH_PROFILE],
+            guidance: LAUNCH_GUIDANCE,
             projectRuns: { [GUIDANCE_PROJECT_ID]: [run] },
           }
         ),
@@ -3215,7 +3213,7 @@ describe('drawProjects', () => {
             repositoryFullName: null,
             repositoryUrl: null,
           }],
-          profiles: [LAUNCH_PROFILE],
+          guidance: LAUNCH_GUIDANCE,
         }
       ),
       1000,
@@ -3254,7 +3252,7 @@ describe('drawProjects', () => {
       ctx,
       makeSnapshot(
         { view: 'projects', selectedProjectId: pending.projectId },
-        { projects: [pending], profiles: [LAUNCH_PROFILE] }
+        { projects: [pending], guidance: LAUNCH_GUIDANCE }
       ),
       1000,
       720
@@ -4881,18 +4879,26 @@ function guidanceProject(): VizProject {
   };
 }
 
+/** The English catalog with the guidance override removed, so the fixture's own help is what wraps. */
+const tWithoutGuidanceKey = (key: string, vars?: Record<string, unknown>): string =>
+  key === 'launch.guidance' ? key : t(key, vars);
+
 function drawGuidance(
-  profile: LaunchProfile | null,
+  guidance: GoalGuidance | null,
   selected = true,
-  height = 720
+  height = 720,
+  catalog = false
 ): ReturnType<typeof createRecordingCtx> {
   const ctx = createRecordingCtx();
   drawProjects(
     ctx,
-    makeSnapshot(
-      { view: 'projects', selectedProjectId: selected ? GUIDANCE_PROJECT_ID : null },
-      { projects: [guidanceProject()], profiles: profile ? [profile] : [] }
-    ),
+    {
+      ...makeSnapshot(
+        { view: 'projects', selectedProjectId: selected ? GUIDANCE_PROJECT_ID : null },
+        { projects: [guidanceProject()], guidance }
+      ),
+      ...(catalog ? {} : { t: tWithoutGuidanceKey }),
+    },
     1000,
     height
   );
@@ -4900,8 +4906,8 @@ function drawGuidance(
 }
 
 describe('the run prompt carries its own guidance', () => {
-  it('renders the family help and click-to-fill examples for the selected project', () => {
-    const ctx = drawGuidance(LAUNCH_PROFILE);
+  it('renders the goal help and click-to-fill examples for the selected project', () => {
+    const ctx = drawGuidance(LAUNCH_GUIDANCE);
     expect(ctx.texts.some((text) => text.value === t('launch.help'))).toBe(true);
     expect(ctx.texts.some((text) => text.value === t('launch.examples'))).toBe(true);
     // One button per example, and the ids the activation handler slices an
@@ -4916,31 +4922,31 @@ describe('the run prompt carries its own guidance', () => {
     expect(row.y).toBeGreaterThan(firstExample.y);
   });
 
-  it('stays silent until a project is selected, and without a family', () => {
+  it('stays silent until a project is selected, and without guidance', () => {
     // The DOM form only shows the prompt textarea once a project is selected,
     // so guidance for an input that does not exist yet would be noise.
-    const unselected = drawGuidance(LAUNCH_PROFILE, false);
+    const unselected = drawGuidance(LAUNCH_GUIDANCE, false);
     expect(unselected.buttons.some((button) => button.id.startsWith('projects.example.'))).toBe(false);
     expect(unselected.texts.some((text) => text.value === t('launch.help'))).toBe(false);
-    // /api/profiles is supplementary copy: an empty payload must not stop the
+    // /api/goal-guidance is supplementary copy: an empty payload must not stop the
     // project list from rendering.
-    const noProfile = drawGuidance(null);
-    expect(noProfile.buttons.some((button) => button.id.startsWith('projects.example.'))).toBe(false);
-    expect(noProfile.texts.some((text) => text.value === 'repo ready')).toBe(true);
+    const noGuidance = drawGuidance(null);
+    expect(noGuidance.buttons.some((button) => button.id.startsWith('projects.example.'))).toBe(false);
+    expect(noGuidance.texts.some((text) => text.value === 'repo ready')).toBe(true);
   });
 
-  it('prefers a catalog override over the family English, per family id', () => {
-    // `launch.help.build` exists in the catalog, so a deployment's own wording
-    // wins; a family with no key falls back to what the profile carries.
-    const catalogued = drawGuidance({ ...LAUNCH_PROFILE, id: 'build' });
-    expect(catalogued.texts.some((text) => text.value === t('launch.help.build'))).toBe(true);
-    expect(catalogued.texts.some((text) => text.value === LAUNCH_PROFILE.help)).toBe(false);
+  it('prefers a catalog override over the guidance English', () => {
+    // `launch.guidance` exists in the catalog, so a deployment's own wording
+    // wins; without the key the guidance carries its own English.
+    const catalogued = drawGuidance(LAUNCH_GUIDANCE, true, 720, true);
+    expect(catalogued.texts.some((text) => text.value === t('launch.guidance'))).toBe(true);
+    expect(catalogued.texts.some((text) => text.value === LAUNCH_GUIDANCE.help)).toBe(false);
 
-    const unknownFamily = drawGuidance({ ...LAUNCH_PROFILE, id: 'no-such-family' });
-    expect(unknownFamily.texts.some((text) => text.value === LAUNCH_PROFILE.help)).toBe(true);
+    const uncatalogued = drawGuidance(LAUNCH_GUIDANCE);
+    expect(uncatalogued.texts.some((text) => text.value === LAUNCH_GUIDANCE.help)).toBe(true);
     // The key itself must never reach the screen.
     expect(
-      unknownFamily.texts.some((text) => String(text.value).startsWith('launch.help.'))
+      uncatalogued.texts.some((text) => String(text.value).startsWith('launch.guidance'))
     ).toBe(false);
   });
 
@@ -4948,9 +4954,9 @@ describe('the run prompt carries its own guidance', () => {
     const HEIGHT = 420;
     const mediumHelp = 'm'.repeat(800);
     const longHelp = 'l'.repeat(2400);
-    // An id with no catalog key, so the fixture's own paragraph is what wraps.
+    // No catalog key, so the fixture's own paragraph is what wraps.
     const draw = (help: string) =>
-      drawGuidance({ ...LAUNCH_PROFILE, id: 'no-such-family', help }, true, HEIGHT);
+      drawGuidance({ ...LAUNCH_GUIDANCE, help }, true, HEIGHT);
     const medium = draw(mediumHelp);
     const long = draw(longHelp);
     const heightDelta = textStub(longHelp).height - textStub(mediumHelp).height;
@@ -4970,7 +4976,7 @@ describe('the run prompt carries its own guidance', () => {
     // FINAL layout cursor, so it cannot be drawn before the text it sits
     // behind — a layer reserves the slot up front and the panel lands in it
     // last. Without the layer the backdrop would paint over the paragraph.
-    const ctx = drawGuidance(LAUNCH_PROFILE);
+    const ctx = drawGuidance(LAUNCH_GUIDANCE);
     const content = ctx.texts.find((text) => text.value === t('launch.help'))!.parent;
     // The view's own column frame is a panel as well, so select by SHAPE:
     // the backdrop is the one sitting in a reserved layer under the content.
@@ -4996,25 +5002,28 @@ describe('the run prompt carries its own guidance', () => {
       const ctx = createRecordingCtx();
       drawProjects(
         ctx,
-        makeSnapshot(
-          {
-            view: 'projects',
-            selectedProjectId: GUIDANCE_PROJECT_ID,
-            projectGuidanceExpanded: preference,
-          },
-          {
-            projects: [guidanceProject()],
-            profiles: [{ ...LAUNCH_PROFILE, id: 'no-such-family' }],
-            projectRuns: { [GUIDANCE_PROJECT_ID]: runs },
-          }
-        ),
+        {
+          ...makeSnapshot(
+            {
+              view: 'projects',
+              selectedProjectId: GUIDANCE_PROJECT_ID,
+              projectGuidanceExpanded: preference,
+            },
+            {
+              projects: [guidanceProject()],
+              guidance: LAUNCH_GUIDANCE,
+              projectRuns: { [GUIDANCE_PROJECT_ID]: runs },
+            }
+          ),
+          t: tWithoutGuidanceKey,
+        },
         1000,
         720
       );
       return ctx;
     };
     const bodyVisible = (ctx: ReturnType<typeof createRecordingCtx>) =>
-      ctx.texts.some((text) => text.value === LAUNCH_PROFILE.help);
+      ctx.texts.some((text) => text.value === LAUNCH_GUIDANCE.help);
     const run: VizProjectRun = {
       projectRunId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
       projectId: GUIDANCE_PROJECT_ID,
@@ -5062,7 +5071,7 @@ describe('the run prompt carries its own guidance', () => {
           { view: 'projects', selectedProjectId: GUIDANCE_PROJECT_ID },
           {
             projects: [guidanceProject()],
-            profiles: [LAUNCH_PROFILE],
+            guidance: LAUNCH_GUIDANCE,
             projectRuns: { [GUIDANCE_PROJECT_ID]: runs },
           }
         ),
@@ -5919,9 +5928,8 @@ describe('drawRuns — run status and timeline bookends', () => {
     // The goal titles the card, verbatim and exactly once.
     expect(expandedTexts).toContain(description);
     expect(expandedTexts.filter((value) => value === description)).toHaveLength(1);
-    // The family — the only thing the label held that the goal cannot — rides
-    // the eyebrow, and the stored label itself is never shown.
-    expect(expandedTexts).toContain(`${t('run.summary')} · build-app`.toUpperCase());
+    // The eyebrow names the card, and the stored label itself is never shown.
+    expect(expandedTexts).toContain(t('run.summary').toUpperCase());
     expect(expandedTexts.some((value) => value.includes(`build-app: ${description.slice(0, 40)}`)))
       .toBe(false);
     expect(expandedTexts).toContain(run.error);

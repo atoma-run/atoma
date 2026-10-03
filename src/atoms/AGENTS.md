@@ -47,10 +47,10 @@ Neighbours:
 ## Root delivery acceptance in depth routing
 - The depth runner's `rootAcceptance.ts` owns delivery acceptance:
   delegated result gates retain their dispositions, `probe.requiresReview`
-  forces review. Explicit profile floors require an executed DOM interaction
-  bound to the named, still-unchanged file in the accepted attempt. A profile
+  forces review. Explicit proof floors require an executed DOM interaction
+  bound to the named, still-unchanged file in the accepted attempt. A run
   without a floor always receives semantic delivery review at `modelForTier(1)`;
-  an empty floor is not automatic approval. The general build profile has no
+  an empty floor is not automatic approval. The run's depth contract has no
   universal `index.html` floor: APIs and CLIs are first-class deliverables.
   Covered explicit floors with no other findings retain mechanical acceptance.
   The root changes no phase credits or learning state. The probe receives only `output` and `summary`, as at L3; internal

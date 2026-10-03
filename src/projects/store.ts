@@ -146,7 +146,6 @@ CREATE TABLE IF NOT EXISTS projects (
   name                          TEXT NOT NULL,
   slug                          TEXT NOT NULL,
   initial_prompt                TEXT NOT NULL,
-  family                        TEXT NOT NULL,
   status                        TEXT NOT NULL CHECK (status IN ('active','archived')),
   github_installation_id        TEXT NOT NULL,
   repository_target_owner       TEXT NOT NULL,
@@ -430,7 +429,6 @@ interface ProjectRow {
   name: string;
   slug: string;
   initial_prompt: string;
-  family: string;
   status: string;
   github_installation_id: string;
   repository_source_json: string | null;
@@ -514,7 +512,6 @@ function projectFromRow(row: ProjectRow): Project {
     name: row.name,
     slug: row.slug,
     initialPrompt: row.initial_prompt,
-    family: row.family,
     status: row.status,
     repositoryTarget: {
       installationId: row.github_installation_id,
@@ -724,6 +721,13 @@ export class ProjectStore {
       // `'partial'`, and the rebuild copies the table as it finds it.
       migrateProjectRunsForPartial(this.db);
       migrateRunPayersForRunSource(this.db);
+      // The run family is gone (2026-10-03): the root agent is chosen from the
+      // request, so a project no longer names one. `DROP COLUMN` is enough —
+      // the column sits in no index, CHECK, trigger or foreign key — and it
+      // runs once per store, never on a fresh one.
+      if ((this.db.prepare('PRAGMA table_info(projects)').all() as { name: string }[]).some((column) => column.name === 'family')) {
+        this.db.exec('ALTER TABLE projects DROP COLUMN family');
+      }
       // ADDITIVE MIGRATION. `CREATE TABLE IF NOT EXISTS` does nothing to a
       // table that already exists, so a column added to the DDL above never
       // reaches a store created before it. Same guarded shape the auth store
@@ -922,10 +926,10 @@ END;
       this.db
         .prepare(
           `INSERT INTO projects (
-             project_id, org_id, created_by_principal_id, name, slug, initial_prompt, family,
+             project_id, org_id, created_by_principal_id, name, slug, initial_prompt,
              status, github_installation_id, repository_target_owner, repository_target_name,
              repository_visibility, repository_source_json, repository_status, created_at, updated_at
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, 'pending', ?, ?)`
+           ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, 'pending', ?, ?)`
         )
         .run(
           projectId,
@@ -934,7 +938,6 @@ END;
           project.name,
           project.slug,
           project.initialPrompt,
-          project.family,
           project.repositoryTarget.installationId,
           project.repositoryTarget.owner,
           project.repositoryTarget.name,

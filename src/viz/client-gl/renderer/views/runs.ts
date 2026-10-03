@@ -370,15 +370,13 @@ export function drawRuns(
       singleLine: true,
     }
   );
-  const heading = runHeading(run);
   // The native selector now owns the title row inside this panel. Drawing the
   // same run title under it would duplicate the selected value; the subtitle
-  // carries what that title cannot: who ran it, and when.
+  // carries what that title cannot: when it ran.
   // WHEN this run happened, as an age. The exact instant is one hover away —
   // `fmtTime` still formats it, in the reader's locale, inside the bubble.
   const startedAge = relativeTime(run.startedAt, snapshot.t, snapshot.state.locale);
-  const subtitle = [heading.family, startedAge].filter(Boolean).join('  ·  ');
-  ctx.text(ctx.root, subtitle, leftX + 14, top + 46 + RUNS_PROJECT_TITLE_HEIGHT, {
+  ctx.text(ctx.root, startedAge, leftX + 14, top + 46 + RUNS_PROJECT_TITLE_HEIGHT, {
     size: 11,
     color: GPU_COLORS.muted,
     width: leftWidth - 28,
@@ -1370,13 +1368,12 @@ function drawRunSummaryCard(
   const block = new Container();
   let cursor = 12;
   // The goal is the TITLE, and it appears exactly once: a run's stored label
-  // is a cut copy of that same sentence plus the family, so the old separate
-  // GOAL block said the very same thing twice. The family, the one piece the
-  // goal cannot carry, rides the eyebrow.
+  // is a cut copy of that same sentence, so the old separate GOAL block said
+  // the very same thing twice.
   const heading = runHeading(run);
   ctx.text(
     block,
-    [snapshot.t('run.summary'), heading.family].filter(Boolean).join(' · ').toUpperCase(),
+    snapshot.t('run.summary').toUpperCase(),
     padX,
     cursor,
     { size: 10, weight: '700', color: GPU_COLORS.cyan }

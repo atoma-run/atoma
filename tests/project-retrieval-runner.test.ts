@@ -9,7 +9,7 @@ import { parseRunStatsEpilogue } from '../src/contracts/runStats.js';
 import { MockLlmClient } from '../src/core/llm.js';
 import { resetHostLifecycleSnapshotForTests, startTask } from '../src/run/runner.js';
 import { ledgerScope, setLedgerScope } from '../src/core/ledger.js';
-import { buildProfile } from '../src/run/profiles/build.js';
+import type { SeedContext } from '../src/run/setup.js';
 import { containerToolBackend, localToolBackend } from '../src/run/toolBackend.js';
 import { buildTierClients } from '../src/run/providers.js';
 import { PROJECT_RETRIEVAL_TOOL_NAME as SEARCH } from '../src/contracts/projectRetrieval.js';
@@ -79,7 +79,7 @@ describe('trusted retrieval injection through startTask', () => {
     });
     vi.mocked(buildTierClients).mockReturnValue({ ollama: llm });
     vi.mocked(containerToolBackend).mockImplementation(async opts => localToolBackend({ workspaceRoot: opts.workspaceRoot, logger: silentLogger() }));
-    const handle = await startTask(buildProfile, ['--container', '--baseline', '--no-learn-skills', '--no-promote-skills', '--no-direct-skills', 'Consult the source.']);
+    const handle = await startTask(['--container', '--baseline', '--no-learn-skills', '--no-promote-skills', '--no-direct-skills', 'Consult the source.']);
     try {
       // T7: the run proved which registered run it is, and every lifecycle
       // event this process appends from here on carries that organisation,
@@ -117,15 +117,15 @@ describe('trusted retrieval injection through startTask', () => {
     vi.mocked(buildTierClients).mockReturnValue({ ollama: new MockLlmClient() });
     vi.mocked(containerToolBackend).mockImplementation(async opts => localToolBackend({ workspaceRoot: opts.workspaceRoot, logger: silentLogger() }));
     let captured: AtomRegistry | undefined;
-    const seedCatalog = vi.fn((ctx: Parameters<typeof buildProfile.seedCatalog>[0]) => {
+    const seedCatalog = vi.fn((ctx: SeedContext, canonical: (seed: SeedContext) => void) => {
       captured = ctx.registry;
       expect(ctx.registry.listByTier(1).map(type => type.systemPrompt)).toEqual(['Shared by every run']);
       ctx.registry.create(1, { description: 'Project price 731', systemPrompt: 'Project price 731', tools: [], params: {}, createdBy: 'project' });
-      return buildProfile.seedCatalog(ctx);
+      canonical(ctx);
     });
     vi.spyOn(L3Atom.prototype, 'handle').mockResolvedValue({ output: 'done', summary: 'done', trace: [],
       producedBy: { tier: 3, name: 'Meristem', viaFallback: false } });
-    const handle = await startTask({ ...buildProfile, seedCatalog }, ['--container', '--no-promote-skills', '--no-direct-skills', 'Read workspace.']);
+    const handle = await startTask(['--container', '--no-promote-skills', '--no-direct-skills', 'Read workspace.'], { seedCatalog });
     await handle.settled;
     // What the project run created is on the platform registry, beside what was
     // there and beside the canonical types the profile bootstraps.
@@ -143,7 +143,7 @@ describe('trusted retrieval injection through startTask', () => {
       ATOMA_RUNS_DIR: current.layout.runsPath, ATOMA_SKILLS_DIR: current.layout.skillsPath,
       ATOMA_SKILL_PROMOTE: '0', ATOMA_SKILL_DIRECT: '0', ATOMA_PREFILTER_CACHE: '0' })) vi.stubEnv(key, value);
     resetHostLifecycleSnapshotForTests(); vi.mocked(buildTierClients).mockClear();
-    await expect(startTask(buildProfile, ['--container', '--no-promote-skills', '--no-direct-skills', 'Read workspace.']))
+    await expect(startTask(['--container', '--no-promote-skills', '--no-direct-skills', 'Read workspace.']))
       .rejects.toThrow('project run launch is unavailable or denied');
     expect(buildTierClients).not.toHaveBeenCalled(); expect(existsSync(join(root, 'wrong-workspace'))).toBe(false);
   });
@@ -163,7 +163,7 @@ describe('trusted retrieval injection through startTask', () => {
     vi.stubEnv(HAYSTACK_LAUNCH_ENV, missingConfig ? undefined : JSON.stringify(haystackTestRuntime(root)));
     resetHostLifecycleSnapshotForTests();
     vi.mocked(buildTierClients).mockClear(); vi.mocked(containerToolBackend).mockClear();
-    await expect(startTask(buildProfile, ['--container', '--no-promote-skills', '--no-direct-skills', 'Consult source.']))
+    await expect(startTask(['--container', '--no-promote-skills', '--no-direct-skills', 'Consult source.']))
       .rejects.toThrow(missingConfig ? HAYSTACK_LAUNCH_ENV : 'unavailable or denied');
     expect(buildTierClients).not.toHaveBeenCalled(); expect(containerToolBackend).not.toHaveBeenCalled();
     expect(existsSync(current.layout.workspacePath)).toBe(false);
@@ -183,7 +183,7 @@ describe('trusted retrieval injection through startTask', () => {
     }));
     let handle: Awaited<ReturnType<typeof startTask>> | undefined;
     try {
-      handle = await startTask(buildProfile, ['--baseline', container ? '--container' : '--no-container',
+      handle = await startTask(['--baseline', container ? '--container' : '--no-container',
         '--no-learn-skills', '--no-promote-skills', '--no-direct-skills', 'Consult the project source.'],
       { projectRetrieval: binding });
       expect((await handle.settled).outcome).toBe('delivered');
@@ -204,7 +204,7 @@ describe('trusted retrieval injection through startTask', () => {
     writeFileSync(join(root, 'workspace/keep.txt'), 'prior deliverable');
     vi.mocked(buildTierClients).mockClear();
     vi.mocked(containerToolBackend).mockClear();
-    await expect(startTask(buildProfile, ['--container', 'Consult the project source.'], {
+    await expect(startTask(['--container', 'Consult the project source.'], {
       projectRetrieval: binding,
       ...(kind === 'provider-snapshot-omits-tenant' ? { providerEnv: {
         ATOMA_MODEL_L1: 'api:ollama:test', ATOMA_MODEL_L2: 'api:ollama:test', ATOMA_MODEL_L3: 'api:ollama:test',

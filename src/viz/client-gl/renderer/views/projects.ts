@@ -1,6 +1,6 @@
 import { Container, Graphics, Rectangle } from 'pixi.js';
 import { dateTimeFormat } from '../../../client/date-format.js';
-import type { LaunchProfile, VizProjectRun } from '../../../client/types.js';
+import type { GoalGuidance, VizProjectRun } from '../../../client/types.js';
 import { BUTTON_LABEL_INSET } from '../../gpu-renderer.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { projectGuidanceOpen } from '../../store.js';
@@ -195,15 +195,15 @@ const EXAMPLE_GAP = 8;
 const EXAMPLE_COLUMNS = 2;
 
 /**
- * A catalog key beats the profile's own English when the deployment has one:
+ * A catalog key beats the guidance's own English when the deployment has one:
  * `t()` echoes an unknown key back, which is how a miss is detected — the
- * same resolution the MUI fallback applies, so a new family stays describable
- * without touching either client.
+ * same resolution the MUI fallback applies, so a rewording of the guidance
+ * stays describable without touching either client.
  */
-function familyHelp(t: GpuRenderSnapshot['t'], profile: LaunchProfile): string {
-  const key = `launch.help.${profile.id}`;
+function guidanceHelp(t: GpuRenderSnapshot['t'], guidance: GoalGuidance): string {
+  const key = 'launch.guidance';
   const translated = t(key);
-  return translated === key ? profile.help : translated;
+  return translated === key ? guidance.help : translated;
 }
 
 /** Height of the always-visible header row a viewer clicks to expand/collapse. */
@@ -227,7 +227,7 @@ function drawPromptGuidance(
   parent: Container,
   x: number,
   panelWidth: number,
-  profile: LaunchProfile,
+  guidance: GoalGuidance,
   expanded: boolean
 ): number {
   const panelLayer = new Container();
@@ -250,20 +250,20 @@ function drawPromptGuidance(
 
   let cursor = GUIDANCE_PAD + GUIDANCE_HEADER_HEIGHT;
   if (expanded) {
-    const body = ctx.text(parent, familyHelp(snapshot.t, profile), innerX, cursor + 8, {
+    const body = ctx.text(parent, guidanceHelp(snapshot.t, guidance), innerX, cursor + 8, {
       size: 11,
       color: GPU_COLORS.muted,
       width: innerWidth,
     });
     cursor += 8 + body.height + 18;
-    if (profile.examples.length > 0) {
+    if (guidance.examples.length > 0) {
       ctx.text(parent, snapshot.t('launch.examples'), innerX, cursor, {
         size: 10,
         weight: '600',
       });
       cursor += 22;
       const exampleWidth = (innerWidth - EXAMPLE_GAP * (EXAMPLE_COLUMNS - 1)) / EXAMPLE_COLUMNS;
-      profile.examples.forEach((example, index) => {
+      guidance.examples.forEach((example, index) => {
         const column = index % EXAMPLE_COLUMNS;
         const row = Math.floor(index / EXAMPLE_COLUMNS);
         ctx.button(
@@ -280,7 +280,7 @@ function drawPromptGuidance(
           snapshot.onActivate
         );
       });
-      const rows = Math.ceil(profile.examples.length / EXAMPLE_COLUMNS);
+      const rows = Math.ceil(guidance.examples.length / EXAMPLE_COLUMNS);
       cursor += rows * (EXAMPLE_HEIGHT + EXAMPLE_GAP) - EXAMPLE_GAP;
     }
   }
@@ -506,16 +506,16 @@ export function drawProjects(
   // before and this panel is tall enough to bury that history. It disappears
   // WHOLE once any run exists — not merely collapsed to a lingering heading.
   // The list below shifts by its MEASURED height; nothing here estimates it.
-  const guidanceProfile = snapshot.data.profiles[0];
+  const guidance = snapshot.data.guidance;
   const listOffset =
-    selectedProject && selectedRuns.length === 0 && guidanceProfile
+    selectedProject && selectedRuns.length === 0 && guidance
       ? drawPromptGuidance(
           ctx,
           snapshot,
           pane.content,
           layout.x,
           layout.panelWidth,
-          guidanceProfile,
+          guidance,
           projectGuidanceOpen(snapshot.state.projectGuidanceExpanded)
         )
       : 0;

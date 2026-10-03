@@ -1,6 +1,6 @@
-import type { LaunchProfile } from './types.js';
+import type { GoalGuidance } from './types.js';
 
-export function launchCommand(profile: LaunchProfile | undefined, goal: string): string {
-  if (!profile || !goal.trim()) return '';
-  return `npm run ${profile.npmScript} -- "${goal.trim().replace(/"/g, '\\"')}"`;
+export function launchCommand(guidance: GoalGuidance | undefined, goal: string): string {
+  if (!guidance || !goal.trim()) return '';
+  return `npm run ${guidance.npmScript} -- "${goal.trim().replace(/"/g, '\\"')}"`;
 }

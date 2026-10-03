@@ -157,17 +157,13 @@ const routes: Record<string, unknown> = {
     ],
     csvPath: '/tmp/results.csv',
   },
-  '/api/profiles': {
+  '/api/goal-guidance': {
     launchEnabled: false,
-    profiles: [
-      {
-        id: 'build',
-        npmScript: 'run:build',
-        label: 'Build',
-        help: 'Describe one runnable artifact.',
-        examples: ['Build a tiny CLI', 'Build a tiny web page'],
-      },
-    ],
+    guidance: {
+      npmScript: 'run:build',
+      help: 'Describe one runnable artifact.',
+      examples: ['Build a tiny CLI', 'Build a tiny web page'],
+    },
   },
 };
 

@@ -54,7 +54,7 @@ import {
   useOrganisation,
   useGithubInstallations,
   usePreviewStatus,
-  useProfiles,
+  useGoalGuidance,
   useProjectRuns,
   useProjects,
   useRegistries,
@@ -226,11 +226,11 @@ function GpuAppContent({
   const skillSelection = state.view === 'skills' ? state.selectedSkill : runSkillSelection;
   const skillDetailQuery = useSkillDetail(skillSelection, Boolean(skillSelection) && apiReady);
   const burninQuery = useBurnin(state.view === 'burnin' && operatorSurfaces);
-  // The family guidance renders inside the project run form, so it is fetched
+  // The goal guidance renders inside the project run form, so it is fetched
   // with the Projects view. It is supplementary copy, never gating: it is
-  // deliberately absent from `loading` below, so a slow /api/profiles cannot
-  // hide the project list behind a spinner.
-  const profilesQuery = useProfiles(state.view === 'projects' && apiReady);
+  // deliberately absent from `loading` below, so a slow /api/goal-guidance
+  // cannot hide the project list behind a spinner.
+  const guidanceQuery = useGoalGuidance(state.view === 'projects' && apiReady);
   // Project routes exist only behind the auth gate; an ungated server 404s
   // them. Left enabled, those 404s poisoned the GLOBAL `data.error` below and
   // the runs view then rendered an error banner instead of its list — the
@@ -948,7 +948,7 @@ function GpuAppContent({
     }
     if (id.startsWith('projects.example.')) {
       const index = Number(id.slice('projects.example.'.length));
-      const example = profilesQuery.data?.profiles[0]?.examples[index];
+      const example = guidanceQuery.data?.guidance.examples[index];
       if (example) store.setSearch('projectPrompt', example);
       return;
     }
@@ -996,7 +996,7 @@ function GpuAppContent({
     mintInvitation,
     pendingLoginProvider,
     previewQuery.data?.state,
-    profilesQuery.data,
+    guidanceQuery.data,
     projectsQuery.data,
     requestPreview,
     runQuery.data,
@@ -1033,7 +1033,7 @@ function GpuAppContent({
     // as a global error painted a banner over the whole run graph. It
     // surfaces as `skillDetailFailed` in the pane instead.
     burninQuery.error,
-    profilesQuery.error,
+    guidanceQuery.error,
     projectsQuery.error,
     githubInstallationsQuery.error,
     projectRunsQuery.error,
@@ -1057,7 +1057,7 @@ function GpuAppContent({
     skillDetail: skillDetailQuery.data ?? null,
     skillDetailFailed: skillDetailQuery.isError,
     burnin: burninQuery.data ?? null,
-    profiles: profilesQuery.data?.profiles ?? [],
+    guidance: guidanceQuery.data?.guidance ?? null,
     projects: projectsQuery.data ?? [],
     projectRuns: resultProjectId && resultProjectRunsQuery.data
       ? { ...projectRuns, [resultProjectId]: resultProjectRunsQuery.data } : projectRuns,
@@ -1110,7 +1110,7 @@ function GpuAppContent({
     githubInstallationsQuery.data,
     loading,
     namespacesQuery.data,
-    profilesQuery.data,
+    guidanceQuery.data,
     projectRuns,
     projectsQuery.data,
     registriesQuery.data,

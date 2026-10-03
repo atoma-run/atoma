@@ -31,7 +31,6 @@ import {
 import type { RunLeaseAcquirer } from '../src/mcp/runLock.js';
 import {
   costs,
-  families,
   friction,
   ledgerTail,
   pathIsInsideDir,
@@ -162,16 +161,8 @@ describe('MCP run tool — argv assembly and validation', () => {
     );
   });
 
-  it('resolves the family through findLaunchable, so unknown and traversal ids are refused', () => {
-    expect(validateStartInput({ goal: 'g' })).toMatchObject({
-      family: 'build',
-      npmScript: 'run:build',
-    });
-    expect(validateStartInput({ goal: 'g', family: 'build' }).family).toBe('build');
-    expect(() => validateStartInput({ goal: 'g', family: 'nope' })).toThrow(/unknown family/);
-    expect(() => validateStartInput({ goal: 'g', family: '../etc/passwd' })).toThrow(
-      /unknown family/
-    );
+  it('starts the one run script, named by the goal guidance', () => {
+    expect(validateStartInput({ goal: 'g' })).toMatchObject({ npmScript: 'run:build' });
   });
 
   it('validates the timeout BEFORE spawning — the runner exits(2) on a bad one', () => {
@@ -194,15 +185,14 @@ describe('MCP run tool — serialisation', () => {
     vi.stubEnv(HAYSTACK_LAUNCH_ENV, config);
     try {
       const runner = pathToFileURL(join(repoRoot(), 'src/run/runner.ts')).href;
-      const profile = pathToFileURL(join(repoRoot(), 'src/run/profiles/build.ts')).href;
       let error = '';
       await startTestRun({ goal: 'Verify recorded API probes.' }, opts => {
         // Cross the process boundary and the real runner's launch validation.
         // A deliberately invalid budget stops BEFORE providers or workspaces;
         // the regression used to stop earlier, at the tenant receipt guard.
         const child = spawnSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e',
-          `import { startTask } from ${JSON.stringify(runner)}; import { buildProfile } from ${JSON.stringify(profile)};
-           try { await startTask(buildProfile, ['Verify recorded API probes.']); }
+          `import { startTask } from ${JSON.stringify(runner)};
+           try { await startTask(['Verify recorded API probes.']); }
            catch (error) { console.error(error.message); process.exitCode = 2; }`], {
           cwd: repoRoot(), encoding: 'utf8', timeout: 20_000,
           env: { ...(opts.env ?? process.env), ATOMA_BUILD_TIMEOUT_MS: '0',
@@ -700,21 +690,11 @@ describe('MCP readers', () => {
     expect(garbage.events).toHaveLength(200);
   });
 
-  it('exposes the launchable families with their guidance — the third consumer of TaskProfile', () => {
-    const out = families();
-    expect(out.families.length).toBeGreaterThan(0);
-    for (const f of out.families) {
-      expect(f.id.length).toBeGreaterThan(0);
-      expect(f.label.length).toBeGreaterThan(0);
-      expect(f.help.length).toBeGreaterThan(0);
-      expect(f.examples.length).toBeGreaterThan(0);
-    }
-  });
 });
 
 describe('MCP server instructions', () => {
   /**
-   * Same rule tests/viz-launch-profiles.test.ts enforces over the Launch tab
+   * Same rule tests/goal-guidance.test.ts enforces over the goal
    * guidance: never teach a caller to name a builtin tool in a goal. The
    * vocabulary is the closed builtin list, so this check tracks the toolset
    * automatically.

@@ -166,7 +166,6 @@ function seedProject(a: Actor, slug: string): string {
       name: slug,
       slug,
       initialPrompt: '',
-      family: 'build',
       repositoryTarget: { installationId: '1', owner: 'acme', name: slug, visibility: 'private' },
     },
   }).projectId;

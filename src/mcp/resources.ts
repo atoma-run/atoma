@@ -32,11 +32,10 @@
 import { ResourceTemplate, type McpServer } from '@modelcontextprotocol/server';
 import { ProjectHttpError } from '../projects/service.js';
 import { callerTier, tierAllows, type McpCaller } from './identity.js';
-import { completeTraceFile, families, runTrace, runsList } from './readers.js';
+import { completeTraceFile, runTrace, runsList } from './readers.js';
 import { onRunFinished, runStatus } from './run.js';
 import type { McpToolContext } from './tools.js';
 
-export const FAMILIES_URI = 'atoma://families';
 export const OPERATOR_TRACE_TEMPLATE = 'atoma://runs/{file}';
 export const OPERATOR_RUN_TEMPLATE = 'atoma://operator-runs/{runId}';
 export const PROJECT_RUN_TEMPLATE = 'atoma://projects/{projectId}/runs/{runId}';
@@ -67,14 +66,13 @@ function one(value: string | string[] | undefined): string {
 
 /**
  * Whether `caller` may follow `uri` on a 2026 listen stream — the resources
- * its own tier registers: the families for everyone, the operator corpus at
- * the platform tier on a host that runs it, a project run of the caller's own
+ * its own tier registers: the operator corpus at the platform tier on a host
+ * that runs it, a project run of the caller's own
  * organisation. A 2025 session only hears of what its tier registered, since
  * only those listeners are hooked; the 2026 bus is one for the process, so the
  * listen filter is narrowed to this instead.
  */
 export function mayFollowResource(caller: McpCaller, deps: McpToolContext['deps'], uri: string): boolean {
-  if (uri === FAMILIES_URI) return true;
   if (uri.startsWith('atoma://runs/') || uri.startsWith('atoma://operator-runs/')) {
     return deps.operatorRuns && tierAllows(callerTier(caller), 'platform');
   }
@@ -146,17 +144,6 @@ export function registerResources(server: McpServer, ctx: McpToolContext): void 
     if (!subscribed.has(uri)) return;
     void server.server.sendResourceUpdated({ uri }).catch(() => {});
   };
-
-  server.registerResource(
-    'families',
-    FAMILIES_URI,
-    {
-      title: 'Launchable task families',
-      description: 'How to phrase a goal for each family, from the task profiles. The same payload as atoma_families.',
-      mimeType: JSON_MIME,
-    },
-    (uri) => jsonContents(uri, families())
-  );
 
   if (ctx.deps.projects && ctx.caller.kind === 'principal') {
     const { service, store } = ctx.deps.projects;

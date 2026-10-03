@@ -148,7 +148,6 @@ function publicProject(
     name: project.name,
     slug: project.slug,
     status: project.status,
-    family: project.family,
     repositoryTarget: project.repositoryTarget,
     repositoryStatus: project.repositoryStatus,
     repositoryFullName: project.repositoryFullName,
@@ -285,7 +284,7 @@ export class ProjectService {
         orgId: viewer.orgId,
         projectId: project.projectId,
         summary: `Project "${eventLabel(project.name)}" created`,
-        detail: { slug: project.slug, family: project.family },
+        detail: { slug: project.slug },
       });
       return publicProject(project);
     } catch (error) {

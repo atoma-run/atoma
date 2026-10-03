@@ -62,7 +62,7 @@ export const ADMIN_VIEWS: readonly ViewName[] = [
  *
  * There is no `launch` tab: a tab that could only DESCRIBE how to phrase a
  * goal, beside a Projects tab that actually starts runs, split one job over
- * two places. The family guidance now renders inside the project run form
+ * two places. The goal guidance now renders inside the project run form
  * (`views/projects.ts`), while the member guide expands the same principle
  * under Strong goals.
  */

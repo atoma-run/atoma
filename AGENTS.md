@@ -28,7 +28,7 @@ Use it when a rule's rationale matters, not as default session context.
 |---|---|---|
 | `src/atoms/` | [src/atoms/AGENTS.md](src/atoms/AGENTS.md) | supervision loop, planning, prefilter, trust, validation, ground truth, result gates |
 | `src/core/` | [src/core/AGENTS.md](src/core/AGENTS.md) | LLM client and transports, models and tier pins, cost accounting, ledger, metrics |
-| `src/run/` | [src/run/AGENTS.md](src/run/AGENTS.md) | `startTask`/`runTask`, task profiles, provider construction, run accounting |
+| `src/run/` | [src/run/AGENTS.md](src/run/AGENTS.md) | `startTask`/`runTask`, the run setup, provider construction, run accounting |
 | `src/registry/` | [src/registry/AGENTS.md](src/registry/AGENTS.md) | atom-type identity, names and ordinals, bootstrap, trust counters |
 | `src/skills/` | [src/skills/AGENTS.md](src/skills/AGENTS.md) | learn, match, credit, compile, trusted dispatch, operator lifecycle |
 | `src/tools/` | [src/tools/AGENTS.md](src/tools/AGENTS.md) | elements, sandbox, worker, container isolation, egress, browser probes |
@@ -94,7 +94,7 @@ The public composition model is **Element → Molecule → Cell → Tissue**.
 - Numeric tiers 1/2/3 remain stable in storage, traces, env vars, and class
   names. Implementation names such as `AtomRegistry`, `Tool`, and
   `atom_types` remain stable too.
-- The 41 `atoma_*` MCP tools are host control/read APIs, not L1 elements; a
+- The 40 `atoma_*` MCP tools are host control/read APIs, not L1 elements; a
   caller sees the subset its tier admits (viewer, member, admin, platform).
 - Public taxonomy aliases coexist with legacy exports for compatibility.
 
@@ -410,7 +410,7 @@ The catalogue is a compatibility contract for every registered client. Decisions
 Read the archived sections before changing something that merely looks odd.
 
 - Do not blindly replay child commands for verification or add supervisor egress.
-- Keep one runner with profiles, one cost formula, one selector parser, one
+- Keep one runner with one setup, one cost formula, one selector parser, one
   contract per shape, and one source of live-state truth.
 - Every subsystem file carries its own intentional-choices section listing the
   shortcuts already tried and reverted there. Read it before re-proposing one.

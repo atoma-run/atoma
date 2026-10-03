@@ -64,7 +64,8 @@ import {
 } from '../contracts/runStats.js';
 import { declaredArtifactManifestSchema } from '../contracts/artifactManifest.js';
 import type { LlmClient, Logger, Plan, Result, RunContext, Task } from '../core/types.js';
-import type { TaskProfile } from './profile.js';
+import { GOAL_GUIDANCE } from './guidance.js';
+import { DEPTH_CONTRACT, RUN_DEFAULTS, RUN_ENV, TRACE_LABEL_PREFIX, prepareWorkspace, seedCatalog, type SeedContext } from './setup.js';
 import { seedTissueCatalog } from './tissues.js';
 import { selectTissue } from './tissueRouting.js';
 import { capturePlatformTissueAuthor, platformTissueAuthor, type TissueAuthor } from './tissueAuthor.js';
@@ -253,11 +254,8 @@ const stripDashes = (flag: string): string => flag.slice(2);
 /** Spellings that print usage and exit 0 — answered by `runTask` before any side effect. */
 export const HELP_FLAGS: readonly string[] = ['--help', '-h'];
 
-/**
- * Usage text for a family's CLI, derived from the profile's own guidance so
- * a new family is describable without touching the runner.
- */
-export function formatUsage(profile: TaskProfile): string {
+/** Usage text of the run CLI, derived from the shared goal guidance. */
+export function formatUsage(): string {
   const flags = [
     ...RUNNER_BOOLEAN_FLAGS,
     ...RUNNER_NEGATABLE_FLAGS.flatMap((flag) => [flag, `--no-${stripDashes(flag)}`]),
@@ -266,24 +264,21 @@ export function formatUsage(profile: TaskProfile): string {
     '--worker-image <sha256:digest> (requires container mode)',
   ];
   return [
-    `Usage: ${profile.id} [flags] "<goal>"`,
+    `Usage: run [flags] "<goal>"`,
     ``,
-    `${profile.guidance.label}. ${profile.guidance.help}`,
+    GOAL_GUIDANCE.help,
     ``,
     `Flags:`,
     ...flags.map((flag) => `  ${flag}`),
     `  --help, -h`,
     ``,
-    `Without a goal the run uses this family's default goal.`,
-    ...(profile.depthExperiment?.defaultMode ? [
-      `New runs default to ${profile.depthExperiment.defaultMode} supervision; --depth overrides it.`,
-      `Short supervision enters at L2 and may restart once through L3.`,
-    ] : []),
+    `New runs default to ${DEPTH_CONTRACT.defaultMode} supervision; --depth overrides it.`,
+    `Short supervision enters at L2 and may restart once through L3.`,
     `Every run needs ATOMA_MODEL_L1, ATOMA_MODEL_L2 and ATOMA_MODEL_L3 set to a`,
     `<api|sub|own>:<vendor>:<model> selector.`,
     ``,
     `Examples:`,
-    ...profile.guidance.examples.map((example) => `  ${profile.id} "${example}"`),
+    ...GOAL_GUIDANCE.examples.map((example) => `  run "${example}"`),
   ].join('\n');
 }
 
@@ -365,7 +360,7 @@ export function resolveSkillPromotion(
  *
  * An explicit `--depth` always wins. A baseline or a registered comparison arm
  * keeps the protocol it was registered under, whatever default ships later.
- * EVERYTHING ELSE takes the family's default — including a project run, which
+ * EVERYTHING ELSE takes the default — including a project run, which
  * seeds a workspace to continue its corpus rather than to hold a protocol
  * fixed. Reading those two as one is what removed root delivery acceptance
  * from every project run after a project's first; the depth design had already
@@ -497,7 +492,7 @@ export function resetHostLifecycleSnapshotForTests(): void {
 }
 
 /**
- * Launch one task and return a handle, for any family.
+ * Launch one task and return a handle.
  *
  * Extracted from `runTask` (itself extracted from the old
  * `examples/build-app.ts`, which had become the product while living in
@@ -513,7 +508,7 @@ export function resetHostLifecycleSnapshotForTests(): void {
  * here — `✓ build finished`, `--- run failed ---` and `TIMEOUT after` — and
  * changing any of them silently reclassifies runs. The rest of what the
  * harness greps for is emitted by the library and the metrics table.
- * `tests/run-profile-build.test.ts` pins all three.
+ * `tests/run-cli.test.ts` pins all three.
  *
  * `opts.onWedged` is the LAST-RESORT action when the watchdog finds the
  * transport wedged past the deadline. The default preserves the historical
@@ -523,10 +518,11 @@ export function resetHostLifecycleSnapshotForTests(): void {
  * knowing the wedged transport may hold the event loop open regardless.
  */
 export async function startTask(
-  profile: TaskProfile,
   argv: readonly string[],
   opts?: {
     onWedged?: () => void;
+    /** Library/test seam: replaces the catalog seeding step; it receives the canonical seeding to call, or to skip. */
+    seedCatalog?: (seed: SeedContext, canonical: (seed: SeedContext) => void) => void;
     providerEnv?: NodeJS.ProcessEnv;
     requireIsolation?: boolean;
     /** Trusted library injection; marked project children resolve a stored receipt instead. */
@@ -587,9 +583,8 @@ export async function startTask(
   const useClaudeCli = referencedTransports(selectors).includes('claude-cli');
 
   const args = parseRunnerArgs(argv);
-  const resolvedDepth = resolveSupervisionDepth(args, profile.depthExperiment?.defaultMode);
+  const resolvedDepth = resolveSupervisionDepth(args, DEPTH_CONTRACT.defaultMode);
   if (resolvedDepth) args.depth = resolvedDepth;
-  if (args.depth && !profile.depthExperiment) throw new RunnerConfigError('This profile has no supervision depth contract');
   const goal = args.goal?.trim();
   if (!goal) throw new RunnerConfigError('A task goal is required. Describe the outcome you want.');
   // AMBIENT BY DESIGN, unlike the lifecycle toggles and tier pins: the
@@ -655,14 +650,11 @@ export async function startTask(
     args,
     resolveIsolationRequirement(process.env, opts?.requireIsolation)
   );
-  // The WORKSPACE is per-family; the STORE is not. A catalog of atom types
-  // and skills is deliberately cross-family — `resolveCreationDescription`
-  // strips task themes from descriptions precisely so a type earns reuse
-  // outside the family that spawned it — so partitioning the registry by
-  // family fought the one property it exists to have. The profile still names
-  // the env var (a family COULD point elsewhere); today they all name
-  // `ATOMA_DB_PATH`. See src/core/stores.ts for the four drifted copies this
-  // replaced.
+  // A catalog of atom types and skills is deliberately shared across tasks —
+  // `resolveCreationDescription` strips task themes from descriptions
+  // precisely so a type earns reuse beyond the task that spawned it. The
+  // store is `ATOMA_DB_PATH`. See src/core/stores.ts for the four drifted
+  // copies this replaced.
   //
   // Resolved HERE, above the budget checks, rather than beside `openDb` where
   // it used to sit: the platform limits live in that same store and the very
@@ -671,7 +663,7 @@ export async function startTask(
   // the ordering rule the block above states (validate every fallible
   // argument before mutating anything) is what requires the limits to be in
   // hand before the workspace is touched.
-  const dbPath = process.env[profile.envVars.dbPath] ?? profile.defaults.dbPath;
+  const dbPath = process.env[RUN_ENV.dbPath] ?? RUN_DEFAULTS.dbPath;
   // PLATFORM LIMITS — what a platform admin has re-stated for this instance.
   // Read from the product store, fail-open to the shipped constants: a
   // missing or torn settings table must never stop a run from launching.
@@ -681,7 +673,7 @@ export async function startTask(
   // instance with no row must launch exactly what it launched before — an
   // operator's three-hour `npm run run:build` included (2026-09-30 review).
   const statedCeilingMs = narrowedRunTimeoutCeilingMs(platformLimits);
-  const timeoutRaw = process.env[profile.envVars.timeoutMs];
+  const timeoutRaw = process.env[RUN_ENV.timeoutMs];
   // A budget nobody asked for is the default, bounded by the ceiling — the
   // runner must not refuse its own default. A REQUEST above it is refused below.
   const defaultTimeoutMs = useClaudeCli ? 15 * 60 * 1000 : 10 * 60 * 1000;
@@ -690,7 +682,7 @@ export async function startTask(
     : Number(timeoutRaw);
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
     throw new RunnerConfigError(
-      `invalid ${profile.envVars.timeoutMs}="${timeoutRaw}" (expected positive integer in ms)`
+      `invalid ${RUN_ENV.timeoutMs}="${timeoutRaw}" (expected positive integer in ms)`
     );
   }
   // THE CEILING IS A REFUSAL, NOT A CLAMP. The coordinator already refuses a
@@ -703,7 +695,7 @@ export async function startTask(
   const timeoutCeilingMs = statedCeilingMs ?? Number.POSITIVE_INFINITY;
   if (timeoutMs > timeoutCeilingMs) {
     throw new RunnerConfigError(
-      `${profile.envVars.timeoutMs}=${timeoutMs} exceeds the platform ceiling ` +
+      `${RUN_ENV.timeoutMs}=${timeoutMs} exceeds the platform ceiling ` +
         `run.timeoutMaxMs=${timeoutCeilingMs} — raise it in Settings (platform admin) ` +
         `or with: npm run settings -- set run.timeoutMaxMs <ms>`
     );
@@ -797,7 +789,7 @@ export async function startTask(
   }
 
   const workspaceRoot = resolve(
-    process.env[profile.envVars.workspace] ?? profile.defaults.workspace
+    process.env[RUN_ENV.workspace] ?? RUN_DEFAULTS.workspace
   );
 
   const runsDir = process.env['ATOMA_RUNS_DIR'] ?? './runs';
@@ -915,7 +907,7 @@ export async function startTask(
   // Runs BEFORE the sandbox is constructed: ToolSandbox realpath-resolves
   // its root at construction, so archiving the directory afterwards would
   // leave every tool pointing at the archive.
-  profile.prepareWorkspace(workspaceRoot, args.cleanWorkspace);
+  prepareWorkspace(workspaceRoot, args.cleanWorkspace);
   // Seed AFTER preparation — prepareWorkspace archives the whole directory, so
   // copying first would archive the fixture along with the previous run.
   const seed = (): void => {
@@ -943,7 +935,7 @@ export async function startTask(
         ...(args.workerImage ? { image: args.workerImage } : {}),
         egress: args.egress,
         ...(egressAllowlist ? { egressAllowlist } : {}),
-        runId: `${profile.id}-${process.pid}`,
+        runId: `run-${process.pid}`,
         ...(tenantRun && runScope.orgId && runScope.projectId && requestedRunId ? {
           projectWorkspace: { orgId: runScope.orgId, projectId: runScope.projectId, runId: requestedRunId },
         } : {}),
@@ -993,7 +985,8 @@ export async function startTask(
   } else {
     const seedCtx = { registry, toolDecls, log: (line: string) => console.log(line) };
     const buildTissue = seedTissueCatalog(seedCtx);
-    profile.seedCatalog(seedCtx);
+    if (opts?.seedCatalog) opts.seedCatalog(seedCtx, seedCatalog);
+    else seedCatalog(seedCtx);
     let selectedTissue: Awaited<ReturnType<typeof selectTissue>> | undefined;
     const tissueFor = async (task: Task, context: RunContext) => {
       // Registered comparison arms retain their original fixed entry protocol.
@@ -1025,7 +1018,6 @@ export async function startTask(
     console.log(`skills root: ${skillRegistry.rootDir}`);
 
     if (args.depth) {
-      const experiment = profile.depthExperiment!;
       // The acceptance checklist is drafted ONCE, here, before the attempt
       // loop: a deepening keeps it (docs/acceptance-checklist-2026-09-25.md).
       // A list the user approved REPLACES the draft, and no drafting call is
@@ -1047,7 +1039,7 @@ export async function startTask(
         createExecutor: async (mode) => {
           const currentSeed = { ...seedCtx, toolDecls: backend.toolDecls };
           if (mode === 'short') {
-            const entry = experiment.entryCell(currentSeed);
+            const entry = DEPTH_CONTRACT.entryCell(currentSeed);
             const peers = registry.listByTier(2).filter((type) => type.name !== entry.name)
               .map((type) => L2Atom.fromType(type, registry, [], skillRegistry));
             const cell = L2Atom.fromType(entry, registry, peers, skillRegistry);
@@ -1068,7 +1060,7 @@ export async function startTask(
           if (!backend.drain) throw new Error('Depth routing backend cannot confirm process exit');
           await backend.drain();
           signal.throwIfAborted();
-          profile.prepareWorkspace(workspaceRoot, true);
+          prepareWorkspace(workspaceRoot, true);
           // A seeded run restarts from its SEED, not from nothing: see
           // `seedWorkspace`. A failed copy throws and fails the run, with the
           // first attempt still intact in its `.prevN` archive.
@@ -1182,7 +1174,7 @@ export async function startTask(
     : builtTask;
   const task = args.depth ? {
     ...withLanding,
-    proofFloor: profile.depthExperiment!.floor.map((item) => ({ ...item })),
+    proofFloor: DEPTH_CONTRACT.floor.map((item) => ({ ...item })),
   } : withLanding;
 
   console.log(`\ntask: ${task.description}\n`);
@@ -1227,7 +1219,7 @@ export async function startTask(
     }
   };
 
-  const vizRun = recorder.beginRun(task, `${profile.traceLabelPrefix}${runLabelFromGoal(goal, 80)}`, {
+  const vizRun = recorder.beginRun(task, `${TRACE_LABEL_PREFIX}${runLabelFromGoal(goal, 80)}`, {
     ...(requestedRunId ? { runId: requestedRunId } : {}),
     initialTypes: [
       ...registry.listByTier(1),
@@ -1457,7 +1449,7 @@ export async function startTask(
 }
 
 /**
- * Run one task end to end as a CLI process, for any family.
+ * Run one task end to end as a CLI process.
  *
  * The thin shell over `startTask` that owns everything about how the HOST
  * PROCESS ends: config errors exit 2 (before any side effect — pinned by the
@@ -1465,17 +1457,17 @@ export async function startTask(
  * so any server the run started stays reachable, and SIGINT/SIGTERM tear the
  * run down (trace closed as cancelled when mid-flight) before exiting 0.
  */
-export async function runTask(profile: TaskProfile, argv: readonly string[]): Promise<void> {
+export async function runTask(argv: readonly string[]): Promise<void> {
   // `--help` is answered BEFORE startTask: the runner discards unknown flags
-  // by contract, so `build-app --help` used to fall through to the profile's
+  // by contract, so `build-app --help` used to fall through to a
   // DEFAULT GOAL and start a real, quota-spending run (2026-09-07).
   if (argv.some((token) => HELP_FLAGS.includes(token))) {
-    console.log(formatUsage(profile));
+    console.log(formatUsage());
     return;
   }
   let run: RunHandle;
   try {
-    run = await startTask(profile, argv);
+    run = await startTask(argv);
   } catch (err) {
     if (err instanceof RunnerConfigError) {
       console.error(err.message);

@@ -1,6 +1,6 @@
 import { HOST_TOOL_NAMES } from '../contracts/toolTaxonomy.js';
 import type { AtomType } from '../registry/atomRegistry.js';
-import type { ProfileSeedContext } from './profile.js';
+import type { SeedContext } from './setup.js';
 
 /** The existing build tissue is a catalog candidate, never the default route. */
 export const MERISTEM_SYSTEM_PROMPT = [
@@ -10,11 +10,11 @@ export const MERISTEM_SYSTEM_PROMPT = [
   'The final output you return must state how the deliverable was verified (which probe ran and its result) and give its entry point: the served URL when a server is part of the deliverable, otherwise the main file path plus the command that runs it.',
 ].join('\n');
 
-/** Persisted description of the build family's tier-3 tissue. Same edit caution. */
+/** Persisted description of the build tier-3 tissue. Same edit caution. */
 export const MERISTEM_DESCRIPTION =
   'A top-level tissue that orchestrates real application builds by delegating strategy to L2 cells; concrete side-effects happen only in L1 molecules.';
 
-export function seedTissueCatalog({ registry, toolDecls, log }: ProfileSeedContext): AtomType {
+export function seedTissueCatalog({ registry, toolDecls, log }: SeedContext): AtomType {
   let l3Type = registry.listByTier(3).find((t) => t.createdBy === 'bootstrap-tissue-build'
     || (t.name === 'Meristem' && t.description === MERISTEM_DESCRIPTION));
   if (!l3Type) {

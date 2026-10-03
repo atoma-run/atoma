@@ -27,7 +27,6 @@ import { containerToolBackend, localToolBackend, withProjectRetrievalBackend } f
 import { createProjectRetrievalTool } from '../dist/tools/projectRetrieval.js';
 import { prepareProjectRetrievalCorpus, projectRetrievalHash } from '../dist/projects/retrievalCorpus.js';
 import { startTask } from '../dist/run/runner.js';
-import { buildProfile } from '../dist/run/profiles/build.js';
 import { runHostSupported } from '../dist/run/platform.js';
 
 const SOURCE = '# Pricing\r\nPrivate annual price: 190 euros.\r\n';
@@ -39,7 +38,7 @@ if (process.argv.includes('--child')) {
   // The real compiled runner must refuse a forged path before constructing providers/workers.
   const workspace = env.ATOMA_BUILD_WORKSPACE;
   env.ATOMA_BUILD_WORKSPACE = workspace + '-wrong';
-  await assert.rejects(startTask(buildProfile, ['--container', '--no-promote-skills', '--no-direct-skills', 'Read docs.']), /unavailable or denied/);
+  await assert.rejects(startTask(['--container', '--no-promote-skills', '--no-direct-skills', 'Read docs.']), /unavailable or denied/);
   env.ATOMA_BUILD_WORKSPACE = workspace;
   const paths = { dbPath: env.ATOMA_DB_PATH, runId: env.ATOMA_RUN_ID, workspacePath: workspace,
     skillsPath: env.ATOMA_SKILLS_DIR, runsPath: env.ATOMA_RUNS_DIR };

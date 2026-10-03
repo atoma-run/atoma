@@ -158,7 +158,6 @@ beforeEach(() => {
       name: 'Site',
       slug: 'site',
       initialPrompt: '',
-      family: 'build',
       repositoryTarget: { installationId: '1', owner: 'acme', name: 'site', visibility: 'private' },
     },
   });

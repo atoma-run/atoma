@@ -87,7 +87,7 @@ export interface McpHttpHostOptions {
   readonly serverInfo?: { readonly name: string; readonly version: string };
   /**
    * Whether `caller` may hear of `uri` on a 2026 `subscriptions/listen`, where
-   * one process-wide bus serves every listener. Absent: only `atoma://families`.
+   * one process-wide bus serves every listener. Absent: none.
    */
   readonly mayFollow?: (caller: McpCaller, uri: string) => boolean;
   /** `Host` values this route answers; anything else is 403 by the transport. */
@@ -494,7 +494,7 @@ export class McpHttpHost {
    */
   private followable(caller: McpCaller, body: ListenRequest): ListenRequest {
     const filter = body.params.notifications;
-    const mayFollow = this.options.mayFollow ?? ((_caller: McpCaller, uri: string) => uri === 'atoma://families');
+    const mayFollow = this.options.mayFollow ?? (() => false);
     const uris = Array.isArray(filter.resourceSubscriptions)
       ? filter.resourceSubscriptions.filter((uri): uri is string => typeof uri === 'string' && mayFollow(caller, uri))
       : undefined;

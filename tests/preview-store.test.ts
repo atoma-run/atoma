@@ -106,7 +106,6 @@ function scene(slug = 'weather-lab'): Scene {
     project: {
       name: 'Weather Lab',
       slug,
-      family: 'build',
       repositoryTarget: {
         installationId: '12345',
         owner: 'atoma-test',

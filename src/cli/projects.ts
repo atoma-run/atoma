@@ -54,7 +54,7 @@ usage:
   npm run projects -- list [--db path]
   npm run projects -- create --as <who> --name "<name>" [--repo <repo-name>]
                              [--visibility private|public] [--installation <id>]
-                             [--slug <slug>] [--family <family>] [--prompt "<text>"]
+                             [--slug <slug>] [--prompt "<text>"]
   npm run projects -- run --project <slug-or-id> --as <principal-id-or-email> "<goal>"
                           [--criteria <file>] [--db path]
   npm run projects -- publish --project <slug-or-id> --as <who> --run <run-id> [--db path]
@@ -115,7 +115,6 @@ flags:
   --repo <repo-name>         GitHub repository name, defaults to the slug
   --installation <id>        GitHub installation; required only if several
   --visibility <v>           private (default) or public — permanent
-  --family <family>          run family, default build
   --prompt "<text>"          the project's initial prompt, optional
   --project <slug-or-id>     target project (required for run and publish)
   --as <id-or-email>         principal the run is attributed to (required)
@@ -210,7 +209,6 @@ function createProject(
     name,
     slug,
     initialPrompt: flags['prompt'] ?? '',
-    ...(flags['family'] ? { family: flags['family'] } : {}),
     repositoryTarget: {
       installationId: installation.installationId,
       owner: installation.accountLogin,
@@ -260,7 +258,6 @@ function createProject(
     summary: `Project "${eventLabel(project.name)}" created from the CLI`,
     detail: {
       slug: project.slug,
-      family: project.family,
       visibility: project.repositoryTarget.visibility,
     },
   });
@@ -331,7 +328,6 @@ async function main(): Promise<void> {
       'repo',
       'installation',
       'visibility',
-      'family',
       'prompt',
       'timeout',
     ],

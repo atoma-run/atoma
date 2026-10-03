@@ -74,6 +74,15 @@ before launch, incomplete runs kept and explained, and comparison reruns.
 
 ### Changed
 
+- The run family is gone: the root agent chosen from the request IS the kind of
+  work, so nothing selects a family any more. Removed, a compatibility change
+  for registered MCP clients: the `atoma_families` tool, the `atoma://families`
+  resource, the per-family `atoma_goal_<family>` prompts (now the one
+  `atoma_goal`), the `family` input and output of `atoma_operator_run_start`,
+  and the `family` field of `atoma_project_create` (a payload that still names
+  it is refused as an unknown key). The viz serves `/api/goal-guidance` instead
+  of `/api/profiles`, the project CLI loses `--family`, and existing project
+  stores drop the `projects.family` column when they next open.
 - The MCP server runs on the TypeScript MCP SDK v2, and the codebase on zod 4.
   A call to a tool the caller cannot see is now the protocol's -32602 error
   instead of a tool result marked as an error, as the specification

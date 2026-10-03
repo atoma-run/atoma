@@ -125,11 +125,6 @@ const mcpSmoke = async (base) => {
   for (const tenantOnly of ['atoma_projects_list', 'atoma_run_start', 'atoma_org_members', 'atoma_journal_tail', 'atoma_notifications', 'atoma_run_preview', 'atoma_jev_calibrate']) {
     if (names.includes(tenantOnly)) throw new Error(`ungated MCP must not expose ${tenantOnly}`);
   }
-  const families = await call('tools/call', { name: 'atoma_families', arguments: {} });
-  const familiesText = families?.content?.[0]?.text;
-  if (typeof familiesText !== 'string' || !Array.isArray(JSON.parse(familiesText).families)) {
-    throw new Error('atoma_families returned no families');
-  }
   const refused = await call('tools/call', { name: 'atoma_run_trace', arguments: { file: '../etc/passwd' } });
   if (!JSON.stringify(refused).includes('refused')) throw new Error('atoma_run_trace did not refuse a traversal');
   for (const section of ['metadata', 'event']) {
@@ -145,9 +140,7 @@ const mcpSmoke = async (base) => {
   }
   if (!initialized?.capabilities?.resources?.subscribe) throw new Error('compiled MCP does not advertise subscribable resources');
   const resources = (await call('resources/list', {}))?.resources;
-  if (!Array.isArray(resources) || !resources.some((resource) => resource.uri === 'atoma://families')) {
-    throw new Error('compiled MCP resources/list does not offer atoma://families');
-  }
+  if (!Array.isArray(resources)) throw new Error('compiled MCP resources/list is not a list');
   const templates = (await call('resources/templates/list', {}))?.resourceTemplates ?? [];
   if (!templates.some((template) => template.uriTemplate === 'atoma://runs/{file}')) {
     throw new Error('compiled MCP does not offer the operator trace resource template');
@@ -169,15 +162,15 @@ const mcpSmoke = async (base) => {
   if (!Array.isArray(prompts) || prompts.length < 4) {
     throw new Error(`expected the compiled MCP prompt surface, got ${Array.isArray(prompts) ? prompts.length : 'none'}`);
   }
-  for (const required of ['atoma_goal_build', 'atoma_inspect_trace', 'atoma_inspect_agent']) {
+  for (const required of ['atoma_goal', 'atoma_inspect_trace', 'atoma_inspect_agent']) {
     if (!prompts.some((prompt) => prompt.name === required)) throw new Error(`compiled MCP is missing prompt ${required}`);
   }
   const completed = await call('completion/complete', {
-    ref: { type: 'ref/prompt', name: 'atoma_goal_build' },
+    ref: { type: 'ref/prompt', name: 'atoma_goal' },
     argument: { name: 'goal', value: '' },
   });
   if (!Array.isArray(completed?.completion?.values) || completed.completion.values.length === 0) {
-    throw new Error('compiled MCP returned no goal completions for the build family');
+    throw new Error('compiled MCP returned no goal completions');
   }
   // A caller without a session must be told to initialise, never served.
   const noSession = await fetch(`${base}/mcp`, { method: 'GET', headers: { accept: 'text/event-stream' } });

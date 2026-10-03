@@ -4,7 +4,7 @@ import { openDb } from '../src/registry/db.js';
 import { buildNarrowL1Prompt, SMOKE_DESIGN_GUIDANCE } from '../src/atoms/L2Atom.js';
 import { buildNarrowL2Prompt } from '../src/atoms/L3Atom.js';
 import { carriesTask, repairTaskBakedPrompts } from '../src/atoms/promptRepair.js';
-import { buildProfile } from '../src/run/profiles/build.js';
+import { seedCatalog } from '../src/run/setup.js';
 import { makeTools } from './helpers/factories.js';
 
 /**
@@ -45,7 +45,7 @@ describe('stored prompts that carry one task', () => {
       expect(carriesTask(buildNarrowL2Prompt('', makeTools(names)))).toBe(false);
     }
     const registry = new AtomRegistry(openDb(':memory:'));
-    buildProfile.seedCatalog({ registry, toolDecls: tools, log: () => undefined });
+    seedCatalog({ registry, toolDecls: tools, log: () => undefined });
     for (const tier of [1, 2, 3] as const) for (const type of registry.listByTier(tier)) expect(carriesTask(type.systemPrompt)).toBe(false);
     expect(carriesTask(SMOKE_DESIGN_GUIDANCE)).toBe(false);
   });
@@ -54,7 +54,7 @@ describe('stored prompts that carry one task', () => {
     const registry = new AtomRegistry(openDb(':memory:'));
     const glucose = registry.create(1, seed(baked));
     const lines: string[] = [];
-    buildProfile.seedCatalog({ registry, toolDecls: tools, log: (line) => lines.push(line) });
+    seedCatalog({ registry, toolDecls: tools, log: (line) => lines.push(line) });
     expect(registry.getByName(glucose.name)!.systemPrompt).not.toContain('confirms completion');
     expect(lines).toContain(`stored prompt freed of its task: ${glucose.name}`);
   });

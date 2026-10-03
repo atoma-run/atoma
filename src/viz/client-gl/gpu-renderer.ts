@@ -23,7 +23,7 @@ import {
 import { matchesSearchQuery, runSearchText } from '../client/search.js';
 import type {
   BurninRow,
-  LaunchProfile,
+  GoalGuidance,
   RegistrySummary,
   RegistryType,
   RunIndexEntry,
@@ -164,7 +164,7 @@ export interface GpuDataSnapshot {
    */
   skillDetailFailed: boolean;
   burnin: { rows: BurninRow[]; csvPath: string } | null;
-  profiles: LaunchProfile[];
+  guidance: GoalGuidance | null;
   projects: VizProject[];
   projectRuns: Record<string, VizProjectRun[]>;
   githubInstallations: VizGitHubInstallation[];

@@ -6,7 +6,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { startTask, resetHostLifecycleSnapshotForTests } from '../src/run/runner.js';
-import { buildProfile } from '../src/run/profiles/build.js';
 import { buildTierClients, makeTransportClient } from '../src/run/providers.js';
 import { closeStoreHandles } from '../src/core/stores.js';
 import { ensureCanonicalFileScribeL1 } from '../src/atoms/capability.js';
@@ -84,15 +83,15 @@ describe('task-driven tissue selection through the real runner', () => {
     } } });
     let handle: Awaited<ReturnType<typeof startTask>> | undefined;
     try {
-      handle = await startTask({ ...buildProfile, seedCatalog(ctx) {
-        buildProfile.seedCatalog(ctx);
+      handle = await startTask(['--seed', seed, '--no-learn-skills', '--no-promote-skills', '--no-direct-skills', goal], { providerEnv: { ...OLLAMA_PINS }, seedCatalog(ctx, canonical) {
+        canonical(ctx);
         molecule = ensureCanonicalFileScribeL1(ctx.registry, ctx.toolDecls).name;
         cell = ctx.registry.listByTier(2)[0]!.name;
         if (route === 'reuse') tissue = ctx.registry.create(3, {
           description: 'Repository analysis orchestrator', systemPrompt: 'Delegate repository reading and grounded explanations to L2 cells.',
           tools: [...ctx.toolDecls], params: {}, createdBy: 'test-analysis',
         }).name;
-      } }, ['--seed', seed, '--no-learn-skills', '--no-promote-skills', '--no-direct-skills', goal], { providerEnv: { ...OLLAMA_PINS } });
+      } });
       const settled = await handle.settled;
       const path = readdirSync(runs).find((name) => name.endsWith('.json') && name !== 'index.json')!;
       const trace = JSON.parse(readFileSync(join(runs, path), 'utf8')) as VizRun;
@@ -154,7 +153,7 @@ describe('pending audits at runner shutdown', () => {
     });
     let handle: Awaited<ReturnType<typeof startTask>> | undefined;
     try {
-      handle = await startTask(buildProfile, ['--no-learn-skills', '--no-direct-skills', 'Audit closure fixture']);
+      handle = await startTask(['--no-learn-skills', '--no-direct-skills', 'Audit closure fixture']);
       await startedWork;
       if (mode === 'shutdown') { await handle.shutdown(); stop(); }
       await handle.settled;

@@ -466,8 +466,8 @@ npm run viz:mark-turn:analyze
   it pads long labels unevenly; do not add a new chip surface on the fallback.
 - There is NO Launch tab in the GPU client. A tab that could only DESCRIBE how
   to phrase a goal, beside a Projects tab that actually starts runs, split one
-  job over two places; the family guidance (`/api/profiles`, with a
-  `launch.help.<id>` catalog override per family) renders in the GL guidance
+  job over two places; the goal guidance (`/api/goal-guidance`, with a
+  `launch.guidance` catalog override) renders in the GL guidance
   panel directly below the project run form only for a selected project with
   NO runs, and its examples fill that prompt. Once the first run exists the
   WHOLE guidance panel disappears; no collapsed heading remains above history.
@@ -475,7 +475,7 @@ npm run viz:mark-turn:analyze
   defaults open through `projectGuidanceOpen`, and an explicit toggle may
   collapse or reopen it, so its activation id carries the DRAWN state
   (`…toggle.open|closed`).
-  `/api/profiles` stays a READER: it is ungated, so
+  `/api/goal-guidance` stays a READER: it is ungated, so
   it must never gain launch power — browser launches live on the authenticated
   project routes, where a session the run does not hold is the boundary. The
   end-user Docs guide may explain the same briefing principles, while the

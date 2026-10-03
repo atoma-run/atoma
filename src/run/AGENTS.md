@@ -1,6 +1,6 @@
 # Run — AGENTS.md
 
-`src/run/` owns the single runner: task profiles, provider construction,
+`src/run/` owns the single runner: the run setup, provider construction,
 workspaces and tool backends.
 
 Read [`AGENTS.md`](../../AGENTS.md) first: it holds the cross-cutting rules.
@@ -14,19 +14,24 @@ Neighbours:
 
 ## Entry points
 
-- `startTask(profile, argv)` is the library entry: it owns provider, sandbox,
+- `startTask(argv, opts)` is the library entry: it owns provider, sandbox,
   traces, skills, budgets, the watchdog and post-mortems, throws
   `RunnerConfigError` on bad input, resolves lifecycle env against the HOST
   snapshot (a run's own writes never become the next run's "operator intent"),
   applies the same snapshot to `ATOMA_MODEL_L*` via `applyTierPins` so atom
   `modelForTier()` calls agree with the router (a missing pin is deleted, not
   left as leftover ambient state), and returns a `RunHandle {settled, shutdown}`
-  that never parks and never exits. `runTask(profile, argv)` is the CLI shell
+  that never parks and never exits. `runTask(argv)` is the CLI shell
   that owns process death: exit 2 on config errors, exit 1 on failure,
   park-forever on delivery, SIGINT/SIGTERM → shutdown. Its stdout is an API
-  (burn-in parses it) — the handle refactor kept it byte-identical. A
-  `TaskProfile` retains workspace setup, canonical child catalog, help and
-  legacy env names. It never chooses a tissue or adds task constraints.
+  (burn-in parses it) — the handle refactor kept it byte-identical.
+  `setup.ts` holds the run's technical setup — workspace and store env names,
+  workspace preparation, the canonical child catalog, the depth contract — and
+  `guidance.ts` the one text on how to phrase a goal. THERE IS NO RUN FAMILY:
+  the `TaskProfile` selected by a family id was removed on 2026-10-03, once
+  `selectTissue` chose the root from the task and nothing varied between
+  profiles. Neither file chooses a tissue or adds task constraints; the one
+  library seam is `opts.seedCatalog`, which replaces the seeding step.
 - `selectTissue` (`tissueRouting.ts`) selects the root from the task and a
   bounded host-read starting repository (`routingRepository.ts`), after the
   trace and run context exist. Jev makes a binding Choice with the existing
@@ -173,9 +178,9 @@ Neighbours:
   exported and tested like `resolveSkillPromotion` beside it; the depth design
   had already settled the intent ("CLI, MCP and project launches all inherit
   it"). Depth routing keeps model pins and
-  one run deadline, cost ledger and trace. Its profile freezes the delivery
+  one run deadline, cost ledger and trace. Its depth contract freezes the delivery
   `proofFloor` before routing, without adding it to phase `proofObligations`.
-  The general build profile uses an empty floor and semantic root review,
+  The depth contract uses an empty floor and semantic root review,
   rather than demanding `index.html` from every API and CLI.
   Deep enters through L3; short plans and executes
   through the canonical L2, including its peers. Every result goes through
@@ -266,6 +271,13 @@ Neighbours:
 
 ## Intentional choices and rejected shortcuts
 
+- A run family, profile or `family` field (runner argument, MCP input, project
+  column, CLI flag, UI picker): removed on 2026-10-03 and not to be
+  re-proposed. The root agent IS the family, and `selectTissue` chooses it
+  from the task; a second selector beside it can only disagree with it. A new
+  kind of work is a new tissue in the platform registry, not a new setup. The
+  `build` in `run:build`, `build-app` and `ATOMA_BUILD_*` is a legacy name
+  that the burn-in harness and the production hosts spawn by literal path.
 - An override switch for the run host: refused, and stated above at length.
   The defect this contract replaces was SILENCE, not the platform's limits.
 - A base client, or one `ATOMA_LLM` selector: gone. Provider construction has

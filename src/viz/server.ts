@@ -13,7 +13,7 @@ import { readBoundedRunFile, sortRunIndex, summarizeTraceFile } from './runIndex
 import type { VizRunIndexEntry } from './trace.js';
 import { skillsDirPath, storeDbPath } from '../core/stores.js';
 import { openLedgerHandle, readLedgerTail, type LedgerEvent } from '../core/ledger.js';
-import { LAUNCHABLE_PROFILES } from '../run/profiles/index.js';
+import { GOAL_GUIDANCE } from '../run/guidance.js';
 import { assessShareability, type ShareAssessment } from '../skills/shareability.js';
 import { taxonomyForTier, type AgentRank } from '../core/taxonomy.js';
 import { describeJevAdmission } from '../core/jev.js';
@@ -4628,9 +4628,9 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
     return;
   }
 
-  if (pathname === '/api/profiles') {
+  if (pathname === '/api/goal-guidance') {
     // READ-ONLY, and deliberately so: it returns compile-time constants — the
-    // family guidance the project run form renders and the shell command for a
+    // goal guidance the project run form renders and the shell command for a
     // deployment with no organisations — NOT a way to start anything. This
     // route is UNGATED, which is exactly why it stays a reader: a run can call
     // BACK into this server (`fetch_url` has no URL allowlist by design, and
@@ -4640,18 +4640,16 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
     // the browser lives on the AUTHENTICATED project routes instead, where a
     // session the run does not hold is the boundary.
     //
-    // `defaults.dbPath` / `defaults.workspace` are NOT exposed: the run
+    // The run's default db path and workspace are NOT exposed: the run
     // resolves `process.env[...] ?? default` against ITS OWN environment, so
     // publishing the static default would state a fact that may be false.
     sendJson(res, 200, {
       launchEnabled: false,
-      profiles: LAUNCHABLE_PROFILES.map(({ profile: p, npmScript }) => ({
-        id: p.id,
-        npmScript,
-        label: p.guidance.label,
-        help: p.guidance.help,
-        examples: [...p.guidance.examples],
-      })),
+      guidance: {
+        npmScript: GOAL_GUIDANCE.npmScript,
+        help: GOAL_GUIDANCE.help,
+        examples: [...GOAL_GUIDANCE.examples],
+      },
     });
     return;
   }
