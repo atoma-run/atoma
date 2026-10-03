@@ -365,6 +365,8 @@ export interface ProjectRunTaskDeps {
     runTaskBudgetMs(): number;
     startProjectRunFromInput(viewer: Viewer, projectId: string, body: unknown): Promise<unknown>;
     projectRunStatus(viewer: Viewer, projectId: string, projectRunId: string): unknown;
+    /** The row state alone (no presentation): what a task's status needs. Absent: the status payload. */
+    projectRunState?(viewer: Viewer, projectId: string, projectRunId: string): unknown;
     cancelProjectRun(viewer: Viewer, projectId: string, projectRunId: string): Promise<unknown>;
     runsRequestedBy(viewer: Viewer, endedSince: string, limit: number): unknown[];
   };
@@ -470,13 +472,15 @@ export class ProjectRunTasks {
   }
 
   /** The run behind a task id, or null for an id this caller may not follow. */
-  read(taskId: string): { readonly ref: { projectId: string; projectRunId: string }; readonly viewer: Viewer; readonly snapshot: ProjectRunSnapshot } | null {
+  read(taskId: string, light = false): { readonly ref: { projectId: string; projectRunId: string }; readonly viewer: Viewer; readonly snapshot: ProjectRunSnapshot } | null {
     const ref = parseProjectRunTaskId(taskId);
     const viewer = this.viewer();
     if (!ref || !viewer) return null;
     let snapshot: ProjectRunSnapshot;
     try {
-      snapshot = this.deps.service.projectRunStatus(viewer, ref.projectId, ref.projectRunId) as ProjectRunSnapshot;
+      snapshot = (light && this.deps.service.projectRunState
+        ? this.deps.service.projectRunState(viewer, ref.projectId, ref.projectRunId)
+        : this.deps.service.projectRunStatus(viewer, ref.projectId, ref.projectRunId)) as ProjectRunSnapshot;
     } catch (error) {
       if (error instanceof ProjectHttpError) return null;
       throw error;
@@ -505,7 +509,8 @@ export class ProjectRunTasks {
   }
 
   task(taskId: string): TaskState | null {
-    const found = this.read(taskId);
+    // The status, binding and timestamps only: a row read, never a trace parse.
+    const found = this.read(taskId, true);
     return found ? this.asTask(taskId, found.ref.projectRunId, found.snapshot) : null;
   }
 

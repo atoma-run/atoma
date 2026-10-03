@@ -318,6 +318,29 @@ export class ProjectService {
   }
 
   /** One project run, for a poller: the MCP's `atoma_run_status`. */
+  /**
+   * The run's ROW state under the same authorization as projectRunStatus,
+   * without its presentation: no trace parse, no payer or publication reads.
+   * A synchronous MCP start re-reads its task every poll interval for up to
+   * an hour, and presenting the run each time parsed the whole trace file
+   * (~1,800 times per hour-long run, 2026-10-03); the task needs only the
+   * status, the binding and the timestamps.
+   */
+  projectRunState(viewer: Viewer, projectId: string, projectRunId: string): {
+    readonly projectId: string; readonly projectRunId: string; readonly orgId: string;
+    readonly requestedByPrincipalId: string; readonly status: string;
+    readonly createdAt: string; readonly updatedAt: string; readonly endedAt: string | null;
+  } {
+    const orgId = this.readOrgFor(viewer, projectId);
+    const run = this.store.getProjectRun(orgId, projectRunId);
+    if (!run || run.projectId !== projectId) throw new ProjectHttpError(404, 'project run not found');
+    return {
+      projectId: run.projectId, projectRunId: run.projectRunId, orgId: run.orgId,
+      requestedByPrincipalId: run.requestedByPrincipalId, status: run.status,
+      createdAt: run.createdAt, updatedAt: run.updatedAt, endedAt: run.endedAt ?? null,
+    };
+  }
+
   projectRunStatus(viewer: Viewer, projectId: string, projectRunId: string): unknown {
     const orgId = this.readOrgFor(viewer, projectId);
     const run = this.store.getProjectRun(orgId, projectRunId);

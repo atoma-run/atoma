@@ -1192,6 +1192,27 @@ describe('runs as tasks, and the run log', () => {
     expect(tasks.list().map((task) => task.taskId)).toEqual(['project-run:p-1:is-run-2', 'project-run:p-1:is-run-1']);
   });
 
+  it('follows a waiting start through the run ROW, presenting the run only for its result (2026-10-03)', async () => {
+    // Presenting a run parses its whole trace: a synchronous start re-reads
+    // its task every poll interval for up to an hour (~1,800 parses).
+    const tenant = projectRunsService('light');
+    let presented = 0;
+    let states = 0;
+    const full = tenant.service.projectRunStatus;
+    tenant.service.projectRunStatus = (...args) => { presented++; return full(...args); };
+    tenant.service.projectRunState = (...args) => { states++; return full(...args); };
+    const { tasks, start } = projectTaskSession(tenant.service);
+    const created = await start.start(PROJECT_ARGS);
+    tenant.set('light-1', 'running');
+    const before = presented;
+    for (let i = 0; i < 5; i++) expect(tasks.get(created.taskId)).toMatchObject({ status: 'working' });
+    expect(presented).toBe(before);
+    expect(states).toBeGreaterThanOrEqual(5);
+    tenant.set('light-1', 'delivered', { endedAt: new Date().toISOString() });
+    expect(tasks.result(created.taskId)).toMatchObject({ structuredContent: { status: 'delivered' } });
+    expect(presented).toBe(before + 1);
+  });
+
   it('cancels a project run on tasks/cancel, refuses in the cancel tool’s words, and keeps the task cancelled whatever the run does next', async () => {
     let refuse = true;
     const tenant = projectRunsService('cancel-run');
