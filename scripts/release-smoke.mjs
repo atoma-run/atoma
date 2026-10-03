@@ -68,6 +68,86 @@ const readResponseFrame = async (response) => {
   return reply;
 };
 
+/**
+ * THE ERA PRODUCTION SPEAKS (2026-07-28: every request of the clients seen
+ * since 2026-09-30), against the COMPILED server. Raw fetch, because this
+ * script also runs on the host after `npm ci --omit=dev`, where the v2
+ * client (a devDependency) is absent. It spends nothing: the start it sends
+ * is refused by input validation before any lease or run exists.
+ */
+const mcpModernSmoke = async (base) => {
+  const MODERN = '2026-07-28';
+  let nextId = 1000;
+  const send = async (method, params = {}, extra = {}) => {
+    const name = typeof params.name === 'string' ? params.name : typeof params.taskId === 'string' ? params.taskId : undefined;
+    return fetch(`${base}/mcp`, {
+      method: 'POST',
+      ...(extra.signal ? { signal: extra.signal } : {}),
+      headers: {
+        'content-type': 'application/json', accept: 'application/json, text/event-stream',
+        'mcp-protocol-version': MODERN, 'mcp-method': method, ...(name ? { 'mcp-name': name } : {}),
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: nextId++, method, params: { ...params, _meta: {
+        'io.modelcontextprotocol/protocolVersion': MODERN,
+        'io.modelcontextprotocol/clientInfo': { name: 'atoma-release-smoke', version: releaseVersion },
+        'io.modelcontextprotocol/clientCapabilities': extra.capabilities ?? { extensions: { 'io.modelcontextprotocol/tasks': {} } },
+      } } }),
+    });
+  };
+  const call = async (method, params = {}, extra = {}) => {
+    const response = await send(method, params, extra);
+    if (!response.ok) throw new Error(`MCP 2026 ${method} → HTTP ${response.status}: ${(await response.text()).slice(0, 300)}`);
+    const contentType = response.headers.get('content-type') ?? '';
+    const text = await response.text();
+    const frames = contentType.startsWith('application/json') ? [JSON.parse(text)] : text
+      .split(/\r?\n\r?\n/)
+      .map((event) => event.split(/\r?\n/).filter((line) => line.startsWith('data:')).map((line) => line.slice(5).trim()).join('\n'))
+      .filter((data) => data.length > 0)
+      .map((data) => JSON.parse(data));
+    const reply = frames.find((frame) => frame.id !== undefined && ('result' in frame || 'error' in frame));
+    if (!reply) throw new Error(`MCP 2026 ${method} carried no response frame`);
+    if (reply.error) throw new Error(`MCP 2026 ${method} failed: ${JSON.stringify(reply.error)}`);
+    return reply.result;
+  };
+  const discovered = await call('server/discover');
+  if (!JSON.stringify(discovered).includes(MODERN)) throw new Error('compiled MCP does not offer protocol 2026-07-28 on server/discover');
+  const listed = await call('tools/list');
+  if (!listed?.tools?.some((tool) => tool.name === 'atoma_operator_run_start')) throw new Error('compiled MCP 2026 tools/list has no start tool');
+  if (typeof listed.ttlMs !== 'number' || typeof listed.cacheScope !== 'string') throw new Error('compiled MCP 2026 tools/list carries no cache hints');
+  // A task of the extension, refused by validation before any lease: it
+  // fails at once, and on this wire an ended start is `completed` with the
+  // payload saying how.
+  const created = await call('tools/call', { name: 'atoma_operator_run_start', arguments: { goal: '--release-smoke' } });
+  if (created?.resultType !== 'task' || typeof created?.task?.taskId !== 'string' && typeof created?.taskId !== 'string') {
+    throw new Error(`compiled MCP 2026 start is not a task: ${JSON.stringify(created).slice(0, 200)}`);
+  }
+  const taskId = created.task?.taskId ?? created.taskId;
+  const got = await call('tasks/get', { taskId });
+  if (got?.status !== 'completed' || got?.result?.isError !== true) throw new Error(`compiled MCP 2026 tasks/get: ${JSON.stringify(got).slice(0, 200)}`);
+  const unknown = await send('tasks/get', { taskId: 'no-such-task' });
+  if (!JSON.stringify(await unknown.json()).includes('-32602')) throw new Error('compiled MCP 2026 tasks/get of an unknown id is not -32602');
+  // SEP-2663: an ended task's cancel is acknowledged.
+  await call('tasks/cancel', { taskId });
+  // A listen stream opens with its acknowledgement; read it and leave.
+  const abort = new AbortController();
+  const stream = await send('subscriptions/listen', { notifications: { toolsListChanged: true } }, { signal: abort.signal, capabilities: {} });
+  if (!stream.ok) throw new Error(`compiled MCP 2026 subscriptions/listen → HTTP ${stream.status}`);
+  const reader = stream.body.getReader();
+  let opened = '';
+  while (!opened.includes('notifications/subscriptions/acknowledged')) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    opened += new TextDecoder().decode(value);
+  }
+  abort.abort();
+  if (!opened.includes('notifications/subscriptions/acknowledged')) throw new Error('compiled MCP 2026 listen sent no acknowledgement');
+  const health = await call('tools/call', { name: 'atoma_mcp_health', arguments: {} }, { capabilities: {} });
+  if (!Object.keys(health?.structuredContent?.mcp?.clients ?? {}).includes(`${MODERN} atoma-release-smoke`)) {
+    throw new Error('atoma_mcp_health did not count the 2026 smoke client');
+  }
+  return { tools: listed.tools.length };
+};
+
 const mcpSmoke = async (base) => {
   const accessResponse = await fetch(`${base}/api/tokens`);
   const access = await accessResponse.json();
@@ -251,6 +331,8 @@ try {
     }
     const mcp = await mcpSmoke(`http://127.0.0.1:${port}`);
     process.stdout.write(`release smoke: MCP over HTTP — ${mcp.tools} operator tools, ${mcp.prompts} prompts\n`);
+    const modern = await mcpModernSmoke(`http://127.0.0.1:${port}`);
+    process.stdout.write(`release smoke: MCP 2026-07-28 — ${modern.tools} operator tools, a refused start as a task, listen acknowledged\n`);
     const burninResponse = await fetch(`http://127.0.0.1:${port}/api/burnin`);
     const burnin = await burninResponse.json();
     if (!burninResponse.ok || !Array.isArray(burnin.rows)) {
