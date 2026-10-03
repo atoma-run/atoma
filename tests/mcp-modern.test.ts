@@ -273,6 +273,13 @@ describe('the 2026-07-28 era', () => {
       handle.settle('done');
       await tick(100);
       expect((await modernRequest(url, 'tasks/get', { taskId })).body.result).toMatchObject({ status: 'completed' });
+      // SEP-2663: cancelling a task that already ended is acknowledged with an
+      // empty result, and the task keeps its terminal state; -32602 is for an
+      // unknown id only.
+      const ack = await modernRequest(url, 'tasks/cancel', { taskId });
+      expect(ack.body.error).toBeUndefined();
+      expect(ack.body.result).toMatchObject({ resultType: 'complete' });
+      expect((await modernRequest(url, 'tasks/get', { taskId })).body.result).toMatchObject({ status: 'completed' });
       // The binding is the caller: a principal presenting the operator's task id finds nothing.
       current = { kind: 'principal', viewer: { ...viewer('org:member'), platformAdmin: true }, tokenId: 'admin' };
       expect((await modernRequest(url, 'tasks/get', { taskId })).body.error?.code).toBe(-32602);
@@ -407,10 +414,15 @@ describe('the 2026-09-30 review of the two-era port', () => {
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tasks/get', params: { taskId: 't', _meta: meta } }),
     });
     const envelope = { 'io.modelcontextprotocol/protocolVersion': MODERN, 'io.modelcontextprotocol/clientCapabilities': {} };
-    const complete = { 'content-type': 'application/json', 'mcp-protocol-version': MODERN, 'mcp-method': 'tasks/get' };
+    const complete = { 'content-type': 'application/json', 'mcp-protocol-version': MODERN, 'mcp-method': 'tasks/get', 'mcp-name': 't' };
     expect((await send({ ...complete, 'content-type': 'text/plain' }, envelope)).status).toBe(415);
     expect((await send({ 'content-type': 'application/json', 'mcp-method': 'tasks/get' }, envelope)).status).toBe(400);
     expect((await send({ 'content-type': 'application/json', 'mcp-protocol-version': MODERN }, envelope)).status).toBe(400);
+    // Mcp-Name mirrors the task id (SEP-2243, SEP-2663), and the capabilities key is required.
+    const misnamed = await send({ ...complete, 'mcp-name': 'other' }, envelope);
+    expect(misnamed.status).toBe(400);
+    expect(((await misnamed.json()) as { error: { code: number } }).error.code).toBe(-32020);
+    expect((await send(complete, { 'io.modelcontextprotocol/protocolVersion': MODERN })).status).toBe(400);
     expect((await send(complete, envelope)).status).toBe(200);
   });
 

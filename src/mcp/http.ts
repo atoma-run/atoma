@@ -760,6 +760,18 @@ function modernTaskRequestRefusal(req: IncomingMessage, body: { method?: unknown
   if (method !== body.method) {
     return { status: 400, code: -32020, message: `Mcp-Method header ${String(method)} does not match the body's ${String(body.method)}` };
   }
+  // The rest of the SDK's 2026 entry, which never sees these requests: the
+  // required capabilities key, and Mcp-Name mirroring the task id (SEP-2243,
+  // SEP-2663) so an intermediary can route every request of a task alike.
+  const capabilities = body.params?._meta?.['io.modelcontextprotocol/clientCapabilities'];
+  if (typeof capabilities !== 'object' || capabilities === null || Array.isArray(capabilities)) {
+    return { status: 400, code: -32602, message: 'Invalid params: _meta must carry io.modelcontextprotocol/clientCapabilities' };
+  }
+  const name = req.headers['mcp-name'];
+  const taskId = (body.params as { taskId?: unknown } | undefined)?.taskId;
+  if (typeof taskId === 'string' && name !== taskId) {
+    return { status: 400, code: -32020, message: `Mcp-Name header ${String(name)} does not match the request's taskId` };
+  }
   return null;
 }
 

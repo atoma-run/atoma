@@ -220,7 +220,10 @@ export async function answerModernTaskRequest(
     return { jsonrpc: '2.0', id: message.id, result: { resultType: 'complete', _meta: meta } };
   } catch (failure) {
     if (failure instanceof TaskNotFound) return error(ProtocolErrorCode.InvalidParams, 'Failed to retrieve task: Task not found');
-    if (failure instanceof TaskCancelRefused) return error(ProtocolErrorCode.InvalidParams, failure.message);
+    // SEP-2663: a cancel of a task the caller owns is ACKNOWLEDGED with an
+    // empty result even when it already ended (the task keeps its terminal
+    // state); -32602 is reserved for an unknown id. The 2025 wire keeps its own rule.
+    if (failure instanceof TaskCancelRefused) return { jsonrpc: '2.0', id: message.id, result: { resultType: 'complete', _meta: meta } };
     throw failure;
   }
 }

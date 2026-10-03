@@ -202,7 +202,7 @@ Neighbours:
   `completed` with the payload that says how. The SDK refuses `tasks/*` on
   that era before any handler runs, so the HTTP host answers them
   (`answerModernTaskRequest`), after the checks the SDK's entry would make
-  (JSON body, the 2026 version in header and envelope, `Mcp-Method`); and since the callback the SDK gives a tool
+  (JSON body, 2026 version and capabilities, `Mcp-Method`, `Mcp-Name` = taskId; a cancel of an ended task is acked, SEP-2663); since the callback the SDK gives a tool
   never sees `params.task`, the task path of `tools/call` wraps the handler
   its `McpServer` installed (`installTaskProtocol`), answering bad arguments
   and a failing start as tool errors, as the SDK's own path does. There is NO "start, then
