@@ -136,6 +136,17 @@ export const POLICY_MARKERS: readonly { id: string; synonyms: readonly string[] 
       'provides no evidence',
     ],
   },
+  {
+    // Root acceptance uses these phrases for the two parts of one UI proof
+    // gap. Keep them as one category so changing the missing detail does not
+    // buy another full browser execution.
+    id: 'browser-interaction-evidence',
+    synonyms: [
+      'clean browser evidence',
+      'browser interaction evidence',
+      'interaction evidence',
+    ],
+  },
 ];
 export const MAX_SAME_MARKER_REJECTS = 3;
 
@@ -211,7 +222,10 @@ function makeMarkerTracker(window: number): {
   return {
     push(reasoning: string): { repeated: boolean; marker: string | null } {
       const marker = detectPolicyMarker(reasoning);
-      if (marker === null) return { repeated: false, marker: null };
+      if (marker === null) {
+        buf.length = 0;
+        return { repeated: false, marker: null };
+      }
       buf.push(marker);
       if (buf.length > window) buf.shift();
       if (buf.length === window && buf.every((m) => m === marker)) {

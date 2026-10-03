@@ -465,6 +465,76 @@ describe('superviseLoop', () => {
       expect(ids.every((id) => id === 'ground-truth-evidence')).toBe(true);
     });
 
+    it('stops broad UI retries when the same browser proof gap rotates', async () => {
+      const parent = new FakeParent();
+      const child = new FakeChild('ui');
+      const reasons = [
+        'Missing clean browser evidence',
+        'No browser interaction evidence was recorded',
+        'The required interaction evidence is still absent',
+      ];
+      for (const reasoning of reasons) {
+        parent.queuePlanVerdict({ approved: true, reasoning: 'ok' });
+        parent.queueResultVerdict({
+          approved: false,
+          reasoning,
+          modifications: { systemPromptAppend: 'fix proof' },
+          scope: 'ephemeral',
+        });
+      }
+      let escalations = 0;
+      const result = await superviseLoop(
+        parent,
+        child,
+        { description: 'build UI' },
+        makeCtx({ limits: { maxPlanIterations: 20, maxExecIterations: 20 } }),
+        {
+          applyByScope: async (c) => c,
+          branchOnEscalation: async () => {
+            escalations++;
+          },
+        }
+      );
+      expect(child.execCount).toBe(MAX_SAME_MARKER_REJECTS);
+      expect(escalations).toBe(1);
+      expect(result.producedBy.viaFallback).toBe(true);
+    });
+
+    it('does not combine browser-proof complaints across unrelated progress', async () => {
+      const parent = new FakeParent();
+      const child = new FakeChild('ui-progress');
+      const reasons = [
+        'Missing clean browser evidence',
+        'The API response body has the wrong status field',
+        'No browser interaction evidence was recorded',
+      ];
+      for (const reasoning of reasons) {
+        parent.queuePlanVerdict({ approved: true, reasoning: 'ok' });
+        parent.queueResultVerdict({
+          approved: false,
+          reasoning,
+          modifications: { systemPromptAppend: 'fix' },
+          scope: 'ephemeral',
+        });
+      }
+      parent.queuePlanVerdict({ approved: true, reasoning: 'ok' });
+      parent.queueResultVerdict({ approved: true, reasoning: 'accepted' });
+      const result = await superviseLoop(
+        parent,
+        child,
+        { description: 'build UI' },
+        makeCtx({ limits: { maxPlanIterations: 20, maxExecIterations: 20 } }),
+        {
+          applyByScope: async (c) => c,
+          branchOnEscalation: async () => {
+            throw new Error('must not escalate');
+          },
+        }
+      );
+      expect(child.execCount).toBe(4);
+      expect(result.producedBy.viaFallback).toBe(false);
+    });
+
     it('escalates on three rotating ground-truth-evidence rejections (LoL-SSR run regression)', async () => {
       const parent = new FakeParent();
       const child = new FakeChild('A');
