@@ -126,6 +126,7 @@ import {
   buildResultGateEnv,
   renderResultGateFindings,
   runResultGates,
+  withOwnFallbackLoopFacts,
   withoutExecutorLoopFacts,
 } from './resultGates.js';
 import type { Skill } from '../skills/types.js';
@@ -690,7 +691,11 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     const dispatched = await this.dispatchSubtasks(subtasks, plan, strategy, task, ctx);
     const landed = dispatched.unfinished.length > 0;
     return markLanded(
-      await this.aggregate(dispatched.results, plan.aggregation, task, ctx, landed),
+      withOwnFallbackLoopFacts(
+        await this.aggregate(dispatched.results, plan.aggregation, task, ctx, landed),
+        dispatched.results,
+        this.name
+      ),
       dispatched.unfinished
     );
   }
@@ -2118,6 +2123,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       })
     );
     const first = parsePayloadTolerant(resp.text);
+    let proofResponse: { readonly toolBudgetExhausted?: true } | undefined;
     // What its own calls proved of the phase's obligations; one bounded turn
     // runs a missing proof when the deadline leaves room (`proveFallback`).
     const proof = await proveFallback({
@@ -2128,7 +2134,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       validatesPages: hasValidator,
       previousSummary: first.summary,
       actorName: this.name,
-      proofTurn: async (proofContent, iterations) => (await ctx.llm.complete(
+      proofTurn: async (proofContent, iterations) => (proofResponse = await ctx.llm.complete(
         this.toLlmRequest('fallback-execute', {
           systemPromptOverride: FALLBACK_SYSTEM_PROMPT,
           model: modelForTier(1),
@@ -2166,7 +2172,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       evidence: executorEvidence(output, ctx, since),
       ...(proof.coverage.length > 0 ? { proofCoverage: proof.coverage } : {}),
       // Its own loop's fact, as a molecule's result carries it (`tool-budget-exhausted` gate).
-      ...(resp.toolBudgetExhausted ? { toolBudgetExhausted: true as const } : {}),
+      ...(resp.toolBudgetExhausted || proofResponse?.toolBudgetExhausted ? { toolBudgetExhausted: true as const } : {}),
     };
   }
 

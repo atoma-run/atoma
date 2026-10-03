@@ -55,7 +55,8 @@ export interface DispatchOutcome {
  *     siblings.
  * A dispatch that completed NO phase never lands — it throws, as before. There
  * is nothing to deliver, and a landing that reported zero phases would be a
- * failure wearing a softer word.
+ * failure wearing a softer word. One level up, the run's FIRST pass cut by the
+ * budget lands its workspace and is judged (`landedBeforeAnyPhase`, src/run/AGENTS.md).
  *
  * `ctx.signal` is the run's BUDGET signal and nothing else: the deadline, or a
  * platform token/spend ceiling (`abortedForLanding`, src/atoms/cost.ts).

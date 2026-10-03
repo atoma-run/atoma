@@ -6,7 +6,7 @@ import { L2Atom } from '../src/atoms/L2Atom.js';
 import { L3Atom } from '../src/atoms/L3Atom.js';
 import { TRUST_THRESHOLD_SUCCESSES } from '../src/atoms/cost.js';
 import { INTERNAL_VALIDATION_FAILED_PREFIX } from '../src/atoms/L1Atom.js';
-import { withoutExecutorLoopFacts } from '../src/atoms/resultGates.js';
+import { withOwnFallbackLoopFacts, withoutExecutorLoopFacts } from '../src/atoms/resultGates.js';
 import { FALLBACK_OPUS } from './tier-pins.js';
 import { makeCtx } from './helpers.js';
 import { makePlan } from './helpers/factories.js';
@@ -291,6 +291,17 @@ describe('trust fast-path in validators', () => {
     expect(passed.toolCallResults).toBe(only.toolCallResults);
     const plain = { output: 1, summary: 's', trace: [], producedBy: { tier: 1 as const, name: 'Water', viaFallback: false } };
     expect(withoutExecutorLoopFacts(plain)).toBe(plain);
+  });
+
+  it("an aggregate keeps the loop fact of the aggregating atom's OWN fallback, which nobody below judged", () => {
+    const own = exhausted(2, 'Tracheid', true);
+    const passed = withOwnFallbackLoopFacts(withoutExecutorLoopFacts(own), [own], 'Tracheid');
+    expect(passed.toolBudgetExhausted).toBe(true);
+    // A molecule's exhausted loop was judged by this cell; a peer's fallback is not this atom's own.
+    const molecule = exhausted(1, 'Water', false);
+    expect(withOwnFallbackLoopFacts(withoutExecutorLoopFacts(molecule), [molecule], 'Tracheid').toolBudgetExhausted).toBeUndefined();
+    const peer = exhausted(2, 'Xylem', true);
+    expect(withOwnFallbackLoopFacts(withoutExecutorLoopFacts(peer), [peer], 'Tracheid').toolBudgetExhausted).toBeUndefined();
   });
 
   it('L3 validators skip LLM calls once the child L2 type is trusted', async () => {

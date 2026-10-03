@@ -40,6 +40,12 @@ export function markRefused(result: Result, acceptance: Pick<AcceptanceInfo, 're
  * summary keeps `markLanded`'s `INCOMPLETE —` head, because readers that
  * explain a run from prose look for it.
  */
+/** The run budget's abort, as the runner reads it (`isTimeout`), never another failure. */
+function budgetAbort(error: unknown, ctx: RunContext): boolean {
+  if (error === ctx.signal.reason) return true;
+  return error instanceof Error && ['TimeoutError', 'AbortError', 'RunBudgetExceededError'].includes(error.name);
+}
+
 export function landedBeforeAnyPhase(actor: Pick<Atom, 'name' | 'tier'>, phases: readonly string[]): Result {
   return {
     output: null,
@@ -267,10 +273,15 @@ export async function runDepthTask(args: {
           // each relaunch starting over (production run dfa20873, 2026-10-03,
           // closed its first phase only through a false trust approval). A
           // pass cut before its root plan existed has run no phase and fails.
-          if (!refused && rootPhases.length > 0 && !cancellation.signal.aborted && abortedForLanding(ctx)) {
-            return landedBeforeAnyPhase(actor, rootPhases);
+          // Only the budget's own abort lands: a genuine failure a parallel
+          // dispatch rethrew after the deadline cut a sibling keeps its meaning.
+          // The landing is then JUDGED like any work in hand, so what it broke
+          // in a seed (an inherited check) is recorded before it seeds a run.
+          if (!refused && rootPhases.length > 0 && !cancellation.signal.aborted && abortedForLanding(ctx) && budgetAbort(error, ctx)) {
+            result = landedBeforeAnyPhase(actor, rootPhases);
+          } else {
+            throw error;
           }
-          throw error;
         }
         // WORK IN HAND leaves the execution clock for the finalization window,
         // landed or complete (2026-09-25 review, 1.2a): a complete result whose

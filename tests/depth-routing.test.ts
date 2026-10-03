@@ -1186,10 +1186,11 @@ describe('work in hand at the deadline is finalized, landed or complete (2026-09
     aggregation: { mode: 'sequential' },
   });
 
-  it('lands a first pass the deadline cut before any phase, with every planned phase unfinished', async () => {
+  it('lands a first pass the deadline cut before any phase, with every planned phase unfinished, and judges it', async () => {
     const ctx = context();
     const controller = new AbortController();
     const accepted = vi.fn();
+    ctx.llm.enqueueText(jsonText({ approved: false, reasoning: 'no phase was accepted' }));
     const out = await runDepthTask({ mode: 'short', task, floor: [],
       ctx: { ...ctx, signal: controller.signal, deadlineAt: Date.now() + 90_000 }, restart: vi.fn(), onTopology: vi.fn(),
       onAcceptance: accepted, createExecutor: () => ({ actor: new Actor(), handle: async (_task, current) => {
@@ -1200,12 +1201,25 @@ describe('work in hand at the deadline is finalized, landed or complete (2026-09
       } }) });
     expect(out.unfinishedPhases).toEqual(['Create server.js and its tests', 'Create public/index.html', 'Write README.md']);
     expect(out.output).toBeNull();
-    expect(out.refusal).toBeUndefined();
-    expect(out.summary).toMatch(/^INCOMPLETE — the run budget ended before any of its 3 planned phase\(s\)/);
+    expect(out.summary).toContain('INCOMPLETE — the run budget ended before any of its 3 planned phase(s)');
     expect(landingReasons(out)[0]).toMatch(/^reached its budget with 3 unfinished phase\(s\)/);
-    // Nothing was judged: no root acceptance was opened on a pass that accepted no phase.
-    expect(accepted).not.toHaveBeenCalled();
-    expect(ctx.llm.calls).toHaveLength(0);
+    // Judged like any work in hand before it seeds a run (review of 5f66437b):
+    // what it broke is on record in the refusal and the landing reasons.
+    expect(accepted).toHaveBeenCalledWith(expect.objectContaining({ approved: false }));
+    expect(out.refusal).toContain('no phase was accepted');
+    expect(landingReasons(out)).toHaveLength(2);
+  });
+
+  it('keeps a genuine failure a failure even when the deadline cut a sibling', async () => {
+    const ctx = context();
+    const controller = new AbortController();
+    await expect(runDepthTask({ mode: 'short', task, floor: [],
+      ctx: { ...ctx, signal: controller.signal, deadlineAt: Date.now() + 90_000 }, restart: vi.fn(), onTopology: vi.fn(),
+      onAcceptance: vi.fn(), createExecutor: () => ({ actor: new Actor(), handle: async (_task, current) => {
+        current.recordRootPlan?.(threePhases);
+        controller.abort(new DOMException('Execution deadline', 'TimeoutError'));
+        throw new Error('supervision exhausted');
+      } }) })).rejects.toThrow(); // fails (the attempt reports the abort); it never lands
   });
 
   it('still fails a first pass the deadline cut before its root plan existed', async () => {

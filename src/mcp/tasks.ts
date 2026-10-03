@@ -340,7 +340,7 @@ export const PROJECT_RUN_INPUT = {
   idempotencyKey: z.string().min(1).max(200).optional().describe('Idempotency key; the same key returns the same run.'),
   acceptanceCriteria: z.array(z.string().min(1).max(400)).min(1).max(MAX_CHECKLIST_ITEMS).optional().describe(
     'Acceptance criteria you approve for this run, one per entry. "GET /api/notes/:id 404 — unknown id is refused" is an HTTP criterion (status optional, any 2xx without one); any other text is judged by review. ' +
-    `A criterion's text is at most ${MAX_CHECKLIST_BEHAVIOUR_CHARS} characters, not counting an HTTP criterion's method, path and status. ` +
+    `A criterion's text is at most ${MAX_CHECKLIST_BEHAVIOUR_CHARS} characters, not counting an HTTP criterion's method, path and status when it has text of its own. ` +
     'The run is checked against exactly these; one malformed entry refuses the call.'
   ),
   rerunOf: z.string().min(1).optional().describe(

@@ -16,7 +16,7 @@ function textOf(run: ProjectRun): string | undefined {
     const bytes = readFileSync(fd);
     if (bytes.length > MAX_TRACE_BYTES) return undefined;
     const trace = JSON.parse(bytes.toString('utf8')) as { id?: unknown; result?: { output?: unknown } };
-    if (trace.id !== run.traceId || trace.result?.output === undefined) return undefined;
+    if (trace.id !== run.traceId || trace.result?.output === undefined || trace.result.output === null) return undefined;
     return typeof trace.result.output === 'string' ? trace.result.output : JSON.stringify(trace.result.output);
   } finally { closeSync(fd); }
 }

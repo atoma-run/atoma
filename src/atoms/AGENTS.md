@@ -235,7 +235,7 @@ load-bearing.
   to OPEN a phase under `MIN_PHASE_LANDING_MS` of remaining wall clock and keeps
   the earlier phases when a phase that was opened is aborted, and parallel keeps
   the branches that settled when the deadline cut their siblings. A dispatch
-  that completed NO phase still throws, and a rejection that is not the deadline
+  that completed NO phase still throws (the run's first pass then lands, src/run), and a rejection that is not the deadline
   keeps its meaning whatever else settled — `ctx.signal` is the deadline and
   nothing else, since cancellation reaches a run as process teardown. `markLanded`
   stamps the aggregate (`Result.unfinishedPhases`, unioned with what a nested

@@ -534,6 +534,17 @@ export function withoutExecutorLoopFacts(result: Result): Result {
   return passed as Result;
 }
 
+/**
+ * Except the aggregating atom's OWN fallback: `superviseLoop` returns it
+ * unvalidated as one of that atom's sub-results, so nobody below has judged
+ * its loop, and the tier above must (review of 5f66437b).
+ */
+export function withOwnFallbackLoopFacts(aggregate: Result, subResults: readonly Result[], atomName: string): Result {
+  const own = subResults.some((result) =>
+    result.toolBudgetExhausted && result.producedBy.viaFallback && result.producedBy.name === atomName);
+  return own && !aggregate.toolBudgetExhausted ? { ...aggregate, toolBudgetExhausted: true } : aggregate;
+}
+
 export async function runResultGates(
   env: ResultGateEnv,
   memo?: Set<string>,
