@@ -87,7 +87,7 @@
   "launch.empty": "目標を入力するとコマンドが生成されます。",
   "welcome.continue": "続行",
   "welcome.version": "v{{version}}",
-  "welcome.tagline": "最先端モデルをステップごとではなく、タスクごとに一度だけ利用するエージェントプラットフォーム。",
+  "welcome.tagline": "Atoma — リクエストが完成した成果に変わる様子を見届ける",
   "welcome.turn": "ターン",
   "welcome.turnLive": "ライブ",
   "welcome.bead": "ビーズ",

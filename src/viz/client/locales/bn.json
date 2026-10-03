@@ -87,7 +87,7 @@
   "launch.empty": "কমান্ড পেতে একটি লক্ষ্য লিখুন।",
   "welcome.continue": "চালিয়ে যান",
   "welcome.version": "v{{version}}",
-  "welcome.tagline": "এমন একটি এজেন্ট প্ল্যাটফর্ম, যা প্রতিটি ধাপের জন্য নয়, প্রতিটি কাজের জন্য frontier মডেলকে একবার মূল্য দেয়।",
+  "welcome.tagline": "Atoma — একটি অনুরোধকে সম্পন্ন কাজে পরিণত হতে দেখুন",
   "welcome.turn": "টার্ন",
   "welcome.turnLive": "লাইভ",
   "welcome.bead": "বিড",

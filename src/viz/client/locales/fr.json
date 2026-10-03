@@ -87,7 +87,7 @@
   "launch.empty": "Saisis un objectif pour obtenir la commande.",
   "welcome.continue": "Continuer",
   "welcome.version": "v{{version}}",
-  "welcome.tagline": "Une plateforme d'agents qui paie le modèle frontier une fois par tâche, pas à chaque étape.",
+  "welcome.tagline": "Atoma — Regarde une demande devenir un travail terminé",
   "welcome.turn": "Rotation",
   "welcome.turnLive": "Live",
   "welcome.bead": "Boule",

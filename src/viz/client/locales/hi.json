@@ -87,7 +87,7 @@
   "launch.empty": "कमांड पाने के लिए लक्ष्य लिखें।",
   "welcome.continue": "जारी रखें",
   "welcome.version": "v{{version}}",
-  "welcome.tagline": "एक एजेंट प्लेटफ़ॉर्म जो फ्रंटियर मॉडल को हर चरण के लिए नहीं, बल्कि हर कार्य के लिए एक बार भुगतान करता है।",
+  "welcome.tagline": "Atoma — किसी अनुरोध को पूरे हुए काम में बदलते देखें",
   "welcome.turn": "टर्न",
   "welcome.turnLive": "लाइव",
   "welcome.bead": "बीड",

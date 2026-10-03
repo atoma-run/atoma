@@ -87,7 +87,7 @@
   "launch.empty": "Ziel eingeben, um den Befehl zu erhalten.",
   "welcome.continue": "Weiter",
   "welcome.version": "v{{version}}",
-  "welcome.tagline": "Eine Agentenplattform, die das Frontier-Modell einmal pro Aufgabe bezahlt, nicht einmal pro Schritt.",
+  "welcome.tagline": "Atoma — Verfolgen Sie, wie aus einer Anfrage fertige Arbeit wird",
   "welcome.turn": "Runde",
   "welcome.turnLive": "Live",
   "welcome.bead": "Bead",

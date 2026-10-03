@@ -87,7 +87,7 @@
   "launch.empty": "输入目标以生成命令。",
   "welcome.continue": "继续",
   "welcome.version": "v{{version}}",
-  "welcome.tagline": "一个智能体平台：每项任务只为前沿模型付费一次，而非每个步骤付费一次。",
+  "welcome.tagline": "Atoma——见证一个请求化为完成的工作",
   "welcome.turn": "轮次",
   "welcome.turnLive": "实时",
   "welcome.bead": "珠粒",

@@ -87,7 +87,7 @@
   "launch.empty": "Введите цель, чтобы получить команду.",
   "welcome.continue": "Продолжить",
   "welcome.version": "v{{version}}",
-  "welcome.tagline": "Агентная платформа, которая платит передовой модели один раз за задачу, а не за каждый шаг.",
+  "welcome.tagline": "Atoma — наблюдайте, как запрос превращается в готовую работу",
   "welcome.turn": "Ход",
   "welcome.turnLive": "В эфире",
   "welcome.bead": "Бусина",
