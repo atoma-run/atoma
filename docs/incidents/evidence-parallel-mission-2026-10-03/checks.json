@@ -1,0 +1,25 @@
+{
+  "published_commit": "e928a44ad9dac3fbd9fbbdd7fae5bbacd45df98a",
+  "checks": {
+    "independent_results": {
+      "exit_code": 0,
+      "stdout": "{\n  \"packing\": [\n    39,\n    19\n  ],\n  \"schedule\": [\n    8,\n    10\n  ],\n  \"routing\": [\n    19,\n    25\n  ],\n  \"quality_retained\": 5,\n  \"independent_checks\": \"passed\"\n}\n",
+      "stderr": ""
+    },
+    "observed_parallelism": {
+      "exit_code": 0,
+      "stdout": "{\n  \"branches\": [\n    {\n      \"index\": 0,\n      \"id\": \"3dba4ef1-309b-4b37-8df9-fe1ab1395b6f\",\n      \"start_s\": 146.679,\n      \"end_s\": 618.488,\n      \"llm_calls\": 2,\n      \"tool_calls\": 17\n    },\n    {\n      \"index\": 1,\n      \"id\": \"09c41177-e30d-496c-ac96-e85031fa842a\",\n      \"start_s\": 146.495,\n      \"end_s\": 397.288,\n      \"llm_calls\": 2,\n      \"tool_calls\": 11\n    },\n    {\n      \"index\": 2,\n      \"id\": \"7f806d63-e5a0-4150-ac25-3d893e066bbf\",\n      \"start_s\": 139.937,\n      \"end_s\": 597.383,\n      \"llm_calls\": 3,\n      \"tool_calls\": 17\n    },\n    {\n      \"index\": 3,\n      \"id\": \"ee2f771e-bef8-4145-ab06-6d5df8ef05e1\",\n      \"start_s\": 139.982,\n      \"end_s\": 469.123,\n      \"llm_calls\": 2,\n      \"tool_calls\": 12\n    }\n  ],\n  \"all_four_overlap_s\": 250.609,\n  \"integration_start_s\": 618.521,\n  \"barrier_respected\": true\n}\n",
+      "stderr": ""
+    },
+    "published_verifier": {
+      "exit_code": 0,
+      "stdout": "packing --check passed\nschedule --check passed\nrouting --check passed\nquality --check passed\npacking independent objective/feasibility passed\nschedule independent feasibility passed\nrouting independent physical-walk checks passed\nquality independent retained-row checks passed\npacking disposable corruption rejected\nschedule disposable corruption rejected\nrouting disposable corruption rejected\nquality disposable corruption rejected\noriginal stream artifacts preserved byte-for-byte\nverify_all passed\n",
+      "stderr": ""
+    },
+    "published_manifest": {
+      "exit_code": 1,
+      "stdout": "{\n  \"published_files\": 21,\n  \"manifest_entries\": 21,\n  \"matching_hashes\": 20,\n  \"missing_files\": [\n    \".atoma-probes.json\"\n  ],\n  \"hash_mismatches\": [],\n  \"unlisted_files\": [],\n  \"duplicate_entries\": []\n}\n",
+      "stderr": ""
+    }
+  }
+}

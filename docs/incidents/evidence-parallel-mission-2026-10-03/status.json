@@ -1,0 +1,223 @@
+{
+  "projectRunId": "8738f263-a6b6-4084-897e-a57fc2ea4786",
+  "projectId": "e5431908-38f6-4d1e-b30a-ea2122c052cd",
+  "orgId": "d28f40d2-14d7-45c7-bce3-928dcb0041a6",
+  "requestedByPrincipalId": "36bbb732-d581-41e3-b8b5-c39e93fd32b9",
+  "requestKey": "parallel-mission-20261003-v1",
+  "goal": "Create an auditable offline mission-planning dossier for a FICTIONAL field observatory. This is a multi-file analytical deliverable, not a website. Use only the source data below, Python 3 standard library and Markdown/JSON/CSV. No network, packages, fabricated sources or operational safety advice.\n\nThe four workstreams are independent: execute them in PARALLEL branches, each owning ONLY its named directory. None may import, read or modify another stream during this phase. After ALL four finish, perform a sequential integration and verification phase. Preserve the source data separately from derived results. Each stream must deliver input.json, solve.py, result.json and report.md; solve.py must reproduce its result deterministically from its input, with a --check mode that exits nonzero for an incorrect existing result.\n\n1. packing/: Assign indivisible items to boxes X(capacity 9) and Y(capacity 10), or leave them out. Items ID:weight:value are A:6:11 B:5:10 C:4:8 D:4:7 E:3:7 F:3:6 G:2:5 H:2:4 I:1:2. A and H are mandatory. B and E may both be selected but may not share a box. Maximize total value, then minimize total selected weight. Report one optimal assignment, all omitted IDs, box loads and both objective values. Prove global optimality by exhaustive enumeration of assignments, not a greedy claim.\n\n2. schedule/: Six nonpreemptive jobs on identical benches X,Y, integer starts >=0: A=3, B=2, C=4, D=2, E=3, F=1 time units. Precedence: A before D; B before D and E; C and D before F. C cannot start before 1. Jobs D and E share one technician and cannot overlap even on different benches. Intervals are half-open, so touching is allowed. Minimize makespan. Solve baseline and a disruption where bench Y is unavailable on [3,5). Provide a feasible assignment/start/end for every job and a checkable proof no shorter schedule exists in each case.\n\n3. routing/: Undirected graph, positive travel times: DP=4,DQ=3,PQ=2,PR=5,QR=2,QS=6,RS=2,RT=5,ST=3,TD=6. Start/end D, visit P,Q,R,S,T at least once. Revisits are allowed; distance is sum of actual traversed edges. Find a globally shortest closed walk, then solve again with edge RS removed. Return actual edge-by-edge walks, costs and an exhaustive shortest-path-plus-order proof. Do not report a metric-closure jump as a physical edge.\n\n4. quality/: Records (sensor,time,revision,raw): (S1,0,1,10),(S1,0,2,12),(S1,1,1,8),(S2,0,1,3),(S2,0,1,3),(S2,1,1,4),(S2,1,1,5),(S3,0,1,7),(S3,1,1,bad),(S3,2,1,12). Group by sensor,time; take highest revision only; identical repeats at that revision collapse; conflicting values at that revision quarantine the whole group. A surviving nonnumeric raw value is excluded. Calibrations S1=(raw-2)/2, S2=3*(raw+1), S3=10-raw. Inclusive valid band [0,10]. Deliver sorted cleaned.csv with sensor,time,revision,raw,calibrated,in_band; separately list conflicts, invalid records, superseded rows and duplicates in result.json. Report per-sensor retained-row count, calibrated min/max/mean, in-band count; excluded groups never enter aggregates.\n\nIntegration: create README.md, dossier.md, manifest.json and verify_all.py outside those directories. Explain inputs, algorithms, optima, disruption impacts and data exclusions, without mixing independent assumptions. manifest.json lists every delivered file except itself, with SHA-256. verify_all.py must check all four results against their source inputs, detect deliberate corruption of EACH stream's result in disposable copies, and confirm the original files were not altered. Execute the verification and record real results. Final answer: concise results, file paths, verification evidence and any limitations.",
+  "title": "Fictional offline mission-planning dossier with four parallel workstreams",
+  "status": "delivered",
+  "bytesExpiredAt": null,
+  "seed": {
+    "kind": "none"
+  },
+  "traceId": "8738f263-a6b6-4084-897e-a57fc2ea4786",
+  "stats": {
+    "outcome": "delivered",
+    "costUsd": 0.7621,
+    "subscriptionCostUsd": 0.7621,
+    "llmCalls": 29,
+    "opusCalls": 0,
+    "sonnetCalls": 0,
+    "haikuCalls": 0,
+    "otherCalls": 29,
+    "deterministicPhases": 0,
+    "escalations": 0,
+    "learnedSkills": 1,
+    "learnedEventSkills": 0,
+    "promotions": 0,
+    "refusals": 2,
+    "compileErrors": 0,
+    "demotions": 0,
+    "dispatchFallbacks": 0,
+    "uncoveredObligations": 0,
+    "deepenings": 0,
+    "rootRemediations": 0,
+    "landingReasons": []
+  },
+  "artifactManifest": {
+    "version": 1,
+    "source": "workspace",
+    "delivery": "files",
+    "files": [
+      {
+        "path": "dossier.md",
+        "size": 3617,
+        "sha256": "27da12b071a5e1cc0a799d09aa214d3d2efe470b5e3007b2f3712c1586a77b5f",
+        "mode": "100644"
+      },
+      {
+        "path": "manifest.json",
+        "size": 2389,
+        "sha256": "386a9bb80411c57b7fc61a3909c95976ef85a5e04fee0f1b135c9664d92eddc5",
+        "mode": "100644"
+      },
+      {
+        "path": "packing/input.json",
+        "size": 535,
+        "sha256": "0ab08b082819903e1c547ed2ced84eb30bd5466e7a290a74732866d2bcaaaa8e",
+        "mode": "100644"
+      },
+      {
+        "path": "packing/report.md",
+        "size": 1635,
+        "sha256": "676935ae0af229dc5b5768fce435b1e7e62a539f3358fdcba4d2dcbe59b8647f",
+        "mode": "100644"
+      },
+      {
+        "path": "packing/result.json",
+        "size": 852,
+        "sha256": "ca56b04605baa609104b7c343fea499185e8f2d1f44f7918692d80dae69dd87f",
+        "mode": "100644"
+      },
+      {
+        "path": "packing/solve.py",
+        "size": 4134,
+        "sha256": "5a17d31b1d6ce0a21affe51c783acea49ab5652b55a3d288a7b5606797515e5e",
+        "mode": "100644"
+      },
+      {
+        "path": "quality/cleaned.csv",
+        "size": 134,
+        "sha256": "0c80ea08abcd54519f2d1751d831cfbc1944b6c2e7e0a448accf9a5cffc7bb0a",
+        "mode": "100644"
+      },
+      {
+        "path": "quality/input.json",
+        "size": 500,
+        "sha256": "ad427580dc7014ffec942b11c25079e9bc6a929908038ad5bbd135947a0745e0",
+        "mode": "100644"
+      },
+      {
+        "path": "quality/report.md",
+        "size": 826,
+        "sha256": "aa45aab9d1df12484854acddefb0b176e8044ba271820f161abacceefc9a0d0d",
+        "mode": "100644"
+      },
+      {
+        "path": "quality/result.json",
+        "size": 758,
+        "sha256": "acc3c3d6eda530a4fa4a3d9cde62f8f251d1ad670f3709c031f4075186c733d6",
+        "mode": "100644"
+      },
+      {
+        "path": "quality/solve.py",
+        "size": 6072,
+        "sha256": "9727e5927083c3b9e6a8bb03cfa00a7ff3b331ef823b623b1664e3c9a2439272",
+        "mode": "100644"
+      },
+      {
+        "path": "README.md",
+        "size": 1074,
+        "sha256": "0986bdbe0fa7bc62310b6ea8dd2bc5b13d98a636ab513035720468396b4f9ebf",
+        "mode": "100644"
+      },
+      {
+        "path": "routing/input.json",
+        "size": 278,
+        "sha256": "b25c953c854a7ab02edbd878f8dff1869833aa7900822ba653679338ec5e35e1",
+        "mode": "100644"
+      },
+      {
+        "path": "routing/report.md",
+        "size": 1585,
+        "sha256": "96dd7aaa74af1e8c1a4f9ec1f2ca939c84348869d24d9d0cea668975748392a9",
+        "mode": "100644"
+      },
+      {
+        "path": "routing/result.json",
+        "size": 57486,
+        "sha256": "78971c74c6cf4aaf99a365343e5b723bca409f55d840aa7f08d50a6d1626afd7",
+        "mode": "100644"
+      },
+      {
+        "path": "routing/solve.py",
+        "size": 4061,
+        "sha256": "a67dda1a37b4b53ce1ed3f9a8dd9cb15ed8b3744e1f60c3db960a769aae7724e",
+        "mode": "100644"
+      },
+      {
+        "path": "schedule/input.json",
+        "size": 488,
+        "sha256": "2b38a9ea108f2fc8edb77287ef4430c7e70bd99b1a44d96eee9c32c259ff4e5d",
+        "mode": "100644"
+      },
+      {
+        "path": "schedule/report.md",
+        "size": 2062,
+        "sha256": "e85c7c1cf5795c68d10d274e5b06dce85b000fd5d9972979e88d0e3268f46e18",
+        "mode": "100644"
+      },
+      {
+        "path": "schedule/result.json",
+        "size": 2584,
+        "sha256": "c600f3624039610be285e7f5fabec85f2a71992e9f7a65a9285c62f4c75fba28",
+        "mode": "100644"
+      },
+      {
+        "path": "schedule/solve.py",
+        "size": 4582,
+        "sha256": "97640f7b4a6d37e3ec00d457cc2fa1d4dafe655302827d92a71606a52c1bad43",
+        "mode": "100644"
+      },
+      {
+        "path": "verify_all.py",
+        "size": 7288,
+        "sha256": "76105f5f3db460b6993ca126c0ba299f44590d41f4b6e4a0b0c7323a06fbb659",
+        "mode": "100644"
+      }
+    ],
+    "totalBytes": 102940
+  },
+  "artifactManifestHash": "9487102ff4576c24c7db66028fef4e03bd90b081fb55941bc32494ceb24b7f04",
+  "error": null,
+  "createdAt": "2026-10-03T13:01:33.776Z",
+  "startedAt": "2026-10-03T13:01:33.803Z",
+  "endedAt": "2026-10-03T13:21:25.100Z",
+  "updatedAt": "2026-10-03T13:21:25.101Z",
+  "costUsd": 0.7621,
+  "tokens": 1551521,
+  "llmCalls": 29,
+  "jevCalls": 13,
+  "jevCallsLowerBound": false,
+  "models": {
+    "l1": {
+      "selection": "sub:openai:gpt-5.6-luna",
+      "provider": "codex-cli",
+      "payer": "host-subscription",
+      "source": "account"
+    },
+    "l2": {
+      "selection": "sub:openai:gpt-5.6-terra",
+      "provider": "codex-cli",
+      "payer": "host-subscription",
+      "source": "account"
+    },
+    "l3": {
+      "selection": "sub:openai:gpt-5.6-sol",
+      "provider": "codex-cli",
+      "payer": "host-subscription",
+      "source": "account"
+    }
+  },
+  "durationS": 1191.297,
+  "publication": {
+    "status": "published",
+    "repositoryFullName": "mgtf/atoma-parallel-mission-20261003",
+    "repositoryUrl": "https://github.com/mgtf/atoma-parallel-mission-20261003",
+    "git": {
+      "branch": "main",
+      "baseBranch": "main",
+      "defaultBranch": "main",
+      "publishKind": "created",
+      "mode": "direct"
+    },
+    "remoteState": "not-checked",
+    "mergeStatus": "not-applicable",
+    "baseSha": null,
+    "error": null,
+    "publishedAt": "2026-10-03T13:21:42.150Z",
+    "updatedAt": "2026-10-03T13:21:42.150Z",
+    "commitSha": "e928a44ad9dac3fbd9fbbdd7fae5bbacd45df98a"
+  }
+}

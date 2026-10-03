@@ -1,0 +1,39 @@
+{
+  "request": {
+    "projectId": "e5431908-38f6-4d1e-b30a-ea2122c052cd",
+    "idempotencyKey": "parallel-mission-20261003-v1",
+    "goal": "Create an auditable offline mission-planning dossier for a FICTIONAL field observatory. This is a multi-file analytical deliverable, not a website. Use only the source data below, Python 3 standard library and Markdown/JSON/CSV. No network, packages, fabricated sources or operational safety advice.\n\nThe four workstreams are independent: execute them in PARALLEL branches, each owning ONLY its named directory. None may import, read or modify another stream during this phase. After ALL four finish, perform a sequential integration and verification phase. Preserve the source data separately from derived results. Each stream must deliver input.json, solve.py, result.json and report.md; solve.py must reproduce its result deterministically from its input, with a --check mode that exits nonzero for an incorrect existing result.\n\n1. packing/: Assign indivisible items to boxes X(capacity 9) and Y(capacity 10), or leave them out. Items ID:weight:value are A:6:11 B:5:10 C:4:8 D:4:7 E:3:7 F:3:6 G:2:5 H:2:4 I:1:2. A and H are mandatory. B and E may both be selected but may not share a box. Maximize total value, then minimize total selected weight. Report one optimal assignment, all omitted IDs, box loads and both objective values. Prove global optimality by exhaustive enumeration of assignments, not a greedy claim.\n\n2. schedule/: Six nonpreemptive jobs on identical benches X,Y, integer starts >=0: A=3, B=2, C=4, D=2, E=3, F=1 time units. Precedence: A before D; B before D and E; C and D before F. C cannot start before 1. Jobs D and E share one technician and cannot overlap even on different benches. Intervals are half-open, so touching is allowed. Minimize makespan. Solve baseline and a disruption where bench Y is unavailable on [3,5). Provide a feasible assignment/start/end for every job and a checkable proof no shorter schedule exists in each case.\n\n3. routing/: Undirected graph, positive travel times: DP=4,DQ=3,PQ=2,PR=5,QR=2,QS=6,RS=2,RT=5,ST=3,TD=6. Start/end D, visit P,Q,R,S,T at least once. Revisits are allowed; distance is sum of actual traversed edges. Find a globally shortest closed walk, then solve again with edge RS removed. Return actual edge-by-edge walks, costs and an exhaustive shortest-path-plus-order proof. Do not report a metric-closure jump as a physical edge.\n\n4. quality/: Records (sensor,time,revision,raw): (S1,0,1,10),(S1,0,2,12),(S1,1,1,8),(S2,0,1,3),(S2,0,1,3),(S2,1,1,4),(S2,1,1,5),(S3,0,1,7),(S3,1,1,bad),(S3,2,1,12). Group by sensor,time; take highest revision only; identical repeats at that revision collapse; conflicting values at that revision quarantine the whole group. A surviving nonnumeric raw value is excluded. Calibrations S1=(raw-2)/2, S2=3*(raw+1), S3=10-raw. Inclusive valid band [0,10]. Deliver sorted cleaned.csv with sensor,time,revision,raw,calibrated,in_band; separately list conflicts, invalid records, superseded rows and duplicates in result.json. Report per-sensor retained-row count, calibrated min/max/mean, in-band count; excluded groups never enter aggregates.\n\nIntegration: create README.md, dossier.md, manifest.json and verify_all.py outside those directories. Explain inputs, algorithms, optima, disruption impacts and data exclusions, without mixing independent assumptions. manifest.json lists every delivered file except itself, with SHA-256. verify_all.py must check all four results against their source inputs, detect deliberate corruption of EACH stream's result in disposable copies, and confirm the original files were not altered. Execute the verification and record real results. Final answer: concise results, file paths, verification evidence and any limitations.",
+    "acceptanceCriteria": [
+      "Four independent workstreams run in parallel with disjoint files, followed by integration only after all four finish.",
+      "Packing obeys every constraint and proves both optimization objectives by exhaustive assignment enumeration.",
+      "Both schedules are feasible and globally shortest under their own availability and technician constraints.",
+      "Both routes are globally shortest physical walks; the disrupted walk never uses the removed edge.",
+      "Quality processing preserves exact revision, duplicate, conflict and exclusion semantics and computes correct retained-row aggregates.",
+      "Each stream has reproducible standard-library code, source data, machine-readable results and a report; no website or external dependencies.",
+      "Integration checks all streams, detects each corrupted result in disposable copies, preserves originals and supplies complete SHA-256 manifest."
+    ]
+  },
+  "expectedSourceRevision": "543db6d611078c218d8acf0dc3881f56ea1333ce",
+  "method": "Observe actual nested branch intervals and overlapping LLM/tool events; distinguish true runtime overlap from a plan saying parallel. Independently computed oracles stay out of the run prompt. Read complete trace and published artifacts, inspect solvers before executing any model-authored code. No platform source changes during the experiment.",
+  "oracle": {
+    "packing": {
+      "value": 39,
+      "weight": 19
+    },
+    "scheduling": {
+      "baseline": 8,
+      "disruption": 10
+    },
+    "routing": {
+      "baseline": 19,
+      "withoutRS": 25
+    },
+    "quality": {
+      "retained": 5,
+      "conflictGroups": 1,
+      "invalidGroups": 1,
+      "supersededRows": 1,
+      "duplicateRows": 1
+    }
+  }
+}
