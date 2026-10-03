@@ -60,6 +60,12 @@ Demotions instead stamp the generation that produced the failed script.
 The owner authorised deployment followed by live MCP calibration. See the
 [compilation eligibility decision](jev-decisions-2026-09-28.md#compilation-eligibility-owner-decision-2026-10-01).
 
+Update, 2026-10-03: production held one script among 30 task recipes. Every
+other task recipe had been refused by the compiler or was not yet assessed;
+no trust wait held any of them back. Forcing compilation past a refusal and
+giving compiled scripts a browser were examined and rejected. See the
+[compiled-script limits decision](compiled-script-limits-2026-10-03.md).
+
 ## Why the old wait could go
 
 The 2026-08-07 threshold experiment (batches 14–15) found that the success

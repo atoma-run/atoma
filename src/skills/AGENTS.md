@@ -231,3 +231,17 @@ by owner decision on 2026-09-26
   the three. The lexical metric cannot tell "build a Node http service" from
   "probe a Node http service" — same vocabulary. Prevention belongs at learn
   time, where the distiller judges each recipe's claim.
+- Do NOT force compilation past a compiler refusal (owner decision
+  2026-10-03). Compilation already happens at learn time, and the success
+  count never changed a verdict. A trusted script runs without a validator, is
+  credited at dispatch, and an upstream content rejection only stops its
+  re-dispatch within the run, so the refusal is the last step that judges
+  whether a script can do the job. On that date production held one script
+  among 30 task recipes, and the 24 refusals cited task interpretation or
+  browser tooling ([record](../../docs/compiled-script-limits-2026-10-03.md)).
+- Do NOT give compiled scripts a browser (same decision). Only a
+  `validate_html` call through the attesting executor is browser evidence, so
+  what a script's own browser reports proves nothing. Recorded web checks go
+  stale and need the root's start baseline. In the six phases
+  `serve-and-validate-static-page` served, none re-checked an unchanged page,
+  and the browser took about 2% of the time.
