@@ -153,11 +153,12 @@ section.feed{padding:64px 0 88px;background:#0b1424}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(360px,100%),1fr));gap:22px}
 .card{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:18px;overflow:hidden;background:var(--panel);color:var(--text);text-decoration:none}
 .card:hover{border-color:#426386}
-.card .vis{position:relative;height:150px;display:flex;align-items:center;justify-content:center;gap:16px;padding:18px;background:linear-gradient(135deg,#102640,#0d1a2e)}
-.card .vis .g{width:64px;height:64px;border-radius:16px;display:flex;align-items:center;justify-content:center;background:rgba(5,9,19,.45)}
+.card .vis{position:relative;height:160px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:18px;padding:50px 22px 20px;background:linear-gradient(135deg,#102640,#0d1a2e)}
+.card .vis .g{flex:none;width:64px;height:64px;aspect-ratio:1;border-radius:16px;display:flex;align-items:center;justify-content:center;background:rgba(5,9,19,.45)}
 .badge{position:absolute;left:14px;top:14px;display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:rgba(5,9,19,.7);font-size:12px;font-weight:700}
 .badge i{width:7px;height:7px;border-radius:2px;display:inline-block}
-.files{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+.files{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-start;min-width:0;flex:0 1 auto}
+.card .vis .files{max-height:84px;overflow:hidden}
 .files span{padding:4px 8px;border-radius:7px;background:rgba(5,9,19,.55);font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:#c9d4e6}
 .card .body{padding:20px 22px 22px;display:flex;flex-direction:column;gap:14px;flex-grow:1}
 .card h3{font-size:21px;line-height:1.25;letter-spacing:-.01em;color:#f8fbff;text-wrap:pretty}
