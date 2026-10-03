@@ -80,7 +80,9 @@ Neighbours:
   evidence but not every one is a mechanical failure: a same-origin fetch/xhr
   ANSWERED 4xx is a warning, since a page that must show the server's refusal
   could never validate (run 1d42ac2a: 29 calls, 40 minutes); the smoke judges
-  it. A 5xx, another origin and a failed subresource stay errors.
+  it. A 5xx, another origin and a failed subresource stay errors. A node server that
+  exits after boot is recorded on its origin and named by every later probe of
+  it; the favicon filter never drops a broken connection (run 1d42ac2a).
 - Do not relax `detectBrittleComputedStyleLiteral` (the rgb()/rgba()-literal
   pre-flight refusal). Measured across six batches on 2026-08-21 (15 firings
   over seven web runs): every refusal was followed by in-run compliance at

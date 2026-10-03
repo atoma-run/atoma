@@ -72,8 +72,32 @@ export interface ServedOrigin {
   readonly pid: number | undefined;
   /** Node only: the entry file that IS the server, workspace-relative. */
   readonly entry?: string;
+  /**
+   * Node only: the server process ended AFTER it bound its port. Production
+   * run 1d42ac2a (2026-10-03): a delivered server crashed on Chrome's
+   * /favicon.ico request (a read stream with no error handler); every reader
+   * saw only "connection refused" on the next API call, and the run spent 47
+   * minutes and 23 restarts chasing it.
+   */
+  readonly exited?: { readonly code: number | null; readonly signal: string | null; readonly stderrTail: string };
 }
 export type ServedOrigins = Map<number, ServedOrigin>;
+
+/** What a probe on `rawUrl` should know about the server that served it, if it has ended. */
+export function servedOriginExitNote(rawUrl: string, origins: ServedOrigins | undefined): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return '';
+  }
+  const origin = parsed.port === '' ? undefined : origins?.get(Number(parsed.port));
+  if (!origin?.exited) return '';
+  const how = origin.exited.signal ? `signal ${origin.exited.signal}` : `code ${origin.exited.code}`;
+  const tail = origin.exited.stderrTail.trim();
+  return ` The server on this port (node ${origin.entry ?? '?'}, pid ${origin.pid ?? '?'}) EXITED after it started (${how})` +
+    (tail ? `; its stderr ended with: ${tail}` : '; it wrote nothing to stderr') + '.';
+}
 
 /**
  * A registered origin whose process HOLDS the listening socket on `port` at
@@ -1340,7 +1364,7 @@ export function fetchUrlTool(opts: BuiltinToolOptions): BuiltinTool {
         // (ECONNREFUSED and friends) that tells a dead server from a typo.
         const code = typeof e.cause?.code === 'string' ? e.cause.code : undefined;
         const message = code && !e.message.includes(code) ? `${e.message} (${code})` : e.message;
-        return { ok: false, error: `${message}${servedOriginsHintFor(url, opts.servedOrigins)}` };
+        return { ok: false, error: `${message}${servedOriginsHintFor(url, opts.servedOrigins)}${servedOriginExitNote(url, opts.servedOrigins)}` };
       } finally {
         clearTimeout(timer);
       }
@@ -1496,6 +1520,13 @@ export function startNodeServerTool(opts: BuiltinToolOptions): BuiltinTool {
       // `src/tools` deliberately imports nothing outside node builtins and its
       // own siblings, which is what keeps the worker image's closure small.
       opts.servedOrigins?.set(port, { kind: 'node', pid: child.pid, entry });
+      // A crash after boot is a fact every later probe of this port must see.
+      child.once('exit', (code, signal) => {
+        const current = opts.servedOrigins?.get(port);
+        if (current && current.pid === child.pid) {
+          opts.servedOrigins?.set(port, { ...current, exited: { code, signal, stderrTail: stderrBuf.slice(-600) } });
+        }
+      });
 
       return {
         ok: true,
@@ -2249,9 +2280,10 @@ ${pageRevision}`;
         for (const entry of refusals) warnings.push(`${entry.text} [source: ${entry.loc}] — ${ANSWERED_REFUSAL_NOTE}`);
         const pageErrors = mergeConsoleErrors(consoleErrors.filter((entry) => !refusals.includes(entry)), url, declaresIcon);
         const realFailedRequests = failedRequests.filter(
-          (r) => !isSpeculativeFaviconRequest(r.url, url, declaresIcon)
+          (r) => !(isSpeculativeFaviconRequest(r.url, url, declaresIcon) && !CONNECTION_FAILURE_RE.test(r.reason))
         );
-        const allErrors = [...pageErrors, ...errors];
+        const exitNote = servedOriginExitNote(url, opts.servedOrigins);
+        const allErrors = [...pageErrors, ...errors, ...(exitNote ? [exitNote.trim()] : [])];
 
         const title = await page.title();
         return {
@@ -2786,6 +2818,13 @@ export function diagnoseSmokeEvaluationError(message: string): string | null {
  * `<link rel="icon" href="favicon.ico">` and 404s is a REAL broken artefact
  * and keeps failing the check.
  */
+/**
+ * A request that got no answer because the connection broke. The favicon
+ * filter drops Chrome's own speculative favicon fetch, never a server that died
+ * answering it (run 1d42ac2a: the crash itself was filtered away).
+ */
+export const CONNECTION_FAILURE_RE = /ERR_(CONNECTION|EMPTY_RESPONSE|SOCKET|INVALID_RESPONSE|ADDRESS_UNREACHABLE)/;
+
 export function isSpeculativeFaviconRequest(
   requestUrl: string,
   pageUrl: string,

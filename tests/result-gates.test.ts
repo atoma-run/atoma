@@ -77,6 +77,7 @@ describe('result-gate pipeline', () => {
       'portable-http-docs',
       'non-json-envelope',
       'internal-validation-failed',
+      'unvalidated-fallback',
       'tool-budget-exhausted',
       'read-only-validation-failed',
       'recorded-json-shape',

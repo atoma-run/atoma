@@ -293,6 +293,26 @@ describe('trust fast-path in validators', () => {
     expect(withoutExecutorLoopFacts(plain)).toBe(plain);
   });
 
+  it("L3 reads a trusted cell's own fallback instead of trusting it (run 1d42ac2a)", async () => {
+    const reg = new AtomRegistry(openDb(':memory:'));
+    const l3Type = reg.create(3, seed);
+    const l2Type = reg.create(2, seed);
+    for (let i = 0; i < TRUST_THRESHOLD_SUCCESSES; i++) reg.recordSuccess(l2Type.name);
+    const l3 = L3Atom.buildWithModel(l3Type, reg, FALLBACK_OPUS);
+    const l2 = L2Atom.fromType(l2Type, reg);
+    const ctx = makeCtx();
+    ctx.llm.enqueueText(reject);
+    const v = await l3.validateResult(l2, {
+      output: 'Unverified and incomplete; existing files preserved.',
+      summary: 'fallback could not verify the API',
+      trace: [],
+      producedBy: { tier: 2, name: l2.name, viaFallback: true },
+    }, { description: 'build and probe the API' }, ctx);
+    expect(v.approved).toBe(false);
+    expect(ctx.llm.calls).toHaveLength(1);
+    expect(ctx.llm.calls[0]!.userContent).toContain('[unvalidated-fallback]');
+  });
+
   it("an aggregate keeps the loop fact of the aggregating atom's OWN fallback, which nobody below judged", () => {
     const own = exhausted(2, 'Tracheid', true);
     const passed = withOwnFallbackLoopFacts(withoutExecutorLoopFacts(own), [own], 'Tracheid');

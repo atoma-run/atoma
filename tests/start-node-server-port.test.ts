@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ToolSandbox } from '../src/tools/sandbox.js';
-import { startNodeServerTool, type ServedOrigins } from '../src/tools/builtin.js';
+import { fetchUrlTool, startNodeServerTool, validateHtmlTool, type ServedOrigins } from '../src/tools/builtin.js';
 
 /**
  * "Listen on PORT, default 3000" compiles to `Number(process.env.PORT) ||
@@ -44,4 +44,36 @@ describe('start_node_server port', () => {
     const answered = await fetch(`http://127.0.0.1:${second.port}/`).then((res) => res.text());
     expect(answered).toBe('ok');
   }, 30_000);
+
+  // Production run 1d42ac2a (2026-10-03): the delivered server streamed static
+  // files with no error handler, so Chrome's /favicon.ico request crashed it;
+  // the favicon filter and a detached exit listener hid the crash, and every
+  // reader saw only "connection refused" on the page's next API call.
+  it('names a server that crashed after boot, in validate_html and in fetch_url', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'atoma-node-crash-'));
+    dirs.push(dir);
+    writeFileSync(join(dir, 'index.html'), '<!doctype html><title>t</title><p>hello</p>');
+    writeFileSync(join(dir, 'server.mjs'), [
+      "import { createServer } from 'node:http';",
+      "import { createReadStream } from 'node:fs';",
+      "const server = createServer((req, res) => {",
+      "  const file = req.url === '/' ? 'index.html' : req.url.slice(1);",
+      "  res.writeHead(200, { 'content-type': 'text/html' });",
+      "  createReadStream(file).pipe(res);",
+      "});",
+      "server.listen(Number(process.env.PORT) || 0, () => console.log('LISTENING_ON_PORT=' + server.address().port));",
+    ].join('\n'));
+    const sandbox = new ToolSandbox(dir);
+    sandboxes.push(sandbox);
+    const origins: ServedOrigins = new Map();
+    const started = (await startNodeServerTool({ sandbox, servedOrigins: origins }).execute({ entry: 'server.mjs' })) as { ok: boolean; url: string };
+    expect(started.ok, JSON.stringify(started)).toBe(true);
+    const page = (await validateHtmlTool({ sandbox, servedOrigins: origins }).execute({ url: started.url, waitMs: 500 })) as { ok: boolean; errors: string[] };
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const probe = (await fetchUrlTool({ sandbox, servedOrigins: origins }).execute({ url: `${started.url}api/members` })) as { ok: boolean; error?: string };
+    expect(probe.ok).toBe(false);
+    expect(probe.error).toContain('EXITED after it started');
+    expect(probe.error).toContain('ENOENT');
+    expect(page.ok).toBe(false);
+  }, 60_000);
 });

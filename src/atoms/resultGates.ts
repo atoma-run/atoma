@@ -415,6 +415,28 @@ const RESULT_GATES: readonly ResultGate[] = [
     // had cut to three iterations answered {"status":"incomplete"} and the
     // trust fast path approved and credited it, then the tissue's trust fast
     // path approved the phase.
+    id: 'unvalidated-fallback',
+    disposition: 'requires-review',
+    appliesToDelegatedResult: true,
+    check: (env) =>
+      Promise.resolve(
+        // A cell's (or tissue's) OWN fallback: superviseLoop hands it back
+        // unvalidated, so the tier judging it is the first to read it. Run
+        // 1d42ac2a (2026-10-03): a cell's fallback answered "Unverified and
+        // incomplete" and the tissue's trust fast path approved the phase.
+        env.result.producedBy.viaFallback && env.result.producedBy.name === env.childName
+          ? {
+              reasoning:
+                `this is ${env.childName}'s own last-resort fallback, which no supervisor has validated: ` +
+                'it is judged here for the first time',
+              coaching:
+                'the fallback result shows every requirement of its task met in its recorded evidence; ' +
+                'anything it reports as unverified or incomplete is a reason to reject',
+            }
+          : null
+      ),
+  },
+  {
     id: 'tool-budget-exhausted',
     disposition: 'requires-review',
     appliesToDelegatedResult: true,
