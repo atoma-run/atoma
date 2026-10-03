@@ -1108,3 +1108,23 @@ describe('ProjectStore — one principal’s runs, as the MCP lists its tasks', 
     }
   });
 });
+
+it('reads an organisation\'s newest runs across its projects, the scan bounded (MCP resources/list)', () => {
+  const alice = actor('Alice');
+  const bob = actor('Bob');
+  const zeta = createProject(alice, 'zeta-lab');
+  const alpha = createProject(alice, 'alpha-lab');
+  const ids: string[] = [];
+  for (const [index, project] of [zeta, alpha, zeta].entries()) {
+    const run = store.createProjectRun({
+      orgId: alice.orgId, projectId: project.projectId, principalId: alice.principalId,
+      request: runRequest(`recent-${index}`, `Goal ${index}`), hostPaths: hostPaths(`recent-${index}`),
+    })!.run;
+    db.prepare('UPDATE project_runs SET created_at = ? WHERE project_run_id = ?')
+      .run(new Date(Date.UTC(2026, 9, 1 + index)).toISOString(), run.projectRunId);
+    ids.push(run.projectRunId);
+  }
+  expect(store.recentProjectRuns(alice.orgId, 2).map((run) => run.projectRunId)).toEqual([ids[2], ids[1]]);
+  expect(store.recentProjectRuns(alice.orgId, 50)).toHaveLength(3);
+  expect(store.recentProjectRuns(bob.orgId, 50)).toEqual([]);
+});

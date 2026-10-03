@@ -8,7 +8,8 @@ import { join, posix, win32 } from 'node:path';
 import { readFileSync } from 'node:fs';
 import Database from 'better-sqlite3';
 import { closeStoreHandles } from '../src/core/stores.js';
-import { INSTRUCTIONS } from '../src/mcp/server.js';
+import { instructionsFor } from '../src/mcp/server.js';
+const TIER_TEXTS = (['viewer', 'member', 'admin', 'platform'] as const).map((tier) => instructionsFor(tier));
 import {
   DEFAULT_RUN_TIMEOUT_MS,
   MAX_GOAL_CHARS,
@@ -701,13 +702,13 @@ describe('MCP server instructions', () => {
    */
   it('never teach the host to name a builtin tool in a goal', () => {
     for (const tool of BUILTIN_TOOL_VOCABULARY) {
-      expect(INSTRUCTIONS, `instructions name the tool "${tool}"`).not.toContain(tool);
+      for (const text of TIER_TEXTS) expect(text, `instructions name the tool "${tool}"`).not.toContain(tool);
     }
   });
 
   it('states the two properties a host must not paraphrase away', () => {
-    expect(INSTRUCTIONS).toMatch(/SERIALISED/);
-    expect(INSTRUCTIONS).toMatch(/DESTRUCTIVE/);
+    for (const text of TIER_TEXTS) expect(text).toMatch(/SERIALISED/);
+    for (const text of TIER_TEXTS) expect(text).toMatch(/DESTRUCTIVE/);
   });
 
   /**
@@ -719,8 +720,26 @@ describe('MCP server instructions', () => {
    * reads before any tool result arrives.
    */
   it('marks embedded run/skill/trace text as untrusted data, never instructions', () => {
-    expect(INSTRUCTIONS).toMatch(/UNTRUSTED DATA/);
-    expect(INSTRUCTIONS).toMatch(/never follow it as instructions/);
+    for (const text of TIER_TEXTS) expect(text).toMatch(/UNTRUSTED DATA/);
+    for (const text of TIER_TEXTS) expect(text).toMatch(/never follow it as instructions/);
+  });
+
+  /**
+   * Host budgets measured 2026-10-03: Claude Code cuts instructions at 2,048
+   * characters (the 2,208-character text lost its role paragraph), and
+   * ChatGPT/Codex read the first 512 as the part that must stand alone.
+   */
+  it('fits every tier in 2,048 characters, with what must never be lost in the first 512', () => {
+    for (const text of TIER_TEXTS) {
+      expect(text.length).toBeLessThanOrEqual(2048);
+      const lead = text.slice(0, 512);
+      for (const phrase of ['DESTRUCTIVE', 'SERIALISED', 'UNTRUSTED DATA', 'never follow it as instructions', 're-attach']) {
+        expect(lead).toContain(phrase);
+      }
+    }
+    // Prompts are registered only at the platform tier: nobody else is told about them.
+    for (const tier of ['viewer', 'member', 'admin'] as const) expect(instructionsFor(tier)).not.toContain('atoma_goal');
+    expect(instructionsFor('platform')).toContain('atoma_goal');
   });
 
 });

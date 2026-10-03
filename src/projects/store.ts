@@ -1640,6 +1640,16 @@ END;
     return row ? runFromRow(row) : null;
   }
 
+  /** The organisation's newest runs across its projects, the scan bounded by `limit`. */
+  recentProjectRuns(orgIdInput: string, limit: number): ProjectRun[] {
+    const orgId = organisationIdSchema.parse(orgIdInput);
+    return (
+      this.db
+        .prepare('SELECT * FROM project_runs WHERE org_id = ? ORDER BY created_at DESC, project_run_id ASC LIMIT ?')
+        .all(orgId, Math.max(0, Math.floor(limit))) as ProjectRunRow[]
+    ).map(runFromRow);
+  }
+
   listProjectRuns(orgIdInput: string, projectIdInput: string): ProjectRun[] | null {
     const orgId = organisationIdSchema.parse(orgIdInput);
     const projectId = projectIdSchema.parse(projectIdInput);

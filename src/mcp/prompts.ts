@@ -77,12 +77,15 @@ export function promptNames(): string[] {
  *
  * The guidance is quoted from `GOAL_GUIDANCE` verbatim; the only thing this
  * function adds is what the host has to DO with it, and the two properties of
- * `atoma_operator_run_start` a caller must not discover by accident.
+ * `atoma_operator_run_start` a caller must not discover by accident. It hands
+ * the start back to the person (src/mcp/AGENTS.md: a prompt never instructs a
+ * write) and teaches no polling loop: the start is a task or a synchronous
+ * call, and the status tool is a reader for a cut call.
  */
 export function goalPromptText(goal: string): string {
   const examples = GOAL_GUIDANCE.examples.map((e) => `- ${e}`).join('\n');
   return [
-    'Start an atoma run.',
+    'Prepare an atoma run for the person to confirm.',
     '',
     "How to phrase a goal — atoma's own guidance, verbatim:",
     GOAL_GUIDANCE.help,
@@ -93,8 +96,8 @@ export function goalPromptText(goal: string): string {
     'The goal to run:',
     goal,
     '',
-    `Call atoma_operator_run_start with that goal as prose describing the artefact wanted (inside an organisation's project, atoma_run_start with the projectId instead). Do not name tools in the goal: the tiering decides what to invoke, and a goal that prescribes it spends the run's budget on the wrong phase.`,
-    'Starting a run is DESTRUCTIVE (the shared build workspace is archived first unless keepWorkspace is passed, and the run mutates the agent registry, the skill store and the lifecycle ledger) and SERIALISED (one at a time). It returns a runId immediately and takes minutes: poll atoma_operator_run_status until it is finished, and report its economics.',
+    `Show the person the goal as prose describing the artefact wanted, and start it only once they confirm: atoma_operator_run_start with that goal (inside an organisation's project, atoma_run_start with the projectId instead). Do not name tools in the goal: the tiering decides what to invoke, and a goal that prescribes it spends the run's budget on the wrong phase.`,
+    'Starting a run is DESTRUCTIVE (the shared build workspace is archived first unless keepWorkspace is passed, and the run mutates the agent registry, the skill store and the lifecycle ledger) and SERIALISED (one at a time). The start answers when the run ends, minutes later; if the call is cut, the run goes on: read it with atoma_operator_run_status rather than starting it again, and report its economics.',
   ].join('\n');
 }
 

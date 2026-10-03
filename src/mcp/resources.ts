@@ -152,19 +152,20 @@ export function registerResources(server: McpServer, ctx: McpToolContext): void 
       'project-run',
       new ResourceTemplate(PROJECT_RUN_TEMPLATE, {
         list: () => {
-          const resources: { uri: string; name: string; description: string; mimeType: string }[] = [];
-          for (const project of store.listProjects(viewer.orgId)) {
-            for (const run of store.listProjectRuns(viewer.orgId, project.projectId) ?? []) {
-              resources.push({
-                uri: projectRunUri(project.projectId, run.projectRunId),
-                name: `${project.slug} · ${run.projectRunId.slice(0, 8)}`,
-                description: `${run.status} — ${run.title ?? run.goal.slice(0, 80)}`,
-                mimeType: JSON_MIME,
-              });
-            }
-          }
-          resources.sort((a, b) => b.name.localeCompare(a.name));
-          return { resources: resources.slice(0, RESOURCE_LIST_LIMIT) };
+          // The NEWEST runs, read as such: sorting the names ('<slug> · <id>')
+          // listed the alphabetically last projects in random run order, after
+          // an unbounded scan of every run of the organisation.
+          const slugs = new Map(store.listProjects(viewer.orgId).map((project) => [project.projectId, project.slug]));
+          const resources = store.recentProjectRuns(viewer.orgId, RESOURCE_LIST_LIMIT).flatMap((run) => {
+            const slug = slugs.get(run.projectId);
+            return slug === undefined ? [] : [{
+              uri: projectRunUri(run.projectId, run.projectRunId),
+              name: `${slug} · ${run.projectRunId.slice(0, 8)}`,
+              description: `${run.status} — ${run.title ?? run.goal.slice(0, 80)}`,
+              mimeType: JSON_MIME,
+            }];
+          });
+          return { resources };
         },
       }),
       {

@@ -121,3 +121,7 @@ proof of a successful tool call.
 Regression coverage includes the real Settings fetch lifecycle, the actual
 HTTP token-create → MCP initialize/tool-list → revoke flow, and the compiled
 operator discovery smoke. No external model request is needed for these checks.
+
+## Superseded since (2026-10-03)
+
+OAuth 2.1 for MCP clients, deferred above, shipped on 2026-09-08 (CIMD since 2026-09-30); Settings now offers OAuth-first commands, and the Codex table carries `tool_timeout_sec = 10800`. The current contract is [MCP authorization](mcp-oauth.md) and [`src/mcp/AGENTS.md`](../src/mcp/AGENTS.md).

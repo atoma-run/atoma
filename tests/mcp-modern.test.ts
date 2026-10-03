@@ -109,6 +109,41 @@ async function modernRequest(url: string, method: string, params: Record<string,
 }
 
 describe('the 2026-07-28 era', () => {
+  it('publishes every outputSchema OPEN, so an additive field never fails a client’s validation (2026-10-01)', async () => {
+    const { url } = await listen(() => ({ kind: 'operator' }), {
+      ...NO_TENANT, mcpHealth: () => ({ sessions: 0 }) as never, analyst: () => null,
+    });
+    const client = await modernClient(url);
+    try {
+      const withSchema = (await client.listTools()).tools.filter((tool) => tool.outputSchema);
+      expect(withSchema.length).toBeGreaterThan(0);
+      for (const tool of withSchema) {
+        expect(tool.outputSchema?.['additionalProperties'], tool.name).not.toBe(false);
+      }
+      // The real SDK client accepts a result carrying a field the schema does not name.
+      const health = await client.callTool({ name: 'atoma_mcp_health', arguments: {} });
+      expect(health.isError).not.toBe(true);
+    } finally {
+      await client.close();
+    }
+  });
+
+  it('marks the four irreversible catalogue writes for a person, and never claims an open world for a local write', async () => {
+    const { url } = await listen(() => ({ kind: 'operator' }), NO_TENANT);
+    const client = await modernClient(url);
+    try {
+      const tools = new Map((await client.listTools()).tools.map((tool) => [tool.name, tool]));
+      for (const name of ['atoma_skill_reset', 'atoma_skill_drop', 'atoma_skill_merge', 'atoma_registry_rollback']) {
+        expect(tools.get(name)?._meta, name).toMatchObject({ 'anthropic/requiresUserInteraction': true });
+        expect(tools.get(name)?.annotations, name).toMatchObject({ readOnlyHint: false, destructiveHint: true, openWorldHint: false });
+      }
+      // The start tools stay unmarked: agent-driven campaigns start runs unattended.
+      expect(tools.get('atoma_operator_run_start')?._meta?.['anthropic/requiresUserInteraction']).toBeUndefined();
+    } finally {
+      await client.close();
+    }
+  });
+
   it('serves a 2026 client per request with its tier’s tools, beside a 2025 session, and counts who speaks what', async () => {
     const callers: Record<string, McpCaller> = {
       viewer: { kind: 'principal', viewer: viewer('org:viewer'), tokenId: 'v' },

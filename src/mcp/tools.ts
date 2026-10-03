@@ -351,6 +351,15 @@ function startOperatorRunFor(ctx: McpToolContext, args: StartRunInput) {
 
 const READ_ONLY = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } as const;
 const MUTATING = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true } as const;
+/** A write to this instance's own store: destructive, but no open world (it publishes nothing). */
+const LOCAL_WRITE = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false } as const;
+/**
+ * The four irreversible catalogue writes: Claude Code asks the person on EVERY
+ * call, whatever its permission mode (vendor key, ignored by other hosts). The
+ * person decides these (prompts.ts); the start tools stay unmarked, because the
+ * owner's agent-driven campaigns start runs unattended.
+ */
+const PERSON_DECIDES = { 'anthropic/requiresUserInteraction': true } as const;
 
 function tenant(ctx: McpToolContext): { service: ProjectService; store: ProjectStore; viewer: Viewer } {
   if (!ctx.deps.projects) throw new McpToolRefused('this host has no organisations (ungated loopback server)');
@@ -471,7 +480,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
             action: z.enum(['open', 'stop']).optional(),
             inFlight: z.boolean().optional(),
           },
-          annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+          annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
         },
         (args) =>
           guarded(async () => {
@@ -504,10 +513,10 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
             before: z.number().int().positive().optional(),
             limit: z.number().int().positive().max(50).optional(),
           },
-          outputSchema: {
+          outputSchema: z.looseObject({
             notifications: z.array(z.record(z.string(), z.unknown())),
             nextBefore: z.number().nullable(),
-          },
+          }),
           annotations: READ_ONLY,
         },
         (args) =>
@@ -891,18 +900,18 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
             entity: z.string().min(1).optional(),
             kind: z.string().min(1).optional(),
           },
-          outputSchema: {
+          outputSchema: z.looseObject({
             ledger: z.string(),
             total: z.number(),
-            // How far a FILTERED tail scanned and how many rows came back. The
-            // SDK client validates structured content against this schema with
-            // additionalProperties:false, so a field the reader emits and the
-            // schema omits refuses the whole result (seen live 2026-10-01).
+            // How far a FILTERED tail scanned and how many rows came back. A
+            // raw shape published additionalProperties:false, and the SDK
+            // client refused the whole result over a field it omitted (seen
+            // live 2026-10-01): every outputSchema here is a looseObject.
             scanned: z.number().optional(),
             returned: z.number().optional(),
             events: z.array(z.record(z.string(), z.unknown())),
             note: z.string().optional(),
-          },
+          }),
           annotations: READ_ONLY,
         },
         (args) =>
@@ -927,7 +936,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
           description:
             'Aggregate economics over the newest operator traces: totals, cost and calls per model, per tier and per role, one row per run in chronological order, and the median run cost of the older half against the newer half — the "is the curve going down?" answer. Derived from the traces at call time.',
           inputSchema: { last: z.number().int().positive().max(200).optional().describe('Trace window; default 20.') },
-          outputSchema: {
+          outputSchema: z.looseObject({
             runsDir: z.string(),
             window: z.number(),
             runsScanned: z.number(),
@@ -939,7 +948,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
             perRole: z.array(z.record(z.string(), z.unknown())),
             trend: z.record(z.string(), z.unknown()),
             runs: z.array(z.record(z.string(), z.unknown())),
-          },
+          }),
           annotations: READ_ONLY,
         },
         (args) => jsonResult(costs(args))
@@ -990,12 +999,12 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
           title: 'The watch over runs in flight',
           description:
             'Whether this host’s resident sentinel is armed (and why not, when it is not), its tick statistics, the mechanical rule table it applies, and the resident analyst’s queue and last result. Zero tokens: this reads counters.',
-          outputSchema: {
+          outputSchema: z.looseObject({
             sentinel: z.record(z.string(), z.unknown()).nullable(),
             rules: z.array(z.record(z.string(), z.unknown())),
             analyst: z.record(z.string(), z.unknown()).nullable(),
             note: z.string(),
-          },
+          }),
           annotations: READ_ONLY,
         },
         () =>
@@ -1020,10 +1029,10 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
           title: 'Who speaks which MCP protocol',
           description:
             'This MCP host’s counters since the server started: open 2025-11-25 sessions, 2026-07-28 requests, and `clients` — `<protocol version> <client name>` → sessions opened (2025) or requests (2026). The evidence for when 2025 support can go. Client names are what each client declared about itself. Zero tokens: this reads counters.',
-          outputSchema: {
+          outputSchema: z.looseObject({
             mcp: z.record(z.string(), z.unknown()).nullable(),
             note: z.string(),
-          },
+          }),
           annotations: READ_ONLY,
         },
         () => {
@@ -1050,6 +1059,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
             'Zero one skill’s successes and failures and clear its promotion-refusal stamp, so a script dispatches again and an llm recipe may be recompiled. Attributed to you and journaled on a gated host. The body is untouched.',
           inputSchema: { l1: z.string().min(1), id: z.string().min(1) },
           annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+          _meta: PERSON_DECIDES,
         },
         (args) => guarded(() => skillReset({ ...args, actor: actorOf(ctx), ...(ctx.deps.emit ? { emit: ctx.deps.emit } : {}) }))
       ),
@@ -1066,7 +1076,8 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
           description:
             'Delete one skill recipe. REFUSED without force when the skill has recorded successes — that is proven knowledge. Attributed to you and journaled on a gated host.',
           inputSchema: { l1: z.string().min(1), id: z.string().min(1), force: z.boolean().optional() },
-          annotations: MUTATING,
+          annotations: LOCAL_WRITE,
+          _meta: PERSON_DECIDES,
         },
         (args) => guarded(() => skillDrop({ ...args, actor: actorOf(ctx), ...(ctx.deps.emit ? { emit: ctx.deps.emit } : {}) }))
       ),
@@ -1083,7 +1094,8 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
           description:
             'The KEEPER absorbs the other skill’s when_to_use (its matching surface) and keeps its own body, kind and counters; the absorbed skill is deleted with its counters. REFUSED without force when the absorbed skill has recorded successes — if that body is the one worth keeping, merge in the other direction. Attributed and journaled.',
           inputSchema: { l1: z.string().min(1), keep: z.string().min(1), absorb: z.string().min(1), force: z.boolean().optional() },
-          annotations: MUTATING,
+          annotations: LOCAL_WRITE,
+          _meta: PERSON_DECIDES,
         },
         (args) => guarded(() => skillMerge({ ...args, actor: actorOf(ctx), ...(ctx.deps.emit ? { emit: ctx.deps.emit } : {}) }))
       ),
@@ -1100,7 +1112,8 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
           description:
             'Restore an older version’s prompt, tools and params as a NEW live version (roll-forward-to-old-content; see atoma_registry_history for versions). The trust streak resets while historical success/failure totals are preserved; the restored type re-earns trust through consecutive approved final results. A bootstrap type’s seeder may patch the rollback away on the next run. Attributed and journaled.',
           inputSchema: { name: z.string().min(1), toVersion: z.number().int().positive() },
-          annotations: MUTATING,
+          annotations: LOCAL_WRITE,
+          _meta: PERSON_DECIDES,
         },
         (args) => guarded(() => registryRollback({ ...args, actor: actorOf(ctx), ...(ctx.deps.emit ? { emit: ctx.deps.emit } : {}) }))
       ),
