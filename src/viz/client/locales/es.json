@@ -87,7 +87,7 @@
   "launch.empty": "Escribe un objetivo para obtener el comando.",
   "welcome.continue": "Continuar",
   "welcome.version": "v{{version}}",
-  "welcome.tagline": "Una plataforma de agentes que paga al modelo de frontera una vez por tarea, no una vez por paso.",
+  "welcome.tagline": "Atoma — Observa cómo una solicitud se convierte en trabajo terminado",
   "welcome.turn": "Turno",
   "welcome.turnLive": "En vivo",
   "welcome.bead": "Cuenta",
