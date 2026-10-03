@@ -161,7 +161,7 @@
   "docs.theme.burnin.title": "Burn-in",
   "docs.theme.burnin.body": "发布前端到端运行的一批真实任务，用于衡量缺陷、成本和阻力。此处显示的是最近一次记录的批次，并非对下一批次的实时保证。",
   "docs.theme.launch.title": "启动",
-  "docs.theme.launch.body": "run 可处理的任务类别，以及每类任务的目标表述方式。在组织内，run 从项目启动，相关指导会显示在 run 提示旁。没有组织的本地实例也没有项目：请在 shell 中使用 `npm run run:build -- \"<goal>\"` 启动 run。浏览器刻意禁止在已登录项目之外启动 run。",
+  "docs.theme.launch.body": "如何表述 run 的目标。在组织内，run 从项目中启动，相关指引位于 run 提示词旁边。没有组织的本地实例也没有项目：请在 shell 中使用 `npm run run:build -- \"<goal>\"` 启动 run。浏览器不会在已登录的项目之外启动 run，这是特意设计的。",
   "docs.theme.admin.title": "管理",
   "docs.theme.admin.body": "平台管理员标志后有五个页面：包含成员和一次性邀请的组织、平台审计日志（此部署所发生事件的唯一来源）、记录智能体目录所学内容的目录账本、哨兵（对进行中 run 的机械式实时监视），以及公告（由人工撰写的一次推送，发出前会以所有受支持语言审核）。邀请绝不会授予操作员级访问权限。",
   "docs.theme.mcp.title": "MCP",
@@ -1260,5 +1260,6 @@
   "result.files_other": "已交付的文件（{{count}}个文件）",
   "result.filesPublished": "文件链接将打开此run在GitHub上已发布的确切修订版本，你可以在那里查看或下载文件。",
   "result.filesUnavailable": "这些文件没有可用的已发布修订版本，无法从此run在GitHub上打开。",
-  "result.expired": "本地文件已过期。已发布的文件可能仍可在GitHub上获取。"
+  "result.expired": "本地文件已过期。已发布的文件可能仍可在GitHub上获取。",
+  "launch.guidance": "描述你希望实现的结果及任何约束条件。对于导入的代码仓库，请说明要检查或更改的内容。Atoma 会选择完成请求所需的能力。结果可以是说明、分析、文档或可运行的软件；验证将依据所请求的结果进行。"
 }

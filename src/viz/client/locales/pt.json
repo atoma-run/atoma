@@ -161,7 +161,7 @@
   "docs.theme.burnin.title": "Burn-in",
   "docs.theme.burnin.body": "Um lote de tarefas reais executadas de ponta a ponta para medir defeitos, custos e atritos antes de um lançamento. O que é apresentado aqui é o último lote registado, não uma garantia em tempo real sobre o próximo.",
   "docs.theme.launch.title": "Iniciar",
-  "docs.theme.launch.body": "As famílias de tarefas que um run pode assumir e como formular um objetivo para cada uma. Numa organização, um run é iniciado a partir de um projeto, e essa orientação aparece junto ao próprio pedido do run. Uma instância local sem organizações não tem projetos: inicie um run numa shell com `npm run run:build -- \"<goal>\"`. O navegador nunca inicia deliberadamente um run fora de um projeto com sessão iniciada.",
+  "docs.theme.launch.body": "Como formular um objetivo para um run. Numa organização, um run é iniciado a partir de um projeto, e essas orientações aparecem junto ao próprio prompt do run. Uma instância local sem organizações não tem projetos: inicie um run numa shell com `npm run run:build -- \"<goal>\"`. O navegador nunca inicia deliberadamente um run fora de um projeto com sessão iniciada.",
   "docs.theme.admin.title": "Administração",
   "docs.theme.admin.body": "Cinco ecrãs protegidos pelo sinalizador de administração da plataforma: organizações com os respetivos membros e convites de utilização única; o diário de auditoria da plataforma, a única fonte do que aconteceu nesta implementação; o livro-razão do catálogo, que regista o que o catálogo de agentes aprendeu; o sentinela, a monitorização automática em tempo real dos runs em curso; e os anúncios, o único envio escrito por uma pessoa e revisto em todos os idiomas suportados antes de ser publicado. Um convite nunca concede acesso ao nível de operador.",
   "docs.theme.mcp.title": "MCP",
@@ -1260,5 +1260,6 @@
   "result.files_other": "Ficheiros entregues ({{count}} ficheiros)",
   "result.filesPublished": "As ligações dos ficheiros abrem a revisão publicada exata deste run no GitHub, onde pode vê-los ou descarregá-los.",
   "result.filesUnavailable": "Não está disponível nenhuma revisão publicada para estes ficheiros. Não podem ser abertos no GitHub a partir deste run.",
-  "result.expired": "Os ficheiros locais expiraram. Os ficheiros publicados ainda podem estar disponíveis no GitHub."
+  "result.expired": "Os ficheiros locais expiraram. Os ficheiros publicados ainda podem estar disponíveis no GitHub.",
+  "launch.guidance": "Descreva o resultado pretendido e quaisquer restrições. Para um repositório importado, explique o que deve ser inspecionado ou alterado. A atoma seleciona as capacidades necessárias para o seu pedido. O resultado pode ser uma explicação, uma análise, um documento ou software funcional; a verificação segue o resultado solicitado."
 }

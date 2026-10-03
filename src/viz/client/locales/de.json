@@ -161,7 +161,7 @@
   "docs.theme.burnin.title": "Burn-in",
   "docs.theme.burnin.body": "Eine Reihe realer Aufgaben, die vollständig ausgeführt werden, um vor einer Veröffentlichung Fehler, Kosten und Reibungsverluste zu messen. Angezeigt wird die zuletzt aufgezeichnete Reihe, keine aktuelle Garantie für die nächste.",
   "docs.theme.launch.title": "Start",
-  "docs.theme.launch.body": "Die Aufgabenfamilien, die ein Run übernehmen kann, und wie ein Ziel jeweils formuliert werden sollte. Innerhalb einer Organisation wird ein Run von einem Projekt aus gestartet; die Anleitung steht direkt neben der Run-Eingabe. Eine lokale Instanz ohne Organisationen hat keine Projekte: Starten Sie einen Run in einer Shell mit `npm run run:build -- \"<goal>\"`. Der Browser startet bewusst niemals einen Run außerhalb eines angemeldeten Projekts.",
+  "docs.theme.launch.body": "So formulieren Sie ein Ziel für einen run. Innerhalb einer Organisation wird ein run aus einem Projekt gestartet; diese Anleitung steht neben dem run-Prompt selbst. Eine lokale Instanz ohne Organisationen hat keine Projekte: Starten Sie einen run über eine Shell mit `npm run run:build -- \"<goal>\"`. Der Browser startet bewusst nie einen run außerhalb eines Projekts, bei dem Sie angemeldet sind.",
   "docs.theme.admin.title": "Administration",
   "docs.theme.admin.body": "Fünf Ansichten hinter dem Plattformadministrator-Flag: Organisationen mit ihren Mitgliedern und einmalig verwendbaren Einladungen, das Plattform-Auditjournal als einzige Quelle dafür, was in dieser Bereitstellung geschehen ist, das Kataloghauptbuch über die Erkenntnisse des Agentenkatalogs, Sentinel als mechanische Liveüberwachung laufender Runs sowie Ankündigungen – die eine von einem Menschen verfasste Mitteilung, die vor dem Versand in jeder unterstützten Sprache geprüft wird. Eine Einladung gewährt niemals Zugriff auf Betreiberebene.",
   "docs.theme.mcp.title": "MCP",
@@ -1260,5 +1260,6 @@
   "result.files_other": "Bereitgestellte Dateien ({{count}} Dateien)",
   "result.filesPublished": "Die Dateilinks öffnen die genaue veröffentlichte Revision dieses Runs auf GitHub, wo Sie die Dateien ansehen oder herunterladen können.",
   "result.filesUnavailable": "Für diese Dateien ist keine veröffentlichte Revision verfügbar. Sie können aus diesem Run nicht auf GitHub geöffnet werden.",
-  "result.expired": "Lokale Dateien sind abgelaufen. Veröffentlichte Dateien sind möglicherweise weiterhin auf GitHub verfügbar."
+  "result.expired": "Lokale Dateien sind abgelaufen. Veröffentlichte Dateien sind möglicherweise weiterhin auf GitHub verfügbar.",
+  "launch.guidance": "Beschreiben Sie das gewünschte Ergebnis und etwaige Einschränkungen. Erläutern Sie bei einem importierten Repository, was geprüft oder geändert werden soll. Atoma wählt die für Ihre Anfrage erforderlichen Funktionen aus. Das Ergebnis kann eine Erklärung, eine Analyse, ein Dokument oder funktionsfähige Software sein; die Überprüfung richtet sich nach dem gewünschten Ergebnis."
 }

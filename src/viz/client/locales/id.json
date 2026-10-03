@@ -161,7 +161,7 @@
   "docs.theme.burnin.title": "Burn-in",
   "docs.theme.burnin.body": "Sekumpulan tugas nyata yang dijalankan dari awal hingga akhir untuk mengukur cacat, biaya, dan hambatan sebelum rilis. Yang ditampilkan di sini adalah kumpulan terakhir yang tercatat, bukan jaminan langsung untuk kumpulan berikutnya.",
   "docs.theme.launch.title": "Peluncuran",
-  "docs.theme.launch.body": "Kelompok tugas yang dapat diterima run dan cara merumuskan tujuan untuk masing-masing tugas. Dalam organisasi, run dimulai dari proyek, dan panduan tersebut tersedia di samping perintah run itu sendiri. Instans lokal tanpa organisasi tidak memiliki proyek: mulai run dari shell dengan `npm run run:build -- \"<goal>\"`. Browser sengaja tidak pernah meluncurkan run di luar proyek pengguna yang sudah masuk.",
+  "docs.theme.launch.body": "Cara merumuskan tujuan untuk sebuah run. Di dalam organisasi, run dimulai dari proyek, dan panduan tersebut ditampilkan di samping instruksi run itu sendiri. Instans lokal tanpa organisasi tidak memiliki proyek: mulai run dari shell dengan `npm run run:build -- \"<goal>\"`. Browser memang dirancang agar tidak pernah memulai run di luar proyek yang penggunanya telah masuk.",
   "docs.theme.admin.title": "Admin",
   "docs.theme.admin.body": "Lima layar di balik penanda admin platform: organisasi beserta anggota dan undangan sekali pakai, jurnal audit platform (satu-satunya sumber informasi tentang apa yang terjadi pada deployment ini), buku besar katalog tentang hal yang dipelajari katalog agen, sentinel — pemantau langsung mekanis atas run yang sedang berlangsung — dan pengumuman, satu-satunya kiriman yang ditulis manusia dan ditinjau dalam setiap bahasa yang didukung sebelum dikirim. Undangan tidak pernah memberikan akses tingkat operator.",
   "docs.theme.mcp.title": "MCP",
@@ -1260,5 +1260,6 @@
   "result.files_other": "File yang dikirim ({{count}} file)",
   "result.filesPublished": "Tautan file membuka revisi persis yang dipublikasikan untuk run ini di GitHub, tempat Anda dapat melihat atau mengunduhnya.",
   "result.filesUnavailable": "Tidak ada revisi yang dipublikasikan untuk file-file ini. File tersebut tidak dapat dibuka di GitHub dari run ini.",
-  "result.expired": "File lokal telah kedaluwarsa. File yang dipublikasikan mungkin masih tersedia di GitHub."
+  "result.expired": "File lokal telah kedaluwarsa. File yang dipublikasikan mungkin masih tersedia di GitHub.",
+  "launch.guidance": "Jelaskan hasil yang Anda inginkan beserta batasannya. Untuk repositori yang diimpor, jelaskan apa yang perlu diperiksa atau diubah. Atoma memilih kemampuan yang diperlukan untuk permintaan Anda. Hasilnya dapat berupa penjelasan, analisis, dokumen, atau perangkat lunak yang berfungsi; verifikasi mengikuti hasil yang diminta."
 }

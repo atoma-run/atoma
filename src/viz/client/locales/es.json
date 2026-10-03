@@ -161,7 +161,7 @@
   "docs.theme.burnin.title": "Burn-in",
   "docs.theme.burnin.body": "Un lote de tareas reales ejecutadas de principio a fin para medir defectos, costos y fricción antes de una versión. Lo que se muestra aquí es el último lote registrado, no una garantía en tiempo real sobre el siguiente.",
   "docs.theme.launch.title": "Inicio",
-  "docs.theme.launch.body": "Las familias de tareas que puede aceptar un run y cómo formular un objetivo para cada una. Dentro de una organización, un run se inicia desde un proyecto y estas indicaciones aparecen junto al propio mensaje del run. Una instancia local sin organizaciones no tiene proyectos: inicie un run desde una consola con `npm run run:build -- \"<goal>\"`. El navegador nunca inicia deliberadamente un run fuera de un proyecto con sesión iniciada.",
+  "docs.theme.launch.body": "Cómo formular un objetivo para un run. Dentro de una organización, un run se inicia desde un proyecto, y esas indicaciones aparecen junto al propio prompt del run. Una instancia local sin organizaciones no tiene proyectos: inicia un run desde un shell con `npm run run:build -- \"<goal>\"`. El navegador nunca inicia deliberadamente un run fuera de un proyecto con sesión iniciada.",
   "docs.theme.admin.title": "Administración",
   "docs.theme.admin.body": "Cinco pantallas tras la opción de administración de la plataforma: organizaciones con sus miembros e invitaciones de un solo uso; el diario de auditoría de la plataforma, la única fuente sobre lo ocurrido en este despliegue; el libro mayor de lo aprendido por el catálogo de agentes; Sentinel, la supervisión mecánica en tiempo real de los runs en curso; y los anuncios, el único comunicado que redacta una persona y que se revisa en todos los idiomas compatibles antes de enviarse. Una invitación nunca concede acceso de nivel de operador.",
   "docs.theme.mcp.title": "MCP",
@@ -1260,5 +1260,6 @@
   "result.files_other": "Archivos entregados ({{count}} archivos)",
   "result.filesPublished": "Los enlaces de los archivos abren en GitHub la revisión publicada exacta de este run, donde puedes verlos o descargarlos.",
   "result.filesUnavailable": "No hay ninguna revisión publicada disponible para estos archivos. No se pueden abrir en GitHub desde este run.",
-  "result.expired": "Los archivos locales han caducado. Es posible que los archivos publicados sigan disponibles en GitHub."
+  "result.expired": "Los archivos locales han caducado. Es posible que los archivos publicados sigan disponibles en GitHub.",
+  "launch.guidance": "Describe el resultado que deseas y cualquier restricción. Si se trata de un repositorio importado, explica qué se debe inspeccionar o cambiar. Atoma selecciona las capacidades necesarias para tu solicitud. El resultado puede ser una explicación, un análisis, un documento o software funcional; la verificación se realiza conforme al resultado solicitado."
 }
