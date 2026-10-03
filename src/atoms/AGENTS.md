@@ -49,10 +49,10 @@ Neighbours:
   delegated result gates retain their dispositions, `probe.requiresReview`
   forces review. Explicit proof floors require an executed DOM interaction
   bound to the named, still-unchanged file in the accepted attempt. A run
-  without a floor always receives semantic delivery review at `modelForTier(1)`;
-  an empty floor is not automatic approval. The run's depth contract has no
+  without a floor always receives semantic review; a recorded root text plan uses
+  `modelForTier(2)`, others `modelForTier(1)`. Text always receives review. The contract has no
   universal `index.html` floor: APIs and CLIs are first-class deliverables.
-  Covered explicit floors with no other findings retain mechanical acceptance.
+  File deliveries with covered floors and no findings retain mechanical acceptance.
   The root changes no phase credits or learning state. The probe receives only `output` and `summary`, as at L3; internal
   plan/verdict/fallback trace quotes are not delivery claims. Phase coverage
   is collected with its original attempt and branch, never reevaluated

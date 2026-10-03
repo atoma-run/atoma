@@ -125,6 +125,68 @@ describe('root delivery coverage', () => {
 });
 
 describe('one common root acceptance, independent of phase credit', () => {
+  it.each(['text', 'files', undefined] as const)('routes the recorded %s delivery to the configured review tier', async (delivery) => {
+    const ctx = context();
+    ctx.llm.enqueueText(jsonText({ approved: true, reasoning: 'Reviewed actual evidence' }));
+    await acceptRootResult({ actor: new Actor(3), task, result: { ...result, output: { delivery: 'text' } },
+      ctx, floor: [], phaseCoverage: [], ...(delivery ? { delivery } : {}) });
+    expect(ctx.llm.calls).toHaveLength(1);
+    expect(ctx.llm.calls[0]!.model).toBe(modelForTier(delivery === 'text' ? 2 : 1));
+    expect(ctx.llm.calls[0]!.tools).toBeUndefined();
+  });
+
+  it('reviews text even with a covered file floor', async () => {
+    const ctx = context();
+    await observe(ctx);
+    ctx.llm.enqueueText(jsonText({ approved: false, reasoning: 'The text contradicts the source.' }));
+    const accepted = await acceptRootResult({ actor: new Actor(3), task, result, delivery: 'text', ctx, floor, phaseCoverage: [] });
+    expect(accepted).toMatchObject({ approved: false, basis: 'validation-call' });
+    expect(ctx.llm.calls[0]!.model).toBe(modelForTier(2));
+  });
+
+  it('does not leak a recorded text delivery into a remediation with no root plan', async () => {
+    const ctx = context();
+    const actor = new Actor(3);
+    let pass = 0;
+    ctx.llm.enqueueText(jsonText({ approved: false, reasoning: 'Incorrect text.' }));
+    ctx.llm.enqueueText(jsonText({ approved: false, reasoning: 'Still incorrect.' }));
+    const outcome = await runDepthTask({ mode: 'deep', task, ctx, floor: [], restart: vi.fn(),
+      onTopology: vi.fn(), onAcceptance: vi.fn(), createExecutor: () => ({ actor, handle: async (_task, current) => {
+        if (pass++ === 0) current.recordRootPlan?.(makePlan({ delivery: 'text' }));
+        return result;
+      } }),
+    });
+    expect(outcome.refusal).toContain('Still incorrect');
+    expect(pass).toBe(2);
+    expect(ctx.llm.calls.map(call => call.model)).toEqual([modelForTier(2), modelForTier(1)]);
+  });
+
+  it.each(['short', 'deep'] as const)('keeps L1 execution and routes both %s text passes to L2 review', async (mode) => {
+    const ctx = context();
+    const recorded = vi.fn();
+    const actor = new Actor(mode === 'short' ? 2 : 3);
+    const tasks: Task[] = [];
+    for (const approved of [false, true]) {
+      ctx.llm.enqueueText(jsonText({ output: approved ? 'Corrected audit' : 'False audit' }));
+      ctx.llm.enqueueText(jsonText({ approved, reasoning: approved ? 'Correct now' : 'Observed birds, expected dawn.' }));
+    }
+    const outcome = await runDepthTask({ mode, task, ctx: { ...ctx, recordRootPlan: recorded }, floor: [],
+      restart: vi.fn(), onTopology: vi.fn(), onAcceptance: vi.fn(),
+      createExecutor: () => ({ actor, handle: async (received, current) => {
+        tasks.push(received);
+        current.recordRootPlan?.(makePlan({ delivery: 'text' }));
+        const answer = await current.llm.complete({ model: modelForTier(1), systemPrompt: 'Execute',
+          userContent: received.description, role: 'execute', signal: current.signal });
+        return { ...result, output: answer.text };
+      } }),
+    });
+    expect(outcome.refusal).toBeUndefined();
+    expect(recorded).toHaveBeenCalledTimes(2);
+    expect(tasks[1]!.inputs?.['rootAcceptanceRefusal']).toBeDefined();
+    expect(ctx.llm.calls.map(call => call.model)).toEqual([1, 2, 1, 2].map(tier => modelForTier(tier as Tier)));
+    expect(ctx.llm.calls[2]!.role).toBe('execute');
+  });
+
   it.each([2, 3] as const)('does not probe internal plan/verdict/fallback quotes at tier %s', async (tier) => {
     const ctx = context();
     ctx.tools.files['server.js'] = 'const answer = 42;';

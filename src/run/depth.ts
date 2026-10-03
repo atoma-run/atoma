@@ -2,6 +2,7 @@ import { EARLIER_LISTED_INPUT } from '../contracts/inheritedChecks.js';
 import type { Atom } from '../core/atom.js';
 import { setMaxListeners } from 'node:events';
 import type { Result, RunContext, Task, ToolExecutor } from '../core/types.js';
+import type { DeliveryKind } from '../contracts/taskExecution.js';
 import { attestingExecutor, createAttestationLog } from '../core/attestation.js';
 import { abortedForLanding, finalizationSignal, landingSignal, withinSignal } from '../atoms/cost.js';
 import { acceptRootResult } from '../atoms/rootAcceptance.js';
@@ -223,8 +224,13 @@ export async function runDepthTask(args: {
       let refused: { readonly result: Result; readonly acceptance: AcceptanceInfo } | null = null;
       for (;;) {
         let result: Result;
+        let delivery: DeliveryKind | undefined;
+        const passCtx: RunContext = { ...attemptCtx, recordRootPlan: (plan) => {
+          delivery = plan.delivery;
+          attemptCtx.recordRootPlan?.(plan);
+        } };
         try {
-          result = await handle(currentTask, attemptCtx);
+          result = await handle(currentTask, passCtx);
         } catch (error) {
           if (refused && !cancellation.signal.aborted && abortedForLanding(ctx)) {
             const reasoning = refused.acceptance.reasoning.trim() || 'the root acceptor gave no reason';
@@ -255,6 +261,7 @@ export async function runDepthTask(args: {
         let acceptance: AcceptanceInfo;
         try {
           acceptance = await withinSignal(acceptRootResult({ actor, task: currentTask, result, ctx: acceptanceCtx,
+            ...(delivery ? { delivery } : {}),
             floor: args.floor, phaseCoverage, ...(args.checklist ? { checklist: args.checklist } : {}),
             ...(args.checklistOrigin ? { checklistOrigin: args.checklistOrigin } : {}),
             // The refused pass's own record: a remediation's acceptance must
