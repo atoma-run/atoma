@@ -424,9 +424,9 @@ Finished run bytes are eligible after 90 days; current active-project seeds
 and unfinished publications hold them. Offline maintenance preserves run
 metadata, payers and lifecycle_events; expiry never changes delivery status.
 Per-org admission defaults to one (zero suspends), with the global lease still
-limiting the host to one run. Recheck inside reservation after idempotency.
-The operator commands and offline prerequisites live in
-[W9/W10](../../docs/project-maintenance.md).
+limiting the host to one run. Recheck inside reservation after idempotency; an
+identical live request (goal, items, depth) re-attaches, any key; refusals name it.
+Operator commands and offline prerequisites: [W9/W10](../../docs/project-maintenance.md).
 ## A landed run, from the tenant's side
 
 - `partial` is a run that produced real work and did not deliver it, for either

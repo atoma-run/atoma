@@ -827,6 +827,51 @@ describe('ProjectRunCoordinator', () => {
     expect(coordinator.hasActiveRunForPrincipal(f.viewer.principalId)).toBe(false);
   });
 
+  it('re-attaches a re-sent identical start to the caller\'s live run, whatever its key (2026-10-03)', async () => {
+    // The 2026-07-28 transport has a client re-send a request whose stream
+    // broke, and a keyless MCP start gets a fresh key: neither may reserve a
+    // second run or read as refused while the first one is going.
+    const f = fixture();
+    let settle: ((value: string) => void) | undefined;
+    const driver = vi.fn(() => new Promise<string>((resolve) => { settle = resolve; }));
+    const coordinator = new ProjectRunCoordinator({
+      store: f.store,
+      dbPath: f.dbPath,
+      projectsRoot: f.root,
+      hostEnv: { ...haystackTestEnvironment(f.root), PATH: process.env['PATH'], ...ANTHROPIC_PINS, ANTHROPIC_API_KEY: 'model-key' },
+      driver,
+      acquireLease: async () => lease(),
+    });
+    const base = { orgId: f.viewer.orgId, principalId: f.viewer.principalId, projectId: f.project.projectId };
+    const first = await coordinator.startOutcome({ ...base, request: { idempotencyKey: 'cut-1', goal: 'Build a clock.' } });
+    expect(first.created).toBe(true);
+    const resent = await coordinator.startOutcome({ ...base, request: { idempotencyKey: 'cut-2', goal: 'Build a clock.' } });
+    expect(resent).toEqual({ run: expect.objectContaining({ projectRunId: first.run.projectRunId }), created: false });
+    const exact = await coordinator.startOutcome({ ...base, request: { idempotencyKey: 'cut-1', goal: 'Build a clock.' } });
+    expect(exact.created).toBe(false);
+    expect(f.store.listProjectRuns(f.viewer.orgId, f.project.projectId)).toHaveLength(1);
+    // Another request while the caller's own run holds the place is refused
+    // NAMING that run, never "start this run again".
+    const refusal = await coordinator.start({ ...base, request: { idempotencyKey: 'cut-3', goal: 'Build a calendar.' } })
+      .then(() => new Error('started'), (error: unknown) => error as Error);
+    expect(refusal.message).toContain(`your run ${first.run.projectRunId}`);
+    expect(refusal.message).not.toMatch(/start this run again/);
+    // The same key with another depth is another request, not a retry.
+    await expect(coordinator.start({ ...base, request: { idempotencyKey: 'cut-1', goal: 'Build a clock.', depth: 'short' } }))
+      .rejects.toThrow(/different input/);
+    await vi.waitFor(() => expect(driver).toHaveBeenCalledOnce());
+    settle?.(`${formatRunStatsEpilogue({ ...DELIVERED_STATS, outcome: 'failed' })}\n✖ stopped\n`);
+    await coordinator.waitForIdle();
+    // Once it ended, the same request is a NEW run: a goal re-asked later is
+    // a continuation, not a re-sent call.
+    const later = await coordinator.startOutcome({ ...base, request: { idempotencyKey: 'cut-4', goal: 'Build a clock.' } });
+    expect(later.created).toBe(true);
+    expect(later.run.projectRunId).not.toBe(first.run.projectRunId);
+    await vi.waitFor(() => expect(driver).toHaveBeenCalledTimes(2));
+    settle?.(`${formatRunStatsEpilogue({ ...DELIVERED_STATS, outcome: 'failed' })}\n✖ stopped\n`);
+    await coordinator.waitForIdle();
+  });
+
   it('emits one terminal onRunFinished event with the requesting principal', async () => {
     const f = fixture();
     const finished = vi.fn();

@@ -5,6 +5,7 @@ import { retrievalRegistrationSchema } from '../contracts/retrievalCampaign.js';
 import { MAX_CHECKLIST_BEHAVIOUR_CHARS, MAX_CHECKLIST_ITEMS, parseChecklistLines } from '../contracts/acceptanceChecklist.js';
 import type { RetrievalCampaignStart } from '../cli/retrievalCampaignHost.js';
 import { ProjectHttpError } from '../projects/service.js';
+import { idempotencyKeySchema } from '../contracts/projects.js';
 import type { Viewer } from '../auth/store.js';
 import {
   DEFAULT_RUN_TIMEOUT_MS,
@@ -337,7 +338,7 @@ export const OPERATOR_RUN_INPUT = {
 export const PROJECT_RUN_INPUT = {
   projectId: z.string().min(1),
   goal: z.string().min(1).max(MAX_GOAL_CHARS).optional().describe('Required for a new run; omitted for a rerun, which re-asks its origin’s goal.'),
-  idempotencyKey: z.string().min(1).max(200).optional().describe('Idempotency key; the same key returns the same run.'),
+  idempotencyKey: idempotencyKeySchema.optional().describe('Opaque ASCII token, one per intended run: the same key returns that run, so use a new one for a new run.'),
   acceptanceCriteria: z.array(z.string().min(1).max(400)).min(1).max(MAX_CHECKLIST_ITEMS).optional().describe(
     'Acceptance criteria you approve for this run, one per entry. "GET /api/notes/:id 404 — unknown id is refused" is an HTTP criterion (status optional, any 2xx without one); any other text is judged by review. ' +
     `A criterion's text is at most ${MAX_CHECKLIST_BEHAVIOUR_CHARS} characters, not counting an HTTP criterion's method, path and status when it has text of its own. ` +
@@ -744,7 +745,9 @@ export function projectRunTask(
       }
       const task = runs.task(projectRunTaskId(args.projectId, started.projectRunId));
       // The run this viewer just started is readable by it; were it not, the task could never be followed.
-      return task ?? refuse(`run ${started.projectRunId} started but is not readable by this caller`);
+      // An idempotent retry can resolve a run whose task retention has ended:
+      // the run exists and is readable through the status reader.
+      return task ?? refuse(`run ${started.projectRunId} already exists for this request and is past its task retention; read it with atoma_run_status (projectId ${args.projectId}, runId ${started.projectRunId}), or pass a new idempotencyKey to start a new run`);
     },
   };
 }

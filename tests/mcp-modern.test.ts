@@ -61,13 +61,13 @@ function scriptedDriver() {
   return { driver, handle };
 }
 
-async function listen(resolveCaller: (req: IncomingMessage) => McpCaller | null, deps: McpToolDeps, frozen = () => false) {
+async function listen(resolveCaller: (req: IncomingMessage) => McpCaller | null, deps: McpToolDeps, frozen = () => false, hostOptions: { keepAliveMs?: number } = {}) {
   const server = createServer((req, res) => void host.handle(req, res, { frozen: frozen() }));
   servers.push(server);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
   const address = server.address();
   const port = typeof address === 'object' && address ? address.port : 0;
-  const host = new McpHttpHost({ resolveCaller, ...mcpHostWiring(deps), allowedHosts: [`127.0.0.1:${port}`] });
+  const host = new McpHttpHost({ resolveCaller, ...mcpHostWiring(deps), allowedHosts: [`127.0.0.1:${port}`], ...hostOptions });
   hosts.push(host);
   return { url: `http://127.0.0.1:${port}/mcp`, host };
 }
@@ -179,6 +179,48 @@ describe('the 2026-07-28 era', () => {
     const answered = await pending;
     expect(answered.body.result).toMatchObject({ structuredContent: { status: 'finished' } });
     expect(answered.body.result?.['resultType']).not.toBe('task');
+  });
+
+  it('streams a synchronous start as SSE: progress before the result when asked, keepalives either way', async () => {
+    // THE PATH CLAUDE CODE USES (no tasks): its idle watchdog cuts a call
+    // with no response and no progress for 5 min, so the 30 s heartbeat must
+    // reach it on THIS wire, through the SDK's per-request transport. And a
+    // call without a progressToken must still send bytes, or an idle proxy
+    // or client deadline cuts a run that lasts minutes (2026-10-03).
+    const raw = async (url: string, progressToken?: string) => fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', 'mcp-protocol-version': MODERN,
+        'mcp-method': 'tools/call', 'mcp-name': 'atoma_operator_run_start' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 7, method: 'tools/call', params: {
+        name: 'atoma_operator_run_start', arguments: { goal: 'a streamed 2026 goal' },
+        _meta: { 'io.modelcontextprotocol/protocolVersion': MODERN, 'io.modelcontextprotocol/clientCapabilities': {},
+          'io.modelcontextprotocol/clientInfo': { name: 'hand-built', version: '0' }, ...(progressToken ? { progressToken } : {}) },
+      } }),
+    });
+    for (const progressToken of ['p1', undefined]) {
+      const { driver, handle } = scriptedDriver();
+      const { url } = await listen(() => ({ kind: 'operator' }),
+        { ...NO_TENANT, operatorRunDriver: driver, operatorRunLease: lease, taskHeartbeatMs: 20 }, () => false, { keepAliveMs: 15 });
+      const response = await raw(url, progressToken);
+      expect(response.headers.get('content-type')).toMatch(/text\/event-stream/);
+      await tick(120);
+      handle.settle('done');
+      const text = await response.text();
+      expect(text).toContain(': keepalive');
+      const frames = text.split('\n').filter((line) => line.startsWith('data:')).map((line) => JSON.parse(line.slice(5)) as Record<string, unknown>);
+      const result = frames.findIndex((frame) => frame['id'] === 7);
+      expect(result).toBeGreaterThanOrEqual(0);
+      const progress = frames.findIndex((frame) => frame['method'] === 'notifications/progress');
+      if (progressToken) {
+        expect(progress).toBeGreaterThanOrEqual(0);
+        expect(progress).toBeLessThan(result);
+        expect((frames[progress]!['params'] as { progressToken: string }).progressToken).toBe('p1');
+      } else {
+        expect(progress).toBe(-1);
+      }
+      resetRunsForTest();
+      forgetTasksForTest();
+    }
   });
 
   it('keeps a task with its caller across eras: a 2025 session starts it, a 2026 request reads it, another caller cannot', async () => {

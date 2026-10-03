@@ -304,7 +304,13 @@ export function tenantBusyMessage(owner: { readonly runId: string } | undefined,
   if (holder.startsWith('maintenance:')) {
     return 'the instance is running scheduled maintenance; start this run again shortly';
   }
-  return 'another run is in progress on this instance; start this run again when it finishes';
+  return 'another run is in progress on this instance; start your run once that one finishes';
+}
+
+/** The refusal when the run holding the place is the caller's own. */
+export function ownLiveRunMessage(run: { readonly projectRunId: string; readonly projectId: string }): string {
+  return `your run ${run.projectRunId} (project ${run.projectId}) is still in progress; ` +
+    'follow it with atoma_run_status — do not start it again';
 }
 
 export class ProjectRunConfigurationError extends Error {
@@ -1370,12 +1376,31 @@ export class ProjectRunCoordinator {
     readonly projectId: string;
     readonly request: StartProjectRunInput;
   }): Promise<ProjectRun> {
+    return (await this.startOutcome(input)).run;
+  }
+
+  /**
+   * `start`, saying whether THIS call created the run. An exact retry (same
+   * key) and a re-sent identical request while its run is live both return
+   * the existing run with `created: false`: what journals "run started" must
+   * not write it twice for one run.
+   */
+  async startOutcome(input: {
+    readonly orgId: string;
+    readonly principalId: string;
+    readonly projectId: string;
+    readonly request: StartProjectRunInput;
+  }): Promise<{ readonly run: ProjectRun; readonly created: boolean }> {
     const findRetry = () => this.store.findProjectRunForRequest(
       input.orgId, input.projectId, input.principalId, input.request
-    );
+    ) ?? this.store.findLiveRunForSameRequest(input.orgId, input.projectId, input.principalId, input.request);
     const existing = findRetry();
-    if (existing) return existing;
-    this.store.assertRunCapacity(input.orgId);
+    if (existing) return { run: existing, created: false };
+    try {
+      this.store.assertRunCapacity(input.orgId);
+    } catch (error) {
+      throw this.namingOwnRun(error, input.orgId, input.principalId);
+    }
     // The platform limits in force NOW, before the run is reserved: a budget
     // they refuse is this run's 400, never a row left to fail at launch.
     const timeoutMs = this.runTimeoutMs();
@@ -1418,9 +1443,12 @@ export class ProjectRunCoordinator {
         // A concurrent identical request may have reserved its row while
         // this caller waited for the lease. It is a read, not a second run.
         const retry = findRetry();
-        if (retry) return retry;
+        if (retry) return { run: retry, created: false };
         process.stderr.write(`[atoma projects] run refused, slot busy: ${error.message}\n`);
-        throw new ProjectRunBusy(tenantBusyMessage(error.owner, error.condition));
+        const own = this.store.liveRunOf(input.orgId, input.principalId);
+        throw new ProjectRunBusy(own && error.owner?.runId === `project:${own.projectRunId}`
+          ? ownLiveRunMessage(own)
+          : tenantBusyMessage(error.owner, error.condition));
       }
       throw error;
     }
@@ -1444,7 +1472,7 @@ export class ProjectRunCoordinator {
       });
     } catch (error) {
       lease.release();
-      throw error;
+      throw this.namingOwnRun(error, input.orgId, input.principalId);
     }
     if (!reservation) {
       lease.release();
@@ -1457,7 +1485,7 @@ export class ProjectRunCoordinator {
       this.active.has(run.projectRunId)
     ) {
       lease.release();
-      return run;
+      return { run, created: false };
     }
     const project = this.store.getProject(input.orgId, input.projectId);
     if (!project) {
@@ -1647,7 +1675,18 @@ export class ProjectRunCoordinator {
       driven = Promise.reject(error instanceof Error ? error : new Error(String(error)));
     }
     void this.finish(project, run, paths.artifactManifestPath, driven, lease, controller.signal);
-    return this.store.getProjectRun(input.orgId, run.projectRunId)!;
+    return { run: this.store.getProjectRun(input.orgId, run.projectRunId)!, created: true };
+  }
+
+  /**
+   * A capacity refusal whose cause is the caller's OWN live run says so: a
+   * model whose start was cut and that sent a different request must learn
+   * that its run is going, not that "the limit is reached".
+   */
+  private namingOwnRun(error: unknown, orgId: string, principalId: string): unknown {
+    if (!(error instanceof ProjectStateConflict) || !/concurrent run limit/.test(error.message)) return error;
+    const own = this.store.liveRunOf(orgId, principalId);
+    return own ? new ProjectStateConflict(`${error.message}: ${ownLiveRunMessage(own)}`) : error;
   }
 
   private async finish(

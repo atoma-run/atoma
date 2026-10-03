@@ -184,8 +184,17 @@ it('reuses a project run across MCP sessions while its real lease is held', asyn
     expect(conflict.task.status).toBe('failed');
     const conflictResult = await second.experimental.tasks.getTaskResult(conflict.task.taskId, CallToolResultSchema);
     expect(JSON.stringify(conflictResult.content)).toContain('different input');
-    const concurrent = await start(second, args.goal, 'new-request');
-    expect(concurrent.task.status).toBe('failed');
+    // A re-sent identical start under ANOTHER key (a keyless MCP start gets
+    // a fresh one) re-attaches to the caller's live run: same task, no
+    // second run, no refusal that would invite a duplicate later.
+    const resent = await start(second, args.goal, 'new-request');
+    expect(resent.task.status).toBe('working');
+    expect(resent.task.taskId).toBe(original.task.taskId);
+    // Another request while that run holds the place is refused naming it.
+    const other = await start(second, 'Another board.', 'other-request');
+    expect(other.task.status).toBe('failed');
+    const otherResult = await second.experimental.tasks.getTaskResult(other.task.taskId, CallToolResultSchema);
+    expect(JSON.stringify(otherResult.content)).toMatch(/your run [0-9a-f-]+ \(project/);
     expect(store.listProjectRuns(login.viewer.orgId, project.projectId)).toHaveLength(1);
   } finally {
     finish('--- run failed ---\n');

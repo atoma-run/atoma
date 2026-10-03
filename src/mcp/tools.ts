@@ -552,7 +552,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
         {
           title: 'Start a project run',
           description:
-            'Start a run in one of your organisation’s projects, as an MCP TASK: the call answers with a task id, tasks/get reports the run’s status and, once it ends, the final atoma_run_status payload (tasks/result on the 2025-11-25 protocol), tasks/cancel cancels the run. Called without task augmentation it returns when the run ends (minutes). Runs are SERIALISED on this instance (one at a time, a second is queued or refused) and spend the organisation’s configured provider. The goal is prose describing the artefact; do not name tools in it. acceptanceCriteria, optional, are the criteria the run is judged against instead of a list it drafts itself. rerunOf with models starts a comparison rerun of an earlier run instead of a new one: no goal, no criteria. idempotencyKey makes the call idempotent.',
+            'Start a run in one of your organisation’s projects, as an MCP TASK: the call answers with a task id, tasks/get reports the run’s status and, once it ends, the final atoma_run_status payload (tasks/result on the 2025-11-25 protocol), tasks/cancel cancels the run. Called without task augmentation it returns when the run ends (minutes). Runs are SERIALISED on this instance (one at a time; a second is refused while the slot is held) and spend the organisation’s configured provider. The goal is prose describing the artefact; do not name tools in it. acceptanceCriteria, optional, are the criteria the run is judged against instead of a list it drafts itself. rerunOf with models starts a comparison rerun of an earlier run instead of a new one: no goal, no criteria. IF THIS CALL IS CUT (a client deadline such as Codex’s tool_timeout_sec, 300 s by default) the run goes on: send the same call again and it re-attaches to that run and never starts another. Pass a NEW idempotencyKey only for a new run; reusing one returns its run.',
           inputSchema: PROJECT_RUN_INPUT,
           annotations: MUTATING,
         },
@@ -647,7 +647,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
     needs: ['benchmarks'],
     register: (server, ctx) => registerStartTool(server, ctx, 'atoma_benchmark_start', {
       title: 'Start a registered retrieval benchmark',
-      description: 'Execute an immutable CLI retrieval registration with isolated per-attempt stores and the real frontier reference agent. Uses host subscriptions and the global run lease. Requires committed matching source and an installed pinned worker. Visible in Runs to platform admins. Follow as an MCP task; tasks/cancel stops the campaign. No arbitrary dataset or output paths. Results are development evidence, not a production benefit claim.',
+      description: 'Execute an immutable CLI retrieval registration with isolated per-attempt stores and the real frontier reference agent. Uses host subscriptions and the global run lease. Requires committed matching source and an installed pinned worker. Visible in Runs to platform admins. Follow as an MCP task; tasks/cancel stops the campaign. If a synchronous call is cut by a client deadline the campaign goes on; a second start is refused while it runs. No arbitrary dataset or output paths. Results are development evidence, not a production benefit claim.',
       inputSchema: BENCHMARK_RUN_INPUT,
       annotations: MUTATING,
     }, benchmarkRunTask(ctx.tasks.tasks, ctx.deps.benchmarkStart!) as TaskStart<unknown>),
@@ -664,7 +664,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
         {
           title: 'Start an OPERATOR run',
           description:
-            `Start a run in the instance’s OPERATOR corpus (not a project): the machine’s own runner, credentials and shared build workspace, as an MCP TASK — the call answers with a task id, tasks/get reports the run’s output tail as its status line and, once it ends, the final atoma_operator_run_status payload (tasks/result on the 2025-11-25 protocol), tasks/cancel cancels the run; called without task augmentation it returns when the run ends (minutes). DESTRUCTIVE: the workspace is archived first unless keepWorkspace, and the run mutates the registry, the skill store and the ledger. SERIALISED with every other run on the machine.`,
+            `Start a run in the instance’s OPERATOR corpus (not a project): the machine’s own runner, credentials and shared build workspace, as an MCP TASK — the call answers with a task id, tasks/get reports the run’s output tail as its status line and, once it ends, the final atoma_operator_run_status payload (tasks/result on the 2025-11-25 protocol), tasks/cancel cancels the run; called without task augmentation it returns when the run ends (minutes). DESTRUCTIVE: the workspace is archived first unless keepWorkspace, and the run mutates the registry, the skill store and the ledger. SERIALISED with every other run on the machine. If this call is cut (a client deadline such as Codex’s tool_timeout_sec, 300 s by default) the run goes on: follow it with atoma_operator_run_status — a second start is refused while it runs.`,
           inputSchema: OPERATOR_RUN_INPUT,
           annotations: MUTATING,
         },

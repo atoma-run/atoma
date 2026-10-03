@@ -113,7 +113,12 @@ function service(): {
   const svc = new ProjectService({
     store: projects,
     github,
-    coordinator: { start, cancel: vi.fn(), retryPublication } as unknown as ProjectRunCoordinator,
+    coordinator: {
+      start,
+      startOutcome: async (input: unknown) => ({ run: await start(input as Parameters<typeof start>[0]), created: true }),
+      cancel: vi.fn(),
+      retryPublication,
+    } as unknown as ProjectRunCoordinator,
   });
   return { svc, start, retryPublication };
 }

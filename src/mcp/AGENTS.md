@@ -212,10 +212,10 @@ Neighbours:
   terminal result when the run ends, minutes later. A refused start is a task
   that fails at once, never a hung call. A caller that sent a `progressToken`
   hears `notifications/progress` with the run's status line at once and every
-  30s (`requestHeartbeat`): Claude Code aborts a call with "no response or
-  progress for 300s" while the run carries on (2026-09-26). No token, no
-  notification; it stops at the first send that fails, and a call the client
-  cancels stops waiting while its run goes on.
+  30s (`requestHeartbeat`): it answers an IDLE watchdog (Claude Code, 300s),
+  not a FIXED deadline (Codex tool_timeout_sec 300s: Settings sets 10800). 2026
+  calls are SSE with keepalives (`responseMode: 'sse'`). A cut call's run goes
+  on; a re-sent identical start re-attaches to it (`src/projects`).
 - `atoma_run_start.acceptanceCriteria` takes one criterion per ENTRY in the
   console's line grammar (`parseChecklistLines`), not the structured shape: one
   grammar for every human entry point, and a JSON Schema free of transforms.

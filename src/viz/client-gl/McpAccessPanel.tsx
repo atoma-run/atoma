@@ -57,9 +57,21 @@ export function claudeMcpCommand(mcpUrl: string): string {
   return `claude mcp add --transport http --scope user ${serverName(mcpUrl)} ${shellQuote(mcpUrl)}`;
 }
 
-/** Both browser OAuth and the local operator endpoint need only the URL. */
+/**
+ * Both browser OAuth and the local operator endpoint need only the URL, plus
+ * the per-call deadline: Codex cuts a tool call at 300 s by default, a fixed
+ * deadline no progress notification extends, and a synchronous run start
+ * lasts minutes. 10800 s is the host's own ceiling (MCP_MAX_REQUEST_MS), so
+ * the server, not the client, decides. `codex mcp add` cannot set it.
+ */
+export const CODEX_TOOL_TIMEOUT_SEC = 10800;
+
 export function codexMcpConfig(mcpUrl: string): string {
-  return [`[mcp_servers.${serverName(mcpUrl)}]`, `url = ${JSON.stringify(mcpUrl)}`].join('\n');
+  return [
+    `[mcp_servers.${serverName(mcpUrl)}]`,
+    `url = ${JSON.stringify(mcpUrl)}`,
+    `tool_timeout_sec = ${CODEX_TOOL_TIMEOUT_SEC}`,
+  ].join('\n');
 }
 
 function errorMessage(failure: unknown, t: McpAccessPanelProps['t']): string {
@@ -182,6 +194,7 @@ export function McpAccessPanel({
             )}>{t('settings.mcpCopy')}</button>
           </div>
           {client === 'codex-macos' ? <p>{t('settings.mcpMacHint')}</p> : null}
+          {client !== 'claude' ? <p>{t('settings.mcpCodexTimeout')}</p> : null}
           {!operator ? <p>{t(client === 'claude' ? 'settings.mcpClaudeFinish' : 'settings.mcpCodexFinish')}</p> : null}
           <p>{t('settings.mcpVerify')}</p>
           <details>

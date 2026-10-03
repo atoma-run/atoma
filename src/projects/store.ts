@@ -1325,10 +1325,59 @@ END;
     const wantedDigest = request.acceptanceChecklist ? captureAcceptanceSpec(request.acceptanceChecklist).digest : null;
     const storedDigest = this.getRunAcceptanceSpec(orgId, existing.project_run_id)?.digest ?? null;
     if (existing.requested_by_principal_id !== principalId || existing.goal !== request.goal ||
-        wantedDigest !== storedDigest) {
+        wantedDigest !== storedDigest || (existing.depth ?? null) !== (request.depth ?? null)) {
       throw new ProjectStateConflict('run idempotency key was already used for different input');
     }
     return runFromRow(existing);
+  }
+
+  /**
+   * The caller's own LIVE run of this very request, whatever key it carried.
+   * A start re-sent after its call was cut (the 2026-07-28 transport drops a
+   * broken stream and has the client send it again, and a start without a
+   * key gets a fresh one) must re-attach to the run it already started, never
+   * reserve a second one or read as refused. The window is the run's own
+   * lifetime: an identical request after the run ended is a new run.
+   * Identity is the request's content — goal, approved items (the digest,
+   * never their provenance) and depth; for a rerun, origin, models and depth.
+   */
+  findLiveRunForSameRequest(
+    orgIdInput: string,
+    projectIdInput: string,
+    principalIdInput: string,
+    requestInput: StartProjectRunInput
+  ): ProjectRun | null {
+    const orgId = organisationIdSchema.parse(orgIdInput);
+    const projectId = projectIdSchema.parse(projectIdInput);
+    const principalId = principalIdSchema.parse(principalIdInput);
+    const parsed = startProjectRunInputSchema.parse(requestInput);
+    const live = this.db
+      .prepare(`SELECT * FROM project_runs WHERE org_id = ? AND project_id = ? AND requested_by_principal_id = ?
+        AND status IN ('queued','running') ORDER BY created_at DESC`)
+      .all(orgId, projectId, principalId) as ProjectRunRow[];
+    if ('rerunOf' in parsed) {
+      const match = live.find((row) => row.rerun_of_run_id === parsed.rerunOf &&
+        row.model_overrides_json === JSON.stringify(parsed.models) &&
+        (parsed.depth === undefined || (row.depth ?? null) === parsed.depth));
+      return match ? runFromRow(match) : null;
+    }
+    const request = createProjectRunInputSchema.parse(requestInput);
+    const wantedDigest = request.acceptanceChecklist ? captureAcceptanceSpec(request.acceptanceChecklist).digest : null;
+    const match = live.find((row) => !row.rerun_of_run_id && row.goal === request.goal &&
+      (row.depth ?? null) === (request.depth ?? null) &&
+      (this.getRunAcceptanceSpec(orgId, row.project_run_id)?.digest ?? null) === wantedDigest);
+    return match ? runFromRow(match) : null;
+  }
+
+  /** The caller's own live run in the organisation, to name it in a refusal. */
+  liveRunOf(orgIdInput: string, principalIdInput: string): ProjectRun | null {
+    const orgId = organisationIdSchema.parse(orgIdInput);
+    const principalId = principalIdSchema.parse(principalIdInput);
+    const row = this.db
+      .prepare(`SELECT * FROM project_runs WHERE org_id = ? AND requested_by_principal_id = ?
+        AND status IN ('queued','running') ORDER BY created_at DESC LIMIT 1`)
+      .get(orgId, principalId) as ProjectRunRow | undefined;
+    return row ? runFromRow(row) : null;
   }
 
   runCapacity(orgIdInput: string): OrgRunCapacity {

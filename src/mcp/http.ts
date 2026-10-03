@@ -107,6 +107,8 @@ export interface McpHttpHostOptions {
   readonly bodyTimeoutMs?: number;
   /** How long a session's opening may take; the calls it then answers are bounded by `maxRequestMs`. */
   readonly openTimeoutMs?: number;
+  /** SSE keepalive cadence of the 2026 streams; the SDK's 15 s when absent. */
+  readonly keepAliveMs?: number;
   readonly logger?: (line: string) => void;
 }
 
@@ -263,7 +265,17 @@ export class McpHttpHost {
       const caller = (context.authInfo?.extra as { caller?: McpCaller } | undefined)?.caller;
       if (!caller) throw new Error('a 2026-era request reached the MCP handler without an authenticated caller');
       return options.buildServer(caller, 'modern');
-    }, { legacy: 'reject', maxSubscriptions: MCP_MAX_LISTENS, onerror: (error) => this.log(`2026 request failed: ${error.message}`) });
+    }, {
+      legacy: 'reject', maxSubscriptions: MCP_MAX_LISTENS, onerror: (error) => this.log(`2026 request failed: ${error.message}`),
+      // EVERY 2026 call answers as SSE, opened once the request passed the
+      // SDK's validation ladder (refusals keep their HTTP status), so its
+      // keepalive comments flow from the start. In the default 'auto' mode a
+      // call whose client sent no progressToken stayed a deferred JSON body
+      // and sent NO byte until the result — a run start lasts minutes, and an
+      // idle proxy timeout or client deadline would cut it (2026-10-03).
+      responseMode: 'sse',
+      ...(options.keepAliveMs !== undefined ? { keepAliveMs: options.keepAliveMs } : {}),
+    });
     this.unhookResourceEvents = options.resourceEvents?.({
       updated: (uri) => this.modern.notify.resourceUpdated(uri),
       listChanged: () => this.modern.notify.resourcesChanged(),

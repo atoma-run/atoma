@@ -184,6 +184,7 @@
   "settings.mcpChooseClient": "Choose your app",
   "settings.mcpCodexMac": "Codex Desktop · macOS (without CLI)",
   "settings.mcpRunTerminal": "Copy and run this in your terminal:",
+  "settings.mcpCodexTimeout": "Codex stops waiting for a tool call after 300 seconds by default, while a run takes several minutes. Add tool_timeout_sec = 10800 under the atoma server in ~/.codex/config.toml (the setup help below includes it); codex mcp add cannot set it.",
   "settings.mcpMacHint": "Uses the CLI bundled with ChatGPT.app in /Applications. No separate CLI installation is needed for this installation layout.",
   "settings.mcpCodexFinish": "Open the login link printed in the terminal and click Allow access once. After success, restart Codex Desktop to load the connection.",
   "settings.mcpClaudeFinish": "Open Claude Code, type /mcp, select this server and choose Authenticate. Approve access in the browser.",

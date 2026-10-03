@@ -378,7 +378,7 @@ export async function startRun(
 ): Promise<RunRecordPublic> {
   if (inFlight) {
     throw new RunRejected(
-      `a run is already in flight (${inFlight.runId}, started ${inFlight.startedAt}). atoma serialises runs: the build workspace is shared, trace attribution is newest-file-wins, and concurrent runs make the cost numbers incomparable. Wait for it or call atoma_run_cancel.`
+      `a run is already in flight (${inFlight.runId}, started ${inFlight.startedAt}). atoma serialises runs: the build workspace is shared, trace attribution is newest-file-wins, and concurrent runs make the cost numbers incomparable. If it is the run you started, follow it with atoma_operator_run_status; otherwise wait for it or call atoma_operator_run_cancel.`
     );
   }
   const { npmScript, timeoutMs } = validateStartInput(input);
@@ -554,10 +554,10 @@ export function cancelRun(opts: { runId?: string } = {}): unknown {
   const target = opts.runId ? records.get(opts.runId) : inFlight;
   if (!target) return { note: opts.runId ? `no run with id "${opts.runId}"` : 'no run in flight' };
   if (target.status !== 'running') return { note: `run ${target.runId} is already ${target.status}`, run: publish(target) };
-  requestCancellation(target, 'requested through atoma_run_cancel');
+  requestCancellation(target, 'requested through atoma_operator_run_cancel');
   return {
     cancelled: target.runId,
-    note: 'SIGTERM sent to the run’s process group; SIGKILL follows after a 5s grace window. The slot remains occupied until the child exits and the trace is closed. Poll atoma_run_status for final status.',
+    note: 'SIGTERM sent to the run’s process group; SIGKILL follows after a 5s grace window. The slot remains occupied until the child exits and the trace is closed. Read atoma_operator_run_status for the final status.',
     run: publish(target),
   };
 }

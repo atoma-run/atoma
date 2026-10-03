@@ -677,13 +677,13 @@ async function main(): Promise<void> {
     return;
   }
 
-  const run = await coordinator.start({
+  const { run, created } = await coordinator.startOutcome({
     orgId: target.orgId,
     principalId: principal.principalId,
     projectId: target.projectId,
     request: { goal, idempotencyKey: randomUUID(), ...(criteria ? { acceptanceChecklist: criteria } : {}) },
   });
-  events.append({
+  if (created) events.append({
     kind: 'run.started',
     actorType: 'cli',
     actorId: null,

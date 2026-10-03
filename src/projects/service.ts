@@ -352,7 +352,7 @@ export class ProjectService {
     const input = startProjectRunInputSchema.safeParse(body);
     if (!input.success) throw new ProjectHttpError(400, 'invalid run payload');
     try {
-      const run = await this.coordinator.start({
+      const { run, created } = await this.coordinator.startOutcome({
         orgId: viewer.orgId,
         principalId: viewer.principalId,
         projectId,
@@ -360,7 +360,8 @@ export class ProjectService {
       });
       // The GOAL is model-facing prose of arbitrary length and content; only
       // its bounded label reaches the journal, and never the whole prompt.
-      this.events({
+      // A retry or a re-sent start returns the existing run: journaled once.
+      if (created) this.events({
         kind: 'run.started',
         actorType: 'principal',
         actorId: viewer.principalId,

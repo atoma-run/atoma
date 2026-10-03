@@ -145,6 +145,10 @@ describe('McpAccessPanel', () => {
     await userEvent.click(screen.getByText('Setup help for Codex and Claude Code'));
     const codex = screen.getByTestId('mcp-oauth-config');
     expect(codex.textContent).toBe(codexMcpConfig('https://atoma.example.com/mcp'));
+    // Codex's default 300 s per-call deadline cut every synchronous run start
+    // in October 2026: the generated table carries the host's own ceiling.
+    expect(codex.textContent).toBe('[mcp_servers.atoma]\nurl = "https://atoma.example.com/mcp"\ntool_timeout_sec = 10800');
+    expect(screen.getByText(/tool_timeout_sec = 10800 under the atoma server/)).toBeInTheDocument();
     await userEvent.click(within(codex.parentElement!).getByRole('button', { name: 'Copy' }));
     expect(onCopy).toHaveBeenCalledWith(codex.textContent);
     const command = screen.getByTestId('mcp-connect-command');
