@@ -129,6 +129,9 @@ nav.top a{color:#c9d4e6;text-decoration:none;font-size:15px;padding:12px 14px;mi
 .mark{position:relative;display:inline-block;flex:none}
 .mark>.mark-canvas{position:absolute;inset:0;width:100%!important;height:100%!important}
 .mark.mark-live>:not(.mark-canvas){visibility:hidden}
+.mark-receiver-live>.mark-canvas{position:absolute;left:0;top:0;z-index:0;pointer-events:none}
+.mark-receiver-live .stage{background:none}
+main.story{position:relative}main.story>.wrap{position:relative;z-index:1}
 .mark-logo{width:40px;height:40px}.mark-logo svg{width:100%;height:100%}
 .mark-hero{width:300px;height:380px}
 .mark-story{width:150px;height:180px}
@@ -298,7 +301,7 @@ export function renderShowcaseIndex(
     ),
   ].join('');
   const body = `${header()}
-<section class="hero">
+<section class="hero" data-atoma-receiver>
 <div class="wrap in"><div>
 <h1 class="display">Watch a request turn into finished work.</h1>
 <p class="lead">A drawing, a sound, a report, a data study, a proof, a piece of software. Atoma takes on requests and works on them in the open. Only work that was delivered and passed its checks is shown here.</p>
@@ -367,7 +370,7 @@ export function renderShowcaseEntry(
 ): string {
   const first = entry.episodes[0]!;
   const body = `${header()}
-<main class="story"><div class="wrap">
+<main class="story" data-atoma-receiver><div class="wrap">
 <a class="crumb" href="/">← All finished work</a>
 <div class="titlerow"><h1 class="display">${esc(first.title)}</h1><div class="mark mark-story" data-atoma-mark="story">${CRYSTAL}</div></div>
 <div class="facts"><span style="color:${KIND_COLOR[entry.kind]}">${esc(KIND_NOUN[entry.kind])}</span><span>${entry.episodes.length > 1 ? `${entry.episodes.length} deliveries` : '1 delivery'}</span><span>${esc(formatDuration(entry.totalDurationS))} in total</span><span>${esc(formatCost(entry.totalCostUsd))} in total</span></div>

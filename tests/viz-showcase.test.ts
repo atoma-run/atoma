@@ -297,6 +297,10 @@ describe('what a visitor can read', () => {
       // The static crystal is inside every host, for a browser without WebGL.
       expect(html).toContain('aria-label="The Atoma crystal"');
     }
+    // Exactly one section per page receives the lit crystal's light and caustics.
+    for (const html of pages) expect(html.match(/data-atoma-receiver/g)).toHaveLength(1);
+    expect(pages[0]).toContain('<section class="hero" data-atoma-receiver>');
+    expect(pages[1]).toContain('<main class="story" data-atoma-receiver>');
     expect(SHOWCASE_SECURITY_HEADERS['content-security-policy']).toMatch(/script-src 'self' 'sha256-/);
     // Without a built bundle (a source checkout, these tests) there is no module to load.
     expect(renderShowcaseIndex([], null)).not.toContain('type="module"');
