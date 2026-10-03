@@ -1,0 +1,10 @@
+{
+  "projectId": "e26b595c-f88f-4539-9ed6-b229cbdf48ef",
+  "idempotencyKey": "planning-scope-false-audit-20261003-v1",
+  "goal": "Audit the candidate below as supplied; do not rewrite or improve it. Deliver your findings directly as text, with no files, code, tools or external research. Requirements for the candidate: four stanzas of four lines, six whitespace-separated words per poetic line, line initials LIGHTHOUSEKEEPER, and stanza-final words thaw, sun, leaves, snow in order. Distinguish the actual poem from its author's audit. Report the sixteen actual word counts, actual acrostic and actual stanza endings; identify any violated requirement and any disagreement with the attached audit. Give an explicit compliant/noncompliant conclusion supported by those observations.\n\nCANDIDATE:\nLantern dims beside the awakening thaw\nI mend lenses while rain loosens\nGulls return, and green horizons widen\nHearts once lonely learn patient welcome\n\nTending bright lamps, I greet tides\nHarbor bells answer beneath the sun\nOars carry voices toward my tower\nUnder warm stars, hope steadies quietly\n\nStorms gather, copper clouds darken above\nEach departing ship receives my blessing\nKeen winds test the faithful lantern\nEvening settles, and I release leaves\n\nEndless frost seals every harbor entrance\nPatiently, I guard the sleeping sea\nEach frozen wave reflects remembered fire\nRenewed dawn finds me beneath snow\n\n1. Word counts: 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6.\n2. Acrostic: LIGHTHOUSEKEEPER.\n3. Structure and progression: four four-line stanzas, moving from spring through summer and autumn to winter; emotional arc is coherent.\n4. Stanza endings: thaw, sun, leaves, snow.\n5. The poem contains no hyphens, numerals, or contractions.",
+  "acceptanceCriteria": [
+    "The supplied poem is preserved; the response audits it without rewriting it or creating files.",
+    "Actual counts, acrostic and stanza endings are derived from the poem, independently of the attached audit.",
+    "Every mismatch is identified and the compliance conclusion agrees with the actual observed text."
+  ]
+}

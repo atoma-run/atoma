@@ -1,5 +1,6 @@
 import type { Plan, SubtaskSpec, Task } from '../core/types.js';
 import { REASONING_EXECUTION_GUIDANCE, REASONING_PLAN_GUIDANCE } from '../contracts/taskExecution.js';
+import { renderTextLayouts } from './textLayout.js';
 
 /** Runtime policy also applies to reusable methods written before this guidance. */
 export const PLANNING_SCOPE_GUIDANCE = [
@@ -45,6 +46,7 @@ export function reasoningPrompt(task: Task, plan?: Plan): string {
     ...taskContextLines(task),
     'Answer only the current Task. originalTask supplies facts and constraints, not additional phases to solve.',
     'Use previousStepResult as prior work; do not regenerate it unless this task asks for a correction or final synthesis.',
+    plan ? renderTextLayouts(task) : '',
     plan ? `Your plan has been APPROVED: ${JSON.stringify(plan)}` : '',
     plan ? 'Return JSON: {"output": <your complete answer>, "summary": "concise conclusion"}.'
       : 'Plan your reasoning. Return JSON: {"reasoning": "...", "proposedAction": "...", "expectedOutput": "..."}.',

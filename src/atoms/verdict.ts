@@ -8,6 +8,7 @@ import { READ_ONLY_TASK_LINE } from '../contracts/readOnlyPhase.js';
 import { taskContextLines } from './taskContext.js';
 import { RECIPE_STEP_LIMITS } from '../skills/events.js';
 import { TEXT_VERIFICATION_GUIDANCE } from '../contracts/taskExecution.js';
+import { renderTextLayouts } from './textLayout.js';
 
 /**
  * VERDICT ENGINE — extracted from L2Atom (structural slice 2b).
@@ -907,6 +908,7 @@ export async function llmVerdict(args: {
     args.task.readOnly ? READ_ONLY_TASK_LINE : '',
     args.targetContext ? `Delegation target(s):\n${args.targetContext}` : '',
     `${args.subject}: ${JSON.stringify(args.payload)}`,
+    args.subject === 'RESULT' ? renderTextLayouts(args.task, (args.payload as Result).output) : '',
     groundTruthBlock,
     toolEvidence,
     args.mechanicalFindingsBlock ?? '',

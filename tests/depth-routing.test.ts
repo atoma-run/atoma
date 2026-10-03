@@ -72,6 +72,9 @@ describe('root delivery coverage', () => {
     const output = readFileSync(new URL('./fixtures/poetry-false-audit.txt', import.meta.url), 'utf8');
     ctx.llm.enqueue(req => {
       expect(req.systemPrompt).toContain(TEXT_VERIFICATION_GUIDANCE);
+      expect(req.userContent).toContain('HOST-COMPUTED LITERAL TEXT LAYOUT');
+      expect(req.userContent).toContain('"lastShown":"welcome","complete":true');
+      expect(req.userContent).toContain('"lastShown":"quietly","complete":true');
       expect(req.userContent).toContain('Hearts once lonely learn patient welcome');
       expect(req.userContent).toContain('Under warm stars, hope steadies quietly');
       expect(req.userContent).toContain('Stanza endings: thaw, sun, leaves, snow.');
