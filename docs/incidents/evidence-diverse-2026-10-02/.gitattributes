@@ -1,0 +1,2 @@
+# Production evidence retains the original bytes, including CSV CRLF.
+* -text

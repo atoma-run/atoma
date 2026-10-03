@@ -2,7 +2,7 @@ import { assertPersonalCodexModels, UNAVAILABLE_CODEX_MODELS } from '../contract
 import { openDb, unfoldedRegistryPredicate } from '../registry/db.js';
 import { updateOrgModels } from '../auth/orgModels.js';
 import { createServer, request as httpRequest } from 'node:http';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { basename, extname, relative, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,7 +13,7 @@ import { readBoundedRunFile, sortRunIndex, summarizeTraceFile } from './runIndex
 import type { VizRunIndexEntry } from './trace.js';
 import { skillsDirPath, storeDbPath } from '../core/stores.js';
 import { openLedgerHandle, readLedgerTail, type LedgerEvent } from '../core/ledger.js';
-import { LAUNCHABLE_PROFILES } from '../run/profiles/index.js';
+import { GOAL_GUIDANCE } from '../run/guidance.js';
 import { assessShareability, type ShareAssessment } from '../skills/shareability.js';
 import { taxonomyForTier, type AgentRank } from '../core/taxonomy.js';
 import { describeJevAdmission } from '../core/jev.js';
@@ -111,6 +111,15 @@ import {
   DEFAULT_PROJECTS_ROOT,
   ProjectRunCoordinator,
 } from '../projects/coordinator.js';
+import { hostRunTitler } from '../projects/runTitle.js';
+import { createShowcaseSource, servesShowcaseHome, showcaseEnabled, type ShowcaseSource } from './showcase.js';
+import {
+  renderShowcaseEntry,
+  renderShowcaseIndex,
+  renderShowcaseNotFound,
+  SHOWCASE_SECURITY_HEADERS,
+  type ShowcaseAssets,
+} from './showcasePage.js';
 import { GitHubPublisher } from '../projects/publisher.js';
 import { ProjectHttpError, ProjectService, roleAtLeast } from '../projects/service.js';
 import { PreviewStore } from '../preview/store.js';
@@ -642,8 +651,9 @@ const PUSH_RUNTIME: PushRuntime | null = (() => {
 })();
 
 /**
- * THE VIZ SERVER'S ONLY LLM CLIENT, and it exists for exactly one thing:
- * drafting announcement translations for an admin to review.
+ * THE VIZ SERVER'S OWN LLM CLIENT, and it exists for exactly one thing:
+ * drafting announcement translations for an admin to review. (Run titles
+ * are the coordinator's, on their own host-credential client: `runTitle.ts`.)
  *
  * Built on FIRST USE and never at boot. A control plane that constructed a
  * provider at startup would demand a credential from every deployment that
@@ -734,6 +744,7 @@ if (EVENTS && PUSH_RUNTIME && AUTH?.store) {
   const router = new NotificationRouter({
     notifier: PUSH_RUNTIME.notifier,
     directory: audienceDirectory(AUTH.store),
+    traceIdFor: (event) => projectRunTraceId(event.orgId, event.runId),
   });
   EVENTS.subscribe((event) => router.handle(event));
 }
@@ -834,6 +845,9 @@ const PROJECTS_RUNTIME: ProjectsRuntime | null = (() => {
     describeDeliveredPreview: (subject) => {
       recordDeliveredPreview(previewStore, subject);
     },
+    // Every ended run is named once, on the host's tier-1 model and credential
+    // (`src/projects/runTitle.ts`): the run selector shows that line, not the goal.
+    runTitler: hostRunTitler(process.env),
     // THE PLATFORM'S RUN LIMITS, asked per run rather than captured now: this
     // server outlives every save an admin makes in the Settings form, and a
     // limit that needed a restart would be a limit nobody trusts. Absent
@@ -976,6 +990,19 @@ const PROJECTS_RUNTIME: ProjectsRuntime | null = (() => {
     resolveUserAccessToken,
   };
 })();
+
+/**
+ * THE PUBLIC SHOWCASE (`showcase.ts`): the platform admin's delivered runs for
+ * anyone, signed in or not. FAIL CLOSED three ways: the host must opt in
+ * (`ATOMA_PUBLIC_SHOWCASE=1`), the gate must be on (an ungated developer path
+ * has no notion of an admin), and a projects store must exist. `null` means
+ * the routes answer 404, indistinguishable from a path that was never there.
+ */
+const SHOWCASE: ShowcaseSource | null =
+  AUTH_RUNTIME && PROJECTS_RUNTIME && showcaseEnabled()
+    ? createShowcaseSource(PROJECTS_RUNTIME.store)
+    : null;
+
 
 /**
  * THE PREVIEW RUNTIME, hosted here for the same reason the watch is.
@@ -1441,6 +1468,21 @@ function escapeHtml(s: string): string {
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const CLIENT_DIR = join(HERE, 'client');
+
+/**
+ * The showcase's real crystal (`vite.showcase.config.ts`), versioned by its
+ * own content so a deploy never serves a cached old one. Absent in a source
+ * checkout and in tests: the pages then keep their static crystal.
+ */
+const SHOWCASE_ASSETS: ShowcaseAssets = (() => {
+  const file = join(CLIENT_DIR, 'showcase-assets', 'atoma-mark.js');
+  try {
+    const digest = createHash('sha256').update(readFileSync(file)).digest('hex').slice(0, 16);
+    return { markScript: `/showcase-assets/atoma-mark.js?v=${digest}` };
+  } catch {
+    return { markScript: null };
+  }
+})();
 const UI_HTML_PATH = join(CLIENT_DIR, 'index.html');
 const DEV_UI_URL = (() => {
   const configured = process.env['ATOMA_VIZ_DEV_URL']?.trim();
@@ -1471,6 +1513,22 @@ function assetContentType(file: string): string {
     default:
       return 'application/octet-stream';
   }
+}
+
+/**
+ * A showcase page: its own CSP, and `no-store` on purpose. The service worker
+ * keeps every navigation response as its offline copy of `/` unless the
+ * response forbids it, and a visitor's story must not become a signed-in
+ * member's offline app shell. The data is cached on the server (a minute).
+ */
+function sendShowcase(res: import('node:http').ServerResponse, code: number, html: string): void {
+  res.writeHead(code, {
+    ...SHOWCASE_SECURITY_HEADERS,
+    'content-type': 'text/html; charset=utf-8',
+    'content-length': Buffer.byteLength(html),
+    'cache-control': 'no-store',
+  });
+  res.end(html);
 }
 
 function send(
@@ -1734,6 +1792,7 @@ function listOrganisationRunIndex(orgId: string): VizRunIndexEntry[] {
       projectName: row.projectName,
       projectSlug: row.projectSlug,
       ...(row.rerunOf ? { rerunOf: row.rerunOf } : {}),
+      ...(row.title ? { title: row.title } : {}),
     });
   }
   return sortRunIndex(entries);
@@ -1753,6 +1812,7 @@ function listAllRunIndex(viewer: Viewer): VizRunIndexEntry[] {
       projectName: row.projectName,
       projectSlug: row.projectSlug,
       ...(row.rerunOf ? { rerunOf: row.rerunOf } : {}),
+      ...(row.title ? { title: row.title } : {}),
     });
   }
   return sortRunIndex(entries);
@@ -3970,7 +4030,28 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
     }
   }
 
-  if (pathname === '/' || pathname === '/index.html') {
+  // THE HOME PAGE. With the showcase published, a visitor with no session who
+  // asks for a bare `/` gets the showcase; everyone else gets the app shell.
+  // The test is `servesShowcaseHome`: a query string always means the shell,
+  // because `?authNotice=`, `?invite=` and the rehearsal flags are read by it.
+  if (
+    SHOWCASE &&
+    req.method === 'GET' &&
+    servesShowcaseHome({
+      pathname,
+      search: url.search,
+      hasSession: Boolean(AUTH?.resolve(req)),
+      enabled: true,
+    })
+  ) {
+    sendShowcase(res, 200, renderShowcaseIndex(SHOWCASE.entries(), AUTH_RUNTIME?.publicOrigin ?? null, SHOWCASE_ASSETS));
+    return;
+  }
+
+  // `/app` is the same shell under a name the showcase can link to: the
+  // arrival gate (crystal, handheld notice, sign-in) for a visitor who wants
+  // in. It is not a second page to index, and a dev server sees `/`.
+  if (pathname === '/' || pathname === '/index.html' || pathname === '/app') {
     // The app shell goes to EVERY browser, authenticated or not: the arrival
     // gate (crystal, tagline) IS the login surface — a new visitor's first
     // touch is the product, not a bare server form. The shell contains no
@@ -3978,7 +4059,7 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
     // only names the configured providers; the no-JS fallback keeps the
     // plain selector at /auth/login.
     if (DEV_UI_URL) {
-      const target = new URL(`${pathname}${url.search}`, DEV_UI_URL);
+      const target = new URL(`${pathname === '/app' ? '/' : pathname}${url.search}`, DEV_UI_URL);
       res.writeHead(307, {
         location: target.href,
         'content-length': '0',
@@ -3993,7 +4074,8 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
     }
     const html = injectAppShellSeo(
       readFileSync(UI_HTML_PATH, 'utf8'),
-      AUTH_RUNTIME?.publicOrigin ?? null
+      // `/app` carries the no-origin block: noindex and no canonical.
+      pathname === '/app' ? null : (AUTH_RUNTIME?.publicOrigin ?? null)
     );
     // `no-cache` permits the service worker's offline copy while requiring
     // normal HTTP caches to revalidate. With the gate on, the login-capable
@@ -4009,6 +4091,33 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
       return;
     }
     send(res, 200, html, 'text/html; charset=utf-8', 'no-cache');
+    return;
+  }
+
+  // THE SHOWCASE'S STORY PAGES. No session is read, and none is needed: the
+  // pages carry only the allow-listed projection of a platform admin's
+  // delivered runs (`showcase.ts`). GET only and its own CSP. `/showcase`
+  // itself is the home page now, so it answers with a redirect to `/`.
+  if (pathname === '/showcase' || pathname.startsWith('/showcase/')) {
+    if (!methodAllowed(req, res, 'GET')) return;
+    if (!SHOWCASE) {
+      send(res, 404, 'not found', 'text/plain; charset=utf-8');
+      return;
+    }
+    if (pathname === '/showcase' || pathname === '/showcase/') {
+      res.writeHead(301, { location: '/', 'content-length': '0', 'cache-control': 'public, max-age=3600' });
+      res.end();
+      return;
+    }
+    const entry = SHOWCASE.entry(pathname.slice('/showcase/'.length));
+    if (!entry) {
+      sendShowcase(res, 404, renderShowcaseNotFound(SHOWCASE_ASSETS));
+      return;
+    }
+    const answers = new Map(
+      entry.episodes.map((episode) => [episode.id, SHOWCASE.answer(entry.id, episode.id)] as const)
+    );
+    sendShowcase(res, 200, renderShowcaseEntry(entry, answers, AUTH_RUNTIME?.publicOrigin ?? null, SHOWCASE_ASSETS));
     return;
   }
 
@@ -4033,7 +4142,9 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
     send(
       res,
       200,
-      sitemapXml(AUTH_RUNTIME.publicOrigin),
+      sitemapXml(AUTH_RUNTIME.publicOrigin, {
+        paths: SHOWCASE ? SHOWCASE.entries().slice(0, 200).map((entry) => `/showcase/${entry.id}`) : [],
+      }),
       'application/xml; charset=utf-8',
       'public, max-age=3600'
     );
@@ -4565,9 +4676,9 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
     return;
   }
 
-  if (pathname === '/api/profiles') {
+  if (pathname === '/api/goal-guidance') {
     // READ-ONLY, and deliberately so: it returns compile-time constants — the
-    // family guidance the project run form renders and the shell command for a
+    // goal guidance the project run form renders and the shell command for a
     // deployment with no organisations — NOT a way to start anything. This
     // route is UNGATED, which is exactly why it stays a reader: a run can call
     // BACK into this server (`fetch_url` has no URL allowlist by design, and
@@ -4577,18 +4688,16 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
     // the browser lives on the AUTHENTICATED project routes instead, where a
     // session the run does not hold is the boundary.
     //
-    // `defaults.dbPath` / `defaults.workspace` are NOT exposed: the run
+    // The run's default db path and workspace are NOT exposed: the run
     // resolves `process.env[...] ?? default` against ITS OWN environment, so
     // publishing the static default would state a fact that may be false.
     sendJson(res, 200, {
       launchEnabled: false,
-      profiles: LAUNCHABLE_PROFILES.map(({ profile: p, npmScript }) => ({
-        id: p.id,
-        npmScript,
-        label: p.guidance.label,
-        help: p.guidance.help,
-        examples: [...p.guidance.examples],
-      })),
+      guidance: {
+        npmScript: GOAL_GUIDANCE.npmScript,
+        help: GOAL_GUIDANCE.help,
+        examples: [...GOAL_GUIDANCE.examples],
+      },
     });
     return;
   }

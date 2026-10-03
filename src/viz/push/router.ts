@@ -2,6 +2,7 @@ import type { PlatformEvent } from '../../contracts/platformEvents.js';
 import type { PushNotifier } from './notifier.js';
 import { DEFAULT_LOCALE } from '../../contracts/locales.js';
 import { PUSH_ROUTES, renderPush, type AudienceRule } from './routes.js';
+import { notificationLinkUrl } from '../../contracts/notificationLink.js';
 
 /**
  * FROM ONE JOURNALED EVENT TO THE RIGHT DEVICES.
@@ -30,6 +31,8 @@ export interface AudienceDirectory {
 export interface NotificationRouterOptions {
   readonly notifier: PushNotifier;
   readonly directory: AudienceDirectory;
+  /** A project-run id → its trace id, the tray's reader, so a click opens the run. */
+  readonly traceIdFor?: (event: PlatformEvent) => string | null;
 }
 
 /**
@@ -116,10 +119,12 @@ export function cachedAudienceDirectory(inner: AudienceDirectory): AudienceDirec
 export class NotificationRouter {
   private readonly notifier: PushNotifier;
   private readonly directory: AudienceDirectory;
+  private readonly traceIdFor: (event: PlatformEvent) => string | null;
 
   constructor(options: NotificationRouterOptions) {
     this.notifier = options.notifier;
     this.directory = options.directory;
+    this.traceIdFor = options.traceIdFor ?? (() => null);
   }
 
   /**
@@ -159,8 +164,24 @@ export class NotificationRouter {
       recipients,
       (locale) => renderPush(event, locale, route),
       // One tag per EVENT, so a device replaces an earlier notification about
-      // the same fact instead of stacking duplicates.
-      { tag: `atoma-${event.kind}-${event.seq}`, url: '/' }
+      // the same fact instead of stacking duplicates. The URL names the
+      // event's subject; the app resolves it with the tray's own rule.
+      { tag: `atoma-${event.kind}-${event.seq}`, url: this.linkFor(event) }
     );
+  }
+
+  private linkFor(event: PlatformEvent): string {
+    let traceId: string | null = null;
+    try {
+      traceId = this.traceIdFor(event);
+    } catch {
+      // A failed lookup costs the deep link, never the notification.
+    }
+    return notificationLinkUrl({
+      kind: event.kind,
+      orgId: event.orgId,
+      projectId: event.projectId,
+      traceId,
+    });
   }
 }

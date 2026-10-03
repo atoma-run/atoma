@@ -19,6 +19,7 @@ import {
   renderPush,
   asPushLocale,
 } from '../src/viz/push/routes.js';
+import { parseNotificationLink } from '../src/contracts/notificationLink.js';
 
 function event(overrides: Partial<PlatformEvent> = {}): PlatformEvent {
   const kind: PlatformEventKind = overrides.kind ?? 'run.finished';
@@ -46,8 +47,8 @@ const directory: AudienceDirectory = {
   membersOf: (orgIds) => orgIds.flatMap((orgId) => (orgId === 'org-1' ? ['owner-a'] : [])),
 };
 
-function routerWith() {
-  const calls: Array<{ recipients: readonly string[]; render: PushRenderer; tag: string }> = [];
+function routerWith(traceIdFor?: (event: PlatformEvent) => string | null) {
+  const calls: Array<{ recipients: readonly string[]; render: PushRenderer; tag: string; url?: string }> = [];
   const notifier = {
     notifyPrincipals: vi.fn(
       async (
@@ -55,11 +56,15 @@ function routerWith() {
         render: PushRenderer,
         meta: { tag: string; url?: string }
       ) => {
-        calls.push({ recipients, render, tag: meta.tag });
+        calls.push({ recipients, render, tag: meta.tag, ...(meta.url !== undefined ? { url: meta.url } : {}) });
       }
     ),
   } as unknown as PushNotifier;
-  return { router: new NotificationRouter({ notifier, directory }), calls, notifier };
+  return {
+    router: new NotificationRouter({ notifier, directory, ...(traceIdFor ? { traceIdFor } : {}) }),
+    calls,
+    notifier,
+  };
 }
 
 describe('PUSH_ROUTES', () => {
@@ -367,5 +372,28 @@ describe('NotificationRouter.handle', () => {
     ).resolves.toBeUndefined();
     expect(notifier.notifyPrincipals).not.toHaveBeenCalled();
     stderr.mockRestore();
+  });
+});
+
+describe('push click destination', () => {
+  it('carries the event subject, with the run trace, in the URL a click opens', async () => {
+    const { router, calls } = routerWith((e) => (e.runId === 'run-1' ? 'trace-1' : null));
+    await router.handle(event());
+    expect(calls).toHaveLength(1);
+    expect(parseNotificationLink(new URL(calls[0]!.url!, 'https://atoma.run').search)).toEqual({
+      kind: 'run.finished',
+      orgId: 'org-1',
+      projectId: 'proj-1',
+      traceId: 'trace-1',
+    });
+  });
+
+  it('still notifies when the trace lookup throws, without the run in the link', async () => {
+    const { router, calls } = routerWith(() => {
+      throw new Error('store closed');
+    });
+    await router.handle(event());
+    expect(calls).toHaveLength(1);
+    expect(parseNotificationLink(new URL(calls[0]!.url!, 'https://atoma.run').search)?.traceId).toBeNull();
   });
 });

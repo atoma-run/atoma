@@ -670,7 +670,6 @@ describe('viz auth gate (process level)', () => {
             name: 'Index carries the run',
             slug: 'index-carries-the-run',
             initialPrompt: '',
-            family: 'build',
             repositoryTarget: { installationId: '999000002', owner: 'local', name: 'x', visibility: 'private' },
           },
         });

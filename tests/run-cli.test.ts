@@ -10,7 +10,8 @@ import {
   MERISTEM_DESCRIPTION,
   seedTissueCatalog,
 } from '../src/run/tissues.js';
-import { buildProfile } from '../src/run/profiles/build.js';
+import { GOAL_GUIDANCE } from '../src/run/guidance.js';
+import { DEPTH_CONTRACT, seedCatalog } from '../src/run/setup.js';
 import {
   runTask,
   parseRunnerArgs,
@@ -26,7 +27,7 @@ import { RunnerConfigError } from '../src/core/errors.js';
 
 /**
  * Guards for the generic-runner extraction (build-app.ts 541 lines -> a
- * 20-line shell over src/run/runner.ts + src/run/profiles/build.ts).
+ * 20-line shell over src/run/runner.ts + src/run/setup.ts).
  *
  * The refactor had to be a pure MOVE, and two things make that non-obvious:
  *
@@ -65,7 +66,7 @@ describe('build profile — canonical seed and child catalog', () => {
     const first = seedTissueCatalog(ctx);
     expect(first.systemPrompt).toBe(MERISTEM_SYSTEM_PROMPT);
     expect(first.description).toBe(MERISTEM_DESCRIPTION);
-    buildProfile.seedCatalog(ctx);
+    seedCatalog(ctx);
     const versionsAfterFirst = reg
       .listByTier(1)
       .concat(reg.listByTier(2), reg.listByTier(3))
@@ -73,7 +74,7 @@ describe('build profile — canonical seed and child catalog', () => {
       .sort();
 
     const second = seedTissueCatalog(ctx);
-    buildProfile.seedCatalog(ctx);
+    seedCatalog(ctx);
     const versionsAfterSecond = reg
       .listByTier(1)
       .concat(reg.listByTier(2), reg.listByTier(3))
@@ -91,16 +92,15 @@ describe('build profile — canonical seed and child catalog', () => {
     );
     const ctx = { registry: reg, toolDecls: tools, log: (): void => undefined };
     seedTissueCatalog(ctx);
-    buildProfile.seedCatalog(ctx);
+    seedCatalog(ctx);
     expect(reg.listByTier(1)).toHaveLength(4);
     expect(reg.listByTier(2)).toHaveLength(3);
     expect(reg.listByTier(3)).toHaveLength(1);
   });
 
   it('keeps launch configuration independent of task constraints and root identity', () => {
-    expect(buildProfile).not.toHaveProperty('seedL3');
-    expect(buildProfile).not.toHaveProperty('buildTask');
-    expect(buildProfile.depthExperiment?.defaultMode).toBe('deep');
+    expect(DEPTH_CONTRACT.defaultMode).toBe('deep');
+    expect(DEPTH_CONTRACT.floor).toEqual([]);
   });
 });
 
@@ -295,20 +295,19 @@ describe('runTask --help — usage, never a run', () => {
       throw new Error(`process.exit(${code ?? ''}) must not be called`);
     }) as never);
 
-    await expect(runTask(buildProfile, [flag])).resolves.toBeUndefined();
+    await expect(runTask([flag])).resolves.toBeUndefined();
 
     expect(exit).not.toHaveBeenCalled();
     expect(warn).not.toHaveBeenCalled();
     expect(log).toHaveBeenCalledTimes(1);
-    expect(log).toHaveBeenCalledWith(formatUsage(buildProfile));
+    expect(log).toHaveBeenCalledWith(formatUsage());
   });
 
-  it('the usage is derived from the profile guidance and the runner flags', () => {
-    const usage = formatUsage(buildProfile);
-    expect(usage).toContain(`Usage: ${buildProfile.id}`);
-    expect(usage).toContain(buildProfile.guidance.label);
-    expect(usage).toContain(buildProfile.guidance.help);
-    for (const example of buildProfile.guidance.examples) expect(usage).toContain(example);
+  it('the usage is derived from the goal guidance and the runner flags', () => {
+    const usage = formatUsage();
+    expect(usage).toContain('Usage: run');
+    expect(usage).toContain(GOAL_GUIDANCE.help);
+    for (const example of GOAL_GUIDANCE.examples) expect(usage).toContain(example);
     for (const flag of ['--clean-workspace', '--container', '--no-container', '--egress', '--seed <dir>', '--help, -h']) {
       expect(usage).toContain(flag);
     }
@@ -379,8 +378,8 @@ describe('runner stdout contract — burn-in parses this', () => {
   // Epilogues are exercised through startTask in project-retrieval-runner.test.ts,
   // including delivered, failed-model and infrastructure-preparation outcomes.
 
-  it('exposes runTask taking a profile plus argv', () => {
+  it('exposes runTask taking argv', () => {
     expect(typeof runTask).toBe('function');
-    expect(runTask.length).toBe(2);
+    expect(runTask.length).toBe(1);
   });
 });

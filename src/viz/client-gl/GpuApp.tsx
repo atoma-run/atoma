@@ -43,6 +43,10 @@ import { SceneTuningPanel } from './SceneTuningPanel.js';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, pendingApiMutations } from '../client/data-api.js';
 import { startAutoUpdate, restoreUpdateNavigation, saveUpdateNavigation } from './auto-update.js';
+import { startNavigationHistory } from './navigation-history.js';
+import { listenForNotificationLinks, takeLaunchNotificationLink } from './notification-link.js';
+import { notificationTarget } from './notification-target.js';
+import type { NotificationLink } from '../../contracts/notificationLink.js';
 import {
   useAccountModels,
   useAdminEventsPages,
@@ -54,7 +58,7 @@ import {
   useOrganisation,
   useGithubInstallations,
   usePreviewStatus,
-  useProfiles,
+  useGoalGuidance,
   useProjectRuns,
   useProjects,
   useRegistries,
@@ -78,6 +82,7 @@ import {
 } from './store.js';
 import type { VizAdminInvitation } from '../client/types.js';
 import { openGitHubRepository } from './repository-link.js';
+import { resultText, resultFileUrl } from './run-result.js';
 
 const RELEASE_VERSION = __ATOMA_RELEASE_VERSION__;
 
@@ -197,6 +202,8 @@ function GpuAppContent({
     state.view === 'runs' && apiReady,
     runsQuery.data?.find((entry) => entry.id === state.selectedRunId)
   );
+  const resultQuery = useRunTrace(state.resultRunId,
+    apiReady && (state.view === 'runs' || state.view === 'projects'));
   const registriesQuery = useRegistries(state.view === 'registry' && apiReady);
   const registryQuery = useRegistry(
     state.selectedRegistryId,
@@ -223,11 +230,11 @@ function GpuAppContent({
   const skillSelection = state.view === 'skills' ? state.selectedSkill : runSkillSelection;
   const skillDetailQuery = useSkillDetail(skillSelection, Boolean(skillSelection) && apiReady);
   const burninQuery = useBurnin(state.view === 'burnin' && operatorSurfaces);
-  // The family guidance renders inside the project run form, so it is fetched
+  // The goal guidance renders inside the project run form, so it is fetched
   // with the Projects view. It is supplementary copy, never gating: it is
-  // deliberately absent from `loading` below, so a slow /api/profiles cannot
-  // hide the project list behind a spinner.
-  const profilesQuery = useProfiles(state.view === 'projects' && apiReady);
+  // deliberately absent from `loading` below, so a slow /api/goal-guidance
+  // cannot hide the project list behind a spinner.
+  const guidanceQuery = useGoalGuidance(state.view === 'projects' && apiReady);
   // Project routes exist only behind the auth gate; an ungated server 404s
   // them. Left enabled, those 404s poisoned the GLOBAL `data.error` below and
   // the runs view then rendered an error banner instead of its list — the
@@ -262,6 +269,10 @@ function GpuAppContent({
         : {},
     [projectRunsQuery.data, selectedProject]
   );
+  const resultProjectId = state.view === 'projects' ? selectedProject?.projectId
+    : runsQuery.data?.find(run => run.id === state.resultRunId)?.projectId ?? selectedProject?.projectId;
+  const resultProjectRunsQuery = useProjectRuns(resultProjectId ?? null,
+    authed && !!state.resultRunId && (state.view === 'runs' || state.view === 'projects'));
 
   // The project run behind the selected trace. A run reached from anywhere
   // else — the runs index, a burn-in row, a deep link — has no project run to
@@ -457,6 +468,17 @@ function GpuAppContent({
       ? `${authSnapshot.viewer.principalId}:${authSnapshot.viewer.activeOrganisation?.id ?? 'none'}` : 'ungated';
     restoreUpdateNavigation(scope, visibleViews(authSnapshot));
   }, [apiReady, authSnapshot]);
+  // Back/Forward start recording only after that restore, so putting the tab
+  // back where an update found it is the first entry, not a navigation.
+  const navigationScope = authSnapshot
+    ? `${authSnapshot.viewer.principalId}:${authSnapshot.viewer.activeOrganisation?.id ?? 'none'}` : 'ungated';
+  useEffect(() => {
+    if (!apiReady) return undefined;
+    return startNavigationHistory({
+      scope: navigationScope,
+      routable: (view) => isRoutableView(view, updateState.current.authSnapshot),
+    });
+  }, [apiReady, navigationScope]);
   useEffect(() => {
     if (!import.meta.env.PROD) return;
     const updater = startAutoUpdate({
@@ -680,6 +702,37 @@ function GpuAppContent({
   }, [projectBusy, queryClient, t]);
 
   const activate = useCallback((id: string) => {
+    if (id === 'result.close') { useGpuStore.getState().selectResult(null); return; }
+    if (id.startsWith('result.open.')) {
+      useGpuStore.getState().selectResult(id.slice('result.open.'.length));
+      return;
+    }
+    if (id === 'result.copy' || id === 'result.download' || id.startsWith('result.file.')) {
+      const resultId = useGpuStore.getState().resultRunId;
+      if (!resultId) return;
+      if (id.startsWith('result.file.')) {
+        const rows = queryClient.getQueryData<import('../client/types.js').VizProjectRun[]>(['viz', 'project', resultProjectId, 'runs']) ?? [];
+        const row = rows.find(row => row.traceId === resultId || row.projectRunId === resultId);
+        const path = decodeURIComponent(id.slice('result.file.'.length));
+        if (row?.artifactManifest?.files.some(file => file.path === path)) openGitHubRepository(resultFileUrl(row, path));
+        return;
+      }
+      const run = queryClient.getQueryData<import('../client/types.js').VizRun>(['viz', 'run', resultId]);
+      if (!run || run.id !== resultId) return;
+      const text = resultText(run);
+      if (text === null) return;
+      if (id === 'result.copy') {
+        void (navigator.clipboard?.writeText(text) ?? Promise.reject(new Error('Clipboard unavailable'))).then(
+          () => { if (useGpuStore.getState().resultRunId === resultId) useGpuStore.getState().setResultActionStatus('copied'); },
+          () => { if (useGpuStore.getState().resultRunId === resultId) useGpuStore.getState().setResultActionStatus('failed'); });
+      } else {
+        const url = URL.createObjectURL(new Blob([JSON.stringify(run.result, null, 2)], { type: 'application/json' }));
+        const link = document.createElement('a');
+        link.href = url; link.download = `result-${run.id}.json`; link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+      return;
+    }
     const store = useGpuStore.getState();
     // The menu's own open/closed state is UI, not identity, so it is handled
     // here rather than delegated to the auth controller.
@@ -910,7 +963,7 @@ function GpuAppContent({
     }
     if (id.startsWith('projects.example.')) {
       const index = Number(id.slice('projects.example.'.length));
-      const example = profilesQuery.data?.profiles[0]?.examples[index];
+      const example = guidanceQuery.data?.guidance.examples[index];
       if (example) store.setSearch('projectPrompt', example);
       return;
     }
@@ -949,6 +1002,8 @@ function GpuAppContent({
     }
   }, [
     activateAuth,
+    queryClient,
+    resultProjectId,
     authSnapshot,
     arrive,
     loadOlderEvents,
@@ -956,13 +1011,34 @@ function GpuAppContent({
     mintInvitation,
     pendingLoginProvider,
     previewQuery.data?.state,
-    profilesQuery.data,
+    guidanceQuery.data,
     projectsQuery.data,
     requestPreview,
     runQuery.data,
     runsQuery.data,
     stopPreview,
   ]);
+
+  // A push click opens its subject the way the tray row for the same event
+  // would: one rule, `notificationTarget`, against the viewer as it is NOW.
+  // Declared after the history recorder, so the arrival is its own entry and
+  // Back returns to where the viewer was.
+  const activateRef = useRef(activate);
+  activateRef.current = activate;
+  useEffect(() => {
+    if (!apiReady) return undefined;
+    const open = (link: NotificationLink): void => {
+      const auth = updateState.current.authSnapshot;
+      const target = notificationTarget(link, {
+        platformAdmin: auth?.viewer.platformAdmin === true,
+        activeOrgId: auth?.viewer.activeOrganisation?.id ?? null,
+      });
+      if (target) activateRef.current(target);
+    };
+    const launch = takeLaunchNotificationLink();
+    if (launch) open(launch);
+    return listenForNotificationLinks(open);
+  }, [apiReady]);
 
   const loading =
     (state.view === 'projects' && (projectsQuery.isLoading || githubInstallationsQuery.isLoading)) ||
@@ -993,7 +1069,7 @@ function GpuAppContent({
     // as a global error painted a banner over the whole run graph. It
     // surfaces as `skillDetailFailed` in the pane instead.
     burninQuery.error,
-    profilesQuery.error,
+    guidanceQuery.error,
     projectsQuery.error,
     githubInstallationsQuery.error,
     projectRunsQuery.error,
@@ -1008,6 +1084,8 @@ function GpuAppContent({
     auth: authSnapshot,
     runs: runsQuery.data ?? [],
     run: runQuery.data ?? null,
+    resultRun: resultQuery.data?.id === state.resultRunId ? resultQuery.data : null,
+    resultFailed: resultQuery.isError,
     registries: registriesQuery.data ?? [],
     registry: registryQuery.data ?? null,
     skillNamespaces: namespacesQuery.data ?? [],
@@ -1015,9 +1093,10 @@ function GpuAppContent({
     skillDetail: skillDetailQuery.data ?? null,
     skillDetailFailed: skillDetailQuery.isError,
     burnin: burninQuery.data ?? null,
-    profiles: profilesQuery.data?.profiles ?? [],
+    guidance: guidanceQuery.data?.guidance ?? null,
     projects: projectsQuery.data ?? [],
-    projectRuns,
+    projectRuns: resultProjectId && resultProjectRunsQuery.data
+      ? { ...projectRuns, [resultProjectId]: resultProjectRunsQuery.data } : projectRuns,
     githubInstallations: githubInstallationsQuery.data ?? [],
     adminOrganisations: adminOrganisationsQuery.data ?? [],
     adminEvents: adminEventsQuery.data?.pages.flatMap((page) => page.events) ?? [],
@@ -1067,12 +1146,17 @@ function GpuAppContent({
     githubInstallationsQuery.data,
     loading,
     namespacesQuery.data,
-    profilesQuery.data,
+    guidanceQuery.data,
     projectRuns,
     projectsQuery.data,
     registriesQuery.data,
     registryQuery.data,
     runQuery.data,
+    resultQuery.data,
+    resultQuery.isError,
+    resultProjectId,
+    resultProjectRunsQuery.data,
+    state.resultRunId,
     runsQuery.data,
     skillDetailQuery.data,
     skillDetailQuery.isError,

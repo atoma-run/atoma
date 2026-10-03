@@ -97,8 +97,8 @@ graph TB
 
     subgraph RT[" ⚙️ Runtime assembly "]
         direction LR
-        RUNNER["<b>Runner</b><br/><i>family-independent</i><br/>budget · signals · watchdog"]
-        PROFILE["<b>TaskProfile</b><br/><i>the only per-family part</i><br/>workspace · seeds · constraints"]
+        RUNNER["<b>Runner</b><br/>budget · signals · watchdog"]
+        SETUP["<b>Run setup</b><br/>workspace · seeds · depth contract"]
         PROVIDERS["<b>Provider routing</b><br/>API · host subscription · personal login<br/>mixable per tier"]
         BACKEND["<b>Tool backend</b><br/>local operator sandbox<br/>containers for project runs"]
     end
@@ -207,8 +207,8 @@ development step.
 | | Preview and launcher | Classify web results, serve isolated ephemeral generations, and keep container-engine access in one subsystem |
 | | Platform journal, notifications and settings | Attributable events, member notifications, platform-admin alerts and persistent run limits read at each launch |
 | | Sentinel / analyst / mender | Live mechanical watch; optional read-only post-mortems; isolated correction PRs requiring human merge |
-| **Runtime** | Runner | Everything family-independent: provider choice, sandbox, budget, abort signals, watchdog, trace, post-mortem |
-| | TaskProfile | The *only* per-family part: workspace prep, seed agents, task constraints |
+| **Runtime** | Runner | Provider choice, sandbox, budget, abort signals, watchdog, trace, post-mortem |
+| | Run setup | Workspace prep, canonical seed agents, the supervision depth contract |
 | | Provider routing | API, host subscription and personal subscription transports; each tier has its own required model selector. Codex supports all tiers through the host-side action loop |
 | | Jev decider | TypeSafe's typed decision API beside the tier models: routing, eligible intermediate approvals and recipe equivalence, with model fallback |
 | **Orchestration** | L3 tissues / L2 cells / L1 molecules | Decompose · route and judge · execute |

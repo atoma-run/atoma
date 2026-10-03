@@ -3,7 +3,7 @@ import { L1Atom } from '../src/atoms/L1Atom.js';
 import { L2Atom } from '../src/atoms/L2Atom.js';
 import { L3Atom } from '../src/atoms/L3Atom.js';
 import { planSchema } from '../src/atoms/json.js';
-import { previousResultInput } from '../src/atoms/taskContext.js';
+import { previousResultInput, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE } from '../src/atoms/taskContext.js';
 import { TRUST_THRESHOLD_SUCCESSES } from '../src/atoms/cost.js';
 import { llmVerdict } from '../src/atoms/verdict.js';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
@@ -11,6 +11,7 @@ import { openDb } from '../src/registry/db.js';
 import { makeCtx, jsonText } from './helpers.js';
 import { makeTools } from './helpers/factories.js';
 import type { Task } from '../src/core/types.js';
+import { TEXT_VERIFICATION_GUIDANCE } from '../src/contracts/taskExecution.js';
 
 const seed = { description: 'analysis', systemPrompt: 'Always write an answer file.', tools: makeTools(['write_file']), params: {}, createdBy: 'test' };
 
@@ -47,6 +48,7 @@ describe('reasoning delivery across production delegation', () => {
         expect(req.tools ?? []).toEqual([]);
         expect(req.executor).toBeUndefined();
         expect(req.systemPrompt).toContain('Return one JSON object with the actual answer');
+        expect(req.systemPrompt).toContain(TEXT_VERIFICATION_GUIDANCE);
         if (executions === 1) return { text: 'The exact probability is 22/45.', stopReason: 'end_turn', usage: { inputTokens: 10, outputTokens: 10 } };
         answer = { output: '22/45', summary: 'Posterior mixture computed.' };
       } else {
@@ -99,8 +101,9 @@ describe('reasoning delivery across production delegation', () => {
     for (let n = 0; n < 24; n++) ctx.llm.enqueue((req) => {
       let answer: unknown;
       if (req.role === 'prefilter') {
-        answer = { kind: 'reuse', target: req.actor?.tier === 3 ? cell.name : molecule.name, confidence: 1, decomposable: false, reasoning: 'fits' };
+        answer = { kind: 'reuse', target: req.actor?.tier === 3 ? cell.name : molecule.name, confidence: 1, decomposable: true, reasoning: 'fits' };
       } else if (req.role === 'plan' && req.actor?.tier === 3) {
+        expect(req.userContent).toContain(PROPORTIONATE_PLANNING_GUIDANCE);
         answer = [{ strategy: 'reuse', target: cell.name, reasoning: 'reuse' }, {
           reasoning: 'construct then audit', delivery: 'text',
           subtasks: [
@@ -109,6 +112,12 @@ describe('reasoning delivery across production delegation', () => {
           ], aggregation: { mode: 'sequential' }, expectedOutput: 'a proof',
         }];
       } else if (req.role === 'plan' && req.actor?.tier === 2) {
+        expect(req.userContent).toContain(PLANNING_SCOPE_GUIDANCE);
+        expect(req.userContent).toContain(PROPORTIONATE_PLANNING_GUIDANCE);
+        expect(req.userContent).toContain(task.description);
+        if (req.userContent.includes('Task: Audit')) {
+          expect(req.userContent).toContain(JSON.stringify(firstAnswer));
+        }
         answer = [{ strategy: 'reuse', target: molecule.name, reasoning: 'reuse' }, {
           reasoning: 'delegate', subtasks: [{
             description: req.userContent.includes('Task: Audit') ? 'Audit the timetable.' : 'Construct the timetable.',
@@ -123,6 +132,8 @@ describe('reasoning delivery across production delegation', () => {
         expect(req.userContent).toContain('suppliedValue');
         expect(req.userContent).not.toContain('forged replacement');
         if (req.userContent.includes('Task: Audit')) {
+          expect(req.userContent).toContain('Answer only the current Task.');
+          expect(req.userContent).toContain('do not regenerate it unless this task asks for a correction or final synthesis');
           expect(req.userContent).toContain('previousStepResult');
           expect(req.userContent).toContain(JSON.stringify(firstAnswer));
         }
@@ -139,6 +150,7 @@ describe('reasoning delivery across production delegation', () => {
     const result = await root.execute(task, plan, ctx);
     expect(result.output).toEqual(firstAnswer);
     expect(ctx.llm.calls.filter((call) => call.role === 'execute')).toHaveLength(2);
+    expect(ctx.llm.calls.filter((call) => call.role === 'plan' && call.actor?.tier === 2)).toHaveLength(2);
     expect(execute).not.toHaveBeenCalled();
   });
 

@@ -165,6 +165,13 @@ Neighbours:
 
 ## Intentional choices and rejected shortcuts
 
+- Encoding-shaped text alone is not an injection signature. The former 240-character
+  base64 alphabet regex flagged a legitimate MIDI hex dump (run 40b185c4).
+  Removing it avoids a domain allowlist: hex, base64, hashes and binary fixtures
+  are not instructions. Explicit override, role and exfiltration signatures
+  still inspect the entire result, including text beside encoded data. Encoded
+  attacks can evade this screen; it has never been an authorization boundary.
+
 - The cost rule is an operator ALERT THRESHOLD, not a budget. The product has
   no per-run cost budget — `Limits` bounds iterations, the runner bounds wall
   clock — so naming it a budget would invent a contract nothing enforces.

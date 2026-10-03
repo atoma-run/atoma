@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MockLlmClient } from '../src/core/llm.js';
 import { parseRunnerArgs, resetHostLifecycleSnapshotForTests, startTask } from '../src/run/runner.js';
-import { buildProfile } from '../src/run/profiles/build.js';
+import {  } from '../src/run/setup.js';
 import { containerToolBackend, localToolBackend } from '../src/run/toolBackend.js';
 import { buildTierClients } from '../src/run/providers.js';
 import { previewImageDigestSchema } from '../src/contracts/preview.js';
@@ -56,7 +56,7 @@ describe('registered worker image through the production runner', () => {
     resetHostLifecycleSnapshotForTests();
     let handle: Awaited<ReturnType<typeof startTask>> | undefined;
     try {
-      handle = await startTask(buildProfile, ['--baseline', '--container', '--worker-image', digest,
+      handle = await startTask(['--baseline', '--container', '--worker-image', digest,
         '--no-learn-skills', '--no-promote-skills', '--no-direct-skills', 'Complete the test task.']);
       await handle.settled;
       expect(containerToolBackend).toHaveBeenCalledWith(expect.objectContaining({ image: digest, egress: false }));

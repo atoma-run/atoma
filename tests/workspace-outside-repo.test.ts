@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { resolve, relative, isAbsolute } from 'node:path';
-import { buildProfile, defaultWorkspaceRoot } from '../src/run/profiles/build.js';
+import { RUN_DEFAULTS, defaultWorkspaceRoot } from '../src/run/setup.js';
 
 /**
  * The workspace must not live inside the repository.
@@ -32,7 +32,7 @@ describe('the build workspace lives outside the repo', () => {
   });
 
   it('the profile uses it', () => {
-    expect(buildProfile.defaults.workspace).toBe(defaultWorkspaceRoot());
+    expect(RUN_DEFAULTS.workspace).toBe(defaultWorkspaceRoot());
   });
 
   it('no ancestor of the workspace is the repo root', () => {

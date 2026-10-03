@@ -1,14 +1,11 @@
 /**
  * The PROMPT half of the MCP surface: goal templates and argument completions.
  *
- * WHY PROMPTS AT ALL. `TaskProfileGuidance` already answers "how do I phrase a
- * goal for this family?", and it is already required rather than optional
- * precisely because it has several consumers (the runner, the viz Launch form,
- * `atoma_families`). Exposing it through `prompts/list` makes the host's own
- * prompt picker a FOURTH consumer without duplicating the source: the help and
- * the examples below are read from the profile, never restated here. A family
- * added tomorrow gets its prompt for free, which is the same anti-drift
- * argument `LAUNCHABLE_PROFILES` exists for.
+ * WHY PROMPTS AT ALL. `GOAL_GUIDANCE` already answers "how do I phrase a
+ * goal?" for its other consumers (the CLI's `--help` and the viz project run
+ * form). Exposing it through `prompts/list` makes the host's own prompt picker
+ * one more consumer without duplicating the source: the help and the examples
+ * below are read from it, never restated here.
  *
  * WHY THE COMPLETIONS HANG OFF PROMPTS AND NOT OFF TOOLS. The roadmap entry
  * that asked for this wanted completions for `atoma_run_trace.file`,
@@ -28,7 +25,7 @@
  * is also the honest shape here: none of these prompts means anything without
  * its subject.
  *
- * THE BAN STILL HOLDS. `tests/viz-launch-profiles.test.ts` forbids the family
+ * THE BAN STILL HOLDS. `tests/goal-guidance.test.ts` forbids the goal
  * guidance from teaching a caller to NAME A BUILTIN ELEMENT in a goal (commit
  * ae63e06 removed exactly that from subtask descriptions after 194 of 237
  * archived subtasks did it). These prompts are one level further out and in the
@@ -40,7 +37,7 @@
 import { completable } from '@modelcontextprotocol/server';
 import type { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
-import { LAUNCHABLE_PROFILES, type LaunchableProfile } from '../run/profiles/index.js';
+import { GOAL_GUIDANCE } from '../run/guidance.js';
 import {
   SKILL_BODY_CAVEAT,
   SKILL_REVIEW_CAVEAT,
@@ -53,10 +50,7 @@ import {
   completeVerdictRunId,
 } from './readers.js';
 
-/** Prompt name for a family's goal template. One per launchable family. */
-export function goalPromptName(familyId: string): string {
-  return `atoma_goal_${familyId}`;
-}
+export const GOAL_PROMPT = 'atoma_goal';
 
 export const TRACE_PROMPT = 'atoma_inspect_trace';
 export const AGENT_PROMPT = 'atoma_inspect_agent';
@@ -68,7 +62,7 @@ export const COSTS_PROMPT = 'atoma_cost_curve';
 /** Every prompt this server exposes. Exported so the protocol test pins the set. */
 export function promptNames(): string[] {
   return [
-    ...LAUNCHABLE_PROFILES.map((p) => goalPromptName(p.profile.id)),
+    GOAL_PROMPT,
     TRACE_PROMPT,
     AGENT_PROMPT,
     SKILLS_PROMPT,
@@ -79,27 +73,27 @@ export function promptNames(): string[] {
 }
 
 /**
- * A family's goal template.
+ * The goal template.
  *
- * The guidance is quoted from the profile verbatim; the only thing this
+ * The guidance is quoted from `GOAL_GUIDANCE` verbatim; the only thing this
  * function adds is what the host has to DO with it, and the two properties of
  * `atoma_operator_run_start` a caller must not discover by accident.
  */
-export function goalPromptText({ profile }: LaunchableProfile, goal: string): string {
-  const examples = profile.guidance.examples.map((e) => `- ${e}`).join('\n');
+export function goalPromptText(goal: string): string {
+  const examples = GOAL_GUIDANCE.examples.map((e) => `- ${e}`).join('\n');
   return [
-    `Start an atoma run in the "${profile.id}" family (${profile.guidance.label}).`,
+    'Start an atoma run.',
     '',
-    "How to phrase a goal for this family — atoma's own guidance, verbatim:",
-    profile.guidance.help,
+    "How to phrase a goal — atoma's own guidance, verbatim:",
+    GOAL_GUIDANCE.help,
     '',
-    'Example goals for this family:',
+    'Example goals:',
     examples,
     '',
     'The goal to run:',
     goal,
     '',
-    `Call atoma_operator_run_start with family "${profile.id}" and that goal as prose describing the artefact wanted (inside an organisation's project, atoma_run_start with the projectId instead). Do not name tools in the goal: the tiering decides what to invoke, and a goal that prescribes it spends the run's budget on the wrong phase.`,
+    `Call atoma_operator_run_start with that goal as prose describing the artefact wanted (inside an organisation's project, atoma_run_start with the projectId instead). Do not name tools in the goal: the tiering decides what to invoke, and a goal that prescribes it spends the run's budget on the wrong phase.`,
     'Starting a run is DESTRUCTIVE (the shared build workspace is archived first unless keepWorkspace is passed, and the run mutates the agent registry, the skill store and the lifecycle ledger) and SERIALISED (one at a time). It returns a runId immediately and takes minutes: poll atoma_operator_run_status until it is finished, and report its economics.',
   ].join('\n');
 }
@@ -178,31 +172,29 @@ function userMessage(text: string): {
 }
 
 export function registerPrompts(server: McpServer): void {
-  for (const launchable of LAUNCHABLE_PROFILES) {
-    const { profile } = launchable;
-    server.registerPrompt(
-      goalPromptName(profile.id),
-      {
-        title: `Phrase a goal — ${profile.guidance.label}`,
-        description: `Turn an intent into a goal for the "${profile.id}" family and start the run. Carries the family's own phrasing guidance and its example goals.`,
-        argsSchema: {
-          goal: completable(
-            z.string().min(1),
-            // The family's own examples ARE the completion set: a host that
-            // offers them is doing what the viz Launch tab's click-to-fill
-            // does, from the same source.
-            (typed) => {
-              const prefix = typed.trim().toLowerCase();
-              return profile.guidance.examples.filter(
-                (e) => !prefix || e.toLowerCase().startsWith(prefix)
-              );
-            }
-          ),
-        },
+  server.registerPrompt(
+    GOAL_PROMPT,
+    {
+      title: 'Phrase a goal',
+      description:
+        "Turn an intent into a goal and start the run. Carries atoma's own phrasing guidance and its example goals.",
+      argsSchema: {
+        goal: completable(
+          z.string().min(1),
+          // The guidance's own examples ARE the completion set: a host that
+          // offers them is doing what the viz project run form's click-to-fill
+          // does, from the same source.
+          (typed) => {
+            const prefix = typed.trim().toLowerCase();
+            return GOAL_GUIDANCE.examples.filter(
+              (e) => !prefix || e.toLowerCase().startsWith(prefix)
+            );
+          }
+        ),
       },
-      ({ goal }) => userMessage(goalPromptText(launchable, goal))
-    );
-  }
+    },
+    ({ goal }) => userMessage(goalPromptText(goal))
+  );
 
   server.registerPrompt(
     TRACE_PROMPT,

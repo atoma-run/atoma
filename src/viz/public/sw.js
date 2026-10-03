@@ -150,16 +150,15 @@ globalThis.addEventListener('notificationclick', (event) => {
         type: 'window',
         includeUncontrolled: true,
       });
-      // FOCUS, WITHOUT NAVIGATING. Reviewed 2026-08-27 (3.8) and left as is:
-      // `src/viz/push/router.ts` is the only producer of a payload and it
-      // hardcodes `url: '/'`, so an already-open tab is ALREADY at the target
-      // and navigating it would only throw away whatever the viewer had on
-      // screen — a run selected, a filter typed, a form half filled. Making
-      // this a deep link needs two things that do not exist yet: a payload
-      // that names a run, and client-side routing able to open one from a URL.
-      // Neither is worth inventing here; when they land, navigate then.
+      // FOCUS AND ROUTE IN PLACE, never navigate. Reloading an open tab
+      // would throw away whatever the viewer had on screen — a filter typed,
+      // a form half filled — so the tab is handed the URL by message and
+      // routes itself (`notification-link` in the GPU client), the same
+      // in-app navigation a tray row performs. Only a browser with no Atoma
+      // tab gets a new window, opened on the URL, which the app reads at load.
       for (const client of windows) {
         if (typeof client.focus === 'function') {
+          client.postMessage({ type: 'atoma.notification.open', url });
           await client.focus();
           return;
         }

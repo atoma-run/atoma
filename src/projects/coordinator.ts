@@ -10,6 +10,7 @@ import { encodePreviousLanding, PREVIOUS_LANDING_ENV } from '../contracts/runLan
 import { ACCEPTANCE_SOURCE_ENV, ACCEPTANCE_SPEC_ENV } from '../contracts/acceptanceChecklist.js';
 import { encodeAcceptanceSpec } from '../run/acceptanceSpec.js';
 import { capturePlatformTissueAuthor } from '../run/tissueAuthor.js';
+import type { RunTitler } from './runTitle.js';
 import { PLATFORM_TISSUE_AUTHOR_ENV } from '../contracts/tissueRouting.js';
 import { declaredArtifactManifestSchema } from '../contracts/artifactManifest.js';
 import type {
@@ -207,6 +208,15 @@ export interface ProjectCoordinatorOptions {
    * and the missing row reads as `legacy-run`, which is exactly what it is.
    */
   readonly describeDeliveredPreview?: (input: DeliveredPreviewSubject) => void;
+  /**
+   * Name every run once it ENDED (delivered, partial, failed or cancelled):
+   * one short line for the lists that would otherwise print a whole goal
+   * (`runTitle.ts`, normally `hostRunTitler(hostEnv)`). A narrow collaborator
+   * like the two above, and fail-open the same way: it starts after the
+   * terminal transition, never delays the lease, and a `null` or a throw only
+   * means the run keeps showing its goal.
+   */
+  readonly runTitler?: RunTitler;
   readonly cwd?: string;
   readonly timeoutMs?: number;
   /**
@@ -251,6 +261,9 @@ export interface SubscriptionTransportUse {
 
 /** How long a member's start waits for the analysis it preempts to let go of the slot. */
 export const PREEMPT_ANALYST_WAIT_MS = 20_000;
+
+/** Every way a run ENDS; each one is named, so no list prints a whole goal. */
+const TITLED_STATUSES: ReadonlySet<string> = new Set(['delivered', 'partial', 'failed', 'cancelled']);
 
 export class ProjectRunBusy extends Error {
   constructor(message: string) {
@@ -1123,6 +1136,9 @@ export class ProjectRunCoordinator {
   ) => PrincipalCodexProfile | null;
   private readonly onSubscriptionTransport?: (info: SubscriptionTransportUse) => void;
   private readonly describeDeliveredPreview?: (input: DeliveredPreviewSubject) => void;
+  private readonly runTitler?: RunTitler;
+  /** Naming calls still in flight; they hold `waitForIdle`, never the run slot. */
+  private readonly titling = new Set<Promise<void>>();
   private readonly cwd: string;
   private readonly explicitTimeoutMs?: number;
   private readonly platformLimits: () => PlatformLimits;
@@ -1157,6 +1173,7 @@ export class ProjectRunCoordinator {
     if (options.describeDeliveredPreview) {
       this.describeDeliveredPreview = options.describeDeliveredPreview;
     }
+    if (options.runTitler) this.runTitler = options.runTitler;
     this.cwd = options.cwd ?? repoRoot();
     if (options.timeoutMs !== undefined) this.explicitTimeoutMs = options.timeoutMs;
     this.platformLimits = options.platformLimits ?? (() => DEFAULT_PLATFORM_LIMITS);
@@ -1803,6 +1820,16 @@ export class ProjectRunCoordinator {
           `[atoma projects] run-finished listener failed for ${reservedRun.projectRunId}: ${String(error)}\n`
         );
       }
+      // DETACHED from the slot: the next run may start while this one is
+      // being named. Tracked only so `waitForIdle` (the CLI's exit, the tests)
+      // sees the title land.
+      if (this.runTitler) {
+        const naming: Promise<void> = this.nameRun(this.runTitler, reservedRun).finally(() => {
+          this.titling.delete(naming);
+          this.resolveIdleIfSettled();
+        });
+        this.titling.add(naming);
+      }
       try {
         lease.release();
       } catch (error) {
@@ -1811,11 +1838,34 @@ export class ProjectRunCoordinator {
         );
       }
       this.active.delete(reservedRun.projectRunId);
-      if (this.active.size === 0) {
-        for (const resolveIdle of this.idleWaiters) resolveIdle();
-        this.idleWaiters.clear();
-      }
+      this.resolveIdleIfSettled();
     }
+  }
+
+  /** Name an ended run once; every failure is a run that keeps showing its goal. */
+  private async nameRun(titler: RunTitler, run: ProjectRun): Promise<void> {
+    try {
+      const settled = this.store.getProjectRun(run.orgId, run.projectRunId);
+      if (!settled || settled.title || !TITLED_STATUSES.has(settled.status)) return;
+      const named = await titler({ goal: settled.goal });
+      if (!named) return;
+      this.store.recordRunTitle({
+        orgId: settled.orgId,
+        projectRunId: settled.projectRunId,
+        title: named.title,
+        receipt: named.receipt,
+      });
+    } catch (error) {
+      process.stderr.write(
+        `[atoma projects] run title unavailable for ${run.projectRunId}: ${String(error)}\n`
+      );
+    }
+  }
+
+  private resolveIdleIfSettled(): void {
+    if (this.active.size > 0 || this.titling.size > 0) return;
+    for (const resolveIdle of this.idleWaiters) resolveIdle();
+    this.idleWaiters.clear();
   }
 
   /**
@@ -1867,7 +1917,7 @@ export class ProjectRunCoordinator {
   }
 
   waitForIdle(): Promise<void> {
-    if (this.active.size === 0) return Promise.resolve();
+    if (this.active.size === 0 && this.titling.size === 0) return Promise.resolve();
     return new Promise<void>((resolveIdle) => this.idleWaiters.add(resolveIdle));
   }
 }

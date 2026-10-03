@@ -228,9 +228,9 @@ describe('the 2026-07-28 era', () => {
     const { driver } = scriptedDriver();
     let frozen = true;
     const { url } = await listen(() => ({ kind: 'operator' }), { ...NO_TENANT, operatorRunDriver: driver, operatorRunLease: lease }, () => frozen);
-    const read = await modernRequest(url, 'tools/call', { name: 'atoma_families', arguments: {} });
+    const read = await modernRequest(url, 'tools/list', {});
     expect(read.status).toBe(200);
-    expect(read.body.result).toMatchObject({ structuredContent: expect.any(Object) });
+    expect(read.body.result).toMatchObject({ tools: expect.any(Array) });
     const start = await modernRequest(url, 'tools/call', { name: 'atoma_operator_run_start', arguments: { goal: 'not now' } });
     expect(start.status).toBe(503);
     expect((await modernRequest(url, 'tasks/get', { taskId: 'none' })).status).toBe(200);
@@ -289,13 +289,13 @@ describe('the 2026-09-30 review of the two-era port', () => {
       const abort = new AbortController();
       open.push(abort);
       const first = await fetch(url, { method: 'POST', signal: abort.signal, headers: headersFor('member'),
-        body: listenBody({ resourceSubscriptions: [operatorRunUri('someone-elses-run'), 'atoma://families'], resourcesListChanged: true }) });
+        body: listenBody({ toolsListChanged: true, resourceSubscriptions: [operatorRunUri('someone-elses-run'), 'atoma://runs/some-trace.json'], resourcesListChanged: true }) });
       const reader = first.body!.getReader();
       const { value } = await reader.read();
       const acknowledged = new TextDecoder().decode(value);
       expect(acknowledged).toContain('notifications/subscriptions/acknowledged');
-      expect(acknowledged).toContain('atoma://families');
       expect(acknowledged).not.toContain('someone-elses-run');
+      expect(acknowledged).not.toContain('some-trace.json');
       expect(acknowledged).not.toContain('resourcesListChanged');
       // Seven more are this caller's share; the next is refused, and nobody else's is.
       for (let i = 1; i < 8; i++) {

@@ -51,7 +51,7 @@ import {
   spawnRun,
   type RunStats,
 } from '../cli/burnin.js';
-import { findLaunchable, LAUNCHABLE_PROFILES } from '../run/profiles/index.js';
+import { GOAL_GUIDANCE } from '../run/guidance.js';
 import { runsDirPath } from './readers.js';
 import {
   acquireRunLease,
@@ -93,7 +93,6 @@ export interface RunRecordPublic {
   readonly runId: string;
   readonly status: 'running' | 'cancelling' | 'finished' | 'cancelled' | 'spawn-failed';
   readonly goal: string;
-  readonly family: string;
   readonly startedAt: string;
   readonly endedAt?: string;
   readonly logPath: string;
@@ -116,7 +115,6 @@ interface RunRecord {
   readonly runId: string;
   status: RunRecordPublic['status'];
   readonly goal: string;
-  readonly family: string;
   readonly startedAtMs: number;
   readonly startedAt: string;
   endedAt?: string;
@@ -189,7 +187,6 @@ export function repoRoot(): string {
 
 export interface StartRunInput {
   goal: string;
-  family?: string;
   timeoutMs?: number;
   learnSkills?: boolean;
   promoteSkills?: boolean;
@@ -217,7 +214,7 @@ export type RunDriver = (opts: Parameters<typeof spawnRun>[0]) => Promise<string
  *
  * No raw argv and no free-form flag string is accepted, and the goal always
  * goes LAST: `parseRunnerArgs` warns-and-DISCARDS any token it does not
- * recognise that starts with `--`, then falls back to the profile's DEFAULT
+ * recognise that starts with `--`, then falls back to a DEFAULT
  * goal — so a goal like `--clean-workspace something` would archive the
  * caller's workspace and silently run the Minesweeper build instead of the
  * task they asked for. Only `--seed` consumes a following token, and `--seed`
@@ -259,7 +256,6 @@ export const RUN_FLAGS: readonly string[] = [
 ];
 
 export function validateStartInput(input: StartRunInput): {
-  family: string;
   npmScript: string;
   timeoutMs: number;
 } {
@@ -272,16 +268,7 @@ export function validateStartInput(input: StartRunInput): {
   }
   if (goal.startsWith('--')) {
     throw new RunRejected(
-      `goal must not start with "--" (it would be parsed as a flag, discarded, and the family's DEFAULT goal would run instead): ${goal.slice(0, 60)}`
-    );
-  }
-  const familyId = input.family ?? 'build';
-  // `findLaunchable` is the ONLY family resolver, and it already refuses
-  // traversal-shaped ids.
-  const launchable = findLaunchable(familyId);
-  if (!launchable) {
-    throw new RunRejected(
-      `unknown family "${familyId}" — known: ${LAUNCHABLE_PROFILES.map((p) => p.profile.id).join(', ')} (call atoma_families)`
+      `goal must not start with "--" (it would be parsed as a flag, discarded, and a DEFAULT goal would run instead): ${goal.slice(0, 60)}`
     );
   }
   // The platform ceiling the runner will apply, applied HERE first so a start
@@ -296,7 +283,7 @@ export function validateStartInput(input: StartRunInput): {
   if (ceilingMs !== null && timeoutMs > ceilingMs) {
     throw new RunRejected(`timeoutMs=${timeoutMs} exceeds the platform ceiling run.timeoutMaxMs=${ceilingMs} (npm run settings -- list)`);
   }
-  return { family: familyId, npmScript: launchable.npmScript, timeoutMs };
+  return { npmScript: GOAL_GUIDANCE.npmScript, timeoutMs };
 }
 
 function publish(r: RunRecord): RunRecordPublic {
@@ -304,7 +291,6 @@ function publish(r: RunRecord): RunRecordPublic {
     runId: r.runId,
     status: r.status,
     goal: r.goal,
-    family: r.family,
     startedAt: r.startedAt,
     endedAt: r.endedAt,
     logPath: r.logPath,
@@ -395,7 +381,7 @@ export async function startRun(
       `a run is already in flight (${inFlight.runId}, started ${inFlight.startedAt}). atoma serialises runs: the build workspace is shared, trace attribution is newest-file-wins, and concurrent runs make the cost numbers incomparable. Wait for it or call atoma_run_cancel.`
     );
   }
-  const { family, npmScript, timeoutMs } = validateStartInput(input);
+  const { npmScript, timeoutMs } = validateStartInput(input);
   const goal = input.goal.trim();
   const root = repoRoot();
   const startedAtMs = Date.now();
@@ -414,7 +400,6 @@ export async function startRun(
     runId,
     status: 'running',
     goal,
-    family,
     startedAtMs,
     startedAt: new Date(startedAtMs).toISOString(),
     logPath,

@@ -325,7 +325,6 @@ export function requestHeartbeat(
 /** The start tools' arguments, defined once here and imported by the catalogue. */
 export const OPERATOR_RUN_INPUT = {
   goal: z.string().min(1).max(MAX_GOAL_CHARS),
-  family: z.string().optional(),
   timeoutMs: z.number().int().positive().optional().describe(`Default ${DEFAULT_RUN_TIMEOUT_MS}.`),
   keepWorkspace: z.boolean().optional(),
   learnSkills: z.boolean().optional(),
@@ -647,7 +646,7 @@ export function operatorRunTask(
         if (error instanceof RunRejected) return tasks.refuse(`refused: ${error.message}`, ttl);
         throw error;
       }
-      const started = `run ${record.runId} started (${record.family})`;
+      const started = `run ${record.runId} started`;
       const task = MEMORY_TASKS.create(tasks.owner, { ttl, pollInterval: TASK_POLL_INTERVAL_MS, statusMessage: started });
       follow(record.runId);
       const current = () => jsonResult(runStatus({ runId: record.runId }));

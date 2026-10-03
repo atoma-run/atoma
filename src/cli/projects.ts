@@ -25,6 +25,7 @@ import {
   SECRET_ENCRYPTION_ENV,
 } from '../auth/secretEncryption.js';
 import { DEFAULT_PROJECT_RUN_TIMEOUT_MS, hostSubscriptionPinsOf, ProjectRunCoordinator } from '../projects/coordinator.js';
+import { backfillRunTitles, hostRunTitler } from '../projects/runTitle.js';
 import { PreviewStore } from '../preview/store.js';
 import { recordDeliveredPreview } from '../preview/service.js';
 import { GitHubPublisher } from '../projects/publisher.js';
@@ -53,10 +54,18 @@ usage:
   npm run projects -- list [--db path]
   npm run projects -- create --as <who> --name "<name>" [--repo <repo-name>]
                              [--visibility private|public] [--installation <id>]
-                             [--slug <slug>] [--family <family>] [--prompt "<text>"]
+                             [--slug <slug>] [--prompt "<text>"]
   npm run projects -- run --project <slug-or-id> --as <principal-id-or-email> "<goal>"
                           [--criteria <file>] [--db path]
   npm run projects -- publish --project <slug-or-id> --as <who> --run <run-id> [--db path]
+  npm run projects -- titles [--apply] [--db path]
+
+titles:
+  Names every ENDED run of every organisation that has no short title yet —
+  the runs that ended before titles existed. Same call, same model (the
+  host's api: ATOMA_MODEL_L1 and its credential) and same write-once store
+  method as a run's own end. A DRY RUN until --apply: it lists the runs and
+  spends nothing. One call at a time; a run naming gives up on stays untitled.
 
 acceptance criteria:
   --criteria names a text file with ONE criterion per line, the grammar the
@@ -106,12 +115,12 @@ flags:
   --repo <repo-name>         GitHub repository name, defaults to the slug
   --installation <id>        GitHub installation; required only if several
   --visibility <v>           private (default) or public — permanent
-  --family <family>          run family, default build
   --prompt "<text>"          the project's initial prompt, optional
   --project <slug-or-id>     target project (required for run and publish)
   --as <id-or-email>         principal the run is attributed to (required)
   --run <run-id>             the delivered run to publish (publish only)
   --timeout <seconds>        run budget, 60..7200, default ${DEFAULT_PROJECT_RUN_TIMEOUT_MS / 1000} (run only)
+  --apply                    name the listed runs (titles only; otherwise a dry run)
   --help                     show this help`;
 
 function safeTerminal(value: string): string {
@@ -200,7 +209,6 @@ function createProject(
     name,
     slug,
     initialPrompt: flags['prompt'] ?? '',
-    ...(flags['family'] ? { family: flags['family'] } : {}),
     repositoryTarget: {
       installationId: installation.installationId,
       owner: installation.accountLogin,
@@ -250,7 +258,6 @@ function createProject(
     summary: `Project "${eventLabel(project.name)}" created from the CLI`,
     detail: {
       slug: project.slug,
-      family: project.family,
       visibility: project.repositoryTarget.visibility,
     },
   });
@@ -309,7 +316,7 @@ function resolveProject(
 async function main(): Promise<void> {
   applyCheckoutDotenvForSourceEntry();
   const args = parseCliArgs(process.argv, {
-    booleanFlags: ['help'],
+    booleanFlags: ['help', 'apply'],
     valueFlags: [
       'db',
       'project',
@@ -321,7 +328,6 @@ async function main(): Promise<void> {
       'repo',
       'installation',
       'visibility',
-      'family',
       'prompt',
       'timeout',
     ],
@@ -389,6 +395,35 @@ async function main(): Promise<void> {
 
   if (command === 'create') {
     createProject(auth, projects, dbPath, args.flags);
+    return;
+  }
+
+  if (command === 'titles') {
+    const apply = args.flags['apply'] === 'true';
+    let named = 0;
+    let costUsd = 0;
+    const items = await backfillRunTitles({
+      store: projects,
+      titler: hostRunTitler(process.env),
+      apply,
+      onItem: (item) => {
+        if (item.title) {
+          named += 1;
+          costUsd += item.costUsd ?? 0;
+        }
+        process.stdout.write(
+          `${item.projectRunId}  ${item.status.padEnd(9)}  ${
+            item.title ? safeTerminal(item.title) : apply ? '(not named)' : '(would be named)'
+          }\n`
+        );
+      },
+    });
+    process.stdout.write(
+      apply
+        ? `\nnamed ${named} of ${items.length} run(s), $${costUsd.toFixed(4)}\n`
+        : `\n${items.length} run(s) without a title — dry run, nothing spent; pass --apply to name them\n`
+    );
+    if (apply && named < items.length) process.exitCode = 1;
     return;
   }
 
@@ -541,6 +576,9 @@ async function main(): Promise<void> {
     describeDeliveredPreview: (subject) => {
       recordDeliveredPreview(previewStore, subject);
     },
+    // Named like a browser run, so a terminal run is not the one row the
+    // selector prints whole.
+    runTitler: hostRunTitler(process.env),
     // BOTH authorities, or the guard above is a lie: it lets a delegate
     // through and the coordinator then refuses them, because an absent
     // resolver means no (fail-closed, by design).

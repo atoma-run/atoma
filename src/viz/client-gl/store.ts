@@ -62,7 +62,7 @@ export const ADMIN_VIEWS: readonly ViewName[] = [
  *
  * There is no `launch` tab: a tab that could only DESCRIBE how to phrase a
  * goal, beside a Projects tab that actually starts runs, split one job over
- * two places. The family guidance now renders inside the project run form
+ * two places. The goal guidance now renders inside the project run form
  * (`views/projects.ts`), while the member guide expands the same principle
  * under Strong goals.
  */
@@ -217,6 +217,8 @@ export interface GpuUiState {
   sceneCameraMode: SceneCameraMode;
   locale: Locale;
   selectedRunId: string | null;
+  resultRunId: string | null;
+  resultActionStatus: 'copied' | 'failed' | null;
   selectedEventId: string | null;
   selectedAtomName: string | null;
   selectedRegistryId: string | null;
@@ -308,6 +310,8 @@ export interface GpuUiState {
   setView: (view: ViewName) => void;
   setLocale: (locale: Locale) => void;
   selectRun: (id: string | null) => void;
+  selectResult: (id: string | null) => void;
+  setResultActionStatus: (status: 'copied' | 'failed' | null) => void;
   selectEvent: (id: string | null) => void;
   selectAtom: (name: string | null) => void;
   selectRegistry: (id: string | null) => void;
@@ -379,6 +383,8 @@ function viewChange(
 ): Pick<
   GpuUiState,
   | 'view'
+  | 'resultRunId'
+  | 'resultActionStatus'
   | 'sceneCameraMode'
   | 'focusedInput'
   | 'accountMenuOpen'
@@ -388,6 +394,8 @@ function viewChange(
 > {
   return {
     view,
+    resultRunId: null,
+    resultActionStatus: null,
     sceneCameraMode,
     focusedInput: null,
     accountMenuOpen: false,
@@ -419,6 +427,8 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   locale: initialLocale(),
   selectedRunId: null,
   selectedEventId: null,
+  resultRunId: null,
+  resultActionStatus: null,
   selectedAtomName: null,
   selectedRegistryId: null,
   selectedRegistryAtom: null,
@@ -579,6 +589,8 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   selectRun: (selectedRunId) =>
     set({
       selectedRunId,
+      resultRunId: null,
+      resultActionStatus: null,
       selectedEventId: null,
       selectedAtomName: null,
       runPickerScrollY: 0,
@@ -588,6 +600,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   selectEvent: (selectedEventId) =>
     set({
       selectedEventId,
+      resultRunId: null,
       selectedAtomName: null,
       runSummaryExpanded: selectedEventId === null,
     }),
@@ -603,6 +616,8 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   selectSkill: (selectedSkill) => set({ selectedSkill }),
   selectProject: (selectedProjectId) => set((state) => ({
     selectedProjectId,
+    resultRunId: null,
+    resultActionStatus: null,
     // A selected project can expand with guidance and run history. Changing
     // mode while retaining that scroll can place the shorter create list
     // entirely above its pane until another wheel event clamps it.
@@ -610,6 +625,8 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   })),
   selectGithubInstallation: (selectedGithubInstallationId) =>
     set({ selectedGithubInstallationId }),
+  selectResult: (resultRunId) => set({ resultRunId, resultActionStatus: null }),
+  setResultActionStatus: (resultActionStatus) => set({ resultActionStatus }),
   // Deliberately NOT persisted. A visibility carried over from the last
   // project would be a decision made by a previous session about a repository
   // that did not exist yet; every create starts from the stated default.

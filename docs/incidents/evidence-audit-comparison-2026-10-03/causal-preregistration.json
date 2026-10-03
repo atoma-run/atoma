@@ -1,0 +1,25 @@
+{
+  "goal": "Analyze this fictional archive digitization pilot directly as text, with no files, code, tools or external research. \"Success\" means a page passed a predefined quality check. Workflow X: easy pages 81 successes out of 90; difficult pages 2 out of 10. Workflow Y: easy pages 19 out of 20; difficult pages 64 out of 80. A manager says \"X succeeds on 83% overall and Y on 83%, so they perform equally; there can be no advantage within either difficulty group.\" Report the four within-group rates and both pooled rates. Explain what the supplied numbers establish and what they do not establish causally. Calculate directly standardized rates for a target mix of 50% easy and 50% difficult pages; identify any difference in percentage points. Explain how the observed page mix produces the pooled comparison. State whether random assignment, comparable pages within strata, or other confounders have been established by this table. Do not invent sample records, uncertainty estimates or causal evidence. Finish with one precise sentence correcting the manager.",
+  "oracle": {
+    "within": {
+      "Xeasy": 0.9,
+      "Xhard": 0.2,
+      "Yeasy": 0.95,
+      "Yhard": 0.8
+    },
+    "pooled": {
+      "X": 0.83,
+      "Y": 0.83
+    },
+    "standardized": {
+      "X": 0.55,
+      "Y": 0.875,
+      "differencePercentagePoints": 32.5
+    },
+    "mix": {
+      "Xeasy": 0.9,
+      "Yeasy": 0.2
+    },
+    "causal": "Association only; neither randomization nor within-stratum comparability established."
+  }
+}

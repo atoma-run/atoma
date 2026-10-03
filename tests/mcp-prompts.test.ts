@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { BUILTIN_TOOL_VOCABULARY } from '../src/atoms/verdict.js';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
-import { LAUNCHABLE_PROFILES } from '../src/run/profiles/index.js';
+import { GOAL_GUIDANCE } from '../src/run/guidance.js';
 import {
   MAX_COMPLETION_VALUES,
   SKILL_BODY_CAVEAT,
@@ -22,13 +22,13 @@ import { SkillRegistry } from '../src/skills/registry.js';
 import {
   AGENT_PROMPT,
   COSTS_PROMPT,
+  GOAL_PROMPT,
   SKILL_PROMPT,
   SKILLS_PROMPT,
   TRACE_PROMPT,
   VERDICT_PROMPT,
   agentPromptText,
   costsPromptText,
-  goalPromptName,
   goalPromptText,
   promptNames,
   skillPromptText,
@@ -45,18 +45,16 @@ import {
  * paraphrased are written down. Both are exactly the drift AGENTS.md records
  * twice with measurements (`research-brief.ts`, the `curriculum.ts` provider
  * switch), so the cases below pin the two agreements that would rot silently:
- * the prompt text QUOTES the single source (`TaskProfileGuidance`, the reader
+ * the prompt text QUOTES the single source (`GOAL_GUIDANCE`, the reader
  * caveat constants) instead of restating it, and the completion sources stay
  * bounded, tolerant of an absent store, and typed in the vocabulary a person
  * can actually type back.
  */
-describe('MCP prompts — one per family, plus the reader drivers', () => {
-  it('exposes a goal prompt for every launchable family and nothing duplicated', () => {
+describe('MCP prompts — the goal prompt, plus the reader drivers', () => {
+  it('exposes the goal prompt and nothing duplicated', () => {
     const names = promptNames();
     expect(names).toEqual([...new Set(names)]);
-    for (const { profile } of LAUNCHABLE_PROFILES) {
-      expect(names).toContain(goalPromptName(profile.id));
-    }
+    expect(names).toContain(GOAL_PROMPT);
     expect(names).toEqual(expect.arrayContaining([TRACE_PROMPT, AGENT_PROMPT, SKILLS_PROMPT, SKILL_PROMPT, VERDICT_PROMPT, COSTS_PROMPT]));
     // The host lists prompts and tools side by side; a bare name would be
     // ambiguous in a picker that also holds other servers' prompts.
@@ -64,7 +62,7 @@ describe('MCP prompts — one per family, plus the reader drivers', () => {
   });
 
   /**
-   * The same ban `tests/viz-launch-profiles.test.ts` holds the family guidance
+   * The same ban `tests/goal-guidance.test.ts` holds the goal guidance
    * to, one level further out. Commit ae63e06 removed tool-naming from subtask
    * descriptions after 194 of 237 archived subtasks did it and a run burned
    * half its calls on a phase the wording implied; a prompt is written in the
@@ -72,7 +70,7 @@ describe('MCP prompts — one per family, plus the reader drivers', () => {
    */
   it('no prompt text teaches a caller to name a builtin element', () => {
     const corpus = [
-      ...LAUNCHABLE_PROFILES.map((p) => goalPromptText(p, 'a neutral goal')),
+      goalPromptText('a neutral goal'),
       tracePromptText('2026-08-11T10-00-00.json'),
       agentPromptText('Water'),
       skillsPromptText('Water'),
@@ -93,14 +91,12 @@ describe('MCP prompts — one per family, plus the reader drivers', () => {
     }
   });
 
-  it('the goal prompt quotes the family guidance rather than restating it', () => {
-    for (const launchable of LAUNCHABLE_PROFILES) {
-      const text = goalPromptText(launchable, 'ship a thing');
-      expect(text).toContain(launchable.profile.guidance.help);
-      for (const example of launchable.profile.guidance.examples) expect(text).toContain(example);
-      expect(text).toContain('ship a thing');
-      expect(text).toContain(`family "${launchable.profile.id}"`);
-    }
+  it('the goal prompt quotes the goal guidance rather than restating it', () => {
+    const text = goalPromptText('ship a thing');
+    expect(text).toContain(GOAL_GUIDANCE.help);
+    for (const example of GOAL_GUIDANCE.examples) expect(text).toContain(example);
+    expect(text).toContain('ship a thing');
+    expect(text).not.toMatch(/famil/i);
   });
 
   /**
@@ -109,13 +105,11 @@ describe('MCP prompts — one per family, plus the reader drivers', () => {
    * would otherwise never have read the tool description.
    */
   it('the goal prompt states DESTRUCTIVE and SERIALISED', () => {
-    for (const launchable of LAUNCHABLE_PROFILES) {
-      const text = goalPromptText(launchable, 'x');
-      expect(text).toMatch(/DESTRUCTIVE/);
-      expect(text).toMatch(/SERIALISED/);
-      expect(text).toContain('atoma_operator_run_start');
-      expect(text).toContain('atoma_operator_run_status');
-    }
+    const text = goalPromptText('x');
+    expect(text).toMatch(/DESTRUCTIVE/);
+    expect(text).toMatch(/SERIALISED/);
+    expect(text).toContain('atoma_operator_run_start');
+    expect(text).toContain('atoma_operator_run_status');
   });
 
   /**

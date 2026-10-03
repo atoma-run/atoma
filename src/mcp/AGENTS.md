@@ -298,8 +298,8 @@ Neighbours:
 - Resources are DOORS ONTO THE READERS, never second bodies: `atoma://runs/
   {file}` reads through `runTrace` with its paging and truncation,
   `atoma://operator-runs/{runId}` through `runStatus`, `atoma://projects/
-  {projectId}/runs/{runId}` through `ProjectService.projectRunStatus`,
-  `atoma://families` through `families`. A URI carries no way to ask for more.
+  {projectId}/runs/{runId}` through `ProjectService.projectRunStatus`. A URI
+  carries no way to ask for more.
 - Registration follows the tools' tiers and needs, per server: the operator
   corpus only at the platform tier on a host with `operatorRuns`, a project
   run only for a principal on a host with organisations. Listings are menus,
@@ -352,10 +352,10 @@ Neighbours:
 
 ## Prompts and completions
 
-- The PROMPT surface adds no tool: one goal template per launchable family
-  plus one prompt per reader group. It drives the operator readers and
+- The PROMPT surface adds no tool: the one `atoma_goal` template plus one
+  prompt per reader group. It drives the operator readers and
   completes over the operator store, so it rides the `platform` tier. Prompt
-  text QUOTES its source (`TaskProfileGuidance`, the exported caveat
+  text QUOTES its source (`GOAL_GUIDANCE`, the exported caveat
   constants) and never restates it, and a prompt must not teach a caller to
   name a builtin element in a goal.
 - Argument completions hang off PROMPTS because the protocol has `ref/prompt`

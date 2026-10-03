@@ -23,7 +23,7 @@ import {
 import { matchesSearchQuery, runSearchText } from '../client/search.js';
 import type {
   BurninRow,
-  LaunchProfile,
+  GoalGuidance,
   RegistrySummary,
   RegistryType,
   RunIndexEntry,
@@ -150,6 +150,8 @@ export interface GpuDataSnapshot {
   auth: AuthUiSnapshot | null;
   runs: RunIndexEntry[];
   run: VizRun | null;
+  resultRun?: VizRun | null;
+  resultFailed?: boolean;
   registries: RegistrySummary[];
   registry: { registry: RegistrySummary; types: RegistryType[] } | null;
   skillNamespaces: SkillNamespace[];
@@ -162,7 +164,7 @@ export interface GpuDataSnapshot {
    */
   skillDetailFailed: boolean;
   burnin: { rows: BurninRow[]; csvPath: string } | null;
-  profiles: LaunchProfile[];
+  guidance: GoalGuidance | null;
   projects: VizProject[];
   projectRuns: Record<string, VizProjectRun[]>;
   githubInstallations: VizGitHubInstallation[];
@@ -1869,7 +1871,9 @@ export class GpuRenderer {
     if (!snapshot.state.notificationsMenuOpen) this.notificationsScrollY = 0;
     this.turnSliderBounds = null;
     const nextDetailKey =
-      snapshot.state.view === 'runs'
+      snapshot.state.resultRunId && (snapshot.state.view === 'runs' || snapshot.state.view === 'projects')
+        ? `result:${snapshot.state.resultRunId}`
+        : snapshot.state.view === 'runs'
         ? snapshot.state.selectedEventId
           ? `event:${snapshot.state.selectedEventId}`
           : snapshot.state.selectedAtomName
@@ -5385,8 +5389,10 @@ export class GpuRenderer {
         // COMPACT form — capped at 80 characters when the run was recorded —
         // and this row is as wide as the panel. The label remains the fallback
         // for an index that predates the goal, or a run that never had one.
+        // A named run shows its TITLE first: a goal is up to 4 000 characters
+        // of specification, and one row cannot say which run it is with that.
         `${RUN_STATUS_GLYPH[status]} ${run.projectSlug ? `${run.projectSlug} · ` : ''}${
-          run.goal ?? run.label.replace(/^(?:build-app|baseline):\s*/i, '')
+          run.title ?? run.goal ?? run.label.replace(/^(?:build-app|baseline):\s*/i, '')
         }`,
         x + 5,
         rowY + 2,

@@ -331,7 +331,6 @@ export function createWorld({ now }) {
   const t = (offset) => new Date(world.now + offset).toISOString();
   const project = (fields) => ({
     status: 'active',
-    family: 'build',
     repositoryStatus: 'ready',
     repositoryError: null,
     createdAt: new Date(now - 20 * DAY).toISOString(),
@@ -581,14 +580,17 @@ export function createWorld({ now }) {
     '/api/runs/r-flags-1': () => flagsTrace(),
     '/api/runs/r-sales-3': () => salesPartialTrace(),
     '/api/github/installations': () => [{ installationId: '501', accountLogin: 'analytical-engines', targetType: 'Organization', status: 'active', repositorySelection: 'all' }],
-    '/api/profiles': () => [{
-      id: 'build', label: 'Build',
-      help: 'Describe the artifact to build and its acceptance criteria in one or two sentences.',
-      examples: [
-        'Build a sales dashboard from a CSV export: filters, monthly totals and a chart by region.',
-        'Add a JSON export of the filtered rows to the existing dashboard.',
-      ],
-    }],
+    '/api/goal-guidance': () => ({
+      launchEnabled: false,
+      guidance: {
+        npmScript: 'run:build',
+        help: 'Describe the artifact to build and its acceptance criteria in one or two sentences.',
+        examples: [
+          'Build a sales dashboard from a CSV export: filters, monthly totals and a chart by region.',
+          'Add a JSON export of the filtered rows to the existing dashboard.',
+        ],
+      },
+    }),
   };
   for (const skill of skills) {
     routes[`/api/skills/shared-molecule/${skill.id}`] = () => ({ ...skill, body: 'Write server.js with node:http only. Start it with start_node_server, then call fetch_url once per route and status the task names — including the refusals. Restart the server and read the data back before claiming persistence. Record the observed statuses, not the intended ones, in the README.' });

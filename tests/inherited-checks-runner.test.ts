@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildTierClients } from '../src/run/providers.js';
 import { startTask, resetHostLifecycleSnapshotForTests } from '../src/run/runner.js';
-import { buildProfile } from '../src/run/profiles/build.js';
+import {  } from '../src/run/setup.js';
 import { closeStoreHandles } from '../src/core/stores.js';
 import { PREVIOUS_LANDING_ENV } from '../src/contracts/runLanding.js';
 import { makePlan } from './helpers/factories.js';
@@ -91,7 +91,7 @@ describe('a seeded static-page run', () => {
     } } });
     let handle: Awaited<ReturnType<typeof startTask>> | undefined;
     try {
-      handle = await startTask(buildProfile, ['--depth', 'short', '--seed', seedDir, '--no-learn-skills', '--no-direct-skills', 'Change the long-break line']);
+      handle = await startTask(['--depth', 'short', '--seed', seedDir, '--no-learn-skills', '--no-direct-skills', 'Change the long-break line']);
       await handle.settled;
       expect(baselineDoneAtFirstToolCall).toBe(true);
       const baseline = logs.find((line) => line.startsWith('inherited checks: '))!;

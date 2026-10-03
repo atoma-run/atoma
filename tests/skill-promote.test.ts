@@ -180,6 +180,9 @@ describe('L2 onApproved — skill promotion (#C2c)', () => {
     // every validator approved it, because the artefact itself was fine. A
     // markdown recipe adapts; a compiled literal cannot.
     const compileCall = ctx.llm.calls.at(-1)!;
+    expect(compileCall.systemPrompt).toContain('Perform the requested distillation, revision, or compilation directly.');
+    expect(compileCall.systemPrompt).not.toContain('You are an L2.');
+    expect(compileCall.actor).toEqual({ name: neuron.name, tier: 2 });
     expect(compileCall.userContent).toMatch(/"writes"/); // compiler declares its write list
     expect(compileCall.userContent).toMatch(/NO TASK-SPECIFIC LITERALS/);
     expect(compileCall.userContent).toMatch(/Never hardcode a filename/);

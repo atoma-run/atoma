@@ -281,7 +281,7 @@ export function looksTaskThemed(desc: string): boolean {
  *
  * Call sites: `L2Atom.createSubtaskL1`, `L3Atom.createSubtaskL2`, the
  * escalation-branch paths in both, and the canonical-bootstrap in
- * the build profile (`src/run/profiles/build.ts`).
+ * the run setup (`src/run/setup.ts`).
  */
 export function resolveCreationDescription(
   suggested: string | undefined,

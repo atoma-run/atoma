@@ -19,7 +19,7 @@ import {
 } from '../atoms/cost.js';
 import { parseScriptEnvelope, scriptDeclaresEnvelope } from '../contracts/scriptEnvelope.js';
 import { extractJson } from '../atoms/json.js';
-import { buildCompileSkillPrompt, COMPILE_PROMPT_GENERATION } from './compilePrompt.js';
+import { buildCompileSkillPrompt, COMPILE_PROMPT_GENERATION, SKILL_AUTHOR_SYSTEM_PROMPT } from './compilePrompt.js';
 import {
   scriptInterpreter,
   scriptInvocationArgv,
@@ -76,6 +76,7 @@ export interface SkillLifecycleHost {
     role: 'skill',
     args: {
       userContent: string;
+      systemPromptOverride?: string;
       params?: GenerationParams;
       signal?: AbortSignal;
     }
@@ -580,6 +581,7 @@ export class SkillLifecycle {
     if (!args.verificationOnly && !args.ctx.signal?.aborted) {
       try {
         const resp = await args.ctx.llm.complete(this.host.toLlmRequest('skill', {
+          systemPromptOverride: SKILL_AUTHOR_SYSTEM_PROMPT,
           userContent,
           params: { ...this.host.params, maxTokens: 1600, temperature: 0 },
           signal: postApprovalSignal(),
@@ -603,6 +605,7 @@ export class SkillLifecycle {
     if (args.result.recordedCommandProbes && !hasVerification && !args.ctx.signal?.aborted) {
       try {
         const resp = await args.ctx.llm.complete(this.host.toLlmRequest('skill', {
+          systemPromptOverride: SKILL_AUTHOR_SYSTEM_PROMPT,
           userContent: [
             'Extract ONE standalone mechanical verification recipe from the approved run below.',
             'The runtime observed record_probe persisting executable command results in .atoma-probes.json.',
@@ -810,6 +813,7 @@ export class SkillLifecycle {
     ].join('\n');
 
     const resp = await args.ctx.llm.complete(this.host.toLlmRequest('skill', {
+      systemPromptOverride: SKILL_AUTHOR_SYSTEM_PROMPT,
       userContent,
       params: { ...this.host.params, maxTokens: 1200, temperature: 0 },
       // Post-approval bookkeeping: own budget, never the run deadline.
@@ -936,6 +940,7 @@ export class SkillLifecycle {
     ].join('\n');
 
     const resp = await args.ctx.llm.complete(this.host.toLlmRequest('skill', {
+      systemPromptOverride: SKILL_AUTHOR_SYSTEM_PROMPT,
       userContent,
       params: { ...this.host.params, maxTokens: 1500, temperature: 0 },
       signal: args.ctx.signal,
@@ -1219,6 +1224,7 @@ export class SkillLifecycle {
     | { promotable: false; reason: string }
   > {
     const resp = await args.ctx.llm.complete(this.host.toLlmRequest('skill', {
+      systemPromptOverride: SKILL_AUTHOR_SYSTEM_PROMPT,
       userContent: args.userContent,
       // `effort: 'medium'` is load-bearing on the claude-cli transport,
       // where maxTokens is advisory-only: at the default 'high' a compile

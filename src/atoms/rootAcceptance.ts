@@ -3,6 +3,7 @@ import { baseExecutorOf } from '../core/attestation.js';
 import type { Atom } from '../core/atom.js';
 import type { CriterionJudgement, Result, RunContext, Task } from '../core/types.js';
 import { modelForTier } from '../core/models.js';
+import type { DeliveryKind } from '../contracts/taskExecution.js';
 import { establishesDomInteraction } from '../contracts/attestation.js';
 import type { AcceptanceInfo, PhaseCoverageRecord, ProofFloor } from '../contracts/depthRouting.js';
 import { buildResultGateEnv, renderResultGateFindings, runResultGates } from './resultGates.js';
@@ -419,6 +420,8 @@ async function baselineOnly(
 /** A delivery verdict only: no registry, learning hook, or remediation lives here. */
 export async function acceptRootResult(args: {
   actor: Atom; task: Task; result: Result; ctx: RunContext; floor: ProofFloor;
+  /** The current pass's recorded root plan, not a claim in the result body. */
+  delivery?: DeliveryKind;
   phaseCoverage: readonly PhaseCoverageRecord[];
   checklist?: AcceptanceChecklist;
   /** A `user` list is the host-held approved one; its digest rides the acceptance record. */
@@ -473,7 +476,7 @@ export async function acceptRootResult(args: {
   // was put back with any fix it made: a floor an earlier phase covered
   // cannot say either, so any read-only phase of the attempt is read.
   const restorations = readOnlyRestorationsOf(ctx);
-  const review = floor.length === 0 || gates.reviewFindings.length > 0 || probe.requiresReview ||
+  const review = args.delivery === 'text' || floor.length === 0 || gates.reviewFindings.length > 0 || probe.requiresReview ||
     floorCoverage.some((item) => item.status === 'uncovered') || userCriteria || restorations.length > 0 ||
     inheritedItems.length > 0 || (inherited?.report.notReplayed ?? 0) > 0 ||
     inherited?.report.baseline.stopped !== undefined ||
@@ -491,7 +494,7 @@ export async function acceptRootResult(args: {
   const raw = gates.rejection
     ? { approved: false, reasoning: gates.rejection.reasoning }
     : review ? await llmVerdict({
-      ctx, model: modelForTier(1), supervisorName: 'run-root', supervisorTier: 3,
+      ctx, model: modelForTier(args.delivery === 'text' ? 2 : 1), supervisorName: 'run-root', supervisorTier: 3,
       subject: 'RESULT', child: actor, task,
       payload: { output: result.output, summary: result.summary, producedBy: result.producedBy },
       ...(evidence ? { evidence } : {}),

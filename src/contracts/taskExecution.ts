@@ -6,6 +6,12 @@ export type ExecutionMode = z.infer<typeof executionModeSchema>;
 export const deliveryKindSchema = z.enum(['text', 'files']);
 export type DeliveryKind = z.infer<typeof deliveryKindSchema>;
 
+/** The artifact body is evidence; its author's audit is a claim to check. */
+export const TEXT_VERIFICATION_GUIDANCE = `When checking a completed text, independently reconstruct each requested check from the actual body.
+An attached audit, summary or earlier approval is a claim, never proof that the body complies.
+For positional or counting constraints, identify the requested units and positions, extract their actual values, then compare them with the requirement. A required value appearing elsewhere does not satisfy a required position.
+Base the check conclusion on those observed values; name a mismatch concretely instead of repeating the author's assurance. After a correction, check the final text again. Do not add an audit to the deliverable unless requested.`;
+
 export const TASK_EXECUTION_GUIDANCE = `DELIVERY AND EXECUTION:
 Set the plan's "delivery" to "text" when the requested deliverable is the final response,
 or "files" when it is a workspace artifact. Text delivery may still require research tools.
@@ -26,4 +32,5 @@ Plan only the current subtask. Return one JSON object with reasoning, proposedAc
 Result-format feedback applies to the later execution; do not wrap this plan in output or summary.`;
 
 export const REASONING_EXECUTION_GUIDANCE = `${REASONING_TASK_GUIDANCE}
+${TEXT_VERIFICATION_GUIDANCE}
 Return one JSON object with the actual answer and its reasoning in output, and a concise summary.`;

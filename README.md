@@ -2,10 +2,13 @@
 
 # <img src="src/viz/public/favicon.svg" width="40" height="40" alt="" align="top"> atoma
 
-### Turn business ideas into working software.
+### Watch a request turn into finished work.
 
-Describe the tool your team needs. atoma coordinates AI agents to build it,
-checks the result against what you asked for, and lets you inspect every step.
+Ask for a drawing, a sound, a report, a data study, a proof or a piece of
+software. atoma coordinates AI agents to produce it, checks the result against
+what you asked for, and lets you inspect every step. The bounded decisions
+along the way, such as which agent takes a task or whether a plan is approved,
+are taken by TypeSafe's [Jev](#jev-handles-bounded-decisions).
 
 **[Open atoma.run →](https://atoma.run)**
 
@@ -201,7 +204,7 @@ OAuth clients can connect through browser consent, including clients identified
 by a metadata URL. Project run tasks survive a client reconnect, and results
 link to run resources that compatible clients can open or follow.
 
-**Forty-one tools.** The visible subset depends on the caller's role.
+**Forty tools.** The visible subset depends on the caller's role.
 See the [MCP connection and authorization guide](docs/mcp-oauth.md).
 
 ### A platform that reviews its own runs
@@ -306,7 +309,7 @@ ready for production. See the [changelog](CHANGELOG.md) for what changed.
 | Version | `0.4.0` |
 | Node | 24.20+ (`.nvmrc` 24.20.0, `engines` >=24) |
 | Subsystems under their own contract | 18 |
-| MCP tools | 41 |
+| MCP tools | 40 |
 | Curated agent names | 118 molecules · 40 cells · 20 tissues |
 | Controlled benchmark rounds | 12 (`benchmark/RESULT.md` + `ROUND<n>.md`) |
 | Interface locales | 13 catalogs — 1 source, 12 translated |

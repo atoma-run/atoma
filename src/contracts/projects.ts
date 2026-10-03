@@ -69,6 +69,29 @@ export function projectSlugFromName(name: string): string {
 
 export const projectPromptSchema = z.string().trim().max(4_000);
 export const projectGoalSchema = z.string().trim().min(1).max(4_000);
+
+/**
+ * A run's SHORT TITLE: one line naming what the goal asked, written once by
+ * the platform's tier-1 model when the run ends (`src/projects/runTitle.ts`).
+ * It is MODEL-AUTHORED, so it is display copy only: never an identity, never a
+ * journal `detail`, and the goal stays the one record of what was asked.
+ */
+export const RUN_TITLE_MAX = 80;
+export const runTitleSchema = z.string().min(1).max(RUN_TITLE_MAX);
+
+/** What naming a run cost, kept beside the title because the run's own stats are immutable. */
+export const runTitleReceiptSchema = z
+  .object({
+    model: z.string().min(1).max(255),
+    servedModel: z.string().min(1).max(255).optional(),
+    inputTokens: z.number().int().nonnegative(),
+    outputTokens: z.number().int().nonnegative(),
+    costUsd: z.number().nonnegative(),
+    generatedAt: z.string().datetime(),
+  })
+  .strict();
+export type RunTitleReceipt = z.infer<typeof runTitleReceiptSchema>;
+
 export const idempotencyKeySchema = z
   .string()
   .min(1)
@@ -205,7 +228,6 @@ export const createProjectInputSchema = z
     name: projectNameSchema,
     slug: projectSlugSchema,
     initialPrompt: projectPromptSchema.default(''),
-    family: z.string().min(1).max(40).regex(/^[a-z][a-z0-9-]*$/).default('build'),
     repositoryTarget: repositoryTargetSchema,
   })
   .strict();
@@ -218,7 +240,6 @@ export const projectSchema = z
     name: projectNameSchema,
     slug: projectSlugSchema,
     initialPrompt: projectPromptSchema,
-    family: z.string().min(1).max(40),
     status: projectStatusSchema,
     repositoryTarget: repositoryTargetSchema,
     repositoryStatus: repositoryStatusSchema,
@@ -369,6 +390,8 @@ export const projectRunSchema = z
     requestedByPrincipalId: principalIdSchema,
     requestKey: idempotencyKeySchema,
     goal: projectGoalSchema,
+    /** Absent until the run ended and was named, and on every run named before titles existed. */
+    title: runTitleSchema.optional(),
     status: projectRunStatusSchema,
     hostPaths: projectRunHostPathsSchema,
     bytesExpiredAt: instantSchema.nullable().optional(),

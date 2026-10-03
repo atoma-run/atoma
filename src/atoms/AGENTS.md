@@ -47,12 +47,12 @@ Neighbours:
 ## Root delivery acceptance in depth routing
 - The depth runner's `rootAcceptance.ts` owns delivery acceptance:
   delegated result gates retain their dispositions, `probe.requiresReview`
-  forces review. Explicit profile floors require an executed DOM interaction
-  bound to the named, still-unchanged file in the accepted attempt. A profile
-  without a floor always receives semantic delivery review at `modelForTier(1)`;
-  an empty floor is not automatic approval. The general build profile has no
+  forces review. Explicit proof floors require an executed DOM interaction
+  bound to the named, still-unchanged file in the accepted attempt. A run
+  without a floor always receives semantic review; a recorded root text plan uses
+  `modelForTier(2)`, others `modelForTier(1)`. Text always receives review. The contract has no
   universal `index.html` floor: APIs and CLIs are first-class deliverables.
-  Covered explicit floors with no other findings retain mechanical acceptance.
+  File deliveries with covered floors and no findings retain mechanical acceptance.
   The root changes no phase credits or learning state. The probe receives only `output` and `summary`, as at L3; internal
   plan/verdict/fallback trace quotes are not delivery claims. Phase coverage
   is collected with its original attempt and branch, never reevaluated
@@ -183,7 +183,7 @@ load-bearing.
 - Delegation preserves original task inputs/constraints and preceding phase results.
   Declared reasoning mode disables tools/skills through descendants and fallbacks;
   only its observed-action gate is skipped. [Contract and review](../../docs/incidents/text-delivery-2026-10-02.md).
-
+  Runtime planning keeps the current phase's scope and scales reusable workflows to the task, without a phase-count gate ([review](../../docs/incidents/planning-scope-2026-10-03.md)).
 - `llm-synthesize` merges text without tools; file assembly requires an L1 phase.
 - Aggregation is behavioral: `concat` and `llm-synthesize` dispatch orthogonal
   subtasks in parallel; `sequential` dispatches shared-artifact phases in order
@@ -435,9 +435,9 @@ load-bearing.
 ## Model output parsing
 
 - All model-output JSON parsing lives in `src/atoms/json.ts`. Preserve raw text
-  on parse failure; never guess a structure.
-- Nested Markdown fences can hide evidence. Keep fence-aware extraction and its
-  adversarial tests.
+  on parse failure; never guess a structure. After tool work, one tool-free
+  formatting turn may repair it (24,000 chars, 60s, with 60s run time left).
+  Preserve witnesses, validation, raw failures and fence-aware tests; never replay tools for formatting.
 
 ## Intentional choices and rejected shortcuts
 

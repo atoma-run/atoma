@@ -15,7 +15,7 @@ import { SkillRegistry } from '../src/skills/registry.js';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
 import { resetRunsForTest, startRun, type RunDriver } from '../src/mcp/run.js';
-import { FAMILIES_URI, operatorRunUri, projectRunUri } from '../src/mcp/resources.js';
+import { operatorRunUri, projectRunUri } from '../src/mcp/resources.js';
 import { McpHttpHost, type McpHttpHostOptions } from '../src/mcp/http.js';
 import { callerTier, type McpCaller } from '../src/mcp/identity.js';
 import { buildServer, mcpHostWiring } from '../src/mcp/server.js';
@@ -338,7 +338,7 @@ describe('the catalogue by tier', () => {
     // The viewer ladder: the organisation's own readers plus the two platform
     // commons the viz shows every signed-in role — registry and skill catalog.
     expect(asViewer).toEqual([
-      'atoma_families', 'atoma_projects_list', 'atoma_project_runs', 'atoma_run_status', 'atoma_run_trace', 'atoma_run_preview',
+      'atoma_projects_list', 'atoma_project_runs', 'atoma_run_status', 'atoma_run_trace', 'atoma_run_preview',
       'atoma_registry_list', 'atoma_registry_show', 'atoma_skills_list', 'atoma_registry_history', 'atoma_skills_show',
     ]);
     // Each rung adds exactly its own rows (the table interleaves the tiers).
@@ -396,9 +396,9 @@ describe('the HTTP host', () => {
     expect(names).toContain('atoma_operator_run_start');
     expect(names).not.toContain('atoma_projects_list');
     // A reader tool answers through the session.
-    const families = await client.callTool({ name: 'atoma_families', arguments: {} });
-    const text = (families.content as { type: string; text: string }[])[0]!.text;
-    expect(JSON.parse(text)).toHaveProperty('families');
+    const registry = await client.callTool({ name: 'atoma_registry_list', arguments: {} });
+    const text = (registry.content as { type: string; text: string }[])[0]!.text;
+    expect(JSON.parse(text)).toHaveProperty('types');
     // The prompt surface rides the platform tier.
     expect((await client.listPrompts()).prompts.length).toBeGreaterThan(3);
     await client.close();
@@ -807,7 +807,7 @@ describe('preview, notifications and the tray over MCP', () => {
 describe('resources — addressable state with subscriptions', () => {
   afterEach(() => resetRunsForTest());
 
-  it('lists the families for everyone, the operator corpus only for the platform tier, and reads through the readers', async () => {
+  it('lists the operator corpus only for the platform tier, and reads through the readers', async () => {
     const { url } = await listen(() => ({ kind: 'principal', viewer: viewer('org:member'), tokenId: 'm' }), TENANT_HOST);
     const member = await connect(url);
     const caps = member.getServerCapabilities();
@@ -815,8 +815,6 @@ describe('resources — addressable state with subscriptions', () => {
     const templates = (await member.listResourceTemplates()).resourceTemplates.map((t) => t.uriTemplate);
     expect(templates).toContain('atoma://projects/{projectId}/runs/{runId}');
     expect(templates).not.toContain('atoma://runs/{file}');
-    const families = await member.readResource({ uri: FAMILIES_URI });
-    expect(JSON.parse((families.contents[0] as { text: string }).text)).toHaveProperty('families');
     await member.close();
     const { url: opUrl } = await listen(() => ({ kind: 'operator' }), NO_TENANT);
     const operator = await connect(opUrl);
@@ -1051,7 +1049,7 @@ describe('runs as tasks, and the run log', () => {
       { task: { ttl: 60_000 } }
     );
     expect(created.task.status).toBe('working');
-    expect(created.task.statusMessage).toMatch(/^run mcp-.* started \(build\)$/);
+    expect(created.task.statusMessage).toMatch(/^run mcp-.* started$/);
     handle.chunk('alpha');
     await tick(20);
     const working = await client.experimental.tasks.getTask(created.task.taskId);
@@ -1105,7 +1103,7 @@ describe('runs as tasks, and the run log', () => {
     expect(progress[0]).toMatchObject({ progress: 1, message: expect.stringMatching(/^run .+ started/) });
     // A refused start is a task that fails at once, never a hung call.
     const refused = await client.request(
-      { method: 'tools/call', params: { name: 'atoma_operator_run_start', arguments: { goal: 'x', family: 'no-such-family' } } },
+      { method: 'tools/call', params: { name: 'atoma_operator_run_start', arguments: { goal: '--clean-workspace x' } } },
       CreateTaskResultSchema,
       { task: { ttl: 60_000 } }
     );

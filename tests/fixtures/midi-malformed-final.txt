@@ -1,0 +1,9 @@
+{"output":{"files":["generate_miniature.py","verify_miniature.py","miniature.mid","score.csv","composition.md"],"probes":[{"cmd":"python3 generate_miniature.py","exitCode":0,"stdout":""},{"cmd":"python3 verify_miniature.py","exitCode":0,"stdout":"OK: MIDI and CSV satisfy all miniature constraints\n"}]},"summary":"Created and independently verified the eight-bar MIDI miniature and matching score.
+== GROUND TRUTH ==
+list_files: {"path":".","entries":[{"name":".atoma-probes.json","kind":"file","size":266},{"name":"__pycache__","kind":"dir","size":4096},{"name":"composition.md","kind":"file","size":1078},{"name":"generate_miniature.py","kind":"file","size":2310},{"name":"miniature.mid","kind":"file","size":426},{"name":"score.csv","kind":"file","size":965},{"name":"verify_miniature.py","kind":"file","size":5724}]}
+run_shell python3 generate_miniature.py: exitCode 0, stdout "", stderr ""
+record_probe python3 verify_miniature.py: exitCode 0, stdout "OK: MIDI and CSV satisfy all miniature constraints\n"
+generate_miniature.py excerpt: TPQ = 480; TOTAL = 15360; TEMPO_US = 500000; BASS = [48, 53, 55, 48, 45, 53, 55, 48]
+verify_miniature.py excerpt: assert eot_tick == TOTAL; assert len(melody) == 32 and len(bass) == 8; assert score == expected
+composition.md excerpt: This original miniature is an eight-bar, two-voice study in C major at 120 BPM, using 4/4 meter and 480 MIDI ticks per quarter note. It spans 32 quarter-note beats, or 15360 ticks.
+Earlier diagnostic run_shell outputs: parse check exitCode 1 with AssertionError; hex inspection exitCode 0; after fixes, parse summary showed [(0,...,15360),(32,...,15360),(8,...,15360)] before correcting bass pitch 57 to 45."}

@@ -41,7 +41,7 @@ import {
   renderProofCoverage,
 } from './proofCoverage.js';
 import { randomUUID } from 'node:crypto';
-import { delegatedTaskContext } from './taskContext.js';
+import { delegatedTaskContext, taskContextLines, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE } from './taskContext.js';
 import { TASK_EXECUTION_GUIDANCE } from '../contracts/taskExecution.js';
 import { RegistryNotFoundError } from '../core/errors.js';
 import { mergeTools } from './toolMerge.js';
@@ -480,6 +480,8 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       `tier that can call tools).`,
       ``,
       `== DECOMPOSITION DISCIPLINE ==`,
+      PLANNING_SCOPE_GUIDANCE,
+      PROPORTIONATE_PLANNING_GUIDANCE,
       `Split the task into a LIST of subtasks. Each subtask:`,
       `  - has ONE single-responsibility description ("write the HTML layout",`,
       `    "implement game state machine", "start server + run validation")`,
@@ -611,8 +613,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       TASK_EXECUTION_GUIDANCE,
       task.executionMode === 'reasoning' ? 'This task and every descendant are reasoning-only; tools are disabled.' : '',
       `Task: ${task.description}`,
-      task.inputs ? `Inputs: ${JSON.stringify(task.inputs)}` : '',
-      task.constraints?.length ? `Constraints:\n${task.constraints.map((c) => `- ${c}`).join('\n')}` : '',
+      ...taskContextLines(task, { includeAcceptanceChecklist: !task.originalTask && !task.inputs?.['originalTask'] }),
       ``,
       `CRITICAL OUTPUT FORMAT: your entire response MUST be exactly one JSON array`,
       `of TWO objects, with no prose before or after, no markdown fences, no tool calls.`,

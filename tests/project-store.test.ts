@@ -26,6 +26,20 @@ it('adds the private seed receipt to an existing publication table without chang
   expect(store.publicationSeed(randomUUID(), randomUUID())).toBeNull();
 });
 
+it('drops the retired run-family column from a store created before it went', () => {
+  const owner = actor('Alice');
+  const project = createProject(owner);
+  // A store written before 2026-10-03 carried `family TEXT NOT NULL`: every
+  // INSERT of the new build would be refused by it, so opening must drop it.
+  db.exec(`ALTER TABLE projects ADD COLUMN family TEXT NOT NULL DEFAULT 'build'`);
+  const names = () => (db.prepare('PRAGMA table_info(projects)').all() as { name: string }[]).map(column => column.name);
+  expect(names()).toContain('family');
+  const reopened = new ProjectStore(db);
+  expect(names()).not.toContain('family');
+  expect(reopened.getProject(owner.orgId, project.projectId)?.slug).toBe(project.slug);
+  expect(createProject(owner, 'second-lab').slug).toBe('second-lab');
+});
+
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'atoma-project-store-'));
   db = new Database(join(root, 'product.db'));
@@ -64,7 +78,6 @@ function createProject(owner: Actor, slug = 'weather-lab') {
     project: {
       name: 'Weather Lab',
       slug,
-      family: 'build',
       repositoryTarget: {
         installationId: '12345',
         owner: 'atoma-test',
@@ -485,7 +498,6 @@ describe('ProjectStore — idempotency and CAS state machines', () => {
         project: {
           name: 'Bob Lab',
           slug: 'bob-lab',
-          family: 'build',
           repositoryTarget: {
             installationId: '54321',
             owner: 'atoma-test',
@@ -854,10 +866,10 @@ describe('a repository belongs to one project', () => {
       db
         .prepare(
           `INSERT INTO projects (
-             project_id, org_id, created_by_principal_id, name, slug, initial_prompt, family,
+             project_id, org_id, created_by_principal_id, name, slug, initial_prompt,
              status, github_installation_id, repository_target_owner, repository_target_name,
              repository_visibility, repository_status, created_at, updated_at
-           ) VALUES (?, ?, ?, 'x', 'sneaky-case', '', 'build', 'active', '12345', 'ATOMA-TEST',
+           ) VALUES (?, ?, ?, 'x', 'sneaky-case', '', 'active', '12345', 'ATOMA-TEST',
                      'cased-repo', 'private', 'pending', '2026-08-23T00:00:00.000Z',
                      '2026-08-23T00:00:00.000Z')`
         )
@@ -875,10 +887,10 @@ describe('a repository belongs to one project', () => {
     db.exec('DROP INDEX IF EXISTS projects_org_repository_target_idx');
     db.prepare(
       `INSERT INTO projects (
-         project_id, org_id, created_by_principal_id, name, slug, initial_prompt, family,
+         project_id, org_id, created_by_principal_id, name, slug, initial_prompt,
          status, github_installation_id, repository_target_owner, repository_target_name,
          repository_visibility, repository_status, created_at, updated_at
-       ) VALUES (?, ?, ?, 'x', 'legacy-lower', '', 'build', 'active', '12345', 'atoma-test',
+       ) VALUES (?, ?, ?, 'x', 'legacy-lower', '', 'active', '12345', 'atoma-test',
                  'was-cased', 'private', 'pending', '2026-08-23T00:00:00.000Z',
                  '2026-08-23T00:00:00.000Z')`
     ).run(randomUUID(), alice.orgId, alice.principalId);
@@ -894,10 +906,10 @@ describe('a repository belongs to one project', () => {
       db
         .prepare(
           `INSERT INTO projects (
-             project_id, org_id, created_by_principal_id, name, slug, initial_prompt, family,
+             project_id, org_id, created_by_principal_id, name, slug, initial_prompt,
              status, github_installation_id, repository_target_owner, repository_target_name,
              repository_visibility, repository_status, created_at, updated_at
-           ) VALUES (?, ?, ?, 'x', 'exact-dup', '', 'build', 'active', '12345', 'atoma-test',
+           ) VALUES (?, ?, ?, 'x', 'exact-dup', '', 'active', '12345', 'atoma-test',
                      'was-cased', 'private', 'pending', '2026-08-23T00:00:00.000Z',
                      '2026-08-23T00:00:00.000Z')`
         )
@@ -924,10 +936,10 @@ describe('a repository belongs to one project', () => {
       db
         .prepare(
           `INSERT INTO projects (
-             project_id, org_id, created_by_principal_id, name, slug, initial_prompt, family,
+             project_id, org_id, created_by_principal_id, name, slug, initial_prompt,
              status, github_installation_id, repository_target_owner, repository_target_name,
              repository_visibility, repository_status, created_at, updated_at
-           ) VALUES (?, ?, ?, 'x', 'sneaky', '', 'build', 'active', '12345', 'atoma-test', 'guarded',
+           ) VALUES (?, ?, ?, 'x', 'sneaky', '', 'active', '12345', 'atoma-test', 'guarded',
                      'private', 'pending', '2026-08-23T00:00:00.000Z', '2026-08-23T00:00:00.000Z')`
         )
         .run(randomUUID(), alice.orgId, alice.principalId)
@@ -945,10 +957,10 @@ describe('a repository belongs to one project', () => {
     db.exec('DROP INDEX IF EXISTS projects_org_repository_target_idx');
     db.prepare(
       `INSERT INTO projects (
-         project_id, org_id, created_by_principal_id, name, slug, initial_prompt, family,
+         project_id, org_id, created_by_principal_id, name, slug, initial_prompt,
          status, github_installation_id, repository_target_owner, repository_target_name,
          repository_visibility, repository_status, created_at, updated_at
-       ) VALUES (?, ?, ?, 'x', 'legacy-two', '', 'build', 'active', '12345', 'atoma-test',
+       ) VALUES (?, ?, ?, 'x', 'legacy-two', '', 'active', '12345', 'atoma-test',
                  'was-shared', 'private', 'pending', '2026-08-23T00:00:00.000Z',
                  '2026-08-23T00:00:00.000Z')`
     ).run(randomUUID(), alice.orgId, alice.principalId);

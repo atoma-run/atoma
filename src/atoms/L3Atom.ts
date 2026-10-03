@@ -47,7 +47,7 @@ import { superviseLoop, type SupervisionHooks } from '../core/supervisor.js';
 import { forkBranch } from '../core/branchCtx.js';
 import { effectiveObligations, anyUncovered, renderProofCoverage } from './proofCoverage.js';
 import { randomUUID } from 'node:crypto';
-import { delegatedTaskContext } from './taskContext.js';
+import { delegatedTaskContext, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE } from './taskContext.js';
 import { TASK_EXECUTION_GUIDANCE } from '../contracts/taskExecution.js';
 import { RegistryNotFoundError } from '../core/errors.js';
 import { mergeTools } from './toolMerge.js';
@@ -429,8 +429,9 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       `your plan high-level.`,
       ``,
       `== DECOMPOSITION DISCIPLINE — pick ONE shape ==`,
-      `For non-trivial tasks emit 2-5 subtasks. Pick the shape that matches`,
-      `the task's natural structure:`,
+      PLANNING_SCOPE_GUIDANCE,
+      PROPORTIONATE_PLANNING_GUIDANCE,
+      `Pick the shape that matches the task's natural structure:`,
       ``,
       `  ORTHOGONAL (parallel) — subtasks are INDEPENDENT, no shared state.`,
       `    Each runs in its own workspace lane and produces a separate`,
@@ -479,8 +480,8 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       `When in doubt for an APP / GAME / FILE-BUILD task: prefer PHASED, with`,
       `each orthogonal group kept inside ONE phase rather than spread across`,
       `consecutive ones.`,
-      `One big monolithic subtask delegates real reasoning to the L2 prompt`,
-      `and skips the value of phase-by-phase smoke validation.`,
+      `For complex builds, preserve useful phase-by-phase validation instead`,
+      `of hiding distinct dependent deliverables in one monolithic subtask.`,
       ``,
       `== VERIFICATION MATCHES THE ARTEFACT ==`,
       `Every phase that verifies work MUST use the probe matching the`,
@@ -576,9 +577,8 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       `should handle it (required for N>1 plans). Multiple phases can target`,
       `the SAME L2 — that's the common case for PHASED builds.`,
       ``,
-      `Single-subtask plans are reserved for GENUINELY indivisible tasks`,
-      `(e.g. "look up the current time", "write a one-line config file"). For`,
-      `apps, libraries, builds, multi-step procedures: ALWAYS emit ≥2 subtasks.`,
+      `A single-subtask plan is valid for one coherent deliverable with its`,
+      `checks. Multiple requirements alone do not require multiple phases.`,
       ``,
       `== AGGREGATION ==`,
       `Pick how the sub-results combine — must match decomposition shape:`,

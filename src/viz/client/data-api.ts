@@ -1,6 +1,6 @@
 import type {
   BurninRow,
-  LaunchProfile,
+  GoalGuidance,
   VizAccountModels,
   VizAccountSubscriptions,
   VizApiTokens,
@@ -73,8 +73,8 @@ export const api = {
       `/api/skills/${encodeURIComponent(l1Name)}/${encodeURIComponent(id)}`
     ),
   burnin: () => fetchJson<{ rows: BurninRow[]; csvPath: string }>('/api/burnin'),
-  profiles: () =>
-    fetchJson<{ launchEnabled: false; profiles: LaunchProfile[] }>('/api/profiles'),
+  goalGuidance: () =>
+    fetchJson<{ launchEnabled: false; guidance: GoalGuidance }>('/api/goal-guidance'),
   projects: () => fetchJson<VizProject[]>('/api/projects'),
   projectRuns: (projectId: string) =>
     fetchJson<VizProjectRun[]>(`/api/projects/${encodeURIComponent(projectId)}/runs`),

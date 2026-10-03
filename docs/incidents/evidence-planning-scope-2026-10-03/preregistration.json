@@ -1,0 +1,58 @@
+{
+  "baselineRevision": "1c8c303641594eb4f0ed3940f1e32d879ca7115b",
+  "requests": [
+    {
+      "projectId": "e26b595c-f88f-4539-9ed6-b229cbdf48ef",
+      "rerunOf": "a0962013-9f21-4059-8b4f-2ce79ec3edc6",
+      "models": {
+        "l1": "sub:openai:gpt-5.6-luna",
+        "l2": "sub:openai:gpt-5.6-terra",
+        "l3": "sub:openai:gpt-5.6-sol"
+      },
+      "idempotencyKey": "planning-scope-poetry-20261003-v1"
+    },
+    {
+      "projectId": "204b8cb7-1bcf-439b-89af-8c3acec3be11",
+      "rerunOf": "4bc9b3cd-96e9-49a4-9615-fe4b9ad2f511",
+      "models": {
+        "l1": "sub:openai:gpt-5.6-luna",
+        "l2": "sub:openai:gpt-5.6-terra",
+        "l3": "sub:openai:gpt-5.6-sol"
+      },
+      "idempotencyKey": "planning-scope-language-20261003-v1"
+    }
+  ],
+  "successCriteria": {
+    "poetry": {
+      "stanzas": 4,
+      "linesPerStanza": 4,
+      "wordsPerLine": 6,
+      "acrostic": "LIGHTHOUSEKEEPER",
+      "endings": [
+        "thaw",
+        "sun",
+        "leaves",
+        "snow"
+      ],
+      "tools": 0,
+      "files": 0
+    },
+    "language": {
+      "corpusItems": 8,
+      "translations": [
+        "suli velim utim",
+        "kam sulim udar",
+        "veli kamim tim"
+      ],
+      "backTranslation": "the lizards followed the foxes",
+      "requirements": [
+        "Separate observations from hypotheses.",
+        "Do not infer negation, future, adjective order or all-person absence of agreement.",
+        "An explicit alternative agrees on all observed items and differs on a specified unattested sentence."
+      ],
+      "tools": 0,
+      "files": 0
+    },
+    "efficiency": "Compare total calls and root phases; inspect delegated descriptions for scope expansion. No fixed cap on phases or calls is an acceptance gate."
+  }
+}

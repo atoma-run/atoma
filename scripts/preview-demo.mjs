@@ -348,7 +348,6 @@ async function seed() {
           name: 'Preview demo',
           slug: SLUG,
           initialPrompt: '',
-          family: 'build',
           // Never contacted: nothing in this script publishes, and the
           // publisher is only ever reached from a delivered run's own
           // coordinator. The schema wants a decimal installation id, so this

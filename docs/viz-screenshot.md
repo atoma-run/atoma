@@ -14,6 +14,8 @@ npm run viz:shot -- --auth                          # logged-in member, Projects
 npm run viz:shot -- --auth --repository-mode fork   # existing-repository creation form
 npm run viz:shot -- --auth --select-first           # first project selected: run list + run form
 npm run viz:shot -- --auth --view Runs              # any nav tab by its label
+npm run viz:shot -- --auth --view Runs --result     # final answer, copy and download controls
+npm run viz:shot -- --auth --select-first --result  # same result reader inside the project
 npm run viz:shot -- --auth --view Skills --select-first # member reads a shared recipe
 npm run viz:shot -- --auth --view Registry --select-first # member reads a shared agent type
 npm run viz:shot -- --auth --account-menu           # the account menu, open on the orb
@@ -48,7 +50,7 @@ exercise either camera pose. The same probe is part of `viz:smoke`.
   opens the requested view.
 - **`--auth`** — a logged-in org member **without any real OAuth session**:
   `/auth/whoami`, `/api/org`, `/api/org/models`, `/api/projects`, the run list,
-  `/api/profiles`, `/api/account/models` and `/api/github/installations` are
+  `/api/goal-guidance`, `/api/account/models` and `/api/github/installations` are
   stubbed via Puppeteer request interception (the same technique as
   `viz-gpu-smoke`'s account arm). Settings is not a rail tab: `--view Settings`
   opens the a11y account menu and clicks the Settings item. The fixture is one

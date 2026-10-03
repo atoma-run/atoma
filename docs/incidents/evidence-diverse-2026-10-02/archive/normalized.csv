@@ -1,0 +1,6 @@
+id,kind,candidate_deltas,identified_delta,possible_balance_after
+t1,receipt,+12|+17,,52|57
+t2,dispatch,-9|-4,,48
+t3,receipt,+6|+8,+6,54
+t4,dispatch,-15|-13,-13,41
+t5,receipt,+10|+16,+10,51

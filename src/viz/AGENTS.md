@@ -257,7 +257,7 @@ npm run viz:mark-turn:analyze
   or pending API mutation, and outside settings, announcements, admin admission
   and tuning. Tab-local navigation is restored once for the same principal/org;
   no drafts or secrets are persisted. A failed/stale reload is rate-limited.
-  Existing clients need one ordinary reload to acquire this updater.
+  Existing clients need one ordinary reload to acquire this updater. Back/Forward: `client-gl/navigation-history.ts` mirrors WHERE the viewer is (view, camera mode, selected project/run/atom/skill/docs theme) into session history — one entry per navigation, coalesced per microtask, the URL never changed (ids stay out of the address bar; a deep link is its own decision). A selection filled from nothing is a REPLACE (GpuApp's auto-select would otherwise make Back a no-op); scroll, filters and menus are not places. Entries carry the principal:organisation scope and are ignored under another.
 - `vite-plugin-pwa` remains rejected: `devOptions` does not unregister workers,
   and `generateSW` cannot emit our push/click handlers. `injectManifest` would
   retain `sw.js` but add Workbox to the shipped bundle and change the build's
@@ -466,8 +466,8 @@ npm run viz:mark-turn:analyze
   it pads long labels unevenly; do not add a new chip surface on the fallback.
 - There is NO Launch tab in the GPU client. A tab that could only DESCRIBE how
   to phrase a goal, beside a Projects tab that actually starts runs, split one
-  job over two places; the family guidance (`/api/profiles`, with a
-  `launch.help.<id>` catalog override per family) renders in the GL guidance
+  job over two places; the goal guidance (`/api/goal-guidance`, with a
+  `launch.guidance` catalog override) renders in the GL guidance
   panel directly below the project run form only for a selected project with
   NO runs, and its examples fill that prompt. Once the first run exists the
   WHOLE guidance panel disappears; no collapsed heading remains above history.
@@ -475,7 +475,7 @@ npm run viz:mark-turn:analyze
   defaults open through `projectGuidanceOpen`, and an explicit toggle may
   collapse or reopen it, so its activation id carries the DRAWN state
   (`…toggle.open|closed`).
-  `/api/profiles` stays a READER: it is ungated, so
+  `/api/goal-guidance` stays a READER: it is ungated, so
   it must never gain launch power — browser launches live on the authenticated
   project routes, where a session the run does not hold is the boundary. The
   end-user Docs guide may explain the same briefing principles, while the
@@ -596,7 +596,7 @@ npm run viz:mark-turn:analyze
   `.tsx` carrying a React provider must not reach the server).
   The worker logs whether `showNotification` was accepted or rejected with
   the notification tag only, never the title or body: DevTools diagnostics
-  must be observable without copying operator or project text into a log.
+  must be observable without copying operator or project text into a log. A CLICK opens the event's subject: the router writes it into the URL (`contracts/notificationLink.ts`: kind, org, project, run trace — ids only), the worker posts it to an open tab (never navigates it: the tab keeps its screen) or opens a window on it, and the app resolves it with `notificationTarget`, the tray's ONE rule, then strips it from the address bar.
 - OPERATOR ANNOUNCEMENTS (`platform.announcement`) are the ONE push whose
   words a human writes, and the only route with an audience wider than an
   organisation. Two steps, and the split is the safety property:
@@ -610,8 +610,8 @@ npm run viz:mark-turn:analyze
   draft is in progress preserves it. It follows the canvas-control method
   above: the reset signal lives in the shared GPU store, and the real-GPU smoke
   drives the active Pixi hit target after a complete stubbed send.
-  `src/viz/push/translate.ts` is the server's ONLY LLM call site: tier 1,
-  built on first use so no deployment is asked for a credential it never
+  `src/viz/push/translate.ts` is viz's ONLY LLM call site (run titles are
+  src/projects'): tier 1, built on first use so no deployment is asked for a credential it never
   needs, and returning `null` (never a partial draft) whenever the
   provider is absent or the reply unreadable — the form then asks the
   admin to write the other languages. The segment (`src/viz/push/
@@ -622,6 +622,26 @@ npm run viz:mark-turn:analyze
   fail-open, so an oversized row would lose the audit trail AND the push.
   The router refuses to deliver a push that renders no title. The composer
   is its own admin view (above), not a form at the foot of another.
+
+## Public showcase
+
+- With `ATOMA_PUBLIC_SHOWCASE=1` it IS the home page: a bare `/` from a visitor
+  with no session (`servesShowcaseHome`; a query string means the shell, which
+  reads `?authNotice=`/`?invite=`). Everyone else, and `/app`, get the app shell:
+  the arrival gate and handheld notice stay the way in ("Sign in" links to
+  `/app`). Stories are `/showcase/<run id>`; both send `no-store`, or the
+  service worker would keep one as its offline `/`.
+- It shows a platform admin's DELIVERED runs. Fail closed: opt-in, gate on, else
+  404. One store query (`listShowcaseRuns`), an allow-list projection
+  (`showcase.ts`): title, request, numbers, file NAMES, a text answer; never
+  identities, paths, repositories or bytes. Server-rendered, all values
+  escaped, one script pinned by hash in its CSP. English only.
+- Its crystals are the REAL Pixi mark (`showcase-mark.ts`, built alone by
+  `vite.showcase.config.ts`: as a second app input it would leave the lazy
+  renderer chunk), over a static SVG hidden while it loads, shown if it fails. ONE per
+  page is lit: drawn over its `data-atoma-receiver` section, behind content, on
+  `createFarField` (scenery off) so its light and caustics reach the background;
+  the others snapshot and restore the page-global field light around each frame.
 
 ## Intentional choices and rejected shortcuts
 

@@ -162,7 +162,7 @@ describe('MCP OAuth over HTTP', () => {
     const client = new Client({ name: 'oauth-cimd', version: '1' });
     try {
       await client.connect(new StreamableHTTPClientTransport(new URL(`${base}/mcp`), { requestInit: { headers: { Authorization: `Bearer ${(await refreshed.json() as Tokens).access_token}` } } }));
-      expect((await client.callTool({ name: 'atoma_families', arguments: {} })).isError).not.toBe(true);
+      expect((await client.listTools()).tools.length).toBeGreaterThan(0);
     } finally { await client.close(); }
     expect(fetched).toEqual([clientId]);
   });
@@ -229,7 +229,7 @@ describe('MCP OAuth over HTTP', () => {
     const client = new Client({ name: 'oauth-smoke', version: '1' });
     try {
       await client.connect(new StreamableHTTPClientTransport(new URL(`${base}/mcp`), { requestInit: { headers: { Authorization: `Bearer ${tokens.access_token}` } } }));
-      expect((await client.callTool({ name: 'atoma_families', arguments: {} })).isError).not.toBe(true);
+      expect((await client.listTools()).tools.length).toBeGreaterThan(0);
     } finally { await client.close(); }
     const record = auth.listApiTokens(viewer.principalId)[0]!;
     expect(record.label).toBe('OAuth: Codex <test>');

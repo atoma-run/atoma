@@ -22,13 +22,15 @@ export function runSearchText(run: {
   id: string;
   label: string;
   goal?: string;
+  title?: string;
   projectSlug?: string;
   projectName?: string;
 }): string {
   // The GOAL is searched as well as the label, because the picker now SHOWS
   // the goal: a row whose visible words could not be typed into the box above
-  // it would be the search lying about what it can find.
-  return [run.id, run.label, run.goal, run.projectSlug, run.projectName]
+  // it would be the search lying about what it can find. The TITLE for the
+  // same reason, since a named run shows that instead.
+  return [run.id, run.title, run.label, run.goal, run.projectSlug, run.projectName]
     .filter(Boolean)
     .join(' ');
 }

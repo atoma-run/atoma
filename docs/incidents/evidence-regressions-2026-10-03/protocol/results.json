@@ -1,0 +1,741 @@
+{
+  "buggy": {
+    "buggy_deadlock_trace": {
+      "states": [
+        [
+          0,
+          0,
+          false,
+          false,
+          0
+        ],
+        [
+          1,
+          0,
+          true,
+          false,
+          0
+        ],
+        [
+          2,
+          0,
+          true,
+          false,
+          1
+        ],
+        [
+          2,
+          1,
+          true,
+          true,
+          1
+        ],
+        [
+          2,
+          2,
+          true,
+          true,
+          0
+        ]
+      ],
+      "transitions": [
+        "p0:pc0->pc1",
+        "p0:pc1->pc2",
+        "p1:pc0->pc1",
+        "p1:pc1->pc2"
+      ]
+    },
+    "checks": {
+      "deadlock_free": false,
+      "deadlocks": [
+        [
+          2,
+          2,
+          true,
+          true,
+          0
+        ],
+        [
+          2,
+          2,
+          true,
+          true,
+          1
+        ]
+      ],
+      "mutual_exclusion": true,
+      "mutual_exclusion_violations": []
+    },
+    "counts": {
+      "edges": 32,
+      "states": 20
+    },
+    "edges": [
+      {
+        "from": 0,
+        "label": "p0:pc0->pc1",
+        "to": 1
+      },
+      {
+        "from": 0,
+        "label": "p1:pc0->pc1",
+        "to": 2
+      },
+      {
+        "from": 1,
+        "label": "p0:pc1->pc2",
+        "to": 3
+      },
+      {
+        "from": 1,
+        "label": "p1:pc0->pc1",
+        "to": 4
+      },
+      {
+        "from": 2,
+        "label": "p0:pc0->pc1",
+        "to": 4
+      },
+      {
+        "from": 2,
+        "label": "p1:pc1->pc2",
+        "to": 5
+      },
+      {
+        "from": 3,
+        "label": "p0:pc2->pc3",
+        "to": 6
+      },
+      {
+        "from": 3,
+        "label": "p1:pc0->pc1",
+        "to": 7
+      },
+      {
+        "from": 4,
+        "label": "p0:pc1->pc2",
+        "to": 7
+      },
+      {
+        "from": 4,
+        "label": "p1:pc1->pc2",
+        "to": 8
+      },
+      {
+        "from": 5,
+        "label": "p0:pc0->pc1",
+        "to": 8
+      },
+      {
+        "from": 5,
+        "label": "p1:pc2->pc3",
+        "to": 9
+      },
+      {
+        "from": 6,
+        "label": "p0:pc3->pc0",
+        "to": 10
+      },
+      {
+        "from": 6,
+        "label": "p1:pc0->pc1",
+        "to": 11
+      },
+      {
+        "from": 7,
+        "label": "p1:pc1->pc2",
+        "to": 12
+      },
+      {
+        "from": 8,
+        "label": "p0:pc1->pc2",
+        "to": 13
+      },
+      {
+        "from": 9,
+        "label": "p0:pc0->pc1",
+        "to": 14
+      },
+      {
+        "from": 9,
+        "label": "p1:pc3->pc0",
+        "to": 0
+      },
+      {
+        "from": 10,
+        "label": "p0:pc0->pc1",
+        "to": 15
+      },
+      {
+        "from": 10,
+        "label": "p1:pc0->pc1",
+        "to": 16
+      },
+      {
+        "from": 11,
+        "label": "p0:pc3->pc0",
+        "to": 16
+      },
+      {
+        "from": 11,
+        "label": "p1:pc1->pc2",
+        "to": 17
+      },
+      {
+        "from": 14,
+        "label": "p0:pc1->pc2",
+        "to": 18
+      },
+      {
+        "from": 14,
+        "label": "p1:pc3->pc0",
+        "to": 1
+      },
+      {
+        "from": 15,
+        "label": "p0:pc1->pc2",
+        "to": 3
+      },
+      {
+        "from": 15,
+        "label": "p1:pc0->pc1",
+        "to": 19
+      },
+      {
+        "from": 16,
+        "label": "p0:pc0->pc1",
+        "to": 19
+      },
+      {
+        "from": 16,
+        "label": "p1:pc1->pc2",
+        "to": 5
+      },
+      {
+        "from": 17,
+        "label": "p0:pc3->pc0",
+        "to": 5
+      },
+      {
+        "from": 18,
+        "label": "p1:pc3->pc0",
+        "to": 3
+      },
+      {
+        "from": 19,
+        "label": "p0:pc1->pc2",
+        "to": 7
+      },
+      {
+        "from": 19,
+        "label": "p1:pc1->pc2",
+        "to": 8
+      }
+    ],
+    "initial_state": [
+      0,
+      0,
+      false,
+      false,
+      0
+    ],
+    "states": [
+      [
+        0,
+        0,
+        false,
+        false,
+        0
+      ],
+      [
+        1,
+        0,
+        true,
+        false,
+        0
+      ],
+      [
+        0,
+        1,
+        false,
+        true,
+        0
+      ],
+      [
+        2,
+        0,
+        true,
+        false,
+        1
+      ],
+      [
+        1,
+        1,
+        true,
+        true,
+        0
+      ],
+      [
+        0,
+        2,
+        false,
+        true,
+        0
+      ],
+      [
+        3,
+        0,
+        true,
+        false,
+        1
+      ],
+      [
+        2,
+        1,
+        true,
+        true,
+        1
+      ],
+      [
+        1,
+        2,
+        true,
+        true,
+        0
+      ],
+      [
+        0,
+        3,
+        false,
+        true,
+        0
+      ],
+      [
+        0,
+        0,
+        false,
+        false,
+        1
+      ],
+      [
+        3,
+        1,
+        true,
+        true,
+        1
+      ],
+      [
+        2,
+        2,
+        true,
+        true,
+        0
+      ],
+      [
+        2,
+        2,
+        true,
+        true,
+        1
+      ],
+      [
+        1,
+        3,
+        true,
+        true,
+        0
+      ],
+      [
+        1,
+        0,
+        true,
+        false,
+        1
+      ],
+      [
+        0,
+        1,
+        false,
+        true,
+        1
+      ],
+      [
+        3,
+        2,
+        true,
+        true,
+        0
+      ],
+      [
+        2,
+        3,
+        true,
+        true,
+        1
+      ],
+      [
+        1,
+        1,
+        true,
+        true,
+        1
+      ]
+    ],
+    "variant": "buggy"
+  },
+  "correct": {
+    "buggy_deadlock_trace": null,
+    "checks": {
+      "deadlock_free": true,
+      "deadlocks": [],
+      "mutual_exclusion": true,
+      "mutual_exclusion_violations": []
+    },
+    "counts": {
+      "edges": 34,
+      "states": 20
+    },
+    "edges": [
+      {
+        "from": 0,
+        "label": "p0:pc0->pc1",
+        "to": 1
+      },
+      {
+        "from": 0,
+        "label": "p1:pc0->pc1",
+        "to": 2
+      },
+      {
+        "from": 1,
+        "label": "p0:pc1->pc2",
+        "to": 3
+      },
+      {
+        "from": 1,
+        "label": "p1:pc0->pc1",
+        "to": 4
+      },
+      {
+        "from": 2,
+        "label": "p0:pc0->pc1",
+        "to": 4
+      },
+      {
+        "from": 2,
+        "label": "p1:pc1->pc2",
+        "to": 5
+      },
+      {
+        "from": 3,
+        "label": "p0:pc2->pc3",
+        "to": 6
+      },
+      {
+        "from": 3,
+        "label": "p1:pc0->pc1",
+        "to": 7
+      },
+      {
+        "from": 4,
+        "label": "p0:pc1->pc2",
+        "to": 7
+      },
+      {
+        "from": 4,
+        "label": "p1:pc1->pc2",
+        "to": 8
+      },
+      {
+        "from": 5,
+        "label": "p0:pc0->pc1",
+        "to": 8
+      },
+      {
+        "from": 5,
+        "label": "p1:pc2->pc3",
+        "to": 9
+      },
+      {
+        "from": 6,
+        "label": "p0:pc3->pc0",
+        "to": 10
+      },
+      {
+        "from": 6,
+        "label": "p1:pc0->pc1",
+        "to": 11
+      },
+      {
+        "from": 7,
+        "label": "p1:pc1->pc2",
+        "to": 12
+      },
+      {
+        "from": 8,
+        "label": "p0:pc1->pc2",
+        "to": 13
+      },
+      {
+        "from": 9,
+        "label": "p0:pc0->pc1",
+        "to": 14
+      },
+      {
+        "from": 9,
+        "label": "p1:pc3->pc0",
+        "to": 0
+      },
+      {
+        "from": 10,
+        "label": "p0:pc0->pc1",
+        "to": 15
+      },
+      {
+        "from": 10,
+        "label": "p1:pc0->pc1",
+        "to": 16
+      },
+      {
+        "from": 11,
+        "label": "p0:pc3->pc0",
+        "to": 16
+      },
+      {
+        "from": 11,
+        "label": "p1:pc1->pc2",
+        "to": 17
+      },
+      {
+        "from": 12,
+        "label": "p0:pc2->pc3",
+        "to": 17
+      },
+      {
+        "from": 13,
+        "label": "p1:pc2->pc3",
+        "to": 18
+      },
+      {
+        "from": 14,
+        "label": "p0:pc1->pc2",
+        "to": 18
+      },
+      {
+        "from": 14,
+        "label": "p1:pc3->pc0",
+        "to": 1
+      },
+      {
+        "from": 15,
+        "label": "p0:pc1->pc2",
+        "to": 3
+      },
+      {
+        "from": 15,
+        "label": "p1:pc0->pc1",
+        "to": 19
+      },
+      {
+        "from": 16,
+        "label": "p0:pc0->pc1",
+        "to": 19
+      },
+      {
+        "from": 16,
+        "label": "p1:pc1->pc2",
+        "to": 5
+      },
+      {
+        "from": 17,
+        "label": "p0:pc3->pc0",
+        "to": 5
+      },
+      {
+        "from": 18,
+        "label": "p1:pc3->pc0",
+        "to": 3
+      },
+      {
+        "from": 19,
+        "label": "p0:pc1->pc2",
+        "to": 7
+      },
+      {
+        "from": 19,
+        "label": "p1:pc1->pc2",
+        "to": 8
+      }
+    ],
+    "initial_state": [
+      0,
+      0,
+      false,
+      false,
+      0
+    ],
+    "states": [
+      [
+        0,
+        0,
+        false,
+        false,
+        0
+      ],
+      [
+        1,
+        0,
+        true,
+        false,
+        0
+      ],
+      [
+        0,
+        1,
+        false,
+        true,
+        0
+      ],
+      [
+        2,
+        0,
+        true,
+        false,
+        1
+      ],
+      [
+        1,
+        1,
+        true,
+        true,
+        0
+      ],
+      [
+        0,
+        2,
+        false,
+        true,
+        0
+      ],
+      [
+        3,
+        0,
+        true,
+        false,
+        1
+      ],
+      [
+        2,
+        1,
+        true,
+        true,
+        1
+      ],
+      [
+        1,
+        2,
+        true,
+        true,
+        0
+      ],
+      [
+        0,
+        3,
+        false,
+        true,
+        0
+      ],
+      [
+        0,
+        0,
+        false,
+        false,
+        1
+      ],
+      [
+        3,
+        1,
+        true,
+        true,
+        1
+      ],
+      [
+        2,
+        2,
+        true,
+        true,
+        0
+      ],
+      [
+        2,
+        2,
+        true,
+        true,
+        1
+      ],
+      [
+        1,
+        3,
+        true,
+        true,
+        0
+      ],
+      [
+        1,
+        0,
+        true,
+        false,
+        1
+      ],
+      [
+        0,
+        1,
+        false,
+        true,
+        1
+      ],
+      [
+        3,
+        2,
+        true,
+        true,
+        0
+      ],
+      [
+        2,
+        3,
+        true,
+        true,
+        1
+      ],
+      [
+        1,
+        1,
+        true,
+        true,
+        1
+      ]
+    ],
+    "variant": "correct"
+  },
+  "model": {
+    "initial": [
+      0,
+      0,
+      false,
+      false,
+      0
+    ],
+    "state": [
+      "pc0",
+      "pc1",
+      "flag0",
+      "flag1",
+      "turn"
+    ],
+    "variants": {
+      "buggy": "pc=2 guard: not flag[j]",
+      "correct": "pc=2 guard: not flag[j] or turn == i"
+    }
+  }
+}

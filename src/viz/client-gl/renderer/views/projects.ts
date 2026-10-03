@@ -1,6 +1,6 @@
 import { Container, Graphics, Rectangle } from 'pixi.js';
 import { dateTimeFormat } from '../../../client/date-format.js';
-import type { LaunchProfile, VizProjectRun } from '../../../client/types.js';
+import type { GoalGuidance, VizProjectRun } from '../../../client/types.js';
 import { BUTTON_LABEL_INSET } from '../../gpu-renderer.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { projectGuidanceOpen } from '../../store.js';
@@ -9,6 +9,8 @@ import { fmtMs } from '../../../client/run-utils.js';
 import { relativeTime, timestampTooltip } from '../relative-time.js';
 import { createScrollPane } from '../scroll-pane.js';
 import { drawViewFrame, viewFrame, VIEW_FRAME_CONTENT_TOP, VIEW_FRAME_PAD } from '../view-frame.js';
+import { drawResultPanel } from './result.js';
+import { latestDeliveredResult } from '../../run-result.js';
 
 /**
  * Projects view: the organisation's projects, their GitHub repository state
@@ -42,6 +44,9 @@ const COMPACT_PROJECT_PANEL_WIDTH = 400;
 const RUN_CARD_HEIGHT = 100;
 const RUN_COMPACT_CARD_HEIGHT = 140;
 const RUN_ROW_GAP = 14;
+const RUN_RESULT_GAP = 14;
+const RUN_RESULT_HEIGHT = 32;
+const RUN_RESULT_SPACE = RUN_RESULT_GAP + RUN_RESULT_HEIGHT;
 const RUN_SECOND_LINE_EXTRA = 20;
 const STATUS_FONT_SIZE = 10;
 /** The linked mesh carries inset detail, so its full box must be visibly larger than the copy. */
@@ -136,7 +141,7 @@ function runRowHeight(run: VizProjectRun, compact = false, newest = false): numb
     (run.error && run.status !== 'partial') ||
     (run.publication?.status === 'published' && run.publication.pullRequestUrl)
   );
-  return (compact ? RUN_COMPACT_CARD_HEIGHT : RUN_CARD_HEIGHT) + RUN_ROW_GAP +
+  return (compact ? RUN_COMPACT_CARD_HEIGHT : RUN_CARD_HEIGHT) + RUN_ROW_GAP + RUN_RESULT_SPACE +
     (hasSecondLine ? RUN_SECOND_LINE_EXTRA : 0);
 }
 
@@ -190,15 +195,15 @@ const EXAMPLE_GAP = 8;
 const EXAMPLE_COLUMNS = 2;
 
 /**
- * A catalog key beats the profile's own English when the deployment has one:
+ * A catalog key beats the guidance's own English when the deployment has one:
  * `t()` echoes an unknown key back, which is how a miss is detected — the
- * same resolution the MUI fallback applies, so a new family stays describable
- * without touching either client.
+ * same resolution the MUI fallback applies, so a rewording of the guidance
+ * stays describable without touching either client.
  */
-function familyHelp(t: GpuRenderSnapshot['t'], profile: LaunchProfile): string {
-  const key = `launch.help.${profile.id}`;
+function guidanceHelp(t: GpuRenderSnapshot['t'], guidance: GoalGuidance): string {
+  const key = 'launch.guidance';
   const translated = t(key);
-  return translated === key ? profile.help : translated;
+  return translated === key ? guidance.help : translated;
 }
 
 /** Height of the always-visible header row a viewer clicks to expand/collapse. */
@@ -222,7 +227,7 @@ function drawPromptGuidance(
   parent: Container,
   x: number,
   panelWidth: number,
-  profile: LaunchProfile,
+  guidance: GoalGuidance,
   expanded: boolean
 ): number {
   const panelLayer = new Container();
@@ -245,20 +250,20 @@ function drawPromptGuidance(
 
   let cursor = GUIDANCE_PAD + GUIDANCE_HEADER_HEIGHT;
   if (expanded) {
-    const body = ctx.text(parent, familyHelp(snapshot.t, profile), innerX, cursor + 8, {
+    const body = ctx.text(parent, guidanceHelp(snapshot.t, guidance), innerX, cursor + 8, {
       size: 11,
       color: GPU_COLORS.muted,
       width: innerWidth,
     });
     cursor += 8 + body.height + 18;
-    if (profile.examples.length > 0) {
+    if (guidance.examples.length > 0) {
       ctx.text(parent, snapshot.t('launch.examples'), innerX, cursor, {
         size: 10,
         weight: '600',
       });
       cursor += 22;
       const exampleWidth = (innerWidth - EXAMPLE_GAP * (EXAMPLE_COLUMNS - 1)) / EXAMPLE_COLUMNS;
-      profile.examples.forEach((example, index) => {
+      guidance.examples.forEach((example, index) => {
         const column = index % EXAMPLE_COLUMNS;
         const row = Math.floor(index / EXAMPLE_COLUMNS);
         ctx.button(
@@ -275,7 +280,7 @@ function drawPromptGuidance(
           snapshot.onActivate
         );
       });
-      const rows = Math.ceil(profile.examples.length / EXAMPLE_COLUMNS);
+      const rows = Math.ceil(guidance.examples.length / EXAMPLE_COLUMNS);
       cursor += rows * (EXAMPLE_HEIGHT + EXAMPLE_GAP) - EXAMPLE_GAP;
     }
   }
@@ -436,9 +441,22 @@ export function drawProjects(
   // so an UNGATED instance renders none — and reserving the band it would have
   // occupied left a ~260px hole between the title and the copy explaining why
   // there is nothing here. Reserve the band only when the form is really there.
-  const contentTop = snapshot.data.auth === null
+  let contentTop = snapshot.data.auth === null
     ? frame.contentTop
     : projectsGpuContentTop(formMode, width);
+  const resultRows = selectedProject ? runsByProject[selectedProject.projectId] ?? [] : [];
+  if (snapshot.state.resultRunId && resultRows.some(run => (run.traceId ?? run.projectRunId) === snapshot.state.resultRunId)) {
+    drawResultPanel(ctx, snapshot, frame.innerX, contentTop, frame.innerWidth,
+      Math.max(100, frame.bottom - contentTop - VIEW_FRAME_PAD));
+    ctx.scrollMax.projects = 0;
+    return;
+  }
+  const latestResult = latestDeliveredResult(resultRows);
+  if (latestResult) {
+    ctx.button(ctx.root, `result.open.${latestResult.traceId}`, 'button', snapshot.t('result.latest'),
+      frame.innerX, contentTop, Math.min(300, frame.innerWidth), 30, false, snapshot.onActivate);
+    contentTop += 42;
+  }
   if (projects.length === 0) {
     // Ungated deployments have no organisations, so projects cannot exist and
     // their API routes are absent — say that, instead of coaching the viewer
@@ -488,16 +506,16 @@ export function drawProjects(
   // before and this panel is tall enough to bury that history. It disappears
   // WHOLE once any run exists — not merely collapsed to a lingering heading.
   // The list below shifts by its MEASURED height; nothing here estimates it.
-  const guidanceProfile = snapshot.data.profiles[0];
+  const guidance = snapshot.data.guidance;
   const listOffset =
-    selectedProject && selectedRuns.length === 0 && guidanceProfile
+    selectedProject && selectedRuns.length === 0 && guidance
       ? drawPromptGuidance(
           ctx,
           snapshot,
           pane.content,
           layout.x,
           layout.panelWidth,
-          guidanceProfile,
+          guidance,
           projectGuidanceOpen(snapshot.state.projectGuidanceExpanded)
         )
       : 0;
@@ -741,7 +759,7 @@ export function drawProjects(
       runs.forEach((run, runIndex) => {
         const newest = runIndex === 0;
         const rowHeight = runRowHeight(run, compactRunRows, newest);
-        const cardHeight = rowHeight - RUN_ROW_GAP;
+        const cardHeight = rowHeight - RUN_ROW_GAP - RUN_RESULT_SPACE;
         const goalWidth = Math.max(0, layout.panelWidth - 52);
         const textX = runColumnX + BUTTON_LABEL_INSET;
         const textWidth = goalWidth - BUTTON_LABEL_INSET * 2;
@@ -763,7 +781,8 @@ export function drawProjects(
             : (run.jevCallsLowerBound ? '≥ ' : '') + run.jevCalls.toLocaleString(snapshot.state.locale) }),
         ];
         ctx.button(pane.content, 'project.run.' + (run.traceId ?? run.projectRunId), 'button',
-          run.goal.replace(/\s+/g, ' '), runColumnX, cursor, goalWidth, cardHeight,
+          // The short title once the run was named; the bubble keeps the whole goal.
+          run.title ?? run.goal.replace(/\s+/g, ' '), runColumnX, cursor, goalWidth, cardHeight,
           false, snapshot.onActivate, GPU_COLORS.primary, false, false, undefined, 9,
           [run.goal, date, statusText + cost, ...metrics].join(' · '));
         ctx.text(pane.content, date, textX, cursor + 32,
@@ -796,6 +815,8 @@ export function drawProjects(
           ctx.text(pane.content, run.error.replace(/\s+/g, ' '), textX, extraY,
             { size: 9, color: GPU_COLORS.error, width: textWidth, singleLine: true });
         }
+        ctx.button(pane.content, `result.open.${run.traceId ?? run.projectRunId}`, 'button', snapshot.t('result.title'),
+          runColumnX, cursor + cardHeight + RUN_RESULT_GAP, Math.min(180, goalWidth), RUN_RESULT_HEIGHT, false, snapshot.onActivate);
         cursor += rowHeight;
       });
     } else if (selected && runs.length === 0) {

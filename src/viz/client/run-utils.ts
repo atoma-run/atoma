@@ -187,36 +187,28 @@ function comparableRunMeta(run: VizRun, key: keyof VizRun): unknown {
 }
 
 export interface RunHeading {
-  /** Which profile ran it — the `build-app` half of the stored label. */
-  readonly family: string | null;
   /** What the run was asked to do, whole. */
   readonly title: string;
 }
 
 /**
- * The two things a run's stored `label` actually carries, separated.
+ * What a run's stored `label` says it was asked to do.
  *
- * `label` is a display name shaped `<family>: <goal, cut>`. Measured over the
- * 204 local traces: 202 are exactly that, so the ONLY information it holds
- * that the goal does not is the family. Everything else is a cut copy — and
- * traces written before 2026-08-15 cut it with a bare slice, ending mid-word
- * ("…tiles that swap colour w") with nothing saying so.
+ * `label` is a display name shaped `<prefix>: <goal, cut>` (the prefix was the
+ * name of the launcher, `build-app`, then `run`). Measured over the 204 local
+ * traces: 202 are exactly that, and everything after the prefix is a cut copy
+ * of the goal — traces written before 2026-08-15 cut it with a bare slice,
+ * ending mid-word ("…tiles that swap colour w") with nothing saying so.
  *
- * So the goal IS the title whenever the run carries one, and the label is
- * consulted only for the family and as the fallback title of a run without a
- * goal. Those stored bytes stay on disk untouched; this is a projection.
- *
- * The family is recognised as an identifier-shaped prefix rather than a fixed
- * list, so a new profile needs no change here.
+ * So the goal IS the title whenever the run carries one, and the label is the
+ * fallback title of a run without a goal, its identifier-shaped prefix
+ * stripped. Those stored bytes stay on disk untouched; this is a projection.
  */
 export function runHeading(run: VizRun): RunHeading {
   const label = (run.label ?? '').trim();
   const prefixed = /^([a-z][a-z0-9._-]{1,23}):\s+(.*)$/s.exec(label);
   const goal = run.task?.description?.trim() ?? '';
-  return {
-    family: prefixed?.[1] ?? null,
-    title: goal || prefixed?.[2] || label,
-  };
+  return { title: goal || prefixed?.[2] || label };
 }
 
 export function fmtMs(ms?: number): string {

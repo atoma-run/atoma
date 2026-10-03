@@ -1,6 +1,7 @@
 import type { CodexModelInventory } from '../../contracts/codexModels.js';
 import type { AccountSubscriptionsResponse } from '../../contracts/accountSubscriptions.js';
 import type { AcceptanceInfo, TopologyInfo } from '../../contracts/depthRouting.js';
+import type { ArtifactManifest } from '../../contracts/projects.js';
 
 export interface RunIndexEntry {
   id: string;
@@ -27,6 +28,8 @@ export interface RunIndexEntry {
   projectSlug?: string;
   /** Set on a comparison rerun: the run it re-ran. It never continues the project. */
   rerunOf?: string;
+  /** The run's short title once it ended and was named; lists fall back to the goal. */
+  title?: string;
 }
 
 export interface VizEvent extends Partial<AcceptanceInfo>, Partial<TopologyInfo> {
@@ -221,10 +224,9 @@ export interface BurninRow {
   provider: string;
 }
 
-export interface LaunchProfile {
-  id: string;
+/** How to phrase a goal, and the shell command that starts a run (`/api/goal-guidance`). */
+export interface GoalGuidance {
   npmScript: string;
-  label: string;
   help: string;
   examples: string[];
 }
@@ -285,9 +287,13 @@ export interface VizPreviewOpen {
 }
 
 export interface VizProjectRun {
+  artifactManifest?: ArtifactManifest | null;
+  bytesExpiredAt?: string | null;
   projectRunId: string;
   projectId: string;
   goal: string;
+  /** The run's short title once it ended and was named; the goal stays the record. */
+  title?: string;
   status: 'queued' | 'running' | 'delivered' | 'partial' | 'failed' | 'cancelled';
   /** Set on a comparison rerun: the run it re-ran. It never continues the project. */
   rerunOf?: string;
