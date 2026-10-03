@@ -84,3 +84,13 @@ Production replays remain distinct from these checks: mocked tests establish
 isolation and transport, not mathematical intelligence. The preregistered
 replay and follow-up requests are in
 `incidents/evidence-text-review-history-2026-10-03/preregistration.json`.
+
+The [production replay report](incidents/text-review-replays-2026-10-03.md)
+records seven subsequent runs. Historical context passed the source-to-child
+boundary and two context-dependent follow-ups. The first coding replay still
+omitted a requested definition; `f953df2a` added an explicit final coverage
+audit and a regression preserving refusal when narrower criteria all pass.
+Its complete Linux CI and deployment passed. The next coding replay included
+all requested components, and both timing and both museum runs passed the
+independent checks. Incorrect model-authored references remain visible in the
+report; these observations do not turn them into ground truth.

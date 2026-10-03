@@ -1,0 +1,584 @@
+[
+  {
+    "key": "fixed-code",
+    "status": {
+      "projectRunId": "c7fce1a1-2a46-4661-b366-6181bd3da760",
+      "projectId": "3b0a64ec-3989-4d7e-af04-1a0dcc88af3b",
+      "orgId": "d28f40d2-14d7-45c7-bce3-928dcb0041a6",
+      "requestedByPrincipalId": "36bbb732-d581-41e3-b8b5-c39e93fd32b9",
+      "requestKey": "text-review-fixed-code-20261003-v1",
+      "goal": "Analyze this fully specified fictional error-correcting code as a mathematical exercise, directly as text. No tools, files, code or external research. Three data bits (a,b,c) are encoded, left to right, as seven bits (a,b,c,a XOR b,b XOR c,a XOR c,a XOR b XOR c), where XOR is addition modulo 2. List all eight data words and their codewords. Define Hamming distance as the number of differing positions and compute the minimum distance between distinct codewords. For received strings R1=1111100, R2=1110100, R3=0111010, show distances to all eight codewords and the COMPLETE set of nearest data words, identifying whether nearest decoding is unique. Give changed bit positions for any unique correction, using positions 1 through 7 from the left. A technician claims: \"Because the code corrects one flipped bit, nearest decoding is always unique even after two flips; R2 must be data 101.\" Audit both claims using the actual candidate sets. Distinguish a valid unique correction under an at-most-one-flip assumption from a guess when that assumption is absent. Do not break ties arbitrarily or infer probabilities not given.",
+      "title": "Analyze a 3-to-7-bit error-correcting code",
+      "status": "delivered",
+      "bytesExpiredAt": null,
+      "rerunOf": "2ff3b86f-66b2-4b7b-be0a-d5b81bac81e1",
+      "modelOverrides": {
+        "l1": "sub:openai:gpt-5.6-luna",
+        "l2": "sub:openai:gpt-5.6-terra",
+        "l3": "sub:openai:gpt-5.6-sol"
+      },
+      "seed": {
+        "kind": "none"
+      },
+      "traceId": "c7fce1a1-2a46-4661-b366-6181bd3da760",
+      "stats": {
+        "outcome": "delivered",
+        "costUsd": 0.171,
+        "subscriptionCostUsd": 0.171,
+        "llmCalls": 10,
+        "opusCalls": 0,
+        "sonnetCalls": 0,
+        "haikuCalls": 0,
+        "otherCalls": 10,
+        "deterministicPhases": 0,
+        "escalations": 0,
+        "learnedSkills": 0,
+        "learnedEventSkills": 0,
+        "promotions": 0,
+        "refusals": 0,
+        "compileErrors": 0,
+        "demotions": 0,
+        "dispatchFallbacks": 0,
+        "uncoveredObligations": 0,
+        "deepenings": 0,
+        "rootRemediations": 0,
+        "landingReasons": []
+      },
+      "artifactManifest": {
+        "version": 1,
+        "source": "workspace",
+        "delivery": "text",
+        "files": [],
+        "totalBytes": 0
+      },
+      "artifactManifestHash": "03db27aa58d0289a5d458035f71de2aadd9bbed0ba49d5bf2b1a9da3d5b4e323",
+      "error": null,
+      "createdAt": "2026-10-03T11:37:57.838Z",
+      "startedAt": "2026-10-03T11:37:57.892Z",
+      "endedAt": "2026-10-03T11:42:30.125Z",
+      "updatedAt": "2026-10-03T11:42:30.126Z",
+      "costUsd": 0.171,
+      "tokens": 89450,
+      "llmCalls": 10,
+      "jevCalls": 5,
+      "jevCallsLowerBound": false,
+      "models": {
+        "l1": {
+          "selection": "sub:openai:gpt-5.6-luna",
+          "provider": "codex-cli",
+          "payer": "host-subscription",
+          "source": "run"
+        },
+        "l2": {
+          "selection": "sub:openai:gpt-5.6-terra",
+          "provider": "codex-cli",
+          "payer": "host-subscription",
+          "source": "run"
+        },
+        "l3": {
+          "selection": "sub:openai:gpt-5.6-sol",
+          "provider": "codex-cli",
+          "payer": "host-subscription",
+          "source": "run"
+        }
+      },
+      "durationS": 272.233,
+      "publication": null
+    }
+  },
+  {
+    "key": "fixed-history",
+    "status": {
+      "projectRunId": "6aa9cf08-ac82-4146-9026-bbc8bde20823",
+      "projectId": "3b0a64ec-3989-4d7e-af04-1a0dcc88af3b",
+      "orgId": "d28f40d2-14d7-45c7-bce3-928dcb0041a6",
+      "requestedByPrincipalId": "36bbb732-d581-41e3-b8b5-c39e93fd32b9",
+      "requestKey": "text-history-code-20261003-v1",
+      "goal": "Continue the project's preceding coding exercise and bitwise audit, using the code definition and results already present in this project's run history. Do not assume the audit's claims are authoritative. For the previously defined R3, identify the nearest data word, its codeword, whether any correction is needed, and its distance to the codeword for data 100. Explicitly recompute that last distance by listing the differing positions, and explain whether the preceding calculation of 4 versus an earlier claim of 6 was correct. Use only the existing source definition; if that definition is unavailable, say so rather than inventing it. Return a concise text answer only; no full table, tools, files or external research.",
+      "title": "Nearest data word for R3 and distance check",
+      "status": "delivered",
+      "bytesExpiredAt": null,
+      "seed": {
+        "kind": "run",
+        "runId": "ce1c7dbe-eafa-41a4-ada4-5c3ffd9e1b10"
+      },
+      "traceId": "6aa9cf08-ac82-4146-9026-bbc8bde20823",
+      "stats": {
+        "outcome": "delivered",
+        "costUsd": 0.0947,
+        "subscriptionCostUsd": 0.0947,
+        "llmCalls": 5,
+        "opusCalls": 0,
+        "sonnetCalls": 0,
+        "haikuCalls": 0,
+        "otherCalls": 5,
+        "deterministicPhases": 0,
+        "escalations": 0,
+        "learnedSkills": 0,
+        "learnedEventSkills": 0,
+        "promotions": 0,
+        "refusals": 0,
+        "compileErrors": 0,
+        "demotions": 0,
+        "dispatchFallbacks": 0,
+        "uncoveredObligations": 0,
+        "deepenings": 0,
+        "rootRemediations": 0,
+        "landingReasons": []
+      },
+      "artifactManifest": {
+        "version": 1,
+        "source": "workspace",
+        "delivery": "text",
+        "files": [],
+        "totalBytes": 0
+      },
+      "artifactManifestHash": "03db27aa58d0289a5d458035f71de2aadd9bbed0ba49d5bf2b1a9da3d5b4e323",
+      "error": null,
+      "createdAt": "2026-10-03T11:43:51.353Z",
+      "startedAt": "2026-10-03T11:43:51.390Z",
+      "endedAt": "2026-10-03T11:44:56.796Z",
+      "updatedAt": "2026-10-03T11:44:56.797Z",
+      "costUsd": 0.0947,
+      "tokens": 41563,
+      "llmCalls": 5,
+      "jevCalls": 3,
+      "jevCallsLowerBound": false,
+      "models": {
+        "l1": {
+          "selection": "sub:openai:gpt-5.6-luna",
+          "provider": "codex-cli",
+          "payer": "host-subscription",
+          "source": "account"
+        },
+        "l2": {
+          "selection": "sub:openai:gpt-5.6-terra",
+          "provider": "codex-cli",
+          "payer": "host-subscription",
+          "source": "account"
+        },
+        "l3": {
+          "selection": "sub:openai:gpt-5.6-sol",
+          "provider": "codex-cli",
+          "payer": "host-subscription",
+          "source": "account"
+        }
+      },
+      "durationS": 65.406,
+      "publication": null
+    }
+  },
+  {
+    "key": "coverage-code",
+    "status": {
+      "projectRunId": "6c40fad5-86ad-4ec0-9a83-a165bcbfd987",
+      "projectId": "3b0a64ec-3989-4d7e-af04-1a0dcc88af3b",
+      "orgId": "d28f40d2-14d7-45c7-bce3-928dcb0041a6",
+      "requestedByPrincipalId": "36bbb732-d581-41e3-b8b5-c39e93fd32b9",
+      "requestKey": "text-review-fixed-code-20261003-v2",
+      "goal": "Analyze this fully specified fictional error-correcting code as a mathematical exercise, directly as text. No tools, files, code or external research. Three data bits (a,b,c) are encoded, left to right, as seven bits (a,b,c,a XOR b,b XOR c,a XOR c,a XOR b XOR c), where XOR is addition modulo 2. List all eight data words and their codewords. Define Hamming distance as the number of differing positions and compute the minimum distance between distinct codewords. For received strings R1=1111100, R2=1110100, R3=0111010, show distances to all eight codewords and the COMPLETE set of nearest data words, identifying whether nearest decoding is unique. Give changed bit positions for any unique correction, using positions 1 through 7 from the left. A technician claims: \"Because the code corrects one flipped bit, nearest decoding is always unique even after two flips; R2 must be data 101.\" Audit both claims using the actual candidate sets. Distinguish a valid unique correction under an at-most-one-flip assumption from a guess when that assumption is absent. Do not break ties arbitrarily or infer probabilities not given.",
+      "title": "Compute codewords, distances, and decode three received strings",
+      "status": "delivered",
+      "bytesExpiredAt": null,
+      "rerunOf": "2ff3b86f-66b2-4b7b-be0a-d5b81bac81e1",
+      "modelOverrides": {
+        "l1": "sub:openai:gpt-5.6-luna",
+        "l2": "sub:openai:gpt-5.6-terra",
+        "l3": "sub:openai:gpt-5.6-sol"
+      },
+      "seed": {
+        "kind": "none"
+      },
+      "traceId": "6c40fad5-86ad-4ec0-9a83-a165bcbfd987",
+      "stats": {
+        "outcome": "delivered",
+        "costUsd": 0.1737,
+        "subscriptionCostUsd": 0.1737,
+        "llmCalls": 10,
+        "opusCalls": 0,
+        "sonnetCalls": 0,
+        "haikuCalls": 0,
+        "otherCalls": 10,
+        "deterministicPhases": 0,
+        "escalations": 0,
+        "learnedSkills": 0,
+        "learnedEventSkills": 0,
+        "promotions": 0,
+        "refusals": 0,
+        "compileErrors": 0,
+        "demotions": 0,
+        "dispatchFallbacks": 0,
+        "uncoveredObligations": 0,
+        "deepenings": 0,
+        "rootRemediations": 0,
+        "landingReasons": []
+      },
+      "artifactManifest": {
+        "version": 1,
+        "source": "workspace",
+        "delivery": "text",
+        "files": [],
+        "totalBytes": 0
+      },
+      "artifactManifestHash": "03db27aa58d0289a5d458035f71de2aadd9bbed0ba49d5bf2b1a9da3d5b4e323",
+      "error": null,
+      "createdAt": "2026-10-03T11:55:55.887Z",
+      "startedAt": "2026-10-03T11:55:55.941Z",
+      "endedAt": "2026-10-03T12:01:39.626Z",
+      "updatedAt": "2026-10-03T12:01:39.631Z",
+      "costUsd": 0.1737,
+      "tokens": 82387,
+      "llmCalls": 10,
+      "jevCalls": 4,
+      "jevCallsLowerBound": false,
+      "models": {
+        "l1": {
+          "selection": "sub:openai:gpt-5.6-luna",
+          "provider": "codex-cli",
+          "payer": "host-subscription",
+          "source": "run"
+        },
+        "l2": {
+          "selection": "sub:openai:gpt-5.6-terra",
+          "provider": "codex-cli",
+          "payer": "host-subscription",
+          "source": "run"
+        },
+        "l3": {
+          "selection": "sub:openai:gpt-5.6-sol",
+          "provider": "codex-cli",
+          "payer": "host-subscription",
+          "source": "run"
+        }
+      },
+      "durationS": 343.685,
+      "publication": null
+    }
+  },
+  {
+    "key": "fixed-time",
+    "status": {
+      "projectRunId": "d1de150f-a1f2-4da3-9fe2-d56ce73a3445",
+      "projectId": "6eef0d8f-5e6d-4cda-853a-86a1cf8fc47b",
+      "orgId": "d28f40d2-14d7-45c7-bce3-928dcb0041a6",
+      "requestedByPrincipalId": "36bbb732-d581-41e3-b8b5-c39e93fd32b9",
+      "requestKey": "text-review-timing-20261003-v1",
+      "goal": "Solve this fictional timing-constraint problem directly as text, with no tools, files, code or external research. Event times A,B,C,D,E are integers; time differences are inclusive and events have zero duration. A=0; 2<=B-A<=4; 3<=C-A<=5; 2<=D-B<=3; 1<=D-C<=2; E-D=2; E<=7. List EVERY feasible tuple (A,B,C,D,E), then the tight earliest/latest interval for each event. Provide a witness attaining the minimum E and one attaining the maximum E. Explain why individual feasible intervals do not imply that every combination of values within those intervals is jointly feasible, giving one concrete counterexample. Audit the coordinator's claim \"Because B may be 4 and D may be 4, choosing B=4 and D=4 together is feasible.\" Use only the stated constraints, not scheduling conventions or unstated resource limits.",
+      "title": "Solving a small timing constraint problem",
+      "status": "delivered",
+      "bytesExpiredAt": null,
+      "seed": {
+        "kind": "none"
+      },
+      "traceId": "d1de150f-a1f2-4da3-9fe2-d56ce73a3445",
+      "stats": {
+        "outcome": "delivered",
+        "costUsd": 0.1202,
+        "subscriptionCostUsd": 0.1202,
+        "llmCalls": 8,
+        "opusCalls": 0,
+        "sonnetCalls": 0,
+        "haikuCalls": 0,
+        "otherCalls": 8,
+        "deterministicPhases": 0,
+        "escalations": 0,
+        "learnedSkills": 0,
+        "learnedEventSkills": 0,
+        "promotions": 0,
+        "refusals": 0,
+        "compileErrors": 0,
+        "demotions": 0,
+        "dispatchFallbacks": 0,
+        "uncoveredObligations": 0,
+        "deepenings": 0,
+        "rootRemediations": 0,
+        "landingReasons": []
+      },
+      "artifactManifest": {
+        "version": 1,
+        "source": "workspace",
+        "delivery": "text",
+        "files": [],
+        "totalBytes": 0
+      },
+      "artifactManifestHash": "03db27aa58d0289a5d458035f71de2aadd9bbed0ba49d5bf2b1a9da3d5b4e323",
+      "error": null,
+      "createdAt": "2026-10-03T12:02:29.151Z",
+      "startedAt": "2026-10-03T12:02:29.194Z",
+      "endedAt": "2026-10-03T12:05:21.601Z",
+      "updatedAt": "2026-10-03T12:05:21.602Z",
+      "costUsd": 0.1202,
+      "tokens": 53302,
+      "llmCalls": 8,
+      "jevCalls": 4,
+      "jevCallsLowerBound": false,
+      "models": {
+        "l1": {
+          "selection": "sub:openai:gpt-5.6-luna",
+          "provider": "codex-cli",
+          "payer": "host-subscription",
+          "source": "account"
+        },
+        "l2": {
+          "selection": "sub:openai:gpt-5.6-terra",
+          "provider": "codex-cli",
+          "payer": "host-subscription",
+          "source": "account"
+        },
+        "l3": {
+          "selection": "sub:openai:gpt-5.6-sol",
+          "provider": "codex-cli",
+          "payer": "host-subscription",
+          "source": "account"
+        }
+      },
+      "durationS": 172.407,
+      "publication": null
+    }
+  },
+  {
+    "key": "time-follow",
+    "status": {
+      "projectRunId": "369f13be-0010-4213-b8e8-f19a6570a893",
+      "projectId": "6eef0d8f-5e6d-4cda-853a-86a1cf8fc47b",
+      "orgId": "d28f40d2-14d7-45c7-bce3-928dcb0041a6",
+      "requestedByPrincipalId": "36bbb732-d581-41e3-b8b5-c39e93fd32b9",
+      "requestKey": "new-domains-time-follow-20261003-v1",
+      "goal": "Update this integer event timing problem after changing only the final deadline to E<=5: A=0; 2<=B-A<=4; 3<=C-A<=5; 2<=D-B<=3; 1<=D-C<=2; E-D=2. Events have zero duration and differences are inclusive. Determine feasibility, give a short proof using the stated constraints, and find the smallest replacement upper deadline for E that restores feasibility, with a complete witness tuple (A,B,C,D,E). Return only the changed feasibility result, proof, minimum feasible deadline and witness, directly as text. Do not repeat the former solution table or invent resource constraints. No tools, files, code or external research.",
+      "title": "Deadline change feasibility check for event scheduling",
+      "status": "delivered",
+      "bytesExpiredAt": null,
+      "seed": {
+        "kind": "run",
+        "runId": "d1de150f-a1f2-4da3-9fe2-d56ce73a3445"
+      },
+      "traceId": "369f13be-0010-4213-b8e8-f19a6570a893",
+      "stats": {
+        "outcome": "delivered",
+        "costUsd": 0.0716,
+        "subscriptionCostUsd": 0.0716,
+        "llmCalls": 5,
+        "opusCalls": 0,
+        "sonnetCalls": 0,
+        "haikuCalls": 0,
+        "otherCalls": 5,
+        "deterministicPhases": 0,
+        "escalations": 0,
+        "learnedSkills": 0,
+        "learnedEventSkills": 0,
+        "promotions": 0,
+        "refusals": 0,
+        "compileErrors": 0,
+        "demotions": 0,
+        "dispatchFallbacks": 0,
+        "uncoveredObligations": 0,
+        "deepenings": 0,
+        "rootRemediations": 0,
+        "landingReasons": []
+      },
+      "artifactManifest": {
+        "version": 1,
+        "source": "workspace",
+        "delivery": "text",
+        "files": [],
+        "totalBytes": 0
+      },
+      "artifactManifestHash": "03db27aa58d0289a5d458035f71de2aadd9bbed0ba49d5bf2b1a9da3d5b4e323",
+      "error": null,
+      "createdAt": "2026-10-03T12:06:16.180Z",
+      "startedAt": "2026-10-03T12:06:16.210Z",
+      "endedAt": "2026-10-03T12:07:23.112Z",
+      "updatedAt": "2026-10-03T12:07:23.114Z",
+      "costUsd": 0.0716,
+      "tokens": 27442,
+      "llmCalls": 5,
+      "jevCalls": 3,
+      "jevCallsLowerBound": false,
+      "models": {
+        "l1": {
+          "selection": "sub:openai:gpt-5.6-luna",
+          "provider": "codex-cli",
+          "payer": "host-subscription",
+          "source": "account"
+        },
+        "l2": {
+          "selection": "sub:openai:gpt-5.6-terra",
+          "provider": "codex-cli",
+          "payer": "host-subscription",
+          "source": "account"
+        },
+        "l3": {
+          "selection": "sub:openai:gpt-5.6-sol",
+          "provider": "codex-cli",
+          "payer": "host-subscription",
+          "source": "account"
+        }
+      },
+      "durationS": 66.902,
+      "publication": null
+    }
+  },
+  {
+    "key": "museum",
+    "status": {
+      "projectRunId": "a3d9b044-e751-4490-9b2f-636ed6d18e90",
+      "projectId": "c31a31a0-77a1-4dc1-a279-3eb64cfe907e",
+      "orgId": "d28f40d2-14d7-45c7-bce3-928dcb0041a6",
+      "requestedByPrincipalId": "36bbb732-d581-41e3-b8b5-c39e93fd32b9",
+      "requestKey": "text-review-museum-20261003-v1",
+      "goal": "Write visitor interpretation for a fictional museum exhibit, directly as text. The entire source record is: object M-17 is a palm-sized wooden bird; maker unknown; found in a school cupboard in 1978; one wing is missing; original paint colour is unknown. Produce exactly two sections titled 'Object label' and 'Audio script'. The object label must contain 45 to 65 words (count whitespace-separated tokens, excluding the heading), suitable for adults with no specialist knowledge. The audio script must be 90 to 120 words by the same rule and include one optional invitation to imagine a sound. Keep observation, documented fact and imagination distinct; do not invent a maker, date of manufacture, original colour, cultural origin or cause of damage. Both pieces should be warm and engaging without treating the missing wing as a tragedy or telling visitors how to feel. No tools, files or external research. No extra explanation or self-review after the two pieces.",
+      "title": "Museum label and audio script for wooden bird",
+      "status": "delivered",
+      "bytesExpiredAt": null,
+      "seed": {
+        "kind": "none"
+      },
+      "traceId": "a3d9b044-e751-4490-9b2f-636ed6d18e90",
+      "stats": {
+        "outcome": "delivered",
+        "costUsd": 0.1248,
+        "subscriptionCostUsd": 0.1248,
+        "llmCalls": 7,
+        "opusCalls": 0,
+        "sonnetCalls": 0,
+        "haikuCalls": 0,
+        "otherCalls": 7,
+        "deterministicPhases": 0,
+        "escalations": 0,
+        "learnedSkills": 0,
+        "learnedEventSkills": 0,
+        "promotions": 0,
+        "refusals": 0,
+        "compileErrors": 0,
+        "demotions": 0,
+        "dispatchFallbacks": 0,
+        "uncoveredObligations": 0,
+        "deepenings": 0,
+        "rootRemediations": 0,
+        "landingReasons": []
+      },
+      "artifactManifest": {
+        "version": 1,
+        "source": "workspace",
+        "delivery": "text",
+        "files": [],
+        "totalBytes": 0
+      },
+      "artifactManifestHash": "03db27aa58d0289a5d458035f71de2aadd9bbed0ba49d5bf2b1a9da3d5b4e323",
+      "error": null,
+      "createdAt": "2026-10-03T12:08:11.711Z",
+      "startedAt": "2026-10-03T12:08:11.734Z",
+      "endedAt": "2026-10-03T12:10:07.647Z",
+      "updatedAt": "2026-10-03T12:10:07.648Z",
+      "costUsd": 0.1248,
+      "tokens": 45944,
+      "llmCalls": 7,
+      "jevCalls": 3,
+      "jevCallsLowerBound": false,
+      "models": {
+        "l1": {
+          "selection": "sub:openai:gpt-5.6-luna",
+          "provider": "codex-cli",
+          "payer": "host-subscription",
+          "source": "account"
+        },
+        "l2": {
+          "selection": "sub:openai:gpt-5.6-terra",
+          "provider": "codex-cli",
+          "payer": "host-subscription",
+          "source": "account"
+        },
+        "l3": {
+          "selection": "sub:openai:gpt-5.6-sol",
+          "provider": "codex-cli",
+          "payer": "host-subscription",
+          "source": "account"
+        }
+      },
+      "durationS": 115.913,
+      "publication": null
+    }
+  },
+  {
+    "key": "museum-follow",
+    "status": {
+      "projectRunId": "fb5a4bcf-7de7-44aa-bfb8-1e1c47c8dc6a",
+      "projectId": "c31a31a0-77a1-4dc1-a279-3eb64cfe907e",
+      "orgId": "d28f40d2-14d7-45c7-bce3-928dcb0041a6",
+      "requestedByPrincipalId": "36bbb732-d581-41e3-b8b5-c39e93fd32b9",
+      "requestKey": "text-history-museum-revision-20261003-v1",
+      "goal": "A newly verified museum record corrects M-17's discovery year to 1981; this replaces the previously supplied 1978. All other source facts and unknowns remain as in the preceding run. Revise ONLY the 'Object label' for visitors, keeping its original 45-to-65 whitespace-separated-word limit excluding the heading and its accessible factual tone. Use the project's preceding record to preserve the other known facts and uncertainties. Return that single titled label, with no audio script, change log, word count or explanation. Do not retain the superseded year or invent how the correction was discovered. No tools, files or external research.",
+      "title": "Relabel M-17 with 1981 discovery year",
+      "status": "delivered",
+      "bytesExpiredAt": null,
+      "seed": {
+        "kind": "run",
+        "runId": "a3d9b044-e751-4490-9b2f-636ed6d18e90"
+      },
+      "traceId": "fb5a4bcf-7de7-44aa-bfb8-1e1c47c8dc6a",
+      "stats": {
+        "outcome": "delivered",
+        "costUsd": 0.1073,
+        "subscriptionCostUsd": 0.1073,
+        "llmCalls": 8,
+        "opusCalls": 0,
+        "sonnetCalls": 0,
+        "haikuCalls": 0,
+        "otherCalls": 8,
+        "deterministicPhases": 0,
+        "escalations": 0,
+        "learnedSkills": 0,
+        "learnedEventSkills": 0,
+        "promotions": 0,
+        "refusals": 0,
+        "compileErrors": 0,
+        "demotions": 0,
+        "dispatchFallbacks": 0,
+        "uncoveredObligations": 0,
+        "deepenings": 0,
+        "rootRemediations": 0,
+        "landingReasons": []
+      },
+      "artifactManifest": {
+        "version": 1,
+        "source": "workspace",
+        "delivery": "text",
+        "files": [],
+        "totalBytes": 0
+      },
+      "artifactManifestHash": "03db27aa58d0289a5d458035f71de2aadd9bbed0ba49d5bf2b1a9da3d5b4e323",
+      "error": null,
+      "createdAt": "2026-10-03T12:11:34.231Z",
+      "startedAt": "2026-10-03T12:11:34.261Z",
+      "endedAt": "2026-10-03T12:13:11.712Z",
+      "updatedAt": "2026-10-03T12:13:11.713Z",
+      "costUsd": 0.1073,
+      "tokens": 53146,
+      "llmCalls": 8,
+      "jevCalls": 3,
+      "jevCallsLowerBound": false,
+      "models": {
+        "l1": {
+          "selection": "sub:openai:gpt-5.6-luna",
+          "provider": "codex-cli",
+          "payer": "host-subscription",
+          "source": "account"
+        },
+        "l2": {
+          "selection": "sub:openai:gpt-5.6-terra",
+          "provider": "codex-cli",
+          "payer": "host-subscription",
+          "source": "account"
+        },
+        "l3": {
+          "selection": "sub:openai:gpt-5.6-sol",
+          "provider": "codex-cli",
+          "payer": "host-subscription",
+          "source": "account"
+        }
+      },
+      "durationS": 97.451,
+      "publication": null
+    }
+  }
+]

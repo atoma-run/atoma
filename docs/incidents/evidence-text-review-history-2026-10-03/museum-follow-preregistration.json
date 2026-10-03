@@ -1,0 +1,13 @@
+{
+  "request": {
+    "projectId": "c31a31a0-77a1-4dc1-a279-3eb64cfe907e",
+    "idempotencyKey": "text-history-museum-revision-20261003-v1",
+    "goal": "A newly verified museum record corrects M-17's discovery year to 1981; this replaces the previously supplied 1978. All other source facts and unknowns remain as in the preceding run. Revise ONLY the 'Object label' for visitors, keeping its original 45-to-65 whitespace-separated-word limit excluding the heading and its accessible factual tone. Use the project's preceding record to preserve the other known facts and uncertainties. Return that single titled label, with no audio script, change log, word count or explanation. Do not retain the superseded year or invent how the correction was discovered. No tools, files or external research.",
+    "acceptanceCriteria": [
+      "Only the Object label is returned, with 45 to 65 whitespace-separated words excluding its heading.",
+      "Discovery year is updated to 1981, with no superseded year or invented explanation of the correction.",
+      "Other source facts and unknowns from the preceding run are preserved without invented provenance."
+    ]
+  },
+  "oracle": "One Object label section, 45..65 whitespace tokens; discovery 1981, never 1978; M-17 palm-sized wooden bird, school cupboard, missing wing, unknown maker/original paint colour. Audio and correction provenance must be absent. This tests current-task scope overriding previous output scope and an explicit new source fact overriding historical text."
+}
