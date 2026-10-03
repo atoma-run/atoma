@@ -338,6 +338,17 @@ describe('what a visitor can read', () => {
     expect(story).toContain(`<meta property="og:url" content="https://atoma.example.com/showcase/${id}">`);
   });
 
+  it('keeps the header within a phone screen', () => {
+    // Measured 2026-10-03: the full header was 481px wide on a 390px phone and
+    // dragged the whole page sideways. On a phone it keeps the brand and the
+    // two ways in, and its links never wrap.
+    const html = renderShowcaseIndex([], null);
+    const phone = [...html.matchAll(/@media \(max-width:640px\)\{([^@]*)\}/g)].map((match) => match[1]).join('');
+    expect(phone).toContain('.brand .pill,nav.top a.secondary{display:none}');
+    expect(html).toContain('<a class="secondary" href="/#feed">Finished work</a>');
+    expect(html).toMatch(/nav\.top a\{[^}]*white-space:nowrap/);
+  });
+
   it('says so when there is nothing to show, and uses plain words', () => {
     const html = renderShowcaseIndex([], null);
     expect(html).toContain('Nothing to show yet');
