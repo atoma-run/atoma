@@ -98,6 +98,7 @@ describe('root tissue selection', () => {
       actor: { name: 'platform-tissue-author', tier: 3 }, params: { effort: 'high' }, signal: ctx.signal });
     expect(authorContext.llm.calls[0]!.tools).toBeUndefined();
     expect(authorContext.llm.calls[0]!.executor).toBeUndefined();
+    expect(authorContext.llm.calls[0]!.systemPrompt).toContain('Treat reusable workflow steps as available methods, not mandatory separate phases.');
     expect(first.systemPrompt).not.toContain(task.description);
     expect(first.systemPrompt).not.toContain(repository.excerpts[0]!.text);
     const builder = seedTissueCatalog({ registry: reg, toolDecls: tools, log: () => {} });

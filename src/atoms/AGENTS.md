@@ -183,7 +183,7 @@ load-bearing.
 - Delegation preserves original task inputs/constraints and preceding phase results.
   Declared reasoning mode disables tools/skills through descendants and fallbacks;
   only its observed-action gate is skipped. [Contract and review](../../docs/incidents/text-delivery-2026-10-02.md).
-
+  Runtime planning keeps the current phase's scope and scales reusable workflows to the task, without a phase-count gate ([review](../../docs/incidents/planning-scope-2026-10-03.md)).
 - `llm-synthesize` merges text without tools; file assembly requires an L1 phase.
 - Aggregation is behavioral: `concat` and `llm-synthesize` dispatch orthogonal
   subtasks in parallel; `sequential` dispatches shared-artifact phases in order

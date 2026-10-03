@@ -1,12 +1,28 @@
 import type { Plan, SubtaskSpec, Task } from '../core/types.js';
 import { REASONING_EXECUTION_GUIDANCE, REASONING_PLAN_GUIDANCE } from '../contracts/taskExecution.js';
 
+/** Runtime policy also applies to reusable methods written before this guidance. */
+export const PLANNING_SCOPE_GUIDANCE = [
+  'Delegate only the current Task: every child task must contribute to its requested outcome.',
+  'originalTask supplies facts and constraints, not permission to perform other phases of the root goal.',
+  'A checklist or analysis phase returns that checklist or analysis; do not replace it with production of the final deliverable.',
+  'Use previousStepResult as completed work to inspect or extend, not a request to regenerate it.',
+].join('\n');
+
+export const PROPORTIONATE_PLANNING_GUIDANCE = [
+  'Treat reusable workflow steps as available methods, not mandatory separate phases.',
+  'Choose the smallest decomposition that preserves the requested deliverables and meaningful verification.',
+  'For a compact, coherent text answer, delegate composition with its checks together; add a separate audit when the constraints or requested independence justify it.',
+  'Do not add separate checklist, revision and finalization phases by habit. Correct defects when found through the existing supervision protocol; do not schedule speculative repair work.',
+  'Keep distinct deliverables, genuine dependencies and necessary independent checks separate. Never reduce work by dropping a requirement or verification.',
+].join('\n');
+
 /** Shared task evidence for model and Jev validation; the current phase remains the scope. */
-export function taskContextLines(task: Task): string[] {
+export function taskContextLines(task: Task, options: { includeAcceptanceChecklist?: boolean } = {}): string[] {
   const inputs = task.inputs ? { ...task.inputs } : undefined;
   if (inputs) {
     // The root checklist is scoped by the caller, never inherited as phase criteria.
-    delete inputs['acceptanceChecklist'];
+    if (!options.includeAcceptanceChecklist) delete inputs['acceptanceChecklist'];
     const original = inputs['originalTask'];
     if (original && typeof original === 'object' && 'inputs' in original && original.inputs && typeof original.inputs === 'object') {
       const originalInputs = { ...original.inputs } as Record<string, unknown>;
