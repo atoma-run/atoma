@@ -15,7 +15,8 @@ import { runDepthTask, MAX_ROOT_REMEDIATIONS, remediationTask } from '../src/run
 import { landingReasons } from '../src/contracts/runLanding.js';
 import type { InheritedChecksReport, ListedCheck } from '../src/contracts/inheritedChecks.js';
 import { snapshotDeliveredWorkspace, snapshotStartingWorkspace } from '../src/run/workspace.js';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { TEXT_VERIFICATION_GUIDANCE } from '../src/contracts/taskExecution.js';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { acceptanceSchema, type AcceptanceInfo, type PhaseCoverageRecord, type TopologyInfo } from '../src/contracts/depthRouting.js';
@@ -66,6 +67,23 @@ async function observe(ctx: RunContext, branch = 'descendant', path = 'index.htm
 }
 
 describe('root delivery coverage', () => {
+  it('reviews the actual text beside a false audit using independent textual-check guidance', async () => {
+    const ctx = makeCtx();
+    const output = readFileSync(new URL('./fixtures/poetry-false-audit.txt', import.meta.url), 'utf8');
+    ctx.llm.enqueue(req => {
+      expect(req.systemPrompt).toContain(TEXT_VERIFICATION_GUIDANCE);
+      expect(req.userContent).toContain('Hearts once lonely learn patient welcome');
+      expect(req.userContent).toContain('Under warm stars, hope steadies quietly');
+      expect(req.userContent).toContain('Stanza endings: thaw, sun, leaves, snow.');
+      return { text: jsonText({ approved: false, reasoning: 'First two stanzas end welcome and quietly, not thaw and sun.', scope: 'ephemeral', modifications: {} }),
+        stopReason: 'end_turn', usage: { inputTokens: 10, outputTokens: 10 } };
+    });
+    const accepted = await acceptRootResult({ actor: new Actor(3, false, []),
+      task: { description: 'Four stanza endings must be thaw, sun, leaves, snow.', executionMode: 'reasoning' },
+      result: { ...result, output, summary: 'All constraints passed.' }, ctx, floor: [], phaseCoverage: [] });
+    expect(accepted).toMatchObject({ approved: false, basis: 'validation-call' });
+    expect(ctx.llm.calls).toHaveLength(1);
+  });
   it('collects descendant evidence only once and carries attempt through nested forks', async () => {
     const ctx = context();
     const beforeFallback = vi.fn();

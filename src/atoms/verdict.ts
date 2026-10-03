@@ -7,6 +7,7 @@ import { BUILTIN_TOOL_NAMES, HOST_TOOL_NAMES } from '../contracts/toolTaxonomy.j
 import { READ_ONLY_TASK_LINE } from '../contracts/readOnlyPhase.js';
 import { taskContextLines } from './taskContext.js';
 import { RECIPE_STEP_LIMITS } from '../skills/events.js';
+import { TEXT_VERIFICATION_GUIDANCE } from '../contracts/taskExecution.js';
 
 /**
  * VERDICT ENGINE — extracted from L2Atom (structural slice 2b).
@@ -27,6 +28,7 @@ import { RECIPE_STEP_LIMITS } from '../skills/events.js';
 export const VALIDATION_SYSTEM_PROMPT = [
   'You validate agent outputs in a three-tier LLM orchestration system.',
   'Your ONLY job: emit a single Verdict JSON. No prose, no markdown, no tool calls.',
+  TEXT_VERIFICATION_GUIDANCE,
   '',
   '== TIERING CONTRACT (do NOT second-guess it) ==',
   'Elements are atomic tool capabilities (file I/O, shell, HTTP, validation).',

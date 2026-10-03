@@ -11,6 +11,7 @@ import { openDb } from '../src/registry/db.js';
 import { makeCtx, jsonText } from './helpers.js';
 import { makeTools } from './helpers/factories.js';
 import type { Task } from '../src/core/types.js';
+import { TEXT_VERIFICATION_GUIDANCE } from '../src/contracts/taskExecution.js';
 
 const seed = { description: 'analysis', systemPrompt: 'Always write an answer file.', tools: makeTools(['write_file']), params: {}, createdBy: 'test' };
 
@@ -47,6 +48,7 @@ describe('reasoning delivery across production delegation', () => {
         expect(req.tools ?? []).toEqual([]);
         expect(req.executor).toBeUndefined();
         expect(req.systemPrompt).toContain('Return one JSON object with the actual answer');
+        expect(req.systemPrompt).toContain(TEXT_VERIFICATION_GUIDANCE);
         if (executions === 1) return { text: 'The exact probability is 22/45.', stopReason: 'end_turn', usage: { inputTokens: 10, outputTokens: 10 } };
         answer = { output: '22/45', summary: 'Posterior mixture computed.' };
       } else {

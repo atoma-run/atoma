@@ -46,3 +46,29 @@ checklists, L3 planning through an older five-phase system prompt, one- and
 four-phase plans without truncation, and actual L3-to-L2-to-L1 sequential
 handoffs carrying original facts and preceding output. The author request is
 also checked for the shared policy. Live replay results will be recorded here.
+
+## First replay: efficiency improved, acceptance was wrong
+
+Revision `78f601b4` passed Linux CI 37084923376 and deployment 37085169702.
+Poetry comparison run `f4735700-ebf5-4b71-bd76-73a49f47df0d` used the original
+goal, criteria and models. Mesophyll chose two phases, not five; 10 calls and
+175.841 seconds, versus 23 and 326.365 seconds. Tissue reuse also removes the
+original author call, so this is not a controlled speedup measurement.
+
+The final artifact FAILED independent checking despite status delivered:
+its actual stanza endings are welcome, quietly, leaves, snow. Its audit
+claims thaw, sun, leaves, snow. Both the independent phase and root validator
+accepted the false audit. All sixteen word counts and the acrostic do pass.
+Evidence is in `evidence-planning-scope-2026-10-03/poetry-first-replay.json`.
+
+The follow-up shares textual verification guidance between reasoning execution
+and the existing verdict system prompt: reconstruct checks from the actual
+body, identify the specified units and positions, and compare observed values
+instead of accepting an attached audit. It adds no poem parser, vocabulary
+heuristic, gate, model call or tool access. Tests retain the exact failed text
+through root acceptance and confirm the guidance reaches both roles; mocked
+tests cannot prove model compliance. A further live replay is required.
+The rule applies to completed text, not planned text: it must not demand
+execution evidence at planning time. Counts and positions follow the user's
+units; an audit requested as the deliverable remains legitimate content.
+Model-reconstructed checks remain fallible claims, not host attestations.
