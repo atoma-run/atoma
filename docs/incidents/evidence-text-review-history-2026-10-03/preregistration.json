@@ -1,0 +1,327 @@
+{
+  "revision": "51c1574e09bd9168a72fc92797a07963238b4b49",
+  "requests": [
+    {
+      "projectId": "3b0a64ec-3989-4d7e-af04-1a0dcc88af3b",
+      "rerunOf": "2ff3b86f-66b2-4b7b-be0a-d5b81bac81e1",
+      "models": {
+        "l1": "sub:openai:gpt-5.6-luna",
+        "l2": "sub:openai:gpt-5.6-terra",
+        "l3": "sub:openai:gpt-5.6-sol"
+      },
+      "idempotencyKey": "text-review-fixed-code-20261003-v1"
+    },
+    {
+      "projectId": "3b0a64ec-3989-4d7e-af04-1a0dcc88af3b",
+      "idempotencyKey": "text-history-code-20261003-v1",
+      "goal": "Continue the project's preceding coding exercise and bitwise audit, using the code definition and results already present in this project's run history. Do not assume the audit's claims are authoritative. For the previously defined R3, identify the nearest data word, its codeword, whether any correction is needed, and its distance to the codeword for data 100. Explicitly recompute that last distance by listing the differing positions, and explain whether the preceding calculation of 4 versus an earlier claim of 6 was correct. Use only the existing source definition; if that definition is unavailable, say so rather than inventing it. Return a concise text answer only; no full table, tools, files or external research.",
+      "acceptanceCriteria": [
+        "The answer uses the preceding project's actual code definition and R3 without inventing missing data.",
+        "The nearest data word, codeword, correction status and disputed distance are correct with differing-position evidence.",
+        "The answer distinguishes source facts from previous answers and stays scoped to R3."
+      ]
+    },
+    {
+      "projectId": "6eef0d8f-5e6d-4cda-853a-86a1cf8fc47b",
+      "idempotencyKey": "text-review-timing-20261003-v1",
+      "goal": "Solve this fictional timing-constraint problem directly as text, with no tools, files, code or external research. Event times A,B,C,D,E are integers; time differences are inclusive and events have zero duration. A=0; 2<=B-A<=4; 3<=C-A<=5; 2<=D-B<=3; 1<=D-C<=2; E-D=2; E<=7. List EVERY feasible tuple (A,B,C,D,E), then the tight earliest/latest interval for each event. Provide a witness attaining the minimum E and one attaining the maximum E. Explain why individual feasible intervals do not imply that every combination of values within those intervals is jointly feasible, giving one concrete counterexample. Audit the coordinator's claim \"Because B may be 4 and D may be 4, choosing B=4 and D=4 together is feasible.\" Use only the stated constraints, not scheduling conventions or unstated resource limits.",
+      "acceptanceCriteria": [
+        "All feasible integer tuples are enumerated, with no invalid tuples or omissions.",
+        "Tight event intervals and witnesses for minimum and maximum E are correct.",
+        "The coordinator's claim and independence of marginal intervals are audited using the stated constraints."
+      ]
+    },
+    {
+      "projectId": "6eef0d8f-5e6d-4cda-853a-86a1cf8fc47b",
+      "idempotencyKey": "new-domains-time-follow-20261003-v1",
+      "goal": "Update this integer event timing problem after changing only the final deadline to E<=5: A=0; 2<=B-A<=4; 3<=C-A<=5; 2<=D-B<=3; 1<=D-C<=2; E-D=2. Events have zero duration and differences are inclusive. Determine feasibility, give a short proof using the stated constraints, and find the smallest replacement upper deadline for E that restores feasibility, with a complete witness tuple (A,B,C,D,E). Return only the changed feasibility result, proof, minimum feasible deadline and witness, directly as text. Do not repeat the former solution table or invent resource constraints. No tools, files, code or external research.",
+      "acceptanceCriteria": [
+        "Feasibility of the tightened deadline is established with a valid constraint-based proof.",
+        "The smallest feasible replacement deadline and a complete valid witness are supplied.",
+        "The response stays scoped to the deadline change."
+      ]
+    },
+    {
+      "projectId": "3b0a64ec-3989-4d7e-af04-1a0dcc88af3b",
+      "idempotencyKey": "new-domains-code-follow-20261003-v1",
+      "goal": "Update only the decoding of R2=1110100 for the code (a,b,c,a XOR b,b XOR c,a XOR c,a XOR b XOR c). The original nearest data candidates were 101,110,111, all at distance 2. New trusted information: the originally transmitted codeword had bit 4 equal to 1 (positions numbered from the left), and at most two bits were flipped. Identify ALL candidates satisfying both facts, the transmitted codeword if uniquely determined, and the flipped positions. Explain why this additional evidence can resolve the ambiguity but does not justify the technician's earlier unconditional claim that R2 must be data 101. Return a concise text update only; do not repeat the full code table or analyses of R1 and R3. No tools, files, code, or external research.",
+      "acceptanceCriteria": [
+        "All candidates satisfying both the fourth-bit observation and at-most-two-flips bound are considered.",
+        "The unique data, codeword and flipped positions are correct and distinguished from the original ambiguous inference.",
+        "The answer only updates R2 without repeating unrelated analyses."
+      ]
+    }
+  ],
+  "oracles": {
+    "code": {
+      "words": [
+        {
+          "data": "000",
+          "word": "0000000"
+        },
+        {
+          "data": "001",
+          "word": "0010111"
+        },
+        {
+          "data": "010",
+          "word": "0101101"
+        },
+        {
+          "data": "011",
+          "word": "0111010"
+        },
+        {
+          "data": "100",
+          "word": "1001011"
+        },
+        {
+          "data": "101",
+          "word": "1011100"
+        },
+        {
+          "data": "110",
+          "word": "1100110"
+        },
+        {
+          "data": "111",
+          "word": "1110001"
+        }
+      ],
+      "receives": [
+        {
+          "received": "1111100",
+          "min": 1,
+          "nearest": [
+            {
+              "data": "101",
+              "word": "1011100",
+              "distance": 1
+            }
+          ],
+          "distances": [
+            {
+              "data": "000",
+              "word": "0000000",
+              "distance": 5
+            },
+            {
+              "data": "001",
+              "word": "0010111",
+              "distance": 5
+            },
+            {
+              "data": "010",
+              "word": "0101101",
+              "distance": 3
+            },
+            {
+              "data": "011",
+              "word": "0111010",
+              "distance": 3
+            },
+            {
+              "data": "100",
+              "word": "1001011",
+              "distance": 5
+            },
+            {
+              "data": "101",
+              "word": "1011100",
+              "distance": 1
+            },
+            {
+              "data": "110",
+              "word": "1100110",
+              "distance": 3
+            },
+            {
+              "data": "111",
+              "word": "1110001",
+              "distance": 3
+            }
+          ]
+        },
+        {
+          "received": "1110100",
+          "min": 2,
+          "nearest": [
+            {
+              "data": "101",
+              "word": "1011100",
+              "distance": 2
+            },
+            {
+              "data": "110",
+              "word": "1100110",
+              "distance": 2
+            },
+            {
+              "data": "111",
+              "word": "1110001",
+              "distance": 2
+            }
+          ],
+          "distances": [
+            {
+              "data": "000",
+              "word": "0000000",
+              "distance": 4
+            },
+            {
+              "data": "001",
+              "word": "0010111",
+              "distance": 4
+            },
+            {
+              "data": "010",
+              "word": "0101101",
+              "distance": 4
+            },
+            {
+              "data": "011",
+              "word": "0111010",
+              "distance": 4
+            },
+            {
+              "data": "100",
+              "word": "1001011",
+              "distance": 6
+            },
+            {
+              "data": "101",
+              "word": "1011100",
+              "distance": 2
+            },
+            {
+              "data": "110",
+              "word": "1100110",
+              "distance": 2
+            },
+            {
+              "data": "111",
+              "word": "1110001",
+              "distance": 2
+            }
+          ]
+        },
+        {
+          "received": "0111010",
+          "min": 0,
+          "nearest": [
+            {
+              "data": "011",
+              "word": "0111010",
+              "distance": 0
+            }
+          ],
+          "distances": [
+            {
+              "data": "000",
+              "word": "0000000",
+              "distance": 4
+            },
+            {
+              "data": "001",
+              "word": "0010111",
+              "distance": 4
+            },
+            {
+              "data": "010",
+              "word": "0101101",
+              "distance": 4
+            },
+            {
+              "data": "011",
+              "word": "0111010",
+              "distance": 0
+            },
+            {
+              "data": "100",
+              "word": "1001011",
+              "distance": 4
+            },
+            {
+              "data": "101",
+              "word": "1011100",
+              "distance": 4
+            },
+            {
+              "data": "110",
+              "word": "1100110",
+              "distance": 4
+            },
+            {
+              "data": "111",
+              "word": "1110001",
+              "distance": 4
+            }
+          ]
+        }
+      ],
+      "minDistance": 4
+    },
+    "timing": {
+      "solutions": [
+        {
+          "A": 0,
+          "B": 2,
+          "C": 3,
+          "D": 4,
+          "E": 6
+        },
+        {
+          "A": 0,
+          "B": 2,
+          "C": 3,
+          "D": 5,
+          "E": 7
+        },
+        {
+          "A": 0,
+          "B": 2,
+          "C": 4,
+          "D": 5,
+          "E": 7
+        },
+        {
+          "A": 0,
+          "B": 3,
+          "C": 3,
+          "D": 5,
+          "E": 7
+        },
+        {
+          "A": 0,
+          "B": 3,
+          "C": 4,
+          "D": 5,
+          "E": 7
+        }
+      ],
+      "intervals": {
+        "A": [
+          0,
+          0
+        ],
+        "B": [
+          2,
+          3
+        ],
+        "C": [
+          3,
+          4
+        ],
+        "D": [
+          4,
+          5
+        ],
+        "E": [
+          6,
+          7
+        ]
+      }
+    }
+  },
+  "stop": "Analyze every run to completion. Stop unrelated experiments at a real runtime or false-approval defect; preserve evidence and diagnose before resuming."
+}

@@ -1,0 +1,13 @@
+{
+  "request": {
+    "projectId": "c31a31a0-77a1-4dc1-a279-3eb64cfe907e",
+    "goal": "Write visitor interpretation for a fictional museum exhibit, directly as text. The entire source record is: object M-17 is a palm-sized wooden bird; maker unknown; found in a school cupboard in 1978; one wing is missing; original paint colour is unknown. Produce exactly two sections titled 'Object label' and 'Audio script'. The object label must contain 45 to 65 words (count whitespace-separated tokens, excluding the heading), suitable for adults with no specialist knowledge. The audio script must be 90 to 120 words by the same rule and include one optional invitation to imagine a sound. Keep observation, documented fact and imagination distinct; do not invent a maker, date of manufacture, original colour, cultural origin or cause of damage. Both pieces should be warm and engaging without treating the missing wing as a tragedy or telling visitors how to feel. No tools, files or external research. No extra explanation or self-review after the two pieces.",
+    "idempotencyKey": "text-review-museum-20261003-v1",
+    "acceptanceCriteria": [
+      "Exactly two requested sections satisfy their respective whitespace-based word-count ranges.",
+      "All factual claims are supported by the source record, and imagination is explicitly optional.",
+      "The language is accessible, warm and non-prescriptive, with no invented provenance or cause of damage."
+    ]
+  },
+  "scoring": "Count whitespace-separated words per section after removing only heading syntax. Inspect every factual claim against the closed source record. Creative variation is allowed; there is no mandatory wording. A missing wing does not establish a cause or emotional interpretation."
+}

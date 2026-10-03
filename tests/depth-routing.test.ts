@@ -144,6 +144,8 @@ describe('one common root acceptance, independent of phase credit', () => {
       expect(req.userContent).toContain('Positions 1,2,3,7: count 4');
       expect(req.userContent).toContain('NOT ground-truth evidence');
       expect(req.userContent).toContain('Check omitted requirements');
+      expect(req.userContent).toContain('A passage in the task, summary, historical answer or independent reference is NOT a passage in the deliverable');
+      expect(req.userContent).toContain('even when every listed acceptance criterion is met');
       return { text: jsonText({ approved: false, reasoning: 'Distance is 4; definition missing.', criteria: [{ id: 'c1', met: false }] }), stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } };
     });
     const accepted = await acceptRootResult({ actor: new Actor(3), task: codingTask,
@@ -152,6 +154,24 @@ describe('one common root acceptance, independent of phase credit', () => {
       checklistOrigin: { source: 'user' } });
     expect(accepted.approved).toBe(false);
     expect(ctx.llm.calls).toHaveLength(2);
+  });
+
+  it('keeps a text completeness refusal even when the narrower user checklist is satisfied', async () => {
+    const ctx = context();
+    ctx.llm.enqueueText('Required: define the measure, then calculate. Expected count: 4.');
+    ctx.llm.enqueue(req => {
+      expect(req.userContent.lastIndexOf('FINAL ROOT TEXT REVIEW')).toBeGreaterThan(req.userContent.lastIndexOf('INDEPENDENT TEXT REFERENCE'));
+      expect(req.userContent).toContain('Required: define the measure');
+      return { text: jsonText({ approved: false, reasoning: 'Calculation is correct; the requested definition is absent from the delivered output.',
+        scope: 'ephemeral', modifications: { additionalContext: 'Add the requested definition; preserve the correct calculation.' },
+        criteria: [{ id: 'c1', met: true, reason: 'Four differing positions are correctly counted.' }] }),
+      stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } };
+    });
+    const accepted = await acceptRootResult({ actor: new Actor(3), task: { description: 'Define the distance measure and calculate the distance.' },
+      result: { ...result, output: 'The differing positions are 1, 2, 3, 7; distance 4.' }, delivery: 'text', ctx, floor: [], phaseCoverage: [],
+      checklist: [{ id: 'c1', behaviour: 'Correct distance', check: { kind: 'review' } }], checklistOrigin: { source: 'user' } });
+    expect(accepted.approved).toBe(false);
+    expect(accepted.reasoning).toContain('definition is absent');
   });
 
   it.each(['text', 'files', undefined] as const)('routes the recorded %s delivery to the configured review tier', async (delivery) => {

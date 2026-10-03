@@ -71,6 +71,16 @@ molecules without rewriting their persisted prompts.
 
 ## Validation
 
-Pending targeted tests, both TypeScript configurations, release checks and
-production replays of the complete coding problem and a context-dependent
-follow-up. No production success is claimed from these source changes alone.
+One hundred targeted tests passed, including the child-process context
+transport, missing historical trace, comparison lineage, blinded reference,
+wrong/truncated reference and short/deep routing cases. Both TypeScript
+configurations, ESLint and `release:check:static` passed locally in an isolated
+checkout after `npm ci`. The full Linux CI also passed for commit `51c1574e`
+(run `37119350290`), including the complete test suite, release build, fresh
+worker image and mender credential isolation. That revision was then pushed
+to main for deployment.
+
+Production replays remain distinct from these checks: mocked tests establish
+isolation and transport, not mathematical intelligence. The preregistered
+replay and follow-up requests are in
+`incidents/evidence-text-review-history-2026-10-03/preregistration.json`.

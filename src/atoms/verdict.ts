@@ -9,6 +9,7 @@ import { taskContextLines } from './taskContext.js';
 import { RECIPE_STEP_LIMITS } from '../skills/events.js';
 import { TEXT_VERIFICATION_GUIDANCE } from '../contracts/taskExecution.js';
 import { renderTextLayouts } from './textLayout.js';
+import { ROOT_TEXT_REVIEW_REQUEST } from './textReview.js';
 
 /**
  * VERDICT ENGINE — extracted from L2Atom (structural slice 2b).
@@ -923,6 +924,7 @@ export async function llmVerdict(args: {
     args.activeSkill && args.subject === 'RESULT'
       ? renderActiveSkillBlock(args.activeSkill)
       : '',
+    args.independentTextReference !== undefined ? ROOT_TEXT_REVIEW_REQUEST : '',
   ]
     .filter(Boolean)
     .join('\n');
