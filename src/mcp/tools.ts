@@ -13,6 +13,7 @@ import type { RetrievalCampaignStart } from '../cli/retrievalCampaignHost.js';
 import type { AuthStore, Viewer } from '../auth/store.js';
 import { platformEventKindSchema, PLATFORM_EVENT_FAMILIES } from '../contracts/platformEvents.js';
 import { SUPPORTED_LOCALES } from '../contracts/locales.js';
+import { createProjectInputSchema } from '../contracts/projects.js';
 import type { LedgerEventKind } from '../core/ledger.js';
 import type { PlatformEventLog } from '../platform/events.js';
 import type { PreviewHttpService } from '../preview/httpService.js';
@@ -387,6 +388,23 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
       ),
   },
   {
+    name: 'atoma_github_installations',
+    tier: 'viewer',
+    needs: ['projects'],
+    register: (server, ctx) =>
+      server.registerTool(
+        'atoma_github_installations',
+        {
+          title: 'List GitHub installations',
+          description:
+            'The GitHub App installations linked to your organisation: installationId, account, status and repository selection — what atoma_project_create binds a project to. Connecting one is an organisation admin’s step in the web console.',
+          annotations: READ_ONLY,
+        },
+        // A second door onto the console's reader (GET /api/github/installations).
+        () => guarded(() => ({ installations: tenant(ctx).service.listInstallations(ctx.viewer()) }))
+      ),
+  },
+  {
     name: 'atoma_project_runs',
     tier: 'viewer',
     needs: ['projects'],
@@ -542,8 +560,8 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
         {
           title: 'Create a project',
           description:
-            'Create a project in your organisation, bound to a GitHub installation linked to it (atoma_projects_list shows the installations through the web console). The payload shape is the console’s: name, slug, repositoryTarget { installationId, owner, name, visibility }.',
-          inputSchema: { project: z.record(z.string(), z.unknown()).describe('createProjectInput, as the web console sends it.') },
+            'Create a project in your organisation, bound to one of its active GitHub installations (atoma_github_installations lists them; an organisation admin connects one in the web console). The repository it publishes to is created on the first delivery; visibility defaults to private, and public cannot be undone.',
+          inputSchema: { project: createProjectInputSchema },
           annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
         },
         (args) => guarded(() => tenant(ctx).service.createProjectFromInput(ctx.viewer(), args.project))

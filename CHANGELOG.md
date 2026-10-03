@@ -74,6 +74,15 @@ before launch, incomplete runs kept and explained, and comparison reruns.
 
 ### Changed
 
+- MCP, for registered clients: `atoma_github_installations` (viewer) lists the
+  organisation's GitHub installations, and `atoma_project_create` takes the
+  console's typed schema instead of an untyped record, so a first project can
+  be created over MCP. A re-sent identical `atoma_run_start` re-attaches to the
+  caller's live run whatever its key, and refusals caused by that run name it.
+  Server instructions are per role and fit the hosts' 2,048-character cut; the
+  `atoma_goal` prompt hands the start back to the person; output schemas are
+  open; the four catalogue writes ask the person in Claude Code. Settings gives
+  Codex `tool_timeout_sec = 10800`, without which it cuts a run start at 300 s.
 - The run family is gone: the root agent chosen from the request IS the kind of
   work, so nothing selects a family any more. Removed, a compatibility change
   for registered MCP clients: the `atoma_families` tool, the `atoma://families`
@@ -91,6 +100,14 @@ before launch, incomplete runs kept and explained, and comparison reruns.
 
 ### Fixed
 
+- Claude subscription runs no longer load the login's claude.ai connectors
+  (every query passes strictMcpConfig), and their element schemas reach the
+  model verbatim. MCP 2026-07-28: every call streams keepalives, a cancel of an
+  ended task is acknowledged, Mcp-Name is checked on task requests, a waiting
+  start reads the run row instead of re-parsing its trace, resources/list
+  names the newest runs, and the compiled release smoke covers the era.
+  OAuth: frozen endpoints answer temporarily_unavailable, registrations follow
+  their grants and refusals use RFC 7591 codes.
 - Jev approval questions include task constraints and scoped proof obligations;
   model fallback caching is bound to the decision policy and candidate bodies.
   Recipe twin comparisons cover the catalogue in bounded batches. Cost reports

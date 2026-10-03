@@ -348,7 +348,7 @@ describe('the catalogue by tier', () => {
     // The viewer ladder: the organisation's own readers plus the two platform
     // commons the viz shows every signed-in role — registry and skill catalog.
     expect(asViewer).toEqual([
-      'atoma_projects_list', 'atoma_project_runs', 'atoma_run_status', 'atoma_run_trace', 'atoma_run_preview',
+      'atoma_projects_list', 'atoma_github_installations', 'atoma_project_runs', 'atoma_run_status', 'atoma_run_trace', 'atoma_run_preview',
       'atoma_registry_list', 'atoma_registry_show', 'atoma_skills_list', 'atoma_registry_history', 'atoma_skills_show',
     ]);
     // Each rung adds exactly its own rows (the table interleaves the tiers).

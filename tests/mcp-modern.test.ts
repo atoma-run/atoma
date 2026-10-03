@@ -128,6 +128,28 @@ describe('the 2026-07-28 era', () => {
     }
   });
 
+  it('lets a member create a first project over MCP: the installations reader and a typed create schema', async () => {
+    const installations = [{ installationId: '123', accountLogin: 'acme', targetType: 'Organization', status: 'active', repositorySelection: 'all' }];
+    const member: McpCaller = { kind: 'principal', viewer: viewer('org:member'), tokenId: 'm' };
+    const { url } = await listen(() => member, {
+      ...NO_TENANT, operatorRuns: false, auth: {} as never,
+      projects: { service: { listInstallations: () => installations } as never, store: {} as never },
+    });
+    const client = await modernClient(url);
+    try {
+      const listed = await client.callTool({ name: 'atoma_github_installations', arguments: {} });
+      expect(listed.isError).not.toBe(true);
+      expect(listed.structuredContent).toEqual({ installations });
+      // The create input is the console's schema, visible to the model, not an untyped record.
+      const create = (await client.listTools()).tools.find((tool) => tool.name === 'atoma_project_create')!;
+      const project = (create.inputSchema.properties as Record<string, { properties?: Record<string, unknown>; required?: string[] }>)['project']!;
+      expect(Object.keys(project.properties ?? {})).toEqual(expect.arrayContaining(['name', 'slug', 'repositoryTarget']));
+      expect(project.required).toEqual(expect.arrayContaining(['name', 'slug', 'repositoryTarget']));
+    } finally {
+      await client.close();
+    }
+  });
+
   it('marks the four irreversible catalogue writes for a person, and never claims an open world for a local write', async () => {
     const { url } = await listen(() => ({ kind: 'operator' }), NO_TENANT);
     const client = await modernClient(url);
