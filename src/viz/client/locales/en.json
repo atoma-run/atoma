@@ -117,7 +117,7 @@
   "launch.empty": "Type a goal to get the command.",
   "welcome.continue": "Continue",
   "welcome.version": "v{{version}}",
-  "welcome.tagline": "An agent platform that pays the frontier model once per task, not once per step.",
+  "welcome.tagline": "Atoma — Watch a request turn into finished work",
   "welcome.turn": "Turn",
   "welcome.turnLive": "Live",
   "welcome.bead": "Bead",
