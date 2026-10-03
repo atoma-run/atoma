@@ -132,8 +132,22 @@ export class McpOAuth {
     try {
       if (path === '/oauth/register') {
         if (!req.headers['content-type']?.startsWith('application/json')) throw new Error('JSON required');
-        const input = registrationSchema.parse(JSON.parse(await body(req)));
-        const client = auth.mcpOAuth.register(input.client_name, input.redirect_uris);
+        // RFC 7591 §3.2.2 names what was wrong, so a client can say so: a
+        // refused redirect URI, other refused metadata, or a full table.
+        const parsed = registrationSchema.safeParse(JSON.parse(await body(req)));
+        if (!parsed.success) {
+          const redirect = parsed.error.issues.some((issue) => issue.path[0] === 'redirect_uris');
+          json(res, 400, { error: redirect ? 'invalid_redirect_uri' : 'invalid_client_metadata' }); return true;
+        }
+        const input = parsed.data;
+        let client: ReturnType<typeof auth.mcpOAuth.register>;
+        try {
+          client = auth.mcpOAuth.register(input.client_name, input.redirect_uris);
+        } catch (error) {
+          if (!/capacity reached/.test((error as Error).message)) throw error;
+          res.setHeader('retry-after', '3600');
+          json(res, 503, { error: 'temporarily_unavailable', error_description: 'client registration capacity reached' }); return true;
+        }
         json(res, 201, { ...input, ...client, client_id_issued_at: Math.floor(Date.now() / 1000) });
       } else if (path === '/oauth/authorize') {
         await this.authorize(req, res, url);
@@ -286,7 +300,7 @@ export class McpOAuth {
 <h1>Connect to Atoma</h1><p><strong>${escape(client.client_name)}</strong> wants access to your Atoma account.</p>${consentClientNotice(client.client_id, pending.redirectUri)}
 <dl><dt>Account</dt><dd>${escape(viewer.displayName)}</dd>${auth.listLoginIdentities(viewer.principalId).map(identity => `<dt>${escape(identity.provider)} account</dt><dd>${escape(identity.email ?? identity.subject)}</dd>`).join('')}
 <dt>Organisation</dt><dd>${escape(viewer.orgName)}</dd><dt>Role</dt><dd>${escape(viewer.role.replace('org:', ''))}${viewer.platformAdmin ? ' · Platform administrator' : ''}</dd></dl>
-<p>${viewer.role === 'org:viewer' && !viewer.platformAdmin ? 'This connection can read the information available to your account. It cannot start runs.' : 'This connection can use your current MCP permissions, including starting runs and consuming the configured AI provider quota.'}${viewer.platformAdmin ? ' Your platform administrator access is included.' : ''}</p>
+<p>${viewer.role === 'org:viewer' && !viewer.platformAdmin ? 'This connection can read the information available to your account; with your current role it cannot start runs.' : 'This connection can use your current MCP permissions, including starting runs and consuming the configured AI provider quota.'}${viewer.platformAdmin ? ' Your platform administrator access is included.' : ''} It acts with your role at each request: if your role changes, what it may do changes with it.</p>
 <p>Client names are supplied by the application. Continue only if you started this connection.</p>
 <p>Return address: <code>${escape(pending.redirectUri)}</code></p><p>You can revoke this connection in Settings → MCP access.</p>
 <form method="post" action="/oauth/authorize"><input type="hidden" name="request" value="${id}"><button name="decision" value="allow">Allow access</button><button name="decision" value="deny">Cancel</button><button name="decision" value="switch">Use another account</button></form>

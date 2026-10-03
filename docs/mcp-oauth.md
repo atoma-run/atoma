@@ -118,7 +118,7 @@ recorded run context. See [Jev's evaluation boundary](how-it-works.md#jev-bounde
   URL whole (a domain alone would vouch for anyone publishing on a shared
   host) and warns when the connection returns to loopback.
 - `/oauth/register`: bounded RFC 7591 public-client registration, HTTPS or HTTP
-  loopback redirects, no wildcard matching. Registration lasts 90 days.
+  loopback redirects, no wildcard matching. Registration lasts 90 days, and at least as long as a grant it received can be renewed; refusals use RFC 7591 codes (`invalid_redirect_uri`, `invalid_client_metadata`).
   Deprecated by the 2026-07-28 spec and kept for the clients that use it
   (Codex among them).
 - `/oauth/authorize`: code flow only, exact registered redirect except for the
@@ -139,7 +139,7 @@ origin, never forwarded request headers. Browser consent sends no cross-origin r
 cannot be framed. Its form policy permits the registered callback origin so a
 desktop client's separate loopback port can receive the consent redirect.
 Protocol bodies, registrations, pending requests and public
-request rates are bounded. Stateful authorization GETs observe deployment drain.
+request rates are bounded. Stateful authorization GETs observe deployment drain; a frozen OAuth endpoint answers 503 `temporarily_unavailable` with `Retry-After`.
 
 ## Persistence and verification
 

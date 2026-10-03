@@ -130,6 +130,11 @@ export class McpOAuthStore {
       this.db.prepare('INSERT INTO auth_mcp_grants VALUES (?, ?, ?, ?, ?)')
         .run(minted.tokenId, input.clientId, input.resource, this.now() + MCP_ACCESS_TTL_MS, this.now() + MCP_REFRESH_TTL_MS);
       this.db.prepare('UPDATE auth_mcp_codes SET token_id = ? WHERE code_hash = ?').run(minted.tokenId, row.code_hash);
+      // A registered client lives at least as long as a grant it received
+      // can be renewed, as a metadata client does: its registration expiring
+      // (90 days) under a live grant forced a re-registration and consent.
+      this.db.prepare('UPDATE auth_mcp_clients SET expires_at = MAX(expires_at, ?) WHERE client_id = ?')
+        .run(this.now() + MCP_REFRESH_TTL_MS + MCP_CODE_TTL_MS, input.clientId);
       return { ...this.tokens(minted.tokenId, minted.token), principalId: row.principal_id, orgId: row.org_id };
     })();
   }

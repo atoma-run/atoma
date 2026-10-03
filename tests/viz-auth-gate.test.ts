@@ -1052,6 +1052,14 @@ describe('viz auth gate (process level)', () => {
     expect((await fetch(`${base}/api/tokens`, {
       method: 'POST', headers: { ...cookie, origin: base, 'content-type': 'application/json' }, body: JSON.stringify({ label: 'during freeze' }),
     })).status).toBe(503);
+    // An OAuth endpoint refuses in RFC 6749's words, so a client retries
+    // its refresh instead of falling back to an interactive authorization.
+    const frozenToken = await fetch(`${base}/oauth/token`, {
+      method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'grant_type=refresh_token&refresh_token=x',
+    });
+    expect(frozenToken.status).toBe(503);
+    expect(frozenToken.headers.get('retry-after')).toBe('30');
+    expect(await frozenToken.json()).toMatchObject({ error: 'temporarily_unavailable' });
     rmSync(deployLock);
     const revoked = await fetch(`${base}/api/tokens/${token.tokenId}`, { method: 'DELETE', headers: { ...cookie, origin: base } });
     expect(revoked.status).toBe(200);

@@ -311,9 +311,15 @@ describe('MCP OAuth over HTTP', () => {
 
   it('rejects unsafe redirects, duplicate parameters, plain PKCE, unregistered redirects and foreign resources', async () => {
     for (const uri of ['http://evil.example/cb', 'javascript:alert(1)', 'https://user:pass@example.com/cb', 'https://example.com/cb#fragment']) {
-      expect((await fetch(`${base}/oauth/register`, { method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ redirect_uris: [uri] }) })).status).toBe(400);
+      const refused = await fetch(`${base}/oauth/register`, { method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ redirect_uris: [uri] }) });
+      expect(refused.status).toBe(400);
+      // RFC 7591 §3.2.2 names the refused field.
+      expect(await refused.json()).toEqual({ error: 'invalid_redirect_uri' });
     }
+    const badMetadata = await fetch(`${base}/oauth/register`, { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ redirect_uris: ['http://127.0.0.1:9/cb'], token_endpoint_auth_method: 'client_secret_basic' }) });
+    expect(await badMetadata.json()).toEqual({ error: 'invalid_client_metadata' });
     const clientId = await register();
     for (const invalid of ([{ code_challenge_method: 'plain' }, { redirect_uri: 'http://127.0.0.1:123/other' }, { resource: 'https://other.example/mcp' }] as Record<string, string>[])) {
       const r = await consent(clientId, invalid);
@@ -356,8 +362,14 @@ describe('MCP OAuth over HTTP', () => {
   });
 
   it('persists only credential hashes and enforces absolute renewal expiry after reopening the store', async () => {
-    const clientId = await register(); const authCode = await code(clientId);
+    const clientId = await register();
+    // A registration about to expire under a grant it receives now lives at
+    // least as long as that grant can be renewed.
+    db.prepare('UPDATE auth_mcp_clients SET expires_at = ? WHERE client_id = ?').run(Date.now() + 24 * 60 * 60 * 1000, clientId);
+    const authCode = await code(clientId);
     const tokens = await (await exchange(clientId, authCode)).json() as Tokens;
+    const registered = db.prepare('SELECT expires_at FROM auth_mcp_clients WHERE client_id = ?').get(clientId) as { expires_at: number };
+    expect(registered.expires_at).toBeGreaterThanOrEqual(Date.now() + 30 * 24 * 60 * 60 * 1000);
     const copy = new Database(db.serialize());
     try {
       const reopened = new AuthStore(copy);

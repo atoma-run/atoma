@@ -2336,7 +2336,13 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
   const frozen = requestWaitsForDeployment(req.method, pathname);
   if (frozen && pathname !== '/mcp') {
     res.setHeader('retry-after', '30');
-    sendJson(res, 503, { error: 'deployment in progress; retry this request shortly' });
+    // An OAuth endpoint answers in RFC 6749's vocabulary: a client parsed the
+    // free-text body as a server_error, and the v1 SDK then fell back to a
+    // fresh interactive authorization, itself frozen. temporarily_unavailable
+    // is retried with the refresh token kept.
+    sendJson(res, 503, pathname.startsWith('/oauth/')
+      ? { error: 'temporarily_unavailable', error_description: 'deployment in progress; retry shortly' }
+      : { error: 'deployment in progress; retry this request shortly' });
     return;
   }
 
