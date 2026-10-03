@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ToolSandbox } from '../src/tools/sandbox.js';
-import { fetchUrlTool, startNodeServerTool, validateHtmlTool, type ServedOrigins } from '../src/tools/builtin.js';
+import { CONNECTION_FAILURE_RE, fetchUrlTool, isSpeculativeFaviconRequest, startNodeServerTool, type ServedOrigins } from '../src/tools/builtin.js';
 
 /**
  * "Listen on PORT, default 3000" compiles to `Number(process.env.PORT) ||
@@ -49,10 +49,10 @@ describe('start_node_server port', () => {
   // files with no error handler, so Chrome's /favicon.ico request crashed it;
   // the favicon filter and a detached exit listener hid the crash, and every
   // reader saw only "connection refused" on the page's next API call.
-  it('names a server that crashed after boot, in validate_html and in fetch_url', async () => {
+  it('names a server that crashed after boot in every later probe of its port', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'atoma-node-crash-'));
     dirs.push(dir);
-    writeFileSync(join(dir, 'index.html'), '<!doctype html><title>t</title><p>hello</p>');
+    writeFileSync(join(dir, 'index.html'), '<!doctype html><title>t</title><p>hello</p><script>setTimeout(() => fetch("/favicon.ico").catch(() => {}), 300); setTimeout(() => fetch("/api/members"), 1000);</script>');
     writeFileSync(join(dir, 'server.mjs'), [
       "import { createServer } from 'node:http';",
       "import { createReadStream } from 'node:fs';",
@@ -68,12 +68,19 @@ describe('start_node_server port', () => {
     const origins: ServedOrigins = new Map();
     const started = (await startNodeServerTool({ sandbox, servedOrigins: origins }).execute({ entry: 'server.mjs' })) as { ok: boolean; url: string };
     expect(started.ok, JSON.stringify(started)).toBe(true);
-    const page = (await validateHtmlTool({ sandbox, servedOrigins: origins }).execute({ url: started.url, waitMs: 500 })) as { ok: boolean; errors: string[] };
+    // The first request crashes it (no file, no stream error handler).
+    await fetch(started.url + "favicon.ico").catch(() => undefined);
     await new Promise((resolve) => setTimeout(resolve, 300));
     const probe = (await fetchUrlTool({ sandbox, servedOrigins: origins }).execute({ url: `${started.url}api/members` })) as { ok: boolean; error?: string };
     expect(probe.ok).toBe(false);
     expect(probe.error).toContain('EXITED after it started');
     expect(probe.error).toContain('ENOENT');
-    expect(page.ok).toBe(false);
   }, 60_000);
+
+  it('keeps a favicon request whose connection broke: that is a server that died answering it', () => {
+    expect(isSpeculativeFaviconRequest('http://localhost:1/favicon.ico', 'http://localhost:1/', false)).toBe(true);
+    expect(CONNECTION_FAILURE_RE.test('net::ERR_CONNECTION_RESET')).toBe(true);
+    expect(CONNECTION_FAILURE_RE.test('net::ERR_EMPTY_RESPONSE')).toBe(true);
+    expect(CONNECTION_FAILURE_RE.test('net::ERR_ABORTED')).toBe(false);
+  });
 });

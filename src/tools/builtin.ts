@@ -2283,7 +2283,9 @@ ${pageRevision}`;
           (r) => !(isSpeculativeFaviconRequest(r.url, url, declaresIcon) && !CONNECTION_FAILURE_RE.test(r.reason))
         );
         const exitNote = servedOriginExitNote(url, opts.servedOrigins);
-        const allErrors = [...pageErrors, ...errors, ...(exitNote ? [exitNote.trim()] : [])];
+        const allErrors = [...pageErrors, ...errors];
+        // Context for a failure, never a failure by itself: a stranger may now answer on the port.
+        if (exitNote && (allErrors.length > 0 || realFailedRequests.length > 0)) allErrors.push(exitNote.trim());
 
         const title = await page.title();
         return {
