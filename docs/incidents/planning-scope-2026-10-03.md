@@ -135,3 +135,57 @@ limits of inference are stated. The alternative grammar remains underspecified:
 it posits an overt first-person agreement marker without choosing its form.
 A scoped clarification request preserves the correct work and asks only for
 the replacement alternative section with an explicit contrasting sentence.
+
+## Literal-observation replay: still a false approval
+
+Revision `07eb0dce` (including `ae233a22`) passed full CI 37087849457 and
+deployment 37088124018. Run `c343e664-8463-4bcd-a0a0-46d8ac63a233`
+replayed the exact failed audit with the original model selectors. It still
+FAILED independent checking: six calls, 96.840 seconds, $0.0799 accounting.
+The full execution and root verdict show the literal welcome/quietly facts
+were present, but both model responses asserted thaw/sun and compliance.
+The L1 plan already embedded that false conclusion. The observations are
+therefore NOT a demonstrated fix or an acceptance guarantee. Their prompt
+overhead remains a cost to evaluate; no universal model upgrade is made here.
+
+A diagnostic comparison, `a4378850-4439-4fa6-8255-4b917bfe586f`, changed
+only the requested L1 selector to `sub:openai:gpt-5.6-terra`, preserving the
+goal, criteria, initial workspace, L2/L3 selectors and release. It correctly
+reported welcome/quietly/leaves/snow, sixteen counts of six, the acrostic,
+both violations and noncompliance (six calls, 75.704 seconds, $0.1331).
+The planner selected Insulin instead of Adrenaline, so this single run does
+not isolate model capability or establish a general policy. The default
+Luna execution/root-review path remains an OPEN false-approval defect.
+No unrelated-domain experiment follows this unresolved defect.
+
+## Scoped clarification result
+
+Run `6d2ec1fd-ba06-4ccb-a931-e47cf779ad07` on `07eb0dce` passed independent
+review: one root phase, seven calls, 112.370 seconds, $0.0798. It returns
+only the replacement section. Hypothetical `ha-` precedes the verb stem for
+first-person singular/plural; other persons have zero agreement. Hypothetical
+`mi` supplies the pronoun, with `mi velm ha-tim` versus primary `mi velm tim`.
+Every observed subject is third person, preserving all eight supplied pairs.
+Invented forms are expressly distinguished from corpus evidence. The first
+submission exceeded the MCP's 4000-character goal limit and was rejected
+before a run; the submitted version retains the corpus and alternative
+section but omits the redundant full analysis. Its actual request is saved
+in the result record. No files or tools were produced by either audit run
+or this clarification.
+
+## Outcome and remaining work
+
+The scope/proportional-planning changes are deployed and exercised: poetry
+five to two root phases, linguistic analysis four to two, and the scoped
+follow-up one. These are small sequential observations, not a benchmark;
+registry reuse/trust and nondeterministic planning also changed between runs.
+The second poem passes its structural checks, with grouped audit counts
+instead of sixteen separate numbered entries. The final linguistic analysis
+and clarification pass their independent checks.
+
+Text acceptance is NOT closed: the cheap reviewer has repeatedly certified
+false endings despite explicit facts. Before new experimental domains, the
+next work is a measured validation policy or evidence-binding design, tested
+on both wrong and correct artifacts; another prompt assurance or a global
+costly-model substitution is not established by this evidence. All failed
+outputs remain in this directory with their original delivered status.
