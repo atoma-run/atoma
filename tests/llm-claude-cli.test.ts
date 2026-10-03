@@ -1,8 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { z } from 'zod';
 import {
   resolveCliModel,
-  jsonSchemaToZodShape,
   cliEffortFor,
   cliThinkingFor,
   subscriptionTransportEnv,
@@ -100,49 +98,6 @@ describe('cliThinkingFor — API-parity thinking gate for the haiku tier', () =>
   });
 });
 
-describe('jsonSchemaToZodShape — builtin tool schema conversion', () => {
-  it('converts the run_shell-style schema (string + array-of-string, partial required)', () => {
-    const shape = jsonSchemaToZodShape({
-      type: 'object',
-      properties: {
-        command: { type: 'string', description: 'Program to invoke' },
-        args: { type: 'array', items: { type: 'string' } },
-      },
-      required: ['command'],
-    });
-    expect(shape['command']!.safeParse('node').success).toBe(true);
-    expect(shape['command']!.safeParse(undefined).success).toBe(false); // required
-    expect(shape['args']!.safeParse(['a', 'b']).success).toBe(true);
-    expect(shape['args']!.safeParse(undefined).success).toBe(true); // optional
-    // Full-object round trip through z.object, as MCP registerTool does.
-    const obj = z.object(shape);
-    expect(obj.safeParse({ command: 'node', args: ['x.js'] }).success).toBe(true);
-    expect(obj.safeParse({ args: ['x.js'] }).success).toBe(false);
-  });
-
-  it('degrades unknown types to permissive schemas instead of crashing', () => {
-    const shape = jsonSchemaToZodShape({
-      type: 'object',
-      properties: {
-        weird: { type: 'null' },
-        nested: { type: 'object' },
-        num: { type: 'integer' },
-        flag: { type: 'boolean' },
-      },
-      required: [],
-    });
-    expect(shape['weird']!.safeParse('anything').success).toBe(true);
-    expect(shape['nested']!.safeParse({ a: 1 }).success).toBe(true);
-    expect(shape['num']!.safeParse(3).success).toBe(true);
-    expect(shape['num']!.safeParse(3.5).success).toBe(false);
-    expect(shape['flag']!.safeParse(true).success).toBe(true);
-  });
-
-  it('handles a schema with no properties (empty shape)', () => {
-    expect(jsonSchemaToZodShape({ type: 'object' })).toEqual({});
-  });
-});
-
 describe('the subscription transport authenticates from its login session alone', () => {
   /**
    * 2026-08-28, D9. Dropping a stale ANTHROPIC_API_KEY used to be tidiness —
@@ -162,10 +117,13 @@ describe('the subscription transport authenticates from its login session alone'
       ANTHROPIC_MODEL: 'something',
       CLAUDE_CODE_USE_BEDROCK: '1',
       CLAUDE_CODE_USE_VERTEX: '1',
+      ENABLE_CLAUDEAI_MCP_SERVERS: 'true',
     });
     expect(Object.keys(env).filter((key) => key.startsWith('ANTHROPIC_'))).toEqual([]);
     expect(env['CLAUDE_CODE_USE_BEDROCK']).toBeUndefined();
     expect(env['CLAUDE_CODE_USE_VERTEX']).toBeUndefined();
+    // The login's claude.ai connectors never load into a run's session.
+    expect(env['ENABLE_CLAUDEAI_MCP_SERVERS']).toBe('false');
     // Everything the subprocess still needs is untouched.
     expect(env['PATH']).toBe('/bin');
     expect(env['HOME']).toBe('/home/op');

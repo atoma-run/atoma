@@ -1,4 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import { defaultBuiltinTools } from '../src/tools/builtin.js';
+import { projectRetrievalDeclaration } from '../src/tools/projectRetrieval.js';
+import { ToolSandbox } from '../src/tools/sandbox.js';
 
 /**
  * SERVED-MODEL + PARTIAL-USAGE contracts of the claude-cli transport
@@ -196,4 +204,64 @@ describe('partialUsage — usage computed from the result message is not discard
       cacheReadInputTokens: 0,
     });
   }, 20000);
+});
+
+describe('isolation and schema fidelity of the in-process element bridge', () => {
+  const success = () => resultOnlyStream({
+    type: 'result', subtype: 'success', result: 'done', usage: { input_tokens: 1, output_tokens: 1 },
+  });
+
+  it('runs EVERY query with strictMcpConfig, tool-less and tool-bearing alike', async () => {
+    queryMock.mockImplementation(success());
+    await new ClaudeCliLlmClient().complete(REQ);
+    await new ClaudeCliLlmClient().complete({
+      ...REQ,
+      tools: [{ name: 'read_file', description: 'read', inputSchema: { type: 'object' } }],
+      executor: { has: () => true, execute: vi.fn(async () => 'x') },
+    });
+    expect(queryMock).toHaveBeenCalledTimes(2);
+    for (const call of queryMock.mock.calls) {
+      expect(call[0].options).toMatchObject({ strictMcpConfig: true, settingSources: [], tools: [] });
+      expect(call[0].options.env).toMatchObject({ ENABLE_CLAUDEAI_MCP_SERVERS: 'false' });
+    }
+  });
+
+  it('serves every element schema verbatim and hands raw arguments to the executor', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'atoma-bridge-'));
+    try {
+      const declarations = [
+        ...defaultBuiltinTools({ sandbox: new ToolSandbox(dir) }).map((t) => t.declaration),
+        projectRetrievalDeclaration,
+      ];
+      const execute = vi.fn(async () => 'ok');
+      const invoked: string[] = [];
+      queryMock.mockImplementation(success());
+      await new ClaudeCliLlmClient().complete({
+        ...REQ,
+        tools: declarations,
+        executor: { has: () => true, execute },
+        onToolInvocation: (info) => invoked.push(info.name),
+      });
+      // The instance the Agent SDK connects to (instance.connect(transport)).
+      const instance = queryMock.mock.calls[0]![0].options.mcpServers.atoma.instance;
+      const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+      await instance.connect(serverSide);
+      const client = new Client({ name: 'bridge-test', version: '1.0.0' });
+      await client.connect(clientSide);
+      const { tools } = await client.listTools();
+      expect(tools.map((t) => t.name)).toEqual(declarations.map((d) => d.name));
+      for (const d of declarations) {
+        expect(tools.find((t) => t.name === d.name)!.inputSchema).toEqual(d.inputSchema);
+      }
+      // A malformed argument the api: path tolerates is no longer refused
+      // before the executor: it reaches it unchanged and is traced.
+      const result = await client.callTool({ name: 'fetch_url', arguments: { url: 'http://127.0.0.1:1/', timeoutMs: '5000' } });
+      expect(result.isError).toBeFalsy();
+      expect(execute).toHaveBeenCalledWith('fetch_url', { url: 'http://127.0.0.1:1/', timeoutMs: '5000' });
+      expect(invoked).toEqual(['fetch_url']);
+      await client.close();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });

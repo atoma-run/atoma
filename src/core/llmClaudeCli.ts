@@ -1,7 +1,7 @@
 import { withPartialUsage } from './metrics.js';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { z } from 'zod';
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { truncateToolResultContent, DEFAULT_MAX_TOOL_ITERATIONS } from './llm.js';
 import { modelSupportsEffort } from './models.js';
 import { PLATFORM_TISSUE_AUTHOR_ENV } from '../contracts/tissueRouting.js';
@@ -42,6 +42,9 @@ import type {
  *     provider keep working.
  *   - `settingSources: []` keeps the subprocess in SDK isolation mode:
  *     no CLAUDE.md, no project/user settings bleed into atom prompts.
+ *     It does NOT keep out the claude.ai connectors of a subscription
+ *     login: `strictMcpConfig: true` on every query (and
+ *     ENABLE_CLAUDEAI_MCP_SERVERS=false in the env) does.
  *   - `systemPrompt` is the atom's own prompt (replaces the Claude Code
  *     preset entirely — no harness prompt overhead).
  *   - Sampling params (`temperature`/`topP`) are not exposed by the CLI
@@ -312,8 +315,14 @@ export class ClaudeCliLlmClient implements LlmClient {
         options: {
           model: served,
           systemPrompt: req.systemPrompt,
-          // SDK isolation: no CLAUDE.md / settings bleed, no built-in tools.
+          // SDK isolation: no CLAUDE.md / settings bleed, no built-in tools,
+          // and no MCP server but the bridge. `settingSources: []` alone does
+          // NOT keep out the claude.ai connectors a subscription login
+          // carries; under bypassPermissions their tools would run outside
+          // req.executor, the sandbox and the trace — for validators too.
+          // The analyst and mender pass the same flag (src/supervisor).
           settingSources: [],
+          strictMcpConfig: true,
           tools: [],
           ...(toolOptions.mcpServers ? { mcpServers: toolOptions.mcpServers } : {}),
           ...(toolOptions.allowedTools ? { allowedTools: toolOptions.allowedTools } : {}),
@@ -322,7 +331,7 @@ export class ClaudeCliLlmClient implements LlmClient {
           allowDangerouslySkipPermissions: true,
           ...(cliEffortFor(req, this.env) ? { effort: cliEffortFor(req, this.env) } : {}),
           ...(cliThinkingFor(req, this.env) ? { thinking: cliThinkingFor(req, this.env) } : {}),
-          ...(resumeSessionId ? { resume: resumeSessionId, strictMcpConfig: true, mcpServers: {}, allowedTools: [] } : {}),
+          ...(resumeSessionId ? { resume: resumeSessionId, mcpServers: {}, allowedTools: [] } : {}),
           maxTurns: resumeSessionId ? 1 : hasTools ? budget : 2,
           abortController: abort,
           // THE LOGIN SESSION, AND NOTHING ELSE. Dropping a stale
@@ -468,6 +477,9 @@ export function subscriptionTransportEnv(source: NodeJS.ProcessEnv): NodeJS.Proc
   delete env['CLAUDE_CODE_USE_BEDROCK'];
   delete env['CLAUDE_CODE_USE_VERTEX'];
   delete env[PLATFORM_TISSUE_AUTHOR_ENV];
+  // Belt and braces beside strictMcpConfig: the CLI's own switch for the
+  // claude.ai connectors of the login, which survives a renamed flag.
+  env['ENABLE_CLAUDEAI_MCP_SERVERS'] = 'false';
   return env;
 }
 
@@ -503,57 +515,71 @@ function buildToolBridge(
   allowedTools: string[];
   toolAliases: Record<string, string>;
 } {
-  const server = new McpServer({ name: 'atoma', version: '1.0.0' });
-  for (const t of tools) {
-    server.registerTool(
-      t.name,
-      {
-        description: t.description,
-        inputSchema: jsonSchemaToZodShape(t.inputSchema),
-      },
-      async (args: Record<string, unknown>) => {
-        const startedAt = Date.now();
-        try {
-          const result = await req.executor!.execute(t.name, args ?? {});
-          notify(req.onToolInvocation, {
-            name: t.name,
-            args: args ?? {},
-            result,
-            durationMs: Date.now() - startedAt,
-            startedAt,
-          });
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: truncateToolResultContent(
-                  typeof result === 'string' ? result : JSON.stringify(result)
-                ),
-              },
-            ],
-          };
-        } catch (err) {
-          const errMsg = (err as Error).message;
-          notify(req.onToolInvocation, {
-            name: t.name,
-            args: args ?? {},
-            error: errMsg,
-            durationMs: Date.now() - startedAt,
-            startedAt,
-          });
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: truncateToolResultContent(`tool "${t.name}" failed: ${errMsg}`),
-              },
-            ],
-            isError: true,
-          };
-        }
-      }
-    );
-  }
+  // Tools are served through LOW-LEVEL handlers, not registerTool: the
+  // model must see each element's JSON Schema byte for byte, exactly as the
+  // api: transports send it (llm.ts), and arguments must reach the executor
+  // unparsed, where the api: path validates them. registerTool would
+  // rebuild the schema through zod (enums, bounds and nested shapes lost;
+  // integer bounds widened to +-2^53) and refuse calls before the executor.
+  // The McpServer wrapper stays: the Agent SDK takes it as `instance`.
+  const server = new McpServer({ name: 'atoma', version: '1.0.0' }, { capabilities: { tools: {} } });
+  const byName = new Map(tools.map((t) => [t.name, t]));
+  server.server.setRequestHandler(ListToolsRequestSchema, () => ({
+    tools: tools.map((t) => ({
+      name: t.name,
+      description: t.description,
+      inputSchema: t.inputSchema as { type: 'object'; [key: string]: unknown },
+    })),
+  }));
+  server.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const t = byName.get(request.params.name);
+    if (!t) {
+      return {
+        content: [{ type: 'text' as const, text: `unknown tool "${request.params.name}"` }],
+        isError: true,
+      };
+    }
+    const args = (request.params.arguments ?? {});
+    const startedAt = Date.now();
+    try {
+      const result = await req.executor!.execute(t.name, args);
+      notify(req.onToolInvocation, {
+        name: t.name,
+        args,
+        result,
+        durationMs: Date.now() - startedAt,
+        startedAt,
+      });
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: truncateToolResultContent(
+              typeof result === 'string' ? result : JSON.stringify(result)
+            ),
+          },
+        ],
+      };
+    } catch (err) {
+      const errMsg = (err as Error).message;
+      notify(req.onToolInvocation, {
+        name: t.name,
+        args,
+        error: errMsg,
+        durationMs: Date.now() - startedAt,
+        startedAt,
+      });
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: truncateToolResultContent(`tool "${t.name}" failed: ${errMsg}`),
+          },
+        ],
+        isError: true,
+      };
+    }
+  });
   const allowedTools = tools.map((t) => `mcp__atoma__${t.name}`);
   const toolAliases = Object.fromEntries(tools.map((t) => [t.name, `mcp__atoma__${t.name}`]));
   return {
@@ -561,53 +587,6 @@ function buildToolBridge(
     allowedTools,
     toolAliases,
   };
-}
-
-/**
- * Convert atoma's flat JSON-Schema tool declarations into a zod3 raw
- * shape for MCP `registerTool`. Handles the shapes the builtin toolbox
- * actually uses (string / number / boolean / array-of-string / object
- * passthrough); anything unrecognised degrades to z.unknown() so a new
- * tool can't crash the bridge. Exported for tests.
- */
-export function jsonSchemaToZodShape(schema: Record<string, unknown>): Record<string, z.ZodTypeAny> {
-  const properties = (schema['properties'] ?? {}) as Record<string, Record<string, unknown>>;
-  const required = new Set(
-    Array.isArray(schema['required']) ? (schema['required'] as string[]) : []
-  );
-  const shape: Record<string, z.ZodTypeAny> = {};
-  for (const [key, prop] of Object.entries(properties)) {
-    let zt: z.ZodTypeAny;
-    switch (prop['type']) {
-      case 'string':
-        zt = z.string();
-        break;
-      case 'number':
-        zt = z.number();
-        break;
-      case 'integer':
-        zt = z.number().int();
-        break;
-      case 'boolean':
-        zt = z.boolean();
-        break;
-      case 'array': {
-        const items = prop['items'] as Record<string, unknown> | undefined;
-        zt = items?.['type'] === 'string' ? z.array(z.string()) : z.array(z.unknown());
-        break;
-      }
-      case 'object':
-        zt = z.record(z.string(), z.unknown());
-        break;
-      default:
-        zt = z.unknown();
-    }
-    const description = prop['description'];
-    if (typeof description === 'string') zt = zt.describe(description);
-    if (!required.has(key)) zt = zt.optional();
-    shape[key] = zt;
-  }
-  return shape;
 }
 
 function notify(

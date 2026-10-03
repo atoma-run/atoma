@@ -77,6 +77,12 @@ Neighbours:
   location and model overrides; a separate platform author cannot inherit
   the customer's ambient login or debug model. Claude strips the internal
   tissue-author credential envelope before spawning, as Codex's allowlist does.
+  Every Claude query passes `strictMcpConfig` and ENABLE_CLAUDEAI_MCP_SERVERS
+  =false: `settingSources: []` does not keep out a subscription login's
+  claude.ai connectors, which bypassPermissions would let run untraced. The
+  in-process bridge serves element schemas verbatim and passes arguments
+  unparsed to the executor, as the api: path does (measured 2026-10-03: the
+  zod bridge widened ports to ±2^53 and dropped enums and nested shapes).
   Project `.claude/settings.json` never grants shell permission; personal grants
   belong in ignored local settings. Codex MCP registration is local too. A
   principal Codex transport receives an allowlisted environment snapshot and a
