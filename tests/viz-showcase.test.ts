@@ -343,7 +343,7 @@ describe('what a visitor can read', () => {
     // dragged the whole page sideways. On a phone it keeps the brand and the
     // two ways in, and its links never wrap.
     const html = renderShowcaseIndex([], null);
-    const phone = /@media \(max-width:640px\)\{([^@]*)\}/.exec(html)?.[1] ?? '';
+    const phone = [...html.matchAll(/@media \(max-width:640px\)\{([^@]*)\}/g)].map((match) => match[1]).join('');
     expect(phone).toContain('.brand .pill,nav.top a.secondary{display:none}');
     expect(html).toContain('<a class="secondary" href="/#feed">Finished work</a>');
     expect(html).toMatch(/nav\.top a\{[^}]*white-space:nowrap/);
