@@ -26,14 +26,22 @@ const FILTER_SCRIPT = `(function(){var bar=document.getElementById('filters');if
 
 const scriptHash = `'sha256-${createHash('sha256').update(FILTER_SCRIPT).digest('base64')}'`;
 
-/** No network, no frames, no forms, and only the one script above. */
+/** No network, no frames, no forms: the filter script above and this site's own crystal module. */
 export const SHOWCASE_SECURITY_HEADERS = {
   'content-security-policy':
-    `default-src 'none'; style-src 'unsafe-inline'; script-src ${scriptHash}; img-src data:; ` +
+    `default-src 'none'; style-src 'unsafe-inline'; script-src 'self' ${scriptHash}; img-src 'self' data: blob:; ` +
     `base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
   'x-content-type-options': 'nosniff',
   'referrer-policy': 'no-referrer',
 } as const;
+
+/** Built files a page may load; `null` when this build has none (tests, a source checkout). */
+export interface ShowcaseAssets {
+  /** `/showcase-assets/atoma-mark.js?v=<hash>`: the real Pixi crystal. */
+  readonly markScript: string | null;
+}
+
+const NO_ASSETS: ShowcaseAssets = { markScript: null };
 
 export function esc(value: unknown): string {
   return String(value)
@@ -112,19 +120,24 @@ nav.top a{color:#c9d4e6;text-decoration:none;font-size:15px;padding:12px 14px;mi
 .btn{display:inline-flex;align-items:center;min-height:48px;padding:0 22px;border-radius:12px;font-weight:700;font-size:16px;text-decoration:none}
 .btn.primary,nav.top a.primary{background:var(--primary);color:#07111f}
 .btn.ghost{border:1px solid #426386;color:var(--text)}
-.hero{position:relative;overflow:hidden;margin-top:-76px;padding:140px 0 72px;background:#050913}
-.aur{position:absolute;border-radius:50%;filter:blur(36px);pointer-events:none}
-.aur.a{left:8%;top:-12%;width:720px;height:520px;background:radial-gradient(closest-side,rgba(14,66,148,.75),transparent);animation:da 22s ease-in-out infinite}
-.aur.b{right:-6%;top:6%;width:680px;height:560px;background:radial-gradient(closest-side,rgba(97,31,184,.55),transparent);animation:db 28s ease-in-out infinite}
-.grid-bg{position:absolute;inset:0;background-image:linear-gradient(rgba(71,133,230,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(71,133,230,.07) 1px,transparent 1px);background-size:56px 56px}
-.hero .in{position:relative;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(460px,100%),1fr));gap:40px;align-items:center}
+.hero{position:relative;overflow:hidden;margin-top:-76px;padding:140px 0 72px;background-color:#050913;background-image:radial-gradient(520px 380px at 30% 18%,rgba(14,66,148,.75),transparent 70%),radial-gradient(500px 420px at 88% 34%,rgba(97,31,184,.55),transparent 70%),linear-gradient(rgba(71,133,230,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(71,133,230,.07) 1px,transparent 1px);background-size:100% 100%,100% 100%,56px 56px,56px 56px;animation:aurora 24s ease-in-out infinite alternate}
+.hero .in{position:relative;z-index:1;isolation:isolate;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(460px,100%),1fr));gap:40px;align-items:center}
 .hero h1{font-size:clamp(42px,6vw,80px);line-height:.98;text-wrap:balance}
 .hero p.lead{font-size:19px;color:#b9c5da;max-width:560px;margin-top:22px;text-wrap:pretty}
 .cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px}
-.stage{position:relative;height:420px;display:flex;align-items:center;justify-content:center;perspective:900px}
-.halo{position:absolute;width:380px;height:380px;border-radius:50%;background:radial-gradient(closest-side,rgba(53,184,240,.35),transparent);animation:glow 2.4s ease-in-out infinite alternate}
+.stage{position:relative;height:420px;display:flex;align-items:center;justify-content:center;background:radial-gradient(closest-side,rgba(53,184,240,.30),transparent)}
+.mark{position:relative;display:inline-block;flex:none}
+.mark>.mark-canvas{position:absolute;inset:0;width:100%!important;height:100%!important}
+.mark.mark-live>:not(.mark-canvas){visibility:hidden}
+.mark-logo{width:40px;height:40px}.mark-logo svg{width:100%;height:100%}
+.mark-hero{width:300px;height:380px}
+.mark-story{width:150px;height:180px}
+.mark-band{width:150px;height:180px}
+.story .titlerow{display:flex;align-items:center;justify-content:space-between;gap:24px}
+.cta-band .row{display:flex;align-items:center;gap:28px}
+@media (max-width:640px){.mark-story,.mark-band{display:none}}
 .crystal{animation:turn 15s ease-in-out infinite;transform-style:preserve-3d}
-.bob{animation:bob 1.8s ease-in-out infinite alternate}
+.bob{animation:bob 1.8s ease-in-out infinite alternate;perspective:900px}
 section.feed{padding:64px 0 88px;background:#0b1424}
 .feedhead{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:28px}
 .feedhead h2{font-size:38px;letter-spacing:-.03em;color:#f8fbff}
@@ -178,12 +191,10 @@ ol.steps span{font-size:14px;color:#b9c5da}
 .flist{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none}
 .flist li{display:flex;justify-content:space-between;gap:12px;padding:8px 12px;border-radius:8px;background:var(--raised);font:13px ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}
 .flist em{font-style:normal;color:#8a99b4;white-space:nowrap}
-@keyframes da{50%{transform:translate(80px,40px) scale(1.15)}}
-@keyframes db{50%{transform:translate(-90px,-30px) scale(.95)}}
+@keyframes aurora{from{background-position:0 0,0 0,0 0,0 0}to{background-position:6% 4%,-5% -3%,0 0,0 0}}
 @keyframes turn{0%,100%{transform:rotateY(-26deg) rotateX(6deg)}50%{transform:rotateY(26deg) rotateX(-4deg)}}
 @keyframes bob{from{transform:translateY(-6px)}to{transform:translateY(6px)}}
-@keyframes glow{from{opacity:.45}to{opacity:.9}}
-@media (prefers-reduced-motion:reduce){.aur,.halo,.crystal,.bob{animation:none}}
+@media (prefers-reduced-motion:reduce){.hero,.crystal,.bob{animation:none}}
 @media (max-width:640px){.act{border-right:0;border-bottom:1px solid #1f3350}.stats{grid-template-columns:1fr}}
 `;
 
@@ -200,7 +211,7 @@ function socialFallback(title: string, description: string, canonical: string | 
     `<meta property="og:title" content="${esc(title)}">`,
     `<meta property="og:description" content="${esc(description)}">`,
     ...(canonical ? [`<meta property="og:url" content="${esc(canonical)}">`] : []),
-  ].join('"""+B+"""n');
+  ].join('\n');
 }
 
 function page(input: {
@@ -212,6 +223,7 @@ function page(input: {
   readonly script?: boolean;
   /** The page served at `/`: it carries the product's social card and structured data. */
   readonly home?: boolean;
+  readonly assets: ShowcaseAssets;
 }): string {
   const canonical = input.origin ? new URL(input.pathname, input.origin).href : null;
   const robots = canonical
@@ -233,21 +245,23 @@ ${input.home && input.origin ? homeSocialMeta(input.origin, { title: input.title
 <body>
 ${input.body}
 ${input.script ? `<script>${FILTER_SCRIPT}</script>` : ''}
+${input.assets.markScript ? `<script type="module" src="${esc(input.assets.markScript)}"></script>` : ''}
 </body>
 </html>
 `;
 }
 
 function header(): string {
-  return `<header class="top"><a class="brand" href="/">${LOGO}<span>Atoma</span><span class="pill">Live showcase</span></a>
+  return `<header class="top"><a class="brand" href="/"><span class="mark mark-logo" data-atoma-mark="logo">${LOGO}</span><span>Atoma</span><span class="pill">Live showcase</span></a>
 <nav class="top" aria-label="Site"><a href="/#feed">Finished work</a><a href="/app">Sign in</a><a class="primary" href="/app">Start your own</a></nav></header>`;
 }
 
 function closing(): string {
-  return `<section class="cta-band"><div class="wrap"><div class="box">
+  return `<section class="cta-band"><div class="wrap"><div class="box"><div class="row">
+<div class="mark mark-band" data-atoma-mark="band">${CRYSTAL}</div><div style="display:flex;flex-direction:column;gap:16px">
 <h2 class="display">Have a request of your own?</h2>
 <p>Describe the outcome you want. Atoma works on it in a private project and gives you the same story: every step, every check, and the finished result.</p>
-<a class="btn primary" style="align-self:flex-start" href="/app">Start your own</a></div></div></section>
+<a class="btn primary" style="align-self:flex-start" href="/app">Start your own</a></div></div></div></div></section>
 <footer class="bottom">atoma.run · Every story on this page is real work, shown as it was delivered.</footer>`;
 }
 
@@ -269,7 +283,11 @@ ${more.length ? `<p class="meta" style="display:block">Then: ${more.map((episode
 </div></a>`;
 }
 
-export function renderShowcaseIndex(entries: readonly ShowcaseEntry[], origin: URL | null): string {
+export function renderShowcaseIndex(
+  entries: readonly ShowcaseEntry[],
+  origin: URL | null,
+  assets: ShowcaseAssets = NO_ASSETS
+): string {
   const counts = new Map<ShowcaseKind, number>(SHOWCASE_KINDS.map((kind) => [kind, 0]));
   for (const entry of entries) counts.set(entry.kind, (counts.get(entry.kind) ?? 0) + 1);
   const chips = [
@@ -280,12 +298,12 @@ export function renderShowcaseIndex(entries: readonly ShowcaseEntry[], origin: U
     ),
   ].join('');
   const body = `${header()}
-<section class="hero"><div class="aur a"></div><div class="aur b"></div><div class="grid-bg"></div>
+<section class="hero">
 <div class="wrap in"><div>
 <h1 class="display">Watch a request turn into finished work.</h1>
 <p class="lead">A drawing, a sound, a report, a data study, a proof, a piece of software. Atoma takes on requests and works on them in the open. Only work that was delivered and passed its checks is shown here.</p>
 <div class="cta"><a class="btn primary" href="#feed">See finished work</a><a class="btn ghost" href="/app">Start your own</a></div></div>
-<div class="stage"><div class="halo"></div><div class="bob"><div class="crystal">${CRYSTAL}</div></div></div></div></section>
+<div class="stage"><div class="mark mark-hero" data-atoma-mark="hero"><div class="bob"><div class="crystal">${CRYSTAL}</div></div></div></div></div></section>
 <section class="feed" id="feed"><div class="wrap">
 <div class="feedhead"><div><h2>Finished and checked</h2><p>Every piece of work here was delivered. Some grew over several requests: each step is shown, and each one kept what already worked.</p></div>
 <div class="chips" id="filters" role="group" aria-label="Filter by kind of work" hidden>${chips}</div></div>
@@ -303,6 +321,7 @@ ${closing()}`;
     body,
     script: true,
     home: true,
+    assets,
   });
 }
 
@@ -343,13 +362,14 @@ ${count > 1 ? `<h2>Step ${index + 1} of ${count}</h2>` : ''}
 export function renderShowcaseEntry(
   entry: ShowcaseEntry,
   answers: ReadonlyMap<string, string | null>,
-  origin: URL | null
+  origin: URL | null,
+  assets: ShowcaseAssets = NO_ASSETS
 ): string {
   const first = entry.episodes[0]!;
   const body = `${header()}
 <main class="story"><div class="wrap">
 <a class="crumb" href="/">← All finished work</a>
-<h1 class="display">${esc(first.title)}</h1>
+<div class="titlerow"><h1 class="display">${esc(first.title)}</h1><div class="mark mark-story" data-atoma-mark="story">${CRYSTAL}</div></div>
 <div class="facts"><span style="color:${KIND_COLOR[entry.kind]}">${esc(KIND_NOUN[entry.kind])}</span><span>${entry.episodes.length > 1 ? `${entry.episodes.length} deliveries` : '1 delivery'}</span><span>${esc(formatDuration(entry.totalDurationS))} in total</span><span>${esc(formatCost(entry.totalCostUsd))} in total</span></div>
 ${entry.episodes.map((episode, index) => episodeSection(episode, index, entry.episodes.length, answers.get(episode.id) ?? null, entry.kind)).join('\n')}
 </div></main>
@@ -360,15 +380,17 @@ ${closing()}`;
     origin,
     pathname: `/showcase/${entry.id}`,
     body,
+    assets,
   });
 }
 
-export function renderShowcaseNotFound(): string {
+export function renderShowcaseNotFound(assets: ShowcaseAssets = NO_ASSETS): string {
   return page({
     title: 'Not found — Atoma',
     description: 'This story is not available.',
     origin: null,
     pathname: '/',
     body: `${header()}<main class="story"><div class="wrap"><a class="crumb" href="/">← All finished work</a><h1 class="display">This story is not available.</h1></div></main>${closing()}`,
+    assets,
   });
 }

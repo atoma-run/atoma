@@ -2,7 +2,7 @@ import { assertPersonalCodexModels, UNAVAILABLE_CODEX_MODELS } from '../contract
 import { openDb, unfoldedRegistryPredicate } from '../registry/db.js';
 import { updateOrgModels } from '../auth/orgModels.js';
 import { createServer, request as httpRequest } from 'node:http';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { basename, extname, relative, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -118,6 +118,7 @@ import {
   renderShowcaseIndex,
   renderShowcaseNotFound,
   SHOWCASE_SECURITY_HEADERS,
+  type ShowcaseAssets,
 } from './showcasePage.js';
 import { GitHubPublisher } from '../projects/publisher.js';
 import { ProjectHttpError, ProjectService, roleAtLeast } from '../projects/service.js';
@@ -1001,6 +1002,7 @@ const SHOWCASE: ShowcaseSource | null =
     ? createShowcaseSource(PROJECTS_RUNTIME.store)
     : null;
 
+
 /**
  * THE PREVIEW RUNTIME, hosted here for the same reason the watch is.
  *
@@ -1465,6 +1467,21 @@ function escapeHtml(s: string): string {
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const CLIENT_DIR = join(HERE, 'client');
+
+/**
+ * The showcase's real crystal (`vite.showcase.config.ts`), versioned by its
+ * own content so a deploy never serves a cached old one. Absent in a source
+ * checkout and in tests: the pages then keep their static crystal.
+ */
+const SHOWCASE_ASSETS: ShowcaseAssets = (() => {
+  const file = join(CLIENT_DIR, 'showcase-assets', 'atoma-mark.js');
+  try {
+    const digest = createHash('sha256').update(readFileSync(file)).digest('hex').slice(0, 16);
+    return { markScript: `/showcase-assets/atoma-mark.js?v=${digest}` };
+  } catch {
+    return { markScript: null };
+  }
+})();
 const UI_HTML_PATH = join(CLIENT_DIR, 'index.html');
 const DEV_UI_URL = (() => {
   const configured = process.env['ATOMA_VIZ_DEV_URL']?.trim();
@@ -4026,7 +4043,7 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
       enabled: true,
     })
   ) {
-    sendShowcase(res, 200, renderShowcaseIndex(SHOWCASE.entries(), AUTH_RUNTIME?.publicOrigin ?? null));
+    sendShowcase(res, 200, renderShowcaseIndex(SHOWCASE.entries(), AUTH_RUNTIME?.publicOrigin ?? null, SHOWCASE_ASSETS));
     return;
   }
 
@@ -4093,13 +4110,13 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
     }
     const entry = SHOWCASE.entry(pathname.slice('/showcase/'.length));
     if (!entry) {
-      sendShowcase(res, 404, renderShowcaseNotFound());
+      sendShowcase(res, 404, renderShowcaseNotFound(SHOWCASE_ASSETS));
       return;
     }
     const answers = new Map(
       entry.episodes.map((episode) => [episode.id, SHOWCASE.answer(entry.id, episode.id)] as const)
     );
-    sendShowcase(res, 200, renderShowcaseEntry(entry, answers, AUTH_RUNTIME?.publicOrigin ?? null));
+    sendShowcase(res, 200, renderShowcaseEntry(entry, answers, AUTH_RUNTIME?.publicOrigin ?? null, SHOWCASE_ASSETS));
     return;
   }
 

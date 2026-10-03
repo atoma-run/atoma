@@ -42,5 +42,24 @@ if (ui === 'gpu') {
     console.error('viz build: the lazy-chunk marker moved; update the guard in scripts/viz-build.mjs');
     process.exit(1);
   }
+
+  // THE SHOWCASE CRYSTAL, built alone AFTER the app (the app build empties
+  // dist/viz/client/). See vite.showcase.config.ts for why it is separate.
+  const showcase = spawnSync(
+    process.execPath,
+    [viteCli, 'build', '--config', 'vite.showcase.config.ts'],
+    {
+      cwd: fileURLToPath(new URL('..', import.meta.url)),
+      env: { ...process.env, NODE_ENV: 'production' },
+      stdio: 'inherit',
+    }
+  );
+  if (showcase.error) throw showcase.error;
+  if ((showcase.status ?? 1) !== 0) process.exit(showcase.status ?? 1);
+  const markFile = fileURLToPath(new URL('../dist/viz/client/showcase-assets/atoma-mark.js', import.meta.url));
+  if (!readFileSync(markFile, 'utf8').includes(marker)) {
+    console.error('viz build: the showcase crystal bundle does not carry the crystal (missing mark-shell-front)');
+    process.exit(1);
+  }
 }
 process.exit(0);

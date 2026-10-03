@@ -268,9 +268,11 @@ describe('what a visitor can read', () => {
     expect(html.match(/<script>/g)).toHaveLength(1);
   });
 
-  it('pins its one script by hash and allows no network', () => {
+  it('pins its inline script by hash, loads only this site\'s modules, and allows no network', () => {
     const csp = SHOWCASE_SECURITY_HEADERS['content-security-policy'];
-    expect(csp).toMatch(/script-src 'sha256-[A-Za-z0-9+/=]+'/);
+    // `'self'` is the crystal module; nothing inline runs without its hash.
+    expect(csp).toMatch(/script-src 'self' 'sha256-[A-Za-z0-9+/=]+';/);
+    expect(csp).not.toMatch(/unsafe-inline'[^;]*;\s*img|script-src[^;]*unsafe-inline/);
     expect(csp).toContain("default-src 'none'");
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).not.toMatch(/connect-src|unsafe-eval/);
@@ -278,6 +280,43 @@ describe('what a visitor can read', () => {
     const script = /<script>([\s\S]*?)<\/script>/.exec(html)![1]!;
     const hash = createHash('sha256').update(script).digest('base64');
     expect(csp).toContain(`'sha256-${hash}'`);
+  });
+
+  it('puts the real crystal on every page when the build has it, and keeps the static one as fallback', () => {
+    const w = world();
+    const id = seedRun(w, w.admin, { goal: 'Goal', title: 'A title', files: ['a.md'] });
+    const source = createShowcaseSource(w.store);
+    const assets = { markScript: '/showcase-assets/atoma-mark.js?v=0123456789abcdef' };
+    const pages = [
+      renderShowcaseIndex(source.entries(), new URL('https://atoma.example.com'), assets),
+      renderShowcaseEntry(source.entry(id)!, new Map(), new URL('https://atoma.example.com'), assets),
+    ];
+    for (const html of pages) {
+      expect(html).toContain('<script type="module" src="/showcase-assets/atoma-mark.js?v=0123456789abcdef"></script>');
+      expect(html.match(/data-atoma-mark="/g)!.length).toBeGreaterThanOrEqual(3);
+      // The static crystal is inside every host, for a browser without WebGL.
+      expect(html).toContain('aria-label="The Atoma crystal"');
+    }
+    expect(SHOWCASE_SECURITY_HEADERS['content-security-policy']).toMatch(/script-src 'self' 'sha256-/);
+    // Without a built bundle (a source checkout, these tests) there is no module to load.
+    expect(renderShowcaseIndex([], null)).not.toContain('type="module"');
+  });
+
+  it('writes clean head metadata on every page, and nothing stray before the header', () => {
+    const w = world();
+    const id = seedRun(w, w.admin, { goal: 'Goal', title: 'A title', files: ['a.md'] });
+    const source = createShowcaseSource(w.store);
+    const story = renderShowcaseEntry(source.entry(id)!, new Map(), new URL('https://atoma.example.com'));
+    const home = renderShowcaseIndex(source.entries(), new URL('https://atoma.example.com'));
+    for (const html of [story, home]) {
+      // The production regression: a mangled join separator printed `"""+B+"""n` at the top.
+      expect(html).not.toMatch(/"{3}|\+B\+/);
+      const head = html.slice(html.indexOf('<head>'), html.indexOf('</head>'));
+      expect(head.split('\n').every((line) => line === '' || /^\s*</.test(line) || /^[^<]*[{}:;]/.test(line))).toBe(true);
+      expect(html.slice(html.indexOf('<body>') + '<body>'.length).trimStart().startsWith('<header')).toBe(true);
+    }
+    expect(story).toContain('<meta property="og:title" content="A title — Atoma">');
+    expect(story).toContain(`<meta property="og:url" content="https://atoma.example.com/showcase/${id}">`);
   });
 
   it('says so when there is nothing to show, and uses plain words', () => {

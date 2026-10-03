@@ -636,6 +636,9 @@ npm run viz:mark-turn:analyze
   (`showcase.ts`): title, request, numbers, file NAMES, a text answer; never
   identities, paths, repositories or bytes. Server-rendered, all values
   escaped, one script pinned by hash in its CSP. English only.
+- Its crystals are the REAL Pixi mark (`showcase-mark.ts`, built alone by
+  `vite.showcase.config.ts`: as a second app input it would leave the lazy
+  renderer chunk), over a static SVG that stays when WebGL does not.
 
 ## Intentional choices and rejected shortcuts
 
