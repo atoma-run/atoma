@@ -57,3 +57,56 @@ benchmark: registry trust and nondeterministic planning can change.
 A wrong first draft caught by review is a recovered error, not an error-free
 run. A still-wrong final output must not be counted correct even if delivered;
 a refused partial is a successful containment but not a successful delivery.
+
+## Validation and observed production results
+
+Commit `196e6bbb` passed 77 targeted tests (depth routing, reasoning delivery,
+Jev calibration), both TypeScript configurations, changed-file lint and docs
+checks. Full clean Linux CI 37114927320 passed; deployment 37115164783
+installed that exact revision. Concurrent README-only commit `cab9c700`
+deployed after the first replay; the other three record that revision. The
+review implementation is identical across those two revisions.
+
+| Replay | Run | Calls | Seconds | Accounting USD | Root remediation | Independent result |
+|---|---|---:|---:|---:|---:|---|
+| False poem audit | 64d5478e-cb44-4892-8d45-1d9ee6ee1228 | 12 | 190.254 | 0.2002 | 1 | Correct after refusal |
+| Four editorial cases | cf0ab5ec-eb44-462e-9a56-986420a96470 | 12 | 148.705 | 0.1828 | 1 | All four correct after refusal |
+| Fair division | a53f6d4d-bb44-440b-9caf-1376bdbe644f | 10 | 184.977 | 0.1077 | 0 | Correct first pass |
+| Stratified analysis | de0ee27b-9205-4556-98f3-9e6a42b39716 | 6 | 83.595 | 0.1025 | 0 | Correct first pass |
+
+The table totals **40 calls**, 607.531 seconds and $0.5932 in
+subscription accounting, not a separate API invoice. All seven recorded
+execution calls use Luna, and all six run-root reviews use Terra. The six
+reviews account for $0.1690528; recovery also replans and reexecutes, so
+validation-call cost alone does not represent the full cost of correction.
+All manifests declare text with zero files and no publication.
+
+The poem's first Luna output repeats the false thaw/sun endings. Terra
+refuses it with actual welcome/quietly and unmet criteria c2/c3. The one
+remediation returns all sixteen counts, correct acrostic and actual endings,
+and concludes noncompliance; Terra approves that corrected audit.
+
+The editorial first pass gets A's first ending wrong and falsely disagrees
+with D's correct author claim. Terra refuses those precise defects. The
+second pass returns A/C noncompliant, B/D compliant, with every count,
+initial and ending correct and author agreement only on D.
+
+The fair-division control preserves all six utility rows, thirteen dominance
+relations, frontier ab/ac, unique sum/product maximizer ac (27/180), and
+envy-free ab/ac/bc. Terra accepts it without remediation. The statistical
+control preserves all rates (90/20/95/80; pooled 83/83; standardized
+55/87.5; 32.5 percentage points) and explicitly refuses unsupported causal
+inference. It too is accepted without remediation.
+
+Full summaries reach nextOffset=null; metadata and the selected root plans,
+execution calls and result reviews were paged to completion. Both failed
+first drafts remain in `evidence-text-root-review-2026-10-03/` beside their
+successful corrections. Root refusals are recorded as rootRemediations even
+though the phase-level refusals counter remains zero.
+
+The known counterexamples are now contained and corrected on these replays,
+with no false refusal on the two positive controls. This is not proof of
+universal accuracy: the reviewer remains fallible, text-plan omission keeps
+the legacy tier, phase trust is not retrospectively corrected, and shared
+L1/L2 pins would not separate models. No semantic mechanical gate or global
+execution-model upgrade was introduced.
