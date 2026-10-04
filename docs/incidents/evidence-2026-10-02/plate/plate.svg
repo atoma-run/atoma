@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120mm" height="80mm" viewBox="0 0 120 80">
+  <title>Museum display plate geometry</title>
+  <desc>Rectangular plate outline with four circular corner holes and one rounded capsule slot.</desc>
+  <rect id="outline" x="10" y="10" width="100" height="60" fill="none" stroke="#000000" stroke-width="0.2" />
+  <circle id="hole-nw" cx="20" cy="20" r="3" fill="none" stroke="#000000" stroke-width="0.2" />
+  <circle id="hole-ne" cx="100" cy="20" r="3" fill="none" stroke="#000000" stroke-width="0.2" />
+  <circle id="hole-sw" cx="20" cy="60" r="3" fill="none" stroke="#000000" stroke-width="0.2" />
+  <circle id="hole-se" cx="100" cy="60" r="3" fill="none" stroke="#000000" stroke-width="0.2" />
+  <rect id="slot" x="42" y="36" width="36" height="8" rx="4" ry="4" fill="none" stroke="#000000" stroke-width="0.2" />
+</svg>

@@ -1,0 +1,187 @@
+{
+  "svg_primitives_valid": true,
+  "independent_expected": {
+    "material_area_mm2": 5612.637182013331,
+    "cut_perimeter_mm": 476.5309649148734,
+    "centroid_mm": [
+      60,
+      40
+    ],
+    "minimum_clearance_mm": 7
+  },
+  "delivered_claims": {
+    "units": "mm",
+    "shape": {
+      "type": "display_plate",
+      "outer_boundary": {
+        "type": "rect",
+        "id": "outline",
+        "x": 10,
+        "y": 10,
+        "width": 100,
+        "height": 60
+      },
+      "cutouts": [
+        {
+          "type": "circle",
+          "id": "hole-nw",
+          "center": [
+            20,
+            20
+          ],
+          "radius": 3
+        },
+        {
+          "type": "circle",
+          "id": "hole-ne",
+          "center": [
+            100,
+            20
+          ],
+          "radius": 3
+        },
+        {
+          "type": "circle",
+          "id": "hole-sw",
+          "center": [
+            20,
+            60
+          ],
+          "radius": 3
+        },
+        {
+          "type": "circle",
+          "id": "hole-se",
+          "center": [
+            100,
+            60
+          ],
+          "radius": 3
+        },
+        {
+          "type": "capsule",
+          "id": "slot",
+          "x": 42,
+          "y": 36,
+          "overall_width": 36,
+          "height": 8,
+          "radius": 4,
+          "straight_length": 28,
+          "straight_length_definition": "overall width minus two radii"
+        }
+      ]
+    },
+    "calculations": {
+      "material_area": {
+        "symbolic": "5776-52*pi",
+        "value_mm2": 5612.6371820133,
+        "derivation": "100*60 - 4*pi*3^2 - (28*8 + pi*4^2)"
+      },
+      "total_perimeter": {
+        "symbolic": "376+32*pi",
+        "value_mm": 476.5309649149,
+        "derivation": "2*(100+60) + 4*(2*pi*3) + 2*28 + 2*pi*4"
+      },
+      "remaining_material_centroid": {
+        "symbolic": "(60,40)",
+        "value_mm": [
+          60,
+          40
+        ],
+        "reasoning": "The outer rectangle and every cutout are invariant under reflection about x=60 and y=40, so their area-weighted remainder centroid is the intersection (60,40)."
+      },
+      "minimum_cutout_to_boundary_clearance": {
+        "symbolic": "7",
+        "value_mm": 7,
+        "derivation": "Each hole center is 10 mm from its nearest outer edge and has radius 3 mm; the slot is farther from every edge."
+      }
+    },
+    "symmetry_reasoning": "The four corner holes occur in reflected pairs and the centered slot preserves both plate reflection axes. Removing these symmetric cutouts from the symmetric outer rectangle leaves the centroid at (60,40) mm."
+  },
+  "verifier_cases": [
+    {
+      "case": "valid",
+      "expected_pass": true,
+      "exit_code": 0,
+      "matched": true,
+      "output": "geometry verification passed\n"
+    },
+    {
+      "case": "hole_radius_4",
+      "expected_pass": false,
+      "exit_code": 1,
+      "matched": true,
+      "output": "geometry verification failed: hole-nw.r: 4.0 != 3.0\n"
+    },
+    {
+      "case": "slot_wrong_radius",
+      "expected_pass": false,
+      "exit_code": 1,
+      "matched": true,
+      "output": "geometry verification failed: slot.rx: 3.0 != 4.0\n"
+    },
+    {
+      "case": "hidden_transform",
+      "expected_pass": false,
+      "exit_code": 1,
+      "matched": true,
+      "output": "geometry verification failed: transform is prohibited\n"
+    },
+    {
+      "case": "wrong_style",
+      "expected_pass": false,
+      "exit_code": 1,
+      "matched": true,
+      "output": "geometry verification failed: outline has incorrect style\n"
+    },
+    {
+      "case": "wrong_units",
+      "expected_pass": false,
+      "exit_code": 1,
+      "matched": true,
+      "output": "geometry verification failed: incorrect physical dimensions\n"
+    },
+    {
+      "case": "extra_path",
+      "expected_pass": false,
+      "exit_code": 1,
+      "matched": true,
+      "output": "geometry verification failed: prohibited element: path\n"
+    },
+    {
+      "case": "nested_extra_geometry",
+      "expected_pass": false,
+      "exit_code": 0,
+      "matched": false,
+      "output": "geometry verification passed\n"
+    },
+    {
+      "case": "incorrect_numeric_area",
+      "expected_pass": false,
+      "exit_code": 1,
+      "matched": true,
+      "output": "geometry verification failed: area: 5613.6371820133 != 5612.637182013331\n"
+    },
+    {
+      "case": "nonfinite_numeric_area",
+      "expected_pass": false,
+      "exit_code": 1,
+      "matched": true,
+      "output": "geometry verification failed: area: nan != 5612.637182013331\n"
+    },
+    {
+      "case": "incorrect_json_units",
+      "expected_pass": false,
+      "exit_code": 0,
+      "matched": false,
+      "output": "geometry verification passed\n"
+    },
+    {
+      "case": "malformed_json",
+      "expected_pass": false,
+      "exit_code": 1,
+      "matched": true,
+      "output": "geometry verification failed: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)\n"
+    }
+  ]
+}

@@ -1,0 +1,92 @@
+{
+  "artifact_valid": true,
+  "archive_sha256": "20a3e514ffee843ff29fbac5cca6bd2c65311ac211c3ac1232a8fd9dc730fce7",
+  "fresh_builds_sha256": [
+    "20a3e514ffee843ff29fbac5cca6bd2c65311ac211c3ac1232a8fd9dc730fce7",
+    "20a3e514ffee843ff29fbac5cca6bd2c65311ac211c3ac1232a8fd9dc730fce7"
+  ],
+  "expected_manifest": {
+    "entries": [
+      {
+        "name": "README.txt",
+        "size": 18,
+        "sha256": "8a2e6ecfb5aa78466989e82a3987acd11941b7e4cf06bcda4884efb296294852"
+      },
+      {
+        "name": "data/caf\u00e9.txt",
+        "size": 16,
+        "sha256": "b68346d9cd32d215b756594d09a888719cb018af5b0ee79e6f256970b2486629"
+      },
+      {
+        "name": "data/empty.bin",
+        "size": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ]
+  },
+  "verifier_cases": [
+    {
+      "case": "valid",
+      "expected_pass": true,
+      "exit_code": 0,
+      "matched": true,
+      "output": "OK: capsule.zip and manifest.json verified\n"
+    },
+    {
+      "case": "stored_payload_crc_mismatch",
+      "expected_pass": false,
+      "exit_code": 1,
+      "matched": true,
+      "output": "FAIL: malformed ZIP: Bad CRC-32 for file 'README.txt'\n"
+    },
+    {
+      "case": "boolean_instead_of_integer_size",
+      "expected_pass": false,
+      "exit_code": 0,
+      "matched": false,
+      "output": "OK: capsule.zip and manifest.json verified\n"
+    },
+    {
+      "case": "wrong_manifest_digest",
+      "expected_pass": false,
+      "exit_code": 1,
+      "matched": true,
+      "output": "FAIL: manifest mismatch\n"
+    },
+    {
+      "case": "local_header_timestamp_differs",
+      "expected_pass": false,
+      "exit_code": 0,
+      "matched": false,
+      "output": "OK: capsule.zip and manifest.json verified\n"
+    },
+    {
+      "case": "malformed_zip",
+      "expected_pass": false,
+      "exit_code": 1,
+      "matched": true,
+      "output": "FAIL: malformed ZIP: File is not a zip file\n"
+    },
+    {
+      "case": "extra_entry",
+      "expected_pass": false,
+      "exit_code": 1,
+      "matched": true,
+      "output": "FAIL: malformed ZIP: wrong entry count\n"
+    },
+    {
+      "case": "missing_entry",
+      "expected_pass": false,
+      "exit_code": 1,
+      "matched": true,
+      "output": "FAIL: malformed ZIP: wrong entry count\n"
+    },
+    {
+      "case": "duplicate_entry",
+      "expected_pass": false,
+      "exit_code": 1,
+      "matched": true,
+      "output": "FAIL: malformed ZIP: wrong entry count\n"
+    }
+  ]
+}
