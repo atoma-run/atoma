@@ -39,6 +39,13 @@ Neighbours:
 - `fallbackMode` bypasses registry delegation and calls self-plan/self-execute.
 - Mutation scopes flow through `applyByScope`; update the union and every hook
   together when adding a scope.
+- A molecule's next execution of the SAME task (keyed by description) opens
+  with `== YOUR PREVIOUS ATTEMPT AT THIS TASK ==` (`attemptDigest.ts`): what
+  the transport observed — files changed and read, servers, HTTP method, path
+  and status, validate_html, commands and exit codes — and its own report,
+  labelled not evidence. L2's patch and branch replacements `inheritAttempt`.
+  Run 87e672d7 (2026-10-04) spent its retry's first 90 s re-reading what the
+  rejected attempt had just read.
 - Per-task child memos prevent immediate reuse loops. Initialize task state,
   mark committed children, and pass exclusions to prefilters.
 - Run-scoped integrity flags and memos must retain the same reference across

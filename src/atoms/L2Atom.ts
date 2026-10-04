@@ -1429,6 +1429,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         // drove a patched run earned nothing (or escaped its failure).
         const carrySkill = (fresh: L1Atom): L1Atom => {
           carryTaskCoaching(child, fresh);
+          fresh.inheritAttempt(child);
           const skillId = child instanceof L1Atom ? child.activeSkillId() : null;
           if (!skillId) return fresh;
           // Load from the OWNER namespace, not the (possibly branched)
