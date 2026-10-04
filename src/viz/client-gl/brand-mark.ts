@@ -106,13 +106,13 @@ export function coreLightFalloff(distance: number): number {
 }
 
 /**
- * The bead, 168.75% of the 1.95 it was authored at. Everything the bead emits
+ * The bead, with a 2.5 projected-unit radius at the crystal's mid-plane. Everything it emits
  * is expressed as a MULTIPLE of this radius — its body gradient, its bloom, the
  * hot centre the near glass transmits — so the whole light scales with it and
  * only the reach it throws across the crystal (`ATOMA_MARK_CORE_LIGHT_RADIUS`)
  * stays where it was: the filament still lights the same room.
  */
-export const ATOMA_MARK_CORE_RADIUS = 3.290625;
+export const ATOMA_MARK_CORE_RADIUS = 2.5;
 export const ATOMA_MARK_CORE_RADIUS_PULSE = 0.04;
 
 /**
@@ -398,13 +398,13 @@ export const ATOMA_MARK_LAMP_Z = 2.15;
 export const ATOMA_MARK_RADIUS = 1.28;
 /**
  * Camera on +Z, looking at the origin. The ONE pinhole: hull vertices and
- * the bead disc both scale by `CAMERA_Z / (CAMERA_Z - z)`. 2.5 radii puts
+ * the bead disc both scale by `CAMERA_Z / (CAMERA_Z - z)`. 2.05 radii puts
  * the camera in front of the pointer lamp and close enough that a bead
  * crossing the cavity, and a vertex swinging toward the lens, change size
- * together instead of the hull barely foreshortening while the bead is
- * faked larger on its own.
+ * together. The closer camera makes the bead's near/far size difference
+ * legible through that shared projection.
  */
-export const ATOMA_MARK_CAMERA_Z = ATOMA_MARK_RADIUS * 2.5;
+export const ATOMA_MARK_CAMERA_Z = ATOMA_MARK_RADIUS * 2.05;
 /**
  * Wall thickness, inward from the face planes. Thin enough that the cavity is
  * still most of the volume — the bead lives in there — and thick enough that
@@ -1259,10 +1259,10 @@ export function markCausticFalloff(lampX: number, lampY: number): number {
 }
 
 export interface MarkCausticCast {
-  /** Four projected three-ray bundles, flattened as consecutive triangles. */
+  /** Eight projected three-ray bundles, flattened as consecutive triangles. */
   points: readonly AtomaMarkPoint[];
   /**
-   * The signed spectral HALF-SEPARATION at each of the same twelve corners:
+   * The signed spectral HALF-SEPARATION at each of the same twenty-four corners:
    * (red hit − blue hit) / 2, in local box units. The green trace IS the mean
    * of the two wavelengths, so red sits at corner + delta and blue at
    * corner − delta — one delta carries both, and the consumer's `band` scalar
@@ -1299,9 +1299,9 @@ export interface MarkCausticSecondary {
 
 /**
  * The crystal's CAST on the far field. This is intentionally not its projected
- * silhouette: every camera-facing facet launches three rays. They obey Snell
+ * silhouette: each half of every camera-facing facet launches three rays. They obey Snell
  * at entry and exit, and bounded total internal reflection follows trapped
- * light through additional faces. The four strongest bundles are sampled by
+ * light through additional faces. The eight bundles are sampled by
  * the shared field shader, producing folds, gaps and concentrations instead
  * of one bright copy of the diamond outline.
  *
@@ -1513,8 +1513,8 @@ export function projectMarkCaustic(
     const primaryEnergy = entryEnergy * (1 - first.reflectance) * retained;
 
     // Preserve a seed instead of following every reflected branch. Once the
-    // four primary bundles are ranked, only six rays from the strongest one
-    // continue — 24 primary traces + 6 secondary traces, never 24 + 24.
+    // eight primary bundles are ranked, only six rays from the strongest one
+    // continue — 48 primary traces + 6 secondary traces, never 48 + 48.
     const reflected = reflect(first.incoming, first.outward);
     const reflectedOrigin: MarkVec3 = [
       first.hit[0] + reflected[0] * 1e-4,
@@ -1669,62 +1669,69 @@ export function projectMarkCaustic(
 
   const bundles = ATOMA_MARK_MESH.facets.flatMap((meshFacet, facetIndex) => {
     const facet = frame.facets[facetIndex]!;
-    // A convex octahedron presents exactly four outer faces to the camera.
-    // Keep every strictly front-facing one: an arbitrary grazing-angle cutoff
-    // briefly leaves only three bundles as each edge turns through profile,
-    // which clears the whole four-bundle caustic and makes it blink.
+    // A convex octahedron presents four outer faces to the camera. Split each
+    // face into two triangles, then trace each half independently. This doubles
+    // the distinct receiver footprints without inventing a second light source.
     if (meshFacet.part !== 'outer' || facet.normal[2] <= 0) return [];
     const vertices = meshFacet.points.map((pointIndex) => frame.points[pointIndex]!);
-    const samples = vertices.map((vertex, vertexIndex): MarkVec3 => {
-      const otherA = vertices[(vertexIndex + 1) % 3]!;
-      const otherB = vertices[(vertexIndex + 2) % 3]!;
-      return [
-        vertex[0] * 0.72 + (otherA[0] + otherB[0]) * 0.14,
-        vertex[1] * 0.72 + (otherA[1] + otherB[1]) * 0.14,
-        vertex[2] * 0.72 + (otherA[2] + otherB[2]) * 0.14,
-      ];
-    });
-    const points = samples.map((sample) => {
-      // Green is the MEAN trace, by construction: the barycentric rebuild in
-      // the shader is linear, so (red+blue)/2 evaluated at any sample equals
-      // the mean trace evaluated there. Tracing it a third time would be a
-      // third ray for a value two already determine.
-      const red = land(sample, facetIndex, facet.normal, tracesWavelengths ? iorRed : ior);
-      const blue = land(sample, facetIndex, facet.normal, tracesWavelengths ? iorBlue : ior);
+    const midpoint: MarkVec3 = [
+      (vertices[0]![0] + vertices[1]![0]) / 2,
+      (vertices[0]![1] + vertices[1]![1]) / 2,
+      (vertices[0]![2] + vertices[1]![2]) / 2,
+    ];
+    const halves = [
+      [vertices[0]!, midpoint, vertices[2]!],
+      [midpoint, vertices[1]!, vertices[2]!],
+    ];
+    return halves.map((triangle) => {
+      const samples = triangle.map((vertex, vertexIndex): MarkVec3 => {
+        const otherA = triangle[(vertexIndex + 1) % 3]!;
+        const otherB = triangle[(vertexIndex + 2) % 3]!;
+        return [
+          vertex[0] * 0.72 + (otherA[0] + otherB[0]) * 0.14,
+          vertex[1] * 0.72 + (otherA[1] + otherB[1]) * 0.14,
+          vertex[2] * 0.72 + (otherA[2] + otherB[2]) * 0.14,
+        ];
+      });
+      const points = samples.map((sample) => {
+        // Green is the mean trace; the red/blue pair supplies it without a third ray.
+        const red = land(sample, facetIndex, facet.normal, tracesWavelengths ? iorRed : ior);
+        const blue = land(sample, facetIndex, facet.normal, tracesWavelengths ? iorBlue : ior);
+        return {
+          red,
+          blue,
+          corner: {
+            x: (red.point.x + blue.point.x) / 2,
+            y: (red.point.y + blue.point.y) / 2,
+          },
+          delta: tracesWavelengths
+            ? {
+                x: (red.point.x - blue.point.x) / 2,
+                y: (red.point.y - blue.point.y) / 2,
+              }
+            : null,
+        };
+      });
+      const entryRay = normalise([
+        facet.centroid[0] - lamp[0],
+        facet.centroid[1] - lamp[1],
+        facet.centroid[2] - lamp[2],
+      ]);
+      const primaryPaths = points.flatMap((point) => [point.red, point.blue]);
       return {
-        red,
-        blue,
-        corner: {
-          x: (red.point.x + blue.point.x) / 2,
-          y: (red.point.y + blue.point.y) / 2,
-        },
-        delta: tracesWavelengths
-          ? {
-              x: (red.point.x - blue.point.x) / 2,
-              y: (red.point.y - blue.point.y) / 2,
-            }
-          : null,
+        points,
+        facetIndex,
+        optics: averageOptics(primaryPaths, facetIndex),
+        score: clamp(-dot(entryRay, facet.normal)) * facet.normal[2],
       };
     });
-    const entryRay = normalise([
-      facet.centroid[0] - lamp[0],
-      facet.centroid[1] - lamp[1],
-      facet.centroid[2] - lamp[2],
-    ]);
-    const primaryPaths = points.flatMap((point) => [point.red, point.blue]);
-    return [{
-      points,
-      facetIndex,
-      optics: averageOptics(primaryPaths, facetIndex),
-      score: clamp(-dot(entryRay, facet.normal)) * facet.normal[2],
-    }];
-  }).sort((left, right) => right.score - left.score).slice(0, 4);
-  if (bundles.length < 4) return null;
+  }).sort((left, right) => right.score - left.score).slice(0, 8);
+  if (bundles.length < 8) return null;
   // Published green corners: the mean trace every consumer already draws.
   const corners = bundles.flatMap((bundle) =>
     bundle.points.map((point) => point.corner)
   );
-  // Signed half-separation per corner, the same twelve again. Deltas ride the
+  // Signed half-separation per corner, the same twenty-four again. Deltas ride the
   // transport rather than absolute positions so the winding fix applies once,
   // to green — and a degenerate band collapses to zero instead of to a second
   // copy of the bundle.
@@ -1736,8 +1743,9 @@ export function projectMarkCaustic(
   const castIntensity = coupling.gemEnter * markCausticFalloff(lampX, lampY);
   const optics = bundles.map((bundle): MarkCausticOptics => ({
     ...bundle.optics,
+    // Two half-facets share the energy previously assigned to one whole face.
     intensity: clamp(
-      bundle.optics.intensity * castIntensity * CAUSTIC_DISPLAY_EXPOSURE
+      bundle.optics.intensity * castIntensity * CAUSTIC_DISPLAY_EXPOSURE * 0.5
     ),
   }));
   const secondarySource = bundles

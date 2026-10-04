@@ -91,10 +91,20 @@ export const FAR_FIELD_UNIFORMS = [
   { name: 'uCaustic3', type: 'vec4<f32>' },
   { name: 'uCaustic4', type: 'vec4<f32>' },
   { name: 'uCaustic5', type: 'vec4<f32>' },
+  { name: 'uCaustic6', type: 'vec4<f32>' },
+  { name: 'uCaustic7', type: 'vec4<f32>' },
+  { name: 'uCaustic8', type: 'vec4<f32>' },
+  { name: 'uCaustic9', type: 'vec4<f32>' },
+  { name: 'uCaustic10', type: 'vec4<f32>' },
+  { name: 'uCaustic11', type: 'vec4<f32>' },
   { name: 'uCausticOptics0', type: 'vec4<f32>' },
   { name: 'uCausticOptics1', type: 'vec4<f32>' },
   { name: 'uCausticOptics2', type: 'vec4<f32>' },
   { name: 'uCausticOptics3', type: 'vec4<f32>' },
+  { name: 'uCausticOptics4', type: 'vec4<f32>' },
+  { name: 'uCausticOptics5', type: 'vec4<f32>' },
+  { name: 'uCausticOptics6', type: 'vec4<f32>' },
+  { name: 'uCausticOptics7', type: 'vec4<f32>' },
   // The spectral half-separation per corner, two corners per vec4: red draws
   // at corner + delta, blue at corner − delta. `uCausticBand` scales how far
   // apart the two wavelengths are drawn — 1 is the traced band, 0 collapses
@@ -105,6 +115,12 @@ export const FAR_FIELD_UNIFORMS = [
   { name: 'uCausticSpec3', type: 'vec4<f32>' },
   { name: 'uCausticSpec4', type: 'vec4<f32>' },
   { name: 'uCausticSpec5', type: 'vec4<f32>' },
+  { name: 'uCausticSpec6', type: 'vec4<f32>' },
+  { name: 'uCausticSpec7', type: 'vec4<f32>' },
+  { name: 'uCausticSpec8', type: 'vec4<f32>' },
+  { name: 'uCausticSpec9', type: 'vec4<f32>' },
+  { name: 'uCausticSpec10', type: 'vec4<f32>' },
+  { name: 'uCausticSpec11', type: 'vec4<f32>' },
   { name: 'uCausticSecondary0', type: 'vec4<f32>' },
   { name: 'uCausticSecondary1', type: 'vec4<f32>' },
   { name: 'uCausticSecondarySpec0', type: 'vec4<f32>' },
@@ -137,16 +153,32 @@ const uniformValues: Record<
   uCaustic3: () => new Float32Array([-1e6, -1e6, -1e6, -1e6]),
   uCaustic4: () => new Float32Array([-1e6, -1e6, -1e6, -1e6]),
   uCaustic5: () => new Float32Array([-1e6, -1e6, -1e6, -1e6]),
+  uCaustic6: () => new Float32Array([-1e6, -1e6, -1e6, -1e6]),
+  uCaustic7: () => new Float32Array([-1e6, -1e6, -1e6, -1e6]),
+  uCaustic8: () => new Float32Array([-1e6, -1e6, -1e6, -1e6]),
+  uCaustic9: () => new Float32Array([-1e6, -1e6, -1e6, -1e6]),
+  uCaustic10: () => new Float32Array([-1e6, -1e6, -1e6, -1e6]),
+  uCaustic11: () => new Float32Array([-1e6, -1e6, -1e6, -1e6]),
   uCausticOptics0: () => new Float32Array(4),
   uCausticOptics1: () => new Float32Array(4),
   uCausticOptics2: () => new Float32Array(4),
   uCausticOptics3: () => new Float32Array(4),
+  uCausticOptics4: () => new Float32Array(4),
+  uCausticOptics5: () => new Float32Array(4),
+  uCausticOptics6: () => new Float32Array(4),
+  uCausticOptics7: () => new Float32Array(4),
   uCausticSpec0: () => new Float32Array(4),
   uCausticSpec1: () => new Float32Array(4),
   uCausticSpec2: () => new Float32Array(4),
   uCausticSpec3: () => new Float32Array(4),
   uCausticSpec4: () => new Float32Array(4),
   uCausticSpec5: () => new Float32Array(4),
+  uCausticSpec6: () => new Float32Array(4),
+  uCausticSpec7: () => new Float32Array(4),
+  uCausticSpec8: () => new Float32Array(4),
+  uCausticSpec9: () => new Float32Array(4),
+  uCausticSpec10: () => new Float32Array(4),
+  uCausticSpec11: () => new Float32Array(4),
   uCausticSecondary0: () => new Float32Array([-1e6, -1e6, -1e6, -1e6]),
   uCausticSecondary1: () => new Float32Array([-1e6, -1e6, -1e6, -1e6]),
   uCausticSecondarySpec0: () => new Float32Array(4),
@@ -197,16 +229,32 @@ export const FAR_FIELD_GLSL = /* glsl */ `#version 300 es
   uniform vec4 uCaustic3;
   uniform vec4 uCaustic4;
   uniform vec4 uCaustic5;
+  uniform vec4 uCaustic6;
+  uniform vec4 uCaustic7;
+  uniform vec4 uCaustic8;
+  uniform vec4 uCaustic9;
+  uniform vec4 uCaustic10;
+  uniform vec4 uCaustic11;
   uniform vec4 uCausticOptics0;
   uniform vec4 uCausticOptics1;
   uniform vec4 uCausticOptics2;
   uniform vec4 uCausticOptics3;
+  uniform vec4 uCausticOptics4;
+  uniform vec4 uCausticOptics5;
+  uniform vec4 uCausticOptics6;
+  uniform vec4 uCausticOptics7;
   uniform vec4 uCausticSpec0;
   uniform vec4 uCausticSpec1;
   uniform vec4 uCausticSpec2;
   uniform vec4 uCausticSpec3;
   uniform vec4 uCausticSpec4;
   uniform vec4 uCausticSpec5;
+  uniform vec4 uCausticSpec6;
+  uniform vec4 uCausticSpec7;
+  uniform vec4 uCausticSpec8;
+  uniform vec4 uCausticSpec9;
+  uniform vec4 uCausticSpec10;
+  uniform vec4 uCausticSpec11;
   uniform vec4 uCausticSecondary0;
   uniform vec4 uCausticSecondary1;
   uniform vec4 uCausticSecondarySpec0;
@@ -306,9 +354,13 @@ ${CAUSTIC_FIELD_GLSL}
     vec4 crystalCast = causticField(
       vec2(vScreenUv.x, 1.0 - vScreenUv.y) * uFieldResolution,
       uCaustic0, uCaustic1, uCaustic2, uCaustic3, uCaustic4, uCaustic5,
+      uCaustic6, uCaustic7, uCaustic8, uCaustic9, uCaustic10, uCaustic11,
       uCausticSpec0, uCausticSpec1, uCausticSpec2,
       uCausticSpec3, uCausticSpec4, uCausticSpec5,
+      uCausticSpec6, uCausticSpec7, uCausticSpec8,
+      uCausticSpec9, uCausticSpec10, uCausticSpec11,
       uCausticOptics0, uCausticOptics1, uCausticOptics2, uCausticOptics3,
+      uCausticOptics4, uCausticOptics5, uCausticOptics6, uCausticOptics7,
       uCausticSecondary0, uCausticSecondary1,
       uCausticSecondarySpec0, uCausticSecondarySpec1,
       uCausticSecondaryOptics,
@@ -363,16 +415,32 @@ export const FAR_FIELD_WGSL = /* wgsl */ `
     uCaustic3: vec4<f32>,
     uCaustic4: vec4<f32>,
     uCaustic5: vec4<f32>,
+    uCaustic6: vec4<f32>,
+    uCaustic7: vec4<f32>,
+    uCaustic8: vec4<f32>,
+    uCaustic9: vec4<f32>,
+    uCaustic10: vec4<f32>,
+    uCaustic11: vec4<f32>,
     uCausticOptics0: vec4<f32>,
     uCausticOptics1: vec4<f32>,
     uCausticOptics2: vec4<f32>,
     uCausticOptics3: vec4<f32>,
+    uCausticOptics4: vec4<f32>,
+    uCausticOptics5: vec4<f32>,
+    uCausticOptics6: vec4<f32>,
+    uCausticOptics7: vec4<f32>,
     uCausticSpec0: vec4<f32>,
     uCausticSpec1: vec4<f32>,
     uCausticSpec2: vec4<f32>,
     uCausticSpec3: vec4<f32>,
     uCausticSpec4: vec4<f32>,
     uCausticSpec5: vec4<f32>,
+    uCausticSpec6: vec4<f32>,
+    uCausticSpec7: vec4<f32>,
+    uCausticSpec8: vec4<f32>,
+    uCausticSpec9: vec4<f32>,
+    uCausticSpec10: vec4<f32>,
+    uCausticSpec11: vec4<f32>,
     uCausticSecondary0: vec4<f32>,
     uCausticSecondary1: vec4<f32>,
     uCausticSecondarySpec0: vec4<f32>,
@@ -513,16 +581,32 @@ ${CAUSTIC_FIELD_WGSL}
       farFieldUniforms.uCaustic3,
       farFieldUniforms.uCaustic4,
       farFieldUniforms.uCaustic5,
+      farFieldUniforms.uCaustic6,
+      farFieldUniforms.uCaustic7,
+      farFieldUniforms.uCaustic8,
+      farFieldUniforms.uCaustic9,
+      farFieldUniforms.uCaustic10,
+      farFieldUniforms.uCaustic11,
       farFieldUniforms.uCausticSpec0,
       farFieldUniforms.uCausticSpec1,
       farFieldUniforms.uCausticSpec2,
       farFieldUniforms.uCausticSpec3,
       farFieldUniforms.uCausticSpec4,
       farFieldUniforms.uCausticSpec5,
+      farFieldUniforms.uCausticSpec6,
+      farFieldUniforms.uCausticSpec7,
+      farFieldUniforms.uCausticSpec8,
+      farFieldUniforms.uCausticSpec9,
+      farFieldUniforms.uCausticSpec10,
+      farFieldUniforms.uCausticSpec11,
       farFieldUniforms.uCausticOptics0,
       farFieldUniforms.uCausticOptics1,
       farFieldUniforms.uCausticOptics2,
       farFieldUniforms.uCausticOptics3,
+      farFieldUniforms.uCausticOptics4,
+      farFieldUniforms.uCausticOptics5,
+      farFieldUniforms.uCausticOptics6,
+      farFieldUniforms.uCausticOptics7,
       farFieldUniforms.uCausticSecondary0,
       farFieldUniforms.uCausticSecondary1,
       farFieldUniforms.uCausticSecondarySpec0,
@@ -635,16 +719,32 @@ export function createFarField(): FarField | null {
     uCaustic3: Float32Array;
     uCaustic4: Float32Array;
     uCaustic5: Float32Array;
+    uCaustic6: Float32Array;
+    uCaustic7: Float32Array;
+    uCaustic8: Float32Array;
+    uCaustic9: Float32Array;
+    uCaustic10: Float32Array;
+    uCaustic11: Float32Array;
     uCausticOptics0: Float32Array;
     uCausticOptics1: Float32Array;
     uCausticOptics2: Float32Array;
     uCausticOptics3: Float32Array;
+    uCausticOptics4: Float32Array;
+    uCausticOptics5: Float32Array;
+    uCausticOptics6: Float32Array;
+    uCausticOptics7: Float32Array;
     uCausticSpec0: Float32Array;
     uCausticSpec1: Float32Array;
     uCausticSpec2: Float32Array;
     uCausticSpec3: Float32Array;
     uCausticSpec4: Float32Array;
     uCausticSpec5: Float32Array;
+    uCausticSpec6: Float32Array;
+    uCausticSpec7: Float32Array;
+    uCausticSpec8: Float32Array;
+    uCausticSpec9: Float32Array;
+    uCausticSpec10: Float32Array;
+    uCausticSpec11: Float32Array;
     uCausticSecondary0: Float32Array;
     uCausticSecondary1: Float32Array;
     uCausticSecondarySpec0: Float32Array;
@@ -667,6 +767,12 @@ export function createFarField(): FarField | null {
     uniforms.uCaustic3,
     uniforms.uCaustic4,
     uniforms.uCaustic5,
+    uniforms.uCaustic6,
+    uniforms.uCaustic7,
+    uniforms.uCaustic8,
+    uniforms.uCaustic9,
+    uniforms.uCaustic10,
+    uniforms.uCaustic11,
   ];
   const spectralSlots = [
     uniforms.uCausticSpec0,
@@ -675,12 +781,22 @@ export function createFarField(): FarField | null {
     uniforms.uCausticSpec3,
     uniforms.uCausticSpec4,
     uniforms.uCausticSpec5,
+    uniforms.uCausticSpec6,
+    uniforms.uCausticSpec7,
+    uniforms.uCausticSpec8,
+    uniforms.uCausticSpec9,
+    uniforms.uCausticSpec10,
+    uniforms.uCausticSpec11,
   ];
   const causticOptics = [
     uniforms.uCausticOptics0,
     uniforms.uCausticOptics1,
     uniforms.uCausticOptics2,
     uniforms.uCausticOptics3,
+    uniforms.uCausticOptics4,
+    uniforms.uCausticOptics5,
+    uniforms.uCausticOptics6,
+    uniforms.uCausticOptics7,
   ];
   const secondarySlots = [
     uniforms.uCausticSecondary0,
