@@ -65,6 +65,10 @@ Neighbours:
   set's ONE `servedOrigins` registry, which `fetch_url` and `validate_html`
   read. Do not kill arbitrary process groups; only safe integer PGIDs greater
   than 1 may reach group syscalls.
+- At most `MAX_LIVE_NODE_SERVERS` (4) node servers per tool set run at once;
+  a fifth start stops the oldest still running, marked `stoppedByHost` so a probe
+  of its port says so. Run 96d5c845 (2026-10-04) held 53, 812 MB, and swapped
+  the production host until nothing on it answered.
 - A loopback URL with NO port is refused PRE-FLIGHT by both probe tools
   (`unservedLoopbackProbeRefusal`, prefix `PROBE_URL_REFUSAL_PREFIX` from
   [src/contracts](../contracts/AGENTS.md)): the server tools never bind the
