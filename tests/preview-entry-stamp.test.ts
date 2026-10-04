@@ -111,7 +111,7 @@ describe('start_node_server records the entry file against the bound port', () =
     expect(res.entry).toBe('server.js');
     // ...and the same observation is published on the cross-tool channel,
     // keyed by the port the child actually bound.
-    expect(servedOrigins.get(res.port)).toEqual({ kind: 'node', pid: res.pid, entry: 'server.js' });
+    expect(servedOrigins.get(res.port)).toEqual({ kind: 'node', pid: res.pid, entry: 'server.js', codeDigest: expect.stringMatching(/^[a-f0-9]{64}$/) });
     expect(servedOrigins.size).toBe(1);
   });
 
