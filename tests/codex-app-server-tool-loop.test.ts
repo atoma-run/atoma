@@ -205,13 +205,15 @@ describe('Codex app-server tool session', () => {
     expect(observe.mock.calls.map(([info]) => info.error === undefined)).toEqual([false, false, true]);
   });
 
-  it('keeps the tool budget: the last call says so, a later one is refused, the final is marked', async () => {
+  it('keeps the tool budget in model responses: the last one says so, a later call is refused, the final is marked', async () => {
     const home = codexHome();
     const replies: { success: boolean; text: string }[] = [];
     const fake = fakeAppServer(async (server) => {
+      // One call per model response; Codex reports usage after each response.
       for (const url of ['a', 'b', 'c']) {
         const reply = await server.callTool('fetch_url', { url: `http://localhost:1/${url}` });
         replies.push({ success: reply.success, text: reply.contentItems[0]!.text });
+        server.usage({ inputTokens: 1, cachedInputTokens: 0, cacheWriteInputTokens: 0, outputTokens: 1, reasoningOutputTokens: 0 });
       }
       server.message('final after budget');
       server.complete();
@@ -334,26 +336,49 @@ describe('Codex app-server tool session', () => {
     release?.();
   });
 
-  it('answers a batch that overruns the budget with refusals and still returns its final', async () => {
+  // Run 96d5c845 (2026-10-04): counted in calls, two batches of 25 HTTP
+  // checks spent a budget of 40 before the browser check was reached.
+  it('runs a whole batch inside one response of the budget', async () => {
     const home = codexHome();
-    let successes: boolean[] = [];
+    let batch: boolean[] = [];
+    let after: boolean[] = [];
     const fake = fakeAppServer(async (server) => {
       const replies = await Promise.all(['a', 'b', 'c', 'd', 'e'].map((url) => server.callTool('fetch_url', { url: `http://localhost:1/${url}` })));
-      successes = replies.map((reply) => reply.success);
+      batch = replies.map((reply) => reply.success);
+      server.usage({ inputTokens: 1, cachedInputTokens: 0, cacheWriteInputTokens: 0, outputTokens: 1, reasoningOutputTokens: 0 });
+      const next = await Promise.all(['f', 'g'].map((url) => server.callTool('fetch_url', { url: `http://localhost:1/${url}` })));
+      after = next.map((reply) => reply.success);
       server.message('final from a batch');
       server.complete();
     });
-    const req = request({ maxToolIterations: 2 });
+    const req = request({ maxToolIterations: 1 });
     const response = await new CodexCliLlmClient({ env: { CODEX_HOME: home }, appServerSpawnFn: fake.spawnFn }).complete(req);
-    expect(successes).toEqual([true, true, false, false, false]);
-    expect(req.executor!.execute).toHaveBeenCalledTimes(2);
+    expect(batch).toEqual([true, true, true, true, true]);
+    expect(after).toEqual([false, false]);
+    expect(req.executor!.execute).toHaveBeenCalledTimes(5);
     expect(response).toMatchObject({ text: 'final from a batch', toolBudgetExhausted: true });
+  });
+
+  it('still bounds the calls one response may batch', async () => {
+    const home = codexHome();
+    let successes: boolean[] = [];
+    const fake = fakeAppServer(async (server) => {
+      const replies = await Promise.all(Array.from({ length: 14 }, (_, i) => server.callTool('fetch_url', { url: `http://localhost:1/${i}` })));
+      successes = replies.map((reply) => reply.success);
+      server.message('bounded');
+      server.complete();
+    });
+    const req = request({ maxToolIterations: 1 });
+    await new CodexCliLlmClient({ env: { CODEX_HOME: home }, appServerSpawnFn: fake.spawnFn }).complete(req);
+    expect(req.executor!.execute).toHaveBeenCalledTimes(12);
+    expect(successes.filter((ok) => !ok)).toHaveLength(2);
   });
 
   it('interrupts a model that keeps calling past the budget and finalizes in a tool-free turn', async () => {
     const home = codexHome();
     const fake = fakeAppServer(async (server, turn) => {
       if (turn === 0) {
+        server.usage({ inputTokens: 1, cachedInputTokens: 0, cacheWriteInputTokens: 0, outputTokens: 1, reasoningOutputTokens: 0 });
         for (let i = 0; i < 12; i++) void server.callTool('fetch_url', { url: `http://localhost:1/${i}` });
         return;
       }

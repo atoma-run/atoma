@@ -76,9 +76,12 @@ Neighbours:
   response (a stale login is refreshed before it): the copy is written back then
   and the lease released, so other lanes and tiers are not queued behind minutes
   of host tools; a later rotation is written back only over what this session
-  last wrote. The budget counts calls as exec counted actions; the call reaching
-  it carries the exhaustion hint, later calls are refused, eight refusals end the
-  turn for a tool-free finalizing turn, and that final is `toolBudgetExhausted`.
+  last wrote. The budget counts MODEL RESPONSES, as the native loops do (Codex
+  reports usage once per response), with calls bounded at 12 per allowed
+  response: counted in calls, run 96d5c845 spent 40 in two batches of HTTP checks
+  and never reached its browser check. Calls of the last allowed response carry
+  the exhaustion hint, later calls are refused, eight refusals end the turn for a
+  tool-free finalizing turn, and that final is `toolBudgetExhausted`.
   A session that fails before any tool call reached the host falls back to the
   exec loop (nothing ran twice), except on a timeout, rate limit or login failure
   that exec would meet too; after one, the failure is the call's.

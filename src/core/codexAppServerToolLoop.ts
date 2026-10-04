@@ -87,6 +87,16 @@ When the work is done, reply with your final response as plain assistant text, w
 const REFUSALS_BEFORE_FINAL_TURN = 8;
 const MAX_REFUSALS = 16;
 
+/**
+ * THE BUDGET COUNTS MODEL RESPONSES, as every native tool loop here does
+ * (`llm.ts`, the Responses and Chat Completions loops): a response may batch
+ * several calls. Counted in calls, run 96d5c845 (2026-10-04) spent its 40 in
+ * two responses of 25 HTTP checks each and never reached its browser check.
+ * Codex reports usage once per completed model response; that count is the
+ * response number. Calls stay bounded too, at this many per allowed response.
+ */
+const MAX_CALLS_PER_RESPONSE = 12;
+
 /** A failure the exec loop would meet too, or that already cost its wait. */
 const NO_FALLBACK = new Set<CodexFailureCode>(['timeout', 'rate-limited', 'authentication-required']);
 
@@ -328,6 +338,9 @@ async function runSession(
   let toolCallsSeen = 0;
   let executed = 0;
   let refused = 0;
+  // Completed model responses so far: a call belongs to response `responses + 1`.
+  let responses = 0;
+  const overBudget = (): boolean => responses >= budget || executed >= budget * MAX_CALLS_PER_RESPONSE;
   let finalTurn: 'none' | 'requested' | 'started' = 'none';
   let completed = false;
   let failure: CodexFailureCode | null = null;
@@ -388,7 +401,7 @@ async function runSession(
     const args = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
     const startedAt = Date.now();
     try {
-      if (executed >= budget) {
+      if (overBudget()) {
         refused++;
         observe({ name, args, startedAt, durationMs: 0, error: BUDGET_EXHAUSTED_HINT });
         if (refused > MAX_REFUSALS) { budgetFailure = true; end(); return; }
@@ -418,7 +431,9 @@ async function runSession(
       let content: string;
       try { content = truncateToolResultContent(error ?? (typeof result === 'string' ? result : JSON.stringify(result) ?? 'null')); }
       catch { content = 'The tool result could not be serialized.'; }
-      reply(id, executed >= budget ? `${content}\n${BUDGET_EXHAUSTED_HINT}` : content, error === undefined);
+      // The last allowed response hears that no tool will run after it.
+      const last = responses === budget - 1 || executed >= budget * MAX_CALLS_PER_RESPONSE;
+      reply(id, last ? `${content}\n${BUDGET_EXHAUSTED_HINT}` : content, error === undefined);
     } finally {
       bump();
     }
@@ -478,6 +493,7 @@ async function runSession(
       if (item['type'] === 'agentMessage' && typeof item['text'] === 'string' && item['text'].trim()) text = item['text'];
     } else if (method === 'thread/tokenUsage/updated') {
       onFirstResponse();
+      responses++;
       usageTotal = record(record(params['tokenUsage'])['total']);
     } else if (method === 'error') {
       if (params['willRetry'] !== true) diagnostic = JSON.stringify(params['error'] ?? params);
@@ -553,7 +569,8 @@ async function runSession(
   if (completed && text.trim()) {
     return {
       text, stopReason: 'end_turn', usage: spent, servedModel: opts.model,
-      ...(executed >= budget ? { toolBudgetExhausted: true as const } : {}),
+      // A final written after the last allowed response is a finalization, as in exec.
+      ...(refused > 0 || responses > budget ? { toolBudgetExhausted: true as const } : {}),
     };
   }
   const code: CodexFailureCode = timedOut ? 'timeout' : completed ? 'empty-response' : failure ?? 'provider-error';
