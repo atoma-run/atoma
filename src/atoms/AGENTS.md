@@ -290,6 +290,12 @@ load-bearing.
   contradictions.
 - Ground-truth reporting must quote observed tool bytes. Narrative self-report
   alone is not evidence.
+- Stateful checks establish their preconditions from observed state and successful
+  transitions, never probe labels or earlier coaching. Shared runtime guidance
+  reaches executors and validators; the latter also read the reminder beside
+  transport evidence. No new gate or call. Run ce89c84a's failed fifth creation
+  made its purported sixth the fifth; replay limits and countercases are in
+  `benchmark/stateful-evidence-2026-10-05/summary.json`.
 - Inputs that only EXERCISE the artefact go under `.atoma-scratch/`, which
   publication and the preview already exclude with every `.atoma-*` path; the
   molecule reads the rule in its runtime execution prompt, so branches whose

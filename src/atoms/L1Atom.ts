@@ -19,7 +19,7 @@ import { modelFacingExecutor } from '../core/attestation.js';
 import { executorEvidence } from './executorEvidence.js';
 import { AttemptDigest } from './attemptDigest.js';
 import { namedLayoutWidths } from '../contracts/acceptanceChecklist.js';
-import { KEYBOARD_EVIDENCE_GUIDANCE, EXISTING_FILE_GUIDANCE, READER_FACING_DOC_GUIDANCE, TEST_ONLY_ELEMENT_GUIDANCE } from './prompts.js';
+import { STATEFUL_EVIDENCE_GUIDANCE, KEYBOARD_EVIDENCE_GUIDANCE, EXISTING_FILE_GUIDANCE, READER_FACING_DOC_GUIDANCE, TEST_ONLY_ELEMENT_GUIDANCE } from './prompts.js';
 
 /**
  * Where a molecule puts what only EXERCISES the artefact. Publication and the
@@ -341,6 +341,7 @@ export class L1Atom extends Atom {
       `required claim fails, read the offending file, fix it with edit_file, and`,
       `re-validate. A clean console alone is not success: return success only`,
       `when the required claims pass.`,
+      this.tools.length > 0 ? STATEFUL_EVIDENCE_GUIDANCE : '',
       writesFiles(this.tools) ? READER_FACING_DOC_GUIDANCE : '',
       editsFiles(this.tools) ? EXISTING_FILE_GUIDANCE : '',
       this.tools.some((t) => t.name === 'validate_html') ? TEST_ONLY_ELEMENT_GUIDANCE : '',
@@ -405,6 +406,7 @@ ${previousAttempt}` : '',
       `- On a retry, inspect the current state and complete the remaining work; do not repeat completed discovery or rewrite already-correct files.`,
       `- A requested answer/report file is a deliverable too: writing the main artifact does not replace writing that file.`,
       ...SCRATCH_FILE_LINES,
+      STATEFUL_EVIDENCE_GUIDANCE,
       hasValidator ? TEST_ONLY_ELEMENT_GUIDANCE : null,
       hasValidator ? KEYBOARD_EVIDENCE_GUIDANCE : null,
       ...(hasValidator ? browserProofLines(task) : []),

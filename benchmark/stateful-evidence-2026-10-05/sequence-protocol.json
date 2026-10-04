@@ -1,0 +1,13 @@
+{
+  "registeredAt": "2026-10-04T22:27:50.944768+00:00",
+  "model": "gpt-5.6-luna",
+  "arms": [
+    "stateful-guidance"
+  ],
+  "calls": 9,
+  "rootRepeats": 3,
+  "controlsRepeats": 1,
+  "scope": "Second exploratory stage: same archived input and system guidance, adding the production review instruction beside the observed sequence. Three root replays, then six unchanged countercases.",
+  "outcome": "Manually assess false rule diagnosis separately from approval; do not count a refusal for unrelated browser findings as demonstrated understanding of the loan precondition.",
+  "limit": "Sequential adaptive exploration; no held-out reliability estimate."
+}

@@ -1,0 +1,16 @@
+{
+  "registeredAt": "2026-10-04T22:25:21.500951+00:00",
+  "model": "gpt-5.6-luna",
+  "arms": [
+    "baseline",
+    "stateful-guidance"
+  ],
+  "calls": 18,
+  "rootRepeats": 3,
+  "controlsRepeats": 1,
+  "ordering": "Root arm order alternates; control arm order alternates.",
+  "primaryOutcome": "Does reasoning or coaching falsely diagnose a premium-limit defect on the archived run? Overall refusal alone is not success: unrelated UI issues and an unverified limit may still warrant refusal. Manually inspect full reasons.",
+  "controls": "Six authored scenarios, paired baseline/candidate: failed setup, real defect, verified limit, wrong refusal cause, unknown initial state, known existing state. Check approval and diagnosis independently.",
+  "scope": "Tool-free replay of archived validator user input using current production baseline system prompt versus only added stateful guidance. No Atoma run, state or trust mutation. Controls are synthetic, explicitly labelled.",
+  "limits": "Small exploratory comparison of one incident; no general reliability or end-to-end execution claim."
+}

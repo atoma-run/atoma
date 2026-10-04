@@ -1,0 +1,143 @@
+{
+  "runId": "ce89c84a-c848-428c-8811-de4d090c8d39",
+  "sourceRevision": "b5a76a557df4b0d100e5724f6425a53616022ec4",
+  "implementationBase": "3c975024cdefb10433c6a978e8a3e71090fabb7f",
+  "evidenceRead": {
+    "summaryEvents": 197,
+    "completeEvents": 197,
+    "pagination": "Every event detail was concatenated to nextTextOffset=null using its snapshot; no detail fetch failed. The fixture archives the relevant subset and the complete first rejected validator call."
+  },
+  "findings": [
+    {
+      "finding": "False premium-sixth-loan diagnosis",
+      "established": true,
+      "facts": [
+        "Four successful creations produced l12, l13, l14 and l15.",
+        "The request labelled premium loan 5 returned 409: copy unavailable or reserved (8434cc6c-942b-478e-999d-f1d11294460a).",
+        "The request labelled premium sixth refusal returned 201 creating l16 (026b5f86-a58e-4f8d-a193-91a5ae925b2d). It was the fifth successful creation in this sequence.",
+        "The first server started with a deleted temporary data file and its seed had no loans. The earlier m3 loan request was refused.",
+        "Validator 26c42337-ebf8-4354-856e-83d97469bb3e incorrectly asserted five pre-existing active loans.",
+        "No write_file or edit_file occurred in the run. All servedBy code digests were unchanged. Recovery later established a controlled fixture rather than fixing server code."
+      ],
+      "qualification": "This invalid counterexample does not establish the limit rule by itself. Other missing proof and failed scenarios may still justify a retry."
+    },
+    {
+      "finding": "The analyst repeats the diagnosis and overstates recovery",
+      "established": true,
+      "facts": [
+        "The analyst described validator-driven recovery as correcting the evidence gap and quoted the instruction to fix the sixth-loan rule.",
+        "Its statement that work occurred before establishing a fresh fixture overlooks the first scratch-file deletion and server start. State contamination occurred between scenarios within that fresh fixture, and the next execution reused it."
+      ],
+      "qualification": "No historical verdict was edited. Analyst prompt changes and live recalibration remain separate work."
+    },
+    {
+      "finding": "Passing test names overstate boundary coverage",
+      "established": true,
+      "facts": [
+        "The first premium-limit test attempts its sixth loan on b2, already held by m2 with a queued hold; unavailability is an independent 409 cause.",
+        "The later premium-limit test attempts b6 twice while it has one copy; unavailability can again explain 409 without enforcing the premium limit.",
+        "No exact 500-cent balance allowance is asserted in the recorded test file. The fine-threshold test exercises a larger balance and pays it down to zero.",
+        "A live request labelled over-five-fine refusal followed a 1000-cent fine and an earlier 500-cent payment: the balance was exactly 500, so its 201 is not a violation."
+      ],
+      "qualification": "These are gaps in the recorded verification, not proof that the delivered implementation violates those rules. No generated application file or historical run was changed."
+    }
+  ],
+  "evaluation": {
+    "totalCalls": 27,
+    "transportErrors": 0,
+    "parseErrors": 0,
+    "firstStage": {
+      "archivedUserInput": "unchanged",
+      "baselineSystem": "current production before this patch, including keyboard guidance",
+      "baselineFalsePremiumDiagnosis": {
+        "count": 3,
+        "calls": 3
+      },
+      "systemGuidanceOnlyFalsePremiumDiagnosis": {
+        "count": 1,
+        "calls": 3
+      },
+      "controls": {
+        "baselineApprovalMatches": 6,
+        "candidateApprovalMatches": 6,
+        "perArm": 6,
+        "note": "Approval matching alone hides incorrect causal claims; the baseline wrong-refusal-cause reason misdiagnosed below-limit behavior despite unavailable capacity."
+      }
+    },
+    "secondStage": {
+      "treatment": "Same shared guidance plus precondition reminder beside the observed sequence",
+      "falsePremiumDiagnosis": {
+        "count": 0,
+        "calls": 3
+      },
+      "explicitCorrectPremiumReconstruction": {
+        "count": 0,
+        "calls": 3
+      },
+      "controlsApprovalMatches": 6,
+      "controls": 6,
+      "manualDiagnosisReview": "Failed setup and unknown state remained unverified; the real six-active-leases defect was rejected; proper boundary checks and known existing state were accepted.",
+      "qualification": "All three full replays rejected on other grounds. Absence of false premium coaching is a narrower observation than correctly reconstructing this incident; no overall judgment accuracy claim."
+    }
+  },
+  "decision": {
+    "change": "Teach observed stateful prerequisites to executors and validators, with the review reminder beside existing evidence. Preserve the one validator call, current model, historical evidence and existing gates.",
+    "limits": [
+      "Exploratory adaptive stages, small single-incident sample; no reliability guarantee.",
+      "Archived user input predates current read-retention and keyboard action rendering; only the tested prompt treatments change.",
+      "No new production run, end-to-end executor measurement, or analyst reevaluation was performed.",
+      "Broad rerun requests and treatment of historical browser errors remain unresolved in full replays.",
+      "The scenario data in the six controls is synthetic, not a fresh execution of the production application."
+    ],
+    "next": "Validate current production end to end after addressing remaining confirmed source errors; assess recovery scope and analyst causal reasoning separately."
+  },
+  "menderReview": [
+    {
+      "pr": 13,
+      "url": "https://github.com/mgtf/atoma/pull/13",
+      "disposition": "not merged",
+      "assessment": "Schedule visibility is useful but the test proves only prompt propagation, not fewer recoveries. recordedProbeCountFromCompletedPhases counts every evidence entry, including non-probe or model-declared witnesses, and provides no progress for repeated executions within the current phase. No measured benefit claimed.",
+      "headSha": "b42ef30633cedbc09bc5d0d4f38112832dd381c4"
+    },
+    {
+      "pr": 14,
+      "url": "https://github.com/mgtf/atoma/pull/14",
+      "disposition": "not merged",
+      "assessment": "Lexical browser-evidence category does not compare actual proof progress. Three different missing interactions can use the same phrase and trigger escalation despite useful progress. The test for an unrelated phrase does not cover this countercase. No new lexical gate adopted.",
+      "headSha": "44da0997fdf5760736826bb62436fa4e7875b80d"
+    },
+    {
+      "pr": 12,
+      "url": "https://github.com/mgtf/atoma/pull/12",
+      "disposition": "already closed; used as reference only",
+      "assessment": "Fallible feedback and state-scoped counterexamples are relevant, but mocked judgments in its tests do not demonstrate live-model causal accuracy."
+    }
+  ],
+  "sha256": {
+    "analyst.json": "ae4a41841f27de794c04e4367163daf317fce6511b1ec56f8ff6254ee527464e",
+    "boundary-evidence.json": "b71b67db1e0c4d078223d99cbd56982f2db37ce648864a260a3a467e4f008916",
+    "fixture.json": "5df4997763bdb977677c25be5e75707af0f906ae9be44c269fbfe8bdf72b75d0",
+    "guidance.txt": "801d897b324ce163d905f7ba0062bb00b4080d4bdf57d7928be3b7c5a5de87c7",
+    "protocol.json": "16beded721151aaf886fb2c0bed0276da5a0af43c1351fa0830e0d8d2d66162d",
+    "replay-sequence.mjs": "830b9492eefe872f2bb4bc832bb71f4b7d463c733eac90ec4039914ba2c4ee5d",
+    "replay.mjs": "9d31177136e546e42fef8041e4d77c3ec89e66d89a48666d212f10e211a24f36",
+    "requests.json.gz": "a999dafa0a659f392899bf2527b34098ba7bb4080abaca84346848bb60931b3c",
+    "responses.jsonl": "78197636d25bf8be3ca7794fa475678c81e292f3ff82556b71e4030a0e6bcd4e",
+    "sequence-protocol.json": "5740c55ca1b95021dd00b3cf59d743447e1eb0a4db0d8930bfbf3b6a7558cc55",
+    "sequence-requests.json.gz": "faa6067032d18fde571ce8e3b59f3fc223d849a76b85a9907805dcb67f398253",
+    "sequence-responses.jsonl": "2efb5cebb50a26a2d0e38dce5d2c8e01c5083fedd4cfa76eb8ceeb52e8edd754",
+    "sequence-review.txt": "50d3b1c1b52a8168addb561802572ddf0f694b8c6038e8258f9c5f90d6849e2b"
+  },
+  "localVerification": {
+    "npmRunCheck": {
+      "passed": 5349,
+      "skipped": 19,
+      "failed": 0,
+      "testFilesPassed": 407,
+      "testFilesSkipped": 1
+    },
+    "releaseCheckStatic": "passed",
+    "targetedProductionBoundaryTests": "24 passed",
+    "scope": "Mocked executor/validator tests establish prompt and evidence transmission, not model reasoning. Live tool-free judgments are archived separately."
+  }
+}

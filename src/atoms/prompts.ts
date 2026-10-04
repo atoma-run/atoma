@@ -677,3 +677,14 @@ export const KEYBOARD_EVIDENCE_GUIDANCE = [
   "Clicks, visible controls, native HTML elements, a successful layout check, or a key with no asserted outcome do not establish that a required keyboard journey works. Missing evidence means unverified, not a demonstrated application defect. A failed keyboard outcome is a defect only when the check actually exercised the requested behaviour correctly.",
   "Use equivalent executed keyboard tests and their asserted outcomes when available, including outside validate_html; do not demand this tool or a particular key sequence. Require no keyboard test when the task asks for none, and do not require keyboard-only navigation to prove a shortcut alone.",
 ].join('\n');
+
+/** Executed preconditions, not scenario names, establish a stateful check. */
+export const STATEFUL_EVIDENCE_GUIDANCE = [
+  'For stateful verification, separate the intended scenario from the observed state. Request notes, test names, ordinal labels and previous validator coaching are claims, not established preconditions.',
+  'Before diagnosing a rule violation, reconstruct the relevant pre-state from observed setup, successful transitions, returned IDs and intervening changes on the same fixture. A failed creation does not count as a created entity; an error alone does not establish rollback either. If state is uncertain, request a narrow state read or controlled check.',
+  'A status code alone does not establish the intended refusal cause when another constraint can cause it. Missing or failed setup leaves that scenario unverified; ask to establish its preconditions, not to change correct implementation to fit the probe label. A valid observed counterexample still requires correction.',
+  'When authoring checks, verify setup outcomes before dependent actions, keep independent scenarios from contaminating one another, and assert the relevant state and result. Use isolated temporary data when needed, preserve user data and recorded evidence, and recheck the affected scenario instead of restarting an unrelated passing matrix. Do not require a fresh fixture when existing observed state already establishes the preconditions.',
+].join('\n');
+
+/** Kept beside the observed sequence, where scenario labels otherwise look factual. */
+export const STATEFUL_EVIDENCE_REVIEW = 'Before alleging a state-dependent rule violation, cite the observed pre-state and successful transitions that establish its prerequisites in your reasoning. Count successful creations, not numbered requests; include intervening failures, returns and resets. If the prerequisites are absent or uncertain, report an unverified scenario and request the missing check, not an implementation fix. A matching status from a competing refusal cause proves no limit.';

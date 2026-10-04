@@ -5,7 +5,7 @@ import { L2Atom } from '../src/atoms/L2Atom.js';
 import { L3Atom } from '../src/atoms/L3Atom.js';
 import { forkBranch } from '../src/core/branchCtx.js';
 import { keptWithoutSynthesis } from '../src/atoms/dispatch.js';
-import { KEYBOARD_EVIDENCE_GUIDANCE } from '../src/atoms/prompts.js';
+import { KEYBOARD_EVIDENCE_GUIDANCE, STATEFUL_EVIDENCE_GUIDANCE } from '../src/atoms/prompts.js';
 import { FALLBACK_PROOF_TURN_MIN_MS } from '../src/atoms/fallbackProof.js';
 import { FALLBACK_OPUS } from './tier-pins.js';
 import { makeCtx, jsonText } from './helpers.js';
@@ -115,6 +115,7 @@ describe("a fallback's proof obligation", () => {
 
     const fallbackCalls = calls.filter((call) => call.role === 'fallback-execute');
     for (const call of fallbackCalls) expect(call.userContent).toContain(KEYBOARD_EVIDENCE_GUIDANCE);
+    for (const call of fallbackCalls) expect(call.userContent).toContain(STATEFUL_EVIDENCE_GUIDANCE);
     expect(fallbackCalls).toHaveLength(2);
     // Level 1: the fallback reads the obligation a molecule reads.
     expect(fallbackCalls[0]!.userContent).toContain('PROOF OBLIGATION "dom-interaction"');

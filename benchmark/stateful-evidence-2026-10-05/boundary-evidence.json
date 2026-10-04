@@ -1,0 +1,913 @@
+{
+  "runId": "ce89c84a-c848-428c-8811-de4d090c8d39",
+  "events": [
+    {
+      "id": "741e7808-c671-4e86-8781-4311cf27953b",
+      "ts": 1791142895051,
+      "kind": "tool",
+      "llmEventId": "39674d4d-cb3f-415c-813b-4bc3fd9e559f",
+      "name": "read_file",
+      "args": {
+        "path": "test/library.test.js"
+      },
+      "durationMs": 6,
+      "actor": {
+        "name": "CarbonDioxide",
+        "tier": 1
+      },
+      "result": {
+        "path": "test/library.test.js",
+        "content": "'use strict';\nconst testApi=require('node:test');\nconst test=(name,fn)=>testApi(name,{concurrency:false},fn);\ntest.before=testApi.before;\ntest.after=testApi.after;\nconst assert=require('node:assert/strict');\nconst fs=require('node:fs');\nconst os=require('node:os');\nconst path=require('node:path');\nconst {spawn}=require('node:child_process');\n\nlet dir, dataFile, child, base;\nasync function request(method,pathName,body,headers={}){\n  const r=await fetch(base+pathName,{method,headers:{'content-type':'application/json','X-Today':'2026-01-01',...headers},body:body===undefined?undefined:JSON.stringify(body)});\n  return {status:r.status,json:await r.json()};\n}\n\ntest.before(async()=>{\n  dir=fs.mkdtempSync(path.join(os.tmpdir(),'library-test-'));\n  dataFile=path.join(dir,'library.json');\n  child=spawn(process.execPath,['server.js'],{env:{...process.env,PORT:'0',DATA_FILE:dataFile},stdio:['ignore','pipe','inherit']});\n  let output='';\n  await new Promise((resolve,reject)=>{\n    child.stdout.on('data',chunk=>{output+=chunk;const m=output.match(/LISTENING_ON_PORT=(\\d+)/);if(m){base='http://127.0.0.1:'+m[1];resolve();}});\n    child.once('error',reject);\n    setTimeout(()=>reject(new Error('server timeout')),5000);\n  });\n});\ntest.after(()=>{if(child)child.kill('SIGTERM');fs.rmSync(dir,{recursive:true,force:true});});\n\ntest('initial views and static UI',async()=>{\n  let r=await request('GET','/api/books');assert.equal(r.status,200);assert.equal(r.json.length,6);assert.ok(r.json.every(b=>Number.isInteger(b.availableCopies)));\n  r=await request('GET','/api/members');assert.equal(r.status,200);assert.equal(r.json.length,3);\n  r=await request('GET','/api/members/m1');assert.equal(r.status,200);assert.deepEqual(r.json.activeLoans,[]);\n  const ui=await fetch(base+'/');assert.equal(ui.status,200);assert.match(await ui.text(),/Neighbourhood Library/);\n});\n\ntest('validation, loan dates, availability and unknown resources',async()=>{\n  let r=await request('POST','/api/loans',{});assert.equal(r.status,400);\n  r=await request('POST','/api/loans',{bookId:' ',memberId:'m1'});assert.equal(r.status,400);\n  r=await request('POST','/api/loans',{bookId:'missing',memberId:'m1'});assert.equal(r.status,404);\n  r=await request('POST','/api/loans',{bookId:'b2',memberId:'m1'});assert.equal(r.status,201);assert.equal(r.json.dueDate,'2026-01-15');\n  r=await request('POST','/api/loans',{bookId:'b2',memberId:'m2'});assert.equal(r.status,409);\n});\n\ntest('holds, reservation, oldest ordering and return fine cap',async()=>{\n  let r=await request('POST','/api/holds',{bookId:'b2',memberId:'m2'});assert.equal(r.status,201);\n  r=await request('POST','/api/holds',{bookId:'b2',memberId:'m3'});assert.equal(r.status,201);\n  r=await request('POST','/api/holds',{bookId:'b1',memberId:'m1'});assert.equal(r.status,409);\n  r=await request('POST','/api/loans/l1/renew');assert.equal(r.status,409);\n  r=await request('POST','/api/loans/l1/return',undefined,{'X-Today':'2026-03-01'});assert.equal(r.status,200);assert.equal(r.json.fineCents,1000);\n  r=await request('POST','/api/loans',{bookId:'b2',memberId:'m3'});assert.equal(r.status,409);\n  r=await request('POST','/api/loans',{bookId:'b2',memberId:'m2'});assert.equal(r.status,201);assert.equal(r.json.memberId,'m2');\n  r=await request('GET','/api/members/m2');assert.equal(r.status,200);assert.equal(r.json.holds.length,0);\n});\n\ntest('renewal, limits, payments and fine threshold',async()=>{\n  let r=await request('POST','/api/loans',{bookId:'b3',memberId:'m3'});assert.equal(r.status,201);const renewalId=r.json.id;\n  r=await request('POST','/api/loans/'+renewalId+'/renew');assert.equal(r.status,200);\n  r=await request('POST','/api/loans/'+renewalId+'/renew');assert.equal(r.status,200);\n  r=await request('POST','/api/loans/'+renewalId+'/renew');assert.equal(r.status,409);\n  const premiumLoans=[renewalId];\n  for(const bookId of ['b1','b4','b5','b6']) { r=await request('POST','/api/loans',{bookId,memberId:'m3'});assert.equal(r.status,201);premiumLoans.push(r.json.id); }\n  r=await request('POST','/api/loans',{bookId:'b2',memberId:'m3'});assert.equal(r.status,409);\n  for(const id of premiumLoans) { r=await request('POST','/api/loans/'+id+'/return',undefined,{'X-Today':'2026-01-01'});assert.equal(r.status,200); }\n  r=await request('POST','/api/members/m1/payments',{amount:10});assert.equal(r.status,201);assert.equal(r.json.amountCents,1000);\n  r=await request('POST','/api/members/m1/payments',{amount:0.01});assert.equal(r.status,201);assert.equal(r.json.amountCents,1);\n  r=await request('POST','/api/members/m1/payments',{amount:'1'});assert.equal(r.status,400);\n  r=await request('GET','/api/members/m1');assert.equal(r.status,200);assert.equal(r.json.finesOwedCents,0);\n});\n\ntest('standard loan limit and unpaid-fine refusal',async()=>{\n  let r=await request('POST','/api/loans',{bookId:'b4',memberId:'m1'});assert.equal(r.status,201);const firstLoan=r.json.id;\n  r=await request('POST','/api/loans',{bookId:'b5',memberId:'m1'});assert.equal(r.status,201);\n  r=await request('POST','/api/loans',{bookId:'b6',memberId:'m1'});assert.equal(r.status,201);\n  r=await request('POST','/api/loans',{bookId:'b1',memberId:'m1'});assert.equal(r.status,409);\n  r=await request('POST','/api/loans/'+firstLoan+'/return',undefined,{'X-Today':'2026-03-01'});assert.equal(r.status,200);\n});\n\ntest('fine threshold and premium limit',async()=>{\n  let r=await request('POST','/api/loans',{bookId:'b1',memberId:'m2'});assert.equal(r.status,201);\n  r=await request('POST','/api/loans/'+r.json.id+'/return',undefined,{'X-Today':'2026-01-16'});assert.equal(r.status,200);assert.equal(r.json.fineCents,25);\n  r=await request('POST','/api/members/m2/payments',{amount:0.01});assert.equal(r.status,201);\n  r=await request('POST','/api/loans',{bookId:'b4',memberId:'m2'});assert.equal(r.status,201);\n  r=await request('POST','/api/loans/'+r.json.id+'/return',undefined,{'X-Today':'2026-03-01'});assert.equal(r.status,200);assert.equal(r.json.fineCents,1000);\n  r=await request('POST','/api/loans',{bookId:'b1',memberId:'m2'});assert.equal(r.status,409);\n  r=await request('POST','/api/members/m2/payments',{amount:10.25});assert.equal(r.status,201);\n  r=await request('POST','/api/loans',{bookId:'b1',memberId:'m2'});assert.equal(r.status,201);\n  const m1=await request('GET','/api/members/m1');\n  for(const loan of m1.json.activeLoans) { r=await request('POST','/api/loans/'+loan.id+'/return',undefined,{'X-Today':'2026-01-01'});assert.equal(r.status,200); }\n  for(const bookId of ['b1','b3','b4','b5','b6']) { r=await request('POST','/api/loans',{bookId,memberId:'m3'});assert.equal(r.status,201); }\n  r=await request('POST','/api/loans',{bookId:'b6',memberId:'m3'});assert.equal(r.status,409);\n});\n\ntest('malformed, missing loan and unknown route',async()=>{\n  let r=await fetch(base+'/api/loans',{method:'POST',headers:{'content-type':'application/json'},body:'not json'});assert.equal(r.status,400);\n  r=await request('POST','/api/loans/nope/return');assert.equal(r.status,404);\n  r=await request('GET','/api/members/nope');assert.equal(r.status,404);\n  r=await request('GET','/api/nope');assert.equal(r.status,404);\n  assert.ok(fs.existsSync(dataFile));assert.doesNotThrow(()=>JSON.parse(fs.readFileSync(dataFile,'utf8')));\n});\n"
+      },
+      "branchId": "f79f323c-f716-45c7-89ea-1de5e561ee86",
+      "attempt": 1
+    },
+    {
+      "id": "282b90eb-d2e6-4c06-a465-90d0cc533000",
+      "ts": 1791142933788,
+      "kind": "tool",
+      "llmEventId": "39674d4d-cb3f-415c-813b-4bc3fd9e559f",
+      "name": "fetch_url",
+      "args": {
+        "url": "http://localhost:45713/api/loans/l1/return",
+        "method": "POST",
+        "headers": {
+          "X-Today": "2026-03-01"
+        },
+        "note": "late return capped fine",
+        "record": true
+      },
+      "durationMs": 22,
+      "actor": {
+        "name": "CarbonDioxide",
+        "tier": 1
+      },
+      "result": {
+        "ok": true,
+        "status": 200,
+        "headers": {
+          "connection": "keep-alive",
+          "content-length": "160",
+          "content-type": "application/json",
+          "date": "Sun, 04 Oct 2026 19:42:13 GMT",
+          "keep-alive": "timeout=5"
+        },
+        "body": "{\"id\":\"l1\",\"bookId\":\"b2\",\"memberId\":\"m1\",\"startDate\":\"2026-01-01\",\"dueDate\":\"2026-02-12\",\"returned\":true,\"renewals\":2,\"fineCents\":425,\"returnDate\":\"2026-03-01\"}",
+        "servedBy": {
+          "kind": "node",
+          "entry": "server.js",
+          "codeDigest": "84896fd16c55c3e0b770f1905e645ab670a9ad35d6582c489bacb19525150067"
+        },
+        "recorded": true,
+        "manifest": ".atoma-probes.json"
+      },
+      "branchId": "f79f323c-f716-45c7-89ea-1de5e561ee86",
+      "attempt": 1
+    },
+    {
+      "id": "6c7e9601-259f-4042-8f16-1fa224b6c35c",
+      "ts": 1791142948384,
+      "kind": "tool",
+      "llmEventId": "39674d4d-cb3f-415c-813b-4bc3fd9e559f",
+      "name": "fetch_url",
+      "args": {
+        "url": "http://localhost:45713/api/members/m1/payments",
+        "method": "POST",
+        "body": {
+          "amount": 0.01
+        },
+        "headers": {
+          "X-Today": "2026-03-01"
+        },
+        "note": "exact-cent payment",
+        "record": true
+      },
+      "durationMs": 23,
+      "actor": {
+        "name": "CarbonDioxide",
+        "tier": 1
+      },
+      "result": {
+        "ok": true,
+        "status": 201,
+        "headers": {
+          "connection": "keep-alive",
+          "content-length": "63",
+          "content-type": "application/json",
+          "date": "Sun, 04 Oct 2026 19:42:28 GMT",
+          "keep-alive": "timeout=5"
+        },
+        "body": "{\"id\":\"p6\",\"memberId\":\"m1\",\"amountCents\":1,\"date\":\"2026-03-01\"}",
+        "servedBy": {
+          "kind": "node",
+          "entry": "server.js",
+          "codeDigest": "84896fd16c55c3e0b770f1905e645ab670a9ad35d6582c489bacb19525150067"
+        },
+        "recorded": true,
+        "manifest": ".atoma-probes.json"
+      },
+      "branchId": "f79f323c-f716-45c7-89ea-1de5e561ee86",
+      "attempt": 1
+    },
+    {
+      "id": "0ff03984-6b32-4794-b053-89eba629bee3",
+      "ts": 1791142948412,
+      "kind": "tool",
+      "llmEventId": "39674d4d-cb3f-415c-813b-4bc3fd9e559f",
+      "name": "fetch_url",
+      "args": {
+        "url": "http://localhost:45713/api/members/m1",
+        "method": "GET",
+        "headers": {
+          "X-Today": "2026-03-01"
+        },
+        "note": "detail after payment",
+        "record": true
+      },
+      "durationMs": 16,
+      "actor": {
+        "name": "CarbonDioxide",
+        "tier": 1
+      },
+      "result": {
+        "ok": true,
+        "status": 200,
+        "headers": {
+          "connection": "keep-alive",
+          "content-length": "232",
+          "content-type": "application/json",
+          "date": "Sun, 04 Oct 2026 19:42:28 GMT",
+          "keep-alive": "timeout=5"
+        },
+        "body": "{\"id\":\"m1\",\"name\":\"Alex Rivera\",\"type\":\"standard\",\"activeLoans\":[{\"id\":\"l5\",\"bookId\":\"b3\",\"memberId\":\"m1\",\"startDate\":\"2026-01-03\",\"dueDate\":\"2026-01-17\",\"returned\":false,\"renewals\":0,\"fineCents\":0}],\"holds\":[],\"finesOwedCents\":424}",
+        "servedBy": {
+          "kind": "node",
+          "entry": "server.js",
+          "codeDigest": "84896fd16c55c3e0b770f1905e645ab670a9ad35d6582c489bacb19525150067"
+        },
+        "recorded": true,
+        "manifest": ".atoma-probes.json"
+      },
+      "branchId": "f79f323c-f716-45c7-89ea-1de5e561ee86",
+      "attempt": 1
+    },
+    {
+      "id": "2d9d6883-b4e0-4d88-ac2d-42fbd45a795a",
+      "ts": 1791142948433,
+      "kind": "tool",
+      "llmEventId": "39674d4d-cb3f-415c-813b-4bc3fd9e559f",
+      "name": "fetch_url",
+      "args": {
+        "url": "http://localhost:45713/api/loans",
+        "method": "POST",
+        "body": {
+          "bookId": "b4",
+          "memberId": "m2"
+        },
+        "headers": {
+          "X-Today": "2026-01-01"
+        },
+        "note": "loan for cap fine",
+        "record": true
+      },
+      "durationMs": 22,
+      "actor": {
+        "name": "CarbonDioxide",
+        "tier": 1
+      },
+      "result": {
+        "ok": true,
+        "status": 201,
+        "headers": {
+          "connection": "keep-alive",
+          "content-length": "133",
+          "content-type": "application/json",
+          "date": "Sun, 04 Oct 2026 19:42:28 GMT",
+          "keep-alive": "timeout=5"
+        },
+        "body": "{\"id\":\"l7\",\"bookId\":\"b4\",\"memberId\":\"m2\",\"startDate\":\"2026-01-01\",\"dueDate\":\"2026-01-15\",\"returned\":false,\"renewals\":0,\"fineCents\":0}",
+        "servedBy": {
+          "kind": "node",
+          "entry": "server.js",
+          "codeDigest": "84896fd16c55c3e0b770f1905e645ab670a9ad35d6582c489bacb19525150067"
+        },
+        "recorded": true,
+        "manifest": ".atoma-probes.json"
+      },
+      "branchId": "f79f323c-f716-45c7-89ea-1de5e561ee86",
+      "attempt": 1
+    },
+    {
+      "id": "3ef9daf9-0ee3-451b-9f88-b4e017b5d19a",
+      "ts": 1791142948463,
+      "kind": "tool",
+      "llmEventId": "39674d4d-cb3f-415c-813b-4bc3fd9e559f",
+      "name": "fetch_url",
+      "args": {
+        "url": "http://localhost:45713/api/loans/l6/return",
+        "method": "POST",
+        "headers": {
+          "X-Today": "2026-12-31"
+        },
+        "note": "ten dollar fine cap",
+        "record": true
+      },
+      "durationMs": 17,
+      "actor": {
+        "name": "CarbonDioxide",
+        "tier": 1
+      },
+      "result": {
+        "ok": false,
+        "status": 404,
+        "headers": {
+          "connection": "keep-alive",
+          "content-length": "26",
+          "content-type": "application/json",
+          "date": "Sun, 04 Oct 2026 19:42:28 GMT",
+          "keep-alive": "timeout=5"
+        },
+        "body": "{\"error\":\"loan not found\"}",
+        "servedBy": {
+          "kind": "node",
+          "entry": "server.js",
+          "codeDigest": "84896fd16c55c3e0b770f1905e645ab670a9ad35d6582c489bacb19525150067"
+        },
+        "recorded": true,
+        "manifest": ".atoma-probes.json"
+      },
+      "branchId": "f79f323c-f716-45c7-89ea-1de5e561ee86",
+      "attempt": 1
+    },
+    {
+      "id": "b58c9d49-cf6f-4a8d-b87d-cecf8dc602c2",
+      "ts": 1791142948483,
+      "kind": "tool",
+      "llmEventId": "39674d4d-cb3f-415c-813b-4bc3fd9e559f",
+      "name": "fetch_url",
+      "args": {
+        "url": "http://localhost:45713/api/loans",
+        "method": "POST",
+        "body": {
+          "bookId": "b5",
+          "memberId": "m2"
+        },
+        "headers": {
+          "X-Today": "2026-12-31"
+        },
+        "note": "greater than five fine refusal",
+        "record": true
+      },
+      "durationMs": 20,
+      "actor": {
+        "name": "CarbonDioxide",
+        "tier": 1
+      },
+      "result": {
+        "ok": true,
+        "status": 201,
+        "headers": {
+          "connection": "keep-alive",
+          "content-length": "133",
+          "content-type": "application/json",
+          "date": "Sun, 04 Oct 2026 19:42:28 GMT",
+          "keep-alive": "timeout=5"
+        },
+        "body": "{\"id\":\"l8\",\"bookId\":\"b5\",\"memberId\":\"m2\",\"startDate\":\"2026-12-31\",\"dueDate\":\"2027-01-14\",\"returned\":false,\"renewals\":0,\"fineCents\":0}",
+        "servedBy": {
+          "kind": "node",
+          "entry": "server.js",
+          "codeDigest": "84896fd16c55c3e0b770f1905e645ab670a9ad35d6582c489bacb19525150067"
+        },
+        "recorded": true,
+        "manifest": ".atoma-probes.json"
+      },
+      "branchId": "f79f323c-f716-45c7-89ea-1de5e561ee86",
+      "attempt": 1
+    },
+    {
+      "id": "4efa9f64-2267-4f3f-9081-45414da2078f",
+      "ts": 1791142948509,
+      "kind": "tool",
+      "llmEventId": "39674d4d-cb3f-415c-813b-4bc3fd9e559f",
+      "name": "fetch_url",
+      "args": {
+        "url": "http://localhost:45713/api/members/m2/payments",
+        "method": "POST",
+        "body": {
+          "amount": 5
+        },
+        "headers": {
+          "X-Today": "2026-12-31"
+        },
+        "note": "payment to exact threshold",
+        "record": true
+      },
+      "durationMs": 21,
+      "actor": {
+        "name": "CarbonDioxide",
+        "tier": 1
+      },
+      "result": {
+        "ok": true,
+        "status": 201,
+        "headers": {
+          "connection": "keep-alive",
+          "content-length": "65",
+          "content-type": "application/json",
+          "date": "Sun, 04 Oct 2026 19:42:28 GMT",
+          "keep-alive": "timeout=5"
+        },
+        "body": "{\"id\":\"p9\",\"memberId\":\"m2\",\"amountCents\":500,\"date\":\"2026-12-31\"}",
+        "servedBy": {
+          "kind": "node",
+          "entry": "server.js",
+          "codeDigest": "84896fd16c55c3e0b770f1905e645ab670a9ad35d6582c489bacb19525150067"
+        },
+        "recorded": true,
+        "manifest": ".atoma-probes.json"
+      },
+      "branchId": "f79f323c-f716-45c7-89ea-1de5e561ee86",
+      "attempt": 1
+    },
+    {
+      "id": "3fdce09e-7fc3-4a1d-9dd6-19036c4f95bd",
+      "ts": 1791142948535,
+      "kind": "tool",
+      "llmEventId": "39674d4d-cb3f-415c-813b-4bc3fd9e559f",
+      "name": "fetch_url",
+      "args": {
+        "url": "http://localhost:45713/api/loans",
+        "method": "POST",
+        "body": {
+          "bookId": "b5",
+          "memberId": "m2"
+        },
+        "headers": {
+          "X-Today": "2026-12-31"
+        },
+        "note": "loan at exact five threshold",
+        "record": true
+      },
+      "durationMs": 24,
+      "actor": {
+        "name": "CarbonDioxide",
+        "tier": 1
+      },
+      "result": {
+        "ok": false,
+        "status": 409,
+        "headers": {
+          "connection": "keep-alive",
+          "content-length": "40",
+          "content-type": "application/json",
+          "date": "Sun, 04 Oct 2026 19:42:28 GMT",
+          "keep-alive": "timeout=5"
+        },
+        "body": "{\"error\":\"copy unavailable or reserved\"}",
+        "servedBy": {
+          "kind": "node",
+          "entry": "server.js",
+          "codeDigest": "84896fd16c55c3e0b770f1905e645ab670a9ad35d6582c489bacb19525150067"
+        },
+        "recorded": true,
+        "manifest": ".atoma-probes.json"
+      },
+      "branchId": "f79f323c-f716-45c7-89ea-1de5e561ee86",
+      "attempt": 1
+    },
+    {
+      "id": "e4683982-fdbf-45a0-803e-115a1b6c23da",
+      "ts": 1791142965234,
+      "kind": "tool",
+      "llmEventId": "39674d4d-cb3f-415c-813b-4bc3fd9e559f",
+      "name": "fetch_url",
+      "args": {
+        "url": "http://localhost:45713/api/loans/l7/return",
+        "method": "POST",
+        "headers": {
+          "X-Today": "2026-12-31"
+        },
+        "note": "late fine cap",
+        "record": true
+      },
+      "durationMs": 23,
+      "actor": {
+        "name": "CarbonDioxide",
+        "tier": 1
+      },
+      "result": {
+        "ok": true,
+        "status": 200,
+        "headers": {
+          "connection": "keep-alive",
+          "content-length": "161",
+          "content-type": "application/json",
+          "date": "Sun, 04 Oct 2026 19:42:45 GMT",
+          "keep-alive": "timeout=5"
+        },
+        "body": "{\"id\":\"l7\",\"bookId\":\"b4\",\"memberId\":\"m2\",\"startDate\":\"2026-01-01\",\"dueDate\":\"2026-01-15\",\"returned\":true,\"renewals\":0,\"fineCents\":1000,\"returnDate\":\"2026-12-31\"}",
+        "servedBy": {
+          "kind": "node",
+          "entry": "server.js",
+          "codeDigest": "84896fd16c55c3e0b770f1905e645ab670a9ad35d6582c489bacb19525150067"
+        },
+        "recorded": true,
+        "manifest": ".atoma-probes.json"
+      },
+      "branchId": "f79f323c-f716-45c7-89ea-1de5e561ee86",
+      "attempt": 1
+    },
+    {
+      "id": "6f3af56f-fbf7-4031-ba94-5bfb39068c06",
+      "ts": 1791142965262,
+      "kind": "tool",
+      "llmEventId": "39674d4d-cb3f-415c-813b-4bc3fd9e559f",
+      "name": "fetch_url",
+      "args": {
+        "url": "http://localhost:45713/api/loans",
+        "method": "POST",
+        "body": {
+          "bookId": "b6",
+          "memberId": "m2"
+        },
+        "headers": {
+          "X-Today": "2026-12-31"
+        },
+        "note": "over-five-fine refusal",
+        "record": true
+      },
+      "durationMs": 17,
+      "actor": {
+        "name": "CarbonDioxide",
+        "tier": 1
+      },
+      "result": {
+        "ok": true,
+        "status": 201,
+        "headers": {
+          "connection": "keep-alive",
+          "content-length": "134",
+          "content-type": "application/json",
+          "date": "Sun, 04 Oct 2026 19:42:45 GMT",
+          "keep-alive": "timeout=5"
+        },
+        "body": "{\"id\":\"l10\",\"bookId\":\"b6\",\"memberId\":\"m2\",\"startDate\":\"2026-12-31\",\"dueDate\":\"2027-01-14\",\"returned\":false,\"renewals\":0,\"fineCents\":0}",
+        "servedBy": {
+          "kind": "node",
+          "entry": "server.js",
+          "codeDigest": "84896fd16c55c3e0b770f1905e645ab670a9ad35d6582c489bacb19525150067"
+        },
+        "recorded": true,
+        "manifest": ".atoma-probes.json"
+      },
+      "branchId": "f79f323c-f716-45c7-89ea-1de5e561ee86",
+      "attempt": 1
+    },
+    {
+      "id": "b1140656-5c2d-4548-a810-49a0384508f9",
+      "ts": 1791142965308,
+      "kind": "tool",
+      "llmEventId": "39674d4d-cb3f-415c-813b-4bc3fd9e559f",
+      "name": "fetch_url",
+      "args": {
+        "url": "http://localhost:45713/api/loans",
+        "method": "POST",
+        "body": {
+          "bookId": "b6",
+          "memberId": "m2"
+        },
+        "headers": {
+          "X-Today": "2026-12-31"
+        },
+        "note": "loan at threshold",
+        "record": true
+      },
+      "durationMs": 14,
+      "actor": {
+        "name": "CarbonDioxide",
+        "tier": 1
+      },
+      "result": {
+        "ok": false,
+        "status": 409,
+        "headers": {
+          "connection": "keep-alive",
+          "content-length": "40",
+          "content-type": "application/json",
+          "date": "Sun, 04 Oct 2026 19:42:45 GMT",
+          "keep-alive": "timeout=5"
+        },
+        "body": "{\"error\":\"copy unavailable or reserved\"}",
+        "servedBy": {
+          "kind": "node",
+          "entry": "server.js",
+          "codeDigest": "84896fd16c55c3e0b770f1905e645ab670a9ad35d6582c489bacb19525150067"
+        },
+        "recorded": true,
+        "manifest": ".atoma-probes.json"
+      },
+      "branchId": "f79f323c-f716-45c7-89ea-1de5e561ee86",
+      "attempt": 1
+    },
+    {
+      "id": "4a839a3f-51e3-4bff-ad3e-f63b09a859bf",
+      "ts": 1791142974394,
+      "kind": "tool",
+      "llmEventId": "39674d4d-cb3f-415c-813b-4bc3fd9e559f",
+      "name": "fetch_url",
+      "args": {
+        "url": "http://localhost:45713/api/loans",
+        "method": "POST",
+        "body": {
+          "bookId": "b4",
+          "memberId": "m2"
+        },
+        "headers": {
+          "X-Today": "2026-12-31"
+        },
+        "note": "exact five dollar threshold permits loan",
+        "record": true
+      },
+      "durationMs": 19,
+      "actor": {
+        "name": "CarbonDioxide",
+        "tier": 1
+      },
+      "result": {
+        "ok": false,
+        "status": 409,
+        "headers": {
+          "connection": "keep-alive",
+          "content-length": "40",
+          "content-type": "application/json",
+          "date": "Sun, 04 Oct 2026 19:42:54 GMT",
+          "keep-alive": "timeout=5"
+        },
+        "body": "{\"error\":\"copy unavailable or reserved\"}",
+        "servedBy": {
+          "kind": "node",
+          "entry": "server.js",
+          "codeDigest": "84896fd16c55c3e0b770f1905e645ab670a9ad35d6582c489bacb19525150067"
+        },
+        "recorded": true,
+        "manifest": ".atoma-probes.json"
+      },
+      "branchId": "f79f323c-f716-45c7-89ea-1de5e561ee86",
+      "attempt": 1
+    },
+    {
+      "id": "cbe56748-5e36-4e25-9741-b94d78ccde0f",
+      "ts": 1791143200396,
+      "kind": "tool",
+      "llmEventId": "00e1a55d-524d-4e75-9e8f-15979618a2b0",
+      "name": "fetch_url",
+      "args": {
+        "method": "POST",
+        "url": "http://localhost:37835/api/loans/l6/return",
+        "headers": {
+          "X-Today": "2026-01-22"
+        },
+        "note": "late return fine exact cents",
+        "record": true
+      },
+      "durationMs": 17,
+      "actor": {
+        "name": "CarbonDioxide",
+        "tier": 1
+      },
+      "result": {
+        "ok": true,
+        "status": 200,
+        "headers": {
+          "connection": "keep-alive",
+          "content-length": "160",
+          "content-type": "application/json",
+          "date": "Sun, 04 Oct 2026 19:46:40 GMT",
+          "keep-alive": "timeout=5"
+        },
+        "body": "{\"id\":\"l6\",\"bookId\":\"b2\",\"memberId\":\"m1\",\"startDate\":\"2026-01-01\",\"dueDate\":\"2026-01-15\",\"returned\":true,\"renewals\":0,\"fineCents\":175,\"returnDate\":\"2026-01-22\"}",
+        "servedBy": {
+          "kind": "node",
+          "entry": "server.js",
+          "codeDigest": "84896fd16c55c3e0b770f1905e645ab670a9ad35d6582c489bacb19525150067"
+        },
+        "recorded": true,
+        "manifest": ".atoma-probes.json"
+      },
+      "branchId": "f79f323c-f716-45c7-89ea-1de5e561ee86",
+      "attempt": 1
+    },
+    {
+      "id": "1c9912a0-1ef5-4468-88e4-a56a2f465546",
+      "ts": 1791143200506,
+      "kind": "tool",
+      "llmEventId": "00e1a55d-524d-4e75-9e8f-15979618a2b0",
+      "name": "fetch_url",
+      "args": {
+        "method": "POST",
+        "url": "http://localhost:37835/api/members/m2/payments",
+        "body": {
+          "amount": 1.25
+        },
+        "headers": {
+          "X-Today": "2026-01-22"
+        },
+        "note": "exact cent payment",
+        "record": true
+      },
+      "durationMs": 24,
+      "actor": {
+        "name": "CarbonDioxide",
+        "tier": 1
+      },
+      "result": {
+        "ok": true,
+        "status": 201,
+        "headers": {
+          "connection": "keep-alive",
+          "content-length": "66",
+          "content-type": "application/json",
+          "date": "Sun, 04 Oct 2026 19:46:40 GMT",
+          "keep-alive": "timeout=5"
+        },
+        "body": "{\"id\":\"p11\",\"memberId\":\"m2\",\"amountCents\":125,\"date\":\"2026-01-22\"}",
+        "servedBy": {
+          "kind": "node",
+          "entry": "server.js",
+          "codeDigest": "84896fd16c55c3e0b770f1905e645ab670a9ad35d6582c489bacb19525150067"
+        },
+        "recorded": true,
+        "manifest": ".atoma-probes.json"
+      },
+      "branchId": "f79f323c-f716-45c7-89ea-1de5e561ee86",
+      "attempt": 1
+    },
+    {
+      "id": "c1a1bb84-a6d4-43d5-9e98-d7f215edeac0",
+      "ts": 1791143295622,
+      "kind": "tool",
+      "llmEventId": "00e1a55d-524d-4e75-9e8f-15979618a2b0",
+      "name": "fetch_url",
+      "args": {
+        "method": "POST",
+        "url": "http://localhost:37835/api/loans/l14/return",
+        "headers": {
+          "X-Today": "2026-03-01"
+        },
+        "record": true,
+        "note": "capped late fine"
+      },
+      "durationMs": 21,
+      "actor": {
+        "name": "CarbonDioxide",
+        "tier": 1
+      },
+      "result": {
+        "ok": false,
+        "status": 409,
+        "headers": {
+          "connection": "keep-alive",
+          "content-length": "33",
+          "content-type": "application/json",
+          "date": "Sun, 04 Oct 2026 19:48:15 GMT",
+          "keep-alive": "timeout=5"
+        },
+        "body": "{\"error\":\"loan already returned\"}",
+        "servedBy": {
+          "kind": "node",
+          "entry": "server.js",
+          "codeDigest": "84896fd16c55c3e0b770f1905e645ab670a9ad35d6582c489bacb19525150067"
+        },
+        "recorded": true,
+        "manifest": ".atoma-probes.json"
+      },
+      "branchId": "f79f323c-f716-45c7-89ea-1de5e561ee86",
+      "attempt": 1
+    },
+    {
+      "id": "6fa39fd9-2e10-48bd-a531-a31a394f17ef",
+      "ts": 1791143295651,
+      "kind": "tool",
+      "llmEventId": "00e1a55d-524d-4e75-9e8f-15979618a2b0",
+      "name": "fetch_url",
+      "args": {
+        "method": "POST",
+        "url": "http://localhost:37835/api/loans",
+        "body": {
+          "bookId": "b3",
+          "memberId": "m1"
+        },
+        "headers": {
+          "X-Today": "2026-03-01"
+        },
+        "record": true,
+        "note": "greater-than-five-dollar fine refusal"
+      },
+      "durationMs": 25,
+      "actor": {
+        "name": "CarbonDioxide",
+        "tier": 1
+      },
+      "result": {
+        "ok": false,
+        "status": 409,
+        "headers": {
+          "connection": "keep-alive",
+          "content-length": "40",
+          "content-type": "application/json",
+          "date": "Sun, 04 Oct 2026 19:48:15 GMT",
+          "keep-alive": "timeout=5"
+        },
+        "body": "{\"error\":\"copy unavailable or reserved\"}",
+        "servedBy": {
+          "kind": "node",
+          "entry": "server.js",
+          "codeDigest": "84896fd16c55c3e0b770f1905e645ab670a9ad35d6582c489bacb19525150067"
+        },
+        "recorded": true,
+        "manifest": ".atoma-probes.json"
+      },
+      "branchId": "f79f323c-f716-45c7-89ea-1de5e561ee86",
+      "attempt": 1
+    },
+    {
+      "id": "4c4e7a0b-11d5-4995-a520-d3a09c8e7861",
+      "ts": 1791143295682,
+      "kind": "tool",
+      "llmEventId": "00e1a55d-524d-4e75-9e8f-15979618a2b0",
+      "name": "fetch_url",
+      "args": {
+        "method": "POST",
+        "url": "http://localhost:37835/api/members/m1/payments",
+        "body": {
+          "amount": 10.01
+        },
+        "headers": {
+          "X-Today": "2026-03-01"
+        },
+        "record": true,
+        "note": "payment exact cents"
+      },
+      "durationMs": 30,
+      "actor": {
+        "name": "CarbonDioxide",
+        "tier": 1
+      },
+      "result": {
+        "ok": true,
+        "status": 201,
+        "headers": {
+          "connection": "keep-alive",
+          "content-length": "67",
+          "content-type": "application/json",
+          "date": "Sun, 04 Oct 2026 19:48:15 GMT",
+          "keep-alive": "timeout=5"
+        },
+        "body": "{\"id\":\"p18\",\"memberId\":\"m1\",\"amountCents\":1001,\"date\":\"2026-03-01\"}",
+        "servedBy": {
+          "kind": "node",
+          "entry": "server.js",
+          "codeDigest": "84896fd16c55c3e0b770f1905e645ab670a9ad35d6582c489bacb19525150067"
+        },
+        "recorded": true,
+        "manifest": ".atoma-probes.json"
+      },
+      "branchId": "f79f323c-f716-45c7-89ea-1de5e561ee86",
+      "attempt": 1
+    },
+    {
+      "id": "0de29733-f3e5-4244-99ca-facb43a88f5d",
+      "ts": 1791143295723,
+      "kind": "tool",
+      "llmEventId": "00e1a55d-524d-4e75-9e8f-15979618a2b0",
+      "name": "fetch_url",
+      "args": {
+        "method": "GET",
+        "url": "http://localhost:37835/api/members/m1",
+        "headers": {
+          "X-Today": "2026-03-01"
+        },
+        "record": true,
+        "note": "member fines after payment"
+      },
+      "durationMs": 28,
+      "actor": {
+        "name": "CarbonDioxide",
+        "tier": 1
+      },
+      "result": {
+        "ok": true,
+        "status": 200,
+        "headers": {
+          "connection": "keep-alive",
+          "content-length": "296",
+          "content-type": "application/json",
+          "date": "Sun, 04 Oct 2026 19:48:15 GMT",
+          "keep-alive": "timeout=5"
+        },
+        "body": "{\"id\":\"m1\",\"name\":\"Alex Rivera\",\"type\":\"standard\",\"activeLoans\":[{\"id\":\"l17\",\"bookId\":\"b6\",\"memberId\":\"m1\",\"startDate\":\"2026-01-01\",\"dueDate\":\"2026-01-15\",\"returned\":false,\"renewals\":0,\"fineCents\":0}],\"holds\":[{\"id\":\"h15\",\"bookId\":\"b1\",\"memberId\":\"m1\",\"created\":\"2026-10-04\"}],\"finesOwedCents\":0}",
+        "servedBy": {
+          "kind": "node",
+          "entry": "server.js",
+          "codeDigest": "84896fd16c55c3e0b770f1905e645ab670a9ad35d6582c489bacb19525150067"
+        },
+        "recorded": true,
+        "manifest": ".atoma-probes.json"
+      },
+      "branchId": "f79f323c-f716-45c7-89ea-1de5e561ee86",
+      "attempt": 1
+    },
+    {
+      "id": "83a1847e-1293-4fc2-a850-e6dee1499909",
+      "ts": 1791143305041,
+      "kind": "tool",
+      "llmEventId": "00e1a55d-524d-4e75-9e8f-15979618a2b0",
+      "name": "fetch_url",
+      "args": {
+        "method": "POST",
+        "url": "http://localhost:37835/api/loans",
+        "body": {
+          "bookId": "b6",
+          "memberId": "m1"
+        },
+        "headers": {
+          "X-Today": "2026-03-01"
+        },
+        "record": true,
+        "note": "fine threshold refusal after capped fine"
+      },
+      "durationMs": 26,
+      "actor": {
+        "name": "CarbonDioxide",
+        "tier": 1
+      },
+      "result": {
+        "ok": true,
+        "status": 201,
+        "headers": {
+          "connection": "keep-alive",
+          "content-length": "134",
+          "content-type": "application/json",
+          "date": "Sun, 04 Oct 2026 19:48:25 GMT",
+          "keep-alive": "timeout=5"
+        },
+        "body": "{\"id\":\"l19\",\"bookId\":\"b6\",\"memberId\":\"m1\",\"startDate\":\"2026-03-01\",\"dueDate\":\"2026-03-15\",\"returned\":false,\"renewals\":0,\"fineCents\":0}",
+        "servedBy": {
+          "kind": "node",
+          "entry": "server.js",
+          "codeDigest": "84896fd16c55c3e0b770f1905e645ab670a9ad35d6582c489bacb19525150067"
+        },
+        "recorded": true,
+        "manifest": ".atoma-probes.json"
+      },
+      "branchId": "f79f323c-f716-45c7-89ea-1de5e561ee86",
+      "attempt": 1
+    },
+    {
+      "id": "6ecc253d-46e0-43a2-9ee5-a0b876d46002",
+      "ts": 1791143305071,
+      "kind": "tool",
+      "llmEventId": "00e1a55d-524d-4e75-9e8f-15979618a2b0",
+      "name": "fetch_url",
+      "args": {
+        "method": "POST",
+        "url": "http://localhost:37835/api/members/m1/payments",
+        "body": {
+          "amount": 10.01
+        },
+        "headers": {
+          "X-Today": "2026-03-01"
+        },
+        "record": true,
+        "note": "exact cent payment"
+      },
+      "durationMs": 30,
+      "actor": {
+        "name": "CarbonDioxide",
+        "tier": 1
+      },
+      "result": {
+        "ok": true,
+        "status": 201,
+        "headers": {
+          "connection": "keep-alive",
+          "content-length": "67",
+          "content-type": "application/json",
+          "date": "Sun, 04 Oct 2026 19:48:25 GMT",
+          "keep-alive": "timeout=5"
+        },
+        "body": "{\"id\":\"p20\",\"memberId\":\"m1\",\"amountCents\":1001,\"date\":\"2026-03-01\"}",
+        "servedBy": {
+          "kind": "node",
+          "entry": "server.js",
+          "codeDigest": "84896fd16c55c3e0b770f1905e645ab670a9ad35d6582c489bacb19525150067"
+        },
+        "recorded": true,
+        "manifest": ".atoma-probes.json"
+      },
+      "branchId": "f79f323c-f716-45c7-89ea-1de5e561ee86",
+      "attempt": 1
+    }
+  ]
+}
