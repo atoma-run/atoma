@@ -89,3 +89,7 @@ session both find them. `src/mcp/taskWire.ts` speaks the model on each wire.
   takes a v1 `McpServer` for in-process tools (`src/core/llmClaudeCli.ts`).
   And the tests drive the 2025 era with the real v1 client, which is what
   proves that a 2025 client is served as before.
+
+## Since (2026-10-04)
+
+SDK 2.3.0 serves `tasks/get` and `tasks/cancel` on 2026-07-28 when they are registered with an explicit schema (typescript-sdk #2599). The 2026 task methods are now ordinary handlers on the per-request server (`serveModernTaskMethods`), checked by the SDK's own entry, and the HTTP host no longer answers them itself (`answerModernTaskRequest` and its re-implemented checks are gone). The task model stays Atoma's: the SDK still has no task runtime, and the `tools/call` wrap remains.

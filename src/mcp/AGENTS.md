@@ -199,10 +199,9 @@ Neighbours:
   'task'}`; `tasks/get` answers WITH the result inline, `tasks/cancel` and
   `tasks/update` acknowledge, fields are `ttlMs`/`pollIntervalMs`, and since
   `failed` means a JSON-RPC error there, a run that ended — even badly — is
-  `completed` with the payload that says how. The SDK refuses `tasks/*` on
-  that era before any handler runs, so the HTTP host answers them
-  (`answerModernTaskRequest`), after the checks the SDK's entry would make
-  (JSON body, 2026 version and capabilities, `Mcp-Method`, `Mcp-Name` = taskId; a cancel of an ended task is acked, SEP-2663); since the callback the SDK gives a tool
+  `completed` with the payload that says how. Since SDK 2.3.0 they are explicit-schema
+  handlers (`serveModernTaskMethods`) behind the SDK's own 2026 checks (`Mcp-Name` =
+  taskId; a cancel of an ended task is acked, SEP-2663); since the callback the SDK gives a tool
   never sees `params.task`, the task path of `tools/call` wraps the handler
   its `McpServer` installed (`installTaskProtocol`), answering bad arguments
   and a failing start as tool errors, as the SDK's own path does. There is NO "start, then

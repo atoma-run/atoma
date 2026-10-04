@@ -19,13 +19,15 @@ import { isTerminal, TaskCancelRefused, TaskNotFound, type CallerTasks, type Tas
  * ended — even badly — is a `completed` task whose result says how, exactly
  * what the synchronous call would have answered.
  *
- * WHY SOME OF IT SITS BELOW THE SDK. SDK v2 has no task runtime, the tool
- * callback it hands a call never sees `params.task`, and on a 2026 request it
- * refuses `tasks/get` and `tasks/cancel` with -32601 before any handler runs.
- * So the start tools' task path wraps the server's own `tools/call` handler
- * (`installTaskProtocol`; a release that moves that map fails every server build and `tests/mcp-http.test.ts` first), and
- * the 2026 `tasks/*` requests are answered by the HTTP host through
- * `answerModernTaskRequest` before the SDK sees them.
+ * WHY SOME OF IT SITS BELOW THE SDK. SDK v2 has no task runtime, and the tool
+ * callback it hands a call never sees `params.task`. So the start tools' task
+ * path wraps the server's own `tools/call` handler (`installTaskProtocol`; a
+ * release that moves that map fails every server build and
+ * `tests/mcp-http.test.ts` first). The 2026 `tasks/*` methods are ordinary
+ * handlers with explicit schemas since SDK 2.3.0, which serves `tasks/get` and
+ * `tasks/cancel` on that era when so registered (#2599): the SDK's entry then
+ * checks them as every 2026 request (version, envelope, Mcp-Method, Mcp-Name).
+ * Until 2.3 the HTTP host answered them itself, re-implementing those checks.
  */
 
 /** What a 2025-era server declares to accept task-augmented `tools/call`, and to list and cancel. */
@@ -100,6 +102,7 @@ export function installTaskProtocol(
     serveLegacyTaskMethods(server, tasks);
   } else {
     server.server.registerCapabilities({ extensions: { [TASKS_EXTENSION]: {} } });
+    serveModernTaskMethods(server, tasks);
   }
   if (starts.size === 0) return;
   const handlers = (server.server as unknown as { _requestHandlers?: Map<string, RequestHandler> })._requestHandlers;
@@ -164,23 +167,6 @@ function serveLegacyTaskMethods(server: McpServer, tasks: CallerTasks): void {
 
 /* ------------------------------------------------------------------ 2026 */
 
-/** The 2026 methods the HTTP host answers itself, because the SDK refuses them there. */
-export const MODERN_TASK_METHODS = new Set(['tasks/get', 'tasks/cancel', 'tasks/update']);
-
-interface JsonRpcRequest {
-  readonly jsonrpc?: unknown;
-  readonly id?: unknown;
-  readonly method?: unknown;
-  readonly params?: { readonly taskId?: unknown; readonly inputResponses?: unknown; readonly _meta?: Record<string, unknown> };
-}
-
-/** Whether `message` is one JSON-RPC request the host answers for the tasks extension. */
-export function isModernTaskRequest(message: unknown): message is JsonRpcRequest {
-  if (!message || typeof message !== 'object' || Array.isArray(message)) return false;
-  const { method, id } = message as JsonRpcRequest;
-  return typeof method === 'string' && MODERN_TASK_METHODS.has(method) && (typeof id === 'string' || typeof id === 'number');
-}
-
 /** A 2026 task as `tasks/get` details it: the result of a finished task inline. */
 function detailedTask(tasks: CallerTasks, state: TaskState): Record<string, unknown> {
   const detail: Record<string, unknown> = { ...modernTask(state) };
@@ -192,38 +178,33 @@ function detailedTask(tasks: CallerTasks, state: TaskState): Record<string, unkn
 }
 
 /**
- * The JSON-RPC response to one 2026 `tasks/get`, `tasks/cancel` or
- * `tasks/update` from the caller `tasks` belongs to. Unknown — or someone
- * else's — is -32602. `tasks/update` acknowledges: no task here ever asks for
- * input. `serverInfo` is stamped as the SDK stamps every 2026 result.
+ * The 2026 `tasks/*` methods of the extension, for the caller `tasks` belongs
+ * to. Unknown — or someone else's — is -32602. A cancel of a task the caller
+ * owns that already ended is acknowledged with an empty result (SEP-2663; the
+ * task keeps its terminal state). `tasks/update` acknowledges: no task here
+ * ever asks for input. The SDK stamps `serverInfo` as on every 2026 result.
  */
-export async function answerModernTaskRequest(
-  tasks: CallerTasks,
-  message: JsonRpcRequest,
-  serverInfo: { readonly name: string; readonly version: string }
-): Promise<Record<string, unknown>> {
-  const meta = { 'io.modelcontextprotocol/serverInfo': serverInfo };
-  const error = (code: number, text: string) => ({ jsonrpc: '2.0', id: message.id, error: { code, message: text } });
-  const taskId = message.params?.taskId;
-  if (typeof taskId !== 'string') return error(ProtocolErrorCode.InvalidParams, 'Invalid params: taskId is required');
-  try {
-    if (message.method === 'tasks/get') {
-      const state = tasks.get(taskId);
-      if (!state) return error(ProtocolErrorCode.InvalidParams, 'Failed to retrieve task: Task not found');
-      return { jsonrpc: '2.0', id: message.id, result: { ...detailedTask(tasks, state), resultType: 'complete', _meta: meta } };
+function serveModernTaskMethods(server: McpServer, tasks: CallerTasks): void {
+  const low = server.server as unknown as {
+    setRequestHandler(method: string, schemas: { params: z.ZodType }, handler: (params: never) => unknown): void;
+  };
+  const notFound = () => new ProtocolError(ProtocolErrorCode.InvalidParams, 'Failed to retrieve task: Task not found');
+  low.setRequestHandler('tasks/get', { params: TASK_ID_PARAMS }, (params: { taskId: string }) => {
+    const state = tasks.get(params.taskId);
+    if (!state) throw notFound();
+    return { ...detailedTask(tasks, state), resultType: 'complete' };
+  });
+  low.setRequestHandler('tasks/cancel', { params: TASK_ID_PARAMS }, async (params: { taskId: string }) => {
+    try {
+      await tasks.cancel(params.taskId);
+    } catch (error) {
+      if (error instanceof TaskNotFound) throw notFound();
+      if (!(error instanceof TaskCancelRefused)) throw error;
     }
-    if (message.method === 'tasks/cancel') {
-      await tasks.cancel(taskId);
-      return { jsonrpc: '2.0', id: message.id, result: { resultType: 'complete', _meta: meta } };
-    }
-    if (!tasks.get(taskId)) return error(ProtocolErrorCode.InvalidParams, 'Failed to retrieve task: Task not found');
-    return { jsonrpc: '2.0', id: message.id, result: { resultType: 'complete', _meta: meta } };
-  } catch (failure) {
-    if (failure instanceof TaskNotFound) return error(ProtocolErrorCode.InvalidParams, 'Failed to retrieve task: Task not found');
-    // SEP-2663: a cancel of a task the caller owns is ACKNOWLEDGED with an
-    // empty result even when it already ended (the task keeps its terminal
-    // state); -32602 is reserved for an unknown id. The 2025 wire keeps its own rule.
-    if (failure instanceof TaskCancelRefused) return { jsonrpc: '2.0', id: message.id, result: { resultType: 'complete', _meta: meta } };
-    throw failure;
-  }
+    return { resultType: 'complete' };
+  });
+  low.setRequestHandler('tasks/update', { params: TASK_ID_PARAMS }, (params: { taskId: string }) => {
+    if (!tasks.get(params.taskId)) throw notFound();
+    return { resultType: 'complete' };
+  });
 }

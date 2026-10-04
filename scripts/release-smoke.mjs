@@ -94,7 +94,9 @@ const mcpModernSmoke = async (base) => {
       } } }),
     });
   };
-  const call = async (method, params = {}, extra = {}) => {
+  // The JSON-RPC reply of one exchange, from a JSON or an SSE body: every
+  // 2026 call answers as SSE (responseMode 'sse'), errors included.
+  const exchange = async (method, params = {}, extra = {}) => {
     const response = await send(method, params, extra);
     if (!response.ok) throw new Error(`MCP 2026 ${method} → HTTP ${response.status}: ${(await response.text()).slice(0, 300)}`);
     const contentType = response.headers.get('content-type') ?? '';
@@ -106,6 +108,10 @@ const mcpModernSmoke = async (base) => {
       .map((data) => JSON.parse(data));
     const reply = frames.find((frame) => frame.id !== undefined && ('result' in frame || 'error' in frame));
     if (!reply) throw new Error(`MCP 2026 ${method} carried no response frame`);
+    return reply;
+  };
+  const call = async (method, params = {}, extra = {}) => {
+    const reply = await exchange(method, params, extra);
     if (reply.error) throw new Error(`MCP 2026 ${method} failed: ${JSON.stringify(reply.error)}`);
     return reply.result;
   };
@@ -124,8 +130,8 @@ const mcpModernSmoke = async (base) => {
   const taskId = created.task?.taskId ?? created.taskId;
   const got = await call('tasks/get', { taskId });
   if (got?.status !== 'completed' || got?.result?.isError !== true) throw new Error(`compiled MCP 2026 tasks/get: ${JSON.stringify(got).slice(0, 200)}`);
-  const unknown = await send('tasks/get', { taskId: 'no-such-task' });
-  if (!JSON.stringify(await unknown.json()).includes('-32602')) throw new Error('compiled MCP 2026 tasks/get of an unknown id is not -32602');
+  const unknown = await exchange('tasks/get', { taskId: 'no-such-task' });
+  if (unknown.error?.code !== -32602) throw new Error('compiled MCP 2026 tasks/get of an unknown id is not -32602');
   // SEP-2663: an ended task's cancel is acknowledged.
   await call('tasks/cancel', { taskId });
   // A listen stream opens with its acknowledgement; read it and leave.

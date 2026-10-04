@@ -28,7 +28,7 @@ import { callerTier, type McpCaller, type McpTier } from './identity.js';
 import { mayFollowResource, publishResourceEvents } from './resources.js';
 import type { ProtocolEraName } from './taskWire.js';
 import { repoRoot } from './run.js';
-import { buildServerForCaller, callerTasksFor, type McpToolDeps } from './tools.js';
+import { buildServerForCaller, type McpToolDeps } from './tools.js';
 
 /**
  * Server-level usage guidance, one text per tier (2026-07-28 lets discovery
@@ -73,17 +73,15 @@ export function buildServer(caller: McpCaller, deps: McpToolDeps, era: ProtocolE
 
 /**
  * What the HTTP host needs from the catalogue, in one place for the viz server
- * and the tests: a server per caller and era, the caller's tasks for the 2026
- * `tasks/*` requests, and the run-finished events for 2026 listeners — a
+ * and the tests: a server per caller and era (which serves the caller's tasks),
+ * and the run-finished events for 2026 listeners — a
  * project run's for a host with organisations, an operator run's for a host
  * that runs them, as the 2025 sessions hook them.
  */
-export function mcpHostWiring(deps: McpToolDeps): Pick<McpHttpHostOptions, 'buildServer' | 'tasksFor' | 'resourceEvents' | 'serverInfo' | 'mayFollow'> {
+export function mcpHostWiring(deps: McpToolDeps): Pick<McpHttpHostOptions, 'buildServer' | 'resourceEvents' | 'mayFollow'> {
   return {
     buildServer: (caller, era) => buildServer(caller, deps, era),
-    tasksFor: (caller) => callerTasksFor(caller, deps),
     resourceEvents: (events) => publishResourceEvents(deps.projects ? deps.journal : null, deps.operatorRuns, events),
-    serverInfo: { name: 'atoma', version: packageVersion() },
     mayFollow: (caller, uri) => mayFollowResource(caller, deps, uri),
   };
 }

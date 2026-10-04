@@ -14,8 +14,7 @@ import { SessionEventStore } from './eventStore.js';
 import { FROZEN_BODY_LIMIT_BYTES, servableWhileFrozen } from './frozen.js';
 import { callerKey, callerTier, describeCaller, type McpCaller } from './identity.js';
 import type { ResourceEvents } from './resources.js';
-import { answerModernTaskRequest, isModernTaskRequest, type ProtocolEraName } from './taskWire.js';
-import type { CallerTasks } from './tasks.js';
+import type { ProtocolEraName } from './taskWire.js';
 
 /**
  * THE MCP OVER HTTP — one route on the viz server, `/mcp`, speaking the
@@ -76,15 +75,11 @@ export interface McpHttpHostOptions {
   readonly resolveCaller: (req: IncomingMessage) => McpCaller | null;
   /** A server for `caller` answering `era`: once per session (2025) or once per request (2026). */
   readonly buildServer: (caller: McpCaller, era: ProtocolEraName) => McpServer;
-  /** The caller's tasks, for the 2026 `tasks/*` requests this host answers itself. Absent: none are found. */
-  readonly tasksFor?: (caller: McpCaller) => CallerTasks;
   /**
    * Hooks this process's run-finished events onto the 2026 `subscriptions/listen`
    * streams; returns the unhook. The 2025 sessions hook their own (`resources.ts`).
    */
   readonly resourceEvents?: (events: ResourceEvents) => () => void;
-  /** Stamped on the 2026 results this host answers itself, as the SDK stamps its own. */
-  readonly serverInfo?: { readonly name: string; readonly version: string };
   /**
    * Whether `caller` may hear of `uri` on a 2026 `subscriptions/listen`, where
    * one process-wide bus serves every listener. Absent: none.
@@ -454,23 +449,6 @@ export class McpHttpHost {
     }, this.options.maxRequestMs ?? MCP_MAX_REQUEST_MS);
     ceiling.unref();
     res.once('close', () => clearTimeout(ceiling));
-    if (isModernTaskRequest(body)) {
-      // What the SDK's own entry checks before a 2026 request reaches a
-      // handler, repeated because this one never reaches it (review 2026-09-30, 6).
-      const refusal = modernTaskRequestRefusal(req, body);
-      if (refusal) {
-        res.writeHead(refusal.status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
-        res.end(JSON.stringify({ jsonrpc: '2.0', id: body.id, error: { code: refusal.code, message: refusal.message } }));
-        return;
-      }
-      const tasks = this.options.tasksFor?.(caller);
-      const answer = tasks
-        ? await answerModernTaskRequest(tasks, body, this.options.serverInfo ?? { name: 'atoma', version: '0' })
-        : { jsonrpc: '2.0', id: body.id, error: { code: -32602, message: 'Failed to retrieve task: Task not found' } };
-      res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
-      res.end(JSON.stringify(answer));
-      return;
-    }
     let forwarded = body;
     if (isListen(body)) {
       // One bus serves every 2026 listener, so a caller names only what it may
@@ -742,38 +720,6 @@ function isListen(body: unknown): body is ListenRequest {
     && !!message.params?.notifications && typeof message.params.notifications === 'object';
 }
 
-/**
- * The checks the SDK's 2026 entry makes, for a `tasks/*` request this host
- * answers itself: a JSON body, the protocol version in the header AND the
- * envelope, and `Mcp-Method` naming the body's method.
- */
-function modernTaskRequestRefusal(req: IncomingMessage, body: { method?: unknown; params?: { _meta?: Record<string, unknown> } }):
-  { status: number; code: number; message: string } | null {
-  const contentType = String(req.headers['content-type'] ?? '');
-  if (!contentType.toLowerCase().startsWith('application/json')) return { status: 415, code: -32000, message: 'Unsupported Media Type: Content-Type must be application/json' };
-  const headerVersion = req.headers['mcp-protocol-version'];
-  const claimed = body.params?._meta?.['io.modelcontextprotocol/protocolVersion'];
-  if (typeof claimed !== 'string' || claimed < '2026' || headerVersion !== claimed) {
-    return { status: 400, code: -32602, message: 'Invalid params: the MCP-Protocol-Version header and the request envelope must name the same 2026 revision' };
-  }
-  const method = req.headers['mcp-method'];
-  if (method !== body.method) {
-    return { status: 400, code: -32020, message: `Mcp-Method header ${String(method)} does not match the body's ${String(body.method)}` };
-  }
-  // The rest of the SDK's 2026 entry, which never sees these requests: the
-  // required capabilities key, and Mcp-Name mirroring the task id (SEP-2243,
-  // SEP-2663) so an intermediary can route every request of a task alike.
-  const capabilities = body.params?._meta?.['io.modelcontextprotocol/clientCapabilities'];
-  if (typeof capabilities !== 'object' || capabilities === null || Array.isArray(capabilities)) {
-    return { status: 400, code: -32602, message: 'Invalid params: _meta must carry io.modelcontextprotocol/clientCapabilities' };
-  }
-  const name = req.headers['mcp-name'];
-  const taskId = (body.params as { taskId?: unknown } | undefined)?.taskId;
-  if (typeof taskId === 'string' && name !== taskId) {
-    return { status: 400, code: -32020, message: `Mcp-Name header ${String(name)} does not match the request's taskId` };
-  }
-  return null;
-}
 
 /** A body this host cannot read — too large, cut off, or not JSON — answered as the SDK answers it. */
 function unreadableBody(res: ServerResponse): void {
