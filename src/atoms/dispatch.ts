@@ -5,6 +5,8 @@ import type { AttestationRecord } from '../contracts/attestation.js';
 import { baseExecutorOf } from '../core/attestation.js';
 import { abortedForLanding, landingSignal, withinSignal } from './cost.js';
 import { previousResultInput } from './taskContext.js';
+import { renderTransportEvidence } from './verdict.js';
+import { transportWitnesses } from '../contracts/witness.js';
 
 type Subtask = Plan['subtasks'][number];
 
@@ -94,6 +96,12 @@ export async function dispatchWithAggregation(
                 ...(baseSubtask.inputs ?? {}),
                 previousStepSummary: previousSummary,
                 previousStepResult: previousResult,
+                previousPhaseObservations: {
+                  ...renderTransportEvidence(out.flatMap(result => result.evidence ?? [])),
+                  // Changes must survive later read/probe noise in a reporting phase.
+                  changes: renderTransportEvidence(transportWitnesses(out.flatMap(result => result.evidence ?? []))
+                    .filter(witness => witness.tool === 'edit_file' || witness.tool === 'write_file')),
+                },
                 previousStepIndex: idx - 1,
                 ...(previousOutputs && previousOutputs.length > 0
                   ? { previousStepOutputs: previousOutputs }

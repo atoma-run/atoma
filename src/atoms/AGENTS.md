@@ -197,6 +197,12 @@ load-bearing.
 ## Aggregation and dispatch shape
 
 - Delegation preserves original task inputs/constraints and preceding phase results.
+  Sequential handover also carries bounded transport observations from completed
+  phases, with event IDs, omission counts and a separate file-change inventory.
+  These are historical context for reporting and validation, never new proof
+  credit. Nested handovers preserve enclosing observations with labelled bounds.
+  Run 2311d446's report made 53 tool calls searching a manifest for browser
+  observations that only the runtime trace held.
   Declared reasoning mode disables tools/skills through descendants and fallbacks;
   only its observed-action gate is skipped. [Contract and review](../../docs/incidents/text-delivery-2026-10-02.md).
   Runtime planning keeps the current phase's scope and scales reusable workflows to the task, without a phase-count gate ([review](../../docs/incidents/planning-scope-2026-10-03.md)).
@@ -296,6 +302,10 @@ load-bearing.
   transport evidence. No new gate or call. Run ce89c84a's failed fifth creation
   made its purported sixth the fifth; replay limits and countercases are in
   `benchmark/stateful-evidence-2026-10-05/summary.json`.
+  A newly authored assertion does not invent a product requirement: trace its
+  expected value to the user or supported contract before modifying code.
+  Fix unspecified test conventions rather than correct behavior; keep explicit
+  requirements and genuine regressions. Reports account for earlier-phase edits.
 - Inputs that only EXERCISE the artefact go under `.atoma-scratch/`, which
   publication and the preview already exclude with every `.atoma-*` path; the
   molecule reads the rule in its runtime execution prompt, so branches whose

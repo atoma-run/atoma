@@ -1,6 +1,6 @@
 import { Atom } from '../core/atom.js';
 import { REASONING_EXECUTION_GUIDANCE, REASONING_PLAN_GUIDANCE } from '../contracts/taskExecution.js';
-import { reasoningPrompt } from './taskContext.js';
+import { reasoningPrompt, PREVIOUS_OBSERVATIONS_GUIDANCE } from './taskContext.js';
 import type {
   Plan,
   Result,
@@ -328,6 +328,7 @@ export class L1Atom extends Atom {
       ``,
       `Task: ${task.description}`,
       task.inputs ? `Inputs: ${JSON.stringify(task.inputs)}` : '',
+      task.inputs?.['previousPhaseObservations'] ? PREVIOUS_OBSERVATIONS_GUIDANCE : '',
       ...proofObligationLines(task, this.tools.some((t) => t.name === 'validate_html')),
       task.constraints?.length ? `Constraints:\n${task.constraints.map((c) => `- ${c}`).join('\n')}` : '',
       ``,
@@ -390,6 +391,7 @@ export class L1Atom extends Atom {
       ``,
       `Task: ${task.description}`,
       task.inputs ? `Inputs: ${JSON.stringify(task.inputs)}` : '',
+      task.inputs?.['previousPhaseObservations'] ? PREVIOUS_OBSERVATIONS_GUIDANCE : '',
       ...proofObligationLines(task, hasValidator),
       previousAttempt ? `
 ${previousAttempt}` : '',
