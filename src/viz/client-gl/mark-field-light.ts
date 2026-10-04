@@ -17,7 +17,7 @@ import {
 export const MARK_FIELD_LIGHT_MAX = 4;
 
 /**
- * The mark's CAUSTIC: four facet ray bundles projected onto the wall behind.
+ * The mark's CAUSTIC: eight half-facet ray bundles projected onto the wall behind.
  * One sample, written when the pointer couples into the glass and read by the
  * far-field aurora behind the UI. The UI itself occludes this receiver plane;
  * projecting the same cast through filled controls would imply two incompatible
@@ -26,18 +26,18 @@ export const MARK_FIELD_LIGHT_MAX = 4;
  * Corners are VIEWPORT CSS PIXELS, the same space the pools are reported in,
  * so the field reader converts them through `packMarkCaustic`.
  */
-export const MARK_CAUSTIC_MAX_POINTS = 12;
+export const MARK_CAUSTIC_MAX_POINTS = 24;
 
 /**
- * Per-corner spectral HALF-SEPARATION, the same twelve corners again: red sits
+ * Per-corner spectral HALF-SEPARATION, the same twenty-four corners again: red sits
  * at corner + delta, blue at corner − delta, in the SAME viewport CSS pixels.
  * The camera mapping is projective, so `packMarkCaustic` maps the corner and
  * its endpoint before subtracting them; it never applies one global scale to
  * every delta. Null when the active material does not disperse: the consumer's
  * band gate stays closed rather than drawing a zero-width fringe it cannot see.
  */
-export const MARK_CAUSTIC_MAX_SPECTRAL = 12;
-export const MARK_CAUSTIC_MAX_BUNDLES = 4;
+export const MARK_CAUSTIC_MAX_SPECTRAL = 24;
+export const MARK_CAUSTIC_MAX_BUNDLES = 8;
 export const MARK_CAUSTIC_SECONDARY_POINTS = 3;
 
 export interface MarkFieldCausticOptics {
@@ -54,11 +54,11 @@ export interface MarkFieldCausticSecondary {
 }
 
 export interface MarkFieldCaustic {
-  /** Four consecutive three-point ray bundles, in viewport CSS pixels. */
+  /** Eight consecutive three-point ray bundles, in viewport CSS pixels. */
   points: readonly { x: number; y: number }[];
   /** Per-corner signed half-separation, or null when the glass does not disperse. */
   spectral: readonly { x: number; y: number }[] | null;
-  /** Four transport-derived coating transmissions and Fresnel energies. */
+  /** Eight transport-derived coating transmissions and Fresnel energies. */
   optics: readonly MarkFieldCausticOptics[];
   /** At most one bounded partial-reflection branch. */
   secondary: MarkFieldCausticSecondary | null;
@@ -122,7 +122,7 @@ export function readMarkFieldLight(): readonly MarkFieldLightSpill[] {
 }
 
 /**
- * Publishes the cast. A valid sample is exactly four triangular ray bundles.
+ * Publishes the cast. A valid sample is exactly eight triangular ray bundles.
  */
 export function writeMarkFieldCaustic(next: MarkFieldCaustic | null): void {
   const root = globalThis as FieldLightRoot;
@@ -159,11 +159,11 @@ export function readMarkFieldCaustic(): MarkFieldCaustic | null {
 
 export interface MarkCausticUniforms {
   /**
-   * Exactly four triangles in RENDERER pixels, each wound POSITIVE.
+   * Exactly eight triangles in RENDERER pixels, each wound POSITIVE.
    */
   corners: readonly { x: number; y: number }[];
   /**
-   * The SAME twelve corners as signed half-separations, in renderer pixels:
+   * The SAME twenty-four corners as signed half-separations, in renderer pixels:
    * red at corner + delta, blue at corner − delta. Null when no band was
    * traced. Winding reorders each delta together with the corner it belongs to.
    */

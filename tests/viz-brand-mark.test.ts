@@ -983,13 +983,13 @@ describe('Atoma GPU brand mark', () => {
     }
   });
 
-  it('casts four independently refracted facet bundles onto the field', () => {
+  it('casts eight independently refracted half-facet bundles onto the field', () => {
     const frame = buildAtomaMarkFrame(0);
-    // Lamp straight ahead: coupling on, four facets sampled by three rays each.
+    // Lamp straight ahead: coupling on, four facets split into two three-ray bundles each.
     const centre = projectMarkCaustic(frame, 14, 14);
     expect(centre).not.toBeNull();
-    expect(centre!.points).toHaveLength(12);
-    expect(centre!.optics).toHaveLength(4);
+    expect(centre!.points).toHaveLength(24);
+    expect(centre!.optics).toHaveLength(8);
     for (const [index, optics] of centre!.optics.entries()) {
       for (const [channel, value] of Object.entries(optics)) {
         expect(Number.isFinite(value), `bundle ${index} ${channel}`).toBe(true);
@@ -1022,12 +1022,12 @@ describe('Atoma GPU brand mark', () => {
     expect(shifted.y).toBeGreaterThan(straight.y);
 
     // The bundles stay independent; the shader receives separate footprints
-    // rather than four copies of one silhouette-derived triangle.
+    // rather than eight copies of one silhouette-derived triangle.
     const triangleCentroid = (points: readonly Point[]) => ({
       x: points.reduce((sum, point) => sum + point.x, 0) / points.length,
       y: points.reduce((sum, point) => sum + point.y, 0) / points.length,
     });
-    const bundleCentres = [0, 3, 6, 9].map((start) =>
+    const bundleCentres = [0, 3, 6, 9, 12, 15, 18, 21].map((start) =>
       triangleCentroid(centre!.points.slice(start, start + 3))
     );
     expect(Math.max(...bundleCentres.slice(1).map((point) =>
@@ -1049,11 +1049,11 @@ describe('Atoma GPU brand mark', () => {
     // ~0.044 between red and blue, scaled by the material's dispersion field
     // so the archived obsidian palette (dispersion 0) would trace ONE
     // wavelength and publish no band at all. The active material is diamond,
-    // so every cast carries twelve signed half-separations.
+    // so every cast carries twenty-four signed half-separations.
     const frame = buildAtomaMarkFrame(0);
     const centre = projectMarkCaustic(frame, 14, 14)!;
     expect(centre.spectral).not.toBeNull();
-    expect(centre.spectral).toHaveLength(12);
+    expect(centre.spectral).toHaveLength(24);
 
     // The mean trace sits BETWEEN the two wavelengths at every corner: the
     // published green position is inside the red/blue segment, and the delta
@@ -1073,7 +1073,7 @@ describe('Atoma GPU brand mark', () => {
     // The band survives the whole turn: no pose may trace it away.
     for (const elapsedMs of [1_900, 5_600, 9_800, 13_400]) {
       const cast = projectMarkCaustic(buildAtomaMarkFrame(elapsedMs), 14, 14);
-      expect(cast?.spectral, `at ${elapsedMs}ms`).toHaveLength(12);
+      expect(cast?.spectral, `at ${elapsedMs}ms`).toHaveLength(24);
     }
 
     // The published mean trace is what no-band consumers draw, and the band
@@ -1085,7 +1085,7 @@ describe('Atoma GPU brand mark', () => {
     expect(withBand.spectral!.length).toBe(withBand.points.length);
   });
 
-  it('keeps all four caustic bundles throughout a complete turn', () => {
+  it('keeps all eight caustic bundles throughout a complete turn', () => {
     // A grazing-angle cutoff used to drop the fourth visible facet in eight
     // short windows per turn, clearing the cast for almost a second in total.
     // Sample every tenth of a degree so those profile transitions stay covered.
@@ -1093,7 +1093,7 @@ describe('Atoma GPU brand mark', () => {
     for (let tenthDegree = 0; tenthDegree < 3_600; tenthDegree += 1) {
       const elapsedMs = ATOMA_MARK_TURN_MS * tenthDegree / 3_600;
       const cast = projectMarkCaustic(buildAtomaMarkFrame(elapsedMs), 14, 14);
-      if (!cast || cast.points.length !== 12 || cast.optics.length !== 4) {
+      if (!cast || cast.points.length !== 24 || cast.optics.length !== 8) {
         missing.push(tenthDegree / 10);
       }
     }

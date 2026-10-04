@@ -1,8 +1,8 @@
 /**
- * The crystal cast reconstructed from the four traced facet bundles.
+ * The crystal cast reconstructed from eight traced half-facet bundles.
  *
  * A bundle contains three transported rays at the mean wavelength and their
- * measured spectral offsets. The former shader expanded those twelve rays
+ * measured spectral offsets. The former shader expanded the sampled rays
  * into hundreds of Gaussian samples and several artist-authored curves per
  * fragment. Besides dominating the hero frame, those invented curves read as
  * coloured decals rather than concentrated light.
@@ -10,7 +10,7 @@
  * This reconstruction treats each triangular bundle as a compact photon
  * footprint. Its centroid and covariance define one smooth, elliptical energy
  * distribution; red and blue evaluate the same moment fit at their traced
- * positions. Four overlapping footprints therefore get brighter where the
+ * positions. Eight overlapping footprints therefore get brighter where the
  * transported beams really overlap, with fixed work independent of footprint
  * size. The output is additive light only: receiver shadowing belongs to scene
  * geometry, not to a negative Gaussian painted around a caustic.
@@ -20,12 +20,12 @@
  * Pixi backend without arrays, dynamic indexing, or generated source.
  */
 
-/** Six vec4 slots, each carrying two hit points: twelve traced rays total. */
-export const CAUSTIC_CORNER_SLOTS = 6;
-/** Six vec4 slots for the same twelve corners' signed half-separations. */
-export const CAUSTIC_SPECTRAL_SLOTS = 6;
-/** The transport publishes exactly four triangular facet bundles. */
-export const CAUSTIC_BUNDLE_COUNT = 4;
+/** Twelve vec4 slots, each carrying two hit points: twenty-four traced rays total. */
+export const CAUSTIC_CORNER_SLOTS = 12;
+/** Twelve vec4 slots for the same corners' signed half-separations. */
+export const CAUSTIC_SPECTRAL_SLOTS = 12;
+/** The transport publishes two triangular bundles per camera-facing facet. */
+export const CAUSTIC_BUNDLE_COUNT = 8;
 /** At most one real Fresnel-reflected branch survives CPU ranking. */
 export const CAUSTIC_SECONDARY_BUNDLE_COUNT = 1;
 /** Two vec4 slots carry the secondary triangle's three corners. */
@@ -34,18 +34,18 @@ export const CAUSTIC_SECONDARY_CORNER_SLOTS = 2;
 export const CAUSTIC_SECONDARY_SPECTRAL_SLOTS = 2;
 /** Mean, red and blue moment fits: fixed work per visible bundle. */
 export const CAUSTIC_FOOTPRINT_EVALUATIONS_PER_BUNDLE = 3;
-/** Hard ceiling across four primary bundles and one secondary branch. */
+/** Hard ceiling across eight primary bundles and one secondary branch. */
 export const CAUSTIC_MAX_FOOTPRINT_EVALUATIONS =
   (CAUSTIC_BUNDLE_COUNT + CAUSTIC_SECONDARY_BUNDLE_COUNT) *
   CAUSTIC_FOOTPRINT_EVALUATIONS_PER_BUNDLE;
 
-const CAUSTIC_BLUR_MIN_PX = 3;
-const CAUSTIC_BLUR_MAX_PX = 9;
-const CAUSTIC_BLUR_AREA_FRACTION = 0.028;
+const CAUSTIC_BLUR_MIN_PX = 4;
+const CAUSTIC_BLUR_MAX_PX = 12;
+const CAUSTIC_BLUR_AREA_FRACTION = 0.035;
 const CAUSTIC_CULL_EDGE_FRACTION = 0.38;
 const CAUSTIC_CULL_PAD_MIN_PX = 18;
 const CAUSTIC_CULL_PAD_MAX_PX = 96;
-const CAUSTIC_ENERGY_GAIN = 0.52;
+const CAUSTIC_ENERGY_GAIN = 0.42;
 const CAUSTIC_PRESS_REF = 24000;
 const CAUSTIC_PRESS_SOFT = 3200;
 const CAUSTIC_PRESS_MIN = 0.32;
@@ -117,7 +117,7 @@ export const CAUSTIC_FIELD_GLSL = /* glsl */ `
     ) / determinant);
     float penumbra = 1.0 - smoothstep(0.08, 4.2, distance2 * focus);
     float core = 1.0 - smoothstep(0.015, 0.72, distance2 * focus);
-    return penumbra * penumbra * 0.50 + core * core * 0.50;
+    return penumbra * penumbra * 0.66 + core * core * 0.34;
   }
 
   vec4 causticBundle(
@@ -180,8 +180,11 @@ export const CAUSTIC_FIELD_GLSL = /* glsl */ `
   vec4 causticField(
     vec2 p,
     vec4 c0, vec4 c1, vec4 c2, vec4 c3, vec4 c4, vec4 c5,
+    vec4 c6, vec4 c7, vec4 c8, vec4 c9, vec4 c10, vec4 c11,
     vec4 s0, vec4 s1, vec4 s2, vec4 s3, vec4 s4, vec4 s5,
+    vec4 s6, vec4 s7, vec4 s8, vec4 s9, vec4 s10, vec4 s11,
     vec4 o0, vec4 o1, vec4 o2, vec4 o3,
+    vec4 o4, vec4 o5, vec4 o6, vec4 o7,
     vec4 secondary0, vec4 secondary1,
     vec4 secondarySpec0, vec4 secondarySpec1,
     vec4 secondaryOptics,
@@ -204,6 +207,22 @@ export const CAUSTIC_FIELD_GLSL = /* glsl */ `
       causticBundle(
         p, c4.zw, c5.xy, c5.zw, o3,
         s4.zw, s5.xy, s5.zw, band, detail
+      ).rgb +
+      causticBundle(
+        p, c6.xy, c6.zw, c7.xy, o4,
+        s6.xy, s6.zw, s7.xy, band, detail
+      ).rgb +
+      causticBundle(
+        p, c7.zw, c8.xy, c8.zw, o5,
+        s7.zw, s8.xy, s8.zw, band, detail
+      ).rgb +
+      causticBundle(
+        p, c9.xy, c9.zw, c10.xy, o6,
+        s9.xy, s9.zw, s10.xy, band, detail
+      ).rgb +
+      causticBundle(
+        p, c10.zw, c11.xy, c11.zw, o7,
+        s10.zw, s11.xy, s11.zw, band, detail
       ).rgb +
       causticBundle(
         p, secondary0.xy, secondary0.zw, secondary1.xy, secondaryOptics,
@@ -240,7 +259,7 @@ export const CAUSTIC_FIELD_WGSL = /* wgsl */ `
     ) / determinant);
     let penumbra = 1.0 - smoothstep(0.08, 4.2, distance2 * focus);
     let core = 1.0 - smoothstep(0.015, 0.72, distance2 * focus);
-    return penumbra * penumbra * 0.50 + core * core * 0.50;
+    return penumbra * penumbra * 0.66 + core * core * 0.34;
   }
 
   fn causticBundle(
@@ -307,9 +326,14 @@ export const CAUSTIC_FIELD_WGSL = /* wgsl */ `
     p: vec2<f32>,
     c0: vec4<f32>, c1: vec4<f32>, c2: vec4<f32>,
     c3: vec4<f32>, c4: vec4<f32>, c5: vec4<f32>,
+    c6: vec4<f32>, c7: vec4<f32>, c8: vec4<f32>,
+    c9: vec4<f32>, c10: vec4<f32>, c11: vec4<f32>,
     s0: vec4<f32>, s1: vec4<f32>, s2: vec4<f32>,
     s3: vec4<f32>, s4: vec4<f32>, s5: vec4<f32>,
+    s6: vec4<f32>, s7: vec4<f32>, s8: vec4<f32>,
+    s9: vec4<f32>, s10: vec4<f32>, s11: vec4<f32>,
     o0: vec4<f32>, o1: vec4<f32>, o2: vec4<f32>, o3: vec4<f32>,
+    o4: vec4<f32>, o5: vec4<f32>, o6: vec4<f32>, o7: vec4<f32>,
     secondary0: vec4<f32>, secondary1: vec4<f32>,
     secondarySpec0: vec4<f32>, secondarySpec1: vec4<f32>,
     secondaryOptics: vec4<f32>, band: f32, detail: f32,
@@ -330,6 +354,22 @@ export const CAUSTIC_FIELD_WGSL = /* wgsl */ `
       causticBundle(
         p, c4.zw, c5.xy, c5.zw, o3,
         s4.zw, s5.xy, s5.zw, band, detail,
+      ).rgb +
+      causticBundle(
+        p, c6.xy, c6.zw, c7.xy, o4,
+        s6.xy, s6.zw, s7.xy, band, detail,
+      ).rgb +
+      causticBundle(
+        p, c7.zw, c8.xy, c8.zw, o5,
+        s7.zw, s8.xy, s8.zw, band, detail,
+      ).rgb +
+      causticBundle(
+        p, c9.xy, c9.zw, c10.xy, o6,
+        s9.xy, s9.zw, s10.xy, band, detail,
+      ).rgb +
+      causticBundle(
+        p, c10.zw, c11.xy, c11.zw, o7,
+        s10.zw, s11.xy, s11.zw, band, detail,
       ).rgb +
       causticBundle(
         p, secondary0.xy, secondary0.zw, secondary1.xy, secondaryOptics,

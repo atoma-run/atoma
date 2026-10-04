@@ -37,6 +37,10 @@ const TEST_CAUSTIC_OPTICS = [
   { r: 0.58, g: 0.86, b: 0.72, intensity: 0.40 },
   { r: 0.70, g: 0.62, b: 0.94, intensity: 0.30 },
   { r: 0.88, g: 0.76, b: 0.52, intensity: 0.20 },
+  { r: 0.82, g: 0.72, b: 0.60, intensity: 0.25 },
+  { r: 0.68, g: 0.80, b: 0.88, intensity: 0.22 },
+  { r: 0.78, g: 0.66, b: 0.92, intensity: 0.18 },
+  { r: 0.94, g: 0.82, b: 0.64, intensity: 0.16 },
 ] as const;
 
 function fieldCast(
@@ -138,8 +142,10 @@ describe('far-field shader contract', () => {
       expect(source).toContain('causticField');
       expect(source).toContain('uCaustic0');
       expect(source).toContain('uCaustic5');
+      expect(source).toContain('uCaustic11');
       expect(source).toContain('uCausticOptics0');
       expect(source).toContain('uCausticOptics3');
+      expect(source).toContain('uCausticOptics7');
       expect(source).toContain('uCausticSecondary');
       expect(source).toContain('uCausticDetail');
     }
@@ -147,7 +153,7 @@ describe('far-field shader contract', () => {
       .filter((entry) => entry.name.startsWith('uCaustic'))
       .map((entry) => entry.name);
     expect(causticUniformNames).not.toContain('uCausticColor');
-    expect(causticUniformNames.filter((name) => /^uCausticOptics[0-3]$/.test(name)))
+    expect(causticUniformNames.filter((name) => /^uCausticOptics[0-7]$/.test(name)))
       .toHaveLength(CAUSTIC_BUNDLE_COUNT);
     expect(causticUniformNames.some((name) => name.startsWith('uCausticSecondary')))
       .toBe(true);
@@ -175,7 +181,7 @@ describe('far-field shader contract', () => {
 
   it('keeps the analytic caustic bounded, spectrally honest and additive', () => {
     for (const source of [CAUSTIC_FIELD_GLSL, CAUSTIC_FIELD_WGSL]) {
-      // Four CPU-traced primaries plus at most one real reflected branch stay
+      // Eight CPU-traced primaries plus at most one real reflected branch stay
       // fixed-cost. Core and penumbra share each moment fit; neither brings
       // back the former generated Gaussian banks or fragment loops.
       expect(source).toContain('causticBundle');
@@ -210,12 +216,12 @@ describe('far-field shader contract', () => {
       expect(source).toMatch(/color \+= crystalCast\.rgb/);
       expect(source).not.toContain('crystalCast.a');
     }
-    expect(CAUSTIC_CORNER_SLOTS).toBe(6);
-    expect(CAUSTIC_SPECTRAL_SLOTS).toBe(6);
-    expect(CAUSTIC_BUNDLE_COUNT).toBe(4);
+    expect(CAUSTIC_CORNER_SLOTS).toBe(12);
+    expect(CAUSTIC_SPECTRAL_SLOTS).toBe(12);
+    expect(CAUSTIC_BUNDLE_COUNT).toBe(8);
     expect(CAUSTIC_SECONDARY_BUNDLE_COUNT).toBe(1);
     expect(CAUSTIC_FOOTPRINT_EVALUATIONS_PER_BUNDLE).toBe(3);
-    expect(CAUSTIC_MAX_FOOTPRINT_EVALUATIONS).toBe(15);
+    expect(CAUSTIC_MAX_FOOTPRINT_EVALUATIONS).toBe(27);
     expect(CAUSTIC_MAX_FOOTPRINT_EVALUATIONS).toBe(
       (CAUSTIC_BUNDLE_COUNT + CAUSTIC_SECONDARY_BUNDLE_COUNT) *
       CAUSTIC_FOOTPRINT_EVALUATIONS_PER_BUNDLE
@@ -223,12 +229,12 @@ describe('far-field shader contract', () => {
   });
 
   it('keeps the caustic source legal without dynamic shader arrays', () => {
-    // Six explicit slots keep the WebGL fallback free from dynamic indexing;
+    // Twelve explicit slots keep the WebGL fallback free from dynamic indexing;
     // unlike the former implementation, that does not require generated
     // sample accumulation.
     expect(CAUSTIC_FIELD_GLSL).not.toMatch(/\[\s*\d+\s*\]/);
     expect(CAUSTIC_FIELD_GLSL).not.toContain('%');
-    expect(CAUSTIC_FIELD_GLSL).toContain('vec4 c5');
+    expect(CAUSTIC_FIELD_GLSL).toContain('vec4 c11');
     for (const source of [CAUSTIC_FIELD_GLSL, CAUSTIC_FIELD_WGSL]) {
       expect(source).toContain('transmission.a < 0.001');
       expect(source.match(/causticBundle\(/g)).toHaveLength(
@@ -237,11 +243,11 @@ describe('far-field shader contract', () => {
     }
   });
 
-  it('transports exactly four triangular caustic bundles to the receiver', () => {
+  it('transports exactly eight triangular caustic bundles to the receiver', () => {
     clearMarkFieldLight();
     expect(readMarkFieldCaustic()).toBeNull();
 
-    const points = [
+    const firstHalf = [
       { x: 4, y: 4 },
       { x: 24, y: 4 },
       { x: 24, y: 24 },
@@ -255,6 +261,7 @@ describe('far-field shader contract', () => {
       { x: 22, y: 22 },
       { x: 6, y: 22 },
     ];
+    const points = [...firstHalf, ...firstHalf.map(({ x, y }) => ({ x: x + 2, y: y + 2 }))];
     writeMarkFieldCaustic(fieldCast(points));
     const cast = readMarkFieldCaustic();
     expect(cast).not.toBeNull();
@@ -264,7 +271,7 @@ describe('far-field shader contract', () => {
     expect(cast!.spectral).toBeNull();
     expect(cast!.secondary).toBeNull();
 
-    // The spectral band rides the same twelve corners: a short one is
+    // The spectral band rides the same twenty-four corners: a short one is
     // dropped whole (never partially drawn), and a long one is clamped.
     const halfBand = points.map((point) => ({ x: point.x * 0.1, y: point.y * 0.1 }));
     writeMarkFieldCaustic(fieldCast(points, { spectral: halfBand }));
@@ -280,7 +287,7 @@ describe('far-field shader contract', () => {
 
     // The one reflected path carries its own three corners, spectral deltas
     // and optics. It is optional as a unit: malformed secondary geometry is
-    // dropped without invalidating the four complete primary bundles.
+    // dropped without invalidating the eight complete primary bundles.
     const secondary = {
       points: points.slice(0, 3),
       spectral: halfBand.slice(0, 3),
@@ -301,12 +308,12 @@ describe('far-field shader contract', () => {
     writeMarkFieldCaustic(fieldCast(many));
     expect(readMarkFieldCaustic()!.points).toHaveLength(MARK_CAUSTIC_MAX_POINTS);
 
-    // An incomplete four-bundle field is cleared, never partially drawn.
-    writeMarkFieldCaustic(fieldCast(many.slice(0, 11)));
+    // An incomplete eight-bundle field is cleared, never partially drawn.
+    writeMarkFieldCaustic(fieldCast(many.slice(0, 23)));
     expect(readMarkFieldCaustic()).toBeNull();
 
-    // Four path-specific optical records are as integral as four triangles.
-    writeMarkFieldCaustic(fieldCast(points, { optics: TEST_CAUSTIC_OPTICS.slice(0, 3) }));
+    // Eight path-specific optical records are as integral as eight triangles.
+    writeMarkFieldCaustic(fieldCast(points, { optics: TEST_CAUSTIC_OPTICS.slice(0, 7) }));
     expect(readMarkFieldCaustic()).toBeNull();
 
     // The lantern clear sweeps the cast with it.
@@ -315,14 +322,14 @@ describe('far-field shader contract', () => {
     expect(readMarkFieldCaustic()).toBeNull();
   });
 
-  it('packs both ray triangles into renderer pixels with positive winding', () => {
+  it('packs all eight ray triangles into renderer pixels with positive winding', () => {
     // ONE packer feeds the far-field receiver in renderer pixels. The shader
     // uses a single inward-normal rule, which
     // only holds on positive winding — and screen y runs opposite to the
     // mark's local y, so the hull order alone cannot promise it.
     const bounds = { left: 100, top: 50, width: 400, height: 200 };
     // Clockwise on screen: negative signed area before the flip.
-    const clockwise = [
+    const firstHalf = [
       { x: 100, y: 50 },
       { x: 100, y: 150 },
       { x: 300, y: 150 },
@@ -336,6 +343,7 @@ describe('far-field shader contract', () => {
       { x: 280, y: 140 },
       { x: 120, y: 60 },
     ];
+    const clockwise = [...firstHalf, ...firstHalf.map(({ x, y }) => ({ x: x + 10, y: y + 10 }))];
     const packed = packMarkCaustic(
       fieldCast(clockwise),
       bounds,
@@ -349,7 +357,7 @@ describe('far-field shader contract', () => {
       { x: 400, y: 200 },
       { x: 0, y: 200 },
     ]);
-    for (const start of [0, 3, 6, 9]) {
+    for (const start of [0, 3, 6, 9, 12, 15, 18, 21]) {
       const [a, b, c] = packed.corners.slice(start, start + 3);
       const area = a!.x * b!.y + b!.x * c!.y + c!.x * a!.y -
         b!.x * a!.y - c!.x * b!.y - a!.x * c!.y;
@@ -376,7 +384,8 @@ describe('far-field shader contract', () => {
     // Bundles 0 and 2 need their final two corners swapped to make the
     // winding positive. Their uniquely tagged deltas must make the same swap;
     // otherwise red/blue reconstruct around a different green corner.
-    const windingOrder = [0, 2, 1, 3, 4, 5, 6, 8, 7, 9, 10, 11];
+    const windingOrder = [0, 2, 1, 3, 4, 5, 6, 8, 7, 9, 10, 11,
+      12, 14, 13, 15, 16, 17, 18, 20, 19, 21, 22, 23];
     expect(spectralPacked.spectral).toEqual(windingOrder.map((index) => ({
       x: (index + 0.25) * 2,
       y: -(index + 0.5) * 2,

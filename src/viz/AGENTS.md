@@ -207,7 +207,7 @@ npm run viz:mark-turn:analyze
   its width from the material roughness plus the one source radius, and its
   bounded isocontours supply the projected ellipse. Do not bend the facet
   normal or reintroduce a pointer-UV window.
-- The gem's CAST is four three-ray facet bundles on ONE receiver — the far-field
+- The gem's CAST is eight three-ray half-facet bundles on ONE receiver — the far-field
   mesh behind the UI. Filled controls occlude that plane; never duplicate the
   caustic in the full-stage pointer-light filter, which both invents a second
   receiver at the UI's depth and doubles the hottest fragment work.
@@ -218,13 +218,13 @@ npm run viz:mark-turn:analyze
   per-fragment loops, Gaussian kernel banks, negative shadow patch, or
   shader-authored bundle tints. Per-bundle RGB is allowed only when the CPU
   transport derives it from the entry/exit facet coatings and Fresnel energy.
-  The four primary bundles are traced at TWO wavelengths (the material
+  The eight primary bundles are traced at TWO wavelengths (the material
   dispersion band, diamond by default): the published corners are the mean
   trace and each carries its signed red−blue half-separation, so
   `causticDispersion` opens or closes the measured band while `causticDetail`
   changes concentration without changing sample count. After primary ranking,
   ONE partial-reflection branch may continue from the strongest complete
-  bundle. The hard budget is therefore 4×3 primary + 1×3 secondary analytic
+  bundle. The hard budget is therefore 8×3 primary + 1×3 secondary analytic
   footprints; never follow secondary rays for every candidate. Hero offscreen
   work is separately clocked and physically capped: backdrop at 30 Hz / 512 px,
   environment at 12 Hz / 256 px, and CPU caustic projection at 30 Hz; reduced
