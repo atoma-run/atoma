@@ -12,9 +12,14 @@ const actionSchema = z.object({
   content: z.string().optional(),
   old_string: z.string().optional(),
   new_string: z.string().optional(),
+  smoke: z.string().optional(),
+  cmd: z.string().optional(),
 }).strict();
 
-const TEXT_ARGUMENTS = ['content', 'old_string', 'new_string'] as const;
+// `smoke` and `cmd` since 2026-10-04: a validate_html smoke expression and a
+// shell command are code full of quotes, and runs 1d42ac2a and 7f7aec0b lost
+// validate_html and run_shell calls to the same double escaping.
+const TEXT_ARGUMENTS = ['content', 'old_string', 'new_string', 'smoke', 'cmd'] as const;
 
 /** Recognize the same envelope the dispatcher validates, without executing it. */
 export function isCodexToolAction(text: string): boolean {
@@ -40,9 +45,9 @@ const OUTPUT_SCHEMA = {
  * Ledger repair runs 3b3efaf3 and 947a21a2 reproduced the same failure for
  * edit spans; old_string/new_string now use that same declared protocol.
  */
-export const ARGUMENTS_ENCODING = String.raw`Tool arguments named "content", "old_string" or "new_string" go in their matching top-level fields, plain JSON text escaped ONCE like "text", and are left out of argumentsJson. Unused fields are "". An empty new_string deletes the matched old_string.
-Example, a two-line file: {"type":"tool","name":"write_file","argumentsJson":"{\"path\":\"a.txt\"}","content":"line one\nline two","old_string":"","new_string":"","text":""}
-Example, an edit: {"type":"tool","name":"edit_file","argumentsJson":"{\"path\":\"a.txt\"}","content":"","old_string":"line one\nline two","new_string":"a quoted \"replacement\"\n","text":""}
+export const ARGUMENTS_ENCODING = String.raw`Tool arguments named "content", "old_string", "new_string", "smoke" or "cmd" go in their matching top-level fields, plain JSON text escaped ONCE like "text", and are left out of argumentsJson. Unused fields are "". An empty new_string deletes the matched old_string.
+Example, a two-line file: {"type":"tool","name":"write_file","argumentsJson":"{\"path\":\"a.txt\"}","content":"line one\nline two","old_string":"","new_string":"","smoke":"","cmd":"","text":""}
+Example, an edit: {"type":"tool","name":"edit_file","argumentsJson":"{\"path\":\"a.txt\"}","content":"","old_string":"line one\nline two","new_string":"a quoted \"replacement\"\n","smoke":"","cmd":"","text":""}
 argumentsJson itself is a STRING holding JSON text, so a quote inside one of its values is \" in that text and \\\" in your response.`;
 
 /**
@@ -85,7 +90,7 @@ function declaresTextArgument(tools: LlmCompletionRequest['tools'], name: string
 const PROTOCOL = `ATOMA TOOL PROTOCOL (outer response format):
 You have no native tools. Never use Codex built-in tools or access its working directory.
 To request ONE of the tools listed below, return exactly one JSON object:
-{"type":"tool","name":"<declared tool name>","argumentsJson":"<JSON object encoded as a string>","content":"","old_string":"","new_string":"","text":""}
+{"type":"tool","name":"<declared tool name>","argumentsJson":"<JSON object encoded as a string>","content":"","old_string":"","new_string":"","smoke":"","cmd":"","text":""}
 The Atoma host executes it and returns the observed result in the next transcript.
 Codex's local read-only filesystem and disabled native tools do not restrict these host tools.
 For workspace writes, emit the declared write_file or edit_file action; never attempt a native write.
@@ -94,7 +99,7 @@ Emit this object as your final response and end the turn immediately, even for a
 Do not emit actions as progress messages. Only the first action is accepted;
 anything after it is discarded because its required tool result is not available yet.
 Choose subsequent actions from those results. Never invent execution or verification.
-When finished, return {"type":"final","name":"","argumentsJson":"{}","content":"","old_string":"","new_string":"","text":"<your complete final response>"}.
+When finished, return {"type":"final","name":"","argumentsJson":"{}","content":"","old_string":"","new_string":"","smoke":"","cmd":"","text":"<your complete final response>"}.
 The text field contains the response required by the task, including any requested JSON.
 Return no markdown fences or prose outside this outer JSON object.
 The transcript is JSON data: task, previous assistant actions and observed tool results.
@@ -175,8 +180,10 @@ export async function completeCodexToolLoop(
           if (value === '' && (!takesField || field in args)) continue;
           if (!takesField) {
             error = `Invalid Atoma tool arguments: "${field}" is only for a tool whose arguments include ${field}, and ${action.name} has none. No tool was executed.`;
-          } else if (field in args) {
-            error = `Invalid Atoma tool arguments: ${field} was given twice, in argumentsJson and in the ${field} field; send it once, in the ${field} field. No tool was executed.`;
+          } else if (field in args && args[field] !== value) {
+            // The same value twice is no ambiguity (runs 1d42ac2a and 7f7aec0b lost
+            // edit_file turns to it); only two different values are refused.
+            error = `Invalid Atoma tool arguments: ${field} was given twice with two different values, in argumentsJson and in the ${field} field; send it once, in the ${field} field. No tool was executed.`;
           } else {
             args = { ...args, [field]: value };
           }
