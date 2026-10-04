@@ -1,4 +1,5 @@
 import { elementForTool } from '../../../contracts/toolTaxonomy.js';
+import { isStandingCoverage } from '../../../contracts/acceptanceChecklist.js';
 import { clockTime } from '../../client/date-format.js';
 import {
   fmtCost,
@@ -300,6 +301,9 @@ export function gpuEventCardCopy(event: VizEvent, t: GpuTranslate): GpuEventCard
     body = t(event.at === 'deepening' ? 'depth.deepening' : `depth.entry.${event.mode}`);
   } else if (event.kind === 'acceptance') {
     const http = event.checklist?.filter((item) => item.kind === 'http') ?? [];
+    // Covered by an earlier run's host-recorded probe on unchanged server code
+    // is not observed by this attempt, and the card says which is which.
+    const recorded = http.filter((item) => isStandingCoverage({ status: item.status, observationRefs: item.observationRefs ?? [] })).length;
     // The acceptor's own word per criterion, when it gave one.
     const judged = event.checklist?.filter((item) => item.judgement !== undefined) ?? [];
     body = [event.reasoning, judged.length ? t('depth.checklist.judged', {
@@ -310,9 +314,9 @@ export function gpuEventCardCopy(event: VizEvent, t: GpuTranslate): GpuEventCard
       total: event.floorCoverage?.length ?? 0,
     }), event.checklist?.length ? t(event.checklistSource === 'user' ? 'depth.checklist.user' : 'depth.checklist.drafted', {
       count: event.checklist.length,
-      observed: http.filter((item) => item.status === 'covered').length,
+      observed: http.filter((item) => item.status === 'covered').length - recorded,
       http: http.length,
-    }) : ''].filter(Boolean).join(' · ');
+    }) : '', recorded > 0 ? t('depth.checklist.recorded', { count: recorded }) : ''].filter(Boolean).join(' · ');
   } else if (event.kind === 'tool' && !event.error) {
     body = [toolArgSummary(event.args), resultFacts(event.result)].filter(Boolean).join(' · ');
   } else if (

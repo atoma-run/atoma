@@ -71,5 +71,12 @@ describe('depth evidence in persisted traces and GPU timeline', () => {
     expect(gpuEventCardCopy(event, t).body).not.toContain('depth.checklist.judged');
     const judged = { ...event, checklist: event.checklist!.map((item, i) => ({ ...item, judgement: { met: i !== 1 } })) };
     expect(gpuEventCardCopy(judged, t).body).toContain('depth.checklist.judged{"met":2,"count":3}');
+    // Standing evidence (an earlier run's probe on unchanged server code) is counted apart, never as observed.
+    expect(gpuEventCardCopy(event, t).body).not.toContain('depth.checklist.recorded');
+    const standing = { ...event, checklist: event.checklist!.map((item) => item.id === 'c2'
+      ? { ...item, status: 'covered' as const, observationRefs: ['standing:seed/e9/server.js'] } : item) };
+    const body = gpuEventCardCopy(standing, t).body;
+    expect(body).toContain('depth.checklist.user{"count":3,"observed":1,"http":2}');
+    expect(body).toContain('depth.checklist.recorded{"count":1}');
   });
 });
