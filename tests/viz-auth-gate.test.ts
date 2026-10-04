@@ -1766,15 +1766,21 @@ describe('viz auth gate (process level)', () => {
     const login = await fetchWithJar(jar, `${base}/auth/login?provider=github&invite=${invitation}`);
     expect(login.status).toBe(200);
     const cookie = { cookie: jar.header(base)! };
-    expect(await (await fetch(`${base}/auth/whoami`, { headers: cookie })).json()).toMatchObject({
+    const readJson = async (path: string): Promise<unknown> => {
+      const response = await fetch(`${base}${path}`, { headers: cookie, redirect: 'manual' });
+      const body = await response.text();
+      const context = `${path}: status=${response.status}, type=${response.headers.get('content-type')}, body=${body.slice(0, 500)}`;
+      expect(response.status, context).toBe(200);
+      expect(response.headers.get('content-type'), context).toContain('application/json');
+      return JSON.parse(body) as unknown;
+    };
+    expect(await readJson('/auth/whoami')).toMatchObject({
       authenticated: true,
       role: 'org:member',
     });
 
     // READ: allowed, and never carrying key material.
-    const read = await fetch(`${base}/api/org/models`, { headers: cookie });
-    expect(read.status).toBe(200);
-    const readBody = await read.json() as { keys: Array<{ provider: string }>; models: unknown };
+    const readBody = await readJson('/api/org/models') as { keys: Array<{ provider: string }>; models: unknown };
     expect(Array.isArray(readBody.keys)).toBe(true);
     const keysRead = await fetch(`${base}/api/org/provider-keys`, { headers: cookie });
     expect(keysRead.status).toBe(200);
@@ -1800,8 +1806,7 @@ describe('viz auth gate (process level)', () => {
     expect(deletedKey.status).toBe(403);
 
     // And nothing was written by the refusals.
-    const after = await fetch(`${base}/api/org/models`, { headers: cookie });
-    expect((await after.json() as { keys: unknown[] }).keys).toHaveLength(0);
+    expect((await readJson('/api/org/models') as { keys: unknown[] }).keys).toHaveLength(0);
 
   });
 

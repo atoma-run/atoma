@@ -1,7 +1,7 @@
 import { haystackTestEnvironment } from './helpers/haystack.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Database from 'better-sqlite3';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AuthStore } from '../src/auth/store.js';
@@ -49,7 +49,8 @@ afterEach(() => {
 });
 
 function fixture() {
-  const root = mkdtempSync(join(tmpdir(), 'atoma-project-rerun-'));
+  // Retention rejects symlink ancestors; macOS temp roots may alias /private.
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'atoma-project-rerun-')));
   roots.push(root);
   const dbPath = join(root, 'atoma.db');
   const auth = AuthStore.open(dbPath);
