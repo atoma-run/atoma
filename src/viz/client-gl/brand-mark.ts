@@ -106,13 +106,13 @@ export function coreLightFalloff(distance: number): number {
 }
 
 /**
- * The bead, halved from the 1.95 it was authored at. Everything the bead emits
+ * The bead, 168.75% of the 1.95 it was authored at. Everything the bead emits
  * is expressed as a MULTIPLE of this radius — its body gradient, its bloom, the
- * hot centre the near glass transmits — so the whole light shrinks with it and
+ * hot centre the near glass transmits — so the whole light scales with it and
  * only the reach it throws across the crystal (`ATOMA_MARK_CORE_LIGHT_RADIUS`)
- * stays where it was: a smaller filament still lights the same room.
+ * stays where it was: the filament still lights the same room.
  */
-export const ATOMA_MARK_CORE_RADIUS = 0.975;
+export const ATOMA_MARK_CORE_RADIUS = 3.290625;
 export const ATOMA_MARK_CORE_RADIUS_PULSE = 0.04;
 
 /**

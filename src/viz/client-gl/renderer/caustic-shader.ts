@@ -39,13 +39,13 @@ export const CAUSTIC_MAX_FOOTPRINT_EVALUATIONS =
   (CAUSTIC_BUNDLE_COUNT + CAUSTIC_SECONDARY_BUNDLE_COUNT) *
   CAUSTIC_FOOTPRINT_EVALUATIONS_PER_BUNDLE;
 
-const CAUSTIC_BLUR_MIN_PX = 4;
-const CAUSTIC_BLUR_MAX_PX = 12;
-const CAUSTIC_BLUR_AREA_FRACTION = 0.035;
+const CAUSTIC_BLUR_MIN_PX = 3;
+const CAUSTIC_BLUR_MAX_PX = 9;
+const CAUSTIC_BLUR_AREA_FRACTION = 0.028;
 const CAUSTIC_CULL_EDGE_FRACTION = 0.38;
 const CAUSTIC_CULL_PAD_MIN_PX = 18;
 const CAUSTIC_CULL_PAD_MAX_PX = 96;
-const CAUSTIC_ENERGY_GAIN = 0.42;
+const CAUSTIC_ENERGY_GAIN = 0.52;
 const CAUSTIC_PRESS_REF = 24000;
 const CAUSTIC_PRESS_SOFT = 3200;
 const CAUSTIC_PRESS_MIN = 0.32;
@@ -117,7 +117,7 @@ export const CAUSTIC_FIELD_GLSL = /* glsl */ `
     ) / determinant);
     float penumbra = 1.0 - smoothstep(0.08, 4.2, distance2 * focus);
     float core = 1.0 - smoothstep(0.015, 0.72, distance2 * focus);
-    return penumbra * penumbra * 0.66 + core * core * 0.34;
+    return penumbra * penumbra * 0.50 + core * core * 0.50;
   }
 
   vec4 causticBundle(
@@ -240,7 +240,7 @@ export const CAUSTIC_FIELD_WGSL = /* wgsl */ `
     ) / determinant);
     let penumbra = 1.0 - smoothstep(0.08, 4.2, distance2 * focus);
     let core = 1.0 - smoothstep(0.015, 0.72, distance2 * focus);
-    return penumbra * penumbra * 0.66 + core * core * 0.34;
+    return penumbra * penumbra * 0.50 + core * core * 0.50;
   }
 
   fn causticBundle(
