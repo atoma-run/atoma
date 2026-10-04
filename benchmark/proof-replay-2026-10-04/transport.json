@@ -1,0 +1,6 @@
+{
+  "platform": "macOS",
+  "cli": "0.156.1",
+  "adaptation": "ATOMA_REPLAY_CODEX_BINARY selects the real installed binary and grants that exact file read-only runtime access. Existing filesystem denials, network denial and disabled tools are preserved. This adapter applies identically to all arms.",
+  "excludedChecks": "Initial transport-unavailable attempt and transport-check.json are diagnostics, excluded from judgment counts. No result was used to change cases, labels or prompts."
+}

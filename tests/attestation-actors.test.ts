@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { L1Atom } from '../src/atoms/L1Atom.js';
 import { L2Atom } from '../src/atoms/L2Atom.js';
-import { llmVerdict } from '../src/atoms/verdict.js';
+import { llmVerdict, MAX_TOOL_EVIDENCE_CHARS, renderTransportEvidence } from '../src/atoms/verdict.js';
 import { parseBrowserObservation, parseExecutionObservation, renderObservation, renderObservations } from '../src/contracts/attestation.js';
 import { attestingExecutor, createAttestationLog } from '../src/core/attestation.js';
 import type { LlmCompletionRequest, LlmCompletionResponse, ToolExecutor } from '../src/core/types.js';
@@ -127,6 +127,61 @@ describe('the attested browser observation', () => {
 });
 
 describe('the result validator prompt', () => {
+  it('keeps inspected assertions after a long API verification', async () => {
+    const names = ['read_file', 'run_shell', 'fetch_url'];
+    const child = new L1Atom({ name: 'Methane', ordinal: 2, systemPrompt: 'Verify the existing app', tools: names.map(declare), params: {} });
+    const attestations = createAttestationLog();
+    const assertion = "assert.equal(renewed.dueDate, '2026-01-29')";
+    const base: ToolExecutor = {
+      has: name => names.includes(name),
+      execute: async (name, args) => name === 'read_file'
+        ? { path: args['path'], content: assertion }
+        : name === 'run_shell' ? { exitCode: 0, stdout: '7 passed, 0 failed' }
+          : { ok: false, status: 409, body: JSON.stringify({ error: 'copy unavailable', detail: 'x'.repeat(500) }) },
+    };
+    const ctx = { ...makeCtx(), attestations, currentBranchId: 'verification', attempt: 1,
+      tools: attestingExecutor(base, attestations, 'verification', undefined, 1)! };
+    ctx.llm.enqueue(async (req: LlmCompletionRequest) => {
+      await req.executor!.execute('read_file', { path: 'test/library.test.js' });
+      await req.executor!.execute('run_shell', { cmd: 'npm test' });
+      for (let i = 0; i < 120; i++) {
+        await req.executor!.execute('fetch_url', { url: 'http://localhost:4000/api/loans', method: 'POST', note: `probe ${i}` });
+      }
+      return reply({ output: 'verified', summary: '7 tests pass' });
+    });
+    const task = { description: 'Verify the required renewal and lending rules and their tests' };
+    const result = await child.execute(task, makePlan({ proposedAction: 'inspect and verify' }), ctx);
+    ctx.llm.enqueue(reply({ approved: false, reasoning: 'Other rules still need evidence' }));
+    await llmVerdict({ ctx, model: 'api:anthropic:claude-haiku-4-5-20251001', supervisorName: 'Sclereid', supervisorTier: 2,
+      child, task, subject: 'RESULT', payload: { output: result.output, summary: result.summary },
+      evidence: result.evidence ?? [], groundTruthBlock: '' });
+    const call = ctx.llm.calls.at(-1)!;
+    expect(call.userContent).toContain(assertion);
+    expect(call.userContent).toContain('probe 119');
+    const rendered = renderTransportEvidence(result.evidence);
+    expect(rendered.omitted).toBeGreaterThan(0);
+    expect(rendered.lines.reduce((total, line) => total + line.length, 0)).toBeLessThanOrEqual(MAX_TOOL_EVIDENCE_CHARS);
+  });
+
+  it('does not revive superseded assertions when reserving space for file reads', () => {
+    const record = (eventId: string, tool: string, args: Record<string, unknown>, raw: unknown) =>
+      ({ eventId, tool, observation: parseExecutionObservation(tool, args, raw)! });
+    const records = [
+      record('old-test', 'read_file', { path: 'test/rules.js' }, { content: 'assert.equal(result.limit, 5)' }),
+      record('rewrite', 'write_file', { path: 'test/rules.js' }, { ok: true }),
+      ...Array.from({ length: 80 }, (_, i) => record(`http-${i}`, 'fetch_url',
+        { url: 'http://localhost:4000/api' }, { status: 200, body: 'x'.repeat(800) })),
+    ];
+    const lines = renderObservations(records);
+    const rendered = renderTransportEvidence(records.map((record, i) => ({ source: 'transport-observed',
+      eventId: record.eventId, tool: record.tool, observed: lines[i]! })));
+    const text = rendered.lines.join('\n');
+    expect(text).toContain('superseded read result omitted');
+    expect(text).not.toContain('assert.equal(result.limit, 5)');
+    expect(text).toContain('http-79');
+    expect(rendered.omitted).toBeGreaterThan(0);
+  });
+
   it('keeps the browser observations however many file reads follow them', async () => {
     const names = ['write_file', 'read_file', 'validate_html'];
     const child = new L1Atom({ name: 'Methane', ordinal: 2, systemPrompt: 'full stack', tools: names.map(declare), params: {} });

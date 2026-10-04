@@ -735,7 +735,9 @@ export const MAX_TOOL_EVIDENCE_CHARS = 24_000;
  * observations are one short line each and carry the facts nothing else does
  * (FILTERED interactions, the viewport), so the latest
  * `MAX_BROWSER_EVIDENCE_LINES` are always kept; execution results share the
- * rest of the budget as a suffix. One suffix for both let a burst of file
+ * rest of the budget. Up to half the total budget is reserved for file reads,
+ * so subsequent probes cannot erase the assertions a worker inspected.
+ * Remaining space keeps an execution suffix. One suffix for both let a burst of file
  * reads evict the browser lines (2026-09-25 review, 1.4).
  */
 export function renderTransportEvidence(
@@ -747,8 +749,21 @@ export function renderTransportEvidence(
   const keep = new Set(browserIds);
   let evidenceChars = observed.filter((witness) => browserIds.has(witness.eventId))
     .reduce((total, witness) => total + witness.eventId.length + 2 + witness.observed.length, 0);
+  // Preserve inspected source alongside execution results. These are still
+  // bounded historical excerpts, including any stale-read marker; no coverage
+  // or current-file claim follows from selecting them (run ce89c84a).
+  let readChars = 0;
   for (const witness of [...observed].reverse()) {
-    if (witness.tool === 'validate_html') continue;
+    if (witness.tool !== 'read_file') continue;
+    const length = witness.eventId.length + 2 + witness.observed.length;
+    if (readChars + length > MAX_TOOL_EVIDENCE_CHARS / 2 ||
+        evidenceChars + length > MAX_TOOL_EVIDENCE_CHARS) break;
+    keep.add(witness.eventId);
+    readChars += length;
+    evidenceChars += length;
+  }
+  for (const witness of [...observed].reverse()) {
+    if (witness.tool === 'validate_html' || keep.has(witness.eventId)) continue;
     const length = witness.eventId.length + 2 + witness.observed.length;
     if (evidenceChars + length > MAX_TOOL_EVIDENCE_CHARS) break;
     keep.add(witness.eventId);

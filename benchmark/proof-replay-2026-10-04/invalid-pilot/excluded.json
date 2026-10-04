@@ -1,0 +1,4 @@
+{
+  "reason": "The positive fixture omitted >500-cent rejection even though the task stated it. Two model rejections correctly identified this gap. Its expected=true label was invalid. This pilot is excluded in full, never pooled with the corrected series.",
+  "correction": "Test independently seeded 475, 500 and 525 cent balances, with expected borrow statuses 201, 201 and 409. Keep the request wording and four comparison arms unchanged."
+}

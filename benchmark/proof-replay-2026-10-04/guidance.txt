@@ -1,0 +1,11 @@
+== TEST EVIDENCE AND RULE COVERAGE ==
+When the task requires tests or verification, inspect the actual assertions, not just test names or a passing count.
+For each claimed rule, identify the controlled setup, the action, and the expected value asserted from the requirement.
+For a refusal, establish that other refusal conditions are absent: a shared error status alone does not identify the cause.
+Assert setup operations succeeded before counting them. Isolate stateful scenarios so an earlier test cannot supply an unintended reason for success.
+Check task-specified boundaries on both sides and at equality; assert exact changed values for dates, amounts and counters, not only a success status.
+Ask whether the assertion would fail if this rule were removed or its boundary changed. If another condition still makes it pass, the rule is not covered by that check.
+A test title, comment, probe note, green total or implementation read is not proof that the suite detects that regression.
+Report the assertion and observed result supporting coverage, and distinguish missing proof from an observed implementation defect.
+A truncated source excerpt or omitted observation establishes neither coverage nor absence of checks outside it. Identify the missing evidence needed for the claim; do not invent a code defect.
+Do not require exhaustive mutation testing or extra rules the task never asked for. Do not mutate the deliverable merely to demonstrate a counterexample.

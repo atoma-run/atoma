@@ -1,0 +1,17 @@
+{
+  "decision": "Keep bounded file-read retention; remove TEST_EVIDENCE_GUIDANCE from production execution and validation prompts. Preserve it only as an experimental arm.",
+  "basis": "With the old prompt, retained reads produced all 15 oracle-matching decisions; the old renderer produced 14/15, including one acceptance of the insufficient original suite. Both arms with the added guidance rejected the conforming case in all three repeats, asking for more evidence.",
+  "interpretation": "The oracle labels describe actual test adequacy and runtime behavior for the scoped rules. A refusal asking for omitted setup evidence is not an invented implementation defect. These counts do not prove general accuracy or that all guidance-induced refusals are wrong.",
+  "limitations": [
+    "Three repeats per case on one model, one application and one day.",
+    "Controlled reconstruction with synthetic trailing catalogue probes; not the complete production acceptance prompt or an end-to-end Atoma run.",
+    "The positive case tests the three scoped rules, not all library requirements.",
+    "No production deployment or new application run was performed."
+  ],
+  "excludedPilot": {
+    "completedJudgments": 13,
+    "transportErrors": 1,
+    "reason": "Positive fixture lacked the requested above-threshold check; excluded in full and preserved."
+  },
+  "next": "Verify keyboard evidence separately before the next live application run."
+}

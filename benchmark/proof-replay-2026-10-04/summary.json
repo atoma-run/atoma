@@ -1,0 +1,228 @@
+{
+  "complete": true,
+  "scored": 60,
+  "planned": 60,
+  "transportErrors": 0,
+  "parseErrors": 0,
+  "modelsServed": [
+    "gpt-5.6-luna"
+  ],
+  "inputTokens": 552549,
+  "outputTokens": 18144,
+  "arms": [
+    {
+      "arm": "old-evidence/old-guidance",
+      "scored": 15,
+      "falseApprovals": 1,
+      "falseRefusals": 0,
+      "cases": [
+        {
+          "id": "original",
+          "expected": false,
+          "verdicts": [
+            false,
+            true,
+            false
+          ]
+        },
+        {
+          "id": "corrected",
+          "expected": true,
+          "verdicts": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "id": "premium",
+          "expected": false,
+          "verdicts": [
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "id": "renewal",
+          "expected": false,
+          "verdicts": [
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "id": "threshold",
+          "expected": false,
+          "verdicts": [
+            false,
+            false,
+            false
+          ]
+        }
+      ]
+    },
+    {
+      "arm": "new-evidence/old-guidance",
+      "scored": 15,
+      "falseApprovals": 0,
+      "falseRefusals": 0,
+      "cases": [
+        {
+          "id": "original",
+          "expected": false,
+          "verdicts": [
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "id": "corrected",
+          "expected": true,
+          "verdicts": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "id": "premium",
+          "expected": false,
+          "verdicts": [
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "id": "renewal",
+          "expected": false,
+          "verdicts": [
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "id": "threshold",
+          "expected": false,
+          "verdicts": [
+            false,
+            false,
+            false
+          ]
+        }
+      ]
+    },
+    {
+      "arm": "old-evidence/new-guidance",
+      "scored": 15,
+      "falseApprovals": 0,
+      "falseRefusals": 3,
+      "cases": [
+        {
+          "id": "original",
+          "expected": false,
+          "verdicts": [
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "id": "corrected",
+          "expected": true,
+          "verdicts": [
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "id": "premium",
+          "expected": false,
+          "verdicts": [
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "id": "renewal",
+          "expected": false,
+          "verdicts": [
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "id": "threshold",
+          "expected": false,
+          "verdicts": [
+            false,
+            false,
+            false
+          ]
+        }
+      ]
+    },
+    {
+      "arm": "new-evidence/new-guidance",
+      "scored": 15,
+      "falseApprovals": 0,
+      "falseRefusals": 3,
+      "cases": [
+        {
+          "id": "original",
+          "expected": false,
+          "verdicts": [
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "id": "corrected",
+          "expected": true,
+          "verdicts": [
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "id": "premium",
+          "expected": false,
+          "verdicts": [
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "id": "renewal",
+          "expected": false,
+          "verdicts": [
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "id": "threshold",
+          "expected": false,
+          "verdicts": [
+            false,
+            false,
+            false
+          ]
+        }
+      ]
+    }
+  ],
+  "metricMeaning": "falseRefusals counts rejection of the oracle-conforming artifact. Some rejections ask for evidence absent from the bounded prompt; these are not automatically fabricated defects. Inspect the recorded reasoning separately.",
+  "caveat": "Three repetitions per case; controlled reconstruction, not a production end-to-end run or a guarantee of future accuracy. Oracle labels assess only the three scoped rules. Transport diagnostics excluded from model error rates."
+}

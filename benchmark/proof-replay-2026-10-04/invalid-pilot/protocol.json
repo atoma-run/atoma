@@ -1,0 +1,45 @@
+{
+  "schema": 1,
+  "registeredAt": "2026-10-04T20:24:20.060Z",
+  "model": "gpt-5.6-luna",
+  "repeats": 3,
+  "arms": [
+    "old-evidence/old-guidance",
+    "new-evidence/old-guidance",
+    "old-evidence/new-guidance",
+    "new-evidence/new-guidance"
+  ],
+  "calls": 60,
+  "scope": "Controlled reconstruction of a result validation, limited to three lending rules and their regression coverage; not a replay of the entire production run.",
+  "rules": [
+    "premium five-loan limit with available sixth copy",
+    "renewal advances existing due date exactly fourteen days",
+    "exactly 500 cents permits borrowing"
+  ],
+  "labels": [
+    {
+      "id": "original",
+      "expected": false
+    },
+    {
+      "id": "corrected",
+      "expected": true
+    },
+    {
+      "id": "premium",
+      "expected": false
+    },
+    {
+      "id": "renewal",
+      "expected": false
+    },
+    {
+      "id": "threshold",
+      "expected": false
+    }
+  ],
+  "oracle": "Actual Node test execution on isolated fresh data. Original suite passes all three mutants; repaired suite fails each mutant and passes original server.",
+  "padding": "120 bounded synthetic historical GET observations after source reads, followed by the actual test receipt; identical within each case across arms. This stress-tests the observed evidence-eviction failure.",
+  "decision": "Exploratory: compare false approvals, false refusals and transport/parse errors separately. No promotion from mocked tests or a tiny positive sample. No automated deployment.",
+  "ordering": "Rotate arm order across case and repeat; serial model calls, no tools, no store or trust mutation."
+}

@@ -1,0 +1,17 @@
+{
+  "productionRun": "ce89c84a-c848-428c-8811-de4d090c8d39",
+  "publishedCommit": "e94f1772a8f69341cbd782e0bc068007b4a6f62a",
+  "source": "Atoma MCP complete read_file events; server and original test bytes matched the published artifact manifest during the preceding audit.",
+  "serverSha256": "8e12fc41599117ca66d74f99708f1aff3d0834bf63b548ad97fedab0eff3dffc",
+  "originalTestsSha256": "eb86dae2ed9f96b3137a9e30354749ca0ad30113a200ed098bf4c0d2e3f5d561",
+  "atomaHead": "aa1830c3f57ab0ff4591ed64974b206e20188067",
+  "atomaChanges": "Uncommitted evidence selection and test-evidence guidance patch; exact old/new model requests are archived in requests.json.gz.",
+  "node": "24.20.0",
+  "reproduce": [
+    "node benchmark/proof-replay-2026-10-04/prepare.mjs",
+    "node --import tsx benchmark/proof-replay-2026-10-04/replay.mjs",
+    "ATOMA_REPLAY_CODEX_BINARY=/path/to/codex node --import tsx benchmark/proof-replay-2026-10-04/replay.mjs --live",
+    "node benchmark/proof-replay-2026-10-04/summarize.mjs"
+  ],
+  "liveWarning": "--live spends model quota. Dry request generation and fixture tests do not. Completed keys are resumed; preserve the evidence directory before generating a new series."
+}
