@@ -124,11 +124,11 @@ const CORE_BODY_STEPS = 30;
 const CORE_BLOOM_STEPS = 80;
 /**
  * Pixi tessellates `circle()` from the LOCAL radius. The bead is authored at
- * less than one unit and later enlarged ~17× on the welcome gate, so the
+ * 2.5 units and later enlarged ~17× on the welcome gate, so the
  * automatic low-detail circle exposes polygon corners there. An explicit
- * 64-gon keeps the radial error below a tenth of a physical pixel at hero size.
+ * 96-gon keeps the radial error below a tenth of a physical pixel at hero size.
  */
-export const ATOMA_MARK_CORE_DISC_SEGMENTS = 64;
+export const ATOMA_MARK_CORE_DISC_SEGMENTS = 96;
 const CORE_BLOOM_REACH = 2.6;
 const CORE_BLOOM_PEAK_ALPHA = 0.28;
 const CORE_FILAMENT_FRACTION = 0.5;

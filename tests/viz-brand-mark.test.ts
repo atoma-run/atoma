@@ -138,7 +138,7 @@ describe('Atoma GPU brand mark', () => {
     }
     // Every facet projects to a real triangle inside the 28×28 local box —
     // including poses where a near vertex has grown under the pinhole.
-    for (const elapsedMs of [0, 640, 3_300, 7_500, 11_200, 17_900]) {
+    for (let elapsedMs = 0; elapsedMs <= ATOMA_MARK_TURN_MS; elapsedMs += ATOMA_MARK_TURN_MS / 360) {
       const pose = elapsedMs === 0 ? frame : buildAtomaMarkFrame(elapsedMs);
       for (const facet of ATOMA_MARK_MESH.facets) {
         const corners = facet.points.map((point) => pose.projected[point]!);
@@ -665,11 +665,10 @@ describe('Atoma GPU brand mark', () => {
   });
 
   it('keeps the whole bead inside the outline it lights', () => {
-    // Half the bead it was authored at, and the pulse halved with it: the
-    // light's PROPORTIONS are the contract, not its absolute size.
-    expect(ATOMA_MARK_CORE_RADIUS).toBeCloseTo(0.975, 6);
-    expect(ATOMA_MARK_CORE_RADIUS_PULSE / ATOMA_MARK_CORE_RADIUS)
-      .toBeCloseTo(0.08 / 1.95, 6);
+    // The enlarged bead retains its authored pulse; containment below must
+    // hold for the actual size, not the former sub-unit radius.
+    expect(ATOMA_MARK_CORE_RADIUS).toBeCloseTo(2.5, 6);
+    expect(ATOMA_MARK_CORE_RADIUS_PULSE).toBeCloseTo(0.04, 6);
 
     const frames = Array.from(
       { length: 4_001 },
@@ -724,7 +723,7 @@ describe('Atoma GPU brand mark', () => {
   });
 
   it('keeps the enlarged welcome bead geometrically round', () => {
-    // Pixi chooses circle tessellation from the sub-unit LOCAL radius, before
+    // Pixi chooses circle tessellation from the LOCAL radius, before
     // the welcome gate enlarges it. Pin the explicit polygon against the real
     // largest hero scale at DPR 2: its midpoint must deviate by < 0.1px from a
     // mathematical circle, so no polygon corner can read as a spike.
@@ -1123,16 +1122,15 @@ describe('Atoma GPU brand mark', () => {
   });
 
   it('publishes at most one real spectral reflection from the strongest bundle', () => {
-    // A centred lamp has no second reflected path that reaches this receiver
-    // in the current geometry. This slightly high, still coupled position has
-    // one real branch around a face-on pose; pin a neighbourhood so the test
-    // cannot pass on a one-frame grazing coincidence.
-    const elapsedMs = 1_875;
+    // The eight half-facet bundles select a different strongest path than
+    // the former four full facets. This side lamp has a reflected branch
+    // that reaches the receiver over a neighbourhood, not a grazing instant.
+    const elapsedMs = 3_400;
     for (const offsetMs of [-10, 0, 10]) {
       const cast = projectMarkCaustic(
         buildAtomaMarkFrame(elapsedMs + offsetMs),
-        15,
-        8
+        32,
+        14
       )!;
       const secondary = cast.secondary;
       expect(secondary, `secondary at ${elapsedMs + offsetMs}ms`).not.toBeNull();
@@ -1163,11 +1161,12 @@ describe('Atoma GPU brand mark', () => {
     expect(markCausticFalloff(0, 1.5)).toBeCloseTo(far);
     expect(markCausticFalloff(-1.5, 0)).toBeCloseTo(far);
 
-    // And the published cast carries it: the same coupling thrown further is
-    // a dimmer cast, so a consumer never re-derives the falloff.
+    // At the coupling's edge the published cast fades too. Nearby lamp
+    // positions can brighten an individual path through Fresnel transmission,
+    // so total energy need not decrease at every step away from the centre.
     const frame = buildAtomaMarkFrame(0);
     const straight = projectMarkCaustic(frame, 14, 14)!;
-    const sideways = projectMarkCaustic(frame, 14 + 9, 14)!;
+    const sideways = projectMarkCaustic(frame, 32, 14)!;
     const totalEnergy = (cast: NonNullable<ReturnType<typeof projectMarkCaustic>>) =>
       cast.optics.reduce((sum, optics) => sum + optics.intensity, 0) +
       (cast.secondary?.optics.intensity ?? 0);

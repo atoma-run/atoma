@@ -400,6 +400,14 @@ describe('a deployment that waits for running work', () => {
       await expect(acquireRunLease('project:new', lockPath)).rejects.toThrow(/a deployment is waiting/);
       expect(existsSync(ready)).toBe(false);
       expect(existsSync(marker)).toBe(false);
+      // Publishing the announcement precedes checking the current holder.
+      // Keep that holder until the child has actually observed it, otherwise
+      // the handover can succeed without ever entering the waiting branch.
+      await waitFor(
+        () => /deployment waiting \d+s for mender:busy/.test(stdout),
+        30_000,
+        `the holder observation (${stderr})`
+      );
       holder.release();
       await waitFor(() => existsSync(ready), 30_000, `readiness (${stderr})`);
       expect(readFileSync(marker, 'utf8').startsWith(`guard ${child.pid} `)).toBe(true);

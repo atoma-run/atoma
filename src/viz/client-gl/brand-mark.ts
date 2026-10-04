@@ -379,12 +379,21 @@ export function mixColor(from: number, to: number, amount: number) {
  */
 const CENTER = { x: 14, y: 14 } as const;
 export const ATOMA_MARK_LOCAL_SIZE = CENTER.x * 2;
+/** Model-space size of the shell. */
+export const ATOMA_MARK_RADIUS = 1.28;
 /**
- * Projected units per model unit. Exported because the shell shader is fed
- * lengths in MODEL units while the bead's constants are authored in projected
- * ones, and one factor has to convert between them.
+ * Camera on +Z, looking at the origin. Hull and bead share this pinhole.
+ * The close camera makes the bead's near/far size difference legible.
  */
-export const ATOMA_MARK_PROJECTION_SCALE = 9.8;
+export const ATOMA_MARK_CAMERA_Z = ATOMA_MARK_RADIUS * 2.05;
+/**
+ * Projected units per model unit, shared by the hull, bead and shell shader.
+ * Fit the enclosing sphere under the pinhole with a 0.2-unit sampling margin:
+ * its apparent radius is R / sqrt(1 - (R / cameraZ)^2).
+ */
+export const ATOMA_MARK_PROJECTION_SCALE =
+  (CENTER.x - 0.2) * Math.sqrt(1 - (ATOMA_MARK_RADIUS / ATOMA_MARK_CAMERA_Z) ** 2) /
+  ATOMA_MARK_RADIUS;
 const PROJECTION_SCALE = ATOMA_MARK_PROJECTION_SCALE;
 /**
  * Model-space Z of the pointer lamp. Camera-side is +Z; the hull's radius is
@@ -394,17 +403,6 @@ const PROJECTION_SCALE = ATOMA_MARK_PROJECTION_SCALE;
  */
 export const ATOMA_MARK_LAMP_Z = 2.15;
 
-/** Model-space size of the shell. The projected hull lands just inside the box. */
-export const ATOMA_MARK_RADIUS = 1.28;
-/**
- * Camera on +Z, looking at the origin. The ONE pinhole: hull vertices and
- * the bead disc both scale by `CAMERA_Z / (CAMERA_Z - z)`. 2.05 radii puts
- * the camera in front of the pointer lamp and close enough that a bead
- * crossing the cavity, and a vertex swinging toward the lens, change size
- * together. The closer camera makes the bead's near/far size difference
- * legible through that shared projection.
- */
-export const ATOMA_MARK_CAMERA_Z = ATOMA_MARK_RADIUS * 2.05;
 /**
  * Wall thickness, inward from the face planes. Thin enough that the cavity is
  * still most of the volume — the bead lives in there — and thick enough that

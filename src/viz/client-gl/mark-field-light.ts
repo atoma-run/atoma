@@ -226,7 +226,7 @@ export function packMarkCaustic(
       }
     }
   };
-  for (const start of [0, 3, 6, 9]) {
+  for (let start = 0; start < MARK_CAUSTIC_MAX_POINTS; start += 3) {
     orientTriangle(corners, spectral, start);
   }
   const secondaryCorners = cast.secondary?.points

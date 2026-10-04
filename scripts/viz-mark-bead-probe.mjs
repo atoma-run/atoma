@@ -209,7 +209,8 @@ export async function assertPointerLitMark(page, measureFrames = null) {
       const client = await page.evaluate(({ x, y }) =>
         window.__ATOMA_GPU__.projectRendererPoint(x, y), { x: mark.x + dx, y: mark.y });
       await page.mouse.move(client.x, client.y);
-      await page.waitForFunction(() => window.__ATOMA_MARK_CAUSTIC__?.points.length === 12,
+      // Eight half-facet bundles, each with three receiver corners.
+      await page.waitForFunction(() => window.__ATOMA_MARK_CAUSTIC__?.points.length === 8 * 3,
         { polling: 'raf', timeout: 10_000 });
       // The bounded CPU trace runs at 30 Hz. Let it consume this pointer revision.
       await page.evaluate(async () => {
