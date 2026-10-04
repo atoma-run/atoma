@@ -1,0 +1,24 @@
+{
+  "registeredBeforeLaunch": true,
+  "requiredRevision": "4f132fb0fa6dae4d573936ad29002974db65764d",
+  "seedRun": "ce89c84a-c848-428c-8811-de4d090c8d39",
+  "kind": "Targeted production continuation, not a same-goal performance comparison",
+  "request": {
+    "projectId": "a102b234-7264-40e0-bc61-0bdebcc8d2fa",
+    "depth": "deep",
+    "idempotencyKey": "verify-20261005-library-state-keyboard-4f132fb0-1",
+    "goal": "Continue the existing neighbourhood library application with targeted verification and corrections. Keep the dependency-free Node.js 24 server, JSON persistence, existing API, UI and documentation. Preserve existing behavior and user data; do not rebuild or redesign the application. The core lending contract remains: standard members may have three active loans and premium members five; unpaid fines greater than 5.00 prevent lending, but exactly 5.00 does not. All other documented rules, including copy availability, reservation priority, renewals, dates and cent-exact accounting, remain in force.\n\nStrengthen the automated regression tests around two boundaries. For premium lending, establish five successful active loans and verify that a sixth request is refused specifically because of that limit: keep a copy available to that member, no competing reservation, and no disqualifying fine. Assert the actual active-loan count before and after the refusal. Also demonstrate that creation below the limit succeeds. For fines, demonstrate outstanding balances of 4.99, exactly 5.00 and 5.01, with loan count below the limit and an available, unreserved copy: the first two permit a loan and the third refuses it. Derive all IDs from successful responses and assert the relevant balances and counts; a label or a matching status from another refusal cause is not sufficient. Use isolated temporary test data, then run the complete existing test suite without weakening its assertions.\n\nVerify the live UI at a 390-pixel viewport using only real keyboard navigation for member selection and the borrow, return, renew and hold controls. Demonstrate natural focus traversal and activation, and observe the corresponding application state and visible feedback after each action. Establish any necessary lending/hold state separately in isolated data. Forced selector focus, pointer actions, programmatic selection or direct application-state mutation do not prove keyboard-only use. Verify a visible refusal message and absence of horizontal overflow. Correct application code only when a valid check demonstrates a defect; repair an invalid setup instead of changing correct behavior to match its label.\n\nReport what the executed tests and browser checks established, with observed preconditions and outcomes, and clearly name anything still unverified. Keep run evidence in the completion report, not in the reader-facing README. Avoid repeating unrelated passing scenarios during a targeted correction.",
+    "acceptanceCriteria": [
+      "Preserve the existing dependency-free Node.js 24 application, documented rules and user data; change only what targeted verification requires.",
+      "Premium lending permits five active loans, then refuses a sixth with capacity available, no competing hold and no fine; assert counts before and after.",
+      "With other lending conditions satisfied, balances of 4.99 and 5.00 permit lending; 5.01 refuses it. Assert observed balances and responses.",
+      "Regression tests verify setup outcomes and returned IDs, isolate scenario data, and the complete test suite passes without weakened assertions.",
+      "At 390 px, keyboard-only natural navigation selects a member and activates borrow, return, renew and hold; each action has an observed outcome.",
+      "A keyboard-driven refusal shows visible feedback, and the 390-pixel UI has no horizontal overflow.",
+      "The completion report distinguishes verified outcomes, invalid checks and remaining gaps; no false defect is inferred from a probe label."
+    ]
+  },
+  "assessment": "Read every event and final criterion judgment. Establish actual setup, tests/assertions, natural keyboard actions and outcomes. Report gaps even if status is delivered. No production start until deployment succeeds and the run slot is free.",
+  "launchRevision": "134df30ea8ee19a599ef0c6d3849e2c1d4414be2",
+  "deploymentRun": 37241744592
+}

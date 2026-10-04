@@ -1,0 +1,47 @@
+{
+  "runId": "2311d446-5787-4356-b032-fcf8ebf184e3",
+  "revision": "134df30ea8ee19a599ef0c6d3849e2c1d4414be2",
+  "scope": "One targeted production continuation; not a controlled performance comparison.",
+  "outcome": "delivered",
+  "durationSeconds": 983.831,
+  "recordedSubscriptionCostUsd": 0.3669,
+  "llmCalls": 28,
+  "toolCalls": 124,
+  "browserCalls": 22,
+  "failedBrowserCalls": 6,
+  "reportPhaseToolCalls": 53,
+  "evidence": {
+    "allEventsRetrieved": 232,
+    "summaryNextOffset": null,
+    "detailPagination": "Every event and metadata page was concatenated to the end using its snapshot.",
+    "eventsUncompressedSha256": "a4554b48903e450eec62aae159886b41db517c3cfc8af927d87043369970a23e",
+    "publishedCommit": "84472808104230c38793decc62439313b2dc91cd",
+    "publicationChecked": "GitHub compare confirms only server.js and test/library.test.js changed."
+  },
+  "supported": [
+    "Nine tests pass, including new isolated premium-cap and 499/500/501-cent scenarios. Existing seven tests remain.",
+    "The premium setup creates five loans successfully and checks count 5 before/after refusal, zero fines and an available sixth book. Fresh seeded data has no holds.",
+    "The fine scenarios assert successful setup responses and observed balances; 499/500 cents permit and 501 refuses with counts checked afterward.",
+    "Real keypress-only browser observations at 390px demonstrate selection, borrow, renew, return, hold and refusal. Corresponding API reads corroborate state transitions.",
+    "Document/body scroll widths were observed at 390. No UI, README or user-data changes appear in the published diff."
+  ],
+  "remainingDefectsOrRisks": [
+    {
+      "finding": "Self-invented exact error wording drove an unnecessary application edit.",
+      "evidence": ["4c7d28af-6e8a-4dab-b2c5-664d6e28772b", "fb521187-0538-434f-b390-6734aaa8249f", "59c4d1f2-bd37-4e92-8552-e27dc212cdce"],
+      "detail": "Tests demanded loan limit reached/fine threshold exceeded although the existing contract used generic loan refused. The worker changed server.js to satisfy those tests. Isolating competing causes did not require new error strings. This does not demonstrate a lending-rule defect."
+    },
+    {
+      "finding": "Report-phase proof retrieval is expensive and the first report inverted fine outcomes.",
+      "evidence": ["743c5ede-bf1f-452e-8b6c-13f579b71cf6", "d29701ec-a9da-4c13-b7c7-0426ac1e2b39", "e5406bff-6054-4a8b-988c-55b4cd6d04dc"],
+      "detail": "The report phase made 53 tool calls, repeatedly searching a manifest with historical truncated HTTP records and no browser observations. Its first report reversed 499/501 outcomes; validation caught this and the second report corrected it without rerunning live probes. Investigate the actual cross-phase input projection before selecting a fix."
+    },
+    {
+      "finding": "The final acceptance overlooked the unnecessary code change.",
+      "evidence": ["37bcd3ce-a554-4f9a-92ba-1f2d71e031c1", "f1473a93-7ecc-4072-afd6-d08a2d711db0"],
+      "detail": "The report-phase validator said no code change was warranted while the published diff contains the changed refusal messages. Root accepted all seven criteria. Delivered therefore does not establish that every correction was justified."
+    }
+  ],
+  "nextPriority": "Preserve observed proof and change provenance across sequential phases, and distinguish user-required assertions from test-authored conventions before authorizing a repair. Add regression coverage from this trace before another live batch.",
+  "limitations": "One run on shared production trust/skills. No speedup or universal reliability claim. The benchmark did not reset platform state. Recovered errors remain in the full event archive."
+}
