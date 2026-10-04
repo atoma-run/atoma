@@ -19,7 +19,7 @@ import { modelFacingExecutor } from '../core/attestation.js';
 import { executorEvidence } from './executorEvidence.js';
 import { AttemptDigest } from './attemptDigest.js';
 import { namedLayoutWidths } from '../contracts/acceptanceChecklist.js';
-import { EXISTING_FILE_GUIDANCE, READER_FACING_DOC_GUIDANCE, TEST_ONLY_ELEMENT_GUIDANCE } from './prompts.js';
+import { KEYBOARD_EVIDENCE_GUIDANCE, EXISTING_FILE_GUIDANCE, READER_FACING_DOC_GUIDANCE, TEST_ONLY_ELEMENT_GUIDANCE } from './prompts.js';
 
 /**
  * Where a molecule puts what only EXERCISES the artefact. Publication and the
@@ -344,6 +344,7 @@ export class L1Atom extends Atom {
       writesFiles(this.tools) ? READER_FACING_DOC_GUIDANCE : '',
       editsFiles(this.tools) ? EXISTING_FILE_GUIDANCE : '',
       this.tools.some((t) => t.name === 'validate_html') ? TEST_ONLY_ELEMENT_GUIDANCE : '',
+      this.tools.some((t) => t.name === 'validate_html') ? KEYBOARD_EVIDENCE_GUIDANCE : '',
       ``,
       `CRITICAL — plan shape (aspirational, no literal payloads):`,
       `Describe your intended tool sequence in the "proposedAction" field as PROSE`,
@@ -405,6 +406,7 @@ ${previousAttempt}` : '',
       `- A requested answer/report file is a deliverable too: writing the main artifact does not replace writing that file.`,
       ...SCRATCH_FILE_LINES,
       hasValidator ? TEST_ONLY_ELEMENT_GUIDANCE : null,
+      hasValidator ? KEYBOARD_EVIDENCE_GUIDANCE : null,
       ...(hasValidator ? browserProofLines(task) : []),
       hasValidator
         ? `- For ANY web artifact you produce, call validate_html on the server URL.`

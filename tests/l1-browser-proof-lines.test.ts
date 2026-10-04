@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { L1Atom } from '../src/atoms/L1Atom.js';
+import { KEYBOARD_EVIDENCE_GUIDANCE } from '../src/atoms/prompts.js';
 import { jsonText, makeCtx } from './helpers.js';
 import { makePlan, makeTools } from './helpers/factories.js';
 
@@ -25,6 +26,7 @@ describe('browser proof lines at execution', () => {
     expect(prompt).toContain('This task names 375 px and 1280 px wide. Lay the page out at EACH with its own');
     expect(prompt).toContain('viewport {width: 375}');
     expect(prompt).toContain('{type:"select", selector, value}');
+    expect(prompt).toContain(KEYBOARD_EVIDENCE_GUIDANCE);
   });
 
   it('adds no width line when the task names none, and nothing without a browser tool', async () => {
@@ -38,5 +40,6 @@ describe('browser proof lines at execution', () => {
     await scribe.execute({ description: 'Document the 375 px wide phone layout' }, makePlan({ proposedAction: 'document' }), docs);
     expect(docs.llm.calls[0]!.userContent).not.toContain('This task names');
     expect(docs.llm.calls[0]!.userContent).not.toContain('{type:"select"');
+    expect(docs.llm.calls[0]!.userContent).not.toContain(KEYBOARD_EVIDENCE_GUIDANCE);
   });
 });

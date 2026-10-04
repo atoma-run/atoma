@@ -1,0 +1,14 @@
+{
+  "registeredAt": "2026-10-04T21:51:54.510526+00:00",
+  "model": "gpt-5.6-luna",
+  "repeats": 3,
+  "arms": [
+    "original",
+    "executed-actions"
+  ],
+  "calls": 6,
+  "scope": "Exact archived root verdict system/user messages from ce89c84a. Treatment only appends the bounded executed action logs to the same eight browser lines. All other bytes unchanged. No run, tool execution, trust or store mutation.",
+  "outcome": "Does c11 remain met? Does the reason identify missing keyboard evidence? Overall rejection for another criterion is not success.",
+  "limit": "Single negative case; no claim about false refusals, general accuracy or keyboard accessibility of the delivered application.",
+  "ordering": "Alternate arm order between repeats."
+}

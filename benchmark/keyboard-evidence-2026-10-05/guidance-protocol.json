@@ -1,0 +1,23 @@
+{
+  "registeredAt": "2026-10-04T21:55:45.462271+00:00",
+  "model": "gpt-5.6-luna",
+  "repeats": 2,
+  "arms": [
+    "actions-only",
+    "actions-and-guidance"
+  ],
+  "calls": 27,
+  "productionReplays": 3,
+  "cases": [
+    "click-only",
+    "forced-focus",
+    "keyboard-pass",
+    "keyboard-failure",
+    "click-requested",
+    "shortcut-only"
+  ],
+  "scope": "Six small actual validate_html browser cases, two paired repeats per arm, plus three full archived root prompt replays with guidance. The original six full prompt judgments are kept separately.",
+  "outcome": "Match the preregistered expected decision on controlled cases, and identify missing keyboard proof in c11 in the production replay. Passing action-only traces are insufficient for keyboard-only reachability; shortcut-only and click-only tasks do not require natural Tab traversal.",
+  "limitations": "Small, single-model/day exploratory evaluation. No statistical reliability guarantee. Production application accessibility is not being judged here.",
+  "ordering": "Alternate arm order across cases and repeats; serial model calls."
+}

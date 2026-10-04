@@ -4,7 +4,7 @@ import type { Atom } from '../core/atom.js';
 import type { CriterionJudgement, Result, RunContext, Task } from '../core/types.js';
 import { modelForTier } from '../core/models.js';
 import type { DeliveryKind } from '../contracts/taskExecution.js';
-import { establishesDomInteraction, renderObservation, supersededFileReads } from '../contracts/attestation.js';
+import { establishesDomInteraction, renderBrowserInputs, renderObservation, supersededFileReads } from '../contracts/attestation.js';
 import type { AcceptanceInfo, PhaseCoverageRecord, ProofFloor } from '../contracts/depthRouting.js';
 import { buildResultGateEnv, renderResultGateFindings, runResultGates } from './resultGates.js';
 import { checkGroundTruth } from './groundTruth.js';
@@ -503,6 +503,7 @@ export async function acceptRootResult(args: {
   const checklistBlock = renderChecklistCoverage(checklist, coverage,
     { landed: Boolean(result.unfinishedPhases?.length), source });
   const layoutsBlock = observedLayoutsBlock(ctx, stale);
+  const inputsBlock = renderBrowserInputs(records);
   const gates = await runResultGates(buildResultGateEnv({ task, result, ctx,
     childName: actor.name, childToolNames: actor.toolNames() }), ctx.mechanicalResultRejections, 'delegated');
   // A previous phase may have rendered its witness before a later phase
@@ -579,7 +580,7 @@ export async function acceptRootResult(args: {
       groundTruthBlock: probe.block,
       mechanicalFindingsBlock: renderResultGateFindings(gates.reviewFindings),
       proofCoverageBlock: 'ROOT DELIVERY PROOF (no effect on phase credits):\n' + JSON.stringify(floorCoverage) +
-        (checklistBlock ? `\n\n${checklistBlock}\n${CRITERIA_JUDGEMENT_REQUEST}` : '') + (layoutsBlock ? `\n\n${layoutsBlock}` : '') +
+        (checklistBlock ? `\n\n${checklistBlock}\n${CRITERIA_JUDGEMENT_REQUEST}` : '') + (layoutsBlock ? `\n\n${layoutsBlock}` : '') + (inputsBlock ? `\n\n${inputsBlock}` : '') +
         (namedFilesBlock ? `\n\n${namedFilesBlock}` : '') + (startingBlock ? `\n\n${startingBlock}` : '') +
         (restorationsBlock ? `\n\n${restorationsBlock}` : '') + (inheritedBlock ? `\n\n${inheritedBlock}` : ''),
       // A landed run always reaches here through a validation call, because it

@@ -79,12 +79,16 @@ Neighbours:
   purpose. Reporting one side is what let `ok: true` with an empty interaction
   log read as proof that clicking worked.
 - `renderObservation` is the one line a validator reads. A browser line shows
-  the viewport, the smoke EXPRESSION and the smoke result: a result keyed
+  the viewport, the bounded JSON-encoded EXECUTED action log, the smoke EXPRESSION and the smoke result: a result keyed
   `controlsVisible: true` does not say it measured `height >= 44`, and
   without the expression a delivery was refused for not verifying exactly
   that (production run 5a5f1e27, 2026-09-26). The expression is child-authored
   and JSON-encoded like an execution's request (head and tail kept), so it
-  cannot print lines of its own into a machine-observed block; and
+  cannot print lines of its own into a machine-observed block. An action count
+  alone cannot distinguish clicks from keyboard use (run ce89c84a); requested
+  or filtered actions never enter the executed log, and a cut excerpt says
+  nothing about omitted actions. Neither actions nor counts establish that a
+  behaviour passed without its outcome. Also,
   `renderObservations` writes a repeated one out ONCE, on its latest
   occurrence — the one a bounded evidence block keeps. Writes are attested by
   path and reply, never content, for ORDER: a read of a path the same branch

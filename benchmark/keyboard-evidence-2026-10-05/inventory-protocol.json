@@ -1,0 +1,12 @@
+{
+  "registeredAt": "2026-10-04T22:00:29.929800+00:00",
+  "calls": 9,
+  "repeats": 3,
+  "arms": [
+    "luna-inventory",
+    "luna-inventory-guidance",
+    "terra-actions"
+  ],
+  "scope": "Same archived root prompt with executed actions. Luna arms add the host inventory immediately after its existing browser layout inventory; one also appends the measured guidance. Terra arm changes only model from Luna to Terra.",
+  "outcome": "c11 must be marked unmet with missing keyboard evidence; other refusals do not count. Small exploratory comparison, not reliability certification."
+}

@@ -793,6 +793,7 @@ describe('where a read-only phase is guarded', () => {
     expect(info.checklist?.[0]?.layouts).toEqual([{ width: 375, status: 'not-laid-out', observationRefs: [] }]);
     const prompt = mock.llm.calls.at(-1)!.userContent;
     expect(prompt).not.toContain('index.html at 375x667');
+    expect(prompt).not.toContain('BROWSER INPUTS OBSERVED IN THIS ATTEMPT');
     expect(prompt).toContain('READ-ONLY PHASES');
     expect(prompt).toContain('- phase "verify the page at 375 px": index.html (changed');
   });

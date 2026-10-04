@@ -83,6 +83,15 @@ Neighbours:
   that judges one of its criteria unmet is the acceptor contradicting itself,
   so it refuses with that criterion. A drafted item judged unmet is recorded
   and never fails a run by itself.
+- The root also reads an attempt-scoped inventory of executed browser inputs,
+  excluding restored/stale observations. Clicks, select assignments and forced
+  focus do not prove a keyboard-only journey (run ce89c84a, 2026-10-04).
+  `KEYBOARD_EVIDENCE_GUIDANCE` reaches browser molecules (including old stored
+  prompts), fallback executors and validators: judge each requested modality,
+  natural reachability separately from key response, and asserted outcomes.
+  Counts never grant coverage or reject. Shell tests remain separate evidence;
+  no keyboard requirement is invented. Bounded replay evidence and countercases:
+  `benchmark/keyboard-evidence-2026-10-05/` (small exploratory sample).
 - Two more host-read facts sit beside the delivery, neither a verdict. A
   SEEDED run's acceptor reads what happened to the files it started from
   (`startingWorkspace`: removed; rewritten when under half of its starting

@@ -310,6 +310,28 @@ function isViewport(value: unknown): value is { width: number; height: number } 
  * head and its tail, where the checks and the `return` usually sit.
  */
 export const MAX_RENDERED_SMOKE_CHARS = 600;
+/** Bounded, encoded runtime action log; omitted actions establish no coverage. */
+export const MAX_RENDERED_ACTIONS_CHARS = 600;
+
+/** Runtime log inventory, not coverage: keys may fail, target another page or be focused by selector. */
+export function renderBrowserInputs(records: readonly AttestationRecord[]): string {
+  const browsers = records.filter((record) => record.observation.kind === 'browser');
+  if (browsers.length === 0) return '';
+  const counts = { click: 0, rightclick: 0, type: 0, select: 0, upload: 0, keydown: 0, keyup: 0, keypress: 0, other: 0 };
+  for (const record of browsers) {
+    if (record.observation.kind !== 'browser') continue;
+    for (const action of record.observation.executedInteractions) {
+      // The tool authors the prefix; selector/text suffixes remain untrusted.
+      const kind = action.slice(0, action.indexOf(' '));
+      const known = Object.keys(counts).find((key) => key !== 'other' && key === kind) as keyof typeof counts | undefined;
+      counts[known ?? 'other'] += 1;
+    }
+  }
+  return `BROWSER INPUTS OBSERVED IN THIS ATTEMPT (${browsers.length} validate_html calls): ` +
+    Object.entries(counts).map(([kind, count]) => `${kind}=${count}`).join(', ') +
+    '. Counts include failed calls and prove no outcome or keyboard-only journey. Requested/filtered actions are not counted. ' +
+    'Tests executed outside validate_html are not counted here; judge those from their own evidence.';
+}
 
 /**
  * Every record's line, in order, with a repeated smoke expression written out
@@ -401,6 +423,10 @@ export function renderObservation(
   if (o.viewport) bits.push(`viewport=${o.viewport.width}x${o.viewport.height}`);
   if (o.document) bits.push(`doc=${o.document.path}`);
   bits.push(`consoleErrors=${o.consoleErrors}`, `failedRequests=${o.failedRequests}`);
+  // A count cannot distinguish clicks/selects from a keyboard journey. Keep
+  // the runtime log beside the outcome, never the requested interaction list.
+  // JSON encoding prevents a selector or typed text from forging another line.
+  bits.push(`executedActions=${evidenceExcerpt(JSON.stringify(o.executedInteractions), MAX_RENDERED_ACTIONS_CHARS)}`);
   // WHAT WAS ASSERTED, beside what came back. A result keyed
   // `controlsVisible: true` does not say that it measured `height >= 44`;
   // without the expression a validator refused a delivery for not verifying

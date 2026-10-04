@@ -1,0 +1,16 @@
+{
+  "registeredAt": "2026-10-04T22:04:29.059383+00:00",
+  "calls": 14,
+  "repeats": 2,
+  "scope": "Selected combination (Luna + actions + complete runtime inventory + guidance) on six original controlled browser cases plus one corrected-failure history. Old failure and current success stay explicit; no old failure may override current success.",
+  "expected": {
+    "click-only": false,
+    "forced-focus": false,
+    "keyboard-pass": true,
+    "keyboard-failure": false,
+    "click-requested": true,
+    "shortcut-only": true,
+    "recovered-keyboard": true
+  },
+  "limitations": "Two repeats per controlled case, not a general reliability estimate."
+}

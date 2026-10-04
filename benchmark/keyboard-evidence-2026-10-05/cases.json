@@ -1,0 +1,494 @@
+[
+  {
+    "id": "click-only",
+    "task": "Verify the Borrow action can be reached with the keyboard alone and activated with Enter, displaying count 1. Only this action is in scope.",
+    "html": "<button id=\"borrow\" onclick=\"document.querySelector('#count').textContent='1'\">Borrow</button><output id=\"count\">0</output>",
+    "interactions": [
+      {
+        "type": "click",
+        "selector": "#borrow"
+      }
+    ],
+    "expected": false,
+    "args": {
+      "url": "http://localhost:51349/",
+      "interactions": [
+        {
+          "type": "click",
+          "selector": "#borrow"
+        }
+      ],
+      "smoke": "(() => {const checks={focused:document.activeElement.id==='borrow',borrowed:document.querySelector('#count').textContent==='1'};return {ok:Object.values(checks).every(Boolean),checks};})()"
+    },
+    "result": {
+      "ok": true,
+      "url": "http://localhost:51349/",
+      "title": "",
+      "errors": [],
+      "warnings": [],
+      "failedRequests": [],
+      "interactionLog": [
+        "click at (37.1171875, 18.5) on #borrow"
+      ],
+      "requestedInteractions": 1,
+      "ignoredInteractions": 0,
+      "viewport": {
+        "width": 800,
+        "height": 600
+      },
+      "document": {
+        "path": "index.html",
+        "sha256": "0e4f46032cd5b6893849f9904cea6c03f2c2e229c24ed8bbeed1b72d74491f88"
+      },
+      "smokeResult": {
+        "ok": true,
+        "checks": {
+          "focused": true,
+          "borrowed": true
+        }
+      }
+    },
+    "observation": {
+      "kind": "browser",
+      "ok": true,
+      "url": "http://localhost:51349/",
+      "requestedInteractions": 1,
+      "ignoredInteractions": 0,
+      "executedInteractions": [
+        "click at (37.1171875, 18.5) on #borrow"
+      ],
+      "smoke": "(() => {const checks={focused:document.activeElement.id==='borrow',borrowed:document.querySelector('#count').textContent==='1'};return {ok:Object.values(checks).every(Boolean),checks};})()",
+      "smokeResult": {
+        "ok": true,
+        "checks": {
+          "focused": true,
+          "borrowed": true
+        }
+      },
+      "consoleErrors": 0,
+      "failedRequests": 0,
+      "document": {
+        "path": "index.html",
+        "sha256": "0e4f46032cd5b6893849f9904cea6c03f2c2e229c24ed8bbeed1b72d74491f88"
+      },
+      "viewport": {
+        "width": 800,
+        "height": 600
+      }
+    },
+    "line": "validate_html: ok=true, requested=1, executed=1, viewport=800x600, doc=index.html, consoleErrors=0, failedRequests=0, executedActions=[\"click at (37.1171875, 18.5) on #borrow\"], smoke=\"(() => {const checks={focused:document.activeElement.id==='borrow',borrowed:document.querySelector('#count').textContent==='1'};return {ok:Object.values(checks).every(Boolean),checks};})()\", smokeResult={\"ok\":true,\"checks\":{\"focused\":true,\"borrowed\":true}}"
+  },
+  {
+    "id": "forced-focus",
+    "task": "Verify the Borrow action can be reached with the keyboard alone and activated with Enter, displaying count 1. Only this action is in scope.",
+    "html": "<button tabindex=\"-1\" id=\"borrow\" onclick=\"document.querySelector('#count').textContent='1'\">Borrow</button><output id=\"count\">0</output>",
+    "interactions": [
+      {
+        "type": "keypress",
+        "selector": "#borrow",
+        "key": "Enter"
+      }
+    ],
+    "expected": false,
+    "args": {
+      "url": "http://localhost:51349/",
+      "interactions": [
+        {
+          "type": "keypress",
+          "selector": "#borrow",
+          "key": "Enter"
+        }
+      ],
+      "smoke": "(() => {const checks={focused:document.activeElement.id==='borrow',borrowed:document.querySelector('#count').textContent==='1'};return {ok:Object.values(checks).every(Boolean),checks};})()"
+    },
+    "result": {
+      "ok": true,
+      "url": "http://localhost:51349/",
+      "title": "",
+      "errors": [],
+      "warnings": [],
+      "failedRequests": [],
+      "interactionLog": [
+        "keypress Enter (120ms) on #borrow"
+      ],
+      "requestedInteractions": 1,
+      "ignoredInteractions": 0,
+      "viewport": {
+        "width": 800,
+        "height": 600
+      },
+      "document": {
+        "path": "index.html",
+        "sha256": "d1abca58b2599f859fbe38c5fa5687b5a28bded4d4f006db718654c04918e501"
+      },
+      "smokeResult": {
+        "ok": true,
+        "checks": {
+          "focused": true,
+          "borrowed": true
+        }
+      }
+    },
+    "observation": {
+      "kind": "browser",
+      "ok": true,
+      "url": "http://localhost:51349/",
+      "requestedInteractions": 1,
+      "ignoredInteractions": 0,
+      "executedInteractions": [
+        "keypress Enter (120ms) on #borrow"
+      ],
+      "smoke": "(() => {const checks={focused:document.activeElement.id==='borrow',borrowed:document.querySelector('#count').textContent==='1'};return {ok:Object.values(checks).every(Boolean),checks};})()",
+      "smokeResult": {
+        "ok": true,
+        "checks": {
+          "focused": true,
+          "borrowed": true
+        }
+      },
+      "consoleErrors": 0,
+      "failedRequests": 0,
+      "document": {
+        "path": "index.html",
+        "sha256": "d1abca58b2599f859fbe38c5fa5687b5a28bded4d4f006db718654c04918e501"
+      },
+      "viewport": {
+        "width": 800,
+        "height": 600
+      }
+    },
+    "line": "validate_html: ok=true, requested=1, executed=1, viewport=800x600, doc=index.html, consoleErrors=0, failedRequests=0, executedActions=[\"keypress Enter (120ms) on #borrow\"], smoke=\"(() => {const checks={focused:document.activeElement.id==='borrow',borrowed:document.querySelector('#count').textContent==='1'};return {ok:Object.values(checks).every(Boolean),checks};})()\", smokeResult={\"ok\":true,\"checks\":{\"focused\":true,\"borrowed\":true}}"
+  },
+  {
+    "id": "keyboard-pass",
+    "task": "Verify the Borrow action can be reached with the keyboard alone and activated with Enter, displaying count 1. Only this action is in scope.",
+    "html": "<button id=\"borrow\" onclick=\"document.querySelector('#count').textContent='1'\">Borrow</button><output id=\"count\">0</output>",
+    "interactions": [
+      {
+        "type": "keypress",
+        "key": "Tab"
+      },
+      {
+        "type": "keypress",
+        "key": "Enter"
+      }
+    ],
+    "expected": true,
+    "args": {
+      "url": "http://localhost:51349/",
+      "interactions": [
+        {
+          "type": "keypress",
+          "key": "Tab"
+        },
+        {
+          "type": "keypress",
+          "key": "Enter"
+        }
+      ],
+      "smoke": "(() => {const checks={focused:document.activeElement.id==='borrow',borrowed:document.querySelector('#count').textContent==='1'};return {ok:Object.values(checks).every(Boolean),checks};})()"
+    },
+    "result": {
+      "ok": true,
+      "url": "http://localhost:51349/",
+      "title": "",
+      "errors": [],
+      "warnings": [],
+      "failedRequests": [],
+      "interactionLog": [
+        "keypress Tab (120ms)",
+        "keypress Enter (120ms)"
+      ],
+      "requestedInteractions": 2,
+      "ignoredInteractions": 0,
+      "viewport": {
+        "width": 800,
+        "height": 600
+      },
+      "document": {
+        "path": "index.html",
+        "sha256": "0e4f46032cd5b6893849f9904cea6c03f2c2e229c24ed8bbeed1b72d74491f88"
+      },
+      "smokeResult": {
+        "ok": true,
+        "checks": {
+          "focused": true,
+          "borrowed": true
+        }
+      }
+    },
+    "observation": {
+      "kind": "browser",
+      "ok": true,
+      "url": "http://localhost:51349/",
+      "requestedInteractions": 2,
+      "ignoredInteractions": 0,
+      "executedInteractions": [
+        "keypress Tab (120ms)",
+        "keypress Enter (120ms)"
+      ],
+      "smoke": "(() => {const checks={focused:document.activeElement.id==='borrow',borrowed:document.querySelector('#count').textContent==='1'};return {ok:Object.values(checks).every(Boolean),checks};})()",
+      "smokeResult": {
+        "ok": true,
+        "checks": {
+          "focused": true,
+          "borrowed": true
+        }
+      },
+      "consoleErrors": 0,
+      "failedRequests": 0,
+      "document": {
+        "path": "index.html",
+        "sha256": "0e4f46032cd5b6893849f9904cea6c03f2c2e229c24ed8bbeed1b72d74491f88"
+      },
+      "viewport": {
+        "width": 800,
+        "height": 600
+      }
+    },
+    "line": "validate_html: ok=true, requested=2, executed=2, viewport=800x600, doc=index.html, consoleErrors=0, failedRequests=0, executedActions=[\"keypress Tab (120ms)\",\"keypress Enter (120ms)\"], smoke=\"(() => {const checks={focused:document.activeElement.id==='borrow',borrowed:document.querySelector('#count').textContent==='1'};return {ok:Object.values(checks).every(Boolean),checks};})()\", smokeResult={\"ok\":true,\"checks\":{\"focused\":true,\"borrowed\":true}}"
+  },
+  {
+    "id": "keyboard-failure",
+    "task": "Verify the Borrow action can be reached with the keyboard alone and activated with Enter, displaying count 1. Only this action is in scope.",
+    "html": "<div role=\"button\" tabindex=\"0\" id=\"borrow\" onclick=\"document.querySelector('#count').textContent='1'\">Borrow</div><output id=\"count\">0</output>",
+    "interactions": [
+      {
+        "type": "keypress",
+        "key": "Tab"
+      },
+      {
+        "type": "keypress",
+        "key": "Enter"
+      }
+    ],
+    "expected": false,
+    "args": {
+      "url": "http://localhost:51349/",
+      "interactions": [
+        {
+          "type": "keypress",
+          "key": "Tab"
+        },
+        {
+          "type": "keypress",
+          "key": "Enter"
+        }
+      ],
+      "smoke": "(() => {const checks={focused:document.activeElement.id==='borrow',borrowed:document.querySelector('#count').textContent==='1'};return {ok:Object.values(checks).every(Boolean),checks};})()"
+    },
+    "result": {
+      "ok": false,
+      "url": "http://localhost:51349/",
+      "title": "",
+      "errors": [
+        "smoke check failed: FALSE field(s): checks.borrowed. If one of those is an assertion, that is the one that did not hold; if all of them are raw state, then `ok` is asserting something the details do not carry. Full result, TRUNCATED at 500 chars and possibly cut mid-token: {\"ok\":false,\"checks\":{\"focused\":true,\"borrowed\":false}}"
+      ],
+      "warnings": [],
+      "failedRequests": [],
+      "interactionLog": [
+        "keypress Tab (120ms)",
+        "keypress Enter (120ms)"
+      ],
+      "requestedInteractions": 2,
+      "ignoredInteractions": 0,
+      "viewport": {
+        "width": 800,
+        "height": 600
+      },
+      "document": {
+        "path": "index.html",
+        "sha256": "2ea2d875fc6e446a3bb47fdd17d1fdc90b6a87d2f88d0bc5665cda4a54f978f7"
+      },
+      "smokeResult": {
+        "ok": false,
+        "checks": {
+          "focused": true,
+          "borrowed": false
+        }
+      }
+    },
+    "observation": {
+      "kind": "browser",
+      "ok": false,
+      "url": "http://localhost:51349/",
+      "requestedInteractions": 2,
+      "ignoredInteractions": 0,
+      "executedInteractions": [
+        "keypress Tab (120ms)",
+        "keypress Enter (120ms)"
+      ],
+      "smoke": "(() => {const checks={focused:document.activeElement.id==='borrow',borrowed:document.querySelector('#count').textContent==='1'};return {ok:Object.values(checks).every(Boolean),checks};})()",
+      "smokeResult": {
+        "ok": false,
+        "checks": {
+          "focused": true,
+          "borrowed": false
+        }
+      },
+      "consoleErrors": 1,
+      "failedRequests": 0,
+      "document": {
+        "path": "index.html",
+        "sha256": "2ea2d875fc6e446a3bb47fdd17d1fdc90b6a87d2f88d0bc5665cda4a54f978f7"
+      },
+      "viewport": {
+        "width": 800,
+        "height": 600
+      }
+    },
+    "line": "validate_html: ok=false, requested=2, executed=2, viewport=800x600, doc=index.html, consoleErrors=1, failedRequests=0, executedActions=[\"keypress Tab (120ms)\",\"keypress Enter (120ms)\"], smoke=\"(() => {const checks={focused:document.activeElement.id==='borrow',borrowed:document.querySelector('#count').textContent==='1'};return {ok:Object.values(checks).every(Boolean),checks};})()\", smokeResult={\"ok\":false,\"checks\":{\"focused\":true,\"borrowed\":false}}"
+  },
+  {
+    "id": "click-requested",
+    "task": "Verify clicking Borrow displays count 1. Keyboard behaviour is outside this task.",
+    "html": "<button id=\"borrow\" onclick=\"document.querySelector('#count').textContent='1'\">Borrow</button><output id=\"count\">0</output>",
+    "interactions": [
+      {
+        "type": "click",
+        "selector": "#borrow"
+      }
+    ],
+    "expected": true,
+    "args": {
+      "url": "http://localhost:51349/",
+      "interactions": [
+        {
+          "type": "click",
+          "selector": "#borrow"
+        }
+      ],
+      "smoke": "(() => {const checks={focused:document.activeElement.id==='borrow',borrowed:document.querySelector('#count').textContent==='1'};return {ok:Object.values(checks).every(Boolean),checks};})()"
+    },
+    "result": {
+      "ok": true,
+      "url": "http://localhost:51349/",
+      "title": "",
+      "errors": [],
+      "warnings": [],
+      "failedRequests": [],
+      "interactionLog": [
+        "click at (37.1171875, 18.5) on #borrow"
+      ],
+      "requestedInteractions": 1,
+      "ignoredInteractions": 0,
+      "viewport": {
+        "width": 800,
+        "height": 600
+      },
+      "document": {
+        "path": "index.html",
+        "sha256": "0e4f46032cd5b6893849f9904cea6c03f2c2e229c24ed8bbeed1b72d74491f88"
+      },
+      "smokeResult": {
+        "ok": true,
+        "checks": {
+          "focused": true,
+          "borrowed": true
+        }
+      }
+    },
+    "observation": {
+      "kind": "browser",
+      "ok": true,
+      "url": "http://localhost:51349/",
+      "requestedInteractions": 1,
+      "ignoredInteractions": 0,
+      "executedInteractions": [
+        "click at (37.1171875, 18.5) on #borrow"
+      ],
+      "smoke": "(() => {const checks={focused:document.activeElement.id==='borrow',borrowed:document.querySelector('#count').textContent==='1'};return {ok:Object.values(checks).every(Boolean),checks};})()",
+      "smokeResult": {
+        "ok": true,
+        "checks": {
+          "focused": true,
+          "borrowed": true
+        }
+      },
+      "consoleErrors": 0,
+      "failedRequests": 0,
+      "document": {
+        "path": "index.html",
+        "sha256": "0e4f46032cd5b6893849f9904cea6c03f2c2e229c24ed8bbeed1b72d74491f88"
+      },
+      "viewport": {
+        "width": 800,
+        "height": 600
+      }
+    },
+    "line": "validate_html: ok=true, requested=1, executed=1, viewport=800x600, doc=index.html, consoleErrors=0, failedRequests=0, executedActions=[\"click at (37.1171875, 18.5) on #borrow\"], smoke=\"(() => {const checks={focused:document.activeElement.id==='borrow',borrowed:document.querySelector('#count').textContent==='1'};return {ok:Object.values(checks).every(Boolean),checks};})()\", smokeResult={\"ok\":true,\"checks\":{\"focused\":true,\"borrowed\":true}}"
+  },
+  {
+    "id": "shortcut-only",
+    "task": "Verify Enter activates the already focused Borrow control and displays count 1. Keyboard navigation to the control is outside this task.",
+    "html": "<button tabindex=\"-1\" id=\"borrow\" onclick=\"document.querySelector('#count').textContent='1'\">Borrow</button><output id=\"count\">0</output>",
+    "interactions": [
+      {
+        "type": "keypress",
+        "selector": "#borrow",
+        "key": "Enter"
+      }
+    ],
+    "expected": true,
+    "args": {
+      "url": "http://localhost:51349/",
+      "interactions": [
+        {
+          "type": "keypress",
+          "selector": "#borrow",
+          "key": "Enter"
+        }
+      ],
+      "smoke": "(() => {const checks={focused:document.activeElement.id==='borrow',borrowed:document.querySelector('#count').textContent==='1'};return {ok:Object.values(checks).every(Boolean),checks};})()"
+    },
+    "result": {
+      "ok": true,
+      "url": "http://localhost:51349/",
+      "title": "",
+      "errors": [],
+      "warnings": [],
+      "failedRequests": [],
+      "interactionLog": [
+        "keypress Enter (120ms) on #borrow"
+      ],
+      "requestedInteractions": 1,
+      "ignoredInteractions": 0,
+      "viewport": {
+        "width": 800,
+        "height": 600
+      },
+      "smokeResult": {
+        "ok": true,
+        "checks": {
+          "focused": true,
+          "borrowed": true
+        }
+      }
+    },
+    "observation": {
+      "kind": "browser",
+      "ok": true,
+      "url": "http://localhost:51349/",
+      "requestedInteractions": 1,
+      "ignoredInteractions": 0,
+      "executedInteractions": [
+        "keypress Enter (120ms) on #borrow"
+      ],
+      "smoke": "(() => {const checks={focused:document.activeElement.id==='borrow',borrowed:document.querySelector('#count').textContent==='1'};return {ok:Object.values(checks).every(Boolean),checks};})()",
+      "smokeResult": {
+        "ok": true,
+        "checks": {
+          "focused": true,
+          "borrowed": true
+        }
+      },
+      "consoleErrors": 0,
+      "failedRequests": 0,
+      "viewport": {
+        "width": 800,
+        "height": 600
+      }
+    },
+    "line": "validate_html: ok=true, requested=1, executed=1, viewport=800x600, consoleErrors=0, failedRequests=0, executedActions=[\"keypress Enter (120ms) on #borrow\"], smoke=\"(() => {const checks={focused:document.activeElement.id==='borrow',borrowed:document.querySelector('#count').textContent==='1'};return {ok:Object.values(checks).every(Boolean),checks};})()\", smokeResult={\"ok\":true,\"checks\":{\"focused\":true,\"borrowed\":true}}"
+  }
+]

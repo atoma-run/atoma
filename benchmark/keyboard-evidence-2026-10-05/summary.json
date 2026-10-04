@@ -1,0 +1,143 @@
+{
+  "sourceRun": "ce89c84a-c848-428c-8811-de4d090c8d39",
+  "sourceEvent": "a818cec6-f993-446e-857d-90cef8868b5c",
+  "sourceRevision": "b5a76a55",
+  "implementationBase": "ab033abfee4d8864d9e3dee4a331a6c0ded64168",
+  "totalModelCalls": 56,
+  "stages": [
+    {
+      "file": "responses.jsonl",
+      "calls": 6,
+      "errors": 0,
+      "results": [
+        {
+          "arm": "original",
+          "kind": "archived-root",
+          "calls": 3,
+          "c11MarkedUnmet": 0
+        },
+        {
+          "arm": "executed-actions",
+          "kind": "archived-root",
+          "calls": 3,
+          "c11MarkedUnmet": 0
+        }
+      ]
+    },
+    {
+      "file": "guidance-responses.jsonl",
+      "calls": 27,
+      "errors": 0,
+      "results": [
+        {
+          "arm": "actions-only",
+          "kind": "control",
+          "calls": 12,
+          "correct": 10
+        },
+        {
+          "arm": "actions-and-guidance",
+          "kind": "control",
+          "calls": 12,
+          "correct": 12
+        },
+        {
+          "arm": "actions-and-guidance",
+          "kind": "archived-root",
+          "calls": 3,
+          "c11MarkedUnmet": 2
+        }
+      ]
+    },
+    {
+      "file": "inventory-responses.jsonl",
+      "calls": 9,
+      "errors": 0,
+      "results": [
+        {
+          "arm": "luna-inventory",
+          "kind": "archived-root",
+          "calls": 3,
+          "c11MarkedUnmet": 2
+        },
+        {
+          "arm": "luna-inventory-guidance",
+          "kind": "archived-root",
+          "calls": 3,
+          "c11MarkedUnmet": 3
+        },
+        {
+          "arm": "terra-actions",
+          "kind": "archived-root",
+          "calls": 3,
+          "c11MarkedUnmet": 1
+        }
+      ]
+    },
+    {
+      "file": "final-controls-responses.jsonl",
+      "calls": 14,
+      "errors": 0,
+      "results": [
+        {
+          "arm": "selected",
+          "kind": "control",
+          "calls": 14,
+          "correct": 14
+        }
+      ]
+    }
+  ],
+  "decision": {
+    "selected": "gpt-5.6-luna with executed actions, current-attempt browser input inventory, and shared keyboard evidence guidance",
+    "runtimeEffect": "No additional LLM call, model escalation, proof gate or stored-prompt migration. Additional prompt tokens are not free.",
+    "reason": "Action logs alone preserved all three false c11 approvals. Selected combination identified missing keyboard evidence in three archived-root replays and matched all fourteen controlled judgments.",
+    "controls": [
+      "click-only",
+      "forced-focus",
+      "keyboard-pass",
+      "keyboard-failure",
+      "click-requested",
+      "shortcut-only",
+      "recovered-keyboard"
+    ]
+  },
+  "limitations": [
+    "Exploratory sequential stages, registered separately before execution; small single-incident sample, not a held-out reliability estimate.",
+    "Root replays use the exact archived system/user input plus each registered treatment. They isolate this change and do not replay a fresh run with every later production change.",
+    "The original library application has not been shown to be keyboard-broken: the observed defect was unsupported acceptance.",
+    "One selected root replay also cited earlier browser errors. Both explicit recovered-keyboard controls passed; complex recovery judgments remain a risk.",
+    "No new production run was launched. Production MCP read access returned authentication required.",
+    "Executor guidance propagation is tested, but end-to-end production execution of a keyboard journey after this change is not yet measured.",
+    "Equivalent keyboard tests outside validate_html are permitted by guidance but were not covered by these seven browser controls."
+  ],
+  "reproduction": {
+    "inputs": "fixture.json; cases.json; guidance.txt; *-requests.json.gz; requests.json.gz",
+    "outputs": "*-responses.jsonl and responses.jsonl retain raw model responses, parsed verdicts, usage and request hashes.",
+    "protocols": "Each stage has a protocol JSON with its registered scope and call count.",
+    "transport": "Production CodexCliLlmClient, tool-free validation, temperature 0, maxTokens 2048. Optional ATOMA_REPLAY_CODEX_BINARY permits reading only the local executable under the existing text-only filesystem policy.",
+    "commands": "Run replay*.mjs with node --import tsx; --live spends model quota. Input hash checks prevent reusing responses against changed inputs. prepare-cases.mjs regenerates real browser fixtures and must not overwrite this measured archive."
+  },
+  "sha256": {
+    "cases.json": "8508dc9eb4a7e39069007ea60f4e942133d8d45ed53a35c162d979561bd20f88",
+    "final-controls-protocol.json": "903b4307e640b315550fed469fe38f20c2c89fd89693d13ff2c37b136c239097",
+    "final-controls-requests.json.gz": "836f6b89248c22b9dbe83d55aff0bc26bb05733089d15a583e5f05dca1eb2b74",
+    "final-controls-responses.jsonl": "ff49433c322bb3aa37d225d6eab421d0abd362d18462a4833f6dc9766be37e95",
+    "fixture.json": "bf0faf268072484e6287b66c691ea5c6485e5d91b9a89128eb995d2575b707ad",
+    "guidance-protocol.json": "2f9b5237a2b62dc871c9faabe40178a371485a81832a7553ba63ad2e5435a34b",
+    "guidance-requests.json.gz": "9ee129de3f6e545d8ca0356ba057ab34b5289e24d4dbe07d2e3e814dff904121",
+    "guidance-responses.jsonl": "929a4aaee895945428f2d06cadc3f2203451d2b3b398667e1becfc04b4bc1597",
+    "guidance.txt": "3f43c77be6a546fde009f2345b7852243c02a63853492a94850398a3e3d29147",
+    "inventory-protocol.json": "d00450917f0a87265ca8c35c8690214a3f976c7d624bf028ede4dce08dd341b0",
+    "inventory-requests.json.gz": "64547f2429474dfa1eb7df6197e6fc576aaeaf9862c495ad254636bf6b79b17c",
+    "inventory-responses.jsonl": "8c9078ecc762d2f6212fb3bab51ff744c4bda7e3f4af035d3e49f9f7d9e8c1b0",
+    "prepare-cases.mjs": "c89b0fff653d8e59bad084c421fc136abeb565bd9c454ef41111a1494e51bae1",
+    "protocol.json": "eecc35167e18c2675d8410efcbcfd6ecfa464fdb3a3dedf623276572d3e9e321",
+    "replay-final-controls.mjs": "945377c1201f90491d30420f7facecb9009ea76c6a5b77da4220a4eefccfc591",
+    "replay-guidance.mjs": "67ef1a546d5b2be384b6b3247bf0150c9d508d00abab23e770374b111038fea5",
+    "replay-inventory.mjs": "28786e9c3a4e7fa2ba6abfbb372e8fed1bb601ac8d39b22b18f5537ac3c5d405",
+    "replay.mjs": "e0f4cc49fa5a41af6d20e840208107ca22f26bb7c6101426e43ce2f59f5adacb",
+    "requests.json.gz": "7704ff50bd9bb0cac0571212be43197f963b99dcc94b7cc91847a1c333388d1d",
+    "responses.jsonl": "a9893d02437316e859f5005b9ab954c77af275184591469c4ed882658124e8fe"
+  }
+}
