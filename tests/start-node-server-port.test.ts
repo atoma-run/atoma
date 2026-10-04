@@ -4,7 +4,7 @@ import { serverCodeDigest } from '../src/contracts/serverDigest.js';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ToolSandbox } from '../src/tools/sandbox.js';
-import { CONNECTION_FAILURE_RE, fetchUrlTool, isSpeculativeFaviconRequest, startNodeServerTool, type ServedOrigins } from '../src/tools/builtin.js';
+import { CONNECTION_FAILURE_RE, fetchUrlTool, isFileLocation, isSpeculativeFaviconRequest, startNodeServerTool, type ServedOrigins } from '../src/tools/builtin.js';
 
 /**
  * "Listen on PORT, default 3000" compiles to `Number(process.env.PORT) ||
@@ -97,6 +97,27 @@ describe('start_node_server port', () => {
     const read = (path: string) => { try { return readFileSync(join(dir, path), 'utf8'); } catch { return undefined; } };
     expect(probe.servedBy?.entry).toBe('server.mjs');
     expect(probe.servedBy?.codeDigest).toBe(await serverCodeDigest('server.mjs', read));
+  }, 60_000);
+
+  // Run 7f7aec0b (2026-10-04): every probe ran against DATA_FILE=<temp> and so
+  // recorded no digest. A data location moves state, not code; a flag does not.
+  it('digests a server started with only a data location, never one started with a behaviour flag', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'atoma-node-env-'));
+    dirs.push(dir);
+    writeFileSync(join(dir, 'server.mjs'), DEFAULT_3000);
+    const sandbox = new ToolSandbox(dir);
+    sandboxes.push(sandbox);
+    const origins: ServedOrigins = new Map();
+    const tool = startNodeServerTool({ sandbox, servedOrigins: origins });
+    const data = (await tool.execute({ entry: 'server.mjs', env: { DATA_FILE: join(dir, 'tmp', 'library.json') } })) as { ok: boolean; port: number };
+    const flagged = (await tool.execute({ entry: 'server.mjs', env: { AUTH: 'off' } })) as { ok: boolean; port: number };
+    expect(data.ok && flagged.ok).toBe(true);
+    expect(origins.get(data.port)?.codeDigest).toMatch(/^[a-f0-9]{64}$/);
+    expect(origins.get(flagged.port)?.codeDigest).toBeUndefined();
+    expect(isFileLocation('/tmp/x.json')).toBe(true);
+    expect(isFileLocation('C:\\tmp\\x.json')).toBe(true);
+    expect(isFileLocation('production')).toBe(false);
+    expect(isFileLocation('https://api.example.com/v1')).toBe(false);
   }, 60_000);
 
   it('keeps a favicon request whose connection broke: that is a server that died answering it', () => {
