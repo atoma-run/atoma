@@ -1111,6 +1111,45 @@ describe('Codex L1 host-side action loop', () => {
     expect(observe.mock.calls[4]?.[0].error).toContain('new_string was given twice');
   });
 
+  // Runs 1d42ac2a and 7f7aec0b (2026-10-03/04): validate_html smoke
+  // expressions and shell commands broke inside argumentsJson's double
+  // escaping, and identical old_string duplicates were refused for nothing.
+  it('carries a smoke and a command once-encoded, and accepts the same value given twice', async () => {
+    const validate = makeTool('validate_html', { inputSchema: { type: 'object',
+      properties: { url: { type: 'string' }, smoke: { type: 'string' } }, required: ['url'] } });
+    const shell = makeTool('run_shell', { inputSchema: { type: 'object', properties: { cmd: { type: 'string' } }, required: ['cmd'] } });
+    const edit = makeTool('edit_file', { inputSchema: { type: 'object',
+      properties: { path: { type: 'string' }, old_string: { type: 'string' }, new_string: { type: 'string' } },
+      required: ['path', 'old_string', 'new_string'] } });
+    const smoke = `(() => { const rows=[...document.querySelectorAll("tr")]; return { ok: rows.every(Boolean), msg: 'it is "done"' }; })()`;
+    const cmd = String.raw`node -e "console.log('a \"quoted\" word')"`;
+    const actions = [
+      { type: 'tool', name: 'validate_html', argumentsJson: JSON.stringify({ url: 'http://localhost:1/' }), smoke },
+      { type: 'tool', name: 'run_shell', argumentsJson: '{}', cmd },
+      { type: 'tool', name: 'edit_file', argumentsJson: JSON.stringify({ path: 'a.js', old_string: 'x' }), old_string: 'x', new_string: 'y' },
+      { type: 'tool', name: 'edit_file', argumentsJson: JSON.stringify({ path: 'a.js', old_string: 'x' }), old_string: 'z', new_string: 'y' },
+      { type: 'final', name: '', argumentsJson: '{}', text: 'done' },
+    ];
+    const execute = vi.fn(async () => ({ ok: true }));
+    const observe = vi.fn();
+    const client = new CodexCliLlmClient({ env: {}, spawnFn: (argv) => {
+      const schemaPath = argv[argv.indexOf('--output-schema') + 1]!;
+      expect(JSON.parse(readFileSync(schemaPath, 'utf8')).required).toEqual(expect.arrayContaining(['smoke', 'cmd']));
+      return fakeChild({ lines: [
+        JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', text: JSON.stringify({
+          content: '', old_string: '', new_string: '', smoke: '', cmd: '', text: '', ...actions.shift()!,
+        }) } }),
+        JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 10, output_tokens: 3 } }),
+      ] });
+    } });
+    expect((await client.complete(req({ tools: [validate, shell, edit], executor: { execute, has: () => true }, onToolInvocation: observe }))).text).toBe('done');
+    expect(execute).toHaveBeenNthCalledWith(1, 'validate_html', { url: 'http://localhost:1/', smoke });
+    expect(execute).toHaveBeenNthCalledWith(2, 'run_shell', { cmd });
+    expect(execute).toHaveBeenNthCalledWith(3, 'edit_file', { path: 'a.js', old_string: 'x', new_string: 'y' });
+    expect(execute).toHaveBeenCalledTimes(3);
+    expect(observe.mock.calls[3]?.[0].error).toContain('old_string was given twice with two different values');
+  });
+
   it('bounds repeated invalid arguments by the existing tool budget', async () => {
     const execute = vi.fn();
     const client = new CodexCliLlmClient({ env: {}, spawnFn: () => fakeChild({ lines: messages({ type: 'tool', name: 'write_file', arguments: 'bad' }) }) });

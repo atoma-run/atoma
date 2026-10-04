@@ -56,6 +56,9 @@ Neighbours:
   `edit_file`'s `old_string`/`new_string` is measured by ledger repairs 3b3efaf3 and
   947a21a2: both spans travel in declared top-level fields too, with the same
   scope and duplicate checks. Empty new_string is deletion; legacy envelopes remain readable.
+  Since 2026-10-04 `smoke` (validate_html) and `cmd` (run_shell, record_probe) travel the
+  same way (runs 1d42ac2a, 7f7aec0b lost calls to the double escaping), and a field given
+  in both places with the SAME value is accepted; only two different values are refused.
   A finite tool budget permits one finalization, which cannot execute tools. Abort and partial
   usage propagate across the complete loop. No Codex-native tools are enabled.
   Every transport's loop marks a text written on that finalization turn `toolBudgetExhausted`;
