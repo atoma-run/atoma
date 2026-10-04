@@ -4,7 +4,7 @@ import { serverCodeDigest } from '../src/contracts/serverDigest.js';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ToolSandbox } from '../src/tools/sandbox.js';
-import { CONNECTION_FAILURE_RE, fetchUrlTool, isFileLocation, isSpeculativeFaviconRequest, startNodeServerTool, type ServedOrigins } from '../src/tools/builtin.js';
+import { CONNECTION_FAILURE_RE, MAX_LIVE_NODE_SERVERS, fetchUrlTool, isFileLocation, isSpeculativeFaviconRequest, startNodeServerTool, type ServedOrigins } from '../src/tools/builtin.js';
 
 /**
  * "Listen on PORT, default 3000" compiles to `Number(process.env.PORT) ||
@@ -76,6 +76,33 @@ describe('start_node_server port', () => {
     expect(probe.ok).toBe(false);
     expect(probe.error).toContain('EXITED after it started');
     expect(probe.error).toContain('ENOENT');
+  }, 60_000);
+
+  // Production run 96d5c845 (2026-10-04): every start lived until the run
+  // ended; 53 servers held 812 MB and swapped the host until nothing answered.
+  it('keeps at most a few servers running, stopping the oldest, and says so to a probe of its port', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'atoma-node-cap-'));
+    dirs.push(dir);
+    writeFileSync(join(dir, 'server.mjs'), DEFAULT_3000);
+    const sandbox = new ToolSandbox(dir);
+    sandboxes.push(sandbox);
+    const origins: ServedOrigins = new Map();
+    const tool = startNodeServerTool({ sandbox, servedOrigins: origins });
+    const started: { ok: boolean; port: number; url: string; pid: number }[] = [];
+    for (let i = 0; i <= MAX_LIVE_NODE_SERVERS; i++) {
+      started.push((await tool.execute({ entry: 'server.mjs' })) as { ok: boolean; port: number; url: string; pid: number });
+    }
+    expect(started.every((server) => server.ok)).toBe(true);
+    const oldest = started[0]!;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    expect(origins.get(oldest.port)?.stoppedByHost).toBe(true);
+    const probe = (await fetchUrlTool({ sandbox, servedOrigins: origins }).execute({ url: oldest.url })) as { ok: boolean; error?: string };
+    expect(probe.ok).toBe(false);
+    expect(probe.error).toContain('STOPPED by the host');
+    for (const server of started.slice(1)) {
+      expect(await fetch(`http://127.0.0.1:${server.port}/`).then((res) => res.text())).toBe('ok');
+      expect(origins.get(server.port)?.stoppedByHost).toBeUndefined();
+    }
   }, 60_000);
 
   it('stamps the server code digest on what fetch_url observes, as the host records it', async () => {

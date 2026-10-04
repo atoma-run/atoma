@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, lstatSync } from 'node:fs';
 import { basename, dirname } from 'node:path';
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { createServer as createNetServer } from 'node:net';
 import { createHash } from 'node:crypto';
 import type { Tool, Logger } from '../core/types.js';
@@ -83,8 +83,18 @@ export interface ServedOrigin {
    * minutes and 23 restarts chasing it.
    */
   readonly exited?: { readonly code: number | null; readonly signal: string | null; readonly stderrTail: string };
+  /** Node only: the host stopped it to keep `MAX_LIVE_NODE_SERVERS` running. */
+  readonly stoppedByHost?: true;
 }
 export type ServedOrigins = Map<number, ServedOrigin>;
+
+/**
+ * Node servers one tool set keeps running. Every start used to live until the
+ * run ended: run 96d5c845 (2026-10-04) held 53 of them, 812 MB, and swapped the
+ * 3.8 GB production host until nothing on it answered. Starting one more stops
+ * the oldest still running.
+ */
+export const MAX_LIVE_NODE_SERVERS = 4;
 
 /** What a probe on `rawUrl` should know about the server that served it, if it has ended. */
 /** A value that only names a file or directory: no spaces, a path separator, no scheme. */
@@ -100,6 +110,9 @@ export function servedOriginExitNote(rawUrl: string, origins: ServedOrigins | un
     return '';
   }
   const origin = parsed.port === '' ? undefined : origins?.get(Number(parsed.port));
+  if (origin?.stoppedByHost) {
+    return ` The server on this port (node ${origin.entry ?? '?'}) was STOPPED by the host when newer servers started: at most ${MAX_LIVE_NODE_SERVERS} run at once. Start it again if you still need it.`;
+  }
   if (!origin?.exited) return '';
   const how = origin.exited.signal ? `signal ${origin.exited.signal}` : `code ${origin.exited.code}`;
   const tail = origin.exited.stderrTail.trim();
@@ -1410,6 +1423,8 @@ export function fetchUrlTool(opts: BuiltinToolOptions): BuiltinTool {
  */
 export function startNodeServerTool(opts: BuiltinToolOptions): BuiltinTool {
   const BOOT_TIMEOUT_MS = 8_000;
+  // Servers this tool started that booted, oldest first.
+  const live: Array<{ readonly child: ChildProcess; readonly port: number }> = [];
   return {
     declaration: {
       name: 'start_node_server',
@@ -1418,7 +1433,7 @@ export function startNodeServerTool(opts: BuiltinToolOptions): BuiltinTool {
         'The server MUST emit the literal line "LISTENING_ON_PORT=<port>" on stdout once it has bound.',
         'Example listener:',
         '  app.listen(Number(process.env.PORT) || 0, function(){ console.log("LISTENING_ON_PORT=" + this.address().port); });',
-        'The server runs until the run exits (sandbox cleanup SIGKILLs it).',
+        `At most ${MAX_LIVE_NODE_SERVERS} run at once: starting another stops the oldest one still running. The others run until the run exits.`,
       ].join(' '),
       inputSchema: {
         type: 'object',
@@ -1550,6 +1565,22 @@ export function startNodeServerTool(opts: BuiltinToolOptions): BuiltinTool {
           opts.servedOrigins?.set(port, { ...current, exited: { code, signal, stderrTail: stderrBuf.slice(-600) } });
         }
       });
+      live.push({ child, port });
+      const running = live.filter((server) => server.child.exitCode === null && server.child.signalCode === null);
+      live.splice(0, live.length, ...running);
+      while (live.length > MAX_LIVE_NODE_SERVERS) {
+        const oldest = live.shift()!;
+        const current = opts.servedOrigins?.get(oldest.port);
+        if (current && current.pid === oldest.child.pid) opts.servedOrigins?.set(oldest.port, { ...current, stoppedByHost: true });
+        try {
+          // Its own process group (detached above), so what it spawned goes too.
+          const pgid = oldest.child.pid;
+          if (pgid !== undefined && Number.isSafeInteger(pgid) && pgid > 1) process.kill(-pgid, 'SIGTERM');
+          else oldest.child.kill('SIGTERM');
+        } catch {
+          try { oldest.child.kill('SIGTERM'); } catch { /* already gone */ }
+        }
+      }
 
       return {
         ok: true,

@@ -1,10 +1,16 @@
 import { withPartialUsage } from './metrics.js';
 import { CODEX_MODEL_CAPABILITIES_ENV, codexModelSchema } from '../contracts/codexModels.js';
 import { completeCodexToolLoop, isCodexToolAction } from './codexToolLoop.js';
+import {
+  CodexAppServerUnavailable,
+  completeCodexAppServerToolLoop,
+  defaultCodexAppServerSpawn,
+  type CodexAppServerSpawn,
+} from './codexAppServerToolLoop.js';
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import type { LlmClient, LlmCompletionRequest, LlmCompletionResponse } from './types.js';
 import { CHATGPT_SUBSCRIPTION_MODELS } from '../contracts/runPayers.js';
@@ -15,6 +21,8 @@ import {
 } from './codexHomeLease.js';
 
 const codexJailRoots = new Set<string>();
+// Once per process: a fallback to the exec loop is worth one line, not one per call.
+let warnedAppServerFallback = false;
 const leaseWrappedChildren = new WeakSet<ChildProcess>();
 
 /** Remove every ephemeral Codex cwd/instruction root owned by this process. */
@@ -41,7 +49,9 @@ process.on('exit', cleanupCodexJails);
  * peer override over the zod3/zod4 split, and a second agent SDK is a second
  * chance to wedge the dependency tree.
  *
- * Tool-bearing L1 calls use a host-side JSON action loop. Each Codex child
+ * Tool-bearing L1 calls run as one app-server thread whose dynamic tools are
+ * the declared ones (codexAppServerToolLoop.ts), and fall back to a host-side
+ * JSON action loop when that session cannot start. Each Codex child
  * remains text-only in the same empty read-only jail, with built-ins disabled.
  * Only the caller's declared tools can reach its sandbox executor; the host
  * records results and sends a bounded transcript to the next text completion.
@@ -568,6 +578,7 @@ export type CodexSpawn = (
 export class CodexCliLlmClient implements LlmClient {
   private readonly callTimeoutMs: number;
   private readonly spawnFn: CodexSpawn;
+  private readonly appServerSpawn: CodexAppServerSpawn | null;
   private readonly modelEnv: NodeJS.ProcessEnv;
   private readonly childEnv: NodeJS.ProcessEnv;
   private readonly profileHome: string | undefined;
@@ -580,7 +591,18 @@ export class CodexCliLlmClient implements LlmClient {
    * requested timeout.
    */
   constructor(
-    opts: { callTimeoutMs?: number; callTimeoutCeilingMs?: number; spawnFn?: CodexSpawn; env?: NodeJS.ProcessEnv } = {}
+    opts: {
+      callTimeoutMs?: number;
+      callTimeoutCeilingMs?: number;
+      spawnFn?: CodexSpawn;
+      /**
+       * Tool-bearing calls run in one app-server thread (codexAppServerToolLoop)
+       * unless this is `false` or ATOMA_CODEX_TOOL_TRANSPORT=exec. A caller that
+       * injects an exec `spawnFn` alone keeps the exec loop.
+       */
+      appServerSpawnFn?: CodexAppServerSpawn | false;
+      env?: NodeJS.ProcessEnv;
+    } = {}
   ) {
     const sourceEnv = { ...(opts.env ?? process.env) };
     const requested =
@@ -593,6 +615,10 @@ export class CodexCliLlmClient implements LlmClient {
         : null;
     this.callTimeoutMs = ceiling === null ? requested : Math.min(requested, ceiling);
     this.spawnFn = opts.spawnFn ?? defaultCodexSpawn;
+    this.appServerSpawn =
+      opts.appServerSpawnFn === false || sourceEnv['ATOMA_CODEX_TOOL_TRANSPORT']?.trim() === 'exec'
+        ? null
+        : opts.appServerSpawnFn ?? (opts.spawnFn ? null : defaultCodexAppServerSpawn);
     this.modelEnv = Object.freeze({
       ATOMA_CODEX_MODEL: sourceEnv['ATOMA_CODEX_MODEL'],
       [CODEX_MODEL_CAPABILITIES_ENV]: sourceEnv[CODEX_MODEL_CAPABILITIES_ENV],
@@ -603,7 +629,39 @@ export class CodexCliLlmClient implements LlmClient {
 
   async complete(req: LlmCompletionRequest): Promise<LlmCompletionResponse> {
     if (req.executor !== undefined || (req.tools?.length ?? 0) > 0) {
-      return completeCodexToolLoop(req, (request, schema) => this.completeText(request, schema));
+      let spent: LlmCompletionResponse['usage'] | null = null;
+      if (this.appServerSpawn && req.executor && req.tools?.length) {
+        const effort = this.effortFor(req);
+        const profilesRoot = this.childEnv[PERSONAL_CODEX_PROFILE_ROOT_ENV]?.trim();
+        try {
+          return await completeCodexAppServerToolLoop(req, {
+            spawnFn: this.appServerSpawn,
+            childEnv: this.childEnv,
+            home: this.profileHome ?? path.join(homedir(), '.codex'),
+            ...(profilesRoot ? { profilesRoot } : {}),
+            model: resolveCodexModel(req.model, this.modelEnv),
+            ...(effort ? { effort } : {}),
+            silenceTimeoutMs: this.callTimeoutMs,
+          });
+        } catch (error) {
+          // Only a session that reached no tool falls back: nothing ran twice.
+          if (!(error instanceof CodexAppServerUnavailable)) throw error;
+          spent = error.usage;
+          if (!warnedAppServerFallback) {
+            warnedAppServerFallback = true;
+            process.stderr.write(`[atoma] Codex app-server tool session unavailable (${error.code}); tool calls use codex exec.\n`);
+          }
+        }
+      }
+      if (!spent) return completeCodexToolLoop(req, (request, schema) => this.completeText(request, schema));
+      try {
+        const response = await completeCodexToolLoop(req, (request, schema) => this.completeText(request, schema));
+        return { ...response, usage: addUsage(response.usage, spent) };
+      } catch (error) {
+        // The abandoned session's tokens were paid too.
+        const partial = (error as { partialUsage?: LlmCompletionResponse['usage'] })?.partialUsage ?? { inputTokens: 0, outputTokens: 0 };
+        throw withPartialUsage(error, addUsage(partial, spent));
+      }
     }
 
     return this.completeText(req);
@@ -800,6 +858,17 @@ export class CodexCliLlmClient implements LlmClient {
     this.jail = { cwd, root };
     return this.jail;
   }
+}
+
+function addUsage(a: LlmCompletionResponse['usage'], b: LlmCompletionResponse['usage']): LlmCompletionResponse['usage'] {
+  const cacheRead = (a.cacheReadInputTokens ?? 0) + (b.cacheReadInputTokens ?? 0);
+  const cacheWrite = (a.cacheCreationInputTokens ?? 0) + (b.cacheCreationInputTokens ?? 0);
+  return {
+    inputTokens: a.inputTokens + b.inputTokens,
+    outputTokens: a.outputTokens + b.outputTokens,
+    ...(cacheRead > 0 ? { cacheReadInputTokens: cacheRead } : {}),
+    ...(cacheWrite > 0 ? { cacheCreationInputTokens: cacheWrite } : {}),
+  };
 }
 
 function toResponse(o: CodexOutcome, servedModel: string): LlmCompletionResponse {

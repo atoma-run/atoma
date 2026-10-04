@@ -17,6 +17,7 @@ import { NON_JSON_PAYLOAD_SUMMARY_PREFIX, parsePayloadTolerant, parseWith, planS
 import type { Skill } from '../skills/types.js';
 import { modelFacingExecutor } from '../core/attestation.js';
 import { executorEvidence } from './executorEvidence.js';
+import { AttemptDigest } from './attemptDigest.js';
 import { namedLayoutWidths } from '../contracts/acceptanceChecklist.js';
 import { EXISTING_FILE_GUIDANCE, READER_FACING_DOC_GUIDANCE, TEST_ONLY_ELEMENT_GUIDANCE } from './prompts.js';
 
@@ -235,6 +236,18 @@ export class L1Atom extends Atom {
   private activeSkillOwnerField: SkillNamespace | null = null;
 
   /**
+   * What this instance's last execution did, keyed by the task it ran. Read
+   * only by the next execution of the SAME task — the retry after a rejected
+   * result — so a molecule reused for another phase never sees it.
+   */
+  private lastAttempt: { readonly task: string; readonly digest: string } | null = null;
+
+  /** A replacement instance for the same subtask keeps what the last attempt did. */
+  inheritAttempt(source: Atom): void {
+    if (source instanceof L1Atom && source.lastAttempt) this.lastAttempt = source.lastAttempt;
+  }
+
+  /**
    * Mark this instance as currently driven by `skillId`, owned by the
    * namespace `ownerNs`. The owner pair rides the INSTANCE (not skillCtx)
    * deliberately: the registry-branch escalation path returns an untagged
@@ -367,12 +380,17 @@ export class L1Atom extends Atom {
     const tools = task.executionMode === 'reasoning' ? [] : this.tools;
     const hasValidator = tools.some((t) => t.name === 'validate_html');
     const maxToolIterations = capToolIterations(hasValidator ? 40 : 24, ctx.deadlineAt);
+    const previousAttempt = this.lastAttempt?.task === task.description ? this.lastAttempt.digest : null;
+    // Consumed: an execution that throws leaves no stale attempt behind it.
+    this.lastAttempt = null;
     const userContent = task.executionMode === 'reasoning' ? reasoningPrompt(task, plan) : [
       `You are molecule "${this.name}" (tier 1). Your plan has been APPROVED. Execute it now.`,
       ``,
       `Task: ${task.description}`,
       task.inputs ? `Inputs: ${JSON.stringify(task.inputs)}` : '',
       ...proofObligationLines(task, hasValidator),
+      previousAttempt ? `
+${previousAttempt}` : '',
       ``,
       `Approved plan:`,
       JSON.stringify(plan, null, 2),
@@ -466,6 +484,7 @@ export class L1Atom extends Atom {
     // successful observation of an UNCHANGED document standing through a
     // later pre-flight refusal, which observed nothing (`validationLedger.ts`).
     const validation = new ValidationLedger();
+    const attempt = new AttemptDigest();
     const observedToolCalls: Array<{ name: string; ok: boolean }> = [];
     let recordedCommandProbes = false;
     const writtenSkillScratchFiles = new Set<string>();
@@ -504,6 +523,7 @@ export class L1Atom extends Atom {
         );
       }
       validation.observe(info);
+      attempt.observe(info);
     };
 
     const resp = await ctx.llm.complete(
@@ -556,6 +576,10 @@ export class L1Atom extends Atom {
       }
     }
     const { output, summary: rawSummary } = payload;
+    // A read-only phase's writes and servers are put back after it: its
+    // digest would describe a workspace that no longer exists.
+    const digest = task.readOnly ? null : attempt.render(rawSummary);
+    this.lastAttempt = digest === null ? null : { task: task.description, digest };
 
     // Validation-gate annotation (#3). When the ledger's disposition is a
     // failure — the last EXECUTED validate_html was not ok, every call was

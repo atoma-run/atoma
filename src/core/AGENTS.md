@@ -64,6 +64,28 @@ Neighbours:
   Every transport's loop marks a text written on that finalization turn `toolBudgetExhausted`;
   the executor carries it onto its `Result`, where a result gate keeps it off every fast path.
   Acceptance evidence: [codex-all-tiers-2026-09-08](../../docs/incidents/codex-all-tiers-2026-09-08.md).
+- Since 2026-10-04 a tool-bearing Codex call first runs as ONE `codex app-server`
+  thread (`codexAppServerToolLoop.ts`). The declared tools are its dynamic tools;
+  each `item/tool/call` reaches `req.executor` only, one at a time, in arrival
+  order, and one model response may carry several. The exec loop cost a process
+  and a resent transcript per action: run 87e672d7 spent ~13 s per action, 2 % of
+  it in tools, and a WSL replay of one task took 23 s here against 72 s. Isolation
+  is the exec transport's (disabled features, permission profile, empty jail) in a
+  FRESH profile holding a copy of auth.json — app-server has no
+  `--ignore-user-config`. The CODEX_HOME lease is held only until the first model
+  response (a stale login is refreshed before it): the copy is written back then
+  and the lease released, so other lanes and tiers are not queued behind minutes
+  of host tools; a later rotation is written back only over what this session
+  last wrote. The budget counts MODEL RESPONSES, as the native loops do (Codex
+  reports usage once per response), with calls bounded at 12 per allowed
+  response: counted in calls, run 96d5c845 spent 40 in two batches of HTTP checks
+  and never reached its browser check. Calls of the last allowed response carry
+  the exhaustion hint, later calls are refused, eight refusals end the turn for a
+  tool-free finalizing turn, and that final is `toolBudgetExhausted`.
+  A session that fails before any tool call reached the host falls back to the
+  exec loop (nothing ran twice), except on a timeout, rate limit or login failure
+  that exec would meet too; after one, the failure is the call's.
+  `ATOMA_CODEX_TOOL_TRANSPORT=exec` keeps the exec loop.
 - Effort settings belong on strategy calls only. Validators and prefilters are
   deterministic and cheap.
 - A transport cannot outlive its deadline. Keep both per-call abort and outer
@@ -249,6 +271,10 @@ Neighbours:
   bill, and it never changes a decision.
 
 ## Intentional choices and rejected shortcuts
+
+- Reusing `src/auth/codexAppServer.ts` for tool sessions: refused. It is the
+  account client: it answers no server-initiated request and serves personal
+  profiles only. The supervisor's session carries mender and analyst policy.
 
 - Jev in `modelCatalog.json`: refused. Its vendor in `MODEL_SELECTOR_VENDORS`
   would make `api:typesafe:*` a routable tier selector that no transport
