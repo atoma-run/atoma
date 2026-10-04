@@ -1,0 +1,55 @@
+{
+  "processes": [
+    {
+      "Id": 12024,
+      "ProcessName": "Discord",
+      "corePercent": 24.7
+    },
+    {
+      "Id": 84900,
+      "ProcessName": "pwsh",
+      "corePercent": 15.5
+    },
+    {
+      "Id": 19296,
+      "ProcessName": "CefSharp.BrowserSubprocess",
+      "corePercent": 2.7
+    },
+    {
+      "Id": 90768,
+      "ProcessName": "ssh",
+      "corePercent": 2.4
+    },
+    {
+      "Id": 83900,
+      "ProcessName": "claude",
+      "corePercent": 2.1
+    },
+    {
+      "Id": 92716,
+      "ProcessName": "Cursor",
+      "corePercent": 1.0
+    },
+    {
+      "Id": 88040,
+      "ProcessName": "Cursor",
+      "corePercent": 1.0
+    },
+    {
+      "Id": 18796,
+      "ProcessName": "CefSharp.BrowserSubprocess",
+      "corePercent": 1.0
+    },
+    {
+      "Id": 83828,
+      "ProcessName": "ChatGPT",
+      "corePercent": 1.0
+    },
+    {
+      "Id": 99992,
+      "ProcessName": "Cursor",
+      "corePercent": 0.7
+    }
+  ],
+  "seconds": 4.54700445
+}

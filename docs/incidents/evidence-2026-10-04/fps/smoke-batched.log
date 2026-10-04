@@ -1,0 +1,15 @@
+viz GPU background suspension: zero ticks/draws; foreground resumed
+viz live crystal bead: bright pixels 1142, 1002, 1038
+viz GPU welcome crystal probe: 40.28ms mean/66.90ms P95; recovered to 50.20ms P95
+viz compact crystal: pointer lamp + caustics follow camera; idle receiver detached; lit 17.78ms mean/17.20ms P95
+viz compact caustics: 239 visible pixels outside crystal
+viz compact crystal: pointer lamp + caustics follow camera; idle receiver detached; lit 21.80ms mean/33.60ms P95
+viz GPU camera probe: overview -> focus -> overview through Pixi; 0.001px projection error at 18.7%; frame tracked within 0.007px across 38 travel samples
+file:///C:/Users/mgf/dev/atoma/.atoma-frame-probe/oct04-gpu-smoke.mjs:1394
+      throw new Error(
+            ^
+
+Error: focused view frame composite is invalid: {"viewportHeight":800,"frames":[],"frameLayerShadows":0,"frameLayerFilledGraphics":0,"gutterPresent":false}
+    at file:///C:/Users/mgf/dev/atoma/.atoma-frame-probe/oct04-gpu-smoke.mjs:1394:13
+
+Node.js v24.20.0

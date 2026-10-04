@@ -1,0 +1,9 @@
+const ready = setInterval(() => {
+  const app = window.__ATOMA_GPU__?.app;
+  if (!app) return;
+  clearInterval(ready);
+  const info = app.renderer.gpu?.adapter?.info;
+  const meta = {mode:'adapter',vendor:info?.vendor,architecture:info?.architecture,device:info?.device,description:info?.description,isFallbackAdapter:info?.isFallbackAdapter,userAgent:navigator.userAgent};
+  const el=document.createElement('pre');el.id='gpu-info';el.hidden=true;el.textContent=JSON.stringify(meta);document.body.append(el);
+  fetch('/probe-results',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(meta)});
+},100);

@@ -1,0 +1,187 @@
+{
+  "mode": "pointer",
+  "query": "?atomaDiag=1",
+  "elapsed": 9526.799999952316,
+  "geometry": [
+    1066,
+    930,
+    1
+  ],
+  "backend": "webgpu",
+  "interval": {
+    "n": 240,
+    "mean": 38.82,
+    "p50": 33.4,
+    "p95": 66.7,
+    "max": 116.6
+  },
+  "ticker": {
+    "n": 240,
+    "mean": 11.96,
+    "p50": 10.7,
+    "p95": 21.9,
+    "max": 33.6
+  },
+  "gpuMs": null,
+  "timestamps": "unavailable",
+  "perFrame": {
+    "createCommandEncoder": 6.8,
+    "createView": 2,
+    "createTexture": 0,
+    "beginRenderPass": 8.7,
+    "createBuffer": 0,
+    "submit": 6.8,
+    "end": 8.7,
+    "setVertexBuffer": 133.9,
+    "setIndexBuffer": 121.7,
+    "createRenderPipeline": 0,
+    "createBindGroup": 0,
+    "setBindGroup": 318.9,
+    "copyExternalImageToTexture": 1.7,
+    "setPipeline": 133.7,
+    "drawIndexed": 140.7,
+    "writeBuffer": 21.8,
+    "writeTexture": 0,
+    "draw": 0,
+    "copyTextureToTexture": 1,
+    "writeBufferKB": 148.4,
+    "createBufferKB": 0,
+    "buildInstructions": 1.88,
+    "updateRenderables": 10.51
+  },
+  "cpu": [
+    {
+      "key": "53:",
+      "perFrame": 6.007500013709068,
+      "n": 244,
+      "source": "()=>{_t(this.app.canvas)||this.renderCameraFrame()}"
+    },
+    {
+      "key": "13:Ne",
+      "perFrame": 1.420000003774961,
+      "n": 244,
+      "source": "e=>{let t=Number.isFinite(e?.deltaMS)?Math.max(0,e.deltaMS):1e3/60;ae+=t,je(Me(),ae)}"
+    },
+    {
+      "key": "12:",
+      "perFrame": 0.6770833333333334,
+      "n": 244,
+      "source": "e=>{let n=f();if(D){M=Qf(M,e.deltaMS,f()),this.navIconSpins.set(t,M);let n=r+T+x/2,a=i+o/2,s=ep(n-this.lightRendererX,a-this.lightRendererY,Math.max(0,this.pointerLightUniforms?.uStrength??0));D.mesh.render(M.rotation%(Math.PI*2),s,performance.now(),M.rotation<M.target)}if(I&&!A&&!j&&!s&&n===L)return;L=n,f()||(P+=e.deltaMS);let c=n?1:Math"
+    },
+    {
+      "key": "7:",
+      "perFrame": 0.6612500031789144,
+      "n": 244,
+      "source": "e=>{let n=f();if(D){M=Qf(M,e.deltaMS,f()),this.navIconSpins.set(t,M);let n=r+T+x/2,a=i+o/2,s=ep(n-this.lightRendererX,a-this.lightRendererY,Math.max(0,this.pointerLightUniforms?.uStrength??0));D.mesh.render(M.rotation%(Math.PI*2),s,performance.now(),M.rotation<M.target)}if(I&&!A&&!j&&!s&&n===L)return;L=n,f()||(P+=e.deltaMS);let c=n?1:Math"
+    },
+    {
+      "key": "11:",
+      "perFrame": 0.6462499976158143,
+      "n": 244,
+      "source": "e=>{let n=f();if(D){M=Qf(M,e.deltaMS,f()),this.navIconSpins.set(t,M);let n=r+T+x/2,a=i+o/2,s=ep(n-this.lightRendererX,a-this.lightRendererY,Math.max(0,this.pointerLightUniforms?.uStrength??0));D.mesh.render(M.rotation%(Math.PI*2),s,performance.now(),M.rotation<M.target)}if(I&&!A&&!j&&!s&&n===L)return;L=n,f()||(P+=e.deltaMS);let c=n?1:Math"
+    },
+    {
+      "key": "8:",
+      "perFrame": 0.632083331545194,
+      "n": 244,
+      "source": "e=>{let n=f();if(D){M=Qf(M,e.deltaMS,f()),this.navIconSpins.set(t,M);let n=r+T+x/2,a=i+o/2,s=ep(n-this.lightRendererX,a-this.lightRendererY,Math.max(0,this.pointerLightUniforms?.uStrength??0));D.mesh.render(M.rotation%(Math.PI*2),s,performance.now(),M.rotation<M.target)}if(I&&!A&&!j&&!s&&n===L)return;L=n,f()||(P+=e.deltaMS);let c=n?1:Math"
+    },
+    {
+      "key": "9:",
+      "perFrame": 0.623333340883255,
+      "n": 244,
+      "source": "e=>{let n=f();if(D){M=Qf(M,e.deltaMS,f()),this.navIconSpins.set(t,M);let n=r+T+x/2,a=i+o/2,s=ep(n-this.lightRendererX,a-this.lightRendererY,Math.max(0,this.pointerLightUniforms?.uStrength??0));D.mesh.render(M.rotation%(Math.PI*2),s,performance.now(),M.rotation<M.target)}if(I&&!A&&!j&&!s&&n===L)return;L=n,f()||(P+=e.deltaMS);let c=n?1:Math"
+    },
+    {
+      "key": "10:",
+      "perFrame": 0.6216666609048843,
+      "n": 244,
+      "source": "e=>{let n=f();if(D){M=Qf(M,e.deltaMS,f()),this.navIconSpins.set(t,M);let n=r+T+x/2,a=i+o/2,s=ep(n-this.lightRendererX,a-this.lightRendererY,Math.max(0,this.pointerLightUniforms?.uStrength??0));D.mesh.render(M.rotation%(Math.PI*2),s,performance.now(),M.rotation<M.target)}if(I&&!A&&!j&&!s&&n===L)return;L=n,f()||(P+=e.deltaMS);let c=n?1:Math"
+    },
+    {
+      "key": "6:updateCastShadows",
+      "perFrame": 0.29583331843217214,
+      "n": 244,
+      "source": "()=>{if(this.castShadows.length===0)return;let e=f()?0:this.pointerLightStrength,t=this.lightRendererX,n=this.lightRendererY,r=Je();if(e!==this.lastCastShadowFrame.strength||t!==this.lastCastShadowFrame.lightX||n!==this.lastCastShadowFrame.lightY||r.revision!==this.lastCastShadowFrame.tuningRevision){this.lastCastShadowFrame={strength:e,l"
+    },
+    {
+      "key": "4:updateTooltip",
+      "perFrame": 0.08958333631356558,
+      "n": 244,
+      "source": "()=>{let e=r();e.revision!==this.lastPointerRevision&&(this.lastPointerRevision=e.revision,this.lastInteractionAt=performance.now());let t=this.tooltipLayer;if(!t)return;let n=this.clientToRendererPosition(e.clientX,e.clientY);t.update({x:n.x,y:n.y,active:e.trackingActive},performance.now(),{width:this.app.screen.width,height:this.app.scr"
+    },
+    {
+      "key": "5:updatePointerLight",
+      "perFrame": 0.0791666696468989,
+      "n": 244,
+      "source": "e=>{let t=this.pointerLightFilter,n=this.pointerLightUniforms;if(!t||!n)return;if(!this.pointerLightBufferPinned){let e=t.resources.pointerLight;e.buffer&&(e.buffer.autoGarbageCollect=!1,this.pointerLightBufferPinned=!0)}let i=r(),a=+!!i.active,o=f()?1:1-Math.exp(-Math.max(0,e.deltaMS)*.018);if(this.pointerLightStrength+=(a-this.pointerLi"
+    },
+    {
+      "key": "14:",
+      "perFrame": 0.06875000099341075,
+      "n": 244,
+      "source": "e=>{let t=f();if(I&&!k&&!j&&!s&&t===L)return;L=t,f()||(N+=e.deltaMS);let n=t?1:Math.max(0,Math.min(1,N/260)),c=1-(1-n)**3,l=c*(j?.955:k?1.035:1);_.alpha=c,_.scale.set(l),_.position.set(r+a*(1-l)/2,i+o*(1-l)/2+(j?1.5:0));let u=.5+.5*Math.sin(N/170);y.alpha=s?.2+u*.22:k?.12+u*.16:0,C.x=4+Math.max(0,N)*(k?.12:.045)%Math.max(8,a-10),C.alpha=s"
+    }
+  ],
+  "tree": [
+    {
+      "label": null,
+      "children": []
+    },
+    {
+      "label": null,
+      "children": [
+        {
+          "label": "sidebar-rail",
+          "n": 6
+        },
+        {
+          "label": "Graphics",
+          "n": 0
+        },
+        {
+          "label": "camera-view-frames",
+          "n": 4
+        },
+        {
+          "label": null,
+          "n": 13
+        },
+        {
+          "label": "camera-view-mask",
+          "n": 0
+        },
+        {
+          "label": null,
+          "n": 3
+        },
+        {
+          "label": "fps-readout-layer",
+          "n": 1
+        }
+      ]
+    },
+    {
+      "label": null,
+      "children": []
+    },
+    {
+      "label": null,
+      "children": [
+        {
+          "label": "atoma-mark",
+          "n": 1
+        }
+      ]
+    },
+    {
+      "label": null,
+      "children": [
+        {
+          "label": null,
+          "n": 2
+        }
+      ]
+    }
+  ]
+}

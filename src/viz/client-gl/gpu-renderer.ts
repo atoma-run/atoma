@@ -398,6 +398,10 @@ function paintPanelShadow(
   alpha: number,
   depth: number
 ): void {
+  // The five rounded layers exceed Pixi's automatic batching threshold.
+  // Their geometry is static: batch it with the surrounding UI instead of
+  // breaking the batch and submitting a separate draw for every shadow.
+  graphics.context.batchMode = 'batch';
   const layers = softShadowLayers(width, height, radius, alpha, depth);
   for (const [index, layer] of layers.entries()) {
     const towardCore = layers.length > 1 ? index / (layers.length - 1) : 1;

@@ -1,0 +1,238 @@
+{
+  "mode": "idle",
+  "query": "?atomaDiag=1",
+  "elapsed": 8100.799999952316,
+  "geometry": [
+    1066,
+    930,
+    1
+  ],
+  "backend": "webgpu",
+  "interval": {
+    "n": 240,
+    "mean": 32.92,
+    "p50": 33.3,
+    "p95": 50,
+    "max": 50.2
+  },
+  "ticker": {
+    "n": 240,
+    "mean": 9.87,
+    "p50": 9.7,
+    "p95": 12.4,
+    "max": 15
+  },
+  "gpuMs": null,
+  "timestamps": "unavailable",
+  "perFrame": {
+    "createCommandEncoder": 3.3,
+    "createView": 1,
+    "createTexture": 0,
+    "beginRenderPass": 1.7,
+    "createBuffer": 0,
+    "submit": 3.3,
+    "end": 1.7,
+    "setVertexBuffer": 128.3,
+    "setIndexBuffer": 116.8,
+    "createRenderPipeline": 0,
+    "createBindGroup": 0,
+    "setBindGroup": 309,
+    "copyExternalImageToTexture": 0,
+    "setPipeline": 128.8,
+    "drawIndexed": 135.8,
+    "writeBuffer": 17.2,
+    "writeTexture": 0,
+    "draw": 0,
+    "copyTextureToTexture": 0,
+    "writeBufferKB": 147.2,
+    "createBufferKB": 0,
+    "buildInstructions": 1.74,
+    "updateRenderables": 8.9
+  },
+  "cpu": [
+    {
+      "key": "53:",
+      "perFrame": 7.478749992450078,
+      "n": 244,
+      "source": "()=>{_t(this.app.canvas)||this.renderCameraFrame()}"
+    },
+    {
+      "key": "13:Ne",
+      "perFrame": 1.6087499956289928,
+      "n": 244,
+      "source": "e=>{let t=Number.isFinite(e?.deltaMS)?Math.max(0,e.deltaMS):1e3/60;ae+=t,je(Me(),ae)}"
+    },
+    {
+      "key": "14:",
+      "perFrame": 0.10250001351038615,
+      "n": 244,
+      "source": "e=>{let t=f();if(I&&!k&&!j&&!s&&t===L)return;L=t,f()||(N+=e.deltaMS);let n=t?1:Math.max(0,Math.min(1,N/260)),c=1-(1-n)**3,l=c*(j?.955:k?1.035:1);_.alpha=c,_.scale.set(l),_.position.set(r+a*(1-l)/2,i+o*(1-l)/2+(j?1.5:0));let u=.5+.5*Math.sin(N/170);y.alpha=s?.2+u*.22:k?.12+u*.16:0,C.x=4+Math.max(0,N)*(k?.12:.045)%Math.max(8,a-10),C.alpha=s"
+    },
+    {
+      "key": "8:",
+      "perFrame": 0.09416666229565938,
+      "n": 244,
+      "source": "e=>{let n=f();if(D){M=Qf(M,e.deltaMS,f()),this.navIconSpins.set(t,M);let n=r+T+x/2,a=i+o/2,s=ep(n-this.lightRendererX,a-this.lightRendererY,Math.max(0,this.pointerLightUniforms?.uStrength??0));D.mesh.render(M.rotation%(Math.PI*2),s,performance.now(),M.rotation<M.target)}if(I&&!A&&!j&&!s&&n===L)return;L=n,f()||(P+=e.deltaMS);let c=n?1:Math"
+    },
+    {
+      "key": "4:updateTooltip",
+      "perFrame": 0.09125000238418579,
+      "n": 244,
+      "source": "()=>{let e=r();e.revision!==this.lastPointerRevision&&(this.lastPointerRevision=e.revision,this.lastInteractionAt=performance.now());let t=this.tooltipLayer;if(!t)return;let n=this.clientToRendererPosition(e.clientX,e.clientY);t.update({x:n.x,y:n.y,active:e.trackingActive},performance.now(),{width:this.app.screen.width,height:this.app.scr"
+    },
+    {
+      "key": "5:updatePointerLight",
+      "perFrame": 0.053750003377596535,
+      "n": 244,
+      "source": "e=>{let t=this.pointerLightFilter,n=this.pointerLightUniforms;if(!t||!n)return;if(!this.pointerLightBufferPinned){let e=t.resources.pointerLight;e.buffer&&(e.buffer.autoGarbageCollect=!1,this.pointerLightBufferPinned=!0)}let i=r(),a=+!!i.active,o=f()?1:1-Math.exp(-Math.max(0,e.deltaMS)*.018);if(this.pointerLightStrength+=(a-this.pointerLi"
+    },
+    {
+      "key": "20:",
+      "perFrame": 0.0420833299557368,
+      "n": 244,
+      "source": "e=>{let t=f();if(I&&!k&&!j&&!s&&t===L)return;L=t,f()||(N+=e.deltaMS);let n=t?1:Math.max(0,Math.min(1,N/260)),c=1-(1-n)**3,l=c*(j?.955:k?1.035:1);_.alpha=c,_.scale.set(l),_.position.set(r+a*(1-l)/2,i+o*(1-l)/2+(j?1.5:0));let u=.5+.5*Math.sin(N/170);y.alpha=s?.2+u*.22:k?.12+u*.16:0,C.x=4+Math.max(0,N)*(k?.12:.045)%Math.max(8,a-10),C.alpha=s"
+    },
+    {
+      "key": "7:",
+      "perFrame": 0.03541666269302368,
+      "n": 244,
+      "source": "e=>{let n=f();if(D){M=Qf(M,e.deltaMS,f()),this.navIconSpins.set(t,M);let n=r+T+x/2,a=i+o/2,s=ep(n-this.lightRendererX,a-this.lightRendererY,Math.max(0,this.pointerLightUniforms?.uStrength??0));D.mesh.render(M.rotation%(Math.PI*2),s,performance.now(),M.rotation<M.target)}if(I&&!A&&!j&&!s&&n===L)return;L=n,f()||(P+=e.deltaMS);let c=n?1:Math"
+    },
+    {
+      "key": "6:updateCastShadows",
+      "perFrame": 0.03208333750565847,
+      "n": 244,
+      "source": "()=>{if(this.castShadows.length===0)return;let e=f()?0:this.pointerLightStrength,t=this.lightRendererX,n=this.lightRendererY,r=Je();if(e!==this.lastCastShadowFrame.strength||t!==this.lastCastShadowFrame.lightX||n!==this.lastCastShadowFrame.lightY||r.revision!==this.lastCastShadowFrame.tuningRevision){this.lastCastShadowFrame={strength:e,l"
+    },
+    {
+      "key": "51:",
+      "perFrame": 0.019166669249534606,
+      "n": 244,
+      "source": "e=>{if(r.destroyed)return;let t=_p(this.fpsSample,e.elapsedMS);if(t===null)return;this.lastFps=t;let n=yp(t);n!==r.text&&(r.text=n),r.tint=fp(R.text,vp(t))}"
+    },
+    {
+      "key": "1:_tickerUpdate",
+      "perFrame": 0.01875000198682149,
+      "n": 244,
+      "source": "_tickerUpdate(e){this._deltaTime+=e.deltaTime,!(this._deltaTime<this.interactionFrequency)&&(this._deltaTime=0,this._update())}"
+    },
+    {
+      "key": "54:end",
+      "perFrame": 0.017083337903022765,
+      "n": 241,
+      "source": "() => { tickerMs.push(performance.now() - frameStart); }"
+    }
+  ],
+  "tree": [
+    {
+      "label": null,
+      "children": []
+    },
+    {
+      "label": null,
+      "children": [
+        {
+          "label": "sidebar-rail",
+          "n": 6
+        },
+        {
+          "label": "Graphics",
+          "n": 0
+        },
+        {
+          "label": "camera-view-frames",
+          "n": 4
+        },
+        {
+          "label": null,
+          "n": 13
+        },
+        {
+          "label": "camera-view-mask",
+          "n": 0
+        },
+        {
+          "label": null,
+          "n": 3
+        },
+        {
+          "label": "fps-readout-layer",
+          "n": 1
+        }
+      ]
+    },
+    {
+      "label": null,
+      "children": []
+    },
+    {
+      "label": null,
+      "children": [
+        {
+          "label": "atoma-mark",
+          "n": 1
+        }
+      ]
+    },
+    {
+      "label": null,
+      "children": [
+        {
+          "label": null,
+          "n": 2
+        }
+      ]
+    }
+  ],
+  "graphics": [
+    {
+      "key": "cast-shadow//timeline-card-underlay",
+      "calls": 25.416666666666668,
+      "ms": 1.1187500049670538,
+      "vertices": 225
+    },
+    {
+      "key": "cast-shadow//",
+      "calls": 8.133333333333333,
+      "ms": 0.3799999862909317,
+      "vertices": 237
+    },
+    {
+      "key": "cast-shadow//sidebar-rail",
+      "calls": 6.1,
+      "ms": 0.3287499964237213,
+      "vertices": 245
+    },
+    {
+      "key": "cast-shadow//run-filter-chips",
+      "calls": 9.15,
+      "ms": 0.32666664719581606,
+      "vertices": 245
+    },
+    {
+      "key": "cast-shadow//run.summary.stat.tiles",
+      "calls": 4.066666666666666,
+      "ms": 0.18499999443689982,
+      "vertices": 245
+    },
+    {
+      "key": "cast-shadow//run-atom-lanes",
+      "calls": 3.05,
+      "ms": 0.12583333750565848,
+      "vertices": 245
+    },
+    {
+      "key": "Graphics/mark-core/mark-interior",
+      "calls": 1.3,
+      "ms": 0.06333333750565846,
+      "vertices": 5056
+    },
+    {
+      "key": "timeline-rails/timeline-scroll-content/",
+      "calls": 1.0166666666666666,
+      "ms": 0.046249998609224956,
+      "vertices": 729
+    }
+  ],
+  "batched": 0
+}

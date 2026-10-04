@@ -1,0 +1,86 @@
+import { createServer } from 'node:http';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { resolve, extname, join } from 'node:path';
+
+const root = resolve('.atoma-frame-probe');
+const build = resolve(process.argv[2] ?? '.atoma-frame-probe/oct04-baseline');
+const port = Number(process.argv[3] ?? 5184);
+const source = await readFile('scripts/viz-frame-probe.mjs', 'utf8');
+const counters = source.split('await page.evaluateOnNewDocument((enableTimestamps) => {')[1].split('}, gpuTime);')[0];
+const sample = source.split('return await page.evaluate((count, budget) => new Promise((resolve) => {')[1].split('}), target, budgetMs);')[0];
+const fixtureSource = source.slice(source.indexOf('const FIXTURE_EVENT_ROWS ='), source.indexOf('function summarise('));
+const fixtureDir = join(root, 'oct04-fixture');
+await mkdir(fixtureDir, { recursive: true });
+await new Function('writeFile', 'join', `${fixtureSource}; return writeRunFixture;`)(writeFile, join)(fixtureDir);
+const run = JSON.parse(await readFile(join(fixtureDir, 'probe-fixture-run.json'), 'utf8'));
+const index = JSON.parse(await readFile(join(fixtureDir, 'index.json'), 'utf8'));
+const harness = `
+((enableTimestamps) => {${counters}})(new URLSearchParams(location.search).has('gpuTime'));
+const sampleFrames = (count=240,budget=12000) => new Promise((resolve) => {${sample}});
+const summarise = ${source.slice(source.indexOf('function summarise('), source.indexOf('/**\n * Installed before'))};
+document.addEventListener('DOMContentLoaded', () => {
+  const bar = document.createElement('div');
+  bar.id = 'frame-probe';
+  bar.style.cssText='position:fixed;left:4px;bottom:4px;z-index:100;font:11px monospace;color:white;background:#182331;padding:6px;border:1px solid #789;max-width:94vw';
+  const out = document.createElement('pre'); out.id='probe-result';out.style.cssText='margin:3px;max-height:160px;overflow:auto;white-space:pre-wrap';
+  const status = document.createElement('span'); status.textContent='Frame probe ready ';
+  bar.append(status);
+  for(const mode of ['idle','pointer','no-mark','batch-shadows','batch-all','pixels']) {
+    const b=document.createElement('button'); b.textContent='Measure '+mode; b.style.marginRight='4px';
+    b.onclick=async()=>{
+      const handle=window.__ATOMA_GPU__; if(!handle) {status.textContent='No diagnostic handle';return;}
+      for(const x of bar.querySelectorAll('button')) x.disabled=true;
+      status.textContent='Measuring '+mode+'… '; out.textContent='';
+      const app=handle.app; const cpu=new Map(); let stop=false;
+      if(mode==='pixels'){
+        const changed=[];const walk=n=>{if(n.context&&n.label==='cast-shadow'){changed.push([n.context,n.context.batchMode]);}for(const c of n.children??[])walk(c);};walk(app.stage);app.stop();
+        const capture=()=>app.renderer.extract.pixels({target:app.stage,resolution:1,antialias:true});
+        for(const [context] of changed){context.batchMode='auto';context.onUpdate();}const a=await capture();
+        for(const [context] of changed){context.batchMode='batch';context.onUpdate();}const b=await capture();
+        let different=0,over2=0,max=0;for(let i=0;i<a.pixels.length;i+=4){let d=0;for(let c=0;c<4;c++)d=Math.max(d,Math.abs(a.pixels[i+c]-b.pixels[i+c]));if(d>0)different++;if(d>2)over2++;max=Math.max(max,d);}
+        const result={mode,geometry:[a.width,a.height],different,over2,max,total:a.pixels.length/4};out.textContent=JSON.stringify(result);out.dataset.result=JSON.stringify(result);await fetch('/probe-results',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(result)});
+        for(const [context,old]of changed){context.batchMode=old;context.onUpdate();}app.start();status.textContent='Done pixels ';for(const x of bar.querySelectorAll('button'))x.disabled=false;return;
+      }
+      const graphics=new Map(); const gp=app.renderer.renderPipes.graphics; const exec=gp.execute;
+      gp.execute=function(g){const path=[g.label,g.parent?.label,g.parent?.parent?.label].join('/');const entry=graphics.get(path)??{count:0,ms:0,vertices:app.renderer.graphicsContext.getGpuContext(g.context).geometryData.vertices.length/2};const start=performance.now();try{return exec.call(this,g);}finally{entry.ms+=performance.now()-start;entry.count++;graphics.set(path,entry);}};
+      const batched=[]; const batch=n=>{if(n.context&&!n.context.customShader&&(mode==='batch-all'||(mode==='batch-shadows'&&n.label==='cast-shadow'))){batched.push([n.context,n.context.batchMode]);n.context.batchMode='batch';n.context.onUpdate();}for(const c of n.children??[])batch(c);};if(mode.startsWith('batch-'))batch(app.stage);
+      const lp=Object.getPrototypeOf(app.ticker._head); const originalEmit=lp.emit;
+      const ids=new Map(); let nextId=0;
+      lp.emit=function(ticker){const fn=this._fn;if(!fn)return originalEmit.call(this,ticker);if(!ids.has(fn))ids.set(fn,++nextId);const key=ids.get(fn)+':'+fn.name;const start=performance.now();try{return originalEmit.call(this,ticker);}finally{const v=cpu.get(key)??{ms:0,n:0,source:String(fn).slice(0,340)};v.ms+=performance.now()-start;v.n++;cpu.set(key,v);}};
+      const hidden=[]; const hide=n=>{if(n){hidden.push([n,n.visible]);n.visible=false;}};
+      if(mode==='no-mark')hide(app.stage.getChildByLabel('atoma-mark',true));
+      if(mode==='no-nav') for(const child of app.stage.children) for(const sub of child.children??[]) if(sub.label?.includes('sidebar')||sub.label?.includes('nav')) hide(sub);
+      if(mode==='no-scene')hide(app.stage.children[1]);
+      let tick=0; const move=()=>{if(stop)return;const x=app.screen.width*(.5+.22*Math.sin(tick*.08));const y=app.screen.height*(.55+.2*Math.cos(tick*.08));const p=handle.projectRendererPoint(x,y);handle.movePointerLight(p.x,p.y);tick++;requestAnimationFrame(move);};
+      handle.hidePointerLight(); if(mode==='pointer')move();
+      const start=performance.now();const raw=await sampleFrames();stop=true; lp.emit=originalEmit;
+      const n=raw.tickerMs.length;gp.execute=exec;
+      const result={mode,query:location.search,elapsed:performance.now()-start,geometry:[innerWidth,innerHeight,devicePixelRatio],backend:document.querySelector('.gpu-ui-host')?.dataset.gpuBackend,interval:summarise(raw.intervals),ticker:summarise(raw.tickerMs),gpuMs:raw.gpuMsPerFrame,timestamps:raw.timestamps,perFrame:raw.perFrame,cpu:[...cpu].sort((a,b)=>b[1].ms-a[1].ms).slice(0,12).map(([key,v])=>({key,perFrame:v.ms/n,n:v.n,source:v.source})),tree:app.stage.children.map(x=>({label:x.label,children:x.children.map(y=>({label:y.label,n:y.children?.length}))}))};
+      result.graphics=[...graphics].sort((a,b)=>b[1].ms-a[1].ms).map(([key,v])=>({key,calls:v.count/n,ms:v.ms/n,vertices:v.vertices}));result.batched=batched.length;
+      for(const [context,mode]of batched){context.batchMode=mode;context.onUpdate();}
+      for(const [node,visible]of hidden)node.visible=visible;handle.hidePointerLight();
+      out.textContent=JSON.stringify(result);out.dataset.result=JSON.stringify(result);
+      await fetch('/probe-results',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(result)});
+      status.textContent='Done '+mode+' ';for(const x of bar.querySelectorAll('button'))x.disabled=false;
+    };bar.append(b);
+  }
+  bar.append(out);document.body.append(bar);
+});
+`;
+const types={'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.png':'image/png','.webp':'image/webp','.woff2':'font/woff2','.svg':'image/svg+xml','.glb':'model/gltf-binary'};
+let sequence=0;
+createServer(async(req,res)=>{
+ try{
+ const url=new URL(req.url,'http://localhost'); const path=url.pathname;
+ res.setHeader('Cache-Control','no-store');
+ if(path==='/probe-results'&&req.method==='POST'){let body='';for await(const chunk of req)body+=chunk;const value=JSON.parse(body);const file='oct04-iab-'+port+'-'+(++sequence)+'-'+value.mode+'.json';await writeFile(join(root,file),JSON.stringify(value,null,2));console.log(file,JSON.stringify({interval:value.interval,ticker:value.ticker,gpuMs:value.gpuMs,perFrame:value.perFrame}));res.end('{}');return;}
+ if(path==='/probe.js'){res.setHeader('Content-Type','text/javascript');res.end(harness);return;}
+ const api={'/auth/whoami':{enabled:false},'/api/runs':index,'/api/runs/probe-fixture-run':run,'/api/registries':[],'/api/skills':[],'/api/burnin':{rows:[],csvPath:null},'/api/projects':[], '/api/goal-guidance':{launchEnabled:false,guidance:{}}};
+ if(path in api){res.setHeader('Content-Type','application/json');res.end(JSON.stringify(api[path]));return;}
+ if(path.startsWith('/api/')||path==='/sw.js'){res.writeHead(404);res.end('{}');return;}
+ const filename=resolve(build,'.'+(path==='/'||path==='/app'?'/index.html':decodeURIComponent(path)));
+ if(!filename.startsWith(build+'\\')&&!filename.startsWith(build+'/')){res.writeHead(403);res.end();return;}
+ let content=await readFile(filename);if(filename.endsWith('index.html'))content=content.toString().replace('<head>','<head><script src="/probe.js"></script>');
+ res.setHeader('Content-Type',types[extname(filename)]??'application/octet-stream');res.end(content);
+ }catch(error){res.writeHead(404);res.end(String(error));}
+}).listen(port,'127.0.0.1',()=>console.log('IAB frame probe http://127.0.0.1:'+port));
