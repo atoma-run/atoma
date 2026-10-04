@@ -8,4 +8,6 @@ const volumes = new WorkspaceVolumes({
 const row = await volumes.create('worker', 'crashed-run', 'runs/crashed-run');
 writeFileSync(path.join(row.hostPath, 'evidence.txt'), 'retain this run');
 process.send?.({ row });
-setInterval(() => {}, 1000);
+// The interval keeps `volumes` reachable: once collected, its SQLite mutex
+// closes and releases the fence this fixture exists to hold.
+setInterval(() => { void volumes; }, 1000);
