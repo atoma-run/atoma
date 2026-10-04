@@ -87,6 +87,11 @@ export interface ServedOrigin {
 export type ServedOrigins = Map<number, ServedOrigin>;
 
 /** What a probe on `rawUrl` should know about the server that served it, if it has ended. */
+/** A value that only names a file or directory: no spaces, a path separator, no scheme. */
+export function isFileLocation(value: unknown): boolean {
+  return typeof value === 'string' && /[\\/]/.test(value) && !/\s/.test(value) && !/^[a-z][a-z0-9+.-]*:\/\//i.test(value);
+}
+
 export function servedOriginExitNote(rawUrl: string, origins: ServedOrigins | undefined): string {
   let parsed: URL;
   try {
@@ -1454,9 +1459,12 @@ export function startNodeServerTool(opts: BuiltinToolOptions): BuiltinTool {
       }
 
       // The code this process loads, read before it starts (`serverCodeDigest`).
-      // A server the model started with its own environment is not described
-      // by its code alone, so it gets no digest and its probes never stand.
-      const ownEnv = Object.keys(extraEnv).some((key) => key !== 'PORT');
+      // A server the model started with its own BEHAVIOUR environment (a flag
+      // such as NODE_ENV or AUTH) is not described by its code alone, so it gets
+      // no digest and its probes never stand. A value that is only a file
+      // location (DATA_FILE=/tmp/x.json, the isolation every API task asks for)
+      // moves state, not code: run 7f7aec0b recorded no digest on 147 probes.
+      const ownEnv = Object.entries(extraEnv).some(([key, value]) => key !== 'PORT' && !isFileLocation(value));
       const codeDigest = ownEnv ? undefined : await serverCodeDigest(entry, (path) => {
         try {
           const abs = opts.sandbox.resolve(path);
