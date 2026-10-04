@@ -105,7 +105,7 @@ Neighbours:
   is drafted once per depth-routed run by `draftAcceptanceChecklist`
   (cheapest tier, role `draft-checklist`, actor `run-checklist`), reaches the
   root planner through `inputs.acceptanceChecklist`, and is covered at the
-  root from attempt-scoped host `http` observations taken BEFORE the root's
+  root from attempt-scoped host `http` observations (plus standing ones, src/contracts) taken BEFORE the root's
   own probe. It informs the validation call and decides nothing: a
   model-drafted list may only add what the acceptor looks for. Rendered only
   when it holds an http item; a landed result is told NOT OBSERVED is

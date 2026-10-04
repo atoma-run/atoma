@@ -30,6 +30,7 @@ export { appendHttpProbe, mergeProbeManifestWrite, mergeShellProbe, probeManifes
 import { elementForTool } from '../contracts/toolTaxonomy.js';
 import { MAX_VIEWPORT_PX, MIN_VIEWPORT_PX, PROBE_URL_REFUSAL_PREFIX, SMOKE_PREFLIGHT_REFUSAL_PREFIX } from '../contracts/attestation.js';
 import { HOST_REPLAY_ARG } from '../contracts/inheritedChecks.js';
+import { serverCodeDigest } from '../contracts/serverDigest.js';
 import {
   DEFAULT_HOLD_MS,
   DEFAULT_WAIT_MS,
@@ -72,6 +73,8 @@ export interface ServedOrigin {
   readonly pid: number | undefined;
   /** Node only: the entry file that IS the server, workspace-relative. */
   readonly entry?: string;
+  /** Node only: `serverCodeDigest` of the code the process loaded, taken at spawn. */
+  readonly codeDigest?: string;
   /**
    * Node only: the server process ended AFTER it bound its port. Production
    * run 1d42ac2a (2026-10-03): a delivered server crashed on Chrome's
@@ -1289,12 +1292,12 @@ export function fetchUrlTool(opts: BuiltinToolOptions): BuiltinTool {
         // docs/acceptance-checklist-2026-09-25.md): an explicit unregistered
         // port stays probeable, but is nobody's evidence. A redirected
         // response is not an observation of the requested route.
-        let servedBy: { kind: 'static' | 'node'; entry?: string } | undefined;
+        let servedBy: { kind: 'static' | 'node'; entry?: string; codeDigest?: string } | undefined;
         try {
           const target = new URL(url);
           if (LOOPBACK_HOSTNAMES.has(target.hostname) && target.port && !res.redirected) {
             const origin = await servedOriginHoldsPort(opts.servedOrigins, Number(target.port));
-            if (origin) servedBy = { kind: origin.kind, ...(origin.entry ? { entry: origin.entry } : {}) };
+            if (origin) servedBy = { kind: origin.kind, ...(origin.entry ? { entry: origin.entry } : {}), ...(origin.codeDigest ? { codeDigest: origin.codeDigest } : {}) };
           }
         } catch {
           servedBy = undefined;
@@ -1450,6 +1453,18 @@ export function startNodeServerTool(opts: BuiltinToolOptions): BuiltinTool {
         if (typeof v === 'string') env[k] = v;
       }
 
+      // The code this process loads, read before it starts (`serverCodeDigest`).
+      // A server the model started with its own environment is not described
+      // by its code alone, so it gets no digest and its probes never stand.
+      const ownEnv = Object.keys(extraEnv).some((key) => key !== 'PORT');
+      const codeDigest = ownEnv ? undefined : await serverCodeDigest(entry, (path) => {
+        try {
+          const abs = opts.sandbox.resolve(path);
+          return existsSync(abs) && lstatSync(abs).isFile() ? readFileSync(abs, 'utf8') : undefined;
+        } catch {
+          return undefined;
+        }
+      });
       const child = spawn('node', [entryAbs], {
         cwd: opts.sandbox.root,
         stdio: ['ignore', 'pipe', 'pipe'],
@@ -1519,7 +1534,7 @@ export function startNodeServerTool(opts: BuiltinToolOptions): BuiltinTool {
       // observation, never a claim. Canonicalising is the READER's job:
       // `src/tools` deliberately imports nothing outside node builtins and its
       // own siblings, which is what keeps the worker image's closure small.
-      opts.servedOrigins?.set(port, { kind: 'node', pid: child.pid, entry });
+      opts.servedOrigins?.set(port, { kind: 'node', pid: child.pid, entry, ...(codeDigest ? { codeDigest } : {}) });
       // A crash after boot is a fact every later probe of this port must see.
       child.once('exit', (code, signal) => {
         const current = opts.servedOrigins?.get(port);

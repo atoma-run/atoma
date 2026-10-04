@@ -23,6 +23,7 @@ import { tmpdir } from 'node:os';
 import { acceptanceSchema, type AcceptanceInfo, type PhaseCoverageRecord, type TopologyInfo } from '../src/contracts/depthRouting.js';
 import { makeCtx, jsonText } from './helpers.js';
 import { makePlan, makeTools } from './helpers/factories.js';
+import { serverCodeDigest } from '../src/contracts/serverDigest.js';
 
 const task: Task = { description: 'Build the page' };
 const floor = [{ obligation: 'dom-interaction' as const, deliverable: 'index.html' }];
@@ -66,6 +67,64 @@ async function observe(ctx: RunContext, branch = 'descendant', path = 'index.htm
   const fork = forkBranch(forkBranch(ctx, 'ancestor'), branch);
   await fork.tools!.execute('validate_html', { path });
 }
+
+describe('standing HTTP evidence at root acceptance (owner decision 2026-10-04)', () => {
+  const server = "import { route } from './lib/routes.js';\nroute();\n";
+  const routes = 'export function route() { return 200; }\n';
+  const pkg = JSON.stringify({ scripts: { start: 'node server.js' } });
+  const accept = async (files: Record<string, string>, recordedDigest: string, observe?: (ctx: RunContext) => Promise<void>) => {
+    const executor = new Executor();
+    executor.files = { ...files };
+    const ctx = { ...context(executor), standingHttpEvidence: [{ runId: 'seed-run', eventId: 'e-404', method: 'POST',
+      path: '/api/loans', status: 404, entry: 'server.js', codeDigest: recordedDigest }] };
+    await observe?.(ctx);
+    let prompt = '';
+    ctx.llm.enqueue((req) => {
+      prompt = req.userContent;
+      return { text: jsonText({ approved: true, reasoning: 'met', criteria: [{ id: 'c1', met: true }] }),
+        stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } };
+    });
+    const accepted = await acceptRootResult({ actor: new Actor(3, false, []), task: { description: 'Build the API.' },
+      result, ctx, floor: [], phaseCoverage: [],
+      checklist: [{ id: 'c1', behaviour: 'unknown book refused', check: { kind: 'http', method: 'POST', path: '/api/loans', status: 404 } }],
+      checklistOrigin: { source: 'user' } });
+    return { accepted, prompt };
+  };
+
+  it('covers an unobserved HTTP item with a host-recorded probe of the seed lineage while the server code is unchanged', async () => {
+    const files = { 'server.js': server, 'lib/routes.js': routes, 'package.json': pkg };
+    const digest = (await serverCodeDigest('server.js', (path) => files[path as keyof typeof files]))!;
+    const { accepted, prompt } = await accept(files, digest);
+    expect(accepted.checklist?.[0]).toMatchObject({ status: 'covered', observationRefs: ['standing:seed-run/e-404/server.js'] });
+    expect(prompt).toContain('[RECORDED EARLIER] c1');
+    expect(prompt).toContain('recorded by run seed-run against server.js');
+  });
+
+  it('does not count a file the delivery no longer runs', async () => {
+    const files = { 'server.js': server, 'lib/routes.js': routes, 'package.json': JSON.stringify({ scripts: { start: 'node src/index.js' } }) };
+    const digest = (await serverCodeDigest('server.js', (path) => files[path as keyof typeof files]))!;
+    const { accepted } = await accept(files, digest);
+    expect(accepted.checklist?.[0]).toMatchObject({ status: 'uncovered' });
+  });
+
+  it('lets what this attempt saw on the same route stand against what an earlier run recorded', async () => {
+    const files = { 'server.js': server, 'lib/routes.js': routes, 'package.json': pkg };
+    const digest = (await serverCodeDigest('server.js', (path) => files[path as keyof typeof files]))!;
+    const { accepted } = await accept(files, digest, async (ctx) => {
+      ctx.attestations!.append({ eventId: 'now-500', attempt: 1, tool: 'fetch_url',
+        observation: { kind: 'execution', request: 'POST /api/loans', response: '500', http: { method: 'POST', path: '/api/loans', status: 500 } } } as never);
+    });
+    expect(accepted.checklist?.[0]).toMatchObject({ status: 'uncovered' });
+  });
+
+  it('does not count it once an imported module changed', async () => {
+    const before = { 'server.js': server, 'lib/routes.js': routes, 'package.json': pkg };
+    const digest = (await serverCodeDigest('server.js', (path) => before[path as keyof typeof before]))!;
+    const { accepted, prompt } = await accept({ 'server.js': server, 'lib/routes.js': 'export function route() { return 500; }\n', 'package.json': pkg }, digest);
+    expect(accepted.checklist?.[0]).toMatchObject({ status: 'uncovered', observationRefs: [] });
+    expect(prompt).toContain('[NOT OBSERVED] c1');
+  });
+});
 
 describe('root delivery coverage', () => {
   it('bounds refresh attempts even when every current read fails', async () => {

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { serverCodeDigest } from '../src/contracts/serverDigest.js';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ToolSandbox } from '../src/tools/sandbox.js';
@@ -75,6 +76,27 @@ describe('start_node_server port', () => {
     expect(probe.ok).toBe(false);
     expect(probe.error).toContain('EXITED after it started');
     expect(probe.error).toContain('ENOENT');
+  }, 60_000);
+
+  it('stamps the server code digest on what fetch_url observes, as the host records it', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'atoma-node-digest-'));
+    dirs.push(dir);
+    writeFileSync(join(dir, 'answer.mjs'), 'export const answer = 42;\n');
+    writeFileSync(join(dir, 'server.mjs'), [
+      "import { createServer } from 'node:http';",
+      "import { answer } from './answer.mjs';",
+      "const server = createServer((_req, res) => { res.end(String(answer)); });",
+      "server.listen(Number(process.env.PORT) || 0, () => console.log('LISTENING_ON_PORT=' + server.address().port));",
+    ].join('\n'));
+    const sandbox = new ToolSandbox(dir);
+    sandboxes.push(sandbox);
+    const origins: ServedOrigins = new Map();
+    const started = (await startNodeServerTool({ sandbox, servedOrigins: origins }).execute({ entry: 'server.mjs' })) as { ok: boolean; url: string };
+    expect(started.ok, JSON.stringify(started)).toBe(true);
+    const probe = (await fetchUrlTool({ sandbox, servedOrigins: origins }).execute({ url: started.url })) as { servedBy?: { entry?: string; codeDigest?: string } };
+    const read = (path: string) => { try { return readFileSync(join(dir, path), 'utf8'); } catch { return undefined; } };
+    expect(probe.servedBy?.entry).toBe('server.mjs');
+    expect(probe.servedBy?.codeDigest).toBe(await serverCodeDigest('server.mjs', read));
   }, 60_000);
 
   it('keeps a favicon request whose connection broke: that is a server that died answering it', () => {

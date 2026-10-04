@@ -9,6 +9,8 @@ import { parseRunLog, spawnRun, DEFAULT_HARD_KILL_MARGIN_MS, UNKILLABLE_BACKSTOP
 import { encodePreviousLanding, PREVIOUS_LANDING_ENV } from '../contracts/runLanding.js';
 import { PREVIOUS_RESULTS_ENV } from '../contracts/previousRunResults.js';
 import { previousResultsFor } from './previousResults.js';
+import { standingHttpEvidenceFor } from './standingEvidence.js';
+import { STANDING_HTTP_EVIDENCE_ENV } from '../contracts/standingHttpEvidence.js';
 import { ACCEPTANCE_SOURCE_ENV, ACCEPTANCE_SPEC_ENV } from '../contracts/acceptanceChecklist.js';
 import { encodeAcceptanceSpec } from '../run/acceptanceSpec.js';
 import { capturePlatformTissueAuthor } from '../run/tissueAuthor.js';
@@ -1653,6 +1655,11 @@ export class ProjectRunCoordinator {
         const previousResults = seedFrom === seedRun?.hostPaths.workspacePath
           ? previousResultsFor(this.store, seedRun ?? null) : undefined;
         if (previousResults) environment[PREVIOUS_RESULTS_ENV] = previousResults;
+        // What the host recorded of the seed lineage's own HTTP probes, which root
+        // acceptance counts while the server code is unchanged (standingHttpEvidence).
+        const standing = seedFrom === seedRun?.hostPaths.workspacePath
+          ? standingHttpEvidenceFor(this.store, seedRun ?? null) : undefined;
+        if (standing) environment[STANDING_HTTP_EVIDENCE_ENV] = standing;
         // THE USER'S APPROVED CRITERIA, read back from the STORE the
         // reservation wrote them to, never from the request: the child runs
         // against the captured version, and a row that no longer matches its

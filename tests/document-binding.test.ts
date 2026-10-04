@@ -317,7 +317,7 @@ describe('the tool set shares ONE origin registry', () => {
 
     const node = (await byName('start_node_server').execute({ entry: 'server.js' })) as { ok: boolean; port: number; pid: number };
     expect(node.ok).toBe(true);
-    expect(origins.get(node.port)).toEqual({ kind: 'node', pid: node.pid, entry: 'server.js' });
+    expect(origins.get(node.port)).toEqual({ kind: 'node', pid: node.pid, entry: 'server.js', codeDigest: expect.stringMatching(/^[a-f0-9]{64}$/) });
 
     const stat = (await byName('start_static_server').execute({})) as { ok: boolean; port: number; pid: number };
     expect(stat.ok).toBe(true);

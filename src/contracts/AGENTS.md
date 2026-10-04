@@ -99,9 +99,9 @@ Neighbours:
 - A `fetch_url` observation carries a structured `http` `{method, path,
   status}` ONLY when the tool reported `servedBy`: the port belongs to a
   server this tool set started and its process holds it, and the response was
-  not redirected. That is the only input the acceptance checklist
-  (`acceptanceChecklist.ts`) covers from; it is a projection over this log,
-  not an obligation.
+  not redirected. With the seed lineage's host-recorded observations under
+  an unchanged code digest (Standing HTTP evidence, below), it is the only input
+  the acceptance checklist covers from; a projection, not an obligation.
 - The obligation vocabulary is CLOSED and has one member. Adding a second is a
   design review with its own evidence, not a schema edit.
 - A `validate_html` PRE-FLIGHT refusal is a statement about the request, not
@@ -277,6 +277,15 @@ Neighbours:
   parses through `storedRunTierModelsSchema` and its launch refuses. Reusing
   the request schema on read made one immutable row throw in every reader of
   its project once its model was retired (2026-09-25 review, 1.1).
+
+## Standing HTTP evidence
+
+- `standingHttpEvidence.ts` + `serverDigest.ts` (owner decision 2026-10-04): an HTTP item
+  this attempt did not observe is covered by a `fetch_url` observation the HOST recorded in
+  the seed lineage (trace tool events, `servedBy.codeDigest` taken by `start_node_server`
+  before spawn), while the digest of the entry file and its relative imports is unchanged.
+  Never read from `.atoma-probes.json`, which a model can write. Rendered RECORDED EARLIER.
+  Limit: a computed import, a package, a data file or the environment is not in the digest.
 
 ## Intentional choices and rejected shortcuts
 

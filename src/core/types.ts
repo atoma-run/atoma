@@ -918,6 +918,12 @@ export interface RunContext {
    */
   readonly inheritedChecks?: import('../contracts/inheritedChecks.js').InheritedChecksRuntime;
   /**
+   * HTTP observations the host recorded in the seed lineage's traces, with the
+   * server code digest each was made against (`src/contracts/standingHttpEvidence.ts`).
+   * Root acceptance counts one while that digest is unchanged. Absent unseeded.
+   */
+  readonly standingHttpEvidence?: readonly import('../contracts/standingHttpEvidence.js').StandingHttpObservation[];
+  /**
    * Optional prefilter-cache observer — see `CacheHitInfo`. Same
    * observer-only contract as `recordTrust` / `recordSkill`: absent, the
    * cache still serves, it just leaves no trace.

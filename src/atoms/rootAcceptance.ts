@@ -35,8 +35,10 @@ import {
 } from '../contracts/readOnlyPhase.js';
 import type { AttestationRecord } from '../contracts/attestation.js';
 import type { Witness } from '../contracts/witness.js';
+import { deliveryRunsEntry, serverCodeDigest } from '../contracts/serverDigest.js';
 import {
   coverAcceptanceChecklist,
+  httpCheckMatches,
   renderChecklistCoverage,
   type AcceptanceChecklist,
   type ChecklistCoverage,
@@ -51,7 +53,7 @@ import {
  * behaviour by looking. An observation recorded without a viewport was laid
  * out at 800x600, the only size there was before one was recorded.
  */
-function checklistCoverage(ctx: RunContext, checklist: AcceptanceChecklist, stale: ReadonlySet<string>): ChecklistCoverage[] {
+async function checklistCoverage(ctx: RunContext, checklist: AcceptanceChecklist, stale: ReadonlySet<string>): Promise<ChecklistCoverage[]> {
   const records = acceptedRecords(ctx, stale);
   const observations = records.flatMap((record) =>
     record.observation.kind === 'execution' && record.observation.http
@@ -61,7 +63,57 @@ function checklistCoverage(ctx: RunContext, checklist: AcceptanceChecklist, stal
     record.observation.kind === 'browser'
       ? [{ eventId: record.eventId, width: record.observation.viewport?.width ?? 800, ok: record.observation.ok }]
       : []);
-  return coverAcceptanceChecklist(checklist, observations, layouts);
+  return withStandingHttpEvidence(ctx, checklist, coverAcceptanceChecklist(checklist, observations, layouts), observations);
+}
+
+/**
+ * An HTTP item this attempt did not observe is COVERED BY STANDING EVIDENCE when
+ * the host recorded, in the seed lineage, a matching request answered by a
+ * server whose code digest (`serverCodeDigest`: entry and relative imports) is
+ * the one the delivered workspace holds NOW (owner decision 2026-10-04).
+ * Its refs read `standing:<run>/<event>`; the rendering says RECORDED EARLIER.
+ */
+async function withStandingHttpEvidence(
+  ctx: RunContext,
+  checklist: AcceptanceChecklist,
+  coverage: ChecklistCoverage[],
+  current: ReadonlyArray<{ readonly http: { readonly method: string; readonly path: string; readonly status: number } }>
+): Promise<ChecklistCoverage[]> {
+  const standing = ctx.standingHttpEvidence ?? [];
+  if (standing.length === 0 || !coverage.some((entry) => entry.kind === 'http' && entry.status === 'uncovered')) return coverage;
+  if (!ctx.tools?.has('read_file')) return coverage;
+  const tools = baseExecutorOf(ctx.tools);
+  const read = async (path: string): Promise<string | undefined> => {
+    try {
+      const raw: unknown = await tools.execute('read_file', { path });
+      return typeof raw === 'string' ? raw : raw && typeof raw === 'object' && 'content' in raw && typeof raw.content === 'string'
+        ? raw.content : undefined;
+    } catch { return undefined; }
+  };
+  const packageJson = await read('package.json');
+  const digests = new Map<string, Promise<string | undefined>>();
+  const digestOf = (entry: string) => {
+    if (!digests.has(entry)) digests.set(entry, serverCodeDigest(entry, read).catch(() => undefined));
+    return digests.get(entry)!;
+  };
+  const out: ChecklistCoverage[] = [];
+  for (let i = 0; i < coverage.length; i += 1) {
+    const entry = coverage[i]!;
+    const check = checklist[i]?.check;
+    if (entry.kind !== 'http' || entry.status !== 'uncovered' || check?.kind !== 'http') { out.push(entry); continue; }
+    // This attempt answered the same route with another status: what it saw
+    // stands, and nothing recorded earlier covers it.
+    if (current.some((o) => httpCheckMatches({ ...check, status: o.http.status }, o.http))) { out.push(entry); continue; }
+    const refs: string[] = [];
+    for (const observation of standing) {
+      if (!httpCheckMatches(check, observation)) continue;
+      // The server the delivery still runs, never a file left behind.
+      if (!deliveryRunsEntry(packageJson, observation.entry)) continue;
+      if ((await digestOf(observation.entry)) === observation.codeDigest) refs.push(`standing:${observation.runId}/${observation.eventId}/${observation.entry}`);
+    }
+    out.push(refs.length > 0 ? { ...entry, status: 'covered', observationRefs: refs } : entry);
+  }
+  return out;
 }
 
 /**
@@ -447,7 +499,7 @@ export async function acceptRootResult(args: {
   const records = acceptedRecords(ctx, stale);
   const superseded = supersededFileReads(records);
   const recordsById = new Map(records.map((record) => [record.eventId, record]));
-  const coverage = checklistCoverage(ctx, checklist, stale);
+  const coverage = await checklistCoverage(ctx, checklist, stale);
   const checklistBlock = renderChecklistCoverage(checklist, coverage,
     { landed: Boolean(result.unfinishedPhases?.length), source });
   const layoutsBlock = observedLayoutsBlock(ctx, stale);

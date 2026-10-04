@@ -371,6 +371,18 @@ function coverLayouts(behaviour: string, layouts: readonly LayoutObservation[]):
   });
 }
 
+function describeStanding(entry: ChecklistCoverage): string {
+  if (!isStandingCoverage(entry)) return '';
+  const [run, , ...file] = entry.observationRefs[0]!.slice('standing:'.length).split('/');
+  return ` — recorded by run ${(run ?? '').slice(0, 8)} against ${file.join('/') || 'the server'}`;
+}
+
+/** Covered only by host-recorded observations of earlier runs (`standing:` refs). */
+export function isStandingCoverage(entry: Pick<ChecklistCoverage, 'status' | 'observationRefs'>): boolean {
+  return entry.status === 'covered' && entry.observationRefs.length > 0 &&
+    entry.observationRefs.every((ref) => ref.startsWith('standing:'));
+}
+
 /** Mechanical coverage of each item from this attempt's HTTP and browser observations. */
 export function coverAcceptanceChecklist(
   checklist: AcceptanceChecklist,
@@ -429,8 +441,10 @@ export function renderChecklistCoverage(
   const layouts = coverage.some((entry) => entry.layouts?.length);
   if (coverage.length === 0 || (!user && !layouts && !coverage.some((entry) => entry.kind === 'http'))) return '';
   const lines = coverage.map((entry, i) => {
-    const label = entry.status === 'covered' ? 'OBSERVED' : entry.status === 'uncovered' ? 'NOT OBSERVED' : 'REVIEW';
-    return `- [${label}] ${entry.id} ${entry.behaviour} (${describeCheck(checklist[i]!.check)}${describeLayouts(entry.layouts)})`;
+    const label = entry.status === 'covered'
+      ? (isStandingCoverage(entry) ? 'RECORDED EARLIER' : 'OBSERVED')
+      : entry.status === 'uncovered' ? 'NOT OBSERVED' : 'REVIEW';
+    return `- [${label}] ${entry.id} ${entry.behaviour} (${describeCheck(checklist[i]!.check)}${describeLayouts(entry.layouts)})${describeStanding(entry)}`;
   });
   return [
     user
@@ -442,6 +456,12 @@ export function renderChecklistCoverage(
     'that request through fetch_url to a server it started, and got that status. OBSERVED is status only,',
     'not bound to the current bytes. NOT OBSERVED means no such request was seen — a request made with',
     'run_shell is invisible here — not that the behaviour is broken; weigh it with the rest of the evidence.',
+    ...(coverage.some(isStandingCoverage)
+      ? ['RECORDED EARLIER is mechanical too: an earlier run of this project made that request, as the host recorded',
+        'it, to the server entry the delivery still runs, whose code (entry, relative imports, package.json, by',
+        'digest) is unchanged since. This attempt did not repeat it. Data files the server reads, dependencies and',
+        'the environment are not in the digest: it is standing evidence of that status, not a new observation.']
+      : []),
     ...(layouts
       ? ['A width after an item is a screen width its text names. LAID OUT / NOT LAID OUT are mechanical too:',
         'whether a validate_html call of THIS attempt laid a page out at that width. A layout at another width,',

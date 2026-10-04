@@ -40,7 +40,9 @@ export function repoRelativeIfInside(repoRoot, resolvedPath, pathImpl = { relati
 // started shaping SENTENCES, condensing new rules until they lost their
 // reasons. A subsystem file is read only by an agent opening that subtree, so
 // the pressure it needs is "one subsystem, one file", not a word count.
-export const SUBSYSTEM_LINE_BUDGET = 500;
+// 500 until 2026-10-04: src/atoms sat at 499 and new rules were being folded
+// into existing lines to fit (owner decision, raised to 600).
+export const SUBSYSTEM_LINE_BUDGET = 600;
 // src/viz owns more surfaces than any other subtree (trace projection, the GPU
 // client, the frozen MUI fallback, the gated HTTP surfaces, push, and the i18n
 // catalog contract). Splitting it further would mean inventing sub-subsystems
@@ -77,10 +79,10 @@ export const SUBSYSTEM_LINE_BUDGET = 500;
 // 2026-10-03: src/viz 660 -> 680 for the public showcase, which became the home
 // page the same day: its exposure contract and the home-page rule belong beside
 // the routes they govern rather than in a neighbour.
+// The src/preview (560) and src/projects (520) exceptions above were folded into
+// the 600-line default on 2026-10-04; src/viz keeps its own.
 export const SUBSYSTEM_LINE_BUDGET_OVERRIDES = new Map([
   ['src/viz/AGENTS.md', 680],
-  ['src/preview/AGENTS.md', 560],
-  ['src/projects/AGENTS.md', 520],
 ]);
 
 /**

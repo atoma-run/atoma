@@ -71,7 +71,7 @@ describe('link containment', () => {
 
 describe('subsystem line budgets', () => {
   it('pins the policy values, so a budget change is a conscious test change', () => {
-    expect(SUBSYSTEM_LINE_BUDGET).toBe(500);
+    expect(SUBSYSTEM_LINE_BUDGET).toBe(600);
   });
 
   it('requires the intentional-choices heading in EVERY subsystem doc', () => {
@@ -117,8 +117,9 @@ describe('subsystem line budgets', () => {
     expect(subsystemLineBudget('/repo', '/repo/src/viz/AGENTS.md', posix)).toBe(680);
   });
 
-  it('pins the src/projects exception, so the next raise is a conscious change too', () => {
-    expect(subsystemLineBudget('/repo', '/repo/src/projects/AGENTS.md', posix)).toBe(520);
+  it('folds the former src/projects and src/preview exceptions into the 600-line default', () => {
+    expect(subsystemLineBudget('/repo', '/repo/src/projects/AGENTS.md', posix)).toBe(SUBSYSTEM_LINE_BUDGET);
+    expect(subsystemLineBudget('/repo', '/repo/src/preview/AGENTS.md', posix)).toBe(SUBSYSTEM_LINE_BUDGET);
   });
 
   it('gives every other subsystem the default, on either root shape', () => {

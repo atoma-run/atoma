@@ -75,6 +75,7 @@ import { readRoutingRepository } from './routingRepository.js';
 import { describeSeedManifest, seedWorkspace, snapshotDeliveredWorkspace, snapshotStartingWorkspace } from './workspace.js';
 import { readOnlyPhasesFor } from './readOnlyPhase.js';
 import { gatedExecutor, inheritedChecksFor } from './inheritedChecks.js';
+import { decodeStandingHttpEvidence, STANDING_HTTP_EVIDENCE_ENV } from '../contracts/standingHttpEvidence.js';
 import { modelFacingExecutor } from '../core/attestation.js';
 import type { ToolExecutor } from '../core/types.js';
 import { draftAcceptanceChecklist } from '../atoms/acceptanceChecklist.js';
@@ -1130,6 +1131,8 @@ export async function startTask(
     // re-seeds that path, and a phase never spans two attempts.
     readOnlyPhases: readOnlyPhasesFor(workspaceRoot, (line) => consoleLogger.warn(line)),
     ...(inheritedChecks ? { inheritedChecks } : {}),
+    // The seed lineage's host-recorded HTTP probes, for root acceptance (standingHttpEvidence).
+    ...(() => { const standing = decodeStandingHttpEvidence(process.env[STANDING_HTTP_EVIDENCE_ENV]); return standing.length > 0 ? { standingHttpEvidence: standing } : {}; })(),
     // Prefilter decisions replayed from the on-disk cache: the LLM call
     // that did NOT happen still deserves a card.
     recordCacheHit: (info) => recorder.recordCacheHit(info),

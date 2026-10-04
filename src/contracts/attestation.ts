@@ -224,8 +224,9 @@ export interface AttestationRecord {
 /**
  * Run-scoped, append-only, memory-only. NOT a new product store: nothing
  * here needs to outlive the run, and `src/core/stores.ts` stays the one
- * product store. Cross-run proof reuse is therefore out of scope by
- * construction.
+ * product store. Cross-run proof reuse is therefore out of scope HERE; the
+ * one exception reads earlier runs' TRACES, never this log
+ * (`src/contracts/standingHttpEvidence.ts`).
  */
 export interface AttestationLog {
   append(record: AttestationRecord): void;

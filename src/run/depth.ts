@@ -154,7 +154,7 @@ export function remediationTask(task: Task, acceptance: AcceptanceInfo): Task {
  * and skill matching key on. The note says what the list is for, because
  * planners receive `inputs` as raw JSON with no other guidance.
  */
-export function withAcceptanceChecklist(task: Task, checklist: AcceptanceChecklist, source: ChecklistSource = 'drafted'): Task {
+export function withAcceptanceChecklist(task: Task, checklist: AcceptanceChecklist, source: ChecklistSource = 'drafted', standing = false): Task {
   if (checklist.length === 0) return task;
   return {
     ...task,
@@ -164,7 +164,10 @@ export function withAcceptanceChecklist(task: Task, checklist: AcceptanceCheckli
         note: source === 'user'
           ? 'Approved by the user before launch: the root acceptor will judge the delivery against each criterion. ' +
             'Plan work that satisfies every one and exercises every HTTP item with fetch_url against the server ' +
-            'this run starts.'
+            'this run starts.' + (standing
+            ? ' Requests an earlier run of this project recorded against the server entry the delivery runs count ' +
+              'while that server code is unchanged; editing the server entry or any module it imports voids them all.'
+            : '')
           : 'Drafted from the goal: the root acceptor will look for evidence of each behaviour. Plan work that ' +
             'exercises every HTTP item with fetch_url against the server this run starts; it adds no requirement ' +
             'the goal did not state.',
@@ -192,7 +195,8 @@ export async function runDepthTask(args: {
   checklistOrigin?: { readonly source: ChecklistSource; readonly digest?: string };
 }): Promise<Result> {
   const { ctx } = args;
-  const task = withAcceptanceChecklist(args.task, args.checklist ?? [], args.checklistOrigin?.source);
+  const task = withAcceptanceChecklist(args.task, args.checklist ?? [], args.checklistOrigin?.source,
+    (args.ctx.standingHttpEvidence?.length ?? 0) > 0);
   const attestations = (ctx.attestations ??= createAttestationLog());
   const phaseCoverage: PhaseCoverageRecord[] = [];
   let tools = ctx.tools;
