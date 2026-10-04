@@ -1262,5 +1262,7 @@
   "result.filesUnavailable": "Aucune révision publiée n’est disponible pour ces fichiers. Ils ne peuvent pas être ouverts sur GitHub depuis ce run.",
   "result.expired": "Les fichiers locaux ont expiré. Les fichiers publiés sont peut-être encore disponibles sur GitHub.",
   "launch.guidance": "Décris le résultat que tu souhaites et les éventuelles contraintes. Pour un dépôt importé, explique ce qu’il faut inspecter ou modifier. atoma sélectionne les capacités nécessaires à ta demande. Le résultat peut être une explication, une analyse, un document ou un logiciel fonctionnel ; la vérification est adaptée au résultat demandé.",
-  "settings.mcpCodexTimeout": "Par défaut, Codex cesse d’attendre un appel d’outil après 300 secondes, alors qu’un run prend plusieurs minutes. Ajoute tool_timeout_sec = 10800 sous le serveur atoma dans ~/.codex/config.toml (l’aide à la configuration ci-dessous l’inclut) ; codex mcp add ne permet pas de le définir."
+  "settings.mcpCodexTimeout": "Par défaut, Codex cesse d’attendre un appel d’outil après 300 secondes, alors qu’un run prend plusieurs minutes. Ajoute tool_timeout_sec = 10800 sous le serveur atoma dans ~/.codex/config.toml (l’aide à la configuration ci-dessous l’inclut) ; codex mcp add ne permet pas de le définir.",
+  "depth.checklist.recorded_one": "{{count}} vérification HTTP enregistrée précédemment sur un code serveur inchangé",
+  "depth.checklist.recorded_other": "{{count}} vérifications HTTP enregistrées précédemment sur un code serveur inchangé"
 }
