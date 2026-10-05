@@ -336,10 +336,15 @@ load-bearing.
   together without importing new obligations from earlier validator coaching.
   No mutation execution or extra model call is authorised. Invoice counterexample
   and paired replay: `benchmark/evidence-discrimination-2026-10-05/`.
-  Root file read-back shares 24,000 source characters across at most four
+  Root and phase file read-back share 24,000 source characters across at most four
   files: when the whole batch fits, preserve it in full. Above that bound,
   files up to 6,000 characters stay complete and longer files retain excerpts.
   Selecting keyword lines alone had preserved test names but cut their bodies.
+  Phase ground truth refreshes superseded reads referenced by the result in
+  the current attempt, through the same bounded reader as root acceptance.
+  Jev and the model receive the same current bytes, never new execution credit;
+  unavailable content stays unknown. Reservation run 8d819d66 repeated coverage
+  refusals while only a 400-character head survived beside retired reads.
 - Inputs that only EXERCISE the artefact go under `.atoma-scratch/`, which
   publication and the preview already exclude with every `.atoma-*` path; the
   molecule reads the rule in its runtime execution prompt, so branches whose

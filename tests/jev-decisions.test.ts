@@ -7,6 +7,8 @@ import { L1Atom, INTERNAL_VALIDATION_FAILED_PREFIX } from '../src/atoms/L1Atom.j
 import { L2Atom } from '../src/atoms/L2Atom.js';
 import { L3Atom } from '../src/atoms/L3Atom.js';
 import { resetPrefilterCacheForTests } from '../src/atoms/prefilterCache.js';
+import { createAttestationLog } from '../src/core/attestation.js';
+import { executorEvidence } from '../src/atoms/executorEvidence.js';
 import { forkBranch } from '../src/core/branchCtx.js';
 import {
   JEV_ENDPOINT,
@@ -989,6 +991,29 @@ describe('validation with Jev', () => {
     expect(ctx.llm.calls).toHaveLength(1);
     // One probe: the block Jev saw is the block the model received.
     expect(calls.filter((c) => c === 'read_file')).toHaveLength(1);
+  });
+
+  it('gives Jev and its model fallback the same current superseded-file readback', async () => {
+    const files = { 'test.js': 'OLD_TEST_BODY' };
+    const { l2, l1, tools, calls } = probedL2(files);
+    const { decider, approvals } = spyDecider({ approve: 0.1 });
+    const ctx = { ...makeCtx(), tools, jev: decider, attempt: 1, attestations: createAttestationLog() };
+    const branch = forkBranch(ctx, 'phase');
+    await branch.tools!.execute('read_file', { path: 'test.js' });
+    files['test.js'] = '// setup\n' + ' '.repeat(6500) + '\nassert.equal(actual.status, 409);';
+    await branch.tools!.execute('write_file', { path: 'test.js', content: files['test.js'] });
+    const before = JSON.stringify(ctx.attestations.forAttempt(1));
+    const reads = calls.filter(name => name === 'read_file').length;
+    ctx.llm.enqueueText(jsonText({ approved: false, reasoning: 'Test execution still missing.' }));
+    const verdict = await l2.validateResult(l1,
+      { ...result, evidence: executorEvidence({}, branch) }, { description: 'Execute the refusal test.' }, branch);
+    expect(approvals).toHaveLength(1);
+    expect(approvals[0]!.groundTruth).toContain('assert.equal(actual.status, 409)');
+    expect(ctx.llm.calls[0]!.userContent).toContain(approvals[0]!.groundTruth!);
+    expect(ctx.llm.calls[0]!.userContent).not.toContain('OLD_TEST_BODY');
+    expect(calls.filter(name => name === 'read_file').length - reads).toBe(1);
+    expect(JSON.stringify(ctx.attestations.forAttempt(1))).toBe(before);
+    expect(verdict.approved).toBe(false);
   });
 
   it("shows Jev the model validator's evidence lines: transport-observed only, never declared probes", async () => {

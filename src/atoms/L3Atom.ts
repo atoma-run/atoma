@@ -1434,6 +1434,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     if (type && child.matchesRegistryVersion(type) && shouldTrustType(type) && gateFindingsBlock === undefined && !proofUncovered) {
       trustedProbe = await checkGroundTruth({
         ctx,
+        taskDescription: task.description,
         subject: 'RESULT',
         payload,
         ...(result.evidence ? { evidence: result.evidence } : {}),
@@ -1491,6 +1492,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     if (ctx.jev && gateFindingsBlock === undefined && !proofUncovered) {
       groundTruth ??= await checkGroundTruth({
         ctx,
+        taskDescription: task.description,
         subject: 'RESULT',
         payload,
         ...(result.evidence ? { evidence: result.evidence } : {}),

@@ -1,0 +1,140 @@
+[
+  {
+    "id": "archived-phase-refusal",
+    "arm": "baseline",
+    "expected": null,
+    "matchesExpected": null,
+    "verdict": {
+      "approved": false,
+      "reasoning": "Required executed proof is incomplete: observed evidence covers only basic state, invalid schema, reserve/confirm/advance, and one expiry boundary. It does not establish SIGKILL persistence of refused receipts, object-key-order idempotency, changed-command protection, concurrent contenders, broad schema/range validation, or the advance-before-confirm expired-state assertions.",
+      "modifications": {
+        "additionalContext": "Run and report real HTTP assertions for every explicitly required gap, especially SIGKILL/restart refused-receipt persistence, key-order equivalence and changed-key conflict, concurrency, schema/range cases, full expiry statuses/state, Unicode ordering, and type-array key non-claiming."
+      },
+      "scope": "ephemeral",
+      "activeSkillFollowed": false
+    }
+  },
+  {
+    "id": "archived-phase-refusal",
+    "arm": "candidate",
+    "expected": null,
+    "matchesExpected": null,
+    "verdict": {
+      "approved": false,
+      "reasoning": "Required executed coverage remains incomplete: concurrent same-key retries occur only after stock is exhausted, so successful duplicate prevention is unproved; concurrency checks omit full final state; and no failed-key replay is tested after stock changes. The passing test claim does not establish these scenarios.",
+      "modifications": {
+        "additionalContext": "Extend test.js with a concurrent same-key successful reserve and assert one hold, one revision, and identical response bytes; assert complete state after concurrent contenders; replay a cached refusal after a stock-changing command and verify the original response/state behavior. Re-run npm test and report results."
+      },
+      "scope": "ephemeral",
+      "activeSkillFollowed": true
+    }
+  },
+  {
+    "id": "current-assertion-executed",
+    "arm": "candidate",
+    "expected": true,
+    "matchesExpected": true,
+    "verdict": {
+      "approved": true,
+      "reasoning": "Current price.mjs computes 100*0.9+5=95, and test.js asserts price(100)===95. The executed node test.js exited 0; this assertion rejects fee-before-discount, which would yield 94.5."
+    }
+  },
+  {
+    "id": "current-assertion-executed",
+    "arm": "baseline",
+    "expected": true,
+    "matchesExpected": false,
+    "verdict": {
+      "approved": false,
+      "reasoning": "price.mjs implements the required order, but the result provides no evidence that current test.js asserts price(100)===95 and distinguishes fee-before-discount; exit 0 alone is insufficient.",
+      "modifications": {
+        "additionalContext": "Re-read current test.js and report its exact assertions, then execute it with recorded output showing the required value and distinction."
+      },
+      "scope": "ephemeral"
+    }
+  },
+  {
+    "id": "wrong-assertion-executed",
+    "arm": "baseline",
+    "expected": false,
+    "matchesExpected": true,
+    "verdict": {
+      "approved": false,
+      "reasoning": "price.mjs implements the required order, but exit 0 and “completed” do not establish that test.js asserts price(100)===95 or distinguishes fee-before-discount (94.5).",
+      "modifications": {
+        "additionalContext": "Re-read current test.js and report its actual assertion, then rerun node test.js with recorded output proving the required distinction."
+      },
+      "scope": "ephemeral"
+    }
+  },
+  {
+    "id": "wrong-assertion-executed",
+    "arm": "candidate",
+    "expected": false,
+    "matchesExpected": true,
+    "verdict": {
+      "approved": false,
+      "reasoning": "test.js currently asserts price(100)===94.5, the fee-before-discount result, instead of the required 95; this does not distinguish the required order.",
+      "modifications": {
+        "additionalContext": "Update test.js to assert price(100)===95, and re-run node test.js with the corrected assertion."
+      },
+      "scope": "ephemeral"
+    }
+  },
+  {
+    "id": "assertion-never-executed",
+    "arm": "candidate",
+    "expected": false,
+    "matchesExpected": true,
+    "verdict": {
+      "approved": false,
+      "reasoning": "The current source and test assertion match the required calculation, but no test command was executed, so the required execution check is unverified.",
+      "modifications": {
+        "additionalContext": "Execute test.js and report its actual exit status/output to verify price(100)===95."
+      },
+      "scope": "ephemeral"
+    }
+  },
+  {
+    "id": "assertion-never-executed",
+    "arm": "baseline",
+    "expected": false,
+    "matchesExpected": true,
+    "verdict": {
+      "approved": false,
+      "reasoning": "The implementation matches the required order, but the required test.js execution and assertion are unverified; no test command was executed.",
+      "modifications": {
+        "additionalContext": "Run test.js and report its actual assertion result, distinguishing price(100)===95 from fee-before-discount 94.5."
+      },
+      "scope": "ephemeral"
+    }
+  },
+  {
+    "id": "assertion-edited-after-execution",
+    "arm": "baseline",
+    "expected": false,
+    "matchesExpected": true,
+    "verdict": {
+      "approved": false,
+      "reasoning": "price.mjs implements the required order, but the current test assertions were not executed; the only recorded run predates the last edit, and 'done' provides no proof of test.js assertions or success.",
+      "modifications": {
+        "additionalContext": "Run the current test.js with node after its last edit, assert price(100)===95, and report the actual exit status/output plus the current test contents."
+      },
+      "scope": "ephemeral"
+    }
+  },
+  {
+    "id": "assertion-edited-after-execution",
+    "arm": "candidate",
+    "expected": false,
+    "matchesExpected": true,
+    "verdict": {
+      "approved": false,
+      "reasoning": "The implementation and current test assertion appear correct, but test.js was not executed after its latest edit; the only recorded execution predates the new assertion, so completion is unverified.",
+      "modifications": {
+        "additionalContext": "Run the current test.js and report its actual exit status/output."
+      },
+      "scope": "ephemeral"
+    }
+  }
+]

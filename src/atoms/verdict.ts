@@ -915,6 +915,7 @@ export async function llmVerdict(args: {
     (await probeGroundTruth({
       ctx: args.ctx,
       subject: args.subject,
+      taskDescription: args.task.description,
       payload: args.payload,
       ...(args.evidence ? { evidence: args.evidence } : {}),
       child: args.child,

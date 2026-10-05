@@ -151,3 +151,83 @@ molecules' planning/execution. The rerun passed: 409 test files, 5424 tests
 passed, 9 skipped, plus docs/typecheck/lint/audit/build and compiled smokes.
 The startup/prompt focused suite passed 37 tests. Both semantic replay series
 reproduce offline from their saved responses without paid calls.
+
+## Fifth and sixth attempts: current assertions hidden from phase review
+
+Revision e7d84a57 passed CI 37276117028 and deploy 37276558656. The fifth
+run, `9b4f1082-f173-42cd-9880-af3dd835e314`, failed its first L3 planning
+call with structured service-unavailable after the bounded retry (46.463 s,
+five trace events). No tool work or delivery occurred. This confirms useful
+failure classification, not capacity availability. Its full trace is retained.
+
+The sixth request keeps all ten criteria and the 3,995-character goal, but
+uses short topology to avoid the intermittently unavailable L3 planner. This
+is explicitly not a same-topology benchmark. Run
+`8d819d66-1de2-4050-8ee0-119db03d1969` ran on e7d84a57, produced 220 events
+and 26 reported LLM calls ($0.2310 subscription-equivalent accounting), and
+was cancelled by the operator assistant at 07:40:31Z after repeated phase
+refusals. No delivery or publication occurred. The complete trace is retained.
+
+The initial suite contained real defects and missing checks. Root acceptance
+correctly demanded stronger tests, including actual SIGKILL and refused
+receipt recovery. The remediation then added these assertions and executed
+npm test successfully. Its prior read_file observations were correctly marked
+superseded after edits. But the phase validator saw only a 400-character head
+of the current 6,461-character test file. Three refusals continued demanding
+assertions already present, eventually penalising the molecule and its skill.
+This is an evidence-visibility defect, not proof that the whole suite was done.
+
+`reconstruct-sixth.mjs` reconstructs the file before the first repeated refusal
+from successful write/edit events and verifies each subsequent read against
+that reconstruction. It checks replacement counts, applies seven edits and
+two read snapshots, and preserves the inert result in
+`sixth-test-at-first-refusal.js.txt`. It executes none of the generated code.
+
+The correction extracts the existing root bounded reader into fileEvidence.ts
+and supplies current superseded-file reads through shared phase ground truth.
+Only current-attempt host records referenced by this result select refresh
+paths. A later write by another branch may retire those bytes; another branch's
+unreferenced reads do not join the evidence. Jev and its model fallback receive
+the same block. Root acceptance retains its single combined criteria/refresh
+budget. No model call, acceptance gate, criterion or model pin is added.
+
+Adversarial review: stale bytes stay omitted; missing reads establish unknown,
+not absence; current source alone is not executed proof; a prior failed command
+or an edit after execution cannot be converted into success by readback. Host
+reads bypass attestation and do not earn branch/skill/checklist credit. Paths
+outside the workspace, other attempts and forged references do not select
+reads. Failed reads count against the four-file bound; complete files share
+24,000 source characters, retaining existing root excerpt behavior above that
+bound. Production-path regressions cover these cases plus Jev/model equality
+and unchanged root behavior.
+
+`readback-replay.mjs` freezes one exact archived refusal and four synthetic
+controls: correct assertion executed; wrong assertion executed; assertion never
+executed; assertion edited after execution. Both arms use the same Luna model
+and system prompt; only the candidate receives the shared reader's current
+file block. Order alternates. The archived case has no forced approval oracle:
+remaining real gaps must still be refused. Saved requests/hashes/responses
+make the diagnostic replayable offline. This is not a success-rate estimate.
+
+All ten replay calls completed. The archived baseline again claimed that
+SIGKILL recovery, key-order equivalence and expiry-state assertions were absent.
+With current readback it instead identified actual remaining gaps: successful
+same-key concurrency (the existing concurrent retry ran after stock exhaustion),
+full state after contenders, and refused-receipt replay after stock changes.
+It still refused the incomplete suite. The positive control changes from an
+unknown-assertion refusal to approval. All three negative controls remain
+refused in both arms; the candidate names the wrong assertion or missing
+post-edit execution explicitly. All four candidate synthetic expectations hold.
+The 222 focused tests pass, including shared Jev/model evidence and root limits.
+
+The resident sixth-run analyst again graded the run sound with no findings.
+Its report is retained as sixth-analyst.json; that model assessment did not
+detect the visibility defect demonstrated by the archived requests and paired
+replay. Its generic attribution of cancellation to the user is not the actual
+operator history: this assistant cancelled the repeated refusal loop.
+
+Release verification on pinned Node 24.20.0: npm ci then release:check passed,
+including docs, both TypeScript configurations, lint, audit, build, compiled
+smokes, and 410 passing test files (5,422 tests passed, 19 skipped). The ten
+semantic responses reproduce offline without paid calls. The seventh request
+preserves the sixth request exactly except its new idempotency key.

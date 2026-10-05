@@ -1,5 +1,7 @@
 import type { RunContext } from '../core/types.js';
 import { baseExecutorOf } from '../core/attestation.js';
+import { supersededFileReads } from '../contracts/attestation.js';
+import { criteriaFilesBlock } from './fileEvidence.js';
 import type { Atom } from '../core/atom.js';
 import {
   PROBE_MANIFEST_FILENAME,
@@ -9,6 +11,7 @@ import {
 import {
   extractRecordedProbes,
   recordedProbesFromWitnesses,
+  transportWitnesses,
   type RecordedProbe,
   type Witness,
 } from '../contracts/witness.js';
@@ -141,6 +144,9 @@ export async function checkGroundTruth(args: {
   payload: unknown;
   evidence?: readonly Witness[];
   child: Atom;
+  taskDescription?: string;
+  /** Root acceptance supplies the shared bounded reader alongside its criteria. */
+  refreshSupersededReads?: boolean;
 }): Promise<GroundTruthCheck> {
   const { block, facts } = await probeGroundTruthEx(args);
   if (!block) return { block: '', contradiction: false, requiresReview: false };
@@ -191,7 +197,24 @@ export async function probeGroundTruthEx(args: {
    * is a web-bucket invariant, not a universal one — #9.
    */
   child: import('../core/atom.js').Atom;
+  taskDescription?: string;
+  /** Root acceptance combines these reads with its named criteria files. */
+  refreshSupersededReads?: boolean;
 }): Promise<{ block: string; facts: GroundTruthFacts }> {
+  const probe = await probeGroundTruthBase(args);
+  if (args.subject !== 'RESULT' || args.refreshSupersededReads === false || args.ctx.signal?.aborted) return probe;
+  // Only refresh reads actually referenced by this result, from the current
+  // attempt. Later writes in another branch can retire those same bytes, but
+  // unrelated branches' reads do not become this child's evidence.
+  const witnessed = new Set(transportWitnesses(args.evidence).map((witness) => witness.eventId));
+  const records = args.ctx.attestations?.forAttempt(args.ctx.attempt ?? 1) ?? [];
+  const paths = [...new Set([...supersededFileReads(records)]
+    .filter(([eventId]) => witnessed.has(eventId)).map(([, read]) => read.path))];
+  const current = await criteriaFilesBlock(args.ctx, [], paths, args.taskDescription ?? '');
+  return { ...probe, block: [probe.block, current].filter(Boolean).join('\n\n') };
+}
+
+async function probeGroundTruthBase(args: Parameters<typeof probeGroundTruthEx>[0]): Promise<{ block: string; facts: GroundTruthFacts }> {
   const empty = { block: '', facts: emptyGroundTruthFacts() };
   if (args.subject !== 'RESULT') return empty;
   if (args.ctx.signal?.aborted) return empty;

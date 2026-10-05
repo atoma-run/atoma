@@ -2376,6 +2376,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     if (type && child.matchesRegistryVersion(type) && shouldTrustType(type) && gateFindingsBlock === undefined && !proofUncovered) {
       trustedProbe = await checkGroundTruth({
         ctx,
+        taskDescription: task.description,
         subject: 'RESULT',
         payload: result,
         ...(result.evidence ? { evidence: result.evidence } : {}),
@@ -2441,6 +2442,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     if (ctx.jev && gateFindingsBlock === undefined && !proofUncovered) {
       groundTruth ??= await checkGroundTruth({
         ctx,
+        taskDescription: task.description,
         subject: 'RESULT',
         payload: { output: result.output, summary: result.summary },
         ...(result.evidence ? { evidence: result.evidence } : {}),
