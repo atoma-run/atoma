@@ -1,0 +1,17 @@
+✔ --help (24.352375ms)
+✔ fixed example and deterministic repeat (46.485333ms)
+✔ partial transitions and repeated shipment (23.002083ms)
+✔ csv hostile and CRLF BOM (26.341917ms)
+✔ multiline and doubled quote identifiers (23.017917ms)
+✔ conflicts, prerequisites, malformed and quantities fail; outputs preserved (198.50825ms)
+✔ opening-only, overwrite refusal, excess return (69.721916ms)
+✔ regressions: reservation lifecycle, namespaces, zero quantity, and quoted final columns (140.676708ms)
+✔ transition prerequisites and partial limits have specific diagnostics (140.461541ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 732.543167

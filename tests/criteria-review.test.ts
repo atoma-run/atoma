@@ -23,6 +23,30 @@ const result: Result = { output: { files: ['tests/spec.test.js'] }, summary: 'MO
 const actor = new L1Atom({ name: 'Methane', ordinal: 1, systemPrompt: '', tools: [], params: {} });
 
 describe('focused criterion review', () => {
+  it.each([false, true])('shares the bounded readback across files without losing assertions (over budget=%s)', async overBudget => {
+    const paths = ['stock-reconcile.js', 'test/stock-reconcile.test.js'];
+    const files = new Map(paths.map(path => [path, overBudget ? 'x'.repeat(13_000)
+      : readFileSync(new URL(`../benchmark/warehouse-repair-2026-10-05/artifact/${path.replace('/', '-')}.txt`, import.meta.url), 'utf8')]));
+    const ctx = { ...makeCtx(), tools: {
+      has: (name: string) => name === 'read_file',
+      execute: async (_name: string, args: Record<string, unknown>) => ({ content: files.get(String(args['path'])) }),
+    } };
+    const listed = paths.map((path, i) => ({ id: `c${i + 1}`, behaviour: `${path} implements and tests the required behavior.`, check: { kind: 'review' as const } }));
+    const judgments = listed.map(item => ({ id: item.id, met: true, reason: 'Fixture accepts observed behavior.' }));
+    for (let call = 0; call < 2; call++) ctx.llm.enqueue(req => {
+      for (const content of files.values()) {
+        if (overBudget) {
+          expect(req.userContent).not.toContain(JSON.stringify(content));
+          expect(req.userContent).toContain('cut at 1200 of 13000 chars');
+        } else expect(req.userContent).toContain(JSON.stringify(content));
+      }
+      return reply(judgments);
+    });
+    await acceptRootResult({ actor, task, result: { ...result, output: {} }, ctx, floor: [], phaseCoverage: [],
+      checklist: listed, checklistOrigin: { source: 'user' } });
+    expect(ctx.llm.calls).toHaveLength(2);
+  });
+
   it.each(['spec.test.js', 'tests/spec.test.js'])('keeps the archived missing assertions in %s visible and blocks a global false approval through real root acceptance', async testPath => {
     const source = readFileSync(new URL('../benchmark/stock-reconcile-2026-10-05/published/stock-reconcile.test.js.txt', import.meta.url), 'utf8');
     const ctx = { ...makeCtx(), tools: {

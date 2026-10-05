@@ -132,7 +132,7 @@ describe('what the root acceptor reads', () => {
   });
 
   it('reads the starting workspace comparison and the files the criteria name, long ones past their head', async () => {
-    const readme = `# Notes API\n${'Intro text. '.repeat(550)}\n## Routes\ncurl -X POST http://localhost:<port>/api/notes\n`;
+    const readme = `# Notes API\n${'Intro text. '.repeat(2200)}\n## Routes\ncurl -X POST http://localhost:<port>/api/notes\n`;
     const seed = dir({ 'index.html': CONFIGURATOR });
     const now = dir({ 'index.html': '<h1>Home</h1>\n' });
     const start = snapshotStartingWorkspace(seed);

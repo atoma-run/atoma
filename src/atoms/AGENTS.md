@@ -325,8 +325,9 @@ load-bearing.
   validators without a mechanical coverage classifier. Run 22af997d
   approved conflicting-duplicate coverage absent from the test body; archived
   evidence and replay: `benchmark/stock-reconcile-2026-10-05/`.
-  Root file read-back preserves complete files up to 6,000 characters, at
-  most four files; longer files retain bounded, explicitly incomplete excerpts.
+  Root file read-back shares 24,000 source characters across at most four
+  files: when the whole batch fits, preserve it in full. Above that bound,
+  files up to 6,000 characters stay complete and longer files retain excerpts.
   Selecting keyword lines alone had preserved test names but cut their bodies.
 - Inputs that only EXERCISE the artefact go under `.atoma-scratch/`, which
   publication and the preview already exclude with every `.atoma-*` path; the

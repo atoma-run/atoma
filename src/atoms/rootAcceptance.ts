@@ -243,10 +243,10 @@ const COMMON_WORDS = new Set(['with', 'that', 'this', 'every', 'each', 'from', '
  * holding a word of the criteria that name it ("curl", "route", "exit"), so a
  * criterion about a long README is not judged on its first screen only.
  */
-function namedFileExcerpt(content: string, words: ReadonlySet<string>): string {
+function namedFileExcerpt(content: string, words: ReadonlySet<string>, completeBatch: boolean): string {
   // Keep complete small files: keyword excerpts retain test titles while
   // dropping their fixtures and assertions (warehouse run 22af997d).
-  if (content.length <= CRITERIA_FILE_COMPLETE_MAX) return JSON.stringify(content);
+  if (completeBatch || content.length <= CRITERIA_FILE_COMPLETE_MAX) return JSON.stringify(content);
   const head = content.slice(0, CRITERIA_FILE_HEAD);
   const later = content.slice(CRITERIA_FILE_HEAD).split(/\r?\n/)
     .filter((line) => [...line.toLowerCase().matchAll(CRITERIA_TOKEN)].some((match) => words.has(match[0])))
@@ -286,6 +286,7 @@ async function criteriaFilesBlock(
   }
   wanted.push(...refreshPaths);
   const lines: string[] = [];
+  const files: Array<{ label: string; content: string; words: ReadonlySet<string> }> = [];
   const paths = [...new Set(wanted)].filter((path) => !path.split('/').includes('..') && !/^(?:\/|[a-z]:)/i.test(path));
   let attempted = 0;
   for (const path of paths) {
@@ -302,12 +303,19 @@ async function criteriaFilesBlock(
         'content' in read && typeof read.content === 'string' ? read.content : undefined;
       if (content === undefined) throw new Error('read returned no content');
       const label = /^[\w./-]+$/.test(path) ? path : JSON.stringify(path);
-      lines.push(`- ${label} (${content.length} chars): ${namedFileExcerpt(content, words)}`);
+      files.push({ label, content, words });
     } catch {
       // Silent, never refuting: "saves quote.txt" names a download, not a workspace file.
       if (refreshPaths.includes(path)) lines.push(`- ${JSON.stringify(path)}: current read unavailable; superseded contents remain omitted. This establishes no current content or absence.`);
     }
   }
+  // Share the existing four-by-6,000-character allowance across the batch.
+  // A 7 KB test file must not lose assertions while most of that allowance
+  // sits unused. Above the total bound retain the previous per-file excerpts.
+  const completeBatch = files.reduce((sum, file) => sum + file.content.length, 0)
+    <= CRITERIA_FILES_MAX * CRITERIA_FILE_COMPLETE_MAX;
+  lines.push(...files.map(({ label, content, words }) =>
+    `- ${label} (${content.length} chars): ${namedFileExcerpt(content, words, completeBatch)}`));
   if (attempted < paths.length) lines.push(`${paths.length - attempted} further file reads omitted by the bound or cancellation; their current contents are unknown.`);
   return lines.length > 0
     ? [`FILES THE CRITERIA NAME${refreshPaths.length ? ' OR WHOSE READS WERE SUPERSEDED' : ''}, read back by the host (mechanical). An excerpt cut short is SILENT about what it`,
