@@ -4,7 +4,7 @@ import type { Atom } from '../core/atom.js';
 import type { CriterionJudgement, Result, RunContext, Task } from '../core/types.js';
 import { modelForTier } from '../core/models.js';
 import type { DeliveryKind } from '../contracts/taskExecution.js';
-import { establishesDomInteraction, renderBrowserInputs, renderObservation, supersededFileReads } from '../contracts/attestation.js';
+import { establishesDomInteraction, fileReadsNeedingReadback, renderBrowserInputs, renderObservation, supersededFileReads } from '../contracts/attestation.js';
 import type { AcceptanceInfo, PhaseCoverageRecord, ProofFloor } from '../contracts/depthRouting.js';
 import { buildResultGateEnv, renderResultGateFindings, runResultGates } from './resultGates.js';
 import { checkGroundTruth } from './groundTruth.js';
@@ -479,11 +479,11 @@ export async function acceptRootResult(args: {
     unrechecked !== undefined;
   const judgementsAsked = checklistBlock !== '';
   // Read only for a validation call: nothing reads them on the mechanical path.
-  // Named criteria files and superseded reads share one bounded reader.
-  // A criterion need not spell a filename for a superseded read to refresh.
+  // Named criteria files and incomplete reads share one bounded reader.
+  // A criterion need not spell a filename for an incomplete read to refresh.
   const reviewing = review && !gates.rejection;
   const namedFilesBlock = reviewing ? await criteriaFilesBlock(ctx, judgementsAsked ? checklist : [],
-    [...new Set([...superseded.values()].map((read) => read.path))], task.description) : '';
+    [...new Set(fileReadsNeedingReadback(records).values())], task.description) : '';
   const startingBlock = reviewing ? renderStartingWorkspace(comparison ?? startingComparison(ctx)) : '';
   const restorationsBlock = reviewing ? renderRestorationsBlock(restorations) : '';
   const inheritedBlock = reviewing && inherited ? renderInheritedChecksBlock(inherited.report, inheritedItems, earlier) : '';

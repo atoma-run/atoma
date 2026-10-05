@@ -101,7 +101,7 @@ export async function criteriaFilesBlock(
     `- ${label} (${content.length} chars): ${namedFileExcerpt(content, words, allowances.get(label)!)}`));
   if (attempted < paths.length) lines.push(`${paths.length - attempted} further file reads omitted by the bound or cancellation; their current contents are unknown.`);
   return lines.length > 0
-    ? [`FILES THE CRITERIA NAME${refreshPaths.length ? ' OR WHOSE READS WERE SUPERSEDED' : ''}, read back by the host (mechanical). An excerpt cut short is SILENT about what it`,
+    ? [`FILES THE CRITERIA NAME${refreshPaths.length ? ' OR WHOSE READS WERE SUPERSEDED OR TRUNCATED' : ''}, read back by the host (mechanical). An excerpt cut short is SILENT about what it`,
       'does not show: never judge a criterion unmet on a part of the file you were not shown.',
       'These are current file contents, not executed checks. Historical command outcomes remain separate; a later edit is not proved by an earlier execution.', ...lines].join('\n')
     : '';

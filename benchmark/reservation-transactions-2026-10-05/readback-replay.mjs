@@ -29,7 +29,9 @@ const cases=[
 ];
 const requests=[],results=[];
 for(const [index,fixture] of cases.entries())for(const arm of index%2?['candidate','baseline']:['baseline','candidate']){
- const current=await criteriaFilesBlock({tools:{has:n=>n==='read_file',execute:async()=>({content:fixture.body})}},[],['test.js'],task.description);
+ let current=await criteriaFilesBlock({tools:{has:n=>n==='read_file',execute:async()=>({content:fixture.body})}},[],['test.js'],task.description);
+ // Preserve the historical reader label when replaying this frozen experiment.
+ current=current.replace('SUPERSEDED OR TRUNCATED','SUPERSEDED');
  const base="Host current entire price.mjs: export function price(n) { return n * 0.9 + 5; }\nOld test.js read: STALE, superseded contents omitted. Current test.js exists, only its setup head was shown.\n"+
   (fixture.noExecution?'No test command was executed.':fixture.editedAfter?'Host ran node test.js BEFORE its last edit; no execution of the new assertions.':'Host ran node test.js AFTER its last edit, exit 0, no subsequent writes.');
  const complete=async rendered=>{

@@ -390,3 +390,39 @@ Its expected head boundary was updated to the shared-budget value while keeping
 the late curl-line assertion. The repeated full release gate passed: 410 files,
 5,439 tests, 9 skipped, including container isolation. The 14-response diagnostic
 also reproduces offline. No acceptance threshold or requested criterion changed.
+
+## Ninth attempt: unchanged reads also lose their middle
+
+97504226 passed CI 37290445930 and deployed through 37290975164. Run
+4c1a1e8c-30bc-4e89-8dc7-266bceca812f started from the eighth partial. Its first
+execution reused the current test body without modifying it. The transport's
+1,600-character head/tail read therefore remained current, so the superseded-
+read selector did not request its missing middle. Receipt assertions were again
+invisible. This run was cancelled after confirming the root/criterion requests,
+before spending another broad repair; the full 70-event trace is preserved.
+It is not a delivered run and does not become the next seed.
+
+The transport now records a structured responseTruncated fact for a file read
+whose observed response it actually cuts. File text cannot forge that field;
+old records without it remain unknown. The single contract helper combines
+these reads with superseded reads. Root and phase readers use the same helper,
+with phase witness/attempt boundaries, existing restoration filtering and the
+same four-read/24,000-character bounds. No file must be edited just to make its
+assertions visible. No extra LLM call, execution, gate or proof credit is added.
+
+Production-path regressions cover an unchanged read with its assertion in the
+omitted middle, followed by execution, at BOTH phase and root acceptance. All
+root criterion calls receive the body, while the attestation log remains byte-
+identical. A literal [truncated] and a responseTruncated field inside short file
+content trigger nothing; the exact 1,600/1,601-character boundary is exercised.
+Ninety-eight focused tests passed. The two-call current-read replay uses the
+actual ninth receipt-review request and derives read-back candidates through
+parseExecutionObservation/fileReadsNeedingReadback from its raw observed tools.
+The baseline refuses invisible receipt assertions; the candidate identifies the
+existing executed SIGKILL/restart assertions. The earlier semantic limitations
+still apply. Earlier experiments retain their historical header string and
+reproduce offline rather than silently changing their frozen request hashes.
+
+The complete release gate for the unchanged-read fix passed after npm ci:
+410 passing files, 5,432 passing tests, 19 skipped, plus static/audit/build and
+compiled smokes. The two new diagnostic responses reproduce offline.

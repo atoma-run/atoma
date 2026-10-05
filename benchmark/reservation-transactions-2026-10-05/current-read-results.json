@@ -1,0 +1,50 @@
+[
+  {
+    "id": "unchanged-receipts",
+    "arm": "baseline",
+    "expected": null,
+    "matchesExpected": null,
+    "verdict": {
+      "approved": false,
+      "reasoning": "Both criteria have unsupported required execution evidence.",
+      "modifications": {
+        "additionalContext": "Provide executed real-process evidence for c5 idempotency distinctions and c6 SIGKILL/restart persistence, including exact response bytes, statuses, and state assertions."
+      },
+      "scope": "ephemeral",
+      "criteria": [
+        {
+          "id": "c5",
+          "met": false,
+          "reason": "Unverified: supplied probes show no idempotency assertions, and the visible test excerpt does not show object-order equivalence, array-order conflict, refused-receipt replay, or unchanged receipt checks. Provide executed HTTP inputs and exact status/byte/state assertions."
+        },
+        {
+          "id": "c6",
+          "met": false,
+          "reason": "Unverified: no supplied execution record shows SIGKILL, restart, and replay of successful and refused receipts. Source durability claims and npm test success do not establish the required real-process persistence. Provide the restart sequence and exact response/state assertions."
+        }
+      ]
+    }
+  },
+  {
+    "id": "unchanged-receipts",
+    "arm": "candidate",
+    "expected": null,
+    "matchesExpected": null,
+    "verdict": {
+      "approved": true,
+      "reasoning": "Both reviewed criteria are supported by the executed subprocess suite.",
+      "criteria": [
+        {
+          "id": "c5",
+          "met": true,
+          "reason": "test-api.js executes object-order retry (`same.body`), array-order conflict (`idempotency_conflict`), refused-key replay after stock release with identical bytes, and changed-command conflict followed by original receipt replay. npm test exited 0."
+        },
+        {
+          "id": "c6",
+          "met": true,
+          "reason": "test-api.js uses spawned processes, SIGKILLs and restarts the server, asserts identical full state bytes, successful receipt replay, and refused receipt replay with unchanged state. npm test exited 0."
+        }
+      ]
+    }
+  }
+]

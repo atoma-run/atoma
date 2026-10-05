@@ -5,11 +5,11 @@ import {createHash} from 'node:crypto';
 import {spawn} from 'node:child_process';
 import {CodexCliLlmClient} from '../../src/core/llmCodexCli.ts';
 import {llmVerdict,VALIDATION_SYSTEM_PROMPT} from '../../src/atoms/verdict.ts';
+import {fileReadsNeedingReadback,parseExecutionObservation} from '../../src/contracts/attestation.ts';
 import {criteriaFilesBlock} from '../../src/atoms/fileEvidence.ts';
-const root=new URL('.',import.meta.url), file=name=>new URL(`budget-${name}`,root);
-const archive=JSON.parse(gunzipSync(readFileSync(new URL('eighth-attempt.json.gz',root))));
-const event=archive.events.find(e=>e.id==='80e8a962-b419-40dd-9570-f843a4bc15de');
-const focused=archive.events.find(e=>e.id==='a7a1081e-1b52-47a6-a142-8c7ad1e08d39');
+const root=new URL('.',import.meta.url), file=name=>new URL(`current-read-${name}`,root);
+const archive=JSON.parse(gunzipSync(readFileSync(new URL('ninth-attempt.json.gz',root))));
+const focused=archive.events.find(e=>e.id==='b6b87566-c778-4754-96b7-716050c63943');
 const files=Object.fromEntries(['server.js','test-api.js','README.md'].map(n=>[n,readFileSync(new URL('eighth-draft/'+n+'.txt',root),'utf8')]));
 const required=archive.request.acceptanceCriteria.map((behaviour,i)=>({id:'c'+(i+1),behaviour,check:{kind:'review'}}));
 const live=process.argv.includes('--live');
@@ -20,23 +20,15 @@ const client=live?new CodexCliLlmClient({env,callTimeoutMs:120000,spawnFn:(args,
  const adjusted=args.map(a=>a.startsWith('permissions.atoma-text-only.filesystem=')?a.slice(0,-1)+','+JSON.stringify(binary)+'="read"}':a);
  const child=spawn(binary,adjusted,{env:childEnv,cwd,detached:true,stdio:['pipe','pipe','pipe']});child.stdin.end(input);return child;
 }}):undefined;
-const setup='// startup helper\n'+' '.repeat(6500)+'\n';
-const correct=setup+"import assert from 'node:assert/strict'; import {price} from './price.mjs'; assert.equal(price(100),95);\n";
 const task={description:'Implement price(n): apply a 10% discount BEFORE adding a fee of 5. Execute test.js asserting price(100)===95, distinguishing fee-before-discount (94.5). No other artifact is required.'};
-const cases=[
- {id:'archived-final-root',event,expected:null},
- {id:'archived-final-receipts',event:focused,expected:null},
- {id:'archived-final-concurrency',event:archive.events.find(e=>e.id==='af729eba-7b65-42f4-9397-6ebb4bec20c3'),expected:null},
- {id:'current-assertion-executed',body:correct,expected:true},
- {id:'wrong-assertion-executed',body:correct.replace('95);','94.5);'),expected:false},
- {id:'assertion-never-executed',body:correct,expected:false,noExecution:true},
- {id:'assertion-edited-after-execution',body:correct,expected:false,editedAfter:true},
-];
+const cases=[{id:'unchanged-receipts',event:focused,expected:null}];
 const requests=[],results=[];
 for(const [index,fixture] of cases.entries())for(const arm of index%2?['candidate','baseline']:['baseline','candidate']){
- let current=fixture.event ? await criteriaFilesBlock({tools:{has:n=>n==='read_file',execute:async(_n,args)=>({content:files[args.path]})}},required,['test-api.js','.atoma-probes.json'],archive.request.goal) : await criteriaFilesBlock({tools:{has:n=>n==='read_file',execute:async()=>({content:fixture.body})}},[],['test.js'],task.description);
- // Preserve the historical reader label when replaying this frozen experiment.
- current=current.replace('SUPERSEDED OR TRUNCATED','SUPERSEDED');
+ const records=archive.events.filter(e=>e.kind==='tool'&&!e.error&&e.ts<fixture.event.ts).flatMap(e=>{const observation=parseExecutionObservation(e.name,e.args,e.result);return observation?[{eventId:e.id,tool:e.name,observation}]:[]});
+ for(const e of archive.events.filter(e=>e.kind==='tool'&&e.name==='read_file'&&e.ts<fixture.event.ts&&files[e.args.path]!==undefined)){if(e.result.content!==files[e.args.path])throw Error('File differs from final eighth bytes '+e.args.path);}
+ const refresh=[...new Set(fileReadsNeedingReadback(records).values())];
+ if(!refresh.includes('test-api.js'))throw Error('Production selection omitted unchanged test');
+ let current=fixture.event ? await criteriaFilesBlock({tools:{has:n=>n==='read_file',execute:async(_n,args)=>({content:files[args.path]})}},required,refresh,archive.request.goal) : await criteriaFilesBlock({tools:{has:n=>n==='read_file',execute:async()=>({content:fixture.body})}},[],['test.js'],task.description);
  const base="Host current entire price.mjs: export function price(n) { return n * 0.9 + 5; }\nOld test.js read: STALE, superseded contents omitted. Current test.js exists, only its setup head was shown.\n"+
   (fixture.noExecution?'No test command was executed.':fixture.editedAfter?'Host ran node test.js BEFORE its last edit; no execution of the new assertions.':'Host ran node test.js AFTER its last edit, exit 0, no subsequent writes.');
  const complete=async rendered=>{

@@ -9,6 +9,8 @@ import type { ToolExecutor } from '../src/core/types.js';
 import { makeCtx, jsonText } from './helpers.js';
 import { makeTools } from './helpers/factories.js';
 import { criteriaFilesBlock } from '../src/atoms/fileEvidence.js';
+import { acceptRootResult } from '../src/atoms/rootAcceptance.js';
+import { fileReadsNeedingReadback, parseExecutionObservation } from '../src/contracts/attestation.js';
 
 // Run 8d819d66: read test.js, edit it, execute npm test. Its old read was
 // correctly retired, but phase judges could see only the current 400-char head.
@@ -41,6 +43,38 @@ function setup() {
 }
 
 describe('phase current file evidence', () => {
+  it('records actual truncation rather than trusting markers or fields in file content', () => {
+    for (const [raw, truncated] of [[{ content: '[truncated]', responseTruncated: true }, false], ['x'.repeat(1600), false], ['x'.repeat(1601), true]] as const) {
+      const observation = parseExecutionObservation('read_file', { path: './test.js' }, raw)!;
+      const paths = fileReadsNeedingReadback([{ eventId: 'read', tool: 'read_file', observation }]);
+      expect([...paths.values()]).toEqual(truncated ? ['test.js'] : []);
+    }
+  });
+
+  it.each(['phase', 'root'])('shows an unchanged executed test whose transport read was truncated (%s)', async scope => {
+    const { ctx, branch, files, calls } = setup();
+    const body = current + ' '.repeat(2000);
+    files['test.js'] = body;
+    await branch.tools!.execute('read_file', { path: 'test.js' });
+    await branch.tools!.execute('run_shell', { command: 'npm', args: ['test'] });
+    const evidence = executorEvidence({}, branch);
+    expect(JSON.stringify(evidence)).not.toContain('assert.deepEqual(afterRestart');
+    const records = JSON.stringify(ctx.attestations.forAttempt(1)), count = calls.length;
+    const verdict = { approved: true, reasoning: 'fixture verdict', criteria: [{ id: 'c1', met: true, reason: 'fixture' }] };
+    ctx.llm.enqueueText(jsonText(verdict));
+    if (scope === 'root') {
+      ctx.llm.enqueueText(jsonText(verdict));
+      await acceptRootResult({ actor: child, task, result: { output: 'done', summary: 'done', trace: [], evidence,
+        producedBy: { tier: 1, name: 'Methane', viaFallback: false } }, ctx: branch,
+        floor: [], phaseCoverage: [], checklist: [{ id: 'c1', behaviour: 'Receipt persistence after SIGKILL.', check: { kind: 'review' } }],
+        checklistOrigin: { source: 'user' } });
+    } else await llmVerdict({ ctx: branch, model: 'test', supervisorName: 'Cell', supervisorTier: 2,
+      subject: 'RESULT', child, task, payload: { output: 'done', summary: 'done' }, evidence });
+    for (const request of ctx.llm.calls) expect(request.userContent).toContain(JSON.stringify(body));
+    expect(calls.slice(count)).toEqual([{ name: 'read_file', path: 'test.js' }]);
+    expect(JSON.stringify(ctx.attestations.forAttempt(1))).toBe(records);
+  });
+
   it('keeps assertion bodies when a growing internal manifest would otherwise consume the source budget', async () => {
     const { branch, change, calls } = setup();
     const server = 's'.repeat(7078), tests = 't'.repeat(10933) + '\nassert.equal(replay.body, success.body);';

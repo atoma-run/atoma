@@ -161,6 +161,8 @@ export const executionObservationSchema = z.object({
   kind: z.literal('execution'),
   request: z.string(),
   response: z.string(),
+  /** Host-owned truncation fact; absent on historical observations. */
+  responseTruncated: z.boolean().optional(),
   http: httpObservationSchema.optional(),
   filePath: z.string().optional(),
 });
@@ -203,9 +205,11 @@ export function parseExecutionObservation(tool: string, args: Record<string, unk
   }
   if (!['fetch_url', 'run_shell', 'record_probe', 'read_file', 'start_node_server'].includes(tool)) return null;
   const http = tool === 'fetch_url' ? servedHttpObservation(args, raw) : undefined;
+  const response = typeof raw === 'string' ? raw : JSON.stringify(raw) ?? 'null';
   return executionObservationSchema.parse({ kind: 'execution',
     ...(tool === 'read_file' && typeof args['path'] === 'string' ? { filePath: args['path'] } : {}),
-    request: evidenceExcerpt(args, 800), response: evidenceExcerpt(raw, 1600), ...(http ? { http } : {}) });
+    request: evidenceExcerpt(args, 800), response: evidenceExcerpt(response, 1600),
+    ...(tool === 'read_file' && response.length > 1600 ? { responseTruncated: true } : {}), ...(http ? { http } : {}) });
 }
 
 /**
@@ -372,6 +376,17 @@ export function supersededFileReads(records: readonly AttestationRecord[]): Read
     }
   }
   return superseded;
+}
+
+/** Read-back candidates, not proof: current truncated reads need their bodies too. */
+export function fileReadsNeedingReadback(records: readonly AttestationRecord[]): ReadonlyMap<string, string> {
+  const paths = new Map([...supersededFileReads(records)].map(([id, read]) => [id, read.path]));
+  for (const record of records) {
+    if (record.tool !== 'read_file' || record.observation.kind !== 'execution' || record.observation.responseTruncated !== true) continue;
+    const path = requestedPath(record);
+    if (path !== undefined) paths.set(record.eventId, path);
+  }
+  return paths;
 }
 
 /** The `path` an execution observation's request named, when it can be read back. */

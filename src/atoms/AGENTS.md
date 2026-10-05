@@ -346,8 +346,10 @@ load-bearing.
   a refresh slot unless a criterion explicitly names it. Run b873c5a2 lost
   assertion bodies when that growing internal record pushed the batch over budget.
   Selecting keyword lines alone had preserved test names but cut their bodies.
-  Phase ground truth refreshes superseded reads referenced by the result in
+  Phase ground truth refreshes superseded or host-marked truncated reads referenced by the result in
   the current attempt, through the same bounded reader as root acceptance.
+  Unchanged files need their full assertions too (run 4c1a1e8c); read-back
+  selection never depends on the molecule making a gratuitous edit.
   Jev and the model receive the same current bytes, never new execution credit;
   unavailable content stays unknown. Reservation run 8d819d66 repeated coverage
   refusals while only a 400-character head survived beside retired reads.
