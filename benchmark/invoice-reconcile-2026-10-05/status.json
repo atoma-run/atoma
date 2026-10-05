@@ -1,0 +1,106 @@
+{
+  "projectRunId": "6a8b44c7-0d75-481a-ba08-d7d1db8d8f8c",
+  "projectId": "13830d88-9706-4370-93e6-e6db965986bb",
+  "orgId": "d28f40d2-14d7-45c7-bce3-928dcb0041a6",
+  "requestedByPrincipalId": "36bbb732-d581-41e3-b8b5-c39e93fd32b9",
+  "requestKey": "invoice-reconcile-20261005-1",
+  "goal": "Build a dependency-free Node.js 24 CLI invoice-reconcile.js: node invoice-reconcile.js --input ledger.json --out reconciliation.json, plus --help, README and npm test subprocess tests. Offline only. This is a synthetic accounting specification, not jurisdictional tax advice.\n\nInput JSON has exactly invoices, credits, payments arrays (empty allowed). Invoice: {id,currency,lines:[{quantity,unitPrice}],taxBps}; credit: {id,invoiceId,currency,amount}; payment: {id,currency,amount,allocations:[{invoiceId,amount}]}. Reject missing/unknown fields and wrong types. IDs/references are nonempty strings used literally, including prototype-like keys; namespaces for invoices/credits/payments are independent. Supported currency precision: EUR/USD=2, JPY=0, KWD=3; never convert currencies. quantity is integer 1..1000000, taxBps integer 0..10000, lines nonempty. unitPrice is a nonnegative decimal string with canonical integer part (0 or nonzero digit followed by digits), optionally 1..4 fractional digits. Other amounts use that grammar with at most currency precision digits (no decimal point for JPY). No signs, exponents, whitespace or leading zeros. Zero amounts allowed. No arbitrary Number-safe-integer ceiling on money: preserve all input decimal digits.\n\nArithmetic: round each quantity*unitPrice HALF UP to currency minor units, then sum rounded line totals for subtotal. Tax is HALF UP(subtotal*taxBps/10000) in minor units; total=subtotal+tax. Use exact decimal/integer arithmetic. Apply credits in array order before payments; each credit reduces invoice balance, may not exceed it, must reference an existing invoice in the same currency. Payments in array order allocate only to existing same-currency invoices. Each allocation reduces balance; total allocations may not exceed payment amount nor any invoice's remaining balance; repeated invoice allocations within one payment accumulate. Unallocated payment remainder is valid and retained.\n\nDeduplicate within EACH input array by id before applying that record's state transition: equal JSON values ignoring object key order (array order significant) are ignored and counted; conflicting reuse of an id is fatal. Identical credits/payments after full settlement must not be applied twice.\n\nOutput JSON exactly {invoices,payments,duplicates}. invoices sorted by id using code-unit order: {id,currency,subtotal,tax,total,credited,paid,balance,status}; status is settled when balance=0, otherwise partial if credited+paid>0, else open. payments similarly sorted: {id,currency,amount,allocated,unapplied}. All monetary output fields are fixed-precision strings including trailing zeros. duplicates is {invoices:N,credits:N,payments:N}. Identical input yields byte-identical output; no timestamps. Empty input gives empty lists and zero duplicate counts.\n\nExample: EUR invoice E has one line quantity=3,unitPrice=\"1.005\",taxBps=2000: subtotal3.02,tax0.60,total3.62. Credit0.62 then payments amount2.00 allocated1.10 and amount1.90 allocated1.90 yield credited0.62,paid3.00,balance0.00,settled; first payment unapplied0.90. JPY quantity3,unitPrice10.5,tax1000 yields32+3=35; KWD quantity3,unitPrice1.2345,tax500 yields3.704+0.185=3.889.\n\nOn invalid JSON/schema/business rule or output I/O failure exit nonzero with diagnostic stderr and preserve input and any pre-existing output bytes. Never overwrite input, including same file through symlink/hardlink. A distinct output beside input is valid. Publish only after complete validation. Tests must assert actual amounts, duplicate semantics, refusal preservation and successful same-directory output. Document observed test results honestly.",
+  "title": "Build a CLI that reconciles invoices, credits and payments",
+  "status": "partial",
+  "bytesExpiredAt": null,
+  "depth": "deep",
+  "seed": {
+    "kind": "none"
+  },
+  "traceId": "6a8b44c7-0d75-481a-ba08-d7d1db8d8f8c",
+  "stats": {
+    "outcome": "partial",
+    "costUsd": 0.2564,
+    "subscriptionCostUsd": 0.2564,
+    "llmCalls": 23,
+    "opusCalls": 0,
+    "sonnetCalls": 0,
+    "haikuCalls": 0,
+    "otherCalls": 23,
+    "deterministicPhases": 0,
+    "escalations": 0,
+    "learnedSkills": 1,
+    "learnedEventSkills": 0,
+    "promotions": 0,
+    "refusals": 1,
+    "compileErrors": 0,
+    "demotions": 0,
+    "dispatchFallbacks": 0,
+    "uncoveredObligations": 0,
+    "deepenings": 0,
+    "rootRemediations": 1,
+    "landingReasons": [
+      "refused at delivery: c3: test/invoice-reconcile.test.js asserts E settled with credited 0.62, paid 3.00, balance 0.00, p1 unapplied 0.90, and accumulated p1/p2 allocations. No assertion covers a partial balance/status; unverified.\nc7: Source emits the required fields, fixed precision, and sorted IDs, but tests only parse one output; no assertion compares outputs from repeated identical executions. Repeat byte identity is unverified."
+    ]
+  },
+  "artifactManifest": {
+    "version": 1,
+    "source": "workspace",
+    "delivery": "files",
+    "files": [
+      {
+        "path": "invoice-reconcile.js",
+        "size": 5367,
+        "sha256": "06c5ecb89abb1542c13802541df3297e1765392d6c9adb964dc0b5c44f7a3e23",
+        "mode": "100644"
+      },
+      {
+        "path": "package.json",
+        "size": 178,
+        "sha256": "fb353ab73c16edfacdadc1e98f93267b73f42ef03afa5fb1b9b4744ffcae6398",
+        "mode": "100644"
+      },
+      {
+        "path": "README.md",
+        "size": 2879,
+        "sha256": "23be3a51a12ca5c45c2a2824ab4abc15956baef3ef46aa20d1d912c5c2894f59",
+        "mode": "100644"
+      },
+      {
+        "path": "test/invoice-reconcile.test.js",
+        "size": 5211,
+        "sha256": "54610014715512257079bbee7d4f24650288fe7fd8bdf0056f41f561cb6c55e3",
+        "mode": "100644"
+      }
+    ],
+    "totalBytes": 13635
+  },
+  "artifactManifestHash": "a5f265aa052becb182156d677c540bc0e14c45c3425930470cad9d9363e9fd3d",
+  "error": "run landed and was not delivered; refused at delivery: c3: test/invoice-reconcile.test.js asserts E settled with credited 0.62, paid 3.00, balance 0.00, p1 unapplied 0.90, and accumulated p1/p2 allocations. No assertion covers a partial balance/status; unverified.\nc7: Source emits the required fields, fixed precision, and sorted IDs, but tests only parse one output; no assertion compares outputs from repeated identical executions. Repeat byte identity is unverified.",
+  "createdAt": "2026-10-05T03:13:02.951Z",
+  "startedAt": "2026-10-05T03:13:02.994Z",
+  "endedAt": "2026-10-05T03:22:20.757Z",
+  "updatedAt": "2026-10-05T03:22:20.759Z",
+  "costUsd": 0.2564,
+  "tokens": 314839,
+  "llmCalls": 23,
+  "jevCalls": 9,
+  "jevCallsLowerBound": false,
+  "models": {
+    "l1": {
+      "selection": "sub:openai:gpt-5.6-luna",
+      "provider": "codex-cli",
+      "payer": "host-subscription",
+      "source": "account"
+    },
+    "l2": {
+      "selection": "sub:openai:gpt-5.6-terra",
+      "provider": "codex-cli",
+      "payer": "host-subscription",
+      "source": "account"
+    },
+    "l3": {
+      "selection": "sub:openai:gpt-5.6-sol",
+      "provider": "codex-cli",
+      "payer": "host-subscription",
+      "source": "account"
+    }
+  },
+  "durationS": 557.763,
+  "publication": null
+}

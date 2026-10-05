@@ -1,0 +1,5 @@
+
+> invoice-reconcile@1.0.0 test
+> node test/invoice-reconcile.test.js
+
+invoice-reconcile tests passed

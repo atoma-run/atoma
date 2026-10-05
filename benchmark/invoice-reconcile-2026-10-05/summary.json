@@ -1,0 +1,42 @@
+{
+  "runId": "6a8b44c7-0d75-481a-ba08-d7d1db8d8f8c",
+  "projectId": "13830d88-9706-4370-93e6-e6db965986bb",
+  "provenance": {
+    "revision": "9cddbaf7e8d0333c7f1f37fc09daaea34a83a560",
+    "source": "release-receipt",
+    "dirty": null,
+    "node": "v24.20.0",
+    "platform": "linux",
+    "arch": "x64"
+  },
+  "status": "partial",
+  "published": false,
+  "durationMs": 547977,
+  "llmCalls": 23,
+  "subscriptionEquivalentUsd": 0.25636668,
+  "preregistered": {
+    "passed": 64,
+    "total": 64,
+    "positive": 16,
+    "negative": 48
+  },
+  "exploratory": {
+    "passed": 4,
+    "total": 6,
+    "failures": [
+      "invoice-currency-array",
+      "payment-currency-array"
+    ]
+  },
+  "focusedReview": {
+    "calls": 10,
+    "durationMs": 113791,
+    "subscriptionEquivalentUsd": 0.03243512
+  },
+  "acceptanceReasons": [
+    "c4: The test asserts a missing-reference failure preserves prior output ('KEEP'). Source invoice-reconcile.js contains checks for reference currency and excess credit/allocation, but no executed assertions show those three refusal cases preserve prior output; they remain unverified.",
+    "c3: test/invoice-reconcile.test.js asserts E settled with credited 0.62, paid 3.00, balance 0.00, p1 unapplied 0.90, and accumulated p1/p2 allocations. No assertion covers a partial balance/status; unverified.\nc7: Source emits the required fields, fixed precision, and sorted IDs, but tests only parse one output; no assertion compares outputs from repeated identical executions. Repeat byte identity is unverified."
+  ],
+  "frozenProtocolHashesVerified": true,
+  "artifactManifestHashesVerified": 4
+}

@@ -1,0 +1,1 @@
+{"name":"invoice-reconcile","version":"1.0.0","private":true,"description":"Dependency-free invoice reconciliation CLI","scripts":{"test":"node test/invoice-reconcile.test.js"}}

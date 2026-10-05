@@ -1,0 +1,13 @@
+{
+  "registeredAt": "2026-10-05T03:12:40.770389+00:00",
+  "productionRevision": "9cddbaf7e8d0333c7f1f37fc09daaea34a83a560",
+  "design": "One prospective production run. Cases and executable scorer frozen before launch; only request.json is sent to Atoma. Positive and negative cases are scored separately. No performance or general accuracy claim from one run. Money/tax rules are synthetic and explicitly specified. No paid scoring model.",
+  "files": {
+    "request.json": "1c2d9e35a40c871be42619acc351d120c94721f85ff447dec95875d903a0421f",
+    "cases.json": "05fdab50d1439ad6144b7244b08ac233c989f2299477b21e2c6d859206e8d758",
+    "verify-artifact.mjs": "a9c98f0be65a75e5449528b760c53abb81c7932bcfde5bc05d423fbb0518d86d"
+  },
+  "caseCount": 64,
+  "positiveControls": 16,
+  "negativeControls": 48
+}

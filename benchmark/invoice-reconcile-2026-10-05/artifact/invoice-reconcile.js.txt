@@ -1,0 +1,34 @@
+#!/usr/bin/env node
+'use strict';
+const fs=require('fs'), path=require('path'), os=require('os');
+const C={EUR:2,USD:2,JPY:0,KWD:3};
+function fail(s){throw new Error(s)}
+function keys(o, ks){if(!o||typeof o!=='object'||Array.isArray(o))fail('object required'); const a=Object.keys(o).sort(), b=ks.slice().sort(); if(a.length!==b.length||a.some((x,i)=>x!==b[i]))fail('invalid fields')}
+function id(v){if(typeof v!=='string'||v.length===0)fail('invalid id')}
+function canon(s,max){if(typeof s!=='string'||!/^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,4})?$/.test(s))fail('invalid decimal'); const f=s.includes('.')?s.split('.')[1].length:0;if(f>max)fail('invalid precision');return s}
+function cmp(a,b){return a<b?-1:a>b?1:0}
+function parseDec(s,scale){let [a,b='']=s.split('.'); return BigInt(a+b.padEnd(scale,'0'))}
+function fmt(n,scale){let neg=n<0n;n=neg?-n:n;let s=n.toString().padStart(scale+1,'0');return (neg?'-':'')+(scale?s.slice(0,-scale)+'.'+s.slice(-scale):s)}
+function roundDiv(n,d){const q=n/d,r=n%d;return q+(r*2n>=d?1n:0n)}
+function stable(o){if(Array.isArray(o))return '['+o.map(stable).join(',')+']';if(o&&typeof o==='object')return '{'+Object.keys(o).sort().map(k=>JSON.stringify(k)+':'+stable(o[k])).join(',')+'}';return JSON.stringify(o)}
+function dedup(arr,kind){const m=new Map(), out=[], dup=[];for(const x of arr){let k=x.id;if(m.has(k)){if(stable(m.get(k))!==stable(x))fail('conflicting duplicate '+kind+' id');dup.push(x)}else{m.set(k,x);out.push(x)}}return {out,n:dup.length}}
+function validate(input){
+ keys(input,['invoices','credits','payments']); for(const k of ['invoices','credits','payments'])if(!Array.isArray(input[k]))fail('array required');
+ const di=dedup(input.invoices,'invoice'), dc=dedup(input.credits,'credit'), dp=dedup(input.payments,'payment');
+ const inv=new Map(), I=[];
+ for(const x of di.out){keys(x,['id','currency','lines','taxBps']);id(x.id);if(!Object.hasOwn(C,x.currency))fail('currency');if(!Array.isArray(x.lines)||!x.lines.length)fail('lines');
+  let sub=0n;for(const l of x.lines){keys(l,['quantity','unitPrice']);if(!Number.isInteger(l.quantity)||l.quantity<1||l.quantity>1000000)fail('quantity');const u=canon(l.unitPrice,4);const raw=parseDec(u, 4)*BigInt(l.quantity);sub+=roundDiv(raw,10n**BigInt(4-C[x.currency]))}
+  if(!Number.isInteger(x.taxBps)||x.taxBps<0||x.taxBps>10000)fail('tax');const tax=roundDiv(sub*BigInt(x.taxBps),10000n), total=sub+tax;
+  const rec={id:x.id,currency:x.currency,sub,tax,total,credited:0n,paid:0n,balance:total};inv.set(x.id,rec);I.push(rec)
+ }
+ function amount(s,c){return parseDec(canon(s,C[c]),C[c])}
+ const credits=[];for(const x of dc.out){keys(x,['id','invoiceId','currency','amount']);id(x.id);id(x.invoiceId);if(!Object.hasOwn(C,x.currency))fail('currency');let v=amount(x.amount,x.currency), q=inv.get(x.invoiceId);if(!q||q.currency!==x.currency)fail('credit reference');if(v>q.balance)fail('excess credit');q.credited+=v;q.balance-=v;credits.push(x)}
+ const payments=[];for(const x of dp.out){keys(x,['id','currency','amount','allocations']);id(x.id);if(!Object.hasOwn(C,x.currency))fail('currency');let total=amount(x.amount,x.currency), used=0n; if(!Array.isArray(x.allocations))fail('allocations');
+  for(const a of x.allocations){keys(a,['invoiceId','amount']);id(a.invoiceId);let q=inv.get(a.invoiceId);if(!q||q.currency!==x.currency)fail('payment reference');let v=amount(a.amount,x.currency);if(used+v>total||v>q.balance)fail('excess allocation');used+=v;q.paid+=v;q.balance-=v}
+  payments.push({raw:x,amount:total,allocated:used,unapplied:total-used})
+ }
+ return {I,payments,duplicates:{invoices:di.n,credits:dc.n,payments:dp.n}}
+}
+function main(args){if(args.length===1&&args[0]==='--help'){console.log('Usage: node invoice-reconcile.js --input ledger.json --out reconciliation.json');return}
+ if(args.length!==4||args[0]!=='--input'||args[2]!=='--out')fail('usage');const inp=path.resolve(args[1]), out=path.resolve(args[3]);let st,ot,tmp;try{st=fs.statSync(inp);if(!st.isFile())fail('input not regular');if(fs.existsSync(out)){ot=fs.statSync(out);if(!ot.isFile())fail('output not regular');if(st.dev===ot.dev&&st.ino===ot.ino)fail('input/output identity')}const raw=fs.readFileSync(inp,'utf8');let data;try{data=JSON.parse(raw)}catch(e){fail('malformed JSON')}const r=validate(data);const invoices=r.I.slice().sort((a,b)=>cmp(a.id,b.id)).map(x=>({id:x.id,currency:x.currency,subtotal:fmt(x.sub,C[x.currency]),tax:fmt(x.tax,C[x.currency]),total:fmt(x.total,C[x.currency]),credited:fmt(x.credited,C[x.currency]),paid:fmt(x.paid,C[x.currency]),balance:fmt(x.balance,C[x.currency]),status:x.balance===0n?'settled':(x.credited+x.paid>0n?'partial':'open')}));const payments=r.payments.slice().sort((a,b)=>cmp(a.raw.id,b.raw.id)).map(x=>({id:x.raw.id,currency:x.raw.currency,amount:fmt(x.amount,C[x.raw.currency]),allocated:fmt(x.allocated,C[x.raw.currency]),unapplied:fmt(x.unapplied,C[x.raw.currency])}));const text=JSON.stringify({invoices,payments,duplicates:r.duplicates})+'\n';tmp=out+'.tmp-'+process.pid+'-'+Math.random().toString(16).slice(2);fs.writeFileSync(tmp,text,{encoding:'utf8',mode:0o600});fs.renameSync(tmp,out)}catch(e){try{if(typeof tmp==='string')fs.unlinkSync(tmp)}catch{};console.error('invoice-reconcile: '+e.message);process.exitCode=1}}
+try{main(process.argv.slice(2))}catch(e){console.error('invoice-reconcile: '+e.message);process.exitCode=1}

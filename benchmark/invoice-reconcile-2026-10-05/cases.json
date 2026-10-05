@@ -1,0 +1,2207 @@
+[
+  {
+    "name": "empty-ledger",
+    "input": {
+      "invoices": [],
+      "credits": [],
+      "payments": []
+    },
+    "expected": {
+      "invoices": [],
+      "payments": [],
+      "duplicates": {
+        "invoices": 0,
+        "credits": 0,
+        "payments": 0
+      }
+    }
+  },
+  {
+    "name": "open-invoice-same-directory",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": []
+    },
+    "expected": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "subtotal": "10.00",
+          "tax": "0.00",
+          "total": "10.00",
+          "credited": "0.00",
+          "paid": "0.00",
+          "balance": "10.00",
+          "status": "open"
+        }
+      ],
+      "payments": [],
+      "duplicates": {
+        "invoices": 0,
+        "credits": 0,
+        "payments": 0
+      }
+    }
+  },
+  {
+    "name": "euro-example-partial-and-settled",
+    "input": {
+      "invoices": [
+        {
+          "id": "E",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 3,
+              "unitPrice": "1.005"
+            }
+          ],
+          "taxBps": 2000
+        }
+      ],
+      "credits": [
+        {
+          "id": "C",
+          "invoiceId": "E",
+          "currency": "EUR",
+          "amount": "0.62"
+        }
+      ],
+      "payments": [
+        {
+          "id": "P1",
+          "currency": "EUR",
+          "amount": "2.00",
+          "allocations": [
+            {
+              "invoiceId": "E",
+              "amount": "1.10"
+            }
+          ]
+        },
+        {
+          "id": "P2",
+          "currency": "EUR",
+          "amount": "1.90",
+          "allocations": [
+            {
+              "invoiceId": "E",
+              "amount": "1.90"
+            }
+          ]
+        }
+      ]
+    },
+    "expected": {
+      "invoices": [
+        {
+          "id": "E",
+          "currency": "EUR",
+          "subtotal": "3.02",
+          "tax": "0.60",
+          "total": "3.62",
+          "credited": "0.62",
+          "paid": "3.00",
+          "balance": "0.00",
+          "status": "settled"
+        }
+      ],
+      "payments": [
+        {
+          "id": "P1",
+          "currency": "EUR",
+          "amount": "2.00",
+          "allocated": "1.10",
+          "unapplied": "0.90"
+        },
+        {
+          "id": "P2",
+          "currency": "EUR",
+          "amount": "1.90",
+          "allocated": "1.90",
+          "unapplied": "0.00"
+        }
+      ],
+      "duplicates": {
+        "invoices": 0,
+        "credits": 0,
+        "payments": 0
+      }
+    }
+  },
+  {
+    "name": "four-currency-rounding",
+    "input": {
+      "invoices": [
+        {
+          "id": "K",
+          "currency": "KWD",
+          "lines": [
+            {
+              "quantity": 3,
+              "unitPrice": "1.2345"
+            }
+          ],
+          "taxBps": 500
+        },
+        {
+          "id": "J",
+          "currency": "JPY",
+          "lines": [
+            {
+              "quantity": 3,
+              "unitPrice": "10.5"
+            }
+          ],
+          "taxBps": 1000
+        },
+        {
+          "id": "U",
+          "currency": "USD",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.01"
+            }
+          ],
+          "taxBps": 825
+        },
+        {
+          "id": "E",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 3,
+              "unitPrice": "1.005"
+            }
+          ],
+          "taxBps": 2000
+        }
+      ],
+      "credits": [],
+      "payments": []
+    },
+    "expected": {
+      "invoices": [
+        {
+          "id": "E",
+          "currency": "EUR",
+          "subtotal": "3.02",
+          "tax": "0.60",
+          "total": "3.62",
+          "credited": "0.00",
+          "paid": "0.00",
+          "balance": "3.62",
+          "status": "open"
+        },
+        {
+          "id": "J",
+          "currency": "JPY",
+          "subtotal": "32",
+          "tax": "3",
+          "total": "35",
+          "credited": "0",
+          "paid": "0",
+          "balance": "35",
+          "status": "open"
+        },
+        {
+          "id": "K",
+          "currency": "KWD",
+          "subtotal": "3.704",
+          "tax": "0.185",
+          "total": "3.889",
+          "credited": "0.000",
+          "paid": "0.000",
+          "balance": "3.889",
+          "status": "open"
+        },
+        {
+          "id": "U",
+          "currency": "USD",
+          "subtotal": "10.01",
+          "tax": "0.83",
+          "total": "10.84",
+          "credited": "0.00",
+          "paid": "0.00",
+          "balance": "10.84",
+          "status": "open"
+        }
+      ],
+      "payments": [],
+      "duplicates": {
+        "invoices": 0,
+        "credits": 0,
+        "payments": 0
+      }
+    }
+  },
+  {
+    "name": "round-each-line-before-summing",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "0.005"
+            },
+            {
+              "quantity": 1,
+              "unitPrice": "0.005"
+            },
+            {
+              "quantity": 1,
+              "unitPrice": "0.005"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": []
+    },
+    "expected": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "subtotal": "0.03",
+          "tax": "0.00",
+          "total": "0.03",
+          "credited": "0.00",
+          "paid": "0.00",
+          "balance": "0.03",
+          "status": "open"
+        }
+      ],
+      "payments": [],
+      "duplicates": {
+        "invoices": 0,
+        "credits": 0,
+        "payments": 0
+      }
+    }
+  },
+  {
+    "name": "half-up-tax-tie",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "0.05"
+            }
+          ],
+          "taxBps": 1000
+        }
+      ],
+      "credits": [],
+      "payments": []
+    },
+    "expected": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "subtotal": "0.05",
+          "tax": "0.01",
+          "total": "0.06",
+          "credited": "0.00",
+          "paid": "0.00",
+          "balance": "0.06",
+          "status": "open"
+        }
+      ],
+      "payments": [],
+      "duplicates": {
+        "invoices": 0,
+        "credits": 0,
+        "payments": 0
+      }
+    }
+  },
+  {
+    "name": "below-half-and-zero-settlement",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "0.0049"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": []
+    },
+    "expected": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "subtotal": "0.00",
+          "tax": "0.00",
+          "total": "0.00",
+          "credited": "0.00",
+          "paid": "0.00",
+          "balance": "0.00",
+          "status": "settled"
+        }
+      ],
+      "payments": [],
+      "duplicates": {
+        "invoices": 0,
+        "credits": 0,
+        "payments": 0
+      }
+    }
+  },
+  {
+    "name": "huge-money-exact",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "9007199254740993.01"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": [
+        {
+          "id": "P",
+          "currency": "EUR",
+          "amount": "9007199254740993.00",
+          "allocations": [
+            {
+              "invoiceId": "I",
+              "amount": "9007199254740993.00"
+            }
+          ]
+        }
+      ]
+    },
+    "expected": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "subtotal": "9007199254740993.01",
+          "tax": "0.00",
+          "total": "9007199254740993.01",
+          "credited": "0.00",
+          "paid": "9007199254740993.00",
+          "balance": "0.01",
+          "status": "partial"
+        }
+      ],
+      "payments": [
+        {
+          "id": "P",
+          "currency": "EUR",
+          "amount": "9007199254740993.00",
+          "allocated": "9007199254740993.00",
+          "unapplied": "0.00"
+        }
+      ],
+      "duplicates": {
+        "invoices": 0,
+        "credits": 0,
+        "payments": 0
+      }
+    }
+  },
+  {
+    "name": "repeated-allocations-and-unapplied",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": [
+        {
+          "id": "P",
+          "currency": "EUR",
+          "amount": "12.00",
+          "allocations": [
+            {
+              "invoiceId": "I",
+              "amount": "4.00"
+            },
+            {
+              "invoiceId": "I",
+              "amount": "6.00"
+            }
+          ]
+        }
+      ]
+    },
+    "expected": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "subtotal": "10.00",
+          "tax": "0.00",
+          "total": "10.00",
+          "credited": "0.00",
+          "paid": "10.00",
+          "balance": "0.00",
+          "status": "settled"
+        }
+      ],
+      "payments": [
+        {
+          "id": "P",
+          "currency": "EUR",
+          "amount": "12.00",
+          "allocated": "10.00",
+          "unapplied": "2.00"
+        }
+      ],
+      "duplicates": {
+        "invoices": 0,
+        "credits": 0,
+        "payments": 0
+      }
+    }
+  },
+  {
+    "name": "credit-only-partial",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [
+        {
+          "id": "C",
+          "invoiceId": "I",
+          "currency": "EUR",
+          "amount": "2.00"
+        }
+      ],
+      "payments": []
+    },
+    "expected": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "subtotal": "10.00",
+          "tax": "0.00",
+          "total": "10.00",
+          "credited": "2.00",
+          "paid": "0.00",
+          "balance": "8.00",
+          "status": "partial"
+        }
+      ],
+      "payments": [],
+      "duplicates": {
+        "invoices": 0,
+        "credits": 0,
+        "payments": 0
+      }
+    }
+  },
+  {
+    "name": "unallocated-payment-without-invoices",
+    "input": {
+      "invoices": [],
+      "credits": [],
+      "payments": [
+        {
+          "id": "P",
+          "currency": "JPY",
+          "amount": "5",
+          "allocations": []
+        }
+      ]
+    },
+    "expected": {
+      "invoices": [],
+      "payments": [
+        {
+          "id": "P",
+          "currency": "JPY",
+          "amount": "5",
+          "allocated": "0",
+          "unapplied": "5"
+        }
+      ],
+      "duplicates": {
+        "invoices": 0,
+        "credits": 0,
+        "payments": 0
+      }
+    }
+  },
+  {
+    "name": "zero-credit-payment-and-unit-price",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "0"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [
+        {
+          "id": "C",
+          "invoiceId": "I",
+          "currency": "EUR",
+          "amount": "0"
+        }
+      ],
+      "payments": [
+        {
+          "id": "P",
+          "currency": "EUR",
+          "amount": "0",
+          "allocations": [
+            {
+              "invoiceId": "I",
+              "amount": "0"
+            }
+          ]
+        }
+      ]
+    },
+    "expected": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "subtotal": "0.00",
+          "tax": "0.00",
+          "total": "0.00",
+          "credited": "0.00",
+          "paid": "0.00",
+          "balance": "0.00",
+          "status": "settled"
+        }
+      ],
+      "payments": [
+        {
+          "id": "P",
+          "currency": "EUR",
+          "amount": "0.00",
+          "allocated": "0.00",
+          "unapplied": "0.00"
+        }
+      ],
+      "duplicates": {
+        "invoices": 0,
+        "credits": 0,
+        "payments": 0
+      }
+    }
+  },
+  {
+    "name": "duplicates-after-settlement-key-order",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        },
+        {
+          "taxBps": 0,
+          "lines": [
+            {
+              "unitPrice": "10.00",
+              "quantity": 1
+            }
+          ],
+          "currency": "EUR",
+          "id": "I"
+        }
+      ],
+      "credits": [
+        {
+          "id": "C",
+          "invoiceId": "I",
+          "currency": "EUR",
+          "amount": "4.00"
+        },
+        {
+          "amount": "4.00",
+          "currency": "EUR",
+          "invoiceId": "I",
+          "id": "C"
+        }
+      ],
+      "payments": [
+        {
+          "id": "P",
+          "currency": "EUR",
+          "amount": "6.00",
+          "allocations": [
+            {
+              "invoiceId": "I",
+              "amount": "6.00"
+            }
+          ]
+        },
+        {
+          "allocations": [
+            {
+              "amount": "6.00",
+              "invoiceId": "I"
+            }
+          ],
+          "amount": "6.00",
+          "currency": "EUR",
+          "id": "P"
+        }
+      ]
+    },
+    "expected": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "subtotal": "10.00",
+          "tax": "0.00",
+          "total": "10.00",
+          "credited": "4.00",
+          "paid": "6.00",
+          "balance": "0.00",
+          "status": "settled"
+        }
+      ],
+      "payments": [
+        {
+          "id": "P",
+          "currency": "EUR",
+          "amount": "6.00",
+          "allocated": "6.00",
+          "unapplied": "0.00"
+        }
+      ],
+      "duplicates": {
+        "invoices": 1,
+        "credits": 1,
+        "payments": 1
+      }
+    }
+  },
+  {
+    "name": "independent-id-namespaces",
+    "input": {
+      "invoices": [
+        {
+          "id": "X",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [
+        {
+          "id": "X",
+          "invoiceId": "X",
+          "currency": "EUR",
+          "amount": "2.00"
+        }
+      ],
+      "payments": [
+        {
+          "id": "X",
+          "currency": "EUR",
+          "amount": "3.00",
+          "allocations": [
+            {
+              "invoiceId": "X",
+              "amount": "3.00"
+            }
+          ]
+        }
+      ]
+    },
+    "expected": {
+      "invoices": [
+        {
+          "id": "X",
+          "currency": "EUR",
+          "subtotal": "10.00",
+          "tax": "0.00",
+          "total": "10.00",
+          "credited": "2.00",
+          "paid": "3.00",
+          "balance": "5.00",
+          "status": "partial"
+        }
+      ],
+      "payments": [
+        {
+          "id": "X",
+          "currency": "EUR",
+          "amount": "3.00",
+          "allocated": "3.00",
+          "unapplied": "0.00"
+        }
+      ],
+      "duplicates": {
+        "invoices": 0,
+        "credits": 0,
+        "payments": 0
+      }
+    }
+  },
+  {
+    "name": "prototype-ids-and-code-unit-order",
+    "input": {
+      "invoices": [
+        {
+          "id": "z",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        },
+        {
+          "id": "__proto__",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        },
+        {
+          "id": "constructor",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        },
+        {
+          "id": "A",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": [
+        {
+          "id": "constructor",
+          "currency": "EUR",
+          "amount": "3.00",
+          "allocations": [
+            {
+              "invoiceId": "__proto__",
+              "amount": "3.00"
+            }
+          ]
+        }
+      ]
+    },
+    "expected": {
+      "invoices": [
+        {
+          "id": "A",
+          "currency": "EUR",
+          "subtotal": "10.00",
+          "tax": "0.00",
+          "total": "10.00",
+          "credited": "0.00",
+          "paid": "0.00",
+          "balance": "10.00",
+          "status": "open"
+        },
+        {
+          "id": "__proto__",
+          "currency": "EUR",
+          "subtotal": "10.00",
+          "tax": "0.00",
+          "total": "10.00",
+          "credited": "0.00",
+          "paid": "3.00",
+          "balance": "7.00",
+          "status": "partial"
+        },
+        {
+          "id": "constructor",
+          "currency": "EUR",
+          "subtotal": "10.00",
+          "tax": "0.00",
+          "total": "10.00",
+          "credited": "0.00",
+          "paid": "0.00",
+          "balance": "10.00",
+          "status": "open"
+        },
+        {
+          "id": "z",
+          "currency": "EUR",
+          "subtotal": "10.00",
+          "tax": "0.00",
+          "total": "10.00",
+          "credited": "0.00",
+          "paid": "0.00",
+          "balance": "10.00",
+          "status": "open"
+        }
+      ],
+      "payments": [
+        {
+          "id": "constructor",
+          "currency": "EUR",
+          "amount": "3.00",
+          "allocated": "3.00",
+          "unapplied": "0.00"
+        }
+      ],
+      "duplicates": {
+        "invoices": 0,
+        "credits": 0,
+        "payments": 0
+      }
+    }
+  },
+  {
+    "name": "maximum-quantity-and-tax",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1000000,
+              "unitPrice": "0.0001"
+            }
+          ],
+          "taxBps": 10000
+        }
+      ],
+      "credits": [],
+      "payments": []
+    },
+    "expected": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "subtotal": "100.00",
+          "tax": "100.00",
+          "total": "200.00",
+          "credited": "0.00",
+          "paid": "0.00",
+          "balance": "200.00",
+          "status": "open"
+        }
+      ],
+      "payments": [],
+      "duplicates": {
+        "invoices": 0,
+        "credits": 0,
+        "payments": 0
+      }
+    }
+  },
+  {
+    "name": "conflicting-invoices",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        },
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 1
+        }
+      ],
+      "credits": [],
+      "payments": []
+    },
+    "expected": null
+  },
+  {
+    "name": "conflicting-credits",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [
+        {
+          "id": "C",
+          "invoiceId": "I",
+          "currency": "EUR",
+          "amount": "2.00"
+        },
+        {
+          "id": "C",
+          "invoiceId": "I",
+          "currency": "EUR",
+          "amount": "9.00"
+        }
+      ],
+      "payments": []
+    },
+    "expected": null
+  },
+  {
+    "name": "conflicting-payments",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": [
+        {
+          "id": "P",
+          "currency": "EUR",
+          "amount": "3.00",
+          "allocations": [
+            {
+              "invoiceId": "I",
+              "amount": "3.00"
+            }
+          ]
+        },
+        {
+          "id": "P",
+          "currency": "EUR",
+          "amount": "9.00",
+          "allocations": [
+            {
+              "invoiceId": "I",
+              "amount": "3.00"
+            }
+          ]
+        }
+      ]
+    },
+    "expected": null
+  },
+  {
+    "name": "credit",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [
+        {
+          "id": "C",
+          "invoiceId": "missing",
+          "currency": "EUR",
+          "amount": "2.00"
+        }
+      ],
+      "payments": []
+    },
+    "expected": null
+  },
+  {
+    "name": "payment",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": [
+        {
+          "id": "P",
+          "currency": "EUR",
+          "amount": "3.00",
+          "allocations": [
+            {
+              "invoiceId": "missing",
+              "amount": "3.00"
+            }
+          ]
+        }
+      ]
+    },
+    "expected": null
+  },
+  {
+    "name": "credit-currency",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [
+        {
+          "id": "C",
+          "invoiceId": "I",
+          "currency": "USD",
+          "amount": "2.00"
+        }
+      ],
+      "payments": []
+    },
+    "expected": null
+  },
+  {
+    "name": "payment-currency",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": [
+        {
+          "id": "P",
+          "currency": "USD",
+          "amount": "3.00",
+          "allocations": [
+            {
+              "invoiceId": "I",
+              "amount": "3.00"
+            }
+          ]
+        }
+      ]
+    },
+    "expected": null
+  },
+  {
+    "name": "excess-credit",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [
+        {
+          "id": "C",
+          "invoiceId": "I",
+          "currency": "EUR",
+          "amount": "10.01"
+        }
+      ],
+      "payments": []
+    },
+    "expected": null
+  },
+  {
+    "name": "excess-invoice-allocation",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": [
+        {
+          "id": "P",
+          "currency": "EUR",
+          "amount": "11.00",
+          "allocations": [
+            {
+              "invoiceId": "I",
+              "amount": "11.00"
+            }
+          ]
+        }
+      ]
+    },
+    "expected": null
+  },
+  {
+    "name": "excess-payment-allocation",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": [
+        {
+          "id": "P",
+          "currency": "EUR",
+          "amount": "2.99",
+          "allocations": [
+            {
+              "invoiceId": "I",
+              "amount": "3.00"
+            }
+          ]
+        }
+      ]
+    },
+    "expected": null
+  },
+  {
+    "name": "cumulative-over-allocation",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": [
+        {
+          "id": "P",
+          "currency": "EUR",
+          "amount": "12.00",
+          "allocations": [
+            {
+              "invoiceId": "I",
+              "amount": "6.00"
+            },
+            {
+              "invoiceId": "I",
+              "amount": "6.00"
+            }
+          ]
+        }
+      ]
+    },
+    "expected": null
+  },
+  {
+    "name": "credit-before-payment-overflow",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [
+        {
+          "id": "C",
+          "invoiceId": "I",
+          "currency": "EUR",
+          "amount": "8.00"
+        }
+      ],
+      "payments": [
+        {
+          "id": "P",
+          "currency": "EUR",
+          "amount": "3.00",
+          "allocations": [
+            {
+              "invoiceId": "I",
+              "amount": "3.00"
+            }
+          ]
+        }
+      ]
+    },
+    "expected": null
+  },
+  {
+    "name": "invalid-unit-price-'01.00'",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "01.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": []
+    },
+    "expected": null
+  },
+  {
+    "name": "invalid-unit-price-'1e2'",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "1e2"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": []
+    },
+    "expected": null
+  },
+  {
+    "name": "invalid-unit-price-'-1'",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "-1"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": []
+    },
+    "expected": null
+  },
+  {
+    "name": "invalid-unit-price-'+1'",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "+1"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": []
+    },
+    "expected": null
+  },
+  {
+    "name": "invalid-unit-price-' 1'",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": " 1"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": []
+    },
+    "expected": null
+  },
+  {
+    "name": "invalid-unit-price-'1.'",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "1."
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": []
+    },
+    "expected": null
+  },
+  {
+    "name": "invalid-unit-price-'1.00000'",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "1.00000"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": []
+    },
+    "expected": null
+  },
+  {
+    "name": "invalid-unit-price-1",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": 1
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": []
+    },
+    "expected": null
+  },
+  {
+    "name": "invalid-unit-price-None",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": null
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": []
+    },
+    "expected": null
+  },
+  {
+    "name": "invalid-payment-amount-'1.001'",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": [
+        {
+          "id": "P",
+          "currency": "EUR",
+          "amount": "1.001",
+          "allocations": [
+            {
+              "invoiceId": "I",
+              "amount": "3.00"
+            }
+          ]
+        }
+      ]
+    },
+    "expected": null
+  },
+  {
+    "name": "invalid-payment-amount-'01'",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": [
+        {
+          "id": "P",
+          "currency": "EUR",
+          "amount": "01",
+          "allocations": [
+            {
+              "invoiceId": "I",
+              "amount": "3.00"
+            }
+          ]
+        }
+      ]
+    },
+    "expected": null
+  },
+  {
+    "name": "invalid-payment-amount-'1e0'",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": [
+        {
+          "id": "P",
+          "currency": "EUR",
+          "amount": "1e0",
+          "allocations": [
+            {
+              "invoiceId": "I",
+              "amount": "3.00"
+            }
+          ]
+        }
+      ]
+    },
+    "expected": null
+  },
+  {
+    "name": "invalid-payment-amount-1",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": [
+        {
+          "id": "P",
+          "currency": "EUR",
+          "amount": 1,
+          "allocations": [
+            {
+              "invoiceId": "I",
+              "amount": "3.00"
+            }
+          ]
+        }
+      ]
+    },
+    "expected": null
+  },
+  {
+    "name": "invalid-precision-JPY",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "JPY",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": [
+        {
+          "id": "P",
+          "currency": "JPY",
+          "amount": "1.0",
+          "allocations": [
+            {
+              "invoiceId": "I",
+              "amount": "0"
+            }
+          ]
+        }
+      ]
+    },
+    "expected": null
+  },
+  {
+    "name": "invalid-precision-KWD",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "KWD",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": [
+        {
+          "id": "P",
+          "currency": "KWD",
+          "amount": "1.0001",
+          "allocations": [
+            {
+              "invoiceId": "I",
+              "amount": "0"
+            }
+          ]
+        }
+      ]
+    },
+    "expected": null
+  },
+  {
+    "name": "invalid-quantity-0",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 0,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": []
+    },
+    "expected": null
+  },
+  {
+    "name": "invalid-quantity--1",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": -1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": []
+    },
+    "expected": null
+  },
+  {
+    "name": "invalid-quantity-1.5",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1.5,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": []
+    },
+    "expected": null
+  },
+  {
+    "name": "invalid-quantity-1000001",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1000001,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": []
+    },
+    "expected": null
+  },
+  {
+    "name": "invalid-quantity-'1'",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": "1",
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": []
+    },
+    "expected": null
+  },
+  {
+    "name": "invalid-taxBps--1",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": -1
+        }
+      ],
+      "credits": [],
+      "payments": []
+    },
+    "expected": null
+  },
+  {
+    "name": "invalid-taxBps-10001",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 10001
+        }
+      ],
+      "credits": [],
+      "payments": []
+    },
+    "expected": null
+  },
+  {
+    "name": "invalid-taxBps-1.5",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 1.5
+        }
+      ],
+      "credits": [],
+      "payments": []
+    },
+    "expected": null
+  },
+  {
+    "name": "invalid-taxBps-'0'",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": "0"
+        }
+      ],
+      "credits": [],
+      "payments": []
+    },
+    "expected": null
+  },
+  {
+    "name": "unknown-top",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": [],
+      "extra": true
+    },
+    "expected": null
+  },
+  {
+    "name": "unknown-invoice",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0,
+          "extra": 1
+        }
+      ],
+      "credits": [],
+      "payments": []
+    },
+    "expected": null
+  },
+  {
+    "name": "unknown-line",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00",
+              "extra": 1
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": []
+    },
+    "expected": null
+  },
+  {
+    "name": "missing-array",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "payments": []
+    },
+    "expected": null
+  },
+  {
+    "name": "empty-lines",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": []
+    },
+    "expected": null
+  },
+  {
+    "name": "empty-id",
+    "input": {
+      "invoices": [
+        {
+          "id": "",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": []
+    },
+    "expected": null
+  },
+  {
+    "name": "unknown-currency",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "BTC",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": []
+    },
+    "expected": null
+  },
+  {
+    "name": "invalid-json",
+    "input": "{",
+    "expected": null,
+    "raw": true
+  },
+  {
+    "name": "input-collision-same-file",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": []
+    },
+    "expected": null,
+    "collision": "same-file"
+  },
+  {
+    "name": "input-collision-symlink",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": []
+    },
+    "expected": null,
+    "collision": "symlink"
+  },
+  {
+    "name": "input-collision-hardlink",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": []
+    },
+    "expected": null,
+    "collision": "hardlink"
+  },
+  {
+    "name": "output-is-directory",
+    "input": {
+      "invoices": [
+        {
+          "id": "I",
+          "currency": "EUR",
+          "lines": [
+            {
+              "quantity": 1,
+              "unitPrice": "10.00"
+            }
+          ],
+          "taxBps": 0
+        }
+      ],
+      "credits": [],
+      "payments": []
+    },
+    "expected": null,
+    "outputDirectory": true
+  }
+]
