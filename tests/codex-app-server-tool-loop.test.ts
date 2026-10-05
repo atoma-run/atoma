@@ -255,6 +255,52 @@ describe('Codex app-server tool session', () => {
     expect(execSpawn).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['contextWindowExceeded', 'context-exhausted'],
+    ['sessionBudgetExceeded', 'budget-exhausted'],
+    ['usageLimitExceeded', 'rate-limited'],
+    ['rateLimitExceeded', 'rate-limited'],
+    ['serverOverloaded', 'service-unavailable'],
+    ['internalServerError', 'service-unavailable'],
+    ['unauthorized', 'authentication-required'],
+    ['badRequest', 'request-rejected'],
+    ['cyberPolicy', 'policy-blocked'],
+    ['misalignmentPolicyViolation', 'policy-blocked'],
+    [{ responseStreamDisconnected: { httpStatusCode: null } }, 'stream-interrupted'],
+    [{ responseStreamConnectionFailed: { httpStatusCode: 429 } }, 'rate-limited'],
+    [{ responseTooManyFailedAttempts: { httpStatusCode: 503 } }, 'service-unavailable'],
+    [{ httpConnectionFailed: { httpStatusCode: 401 } }, 'authentication-required'],
+    [{ httpConnectionFailed: { httpStatusCode: 400 } }, 'request-rejected'],
+    [{ httpConnectionFailed: { httpStatusCode: null } }, 'transport-unavailable'],
+    [{ unrecognised: 'private-secret' }, 'provider-error'],
+  ])('preserves typed failure %j after a tool without leaking prose or replaying it', async (codexErrorInfo, code) => {
+    const home = codexHome();
+    const fake = fakeAppServer(async (server) => {
+      await server.callTool('read_file', { path: 'a' });
+      server.usage({ inputTokens: 50, outputTokens: 5 });
+      server.complete('failed', { message: 'private-secret', additionalDetails: 'private-secret', codexErrorInfo });
+    });
+    const execSpawn = vi.fn();
+    const req = request();
+    const failure = await new CodexCliLlmClient({ env: { CODEX_HOME: home }, spawnFn: execSpawn, appServerSpawnFn: fake.spawnFn })
+      .complete(req).then(() => null, (error: unknown) => error);
+    expect(failure).toBeInstanceOf(CodexTransportError);
+    expect(failure).toMatchObject({ code, partialUsage: { inputTokens: 50, outputTokens: 5 } });
+    expect(String(failure)).not.toContain('private-secret');
+    expect(JSON.stringify(failure)).not.toContain('private-secret');
+    expect(req.executor!.execute).toHaveBeenCalledTimes(1);
+    expect(execSpawn).not.toHaveBeenCalled();
+  });
+
+  it.each(['contextWindowExceeded', 'sessionBudgetExceeded', 'misalignmentPolicyViolation'])('does not spend an exec fallback on %s before tools', async (codexErrorInfo) => {
+    const home = codexHome();
+    const fake = fakeAppServer(async (server) => server.complete('failed', { codexErrorInfo }));
+    const execSpawn = vi.fn();
+    await expect(new CodexCliLlmClient({ env: { CODEX_HOME: home }, spawnFn: execSpawn, appServerSpawnFn: fake.spawnFn }).complete(request()))
+      .rejects.toBeInstanceOf(CodexTransportError);
+    expect(execSpawn).not.toHaveBeenCalled();
+  });
+
   it('writes a credential the session rotated back to the login home', async () => {
     const home = codexHome('{"tokens":{"refresh_token":"r1"}}');
     const fake = fakeAppServer(async (server) => {

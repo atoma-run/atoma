@@ -86,6 +86,11 @@ Neighbours:
   exec loop (nothing ran twice), except on a timeout, rate limit or login failure
   that exec would meet too; after one, the failure is the call's.
   `ATOMA_CODEX_TOOL_TRANSPORT=exec` keeps the exec loop.
+  App-server failures use the typed `codexErrorInfo` before the legacy prose
+  reducer. Only the fixed failure vocabulary leaves the transport; never persist
+  provider messages, additional details or unknown variant values. Context,
+  session-budget and policy refusals do not spend an exec fallback. A failure
+  after a host tool still cannot replay the request through another transport.
 - Effort settings belong on strategy calls only. Validators and prefilters are
   deterministic and cheap.
 - A transport cannot outlive its deadline. Keep both per-call abort and outer

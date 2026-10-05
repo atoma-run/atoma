@@ -98,7 +98,10 @@ const MAX_REFUSALS = 16;
 const MAX_CALLS_PER_RESPONSE = 12;
 
 /** A failure the exec loop would meet too, or that already cost its wait. */
-const NO_FALLBACK = new Set<CodexFailureCode>(['timeout', 'rate-limited', 'authentication-required']);
+const NO_FALLBACK = new Set<CodexFailureCode>([
+  'timeout', 'rate-limited', 'authentication-required',
+  'context-exhausted', 'budget-exhausted', 'policy-blocked',
+]);
 
 const liveTemporaries = new Set<string>();
 process.on('exit', () => {
@@ -109,6 +112,37 @@ process.on('exit', () => {
 
 function record(raw: unknown): Record<string, unknown> {
   return raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
+}
+
+/** Reduce the app-server's typed error before discarding all provider prose. */
+export function classifyCodexAppServerError(raw: unknown, fallback: CodexFailureCode = 'provider-error'): CodexFailureCode {
+  const error = record(raw);
+  const info = error['codexErrorInfo'];
+  switch (info) {
+    case 'contextWindowExceeded': return 'context-exhausted';
+    case 'sessionBudgetExceeded': return 'budget-exhausted';
+    case 'usageLimitExceeded':
+    case 'rateLimitExceeded': return 'rate-limited';
+    case 'serverOverloaded':
+    case 'internalServerError': return 'service-unavailable';
+    case 'unauthorized': return 'authentication-required';
+    case 'badRequest': return 'request-rejected';
+    case 'cyberPolicy':
+    case 'misalignmentPolicyViolation': return 'policy-blocked';
+  }
+  const variants = record(info);
+  for (const key of ['httpConnectionFailed', 'responseStreamConnectionFailed', 'responseStreamDisconnected', 'responseTooManyFailedAttempts']) {
+    if (!Object.hasOwn(variants, key)) continue;
+    const status = record(variants[key])['httpStatusCode'];
+    const category = key === 'httpConnectionFailed' ? 'transport-unavailable' : 'stream-interrupted';
+    if (typeof status === 'number' && Number.isInteger(status) && status >= 400 && status <= 599) {
+      return classifyCodexDiagnostic(`status ${status}`, category);
+    }
+    return category;
+  }
+  // Older versions and unrecognised variants keep the existing prose reducer.
+  // Neither unknown variant values nor additionalDetails may escape this boundary.
+  return classifyCodexDiagnostic(typeof error['message'] === 'string' ? error['message'] : '', fallback);
 }
 
 /** TOML inline values for `-c key=value` (JSON objects are not TOML). */
@@ -345,7 +379,7 @@ async function runSession(
   let completed = false;
   let failure: CodexFailureCode | null = null;
   let budgetFailure = false;
-  let diagnostic = '';
+  let diagnostic: CodexFailureCode = 'provider-error';
   let timedOut = false;
   let accepting = true;
   let toolRunning = false;
@@ -448,8 +482,7 @@ async function runSession(
       // A response to one of our requests.
       if (message['error'] !== undefined) {
         if (message['id'] === 4) return; // An interrupt that lost a race with the turn's end.
-        diagnostic = JSON.stringify(message['error']);
-        fail(classifyCodexDiagnostic(diagnostic, 'request-rejected'));
+        fail(classifyCodexAppServerError(message['error'], 'request-rejected'));
         return;
       }
       const result = record(message['result']);
@@ -496,7 +529,7 @@ async function runSession(
       responses++;
       usageTotal = record(record(params['tokenUsage'])['total']);
     } else if (method === 'error') {
-      if (params['willRetry'] !== true) diagnostic = JSON.stringify(params['error'] ?? params);
+      if (params['willRetry'] !== true) diagnostic = classifyCodexAppServerError(params['error'] ?? params);
     } else if (method === 'turn/completed') {
       const turn = record(params['turn']);
       if (finalTurn === 'requested') {
@@ -507,8 +540,8 @@ async function runSession(
         return;
       }
       if (turn['status'] === 'completed') { completed = true; end(); return; }
-      const reason = turn['error'] !== undefined && turn['error'] !== null ? JSON.stringify(turn['error']) : diagnostic;
-      fail(classifyCodexDiagnostic(reason));
+      fail(turn['error'] !== undefined && turn['error'] !== null
+        ? classifyCodexAppServerError(turn['error']) : diagnostic);
     }
   };
 
