@@ -226,7 +226,6 @@ export interface GpuUiState {
   journalFamily: string;
   selectedDocsTheme: DocsThemeKey;
   appearanceTheme: AppearanceTheme;
-  identityDisplay: 'organisation' | 'user';
   themeDropdownOpen: boolean;
   scrollY: Record<ViewName, number>;
   /**
@@ -273,7 +272,6 @@ export interface GpuUiState {
   blockHandheld: () => void;
   toggleAccountMenu: () => void;
   closeAccountMenu: () => void;
-  toggleIdentityDisplay: () => void;
   toggleThemeDropdown: () => void;
   setAppearanceTheme: (theme: AppearanceTheme) => void;
   toggleLocaleMenu: () => void;
@@ -393,16 +391,6 @@ function initialAppearanceTheme(): AppearanceTheme {
   }
 }
 
-function initialIdentityDisplay(): 'organisation' | 'user' {
-  try {
-    return typeof localStorage !== 'undefined' && localStorage.getItem('atoma.viz.identityDisplay') === 'user'
-      ? 'user'
-      : 'organisation';
-  } catch {
-    return 'organisation';
-  }
-}
-
 export const useGpuStore = create<GpuUiState>()((set, get) => ({
   // The app opens on PROJECTS: it is the authenticated launch surface. Runs
   // is where you go to watch what you started, a second step rather than the
@@ -439,7 +427,6 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   journalFamily: 'all',
   selectedDocsTheme: 'quick',
   appearanceTheme: initialAppearanceTheme(),
-  identityDisplay: initialIdentityDisplay(),
   themeDropdownOpen: false,
   scrollY: {
     projects: 0,
@@ -517,15 +504,6 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
     notificationsMenuOpen: false,
   })),
   closeAccountMenu: () => set({ accountMenuOpen: false, themeDropdownOpen: false }),
-  toggleIdentityDisplay: () => set((state) => {
-    const identityDisplay = state.identityDisplay === 'organisation' ? 'user' : 'organisation';
-    try {
-      if (typeof localStorage !== 'undefined') localStorage.setItem('atoma.viz.identityDisplay', identityDisplay);
-    } catch {
-      // The visible choice still changes when storage is blocked.
-    }
-    return { identityDisplay };
-  }),
   toggleThemeDropdown: () => set((state) => ({
     accountMenuOpen: true,
     themeDropdownOpen: !state.themeDropdownOpen,

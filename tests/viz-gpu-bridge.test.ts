@@ -39,7 +39,6 @@ const runs = [
 
 beforeEach(() => {
   localStorage.removeItem('atoma.viz.theme');
-  localStorage.removeItem('atoma.viz.identityDisplay');
   useGpuStore.setState({
     view: 'runs',
     sceneCameraMode: 'overview',
@@ -48,7 +47,6 @@ beforeEach(() => {
     selectedProjectId: null,
     selectedDocsTheme: 'quick',
     appearanceTheme: 'nocturne',
-    identityDisplay: 'organisation',
     themeDropdownOpen: false,
     focusedInput: null,
     runPickerActiveIndex: 0,
@@ -113,17 +111,14 @@ function EntryFadeProbe() {
 }
 
 describe('full-GL minimal DOM bridge', () => {
-  it('keeps the selected theme and displayed identity after an account-menu choice', () => {
-    useGpuStore.getState().toggleIdentityDisplay();
+  it('keeps the selected theme after an account-menu choice', () => {
     useGpuStore.getState().toggleThemeDropdown();
     expect(useGpuStore.getState().accountMenuOpen).toBe(true);
     useGpuStore.getState().setAppearanceTheme('aurora');
     expect(useGpuStore.getState()).toMatchObject({
-      identityDisplay: 'user',
       appearanceTheme: 'aurora',
       themeDropdownOpen: false,
     });
-    expect(localStorage.getItem('atoma.viz.identityDisplay')).toBe('user');
     expect(localStorage.getItem('atoma.viz.theme')).toBe('aurora');
   });
   it('recognizes only active MCP access in the current organisation', () => {

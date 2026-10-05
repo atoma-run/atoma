@@ -5051,25 +5051,6 @@ export class GpuRenderer {
     const bellReserve = auth ? HEADER_BELL_WIDTH + 8 : 0;
     const opacityTargets: { alpha: number }[] = [];
     if (auth && width >= 860) {
-      const identity = snapshot.state.identityDisplay === 'organisation'
-        ? auth.viewer.activeOrganisation?.name ?? auth.viewer.displayName
-        : auth.viewer.displayName;
-      const identityButton = this.button(
-        this.root,
-        'appearance.identity.toggle',
-        'button',
-        identity,
-        width - 520,
-        midY - 16,
-        198,
-        32,
-        false,
-        snapshot.onActivate,
-        GPU_COLORS.primary,
-        true
-      );
-      identityButton.eventMode = interactive ? 'static' : 'none';
-      opacityTargets.push(identityButton);
       const themeButton = this.button(
         this.root,
         'appearance.dropdown.toggle',

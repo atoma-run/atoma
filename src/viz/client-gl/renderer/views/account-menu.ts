@@ -39,7 +39,6 @@ export type AccountMenuItemKind =
   | 'switch'
   | 'divider'
   | 'settings'
-  | 'identityDisplay'
   | 'themeDropdown'
   | 'themeOption'
   | 'switchAccount'
@@ -103,9 +102,6 @@ export function accountMenuLayout(
     });
   }
   push({ kind: 'divider', height: DIVIDER_HEIGHT });
-  if (auth.viewer.activeOrganisation) {
-    push({ kind: 'identityDisplay', id: 'appearance.identity.toggle', height: ACTION_HEIGHT });
-  }
   push({ kind: 'themeDropdown', id: 'appearance.dropdown.toggle', height: ACTION_HEIGHT });
   if (themeDropdownOpen) {
     for (const theme of APPEARANCE_THEMES) {
@@ -180,14 +176,10 @@ export function drawAccountMenu(
 
   const innerX = layout.x + PANEL_INSET;
   const innerWidth = layout.width - PANEL_INSET * 2;
-  const showOrganisation = snapshot.state.identityDisplay === 'organisation' &&
-    auth.viewer.activeOrganisation !== null;
   for (const item of layout.items) {
     const y = layout.y + item.y;
     if (item.kind === 'identity') {
-      ctx.text(ctx.root, showOrganisation
-        ? auth.viewer.activeOrganisation?.name ?? auth.viewer.displayName
-        : auth.viewer.displayName, innerX, y + 10, {
+      ctx.text(ctx.root, auth.viewer.displayName, innerX, y + 10, {
         size: 13,
         weight: '700',
         width: innerWidth,
@@ -213,12 +205,12 @@ export function drawAccountMenu(
       continue;
     }
     if (item.kind === 'organisation' && auth.viewer.activeOrganisation) {
-      ctx.text(ctx.root, snapshot.t(showOrganisation ? 'appearance.user' : 'settings.organisation').toUpperCase(), innerX, y + 2, {
+      ctx.text(ctx.root, snapshot.t('settings.organisation').toUpperCase(), innerX, y + 2, {
         size: 8,
         weight: '700',
         color: GPU_COLORS.muted,
       });
-      ctx.text(ctx.root, showOrganisation ? auth.viewer.displayName : auth.viewer.activeOrganisation.name, innerX, y + 15, {
+      ctx.text(ctx.root, auth.viewer.activeOrganisation.name, innerX, y + 15, {
         size: 11,
         color: GPU_COLORS.text,
         width: innerWidth,
@@ -266,16 +258,6 @@ export function drawAccountMenu(
         snapshot.state.view === 'settings',
         snapshot.onActivate,
         GPU_COLORS.primary
-      );
-      continue;
-    }
-    if (item.kind === 'identityDisplay' && item.id) {
-      const showsOrganisation = snapshot.state.identityDisplay === 'organisation';
-      ctx.button(
-        ctx.root, item.id, 'menuitem',
-        snapshot.t(showsOrganisation ? 'appearance.showUser' : 'appearance.showOrganisation'),
-        innerX, y, innerWidth, ACTION_HEIGHT - ACTION_GAP,
-        false, snapshot.onActivate, GPU_COLORS.primary
       );
       continue;
     }

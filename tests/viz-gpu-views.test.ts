@@ -635,7 +635,6 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     journalFamily: 'all',
     selectedDocsTheme: 'quick',
     appearanceTheme: 'nocturne',
-    identityDisplay: 'organisation',
     themeDropdownOpen: false,
     scrollY: { projects: 0, runs: 0, registry: 0, skills: 0, burnin: 0, docs: 0, admin: 0, journal: 0, ledger: 0, sentinel: 0, announce: 0, settings: 0 },
     entered: true,
@@ -655,7 +654,6 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     blockHandheld: noop,
     toggleAccountMenu: noop,
     closeAccountMenu: noop,
-    toggleIdentityDisplay: noop,
     toggleThemeDropdown: noop,
     setAppearanceTheme: noop,
     toggleLocaleMenu: noop,
@@ -3298,7 +3296,7 @@ describe('GPU account menu', () => {
     const snapshot = makeSnapshot(state, { auth });
     drawAccountMenu(ctx, snapshot, 1280, 720);
     const ids = ctx.buttons.map((button) => button.id);
-    expect(ids).toContain('appearance.identity.toggle');
+    expect(ids).not.toContain('appearance.identity.toggle');
     expect(ids).toContain('appearance.dropdown.toggle');
     for (const theme of ['nocturne', 'aurora', 'amethyst', 'copper']) {
       expect(ids).toContain(`appearance.select.${theme}`);

@@ -649,10 +649,6 @@ function GpuAppContent({
       store.closeAccountMenu();
       return;
     }
-    if (id === 'appearance.identity.toggle') {
-      store.toggleIdentityDisplay();
-      return;
-    }
     if (id === 'appearance.dropdown.toggle') {
       store.toggleThemeDropdown();
       return;

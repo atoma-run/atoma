@@ -252,8 +252,6 @@ function AccountBridge({
 }) {
   const open = useGpuStore((state) => state.accountMenuOpen);
   const toggleAccountMenu = useGpuStore((state) => state.toggleAccountMenu);
-  const identityDisplay = useGpuStore((state) => state.identityDisplay);
-  const toggleIdentityDisplay = useGpuStore((state) => state.toggleIdentityDisplay);
   const appearanceTheme = useGpuStore((state) => state.appearanceTheme);
   const themeDropdownOpen = useGpuStore((state) => state.themeDropdownOpen);
   const toggleThemeDropdown = useGpuStore((state) => state.toggleThemeDropdown);
@@ -290,11 +288,6 @@ function AccountBridge({
                 {t('auth.switchToOrganisation', { name: organisation.name })}
               </button>
             ))}
-          {viewer.activeOrganisation ? (
-            <button type="button" onClick={toggleIdentityDisplay}>
-              {t(identityDisplay === 'organisation' ? 'appearance.showUser' : 'appearance.showOrganisation')}
-            </button>
-          ) : null}
           <button
             type="button"
             aria-expanded={themeDropdownOpen}
