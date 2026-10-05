@@ -243,14 +243,14 @@ describe('Codex app-server tool session', () => {
     const fake = fakeAppServer(async (server) => {
       await server.callTool('read_file', { path: 'a' });
       server.usage({ inputTokens: 50, cachedInputTokens: 0, cacheWriteInputTokens: 0, outputTokens: 5, reasoningOutputTokens: 0 });
-      server.complete('failed', { message: 'stream error: status 500' });
+      server.complete('failed', { message: 'request error: status 400' });
     });
     const execSpawn = vi.fn();
     const req = request();
     const failure = await new CodexCliLlmClient({ env: { CODEX_HOME: home }, spawnFn: execSpawn, appServerSpawnFn: fake.spawnFn })
       .complete(req).then(() => null, (error: unknown) => error);
     expect(failure).toBeInstanceOf(CodexTransportError);
-    expect((failure as CodexTransportError).code).toBe('service-unavailable');
+    expect((failure as CodexTransportError).code).toBe('request-rejected');
     expect((failure as { partialUsage?: unknown }).partialUsage).toMatchObject({ inputTokens: 50, outputTokens: 5 });
     expect(execSpawn).not.toHaveBeenCalled();
   });
@@ -275,8 +275,8 @@ describe('Codex app-server tool session', () => {
     [{ unrecognised: 'private-secret' }, 'provider-error'],
   ])('preserves typed failure %j after a tool without leaking prose or replaying it', async (codexErrorInfo, code) => {
     const home = codexHome();
-    const fake = fakeAppServer(async (server) => {
-      await server.callTool('read_file', { path: 'a' });
+    const fake = fakeAppServer(async (server, turn) => {
+      if (turn === 0) await server.callTool('read_file', { path: 'a' });
       server.usage({ inputTokens: 50, outputTokens: 5 });
       server.complete('failed', { message: 'private-secret', additionalDetails: 'private-secret', codexErrorInfo });
     });
@@ -299,6 +299,81 @@ describe('Codex app-server tool session', () => {
     await expect(new CodexCliLlmClient({ env: { CODEX_HOME: home }, spawnFn: execSpawn, appServerSpawnFn: fake.spawnFn }).complete(request()))
       .rejects.toBeInstanceOf(CodexTransportError);
     expect(execSpawn).not.toHaveBeenCalled();
+  });
+
+  it('continues an overloaded thread once, preserving acknowledged actions and cumulative usage', async () => {
+    const home = codexHome();
+    const fake = fakeAppServer(async (server, turn) => {
+      if (turn === 0) {
+        await server.callTool('read_file', { path: 'a' });
+        server.usage({ inputTokens: 50, outputTokens: 5 });
+        server.complete('failed', { message: 'Selected model is at capacity. Please try a different model.' });
+      } else {
+        await server.callTool('read_file', { path: 'b' });
+        server.usage({ inputTokens: 120, outputTokens: 12 });
+        server.message('finished remaining work');
+        server.complete();
+      }
+    });
+    const req = request();
+    const execSpawn = vi.fn();
+    const response = await new CodexCliLlmClient({ env: { CODEX_HOME: home }, spawnFn: execSpawn, appServerSpawnFn: fake.spawnFn }).complete(req);
+    expect(response).toMatchObject({ text: 'finished remaining work', usage: { inputTokens: 120, outputTokens: 12 } });
+    expect(vi.mocked(req.executor!.execute).mock.calls).toEqual([['read_file', { path: 'a' }], ['read_file', { path: 'b' }]]);
+    expect(fake.sent.filter(m => m['method'] === 'thread/start')).toHaveLength(1);
+    const turns = fake.sent.filter(m => m['method'] === 'turn/start').map(m => m['params'] as Record<string, unknown>);
+    expect(turns).toHaveLength(2);
+    expect(turns[1]).toMatchObject({ threadId: 't' });
+    expect(JSON.stringify(turns[1])).toContain('do not repeat');
+    expect(execSpawn).not.toHaveBeenCalled();
+  });
+
+  it('does not reset an exhausted response budget to recover an overload', async () => {
+    const home = codexHome();
+    const fake = fakeAppServer(async (server) => {
+      await server.callTool('read_file', { path: 'a' });
+      server.usage({ inputTokens: 50, outputTokens: 5 });
+      server.complete('failed', { codexErrorInfo: 'serverOverloaded' });
+    });
+    await expect(new CodexCliLlmClient({ env: { CODEX_HOME: home }, appServerSpawnFn: fake.spawnFn }).complete(request({ maxToolIterations: 1 })))
+      .rejects.toMatchObject({ code: 'service-unavailable', retried: false });
+    expect(fake.sent.filter(m => m['method'] === 'turn/start')).toHaveLength(1);
+  });
+
+  it('cancels during the recovery delay without starting another turn', async () => {
+    const home = codexHome();
+    const controller = new AbortController();
+    const fake = fakeAppServer(async (server) => {
+      await server.callTool('read_file', { path: 'a' });
+      server.complete('failed', { codexErrorInfo: 'serverOverloaded' });
+      setTimeout(() => controller.abort(new Error('cancelled recovery')), 30);
+    });
+    await expect(new CodexCliLlmClient({ env: { CODEX_HOME: home }, appServerSpawnFn: fake.spawnFn }).complete(request({ signal: controller.signal })))
+      .rejects.toThrow('cancelled recovery');
+    expect(fake.sent.filter(m => m['method'] === 'turn/start')).toHaveLength(1);
+  });
+
+  it('stops after one failed overload continuation even before tools, without an exec fallback', async () => {
+    const home = codexHome();
+    const fake = fakeAppServer(async server => server.complete('failed', { codexErrorInfo: 'serverOverloaded' }));
+    const execSpawn = vi.fn();
+    await expect(new CodexCliLlmClient({ env: { CODEX_HOME: home }, spawnFn: execSpawn, appServerSpawnFn: fake.spawnFn }).complete(request()))
+      .rejects.toMatchObject({ code: 'service-unavailable', retried: true });
+    expect(fake.sent.filter(m => m['method'] === 'turn/start')).toHaveLength(2);
+    expect(execSpawn).not.toHaveBeenCalled();
+  });
+
+  it('does not continue a failed turn while a host side effect is unresolved', async () => {
+    const home = codexHome();
+    const fake = fakeAppServer(async server => {
+      void server.callTool('read_file', { path: 'a' });
+      setTimeout(() => server.complete('failed', { codexErrorInfo: 'serverOverloaded' }), 10);
+    });
+    const execute = vi.fn(async () => { await new Promise(r => setTimeout(r, 50)); return 'observed'; });
+    await expect(new CodexCliLlmClient({ env: { CODEX_HOME: home }, appServerSpawnFn: fake.spawnFn }).complete(request({ executor: { has: () => true, execute } })))
+      .rejects.toMatchObject({ code: 'service-unavailable', retried: false });
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(fake.sent.filter(m => m['method'] === 'turn/start')).toHaveLength(1);
   });
 
   it('writes a credential the session rotated back to the login home', async () => {

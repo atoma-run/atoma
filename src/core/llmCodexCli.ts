@@ -337,6 +337,8 @@ export function classifyCodexDiagnostic(
     return 'authentication-required';
   }
   if (status !== undefined && status >= 400 && status <= 499) return 'request-rejected';
+  // Codex's capacity refusal can omit the upstream HTTP 503 entirely.
+  if (/^selected model is at capacity(?:[.!]|$)/i.test(diagnostic.trim())) return 'service-unavailable';
   return fallback;
 }
 
@@ -694,6 +696,7 @@ export class CodexCliLlmClient implements LlmClient {
       const first = await this.completeOnce(req, outputSchema);
       if (first.error === undefined) return toResponse(first, served);
       if (!isRetryableCodexFailure(first.error)) throw Object.assign(new CodexTransportError(first.error), { partialUsage: first.usage });
+      process.stderr.write(`[atoma] Codex text call recovery: ${first.error}; one retry, same model.\n`);
       // Transient (5xx / subscription throttle): one retry, then surface it
       // as a real transport error so metrics record an error call instead of
       // a parser crash far from the cause. Only the stable classification

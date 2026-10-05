@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, w
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
+import { setTimeout as delay } from 'node:timers/promises';
 import { withPartialUsage } from './metrics.js';
 import { BUDGET_EXHAUSTED_HINT, DEFAULT_MAX_TOOL_ITERATIONS, offScopeToolMessage, truncateToolResultContent } from './llm.js';
 import { acquireCodexHomeLease, PERSONAL_CODEX_PROFILE_ROOT_ENV, tryAcquirePersonalCodexProcessSlot } from './codexHomeLease.js';
@@ -370,6 +371,9 @@ async function runSession(
   let threadId: string | null = null;
   let turnId: string | null = null;
   let toolCallsSeen = 0;
+  let pendingTools = 0;
+  let recoveryUsed = false;
+  const recoveryAbort = new AbortController();
   let executed = 0;
   let refused = 0;
   // Completed model responses so far: a call belongs to response `responses + 1`.
@@ -405,6 +409,7 @@ async function runSession(
   };
   const end = (): void => {
     accepting = false;
+    recoveryAbort.abort();
     clearTimeout(timer);
     finish?.();
   };
@@ -499,7 +504,7 @@ async function runSession(
         threadId = typeof id === 'string' ? id : null;
         if (threadId === null) { fail('provider-error'); return; }
         startTurn(3, req.userContent);
-      } else if (message['id'] === 3 || message['id'] === 5) {
+      } else if (message['id'] === 3 || message['id'] === 5 || message['id'] === 6) {
         const id = record(result['turn'])['id'];
         turnId = typeof id === 'string' ? id : turnId;
       }
@@ -513,7 +518,8 @@ async function runSession(
       const id = message['id'];
       // Strictly one at a time, in arrival order: a server must start
       // before the request that probes it.
-      pending = pending.then(() => handleToolCall(id, params)).catch(() => undefined);
+      pendingTools++;
+      pending = pending.then(() => handleToolCall(id, params)).catch(() => undefined).finally(() => { pendingTools--; });
       return;
     }
     if (message['id'] !== undefined) {
@@ -540,8 +546,27 @@ async function runSession(
         return;
       }
       if (turn['status'] === 'completed') { completed = true; end(); return; }
-      fail(turn['error'] !== undefined && turn['error'] !== null
-        ? classifyCodexAppServerError(turn['error']) : diagnostic);
+      const code = turn['error'] !== undefined && turn['error'] !== null
+        ? classifyCodexAppServerError(turn['error']) : diagnostic;
+      // A terminal overload may occur AFTER acknowledged host tools. Continue
+      // this very thread once; never replay the original request in a new one.
+      // An unresolved host action, exhausted budget, cancellation or unknown
+      // failure cannot take this path. All counters and cumulative usage stand.
+      if (turn['status'] === 'failed' && code === 'service-unavailable' &&
+          !recoveryUsed && finalTurn === 'none' && !overBudget() &&
+          pendingTools === 0 && !req.signal?.aborted && accepting) {
+        recoveryUsed = true;
+        text = '';
+        diagnostic = 'provider-error';
+        process.stderr.write('[atoma] Codex tool session recovery: service-unavailable; one continuation in the same thread, budgets retained.\n');
+        pending = pending.then(async () => {
+          await delay(3000, undefined, { signal: recoveryAbort.signal });
+          if (accepting && !req.signal?.aborted) startTurn(6,
+            'The previous turn ended with a temporary provider overload. Continue only unfinished work using the tool results already in this thread. Completed actions remain effective; do not repeat them. If their state is uncertain, inspect it before changing it.');
+        }).catch(() => { if (accepting) fail('transport-unavailable'); });
+        return;
+      }
+      fail(code);
     }
   };
 
@@ -608,6 +633,6 @@ async function runSession(
   }
   const code: CodexFailureCode = timedOut ? 'timeout' : completed ? 'empty-response' : failure ?? 'provider-error';
   // Nothing reached the host: the same request can still be served elsewhere.
-  if (toolCallsSeen === 0 && !NO_FALLBACK.has(code)) throw new CodexAppServerUnavailable(code, spent);
-  throw withPartialUsage(new CodexTransportError(code), spent);
+  if (toolCallsSeen === 0 && !recoveryUsed && !NO_FALLBACK.has(code)) throw new CodexAppServerUnavailable(code, spent);
+  throw withPartialUsage(new CodexTransportError(code, recoveryUsed), spent);
 }

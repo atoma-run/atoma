@@ -91,6 +91,12 @@ Neighbours:
   provider messages, additional details or unknown variant values. Context,
   session-budget and policy refusals do not spend an exec fallback. A failure
   after a host tool still cannot replay the request through another transport.
+  A terminal provider overload can continue ONCE in the SAME thread, after a
+  delay, only with no unresolved host tool, cancellation or exhausted budget.
+  Tool results, response/call counters and cumulative usage stay in place.
+  The bounded continuation is logged with its safe category; a second failure
+  cannot fall back to exec. The text path recognises Codex's status-less
+  "Selected model is at capacity" refusal as service-unavailable too.
 - Effort settings belong on strategy calls only. Validators and prefilters are
   deterministic and cheap.
 - A transport cannot outlive its deadline. Keep both per-call abort and outer

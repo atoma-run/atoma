@@ -1,0 +1,4 @@
+{"event":"error","messageLength":60,"genericModelError":false,"patterns":["model","selected","capacity"]}
+{"event":"turn.failed","messageLength":60,"genericModelError":false,"patterns":["model","selected","capacity"]}
+[atoma] Codex text call recovery: service-unavailable; one retry, same model.
+{"completed":true,"responseChars":4379,"usage":{"inputTokens":11455,"outputTokens":1912,"cacheReadInputTokens":0,"cacheCreationInputTokens":0}}

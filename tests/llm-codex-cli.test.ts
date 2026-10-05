@@ -650,6 +650,21 @@ describe('CodexCliLlmClient — transport', () => {
     expect(spawns).toBe(2);
   }, 20000);
 
+  it('retries the Codex capacity refusal without an HTTP status once on the same model', async () => {
+    const spawnFn = vi.fn()
+      .mockImplementationOnce(() => fakeChild({ lines: [JSON.stringify({ type: 'turn.failed', error: { message: 'Selected model is at capacity. Please try a different model.' } })] }))
+      .mockImplementationOnce(() => fakeChild({ lines: [
+        JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', text: 'recovered' } }),
+        JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 10, output_tokens: 2 } }),
+      ] }));
+    const result = await new CodexCliLlmClient({ spawnFn }).complete(req());
+    expect(result.text).toBe('recovered');
+    expect(result.usage).toMatchObject({ inputTokens: 10, outputTokens: 2 });
+    expect(spawnFn).toHaveBeenCalledTimes(2);
+    const models = spawnFn.mock.calls.map(([args]) => { const a = args as string[]; expect(a.indexOf('-m')).toBeGreaterThanOrEqual(0); return a[a.indexOf('-m') + 1]; });
+    expect(models[0]).toBe(models[1]);
+  });
+
   it('does not retry or disclose a non-transient provider diagnostic', async () => {
     const secret = 'private@example.test /profiles/principal-a/codex secret-token';
     let spawns = 0;
