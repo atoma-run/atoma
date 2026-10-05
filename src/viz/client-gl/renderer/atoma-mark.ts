@@ -778,7 +778,7 @@ export function attachAtomaMark(
     const pointer = renderer ? readPointerLight() : null;
     // Compact chrome only lights the receiver during pointer interaction;
     // without a pointer it needs no DOM projection or CPU caustic trace.
-    const projection = renderer && (pointer?.active || visualScale >= ATOMA_MARK_ENV_MIN_SCALE)
+    const projection = renderer && (pointer?.active || visualScale >= ATOMA_MARK_ENV_MIN_SCALE || surge > 0)
       ? markProjection(renderer)
       : null;
     let pointerSpills: AtomaMarkRearSpill[] = [];

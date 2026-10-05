@@ -6,6 +6,7 @@ import type { SceneCameraMode } from './scene-camera.js';
 import type { DocsThemeKey } from './docs-content.js';
 import { isHandheldDevice } from './handheld.js';
 import { isAppearanceTheme, type AppearanceTheme } from './theme.js';
+import { prefersReducedMotion } from './renderer/motion.js';
 
 export { DOC_THEMES, type DocsThemeKey } from './docs-content.js';
 
@@ -226,6 +227,7 @@ export interface GpuUiState {
   journalFamily: string;
   selectedDocsTheme: DocsThemeKey;
   appearanceTheme: AppearanceTheme;
+  appearanceTransitionTarget: AppearanceTheme | null;
   themeDropdownOpen: boolean;
   scrollY: Record<ViewName, number>;
   /**
@@ -274,6 +276,8 @@ export interface GpuUiState {
   closeAccountMenu: () => void;
   toggleThemeDropdown: () => void;
   setAppearanceTheme: (theme: AppearanceTheme) => void;
+  commitAppearanceTheme: (theme: AppearanceTheme) => void;
+  finishAppearanceTransition: () => void;
   toggleLocaleMenu: () => void;
   closeLocaleMenu: () => void;
   toggleNotificationsMenu: () => void;
@@ -427,6 +431,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   journalFamily: 'all',
   selectedDocsTheme: 'quick',
   appearanceTheme: initialAppearanceTheme(),
+  appearanceTransitionTarget: null,
   themeDropdownOpen: false,
   scrollY: {
     projects: 0,
@@ -511,6 +516,23 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
     notificationsMenuOpen: false,
   })),
   setAppearanceTheme: (appearanceTheme) => {
+    const state = get();
+    if (state.appearanceTransitionTarget !== null) {
+      set({ themeDropdownOpen: false });
+      return;
+    }
+    if (appearanceTheme === state.appearanceTheme && state.appearanceTransitionTarget === null) {
+      set({ themeDropdownOpen: false });
+      return;
+    }
+    if (!state.entered || prefersReducedMotion()) {
+      get().commitAppearanceTheme(appearanceTheme);
+      set({ appearanceTransitionTarget: null });
+      return;
+    }
+    set({ appearanceTransitionTarget: appearanceTheme, themeDropdownOpen: false });
+  },
+  commitAppearanceTheme: (appearanceTheme) => {
     try {
       if (typeof localStorage !== 'undefined') localStorage.setItem('atoma.viz.theme', appearanceTheme);
     } catch {
@@ -518,6 +540,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
     }
     set({ appearanceTheme, themeDropdownOpen: false });
   },
+  finishAppearanceTransition: () => set({ appearanceTransitionTarget: null }),
   toggleLocaleMenu: () => set((state) => ({
     localeMenuOpen: !state.localeMenuOpen,
     accountMenuOpen: false,

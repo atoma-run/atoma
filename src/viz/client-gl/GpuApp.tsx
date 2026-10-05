@@ -29,6 +29,7 @@ import { McpAccess } from './McpAccessPanel.js';
 import { OrgModelsForm } from './OrgModelsForm.js';
 import { EntryVeilLayer } from './EntryVeilLayer.js';
 import { HandheldVeilLayer } from './HandheldVeilLayer.js';
+import { AppearanceVeilLayer, useAppearanceTransition } from './appearance-transition.js';
 import { PreviewPlane } from './PreviewPlane.js';
 import { usePreviewSession } from './usePreviewSession.js';
 import { useEntryFade } from './entry-fade.js';
@@ -177,6 +178,7 @@ function GpuAppContent({
   );
   const metrics = useRef<GpuRenderMetrics>(emptyRenderMetrics());
   const { phase: entryPhase, begin: beginEnter } = useEntryFade();
+  const appearanceTransition = useAppearanceTransition();
   const {
     phase: handheldPhase,
     begin: beginHandheldWhiteout,
@@ -1080,7 +1082,7 @@ function GpuAppContent({
   }, [activate, state.sceneCameraMode, state.selectedRunId, state.view]);
 
   return (
-    <main className="gpu-app" data-entered={state.entered ? 'true' : 'false'} data-theme={state.appearanceTheme}>
+    <main className="gpu-app" data-entered={state.entered ? 'true' : 'false'} data-theme={state.appearanceTheme} data-theme-transition={appearanceTransition.phase}>
       {/* The product tree goes INERT behind an open preview, not merely
           hidden: `inert` takes the whole subtree out of focus order, hit
           testing and the accessibility tree in one attribute, so a tab press
@@ -1089,7 +1091,7 @@ function GpuAppContent({
           have done only the last of the three. */}
       {/* Stop rendering the crystal once the mobile notice covers the scene. */}
       {handheldPhase === 'white' ? null : (
-      <div className="gpu-scene-host" inert={previewOpen || handheldPhase !== 'idle'}>
+      <div className="gpu-scene-host" inert={previewOpen || handheldPhase !== 'idle' || appearanceTransition.phase !== 'idle'}>
       <CubeTurnPlane mode={state.sceneCameraMode} navigation={sceneNavigation}>
       <SceneCameraPlane mode={state.sceneCameraMode} onSettled={cameraSettled}>
         <GpuSurface
@@ -1199,6 +1201,7 @@ function GpuAppContent({
         continueLabel={t('welcome.handheld.continue')}
         onContinue={dismissHandheldWhiteout}
       />
+      <AppearanceVeilLayer {...appearanceTransition} />
     </main>
   );
 }

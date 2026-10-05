@@ -874,7 +874,14 @@ try {
         if (theme) dispatch(`appearance.select.${theme}`);
         if (menu) dispatch('appearance.dropdown.toggle');
       }, appearanceTheme, showThemeMenu);
-      await page.evaluate(() => new Promise((resolveWait) => setTimeout(resolveWait, 850)));
+      if (appearanceTheme) {
+        await page.waitForFunction((theme) => {
+          const app = document.querySelector('.gpu-app');
+          return app?.getAttribute('data-theme') === theme &&
+            app.getAttribute('data-theme-transition') === 'idle';
+        }, { timeout: READY_TIMEOUT_MS }, appearanceTheme);
+      }
+      await page.evaluate(() => new Promise((resolveWait) => setTimeout(resolveWait, 150)));
     }
 
     if (notifications) {

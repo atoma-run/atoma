@@ -20,11 +20,29 @@ import {
 
 let pinnedMs: number | null = null;
 let beadVisible = true;
+let spinBoost = 0;
+let spinOffsetMs = 0;
+let spinSampledAtMs: number | null = null;
+
+function liveMarkElapsedMs(nowMs: number): number {
+  if (spinSampledAtMs !== null) {
+    spinOffsetMs += Math.max(0, nowMs - spinSampledAtMs) * spinBoost * 5;
+  }
+  spinSampledAtMs = nowMs;
+  return nowMs + spinOffsetMs;
+}
+
+/** Temporarily accelerates the live turn while preserving its angle on release. */
+export function setMarkSpinBoost(value: number): void {
+  if (!Number.isFinite(value)) return;
+  liveMarkElapsedMs(typeof performance !== 'undefined' ? performance.now() : 0);
+  spinBoost = Math.max(0, Math.min(1, value));
+}
 
 /** Elapsed ms the mark and its welcome float should read. */
 export function markElapsedMs(): number {
   if (pinnedMs !== null) return pinnedMs;
-  return typeof performance !== 'undefined' ? performance.now() : 0;
+  return liveMarkElapsedMs(typeof performance !== 'undefined' ? performance.now() : 0);
 }
 
 /** `null` returns the clock to the wall. Non-finite values are treated as null. */

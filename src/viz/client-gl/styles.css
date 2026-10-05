@@ -52,6 +52,10 @@ button, input, textarea, select { font: inherit; }
 .gpu-app[data-entered="true"] {
   transition: background-color 720ms cubic-bezier(.22, 1, .36, 1);
 }
+.gpu-app[data-theme-transition="reveal"],
+.gpu-app[data-theme-transition="reveal"] .gpu-cube {
+  transition-duration: 0ms;
+}
 .gpu-app[data-theme="aurora"] {
   --appearance-filter: hue-rotate(-24deg) saturate(1.14) sepia(0);
   background-color: #102a2d;
@@ -228,6 +232,41 @@ button, input, textarea, select { font: inherit; }
 }
 .gpu-handheld-veil[data-phase="white"] .gpu-handheld-veil__flood {
   display: none;
+}
+
+/* The theme change grows out of the crystal's actual bead position. The final
+   solid sheet covers the flood's feathered corners, then lifts over the new
+   palette. Both layers animate only transform or opacity. */
+.gpu-appearance-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  overflow: hidden;
+  pointer-events: auto;
+  background: transparent;
+  opacity: 1;
+}
+.gpu-appearance-veil[data-phase="reveal"] {
+  opacity: 0;
+  transition: opacity 1200ms cubic-bezier(.22, 1, .36, 1);
+}
+.gpu-appearance-veil__flood {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  transform-origin: 50% 50%;
+  will-change: transform, opacity;
+  background: radial-gradient(circle closest-side, #fff 0%, #fff 55%, rgba(255, 255, 255, .72) 70%, rgba(255, 255, 255, 0) 100%);
+}
+.gpu-appearance-veil__white {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+  will-change: opacity;
 }
 .gpu-handheld-veil__notice {
   position: absolute;
