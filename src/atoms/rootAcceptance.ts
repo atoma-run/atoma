@@ -231,6 +231,7 @@ function acceptedEvidence(evidence: readonly Witness[] | undefined, stale: Reado
 const NAMED_PATH = /(?<![\w./-])([\w-]{2,}(?:\/[\w.-]+)*\.(?:md|markdown|txt|html?|css|m?js|cjs|ts|json|csv|py|sh|ya?ml))(?![\w/-])/gi;
 const CRITERIA_FILES_MAX = 4;
 const CRITERIA_FILE_HEAD = 1200;
+const CRITERIA_FILE_COMPLETE_MAX = 6000;
 const CRITERIA_FILE_MATCHED_LINES = 15;
 const CRITERIA_TOKEN = /[a-z][a-z0-9_-]{3,}/g;
 const COMMON_WORDS = new Set(['with', 'that', 'this', 'every', 'each', 'from', 'into', 'have', 'shows', 'show', 'must',
@@ -242,8 +243,10 @@ const COMMON_WORDS = new Set(['with', 'that', 'this', 'every', 'each', 'from', '
  * criterion about a long README is not judged on its first screen only.
  */
 function namedFileExcerpt(content: string, words: ReadonlySet<string>): string {
+  // Keep complete small files: keyword excerpts retain test titles while
+  // dropping their fixtures and assertions (warehouse run 22af997d).
+  if (content.length <= CRITERIA_FILE_COMPLETE_MAX) return JSON.stringify(content);
   const head = content.slice(0, CRITERIA_FILE_HEAD);
-  if (content.length <= CRITERIA_FILE_HEAD) return JSON.stringify(head);
   const later = content.slice(CRITERIA_FILE_HEAD).split(/\r?\n/)
     .filter((line) => [...line.toLowerCase().matchAll(CRITERIA_TOKEN)].some((match) => words.has(match[0])))
     .slice(0, CRITERIA_FILE_MATCHED_LINES).map((line) => line.slice(0, 200));
@@ -338,7 +341,8 @@ export async function rootProofCoverage(
  */
 export const CRITERIA_JUDGEMENT_REQUEST =
   'ALSO emit "criteria" in your verdict JSON: one entry per item above, ' +
-  '[{"id": "c1", "met": true|false, "reason": "<at most 15 words>"}], judged on the evidence.';
+  '[{"id": "c1", "met": true|false, "reason": "<concrete assertion or observation and evidence location; otherwise the missing proof>"}], judged on the evidence. ' +
+  'Keep reasons concise. A passing test name or suite total is not evidence of its claimed coverage; judge every required part of a compound criterion.';
 
 function judgeCoverage(
   coverage: readonly ChecklistCoverage[],

@@ -1,0 +1,69 @@
+{
+  "sample": "Exploratory same-day replay; not a held-out reliability estimate",
+  "model": "gpt-5.6-luna",
+  "production": {
+    "baseline": {
+      "n": 3,
+      "approved": 3,
+      "refused": 0,
+      "reasons": [
+        "Read-back and recorded probes establish the CLI, documentation, fixtures, deterministic outputs, failure preservation, and seven passing subprocess tests. The fixed example values and audit counts match exactly; excess return fails without replacing outputs.",
+        "Independent read-back and latest recorded probes show the CLI, documentation, examples, and subprocess suite exist; npm test passes all 7 tests, the fixed example matches required balances/counts, and excess return fails without replacing outputs.",
+        "Ground-truth read-back and final probes show the CLI, documentation, fixtures, deterministic outputs, preservation behavior, and all seven subprocess tests passing. The fixed example values and audit counts match exactly."
+      ]
+    },
+    "candidate": {
+      "n": 3,
+      "approved": 0,
+      "refused": 3,
+      "reasons": [
+        "Required behavior remains insufficiently evidenced: the full test file has no conflicting-duplicate case, no explicit extra-column case, and does not assert all same-SKU, over-release, over-shipment, and overflow transitions. Re-run focused subprocess checks and report their observed state/output.",
+        "The implementation and most checks are evidenced, but the shown subprocess suite does not test conflicting duplicate event IDs: its conflict cases contain no repeated ID with differing fields. Therefore c4 and the claimed complete coverage in c7 remain unverified.",
+        "The implementation and fixed example are evidenced, but the regression suite does not demonstrate conflicting duplicate IDs, cross-SKU reference rejection, or preservation of pre-existing outputs after the late excess-return failure. Its summary overstates coverage, so c4 and c7 remain unsupported."
+      ]
+    }
+  },
+  "controls": [
+    {
+      "id": "labels-only:candidate:0",
+      "expected": false,
+      "approved": false,
+      "reasoning": "A passing test summary does not establish the required refusal or preservation behavior; the test body and concrete inputs/outputs are unavailable."
+    },
+    {
+      "id": "real-conflict:candidate:0",
+      "expected": true,
+      "approved": true,
+      "reasoning": "Observed assertions confirm conflicting duplicate ID x was refused, stderr identified row 3, and both output and input files were preserved exactly."
+    },
+    {
+      "id": "wrong-cause:candidate:0",
+      "expected": false,
+      "approved": false,
+      "reasoning": "The duplicate-ID scenario is unverified: execution stopped on missing opening.csv, so it never established refusal of conflicting events or preservation of outputs and inputs."
+    },
+    {
+      "id": "explicit-defect:candidate:0",
+      "expected": false,
+      "approved": false,
+      "reasoning": "Observed CLI exits 0 and changes stock from A=1 to A=4 for conflicting duplicate event ID x; it neither refuses the input nor preserves existing output."
+    },
+    {
+      "id": "equivalent-direct-evidence:candidate:0",
+      "expected": true,
+      "approved": true,
+      "reasoning": "Observed verification exercised conflicting duplicate event ID x, confirmed nonzero CLI exit and the expected stderr message, and byte-for-byte preservation of both existing outputs and inputs."
+    }
+  ],
+  "limits": [
+    "Candidate refuses the archived false acceptance for missing conflicting-duplicate assertions; this does not establish complete detection of all CLI defects.",
+    "Other criterion judgments still overstate coverage in some responses, including audit determinism.",
+    "No production run after the correction has yet been executed."
+  ],
+  "sha256": {
+    "live-evidence.json.gz": "6e3fabc8764b826606c985ccdb72413c7a5bb49d1fd5e36d47b63324ab6d7dda",
+    "replay-requests.json.gz": "2cc16ba455f110988349c80326bde6f8287fe33660d6a021c9a55129576bc1ea",
+    "published/stock-reconcile.js.txt": "59ee221a915aa20f931e2ebb399f638a960f40750d59f61ffb67e52ed8d33f0e",
+    "published/stock-reconcile.test.js.txt": "78469ea749d8919ad9556bd8e02d5dc29a961f953d40c8b47cb9ccf260dca244"
+  }
+}

@@ -1,0 +1,47 @@
+[
+  {
+    "name": "reservation-reused",
+    "opening": "sku,onHand\nA,10\nB,10\n",
+    "events": "id,sku,type,quantity,ref\nr,A,RESERVE,2,R\nl,A,RELEASE,2,R\nr2,A,RESERVE,1,R\n",
+    "expectedSuccess": false,
+    "exitCode": 0,
+    "stderr": "",
+    "stock": "sku,onHand,reserved,available\nA,10,1,9\nB,10,0,10\n"
+  },
+  {
+    "name": "reservation-cross-sku",
+    "opening": "sku,onHand\nA,10\nB,10\n",
+    "events": "id,sku,type,quantity,ref\nr,A,RESERVE,2,R\nr2,B,RESERVE,1,R\n",
+    "expectedSuccess": false,
+    "exitCode": 0,
+    "stderr": "",
+    "stock": "sku,onHand,reserved,available\nA,10,2,8\nB,10,1,9\n"
+  },
+  {
+    "name": "zero-padded-zero",
+    "opening": "sku,onHand\nA,10\nB,10\n",
+    "events": "id,sku,type,quantity,ref\ne,A,RECEIVE,00,\n",
+    "expectedSuccess": false,
+    "exitCode": 0,
+    "stderr": "",
+    "stock": "sku,onHand,reserved,available\nA,10,0,10\nB,10,0,10\n"
+  },
+  {
+    "name": "quoted-final-column-followed-by-row",
+    "opening": "sku,onHand\nA,10\nB,10\n",
+    "events": "id,sku,type,quantity,ref\ne,A,RECEIVE,1,\"\"\nf,A,RECEIVE,1,\n",
+    "expectedSuccess": true,
+    "exitCode": 1,
+    "stderr": "/var/folders/xx/g4fq_5v13xd_7g3svk48qg6w0000gn/T/tmpyas03kmq/events.csv: row 3: malformed quoting\n",
+    "stock": null
+  },
+  {
+    "name": "reservation-id-equals-event-id",
+    "opening": "sku,onHand\nA,10\nB,10\n",
+    "events": "id,sku,type,quantity,ref\nR,A,RESERVE,2,R\n",
+    "expectedSuccess": true,
+    "exitCode": 1,
+    "stderr": "/var/folders/xx/g4fq_5v13xd_7g3svk48qg6w0000gn/T/tmp44iadcdu/events.csv: row 2: reservation ref must be new\n",
+    "stock": null
+  }
+]

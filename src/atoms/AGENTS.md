@@ -306,6 +306,16 @@ load-bearing.
   expected value to the user or supported contract before modifying code.
   Fix unspecified test conventions rather than correct behavior; keep explicit
   requirements and genuine regressions. Reports account for earlier-phase edits.
+  Required test coverage is judged from setup, actions, assertions and their
+  observed execution, never test names or passing totals. Compound criteria
+  retain every required part; criterion reasons identify concrete evidence or
+  missing proof. Shared assertion guidance reaches existing molecules and
+  validators without another call or mechanical coverage gate. Run 22af997d
+  approved conflicting-duplicate coverage absent from the test body; archived
+  evidence and replay: `benchmark/stock-reconcile-2026-10-05/`.
+  Root file read-back preserves complete files up to 6,000 characters, at
+  most four files; longer files retain bounded, explicitly incomplete excerpts.
+  Selecting keyword lines alone had preserved test names but cut their bodies.
 - Inputs that only EXERCISE the artefact go under `.atoma-scratch/`, which
   publication and the preview already exclude with every `.atoma-*` path; the
   molecule reads the rule in its runtime execution prompt, so branches whose

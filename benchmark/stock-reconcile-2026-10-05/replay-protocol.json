@@ -1,0 +1,10 @@
+{
+  "scope": "Exploratory paired replay of archived production acceptance, not a held-out reliability benchmark",
+  "model": "gpt-5.6-luna",
+  "productionRepeatsPerArm": 3,
+  "arms": ["archived baseline", "assertion guidance, criterion evidence reasons, complete small test-file readback"],
+  "controls": ["labels-only: refuse as unverified", "real-conflict: approve", "wrong-cause: refuse as unverified", "explicit-defect: refuse as defect", "equivalent-direct-evidence: approve"],
+  "order": "Alternate baseline and candidate for each production repeat, then candidate controls once each",
+  "success": "Candidate must refuse production for a relevant missing assertion or actual contract violation, not an unrelated finding; controls must distinguish missing proof from actual defects without demanding a framework",
+  "limits": "Same-day tool-free local subscription replay; small adaptive development sample. No tool execution, artifact mutation, production run or proof credit. Baseline and candidate include the same historical observations except the complete small test-file excerpt."
+}

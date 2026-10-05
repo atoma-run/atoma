@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Atom } from '../src/core/atom.js';
 import type { Plan, Result, RunContext, Task, ToolExecutor, Verdict } from '../src/core/types.js';
 import { acceptRootResult } from '../src/atoms/rootAcceptance.js';
+import { ASSERTION_EVIDENCE_GUIDANCE } from '../src/atoms/prompts.js';
 import { compareStartingWorkspace, renderStartingWorkspace } from '../src/contracts/startingWorkspace.js';
 import { snapshotDeliveredWorkspace, snapshotStartingWorkspace } from '../src/run/workspace.js';
 import { jsonText, makeCtx } from './helpers.js';
@@ -110,8 +111,28 @@ describe('what the root acceptor reads', () => {
   const result: Result = { output: 'site written', summary: 'Wrote README.md and index.html', trace: [], producedBy: { tier: 1, name: 'leaf', viaFallback: false } };
   const origin = { source: 'user' as const, digest: 'a'.repeat(64) };
 
+  it('shows the complete warehouse test body, not just the misleading passing title, to root acceptance', async () => {
+    const tests = readFileSync(new URL('../benchmark/stock-reconcile-2026-10-05/published/stock-reconcile.test.js.txt', import.meta.url), 'utf8');
+    const base = makeCtx();
+    const ctx: RunContext = { ...base, tools: new Workspace({ 'test/stock-reconcile.test.js': tests }), attempt: 1 };
+    base.llm.enqueueText(jsonText({ approved: false, reasoning: 'Conflicting duplicate assertions are not present.',
+      scope: 'ephemeral', modifications: {}, criteria: [{ id: 'c1', met: false, reason: 'The cases array has no conflicting duplicate input.' }] }));
+    const accepted = await acceptRootResult({ actor: new Actor(), task: { description: 'Verify conflicting duplicates preserve outputs.' },
+      result: { ...result, summary: 'Seven tests pass, including conflicts.' }, ctx, floor: [], phaseCoverage: [],
+      checklist: [{ id: 'c1', behaviour: 'test/stock-reconcile.test.js covers conflicting duplicates and preserves outputs.', check: { kind: 'review' } }],
+      checklistOrigin: origin });
+    const request = base.llm.calls[0]!;
+    expect(request.userContent).toContain(JSON.stringify(tests));
+    expect(request.userContent).toContain('concrete assertion or observation and evidence location');
+    expect(request.systemPrompt).toContain(ASSERTION_EVIDENCE_GUIDANCE);
+    expect(accepted.approved).toBe(false);
+    expect(base.llm.calls).toHaveLength(1);
+    // This tests the real reader/verdict plumbing, not model judgment. Live
+    // baseline/candidate judgments are archived separately beside the fixture.
+  });
+
   it('reads the starting workspace comparison and the files the criteria name, long ones past their head', async () => {
-    const readme = `# Notes API\n${'Intro text. '.repeat(150)}\n## Routes\ncurl -X POST http://localhost:<port>/api/notes\n`;
+    const readme = `# Notes API\n${'Intro text. '.repeat(550)}\n## Routes\ncurl -X POST http://localhost:<port>/api/notes\n`;
     const seed = dir({ 'index.html': CONFIGURATOR });
     const now = dir({ 'index.html': '<h1>Home</h1>\n' });
     const start = snapshotStartingWorkspace(seed);

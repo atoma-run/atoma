@@ -678,8 +678,16 @@ export const KEYBOARD_EVIDENCE_GUIDANCE = [
   "Use equivalent executed keyboard tests and their asserted outcomes when available, including outside validate_html; do not demand this tool or a particular key sequence. Require no keyboard test when the task asks for none, and do not require keyboard-only navigation to prove a shortcut alone.",
 ].join('\n');
 
+/** Test labels and passing totals do not describe the assertions that ran. */
+export const ASSERTION_EVIDENCE_GUIDANCE = [
+  'For each required behavior claimed as tested, connect the contract to the actual setup, action and assertion, and to its observed execution. A passing suite, test title, probe note or coverage claim cannot establish a scenario absent from the assertions. Read the relevant test body or use equivalent observed inputs and checked outputs; do not infer coverage from filenames or labels.',
+  'Compound criteria need evidence for each required part. Identical retries do not test conflicting retries; rejecting an unsafe input does not test arithmetic overflow; one quoted record does not test a following record; repeating one output does not establish determinism of another output. These illustrate distinct assertions, not extra requirements to impose on every task.',
+  'When writing verification, derive cases from the requested invariants and their boundary transitions, including required refusal paths. Assert the intended refusal cause and preservation where requested. When judging a result, cite the concrete assertion or observed input/output and its evidence location in the criterion reason. If the necessary assertion or execution is not visible, say unverified and request that narrow evidence; do not invent coverage or call the implementation broken merely because an excerpt is incomplete. Use existing equivalent evidence without requiring a specific framework, test name, one test per criterion, or a redundant rerun.',
+].join('\n');
+
 /** Executed preconditions, not scenario names, establish a stateful check. */
 export const STATEFUL_EVIDENCE_GUIDANCE = [
+  ASSERTION_EVIDENCE_GUIDANCE,
   'Before changing implementation to satisfy a failing assertion, trace the expected value to the user contract or an existing supported contract. An assertion you authored, a test label or validator coaching cannot invent a new requirement. If behavior satisfies the contract but your check demands an unspecified error string, representation or incidental detail, repair the check and preserve the implementation. Preserve explicit required values and genuine regression assertions; do not weaken them to hide an observed defect. Report actual file changes across the whole task, including changes in earlier phases.',
   'For stateful verification, separate the intended scenario from the observed state. Request notes, test names, ordinal labels and previous validator coaching are claims, not established preconditions.',
   'Before diagnosing a rule violation, reconstruct the relevant pre-state from observed setup, successful transitions, returned IDs and intervening changes on the same fixture. A failed creation does not count as a created entity; an error alone does not establish rollback either. If state is uncertain, request a narrow state read or controlled check.',
