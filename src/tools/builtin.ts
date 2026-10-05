@@ -526,7 +526,8 @@ export function editFileTool(opts: BuiltinToolOptions): BuiltinTool {
       }
       const next = replaceAll
         ? content.split(oldString).join(newString)
-        : content.replace(oldString, newString);
+        // A replacement callback preserves literal $&, $`, $' and $$ bytes.
+        : content.replace(oldString, () => newString);
       writeFileSync(abs, next, 'utf8');
       markSeen(opts.sandbox, abs);
       opts.logger?.info(

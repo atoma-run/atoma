@@ -44,6 +44,22 @@ describe('edit_file', () => {
     );
   });
 
+  it.each([false, true])('preserves literal replacement bytes with replace_all=%s', async (replaceAll) => {
+    const replacement = "$$ $& $` $' $1 $<name> \\n ✓";
+    write('a.txt', replaceAll ? 'before TARGET middle TARGET after' : 'before TARGET after');
+    const result = await editFileTool({ sandbox }).execute({
+      path: 'a.txt',
+      old_string: 'TARGET',
+      new_string: replacement,
+      replace_all: replaceAll,
+    });
+    const expected = replaceAll
+      ? `before ${replacement} middle ${replacement} after`
+      : `before ${replacement} after`;
+    expect(readFileSync(join(dir, 'a.txt'), 'utf8')).toBe(expected);
+    expect(result).toMatchObject({ ok: true, replacements: replaceAll ? 2 : 1, bytes: Buffer.byteLength(expected) });
+  });
+
   it('errors with a coaching message when old_string is not found', async () => {
     write('a.txt', 'hello world');
     const tool = editFileTool({ sandbox });
