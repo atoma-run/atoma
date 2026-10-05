@@ -1,5 +1,49 @@
 # Dependency resolver: lost evidence and repeated source edits — 2026-10-05
 
+## Post-deployment run: recovered missing-file read — 2026-10-06
+
+CI 37375800699 and deployment 37376313370 succeeded for revision
+`5ae92043e2bbfa9b389110b6d6ef5f5de42d7ef8`, including that revision's worker.
+Production run `cb53b09d-87d7-4c3a-af95-89b9500c209e` records this exact
+revision. Its complete 108-event summary and paged metadata were read via MCP.
+It took 384.693 seconds and 20 LLM calls, reported $0.1283 subscription-equivalent
+cost, and finished partial without publication. It had no edit failures, but
+did have one recovered `read_file` failure. Recovery is not zero errors.
+
+Event `c04815d9-c014-4d78-890c-53730367fece` received the literal argument
+`test/test/proofs/diamond.js` from Benzene. The sandbox did not duplicate the
+prefix. The model had listed the root and read `resolve.js` and `test.js`;
+it had not listed the proof directory before guessing that path. Its earlier
+document search returned README excerpts, not this doubled path. It recovered
+by listing `test` and `fixtures`, reading the fixture bytes, and successfully
+editing the diamond assertions. The first c5 refusal was resolved. The final
+c9 refusal instead identified missing assertions for an empty packages array
+and for a reachable prototype-like name (`__proto__`). The solver hash remained
+unchanged; these missing assertions must not be described as proven delivery.
+
+The follow-up makes `list_files` entries carry a workspace-relative `path`
+alongside their existing basename `name`, kind and size. Tool descriptions
+state that listings never change directories and that an entry path is reused
+unchanged. A missing read retains its ENOENT and exact requested path, with a
+bounded listing of the nearest existing ancestor to guide explicit recovery.
+It never reads an alternative file or collapses repeated directory names.
+The diagnostic adds no model call and preserves the failed event as evidence.
+
+`tests/workspace-read-paths.test.ts` reproduces the production path and follows
+returned entry paths into the real reader. It also covers a real `test/test`
+directory, normalized listing paths, unusual filenames, bounded hints, dangling
+and external symlinks, invalid arguments, directory reads and traversal refusal.
+These mocked-agent filesystem tests establish tool behavior, not a guarantee
+that a future model will never invent a path.
+
+Follow-up verification: `npm run release:check` passed (5,448 tests passed,
+19 conditional skips, no failures), including both TypeScript configurations,
+lint, audit, build and compiled smokes. The initial restricted test attempt
+could not bind loopback sockets (`EPERM`); the complete run with local-server
+permission passed. All 20 production files were recovered and hash-checked
+against the final manifest. Their `npm test` and the separate 244-check oracle
+passed, while production's missing-test refusal remains recorded above.
+
 ## Scope and evidence
 
 Production project `8ac49d72-c97e-48cd-a9d7-420207d9c761`, investigated through

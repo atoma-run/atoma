@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, lstatSync } from 'node:fs';
-import { basename, dirname } from 'node:path';
+import { basename, dirname, join, relative, sep } from 'node:path';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createServer as createNetServer } from 'node:net';
 import { createHash } from 'node:crypto';
@@ -541,12 +541,58 @@ export function editFileTool(opts: BuiltinToolOptions): BuiltinTool {
   };
 }
 
+/** The caller can pass this path back unchanged, even after listing a subdirectory. */
+function workspacePath(sandbox: ToolSandbox, abs: string): string {
+  return relative(sandbox.root, abs).split(sep).join('/') || '.';
+}
+
+function workspaceEntry(sandbox: ToolSandbox, directory: string, name: string) {
+  const full = join(directory, name);
+  // Keep links opaque, including dangling links and links outside the sandbox.
+  const st = lstatSync(full);
+  return {
+    name,
+    path: workspacePath(sandbox, full),
+    kind: st.isDirectory() ? 'dir' : st.isSymbolicLink() ? 'symlink' : 'file',
+    size: st.size,
+  };
+}
+
+/** Diagnose only; never substitute a guessed file or hide the original failure. */
+function missingReadHint(sandbox: ToolSandbox, abs: string): string {
+  let directory = dirname(abs);
+  while (true) {
+    const path = workspacePath(sandbox, directory);
+    try {
+      const checked = sandbox.resolve(path);
+      const names = readdirSync(checked);
+      const entries = [];
+      let bytes = 0;
+      for (const name of names.slice(0, 12)) {
+        const entry = workspaceEntry(sandbox, checked, name);
+        bytes += JSON.stringify(entry).length;
+        if (bytes > 3000) break;
+        entries.push(entry);
+      }
+      return ` All tool paths start at the workspace root; list_files does not change directories. ` +
+        `Existing ancestor listing: ${JSON.stringify({ path, entries, truncated: entries.length < names.length })}. ` +
+        'Use list_files on the relevant directory, then copy an entry.path unchanged.';
+    } catch (error) {
+      // Permission errors, unsafe links and concurrent filesystem changes must
+      // not replace the original read error with a misleading directory hint.
+      if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT') return '';
+    }
+    if (directory === sandbox.root) return '';
+    directory = dirname(directory);
+  }
+}
+
 export function readFileTool(opts: BuiltinToolOptions): BuiltinTool {
   return {
     declaration: {
       name: 'read_file',
       description:
-        'Read the full contents of a file from the workspace. Use relative paths only.',
+        'Read the full contents of a file. Paths are always relative to the workspace root, never the last listed directory. Copy list_files entry.path unchanged; list the parent directory before reading an uncertain path.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -558,7 +604,15 @@ export function readFileTool(opts: BuiltinToolOptions): BuiltinTool {
     async execute(args) {
       const path = expectString(args, 'path');
       const abs = opts.sandbox.resolve(path);
-      const content = readFileSync(abs, 'utf8');
+      let content: string;
+      try {
+        content = readFileSync(abs, 'utf8');
+      } catch (error) {
+        if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+          error.message += missingReadHint(opts.sandbox, abs);
+        }
+        throw error;
+      }
       markSeen(opts.sandbox, abs);
       opts.logger?.debug(`[tool:read_file] ${path} (${Buffer.byteLength(content, 'utf8')} bytes)`);
       return { path, content };
@@ -571,13 +625,13 @@ export function listFilesTool(opts: BuiltinToolOptions): BuiltinTool {
     declaration: {
       name: 'list_files',
       description:
-        'List files and directories inside the workspace (optionally under a subdirectory).',
+        'List files and directories inside the workspace (optionally under a subdirectory). Each entry.path is relative to the workspace root and can be passed unchanged to read_file or list_files. Listing never changes the working directory.',
       inputSchema: {
         type: 'object',
         properties: {
           path: {
             type: 'string',
-            description: 'Relative directory to list. Defaults to workspace root.',
+            description: 'Directory relative to the workspace root. Defaults to workspace root.',
           },
         },
       },
@@ -585,20 +639,7 @@ export function listFilesTool(opts: BuiltinToolOptions): BuiltinTool {
     async execute(args) {
       const rel = typeof args['path'] === 'string' && args['path'] ? args['path'] : '.';
       const abs = opts.sandbox.resolve(rel);
-      const entries = readdirSync(abs).map((name) => {
-        const full = `${abs}/${name}`;
-        // lstat, never stat: statSync FOLLOWS symlinks, so a dangling link
-        // in the workspace threw ENOENT and took down the whole listing —
-        // including the read-back probe (the zero-token verification
-        // spine) on an otherwise valid deliverable. A symlink is reported
-        // as its own kind; consumers treat it as opaque.
-        const st = lstatSync(full);
-        return {
-          name,
-          kind: st.isDirectory() ? 'dir' : st.isSymbolicLink() ? 'symlink' : 'file',
-          size: st.size,
-        };
-      });
+      const entries = readdirSync(abs).map((name) => workspaceEntry(opts.sandbox, abs, name));
       return { path: rel, entries };
     },
   };
