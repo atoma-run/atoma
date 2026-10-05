@@ -27,7 +27,9 @@ cases. No original passing assertion was removed.
 All **64 original independent cases** and **six exploratory cases** pass on the
 exact final artifact. The artifact's own subprocess suite also passes locally.
 Four SHA-256 values match the production manifest; original scorer hashes are
-unchanged. Source snapshots remain inert `.txt` files for replay.
+unchanged. Source snapshots remain inert files for replay. `artifact/README.md.txt.gz`
+is compressed to preserve its original trailing blank line byte-for-byte;
+decompress it before restoring README.md.
 
 ## Acceptance and limits
 
