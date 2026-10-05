@@ -210,7 +210,7 @@ export function drawAccountMenu(
         weight: '700',
         color: GPU_COLORS.muted,
       });
-      ctx.text(ctx.root, auth.viewer.activeOrganisation.name, innerX, y + 15, {
+      ctx.text(ctx.root, auth.viewer.activeOrganisation.name, innerX, y + 20, {
         size: 11,
         color: GPU_COLORS.text,
         width: innerWidth,
