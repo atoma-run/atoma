@@ -1,0 +1,14 @@
+{
+  "warehouseRepeats": 3,
+  "warehouseC4AndC6Refused": 3,
+  "syntheticControls": 6,
+  "matchingControlJudgments": 6,
+  "calls": 18,
+  "sha256": {
+    "requests.json.gz": "72953f8f03bcf023658d4cfcb50906cf1cb4906b637e2ef6db41675480a36891",
+    "reviews.jsonl": "0235a6576672c6257746647f9fb631dac5ade453f3bde59a6f9cfeda8337a350",
+    "responses.jsonl": "c6eef17a239a788c3834eeeda2e951cfd3f9dd252f709696236b8ba480c386d6",
+    "replay.mjs": "5306b5a564efba363146d210671cf130148040d6d800bafaca418056c71d2d5e",
+    "protocol.json": "80bdfee5d3a37a7b4094acf48e9b6ada98fdaaf7ac1589c09a1708708a6469d2"
+  }
+}

@@ -84,6 +84,8 @@ describe('standing HTTP evidence at root acceptance (owner decision 2026-10-04)'
       return { text: jsonText({ approved: true, reasoning: 'met', criteria: [{ id: 'c1', met: true }] }),
         stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } };
     });
+    ctx.llm.enqueueText(jsonText({ approved: true, reasoning: 'Scoped HTTP judgment.',
+      criteria: [{ id: 'c1', met: true, reason: 'Fixture accepts the host HTTP evidence.' }] }));
     const accepted = await acceptRootResult({ actor: new Actor(3, false, []), task: { description: 'Build the API.' },
       result, ctx, floor: [], phaseCoverage: [],
       checklist: [{ id: 'c1', behaviour: 'unknown book refused', check: { kind: 'http', method: 'POST', path: '/api/loans', status: 404 } }],
@@ -181,12 +183,12 @@ describe('root delivery coverage', () => {
     const evidence = scope === 'same phase' ? executorEvidence({}, first) : earlyEvidence;
     const logBefore = JSON.stringify(ctx.attestations.forAttempt(1));
     const readsBefore = reads.length;
-    ctx.llm.enqueue(req => {
+    for (let review = 0; review < 2; review++) ctx.llm.enqueue(req => {
       expect(req.userContent).not.toContain('OLD_README_SENTINEL');
       expect(req.userContent).toContain('superseded read result omitted');
       expect(req.userContent).toContain('python3 verify_all.py --write-manifest');
       return { text: jsonText({ approved: true, reasoning: 'Current instructions are present.',
-        criteria: [{ id: 'c1', met: true }] }), stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } };
+        criteria: [{ id: 'c1', met: true, reason: 'Current README contains the regeneration command.' }] }), stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } };
     });
     const accepted = await acceptRootResult({ actor: new Actor(3, false, []),
       task: { description: 'Explain how to regenerate the manifest with verify_all.py.' },
@@ -197,7 +199,7 @@ describe('root delivery coverage', () => {
     });
     expect(accepted.approved).toBe(true);
     expect(reads.slice(readsBefore)).toEqual(['README.md']);
-    expect(ctx.llm.calls).toHaveLength(1);
+    expect(ctx.llm.calls).toHaveLength(2);
     expect(JSON.stringify(ctx.attestations.forAttempt(1))).toBe(logBefore);
     expect(logBefore).toContain('OLD_README_SENTINEL');
   });
@@ -899,6 +901,7 @@ describe('depth transition through the production supervision loop', () => {
     // All met: approved, with the judgements kept.
     const met = context();
     met.llm.enqueueText(judge(true));
+    met.llm.enqueueText(judge(true));
     const approved = await acceptRootResult({ actor: new Actor(), task, result, ctx: met, floor: [], phaseCoverage: [],
       checklist, checklistOrigin: { source: 'user', digest: 'a'.repeat(64) } });
     expect(approved.approved).toBe(true);
@@ -979,6 +982,7 @@ describe('depth transition through the production supervision loop', () => {
     const half = context(new Sized());
     await layOut(half, 800, 1280);
     half.llm.enqueueText(approve());
+    half.llm.enqueueText(approve());
     const shown = await acceptRootResult({ actor: new Actor(), task, result, ctx: half, floor, phaseCoverage: [],
       checklist, checklistOrigin: origin });
     expect(half.llm.calls[0]!.userContent).toContain('375 px: NOT LAID OUT, 1280 px: laid out, passed');
@@ -993,6 +997,7 @@ describe('depth transition through the production supervision loop', () => {
 
     const both = context(new Sized());
     await layOut(both, 375, 1280);
+    both.llm.enqueueText(approve());
     both.llm.enqueueText(approve());
     const laidOut = await acceptRootResult({ actor: new Actor(), task, result, ctx: both, floor, phaseCoverage: [],
       checklist, checklistOrigin: origin });

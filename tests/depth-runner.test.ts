@@ -365,7 +365,10 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
       let reply: unknown;
       if (req.role === 'prefilter') reply = { kind: 'reuse', target: leafName, confidence: 'high', reasoning: 'Reuse the canonical executor' };
       else if (req.role === 'validate-plan') reply = { approved: true, reasoning: 'Plan approved' };
-      else if (req.role === 'validate-result') reply = { approved: true, reasoning: 'Accepted', criteria: [{ id: 'c1', met: true }, { id: 'c2', met: true }] };
+      else if (req.role === 'validate-result') reply = { approved: true, reasoning: 'Accepted', criteria: [
+        { id: 'c1', met: true, reason: 'Observed GET /api/notes returns 200 with an empty list.' },
+        { id: 'c2', met: true, reason: 'README contains the node server.cjs start command.' },
+      ] };
       else if (req.role === 'plan' && req.actor?.tier !== 1) reply = [
         { strategy: 'reuse', target: leafName, reasoning: 'One server phase' },
         makePlan({ subtasks: [{ description: 'Write and probe server.cjs', outputs: ['server.cjs'] }], aggregation: { mode: 'sequential' } }),
@@ -373,10 +376,11 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
       else if (req.role === 'plan') reply = { reasoning: 'Write the server', proposedAction: 'Write server.cjs, start it, probe it', expectedOutput: 'Server answering' };
       else if (req.role === 'execute') {
         await perform(req, 'write_file', { path: 'server.cjs', content: "const http=require('node:http');const s=http.createServer((q,r)=>{r.statusCode=q.url==='/api/notes'?200:404;r.end('[]')});s.listen(0,'127.0.0.1',()=>console.log('LISTENING_ON_PORT='+s.address().port));" });
+        await perform(req, 'write_file', { path: 'README.md', content: '# Start\nRun `node server.cjs` to start the API.\n' });
         const started = await perform(req, 'start_node_server', { entry: 'server.cjs' }) as { pid: number; url: string };
         serverPid = started.pid;
         await perform(req, 'fetch_url', { url: `${started.url}api/notes` });
-        reply = { output: { files: ['server.cjs'] }, summary: 'Server written and probed' };
+        reply = { output: { files: ['server.cjs', 'README.md'] }, summary: 'Server written and probed; README documents startup.' };
       } else throw new Error(`Unexpected request: ${req.role}`);
       return { text: JSON.stringify(reply), stopReason: 'end_turn', usage: { inputTokens: 10, outputTokens: 10 } };
     } } });
@@ -388,6 +392,7 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
       } });
       expect(await handle.settled).toEqual({ outcome: 'delivered' });
       expect(calls.filter((req) => req.role === 'draft-checklist')).toHaveLength(0);
+      expect(calls.filter((req) => req.actor?.name === 'run-criteria')).toHaveLength(source === 'user' ? 1 : 0);
       const planning = calls.filter((req) => req.role === 'plan').map((req) => req.userContent).join('\n');
       expect(planning).toContain(source === 'user' ? 'Approved by the user before launch' : 'Drafted from the goal');
       expect(planning).toContain('c2: the README explains how to start it (judged by review)');

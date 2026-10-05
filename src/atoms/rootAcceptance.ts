@@ -8,7 +8,8 @@ import { establishesDomInteraction, renderBrowserInputs, renderObservation, supe
 import type { AcceptanceInfo, PhaseCoverageRecord, ProofFloor } from '../contracts/depthRouting.js';
 import { buildResultGateEnv, renderResultGateFindings, runResultGates } from './resultGates.js';
 import { checkGroundTruth } from './groundTruth.js';
-import { llmVerdict } from './verdict.js';
+import { llmVerdict, renderTransportEvidence } from './verdict.js';
+import { reviewAcceptanceCriteria } from './criteriaReview.js';
 import { textReviewReference } from './textReview.js';
 import { LANDED_RESULT_GUIDANCE } from './prompts.js';
 import {
@@ -228,7 +229,7 @@ function acceptedEvidence(evidence: readonly Witness[] | undefined, stale: Reado
   return evidence.filter((witness) => !(witness.source === 'transport-observed' && stale.has(witness.eventId)));
 }
 
-const NAMED_PATH = /(?<![\w./-])([\w-]{2,}(?:\/[\w.-]+)*\.(?:md|markdown|txt|html?|css|m?js|cjs|ts|json|csv|py|sh|ya?ml))(?![\w/-])/gi;
+const NAMED_PATH = /(?<![\w./-])([\w-][\w.-]+(?:\/[\w.-]+)*\.(?:md|markdown|txt|html?|css|m?js|cjs|ts|json|csv|py|sh|ya?ml))(?![\w/-])/gi;
 const CRITERIA_FILES_MAX = 4;
 const CRITERIA_FILE_HEAD = 1200;
 const CRITERIA_FILE_COMPLETE_MAX = 6000;
@@ -592,11 +593,25 @@ export async function acceptRootResult(args: {
       // one block and decides whether the phases it did complete survive.
       ...(result.unfinishedPhases?.length ? { landingBlock: LANDED_RESULT_GUIDANCE } : {}),
     }) : { approved: true, reasoning: 'No mechanical finding requires review.' };
-  const judged = judgementsAsked && 'criteria' in raw ? judgeCoverage(coverage, raw.criteria) : coverage;
   const landed = Boolean(result.unfinishedPhases?.length);
+  const initialJudged = judgementsAsked && 'criteria' in raw ? judgeCoverage(coverage, raw.criteria) : coverage;
+  const initial = consistentWithCriteria(raw, initialJudged, source, landed);
+  // A holistic approval cannot manufacture checklist coverage. Completed file
+  // deliveries with user criteria must also pass focused, report-blind reviews.
+  // A refused or landed result needs no extra paid approval work; text keeps
+  // its separate source-derived reference and whole-answer review protocol.
+  const focused = initial.approved && reviewing && userCriteria && !landed && args.delivery !== 'text'
+    ? await reviewAcceptanceCriteria({ ctx, task, checklist,
+      evidence: [probe.block, namedFilesBlock, checklistBlock, layoutsBlock, inputsBlock, startingBlock, restorationsBlock,
+        inheritedBlock, renderResultGateFindings(gates.reviewFindings),
+        (() => { const observed = renderTransportEvidence(evidence); return [
+          `Transport observations: ${observed.omitted} omitted; omissions establish no coverage.`, ...observed.lines,
+        ].join('\n'); })()].filter(Boolean).join('\n\n') }) : undefined;
+  const judged = focused ? judgeCoverage(coverage, focused.criteria) : initialJudged;
+  const reviewed = focused && !focused.approved ? { approved: false, reasoning: focused.reasoning } : initial;
   const inheritedJudgements = 'inherited' in raw ? raw.inherited : undefined;
   const verdict = consistentWithRecheck(
-    consistentWithInherited(consistentWithCriteria(raw, judged, source, landed), inheritedItems, inheritedJudgements, landed),
+    consistentWithInherited(consistentWithCriteria(reviewed, judged, source, landed), inheritedItems, inheritedJudgements, landed),
     earlier, unrechecked);
   const produced = result.producedBy;
   return {

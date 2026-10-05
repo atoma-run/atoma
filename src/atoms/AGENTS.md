@@ -83,6 +83,18 @@ Neighbours:
   that judges one of its criteria unmet is the acceptor contradicting itself,
   so it refuses with that criterion. A drafted item judged unmet is recorded
   and never fails a run by itself.
+- A completed FILE delivery provisionally approved against a USER list also
+  passes `reviewAcceptanceCriteria`: sequential batches of at most two items,
+  on the cheapest tier, with host evidence but no result report or global
+  verdict. Those judgments replace the global call's checklist judgments;
+  any unmet item or refused batch prevents delivery. Invalid, truncated,
+  missing, duplicate or unexplained judgments mean an incomplete review,
+  never approval or a claimed implementation defect. Transport cancellation
+  still propagates. Refused deliveries, drafted lists, text and landings keep
+  their existing paths. This adds at most six tool-free calls for twelve user
+  criteria, no tool replay or phase credit. The incident and adversarial
+  controls are in `benchmark/criteria-review-2026-10-05/`; earlier aggregate
+  approvals stayed unreliable even after a larger-model replay.
 - The root also reads an attempt-scoped inventory of executed browser inputs,
   excluding restored/stale observations. Clicks, select assignments and forced
   focus do not prove a keyboard-only journey (run ce89c84a, 2026-10-04).
@@ -310,7 +322,7 @@ load-bearing.
   observed execution, never test names or passing totals. Compound criteria
   retain every required part; criterion reasons identify concrete evidence or
   missing proof. Shared assertion guidance reaches existing molecules and
-  validators without another call or mechanical coverage gate. Run 22af997d
+  validators without a mechanical coverage classifier. Run 22af997d
   approved conflicting-duplicate coverage absent from the test body; archived
   evidence and replay: `benchmark/stock-reconcile-2026-10-05/`.
   Root file read-back preserves complete files up to 6,000 characters, at

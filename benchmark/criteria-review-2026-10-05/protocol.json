@@ -1,0 +1,10 @@
+{
+  "registeredBeforeExecution": true,
+  "model": "gpt-5.6-luna",
+  "path": "Actual reviewAcceptanceCriteria production helper, two criteria per call, strict runtime verdict parsing and aggregation",
+  "warehouse": {"repeats": 3, "criteria": 7, "expectedUnmetIncludes": ["c4", "c6"], "calls": 12},
+  "controls": {"n": 6, "calls": 6, "valid": ["valid-cli", "valid-api", "valid-document"], "invalid": ["misleading-cli", "truncated-document", "wrong-refusal-cause"]},
+  "success": "Every warehouse repetition identifies c4 and c6 as unsupported; valid controls pass, missing evidence is distinguished from demonstrated defects. Judge criterion reasons, not only global refusal.",
+  "scope": "Exploratory regression validation on a known incident and explicitly synthetic controls. Not a universal reliability claim. No production data or artifact mutation, no tools in model calls.",
+  "ordering": "Sequential warehouse repetitions followed by controls; no concurrent provider work. No source modification while measured calls run."
+}
