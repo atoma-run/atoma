@@ -1,0 +1,9 @@
+{
+  "basis": "latest successful write_file events, not a publication manifest",
+  "files": {
+    "package.json": "43ac9ab98e8422df5705fd80c985dd56b1ed775b7eafdb5719851328f7ec6349",
+    "server.js": "79700514c09db87341d8d1a76121fe895337e0abd6807eb3f0e41168305e60fb",
+    "test.js": "ef3de037ba59e76631700f907bb4130213bf8495b279f836b48c1cadafba62a5",
+    "README.md": "1218445df33f6cd297ead960f81a32b1bd6f163704d794f2c9ead9873331f3fe"
+  }
+}

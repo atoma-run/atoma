@@ -1,0 +1,43 @@
+{
+  "runs": [
+    {
+      "id": "4b7cc920-e94d-4922-8df3-233b4ed21bbd",
+      "status": "failed",
+      "durationS": 234.239,
+      "llmCalls": 5,
+      "subscriptionEquivalentUsd": 0.11334744,
+      "events": 24,
+      "tools": 1,
+      "publication": null
+    },
+    {
+      "id": "8c9ae6f3-49da-4101-8576-01314a467e6d",
+      "status": "failed",
+      "durationS": 337.144,
+      "llmCalls": 6,
+      "subscriptionEquivalentUsd": 0.11706003999999998,
+      "events": 33,
+      "tools": 7,
+      "publication": null
+    }
+  ],
+  "totalCalls": 11,
+  "totalSubscriptionEquivalentUsd": 0.23040747999999997,
+  "analystCostExcluded": "subscription dollar equivalent not reported by analyst transport",
+  "frozen": {
+    "passed": 43,
+    "failed": 1,
+    "knownOracleFalsePositive": 1
+  },
+  "reviewedOracle": {
+    "passed": 44,
+    "failed": 0
+  },
+  "exploratory": {
+    "passed": 2,
+    "failed": 2
+  },
+  "draftOwnSuiteExitCode": 0,
+  "acceptedDelivery": false,
+  "frozenHashesVerified": true
+}

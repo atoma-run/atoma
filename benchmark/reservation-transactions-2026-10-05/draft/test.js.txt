@@ -1,0 +1,14 @@
+const assert=require('node:assert/strict'),{spawn}=require('node:child_process'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),http=require('node:http');
+const dir=fs.mkdtempSync(path.join(os.tmpdir(),'stock-')),seed=path.join(dir,'seed.json'),db=path.join(dir,'db.sqlite');fs.writeFileSync(seed,JSON.stringify({items:[{sku:'a',capacity:2},{sku:'b',capacity:1},{sku:'__proto__',capacity:1}]}));
+function start(){const p=spawn(process.execPath,['server.js','--db',db,'--seed',seed,'--port','0']);return new Promise((resolve,reject)=>{p.stdout.on('data',d=>{const m=d.toString().match(/\{"port":(\d+)\}/);if(m)resolve({p,port:+m[1]})});p.on('error',reject)})}
+function req(port,method,path,body){return new Promise((resolve,reject)=>{const x=http.request({host:'127.0.0.1',port,method,path,headers:body?{'content-type':'application/json'}:{}},r=>{let s='';r.on('data',d=>s+=d);r.on('end',()=>resolve({status:r.statusCode,body:s}))});x.on('error',reject);if(body)x.write(typeof body==='string'?body:JSON.stringify(body));x.end()})}
+(async()=>{let s=await start(),p=s.port;let q=await req(p,'GET','/state');assert.equal(q.body,JSON.stringify({clock:0,revision:0,items:[{sku:'__proto__',capacity:1,available:1},{sku:'a',capacity:2,available:2},{sku:'b',capacity:1,available:1}],holds:[]}));
+let r=await req(p,'POST','/commands',{key:'k1',type:'reserve',holdId:'h',ttl:5,lines:[{sku:'a',qty:1},{sku:'a',qty:1}]});assert.equal(r.status,200);assert.equal(r.body,'{"ok":true,"revision":1}');
+assert.equal((await req(p,'POST','/commands',{type:'reserve',key:'bad',holdId:'x',ttl:1,lines:[{sku:'b',qty:1},{sku:'b',qty:1}]})).body,'{"error":"insufficient_stock"}');
+let retry=await req(p,'POST','/commands',{type:'reserve',key:'k1',holdId:'h',ttl:5,lines:[{sku:'a',qty:1},{sku:'a',qty:1}]});assert.equal(retry.body,r.body);
+assert.equal((await req(p,'POST','/commands',{key:'k1',type:'cancel',holdId:'h'})).body,'{"error":"idempotency_conflict"}');
+assert.equal((await req(p,'POST','/commands',{key:'bad',type:'reserve',holdId:'x',ttl:1,lines:[{sku:'b',qty:1},{sku:'b',qty:1}]})).body,'{"error":"insufficient_stock"}');
+assert.equal((await req(p,'POST','/commands',{key:'v',type:'reserve',holdId:'v',ttl:2,lines:[{sku:'__proto__',qty:1}]})).status,200);
+assert.equal((await req(p,'POST','/commands',{key:'z',type:'advance',to:2})).status,200);let st=JSON.parse((await req(p,'GET','/state')).body);assert.equal(st.holds.find(x=>x.id==='v').status,'expired');assert.equal(st.items.find(x=>x.sku==='__proto__').available,1);
+assert.equal((await req(p,'POST','/commands',{key:'badjson',type:'reserve'})).status,400);
+s.p.kill('SIGKILL');s=await start();assert.equal((await req(s.port,'POST','/commands',{key:'k1',type:'reserve',holdId:'h',ttl:5,lines:[{sku:'a',qty:1},{sku:'a',qty:1}]})).body,r.body);s.p.kill('SIGKILL');console.log('npm test: all assertions passed')})().catch(e=>{console.error(e);process.exit(1)});

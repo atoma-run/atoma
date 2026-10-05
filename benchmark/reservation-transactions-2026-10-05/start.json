@@ -1,0 +1,50 @@
+{
+  "projectRunId": "4b7cc920-e94d-4922-8df3-233b4ed21bbd",
+  "projectId": "bf6dea73-eaf4-49a2-93a7-eac7bfbefa36",
+  "orgId": "d28f40d2-14d7-45c7-bce3-928dcb0041a6",
+  "requestedByPrincipalId": "36bbb732-d581-41e3-b8b5-c39e93fd32b9",
+  "requestKey": "reservation-transactions-20261005-1",
+  "goal": "Build an offline dependency-free Node.js 24 HTTP stock-reservation service using durable SQLite (node:sqlite is available). Deliver server.js, package.json with npm test, README and real HTTP subprocess tests. Start: node server.js --db DB --seed SEED.json --port PORT; bind 127.0.0.1, accept port 0, print a JSON line {\"port\":actualPort} when ready. No UI needed. Seed exactly {items:[{sku,capacity}]}; unique nonempty string SKUs, integer capacity 0..1000000. Initialize a new DB once; restart with the same seed must retain all state and receipts. Use explicit logical time, never wall-clock expiration.\n\nGET /state returns exactly {clock,revision,items,holds}; initially clock=0,revision=0. items are {sku,capacity,available}. holds are {id,expiresAt,status,lines:[{sku,qty}]}; status held|confirmed|cancelled|expired. Sort items by sku, holds by id and aggregated hold lines by sku using JS code-unit order. IDs/SKUs/keys are nonempty strings used literally, including __proto__. GET is read-only; identical state gives identical JSON bytes.\n\nPOST /commands accepts only these exact object shapes:\n{key,type:\"reserve\",holdId,ttl,lines:[{sku,qty}]}; ttl and qty integers 1..1000000, lines nonempty. Aggregate repeated SKUs. All SKUs must exist; all aggregated quantities must fit available stock. Atomically reserve the whole bundle or none; holdId must never have existed. expiresAt=clock+ttl. Reserve reduces available.\n{key,type:\"confirm\",holdId}: only a held hold can confirm; it permanently consumes its reserved stock. Availability does not change.\n{key,type:\"cancel\",holdId}: only a held hold can cancel, releasing all stock.\n{key,type:\"advance\",to}: to is integer 0..1000000000 and >=clock. Set clock=to; expire every held hold with expiresAt<=to, releasing stock; never expire confirmed holds. Each successful command increments revision once, even advance to the current clock. Success HTTP200 exactly {ok:true,revision:N}.\n\nBusiness refusals HTTP409 exactly {error:CODE}: missing_item, insufficient_stock, hold_exists, missing_hold, inactive_hold, clock_backwards. They change no domain state/revision. No priority required when several errors apply. IDs are literal strings, numbers never accepted. Missing/extra fields, non-object bodies/lines, wrong types/ranges, unknown commands and malformed JSON return HTTP400 exactly {error:\"invalid\"}, changing no state and caching no key. Validate schema before idempotency.\n\nEvery schema-valid key durably caches its first response, including business refusals. Compare the ENTIRE command except key by JSON value, ignoring object key order but preserving array order. An identical retry returns the original HTTP status and byte-identical response, BEFORE rechecking business rules, without state/revision changes. Changed command at an existing key returns 409 {error:\"idempotency_conflict\"}, never overwriting the receipt. Domain changes and receipt commit in ONE transaction before responding. Concurrent requests must serialize safely: no oversell, duplicate application or lost update. A response already received must survive SIGKILL and restart, including refused receipts.\n\nProve with executed assertions: atomic multi-SKU refusal after an earlier line could succeed; repeated lines; concurrent last-unit contenders and same-key retries; receipt persistence through process restart; failed-key replay after stock changes; exact expiration boundary and genuinely distinguishing confirm/advance order. Example capacity1, reserve ttl5: confirm then advance5 keeps confirmed/available0; advance5 then confirm refuses inactive_hold and leaves expired/available1. Check statuses, full state and cached response bytes, not just test names. Document measured results honestly.",
+  "status": "running",
+  "bytesExpiredAt": null,
+  "depth": "deep",
+  "seed": {
+    "kind": "none"
+  },
+  "traceId": null,
+  "stats": null,
+  "artifactManifest": null,
+  "artifactManifestHash": null,
+  "error": null,
+  "createdAt": "2026-10-05T05:20:32.521Z",
+  "startedAt": "2026-10-05T05:20:32.566Z",
+  "endedAt": null,
+  "updatedAt": "2026-10-05T05:20:32.566Z",
+  "costUsd": null,
+  "tokens": null,
+  "llmCalls": null,
+  "jevCalls": null,
+  "jevCallsLowerBound": false,
+  "models": {
+    "l1": {
+      "selection": "sub:openai:gpt-5.6-luna",
+      "provider": "codex-cli",
+      "payer": "host-subscription",
+      "source": "account"
+    },
+    "l2": {
+      "selection": "sub:openai:gpt-5.6-terra",
+      "provider": "codex-cli",
+      "payer": "host-subscription",
+      "source": "account"
+    },
+    "l3": {
+      "selection": "sub:openai:gpt-5.6-sol",
+      "provider": "codex-cli",
+      "payer": "host-subscription",
+      "source": "account"
+    }
+  },
+  "durationS": null,
+  "publication": null
+}
