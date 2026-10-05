@@ -1,0 +1,80 @@
+[
+  {
+    "id": "archived-final-with-source",
+    "arm": "baseline",
+    "expectedUnmet": [],
+    "matchesExpected": true,
+    "review": {
+      "approved": true,
+      "reasoning": "",
+      "criteria": [
+        {
+          "id": "c3",
+          "met": true,
+          "reason": "test/invoice-reconcile.test.js asserts credit-before-payment: credited 6.00, paid 4.00, balance 0.00, settled; partial case asserts 2.00+3.00 leaves 5.00; multi allocation asserts paid 4.00 and unapplied 1.00. npm test exitCode 0 confirms execution."
+        },
+        {
+          "id": "c4",
+          "met": true,
+          "reason": "test/invoice-reconcile.test.js refusalPreserves covers missing reference, credit/payment currency mismatches, excess credit, excess payment allocation, and excess invoice allocation; each asserts nonzero exit, stderr, and pre-existing output bytes 'PREEXISTING\\n'. npm test exitCode 0 confirms execution."
+        }
+      ]
+    }
+  },
+  {
+    "id": "archived-final-with-source",
+    "arm": "candidate",
+    "expectedUnmet": [],
+    "matchesExpected": true,
+    "review": {
+      "approved": true,
+      "reasoning": "",
+      "criteria": [
+        {
+          "id": "c3",
+          "met": true,
+          "reason": "test/invoice-reconcile.test.js asserts credit-before-payment settled totals, partial credited/paid/balance/status, two allocations accumulating paid=4.00 with unapplied=1.00, and duplicate-settlement results. npm test exit=0 is recorded; source validates credits before payments."
+        },
+        {
+          "id": "c4",
+          "met": true,
+          "reason": "The test's refusalPreserves cases cover missing references, credit/payment currency mismatches, excess credit, excess payment allocation, and excess invoice allocation. Each asserts nonzero exit, stderr, and unchanged input/output bytes; npm test recorded exit=0."
+        }
+      ]
+    }
+  },
+  {
+    "id": "components-with-setup",
+    "arm": "candidate",
+    "expectedUnmet": [],
+    "matchesExpected": true,
+    "review": {
+      "approved": true,
+      "reasoning": "",
+      "criteria": [
+        {
+          "id": "c1",
+          "met": true,
+          "reason": "The executed test asserts zero exit status and separately deep-equals JPY subtotal \"10\", tax \"1\", total \"11\", and KWD subtotal \"1.000\", tax \"0.100\", total \"1.100\" for the stated inputs; execution exit was 0."
+        }
+      ]
+    }
+  },
+  {
+    "id": "components-with-setup",
+    "arm": "baseline",
+    "expectedUnmet": [],
+    "matchesExpected": true,
+    "review": {
+      "approved": true,
+      "reasoning": "",
+      "criteria": [
+        {
+          "id": "c1",
+          "met": true,
+          "reason": "Executed CLI tests used JPY and KWD inputs, asserted zero subprocess exits, and separately deep-equaled subtotal, tax, and total: JPY 10/1/11 and KWD 1.000/0.100/1.100; exact execution exited 0."
+        }
+      ]
+    }
+  }
+]

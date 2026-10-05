@@ -4,6 +4,7 @@ import { reviewAcceptanceCriteria } from '../src/atoms/criteriaReview.js';
 import { acceptRootResult } from '../src/atoms/rootAcceptance.js';
 import { L1Atom } from '../src/atoms/L1Atom.js';
 import { markLanded } from '../src/atoms/dispatch.js';
+import { ASSERTION_EVIDENCE_GUIDANCE } from '../src/atoms/prompts.js';
 import type { LlmCompletionResponse, Result } from '../src/core/types.js';
 import { makeCtx, jsonText } from './helpers.js';
 
@@ -23,6 +24,35 @@ const result: Result = { output: { files: ['tests/spec.test.js'] }, summary: 'MO
 const actor = new L1Atom({ name: 'Methane', ordinal: 1, systemPrompt: '', tools: [], params: {} });
 
 describe('focused criterion review', () => {
+  it('carries the shared evidence policy to each bounded review and retains all compound gaps', async () => {
+    const ctx = makeCtx();
+    const required = [
+      { id: 'c1', behaviour: 'Executed tests separately assert subtotal, tax and total for JPY and KWD.', check: { kind: 'review' as const } },
+      { id: 'c2', behaviour: 'Executed tests compare both report.csv and audit.json across runs.', check: { kind: 'review' as const } },
+      { id: 'c3', behaviour: 'Implementation applies the discount before adding the fixed fee.', check: { kind: 'review' as const } },
+    ];
+    const judgments = [
+      { id: 'c1', met: false, reason: 'Only totals asserted; JPY and KWD subtotal and tax remain unverified.' },
+      { id: 'c2', met: false, reason: 'Only report.csv compared; audit.json bytes remain unverified.' },
+      { id: 'c3', met: true, reason: 'Source applies discount before fee; no executed distinguishing test was required.' },
+    ];
+    for (const batch of [judgments.slice(0, 2), judgments.slice(2)]) ctx.llm.enqueue(request => {
+      // This verifies policy delivery and propagation, not model understanding.
+      // Real semantic judgments are retained in the paired benchmark replay.
+      expect(request.systemPrompt).toContain(ASSERTION_EVIDENCE_GUIDANCE);
+      expect(request.systemPrompt).toContain('Report every unsupported part');
+      expect(request.tools).toBeUndefined();
+      expect(request.executor).toBeUndefined();
+      return reply(batch, batch.every(item => item.met));
+    });
+    const review = await reviewAcceptanceCriteria({ ctx, task, checklist: required, evidence: 'Bounded fixture evidence.' });
+    expect(review.criteria).toEqual(judgments);
+    expect(review.reasoning).toContain(judgments[0]!.reason);
+    expect(review.reasoning).toContain(judgments[1]!.reason);
+    expect(review.approved).toBe(false);
+    expect(ctx.llm.calls).toHaveLength(2);
+  });
+
   it.each([false, true])('shares the bounded readback across files without losing assertions (over budget=%s)', async overBudget => {
     const paths = ['stock-reconcile.js', 'test/stock-reconcile.test.js'];
     const files = new Map(paths.map(path => [path, overBudget ? 'x'.repeat(13_000)

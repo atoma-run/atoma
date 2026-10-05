@@ -325,6 +325,13 @@ load-bearing.
   validators without a mechanical coverage classifier. Run 22af997d
   approved conflicting-duplicate coverage absent from the test body; archived
   evidence and replay: `benchmark/stock-reconcile-2026-10-05/`.
+  An assertion proves a distinction only when the contract-relevant alternative
+  changes its checked observation. Source may establish implementation order;
+  commutative final outputs cannot establish it. Explicit executed distinguishing
+  tests still require both the assertion and execution. Review all visible gaps
+  together without importing new obligations from earlier validator coaching.
+  No mutation execution or extra model call is authorised. Invoice counterexample
+  and paired replay: `benchmark/evidence-discrimination-2026-10-05/`.
   Root file read-back shares 24,000 source characters across at most four
   files: when the whole batch fits, preserve it in full. Above that bound,
   files up to 6,000 characters stay complete and longer files retain excerpts.

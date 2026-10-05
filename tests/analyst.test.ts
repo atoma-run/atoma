@@ -12,6 +12,7 @@ import type { FetchLike } from '../src/supervisor/dispatch.js';
 import { digestRun, runStatusOf } from '../src/supervisor/digest.js';
 import { eligibleFindings } from '../src/supervisor/menderPolicy.js';
 import { acquireRunLeaseWithoutRecovery, peekRunLease } from '../src/mcp/runLock.js';
+import { ASSERTION_EVIDENCE_GUIDANCE } from '../src/atoms/prompts.js';
 
 /**
  * STAGE 2, THE ANALYST, with a stub in place of the model. What these hold:
@@ -268,6 +269,8 @@ describe('analyseRun', () => {
     expect(args[args.indexOf('--model') + 1]).toBe('glm-5.3');
     expect(args.at(-1)).toContain('supervisor/work/');
     expect(args.at(-1)).toContain('Required review of every stage');
+    expect(args.at(-1)).toContain(ASSERTION_EVIDENCE_GUIDANCE);
+    expect(args.at(-1)).toContain('A refusal followed by approval does not itself establish a recovered proof gap.');
     // The prompt the session is held to carries the calibration, because the
     // kind a finding gets is decided there and nowhere else.
     expect(args.at(-1)).toContain('Choosing between `defect` and `mechanism_candidate`');

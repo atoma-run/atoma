@@ -1,0 +1,24 @@
+{
+  "baseline": {
+    "calls": 12,
+    "usage": {
+      "inputTokens": 77269,
+      "outputTokens": 3914,
+      "cacheReadInputTokens": 26112
+    },
+    "servedModels": [
+      "gpt-5.6-luna"
+    ]
+  },
+  "candidate": {
+    "calls": 12,
+    "usage": {
+      "inputTokens": 85027,
+      "outputTokens": 5783,
+      "cacheReadInputTokens": 21248
+    },
+    "servedModels": [
+      "gpt-5.6-luna"
+    ]
+  }
+}

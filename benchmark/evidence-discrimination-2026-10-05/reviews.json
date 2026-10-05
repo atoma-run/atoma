@@ -1,0 +1,390 @@
+[
+  {
+    "id": "1b7642d9-fc01-43f1-b07a-c133e2d6a931",
+    "arm": "baseline",
+    "expectedUnmet": [],
+    "matchesExpected": true,
+    "review": {
+      "approved": true,
+      "reasoning": "",
+      "criteria": [
+        {
+          "id": "c3",
+          "met": true,
+          "reason": "test/invoice-reconcile.test.js asserts credit-before-payment partial output (credited 2.00, paid 3.00, balance 5.00), two allocations accumulate to paid 4.00 with unapplied 1.00, and settlement yields balance 0/status settled. npm test exited 0 per .atoma-probes.json."
+        },
+        {
+          "id": "c4",
+          "met": true,
+          "reason": "test/invoice-reconcile.test.js refusalPreserves cases cover missing reference, credit/payment currency mismatches, excess credit, and allocations exceeding payment/invoice; each asserts nonzero status, diagnostics, unchanged input, and preexisting output bytes. npm test exited 0."
+        }
+      ]
+    }
+  },
+  {
+    "id": "1b7642d9-fc01-43f1-b07a-c133e2d6a931",
+    "arm": "candidate",
+    "expectedUnmet": [],
+    "matchesExpected": false,
+    "review": {
+      "approved": false,
+      "reasoning": "c3: Partial test asserts credit 2, payment 3, balance 5 (test lines 82-83), and multi-allocation asserts paid 4/unapplied 1 (85-86); settled status is asserted (90-97). But no source or distinguishing case proves credits precede payments; reversed order yields the same observations. Unverified.",
+      "criteria": [
+        {
+          "id": "c3",
+          "met": false,
+          "reason": "Partial test asserts credit 2, payment 3, balance 5 (test lines 82-83), and multi-allocation asserts paid 4/unapplied 1 (85-86); settled status is asserted (90-97). But no source or distinguishing case proves credits precede payments; reversed order yields the same observations. Unverified."
+        },
+        {
+          "id": "c4",
+          "met": true,
+          "reason": "refusal() tests missing reference, credit/payment currency mismatches, excess credit, and allocation excesses, asserting nonzero status, stderr, and preexisting output KEEP (lines 48-55). refusalPreserves additionally checks input/output bytes for refusal cases (lines 62-69); npm test execution passed in .atoma-probes.json."
+        }
+      ]
+    }
+  },
+  {
+    "id": "54aaffa0-36b8-4444-b767-4211225d82b0",
+    "arm": "candidate",
+    "expectedUnmet": [],
+    "matchesExpected": false,
+    "review": {
+      "approved": false,
+      "reasoning": "c3: Partial, settled, unapplied, and repeated-allocation outputs are asserted in test/invoice-reconcile.test.js and npm test passed. However, the scenarios yield the same result if payments precede credits, so credit-before-payment ordering is unverified; add a discriminating order-sensitive assertion or source evidence.",
+      "criteria": [
+        {
+          "id": "c3",
+          "met": false,
+          "reason": "Partial, settled, unapplied, and repeated-allocation outputs are asserted in test/invoice-reconcile.test.js and npm test passed. However, the scenarios yield the same result if payments precede credits, so credit-before-payment ordering is unverified; add a discriminating order-sensitive assertion or source evidence."
+        },
+        {
+          "id": "c4",
+          "met": true,
+          "reason": "test/invoice-reconcile.test.js refusalPreserves cases cover missing references, credit/payment currency mismatches, excess credit, excess payment allocation, and excess invoice allocation; each asserts nonzero exit, stderr, and unchanged input/output bytes. npm test exit 0 is recorded in .atoma-probes.json."
+        }
+      ]
+    }
+  },
+  {
+    "id": "54aaffa0-36b8-4444-b767-4211225d82b0",
+    "arm": "baseline",
+    "expectedUnmet": [],
+    "matchesExpected": true,
+    "review": {
+      "approved": true,
+      "reasoning": "",
+      "criteria": [
+        {
+          "id": "c3",
+          "met": true,
+          "reason": "test/invoice-reconcile.test.js asserts credit-before-payment settled fields, partial credited/paid/balance/status, two allocations accumulating paid=4.00 with unapplied=1.00, and duplicate settlement counts. npm test recorded exit 0."
+        },
+        {
+          "id": "c4",
+          "met": true,
+          "reason": "refusalPreserves asserts nonzero status, stderr, and unchanged output bytes for missing reference, credit/payment currency mismatches, excess credit, excess payment allocation, and excess invoice allocation. npm test recorded exit 0."
+        }
+      ]
+    }
+  },
+  {
+    "id": "commutative-test",
+    "arm": "baseline",
+    "expectedUnmet": [
+      "c1"
+    ],
+    "matchesExpected": true,
+    "review": {
+      "approved": false,
+      "reasoning": "c1: Source and executed assertion only show balance=10; subtract 6, then 4; assert 0. Because these operations commute, reversing them produces the same output. An order-sensitive assertion or behavior is unverified.",
+      "criteria": [
+        {
+          "id": "c1",
+          "met": false,
+          "reason": "Source and executed assertion only show balance=10; subtract 6, then 4; assert 0. Because these operations commute, reversing them produces the same output. An order-sensitive assertion or behavior is unverified."
+        }
+      ]
+    }
+  },
+  {
+    "id": "commutative-test",
+    "arm": "candidate",
+    "expectedUnmet": [
+      "c1"
+    ],
+    "matchesExpected": true,
+    "review": {
+      "approved": false,
+      "reasoning": "c1: Source performs balance-=6 then balance-=4; the executed test asserts only balance===0. Reversing these commutative deductions also yields 0, so the assertion does not distinguish credit-before-payment order.",
+      "criteria": [
+        {
+          "id": "c1",
+          "met": false,
+          "reason": "Source performs balance-=6 then balance-=4; the executed test asserts only balance===0. Reversing these commutative deductions also yields 0, so the assertion does not distinguish credit-before-payment order."
+        }
+      ]
+    }
+  },
+  {
+    "id": "source-order",
+    "arm": "candidate",
+    "expectedUnmet": [],
+    "matchesExpected": true,
+    "review": {
+      "approved": true,
+      "reasoning": "",
+      "criteria": [
+        {
+          "id": "c1",
+          "met": true,
+          "reason": "Source evidence states `function price(n){ n *= 0.9; n += 5; return n; }`, establishing discount-before-fee order."
+        }
+      ]
+    }
+  },
+  {
+    "id": "source-order",
+    "arm": "baseline",
+    "expectedUnmet": [],
+    "matchesExpected": true,
+    "review": {
+      "approved": true,
+      "reasoning": "",
+      "criteria": [
+        {
+          "id": "c1",
+          "met": true,
+          "reason": "Evidence states the complete function is `n *= 0.9; n += 5;`, demonstrating the discount is applied before the fixed fee is added."
+        }
+      ]
+    }
+  },
+  {
+    "id": "distinguishing-test",
+    "arm": "baseline",
+    "expectedUnmet": [],
+    "matchesExpected": true,
+    "review": {
+      "approved": true,
+      "reasoning": "",
+      "criteria": [
+        {
+          "id": "c1",
+          "met": true,
+          "reason": "Complete host evidence shows `price(100)` computes 100×0.9+5=95, while fee-before-discount would be (100+5)×0.9=94.5. The exact test asserting `price(100)===95` executed successfully with exit 0."
+        }
+      ]
+    }
+  },
+  {
+    "id": "distinguishing-test",
+    "arm": "candidate",
+    "expectedUnmet": [],
+    "matchesExpected": true,
+    "review": {
+      "approved": true,
+      "reasoning": "",
+      "criteria": [
+        {
+          "id": "c1",
+          "met": true,
+          "reason": "Host record shows executed test asserting price(100)===95, exit 0. Source applies n*=0.9 then n+=5; fee-before-discount would yield 94.5, so the assertion distinguishes the required order."
+        }
+      ]
+    }
+  },
+  {
+    "id": "missing-parts",
+    "arm": "candidate",
+    "expectedUnmet": [
+      "c1",
+      "c2"
+    ],
+    "matchesExpected": true,
+    "review": {
+      "approved": false,
+      "reasoning": "c1: Evidence asserts only jpy.total == \"11\" and kwd.total == \"1.100\". Separate subtotal and tax assertions for either currency are absent, so the compound criterion is unverified.; c2: The test reads report.csv twice across runs and deep-equals the results, supporting that observed check only. No audit.json read or byte-determinism assertion exists, so the criterion is unverified.",
+      "criteria": [
+        {
+          "id": "c1",
+          "met": false,
+          "reason": "Evidence asserts only jpy.total == \"11\" and kwd.total == \"1.100\". Separate subtotal and tax assertions for either currency are absent, so the compound criterion is unverified."
+        },
+        {
+          "id": "c2",
+          "met": false,
+          "reason": "The test reads report.csv twice across runs and deep-equals the results, supporting that observed check only. No audit.json read or byte-determinism assertion exists, so the criterion is unverified."
+        }
+      ]
+    }
+  },
+  {
+    "id": "missing-parts",
+    "arm": "baseline",
+    "expectedUnmet": [
+      "c1",
+      "c2"
+    ],
+    "matchesExpected": true,
+    "review": {
+      "approved": false,
+      "reasoning": "c1: Host evidence shows only separate JPY/KWD total assertions (\"11\", \"1.100\"). No subtotal or tax assertions are present, so the compound criterion is unverified.; c2: Evidence executes two runs and compares report.csv bytes, but contains no audit.json read or byte comparison. Determinism of audit.json is unverified.",
+      "criteria": [
+        {
+          "id": "c1",
+          "met": false,
+          "reason": "Host evidence shows only separate JPY/KWD total assertions (\"11\", \"1.100\"). No subtotal or tax assertions are present, so the compound criterion is unverified."
+        },
+        {
+          "id": "c2",
+          "met": false,
+          "reason": "Evidence executes two runs and compares report.csv bytes, but contains no audit.json read or byte comparison. Determinism of audit.json is unverified."
+        }
+      ]
+    }
+  },
+  {
+    "id": "components-positive",
+    "arm": "baseline",
+    "expectedUnmet": [],
+    "matchesExpected": true,
+    "review": {
+      "approved": true,
+      "reasoning": "",
+      "criteria": [
+        {
+          "id": "c1",
+          "met": true,
+          "reason": "Entire test asserts JPY separately as {subtotal:\"10\", tax:\"1\", total:\"11\"} and KWD separately as {subtotal:\"1.000\", tax:\"0.100\", total:\"1.100\"}; exact test execution exited 0."
+        }
+      ]
+    }
+  },
+  {
+    "id": "components-positive",
+    "arm": "candidate",
+    "expectedUnmet": [],
+    "matchesExpected": false,
+    "review": {
+      "approved": false,
+      "reasoning": "c1: Execution exit 0 and separate deepEqual assertions verify subtotal, tax, and total for variables jpy and kwd. However, no setup or inputs show those variables correspond to JPY and KWD; that required mapping is unverified.",
+      "criteria": [
+        {
+          "id": "c1",
+          "met": false,
+          "reason": "Execution exit 0 and separate deepEqual assertions verify subtotal, tax, and total for variables jpy and kwd. However, no setup or inputs show those variables correspond to JPY and KWD; that required mapping is unverified."
+        }
+      ]
+    }
+  },
+  {
+    "id": "wrong-cause",
+    "arm": "candidate",
+    "expectedUnmet": [
+      "c1"
+    ],
+    "matchesExpected": true,
+    "review": {
+      "approved": false,
+      "reasoning": "c1: Host record shows executed status401 and final value7, but the retry lacked required authentication. Thus it does not prove an authenticated conflicting retry was refused for conflict or that the record was preserved under that scenario; execute and assert that case.",
+      "criteria": [
+        {
+          "id": "c1",
+          "met": false,
+          "reason": "Host record shows executed status401 and final value7, but the retry lacked required authentication. Thus it does not prove an authenticated conflicting retry was refused for conflict or that the record was preserved under that scenario; execute and assert that case."
+        }
+      ]
+    }
+  },
+  {
+    "id": "wrong-cause",
+    "arm": "baseline",
+    "expectedUnmet": [
+      "c1"
+    ],
+    "matchesExpected": true,
+    "review": {
+      "approved": false,
+      "reasoning": "c1: Final GET supports preservation (id1/value7), but the only retry was unauthenticated and returned 401. No authenticated conflicting retry or assertion of refusal due to conflict was executed, so the required behavior is unverified.",
+      "criteria": [
+        {
+          "id": "c1",
+          "met": false,
+          "reason": "Final GET supports preservation (id1/value7), but the only retry was unauthenticated and returned 401. No authenticated conflicting retry or assertion of refusal due to conflict was executed, so the required behavior is unverified."
+        }
+      ]
+    }
+  },
+  {
+    "id": "document-positive",
+    "arm": "baseline",
+    "expectedUnmet": [],
+    "matchesExpected": true,
+    "review": {
+      "approved": true,
+      "reasoning": "",
+      "criteria": [
+        {
+          "id": "c1",
+          "met": true,
+          "reason": "Complete README states the command `node cli.js --input data.json` and specifies `data.json` as an array of objects with string `id` and integer `quantity`."
+        }
+      ]
+    }
+  },
+  {
+    "id": "document-positive",
+    "arm": "candidate",
+    "expectedUnmet": [],
+    "matchesExpected": true,
+    "review": {
+      "approved": true,
+      "reasoning": "",
+      "criteria": [
+        {
+          "id": "c1",
+          "met": true,
+          "reason": "Evidence states: “Run node cli.js --input data.json” and defines data.json as an array of objects with string id and integer quantity, covering the command and input format."
+        }
+      ]
+    }
+  },
+  {
+    "id": "truncated-unknown",
+    "arm": "candidate",
+    "expectedUnmet": [
+      "c1"
+    ],
+    "matchesExpected": true,
+    "review": {
+      "approved": false,
+      "reasoning": "c1: Unverified: the excerpt is truncated and provides no inputs, fee/discount outputs, order-sensitive assertion, or observed execution. Suite exit and validator claim cannot establish the distinction.",
+      "criteria": [
+        {
+          "id": "c1",
+          "met": false,
+          "reason": "Unverified: the excerpt is truncated and provides no inputs, fee/discount outputs, order-sensitive assertion, or observed execution. Suite exit and validator claim cannot establish the distinction."
+        }
+      ]
+    }
+  },
+  {
+    "id": "truncated-unknown",
+    "arm": "baseline",
+    "expectedUnmet": [
+      "c1"
+    ],
+    "matchesExpected": true,
+    "review": {
+      "approved": false,
+      "reasoning": "c1: The only evidence is a truncated test title/body and suite exit 0. No visible inputs, fee/discount calculations, assertions, or outputs establish distinction between discount-before-fee and fee-before-discount.",
+      "criteria": [
+        {
+          "id": "c1",
+          "met": false,
+          "reason": "The only evidence is a truncated test title/body and suite exit 0. No visible inputs, fee/discount calculations, assertions, or outputs establish distinction between discount-before-fee and fee-before-discount."
+        }
+      ]
+    }
+  }
+]

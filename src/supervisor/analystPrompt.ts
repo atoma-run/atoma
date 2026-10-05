@@ -7,7 +7,9 @@
  * below is appended to the system prompt as well, so the rule is not only in
  * the user turn a payload might try to talk over.
  */
-export const ANALYST_PROMPT_VERSION = 'p5-2026-09-23-defect-calibration';
+import { ASSERTION_EVIDENCE_GUIDANCE } from '../atoms/prompts.js';
+
+export const ANALYST_PROMPT_VERSION = 'p6-2026-10-05-evidence-discrimination';
 
 export const ANALYST_HARDENING = [
   'You are a read-only post-mortem analyst. Hard rules:',
@@ -33,7 +35,8 @@ export interface AnalystPromptInput {
 }
 
 export function buildAnalystPrompt(input: AnalystPromptInput): string {
-  return ANALYST_PROMPT_TEMPLATE
+  return (ANALYST_PROMPT_TEMPLATE + '\n## Verification and recovery evidence\n\n' + ASSERTION_EVIDENCE_GUIDANCE +
+    '\nA refusal followed by approval does not itself establish a recovered proof gap. Compare the original requirement, the changed assertion and the observed execution. Distinguish a correct implementation from an unsupported validation claim; if the relevant test body or observation is unavailable, mark that conclusion insufficient_evidence rather than repeating the validator\'s claim.\n')
     .replaceAll('{{RUN_ID}}', input.runId)
     .replaceAll('{{RUN_STATUS}}', input.runStatus)
     .replaceAll('{{RUN_LABEL}}', input.runLabel)

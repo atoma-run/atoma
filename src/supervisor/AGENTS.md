@@ -152,6 +152,10 @@ Neighbours:
   attestation. Historical verdicts without coverage remain readable; generation
   requires it through the same contract's stricter schema. Session budgets and
   finding eligibility are unchanged.
+  Validation and recovery use the atoms' shared assertion-evidence guidance:
+  an approval after a refusal is not itself evidence that the missing distinction
+  was tested. Cite the changed assertion and observation; unavailable evidence
+  stays insufficient. Source correctness and claimed test coverage are separate.
 - Routing reads FINDINGS, never the grade: `mechanism_candidate` → the dated
   backlog (`supervisor/backlog.jsonl`: a design choice for a person),
   `security_incident` → `supervisor/ALERTS.jsonl` plus a console warning,
