@@ -784,7 +784,8 @@ describe('where a read-only phase is guarded', () => {
     // Unfiltered, the layout is there; root acceptance filters it out below.
     expect(observedLayoutsBlock(ctx)).toContain('index.html at 375x667');
 
-    mock.llm.enqueueText(jsonText({ approved: false, reasoning: 'the page overflows at 375 px', criteria: [{ id: 'c1', met: false }] }));
+    for (let call = 0; call < 2; call++) mock.llm.enqueueText(jsonText({ approved: false, reasoning: 'the page overflows at 375 px',
+      criteria: [{ id: 'c1', met: false, reason: 'restored-page layout unverified' }] }));
     const actor = new Scripted(async () => done('x'), () => ({ approved: true, reasoning: 'ok' }));
     const info = await acceptRootResult({ actor, task: { description: 'fix the overflow at 375 px' },
       result: done('2 sequential phases — final: fixed'), ctx: { ...ctx, tools: base }, floor: [], phaseCoverage: [],

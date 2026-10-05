@@ -115,7 +115,7 @@ describe('what the root acceptor reads', () => {
     const tests = readFileSync(new URL('../benchmark/stock-reconcile-2026-10-05/published/stock-reconcile.test.js.txt', import.meta.url), 'utf8');
     const base = makeCtx();
     const ctx: RunContext = { ...base, tools: new Workspace({ 'test/stock-reconcile.test.js': tests }), attempt: 1 };
-    base.llm.enqueueText(jsonText({ approved: false, reasoning: 'Conflicting duplicate assertions are not present.',
+    for (let call = 0; call < 2; call++) base.llm.enqueueText(jsonText({ approved: false, reasoning: 'Conflicting duplicate assertions are not present.',
       scope: 'ephemeral', modifications: {}, criteria: [{ id: 'c1', met: false, reason: 'The cases array has no conflicting duplicate input.' }] }));
     const accepted = await acceptRootResult({ actor: new Actor(), task: { description: 'Verify conflicting duplicates preserve outputs.' },
       result: { ...result, summary: 'Seven tests pass, including conflicts.' }, ctx, floor: [], phaseCoverage: [],
@@ -126,7 +126,8 @@ describe('what the root acceptor reads', () => {
     expect(request.userContent).toContain('concrete assertion or observation and evidence location');
     expect(request.systemPrompt).toContain(ASSERTION_EVIDENCE_GUIDANCE);
     expect(accepted.approved).toBe(false);
-    expect(base.llm.calls).toHaveLength(1);
+    expect(base.llm.calls).toHaveLength(2);
+    expect(base.llm.calls[1]!.userContent).toContain(JSON.stringify(tests));
     // This tests the real reader/verdict plumbing, not model judgment. Live
     // baseline/candidate judgments are archived separately beside the fixture.
   });
@@ -139,8 +140,8 @@ describe('what the root acceptor reads', () => {
     const base = makeCtx();
     const ctx: RunContext = { ...base, tools: new Workspace({ 'README.md': readme, 'index.html': '<h1>Home</h1>' }), attempt: 1,
       startingWorkspace: { start, now: () => snapshotDeliveredWorkspace(now, start) } };
-    base.llm.enqueueText(jsonText({ approved: false, reasoning: 'the configurator was replaced',
-      criteria: [{ id: 'c1', met: false }, { id: 'c2', met: true }] }));
+    for (let call = 0; call < 2; call++) base.llm.enqueueText(jsonText({ approved: false, reasoning: 'the configurator was replaced',
+      criteria: [{ id: 'c1', met: false, reason: 'original features removed' }, { id: 'c2', met: true, reason: 'curl examples present' }] }));
     const checklist = [
       { id: 'c1', behaviour: 'The configurator keeps every feature it had', check: { kind: 'review' as const } },
       { id: 'c2', behaviour: 'README documents every route with a curl example; the quote downloads as quote.txt', check: { kind: 'review' as const } },

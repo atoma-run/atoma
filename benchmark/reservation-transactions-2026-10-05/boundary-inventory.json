@@ -1,0 +1,56 @@
+{
+  "approved": false,
+  "reasoning": "c1: server.js source listens on 127.0.0.1 and logs JSON port on binding; README documents port 0 and test-api.js spawns it with real HTTP requests, with npm test observed passing. Node 24 itself is not evidenced.; c2: test-api.js exercises repeated-SKU insufficient stock and checks only A availability. It does not assert full state (B, holds, clock, revision) or preservation after the missing-item refusal; those parts remain unverified.\nc4: test-api.js concurrently sends identical dup commands and asserts only equal response bodies. It does not assert status, post-state, revision, or a single hold/application, so apply-once is unverified; add those checks.\nc6: test-api.js kills and restarts real subprocesses, then asserts identical state and replays the refused missing_item receipt. It does not replay a successful receipt after restart, so successful-response persistence is unverified.\nc10: npm test passed (3ca… run) and asserts many HTTP distinctions, but test-api.js does not assert complete expected states for each scenario, does not replay a successful receipt after SIGKILL/restart, and only checks duplicate concurrent responses rather than resulting full state/receipt count. .atoma-probes.json is also malformed per ground truth.",
+  "criteria": [
+    {
+      "id": "c1",
+      "met": false,
+      "reason": "server.js source listens on 127.0.0.1 and logs JSON port on binding; README documents port 0 and test-api.js spawns it with real HTTP requests, with npm test observed passing. Node 24 itself is not evidenced."
+    },
+    {
+      "id": "c2",
+      "met": false,
+      "reason": "test-api.js exercises repeated-SKU insufficient stock and checks only A availability. It does not assert full state (B, holds, clock, revision) or preservation after the missing-item refusal; those parts remain unverified."
+    },
+    {
+      "id": "c3",
+      "met": true,
+      "reason": "test-api.js assertions executed by the final npm test: confirm-first remains confirmed with C.available=0 at boundary advance; advance-first expires with D.available=1; cancel-case also restores D.available=1."
+    },
+    {
+      "id": "c4",
+      "met": false,
+      "reason": "test-api.js concurrently sends identical dup commands and asserts only equal response bodies. It does not assert status, post-state, revision, or a single hold/application, so apply-once is unverified; add those checks."
+    },
+    {
+      "id": "c5",
+      "met": true,
+      "reason": "test-api.js, executed by the passing npm test, retries with reordered object keys and preserves the response, reverses array order and asserts idempotency_conflict, replays a cached missing_item refusal, and asserts changed commands cannot replace receipts."
+    },
+    {
+      "id": "c6",
+      "met": false,
+      "reason": "test-api.js kills and restarts real subprocesses, then asserts identical state and replays the refused missing_item receipt. It does not replay a successful receipt after restart, so successful-response persistence is unverified."
+    },
+    {
+      "id": "c7",
+      "met": true,
+      "reason": "server.js valid() uses exact field sets, object/type checks, integer ranges, and rejects unknown commands before execute(); parse/schema failures return exactly 400 {\"error\":\"invalid\"}. Executed probes reject type:[\"advance\"] and malformed JSON, then reuse the key successfully, showing invalid input was not cached."
+    },
+    {
+      "id": "c8",
+      "met": true,
+      "reason": "state() constructs exactly clock/revision/items/holds and sorts all collections with JS string comparison; GET performs no writes. The executed test passed U+10000 before U+E000 ordering and asserted two identical GET response bytes; observed initial GET also shows the exact schema."
+    },
+    {
+      "id": "c9",
+      "met": true,
+      "reason": "server.js uses logical meta.clock and advances only via commands; no wall-clock API appears. Expiry selects only status='held'. test-api.js exercises __proto__, U+10000/U+E000 ordering, confirm-before-advance, and advance-before-confirm with asserted statuses/availability."
+    },
+    {
+      "id": "c10",
+      "met": false,
+      "reason": "npm test passed (3ca… run) and asserts many HTTP distinctions, but test-api.js does not assert complete expected states for each scenario, does not replay a successful receipt after SIGKILL/restart, and only checks duplicate concurrent responses rather than resulting full state/receipt count. .atoma-probes.json is also malformed per ground truth."
+    }
+  ]
+}

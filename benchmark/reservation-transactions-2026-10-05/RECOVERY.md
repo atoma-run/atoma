@@ -231,3 +231,108 @@ including docs, both TypeScript configurations, lint, audit, build, compiled
 smokes, and 410 passing test files (5,422 tests passed, 19 skipped). The ten
 semantic responses reproduce offline without paid calls. The seventh request
 preserves the sixth request exactly except its new idempotency key.
+
+## Seventh attempt: complete refusal feedback before remediation
+
+CI 37280903883 and deployment 37281366450 succeeded for 480b1be4.
+Run `715ffc74-7a0a-41a4-9e0e-0be0993ec01c` confirms that revision in its
+provenance. It ended partial after 1,028.313 seconds, 21 model calls and
+$0.1795 subscription-equivalent accounting. All 158 events, metadata and log
+are archived. Its artifact manifest is retained; there was no publication.
+The next ordinary run can seed this partial workspace, unlike the preceding
+cancelled drafts. The eighth request retains the exact goal and ten criteria.
+
+Phase validation now actually includes complete current superseded files:
+e04a4039 and 0ab3a946 carry the shared host-read block, including the current
+test body, without restoring obsolete observations. Phase repair made progress
+and passed. The service also removed an unjustified nonempty seed-array rule
+and trimming of literal identifiers. Recovered startup and edit errors remain
+in the trace. `reconstruct-seventh.mjs` reproduces four deliverable files from
+observations/edits, checks every read snapshot, and verifies exact byte lengths
+and SHA-256 against the final partial manifest. It runs no generated commands.
+
+A different review error remained: the first root refusal and one later phase
+refusal treated the illustrative clock-0/ttl-5 example as an absolute boundary.
+The visible sequence had already advanced to clock 5 before reserving the
+confirm-first ttl-5 hold, so its expiry was 10; the later advance-first hold
+expired at 15. Adding isolated tests at zero was redundant evidence, not a
+change to the expiry rule. The final root refusal instead named genuine gaps:
+successful receipt replay after SIGKILL/restart and missing/extra-field,
+wrong-type and range assertions. The first global review had marked those met,
+so the one remediation was spent before these gaps reached the executor.
+
+The resident analyst's seventh report calls this sound and attributes stopping
+to wall-clock budget. Preserve that fallible assessment separately: the actual
+run ended after its bounded root remediation with remaining refused criteria,
+not at the 5,400-second timeout, and the exact-boundary refusal was not a correct
+reading of the earlier fixture.
+
+### Rejected prompt-only candidate
+
+A shared derived-boundary reminder was tested against both exact archived
+requests and four predeclared controls, with alternating baseline/candidate
+order on the same Luna model. The positive shifted-boundary case and the
+negative past-boundary, unknown-prestate and explicitly mandated absolute-value
+cases all match expectations in both arms. But the candidate retains the wrong
+absolute-5 objection on both archived requests. The baseline itself varies,
+identifying real gaps on the first archived request this time. This does not
+support shipping the reminder: it was removed from production. Both frozen
+guidances, exact requests, all twelve responses and results are retained in
+boundary-*; the replay uses the frozen candidate rather than silently testing
+a different prompt after removal. These samples are diagnostic, not an accuracy
+claim. The harness initially omitted the model selector for its subsequent
+focused pass; it failed before sending that pass, then resumed the saved twelve
+responses with the explicit Luna selector.
+
+### Earlier complete criterion inventory
+
+The root now invokes the existing bounded focused review on a completed file
+candidate with user criteria even when the holistic verdict refuses. Previously
+only provisional approvals received this review. This supplies all criterion
+gaps to the first remediation. Focused approvals cannot override a global
+refusal; when both refuse, both reasons are preserved. Focused judgments remain
+the checklist source of truth. Mechanical rejections, landed results, text and
+drafted lists retain their existing paths. No tools, retries, model upgrades,
+new proof credit or new gates are introduced. The cost change is explicit:
+at most six cheapest-tier, tool-free calls on a previously skipped refused
+candidate, for the existing twelve-criterion bound.
+
+Adversarial controls traverse real root acceptance: all five criteria are
+reviewed after a global refusal, earlier success/refusal narratives stay out,
+all focused gaps survive together, and even unanimous focused approval cannot
+remove the independent global refusal. Missing/malformed judgments still fail
+closed. Existing criterion, depth, ground-truth and Jev tests retain behavior;
+fixtures now supply the focused responses also required on refused candidates.
+
+The focused replay uses the actual production helper, with the rejected prompt
+reminder removed. Its five calls inspect all ten criteria on the FIRST refusal's
+host evidence. It identifies missing full-state atomicity checks (c2), apply-once
+concurrency assertions (c4), successful receipt persistence (c6), and incomplete
+assertions (c10); it correctly reads the shifted boundary as met (c3). It also
+asks for Node-version evidence (c1). c7 is accepted from source plus observed
+representative failures rather than requiring an exhaustive executed schema
+matrix. These remain semantic judgments, not a claim that batching finds every
+gap. The mechanical fix guarantees the inventory runs before remediation, not
+that its judgments are infallible. All seventeen saved responses replay offline.
+
+Independent executable checks against the EXACT manifest-matching seventh
+server, without local source repairs: reviewed frozen suite 44/44, exploratory
+suite 4/4, inherited-property regression suite 7/7. All 55 pass. Outputs are
+seventh-verify-reviewed.jsonl, seventh-exploratory.jsonl and
+seventh-prototype-regression.jsonl. This is a correct partial-draft measurement,
+not a published-delivery claim and not evidence that the draft's own tests
+contain all requested assertions. The next run must complete those proofs and
+publish before completion is claimed.
+
+The first complete release check passed static verification and 5,421 tests,
+but three existing root fixtures lacked a second mock response now that refusals
+also receive focused review. They were corrected to supply concrete criterion
+judgments; the restored-observation and complete-source assertions remain.
+The focused rerun passed before repeating the full release gate.
+
+The final full release:check passed after those fixture updates: 410 passing
+files, 5,434 passing tests, 9 skipped, including container isolation, plus all
+static/audit/build/compiled gates. No production prompt change from the rejected
+boundary experiment remains. The seventeen-response diagnostic reproduces
+offline; the intended code change is the timing and preservation of focused
+criterion review, covered through root acceptance and remediation input.

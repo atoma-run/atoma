@@ -842,8 +842,7 @@ describe('depth transition through the production supervision loop', () => {
     const ctx = context();
     const checklist = [{ id: 'c1', behaviour: 'the page shows the monthly total', check: { kind: 'review' as const } }];
     const digest = 'a'.repeat(64);
-    ctx.llm.enqueueText(jsonText({ approved: false, reasoning: 'the total is not shown' }));
-    ctx.llm.enqueueText(jsonText({ approved: true, reasoning: 'the total is shown' }));
+    for (const met of [false, false, true, true]) ctx.llm.enqueueText(jsonText({ approved: met, reasoning: met ? 'the total is shown' : 'the total is not shown', criteria: [{ id: 'c1', met, reason: met ? 'rendered total' : 'total missing' }] }));
     const seen: Task[] = [];
     const accepted = vi.fn();
     await runDepthTask({
@@ -869,6 +868,7 @@ describe('depth transition through the production supervision loop', () => {
     'refuses an approval missing or contradicting its user criterion judgement: %j', async (criteria) => {
       const ctx = context();
       ctx.llm.enqueueText(jsonText({ approved: true, reasoning: 'done', criteria }));
+      ctx.llm.enqueueText(jsonText({ approved: true, reasoning: 'Focused review agrees', criteria: [{ id: 'c1', met: true, reason: 'Observed total' }] }));
       const accepted = await acceptRootResult({ actor: new Actor(), task, result, ctx, floor: [], phaseCoverage: [],
         checklist: [{ id: 'c1', behaviour: 'shows the total', check: { kind: 'review' } }],
         checklistOrigin: { source: 'user', digest: 'a'.repeat(64) } });
@@ -889,6 +889,7 @@ describe('depth transition through the production supervision loop', () => {
     // Covered floor, no finding: a user list is still READ, never approved mechanically.
     const user = context();
     await observe(user);
+    user.llm.enqueueText(judge(false));
     user.llm.enqueueText(judge(false));
     const refused = await acceptRootResult({ actor: new Actor(), task, result, ctx: user, floor, phaseCoverage: [],
       checklist, checklistOrigin: { source: 'user', digest: 'a'.repeat(64) } });
@@ -939,6 +940,8 @@ describe('depth transition through the production supervision loop', () => {
     await observe(user);
     user.llm.enqueueText(jsonText({ approved: true, reasoning: 'looks done', criteria: [
       { id: 'c1', met: true }, { id: 'c2', met: false, reason: 'upload never exercised' }] }));
+    user.llm.enqueueText(jsonText({ approved: false, reasoning: 'upload never exercised', criteria: [
+      { id: 'c1', met: true, reason: 'total rendered' }, { id: 'c2', met: false, reason: 'upload never exercised' }] }));
     const refused = await acceptRootResult({ actor: new Actor(), task, result, ctx: user, floor, phaseCoverage: [],
       checklist, checklistOrigin: { source: 'user', digest: 'a'.repeat(64) } });
     expect(refused.approved).toBe(false);

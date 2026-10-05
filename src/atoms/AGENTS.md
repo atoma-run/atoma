@@ -83,16 +83,19 @@ Neighbours:
   that judges one of its criteria unmet is the acceptor contradicting itself,
   so it refuses with that criterion. A drafted item judged unmet is recorded
   and never fails a run by itself.
-- A completed FILE delivery provisionally approved against a USER list also
+- A completed FILE delivery reviewed against a USER list also
   passes `reviewAcceptanceCriteria`: sequential batches of at most two items,
   on the cheapest tier, with host evidence but no result report or global
   verdict. Those judgments replace the global call's checklist judgments;
   any unmet item or refused batch prevents delivery. Invalid, truncated,
   missing, duplicate or unexplained judgments mean an incomplete review,
   never approval or a claimed implementation defect. Transport cancellation
-  still propagates. Refused deliveries, drafted lists, text and landings keep
-  their existing paths. This adds at most six tool-free calls for twelve user
-  criteria, no tool replay or phase credit. The incident and adversarial
+  still propagates. Drafted lists, text and landings keep their existing paths.
+  A holistic refusal also receives this inventory, so remediation hears all
+  criterion gaps together; a focused approval cannot override that refusal.
+  Run 715ffc74 otherwise spent its one repair on an expiry example before
+  learning that schema and successful-receipt tests were missing. This adds
+  at most six tool-free calls for twelve user criteria, no tool replay or phase credit. The incident and adversarial
   controls are in `benchmark/criteria-review-2026-10-05/`; earlier aggregate
   approvals stayed unreliable even after a larger-model replay.
 - The root also reads an attempt-scoped inventory of executed browser inputs,

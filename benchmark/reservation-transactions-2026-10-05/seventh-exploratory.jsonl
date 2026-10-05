@@ -1,0 +1,5 @@
+{"name":"array-valued command type must not mutate state or claim key","passed":true,"actual":{"invalid":{"status":400,"body":{"error":"invalid"}},"unchanged":true,"valid":{"status":200,"body":{"ok":true,"revision":1}}},"expected":{"invalid":{"status":400,"body":{"error":"invalid"}},"unchanged":true,"valid":{"status":200,"body":{"ok":true,"revision":1}}}}
+{"name":"ordinary string command positive control","passed":true,"actual":{"status":200,"body":{"ok":true,"revision":1}},"expected":{"status":200,"body":{"ok":true,"revision":1}}}
+{"name":"numeric command type refusal control","passed":true,"actual":{"status":400,"body":{"error":"invalid"}},"expected":{"status":400,"body":{"error":"invalid"}}}
+{"name":"code-unit ordering across BMP and supplementary characters","passed":true,"actual":{"items":["𐀀",""],"holds":["𐀀",""],"lines":[["𐀀",""],["𐀀",""]]},"expected":{"items":["𐀀",""],"holds":["𐀀",""],"lines":[["𐀀",""],["𐀀",""]]}}
+{"summary":true,"passed":4,"failed":0,"total":4}

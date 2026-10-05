@@ -1,0 +1,25 @@
+{
+  "source": "Final partial-run manifest; not published",
+  "files": [
+    {
+      "path": "package.json",
+      "size": 100,
+      "sha256": "52715d013ed76603282a1bd7517012028dbaacf533165f2770f479843a272bb7"
+    },
+    {
+      "path": "server.js",
+      "size": 7060,
+      "sha256": "5dd08b3796c5c973e7061c8ca754b0f0385f0f1037ad40c1615ae6a276be79a3"
+    },
+    {
+      "path": "README.md",
+      "size": 992,
+      "sha256": "eb98486c912202647bc55f136c0d0ba298452ca299836c4cc6e54e5693f7b559"
+    },
+    {
+      "path": "test-api.js",
+      "size": 7161,
+      "sha256": "759cc4e6506dc09987e9b2b9bc6d8e2981da2408a2cc3fa9ab87eae39b0fd5c1"
+    }
+  ]
+}

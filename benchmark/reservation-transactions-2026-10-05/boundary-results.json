@@ -1,0 +1,268 @@
+[
+  {
+    "id": "11433302-20b8-4ef0-a86c-e3bd08f5bfe7",
+    "arm": "baseline",
+    "expected": null,
+    "matchesExpected": null,
+    "verdict": {
+      "approved": false,
+      "reasoning": "Implementation and several lifecycle checks are supported, but the delivered executed tests do not establish the full requested proof: atomic refusal checks only one item, successful receipt replay after restart is missing, and strict validation lacks executed missing/extra-field and range cases.",
+      "modifications": {
+        "additionalContext": "Extend test-api.js with full pre/post state assertions for atomic refusal, replay a successful command key after SIGKILL/restart, and execute/assert missing-field, extra-field, wrong-type, and range validation cases. Re-run npm test and report results."
+      },
+      "scope": "ephemeral",
+      "criteria": [
+        {
+          "id": "c1",
+          "met": true,
+          "reason": "server.js, package.json, README.md and test-api.js are present; subprocess startup observed on port 41661 and npm test exited 0."
+        },
+        {
+          "id": "c2",
+          "met": false,
+          "reason": "Repeated-line insufficient reservation and one unchanged item are asserted, but the test does not assert the full domain state, including all items, holds, and revision."
+        },
+        {
+          "id": "c3",
+          "met": true,
+          "reason": "test-api.js asserts confirm-before-advance, advance-before-confirm at boundaries, statuses, availability, and cancellation release."
+        },
+        {
+          "id": "c4",
+          "met": true,
+          "reason": "Concurrent B contenders assert exactly one 200; concurrent identical __proto__ commands assert identical response bytes, with serialized transactional implementation."
+        },
+        {
+          "id": "c5",
+          "met": true,
+          "reason": "Tests cover reordered object keys, changed array order causing idempotency_conflict, cached refusal replay, and unchanged receipt behavior."
+        },
+        {
+          "id": "c6",
+          "met": false,
+          "reason": "Restart verifies persisted state and a refused receipt, but no successful receipt is replayed after SIGKILL and restart."
+        },
+        {
+          "id": "c7",
+          "met": false,
+          "reason": "Executed checks cover malformed JSON, an invalid type array, and unknown type, but do not establish missing/extra fields and wrong-type/range cases comprehensively."
+        },
+        {
+          "id": "c8",
+          "met": true,
+          "reason": "Observed GET responses show the exact schema; repeated GET bytes are asserted equal and U+10000/U+E000 ordering is asserted."
+        },
+        {
+          "id": "c9",
+          "met": true,
+          "reason": "Tests exercise __proto__ identifiers; source uses logical clock advancement and status-based expiry, including confirmed-hold preservation."
+        },
+        {
+          "id": "c10",
+          "met": false,
+          "reason": "The suite passes, but its visible assertions omit full atomic-state checks, successful receipt replay after restart, and comprehensive strict-schema cases."
+        }
+      ]
+    }
+  },
+  {
+    "id": "11433302-20b8-4ef0-a86c-e3bd08f5bfe7",
+    "arm": "candidate",
+    "expected": null,
+    "matchesExpected": null,
+    "verdict": {
+      "approved": false,
+      "reasoning": "Required executed proof is incomplete: the confirm-before-advance case advances to 10 rather than the exact expiry boundary 5, and restart testing replays only a refused receipt, not a successful receipt. Several strict-schema and failed-key-after-stock-change assertions are also absent.",
+      "modifications": {
+        "additionalContext": "Extend test-api.js and rerun npm test. Assert confirm then advance exactly to expiresAt and advance then confirm at that same boundary. After SIGKILL/restart, replay a successful command and compare exact response bytes; replay a cached refusal after changing stock. Add missing/extra field, wrong-type, and range validation assertions with unchanged state and revision."
+      },
+      "scope": "ephemeral",
+      "criteria": [
+        {
+          "id": "c1",
+          "met": true,
+          "reason": "server.js, README.md, package.json, test-api.js exist; server start observed on port 41661 and npm test exited 0."
+        },
+        {
+          "id": "c2",
+          "met": true,
+          "reason": "Current test asserts repeated-line atomic refusal preserves A availability; source aggregates lines and performs transactional reservation."
+        },
+        {
+          "id": "c3",
+          "met": false,
+          "reason": "Advance-before-confirm reaches expiresAt exactly, but confirm-before-advance advances to 10 instead of the required exact boundary 5."
+        },
+        {
+          "id": "c4",
+          "met": true,
+          "reason": "test-api.js runs concurrent last-unit contenders and concurrent identical keys, asserting one success and identical response bodies."
+        },
+        {
+          "id": "c5",
+          "met": true,
+          "reason": "Source canonicalizes object keys while preserving arrays; tests cover reordered object keys, reordered arrays, cached refusal, and conflict."
+        },
+        {
+          "id": "c6",
+          "met": false,
+          "reason": "The test survives SIGKILL and replays a refused receipt, but does not replay a successful receipt after restart."
+        },
+        {
+          "id": "c7",
+          "met": false,
+          "reason": "Observed tests cover malformed JSON, type array, and prototype-like command, but do not establish the requested broad missing/extra, type, and range rejection matrix."
+        },
+        {
+          "id": "c8",
+          "met": true,
+          "reason": "GET /state returned deterministic JSON, and test-api.js compares repeated GET bytes; source sorts with JS code-unit comparison."
+        },
+        {
+          "id": "c9",
+          "met": true,
+          "reason": "Source uses explicit persisted logical clock and literal-key-safe maps; tests include __proto__ and supplementary/private-use ordering."
+        },
+        {
+          "id": "c10",
+          "met": false,
+          "reason": "Executed evidence does not establish the exact confirm boundary, successful-receipt restart replay, or failed-key replay after stock changes."
+        }
+      ]
+    }
+  },
+  {
+    "id": "0ab3a946-26e9-4f0d-81d4-67c92c8925ba",
+    "arm": "candidate",
+    "expected": null,
+    "matchesExpected": null,
+    "verdict": {
+      "approved": false,
+      "reasoning": "The required confirm-before-boundary proof is still missing: the test confirms at expiry 5 but advances that hold to 10, while only the unconfirmed hold advances exactly to 5. Add an executed assertion for confirm then advance to exactly 5 with confirmed status and available 0.",
+      "modifications": {
+        "additionalContext": "Update test-api.js to verify the capacity-1 ttl-5 confirm-first scenario advances to exactly clock 5, then assert the hold remains confirmed and availability remains 0; rerun npm test."
+      },
+      "scope": "ephemeral",
+      "activeSkillFollowed": true
+    }
+  },
+  {
+    "id": "0ab3a946-26e9-4f0d-81d4-67c92c8925ba",
+    "arm": "baseline",
+    "expected": null,
+    "matchesExpected": null,
+    "verdict": {
+      "approved": false,
+      "reasoning": "The required confirm-before-expiry boundary proof is still missing: test-api.js confirms the hold, then advances from expiry 5 to clock 10 (not exactly 5). The separate exact-5 case only proves expiration, so the required confirm-then-advance5 behavior remains unverified.",
+      "modifications": {
+        "additionalContext": "Update test-api.js to prove a capacity-1 hold with ttl 5 is confirmed before advancing exactly to clock 5, then assert status confirmed and available 0; rerun npm test."
+      },
+      "scope": "ephemeral",
+      "activeSkillFollowed": true
+    }
+  },
+  {
+    "id": "shifted-exact-boundary",
+    "arm": "baseline",
+    "expected": true,
+    "matchesExpected": true,
+    "verdict": {
+      "approved": true,
+      "reasoning": "Executed assertions verify reservation at clock 10 with ttl 5 expiresAt=15, then expiration at clock 15 restores availability; all assertions passed with exit 0."
+    }
+  },
+  {
+    "id": "shifted-exact-boundary",
+    "arm": "candidate",
+    "expected": true,
+    "matchesExpected": true,
+    "verdict": {
+      "approved": true,
+      "reasoning": "Host-recorded execution verifies reservation at clock 10 with ttl 5 expiresAt 15, then expiration exactly at clock 15; all required response fields were asserted and the script exited 0."
+    }
+  },
+  {
+    "id": "past-boundary-not-equality",
+    "arm": "candidate",
+    "expected": false,
+    "matchesExpected": true,
+    "verdict": {
+      "approved": false,
+      "reasoning": "The executed assertions verify expiresAt=15 and expiration after advancing to 16, but never test the required exact boundary at clock=15.",
+      "modifications": {
+        "additionalContext": "Add an executed assertion at exactly expiresAt (clock=15 for the existing fixture) verifying the hold is expired and availability is restored."
+      },
+      "scope": "ephemeral"
+    }
+  },
+  {
+    "id": "past-boundary-not-equality",
+    "arm": "baseline",
+    "expected": false,
+    "matchesExpected": true,
+    "verdict": {
+      "approved": false,
+      "reasoning": "The executed assertions verify expiration only after advancing to clock=16; they do not test the required exact boundary at expiresAt=15.",
+      "modifications": {
+        "additionalContext": "Execute and assert the boundary case: reserve at a known clock with ttl=5, advance exactly to clockAtReservation+5, then assert expiresAt equals that value and the hold is expired."
+      },
+      "scope": "ephemeral"
+    }
+  },
+  {
+    "id": "unknown-derived-boundary",
+    "arm": "baseline",
+    "expected": false,
+    "matchesExpected": true,
+    "verdict": {
+      "approved": false,
+      "reasoning": "The executed check only advanced to clock 15 and observed expired; it never read or asserted the reservation clock, expiresAt, or expiration exactly at clockAtReservation+5.",
+      "modifications": {
+        "additionalContext": "Execute assertions at a controlled clock: reserve with ttl=5, assert expiresAt equals clockAtReservation+5, then advance exactly to that expiration and assert status is expired."
+      },
+      "scope": "ephemeral"
+    }
+  },
+  {
+    "id": "unknown-derived-boundary",
+    "arm": "candidate",
+    "expected": false,
+    "matchesExpected": true,
+    "verdict": {
+      "approved": false,
+      "reasoning": "The observed execution only advances to 15 and asserts expired; it never reads or asserts expiresAt=clockAtReservation+ttl or the exact boundary at 5, so inclusive expiration is unverified.",
+      "modifications": {
+        "additionalContext": "Execute an assertion at the derived exact boundary: establish clockAtReservation and ttl=5, verify expiresAt=clockAtReservation+5, advance to that timestamp, and assert expired."
+      },
+      "scope": "ephemeral"
+    }
+  },
+  {
+    "id": "explicit-absolute-value",
+    "arm": "candidate",
+    "expected": false,
+    "matchesExpected": true,
+    "verdict": {
+      "approved": false,
+      "reasoning": "Host records show the fixture started at clock 10 and advanced to 15, not from clock 0 to exactly 5 as required.",
+      "modifications": {
+        "additionalContext": "Re-run the acceptance fixture with initial clock=0, reserve ttl=5, then advance exactly 5; assert the resulting state and report the observed checks."
+      },
+      "scope": "ephemeral"
+    }
+  },
+  {
+    "id": "explicit-absolute-value",
+    "arm": "baseline",
+    "expected": false,
+    "matchesExpected": true,
+    "verdict": {
+      "approved": false,
+      "reasoning": "The observed fixture starts at clock 10 and advances to 15, not from clock 0 to exactly 5 as required.",
+      "modifications": {
+        "additionalContext": "Reset the acceptance fixture to clock 0, then execute reserve ttl=5 and advance exactly 5; assert the resulting state and responses."
+      },
+      "scope": "ephemeral"
+    }
+  }
+]

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { reviewAcceptanceCriteria } from '../src/atoms/criteriaReview.js';
+import { remediationTask } from '../src/run/depth.js';
 import { acceptRootResult } from '../src/atoms/rootAcceptance.js';
 import { L1Atom } from '../src/atoms/L1Atom.js';
 import { markLanded } from '../src/atoms/dispatch.js';
@@ -174,13 +175,37 @@ describe('focused criterion review', () => {
     expect(aborted.llm.calls).toHaveLength(0);
   });
 
-  it('does not add paid checks to a refused, drafted or landed delivery', async () => {
-    for (const mode of ['refused', 'drafted', 'landed'] as const) {
+  it.each([true, false])('reviews every criterion after a global refusal and preserves it (focused approval=%s)', async focusedApproval => {
+    const ctx = makeCtx();
+    const required = Array.from({ length: 5 }, (_, i) => ({ id: `c${i + 1}`, behaviour: `Required behavior ${i + 1}`, check: { kind: 'review' as const } }));
+    ctx.llm.enqueue({ ...reply(required.map(item => ({ id: item.id, met: true, reason: 'global claim' })), false),
+      text: jsonText({ approved: false, reasoning: 'GLOBAL_DEFECT_SENTINEL', scope: 'ephemeral', modifications: {} }) });
+    for (const batch of [required.slice(0, 2), required.slice(2, 4), required.slice(4)]) ctx.llm.enqueue(req => {
+      expect(req.userContent).not.toContain('GLOBAL_DEFECT_SENTINEL');
+      expect(req.userContent).not.toContain('MODEL_SUCCESS_SENTINEL');
+      return reply(batch.map(item => ({ id: item.id, met: focusedApproval, reason: `Focused evidence for ${item.id}` })), focusedApproval);
+    });
+    const accepted = await acceptRootResult({ actor, task, result, ctx, floor: [], phaseCoverage: [],
+      checklist: required, checklistOrigin: { source: 'user' } });
+    expect(ctx.llm.calls).toHaveLength(4);
+    expect(accepted.approved).toBe(false);
+    expect(accepted.reasoning).toContain('GLOBAL_DEFECT_SENTINEL');
+    expect(accepted.checklist?.map(item => item.judgement?.met)).toEqual(Array(5).fill(focusedApproval));
+    const remediation = remediationTask(task, accepted);
+    expect(remediation.inputs?.['rootAcceptanceRefusal']).toBe(accepted.reasoning);
+    if (!focusedApproval) {
+      for (const item of required) expect(accepted.reasoning).toContain(`Focused evidence for ${item.id}`);
+      expect(remediation.inputs).not.toHaveProperty('rootRemediationScope');
+    }
+  });
+
+  it('does not add paid checks to a drafted or landed delivery', async () => {
+    for (const mode of ['drafted', 'landed'] as const) {
       const ctx = makeCtx();
-      ctx.llm.enqueue(reply(mode === 'landed' ? missing : met, mode !== 'refused'));
+      ctx.llm.enqueue(reply(mode === 'landed' ? missing : met));
       const accepted = await acceptRootResult({ actor, task, result: mode === 'landed' ? markLanded(result, [{ description: 'pending' }]) : result,
         ctx, floor: [], phaseCoverage: [], checklist, checklistOrigin: { source: mode === 'drafted' ? 'drafted' : 'user' } });
-      expect(accepted.approved).toBe(mode !== 'refused');
+      expect(accepted.approved).toBe(true);
       expect(ctx.llm.calls).toHaveLength(1);
     }
   });

@@ -1,0 +1,8 @@
+{"type":"__defineGetter__","passed":true,"invalid":{"status":400,"text":"{\"error\":\"invalid\"}"},"applied":{"status":200,"text":"{\"ok\":true,\"revision\":1}"}}
+{"type":"__defineSetter__","passed":true,"invalid":{"status":400,"text":"{\"error\":\"invalid\"}"},"applied":{"status":200,"text":"{\"ok\":true,\"revision\":2}"}}
+{"type":"__lookupGetter__","passed":true,"invalid":{"status":400,"text":"{\"error\":\"invalid\"}"},"applied":{"status":200,"text":"{\"ok\":true,\"revision\":3}"}}
+{"type":"__lookupSetter__","passed":true,"invalid":{"status":400,"text":"{\"error\":\"invalid\"}"},"applied":{"status":200,"text":"{\"ok\":true,\"revision\":4}"}}
+{"type":"constructor","passed":true,"invalid":{"status":400,"text":"{\"error\":\"invalid\"}"},"applied":{"status":200,"text":"{\"ok\":true,\"revision\":5}"}}
+{"type":"__proto__","passed":true,"invalid":{"status":400,"text":"{\"error\":\"invalid\"}"},"applied":{"status":200,"text":"{\"ok\":true,\"revision\":6}"}}
+{"type":"toString","passed":true,"invalid":{"status":400,"text":"{\"error\":\"invalid\"}"},"applied":{"status":200,"text":"{\"ok\":true,\"revision\":7}"}}
+{"summary":true,"passed":7,"failed":0}

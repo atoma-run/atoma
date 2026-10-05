@@ -513,9 +513,10 @@ export async function acceptRootResult(args: {
   const initial = consistentWithCriteria(raw, initialJudged, source, landed);
   // A holistic approval cannot manufacture checklist coverage. Completed file
   // deliveries with user criteria must also pass focused, report-blind reviews.
-  // A refused or landed result needs no extra paid approval work; text keeps
-  // its separate source-derived reference and whole-answer review protocol.
-  const focused = initial.approved && reviewing && userCriteria && !landed && args.delivery !== 'text'
+  // Review refused candidates too: remediation needs the complete checklist
+  // gaps on its first pass, not fresh requirements after its only repair.
+  // Landed/text/mechanically rejected paths retain their separate protocols.
+  const focused = reviewing && userCriteria && !landed && args.delivery !== 'text'
     ? await reviewAcceptanceCriteria({ ctx, task, checklist,
       evidence: [probe.block, namedFilesBlock, checklistBlock, layoutsBlock, inputsBlock, startingBlock, restorationsBlock,
         inheritedBlock, renderResultGateFindings(gates.reviewFindings),
@@ -523,7 +524,8 @@ export async function acceptRootResult(args: {
           `Transport observations: ${observed.omitted} omitted; omissions establish no coverage.`, ...observed.lines,
         ].join('\n'); })()].filter(Boolean).join('\n\n') }) : undefined;
   const judged = focused ? judgeCoverage(coverage, focused.criteria) : initialJudged;
-  const reviewed = focused && !focused.approved ? { approved: false, reasoning: focused.reasoning } : initial;
+  const reviewed = focused && !focused.approved ? { approved: false,
+    reasoning: [!initial.approved ? initial.reasoning : '', focused.reasoning].filter(Boolean).join('\n') } : initial;
   const inheritedJudgements = 'inherited' in raw ? raw.inherited : undefined;
   const verdict = consistentWithRecheck(
     consistentWithInherited(consistentWithCriteria(reviewed, judged, source, landed), inheritedItems, inheritedJudgements, landed),
