@@ -1,0 +1,2121 @@
+{
+  "cases": [
+    {
+      "name": "empty and read-only state",
+      "steps": [],
+      "initial": {
+        "items": []
+      }
+    },
+    {
+      "name": "atomic insufficient second line",
+      "steps": [
+        {
+          "key": "r",
+          "type": "reserve",
+          "holdId": "h",
+          "ttl": 5,
+          "lines": [
+            {
+              "sku": "A",
+              "qty": 1
+            },
+            {
+              "sku": "B",
+              "qty": 2
+            }
+          ]
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "atomic missing second item",
+      "steps": [
+        {
+          "key": "r",
+          "type": "reserve",
+          "holdId": "h",
+          "ttl": 5,
+          "lines": [
+            {
+              "sku": "A",
+              "qty": 1
+            },
+            {
+              "sku": "absent",
+              "qty": 1
+            }
+          ]
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "repeated lines aggregate and release",
+      "steps": [
+        {
+          "key": "r",
+          "type": "reserve",
+          "holdId": "h",
+          "ttl": 5,
+          "lines": [
+            {
+              "sku": "A",
+              "qty": 1
+            },
+            {
+              "sku": "A",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "key": "c",
+          "type": "cancel",
+          "holdId": "h"
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "repeated lines cannot evade capacity",
+      "steps": [
+        {
+          "key": "r",
+          "type": "reserve",
+          "holdId": "h",
+          "ttl": 5,
+          "lines": [
+            {
+              "sku": "A",
+              "qty": 2
+            },
+            {
+              "sku": "A",
+              "qty": 1
+            }
+          ]
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "confirm before expiry consumes permanently",
+      "steps": [
+        {
+          "key": "r",
+          "type": "reserve",
+          "holdId": "h",
+          "ttl": 5,
+          "lines": [
+            {
+              "sku": "A",
+              "qty": 2
+            }
+          ]
+        },
+        {
+          "key": "c",
+          "type": "confirm",
+          "holdId": "h"
+        },
+        {
+          "key": "a",
+          "type": "advance",
+          "to": 5
+        },
+        {
+          "key": "b",
+          "type": "advance",
+          "to": 100
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "expiry before confirm refuses",
+      "steps": [
+        {
+          "key": "r",
+          "type": "reserve",
+          "holdId": "h",
+          "ttl": 5,
+          "lines": [
+            {
+              "sku": "A",
+              "qty": 2
+            }
+          ]
+        },
+        {
+          "key": "a",
+          "type": "advance",
+          "to": 5
+        },
+        {
+          "key": "c",
+          "type": "confirm",
+          "holdId": "h"
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "exact expiry boundary",
+      "steps": [
+        {
+          "key": "r",
+          "type": "reserve",
+          "holdId": "h",
+          "ttl": 5,
+          "lines": [
+            {
+              "sku": "B",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "key": "a",
+          "type": "advance",
+          "to": 4
+        },
+        {
+          "key": "b",
+          "type": "advance",
+          "to": 5
+        },
+        {
+          "key": "c",
+          "type": "advance",
+          "to": 5
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "terminal IDs cannot be reused",
+      "steps": [
+        {
+          "key": "r",
+          "type": "reserve",
+          "holdId": "h",
+          "ttl": 5,
+          "lines": [
+            {
+              "sku": "B",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "key": "c",
+          "type": "cancel",
+          "holdId": "h"
+        },
+        {
+          "key": "r2",
+          "type": "reserve",
+          "holdId": "h",
+          "ttl": 5,
+          "lines": [
+            {
+              "sku": "B",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "key": "c2",
+          "type": "cancel",
+          "holdId": "h"
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "missing hold and backward clock",
+      "steps": [
+        {
+          "key": "c",
+          "type": "confirm",
+          "holdId": "missing"
+        },
+        {
+          "key": "x",
+          "type": "cancel",
+          "holdId": "missing"
+        },
+        {
+          "key": "a",
+          "type": "advance",
+          "to": 10
+        },
+        {
+          "key": "b",
+          "type": "advance",
+          "to": 9
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "object-key order ignored",
+      "steps": [
+        {
+          "key": "r",
+          "type": "reserve",
+          "holdId": "h",
+          "ttl": 5,
+          "lines": [
+            {
+              "sku": "A",
+              "qty": 1
+            },
+            {
+              "sku": "B",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "lines": [
+            {
+              "qty": 1,
+              "sku": "A"
+            },
+            {
+              "qty": 1,
+              "sku": "B"
+            }
+          ],
+          "ttl": 5,
+          "holdId": "h",
+          "type": "reserve",
+          "key": "r"
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "array order significant and original receipt retained",
+      "steps": [
+        {
+          "key": "r",
+          "type": "reserve",
+          "holdId": "h",
+          "ttl": 5,
+          "lines": [
+            {
+              "sku": "A",
+              "qty": 1
+            },
+            {
+              "sku": "B",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "key": "r",
+          "type": "reserve",
+          "holdId": "h",
+          "ttl": 5,
+          "lines": [
+            {
+              "sku": "B",
+              "qty": 1
+            },
+            {
+              "sku": "A",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "key": "r",
+          "type": "reserve",
+          "holdId": "h",
+          "ttl": 5,
+          "lines": [
+            {
+              "sku": "A",
+              "qty": 1
+            },
+            {
+              "sku": "B",
+              "qty": 1
+            }
+          ]
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "retry uses original revision and bypasses business rules",
+      "steps": [
+        {
+          "key": "r",
+          "type": "reserve",
+          "holdId": "h",
+          "ttl": 5,
+          "lines": [
+            {
+              "sku": "B",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "key": "c",
+          "type": "cancel",
+          "holdId": "h"
+        },
+        {
+          "key": "r",
+          "type": "reserve",
+          "holdId": "h",
+          "ttl": 5,
+          "lines": [
+            {
+              "sku": "B",
+              "qty": 1
+            }
+          ]
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "failed receipt stays refused after stock released",
+      "steps": [
+        {
+          "key": "r",
+          "type": "reserve",
+          "holdId": "h",
+          "ttl": 5,
+          "lines": [
+            {
+              "sku": "B",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "key": "f",
+          "type": "reserve",
+          "holdId": "second",
+          "ttl": 5,
+          "lines": [
+            {
+              "sku": "B",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "key": "c",
+          "type": "cancel",
+          "holdId": "h"
+        },
+        {
+          "key": "f",
+          "type": "reserve",
+          "holdId": "second",
+          "ttl": 5,
+          "lines": [
+            {
+              "sku": "B",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "key": "new",
+          "type": "reserve",
+          "holdId": "second",
+          "ttl": 5,
+          "lines": [
+            {
+              "sku": "B",
+              "qty": 1
+            }
+          ]
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "schema before cache and invalid key is reusable",
+      "steps": [
+        {
+          "key": "r",
+          "type": "reserve",
+          "holdId": "h",
+          "ttl": 5,
+          "lines": [
+            {
+              "sku": "A",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "invalid": {
+            "key": "r",
+            "type": "reserve",
+            "holdId": "h",
+            "ttl": 5,
+            "lines": [
+              {
+                "sku": "A",
+                "qty": 1
+              }
+            ],
+            "extra": true
+          }
+        },
+        {
+          "invalid": {
+            "key": "fresh",
+            "type": "advance",
+            "to": "4"
+          }
+        },
+        {
+          "key": "fresh",
+          "type": "advance",
+          "to": 4
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "literal IDs and code-unit ordering",
+      "steps": [
+        {
+          "key": "__proto__",
+          "type": "reserve",
+          "holdId": "__proto__",
+          "ttl": 5,
+          "lines": [
+            {
+              "sku": "__proto__",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "key": "constructor",
+          "type": "reserve",
+          "holdId": "a",
+          "ttl": 5,
+          "lines": [
+            {
+              "sku": "a",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "key": "k",
+          "type": "reserve",
+          "holdId": "Z",
+          "ttl": 5,
+          "lines": [
+            {
+              "sku": "Z",
+              "qty": 1
+            }
+          ]
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "__proto__",
+            "capacity": 1
+          },
+          {
+            "sku": "a",
+            "capacity": 1
+          },
+          {
+            "sku": "Z",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "multiple expiry batches and confirmed exclusion",
+      "steps": [
+        {
+          "key": "r1",
+          "type": "reserve",
+          "holdId": "h1",
+          "ttl": 3,
+          "lines": [
+            {
+              "sku": "A",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "key": "r2",
+          "type": "reserve",
+          "holdId": "h2",
+          "ttl": 7,
+          "lines": [
+            {
+              "sku": "A",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "key": "r3",
+          "type": "reserve",
+          "holdId": "h3",
+          "ttl": 3,
+          "lines": [
+            {
+              "sku": "B",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "key": "c",
+          "type": "confirm",
+          "holdId": "h3"
+        },
+        {
+          "key": "a",
+          "type": "advance",
+          "to": 3
+        },
+        {
+          "key": "b",
+          "type": "advance",
+          "to": 7
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "strict schema 1",
+      "steps": [
+        {
+          "invalid": null
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "strict schema 2",
+      "steps": [
+        {
+          "invalid": []
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "strict schema 3",
+      "steps": [
+        {
+          "invalid": 3
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "strict schema 4",
+      "steps": [
+        {
+          "invalid": {}
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "strict schema 5",
+      "steps": [
+        {
+          "invalid": {
+            "key": "x",
+            "type": "unknown"
+          }
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "strict schema 6",
+      "steps": [
+        {
+          "invalid": {
+            "key": 3,
+            "type": "advance",
+            "to": 1
+          }
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "strict schema 7",
+      "steps": [
+        {
+          "invalid": {
+            "key": "x",
+            "type": "advance",
+            "to": -1
+          }
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "strict schema 8",
+      "steps": [
+        {
+          "invalid": {
+            "key": "x",
+            "type": "advance",
+            "to": 1.5
+          }
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "strict schema 9",
+      "steps": [
+        {
+          "invalid": {
+            "key": "x",
+            "type": "advance",
+            "to": 1000000001
+          }
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "strict schema 10",
+      "steps": [
+        {
+          "invalid": {
+            "key": "x",
+            "type": "reserve",
+            "holdId": "h",
+            "ttl": 5,
+            "lines": []
+          }
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "strict schema 11",
+      "steps": [
+        {
+          "invalid": {
+            "key": "x",
+            "type": "reserve",
+            "holdId": 3,
+            "ttl": 5,
+            "lines": [
+              {
+                "sku": "A",
+                "qty": 1
+              }
+            ]
+          }
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "strict schema 12",
+      "steps": [
+        {
+          "invalid": {
+            "key": "x",
+            "type": "reserve",
+            "holdId": "h",
+            "ttl": 0,
+            "lines": [
+              {
+                "sku": "A",
+                "qty": 1
+              }
+            ]
+          }
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "strict schema 13",
+      "steps": [
+        {
+          "invalid": {
+            "key": "x",
+            "type": "reserve",
+            "holdId": "h",
+            "ttl": 1000001,
+            "lines": [
+              {
+                "sku": "A",
+                "qty": 1
+              }
+            ]
+          }
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "strict schema 14",
+      "steps": [
+        {
+          "invalid": {
+            "key": "x",
+            "type": "reserve",
+            "holdId": "h",
+            "ttl": 5,
+            "lines": [
+              {
+                "sku": "A",
+                "qty": 0
+              }
+            ]
+          }
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "strict schema 15",
+      "steps": [
+        {
+          "invalid": {
+            "key": "x",
+            "type": "reserve",
+            "holdId": "h",
+            "ttl": 5,
+            "lines": [
+              {
+                "sku": "A",
+                "qty": "1"
+              }
+            ]
+          }
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "strict schema 16",
+      "steps": [
+        {
+          "invalid": {
+            "key": "x",
+            "type": "reserve",
+            "holdId": "h",
+            "ttl": 5,
+            "lines": [
+              {
+                "sku": [
+                  "A"
+                ],
+                "qty": 1
+              }
+            ]
+          }
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "strict schema 17",
+      "steps": [
+        {
+          "invalid": {
+            "key": "x",
+            "type": "reserve",
+            "holdId": "h",
+            "ttl": 5,
+            "lines": [
+              null
+            ]
+          }
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "strict schema 18",
+      "steps": [
+        {
+          "invalid": {
+            "key": "x",
+            "type": "reserve",
+            "holdId": "h",
+            "ttl": 5,
+            "lines": [
+              {
+                "sku": "A",
+                "qty": 1,
+                "extra": 2
+              }
+            ]
+          }
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "strict schema 19",
+      "steps": [
+        {
+          "invalid": {
+            "key": "",
+            "type": "advance",
+            "to": 1
+          }
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "strict schema 20",
+      "steps": [
+        {
+          "invalid": {
+            "key": "x",
+            "type": "confirm"
+          }
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "strict schema 21",
+      "steps": [
+        {
+          "invalid": {
+            "key": "x",
+            "type": "cancel",
+            "holdId": "h",
+            "extra": 2
+          }
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "malformed JSON",
+      "steps": [
+        {
+          "raw": "{\"key\":"
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "durable success and refusal receipts",
+      "steps": [
+        {
+          "key": "r",
+          "type": "reserve",
+          "holdId": "h",
+          "ttl": 5,
+          "lines": [
+            {
+              "sku": "B",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "key": "f",
+          "type": "reserve",
+          "holdId": "h2",
+          "ttl": 5,
+          "lines": [
+            {
+              "sku": "B",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "restart": true
+        },
+        {
+          "key": "c",
+          "type": "cancel",
+          "holdId": "h"
+        },
+        {
+          "key": "r",
+          "type": "reserve",
+          "holdId": "h",
+          "ttl": 5,
+          "lines": [
+            {
+              "sku": "B",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "key": "f",
+          "type": "reserve",
+          "holdId": "h2",
+          "ttl": 5,
+          "lines": [
+            {
+              "sku": "B",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "restart": true
+        },
+        {
+          "key": "a",
+          "type": "advance",
+          "to": 5
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "fixed-seed mixed transition sequence",
+      "steps": [
+        {
+          "key": "k0",
+          "type": "reserve",
+          "holdId": "h4",
+          "ttl": 8,
+          "lines": [
+            {
+              "sku": "A",
+              "qty": 2
+            }
+          ]
+        },
+        {
+          "restart": true
+        },
+        {
+          "key": "k1",
+          "type": "confirm",
+          "holdId": "h2"
+        },
+        {
+          "key": "k2",
+          "type": "advance",
+          "to": 2
+        },
+        {
+          "key": "k3",
+          "type": "confirm",
+          "holdId": "h0"
+        },
+        {
+          "key": "k4",
+          "type": "cancel",
+          "holdId": "h7"
+        },
+        {
+          "key": "k5",
+          "type": "advance",
+          "to": 3
+        },
+        {
+          "key": "k6",
+          "type": "confirm",
+          "holdId": "h1"
+        },
+        {
+          "key": "k7",
+          "type": "reserve",
+          "holdId": "h2",
+          "ttl": 2,
+          "lines": [
+            {
+              "sku": "A",
+              "qty": 2
+            }
+          ]
+        },
+        {
+          "key": "k8",
+          "type": "advance",
+          "to": 4
+        },
+        {
+          "key": "k9",
+          "type": "confirm",
+          "holdId": "h10"
+        },
+        {
+          "key": "k10",
+          "type": "advance",
+          "to": 5
+        },
+        {
+          "key": "k11",
+          "type": "advance",
+          "to": 7
+        },
+        {
+          "key": "k12",
+          "type": "reserve",
+          "holdId": "h4",
+          "ttl": 5,
+          "lines": [
+            {
+              "sku": "A",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "key": "k13",
+          "type": "advance",
+          "to": 8
+        },
+        {
+          "key": "k14",
+          "type": "advance",
+          "to": 11
+        },
+        {
+          "key": "k15",
+          "type": "confirm",
+          "holdId": "h0"
+        },
+        {
+          "key": "k16",
+          "type": "reserve",
+          "holdId": "h3",
+          "ttl": 8,
+          "lines": [
+            {
+              "sku": "B",
+              "qty": 2
+            }
+          ]
+        },
+        {
+          "key": "k17",
+          "type": "advance",
+          "to": 12
+        },
+        {
+          "restart": true
+        },
+        {
+          "key": "k18",
+          "type": "cancel",
+          "holdId": "h11"
+        },
+        {
+          "key": "k19",
+          "type": "confirm",
+          "holdId": "h5"
+        },
+        {
+          "key": "k20",
+          "type": "advance",
+          "to": 14
+        },
+        {
+          "key": "k21",
+          "type": "advance",
+          "to": 14
+        },
+        {
+          "key": "k22",
+          "type": "cancel",
+          "holdId": "h3"
+        },
+        {
+          "key": "k23",
+          "type": "confirm",
+          "holdId": "h5"
+        },
+        {
+          "key": "k24",
+          "type": "cancel",
+          "holdId": "h1"
+        },
+        {
+          "key": "k25",
+          "type": "confirm",
+          "holdId": "h2"
+        },
+        {
+          "key": "k26",
+          "type": "reserve",
+          "holdId": "h2",
+          "ttl": 6,
+          "lines": [
+            {
+              "sku": "A",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "key": "k27",
+          "type": "confirm",
+          "holdId": "h2"
+        },
+        {
+          "key": "k28",
+          "type": "confirm",
+          "holdId": "h0"
+        },
+        {
+          "key": "k29",
+          "type": "cancel",
+          "holdId": "h11"
+        },
+        {
+          "key": "k30",
+          "type": "advance",
+          "to": 16
+        },
+        {
+          "key": "k31",
+          "type": "confirm",
+          "holdId": "h5"
+        },
+        {
+          "key": "k32",
+          "type": "reserve",
+          "holdId": "h8",
+          "ttl": 5,
+          "lines": [
+            {
+              "sku": "B",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "key": "k33",
+          "type": "reserve",
+          "holdId": "h4",
+          "ttl": 1,
+          "lines": [
+            {
+              "sku": "B",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "key": "k34",
+          "type": "confirm",
+          "holdId": "h9"
+        },
+        {
+          "restart": true
+        },
+        {
+          "key": "k35",
+          "type": "advance",
+          "to": 16
+        },
+        {
+          "key": "k36",
+          "type": "reserve",
+          "holdId": "h0",
+          "ttl": 8,
+          "lines": [
+            {
+              "sku": "A",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "key": "k37",
+          "type": "reserve",
+          "holdId": "h2",
+          "ttl": 9,
+          "lines": [
+            {
+              "sku": "A",
+              "qty": 2
+            }
+          ]
+        },
+        {
+          "key": "k38",
+          "type": "cancel",
+          "holdId": "h0"
+        },
+        {
+          "key": "k39",
+          "type": "advance",
+          "to": 19
+        },
+        {
+          "key": "k40",
+          "type": "advance",
+          "to": 19
+        },
+        {
+          "key": "k41",
+          "type": "advance",
+          "to": 19
+        },
+        {
+          "key": "k42",
+          "type": "confirm",
+          "holdId": "h5"
+        },
+        {
+          "key": "k43",
+          "type": "cancel",
+          "holdId": "h4"
+        },
+        {
+          "key": "k44",
+          "type": "confirm",
+          "holdId": "h1"
+        },
+        {
+          "key": "k45",
+          "type": "cancel",
+          "holdId": "h9"
+        },
+        {
+          "key": "k46",
+          "type": "confirm",
+          "holdId": "h4"
+        },
+        {
+          "key": "k47",
+          "type": "advance",
+          "to": 19
+        },
+        {
+          "key": "k48",
+          "type": "reserve",
+          "holdId": "h9",
+          "ttl": 1,
+          "lines": [
+            {
+              "sku": "B",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "key": "k49",
+          "type": "reserve",
+          "holdId": "h6",
+          "ttl": 9,
+          "lines": [
+            {
+              "sku": "A",
+              "qty": 2
+            }
+          ]
+        },
+        {
+          "key": "k50",
+          "type": "advance",
+          "to": 19
+        },
+        {
+          "key": "k51",
+          "type": "cancel",
+          "holdId": "h2"
+        },
+        {
+          "restart": true
+        },
+        {
+          "key": "k52",
+          "type": "advance",
+          "to": 20
+        },
+        {
+          "key": "k53",
+          "type": "reserve",
+          "holdId": "h3",
+          "ttl": 1,
+          "lines": [
+            {
+              "sku": "B",
+              "qty": 2
+            }
+          ]
+        },
+        {
+          "key": "k54",
+          "type": "confirm",
+          "holdId": "h8"
+        },
+        {
+          "key": "k55",
+          "type": "cancel",
+          "holdId": "h9"
+        },
+        {
+          "key": "k56",
+          "type": "cancel",
+          "holdId": "h5"
+        },
+        {
+          "key": "k57",
+          "type": "confirm",
+          "holdId": "h9"
+        },
+        {
+          "key": "k58",
+          "type": "advance",
+          "to": 21
+        },
+        {
+          "key": "k59",
+          "type": "reserve",
+          "holdId": "h7",
+          "ttl": 6,
+          "lines": [
+            {
+              "sku": "A",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "key": "k60",
+          "type": "advance",
+          "to": 22
+        },
+        {
+          "key": "k61",
+          "type": "reserve",
+          "holdId": "h5",
+          "ttl": 4,
+          "lines": [
+            {
+              "sku": "A",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "key": "k62",
+          "type": "advance",
+          "to": 23
+        },
+        {
+          "key": "k63",
+          "type": "reserve",
+          "holdId": "h8",
+          "ttl": 9,
+          "lines": [
+            {
+              "sku": "A",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "key": "k64",
+          "type": "reserve",
+          "holdId": "h7",
+          "ttl": 1,
+          "lines": [
+            {
+              "sku": "A",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "key": "k65",
+          "type": "cancel",
+          "holdId": "h4"
+        },
+        {
+          "key": "k66",
+          "type": "advance",
+          "to": 26
+        },
+        {
+          "key": "k67",
+          "type": "cancel",
+          "holdId": "h8"
+        },
+        {
+          "key": "k68",
+          "type": "confirm",
+          "holdId": "h10"
+        },
+        {
+          "restart": true
+        },
+        {
+          "key": "k69",
+          "type": "confirm",
+          "holdId": "h6"
+        },
+        {
+          "key": "k70",
+          "type": "cancel",
+          "holdId": "h11"
+        },
+        {
+          "key": "k71",
+          "type": "confirm",
+          "holdId": "h8"
+        },
+        {
+          "key": "k72",
+          "type": "advance",
+          "to": 29
+        },
+        {
+          "key": "k73",
+          "type": "cancel",
+          "holdId": "h11"
+        },
+        {
+          "key": "k74",
+          "type": "reserve",
+          "holdId": "h6",
+          "ttl": 9,
+          "lines": [
+            {
+              "sku": "B",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "key": "k75",
+          "type": "cancel",
+          "holdId": "h7"
+        },
+        {
+          "key": "k76",
+          "type": "reserve",
+          "holdId": "h10",
+          "ttl": 3,
+          "lines": [
+            {
+              "sku": "B",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "key": "k77",
+          "type": "advance",
+          "to": 30
+        },
+        {
+          "key": "k78",
+          "type": "cancel",
+          "holdId": "h6"
+        },
+        {
+          "key": "k79",
+          "type": "cancel",
+          "holdId": "h4"
+        },
+        {
+          "key": "k80",
+          "type": "advance",
+          "to": 30
+        },
+        {
+          "key": "k81",
+          "type": "reserve",
+          "holdId": "h10",
+          "ttl": 9,
+          "lines": [
+            {
+              "sku": "B",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "key": "k82",
+          "type": "reserve",
+          "holdId": "h0",
+          "ttl": 1,
+          "lines": [
+            {
+              "sku": "B",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "key": "k83",
+          "type": "advance",
+          "to": 30
+        },
+        {
+          "key": "k84",
+          "type": "advance",
+          "to": 31
+        },
+        {
+          "key": "k85",
+          "type": "confirm",
+          "holdId": "h0"
+        },
+        {
+          "restart": true
+        },
+        {
+          "key": "k86",
+          "type": "cancel",
+          "holdId": "h4"
+        },
+        {
+          "key": "k87",
+          "type": "cancel",
+          "holdId": "h3"
+        },
+        {
+          "key": "k88",
+          "type": "reserve",
+          "holdId": "h5",
+          "ttl": 2,
+          "lines": [
+            {
+              "sku": "A",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "key": "k89",
+          "type": "advance",
+          "to": 31
+        },
+        {
+          "key": "k90",
+          "type": "reserve",
+          "holdId": "h10",
+          "ttl": 4,
+          "lines": [
+            {
+              "sku": "B",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "key": "k91",
+          "type": "advance",
+          "to": 33
+        },
+        {
+          "key": "k92",
+          "type": "confirm",
+          "holdId": "h8"
+        },
+        {
+          "key": "k93",
+          "type": "cancel",
+          "holdId": "h6"
+        },
+        {
+          "key": "k94",
+          "type": "cancel",
+          "holdId": "h3"
+        },
+        {
+          "key": "k95",
+          "type": "reserve",
+          "holdId": "h9",
+          "ttl": 7,
+          "lines": [
+            {
+              "sku": "B",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "key": "k96",
+          "type": "advance",
+          "to": 34
+        },
+        {
+          "key": "k97",
+          "type": "cancel",
+          "holdId": "h9"
+        },
+        {
+          "key": "k98",
+          "type": "confirm",
+          "holdId": "h8"
+        },
+        {
+          "key": "k99",
+          "type": "confirm",
+          "holdId": "h2"
+        }
+      ],
+      "initial": {
+        "items": [
+          {
+            "sku": "A",
+            "capacity": 2
+          },
+          {
+            "sku": "B",
+            "capacity": 1
+          }
+        ]
+      }
+    }
+  ],
+  "concurrent": [
+    "distinct last-unit contenders",
+    "identical key contenders",
+    "conflicting key contenders"
+  ]
+}

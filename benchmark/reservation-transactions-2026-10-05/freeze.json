@@ -1,0 +1,10 @@
+{
+  "frozenAt": "2026-10-05T05:20:13.341094+00:00",
+  "productionRevision": "628826cf12e9bffa0a588f729dfdab768c4ad71f",
+  "files": {
+    "request.json": "b983f4ad1559ef101b707ce26eb635b6002baf6fe3a736627ee193a3e059946f",
+    "verify-artifact.mjs": "144b07769ddf3a5b5bf9da1e56d798baf1735dd23c83b24e61adaae0ac299d45",
+    "cases.json": "fe8aebb5d803d2ef587c6ea460271786f3fd60c39abef73fad2f0a487c3ed576",
+    "PROTOCOL.md": "be212327d3860fd9a2638025af49fb377ce3c0dafb4e3b1da87af6c2838941d7"
+  }
+}
