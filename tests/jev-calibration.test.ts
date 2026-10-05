@@ -4,6 +4,7 @@ import { L1Atom } from '../src/atoms/L1Atom.js';
 import { L2Atom } from '../src/atoms/L2Atom.js';
 import { resetPrefilterCacheForTests } from '../src/atoms/prefilterCache.js';
 import { llmVerdict, renderTransportEvidence } from '../src/atoms/verdict.js';
+import { DELEGATED_SCOPE_GUIDANCE, delegatedTaskContext } from '../src/atoms/taskContext.js';
 import {
   calibrate,
   calibrationDetails,
@@ -188,6 +189,25 @@ describe('reading the model validation prompt back', () => {
     expect(parsed?.request.context?.join('\n')).toContain('P=4, Q=2 on R.');
     expect(parsed?.request.context?.join('\n')).toContain('Tools are disabled');
     expect(parsed?.request.child.tools).toEqual([]);
+  });
+
+  it.each(['root', 'delegated', 'input-only'] as const)('renders and recovers host-owned validation scope: %s', async kind => {
+    const { l1 } = atoms();
+    const ctx = makeCtx();
+    ctx.llm.enqueueText(jsonText({ approved: true, reasoning: 'fixture' }));
+    const root = { description: 'Implement durable receipts and execute subprocess persistence tests.' };
+    const phase = { description: 'Implement durable receipts and basic startup checks. Persistence tests belong to the forthcoming test phase.' };
+    const task = kind === 'delegated' ? { ...phase, ...delegatedTaskContext(root, phase) }
+      : kind === 'input-only' ? { ...root, inputs: { originalTask: root } } : root;
+    await llmVerdict({ ctx, model: 'm', supervisorName: 'Cell', supervisorTier: 2,
+      subject: 'RESULT', child: l1, task, payload: { output: 'fixture', summary: 'fixture' },
+      groundTruthBlock: 'Host fixture: no filesystem probe needed.' });
+    const prompt = ctx.llm.calls[0]!.userContent;
+    expect(prompt.includes(DELEGATED_SCOPE_GUIDANCE)).toBe(kind === 'delegated');
+    expect(prompt).toContain(root.description);
+    const parsed = parseValidationPrompt(decision('validate-result', prompt));
+    expect(parsed?.request.task.description).toBe(task.description);
+    expect(parsed?.request.context?.includes(DELEGATED_SCOPE_GUIDANCE) ?? false).toBe(kind === 'delegated');
   });
 
   it("recovers a delegation plan and the tools its delegator's children inherit", async () => {

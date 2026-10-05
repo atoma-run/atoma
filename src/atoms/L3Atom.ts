@@ -67,6 +67,7 @@ import {
 } from './capability.js';
 import {
   HTTP_PORTABLE_DOC_GUIDANCE,
+  HTTP_STARTUP_GUIDANCE,
   FALLBACK_VERIFICATION_GUIDANCE,
   FALLBACK_SYSTEM_PROMPT,
   EXISTING_FILE_GUIDANCE,
@@ -495,6 +496,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       `  - HTTP server / API: start_node_server + fetch_url probes against`,
       `    the endpoints. No browser, no validate_html.`,
       HTTP_PORTABLE_DOC_GUIDANCE,
+      HTTP_STARTUP_GUIDANCE,
       `  - CLI tool / scripts / config / docs: run_shell executing the`,
       `    artefact (node index.js, npm start) and checking stdout / exit`,
       `    code; read files back for docs. NO static server, NO`,

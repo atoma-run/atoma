@@ -1,0 +1,214 @@
+[
+  {
+    "id": "f8b8b52d-1714-479b-9e2a-cf6ae3f9d316",
+    "arm": "baseline",
+    "expected": null,
+    "matchesExpected": null,
+    "verdict": {
+      "approved": false,
+      "reasoning": "Ground truth verifies startup, basic state, reserve/confirm, malformed JSON, and deterministic reads, but does not establish the many required behaviors including expiration/advance, cancellation and refusals, concurrency safety, Unicode ordering, exact schema enforcement, or durable receipt replay across restart.",
+      "modifications": {
+        "additionalContext": "Run and report focused executed probes for every unverified contract area, especially advance expiration boundaries, cancel/refusal codes, exact schema and idempotency semantics, concurrent contenders, Unicode sorting, and restart persistence of state and receipts."
+      },
+      "scope": "ephemeral",
+      "activeSkillFollowed": true
+    }
+  },
+  {
+    "id": "f8b8b52d-1714-479b-9e2a-cf6ae3f9d316",
+    "arm": "candidate",
+    "expected": null,
+    "matchesExpected": null,
+    "verdict": {
+      "approved": false,
+      "reasoning": "The result does not establish the required behavior: evidence covers only basic startup, reserve/confirm, malformed JSON, and deterministic state. It lacks executed checks for expiration boundaries, cancel, refusals, concurrency, full idempotency semantics, Unicode ordering, strict schemas, and receipt persistence after restart.",
+      "modifications": {
+        "additionalContext": "Run and report focused HTTP assertions for every required command/refusal, expiration order, concurrent contenders, same-key replay/conflict, restart persistence, strict validation including __proto__, Unicode code-unit ordering, and exact response bytes."
+      },
+      "scope": "ephemeral",
+      "activeSkillFollowed": false
+    }
+  },
+  {
+    "id": "f844795a-efd2-48f3-9674-3ac7e7f1710c",
+    "arm": "candidate",
+    "expected": null,
+    "matchesExpected": null,
+    "verdict": {
+      "approved": false,
+      "reasoning": "The deliverable exists and basic probes pass, but the recorded test suite does not establish several explicitly required behaviors: concurrent last-unit serialization, expiration boundary and confirm/advance ordering, cancel/advance semantics, idempotency conflicts, comprehensive exact-schema rejection, and receipt/response-byte persistence across restart. The result therefore does not support completion of the stated contract.",
+      "modifications": {
+        "additionalContext": "Run and report executed HTTP assertions for concurrency, expiration boundary with both operation orders, cancel, idempotency conflict, exact schema/extra-field rejection, and persisted receipt byte replay after restart; include observed statuses, bodies, and full state."
+      },
+      "scope": "ephemeral",
+      "activeSkillFollowed": false
+    }
+  },
+  {
+    "id": "f844795a-efd2-48f3-9674-3ac7e7f1710c",
+    "arm": "baseline",
+    "expected": null,
+    "matchesExpected": null,
+    "verdict": {
+      "approved": false,
+      "reasoning": "Required executed coverage is unsupported: the recorded tests show only basic reserve/replay, one invalid command, restart of one refusal, ordering, and sanity routes; they do not demonstrate expiration/confirm-order, cancel, concurrent contenders, changed-command conflicts, receipt persistence after restart, or the required U+10000/U+E000 ordering across holds and lines. A passing npm test does not establish absent assertions.",
+      "modifications": {
+        "additionalContext": "Add and execute real subprocess assertions for every unverified contract area: expiration boundary and confirm/advance order, cancel, concurrent last-unit and same-key retries, changed-key conflicts, refused-receipt replay after restart, and U+10000/U+E000 ordering for items, holds, and lines. Report their observed statuses, full state, and response bytes."
+      },
+      "scope": "ephemeral",
+      "activeSkillFollowed": false
+    }
+  },
+  {
+    "id": "delegated-source-only",
+    "arm": "baseline",
+    "expected": true,
+    "matchesExpected": true,
+    "verdict": {
+      "approved": true,
+      "reasoning": "price.mjs exists and its complete source implements the required order: n * 0.9, then + 5. Testing and README are explicitly deferred to a later phase."
+    }
+  },
+  {
+    "id": "delegated-source-only",
+    "arm": "candidate",
+    "expected": true,
+    "matchesExpected": true,
+    "verdict": {
+      "approved": true,
+      "reasoning": "price.mjs exists and its complete source implements the required order: n * 0.9, then +5. Tests and README are explicitly deferred to a later phase."
+    }
+  },
+  {
+    "id": "delegated-current-test-missing",
+    "arm": "candidate",
+    "expected": false,
+    "matchesExpected": true,
+    "verdict": {
+      "approved": false,
+      "reasoning": "price.mjs has the correct formula, but the required test asserting price(100)===95 was not executed or evidenced.",
+      "modifications": {
+        "additionalContext": "Run a test that asserts price(100)===95 and report its actual output."
+      },
+      "scope": "ephemeral"
+    }
+  },
+  {
+    "id": "delegated-current-test-missing",
+    "arm": "baseline",
+    "expected": false,
+    "matchesExpected": true,
+    "verdict": {
+      "approved": false,
+      "reasoning": "price.mjs has the correct formula, but ground truth confirms no test was executed, so the required assertion price(100)===95 is unverified.",
+      "modifications": {
+        "additionalContext": "Execute a test asserting price(100)===95 and report its actual output."
+      },
+      "scope": "ephemeral"
+    }
+  },
+  {
+    "id": "delegated-wrong-behavior",
+    "arm": "baseline",
+    "expected": false,
+    "matchesExpected": true,
+    "verdict": {
+      "approved": false,
+      "reasoning": "price.mjs is incorrect: it computes (n + 5) * 0.9, applying the fee before the discount; it must compute n * 0.9 + 5. The required source inspection is present, but the implementation fails the specified order.",
+      "modifications": {
+        "additionalContext": "Update price.mjs so price(n) returns n * 0.9 + 5, then re-read and report the complete source."
+      },
+      "scope": "ephemeral"
+    }
+  },
+  {
+    "id": "delegated-wrong-behavior",
+    "arm": "candidate",
+    "expected": false,
+    "matchesExpected": true,
+    "verdict": {
+      "approved": false,
+      "reasoning": "price.mjs applies the fee before the discount: (n + 5) * 0.9. The required order is a 10% discount first, then adding 5, i.e. n * 0.9 + 5.",
+      "modifications": {
+        "additionalContext": "Correct price.mjs so price(n) computes the 10% discount before adding the fee: n * 0.9 + 5. Re-inspect the complete source afterward."
+      },
+      "scope": "ephemeral"
+    }
+  },
+  {
+    "id": "root-missing-proof",
+    "arm": "candidate",
+    "expected": false,
+    "matchesExpected": true,
+    "verdict": {
+      "approved": false,
+      "reasoning": "Ground truth confirms price.mjs has the correct formula, but no test was run and README is absent.",
+      "modifications": {
+        "additionalContext": "Create README documenting price(n), then run and report a test asserting price(100)===95."
+      },
+      "scope": "ephemeral"
+    }
+  },
+  {
+    "id": "root-missing-proof",
+    "arm": "baseline",
+    "expected": false,
+    "matchesExpected": true,
+    "verdict": {
+      "approved": false,
+      "reasoning": "price.mjs has the correct formula, but no test was executed and README is missing.",
+      "modifications": {
+        "additionalContext": "Create README documenting price(n), then run a test asserting price(100)===95 and report the actual result."
+      },
+      "scope": "ephemeral"
+    }
+  },
+  {
+    "id": "child-cannot-defer",
+    "arm": "baseline",
+    "expected": false,
+    "matchesExpected": true,
+    "verdict": {
+      "approved": false,
+      "reasoning": "The implementation formula is correct, but the required README is absent and no price(100)===95 test was executed.",
+      "modifications": {
+        "additionalContext": "Create README documenting price(n), add and run a test asserting price(100)===95, and report the observed result."
+      },
+      "scope": "ephemeral"
+    }
+  },
+  {
+    "id": "child-cannot-defer",
+    "arm": "candidate",
+    "expected": false,
+    "matchesExpected": true,
+    "verdict": {
+      "approved": false,
+      "reasoning": "price.mjs has the correct formula, but the required test asserting price(100)===95 was not executed and README is missing.",
+      "modifications": {
+        "additionalContext": "Create README documenting price(n), then run and report the required assertion price(100)===95."
+      },
+      "scope": "ephemeral"
+    }
+  },
+  {
+    "id": "root-complete",
+    "arm": "candidate",
+    "expected": true,
+    "matchesExpected": true,
+    "verdict": {
+      "approved": true,
+      "reasoning": "Ground truth confirms price.mjs applies the discount before the fee, README documents it, and price.test.mjs asserts price(100)===95 with node exit 0."
+    }
+  },
+  {
+    "id": "root-complete",
+    "arm": "baseline",
+    "expected": true,
+    "matchesExpected": true,
+    "verdict": {
+      "approved": true,
+      "reasoning": "Ground truth confirms price.mjs applies the discount before the fee, README documents the function, and price.test.mjs asserts price(100)===95 with node exiting 0."
+    }
+  }
+]

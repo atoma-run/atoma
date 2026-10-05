@@ -329,7 +329,7 @@ export function parseValidationPrompt(
   if (!child || taskAt < 0 || payloadAt < taskAt) return null;
   const taskEnd = lines.findIndex((line, index) => index > taskAt && line.startsWith('Delegation target(s):'));
   const taskLines = lines.slice(taskAt + 1, taskEnd > taskAt ? taskEnd : payloadAt);
-  const isContext = (line: string) => line.startsWith('Inputs (originalTask ') || line.startsWith('Constraints: ') || line.startsWith('Execution mode: ');
+  const isContext = (line: string) => line.startsWith('Inputs (originalTask ') || line.startsWith('Constraints: ') || line.startsWith('Execution mode: ') || line.startsWith('Task scope: ');
   const context = taskLines.filter(isContext);
   const description = [lines[taskAt]!.slice('Task: '.length), ...taskLines.filter((line) => !isContext(line))]
     .join('\n')

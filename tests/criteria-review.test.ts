@@ -5,6 +5,7 @@ import { acceptRootResult } from '../src/atoms/rootAcceptance.js';
 import { L1Atom } from '../src/atoms/L1Atom.js';
 import { markLanded } from '../src/atoms/dispatch.js';
 import { ASSERTION_EVIDENCE_GUIDANCE } from '../src/atoms/prompts.js';
+import { DELEGATED_SCOPE_GUIDANCE } from '../src/atoms/taskContext.js';
 import type { LlmCompletionResponse, Result } from '../src/core/types.js';
 import { makeCtx, jsonText } from './helpers.js';
 
@@ -89,6 +90,7 @@ describe('focused criterion review', () => {
     ctx.llm.enqueue(reply(met)); // Reproduce the global false positive.
     ctx.llm.enqueue(request => {
       expect(request.actor?.name).toBe('run-criteria');
+      expect(request.userContent).not.toContain(DELEGATED_SCOPE_GUIDANCE);
       expect(request.userContent).toContain(JSON.stringify(source));
       expect(request.userContent).not.toContain('MODEL_SUCCESS_SENTINEL');
       expect(request.tools).toBeUndefined();

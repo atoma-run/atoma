@@ -78,3 +78,76 @@ second overload, no fallback even before tools after that second overload,
 retained cumulative usage, exhausted response budget, abort during the delay,
 and a failure while a host side effect is unresolved. Existing unknown/4xx
 failure, scope, ordering, credentials and finalisation cases remain in place.
+
+## Fourth attempt: phase validation scope
+
+CI 37272038917 and deployment 37272435122 succeeded for 2dfc52a7. Run
+`bd3f355f-b11f-4b47-97a3-2783a34d17de` reached real file writes, subprocess
+tests and HTTP probes. The operator assistant cancelled it at 06:41Z after
+three result refusals; this was not a spontaneous transport failure or a
+user-requested cancellation. All 109 events, metadata and log are archived in
+fourth-attempt.json.gz. No delivery or publication occurred.
+
+The root plan explicitly assigned construction plus basic startup/route sanity
+to phase one, comprehensive subprocess assertions to phase two, and documentation
+to phase three. The first two refusals demanded phase two's comprehensive tests
+inside phase one. The third refusal instead objected to an additional startup
+stdout line. These causes are distinct; calling all three scope errors was an
+initial misreading corrected after paging the final event.
+
+The runtime carried original facts to every phase but its explicit scope policy
+covered planning and reasoning-only execution, not tool-bearing validation.
+The first candidate adds host-owned delegated-task scope to shared task context,
+including model and Jev validation. A root task or an input-only originalTask
+claim does not acquire that scope. No gate, budget, model pin or criterion changes.
+
+The paired scope-replay.mjs fixes two exact archived validator requests and six
+synthetic controls before sampling: a source-only phase with deferred tests, a
+current-phase missing test, wrong implementation order, incomplete root delivery,
+a child trying to defer its own requirements, and a complete root delivery.
+Both arms use gpt-5.6-luna with alternating order and identical evidence.
+Archived requests have no forced approval oracle: actual source defects may
+justify refusal, but demands for deferred test execution do not. Synthetic
+expectations are declared in the script. Record every response and request hash;
+this small diagnostic is not a reliability estimate.
+
+The first 16-call pair series (`scope-*`) failed to correct either archived
+request; all six synthetic cases passed in both arms. It is retained, not
+replaced. The second series (`scope-v2-*`) adds an explicit scope section to the
+shared validator system prompt. The first archived case changes from an
+out-of-scope refusal to phase approval; the second stops asking for the future
+suite in its coaching and instead refuses the extra startup stdout line. Its
+reason also retains a vague full-behavior qualification, so this is not evidence
+that every scope error is eliminated. All six synthetic expectations hold in
+both arms, including wrong source order, missing current-phase execution,
+self-authored deferral and incomplete root delivery. Root criteria and gates
+are unchanged. These are diagnostic samples, not a reliable success-rate claim.
+
+The startup collision is concrete: start_node_server formerly required a
+no-argument entry and LISTENING_ON_PORT stdout, while this task requires CLI
+options and JSON readiness. The tool now accepts optional literal argv and a
+complete, exact JSON {"port":N} readiness line alongside its existing marker.
+Current declarations and runtime guidance reach old stored agents. Spawn is
+still shell-free; argv may affect behavior, so it withholds code-only standing
+proof. Real-process regressions cover CLI arguments containing spaces and shell
+metacharacters, chunked readiness, invalid/incomplete announcements, preserved
+source, and ordinary legacy startup, registration, cleanup and concurrency cap.
+
+A separate local probe of the final fourth-run draft reproduced a genuine
+server crash for {key:"prototype-test",type:"__defineGetter__"}: its schema
+dispatch read an inherited function and called .includes on it. The request
+should return 400 invalid, not drop the connection and exit 1. The reconstructed
+server (inert fourth-server.js.txt), hash, command and process result are retained
+in fourth-prototype-probe.json. The draft had already corrected its initially
+rejected empty seed; do not report that earlier version as the final draft.
+The fifth request keeps the same ten criteria and appends this concrete
+unknown-command regression. The original 44-case and four exploratory scorers
+remain unchanged.
+
+Source verification: pinned Node 24.20.0, npm ci, then release:check. The first
+full pass exposed two stale prompt-text expectations; startup guidance was
+separated from the unchanged durable-document rule and wired into existing
+molecules' planning/execution. The rerun passed: 409 test files, 5424 tests
+passed, 9 skipped, plus docs/typecheck/lint/audit/build and compiled smokes.
+The startup/prompt focused suite passed 37 tests. Both semantic replay series
+reproduce offline from their saved responses without paid calls.

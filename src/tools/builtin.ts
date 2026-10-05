@@ -1415,9 +1415,9 @@ export function fetchUrlTool(opts: BuiltinToolOptions): BuiltinTool {
  *           const p = srv.address().port;
  *           console.log('LISTENING_ON_PORT=' + p);
  *         });
- *     We do not parse Express's default "Listening on 3000" or arbitrary
- *     "Server running at ..." strings — the explicit marker is the only
- *     contract, and L1 is told about it via the canonical HTTP prompt.
+ *     A complete JSON line {"port": N} is also an explicit readiness marker.
+ *     Arbitrary startup prose is not parsed. Optional argv preserves a
+ *     task-defined CLI without rewriting it for the tool's PORT convention.
  *   - If the child exits before emitting the marker (e.g. a syntax
  *     error, a missing dep), the tool returns { ok: false, stderr } so
  *     the L1 loop gets a concrete signal.
@@ -1430,8 +1430,8 @@ export function startNodeServerTool(opts: BuiltinToolOptions): BuiltinTool {
     declaration: {
       name: 'start_node_server',
       description: [
-        'Spawn `node <entry>` as a background process with PORT set to a free port the host picked, and return the bound URL.',
-        'The server MUST emit the literal line "LISTENING_ON_PORT=<port>" on stdout once it has bound.',
+        'Spawn `node <entry> ...args` as a background process with PORT set to a free port the host picked, and return the bound URL.',
+        'Once bound, the server must emit either "LISTENING_ON_PORT=<port>" or a complete JSON line {"port":<port>} on stdout. Preserve the task-required CLI and stdout format; pass its options through args instead of changing the application to fit this tool.',
         'Example listener:',
         '  app.listen(Number(process.env.PORT) || 0, function(){ console.log("LISTENING_ON_PORT=" + this.address().port); });',
         `At most ${MAX_LIVE_NODE_SERVERS} run at once: starting another stops the oldest one still running. The others run until the run exits.`,
@@ -1442,6 +1442,10 @@ export function startNodeServerTool(opts: BuiltinToolOptions): BuiltinTool {
           entry: {
             type: 'string',
             description: 'Relative path to the Node entry file (e.g. "index.js", "server.js").',
+          },
+          args: {
+            type: 'array', items: { type: 'string' },
+            description: 'Literal arguments after the entry file, without shell interpretation; e.g. ["--db","test.db","--seed","seed.json","--port","0"].',
           },
           env: {
             type: 'object',
@@ -1455,6 +1459,10 @@ export function startNodeServerTool(opts: BuiltinToolOptions): BuiltinTool {
     async execute(args) {
       const entry = expectString(args, 'entry');
       const entryAbs = opts.sandbox.resolve(entry);
+      const cliArgs = args['args'] === undefined ? [] : args['args'];
+      if (!Array.isArray(cliArgs) || !cliArgs.every((value): value is string => typeof value === 'string' && !value.includes('\0'))) {
+        throw new Error('args must be an array of strings without NUL bytes');
+      }
       const extraEnv =
         args['env'] && typeof args['env'] === 'object' && !Array.isArray(args['env'])
           ? (args['env'] as Record<string, unknown>)
@@ -1481,7 +1489,8 @@ export function startNodeServerTool(opts: BuiltinToolOptions): BuiltinTool {
       // location (DATA_FILE=/tmp/x.json, the isolation every API task asks for)
       // moves state, not code: run 7f7aec0b recorded no digest on 147 probes.
       const ownEnv = Object.entries(extraEnv).some(([key, value]) => key !== 'PORT' && !isFileLocation(value));
-      const codeDigest = ownEnv ? undefined : await serverCodeDigest(entry, (path) => {
+      // Arbitrary CLI options can change behavior too; they are not code-only proof.
+      const codeDigest = ownEnv || cliArgs.length > 0 ? undefined : await serverCodeDigest(entry, (path) => {
         try {
           const abs = opts.sandbox.resolve(path);
           return existsSync(abs) && lstatSync(abs).isFile() ? readFileSync(abs, 'utf8') : undefined;
@@ -1489,7 +1498,7 @@ export function startNodeServerTool(opts: BuiltinToolOptions): BuiltinTool {
           return undefined;
         }
       });
-      const child = spawn('node', [entryAbs], {
+      const child = spawn('node', [entryAbs, ...cliArgs], {
         cwd: opts.sandbox.root,
         stdio: ['ignore', 'pipe', 'pipe'],
         // Own process group — same rationale as start_static_server above.
@@ -1510,7 +1519,7 @@ export function startNodeServerTool(opts: BuiltinToolOptions): BuiltinTool {
         };
         const timer = setTimeout(() => {
           fail(
-            `node server did not emit LISTENING_ON_PORT=<N> within ${BOOT_TIMEOUT_MS}ms. stderr: ${stderrBuf.slice(0, 400)}`
+            `node server did not emit LISTENING_ON_PORT=<N> or a JSON {"port":N} line within ${BOOT_TIMEOUT_MS}ms. stderr: ${stderrBuf.slice(0, 400)}`
           );
         }, BOOT_TIMEOUT_MS);
 
@@ -1533,12 +1542,24 @@ export function startNodeServerTool(opts: BuiltinToolOptions): BuiltinTool {
           // worse than a timeout, because it looks like a server bug.
           stdoutBuf = (stdoutBuf + chunk.toString()).slice(-4096);
           const match = stdoutBuf.match(/LISTENING_ON_PORT=(\d+)(?!\d)/);
-          if (match && match[1]) {
+          let announced = match?.[1] ? Number(match[1]) : undefined;
+          if (announced === undefined) {
+            for (const line of stdoutBuf.split('\n').slice(0, -1)) {
+              try {
+                const value: unknown = JSON.parse(line);
+                if (value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 1 && 'port' in value && typeof value.port === 'number') {
+                  announced = value.port;
+                  if (Number.isInteger(announced) && announced > 0 && announced <= 65535) break;
+                }
+              } catch { /* Non-readiness output remains ordinary stdout. */ }
+            }
+          }
+          if (announced !== undefined && Number.isInteger(announced) && announced > 0 && announced <= 65535) {
             clearTimeout(timer);
             // Detach the early-exit listener — the server is up now,
             // subsequent exits are the sandbox cleanup's job.
             child.removeAllListeners('exit');
-            resolve(Number(match[1]));
+            resolve(announced);
           }
         });
         child.stderr?.on('data', (chunk: Buffer) => {

@@ -218,6 +218,10 @@ load-bearing.
   Declared reasoning mode disables tools/skills through descendants and fallbacks;
   only its observed-action gate is skipped. [Contract and review](../../docs/incidents/text-delivery-2026-10-02.md).
   Runtime planning keeps the current phase's scope and scales reusable workflows to the task, without a phase-count gate ([review](../../docs/incidents/planning-scope-2026-10-03.md)).
+  Validation retains that host-owned scope too: original facts remain binding,
+  but tests assigned to a forthcoming phase are not current-phase prerequisites.
+  Current defects/checks and final root acceptance stay strict. A child cannot
+  defer its own requirements. Paired replay: `benchmark/reservation-transactions-2026-10-05/`.
 - `llm-synthesize` merges text without tools; file assembly requires an L1 phase.
 - Aggregation is behavioral: `concat` and `llm-synthesize` dispatch orthogonal
   subtasks in parallel; `sequential` dispatches shared-artifact phases in order

@@ -4,6 +4,10 @@ import { serverCodeDigest } from '../src/contracts/serverDigest.js';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ToolSandbox } from '../src/tools/sandbox.js';
+import { L1Atom } from '../src/atoms/L1Atom.js';
+import { HTTP_STARTUP_GUIDANCE } from '../src/atoms/prompts.js';
+import { makeCtx, jsonText } from './helpers.js';
+import { makeTools } from './helpers/factories.js';
 import { CONNECTION_FAILURE_RE, MAX_LIVE_NODE_SERVERS, fetchUrlTool, isFileLocation, isSpeculativeFaviconRequest, startNodeServerTool, type ServedOrigins } from '../src/tools/builtin.js';
 
 /**
@@ -28,6 +32,71 @@ afterEach(async () => {
 });
 
 describe('start_node_server port', () => {
+  it('updates planning and execution guidance for a stored agent without rewriting its identity', async () => {
+    const old = 'The server MUST print LISTENING_ON_PORT and accept no CLI arguments.';
+    const child = new L1Atom({ name: 'Methane', ordinal: 2, systemPrompt: old, tools: makeTools(['start_node_server']), params: {} });
+    const ctx = makeCtx();
+    ctx.llm.enqueueText(jsonText({ reasoning: 'Honor CLI', proposedAction: 'start server with args', expectedOutput: 'HTTP evidence' }));
+    const task = { description: 'Verify the existing server CLI; preserve JSON stdout.' };
+    const plan = await child.plan(task, ctx);
+    ctx.llm.enqueueText(jsonText({ output: 'fixture', summary: 'fixture' }));
+    await child.execute(task, plan, ctx);
+    expect(ctx.llm.calls).toHaveLength(2);
+    for (const call of ctx.llm.calls) {
+      expect(call.systemPrompt).toContain(old);
+      expect(call.userContent).toContain(HTTP_STARTUP_GUIDANCE);
+    }
+  });
+
+  it('preserves literal CLI arguments and fragmented JSON readiness without rewriting the server', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'atoma-node-json-'));
+    dirs.push(dir);
+    const source = [
+      "import { createServer } from 'node:http';",
+      'const argv = process.argv.slice(2);',
+      "if (argv[0] !== '--port') throw Error('CLI required');",
+      "const server = createServer((_req, res) => res.end(JSON.stringify(argv)));",
+      "server.listen(Number(argv[1]), '127.0.0.1', () => {",
+      "  console.log('ordinary startup log');",
+      "  console.log(JSON.stringify({port: 0}));",
+      "  console.log(JSON.stringify({port: 1234, unrelated: true}));",
+      "  const line = JSON.stringify({port: server.address().port});",
+      "  process.stdout.write(line.slice(0, -2));",
+      "  setTimeout(() => process.stdout.write(line.slice(-2) + '\\n'), 30);",
+      '});',
+    ].join('\n');
+    writeFileSync(join(dir, 'server.mjs'), source);
+    const sandbox = new ToolSandbox(dir);
+    sandboxes.push(sandbox);
+    const origins: ServedOrigins = new Map();
+    const args = ['--port', '0', '--seed', 'seed with spaces.json', '--literal', '$(touch injected); `false`'];
+    const started = await startNodeServerTool({ sandbox, servedOrigins: origins }).execute({ entry: 'server.mjs', args }) as { ok: boolean; port: number; url: string };
+    expect(started.ok).toBe(true);
+    expect(await fetch(`http://127.0.0.1:${started.port}/`).then(r => r.json())).toEqual(args);
+    expect(readFileSync(join(dir, 'server.mjs'), 'utf8')).toBe(source);
+    expect(origins.get(started.port)?.codeDigest).toBeUndefined();
+    const probe = await fetchUrlTool({ sandbox, servedOrigins: origins }).execute({ url: started.url }) as { servedBy?: { entry?: string; codeDigest?: string } };
+    expect(probe.servedBy?.entry).toBe('server.mjs');
+    expect(probe.servedBy?.codeDigest).toBeUndefined();
+  });
+
+  it.each([null, 'shell string', [1], ['nul\0byte']])('rejects malformed argv before spawning: %j', async args => {
+    const dir = mkdtempSync(join(tmpdir(), 'atoma-node-argv-'));
+    dirs.push(dir);
+    const sandbox = new ToolSandbox(dir);
+    sandboxes.push(sandbox);
+    await expect(startNodeServerTool({ sandbox }).execute({ entry: 'missing.mjs', args })).rejects.toThrow('args must be an array');
+  });
+
+  it.each(['{"port":1234}', '{"port":"1234"}\n', '{"port":65536}\n', '[{"port":1234}]\n'])('does not accept incomplete or invalid readiness %j', async line => {
+    const dir = mkdtempSync(join(tmpdir(), 'atoma-node-readiness-'));
+    dirs.push(dir);
+    writeFileSync(join(dir, 'server.mjs'), `process.stdout.write(${JSON.stringify(line)});`);
+    const sandbox = new ToolSandbox(dir);
+    sandboxes.push(sandbox);
+    await expect(startNodeServerTool({ sandbox }).execute({ entry: 'server.mjs' })).rejects.toThrow('exited early');
+  });
+
   it('gives a "default 3000" server a real port, so a restart in the same run does not collide', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'atoma-node-port-'));
     dirs.push(dir);

@@ -1,0 +1,17 @@
+{
+  "source": "fourth-attempt trace reconstructed file writes/edits, not a published artifact",
+  "command": {
+    "key": "prototype-test",
+    "type": "__defineGetter__"
+  },
+  "expected": {
+    "status": 400,
+    "body": "{\"error\":\"invalid\"}"
+  },
+  "observed": {
+    "error": "RemoteDisconnected: Remote end closed connection without response"
+  },
+  "exitCode": 1,
+  "stderr": "/private/tmp/atoma-reservation-fourth/server.js:50\n if(!sets[c.type]||keys.length!==sets[c.type].length||keys.some(k=>!sets[c.type].includes(k))) return false;\n                                                                                 ^\n\nTypeError: sets[c.type].includes is not a function\n    at /private/tmp/atoma-reservation-fourth/server.js:50:82\n    at Array.some (<anonymous>)\n    at schema (/private/tmp/atoma-reservation-fourth/server.js:50:60)\n    at IncomingMessage.<anonymous> (/private/tmp/atoma-reservation-fourth/server.js:85:7)\n    at IncomingMessage.emit (node:events:514:28)\n    at endReadableNT (node:internal/streams/readable:1757:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)\n\nNode.js v24.20.0\n",
+  "sha256": "5355838916020133543b3a078460dec4874514c6ec79027c0733b6e40813bf76"
+}

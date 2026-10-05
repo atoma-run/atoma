@@ -1,0 +1,89 @@
+'use strict';
+const http = require('node:http');
+const fs = require('node:fs');
+const { DatabaseSync } = require('node:sqlite');
+
+function fail(msg){ throw new Error(msg); }
+function parseArgs(a){
+  if(a.length===2) return {db:'.atoma-scratch/live.db',seed:'.atoma-scratch/seed.json',port:'0'};
+  const o={}; for(let i=2;i<a.length;i+=2){ if(!['--db','--seed','--port'].includes(a[i])||i+1>=a.length) fail('args'); o[a[i].slice(2)]=a[i+1]; }
+  if(!o.db||!o.seed||o.port===undefined) fail('args'); return o;
+}
+const args=parseArgs(process.argv);
+function ownObj(x){return x!==null&&typeof x==='object'&&!Array.isArray(x)&&Object.getPrototypeOf(x)===Object.prototype;}
+function validString(x){return typeof x==='string'&&x.length>0;}
+function intRange(x,lo,hi){return typeof x==='number'&&Number.isInteger(x)&&x>=lo&&x<=hi;}
+function codeSort(a,b){let i=0; while(i<a.length&&i<b.length){const d=a.charCodeAt(i)-b.charCodeAt(i);if(d)return d;i++;}return a.length-b.length;}
+function canonical(x){
+ if(Array.isArray(x)) return '['+x.map(canonical).join(',')+']';
+ if(ownObj(x)) return '{'+Object.keys(x).sort(codeSort).map(k=>JSON.stringify(k)+':'+canonical(x[k])).join(',')+'}';
+ return JSON.stringify(x);
+}
+let seed;
+try { seed=JSON.parse(fs.readFileSync(args.seed,'utf8')); } catch(e){ fail('seed'); }
+if(!ownObj(seed)||Object.keys(seed).length!==1||!Array.isArray(seed.items)) fail('seed');
+const seen=new Set();
+for(const it of seed.items){
+ if(!ownObj(it)||Object.keys(it).length!==2||!validString(it.sku)||!intRange(it.capacity,0,1000000)||seen.has(it.sku)) fail('seed');
+ seen.add(it.sku);
+}
+const db=new DatabaseSync(args.db);
+db.exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY,v INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS items(sku TEXT PRIMARY KEY,capacity INTEGER NOT NULL,available INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS holds(id TEXT PRIMARY KEY,expiresAt INTEGER NOT NULL,status TEXT NOT NULL); CREATE TABLE IF NOT EXISTS lines(holdId TEXT NOT NULL,sku TEXT NOT NULL,qty INTEGER NOT NULL,PRIMARY KEY(holdId,sku)); CREATE TABLE IF NOT EXISTS receipts(key TEXT PRIMARY KEY,command TEXT NOT NULL,status INTEGER NOT NULL,body TEXT NOT NULL)');
+if(!db.prepare('SELECT 1 FROM meta WHERE k=?').get('initialized')){
+ db.exec('BEGIN');
+ try { db.prepare('INSERT INTO meta(k,v) VALUES(?,?)').run('initialized',1); db.prepare('INSERT INTO meta(k,v) VALUES(?,?)').run('clock',0); db.prepare('INSERT INTO meta(k,v) VALUES(?,?)').run('revision',0);
+  const q=db.prepare('INSERT INTO items(sku,capacity,available) VALUES(?,?,?)'); for(const it of seed.items) q.run(it.sku,it.capacity,it.capacity); db.exec('COMMIT');
+ } catch(e){db.exec('ROLLBACK');throw e;}
+}
+const getMeta=k=>db.prepare('SELECT v FROM meta WHERE k=?').get(k).v;
+const setMeta=(k,v)=>db.prepare('UPDATE meta SET v=? WHERE k=?').run(v,k);
+function state(){
+ const items=db.prepare('SELECT sku,capacity,available FROM items').all().sort((a,b)=>codeSort(a.sku,b.sku));
+ const hs=db.prepare('SELECT id,expiresAt,status FROM holds').all().sort((a,b)=>codeSort(a.id,b.id));
+ for(const h of hs){h.lines=db.prepare('SELECT sku,qty FROM lines WHERE holdId=?').all(h.id).sort((a,b)=>codeSort(a.sku,b.sku));}
+ return {clock:getMeta('clock'),revision:getMeta('revision'),items,holds:hs};
+}
+function schema(c){
+ if(!ownObj(c)||!validString(c.key)||!validString(c.type)) return false;
+ const keys=Object.keys(c);
+ const sets={reserve:['key','type','holdId','ttl','lines'],confirm:['key','type','holdId'],cancel:['key','type','holdId'],advance:['key','type','to']};
+ if(!sets[c.type]||keys.length!==sets[c.type].length||keys.some(k=>!sets[c.type].includes(k))) return false;
+ if(c.type==='reserve') return validString(c.holdId)&&intRange(c.ttl,1,1000000)&&Array.isArray(c.lines)&&c.lines.length>0&&c.lines.every(x=>ownObj(x)&&Object.keys(x).length===2&&validString(x.sku)&&intRange(x.qty,1,1000000));
+ if(c.type==='confirm'||c.type==='cancel') return validString(c.holdId);
+ return intRange(c.to,0,1000000000);
+}
+function respond(res,status,body){const b=Buffer.from(body);res.writeHead(status,{'content-type':'application/json','content-length':b.length});res.end(b);}
+function command(c){
+ const old=db.prepare('SELECT command,status,body FROM receipts WHERE key=?').get(c.key);
+ const comparable={}; for(const k of Object.keys(c)) if(k!=='key') comparable[k]=c[k]; const cmd=canonical(comparable);
+ if(old){if(old.command===cmd)return {status:old.status,body:old.body}; return {status:409,body:'{"error":"idempotency_conflict"}'};}
+ let status=200, out;
+ db.exec('BEGIN');
+ try {
+  const clock=getMeta('clock'); let refusal=null;
+  if(c.type==='reserve'){
+   if(db.prepare('SELECT 1 FROM holds WHERE id=?').get(c.holdId)) refusal='hold_exists';
+   const agg=new Map();
+   for(const l of c.lines) agg.set(l.sku,(agg.get(l.sku)||0)+l.qty);
+   for(const [sku,qty] of agg){const it=db.prepare('SELECT available FROM items WHERE sku=?').get(sku);if(!it){refusal=refusal||'missing_item';}else if(it.available<qty){refusal=refusal||'insufficient_stock';}}
+   if(!refusal){db.prepare('INSERT INTO holds(id,expiresAt,status) VALUES(?,?,?)').run(c.holdId,clock+c.ttl,'held');const q=db.prepare('INSERT INTO lines(holdId,sku,qty) VALUES(?,?,?)');const u=db.prepare('UPDATE items SET available=available-? WHERE sku=?');for(const [sku,qty] of agg){q.run(c.holdId,sku,qty);u.run(qty,sku);}}
+  } else if(c.type==='confirm'||c.type==='cancel'){
+   const h=db.prepare('SELECT status FROM holds WHERE id=?').get(c.holdId);
+   if(!h) refusal='missing_hold'; else if(h.status!=='held') refusal='inactive_hold'; else {db.prepare('UPDATE holds SET status=? WHERE id=?').run(c.type==='confirm'?'confirmed':'cancelled',c.holdId);if(c.type==='cancel') for(const l of db.prepare('SELECT sku,qty FROM lines WHERE holdId=?').all(c.holdId)) db.prepare('UPDATE items SET available=available+? WHERE sku=?').run(l.qty,l.sku);}
+  } else {
+   if(c.to<clock) refusal='clock_backwards'; else {setMeta('clock',c.to);for(const h of db.prepare('SELECT id FROM holds WHERE status=? AND expiresAt<=?').all('held',c.to)){db.prepare('UPDATE holds SET status=? WHERE id=?').run('expired',h.id);for(const l of db.prepare('SELECT sku,qty FROM lines WHERE holdId=?').all(h.id)) db.prepare('UPDATE items SET available=available+? WHERE sku=?').run(l.qty,l.sku);}}
+  }
+  if(refusal){status=409;out={error:refusal};} else {const rev=getMeta('revision')+1;setMeta('revision',rev);out={ok:true,revision:rev};}
+  const body=JSON.stringify(out);db.prepare('INSERT INTO receipts(key,command,status,body) VALUES(?,?,?,?)').run(c.key,cmd,status,body);db.exec('COMMIT');return {status,body};
+ }catch(e){try{db.exec('ROLLBACK')}catch{};throw e;}
+}
+const server=http.createServer((req,res)=>{
+ if(req.method==='GET'&&req.url==='/state'){return respond(res,200,JSON.stringify(state()));}
+ if(req.method!=='POST'||req.url!=='/commands')return respond(res,404,'{"error":"not_found"}');
+ let data='';req.on('data',d=>{data+=d;if(data.length>1e6)req.destroy();});req.on('end',()=>{
+  let c;try{c=JSON.parse(data)}catch{return respond(res,400,'{"error":"invalid"}');}
+  if(!schema(c))return respond(res,400,'{"error":"invalid"}');
+  try{const r=command(c);respond(res,r.status,r.body)}catch(e){respond(res,500,'{"error":"internal"}');}
+ });
+});
+server.listen(Number(args.port), '127.0.0.1',()=>{const p=server.address().port; console.log(JSON.stringify({port:p})); console.log('LISTENING_ON_PORT='+p);});

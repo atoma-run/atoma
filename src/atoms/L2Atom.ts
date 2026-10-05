@@ -89,6 +89,7 @@ export {
 } from '../skills/lifecycle.js';
 import {
   HTTP_PORTABLE_DOC_GUIDANCE,
+  HTTP_STARTUP_GUIDANCE,
   SCRIBE_PORTABLE_DOC_GUIDANCE,
   STATIC_PORTABLE_DOC_GUIDANCE,
   FALLBACK_VERIFICATION_GUIDANCE,
@@ -526,6 +527,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       `declares validate_html. An HTTP-only child cannot replace browser`,
       `interaction with a Node request harness or static source inspection.`,
       HTTP_PORTABLE_DOC_GUIDANCE,
+      HTTP_STARTUP_GUIDANCE,
       `Write subtask descriptions as OUTCOMES, not tool invocations — a`,
       `description hard-naming a tool binds a child that may not declare`,
       `it; children know their own tools.`,

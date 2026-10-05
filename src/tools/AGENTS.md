@@ -135,8 +135,11 @@ Neighbours:
 
 ## Generated artefact conventions
 
-- HTTP servers bind `process.env.PORT`, accept port 0, and emit
-  `LISTENING_ON_PORT=<N>` once ready. `start_node_server` passes a CONCRETE
+- HTTP servers normally bind `process.env.PORT`, accept port 0, and emit
+  `LISTENING_ON_PORT=<N>` once ready. A task-defined CLI may instead receive
+  literal `args` and emit a complete JSON `{"port":N}` line. Preserve that
+  interface; no shell interprets argv. Nonempty argv withholds code-only
+  standing proof because options may change behavior. `start_node_server` passes a CONCRETE
   free port, never 0: `Number(process.env.PORT) || 3000` — what "default
   3000" compiles to — reads 0 as unset, bound 3000, and collided with itself
   on the next start (EADDRINUSE in three of four runs on 2026-09-24; run
