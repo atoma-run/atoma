@@ -868,18 +868,39 @@ try {
       if (appearanceTheme && !['nocturne', 'aurora', 'amethyst', 'copper'].includes(appearanceTheme)) {
         throw new Error(`Unknown appearance theme: ${appearanceTheme}`);
       }
-      await page.evaluate((theme, menu) => {
+      await page.evaluate((theme) => {
         const dispatch = globalThis.__ATOMA_VIZ_TEST__?.dispatch;
         if (!dispatch) throw new Error('appearance controls are unavailable');
         if (theme) dispatch(`appearance.select.${theme}`);
-        if (menu) dispatch('appearance.dropdown.toggle');
-      }, appearanceTheme, showThemeMenu);
+      }, appearanceTheme);
       if (appearanceTheme) {
         await page.waitForFunction((theme) => {
           const app = document.querySelector('.gpu-app');
           return app?.getAttribute('data-theme') === theme &&
             app.getAttribute('data-theme-transition') === 'idle';
         }, { timeout: READY_TIMEOUT_MS }, appearanceTheme);
+      }
+      if (showThemeMenu) {
+        const controlPoint = (id) => page.evaluate((targetId) => {
+          const handle = globalThis.__ATOMA_GPU__;
+          const target = handle?.hitTargets().find((entry) => entry.id === targetId);
+          if (!target || !handle.projectRendererPoint) return null;
+          return handle.projectRendererPoint(
+            target.x + target.width / 2,
+            target.y + target.height / 2
+          );
+        }, id);
+        let palette = await controlPoint('appearance.dropdown.toggle');
+        if (!palette) {
+          const account = await controlPoint('account.menu.toggle');
+          if (account) await page.mouse.click(account.x, account.y);
+          palette = await controlPoint('appearance.dropdown.toggle');
+        }
+        if (!palette) throw new Error('--theme-menu: no visible theme control');
+        await page.mouse.click(palette.x, palette.y);
+        await page.waitForFunction(() =>
+          globalThis.__ATOMA_GPU__?.hitTargets().some((entry) => entry.id === 'appearance.select.amethyst'),
+        { timeout: READY_TIMEOUT_MS });
       }
       await page.evaluate(() => new Promise((resolveWait) => setTimeout(resolveWait, 150)));
     }

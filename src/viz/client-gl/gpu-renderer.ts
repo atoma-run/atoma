@@ -461,6 +461,7 @@ import { drawSentinel } from './renderer/views/sentinel.js';
 import { drawAnnounce } from './renderer/views/announce.js';
 import { drawWelcome } from './renderer/views/welcome.js';
 import { drawAccountMenu } from './renderer/views/account-menu.js';
+import { drawAppearancePaletteButton } from './renderer/views/appearance-control.js';
 import { drawLocaleMenu, type LocaleMenuAnchor } from './renderer/views/locale-menu.js';
 import {
   drawNotificationsBell,
@@ -5176,7 +5177,7 @@ export class GpuRenderer {
     });
   }
 
-  /** FPS, locale and profile share one opacity curve at the foot of focus. */
+  /** Focus utilities share one opacity curve at the foot of the rail. */
   private drawFocusRailDock(
     snapshot: GpuRenderSnapshot,
     layout: FocusRailChromeLayout,
@@ -5184,6 +5185,18 @@ export class GpuRenderer {
     interactive = true
   ): (opacity: number) => void {
     const opacityTargets: { alpha: number }[] = [];
+    if (layout.theme) {
+      const theme = drawAppearancePaletteButton(
+        this,
+        snapshot,
+        layout.theme.x,
+        layout.theme.y,
+        layout.theme.width,
+        layout.theme.height
+      );
+      theme.eventMode = interactive ? 'static' : 'none';
+      opacityTargets.push(theme);
+    }
     if (layout.profile) {
       opacityTargets.push(...this.drawAccountControl(
         snapshot,

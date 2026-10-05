@@ -42,8 +42,8 @@ const FOCUS_RAIL_BOTTOM_PAD = 8;
 const FOCUS_RAIL_DOCK_GAP = 14;
 const FOCUS_RAIL_FPS_GAP = 6;
 /**
- * Air between the dock's own controls. The locale pill, the bell and the orb
- * are three separate destinations, not one segmented control, so each gets
+ * Air between the dock's own controls. The locale pill, bell, orb and theme
+ * palette are separate destinations, so each gets
  * room around it rather than sharing a hairline.
  */
 const FOCUS_RAIL_UTILITY_GAP = 14;
@@ -67,6 +67,8 @@ export interface FocusRailRect {
 
 export interface FocusRailChromeLayout {
   readonly crystal: FocusRailRect;
+  /** Opens the existing theme choices from the collapsed rail. */
+  readonly theme: FocusRailRect | null;
   readonly profile: FocusRailRect | null;
   /** The notification bell — like the profile, it exists only with an account. */
   readonly bell: FocusRailRect | null;
@@ -165,7 +167,15 @@ export function focusRailChromeLayout(
         height: FOCUS_RAIL_PROFILE_SIZE,
       }
     : null;
-  const dockTop = profile?.y ?? locale.y;
+  const theme = profile
+    ? {
+        x: buttonX,
+        y: profile.y - FOCUS_RAIL_UTILITY_GAP - FOCUS_RAIL_BELL_HEIGHT,
+        width: Math.min(sidebarWidth, FOCUS_SIDEBAR_BUTTON_WIDTH),
+        height: FOCUS_RAIL_BELL_HEIGHT,
+      }
+    : null;
+  const dockTop = theme?.y ?? profile?.y ?? locale.y;
   return {
     crystal: {
       x: buttonX,
@@ -173,6 +183,7 @@ export function focusRailChromeLayout(
       width: Math.min(sidebarWidth, FOCUS_SIDEBAR_BUTTON_WIDTH),
       height: FOCUS_RAIL_CRYSTAL_HEIGHT,
     },
+    theme,
     profile,
     bell,
     locale,
