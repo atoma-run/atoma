@@ -426,3 +426,49 @@ reproduce offline rather than silently changing their frozen request hashes.
 The complete release gate for the unchanged-read fix passed after npm ci:
 410 passing files, 5,432 passing tests, 19 skipped, plus static/audit/build and
 compiled smokes. The two new diagnostic responses reproduce offline.
+
+## Tenth attempt: delivered, published, independently checked
+
+c21b7114 passed CI 37292512769 and deployment 37293013287. Run
+e6655476-edf3-4c48-93f7-8fb9b2e77bb7 used that exact release and the eighth
+partial seed, retaining the same 3,995-character goal and ten criteria. The
+current test body reached root and focused review, including its middle.
+The initial holistic approval did not bypass the focused refusal: c4 lacked
+direct apply-once state/revision assertions. That ONE gap reached the root
+remediation. The agent added a capacity-one contention fixture and same-key
+checks of both 200 statuses, response-byte identity, revision, and complete
+state, then executed the updated suite. All ten final judgments were met.
+
+The run delivered in 426.449 seconds end to end, with 18 LLM calls, 110 events,
+and one root remediation. This is one successful SEEDED continuation after the
+archived failures and corrections, not a cold-start or comparative speed claim.
+Publication created the private repository at:
+https://github.com/mgtf/atoma-reservation-transactions-20261005
+Exact commit: 49cdfd3bd81b216ed9afde8b4eb6bcad9fa63e30 (main).
+GitHub's actual branch ref was read; the clone was detached at that commit.
+All five file sizes/hashes and the tracked inventory match the Atoma manifest.
+The server is byte-identical to the eighth draft; the test changes are the
+atomic full-state check and the contention/apply-once fixture, reviewed before
+local execution. No local artifact changes were needed or published.
+
+Independent execution against that exact clone on Node v24.20.0, with a minimal
+environment, isolated temporary directories, bounded subprocesses and cleanup:
+- reviewed frozen contract scorer: 44 passed, 0 failed;
+- exploratory type/Unicode cases: 4 passed, 0 failed;
+- inherited-property command regressions: 7 passed, 0 failed;
+- the artifact's own npm test: exit 0, all assertions passed.
+
+The 55 independent checks include concurrent contention/retries, atomic state,
+receipt bytes, and restart/crash sequences. Raw outputs and exit codes are in
+tenth-*.jsonl and tenth-independent-checks.json. Publication/hash verification
+is in tenth-publication-verification.json; inert exact published files are in
+published/*.txt. The full trace is tenth-attempt.json.gz, paged through its end.
+The four original freeze hashes still match; no failed assertion was weakened
+in this run. The previously documented business-error-priority oracle correction
+remains isolated in verify-reviewed.mjs.
+
+Remaining limitations are explicit. Model verdicts are not universal proof.
+The generated contender fixture hard-codes last-a as the winner, which is a
+fragile test assumption; our independent scorer permits either legitimate
+winner and checks the complete resulting state. Both suites passed here, and
+no claim of flake-free tests or infallible future semantic review is made.

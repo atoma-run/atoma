@@ -1,43 +1,218 @@
 {
+  "acceptedDelivery": true,
+  "published": true,
+  "finalRunId": "e6655476-edf3-4c48-93f7-8fb9b2e77bb7",
+  "productionRevision": "c21b7114e1721edf3ca2130cb6666dbf88cdc5e9",
+  "publication": {
+    "status": "published",
+    "repositoryFullName": "mgtf/atoma-reservation-transactions-20261005",
+    "repositoryUrl": "https://github.com/mgtf/atoma-reservation-transactions-20261005",
+    "git": {
+      "branch": "main",
+      "baseBranch": "main",
+      "defaultBranch": "main",
+      "publishKind": "created",
+      "mode": "direct"
+    },
+    "remoteState": "not-checked",
+    "mergeStatus": "not-applicable",
+    "baseSha": null,
+    "error": null,
+    "publishedAt": "2026-10-05T10:02:16.705Z",
+    "updatedAt": "2026-10-05T10:02:16.705Z",
+    "commitSha": "49cdfd3bd81b216ed9afde8b4eb6bcad9fa63e30"
+  },
+  "durationS": 426.449,
+  "llmCalls": 18,
+  "independentTests": {
+    "reviewedOracle": 44,
+    "exploratory": 4,
+    "prototypeRegression": 7,
+    "passed": 55,
+    "failed": 0,
+    "artifactOwnSuiteExitCode": 0
+  },
+  "manifestVerified": true,
+  "frozenHashesVerified": true,
   "runs": [
     {
       "id": "4b7cc920-e94d-4922-8df3-233b4ed21bbd",
       "status": "failed",
+      "depth": "deep",
       "durationS": 234.239,
       "llmCalls": 5,
-      "subscriptionEquivalentUsd": 0.11334744,
-      "events": 24,
-      "tools": 1,
+      "seed": {
+        "kind": "none"
+      },
       "publication": null
     },
     {
       "id": "8c9ae6f3-49da-4101-8576-01314a467e6d",
       "status": "failed",
+      "depth": "deep",
       "durationS": 337.144,
       "llmCalls": 6,
-      "subscriptionEquivalentUsd": 0.11706003999999998,
-      "events": 33,
-      "tools": 7,
+      "seed": {
+        "kind": "none"
+      },
       "publication": null
+    },
+    {
+      "id": "d170c903-f9fa-4403-a7bb-e0003b6e5183",
+      "status": "failed",
+      "depth": "deep",
+      "durationS": 50.315,
+      "llmCalls": 1,
+      "seed": {
+        "kind": "none"
+      },
+      "publication": null
+    },
+    {
+      "id": "bd3f355f-b11f-4b47-97a3-2783a34d17de",
+      "status": "cancelled",
+      "depth": "deep",
+      "durationS": 803.594,
+      "llmCalls": 14,
+      "seed": {
+        "kind": "none"
+      },
+      "publication": null
+    },
+    {
+      "id": "9b4f1082-f173-42cd-9880-af3dd835e314",
+      "status": "failed",
+      "depth": "deep",
+      "durationS": 46.463,
+      "llmCalls": 1,
+      "seed": {
+        "kind": "none"
+      },
+      "publication": null
+    },
+    {
+      "id": "8d819d66-1de2-4050-8ee0-119db03d1969",
+      "status": "cancelled",
+      "depth": "short",
+      "durationS": 1131.571,
+      "llmCalls": 26,
+      "seed": {
+        "kind": "none"
+      },
+      "publication": null
+    },
+    {
+      "id": "715ffc74-7a0a-41a4-9e0e-0be0993ec01c",
+      "status": "partial",
+      "depth": "short",
+      "durationS": 1028.313,
+      "llmCalls": 21,
+      "seed": {
+        "kind": "none"
+      },
+      "publication": null
+    },
+    {
+      "id": "b873c5a2-bfb0-499b-85e9-f1bcc18a520e",
+      "status": "partial",
+      "depth": "short",
+      "durationS": 965.145,
+      "llmCalls": 34,
+      "seed": {
+        "kind": "run",
+        "runId": "715ffc74-7a0a-41a4-9e0e-0be0993ec01c"
+      },
+      "publication": null
+    },
+    {
+      "id": "4c1a1e8c-30bc-4e89-8dc7-266bceca812f",
+      "status": "cancelled",
+      "depth": "short",
+      "durationS": 254.376,
+      "llmCalls": 10,
+      "seed": {
+        "kind": "run",
+        "runId": "b873c5a2-bfb0-499b-85e9-f1bcc18a520e"
+      },
+      "publication": null
+    },
+    {
+      "id": "e6655476-edf3-4c48-93f7-8fb9b2e77bb7",
+      "status": "delivered",
+      "depth": "short",
+      "durationS": 426.449,
+      "llmCalls": 18,
+      "seed": {
+        "kind": "run",
+        "runId": "b873c5a2-bfb0-499b-85e9-f1bcc18a520e"
+      },
+      "publication": {
+        "status": "published",
+        "repositoryFullName": "mgtf/atoma-reservation-transactions-20261005",
+        "repositoryUrl": "https://github.com/mgtf/atoma-reservation-transactions-20261005",
+        "git": {
+          "branch": "main",
+          "baseBranch": "main",
+          "defaultBranch": "main",
+          "publishKind": "created",
+          "mode": "direct"
+        },
+        "remoteState": "not-checked",
+        "mergeStatus": "not-applicable",
+        "baseSha": null,
+        "error": null,
+        "publishedAt": "2026-10-05T10:02:16.705Z",
+        "updatedAt": "2026-10-05T10:02:16.705Z",
+        "commitSha": "49cdfd3bd81b216ed9afde8b4eb6bcad9fa63e30"
+      }
     }
   ],
-  "totalCalls": 11,
-  "totalSubscriptionEquivalentUsd": 0.23040747999999997,
-  "analystCostExcluded": "subscription dollar equivalent not reported by analyst transport",
-  "frozen": {
-    "passed": 43,
-    "failed": 1,
-    "knownOracleFalsePositive": 1
+  "initialExploration": {
+    "runs": [
+      {
+        "id": "4b7cc920-e94d-4922-8df3-233b4ed21bbd",
+        "status": "failed",
+        "durationS": 234.239,
+        "llmCalls": 5,
+        "subscriptionEquivalentUsd": 0.11334744,
+        "events": 24,
+        "tools": 1,
+        "publication": null
+      },
+      {
+        "id": "8c9ae6f3-49da-4101-8576-01314a467e6d",
+        "status": "failed",
+        "durationS": 337.144,
+        "llmCalls": 6,
+        "subscriptionEquivalentUsd": 0.11706003999999998,
+        "events": 33,
+        "tools": 7,
+        "publication": null
+      }
+    ],
+    "totalCalls": 11,
+    "totalSubscriptionEquivalentUsd": 0.23040747999999997,
+    "analystCostExcluded": "subscription dollar equivalent not reported by analyst transport",
+    "frozen": {
+      "passed": 43,
+      "failed": 1,
+      "knownOracleFalsePositive": 1
+    },
+    "reviewedOracle": {
+      "passed": 44,
+      "failed": 0
+    },
+    "exploratory": {
+      "passed": 2,
+      "failed": 2
+    },
+    "draftOwnSuiteExitCode": 0,
+    "acceptedDelivery": false,
+    "frozenHashesVerified": true
   },
-  "reviewedOracle": {
-    "passed": 44,
-    "failed": 0
-  },
-  "exploratory": {
-    "passed": 2,
-    "failed": 2
-  },
-  "draftOwnSuiteExitCode": 0,
-  "acceptedDelivery": false,
-  "frozenHashesVerified": true
+  "limitations": [
+    "One successful seeded continuation, not a cold-start benchmark or a guarantee about future runs.",
+    "Semantic judges remain fallible; independent executable checks establish this artifact result.",
+    "Generated contender test assumes last-a wins; the independent scorer accepts either valid winner and verifies full state."
+  ]
 }

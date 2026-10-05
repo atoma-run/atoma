@@ -1,0 +1,45 @@
+{"name":"empty and read-only state","passed":true}
+{"name":"atomic insufficient second line","passed":true}
+{"name":"atomic missing second item","passed":true}
+{"name":"repeated lines aggregate and release","passed":true}
+{"name":"repeated lines cannot evade capacity","passed":true}
+{"name":"confirm before expiry consumes permanently","passed":true}
+{"name":"expiry before confirm refuses","passed":true}
+{"name":"exact expiry boundary","passed":true}
+{"name":"terminal IDs cannot be reused","passed":true}
+{"name":"missing hold and backward clock","passed":true}
+{"name":"object-key order ignored","passed":true}
+{"name":"array order significant and original receipt retained","passed":true}
+{"name":"retry uses original revision and bypasses business rules","passed":true}
+{"name":"failed receipt stays refused after stock released","passed":true}
+{"name":"schema before cache and invalid key is reusable","passed":true}
+{"name":"literal IDs and code-unit ordering","passed":true}
+{"name":"multiple expiry batches and confirmed exclusion","passed":true}
+{"name":"strict schema 1","passed":true}
+{"name":"strict schema 2","passed":true}
+{"name":"strict schema 3","passed":true}
+{"name":"strict schema 4","passed":true}
+{"name":"strict schema 5","passed":true}
+{"name":"strict schema 6","passed":true}
+{"name":"strict schema 7","passed":true}
+{"name":"strict schema 8","passed":true}
+{"name":"strict schema 9","passed":true}
+{"name":"strict schema 10","passed":true}
+{"name":"strict schema 11","passed":true}
+{"name":"strict schema 12","passed":true}
+{"name":"strict schema 13","passed":true}
+{"name":"strict schema 14","passed":true}
+{"name":"strict schema 15","passed":true}
+{"name":"strict schema 16","passed":true}
+{"name":"strict schema 17","passed":true}
+{"name":"strict schema 18","passed":true}
+{"name":"strict schema 19","passed":true}
+{"name":"strict schema 20","passed":true}
+{"name":"strict schema 21","passed":true}
+{"name":"malformed JSON","passed":true}
+{"name":"durable success and refusal receipts","passed":true}
+{"name":"fixed-seed mixed transition sequence","passed":true}
+{"name":"concurrent distinct last-unit contenders","passed":true}
+{"name":"concurrent identical last-unit contenders","passed":true}
+{"name":"concurrent conflicting last-unit contenders","passed":true}
+{"summary":true,"passed":44,"failed":0,"total":44}

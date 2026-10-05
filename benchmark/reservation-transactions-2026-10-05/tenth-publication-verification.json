@@ -1,0 +1,35 @@
+{
+  "runId": "e6655476-edf3-4c48-93f7-8fb9b2e77bb7",
+  "publishedCommit": "49cdfd3bd81b216ed9afde8b4eb6bcad9fa63e30",
+  "manifestHash": "55ebccb9c2078ab78e28a3d1a9e758960f40c9ab7d9ee2888b4ed8c90ce3ca01",
+  "allFilesMatch": true,
+  "trackedInventoryMatches": true,
+  "checkoutCleanAfterTests": true,
+  "files": [
+    {
+      "path": "package-lock.json",
+      "size": 197,
+      "sha256": "09ac0bbeec6e06c7e3f28d726530b9aef5680861df969e7703ec3e196041a817"
+    },
+    {
+      "path": "package.json",
+      "size": 100,
+      "sha256": "52715d013ed76603282a1bd7517012028dbaacf533165f2770f479843a272bb7"
+    },
+    {
+      "path": "README.md",
+      "size": 1326,
+      "sha256": "bf282784b5fcea9d5f72a5906d9ce97bdcbcf65b0053d65a92d99c7fcd4cc96d"
+    },
+    {
+      "path": "server.js",
+      "size": 7078,
+      "sha256": "f91e32c39a7862fe084b2a0d9b915e23c77f3dbebaf05830feee2ffa9abb22c2"
+    },
+    {
+      "path": "test-api.js",
+      "size": 12712,
+      "sha256": "9a1ff2021dc84483ece1edbed06f4ae508917915409cf8619f7cdb6be47f82e1"
+    }
+  ]
+}

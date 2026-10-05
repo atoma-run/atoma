@@ -1,0 +1,5 @@
+
+> stock-reservation@1.0.0 test
+> node test-api.js
+
+all assertions passed
