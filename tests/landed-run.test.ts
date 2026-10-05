@@ -103,13 +103,19 @@ function ctxAbortedMidPhase(): RunContext {
 
 describe('the phase-landing floor', () => {
   it('refuses a phase only when the remaining budget is under the floor', () => {
-    expect(outOfPhaseBudget(Date.now() + MIN_PHASE_LANDING_MS + 1)).toBe(false);
-    expect(outOfPhaseBudget(Date.now() + MIN_PHASE_LANDING_MS - 1_000)).toBe(true);
-    expect(outOfPhaseBudget(Date.now() - 1)).toBe(true);
+    // The production helper accepts the observation time. Two wall-clock reads
+    // made the +1 ms case race CI scheduling (run 37265231248).
+    const now = 1_000_000;
+    const deadline = now + MIN_PHASE_LANDING_MS;
+    expect(outOfPhaseBudget(deadline + 1, now)).toBe(false);
+    expect(outOfPhaseBudget(deadline, now)).toBe(false);
+    expect(outOfPhaseBudget(deadline - 1, now)).toBe(true);
+    expect(outOfPhaseBudget(deadline, now + 1)).toBe(true);
+    expect(outOfPhaseBudget(now - 1, now)).toBe(true);
     // A context with no deadline is a library or test context, and never lands:
     // the deadline has to be KNOWN to be enforced.
-    expect(outOfPhaseBudget(undefined)).toBe(false);
-    expect(outOfPhaseBudget(Number.NaN)).toBe(false);
+    expect(outOfPhaseBudget(undefined, now)).toBe(false);
+    expect(outOfPhaseBudget(Number.NaN, now)).toBe(false);
   });
 });
 

@@ -73,3 +73,10 @@ compiled MCP/auth/CLI smokes and the full suite passed: 409 test files passed,
 one skipped; 5,375 tests passed, 19 skipped. Both saved replay commands also
 completed offline without input-hash drift. These counts describe this local
 environment, not a claim that skipped checks ran.
+
+The first CI run [37265231248](https://github.com/mgtf/atoma/actions/runs/37265231248)
+failed an existing phase-budget test: it allowed only 1 ms between constructing
+a deadline and the helper reading the clock. The follow-up uses the production
+helper's existing explicit `now` argument and checks exact equality, one
+millisecond above/below, and clock advancement. No production deadline or margin
+is changed; the original failure is retained in CI.
