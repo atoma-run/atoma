@@ -246,7 +246,7 @@
   "registry.detailElements": "Элементы",
   "registry.detailParams": "Параметры",
   "registry.detailProvenance": "Происхождение",
-  "registry.detailNoTools": "",
+  "registry.detailNoTools": "Не настроено.",
   "registry.detailNoParams": "Нет переопределений на уровне типа.",
   "registry.detailParamsUnreadable": "Не удалось прочитать параметры.",
   "registry.detailCreated": "Создано · {{by}} · {{at}}",
@@ -1264,5 +1264,10 @@
   "launch.guidance": "Опишите желаемый результат и любые ограничения. Для импортированного репозитория укажите, что нужно проверить или изменить. Atoma подбирает возможности, необходимые для выполнения вашего запроса. Результатом может быть объяснение, анализ, документ или работающее ПО; проверка проводится в соответствии с запрошенным результатом.",
   "settings.mcpCodexTimeout": "По умолчанию Codex прекращает ожидание вызова инструмента через 300 секунд, хотя run занимает несколько минут. Добавьте tool_timeout_sec = 10800 в раздел сервера atoma в ~/.codex/config.toml (эта настройка приведена в справке по установке ниже); команда codex mcp add не позволяет её задать.",
   "depth.checklist.recorded_one": "Ранее для неизменённого серверного кода записана {{count}} HTTP-проверка",
-  "depth.checklist.recorded_other": "Ранее для неизменённого серверного кода записано HTTP-проверок: {{count}}"
+  "depth.checklist.recorded_other": "Ранее для неизменённого серверного кода записано HTTP-проверок: {{count}}",
+  "registry.detailFallbackElements": "Fallback-элементы",
+  "registry.detailFallbackElementsHint": "Используются только для выполнения в крайнем случае, если делегирование не удалось. При обычном планировании и проверке доступ к элементам отсутствует.",
+  "registry.paramMaxTokens": "Макс. токенов",
+  "projects.runInProgress": "Run выполняется",
+  "projects.runInProgressHint": "Run уже выполняется. После его завершения можно запустить ещё один."
 }

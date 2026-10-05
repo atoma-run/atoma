@@ -246,7 +246,7 @@
   "registry.detailElements": "एलिमेंट",
   "registry.detailParams": "पैरामीटर",
   "registry.detailProvenance": "उद्गम",
-  "registry.detailNoTools": "",
+  "registry.detailNoTools": "कोई भी कॉन्फ़िगर नहीं किया गया है।",
   "registry.detailNoParams": "प्रकार-स्तर पर कोई ओवरराइड नहीं।",
   "registry.detailParamsUnreadable": "पैरामीटर पढ़े नहीं जा सके।",
   "registry.detailCreated": "बनाया गया · {{by}} · {{at}}",
@@ -1264,5 +1264,10 @@
   "launch.guidance": "आप जो परिणाम चाहते हैं और जो भी बाधाएँ हैं, उनका वर्णन करें। आयात की गई रिपॉज़िटरी के लिए बताएँ कि किसकी जाँच करनी है या क्या बदलना है। Atoma आपके अनुरोध के लिए आवश्यक क्षमताएँ चुनता है। परिणाम कोई स्पष्टीकरण, विश्लेषण, दस्तावेज़ या काम करने वाला सॉफ़्टवेयर हो सकता है; सत्यापन अनुरोधित परिणाम के अनुरूप किया जाता है।",
   "settings.mcpCodexTimeout": "Codex डिफ़ॉल्ट रूप से 300 सेकंड बाद टूल कॉल की प्रतीक्षा करना बंद कर देता है, जबकि एक run में कई मिनट लगते हैं। ~/.codex/config.toml में atoma सर्वर के अंतर्गत tool_timeout_sec = 10800 जोड़ें (नीचे दी गई सेटअप सहायता में यह शामिल है); codex mcp add इसे सेट नहीं कर सकता।",
   "depth.checklist.recorded_one": "अपरिवर्तित सर्वर कोड पर पहले रिकॉर्ड की गई {{count}} HTTP जाँच",
-  "depth.checklist.recorded_other": "अपरिवर्तित सर्वर कोड पर पहले रिकॉर्ड की गईं {{count}} HTTP जाँचें"
+  "depth.checklist.recorded_other": "अपरिवर्तित सर्वर कोड पर पहले रिकॉर्ड की गईं {{count}} HTTP जाँचें",
+  "registry.detailFallbackElements": "Fallback एलिमेंट",
+  "registry.detailFallbackElementsHint": "डेलिगेशन विफल होने पर केवल अंतिम उपाय के रूप में निष्पादन के लिए उपयोग किए जाते हैं। सामान्य योजना और सत्यापन के पास एलिमेंट का एक्सेस नहीं होता।",
+  "registry.paramMaxTokens": "अधिकतम टोकन",
+  "projects.runInProgress": "run जारी है",
+  "projects.runInProgressHint": "एक run पहले से जारी है। उसके पूरा होने के बाद आप दूसरा run शुरू कर सकते हैं।"
 }

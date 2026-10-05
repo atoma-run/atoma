@@ -246,7 +246,7 @@
   "registry.detailElements": "এলিমেন্ট",
   "registry.detailParams": "প্যারামিটার",
   "registry.detailProvenance": "উৎসপরিচয়",
-  "registry.detailNoTools": "",
+  "registry.detailNoTools": "কোনোটিই কনফিগার করা নেই।",
   "registry.detailNoParams": "টাইপ-স্তরের কোনো ওভাররাইড নেই।",
   "registry.detailParamsUnreadable": "প্যারামিটারগুলো পড়া যায়নি।",
   "registry.detailCreated": "তৈরি · {{by}} · {{at}}",
@@ -1264,5 +1264,10 @@
   "launch.guidance": "আপনি যে ফলাফল চান এবং কোনো সীমাবদ্ধতা থাকলে তা বর্ণনা করুন। আমদানি করা repository-এর ক্ষেত্রে, কী পরিদর্শন বা পরিবর্তন করতে হবে তা ব্যাখ্যা করুন। আপনার অনুরোধের জন্য প্রয়োজনীয় সক্ষমতাগুলো Atoma নির্বাচন করে। ফলাফলটি হতে পারে কোনো ব্যাখ্যা, বিশ্লেষণ, নথি বা কার্যকর সফটওয়্যার; যাচাইকরণ অনুরোধ করা ফলাফল অনুযায়ী করা হয়।",
   "settings.mcpCodexTimeout": "ডিফল্টভাবে ৩০০ সেকেন্ড পর Codex কোনো টুল কলের জন্য অপেক্ষা করা বন্ধ করে দেয়, অথচ একটি run শেষ হতে কয়েক মিনিট লাগে। ~/.codex/config.toml-এ atoma সার্ভারের অধীনে tool_timeout_sec = 10800 যোগ করুন (নিচের সেটআপ সহায়তায় এটি অন্তর্ভুক্ত আছে); codex mcp add দিয়ে এটি সেট করা যায় না।",
   "depth.checklist.recorded_one": "অপরিবর্তিত সার্ভার কোডে আগে {{count}}টি HTTP পরীক্ষা রেকর্ড করা হয়েছে",
-  "depth.checklist.recorded_other": "অপরিবর্তিত সার্ভার কোডে আগে {{count}}টি HTTP পরীক্ষা রেকর্ড করা হয়েছে"
+  "depth.checklist.recorded_other": "অপরিবর্তিত সার্ভার কোডে আগে {{count}}টি HTTP পরীক্ষা রেকর্ড করা হয়েছে",
+  "registry.detailFallbackElements": "Fallback এলিমেন্ট",
+  "registry.detailFallbackElementsHint": "ডেলিগেশন ব্যর্থ হলে শুধু শেষ অবলম্বন হিসেবে এক্সিকিউশনের জন্য ব্যবহৃত হয়। স্বাভাবিক পরিকল্পনা ও যাচাইকরণে কোনো এলিমেন্টে অ্যাক্সেস থাকে না।",
+  "registry.paramMaxTokens": "সর্বোচ্চ টোকেন",
+  "projects.runInProgress": "run চলছে",
+  "projects.runInProgressHint": "ইতিমধ্যে একটি run চলছে। এটি শেষ হলে আপনি আরেকটি শুরু করতে পারবেন।"
 }

@@ -268,7 +268,7 @@
   "registry.detailElements": "عناصر",
   "registry.detailParams": "پیرامیٹرز",
   "registry.detailProvenance": "ماخذ",
-  "registry.detailNoTools": "",
+  "registry.detailNoTools": "کوئی ترتیب نہیں دی گئی۔",
   "registry.detailNoParams": "قسم کی سطح پر کوئی اوور رائیڈ نہیں۔",
   "registry.detailParamsUnreadable": "پیرامیٹرز پڑھے نہیں جا سکے۔",
   "registry.detailCreated": "تخلیق · {{by}} · {{at}}",
@@ -1264,5 +1264,10 @@
   "launch.guidance": "اپنا مطلوبہ نتیجہ اور تمام پابندیاں بیان کریں۔ درآمد شدہ ریپوزٹری کے لیے وضاحت کریں کہ کس چیز کا معائنہ کرنا یا اسے تبدیل کرنا ہے۔ Atoma آپ کی درخواست کے لیے درکار صلاحیتیں منتخب کرتا ہے۔ نتیجہ وضاحت، تجزیہ، دستاویز یا قابلِ عمل سافٹ ویئر ہو سکتا ہے؛ تصدیق مطلوبہ نتیجے کے مطابق کی جاتی ہے۔",
   "settings.mcpCodexTimeout": "بطور ڈیفالٹ Codex کسی ٹول کال کا 300 سیکنڈ تک انتظار کرتا ہے، جبکہ ایک run میں کئی منٹ لگتے ہیں۔ ~/.codex/config.toml میں atoma سرور کے تحت tool_timeout_sec = 10800 شامل کریں (ذیل میں سیٹ اپ کی مدد میں یہ شامل ہے)؛ codex mcp add اسے سیٹ نہیں کر سکتا۔",
   "depth.checklist.recorded_one": "غیر تبدیل شدہ سرور کوڈ پر پہلے ریکارڈ کی گئی {{count}} HTTP جانچ",
-  "depth.checklist.recorded_other": "غیر تبدیل شدہ سرور کوڈ پر پہلے ریکارڈ کی گئی {{count}} HTTP جانچیں"
+  "depth.checklist.recorded_other": "غیر تبدیل شدہ سرور کوڈ پر پہلے ریکارڈ کی گئی {{count}} HTTP جانچیں",
+  "registry.detailFallbackElements": "fallback عناصر",
+  "registry.detailFallbackElementsHint": "صرف اس وقت آخری چارۂ کار کے طور پر عمل درآمد کے لیے استعمال ہوتے ہیں جب تفویض ناکام ہو جائے۔ معمول کی منصوبہ بندی اور توثیق کو عناصر تک رسائی حاصل نہیں ہوتی۔",
+  "registry.paramMaxTokens": "زیادہ سے زیادہ ٹوکنز",
+  "projects.runInProgress": "run جاری ہے",
+  "projects.runInProgressHint": "ایک run پہلے ہی جاری ہے۔ اس کے مکمل ہونے کے بعد آپ دوسرا شروع کر سکتے ہیں۔"
 }

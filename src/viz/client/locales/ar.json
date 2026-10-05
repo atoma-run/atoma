@@ -246,7 +246,7 @@
   "registry.detailElements": "العناصر",
   "registry.detailParams": "المعلمات",
   "registry.detailProvenance": "المصدر",
-  "registry.detailNoTools": "",
+  "registry.detailNoTools": "لم تتم تهيئة أي أدوات.",
   "registry.detailNoParams": "لا توجد تجاوزات على مستوى النوع.",
   "registry.detailParamsUnreadable": "تعذّرت قراءة المعلمات.",
   "registry.detailCreated": "أُنشئ · {{by}} · {{at}}",
@@ -1264,5 +1264,10 @@
   "launch.guidance": "صِف النتيجة التي تريدها وأي قيود. بالنسبة إلى مستودع مستورد، وضّح ما ينبغي فحصه أو تغييره. تختار Atoma الإمكانات اللازمة لطلبك. يمكن أن تكون النتيجة شرحًا أو تحليلًا أو مستندًا أو برنامجًا عاملًا؛ ويجري التحقق وفقًا للنتيجة المطلوبة.",
   "settings.mcpCodexTimeout": "يتوقف Codex افتراضيًا عن انتظار استدعاء أداة بعد 300 ثانية، بينما يستغرق run عدة دقائق. أضف tool_timeout_sec = 10800 ضمن خادم atoma في ~/.codex/config.toml (تتضمنه تعليمات الإعداد أدناه)؛ إذ لا يستطيع codex mcp add ضبطه.",
   "depth.checklist.recorded_one": "{{count}} فحص HTTP مسجّل سابقًا على شفرة خادم لم تتغير",
-  "depth.checklist.recorded_other": "{{count}} من فحوص HTTP مسجّلة سابقًا على شفرة خادم لم تتغير"
+  "depth.checklist.recorded_other": "{{count}} من فحوص HTTP مسجّلة سابقًا على شفرة خادم لم تتغير",
+  "registry.detailFallbackElements": "عناصر fallback",
+  "registry.detailFallbackElementsHint": "تُستخدم فقط للتنفيذ كملاذ أخير عند فشل التفويض. لا يمكن للتخطيط والتحقق العاديين الوصول إلى العناصر.",
+  "registry.paramMaxTokens": "الحد الأقصى للرموز",
+  "projects.runInProgress": "run قيد التقدم",
+  "projects.runInProgressHint": "هناك run قيد التقدم بالفعل. يمكنك بدء run آخر بعد انتهائه."
 }

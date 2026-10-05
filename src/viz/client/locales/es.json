@@ -246,7 +246,7 @@
   "registry.detailElements": "Elementos",
   "registry.detailParams": "Parámetros",
   "registry.detailProvenance": "Procedencia",
-  "registry.detailNoTools": "",
+  "registry.detailNoTools": "No hay ninguna configurada.",
   "registry.detailNoParams": "Sin anulaciones a nivel de tipo.",
   "registry.detailParamsUnreadable": "No se pudieron leer los parámetros.",
   "registry.detailCreated": "Creado · {{by}} · {{at}}",
@@ -1264,5 +1264,10 @@
   "launch.guidance": "Describe el resultado que deseas y cualquier restricción. Si se trata de un repositorio importado, explica qué se debe inspeccionar o cambiar. Atoma selecciona las capacidades necesarias para tu solicitud. El resultado puede ser una explicación, un análisis, un documento o software funcional; la verificación se realiza conforme al resultado solicitado.",
   "settings.mcpCodexTimeout": "Codex deja de esperar una llamada a una herramienta después de 300 segundos de forma predeterminada, mientras que un run tarda varios minutos. Añade tool_timeout_sec = 10800 en el servidor de atoma en ~/.codex/config.toml (la ayuda de configuración que aparece a continuación lo incluye); codex mcp add no permite establecerlo.",
   "depth.checklist.recorded_one": "{{count}} comprobación HTTP registrada anteriormente con el código del servidor sin cambios",
-  "depth.checklist.recorded_other": "{{count}} comprobaciones HTTP registradas anteriormente con el código del servidor sin cambios"
+  "depth.checklist.recorded_other": "{{count}} comprobaciones HTTP registradas anteriormente con el código del servidor sin cambios",
+  "registry.detailFallbackElements": "Elementos fallback",
+  "registry.detailFallbackElementsHint": "Se usan solo para la ejecución de último recurso cuando falla la delegación. La planificación y la validación normales no tienen acceso a elementos.",
+  "registry.paramMaxTokens": "Máx. de tokens",
+  "projects.runInProgress": "Run en curso",
+  "projects.runInProgressHint": "Ya hay un run en curso. Podrás iniciar otro cuando finalice."
 }

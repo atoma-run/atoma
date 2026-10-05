@@ -246,7 +246,7 @@
   "registry.detailElements": "要素",
   "registry.detailParams": "パラメーター",
   "registry.detailProvenance": "来歴",
-  "registry.detailNoTools": "",
+  "registry.detailNoTools": "設定されていません。",
   "registry.detailNoParams": "タイプ単位のオーバーライドはありません。",
   "registry.detailParamsUnreadable": "パラメーターを読み取れませんでした。",
   "registry.detailCreated": "作成・{{by}}・{{at}}",
@@ -1264,5 +1264,10 @@
   "launch.guidance": "希望する成果と制約事項を記述してください。インポートしたリポジトリの場合は、調査または変更する内容を説明してください。Atomaがリクエストに必要な機能を選択します。結果は、説明、分析、ドキュメント、または動作するソフトウェアの形で提供され、希望する成果に沿って検証されます。",
   "settings.mcpCodexTimeout": "Codexはデフォルトで300秒後にツール呼び出しの待機を停止しますが、runには数分かかります。~/.codex/config.tomlのatomaサーバー配下にtool_timeout_sec = 10800を追加してください（以下のセットアップヘルプにも含まれています）。codex mcp addでは設定できません。",
   "depth.checklist.recorded_one": "変更されていないサーバーコードに対して以前記録されたHTTPチェック{{count}}件",
-  "depth.checklist.recorded_other": "変更されていないサーバーコードに対して以前記録されたHTTPチェック{{count}}件"
+  "depth.checklist.recorded_other": "変更されていないサーバーコードに対して以前記録されたHTTPチェック{{count}}件",
+  "registry.detailFallbackElements": "fallbackエレメント",
+  "registry.detailFallbackElementsHint": "委任に失敗した場合の最終手段としての実行にのみ使用されます。通常の計画と検証ではエレメントにアクセスできません。",
+  "registry.paramMaxTokens": "最大トークン数",
+  "projects.runInProgress": "runを実行中",
+  "projects.runInProgressHint": "すでにrunを実行中です。完了後に別のrunを開始できます。"
 }
