@@ -1,0 +1,163 @@
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs'), os=require('node:os'), path=require('node:path');
+const {spawnSync}=require('node:child_process');
+const cli=path.resolve(__dirname,'..','stock-reconcile.js');
+function run(dir,args){return spawnSync(process.execPath,[cli,...args],{cwd:dir,encoding:'utf8'});}
+function setup(open='sku,onHand\nA,10\nB,0\n', events='id,sku,type,quantity,ref\n', files={}) {
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'stock-')); fs.writeFileSync(path.join(dir,'opening.csv'),open); fs.writeFileSync(path.join(dir,'events.csv'),events);
+ for(const [n,v] of Object.entries(files))fs.writeFileSync(path.join(dir,n),v); return dir;
+}
+test('--help',()=>{const r=run(process.cwd(),['--help']);assert.equal(r.status,0);assert.match(r.stdout,/Usage:/);});
+test('fixed example and deterministic repeat',()=>{
+ const d=setup(); fs.copyFileSync(path.join(__dirname,'..','examples/opening.csv'),path.join(d,'fixed-opening.csv')); fs.copyFileSync(path.join(__dirname,'..','examples/events.csv'),path.join(d,'fixed-events.csv'));
+ let r=run(d,['--opening','fixed-opening.csv','--events','fixed-events.csv','--out','out']);assert.equal(r.status,0,r.stderr);
+ const first=fs.readFileSync(path.join(d,'out','stock.csv'),'utf8'); const firstAudit=fs.readFileSync(path.join(d,'out','audit.json'),'utf8'); const audit=JSON.parse(firstAudit); assert.equal(first,'sku,onHand,reserved,available\nA,9,0,9\nB,7,2,5\n');assert.equal(audit.applied,6);assert.equal(audit.duplicates,1);
+ r=run(d,['--opening','fixed-opening.csv','--events','fixed-events.csv','--out','out']);assert.equal(r.status,0,r.stderr);assert.equal(fs.readFileSync(path.join(d,'out','stock.csv'),'utf8'),first);assert.equal(fs.readFileSync(path.join(d,'out','audit.json'),'utf8'),firstAudit);
+});
+test('partial transitions and repeated shipment',()=>{
+ const d=setup('sku,onHand\nA,10\n','id,sku,type,quantity,ref\nr,A,RESERVE,6,R\ns,A,SHIP,4,R\ns,A,SHIP,4,R\nl,A,RELEASE,2,R\nt,A,RETURN,3,s\n');
+ assert.equal(run(d,['--opening','opening.csv','--events','events.csv','--out','o']).status,0);
+ const a=JSON.parse(fs.readFileSync(path.join(d,'o','audit.json')));assert.equal(a.duplicates,1);assert.equal(a.events.at(-1).after.onHand,9);
+});
+test('csv hostile and CRLF BOM',()=>{
+ const d=setup('\ufeffsku,onHand\r\nA,2\r\n','id,sku,type,quantity,ref\r\n"e,1","A",RECEIVE,1,""\r\n');
+ const r=run(d,['--opening','opening.csv','--events','events.csv','--out','o']);assert.equal(r.status,0,r.stderr);assert.match(fs.readFileSync(path.join(d,'o','stock.csv'),'utf8'),/sku,onHand.*\nA,3/);
+});
+test('multiline and doubled quote identifiers',()=>{
+ const d=setup('sku,onHand\n"weird\nsku",2\n','id,sku,type,quantity,ref\n"x""1","weird\nsku",RECEIVE,1,\n');
+ const r=run(d,['--opening','opening.csv','--events','events.csv','--out','o']);assert.equal(r.status,0,r.stderr);assert.match(fs.readFileSync(path.join(d,'o','stock.csv'),'utf8'),/"weird\nsku",3,0,3/);
+});
+test('conflicts, prerequisites, malformed and quantities fail; outputs preserved',()=>{
+ const cases=[
+  'id,sku,type,quantity,ref\nx,A,RECEIVE,1,bad\n',
+  'id,sku,type,quantity,ref\nx,A,RESERVE,11,r\n',
+  'id,sku,type,quantity,ref\nx,A,RELEASE,1,r\n',
+  'id,sku,type,quantity,ref\nx,A,RETURN,1,s\n',
+  'id,sku,type,quantity,ref\nx,A,RECEIVE,nope,\n',
+  'id,sku,type,quantity,ref\nx,A,RECEIVE,1,"bad\n',
+  'id,sku,type,quantity,ref\nx,A,RECEIVE,1,extra,too-many\n',
+  'id,sku,type,quantity,ref\nx,A,RECEIVE,1,\nextra\n',
+  'id,sku,type,quantity,ref\nx,A,RECEIVE,1,\nlate,A,RECEIVE,9007199254740992,\n'
+ ];
+ for(const ev of cases){const d=setup('sku,onHand\nA,1\n',ev);fs.mkdirSync(path.join(d,'o'));fs.writeFileSync(path.join(d,'o','stock.csv'),'keep');fs.writeFileSync(path.join(d,'o','audit.json'),'keep2');const r=run(d,['--opening','opening.csv','--events','events.csv','--out','o']);assert.notEqual(r.status,0);assert.match(r.stderr,/row|input|quantity/);assert.equal(fs.readFileSync(path.join(d,'o','stock.csv'),'utf8'),'keep');assert.equal(fs.readFileSync(path.join(d,'o','audit.json'),'utf8'),'keep2');}
+});
+test('opening-only, direct collision, and excess return preserve every byte',()=>{
+ const d=setup('sku,onHand\nZ,0\n','id,sku,type,quantity,ref\n');let r=run(d,['--opening','opening.csv','--events','events.csv','--out','o']);assert.equal(r.status,0,r.stderr);
+ assert.equal(fs.readFileSync(path.join(d,'o','stock.csv'),'utf8'),'sku,onHand,reserved,available\nZ,0,0,0\n');
+ r=run(d,['--opening','opening.csv','--events','events.csv','--out','opening.csv']);assert.notEqual(r.status,0);assert.match(r.stderr,/overwrite an input/);
+ r=run(d,['--opening','opening.csv','--events','events.csv','--out','events.csv']);assert.notEqual(r.status,0);assert.match(r.stderr,/overwrite an input/);
+ const e=path.join(d,'bad.csv');fs.copyFileSync(path.join(__dirname,'..','examples/excess-return-events.csv'),e);fs.copyFileSync(path.join(__dirname,'..','examples/opening.csv'),path.join(d,'fo.csv'));const out=path.join(d,'ex');fs.mkdirSync(out);
+ const prefix='id,sku,type,quantity,ref\nr1,A,RESERVE,6,R1\ns1,A,SHIP,4,R1\nt1,A,RETURN,3,s1\n';
+ fs.writeFileSync(path.join(d,'prefix.csv'),prefix);let setupRun=run(d,['--opening','fo.csv','--events','prefix.csv','--out','ex']);assert.equal(setupRun.status,0,setupRun.stderr);
+ const setupStock=fs.readFileSync(path.join(out,'stock.csv'),'utf8');const setupAudit=JSON.parse(fs.readFileSync(path.join(out,'audit.json'),'utf8'));assert.equal(setupAudit.applied,3);assert.match(setupStock,/A,9,2,7/);
+ const stockBefore=Buffer.from('preexisting stock\n'), auditBefore=Buffer.from('preexisting audit\n');fs.writeFileSync(path.join(out,'stock.csv'),stockBefore);fs.writeFileSync(path.join(out,'audit.json'),auditBefore);
+ const inputBefore=[fs.readFileSync(path.join(d,'fo.csv')),fs.readFileSync(e)];
+ r=run(d,['--opening','fo.csv','--events',e,'--out','ex']);assert.notEqual(r.status,0);assert.match(r.stderr,/over-return/);assert.match(r.stderr,/row 7/);
+ assert.deepEqual(fs.readFileSync(path.join(out,'stock.csv')),stockBefore);assert.deepEqual(fs.readFileSync(path.join(out,'audit.json')),auditBefore);
+ assert.deepEqual(fs.readFileSync(path.join(d,'fo.csv')),inputBefore[0]);assert.deepEqual(fs.readFileSync(e),inputBefore[1]);
+});
+
+test('regressions: reservation lifecycle, namespaces, zero quantity, and quoted final columns',()=>{
+ const ok=(open,events)=>{
+  const d=setup(open,events); const r=run(d,['--opening','opening.csv','--events','events.csv','--out','out']);
+  return {d,r};
+ };
+ let x=ok('sku,onHand\nA,2\nB,2\n','id,sku,type,quantity,ref\nE,A,RECEIVE,1,""\nR,A,RESERVE,2,Q\nL,A,RELEASE,2,Q\nN,B,RESERVE,1,Q\n');
+ assert.notEqual(x.r.status,0); assert.match(x.r.stderr,/globally new/);
+ x=ok('sku,onHand\nA,2\n','id,sku,type,quantity,ref\nR,A,RESERVE,2,Q\nL,A,RELEASE,2,Q\nR2,A,RESERVE,1,Q\n');
+ assert.notEqual(x.r.status,0); assert.match(x.r.stderr,/globally new/);
+ x=ok('sku,onHand\nA,2\n','id,sku,type,quantity,ref\nE,A,RECEIVE,00,""\n');
+ assert.notEqual(x.r.status,0); assert.match(x.r.stderr,/invalid quantity/);
+ x=ok('sku,onHand\nA,1\n','id,sku,type,quantity,ref\n"event,1",A,RECEIVE,1,""\nnext,A,RECEIVE,1,""\n');
+ assert.equal(x.r.status,0,x.r.stderr); assert.match(fs.readFileSync(path.join(x.d,'out','stock.csv'),'utf8'),/A,3,0,3/);
+ x=ok('sku,onHand\nA,1\n','id,sku,type,quantity,ref\nR,A,RECEIVE,1,""\nE,A,RESERVE,1,R\n');
+ assert.equal(x.r.status,0,x.r.stderr);
+ const valid=ok('sku,onHand\nA,1\n','id,sku,type,quantity,ref\nR,A,RECEIVE,1,""\n');
+ assert.equal(valid.r.status,0,valid.r.stderr);
+ assert.equal(JSON.parse(fs.readFileSync(path.join(valid.d,'out','audit.json'),'utf8')).applied,1);
+ const conflictEvents='id,sku,type,quantity,ref\nR,A,RECEIVE,1,""\nR,A,RECEIVE,2,""\n';
+ fs.writeFileSync(path.join(valid.d,'events.csv'),conflictEvents);
+ const conflictStock=Buffer.from('existing stock bytes'), conflictAudit=Buffer.from('existing audit bytes');
+ fs.writeFileSync(path.join(valid.d,'out','stock.csv'),conflictStock);fs.writeFileSync(path.join(valid.d,'out','audit.json'),conflictAudit);
+ const conflictInputs=[fs.readFileSync(path.join(valid.d,'opening.csv')),fs.readFileSync(path.join(valid.d,'events.csv'))];
+ const conflict=run(valid.d,['--opening','opening.csv','--events','events.csv','--out','out']);
+ assert.notEqual(conflict.status,0);assert.match(conflict.stderr,/events\.csv: row 3: conflicting duplicate ID R/);
+ assert.deepEqual(fs.readFileSync(path.join(valid.d,'out','stock.csv')),conflictStock);assert.deepEqual(fs.readFileSync(path.join(valid.d,'out','audit.json')),conflictAudit);
+ assert.deepEqual(fs.readFileSync(path.join(valid.d,'opening.csv')),conflictInputs[0]);assert.deepEqual(fs.readFileSync(path.join(valid.d,'events.csv')),conflictInputs[1]);
+});
+test('transition prerequisites and partial limits have specific diagnostics',()=>{
+ const cases=[
+  ['id,sku,type,quantity,ref\nr,A,RESERVE,1,Q\nx,B,RELEASE,1,Q\n','cross-SKU reference'],
+  ['id,sku,type,quantity,ref\nr,A,RESERVE,1,Q\nx,A,RELEASE,2,Q\n','over-release'],
+  ['id,sku,type,quantity,ref\nr,A,RESERVE,1,Q\nx,A,SHIP,2,Q\n','over-shipment'],
+  ['id,sku,type,quantity,ref\nx,A,RETURN,1,missing\n','earlier SHIP'],
+  ['id,sku,type,quantity,ref\nr,A,RESERVE,1,Q\ns,A,SHIP,1,Q\nt,B,RETURN,1,s\n','cross-SKU reference']
+ ];
+ for(const [events,diagnostic] of cases){
+  const d=setup('sku,onHand\nA,2\nB,2\n',events);
+  const r=run(d,['--opening','opening.csv','--events','events.csv','--out','out']);
+  assert.notEqual(r.status,0); assert.match(r.stderr,new RegExp(diagnostic));
+  assert.equal(fs.existsSync(path.join(d,'out')),false);
+ }
+});
+test('defect regressions prove setup, refusal causes, and byte preservation',()=>{
+  const crlf=setup('sku,onHand\r\nA,0\r\n','id,sku,type,quantity,ref\r\ne,A,RECEIVE,1,\r\nz,A,RECEIVE,0,\r\n');
+  let r=run(crlf,['--opening','opening.csv','--events','events.csv','--out','out']);
+  assert.notEqual(r.status,0); assert.match(r.stderr,/events\.csv: row 3: invalid quantity/);
+  const d=setup('sku,onHand\nA,10\n','id,sku,type,quantity,ref\ne,A,RECEIVE,1,\n');
+  const openingBytes=fs.readFileSync(path.join(d,'opening.csv'));
+  const eventsBytes=fs.readFileSync(path.join(d,'events.csv'));
+  r=run(d,['--opening','opening.csv','--events','events.csv','--out','.']);
+  assert.equal(r.status,0,r.stderr);
+  assert.deepEqual(fs.readFileSync(path.join(d,'opening.csv')),openingBytes);
+  assert.deepEqual(fs.readFileSync(path.join(d,'events.csv')),eventsBytes);
+  assert.equal(fs.readFileSync(path.join(d,'stock.csv'),'utf8'),'sku,onHand,reserved,available\nA,11,0,11\n');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(d,'audit.json'),'utf8')).applied,1);
+  const alias=path.join(d,'alias'); fs.symlinkSync(d,alias,'dir');
+  r=run(d,['--opening','opening.csv','--events','events.csv','--out','alias']);
+  assert.equal(r.status,0,r.stderr);
+  assert.deepEqual(fs.readFileSync(path.join(d,'opening.csv')),openingBytes);
+  assert.deepEqual(fs.readFileSync(path.join(d,'events.csv')),eventsBytes);
+  assert.equal(fs.readFileSync(path.join(d,'stock.csv'),'utf8'),'sku,onHand,reserved,available\nA,11,0,11\n');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(d,'audit.json'),'utf8')).applied,1);
+
+  const collision=setup('sku,onHand\nA,10\n','id,sku,type,quantity,ref\ne,A,RECEIVE,1,\n');
+  const openingCollision=path.join(collision,'stock.csv');
+  const collisionOpenBytes=Buffer.from('sku,onHand\nA,10\n');
+  const collisionEventsBytes=fs.readFileSync(path.join(collision,'events.csv'));
+  fs.writeFileSync(openingCollision,collisionOpenBytes);
+  const direct=run(collision,['--opening','stock.csv','--events','events.csv','--out','.']);
+  assert.notEqual(direct.status,0);
+  assert.match(direct.stderr,/overwrite an input.*resolved path identity/);
+  assert.deepEqual(fs.readFileSync(openingCollision),collisionOpenBytes);
+  assert.deepEqual(fs.readFileSync(path.join(collision,'events.csv')),collisionEventsBytes);
+  assert.equal(fs.existsSync(path.join(collision,'audit.json')),false);
+  const collisionAlias=path.join(collision,'dir-alias'); fs.symlinkSync(collision,collisionAlias,'dir');
+  const aliasRun=run(collision,['--opening','stock.csv','--events','events.csv','--out','dir-alias']);
+  assert.notEqual(aliasRun.status,0);
+  assert.match(aliasRun.stderr,/overwrite an input.*resolved path identity/);
+  assert.deepEqual(fs.readFileSync(openingCollision),collisionOpenBytes);
+  assert.deepEqual(fs.readFileSync(path.join(collision,'events.csv')),collisionEventsBytes);
+  assert.equal(fs.existsSync(path.join(collision,'audit.json')),false);
+  const p=setup('sku,onHand\nA,1\n','id,sku,type,quantity,ref\nr,A,RECEIVE,1,\n');
+  fs.mkdirSync(path.join(p,'out')); const stock='old-stock\\n';
+  fs.writeFileSync(path.join(p,'out','stock.csv'),stock); fs.mkdirSync(path.join(p,'out','audit.json')); fs.writeFileSync(path.join(p,'out','audit.json','marker'),'keep');
+  const beforeOpen=fs.readFileSync(path.join(p,'opening.csv')); const beforeEvents=fs.readFileSync(path.join(p,'events.csv'));
+  r=run(p,['--opening','opening.csv','--events','events.csv','--out','out']);
+  assert.notEqual(r.status,0); assert.match(r.stderr,/audit\.json.*is a directory/);
+  assert.deepEqual(fs.readFileSync(path.join(p,'out','stock.csv')),Buffer.from(stock));
+  assert.deepEqual(fs.readFileSync(path.join(p,'opening.csv')),beforeOpen); assert.deepEqual(fs.readFileSync(path.join(p,'events.csv')),beforeEvents);
+  assert.equal(fs.readFileSync(path.join(p,'out','audit.json','marker'),'utf8'),'keep');
+});
+test('explicit arithmetic and destination boundaries',()=>{
+  let x=setup('sku,onHand\nA,9007199254740990\n','id,sku,type,quantity,ref\nr,A,RECEIVE,1,\n');
+  let r=run(x,['--opening','opening.csv','--events','events.csv','--out','out']); assert.equal(r.status,0,r.stderr);
+  x=setup('sku,onHand\nA,9007199254740990\n','id,sku,type,quantity,ref\nr,A,RECEIVE,2,\n');
+  r=run(x,['--opening','opening.csv','--events','events.csv','--out','out']); assert.notEqual(r.status,0); assert.match(r.stderr,/arithmetic overflow/);
+  x=setup('sku,onHand\nA,1\n','id,sku,type,quantity,ref\nr,A,RECEIVE,9007199254740992,\n');
+  r=run(x,['--opening','opening.csv','--events','events.csv','--out','out']); assert.notEqual(r.status,0); assert.match(r.stderr,/unsafe quantity/);
+  x=setup('sku,onHand\nZ,0\n','id,sku,type,quantity,ref\n');
+  r=run(x,['--opening','opening.csv','--events','events.csv','--out','out']); assert.equal(r.status,0,r.stderr);
+  assert.equal(fs.readFileSync(path.join(x,'out','stock.csv'),'utf8'),'sku,onHand,reserved,available\nZ,0,0,0\n');
+});

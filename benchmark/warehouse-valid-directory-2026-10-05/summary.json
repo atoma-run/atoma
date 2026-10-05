@@ -1,0 +1,106 @@
+{
+  "runId": "3eea5c57-9370-4189-8275-a93933330b37",
+  "revision": "5182794e568f6bb9650cdc499abd56afaad03723",
+  "publication": {
+    "status": "published",
+    "repositoryFullName": "mgtf/atoma-stock-reconcile-20261005",
+    "repositoryUrl": "https://github.com/mgtf/atoma-stock-reconcile-20261005",
+    "git": {
+      "branch": "main",
+      "baseBranch": "main",
+      "defaultBranch": "main",
+      "publishKind": "extended",
+      "mode": "direct"
+    },
+    "remoteState": "not-checked",
+    "mergeStatus": "not-applicable",
+    "baseSha": "37095388058acebef60323890a2457ae868524e7",
+    "error": null,
+    "publishedAt": "2026-10-05T02:27:03.399Z",
+    "updatedAt": "2026-10-05T02:27:03.399Z",
+    "commitSha": "37e5c8109d941778a948f98d8288cf3213c04af3"
+  },
+  "durationS": 219.435,
+  "calls": 10,
+  "subscriptionEquivalentUsd": 0.1032,
+  "focusedCalls": 4,
+  "focusedDurationMs": 53254,
+  "focusedSubscriptionEquivalentUsd": 0.01655324,
+  "independentCases": 14,
+  "independentPasses": 14,
+  "verifiedPublishedSha256": {
+    "examples/events.csv": "19b8349e3a1d3af47f90f5749c03d5f2555b71ae2927e9e9ac9ae6ae8212a433",
+    "examples/excess-return-events.csv": "43c625da9afac444554e56cd7fda0606c4242d3989561c47577c6b8fa7e285f0",
+    "examples/opening.csv": "d5faa3092fb654287af8131e6c293100815b0cde2752db0bd9494db66dce99c6",
+    "package.json": "ed7c4b90b493c8de561401b320d28aa7a532c7ad734a85f6bf4bc36002c334e0",
+    "README.md": "ce8a831a143867bd23e3dbab6bc5e4746d9f65fd3d5f01bd34c053220ad0e816",
+    "stock-reconcile.js": "3a21abb40140c3cfe01773033ea5744948e01ab7b0d0634723c4139dcc9465ae",
+    "test/stock-reconcile.test.js": "d4cd3f3097d13f32d767e19f644139692b426172ffff9e63d5a19c7a07fa3a1a"
+  },
+  "criterionJudgments": [
+    {
+      "approved": true,
+      "reasoning": "Both supplied criteria are supported by source inspection and executed subprocess assertions.",
+      "criteria": [
+        {
+          "id": "c1",
+          "met": true,
+          "reason": "package.json declares Node >=24 and no dependencies; source uses only node:fs/path. Tests execute help with status 0 and Usage output (test --help). Collision and failure tests assert inputs and existing outputs remain byte-identical."
+        },
+        {
+          "id": "c2",
+          "met": true,
+          "reason": "csvParse source handles BOM, CR/LF, quoted fields, doubled quotes, and embedded newlines. Executed tests assert BOM/CRLF, quoted comma, doubled-quote multiline success; malformed quoting, wrong columns, and invalid/unsafe quantities fail with diagnostics."
+        }
+      ]
+    },
+    {
+      "approved": true,
+      "reasoning": "Both reviewed criteria are supported by current source and the executed 11-test subprocess suite.",
+      "criteria": [
+        {
+          "id": "c3",
+          "met": true,
+          "reason": "stock-reconcile.js dispatches all five types with availability, reservation, shipment, return, same-SKU, and balance checks; add/sub enforce safe bounds. Tests assert prerequisite diagnostics and arithmetic overflow/unsafe quantities; npm test passed all 11."
+        },
+        {
+          "id": "c4",
+          "met": true,
+          "reason": "stock-reconcile.js checks seen IDs before type/quantity/transition validation and records identical duplicates without applying them. The regression test asserts conflicting duplicate failure plus unchanged stock, audit, and inputs; npm test executed and passed."
+        }
+      ]
+    },
+    {
+      "approved": true,
+      "reasoning": "Both supplied criteria are supported by source and executed subprocess evidence.",
+      "criteria": [
+        {
+          "id": "c5",
+          "met": true,
+          "reason": "test/stock-reconcile.test.js fixed-example test asserts exact stock A=9/0/9 and B=7/2/5, audit.applied=6 and duplicates=1, then repeats deterministically. The opening-only/excess test asserts row-7 over-return failure and preserves stock, audit, and inputs byte-for-byte; npm test executed with 11/11 passing."
+        },
+        {
+          "id": "c6",
+          "met": true,
+          "reason": "The fixed-example test compares stock.csv and audit.json byte-for-byte across repeated runs. stock-reconcile.js constructs per-event audit entries with before/after snapshots. The opening-only test asserts exact zero-stock output (Z,0,0,0), and npm test executed successfully."
+        }
+      ]
+    },
+    {
+      "approved": true,
+      "reasoning": "Both supplied criteria are supported by source, assertions, and observed execution.",
+      "criteria": [
+        {
+          "id": "c7",
+          "met": true,
+          "reason": "test/stock-reconcile.test.js asserts hostile BOM/CRLF/quoted cases and late-failure byte preservation, including outputs and inputs. .atoma-probes.json records npm test exitCode 0 with 11 passing tests; the recorded report matches."
+        },
+        {
+          "id": "c8",
+          "met": true,
+          "reason": "The regression test asserts --out . and a directory symlink succeed with stock.csv A,11,0,11, applied=1, and preserved inputs. It also asserts direct and symlinked stock.csv input collisions fail with the resolved-identity cause and preserve bytes; suite execution passed."
+        }
+      ]
+    }
+  ]
+}

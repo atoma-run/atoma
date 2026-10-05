@@ -1,0 +1,2 @@
+{"name":"safe-output-directory-.","passed":false,"exitCode":2,"stderr":"output destination would overwrite an input (resolved path identity)\n","error":"AssertionError [ERR_ASSERTION]: output destination would overwrite an input (resolved path identity)\n\n\n2 !== 0\n"}
+{"name":"safe-output-directory-alias","passed":false,"exitCode":2,"stderr":"output destination would overwrite an input (resolved path identity)\n","error":"AssertionError [ERR_ASSERTION]: output destination would overwrite an input (resolved path identity)\n\n\n2 !== 0\n"}

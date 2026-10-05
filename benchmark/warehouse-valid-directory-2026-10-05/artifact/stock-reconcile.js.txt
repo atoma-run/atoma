@@ -1,0 +1,151 @@
+#!/usr/bin/env node
+'use strict';
+const fs = require('node:fs');
+const path = require('node:path');
+
+const USAGE = `Usage: node stock-reconcile.js --opening <path> --events <path> --out <directory>
+       node stock-reconcile.js --help
+`;
+const MAX = Number.MAX_SAFE_INTEGER;
+
+class Problem extends Error { constructor(message, code=1) { super(message); this.code=code; } }
+
+function csvParse(text, file) {
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  const rows=[]; let row=[], field='', quoted=false, afterQuote=false, start=1, line=1;
+  const pushField=()=>{ row.push(field); field=''; };
+  const finish=()=>{ pushField(); if (row.length===1 && row[0]==='' && rows.length>0) throw new Problem(`${file}: row ${start}: blank record`); rows.push({values:row, line:start}); row=[]; start=line; afterQuote=false; };
+  for (let i=0;i<text.length;i++) {
+    const c=text[i];
+    if (quoted) {
+      if (c === '"') {
+        if (text[i+1] === '"') { field+='"'; i++; }
+        else { quoted=false; afterQuote=true; }
+      } else { field+=c; if (c==='\n') line++; }
+      continue;
+    }
+    if (afterQuote) {
+      if (c===',') { pushField(); afterQuote=false; }
+      else if (c==='\r' || c==='\n') { if(c==='\r' && text[i+1]==='\n') { i++; line++; } else line++; finish(); }
+      else throw new Problem(`${file}: row ${start}: malformed quoting`);
+      continue;
+    }
+    if (c==='"') {
+      if (field!=='') throw new Problem(`${file}: row ${start}: malformed quoting`);
+      quoted=true;
+    } else if (c===',') pushField();
+    else if (c==='\r' || c==='\n') { if(c==='\r' && text[i+1]==='\n') { i++; line++; } else line++; finish(); }
+    else field+=c;
+  }
+  if (quoted) throw new Problem(`${file}: row ${start}: unterminated quoted field`);
+  if (row.length || field.length || text.length===0) finish();
+  return rows;
+}
+function readCsv(file, header) {
+  let text; try { text=fs.readFileSync(file,'utf8'); } catch(e) { throw new Problem(`${file}: cannot read input`,2); }
+  const rows=csvParse(text,file);
+  if (!rows.length || rows[0].values.join('\0') !== header.join('\0'))
+    throw new Problem(`${file}: row 1: exact header required (${header.join(',')})`);
+  for (const r of rows.slice(1)) if (r.values.length !== header.length)
+    throw new Problem(`${file}: row ${r.line}: expected ${header.length} columns`);
+  return rows.slice(1);
+}
+function integer(s, file, row, positive) {
+  if (!/^\d+$/.test(s) || (positive && /^0+$/.test(s))) throw new Problem(`${file}: row ${row}: invalid quantity`);
+  const n=Number(s); if (!Number.isSafeInteger(n)) throw new Problem(`${file}: row ${row}: unsafe quantity`);
+  return n;
+}
+function add(a,b, label) { if (b>MAX-a) throw new Problem(`event row: arithmetic overflow (${label})`); return a+b; }
+function sub(a,b,label) { if (b>a) throw new Problem(`event row: negative balance (${label})`); return a-b; }
+function csvCell(v) { const s=String(v); return /[",\r\n]/.test(s) ? '"' + s.replaceAll('"','""') + '"' : s; }
+function snapshot(s) { return {onHand:s.onHand,reserved:s.reserved,available:s.onHand-s.reserved}; }
+function main(argv) {
+  if (argv.length===1 && argv[0]==='--help') { process.stdout.write(USAGE); return; }
+  if (argv.length!==6 || argv[0]!=='--opening' || argv[2]!=='--events' || argv[4]!=='--out')
+    throw new Problem(USAGE.trim(),2);
+  const opening=path.resolve(argv[1]), eventsFile=path.resolve(argv[3]), out=path.resolve(argv[5]);
+  if (opening===eventsFile) throw new Problem('input paths must differ',2);
+  const real = (p) => { let tail=[]; let cur=p; while (true) { try { return path.join(fs.realpathSync(cur),...tail.reverse()); } catch { const parent=path.dirname(cur); if (parent===cur) throw new Problem('cannot resolve path identity: '+p,2); tail.push(path.basename(cur)); cur=parent; } } };
+  const openingIdentity=real(opening), eventsIdentity=real(eventsFile);
+  const outputNames=['stock.csv','audit.json'];
+  const outIdentity=real(out);
+  if (outIdentity===openingIdentity || outIdentity===eventsIdentity)
+    throw new Problem('output destination would overwrite an input (resolved path identity)',2);
+  for (const name of outputNames) {
+    const targetIdentity=real(path.join(out,name));
+    if (targetIdentity===openingIdentity || targetIdentity===eventsIdentity)
+      throw new Problem('output destination would overwrite an input (resolved path identity)',2);
+  }
+  const openRows=readCsv(opening,['sku','onHand']);
+  const states=new Map();
+  for (const r of openRows) {
+    const [sku,q]=r.values;
+    if (sku==='') throw new Problem(`${opening}: row ${r.line}: blank SKU`);
+    if (states.has(sku)) throw new Problem(`${opening}: row ${r.line}: duplicate SKU`);
+    states.set(sku,{onHand:integer(q,opening,r.line,false),reserved:0,reservations:new Map()});
+  }
+  const evRows=readCsv(eventsFile,['id','sku','type','quantity','ref']);
+  const seen=new Map(), reservations=new Map(), ships=new Map(), audit=[]; let applied=0, duplicate=0;
+  for (const r of evRows) {
+    const [id,sku,type,qtext,ref]=r.values;
+    if (id==='') throw new Problem(`${eventsFile}: row ${r.line}: blank ID`);
+    if (seen.has(id)) {
+      const old=seen.get(id); if (old.join('\0')!==r.values.join('\0')) throw new Problem(`${eventsFile}: row ${r.line}: conflicting duplicate ID ${id}`);
+      const s=states.get(sku); const snap=snapshot(s); audit.push({id,disposition:'duplicate',before:snap,after:snap}); duplicate++; continue;
+    }
+    const s=states.get(sku); if (!s) throw new Problem(`${eventsFile}: row ${r.line}: unknown SKU`);
+    seen.set(id,r.values.slice());
+    const n=integer(qtext,eventsFile,r.line,true);
+    const before=snapshot(s);
+    const fail=(m)=>{ throw new Problem(`${eventsFile}: row ${r.line}: ${m}`); };
+    if (!['RECEIVE','RESERVE','RELEASE','SHIP','RETURN'].includes(type)) fail('invalid event type');
+    if (type==='RECEIVE') {
+      if (ref!=='') fail('RECEIVE ref must be empty'); s.onHand=add(s.onHand,n,'onHand');
+    } else if (type==='RESERVE') {
+      if (ref==='') fail('reservation ref required');
+      if (reservations.has(ref)) fail('reservation ref must be globally new');
+      if (s.onHand-s.reserved<n) fail('insufficient availability');
+      s.reserved=add(s.reserved,n,'reserved'); const reservation={sku,remaining:n}; s.reservations.set(ref,reservation); reservations.set(ref,reservation);
+    } else if (type==='RELEASE' || type==='SHIP') {
+      const res=reservations.get(ref); if (!res) fail('unknown reservation reference');
+      if (res.sku!==sku) fail('cross-SKU reference');
+      if (n>res.remaining) fail(type==='RELEASE'?'over-release':'over-shipment');
+      res.remaining-=n; s.reserved=sub(s.reserved,n,'reserved');
+      if (type==='SHIP') { s.onHand=sub(s.onHand,n,'onHand'); ships.set(id,{sku,quantity:n,returned:0}); }
+    } else {
+      if (ref==='') fail('shipment reference required');
+      const sh=ships.get(ref); if (!sh) fail('RETURN must reference an earlier SHIP event');
+      if (sh.sku!==sku) fail('cross-SKU reference');
+      if (n>sh.quantity-sh.returned) fail('over-return');
+      sh.returned=add(sh.returned,n,'returned'); s.onHand=add(s.onHand,n,'onHand');
+    }
+    const after=snapshot(s); audit.push({id,disposition:'applied',before,after}); applied++;
+  }
+  const lines=['sku,onHand,reserved,available'];
+  [...states.keys()].sort().forEach(sku=>{ const s=states.get(sku); lines.push([sku,s.onHand,s.reserved,s.onHand-s.reserved].map(csvCell).join(',')); });
+  const stock=lines.join('\n')+'\n';
+  const auditText=JSON.stringify({events:audit,applied,duplicates:duplicate},null,2)+'\n';
+  let temps=[], backups=[], published=[];
+  try {
+    fs.mkdirSync(out,{recursive:true});
+    const targets=[path.join(out,'stock.csv'),path.join(out,'audit.json')];
+    for (const target of targets) if (fs.existsSync(target) && fs.statSync(target).isDirectory())
+      throw new Error(target+' is a directory');
+    for (const [target,data] of [[targets[0],stock],[targets[1],auditText]]) {
+      const temp=path.join(out,'.reconcile-'+process.pid+'-'+Math.random().toString(16).slice(2));
+      fs.writeFileSync(temp,data); temps.push(temp);
+    }
+    for (const target of targets) if (fs.existsSync(target)) {
+      const backup=path.join(out,'.reconcile-backup-'+process.pid+'-'+Math.random().toString(16).slice(2));
+      fs.renameSync(target,backup); backups.push([target,backup]);
+    }
+    for (let i=0;i<targets.length;i++) { fs.renameSync(temps[i],targets[i]); published.push(targets[i]); }
+    for (const [,backup] of backups) fs.unlinkSync(backup);
+  } catch(e) {
+    for (const target of published) try { fs.unlinkSync(target); } catch {}
+    for (const [target,backup] of backups) try { fs.renameSync(backup,target); } catch {}
+    for (const temp of temps) try { fs.unlinkSync(temp); } catch {}
+    throw new Problem('output: cannot publish: '+e.message,2);
+  }
+}
+try { main(process.argv.slice(2)); } catch(e) { process.stderr.write((e.message||String(e))+'\n'); process.exitCode=e.code||1; }

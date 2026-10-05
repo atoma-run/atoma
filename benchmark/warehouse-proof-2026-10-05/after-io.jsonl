@@ -1,0 +1,3 @@
+{"name":"crlf-error-row","passed":true,"exitCode":1,"stderr":"/private/var/folders/xx/g4fq_5v13xd_7g3svk48qg6w0000gn/T/warehouse-boundary-mhDHqS/input/events.csv: row 3: invalid quantity\n"}
+{"name":"aliased-output-must-not-overwrite-input","passed":true,"exitCode":2,"stderr":"output destination would overwrite an input (resolved path identity)\n"}
+{"name":"second-output-publication-failure","passed":true,"exitCode":2,"stderr":"output: cannot publish: /private/var/folders/xx/g4fq_5v13xd_7g3svk48qg6w0000gn/T/warehouse-boundary-Agxhwl/out/audit.json is a directory\n"}

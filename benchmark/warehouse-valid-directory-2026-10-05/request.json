@@ -1,0 +1,16 @@
+{
+  "projectId": "707e6ca4-5de5-4a1e-937a-a9017bde4b43",
+  "goal": "Fix the overbroad output-directory refusal in the seeded warehouse CLI without changing its existing reconciliation contract or removing any passing regression assertions. The current implementation refuses outIdentity equal to an input parent directory. That is too broad: only destinations that would overwrite an actual input identity should be refused.\n\nConcrete VALID cases: in one directory, opening.csv contains sku,onHand then A,10; events.csv contains its normal header then e,A,RECEIVE,1, . With --out . the CLI must exit 0, preserve both inputs byte-for-byte, and write stock.csv containing A,11,0,11 and a matching audit with one applied event. A directory symlink alias pointing to that same directory must also succeed when used as --out alias. Outputs have different names from both inputs, so neither case is a collision.\n\nConcrete INVALID cases: when the opening input itself is named stock.csv in the destination directory, --out pointing directly there OR to its directory symlink must refuse before changing any input/output bytes. Preserve direct events-input collisions, the audit.json-directory publication failure protection, rollback, CRLF row diagnostics, all reservation/CSV/quantity fixes, deterministic outputs and duplicate/excess-return preservation.\n\nCorrect the existing symlink regression fixture: it currently calls a non-colliding directory unsafe and encodes the undesired restriction. Replace that assertion with the two valid cases AND real direct/symlink input collisions. This changes an incorrect test convention, not the safety requirement. Assert exit status, actual output/audit state, input byte preservation and the right refusal cause. Run the full existing subprocess suite and document accurately what passed. Keep the change narrowly scoped and retain the seven existing acceptance criteria.",
+  "acceptanceCriteria": [
+    "CLI runs on Node.js 24 without dependencies or network access; help works and inputs are never overwritten.",
+    "CSV parsing handles BOM, CRLF, quoted commas, doubled quotes and newlines; invalid syntax, columns and quantities are refused.",
+    "All five event types enforce stock, reservation and return prerequisites, including same-SKU references and safe integer arithmetic.",
+    "Identical event IDs are idempotent before transition checks; conflicting duplicates fail without changing existing outputs.",
+    "The fixed example yields A=9/0/9, B=7/2/5, six applied rows and one duplicate; excess return fails preserving outputs.",
+    "Stock CSV and per-row before/after audit JSON are deterministic; zero-stock SKUs and opening-only input work.",
+    "Subprocess regression tests pass, cover late failure preservation and hostile CSV cases, and the report accurately states observed results.",
+    "A shared input/output directory, direct or symlinked, succeeds when filenames do not collide; actual input identity collisions are refused."
+  ],
+  "depth": "deep",
+  "idempotencyKey": "warehouse-valid-directory-20261005-1"
+}

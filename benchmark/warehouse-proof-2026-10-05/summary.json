@@ -1,0 +1,32 @@
+{
+  "runId": "a239be59-4a72-4592-a634-f3fe3161aff9",
+  "revision": "5182794e568f6bb9650cdc499abd56afaad03723",
+  "publication": {
+    "status": "published",
+    "repositoryFullName": "mgtf/atoma-stock-reconcile-20261005",
+    "repositoryUrl": "https://github.com/mgtf/atoma-stock-reconcile-20261005",
+    "git": {
+      "branch": "main",
+      "baseBranch": "main",
+      "defaultBranch": "main",
+      "publishKind": "extended",
+      "mode": "direct"
+    },
+    "remoteState": "not-checked",
+    "mergeStatus": "not-applicable",
+    "baseSha": "9655fa0b5a8b5342fdb38c0466f9e742c72aea00",
+    "error": null,
+    "publishedAt": "2026-10-05T02:20:02.083Z",
+    "updatedAt": "2026-10-05T02:20:02.083Z",
+    "commitSha": "37095388058acebef60323890a2457ae868524e7"
+  },
+  "focusedCalls": 4,
+  "focusedDurationMs": 47669,
+  "focusedSubscriptionEquivalentUsd": 0.0204428,
+  "runDurationS": 709.781,
+  "runSubscriptionEquivalentUsd": 0.1975,
+  "independentRegressionPasses": 12,
+  "validDirectoryPasses": 0,
+  "validDirectoryCases": 2,
+  "caveat": "All original counterexamples pass, but an overbroad new directory refusal still rejects valid non-colliding inputs. Not a universal correctness claim."
+}

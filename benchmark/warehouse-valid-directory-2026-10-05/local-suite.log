@@ -1,0 +1,19 @@
+✔ --help (25.390792ms)
+✔ fixed example and deterministic repeat (46.876541ms)
+✔ partial transitions and repeated shipment (22.819166ms)
+✔ csv hostile and CRLF BOM (23.580833ms)
+✔ multiline and doubled quote identifiers (22.830875ms)
+✔ conflicts, prerequisites, malformed and quantities fail; outputs preserved (217.278459ms)
+✔ opening-only, direct collision, and excess return preserve every byte (118.0315ms)
+✔ regressions: reservation lifecycle, namespaces, zero quantity, and quoted final columns (168.705333ms)
+✔ transition prerequisites and partial limits have specific diagnostics (122.621291ms)
+✔ defect regressions prove setup, refusal causes, and byte preservation (141.772166ms)
+✔ explicit arithmetic and destination boundaries (95.460584ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1044.417709
