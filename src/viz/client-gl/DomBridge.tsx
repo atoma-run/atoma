@@ -139,6 +139,7 @@ export function DomBridge({
   onCreateProject,
   onStartRun,
   projectBusy = false,
+  runInProgress = false,
   projectError = null,
   projectActionsEnabled = true,
   pushPrompt = 'hidden',
@@ -169,6 +170,8 @@ export function DomBridge({
   onCreateProject?: () => void;
   onStartRun?: () => void;
   projectBusy?: boolean;
+  /** The global run lease is occupied; the run form must not invite another launch. */
+  runInProgress?: boolean;
   projectError?: string | null;
   /** Project mutations exist only behind the auth gate. */
   projectActionsEnabled?: boolean;
@@ -482,7 +485,7 @@ export function DomBridge({
           inert={overlaysInert}
           onSubmit={(event) => event.preventDefault()}
         >
-          {selectedProjectName ? (
+          {selectedProjectName && !runInProgress ? (
             // ONE job at a time. A selected project means the next act is a
             // run on it, so the create fields step aside — they belong to a
             // project that does not exist yet. Clicking the selected row
@@ -497,7 +500,7 @@ export function DomBridge({
               onChange={(event) => setSearch('projectPrompt', event.target.value)}
             />
           ) : null}
-          {selectedProjectName ? (
+          {selectedProjectName && !runInProgress ? (
             // THE USER'S ACCEPTANCE CRITERIA, optional, one per line — the
             // grammar `parseChecklistLines` reads. Beside the goal, not below
             // it, so the wide run form keeps its height contract.
@@ -592,7 +595,9 @@ export function DomBridge({
             {activeGithubInstallations.length === 0 ? (
               <a href="/auth/github/connect">{t('projects.connectGithub')}</a>
             ) : null}
-            {selectedProjectLabel ? (
+            {selectedProjectLabel && runInProgress ? (
+              <span role="status">{t('projects.runInProgress')}</span>
+            ) : selectedProjectLabel ? (
               <button
                 type="button"
                 disabled={projectBusy}
@@ -610,7 +615,7 @@ export function DomBridge({
           </div>
           <p className="gpu-project-hint">
             {selectedProjectLabel
-              ? t(selectedProject?.repositoryTarget?.source ? 'projects.actionsHint.readyImported' : 'projects.actionsHint.ready', { name: selectedProjectLabel })
+              ? runInProgress ? t('projects.runInProgressHint') : t(selectedProject?.repositoryTarget?.source ? 'projects.actionsHint.readyImported' : 'projects.actionsHint.ready', { name: selectedProjectLabel })
               : projectRepositoryMode !== 'new' ? t(projectRepositoryMode === 'fork' ? 'projects.sourceHint.fork' : 'projects.sourceHint.pullRequest') : `${t('projects.actionsHint.new')} ${t(
                   projectVisibility === 'public'
                     ? 'projects.visibility.publicHint'

@@ -246,7 +246,7 @@
   "registry.detailElements": "Elementos",
   "registry.detailParams": "Parâmetros",
   "registry.detailProvenance": "Proveniência",
-  "registry.detailNoTools": "Nenhum — este nível não invoca elementos.",
+  "registry.detailNoTools": "",
   "registry.detailNoParams": "Sem substituições ao nível do tipo.",
   "registry.detailParamsUnreadable": "Não foi possível ler os parâmetros.",
   "registry.detailCreated": "Criado · {{by}} · {{at}}",

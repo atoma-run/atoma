@@ -246,7 +246,7 @@
   "registry.detailElements": "एलिमेंट",
   "registry.detailParams": "पैरामीटर",
   "registry.detailProvenance": "उद्गम",
-  "registry.detailNoTools": "कोई नहीं — यह रैंक एलिमेंट को कॉल नहीं करती।",
+  "registry.detailNoTools": "",
   "registry.detailNoParams": "प्रकार-स्तर पर कोई ओवरराइड नहीं।",
   "registry.detailParamsUnreadable": "पैरामीटर पढ़े नहीं जा सके।",
   "registry.detailCreated": "बनाया गया · {{by}} · {{at}}",

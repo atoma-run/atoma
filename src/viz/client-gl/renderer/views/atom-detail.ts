@@ -1,5 +1,6 @@
 import { Rectangle } from 'pixi.js';
 import { formatDateTime } from '../../../client/date-format.js';
+import { trustCountsLabel } from '../../../client/trust-counts.js';
 import type { RegistryType } from '../../../client/types.js';
 import { taxonomyForTier } from '../../../../core/taxonomy.js';
 import { elementForTool } from '../../../../contracts/toolTaxonomy.js';
@@ -48,7 +49,7 @@ export function drawAtomDetail(
   ctx.text(ctx.root, atom.name, x + 18, y + 16, { size: 16, weight: '700' });
   ctx.text(
     ctx.root,
-    `L${atom.tier} ${snapshot.t(`rank.${taxonomy.rank}`)} · #${atom.ordinal} · v${atom.version} · ✓${atom.successes}/✗${atom.failures}`,
+    [`L${atom.tier} ${snapshot.t(`rank.${taxonomy.rank}`)}`, `#${atom.ordinal}`, `v${atom.version}`, trustCountsLabel(atom)].filter(Boolean).join(' · '),
     x + 18,
     y + 43,
     { size: 10, color: GPU_COLORS.tiers[atom.tier as 1 | 2 | 3] }
@@ -93,9 +94,8 @@ export function drawAtomDetail(
     cursor += Math.max(12, drawn.height) + SECTION_GAP;
   };
 
-  // Elements first: for a molecule this is what it can actually DO, and for
-  // the other ranks its emptiness is the invariant (only L1 holds tools).
-  heading(snapshot.t('registry.detailElements'));
+  // Stored L2/L3 elements are available only during last-resort self-execution.
+  heading(snapshot.t(atom.tier === 1 ? 'registry.detailElements' : 'registry.detailFallbackElements'));
   if (atom.tools.length === 0) {
     body(snapshot.t('registry.detailNoTools'), { muted: true });
   } else {
@@ -111,14 +111,23 @@ export function drawAtomDetail(
       { mono: true }
     );
   }
+  if (atom.tier !== 1 && atom.tools.length > 0) {
+    body(snapshot.t('registry.detailFallbackElementsHint'), { muted: true });
+  }
 
   heading(snapshot.t('registry.detailParams'));
   if (isEmptyRecord(atom.params)) {
     body(snapshot.t('registry.detailNoParams'), { muted: true });
   } else {
-    body(safeJson(atom.params) ?? snapshot.t('registry.detailParamsUnreadable'), {
-      mono: true,
-    });
+    for (const [key, value] of Object.entries(atom.params)) {
+      const label = key === 'maxTokens'
+        ? snapshot.t('registry.paramMaxTokens')
+        : key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').replace(/^./, (letter) => letter.toUpperCase());
+      const display = typeof value === 'number'
+        ? value.toLocaleString(snapshot.state.locale)
+        : typeof value === 'string' ? value : safeJson(value);
+      body(`${label}  ·  ${display ?? snapshot.t('registry.detailParamsUnreadable')}`);
+    }
   }
 
   heading(snapshot.t('registry.detailProvenance'));

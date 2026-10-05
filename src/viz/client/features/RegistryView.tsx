@@ -20,6 +20,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '../data-api.js';
 import { useI18n } from '../i18n.js';
 import { atomSearchText, matchesSearchQuery } from '../search.js';
+import { trustCountsLabel } from '../trust-counts.js';
 import { CodeBlock, EmptyPane, ErrorPane, LoadingPane, StatCard, TierChip } from '../shared.js';
 import type { RegistrySummary, RegistryType, SkillSummary } from '../types.js';
 import { elementForTool } from '../../../contracts/toolTaxonomy.js';
@@ -58,12 +59,12 @@ function AtomDetail({
       </Box>
       <Divider />
       <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
-        <StatCard label={t('registry.successes')} value={atom.successes} accent="#4ade80" />
-        <StatCard label={t('registry.failures')} value={atom.failures} accent="#f87171" />
+        {atom.tier !== 3 ? <StatCard label={t('registry.successes')} value={atom.successes} accent="#4ade80" /> : null}
+        {atom.tier !== 3 ? <StatCard label={t('registry.failures')} value={atom.failures} accent="#f87171" /> : null}
         <StatCard label={t('registry.createdBy')} value={atom.createdBy} />
       </Stack>
       <Box>
-        <Typography variant="subtitle2" sx={{ mb: 0.75 }}>{t('common.tools')}</Typography>
+        <Typography variant="subtitle2" sx={{ mb: 0.75 }}>{t(atom.tier === 1 ? 'registry.detailElements' : 'registry.detailFallbackElements')}</Typography>
         <Stack direction="row" spacing={0.5} useFlexGap sx={{ flexWrap: 'wrap' }}>
           {atom.tools.map((tool) => {
             const element = elementForTool(tool);
@@ -79,6 +80,7 @@ function AtomDetail({
           })}
           {!atom.tools.length ? <Typography color="text.secondary">{t('common.none')}</Typography> : null}
         </Stack>
+        {atom.tier !== 1 && atom.tools.length > 0 ? <Typography variant="caption" color="text.secondary">{t('registry.detailFallbackElementsHint')}</Typography> : null}
       </Box>
       <Box>
         <Typography variant="subtitle2" sx={{ mb: 0.75 }}>{t('common.params')}</Typography>
@@ -232,7 +234,7 @@ export function RegistryView({
                         <Chip
                           key={item.name}
                           label={item.name}
-                          title={`v${item.version} · ✓${item.successes}/✗${item.failures}`}
+                          title={[`v${item.version}`, trustCountsLabel(item)].filter(Boolean).join(' · ')}
                           color={selectedAtom === item.name ? 'primary' : 'default'}
                           variant={selectedAtom === item.name ? 'filled' : 'outlined'}
                           onClick={() => setSelectedAtom(item.name)}

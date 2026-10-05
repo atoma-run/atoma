@@ -246,7 +246,7 @@
   "registry.detailElements": "এলিমেন্ট",
   "registry.detailParams": "প্যারামিটার",
   "registry.detailProvenance": "উৎসপরিচয়",
-  "registry.detailNoTools": "কোনোটিই নয়—এই র‍্যাঙ্ক এলিমেন্ট আহ্বান করে না।",
+  "registry.detailNoTools": "",
   "registry.detailNoParams": "টাইপ-স্তরের কোনো ওভাররাইড নেই।",
   "registry.detailParamsUnreadable": "প্যারামিটারগুলো পড়া যায়নি।",
   "registry.detailCreated": "তৈরি · {{by}} · {{at}}",

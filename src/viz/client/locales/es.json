@@ -246,7 +246,7 @@
   "registry.detailElements": "Elementos",
   "registry.detailParams": "Parámetros",
   "registry.detailProvenance": "Procedencia",
-  "registry.detailNoTools": "Ninguno: este rango no invoca elementos.",
+  "registry.detailNoTools": "",
   "registry.detailNoParams": "Sin anulaciones a nivel de tipo.",
   "registry.detailParamsUnreadable": "No se pudieron leer los parámetros.",
   "registry.detailCreated": "Creado · {{by}} · {{at}}",

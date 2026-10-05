@@ -246,7 +246,7 @@
   "registry.detailElements": "العناصر",
   "registry.detailParams": "المعلمات",
   "registry.detailProvenance": "المصدر",
-  "registry.detailNoTools": "لا شيء — هذه الرتبة لا تستدعي عناصر.",
+  "registry.detailNoTools": "",
   "registry.detailNoParams": "لا توجد تجاوزات على مستوى النوع.",
   "registry.detailParamsUnreadable": "تعذّرت قراءة المعلمات.",
   "registry.detailCreated": "أُنشئ · {{by}} · {{at}}",

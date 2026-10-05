@@ -662,7 +662,7 @@ function GpuAppContent({
     requestPreview, closePreview, stopPreview, reloadPreview } = usePreviewSession({ previewTarget, previewSummary, t });
 
   const startProjectRun = useCallback(async (): Promise<void> => {
-    if (projectBusy) return;
+    if (projectBusy || hasLiveRun) return;
     const projectId = useGpuStore.getState().selectedProjectId;
     const goal = useGpuStore.getState().search.projectPrompt.trim();
     if (!projectId) {
@@ -699,7 +699,7 @@ function GpuAppContent({
     } finally {
       setProjectBusy(false);
     }
-  }, [projectBusy, queryClient, t]);
+  }, [projectBusy, hasLiveRun, queryClient, t]);
 
   const activate = useCallback((id: string) => {
     if (id === 'result.close') { useGpuStore.getState().selectResult(null); return; }
@@ -1229,6 +1229,7 @@ function GpuAppContent({
           onCreateProject={() => { void createProject(); }}
           onStartRun={() => { void startProjectRun(); }}
           projectBusy={projectBusy}
+          runInProgress={hasLiveRun}
           projectError={projectError}
           pushPrompt={pushPrompt}
           onEnablePush={() => { void enablePush(); }}

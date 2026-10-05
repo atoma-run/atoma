@@ -246,7 +246,7 @@
   "registry.detailElements": "Elemente",
   "registry.detailParams": "Parameter",
   "registry.detailProvenance": "Herkunft",
-  "registry.detailNoTools": "Keine — dieser Rang ruft keine Elemente auf.",
+  "registry.detailNoTools": "",
   "registry.detailNoParams": "Keine Überschreibungen auf Typebene.",
   "registry.detailParamsUnreadable": "Parameter konnten nicht gelesen werden.",
   "registry.detailCreated": "Erstellt · {{by}} · {{at}}",

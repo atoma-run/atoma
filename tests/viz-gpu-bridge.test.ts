@@ -367,6 +367,23 @@ describe('full-GL minimal DOM bridge', () => {
     expect(screen.queryByRole('textbox', { name: 'Project name' })).not.toBeInTheDocument();
   });
 
+  it('replaces the run form with the active-run state while the lease is occupied', () => {
+    useGpuStore.setState({ view: 'projects', entered: true, selectedProjectId: 'project-weather' });
+    const onStartRun = vi.fn();
+    render(createElement(DomBridge, {
+      runs, releaseVersion: '9.8.7', onSelectRun: vi.fn(), onStartRun,
+      t: (key: string, vars?: Record<string, unknown>) => translate('en', key, vars),
+      projects: [{ projectId: 'project-weather', name: 'Weather Lab' }],
+      runInProgress: true,
+    }));
+    expect(screen.getByRole('status')).toHaveTextContent('Run in progress');
+    expect(screen.getByText(/start another after it finishes/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Start run on Weather Lab' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Run prompt' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Acceptance criteria' })).not.toBeInTheDocument();
+    expect(onStartRun).not.toHaveBeenCalled();
+  });
+
   it.each(['fork', 'pull-request'] as const)('explains that a %s project resumes from GitHub rather than unpublished partial bytes', mode => {
     useGpuStore.setState({ view: 'projects', entered: true, selectedProjectId: 'imported' });
     render(createElement(DomBridge, {

@@ -246,7 +246,7 @@
   "registry.detailElements": "要素",
   "registry.detailParams": "パラメーター",
   "registry.detailProvenance": "来歴",
-  "registry.detailNoTools": "なし—このランクは要素を呼び出しません。",
+  "registry.detailNoTools": "",
   "registry.detailNoParams": "タイプ単位のオーバーライドはありません。",
   "registry.detailParamsUnreadable": "パラメーターを読み取れませんでした。",
   "registry.detailCreated": "作成・{{by}}・{{at}}",

@@ -246,7 +246,7 @@
   "registry.detailElements": "Элементы",
   "registry.detailParams": "Параметры",
   "registry.detailProvenance": "Происхождение",
-  "registry.detailNoTools": "Нет — этот ранг не вызывает элементы.",
+  "registry.detailNoTools": "",
   "registry.detailNoParams": "Нет переопределений на уровне типа.",
   "registry.detailParamsUnreadable": "Не удалось прочитать параметры.",
   "registry.detailCreated": "Создано · {{by}} · {{at}}",

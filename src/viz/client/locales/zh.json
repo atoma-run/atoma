@@ -246,7 +246,7 @@
   "registry.detailElements": "元素",
   "registry.detailParams": "参数",
   "registry.detailProvenance": "来源",
-  "registry.detailNoTools": "无——此等级不会调用元素。",
+  "registry.detailNoTools": "",
   "registry.detailNoParams": "无类型级覆盖。",
   "registry.detailParamsUnreadable": "无法读取参数。",
   "registry.detailCreated": "创建 · {{by}} · {{at}}",

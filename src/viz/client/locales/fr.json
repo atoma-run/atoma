@@ -246,7 +246,7 @@
   "registry.detailElements": "Éléments",
   "registry.detailParams": "Paramètres",
   "registry.detailProvenance": "Provenance",
-  "registry.detailNoTools": "Aucun — ce rang n’invoque pas d’éléments.",
+  "registry.detailNoTools": "",
   "registry.detailNoParams": "Aucune surcharge au niveau du type.",
   "registry.detailParamsUnreadable": "Les paramètres sont illisibles.",
   "registry.detailCreated": "Créé · {{by}} · le {{at}}",

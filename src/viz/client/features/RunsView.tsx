@@ -19,6 +19,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../data-api.js';
 import { useI18n } from '../i18n.js';
+import { trustCountsLabel } from '../trust-counts.js';
 import {
   buildAtomMap,
   coerceEventFilters,
@@ -334,7 +335,7 @@ function AtomLanes({
               {entries.map((entry) => (
                 <Tooltip
                   key={entry.snapshot.name}
-                  title={`${t(`registry.origin.${entry.origin}`)} · v${entry.snapshot.version} · ✓${entry.snapshot.successes}/✗${entry.snapshot.failures}`}
+                  title={[t(`registry.origin.${entry.origin}`), `v${entry.snapshot.version}`, trustCountsLabel(entry.snapshot)].filter(Boolean).join(' · ')}
                 >
                   <Chip
                     size="small"
@@ -510,12 +511,12 @@ function AtomDetail({ atom }: { atom: AtomView }) {
         <Chip size="small" label={t(`registry.origin.${atom.origin}`)} variant="outlined" />
       </Stack>
       <Typography color="text.secondary">{atom.snapshot.description}</Typography>
-      <Stack direction="row" spacing={1}>
+      {atom.snapshot.tier !== 3 ? <Stack direction="row" spacing={1}>
         <StatCard label={t('registry.successes')} value={atom.snapshot.successes} accent="#4ade80" />
         <StatCard label={t('registry.failures')} value={atom.snapshot.failures} accent="#f87171" />
-      </Stack>
+      </Stack> : null}
       <Box>
-        <Typography variant="subtitle2" sx={{ mb: 0.75 }}>{t('common.tools')}</Typography>
+        <Typography variant="subtitle2" sx={{ mb: 0.75 }}>{t(atom.snapshot.tier === 1 ? 'registry.detailElements' : 'registry.detailFallbackElements')}</Typography>
         <Stack direction="row" spacing={0.5} useFlexGap sx={{ flexWrap: 'wrap' }}>
           {atom.snapshot.tools.map((tool) => {
             const element = elementForTool(tool);
@@ -530,6 +531,7 @@ function AtomDetail({ atom }: { atom: AtomView }) {
             );
           })}
         </Stack>
+        {atom.snapshot.tier !== 1 && atom.snapshot.tools.length > 0 ? <Typography variant="caption" color="text.secondary">{t('registry.detailFallbackElementsHint')}</Typography> : null}
       </Box>
       <Box>
         <Typography variant="subtitle2" sx={{ mb: 0.75 }}>{t('common.systemPrompt')}</Typography>

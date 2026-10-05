@@ -1,4 +1,5 @@
 import { atomSearchText, matchesSearchQuery } from '../../../client/search.js';
+import { trustCountsLabel } from '../../../client/trust-counts.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
 import { createScrollPane } from '../scroll-pane.js';
@@ -149,7 +150,7 @@ export function drawRegistry(
           pane.content,
           `registry.atom.${atom.name}`,
           'button',
-          `${atom.name} · ✓${atom.successes}/✗${atom.failures}`,
+          [atom.name, trustCountsLabel(atom)].filter(Boolean).join(' · '),
           16,
           y,
           leftWidth - 32,

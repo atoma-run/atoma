@@ -268,7 +268,7 @@
   "registry.detailElements": "عناصر",
   "registry.detailParams": "پیرامیٹرز",
   "registry.detailProvenance": "ماخذ",
-  "registry.detailNoTools": "کوئی نہیں — یہ رینک عناصر کو استعمال نہیں کرتا۔",
+  "registry.detailNoTools": "",
   "registry.detailNoParams": "قسم کی سطح پر کوئی اوور رائیڈ نہیں۔",
   "registry.detailParamsUnreadable": "پیرامیٹرز پڑھے نہیں جا سکے۔",
   "registry.detailCreated": "تخلیق · {{by}} · {{at}}",

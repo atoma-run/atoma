@@ -246,7 +246,7 @@
   "registry.detailElements": "Elemen",
   "registry.detailParams": "Parameter",
   "registry.detailProvenance": "Asal-usul",
-  "registry.detailNoTools": "Tidak ada — peringkat ini tidak memanggil elemen.",
+  "registry.detailNoTools": "",
   "registry.detailNoParams": "Tidak ada penggantian pada tingkat jenis.",
   "registry.detailParamsUnreadable": "Parameter tidak dapat dibaca.",
   "registry.detailCreated": "Dibuat · {{by}} · {{at}}",

@@ -4083,7 +4083,7 @@ describe('drawRegistry scrolling honesty', () => {
     ].join('\n'));
   });
 
-  it('keeps non-empty parameters as formatted JSON', () => {
+  it('shows non-empty parameters as readable values', () => {
     const ctx = createRecordingCtx();
     const configured = makeRegistryType('Configured', {
       params: { maxTokens: 2048, temperature: 0.2 },
@@ -4100,9 +4100,10 @@ describe('drawRegistry scrolling honesty', () => {
       WIDTH,
       900
     );
-    expect(ctx.texts.map((text) => text.value)).toContain(
-      JSON.stringify(configured.params, null, 2)
-    );
+    const values = ctx.texts.map((text) => text.value);
+    expect(values).toContain('Max tokens  ·  2,048');
+    expect(values).toContain('Temperature  ·  0.2');
+    expect(values).not.toContain(JSON.stringify(configured.params, null, 2));
   });
 
   it('scrolls a long system prompt inside the detail pane', () => {
