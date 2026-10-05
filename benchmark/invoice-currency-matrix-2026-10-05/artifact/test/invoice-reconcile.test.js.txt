@@ -1,0 +1,100 @@
+'use strict';
+const assert=require('assert'),fs=require('fs'),os=require('os'),path=require('path'),cp=require('child_process');
+const root=path.resolve(__dirname,'..'), cli=path.join(root,'invoice-reconcile.js'), dir=fs.mkdtempSync(path.join(os.tmpdir(),'reconcile-'));
+function run(args){return cp.spawnSync(process.execPath,[cli,...args],{encoding:'utf8'})}
+function write(name,x){let p=path.join(dir,name);fs.writeFileSync(p,JSON.stringify(x));return p}
+function go(name,x,out='out.json'){let i=write(name,x),o=path.join(dir,out),r=run(['--input',i,'--out',o]);assert.equal(r.status,0,r.stderr);return {v:JSON.parse(fs.readFileSync(o)),b:fs.readFileSync(o)}}
+let x={invoices:[{id:'E',currency:'EUR',lines:[{quantity:3,unitPrice:'1.005'}],taxBps:2000},{id:'j',currency:'JPY',lines:[{quantity:3,unitPrice:'10.5'}],taxBps:1000},{id:'k',currency:'KWD',lines:[{quantity:3,unitPrice:'1.2345'}],taxBps:500},{id:'u',currency:'USD',lines:[{quantity:2,unitPrice:'9007199254740991.99'}],taxBps:0}],credits:[{id:'c',invoiceId:'E',currency:'EUR',amount:'0.62'}],payments:[{id:'p1',currency:'EUR',amount:'2.00',allocations:[{invoiceId:'E',amount:'1.10'}]},{id:'p2',currency:'EUR',amount:'1.90',allocations:[{invoiceId:'E',amount:'1.90'}]},{id:'z',currency:'EUR',amount:'0.00',allocations:[]}]};
+let r=go('ledger.json',x);assert.deepEqual(r.v.invoices[0],{id:'E',currency:'EUR',subtotal:'3.02',tax:'0.60',total:'3.62',credited:'0.62',paid:'3.00',balance:'0.00',status:'settled'});assert.deepEqual(r.v.invoices.map(v=>v.id),['E','j','k','u'],'invoices use code-unit ID order');assert.deepEqual(r.v.payments.map(v=>v.id),['p1','p2','z'],'payments use code-unit ID order');assert.equal(r.v.invoices.find(v=>v.id==='j').total,'35');assert.equal(r.v.invoices.find(v=>v.id==='k').total,'3.889');assert.equal(r.v.invoices.find(v=>v.id==='u').subtotal,'18014398509481983.98');assert.equal(r.v.payments.find(v=>v.id==='p1').unapplied,'0.90');
+const usdTaxCases=[
+  ['usd-tax-rounding',{id:'usd-tax',currency:'USD',lines:[{quantity:1,unitPrice:'10.01'}],taxBps:825},{id:'usd-tax',currency:'USD',subtotal:'10.01',tax:'0.83',total:'10.84',credited:'0.00',paid:'0.00',balance:'10.84',status:'open'}],
+  ['usd-tax-half-up-tie',{id:'usd-tie',currency:'USD',lines:[{quantity:1,unitPrice:'0.05'}],taxBps:1000},{id:'usd-tie',currency:'USD',subtotal:'0.05',tax:'0.01',total:'0.06',credited:'0.00',paid:'0.00',balance:'0.06',status:'open'}]
+];
+for(const [name,invoice,expected] of usdTaxCases){
+  const actual=go(name,{invoices:[invoice],credits:[],payments:[]},name+'.out').v;
+  assert.deepEqual(actual,{invoices:[expected],payments:[],duplicates:{invoices:0,credits:0,payments:0}});
+}
+const fourCurrency={invoices:[
+  {id:'K',currency:'KWD',lines:[{quantity:3,unitPrice:'1.2345'}],taxBps:500},
+  {id:'J',currency:'JPY',lines:[{quantity:3,unitPrice:'10.5'}],taxBps:1000},
+  {id:'U',currency:'USD',lines:[{quantity:1,unitPrice:'10.01'}],taxBps:825},
+  {id:'E',currency:'EUR',lines:[{quantity:3,unitPrice:'1.005'}],taxBps:2000}
+],credits:[],payments:[]};
+const fourInput=write('four-currency.json',fourCurrency), fourBefore=fs.readFileSync(fourInput);
+const fourOut1=path.join(dir,'four-currency-1.out'),fourOut2=path.join(dir,'four-currency-2.out');
+assert.equal(run(['--input',fourInput,'--out',fourOut1]).status,0);
+assert.equal(run(['--input',fourInput,'--out',fourOut2]).status,0);
+const fourExpected={invoices:[
+  {id:'E',currency:'EUR',subtotal:'3.02',tax:'0.60',total:'3.62',credited:'0.00',paid:'0.00',balance:'3.62',status:'open'},
+  {id:'J',currency:'JPY',subtotal:'32',tax:'3',total:'35',credited:'0',paid:'0',balance:'35',status:'open'},
+  {id:'K',currency:'KWD',subtotal:'3.704',tax:'0.185',total:'3.889',credited:'0.000',paid:'0.000',balance:'3.889',status:'open'},
+  {id:'U',currency:'USD',subtotal:'10.01',tax:'0.83',total:'10.84',credited:'0.00',paid:'0.00',balance:'10.84',status:'open'}
+],payments:[],duplicates:{invoices:0,credits:0,payments:0}};
+assert.deepEqual(JSON.parse(fs.readFileSync(fourOut1)),fourExpected,'four-currency output must match literal expected JSON');
+assert.deepEqual(fs.readFileSync(fourOut1),fs.readFileSync(fourOut2),'four-currency repeat output bytes must match');
+assert.deepEqual(fs.readFileSync(fourInput),fourBefore,'four-currency repeat input bytes must match');
+const lineRound=go('per-line-rounding.json',{invoices:[{id:'L',currency:'EUR',lines:[
+  {quantity:1,unitPrice:'0.005'},{quantity:1,unitPrice:'0.005'},{quantity:1,unitPrice:'0.005'}
+],taxBps:0}],credits:[],payments:[]},'per-line-rounding.out').v;
+assert.deepEqual(lineRound,{invoices:[{id:'L',currency:'EUR',subtotal:'0.03',tax:'0.00',total:'0.03',credited:'0.00',paid:'0.00',balance:'0.03',status:'open'}],payments:[],duplicates:{invoices:0,credits:0,payments:0}});
+for(const [name,invoice,expected] of [
+  ['jpy-half-up-tie',{id:'J-tie',currency:'JPY',lines:[{quantity:1,unitPrice:'5'}],taxBps:1000},{id:'J-tie',currency:'JPY',subtotal:'5',tax:'1',total:'6',credited:'0',paid:'0',balance:'6',status:'open'}],
+  ['kwd-half-up-tie',{id:'K-tie',currency:'KWD',lines:[{quantity:1,unitPrice:'0.005'}],taxBps:1000},{id:'K-tie',currency:'KWD',subtotal:'0.005',tax:'0.001',total:'0.006',credited:'0.000',paid:'0.000',balance:'0.006',status:'open'}]
+]) assert.deepEqual(go(name,{invoices:[invoice],credits:[],payments:[]},name+'.out').v,{invoices:[expected],payments:[],duplicates:{invoices:0,credits:0,payments:0}});
+let dup={invoices:[{id:'__proto__',currency:'EUR',lines:[{quantity:1,unitPrice:'0.00'}],taxBps:0},{currency:'EUR',taxBps:0,lines:[{unitPrice:'0.00',quantity:1}],id:'__proto__'}],credits:[{id:'c',invoiceId:'__proto__',currency:'EUR',amount:'0.00'}],payments:[{id:'c',currency:'EUR',amount:'0.00',allocations:[]},{currency:'EUR',allocations:[],amount:'0.00',id:'c'}]};assert.equal(go('dup.json',dup).v.duplicates.invoices,1);assert.equal(go('dup2.json',{...dup,invoices:[...dup.invoices,{...dup.invoices[0],id:'a'}]}).v.invoices.length,2);
+let conflict={invoices:[{id:'x',currency:'EUR',lines:[{quantity:1,unitPrice:'1.00'}],taxBps:0}],credits:[{id:'c',invoiceId:'x',currency:'EUR',amount:'0.00'},{invoiceId:'x',id:'c',currency:'EUR',amount:'1.00'}],payments:[]};assert.notEqual(run(['--input',write('conflict.json',conflict),'--out',path.join(dir,'conflict-out')]).status,0);
+let base=path.join(dir,'prior');fs.writeFileSync(base,'KEEP');let bad=write('bad.json',{invoices:[],credits:[{id:'x',invoiceId:'missing',currency:'EUR',amount:'1.00'}],payments:[]});let q=run(['--input',bad,'--out',base]);assert.notEqual(q.status,0);assert.equal(fs.readFileSync(base,'utf8'),'KEEP');
+for(const badx of [{invoices:[],credits:[],payments:[],extra:1},{invoices:[{id:'x',currency:'EUR',lines:[],taxBps:0}],credits:[],payments:[]},{invoices:[],credits:[],payments:[{id:'p',currency:'EUR',amount:'1.00',allocations:[{invoiceId:'x',amount:'1.00'}]}]}]){let z=write('badx.json',badx);assert.notEqual(run(['--input',z,'--out',path.join(dir,'q')]).status,0)}
+function refusal(name,data){let i=write(name+'.json',data),o=path.join(dir,name+'.out');fs.writeFileSync(o,'KEEP');let z=run(['--input',i,'--out',o]);assert.notEqual(z.status,0,name+' should refuse');assert.ok(z.stderr.trim().length>0,name+' should diagnose on stderr');assert.equal(fs.readFileSync(o,'utf8'),'KEEP',name+' must preserve output bytes')}
+const oneInvoice={id:'i',currency:'EUR',lines:[{quantity:1,unitPrice:'10.00'}],taxBps:0};
+refusal('missing-reference',{invoices:[oneInvoice],credits:[{id:'c',invoiceId:'no-such-invoice',currency:'EUR',amount:'1.00'}],payments:[]});
+refusal('credit-currency-mismatch',{invoices:[oneInvoice],credits:[{id:'c',invoiceId:'i',currency:'USD',amount:'1.00'}],payments:[]});
+refusal('payment-currency-mismatch',{invoices:[oneInvoice],credits:[],payments:[{id:'p',currency:'USD',amount:'1.00',allocations:[{invoiceId:'i',amount:'1.00'}]}]});
+refusal('credit-exceeds-balance',{invoices:[oneInvoice],credits:[{id:'c',invoiceId:'i',currency:'EUR',amount:'10.01'}],payments:[]});
+refusal('allocations-exceed-payment',{invoices:[oneInvoice],credits:[],payments:[{id:'p',currency:'EUR',amount:'1.00',allocations:[{invoiceId:'i',amount:'0.60'},{invoiceId:'i',amount:'0.50'}]}]});
+refusal('allocation-exceeds-invoice',{invoices:[oneInvoice],credits:[],payments:[{id:'p',currency:'EUR',amount:'20.00',allocations:[{invoiceId:'i',amount:'10.01'}]}]});
+let same=write('same.json',{invoices:[],credits:[],payments:[]});assert.notEqual(run(['--input',same,'--out',same]).status,0);assert.equal(run(['--help']).status,0);
+let hard=path.join(dir,'hard');fs.linkSync(same,hard);assert.notEqual(run(['--input',same,'--out',hard]).status,0);let sym=path.join(dir,'sym');fs.symlinkSync(same,sym);assert.notEqual(run(['--input',same,'--out',sym]).status,0);assert.equal(go('empty.json',{invoices:[],credits:[],payments:[]},'distinct.json').v.duplicates.invoices,0);
+
+function refusalPreserves(name,data){
+  const i=write(name+'.json',data), before=fs.readFileSync(i);
+  const o=path.join(dir,name+'.out');fs.writeFileSync(o,'PREEXISTING\\n');const outBefore=fs.readFileSync(o);
+  const z=run(['--input',i,'--out',o]);
+  assert.notEqual(z.status,0,name+' should fail');
+  assert.ok(z.stderr.trim().length>0,name+' should diagnose');
+  assert.deepEqual(fs.readFileSync(i),before,name+' must preserve input bytes');
+  assert.deepEqual(fs.readFileSync(o),outBefore,name+' must preserve output bytes');
+}
+const currencyBadValues=[['EUR'],{},null,false,7];
+for(const [n,v] of currencyBadValues.entries()){
+  refusalPreserves('invoice-currency-type-'+n,{invoices:[{id:'i',currency:v,lines:[{quantity:1,unitPrice:'1.00'}],taxBps:0}],credits:[],payments:[]});
+  refusalPreserves('credit-currency-type-'+n,{invoices:[oneInvoice],credits:[{id:'c',invoiceId:'i',currency:v,amount:'1.00'}],payments:[]});
+  refusalPreserves('payment-currency-type-'+n,{invoices:[oneInvoice],credits:[],payments:[{id:'p',currency:v,amount:'1.00',allocations:[]}]});
+}
+refusalPreserves('invalid-decimal-syntax',{invoices:[{id:'i',currency:'EUR',lines:[{quantity:1,unitPrice:'01.00'}],taxBps:0}],credits:[],payments:[]});
+refusalPreserves('unsupported-string-currency',{invoices:[{id:'i',currency:'GBP',lines:[{quantity:1,unitPrice:'1.00'}],taxBps:0}],credits:[],payments:[]});
+refusalPreserves('invalid-quantity',{invoices:[{id:'i',currency:'EUR',lines:[{quantity:0,unitPrice:'1.00'}],taxBps:0}],credits:[],payments:[]});
+refusalPreserves('invalid-tax-bps',{invoices:[{id:'i',currency:'EUR',lines:[{quantity:1,unitPrice:'1.00'}],taxBps:10001}],credits:[],payments:[]});
+const partial={invoices:[{id:'partial',currency:'EUR',lines:[{quantity:1,unitPrice:'10.00'}],taxBps:0}],credits:[{id:'c',invoiceId:'partial',currency:'EUR',amount:'2.00'}],payments:[{id:'p',currency:'EUR',amount:'3.00',allocations:[{invoiceId:'partial',amount:'3.00'}]}]};
+assert.deepEqual(go('partial.json',partial,'partial.out').v.invoices[0],{id:'partial',currency:'EUR',subtotal:'10.00',tax:'0.00',total:'10.00',credited:'2.00',paid:'3.00',balance:'5.00',status:'partial'});
+const creditBeforePayment={invoices:[{id:'ordered',currency:'EUR',lines:[{quantity:1,unitPrice:'10.00'}],taxBps:0}],credits:[{id:'credit-first',invoiceId:'ordered',currency:'EUR',amount:'6.00'}],payments:[{id:'payment-second',currency:'EUR',amount:'4.00',allocations:[{invoiceId:'ordered',amount:'4.00'}]}]};
+assert.deepEqual(go('credit-before-payment.json',creditBeforePayment,'credit-before-payment.out').v.invoices[0],{id:'ordered',currency:'EUR',subtotal:'10.00',tax:'0.00',total:'10.00',credited:'6.00',paid:'4.00',balance:'0.00',status:'settled'});
+const multi={invoices:[{id:'multi',currency:'USD',lines:[{quantity:1,unitPrice:'10.00'}],taxBps:0}],credits:[],payments:[{id:'multi-pay',currency:'USD',amount:'5.00',allocations:[{invoiceId:'multi',amount:'1.25'},{invoiceId:'multi',amount:'2.75'}]}]};
+const multiV=go('multi.json',multi,'multi.out').v;assert.deepEqual(multiV.invoices[0],{id:'multi',currency:'USD',subtotal:'10.00',tax:'0.00',total:'10.00',credited:'0.00',paid:'4.00',balance:'6.00',status:'partial'});assert.equal(multiV.payments[0].unapplied,'1.00');
+const settledDup={invoices:[{id:'settled',currency:'EUR',lines:[{quantity:1,unitPrice:'3.00'}],taxBps:0}],credits:[
+ {id:'credit-once',invoiceId:'settled',currency:'EUR',amount:'1.00'},
+ {currency:'EUR',amount:'1.00',invoiceId:'settled',id:'credit-once'}],payments:[
+ {id:'payment-once',currency:'EUR',amount:'2.00',allocations:[{invoiceId:'settled',amount:'2.00'}]},
+ {allocations:[{amount:'2.00',invoiceId:'settled'}],amount:'2.00',currency:'EUR',id:'payment-once'}]};
+const settledV=go('settled-duplicates.json',settledDup,'settled-duplicates.out').v;
+assert.deepEqual(settledV.invoices[0],{id:'settled',currency:'EUR',subtotal:'3.00',tax:'0.00',total:'3.00',credited:'1.00',paid:'2.00',balance:'0.00',status:'settled'});
+assert.deepEqual(settledV.duplicates,{invoices:0,credits:1,payments:1});
+const deterministic={invoices:[{id:'det',currency:'KWD',lines:[{quantity:2,unitPrice:'1.234'}],taxBps:0}],credits:[],payments:[]};
+const detInput=write('deterministic.json',deterministic), detBefore=fs.readFileSync(detInput);
+const detOut1=path.join(dir,'det-1.out'),detOut2=path.join(dir,'det-2.out');
+assert.equal(run(['--input',detInput,'--out',detOut1]).status,0);
+assert.equal(run(['--input',detInput,'--out',detOut2]).status,0);
+assert.deepEqual(fs.readFileSync(detOut1),fs.readFileSync(detOut2),'repeat output bytes must match');
+assert.deepEqual(fs.readFileSync(detInput),detBefore,'repeat input bytes must match');
+
+console.log('invoice-reconcile tests passed');

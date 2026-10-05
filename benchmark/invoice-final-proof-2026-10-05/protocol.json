@@ -1,0 +1,6 @@
+{
+  "registeredAt": "2026-10-05T03:48:11.648952+00:00",
+  "seedRun": "66bf4b67-4892-4ae6-8e81-058dbf090187",
+  "design": "Bounded proof-only repair using short supervision; replay the same 64 prospective and 6 exploratory checks. Not a performance comparison.",
+  "requestSha256": "170f363593e31480f02a3dba0903de45836510e5256d918f9cfc9d1ab923951c"
+}

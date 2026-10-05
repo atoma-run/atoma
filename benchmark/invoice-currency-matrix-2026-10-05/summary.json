@@ -1,0 +1,53 @@
+{
+  "runId": "2c502876-d636-415e-b0a5-f304befe8073",
+  "status": "delivered",
+  "seed": {
+    "kind": "run",
+    "runId": "2faac5cb-9e5a-485f-93c4-ef1015d19c0c"
+  },
+  "publication": {
+    "status": "published",
+    "repositoryFullName": "mgtf/atoma-invoice-reconcile-20261005",
+    "repositoryUrl": "https://github.com/mgtf/atoma-invoice-reconcile-20261005",
+    "git": {
+      "branch": "main",
+      "baseBranch": "main",
+      "defaultBranch": "main",
+      "publishKind": "created",
+      "mode": "direct"
+    },
+    "remoteState": "not-checked",
+    "mergeStatus": "not-applicable",
+    "baseSha": null,
+    "error": null,
+    "publishedAt": "2026-10-05T04:02:56.463Z",
+    "updatedAt": "2026-10-05T04:02:56.463Z",
+    "commitSha": "6402d37b5c1b8d817d142ae726a03f9f55098e9b"
+  },
+  "durationMs": 331992,
+  "llmCalls": 18,
+  "subscriptionEquivalentUsd": 0.10198504,
+  "independentChecks": {
+    "passed": 64,
+    "total": 64
+  },
+  "exploratoryChecks": {
+    "passed": 6,
+    "total": 6
+  },
+  "manifestHashesVerified": 4,
+  "completeEvents": 86,
+  "orderMutation": {
+    "mutation": "Move the complete payment loop before the complete credit loop, with no other changes",
+    "originalSha256": "7420b012454a9c817315770cfa3d87ab0f1864258f23cdeaf919e5e121fa661e",
+    "mutantSha256": "0e4faa7ea0a2dcd19371d5fcd45ead81f6c3c7fc6ad83f932da8d798b9edac85",
+    "suiteExitCode": 0,
+    "mutationSurvived": true,
+    "stdout": "invoice-reconcile tests passed\n",
+    "stderr": ""
+  },
+  "acceptanceReasons": [
+    "c3: test/invoice-reconcile.test.js: partial and settled cases assert exact credit/payment balances and statuses; multi asserts two allocations and unapplied 1.00. However, no case makes credit-before-payment ordering observable, so that required part is unverified.",
+    "Read-back and recorded probes show the requested test extensions, documentation, preserved implementation, successful npm test/help execution, and recovery evidence. Assertions visibly cover all acceptance criteria."
+  ]
+}

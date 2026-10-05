@@ -1,0 +1,64 @@
+{"name":"empty-ledger","passed":true,"exitCode":0,"stderr":""}
+{"name":"open-invoice-same-directory","passed":true,"exitCode":0,"stderr":""}
+{"name":"euro-example-partial-and-settled","passed":true,"exitCode":0,"stderr":""}
+{"name":"four-currency-rounding","passed":true,"exitCode":0,"stderr":""}
+{"name":"round-each-line-before-summing","passed":true,"exitCode":0,"stderr":""}
+{"name":"half-up-tax-tie","passed":true,"exitCode":0,"stderr":""}
+{"name":"below-half-and-zero-settlement","passed":true,"exitCode":0,"stderr":""}
+{"name":"huge-money-exact","passed":true,"exitCode":0,"stderr":""}
+{"name":"repeated-allocations-and-unapplied","passed":true,"exitCode":0,"stderr":""}
+{"name":"credit-only-partial","passed":true,"exitCode":0,"stderr":""}
+{"name":"unallocated-payment-without-invoices","passed":true,"exitCode":0,"stderr":""}
+{"name":"zero-credit-payment-and-unit-price","passed":true,"exitCode":0,"stderr":""}
+{"name":"duplicates-after-settlement-key-order","passed":true,"exitCode":0,"stderr":""}
+{"name":"independent-id-namespaces","passed":true,"exitCode":0,"stderr":""}
+{"name":"prototype-ids-and-code-unit-order","passed":true,"exitCode":0,"stderr":""}
+{"name":"maximum-quantity-and-tax","passed":true,"exitCode":0,"stderr":""}
+{"name":"conflicting-invoices","passed":true,"exitCode":1,"stderr":"invoice-reconcile: conflicting duplicate invoice id\n"}
+{"name":"conflicting-credits","passed":true,"exitCode":1,"stderr":"invoice-reconcile: conflicting duplicate credit id\n"}
+{"name":"conflicting-payments","passed":true,"exitCode":1,"stderr":"invoice-reconcile: conflicting duplicate payment id\n"}
+{"name":"credit","passed":true,"exitCode":1,"stderr":"invoice-reconcile: credit reference\n"}
+{"name":"payment","passed":true,"exitCode":1,"stderr":"invoice-reconcile: payment reference\n"}
+{"name":"credit-currency","passed":true,"exitCode":1,"stderr":"invoice-reconcile: credit reference\n"}
+{"name":"payment-currency","passed":true,"exitCode":1,"stderr":"invoice-reconcile: payment reference\n"}
+{"name":"excess-credit","passed":true,"exitCode":1,"stderr":"invoice-reconcile: excess credit\n"}
+{"name":"excess-invoice-allocation","passed":true,"exitCode":1,"stderr":"invoice-reconcile: excess allocation\n"}
+{"name":"excess-payment-allocation","passed":true,"exitCode":1,"stderr":"invoice-reconcile: excess allocation\n"}
+{"name":"cumulative-over-allocation","passed":true,"exitCode":1,"stderr":"invoice-reconcile: excess allocation\n"}
+{"name":"credit-before-payment-overflow","passed":true,"exitCode":1,"stderr":"invoice-reconcile: excess allocation\n"}
+{"name":"invalid-unit-price-'01.00'","passed":true,"exitCode":1,"stderr":"invoice-reconcile: invalid decimal\n"}
+{"name":"invalid-unit-price-'1e2'","passed":true,"exitCode":1,"stderr":"invoice-reconcile: invalid decimal\n"}
+{"name":"invalid-unit-price-'-1'","passed":true,"exitCode":1,"stderr":"invoice-reconcile: invalid decimal\n"}
+{"name":"invalid-unit-price-'+1'","passed":true,"exitCode":1,"stderr":"invoice-reconcile: invalid decimal\n"}
+{"name":"invalid-unit-price-' 1'","passed":true,"exitCode":1,"stderr":"invoice-reconcile: invalid decimal\n"}
+{"name":"invalid-unit-price-'1.'","passed":true,"exitCode":1,"stderr":"invoice-reconcile: invalid decimal\n"}
+{"name":"invalid-unit-price-'1.00000'","passed":true,"exitCode":1,"stderr":"invoice-reconcile: invalid decimal\n"}
+{"name":"invalid-unit-price-1","passed":true,"exitCode":1,"stderr":"invoice-reconcile: invalid decimal\n"}
+{"name":"invalid-unit-price-None","passed":true,"exitCode":1,"stderr":"invoice-reconcile: invalid decimal\n"}
+{"name":"invalid-payment-amount-'1.001'","passed":true,"exitCode":1,"stderr":"invoice-reconcile: invalid precision\n"}
+{"name":"invalid-payment-amount-'01'","passed":true,"exitCode":1,"stderr":"invoice-reconcile: invalid decimal\n"}
+{"name":"invalid-payment-amount-'1e0'","passed":true,"exitCode":1,"stderr":"invoice-reconcile: invalid decimal\n"}
+{"name":"invalid-payment-amount-1","passed":true,"exitCode":1,"stderr":"invoice-reconcile: invalid decimal\n"}
+{"name":"invalid-precision-JPY","passed":true,"exitCode":1,"stderr":"invoice-reconcile: invalid precision\n"}
+{"name":"invalid-precision-KWD","passed":true,"exitCode":1,"stderr":"invoice-reconcile: invalid precision\n"}
+{"name":"invalid-quantity-0","passed":true,"exitCode":1,"stderr":"invoice-reconcile: quantity\n"}
+{"name":"invalid-quantity--1","passed":true,"exitCode":1,"stderr":"invoice-reconcile: quantity\n"}
+{"name":"invalid-quantity-1.5","passed":true,"exitCode":1,"stderr":"invoice-reconcile: quantity\n"}
+{"name":"invalid-quantity-1000001","passed":true,"exitCode":1,"stderr":"invoice-reconcile: quantity\n"}
+{"name":"invalid-quantity-'1'","passed":true,"exitCode":1,"stderr":"invoice-reconcile: quantity\n"}
+{"name":"invalid-taxBps--1","passed":true,"exitCode":1,"stderr":"invoice-reconcile: tax\n"}
+{"name":"invalid-taxBps-10001","passed":true,"exitCode":1,"stderr":"invoice-reconcile: tax\n"}
+{"name":"invalid-taxBps-1.5","passed":true,"exitCode":1,"stderr":"invoice-reconcile: tax\n"}
+{"name":"invalid-taxBps-'0'","passed":true,"exitCode":1,"stderr":"invoice-reconcile: tax\n"}
+{"name":"unknown-top","passed":true,"exitCode":1,"stderr":"invoice-reconcile: invalid fields\n"}
+{"name":"unknown-invoice","passed":true,"exitCode":1,"stderr":"invoice-reconcile: invalid fields\n"}
+{"name":"unknown-line","passed":true,"exitCode":1,"stderr":"invoice-reconcile: invalid fields\n"}
+{"name":"missing-array","passed":true,"exitCode":1,"stderr":"invoice-reconcile: invalid fields\n"}
+{"name":"empty-lines","passed":true,"exitCode":1,"stderr":"invoice-reconcile: lines\n"}
+{"name":"empty-id","passed":true,"exitCode":1,"stderr":"invoice-reconcile: invalid id\n"}
+{"name":"unknown-currency","passed":true,"exitCode":1,"stderr":"invoice-reconcile: currency\n"}
+{"name":"invalid-json","passed":true,"exitCode":1,"stderr":"invoice-reconcile: malformed JSON\n"}
+{"name":"input-collision-same-file","passed":true,"exitCode":1,"stderr":"invoice-reconcile: input/output identity\n"}
+{"name":"input-collision-symlink","passed":true,"exitCode":1,"stderr":"invoice-reconcile: input/output identity\n"}
+{"name":"input-collision-hardlink","passed":true,"exitCode":1,"stderr":"invoice-reconcile: input/output identity\n"}
+{"name":"output-is-directory","passed":true,"exitCode":1,"stderr":"invoice-reconcile: output not regular\n"}

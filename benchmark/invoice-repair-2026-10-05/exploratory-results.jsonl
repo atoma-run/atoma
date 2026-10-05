@@ -1,0 +1,6 @@
+{"name": "invoice-currency-array", "passed": true, "expectedSuccess": false, "exitCode": 1, "output": "KEEP", "stderr": "invoice-reconcile: currency\n"}
+{"name": "payment-currency-array", "passed": true, "expectedSuccess": false, "exitCode": 1, "output": "KEEP", "stderr": "invoice-reconcile: currency\n"}
+{"name": "unit-price-final-newline", "passed": true, "expectedSuccess": false, "exitCode": 1, "output": "KEEP", "stderr": "invoice-reconcile: invalid decimal\n"}
+{"name": "payment-final-newline", "passed": true, "expectedSuccess": false, "exitCode": 1, "output": "KEEP", "stderr": "invoice-reconcile: invalid decimal\n"}
+{"name": "jpy-payment-final-newline", "passed": true, "expectedSuccess": false, "exitCode": 1, "output": "KEEP", "stderr": "invoice-reconcile: invalid decimal\n"}
+{"name": "valid-canonical-decimal-control", "passed": true, "expectedSuccess": true, "exitCode": 0, "output": "{\"invoices\":[{\"id\":\"I\",\"currency\":\"EUR\",\"subtotal\":\"1.00\",\"tax\":\"0.00\",\"total\":\"1.00\",\"credited\":\"0.00\",\"paid\":\"0.00\",\"balance\":\"1.00\",\"status\":\"open\"}],\"payments\":[],\"duplicates\":{\"invoices\":0,\"credits\":0,\"payments\":0}}\n", "stderr": ""}

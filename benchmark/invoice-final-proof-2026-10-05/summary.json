@@ -1,0 +1,26 @@
+{
+  "runId": "2faac5cb-9e5a-485f-93c4-ef1015d19c0c",
+  "status": "partial",
+  "seed": {
+    "kind": "run",
+    "runId": "66bf4b67-4892-4ae6-8e81-058dbf090187"
+  },
+  "published": false,
+  "durationMs": 276068,
+  "llmCalls": 13,
+  "subscriptionEquivalentUsd": 0.07608552000000002,
+  "independentChecks": {
+    "passed": 64,
+    "total": 64
+  },
+  "exploratoryChecks": {
+    "passed": 6,
+    "total": 6
+  },
+  "hashesVerified": 4,
+  "completeEvents": 78,
+  "acceptanceReasons": [
+    "The new USD cases and recorded suite/help runs are evidenced, but the supplied read-back does not visibly establish the required code-unit ID ordering assertion for c7; a passing suite and truncated source excerpt cannot prove that coverage.",
+    "c2: Executed tests assert EUR tax (test:7), both USD tax cases (test:9-13), JPY total 35 and KWD total 3.889 (test:7), and large USD subtotal (test:7). JPY/KWD subtotal and tax are not separately asserted, so their tax HALF UP behavior is unverified."
+  ]
+}

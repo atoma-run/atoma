@@ -1,0 +1,18 @@
+{
+  "goal": "Repair the seeded invoice reconciliation CLI and finish its proof obligations, preserving its existing contract and all passing assertions. The original run was partial. Keep the ten acceptance criteria unchanged.\n\nConfirmed implementation defect: currency must be a STRING. Object.hasOwn(C, currency) alone coerces arrays. A valid EUR invoice changed to currency:[\"EUR\"] currently exits zero and emits an array as its currency. A payment with currency:[\"EUR\"], amount:\"1.00\", allocations:[] also exits zero. Refuse all non-string currencies in invoice, credit and payment records, with nonzero exit, diagnostic stderr and byte-for-byte preservation of input and pre-existing output. Test arrays, objects, null, booleans and numbers; ensure supported string currencies EUR/USD/JPY/KWD still work. Fix the shared validation mechanism without changing money, rounding, or reconciliation semantics.\n\nMissing evidence from the last acceptance: add an executed subprocess case with invoice total10.00, credit2.00 and payment3.00, asserting credited2.00, paid3.00, balance5.00 and status partial. Add a successful case with two allocations to the SAME invoice within one payment and an unapplied remainder, asserting cumulative paid and balance. Run the same valid input twice and compare the actual output file bytes exactly, with input bytes unchanged. Keep the existing refusal-preservation tests and arithmetic/duplicate/file identity controls.\n\nAlso ensure the regression suite actually exercises identical nonzero credits and payments duplicated after settlement, including reordered object keys, with exact duplicate counts and no double application. Preserve independent ID namespaces, literal prototype-like IDs, canonical monetary syntax, arbitrary-size exact arithmetic, per-line HALF UP rounding, currency-specific precision, strict schemas, zero and empty cases, code-unit sorting, same-directory distinct output and symlink/hardlink collision protection. Do not relax assertions or omit valid cases to pass.\n\nExecute the full suite and help command; retain observed failure/recovery evidence. Update README with the observed results. Deliver the repaired CLI, package metadata, tests and documentation; no additional dependencies or network requirements.",
+  "acceptanceCriteria": [
+    "Offline Node.js 24 CLI, help, documented JSON schema and runnable subprocess tests are delivered.",
+    "Exact line and tax HALF UP rounding works for EUR, USD, JPY and KWD, including money larger than Number.MAX_SAFE_INTEGER.",
+    "Credits precede payments; partial, settled and unapplied balances are exact and repeated allocations accumulate.",
+    "Missing references, currency mismatches, excess credits and excess allocations fail without changing prior output.",
+    "Per-category duplicates ignore object key order and are idempotent before state transitions; conflicting IDs are refused.",
+    "Strict schemas reject wrong types, unknown fields, invalid decimal syntax, unsupported currencies and invalid quantities or tax rates.",
+    "Output has the specified schema, code-unit ID ordering, fixed precision and byte-identical results on repeat execution.",
+    "Empty ledgers, zero amounts, prototype-like IDs and independent ID namespaces work without spurious refusals.",
+    "Input/output identity collisions including symlinks and hardlinks fail safely; distinct files in the same directory succeed.",
+    "Executed regression tests prove arithmetic, duplicate behavior and byte preservation; reported results match the recorded execution."
+  ],
+  "depth": "deep",
+  "idempotencyKey": "invoice-repair-20261005-1",
+  "projectId": "13830d88-9706-4370-93e6-e6db965986bb"
+}

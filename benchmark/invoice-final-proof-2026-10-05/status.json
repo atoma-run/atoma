@@ -1,0 +1,106 @@
+{
+  "projectRunId": "2faac5cb-9e5a-485f-93c4-ef1015d19c0c",
+  "projectId": "13830d88-9706-4370-93e6-e6db965986bb",
+  "orgId": "d28f40d2-14d7-45c7-bce3-928dcb0041a6",
+  "requestedByPrincipalId": "36bbb732-d581-41e3-b8b5-c39e93fd32b9",
+  "requestKey": "invoice-final-proof-20261005-1",
+  "goal": "Complete the remaining proof obligation in the seeded invoice reconciliation CLI. The current repaired implementation passes all 70 independent checks, including invalid currency types; do not change its behavior, remove assertions, or weaken the ten unchanged acceptance criteria. The latest run was partial solely because c2 lacked an executed nonzero USD tax assertion.\n\nExtend the existing subprocess suite with explicit USD cases and assert the entire invoice output including subtotal, tax, total, credited, paid, balance and status. Case 1: one USD line quantity1/unitPrice\"10.01\", taxBps825 gives subtotal10.01, tax0.83, total10.84, balance10.84 and open. Case 2: one USD line quantity1/unitPrice\"0.05\", taxBps1000 gives subtotal0.05, tax0.01, total0.06 and open (HALF UP tie). Retain the existing large USD arithmetic case, EUR/JPY/KWD examples, currency type refusals, invalid decimal/currency/quantity/tax checks, partial balance, repeated allocations, byte-identical repeat executions, duplicate counts after settlement, preservation and identity tests. Test actual output bytes/JSON through real CLI subprocesses and preserve input bytes. Keep the dependency-free Node.js24 interface and exact monetary/schema contract.\n\nRun the complete suite and help command after adding the assertions. Update README to describe the new observed evidence honestly. Complete this as one coherent test-and-documentation change. The current CLI is already correct on these supplied USD examples; this is a missing-proof repair. Deliver the complete artifact with the exact same acceptance list.",
+  "title": "Add explicit USD tax assertions to CLI suite",
+  "status": "partial",
+  "bytesExpiredAt": null,
+  "depth": "short",
+  "seed": {
+    "kind": "run",
+    "runId": "66bf4b67-4892-4ae6-8e81-058dbf090187"
+  },
+  "traceId": "2faac5cb-9e5a-485f-93c4-ef1015d19c0c",
+  "stats": {
+    "outcome": "partial",
+    "costUsd": 0.0761,
+    "subscriptionCostUsd": 0.0761,
+    "llmCalls": 13,
+    "opusCalls": 0,
+    "sonnetCalls": 0,
+    "haikuCalls": 0,
+    "otherCalls": 13,
+    "deterministicPhases": 0,
+    "escalations": 0,
+    "learnedSkills": 0,
+    "learnedEventSkills": 0,
+    "promotions": 0,
+    "refusals": 0,
+    "compileErrors": 0,
+    "demotions": 0,
+    "dispatchFallbacks": 0,
+    "uncoveredObligations": 0,
+    "deepenings": 0,
+    "rootRemediations": 1,
+    "landingReasons": [
+      "refused at delivery: c2: Executed tests assert EUR tax (test:7), both USD tax cases (test:9-13), JPY total 35 and KWD total 3.889 (test:7), and large USD subtotal (test:7). JPY/KWD subtotal and tax are not separately asserted, so their tax HALF UP behavior is unverified."
+    ]
+  },
+  "artifactManifest": {
+    "version": 1,
+    "source": "workspace",
+    "files": [
+      {
+        "path": "invoice-reconcile.js",
+        "size": 5457,
+        "sha256": "7420b012454a9c817315770cfa3d87ab0f1864258f23cdeaf919e5e121fa661e",
+        "mode": "100644"
+      },
+      {
+        "path": "package.json",
+        "size": 178,
+        "sha256": "fb353ab73c16edfacdadc1e98f93267b73f42ef03afa5fb1b9b4744ffcae6398",
+        "mode": "100644"
+      },
+      {
+        "path": "README.md",
+        "size": 3452,
+        "sha256": "cf0f1ecf6c39df70d353fbc984c8e38cf07b62452f767e1cd6a5fc434b8fbdc8",
+        "mode": "100644"
+      },
+      {
+        "path": "test/invoice-reconcile.test.js",
+        "size": 10228,
+        "sha256": "046f50713a1d66a00db6530b1e8483c1e03b7fe14dd2aacf171c78a1f8155a85",
+        "mode": "100644"
+      }
+    ],
+    "totalBytes": 19315
+  },
+  "artifactManifestHash": "f12cca1b583432e7a3f8476209fb472866b024e37817f9f6035f82b617437550",
+  "error": "run landed and was not delivered; refused at delivery: c2: Executed tests assert EUR tax (test:7), both USD tax cases (test:9-13), JPY total 35 and KWD total 3.889 (test:7), and large USD subtotal (test:7). JPY/KWD subtotal and tax are not separately asserted, so their tax HALF UP behavior is unverified.",
+  "createdAt": "2026-10-05T03:48:28.151Z",
+  "startedAt": "2026-10-05T03:48:28.200Z",
+  "endedAt": "2026-10-05T03:53:13.813Z",
+  "updatedAt": "2026-10-05T03:53:13.815Z",
+  "costUsd": 0.0761,
+  "tokens": 206137,
+  "llmCalls": 13,
+  "jevCalls": 4,
+  "jevCallsLowerBound": false,
+  "models": {
+    "l1": {
+      "selection": "sub:openai:gpt-5.6-luna",
+      "provider": "codex-cli",
+      "payer": "host-subscription",
+      "source": "account"
+    },
+    "l2": {
+      "selection": "sub:openai:gpt-5.6-terra",
+      "provider": "codex-cli",
+      "payer": "host-subscription",
+      "source": "account"
+    },
+    "l3": {
+      "selection": "sub:openai:gpt-5.6-sol",
+      "provider": "codex-cli",
+      "payer": "host-subscription",
+      "source": "account"
+    }
+  },
+  "durationS": 285.613,
+  "publication": null
+}

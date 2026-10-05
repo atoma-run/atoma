@@ -1,0 +1,107 @@
+{
+  "projectRunId": "66bf4b67-4892-4ae6-8e81-058dbf090187",
+  "projectId": "13830d88-9706-4370-93e6-e6db965986bb",
+  "orgId": "d28f40d2-14d7-45c7-bce3-928dcb0041a6",
+  "requestedByPrincipalId": "36bbb732-d581-41e3-b8b5-c39e93fd32b9",
+  "requestKey": "invoice-repair-20261005-1",
+  "goal": "Repair the seeded invoice reconciliation CLI and finish its proof obligations, preserving its existing contract and all passing assertions. The original run was partial. Keep the ten acceptance criteria unchanged.\n\nConfirmed implementation defect: currency must be a STRING. Object.hasOwn(C, currency) alone coerces arrays. A valid EUR invoice changed to currency:[\"EUR\"] currently exits zero and emits an array as its currency. A payment with currency:[\"EUR\"], amount:\"1.00\", allocations:[] also exits zero. Refuse all non-string currencies in invoice, credit and payment records, with nonzero exit, diagnostic stderr and byte-for-byte preservation of input and pre-existing output. Test arrays, objects, null, booleans and numbers; ensure supported string currencies EUR/USD/JPY/KWD still work. Fix the shared validation mechanism without changing money, rounding, or reconciliation semantics.\n\nMissing evidence from the last acceptance: add an executed subprocess case with invoice total10.00, credit2.00 and payment3.00, asserting credited2.00, paid3.00, balance5.00 and status partial. Add a successful case with two allocations to the SAME invoice within one payment and an unapplied remainder, asserting cumulative paid and balance. Run the same valid input twice and compare the actual output file bytes exactly, with input bytes unchanged. Keep the existing refusal-preservation tests and arithmetic/duplicate/file identity controls.\n\nAlso ensure the regression suite actually exercises identical nonzero credits and payments duplicated after settlement, including reordered object keys, with exact duplicate counts and no double application. Preserve independent ID namespaces, literal prototype-like IDs, canonical monetary syntax, arbitrary-size exact arithmetic, per-line HALF UP rounding, currency-specific precision, strict schemas, zero and empty cases, code-unit sorting, same-directory distinct output and symlink/hardlink collision protection. Do not relax assertions or omit valid cases to pass.\n\nExecute the full suite and help command; retain observed failure/recovery evidence. Update README with the observed results. Deliver the repaired CLI, package metadata, tests and documentation; no additional dependencies or network requirements.",
+  "title": "Repair invoice reconciliation CLI and finish validation tests",
+  "status": "partial",
+  "bytesExpiredAt": null,
+  "depth": "deep",
+  "seed": {
+    "kind": "run",
+    "runId": "6a8b44c7-0d75-481a-ba08-d7d1db8d8f8c"
+  },
+  "traceId": "66bf4b67-4892-4ae6-8e81-058dbf090187",
+  "stats": {
+    "outcome": "partial",
+    "costUsd": 0.3209,
+    "subscriptionCostUsd": 0.3209,
+    "llmCalls": 27,
+    "opusCalls": 0,
+    "sonnetCalls": 0,
+    "haikuCalls": 0,
+    "otherCalls": 27,
+    "deterministicPhases": 0,
+    "escalations": 0,
+    "learnedSkills": 0,
+    "learnedEventSkills": 0,
+    "promotions": 0,
+    "refusals": 0,
+    "compileErrors": 0,
+    "demotions": 0,
+    "dispatchFallbacks": 0,
+    "uncoveredObligations": 0,
+    "deepenings": 0,
+    "rootRemediations": 1,
+    "landingReasons": [
+      "refused at delivery: c2: Tests assert HALF UP-derived EUR, JPY, and KWD results and an exact large USD subtotal (9007199254740991.99\u00d72), but USD uses taxBps:0. Nonzero USD tax rounding is unverified; add an executed USD tax assertion."
+    ]
+  },
+  "artifactManifest": {
+    "version": 1,
+    "source": "workspace",
+    "delivery": "files",
+    "files": [
+      {
+        "path": "invoice-reconcile.js",
+        "size": 5457,
+        "sha256": "7420b012454a9c817315770cfa3d87ab0f1864258f23cdeaf919e5e121fa661e",
+        "mode": "100644"
+      },
+      {
+        "path": "package.json",
+        "size": 178,
+        "sha256": "fb353ab73c16edfacdadc1e98f93267b73f42ef03afa5fb1b9b4744ffcae6398",
+        "mode": "100644"
+      },
+      {
+        "path": "README.md",
+        "size": 3809,
+        "sha256": "c01c491c9b1b11d8a330d278dc509014083c99e0dbd3b31584b6e30c6679668c",
+        "mode": "100644"
+      },
+      {
+        "path": "test/invoice-reconcile.test.js",
+        "size": 9305,
+        "sha256": "6432ec65d13496f5add87e9123aed6f51c1bb922e00cd71cf3114703f8c3159c",
+        "mode": "100644"
+      }
+    ],
+    "totalBytes": 18749
+  },
+  "artifactManifestHash": "aa84fea5391f1823f1bc7339ec290abc57c7b81c0c8d0be00b6141a939fd5026",
+  "error": "run landed and was not delivered; refused at delivery: c2: Tests assert HALF UP-derived EUR, JPY, and KWD results and an exact large USD subtotal (9007199254740991.99\u00d72), but USD uses taxBps:0. Nonzero USD tax rounding is unverified; add an executed USD tax assertion.",
+  "createdAt": "2026-10-05T03:34:55.909Z",
+  "startedAt": "2026-10-05T03:34:55.951Z",
+  "endedAt": "2026-10-05T03:44:36.749Z",
+  "updatedAt": "2026-10-05T03:44:36.752Z",
+  "costUsd": 0.3209,
+  "tokens": 493146,
+  "llmCalls": 27,
+  "jevCalls": 11,
+  "jevCallsLowerBound": false,
+  "models": {
+    "l1": {
+      "selection": "sub:openai:gpt-5.6-luna",
+      "provider": "codex-cli",
+      "payer": "host-subscription",
+      "source": "account"
+    },
+    "l2": {
+      "selection": "sub:openai:gpt-5.6-terra",
+      "provider": "codex-cli",
+      "payer": "host-subscription",
+      "source": "account"
+    },
+    "l3": {
+      "selection": "sub:openai:gpt-5.6-sol",
+      "provider": "codex-cli",
+      "payer": "host-subscription",
+      "source": "account"
+    }
+  },
+  "durationS": 580.798,
+  "publication": null
+}

@@ -1,0 +1,122 @@
+{
+  "projectRunId": "2c502876-d636-415e-b0a5-f304befe8073",
+  "projectId": "13830d88-9706-4370-93e6-e6db965986bb",
+  "orgId": "d28f40d2-14d7-45c7-bce3-928dcb0041a6",
+  "requestedByPrincipalId": "36bbb732-d581-41e3-b8b5-c39e93fd32b9",
+  "requestKey": "invoice-currency-matrix-20261005-1",
+  "goal": "Finish the seeded invoice CLI's missing proof while preserving its correct implementation, unchanged ten acceptance criteria and ALL existing assertions. The previous review accepted the added USD tax tests and ID sorting proof but refused c2 because JPY/KWD tests asserted totals only. Do not change invoice-reconcile.js; extend the existing real-subprocess tests and accurate documentation in one coherent phase.\n\nAdd one four-currency input with no credits/payments and compare the ENTIRE parsed output to literal expected JSON, not to values calculated by the implementation. Invoices are deliberately supplied in unsorted order K,J,U,E and must come out E,J,K,U. Each has one line: E EUR quantity3 unitPrice\"1.005\" taxBps2000; J JPY quantity3 unitPrice\"10.5\" taxBps1000; K KWD quantity3 unitPrice\"1.2345\" taxBps500; U USD quantity1 unitPrice\"10.01\" taxBps825. Exact invoice fields in output:\nE: currency EUR, subtotal3.02 tax0.60 total3.62 credited0.00 paid0.00 balance3.62 status open.\nJ: currency JPY, subtotal32 tax3 total35 credited0 paid0 balance35 status open.\nK: currency KWD, subtotal3.704 tax0.185 total3.889 credited0.000 paid0.000 balance3.889 status open.\nU: currency USD, subtotal10.01 tax0.83 total10.84 credited0.00 paid0.00 balance10.84 status open.\nAll monetary values are strings with exactly the displayed precision. payments is empty; duplicates is exactly {invoices:0,credits:0,payments:0}. Run the identical input twice and compare actual output bytes and unchanged input bytes.\n\nAlso add explicit per-line rounding proof: EUR invoice L has THREE separate lines quantity1 unitPrice\"0.005\", taxBps0: subtotal0.03 tax0.00 total0.03 balance0.03, credited0.00 paid0.00, open. Retain the USD nonzero-tax cases including the HALF UP tie, large exact arithmetic, partial status, two allocations within a payment, duplicate counts after settlement, primitive-string currency checks and refusal byte preservation, schema boundary tests, code-unit ordering and all file-identity protections. Add independent invoice totals for JPY and KWD HALF UP tax ties if not already asserted: JPY subtotal5 taxBps1000 yields tax1 total6; KWD subtotal0.005 taxBps1000 yields tax0.001 total0.006. Assert full corresponding invoice fields including credited/paid zeros and balance.\n\nExecute the full npm test suite and help command, preserve failure/recovery evidence, update README with observed results, and deliver the complete existing artifact. Do not claim an assertion is covered solely because a suite prints passed. Do not remove or simplify another regression to make this change pass.",
+  "title": "Test four-currency invoice CLI output with full JSON proofs",
+  "status": "delivered",
+  "bytesExpiredAt": null,
+  "depth": "short",
+  "seed": {
+    "kind": "run",
+    "runId": "2faac5cb-9e5a-485f-93c4-ef1015d19c0c"
+  },
+  "traceId": "2c502876-d636-415e-b0a5-f304befe8073",
+  "stats": {
+    "outcome": "delivered",
+    "costUsd": 0.102,
+    "subscriptionCostUsd": 0.102,
+    "llmCalls": 18,
+    "opusCalls": 0,
+    "sonnetCalls": 0,
+    "haikuCalls": 0,
+    "otherCalls": 18,
+    "deterministicPhases": 0,
+    "escalations": 0,
+    "learnedSkills": 0,
+    "learnedEventSkills": 0,
+    "promotions": 0,
+    "refusals": 0,
+    "compileErrors": 0,
+    "demotions": 0,
+    "dispatchFallbacks": 0,
+    "uncoveredObligations": 0,
+    "deepenings": 0,
+    "rootRemediations": 1,
+    "landingReasons": []
+  },
+  "artifactManifest": {
+    "version": 1,
+    "source": "workspace",
+    "files": [
+      {
+        "path": "invoice-reconcile.js",
+        "size": 5457,
+        "sha256": "7420b012454a9c817315770cfa3d87ab0f1864258f23cdeaf919e5e121fa661e",
+        "mode": "100644"
+      },
+      {
+        "path": "package.json",
+        "size": 178,
+        "sha256": "fb353ab73c16edfacdadc1e98f93267b73f42ef03afa5fb1b9b4744ffcae6398",
+        "mode": "100644"
+      },
+      {
+        "path": "README.md",
+        "size": 3609,
+        "sha256": "e35978f6ec1f46596380db47c52662252a860e6b9d30dde3bd989d17e00729f9",
+        "mode": "100644"
+      },
+      {
+        "path": "test/invoice-reconcile.test.js",
+        "size": 13520,
+        "sha256": "f3f657f0e31b13ce73edc38e300c70019bb674c8a9c7607c02b70d79caa43003",
+        "mode": "100644"
+      }
+    ],
+    "totalBytes": 22764
+  },
+  "artifactManifestHash": "38a3192e1a652aaedd3ab38796ed27bade2843d295aa7b20fd054529287083fa",
+  "error": null,
+  "createdAt": "2026-10-05T03:57:07.125Z",
+  "startedAt": "2026-10-05T03:57:07.159Z",
+  "endedAt": "2026-10-05T04:02:46.434Z",
+  "updatedAt": "2026-10-05T04:02:46.437Z",
+  "costUsd": 0.102,
+  "tokens": 300520,
+  "llmCalls": 18,
+  "jevCalls": 4,
+  "jevCallsLowerBound": false,
+  "models": {
+    "l1": {
+      "selection": "sub:openai:gpt-5.6-luna",
+      "provider": "codex-cli",
+      "payer": "host-subscription",
+      "source": "account"
+    },
+    "l2": {
+      "selection": "sub:openai:gpt-5.6-terra",
+      "provider": "codex-cli",
+      "payer": "host-subscription",
+      "source": "account"
+    },
+    "l3": {
+      "selection": "sub:openai:gpt-5.6-sol",
+      "provider": "codex-cli",
+      "payer": "host-subscription",
+      "source": "account"
+    }
+  },
+  "durationS": 339.275,
+  "publication": {
+    "status": "published",
+    "repositoryFullName": "mgtf/atoma-invoice-reconcile-20261005",
+    "repositoryUrl": "https://github.com/mgtf/atoma-invoice-reconcile-20261005",
+    "git": {
+      "branch": "main",
+      "baseBranch": "main",
+      "defaultBranch": "main",
+      "publishKind": "created",
+      "mode": "direct"
+    },
+    "remoteState": "not-checked",
+    "mergeStatus": "not-applicable",
+    "baseSha": null,
+    "error": null,
+    "publishedAt": "2026-10-05T04:02:56.463Z",
+    "updatedAt": "2026-10-05T04:02:56.463Z",
+    "commitSha": "6402d37b5c1b8d817d142ae726a03f9f55098e9b"
+  }
+}

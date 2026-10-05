@@ -1,0 +1,6 @@
+{
+  "registeredAt": "2026-10-05T03:55:44.218994+00:00",
+  "seedRun": "2faac5cb-9e5a-485f-93c4-ef1015d19c0c",
+  "design": "Informed short proof repair. Same 64 plus 6 external checks; explicit full-field four-currency outputs and per-line/tax ties. No CLI behavior changes.",
+  "requestSha256": "5efd1b4f61bd04a2da859b9cb22a837b41638fe1723c429f16650d212380e63a"
+}

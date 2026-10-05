@@ -1,0 +1,26 @@
+{
+  "runId": "66bf4b67-4892-4ae6-8e81-058dbf090187",
+  "seed": {
+    "kind": "run",
+    "runId": "6a8b44c7-0d75-481a-ba08-d7d1db8d8f8c"
+  },
+  "status": "partial",
+  "published": false,
+  "durationMs": 571425,
+  "llmCalls": 27,
+  "subscriptionEquivalentUsd": 0.32087176000000006,
+  "independentChecks": {
+    "passed": 64,
+    "total": 64
+  },
+  "exploratoryChecks": {
+    "passed": 6,
+    "total": 6
+  },
+  "hashesVerified": 4,
+  "completeEvents": 173,
+  "acceptanceReasons": [
+    "c6: Source enforces exact keys, types, canon decimals, currencies, quantities, and tax ranges (invoice-reconcile.js keys/canon/validate). Tests execute wrong currency types and unknown fields, but no visible executed assertions cover invalid decimal syntax, unsupported string currency, quantity, or tax-rate rejection; these remain unverified.",
+    "c2: Tests assert HALF UP-derived EUR, JPY, and KWD results and an exact large USD subtotal (9007199254740991.99\u00d72), but USD uses taxBps:0. Nonzero USD tax rounding is unverified; add an executed USD tax assertion."
+  ]
+}

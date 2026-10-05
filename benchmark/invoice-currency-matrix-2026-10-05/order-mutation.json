@@ -1,0 +1,1 @@
+{"mutation": "Move the complete payment loop before the complete credit loop, with no other changes", "originalSha256": "7420b012454a9c817315770cfa3d87ab0f1864258f23cdeaf919e5e121fa661e", "mutantSha256": "0e4faa7ea0a2dcd19371d5fcd45ead81f6c3c7fc6ad83f932da8d798b9edac85", "suiteExitCode": 0, "mutationSurvived": true, "stdout": "invoice-reconcile tests passed\n", "stderr": ""}
