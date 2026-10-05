@@ -9,6 +9,7 @@ import { readFileSync } from 'node:fs';
 import Database from 'better-sqlite3';
 import { closeStoreHandles } from '../src/core/stores.js';
 import { instructionsFor } from '../src/mcp/server.js';
+import { GOAL_GUIDANCE } from '../src/run/guidance.js';
 const TIER_TEXTS = (['viewer', 'member', 'admin', 'platform'] as const).map((tier) => instructionsFor(tier));
 import {
   DEFAULT_RUN_TIMEOUT_MS,
@@ -737,9 +738,10 @@ describe('MCP server instructions', () => {
         expect(lead).toContain(phrase);
       }
     }
-    // Prompts are registered only at the platform tier: nobody else is told about them.
-    for (const tier of ['viewer', 'member', 'admin'] as const) expect(instructionsFor(tier)).not.toContain('atoma_goal');
-    expect(instructionsFor('platform')).toContain('atoma_goal');
+    // A member can draft a project goal; a viewer can read the guidance but cannot launch.
+    expect(instructionsFor('viewer')).not.toContain('atoma_goal');
+    for (const tier of ['member', 'admin', 'platform'] as const) expect(instructionsFor(tier)).toContain('atoma_goal');
+    for (const text of TIER_TEXTS) expect(text).toContain(GOAL_GUIDANCE.help);
   });
 
 });

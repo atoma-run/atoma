@@ -21,7 +21,6 @@ export function saveUpdateNavigation(scope: string): void {
   sessionStorage.setItem(NAV_KEY, JSON.stringify({
     scope, at: Date.now(), view: state.view, selectedProjectId: state.selectedProjectId,
     selectedRunId: state.selectedRunId, sceneCameraMode: state.sceneCameraMode,
-    selectedGithubInstallationId: state.selectedGithubInstallationId, projectVisibility: state.projectVisibility,
   }));
 }
 
@@ -39,8 +38,6 @@ export function restoreUpdateNavigation(scope: string, views: readonly ViewName[
       view: saved['view'] as ViewName,
       selectedProjectId: id(saved['selectedProjectId']),
       selectedRunId: id(saved['selectedRunId']),
-      selectedGithubInstallationId: id(saved['selectedGithubInstallationId']),
-      projectVisibility: saved['projectVisibility'] === 'public' ? 'public' : 'private',
       sceneCameraMode: saved['sceneCameraMode'] === 'focus' ? 'focus' : 'overview',
     });
   } catch { /* Unavailable or invalid tab storage is never a reason to lose the page. */ }

@@ -5,9 +5,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { projectSlugFromName, parseGitHubRepository } from '../../contracts/projects.js';
 import { isLocale } from '../../contracts/locales.js';
-import { MAX_CHECKLIST_ITEMS, parseChecklistLines } from '../../contracts/acceptanceChecklist.js';
 import { applyDocumentLocale, translate } from '../client/i18n-catalog.js';
 import { loginBounceParams, providerLoginHref } from '../client/session-guard.js';
 import { isIndexEntryLive } from '../client/run-utils.js';
@@ -57,8 +55,9 @@ import {
   useBurnin,
   useOrganisation,
   useGithubInstallations,
+  useMcpAccess,
+  projectMcpAccessState,
   usePreviewStatus,
-  useGoalGuidance,
   useProjectRuns,
   useProjects,
   useRegistries,
@@ -154,8 +153,7 @@ function GpuAppContent({
     [loginParams.invite]
   );
   const [pendingLoginProvider, setPendingLoginProvider] = useState<string | null>(null);
-  const [projectBusy, setProjectBusy] = useState(false);
-  const [projectError, setProjectError] = useState<string | null>(null);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<'general' | 'mcp'>('general');
   const [cameraRevision, setCameraRevision] = useState(0);
   const cameraSettled = useCallback(
     () => setCameraRevision((revision) => revision + 1),
@@ -230,16 +228,14 @@ function GpuAppContent({
   const skillSelection = state.view === 'skills' ? state.selectedSkill : runSkillSelection;
   const skillDetailQuery = useSkillDetail(skillSelection, Boolean(skillSelection) && apiReady);
   const burninQuery = useBurnin(state.view === 'burnin' && operatorSurfaces);
-  // The goal guidance renders inside the project run form, so it is fetched
-  // with the Projects view. It is supplementary copy, never gating: it is
-  // deliberately absent from `loading` below, so a slow /api/goal-guidance
-  // cannot hide the project list behind a spinner.
-  const guidanceQuery = useGoalGuidance(state.view === 'projects' && apiReady);
   // Project routes exist only behind the auth gate; an ungated server 404s
   // them. Left enabled, those 404s poisoned the GLOBAL `data.error` below and
   // the runs view then rendered an error banner instead of its list — the
   // wheel handler fails closed on scrollMax, so scrolling died with it.
   const authed = authSnapshot !== null;
+  const mcpAccessQuery = useMcpAccess(state.view === 'projects' && authed, authSnapshot?.viewer.principalId ?? null);
+  const activeOrgId = authSnapshot?.viewer.activeOrganisation?.id ?? null;
+  const mcpAccessState = projectMcpAccessState(mcpAccessQuery.data, activeOrgId);
   // Enabled on Runs too, and not for the Runs list: it is the ONLY way to
   // resolve the project a selected run belongs to, and the preview is keyed by
   // (project, project run) while this view is keyed by trace id. Gated on the
@@ -458,8 +454,8 @@ function GpuAppContent({
   }, [notificationsQuery]);
   const [adminInvitation, setAdminInvitation] = useState<VizAdminInvitation | null>(null);
   const [adminError, setAdminError] = useState<string | null>(null);
-  const updateState = useRef({ apiReady, projectBusy, pendingLoginProvider, authSnapshot, adminInvitation });
-  updateState.current = { apiReady, projectBusy, pendingLoginProvider, authSnapshot, adminInvitation };
+  const updateState = useRef({ apiReady, pendingLoginProvider, authSnapshot, adminInvitation });
+  updateState.current = { apiReady, pendingLoginProvider, authSnapshot, adminInvitation };
   const restoredNavigation = useRef(false);
   useEffect(() => {
     if (!apiReady || restoredNavigation.current) return;
@@ -486,10 +482,12 @@ function GpuAppContent({
         const latest = updateState.current;
         const ui = useGpuStore.getState();
         return latest.apiReady && !latest.authSnapshot?.signingOut && !latest.authSnapshot?.switchingOrganisationId &&
-          !ui.accountMenuOpen && !ui.localeMenuOpen && !ui.notificationsMenuOpen && !latest.projectBusy && !latest.pendingLoginProvider && !latest.adminInvitation &&
+          !ui.accountMenuOpen && !ui.localeMenuOpen && !ui.notificationsMenuOpen && !latest.pendingLoginProvider && !latest.adminInvitation &&
           pendingApiMutations() === 0 && queryClient.isMutating() === 0 &&
           !['settings', 'announce', 'admin'].includes(ui.view) && !ui.tuningPanelOpen &&
-          !ui.search.projectSource && !ui.search.projectName && !ui.search.projectPrompt && !ui.search.projectCriteria && !ui.search.projectRepository && !ui.search.displayName;
+          // Opening Settings fills this field with the current name. Only a
+          // changed name is an unsaved draft that must hold an update.
+          (!ui.search.displayName || ui.search.displayName === latest.authSnapshot?.viewer.displayName);
       },
       beforeReload: () => {
         const auth = updateState.current.authSnapshot;
@@ -590,60 +588,6 @@ function GpuAppContent({
     if (nextSelection !== state.selectedProjectId) state.selectProject(nextSelection);
   }, [projectsQuery.data, state]);
 
-  useEffect(() => {
-    const installations = githubInstallationsQuery.data ?? [];
-    const active = installations.filter((installation) => installation.status === 'active');
-    if (state.view !== 'projects') return;
-    if (!state.selectedGithubInstallationId && active[0]) {
-      state.selectGithubInstallation(active[0].installationId);
-    }
-  }, [githubInstallationsQuery.data, state]);
-
-  const createProject = useCallback(async (): Promise<void> => {
-    if (projectBusy) return;
-    const name = useGpuStore.getState().search.projectName.trim();
-    const repository = useGpuStore.getState().search.projectRepository.trim();
-    const installationId = useGpuStore.getState().selectedGithubInstallationId;
-    const installation = githubInstallationsQuery.data?.find(
-      (candidate) => candidate.installationId === installationId
-    );
-    const slug = projectSlugFromName(name);
-    if (!name || !slug || !installation) {
-      setProjectError(t('projects.actionFailed'));
-      return;
-    }
-    setProjectBusy(true);
-    setProjectError(null);
-    try {
-      const ui = useGpuStore.getState();
-      const source = ui.projectRepositoryMode === 'new' ? undefined : {
-        ...parseGitHubRepository(ui.search.projectSource), mode: ui.projectRepositoryMode,
-      };
-      const created = await api.createProject({
-        name,
-        slug,
-        repositoryTarget: {
-          installationId: installation.installationId,
-          owner: source?.mode === 'pull-request' ? source.owner : installation.accountLogin,
-          name: source?.mode === 'pull-request' ? source.name : repository || slug,
-          ...(source ? { source } : {}),
-          // The operator's choice, from the form's own select. The default it
-          // starts at lives in ONE place, `DEFAULT_REPOSITORY_VISIBILITY`.
-          visibility: useGpuStore.getState().projectVisibility,
-        },
-      });
-      await queryClient.invalidateQueries({ queryKey: ['viz', 'projects'] });
-      useGpuStore.getState().selectProject(created.projectId);
-    } catch (error) {
-      // The server's own message, like startProjectRun already does. A bare
-      // catch here discarded the one sentence that explains a refusal — and a
-      // visibility a GitHub organisation forbids is refused with a reason.
-      setProjectError(error instanceof Error ? error.message : t('projects.actionFailed'));
-    } finally {
-      setProjectBusy(false);
-    }
-  }, [githubInstallationsQuery.data, projectBusy, queryClient, t]);
-
   // THE PREVIEW SESSION stays in a local hook rather than in the store on
   // purpose: `previewUrl` carries a one-time claim in its fragment, so it is a
   // credential — never the store (which a devtools reader can dump), never a
@@ -660,46 +604,6 @@ function GpuAppContent({
 
   const { previewOpen, previewUrl, previewStatus, previewError, previewReloadNonce,
     requestPreview, closePreview, stopPreview, reloadPreview } = usePreviewSession({ previewTarget, previewSummary, t });
-
-  const startProjectRun = useCallback(async (): Promise<void> => {
-    if (projectBusy || hasLiveRun) return;
-    const projectId = useGpuStore.getState().selectedProjectId;
-    const goal = useGpuStore.getState().search.projectPrompt.trim();
-    if (!projectId) {
-      setProjectError(t('projects.actionFailed'));
-      return;
-    }
-    if (!goal) {
-      setProjectError(t('projects.promptRequired'));
-      return;
-    }
-    // Parsed HERE with the host's own grammar, so a line that would be
-    // refused is named before the request, and the host re-validates anyway.
-    const criteria = parseChecklistLines(useGpuStore.getState().search.projectCriteria);
-    if (criteria.errors.length > 0) {
-      const first = criteria.errors[0]!;
-      setProjectError(first.line > 0
-        ? t('projects.criteriaInvalidLine', { line: first.line, message: first.message })
-        : t('projects.criteriaTooMany', { max: MAX_CHECKLIST_ITEMS }));
-      return;
-    }
-    setProjectBusy(true);
-    setProjectError(null);
-    try {
-      await api.startProjectRun(projectId, {
-        idempotencyKey: crypto.randomUUID(),
-        goal,
-        ...(criteria.items.length > 0 ? { acceptanceChecklist: criteria.items } : {}),
-      });
-      await queryClient.invalidateQueries({ queryKey: ['viz', 'project', projectId, 'runs'] });
-      await queryClient.invalidateQueries({ queryKey: ['viz', 'projects'] });
-      await queryClient.invalidateQueries({ queryKey: ['viz', 'runs'] });
-    } catch (error) {
-      setProjectError(error instanceof Error ? error.message : t('projects.actionFailed'));
-    } finally {
-      setProjectBusy(false);
-    }
-  }, [projectBusy, hasLiveRun, queryClient, t]);
 
   const activate = useCallback((id: string) => {
     if (id === 'result.close') { useGpuStore.getState().selectResult(null); return; }
@@ -776,6 +680,7 @@ function GpuAppContent({
       return;
     }
     if (id === 'account.settings') {
+      setSettingsInitialTab('general');
       store.setView('settings');
       return;
     }
@@ -793,8 +698,7 @@ function GpuAppContent({
     }
     if (id.startsWith('nav.')) {
       const nextView = id.slice(4) as typeof store.view;
-      // With the duplicate selected-project row removed, re-clicking Projects
-      // is the route back to the organisation list and creation form.
+      // Re-clicking Projects returns to the organisation list and MCP guide.
       if (nextView === 'projects' && store.view === 'projects' && store.selectedProjectId) {
         store.selectProject(null);
       }
@@ -870,17 +774,8 @@ function GpuAppContent({
       void stopPreview();
       return;
     }
-    // The id carries what the viewer SAW, because with no stored preference
-    // the view resolved the open state from the selected project's run count
-    // and only it knows what it drew.
-    if (id.startsWith('projects.guidance.toggle.')) {
-      store.toggleProjectGuidance(id.endsWith('.open'));
-      return;
-    }
     if (id.startsWith('project.select.')) {
-      // Toggle: re-clicking the selected project deselects it, which is how a
-      // viewer who already has projects gets the create form back. No extra
-      // control for it — the row is the control.
+      // Toggle: re-clicking the selected project returns to the full list.
       const projectId = id.slice('project.select.'.length);
       store.selectProject(projectSelectionAfterActivate(store.selectedProjectId, projectId));
       return;
@@ -897,8 +792,8 @@ function GpuAppContent({
       return;
     }
     if (id.startsWith(PARTIAL_CONTINUE_PREFIX)) {
-      // Open the project with this run's goal already in the prompt. The
-      // person reviews it and presses Run; nothing launches from here.
+      // Open the project. Its MCP guide tells the person to ask their agent
+      // to inspect the latest run and propose the next goal.
       const projectId = id.slice(PARTIAL_CONTINUE_PREFIX.length);
       const run = runQuery.data;
       const guidance = run
@@ -906,7 +801,6 @@ function GpuAppContent({
         : null;
       if (guidance?.project?.projectId !== projectId) return;
       store.selectProject(projectId);
-      if (guidance.goal) store.setSearch('projectPrompt', guidance.goal);
       store.setView('projects');
       return;
     }
@@ -961,12 +855,6 @@ function GpuAppContent({
       store.selectDocsTheme(id.slice('docs.theme.'.length) as DocsThemeKey);
       return;
     }
-    if (id.startsWith('projects.example.')) {
-      const index = Number(id.slice('projects.example.'.length));
-      const example = guidanceQuery.data?.guidance.examples[index];
-      if (example) store.setSearch('projectPrompt', example);
-      return;
-    }
     if (id.startsWith('login.provider.')) {
       if (pendingLoginProvider) return;
       setPendingLoginProvider(id.slice('login.provider.'.length));
@@ -1011,7 +899,6 @@ function GpuAppContent({
     mintInvitation,
     pendingLoginProvider,
     previewQuery.data?.state,
-    guidanceQuery.data,
     projectsQuery.data,
     requestPreview,
     runQuery.data,
@@ -1069,7 +956,6 @@ function GpuAppContent({
     // as a global error painted a banner over the whole run graph. It
     // surfaces as `skillDetailFailed` in the pane instead.
     burninQuery.error,
-    guidanceQuery.error,
     projectsQuery.error,
     githubInstallationsQuery.error,
     projectRunsQuery.error,
@@ -1093,7 +979,7 @@ function GpuAppContent({
     skillDetail: skillDetailQuery.data ?? null,
     skillDetailFailed: skillDetailQuery.isError,
     burnin: burninQuery.data ?? null,
-    guidance: guidanceQuery.data?.guidance ?? null,
+    guidance: null,
     projects: projectsQuery.data ?? [],
     projectRuns: resultProjectId && resultProjectRunsQuery.data
       ? { ...projectRuns, [resultProjectId]: resultProjectRunsQuery.data } : projectRuns,
@@ -1146,7 +1032,6 @@ function GpuAppContent({
     githubInstallationsQuery.data,
     loading,
     namespacesQuery.data,
-    guidanceQuery.data,
     projectRuns,
     projectsQuery.data,
     registriesQuery.data,
@@ -1226,11 +1111,11 @@ function GpuAppContent({
           onEnter={arrive}
           githubInstallations={githubInstallationsQuery.data ?? []}
           projects={projectsQuery.data ?? []}
-          onCreateProject={() => { void createProject(); }}
-          onStartRun={() => { void startProjectRun(); }}
-          projectBusy={projectBusy}
-          runInProgress={hasLiveRun}
-          projectError={projectError}
+          mcpAccessState={mcpAccessState}
+          onOpenMcp={() => {
+            setSettingsInitialTab('mcp');
+            useGpuStore.getState().setView('settings');
+          }}
           pushPrompt={pushPrompt}
           onEnablePush={() => { void enablePush(); }}
           onDismissPush={dismissPush}
@@ -1243,6 +1128,7 @@ function GpuAppContent({
               <OrgModelsForm
                 t={t}
                 locale={state.locale}
+                initialTab={settingsInitialTab}
                 enabled={true}
                 canManageOrg={
                   authSnapshot.viewer.platformAdmin ||

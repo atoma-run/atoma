@@ -10,9 +10,8 @@ release gate: nothing in `check` or `release:check` depends on it.
 
 ```bash
 npm run viz:shot                                    # anonymous visitor (login gate when auth is armed)
-npm run viz:shot -- --auth                          # logged-in member, Projects view
-npm run viz:shot -- --auth --repository-mode fork   # existing-repository creation form
-npm run viz:shot -- --auth --select-first           # first project selected: run list + run form
+npm run viz:shot -- --auth                          # logged-in member, Projects MCP guide
+npm run viz:shot -- --auth --select-first           # first project selected: run list + MCP guide
 npm run viz:shot -- --auth --view Runs              # any nav tab by its label
 npm run viz:shot -- --auth --view Runs --result     # final answer, copy and download controls
 npm run viz:shot -- --auth --select-first --result  # same result reader inside the project
@@ -63,10 +62,10 @@ exercise either camera pose. The same probe is part of `viz:smoke`.
   the scene and shows the mobile notice (`<out>-notice.png`); Continue appears
   after two seconds. Acknowledgement survives a full reload. Anonymous entry
   then reaches the OAuth route (intercepted before external sign-in); with
-  `--auth`, entry reaches the project form and writes `<out>-projects.png`.
+  `--auth`, entry reaches the MCP guide and writes `<out>-projects.png`.
   The pointer-capability media query must match.
 - **`--select-first`** — clicks the first project row through the canvas hit
-  targets (`?atomaDiag=1`), so the expanded run list and the run form render.
+  targets (`?atomaDiag=1`), so the expanded run list and selected-project guide render.
 - **`--scroll-end`** — Settings only: scrolls `.gpu-org-models-form` to its
   end so the organisation directory (below the keys) is in frame.
 - **`--camera overview|focus`** — captures either endpoint of the global scene
@@ -118,4 +117,4 @@ npm run viz:shot -- --auth --select-first --out screenshots/after.png
 ```
 
 For layout work also capture a narrow viewport (`--width 528`) — the compact
-project rows and the stacked DOM form have their own geometry.
+project rows and the stacked MCP guide have their own geometry.

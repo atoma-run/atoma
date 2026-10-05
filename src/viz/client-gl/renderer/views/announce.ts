@@ -14,7 +14,7 @@ import { drawViewFrame, viewFrame, VIEW_FRAME_PAD } from '../view-frame.js';
  * column geometry are the same product surface as the four views beside it,
  * and a form floating on the far field would read as a different app.
  *
- * The height contract is therefore INVERTED compared to the project form:
+ * The height contract is therefore INVERTED compared to the Projects guide:
  * the DOM does not claim a slice the renderer must give up, it claims the
  * whole box, and the test pins its inset to the frame's own padding.
  */

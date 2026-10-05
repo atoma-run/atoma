@@ -46,8 +46,7 @@ const GRANDFATHERED_SKIN_TOKENS = new Set([
   'gpu-overlays-veiled',
   // The reference pattern: the skin is NEUTRALISED for this one (transparent
   // background, no border) and the view draws the real frame with panel().
-  'gpu-project-form',
-  'gpu-project-form--run',
+  'gpu-project-mcp',
   // The debts. (`gpu-settings-form`, the fixed rename form, was retired when
   // Settings became one tabbed body — the display name is in-flow now.)
   'gpu-org-models-form',
@@ -136,9 +135,9 @@ describe('the GL overlay stack', () => {
     expect(rule![0]).toContain('inset: 0');
   });
 
-  it('keeps the reference pattern honest: the project form skin stays neutralised', () => {
+  it('keeps the reference pattern honest: the MCP guide skin stays neutralised', () => {
     const styles = readFileSync(join(GL_ROOT, 'styles.css'), 'utf8');
-    const neutraliser = styles.match(/\.gpu-project-form\.gpu-panel-skin\s*\{[^}]*\}/);
+    const neutraliser = styles.match(/\.gpu-project-mcp\.gpu-panel-skin\s*\{[^}]*\}/);
     expect(neutraliser).not.toBeNull();
     expect(neutraliser![0]).toContain('background: transparent');
     expect(neutraliser![0]).toContain('box-shadow: none');

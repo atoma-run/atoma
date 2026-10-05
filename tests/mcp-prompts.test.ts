@@ -97,6 +97,18 @@ describe('MCP prompts — the goal prompt, plus the reader drivers', () => {
     for (const example of GOAL_GUIDANCE.examples) expect(text).toContain(example);
     expect(text).toContain('ship a thing');
     expect(text).not.toMatch(/famil/i);
+    const projectText = goalPromptText('ship a thing', 'project');
+    expect(projectText).toContain(GOAL_GUIDANCE.help);
+    expect(projectText).toContain('atoma_project_create');
+    expect(projectText).toContain('atoma_run_start');
+    expect(projectText).toContain('atoma_projects_list');
+    expect(projectText).toContain('atoma_project_runs');
+    expect(projectText).toContain('newest run');
+    expect(projectText).toContain('Ask the person only for decisions');
+    expect(projectText).not.toContain('atoma_operator_run_start');
+    expect(projectText).toMatch(/Recommend the project and repository/);
+    expect(projectText).toMatch(/Ask for approval of that proposal/);
+    expect(projectText).toMatch(/not a deployment/);
   });
 
   /**

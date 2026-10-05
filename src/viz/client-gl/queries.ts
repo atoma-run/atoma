@@ -7,7 +7,7 @@ import {
 import { useRef } from 'react';
 import { api } from '../client/data-api.js';
 import { isIndexEntryLive, isRunLive, projectRunUpdate } from '../client/run-utils.js';
-import type { RunIndexEntry, SkillSummary, VizRun } from '../client/types.js';
+import type { RunIndexEntry, SkillSummary, VizApiTokens, VizRun } from '../client/types.js';
 
 export function useRunsIndex(active: boolean) {
   const query = useQuery({
@@ -146,6 +146,27 @@ export function useProjects(active: boolean) {
     refetchInterval: active ? 5_000 : false,
     staleTime: 2_000,
   });
+}
+
+/** The viewer's authorized MCP clients, scoped in the caller to the active organisation. */
+export function useMcpAccess(active: boolean, principalId: string | null) {
+  return useQuery({
+    queryKey: ['viz', 'mcp', 'access', principalId],
+    queryFn: api.apiTokens,
+    enabled: active && principalId !== null,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+  });
+}
+
+export function projectMcpAccessState(
+  data: VizApiTokens | undefined,
+  orgId: string | null
+): 'connected' | 'authorized' | 'unconnected' | 'unknown' {
+  if (!data || !orgId) return 'unknown';
+  const active = data.tokens.filter((token) => token.orgId === orgId && token.revokedAt === null);
+  if (active.some((token) => token.lastUsedAt !== null)) return 'connected';
+  return active.length > 0 ? 'authorized' : 'unconnected';
 }
 
 /**

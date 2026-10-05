@@ -372,11 +372,11 @@ npm run viz:mark-turn:analyze
   opened — the recurring hand-fixed z-order defect this entry retires
   (2026-08-28). DOM over the canvas is for INPUT the browser must own (fields,
   selects, links), on a TRANSPARENT wrapper with the frame drawn by the view
-  (`panel()`, the Projects-form pattern): a DOM-painted frame has both defects
+  (`panel()`, the Projects guide pattern): a DOM-painted frame has both defects
   at any z-index, because the canvas is one element. The CSS-framed overlays
   that predate this rule (`gpu-org-models-form`, `gpu-announce-form`, plus
   `gpu-scene-tuning`, a floating window) are grandfathered debts: migrate one
-  with the Projects treatment, never add another. Settings is ONE tabbed DOM
+  with the Projects guide treatment, never add another. Settings is ONE tabbed DOM
   body; panels stay MOUNTED and `hidden` so a once-shown MCP token survives. `tests/viz-overlay-stack.test.ts` pins the
   mount order, the filter's home, the views' no-direct-`markRoot` rule and
   holds the skin list closed; `viz:smoke` remains the on-device proof.
@@ -431,25 +431,24 @@ npm run viz:mark-turn:analyze
   window's visibility, and its DOM layer sits above view forms. Title-bar
   dragging clamps the complete window inside the viewport; slider values stay
   in the mutable live sample so pointer motion never rebuilds the GPU scene.
-- The project form is ONE form with TWO shapes, never one that grows: the
-  create fields with no project selected, the run prompt and criteria with one. A selected
-  project's name owns the page title (`Project : <name>`) and is NOT repeated
-  as an active row in its detail card. Re-clicking Projects in the rail returns
-  to the full list and create form; the accessible DOM mirror also preserves
-  toggle semantics. Projects must NOT auto-select the first project: that made
-  creating a second one unreachable and re-selected immediately after every
-  deselect. Only the repair remains: a selection whose project is gone falls
-  back to the first that exists. The GitHub connect link stays
-  outside the switch, so an organisation with no installation can always reach
-  it. The create/run form heights are explicit shared TS/CSS contracts in both
-  wide and stacked-narrow modes; GPU rows start below the matching height.
-  Compact GL project and run rows stack status metadata below their full-width
-  targets rather than allowing fixed status columns to cover the label.
-  A SELECTION IS A FILTER: one selected project draws THAT card alone, so the
-  run form sits against the card it acts on. `projectHidden` is the one rule,
-  read by BOTH the measuring and draw passes — two copies desynchronise
-  `scrollMax`. The form stays a DOM overlay ABOVE the canvas, never inside the
-  card, which no `fixed` element can do over a GL scroll pane.
+- The Projects screen uses a DOM MCP onboarding guide above the GPU project
+  list. It offers one route to Settings → MCP and a concrete request to give
+  the connected agent. The Web client has no project creation or run launch
+  form. GitHub connection remains reachable when the active organisation has
+  no installation. A selected project's name owns the page title (`Project :
+  <name>`) and is not repeated as an active row in its detail card.
+  Re-clicking Projects in the rail returns to the full list; the accessible DOM
+  mirror preserves the same toggle semantics. Projects must not auto-select
+  the first project: that hid the full list and
+  re-selected immediately after every deselect. Only the repair remains: a
+  selection whose project is gone falls back to the first that exists. The
+  MCP guide has one explicit TS/CSS height contract for wide and narrow
+  layouts; GPU rows start below it. Compact GL project and run rows stack
+  status metadata below their full-width targets. A SELECTION IS A FILTER:
+  one selected project draws that card alone. `projectHidden` is the one rule,
+  read by both measuring and drawing, keeping `scrollMax` in sync. The guide
+  remains a transparent DOM overlay above the canvas, with its frame drawn on
+  the GPU.
 - WIDTHS ARE MEASURED, NEVER ESTIMATED, and row copy stays single-line: a
   character count is not a geometry bound. `ctx.measureText`/`ctx.fitText` are
   the one source and `button()` fits every label through them, so views pass
@@ -464,32 +463,21 @@ npm run viz:mark-turn:analyze
   with), and the per-character `gpuFilterButtonWidth*` estimates are the
   renderer-less FALLBACK only. An estimate must over-shoot to never clip, so
   it pads long labels unevenly; do not add a new chip surface on the fallback.
-- There is NO Launch tab in the GPU client. A tab that could only DESCRIBE how
-  to phrase a goal, beside a Projects tab that actually starts runs, split one
-  job over two places; the goal guidance (`/api/goal-guidance`, with a
-  `launch.guidance` catalog override) renders in the GL guidance
-  panel directly below the project run form only for a selected project with
-  NO runs, and its examples fill that prompt. Once the first run exists the
-  WHOLE guidance panel disappears; no collapsed heading remains above history.
-  While eligible it is a DISCLOSURE: tri-valued `projectGuidanceExpanded`
-  defaults open through `projectGuidanceOpen`, and an explicit toggle may
-  collapse or reopen it, so its activation id carries the DRAWN state
-  (`…toggle.open|closed`).
-  `/api/goal-guidance` stays a READER: it is ungated, so
-  it must never gain launch power — browser launches live on the authenticated
-  project routes, where a session the run does not hold is the boundary. The
-  end-user Docs guide may explain the same briefing principles, while the
-  ungated shell path remains operator documentation outside the product guide.
-  The FROZEN MUI fallback keeps its own Launch tab: it has no Projects view to
-  fold the guidance into, and it is a fallback, not where product decisions get
-  expressed.
+- There is no Launch tab in the GPU client. Projects directs the customer to
+  connect an agent through Settings → MCP, ask it to use repository and run
+  context, and review the drafted goal and acceptance criteria before a run.
+  The `atoma_goal` MCP prompt and server tool guidance own the agent-facing
+  instructions. `/api/goal-guidance` remains a read-only compatibility route;
+  it has no browser launch power. The frozen MUI fallback keeps its own Launch
+  tab because it has no Projects screen to use this flow.
 - DOCS IS THE MEMBER FIELD GUIDE, not an index of implementation contracts or
   platform-admin surfaces. `docs-content.ts` is the structured source shared by
   the Pixi article and its semantic DOM twin; the former canvas is aria-hidden,
   so a topic or content block present in one must be present in both. Keep the
   guide limited to member-visible Projects/Runs workflows and current product
-  boundaries. Repository paths, shell/MCP instructions, Registry, Skills,
-  Burn-in and the admin plane belong in operator documentation, never here.
+  boundaries. Member-facing MCP connection and briefing guidance belongs
+  here; repository paths, shell commands, operator MCP internals, Registry,
+  Skills, Burn-in and the admin plane belong in operator documentation.
   Topic changes reset `scrollY.docs`, and the narrow layout stacks the complete
   topic index above the article rather than squeezing or clipping either pane.
 - `TraceRecorder.persist()` IS A WIRE CONTRACT for one reader outside this

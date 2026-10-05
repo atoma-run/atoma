@@ -2,10 +2,11 @@
  * The PROMPT half of the MCP surface: goal templates and argument completions.
  *
  * WHY PROMPTS AT ALL. `GOAL_GUIDANCE` already answers "how do I phrase a
- * goal?" for its other consumers (the CLI's `--help` and the viz project run
- * form). Exposing it through `prompts/list` makes the host's own prompt picker
- * one more consumer without duplicating the source: the help and the examples
- * below are read from it, never restated here.
+ * goal?" for the CLI's `--help`. Exposing it through `prompts/list` makes the
+ * host's own prompt picker another consumer without duplicating the source:
+ * the help and the examples
+ * below are read from it, never restated here. Members can use the goal prompt
+ * for project runs; operator readers remain platform-only.
  *
  * WHY THE COMPLETIONS HANG OFF PROMPTS AND NOT OFF TOOLS. The roadmap entry
  * that asked for this wanted completions for `atoma_run_trace.file`,
@@ -82,10 +83,11 @@ export function promptNames(): string[] {
  * write) and teaches no polling loop: the start is a task or a synchronous
  * call, and the status tool is a reader for a cut call.
  */
-export function goalPromptText(goal: string): string {
+export function goalPromptText(goal: string, target: 'project' | 'operator' = 'operator'): string {
   const examples = GOAL_GUIDANCE.examples.map((e) => `- ${e}`).join('\n');
+  const project = target === 'project';
   return [
-    'Prepare an atoma run for the person to confirm.',
+    `Prepare an atoma ${project ? 'project' : 'operator'} run for the person to confirm. Use the conversation and available repository context to make the brief specific; ask for missing requirements rather than inventing them.`,
     '',
     "How to phrase a goal — atoma's own guidance, verbatim:",
     GOAL_GUIDANCE.help,
@@ -96,8 +98,16 @@ export function goalPromptText(goal: string): string {
     'The goal to run:',
     goal,
     '',
-    `Show the person the goal as prose describing the artefact wanted, and start it only once they confirm: atoma_operator_run_start with that goal (inside an organisation's project, atoma_run_start with the projectId instead). Do not name tools in the goal: the tiering decides what to invoke, and a goal that prescribes it spends the run's budget on the wrong phase.`,
-    'Starting a run is DESTRUCTIVE (the shared build workspace is archived first unless keepWorkspace is passed, and the run mutates the agent registry, the skill store and the lifecycle ledger) and SERIALISED (one at a time). The start answers when the run ends, minutes later; if the call is cut, the run goes on: read it with atoma_operator_run_status rather than starting it again, and report its economics.',
+    ...(project ? [
+      'Take the lead on discovery. For an existing project, find it with atoma_projects_list, read its newest run with atoma_project_runs and atoma_run_status, and inspect relevant repository context. Propose one useful next outcome based on what is finished, incomplete or still unknown. For a new project, inspect the repository and available GitHub installations first. Ask the person only for decisions or requirements the available context cannot settle.',
+      '',
+    ] : []),
+    project
+      ? 'Recommend the project and repository when the evidence is clear. Show the person one proposed goal, any optional acceptance criteria, and that starting the run spends model quota. Ask for approval of that proposal. Only after they confirm, create a project with atoma_project_create if needed and start it with atoma_run_start and its projectId. Do not name tools in the goal: Atoma chooses its own execution path.'
+      : 'Show the person the goal as prose describing the artefact wanted, and start it only once they confirm: atoma_operator_run_start with that goal. Do not name tools in the goal: the tiering decides what to invoke, and a goal that prescribes it spends the run’s budget on the wrong phase.',
+    project
+      ? 'Starting a project run is DESTRUCTIVE and SERIALISED: it spends the organisation’s model quota and can publish delivered files to its GitHub repository; one run happens at a time. A start may take minutes. If the client call is cut, the run continues: re-attach with the same request and idempotency key, or read it with atoma_run_status. Report its outcome and cost; a delivery still needs human review and is not a deployment.'
+      : 'Starting a run is DESTRUCTIVE (the shared build workspace is archived first unless keepWorkspace is passed, and the run mutates the agent registry, the skill store and the lifecycle ledger) and SERIALISED (one at a time). The start answers when the run ends, minutes later; if the call is cut, the run goes on: read it with atoma_operator_run_status rather than starting it again, and report its economics.',
   ].join('\n');
 }
 
@@ -174,19 +184,18 @@ function userMessage(text: string): {
   return { messages: [{ role: 'user', content: { type: 'text', text } }] };
 }
 
-export function registerPrompts(server: McpServer): void {
+export function registerPrompts(server: McpServer, options: { target: 'project' | 'operator'; readers: boolean }): void {
   server.registerPrompt(
     GOAL_PROMPT,
     {
       title: 'Phrase a goal',
       description:
-        "Turn an intent into a goal and start the run. Carries atoma's own phrasing guidance and its example goals.",
+        "Turn a person's intent and repository context into an Atoma run goal for their approval. Carries Atoma's own phrasing guidance and example goals.",
       argsSchema: {
         goal: completable(
           z.string().min(1),
           // The guidance's own examples ARE the completion set: a host that
-          // offers them is doing what the viz project run form's click-to-fill
-          // does, from the same source.
+          // offers them is using the same source as the CLI guidance.
           (typed) => {
             const prefix = typed.trim().toLowerCase();
             return GOAL_GUIDANCE.examples.filter(
@@ -196,8 +205,10 @@ export function registerPrompts(server: McpServer): void {
         ),
       },
     },
-    ({ goal }) => userMessage(goalPromptText(goal))
+    ({ goal }) => userMessage(goalPromptText(goal, options.target))
   );
+
+  if (!options.readers) return;
 
   server.registerPrompt(
     TRACE_PROMPT,

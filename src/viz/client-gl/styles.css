@@ -299,7 +299,7 @@ html.atoma-cursor-active * {
    shadows; retained outer camera frames deliberately do not, because their
    unmasked full-height shadow reads as a second frame. A DOM overlay that sits
    inside a view's column uses that same material instead of inventing a second
-   skin: the create-project form used to carry its own darker fill and read as
+   skin: the retired create-project form used to carry its own darker fill and read as
    a foreign card.
    The GL shadows swing with the pointer light; CSS cannot, so these are its
    resting values. */
@@ -415,13 +415,9 @@ html.atoma-cursor-active * {
   padding: 6px 11px;
 }
 
-/* `top` must match PROJECTS_DOM_FORM_TOP. Fields are a grid, not six
-   independent fixed boxes — those stacked GPU empty-copy under the inputs.
-
-   The column is `projectsColumn()` from renderer/views/projects.ts, restated
-   in CSS: this form and the GL project list are two cards in ONE stack, and
-   they only read as one while they share both edges. */
-.gpu-project-form {
+/* `top` and `height` match the Projects view's measured MCP guide band.
+   The DOM card and GPU project list share one column inside the view frame. */
+.gpu-project-mcp {
   --gpu-content: calc(100vw - var(--gpu-sidebar));
   --gpu-frame: calc(var(--gpu-content) - 20px);
   --gpu-overlay-top: 104px;
@@ -431,107 +427,58 @@ html.atoma-cursor-active * {
   top: 104px;
   left: calc(var(--gpu-sidebar) + (var(--gpu-content) - var(--gpu-frame)) / 2 + 16px);
   width: calc(var(--gpu-frame) - 32px);
-  height: 186px;
-  /* The declared height is a contract with the GL list below it, so content
-     that outgrows it must scroll rather than spill: a longer locale, a raised
-     default font size, or a future field. `auto`, not `hidden` — hiding could
-     swallow the Create button. */
+  height: 180px;
   overflow-y: auto;
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
-  grid-template-areas:
-    "source source source"
-    "name repo install"
-    "actions actions actions"
-    "hint hint hint";
-  gap: 8px;
-  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 14px;
   box-sizing: border-box;
+  color: #e6edf7;
 }
 
-/* The form's real frame is drawn by Projects with the SAME `ctx.panel()` call
-   as the list below. This DOM node owns fields and layout only; leaving the
-   shared CSS skin visible here would double the border and cast two shadows. */
-.gpu-project-form.gpu-panel-skin {
+/* The GPU view draws the card's frame through its shared panel path. */
+.gpu-project-mcp.gpu-panel-skin {
   background: transparent;
   border-color: transparent;
   box-shadow: none;
 }
 
-/* Selecting a project SWAPS the form rather than extending it: creating a
-   project and starting a run on one are two jobs, and the fields of the job
-   you are not doing are noise. Deselecting (clicking the selected row again)
-   brings the create fields back. */
-.gpu-project-form--run {
-  height: 184px;
-  grid-template-areas:
-    "prompt prompt criteria"
-    "actions actions actions"
-    "hint hint hint";
+.gpu-project-mcp h2 {
+  margin: 0;
+  font: 600 14px/1.3 ui-sans-serif, system-ui, sans-serif;
 }
 
-/* THE TARGET PAIR shares the `install` cell rather than taking a fourth
-   column. Widening the grid would have touched four coupled numbers — the base
-   track list, three area lists, the narrow height, and its TS twin — and CSS
-   Grid makes area lists all-or-nothing across their rows, a cascade no test in
-   this repository can see (jsdom has no layout, and the GPU smoke never opens
-   this form). Nesting touches none of them: same cell, same heights, same
-   contract. */
-.gpu-project-target {
-  grid-area: install;
-  display: flex;
-  gap: 8px;
-  min-width: 0;
+.gpu-project-mcp p {
+  margin: 0;
+  font: 12px/1.4 ui-sans-serif, system-ui, sans-serif;
+  overflow-wrap: anywhere;
 }
 
-.gpu-project-target .gpu-dom-input {
-  /* Degrade to a floor rather than collapsing: this row already carries three
-     16px controls at the first wide pixel. */
-  flex: 1 1 0;
-  width: 0;
-  min-width: 0;
+.gpu-project-mcp-request {
+  color: #a9c8f2;
+  user-select: text;
 }
 
-.gpu-project-form .gpu-dom-input {
-  position: relative;
-  top: auto;
-  left: auto;
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
+.gpu-project-mcp-connection {
+  color: #71e3aa;
+  font-weight: 600 !important;
 }
 
-.gpu-project-name { grid-area: name; height: 32px; padding: 6px 11px; }
-.gpu-project-repo { grid-area: repo; height: 32px; padding: 6px 11px; }
-.gpu-project-install {
-  grid-area: install;
-  height: 32px;
+.gpu-project-mcp [role="status"] {
+  color: #a9b5ca;
+  font: 12px/1.4 ui-sans-serif, system-ui, sans-serif;
 }
-.gpu-project-visibility { height: 32px; }
-.gpu-project-prompt,
-.gpu-project-criteria {
-  grid-area: prompt;
-  height: 72px;
-  padding: 8px 11px;
-  resize: none;
-  line-height: 1.4;
-}
-.gpu-project-criteria { grid-area: criteria; }
 
-.gpu-project-actions {
-  grid-area: actions;
-  position: relative;
-  z-index: auto;
-  top: auto;
-  left: auto;
+.gpu-project-mcp-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  align-items: center;
+  margin-top: auto;
 }
 
-.gpu-project-actions a,
-.gpu-project-actions button {
+.gpu-project-mcp-actions a,
+.gpu-project-mcp-actions button {
   min-width: 0;
   max-width: 100%;
   border: 1px solid rgba(110, 168, 255, .62);
@@ -541,69 +488,14 @@ html.atoma-cursor-active * {
   padding: 6px 12px;
   font: 12px/1.2 ui-sans-serif, system-ui, sans-serif;
   text-decoration: none;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  cursor: pointer;
 }
-
-.gpu-project-hint {
-  grid-area: hint;
-  margin: 0;
-  font: 12px/1.35 ui-sans-serif, system-ui, sans-serif;
-  color: #8a96ae;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-/* At this window width the renderer's content viewport is <480px (the full
-   rail is 208px). Stack browser-native fields and reserve the SAME measured
-   band in projectsGpuContentTop; wrapping actions/hints must never spill over
-   the GL list below. */
-
-.gpu-project-source {
-  grid-area: source;
-  display: flex;
-  gap: 8px;
-  min-width: 0;
-}
-.gpu-project-source > * { flex: 1; min-width: 0; }
 
 @media (max-width: 687px) {
-  .gpu-project-source { flex-direction: column; }
-  .gpu-project-form {
-    height: 364px;
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas:
-      "source"
-      "name"
-      "repo"
-      "install"
-      "actions"
-      "hint";
-  }
-
-  /* Stacked, the pair becomes two rows inside its own cell — which is why the
-     band height does not move and the zero-height-pane cliff stays put. */
-  .gpu-project-target {
-    flex-direction: column;
-  }
-
-  .gpu-project-target .gpu-dom-select { width: 100%; }
-
-  .gpu-project-form--run {
-    height: 328px;
-    grid-template-areas:
-      "prompt"
-      "criteria"
-      "actions"
-      "hint";
-  }
+  .gpu-project-mcp { height: 300px; }
 }
 
-/* Scene Tuning is DOM chrome because project and settings forms are DOM
+/* Scene Tuning is DOM chrome because the project guide and settings forms are DOM
    overlays too: no display-list order inside the canvas can rise above a DOM
    sibling. This layer is above view forms and notifications, below the cursor
    and entry veil. It reuses `.gpu-panel-skin`, so its card material is the
@@ -936,8 +828,8 @@ html.atoma-cursor-active * {
   }
 }
 
-/* Settings › General: the display-name field is real DOM for the same reason
-   the project form is — text entry, autofill and screen readers belong to the
+/* Settings › General: the display-name field is real DOM because
+   text entry, autofill and screen readers belong to the
    browser. An ordinary block inside the tabbed body, not a fixed overlay. */
 .gpu-settings-rename {
   display: grid;
@@ -1034,7 +926,7 @@ html.atoma-cursor-active * {
 
 /* The Settings column frame is already `ctx.panel()`. A second CSS skin
    here doubled the border and let the inner radius pierce the outer one
-   at the foot (2026-08-27). Same strip as `.gpu-project-form`. */
+   at the foot (2026-08-27). Same strip as `.gpu-project-mcp`. */
 .gpu-org-models-form.gpu-panel-skin {
   background: transparent;
   border-color: transparent;

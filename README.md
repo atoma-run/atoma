@@ -66,10 +66,14 @@ For example:
 
 ## A run, step by step
 
-1. **Create a project**, from scratch or by importing an existing GitHub
-   repository, and describe the outcome you want.
-2. **Say what "done" means**, if you want to: list the behaviours the result
-   must show. Otherwise the run drafts its own checklist from your goal.
+1. **Connect your existing agent through MCP** from Settings in the Atoma
+   console. Say “Continue <project name> with Atoma” or “Plan a project for this
+   repository with Atoma.” The agent inspects the relevant context and proposes
+   what to do next.
+2. **Review the agent's proposal** for a new or existing project, the run goal
+   and optional acceptance criteria. Approve the project and run before the
+   agent starts them through MCP. Without criteria, the run drafts its own
+   checklist from the goal.
 3. **Follow the run** as agents plan, write files, start servers and check their
    work, with the model, tokens and cost behind every step.
 4. **Preview web results** in a temporary, isolated environment, including a
@@ -98,8 +102,8 @@ quota or incur API charges.
 
 ### Acceptance criteria you approve before launch
 
-A project run can carry up to twelve criteria, written one per line in the
-console, the CLI (`--criteria <file>`) or over MCP. A line such as
+A project run can carry up to twelve criteria, supplied through MCP or the
+CLI (`--criteria <file>`). A line such as
 `GET /api/items` is an HTTP check; any other line is judged by review. The host
 stores the list before planning starts and nothing can change it afterwards.
 The planner is told the user wrote it, and the final check is told which HTTP
@@ -195,9 +199,10 @@ incomplete run. See [operating run limits](docs/automatic-deployment.md#run-limi
 ### Connect an existing agent through MCP
 
 The console serves an HTTP MCP endpoint at `https://<your-instance>/mcp`.
-Compatible clients such as Claude Code or Codex can start runs, pass acceptance
-criteria, request reruns and read traces, costs and diagnostics, with the same
-organisation permissions as the web console.
+Compatible clients such as Claude Code or Codex can create projects, draft run
+goals from the conversation and repository context, start runs, pass acceptance
+criteria, request reruns and read traces, costs and diagnostics. The Web console
+is where customers connect the agent and review projects and results.
 
 One endpoint supports both MCP protocol revisions 2025-11-25 and 2026-07-28.
 OAuth clients can connect through browser consent, including clients identified

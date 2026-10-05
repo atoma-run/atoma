@@ -4684,15 +4684,15 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
 
   if (pathname === '/api/goal-guidance') {
     // READ-ONLY, and deliberately so: it returns compile-time constants — the
-    // goal guidance the project run form renders and the shell command for a
-    // deployment with no organisations — NOT a way to start anything. This
+    // goal guidance for the shell and frozen MUI fallback — NOT a way to start
+    // anything. The GPU Projects view now directs customers to MCP. This
     // route is UNGATED, which is exactly why it stays a reader: a run can call
     // BACK into this server (`fetch_url` has no URL allowlist by design, and
     // run_shell's is "STEERING, not a boundary"), so an ungated launcher here
     // would be reachable by the very code it would have to gate, and any
-    // secret served over HTTP would be readable by it too. Starting a run from
-    // the browser lives on the AUTHENTICATED project routes instead, where a
-    // session the run does not hold is the boundary.
+    // secret served over HTTP would be readable by it too. Project mutations
+    // remain on authenticated routes, where a session the run does not hold
+    // is the boundary.
     //
     // The run's default db path and workspace are NOT exposed: the run
     // resolves `process.env[...] ?? default` against ITS OWN environment, so

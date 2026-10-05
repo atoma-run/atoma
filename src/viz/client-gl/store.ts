@@ -1,8 +1,4 @@
 import { create } from 'zustand';
-import {
-  DEFAULT_REPOSITORY_VISIBILITY,
-  type RepositoryVisibility,
-} from '../../contracts/projects.js';
 import { isLocale, type Locale } from '../../contracts/locales.js';
 import { applyDocumentLocale } from '../client/i18n-catalog.js';
 import type { EventFilters } from '../client/run-utils.js';
@@ -60,11 +56,9 @@ export const ADMIN_VIEWS: readonly ViewName[] = [
  *   (the one platform registry every run reads and earns on) and the
  *   Skills catalog. Burn-in remains private operator state.
  *
- * There is no `launch` tab: a tab that could only DESCRIBE how to phrase a
- * goal, beside a Projects tab that actually starts runs, split one job over
- * two places. The goal guidance now renders inside the project run form
- * (`views/projects.ts`), while the member guide expands the same principle
- * under Strong goals.
+ * There is no `launch` tab: the Projects view directs members to their
+ * connected MCP agent, which drafts goals from the existing work context.
+ * The member guide explains how to review those goals.
  */
 export function visibleViews(auth: { viewer: { platformAdmin: boolean } } | null): ViewName[] {
   if (!auth) return ['projects', 'runs', 'registry', 'skills', 'burnin', 'docs'];
@@ -132,11 +126,6 @@ export type InputKind =
   | 'run'
   | 'registry'
   | 'skills'
-  | 'projectSource'
-  | 'projectName'
-  | 'projectPrompt'
-  | 'projectCriteria'
-  | 'projectRepository'
   | 'displayName'
   | null;
 
@@ -150,17 +139,12 @@ export function nextRunFilters(
   return { ...current, branchId: value };
 }
 
-/** Re-clicking the active project is the route back to the create form. */
+/** Re-clicking the active project returns to the complete project list. */
 export function projectSelectionAfterActivate(
   currentProjectId: string | null,
   activatedProjectId: string
 ): string | null {
   return currentProjectId === activatedProjectId ? null : activatedProjectId;
-}
-
-/** Is the first-goal guidance open? With no preference, expose it by default. */
-export function projectGuidanceOpen(preference: boolean | null): boolean {
-  return preference ?? true;
 }
 
 /**
@@ -225,23 +209,9 @@ export interface GpuUiState {
   selectedRegistryAtom: string | null;
   selectedSkill: { l1Name: string; id: string } | null;
   selectedProjectId: string | null;
-  selectedGithubInstallationId: string | null;
-  /**
-   * The new project's repository visibility. A top-level field, like the
-   * installation it sits beside in the form: `search` is one key per focusable
-   * TEXT input, and a two-option select carries no focus state anyone reads.
-   */
-  projectVisibility: RepositoryVisibility;
-  projectRepositoryMode: 'new' | 'pull-request' | 'fork';
   runFilters: EventFilters;
   branchHeadingExpanded: boolean;
   runSummaryExpanded: boolean;
-  /**
-   * The first-goal guidance disclosure. It is eligible only while the selected
-   * project has no runs; the view owns that absolute rule. Within that state,
-   * `null` defaults open and a toggle pins the viewer's choice for the session.
-   */
-  projectGuidanceExpanded: boolean | null;
   search: Record<Exclude<InputKind, null>, string>;
   focusedInput: InputKind;
   runPickerScrollY: number;
@@ -318,20 +288,9 @@ export interface GpuUiState {
   selectRegistryAtom: (name: string | null) => void;
   selectSkill: (selection: { l1Name: string; id: string } | null) => void;
   selectProject: (id: string | null) => void;
-  selectGithubInstallation: (id: string | null) => void;
-  setProjectRepositoryMode: (mode: 'new' | 'pull-request' | 'fork') => void;
-  setProjectVisibility: (visibility: RepositoryVisibility) => void;
   setRunFilters: (filters: EventFilters) => void;
   toggleBranchHeading: () => void;
   toggleRunSummary: () => void;
-  /**
-   * `currentlyOpen` is what the viewer SEES, which is not necessarily the
-   * stored preference: with no preference the view resolved it from the run
-   * count, and a toggle that flipped `null` would have to guess which way. The
-   * caller knows what it drew, so it says so, and the click always does the
-   * opposite of what is on screen.
-   */
-  toggleProjectGuidance: (currentlyOpen: boolean) => void;
   setSearch: (kind: Exclude<InputKind, null>, value: string) => void;
   setFocusedInput: (kind: InputKind) => void;
   setRunPickerScrollY: (value: number) => void;
@@ -434,22 +393,13 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   selectedRegistryAtom: null,
   selectedSkill: null,
   selectedProjectId: null,
-  selectedGithubInstallationId: null,
-  projectVisibility: DEFAULT_REPOSITORY_VISIBILITY,
-  projectRepositoryMode: 'new',
   runFilters: { kind: 'all', role: 'all', branchId: 'all' },
   branchHeadingExpanded: true,
   runSummaryExpanded: true,
-  projectGuidanceExpanded: null,
   search: {
     run: '',
     registry: '',
     skills: '',
-    projectName: '',
-    projectSource: '',
-    projectPrompt: '',
-    projectCriteria: '',
-    projectRepository: '',
     displayName: '',
   },
   focusedInput: null,
@@ -618,20 +568,13 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
     selectedProjectId,
     resultRunId: null,
     resultActionStatus: null,
-    // A selected project can expand with guidance and run history. Changing
-    // mode while retaining that scroll can place the shorter create list
+    // A selected project can expand with run history. Changing selection
+    // while retaining that scroll can place the shorter list
     // entirely above its pane until another wheel event clamps it.
     scrollY: { ...state.scrollY, projects: 0 },
   })),
-  selectGithubInstallation: (selectedGithubInstallationId) =>
-    set({ selectedGithubInstallationId }),
   selectResult: (resultRunId) => set({ resultRunId, resultActionStatus: null }),
   setResultActionStatus: (resultActionStatus) => set({ resultActionStatus }),
-  // Deliberately NOT persisted. A visibility carried over from the last
-  // project would be a decision made by a previous session about a repository
-  // that did not exist yet; every create starts from the stated default.
-  setProjectRepositoryMode: (projectRepositoryMode) => set({ projectRepositoryMode }),
-  setProjectVisibility: (projectVisibility) => set({ projectVisibility }),
   setRunFilters: (runFilters) =>
     set((state) => ({
       runFilters,
@@ -647,8 +590,6 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
     set((state) => ({ branchHeadingExpanded: !state.branchHeadingExpanded })),
   toggleRunSummary: () =>
     set((state) => ({ runSummaryExpanded: !state.runSummaryExpanded })),
-  toggleProjectGuidance: (currentlyOpen) =>
-    set({ projectGuidanceExpanded: !currentlyOpen }),
   setSearch: (kind, value) =>
     set((state) => ({ search: { ...state.search, [kind]: value } })),
   setFocusedInput: (focusedInput) => set({ focusedInput }),

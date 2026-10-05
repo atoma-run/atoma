@@ -15,6 +15,15 @@ The browser signs into Atoma if needed, then displays the requesting client,
 account, active organisation, return address and permission implications. The user
 must explicitly approve. Denial returns `access_denied` with the client's state.
 
+Once connected, say **“Continue <project name> with Atoma”** or **“Plan a project
+for this repository with Atoma.”** The agent finds the project, reviews its
+latest run and your repository, and proposes a concrete next goal. It asks only
+for missing decisions and your approval before creating a project or starting
+a run through MCP. You can state a specific ambition in your own words instead.
+A run consumes model quota; a delivered result may publish files to the project's
+GitHub repository. The agent can follow the run as an MCP task and report its
+outcome and cost.
+
 Use **Use another account** on that page to sign this browser out of Atoma,
 choose a provider account, and return to a new consent page. The original
 request is invalidated; switching neither grants access nor revokes existing

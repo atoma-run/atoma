@@ -1,9 +1,8 @@
-import { Container, Graphics, Rectangle } from 'pixi.js';
+import { Graphics } from 'pixi.js';
 import { dateTimeFormat } from '../../../client/date-format.js';
-import type { GoalGuidance, VizProjectRun } from '../../../client/types.js';
+import type { VizProjectRun } from '../../../client/types.js';
 import { BUTTON_LABEL_INSET } from '../../gpu-renderer.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
-import { projectGuidanceOpen } from '../../store.js';
 import { GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
 import { fmtMs } from '../../../client/run-utils.js';
 import { relativeTime, timestampTooltip } from '../relative-time.js';
@@ -18,13 +17,8 @@ import { latestDeliveredResult } from '../../run-result.js';
  * decomposition: a free function over the exported RendererCtx, one measured
  * layout pass, scroll through the shared masked pane, honest `scrollMax`.
  *
- * The create/connect form is a DOM overlay (`.gpu-project-form`). GPU copy
- * and the project list start below that band so labels never sit under inputs.
- *
- * It also carries the run prompt's GUIDANCE — how to phrase a goal for the
- * family, and example goals that fill the prompt. That used to be a separate
- * Launch tab which could only describe and never start, so one job lived in
- * two places; the guidance now sits beside the input it describes.
+ * The MCP onboarding guide is a DOM overlay (`.gpu-project-mcp`). GPU copy
+ * and the project list start below that band so labels never sit under it.
  */
 
 const ROW_HEIGHT = 58;
@@ -82,39 +76,26 @@ function projectCreatedDate(createdAt: string, locale: string): string {
 /** Breathing room between the status column and the row's right border. */
 export const PROJECTS_ROW_PAD = 14;
 /**
- * Must match `.gpu-project-form { top }` in styles.css. The form is the first
+ * Must match `.gpu-project-mcp { top }` in styles.css. The guide is the first
  * thing inside the column frame, so this is the frame's own content top.
  */
-export const PROJECTS_DOM_FORM_TOP =
+export const PROJECTS_MCP_GUIDE_TOP =
   GPU_LAYOUT.headerHeight + GPU_LAYOUT.gap + VIEW_FRAME_CONTENT_TOP;
-/**
- * The form has two shapes, so it has two heights. With no project selected it
- * is the create fields; with one it is the run prompt. Measuring one height
- * for both left a band of dead space under whichever form was shorter.
- */
-export const PROJECTS_DOM_FORM_HEIGHT = { create: 186, run: 184 } as const;
-/** Below this content width the DOM form stacks fields instead of squeezing them. */
+/** The guide has one shape regardless of project selection. */
+export const PROJECTS_MCP_GUIDE_HEIGHT = 180;
+/** Below this content width the guide gains room for wrapped copy. */
 export const PROJECTS_NARROW_CONTENT_WIDTH = 480;
 /** Must match the narrow media query in styles.css. */
-export const PROJECTS_DOM_FORM_NARROW_HEIGHT = { create: 364, run: 328 } as const;
+export const PROJECTS_MCP_GUIDE_NARROW_HEIGHT = 300;
 
-export type ProjectsFormMode = keyof typeof PROJECTS_DOM_FORM_HEIGHT;
-
-export function projectsFormHeight(
-  mode: ProjectsFormMode,
-  contentWidth = Number.POSITIVE_INFINITY
-): number {
-  const heights = contentWidth < PROJECTS_NARROW_CONTENT_WIDTH
-    ? PROJECTS_DOM_FORM_NARROW_HEIGHT
-    : PROJECTS_DOM_FORM_HEIGHT;
-  return heights[mode];
+export function projectsGuideHeight(contentWidth = Number.POSITIVE_INFINITY): number {
+  return contentWidth < PROJECTS_NARROW_CONTENT_WIDTH
+    ? PROJECTS_MCP_GUIDE_NARROW_HEIGHT
+    : PROJECTS_MCP_GUIDE_HEIGHT;
 }
 
-export function projectsGpuContentTop(
-  mode: ProjectsFormMode,
-  contentWidth = Number.POSITIVE_INFINITY
-): number {
-  return PROJECTS_DOM_FORM_TOP + projectsFormHeight(mode, contentWidth) + 16;
+export function projectsGpuContentTop(contentWidth = Number.POSITIVE_INFINITY): number {
+  return PROJECTS_MCP_GUIDE_TOP + projectsGuideHeight(contentWidth) + 16;
 }
 
 /**
@@ -188,151 +169,15 @@ function runCost(costUsd: number): string {
   return `$${costUsd.toFixed(2)}`;
 }
 
-const GUIDANCE_PAD = 18;
-const GUIDANCE_GAP = 16;
-const EXAMPLE_HEIGHT = 34;
-const EXAMPLE_GAP = 8;
-const EXAMPLE_COLUMNS = 2;
-
-/**
- * A catalog key beats the guidance's own English when the deployment has one:
- * `t()` echoes an unknown key back, which is how a miss is detected — the
- * same resolution the MUI fallback applies, so a rewording of the guidance
- * stays describable without touching either client.
- */
-function guidanceHelp(t: GpuRenderSnapshot['t'], guidance: GoalGuidance): string {
-  const key = 'launch.guidance';
-  const translated = t(key);
-  return translated === key ? guidance.help : translated;
-}
-
-/** Height of the always-visible header row a viewer clicks to expand/collapse. */
-const GUIDANCE_HEADER_HEIGHT = 18;
-
-/**
- * Draw the prompt guidance at the top of the scrolled content and return the
- * height the project list must shift by. Measured, not estimated: the body is
- * a wrapped paragraph, so every block below it is placed from its real
- * bottom. The backdrop panel depends on the final cursor but must render
- * behind the text, so a layer reserves its z-slot up front (same shape the
- * former Launch view used).
- *
- * Eligibility belongs to the caller: this disclosure exists only for a
- * selected project with no runs. Within that first-goal state it defaults
- * open, and the viewer may collapse or reopen it without losing the examples.
- */
-function drawPromptGuidance(
-  ctx: RendererCtx,
-  snapshot: GpuRenderSnapshot,
-  parent: Container,
-  x: number,
-  panelWidth: number,
-  guidance: GoalGuidance,
-  expanded: boolean
-): number {
-  const panelLayer = new Container();
-  parent.addChild(panelLayer);
-  const innerX = x + GUIDANCE_PAD;
-  const innerWidth = panelWidth - GUIDANCE_PAD * 2;
-
-  ctx.text(parent, snapshot.t('launch.help'), innerX, GUIDANCE_PAD, {
-    size: 13,
-    weight: '700',
-    color: GPU_COLORS.primary,
-  });
-  ctx.collapseCaret(
-    parent,
-    x + panelWidth - GUIDANCE_PAD,
-    GUIDANCE_PAD + 1,
-    expanded,
-    GPU_COLORS.primary
-  );
-
-  let cursor = GUIDANCE_PAD + GUIDANCE_HEADER_HEIGHT;
-  if (expanded) {
-    const body = ctx.text(parent, guidanceHelp(snapshot.t, guidance), innerX, cursor + 8, {
-      size: 11,
-      color: GPU_COLORS.muted,
-      width: innerWidth,
-    });
-    cursor += 8 + body.height + 18;
-    if (guidance.examples.length > 0) {
-      ctx.text(parent, snapshot.t('launch.examples'), innerX, cursor, {
-        size: 10,
-        weight: '600',
-      });
-      cursor += 22;
-      const exampleWidth = (innerWidth - EXAMPLE_GAP * (EXAMPLE_COLUMNS - 1)) / EXAMPLE_COLUMNS;
-      guidance.examples.forEach((example, index) => {
-        const column = index % EXAMPLE_COLUMNS;
-        const row = Math.floor(index / EXAMPLE_COLUMNS);
-        ctx.button(
-          parent,
-          `projects.example.${index}`,
-          'button',
-          // `button` fits this to `exampleWidth` against the real glyphs.
-          example.replace(/\s+/g, ' '),
-          innerX + column * (exampleWidth + EXAMPLE_GAP),
-          cursor + row * (EXAMPLE_HEIGHT + EXAMPLE_GAP),
-          exampleWidth,
-          EXAMPLE_HEIGHT,
-          false,
-          snapshot.onActivate
-        );
-      });
-      const rows = Math.ceil(guidance.examples.length / EXAMPLE_COLUMNS);
-      cursor += rows * (EXAMPLE_HEIGHT + EXAMPLE_GAP) - EXAMPLE_GAP;
-    }
-  }
-
-  const height = cursor + GUIDANCE_PAD;
-  ctx.panel(
-    panelLayer,
-    x,
-    0,
-    panelWidth,
-    height,
-    GPU_COLORS.panel,
-    GPU_COLORS.border,
-    GPU_LAYOUT.radius,
-    2
-  );
-
-  // The whole header row toggles, not just the caret glyph: a wider target is
-  // easier to hit and matches the branch-heading disclosure pattern.
-  const headerHitHeight = GUIDANCE_PAD + GUIDANCE_HEADER_HEIGHT;
-  // The id states what is ON SCREEN: with no stored preference the open state
-  // came from the project's run count, so the handler cannot re-derive it.
-  const toggleId = `projects.guidance.toggle.${expanded ? 'open' : 'closed'}`;
-  const header = new Container();
-  header.eventMode = 'static';
-  header.cursor = 'pointer';
-  header.hitArea = new Rectangle(0, 0, panelWidth, headerHitHeight);
-  header.position.set(x, 0);
-  header.on('pointertap', () => snapshot.onActivate(toggleId));
-  parent.addChild(header);
-  ctx.recordHitTarget(parent, {
-    id: toggleId,
-    role: 'button',
-    label: snapshot.t(expanded ? 'launch.help.collapse' : 'launch.help.expand'),
-    x,
-    y: 0,
-    width: panelWidth,
-    height: headerHitHeight,
-  });
-
-  return height + GUIDANCE_GAP;
-}
-
 /** Horizontal inset the column leaves inside the content viewport, in total. */
 export const PROJECTS_COLUMN_INSET = GPU_LAYOUT.gap * 2;
 
 /**
  * ONE content column for this view, full-bleed like the other tabs. The DOM
- * form and the GL panels below it are two cards in a single stack, and they
- * only read as one while they agree on both edges — the form used to sit
+ * guide and the GL panels below it are two cards in a single stack, and they
+ * only read as one while they agree on both edges — the old form used to sit
  * flush left at 20 while the list centred itself, so the two cards stepped
- * sideways from each other. `.gpu-project-form` computes exactly this in
+ * sideways from each other. `.gpu-project-mcp` computes exactly this in
  * CSS; a test holds the two constants together.
  */
 export function projectsColumn(viewportWidth: number): { x: number; width: number } {
@@ -342,11 +187,10 @@ export function projectsColumn(viewportWidth: number): { x: number; width: numbe
 
 /**
  * A SELECTION IS A FILTER, not just a highlight: with one project selected the
- * list shows THAT project and nothing else, so the run form at the top of the
- * column sits directly against the card it acts on. Every other project is a
- * distraction from the run being launched. Its name moves to the page title
- * rather than repeating as an active row; re-clicking Projects in the rail
- * returns to the full list and create form.
+ * list shows THAT project and nothing else, so the MCP guide at the top of the
+ * column names the project for the connected agent. Its name moves to the page
+ * title rather than repeating as an active row; re-clicking Projects in the
+ * rail returns to the full list.
  *
  * ONE definition, consulted by both the measuring pass (`projectLayout`) and
  * the drawing pass. Two copies of this rule would desynchronise `scrollMax`
@@ -422,14 +266,13 @@ export function drawProjects(
   // pointer-driven shadow, which is exactly what made the two adjacent cards
   // read at different depths. The DOM wrapper is transparent and supplies
   // interaction only; this panel owns material, border, radius and elevation.
-  const formMode: ProjectsFormMode = selectedProject ? 'run' : 'create';
   if (snapshot.data.auth !== null) {
     ctx.panel(
       ctx.root,
       frame.innerX,
-      PROJECTS_DOM_FORM_TOP,
+      PROJECTS_MCP_GUIDE_TOP,
       frame.innerWidth,
-      projectsFormHeight(formMode, width),
+      projectsGuideHeight(width),
       GPU_COLORS.panel,
       GPU_COLORS.border,
       GPU_LAYOUT.radius,
@@ -437,13 +280,13 @@ export function drawProjects(
     );
   }
 
-  // The DOM form is gated on a session (`projectActionsEnabled` in DomBridge),
+  // The DOM guide is gated on a session (`projectGuideEnabled` in DomBridge),
   // so an UNGATED instance renders none — and reserving the band it would have
   // occupied left a ~260px hole between the title and the copy explaining why
-  // there is nothing here. Reserve the band only when the form is really there.
+  // there is nothing here. Reserve the band only when the guide is really there.
   let contentTop = snapshot.data.auth === null
     ? frame.contentTop
-    : projectsGpuContentTop(formMode, width);
+    : projectsGpuContentTop(width);
   const resultRows = selectedProject ? runsByProject[selectedProject.projectId] ?? [] : [];
   if (snapshot.state.resultRunId && resultRows.some(run => (run.traceId ?? run.projectRunId) === snapshot.state.resultRunId)) {
     drawResultPanel(ctx, snapshot, frame.innerX, contentTop, frame.innerWidth,
@@ -494,38 +337,17 @@ export function drawProjects(
     : -1;
   const selectedRuns = selectedIndex >= 0 ? expandedRunList[selectedIndex] ?? [] : [];
   const viewportLayout = projectLayout(width, projects.length, selectedIndex, selectedRuns);
-  // `projectLayout` stays viewport-absolute because the DOM form consumes its
+  // `projectLayout` stays viewport-absolute because the DOM guide consumes its
   // edges too. The scroll pane is positioned at `frame.x`, so drawing inside
   // `pane.content` uses the same layout relative to that pane.
   const layout = { ...viewportLayout, x: viewportLayout.x - frame.x };
-
-  // The guidance describes the run PROMPT, but only its FIRST use: it appears
-  // once a project is selected and only until that project has a run. It opens
-  // for the FIRST goal on a project and steps aside afterwards
-  // (`projectGuidanceOpen`), because a viewer with run history has phrased one
-  // before and this panel is tall enough to bury that history. It disappears
-  // WHOLE once any run exists — not merely collapsed to a lingering heading.
-  // The list below shifts by its MEASURED height; nothing here estimates it.
-  const guidance = snapshot.data.guidance;
-  const listOffset =
-    selectedProject && selectedRuns.length === 0 && guidance
-      ? drawPromptGuidance(
-          ctx,
-          snapshot,
-          pane.content,
-          layout.x,
-          layout.panelWidth,
-          guidance,
-          projectGuidanceOpen(snapshot.state.projectGuidanceExpanded)
-        )
-      : 0;
 
   // Hug the list. Stretching to the remaining viewport left a hollow slab
   // under a handful of rows.
   ctx.panel(
     pane.content,
     layout.x,
-    listOffset,
+    0,
     layout.panelWidth,
     layout.contentBottom,
     GPU_COLORS.panel,
@@ -538,7 +360,7 @@ export function drawProjects(
   const innerWidth = layout.panelWidth - 36;
   const runColumnX = layout.x + 34;
   const compactRunRows = layout.panelWidth < COMPACT_PROJECT_PANEL_WIDTH;
-  let cursor = listOffset + layout.listTop;
+  let cursor = layout.listTop;
   projects.forEach((project, index) => {
     // A selection filters the list to its own card. Same rule the measuring
     // pass applied, so `scrollMax` describes what is really drawn.
@@ -831,6 +653,6 @@ export function drawProjects(
     }
   });
 
-  pane.extend(listOffset + layout.contentBottom);
+  pane.extend(layout.contentBottom);
   ctx.scrollMax.projects = pane.finish();
 }

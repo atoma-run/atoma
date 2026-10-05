@@ -17,22 +17,24 @@
   <link rel="manifest" href="/manifest.webmanifest" />
   <!-- Filled at request time from the deployment's validated public origin. -->
   <!-- ATOMA_DEPLOYMENT_SEO -->
-  <style>
-    .atoma-static-landing { box-sizing: border-box; display: grid; min-height: 100vh; place-content: center; gap: 18px; padding: 32px; background: #070b13; color: #e6edf7; text-align: center; font: 16px/1.55 ui-sans-serif, system-ui, sans-serif; }
-    .atoma-static-landing h1 { margin: 0; color: #f8fbff; font-size: clamp(42px, 9vw, 76px); letter-spacing: -.04em; }
-    .atoma-static-landing p { max-width: 700px; margin: 0 auto; color: #a9b5ca; }
-    .atoma-static-landing a { width: fit-content; margin: 8px auto 0; padding: 11px 20px; border: 1px solid #6ea8ff; border-radius: 8px; color: #e6edf7; text-decoration: none; }
-  </style>
+  <style>html, body { min-height: 100%; margin: 0; background: #070b13; }</style>
 </head>
 <body>
-  <div id="root">
+  <div id="root"></div>
+  <noscript>
+    <style>
+      .atoma-static-landing { box-sizing: border-box; display: grid; min-height: 100vh; place-content: center; gap: 18px; padding: 32px; background: #070b13; color: #e6edf7; text-align: center; font: 16px/1.55 ui-sans-serif, system-ui, sans-serif; }
+      .atoma-static-landing h1 { margin: 0; color: #f8fbff; font-size: clamp(42px, 9vw, 76px); letter-spacing: -.04em; }
+      .atoma-static-landing p { max-width: 700px; margin: 0 auto; color: #a9b5ca; }
+      .atoma-static-landing a { width: fit-content; margin: 8px auto 0; padding: 11px 20px; border: 1px solid #6ea8ff; border-radius: 8px; color: #e6edf7; text-decoration: none; }
+    </style>
     <main class="atoma-static-landing">
       <h1>Atoma</h1>
       <p>An agent platform that pays the frontier model once per task, not once per step.</p>
       <p>Specialized AI agents plan, execute, and verify cost-aware software delivery with an inspectable record of every run.</p>
       <a href="/auth/login">Sign in to Atoma</a>
     </main>
-  </div>
+  </noscript>
   <script type="module" src="/main.tsx"></script>
 </body>
 </html>

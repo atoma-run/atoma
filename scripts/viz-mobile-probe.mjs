@@ -22,8 +22,7 @@ export async function assertMobileProjects(page, projectId) {
     }
     const settled = () => page.waitForFunction(() =>
       document.querySelector('.gpu-scene-camera')?.getAttribute('data-scene-camera-motion') === 'settled');
-    await page.waitForFunction((id) => document.querySelector('.gpu-project-form--run') ||
-      globalThis.__ATOMA_GPU__?.hitTargets().some(t => t.id === id), {}, targetId);
+    await page.waitForFunction((id) => globalThis.__ATOMA_GPU__?.hitTargets().some(t => t.id === id || t.id.startsWith('project.run.')), {}, targetId);
     await settled();
     const spot = () => page.evaluate((id) => {
       const handle = globalThis.__ATOMA_GPU__;
@@ -34,10 +33,10 @@ export async function assertMobileProjects(page, projectId) {
       return handle.projectRendererPoint(row.x + row.width / 2, row.y + Math.min(12, row.height / 2));
     }, targetId);
     // Select through the canvas if the caller has not already opened a project.
-    if (!(await page.$('.gpu-project-form--run'))) {
+    if (!(await page.evaluate(() => globalThis.__ATOMA_GPU__?.hitTargets().some(t => t.id.startsWith('project.run.'))))) {
       const point = await spot();
       await page.mouse.click(point.x, point.y);
-      await page.waitForSelector('.gpu-project-form--run');
+      await page.waitForFunction(() => globalThis.__ATOMA_GPU__?.hitTargets().some(t => t.id.startsWith('project.run.')));
     }
     await settled();
     await page.waitForFunction(() => globalThis.__ATOMA_GPU__?.hitTargets().some(t => t.id.startsWith('project.run.')));
@@ -87,8 +86,8 @@ export async function assertMobileProjects(page, projectId) {
       const after = await spot().catch(() => null);
       throw new Error(`Mobile swipe did not scroll: ${JSON.stringify({ before, after })}`, { cause: error });
     });
-    if (!(await page.$('.gpu-project-form--run'))) {
-      throw new Error('Mobile drag activated a run row and left the project form');
+    if (!(await page.evaluate((id) => globalThis.__ATOMA_GPU__?.hitTargets().some(t => t.id === id), targetId))) {
+      throw new Error('Mobile drag activated a run row and left the selected project');
     }
     console.log('Mobile projects ok: compact rail, native touch scroll, no accidental row activation');
   } finally {

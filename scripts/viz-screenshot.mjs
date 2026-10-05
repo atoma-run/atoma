@@ -23,11 +23,10 @@
  *                        account arm), so the gate, the account orb and the
  *                        project surfaces all render as a member would see
  *                        them. Without it: the ungated developer rendering.
- *   --repository-mode <pull-request|fork>  Show an existing-repository create form.
  *   --platform-admin     With --auth, include platform administrator controls.
  *   --settings-tab <id>   Settings panel to capture (default general).
  *   --select-first       Click the first project row after arrival (the run
- *                        list + run form state).
+ *                        list and selected-project MCP guide).
  *   --result             Open Result through its real canvas control (Runs,
  *                        or Projects with --select-first).
  *   --notifications      Open the header bell's notification tray after
@@ -75,7 +74,6 @@ const settingsTab = arg('--settings-tab', 'general');
 const tuning = has('--tuning');
 const selectFirst = has('--select-first');
 const showResult = has('--result');
-const repositoryMode = arg('--repository-mode', '');
 const notifications = has('--notifications');
 const accountMenu = has('--account-menu');
 const scrollEnd = has('--scroll-end');
@@ -539,7 +537,7 @@ async function captureHandheldGate(page) {
     await page.touchscreen.tap(target.x, target.y);
     await page.waitForSelector('.gpu-app[data-entered="true"]', { timeout: READY_TIMEOUT_MS });
     if (await page.$('.gpu-handheld-veil')) throw new Error('Mobile entry was interrupted');
-    await page.waitForSelector('.gpu-project-form', { timeout: READY_TIMEOUT_MS });
+    await page.waitForSelector('.gpu-project-mcp', { timeout: READY_TIMEOUT_MS });
     await page.screenshot({ path: stem + '-projects.png' });
   }
   console.log('Mobile touch entry passed: ' + target.id);
@@ -754,7 +752,8 @@ try {
     );
     if (view === 'Settings') {
       await page.waitForSelector('.gpu-org-models-form', { timeout: READY_TIMEOUT_MS });
-      await page.click(`#settings-tab-${settingsTab}`);
+      await page.$eval(`#settings-tab-${settingsTab}`, button => button.click());
+      await page.waitForSelector(`#settings-tab-${settingsTab}[aria-selected="true"]`);
       if (platformAdmin) await page.waitForSelector('[id^="platform-limit-"]');
       const geometry = await page.evaluate(() => {
         const body = document.querySelector('.gpu-org-models-form');
@@ -880,11 +879,6 @@ try {
     }
 
     await mkdir(dirname(outPath), { recursive: true });
-    if (repositoryMode) {
-      if (!['pull-request', 'fork'].includes(repositoryMode)) throw new Error('--repository-mode must be pull-request or fork');
-      await page.select('select[aria-label="Starting point"]', repositoryMode);
-      await page.type('input[aria-label="Source GitHub repository"]', 'https://github.com/acme/app');
-    }
     if (has('--touch-probe')) {
       if (!authed || !selectFirst || view !== 'Projects') {
         throw new Error('--touch-probe requires --auth --select-first and the Projects view');

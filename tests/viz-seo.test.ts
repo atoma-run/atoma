@@ -64,13 +64,15 @@ describe('public arrival SEO', () => {
     expect(robotsTxt(null)).toBe('User-agent: *\nDisallow: /\n');
   });
 
-  it('keeps meaningful crawlable copy in the GPU shell before JavaScript starts', () => {
+  it('keeps the no-script fallback without flashing it during app startup', () => {
     const source = readFileSync(
       fileURLToPath(new URL('../src/viz/client-gl/index.html', import.meta.url)),
       'utf8'
     );
-    expect(source).toContain('<h1>Atoma</h1>');
-    expect(source).toContain('frontier model once per task, not once per step');
-    expect(source).toContain('<a href="/auth/login">Sign in to Atoma</a>');
+    expect(source).toContain('<div id="root"></div>');
+    const fallback = /<noscript>([\s\S]*?)<\/noscript>/.exec(source)?.[1];
+    expect(fallback).toContain('<h1>Atoma</h1>');
+    expect(fallback).toContain('frontier model once per task, not once per step');
+    expect(fallback).toContain('<a href="/auth/login">Sign in to Atoma</a>');
   });
 });

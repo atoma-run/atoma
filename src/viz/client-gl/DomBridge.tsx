@@ -6,6 +6,7 @@ import {
 } from '../../contracts/locales.js';
 import type { RunIndexEntry, VizGitHubInstallation, VizProject } from '../client/types.js';
 import type { ComponentProps, ReactNode } from 'react';
+import { useState } from 'react';
 import type { AuthUiSnapshot } from './AuthControls.js';
 import { DOC_PAGES, DOC_THEMES, type DocsThemeKey } from './docs-content.js';
 import {
@@ -19,7 +20,7 @@ const DEFAULT_VIEWS: ViewName[] = ['projects', 'runs', 'registry', 'skills', 'bu
 
 /**
  * SETTINGS › GENERAL — the display-name field. Real DOM for the same reason
- * the project form is: text entry, autofill and screen readers belong to the
+ * other settings inputs are: text entry, autofill and screen readers belong to the
  * browser. It is an ORDINARY block inside the Settings body's General tab
  * (`OrgModelsForm`'s `profile` slot), not a fixed overlay of its own: the
  * former `.gpu-settings-form` was one of the CSS-framed debts and is gone.
@@ -136,12 +137,9 @@ export function DomBridge({
   onEnter,
   githubInstallations = [],
   projects = [],
-  onCreateProject,
-  onStartRun,
-  projectBusy = false,
-  runInProgress = false,
-  projectError = null,
-  projectActionsEnabled = true,
+  onOpenMcp,
+  mcpAccessState = 'unknown',
+  projectGuideEnabled = true,
   pushPrompt = 'hidden',
   pushAdmin = false,
   onEnablePush,
@@ -167,14 +165,11 @@ export function DomBridge({
   githubInstallations?: VizGitHubInstallation[];
   /** Minimal project index mirrored for keyboard and assistive navigation. */
   projects?: readonly (Pick<VizProject, 'projectId' | 'name'> & Partial<Pick<VizProject, 'repositoryTarget'>>)[];
-  onCreateProject?: () => void;
-  onStartRun?: () => void;
-  projectBusy?: boolean;
-  /** The global run lease is occupied; the run form must not invite another launch. */
-  runInProgress?: boolean;
-  projectError?: string | null;
-  /** Project mutations exist only behind the auth gate. */
-  projectActionsEnabled?: boolean;
+  onOpenMcp?: () => void;
+  /** Authorized MCP access for the viewer's active organisation. */
+  mcpAccessState?: 'connected' | 'authorized' | 'unconnected' | 'unknown';
+  /** The MCP setup guide exists only behind the auth gate. */
+  projectGuideEnabled?: boolean;
   /** Notification offer (first live run for members, login for platform
    *  admins); real DOM buttons because the browser permission request needs a
    *  user gesture on an actual element. */
@@ -225,12 +220,6 @@ export function DomBridge({
   const setFocusedInput = useGpuStore((state) => state.setFocusedInput);
   const setRunPickerActiveIndex = useGpuStore((state) => state.setRunPickerActiveIndex);
   const setRunPickerScrollY = useGpuStore((state) => state.setRunPickerScrollY);
-  const selectedGithubInstallationId = useGpuStore((state) => state.selectedGithubInstallationId);
-  const selectGithubInstallation = useGpuStore((state) => state.selectGithubInstallation);
-  const projectRepositoryMode = useGpuStore((state) => state.projectRepositoryMode);
-  const setProjectRepositoryMode = useGpuStore((state) => state.setProjectRepositoryMode);
-  const projectVisibility = useGpuStore((state) => state.projectVisibility);
-  const setProjectVisibility = useGpuStore((state) => state.setProjectVisibility);
   const selectProject = useGpuStore((state) => state.selectProject);
   const selectDocsTheme = useGpuStore((state) => state.selectDocsTheme);
   const announcementResetSignal = useGpuStore((state) => state.announcementResetSignal);
@@ -240,9 +229,18 @@ export function DomBridge({
   const selectedRun = runs.find((run) => run.id === selectedRunId);
   const selectedProject = projects.find((project) => project.projectId === selectedProjectId);
   const selectedProjectName = selectedProject?.name ?? null;
-  const selectedProjectLabel = selectedProjectName && selectedProjectName.length > 48
-    ? `${selectedProjectName.slice(0, 47)}…`
-    : selectedProjectName;
+  const projectRequest = selectedProjectName
+    ? t('projects.mcpSelectedRequest', { name: selectedProjectName })
+    : t('projects.mcpCreateRequest');
+  const [copiedRequest, setCopiedRequest] = useState<{ text: string; ok: boolean } | null>(null);
+  const copyProjectRequest = async () => {
+    try {
+      await navigator.clipboard.writeText(projectRequest);
+      setCopiedRequest({ text: projectRequest, ok: true });
+    } catch {
+      setCopiedRequest({ text: projectRequest, ok: false });
+    }
+  };
   const runValue = focusedInput === 'run' ? search.run : selectedRun?.title ?? selectedRun?.label ?? '';
   const filteredRuns = runs.filter((run) =>
     matchesSearchQuery(runSearchText(run), search.run)
@@ -351,7 +349,7 @@ export function DomBridge({
           {t(`nav.${view}`)}
           {selectedRun ? ` — ${selectedRun.title ?? selectedRun.label}` : ''}
         </div>
-        {projectActionsEnabled && view === 'projects' && projects.length > 0 ? (
+        {projectGuideEnabled && view === 'projects' && projects.length > 0 ? (
           <section aria-label={t('nav.projects')}>
             {projects.map((project) => (
               <button
@@ -479,150 +477,37 @@ export function DomBridge({
           onChange={(event) => setSearch('skills', event.target.value)}
         />
       ) : null}
-      {projectActionsEnabled && view === 'projects' ? (
-        <form
-          className={`gpu-panel-skin gpu-project-form${overlaysInert ? ' gpu-overlays-veiled' : ''}${selectedProjectName ? ' gpu-project-form--run' : ''}`}
+      {projectGuideEnabled && view === 'projects' ? (
+        <section
+          className={`gpu-panel-skin gpu-project-mcp${overlaysInert ? ' gpu-overlays-veiled' : ''}`}
           inert={overlaysInert}
-          onSubmit={(event) => event.preventDefault()}
+          aria-label={t('projects.mcpTitle')}
         >
-          {selectedProjectName && !runInProgress ? (
-            // ONE job at a time. A selected project means the next act is a
-            // run on it, so the create fields step aside — they belong to a
-            // project that does not exist yet. Clicking the selected row
-            // again deselects and brings them back.
-            <textarea
-              className="gpu-dom-input gpu-project-prompt"
-              aria-label={t('projects.prompt')}
-              value={search.projectPrompt}
-              placeholder={t('projects.promptPlaceholder')}
-              onFocus={() => setFocusedInput('projectPrompt')}
-              onBlur={() => setFocusedInput(null)}
-              onChange={(event) => setSearch('projectPrompt', event.target.value)}
-            />
+          <h2>{t('projects.mcpTitle')}</h2>
+          {mcpAccessState === 'connected' || mcpAccessState === 'authorized' ? (
+            <p className="gpu-project-mcp-connection" aria-live="polite">
+              {t(mcpAccessState === 'connected' ? 'projects.mcpConnected' : 'projects.mcpAuthorized')}
+            </p>
           ) : null}
-          {selectedProjectName && !runInProgress ? (
-            // THE USER'S ACCEPTANCE CRITERIA, optional, one per line — the
-            // grammar `parseChecklistLines` reads. Beside the goal, not below
-            // it, so the wide run form keeps its height contract.
-            <textarea
-              className="gpu-dom-input gpu-project-criteria"
-              aria-label={t('projects.criteria')}
-              value={search.projectCriteria}
-              placeholder={t('projects.criteriaPlaceholder')}
-              onFocus={() => setFocusedInput('projectCriteria')}
-              onBlur={() => setFocusedInput(null)}
-              onChange={(event) => setSearch('projectCriteria', event.target.value)}
-            />
-          ) : (
-            <>
-              <div className="gpu-project-source">
-                <select className="gpu-dom-input gpu-dom-select" aria-label={t('projects.sourceMode')}
-                  value={projectRepositoryMode} disabled={projectBusy}
-                  onChange={event => setProjectRepositoryMode(event.target.value as 'new' | 'pull-request' | 'fork')}>
-                  <option value="new">{t('projects.sourceMode.new')}</option>
-                  <option value="pull-request">{t('projects.sourceMode.pullRequest')}</option>
-                  <option value="fork">{t('projects.sourceMode.fork')}</option>
-                </select>
-                {projectRepositoryMode !== 'new' ? <input className="gpu-dom-input"
-                  aria-label={t('projects.sourceRepository')} placeholder="https://github.com/owner/repository"
-                  value={search.projectSource} disabled={projectBusy}
-                  onFocus={() => setFocusedInput('projectSource')} onBlur={() => setFocusedInput(null)}
-                  onChange={event => setSearch('projectSource', event.target.value)} /> : null}
-              </div>
-              <input
-                className="gpu-dom-input gpu-project-name"
-                aria-label={t('projects.name')}
-                value={search.projectName}
-                placeholder={t('projects.name')}
-                maxLength={120}
-                onFocus={() => setFocusedInput('projectName')}
-                onBlur={() => setFocusedInput(null)}
-                onChange={(event) => setSearch('projectName', event.target.value)}
-              />
-              <input
-                className="gpu-dom-input gpu-project-repo"
-                aria-label={t('projects.repository')}
-                disabled={projectRepositoryMode === 'pull-request' || projectBusy}
-                value={search.projectRepository}
-                placeholder={t('projects.repository')}
-                onFocus={() => setFocusedInput('projectRepository')}
-                onBlur={() => setFocusedInput(null)}
-                onChange={(event) => setSearch('projectRepository', event.target.value)}
-              />
-              {/* WHERE the repository goes, and WHO can read it — one cell.
-                  The pair shares the grid area the installation select owned
-                  alone; a fourth column would have moved the form's height
-                  contract and three grid area lists for two words of text. */}
-              <div className="gpu-project-target">
-                <select
-                  className="gpu-dom-input gpu-dom-select gpu-project-install"
-                  aria-label={t('projects.installation')}
-                  value={selectedGithubInstallationId ?? ''}
-                  onChange={(event) => selectGithubInstallation(event.target.value || null)}
-                >
-                  <option value="">{t('projects.installation')}</option>
-                  {activeGithubInstallations.map((installation) => (
-                    <option key={installation.installationId} value={installation.installationId}>
-                      {installation.accountLogin} ({installation.targetType})
-                    </option>
-                  ))}
-                </select>
-                {/* Bare words in the options; the consequence and the finality
-                    are in the hint below, because a word in a dropdown is not
-                    a warning — and this choice cannot be taken back. */}
-                <select
-                  className="gpu-dom-input gpu-dom-select gpu-project-visibility"
-                  aria-label={t('projects.visibility')}
-                  hidden={projectRepositoryMode !== 'new'}
-                  disabled={projectRepositoryMode !== 'new' || projectBusy}
-                  value={projectVisibility}
-                  onChange={(event) =>
-                    setProjectVisibility(
-                      event.target.value === 'public' ? 'public' : 'private'
-                    )
-                  }
-                >
-                  <option value="private">{t('projects.visibility.private')}</option>
-                  <option value="public">{t('projects.visibility.public')}</option>
-                </select>
-              </div>
-            </>
-          )}
-          <div className="gpu-project-actions">
-            {/* Outside the mode switch on purpose: an organisation with no
-                installation must be able to reach the connect flow even while
-                a project from a revoked one is selected. */}
+          <p>{selectedProjectName
+            ? t('projects.mcpSelectedIntro', { name: selectedProjectName })
+            : t('projects.mcpCreateIntro')}</p>
+          <p className="gpu-project-mcp-request">{projectRequest}</p>
+          <div className="gpu-project-mcp-actions">
+            <button type="button" onClick={() => { void copyProjectRequest(); }}>{t('projects.mcpCopy')}</button>
+            {mcpAccessState !== 'connected' && mcpAccessState !== 'authorized' ? (
+              <button type="button" onClick={() => onOpenMcp?.()}>
+                {t(mcpAccessState === 'unconnected' ? 'projects.mcpConnect' : 'projects.mcpSettings')}
+              </button>
+            ) : null}
             {activeGithubInstallations.length === 0 ? (
               <a href="/auth/github/connect">{t('projects.connectGithub')}</a>
             ) : null}
-            {selectedProjectLabel && runInProgress ? (
-              <span role="status">{t('projects.runInProgress')}</span>
-            ) : selectedProjectLabel ? (
-              <button
-                type="button"
-                disabled={projectBusy}
-                title={selectedProjectName ?? undefined}
-                onClick={() => onStartRun?.()}
-              >
-                {t('projects.startRunOn', { name: selectedProjectLabel })}
-              </button>
-            ) : (
-              <button type="button" disabled={projectBusy} onClick={() => onCreateProject?.()}>
-                {t('projects.create')}
-              </button>
-            )}
-            {projectError ? <span role="alert">{projectError}</span> : null}
           </div>
-          <p className="gpu-project-hint">
-            {selectedProjectLabel
-              ? runInProgress ? t('projects.runInProgressHint') : t(selectedProject?.repositoryTarget?.source ? 'projects.actionsHint.readyImported' : 'projects.actionsHint.ready', { name: selectedProjectLabel })
-              : projectRepositoryMode !== 'new' ? t(projectRepositoryMode === 'fork' ? 'projects.sourceHint.fork' : 'projects.sourceHint.pullRequest') : `${t('projects.actionsHint.new')} ${t(
-                  projectVisibility === 'public'
-                    ? 'projects.visibility.publicHint'
-                    : 'projects.visibility.privateHint'
-                )}`}
-          </p>
-        </form>
+          {copiedRequest?.text === projectRequest ? (
+            <span role="status">{t(copiedRequest.ok ? 'projects.mcpCopied' : 'projects.mcpCopyFailed')}</span>
+          ) : null}
+        </section>
       ) : null}
       {view === 'settings' && orgModelsForm ? (
         <div data-veiled={domOverlaysVeiled ? 'true' : undefined}>{orgModelsForm}</div>
@@ -662,22 +547,22 @@ export function DomBridge({
 
 /**
  * The production bridge boundary. Keeping auth-derived flags here makes the
- * wiring independently renderable: an ungated shell cannot accidentally
- * regain project mutations, and admin alert copy follows the actual viewer.
+ * wiring independently renderable: an ungated shell has no project MCP guide,
+ * and admin alert copy follows the actual viewer.
  */
 export function GpuDomBridge({
   authSnapshot,
   ...props
 }: Omit<
   ComponentProps<typeof DomBridge>,
-  'projectActionsEnabled' | 'pushAdmin' | 'announcementsEnabled'
+  'projectGuideEnabled' | 'pushAdmin' | 'announcementsEnabled'
 > & {
   authSnapshot: AuthUiSnapshot | null;
 }) {
   return (
     <DomBridge
       {...props}
-      projectActionsEnabled={authSnapshot !== null}
+      projectGuideEnabled={authSnapshot !== null}
       pushAdmin={authSnapshot?.viewer.platformAdmin === true}
       // Derived HERE with the other auth flags rather than passed in: the
       // composer is operator power, and the server enforces the same

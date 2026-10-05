@@ -45,15 +45,15 @@ import {
 import {
   drawProjects,
   PROJECTS_COLUMN_INSET,
-  PROJECTS_DOM_FORM_HEIGHT,
-  PROJECTS_DOM_FORM_NARROW_HEIGHT,
-  PROJECTS_DOM_FORM_TOP,
+  PROJECTS_MCP_GUIDE_HEIGHT,
+  PROJECTS_MCP_GUIDE_NARROW_HEIGHT,
+  PROJECTS_MCP_GUIDE_TOP,
   PROJECTS_NARROW_CONTENT_WIDTH,
   PROJECTS_ROW_PAD,
   REPOSITORY_ICON_GAP,
   REPOSITORY_ICON_SIZE,
   projectsColumn,
-  projectsFormHeight,
+  projectsGuideHeight,
   projectsGpuContentTop,
 } from '../src/viz/client-gl/renderer/views/projects.js';
 import {
@@ -615,23 +615,13 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     selectedRegistryAtom: null,
     selectedSkill: null,
     selectedProjectId: null,
-    selectedGithubInstallationId: null,
-    projectVisibility: 'private',
-    projectRepositoryMode: 'new',
     runFilters: { kind: 'all', role: 'all', branchId: 'all' },
     branchHeadingExpanded: true,
     runSummaryExpanded: true,
-    // `null` is the shipped default: no stored preference, so the view
-    // resolves the disclosure from the selected project's run count.
-    projectGuidanceExpanded: null,
     search: {
       run: '',
       registry: '',
       skills: '',
-      projectName: '', projectSource: '',
-      projectPrompt: '',
-      projectCriteria: '',
-      projectRepository: '',
       displayName: '',
     },
     focusedInput: null,
@@ -679,13 +669,9 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     selectRegistryAtom: noop,
     selectSkill: noop,
     selectProject: noop,
-    selectGithubInstallation: noop,
-    setProjectVisibility: noop,
-    setProjectRepositoryMode: noop,
     setRunFilters: noop,
     toggleBranchHeading: noop,
     toggleRunSummary: noop,
-    toggleProjectGuidance: noop,
     setSearch: noop,
     setFocusedInput: noop,
     setRunPickerScrollY: noop,
@@ -1233,7 +1219,7 @@ describe('drawDocs', () => {
       'quick', 'projects', 'goals', 'runs', 'review', 'playbooks', 'trust',
     ]);
     const copy = docsCatalogKeys().map((key) => I18N_CATALOGS.en[key]).join('\n');
-    expect(copy).not.toMatch(/AGENTS\.md|src\/|\bMCP\b|\bBurn-in\b|platform-admin flag/i);
+    expect(copy).not.toMatch(/AGENTS\.md|src\/|\bBurn-in\b|platform-admin flag/i);
     expect(Object.keys(DOC_PAGES)).toEqual(DOC_THEMES.map((theme) => theme.key));
   });
 
@@ -1572,7 +1558,7 @@ describe('the nav rail', () => {
       `--gpu-sidebar:\\s*min\\(100vw, ${GPU_LAYOUT.sidebarCompactWidth}px\\)`
     ));
     for (const selector of [
-      'gpu-run-input', 'gpu-project-form', 'gpu-view-search',
+      'gpu-run-input', 'gpu-project-mcp', 'gpu-view-search',
       'gpu-announce-form', 'gpu-org-models-form',
     ]) {
       expect(css).toMatch(
@@ -1586,7 +1572,7 @@ describe('the nav rail', () => {
     for (const [selector, top] of [
       ['gpu-run-input', RUN_PICKER_CONTROL_TOP],
       ['gpu-view-search', 102],
-      ['gpu-project-form', 104],
+      ['gpu-project-mcp', PROJECTS_MCP_GUIDE_TOP],
       ['gpu-org-models-form', 172],
       ['gpu-announce-form', 104],
     ] as const) {
@@ -1597,21 +1583,20 @@ describe('the nav rail', () => {
     expect(css).toMatch(/\.gpu-a11y-bridge:focus-within\s*\{[\s\S]*?top:\s*56px/);
   });
 
-  it('layers Scene Tuning above DOM forms and gives every select one geometry', () => {
+  it('layers Scene Tuning above DOM overlays and gives every select one geometry', () => {
     const css = readFileSync('src/viz/client-gl/styles.css', 'utf8');
-    const projectForm = css.slice(css.indexOf('.gpu-project-form {'), css.indexOf('/* Selecting'));
+    const projectGuide = css.slice(css.indexOf('.gpu-project-mcp {'), css.indexOf('/* Scene Tuning'));
     const tuning = css.slice(css.indexOf('.gpu-scene-tuning {'), css.indexOf('.gpu-scene-tuning__header'));
-    expect(projectForm).toContain('z-index: 4');
+    expect(projectGuide).toContain('z-index: 4');
     expect(tuning).toContain('z-index: 8');
     expect(css).toMatch(/\.gpu-dom-select\s*\{[\s\S]*?appearance:\s*none/);
     expect(css).toContain('background-position: right 12px center');
-    expect(css).toMatch(/\.gpu-project-target \.gpu-dom-input\s*\{[\s\S]*?width:\s*0/);
     // DOM overlays paint above the canvas. The veil stays translucent so the
-    // form remains on screen; clip-path punches the Pixi menu so fields cannot
+    // guide remains on screen; clip-path punches the Pixi menu so controls cannot
     // paint through it.
     expect(css).toMatch(/\.gpu-overlays-veiled\s*\{[\s\S]*?opacity:\s*\.35/);
     expect(css).toMatch(/\.gpu-overlays-veiled\s*\{[\s\S]*?clip-path:\s*polygon\(\s*evenodd/);
-    expect(css).toMatch(/\.gpu-project-form\s*\{[\s\S]*?--gpu-overlay-top:\s*104px/);
+    expect(css).toMatch(/\.gpu-project-mcp\s*\{[\s\S]*?--gpu-overlay-top:\s*104px/);
   });
 
   it('stops inactive rendering and rebuilds only the latest snapshot on return', () => {
@@ -2613,17 +2598,13 @@ describe('drawProjects', () => {
     expect(ctx.texts.some((text) => text.value.includes('connect a GitHub App'))).toBe(false);
   });
 
-  it('reserves the form band only when a form is actually rendered', () => {
-    // DomBridge gates the project form on a session, so an ungated instance
-    // renders none. Reserving its band anyway left a hole between the title
-    // and the copy explaining why there is nothing to show.
+  it('reserves the MCP guide band only for an authenticated session', () => {
     const ungated = createRecordingCtx();
     drawProjects(ungated, makeSnapshot({ view: 'projects' }), 1280, 720);
     const frame = viewFrame(1280, 720);
     const hint = ungated.texts.find((text) => text.value.includes('ATOMA_VIZ_AUTH=1'));
     expect(hint?.y).toBe(frame.contentTop);
 
-    // Gated, the band is reserved: the DOM form occupies it.
     const gated = createRecordingCtx();
     drawProjects(
       gated,
@@ -2631,12 +2612,14 @@ describe('drawProjects', () => {
       1280,
       720
     );
-    const gatedHint = gated.texts.find((text) => text.value.includes('connect a GitHub App'));
-    expect(gatedHint?.y).toBe(projectsGpuContentTop('create', 1280));
+    const gatedHint = gated.texts.find(
+      (text) => text.value === t('projects.emptyNoInstallation')
+    );
+    expect(gatedHint?.y).toBe(projectsGpuContentTop(1280));
     expect(gatedHint?.y).toBeGreaterThan(frame.contentTop);
   });
 
-  it('keeps GPU empty-state copy below the DOM create form', () => {
+  it('keeps GPU empty-state copy below the DOM MCP guide', () => {
     const ctx = createRecordingCtx();
     const auth = makeAuth({
       displayName: 'Alice',
@@ -2644,94 +2627,67 @@ describe('drawProjects', () => {
     });
     drawProjects(ctx, makeSnapshot({ view: 'projects' }, { auth }), 1280, 720);
     const title = ctx.texts.find((text) => text.value === 'Projects');
-    const empty = ctx.texts.find((text) => text.value.includes('connect a GitHub App'));
-    // The title sits inside the column frame; the form is the first content
-    // below it, and has to clear the title's line box.
-    expect(title?.y).toBeLessThan(PROJECTS_DOM_FORM_TOP);
-    expect(PROJECTS_DOM_FORM_TOP - (title?.y ?? 0)).toBeGreaterThanOrEqual(24);
-    // No project is selected here, so the form is the CREATE form.
-    expect(empty?.y).toBe(projectsGpuContentTop('create'));
+    const empty = ctx.texts.find(
+      (text) => text.value === t('projects.emptyNoInstallation')
+    );
+    expect(title?.y).toBeLessThan(PROJECTS_MCP_GUIDE_TOP);
+    expect(PROJECTS_MCP_GUIDE_TOP - (title?.y ?? 0)).toBeGreaterThanOrEqual(24);
+    expect(empty?.y).toBe(projectsGpuContentTop());
     expect(empty?.y).toBeGreaterThanOrEqual(
-      PROJECTS_DOM_FORM_TOP + PROJECTS_DOM_FORM_HEIGHT.create
+      PROJECTS_MCP_GUIDE_TOP + PROJECTS_MCP_GUIDE_HEIGHT
     );
     expect(readFileSync('src/viz/client-gl/styles.css', 'utf8')).toMatch(
-      new RegExp(`\\.gpu-project-form\\s*\\{[\\s\\S]*?top:\\s*${PROJECTS_DOM_FORM_TOP}px`)
+      new RegExp(`\\.gpu-project-mcp\\s*\\{[\\s\\S]*?top:\\s*${PROJECTS_MCP_GUIDE_TOP}px`)
     );
   });
 
-  it('gives the DOM form and the GL project list ONE shared column', () => {
-    // Two cards, one stack. The column is FULL-BLEED like the other tabs: no
-    // width cap, so both edges come from the content viewport alone. The GL
-    // panel draws inside the frame while the form is `position: fixed`, so the
-    // form has to land on the same two edges by computation.
-    // `projectsColumn` reports the frame's INNER column — where the form and
-    // the list both draw, inside the frame's own padding.
+  it('gives the DOM guide and the GL project list one shared column', () => {
     const wide = viewFrame(1072, 800);
     expect(projectsColumn(1072)).toEqual({ x: wide.innerX, width: wide.innerWidth });
     expect(wide.width).toBe(1072 - PROJECTS_COLUMN_INSET);
-    // Narrow: the frame gives up width, never its gap.
     const narrow = viewFrame(600, 800);
     expect(narrow.width).toBe(600 - PROJECTS_COLUMN_INSET);
     expect(projectsColumn(600)).toEqual({ x: narrow.innerX, width: narrow.innerWidth });
 
     const css = readFileSync('src/viz/client-gl/styles.css', 'utf8');
-    const form = css.slice(
-      css.indexOf('.gpu-project-form {'),
-      css.indexOf('.gpu-project-form--run')
+    const guide = css.slice(
+      css.indexOf('.gpu-project-mcp {'),
+      css.indexOf('/* The GPU view draws the card')
     );
-    // No cap: the frame is exactly the content viewport minus its inset, so
-    // the CSS restatement cannot reintroduce a second width by drift.
-    expect(form).toContain(
+    expect(guide).toContain(
       `--gpu-frame: calc(var(--gpu-content) - ${PROJECTS_COLUMN_INSET}px)`
     );
-    expect(form).not.toContain('min(');
-    expect(form).toContain(
+    expect(guide).toContain(
       `left: calc(var(--gpu-sidebar) + (var(--gpu-content) - var(--gpu-frame)) / 2 + ${VIEW_FRAME_PAD}px)`
     );
-    expect(form).toContain(`width: calc(var(--gpu-frame) - ${VIEW_FRAME_PAD * 2}px)`);
-    expect(form).toContain(`top: ${PROJECTS_DOM_FORM_TOP}px`);
-    expect(form).toContain(`height: ${PROJECTS_DOM_FORM_HEIGHT.create}px`);
-    const runForm = css.slice(
-      css.indexOf('.gpu-project-form--run'),
-      css.indexOf('.gpu-project-form .gpu-dom-input')
-    );
-    expect(runForm).toContain(`height: ${PROJECTS_DOM_FORM_HEIGHT.run}px`);
-    expect(projectsGpuContentTop('create', PROJECTS_NARROW_CONTENT_WIDTH - 1)).toBe(
-      PROJECTS_DOM_FORM_TOP + PROJECTS_DOM_FORM_NARROW_HEIGHT.create + 16
-    );
-    expect(projectsGpuContentTop('run', PROJECTS_NARROW_CONTENT_WIDTH - 1)).toBe(
-      PROJECTS_DOM_FORM_TOP + PROJECTS_DOM_FORM_NARROW_HEIGHT.run + 16
+    expect(guide).toContain(`width: calc(var(--gpu-frame) - ${VIEW_FRAME_PAD * 2}px)`);
+    expect(guide).toContain(`top: ${PROJECTS_MCP_GUIDE_TOP}px`);
+    expect(guide).toContain(`height: ${PROJECTS_MCP_GUIDE_HEIGHT}px`);
+    expect(projectsGpuContentTop(PROJECTS_NARROW_CONTENT_WIDTH - 1)).toBe(
+      PROJECTS_MCP_GUIDE_TOP + PROJECTS_MCP_GUIDE_NARROW_HEIGHT + 16
     );
     const narrowWindowMax = PROJECTS_NARROW_CONTENT_WIDTH + GPU_LAYOUT.sidebarWidth - 1;
     expect(css).toContain(`@media (max-width: ${narrowWindowMax}px)`);
-    expect(css).toContain(`height: ${PROJECTS_DOM_FORM_NARROW_HEIGHT.create}px`);
-    expect(css).toContain(`height: ${PROJECTS_DOM_FORM_NARROW_HEIGHT.run}px`);
-    const hint = css.slice(
-      css.indexOf('.gpu-project-hint {'),
-      css.indexOf('/* At this window width')
-    );
-    expect(hint).toContain('overflow-wrap: anywhere');
-    expect(hint).toContain('-webkit-line-clamp: 2');
+    expect(css).toContain(`height: ${PROJECTS_MCP_GUIDE_NARROW_HEIGHT}px`);
   });
 
-  it('draws the form frame through the same GPU panel path as the project list', () => {
+  it('draws the guide frame through the same GPU panel path as the list', () => {
     const ctx = createRecordingCtx();
     const auth = makeAuth();
     const viewportWidth = 1280;
-    const viewportHeight = 720;
-    drawProjects(ctx, makeSnapshot({ view: 'projects' }, { auth }), viewportWidth, viewportHeight);
-    const frame = viewFrame(viewportWidth, viewportHeight);
+    drawProjects(ctx, makeSnapshot({ view: 'projects' }, { auth }), viewportWidth, 720);
+    const frame = viewFrame(viewportWidth, 720);
     expect(ctx.panels).toContainEqual({
       parent: ctx.root,
       x: frame.innerX,
-      y: PROJECTS_DOM_FORM_TOP,
+      y: PROJECTS_MCP_GUIDE_TOP,
       width: frame.innerWidth,
-      height: projectsFormHeight('create', viewportWidth),
+      height: projectsGuideHeight(viewportWidth),
     });
     const css = readFileSync('src/viz/client-gl/styles.css', 'utf8');
     const domSkin = css.slice(
-      css.indexOf('.gpu-project-form.gpu-panel-skin'),
-      css.indexOf('/* Selecting')
+      css.indexOf('.gpu-project-mcp.gpu-panel-skin'),
+      css.indexOf('/* Scene Tuning')
     );
     expect(domSkin).toContain('background: transparent');
     expect(domSkin).toContain('border-color: transparent');
@@ -2906,7 +2862,7 @@ describe('drawProjects', () => {
     const listGlobal = listPanel!.parent.toGlobal({ x: listPanel!.x, y: listPanel!.y });
     expect(listGlobal.x).toBe(projectsColumn(1280).x);
     expect(listPanel!.parent.toGlobal({ x: 0, y: 0 }).y).toBe(
-      projectsGpuContentTop('run') + 42
+      projectsGpuContentTop() + 42
     );
 
     // Project metadata forms one sequence inside the framed row. In detail,
@@ -4338,10 +4294,6 @@ describe('drawSkills scrolling honesty and search', () => {
             run: '',
             registry: '',
             skills: 'replay',
-            projectName: '', projectSource: '',
-            projectPrompt: '',
-            projectCriteria: '',
-            projectRepository: '',
             displayName: '',
           },
         },
@@ -4897,229 +4849,28 @@ function guidanceProject(): VizProject {
   };
 }
 
-/** The English catalog with the guidance override removed, so the fixture's own help is what wraps. */
-const tWithoutGuidanceKey = (key: string, vars?: Record<string, unknown>): string =>
-  key === 'launch.guidance' ? key : t(key, vars);
-
-function drawGuidance(
-  guidance: GoalGuidance | null,
-  selected = true,
-  height = 720,
-  catalog = false
-): ReturnType<typeof createRecordingCtx> {
-  const ctx = createRecordingCtx();
-  drawProjects(
-    ctx,
-    {
-      ...makeSnapshot(
-        { view: 'projects', selectedProjectId: selected ? GUIDANCE_PROJECT_ID : null },
-        { projects: [guidanceProject()], guidance }
-      ),
-      ...(catalog ? {} : { t: tWithoutGuidanceKey }),
-    },
-    1000,
-    height
-  );
-  return ctx;
-}
-
-describe('the run prompt carries its own guidance', () => {
-  it('renders the goal help and click-to-fill examples for the selected project', () => {
-    const ctx = drawGuidance(LAUNCH_GUIDANCE);
-    expect(ctx.texts.some((text) => text.value === t('launch.help'))).toBe(true);
-    expect(ctx.texts.some((text) => text.value === t('launch.examples'))).toBe(true);
-    // One button per example, and the ids the activation handler slices an
-    // index out of to fill the run prompt.
-    expect(ctx.buttons.some((button) => button.id === 'projects.example.0')).toBe(true);
-    expect(ctx.buttons.some((button) => button.id === 'projects.example.7')).toBe(true);
-    expect(ctx.buttons.some((button) => button.id === 'projects.example.8')).toBe(false);
-    // The selected project's detail still renders below the guidance, without
-    // repeating its name as a button.
-    const row = ctx.texts.find((text) => text.value === 'repo ready')!;
-    const firstExample = ctx.buttons.find((button) => button.id === 'projects.example.0')!;
-    expect(row.y).toBeGreaterThan(firstExample.y);
-  });
-
-  it('stays silent until a project is selected, and without guidance', () => {
-    // The DOM form only shows the prompt textarea once a project is selected,
-    // so guidance for an input that does not exist yet would be noise.
-    const unselected = drawGuidance(LAUNCH_GUIDANCE, false);
-    expect(unselected.buttons.some((button) => button.id.startsWith('projects.example.'))).toBe(false);
-    expect(unselected.texts.some((text) => text.value === t('launch.help'))).toBe(false);
-    // /api/goal-guidance is supplementary copy: an empty payload must not stop the
-    // project list from rendering.
-    const noGuidance = drawGuidance(null);
-    expect(noGuidance.buttons.some((button) => button.id.startsWith('projects.example.'))).toBe(false);
-    expect(noGuidance.texts.some((text) => text.value === 'repo ready')).toBe(true);
-  });
-
-  it('prefers a catalog override over the guidance English', () => {
-    // `launch.guidance` exists in the catalog, so a deployment's own wording
-    // wins; without the key the guidance carries its own English.
-    const catalogued = drawGuidance(LAUNCH_GUIDANCE, true, 720, true);
-    expect(catalogued.texts.some((text) => text.value === t('launch.guidance'))).toBe(true);
-    expect(catalogued.texts.some((text) => text.value === LAUNCH_GUIDANCE.help)).toBe(false);
-
-    const uncatalogued = drawGuidance(LAUNCH_GUIDANCE);
-    expect(uncatalogued.texts.some((text) => text.value === LAUNCH_GUIDANCE.help)).toBe(true);
-    // The key itself must never reach the screen.
-    expect(
-      uncatalogued.texts.some((text) => String(text.value).startsWith('launch.guidance'))
-    ).toBe(false);
-  });
-
-  it('shifts the list and scroll max by the measured wrapped help height', () => {
-    const HEIGHT = 420;
-    const mediumHelp = 'm'.repeat(800);
-    const longHelp = 'l'.repeat(2400);
-    // No catalog key, so the fixture's own paragraph is what wraps.
-    const draw = (help: string) =>
-      drawGuidance({ ...LAUNCH_GUIDANCE, help }, true, HEIGHT);
-    const medium = draw(mediumHelp);
-    const long = draw(longHelp);
-    const heightDelta = textStub(longHelp).height - textStub(mediumHelp).height;
-    expect(heightDelta).toBeGreaterThan(0);
-    expect(long.scrollMax.projects! - medium.scrollMax.projects!).toBe(heightDelta);
-    const rowOf = (ctx: ReturnType<typeof createRecordingCtx>) =>
-      ctx.texts.find((text) => text.value === 'repo ready')!.y;
-    expect(rowOf(long) - rowOf(medium)).toBe(heightDelta);
-    // Examples start below the measured paragraph instead of overlapping it.
-    const helpText = long.texts.find((text) => text.value === longHelp)!;
-    const firstExample = long.buttons.find((button) => button.id === 'projects.example.0')!;
-    expect(firstExample.y).toBeGreaterThanOrEqual(helpText.y + textStub(longHelp).height);
-  });
-
-  it('draws its backdrop into the z-slot reserved before the text', () => {
-    // Same one-pass shape the Launch view used: the panel is sized by the
-    // FINAL layout cursor, so it cannot be drawn before the text it sits
-    // behind — a layer reserves the slot up front and the panel lands in it
-    // last. Without the layer the backdrop would paint over the paragraph.
-    const ctx = drawGuidance(LAUNCH_GUIDANCE);
-    const content = ctx.texts.find((text) => text.value === t('launch.help'))!.parent;
-    // The view's own column frame is a panel as well, so select by SHAPE:
-    // the backdrop is the one sitting in a reserved layer under the content.
-    const detached = ctx.panels.filter(
-      (panel) => panel.parent !== content && panel.parent.parent === content
-    );
-    expect(detached).toHaveLength(1);
-    const backdrop = detached[0]!;
-    // The reserved layer is a child of the same content container, and it is
-    // its FIRST child — everything drawn afterwards sits on top of it.
-    expect(backdrop.parent.parent).toBe(content);
-    expect(content.children[0]).toBe(backdrop.parent);
-    // Sized by the measured cursor, spanning from the top of the content.
-    expect(backdrop.y).toBe(0);
-    expect(backdrop.height).toBeGreaterThan(0);
-  });
-
-  // The panel used to render its body unconditionally, which pushed the run
-  // history a viewer opened Projects to read off the bottom of the screen on
-  // every single visit.
-  it('coaches the first goal, then steps aside once the project has runs', () => {
-    const drawWith = (runs: VizProjectRun[], preference: boolean | null = null) => {
-      const ctx = createRecordingCtx();
-      drawProjects(
-        ctx,
-        {
-          ...makeSnapshot(
-            {
-              view: 'projects',
-              selectedProjectId: GUIDANCE_PROJECT_ID,
-              projectGuidanceExpanded: preference,
-            },
-            {
-              projects: [guidanceProject()],
-              guidance: LAUNCH_GUIDANCE,
-              projectRuns: { [GUIDANCE_PROJECT_ID]: runs },
-            }
-          ),
-          t: tWithoutGuidanceKey,
-        },
-        1000,
-        720
-      );
-      return ctx;
-    };
-    const bodyVisible = (ctx: ReturnType<typeof createRecordingCtx>) =>
-      ctx.texts.some((text) => text.value === LAUNCH_GUIDANCE.help);
-    const run: VizProjectRun = {
-      projectRunId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
-      projectId: GUIDANCE_PROJECT_ID,
-      goal: 'Build a weather dashboard.',
-      status: 'delivered',
-      traceId: 'trace-1',
-      costUsd: 0.12,
-      durationS: 12,
-      error: null,
-      createdAt: '2026-08-20T00:01:00.000Z',
-      endedAt: '2026-08-20T00:02:00.000Z',
-      publication: null,
-    };
-
-    // No runs yet: the first goal is the one worth coaching.
-    const first = drawWith([]);
-    expect(bodyVisible(first)).toBe(true);
-    expect(first.buttons.some((button) => button.id === 'projects.example.0')).toBe(true);
-
-    // Runs exist: the viewer has phrased a goal before, so the guidance leaves
-    // the screen whole — no collapsed heading lingering above the history.
-    const later = drawWith([run]);
-    expect(bodyVisible(later)).toBe(false);
-    expect(later.buttons.some((button) => button.id === 'projects.example.0')).toBe(false);
-    expect(later.texts.some((text) => text.value === t('launch.help'))).toBe(false);
-
-    // Collapsing frees real vertical space for the list below it.
-    const rowY = (ctx: ReturnType<typeof createRecordingCtx>) =>
-      ctx.texts.find((text) => text.value === 'repo ready')!.y;
-    expect(rowY(later)).toBeLessThan(rowY(first));
-
-    // A preference can collapse coaching for a new project, but history is an
-    // absolute eligibility rule: an old preference cannot resurrect it.
-    expect(bodyVisible(drawWith([run], true))).toBe(false);
-    expect(bodyVisible(drawWith([], false))).toBe(false);
-  });
-
-  // The header row is the control, and it must announce which way it goes.
-  it('toggles from the state it drew, so the click always reverses the screen', () => {
-    const targets = (runs: VizProjectRun[]) => {
+describe('the Projects MCP guide and project history', () => {
+  it('keeps goal coaching in the DOM guide, clear of the GPU project rows', () => {
+    const draw = (guidance: GoalGuidance | null) => {
       const ctx = createRecordingCtx();
       drawProjects(
         ctx,
         makeSnapshot(
           { view: 'projects', selectedProjectId: GUIDANCE_PROJECT_ID },
-          {
-            projects: [guidanceProject()],
-            guidance: LAUNCH_GUIDANCE,
-            projectRuns: { [GUIDANCE_PROJECT_ID]: runs },
-          }
+          { projects: [guidanceProject()], guidance }
         ),
         1000,
         720
       );
-      return ctx.metrics.hitTargets.filter((target) =>
-        target.id.startsWith('projects.guidance.toggle')
-      );
+      return ctx;
     };
-
-    // Open (no runs): the id says `open`, so the handler stores `false`.
-    const [open] = targets([]);
-    expect(open?.id).toBe('projects.guidance.toggle.open');
-    expect(open?.label).toBe(t('launch.help.collapse'));
-
-    const run: VizProjectRun = {
-      projectRunId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
-      projectId: GUIDANCE_PROJECT_ID,
-      goal: 'Build a weather dashboard.',
-      status: 'delivered',
-      traceId: 'trace-1',
-      costUsd: 0.12,
-      durationS: 12,
-      error: null,
-      createdAt: '2026-08-20T00:01:00.000Z',
-      endedAt: '2026-08-20T00:02:00.000Z',
-      publication: null,
-    };
-    expect(targets([run])).toHaveLength(0);
+    const without = draw(null);
+    const withGuidance = draw(LAUNCH_GUIDANCE);
+    expect(withGuidance.buttons.some((button) => button.id.startsWith('projects.example.'))).toBe(false);
+    expect(withGuidance.texts.some((text) => text.value === LAUNCH_GUIDANCE.help)).toBe(false);
+    const rowY = (ctx: ReturnType<typeof createRecordingCtx>) =>
+      ctx.texts.find((text) => text.value === 'repo ready')?.y;
+    expect(rowY(withGuidance)).toBe(rowY(without));
   });
 });
 

@@ -12,7 +12,7 @@ import { GPU_COLORS, GPU_LAYOUT } from '../theme.js';
  * Everything now reads from here, so a third convention cannot appear by
  * being written down somewhere else.
  *
- * `.gpu-project-form` and `.gpu-settings-form` are DOM overlays that sit
+ * `.gpu-project-mcp` and `.gpu-org-models-form` are DOM overlays that sit
  * INSIDE a frame, so they restate these numbers in CSS; tests hold the two
  * sides together.
  */
@@ -144,8 +144,8 @@ export function drawViewFrame(
     // A narrow column (a phone) keeps the subtitle ON THE TITLE LINE, measured
     // from the title's own width and ellipsised to what is left. It used to
     // stack under the title, which put it exactly where
-    // `VIEW_FRAME_CONTENT_TOP` starts the content — and the DOM project form
-    // sits there, so the count was drawn under the form (2026-09-15).
+    // `VIEW_FRAME_CONTENT_TOP` starts the content — and the DOM Projects guide
+    // sits there, so the count was drawn under the overlay (2026-09-15).
     const titleWidth = ctx.measureText(fittedTitle, titleStyle);
     const subtitleX = frame.innerX + Math.max(
       titleWidth + SUBTITLE_TITLE_GAP,

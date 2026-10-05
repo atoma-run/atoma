@@ -131,6 +131,28 @@ async function toolNames(client: Client): Promise<string[]> {
   return (await client.listTools()).tools.map((tool) => tool.name).sort();
 }
 
+it('offers goal drafting to project members without exposing platform reader prompts', async () => {
+  const { url } = await listen(
+    (req) => ({ kind: 'principal', viewer: viewer(req.headers['authorization'] === 'Bearer member' ? 'org:member' : 'org:viewer'), tokenId: 'test' }),
+    TENANT_HOST
+  );
+  const member = await connect(url, 'member');
+  const reader = await connect(url, 'reader');
+  try {
+    expect((await member.listPrompts()).prompts.map((prompt) => prompt.name)).toEqual(['atoma_goal']);
+    const draft = await member.getPrompt({ name: 'atoma_goal', arguments: { goal: 'Build a dashboard for this repository' } });
+    const text = (draft.messages[0]?.content as { text?: string }).text ?? '';
+    expect(text).toContain('atoma_project_create');
+    expect(text).toContain('atoma_run_start');
+    expect(text).not.toContain('atoma_operator_run_start');
+    expect(reader.getServerCapabilities()?.prompts).toBeUndefined();
+    await expect(reader.listPrompts()).rejects.toThrow(/Method not found/);
+  } finally {
+    await member.close();
+    await reader.close();
+  }
+});
+
 it('reuses a project run across MCP sessions while its real lease is held', async () => {
   const root = mkdtempSync(join(tmpdir(), 'atoma-mcp-idempotence-'));
   dirs.push(root);

@@ -351,12 +351,13 @@ Neighbours:
 
 ## Prompts and completions
 
-- The PROMPT surface adds no tool: the one `atoma_goal` template plus one
-  prompt per reader group. It drives the operator readers and
-  completes over the operator store, so it rides the `platform` tier. Prompt
-  text QUOTES its source (`GOAL_GUIDANCE`, the exported caveat
-  constants) and never restates it, and a prompt must not teach a caller to
-  name a builtin element in a goal.
+- The PROMPT surface adds no tool: `atoma_goal` is visible to project members
+  and adapts to their project-run path; the local operator gets its operator
+  path. Reader prompts complete over the operator store and stay `platform`.
+  Goal prompt text QUOTES `GOAL_GUIDANCE` and reader prompts quote their
+  exported caveat constants rather than restating either. A prompt must not
+  teach a caller to name a builtin element in a goal. Server instructions
+  carry the same guidance because clients may never display prompts.
 - Argument completions hang off PROMPTS because the protocol has `ref/prompt`
   and `ref/resource` and no `ref/tool`. Every completable argument is
   REQUIRED (the SDK does not unwrap an optional). Completion sources live in
