@@ -2,59 +2,73 @@
 
 /** Exercise Chrome's touch/pointer arbitration on the actual Pixi controls. */
 export async function assertMobileProjects(page, projectId) {
+  await page.bringToFront();
   let targetId = `project.select.${projectId}`;
   // Two run rows already overflow this height; no large fixture is needed.
   await page.setViewport({ width: 390, height: 600, deviceScaleFactor: 2 });
   await page.waitForFunction(() => globalThis.__ATOMA_GPU__?.app.screen.width === 390);
-  const settled = () => page.waitForFunction(() =>
-    document.querySelector('.gpu-scene-camera')?.getAttribute('data-scene-camera-motion') === 'settled');
-  await page.waitForFunction((id) => document.querySelector('.gpu-project-form--run') ||
-    globalThis.__ATOMA_GPU__?.hitTargets().some(t => t.id === id), {}, targetId);
-  await settled();
-  const spot = () => page.evaluate((id) => {
-    const handle = globalThis.__ATOMA_GPU__;
-    const row = handle.hitTargets().find(t => t.id === id);
-    if (!row) throw new Error(`Missing mobile target: ${id}`);
-    return handle.projectRendererPoint(row.x + row.width / 2, row.y + row.height / 2);
-  }, targetId);
-  // Select through the canvas if the caller has not already opened a project.
-  if (!(await page.$('.gpu-project-form--run'))) {
-    const point = await spot();
-    await page.mouse.click(point.x, point.y);
-    await page.waitForSelector('.gpu-project-form--run');
-  }
-  await settled();
-  await page.waitForFunction(() => globalThis.__ATOMA_GPU__?.hitTargets().some(t => t.id.startsWith('project.run.')));
-  targetId = await page.evaluate(() => globalThis.__ATOMA_GPU__.hitTargets().find(t => t.id.startsWith('project.run.')).id);
-  const rail = await page.evaluate(() => {
-    const handle = globalThis.__ATOMA_GPU__;
-    return {
-      width: getComputedStyle(document.documentElement).getPropertyValue('--gpu-sidebar').trim(),
-      targets: handle.hitTargets().filter(t => t.id.startsWith('nav.')),
-    };
-  });
-  if (!rail.width.includes('56px') || rail.targets.length < 3 ||
-      rail.targets.some(t => t.width > 44 || t.x < 0 || t.x + t.width > 56)) {
-    throw new Error(`Mobile rail escaped its compact column: ${JSON.stringify(rail)}`);
-  }
-  // The admin notification offer can reappear after the update/reload arm.
-  // Dismiss it through its real control before testing the canvas underneath;
-  // otherwise this is a swipe on the permission dialog, not a project row.
-  const dismissPush = await page.$('.gpu-push-prompt-actions button:last-child');
-  if (dismissPush) {
-    await dismissPush.click();
-    await page.waitForSelector('.gpu-push-prompt', { hidden: true });
-  }
-  const before = await spot();
-  const canvasAtStart = await page.evaluate(({ x, y }) =>
-    document.elementFromPoint(x, y)?.classList.contains('gpu-ui-canvas'), before);
-  if (!canvasAtStart || before.y < 140 || before.y > 580) {
-    throw new Error(`Mobile swipe must start on a visible project control: ${JSON.stringify(before)}`);
-  }
   const cdp = await page.createCDPSession();
   try {
-    // Enable native touch delivery without reloading the authenticated fixture.
+    // Switching pointer capability can re-arm the mobile arrival gate. Pass
+    // that real journey before measuring a gesture on the project beneath it.
     await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 });
+    if (await page.evaluate(() => sessionStorage.getItem('atoma.viz.handheldAccepted') !== '1')) {
+      await page.waitForSelector('.gpu-a11y-bridge [data-release-version]');
+      await page.$eval('.gpu-a11y-bridge button', button => button.click());
+      await page.waitForSelector('.gpu-handheld-veil__continue');
+      await page.click('.gpu-handheld-veil__continue');
+      await page.waitForSelector('.gpu-handheld-veil', { hidden: true });
+      await page.waitForSelector('.gpu-app[data-entered="true"]');
+    }
+    const settled = () => page.waitForFunction(() =>
+      document.querySelector('.gpu-scene-camera')?.getAttribute('data-scene-camera-motion') === 'settled');
+    await page.waitForFunction((id) => document.querySelector('.gpu-project-form--run') ||
+      globalThis.__ATOMA_GPU__?.hitTargets().some(t => t.id === id), {}, targetId);
+    await settled();
+    const spot = () => page.evaluate((id) => {
+      const handle = globalThis.__ATOMA_GPU__;
+      const row = handle.hitTargets().find(t => t.id === id);
+      if (!row) throw new Error(`Missing mobile target: ${id}`);
+      // A compact run card can extend below the viewport while its title is
+      // visible. Start on that title, which still belongs to the real control.
+      return handle.projectRendererPoint(row.x + row.width / 2, row.y + Math.min(12, row.height / 2));
+    }, targetId);
+    // Select through the canvas if the caller has not already opened a project.
+    if (!(await page.$('.gpu-project-form--run'))) {
+      const point = await spot();
+      await page.mouse.click(point.x, point.y);
+      await page.waitForSelector('.gpu-project-form--run');
+    }
+    await settled();
+    await page.waitForFunction(() => globalThis.__ATOMA_GPU__?.hitTargets().some(t => t.id.startsWith('project.run.')));
+    targetId = await page.evaluate(() => globalThis.__ATOMA_GPU__.hitTargets().find(t => t.id.startsWith('project.run.')).id);
+    const rail = await page.evaluate(() => {
+      const handle = globalThis.__ATOMA_GPU__;
+      return {
+        width: getComputedStyle(document.documentElement).getPropertyValue('--gpu-sidebar').trim(),
+        targets: handle.hitTargets().filter(t => t.id.startsWith('nav.')),
+      };
+    });
+    if (!rail.width.includes('56px') || rail.targets.length < 3 ||
+        rail.targets.some(t => t.width > 44 || t.x < 0 || t.x + t.width > 56)) {
+      throw new Error(`Mobile rail escaped its compact column: ${JSON.stringify(rail)}`);
+    }
+    // The admin notification offer can reappear after the update/reload arm.
+    // Dismiss it through its real control before testing the canvas underneath;
+    // otherwise this is a swipe on the permission dialog, not a project row.
+    const dismissPush = await page.$('.gpu-push-prompt-actions button:last-child');
+    if (dismissPush) {
+      await dismissPush.click();
+      await page.waitForSelector('.gpu-push-prompt', { hidden: true });
+    }
+    const before = await spot();
+    const canvasAtStart = await page.evaluate(({ x, y }) =>
+      document.elementFromPoint(x, y)?.classList.contains('gpu-ui-canvas'), before);
+    if (!canvasAtStart || before.y < 140 || before.y > 580) {
+      throw new Error(`Mobile swipe must start on a visible project control: ${JSON.stringify(before)}`);
+    }
+    const touchAction = await page.evaluate(() => getComputedStyle(globalThis.__ATOMA_GPU__.app.canvas).touchAction);
+    if (touchAction !== 'pan-y') throw new Error(`Canvas lost native vertical pan: ${touchAction}`);
     await cdp.send('Input.dispatchTouchEvent', {
       type: 'touchStart', touchPoints: [{ x: before.x, y: before.y, id: 1 }],
     });
@@ -68,8 +82,11 @@ export async function assertMobileProjects(page, projectId) {
     await page.waitForFunction(({ id, y }) => {
       const handle = globalThis.__ATOMA_GPU__;
       const row = handle.hitTargets().find(t => t.id === id);
-      return row && handle.projectRendererPoint(row.x + row.width / 2, row.y + row.height / 2).y < y - 20;
-    }, {}, { id: targetId, y: before.y });
+      return row && handle.projectRendererPoint(row.x + row.width / 2, row.y + Math.min(12, row.height / 2)).y < y - 20;
+    }, {}, { id: targetId, y: before.y }).catch(async (error) => {
+      const after = await spot().catch(() => null);
+      throw new Error(`Mobile swipe did not scroll: ${JSON.stringify({ before, after })}`, { cause: error });
+    });
     if (!(await page.$('.gpu-project-form--run'))) {
       throw new Error('Mobile drag activated a run row and left the project form');
     }

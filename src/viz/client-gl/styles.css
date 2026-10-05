@@ -124,8 +124,10 @@ button, input, textarea, select { font: inherit; }
   /* `pan-y`, not `none`: the renderer scrolls its GL panes from touchmove,
      and declaring the vertical pan lets the browser fire `pointercancel`
      once a finger starts dragging, so Pixi drops the tap it was tracking on
-     the row under that finger. With `none` a drag ended as a click. */
-  touch-action: pan-y;
+     the row under that finger. With `none` a drag ended as a click.
+     Pixi's EventSystem writes inline `touch-action: none` during init, so
+     this host-owned browser contract must override that inline default. */
+  touch-action: pan-y !important;
   pointer-events: auto;
 }
 

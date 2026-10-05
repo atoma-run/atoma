@@ -31,6 +31,7 @@ const roots: string[] = [];
 const children: ChildProcess[] = [];
 
 afterEach(async () => {
+  vi.useRealTimers();
   closeStoreHandles();
   for (const child of children.splice(0)) {
     if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM');
@@ -107,7 +108,6 @@ function seedRun(
     outcome?: 'delivered' | 'failed' | 'partial';
     remediations?: number;
     answer?: string;
-    at?: string;
   }
 ): string {
   const projectRunId = randomUUID();
@@ -195,8 +195,11 @@ describe('classification and grouping', () => {
   });
 
   it('groups a project\'s runs into one entry anchored on its first run', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-05T10:00:00.000Z'));
     const w = world();
     const first = seedRun(w, w.admin, { goal: 'Build a guestbook', title: 'A guestbook', files: ['index.html'] });
+    vi.setSystemTime(new Date('2026-10-05T10:00:01.000Z'));
     const second = seedRun(w, w.admin, { goal: 'Add delete', title: 'Delete messages', files: ['index.html'], remediations: 1 });
     const entries = buildShowcase(w.store.listShowcaseRuns());
     expect(entries).toHaveLength(1);
@@ -242,14 +245,19 @@ describe('what a visitor can read', () => {
   });
 
   it('shows a text delivery\'s answer, bounded, and no answer for a file delivery', () => {
+    // Equal timestamps must not make this answer test depend on random UUID order.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-05T10:00:00.000Z'));
     const w = world();
     const text = seedRun(w, w.admin, { goal: 'Answer', delivery: 'text', answer: 'x'.repeat(20_000) });
     const files = seedRun(w, w.admin, { goal: 'Files', files: ['a.md'], answer: 'internal summary' });
-    w.store.listShowcaseRuns();
     const source = createShowcaseSource(w.store);
-    expect(source.answer(text, text)!.length).toBeLessThanOrEqual(8_001);
-    expect(source.answer(files, files)).toBeNull();
-    expect(source.answer(text, 'not-an-episode')).toBeNull();
+    const entries = source.entries();
+    expect(entries).toHaveLength(1);
+    const entryId = entries[0]!.id;
+    expect(source.answer(entryId, text)).toBe(`${'x'.repeat(8_000)}…`);
+    expect(source.answer(entryId, files)).toBeNull();
+    expect(source.answer(entryId, 'not-an-episode')).toBeNull();
   });
 
   it('escapes every tenant- and model-authored value', () => {

@@ -1941,6 +1941,7 @@ try {
     let accountStats;
     const accountDiagnostics = [];
     try {
+      await accountPage.bringToFront();
       await accountPage.setViewport({ width: 1280, height: 800, deviceScaleFactor: 2 });
       accountPage.on('console', (message) => {
         if (
@@ -2180,7 +2181,18 @@ try {
             };
           }
           return null;
-        }, { timeout: READY_TIMEOUT_MS }, id);
+        }, { timeout: READY_TIMEOUT_MS }, id).catch(async (error) => {
+          const diagnostic = await accountPage.evaluate((targetId) => {
+            const handle = globalThis.__ATOMA_GPU__;
+            const row = handle?.hitTargets().find(entry => entry.id === targetId);
+            if (!row) return { targetId, missing: true };
+            const point = handle.projectRendererPoint(row.x + row.width / 2, row.y + row.height / 2);
+            const top = document.elementFromPoint(point.x, point.y);
+            return { row, point, viewport: [window.innerWidth, window.innerHeight],
+              top: top ? { tag: top.tagName, className: String(top.className ?? '') } : null };
+          }, id);
+          throw new Error(`account target not clickable: ${JSON.stringify(diagnostic)}`, { cause: error });
+        });
         const spot = await spotHandle.jsonValue();
         await spotHandle.dispose();
         if (!spot) throw new Error(`account scenario: hit target ${id} not found`);
@@ -2247,6 +2259,22 @@ try {
       }
       const prTarget = 'project.pullRequest.eeeeeeee-1111-4222-8333-ffffffffffff';
       await waitForHitTarget(accountPage, prTarget, 'delivered PR link did not render');
+      // Compact run cards can place this older run below the viewport. Scroll
+      // the real project list before asking for an on-screen pointer target.
+      const prPosition = await accountPage.evaluate((id) => {
+        const handle = globalThis.__ATOMA_GPU__;
+        const row = handle.hitTargets().find(entry => entry.id === id);
+        const point = handle.projectRendererPoint(row.x + row.width / 2, row.y + row.height / 2);
+        return { ...point, visibleY: window.innerHeight * 0.7 };
+      }, prTarget);
+      if (prPosition.y > prPosition.visibleY) {
+        await accountPage.evaluate(({ x, y, visibleY }) => {
+          globalThis.__ATOMA_GPU__.app.canvas.dispatchEvent(new WheelEvent('wheel', {
+            deltaY: y - visibleY, clientX: x, clientY: visibleY,
+            bubbles: true, cancelable: true,
+          }));
+        }, prPosition);
+      }
       await accountPage.evaluate(() => {
         window.__githubOpened = null;
         window.__githubOriginalOpen = window.open;

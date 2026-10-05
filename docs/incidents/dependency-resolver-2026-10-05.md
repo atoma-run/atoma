@@ -153,3 +153,54 @@ twenty tests in isolation. The aggregate check is therefore recorded as failed,
 not retrospectively green. All resolver regression tests passed, including the
 twenty recorded edit failures and the native-tool transport test. The test
 models are mocked and verification made no paid model calls.
+
+### Follow-up before deployment
+
+The showcase failure was a fixture ordering assumption: two runs could receive
+the same millisecond timestamp, so the store's UUID tie-breaker could anchor the
+entry on the file delivery instead of the text delivery. The answer test now
+freezes that timestamp, obtains the actual public entry id, and checks the exact
+bounded answer plus the absence of an answer for the file episode under that
+same entry. The separate chronological grouping test advances a controlled
+clock. No production ordering or visibility rule was changed.
+
+After `npm ci`, `npm run release:check` passed: documentation, both TypeScript
+configurations, lint, audit (zero vulnerabilities), build, compiled release/auth
+smokes, CLI help smokes, and 5,442 tests (19 conditional skips, zero failures).
+The CI worker job remains responsible for its required Docker isolation proof.
+
+The real browser smoke then exposed another test assumption: at 528×800, the
+older run's PR link was rendered at viewport y=918. The scenario waited for an
+on-screen click target without scrolling the project list. A diagnostic capture
+confirmed the offscreen geometry. The smoke now wheels the real list to reveal
+the link before retaining its existing pointer-click and destination assertions.
+It uses the same canvas wheel event as the established scroll probe. The mobile
+probe similarly targeted the offscreen centre of a partially visible run card
+(y=632 in a 600px viewport); its native touch gesture now starts on the visible
+title and measures that same point after the gesture. Neither correction
+bypasses the production scroll handler or relaxes the interaction assertions.
+
+The mobile investigation found two separate causes. Pixi's EventSystem sets an
+inline `touch-action: none` during initialization, overriding the normal
+stylesheet's `pan-y`; the canvas rule now overrides that default with
+`pan-y !important`, checked through the computed browser style. Separately,
+enabling touch emulation changes pointer capability and re-arms the required
+handheld arrival gate. Event capture proved the project vanished before the
+first movement, rather than being activated by the drag. The probe now passes
+the real welcome and mobile acknowledgement before measuring its gesture.
+An experimental renderer tap guard was removed once that evidence corrected
+the diagnosis; the production gesture router remains unchanged.
+
+The isolated browser account path subsequently passed the PR link, automatic
+update/draft preservation, native mobile scroll without row activation, MCP
+settings, and account switching. The aggregate browser smoke is still **not
+green**: its wide-copy matcher now finds only the run-error label (the repository
+URL is ellipsized before its repeated `m` characters), its captured Settings hit
+targets were empty, and Pixi emitted bound-resource destruction warnings while
+the mobile notice unmounted the scene. No WebGPU validation errors were recorded.
+These are retained as separate UI follow-up evidence, not suppressed or counted
+as a passing browser check. The supported release gate and CI remain separate.
+
+Final source verification on 2026-10-06: `npm run release:check` passed all
+static/compiled checks and 5,452 tests with nine conditional skips. Docker was
+available for this final pass: all twenty container-isolation tests passed.

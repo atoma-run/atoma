@@ -6350,7 +6350,7 @@ describe('touch scrolling — a finger drag drives the same router as the wheel'
   it('declares the vertical pan on the canvas so a drag ends as a pan, not a tap', () => {
     // Source-level: `touch-action` is a browser contract the handlers depend
     // on (pointercancel), and nothing behavioural can observe it in Node.
-    const css = readFileSync(resolve('src/viz/client-gl/styles.css'), 'utf8');
+    const css = readFileSync(resolve('src/viz/client-gl/styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
     expect(css).toMatch(/\.gpu-ui-canvas\s*\{[^}]*touch-action:\s*pan-y/);
     expect(css).not.toMatch(/\.gpu-ui-canvas\s*\{[^}]*touch-action:\s*none/);
     const source = readFileSync(resolve('src/viz/client-gl/gpu-renderer.ts'), 'utf8');
