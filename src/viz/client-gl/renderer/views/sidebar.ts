@@ -28,7 +28,8 @@ import {
  */
 
 const SIDEBAR_PAD = 12;
-const GROUP_HEIGHT = 20;
+const GROUP_HEIGHT = 28;
+const GROUP_FIRST_ITEM_GAP = 6;
 const GROUP_GAP = 18;
 const ITEM_HEIGHT = 32;
 const ITEM_GAP = 12;
@@ -189,6 +190,7 @@ export type SidebarRow =
 interface SidebarMetrics {
   readonly top: number;
   readonly groupHeight: number;
+  readonly groupFirstItemGap: number;
   readonly groupGap: number;
   readonly itemHeight: number;
   readonly itemGap: number;
@@ -208,7 +210,7 @@ function groupedLayout(
     if (rows.length > 0) y += metrics.groupGap;
     if (metrics.includeGroups) {
       rows.push({ kind: 'group', group: group.key, y, height: metrics.groupHeight });
-      y += metrics.groupHeight;
+      y += metrics.groupHeight + metrics.groupFirstItemGap;
     }
     for (const view of members) {
       rows.push({ kind: 'item', view, y, height: metrics.itemHeight });
@@ -245,6 +247,7 @@ export function sidebarLayout(
   const normal = groupedLayout(views, {
     top: navigationTop + lead,
     groupHeight: GROUP_HEIGHT,
+    groupFirstItemGap: GROUP_FIRST_ITEM_GAP,
     groupGap: GROUP_GAP,
     itemHeight: ITEM_HEIGHT,
     itemGap: ITEM_GAP,
@@ -255,7 +258,8 @@ export function sidebarLayout(
   // Landscape windows first tighten whitespace while keeping group labels.
   const compact = groupedLayout(views, {
     top: navigationTop + (iconOnly ? ITEM_GAP : 8),
-    groupHeight: 14,
+    groupHeight: 20,
+    groupFirstItemGap: 4,
     groupGap: 6,
     itemHeight: 26,
     itemGap: 10,
@@ -355,7 +359,7 @@ export function drawSidebar(
       };
       const labelWidth = ctx.measureText(label, labelOptions);
       const centreX = width / 2;
-      const ruleY = row.y + GROUP_LABEL_SIZE / 2 + 1;
+      const ruleY = row.y + row.height / 2;
       const ruleLeft = SIDEBAR_PAD + 3;
       const ruleRight = width - SIDEBAR_PAD - 3;
       const labelLeft = centreX - labelWidth / 2 - GROUP_RULE_GAP;
@@ -383,10 +387,10 @@ export function drawSidebar(
         ctx.root,
         label,
         centreX,
-        row.y,
+        ruleY,
         labelOptions
       );
-      labelText.anchor.x = 0.5;
+      labelText.anchor.set(0.5, 0.5);
       continue;
     }
     if (row.kind === 'action') {

@@ -1330,6 +1330,23 @@ describe('the nav rail', () => {
     }
   });
 
+  it('centres each heading above its first navigation button with breathing room', () => {
+    const rows = sidebarLayout(visibleViews(null));
+    for (const [index, row] of rows.entries()) {
+      if (row.kind !== 'group') continue;
+      const firstButton = rows[index + 1]!;
+      expect(firstButton.kind).toBe('item');
+      expect(firstButton.y - (row.y + row.height)).toBe(6);
+      expect(firstButton.y - (row.y + row.height / 2)).toBeGreaterThanOrEqual(14);
+    }
+    const ctx = createRecordingCtx();
+    drawSidebar(ctx, makeSnapshot({ view: 'projects' }), 720);
+    const heading = ctx.texts.find((entry) => entry.value === 'WORKSPACE');
+    expect(heading?.y).toBe(rows[0]!.y + rows[0]!.height / 2);
+    expect(heading?.node.anchor.x).toBe(0.5);
+    expect(heading?.node.anchor.y).toBe(0.5);
+  });
+
   it('draws one nav button per view, marking the current one', () => {
     const ctx = createRecordingCtx();
     drawSidebar(ctx, makeSnapshot({ view: 'skills' }), 720);
