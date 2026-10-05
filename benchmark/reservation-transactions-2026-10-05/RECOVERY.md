@@ -336,3 +336,57 @@ static/audit/build/compiled gates. No production prompt change from the rejected
 boundary experiment remains. The seventeen-response diagnostic reproduces
 offline; the intended code change is the timing and preservation of focused
 criterion review, covered through root acceptance and remediation input.
+
+## Eighth attempt: a growing manifest displaced the assertions
+
+Run b873c5a2-bfb0-499b-85e9-f1bcc18a520e ran ef10b044 from the seventh
+partial seed, with the same goal and ten criteria. It ended partial after
+965.145 seconds end to end (34 LLM calls, 222 events). The complete criterion inventory did execute on
+both refused root candidates. Recovered revision-fixture failures and an
+escaped edit argument are preserved in the full archive. The final draft was
+reconstructed from observed reads/edits and matches its four file hashes.
+
+The final host read-back selected server.js, README.md, test-api.js and the
+16,533-character internal probe manifest. Their combined size exceeded 24,000;
+the reader reverted EVERY long file to a 1,200-character head and keyword
+snippets. The successful-receipt restart assertions existed and had executed,
+but vanished from the review. The analyst correctly noticed wasted work but
+called the final refusals correct without distinguishing missing assertions
+from invisible ones; its independent report is preserved, not adopted as truth.
+
+The shared source reader now leaves the internal manifest to its existing
+schema/observation reader unless a criterion explicitly names that file.
+Hidden named paths are supported too. This avoids consuming a source slot and
+budget with the same growing operational record. The same four-read and
+24,000-source-character limits remain. Small files give unused shares to larger
+files; oversized files retain a bounded head and matching lines rather than an
+all-or-nothing batch cliff. Failed reads, cancellation, traversal exclusions,
+staleness labels and the no-execution-credit boundary remain unchanged.
+
+Adversarial review: this cannot infer unseen assertions, bind a later edit to an
+earlier execution, suppress manifest schema findings, or accept a result. An
+explicit manifest criterion still gets its bytes. At 24,000/24,001/100,000 source
+characters, tests exercise full coverage, graceful truncation, and the bound.
+The production phase path verifies a growing manifest cannot displace source
+and test bodies; existing root and Jev paths also pass. 54 targeted tests and
+both TypeScript configurations passed.
+
+Fourteen paired diagnostic responses are preserved in budget-* (three archived
+requests and four controls; same Luna model, alternating order, no tool replay).
+Providing the actual full bodies lets the receipt reviewer see SIGKILL/restart
+and both receipt assertions. Wrong, unexecuted, or subsequently edited
+assertions remain refused; the executed positive control is accepted only when
+its body is visible. The global and focused concurrency reviewers nevertheless
+accept weak same-key assertions by combining equal response bytes with source
+inspection, without a direct apply-once full-state assertion. This is a remaining
+semantic limitation, NOT evidence that all review judgments are now reliable.
+The deterministic fix is evidence visibility, not a guarantee of semantic
+accuracy. The final published artifact still needs the independent frozen
+executable scorer and a source review.
+
+The first complete release gate passed static/build/compiled checks and 5,428
+tests; one old fixture still asserted the former 1,200-character truncation.
+Its expected head boundary was updated to the shared-budget value while keeping
+the late curl-line assertion. The repeated full release gate passed: 410 files,
+5,439 tests, 9 skipped, including container isolation. The 14-response diagnostic
+also reproduces offline. No acceptance threshold or requested criterion changed.

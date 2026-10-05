@@ -340,8 +340,11 @@ load-bearing.
   No mutation execution or extra model call is authorised. Invoice counterexample
   and paired replay: `benchmark/evidence-discrimination-2026-10-05/`.
   Root and phase file read-back share 24,000 source characters across at most four
-  files: when the whole batch fits, preserve it in full. Above that bound,
-  files up to 6,000 characters stay complete and longer files retain excerpts.
+  files: unused shares from small files go to larger files; a batch that fits
+  stays complete. Longer files retain bounded heads and matching lines.
+  The probe manifest has its own schema/observation reader and does not consume
+  a refresh slot unless a criterion explicitly names it. Run b873c5a2 lost
+  assertion bodies when that growing internal record pushed the batch over budget.
   Selecting keyword lines alone had preserved test names but cut their bodies.
   Phase ground truth refreshes superseded reads referenced by the result in
   the current attempt, through the same bounded reader as root acceptance.

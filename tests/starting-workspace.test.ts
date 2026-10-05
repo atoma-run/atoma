@@ -152,7 +152,7 @@ describe('what the root acceptor reads', () => {
     // Read although the ground-truth block lists it: that block shows a 400-character head.
     expect(prompt).toContain('FILES THE CRITERIA NAME, read back by the host');
     expect(prompt).toContain(`- README.md (${readme.length} chars):`);
-    expect(prompt).toContain(`…(cut at 1200 of ${readme.length} chars)`);
+    expect(prompt).toContain(`…(cut at 21000 of ${readme.length} chars)`);
     expect(prompt).toContain(`later lines naming the criteria's words: ["curl -X POST http://localhost:<port>/api/notes"]`);
     expect(prompt).toContain('never judge a criterion unmet on a part of the file you were not shown');
     // A named file that is no workspace file (a download) says nothing.

@@ -69,7 +69,7 @@ describe('focused criterion review', () => {
       for (const content of files.values()) {
         if (overBudget) {
           expect(req.userContent).not.toContain(JSON.stringify(content));
-          expect(req.userContent).toContain('cut at 1200 of 13000 chars');
+          expect(req.userContent).toContain('cut at 9000 of 13000 chars');
         } else expect(req.userContent).toContain(JSON.stringify(content));
       }
       return reply(judgments);

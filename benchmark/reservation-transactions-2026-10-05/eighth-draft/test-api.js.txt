@@ -1,0 +1,98 @@
+#!/usr/bin/env node
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),cp=require('node:child_process'),http=require('node:http');
+const dir=fs.mkdtempSync(path.join(os.tmpdir(),'stock-')),db=path.join(dir,'db.sqlite'),seed=path.join(dir,'seed.json');
+fs.writeFileSync(seed,JSON.stringify({items:[{sku:'A',capacity:1},{sku:'B',capacity:2},{sku:'𐀀',capacity:1},{sku:'',capacity:1},{sku:'__proto__',capacity:1},{sku:'C',capacity:1},{sku:'D',capacity:1}]}));
+function start(dbPath=db,seedPath=seed){let p=cp.spawn(process.execPath,['server.js','--db',dbPath,'--seed',seedPath,'--port','0'],{stdio:['ignore','pipe','inherit']});return new Promise(resolve=>p.stdout.on('data',d=>{let m=d.toString().match(/\{"port":(\d+)\}/);if(m)resolve({p,port:+m[1]})}))}
+function request(method,path,body){return new Promise((resolve,reject)=>{let r=http.request({host:'127.0.0.1',port:S.port,path,method,headers:body!==undefined?{'content-type':'application/json'}:{}},x=>{let b='';x.on('data',d=>b+=d);x.on('end',()=>resolve({status:x.statusCode,body:b,json:()=>JSON.parse(b)}))});r.on('error',reject);if(body!==undefined)r.end(typeof body==='string'?body:JSON.stringify(body));else r.end()})}
+const cmd=x=>request('POST','/commands',x);
+let S;
+(async()=>{S=await start();let initial=(await request('GET','/state')).json();assert.equal(initial.clock,0);assert.deepEqual(initial.items.map(x=>x.sku),['A','B','C','D','__proto__','𐀀','']);
+let bad=await cmd({key:'reuse',type:['advance']});assert.deepEqual(bad.json(),{error:'invalid'});assert.equal((await cmd({key:'reuse',type:'advance',to:0})).status,200);
+assert.equal((await cmd({key:'getter',type:'__defineGetter__'})).status,400);
+// Schema matrix: missing/extra fields, wrong containers/types, and range violations are invalid and uncached.
+for (const bad of [
+  {key:'missing-field',type:'confirm'},
+  {key:'extra-field',type:'advance',to:0,extra:1},
+  {key:'wrong-lines',type:'reserve',holdId:'bad',ttl:1,lines:{}},
+  {key:'wrong-element',type:'reserve',holdId:'bad',ttl:1,lines:[{sku:'A',qty:'1'}]},
+  {key:'zero-ttl',type:'reserve',holdId:'bad',ttl:0,lines:[{sku:'A',qty:1}]},
+  {key:'zero-qty',type:'reserve',holdId:'bad',ttl:1,lines:[{sku:'A',qty:0}]},
+  {key:'bad-to',type:'advance',to:-1}
+]) { const x=await cmd(bad); assert.equal(x.status,400); assert.deepEqual(x.json(),{error:'invalid'}); }
+assert.equal((await cmd({key:'missing-field',type:'advance',to:0})).status,200);
+let atomic=await cmd({key:'atomic',type:'reserve',holdId:'x',ttl:5,lines:[{sku:'A',qty:1},{sku:'A',qty:1},{sku:'B',qty:1}]});assert.equal(atomic.status,409);assert.equal((await request('GET','/state')).json().items.find(x=>x.sku==='A').available,1);
+let refused=await cmd({key:'missing',type:'reserve',holdId:'m',ttl:5,lines:[{sku:'NO',qty:1}]});assert.equal(refused.status,409);assert.equal((await cmd({type:'reserve',key:'missing',holdId:'m',ttl:5,lines:[{sku:'NO',qty:1}]})).body,refused.body);
+assert.equal((await cmd({key:'r',type:'reserve',holdId:'h',ttl:5,lines:[{sku:'A',qty:1}]})).status,200);
+let same=await cmd({type:'reserve',key:'r',holdId:'h',ttl:5,lines:[{sku:'A',qty:1} ]});assert.equal(same.body,JSON.stringify({ok:true,revision:3}));
+assert.deepEqual((await cmd({key:'r',type:'cancel',holdId:'h'})).json(),{error:'idempotency_conflict'});
+assert.equal((await cmd({key:'advance',type:'advance',to:5})).status,200);assert.deepEqual((await cmd({key:'confirm',type:'confirm',holdId:'h'})).json(),{error:'inactive_hold'});
+let st=(await request('GET','/state')).json();assert.equal(st.holds.find(x=>x.id==='h').status,'expired');assert.equal(st.items.find(x=>x.sku==='A').available,1);
+let wins=await Promise.all([cmd({key:'c1',type:'reserve',holdId:'c1',ttl:4,lines:[{sku:'B',qty:2}]}),cmd({key:'c2',type:'reserve',holdId:'c2',ttl:4,lines:[{sku:'B',qty:2}]})]);assert.equal(wins.filter(x=>x.status===200).length,1);
+let before=(await request('GET','/state')).body;S.p.kill('SIGKILL');await new Promise(r=>S.p.on('exit',r));S=await start();
+assert.equal((await request('GET','/state')).body,before);
+assert.equal((await request('GET','/state')).body,before); // repeated GET is byte-stable and read-only
+let replaySuccess=await cmd({key:'r',type:'reserve',holdId:'h',ttl:5,lines:[{sku:'A',qty:1}]});assert.equal(replaySuccess.status,200);assert.equal(replaySuccess.body,JSON.stringify({ok:true,revision:3}));
+assert.equal((await request('GET','/state')).body,before); // successful receipt replay does not mutate after restart
+let refusedAfterRestart=await cmd({key:'missing',type:'reserve',holdId:'m',ttl:5,lines:[{sku:'NO',qty:1}]});assert.equal(refusedAfterRestart.status,409);assert.equal(refusedAfterRestart.body,refused.body);
+assert.equal((await request('GET','/state')).body,before); // refused receipt also replays without mutation
+let dup=await Promise.all([cmd({key:'dup',type:'reserve',holdId:'u',ttl:2,lines:[{sku:'__proto__',qty:1}]}),cmd({key:'dup',type:'reserve',holdId:'u',ttl:2,lines:[{sku:'__proto__',qty:1}]})]);assert.equal(dup[0].body,dup[1].body);
+// Confirm-before-advance keeps a confirmed hold and its reservation at the exact boundary.
+let rc=await cmd({key:'rc',type:'reserve',holdId:'confirm-first',ttl:5,lines:[{sku:'C',qty:1}]});assert.equal(rc.status,200);
+assert.equal((await cmd({key:'cc',type:'confirm',holdId:'confirm-first'})).status,200);
+await cmd({key:'ac',type:'advance',to:10});
+let sc=(await request('GET','/state')).json();assert.equal(sc.holds.find(x=>x.id==='confirm-first').status,'confirmed');assert.equal(sc.items.find(x=>x.sku==='C').available,0);
+// Advance-before-confirm expires at expiresAt <= clock and releases the unit.
+let rd=await cmd({key:'rd',type:'reserve',holdId:'advance-first',ttl:5,lines:[{sku:'D',qty:1}]});assert.equal(rd.status,200);
+await cmd({key:'ad',type:'advance',to:15});
+let late=await cmd({key:'late',type:'confirm',holdId:'advance-first'});assert.equal(late.status,409);assert.deepEqual(late.json(),{error:'inactive_hold'});
+let sd=(await request('GET','/state')).json();assert.equal(sd.holds.find(x=>x.id==='advance-first').status,'expired');assert.equal(sd.items.find(x=>x.sku==='D').available,1);
+// Cancellation releases reserved stock, while a changed command cannot overwrite its receipt.
+let rr=await cmd({key:'cancel-case',type:'reserve',holdId:'cancel-case',ttl:5,lines:[{sku:'D',qty:1}]});assert.equal(rr.status,200);
+let cr=await cmd({key:'cancel-op',type:'cancel',holdId:'cancel-case'});assert.equal(cr.status,200);
+assert.equal((await request('GET','/state')).json().items.find(x=>x.sku==='D').available,1);
+let reordered=await cmd({key:'array-order',type:'reserve',holdId:'order-case',ttl:5,lines:[{sku:'D',qty:1},{sku:'C',qty:1}]});assert.equal(reordered.status,409);
+let reorderedRetry=await cmd({type:'reserve',key:'array-order',holdId:'order-case',ttl:5,lines:[{sku:'C',qty:1},{sku:'D',qty:1}]});assert.deepEqual(reorderedRetry.json(),{error:'idempotency_conflict'});
+let malformed=await request('POST','/commands','{');assert.equal(malformed.status,400);assert.deepEqual(malformed.json(),{error:'invalid'});
+let stateBytes=(await request('GET','/state')).body;assert.equal((await request('GET','/state')).body,stateBytes);
+// Isolated boundary fixture: expiry is inclusive at exactly expiresAt, and confirmation wins before it.
+S.p.kill('SIGKILL');await new Promise(r=>S.p.on('exit',r));
+const exactDb=path.join(dir,'exact.sqlite'),exactSeed=path.join(dir,'exact-seed.json');
+fs.writeFileSync(exactSeed,JSON.stringify({items:[{sku:'E',capacity:1},{sku:'F',capacity:1}]}));
+S=await start(exactDb,exactSeed);
+assert.equal((await cmd({key:'be',type:'reserve',holdId:'boundary-expire',ttl:5,lines:[{sku:'E',qty:1}]})).status,200);
+assert.equal((await cmd({key:'bf',type:'reserve',holdId:'boundary-confirm',ttl:5,lines:[{sku:'F',qty:1}]})).status,200);
+assert.equal((await cmd({key:'cf',type:'confirm',holdId:'boundary-confirm'})).status,200);
+assert.equal((await cmd({key:'at5',type:'advance',to:5})).status,200);
+let exactConfirmed=(await request('GET','/state')).json();
+assert.equal(exactConfirmed.holds.find(x=>x.id==='boundary-expire').status,'expired');
+assert.equal(exactConfirmed.items.find(x=>x.sku==='E').available,1);
+assert.equal(exactConfirmed.holds.find(x=>x.id==='boundary-confirm').status,'confirmed');
+assert.equal(exactConfirmed.items.find(x=>x.sku==='F').available,0);
+// Isolated successful aggregation: repeated lines become one deterministic hold line.
+S.p.kill('SIGKILL');await new Promise(r=>S.p.on('exit',r));
+const aggDb=path.join(dir,'aggregate.sqlite'),aggSeed=path.join(dir,'aggregate-seed.json');
+fs.writeFileSync(aggSeed,JSON.stringify({items:[{sku:'G',capacity:5},{sku:'H',capacity:2},{sku:'𐀀',capacity:3},{sku:'',capacity:3}]}));
+S=await start(aggDb,aggSeed);
+let ar=await cmd({key:'aggregate',type:'reserve',holdId:'aggregate',ttl:5,lines:[{sku:'G',qty:1},{sku:'G',qty:2},{sku:'H',qty:1}]});
+assert.equal(ar.status,200);
+let ast=(await request('GET','/state')).json();
+assert.deepEqual(ast.items,[{sku:'G',capacity:5,available:2},{sku:'H',capacity:2,available:1},{sku:'𐀀',capacity:3,available:3},{sku:'',capacity:3,available:3}]);
+assert.deepEqual(ast.holds,[{id:'aggregate',expiresAt:5,status:'held',lines:[{sku:'G',qty:3},{sku:'H',qty:1}]}]);
+// A cached insufficient_stock refusal remains byte-identical after stock changes.
+let insufficient=await cmd({key:'insufficient-replay',type:'reserve',holdId:'never',ttl:5,lines:[{sku:'G',qty:3}]});
+assert.equal(insufficient.status,409);assert.deepEqual(insufficient.json(),{error:'insufficient_stock'});
+assert.equal((await cmd({key:'release-aggregate',type:'cancel',holdId:'aggregate'})).status,200);
+let afterRelease=(await request('GET','/state')).body;
+let insufficientRetry=await cmd({type:'reserve',key:'insufficient-replay',holdId:'never',ttl:5,lines:[{sku:'G',qty:3}]});
+assert.equal(insufficientRetry.status,409);assert.equal(insufficientRetry.body,insufficient.body);
+assert.equal((await request('GET','/state')).body,afterRelease);
+// Unicode hold IDs and aggregated line SKUs use JS code-unit ordering: U+10000 precedes U+E000.
+assert.equal((await cmd({key:'unicode-a',type:'reserve',holdId:'-hold',ttl:5,lines:[{sku:'',qty:1},{sku:'𐀀',qty:1},{sku:'𐀀',qty:1}]})).status,200);
+assert.equal((await cmd({key:'unicode-b',type:'reserve',holdId:'𐀀-hold',ttl:5,lines:[{sku:'',qty:1},{sku:'𐀀',qty:1},{sku:'',qty:1}]})).status,200);
+let ust=(await request('GET','/state')).json();
+assert.deepEqual(ust.holds.map(x=>x.id),['aggregate','𐀀-hold','-hold']);
+assert.deepEqual(ust.holds.find(x=>x.id==='𐀀-hold').lines,[{sku:'𐀀',qty:1},{sku:'',qty:2}]);
+assert.deepEqual(ust.holds.find(x=>x.id==='-hold').lines,[{sku:'𐀀',qty:2},{sku:'',qty:1}]);
+S.p.kill('SIGKILL');console.log('all assertions passed');
+})().catch(e=>{console.error(e);if(S)S.p.kill('SIGKILL');process.exit(1)});

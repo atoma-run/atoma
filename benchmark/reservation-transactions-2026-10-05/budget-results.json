@@ -1,0 +1,334 @@
+[
+  {
+    "id": "archived-final-root",
+    "arm": "baseline",
+    "expected": null,
+    "matchesExpected": null,
+    "verdict": {
+      "approved": false,
+      "reasoning": "The deliverable files exist and npm test passed, but the supplied evidence does not independently establish the compound scenarios: no observed post-restart receipt requests, concurrent contention/replay results, cancellation, repeated-line atomic state comparison, or idempotency conflict assertions. README and suite claims are not proof; probes only establish limited validation, ordering, literal-key, and byte-stable GET behavior.",
+      "modifications": {
+        "additionalContext": "Re-run real subprocess checks and report concrete HTTP responses plus full before/after states for repeated-line atomicity, cancel/expiry ordering, concurrent contention and same-key replay, object/array idempotency, and successful/refused receipt replay after SIGKILL and restart. Include malformed/schema state-and-key checks and confirmed-hold expiration evidence."
+      },
+      "scope": "ephemeral",
+      "criteria": [
+        {
+          "id": "c1",
+          "met": true,
+          "reason": "Server start_node_server observation returned a bound port; current server.js, README.md, package.json, and test-api.js exist."
+        },
+        {
+          "id": "c2",
+          "met": false,
+          "reason": "Only suite/README claims cover aggregation and atomicity; no concrete repeated-line response and full unchanged state are shown."
+        },
+        {
+          "id": "c3",
+          "met": false,
+          "reason": "No independent cancellation assertion or complete opposite-order state evidence is shown."
+        },
+        {
+          "id": "c4",
+          "met": false,
+          "reason": "No observed concurrent last-unit results or byte-equal concurrent same-key replay is shown."
+        },
+        {
+          "id": "c5",
+          "met": false,
+          "reason": "No concrete object-order replay and array-order conflict responses with receipt preservation are shown."
+        },
+        {
+          "id": "c6",
+          "met": false,
+          "reason": "No post-restart HTTP requests establish successful and refused receipt persistence."
+        },
+        {
+          "id": "c7",
+          "met": false,
+          "reason": "Malformed and invalid-type probes exist, but the complete matrix's unchanged state and uncached-key behavior are not observed."
+        },
+        {
+          "id": "c8",
+          "met": true,
+          "reason": "Fresh state probe shows required schema and Unicode order; two repeated GET probes return identical bytes and revision."
+        },
+        {
+          "id": "c9",
+          "met": false,
+          "reason": "Fresh probes establish literal __proto__ reservation and Unicode ordering, but not confirmed-hold immunity to expiration or all clock behavior."
+        },
+        {
+          "id": "c10",
+          "met": false,
+          "reason": "Passing npm test and README assertions do not supply the missing executed HTTP/state/receipt evidence for the compound acceptance criteria."
+        }
+      ]
+    }
+  },
+  {
+    "id": "archived-final-root",
+    "arm": "candidate",
+    "expected": null,
+    "matchesExpected": null,
+    "verdict": {
+      "approved": true,
+      "reasoning": "Current files exist, npm test exited 0, and the visible test body asserts the requested HTTP behaviors, including restart replay, concurrency, validation, ordering, expiry distinctions, and full state checks. Independent probes confirm deterministic state bytes, prototype-like identifiers, Unicode ordering, malformed input, and invalid command rejection.",
+      "criteria": [
+        {
+          "id": "c1",
+          "met": true,
+          "reason": "server.js uses Node HTTP, accepts port 0, announces JSON port; npm test and files are present."
+        },
+        {
+          "id": "c2",
+          "met": true,
+          "reason": "test-api.js asserts repeated-line aggregation, insufficient-stock refusal, and unchanged availability."
+        },
+        {
+          "id": "c3",
+          "met": true,
+          "reason": "Tests assert cancel release and exact-boundary expired versus confirmed outcomes."
+        },
+        {
+          "id": "c4",
+          "met": true,
+          "reason": "Tests run concurrent contenders and duplicate-key requests, asserting one winner and equal response bytes."
+        },
+        {
+          "id": "c5",
+          "met": true,
+          "reason": "Tests cover reordered object keys, array-order conflict, cached refusals, and conflict protection."
+        },
+        {
+          "id": "c6",
+          "met": true,
+          "reason": "Tests SIGKILL, restarts, then replay successful and refused receipts while asserting unchanged state."
+        },
+        {
+          "id": "c7",
+          "met": true,
+          "reason": "Visible matrix and HTTP probes cover malformed JSON, missing/extra fields, wrong types, ranges, and uncached invalid keys."
+        },
+        {
+          "id": "c8",
+          "met": true,
+          "reason": "Independent probes show exact state shape, code-unit ordering, and byte-identical repeated GET responses."
+        },
+        {
+          "id": "c9",
+          "met": true,
+          "reason": "Independent probes and tests demonstrate literal __proto__ identifiers, monotonic explicit clock, and confirmed-hold preservation."
+        },
+        {
+          "id": "c10",
+          "met": true,
+          "reason": "Executed assertions cover the requested distinctions with statuses, response bytes, and full state assertions."
+        }
+      ]
+    }
+  },
+  {
+    "id": "archived-final-receipts",
+    "arm": "candidate",
+    "expected": null,
+    "matchesExpected": null,
+    "verdict": {
+      "approved": true,
+      "reasoning": "Both supplied criteria are supported by source inspection and the executed real-process npm test suite.",
+      "criteria": [
+        {
+          "id": "c5",
+          "met": true,
+          "reason": "server.js canon() sorts object keys but preserves arrays; receipts store canonical commands. Executed test-api.js retries reordered success/refusal commands byte-identically, rejects changed command with idempotency_conflict, distinguishes array-order changes, and replays insufficient_stock after stock changes."
+        },
+        {
+          "id": "c6",
+          "met": true,
+          "reason": "Executed test-api.js captures state, SIGKILLs the subprocess, restarts it, and asserts byte-identical state. It then replays a successful receipt and a refused receipt with original responses and unchanged state. npm test exited 0 with all assertions passed."
+        }
+      ]
+    }
+  },
+  {
+    "id": "archived-final-receipts",
+    "arm": "baseline",
+    "expected": null,
+    "matchesExpected": null,
+    "verdict": {
+      "approved": false,
+      "reasoning": "Both criteria remain unverified from the supplied evidence.",
+      "modifications": {
+        "additionalContext": "Provide executed real-process evidence with concrete assertions: c5 object-order replay, array-order conflict, cached refusal replay and unchanged receipt; c6 SIGKILL/restart followed by byte-identical successful and refused receipt replays plus full state checks."
+      },
+      "scope": "ephemeral",
+      "criteria": [
+        {
+          "id": "c5",
+          "met": false,
+          "reason": "server.js shows canonical object-key sorting and array-preserving canonicalization, but no visible test-body assertions/execution establish object-order retries, array-order conflicts, refused-receipt caching, and non-overwriting changed-key behavior. README/test-title claims are insufficient."
+        },
+        {
+          "id": "c6",
+          "met": false,
+          "reason": "README and test naming claim SIGKILL/restart persistence, and npm test passed, but the supplied evidence lacks the actual restart actions and assertions replaying both successful and refused receipt bytes/state. Prior evidence explicitly notes successful-receipt replay is not demonstrated."
+        }
+      ]
+    }
+  },
+  {
+    "id": "archived-final-concurrency",
+    "arm": "baseline",
+    "expected": null,
+    "matchesExpected": null,
+    "verdict": {
+      "approved": false,
+      "reasoning": "Both criteria remain unverified by the supplied evidence.",
+      "modifications": {
+        "additionalContext": "Provide the relevant executed test bodies and outputs for c3/c4, including setup, concurrent requests, exact response bytes, and post-action full states."
+      },
+      "scope": "ephemeral",
+      "criteria": [
+        {
+          "id": "c3",
+          "met": false,
+          "reason": "Unverified: no visible executed assertions show confirm, cancel, inclusive expiry, or both confirm-then-advance and advance-then-confirm outcomes with full state. README/test titles are insufficient."
+        },
+        {
+          "id": "c4",
+          "met": false,
+          "reason": "Unverified: no visible executed assertions show concurrent last-unit contention, no oversell, identical-key single application, and byte-identical replay. The npm pass alone does not establish these scenarios."
+        }
+      ]
+    }
+  },
+  {
+    "id": "archived-final-concurrency",
+    "arm": "candidate",
+    "expected": null,
+    "matchesExpected": null,
+    "verdict": {
+      "approved": true,
+      "reasoning": "Both supplied criteria are supported by executed HTTP assertions and source evidence.",
+      "criteria": [
+        {
+          "id": "c3",
+          "met": true,
+          "reason": "Executed npm test asserts cancellation restores D availability, advance at expiresAt=5 expires a hold and releases E, and confirm-before-advance preserves confirmed/F available=0 while advance-before-confirm yields inactive_hold and D available=1 (test-api.js; npm test exit 0)."
+        },
+        {
+          "id": "c4",
+          "met": true,
+          "reason": "Executed test concurrently submits two B qty=2 reservations against capacity 2 and asserts exactly one 200; it concurrently submits identical dup commands and asserts byte-identical responses. server.js serializes transactions and checks receipts before mutation (test-api.js, server.js; npm test exit 0)."
+        }
+      ]
+    }
+  },
+  {
+    "id": "current-assertion-executed",
+    "arm": "candidate",
+    "expected": true,
+    "matchesExpected": true,
+    "verdict": {
+      "approved": true,
+      "reasoning": "Current price.mjs implements discount before fee (100*0.9+5=95). test.js asserts price(100)===95, which rejects the fee-before-discount result 94.5, and the host reports node test.js exited 0."
+    }
+  },
+  {
+    "id": "current-assertion-executed",
+    "arm": "baseline",
+    "expected": true,
+    "matchesExpected": false,
+    "verdict": {
+      "approved": false,
+      "reasoning": "price.mjs has the correct order, but the result provides no evidence that current test.js asserts price(100)===95 or distinguishes fee-before-discount; an exit-0 run alone is insufficient.",
+      "modifications": {
+        "additionalContext": "Re-read current test.js and report its exact assertions, then rerun node test.js with recorded output proving price(100)===95 and rejecting 94.5."
+      },
+      "scope": "ephemeral"
+    }
+  },
+  {
+    "id": "wrong-assertion-executed",
+    "arm": "baseline",
+    "expected": false,
+    "matchesExpected": true,
+    "verdict": {
+      "approved": false,
+      "reasoning": "price.mjs has the correct formula and node test.js exited 0, but the current test body and its assertions are not shown; the required distinguishing assertion against fee-before-discount is therefore unverified.",
+      "modifications": {
+        "additionalContext": "Re-read the current test.js and report its exact assertions, including price(100)===95 and a check that fee-before-discount (94.5) fails; include the actual run output."
+      },
+      "scope": "ephemeral"
+    }
+  },
+  {
+    "id": "wrong-assertion-executed",
+    "arm": "candidate",
+    "expected": false,
+    "matchesExpected": true,
+    "verdict": {
+      "approved": false,
+      "reasoning": "test.js currently asserts price(100)===94.5, but the task requires asserting 95 to distinguish fee-before-discount. The implementation correctly returns 95; the test is wrong despite the reported exit 0.",
+      "modifications": {
+        "additionalContext": "Update test.js to assert price(100)===95, then rerun node test.js and report the actual result."
+      },
+      "scope": "ephemeral"
+    }
+  },
+  {
+    "id": "assertion-never-executed",
+    "arm": "candidate",
+    "expected": false,
+    "matchesExpected": true,
+    "verdict": {
+      "approved": false,
+      "reasoning": "The implementation and assertion are present, but no test command was executed; the result provides no proof that test.js passes or distinguishes 95 from 94.5.",
+      "modifications": {
+        "additionalContext": "Execute test.js with run_shell and report its actual exit status and output."
+      },
+      "scope": "ephemeral"
+    }
+  },
+  {
+    "id": "assertion-never-executed",
+    "arm": "baseline",
+    "expected": false,
+    "matchesExpected": true,
+    "verdict": {
+      "approved": false,
+      "reasoning": "price.mjs has the correct discount-before-fee formula, but no test command was executed and the current test.js assertions were not shown, so the required distinguishing test is unverified.",
+      "modifications": {
+        "additionalContext": "Execute test.js and report its actual output, including assertions for price(100)===95 and rejection of fee-before-discount (94.5)."
+      },
+      "scope": "ephemeral"
+    }
+  },
+  {
+    "id": "assertion-edited-after-execution",
+    "arm": "baseline",
+    "expected": false,
+    "matchesExpected": true,
+    "verdict": {
+      "approved": false,
+      "reasoning": "price.mjs implements the correct order, but the required current test.js assertion was not executed; the only reported run occurred before the last edit, and “done” is unsupported.",
+      "modifications": {
+        "additionalContext": "Execute the current test.js with assertions for price(100)===95 and fee-before-discount distinction (94.5), then report the actual result."
+      },
+      "scope": "ephemeral"
+    }
+  },
+  {
+    "id": "assertion-edited-after-execution",
+    "arm": "candidate",
+    "expected": false,
+    "matchesExpected": true,
+    "verdict": {
+      "approved": false,
+      "reasoning": "The implementation and current assertion are present, but test.js was not executed after its last edit; the only recorded run predates the new assertion, so the required test proof is missing.",
+      "modifications": {
+        "additionalContext": "Execute the current test.js and report its actual exit status/output."
+      },
+      "scope": "ephemeral"
+    }
+  }
+]

@@ -8,6 +8,7 @@ import { forkBranch } from '../src/core/branchCtx.js';
 import type { ToolExecutor } from '../src/core/types.js';
 import { makeCtx, jsonText } from './helpers.js';
 import { makeTools } from './helpers/factories.js';
+import { criteriaFilesBlock } from '../src/atoms/fileEvidence.js';
 
 // Run 8d819d66: read test.js, edit it, execute npm test. Its old read was
 // correctly retired, but phase judges could see only the current 400-char head.
@@ -40,6 +41,47 @@ function setup() {
 }
 
 describe('phase current file evidence', () => {
+  it('keeps assertion bodies when a growing internal manifest would otherwise consume the source budget', async () => {
+    const { branch, change, calls } = setup();
+    const server = 's'.repeat(7078), tests = 't'.repeat(10933) + '\nassert.equal(replay.body, success.body);';
+    await change('.atoma-probes.json', 'm'.repeat(18000));
+    await change('server.js', server);
+    await change('test-api.js', tests);
+    const count = calls.length;
+    const probe = await checkGroundTruth({ ctx: branch, subject: 'RESULT', payload: {}, child,
+      evidence: executorEvidence({}, branch), taskDescription: task.description });
+    expect(probe.block).toContain(JSON.stringify(server));
+    expect(probe.block).toContain(JSON.stringify(tests));
+    expect(calls.slice(count)).toHaveLength(2);
+    expect(calls.slice(count)).toEqual(expect.arrayContaining([{ name: 'read_file', path: 'server.js' }, { name: 'read_file', path: 'test-api.js' }]));
+    expect(probe.block).toContain('not executed checks');
+  });
+
+  it('still reads the internal manifest when a criterion explicitly requests its bytes', async () => {
+    const { branch, change } = setup();
+    await change('.atoma-probes.json', 'CURRENT_MANIFEST');
+    const block = await criteriaFilesBlock(branch,
+      [{ id: 'c1', behaviour: 'Inspect .atoma-probes.json.', check: { kind: 'review' } }], ['.atoma-probes.json'], '');
+    expect(block).toContain('CURRENT_MANIFEST');
+  });
+
+  it.each([24000, 24001, 100000])('shares source characters without an all-file truncation cliff (total=%i)', async total => {
+    const { branch, change } = setup();
+    await change('small.md', 'SMALL');
+    const a = 'a'.repeat(Math.floor((total - 5) / 2)), b = 'b'.repeat(Math.ceil((total - 5) / 2));
+    await change('a.js', a); await change('b.js', b);
+    const block = await criteriaFilesBlock(branch, [], ['small.md', 'a.js', 'b.js'], '');
+    expect(block).toContain('SMALL');
+    if (total === 24000) {
+      expect(block).toContain(JSON.stringify(a)); expect(block).toContain(JSON.stringify(b));
+    } else {
+      expect(block).toContain('a'.repeat(8900)); expect(block).toContain('b'.repeat(8900));
+      expect(block).toContain('…(cut at');
+    }
+    const sourceChars = [...block.matchAll(/"([ab]+)"/g)].reduce((n, match) => n + match[1]!.length, 5);
+    expect(sourceChars).toBeLessThanOrEqual(24000);
+  });
+
   it('shows the full current test body and the separate execution without creating proof credit', async () => {
     const { ctx, branch, calls, change } = setup();
     await change('test.js');

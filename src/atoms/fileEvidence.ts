@@ -1,10 +1,10 @@
 import type { RunContext } from '../core/types.js';
 import { baseExecutorOf } from '../core/attestation.js';
 import type { AcceptanceChecklist } from '../contracts/acceptanceChecklist.js';
+import { PROBE_MANIFEST_FILENAME } from '../contracts/probeManifest.js';
 
-const NAMED_PATH = /(?<![\w./-])([\w-][\w.-]+(?:\/[\w.-]+)*\.(?:md|markdown|txt|html?|css|m?js|cjs|ts|json|csv|py|sh|ya?ml))(?![\w/-])/gi;
+const NAMED_PATH = /(?<![\w./-])(\.?[\w-][\w.-]+(?:\/[\w.-]+)*\.(?:md|markdown|txt|html?|css|m?js|cjs|ts|json|csv|py|sh|ya?ml))(?![\w/-])/gi;
 const CRITERIA_FILES_MAX = 4;
-const CRITERIA_FILE_HEAD = 1200;
 const CRITERIA_FILE_COMPLETE_MAX = 6000;
 const CRITERIA_FILE_MATCHED_LINES = 15;
 const CRITERIA_TOKEN = /[a-z][a-z0-9_-]{3,}/g;
@@ -16,15 +16,16 @@ const COMMON_WORDS = new Set(['with', 'that', 'this', 'every', 'each', 'from', '
  * holding a word of the criteria that name it ("curl", "route", "exit"), so a
  * criterion about a long README is not judged on its first screen only.
  */
-function namedFileExcerpt(content: string, words: ReadonlySet<string>, completeBatch: boolean): string {
+function namedFileExcerpt(content: string, words: ReadonlySet<string>, allowance: number): string {
   // Keep complete small files: keyword excerpts retain test titles while
   // dropping their fixtures and assertions (warehouse run 22af997d).
-  if (completeBatch || content.length <= CRITERIA_FILE_COMPLETE_MAX) return JSON.stringify(content);
-  const head = content.slice(0, CRITERIA_FILE_HEAD);
-  const later = content.slice(CRITERIA_FILE_HEAD).split(/\r?\n/)
+  if (content.length <= allowance) return JSON.stringify(content);
+  const headLength = allowance - Math.min(CRITERIA_FILE_MATCHED_LINES * 200, Math.floor(allowance / 2));
+  const head = content.slice(0, headLength);
+  const later = content.slice(headLength).split(/\r?\n/)
     .filter((line) => [...line.toLowerCase().matchAll(CRITERIA_TOKEN)].some((match) => words.has(match[0])))
     .slice(0, CRITERIA_FILE_MATCHED_LINES).map((line) => line.slice(0, 200));
-  return `${JSON.stringify(head)} …(cut at ${CRITERIA_FILE_HEAD} of ${content.length} chars)` +
+  return `${JSON.stringify(head)} …(cut at ${headLength} of ${content.length} chars)` +
     (later.length > 0 ? `\n    later lines naming the criteria's words: ${JSON.stringify(later)}` : '');
 }
 
@@ -57,7 +58,10 @@ export async function criteriaFilesBlock(
       }
     } catch { /* a listing is a bonus */ }
   }
-  wanted.push(...refreshPaths);
+  // The ground-truth probe already owns the manifest's schema and recorded
+  // observations. Its append-only bytes must not crowd source/test bodies out
+  // of this separate read-back. An explicitly named criterion still gets it.
+  wanted.push(...refreshPaths.filter(path => path !== PROBE_MANIFEST_FILENAME));
   const lines: string[] = [];
   const files: Array<{ label: string; content: string; words: ReadonlySet<string> }> = [];
   const paths = [...new Set(wanted)].filter((path) => !path.split('/').includes('..') && !/^(?:\/|[a-z]:)/i.test(path));
@@ -82,13 +86,19 @@ export async function criteriaFilesBlock(
       if (refreshPaths.includes(path)) lines.push(`- ${JSON.stringify(path)}: current read unavailable; superseded contents remain omitted. This establishes no current content or absence.`);
     }
   }
-  // Share the existing four-by-6,000-character allowance across the batch.
-  // A 7 KB test file must not lose assertions while most of that allowance
-  // sits unused. Above the total bound retain the previous per-file excerpts.
-  const completeBatch = files.reduce((sum, file) => sum + file.content.length, 0)
-    <= CRITERIA_FILES_MAX * CRITERIA_FILE_COMPLETE_MAX;
+  // Water-fill the same total allowance: small files give their unused share
+  // to larger ones. Crossing the total by one character must not collapse
+  // every long file back to a 1,200-character head.
+  let remaining = CRITERIA_FILES_MAX * CRITERIA_FILE_COMPLETE_MAX;
+  const allowances = new Map<string, number>();
+  const bySize = [...files].sort((a, b) => a.content.length - b.content.length);
+  for (const [index, file] of bySize.entries()) {
+    const allowance = Math.min(file.content.length, Math.floor(remaining / (bySize.length - index)));
+    allowances.set(file.label, allowance);
+    remaining -= allowance;
+  }
   lines.push(...files.map(({ label, content, words }) =>
-    `- ${label} (${content.length} chars): ${namedFileExcerpt(content, words, completeBatch)}`));
+    `- ${label} (${content.length} chars): ${namedFileExcerpt(content, words, allowances.get(label)!)}`));
   if (attempted < paths.length) lines.push(`${paths.length - attempted} further file reads omitted by the bound or cancellation; their current contents are unknown.`);
   return lines.length > 0
     ? [`FILES THE CRITERIA NAME${refreshPaths.length ? ' OR WHOSE READS WERE SUPERSEDED' : ''}, read back by the host (mechanical). An excerpt cut short is SILENT about what it`,
