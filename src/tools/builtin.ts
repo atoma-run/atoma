@@ -313,6 +313,10 @@ function blindOverwrite(sandbox: ToolSandbox, path: string, abs: string): string
     `replace it as a whole. Nothing was written.`;
 }
 
+// Describe source bytes separately from their JSON transport. A source-level
+// escape is not a transport error (resolver run 0a4a3e55).
+export const FILE_TEXT_ENCODING = String.raw`Arguments are the exact file text after JSON decoding. Preserve source-level backslashes: JavaScript '\n' contains backslash+n in the file, whereas a line break between statements is an actual newline. In JSON those are encoded as "\\n" and "\n" respectively. Never unescape source code a second time.`;
+
 export function writeFileTool(opts: BuiltinToolOptions): BuiltinTool {
   return {
     declaration: {
@@ -323,7 +327,7 @@ export function writeFileTool(opts: BuiltinToolOptions): BuiltinTool {
         type: 'object',
         properties: {
           path: { type: 'string', description: 'Relative file path inside the workspace.' },
-          content: { type: 'string', description: 'Full text content to write.' },
+          content: { type: 'string', description: `Full text content to write. ${FILE_TEXT_ENCODING}` },
         },
         required: ['path', 'content'],
       },
@@ -407,11 +411,11 @@ export function editFileTool(opts: BuiltinToolOptions): BuiltinTool {
           path: { type: 'string', description: 'Relative file path inside the workspace.' },
           old_string: {
             type: 'string',
-            description: 'Exact existing text to replace (must be unique unless replace_all).',
+            description: `Exact existing text to replace (must be unique unless replace_all). ${FILE_TEXT_ENCODING}`,
           },
           new_string: {
             type: 'string',
-            description: 'Replacement text (may be empty to delete the span).',
+            description: `Replacement text (may be empty to delete the span). ${FILE_TEXT_ENCODING}`,
           },
           replace_all: {
             type: 'boolean',
@@ -424,7 +428,7 @@ export function editFileTool(opts: BuiltinToolOptions): BuiltinTool {
     async execute(args) {
       const path = expectString(args, 'path');
       const oldString = expectString(args, 'old_string');
-      const newString = typeof args['new_string'] === 'string' ? (args['new_string']) : '';
+      const newString = expectString(args, 'new_string');
       const replaceAll = args['replace_all'] === true;
       if (oldString.length === 0) {
         throw new Error('edit_file: old_string must be non-empty (to create a file, use write_file)');
@@ -469,23 +473,13 @@ export function editFileTool(opts: BuiltinToolOptions): BuiltinTool {
         // and hand back the verbatim span to copy. A diagnosis the model must
         // act on from memory is weaker than the bytes it needs.
         const unescaped = unescapeJsonish(oldString);
-        if (unescaped !== oldString && content.split(unescaped).length - 1 === 1) {
+        if (unescaped !== '' && unescaped !== oldString && content.split(unescaped).length - 1 === 1) {
           throw new Error(
             `edit_file: old_string not found in "${path}" — you DOUBLE-ESCAPED it. ` +
               `Your argument contains the two characters backslash-n (and/or backslash-quote) where the file has real newlines and quotes. ` +
               `Un-escaping your argument matches exactly one span, so re-send old_string as these RAW bytes, copied verbatim:\n` +
               `---8<---\n${unescaped.slice(0, EDIT_SPAN_ECHO_CHARS)}${unescaped.length > EDIT_SPAN_ECHO_CHARS ? '\n… (truncated — copy the full span from read_file)' : ''}\n--->8---` +
-              // new_string is escaped the same way in EVERY measured case (7 of 7
-              // on round 4), and fixing only old_string writes literal
-              // backslash-n INTO the file — which fails the next edit against it.
-              // Shown, not applied: 6 of those 7 MIX real newlines with escaped
-              // ones, so an automatic un-escape could corrupt a source file that
-              // legitimately contains "\\n". A retry costs one round-trip;
-              // corruption costs the deliverable.
-              (unescapeJsonish(newString) !== newString
-                ? `\nAND new_string is escaped the same way — it must be RAW too, or you will write the two characters backslash-n into the file:\n` +
-                  `---8<---\n${unescapeJsonish(newString).slice(0, EDIT_SPAN_ECHO_CHARS)}\n--->8---`
-                : '')
+              `\nThis match diagnoses old_string only; it does not establish how new_string should be escaped. ${FILE_TEXT_ENCODING}`
           );
         }
         // The span un-escapes to nothing that exists either: the model is
@@ -496,14 +490,23 @@ export function editFileTool(opts: BuiltinToolOptions): BuiltinTool {
           throw new Error(
             `edit_file: old_string not found in "${path}". ` +
               (near.how === 'whitespace'
-                ? 'It matches exactly one region ignoring whitespace, so your indentation or line breaks differ from the file. '
+                ? 'It matches exactly one region ignoring whitespace. Whitespace can affect source meaning: inspect the actual region before editing. '
                 : 'The closest region in the file starts where your span starts and then diverges. ') +
               `Here are the file's REAL bytes for that region — re-send old_string copied verbatim from between the markers:\n` +
               `---8<---\n${near.span.slice(0, EDIT_SPAN_ECHO_CHARS)}${near.span.length > EDIT_SPAN_ECHO_CHARS ? '\n… (truncated — read_file for the rest)' : ''}\n--->8---`
           );
         }
+        const candidates = whitespaceEditCandidates(content, oldString);
+        if (candidates.length > 0) {
+          throw new Error(`edit_file: old_string not found in "${path}". Candidate regions ignoring whitespace` +
+            ` (possibly after one escape-decoding pass) follow. These are not equivalent code and no edit was applied. ` +
+            `Choose the intended region from the file; use its exact text, including spaces and backslashes. ` +
+            `The JSON strings below encode existing file bytes, not replacement suggestions:\n` +
+            candidates.map(span => `old_string candidate: ${JSON.stringify(span)}`).join('\n') +
+            `\n${FILE_TEXT_ENCODING}`);
+        }
         throw new Error(
-          `edit_file: old_string not found in "${path}", and no region of the file resembles it — nothing here starts the way your span does. Either you are editing the wrong file, or the content changed since you last read it: list_files then read_file "${path}" and work from what it actually contains. Note that old_string must hold the file's RAW bytes (real newlines, real quotes), never two-character \\n or \\" escape sequences.`
+          `edit_file: old_string not found in "${path}", and no region of the file resembles it — nothing here starts the way your span does. Either you are editing the wrong file, or the content changed since you last read it: list_files then read_file "${path}" and work from what it actually contains. ${FILE_TEXT_ENCODING}`
         );
       }
       if (identical) {
@@ -684,6 +687,37 @@ export function duplicateMatchContexts(
  */
 export const EDIT_NEAREST_ANCHOR_MIN = 24;
 
+/** Offset-preserving whitespace comparison, for diagnostics only. */
+function whitespaceSpans(content: string, needle: string): Array<{ start: number; end: number }> {
+  const wanted = needle.replace(/\s/g, '');
+  if (wanted.length < 3) return [];
+  const offsets: number[] = [];
+  let compact = '';
+  for (let i = 0; i < content.length; i++) {
+    if (/\s/.test(content[i]!)) continue;
+    compact += content[i]!;
+    offsets.push(i);
+  }
+  const spans: Array<{ start: number; end: number }> = [];
+  let from = 0;
+  while (spans.length < 3) {
+    const at = compact.indexOf(wanted, from);
+    if (at < 0) break;
+    spans.push({ start: offsets[at]!, end: offsets[at + wanted.length - 1]! + 1 });
+    from = at + 1;
+  }
+  return spans;
+}
+
+function whitespaceEditCandidates(content: string, oldString: string): string[] {
+  for (const probe of new Set([oldString, unescapeJsonish(oldString)])) {
+    const spans = whitespaceSpans(content, probe);
+    if (spans.length > 0) return spans.map(({ start, end }) =>
+      content.slice(Math.max(0, start - 80), Math.min(content.length, end + 80, start + EDIT_SPAN_ECHO_CHARS)));
+  }
+  return [];
+}
+
 /**
  * Find the real bytes the model was probably aiming at when `old_string` is
  * not in the file.
@@ -712,24 +746,10 @@ export function findNearestSpan(
   content: string,
   oldString: string
 ): { span: string; how: 'whitespace' | 'anchor' } | null {
-  const squash = (t: string): string => t.replace(/\s+/g, ' ').trim();
-  const needle = squash(oldString);
-  if (needle.length === 0) return null;
-
   // 1. Whitespace-insensitive, and only when it is UNIQUE — an ambiguous hit
   // would hand back a span the model did not mean.
-  const squashedContent = squash(content);
-  if (squashedContent.split(needle).length - 1 === 1) {
-    // Walk the real content to recover the true bytes of that region.
-    const words = needle.split(' ');
-    const first = words[0]!;
-    const last = words[words.length - 1]!;
-    const start = content.indexOf(first);
-    if (start >= 0) {
-      const end = content.indexOf(last, start + first.length);
-      if (end >= 0) return { span: content.slice(start, end + last.length), how: 'whitespace' };
-    }
-  }
+  const spans = whitespaceSpans(content, oldString);
+  if (spans.length === 1) return { span: content.slice(spans[0]!.start, spans[0]!.end), how: 'whitespace' };
 
   // 2. Longest leading slice that actually occurs. Binary search rather than a
   // scan: old_string can be kilobytes and this runs on a failure path.

@@ -62,6 +62,11 @@ describe('findNearestSpan — hand back real bytes instead of "go read the file"
   it('handles an empty span without throwing', () => {
     expect(findNearestSpan('anything', '')).toBeNull();
   });
+
+  it('returns the matched region, not an earlier occurrence of its first word', () => {
+    const file = 'return wrong;\nfunction f() {\n  return correct;\n}\n';
+    expect(findNearestSpan(file, 'return  correct;')).toEqual({ how: 'whitespace', span: 'return correct;' });
+  });
 });
 
 describe('edit_file error messages carry bytes, not instructions', () => {
@@ -74,6 +79,25 @@ describe('edit_file error messages carry bytes, not instructions', () => {
       rmSync(root, { recursive: true, force: true });
     }
   };
+
+  it('replays every failed edit of the third resolver run without changing a byte', async () => {
+    const fixture = JSON.parse(readFileSync(new URL('../benchmark/dependency-resolver-2026-10-05/edit-cases.json', import.meta.url), 'utf8')) as {
+      snapshots: string[]; cases: Array<{ eventId: string; snapshot: number; args: Record<string, unknown>; diagnosis: string }>;
+    };
+    expect(fixture.cases).toHaveLength(20);
+    for (const entry of fixture.cases) {
+      const content = fixture.snapshots[entry.snapshot]!;
+      await withFile(content, async t => {
+        let message = '';
+        try { await t.execute({ ...entry.args, path: 'f.txt' }); }
+        catch (error) { message = (error as Error).message; }
+        expect(message, entry.eventId).toContain(entry.diagnosis === 'ambiguous'
+          ? 'old_string matches 2 times' : 'Candidate regions ignoring whitespace');
+        expect(await t.execute({ path: 'f.txt', old_string: content, new_string: content }))
+          .toMatchObject({ unchanged: true });
+      });
+    }
+  });
 
   it('echoes the real region when the span is misremembered', async () => {
     await withFile('const cfg = {\n  "version": "2.0.0"\n};\n', async (t) => {
@@ -118,6 +142,32 @@ describe('edit_file error messages carry bytes, not instructions', () => {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
+  });
+
+  it('exposes both exact source regions for the resolver whitespace/escape failure', async () => {
+    const file = String.raw`const input=JSON.stringify(x)+'\\n'; const expected=JSON.stringify(y)+'\\n';`;
+    await withFile(file, async t => {
+      let message = '';
+      try { await t.execute({ path: 'f.txt', old_string: String.raw`+ '\\n'`, new_string: String.raw`+'\n'` }); }
+      catch (error) { message = (error as Error).message; }
+      expect(message).toContain('Candidate regions ignoring whitespace');
+      expect(message).not.toContain('no region');
+      const candidates = message.split('\n').filter(line => line.startsWith('old_string candidate: '))
+        .map(line => JSON.parse(line.slice('old_string candidate: '.length)) as string);
+      expect(candidates).toHaveLength(2);
+      for (const candidate of candidates) expect(file).toContain(candidate);
+      // Correct exact payload via JSON transport, with explicit replace_all.
+      await t.execute(JSON.parse(JSON.stringify({ path: 'f.txt', old_string: String.raw`+'\\n'`,
+        new_string: String.raw`+'\n'`, replace_all: true })) as Record<string, unknown>);
+    });
+  });
+
+  it('refuses a missing replacement instead of deleting a matched span', async () => {
+    await withFile('keep me', async t => {
+      await expect(t.execute({ path: 'f.txt', old_string: 'keep' })).rejects.toThrow(/new_string/);
+      expect(await t.execute({ path: 'f.txt', old_string: 'keep me', new_string: 'keep me' }))
+        .toMatchObject({ unchanged: true });
+    });
   });
 });
 

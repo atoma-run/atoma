@@ -763,7 +763,7 @@ export const MAX_TOOL_EVIDENCE_CHARS = 24_000;
  */
 export function renderTransportEvidence(
   evidence: Result['evidence']
-): { readonly lines: readonly string[]; readonly omitted: number } {
+): { readonly lines: readonly string[]; readonly omitted: number; readonly eventIds: ReadonlySet<string> } {
   const observed = transportWitnesses(evidence);
   const browserIds = new Set(observed.filter((witness) => witness.tool === 'validate_html')
     .slice(-MAX_BROWSER_EVIDENCE_LINES).map((witness) => witness.eventId));
@@ -792,7 +792,7 @@ export function renderTransportEvidence(
   }
   const lines = observed.filter((witness) => keep.has(witness.eventId))
     .map((witness) => `${witness.eventId}: ${witness.observed}`);
-  return { lines, omitted: observed.length - lines.length };
+  return { lines, omitted: observed.length - lines.length, eventIds: keep };
 }
 
 export async function llmVerdict(args: {

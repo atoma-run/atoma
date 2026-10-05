@@ -100,10 +100,12 @@ Neighbours:
 - HTTP, shell, file-read and server-start observations are bounded historical
   evidence in the same attestation log. They do not establish DOM interaction
   or introduce automatic approval, and their scripts/content remain untrusted.
-  File reads record host-computed `responseTruncated` when their response is cut;
+  File reads record host-computed `responseTruncated` as true or false;
   absent on older records means unknown. `fileReadsNeedingReadback` combines
   those paths with superseded reads for the shared bounded source reader. A
   literal truncation marker inside a file never supplies this structured fact.
+  A latest complete read removes older refresh candidates only when its event
+  is visible to the caller's judge; a later write or an omitted read does not.
 - A `fetch_url` observation carries a structured `http` `{method, path,
   status}` ONLY when the tool reported `servedBy`: the port belongs to a
   server this tool set started and its process holds it, and the response was

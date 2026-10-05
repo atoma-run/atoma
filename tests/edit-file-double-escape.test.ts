@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ToolSandbox } from '../src/tools/sandbox.js';
@@ -127,8 +127,8 @@ describe('edit_file diagnoses a provable double-escape', () => {
   });
 });
 
-describe('the double-escape message covers new_string too', () => {
-  it('shows the un-escaped new_string, because fixing only old_string writes \\n into the file', async () => {
+describe('the double-escape message never guesses replacement bytes', () => {
+  it('diagnoses the match without inventing an unescaped replacement', async () => {
     // Round 4: new_string was escaped the same way in 7 of 7 measured cases.
     // Not auto-applied — 6 of those 7 MIX real newlines with escaped ones, so
     // un-escaping could corrupt a file that legitimately contains "\\n".
@@ -144,8 +144,19 @@ describe('the double-escape message covers new_string too', () => {
       err = (e as Error).message;
     }
     expect(err).toMatch(/DOUBLE-ESCAPED/);
-    expect(err).toMatch(/new_string is escaped the same way/);
-    expect(err).toContain('alpha\nbeta');
+    expect(err).toMatch(/does not establish how new_string/);
+    expect(err).not.toContain('alpha\nbeta');
+    await sandbox.cleanup();
+  });
+
+  it('preserves source-level escapes when the old span was double-escaped', async () => {
+    const sandbox = workspace({ 'f.txt': 'line one\nline two\n' });
+    const replacement = String.raw`const newline = '\n'; const re = /\r?\n/;`;
+    await expect(editTool(sandbox).execute({ path: 'f.txt', old_string: 'line one\\nline two', new_string: replacement }))
+      .rejects.toThrow(/does not establish how new_string/);
+    expect(readFileSync(sandbox.resolve('f.txt'), 'utf8')).toBe('line one\nline two\n');
+    await editTool(sandbox).execute({ path: 'f.txt', old_string: 'line one\nline two', new_string: replacement });
+    expect(readFileSync(sandbox.resolve('f.txt'), 'utf8')).toBe(replacement + '\n');
     await sandbox.cleanup();
   });
 

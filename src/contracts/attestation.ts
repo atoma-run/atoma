@@ -209,7 +209,7 @@ export function parseExecutionObservation(tool: string, args: Record<string, unk
   return executionObservationSchema.parse({ kind: 'execution',
     ...(tool === 'read_file' && typeof args['path'] === 'string' ? { filePath: args['path'] } : {}),
     request: evidenceExcerpt(args, 800), response: evidenceExcerpt(response, 1600),
-    ...(tool === 'read_file' && response.length > 1600 ? { responseTruncated: true } : {}), ...(http ? { http } : {}) });
+    ...(tool === 'read_file' ? { responseTruncated: response.length > 1600 } : {}), ...(http ? { http } : {}) });
 }
 
 /**
@@ -379,12 +379,27 @@ export function supersededFileReads(records: readonly AttestationRecord[]): Read
 }
 
 /** Read-back candidates, not proof: current truncated reads need their bodies too. */
-export function fileReadsNeedingReadback(records: readonly AttestationRecord[]): ReadonlyMap<string, string> {
+export function fileReadsNeedingReadback(
+  records: readonly AttestationRecord[], visibleReadIds?: ReadonlySet<string>
+): ReadonlyMap<string, string> {
   const paths = new Map([...supersededFileReads(records)].map(([id, read]) => [id, read.path]));
   for (const record of records) {
     if (record.tool !== 'read_file' || record.observation.kind !== 'execution' || record.observation.responseTruncated !== true) continue;
     const path = requestedPath(record);
     if (path !== undefined) paths.set(record.eventId, path);
+  }
+  // A complete read already visible to THIS judge can replace earlier
+  // incomplete reads of the same path. Do not assume a later read survived
+  // the caller's evidence budget or belongs to the child's witnessed scope.
+  const latest = new Map<string, AttestationRecord>();
+  for (const record of records) {
+    const path = requestedPath(record);
+    if (path !== undefined && ['read_file', 'write_file', 'edit_file'].includes(record.tool)) latest.set(path, record);
+  }
+  for (const [id, path] of paths) {
+    const current = latest.get(path);
+    if (current?.tool === 'read_file' && visibleReadIds?.has(current.eventId) &&
+      current.observation.kind === 'execution' && current.observation.responseTruncated === false) paths.delete(id);
   }
   return paths;
 }

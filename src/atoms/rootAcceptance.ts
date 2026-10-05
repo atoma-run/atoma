@@ -482,8 +482,9 @@ export async function acceptRootResult(args: {
   // Named criteria files and incomplete reads share one bounded reader.
   // A criterion need not spell a filename for an incomplete read to refresh.
   const reviewing = review && !gates.rejection;
+  const transport = renderTransportEvidence(evidence);
   const namedFilesBlock = reviewing ? await criteriaFilesBlock(ctx, judgementsAsked ? checklist : [],
-    [...new Set(fileReadsNeedingReadback(records).values())], task.description) : '';
+    [...new Set(fileReadsNeedingReadback(records, transport.eventIds).values())], task.description) : '';
   const startingBlock = reviewing ? renderStartingWorkspace(comparison ?? startingComparison(ctx)) : '';
   const restorationsBlock = reviewing ? renderRestorationsBlock(restorations) : '';
   const inheritedBlock = reviewing && inherited ? renderInheritedChecksBlock(inherited.report, inheritedItems, earlier) : '';
@@ -520,9 +521,8 @@ export async function acceptRootResult(args: {
     ? await reviewAcceptanceCriteria({ ctx, task, checklist,
       evidence: [probe.block, namedFilesBlock, checklistBlock, layoutsBlock, inputsBlock, startingBlock, restorationsBlock,
         inheritedBlock, renderResultGateFindings(gates.reviewFindings),
-        (() => { const observed = renderTransportEvidence(evidence); return [
-          `Transport observations: ${observed.omitted} omitted; omissions establish no coverage.`, ...observed.lines,
-        ].join('\n'); })()].filter(Boolean).join('\n\n') }) : undefined;
+        [`Transport observations: ${transport.omitted} omitted; omissions establish no coverage.`, ...transport.lines]
+          .join('\n')].filter(Boolean).join('\n\n') }) : undefined;
   const judged = focused ? judgeCoverage(coverage, focused.criteria) : initialJudged;
   const reviewed = focused && !focused.approved ? { approved: false,
     reasoning: [!initial.approved ? initial.reasoning : '', focused.reasoning].filter(Boolean).join('\n') } : initial;

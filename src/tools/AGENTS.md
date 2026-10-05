@@ -229,6 +229,14 @@ Neighbours:
 
 ## Intentional choices and rejected shortcuts
 
+- File text is preserved after one JSON decoding; source escapes are bytes,
+  not transport errors. `edit_file` diagnoses a mismatched old span but never
+  guesses or unescapes its replacement. Whitespace candidates carry actual
+  offset-matched bytes, including multiple possible regions, and apply no
+  edit. Missing `new_string` is invalid; an explicit empty string deletes.
+  The resolver's repeated edits and adversarial cases are recorded in
+  [the 2026-10-05 incident](../../docs/incidents/dependency-resolver-2026-10-05.md).
+
 - `hostReplay` is UNDECLARED, read as an own property only, and stripped
   from every call of a run and from every model-facing executor
   (`modelFacingExecutor`, src/core/attestation.ts): a molecule that passed it

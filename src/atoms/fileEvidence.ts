@@ -4,8 +4,8 @@ import type { AcceptanceChecklist } from '../contracts/acceptanceChecklist.js';
 import { PROBE_MANIFEST_FILENAME } from '../contracts/probeManifest.js';
 
 const NAMED_PATH = /(?<![\w./-])(\.?[\w-][\w.-]+(?:\/[\w.-]+)*\.(?:md|markdown|txt|html?|css|m?js|cjs|ts|json|csv|py|sh|ya?ml))(?![\w/-])/gi;
-const CRITERIA_FILES_MAX = 4;
-const CRITERIA_FILE_COMPLETE_MAX = 6000;
+const CRITERIA_FILES_MAX = 16;
+const CRITERIA_SOURCE_CHARS = 24_000;
 const CRITERIA_FILE_MATCHED_LINES = 15;
 const CRITERIA_TOKEN = /[a-z][a-z0-9_-]{3,}/g;
 const COMMON_WORDS = new Set(['with', 'that', 'this', 'every', 'each', 'from', 'into', 'have', 'shows', 'show', 'must',
@@ -89,7 +89,7 @@ export async function criteriaFilesBlock(
   // Water-fill the same total allowance: small files give their unused share
   // to larger ones. Crossing the total by one character must not collapse
   // every long file back to a 1,200-character head.
-  let remaining = CRITERIA_FILES_MAX * CRITERIA_FILE_COMPLETE_MAX;
+  let remaining = CRITERIA_SOURCE_CHARS;
   const allowances = new Map<string, number>();
   const bySize = [...files].sort((a, b) => a.content.length - b.content.length);
   for (const [index, file] of bySize.entries()) {

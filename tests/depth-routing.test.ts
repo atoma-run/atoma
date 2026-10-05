@@ -143,7 +143,7 @@ describe('root delivery coverage', () => {
     };
     const ctx = { ...makeCtx(), tools: base, attempt: 1, attestations: createAttestationLog() };
     const branch = forkBranch(ctx, 'phase');
-    for (let index = 0; index < 6; index++) {
+    for (let index = 0; index < 18; index++) {
       await branch.tools!.execute('read_file', { path: `file-${index}.txt` });
       await branch.tools!.execute('write_file', { path: `file-${index}.txt` });
     }
@@ -157,7 +157,7 @@ describe('root delivery coverage', () => {
     });
     await acceptRootResult({ actor: new Actor(3, false, []), task: { description: 'Repair documentation.' },
       result: { ...result, evidence: executorEvidence({}, branch) }, ctx, floor: [], phaseCoverage: [] });
-    expect(readAttempts).toBe(4);
+    expect(readAttempts).toBe(16);
   });
 
   it.each(['same phase', 'later phase'])('replaces obsolete README evidence with current host reads: %s', async (scope) => {

@@ -339,7 +339,7 @@ load-bearing.
   together without importing new obligations from earlier validator coaching.
   No mutation execution or extra model call is authorised. Invoice counterexample
   and paired replay: `benchmark/evidence-discrimination-2026-10-05/`.
-  Root and phase file read-back share 24,000 source characters across at most four
+  Root and phase file read-back share 24,000 source characters across at most sixteen
   files: unused shares from small files go to larger files; a batch that fits
   stays complete. Longer files retain bounded heads and matching lines.
   The probe manifest has its own schema/observation reader and does not consume
@@ -350,6 +350,11 @@ load-bearing.
   the current attempt, through the same bounded reader as root acceptance.
   Unchanged files need their full assertions too (run 4c1a1e8c); read-back
   selection never depends on the molecule making a gratuitous edit.
+  Root skips a refresh only when the latest known read is host-marked complete
+  AND survives that judge's transport-evidence selection. Old records without
+  a truncation fact stay unknown. Earlier incomplete reads must not consume
+  the source budget again after a complete read is visible (resolver run
+  0a4a3e55). Sixteen is an I/O cap; the source-character budget is unchanged.
   Jev and the model receive the same current bytes, never new execution credit;
   unavailable content stays unknown. Reservation run 8d819d66 repeated coverage
   refusals while only a 400-character head survived beside retired reads.

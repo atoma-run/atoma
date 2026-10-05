@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { L1Atom } from '../src/atoms/L1Atom.js';
 import { checkGroundTruth } from '../src/atoms/groundTruth.js';
 import { llmVerdict } from '../src/atoms/verdict.js';
@@ -43,6 +44,56 @@ function setup() {
 }
 
 describe('phase current file evidence', () => {
+  it('shows the resolver source and assertions after small proofs have been repaired and read again', async () => {
+    const delivered = JSON.parse(readFileSync(new URL('../benchmark/dependency-resolver-2026-10-05/files.json', import.meta.url), 'utf8')) as Record<string, string>;
+    const { ctx, branch, files, change, calls } = setup();
+    Object.assign(files, delivered);
+    for (const path of ['test/proofs/greedy.js', 'test/proofs/diamond.js', 'test/proofs/cycle.js', 'test/proofs/global.js']) {
+      await change(path, delivered[path]);
+      await branch.tools!.execute('read_file', { path });
+    }
+    for (const path of ['README.md', 'test.js', 'test-impossible-cycle.js', 'resolve.js', 'test-inline.js']) {
+      await branch.tools!.execute('read_file', { path });
+    }
+    await branch.tools!.execute('run_shell', { cmd: 'npm test' });
+    const evidence = executorEvidence({}, branch), count = calls.length;
+    const verdict = { approved: true, reasoning: 'fixture verdict', criteria: [{ id: 'c1', met: true, reason: 'fixture' }] };
+    ctx.llm.enqueueText(jsonText(verdict)); ctx.llm.enqueueText(jsonText(verdict));
+    await acceptRootResult({ actor: child, task, result: { output: 'done', summary: 'done', trace: [], evidence,
+      producedBy: { tier: 1, name: 'Methane', viaFallback: false } }, ctx: branch,
+      floor: [], phaseCoverage: [], checklist: [{ id: 'c1', behaviour: 'README and executed CLI tests.', check: { kind: 'review' } }],
+      checklistOrigin: { source: 'user' } });
+    for (const request of ctx.llm.calls) {
+      for (const path of ['test.js', 'test-impossible-cycle.js', 'resolve.js']) {
+        expect(request.userContent, path).toContain(JSON.stringify(delivered[path]));
+      }
+      expect(request.userContent).toContain('assertions passed');
+    }
+    expect(calls.slice(count).filter(call => call.path === 'test/proofs/cycle.js')).toEqual([]);
+  });
+
+  it('retains a readback unless a complete current read actually reaches this judge', () => {
+    const record = (eventId: string, tool: string, raw: unknown) => ({ eventId, tool,
+      observation: parseExecutionObservation(tool, { path: 'test.js' }, raw)! });
+    const old = record('old', 'read_file', { content: 'old' });
+    const write = record('write', 'edit_file', { ok: true });
+    const complete = record('current', 'read_file', { content: 'new' });
+    const records = [old, write, complete];
+    expect([...fileReadsNeedingReadback(records, new Set(['current'])).values()]).toEqual([]);
+    expect([...fileReadsNeedingReadback(records, new Set(['old'])).values()]).toEqual(['test.js']);
+    expect([...fileReadsNeedingReadback([...records, write], new Set(['current'])).values()]).toContain('test.js');
+    if (complete.observation.kind === 'execution') delete complete.observation.responseTruncated;
+    expect([...fileReadsNeedingReadback(records, new Set(['current'])).values()]).toContain('test.js');
+  });
+
+  it('keeps five complete files that fit the source budget', async () => {
+    const { branch, files } = setup();
+    const paths = Array.from({ length: 5 }, (_, i) => `proof${i}.js`);
+    for (const path of paths) files[path] = `${path}\n${'a'.repeat(4000)}`;
+    const block = await criteriaFilesBlock(branch, [], paths, '');
+    for (const path of paths) expect(block).toContain(JSON.stringify(files[path]));
+    expect(block).not.toContain('further file reads omitted');
+  });
   it('records actual truncation rather than trusting markers or fields in file content', () => {
     for (const [raw, truncated] of [[{ content: '[truncated]', responseTruncated: true }, false], ['x'.repeat(1600), false], ['x'.repeat(1601), true]] as const) {
       const observation = parseExecutionObservation('read_file', { path: './test.js' }, raw)!;
@@ -172,11 +223,11 @@ describe('phase current file evidence', () => {
 
   it('bounds failed refreshes and labels omitted files as unknown', async () => {
     const { branch, files, calls, change } = setup();
-    for (let i = 0; i < 6; i++) await change(`test${i}.js`);
+    for (let i = 0; i < 18; i++) await change(`test${i}.js`);
     for (const path of Object.keys(files)) delete files[path];
     const count = calls.length;
     const probe = await checkGroundTruth({ ctx: branch, subject: 'RESULT', payload: {}, child, evidence: executorEvidence({}, branch) });
-    expect(calls.slice(count)).toHaveLength(4);
+    expect(calls.slice(count)).toHaveLength(16);
     expect(probe.block).toContain('2 further file reads omitted');
     expect(probe.block).not.toContain('OLD_ASSERTIONS');
   });

@@ -10,6 +10,8 @@ import { BUDGET_EXHAUSTED_HINT } from '../src/core/llm.js';
 import { PERSONAL_CODEX_PROFILE_ROOT_ENV, tryAcquireCodexHomeLease } from '../src/core/codexHomeLease.js';
 import type { LlmCompletionRequest } from '../src/core/types.js';
 import { makeTool } from './helpers/factories.js';
+import { ToolSandbox } from '../src/tools/sandbox.js';
+import { editFileTool, writeFileTool } from '../src/tools/builtin.js';
 
 const homes: string[] = [];
 afterEach(() => {
@@ -136,6 +138,34 @@ function request(over: Partial<LlmCompletionRequest> = {}): LlmCompletionRequest
 }
 
 describe('Codex app-server tool session', () => {
+  it('round-trips literal source escapes and edit diagnostics through native JSON-RPC tools', async () => {
+    const home = codexHome();
+    const sandbox = new ToolSandbox(path.join(path.dirname(home), 'workspace'));
+    const builtins = [writeFileTool({ sandbox }), editFileTool({ sandbox })];
+    const source = "'use strict';\n" + String.raw`const input='\\n'; const expected='\\n';` + '\n';
+    const fake = fakeAppServer(async server => {
+      expect((await server.callTool('write_file', { path: 'test.js', content: source })).success).toBe(true);
+      const refused = await server.callTool('edit_file', { path: 'test.js',
+        old_string: String.raw`= '\\n'`, new_string: String.raw`='\n'` });
+      expect(refused.success).toBe(false);
+      expect(refused.contentItems[0]!.text).toContain('Candidate regions ignoring whitespace');
+      expect(readFileSync(sandbox.resolve('test.js'), 'utf8')).toBe(source);
+      expect((await server.callTool('edit_file', { path: 'test.js',
+        old_string: String.raw`='\\n'`, new_string: String.raw`='\n'`, replace_all: true })).success).toBe(true);
+      server.message('done'); server.complete();
+    });
+    try {
+      await new CodexCliLlmClient({ env: { CODEX_HOME: home }, appServerSpawnFn: fake.spawnFn }).complete(request({
+        tools: builtins.map(tool => tool.declaration), executor: {
+          has: name => builtins.some(tool => tool.declaration.name === name),
+          execute: async (name, args) => builtins.find(tool => tool.declaration.name === name)!.execute(args),
+        },
+      }));
+      expect(readFileSync(sandbox.resolve('test.js'), 'utf8')).toBe(
+        "'use strict';\n" + String.raw`const input='\n'; const expected='\n';` + '\n');
+    } finally { await sandbox.cleanup(); }
+  });
+
   it('runs several independent calls from one response through the host executor, in order', async () => {
     const home = codexHome();
     const fake = fakeAppServer(async (server) => {

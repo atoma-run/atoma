@@ -1,0 +1,223 @@
+{
+  "runId": "0a4a3e55-1df2-4cb3-8dd0-b7f69500a648",
+  "snapshots": [
+    "'use strict';\nconst a=require('node:assert/strict'),f=require('node:fs'),o=require('node:os'),p=require('node:path'),c=require('node:child_process');\nconst input={\"packages\":[{\"name\":\"A\",\"versions\":[{\"version\":1,\"dependencies\":[{\"name\":\"C\",\"min\":1,\"max\":1}]},{\"version\":2,\"dependencies\":[{\"name\":\"C\",\"min\":2,\"max\":2}]}]},{\"name\":\"B\",\"versions\":[{\"version\":1,\"dependencies\":[{\"name\":\"C\",\"min\":1,\"max\":1}]}]},{\"name\":\"C\",\"versions\":[{\"version\":1,\"dependencies\":[]},{\"version\":2,\"dependencies\":[]}]}],\"roots\":[{\"name\":\"A\",\"min\":1,\"max\":2},{\"name\":\"B\",\"min\":1,\"max\":1}]};\nconst expected={\"packages\":[{\"name\":\"A\",\"version\":1},{\"name\":\"B\",\"version\":1},{\"name\":\"C\",\"version\":1}]};\nconst d=f.mkdtempSync(p.join(o.tmpdir(),'proof-')),i=p.join(d,'in.json'),q=p.join(d,'out.json'),b=Buffer.from(JSON.stringify(input)+'\n');f.writeFileSync(i,b);\nconst r=c.spawnSync(process.execPath,[p.join(__dirname,'../../resolve.js'),'--input',i,'--out',q],{encoding:'utf8'});a.equal(r.status,0);a.equal(r.stdout,'');a.equal(r.stderr,'');const actual=JSON.parse(f.readFileSync(q,'utf8'));a.deepEqual(actual,expected);a.equal(f.readFileSync(q,'utf8'),JSON.stringify(expected)+'\n');a.deepEqual(f.readFileSync(i),b);\nconsole.log(JSON.stringify({node:process.version,case:'greedy trap',exitCode:r.status,actual,expected,ok:true}));",
+    "'use strict';\nconst a=require('node:assert/strict'),f=require('node:fs'),o=require('node:os'),p=require('node:path'),c=require('node:child_process');\nconst input={\"packages\":[{\"name\":\"R\",\"versions\":[{\"version\":1,\"dependencies\":[{\"name\":\"A\",\"min\":1,\"max\":1},{\"name\":\"B\",\"min\":1,\"max\":1}]}]},{\"name\":\"A\",\"versions\":[{\"version\":1,\"dependencies\":[{\"name\":\"C\",\"min\":1,\"max\":2}]}]},{\"name\":\"B\",\"versions\":[{\"version\":1,\"dependencies\":[{\"name\":\"C\",\"min\":2,\"max\":3}]}]},{\"name\":\"C\",\"versions\":[{\"version\":1,\"dependencies\":[]},{\"version\":2,\"dependencies\":[]},{\"version\":3,\"dependencies\":[]}]}],\"roots\":[{\"name\":\"R\",\"min\":1,\"max\":1}]};\nconst expected={\"packages\":[{\"name\":\"A\",\"version\":1},{\"name\":\"B\",\"version\":1},{\"name\":\"C\",\"version\":2},{\"name\":\"R\",\"version\":1}]};\nconst d=f.mkdtempSync(p.join(o.tmpdir(),'proof-')),i=p.join(d,'in.json'),q=p.join(d,'out.json'),b=Buffer.from(JSON.stringify(input)+'\n');f.writeFileSync(i,b);\nconst r=c.spawnSync(process.execPath,[p.join(__dirname,'../../resolve.js'),'--input',i,'--out',q],{encoding:'utf8'});a.equal(r.status,0);a.equal(r.stdout,'');a.equal(r.stderr,'');const actual=JSON.parse(f.readFileSync(q,'utf8'));a.deepEqual(actual,expected);a.equal(f.readFileSync(q,'utf8'),JSON.stringify(expected)+'\n');a.deepEqual(f.readFileSync(i),b);\nconsole.log(JSON.stringify({node:process.version,case:'shared diamond',exitCode:r.status,actual,expected,ok:true}));",
+    "'use strict';\nconst a=require('node:assert/strict'),f=require('node:fs'),o=require('node:os'),p=require('node:path'),c=require('node:child_process');\nconst input={\"packages\":[{\"name\":\"A\",\"versions\":[{\"version\":1,\"dependencies\":[{\"name\":\"B\",\"min\":2,\"max\":2}]}]},{\"name\":\"B\",\"versions\":[{\"version\":2,\"dependencies\":[{\"name\":\"A\",\"min\":1,\"max\":1}]}]}],\"roots\":[{\"name\":\"A\",\"min\":1,\"max\":1}]};\nconst expected={\"packages\":[{\"name\":\"A\",\"version\":1},{\"name\":\"B\",\"version\":2}]};\nconst d=f.mkdtempSync(p.join(o.tmpdir(),'proof-')),i=p.join(d,'in.json'),q=p.join(d,'out.json'),b=Buffer.from(JSON.stringify(input)+'\n');f.writeFileSync(i,b);\nconst r=c.spawnSync(process.execPath,[p.join(__dirname,'../../resolve.js'),'--input',i,'--out',q],{encoding:'utf8'});a.equal(r.status,0);a.equal(r.stdout,'');a.equal(r.stderr,'');const actual=JSON.parse(f.readFileSync(q,'utf8'));a.deepEqual(actual,expected);a.equal(f.readFileSync(q,'utf8'),JSON.stringify(expected)+'\n');a.deepEqual(f.readFileSync(i),b);\nconsole.log(JSON.stringify({node:process.version,case:'satisfiable cycle',exitCode:r.status,actual,expected,ok:true}));",
+    "'use strict';\nconst a=require('node:assert/strict'),f=require('node:fs'),o=require('node:os'),p=require('node:path'),c=require('node:child_process');\nconst input={\"packages\":[{\"name\":\"Z\",\"versions\":[{\"version\":1,\"dependencies\":[{\"name\":\"A\",\"min\":2,\"max\":2}]},{\"version\":2,\"dependencies\":[{\"name\":\"A\",\"min\":1,\"max\":1}]}]},{\"name\":\"A\",\"versions\":[{\"version\":1,\"dependencies\":[]},{\"version\":2,\"dependencies\":[]}]}],\"roots\":[{\"name\":\"Z\",\"min\":1,\"max\":2}]};\nconst expected={\"packages\":[{\"name\":\"A\",\"version\":2},{\"name\":\"Z\",\"version\":1}]};\nconst d=f.mkdtempSync(p.join(o.tmpdir(),'proof-')),i=p.join(d,'in.json'),q=p.join(d,'out.json'),b=Buffer.from(JSON.stringify(input)+'\n');f.writeFileSync(i,b);\nconst r=c.spawnSync(process.execPath,[p.join(__dirname,'../../resolve.js'),'--input',i,'--out',q],{encoding:'utf8'});a.equal(r.status,0);a.equal(r.stdout,'');a.equal(r.stderr,'');const actual=JSON.parse(f.readFileSync(q,'utf8'));a.deepEqual(actual,expected);a.equal(f.readFileSync(q,'utf8'),JSON.stringify(expected)+'\n');a.deepEqual(f.readFileSync(i),b);\nconsole.log(JSON.stringify({node:process.version,case:'global objective',exitCode:r.status,actual,expected,ok:true}));",
+    "'use strict';\nconst a=require('node:assert/strict'),f=require('node:fs'),o=require('node:os'),p=require('node:path'),c=require('node:child_process');\nconst input={\"packages\":[{\"name\":\"A\",\"versions\":[{\"version\":1,\"dependencies\":[{\"name\":\"C\",\"min\":1,\"max\":1}]},{\"version\":2,\"dependencies\":[{\"name\":\"C\",\"min\":2,\"max\":2}]}]},{\"name\":\"B\",\"versions\":[{\"version\":1,\"dependencies\":[{\"name\":\"C\",\"min\":1,\"max\":1}]}]},{\"name\":\"C\",\"versions\":[{\"version\":1,\"dependencies\":[]},{\"version\":2,\"dependencies\":[]}]}],\"roots\":[{\"name\":\"A\",\"min\":1,\"max\":2},{\"name\":\"B\",\"min\":1,\"max\":1}]};\nconst expected={\"packages\":[{\"name\":\"A\",\"version\":1},{\"name\":\"B\",\"version\":1},{\"name\":\"C\",\"version\":1}]};\nconst d=f.mkdtempSync(p.join(o.tmpdir(),'proof-')),i=p.join(d,'in.json'),q=p.join(d,'out.json'),b=Buffer.from(JSON.stringify(input)+'\\\\n');f.writeFileSync(i,b);\nconst r=c.spawnSync(process.execPath,[p.join(__dirname,'../../resolve.js'),'--input',i,'--out',q],{encoding:'utf8'});a.equal(r.status,0,r.stderr);a.equal(r.stdout,'');a.equal(r.stderr,'');const actual=JSON.parse(f.readFileSync(q,'utf8'));a.deepEqual(actual,expected);a.equal(f.readFileSync(q,'utf8'),JSON.stringify(expected)+'\\\\n');a.deepEqual(f.readFileSync(i),b);\nconsole.log(JSON.stringify({node:process.version,case:'greedy trap',exitCode:r.status,actual,expected,ok:true}));",
+    "'use strict';\nconst a=require('node:assert/strict'),f=require('node:fs'),o=require('node:os'),p=require('node:path'),c=require('node:child_process');\nconst input={\"packages\":[{\"name\":\"R\",\"versions\":[{\"version\":1,\"dependencies\":[{\"name\":\"A\",\"min\":1,\"max\":1},{\"name\":\"B\",\"min\":1,\"max\":1}]}]},{\"name\":\"A\",\"versions\":[{\"version\":1,\"dependencies\":[{\"name\":\"C\",\"min\":1,\"max\":2}]}]},{\"name\":\"B\",\"versions\":[{\"version\":1,\"dependencies\":[{\"name\":\"C\",\"min\":2,\"max\":3}]}]},{\"name\":\"C\",\"versions\":[{\"version\":1,\"dependencies\":[]},{\"version\":2,\"dependencies\":[]},{\"version\":3,\"dependencies\":[]}]}],\"roots\":[{\"name\":\"R\",\"min\":1,\"max\":1}]};\nconst expected={\"packages\":[{\"name\":\"A\",\"version\":1},{\"name\":\"B\",\"version\":1},{\"name\":\"C\",\"version\":2},{\"name\":\"R\",\"version\":1}]};\nconst d=f.mkdtempSync(p.join(o.tmpdir(),'proof-')),i=p.join(d,'in.json'),q=p.join(d,'out.json'),b=Buffer.from(JSON.stringify(input)+'\\\\n');f.writeFileSync(i,b);\nconst r=c.spawnSync(process.execPath,[p.join(__dirname,'../../resolve.js'),'--input',i,'--out',q],{encoding:'utf8'});a.equal(r.status,0,r.stderr);a.equal(r.stdout,'');a.equal(r.stderr,'');const actual=JSON.parse(f.readFileSync(q,'utf8'));a.deepEqual(actual,expected);a.equal(f.readFileSync(q,'utf8'),JSON.stringify(expected)+'\\\\n');a.deepEqual(f.readFileSync(i),b);\nconsole.log(JSON.stringify({node:process.version,case:'shared diamond',exitCode:r.status,actual,expected,ok:true}));",
+    "'use strict';\nconst a=require('node:assert/strict'),f=require('node:fs'),o=require('node:os'),p=require('node:path'),c=require('node:child_process');\nconst input={\"packages\":[{\"name\":\"A\",\"versions\":[{\"version\":1,\"dependencies\":[{\"name\":\"B\",\"min\":2,\"max\":2}]}]},{\"name\":\"B\",\"versions\":[{\"version\":2,\"dependencies\":[{\"name\":\"A\",\"min\":1,\"max\":1}]}]}],\"roots\":[{\"name\":\"A\",\"min\":1,\"max\":1}]};\nconst expected={\"packages\":[{\"name\":\"A\",\"version\":1},{\"name\":\"B\",\"version\":2}]};\nconst d=f.mkdtempSync(p.join(o.tmpdir(),'proof-')),i=p.join(d,'in.json'),q=p.join(d,'out.json'),b=Buffer.from(JSON.stringify(input)+'\\\\n');f.writeFileSync(i,b);\nconst r=c.spawnSync(process.execPath,[p.join(__dirname,'../../resolve.js'),'--input',i,'--out',q],{encoding:'utf8'});a.equal(r.status,0,r.stderr);a.equal(r.stdout,'');a.equal(r.stderr,'');const actual=JSON.parse(f.readFileSync(q,'utf8'));a.deepEqual(actual,expected);a.equal(f.readFileSync(q,'utf8'),JSON.stringify(expected)+'\\\\n');a.deepEqual(f.readFileSync(i),b);\nconsole.log(JSON.stringify({node:process.version,case:'satisfiable cycle',exitCode:r.status,actual,expected,ok:true}));",
+    "'use strict';\nconst a=require('node:assert/strict'),f=require('node:fs'),o=require('node:os'),p=require('node:path'),c=require('node:child_process');\nconst input={\"packages\":[{\"name\":\"Z\",\"versions\":[{\"version\":1,\"dependencies\":[{\"name\":\"A\",\"min\":2,\"max\":2}]},{\"version\":2,\"dependencies\":[{\"name\":\"A\",\"min\":1,\"max\":1}]}]},{\"name\":\"A\",\"versions\":[{\"version\":1,\"dependencies\":[]},{\"version\":2,\"dependencies\":[]}]}],\"roots\":[{\"name\":\"Z\",\"min\":1,\"max\":2}]};\nconst expected={\"packages\":[{\"name\":\"A\",\"version\":2},{\"name\":\"Z\",\"version\":1}]};\nconst d=f.mkdtempSync(p.join(o.tmpdir(),'proof-')),i=p.join(d,'in.json'),q=p.join(d,'out.json'),b=Buffer.from(JSON.stringify(input)+'\\\\n');f.writeFileSync(i,b);\nconst r=c.spawnSync(process.execPath,[p.join(__dirname,'../../resolve.js'),'--input',i,'--out',q],{encoding:'utf8'});a.equal(r.status,0,r.stderr);a.equal(r.stdout,'');a.equal(r.stderr,'');const actual=JSON.parse(f.readFileSync(q,'utf8'));a.deepEqual(actual,expected);a.equal(f.readFileSync(q,'utf8'),JSON.stringify(expected)+'\\\\n');a.deepEqual(f.readFileSync(i),b);\nconsole.log(JSON.stringify({node:process.version,case:'global objective',exitCode:r.status,actual,expected,ok:true}));"
+  ],
+  "cases": [
+    {
+      "eventId": "77543151-5bd9-4afd-b1a6-8c9b939fc536",
+      "snapshot": 0,
+      "args": {
+        "path": "test/proofs/greedy.js",
+        "old_string": "+'\n'",
+        "new_string": "+ '\\\\n'"
+      },
+      "diagnosis": "ambiguous"
+    },
+    {
+      "eventId": "f1e2a8cd-73f7-4ebc-af9a-b9ad9d5d3d69",
+      "snapshot": 1,
+      "args": {
+        "path": "test/proofs/diamond.js",
+        "old_string": "+'\n'",
+        "new_string": "+ '\\\\n'"
+      },
+      "diagnosis": "ambiguous"
+    },
+    {
+      "eventId": "6ae9d481-fc4e-489a-aa0e-7f7dc800513b",
+      "snapshot": 2,
+      "args": {
+        "path": "test/proofs/cycle.js",
+        "old_string": "+'\n'",
+        "new_string": "+ '\\\\n'"
+      },
+      "diagnosis": "ambiguous"
+    },
+    {
+      "eventId": "e8518450-fcd0-4e08-92f4-5dad564f25da",
+      "snapshot": 3,
+      "args": {
+        "path": "test/proofs/global.js",
+        "old_string": "+'\n'",
+        "new_string": "+ '\\\\n'"
+      },
+      "diagnosis": "ambiguous"
+    },
+    {
+      "eventId": "2fa419ca-70d3-453c-aca7-d9fafee8fc6e",
+      "snapshot": 4,
+      "args": {
+        "path": "test/proofs/greedy.js",
+        "old_string": "+ '\\\\n'",
+        "new_string": "+ '\\n'"
+      },
+      "diagnosis": "candidate"
+    },
+    {
+      "eventId": "daccbf39-010e-480d-bf2b-8c9df1019cca",
+      "snapshot": 4,
+      "args": {
+        "path": "test/proofs/greedy.js",
+        "old_string": "+ '\\\\n'",
+        "new_string": "+ '\\n'"
+      },
+      "diagnosis": "candidate"
+    },
+    {
+      "eventId": "b4b504a5-e647-4c0d-b162-ad07a8f8f0ea",
+      "snapshot": 5,
+      "args": {
+        "path": "test/proofs/diamond.js",
+        "old_string": "+ '\\\\n'",
+        "new_string": "+ '\\n'"
+      },
+      "diagnosis": "candidate"
+    },
+    {
+      "eventId": "f831e243-fb7b-481b-89fb-7d5f87556354",
+      "snapshot": 5,
+      "args": {
+        "path": "test/proofs/diamond.js",
+        "old_string": "+ '\\\\n'",
+        "new_string": "+ '\\n'"
+      },
+      "diagnosis": "candidate"
+    },
+    {
+      "eventId": "5ac361a3-7877-4af2-a766-4a2974cfaa08",
+      "snapshot": 6,
+      "args": {
+        "path": "test/proofs/cycle.js",
+        "old_string": "+ '\\\\n'",
+        "new_string": "+ '\\n'"
+      },
+      "diagnosis": "candidate"
+    },
+    {
+      "eventId": "4c22a928-dadc-4ede-a015-aff19ea37280",
+      "snapshot": 6,
+      "args": {
+        "path": "test/proofs/cycle.js",
+        "old_string": "+ '\\\\n'",
+        "new_string": "+ '\\n'"
+      },
+      "diagnosis": "candidate"
+    },
+    {
+      "eventId": "628600dd-7360-4306-afb4-70e0914fa443",
+      "snapshot": 7,
+      "args": {
+        "path": "test/proofs/global.js",
+        "old_string": "+ '\\\\n'",
+        "new_string": "+ '\\n'"
+      },
+      "diagnosis": "candidate"
+    },
+    {
+      "eventId": "96bb5236-5ce3-4372-b18d-77de7d9b955a",
+      "snapshot": 7,
+      "args": {
+        "path": "test/proofs/global.js",
+        "old_string": "+ '\\\\n'",
+        "new_string": "+ '\\n'"
+      },
+      "diagnosis": "candidate"
+    },
+    {
+      "eventId": "34400127-93af-402a-b54f-6b38566e5135",
+      "snapshot": 4,
+      "args": {
+        "path": "test/proofs/greedy.js",
+        "old_string": "+ '\\\\n'",
+        "new_string": "+ '\\n'",
+        "replace_all": true
+      },
+      "diagnosis": "candidate"
+    },
+    {
+      "eventId": "15163628-c2f0-4fa7-ab26-6ac2fb47469d",
+      "snapshot": 4,
+      "args": {
+        "path": "test/proofs/greedy.js",
+        "old_string": "+'\\\\\\\\n'",
+        "new_string": "+'\\\\n'",
+        "replace_all": true
+      },
+      "diagnosis": "candidate"
+    },
+    {
+      "eventId": "78839581-2d08-450c-b24c-f6d582fa111a",
+      "snapshot": 5,
+      "args": {
+        "path": "test/proofs/diamond.js",
+        "old_string": "+ '\\\\n'",
+        "new_string": "+ '\\n'",
+        "replace_all": true
+      },
+      "diagnosis": "candidate"
+    },
+    {
+      "eventId": "dc467e4b-468f-43ab-b417-aca3989b147d",
+      "snapshot": 5,
+      "args": {
+        "path": "test/proofs/diamond.js",
+        "old_string": "+'\\\\\\\\n'",
+        "new_string": "+'\\\\n'",
+        "replace_all": true
+      },
+      "diagnosis": "candidate"
+    },
+    {
+      "eventId": "36d268f7-a6ec-43df-af29-75c6b92a42d1",
+      "snapshot": 6,
+      "args": {
+        "path": "test/proofs/cycle.js",
+        "old_string": "+ '\\\\n'",
+        "new_string": "+ '\\n'",
+        "replace_all": true
+      },
+      "diagnosis": "candidate"
+    },
+    {
+      "eventId": "85e54b4f-d60f-46b6-8641-268b60dcf5a0",
+      "snapshot": 6,
+      "args": {
+        "path": "test/proofs/cycle.js",
+        "old_string": "+'\\\\\\\\n'",
+        "new_string": "+'\\\\n'",
+        "replace_all": true
+      },
+      "diagnosis": "candidate"
+    },
+    {
+      "eventId": "10187cce-20e7-40a7-a93b-f0961b387dba",
+      "snapshot": 7,
+      "args": {
+        "path": "test/proofs/global.js",
+        "old_string": "+ '\\\\n'",
+        "new_string": "+ '\\n'",
+        "replace_all": true
+      },
+      "diagnosis": "candidate"
+    },
+    {
+      "eventId": "75a09137-6a57-4e24-85a6-13b5e795c03b",
+      "snapshot": 7,
+      "args": {
+        "path": "test/proofs/global.js",
+        "old_string": "+'\\\\\\\\n'",
+        "new_string": "+'\\\\n'",
+        "replace_all": true
+      },
+      "diagnosis": "candidate"
+    }
+  ]
+}
