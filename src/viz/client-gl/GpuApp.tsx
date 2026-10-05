@@ -82,6 +82,7 @@ import {
 import type { VizAdminInvitation } from '../client/types.js';
 import { openGitHubRepository } from './repository-link.js';
 import { resultText, resultFileUrl } from './run-result.js';
+import { isAppearanceTheme } from './theme.js';
 
 const RELEASE_VERSION = __ATOMA_RELEASE_VERSION__;
 
@@ -648,6 +649,19 @@ function GpuAppContent({
       store.closeAccountMenu();
       return;
     }
+    if (id === 'appearance.identity.toggle') {
+      store.toggleIdentityDisplay();
+      return;
+    }
+    if (id === 'appearance.dropdown.toggle') {
+      store.toggleThemeDropdown();
+      return;
+    }
+    if (id.startsWith('appearance.select.')) {
+      const theme = id.slice('appearance.select.'.length);
+      if (isAppearanceTheme(theme)) store.setAppearanceTheme(theme);
+      return;
+    }
     if (id === 'notifications.menu.toggle') {
       store.toggleNotificationsMenu();
       return;
@@ -1070,7 +1084,7 @@ function GpuAppContent({
   }, [activate, state.sceneCameraMode, state.selectedRunId, state.view]);
 
   return (
-    <main className="gpu-app" data-entered={state.entered ? 'true' : 'false'}>
+    <main className="gpu-app" data-entered={state.entered ? 'true' : 'false'} data-theme={state.appearanceTheme}>
       {/* The product tree goes INERT behind an open preview, not merely
           hidden: `inert` takes the whole subtree out of focus order, hit
           testing and the accessibility tree in one attribute, so a tab press

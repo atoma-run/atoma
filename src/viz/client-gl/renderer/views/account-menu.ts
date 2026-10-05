@@ -1,6 +1,6 @@
 import { Graphics, Rectangle } from 'pixi.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
-import { GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
+import { APPEARANCE_THEMES, GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
 import type { AuthUiSnapshot } from '../../AuthControls.js';
 
 /**
@@ -39,6 +39,9 @@ export type AccountMenuItemKind =
   | 'switch'
   | 'divider'
   | 'settings'
+  | 'identityDisplay'
+  | 'themeDropdown'
+  | 'themeOption'
   | 'switchAccount'
   | 'signOut'
   | 'failure';
@@ -77,7 +80,8 @@ export interface AccountMenuAnchor {
 export function accountMenuLayout(
   viewportWidth: number,
   auth: AuthUiSnapshot,
-  anchor?: AccountMenuAnchor
+  anchor?: AccountMenuAnchor,
+  themeDropdownOpen = false
 ): AccountMenuLayout {
   const width = Math.min(PANEL_WIDTH, Math.max(200, viewportWidth - EDGE * 2));
   const items: AccountMenuItem[] = [];
@@ -97,6 +101,16 @@ export function accountMenuLayout(
       name: organisation.name,
       height: ROW_HEIGHT,
     });
+  }
+  push({ kind: 'divider', height: DIVIDER_HEIGHT });
+  if (auth.viewer.activeOrganisation) {
+    push({ kind: 'identityDisplay', id: 'appearance.identity.toggle', height: ACTION_HEIGHT });
+  }
+  push({ kind: 'themeDropdown', id: 'appearance.dropdown.toggle', height: ACTION_HEIGHT });
+  if (themeDropdownOpen) {
+    for (const theme of APPEARANCE_THEMES) {
+      push({ kind: 'themeOption', id: `appearance.select.${theme.key}`, height: ROW_HEIGHT });
+    }
   }
   push({ kind: 'divider', height: DIVIDER_HEIGHT });
   push({ kind: 'settings', id: 'account.settings', height: ACTION_HEIGHT });
@@ -138,7 +152,7 @@ export function drawAccountMenu(
 ): void {
   const auth = snapshot.data.auth;
   if (!auth || !snapshot.state.accountMenuOpen) return;
-  const layout = accountMenuLayout(viewportWidth, auth, anchor);
+  const layout = accountMenuLayout(viewportWidth, auth, anchor, snapshot.state.themeDropdownOpen);
 
   // Click-away. Pixi has no stage-level pointer handler, so the only way to
   // close on an outside click is a real object under the panel. It also reads
@@ -166,10 +180,14 @@ export function drawAccountMenu(
 
   const innerX = layout.x + PANEL_INSET;
   const innerWidth = layout.width - PANEL_INSET * 2;
+  const showOrganisation = snapshot.state.identityDisplay === 'organisation' &&
+    auth.viewer.activeOrganisation !== null;
   for (const item of layout.items) {
     const y = layout.y + item.y;
     if (item.kind === 'identity') {
-      ctx.text(ctx.root, auth.viewer.displayName, innerX, y + 10, {
+      ctx.text(ctx.root, showOrganisation
+        ? auth.viewer.activeOrganisation?.name ?? auth.viewer.displayName
+        : auth.viewer.displayName, innerX, y + 10, {
         size: 13,
         weight: '700',
         width: innerWidth,
@@ -195,12 +213,12 @@ export function drawAccountMenu(
       continue;
     }
     if (item.kind === 'organisation' && auth.viewer.activeOrganisation) {
-      ctx.text(ctx.root, snapshot.t('settings.organisation').toUpperCase(), innerX, y + 2, {
+      ctx.text(ctx.root, snapshot.t(showOrganisation ? 'appearance.user' : 'settings.organisation').toUpperCase(), innerX, y + 2, {
         size: 8,
         weight: '700',
         color: GPU_COLORS.muted,
       });
-      ctx.text(ctx.root, auth.viewer.activeOrganisation.name, innerX, y + 15, {
+      ctx.text(ctx.root, showOrganisation ? auth.viewer.displayName : auth.viewer.activeOrganisation.name, innerX, y + 15, {
         size: 11,
         color: GPU_COLORS.text,
         width: innerWidth,
@@ -248,6 +266,34 @@ export function drawAccountMenu(
         snapshot.state.view === 'settings',
         snapshot.onActivate,
         GPU_COLORS.primary
+      );
+      continue;
+    }
+    if (item.kind === 'identityDisplay' && item.id) {
+      const showsOrganisation = snapshot.state.identityDisplay === 'organisation';
+      ctx.button(
+        ctx.root, item.id, 'menuitem',
+        snapshot.t(showsOrganisation ? 'appearance.showUser' : 'appearance.showOrganisation'),
+        innerX, y, innerWidth, ACTION_HEIGHT - ACTION_GAP,
+        false, snapshot.onActivate, GPU_COLORS.primary
+      );
+      continue;
+    }
+    if (item.kind === 'themeDropdown' && item.id) {
+      ctx.button(
+        ctx.root, item.id, 'menuitem',
+        `${snapshot.t('appearance.theme')}: ${snapshot.t(`appearance.${snapshot.state.appearanceTheme}`)} ${snapshot.state.themeDropdownOpen ? '▴' : '▾'}`,
+        innerX, y, innerWidth, ACTION_HEIGHT - ACTION_GAP,
+        snapshot.state.themeDropdownOpen, snapshot.onActivate, GPU_COLORS.primary
+      );
+      continue;
+    }
+    if (item.kind === 'themeOption' && item.id) {
+      const key = item.id.slice('appearance.select.'.length);
+      ctx.button(
+        ctx.root, item.id, 'menuitemradio', snapshot.t(`appearance.${key}`),
+        innerX + 8, y, innerWidth - 8, ROW_HEIGHT - ACTION_GAP,
+        key === snapshot.state.appearanceTheme, snapshot.onActivate, GPU_COLORS.primary
       );
       continue;
     }

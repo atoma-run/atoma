@@ -21,6 +21,7 @@ import {
   type AuthViewer,
 } from './session-controller.js';
 import { useGpuStore } from './store.js';
+import { APPEARANCE_THEMES } from './theme.js';
 
 export type {
   AuthController,
@@ -251,6 +252,12 @@ function AccountBridge({
 }) {
   const open = useGpuStore((state) => state.accountMenuOpen);
   const toggleAccountMenu = useGpuStore((state) => state.toggleAccountMenu);
+  const identityDisplay = useGpuStore((state) => state.identityDisplay);
+  const toggleIdentityDisplay = useGpuStore((state) => state.toggleIdentityDisplay);
+  const appearanceTheme = useGpuStore((state) => state.appearanceTheme);
+  const themeDropdownOpen = useGpuStore((state) => state.themeDropdownOpen);
+  const toggleThemeDropdown = useGpuStore((state) => state.toggleThemeDropdown);
+  const setAppearanceTheme = useGpuStore((state) => state.setAppearanceTheme);
   const setView = useGpuStore((state) => state.setView);
   const roleKey = `auth.role.${viewer.role}`;
   const role = t(roleKey);
@@ -283,6 +290,32 @@ function AccountBridge({
                 {t('auth.switchToOrganisation', { name: organisation.name })}
               </button>
             ))}
+          {viewer.activeOrganisation ? (
+            <button type="button" onClick={toggleIdentityDisplay}>
+              {t(identityDisplay === 'organisation' ? 'appearance.showUser' : 'appearance.showOrganisation')}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            aria-expanded={themeDropdownOpen}
+            onClick={toggleThemeDropdown}
+          >
+            {t('appearance.theme')}: {t(`appearance.${appearanceTheme}`)}
+          </button>
+          {themeDropdownOpen ? (
+            <div role="group" aria-label={t('appearance.theme')}>
+              {APPEARANCE_THEMES.map((theme) => (
+                <button
+                  key={theme.key}
+                  type="button"
+                  aria-pressed={theme.key === appearanceTheme}
+                  onClick={() => setAppearanceTheme(theme.key)}
+                >
+                  {t(theme.labelKey)}
+                </button>
+              ))}
+            </div>
+          ) : null}
           <button type="button" onClick={() => setView('settings')}>
             {t('nav.settings')}
           </button>

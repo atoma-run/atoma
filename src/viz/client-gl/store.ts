@@ -5,6 +5,7 @@ import type { EventFilters } from '../client/run-utils.js';
 import type { SceneCameraMode } from './scene-camera.js';
 import type { DocsThemeKey } from './docs-content.js';
 import { isHandheldDevice } from './handheld.js';
+import { isAppearanceTheme, type AppearanceTheme } from './theme.js';
 
 export { DOC_THEMES, type DocsThemeKey } from './docs-content.js';
 
@@ -224,6 +225,9 @@ export interface GpuUiState {
   journalSeverity: string;
   journalFamily: string;
   selectedDocsTheme: DocsThemeKey;
+  appearanceTheme: AppearanceTheme;
+  identityDisplay: 'organisation' | 'user';
+  themeDropdownOpen: boolean;
   scrollY: Record<ViewName, number>;
   /**
    * Arrival gate. False until Continue (later: login). Not a nav view — the
@@ -269,6 +273,9 @@ export interface GpuUiState {
   blockHandheld: () => void;
   toggleAccountMenu: () => void;
   closeAccountMenu: () => void;
+  toggleIdentityDisplay: () => void;
+  toggleThemeDropdown: () => void;
+  setAppearanceTheme: (theme: AppearanceTheme) => void;
   toggleLocaleMenu: () => void;
   closeLocaleMenu: () => void;
   toggleNotificationsMenu: () => void;
@@ -377,6 +384,25 @@ function initialHandheldAccepted(): boolean {
   }
 }
 
+function initialAppearanceTheme(): AppearanceTheme {
+  try {
+    const saved = typeof localStorage === 'undefined' ? null : localStorage.getItem('atoma.viz.theme');
+    return isAppearanceTheme(saved) ? saved : 'nocturne';
+  } catch {
+    return 'nocturne';
+  }
+}
+
+function initialIdentityDisplay(): 'organisation' | 'user' {
+  try {
+    return typeof localStorage !== 'undefined' && localStorage.getItem('atoma.viz.identityDisplay') === 'user'
+      ? 'user'
+      : 'organisation';
+  } catch {
+    return 'organisation';
+  }
+}
+
 export const useGpuStore = create<GpuUiState>()((set, get) => ({
   // The app opens on PROJECTS: it is the authenticated launch surface. Runs
   // is where you go to watch what you started, a second step rather than the
@@ -412,6 +438,9 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   journalSeverity: 'all',
   journalFamily: 'all',
   selectedDocsTheme: 'quick',
+  appearanceTheme: initialAppearanceTheme(),
+  identityDisplay: initialIdentityDisplay(),
+  themeDropdownOpen: false,
   scrollY: {
     projects: 0,
     runs: 0,
@@ -483,10 +512,34 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   // two overlays can never contest the same corner of the header.
   toggleAccountMenu: () => set((state) => ({
     accountMenuOpen: !state.accountMenuOpen,
+    themeDropdownOpen: false,
     localeMenuOpen: false,
     notificationsMenuOpen: false,
   })),
-  closeAccountMenu: () => set({ accountMenuOpen: false }),
+  closeAccountMenu: () => set({ accountMenuOpen: false, themeDropdownOpen: false }),
+  toggleIdentityDisplay: () => set((state) => {
+    const identityDisplay = state.identityDisplay === 'organisation' ? 'user' : 'organisation';
+    try {
+      if (typeof localStorage !== 'undefined') localStorage.setItem('atoma.viz.identityDisplay', identityDisplay);
+    } catch {
+      // The visible choice still changes when storage is blocked.
+    }
+    return { identityDisplay };
+  }),
+  toggleThemeDropdown: () => set((state) => ({
+    accountMenuOpen: true,
+    themeDropdownOpen: !state.themeDropdownOpen,
+    localeMenuOpen: false,
+    notificationsMenuOpen: false,
+  })),
+  setAppearanceTheme: (appearanceTheme) => {
+    try {
+      if (typeof localStorage !== 'undefined') localStorage.setItem('atoma.viz.theme', appearanceTheme);
+    } catch {
+      // Theme selection remains available when storage is blocked.
+    }
+    set({ appearanceTheme, themeDropdownOpen: false });
+  },
   toggleLocaleMenu: () => set((state) => ({
     localeMenuOpen: !state.localeMenuOpen,
     accountMenuOpen: false,

@@ -38,7 +38,36 @@ button, input, textarea, select { font: inherit; }
 /* Keep the arrival field on its deep black receiver. Once inside the product,
    a static blue-night matte separates the raised surfaces without bringing
    back the procedural grid or another render pass. */
-.gpu-app[data-entered="true"] { background: #0d1726; }
+.gpu-app[data-entered="true"] {
+  --appearance-filter: none;
+  background: #0d1726;
+}
+
+/* One compositor transition recolours the existing Pixi canvas and its DOM
+   overlays together. It does not rebuild or duplicate the GPU scene. */
+.gpu-app[data-entered="true"] .gpu-cube {
+  filter: var(--appearance-filter);
+  transition: filter 720ms cubic-bezier(.22, 1, .36, 1);
+}
+.gpu-app[data-entered="true"] {
+  transition: background-color 720ms cubic-bezier(.22, 1, .36, 1);
+}
+.gpu-app[data-theme="aurora"] {
+  --appearance-filter: hue-rotate(-24deg) saturate(1.14) sepia(0);
+  background-color: #102a2d;
+}
+.gpu-app[data-theme="amethyst"] {
+  --appearance-filter: hue-rotate(38deg) saturate(1.14) sepia(0);
+  background-color: #1e1730;
+}
+.gpu-app[data-theme="copper"] {
+  --appearance-filter: hue-rotate(0deg) saturate(1.3) sepia(.85);
+  background-color: #271c18;
+}
+@media (prefers-reduced-motion: reduce) {
+  .gpu-app[data-entered="true"],
+  .gpu-app[data-entered="true"] .gpu-cube { transition-duration: 0ms; }
+}
 
 .gpu-scene-camera {
   /* scene-camera.ts bakes target, optical anchor and perspective into one

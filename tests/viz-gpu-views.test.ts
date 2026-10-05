@@ -634,6 +634,9 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     journalSeverity: 'all',
     journalFamily: 'all',
     selectedDocsTheme: 'quick',
+    appearanceTheme: 'nocturne',
+    identityDisplay: 'organisation',
+    themeDropdownOpen: false,
     scrollY: { projects: 0, runs: 0, registry: 0, skills: 0, burnin: 0, docs: 0, admin: 0, journal: 0, ledger: 0, sentinel: 0, announce: 0, settings: 0 },
     entered: true,
     handheld: false,
@@ -652,6 +655,9 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     blockHandheld: noop,
     toggleAccountMenu: noop,
     closeAccountMenu: noop,
+    toggleIdentityDisplay: noop,
+    toggleThemeDropdown: noop,
+    setAppearanceTheme: noop,
     toggleLocaleMenu: noop,
     closeLocaleMenu: noop,
     toggleNotificationsMenu: noop,
@@ -3284,6 +3290,23 @@ describe('GPU account menu', () => {
     const signOut = ctx.buttons.find((button) => button.id === 'auth.signOut');
     signOut?.onActivate?.(signOut.id);
     expect(activated).toEqual(['auth.switchAccount', 'auth.signOut']);
+  });
+
+  it('expands every appearance choice inside the clipped account menu', () => {
+    const state = { accountMenuOpen: true, themeDropdownOpen: true, appearanceTheme: 'amethyst' as const };
+    const ctx = createRecordingCtx();
+    const snapshot = makeSnapshot(state, { auth });
+    drawAccountMenu(ctx, snapshot, 1280, 720);
+    const ids = ctx.buttons.map((button) => button.id);
+    expect(ids).toContain('appearance.identity.toggle');
+    expect(ids).toContain('appearance.dropdown.toggle');
+    for (const theme of ['nocturne', 'aurora', 'amethyst', 'copper']) {
+      expect(ids).toContain(`appearance.select.${theme}`);
+    }
+    expect(ctx.buttons.find((button) => button.id === 'appearance.select.amethyst')?.active).toBe(true);
+    const measure = (value: string, options?: { size?: number }) => textStub(value, options).width;
+    expect(overlayMenuClip(snapshot, 1280, 720, { locale: { x: 1200, y: 8, width: 42, height: 32 } }, measure))
+      .toEqual(accountMenuLayout(1280, auth, undefined, true));
   });
 
   it('clips DOM overlays to the same panel rect the account menu draws', () => {

@@ -12,6 +12,19 @@ export function gpuTextRasterOptions() {
   };
 }
 
+export const APPEARANCE_THEMES = [
+  { key: 'nocturne', labelKey: 'appearance.nocturne' },
+  { key: 'aurora', labelKey: 'appearance.aurora' },
+  { key: 'amethyst', labelKey: 'appearance.amethyst' },
+  { key: 'copper', labelKey: 'appearance.copper' },
+] as const;
+
+export type AppearanceTheme = (typeof APPEARANCE_THEMES)[number]['key'];
+
+export function isAppearanceTheme(value: unknown): value is AppearanceTheme {
+  return APPEARANCE_THEMES.some((theme) => theme.key === value);
+}
+
 export const GPU_COLORS = {
   background: 0x0d1726,
   panel: 0x182941,

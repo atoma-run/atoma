@@ -5050,6 +5050,43 @@ export class GpuRenderer {
     // journal projected onto a principal, and the ungated path has neither.
     const bellReserve = auth ? HEADER_BELL_WIDTH + 8 : 0;
     const opacityTargets: { alpha: number }[] = [];
+    if (auth && width >= 860) {
+      const identity = snapshot.state.identityDisplay === 'organisation'
+        ? auth.viewer.activeOrganisation?.name ?? auth.viewer.displayName
+        : auth.viewer.displayName;
+      const identityButton = this.button(
+        this.root,
+        'appearance.identity.toggle',
+        'button',
+        identity,
+        width - 520,
+        midY - 16,
+        198,
+        32,
+        false,
+        snapshot.onActivate,
+        GPU_COLORS.primary,
+        true
+      );
+      identityButton.eventMode = interactive ? 'static' : 'none';
+      opacityTargets.push(identityButton);
+      const themeButton = this.button(
+        this.root,
+        'appearance.dropdown.toggle',
+        'button',
+        `${snapshot.t('appearance.theme')} ▾`,
+        width - 314,
+        midY - 16,
+        90,
+        32,
+        snapshot.state.accountMenuOpen && snapshot.state.themeDropdownOpen,
+        snapshot.onActivate,
+        GPU_COLORS.primary,
+        true
+      );
+      themeButton.eventMode = interactive ? 'static' : 'none';
+      opacityTargets.push(themeButton);
+    }
     opacityTargets.push(this.drawFpsReadout(width - 64 - accountReserve - bellReserve, midY));
     const locale = this.button(
       this.root,

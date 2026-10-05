@@ -76,6 +76,8 @@ const selectFirst = has('--select-first');
 const showResult = has('--result');
 const notifications = has('--notifications');
 const accountMenu = has('--account-menu');
+const appearanceTheme = arg('--appearance', null);
+const showThemeMenu = has('--theme-menu');
 const scrollEnd = has('--scroll-end');
 const handheld = has('--handheld');
 const cameraMode = arg('--camera', 'focus');
@@ -859,6 +861,20 @@ try {
       if (!orb) throw new Error('--account-menu: no profile orb on screen');
       await page.mouse.click(orb.x, orb.y);
       await page.evaluate(() => new Promise((resolveWait) => setTimeout(resolveWait, 500)));
+    }
+
+    if (appearanceTheme || showThemeMenu) {
+      if (!authed) throw new Error('--appearance and --theme-menu need --auth');
+      if (appearanceTheme && !['nocturne', 'aurora', 'amethyst', 'copper'].includes(appearanceTheme)) {
+        throw new Error(`Unknown appearance theme: ${appearanceTheme}`);
+      }
+      await page.evaluate((theme, menu) => {
+        const dispatch = globalThis.__ATOMA_VIZ_TEST__?.dispatch;
+        if (!dispatch) throw new Error('appearance controls are unavailable');
+        if (theme) dispatch(`appearance.select.${theme}`);
+        if (menu) dispatch('appearance.dropdown.toggle');
+      }, appearanceTheme, showThemeMenu);
+      await page.evaluate(() => new Promise((resolveWait) => setTimeout(resolveWait, 850)));
     }
 
     if (notifications) {

@@ -36,6 +36,7 @@ export function overlayMenuClip(
     readonly data: { readonly auth?: AuthUiSnapshot | null } & NotificationsMenuData;
     readonly state: {
       readonly accountMenuOpen: boolean;
+      readonly themeDropdownOpen?: boolean;
       readonly localeMenuOpen: boolean;
       readonly notificationsMenuOpen: boolean;
     };
@@ -58,7 +59,7 @@ export function overlayMenuClip(
   // paranoia, not policy.
   const auth = snapshot.data.auth;
   if (auth && snapshot.state.accountMenuOpen) {
-    return accountMenuLayout(viewportWidth, auth, anchors.account);
+    return accountMenuLayout(viewportWidth, auth, anchors.account, snapshot.state.themeDropdownOpen);
   }
   if (auth && snapshot.state.notificationsMenuOpen && anchors.notifications) {
     return notificationsMenuLayout(
