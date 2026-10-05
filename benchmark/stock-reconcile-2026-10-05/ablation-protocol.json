@@ -1,0 +1,42 @@
+{
+  "registeredBeforeExecution": true,
+  "sourceRevision": "94ff9d949a7c34bb36ced38bcb6c04f1e0f4edd1",
+  "model": "gpt-5.6-luna",
+  "rootRepeats": 3,
+  "arms": [
+    "baseline",
+    "readback-only",
+    "guidance-only",
+    "combined"
+  ],
+  "rootOutcome": "Overall refusal AND c4 conflicting-duplicate criterion; additionally report c6 decisions without treating refusal on another criterion as complete detection.",
+  "controls": [
+    {
+      "id": "audit-stock-only",
+      "expected": false
+    },
+    {
+      "id": "audit-both-compared",
+      "expected": true
+    },
+    {
+      "id": "audit-volatile-field",
+      "expected": false
+    },
+    {
+      "id": "audit-tautology",
+      "expected": false
+    },
+    {
+      "id": "audit-direct-comparison",
+      "expected": true
+    },
+    {
+      "id": "audit-single-run",
+      "expected": false
+    }
+  ],
+  "order": "Three rotated blocks of four production arms, then six combined-arm controls",
+  "scope": "Exploratory ablation on the same archived evidence; small sample, not general reliability. Controls explicitly request executed byte comparison, distinguishing that requirement from source-level determinism.",
+  "constraints": "No source changes during experiment, no tool-bearing calls, sequential quota use."
+}

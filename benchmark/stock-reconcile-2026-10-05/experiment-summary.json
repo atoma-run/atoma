@@ -1,0 +1,122 @@
+{
+  "sourceRevision": "94ff9d949a7c34bb36ced38bcb6c04f1e0f4edd1",
+  "totalCalls": 31,
+  "ablation": {
+    "baseline": {
+      "calls": 3,
+      "validVerdicts": 3,
+      "parseOrTransportErrors": 0,
+      "approved": 3,
+      "c4MetFalse": 0,
+      "c6MetFalse": 0,
+      "servedModels": [
+        "gpt-5.6-luna"
+      ]
+    },
+    "readback-only": {
+      "calls": 3,
+      "validVerdicts": 3,
+      "parseOrTransportErrors": 0,
+      "approved": 2,
+      "c4MetFalse": 0,
+      "c6MetFalse": 0,
+      "servedModels": [
+        "gpt-5.6-luna"
+      ]
+    },
+    "guidance-only": {
+      "calls": 3,
+      "validVerdicts": 3,
+      "parseOrTransportErrors": 0,
+      "approved": 2,
+      "c4MetFalse": 1,
+      "c6MetFalse": 1,
+      "servedModels": [
+        "gpt-5.6-luna"
+      ]
+    },
+    "combined": {
+      "calls": 3,
+      "validVerdicts": 3,
+      "parseOrTransportErrors": 0,
+      "approved": 1,
+      "c4MetFalse": 2,
+      "c6MetFalse": 1,
+      "servedModels": [
+        "gpt-5.6-luna"
+      ]
+    }
+  },
+  "terraRoot": {
+    "calls": 3,
+    "validVerdicts": 3,
+    "parseOrTransportErrors": 0,
+    "approved": 0,
+    "c4MetFalse": 3,
+    "c6MetFalse": 0,
+    "servedModels": [
+      "gpt-5.6-terra"
+    ]
+  },
+  "auditControls": {
+    "ablation": {
+      "n": 6,
+      "expectedDecisions": 6
+    },
+    "terra": {
+      "n": 6,
+      "expectedDecisions": 6
+    }
+  },
+  "focusedV1": {
+    "calls": 1,
+    "validVerdicts": 0,
+    "parseOrTransportErrors": 1,
+    "approved": 0,
+    "c4MetFalse": 0,
+    "c6MetFalse": 0,
+    "servedModels": [
+      "gpt-5.6-luna"
+    ]
+  },
+  "focusedV2": {
+    "calls": 3,
+    "validVerdicts": 3,
+    "parseOrTransportErrors": 0,
+    "approved": 0,
+    "c4MetFalse": 3,
+    "c6MetFalse": 3,
+    "servedModels": [
+      "gpt-5.6-luna"
+    ]
+  },
+  "interpretation": [
+    "The deployed combined configuration still falsely accepted this known-defective artifact once in three fresh repeats; the earlier 3/3 refusal result did not establish stability.",
+    "Readback alone did not detect c4 in any repeat; its one refusal concerned another criterion, so overall rejection is not credited as target-defect detection.",
+    "Terra detected c4 in all three root judgments but accepted c6 in all three; a stronger model alone did not resolve the coverage overclaim.",
+    "Both models correctly judged all six explicit audit-comparison controls.",
+    "Focused v2 judged both scoped criteria unmet in all three calls. Only two reasons explicitly identified missing audit repeat comparison; the third cited unasserted opening-only/zero-stock output. Do not report every subclaim correctly diagnosed.",
+    "Focused v1 identified both missing assertions but omitted approved and failed the production parser. Its response is retained as failure, not scored as a usable verdict."
+  ],
+  "limits": [
+    "Small adaptive development sample from one archived production run, not a reliability estimate.",
+    "Focused review changed scope, removed child success narratives and selected evidence; this does not isolate a single cause.",
+    "No positive focused compound-criterion control or end-to-end remediation run has been measured.",
+    "No production source or model pin was changed in this experiment."
+  ],
+  "nextExperiment": "Evaluate focused, evidence-based criterion review on valid compound criteria and different artifacts before changing the production acceptance path. Do not add unconditional refusal rules or merely upgrade the root model on this sample.",
+  "sha256": {
+    "ablation-responses.jsonl": "cfacb7b4e88fb3a77b9f9f5d04b04d6909539665229b5f599881b81a9f50a9fe",
+    "terra-requests.json.gz": "c03692076e4ffd5c5294cb4e5bb9aaf62b938e73fbe5ede1c97b89550d8ff93a",
+    "focused-responses.jsonl": "166e4e59a9e595ad499724473a1495c3a8c3b6e38dd3e4855ee0a3217df89c2c",
+    "focused-v2-protocol.json": "e2028769dce037b8a4c18a66297ce09ffde4bd5d635a4b5ee51f887fcf0d1446",
+    "ablation-requests.json.gz": "2b9ddcf1d08e3f5cda340de5d946d7568a95a025152bf12fb8b728dfc29e86b1",
+    "focused-v2-responses.jsonl": "71c6cd1d782c850701bb24347f53e5c61a82b15bd4283c4183f6f24a8185cbe6",
+    "terra-protocol.json": "09b5bb87102d8ab409b7a8707e6d57adfd18139260346e1dbec43ac4a1d9cc7b",
+    "ablation-protocol.json": "1a63e52540f46d8e48eab49f72bfc46a35882c823ec309d75bf10bcc21798559",
+    "terra-responses.jsonl": "f2dd31e25854755b3d6f121061cc3c36df5bcf276a8f10ea1efbd83016d33bb2",
+    "focused-v2-requests.json.gz": "b2c4ad5dd28e831b12aaf7d7444880b652564731c364c9fedebbcc533da849e1",
+    "focused-protocol.json": "cd8d0995e5cf4f6c8623e9dc45a71f242a75014b388be8da9cec438d87067fc0",
+    "focused-requests.json.gz": "76d02752801bb3fe8ae327437ba33b88eac6bfb880464cc478c4bc7998249fed"
+  }
+}

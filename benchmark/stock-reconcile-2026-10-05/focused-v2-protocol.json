@@ -1,0 +1,12 @@
+{
+  "registeredBeforeExecution": true,
+  "n": 3,
+  "model": "gpt-5.6-luna",
+  "scope": "Adaptive diagnostic: original goal, only c4 and c6 as review scope, complete unchanged test file, recorded npm-test success and recorded output readbacks. Same combined-arm system prompt. Removes the child success narrative and unrelated context; this is not an isolated single-factor comparison.",
+  "expected": {
+    "c4": false,
+    "c6": false
+  },
+  "interpretation": "Inspect reasons for missing conflicting-duplicate assertion and missing audit rerun comparison; do not count whole-result refusal as both criteria correctly judged. This does not establish every implementation defect or a production pipeline improvement.",
+  "revision": "v2: explicitly require the Verdict envelope. V1 first call correctly identified both missing assertions but omitted approved, so production parseVerdict rejected it; preserve that response as a parsing failure, never count it as an accepted verdict."
+}

@@ -1,0 +1,11 @@
+{
+  "registeredBeforeExecution": true,
+  "model": "gpt-5.6-terra",
+  "requests": "Exact combined-arm requests from the ablation, changing only requested model",
+  "n": 9,
+  "rootRepeats": 3,
+  "controls": 6,
+  "success": "Refuse root for concrete missing conflicting-duplicate assertions and preserve correct control decisions. Report each criterion independently.",
+  "scope": "Adaptive follow-up after observing combined-arm instability. A small local experiment, not a production model change or a held-out reliability claim.",
+  "execution": "Sequential, only after the 18-call ablation finishes."
+}
