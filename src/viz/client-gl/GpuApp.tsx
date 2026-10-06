@@ -786,6 +786,16 @@ function GpuAppContent({
       void stopPreview();
       return;
     }
+    if (id === 'runs.projects.all') {
+      store.selectProject(null);
+      store.setView('projects');
+      return;
+    }
+    if (id.startsWith('runs.project.open.')) {
+      store.selectProject(id.slice('runs.project.open.'.length));
+      store.setView('projects');
+      return;
+    }
     if (id === 'project.all') {
       store.selectProject(null);
       return;

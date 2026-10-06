@@ -293,6 +293,51 @@ export function runsPickerControlLayout(width: number): {
 }
 
 /**
+ * The Runs title row. A project run reads `All projects › <project> › <run>`,
+ * the first two links; the run's segment is its short title, falling back to
+ * the goal until the run is named. Ancestors are fitted to a share of the row
+ * so the run's own name always keeps room. An operator run has no project to
+ * return to and keeps its muted label.
+ */
+function drawRunsBreadcrumb(
+  ctx: RendererCtx,
+  snapshot: GpuRenderSnapshot,
+  entry: GpuRenderSnapshot['data']['runs'][number] | undefined,
+  x: number,
+  y: number,
+  width: number
+): void {
+  const titleStyle = { size: RUNS_PROJECT_TITLE_SIZE, weight: '700' } as const;
+  const projectId = entry?.projectId;
+  const projectName = entry?.projectName;
+  if (!projectId || !projectName) {
+    ctx.text(ctx.root, ctx.fitText(projectName ?? snapshot.t('runs.project.operator'), width, titleStyle),
+      x, y, { ...titleStyle, color: projectName ? GPU_COLORS.text : GPU_COLORS.muted, singleLine: true });
+    return;
+  }
+  const linkStyle = { ...titleStyle, color: GPU_COLORS.primary } as const;
+  const separator = ' › ';
+  const separatorWidth = ctx.measureText(separator, titleStyle);
+  const crumbs = [
+    { id: 'runs.projects.all', label: snapshot.t('projects.all'), share: 0.25 },
+    { id: `runs.project.open.${projectId}`, label: projectName, share: 0.3 },
+  ];
+  let cursor = x;
+  for (const crumb of crumbs) {
+    const label = ctx.fitText(crumb.label, Math.max(0, width * crumb.share), linkStyle);
+    const labelWidth = ctx.measureText(label, linkStyle);
+    ctx.text(ctx.root, label, cursor, y, { ...linkStyle, singleLine: true });
+    ctx.linkRegion(ctx.root, crumb.id, crumb.label, cursor, y - 4, labelWidth, 28, snapshot.onActivate);
+    cursor += labelWidth;
+    ctx.text(ctx.root, separator, cursor, y, { ...titleStyle, color: GPU_COLORS.muted });
+    cursor += separatorWidth;
+  }
+  const runTitle = (entry.title ?? entry.goal ?? entry.label).replace(/\s+/g, ' ');
+  ctx.text(ctx.root, ctx.fitText(runTitle, Math.max(0, x + width - cursor), titleStyle),
+    cursor, y, { ...titleStyle, singleLine: true });
+}
+
+/**
  * Runs view: causal branch timeline on the left, summary + event/atom detail
  * on the right. Extracted from GpuRenderer; the timeline keeps its bespoke
  * viewport math (windowed rows over `scrollMax.runs`) and its own list mask —
@@ -354,23 +399,10 @@ export function drawRuns(
   // WHERE this run lives. The trace itself does not carry its project — the
   // INDEX entry does — so it is read from the same list the selector is built
   // from, by the id the selector selected.
-  const project = snapshot.data.runs.find((entry) => entry.id === run.id)?.projectName;
-  ctx.text(
-    ctx.root,
-    ctx.fitText(
-      project ?? snapshot.t('runs.project.operator'),
-      leftWidth - 28,
-      { size: RUNS_PROJECT_TITLE_SIZE, weight: '700' }
-    ),
-    leftX + 14,
-    top + RUNS_PROJECT_TITLE_TOP,
-    {
-      size: RUNS_PROJECT_TITLE_SIZE,
-      weight: '700',
-      color: project ? GPU_COLORS.text : GPU_COLORS.muted,
-      singleLine: true,
-    }
-  );
+  // A project run is titled by its breadcrumb — All projects › project › run —
+  // the Projects view's own “All projects ›” trail carried one level deeper.
+  const indexEntry = snapshot.data.runs.find((entry) => entry.id === run.id);
+  drawRunsBreadcrumb(ctx, snapshot, indexEntry, leftX + 14, top + RUNS_PROJECT_TITLE_TOP, leftWidth - 28);
   // The native selector now owns the title row inside this panel. Drawing the
   // same run title under it would duplicate the selected value; the subtitle
   // carries what that title cannot: when it ran.
