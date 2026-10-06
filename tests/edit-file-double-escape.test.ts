@@ -196,3 +196,47 @@ describe('the double-escape message never guesses replacement bytes', () => {
     await sandbox.cleanup();
   });
 });
+
+describe('edit_file recovers a provable literal rename', () => {
+  it('handles the production NDJSON edit while preserving JavaScript source escapes', async () => {
+    const source = String.raw`run(['--keys', 'ssn, Internal '], '  {"SSN":"123","internal":{"Password":"still-visible"} }  \n\n'); assert.equal(result.status, 0); assert.equal(result.stdout, '{"SSN":"[REDACTED]","internal":{"Password":"still-visible"}}\n');`;
+    const sandbox = workspace({ 'test.js': `before\n${source}\nafter\n` });
+    const oldString = source.replaceAll('\\', '\\\\');
+    const newString = oldString.replaceAll('internal', 'nested');
+    const result = await editTool(sandbox).execute({ path: 'test.js', old_string: oldString, new_string: newString });
+    expect(result).toMatchObject({ ok: true, replacements: 1, recoveredFromDoubleEscape: true });
+    expect(readFileSync(sandbox.resolve('test.js'), 'utf8')).toBe(`before\n${source.replaceAll('internal', 'nested')}\nafter\n`);
+    await sandbox.cleanup();
+  });
+
+  it('preserves mixed real newlines and literal source escapes', async () => {
+    const source = String.raw`const target = /\n/;` + '\n' + String.raw`const label = "target";`;
+    const sandbox = workspace({ 'index.js': source });
+    const oldString = source.replaceAll('\\', '\\\\').replaceAll('\n', '\\n');
+    const result = await editTool(sandbox).execute({
+      path: 'index.js', old_string: oldString, new_string: oldString.replaceAll('target', 'source'),
+    });
+    expect(result).toMatchObject({ recoveredFromDoubleEscape: true });
+    expect(readFileSync(sandbox.resolve('index.js'), 'utf8')).toBe(source.replaceAll('target', 'source'));
+    await sandbox.cleanup();
+  });
+
+  it('refuses ambiguity and replacement escape changes without touching the file', async () => {
+    const source = String.raw`const target = "\n";`;
+    const oldString = source.replaceAll('\\', '\\\\');
+    const sandbox = workspace({ 'index.js': `${source}\n${source}\n` });
+    await expect(editTool(sandbox).execute({
+      path: 'index.js', old_string: oldString, new_string: oldString.replaceAll('target', 'source'),
+    })).rejects.toThrow();
+    expect(readFileSync(sandbox.resolve('index.js'), 'utf8')).toBe(`${source}\n${source}\n`);
+    await sandbox.cleanup();
+
+    const single = workspace({ 'index.js': source });
+    await expect(editTool(single).execute({
+      path: 'index.js', old_string: oldString,
+      new_string: oldString.replace('target', 'source').replace(String.raw`\\n`, String.raw`\t`),
+    })).rejects.toThrow(/does not establish how new_string/);
+    expect(readFileSync(single.resolve('index.js'), 'utf8')).toBe(source);
+    await single.cleanup();
+  });
+});

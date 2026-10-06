@@ -474,6 +474,18 @@ export function editFileTool(opts: BuiltinToolOptions): BuiltinTool {
         // act on from memory is weaker than the bytes it needs.
         const unescaped = unescapeJsonish(oldString);
         if (unescaped !== '' && unescaped !== oldString && content.split(unescaped).length - 1 === 1) {
+          // Recover only a literal identifier rename that is identical in
+          // both supplied strings. Derive the rename from the raw arguments,
+          // then apply it to the actual file span. Never decode new_string:
+          // source escapes elsewhere in the span must retain their file bytes.
+          const recovered = recoverLiteralTokenEdit(oldString, newString, unescaped);
+          if (recovered !== null) {
+            const next = content.replace(unescaped, () => recovered);
+            writeFileSync(abs, next, 'utf8');
+            markSeen(opts.sandbox, abs);
+            opts.logger?.info(`[tool:edit_file] ${path} (1 recovered literal-token replacement, ${Buffer.byteLength(next, 'utf8')} bytes)`);
+            return { ok: true, path, replacements: 1, bytes: Buffer.byteLength(next, 'utf8'), recoveredFromDoubleEscape: true };
+          }
           throw new Error(
             `edit_file: old_string not found in "${path}" — you DOUBLE-ESCAPED it. ` +
               `Decoding one extra escape layer in old_string matches exactly one file span. The file may still contain literal backslashes; this does not prove they should become line breaks or quotes. ` +
@@ -770,6 +782,28 @@ export function unescapeJsonish(s: string): string {
   return s.replace(/\\(n|t|r|"|\\)/g, (_m, c: string) =>
     c === 'n' ? '\n' : c === 't' ? '\t' : c === 'r' ? '\r' : c === '"' ? '"' : '\\'
   );
+}
+
+/** A single word rename can be replayed without interpreting replacement escapes. */
+function recoverLiteralTokenEdit(oldString: string, newString: string, actualSpan: string): string | null {
+  if (oldString.length > 4000 || newString.length > 4000 || newString.length === 0) return null;
+  const words = (text: string): string[] => [...new Set(text.match(/\b[A-Za-z_][A-Za-z0-9_]{2,}\b/g) ?? [])];
+  const oldWords = words(oldString);
+  const newWords = words(newString);
+  if (oldWords.length > 50 || newWords.length > 50) return null;
+  let recovered: string | null = null;
+  for (const before of oldWords) {
+    const token = new RegExp(`(?<![A-Za-z0-9_])${before}(?![A-Za-z0-9_])`, 'g');
+    const count = [...oldString.matchAll(token)].length;
+    if (count === 0 || [...actualSpan.matchAll(token)].length !== count) continue;
+    for (const after of newWords) {
+      if (before === after || oldString.replace(token, () => after) !== newString) continue;
+      const candidate = actualSpan.replace(token, () => after);
+      if (recovered !== null) return null;
+      recovered = candidate;
+    }
+  }
+  return recovered;
 }
 
 export const DEFAULT_SHELL_ALLOWLIST: readonly string[] = [
