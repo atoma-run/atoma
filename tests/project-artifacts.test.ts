@@ -70,6 +70,25 @@ describe('project artifact manifest construction', () => {
     expect(() => revalidateArtifactManifest(input)).toThrow();
   });
 
+  it('inventories a text delivery larger than the publication file limit', () => {
+    for (let index = 0; index < 257; index++) {
+      writeFileSync(join(root, `source-${index}.txt`), 'source');
+    }
+    expectPolicyError(() => buildWorkspaceArtifactManifest({ workspaceRoot: root }), 'limit');
+    const built = buildWorkspaceArtifactManifest({ workspaceRoot: root, delivery: 'text' });
+    expect(built.manifest.files).toHaveLength(257);
+    expectPolicyError(() => buildWorkspaceArtifactManifest({
+      workspaceRoot: root, delivery: 'text', limits: { maxTotalBytes: 1 },
+    }), 'limit');
+    expect(() => revalidateArtifactManifest({
+      workspaceRoot: root, manifest: built.manifest, expectedHash: built.hash,
+    })).not.toThrow();
+    writeFileSync(join(root, 'new-source.txt'), 'later');
+    expectPolicyError(() => revalidateArtifactManifest({
+      workspaceRoot: root, manifest: built.manifest, expectedHash: built.hash,
+    }), 'changed');
+  });
+
   it('publishes only declared regular files with stable hashes, modes and ordering', () => {
     mkdirSync(join(root, 'bin'));
     writeFileSync(join(root, 'README.md'), 'hello\n');

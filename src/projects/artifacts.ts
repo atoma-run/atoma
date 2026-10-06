@@ -42,6 +42,10 @@ export const DEFAULT_ARTIFACT_LIMITS: ArtifactLimits = {
   maxPathChars: 512,
 };
 
+// Text deliveries retain a complete workspace inventory but cannot publish it.
+// A source repository may contain far more files than one publishable delivery.
+const MAX_TEXT_DELIVERY_FILES = 10_000;
+
 export type ArtifactPolicyCode =
   | 'empty'
   | 'path'
@@ -366,7 +370,9 @@ function inventoryWorkspace(input: {
   readonly delivery?: import('../contracts/taskExecution.js').DeliveryKind;
   readonly allowEmpty?: boolean;
 }): BuiltArtifactManifest {
-  const limits = resolvedLimits(input.limits);
+  const limits = resolvedLimits(input.delivery === 'text'
+    ? { maxFiles: MAX_TEXT_DELIVERY_FILES, ...input.limits }
+    : input.limits);
   const root = path.resolve(input.workspaceRoot);
   const rootStat = lstatSync(root);
   if (rootStat.isSymbolicLink() || !rootStat.isDirectory()) {
@@ -411,7 +417,7 @@ function inventoryWorkspace(input: {
     throw new ArtifactPolicyError('empty', 'finished workspace contains no publishable files');
   }
   const inventory = files.length
-    ? buildArtifactManifest({ ...input, declaredPaths: files }).manifest
+    ? buildArtifactManifest({ ...input, declaredPaths: files, limits }).manifest
     : { version: 1, files: [], totalBytes: 0 };
   const manifest = artifactManifestSchema.parse({
     ...inventory, source: 'workspace', ...(input.delivery ? { delivery: input.delivery } : {}),
