@@ -8,6 +8,7 @@ export const APPEARANCE_TO_WHITE_MS = 1_200;
 export const APPEARANCE_FROM_WHITE_MS = 2_100;
 // The solid sheet covers the corners, so the radial texture can stay bounded.
 const FLOOD_DIAGONALS = 1.4;
+const FLOOD_MAX_ALPHA = 0.7;
 
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
@@ -20,12 +21,13 @@ function smoothstep(value: number): number {
 
 export function appearanceTransitionSample(progress: number) {
   const p = clamp01(progress);
+  const whiteAlpha = smoothstep((p - 0.58) / 0.42);
   return {
     surge: smoothstep(p / 0.52),
     spin: Math.sin(Math.PI * p),
     flood: smoothstep((p - 0.2) / 0.8),
-    floodAlpha: smoothstep((p - 0.16) / 0.54),
-    whiteAlpha: smoothstep((p - 0.58) / 0.42),
+    floodAlpha: Math.min(FLOOD_MAX_ALPHA, smoothstep((p - 0.16) / 0.54)) * (1 - whiteAlpha),
+    whiteAlpha,
   };
 }
 
@@ -56,6 +58,7 @@ export function useAppearanceTransition() {
     phaseRef.current = 'charge';
     setPhase('charge');
     let startedAt: number | null = null;
+    let whiteOriginPinned = false;
     const step = (now: number) => {
       if (startedAt === null) startedAt = now;
       const progress = clamp01((now - startedAt) / APPEARANCE_TO_WHITE_MS);
@@ -77,13 +80,18 @@ export function useAppearanceTransition() {
         flood.style.transform =
           `translate3d(${x - side / 2}px, ${y - side / 2}px, 0) scale(${sample.flood})`;
         white.style.opacity = String(sample.whiteAlpha);
+        if (!whiteOriginPinned || progress === 1) {
+          white.style.setProperty('--appearance-origin-x', `${x}px`);
+          white.style.setProperty('--appearance-origin-y', `${y}px`);
+          whiteOriginPinned = true;
+        }
       }
       if (progress < 1) {
         frameRef.current = requestAnimationFrame(step);
         return;
       }
       frameRef.current = 0;
-      // Only now is every pixel white; the new palette appears beneath it.
+      // The screen is white apart from the crystal window; switch the palette beneath it.
       const nextTheme = targetRef.current;
       if (nextTheme !== null) useGpuStore.getState().commitAppearanceTheme(nextTheme);
       if (flood) flood.style.opacity = '0';
@@ -93,7 +101,6 @@ export function useAppearanceTransition() {
         colour.style.setProperty('--appearance-origin-x', `${bead?.clientX ?? window.innerWidth / 2}px`);
         colour.style.setProperty('--appearance-origin-y', `${bead?.clientY ?? window.innerHeight / 2}px`);
       }
-      setMarkCoreSurge(0);
       setMarkSpinBoost(0);
       phaseRef.current = 'reveal';
       setPhase('reveal');
@@ -101,6 +108,7 @@ export function useAppearanceTransition() {
       const revealStep = (revealNow: number) => {
         const revealProgress = clamp01((revealNow - revealStartedAt) / APPEARANCE_FROM_WHITE_MS);
         const reveal = appearanceRevealSample(revealProgress);
+        setMarkCoreSurge(1 - smoothstep(revealProgress / 0.65));
         if (whiteRef.current) whiteRef.current.style.opacity = String(reveal.whiteAlpha);
         if (colourRef.current) colourRef.current.style.opacity = String(reveal.colourAlpha);
         if (revealProgress < 1) {

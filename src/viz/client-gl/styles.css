@@ -235,9 +235,9 @@ button, input, textarea, select { font: inherit; }
 }
 
 /* The theme change grows out of the crystal's actual bead position. The solid
-   sheet covers the flood's feathered corners; a pre-painted colour gradient
-   then bridges white and the new palette. Frames change only transform or
-   opacity, never the gradient itself. */
+   sheet covers the flood's feathered corners but leaves the crystal faintly
+   visible; a pre-painted colour gradient then bridges white and the new
+   palette. Frames change only transform or opacity, never the gradients. */
 .gpu-appearance-veil {
   --appearance-reveal-near: rgba(179, 215, 255, .9);
   --appearance-reveal-far: rgba(73, 125, 203, .55);
@@ -281,7 +281,7 @@ button, input, textarea, select { font: inherit; }
   will-change: opacity;
   background: radial-gradient(
     circle farthest-corner at var(--appearance-origin-x, 50%) var(--appearance-origin-y, 50%),
-    rgba(255, 255, 255, .98) 0%,
+    rgba(255, 255, 255, .5) 0%,
     var(--appearance-reveal-near) 32%,
     var(--appearance-reveal-far) 72%,
     transparent 100%
@@ -290,7 +290,12 @@ button, input, textarea, select { font: inherit; }
 .gpu-appearance-veil__white {
   position: absolute;
   inset: 0;
-  background: #fff;
+  background: radial-gradient(
+    circle 52px at var(--appearance-origin-x, 50%) var(--appearance-origin-y, 50%),
+    rgba(255, 255, 255, .58) 0%,
+    rgba(255, 255, 255, .72) 55%,
+    #fff 100%
+  );
   opacity: 0;
   will-change: opacity;
 }

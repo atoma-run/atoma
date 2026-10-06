@@ -12,7 +12,7 @@ import {
   appearanceTransitionSample,
   useAppearanceTransition,
 } from '../src/viz/client-gl/appearance-transition.js';
-import { markCoreSurge, setMarkCoreSurge } from '../src/viz/client-gl/renderer/mark-surge.js';
+import { markCoreSurge, setMarkCoreSurge, writeMarkCoreScreen } from '../src/viz/client-gl/renderer/mark-surge.js';
 import { setMarkSpinBoost } from '../src/viz/client-gl/renderer/mark-clock.js';
 import { setReducedMotionOverrideForTests } from '../src/viz/client-gl/renderer/motion.js';
 import { useGpuStore } from '../src/viz/client-gl/store.js';
@@ -37,6 +37,7 @@ describe('appearance transition', () => {
       return id;
     });
     vi.stubGlobal('cancelAnimationFrame', (id: number) => frames.delete(id));
+    writeMarkCoreScreen({ clientX: 64, clientY: 40, radiusPx: 8 });
     localStorage.clear();
     useGpuStore.setState({
       entered: true,
@@ -51,6 +52,7 @@ describe('appearance transition', () => {
     cleanup();
     setReducedMotionOverrideForTests(null);
     setMarkCoreSurge(0);
+    writeMarkCoreScreen(null);
     setMarkSpinBoost(0);
     vi.unstubAllGlobals();
     vi.useRealTimers();
@@ -74,6 +76,8 @@ describe('appearance transition', () => {
     expect(container.querySelector('.gpu-appearance-veil')).toHaveAttribute('data-phase', 'charge');
 
     frame(0);
+    expect(container.querySelector<HTMLElement>('.gpu-appearance-veil__white')?.style.getPropertyValue('--appearance-origin-x')).toBe('64px');
+    expect(container.querySelector<HTMLElement>('.gpu-appearance-veil__white')?.style.getPropertyValue('--appearance-origin-y')).toBe('40px');
     frame(APPEARANCE_TO_WHITE_MS / 2);
     expect(markCoreSurge()).toBeGreaterThan(0.5);
     expect(useGpuStore.getState().appearanceTheme).toBe('nocturne');
@@ -81,9 +85,10 @@ describe('appearance transition', () => {
     expect(container.querySelector('.gpu-appearance-veil__white')).toHaveStyle({ opacity: '1' });
     expect(container.querySelector('.gpu-appearance-veil')).toHaveAttribute('data-phase', 'reveal');
     expect(container.querySelector('.gpu-appearance-veil')).toHaveAttribute('data-theme', 'amethyst');
+    expect(container.querySelector<HTMLElement>('.gpu-appearance-veil__colour')?.style.getPropertyValue('--appearance-origin-x')).toBe('64px');
     expect(useGpuStore.getState().appearanceTheme).toBe('amethyst');
     expect(localStorage.getItem('atoma.viz.theme')).toBe('amethyst');
-    expect(markCoreSurge()).toBe(0);
+    expect(markCoreSurge()).toBe(1);
 
     frame(APPEARANCE_TO_WHITE_MS + APPEARANCE_FROM_WHITE_MS / 2);
     const white = container.querySelector<HTMLElement>('.gpu-appearance-veil__white');
@@ -91,6 +96,8 @@ describe('appearance transition', () => {
     expect(Number(white?.style.opacity)).toBeGreaterThan(0);
     expect(Number(white?.style.opacity)).toBeLessThan(1);
     expect(Number(colour?.style.opacity)).toBeGreaterThan(0.9);
+    expect(markCoreSurge()).toBeGreaterThan(0);
+    expect(markCoreSurge()).toBeLessThan(1);
     expect(useGpuStore.getState().appearanceTransitionTarget).toBe('amethyst');
 
     frame(APPEARANCE_TO_WHITE_MS + APPEARANCE_FROM_WHITE_MS * 0.8);
@@ -101,6 +108,7 @@ describe('appearance transition', () => {
     frame(APPEARANCE_TO_WHITE_MS + APPEARANCE_FROM_WHITE_MS);
     expect(container.querySelector('.gpu-appearance-veil')).toBeNull();
     expect(useGpuStore.getState().appearanceTransitionTarget).toBeNull();
+    expect(markCoreSurge()).toBe(0);
   });
 
   it('jumps directly to the selected theme under reduced motion', () => {
@@ -122,13 +130,14 @@ describe('appearance transition', () => {
     expect(useGpuStore.getState().appearanceTransitionTarget).toBeNull();
   });
 
-  it('lets the crystal lead and reaches a solid white final frame', () => {
+  it('keeps the flood translucent while the crystal lights the white frame', () => {
     expect(APPEARANCE_TO_WHITE_MS).toBeLessThan(APPEARANCE_FROM_WHITE_MS * 0.6);
     expect(appearanceTransitionSample(0)).toMatchObject({ surge: 0, flood: 0, whiteAlpha: 0 });
     const middle = appearanceTransitionSample(0.5);
     expect(middle.surge).toBeGreaterThan(middle.flood);
     expect(middle.spin).toBeCloseTo(1);
-    expect(appearanceTransitionSample(1)).toMatchObject({ flood: 1, whiteAlpha: 1 });
+    expect(appearanceTransitionSample(0.6).floodAlpha).toBeLessThanOrEqual(0.7);
+    expect(appearanceTransitionSample(1)).toMatchObject({ flood: 1, floodAlpha: 0, whiteAlpha: 1 });
     expect(appearanceTransitionSample(1).spin).toBeCloseTo(0);
     expect(appearanceRevealSample(0)).toEqual({ whiteAlpha: 1, colourAlpha: 0 });
     expect(appearanceRevealSample(0.5).whiteAlpha).toBeLessThan(0.2);
