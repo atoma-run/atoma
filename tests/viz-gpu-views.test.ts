@@ -635,6 +635,7 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     journalFamily: 'all',
     selectedDocsTheme: 'quick',
     appearanceTheme: 'nocturne',
+    appearanceTransitionTarget: null,
     themeDropdownOpen: false,
     scrollY: { projects: 0, runs: 0, registry: 0, skills: 0, burnin: 0, docs: 0, admin: 0, journal: 0, ledger: 0, sentinel: 0, announce: 0, settings: 0 },
     entered: true,
@@ -656,6 +657,8 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     closeAccountMenu: noop,
     toggleThemeDropdown: noop,
     setAppearanceTheme: noop,
+    commitAppearanceTheme: noop,
+    finishAppearanceTransition: noop,
     toggleLocaleMenu: noop,
     closeLocaleMenu: noop,
     toggleNotificationsMenu: noop,
@@ -5597,6 +5600,30 @@ describe('drawRuns — run status and timeline bookends', () => {
       HEIGHT
     );
     expect(textsOf(failed)).toContain(t('runs.flag.failed'));
+  });
+
+  it('centres the measured status label in its chip at wide and narrow widths', () => {
+    for (const width of [1400, 528]) {
+      for (const label of ['◐ incomplete', '◐ WWWWWWWWWWWWWWWWWWWWWWWWW']) {
+        const ctx = createRecordingCtx();
+        const snapshot = makeSnapshot({}, { run: makeRun([makeLlmEvent('a')]) });
+        snapshot.t = (key, vars) => key === 'runs.flag.delivered' ? label : t(key, vars);
+        drawRuns(ctx, snapshot, width, HEIGHT);
+
+        const frame = ctx.panels[0]!;
+        const status = ctx.texts.find((entry) => entry.value === label)!;
+        const statusWidth = Math.min(
+          RUN_PICKER_STATUS_RESERVE,
+          frame.width - RUN_PICKER_HORIZONTAL_INSET * 2,
+          Math.max(64, Math.ceil(ctx.measureText(label, { size: 10, weight: '700' })) + 16)
+        );
+        expect(status.x).toBe(frame.x + frame.width - 14 - statusWidth / 2);
+        expect(status.node.anchor).toMatchObject({ x: 0.5, y: 0.5 });
+        expect(status.options).toMatchObject({ width: statusWidth - 16, singleLine: true });
+        const picker = runsPickerControlLayout(width);
+        expect(status.x - statusWidth / 2).toBeGreaterThanOrEqual(picker.x + picker.width);
+      }
+    }
   });
 
   it('frames the events with a start and an end step, end first', () => {

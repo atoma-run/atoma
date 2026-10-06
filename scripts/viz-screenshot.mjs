@@ -642,13 +642,17 @@ try {
 
     // Fresh visitor: clear the persisted arrival flag so behaviour does not
     // depend on what an earlier session on this origin did.
-    await page.evaluateOnNewDocument(() => {
+    await page.evaluateOnNewDocument((hidePush) => {
       try {
         localStorage.removeItem('atoma.viz.entered');
+        if (hidePush) {
+          localStorage.setItem('atoma.viz.push.dismissed', 'screenshot');
+          sessionStorage.setItem('atoma.viz.push.dismissed', 'screenshot');
+        }
       } catch {
         // Storage is optional; the gate simply shows.
       }
-    });
+    }, view === 'Settings');
     await page.goto(`${stack.url}/?atomaDiag=1${tuning ? '&atomaTune=1' : ''}`, { waitUntil: 'load' });
     await page.waitForSelector('.gpu-ui-host[data-gpu-backend]', { timeout: READY_TIMEOUT_MS })
       .catch(async (error) => {

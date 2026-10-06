@@ -397,24 +397,27 @@ export function drawRuns(
   const status = runStatus(run);
   const statusColor = RUN_STATUS_COLOR[status];
   const statusLabel = snapshot.t(`runs.flag.${status}`);
-  const statusWidth = Math.max(64, statusLabel.length * 6.4 + 16);
-  const statusChip = new Graphics();
-  statusChip.roundRect(
-    leftX + leftWidth - statusWidth - 14,
-    top + 8 + RUNS_PROJECT_TITLE_HEIGHT,
-    statusWidth,
-    20,
-    6
+  const statusTextStyle = { size: 10, weight: '700' } as const;
+  const statusWidth = Math.min(
+    RUN_PICKER_STATUS_RESERVE,
+    leftWidth - RUN_PICKER_HORIZONTAL_INSET * 2,
+    Math.max(64, Math.ceil(ctx.measureText(statusLabel, statusTextStyle)) + 16)
   );
+  const statusX = leftX + leftWidth - statusWidth - 14;
+  const statusY = top + 8 + RUNS_PROJECT_TITLE_HEIGHT;
+  const statusChip = new Graphics();
+  statusChip.roundRect(statusX, statusY, statusWidth, 20, 6);
   statusChip.fill({ color: statusColor, alpha: 0.16 });
   statusChip.stroke({ color: statusColor, width: 1, alpha: 0.8 });
   statusChip.eventMode = 'none';
   ctx.root.addChild(statusChip);
-  ctx.text(ctx.root, statusLabel, leftX + leftWidth - statusWidth - 6, top + 12 + RUNS_PROJECT_TITLE_HEIGHT, {
-    size: 10,
+  const statusText = ctx.text(ctx.root, statusLabel, statusX + statusWidth / 2, statusY + 10, {
+    ...statusTextStyle,
     color: statusColor,
-    weight: '700',
+    width: statusWidth - 16,
+    singleLine: true,
   });
+  statusText.anchor.set(0.5, 0.5);
 
   const inFlight = inFlightLlmEvents(run);
   const atoms = buildAtomMap(run);
@@ -1952,8 +1955,6 @@ const DETAIL_VALUE_SIZE = 10;
 /** Air between the label BLOCK and the value. */
 const DETAIL_VALUE_GAP = 6;
 const DETAIL_BADGE_HEIGHT = 24;
-/** The value's inset inside its pill. */
-const DETAIL_BADGE_TEXT_INSET = 10;
 const DETAIL_BADGE_BOTTOM_PAD = 10;
 const DETAIL_TEXT_BOTTOM_PAD = 11;
 const DETAIL_CARD_MIN_HEIGHT = 58;
@@ -2046,11 +2047,11 @@ function drawDetailFieldContent(
     badge.fill({ color: accent, alpha: node.tone === 'neutral' ? 0.08 : 0.18 });
     badge.stroke({ color: accent, width: 1, alpha: 0.75 });
     parent.addChild(badge);
-    ctx.text(
+    const badgeText = ctx.text(
       parent,
       node.value,
-      cardX + DETAIL_CARD_PAD + DETAIL_BADGE_TEXT_INSET,
-      top + valueTop + 5,
+      cardX + DETAIL_CARD_PAD + badgeWidth / 2,
+      top + valueTop + DETAIL_BADGE_HEIGHT / 2,
       {
         size: DETAIL_VALUE_SIZE,
         weight: '700',
@@ -2060,6 +2061,7 @@ function drawDetailFieldContent(
         singleLine: true,
       }
     );
+    badgeText.anchor.set(0.5, 0.5);
     return valueTop + DETAIL_BADGE_HEIGHT + DETAIL_BADGE_BOTTOM_PAD;
   }
   const valueText = ctx.text(
