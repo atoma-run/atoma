@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { RUN_ACTORS } from '../contracts/runActors.js';
 import {
   JEV_THRESHOLDS,
   NEW_RECIPE,
@@ -141,7 +142,7 @@ export function decisionsOfTrace(trace: unknown, meta: { readonly runId: string;
     if (typeof event.id !== 'string' || typeof event.userContent !== 'string' || typeof event.response !== 'string') continue;
     const name = event.actor?.name;
     const tier = event.actor?.tier;
-    if (typeof name !== 'string' || typeof tier !== 'number' || name === 'run-root') continue;
+    if (typeof name !== 'string' || typeof tier !== 'number' || name === RUN_ACTORS.root.name) continue;
     decisions.push({
       runId: meta.runId,
       orgId: meta.orgId,

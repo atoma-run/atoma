@@ -1,6 +1,7 @@
 import type { RegistryType, RunIndexEntry, VizEvent, VizRun } from './types.js';
 import { taxonomyForTier } from '../../core/taxonomy.js';
 import { isLanded } from '../../contracts/runLanding.js';
+import { runActorKey, type RunActorKey } from '../../contracts/runActors.js';
 
 /**
  * The live predicates are DEFINED in `../liveness.ts` and re-exported here:
@@ -382,6 +383,13 @@ export interface AtomView {
   snapshot: RegistryType;
   origin: 'existing' | 'patched' | 'branched' | 'created';
   events: VizEvent[];
+  /**
+   * Set when this trace holds no registry snapshot for the name, so `snapshot`
+   * is a placeholder carrying only name and tier: `run-actor` for a call the
+   * run makes on its own behalf (`RUN_ACTORS`, never an agent type),
+   * `unrecorded` for an agent type the trace names but never snapshotted.
+   */
+  stub?: { kind: 'run-actor'; key: RunActorKey } | { kind: 'unrecorded' };
 }
 
 function rememberAtomName(names: Set<string>, name?: string) {
@@ -417,7 +425,9 @@ function atomRefTier(run: VizRun, name: string): number {
 }
 
 function stubAtomView(name: string, tier: number): AtomView {
+  const key = runActorKey(name);
   return {
+    stub: key ? { kind: 'run-actor', key } : { kind: 'unrecorded' },
     snapshot: {
       tier,
       ordinal: 0,
@@ -435,6 +445,36 @@ function stubAtomView(name: string, tier: number): AtomView {
     origin: 'existing',
     events: [],
   };
+}
+
+export interface RunActorActivity {
+  calls: number;
+  costUsd: number;
+  /** Served model when the provider reported one, else the requested pin. */
+  models: { model: string; calls: number }[];
+  /** Root acceptances this actor signed, in trace order. */
+  verdicts: { attempt: number; approved: boolean }[];
+}
+
+/** What one run actor did in this run — read from its own events, nothing inferred. */
+export function runActorActivity(run: VizRun, name: string): RunActorActivity {
+  const models = new Map<string, number>();
+  let calls = 0;
+  let costUsd = 0;
+  const verdicts: RunActorActivity['verdicts'] = [];
+  for (const event of run.events) {
+    if (event.kind === 'llm' && event.actor?.name === name) {
+      calls += 1;
+      costUsd += event.costUsd ?? 0;
+      const model = event.servedModel ?? event.model;
+      if (model) models.set(model, (models.get(model) ?? 0) + 1);
+    }
+    if (event.kind === 'acceptance' && event.acceptor?.name === name &&
+      typeof event.attempt === 'number' && typeof event.approved === 'boolean') {
+      verdicts.push({ attempt: event.attempt, approved: event.approved });
+    }
+  }
+  return { calls, costUsd, models: [...models].map(([model, count]) => ({ model, calls: count })), verdicts };
 }
 
 export function buildAtomMap(run: VizRun): Map<string, AtomView> {
