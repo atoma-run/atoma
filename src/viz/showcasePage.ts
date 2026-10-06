@@ -129,8 +129,6 @@ nav.top a{color:#c9d4e6;text-decoration:none;font-size:15px;padding:12px 14px;mi
 .mark{position:relative;display:inline-block;flex:none}
 .mark>.mark-canvas{position:absolute;inset:0;width:100%!important;height:100%!important}
 .mark.mark-live>:not(.mark-canvas){visibility:hidden}
-.marks-pending .mark:not(.mark-live):not(.mark-failed)>*{visibility:hidden;animation:mark-reveal 0s 4s forwards}
-@keyframes mark-reveal{to{visibility:visible}}
 .mark-receiver-live>.mark-canvas{position:absolute;left:0;top:0;z-index:0;pointer-events:none}
 .mark-receiver-live .stage{background:none}
 main.story{position:relative}main.story>.wrap{position:relative;z-index:1}
@@ -247,9 +245,8 @@ ${canonical ? `<link rel="canonical" href="${esc(canonical)}">` : ''}
 ${input.home && input.origin ? homeSocialMeta(input.origin, { title: input.title, description: input.description }).join('\n') : socialFallback(input.title, input.description, canonical)}
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <style>${CSS}</style>
-${input.assets.markScript ? '<noscript><style>.marks-pending .mark>*{visibility:visible!important}</style></noscript>' : ''}
 </head>
-<body${input.assets.markScript ? ' class="marks-pending"' : ''}>
+<body>
 ${input.body}
 ${input.script ? `<script>${FILTER_SCRIPT}</script>` : ''}
 ${input.assets.markScript ? `<script type="module" src="${esc(input.assets.markScript)}"></script>` : ''}
@@ -305,7 +302,7 @@ export function renderShowcaseIndex(
     ),
   ].join('');
   const body = `${header()}
-<section class="hero" data-atoma-receiver>
+<main><section class="hero" data-atoma-receiver>
 <div class="wrap in"><div>
 <h1 class="display">Watch a request turn into finished work.</h1>
 <p class="lead">A drawing, a sound, a report, a data study, a proof, a piece of software. Atoma takes on requests and works on them in the open. Only work that was delivered and passed its checks is shown here.</p>
@@ -315,7 +312,7 @@ export function renderShowcaseIndex(
 <div class="feedhead"><div><h2>Finished and checked</h2><p>Every piece of work here was delivered. Some grew over several requests: each step is shown, and each one kept what already worked.</p></div>
 <div class="chips" id="filters" role="group" aria-label="Filter by kind of work" hidden>${chips}</div></div>
 ${entries.length ? `<div class="cards">${entries.map(card).join('')}</div>` : '<div class="empty">Nothing to show yet. Finished work appears here as it is delivered.</div>'}
-</div></section>
+</div></section></main>
 ${closing()}`;
   return page({
     // Plain words, like the page: the product's technical SEO line names

@@ -307,26 +307,23 @@ describe('what a visitor can read', () => {
     }
     // Exactly one section per page receives the lit crystal's light and caustics.
     for (const html of pages) expect(html.match(/data-atoma-receiver/g)).toHaveLength(1);
-    expect(pages[0]).toContain('<section class="hero" data-atoma-receiver>');
+    expect(pages[0]).toContain('<main><section class="hero" data-atoma-receiver>');
     expect(pages[1]).toContain('<main class="story" data-atoma-receiver>');
     expect(SHOWCASE_SECURITY_HEADERS['content-security-policy']).toMatch(/script-src 'self' 'sha256-/);
     // Without a built bundle (a source checkout, these tests) there is no module to load.
     expect(renderShowcaseIndex([], null)).not.toContain('type="module"');
   });
 
-  it('shows no placeholder while the real crystal loads, and never leaves an empty host', () => {
+  it('shows the static crystal immediately while the real crystal loads', () => {
     const assets = { markScript: '/showcase-assets/atoma-mark.js?v=0123456789abcdef' };
     const loading = renderShowcaseIndex([], null, assets);
-    // The static crystal is hidden while the module loads...
-    expect(loading).toContain('<body class="marks-pending">');
-    expect(loading).toContain('.marks-pending .mark:not(.mark-live):not(.mark-failed)>*{visibility:hidden;');
-    // ...and comes back if it fails, never loads (a delayed reveal), or JavaScript is off.
-    expect(loading).toContain('animation:mark-reveal 0s 4s forwards');
-    expect(loading).toContain('<noscript><style>.marks-pending .mark>*{visibility:visible!important}</style></noscript>');
-    // Without a module to wait for, the static crystal is simply shown.
+    expect(loading).toContain('<body>');
+    expect(loading).not.toContain('marks-pending');
+    expect(loading).toContain('.mark.mark-live>:not(.mark-canvas){visibility:hidden}');
+    // The fallback stays visible if the module never loads or JavaScript is off.
     const plain = renderShowcaseIndex([], null);
     expect(plain).toContain('<body>');
-    expect(plain).not.toContain('<noscript>');
+    expect(plain).not.toContain('type="module"');
   });
 
   it('writes clean head metadata on every page, and nothing stray before the header', () => {

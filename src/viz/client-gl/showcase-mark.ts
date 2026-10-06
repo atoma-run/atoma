@@ -162,11 +162,24 @@ window.addEventListener('blur', () => hidePointerLight());
 
 const hosts = [...document.querySelectorAll<HTMLElement>('[data-atoma-mark]')];
 const lit = hosts.find((host) => host.closest('[data-atoma-receiver]'));
+const observer = 'IntersectionObserver' in window
+  ? new IntersectionObserver((entries, activeObserver) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        activeObserver.unobserve(entry.target);
+        const host = entry.target as HTMLElement;
+        const receiver = host === lit ? host.closest<HTMLElement>('[data-atoma-receiver]') : null;
+        (receiver ? mountLit(host, receiver) : mountPlain(host)).catch(() => {
+          host.classList.add('mark-failed');
+        });
+      }
+    }, { rootMargin: '200px' })
+  : null;
 for (const host of hosts) {
-  const receiver = host === lit ? host.closest<HTMLElement>('[data-atoma-receiver]') : null;
-  (receiver ? mountLit(host, receiver) : mountPlain(host)).catch(() => {
-    // No WebGL, a lost context, a blocked shader: show the static crystal the
-    // page kept hidden while this loaded.
-    host.classList.add('mark-failed');
-  });
+  if (observer) observer.observe(host);
+  else {
+    if (getComputedStyle(host).display === 'none') continue;
+    const receiver = host === lit ? host.closest<HTMLElement>('[data-atoma-receiver]') : null;
+    (receiver ? mountLit(host, receiver) : mountPlain(host)).catch(() => host.classList.add('mark-failed'));
+  }
 }

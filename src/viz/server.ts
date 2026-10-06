@@ -3,6 +3,7 @@ import { openDb, unfoldedRegistryPredicate } from '../registry/db.js';
 import { updateOrgModels } from '../auth/orgModels.js';
 import { createServer, request as httpRequest } from 'node:http';
 import { createHash, randomBytes } from 'node:crypto';
+import { brotliCompressSync, constants as zlibConstants } from 'node:zlib';
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { basename, extname, relative, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -1474,15 +1475,22 @@ const CLIENT_DIR = join(HERE, 'client');
  * own content so a deploy never serves a cached old one. Absent in a source
  * checkout and in tests: the pages then keep their static crystal.
  */
-const SHOWCASE_ASSETS: ShowcaseAssets = (() => {
+const SHOWCASE_MARK: { assets: ShowcaseAssets; brotli: Buffer | null } = (() => {
   const file = join(CLIENT_DIR, 'showcase-assets', 'atoma-mark.js');
   try {
-    const digest = createHash('sha256').update(readFileSync(file)).digest('hex').slice(0, 16);
-    return { markScript: `/showcase-assets/atoma-mark.js?v=${digest}` };
+    const bytes = readFileSync(file);
+    const digest = createHash('sha256').update(bytes).digest('hex').slice(0, 16);
+    return {
+      assets: { markScript: `/showcase-assets/atoma-mark.js?v=${digest}` },
+      brotli: brotliCompressSync(bytes, {
+        params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 5 },
+      }),
+    };
   } catch {
-    return { markScript: null };
+    return { assets: { markScript: null }, brotli: null };
   }
 })();
+const SHOWCASE_ASSETS = SHOWCASE_MARK.assets;
 const UI_HTML_PATH = join(CLIENT_DIR, 'index.html');
 const DEV_UI_URL = (() => {
   const configured = process.env['ATOMA_VIZ_DEV_URL']?.trim();
@@ -1553,6 +1561,15 @@ function staticCacheControl(path: string): string {
     return 'public, max-age=31536000, immutable';
   }
   return 'public, max-age=3600';
+}
+
+function acceptsBrotli(header: string | undefined): boolean {
+  return Boolean(header?.split(',').some((item) => {
+    const [encoding, ...parameters] = item.trim().split(';');
+    if (encoding?.trim() !== 'br') return false;
+    const quality = parameters.find((parameter) => parameter.trim().startsWith('q='));
+    return !quality || Number(quality.trim().slice(2)) > 0;
+  }));
 }
 
 const AUTH_SECURITY_HEADERS = {
@@ -4723,6 +4740,20 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
     existsSync(assetPath) &&
     statSync(assetPath).isFile()
   ) {
+    if (pathname === '/showcase-assets/atoma-mark.js' && SHOWCASE_MARK.brotli) {
+      const versioned = `${pathname}${url.search}` === SHOWCASE_ASSETS.markScript;
+      const compressed = acceptsBrotli(req.headers['accept-encoding']) ? SHOWCASE_MARK.brotli : null;
+      const body = compressed ?? readFileSync(assetPath);
+      res.writeHead(200, {
+        'content-type': assetContentType(assetPath),
+        'content-length': body.length,
+        'cache-control': versioned ? 'public, max-age=31536000, immutable' : 'public, max-age=3600',
+        vary: 'Accept-Encoding',
+        ...(compressed ? { 'content-encoding': 'br' } : {}),
+      });
+      res.end(body);
+      return;
+    }
     send(
       res,
       200,
