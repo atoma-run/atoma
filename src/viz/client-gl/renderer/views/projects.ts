@@ -58,7 +58,7 @@ const PROJECT_INFO_SEPARATOR_BEFORE_GAP = 6;
 const PROJECT_INFO_SEPARATOR_AFTER_GAP = 0;
 const PROJECT_INFO_TEXT_Y = 15;
 const PROJECT_NAME_Y = 7;
-const PROJECT_METADATA_Y = 28;
+const PROJECT_METADATA_Y = 23;
 
 const PROJECT_CREATED_OPTIONS: Intl.DateTimeFormatOptions = { dateStyle: 'medium' };
 
