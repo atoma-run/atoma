@@ -1381,5 +1381,8 @@
   "activity.viewSource": "Voir l’événement source",
   "activity.page": "Page {{page}} sur {{pages}}",
   "activity.newer": "Modifications plus récentes",
-  "activity.older": "Modifications plus anciennes"
+  "activity.older": "Modifications plus anciennes",
+  "projects.showcaseShown": "Dans la vitrine",
+  "projects.showcaseEligible": "Éligible à la vitrine",
+  "projects.showcaseHidden": "Masqué de la vitrine"
 }

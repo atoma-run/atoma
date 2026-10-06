@@ -1381,5 +1381,8 @@
   "activity.viewSource": "查看源事件",
   "activity.page": "第{{page}}页，共{{pages}}页",
   "activity.newer": "较新的编辑",
-  "activity.older": "较早的编辑"
+  "activity.older": "较早的编辑",
+  "projects.showcaseShown": "已在展示区展示",
+  "projects.showcaseEligible": "符合展示区资格",
+  "projects.showcaseHidden": "已从展示区隐藏"
 }

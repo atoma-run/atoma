@@ -1381,5 +1381,8 @@
   "activity.viewSource": "عرض حدث المصدر",
   "activity.page": "الصفحة {{page}} من {{pages}}",
   "activity.newer": "تعديلات أحدث",
-  "activity.older": "تعديلات أقدم"
+  "activity.older": "تعديلات أقدم",
+  "projects.showcaseShown": "معروض في الواجهة",
+  "projects.showcaseEligible": "مؤهل للعرض في الواجهة",
+  "projects.showcaseHidden": "مخفي من الواجهة"
 }

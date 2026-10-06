@@ -1381,5 +1381,8 @@
   "activity.viewSource": "Quellereignis anzeigen",
   "activity.page": "Seite {{page}} von {{pages}}",
   "activity.newer": "Neuere Änderungen",
-  "activity.older": "Ältere Änderungen"
+  "activity.older": "Ältere Änderungen",
+  "projects.showcaseShown": "Im Showcase",
+  "projects.showcaseEligible": "Für den Showcase geeignet",
+  "projects.showcaseHidden": "Im Showcase ausgeblendet"
 }

@@ -1381,5 +1381,8 @@
   "activity.viewSource": "Lihat peristiwa sumber",
   "activity.page": "Halaman {{page}} dari {{pages}}",
   "activity.newer": "Pengeditan lebih baru",
-  "activity.older": "Pengeditan lebih lama"
+  "activity.older": "Pengeditan lebih lama",
+  "projects.showcaseShown": "Ditampilkan di etalase",
+  "projects.showcaseEligible": "Memenuhi syarat untuk etalase",
+  "projects.showcaseHidden": "Disembunyikan dari etalase"
 }

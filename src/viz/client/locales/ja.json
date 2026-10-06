@@ -1381,5 +1381,8 @@
   "activity.viewSource": "ソースイベントを表示",
   "activity.page": "{{pages}}ページ中{{page}}ページ",
   "activity.newer": "新しい編集",
-  "activity.older": "古い編集"
+  "activity.older": "古い編集",
+  "projects.showcaseShown": "ショーケースに掲載中",
+  "projects.showcaseEligible": "ショーケースへの掲載対象",
+  "projects.showcaseHidden": "ショーケースでは非表示"
 }

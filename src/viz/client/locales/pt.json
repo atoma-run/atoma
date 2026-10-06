@@ -1381,5 +1381,8 @@
   "activity.viewSource": "Ver evento de origem",
   "activity.page": "Página {{page}} de {{pages}}",
   "activity.newer": "Edições mais recentes",
-  "activity.older": "Edições mais antigas"
+  "activity.older": "Edições mais antigas",
+  "projects.showcaseShown": "Na montra",
+  "projects.showcaseEligible": "Elegível para a montra",
+  "projects.showcaseHidden": "Oculto da montra"
 }

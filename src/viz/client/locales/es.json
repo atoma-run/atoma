@@ -1381,5 +1381,8 @@
   "activity.viewSource": "Ver evento de origen",
   "activity.page": "Página {{page}} de {{pages}}",
   "activity.newer": "Ediciones más recientes",
-  "activity.older": "Ediciones anteriores"
+  "activity.older": "Ediciones anteriores",
+  "projects.showcaseShown": "En la galería",
+  "projects.showcaseEligible": "Apto para la galería",
+  "projects.showcaseHidden": "Oculto de la galería"
 }

@@ -1381,5 +1381,8 @@
   "activity.viewSource": "Посмотреть исходное событие",
   "activity.page": "Страница {{page}} из {{pages}}",
   "activity.newer": "Более новые изменения",
-  "activity.older": "Более старые изменения"
+  "activity.older": "Более старые изменения",
+  "projects.showcaseShown": "На витрине",
+  "projects.showcaseEligible": "Можно разместить на витрине",
+  "projects.showcaseHidden": "Скрыто с витрины"
 }

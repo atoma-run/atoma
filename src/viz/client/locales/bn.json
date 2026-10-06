@@ -1381,5 +1381,8 @@
   "activity.viewSource": "উৎস ইভেন্ট দেখুন",
   "activity.page": "{{pages}}টির মধ্যে {{page}} পৃষ্ঠা",
   "activity.newer": "নতুনতর সম্পাদনা",
-  "activity.older": "পুরোনো সম্পাদনা"
+  "activity.older": "পুরোনো সম্পাদনা",
+  "projects.showcaseShown": "শোকেসে প্রদর্শিত",
+  "projects.showcaseEligible": "শোকেসের জন্য যোগ্য",
+  "projects.showcaseHidden": "শোকেস থেকে লুকানো"
 }

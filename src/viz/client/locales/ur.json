@@ -1381,5 +1381,8 @@
   "activity.viewSource": "ماخذ واقعہ دیکھیں",
   "activity.page": "صفحہ {{page}} از {{pages}}",
   "activity.newer": "نئی تر ترامیم",
-  "activity.older": "پرانی ترامیم"
+  "activity.older": "پرانی ترامیم",
+  "projects.showcaseShown": "نمائش میں شامل",
+  "projects.showcaseEligible": "نمائش کے لیے اہل",
+  "projects.showcaseHidden": "نمائش سے مخفی"
 }

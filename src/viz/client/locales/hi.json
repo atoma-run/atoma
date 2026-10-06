@@ -1381,5 +1381,8 @@
   "activity.viewSource": "स्रोत इवेंट देखें",
   "activity.page": "पृष्ठ {{page}} / {{pages}}",
   "activity.newer": "नए संपादन",
-  "activity.older": "पुराने संपादन"
+  "activity.older": "पुराने संपादन",
+  "projects.showcaseShown": "शोकेस पर",
+  "projects.showcaseEligible": "शोकेस के लिए पात्र",
+  "projects.showcaseHidden": "शोकेस से छिपा हुआ"
 }
