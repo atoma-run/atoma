@@ -358,6 +358,25 @@ describe('a session the host forgot', () => {
     expect((await post(url, on(id), call)).text).toContain('ECHOED');
   });
 
+  it('counts each resumed session once per process across repeated restarts', async () => {
+    const url = await listen(echo, 8, 8);
+    const ids = [await openSession(url), await openSession(url)];
+    for (let restart = 0; restart < 2; restart++) {
+      await host.close();
+      host = new McpHttpHost(hostOptions);
+      expect(host.health().clients).toEqual({});
+      expect((await post(url, on(ids[0]!), call, 'POST', 'another-caller')).status).toBe(404);
+      expect(host.health().clients).toEqual({});
+      for (const id of ids) expect((await post(url, on(id), call)).text).toContain('ECHOED');
+      expect(host.health()).toMatchObject({
+        resumed: 2, opened: 0, sessions: 2,
+        clients: { '2025-11-25 atoma-resumed-session': 2 },
+      });
+      for (const id of ids) expect((await post(url, on(id), call)).text).toContain('ECHOED');
+      expect(host.health().clients).toEqual({ '2025-11-25 atoma-resumed-session': 2 });
+    }
+  });
+
   it('answers a first call on the reopened session that outlasts the opening deadline (2026-09-30 review)', async () => {
     // Until 2026-09-30 the opening's 30s timer stayed armed until the reopening
     // request's WHOLE response had streamed, so after every deployment a first
