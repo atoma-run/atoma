@@ -5,6 +5,8 @@
  * time. Builds are portable artefacts, while ATOMA_VIZ_PUBLIC_ORIGIN is the
  * operator-owned canonical identity already used by authentication.
  */
+import { DEFAULT_LOCALE, SUPPORTED_LOCALES, type Locale } from '../contracts/locales.js';
+
 export const SEO_TITLE = 'Atoma — Inspectable AI Agent Orchestration';
 export const SEO_DESCRIPTION =
   'Atoma orchestrates specialized AI agents across planning, execution, and verification for cost-aware, inspectable software delivery.';
@@ -25,12 +27,13 @@ function replaceTitle(html: string, title: string): string {
   return html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeAttribute(title)}</title>`);
 }
 
-/** Social-card and structured-data lines for the page served at `/`: shared by both home pages. */
+/** Social-card and structured-data lines shared by the app arrival and showcase home pages. */
 export function homeSocialMeta(
   publicOrigin: URL,
-  copy: { readonly title: string; readonly description: string } = { title: SEO_TITLE, description: SEO_DESCRIPTION }
+  copy: { readonly title: string; readonly description: string } = { title: SEO_TITLE, description: SEO_DESCRIPTION },
+  options: { readonly canonical?: string; readonly locale?: Locale } = {}
 ): string[] {
-  const canonical = new URL('/', publicOrigin).href;
+  const canonical = options.canonical ?? new URL('/', publicOrigin).href;
   const socialImage = new URL(SEO_SOCIAL_IMAGE_PATH, publicOrigin).href;
   const structuredData = JSON.stringify({
     '@context': 'https://schema.org',
@@ -46,7 +49,7 @@ export function homeSocialMeta(
   return [
     '  <meta property="og:type" content="website" />',
     '  <meta property="og:site_name" content="Atoma" />',
-    '  <meta property="og:locale" content="en_US" />',
+    ...(options.locale && options.locale !== DEFAULT_LOCALE ? [] : ['  <meta property="og:locale" content="en_US" />']),
     `  <meta property="og:title" content="${escapeAttribute(copy.title)}" />`,
     `  <meta property="og:description" content="${escapeAttribute(copy.description)}" />`,
     `  <meta property="og:url" content="${escapeAttribute(canonical)}" />`,
@@ -64,7 +67,21 @@ export function homeSocialMeta(
   ];
 }
 
-function seoBlock(publicOrigin: URL | null): string {
+/** The showcase owns `/` when published; its English page is not a translation of the app. */
+function appLocaleUrl(publicOrigin: URL, locale: Locale, showcaseHome: boolean): string {
+  const url = new URL('/', publicOrigin);
+  if (showcaseHome || locale !== DEFAULT_LOCALE) url.searchParams.set('lang', locale);
+  return url.href;
+}
+
+function appAlternates(publicOrigin: URL, showcaseHome: boolean): { readonly locale: string; readonly href: string }[] {
+  return [
+    ...SUPPORTED_LOCALES.map((locale) => ({ locale, href: appLocaleUrl(publicOrigin, locale, showcaseHome) })),
+    { locale: 'x-default', href: appLocaleUrl(publicOrigin, DEFAULT_LOCALE, showcaseHome) },
+  ];
+}
+
+function seoBlock(publicOrigin: URL | null, locale: Locale, showcaseHome: boolean): string {
   if (!publicOrigin) {
     return [
       '<!-- ATOMA_SEO_START -->',
@@ -73,26 +90,36 @@ function seoBlock(publicOrigin: URL | null): string {
     ].join('\n');
   }
 
-  const canonical = new URL('/', publicOrigin).href;
+  const canonical = appLocaleUrl(publicOrigin, locale, showcaseHome);
   return [
     '<!-- ATOMA_SEO_START -->',
     `  <meta name="description" content="${escapeAttribute(SEO_DESCRIPTION)}" />`,
     '  <meta name="author" content="Atoma" />',
     '  <meta name="robots" content="index, follow, max-image-preview:large" />',
     `  <link rel="canonical" href="${escapeAttribute(canonical)}" />`,
-    ...homeSocialMeta(publicOrigin),
+    ...appAlternates(publicOrigin, showcaseHome).map(({ locale: language, href }) =>
+      `  <link rel="alternate" hreflang="${language}" href="${escapeAttribute(href)}" />`
+    ),
+    ...homeSocialMeta(publicOrigin, { title: SEO_TITLE, description: SEO_DESCRIPTION }, { canonical, locale }),
     '<!-- ATOMA_SEO_END -->',
   ].join('\n');
 }
 
 /** Inject one idempotent metadata block into either source or built HTML. */
-export function injectAppShellSeo(html: string, publicOrigin: URL | null): string {
+export function injectAppShellSeo(
+  html: string,
+  publicOrigin: URL | null,
+  options: { readonly locale?: Locale; readonly showcaseHome?: boolean } = {}
+): string {
   const withoutPreviousBlock = html.replace(SEO_BLOCK, '');
-  const block = seoBlock(publicOrigin);
+  const locale = options.locale ?? DEFAULT_LOCALE;
+  const block = seoBlock(publicOrigin, locale, options.showcaseHome ?? false);
   const withMetadata = withoutPreviousBlock.includes(SEO_SLOT)
     ? withoutPreviousBlock.replace(SEO_SLOT, block)
     : withoutPreviousBlock.replace(/<\/head>/i, `${block}\n</head>`);
-  return publicOrigin ? replaceTitle(withMetadata, SEO_TITLE) : withMetadata;
+  return publicOrigin
+    ? replaceTitle(withMetadata.replace(/<html lang="[^"]*"/i, `<html lang="${locale}"`), SEO_TITLE)
+    : withMetadata;
 }
 
 export function robotsTxt(publicOrigin: URL | null): string {
@@ -109,14 +136,28 @@ export function robotsTxt(publicOrigin: URL | null): string {
   ].join('\n');
 }
 
-export function sitemapXml(publicOrigin: URL, options: { readonly paths?: readonly string[] } = {}): string {
+export function sitemapXml(publicOrigin: URL, options: { readonly paths?: readonly string[]; readonly showcaseHome?: boolean } = {}): string {
   // Extra paths are the showcase's story pages, passed only while it is
   // published: a sitemap naming a 404 would teach crawlers to distrust the rest.
-  const locations = [new URL('/', publicOrigin).href, ...(options.paths ?? []).map((path) => new URL(path, publicOrigin).href)];
+  const showcaseHome = options.showcaseHome ?? false;
+  const alternates = appAlternates(publicOrigin, showcaseHome);
+  const appLocations = SUPPORTED_LOCALES.map((locale) => appLocaleUrl(publicOrigin, locale, showcaseHome));
+  const locations = [
+    ...(showcaseHome ? [{ href: new URL('/', publicOrigin).href, app: false }] : []),
+    ...appLocations.map((href) => ({ href, app: true })),
+    ...(options.paths ?? []).map((path) => ({ href: new URL(path, publicOrigin).href, app: false })),
+  ];
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
-    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
-    ...locations.flatMap((location) => ['  <url>', `    <loc>${escapeAttribute(location)}</loc>`, '  </url>']),
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">',
+    ...locations.flatMap(({ href, app }) => [
+      '  <url>',
+      `    <loc>${escapeAttribute(href)}</loc>`,
+      ...(app ? alternates.map(({ locale, href: alternate }) =>
+        `    <xhtml:link rel="alternate" hreflang="${locale}" href="${escapeAttribute(alternate)}" />`
+      ) : []),
+      '  </url>',
+    ]),
     '</urlset>',
     '',
   ].join('\n');

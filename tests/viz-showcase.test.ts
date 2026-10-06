@@ -495,6 +495,11 @@ describe('the real server', () => {
 
     const sitemap = await (await fetch(`${origin}/sitemap.xml`)).text();
     expect(sitemap).toContain(`/showcase/${id}</loc>`);
+    expect(sitemap).toContain(`<loc>${origin}/?lang=en</loc>`);
+    expect(sitemap).toContain(`hreflang="fr" href="${origin}/?lang=fr"`);
+    const frenchApp = await (await fetch(`${origin}/?lang=fr`)).text();
+    expect(frenchApp).toContain(`<link rel="canonical" href="${origin}/?lang=fr" />`);
+    expect(frenchApp).toContain(`hreflang="en" href="${origin}/?lang=en"`);
     // The control plane is untouched: runs still need a session.
     expect((await fetch(`${origin}/api/runs`)).status).toBe(401);
   });

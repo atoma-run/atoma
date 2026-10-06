@@ -154,7 +154,7 @@ import {
   announcementRequestSchema,
   type AnnouncementDetail,
 } from '../contracts/announcements.js';
-import { DEFAULT_LOCALE, SUPPORTED_LOCALES } from '../contracts/locales.js';
+import { DEFAULT_LOCALE, SUPPORTED_LOCALES, isLocale } from '../contracts/locales.js';
 import {
   PLATFORM_EVENT_DETAIL_MAX_CHARS,
   PLATFORM_EVENT_SUMMARY_MAX_CHARS,
@@ -4078,10 +4078,15 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
       send(res, 500, 'viz client missing at ' + UI_HTML_PATH, 'text/plain; charset=utf-8');
       return;
     }
+    const requestedLocale = url.searchParams.get('lang');
     const html = injectAppShellSeo(
       readFileSync(UI_HTML_PATH, 'utf8'),
       // `/app` carries the no-origin block: noindex and no canonical.
-      pathname === '/app' ? null : (AUTH_RUNTIME?.publicOrigin ?? null)
+      pathname === '/app' ? null : (AUTH_RUNTIME?.publicOrigin ?? null),
+      {
+        locale: isLocale(requestedLocale) ? requestedLocale : DEFAULT_LOCALE,
+        showcaseHome: Boolean(SHOWCASE),
+      }
     );
     // `no-cache` permits the service worker's offline copy while requiring
     // normal HTTP caches to revalidate. With the gate on, the login-capable
@@ -4150,6 +4155,7 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
       200,
       sitemapXml(AUTH_RUNTIME.publicOrigin, {
         paths: SHOWCASE ? SHOWCASE.entries().slice(0, 200).map((entry) => `/showcase/${entry.id}`) : [],
+        showcaseHome: Boolean(SHOWCASE),
       }),
       'application/xml; charset=utf-8',
       'public, max-age=3600'

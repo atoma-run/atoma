@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { SUPPORTED_LOCALES } from '../src/contracts/locales.js';
 import {
   SEO_DESCRIPTION,
   SEO_TITLE,
@@ -9,7 +10,7 @@ import {
   sitemapXml,
 } from '../src/viz/seo.js';
 
-const html = '<!doctype html><html><head><title>Old title</title><!-- ATOMA_DEPLOYMENT_SEO --></head><body></body></html>';
+const html = '<!doctype html><html lang="en"><head><title>Old title</title><!-- ATOMA_DEPLOYMENT_SEO --></head><body></body></html>';
 
 describe('public arrival SEO', () => {
   it('binds canonical, social and structured metadata to the operator-owned origin', () => {
@@ -47,6 +48,43 @@ describe('public arrival SEO', () => {
     expect(twice.match(/rel="canonical"/g)).toHaveLength(1);
     expect(twice.match(/ATOMA_SEO_START/g)).toHaveLength(1);
     expect(twice).toContain(`<title>${SEO_TITLE}</title>`);
+  });
+
+  it('publishes reciprocal alternatives for every supported app language', () => {
+    const origin = new URL('https://atoma.example.com');
+    const sitemap = sitemapXml(origin);
+    for (const locale of SUPPORTED_LOCALES) {
+      const href = locale === 'en' ? `${origin.href}` : `${origin.href}?lang=${locale}`;
+      const rendered = injectAppShellSeo(html, origin, { locale });
+      expect(rendered).toContain(`<html lang="${locale}">`);
+      expect(rendered).toContain(`rel="canonical" href="${href}"`);
+      expect(rendered).toContain(`property="og:url" content="${href}"`);
+      const sitemapEntry = sitemap.split('  <url>').find((entry) => entry.includes(`<loc>${href}</loc>`));
+      expect(sitemapEntry).toBeDefined();
+      for (const alternate of SUPPORTED_LOCALES) {
+        const target = alternate === 'en' ? origin.href : `${origin.href}?lang=${alternate}`;
+        expect(rendered).toContain(`rel="alternate" hreflang="${alternate}" href="${target}"`);
+        expect(sitemapEntry).toContain(`rel="alternate" hreflang="${alternate}" href="${target}"`);
+      }
+      expect(rendered).toContain(`hreflang="x-default" href="${origin.href}"`);
+      expect(sitemapEntry).toContain(`hreflang="x-default" href="${origin.href}"`);
+    }
+    expect(sitemap.match(/<loc>/g)).toHaveLength(SUPPORTED_LOCALES.length);
+  });
+
+  it('keeps the English-only showcase outside the app language group', () => {
+    const origin = new URL('https://atoma.example.com');
+    const sitemap = sitemapXml(origin, { showcaseHome: true, paths: ['/showcase/story'] });
+    const rendered = injectAppShellSeo(html, origin, { locale: 'fr', showcaseHome: true });
+    expect(rendered).toContain('rel="canonical" href="https://atoma.example.com/?lang=fr"');
+    expect(rendered).toContain('hreflang="en" href="https://atoma.example.com/?lang=en"');
+    expect(rendered).toContain('hreflang="x-default" href="https://atoma.example.com/?lang=en"');
+    expect(sitemap).toContain('<loc>https://atoma.example.com/</loc>');
+    expect(sitemap).toContain('<loc>https://atoma.example.com/?lang=en</loc>');
+    expect(sitemap).toContain('<loc>https://atoma.example.com/showcase/story</loc>');
+    expect(sitemap.match(/<loc>/g)).toHaveLength(SUPPORTED_LOCALES.length + 2);
+    const showcaseEntry = sitemap.match(/<url>\s*<loc>https:\/\/atoma\.example\.com\/<\/loc>([\s\S]*?)<\/url>/)?.[1];
+    expect(showcaseEntry).not.toContain('xhtml:link');
   });
 
   it('publishes only the public root and keeps control-plane routes out of discovery', () => {

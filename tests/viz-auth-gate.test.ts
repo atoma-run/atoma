@@ -1840,6 +1840,11 @@ describe('viz auth gate (process level)', () => {
     expect(shell).toContain(`property="og:image" content="${base}/og-card.png"`);
     expect(shell).toContain('type="application/ld+json"');
     expect(shell).toContain('name="robots" content="index, follow, max-image-preview:large"');
+    const frenchShell = await (await fetch(`${base}/?lang=fr`)).text();
+    expect(frenchShell).toContain('<html lang="fr">');
+    expect(frenchShell).toContain(`rel="canonical" href="${base}/?lang=fr"`);
+    expect(frenchShell).toContain(`hreflang="en" href="${base}/"`);
+    expect(frenchShell).toContain(`hreflang="fr" href="${base}/?lang=fr"`);
     const robots = await fetch(`${base}/robots.txt`);
     expect(robots.status).toBe(200);
     expect(await robots.text()).toContain(`Sitemap: ${base}/sitemap.xml`);

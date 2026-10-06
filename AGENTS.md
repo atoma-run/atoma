@@ -384,26 +384,26 @@ The catalogue is a compatibility contract for every registered client. Decisions
 ## Testing and linting
 
 - Tests live under `tests/`, use mocked LLMs, and make no paid calls.
-- Registry tests use in-memory SQLite unless migration/backup behavior requires
-  a copied real-shaped store.
+- Registry tests use in-memory SQLite unless migration/backup behavior requires a copied real-shaped store.
 - Every regression test must exercise the production path that failed. If the
   bug crossed forks, clean checkout, compiled output, or process boundaries,
   the test must cross the same boundary.
-- Source-grep tests are acceptable only for architectural absence/presence that
-  cannot be observed behaviorally. Prefer behavior and typed contracts.
-- New source files must be tracked and included in build/package tests. A local
-  untracked import is not a passing implementation.
+- Source-grep tests are acceptable only for architectural absence/presence that cannot be observed behaviorally. Prefer behavior and typed contracts.
+- New source files must be tracked and included in build/package tests. A local untracked import is not a passing implementation.
 - `npm run check` means typecheck plus lint plus tests. `release:check` is required
   for release-path changes. Container changes also run worker build/isolation.
-- Both `tsconfig.json` and `tsconfig.all.json` must pass. Keep tests type-safe;
-  use shared factories from `tests/helpers.ts` rather than stale hand mocks.
+- Codex's restricted command sandbox refuses loopback listeners with `listen EPERM`.
+  Run tests that bind loopback (HTTP, OAuth, browser/server fixtures) and full
+  suites (`npm test`, `npm run check`, `npm run release:check`) with
+  `require_escalated` on the FIRST call, scoped to that command. Do not run
+  them restricted first or weaken tests to evade it.
+- Both `tsconfig.json` and `tsconfig.all.json` must pass. Keep tests type-safe; use shared factories from `tests/helpers.ts` rather than stale hand mocks.
 - ESLint is calibrated. Do not re-enable `require-await` or restrictive template
   expressions without re-measuring the structural hits. `no-explicit-any` stays
   a warning, including tests.
 - `raise()` returns `never`; preserve explicit throws where TypeScript control-flow
   analysis requires them despite a lint suggestion.
-- `git diff --check`, a clean status, and exact `HEAD == origin/<branch>` are part
-  of autonomous commit/push completion.
+- `git diff --check`, a clean status, and exact `HEAD == origin/<branch>` are part of autonomous commit/push completion.
 
 ## Intentional choices and rejected shortcuts
 
