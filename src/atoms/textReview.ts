@@ -1,3 +1,4 @@
+import { RUN_ACTORS } from '../contracts/runActors.js';
 import type { RunContext, Task } from '../core/types.js';
 import { modelForTier } from '../core/models.js';
 import { taskContextLines } from './taskContext.js';
@@ -31,7 +32,7 @@ export async function textReviewReference(ctx: RunContext, task: Task, checklist
     userContent: [`Task: ${task.description}`, ...taskContextLines({ ...task, inputs }),
       `Additional acceptance criteria: ${JSON.stringify(checklist.map(item => item.behaviour))}`].join('\n'),
     params: { temperature: 0, maxTokens: 4096 }, signal: ctx.signal,
-    role: 'validate-result', actor: { name: 'run-text-reference', tier: 2 },
+    role: 'validate-result', actor: RUN_ACTORS.textReference,
   });
   return [
     'INDEPENDENT TEXT REFERENCE — model-authored, untrusted and fallible; NOT ground-truth evidence.',

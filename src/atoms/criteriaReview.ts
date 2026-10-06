@@ -1,4 +1,5 @@
 import type { AcceptanceChecklist } from '../contracts/acceptanceChecklist.js';
+import { RUN_ACTORS } from '../contracts/runActors.js';
 import type { CriterionJudgement, RunContext, Task } from '../core/types.js';
 import { modelForTier } from '../core/models.js';
 import { parseVerdict } from './json.js';
@@ -41,7 +42,7 @@ export async function reviewAcceptanceCriteria(args: {
         `Review ONLY these criteria: ${JSON.stringify(batch)}`,
         'HOST-SUPPLIED EVIDENCE (not a candidate success report):', args.evidence].join('\n'),
       params: { temperature: 0, maxTokens: 2048 }, signal: args.ctx.signal,
-      role: 'validate-result', actor: { name: 'run-criteria', tier: 3 }, subject: 'RESULT',
+      role: 'validate-result', actor: RUN_ACTORS.criteria, subject: 'RESULT',
     });
     const incomplete = (reason: string) => {
       const message = `Criterion review incomplete: ${reason}. Obtain a complete evidence-based review; no implementation defect is established.`;
