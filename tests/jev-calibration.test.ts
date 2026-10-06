@@ -437,6 +437,39 @@ describe('calibrating: both designs, on the same decisions', () => {
     expect(details[1]).toMatchObject({ kind: 'approval', model: 'refused', documented: 'approved', legacy: 'deferred to the model' });
   });
 
+  it('reads a recipe decision with its offer floor, as production does (2026-10-06)', async () => {
+    const ctx = makeCtx();
+    ctx.llm.enqueueText(jsonText({ kind: 'escalate', reasoning: 'x' }));
+    await prefilterStrategy({
+      ctx,
+      task: { description: 'Build a Node CLI that redacts secret values in NDJSON.' },
+      catalog: [
+        { name: 'build-text-frequency-cli', description: 'build a word-count CLI' },
+        { name: 'build-schema-csv-json-cli', description: 'build a CSV to JSON CLI' },
+      ],
+      systemPrompt: SKILL_PREFILTER_SYSTEM_PROMPT,
+      actor: { name: 'Idioblast', tier: 2 },
+    });
+    // Run d8bd792d: the model reused the word-count recipe.
+    const decisions = [decision('prefilter', ctx.llm.calls[0]!.userContent,
+      jsonText({ kind: 'reuse', target: 'build-text-frequency-cli', confidence: 'high', reasoning: 'a CLI' }), true)];
+    const { impl } = fakeJev((id) => {
+      if (id === 'choice') return { type: 'choice', choice: 'none_of_these', confidence: 0.46, probabilities: { none_of_these: 0.46 } };
+      if (id === 'fits::build-text-frequency-cli') return { type: 'noul', noul: 0.34 };
+      if (id === 'task_changes_files' || id.startsWith('changes_files::')) return { type: 'noul', noul: 0.9 };
+      return undefined;
+    });
+    const calibration = await calibrate({ decisions, apiKey: 'k', fetchImpl: impl, concurrency: 1 });
+    // Read with the floor, the documented answer is no recipe — against the model.
+    expect(calibrationDetails(calibration.records)[0]).toMatchObject({
+      kind: 'prefilter', documented: expect.stringContaining('below the 0.5 floor'),
+    });
+    // Re-read without it, the same answers hand the decision to the model.
+    expect(calibrationDetails(calibration.records, { thresholds: { ...JEV_THRESHOLDS, recipeOffer: 0 } })[0]).toMatchObject({
+      documented: expect.stringMatching(/^model decides/),
+    });
+  });
+
   it('asks labelled twin cases first, and says where to resume when its budget runs out', async () => {
     const cases = twinCases({
       recipes: {

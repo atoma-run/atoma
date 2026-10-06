@@ -804,6 +804,77 @@ describe('prefilterStrategy with Jev', () => {
     expect(none.llm.calls).toHaveLength(0);
   });
 
+  it('refuses a model pick below the offer floor, through the real decoder and the cache (measured 2026-10-06)', async () => {
+    const recipes = [
+      { name: 'build-text-frequency-cli', description: 'build a word-count CLI' },
+      { name: 'build-schema-csv-json-cli', description: 'build a CSV to JSON CLI' },
+    ];
+    const deciderFor = (answers: Record<string, unknown>) =>
+      createJevDecider({ apiKey: KEY, record: () => {}, fetchImpl: answering(answers).impl });
+    // Run d8bd792d: none_of_these, the word-count recipe at 0.34 and 0.05 —
+    // the model, asked anyway, injected it into an NDJSON redactor.
+    const redactor = { ...makeCtx(), jev: deciderFor({
+      choice: choiceAnswer(NO_CANDIDATE, 0.46),
+      'fits::build-text-frequency-cli': noulAnswer(0.34),
+      'fits::build-schema-csv-json-cli': noulAnswer(0.05),
+      task_changes_files: noulAnswer(0.95),
+      'changes_files::build-text-frequency-cli': noulAnswer(0.9),
+      'changes_files::build-schema-csv-json-cli': noulAnswer(0.9),
+    }) };
+    expect(await prefilterStrategy({
+      ctx: redactor,
+      task: { description: 'Build a Node CLI that redacts secret values in NDJSON' },
+      catalog: recipes,
+      systemPrompt: SKILL_PREFILTER_SYSTEM_PROMPT,
+    })).toMatchObject({ kind: 'escalate', reasoning: expect.stringContaining('jev: no candidate clearly fits') });
+    expect(redactor.llm.calls).toHaveLength(0);
+
+    // One recipe reaches the floor. The model sees both, as it did when the
+    // rule was measured; a pick of the other comes back as no recipe, and so
+    // does the same decision served again from the cache.
+    const converterAnswers = {
+      choice: choiceAnswer('build-schema-csv-json-cli', 0.42),
+      'fits::build-text-frequency-cli': noulAnswer(0.3),
+      'fits::build-schema-csv-json-cli': noulAnswer(0.62),
+      task_changes_files: noulAnswer(0.95),
+      'changes_files::build-text-frequency-cli': noulAnswer(0.9),
+      'changes_files::build-schema-csv-json-cli': noulAnswer(0.9),
+    };
+    const converterTask = { description: 'Build a Node CLI that converts a CSV file to JSON' };
+    const cacheDir = mkdtempSync(join(tmpdir(), 'atoma-offer-floor-cache-'));
+    const cacheBefore = process.env['ATOMA_PREFILTER_CACHE'];
+    process.env['ATOMA_PREFILTER_CACHE'] = join(cacheDir, 'cache.db');
+    resetPrefilterCacheForTests();
+    try {
+    const asked = { ...makeCtx(), jev: deciderFor(converterAnswers) };
+    asked.llm.enqueueText(jsonText({ kind: 'reuse', target: 'build-text-frequency-cli', confidence: 'high', reasoning: 'a CLI' }));
+    const refusedPick = await prefilterStrategy({ ctx: asked, task: converterTask, catalog: recipes, systemPrompt: SKILL_PREFILTER_SYSTEM_PROMPT });
+    expect(asked.llm.calls).toHaveLength(1);
+    expect(asked.llm.calls[0]!.userContent).toContain('build-text-frequency-cli');
+    expect(asked.llm.calls[0]!.userContent).toContain('build-schema-csv-json-cli');
+    expect(refusedPick).toMatchObject({ kind: 'escalate', reasoning: expect.stringContaining('below the recipe offer floor') });
+    const again = { ...makeCtx(), jev: deciderFor(converterAnswers) };
+    expect(await prefilterStrategy({ ctx: again, task: converterTask, catalog: recipes, systemPrompt: SKILL_PREFILTER_SYSTEM_PROMPT }))
+      .toMatchObject({ kind: 'escalate', reasoning: expect.stringContaining('below the recipe offer floor') });
+    expect(again.llm.calls).toHaveLength(0); // served from the cache, still floored
+    } finally {
+      if (cacheBefore === undefined) delete process.env['ATOMA_PREFILTER_CACHE'];
+      else process.env['ATOMA_PREFILTER_CACHE'] = cacheBefore;
+      resetPrefilterCacheForTests();
+      rmSync(cacheDir, { recursive: true, force: true });
+    }
+
+    // A pick at the floor is reused.
+    const fitting = { ...makeCtx(), jev: deciderFor(converterAnswers) };
+    fitting.llm.enqueueText(jsonText({ kind: 'reuse', target: 'build-schema-csv-json-cli', confidence: 'high', reasoning: 'csv' }));
+    expect(await prefilterStrategy({
+      ctx: fitting,
+      task: { description: 'Build a Node CLI that converts CSV to JSON with a schema' },
+      catalog: recipes,
+      systemPrompt: SKILL_PREFILTER_SYSTEM_PROMPT,
+    })).toMatchObject({ kind: 'reuse', target: 'build-schema-csv-json-cli' });
+  });
+
   it("keeps a recipe body's opening out of the model's prompt and cache key", async () => {
     const ctx = makeCtx();
     ctx.llm.enqueueText(jsonText({ kind: 'escalate', reasoning: 'model' }));
@@ -1433,7 +1504,7 @@ describe('the jev card in the run view', () => {
     expect(decision).toMatchObject({ target: null });
     expect(card!.decision).toBe('↑ escalate');
     expect(card!.body).toBe(
-      'picked none_of_these (serve-and-validate-static-page changes no files for a task that must; not offered: serve-and-validate-static-page; nothing else fits)'
+      'picked none_of_these (serve-and-validate-static-page changes no files for a task that must; not offered: serve-and-validate-static-page; below the 0.5 floor: build-text-frequency-cli; nothing else fits)'
     );
   });
 

@@ -1,0 +1,506 @@
+[
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-csv-statistics-cli",
+  "index": 0,
+  "run": "a34e4d7e-e887-44ea-8d61-fb2cf974b2bf",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Create cli.mjs via the write_file tool using only built-in Node modules. It must accept a CSV path as its first argument; parse headers and records quote-aware,"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-csv-statistics-cli",
+  "index": 1,
+  "run": "754dd4d8-8ef3-403c-b6d7-f6223cb28b6b",
+  "source": "credited",
+  "label": "OTHER",
+  "textHead": "Build a Node.js command-line tool, csv2json.mjs, using only Node's built-in modules, that converts a CSV file into JSON. It takes the CSV path as its argument, "
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-data-quality-csv-summary",
+  "index": 0,
+  "run": "cc7ed6f1-9ffe-43be-a133-cfe722f6da24",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Create observations.csv containing exactly the supplied day,A,B table, preserving both NA entries and A=100. Create summary.csv with one row per sensor and fiel"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-data-quality-csv-summary",
+  "index": 1,
+  "run": "cc7ed6f1-9ffe-43be-a133-cfe722f6da24",
+  "source": "credited",
+  "label": "OTHER",
+  "textHead": "Write report.md using observations.csv, summary.csv, and the recorded probe as sources. Concisely explain that NA is missing rather than zero, validity requires"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-data-quality-csv-summary",
+  "index": 2,
+  "run": "cc7ed6f1-9ffe-43be-a133-cfe722f6da24",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Correct only observations.csv so it exactly contains the supplied table with header day,A,B and rows 1,10,20; 2,11,20; 3,12,21; 4,13,19; 5,14,20; 6,NA,NA; 7,100"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-data-quality-csv-summary",
+  "index": 3,
+  "run": "8738f263-a6b6-4084-897e-a57fc2ea4786",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Create the isolated quality/ workstream only: quality/input.json preserving exactly (S1,0,1,10),(S1,0,2,12),(S1,1,1,8),(S2,0,1,3),(S2,0,1,3),(S2,1,1,4),(S2,1,1,"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-deterministic-pcm-fixture",
+  "index": 0,
+  "run": "102556e8-0e7e-40c5-9009-4841206e48a0",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Create generate_sos.py and verify_sos.py, then generate sos.wav deterministically using only Python 3 standard-library modules. sos.wav must be canonical little"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-deterministic-pcm-fixture",
+  "index": 1,
+  "run": "102556e8-0e7e-40c5-9009-4841206e48a0",
+  "source": "credited",
+  "label": "OTHER",
+  "textHead": "Write README.md from the completed artifact and recorded probes. Describe the fictional museum exhibit sound, the exact 100 ms unit, short and long tone duratio"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-deterministic-pcm-fixture",
+  "index": 2,
+  "run": "40b185c4-b702-4064-831f-909fbbe503fa",
+  "source": "credited",
+  "label": "OTHER",
+  "textHead": "Create generate_miniature.py and verify_miniature.py, then use the generator to produce miniature.mid and score.csv. The composition must be an original eight-b"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-deterministic-zip-capsule",
+  "index": 0,
+  "run": "a6989eb1-3c27-4aac-8888-1b8cfb0bb21c",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Create build_capsule.py, verify_capsule.py, README.md, capsule.zip, and manifest.json using only the Python 3 standard library. build_capsule.py must determinis"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-deterministic-zip-capsule",
+  "index": 1,
+  "run": "a6989eb1-3c27-4aac-8888-1b8cfb0bb21c",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Review and harden build_capsule.py, verify_capsule.py, README.md, capsule.zip, and manifest.json against the complete fixed contract: exact three-entry order an"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-deterministic-zip-capsule",
+  "index": 2,
+  "run": "822bb4fe-6e14-4bc1-9348-4842691bc440",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Inspect and harden verify_capsule.py using only the Python standard library. Preserve capsule.zip, manifest.json, and build_capsule.py byte-for-byte and do not "
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-exact-ledger-reconciler",
+  "index": 0,
+  "run": "6a8b44c7-0d75-481a-ba08-d7d1db8d8f8c",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Create invoice-reconcile.js as a dependency-free Node.js 24 CLI supporting `node invoice-reconcile.js --input ledger.json --out reconciliation.json` and `--help"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-exact-ledger-reconciler",
+  "index": 1,
+  "run": "6a8b44c7-0d75-481a-ba08-d7d1db8d8f8c",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Inspect the existing package.json test command and extend test.js without altering invoice-reconcile.js behavior. Add subprocess assertions proving that each re"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-exact-ledger-reconciler",
+  "index": 2,
+  "run": "66bf4b67-4892-4ae6-8e81-058dbf090187",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Extend test/invoice-reconcile.test.js without weakening or removing any passing assertion or changing the ten acceptance criteria. Add subprocess regressions pr"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-exact-ledger-reconciler",
+  "index": 3,
+  "run": "66bf4b67-4892-4ae6-8e81-058dbf090187",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Repair invoice-reconcile.js through its shared currency validation mechanism so invoice, credit, and payment currency must be a primitive string before membersh"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-exact-ledger-reconciler",
+  "index": 4,
+  "run": "66bf4b67-4892-4ae6-8e81-058dbf090187",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Update test/invoice-reconcile.test.js to add runnable subprocess assertions proving strict-schema refusal of invalid decimal syntax, unsupported string currenci"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-exact-ledger-reconciler",
+  "index": 5,
+  "run": "2faac5cb-9e5a-485f-93c4-ef1015d19c0c",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Complete the remaining proof obligation in the seeded invoice reconciliation CLI. The current repaired implementation passes all 70 independent checks, includin"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-exact-ledger-reconciler",
+  "index": 6,
+  "run": "2faac5cb-9e5a-485f-93c4-ef1015d19c0c",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Complete the remaining proof obligation in the seeded invoice reconciliation CLI. The current repaired implementation passes all 70 independent checks, includin"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-exact-ledger-reconciler",
+  "index": 7,
+  "run": "2c502876-d636-415e-b0a5-f304befe8073",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Finish the seeded invoice CLI's missing proof while preserving its correct implementation, unchanged ten acceptance criteria and ALL existing assertions. The pr"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-exact-ledger-reconciler",
+  "index": 8,
+  "run": "2c502876-d636-415e-b0a5-f304befe8073",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Finish the seeded invoice CLI's missing proof while preserving its correct implementation, unchanged ten acceptance criteria and ALL existing assertions. The pr"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-exact-ledger-reconciler",
+  "index": 9,
+  "run": "7a247d71-b790-46e8-9c51-d4923503fa85",
+  "source": "credited",
+  "label": "OTHER",
+  "textHead": "Create README.md, test.js, and the named fixture inputs and expected successful lock files; harden resolve.js if the tests reveal defects. README.md must docume"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-exact-ledger-reconciler",
+  "index": 10,
+  "run": "9d8f31f1-3f23-4c05-838a-944720a54a54",
+  "source": "credited",
+  "label": "OTHER",
+  "textHead": "Build a self-contained Node.js command-line application for scaling recipes and consolidating a shopping list. Use one documented JSON input file containing rec"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-node-http-replay-verifier",
+  "index": 0,
+  "run": "2026-10-01T21-33-54-552-c7deb659",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Create a small, dependency-free Node verification package for local HTTP APIs. Its public command is `node replay.mjs <manifest.json>`. The JSON manifest suppli"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-node-http-replay-verifier",
+  "index": 1,
+  "run": "2026-10-01T23-55-59-872-7b03d8e6",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Create a small, dependency-free Node verification package for local HTTP APIs. Its public command is `node replay.mjs <manifest.json>`. The JSON manifest suppli"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-schema-csv-json-cli",
+  "index": 0,
+  "run": "7bc86c1f-e042-418f-820e-4ece062ec472",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Build a Node.js command-line tool, csv2json.mjs, using only Node's built-in modules, that converts a CSV file into JSON. It takes the CSV path as its argument, "
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-schema-csv-json-cli",
+  "index": 1,
+  "run": "80d1af73-c2f1-4544-a532-626d48e992bb",
+  "source": "credited",
+  "label": "OTHER",
+  "textHead": "Write the technical documentation for the existing csv2json command-line tool in this workspace, without changing its behaviour. Add a docs folder with three Ma"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-schema-csv-json-cli",
+  "index": 2,
+  "run": "72e81903-ea51-4d97-b468-f2c014e6a59d",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Build a Node CLI, validate-orders.mjs, with no dependencies beyond Node itself, that validates a CSV export of customer orders before it is imported. The header"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-schema-csv-json-cli",
+  "index": 3,
+  "run": "72e81903-ea51-4d97-b468-f2c014e6a59d",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Build a Node CLI, validate-orders.mjs, with no dependencies beyond Node itself, that validates a CSV export of customer orders before it is imported. The header"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-schema-csv-json-cli",
+  "index": 4,
+  "run": "22af997d-1440-49b1-8b65-01c41f6ef7ad",
+  "source": "credited",
+  "label": "OTHER",
+  "textHead": "Build the complete Node.js 24 warehouse reconciliation CLI in stock-reconcile.js, its node:test subprocess suite in test/stock-reconcile.test.js, package.json w"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-schema-csv-json-cli",
+  "index": 5,
+  "run": "2c03a3f6-1300-407c-a3b0-7fc21dddb0c1",
+  "source": "credited",
+  "label": "OTHER",
+  "textHead": "Inspect and repair the seeded dependency-free Node.js 24 CLI in stock-reconcile.js while retaining `node stock-reconcile.js --opening <path> --events <path> --o"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-text-frequency-cli",
+  "index": 0,
+  "run": "45d27925-c84d-4624-8683-4ae2a8d15b88",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Build a dependency-free Node command-line tool, wordfreq.js, that reads a text file given as its only argument and prints the ten most frequent words with their"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-text-frequency-cli",
+  "index": 1,
+  "run": "235a1935-6e5c-4c03-bbc8-66a8df57f7c6",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Extend the existing wordfreq.js command-line tool without breaking its current behaviour: add an optional --top N flag that prints the N most frequent words ins"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-text-frequency-cli",
+  "index": 2,
+  "run": "036ef18a-7afa-4ef2-b2da-7d00ba9589c3",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Inspect the existing CLI and then update wordfreq.js while preserving its current behavior and existing --top and --json flags. Add optional --min-length N so w"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-text-frequency-cli",
+  "index": 3,
+  "run": "9854553c-b897-43f1-af88-3dbf2fb546db",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Inspect the current CLI and capture its existing outputs and error behavior, then update wordfreq.js to add optional --exclude WORDS. WORDS is a comma-separated"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-text-frequency-cli",
+  "index": 4,
+  "run": "9854553c-b897-43f1-af88-3dbf2fb546db",
+  "source": "credited",
+  "label": "OTHER",
+  "textHead": "Update README.md using the verified outputs from the preceding phase. Document --exclude WORDS and include one runnable example using --exclude alone and one us"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-text-frequency-cli",
+  "index": 5,
+  "run": "fa8b6ce3-a182-4ac6-80c7-f477b2265680",
+  "source": "credited",
+  "label": "OTHER",
+  "textHead": "Inspect wordfreq.js, README.md, and available fixtures, then execute and record a regression baseline for no flags, --top, --json, --min-length, --exclude, comb"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-text-frequency-cli",
+  "index": 6,
+  "run": "fa8b6ce3-a182-4ac6-80c7-f477b2265680",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Update wordfreq.js through a full on-disk file write while preserving the recorded behavior exactly. Add optional `--format csv`: `node wordfreq.js --format csv"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-text-frequency-cli",
+  "index": 7,
+  "run": "fa8b6ce3-a182-4ac6-80c7-f477b2265680",
+  "source": "credited",
+  "label": "OTHER",
+  "textHead": "Update README.md through a full on-disk file write to document `--format csv`, its compatibility with --top, --min-length, and --exclude, and its incompatibilit"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-text-frequency-cli",
+  "index": 8,
+  "run": "d99354c5-7cc2-4f79-bba7-f1cb0f55d38b",
+  "source": "credited",
+  "label": "OTHER",
+  "textHead": "Restore the README of the wordfreq.js command-line tool without changing the tool: every flag (--top, --json, --min-length, --exclude, --format csv) gets an exa"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-text-frequency-cli",
+  "index": 9,
+  "run": "d8bd792d-cbd1-4b79-9863-0689669de07e",
+  "source": "credited",
+  "label": "OTHER",
+  "textHead": "Build a dependency-free Node.js CLI named redact-jsonl that streams UTF-8 NDJSON from a file path or stdin to stdout, redacting values whose object keys match a"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-verified-ambiguous-ledger",
+  "index": 0,
+  "run": "c21011cb-101b-4958-962d-1f4c60236339",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Formally enumerate every five-movement reconstruction from opening stock 40 and raw candidates t1 receipt {+12,+17}, t2 dispatch {-9,-4}, t3 receipt {+6,+8}, t4"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-verified-ambiguous-ledger",
+  "index": 1,
+  "run": "c21011cb-101b-4958-962d-1f4c60236339",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Independently recompute the complete candidate product for opening stock 40 with t1 receipt {+12,+17}, t2 dispatch {-9,-4}, t3 receipt {+6,+8}, t4 dispatch {-15"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-verified-ambiguous-ledger",
+  "index": 2,
+  "run": "3b3efaf3-15c9-4977-9a64-796e4a4a37d4",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Repair verify_ledger.py and add regression_checks.py. Define a documented, explicitly bounded audit.md report grammar that semantically requires exactly two sur"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-verified-ambiguous-ledger",
+  "index": 3,
+  "run": "947a21a2-e0b0-4b6d-b219-a83ef2c1747b",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Repair verify_ledger.py and regression_checks.py so every audit assertion is parsed only from its designated unique section/field, values are compared with surv"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-verified-ambiguous-ledger",
+  "index": 4,
+  "run": "947a21a2-e0b0-4b6d-b219-a83ef2c1747b",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Update audit.md to accurately document the bounded section/field grammar implemented by verify_ledger.py, clearly distinguishing illustrative examples from actu"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-verified-ambiguous-ledger",
+  "index": 5,
+  "run": "947a21a2-e0b0-4b6d-b219-a83ef2c1747b",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Inspect the accepted verify_ledger.py, audit.md, and normalized.csv behavior, then minimally repair regression_checks.py so every isolated-copy mutation targets"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-verified-state-model-checker",
+  "index": 0,
+  "run": "a17fbf5d-8137-444c-9b3c-cf33d34b69a9",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Implement model_check.py using only the Python standard library. Model state exactly as (pc0,pc1,flag0,flag1,turn), initially (0,0,false,false,0), with labeled "
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-verified-state-model-checker",
+  "index": 1,
+  "run": "a17fbf5d-8137-444c-9b3c-cf33d34b69a9",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Independently audit and, if discrepancies exist, correct model_check.py and results.json. Recompute from (0,0,false,false,0) both complete transition graphs for"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-verified-state-model-checker",
+  "index": 2,
+  "run": "a17fbf5d-8137-444c-9b3c-cf33d34b69a9",
+  "source": "credited",
+  "label": "OTHER",
+  "textHead": "Write analysis.md from the validated results.json and standing recorded probes. Explain the exact state tuple, initial state, atomic and unchanged-component sem"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-verified-state-model-checker",
+  "index": 3,
+  "run": "8738f263-a6b6-4084-897e-a57fc2ea4786",
+  "source": "credited",
+  "label": "OTHER",
+  "textHead": "Create the isolated routing/ workstream only: routing/input.json preserving the undirected positive edges DP=4,DQ=3,PQ=2,PR=5,QR=2,QS=6,RS=2,RT=5,ST=3,TD=6; rou"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-verified-state-model-checker",
+  "index": 4,
+  "run": "8738f263-a6b6-4084-897e-a57fc2ea4786",
+  "source": "credited",
+  "label": "OTHER",
+  "textHead": "Create the isolated schedule/ workstream only: schedule/input.json preserving jobs A=3, B=2, C=4, D=2, E=3, F=1; identical benches X,Y; integer starts >=0; A be"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-verified-state-model-checker",
+  "index": 5,
+  "run": "8738f263-a6b6-4084-897e-a57fc2ea4786",
+  "source": "credited",
+  "label": "OTHER",
+  "textHead": "Create the isolated packing/ workstream only: packing/input.json preserving boxes X capacity 9 and Y capacity 10 and items A:6:11, B:5:10, C:4:8, D:4:7, E:3:7, "
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-verified-state-model-checker",
+  "index": 6,
+  "run": "7a247d71-b790-46e8-9c51-d4923503fa85",
+  "source": "credited",
+  "label": "OTHER",
+  "textHead": "Create resolve.js as a dependency-free Node.js 24 CLI invoked as `node resolve.js --input catalog.json --out lock.json`, with `--help`. Strictly validate the co"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-verified-transport-solution",
+  "index": 0,
+  "run": "d9bf3716-ab47-406f-97e7-d5791c595f45",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Using the established solution, write report.md, solution.json, and verify_transport.py. The files must cover both scenarios for supplies A=7, B=9, C=8; demands"
+ },
+ {
+  "group": "C",
+  "recipe": "Ammonia/build-verified-vector-geometry",
+  "index": 0,
+  "run": "015988df-9c2a-4311-9229-fa219fc7969b",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Create plate.svg, geometry.json, and verify_geometry.py. plate.svg must be standalone with width=\"120mm\", height=\"80mm\", viewBox=\"0 0 120 80\" and exactly six ge"
+ }
+]

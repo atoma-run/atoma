@@ -684,6 +684,71 @@ family. Creating and compiling a new sibling when none exists, temporary
 extraction failure/retry and adversarial cases are regression-test evidence,
 not additional live-production measurements.
 
+## Recipe offer floor, 2026-10-06
+
+The 2026-09-29 calibration set `noFit` to 0.2 because, read against the
+model's own decisions, six recipe decisions the model reused had every
+recipe under 0.3. That measured agreement with the model, not whether the
+recipe it reused fitted. On 2026-10-06 the credited recipe matches of the
+production catalog were labelled on that question — does the recipe describe
+the job it was used on (same job) or not (a misroute) — by one model judge
+per family ([typed-parameter measurement](typed-parameter-scripts-2026-10-06.md),
+`benchmark/typed-params-2026-10-06/`). The recorded prefilter answer of each
+match was then read back from its trace, with no new call, and pre-registered
+rules were scored on it
+([pre-registration and data](../benchmark/recipe-routing-2026-10-06/PREREGISTRATION.md);
+its "153 credited matches" means 153 subtasks, of which 116 are credited
+matches).
+
+Of the 116: Jev picked 56 (51 same job, 5 misroutes), the model decided 42
+(18 same job, 24 misroutes), and 18 predate Jev. The model's misroutes follow
+its prompt, which matches on workflow shape: a word-count recipe for an
+NDJSON redactor (fit 0.05), build recipes for four constraint solvers.
+
+| Rule, on the 90 matches with a recorded `fits` | Misroutes removed (of 28) | Same-job lost | Share of removals that were misroutes |
+|---|---|---|---|
+| R1(0.4): a model reuse below 0.4 becomes no recipe | 16 | 5 | 76% |
+| **R1(0.5)** | **19** | **6** | **76%** |
+| R1(0.6) | 21 | 13 | 62% |
+| `noFit` 0.5 (escalate when every recipe is below) | 13 | 3 | 81% |
+| no model call after Jev's `none_of_these` | 4 | 0 | 100% |
+
+The pre-registered bar (at least half the misroutes, at least three removed
+per same-job match lost) admits 0.4 and 0.5; 0.5 removes more.
+`recipeOffer` = 0.5 ships R1 exactly as scored: the model is shown the
+catalog it was shown before (file clashes still withheld), and a reuse of a
+recipe Jev read below 0.5 becomes no recipe, fresh or served from the
+prefilter cache; when every recipe it could reuse is below, it is not asked.
+Jev's own picks (`fit` 0.7) and agent catalogs are unchanged. None of the six
+same-job matches lost had a reusable alternative: all six run unguided.
+
+The labels were checked once more, blind: a second judge labelled the 25
+matches the rule removes without seeing the first labels. It also found 19
+misroutes and 6 same-job matches, but agreed case by case on 17 of 25. Both
+judges call 15 of the 25 misroutes and 2 same-job; 8 are disputed. The
+measured precision, 76% against a 75% bar, rests on labels that are fuzzy
+for a third of the cases: what the rule removes is mostly clear misroutes,
+not a margin a label could not move.
+
+What it costs, beyond the unguided worker: a phase left with no recipe is
+novel, so an approved one distils a recipe, which pays a learning call and
+may meet the twin guard. What it gains beyond the misroute: that same phase
+can now learn the recipe it lacked, where a misroute marked it not novel.
+The floor acts in the band `JEV_THRESHOLDS` calls noise, deliberately and
+only in the safe direction (a recipe refused, never one picked); the decisions
+near 0.5 have not been asked twice.
+
+Not addressed, and not measured: the 5 misroutes Jev picked itself, all
+documentation phases (a README, a report, an analysis) given a build recipe
+that has a README step (`fits` 0.77–0.83); the 5 misroutes the model picked
+at or above 0.5; compiled scripts (none was in the labelled set) and catalogs
+under three recipes (none either). Only credited matches are in the set, so
+misroutes whose credit was withheld, and same-job matches that failed, are
+both missing. Experimental progressive recipes carry the floor's refusals on
+a shortlist escalate, but recipes outside the shortlist stay unscored.
+
+Follow-up: item 5 of "Reading we will see" below.
+
 ## Reading "we will see"
 
 Two weeks after the switch of 2026-09-29 (so around 2026-10-13), or sooner if
@@ -703,6 +768,9 @@ model decides only what Jev hands it, so `atoma_jev_calibrate` with
    and Jev's own latency and failures from the host.
 4. **Trust inflation**: atom types whose consecutive-success counter was
    earned on Jev approvals.
+5. **Recipes the offer floor refused** (since 2026-10-06): phases left with no
+   recipe by `recipeOffer`, and, among those approved, learn calls whose twin
+   check names the recipe the floor refused — a false refusal, directly.
 
 If (1) or (2) rises past what the saved seconds pay for, set the platform
 switch `ATOMA_JEV=0` on the host and restart.

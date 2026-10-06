@@ -1,0 +1,202 @@
+[
+ {
+  "caseId": "case-04",
+  "recipe": "Serotonin/patch-verified-static-ui",
+  "run": "16a8232a",
+  "first": "SAME",
+  "blind": "SAME",
+  "conf": "high"
+ },
+ {
+  "caseId": "case-18",
+  "recipe": "Ammonia/build-schema-csv-json-cli",
+  "run": "22af997d",
+  "first": "OTHER",
+  "blind": "SAME",
+  "conf": "low"
+ },
+ {
+  "caseId": "case-19",
+  "recipe": "Ammonia/build-schema-csv-json-cli",
+  "run": "2c03a3f6",
+  "first": "OTHER",
+  "blind": "OTHER",
+  "conf": "high"
+ },
+ {
+  "caseId": "case-03",
+  "recipe": "Serotonin/patch-verified-static-ui",
+  "run": "32437f56",
+  "first": "OTHER",
+  "blind": "OTHER",
+  "conf": "low"
+ },
+ {
+  "caseId": "case-07",
+  "recipe": "CarbonDioxide/build-offline-typing-studio",
+  "run": "32f052d8",
+  "first": "OTHER",
+  "blind": "OTHER",
+  "conf": "low"
+ },
+ {
+  "caseId": "case-08",
+  "recipe": "CarbonDioxide/build-offline-typing-studio",
+  "run": "32f052d8",
+  "first": "OTHER",
+  "blind": "OTHER",
+  "conf": "low"
+ },
+ {
+  "caseId": "case-06",
+  "recipe": "CarbonDioxide/build-offline-typing-studio",
+  "run": "34da7f81",
+  "first": "OTHER",
+  "blind": "OTHER",
+  "conf": "high"
+ },
+ {
+  "caseId": "case-09",
+  "recipe": "Benzene/document-verified-geometry-study",
+  "run": "40b185c4",
+  "first": "OTHER",
+  "blind": "SAME",
+  "conf": "low"
+ },
+ {
+  "caseId": "case-15",
+  "recipe": "Ammonia/build-deterministic-pcm-fixture",
+  "run": "40b185c4",
+  "first": "OTHER",
+  "blind": "SAME",
+  "conf": "high"
+ },
+ {
+  "caseId": "case-13",
+  "recipe": "Ammonia/document-verified-shortcut",
+  "run": "495c20ef",
+  "first": "OTHER",
+  "blind": "OTHER",
+  "conf": "low"
+ },
+ {
+  "caseId": "case-05",
+  "recipe": "CarbonDioxide/build-node-api-web-ui",
+  "run": "7265dd9b",
+  "first": "SAME",
+  "blind": "SAME",
+  "conf": "low"
+ },
+ {
+  "caseId": "case-11",
+  "recipe": "Ammonia/harden-node-cli-test-package",
+  "run": "738678bc",
+  "first": "OTHER",
+  "blind": "OTHER",
+  "conf": "high"
+ },
+ {
+  "caseId": "case-10",
+  "recipe": "Ammonia/harden-isolated-policy-boundaries",
+  "run": "7a247d71",
+  "first": "OTHER",
+  "blind": "OTHER",
+  "conf": "low"
+ },
+ {
+  "caseId": "case-16",
+  "recipe": "Ammonia/build-exact-ledger-reconciler",
+  "run": "7a247d71",
+  "first": "OTHER",
+  "blind": "OTHER",
+  "conf": "high"
+ },
+ {
+  "caseId": "case-25",
+  "recipe": "Ammonia/build-verified-state-model-checker",
+  "run": "7a247d71",
+  "first": "OTHER",
+  "blind": "OTHER",
+  "conf": "high"
+ },
+ {
+  "caseId": "case-12",
+  "recipe": "Ammonia/harden-node-cli-test-package",
+  "run": "842ceba8",
+  "first": "OTHER",
+  "blind": "OTHER",
+  "conf": "high"
+ },
+ {
+  "caseId": "case-02",
+  "recipe": "Water/build-self-contained-static-page",
+  "run": "8606cf38",
+  "first": "SAME",
+  "blind": "OTHER",
+  "conf": "low"
+ },
+ {
+  "caseId": "case-24",
+  "recipe": "Ammonia/build-verified-state-model-checker",
+  "run": "8738f263",
+  "first": "OTHER",
+  "blind": "OTHER",
+  "conf": "high"
+ },
+ {
+  "caseId": "case-22",
+  "recipe": "Ammonia/build-verified-ambiguous-ledger",
+  "run": "947a21a2",
+  "first": "SAME",
+  "blind": "OTHER",
+  "conf": "low"
+ },
+ {
+  "caseId": "case-23",
+  "recipe": "Ammonia/build-verified-ambiguous-ledger",
+  "run": "947a21a2",
+  "first": "SAME",
+  "blind": "OTHER",
+  "conf": "high"
+ },
+ {
+  "caseId": "case-17",
+  "recipe": "Ammonia/build-exact-ledger-reconciler",
+  "run": "9d8f31f1",
+  "first": "OTHER",
+  "blind": "OTHER",
+  "conf": "low"
+ },
+ {
+  "caseId": "case-01",
+  "recipe": "Water/build-self-contained-static-page",
+  "run": "b9dc4d0b",
+  "first": "SAME",
+  "blind": "OTHER",
+  "conf": "low"
+ },
+ {
+  "caseId": "case-21",
+  "recipe": "Ammonia/build-text-frequency-cli",
+  "run": "d8bd792d",
+  "first": "OTHER",
+  "blind": "OTHER",
+  "conf": "high"
+ },
+ {
+  "caseId": "case-14",
+  "recipe": "Ammonia/document-verified-shortcut",
+  "run": "dadeea78",
+  "first": "OTHER",
+  "blind": "SAME",
+  "conf": "low"
+ },
+ {
+  "caseId": "case-20",
+  "recipe": "Ammonia/build-text-frequency-cli",
+  "run": "fa8b6ce3",
+  "first": "OTHER",
+  "blind": "OTHER",
+  "conf": "high"
+ }
+]

@@ -737,7 +737,7 @@ function readApprovalRecord(row: ApprovalRecord, thresholds: JevThresholds) {
 
 function readPrefilterRecord(row: PrefilterRecord, thresholds: JevThresholds) {
   return readChoice(
-    { options: row.options, request: row.actorTier !== undefined ? { actorTier: row.actorTier } : {} },
+    { options: row.options, request: { question: row.question, ...(row.actorTier !== undefined ? { actorTier: row.actorTier } : {}) } },
     row.answers!,
     thresholds
   );

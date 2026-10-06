@@ -1,0 +1,263 @@
+[
+ {
+  "group": "B1",
+  "recipe": "Methane/build-in-memory-json-api",
+  "index": 0,
+  "run": "b5e873f8-2f04-4f57-a159-ce31fb46968d",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Build a self-contained Node.js HTTP JSON bookmarks API using only built-in modules. Deliver server.mjs and a README with startup instructions. Listen on process"
+ },
+ {
+  "group": "B1",
+  "recipe": "Methane/build-in-memory-json-api",
+  "index": 1,
+  "run": "e9a60a26-1d3c-492b-b702-c3a9a75f8388",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Inspect the existing guestbook and extend server.js without breaking current routes. Add PUT /api/entries/:id so a valid non-empty message replaces the matching"
+ },
+ {
+  "group": "B1",
+  "recipe": "Methane/build-in-memory-json-api",
+  "index": 2,
+  "run": "a5e5f2a1-4ca5-48ae-b012-b764a51f42ef",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Extend the existing notes server without breaking its routes. Add GET /api/notes/:id, which answers the note with that id, or 404 with a JSON error for an unkno"
+ },
+ {
+  "group": "B1",
+  "recipe": "Methane/build-in-memory-json-api",
+  "index": 3,
+  "run": "455a4f43-e3df-46da-8f7a-c3391792d3d1",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Extend the existing notes server without breaking its routes. Add PATCH /api/notes/:id, which updates a note's title and/or body and answers the updated note, 4"
+ },
+ {
+  "group": "B1",
+  "recipe": "Methane/build-in-memory-json-api",
+  "index": 4,
+  "run": "f1203c2f-ed2a-4963-8196-ac642bd1cebe",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Extend the existing notes server without breaking its routes. Add DELETE /api/notes/:id, which removes the note and answers 204, or 404 with a JSON error for an"
+ },
+ {
+  "group": "B1",
+  "recipe": "Methane/build-in-memory-json-api",
+  "index": 5,
+  "run": "a05c004c-5d37-479f-acfa-f00bafe3c20c",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Build a Node HTTP server in server.js with no dependencies, listening on the port given by the PORT environment variable. GET /health answers 200 with the JSON "
+ },
+ {
+  "group": "B1",
+  "recipe": "Methane/build-in-memory-json-api",
+  "index": 6,
+  "run": "65a7ae3c-48d0-4751-a487-f296a9b135d2",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Extend the existing notes API without breaking its routes. Write routes (POST, PATCH, DELETE) now require an X-API-Key header equal to the NOTES_API_KEY environ"
+ },
+ {
+  "group": "B1",
+  "recipe": "Methane/build-persisted-json-api",
+  "index": 0,
+  "run": "c949f7e7-37a6-409e-8e17-210d75dd4f50",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Extend server.js into a notes JSON API persisted to notes.json in the working directory, keeping GET /health and GET / exactly as they are. GET /api/notes answe"
+ },
+ {
+  "group": "B1",
+  "recipe": "Methane/build-persisted-json-api",
+  "index": 1,
+  "run": "e6655476-edf3-4c48-93f7-8fb9b2e77bb7",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Build an offline dependency-free Node.js 24 HTTP stock-reservation service using durable SQLite (node:sqlite is available). Deliver server.js, package.json with"
+ },
+ {
+  "group": "B1",
+  "recipe": "Methane/build-persisted-json-api",
+  "index": 2,
+  "run": "4c1a1e8c-30bc-4e89-8dc7-266bceca812f",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Build an offline dependency-free Node.js 24 HTTP stock-reservation service using durable SQLite (node:sqlite is available). Deliver server.js, package.json with"
+ },
+ {
+  "group": "B1",
+  "recipe": "Methane/build-persisted-json-api",
+  "index": 3,
+  "run": "b873c5a2-bfb0-499b-85e9-f1bcc18a520e",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Build an offline dependency-free Node.js 24 HTTP stock-reservation service using durable SQLite (node:sqlite is available). Deliver server.js, package.json with"
+ },
+ {
+  "group": "B1",
+  "recipe": "Methane/build-persisted-json-api",
+  "index": 4,
+  "run": "715ffc74-7a0a-41a4-9e0e-0be0993ec01c",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Build an offline dependency-free Node.js 24 HTTP stock-reservation service using durable SQLite (node:sqlite is available). Deliver server.js, package.json with"
+ },
+ {
+  "group": "B1",
+  "recipe": "Methane/build-persisted-json-api",
+  "index": 5,
+  "run": "8d819d66-1de2-4050-8ee0-119db03d1969",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Build an offline dependency-free Node.js 24 HTTP stock-reservation service using durable SQLite (node:sqlite is available). Deliver server.js, package.json with"
+ },
+ {
+  "group": "B1",
+  "recipe": "Methane/build-persisted-json-api",
+  "index": 6,
+  "run": "ce89c84a-c848-428c-8811-de4d090c8d39",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Inspect and continue the existing application, modifying server.js, test/library.test.js, package.json, data/library.json, README.md, public/index.html, public/"
+ },
+ {
+  "group": "B1",
+  "recipe": "Benzene/document-verified-geometry-study",
+  "index": 0,
+  "run": "015988df-9c2a-4311-9229-fa219fc7969b",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Write README.md using plate.svg, geometry.json, verify_geometry.py, and the recorded probes as sources. Explain that this is a fictional geometric study rather "
+ },
+ {
+  "group": "B1",
+  "recipe": "Benzene/document-verified-geometry-study",
+  "index": 1,
+  "run": "40b185c4-b702-4064-831f-909fbbe503fa",
+  "source": "credited",
+  "label": "OTHER",
+  "textHead": "Write composition.md using the completed artefacts and recorded probe evidence as sources. Explain the musical design, including melodic contour, harmonic/bar p"
+ },
+ {
+  "group": "B1",
+  "recipe": "Benzene/reassess-archived-review-findings",
+  "index": 0,
+  "run": "8fc39475-a85a-48c6-be1b-d2fafb3532ae",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Inspect AGENTS.md and applicable subsystem contracts, then reassess every finding marked confirmed in docs/archive/reviews/code-review-2026-10-02.md against the"
+ },
+ {
+  "group": "B1",
+  "recipe": "Benzene/reassess-archived-review-findings",
+  "index": 1,
+  "run": "8fc39475-a85a-48c6-be1b-d2fafb3532ae",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Inspect the current default-branch workspace and produce the final text-only reliability project plan. First read and obey AGENTS.md plus any applicable nested "
+ },
+ {
+  "group": "B1",
+  "recipe": "Ammonia/harden-isolated-policy-boundaries",
+  "index": 0,
+  "run": "2311d446-5787-4356-b032-fcf8ebf184e3",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Strengthen test/library.test.js with isolated temporary-data regressions for the lending boundaries, preserving all existing assertions and scenarios. For a pre"
+ },
+ {
+  "group": "B1",
+  "recipe": "Ammonia/harden-isolated-policy-boundaries",
+  "index": 1,
+  "run": "7a247d71-b790-46e8-9c51-d4923503fa85",
+  "source": "credited",
+  "label": "OTHER",
+  "textHead": "Inspect the existing resolver and tests without rebuilding accepted deliverables. Create fixtures/impossible-cycle.json containing a root-reachable contradictor"
+ },
+ {
+  "group": "B1",
+  "recipe": "Ammonia/harden-isolated-policy-boundaries",
+  "index": 2,
+  "run": "3eea5c57-9370-4189-8275-a93933330b37",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Inspect and narrowly fix stock-reconcile.js so output destinations are refused only when stock.csv or audit.json would resolve to the identity of an actual open"
+ },
+ {
+  "group": "B1",
+  "recipe": "Ammonia/harden-isolated-policy-boundaries",
+  "index": 3,
+  "run": "a239be59-4a72-4592-a634-f3fe3161aff9",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Inspect and finish `stock-reconcile.js`, strengthen `test/stock-reconcile.test.js`, and record final CLI evidence in `.atoma-probes.json` while retaining the co"
+ },
+ {
+  "group": "B1",
+  "recipe": "Ammonia/harden-isolated-policy-boundaries",
+  "index": 4,
+  "run": "2c03a3f6-1300-407c-a3b0-7fc21dddb0c1",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Repair stock-reconcile.js and strengthen test/stock-reconcile.test.js, README.md, examples/opening.csv, examples/events.csv, and examples/excess-return-events.c"
+ },
+ {
+  "group": "B1",
+  "recipe": "Ammonia/harden-manifest-exclusions",
+  "index": 0,
+  "run": "afb236ab-ac87-495a-b8ea-f03f92da8e70",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Patch verify_all.py narrowly. Implement one shared case-insensitive path-exclusion predicate used by publishable_files(), validate_manifest() ordinary-file inve"
+ },
+ {
+  "group": "B1",
+  "recipe": "Ammonia/harden-node-cli-test-package",
+  "index": 0,
+  "run": "41e069a6-79ab-4722-ba21-c02e1b600d17",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Complete the seeded offline dependency resolver project, preserving the existing correct resolve.js implementation and all twelve acceptance criteria. The previ"
+ },
+ {
+  "group": "B1",
+  "recipe": "Ammonia/harden-node-cli-test-package",
+  "index": 1,
+  "run": "738678bc-358b-49af-b2d3-40680b4a995e",
+  "source": "credited",
+  "label": "OTHER",
+  "textHead": "Build a dependency-free Node.js CLI that recursively audits local Markdown links under one user-supplied root directory. Read .md files only, skip .git, node_mo"
+ },
+ {
+  "group": "B1",
+  "recipe": "Ammonia/harden-node-cli-test-package",
+  "index": 2,
+  "run": "842ceba8-21c5-4cb5-93d3-caa0b9c44f43",
+  "source": "credited",
+  "label": "OTHER",
+  "textHead": "Build a dependency-free Node.js command-line tool that recursively scans one user-supplied directory and reports groups of byte-identical regular files. It must"
+ },
+ {
+  "group": "B1",
+  "recipe": "Ammonia/harden-node-cli-test-package",
+  "index": 3,
+  "run": "cb53b09d-87d7-4c3a-af95-89b9500c209e",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Complete, verify and deliver the existing seeded project against the original contract below. Preserve working behavior and every existing assertion; repair any"
+ },
+ {
+  "group": "B1",
+  "recipe": "Ammonia/harden-node-cli-test-package",
+  "index": 4,
+  "run": "0a4a3e55-1df2-4cb3-8dd0-b7f69500a648",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Finish the seeded dependency resolver's evidence and delivery without changing resolve.js (SHA-256 0975d287b8729f7958ef73b9313c23ac74a6237239b09d81e9fc10c012ea9"
+ }
+]

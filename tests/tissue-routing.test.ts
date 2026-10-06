@@ -181,7 +181,7 @@ describe('root tissue selection', () => {
       'fits::agent_1': { type: 'noul', noul: 0.8 },
     };
     expect(readChoice(plan, answers).decision).toBeNull();
-    expect(readChoice({ ...plan, request: { actorTier: 3 } }, answers).decision?.target).toBe('Meristem');
+    expect(readChoice({ ...plan, request: { question: 'agent', actorTier: 3 } }, answers).decision?.target).toBe('Meristem');
   });
 });
 

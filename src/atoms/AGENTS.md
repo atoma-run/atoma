@@ -557,7 +557,9 @@ Read the archived sections before changing something that merely looks odd.
   pick Jev hands to the model reaches it without the recipes Jev read as
   contradicting the task on files: offered one, the model injected a
   verify-only recipe into a build phase (run 0a989a58, one of the two such
-  deferrals measured), and when nothing left fits Jev escalates itself.
+  deferrals measured), and when nothing left fits Jev escalates itself. A
+  model reuse of a recipe Jev read below `recipeOffer` (src/core) becomes no
+  recipe: 24 of the model's 42 credited picks were misroutes, 19 under 0.5.
 - Do not introduce plan templating until a typed instantiation/validation layer
   exists; free-form substitution is another unvalidated router.
 - A read-only phase is RESTORED when it ends, never refused its writes. The

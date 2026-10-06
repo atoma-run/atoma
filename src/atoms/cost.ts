@@ -759,12 +759,15 @@ export async function prefilterStrategy(args: {
   // not offered those (JevChoiceDeferral).
   let jev: JevChoiceDecision | null = null;
   let withheld: ReadonlySet<string> = new Set();
+  let refused: ReadonlySet<string> = new Set();
   if (args.ctx.jev) {
     try {
       const answer = await args.ctx.jev.choose(jevRequest);
       cacheWritable = !!policy && !!answer && 'withhold' in answer;
-      if (answer && 'withhold' in answer) withheld = new Set(answer.withhold);
-      else jev = answer;
+      if (answer && 'withhold' in answer) {
+        withheld = new Set(answer.withhold);
+        refused = new Set(answer.refuse ?? []);
+      } else jev = answer;
     } catch {
       jev = null;
     }
@@ -791,11 +794,19 @@ export async function prefilterStrategy(args: {
     return { kind: 'escalate', reasoning: `jev: every recipe contradicts the task on files (${[...withheld].join(', ')})` };
   }
   const { names: offeredNames, userContent, cacheKey } = offered.length === filtered.length ? whole : modelInputs(offered);
+  // THE OFFER FLOOR (`recipeOffer`, docs/jev-decisions-2026-09-28.md): a model
+  // reuse of a recipe Jev read below it becomes no recipe — the rule measured
+  // on 2026-10-06, applied after the cache, which holds the model's own
+  // answer while the floor is this call's reading of Jev.
+  const floored = (outcome: PrefilterOutcome): PrefilterOutcome =>
+    outcome.kind === 'reuse' && refused.has(outcome.target)
+      ? { kind: 'escalate', reasoning: `jev: ${outcome.target} fits below the recipe offer floor (the model picked it: ${outcome.reasoning})` }
+      : outcome;
   // Jev's live exclusions are an input, not a property of the full catalog.
   // Reconsult it before reusing a model decision over the resulting catalog.
   if (args.ctx.jev && cacheWritable) {
     const narrowed = prefilterCacheGet(cacheKey);
-    if (narrowed) return served(narrowed);
+    if (narrowed) return floored(served(narrowed));
   }
 
   try {
@@ -839,7 +850,7 @@ export async function prefilterStrategy(args: {
       return rewritten;
     }
     if (cacheWritable) prefilterCachePut(cacheKey, outcome);
-    return outcome;
+    return floored(outcome);
   } catch (err) {
     // Error-path escalate: NEVER cached — an LLM hiccup must not become a
     // week of "escalate" answers for this input.

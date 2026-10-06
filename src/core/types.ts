@@ -598,6 +598,11 @@ export interface JevChoiceDecision {
  */
 export interface JevChoiceDeferral {
   readonly withhold: readonly string[];
+  /**
+   * Recipes the model is shown but may not reuse: Jev read them below the
+   * offer floor (`recipeOffer`). A model pick among them becomes no recipe.
+   */
+  readonly refuse?: readonly string[];
 }
 
 export interface JevApprovalRequest {

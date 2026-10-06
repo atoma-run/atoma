@@ -100,8 +100,22 @@ export const JEV_THRESHOLDS = {
    * Every option's `fits` below this: none fits, and the prefilter escalates.
    * 0.3 escalated six recipe decisions the model reused (their best fit
    * 0.20–0.27, first calibration of 2026-09-29); 0.2 hands those to the model.
+   * For recipes `recipeOffer` (above) now decides that band too: a recipe
+   * under it is not reused, so those six end with no recipe either way.
    */
   noFit: 0.2,
+  /**
+   * When Jev hands a RECIPE pick to the model, the model may not reuse a
+   * recipe Jev reads as fitting below this: its pick becomes no recipe, and
+   * when every recipe it could pick is below, it is not asked. Measured
+   * 2026-10-06 on 116 credited recipe matches judged same-job or misrouted
+   * (benchmark/recipe-routing-2026-10-06/, rule R1 exactly as shipped): the
+   * model's picks below 0.5 were 19 misroutes against 6 fitting recipes;
+   * 0.4 gave 16 for 5, 0.6 21 for 13. This acts in the middle band the note
+   * above calls noise, on purpose and in the safe direction only: a refused
+   * recipe leaves the worker unguided, it never picks one.
+   */
+  recipeOffer: 0.5,
   /** A task or recipe that changes files, read from its Noul. */
   changesFiles: 0.7,
   /** ... and one that clearly does not. */
@@ -236,6 +250,11 @@ export interface JevReading<D> {
    * recipes whose file changes Jev read as contradicting the task's.
    */
   readonly withhold?: readonly string[];
+  /**
+   * Recipe Choice only: recipes the model is still shown but may not reuse,
+   * read below `recipeOffer`. A model pick among them becomes no recipe.
+   */
+  readonly refuse?: readonly string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -319,7 +338,11 @@ export interface JevChoicePlan {
 }
 
 /** What `readChoice` reads of a plan — all a calibration record keeps of one. */
-export type JevChoiceReadable = Pick<JevChoicePlan, 'options'> & { readonly request: Pick<JevChoiceRequest, 'actorTier' | 'scope'> };
+export type JevChoiceReadable = Pick<JevChoicePlan, 'options'> & {
+  // `question` is required: a reader that omitted it would read a recipe
+  // decision without its offer floor.
+  readonly request: Pick<JevChoiceRequest, 'actorTier' | 'scope' | 'question'>;
+};
 
 /**
  * The questions for one prefilter decision. Candidates described alike are
@@ -441,31 +464,55 @@ export function readChoice(
     return null;
   };
   const withhold = plan.options.filter((option) => clash(option.names[0]!) !== null).flatMap((option) => option.names);
-  const offeredFit = Math.max(
-    0,
-    ...plan.options.filter((option) => !withhold.includes(option.names[0]!)).map((option) => fits[option.names[0]!] ?? 0)
-  );
+  const offered = plan.options.filter((option) => !withhold.includes(option.names[0]!));
+  const offeredFit = Math.max(0, ...offered.map((option) => fits[option.names[0]!] ?? 0));
+  // THE OFFER FLOOR (`recipeOffer`, measured 2026-10-06): the model may not
+  // reuse a recipe Jev reads below it. Asked anyway, the model matched a
+  // word-count recipe to an NDJSON redactor (run d8bd792d, fit 0.05) and
+  // build recipes to four constraint solvers. It still SEES those recipes:
+  // the rule measured is "a pick below the floor becomes no recipe", not
+  // "choose again among the rest". Agents keep the whole catalog.
+  const refuse = plan.request.question === 'recipe'
+    ? offered.filter((option) => (fits[option.names[0]!] ?? 0) < thresholds.recipeOffer).flatMap((option) => option.names)
+    : [];
+  const reusable = offered.filter((option) => !refuse.includes(option.names[0]!));
   /**
    * The model decides, save what Jev withholds; and when nothing it would be
    * offered fits, it is not asked at all: the prefilter escalates, as when
-   * nothing fits (review 2026-09-30).
+   * nothing fits (review 2026-09-30). Nor when every recipe it could reuse is
+   * below the floor: any pick would come back as no recipe. `floor` false is
+   * an answer outside the options, which hands the model the whole catalog.
    */
-  const handOver = (cause: string, why?: string): JevReading<JevChoiceDecision> => {
+  const handOver = (cause: string, why?: string, floor = true): JevReading<JevChoiceDecision> => {
     const because = (...parts: readonly (string | undefined)[]): string => {
       const text = parts.filter((part) => part !== undefined).join('; ');
       return text ? ` (${text})` : '';
     };
-    if (withhold.length === 0) return { decision: null, outcome: `model decides${because(why)}`, answer, causes: [cause] };
-    const notOffered = `not offered: ${listed(withhold)}`;
-    if (offeredFit < thresholds.noFit) {
+    const refused = floor ? refuse : [];
+    if (withhold.length === 0 && refused.length === 0) {
+      return { decision: null, outcome: `model decides${because(why)}`, answer, causes: [cause] };
+    }
+    const notOffered = withhold.length > 0 ? `not offered: ${listed(withhold)}` : undefined;
+    const belowFloor = refused.length > 0 ? `below the ${thresholds.recipeOffer} floor: ${listed(refused)}` : undefined;
+    if (offeredFit < thresholds.noFit || (floor && refused.length > 0 && reusable.length === 0)) {
       return {
         decision: { target: null, confidence, decomposable: false },
-        outcome: `picked ${NO_CANDIDATE}${because(why, notOffered, 'nothing else fits')}`,
+        outcome: `picked ${NO_CANDIDATE}${because(why, notOffered, belowFloor, 'nothing else fits')}`,
         answer,
-        causes: [cause, 'withheld'],
+        causes: [cause, ...(withhold.length > 0 ? ['withheld'] : []), ...(refused.length > 0 ? ['floor'] : [])],
+        // A shortlist's escalate is handed back to the model on the whole
+        // catalog (progressive recipes); what it read below the floor stays refused.
+        ...(refused.length > 0 ? { refuse: refused } : {}),
       };
     }
-    return { decision: null, outcome: `model decides${because(why, notOffered)}`, answer, causes: [cause], withhold };
+    return {
+      decision: null,
+      outcome: `model decides${because(why, notOffered, belowFloor)}`,
+      answer,
+      causes: [cause],
+      ...(withhold.length > 0 ? { withhold } : {}),
+      ...(refused.length > 0 ? { refuse: refused } : {}),
+    };
   };
   const uncertain = (cause: string, why: string): JevReading<JevChoiceDecision> =>
     hint
@@ -485,7 +532,7 @@ export function readChoice(
   const option = byKey.get(choice.choice!);
   if (!option) {
     // An answer outside the options is the model's at every tier, as before.
-    return hint ? { decision: null, outcome: 'model decides', answer, causes: ['not_an_option'] } : handOver('not_an_option');
+    return hint ? { decision: null, outcome: 'model decides', answer, causes: ['not_an_option'] } : handOver('not_an_option', undefined, false);
   }
   const target = option.names[0]!;
   const fit = fits[target] ?? 0;

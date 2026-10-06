@@ -234,7 +234,10 @@ describe('the prefilter: a Choice for which, a Noul per option for whether', () 
         plan,
         answersFor(plan.questions, {
           // A lukewarm Choice, so the model decides whatever the files say.
+          // Every recipe fits above the offer floor: only files withhold here.
           choice: choiceAnswer('update-docs', 0.4),
+          'fits::serve-and-validate-static-page': noulAnswer(0.6),
+          'fits::build-self-contained-static-page': noulAnswer(0.6),
           'fits::update-docs': noulAnswer(0.8),
           task_changes_files: noulAnswer(task),
           'changes_files::serve-and-validate-static-page': noulAnswer(serve),
@@ -278,8 +281,63 @@ describe('the prefilter: a Choice for which, a Noul per option for whether', () 
       })
     );
     expect(leftUnfit.decision).toEqual({ target: null, confidence: 0.8, decomposable: false });
-    expect(leftUnfit.outcome).toMatch(/^picked none_of_these \(.*not offered: serve-and-validate-static-page, build-self-contained-static-page, build-page-clone; nothing else fits\)$/);
-    expect(leftUnfit.causes).toEqual(['files', 'withheld']);
+    expect(leftUnfit.outcome).toMatch(/^picked none_of_these \(.*not offered: serve-and-validate-static-page, build-self-contained-static-page, build-page-clone; below the 0.5 floor: update-docs; nothing else fits\)$/);
+    expect(leftUnfit.causes).toEqual(['files', 'withheld', 'floor']);
+  });
+
+  it('refuses the model a recipe Jev reads below the offer floor (measured 2026-10-06)', () => {
+    // Run d8bd792d: Jev answered none_of_these for an NDJSON redactor, the
+    // word-count recipe fitting at 0.05, and the model, offered it, matched it.
+    const candidates = [
+      { name: 'build-text-frequency-cli', description: 'build a word-count CLI' },
+      { name: 'build-schema-csv-json-cli', description: 'build a CSV to JSON CLI' },
+      { name: 'harden-node-cli-test-package', description: 'harden a CLI package' },
+    ];
+    const plan = built(buildChoice({ question: 'recipe', task: { description: 'build an NDJSON redactor CLI' }, candidates, actorTier: 2 }));
+    const read = (frequency: number, schema: number, harden: number, choice = choiceAnswer(NO_CANDIDATE, 0.46)) =>
+      readChoice(plan, answersFor(plan.questions, {
+        choice,
+        'fits::build-text-frequency-cli': noulAnswer(frequency),
+        'fits::build-schema-csv-json-cli': noulAnswer(schema),
+        'fits::harden-node-cli-test-package': noulAnswer(harden),
+        task_changes_files: noulAnswer(0.95),
+        'changes_files::build-text-frequency-cli': noulAnswer(0.9),
+        'changes_files::build-schema-csv-json-cli': noulAnswer(0.9),
+        'changes_files::harden-node-cli-test-package': noulAnswer(0.9),
+      }));
+
+    // Nothing at the floor: no model call, no recipe.
+    const nothing = read(0.34, 0.12, 0.05);
+    expect(nothing.decision).toEqual({ target: null, confidence: 0.46, decomposable: false });
+    expect(nothing.outcome).toBe(
+      'picked none_of_these (none_of_these, yet a candidate fits at 0.34; below the 0.5 floor: build-text-frequency-cli, build-schema-csv-json-cli, harden-node-cli-test-package; nothing else fits)'
+    );
+    expect(nothing.causes).toEqual(['none_but_fits', 'floor']);
+    // One reaches the floor: the model still sees every recipe (the rule
+    // measured is "a pick below the floor becomes no recipe"), and may reuse
+    // only that one.
+    const some = read(0.34, 0.62, 0.05, choiceAnswer('build-schema-csv-json-cli', 0.42));
+    expect(some.decision).toBeNull();
+    expect(some.withhold).toBeUndefined();
+    expect(some.refuse).toEqual(['build-text-frequency-cli', 'harden-node-cli-test-package']);
+    expect(some.outcome).toBe(
+      'model decides (confidence 0.42; below the 0.5 floor: build-text-frequency-cli, harden-node-cli-test-package)'
+    );
+    // At the floor exactly, reusable; a Jev pick (fit >= 0.7) never reads the floor.
+    expect(read(0.5, 0.5, 0.5, choiceAnswer('build-schema-csv-json-cli', 0.42)).refuse).toBeUndefined();
+    // An answer outside the options hands the model the whole catalog, unfloored.
+    const stray = read(0.3, 0.3, 0.3, choiceAnswer('ghost-recipe', 0.9));
+    expect(stray).toMatchObject({ decision: null, outcome: 'model decides', causes: ['not_an_option'] });
+    expect(stray.refuse).toBeUndefined();
+    expect(read(0.3, 0.9, 0.3, choiceAnswer('build-schema-csv-json-cli', 0.9)).decision).toMatchObject({ target: 'build-schema-csv-json-cli' });
+    // Agents keep the whole catalog: the floor is a recipe rule.
+    const agents = built(buildChoice(choiceRequest));
+    const agentReading = readChoice(agents, answersFor(agents.questions, {
+      choice: choiceAnswer('agent_1', 0.42), 'fits::agent_1': noulAnswer(0.3), 'fits::agent_2': noulAnswer(0.25),
+    }));
+    expect(agentReading).toMatchObject({ decision: null, outcome: 'model decides (confidence 0.42)' });
+    expect(agentReading.withhold).toBeUndefined();
+    expect(agentReading.refuse).toBeUndefined();
   });
 
   it.each([

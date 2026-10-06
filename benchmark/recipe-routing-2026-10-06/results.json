@@ -1,0 +1,72 @@
+{
+  "rows": 116,
+  "withJev": 90,
+  "otherTotal": 28,
+  "results": [
+    {
+      "rule": "R1(0.3)",
+      "blockedOther": 13,
+      "blockedSame": 3,
+      "otherShareBlocked": 0.46,
+      "precision": 0.81,
+      "acceptable": false
+    },
+    {
+      "rule": "R1(0.4)",
+      "blockedOther": 16,
+      "blockedSame": 5,
+      "otherShareBlocked": 0.57,
+      "precision": 0.76,
+      "acceptable": true
+    },
+    {
+      "rule": "R1(0.5)",
+      "blockedOther": 19,
+      "blockedSame": 6,
+      "otherShareBlocked": 0.68,
+      "precision": 0.76,
+      "acceptable": true
+    },
+    {
+      "rule": "R1(0.6)",
+      "blockedOther": 21,
+      "blockedSame": 13,
+      "otherShareBlocked": 0.75,
+      "precision": 0.62,
+      "acceptable": false
+    },
+    {
+      "rule": "R2(0.3)",
+      "blockedOther": 4,
+      "blockedSame": 1,
+      "otherShareBlocked": 0.14,
+      "precision": 0.8,
+      "acceptable": false
+    },
+    {
+      "rule": "R2(0.4)",
+      "blockedOther": 9,
+      "blockedSame": 1,
+      "otherShareBlocked": 0.32,
+      "precision": 0.9,
+      "acceptable": false
+    },
+    {
+      "rule": "R2(0.5)",
+      "blockedOther": 13,
+      "blockedSame": 3,
+      "otherShareBlocked": 0.46,
+      "precision": 0.81,
+      "acceptable": false
+    },
+    {
+      "rule": "R3",
+      "blockedOther": 4,
+      "blockedSame": 0,
+      "otherShareBlocked": 0.14,
+      "precision": 1,
+      "acceptable": false
+    }
+  ],
+  "proposed": "R1(0.5)"
+}

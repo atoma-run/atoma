@@ -729,9 +729,10 @@ export function createJevDecider(opts: {
       });
       // A shortlist cannot prove absence from the entire roster. The model sees
       // the original catalog on deferral, minus only positively incompatible recipes.
-      if (selected !== request && reading.decision?.target === null) return { withhold: reading.withhold ?? [] };
+      const deferral = { withhold: reading.withhold ?? [], ...(reading.refuse ? { refuse: reading.refuse } : {}) };
+      if (selected !== request && reading.decision?.target === null) return deferral;
       if (stray !== undefined) return null;
-      return reading.decision ?? { withhold: reading.withhold ?? [] };
+      return reading.decision ?? deferral;
     },
 
     async approve(request: JevApprovalRequest): Promise<JevApprovalDecision | null> {

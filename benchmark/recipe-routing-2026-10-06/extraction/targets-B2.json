@@ -1,0 +1,164 @@
+[
+ {
+  "group": "B2",
+  "recipe": "Ammonia/correct-docs-from-verified-artifacts",
+  "index": 0,
+  "run": "b2f5a494-f16a-485b-a003-b973512a8caf",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Update only composition.md so scientific pitch notation is consistent: MIDI 72 is C5, MIDI 60 is middle C/C4, and MIDI 48 is C3. Correct both passages that wron"
+ },
+ {
+  "group": "B2",
+  "recipe": "Ammonia/correct-docs-from-verified-artifacts",
+  "index": 1,
+  "run": "6c582953-9485-4cf5-be26-728757c518f3",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Rewrite README.md using the implemented files and recorded probe evidence as sources. Explain prerequisites and dependency-free installation, running with PORT "
+ },
+ {
+  "group": "B2",
+  "recipe": "Ammonia/correct-docs-from-verified-artifacts",
+  "index": 2,
+  "run": "66bf4b67-4892-4ae6-8e81-058dbf090187",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Update README.md from the implementation, package metadata, tests, and recorded probes. Preserve the documented JSON and monetary contract, explain that currenc"
+ },
+ {
+  "group": "B2",
+  "recipe": "Ammonia/create-evidence-dossier-timeline",
+  "index": 0,
+  "run": "e0e40d2d-862f-456b-85fa-c0781cec7351",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Create dossier.md and timeline.csv using only S1-S6. Preserve every raw timestamp; normalize only S3's raw 09:14 to 09:10 because S5 establishes that the sensor"
+ },
+ {
+  "group": "B2",
+  "recipe": "Ammonia/create-evidence-dossier-timeline",
+  "index": 1,
+  "run": "e0e40d2d-862f-456b-85fa-c0781cec7351",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Critically audit and finalize dossier.md and timeline.csv against S1-S6, correcting any unsupported wording, overstatement, hidden causal implication, or timeli"
+ },
+ {
+  "group": "B2",
+  "recipe": "Ammonia/document-isolated-negative-tests",
+  "index": 0,
+  "run": "822bb4fe-6e14-4bc1-9348-4842691bc440",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Update README.md from the existing verifier behavior and recorded evidence. Document the exact normal invocation and exact reproducible Python-standard-library "
+ },
+ {
+  "group": "B2",
+  "recipe": "Ammonia/document-isolated-negative-tests",
+  "index": 1,
+  "run": "3b3efaf3-15c9-4977-9a64-796e4a4a37d4",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Update audit.md to remain accurate, reader-facing, and compliant with the bounded report grammar implemented by verify_ledger.py, retaining exactly two survivin"
+ },
+ {
+  "group": "B2",
+  "recipe": "Ammonia/document-verified-shortcut",
+  "index": 0,
+  "run": "c1d1b230-cd50-4a2f-9537-809b1b0e5750",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Read the existing README.md and update README.md via file creation tooling to document the B shortcut concisely and consistently with its current style. State t"
+ },
+ {
+  "group": "B2",
+  "recipe": "Ammonia/document-verified-shortcut",
+  "index": 1,
+  "run": "9ad606d9-e92f-4739-b4eb-fa8b5592dba9",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Update README.md from the implemented page and its recorded browser evidence, documenting that the Extend button adds five minutes only while running or paused "
+ },
+ {
+  "group": "B2",
+  "recipe": "Ammonia/document-verified-shortcut",
+  "index": 2,
+  "run": "3cbef119-06d1-4510-8843-7e89cd2802ce",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Update README.md from the recorded browser evidence to document that P pauses a running countdown, has no effect while stopped, and is ignored while focus is in"
+ },
+ {
+  "group": "B2",
+  "recipe": "Ammonia/document-verified-shortcut",
+  "index": 3,
+  "run": "81375f01-6051-48df-b460-242feb69473b",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Update README.md to document that F selects focus/Pomodoro mode and note that shortcuts are ignored while focus is in a text field, select, or textarea. Use the"
+ },
+ {
+  "group": "B2",
+  "recipe": "Ammonia/document-verified-shortcut",
+  "index": 4,
+  "run": "c195ba35-44dd-4ec4-8a4a-18adb727e36b",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Modify only README.md so it states that keyboard shortcuts are ignored only while focus is in a text field, a select, or a textarea, and that shortcuts work whi"
+ },
+ {
+  "group": "B2",
+  "recipe": "Ammonia/document-verified-shortcut",
+  "index": 5,
+  "run": "495c20ef-4d2d-4d8e-9ad1-16c32dd1db03",
+  "source": "credited",
+  "label": "OTHER",
+  "textHead": "Update README.md to document exactly the restored index.html page: its Focus Timer identity, initial 25:00 focus timer, mode labels and durations, ordered contr"
+ },
+ {
+  "group": "B2",
+  "recipe": "Ammonia/document-verified-shortcut",
+  "index": 6,
+  "run": "dadeea78-cf97-4d2c-b411-fadabdd3166e",
+  "source": "credited",
+  "label": "OTHER",
+  "textHead": "Update the README of the wordfreq.js command-line tool without changing the tool or any other file: add a usage line near the top that lists every flag the tool"
+ },
+ {
+  "group": "B2",
+  "recipe": "Ammonia/integrate-verified-workstreams",
+  "index": 0,
+  "run": "8738f263-a6b6-4084-897e-a57fc2ea4786",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "After all four branches pass their local checks, integrate them without changing their assumptions or stream files. Create README.md with reproducible offline e"
+ },
+ {
+  "group": "B2",
+  "recipe": "Ammonia/integrate-verified-workstreams",
+  "index": 1,
+  "run": "bcf35298-b65e-4380-8994-a17431e9c564",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Repair README.md, verify_all.py, and manifest.json while preserving every byte in packing/, schedule/, routing/, quality/, and dossier.md. Define the publishabl"
+ },
+ {
+  "group": "B2",
+  "recipe": "Ammonia/integrate-verified-workstreams",
+  "index": 2,
+  "run": "bcf35298-b65e-4380-8994-a17431e9c564",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Inspect the existing integration files and address only acceptance criterion c5 while preserving verify_all.py, dossier.md, and every byte under packing/, sched"
+ },
+ {
+  "group": "B2",
+  "recipe": "Ammonia/sync-docs-to-ui-controls",
+  "index": 0,
+  "run": "13f7cce0-ca07-4d60-8b5b-67782561ff5c",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Inspect the existing page to confirm its button order, then edit only README.md so the sentence beginning \"The five buttons appear in this order\" instead says t"
+ }
+]

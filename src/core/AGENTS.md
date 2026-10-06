@@ -267,6 +267,12 @@ Neighbours:
   and absolute-fit thresholds even if the caller attributes it to tier 3.
   The weaker L3 child-routing hint is never used to select a root tissue.
   Its bounded repository context and scope are included in the policy key.
+- A recipe pick Jev hands to the model may not land on a recipe it reads
+  below `recipeOffer` (0.5): that reuse becomes no recipe, fresh or cached,
+  and with nothing reusable left the model is not asked. Measured 2026-10-06
+  against same-job/misroute judgements of 116 credited matches, not against
+  the model's own picks; shipped exactly as scored
+  ([record](../../docs/jev-decisions-2026-09-28.md#recipe-offer-floor-2026-10-06)).
 - The `compile-skill` questions use the same bounded client, cost accounting
   and trace events. Their 0.2/0.8 band was retained after the 2026-10-01
   production sample: 14 labelled recipes, 3 evaluations each, no observed

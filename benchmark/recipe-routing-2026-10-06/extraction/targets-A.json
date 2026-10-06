@@ -1,0 +1,452 @@
+[
+ {
+  "group": "A",
+  "recipe": "Water/build-responsive-static-multipage-site",
+  "index": 0,
+  "run": "f793b338-0152-4c55-8e98-a7277e95a48b",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Update index.html into a home page with hero, three service cards, and a CTA linking to configurator.html; update configurator.html only as needed to add the sh"
+ },
+ {
+  "group": "A",
+  "recipe": "Water/build-responsive-static-multipage-site",
+  "index": 1,
+  "run": "89fde222-256f-44c6-997e-9237ca629b58",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Create a small self-contained static marketing site: update index.html as a home page with hero, three service cards, and CTA to configurator.html; retain confi"
+ },
+ {
+  "group": "A",
+  "recipe": "Water/build-responsive-static-multipage-site",
+  "index": 2,
+  "run": "f33379a4-424d-48b4-9f10-4d5e19b64b80",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Build and verify the static marketing site: update index.html as a home page with hero, three service cards, and a CTA to configurator.html; retain configurator"
+ },
+ {
+  "group": "A",
+  "recipe": "Water/build-responsive-static-multipage-site",
+  "index": 3,
+  "run": "f33379a4-424d-48b4-9f10-4d5e19b64b80",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Create index.html, configurator.html, work.html, contact.html, and styles.css as a small self-contained static marketing site: every page has identical header n"
+ },
+ {
+  "group": "A",
+  "recipe": "Water/build-self-contained-static-page",
+  "index": 0,
+  "run": "495c20ef-4d2d-4d8e-9ad1-16c32dd1db03",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Restore index.html as a small, self-contained Pomodoro page. The document title and heading must be \"Focus Timer\"; initial display 25:00; countdown once per sec"
+ },
+ {
+  "group": "A",
+  "recipe": "Water/build-self-contained-static-page",
+  "index": 1,
+  "run": "495c20ef-4d2d-4d8e-9ad1-16c32dd1db03",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Restore index.html as one small self-contained Pomodoro page. The document title and heading must be \"Focus Timer\"; initial display 25:00; countdown ticks once "
+ },
+ {
+  "group": "A",
+  "recipe": "Water/build-self-contained-static-page",
+  "index": 2,
+  "run": "cdc34023-5a92-4c12-9d4c-0f4e8efbf8bd",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Create index.html from scratch as a small self-contained Pomodoro page. The document title and heading must be \"Focus Timer\" and initially show 25:00, \"Mode: Po"
+ },
+ {
+  "group": "A",
+  "recipe": "Water/build-self-contained-static-page",
+  "index": 3,
+  "run": "b9dc4d0b-4631-44be-936c-0ac2e3593f33",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Inspect the existing app, then rewrite index.html via write_file to add a Focus length select beneath the buttons with 15, 25, and 45 minute choices and 25 sele"
+ },
+ {
+  "group": "A",
+  "recipe": "Water/build-self-contained-static-page",
+  "index": 4,
+  "run": "b9dc4d0b-4631-44be-936c-0ac2e3593f33",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Inspect and rewrite index.html to add a Focus length select beneath the buttons with 15, 25, and 45 minute options and 25 initially selected. Ensure selecting a"
+ },
+ {
+  "group": "A",
+  "recipe": "Water/build-self-contained-static-page",
+  "index": 5,
+  "run": "8606cf38-e1b5-4c7b-ae93-8a08a34fb4c2",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Inspect and rewrite index.html via file-writing operations to preserve the existing timer buttons, modes, and session counter while adding a \"Long break\" button"
+ },
+ {
+  "group": "A",
+  "recipe": "Water/build-self-contained-static-page",
+  "index": 6,
+  "run": "000d1e58-04ef-45fd-90d1-8526c025f0a6",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Rewrite index.html to preserve all existing timer buttons and modes while adding a “Sessions completed: N” line directly under the mode line, incrementing it ex"
+ },
+ {
+  "group": "A",
+  "recipe": "Water/build-self-contained-static-page",
+  "index": 7,
+  "run": "3e4aaed1-7577-444d-9642-593c28efa9de",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Create index.html with inline CSS and JavaScript and no external assets. Show 25:00 initially; provide Start, Pause, and Reset buttons; make Start decrease the "
+ },
+ {
+  "group": "A",
+  "recipe": "Water/serve-and-validate-static-page",
+  "index": 0,
+  "run": "5dff35b0-7b49-46b8-8ced-03b0c959bd04",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Validate index.html as a static browser page with selector-driven interactions: click Start so its button has focus, then independently prove Space, R, B, L and"
+ },
+ {
+  "group": "A",
+  "recipe": "Water/serve-and-validate-static-page",
+  "index": 1,
+  "run": "04ea696f-8406-4d92-a8f8-cc295005fc82",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Serve the completed static page on an OS-assigned port and validate it in a real browser. Use selector-based clicks, select changes, and keyboard input to confi"
+ },
+ {
+  "group": "A",
+  "recipe": "Water/serve-and-validate-static-page",
+  "index": 2,
+  "run": "0a989a58-ce17-412b-88c5-a2be865dc415",
+  "source": "credited",
+  "label": "OTHER",
+  "textHead": "Update index.html to add keyboard handling without breaking existing behavior: Space starts the countdown when stopped and pauses it when running; R resets the "
+ },
+ {
+  "group": "A",
+  "recipe": "Water/serve-and-validate-static-page",
+  "index": 3,
+  "run": "fd64b07e-c1a4-4b41-a272-fc328d071c59",
+  "source": "credited",
+  "label": "OTHER",
+  "textHead": "Create or rewrite index.html to preserve the existing Pomodoro controls while adding a Break button that switches to short-break mode, immediately displays 05:0"
+ },
+ {
+  "group": "A",
+  "recipe": "Water/serve-and-validate-static-page",
+  "index": 4,
+  "run": "cc922a60-90ff-49a7-81ba-fb44d9be9c98",
+  "source": "credited",
+  "label": "OTHER",
+  "textHead": "Make the existing index.html task list responsive without changing what it does. At widths of 320, 375 and 768 CSS pixels the page must have no horizontal overf"
+ },
+ {
+  "group": "A",
+  "recipe": "Water/serve-and-validate-static-page",
+  "index": 5,
+  "run": "fd557ba9-80fa-43bb-9bf4-bedfeb6c45c6",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Serve and validate index.html in a real browser, exercising the labelled input and Add button through selector-based interaction, toggling completion, checking "
+ },
+ {
+  "group": "A",
+  "recipe": "Glucose/verify-responsive-static-layout",
+  "index": 0,
+  "run": "cc922a60-90ff-49a7-81ba-fb44d9be9c98",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Make the existing index.html task list responsive without changing what it does. At widths of 320, 375 and 768 CSS pixels the page must have no horizontal overf"
+ },
+ {
+  "group": "A",
+  "recipe": "Glucose/verify-responsive-static-layout",
+  "index": 1,
+  "run": "2ee46cd5-fec9-44dd-9bbf-e0eb40ffbc08",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Make the existing index.html task list responsive without changing what it does. At widths of 320, 375 and 768 CSS pixels the page must have no horizontal overf"
+ },
+ {
+  "group": "A",
+  "recipe": "Glucose/verify-responsive-static-layout",
+  "index": 2,
+  "run": "5a5f1e27-cd3a-4189-a712-8d877d3ef27f",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Make the existing index.html task list responsive without changing what it does. At widths of 320, 375 and 768 CSS pixels the page must have no horizontal overf"
+ },
+ {
+  "group": "A",
+  "recipe": "Glucose/verify-responsive-static-layout",
+  "index": 3,
+  "run": "5a5f1e27-cd3a-4189-a712-8d877d3ef27f",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Make the existing index.html task list responsive without changing what it does. At widths of 320, 375 and 768 CSS pixels the page must have no horizontal overf"
+ },
+ {
+  "group": "A",
+  "recipe": "Serotonin/patch-verified-static-ui",
+  "index": 0,
+  "run": "04ea696f-8406-4d92-a8f8-cc295005fc82",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Inspect the existing pomodoro timer and rewrite index.html via write_file with only the long-break mode-line correction: while long-break mode is active, the mo"
+ },
+ {
+  "group": "A",
+  "recipe": "Serotonin/patch-verified-static-ui",
+  "index": 1,
+  "run": "ff102525-08cb-4032-86e9-2562b5c28099",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Update index.html without changing any other behavior or presentation: pressing P must pause a running countdown, do nothing while the timer is stopped, and be "
+ },
+ {
+  "group": "A",
+  "recipe": "Serotonin/patch-verified-static-ui",
+  "index": 2,
+  "run": "ff102525-08cb-4032-86e9-2562b5c28099",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Update index.html without changing any other behavior or presentation: pressing P must pause a running countdown, do nothing while the timer is stopped, and be "
+ },
+ {
+  "group": "A",
+  "recipe": "Serotonin/patch-verified-static-ui",
+  "index": 3,
+  "run": "32437f56-3365-4cdc-a6b5-30e07b974e03",
+  "source": "credited",
+  "label": "OTHER",
+  "textHead": "Inspect the existing transit timetable explorer and its tests before changing anything; add a focused automated regression in tests/timetable.test.mjs for filte"
+ },
+ {
+  "group": "A",
+  "recipe": "Serotonin/patch-verified-static-ui",
+  "index": 4,
+  "run": "16a8232a-99e0-468b-b43a-291c1cdf0b4c",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Inspect the existing orbital implementation and update index.html so the rendered planet position and displayed current distance visibly consume the determinist"
+ },
+ {
+  "group": "A",
+  "recipe": "Serotonin/patch-verified-static-ui",
+  "index": 5,
+  "run": "9ad606d9-e92f-4739-b4eb-fa8b5592dba9",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Inspect and minimally update index.html without changing any other behavior or presentation: add an Extend button immediately after the Long break button; make "
+ },
+ {
+  "group": "A",
+  "recipe": "Serotonin/patch-verified-static-ui",
+  "index": 6,
+  "run": "3cbef119-06d1-4510-8843-7e89cd2802ce",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Review and, if necessary, fix index.html, then serve the static page on an OS-assigned port and verify in a real browser with selector-based keyboard interactio"
+ },
+ {
+  "group": "A",
+  "recipe": "Serotonin/patch-verified-static-ui",
+  "index": 7,
+  "run": "81375f01-6051-48df-b460-242feb69473b",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Inspect and minimally update index.html so pressing F selects focus/Pomodoro mode, stops any running timer, restores the display to the currently chosen focus l"
+ },
+ {
+  "group": "A",
+  "recipe": "Serotonin/patch-verified-static-ui",
+  "index": 8,
+  "run": "81375f01-6051-48df-b460-242feb69473b",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Minimally update index.html so pressing F selects focus mode, stops the timer, displays the configured focus length, sets the mode line to exactly \"Mode: Pomodo"
+ },
+ {
+  "group": "A",
+  "recipe": "Serotonin/patch-verified-static-ui",
+  "index": 9,
+  "run": "c195ba35-44dd-4ec4-8a4a-18adb727e36b",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Modify only index.html to: make running and paused titles exactly \"<remaining time> · Focus Timer\" without a status word; make Ready and Complete titles exactly"
+ },
+ {
+  "group": "A",
+  "recipe": "CarbonDioxide/build-node-api-web-ui",
+  "index": 0,
+  "run": "d162ee31-379e-438e-bb1f-9b76346242ea",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Serve a web UI at / from server.js, replacing the placeholder page but keeping the title Team notes. The page lists the notes returned by GET /api/notes, create"
+ },
+ {
+  "group": "A",
+  "recipe": "CarbonDioxide/build-node-api-web-ui",
+  "index": 1,
+  "run": "02d740a1-6870-498d-a717-0132f99ce808",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Create and complete public/index.html, public/app.js, and public/styles.css as an accessible single-page interface backed by the verified API. Include a catalog"
+ },
+ {
+  "group": "A",
+  "recipe": "CarbonDioxide/build-node-api-web-ui",
+  "index": 2,
+  "run": "1d42ac2a-d71b-497a-bd29-a9b44ffedbc1",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Complete public/index.html, public/app.js, and public/styles.css as an accessible single-page interface backed by the verified API. Include a catalogue table sh"
+ },
+ {
+  "group": "A",
+  "recipe": "CarbonDioxide/build-node-api-web-ui",
+  "index": 3,
+  "run": "1d42ac2a-d71b-497a-bd29-a9b44ffedbc1",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Complete public/index.html, public/app.js, and public/styles.css as an accessible single-page interface backed by the verified API. Include a catalogue table sh"
+ },
+ {
+  "group": "A",
+  "recipe": "CarbonDioxide/build-node-api-web-ui",
+  "index": 4,
+  "run": "6c582953-9485-4cf5-be26-728757c518f3",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Complete public/index.html, public/app.js, and public/styles.css as an accessible single-page interface backed by the verified API. Provide a catalogue table wi"
+ },
+ {
+  "group": "A",
+  "recipe": "CarbonDioxide/build-node-api-web-ui",
+  "index": 5,
+  "run": "7265dd9b-f54a-46c3-9ecb-40f1e1e710d6",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Inspect and extend the existing guestbook while preserving all current routes and behavior. Update server.js so GET /api/entries accepts q and returns only entr"
+ },
+ {
+  "group": "A",
+  "recipe": "CarbonDioxide/build-node-api-web-ui",
+  "index": 6,
+  "run": "e9a60a26-1d3c-492b-b702-c3a9a75f8388",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Update index.html so every rendered guestbook entry has an edit button that enables changing its message in place and saves through PUT /api/entries/:id without"
+ },
+ {
+  "group": "A",
+  "recipe": "CarbonDioxide/build-node-api-web-ui",
+  "index": 7,
+  "run": "dbfaf275-a4a7-43a9-aa41-0479fd98e172",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Read the existing guestbook implementation and recorded evidence before making repairs; ensure server.js implements DELETE /api/entries/:id so an existing stabl"
+ },
+ {
+  "group": "A",
+  "recipe": "CarbonDioxide/build-node-api-web-ui",
+  "index": 8,
+  "run": "ed84d7be-f890-46c9-be34-68452925c068",
+  "source": "credited",
+  "label": "OTHER",
+  "textHead": "Extend server.js and public/index.html for CSV transfer while preserving all existing routes and behavior. GET /api/notes/export must return every note with hea"
+ },
+ {
+  "group": "A",
+  "recipe": "CarbonDioxide/build-node-api-web-ui",
+  "index": 9,
+  "run": "ed84d7be-f890-46c9-be34-68452925c068",
+  "source": "credited",
+  "label": "OTHER",
+  "textHead": "Inspect the existing Team notes app, then rewrite server.js and index.html as needed to preserve all existing behavior while adding GET /api/notes/export and PO"
+ },
+ {
+  "group": "A",
+  "recipe": "CarbonDioxide/build-node-api-web-ui",
+  "index": 10,
+  "run": "7761081b-1eeb-4855-98e4-0101e2461f37",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Inspect server.js without modifying it, then rewrite public/index.html as the small self-contained Team notes page while preserving all existing behavior and AP"
+ },
+ {
+  "group": "A",
+  "recipe": "CarbonDioxide/build-offline-typing-studio",
+  "index": 0,
+  "run": "df23bda8-ae97-4abf-a4c1-1b3a4e5bf18b",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Build the complete offline typing studio in index.html using scoring.mjs as a deterministic shared scoring/timer module, with scoring.test.mjs covering empty st"
+ },
+ {
+  "group": "A",
+  "recipe": "CarbonDioxide/build-offline-typing-studio",
+  "index": 1,
+  "run": "df23bda8-ae97-4abf-a4c1-1b3a4e5bf18b",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Inspect and complete the existing offline typing studio in index.html, app.mjs, scoring.mjs, scoring.test.mjs, and README.md. Ensure at least three genuinely im"
+ },
+ {
+  "group": "A",
+  "recipe": "CarbonDioxide/build-offline-typing-studio",
+  "index": 2,
+  "run": "34da7f81-9cbc-4041-befa-16387eb2f7f4",
+  "source": "credited",
+  "label": "OTHER",
+  "textHead": "Create a responsive, dependency-free transit timetable explorer in index.html, styles.css, app.mjs, and timetable.mjs, with a hardcoded three-route dataset cont"
+ },
+ {
+  "group": "A",
+  "recipe": "CarbonDioxide/build-offline-typing-studio",
+  "index": 3,
+  "run": "32f052d8-2d1d-407d-ab1d-1781b101918a",
+  "source": "credited",
+  "label": "OTHER",
+  "textHead": "Create the offline word ladder browser app with at least two solvable bundled four-letter puzzles and no remote assets; implement deterministic move validation "
+ },
+ {
+  "group": "A",
+  "recipe": "CarbonDioxide/build-offline-typing-studio",
+  "index": 4,
+  "run": "32f052d8-2d1d-407d-ab1d-1781b101918a",
+  "source": "credited",
+  "label": "OTHER",
+  "textHead": "Build an offline word ladder puzzle app for browsers. Include at least two solvable four-letter puzzles with a small bundled dictionary and no remote assets or "
+ },
+ {
+  "group": "A",
+  "recipe": "CarbonDioxide/build-offline-typing-studio",
+  "index": 5,
+  "run": "7f8a8b7d-ed3a-49d3-94df-e3bf69cb1f34",
+  "source": "credited",
+  "label": "SAME",
+  "textHead": "Continue the existing typing studio from the prior landed workspace. Make any necessary corrections, then provide executed browser evidence for the missing beha"
+ },
+ {
+  "group": "A",
+  "recipe": "CarbonDioxide/verify-form-safe-keyboard-shortcut",
+  "index": 0,
+  "run": "81375f01-6051-48df-b460-242feb69473b",
+  "source": "learned",
+  "label": "SAME",
+  "textHead": "Minimally update index.html so pressing F selects focus mode, stops the timer, displays the configured focus length, sets the mode line to exactly \"Mode: Pomodo"
+ }
+]
