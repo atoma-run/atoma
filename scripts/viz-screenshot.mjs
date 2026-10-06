@@ -1,4 +1,4 @@
-/* global document, HTMLButtonElement, matchMedia */
+/* global document, HTMLButtonElement, matchMedia, innerHeight, requestAnimationFrame */
 /**
  * viz-screenshot — capture a PNG of the GPU client for visual review.
  *
@@ -76,6 +76,8 @@ const settingsTab = arg('--settings-tab', 'general');
 const tuning = has('--tuning');
 const selectFirst = has('--select-first');
 const showResult = has('--result');
+const showActivity = has('--activity');
+const activityFile = arg('--activity-file');
 const notifications = has('--notifications');
 const accountMenu = has('--account-menu');
 const appearanceTheme = arg('--appearance', null);
@@ -426,6 +428,25 @@ function fixtureTrace() {
   let seq = 0;
   const at = (offsetS) => t0 + offsetS * 1000;
   const ev = (offsetS, fields) => ({ id: `ev-${seq++}`, ts: at(offsetS), ...fields });
+  const beforeCode = [
+    'function renderTotal(expenses) {',
+    '  const total = 0;',
+    '  totalLabel.textContent = String(total);',
+    '}',
+    '',
+    'renderTotal(expenses);',
+  ].join('\n');
+  const afterCode = [
+    'function renderTotal(expenses) {',
+    '  const total = expenses.reduce(',
+    '    (sum, expense) => sum + expense.amount,',
+    '    0,',
+    '  );',
+    '  totalLabel.textContent = total.toFixed(2);',
+    '}',
+    '',
+    'renderTotal(expenses);',
+  ].join('\n');
   const events = [
     ev(0, { kind: 'llm', role: 'plan', actor: { tier: 3, name: 'Meristem' }, durationMs: 9000 }),
     ev(10, {
@@ -444,8 +465,9 @@ function fixtureTrace() {
       model: 'claude-haiku-4-5-20251001', durationMs: 210_000, costUsd: 0.41,
       usage: { input_tokens: 3200, output_tokens: 24_000 },
     }),
-    ev(240, { kind: 'tool', name: 'write_file', branchId: 'c1', actor: { tier: 1, name: 'Methane' }, args: { path: 'index.html' } }),
-    ev(250, { kind: 'tool', name: 'write_file', branchId: 'c1', actor: { tier: 1, name: 'Methane' }, args: { path: 'app.js' } }),
+    ev(240, { kind: 'tool', name: 'write_file', branchId: 'c1', actor: { tier: 1, name: 'Methane' }, args: { path: 'index.html', content: '<main>Expenses</main>' }, result: { ok: true } }),
+    ev(250, { kind: 'tool', name: 'write_file', branchId: 'c1', actor: { tier: 1, name: 'Methane' }, args: { path: 'app.js', content: beforeCode }, result: { ok: true } }),
+    ev(255, { kind: 'tool', name: 'edit_file', branchId: 'c1', actor: { tier: 1, name: 'Methane' }, args: { path: 'app.js', old_string: beforeCode, new_string: afterCode }, result: { ok: true, replacements: 1 } }),
     // A verdict on each validator, and DELIBERATELY one of each: the decision
     // column is right-aligned, and a fixture that never showed one is why a
     // ragged right edge down a column of verdicts reached production.
@@ -844,6 +866,41 @@ try {
       if (!spot) throw new Error('--select-first: no selectable row on screen');
       await page.mouse.click(spot.x, spot.y);
       await page.evaluate(() => new Promise((resolveWait) => setTimeout(resolveWait, 800)));
+    }
+
+    if (showActivity || activityFile) {
+      if (view !== 'Runs') throw new Error('--activity requires --view Runs');
+      const clickActivity = async (id) => {
+        await page.waitForFunction(targetId => globalThis.__ATOMA_GPU__?.hitTargets().some(entry => entry.id === targetId), { timeout: READY_TIMEOUT_MS }, id);
+        const point = await page.evaluate(async targetId => {
+          // Layout publishes targets before Pixi paints their world transforms.
+          for (let frame = 0; frame < 2; frame++) await new Promise(resolveWait => requestAnimationFrame(resolveWait));
+          const handle = globalThis.__ATOMA_GPU__;
+          const target = handle.hitTargets().find(entry => entry.id === targetId);
+          return handle.projectRendererPoint(target.x + target.width / 2, target.y + target.height / 2);
+        }, id);
+        await page.mouse.click(point.x, point.y);
+      };
+      await clickActivity('activity.open');
+      await page.waitForFunction(() => globalThis.__ATOMA_GPU__?.hitTargets().some(entry => entry.id === 'activity.close'), { timeout: READY_TIMEOUT_MS });
+      if (activityFile) {
+        // The file list is below the phases on a phone. Scroll the same pane the viewer uses.
+        for (let attempt = 0; attempt < 12; attempt++) {
+          const visible = await page.evaluate(id => {
+            const handle = globalThis.__ATOMA_GPU__;
+            const target = handle.hitTargets().find(entry => entry.id === id);
+            return target && target.y > 100 && target.y + target.height < innerHeight;
+          }, `activity.file.${encodeURIComponent(activityFile)}`);
+          if (visible) break;
+          await page.mouse.move(width * 0.75, height * 0.7);
+          await page.mouse.wheel({ deltaY: 250 });
+          await page.evaluate(() => new Promise(resolveWait => setTimeout(resolveWait, 100)));
+        }
+        await clickActivity(`activity.file.${encodeURIComponent(activityFile)}`);
+        await page.waitForFunction(() => globalThis.__ATOMA_GPU__?.hitTargets().some(entry => entry.id === 'activity.files'), { timeout: READY_TIMEOUT_MS });
+      }
+      await page.mouse.move(5, height - 5);
+      await page.evaluate(() => new Promise(resolveWait => setTimeout(resolveWait, 300)));
     }
 
     if (showResult) {

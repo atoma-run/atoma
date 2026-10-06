@@ -127,7 +127,7 @@ import { publishSceneCapture, type SceneStill } from './scene-capture.js';
 import { cubeTurnPlan } from './cube-turn.js';
 import { viewFrameGutterRects } from './renderer/view-frame.js';
 import { navRowDistance, navRowGroup, type GpuUiState, type ViewName } from './store.js';
-import { GPU_COLORS, GPU_LAYOUT, gpuTextRasterOptions, gpuTextSize, sidebarWidthForViewport } from './theme.js';
+import { CODE_FONT_FAMILY, GPU_COLORS, GPU_LAYOUT, gpuTextRasterOptions, gpuTextSize, sidebarWidthForViewport } from './theme.js';
 import { VIZ_VISUAL_DEPTH } from './visual-depth.js';
 import type { AuthUiSnapshot } from './AuthControls.js';
 import {
@@ -1879,7 +1879,9 @@ export class GpuRenderer {
       snapshot.state.resultRunId && (snapshot.state.view === 'runs' || snapshot.state.view === 'projects')
         ? `result:${snapshot.state.resultRunId}`
         : snapshot.state.view === 'runs'
-        ? snapshot.state.selectedEventId
+        ? snapshot.state.runActivityOpen
+          ? `activity:${snapshot.state.selectedRunId}:${snapshot.state.runActivityFile ?? ''}:${snapshot.state.runActivityPage}`
+          : snapshot.state.selectedEventId
           ? `event:${snapshot.state.selectedEventId}`
           : snapshot.state.selectedAtomName
             ? `agent:${snapshot.state.selectedAtomName}`
@@ -2858,7 +2860,7 @@ export class GpuRenderer {
       style = new TextStyle({
         fill: color,
         fontFamily: mono
-          ? 'ui-monospace, SFMono-Regular, Menlo, monospace'
+          ? CODE_FONT_FAMILY
           : '-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif',
         fontSize: size,
         fontWeight: weight,

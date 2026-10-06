@@ -10,6 +10,7 @@ import {
   runElapsedMs,
   runHeading,
   runStatus,
+  runUsageValue,
   tryParseJson,
   visibleEventKindFilters,
 } from '../../../client/run-utils.js';
@@ -74,6 +75,8 @@ import {
 import { drawAtomDetail } from './atom-detail.js';
 import { drawAtomStubDetail } from './atom-stub-detail.js';
 import { drawResultPanel } from './result.js';
+import { drawRunActivity } from './run-activity.js';
+import { buildRunActivity } from '../../run-activity.js';
 import {
   PARTIAL_CONTINUE_PREFIX,
   partialRunGuidance,
@@ -332,7 +335,8 @@ function drawRunsBreadcrumb(
     ctx.text(ctx.root, separator, cursor, y, { ...titleStyle, color: GPU_COLORS.muted });
     cursor += separatorWidth;
   }
-  const runTitle = (entry.title ?? entry.goal ?? entry.label).replace(/\s+/g, ' ');
+  const runTitle = snapshot.state.runActivityOpen
+    ? snapshot.t('activity.title') : (entry.title ?? entry.goal ?? entry.label).replace(/\s+/g, ' ');
   ctx.text(ctx.root, ctx.fitText(runTitle, Math.max(0, x + width - cursor), titleStyle),
     cursor, y, { ...titleStyle, singleLine: true });
 }
@@ -381,7 +385,7 @@ export function drawRuns(
     return;
   }
   const layout = runsPaneLayout(width);
-  const { top, twoPane, rightWidth, leftWidth, leftX, rightX } = snapshot.state.resultRunId === run.id
+  const { top, twoPane, rightWidth, leftWidth, leftX, rightX } = snapshot.state.resultRunId === run.id || snapshot.state.runActivityOpen
     ? { ...layout, twoPane: false, leftWidth: width - GPU_LAYOUT.gap * 2 } : layout;
 
   const primaryFrame = ctx.panel(
@@ -458,9 +462,18 @@ export function drawRuns(
   // card on the right pane; a single-pane viewport has no summary card, so
   // both keep a row here instead.
   let filterTop = top + 72 + RUNS_PROJECT_TITLE_HEIGHT;
+  const actionWidth = Math.min(180, (leftWidth - 36) / 2);
+  const activity = buildRunActivity(run);
+  ctx.button(ctx.root, 'activity.open', 'button', snapshot.t(snapshot.state.runActivityOpen ? 'activity.title' : 'activity.open', { count: activity.touched }),
+    leftX + 14, filterTop, actionWidth, 30, snapshot.state.runActivityOpen, snapshot.onActivate);
   ctx.button(ctx.root, `result.open.${run.id}`, 'button', snapshot.t('result.title'),
-    leftX + 14, filterTop, Math.min(180, leftWidth - 28), 30, false, snapshot.onActivate);
+    leftX + 22 + actionWidth, filterTop, actionWidth, 30, false, snapshot.onActivate);
   filterTop += 40;
+  if (snapshot.state.runActivityOpen) {
+    drawRunActivity(ctx, snapshot, leftX, filterTop, leftWidth, Math.max(0, height - filterTop - GPU_LAYOUT.gap));
+    ctx.scrollMax.runs = 0;
+    return;
+  }
   if (snapshot.state.resultRunId === run.id) {
     drawResultPanel(ctx, snapshot, leftX, filterTop, width - leftX - GPU_LAYOUT.gap,
       Math.max(100, height - filterTop - GPU_LAYOUT.gap));
@@ -468,6 +481,15 @@ export function drawRuns(
     return;
   }
   if (!twoPane) {
+    const selectedEvent = run.events.find(event => event.id === snapshot.state.selectedEventId);
+    if (selectedEvent) {
+      ctx.button(ctx.root, 'run.event.close', 'button', snapshot.t('activity.backTrace'),
+        leftX + 14, filterTop, actionWidth, 30, false, snapshot.onActivate);
+      drawEventDetail(ctx, snapshot, run, selectedEvent, leftX, filterTop + 36,
+        leftWidth, Math.max(0, height - filterTop - 36 - GPU_LAYOUT.gap));
+      ctx.scrollMax.runs = 0;
+      return;
+    }
     filterTop +=
       drawRunStatGrid(
         ctx,
@@ -1360,11 +1382,7 @@ function drawRunStatGrid(
   // tool loop. Keep known totals, but never present them as complete while
   // another call has no usage receipt (even after an interrupted run).
   const usageValue = (value: string): string =>
-    inFlight.length
-      ? completedCalls > 0
-        ? snapshot.t('summary.usagePartial', { value })
-        : snapshot.t(run.endedAt ? 'summary.usageUnavailable' : 'summary.usagePending')
-      : value;
+    runUsageValue(run, value, snapshot.t, inFlight.length);
   const stats: [string, string][] = [
     [snapshot.t('summary.duration'), fmtMs(runElapsedMs(run))],
     [

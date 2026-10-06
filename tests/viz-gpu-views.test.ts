@@ -35,6 +35,7 @@ import {
 } from '../src/viz/client-gl/renderer/motion.js';
 import { drawBurnin } from '../src/viz/client-gl/renderer/views/burnin.js';
 import { drawResultPanel } from '../src/viz/client-gl/renderer/views/result.js';
+import { drawRunActivity } from '../src/viz/client-gl/renderer/views/run-activity.js';
 import {
   COMPACT_VALUE_MAX_CHARS,
   DETAIL_CARD_MIN_WIDTH,
@@ -618,6 +619,10 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     runFilters: { kind: 'all', role: 'all', branchId: 'all' },
     branchHeadingExpanded: true,
     runSummaryExpanded: true,
+    runActivityOpen: false,
+    runActivityFile: null,
+    runActivityPage: 0,
+    runActivityExpandedChanges: {},
     search: {
       run: '',
       registry: '',
@@ -679,6 +684,10 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     setRunFilters: noop,
     toggleBranchHeading: noop,
     toggleRunSummary: noop,
+    showRunActivity: noop,
+    selectActivityFile: noop,
+    pageActivity: noop,
+    setActivityChangeExpanded: noop,
     setSearch: noop,
     setFocusedInput: noop,
     setRunPickerScrollY: noop,
@@ -4790,6 +4799,103 @@ describe('attachAtomaMark glass layering', () => {
 
 const GUIDANCE_PROJECT_ID = '3c584a3c-933d-4488-ac44-4cdcc8e66f31';
 
+describe('the run progress panel', () => {
+  it.each([350, 1120])('keeps split diff rows aligned when one side wraps at width %i', width => {
+    const run = makeRun([makeLlmEvent('edit', { kind: 'tool', name: 'edit_file', args: {
+      path: 'app.js', old_string: `const label = "${'long code '.repeat(12)}";\nreturn shared;`,
+      new_string: 'const label = "short";\nreturn shared;',
+    }, result: { ok: true } })]);
+    const ctx = createRecordingCtx();
+    drawRunActivity(ctx, makeSnapshot({ runActivityOpen: true, runActivityFile: 'app.js' }, { run }), 0, 0, width, 3000);
+    const code = ctx.texts.filter(text => (text.options as { mono?: boolean }).mono);
+    expect(code.every(text => !text.value.includes('…'))).toBe(true);
+    const tail = code.filter(text => text.value.startsWith('return'));
+    expect(tail).toHaveLength(2);
+    expect(tail[0]!.y).toBe(tail[1]!.y);
+    expect(tail[0]!.x).toBeLessThan(tail[1]!.x);
+    expect(ctx.texts.filter(text => text.value === 'Before' || text.value === 'After')).toHaveLength(2);
+  });
+
+  it('keeps the last line of a full diff reachable while drawing only visible rows, and collapses it', () => {
+    const content = Array.from({ length: 2000 }, (_, i) => `const line${i} = ${i};`).join('\n');
+    const run = makeRun([makeLlmEvent('long-edit', { kind: 'tool', name: 'edit_file', args: {
+      path: 'app.js', old_string: `${content}\nold final line`, new_string: `${content}\nnew final line`,
+    }, result: { ok: true } })]);
+    const snapshot = makeSnapshot({ runActivityOpen: true, runActivityFile: 'app.js' }, { run });
+    const start = createRecordingCtx();
+    drawRunActivity(start, snapshot, 0, 0, 1200, 600);
+    expect(start.texts.length).toBeLessThan(150);
+    expect(start.texts.some(text => text.value === 'new final line')).toBe(false);
+    const end = createRecordingCtx();
+    end.detailScrollY = start.detailScrollMax;
+    drawRunActivity(end, snapshot, 0, 0, 1200, 600);
+    expect(end.texts.some(text => text.value === 'new final line')).toBe(true);
+    expect(end.texts.some(text => text.value === 'old final line')).toBe(true);
+    expect(end.texts.length).toBeLessThan(150);
+    const closed = createRecordingCtx();
+    drawRunActivity(closed, makeSnapshot({ runActivityOpen: true, runActivityFile: 'app.js',
+      runActivityExpandedChanges: { 'long-edit': false } }, { run }), 0, 0, 1200, 600);
+    expect(closed.texts.some(text => (text.options as { mono?: boolean }).mono)).toBe(false);
+    expect(closed.buttons.some(button => button.id === 'activity.expand.long-edit')).toBe(true);
+    expect(closed.detailScrollMax).toBe(0);
+  });
+
+  it('puts actionable files first and summarizes nested work without repeating the full brief', () => {
+    const brief = 'Build a zero-dependency feature-flag service with persistent storage and a web interface.';
+    const run = makeRun([
+      makeLlmEvent('plan', { role: 'plan' }),
+      makeLlmEvent('phase', { kind: 'branch', op: 'start', branchId: 'p1', label: brief }),
+      makeLlmEvent('write', { kind: 'tool', name: 'write_file', branchId: 'p1', args: { path: 'server.js' }, result: { ok: true } }),
+      makeLlmEvent('review', { role: 'validate-result', branchId: 'p1' }),
+    ], { endedAt: '2026-01-01T00:10:00.000Z' });
+    const ctx = createRecordingCtx();
+    drawRunActivity(ctx, makeSnapshot({ runActivityOpen: true }, { run }), 0, 0, 1800, 600);
+    expect(ctx.texts.some(text => text.value === '1 file updated')).toBe(true);
+    expect(ctx.texts.some(text => text.value === brief || text.value === 'Overall run' || text.value === 'Phase ended')).toBe(false);
+    const file = ctx.buttons.find(button => button.id === 'activity.file.server.js')!;
+    const process = ctx.texts.find(text => text.value === 'What happened')!;
+    expect(file.width).toBeGreaterThan(500);
+    expect(file.x + file.width).toBeLessThan(process.x);
+    expect(ctx.texts.some(text => text.value === 'View changes ›')).toBe(true);
+    expect(ctx.buttons.some(button => button.id === 'activity.close')).toBe(true);
+  });
+
+  it.each([390, 1200])('bounds the file list and keeps its last row reachable at width %i', width => {
+    const run = makeRun(Array.from({ length: 300 }, (_, i) => makeLlmEvent(`write-${i}`, {
+      kind: 'tool', name: 'write_file', args: { path: `src/file-${i}.ts`, content: 'export {};' }, result: { ok: true },
+    })));
+    const ctx = createRecordingCtx();
+    const snapshot = makeSnapshot({ runActivityOpen: true }, { run });
+    drawRunActivity(ctx, snapshot, 10, 100, width - 20, 500);
+    expect(ctx.detailScrollMax).toBeGreaterThan(1000);
+    expect(ctx.buttons.filter(button => button.id.startsWith('activity.file.')).length).toBeLessThan(15);
+    expect(containersWithMask(ctx.root).length).toBeGreaterThan(0);
+    const end = createRecordingCtx();
+    end.detailScrollY = ctx.detailScrollMax;
+    drawRunActivity(end, snapshot, 10, 100, width - 20, 500);
+    expect(end.buttons.some(button => button.id === 'activity.file.src%2Ffile-0.ts')).toBe(true);
+  });
+
+  it('renders complete before/after changes from only the selected page and can return to the trace', () => {
+    const run = makeRun(Array.from({ length: 12 }, (_, i) => makeLlmEvent(`edit-${i}`, {
+      kind: 'tool', name: 'edit_file', args: { path: 'app.js', old_string: `before-${i}`, new_string: `after-${i}` }, result: { ok: true },
+    })));
+    const ctx = createRecordingCtx();
+    drawRunActivity(ctx, makeSnapshot({ runActivityOpen: true, runActivityFile: 'app.js', runActivityPage: 1 }, { run }), 0, 0, 600, 2000);
+    const before = ctx.texts.find(text => text.value === 'before-7')!;
+    const after = ctx.texts.find(text => text.value === 'after-7')!;
+    expect(before).toBeDefined();
+    expect(after).toBeDefined();
+    expect(before.y).toBe(after.y);
+    expect(before.x).toBeLessThan(after.x);
+    expect(before.options).toMatchObject({ mono: true, weight: '400' });
+    expect(ctx.texts.some(text => text.value.includes('before-11'))).toBe(false);
+    expect(ctx.buttons.some(button => button.id === 'event.edit-7')).toBe(true);
+    expect(ctx.buttons.some(button => button.id === 'activity.older')).toBe(true);
+    expect(ctx.buttons.some(button => button.id === 'activity.newer')).toBe(true);
+  });
+});
+
 describe('the shared final result panel', () => {
   it.each([390, 1200])('shows the recorded answer with bounded scrolling at width %i', width => {
     const ctx = createRecordingCtx();
@@ -5137,7 +5243,7 @@ describe('drawRuns behavior', () => {
     expect(ctx.detailBounds).not.toBeNull();
   });
 
-  it('keeps the historical 1050px window threshold for the detail pane', () => {
+  it('keeps the two-pane threshold and opens source events full-width below it', () => {
     const event = makeLlmEvent('selected', { role: 'execute' });
     const visible = createRecordingCtx();
     drawRuns(
@@ -5155,7 +5261,9 @@ describe('drawRuns behavior', () => {
       RUNS_TWO_PANE_MIN_WIDTH - 1,
       HEIGHT
     );
-    expect(narrow.detailBounds).toBeNull();
+    expect(narrow.detailBounds).not.toBeNull();
+    expect(narrow.buttons.some(button => button.id === 'run.event.close')).toBe(true);
+    expect(visible.buttons.some(button => button.id === 'run.event.close')).toBe(false);
   });
 
   it('frames the empty state and centres its message', () => {

@@ -12,6 +12,9 @@ export function gpuTextRasterOptions() {
   };
 }
 
+/** GitHub Primer's monospace stack, shared by canvas code and its semantic twin. */
+export const CODE_FONT_FAMILY = 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace';
+
 export const APPEARANCE_THEMES = [
   { key: 'nocturne', labelKey: 'appearance.nocturne' },
   { key: 'aurora', labelKey: 'appearance.aurora' },

@@ -14,6 +14,8 @@ npm run viz:shot -- --auth                          # logged-in member, Projects
 npm run viz:shot -- --auth --select-first           # first project selected: run list + MCP guide
 npm run viz:shot -- --auth --view Runs              # any nav tab by its label
 npm run viz:shot -- --auth --view Runs --result     # final answer, copy and download controls
+npm run viz:shot -- --auth --view Runs --activity   # recorded steps and changed files
+npm run viz:shot -- --auth --view Runs --activity-file app.js # bounded recorded edits
 npm run viz:shot -- --auth --select-first --result  # same result reader inside the project
 npm run viz:shot -- --auth --view Skills --select-first # member reads a shared recipe
 npm run viz:shot -- --auth --view Registry --select-first # member reads a shared agent type

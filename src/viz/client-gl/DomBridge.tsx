@@ -4,7 +4,8 @@ import {
   SUPPORTED_LOCALES,
   type Locale,
 } from '../../contracts/locales.js';
-import type { RunIndexEntry, VizGitHubInstallation, VizProject } from '../client/types.js';
+import type { RunIndexEntry, VizGitHubInstallation, VizProject, VizRun } from '../client/types.js';
+import { AccessibleRunActivity } from './AccessibleRunActivity.js';
 import type { ComponentProps, ReactNode } from 'react';
 import { useState } from 'react';
 import type { AuthUiSnapshot } from './AuthControls.js';
@@ -127,6 +128,7 @@ function AccessibleDocs({
 
 export function DomBridge({
   runs,
+  run = null,
   releaseVersion,
   views = DEFAULT_VIEWS,
   loginLinks = null,
@@ -151,6 +153,7 @@ export function DomBridge({
   onActivate,
 }: {
   runs: RunIndexEntry[];
+  run?: VizRun | null;
   releaseVersion: string;
   /** Nav tabs for this viewer — computed once by `visibleViews`, shared with the GL rail. */
   views?: ViewName[];
@@ -391,6 +394,7 @@ export function DomBridge({
             ) : null}
           </section>
         ) : null}
+        {view === 'runs' && run ? <AccessibleRunActivity run={run} t={t} /> : null}
         {view === 'docs' ? (
           <AccessibleDocs
             selected={selectedDocsTheme}

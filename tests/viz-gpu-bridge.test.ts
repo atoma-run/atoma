@@ -28,6 +28,7 @@ import {
   setMarkBeadVisible,
 } from '../src/viz/client-gl/renderer/mark-clock.js';
 import { useGpuStore } from '../src/viz/client-gl/store.js';
+import { AccessibleRunActivity } from '../src/viz/client-gl/AccessibleRunActivity.js';
 
 const runs = [
   {
@@ -44,6 +45,10 @@ beforeEach(() => {
     sceneCameraMode: 'overview',
     locale: 'en',
     selectedRunId: 'run-1',
+    runActivityOpen: false,
+    runActivityFile: null,
+    runActivityPage: 0,
+    runActivityExpandedChanges: {},
     selectedProjectId: null,
     selectedDocsTheme: 'quick',
     appearanceTheme: 'nocturne',
@@ -111,6 +116,33 @@ function EntryFadeProbe() {
 }
 
 describe('full-GL minimal DOM bridge', () => {
+  it('opens recorded changes by keyboard and returns to the same source event', async () => {
+    const user = userEvent.setup();
+    render(createElement(AccessibleRunActivity, {
+      run: { id: 'run-1', label: 'Build the page', startedAt: new Date().toISOString(), events: [
+        { id: 'write-1', kind: 'tool', ts: Date.now(), name: 'edit_file',
+          args: { path: 'app.js', old_string: 'old value', new_string: 'new value\n' + 'complete line\n'.repeat(80) + 'LAST RECORDED LINE' }, result: { ok: true } },
+      ] },
+      t: (key: string, vars?: Record<string, unknown>) => translate('en', key, vars),
+    }));
+    await user.click(screen.getByRole('button', { name: 'Progress · 1 file' }));
+    await user.click(screen.getByRole('button', { name: 'View changes to app.js' }));
+    expect(screen.getByText('− old value')).toBeInTheDocument();
+    expect(screen.getByText('+ new value')).toBeInTheDocument();
+    expect(screen.getByText('+ LAST RECORDED LINE')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^Hide diff/ }));
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    const expand = screen.getByRole('button', { name: /^Show diff/ });
+    expect(expand).toHaveAttribute('aria-expanded', 'false');
+    await user.click(expand);
+    expect(screen.getByText('+ LAST RECORDED LINE')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Before' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'After' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'View source event' }));
+    expect(useGpuStore.getState()).toMatchObject({ selectedEventId: 'write-1', runActivityOpen: false });
+    act(() => useGpuStore.getState().selectRun('another-run'));
+    expect(useGpuStore.getState()).toMatchObject({ runActivityFile: null, runActivityPage: 0, runActivityExpandedChanges: {} });
+  });
   it('keeps the selected theme after an account-menu choice', () => {
     useGpuStore.getState().toggleThemeDropdown();
     expect(useGpuStore.getState().accountMenuOpen).toBe(true);

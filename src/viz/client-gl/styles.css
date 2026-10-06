@@ -721,6 +721,23 @@ html.atoma-cursor-active * {
   border: 0;
 }
 
+.gpu-code-diff {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 12px;
+  line-height: 20px;
+  background: #0d1726;
+}
+
+.gpu-code-diff-number { width: 28px; }
+.gpu-code-diff th, .gpu-code-diff td { padding: 2px 4px; vertical-align: top; }
+.gpu-code-diff th { text-align: left; background: #223754; }
+.gpu-code-diff code { font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; tab-size: 4; }
+.gpu-code-diff td:nth-child(3), .gpu-code-diff th + th { border-left: 1px solid #426386; }
+.gpu-code-diff [data-kind="delete"] { background: rgb(248 81 73 / 15%); }
+.gpu-code-diff [data-kind="insert"] { background: rgb(63 185 80 / 15%); }
+
 /* The bridge is screen-reader-only at rest, but it contains real keyboard
    navigation. As soon as one of those controls receives focus, reveal a
    bounded command palette so a sighted keyboard user never tabs through an

@@ -695,18 +695,24 @@ async function writeRunFixture(dir) {
   const roles = ['plan', 'validate', 'execute'];
   const tools = ['read_file', 'write_file', 'shell', 'validate_html'];
   const events = [];
+  const diffContext = Array.from({ length: 80 }, (_, i) => `export const retainedLine${i} = "complete recorded context";`).join('\n');
   for (let i = 0; i < FIXTURE_EVENT_ROWS; i++) {
     const ts = t0 + i * 1_500;
+    const latestEdit = i === 77;
     events.push(i % 3 === 2
       ? {
         id: `fx-tool-${i}`,
         ts,
         kind: 'tool',
-        name: tools[i % tools.length],
+        name: latestEdit ? 'edit_file' : tools[i % tools.length],
         actor: { name: 'Water', tier: 1 },
         durationMs: 40 + (i % 7) * 5,
-        args: { path: `src/fixture-${i}.ts` },
-        result: `wrote src/fixture-${i}.ts`,
+        args: latestEdit
+          ? { path: 'src/activity.ts', old_string: `export const version = 65;\n${diffContext}\nexport const ready = false;`, new_string: `export const version = 77;\n${diffContext}\nexport const ready = true;` }
+          : tools[i % tools.length] === 'write_file'
+          ? { path: 'src/activity.ts', content: `export const version = ${i};` }
+          : { path: `src/fixture-${i}.ts` },
+        result: tools[i % tools.length] === 'write_file' ? { ok: true } : `read src/fixture-${i}.ts`,
       }
       : {
         id: `fx-llm-${i}`,
@@ -1657,6 +1663,66 @@ try {
       !!globalThis.__ATOMA_GPU__.app.stage.getChildByLabel(`event-detail:${id}`, true),
     { timeout: READY_TIMEOUT_MS }, retainedPick.id);
     console.log('viz GPU retained selection ok: translated canvas row opened its own event detail');
+
+    // Progress and file details must work through Pixi, including returning to the recorded source.
+    const clickProgressTarget = async id => {
+      await waitForHitTarget(page, id, `progress target missing: ${id}`);
+      const point = await page.evaluate(async targetId => {
+        // Hit targets are published during layout; Pixi updates the event boundary's
+        // world transforms on the next draw. Click the painted scene, not that gap.
+        for (let frame = 0; frame < 2; frame++) await new Promise(resolve => requestAnimationFrame(resolve));
+        const handle = globalThis.__ATOMA_GPU__;
+        const target = handle.hitTargets().find(entry => entry.id === targetId);
+        return handle.projectRendererPoint(target.x + target.width / 2, target.y + target.height / 2);
+      }, id);
+      await page.mouse.click(point.x, point.y);
+    };
+    await clickProgressTarget('activity.open');
+    await clickProgressTarget('activity.file.src%2Factivity.ts');
+    await waitForHitTarget(page, 'activity.files', 'file change reader never opened');
+    const splitDiff = await page.evaluate(() => {
+      const labels = [];
+      const walk = node => { if (typeof node.text === 'string') labels.push(node); for (const child of node.children ?? []) walk(child); };
+      walk(globalThis.__ATOMA_GPU__.app.stage);
+      const before = labels.find(node => node.text === 'export const version = 65;');
+      const after = labels.find(node => node.text === 'export const version = 77;');
+      return before && after ? { before: before.toGlobal({ x: 0, y: 0 }), after: after.toGlobal({ x: 0, y: 0 }),
+        font: String(after.style.fontFamily) } : null;
+    });
+    if (!splitDiff || splitDiff.before.x >= splitDiff.after.x || Math.abs(splitDiff.before.y - splitDiff.after.y) > 1 ||
+      !splitDiff.font.includes('SFMono-Regular')) throw new Error(`split diff columns did not align: ${JSON.stringify(splitDiff)}`);
+    await clickProgressTarget('activity.collapse.fx-tool-77');
+    await waitForHitTarget(page, 'activity.expand.fx-tool-77', 'collapsed diff has no expand control');
+    const hidden = await page.evaluate(() => !globalThis.__ATOMA_GPU__.app.stage.getChildByLabel('split-diff', true));
+    if (!hidden) throw new Error('collapsed change still draws code');
+    await clickProgressTarget('activity.expand.fx-tool-77');
+    await waitForHitTarget(page, 'activity.collapse.fx-tool-77', 'expanded diff has no collapse control');
+    // Scroll through the actual canvas, beyond both the former 32-line and 2400-character limits.
+    await page.mouse.move(900, 650);
+    for (let step = 0; step < 12; step++) {
+      const sourceVisible = await page.evaluate(() => globalThis.__ATOMA_GPU__.hitTargets()
+        .some(entry => entry.id === 'event.fx-tool-77'));
+      if (sourceVisible) break;
+      await page.mouse.wheel({ deltaY: 350 });
+      await page.evaluate(() => new Promise(resolve => setTimeout(resolve, 100)));
+    }
+    await waitForHitTarget(page, 'event.fx-tool-77', 'full diff never reached its source control');
+    const tailVisible = await page.evaluate(() => {
+      let found = false;
+      const walk = node => {
+        if (node.text === 'export const ready = true;') found = true;
+        for (const child of node.children ?? []) walk(child);
+      };
+      walk(globalThis.__ATOMA_GPU__.app.stage);
+      return found;
+    });
+    if (!tailVisible) throw new Error('full diff lost the recorded text after the former excerpt cap');
+    const source = 'event.fx-tool-77';
+    if (!source) throw new Error('recorded file change has no source control');
+    await clickProgressTarget(source);
+    await page.waitForFunction(id => !!globalThis.__ATOMA_GPU__.app.stage.getChildByLabel(`event-detail:${id}`, true),
+      { timeout: READY_TIMEOUT_MS }, source.slice('event.'.length));
+    console.log('viz GPU progress ok: split diff -> collapse/reopen -> complete last line -> source event through Pixi');
 
     // THE REGRESSION SCENARIO. Scene Tuning is DOM chrome so it can sit above
     // DOM project/settings forms; its sliders still write the mutable sample
@@ -2916,6 +2982,18 @@ try {
         rebuildsAfterEvent: afterEvent - idleEnd,
         webgpuErrors: await readWebGpuErrors(livePage),
       };
+      await livePage.evaluate(() => {
+        const button = [...document.querySelectorAll('.gpu-a11y-bridge button')]
+          .find(element => element.textContent.startsWith('Progress'));
+        if (!button) throw new Error('live run has no progress control');
+        button.click();
+      });
+      liveRun.events.push({ id: 'progress-write', kind: 'tool', ts: Date.now(), name: 'write_file',
+        args: { path: 'live-progress.txt', content: 'A newly confirmed file' }, result: { ok: true } });
+      await writeRun();
+      await livePage.waitForFunction(() => [...document.querySelectorAll('.gpu-a11y-bridge button')]
+        .some(element => element.textContent === 'live-progress.txt'), { timeout: READY_TIMEOUT_MS });
+      console.log('viz GPU live progress ok: newly confirmed file appeared without reopening the run');
     } finally {
       await livePage.close();
       if (liveServer) liveServer.kill('SIGTERM');

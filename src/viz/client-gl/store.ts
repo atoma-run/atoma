@@ -214,6 +214,10 @@ export interface GpuUiState {
   runFilters: EventFilters;
   branchHeadingExpanded: boolean;
   runSummaryExpanded: boolean;
+  runActivityOpen: boolean;
+  runActivityFile: string | null;
+  runActivityPage: number;
+  runActivityExpandedChanges: Record<string, boolean>;
   search: Record<Exclude<InputKind, null>, string>;
   focusedInput: InputKind;
   runPickerScrollY: number;
@@ -300,6 +304,10 @@ export interface GpuUiState {
   setRunFilters: (filters: EventFilters) => void;
   toggleBranchHeading: () => void;
   toggleRunSummary: () => void;
+  showRunActivity: (open: boolean) => void;
+  selectActivityFile: (path: string | null) => void;
+  pageActivity: (delta: number) => void;
+  setActivityChangeExpanded: (id: string, expanded: boolean) => void;
   setSearch: (kind: Exclude<InputKind, null>, value: string) => void;
   setFocusedInput: (kind: InputKind) => void;
   setRunPickerScrollY: (value: number) => void;
@@ -404,6 +412,9 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   locale: initialLocale(),
   selectedRunId: null,
   selectedEventId: null,
+  runActivityOpen: false,
+  runActivityFile: null,
+  runActivityPage: 0, runActivityExpandedChanges: {},
   resultRunId: null,
   resultActionStatus: null,
   selectedAtomName: null,
@@ -593,6 +604,9 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   selectRun: (selectedRunId) =>
     set({
       selectedRunId,
+      runActivityOpen: false,
+      runActivityFile: null,
+      runActivityPage: 0, runActivityExpandedChanges: {},
       resultRunId: null,
       resultActionStatus: null,
       selectedEventId: null,
@@ -604,6 +618,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   selectEvent: (selectedEventId) =>
     set({
       selectedEventId,
+      runActivityOpen: false,
       resultRunId: null,
       selectedAtomName: null,
       runSummaryExpanded: selectedEventId === null,
@@ -627,7 +642,13 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
     // entirely above its pane until another wheel event clamps it.
     scrollY: { ...state.scrollY, projects: 0 },
   })),
-  selectResult: (resultRunId) => set({ resultRunId, resultActionStatus: null }),
+  showRunActivity: (open) => set({ runActivityOpen: open, runActivityFile: null, runActivityPage: 0, runActivityExpandedChanges: {}, resultRunId: null }),
+  selectActivityFile: (path) => set({ runActivityFile: path, runActivityPage: 0 }),
+  pageActivity: (delta) => set(state => ({ runActivityPage: Math.max(0, state.runActivityPage + delta), runActivityExpandedChanges: {} })),
+  setActivityChangeExpanded: (id, expanded) => set(state => ({
+    runActivityExpandedChanges: { ...state.runActivityExpandedChanges, [id]: expanded },
+  })),
+  selectResult: (resultRunId) => set({ resultRunId, resultActionStatus: null, runActivityOpen: false }),
   setResultActionStatus: (resultActionStatus) => set({ resultActionStatus }),
   setRunFilters: (runFilters) =>
     set((state) => ({

@@ -356,6 +356,25 @@ npm run viz:mark-turn:analyze
   before the `maxNodes` slice, never an array, and drops an entry with NO
   content (`stderr: ''`). `detail-layout.ts` packs adjacent fields up to THREE
   per row, at the narrowest count any MEASURES into: 2+2, not 3+1.
+- Runs' Progress reader projects recorded branch lifecycles and tool receipts
+  through `client-gl/run-activity.ts`, shared by GPU and accessibility views.
+  Only successful `write_file`/`edit_file` receipts count as changed files;
+  failed and unconfirmed attempts stay visible, and shell/compiled changes are
+  not inferred. Branch closure is not approval. Edits are submitted excerpts,
+  with merged/recovered receipts labelled, never a claimed repository diff.
+  Render only the selected file's four-change page; the newest change opens
+  by default and each change can collapse through the shared store. Show ALL
+  recorded text, with no character/line cap. Cache alignment and measured row
+  layout, bound alignment workspace, and draw only visible code inside the
+  shared scroll pane. Source controls open the
+  recorded event, full-width on a narrow viewport. The overview leads with
+  saved files and explicit change links, then condenses activity to plan,
+  changes and review. Counts describe recorded work, never approval. Keep the
+  full brief in the selector; do not repeat it in the breadcrumb or step list.
+  File excerpts use a split diff: before left, after right, one vertical
+  scroll and aligned context lines. Wrap long code without ellipses, use the
+  shared monospace stack, and label line numbers as excerpt-relative. An
+  overwrite without prior content shows that absence, never invented removals.
 - The timeline event card AND the run's two bookends are ONE LINE
   (`TIMELINE_ROW_HEIGHT` 40, card 30), shedding title > footer > actor > body
   as width runs out; a bookend's second line at `y + 28` drew outside its own

@@ -4,7 +4,7 @@ import type { VizProjectRun } from '../../../client/types.js';
 import { BUTTON_LABEL_INSET } from '../../gpu-renderer.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
-import { fmtMs } from '../../../client/run-utils.js';
+import { fmtMs, runCost } from '../../../client/run-utils.js';
 import { relativeTime, timestampTooltip } from '../relative-time.js';
 import { createScrollPane } from '../scroll-pane.js';
 import { drawViewFrame, viewFrame, VIEW_FRAME_CONTENT_TOP, VIEW_FRAME_PAD, VIEW_FRAME_TITLE_SIZE, VIEW_FRAME_TITLE_Y } from '../view-frame.js';
@@ -153,20 +153,6 @@ function statusLabel(
   prefix: string
 ): string {
   return t(`${prefix}.${status}`);
-}
-
-/**
- * A run's total cost, in MONEY — two decimals, and a leading `<` under a cent
- * rather than a rounded `$0.00` that reads as free.
- *
- * NOT `fmtCost`, which is fixed at four decimals on purpose: it prices a
- * SINGLE LLM call, where a tenth of a cent is the signal. A whole run's total
- * is read as an amount spent, and `$1.0200` reads as a defect. The wide
- * precision was invisible here only while the column truncated it away.
- */
-function runCost(costUsd: number): string {
-  if (costUsd > 0 && costUsd < 0.01) return '<$0.01';
-  return `$${costUsd.toFixed(2)}`;
 }
 
 /** Horizontal inset the column leaves inside the content viewport, in total. */

@@ -221,6 +221,35 @@ export function fmtCost(cost?: number | null): string {
   return cost == null ? '—' : `$${cost.toFixed(4)}`;
 }
 
+/** Whole-run totals use cents, retaining a visible charge below one cent. */
+export function runCost(cost?: number | null): string {
+  if (cost == null) return '—';
+  if (cost > 0 && cost < 0.01) return '<$0.01';
+  return `$${cost.toFixed(2)}`;
+}
+
+/** A whole run reads in minutes and hours; per-call timing keeps fmtMs precision. */
+export function runDuration(ms: number | undefined, t: (key: string, vars?: Record<string, unknown>) => string): string {
+  if (ms === undefined || !Number.isFinite(ms)) return '—';
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor(totalSeconds / 60) % 60;
+  const seconds = totalSeconds % 60;
+  return t(hours ? 'activity.duration.hours' : minutes ? 'activity.duration.minutes' : 'activity.duration.seconds',
+    { hours, minutes, seconds });
+}
+
+/** Completed calls own usage receipts; outstanding calls keep a displayed total provisional. */
+export function runUsageValue(run: VizRun, value: string,
+  t: (key: string, vars?: Record<string, unknown>) => string,
+  pending = inFlightLlmEvents(run).length): string {
+  return pending
+    ? (run.totals?.calls ?? 0) > 0
+      ? t('summary.usagePartial', { value })
+      : t(run.endedAt ? 'summary.usageUnavailable' : 'summary.usagePending')
+    : value;
+}
+
 export function fmtTime(timestamp?: string | number): string {
   if (timestamp == null) return '—';
   const parsed = typeof timestamp === 'number' ? timestamp : Date.parse(timestamp);

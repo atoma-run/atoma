@@ -13,12 +13,18 @@ export function drawResultPanel(ctx: RendererCtx, snapshot: GpuRenderSnapshot,
   const projectRun = Object.values(snapshot.data.projectRuns).flat()
     .find(row => row.traceId === snapshot.state.resultRunId || row.projectRunId === snapshot.state.resultRunId);
   ctx.panel(ctx.root, x, y, width, height, GPU_COLORS.panel, GPU_COLORS.border);
-  ctx.text(ctx.root, snapshot.t('result.title'), x + 16, y + 12, { size: 16, weight: '700' });
-  ctx.button(ctx.root, 'result.close', 'button', snapshot.t('result.back'), x + width - 130, y + 8, 114, 30, false, snapshot.onActivate);
-  const top = y + 48;
+  const backLabel = snapshot.t('result.back');
+  const backWidth = Math.ceil(ctx.measureText(backLabel, { size: 11, weight: '600' })) + 24;
+  const title = snapshot.t('result.title');
+  const titleStyle = { size: 16, weight: '700' } as const;
+  const stacked = backWidth + 16 + ctx.measureText(title, titleStyle) > width - 32;
+  ctx.button(ctx.root, 'result.close', 'button', backLabel, x + 16, y + 8, backWidth, 30, false, snapshot.onActivate);
+  ctx.text(ctx.root, title, x + 16 + (stacked ? 0 : backWidth + 16), y + (stacked ? 48 : 12), titleStyle);
+  const top = y + (stacked ? 80 : 48);
+  const paneHeight = Math.max(0, height - (top - y) - 12);
   const pane = createScrollPane(ctx.root, { x: x + 12, y: top, width: width - 24,
-    height: Math.max(0, height - 60), scrollY: ctx.detailScrollY });
-  ctx.detailBounds = new Rectangle(x + 12, top, width - 24, Math.max(0, height - 60));
+    height: paneHeight, scrollY: ctx.detailScrollY });
+  ctx.detailBounds = new Rectangle(x + 12, top, width - 24, paneHeight);
   let cursor = 4;
   const text = (value: string, heading = false) => {
     const label = ctx.text(pane.content, value, 4, cursor, { size: heading ? 13 : 12,
@@ -30,8 +36,7 @@ export function drawResultPanel(ctx: RendererCtx, snapshot: GpuRenderSnapshot,
   } else {
     const goal = run.task?.description ?? run.label;
     const goalLabel = ctx.text(pane.content, goal, 4, cursor, { size: 13, weight: '700',
-      color: GPU_COLORS.text, width: width - 44, singleLine: true });
-    ctx.tooltip(pane.content, { x: 4, y: cursor, width: width - 44, height: goalLabel.height, text: goal });
+      color: GPU_COLORS.text, width: width - 44 });
     cursor += goalLabel.height + 14;
     text(`${snapshot.t(`runs.flag.${runStatus(run)}`)} · ${formatDateTime(run.startedAt, snapshot.state.locale)} · ${run.id.slice(0, 8)}`);
     if (runStatus(run) !== 'delivered') text(snapshot.t('result.notFinal'));

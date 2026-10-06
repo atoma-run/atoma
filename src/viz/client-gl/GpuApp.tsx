@@ -743,6 +743,27 @@ function GpuAppContent({
       store.selectEvent(id.slice('event.'.length));
       return;
     }
+    if (id === 'run.event.close') {
+      store.selectEvent(null);
+      return;
+    }
+    if (id === 'activity.open' || id === 'activity.close') {
+      store.showRunActivity(id === 'activity.open');
+      return;
+    }
+    if (id === 'activity.files' || id.startsWith('activity.file.')) {
+      store.selectActivityFile(id === 'activity.files' ? null : decodeURIComponent(id.slice('activity.file.'.length)));
+      return;
+    }
+    if (id.startsWith('activity.expand.') || id.startsWith('activity.collapse.')) {
+      const expanded = id.startsWith('activity.expand.');
+      store.setActivityChangeExpanded(decodeURIComponent(id.slice(expanded ? 'activity.expand.'.length : 'activity.collapse.'.length)), expanded);
+      return;
+    }
+    if (id === 'activity.newer' || id === 'activity.older') {
+      store.pageActivity(id === 'activity.older' ? 1 : -1);
+      return;
+    }
     if (id.startsWith('atom.')) {
       store.selectAtom(id.slice('atom.'.length));
       return;
@@ -1119,6 +1140,7 @@ function GpuAppContent({
         <GpuDomBridge
           authSnapshot={authSnapshot}
           runs={runsQuery.data ?? []}
+          run={runQuery.data ?? null}
           releaseVersion={RELEASE_VERSION}
           views={visibleViews(authSnapshot)}
           loginLinks={
