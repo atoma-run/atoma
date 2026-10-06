@@ -1,0 +1,50 @@
+{
+  "rows": 13,
+  "primary": 4,
+  "arms": {
+    "low/applied": {
+      "rows": 3,
+      "approved": 3,
+      "refused": 0,
+      "unknown": 0,
+      "refusalRate": 0,
+      "medianDurationMs": 10296,
+      "medianOutputTokens": 669,
+      "requestedMismatch": 0
+    },
+    "low/held-out": {
+      "rows": 0,
+      "approved": 0,
+      "refused": 0,
+      "unknown": 0,
+      "refusalRate": null,
+      "medianDurationMs": null,
+      "medianOutputTokens": null,
+      "requestedMismatch": 0
+    },
+    "high/applied": {
+      "rows": 0,
+      "approved": 0,
+      "refused": 0,
+      "unknown": 0,
+      "refusalRate": null,
+      "medianDurationMs": null,
+      "medianOutputTokens": null,
+      "requestedMismatch": 0
+    },
+    "high/held-out": {
+      "rows": 1,
+      "approved": 1,
+      "refused": 0,
+      "unknown": 0,
+      "refusalRate": 0,
+      "medianDurationMs": 174734,
+      "medianOutputTokens": 9031,
+      "requestedMismatch": 0
+    }
+  },
+  "verdicts": {
+    "low": "inconclusive (fewer than 8 known-result rows in an arm)",
+    "high": "inconclusive (fewer than 8 known-result rows in an arm)"
+  }
+}

@@ -819,6 +819,18 @@ output tokens, and whether the molecule was then credited, blamed or run
 again in its lane). The protocol, fixed before the first row:
 [benchmark/jev-effort-2026-10-06/PREREGISTRATION.md](../benchmark/jev-effort-2026-10-06/PREREGISTRATION.md).
 
+### The batch, 2026-10-07: inconclusive
+
+Twelve pre-registered goals ran on the holdout revision, each in a project
+kept off the public showcase. Jev was decisive on 4 of 13 executions (`low`
+three times, all applied by the draw; `high` once, held out), and no
+execution was refused, so the refusal comparison had nothing to compare:
+both levels are inconclusive under the pre-registered rules, and the holdout
+stays for the ordinary-run reading at 40 rows per arm. `high` read decisive
+on one of six open-problem goals; a candidate cause, unmeasured, is the
+approved plan in the state making hard tasks look spelled out.
+[Result and rows](../benchmark/jev-effort-2026-10-06/RESULT.md).
+
 The same change closed a gap found while forwarding the new method:
 `forkBranch` rebuilt the decider from a list of four methods and dropped
 `compilable`. A cell's ctx is a fork under a tissue, so the compilation
