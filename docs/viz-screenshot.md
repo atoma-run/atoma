@@ -19,6 +19,7 @@ npm run viz:shot -- --auth --view Skills --select-first # member reads a shared 
 npm run viz:shot -- --auth --view Registry --select-first # member reads a shared agent type
 npm run viz:shot -- --auth --account-menu           # the account menu, open on the orb
 npm run viz:shot -- --auth --appearance amethyst --theme-menu # selected theme and its choices
+npm run viz:shot -- --auth --appearance amethyst --appearance-reveal-ms 1200 --out /tmp/theme-reveal.png # midpoint of the colour reveal
 npm run viz:shot -- --auth --view Settings          # account menu, not a rail tab
 npm run viz:shot -- --auth --platform-admin --view Settings --settings-tab limits # platform budgets
 npm run viz:shot -- --auth --view Settings --scroll-end  # org directory at the foot of the form

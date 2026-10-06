@@ -8,6 +8,7 @@ import {
   APPEARANCE_FROM_WHITE_MS,
   APPEARANCE_TO_WHITE_MS,
   AppearanceVeilLayer,
+  appearanceRevealSample,
   appearanceTransitionSample,
   useAppearanceTransition,
 } from '../src/viz/client-gl/appearance-transition.js';
@@ -75,11 +76,25 @@ describe('appearance transition', () => {
     frame(APPEARANCE_TO_WHITE_MS);
     expect(container.querySelector('.gpu-appearance-veil__white')).toHaveStyle({ opacity: '1' });
     expect(container.querySelector('.gpu-appearance-veil')).toHaveAttribute('data-phase', 'reveal');
+    expect(container.querySelector('.gpu-appearance-veil')).toHaveAttribute('data-theme', 'amethyst');
     expect(useGpuStore.getState().appearanceTheme).toBe('amethyst');
     expect(localStorage.getItem('atoma.viz.theme')).toBe('amethyst');
     expect(markCoreSurge()).toBe(0);
 
-    act(() => { vi.advanceTimersByTime(APPEARANCE_FROM_WHITE_MS); });
+    frame(APPEARANCE_TO_WHITE_MS + APPEARANCE_FROM_WHITE_MS / 2);
+    const white = container.querySelector<HTMLElement>('.gpu-appearance-veil__white');
+    const colour = container.querySelector<HTMLElement>('.gpu-appearance-veil__colour');
+    expect(Number(white?.style.opacity)).toBeGreaterThan(0);
+    expect(Number(white?.style.opacity)).toBeLessThan(1);
+    expect(Number(colour?.style.opacity)).toBeGreaterThan(0.9);
+    expect(useGpuStore.getState().appearanceTransitionTarget).toBe('amethyst');
+
+    frame(APPEARANCE_TO_WHITE_MS + APPEARANCE_FROM_WHITE_MS * 0.8);
+    expect(Number(white?.style.opacity)).toBe(0);
+    expect(Number(colour?.style.opacity)).toBeGreaterThan(0);
+    expect(Number(colour?.style.opacity)).toBeLessThan(1);
+
+    frame(APPEARANCE_TO_WHITE_MS + APPEARANCE_FROM_WHITE_MS);
     expect(container.querySelector('.gpu-appearance-veil')).toBeNull();
     expect(useGpuStore.getState().appearanceTransitionTarget).toBeNull();
   });
@@ -99,5 +114,9 @@ describe('appearance transition', () => {
     expect(middle.spin).toBeCloseTo(1);
     expect(appearanceTransitionSample(1)).toMatchObject({ flood: 1, whiteAlpha: 1 });
     expect(appearanceTransitionSample(1).spin).toBeCloseTo(0);
+    expect(appearanceRevealSample(0)).toEqual({ whiteAlpha: 1, colourAlpha: 0 });
+    expect(appearanceRevealSample(0.5).whiteAlpha).toBeLessThan(0.2);
+    expect(appearanceRevealSample(0.5).colourAlpha).toBeGreaterThan(0.9);
+    expect(appearanceRevealSample(1)).toEqual({ whiteAlpha: 0, colourAlpha: 0 });
   });
 });

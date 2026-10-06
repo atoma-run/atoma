@@ -33,6 +33,8 @@
  *                        arrival (gated only: the tray exists with an account).
  *   --account-menu       Open the account menu on the profile orb after
  *                        arrival (gated only, like the orb itself).
+ *   --appearance-reveal-ms <ms>  Capture this many milliseconds into the
+ *                        white-to-theme reveal (requires --appearance).
  *   --scroll-end         Scroll the Settings body form to its end before
  *                        capture (org directory below the keys).
  *   --camera <mode>      Camera pose after navigation: focus (default) or
@@ -77,6 +79,11 @@ const showResult = has('--result');
 const notifications = has('--notifications');
 const accountMenu = has('--account-menu');
 const appearanceTheme = arg('--appearance', null);
+const appearanceRevealArg = arg('--appearance-reveal-ms', null);
+const appearanceRevealMs = appearanceRevealArg === null ? null : Number(appearanceRevealArg);
+if (appearanceRevealMs !== null && (!appearanceTheme || !Number.isFinite(appearanceRevealMs) || appearanceRevealMs < 0)) {
+  throw new Error('--appearance-reveal-ms needs --appearance and a non-negative number');
+}
 const showThemeMenu = has('--theme-menu');
 const scrollEnd = has('--scroll-end');
 const handheld = has('--handheld');
@@ -878,11 +885,20 @@ try {
         if (theme) dispatch(`appearance.select.${theme}`);
       }, appearanceTheme);
       if (appearanceTheme) {
-        await page.waitForFunction((theme) => {
-          const app = document.querySelector('.gpu-app');
-          return app?.getAttribute('data-theme') === theme &&
-            app.getAttribute('data-theme-transition') === 'idle';
-        }, { timeout: READY_TIMEOUT_MS }, appearanceTheme);
+        if (appearanceRevealMs === null) {
+          await page.waitForFunction((theme) => {
+            const app = document.querySelector('.gpu-app');
+            return app?.getAttribute('data-theme') === theme &&
+              app.getAttribute('data-theme-transition') === 'idle';
+          }, { timeout: READY_TIMEOUT_MS }, appearanceTheme);
+        } else {
+          await page.waitForFunction((theme) => {
+            const app = document.querySelector('.gpu-app');
+            return app?.getAttribute('data-theme') === theme &&
+              app.getAttribute('data-theme-transition') === 'reveal';
+          }, { timeout: READY_TIMEOUT_MS }, appearanceTheme);
+          await page.evaluate((ms) => new Promise((resolveWait) => setTimeout(resolveWait, ms)), appearanceRevealMs);
+        }
       }
       if (showThemeMenu) {
         const controlPoint = (id) => page.evaluate((targetId) => {
@@ -906,7 +922,9 @@ try {
           globalThis.__ATOMA_GPU__?.hitTargets().some((entry) => entry.id === 'appearance.select.amethyst'),
         { timeout: READY_TIMEOUT_MS });
       }
-      await page.evaluate(() => new Promise((resolveWait) => setTimeout(resolveWait, 150)));
+      if (appearanceRevealMs === null) {
+        await page.evaluate(() => new Promise((resolveWait) => setTimeout(resolveWait, 150)));
+      }
     }
 
     if (notifications) {

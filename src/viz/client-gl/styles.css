@@ -234,21 +234,31 @@ button, input, textarea, select { font: inherit; }
   display: none;
 }
 
-/* The theme change grows out of the crystal's actual bead position. The final
-   solid sheet covers the flood's feathered corners, then lifts over the new
-   palette. Both layers animate only transform or opacity. */
+/* The theme change grows out of the crystal's actual bead position. The solid
+   sheet covers the flood's feathered corners; a pre-painted colour gradient
+   then bridges white and the new palette. Frames change only transform or
+   opacity, never the gradient itself. */
 .gpu-appearance-veil {
+  --appearance-reveal-near: rgba(179, 215, 255, .9);
+  --appearance-reveal-far: rgba(73, 125, 203, .55);
   position: fixed;
   inset: 0;
   z-index: 50;
   overflow: hidden;
   pointer-events: auto;
   background: transparent;
-  opacity: 1;
 }
-.gpu-appearance-veil[data-phase="reveal"] {
-  opacity: 0;
-  transition: opacity 1200ms cubic-bezier(.22, 1, .36, 1);
+.gpu-appearance-veil[data-theme="aurora"] {
+  --appearance-reveal-near: rgba(183, 255, 229, .9);
+  --appearance-reveal-far: rgba(49, 178, 152, .58);
+}
+.gpu-appearance-veil[data-theme="amethyst"] {
+  --appearance-reveal-near: rgba(231, 203, 255, .9);
+  --appearance-reveal-far: rgba(149, 92, 204, .58);
+}
+.gpu-appearance-veil[data-theme="copper"] {
+  --appearance-reveal-near: rgba(255, 220, 175, .9);
+  --appearance-reveal-far: rgba(202, 118, 67, .58);
 }
 .gpu-appearance-veil__flood {
   position: absolute;
@@ -260,6 +270,22 @@ button, input, textarea, select { font: inherit; }
   transform-origin: 50% 50%;
   will-change: transform, opacity;
   background: radial-gradient(circle closest-side, #fff 0%, #fff 55%, rgba(255, 255, 255, .72) 70%, rgba(255, 255, 255, 0) 100%);
+}
+.gpu-appearance-veil[data-phase="reveal"] .gpu-appearance-veil__flood {
+  display: none;
+}
+.gpu-appearance-veil__colour {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  will-change: opacity;
+  background: radial-gradient(
+    circle farthest-corner at var(--appearance-origin-x, 50%) var(--appearance-origin-y, 50%),
+    rgba(255, 255, 255, .98) 0%,
+    var(--appearance-reveal-near) 32%,
+    var(--appearance-reveal-far) 72%,
+    transparent 100%
+  );
 }
 .gpu-appearance-veil__white {
   position: absolute;
