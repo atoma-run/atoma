@@ -301,6 +301,7 @@ const PUSH_ROUTE_SOURCES: Record<PlatformEventKind, PushRouteSource | null> = {
   // its member list) but is nobody's notification.
   'principal.renamed': null,
   'project.created': null,
+  'project.showcase_changed': null,
   'github.installation_linked': null,
   'github.installation_status': {
     // The publication pipeline just changed state under the organisation.

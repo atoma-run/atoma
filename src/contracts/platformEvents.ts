@@ -63,6 +63,8 @@ export const platformEventKindSchema = z.enum([
   'org.member_joined',
   'principal.renamed',
   'project.created',
+  /** A project's runs were put on, or taken off, the public showcase. */
+  'project.showcase_changed',
   'github.installation_linked',
   'github.installation_status',
   /**
@@ -354,6 +356,8 @@ export const PLATFORM_EVENT_SEVERITY: Record<PlatformEventKind, PlatformEventSev
   // identity-presentation change, not a cosmetic preference.
   'principal.renamed': 'security',
   'project.created': 'info',
+  // What a visitor of the public page may read changed: an exposure decision.
+  'project.showcase_changed': 'security',
   'github.installation_linked': 'info',
   // Suspended or deleted installations break the publication pipeline.
   'github.installation_status': 'warning',

@@ -147,8 +147,10 @@ list. These values come from the host snapshot, never a tenant prompt.
 - `listShowcaseRuns()` is the public showcase's ONE read
   ([src/viz](../viz/AGENTS.md#public-showcase)): delivered, not a rerun,
   requested by a platform admin, in a project whose `showcase` is `listed` or
-  NULL (created before 2026-10-06). `hidden`, chosen at creation, keeps a
-  project's runs off it; any other value hides too. There is no setter yet.
+  NULL (created before 2026-10-06). `hidden`, chosen at creation or later by
+  an organisation admin (`setProjectShowcase`, MCP `atoma_project_showcase`,
+  journaled `project.showcase_changed`), keeps the project's runs off it; any
+  other value hides too. Writes stay in the caller's organisation.
 - Such a reader must not WRITE here. A `running` row that outlived its process
   is repaired by `reconcileInterrupted` at the next boot, never by the
   observer that noticed it. `hasProjectTables` exists so a reader can ask

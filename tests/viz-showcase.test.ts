@@ -10,7 +10,9 @@ import { AuthStore } from '../src/auth/store.js';
 import type { ArtifactManifest } from '../src/contracts/projects.js';
 import type { RunStats } from '../src/contracts/runStats.js';
 import { closeStoreHandles } from '../src/core/stores.js';
+import { ProjectService } from '../src/projects/service.js';
 import { ProjectStore } from '../src/projects/store.js';
+import { platformEventInputSchema, type PlatformEventInput } from '../src/contracts/platformEvents.js';
 import {
   buildShowcase,
   classifyShowcase,
@@ -191,6 +193,57 @@ describe('who may be shown', () => {
     } finally {
       db.close();
     }
+  });
+
+  it('lets an organisation admin hide or re-list a project of their own, journaled, and nobody else', () => {
+    const root = mkdtempSync(join(tmpdir(), 'atoma-showcase-setter-'));
+    roots.push(root);
+    const dbPath = join(root, 'atoma.db');
+    const auth = AuthStore.open(dbPath);
+    const store = ProjectStore.open(dbPath);
+    const [owner, other] = (['owner', 'other'] as const).map((name) => {
+      const login = auth.completeLogin({ provider: 'github', subject: name, displayName: name, email: null, emailVerified: false }, null);
+      if (!login) throw new Error('bootstrap failed');
+      return login.viewer;
+    });
+    auth.grantPlatformAdmin(owner!.principalId);
+    const project = store.createProject({
+      orgId: owner!.orgId, principalId: owner!.principalId,
+      project: { name: 'L3 experiment', slug: 'l3-experiment', repositoryTarget: { installationId: '1', owner: 'o', name: 'l3', visibility: 'private' } },
+    });
+    const w = { root, dbPath, store, admin: { orgId: owner!.orgId, principalId: owner!.principalId, projectId: project.projectId } } as World;
+    const run = seedRun(w, w.admin, { goal: 'A contrived puzzle', files: ['report.md'] });
+    const events: PlatformEventInput[] = [];
+    const service = new ProjectService({
+      store, github: null, coordinator: {} as never,
+      events: (event) => {
+        expect(platformEventInputSchema.safeParse(event).success).toBe(true);
+        events.push(event);
+      },
+    });
+    expect(store.listShowcaseRuns().map((row) => row.projectRunId)).toEqual([run]);
+
+    expect(service.setProjectShowcase(owner!, project.projectId, 'hidden')).toMatchObject({ projectId: project.projectId, showcase: 'hidden' });
+    expect(store.listShowcaseRuns()).toEqual([]);
+    expect(events).toEqual([expect.objectContaining({
+      kind: 'project.showcase_changed', actorId: owner!.principalId, orgId: owner!.orgId, projectId: project.projectId,
+      summary: 'Project "L3 experiment" taken off the public showcase', detail: { from: 'listed', to: 'hidden' },
+    })]);
+    // Asking for what already holds changes nothing and journals nothing.
+    service.setProjectShowcase(owner!, project.projectId, 'hidden');
+    expect(events).toHaveLength(1);
+
+    // Writes stay in the caller's organisation, and need an organisation admin.
+    expect(() => service.setProjectShowcase(other!, project.projectId, 'listed')).toThrow(/project not found/);
+    expect(() => service.setProjectShowcase({ ...owner!, role: 'org:member' }, project.projectId, 'listed')).toThrow(/org:admin/);
+    expect(() => service.setProjectShowcase(owner!, project.projectId, 'public')).toThrow(/listed or hidden/);
+    expect(store.listShowcaseRuns()).toEqual([]);
+
+    service.setProjectShowcase(owner!, project.projectId, 'listed');
+    expect(store.listShowcaseRuns().map((row) => row.projectRunId)).toEqual([run]);
+    expect(events.map((event) => event.summary)).toEqual([
+      'Project "L3 experiment" taken off the public showcase', 'Project "L3 experiment" put on the public showcase',
+    ]);
   });
 
   it('follows the admin flag at read time, and answers nothing without an auth table', () => {

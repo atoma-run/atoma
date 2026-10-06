@@ -378,7 +378,7 @@ describe('the catalogue by tier', () => {
     expect(asMember).toEqual(expect.arrayContaining(asViewer));
     expect(above(asViewer, asMember)).toEqual(['atoma_project_create', 'atoma_run_start', 'atoma_run_cancel', 'atoma_publication_retry']);
     expect(asAdmin).toEqual(expect.arrayContaining(asMember));
-    expect(above(asMember, asAdmin)).toEqual(['atoma_org_members', 'atoma_org_models']);
+    expect(above(asMember, asAdmin)).toEqual(['atoma_project_showcase', 'atoma_org_members', 'atoma_org_models']);
     // Handing out the host's own login is operator spend, not organisation
     // self-service: an org admin never sees the row, a platform admin does.
     expect(asAdmin).not.toContain('atoma_subscription_delegates');

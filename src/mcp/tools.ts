@@ -13,7 +13,7 @@ import type { RetrievalCampaignStart } from '../cli/retrievalCampaignHost.js';
 import type { AuthStore, Viewer } from '../auth/store.js';
 import { platformEventKindSchema, PLATFORM_EVENT_FAMILIES } from '../contracts/platformEvents.js';
 import { SUPPORTED_LOCALES } from '../contracts/locales.js';
-import { createProjectInputSchema } from '../contracts/projects.js';
+import { createProjectInputSchema, projectShowcaseSchema } from '../contracts/projects.js';
 import type { LedgerEventKind } from '../core/ledger.js';
 import type { PlatformEventLog } from '../platform/events.js';
 import type { PreviewHttpService } from '../preview/httpService.js';
@@ -622,6 +622,23 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
   },
 
   /* ----------------------------------------------------------------- admin */
+  {
+    name: 'atoma_project_showcase',
+    tier: 'admin',
+    needs: ['projects'],
+    register: (server, ctx) =>
+      server.registerTool(
+        'atoma_project_showcase',
+        {
+          title: 'Show or hide a project on the public showcase',
+          description:
+            'Put one of your organisation’s projects on (listed) or take it off (hidden) the public showcase, which only ever shows delivered runs a platform admin requested. Hidden keeps every run of the project off it, past and future. Journaled.',
+          inputSchema: { projectId: z.string().min(1), showcase: projectShowcaseSchema },
+          annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+        },
+        (args) => guarded(() => tenant(ctx).service.setProjectShowcase(ctx.viewer(), args.projectId, args.showcase))
+      ),
+  },
   {
     name: 'atoma_org_members',
     tier: 'admin',

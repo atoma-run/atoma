@@ -5,6 +5,7 @@ import { roleAtLeast } from '../auth/store.js';
 export { roleAtLeast } from '../auth/store.js';
 import {
   createProjectInputSchema,
+  projectShowcaseSchema,
   startProjectRunInputSchema,
   projectRunPublicSchema,
   type Project,
@@ -148,6 +149,7 @@ function publicProject(
     name: project.name,
     slug: project.slug,
     status: project.status,
+    showcase: project.showcase,
     repositoryTarget: project.repositoryTarget,
     repositoryStatus: project.repositoryStatus,
     repositoryFullName: project.repositoryFullName,
@@ -240,6 +242,36 @@ export class ProjectService {
   /** POST /api/projects — org:member or above. */
   async createProject(req: IncomingMessage, viewer: Viewer): Promise<unknown> {
     return this.createProjectFromInput(viewer, await readJsonBody(req));
+  }
+
+  /**
+   * Put a project of the viewer's organisation on, or take it off, the public
+   * showcase. An organisation admin's decision, journaled; never another
+   * organisation's project, platform admin or not (writes stay in the active
+   * organisation).
+   */
+  setProjectShowcase(viewer: Viewer, projectId: string, showcaseInput: unknown): unknown {
+    if (!roleAtLeast(viewer.role, 'org:admin')) {
+      throw new ProjectHttpError(403, 'org:admin role or above is required to change what the showcase shows');
+    }
+    const showcase = projectShowcaseSchema.safeParse(showcaseInput);
+    if (!showcase.success) throw new ProjectHttpError(400, 'showcase must be listed or hidden');
+    const before = this.store.getProject(viewer.orgId, projectId);
+    if (!before) throw new ProjectHttpError(404, 'project not found');
+    const project = this.store.setProjectShowcase(viewer.orgId, projectId, showcase.data);
+    if (!project) throw new ProjectHttpError(404, 'project not found');
+    if (before.showcase !== project.showcase) {
+      this.events({
+        kind: 'project.showcase_changed',
+        actorType: 'principal',
+        actorId: viewer.principalId,
+        orgId: viewer.orgId,
+        projectId,
+        summary: `Project "${eventLabel(project.name)}" ${project.showcase === 'hidden' ? 'taken off' : 'put on'} the public showcase`,
+        detail: { from: before.showcase, to: project.showcase },
+      });
+    }
+    return publicProject(project, this.store.projectRunSummary(viewer.orgId, projectId));
   }
 
   /**

@@ -26,6 +26,7 @@ import {
   projectRunSchema,
   projectRunStatusSchema,
   projectSchema,
+  projectShowcaseSchema,
   publicationIdSchema,
   publicationReceiptSchema,
   publicationSchema,
@@ -994,6 +995,22 @@ END;
         )
         .all() as Array<ProjectRow & { org_name: string | null }>
     ).map((row) => ({ ...projectFromRow(row), orgName: row.org_name }));
+  }
+
+  /**
+   * Whether this organisation's project may appear on the public showcase
+   * (`listShowcaseRuns`). The ONE write of the column after creation; bound to
+   * the organisation, so it never reaches another tenant's row. Null when the
+   * project is not this organisation's.
+   */
+  setProjectShowcase(orgIdInput: string, projectIdInput: string, showcaseInput: unknown): Project | null {
+    const orgId = organisationIdSchema.parse(orgIdInput);
+    const projectId = projectIdSchema.parse(projectIdInput);
+    const showcase = projectShowcaseSchema.parse(showcaseInput);
+    const changed = this.db
+      .prepare('UPDATE projects SET showcase = ?, updated_at = ? WHERE org_id = ? AND project_id = ?')
+      .run(showcase, new Date().toISOString(), orgId, projectId);
+    return changed.changes === 1 ? this.getProject(orgId, projectId) : null;
   }
 
   /** Resolve a project by id across ALL organisations (admin reads only). */
