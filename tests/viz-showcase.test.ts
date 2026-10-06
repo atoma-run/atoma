@@ -4,6 +4,7 @@ import { createServer } from 'node:http';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthStore } from '../src/auth/store.js';
 import type { ArtifactManifest } from '../src/contracts/projects.js';
@@ -161,6 +162,35 @@ describe('who may be shown', () => {
     seedRun(w, w.admin, { goal: 'Admin partial', outcome: 'partial', files: ['a.md'] });
     seedRun(w, w.member, { goal: 'Member delivered, not an admin', files: ['README.md'] });
     expect(w.store.listShowcaseRuns().map((run) => run.projectRunId)).toEqual([shown]);
+  });
+
+  it('keeps a project created hidden off it, lists one that predates the flag, and hides any other value', () => {
+    const w = world();
+    const shown = seedRun(w, w.admin, { goal: 'Admin delivered', files: ['README.md'] });
+    const measured = w.store.createProject({
+      orgId: w.admin.orgId,
+      principalId: w.admin.principalId,
+      project: {
+        name: 'Effort batch', slug: 'effort-batch', showcase: 'hidden',
+        repositoryTarget: { installationId: '123', owner: 'secret-owner-admin', name: 'effort-batch', visibility: 'private' },
+      },
+    });
+    expect(measured.showcase).toBe('hidden');
+    expect(w.store.getProject(w.admin.orgId, w.admin.projectId)!.showcase).toBe('listed');
+    seedRun(w, { ...w.admin, projectId: measured.projectId }, { goal: 'Measurement run', files: ['README.md'] });
+    expect(w.store.listShowcaseRuns().map((run) => run.projectRunId)).toEqual([shown]);
+    const db = new Database(w.dbPath);
+    try {
+      // A project created before 2026-10-06 carries no value: listed, as it was.
+      db.prepare('UPDATE projects SET showcase = NULL WHERE project_id = ?').run(w.admin.projectId);
+      expect(w.store.listShowcaseRuns().map((run) => run.projectRunId)).toEqual([shown]);
+      expect(w.store.getProject(w.admin.orgId, w.admin.projectId)!.showcase).toBe('listed');
+      // Anything but `listed` hides: exposure fails closed.
+      db.prepare("UPDATE projects SET showcase = 'Listed' WHERE project_id = ?").run(w.admin.projectId);
+      expect(w.store.listShowcaseRuns()).toEqual([]);
+    } finally {
+      db.close();
+    }
   });
 
   it('follows the admin flag at read time, and answers nothing without an auth table', () => {

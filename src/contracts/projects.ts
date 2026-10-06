@@ -223,12 +223,22 @@ const httpsUrlSchema = z.string().url().refine((value) => new URL(value).protoco
   message: 'expected an HTTPS URL',
 });
 
+/**
+ * Whether a project's delivered runs may appear on the public showcase, which
+ * only ever shows a platform admin's runs (src/viz/showcase.ts). `hidden`
+ * keeps them off it: experiments and measurements whose goals are not stories.
+ */
+export const projectShowcaseSchema = z.enum(['listed', 'hidden']);
+
 export const createProjectInputSchema = z
   .object({
     name: projectNameSchema,
     slug: projectSlugSchema,
     initialPrompt: projectPromptSchema.default(''),
     repositoryTarget: repositoryTargetSchema,
+    showcase: projectShowcaseSchema
+      .default('listed')
+      .describe('hidden keeps every run of this project off the public showcase; listed (default) leaves it eligible.'),
   })
   .strict();
 
@@ -241,6 +251,7 @@ export const projectSchema = z
     slug: projectSlugSchema,
     initialPrompt: projectPromptSchema,
     status: projectStatusSchema,
+    showcase: projectShowcaseSchema,
     repositoryTarget: repositoryTargetSchema,
     repositoryStatus: repositoryStatusSchema,
     repositoryId: githubRepositoryIdSchema.nullable(),

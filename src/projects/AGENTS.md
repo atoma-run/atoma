@@ -144,6 +144,11 @@ list. These values come from the host snapshot, never a tenant prompt.
 - `listRunsRequestedBy()` is the MCP's task listing ([src/mcp](../mcp/AGENTS.md)):
   one principal's runs in its own organisation, live or ended since a cut-off,
   keyed on who STARTED the run, never on who may read it (a platform admin too).
+- `listShowcaseRuns()` is the public showcase's ONE read
+  ([src/viz](../viz/AGENTS.md#public-showcase)): delivered, not a rerun,
+  requested by a platform admin, in a project whose `showcase` is `listed` or
+  NULL (created before 2026-10-06). `hidden`, chosen at creation, keeps a
+  project's runs off it; any other value hides too. There is no setter yet.
 - Such a reader must not WRITE here. A `running` row that outlived its process
   is repaired by `reconcileInterrupted` at the next boot, never by the
   observer that noticed it. `hasProjectTables` exists so a reader can ask

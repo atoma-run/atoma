@@ -430,6 +430,8 @@ interface ProjectRow {
   slug: string;
   initial_prompt: string;
   status: string;
+  /** NULL on a project created before 2026-10-06: listed, as it was. */
+  showcase: string | null;
   github_installation_id: string;
   repository_source_json: string | null;
   repository_target_owner: string;
@@ -513,6 +515,7 @@ function projectFromRow(row: ProjectRow): Project {
     slug: row.slug,
     initialPrompt: row.initial_prompt,
     status: row.status,
+    showcase: row.showcase ?? 'listed',
     repositoryTarget: {
       installationId: row.github_installation_id,
       owner: row.repository_target_owner,
@@ -746,6 +749,7 @@ export class ProjectStore {
       }
       for (const [table, column] of [
         ['projects', 'repository_source_json'],
+        ['projects', 'showcase'],
         ['project_runs', 'repository_base_json'],
         ['project_runs', 'skills_path'],
         ['project_runs', 'bytes_expired_at'],
@@ -927,9 +931,9 @@ END;
         .prepare(
           `INSERT INTO projects (
              project_id, org_id, created_by_principal_id, name, slug, initial_prompt,
-             status, github_installation_id, repository_target_owner, repository_target_name,
+             status, showcase, github_installation_id, repository_target_owner, repository_target_name,
              repository_visibility, repository_source_json, repository_status, created_at, updated_at
-           ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, 'pending', ?, ?)`
+           ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`
         )
         .run(
           projectId,
@@ -938,6 +942,7 @@ END;
           project.name,
           project.slug,
           project.initialPrompt,
+          project.showcase,
           project.repositoryTarget.installationId,
           project.repositoryTarget.owner,
           project.repositoryTarget.name,
@@ -1609,7 +1614,8 @@ END;
 
   /**
    * THE RUNS THE PUBLIC SHOWCASE MAY SHOW: delivered, not a comparison rerun,
-   * and REQUESTED BY A PLATFORM ADMIN. Both facts are decided here, in one
+   * REQUESTED BY A PLATFORM ADMIN, in a project not marked `hidden` (a value
+   * other than `listed` or NULL hides too). All of it is decided here, in one
    * query, so no caller can widen the set: the page receives only these rows
    * and projects them again (`src/viz/showcase.ts`). Oldest first, the newest
    * `limit` kept. A store with no auth table has no admin, so the answer is
@@ -1624,7 +1630,9 @@ END;
       .prepare(
         `SELECT r.* FROM project_runs r
            JOIN auth_platform_admins a ON a.principal_id = r.requested_by_principal_id
+           JOIN projects p ON p.project_id = r.project_id AND p.org_id = r.org_id
           WHERE r.status = 'delivered' AND r.rerun_of_run_id IS NULL
+            AND COALESCE(p.showcase, 'listed') = 'listed'
           ORDER BY r.created_at DESC, r.project_run_id ASC LIMIT ?`
       )
       .all(Math.max(1, Math.min(2_000, Math.floor(limit)))) as ProjectRunRow[];

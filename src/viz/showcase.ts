@@ -11,8 +11,9 @@ import { readBoundedRunFile } from './runIndex.js';
  *
  * - OFF UNLESS THE HOST SAYS SO (`ATOMA_PUBLIC_SHOWCASE=1`). Publishing a
  *   person's work is an operator decision, never a side effect of a deploy.
- * - THE SET is `ProjectStore.listShowcaseRuns`: delivered, not a rerun, and
- *   requested by a PLATFORM ADMIN. Nothing here widens it.
+ * - THE SET is `ProjectStore.listShowcaseRuns`: delivered, not a rerun,
+ *   requested by a PLATFORM ADMIN, in a project not created `showcase: hidden`.
+ *   Nothing here widens it.
  * - THE PROJECTION is an allow-list. A visitor sees a title, the request, the
  *   outcome's numbers, deliverable file NAMES and sizes, and the answer of a
  *   text delivery. Never an organisation, project or principal identity, a

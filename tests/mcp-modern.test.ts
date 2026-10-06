@@ -150,8 +150,10 @@ describe('the 2026-07-28 era', () => {
       // The create input is the console's schema, visible to the model, not an untyped record.
       const create = (await client.listTools()).tools.find((tool) => tool.name === 'atoma_project_create')!;
       const project = (create.inputSchema.properties as Record<string, { properties?: Record<string, unknown>; required?: string[] }>)['project']!;
-      expect(Object.keys(project.properties ?? {})).toEqual(expect.arrayContaining(['name', 'slug', 'repositoryTarget']));
+      expect(Object.keys(project.properties ?? {})).toEqual(expect.arrayContaining(['name', 'slug', 'repositoryTarget', 'showcase']));
       expect(project.required).toEqual(expect.arrayContaining(['name', 'slug', 'repositoryTarget']));
+      // Keeping a project off the public showcase is optional: a client that never heard of it still creates one.
+      expect(project.required).not.toContain('showcase');
     } finally {
       await client.close();
     }
