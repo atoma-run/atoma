@@ -626,7 +626,7 @@
   "skillOp.failure": "Penghitung kegagalan ditambah",
   "skillOp.promote": "Skill dipromosikan llm → skrip (kompilasi Sonnet)",
   "skillOp.demote": "Skill diturunkan skrip → llm (fallback dipulihkan)",
-  "skillOp.direct": "",
+  "skillOp.direct": "Skrip dijalankan melalui pemanggilan deterministik (tanpa eksekusi model), hasilnya divalidasi",
   "skillOp.quarantine": "Skill DIKARANTINA oleh pemindaian statis",
   "skillOp.creditWithheld": "Penghitung tidak diubah",
   "registry.none": "Tidak ada registri yang dikonfigurasi",
@@ -1287,5 +1287,6 @@
   "projects.mcpConnect": "Hubungkan agen Anda",
   "projects.mcpSettings": "Pengaturan MCP",
   "projects.mcpConnected": "Atoma MCP terhubung untuk organisasi ini. Agen Anda siap bekerja.",
-  "projects.mcpAuthorized": "Akses Atoma MCP disetujui. Buka agen Anda untuk mulai bekerja."
+  "projects.mcpAuthorized": "Akses Atoma MCP disetujui. Buka agen Anda untuk mulai bekerja.",
+  "skillOp.setAside": "Hasil skrip disisihkan; molekul mengambil fase"
 }

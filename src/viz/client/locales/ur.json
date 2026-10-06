@@ -649,7 +649,7 @@
   "skillOp.failure": "ناکامی کا کاؤنٹر بڑھایا گیا",
   "skillOp.promote": "Skill کو llm → اسکرپٹ پر ترقی دی گئی (Sonnet کمپائل)",
   "skillOp.demote": "Skill کو اسکرپٹ → llm پر تنزلی دی گئی (fallback بحال)",
-  "skillOp.direct": "",
+  "skillOp.direct": "اسکرپٹ کو تعیّنی ڈسپیچ کے ذریعے چلایا گیا (ماڈل چلائے بغیر)، نتیجے کی توثیق کی گئی",
   "skillOp.quarantine": "جامد اسکین نے skill کو قرنطینہ کر دیا",
   "skillOp.creditWithheld": "شمارندے تبدیل نہیں کیے گئے",
   "registry.none": "کوئی رجسٹری ترتیب نہیں دی گئی",
@@ -1287,5 +1287,6 @@
   "projects.mcpConnect": "اپنا ایجنٹ منسلک کریں",
   "projects.mcpSettings": "MCP ترتیبات",
   "projects.mcpConnected": "اس تنظیم کے لیے Atoma MCP منسلک ہے۔ آپ کا ایجنٹ کام کے لیے تیار ہے۔",
-  "projects.mcpAuthorized": "Atoma MCP کی رسائی منظور ہو گئی۔ کام شروع کرنے کے لیے اپنا ایجنٹ کھولیں۔"
+  "projects.mcpAuthorized": "Atoma MCP کی رسائی منظور ہو گئی۔ کام شروع کرنے کے لیے اپنا ایجنٹ کھولیں۔",
+  "skillOp.setAside": "اسکرپٹ کا نتیجہ ایک طرف رکھ دیا گیا؛ مالیکیول مرحلہ سنبھالتا ہے"
 }

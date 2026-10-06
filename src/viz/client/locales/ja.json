@@ -626,7 +626,7 @@
   "skillOp.failure": "失敗カウンターを増加",
   "skillOp.promote": "skillをllmからscriptへ昇格（Sonnetコンパイル）",
   "skillOp.demote": "skillをscriptからllmへ降格（fallbackを復元）",
-  "skillOp.direct": "",
+  "skillOp.direct": "決定論的ディスパッチでスクリプトを実行（モデル実行なし）、結果を検証済み",
   "skillOp.quarantine": "静的スキャンによりskillを隔離",
   "skillOp.creditWithheld": "カウンターは変更されていません",
   "registry.none": "レジストリが設定されていません",
@@ -1287,5 +1287,6 @@
   "projects.mcpConnect": "エージェントを接続",
   "projects.mcpSettings": "MCP設定",
   "projects.mcpConnected": "この組織でAtoma MCPに接続しました。エージェントで作業を開始できます。",
-  "projects.mcpAuthorized": "Atoma MCPへのアクセスが承認されました。エージェントを開いて作業を開始してください。"
+  "projects.mcpAuthorized": "Atoma MCPへのアクセスが承認されました。エージェントを開いて作業を開始してください。",
+  "skillOp.setAside": "スクリプトの結果は保留され、分子がそのフェーズを引き継ぎます"
 }

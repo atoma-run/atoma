@@ -626,7 +626,7 @@
   "skillOp.failure": "Contador de falhas incrementado",
   "skillOp.promote": "Skill promovida de llm → script (compilação Sonnet)",
   "skillOp.demote": "Skill despromovida de script → llm (fallback restaurado)",
-  "skillOp.direct": "",
+  "skillOp.direct": "Script executado por encaminhamento determinístico (sem execução do modelo), resultado validado",
   "skillOp.quarantine": "Skill colocada EM QUARENTENA pela análise estática",
   "skillOp.creditWithheld": "Contadores não alterados",
   "registry.none": "Nenhum registo configurado",
@@ -1287,5 +1287,6 @@
   "projects.mcpConnect": "Ligar o seu agente",
   "projects.mcpSettings": "Definições do MCP",
   "projects.mcpConnected": "O Atoma MCP está ligado para esta organização. O seu agente está pronto para trabalhar.",
-  "projects.mcpAuthorized": "O acesso ao Atoma MCP foi aprovado. Abra o seu agente para começar a trabalhar."
+  "projects.mcpAuthorized": "O acesso ao Atoma MCP foi aprovado. Abra o seu agente para começar a trabalhar.",
+  "skillOp.setAside": "Resultado do script posto de lado; a molécula assume a fase"
 }

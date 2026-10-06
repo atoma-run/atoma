@@ -626,7 +626,7 @@
   "skillOp.failure": "تمت زيادة عدّاد الفشل",
   "skillOp.promote": "تمت ترقية skill من llm إلى script (ترجمة Sonnet)",
   "skillOp.demote": "تم تخفيض skill من script إلى llm (تمت استعادة fallback)",
-  "skillOp.direct": "",
+  "skillOp.direct": "نُفّذ البرنامج النصي عبر توجيه حتمي (من دون تنفيذ النموذج)، وتم التحقق من النتيجة",
   "skillOp.quarantine": "تم عزل skill بواسطة الفحص الساكن",
   "skillOp.creditWithheld": "لم تتغير العدادات",
   "registry.none": "لم يتم إعداد سجل",
@@ -1287,5 +1287,6 @@
   "projects.mcpConnect": "ربط وكيلك",
   "projects.mcpSettings": "إعدادات MCP",
   "projects.mcpConnected": "تم ربط Atoma MCP لهذه المنظمة. وكيلك جاهز للعمل.",
-  "projects.mcpAuthorized": "تمت الموافقة على الوصول إلى Atoma MCP. افتح وكيلك لبدء العمل."
+  "projects.mcpAuthorized": "تمت الموافقة على الوصول إلى Atoma MCP. افتح وكيلك لبدء العمل.",
+  "skillOp.setAside": "نُحّيت نتيجة البرنامج النصي؛ ويتولى الجزيء المرحلة"
 }

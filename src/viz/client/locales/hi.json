@@ -626,7 +626,7 @@
   "skillOp.failure": "विफलता काउंटर बढ़ाया गया",
   "skillOp.promote": "Skill को llm → script में पदोन्नत किया गया (Sonnet कंपाइल)",
   "skillOp.demote": "Skill को script → llm में पदावनत किया गया (fallback बहाल)",
-  "skillOp.direct": "",
+  "skillOp.direct": "नियतात्मक डिस्पैच के ज़रिए स्क्रिप्ट निष्पादित की गई (कोई मॉडल निष्पादन नहीं), परिणाम सत्यापित किया गया",
   "skillOp.quarantine": "स्थिर स्कैन द्वारा skill को क्वारंटीन किया गया",
   "skillOp.creditWithheld": "काउंटर नहीं बदले गए",
   "registry.none": "कोई रजिस्ट्री कॉन्फ़िगर नहीं है",
@@ -1287,5 +1287,6 @@
   "projects.mcpConnect": "अपना एजेंट कनेक्ट करें",
   "projects.mcpSettings": "MCP सेटिंग",
   "projects.mcpConnected": "इस संगठन के लिए Atoma MCP कनेक्ट है। आपका एजेंट काम करने के लिए तैयार है।",
-  "projects.mcpAuthorized": "Atoma MCP का एक्सेस स्वीकृत है। काम शुरू करने के लिए अपना एजेंट खोलें।"
+  "projects.mcpAuthorized": "Atoma MCP का एक्सेस स्वीकृत है। काम शुरू करने के लिए अपना एजेंट खोलें।",
+  "skillOp.setAside": "स्क्रिप्ट का परिणाम अलग रखा गया; अणु चरण संभालता है"
 }

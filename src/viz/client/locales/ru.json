@@ -626,7 +626,7 @@
   "skillOp.failure": "Счётчик неудач увеличен",
   "skillOp.promote": "Skill повышен: llm → script (компиляция Sonnet)",
   "skillOp.demote": "Skill понижен: script → llm (fallback восстановлен)",
-  "skillOp.direct": "",
+  "skillOp.direct": "Скрипт выполнен посредством детерминированной диспетчеризации (без выполнения модели), результат проверен",
   "skillOp.quarantine": "Skill ПОМЕЩЁН В КАРАНТИН статическим анализатором",
   "skillOp.creditWithheld": "Счётчики не изменены",
   "registry.none": "Реестр не настроен",
@@ -1287,5 +1287,6 @@
   "projects.mcpConnect": "Подключить агента",
   "projects.mcpSettings": "Настройки MCP",
   "projects.mcpConnected": "Atoma MCP подключён для этой организации. Агент готов к работе.",
-  "projects.mcpAuthorized": "Доступ к Atoma MCP одобрен. Откройте агента, чтобы начать работу."
+  "projects.mcpAuthorized": "Доступ к Atoma MCP одобрен. Откройте агента, чтобы начать работу.",
+  "skillOp.setAside": "Результат скрипта отложен; фазу берёт на себя молекула"
 }

@@ -626,7 +626,7 @@
   "skillOp.failure": "ব্যর্থতার কাউন্টার বাড়ানো হয়েছে",
   "skillOp.promote": "Skill-কে llm → script-এ উন্নীত করা হয়েছে (Sonnet compile)",
   "skillOp.demote": "Skill-কে script → llm-এ অবনমিত করা হয়েছে (fallback পুনরুদ্ধার করা হয়েছে)",
-  "skillOp.direct": "",
+  "skillOp.direct": "নির্ধারণবাদী ডিসপ্যাচের মাধ্যমে স্ক্রিপ্ট কার্যকর হয়েছে (মডেল কার্যকর করা হয়নি), ফলাফল যাচাই করা হয়েছে",
   "skillOp.quarantine": "স্থির scan দ্বারা skill-টিকে কোয়ারেন্টাইনে রাখা হয়েছে",
   "skillOp.creditWithheld": "কাউন্টার পরিবর্তন করা হয়নি",
   "registry.none": "কোনো রেজিস্ট্রি কনফিগার করা নেই",
@@ -1287,5 +1287,6 @@
   "projects.mcpConnect": "আপনার এজেন্ট সংযুক্ত করুন",
   "projects.mcpSettings": "MCP সেটিংস",
   "projects.mcpConnected": "এই সংস্থার জন্য Atoma MCP সংযুক্ত আছে। আপনার এজেন্ট কাজের জন্য প্রস্তুত।",
-  "projects.mcpAuthorized": "Atoma MCP অ্যাক্সেস অনুমোদিত হয়েছে। কাজ শুরু করতে আপনার এজেন্ট খুলুন।"
+  "projects.mcpAuthorized": "Atoma MCP অ্যাক্সেস অনুমোদিত হয়েছে। কাজ শুরু করতে আপনার এজেন্ট খুলুন।",
+  "skillOp.setAside": "স্ক্রিপ্টের ফলাফল সরিয়ে রাখা হয়েছে; অণুটি পর্যায়টির দায়িত্ব নেয়"
 }

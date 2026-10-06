@@ -626,7 +626,7 @@
   "skillOp.failure": "Fehlerzähler erhöht",
   "skillOp.promote": "Skill von LLM → Skript hochgestuft (Sonnet-Kompilierung)",
   "skillOp.demote": "Skill von Skript → LLM herabgestuft (Fallback wiederhergestellt)",
-  "skillOp.direct": "",
+  "skillOp.direct": "Script über deterministische Weiterleitung ausgeführt (keine Modellausführung), Ergebnis validiert",
   "skillOp.quarantine": "Skill durch statische Prüfung UNTER QUARANTÄNE GESTELLT",
   "skillOp.creditWithheld": "Zähler nicht geändert",
   "registry.none": "Kein Register konfiguriert",
@@ -1287,5 +1287,6 @@
   "projects.mcpConnect": "Agenten verbinden",
   "projects.mcpSettings": "MCP-Einstellungen",
   "projects.mcpConnected": "Atoma MCP ist für diese Organisation verbunden. Ihr Agent ist einsatzbereit.",
-  "projects.mcpAuthorized": "Zugriff auf Atoma MCP genehmigt. Öffnen Sie Ihren Agenten, um mit der Arbeit zu beginnen."
+  "projects.mcpAuthorized": "Zugriff auf Atoma MCP genehmigt. Öffnen Sie Ihren Agenten, um mit der Arbeit zu beginnen.",
+  "skillOp.setAside": "Script-Ergebnis beiseitegelegt; das Molekül übernimmt die Phase"
 }
