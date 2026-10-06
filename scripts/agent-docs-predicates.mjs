@@ -79,10 +79,13 @@ export const SUBSYSTEM_LINE_BUDGET = 600;
 // 2026-10-03: src/viz 660 -> 680 for the public showcase, which became the home
 // page the same day: its exposure contract and the home-page rule belong beside
 // the routes they govern rather than in a neighbour.
+// 2026-10-06: src/viz 680 -> 800, an owner decision. The GPU client is the
+// largest subtree and every raise so far bought ten or twenty lines for one
+// rule; the margin now covers the next rules without a raise per rule.
 // The src/preview (560) and src/projects (520) exceptions above were folded into
 // the 600-line default on 2026-10-04; src/viz keeps its own.
 export const SUBSYSTEM_LINE_BUDGET_OVERRIDES = new Map([
-  ['src/viz/AGENTS.md', 680],
+  ['src/viz/AGENTS.md', 800],
 ]);
 
 /**
