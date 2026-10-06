@@ -411,6 +411,8 @@ export async function acceptRootResult(args: {
   checklistOrigin?: { readonly source: ChecklistSource; readonly digest?: string };
   /** The acceptance that refused this attempt's previous pass, when this one closes a remediation. */
   previousAcceptance?: AcceptanceInfo;
+  /** Evidence earned by the refused pass in this same workspace and attempt. */
+  previousEvidence?: readonly Witness[];
 }): Promise<AcceptanceInfo> {
   const { actor, task, result, ctx, floor } = args;
   const checklist = args.checklist ?? [];
@@ -429,7 +431,8 @@ export async function acceptRootResult(args: {
     childName: actor.name, childToolNames: actor.toolNames() }), ctx.mechanicalResultRejections, 'delegated');
   // A previous phase may have rendered its witness before a later phase
   // edited the same file. Re-render those reads from host-held records.
-  const evidence = acceptedEvidence(result.evidence, stale)?.map((witness) => {
+  const passEvidence = [...(args.previousEvidence ?? []), ...(result.evidence ?? [])];
+  const evidence = acceptedEvidence(passEvidence.length > 0 ? passEvidence : undefined, stale)?.map((witness) => {
     if (witness.source !== 'transport-observed') return witness;
     const rewritten = superseded.get(witness.eventId);
     const record = recordsById.get(witness.eventId);
