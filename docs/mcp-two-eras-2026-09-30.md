@@ -28,6 +28,15 @@ So the 2025 era is kept whole, and `health().clients` now counts
 `<protocol version> <client name>` for every 2025 session and 2026 request.
 That count is what decides when the 2025 era can go.
 
+The count is process-local evidence, not a durable census. A deployment resets
+it, and a resumed 2025 session appears under the synthetic
+`atoma-resumed-session` name because the original `clientInfo` is not stored.
+Therefore a zero immediately after deployment does not establish that no 2025
+clients remain. Keep 2025 support until observations across deployments cover
+the clients' normal return interval and show no 2025 opens or resumes; if that
+window is not observed, the retirement decision remains open. The counters
+count sessions and requests, not unique client installations.
+
 ## What each era gets
 
 | | 2025-11-25 | 2026-07-28 |

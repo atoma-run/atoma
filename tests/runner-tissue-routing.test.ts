@@ -161,4 +161,68 @@ describe('pending audits at runner shutdown', () => {
       expect(closeStates.every(Boolean)).toBe(true);
     } finally { await handle?.shutdown(); closeStoreHandles(); rmSync(root, { recursive: true, force: true }); }
   });
+
+  it('settles a pending audit before the watchdog closes a wedged run', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'atoma-audit-watchdog-'));
+    for (const [key, value] of Object.entries({ ...OLLAMA_PINS,
+      ATOMA_DB_PATH: join(root, 'store.db'), ATOMA_LEDGER_DB: join(root, 'store.db'),
+      ATOMA_SKILLS_DIR: join(root, 'skills'), ATOMA_RUNS_DIR: join(root, 'runs'),
+      ATOMA_BUILD_WORKSPACE: join(root, 'workspace'), ATOMA_BUILD_TIMEOUT_MS: '60000',
+      ATOMA_CONTAINER: '0', ATOMA_REQUIRE_ISOLATION: '0', ATOMA_PREFILTER_CACHE: '0',
+    })) vi.stubEnv(key, value);
+    resetHostLifecycleSnapshotForTests();
+    for (const method of ['log', 'warn', 'error'] as const) vi.spyOn(console, method).mockImplementation(() => {});
+    vi.spyOn(jevModule, 'jevDeciderFromEnv').mockReturnValue({ choose: async () => null, approve: async () => null, twin: async () => null });
+    vi.mocked(buildTierClients).mockReturnValue({ ollama: { complete: async () => ({
+      text: JSON.stringify({ action: 'reuse', name: 'Meristem', reasoning: 'fixture' }),
+      usage: { inputTokens: 0, outputTokens: 0 }, stopReason: 'end_turn',
+    }) } });
+    let finishAudit!: () => void;
+    const auditGate = new Promise<void>(resolve => { finishAudit = resolve; });
+    let started!: () => void;
+    const startedWork = new Promise<void>(resolve => { started = resolve; });
+    let finishedAudit = false;
+    vi.spyOn(L3Atom.prototype, 'handle').mockImplementation(async (_task, ctx) => {
+      ctx.jevAudit!.defer(async () => { await auditGate; finishedAudit = true; });
+      started();
+      return new Promise<never>(() => {});
+    });
+    const closeStates: boolean[] = [];
+    const end = TraceRecorder.prototype.endRun;
+    vi.spyOn(TraceRecorder.prototype, 'endRun').mockImplementation(function (this: TraceRecorder, options) {
+      closeStates.push(finishedAudit); return end.call(this, options);
+    });
+    let wedged!: () => void;
+    const watchdogFired = new Promise<void>(resolve => { wedged = resolve; });
+    const realSetTimeout = globalThis.setTimeout;
+    let fireWatchdog: (() => void) | undefined;
+    let watchdogTimer: ReturnType<typeof setTimeout> | undefined;
+    vi.spyOn(globalThis, 'setTimeout').mockImplementation((callback, delay, ...args) => {
+      if (delay === 120_000) {
+        fireWatchdog = () => callback(...args);
+        watchdogTimer = realSetTimeout(() => {}, delay);
+        return watchdogTimer;
+      }
+      return realSetTimeout(callback, delay, ...args);
+    });
+    let handle: Awaited<ReturnType<typeof startTask>> | undefined;
+    try {
+      handle = await startTask(['--no-learn-skills', '--no-direct-skills', 'Watchdog audit fixture'], { onWedged: wedged });
+      await startedWork;
+      expect(fireWatchdog).toBeDefined();
+      fireWatchdog!();
+      finishAudit();
+      await watchdogFired;
+      expect(closeStates).toEqual([true]);
+      const path = readdirSync(join(root, 'runs')).find(name => name.endsWith('.json') && name !== 'index.json')!;
+      const trace = JSON.parse(readFileSync(join(root, 'runs', path), 'utf8')) as VizRun;
+      expect(trace.error).toMatch(/watchdog: deadline exceeded/);
+    } finally {
+      finishAudit();
+      if (watchdogTimer) clearTimeout(watchdogTimer);
+      await handle?.shutdown();
+      closeStoreHandles();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 });

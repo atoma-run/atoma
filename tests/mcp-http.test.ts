@@ -743,13 +743,20 @@ describe('the platform commons over MCP — registry and skill catalog', () => {
     } finally { await asViewer.close(); await asPlatform.close(); }
   });
 
-  it('validates every declared operator output schema through the SDK client', async () => {
-    const { url } = await listen(() => ({ kind: 'operator' }), NO_TENANT);
+  it('validates every declared output schema through the 2025 SDK client', async () => {
+    const deps: McpToolDeps = {
+      ...TENANT_HOST,
+      notifications: () => ({ notifications: [], nextBefore: null }),
+    };
+    const { url } = await listen(() => ({ kind: 'principal', viewer: viewer('org:owner', true), tokenId: 'platform' }), deps);
     const client = await connect(url);
     try {
       const tools = (await client.listTools()).tools.filter((tool) => tool.outputSchema);
-      expect(tools.map((tool) => tool.name)).toEqual(expect.arrayContaining(['atoma_costs', 'atoma_sentinel_health']));
+      expect(tools.map((tool) => tool.name).sort()).toEqual([
+        'atoma_costs', 'atoma_ledger_tail', 'atoma_mcp_health', 'atoma_notifications', 'atoma_sentinel_health',
+      ]);
       for (const tool of tools) {
+        expect(tool.outputSchema?.['additionalProperties'], tool.name).not.toBe(false);
         const result = await client.callTool({ name: tool.name, arguments: {} });
         expect(result.isError, tool.name).toBeFalsy();
         expect(result.structuredContent, tool.name).toBeDefined();

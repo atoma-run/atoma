@@ -109,20 +109,27 @@ async function modernRequest(url: string, method: string, params: Record<string,
 }
 
 describe('the 2026-07-28 era', () => {
-  it('publishes every outputSchema OPEN, so an additive field never fails a client’s validation (2026-10-01)', async () => {
-    const { url } = await listen(() => ({ kind: 'operator' }), {
-      ...NO_TENANT, mcpHealth: () => ({ sessions: 0 }) as never, analyst: () => null,
+  it('validates every declared output schema through the 2026 SDK client, keeping them open', async () => {
+    const platform: McpCaller = { kind: 'principal', viewer: { ...viewer('org:owner'), platformAdmin: true }, tokenId: 'platform' };
+    const { url } = await listen(() => platform, {
+      ...NO_TENANT,
+      projects: { service: {} as never, store: {} as never },
+      auth: {} as never,
+      journal: { list: () => ({ events: [], nextBefore: null }) },
+      notifications: () => ({ notifications: [], nextBefore: null }),
     });
     const client = await modernClient(url);
     try {
       const withSchema = (await client.listTools()).tools.filter((tool) => tool.outputSchema);
-      expect(withSchema.length).toBeGreaterThan(0);
+      expect(withSchema.map((tool) => tool.name).sort()).toEqual([
+        'atoma_costs', 'atoma_ledger_tail', 'atoma_mcp_health', 'atoma_notifications', 'atoma_sentinel_health',
+      ]);
       for (const tool of withSchema) {
         expect(tool.outputSchema?.['additionalProperties'], tool.name).not.toBe(false);
+        const result = await client.callTool({ name: tool.name, arguments: {} });
+        expect(result.isError, tool.name).not.toBe(true);
+        expect(result.structuredContent, tool.name).toBeDefined();
       }
-      // The real SDK client accepts a result carrying a field the schema does not name.
-      const health = await client.callTool({ name: 'atoma_mcp_health', arguments: {} });
-      expect(health.isError).not.toBe(true);
     } finally {
       await client.close();
     }
