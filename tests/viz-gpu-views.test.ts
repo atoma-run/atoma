@@ -1515,7 +1515,8 @@ describe('the nav rail', () => {
   it('draws a phone-width overview rail as icon tiles, never as clipped labels', () => {
     const ctx = createRecordingCtx();
     const width = sidebarWidthForViewport(390);
-    drawSidebar(ctx, makeSnapshot({ view: 'skills' }), 844, width);
+    const crystal = overviewRailChromeLayout(width);
+    drawSidebar(ctx, makeSnapshot({ view: 'skills' }), 844, width, 844, crystal.navigationTop);
     // Overview keeps its wash; only the labels go.
     expect(ctx.root.children.some((child) => child.label === 'sidebar-band')).toBe(true);
     const nav = ctx.buttons.filter((button) => button.id.startsWith('nav.'));
@@ -1533,7 +1534,7 @@ describe('the nav rail', () => {
       expect(button.x).toBe((width - GPU_LAYOUT.sidebarFocusButtonWidth) / 2);
       expect(button.x + button.width).toBeLessThanOrEqual(width);
     }
-    const crystal = overviewRailChromeLayout(width);
+    expect(crystal.crystal.y).toBe(28);
     expect(crystal.crystal.x + crystal.crystal.width).toBeLessThanOrEqual(width);
     expect(nav[0]!.y).toBeGreaterThanOrEqual(crystal.navigationTop);
   });
@@ -2835,8 +2836,11 @@ describe('drawProjects', () => {
     const activated: string[] = [];
     snapshot.onActivate = (id) => activated.push(id);
     drawProjects(ctx, snapshot, 1280, 720);
-    expect(ctx.metrics.visibleLabels).not.toContain('Projects');
-    expect(ctx.metrics.visibleLabels).toContain('Project : Weather Lab');
+    expect(ctx.metrics.visibleLabels).toContain('All projects');
+    expect(ctx.metrics.visibleLabels).toContain('Weather Lab');
+    expect(ctx.links.some((link) => link.id === 'project.all' && link.label === 'All projects')).toBe(true);
+    ctx.links.find((link) => link.id === 'project.all')?.onActivate('project.all');
+    expect(activated).toContain('project.all');
     expect(ctx.metrics.visibleLabels.some((label) => label.includes('project(s)'))).toBe(false);
     expect(ctx.buttons.some((button) => button.id === `project.select.${projectId}`)).toBe(false);
     expect(ctx.buttons.some((button) => button.id === 'project.run.trace-1')).toBe(true);
@@ -2897,7 +2901,7 @@ describe('drawProjects', () => {
       height: REPOSITORY_ICON_SIZE,
     });
     repositoryLink.onActivate(repositoryLink.id);
-    expect(activated).toEqual([`project.repository.${projectId}`]);
+    expect(activated).toEqual(['project.all', `project.repository.${projectId}`]);
     const status = ctx.texts.find((text) => text.value === 'repo ready')!;
     const separator = ctx.texts.find((text) => text.value === '·')!;
     const lock = ctx.privateRepositoryIcons[0]!;
@@ -3240,7 +3244,7 @@ describe('drawProjects', () => {
       )
     )).toBe(true);
     expect(ctx.repositoryIcons).toHaveLength(0);
-    expect(ctx.links).toHaveLength(0);
+    expect(ctx.links.filter((link) => link.id !== 'project.all')).toHaveLength(0);
     expect(ctx.privateRepositoryIcons).toHaveLength(1);
   });
 });
@@ -4637,6 +4641,7 @@ describe('attachAtomaMark glass layering', () => {
     expect(GPU_LAYOUT.headerHeight).toBe(48);
     expect(ATOMA_MARK_OVERVIEW_RAIL_SCALE).toBeGreaterThan(ATOMA_MARK_HEADER_SCALE);
     expect(ATOMA_MARK_OVERVIEW_RAIL_SCALE).toBeLessThan(ATOMA_MARK_ENV_MIN_SCALE);
+    expect(ATOMA_MARK_OVERVIEW_RAIL_SCALE).toBeGreaterThanOrEqual(5.5);
 
     for (const width of [GPU_LAYOUT.sidebarMinWidth, 180, GPU_LAYOUT.sidebarWidth]) {
       const layout = overviewRailChromeLayout(width);
@@ -4648,6 +4653,12 @@ describe('attachAtomaMark glass layering', () => {
       expect(centreY - halfHeight * layout.crystalScale).toBeGreaterThanOrEqual(0);
       const rows = sidebarLayout(visibleViews(null), Number.POSITIVE_INFINITY, layout.navigationTop);
       expect(layout.crystal.y + layout.crystal.height + 8).toBeLessThanOrEqual(rows[0]!.y);
+      if (width === GPU_LAYOUT.sidebarWidth) {
+        // Keep a visible ring of empty rail throughout the full turn.
+        expect(centreX - halfWidth * layout.crystalScale).toBeGreaterThanOrEqual(24);
+        expect(centreY - halfHeight * layout.crystalScale).toBeGreaterThanOrEqual(12);
+        expect(rows[0]!.y - (centreY + halfHeight * layout.crystalScale)).toBeGreaterThanOrEqual(12);
+      }
     }
   });
 

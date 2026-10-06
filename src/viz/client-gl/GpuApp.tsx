@@ -786,6 +786,10 @@ function GpuAppContent({
       void stopPreview();
       return;
     }
+    if (id === 'project.all') {
+      store.selectProject(null);
+      return;
+    }
     if (id.startsWith('project.select.')) {
       // Toggle: re-clicking the selected project returns to the full list.
       const projectId = id.slice('project.select.'.length);

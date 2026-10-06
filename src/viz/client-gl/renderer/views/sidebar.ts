@@ -54,7 +54,8 @@ const FOCUS_RAIL_PROFILE_SIZE = 30;
 const FOCUS_RAIL_CRYSTAL_HEIGHT = 51;
 /** A little breathing room above the compact crystal after camera arrival. */
 const FOCUS_RAIL_CRYSTAL_TOP = GPU_LAYOUT.focusTopInset + 11;
-const OVERVIEW_RAIL_CRYSTAL_TOP = 4;
+/** Leave clear space below the header before the overview crystal begins. */
+const OVERVIEW_RAIL_CRYSTAL_TOP = 28;
 const OVERVIEW_RAIL_CRYSTAL_SIDE_PAD = 8;
 export const FOCUS_RAIL_FPS_SCALE = 0.68;
 

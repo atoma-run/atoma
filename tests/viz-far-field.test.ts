@@ -63,8 +63,8 @@ describe('far-field shader contract', () => {
   it('limits the expensive field to the welcome or a hero-scale crystal', () => {
     expect(shouldShowFarField(false)).toBe(true);
     expect(shouldShowFarField(true)).toBe(false);
-    expect(shouldShowFarField(true, 3.99)).toBe(false);
-    expect(shouldShowFarField(true, 4)).toBe(true);
+    expect(shouldShowFarField(true, 5.99)).toBe(false);
+    expect(shouldShowFarField(true, 6)).toBe(true);
   });
 
   it('keeps backticks out of the shader sources', () => {

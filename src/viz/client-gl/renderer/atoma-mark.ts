@@ -63,14 +63,14 @@ export const ATOMA_MARK_HEADER_SCALE = 1.8;
 const ATOMA_MARK_RECEIVER_MIN_SCALE = 4;
 
 /** Prominent overview-rail scale; still below the hero reflection threshold. */
-export const ATOMA_MARK_OVERVIEW_RAIL_SCALE = 3.2;
+export const ATOMA_MARK_OVERVIEW_RAIL_SCALE = 5.6;
 
 /**
  * Below this visual scale the gem is navigation chrome: too small to read a
  * reflected card, and recapturing the whole Pixi stage would redraw every
  * filtered card. The arrival gate is >= 6.
  */
-export const ATOMA_MARK_ENV_MIN_SCALE = 4;
+export const ATOMA_MARK_ENV_MIN_SCALE = 6;
 
 export interface AtomaMarkPlacement {
   readonly x: number;
@@ -559,7 +559,7 @@ export function attachAtomaMark(
   const backdropPass = ((): (() => void) | null => {
     if (!renderer || !shell) return null;
     const resolution = renderer.resolution;
-    // Navigation animates between 1.8x and 3.2x. Allocate its two ping-pong
+    // Navigation animates between 1.8x and the overview scale. Allocate its two ping-pong
     // textures once at the larger endpoint: swapping a texture that is still
     // bound by WebGPU invalidates the bind group, and per-frame resize would
     // churn two GPU textures for every scale sample anyway.

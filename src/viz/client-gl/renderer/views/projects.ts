@@ -7,7 +7,7 @@ import { GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
 import { fmtMs } from '../../../client/run-utils.js';
 import { relativeTime, timestampTooltip } from '../relative-time.js';
 import { createScrollPane } from '../scroll-pane.js';
-import { drawViewFrame, viewFrame, VIEW_FRAME_CONTENT_TOP, VIEW_FRAME_PAD } from '../view-frame.js';
+import { drawViewFrame, viewFrame, VIEW_FRAME_CONTENT_TOP, VIEW_FRAME_PAD, VIEW_FRAME_TITLE_SIZE, VIEW_FRAME_TITLE_Y } from '../view-frame.js';
 import { drawResultPanel } from './result.js';
 import { latestDeliveredResult } from '../../run-result.js';
 
@@ -252,14 +252,26 @@ export function drawProjects(
   // Selection changes the SUBJECT of the screen. Once one project is open,
   // its name is the title; the collection count and “viewing …” subtitle no
   // longer describe the job in front of the viewer.
-  drawViewFrame(
-    ctx,
-    frame,
-    selectedProject
-      ? snapshot.t('projects.selectedTitle', { name: selectedProject.name })
-      : snapshot.t('nav.projects'),
-    selectedProject ? undefined : snapshot.t('projects.summary', { count: projects.length })
-  );
+  drawViewFrame(ctx, frame, selectedProject ? '' : snapshot.t('nav.projects'),
+    selectedProject ? undefined : snapshot.t('projects.summary', { count: projects.length }));
+  if (selectedProject) {
+    const titleY = frame.y + VIEW_FRAME_TITLE_Y;
+    const linkStyle = { size: VIEW_FRAME_TITLE_SIZE, weight: '700', color: GPU_COLORS.primary } as const;
+    const titleStyle = { size: VIEW_FRAME_TITLE_SIZE, weight: '700' } as const;
+    const allProjects = snapshot.t('projects.all');
+    const separator = ' › ';
+    const linkLabel = ctx.fitText(allProjects, Math.max(0, frame.innerWidth * 0.4), linkStyle);
+    const linkWidth = ctx.measureText(linkLabel, linkStyle);
+    const separatorWidth = ctx.measureText(separator, titleStyle);
+    ctx.text(ctx.root, linkLabel, frame.innerX, titleY, { ...linkStyle, singleLine: true });
+    ctx.linkRegion(ctx.root, 'project.all', allProjects, frame.innerX, titleY - 4,
+      linkWidth, 28, snapshot.onActivate);
+    ctx.text(ctx.root, separator, frame.innerX + linkWidth, titleY, titleStyle);
+    const nameX = frame.innerX + linkWidth + separatorWidth;
+    const name = ctx.fitText(selectedProject.name,
+      Math.max(0, frame.innerX + frame.innerWidth - nameX), titleStyle);
+    ctx.text(ctx.root, name, nameX, titleY, { ...titleStyle, singleLine: true });
+  }
 
   // The form's fields are DOM, but its CARD is the same GPU panel as the list
   // below. A CSS imitation could share dimensions and still disagree on the

@@ -325,6 +325,7 @@
   "projects.summary_one": "{{count}} project in this organisation",
   "projects.summary_other": "{{count}} projects in this organisation",
   "projects.selectedTitle": "Project : {{name}}",
+  "projects.all": "All projects",
   "projects.empty": "No project yet. Ask your connected agent to create one through Atoma MCP.",
   "projects.emptyNoInstallation": "Connect GitHub, then ask your agent to create a project through Atoma MCP.",
   "projects.mcpTitle": "Continue with Atoma",
