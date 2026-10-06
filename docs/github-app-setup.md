@@ -298,6 +298,16 @@ only, with workflows and sensitive paths excluded. Changes to a fork's head
 during a run are refused instead of overwriting those changes; start a fresh run
 from the updated branch. GitHub credentials stay on the control plane.
 
+For a source repository that contains large evidence archives or GitHub Actions
+workflows, add a root `.atoma-import.json` with `{"version":1,
+"excludePrefixes":["benchmark/",".github/workflows/"]}`. Prefixes are
+case-insensitive directory paths. Excluded directories are not downloaded into
+the run workspace, and the selection file itself is not part of the workspace;
+the 10 MiB file and 50 MiB total limits still apply to the
+remaining files. The source tree itself must still fit the 10,000-entry limit.
+This selection does not grant workflow publication: that remains refused even
+when a run creates a workflow file.
+
 
 Delivered runs publish a bounded inventory of the finished workspace, rather
 than only the root plan's predicted files. This includes generated frontend
