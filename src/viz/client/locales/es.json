@@ -1308,5 +1308,7 @@
   "registry.runActor.verdictsHeading": "Veredictos",
   "registry.runActor.verdict": "Intento {{attempt}} · {{outcome}}",
   "registry.unrecorded.badge": "Sin instantánea en esta traza",
-  "registry.unrecorded.body": "Este run indica el tipo de agente, pero su traza no contiene ninguna instantánea del registro, por lo que no puede mostrarse su definición tal como era. Ábrelo en el Registro para consultar su definición actual."
+  "registry.unrecorded.body": "Este run indica el tipo de agente, pero su traza no contiene ninguna instantánea del registro, por lo que no puede mostrarse su definición tal como era. Ábrelo en el Registro para consultar su definición actual.",
+  "card.jev.effort": "esfuerzo {{level}}",
+  "card.jev.defaultEffort": "esfuerzo predeterminado"
 }

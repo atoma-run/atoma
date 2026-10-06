@@ -1308,5 +1308,7 @@
   "registry.runActor.verdictsHeading": "Verdicts",
   "registry.runActor.verdict": "Tentative {{attempt}} · {{outcome}}",
   "registry.unrecorded.badge": "Pas d’instantané dans cette trace",
-  "registry.unrecorded.body": "Ce run indique le type d’agent, mais sa trace n’en contient aucun instantané du registre ; sa définition ne peut donc pas être affichée telle qu’elle était. Ouvre-le dans le registre pour consulter sa définition actuelle."
+  "registry.unrecorded.body": "Ce run indique le type d’agent, mais sa trace n’en contient aucun instantané du registre ; sa définition ne peut donc pas être affichée telle qu’elle était. Ouvre-le dans le registre pour consulter sa définition actuelle.",
+  "card.jev.effort": "effort {{level}}",
+  "card.jev.defaultEffort": "effort par défaut"
 }

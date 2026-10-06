@@ -1308,5 +1308,7 @@
   "registry.runActor.verdictsHeading": "裁决",
   "registry.runActor.verdict": "第 {{attempt}} 次尝试·{{outcome}}",
   "registry.unrecorded.badge": "未在此追踪记录中生成快照",
-  "registry.unrecorded.body": "此 run 指定了智能体类型，但其追踪记录中没有该类型的注册表快照，因此无法显示其当时的定义。请在注册表中打开它，以查看当前定义。"
+  "registry.unrecorded.body": "此 run 指定了智能体类型，但其追踪记录中没有该类型的注册表快照，因此无法显示其当时的定义。请在注册表中打开它，以查看当前定义。",
+  "card.jev.effort": "effort {{level}}",
+  "card.jev.defaultEffort": "默认 effort"
 }

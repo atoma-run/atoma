@@ -1308,5 +1308,7 @@
   "registry.runActor.verdictsHeading": "الأحكام",
   "registry.runActor.verdict": "المحاولة {{attempt}} · {{outcome}}",
   "registry.unrecorded.badge": "غير محفوظ كلقطة في هذا التتبّع",
-  "registry.unrecorded.body": "يذكر هذا run نوع الوكيل، لكن تتبّعه لا يتضمن لقطة له من السجل، لذلك لا يمكن عرض تعريفه كما كان. افتحه في السجل لقراءة تعريفه الحالي."
+  "registry.unrecorded.body": "يذكر هذا run نوع الوكيل، لكن تتبّعه لا يتضمن لقطة له من السجل، لذلك لا يمكن عرض تعريفه كما كان. افتحه في السجل لقراءة تعريفه الحالي.",
+  "card.jev.effort": "الجهد {{level}}",
+  "card.jev.defaultEffort": "الجهد الافتراضي"
 }

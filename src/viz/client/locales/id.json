@@ -1308,5 +1308,7 @@
   "registry.runActor.verdictsHeading": "Putusan",
   "registry.runActor.verdict": "Upaya {{attempt}} · {{outcome}}",
   "registry.unrecorded.badge": "Tidak dicuplik dalam jejak ini",
-  "registry.unrecorded.body": "Run ini menyebutkan jenis agen, tetapi jejaknya tidak menyimpan cuplikan registri untuk agen tersebut, sehingga definisinya saat itu tidak dapat ditampilkan. Buka agen tersebut di Registri untuk membaca definisinya saat ini."
+  "registry.unrecorded.body": "Run ini menyebutkan jenis agen, tetapi jejaknya tidak menyimpan cuplikan registri untuk agen tersebut, sehingga definisinya saat itu tidak dapat ditampilkan. Buka agen tersebut di Registri untuk membaca definisinya saat ini.",
+  "card.jev.effort": "upaya {{level}}",
+  "card.jev.defaultEffort": "upaya bawaan"
 }

@@ -1308,5 +1308,7 @@
   "registry.runActor.verdictsHeading": "Veredictos",
   "registry.runActor.verdict": "Tentativa {{attempt}} · {{outcome}}",
   "registry.unrecorded.badge": "Sem instantâneo neste rastreio",
-  "registry.unrecorded.body": "Este run indica o tipo de agente, mas o respetivo rastreio não contém um instantâneo dele no registo, pelo que não é possível mostrar a definição tal como era. Abra-o no Registo para consultar a definição atual."
+  "registry.unrecorded.body": "Este run indica o tipo de agente, mas o respetivo rastreio não contém um instantâneo dele no registo, pelo que não é possível mostrar a definição tal como era. Abra-o no Registo para consultar a definição atual.",
+  "card.jev.effort": "esforço {{level}}",
+  "card.jev.defaultEffort": "esforço predefinido"
 }

@@ -1308,5 +1308,7 @@
   "registry.runActor.verdictsHeading": "Urteile",
   "registry.runActor.verdict": "Versuch {{attempt}} · {{outcome}}",
   "registry.unrecorded.badge": "Kein Snapshot in diesem Trace",
-  "registry.unrecorded.body": "Dieser run nennt den Agententyp, doch sein Trace enthält keinen Register-Snapshot davon. Daher kann seine damalige Definition nicht angezeigt werden. Öffnen Sie ihn im Register, um seine aktuelle Definition zu lesen."
+  "registry.unrecorded.body": "Dieser run nennt den Agententyp, doch sein Trace enthält keinen Register-Snapshot davon. Daher kann seine damalige Definition nicht angezeigt werden. Öffnen Sie ihn im Register, um seine aktuelle Definition zu lesen.",
+  "card.jev.effort": "Aufwand {{level}}",
+  "card.jev.defaultEffort": "Standardaufwand"
 }

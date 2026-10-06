@@ -1308,5 +1308,7 @@
   "registry.runActor.verdictsHeading": "判定",
   "registry.runActor.verdict": "試行{{attempt}}・{{outcome}}",
   "registry.unrecorded.badge": "このトレースにはスナップショットがありません",
-  "registry.unrecorded.body": "このrunにはエージェントタイプ名がありますが、トレースにそのレジストリのスナップショットがないため、当時の定義を表示できません。現在の定義を確認するには、レジストリで開いてください。"
+  "registry.unrecorded.body": "このrunにはエージェントタイプ名がありますが、トレースにそのレジストリのスナップショットがないため、当時の定義を表示できません。現在の定義を確認するには、レジストリで開いてください。",
+  "card.jev.effort": "処理強度：{{level}}",
+  "card.jev.defaultEffort": "デフォルトの処理強度"
 }
