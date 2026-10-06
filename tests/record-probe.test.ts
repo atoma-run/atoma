@@ -182,6 +182,26 @@ describe('record_probe', () => {
     expect(() => manifest()).toThrow();
   });
 
+  it('allows finite modes when an argument guard owns the server boot', async () => {
+    writeFileSync(
+      join(root, 'domain-tests.js'),
+      [
+        "if (process.argv.includes('--serve')) {",
+        "  require('http').createServer((_q,r)=>r.end('ok')).listen(0,()=>console.log('LISTENING_ON_PORT=1'));",
+        '} else {',
+        "  console.log(process.argv.includes('--test') ? 'tests passed' : 'default checks passed');",
+        '}',
+      ].join('\n')
+    );
+    const t = recordProbeTool({ sandbox, shellTimeoutMs: 1_000 });
+
+    await expect(t.execute({ cmd: 'node domain-tests.js' })).resolves.toMatchObject({ exitCode: 0 });
+    await expect(t.execute({ cmd: 'node domain-tests.js --test' })).resolves.toMatchObject({ exitCode: 0 });
+    await expect(t.execute({ cmd: 'node domain-tests.js --serve' })).rejects.toThrow(
+      /long-running server/
+    );
+  });
+
   it('refuses a server hidden behind an env assignment and shell execution', async () => {
     writeFileSync(
       join(root, 'server.js'),
