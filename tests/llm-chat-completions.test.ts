@@ -212,6 +212,20 @@ describe('ChatCompletionsLlmClient', () => {
     expect((await run('xai', 'grok-build-0.1'))['reasoning_effort']).toBeUndefined();
   });
 
+  it.each([
+    ['meta', 'muse-spark-1.3', true],
+    ['meta', 'llama-4', false],
+    ['deepseek', 'deepseek-v4-pro', true],
+    ['deepseek', 'deepseek-flash', true],
+    ['deepseek', 'deepseek-chat', false],
+  ] as const)('gates effort for %s model %s', async (vendor, model, supported) => {
+    const { client: sdk, bodies } = fakeSdk([completion({ role: 'assistant', content: 'x' })]);
+    const llm = client(vendor, sdk);
+    expect(llm.honoursEffort(model)).toBe(supported);
+    await llm.complete(request({ model, params: { effort: 'low' } }));
+    expect(bodies[0]!['reasoning_effort']).toBe(supported ? 'low' : undefined);
+  });
+
   it.each([false, true])('isolates partial usage for a shared error (frozen: %s)', async frozen => {
     const reason = new Error('shared cancellation');
     if (frozen) Object.freeze(reason);

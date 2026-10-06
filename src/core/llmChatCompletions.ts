@@ -94,13 +94,23 @@ export const CHAT_COMPLETIONS_DIALECTS: Readonly<Record<ChatCompletionsVendor, C
     acceptsReasoningEffort: (model) => /^grok-(?:4\.[3-9](?!\d)|[5-9])/i.test(model),
     toolMessageName: false,
   },
-  // Muse Spark refuses only reasoning_effort "none", which atoma never sends.
-  meta: { acceptsSampling: ALWAYS, acceptsReasoningEffort: ALWAYS, toolMessageName: false },
+  // Muse Spark accepts low/medium/high; other Meta models may not expose
+  // this control, and selectors can name models outside our catalogue.
+  meta: {
+    acceptsSampling: ALWAYS,
+    acceptsReasoningEffort: (model) => /^muse-spark-/i.test(model),
+    toolMessageName: false,
+  },
   mistral: { acceptsSampling: ALWAYS, acceptsReasoningEffort: NEVER, toolMessageName: true },
   qwen: { acceptsSampling: ALWAYS, acceptsReasoningEffort: NEVER, toolMessageName: false },
   // Thinking is ON by default on V4 and refuses temperature and the
-  // penalties; the effort hint maps onto its thinking depth.
-  deepseek: { acceptsSampling: NEVER, acceptsReasoningEffort: ALWAYS, toolMessageName: false },
+  // penalties; the effort hint maps onto its thinking depth. The API
+  // documents it for Flash and V4 Pro, not arbitrary DeepSeek model ids.
+  deepseek: {
+    acceptsSampling: NEVER,
+    acceptsReasoningEffort: (model) => /^deepseek-(?:flash|v4-(?:pro|flash))(?:-|$)/i.test(model),
+    toolMessageName: false,
+  },
   // Kimi K2.5 and later fix temperature per mode and refuse other values.
   moonshot: {
     acceptsSampling: (model) => !/^kimi-(?:k2\.[5-9]|k[3-9]|k2-thinking)/i.test(model),
