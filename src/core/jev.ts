@@ -125,6 +125,15 @@ export const JEV_MAX_FAILURES_PER_RUN = 3;
  * audited approval costs one model validation and decides nothing.
  */
 export const JEV_AUDIT_RATE = 0.1;
+/**
+ * The share of Jev's DECISIVE effort readings left at the call's own effort,
+ * at random, for the measurement pre-registered on 2026-10-06
+ * (benchmark/jev-effort-2026-10-06/): Jev reads `low` on the tasks that look
+ * simple, so comparing applied readings with undecided ones would credit
+ * `low` with the ease of its tasks. Held-out readings are the same readings,
+ * not applied. Back to 0 once the measurement is written up.
+ */
+export const JEV_EFFORT_HOLDOUT_RATE = 0.5;
 /** Longest a finished run waits for the audits still in flight before it closes its trace. */
 export const JEV_AUDIT_SETTLE_MS = 60_000;
 /** The 2026-09-28 approval's "yes", kept for the baseline: approved at this probability or above. */
@@ -578,9 +587,14 @@ export function createJevDecider(opts: {
   readonly maxFailures?: number;
   /** Experimental two-stage recipe selection; keep single-pass as the measured default. */
   readonly progressiveRecipes?: boolean;
+  /** `JEV_EFFORT_HOLDOUT_RATE` unless given; with `random` (default `Math.random`), a test seam. */
+  readonly effortHoldoutRate?: number;
+  readonly random?: () => number;
 }): JevDecider {
   const timeoutMs = opts.timeoutMs ?? JEV_DECISION_TIMEOUT_MS;
   const maxFailures = opts.maxFailures ?? JEV_MAX_FAILURES_PER_RUN;
+  const effortHoldoutRate = opts.effortHoldoutRate ?? JEV_EFFORT_HOLDOUT_RATE;
+  const random = opts.random ?? Math.random;
   // Per decider, which is per run: a run process builds exactly one.
   let failures = 0;
 
@@ -795,6 +809,12 @@ export function createJevDecider(opts: {
         return null;
       }
       const reading = readEffort(request, asked.result.answers);
+      if (reading.decision !== null && random() < effortHoldoutRate) {
+        const { spelled_out: spelledOut, open_problem: openProblem } = reading.answer.yes ?? {};
+        safeRecord({ ...base, ...answered(asked), answer: reading.answer,
+          outcome: `default effort (held out from ${reading.decision.effort}; spelled_out ${spelledOut?.toFixed(2)}, open_problem ${openProblem?.toFixed(2)})` });
+        return null;
+      }
       safeRecord({ ...base, ...answered(asked), answer: reading.answer, outcome: reading.outcome });
       return reading.decision;
     },

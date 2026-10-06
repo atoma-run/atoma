@@ -1067,13 +1067,15 @@ export function readEffort(
   const spelledOut = yes['spelled_out']!;
   const openProblem = yes['open_problem']!;
   const readings = `spelled_out ${round2(spelledOut)}, open_problem ${round2(openProblem)}`;
+  // `choice` is what Jev READ, applied or not: the measurement of 2026-10-06
+  // compares readings, so a withheld or held-out one must still say what it was.
   if (openProblem >= thresholds.effortClear && spelledOut <= thresholds.effortRuledOut) {
-    return { decision: { effort: 'high' }, outcome: 'effort high', answer: { yes } };
+    return { decision: { effort: 'high' }, outcome: 'effort high', answer: { yes, choice: 'high' } };
   }
   if (spelledOut >= thresholds.effortClear && openProblem <= thresholds.effortRuledOut) {
     return request.retry
-      ? { decision: null, outcome: `default effort (retry of a refused attempt; ${readings})`, answer: { yes }, causes: ['retry'] }
-      : { decision: { effort: 'low' }, outcome: 'effort low', answer: { yes } };
+      ? { decision: null, outcome: `default effort (retry of a refused attempt; ${readings})`, answer: { yes, choice: 'low' }, causes: ['retry'] }
+      : { decision: { effort: 'low' }, outcome: 'effort low', answer: { yes, choice: 'low' } };
   }
   return { decision: null, outcome: `default effort (${readings})`, answer: { yes }, causes: ['band'] };
 }

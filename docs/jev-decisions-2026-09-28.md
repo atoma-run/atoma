@@ -792,15 +792,32 @@ evidence the task was not as simple as it read. `high` still does. Jev never
 picks `medium`; on Codex that is what "as before" already is.
 
 Recorded: one `jev` event per decision asked (role `execute-effort`, both
-probabilities under `answer.yes`, outcome `effort low`, `effort high` or
-`default effort (…)`), and the execute `llm` event's `params` carry the effort
-the call was given. Each decision costs up to `JEV_DECISION_TIMEOUT_MS`
-before the execute call, and its failures count toward the run's
-`JEV_MAX_FAILURES_PER_RUN` with every other Jev decision.
+probabilities under `answer.yes`, what Jev read under `answer.choice`, outcome
+`effort low`, `effort high` or `default effort (…)`), and every `llm` event
+carries the `effort` its call requested. That field was added the same
+evening: the first version of this record said the execute event's `params`
+carried it, and no `llm` event recorded `params` at all. Each decision costs
+up to `JEV_DECISION_TIMEOUT_MS` before the execute call, and its failures
+count toward the run's `JEV_MAX_FAILURES_PER_RUN` with every other Jev
+decision.
 
 Not measured, and not claimed: whether `low` costs refused attempts, whether
 `high` buys approvals, and whether a varying effort changes `cache_read`
 between execute calls. Follow-up: item 6 below.
+
+### The holdout, 2026-10-06
+
+Comparing applied readings with undecided ones would credit `low` with the
+ease of the tasks Jev reads as simple. So until the measurement is written
+up, `JEV_EFFORT_HOLDOUT_RATE` (0.5) of the decisive readings are left at the
+call's own effort, at random, with outcome `default effort (held out from
+<level>; …)` and the reading still under `answer.choice`. The comparison is
+then between readings alike, applied or not. `atoma_jev_calibrate` with
+`auditsOnly` returns one row per decision in `outcomes[].effort` (what Jev
+read, the arm, the effort the execute call requested, its duration and
+output tokens, and whether the molecule was then credited, blamed or run
+again in its lane). The protocol, fixed before the first row:
+[benchmark/jev-effort-2026-10-06/PREREGISTRATION.md](../benchmark/jev-effort-2026-10-06/PREREGISTRATION.md).
 
 The same change closed a gap found while forwarding the new method:
 `forkBranch` rebuilt the decider from a list of four methods and dropped
@@ -831,10 +848,9 @@ model decides only what Jev hands it, so `atoma_jev_calibrate` with
 5. **Recipes the offer floor refused** (since 2026-10-06): phases left with no
    recipe by `recipeOffer`, and, among those approved, learn calls whose twin
    check names the recipe the floor refused — a false refusal, directly.
-6. **Execution effort** (since 2026-10-06): the share of `effort low`
-   executions whose result was then refused or escalated, against the
-   default-effort ones of the same transport, and the duration and output
-   tokens of `effort high` ones against the default.
+6. **Execution effort** (since 2026-10-06): the pre-registered holdout
+   comparison above — applied against held-out readings of the same level,
+   refusals first, then duration and output tokens.
 
 If (1) or (2) rises past what the saved seconds pay for, set the platform
 switch `ATOMA_JEV=0` on the host and restart.

@@ -14,6 +14,50 @@ export function jevOutcomeReport(trace: unknown, runId: string) {
   };
   const jev = events.filter((event) => event['kind'] === 'jev');
   const roles = [...new Set(jev.map((event) => String(event['role'])))];
+  const isExecute = (event: Record<string, unknown>): boolean =>
+    event['kind'] === 'llm' && (event['role'] === 'execute' || event['role'] === 'fallback-execute');
+  // One row per execution-effort decision (benchmark/jev-effort-2026-10-06/):
+  // what Jev read, whether it was applied, held out or withheld, the effort
+  // the execute call was actually given, and what became of that execution —
+  // the next credit or blame of the molecule, or another execution in its lane.
+  const effort = events.flatMap((event, index) => {
+    if (event['kind'] !== 'jev' || event['role'] !== 'execute-effort') return [];
+    const atom = object(event['actor'])['name'];
+    const branchId = event['branchId'];
+    const outcome = String(event['outcome']);
+    const read = object(event['answer'])['choice'];
+    const arm = outcome.startsWith('effort ') ? 'applied'
+      : outcome.startsWith('default effort (held out') ? 'held-out'
+        : outcome.startsWith('default effort (retry') ? 'retry'
+          : event['failure'] != null ? 'failed' : 'undecided';
+    const at = events.findIndex((candidate, position) => position > index && candidate['kind'] === 'llm' &&
+      candidate['role'] === 'execute' && object(candidate['actor'])['name'] === atom && candidate['branchId'] === branchId);
+    const execute = at >= 0 ? events[at]! : undefined;
+    let result: 'approved' | 'refused' | 'unknown' = 'unknown';
+    for (const later of execute ? events.slice(at + 1) : []) {
+      if (later['kind'] === 'registry' && later['name'] === atom && (later['op'] === 'recordSuccess' || later['op'] === 'recordFailure')) {
+        result = later['op'] === 'recordSuccess' ? 'approved' : 'refused';
+        break;
+      }
+      if (isExecute(later) && later['branchId'] === branchId) {
+        result = 'refused';
+        break;
+      }
+    }
+    const given = execute?.['effort'];
+    // A later attempt depends on the one before it: the measurement compares first attempts.
+    const firstAttempt = !events.slice(0, index).some((earlier) => isExecute(earlier) && earlier['branchId'] === branchId &&
+      object(earlier['actor'])['name'] === atom);
+    return [{
+      eventId: event['id'], branchId: branchId ?? null, atom: typeof atom === 'string' ? atom : null,
+      read: typeof read === 'string' ? read : null, arm, firstAttempt,
+      given: typeof given === 'string' ? given : null,
+      executeEventId: execute?.['id'] ?? null,
+      executeDurationMs: execute ? amount(execute['durationMs']) : null,
+      executeOutputTokens: execute ? amount(object(execute['usage'])['outputTokens']) : null,
+      result,
+    }];
+  });
   return {
     runId,
     startedAt: typeof run['startedAt'] === 'string' ? run['startedAt'] : null,
@@ -38,6 +82,8 @@ export function jevOutcomeReport(trace: unknown, runId: string) {
         baselineSamples: baselineCosts.length, baselineMedianCostUsd: baseline,
         estimatedNetSavingUsd: baseline === null ? null : avoided * baseline - jevCostUsd - auditCostUsd };
     }),
+    effortCount: effort.length,
+    effort: effort.slice(-100),
     approvalCount: jev.filter((event) => event['outcome'] === 'approved').length,
     approvals: events.map((event, index) => ({ event, index }))
       .filter(({ event }) => event['kind'] === 'jev' && event['outcome'] === 'approved').slice(-100).map(({ event, index }) => {

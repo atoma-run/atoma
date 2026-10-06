@@ -14,15 +14,16 @@ import {
 import { citeContext } from '../contracts/llmTrace.js';
 import type { TraceRecorder, VizLlmEvent } from './trace.js';
 
-type Classification = Pick<VizLlmEvent, 'role' | 'actor' | 'child' | 'subject'>;
+type Classification = Pick<VizLlmEvent, 'role' | 'actor' | 'child' | 'subject' | 'effort'>;
 
-/** Role/actor/child/subject come from the request stamp. No prompt archaeology. */
+/** Role/actor/child/subject/effort come from the request stamp. No prompt archaeology. */
 function stamped(req: LlmCompletionRequest): Classification {
   return {
     role: req.role ?? 'unknown',
     ...(req.actor ? { actor: req.actor } : {}),
     ...(req.child ? { child: req.child } : {}),
     ...(req.subject ? { subject: req.subject } : {}),
+    ...(req.params?.effort !== undefined ? { effort: req.params.effort } : {}),
   };
 }
 

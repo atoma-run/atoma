@@ -290,8 +290,9 @@ Neighbours:
   set `low` or `high`; a middle-band or contradictory pair, a failure, or a
   `low` on the retry of a refused attempt keeps the call's effort. Not asked
   when the type pins an effort or the transport would drop the answer. The
-  band is UNMEASURED: no recorded execution ran at a varied effort, so the
-  first calibration pairs these answers with what the execution then did
+  band is UNMEASURED; until its pre-registered measurement is written up,
+  `JEV_EFFORT_HOLDOUT_RATE` of the decisive readings are held out at random,
+  and `jevOutcomeReport` pairs each decision with its execution
   ([record](../../docs/jev-decisions-2026-09-28.md#execution-effort-owner-decision-2026-10-06)).
 - `forkBranch` forwards every `JevDecider` method, optional ones included;
   until 2026-10-06 it listed four and dropped `compilable` in every fork.

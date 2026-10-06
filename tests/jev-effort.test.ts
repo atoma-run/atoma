@@ -4,10 +4,11 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import type Anthropic from '@anthropic-ai/sdk';
 import { L1Atom } from '../src/atoms/L1Atom.js';
+import { jevOutcomeReport } from '../src/atoms/jevOutcomes.js';
 import { forkBranch } from '../src/core/branchCtx.js';
-import { createJevDecider } from '../src/core/jev.js';
+import { JEV_EFFORT_HOLDOUT_RATE, createJevDecider } from '../src/core/jev.js';
 import { JEV_THRESHOLDS, readEffort } from '../src/core/jevQuestions.js';
-import { AnthropicLlmClient } from '../src/core/llm.js';
+import { AnthropicLlmClient, MockLlmClient } from '../src/core/llm.js';
 import { ClaudeCliLlmClient } from '../src/core/llmClaudeCli.js';
 import { CodexCliLlmClient } from '../src/core/llmCodexCli.js';
 import { RoutingLlmClient } from '../src/core/llmRouting.js';
@@ -111,7 +112,7 @@ describe('the decider', () => {
   it('asks two Nouls over the task, its plan and its tools, and records its own cost', async () => {
     const { impl, requests } = effortServer(0.92, 0.04);
     const records: JevDecisionInfo[] = [];
-    const decider = createJevDecider({ apiKey: KEY, fetchImpl: impl, record: (info) => records.push(info) });
+    const decider = createJevDecider({ apiKey: KEY, effortHoldoutRate: 0, fetchImpl: impl, record: (info) => records.push(info) });
     await expect(decider.effort!(request)).resolves.toEqual({ effort: 'low' });
     expect(Object.keys(requests[0]!.questions)).toEqual(['spelled_out', 'open_problem']);
     expect(Object.values(requests[0]!.questions).every((question) => question.type === 'noul')).toBe(true);
@@ -127,15 +128,41 @@ describe('the decider', () => {
 
   it('says a reasoning task has no tools rather than sending an empty list', async () => {
     const { impl, requests } = effortServer(0.5, 0.5);
-    const decider = createJevDecider({ apiKey: KEY, fetchImpl: impl, record: () => undefined });
+    const decider = createJevDecider({ apiKey: KEY, effortHoldoutRate: 0, fetchImpl: impl, record: () => undefined });
     await decider.effort!({ ...request, tools: [] });
     expect(requests[0]!.state['tools']).toBe('none: the answer is written text');
+  });
+
+  it('holds out a decisive reading at random, recording what Jev read', async () => {
+    const records: JevDecisionInfo[] = [];
+    const draws = [0.49, 0.5];
+    const { impl } = effortServer(0.92, 0.04);
+    const decider = createJevDecider({ apiKey: KEY, fetchImpl: impl, record: (info) => records.push(info),
+      effortHoldoutRate: 0.5, random: () => draws.shift()! });
+    await expect(decider.effort!(request)).resolves.toBeNull();
+    await expect(decider.effort!(request)).resolves.toEqual({ effort: 'low' });
+    expect(records.map((record) => [record.outcome, record.answer?.choice])).toEqual([
+      ['default effort (held out from low; spelled_out 0.92, open_problem 0.04)', 'low'],
+      ['effort low', 'low'],
+    ]);
+  });
+
+  it('draws only for a decisive reading, and ships at the pre-registered rate', async () => {
+    const random = vi.fn(() => 0);
+    const records: JevDecisionInfo[] = [];
+    const { impl } = effortServer(0.5, 0.5);
+    const decider = createJevDecider({ apiKey: KEY, fetchImpl: impl, record: (info) => records.push(info), random });
+    await expect(decider.effort!(request)).resolves.toBeNull();
+    await decider.effort!({ ...request, retry: true });
+    expect(random).not.toHaveBeenCalled();
+    expect(records[0]!.answer?.choice).toBeUndefined();
+    expect(JEV_EFFORT_HOLDOUT_RATE).toBe(0.5);
   });
 
   it('keeps the default and records the failure when Jev does not answer', async () => {
     const records: JevDecisionInfo[] = [];
     const failing = (async () => new Response('down', { status: 400 })) as unknown as typeof fetch;
-    const decider = createJevDecider({ apiKey: KEY, fetchImpl: failing, record: (info) => records.push(info) });
+    const decider = createJevDecider({ apiKey: KEY, effortHoldoutRate: 0, fetchImpl: failing, record: (info) => records.push(info) });
     await expect(decider.effort!(request)).resolves.toBeNull();
     expect(records[0]).toMatchObject({ role: 'execute-effort', outcome: 'default effort' });
     expect(records[0]!.failure).toMatch(/^HTTP 400/);
@@ -167,7 +194,7 @@ function ctxWith(spelledOut: number, openProblem: number, honours = true) {
   if (honours) ctx.llm.honoursEffortFor = (model) => model === MODEL;
   const server = effortServer(spelledOut, openProblem);
   const records: JevDecisionInfo[] = [];
-  const jev = createJevDecider({ apiKey: KEY, fetchImpl: server.impl, record: (info) => records.push(info) });
+  const jev = createJevDecider({ apiKey: KEY, effortHoldoutRate: 0, fetchImpl: server.impl, record: (info) => records.push(info) });
   return { ctx: { ...ctx, jev }, llm: ctx.llm, requests: server.requests, records };
 }
 
@@ -336,11 +363,11 @@ describe('the effort card in the run view', () => {
   const t = (key: string, vars?: Record<string, unknown>) => translate('en', key, vars);
 
   /** Through the real decider and the real recorder: a reworded outcome must fail here. */
-  async function cardFor(spelledOut: number, openProblem: number, retry = false) {
+  async function cardFor(spelledOut: number, openProblem: number, retry = false, effortHoldoutRate = 0) {
     const recorder = new TraceRecorder(runsDir);
     recorder.beginRun({ description: 'goal' });
     const { impl } = effortServer(spelledOut, openProblem);
-    await createJevDecider({ apiKey: KEY, fetchImpl: impl, record: (info) => recorder.recordJevDecision(info) })
+    await createJevDecider({ apiKey: KEY, effortHoldoutRate, fetchImpl: impl, record: (info) => recorder.recordJevDecision(info) })
       .effort!({ ...request, retry });
     const events = JSON.parse(JSON.stringify(recorder.endRun()!.events)) as ClientVizEvent[];
     return events.filter((event) => event.kind === 'jev').map((event) => gpuEventCardCopy(event, t))[0]!;
@@ -353,5 +380,61 @@ describe('the effort card in the run view', () => {
     expect(kept.decision).toBe('default effort');
     expect(kept.body).toBe('default effort (retry of a refused attempt; spelled_out 0.95, open_problem 0.05)');
     expect(kept.meta).toContain('L1 Methane');
+    const heldOut = await cardFor(0.05, 0.95, false, 1);
+    expect(heldOut).toMatchObject({ decision: 'default effort',
+      body: 'default effort (held out from high; spelled_out 0.05, open_problem 0.95)' });
+  });
+});
+
+describe('the effort rows of the outcome report', () => {
+  let runsDir: string;
+  beforeEach(() => {
+    runsDir = mkdtempSync(join(tmpdir(), 'atoma-jev-effort-outcomes-'));
+  });
+  afterEach(() => rmSync(runsDir, { recursive: true, force: true }));
+
+  /**
+   * A trace recorded through the real decider, recorder and recording client:
+   * the pairing reads what a run writes, so a renamed field or outcome fails here.
+   */
+  it('pairs each decision with the execute call it set and what became of it', async () => {
+    const recorder = new TraceRecorder(runsDir);
+    const run = recorder.beginRun({ description: 'goal' });
+    const mock = new MockLlmClient();
+    mock.honoursEffortFor = () => true;
+    const draws = [0.9, 0.1];
+    const readings: Record<string, [number, number]> = { Methane: [0.95, 0.05], Water: [0.05, 0.95] };
+    const fetchImpl = (async (_url: string | URL | Request, init?: RequestInit) => {
+      const body = JSON.parse(init?.body as string) as JevRequestBody;
+      const [spelledOut, openProblem] = String(body.state['task']).startsWith('Copy') ? readings['Methane']! : readings['Water']!;
+      return new Response(JSON.stringify({ answers: answers(spelledOut, openProblem), usage: { input_tokens: 10 } }), { status: 200 });
+    }) as typeof fetch;
+    const jev = createJevDecider({ apiKey: KEY, fetchImpl, record: (info) => recorder.recordJevDecision(info),
+      effortHoldoutRate: 0.5, random: () => draws.shift() ?? 0.9 });
+    const ctx = { ...makeCtx(), llm: new RecordingLlmClient(mock, recorder), jev };
+    const atom = (name: string) => new L1Atom({ name, ordinal: 1, systemPrompt: 's', tools: [], params: {}, model: MODEL });
+
+    // Methane: Jev reads low, applied, and the molecule is credited.
+    mock.enqueue(executeWith());
+    await atom('Methane').execute({ description: 'Copy a.txt to b.txt.' }, makePlan(), forkBranch(ctx, 'lane-1'));
+    recorder.record({ id: 'credit', ts: Date.now(), kind: 'registry', op: 'recordSuccess', name: 'Methane' });
+    // Water: Jev reads high, held out, and the lane runs another execution.
+    const water = atom('Water');
+    mock.enqueue(executeWith([call('write_file', { path: 'solver.js' })]));
+    mock.enqueue(executeWith());
+    await water.execute({ description: 'Design the constraint solver.' }, makePlan(), forkBranch(ctx, 'lane-2'));
+    await water.execute({ description: 'Design the constraint solver.' }, makePlan(), forkBranch(ctx, 'lane-2'));
+
+    const trace: unknown = JSON.parse(JSON.stringify(recorder.endRun()));
+    const report = jevOutcomeReport(trace, run.id);
+    expect(report.effortCount).toBe(3);
+    expect(report.effort.map(({ atom: name, read, arm, firstAttempt, given, result, branchId }) =>
+      ({ name, read, arm, firstAttempt, given, result, branchId }))).toEqual([
+      { name: 'Methane', read: 'low', arm: 'applied', firstAttempt: true, given: 'low', result: 'approved', branchId: 'lane-1' },
+      { name: 'Water', read: 'high', arm: 'held-out', firstAttempt: true, given: null, result: 'refused', branchId: 'lane-2' },
+      // The retry's own reading: high again, applied this time (draw 0.9).
+      { name: 'Water', read: 'high', arm: 'applied', firstAttempt: false, given: 'high', result: 'unknown', branchId: 'lane-2' },
+    ]);
+    expect(report.effort.every((row) => typeof row.executeDurationMs === 'number' && row.executeEventId !== null)).toBe(true);
   });
 });

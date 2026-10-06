@@ -51,6 +51,12 @@ export interface VizLlmEvent {
   actor?: VizAtomRef;
   child?: VizAtomRef;
   subject?: 'PLAN' | 'RESULT';
+  /**
+   * The reasoning effort the call REQUESTED (`params.effort`), when it set
+   * one. A transport that does not honour effort for the model drops it; Jev
+   * sets an execution's effort only where it is honoured. Since 2026-10-06.
+   */
+  effort?: 'low' | 'medium' | 'high';
   systemPrompt: string;
   userContent: string;
   response: string;
