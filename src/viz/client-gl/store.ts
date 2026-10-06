@@ -518,11 +518,11 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   setAppearanceTheme: (appearanceTheme) => {
     const state = get();
     if (state.appearanceTransitionTarget !== null) {
-      set({ themeDropdownOpen: false });
+      set({ accountMenuOpen: false, themeDropdownOpen: false });
       return;
     }
     if (appearanceTheme === state.appearanceTheme && state.appearanceTransitionTarget === null) {
-      set({ themeDropdownOpen: false });
+      set({ accountMenuOpen: false, themeDropdownOpen: false });
       return;
     }
     if (!state.entered || prefersReducedMotion()) {
@@ -530,7 +530,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
       set({ appearanceTransitionTarget: null });
       return;
     }
-    set({ appearanceTransitionTarget: appearanceTheme, themeDropdownOpen: false });
+    set({ appearanceTransitionTarget: appearanceTheme, accountMenuOpen: false, themeDropdownOpen: false });
   },
   commitAppearanceTheme: (appearanceTheme) => {
     try {
@@ -538,7 +538,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
     } catch {
       // Theme selection remains available when storage is blocked.
     }
-    set({ appearanceTheme, themeDropdownOpen: false });
+    set({ appearanceTheme, accountMenuOpen: false, themeDropdownOpen: false });
   },
   finishAppearanceTransition: () => set({ appearanceTransitionTarget: null }),
   toggleLocaleMenu: () => set((state) => ({

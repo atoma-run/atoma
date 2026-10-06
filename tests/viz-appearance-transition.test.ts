@@ -42,6 +42,7 @@ describe('appearance transition', () => {
       entered: true,
       appearanceTheme: 'nocturne',
       appearanceTransitionTarget: null,
+      accountMenuOpen: false,
       themeDropdownOpen: false,
     });
   });
@@ -64,7 +65,10 @@ describe('appearance transition', () => {
 
   it('charges the crystal, fills the screen, then reveals the committed theme', () => {
     const { container } = render(createElement(Probe));
+    act(() => useGpuStore.setState({ accountMenuOpen: true, themeDropdownOpen: true }));
     act(() => useGpuStore.getState().setAppearanceTheme('amethyst'));
+    expect(useGpuStore.getState().accountMenuOpen).toBe(false);
+    expect(useGpuStore.getState().themeDropdownOpen).toBe(false);
     expect(useGpuStore.getState().appearanceTheme).toBe('nocturne');
     expect(localStorage.getItem('atoma.viz.theme')).toBeNull();
     expect(container.querySelector('.gpu-appearance-veil')).toHaveAttribute('data-phase', 'charge');
@@ -101,13 +105,25 @@ describe('appearance transition', () => {
 
   it('jumps directly to the selected theme under reduced motion', () => {
     setReducedMotionOverrideForTests(true);
+    useGpuStore.setState({ accountMenuOpen: true, themeDropdownOpen: true });
     useGpuStore.getState().setAppearanceTheme('copper');
+    expect(useGpuStore.getState().accountMenuOpen).toBe(false);
+    expect(useGpuStore.getState().themeDropdownOpen).toBe(false);
     expect(useGpuStore.getState().appearanceTheme).toBe('copper');
     expect(useGpuStore.getState().appearanceTransitionTarget).toBeNull();
     expect(localStorage.getItem('atoma.viz.theme')).toBe('copper');
   });
 
+  it('dismisses the entire menu when the active theme is selected again', () => {
+    useGpuStore.setState({ accountMenuOpen: true, themeDropdownOpen: true });
+    useGpuStore.getState().setAppearanceTheme('nocturne');
+    expect(useGpuStore.getState().accountMenuOpen).toBe(false);
+    expect(useGpuStore.getState().themeDropdownOpen).toBe(false);
+    expect(useGpuStore.getState().appearanceTransitionTarget).toBeNull();
+  });
+
   it('lets the crystal lead and reaches a solid white final frame', () => {
+    expect(APPEARANCE_TO_WHITE_MS).toBeLessThan(APPEARANCE_FROM_WHITE_MS * 0.6);
     expect(appearanceTransitionSample(0)).toMatchObject({ surge: 0, flood: 0, whiteAlpha: 0 });
     const middle = appearanceTransitionSample(0.5);
     expect(middle.surge).toBeGreaterThan(middle.flood);

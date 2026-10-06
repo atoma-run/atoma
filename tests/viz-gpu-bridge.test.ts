@@ -115,6 +115,8 @@ describe('full-GL minimal DOM bridge', () => {
     useGpuStore.getState().toggleThemeDropdown();
     expect(useGpuStore.getState().accountMenuOpen).toBe(true);
     useGpuStore.getState().setAppearanceTheme('aurora');
+    expect(useGpuStore.getState().accountMenuOpen).toBe(false);
+    expect(useGpuStore.getState().themeDropdownOpen).toBe(false);
     expect(useGpuStore.getState().appearanceTransitionTarget).toBe('aurora');
     useGpuStore.getState().commitAppearanceTheme('aurora');
     expect(useGpuStore.getState()).toMatchObject({
