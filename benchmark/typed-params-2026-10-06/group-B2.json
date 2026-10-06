@@ -1,0 +1,515 @@
+{
+  "group": "B2",
+  "recipes": [
+    {
+      "molecule": "Ammonia",
+      "id": "correct-docs-from-verified-artifacts",
+      "successes": 2,
+      "matches": 2,
+      "refusalReason": "Determining which arbitrary documentation statements are contradicted by heterogeneous authoritative artifacts requires semantic interpretation that cannot be reliably encoded as a deterministic script.",
+      "schema": {
+        "docPath": "string — the one documentation file to edit",
+        "authoritativePaths": "string[] — read-only source files",
+        "protectedPaths": "string[] — must stay byte-identical",
+        "literalReplacements": "[{find: string, replace: string}] — only when the subtask spells out exact old and new text",
+        "requiredLiterals": "string[] — exact strings that must appear in docPath afterwards",
+        "forbiddenLiterals": "string[] — exact strings that must not appear in docPath afterwards",
+        "commandsToDocument": "string[] — literal commands that must appear in docPath",
+        "expectedHashes": "[{path: string, sha256: string}]",
+        "forbiddenDirNames": "string[] — e.g. __pycache__",
+        "placeholderRules": "[{forbiddenPattern: string, requiredLiteral: string}] — e.g. no live port, use http://localhost:<port>",
+        "validationCommands": "string[] — existing non-regenerating checks to run",
+        "rerunRecordedChecks": "boolean"
+      },
+      "subtasks": [
+        {
+          "source": "learned",
+          "run": "b2f5a494-f16a-485b-a003-b973512a8caf",
+          "text": "Update only composition.md so scientific pitch notation is consistent: MIDI 72 is C5, MIDI 60 is middle C/C4, and MIDI 48 is C3. Correct both passages that wrongly describe the final MIDI 72 melody note as middle C or C4 while retaining the actual melody, bass, timing, and all other correct content. Review composition.md against these exact statements, compare miniature.mid, score.csv, generate_miniature.py and verify_miniature.py with the baseline evidence, confirm the MIDI hash remains b725ccea04eb9df40daf44a09db56a8769427518ecce499341be79a870d279cd, and confirm the final workspace contains no interpreter cache directories. Do not run the generator. Summarize the recorded existing-MIDI verification evidence.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Locate and rewrite the two passages that call the final MIDI 72 note middle C/C4 (old wording and location not given; deciding which statements are wrong)",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "Compare miniature.mid, score.csv, generate_miniature.py and verify_miniature.py with 'the baseline evidence' (baseline source and comparison method unspecified)",
+              "label": "other"
+            },
+            {
+              "requirement": "Summarize the recorded existing-MIDI verification evidence (select relevant probes, write the summary)",
+              "label": "content/design authoring"
+            }
+          ],
+          "note": "Covered: edit limited to composition.md, MIDI sha256 literal check, no interpreter cache dirs, generator not run. The central correction is uncovered (3 of 5 positive requirements)."
+        },
+        {
+          "source": "credited",
+          "run": "6c582953-9485-4cf5-be26-728757c518f3",
+          "text": "Rewrite README.md using the implemented files and recorded probe evidence as sources. Explain prerequisites and dependency-free installation, running with PORT and DATA_FILE, testing with npm test, seed behavior, atomic persistence, and X-Today. Document every route—GET /api/books, GET /api/members, GET /api/members/:id, POST /api/loans, POST /api/loans/:id/return, POST /api/loans/:id/renew, POST /api/holds, POST /api/members/:id/payments, and the static UI—with an example request and response, including relevant error statuses. State all business rules: copies and availability, standard/premium limits, due dates, late fines and cap, the fine threshold, renewal limits, hold eligibility/order/reservation/consumption, payments, and exact-cent handling. All durable URLs and commands must use http://localhost:<port> and LISTENING_ON_PORT=<port>, never a captured live port. Do not rerun already recorded verification.\n\n== LITERAL CONTRACTS FROM TOP-LEVEL GOAL ==\nBuild a library lending web application for a fictional neighbourhood library, as a Node.js 24 project with no npm dependencies (Node built-in modules only).\n- POST /api/loans with {bookId, memberId} creates a loan due 14 days after its start date and answers 201.\nIt is refused with 409 when no copy is free for that member, when the member already has their maximum of active loans, or when the member owes more than 5.00 in unpaid fines; with 404 when the book or member does not exist; with 400 when the body is malformed.\n- POST /api/loans/:id/return closes an active loan.\n- POST /api/loans/:id/renew moves the due date 14 days later.\n- POST /api/holds with {bookId, memberId} queues a hold only when no copy is available (409 otherwise) and answers 201.\n- POST /api/members/:id/payments with {amount} records a payment against unpaid fines.\n- GET /api/books lists every book with its available copies.\nGET /api/members lists members.\nGET /api/members/:id shows the member's active loans with due dates, their holds and the",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Explain prerequisites, installation, running with PORT/DATA_FILE, testing, seed behavior, atomic persistence and X-Today",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "Document every route with an example request and response including error statuses, derived from the implementation and probes",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "State all business rules (limits, due dates, fines and cap, threshold, renewals, holds, payments, exact cents) from the implementation",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "Structure and placement of the rewritten README",
+              "label": "content/design authoring"
+            }
+          ],
+          "note": "Matched by Protoplast, executed by Benzene. SAME is borderline: a full README rewrite from implementation and probes rather than a targeted correction, kept SAME because the deliverable is documentation brought in line with authoritative artifacts. Only the placeholder rule (no live port; http://localhost:<port>, LISTENING_ON_PORT=<port>) is parametric. [subtask text truncated at 2000 of 2096 chars]"
+        },
+        {
+          "source": "credited",
+          "run": "66bf4b67-4892-4ae6-8e81-058dbf090187",
+          "text": "Update README.md from the implementation, package metadata, tests, and recorded probes. Preserve the documented JSON and monetary contract, explain that currency is strictly a string, and report the observed pre-repair failure and successful recovery results accurately. Document dependency-free usage with node invoice-reconcile.js --input ledger.json --out reconciliation.json, node invoice-reconcile.js --help, and npm test. Do not re-run verification; use the standing recorded evidence. Return a concise delivery summary naming the CLI entry point and commands plus the probes and observed results.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Explain that currency is strictly a string (wording and placement)",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "Report the observed pre-repair failure and successful recovery results accurately (select and summarize recorded evidence)",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "Place the three literal usage commands in README (section and location not given)",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "Concise delivery summary naming probes and observed results",
+              "label": "content/design authoring"
+            }
+          ],
+          "note": "Covered: the three commands as required literals, no re-run, existing contract text untouched by an insert-only P."
+        }
+      ],
+      "verdict": "NOT",
+      "rationale": "0 of 3 SAME subtasks COVERED. The recipe's core step (deciding which statements contradict the artifacts and rewriting them, or writing new explanatory sections) is never given as exact old/new text plus location; only side checks are parametric: hashes, cache dirs, placeholder grep, presence of literal commands.",
+      "programNote": "P could apply literal find/replace pairs, assert required/forbidden literals and placeholder rules, verify expected hashes and absent cache dirs, and run given validation commands. None of the three subtasks supplies the find/replace text, so P would do only the checks."
+    },
+    {
+      "molecule": "Ammonia",
+      "id": "create-evidence-dossier-timeline",
+      "successes": 1,
+      "matches": 1,
+      "refusalReason": "Creating a source-grounded dossier requires irreducible semantic judgment about evidence, uncertainty, compatibility, and bounded inference.",
+      "schema": {
+        "sourceFiles": "string[]",
+        "sourceIds": "string[] — e.g. S1..S6",
+        "dossierPath": "string",
+        "timelinePath": "string",
+        "csvColumns": "string[]",
+        "clockCorrections": "[{sourceId: string, offsetMinutes: integer, basisSourceId: string}]",
+        "approximateTimes": "[{sourceId: string, rawText: string, recordedAt: string}]",
+        "expectedTimelineValues": "[{sourceId: string, raw: string, normalized: string}]",
+        "requiredSections": "string[] — dossier headings",
+        "forbiddenTerms": "string[] — e.g. culprit/causal wording",
+        "recordProbes": "boolean"
+      },
+      "subtasks": [
+        {
+          "source": "learned",
+          "run": "e0e40d2d-862f-456b-85fa-c0781cec7351",
+          "text": "Create dossier.md and timeline.csv using only S1-S6. Preserve every raw timestamp; normalize only S3's raw 09:14 to 09:10 because S5 establishes that the sensor clock was four minutes fast, while leaving all other clocks uncorrected and representing the visitor's 'around nine' time as approximate uncertainty rather than an exact time. In dossier.md, clearly separate direct observations, bounded inferences, and unresolved questions; explain which statements are compatible and which, if any, conflict; compare at least undocumented internal movement and inventory-record error with supporting facts, weaknesses, and evidence that could discriminate between them; include a claim-to-source matrix covering every factual claim; and conclude without identifying a culprit or treating the technician access or humidity alert as causal. Verify the Markdown and CSV as offline files, including CSV parseability and checks for the required raw and normalized values, and record the successful probes.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Extract every event and raw timestamp from the narrative sources S1-S6 into timeline rows",
+              "label": "other"
+            },
+            {
+              "requirement": "Write dossier.md separating direct observations, bounded inferences and unresolved questions",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "Judge which statements are compatible or conflict",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "Compare the two hypotheses with supporting facts, weaknesses and discriminating evidence",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "Claim-to-source matrix covering every factual claim",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "Cautious conclusion naming no culprit and drawing no causal reading",
+              "label": "content/design authoring"
+            }
+          ],
+          "note": "Covered: S3 09:14 -> 09:10 offset from S5, all other clocks uncorrected, 'around nine' flagged approximate, CSV parse and exact-value probes recorded."
+        },
+        {
+          "source": "credited",
+          "run": "e0e40d2d-862f-456b-85fa-c0781cec7351",
+          "text": "Critically audit and finalize dossier.md and timeline.csv against S1-S6, correcting any unsupported wording, overstatement, hidden causal implication, or timeline ambiguity. Ensure timeline.csv retains S3's raw timestamp exactly as 09:14 and separately gives its normalized time as 09:10 based solely on S5; does not adjust any other clock; and explicitly preserves uncertainty for S4's approximate 'around nine' observation while distinguishing its 10:00 recording time. Ensure dossier.md attributes factual claims to S1-S6, distinguishes observation from inference and unresolved questions, explains that S1 and S6 establish a discrepancy across the two inventories without proving when or why it arose, accurately identifies compatibility or conflict among statements, and compares at least two compatible hypotheses with limitations and genuinely discriminating evidence. Check the claim-to-source matrix against every factual assertion and retain a cautious conclusion that names no culprit and derives no causation from temporal proximity. Re-run and record offline structural and content probes after all revisions, including CSV parsing and exact checks for the raw/normalized sensor times and uncorrected clocks.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Audit and correct unsupported wording, overstatement and hidden causal implication in dossier.md",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "Ensure attribution, the observation/inference split, the S1/S6 discrepancy explanation and the hypothesis comparison",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "Check the claim-to-source matrix against every factual assertion",
+              "label": "content/design authoring"
+            }
+          ],
+          "note": "Same run as the learning subtask (later branch, executed by Benzene). Covered: CSV checks for S3 raw 09:14 / normalized 09:10, uncorrected clocks, S4 approximate flag and 10:00 recording time, probes re-run and recorded."
+        }
+      ],
+      "verdict": "NOT",
+      "rationale": "0 of 2 SAME subtasks COVERED. The timeline normalisation is parametric (per-source offsets, approximate flags, exact-value checks), but extracting events from narrative sources and the whole dossier (observation/inference split, compatibility, hypothesis comparison, claim matrix, cautious conclusion) are authored content.",
+      "programNote": "P could apply clock offsets to an already-extracted event table and run CSV/heading/exact-value checks. It cannot produce the event table from prose sources, or the dossier."
+    },
+    {
+      "molecule": "Ammonia",
+      "id": "document-isolated-negative-tests",
+      "successes": 1,
+      "matches": 1,
+      "refusalReason": "Updating reader-facing documentation and deriving safe negative mutations from an arbitrary verifier requires semantic judgment that cannot be reliably encoded as a deterministic script.",
+      "schema": {
+        "docPath": "string",
+        "verifierCommand": "string — normal invocation",
+        "protectedPaths": "string[]",
+        "negativeCases": "[{name: string, targetFile: string, mutation: enum(json-set|byte-set|byte-flip|truncate), locator: string (JSON path or byte offset), value: string, expectedExit: enum(zero|nonzero)}]",
+        "harnessCommand": "string",
+        "expectedHarnessExit": "integer",
+        "expectedCaseExits": "[{case: string, exit: enum(zero|nonzero)}]",
+        "language": "enum(python-stdlib|node)",
+        "useTempCopies": "boolean",
+        "cleanupRequired": "boolean",
+        "requiredDocLiterals": "string[]"
+      },
+      "subtasks": [
+        {
+          "source": "learned",
+          "run": "822bb4fe-6e14-4bc1-9348-4842691bc440",
+          "text": "Update README.md from the existing verifier behavior and recorded evidence. Document the exact normal invocation and exact reproducible Python-standard-library shell commands that create isolated temporary copies, test Boolean manifest size rejection, altered local-header timestamp rejection, and stored-payload corruption rejection, assert nonzero exits, and remove all temporary material. Do not modify verify_capsule.py, capsule.zip, manifest.json, or build_capsule.py.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Derive the exact normal verifier invocation (not given in the subtask)",
+              "label": "other"
+            },
+            {
+              "requirement": "Craft a Python-stdlib mutation that turns a manifest size into a Boolean (needs the manifest schema; locator not given)",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Craft an altered ZIP local-header timestamp mutation (needs local-header byte offsets)",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Craft a stored-payload corruption mutation (needs the payload offset)",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Write and place the README section for normal use and the negative tests",
+              "label": "content/design authoring"
+            }
+          ],
+          "note": "Covered: temp-copy isolation, nonzero-exit assertion, cleanup, protected files unchanged."
+        },
+        {
+          "source": "credited",
+          "run": "3b3efaf3-15c9-4977-9a64-796e4a4a37d4",
+          "text": "Update audit.md to remain accurate, reader-facing, and compliant with the bounded report grammar implemented by verify_ledger.py, retaining exactly two surviving reconstructions and preserving unrelated correct content. Explicitly document the accepted equivalent ambiguity wording and the checker's bounded-format limitations without claiming general prose verification. After this mutation, run regression_checks.py against isolated copies and record final evidence showing exit code 0 for the harness and the expected per-case exit codes: original 0, false survivor count nonzero, '+12 and +17' wording 0, t3 identified_delta +8 nonzero, and false t1-only-+12 identification nonzero.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Edit audit.md so it is accurate and complies with verify_ledger.py's bounded report grammar, keeping exactly two surviving reconstructions",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "Document the accepted equivalent ambiguity wording and the checker's bounded-format limitations",
+              "label": "content/design authoring"
+            }
+          ],
+          "note": "SAME is borderline: an audit report kept consistent with a verifier, plus negative-test evidence, rather than a how-to of negative-test commands. Covered: run regression_checks.py on isolated copies, harness exit 0, the five literal per-case exit codes, evidence recorded."
+        }
+      ],
+      "verdict": "NOT",
+      "rationale": "0 of 2 SAME subtasks COVERED. Each negative case needs a verifier- or format-specific mutation (Boolean manifest field, ZIP local-header timestamp, payload bytes) whose locator the subtask does not give, or authored audit prose. Only running an existing harness against literal expected exit codes is parametric.",
+      "programNote": "P could copy to a tempdir, apply typed mutations {file, locator, value}, run the verifier, assert exit codes and emit a templated doc block. The subtasks never supply the mutation locators or the doc wording."
+    },
+    {
+      "molecule": "Ammonia",
+      "id": "document-verified-shortcut",
+      "successes": 9,
+      "matches": 10,
+      "refusalReason": "Choosing the correct documentation location and phrasing while preserving arbitrary existing style requires semantic interpretation of the subtask and document.",
+      "schema": {
+        "docPath": "string",
+        "shortcuts": "[{key: string, action: string (literal from subtask), activeStates: string[], noEffectStates: string[]}]",
+        "controls": "[{label: string, effect: string (literal from subtask), activeStates: string[]}]",
+        "ignoredFocusContexts": "enum[] (input|text-field|select|textarea)",
+        "workingFocusContexts": "enum[] (button)",
+        "evidenceSource": "enum(recorded-probes)",
+        "rerunChecks": "boolean",
+        "insertOnly": "boolean",
+        "readBack": "boolean"
+      },
+      "subtasks": [
+        {
+          "source": "learned",
+          "run": "c1d1b230-cd50-4a2f-9537-809b1b0e5750",
+          "text": "Read the existing README.md and update README.md via file creation tooling to document the B shortcut concisely and consistently with its current style. State that B selects Short Break, while preserving all existing documentation. Use the recorded browser probes from the preceding phase as the source of behavioral proof, and read back README.md to confirm the shortcut is documented; do not re-run already recorded page checks.",
+          "job": "SAME",
+          "coverage": "PARTIAL",
+          "uncovered": [
+            {
+              "requirement": "Place the B entry in README's existing shortcut documentation and phrase it consistently with its current style (location and exact sentence not given)",
+              "label": "content/design authoring"
+            }
+          ],
+          "note": "S fills {key: B, action: 'selects Short Break'}; read-back, insert-only and no re-run covered. Uncovered: 1 of 3 positive requirements (placement/style)."
+        },
+        {
+          "source": "credited",
+          "run": "9ad606d9-e92f-4739-b4eb-fa8b5592dba9",
+          "text": "Update README.md from the implemented page and its recorded browser evidence, documenting that the Extend button adds five minutes only while running or paused and that the E shortcut does the same except when focus is in a text field, select, or textarea. Do not re-run already recorded page verification.",
+          "job": "SAME",
+          "coverage": "PARTIAL",
+          "uncovered": [
+            {
+              "requirement": "Place and phrase the Extend-button and E-shortcut statements in README's controls and shortcut documentation consistently with its style",
+              "label": "content/design authoring"
+            }
+          ],
+          "note": "Values fillable: control Extend adds five minutes in running/paused; shortcut E same; ignored in text field/select/textarea. Executed by Benzene."
+        },
+        {
+          "source": "credited",
+          "run": "3cbef119-06d1-4510-8843-7e89cd2802ce",
+          "text": "Update README.md from the recorded browser evidence to document that P pauses a running countdown, has no effect while stopped, and is ignored while focus is in an input/text field, select, or textarea. Do not re-run the already recorded browser probes.",
+          "job": "SAME",
+          "coverage": "PARTIAL",
+          "uncovered": [
+            {
+              "requirement": "Place and phrase the P statements in README's shortcut documentation consistently with its style",
+              "label": "content/design authoring"
+            }
+          ],
+          "note": "Values fillable: key P, action 'pauses a running countdown', noEffectStates [stopped], ignored in input/text field/select/textarea."
+        },
+        {
+          "source": "credited",
+          "run": "81375f01-6051-48df-b460-242feb69473b",
+          "text": "Update README.md to document that F selects focus/Pomodoro mode and note that shortcuts are ignored while focus is in a text field, select, or textarea. Use the prior phase's recorded browser evidence as the source of truth and preserve all unrelated documentation.",
+          "job": "SAME",
+          "coverage": "PARTIAL",
+          "uncovered": [
+            {
+              "requirement": "Place and phrase the F entry and the focus-exception note in README consistently with its style",
+              "label": "content/design authoring"
+            }
+          ],
+          "note": "Credited match (Tracheid -> Benzene). This run also had a second, credit-withheld match of the recipe with near-identical text (Protoplast branch baa76eda); not scored, see collectionNotes."
+        },
+        {
+          "source": "credited",
+          "run": "c195ba35-44dd-4ec4-8a4a-18adb727e36b",
+          "text": "Modify only README.md so it states that keyboard shortcuts are ignored only while focus is in a text field, a select, or a textarea, and that shortcuts work while a button has focus. Preserve all unrelated README content and rely on the prior phase’s recorded browser evidence for the page rather than re-running it.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Find the existing focus-exception claim in README and decide what in it is wrong (correction of an existing statement; location not given)",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "Rewrite that statement to say 'only' text field/select/textarea and that shortcuts work while a button has focus, in the README's style",
+              "label": "content/design authoring"
+            }
+          ],
+          "note": "SAME as documentation of verified shortcut behaviour, but it corrects an existing claim instead of adding a shortcut. The values are fillable, but 2 of 4 positive requirements are outside S."
+        },
+        {
+          "source": "credited",
+          "run": "495c20ef-4d2d-4d8e-9ad1-16c32dd1db03",
+          "text": "Update README.md to document exactly the restored index.html page: its Focus Timer identity, initial 25:00 focus timer, mode labels and durations, ordered controls, session counter and Reset count behavior, Focus length options and semantics, tab-title and status behavior, keyboard shortcuts including their focus exceptions, shortcut hint, and how to open or serve the self-contained page. Use the prior phase's page and recorded browser proof as the source of truth; do not re-run verification. Include the prior phase's verification result and identify index.html as the entry point in the final report.",
+          "job": "OTHER",
+          "coverage": "n/a",
+          "uncovered": [],
+          "note": "Routing mismatch: documentation of the whole restored page (identity, timer, modes, controls, sessions, focus-length options, title/status, shortcuts, hint, how to open), not the addition of one verified shortcut."
+        },
+        {
+          "source": "credited",
+          "run": "dadeea78-cf97-4d2c-b411-fadabdd3166e",
+          "text": "Update the README of the wordfreq.js command-line tool without changing the tool or any other file: add a usage line near the top that lists every flag the tool accepts (--top N, --json, --min-length N, --exclude WORDS, --format csv), and one example that combines --min-length, --exclude and --top, with its exact output. Keep every example and error message the README already has.",
+          "job": "OTHER",
+          "coverage": "n/a",
+          "uncovered": [],
+          "note": "Routing mismatch: CLI usage line plus a combined example with exact output, with no UI keyboard shortcut. The router matched at low confidence (prefilter: 'none_of_these, yet a candidate fits at 0.25'; model decided). The match event names skillId document-verified-shortcut."
+        }
+      ],
+      "verdict": "NOT",
+      "rationale": "0 of 5 SAME subtasks COVERED (4 PARTIAL, 1 NOT); 2 of 7 sampled subtasks are routing mismatches. Key, action, states and focus-exception contexts are always literal in the subtask, so a schema carries the values. But no subtask says where in README.md to put them or gives the exact sentence. The README documents shortcuts as one prose sentence whose style must be matched ('consistently with its current style'). Under the strict rule, placement and phrasing are content authoring.",
+      "programNote": "Closest to parametric in this group: P could find a heading matching /shortcut/i and append '**KEY** action' to its semicolon list, or add a list item. That satisfies the subtasks only if a fixed rendering is acceptable, which they do not grant. One correction subtask needs an existing claim found and rewritten. With 9 credited successes it is the only high-volume recipe here; a pilot would hinge on accepting a fixed rendering template."
+    },
+    {
+      "molecule": "Ammonia",
+      "id": "integrate-verified-workstreams",
+      "successes": 2,
+      "matches": 2,
+      "refusalReason": "Creating stream-specific documentation, independently selecting practical invariants, and designing adversarial corruption checks requires semantic reasoning about arbitrary workstream interfaces.",
+      "schema": {
+        "streamDirs": "string[]",
+        "streamCheckArg": "string — e.g. --check",
+        "streamInputFile": "string — e.g. input.json",
+        "streamResultFile": "string — e.g. result.json",
+        "docFiles": "string[] — e.g. README.md, dossier.md",
+        "verifierPath": "string — e.g. verify_all.py",
+        "corruptionTargets": "[{stream: string, jsonPath: string, value: string}]",
+        "manifestPath": "string",
+        "publishableRoots": "string[]",
+        "manifestExclusions": "string[]",
+        "protectedPaths": "string[]",
+        "recordProbes": "boolean"
+      },
+      "subtasks": [
+        {
+          "source": "learned",
+          "run": "8738f263-a6b6-4084-897e-a57fc2ea4786",
+          "text": "After all four branches pass their local checks, integrate them without changing their assumptions or stream files. Create README.md with reproducible offline execution instructions, dossier.md separating supplied facts, methods, derived findings, optima, disruption impacts, exclusions, and limitations, and verify_all.py. The verifier must invoke every stream's --check against its own input and result, validate required structure and quality/cleaned.csv, independently recompute critical objectives and feasibility where practical, create disposable copies for each stream, deliberately corrupt a derived value in each copied result.json, confirm every stream validator rejects its corruption, and prove the original artifacts remain byte-for-byte unchanged. Execute verify_all.py and record its real command status and output in .atoma-probes.json. Generate manifest.json last as a deterministic, stably ordered SHA-256 inventory of every delivered file except manifest.json itself, including all stream artifacts, README.md, dossier.md, verify_all.py, and .atoma-probes.json; avoid self-referential hashing. Documentation must use only supplied sources and generated evidence and must not mix assumptions between workstreams.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "README.md with reproducible offline execution instructions",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "dossier.md separating supplied facts, methods, derived findings, optima, disruption impacts, exclusions and limitations",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "Validate the 'required structure' of each stream result and of quality/cleaned.csv (structure not specified)",
+              "label": "contract/schema design"
+            },
+            {
+              "requirement": "Independently recompute critical objectives and feasibility where practical",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Choose and corrupt a derived value in each copied result.json so its validator must reject it (field not named)",
+              "label": "algorithm/business-rule"
+            }
+          ],
+          "note": "Covered: invoke each stream's --check on its input/result, disposable copies, byte-identical originals, run and record verify_all.py, manifest.json last as a stably ordered SHA-256 inventory excluding itself."
+        },
+        {
+          "source": "credited",
+          "run": "bcf35298-b65e-4380-8994-a17431e9c564",
+          "text": "Repair README.md, verify_all.py, and manifest.json while preserving every byte in packing/, schedule/, routing/, quality/, and dossier.md. Define the publishable inventory independently from manifest contents as the four stream directories plus README.md, dossier.md, verify_all.py, manifest.json, and any newly delivered maintenance files; exclude manifest.json from its own entries and never publish or require .atoma-probes.json or other platform-excluded/runtime state. Make verify_all.py require every publishable regular file except manifest.json exactly once with its byte-derived SHA-256, reject unexpected ordinary files, duplicate/omitted/missing/altered/internal/escaping entries for specific manifest-integrity reasons, and treat manifest data only as bytes and paths—never commands. Preserve the original stream checks and disposable result-corruption checks. Add persistent package-boundary regressions covering a clean publication-shaped copy without an internal journal and all required negative cases, performing mutations only in disposable copies and proving verification leaves original delivery bytes unchanged. Update README.md with standard-library-only commands for regenerating the inventory after final edits and verifying a downloaded checkout, using the independently defined publication boundary. Regenerate manifest.json last. Execute and record fresh evidence for the original stream checks, all new regressions, and verify_all.py against a copy containing exactly the publishable files with no Atoma journal; confirm the four stream trees and dossier.md remain byte-identical.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Modify the existing verify_all.py to enforce an exact-once inventory with specific rejection reasons (unexpected/duplicate/omitted/missing/altered/internal/escaping) while preserving its stream and corruption checks",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Design persistent package-boundary regressions (clean publication-shaped copy plus all negative cases)",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "README commands for regenerating the inventory and verifying a downloaded checkout",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "Admit 'any newly delivered maintenance files' into the publishable boundary",
+              "label": "other"
+            }
+          ],
+          "note": "First of two credited matches in this run (Trichome -> Ammonia). Covered: literal publishable roots and exclusions, manifest regenerated last, fresh checks recorded, stream trees and dossier.md byte-identical."
+        },
+        {
+          "source": "credited",
+          "run": "bcf35298-b65e-4380-8994-a17431e9c564",
+          "text": "Inspect the existing integration files and address only acceptance criterion c5 while preserving verify_all.py, dossier.md, and every byte under packing/, schedule/, routing/, and quality/. Update README.md with explicit, actionable instructions for (1) regenerating the deterministic manifest after all deliverable edits using the repository's existing supported mechanism and (2) verifying a downloaded checkout using only Python 3 standard library and without .atoma-probes.json or runtime state. Clearly state that manifest.json is generated last and that internal journals are neither published nor required. Regenerate manifest.json only after the README.md edit so it inventories exactly the publishable regular files except itself, including the updated README.md hash. Run and record fresh checks against a disposable copy containing exactly the publishable files: verification must pass without internal journals, the existing package-boundary negative tests must remain effective, and verification must leave the original delivery bytes unchanged. Do not rebuild the four analyses, weaken existing checks, alter exclusion policy, expose internal journals, or modify verify_all.py unless inspection proves the accepted implementation cannot support the documented regeneration command.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Discover the repository's existing supported manifest-regeneration mechanism and document it",
+              "label": "other"
+            },
+            {
+              "requirement": "Write README instructions for regenerating the manifest and verifying a downloaded checkout with the stdlib only",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "Place the statements that manifest.json is generated last and that internal journals are neither published nor required",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "Run 'the existing package-boundary negative tests' (command not given)",
+              "label": "other"
+            }
+          ],
+          "note": "Second credited match in the same run (Protoplast -> Benzene). Covered: manifest regenerated after the README edit, disposable publishable copy verified without journals, originals unchanged, verify_all.py untouched."
+        }
+      ],
+      "verdict": "NOT",
+      "rationale": "0 of 3 SAME subtasks COVERED. Parametric parts: manifest generation over given roots minus exclusions, running each stream's --check, disposable copies, byte-identity proofs. Not parametric: README/dossier prose, structure validation, independent objective recomputation, choice of corruption field, and changes to verifier logic in existing code.",
+      "programNote": "P could generate a stable SHA-256 manifest and run each stream's --check on corrupted copies, if the subtask named the JSON path to corrupt (none does). The authored docs and verifier changes remain per-task."
+    },
+    {
+      "molecule": "Ammonia",
+      "id": "sync-docs-to-ui-controls",
+      "successes": 0,
+      "matches": 0,
+      "refusalReason": "Identifying the relevant UI control facts and translating arbitrary natural-language documentation requests into a safe minimal replacement requires semantic reasoning that cannot be generalized deterministically.",
+      "schema": {
+        "docPath": "string",
+        "uiPath": "string|null — when null, P uses the single .html entry in the workspace",
+        "anchorText": "string — literal prefix of the sentence holding the claim",
+        "tokenReplacements": "[{from: string, to: string}] — applied only inside the anchored sentence",
+        "listItemOrder": "[{item: string, after: string}] — must hold in the list that follows the anchor; P verifies and fails, never authors",
+        "controlSelector": "enum(button|role-button)",
+        "onlyAnchoredLineMayChange": "boolean",
+        "protectUi": "boolean",
+        "readBack": "boolean"
+      },
+      "subtasks": [
+        {
+          "source": "learned",
+          "run": "13f7cce0-ca07-4d60-8b5b-67782561ff5c",
+          "text": "Inspect the existing page to confirm its button order, then edit only README.md so the sentence beginning \"The five buttons appear in this order\" instead says that six buttons appear in order and includes Extend after Long break. Change nothing else in README.md and do not modify the page. Verify the exact README diff and read back the corrected sentence.",
+          "job": "SAME",
+          "coverage": "COVERED",
+          "uncovered": [],
+          "note": "The subtask gives the location (sentence-prefix literal) and the exact edit (five -> six; Extend after Long break). Trace tool events show README's numbered list already had '6. **Extend**' after Long break, and index.html has six static <button> elements (Start, Pause, Reset, Break, Long break, Extend). The accepted edit was exactly 'The five buttons' -> 'The six buttons'. So S = {docPath: README.md, anchorText, tokenReplacements [five->six], listItemOrder [Extend after Long break], controlSelector: button, onlyAnchoredLineMayChange: true}. P = anchored token swap + static DOM/list order check + one-line diff + read-back. A reviewer could contest that 'includes Extend after Long break' is read against the list rather than the sentence itself."
+        }
+      ],
+      "verdict": "PARAMETRIC",
+      "rationale": "1 of 1 SAME subtask COVERED, but that subtask is the learning subtask only. The recipe was never matched afterwards (0 matches, 0 credited successes), so the verdict carries no volume and does not count toward the 'PARAMETRIC with >= 5 credited successes' threshold.",
+      "programNote": "P(docPath, anchorText, tokenReplacements, listItemOrder, uiPath?): locate the unique line containing anchorText and apply the replacements inside it only. Verify that the bold labels of the following list match the page's static control labels in order and contain each item after its predecessor; fail rather than author when an item is missing (a new item would need an effect description). Assert that only the anchored line changed, then read back. This breaks on JS-rendered controls or on requests that need new descriptive text."
+    }
+  ],
+  "collectionNotes": "All six recipes read with atoma_skills_show (Ammonia, atom 5326d19a-f4af-4af3-913a-1653081038d1) and atoma_ledger_tail(entity=<atomId>/<id>, limit=100). The ledger filter scanned the newest 1000 of 1064 events, and every skill-save fell inside that window. All runIds are project-run UUIDs read with atoma_run_trace(runId); no operator traces were involved. Subtask text = label of the branch-start event that follows the match, or, for learning runs, the branch whose approval preceded the skill-save/learn. Match events that did not name the skill in the summary were opened (section=event) to confirm skillId. | correct-docs-from-verified-artifacts: learned b2f5a494 (second Meristem branch; the first branch matched recheck-recorded-command-probes); credited 6c582953 (Protoplast match, Benzene executor) and 66bf4b67. | create-evidence-dossier-timeline: learned and credited in the same run e0e40d2d (Ammonia branch learned, later Benzene branch matched). | document-isolated-negative-tests: learned 822bb4fe (Protoplast branch); credited 3b3efaf3. | document-verified-shortcut: 9 skill-success events over 8 distinct runs. Used the learned run c1d1b230 plus the 6 most recent distinct credited runs (9ad606d9, 3cbef119, 81375f01, c195ba35, 495c20ef, dadeea78). Excluded as older: 0b51e494 (two credited successes) and 41711050. Run 81375f01 also holds a second match of this recipe (match ff74a639, branch baa76eda, Protoplast -> Benzene) whose credit was withheld ('success NOT credited - the validator observed that the run did not follow the recipe'). It was not scored, because it is not a credited match and the preregistered cap is 7 subtasks per recipe. Its text is near-identical to the credited F subtask and would also be PARTIAL. | integrate-verified-workstreams: learned 8738f263; run bcf35298 credited the recipe twice (two matches, Ammonia and Benzene), scored as two subtasks. | sync-docs-to-ui-controls: never matched (0 matches); only the learning subtask exists. Its README and index.html were read from the trace's own read_file/edit_file events to check whether the requested edit was mechanical. | PARTIAL vs NOT counting rule: only positive requirements (things to produce or verify) are counted. Pure negative constraints (do not re-run, do not modify X, preserve unrelated content) are treated as satisfied by construction and left out of the count, so they do not inflate PARTIAL. Where a value is literal but its placement is not, value and placement are counted as two requirements. | Group totals: 18 subtasks; 16 SAME, 2 OTHER (both in document-verified-shortcut); 1 COVERED, 4 PARTIAL, 11 NOT. The single COVERED subtask belongs to a recipe with zero credited successes."
+}

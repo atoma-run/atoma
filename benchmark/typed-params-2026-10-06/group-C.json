@@ -1,0 +1,1039 @@
+{
+  "group": "C",
+  "recipes": [
+    {
+      "molecule": "Ammonia",
+      "id": "build-csv-statistics-cli",
+      "successes": 1,
+      "matches": 1,
+      "refusalReason": "(none recorded; promotionRefusedAt null, status promotion-eligible)",
+      "schema": {
+        "entryFile": "string (e.g. \"cli.mjs\")",
+        "moduleStyle": "enum[esm,cjs]",
+        "statistics": "list<enum[count,min,max,mean,median,sum]>",
+        "decimals": "int",
+        "columnFilter": "enum[numeric-values-only,all]",
+        "jsonFlag": "string|null (e.g. \"--json\")",
+        "exitCodes": "record{success:int,noArgument:int,unreadable:int,emptyOrNoHeader:int}",
+        "csvFeatures": "list<enum[quoted-commas,doubled-quotes,embedded-newlines]>",
+        "probeCases": "list<enum[quoted-comma,doubled-quote,mixed-values,human,json,no-arg,missing-path,empty-input]>"
+      },
+      "subtasks": [
+        {
+          "source": "learned",
+          "run": "a34e4d7e-e887-44ea-8d61-fb2cf974b2bf",
+          "text": "Create cli.mjs via the write_file tool using only built-in Node modules. It must accept a CSV path as its first argument; parse headers and records quote-aware, including commas inside double-quoted fields and doubled double quotes as literal quotes; and print one line per column containing numeric values with column name, numeric count, minimum, maximum, and mean rounded to three decimals. Support --json to emit the same statistics as one JSON object on standard output. Preserve these exit contracts exactly: success exits 0; no argument writes usage to standard error and exits 2; unreadable file writes an error to standard error and exits 3; empty input or no header row writes an error to standard error and exits 4. Keep the implementation small and self-contained. Execute and record finite shell probes using piped CSV input where appropriate, covering quoted commas, doubled quotes, mixed numeric/non-numeric values, human output, --json output, no argument, a nonexistent path, and empty input; check stdout, stderr, and every required exit code.",
+          "job": "SAME",
+          "coverage": "COVERED",
+          "uncovered": [],
+          "note": "All values literal (stats set, 3 decimals, --json, exit codes 0/2/3/4, probe list); exact human line format unspecified so P chooses it."
+        },
+        {
+          "source": "credited",
+          "run": "754dd4d8-8ef3-403c-b6d7-f6223cb28b6b",
+          "text": "Build a Node.js command-line tool, csv2json.mjs, using only Node's built-in modules, that converts a CSV file into JSON. It takes the CSV path as its argument, an optional --schema path to a JSON file declaring required columns and their types (string, number or ISO date), and an optional --out path; it writes a JSON array of records keyed by the header names to stdout, or to the --out file. It parses quoted fields that contain commas, newlines and doubled quotes. When rows are invalid against the schema it prints one error per row to stderr, naming the line number, the column and the reason, writes nothing, and exits with status 1; a missing or unreadable input exits with status 2 and a usage message. Include a valid sample CSV, a sample CSV with errors, a sample schema, automated tests that run with npm test, and a README explaining how to run it on the samples.",
+          "job": "OTHER",
+          "coverage": "n/a",
+          "uncovered": [],
+          "note": "Routing mismatch: CSV-to-JSON converter with schema validation, not per-column numeric statistics (matcher itself noted \"different JSON output and schema validation requirements\")."
+        }
+      ],
+      "verdict": "PARAMETRIC",
+      "rationale": "1/1 SAME subtask COVERED (100%). Only one SAME subtask; the single credited match was a routing mismatch.",
+      "programNote": "P = template Node CLI: char-by-char quote-aware CSV parser, numeric-cell detection per header, configurable stat list/rounding, human+JSON emitters, exit-code table, probe runner over a fixed probe-case catalogue. Evidence base n=1."
+    },
+    {
+      "molecule": "Ammonia",
+      "id": "build-data-quality-csv-summary",
+      "successes": 3,
+      "matches": 3,
+      "refusalReason": "The recipe requires interpreting task-specific data schemas, missing/range rules, requested statistics, and output formats, which cannot be derived reliably by a deterministic script.",
+      "schema": {
+        "observationsFile": "string",
+        "header": "list<string>",
+        "rows": "list<string> (literal CSV row strings)",
+        "missingToken": "string (e.g. \"NA\")",
+        "validRange": "record{min:number,max:number,inclusive:bool}",
+        "summaryFile": "string|null",
+        "summaryFields": "list<enum[total,missing,out_of_range,valid,mean,median]>",
+        "expectedValues": "list<string> (literal 'sensor:field=value')",
+        "verifierFile": "string",
+        "verifierLanguage": "enum[python3,node]",
+        "mode": "enum[full,observations-only]",
+        "protectedFiles": "list<string> (must not be modified)"
+      },
+      "subtasks": [
+        {
+          "source": "learned",
+          "run": "cc7ed6f1-9ffe-43be-a133-cfe722f6da24",
+          "text": "Create observations.csv containing exactly the supplied day,A,B table, preserving both NA entries and A=100. Create summary.csv with one row per sensor and fields for total rows, missing count, out-of-range count, valid count, mean, and median. Apply the exact rule that a value is valid only when numeric and within inclusive range [0,40]; missing and out-of-range are mutually exclusive, raw observations are never deleted, and no values are imputed. Results must be A: total 7, missing 1, out-of-range 1, valid 5, mean 12, median 12; B: total 7, missing 1, out-of-range 0, valid 6, mean 20, median 20. Write verify_quality.py as an independent reproducible calculation that reads observations.csv, recomputes these statistics over valid values only, compares them with summary.csv, and exits nonzero on disagreement. Execute and record `python3 verify_quality.py`, with a concise successful outcome proving all values and counts.",
+          "job": "SAME",
+          "coverage": "PARTIAL",
+          "uncovered": [
+            {
+              "requirement": "observations.csv must contain \"exactly the supplied day,A,B table\" but the row values are not in the subtask text; S cannot be filled without inventing them (the run was in fact rejected at acceptance because readings were altered)",
+              "label": "other"
+            }
+          ],
+          "note": "Rule, range, summary fields and expected results are literal; only the input table is missing from the subtask text."
+        },
+        {
+          "source": "credited",
+          "run": "cc7ed6f1-9ffe-43be-a133-cfe722f6da24",
+          "text": "Write report.md using observations.csv, summary.csv, and the recorded probe as sources. Concisely explain that NA is missing rather than zero, validity requires a numeric value in inclusive range [0,40], missing and out-of-range classifications are mutually exclusive, raw observations remain preserved, and no imputation occurs. Explain the valid-only mean and median calculations, report the exact A and B findings, note that A=100 is flagged but retained, and discuss limitations including the tiny fictional dataset and fixed rule. State the executed verification command `python3 verify_quality.py` and its recorded successful outcome without re-running it.",
+          "job": "OTHER",
+          "coverage": "n/a",
+          "uncovered": [],
+          "note": "Documentation-only (report.md prose from existing artifacts); whenToUse asks for preserving observations, summarizing and verifying, not a narrative report."
+        },
+        {
+          "source": "credited",
+          "run": "cc7ed6f1-9ffe-43be-a133-cfe722f6da24",
+          "text": "Correct only observations.csv so it exactly contains the supplied table with header day,A,B and rows 1,10,20; 2,11,20; 3,12,21; 4,13,19; 5,14,20; 6,NA,NA; 7,100,20. Preserve literal NA values and 100, do not alter summary.csv or report.md, and record a finite reproducible check proving all seven rows and all fourteen readings match exactly.",
+          "job": "SAME",
+          "coverage": "COVERED",
+          "uncovered": [],
+          "note": "Matches the \"preserve tabular observations + verify\" part of whenToUse. Header and all 7 rows are literal; mode=observations-only with protectedFiles [summary.csv, report.md]; check = re-read and compare to S.rows."
+        },
+        {
+          "source": "credited",
+          "run": "8738f263-a6b6-4084-897e-a57fc2ea4786",
+          "text": "Create the isolated quality/ workstream only: quality/input.json preserving exactly (S1,0,1,10),(S1,0,2,12),(S1,1,1,8),(S2,0,1,3),(S2,0,1,3),(S2,1,1,4),(S2,1,1,5),(S3,0,1,7),(S3,1,1,bad),(S3,2,1,12); quality/solve.py using only Python 3 standard library and solely quality/input.json with stable ordering/serialization and --check that fails nonzero for absent, malformed, or incorrect quality/result.json; quality/result.json; quality/cleaned.csv; and quality/report.md. Group by sensor,time, retain highest revision, collapse identical repeats at that revision, quarantine whole groups for conflicts at that revision, exclude surviving nonnumeric raw values, use calibrations S1=(raw-2)/2, S2=3*(raw+1), S3=10-raw and inclusive [0,10]. Produce sorted cleaned.csv columns sensor,time,revision,raw,calibrated,in_band; separately identify conflicts, invalid records, superseded rows, and duplicates in result.json; provide retained count, calibrated min/max/mean, and in-band count per sensor, excluding excluded groups from aggregates. Run focused deterministic reproduction and --check tests within quality/ only; do not read, import, modify, or create files outside quality/ or in another workstream.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "revision handling: group by (sensor,time), keep highest revision, collapse identical repeats, quarantine whole groups on conflict",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "per-sensor calibration formulas S1=(raw-2)/2, S2=3*(raw+1), S3=10-raw (expressions, not parameters)",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "result.json categorisation (conflicts / invalid / superseded / duplicates) and cleaned.csv semantics",
+              "label": "contract/schema design"
+            },
+            {
+              "requirement": "report.md content for the workstream",
+              "label": "content/design authoring"
+            }
+          ],
+          "note": "Same recipe family (raw preservation + summary + --check verifier) but the cleaning policy and calibration are domain logic."
+        }
+      ],
+      "verdict": "NOT",
+      "rationale": "1/3 SAME subtasks COVERED (33%) < 40%.",
+      "programNote": "A parametric P covers the simple single-range validity summary (fix-up case) but not data whose rows live only in the goal, nor revision/conflict/calibration pipelines."
+    },
+    {
+      "molecule": "Ammonia",
+      "id": "build-deterministic-pcm-fixture",
+      "successes": 2,
+      "matches": 2,
+      "refusalReason": "Deriving arbitrary PCM timing, waveform formulas, filenames, and an independently fixed verifier from natural-language subtasks requires irreducible semantic reasoning. (stale: promotionRefusalIsCurrent=false)",
+      "schema": {
+        "files": "record{generator:string,verifier:string,output:string}",
+        "sampleRate": "int",
+        "bitsPerSample": "int",
+        "channels": "int",
+        "unitSamples": "int",
+        "morsePattern": "string (literal, e.g. '... --- ...')",
+        "gapUnits": "record{dot:int,dash:int,intraLetter:int,interLetter:int,trailing:int}",
+        "tone": "record{frequencyHz:number,amplitude:int,rounding:enum[python-round],phaseResetPerTone:bool}",
+        "expectedTotalSamples": "int",
+        "negativeTest": "enum[corrupt-one-pcm-sample]"
+      },
+      "subtasks": [
+        {
+          "source": "learned",
+          "run": "102556e8-0e7e-40c5-9009-4841206e48a0",
+          "text": "Create generate_sos.py and verify_sos.py, then generate sos.wav deterministically using only Python 3 standard-library modules. sos.wav must be canonical little-endian RIFF/WAVE mono signed 16-bit PCM at 8000 samples/second and contain exactly 22400 samples. Encode SOS as three one-unit short tones, three three-unit long tones, and three one-unit short tones; one unit is exactly 100 ms or 800 samples. Use one unit of silence between tones within each letter, three units between letters, begin immediately with the first tone, and append exactly one unit of silence after the final tone with no other padding. Every tone must be 600 Hz with samples round(8192*sin(2*pi*600*j/8000)), using Python's built-in round and restarting j at zero for each tone; every silence sample must be zero. verify_sos.py must independently encode the fixed SOS expectation without deriving timing from the generator's data structure, read sos.wav, validate its RIFF/WAVE header and audio parameters, exact total sample count, every expected tone sample, and every expected silence sample, and exit nonzero on any mismatch. Record real command-line evidence that generation succeeds, verification accepts sos.wav, and verification rejects a temporary WAV copy whose PCM sample was deliberately corrupted; remove only that temporary negative-test copy afterward and confirm the four requested deliverables remain.",
+          "job": "SAME",
+          "coverage": "COVERED",
+          "uncovered": [],
+          "note": "Every timing, format and waveform value is literal (sine amplitude 8192, 600 Hz, 800-sample unit, gaps 1/3/1). Verifier can embed its own expectation from S. \"four requested deliverables\" is unnamed in the text; treated as a list-files confirmation. Schema is Morse/tone-sequence specific; generality to other PCM tasks untested (n=1)."
+        },
+        {
+          "source": "credited",
+          "run": "102556e8-0e7e-40c5-9009-4841206e48a0",
+          "text": "Write README.md from the completed artifact and recorded probes. Describe the fictional museum exhibit sound, the exact 100 ms unit, short and long tone durations, intra-letter and inter-letter silence, final 100 ms silence, 600 Hz waveform, mono 16-bit signed PCM at 8000 Hz, and the exact 22400-sample duration. Include accurate, exact Python 3 commands to regenerate sos.wav with generate_sos.py and verify it with verify_sos.py. State that the implementation uses only the Python standard library and requires no dependencies, downloads, internet, website, or server. Use existing recorded evidence as the source for execution claims and do not rerun verification.",
+          "job": "OTHER",
+          "coverage": "n/a",
+          "uncovered": [],
+          "note": "Credited via Benzene. Documentation-only README from recorded probes; not a fixture-generation task."
+        },
+        {
+          "source": "credited",
+          "run": "40b185c4-b702-4064-831f-909fbbe503fa",
+          "text": "Create generate_miniature.py and verify_miniature.py, then use the generator to produce miniature.mid and score.csv. The composition must be an original eight-bar, two-voice C-major miniature in 4/4 at 120 BPM with 480 ticks per quarter and exactly 15360 ticks total. Encode a 500000-microseconds-per-quarter tempo event and 4/4 time-signature event. Use distinct MIDI channels for melody and bass. Encode exactly 32 melody notes, one per 480-tick beat, with pitches in MIDI 60..79 using only C-major pitch classes, adjacent pitches differing by no more than 7 semitones, and the final melody pitch exactly 72. Encode exactly 8 bass notes, each lasting 1920 ticks, with pitches in MIDI 36..55 and bar-by-bar pitch classes exactly C,F,G,C,A,F,G,C (0,5,7,0,9,5,7,0). score.csv must have exactly the columns voice,start_tick,duration_ticks,pitch,velocity and agree exactly with every MIDI note. Both scripts must use only the standard library. The verifier must independently parse the actual binary Standard MIDI File rather than reuse or import the generator's note list; correctly parse variable-length quantities and running status as applicable; pair note-on and note-off events correctly, including note-on velocity zero; check format, division, metadata, duration, channels, all note-count/pitch-class/range/leap/progression constraints, and exact CSV equality; and validate both end-of-track times at 15360 ticks, or a clearly supported documented equivalent single-track duration. Run the generator and record a successful invocation of the verifier as standing proof.",
+          "job": "OTHER",
+          "coverage": "n/a",
+          "uncovered": [],
+          "note": "Routing mismatch: Standard MIDI File + score.csv for an original composition, not a WAV/PCM fixture validated sample by sample. If counted SAME it would be NOT (original eight-bar composition = content/design authoring; SMF/VLQ/running-status parsing = different algorithm)."
+        }
+      ],
+      "verdict": "PARAMETRIC",
+      "rationale": "1/1 SAME subtask COVERED. Both credited matches were OTHER, so the verdict rests on the learning subtask alone.",
+      "programNote": "P = tone-sequence WAV writer (RIFF header, int16 LE) + independent verifier template + corrupted-copy negative probe. n=1; no credited SAME match."
+    },
+    {
+      "molecule": "Ammonia",
+      "id": "build-deterministic-zip-capsule",
+      "successes": 2,
+      "matches": 2,
+      "refusalReason": "Generating independent ZIP builders and verifiers requires reliably deriving arbitrary entry bytes, metadata, filenames, and documentation requirements from natural-language tasks, which is irreducibly LLM-dependent. (stale: promotionRefusalIsCurrent=false)",
+      "schema": {
+        "files": "record{builder:string,verifier:string,archive:string,manifest:string,readme:string}",
+        "entryNames": "list<string>",
+        "entryContentsUtf8": "list<string> (literal payloads, parallel to entryNames)",
+        "compression": "enum[STORED,DEFLATED]",
+        "dosTimestamp": "list<int> [Y,M,D,h,m,s]",
+        "fileMode": "int (e.g. 0o100644)",
+        "manifestFields": "list<enum[name,size,sha256]>",
+        "scope": "enum[full,harden-all,verifier-only]",
+        "protectedFiles": "list<string>",
+        "mutationProbes": "list<string> (literal specs, e.g. 'payload-first-byte-keep-crc', 'capsule.zip@10=1', 'manifest.json:entries[2].size=false')",
+        "expectedArchiveSha256": "string|null",
+        "readmeForbiddenClaims": "list<enum[signature,long-term-preservation]>"
+      },
+      "subtasks": [
+        {
+          "source": "learned",
+          "run": "a6989eb1-3c27-4aac-8888-1b8cfb0bb21c",
+          "text": "Create build_capsule.py, verify_capsule.py, README.md, capsule.zip, and manifest.json using only the Python 3 standard library. build_capsule.py must deterministically generate capsule.zip with exactly three regular-file entries in this order: README.txt containing UTF-8 bytes for \"Museum capsule v1\\n\", data/café.txt containing UTF-8 bytes for \"Café — été\\n\", and data/empty.bin containing zero bytes. Each entry must use ZIP_STORED, timestamp (1980,1,1,0,0,0), Unix creator metadata, mode 0o100644 in the upper 16 external-attribute bits, empty comments and extra fields, with no implicit directories or additional entries; the archive comment must be empty and the non-ASCII filename must round-trip. Generate manifest.json outside the ZIP with deterministic JSON shaped as {\"entries\":[{\"name\":string,\"size\":integer,\"sha256\":lowercase-string}, ...]} in ZIP entry order. Implement verify_capsule.py independently, without importing builder constants or trusting manifest values as expected truth: embed the fixed names and payload bytes, reject malformed/missing/duplicate/extra entries, check order, every required ZIP field, exact payload bytes, CRC integrity, and every manifest row, size, and digest. Document the manifest shape and exact regeneration and verification commands in README.md without signature or long-term-preservation claims. Run initial build and verifier checks.",
+          "job": "SAME",
+          "coverage": "COVERED",
+          "uncovered": [],
+          "note": "Entries, payloads, metadata, manifest shape and doc constraints are all literal; Unix creator fixed in P."
+        },
+        {
+          "source": "credited",
+          "run": "a6989eb1-3c27-4aac-8888-1b8cfb0bb21c",
+          "text": "Review and harden build_capsule.py, verify_capsule.py, README.md, capsule.zip, and manifest.json against the complete fixed contract: exact three-entry order and payload bytes; ZIP_STORED; timestamp (1980,1,1,0,0,0); Unix creator metadata; mode 0o100644 in the upper 16 external-attribute bits; empty archive/entry comments and extra fields; no directory or extra entries; correct non-ASCII filename; deterministic manifest shape {\"entries\":[{\"name\":string,\"size\":integer,\"sha256\":lowercase-string}, ...]}; and a verifier with its own fixed expected names and bytes that checks metadata, order, payload, CRC, malformed inputs, and all manifest rows without importing builder constants. Record real command-line evidence that two fresh builds produce byte-identical capsule.zip and manifest.json bytes, that verify_capsule.py accepts the final outputs, and that it returns nonzero for a temporary archive copy whose first stored payload byte is deliberately changed while its original CRC remains unchanged. Remove only temporary test material afterward, retain the five requested deliverables, and ensure README.md contains exact `python3 build_capsule.py` and `python3 verify_capsule.py` commands and no unsupported preservation or signature claims.",
+          "job": "SAME",
+          "coverage": "PARTIAL",
+          "uncovered": [
+            {
+              "requirement": "\"exact three-entry order and payload bytes\" and the non-ASCII filename are referenced but neither entry names nor payloads are restated in this subtask; the verifier must embed its own expected bytes, which cannot be filled from the text (reading them back from capsule.zip would trust the artifact under test)",
+              "label": "other"
+            }
+          ],
+          "note": "Rebuild-twice byte comparison, accept/reject probes and README commands are parametric."
+        },
+        {
+          "source": "credited",
+          "run": "822bb4fe-6e14-4bc1-9348-4842691bc440",
+          "text": "Inspect and harden verify_capsule.py using only the Python standard library. Preserve capsule.zip, manifest.json, and build_capsule.py byte-for-byte and do not import expected data from the builder. Explicitly validate the manifest JSON shape and types so each size is an integer but not a Boolean. Retain checks for exactly README.txt, data/café.txt, data/empty.bin in that order; exact fixed payload bytes; ZIP_STORED; 1980-01-01 00:00:00; Unix creator; regular mode 0o100644; empty comments and extras; correct names, CRCs, manifest sizes and digests; and refusal of missing, duplicate, or extra entries. Add bounds-checked parsing of every ZIP local-file header and reject malformed or truncated structures, checking local names, flags, compression, DOS timestamp, and extra-field policy against both the fixed specification and central-directory metadata. Record command-line evidence that python3 verify_capsule.py accepts the preserved artifacts and returns nonzero for three isolated-copy counterexamples: manifest.json with the empty entry size changed from integer 0 to JSON false; capsule.zip with only the first local-header DOS modification-time field at byte offset 10 changed from 0 to 1; and a real stored-payload corruption. Never replace the correct archive during testing, remove all temporary test material, and record before/after SHA-256 hashes proving capsule.zip, manifest.json, and build_capsule.py are unchanged, including capsule.zip remaining 20a3e514ffee843ff29fbac5cca6bd2c65311ac211c3ac1232a8fd9dc730fce7.",
+          "job": "SAME",
+          "coverage": "PARTIAL",
+          "uncovered": [
+            {
+              "requirement": "\"exact fixed payload bytes\" must be embedded in the hardened verifier but the payloads are not in this subtask text (only the entry names are)",
+              "label": "other"
+            }
+          ],
+          "note": "Verifier-only scope with protected builder/archive/manifest; the three counterexamples and the expected archive SHA-256 are literal; local-header bounds checking is generic P logic."
+        }
+      ],
+      "verdict": "NOT",
+      "rationale": "1/3 SAME subtasks COVERED (33%). The two follow-ups are PARTIAL only because the payload literals live in the earlier goal, not in their own subtask text.",
+      "programNote": "Sensitivity: if P persisted its S in the workspace at first dispatch (or the extraction call were allowed the goal text), both PARTIALs would become COVERED and the recipe PARAMETRIC. Under the protocol rule \"from the subtask text alone\" they are not."
+    },
+    {
+      "molecule": "Ammonia",
+      "id": "build-exact-ledger-reconciler",
+      "successes": 10,
+      "matches": 10,
+      "refusalReason": "Implementing the task-specific ledger schemas, arithmetic rules, tests, and documentation requires irreducible interpretation of each natural-language contract.",
+      "schema": {
+        "entryFile": "string",
+        "cli": "record{inputFlag:string,outFlag:string,helpFlag:string}",
+        "currencyPrecision": "list<string> (e.g. 'EUR:2','JPY:0','KWD:3')",
+        "rounding": "enum[HALF_UP,HALF_EVEN]",
+        "applicationOrder": "enum[credits-then-payments]",
+        "idSort": "enum[code-unit]",
+        "quantityRange": "record{min:int,max:int}",
+        "taxBpsRange": "record{min:int,max:int}",
+        "testRunner": "enum[npm-test]",
+        "scope": "enum[build,tests-only,repair]",
+        "addedSingleLineCases": "list<string> (literal 'CUR qty unitPrice taxBps => subtotal,tax,total,status')",
+        "note": "attempted schema; the nested invoice/credit/payment schema, allocation/dedup/status rules and multi-entity fixtures cannot be expressed in <=12 primitive fields without a logic-carrying field"
+      },
+      "subtasks": [
+        {
+          "source": "learned",
+          "run": "6a8b44c7-0d75-481a-ba08-d7d1db8d8f8c",
+          "text": "Create invoice-reconcile.js as a dependency-free Node.js 24 CLI supporting `node invoice-reconcile.js --input ledger.json --out reconciliation.json` and `--help`; create package.json with an `npm test` script, test/invoice-reconcile.test.js with real subprocess tests, and README.md. Implement the literal input and output contracts from the task: exact top-level and record schemas with unknown/missing/wrong-type rejection; independent invoice/credit/payment ID namespaces; literal nonempty IDs including prototype-like names; EUR/USD precision 2, JPY 0, KWD 3; strict unsigned canonical decimal grammar; quantity 1..1000000; taxBps 0..10000; nonempty lines; exact arbitrary-size integer/decimal arithmetic; per-line quantity×unitPrice HALF UP rounding followed by subtotal summation; HALF UP tax; credits before payments; ordered transitions; repeated allocation accumulation; valid unapplied payment remainder; fixed-precision output strings; specified statuses; code-unit ID sorting; deterministic byte-identical JSON; and empty/zero cases. Deduplicate each array by id before its state transition, treating objects as equal while ignoring object-key order but preserving array order, count identical duplicates, and fail conflicting reuse. Reject missing references, currency mismatches, excess credits, payment over-allocation, and invoice over-allocation. On malformed JSON, schema/business failures, or output I/O failures, emit a diagnostic to stderr, exit nonzero, and preserve the input and all pre-existing output bytes. Fully validate before publishing, use safe replacement, and refuse input/output identity through the same path, symlinks, or hardlinks while allowing a distinct same-directory output. The subprocess suite must assert the supplied EUR, JPY, and KWD examples, USD behavior, values larger than Number.MAX_SAFE_INTEGER, credits-before-payments, partial/settled/unapplied results, repeated allocations, duplicate equality and conflicts, all str …[truncated at 2000 chars]",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "credit/payment application order, allocation accumulation, dedup-by-id with key-order-insensitive equality and conflict failure, status rule",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "nested invoice/credit/payment input and output schemas with strict validation",
+              "label": "contract/schema design"
+            },
+            {
+              "requirement": "subprocess suite asserting \"the supplied EUR, JPY, and KWD examples\" whose values are not in the subtask text",
+              "label": "other"
+            },
+            {
+              "requirement": "README documenting exact schemas, semantics, safety behaviour and disclaimer",
+              "label": "content/design authoring"
+            }
+          ],
+          "note": ""
+        },
+        {
+          "source": "credited",
+          "run": "6a8b44c7-0d75-481a-ba08-d7d1db8d8f8c",
+          "text": "Inspect the existing package.json test command and extend test.js without altering invoice-reconcile.js behavior. Add subprocess assertions proving that each relevant failure leaves pre-existing output bytes exactly unchanged: a missing invoice reference, a credit currency mismatch, a payment/allocation currency mismatch, a credit exceeding the invoice balance, total allocations exceeding the payment amount, and an allocation exceeding the referenced invoice's remaining balance. Require nonzero exit status and diagnostic stderr for every refusal. Retain all existing regression coverage, then execute the complete npm test suite offline and record its actual result as proof.\n\n== LITERAL CONTRACTS FROM TOP-LEVEL GOAL ==\nOffline only.\nInvoice: {id,currency,lines:[{quantity,unitPrice}],taxBps}; credit: {id,invoiceId,currency,amount}; payment: {id,currency,amount,allocations:[{invoiceId,amount}]}.\nReject missing/unknown fields and wrong types.\nApply credits in array order before payments; each credit reduces invoice balance, may not exceed it, must reference an existing invoice in the same currency.\nPayments in array order allocate only to existing same-currency invoices.\nIdentical credits/payments after full settlement must not be applied twice.\nOutput JSON exactly {invoices,payments,duplicates}.\ninvoices sorted by id using code-unit order: {id,currency,subtotal,tax,total,credited,paid,balance,status}; status is settled when balance=0, otherwise partial if credited+paid>0, else open.\npayments similarly sorted: {id,currency,amount,allocated,unapplied}.\nduplicates is {invoices:N,credits:N,payments:N}.\nPublish only after complete validation.\nTests must assert actual amounts, duplicate semantics, refusal preservation and successful same-directory output.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "six refusal fixtures (missing reference, credit/payment currency mismatch, excess credit, payment over-allocation, invoice over-allocation) must be authored as ledger inputs; no values given",
+              "label": "other"
+            },
+            {
+              "requirement": "constructing inputs that trigger each business-rule refusal requires the reconciliation semantics",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "fixtures follow a nested contract given as prose/shape literal, not as primitive parameters",
+              "label": "contract/schema design"
+            }
+          ],
+          "note": "Includes the LITERAL CONTRACTS block; the shape is present but only as a nested schema."
+        },
+        {
+          "source": "credited",
+          "run": "66bf4b67-4892-4ae6-8e81-058dbf090187",
+          "text": "Extend test/invoice-reconcile.test.js without weakening or removing any passing assertion or changing the ten acceptance criteria. Add subprocess regressions proving invoice, credit, and payment currency values that are arrays, objects, null, booleans, or numbers fail nonzero with diagnostic stderr while preserving input and pre-existing output byte-for-byte; retain successful EUR, USD, JPY, and KWD string cases. Add the exact partial case invoice total 10.00, credit 2.00, payment 3.00, expecting credited 2.00, paid 3.00, balance 5.00, status partial. Add a successful payment containing two allocations to the same invoice plus an unapplied remainder, asserting cumulative paid and balance. Run identical valid input twice and compare actual output bytes exactly while confirming unchanged input bytes. Exercise identical nonzero credits and payments duplicated after settlement, including reordered object keys, exact duplicate counts, and no double application. Preserve coverage for independent ID namespaces, literal prototype-like IDs, canonical monetary syntax, arbitrary-size exact arithmetic, per-line HALF UP rounding, currency precision, strict schemas, zero/empty cases, code-unit sorting, same-directory distinct files, and symlink/hardlink collision refusal. Execute the expanded suite directly against the still-defective implementation and record the expected failing observation as pre-repair evidence.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "currency-type regression fixtures across three nested record kinds",
+              "label": "contract/schema design"
+            },
+            {
+              "requirement": "\"invoice total 10.00\" partial case: lines/tax must be invented",
+              "label": "other"
+            },
+            {
+              "requirement": "\"two allocations to the same invoice plus an unapplied remainder\": amounts unspecified",
+              "label": "other"
+            },
+            {
+              "requirement": "duplicates after settlement with reordered keys, exact counts, no double application",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "run the expanded suite against the still-defective implementation and record the failing observation",
+              "label": "other"
+            }
+          ],
+          "note": ""
+        },
+        {
+          "source": "credited",
+          "run": "66bf4b67-4892-4ae6-8e81-058dbf090187",
+          "text": "Repair invoice-reconcile.js through its shared currency validation mechanism so invoice, credit, and payment currency must be a primitive string before membership testing; reject arrays, objects, null, booleans, and numbers with nonzero exit and diagnostic stderr while preserving input and any pre-existing output byte-for-byte. Keep EUR/USD/JPY/KWD support and do not change money parsing, arbitrary-size arithmetic, per-line HALF UP rounding, currency precision, reconciliation order or semantics, duplicate canonicalization, schemas, sorting, file-identity protections, or any other established contract. Inspect package.json without adding dependencies or network requirements. Execute and record the complete npm test suite and node invoice-reconcile.js --help, confirming every old and new assertion passes and retaining the distinct pre-repair failure evidence from the preceding phase.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "repair the existing implementation through its shared currency validation mechanism",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "preserve every other established behaviour of an LLM-authored implementation",
+              "label": "other"
+            }
+          ],
+          "note": "Match recorded by model decision; skillId confirmed build-exact-ledger-reconciler."
+        },
+        {
+          "source": "credited",
+          "run": "66bf4b67-4892-4ae6-8e81-058dbf090187",
+          "text": "Update test/invoice-reconcile.test.js to add runnable subprocess assertions proving strict-schema refusal of invalid decimal syntax, unsupported string currencies, invalid quantities, and invalid taxBps values. Each refusal must have nonzero exit status, diagnostic stderr, and byte-for-byte preservation of both input and pre-existing output. Retain every existing assertion and all valid cases covering arithmetic, duplicates, repeat byte identity, currency type rejection, file identity, and reconciliation semantics. If inspection reveals a defect preventing these exact assertions, minimally repair invoice-reconcile.js without changing its contract, money, rounding, or reconciliation behavior. Execute the complete npm test suite and `node invoice-reconcile.js --help`, record their actual results as proof, and update README.md with those observed results without claiming unexecuted outcomes or adding dependencies.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "invalid decimal syntax / unsupported currency / invalid quantity / invalid taxBps values are not specified and would have to be invented",
+              "label": "other"
+            },
+            {
+              "requirement": "conditional minimal repair of invoice-reconcile.js if a defect is found",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "fixtures follow the nested ledger schema (not in this subtask text)",
+              "label": "contract/schema design"
+            }
+          ],
+          "note": ""
+        },
+        {
+          "source": "credited",
+          "run": "2faac5cb-9e5a-485f-93c4-ef1015d19c0c",
+          "text": "Complete the remaining proof obligation in the seeded invoice reconciliation CLI. The current repaired implementation passes all 70 independent checks, including invalid currency types; do not change its behavior, remove assertions, or weaken the ten unchanged acceptance criteria. The latest run was partial solely because c2 lacked an executed nonzero USD tax assertion.\n\nExtend the existing subprocess suite with explicit USD cases and assert the entire invoice output including subtotal, tax, total, credited, paid, balance and status. Case 1: one USD line quantity1/unitPrice\"10.01\", taxBps825 gives subtotal10.01, tax0.83, total10.84, balance10.84 and open. Case 2: one USD line quantity1/unitPrice\"0.05\", taxBps1000 gives subtotal0.05, tax0.01, total0.06 and open (HALF UP tie). Retain the existing large USD arithmetic case, EUR/JPY/KWD examples, currency type refusals, invalid decimal/currency/quantity/tax checks, partial balance, repeated allocations, byte-identical repeat executions, duplicate counts after settlement, preservation and identity tests. Test actual output bytes/JSON through real CLI subprocesses and preserve input bytes. Keep the dependency-free Node.js24 interface and exact monetary/schema contract.\n\nRun the complete suite and help command after adding the assertions. Update README to describe the new observed evidence honestly. Complete this as one coherent test-and-documentation change. The current CLI is already correct on these supplied USD examples; this is a missing-proof repair. Deliver the complete artifact with the exact same acceptance list.",
+          "job": "SAME",
+          "coverage": "PARTIAL",
+          "uncovered": [
+            {
+              "requirement": "building the two USD fixtures needs the CLI input JSON shape (invoices[], id, lines[]...), which this subtask does not state",
+              "label": "contract/schema design"
+            }
+          ],
+          "note": "Case values and expected fields are literal single-line cases; suite run, --help and README append are parametric."
+        },
+        {
+          "source": "credited",
+          "run": "2faac5cb-9e5a-485f-93c4-ef1015d19c0c",
+          "text": "Complete the remaining proof obligation in the seeded invoice reconciliation CLI. The current repaired implementation passes all 70 independent checks, including invalid currency types; do not change its behavior, remove assertions, or weaken the ten unchanged acceptance criteria. The latest run was partial solely because c2 lacked an executed nonzero USD tax assertion.\n\nExtend the existing subprocess suite with explicit USD cases and assert the entire invoice output including subtotal, tax, total, credited, paid, balance and status. Case 1: one USD line quantity1/unitPrice\"10.01\", taxBps825 gives subtotal10.01, tax0.83, total10.84, balance10.84 and open. Case 2: one USD line quantity1/unitPrice\"0.05\", taxBps1000 gives subtotal0.05, tax0.01, total0.06 and open (HALF UP tie). Retain the existing large USD arithmetic case, EUR/JPY/KWD examples, currency type refusals, invalid decimal/currency/quantity/tax checks, partial balance, repeated allocations, byte-identical repeat executions, duplicate counts after settlement, preservation and identity tests. Test actual output bytes/JSON through real CLI subprocesses and preserve input bytes. Keep the dependency-free Node.js24 interface and exact monetary/schema contract.\n\nRun the complete suite and help command after adding the assertions. Update README to describe the new observed evidence honestly. Complete this as one coherent test-and-documentation change. The current CLI is already correct on these supplied USD examples; this is a missing-proof repair. Deliver the complete artifact with the exact same acceptance list.",
+          "job": "SAME",
+          "coverage": "PARTIAL",
+          "uncovered": [
+            {
+              "requirement": "building the two USD fixtures needs the CLI input JSON shape, which this subtask does not state",
+              "label": "contract/schema design"
+            }
+          ],
+          "note": "Credited via Benzene. Identical retry of the previous subtask after an acceptance refusal (duplicate text)."
+        },
+        {
+          "source": "credited",
+          "run": "2c502876-d636-415e-b0a5-f304befe8073",
+          "text": "Finish the seeded invoice CLI's missing proof while preserving its correct implementation, unchanged ten acceptance criteria and ALL existing assertions. The previous review accepted the added USD tax tests and ID sorting proof but refused c2 because JPY/KWD tests asserted totals only. Do not change invoice-reconcile.js; extend the existing real-subprocess tests and accurate documentation in one coherent phase.\n\nAdd one four-currency input with no credits/payments and compare the ENTIRE parsed output to literal expected JSON, not to values calculated by the implementation. Invoices are deliberately supplied in unsorted order K,J,U,E and must come out E,J,K,U. Each has one line: E EUR quantity3 unitPrice\"1.005\" taxBps2000; J JPY quantity3 unitPrice\"10.5\" taxBps1000; K KWD quantity3 unitPrice\"1.2345\" taxBps500; U USD quantity1 unitPrice\"10.01\" taxBps825. Exact invoice fields in output:\nE: currency EUR, subtotal3.02 tax0.60 total3.62 credited0.00 paid0.00 balance3.62 status open.\nJ: currency JPY, subtotal32 tax3 total35 credited0 paid0 balance35 status open.\nK: currency KWD, subtotal3.704 tax0.185 total3.889 credited0.000 paid0.000 balance3.889 status open.\nU: currency USD, subtotal10.01 tax0.83 total10.84 credited0.00 paid0.00 balance10.84 status open.\nAll monetary values are strings with exactly the displayed precision. payments is empty; duplicates is exactly {invoices:0,credits:0,payments:0}. Run the identical input twice and compare actual output bytes and unchanged input bytes.\n\nAlso add explicit per-line rounding proof: EUR invoice L has THREE separate lines quantity1 unitPrice\"0.005\", taxBps0: subtotal0.03 tax0.00 total0.03 balance0.03, credited0.00 paid0.00, open. Retain the USD nonzero-tax cases including the HALF UP tie, large exact arithmetic, partial status, two allocations within a payment, duplicate counts after settlement, primitive-string currency checks and refusal byte preservation, schema boundary tests, code-unit ordering …[truncated at 2000 chars]",
+          "job": "SAME",
+          "coverage": "PARTIAL",
+          "uncovered": [
+            {
+              "requirement": "fixtures need the CLI input JSON shape (not stated); the three-line EUR invoice needs a multi-line record",
+              "label": "contract/schema design"
+            },
+            {
+              "requirement": "JPY/KWD tie cases give only a subtotal (\"JPY subtotal5 ... KWD subtotal0.005\"); quantity/unitPrice must be invented",
+              "label": "other"
+            }
+          ],
+          "note": "Credited via Benzene. Four-currency expected fields, ordering and repeat-run checks are literal."
+        },
+        {
+          "source": "credited",
+          "run": "2c502876-d636-415e-b0a5-f304befe8073",
+          "text": "Finish the seeded invoice CLI's missing proof while preserving its correct implementation, unchanged ten acceptance criteria and ALL existing assertions. The previous review accepted the added USD tax tests and ID sorting proof but refused c2 because JPY/KWD tests asserted totals only. Do not change invoice-reconcile.js; extend the existing real-subprocess tests and accurate documentation in one coherent phase.\n\nAdd one four-currency input with no credits/payments and compare the ENTIRE parsed output to literal expected JSON, not to values calculated by the implementation. Invoices are deliberately supplied in unsorted order K,J,U,E and must come out E,J,K,U. Each has one line: E EUR quantity3 unitPrice\"1.005\" taxBps2000; J JPY quantity3 unitPrice\"10.5\" taxBps1000; K KWD quantity3 unitPrice\"1.2345\" taxBps500; U USD quantity1 unitPrice\"10.01\" taxBps825. Exact invoice fields in output:\nE: currency EUR, subtotal3.02 tax0.60 total3.62 credited0.00 paid0.00 balance3.62 status open.\nJ: currency JPY, subtotal32 tax3 total35 credited0 paid0 balance35 status open.\nK: currency KWD, subtotal3.704 tax0.185 total3.889 credited0.000 paid0.000 balance3.889 status open.\nU: currency USD, subtotal10.01 tax0.83 total10.84 credited0.00 paid0.00 balance10.84 status open.\nAll monetary values are strings with exactly the displayed precision. payments is empty; duplicates is exactly {invoices:0,credits:0,payments:0}. Run the identical input twice and compare actual output bytes and unchanged input bytes.\n\nAlso add explicit per-line rounding proof: EUR invoice L has THREE separate lines quantity1 unitPrice\"0.005\", taxBps0: subtotal0.03 tax0.00 total0.03 balance0.03, credited0.00 paid0.00, open. Retain the USD nonzero-tax cases including the HALF UP tie, large exact arithmetic, partial status, two allocations within a payment, duplicate counts after settlement, primitive-string currency checks and refusal byte preservation, schema boundary tests, code-unit ordering …[truncated at 2000 chars]",
+          "job": "SAME",
+          "coverage": "PARTIAL",
+          "uncovered": [
+            {
+              "requirement": "fixtures need the CLI input JSON shape (not stated); multi-line record",
+              "label": "contract/schema design"
+            },
+            {
+              "requirement": "JPY/KWD tie cases give only a subtotal; line values must be invented",
+              "label": "other"
+            }
+          ],
+          "note": "Identical retry of the previous subtask (duplicate text)."
+        },
+        {
+          "source": "credited",
+          "run": "7a247d71-b790-46e8-9c51-d4923503fa85",
+          "text": "Create README.md, test.js, and the named fixture inputs and expected successful lock files; harden resolve.js if the tests reveal defects. README.md must document offline Node.js 24 usage, `--help`, exit codes 0/1/2, strict schema rules, exact output shape, atomic and collision behavior, and the exact global objective: sort all catalogue names by JavaScript code-unit order, compare complete vectors lexicographically with 0 for absent packages, and maximize that vector rather than using greedy root order or minimum package count. Fixtures and real CLI subprocess tests must cover the distinguishing trap where roots A `[1,2]` and B `[1,1]`, A2 requires C2, A1 requires C1, and B1 requires C1, expecting exactly A1/B1/C1; shared diamonds; satisfiable and impossible cycles; disconnected packages; multiple solutions that distinguish the global full-vector optimum; empty roots; literal Unicode, whitespace-only, and prototype-like names; unknown roots and dependency references as unsatisfiable; complete nested validation including malformed unused packages and versions; duplicate identities; unknown fields; wrong types; range violations; and `min>max`. test.js must spawn `node resolve.js` as real child processes, compare complete output bytes and parsed structures against independently derived expectations, assert exact exit codes and stdout/stderr discipline, verify deterministic repeated bytes, input-byte preservation, preservation of existing output on malformed and unsatisfiable cases, direct/symlink/hardlink collision refusal, and failed-I/O destination preservation. Include a separate exhaustive oracle in test.js that enumerates all package inclusion/version assignments independently of the production search and checks satisfiability plus the globally optimal complete version vector for small deterministic generated catalogues through CLI subprocesses.",
+          "job": "OTHER",
+          "coverage": "n/a",
+          "uncovered": [],
+          "note": "Routing mismatch: README/tests/oracle for a package dependency resolver (resolve.js), not a financial reconciler. Text truncated at 2000 chars."
+        },
+        {
+          "source": "credited",
+          "run": "9d8f31f1-3f23-4c05-838a-944720a54a54",
+          "text": "Build a self-contained Node.js command-line application for scaling recipes and consolidating a shopping list. Use one documented JSON input file containing recipes with id, name, original servings, and ingredients (name, numeric quantity, unit), plus a plan listing each selected recipe id and desired servings. The CLI reads that file, scales quantities by desired/original servings, combines entries only when normalized ingredient name and unit match, sorts output deterministically, and prints a JSON shopping list. Refuse malformed JSON, unknown recipe ids, non-positive servings or quantities, and unsupported units with actionable errors. Include a small example input, README usage, and automated tests for scaling, consolidation, unit separation, and invalid inputs. Use only local files and no external service or API. Do not modify mgtf/atoma.",
+          "job": "OTHER",
+          "coverage": "n/a",
+          "uncovered": [],
+          "note": "Routing mismatch: recipe-scaling shopping-list CLI."
+        }
+      ],
+      "verdict": "NOT",
+      "rationale": "0/9 SAME subtasks COVERED. Seven of the nine SAME subtasks are iterations on one seeded invoice project; the variance between them is new test fixtures and repairs over nested ledger records, which a <=12-field primitive schema cannot carry.",
+      "programNote": "Highest-volume recipe in the group (10 credited successes) but its SAME work is test-extension and repair of one existing LLM-authored codebase. The four PARTIALs are single-line test cases that a P with a fixed invoice fixture builder could carry, but only if the input schema were hard-coded for this one project."
+    },
+    {
+      "molecule": "Ammonia",
+      "id": "build-node-http-replay-verifier",
+      "successes": 1,
+      "matches": 1,
+      "refusalReason": "Creating the CLI, fixture server, and task-specific manifest schema requires interpreting the requested API behavior and filenames, so it is not a stable deterministic recipe. (stale: promotionRefusalIsCurrent=false)",
+      "schema": {
+        "cliFile": "string",
+        "serverFile": "string",
+        "manifests": "record{pass:string,fail:string}",
+        "routes": "list<string> (literal, e.g. 'GET /health -> 200 {\"ok\":true}')",
+        "host": "string",
+        "port": "enum[os-assigned]",
+        "successMessage": "string (literal format '<N> checks passed\\n')",
+        "failureCases": "list<enum[malformed-input,missing-server,timeout,mismatch]>",
+        "failManifestMutation": "enum[alter-first-expected-body]",
+        "probeFile": "string (\".atoma-probes.json\")",
+        "probeVersion": "int"
+      },
+      "subtasks": [
+        {
+          "source": "learned",
+          "run": "2026-10-01T21-33-54-552-c7deb659",
+          "text": "Create a small, dependency-free Node verification package for local HTTP APIs. Its public command is `node replay.mjs <manifest.json>`. The JSON manifest supplies a workspace-relative Node server entry and an ordered list of GET requests with paths, expected status codes and expected JSON bodies. The CLI launches that server on an OS-assigned 127.0.0.1 port, compares each observed status and parsed JSON body structurally, and always stops the server. It prints exactly `<N> checks passed\\n` and exits 0 only when every check matches; malformed input, a missing server, timeout or any mismatch must produce a diagnostic and a nonzero exit. Include a tiny local sample API (GET /health -> 200 {\"ok\":true}; GET /double?n=7 -> 200 {\"value\":14}; GET /missing -> 404 {\"error\":\"not_found\"}), a passing manifest, and a deliberately incorrect expected-body manifest that demonstrates the nonzero path. Preserve ordered request semantics and never rewrite expected values to make checks pass. Include the machine-readable .atoma-probes.json version 1 recording the actual command invocations and their observed exit/stdout/stderr. No UI, external networking, dependencies or package installation.",
+          "job": "SAME",
+          "coverage": "COVERED",
+          "uncovered": [],
+          "note": "Operator trace. Routes, output format, host and failure classes are literal; the sample API is a static route table (only n=7 is required)."
+        },
+        {
+          "source": "credited",
+          "run": "2026-10-01T23-55-59-872-7b03d8e6",
+          "text": "Create a small, dependency-free Node verification package for local HTTP APIs. Its public command is `node replay.mjs <manifest.json>`. The JSON manifest supplies a workspace-relative Node server entry and an ordered list of GET requests with paths, expected status codes and expected JSON bodies. The CLI launches that server on an OS-assigned 127.0.0.1 port, compares each observed status and parsed JSON body structurally, and always stops the server. It prints exactly `<N> checks passed\\n` and exits 0 only when every check matches; malformed input, a missing server, timeout or any mismatch must produce a diagnostic and a nonzero exit. Include a tiny local sample API (GET /health -> 200 {\"ok\":true}; GET /double?n=7 -> 200 {\"value\":14}; GET /missing -> 404 {\"error\":\"not_found\"}), a passing manifest, and a deliberately incorrect expected-body manifest that demonstrates the nonzero path. Preserve ordered request semantics and never rewrite expected values to make checks pass. Include the machine-readable .atoma-probes.json version 1 recording the actual command invocations and their observed exit/stdout/stderr. No UI, external networking, dependencies or package installation.",
+          "job": "SAME",
+          "coverage": "COVERED",
+          "uncovered": [],
+          "note": "Operator trace. Same text as the learning subtask (a re-run of the same goal)."
+        }
+      ],
+      "verdict": "PARAMETRIC",
+      "rationale": "2/2 SAME subtasks COVERED, but both carry the same text (one distinct subtask).",
+      "programNote": "P = manifest-driven replay CLI + static-route sample server + derived failing manifest + probe-file writer. One distinct subtask; one credited success."
+    },
+    {
+      "molecule": "Ammonia",
+      "id": "build-schema-csv-json-cli",
+      "successes": 5,
+      "matches": 5,
+      "refusalReason": "Implementing arbitrary CSV conversion semantics, schemas, fixtures, tests, and documentation requires task-specific design decisions that cannot be safely derived deterministically.",
+      "schema": {
+        "cliFile": "string",
+        "mode": "enum[convert-to-json-records,validate-report]",
+        "options": "list<enum[schema,out,json]>",
+        "requiredHeader": "list<string>|null",
+        "columnRules": "list<string> (literal 'column:rule[,rule]'; rule from a fixed set: nonempty, unique, email, date-iso-strict, positive-int, decimal(min,maxdp), upper-alpha(n), string, number)",
+        "schemaFileTypes": "list<enum[string,number,iso-date]>",
+        "errorLineFormat": "string (literal, e.g. 'line <n>: <column>: <message>')",
+        "jsonOutputShape": "enum[records-array,summary{valid,invalid,errors[]}]",
+        "exitCodes": "record{ok:int,invalid:int,usage:int}",
+        "sampleFiles": "list<string>",
+        "tests": "enum[npm-test,none]",
+        "readmeSections": "list<enum[rules,usage,output-formats,exit-codes,samples]>"
+      },
+      "subtasks": [
+        {
+          "source": "learned",
+          "run": "7bc86c1f-e042-418f-820e-4ece062ec472",
+          "text": "Build a Node.js command-line tool, csv2json.mjs, using only Node's built-in modules, that converts a CSV file into JSON. It takes the CSV path as its argument, an optional --schema path to a JSON file declaring required columns and their types (string, number or ISO date), and an optional --out path; it writes a JSON array of records keyed by the header names to stdout, or to the --out file. It parses quoted fields that contain commas, newlines and doubled quotes. When rows are invalid against the schema it prints one error per row to stderr, naming the line number, the column and the reason, writes nothing, and exits with status 1; a missing or unreadable input exits with status 2 and a usage message. Include a valid sample CSV, a sample CSV with errors, a sample schema, automated tests that run with npm test, and a README explaining how to run it on the samples.",
+          "job": "SAME",
+          "coverage": "COVERED",
+          "uncovered": [],
+          "note": "Options, type set, stderr row-error content, exit codes and deliverables are literal; sample/schema contents are unspecified and can be P-fixed."
+        },
+        {
+          "source": "credited",
+          "run": "80d1af73-c2f1-4544-a532-626d48e992bb",
+          "text": "Write the technical documentation for the existing csv2json command-line tool in this workspace, without changing its behaviour. Add a docs folder with three Markdown files: usage.md covering every argument and option with an example command and its real output on the sample files; schema.md specifying the schema file format, each supported type and how a value is validated against it, with one example per type; and errors.md listing every exit status and every kind of row error the tool can report, each with the exact message it prints. Every example output must be copied from actually running the tool on the sample files, not written by hand. Link the three files from the README.",
+          "job": "OTHER",
+          "coverage": "n/a",
+          "uncovered": [],
+          "note": "Documentation-only (docs/usage.md, schema.md, errors.md with real outputs) for the existing tool; not a build-a-converter task."
+        },
+        {
+          "source": "credited",
+          "run": "72e81903-ea51-4d97-b468-f2c014e6a59d",
+          "text": "Build a Node CLI, validate-orders.mjs, with no dependencies beyond Node itself, that validates a CSV export of customer orders before it is imported. The header must be exactly order_id,customer_email,order_date,quantity,unit_price,country. Rules: order_id is unique and non-empty; customer_email looks like an email; order_date is a real calendar date in YYYY-MM-DD; quantity is a positive integer; unit_price is a non-negative number with at most two decimals; country is a two-letter uppercase code. Usage: node validate-orders.mjs <file.csv> [--json]. It prints one line per problem as \"line <n>: <column>: <message>\" and a final summary line with the counts of valid and invalid rows; with --json it prints a single JSON object {valid, invalid, errors:[{line,column,message}]} instead. Exit codes: 0 when every row is valid, 1 when at least one row is invalid, 2 for a usage error, a missing file or a wrong header. Quoted fields containing commas must be handled. Include sample files good.csv and bad.csv and a README documenting the rules, the usage, the output formats and the exit codes.",
+          "job": "SAME",
+          "coverage": "COVERED",
+          "uncovered": [],
+          "note": "CSV validation CLI with JSON output; classified SAME as the schema-validation half of whenToUse (it does not convert records to JSON, so this is borderline). Per-column rules map to a fixed rule vocabulary with literal parameters; summary line format unspecified so P chooses it."
+        },
+        {
+          "source": "credited",
+          "run": "72e81903-ea51-4d97-b468-f2c014e6a59d",
+          "text": "Build a Node CLI, validate-orders.mjs, with no dependencies beyond Node itself, that validates a CSV export of customer orders before it is imported. The header must be exactly order_id,customer_email,order_date,quantity,unit_price,country. Rules: order_id is unique and non-empty; customer_email looks like an email; order_date is a real calendar date in YYYY-MM-DD; quantity is a positive integer; unit_price is a non-negative number with at most two decimals; country is a two-letter uppercase code. Usage: node validate-orders.mjs <file.csv> [--json]. It prints one line per problem as \"line <n>: <column>: <message>\" and a final summary line with the counts of valid and invalid rows; with --json it prints a single JSON object {valid, invalid, errors:[{line,column,message}]} instead. Exit codes: 0 when every row is valid, 1 when at least one row is invalid, 2 for a usage error, a missing file or a wrong header. Quoted fields containing commas must be handled. Include sample files good.csv and bad.csv and a README documenting the rules, the usage, the output formats and the exit codes.",
+          "job": "SAME",
+          "coverage": "COVERED",
+          "uncovered": [],
+          "note": "Credited via Benzene. Identical retry of the previous subtask after an acceptance refusal (duplicate text)."
+        },
+        {
+          "source": "credited",
+          "run": "22af997d-1440-49b1-8b65-01c41f6ef7ad",
+          "text": "Build the complete Node.js 24 warehouse reconciliation CLI in stock-reconcile.js, its node:test subprocess suite in test/stock-reconcile.test.js, package.json with npm test, README.md, and fixed acceptance fixtures under examples/. Implement exactly: node stock-reconcile.js --opening <path> --events <path> --out <directory>; --help exits 0; success atomically publishes stock.csv and audit.json; every error exits nonzero, identifies input/row on stderr, preserves inputs and existing outputs byte-for-byte, refuses output destinations that would overwrite either input, and validates the full dataset before publication. Use no network calls or runtime dependencies. Parse UTF-8 CSV with optional BOM, LF/CRLF, quoted commas, doubled quotes, and embedded newlines; require exact headers sku,onHand and id,sku,type,quantity,ref; reject malformed quoting, missing/extra columns, internal blank records, blank IDs, duplicate opening SKUs, invalid quantities, and unsafe-integer values or arithmetic. Preserve case and whitespace in IDs. Apply RECEIVE, RESERVE, RELEASE, SHIP, and RETURN with all stated same-SKU, reservation, availability, cumulative-return, nonnegative-balance, and Number.MAX_SAFE_INTEGER constraints. Check globally repeated event IDs before transitions: an identical parsed row is a harmless duplicate, while differing fields fail. Generate deterministic LF stock.csv sorted by JavaScript string comparison with correct escaping and columns sku,onHand,reserved,available, including zero-stock SKUs. Generate deterministic audit.json without timestamps or temporary paths, containing every event row's ID, applied/duplicate disposition, before/after onHand,reserved,available for its SKU, and applied/duplicate counts. Support opening-only reconciliation. Include the fixed example where opening A=10 and B=0 and events RESERVE 6 A R1, SHIP 4 A R1 as S1, identical S1 again, RELEASE 2 A R1, RETURN 3 A referencing S1, RECEIVE 7 B, and RESERVE 2 B R2; ex …[truncated at 2000 chars]",
+          "job": "OTHER",
+          "coverage": "n/a",
+          "uncovered": [],
+          "note": "Routing mismatch: stateful warehouse event reconciliation (RECEIVE/RESERVE/RELEASE/SHIP/RETURN); CSV parsing is incidental. If SAME it would be NOT (transition/business rules). Text truncated at 2000 chars."
+        },
+        {
+          "source": "credited",
+          "run": "2c03a3f6-1300-407c-a3b0-7fc21dddb0c1",
+          "text": "Inspect and repair the seeded dependency-free Node.js 24 CLI in stock-reconcile.js while retaining `node stock-reconcile.js --opening <path> --events <path> --out <directory>` and `--help`. Preserve the complete stated CSV, validation, event-order, reservation, shipment/return, duplicate-ID, atomic publication, deterministic stock.csv, and audit.json contracts. In particular, reproduce and add explicit assertions proving fixes for: exhausted reservation IDs cannot be reused; reservation IDs are globally unique across SKUs; event quantity `00` is rejected; a quoted final CSV column followed by another record parses correctly; and event IDs and reservation IDs use separate namespaces. Strengthen test/stock-reconcile.test.js using node:test and actual CLI subprocesses in isolated directories. Tests must assert setup, output state, and relevant stderr—not exit status alone—and explicitly cover conflicting duplicate fields after valid prerequisites, identical shipment duplicates before transition checks, all event transition prerequisites and partial transitions, safe arithmetic, hostile CSV including BOM/CRLF/quoted commas/doubled quotes/embedded newlines/quoted last columns, malformed rows and quantities, input and existing-output byte preservation on late failures, refusal to overwrite inputs, opening-only and zero-stock output, the fixed example totals and counts, and excess-return preservation. Execute valid inputs twice and compare both stock.csv and audit.json byte-for-byte. Keep README.md and examples accurate, updating them only where necessary without adding dependencies, network use, or a web UI. Run and record `npm test` as the regression probe, and also record a successful `node stock-reconcile.js --help` probe if the suite does not visibly establish it. Report the exact observed test result and any genuine remaining coverage gaps.",
+          "job": "OTHER",
+          "coverage": "n/a",
+          "uncovered": [],
+          "note": "Repair of the same warehouse reconciler; OTHER for the same reason."
+        }
+      ],
+      "verdict": "PARAMETRIC",
+      "rationale": "3/3 SAME subtasks COVERED (100%), but they are only 2 distinct texts and 2 of the 3 come from one run (an acceptance retry). 3 of the 6 matches were routing mismatches.",
+      "programNote": "P = configurable CSV CLI generator (quote-aware parser, exact-header check, rule vocabulary, convert vs validate modes, JSON shapes, exit-code table, fixed samples/tests/README templates). Coverage depends on the rule vocabulary being fixed in advance; a cross-field rule would break it. Five credited successes, but only two distinct SAME subtasks."
+    },
+    {
+      "molecule": "Ammonia",
+      "id": "build-text-frequency-cli",
+      "successes": 8,
+      "matches": 9,
+      "refusalReason": "The recipe requires interpreting task-specific tokenization, normalization, sorting, filenames, and documentation requirements from natural language, which cannot be deterministically derived.",
+      "schema": {
+        "entryFile": "string",
+        "defaultTop": "int",
+        "lineFormat": "string (literal, e.g. '<word> <count>')",
+        "tokenPattern": "enum[ascii-letters,unicode-letters]",
+        "caseFold": "enum[lower,none]",
+        "sort": "enum[count-desc-then-alpha]",
+        "flags": "list<enum[top,json,min-length,exclude,format-csv]>",
+        "incompatibleFlags": "list<string> (literal pairs, e.g. 'format-csv|json')",
+        "errorExitCode": "int",
+        "sampleFile": "string",
+        "readmeExamples": "list<string> (literal command lines)",
+        "probeCommands": "list<string> (literal command lines)"
+      },
+      "subtasks": [
+        {
+          "source": "learned",
+          "run": "45d27925-c84d-4624-8683-4ae2a8d15b88",
+          "text": "Build a dependency-free Node command-line tool, wordfreq.js, that reads a text file given as its only argument and prints the ten most frequent words with their counts, one per line as \"word count\", most frequent first, ties broken alphabetically. Words are lowercased sequences of letters; everything else separates words. With no argument or an unreadable file it prints a usage or error message to stderr and exits with status 1. Include a small sample text file and a README with an example run and its exact output.",
+          "job": "SAME",
+          "coverage": "COVERED",
+          "uncovered": [],
+          "note": "All behaviour is literal (top 10, \"word count\", alphabetical ties, lowercased letter runs, exit 1); sample text can be P-fixed."
+        },
+        {
+          "source": "credited",
+          "run": "235a1935-6e5c-4c03-bbc8-66a8df57f7c6",
+          "text": "Extend the existing wordfreq.js command-line tool without breaking its current behaviour: add an optional --top N flag that prints the N most frequent words instead of ten (N must be a positive integer; anything else prints an error to stderr and exits with status 1), and an optional --json flag that prints the same result as a JSON array of {\"word\", \"count\"} objects. Update the README with an example of each flag and its exact output.",
+          "job": "SAME",
+          "coverage": "PARTIAL",
+          "uncovered": [
+            {
+              "requirement": "\"without breaking its current behaviour\": the existing default contract (top-10, line format, tie-break, tokenisation) is not restated in this subtask, and the file to extend is LLM-authored; P(S) can only regenerate it",
+              "label": "other"
+            }
+          ],
+          "note": "The new flags (--top N positive int, --json array of {word,count}) and README examples are parametric."
+        },
+        {
+          "source": "credited",
+          "run": "036ef18a-7afa-4ef2-b2da-7d00ba9589c3",
+          "text": "Inspect the existing CLI and then update wordfreq.js while preserving its current behavior and existing --top and --json flags. Add optional --min-length N so words shorter than N letters are ignored before counting; accept N only when it is a positive integer, while missing, zero, negative, fractional, or nonnumeric values print an error to stderr and exit with status 1. Ensure --min-length combines correctly with --top and --json, including --min-length 4 --top 3 --json. Keep the implementation small and self-contained. Execute wordfreq.js with deterministic inputs to prove unchanged default, --top, and --json behavior; filtering by minimum length; combined flags; and representative invalid values with stderr and exit status 1. Capture the exact successful outputs needed for README examples.",
+          "job": "SAME",
+          "coverage": "PARTIAL",
+          "uncovered": [
+            {
+              "requirement": "preserve current behaviour and the existing --top/--json flags, whose semantics are not restated; existing implementation is LLM-authored",
+              "label": "other"
+            }
+          ],
+          "note": "--min-length validation, combinations and probe list are parametric."
+        },
+        {
+          "source": "credited",
+          "run": "9854553c-b897-43f1-af88-3dbf2fb546db",
+          "text": "Inspect the current CLI and capture its existing outputs and error behavior, then update wordfreq.js to add optional --exclude WORDS. WORDS is a comma-separated list matched case-insensitively; excluded words must be omitted while preserving the existing ordering and output format. An empty list or missing value must print an error to stderr and exit with status 1. Preserve exactly the current behavior of no flags, --top, --json, --min-length, and their errors. Ensure --exclude combines with all existing flags. Execute wordfreq.js against sample.txt to prove: node wordfreq.js --exclude hello,world sample.txt; case-insensitive exclusion with --exclude HELLO; empty and missing values with stderr and exit status 1; --exclude hello --min-length 4 --top 3 --json sample.txt; and regression cases for no flags, each existing flag, combinations, and existing error paths. Compare pre-change and post-change results for unchanged cases.",
+          "job": "SAME",
+          "coverage": "PARTIAL",
+          "uncovered": [
+            {
+              "requirement": "\"Preserve exactly the current behavior of no flags, --top, --json, --min-length, and their errors\" and pre/post comparison: exact error texts of an LLM-authored implementation are unknown to P",
+              "label": "other"
+            }
+          ],
+          "note": "--exclude semantics (comma list, case-insensitive, empty/missing error) and the probe commands are literal."
+        },
+        {
+          "source": "credited",
+          "run": "9854553c-b897-43f1-af88-3dbf2fb546db",
+          "text": "Update README.md using the verified outputs from the preceding phase. Document --exclude WORDS and include one runnable example using --exclude alone and one using it with --min-length 4, --top 3, and --json; show each example's exact observed output. Do not alter wordfreq.js or re-run already established probes.",
+          "job": "OTHER",
+          "coverage": "n/a",
+          "uncovered": [],
+          "note": "Documentation-only README update. Credit withheld in the trace (\"validator observed that the run did not follow the recipe\"); included as a match inside a credited run."
+        },
+        {
+          "source": "credited",
+          "run": "fa8b6ce3-a182-4ac6-80c7-f477b2265680",
+          "text": "Inspect wordfreq.js, README.md, and available fixtures, then execute and record a regression baseline for no flags, --top, --json, --min-length, --exclude, combinations already supported, and their existing non-destructive error cases. Capture exact stdout, stderr, ordering, and exit statuses without modifying the deliverable.",
+          "job": "OTHER",
+          "coverage": "n/a",
+          "uncovered": [],
+          "note": "Read-only baseline probe recording (\"without modifying the deliverable\"); no CLI to build."
+        },
+        {
+          "source": "credited",
+          "run": "fa8b6ce3-a182-4ac6-80c7-f477b2265680",
+          "text": "Update wordfreq.js through a full on-disk file write while preserving the recorded behavior exactly. Add optional `--format csv`: `node wordfreq.js --format csv sample.txt` must print `word,count` followed by one `word,count` line per result in the existing result order; it must combine with --top, --min-length, and --exclude. `--format csv` combined with --json, and `--format` with any value other than `csv`, must print an error to stderr and exit with status 1. Execute and record probes for basic CSV output, each supported combination, both new error cases, and every baseline command; compare baseline commands byte-for-byte for stdout, stderr, and exit status. Keep the implementation small and self-contained.",
+          "job": "SAME",
+          "coverage": "PARTIAL",
+          "uncovered": [
+            {
+              "requirement": "\"preserving the recorded behavior exactly\" and byte-for-byte comparison of stdout/stderr/exit with a baseline recorded from the LLM-authored implementation",
+              "label": "other"
+            }
+          ],
+          "note": "--format csv output, combinations and both error cases are literal."
+        },
+        {
+          "source": "credited",
+          "run": "fa8b6ce3-a182-4ac6-80c7-f477b2265680",
+          "text": "Update README.md through a full on-disk file write to document `--format csv`, its compatibility with --top, --min-length, and --exclude, and its incompatibility with --json and non-csv values. Include a runnable example and the exact verified output beginning with `word,count`, sourced from the recorded probes. Read the completed README.md back to confirm the example and exact output are present; do not re-run already recorded CLI probes.",
+          "job": "OTHER",
+          "coverage": "n/a",
+          "uncovered": [],
+          "note": "Documentation-only README update from recorded probes."
+        },
+        {
+          "source": "credited",
+          "run": "d99354c5-7cc2-4f79-bba7-f1cb0f55d38b",
+          "text": "Restore the README of the wordfreq.js command-line tool without changing the tool: every flag (--top, --json, --min-length, --exclude, --format csv) gets an example command with its exact output, as earlier versions of the README had, and the README states each error case with the message printed to stderr and exit status 1: a missing or unreadable file, an invalid --top or --min-length, an empty --exclude, and an invalid --format or --format csv combined with --json.",
+          "job": "OTHER",
+          "coverage": "n/a",
+          "uncovered": [],
+          "note": "Documentation-only README restoration (\"without changing the tool\")."
+        },
+        {
+          "source": "credited",
+          "run": "d8bd792d-cbd1-4b79-9863-0689669de07e",
+          "text": "Build a dependency-free Node.js CLI named redact-jsonl that streams UTF-8 NDJSON from a file path or stdin to stdout, redacting values whose object keys match a configurable case-insensitive denylist. Default keys: password, token, secret, apiKey, authorization. Recurse through objects and arrays without mutating key names; replace matched values with the literal string [REDACTED]. Accept --keys comma-separated names and --input path, with --help. Emit exactly one compact JSON output line per nonblank valid input line in input order. Blank lines are ignored. On malformed JSON, report input line number to stderr, exit 1, and write no output for that bad line or any later line; prior valid lines may already have streamed. Invalid options or unreadable input exit 2 with a useful stderr message. Never print original secret values in errors. Include Node built-in tests for nested arrays, mixed key casing, custom keys, whitespace, malformed lines after valid lines, unreadable input, and stdin; README with usage examples. Do not use network access or modify input files.",
+          "job": "OTHER",
+          "coverage": "n/a",
+          "uncovered": [],
+          "note": "Routing mismatch: NDJSON secret-redaction CLI, not word frequency."
+        }
+      ],
+      "verdict": "NOT",
+      "rationale": "1/5 SAME subtasks COVERED (20%). The four extension subtasks fail only on preserving behaviour of an existing LLM-authored wordfreq.js that is not restated in their text. 5 of the 9 matches were OTHER (docs-only, read-only probes, unrelated CLI).",
+      "programNote": "Sensitivity: the flag variance itself (top/json/min-length/exclude/format-csv with positive-int, non-empty-list and enum validation plus incompatible pairs) is enumerable. If P had owned wordfreq.js from the first dispatch and persisted its S, all four PARTIALs would flip to COVERED (5/5, PARAMETRIC). With the 7-subtask cap (learned + 6 most recent matches), SAME = {learned, tf_csv}: 1/2 = MIXED."
+    },
+    {
+      "molecule": "Ammonia",
+      "id": "build-verified-ambiguous-ledger",
+      "successes": 5,
+      "matches": 5,
+      "refusalReason": "Deriving arbitrary candidate definitions, constraints, report semantics, and ambiguity rules from natural-language subtasks requires irreducible reasoning.",
+      "schema": {
+        "openingBalance": "int",
+        "movements": "list<string> (literal 't1:receipt:+12|+17')",
+        "checkpoints": "list<string> (literal 't3=54')",
+        "nonNegative": "bool",
+        "csvFile": "string",
+        "csvColumns": "list<string>",
+        "auditFile": "string",
+        "auditSections": "list<enum[raw,constraints,survivors,arithmetic,identified,ambiguous,resolved-vs-guess]>",
+        "verifierFile": "string",
+        "ambiguitySeparators": "list<string> (e.g. ', ', ' and ')",
+        "regressionFile": "string|null",
+        "mutationCases": "list<string> (literal 'file:find->replace=exit')"
+      },
+      "subtasks": [
+        {
+          "source": "learned",
+          "run": "c21011cb-101b-4958-962d-1f4c60236339",
+          "text": "Formally enumerate every five-movement reconstruction from opening stock 40 and raw candidates t1 receipt {+12,+17}, t2 dispatch {-9,-4}, t3 receipt {+6,+8}, t4 dispatch {-15,-13}, t5 receipt {+10,+16}, requiring stock after t3 = 54, stock after t5 = 51, and every intermediate balance nonnegative. Create normalized.csv with exactly columns id,kind,candidate_deltas,identified_delta,possible_balance_after and one row per t1..t5; retain raw candidate sets, leave identified_delta empty whenever surviving values differ, and never select a preferred reconstruction. Create audit.md that separately records observations/raw candidates, constraints, surviving alternatives, arithmetic for every surviving five-movement sequence, identifiable movements and balances, ambiguous movements and balances, and an explicit distinction between resolved values and plausible guesses, without invented sources or historical claims. Create verify_ledger.py using only the Python standard library; it must derive survivors from the raw candidate sets and checkpoints rather than embedding preferred results, parse and compare the delivered CSV and report claims, and exit nonzero on any discrepancy. Run and record successful verifier evidence.\n\n== LITERAL CONTRACTS FROM TOP-LEVEL GOAL ==\nFive consecutive signed movements t1..t5 have OCR candidate sets: t1 receipt {+12,+17}; t2 dispatch {-9,-4}; t3 receipt {+6,+8}; t4 dispatch {-15,-13}; t5 receipt {+10,+16}.\nnormalized.csv must have one row per t1..t5 with columns id,kind,candidate_deltas,identified_delta,possible_balance_after; leave identified_delta empty when multiple values remain, and do not pick a preferred reconstruction.\naudit.md must preserve raw candidate sets separately from surviving alternatives and explicitly distinguish a resolved value from a plausible guess.\nThe verifier must derive survivors from raw candidate sets and checkpoints, compare them against the delivered CSV/report claims, and exit nonzero on disagreement.",
+          "job": "SAME",
+          "coverage": "COVERED",
+          "uncovered": [],
+          "note": "Candidates, checkpoints, columns and audit sections are literal; Cartesian enumeration + checkpoint filter is generic P logic; audit.md and verifier follow P's own report format. Text truncated at 2000 chars."
+        },
+        {
+          "source": "credited",
+          "run": "c21011cb-101b-4958-962d-1f4c60236339",
+          "text": "Independently recompute the complete candidate product for opening stock 40 with t1 receipt {+12,+17}, t2 dispatch {-9,-4}, t3 receipt {+6,+8}, t4 dispatch {-15,-13}, t5 receipt {+10,+16}, enforcing stock after t3 = 54, stock after t5 = 51, and nonnegative intermediate stock. Audit normalized.csv, audit.md, and verify_ledger.py against that fresh result, including survivor completeness, arithmetic, raw-versus-surviving separation, empty identified_delta fields for unresolved movements, every possible balance, and nonzero verifier behavior on disagreement. Correct any defect in those same files, then record a final successful standard-library verifier run. Return the key surviving reconstructions and movement/balance ambiguity conclusions directly in the phase result for the user-facing response, without choosing a preferred reconstruction.\n\n== LITERAL CONTRACTS FROM TOP-LEVEL GOAL ==\nFive consecutive signed movements t1..t5 have OCR candidate sets: t1 receipt {+12,+17}; t2 dispatch {-9,-4}; t3 receipt {+6,+8}; t4 dispatch {-15,-13}; t5 receipt {+10,+16}.\nnormalized.csv must have one row per t1..t5 with columns id,kind,candidate_deltas,identified_delta,possible_balance_after; leave identified_delta empty when multiple values remain, and do not pick a preferred reconstruction.\naudit.md must preserve raw candidate sets separately from surviving alternatives and explicitly distinguish a resolved value from a plausible guess.\nThe verifier must derive survivors from raw candidate sets and checkpoints, compare them against the delivered CSV/report claims, and exit nonzero on disagreement.",
+          "job": "SAME",
+          "coverage": "COVERED",
+          "uncovered": [],
+          "note": "Restates all inputs; regenerating the three files from S and re-running the verifier (plus a disagreement probe) satisfies the audit/correct request."
+        },
+        {
+          "source": "credited",
+          "run": "3b3efaf3-15c9-4977-9a64-796e4a4a37d4",
+          "text": "Repair verify_ledger.py and add regression_checks.py. Define a documented, explicitly bounded audit.md report grammar that semantically requires exactly two surviving reconstructions while accepting both '+12, +17' and '+12 and +17' as equivalent within the designated ambiguity field; do not imply arbitrary natural-language understanding. Preserve the supplied raw candidate data, normalized.csv, unrelated correct behavior, and the two correct surviving reconstructions. The regression harness must create isolated temporary copies and verify these exact outcomes with exit codes: unchanged original passes with 0; changing 'Exactly two sequences survive:' to 'Exactly three sequences survive:' fails nonzero; replacing the correct '+12, +17' wording with '+12 and +17' passes with 0; changing normalized.csv t3 identified_delta from +6 to +8 fails nonzero; falsely identifying t1 as only +12 fails nonzero. Execute the harness and record reproducible evidence.",
+          "job": "SAME",
+          "coverage": "PARTIAL",
+          "uncovered": [
+            {
+              "requirement": "raw candidate sets and checkpoints needed to rebuild the verifier are not restated in this subtask",
+              "label": "other"
+            },
+            {
+              "requirement": "\"define a documented, explicitly bounded audit.md report grammar\" consistent with existing LLM-authored wording (e.g. \"Exactly two sequences survive:\")",
+              "label": "contract/schema design"
+            },
+            {
+              "requirement": "mutation \"falsely identifying t1 as only +12\" is not given as a literal edit",
+              "label": "other"
+            }
+          ],
+          "note": "Four of the five mutation outcomes and the two accepted separators are literal."
+        },
+        {
+          "source": "credited",
+          "run": "947a21a2-e0b0-4b6d-b219-a83ef2c1747b",
+          "text": "Repair verify_ledger.py and regression_checks.py so every audit assertion is parsed only from its designated unique section/field, values are compared with survivors derived from the preserved raw data and normalized.csv, and missing, duplicate, or conflicting actual fields fail. Keep support deliberately bounded to the documented format, including the actual t1 ambiguity claim accepting comma or 'and', without treating documentation examples as evidence. Extend isolated-copy regressions for: original exit 0; actual t1 comma-to-and exit 0; actual t1 +17 to +99 nonzero while examples remain unchanged; removed actual ambiguity claim with examples retained nonzero; duplicate conflicting actual t1 claim nonzero; survivor count changed from two to three and from two to four nonzero; wrong t3 CSV nonzero; and falsely identified t1 nonzero. For every mutation, assert exactly the intended real field changed and no documentation example changed. Preserve normalized.csv, correct raw data, and both survivors. Execute the harness and record its successful command-line result.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "parse each assertion only from its designated section/field of the existing audit.md and tell documentation examples apart from actual claims",
+              "label": "contract/schema design"
+            },
+            {
+              "requirement": "author mutations such as a duplicate conflicting t1 claim or a removed claim with examples retained",
+              "label": "other"
+            },
+            {
+              "requirement": "assert that each mutation changed exactly the intended real field and no example",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "raw data not restated",
+              "label": "other"
+            }
+          ],
+          "note": ""
+        },
+        {
+          "source": "credited",
+          "run": "947a21a2-e0b0-4b6d-b219-a83ef2c1747b",
+          "text": "Update audit.md to accurately document the bounded section/field grammar implemented by verify_ledger.py, clearly distinguishing illustrative examples from actual claims while preserving the correct actual t1 ambiguity between +12 and +17, correct survivor count of two, raw data, CSV conclusions, and both survivors. Reconcile verify_ledger.py or regression_checks.py if final-document integration exposes defects, then run the entire regression harness after the final audit.md change and record proof that all required isolated-copy cases pass with the specified exit behavior.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "document the bounded grammar in audit.md and distinguish illustrative examples from actual claims",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "reconcile verify_ledger.py / regression_checks.py defects exposed by integration",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "preserve the claims of an LLM-authored document",
+              "label": "other"
+            }
+          ],
+          "note": "Credited via Benzene."
+        },
+        {
+          "source": "credited",
+          "run": "947a21a2-e0b0-4b6d-b219-a83ef2c1747b",
+          "text": "Inspect the accepted verify_ledger.py, audit.md, and normalized.csv behavior, then minimally repair regression_checks.py so every isolated-copy mutation targets and asserts exactly its designated real report field rather than a documentation example. Cover: original exits 0; actual t1 comma-to-and exits 0; actual t1 +17 to +99 exits nonzero while examples remain unchanged; removal of the actual ambiguity claim while examples remain exits nonzero; duplicate conflicting actual t1 claim exits nonzero; survivor count two changed independently to three and four exits nonzero; wrong t3 CSV exits nonzero; and falsely identified t1 exits nonzero. Preserve verify_ledger.py, audit.md, normalized.csv, correct raw data, CSV values, and both survivors unless inspection reveals a c4-specific harness compatibility defect. Run the repaired harness as immediate evidence and ensure failures identify the intended case.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "retarget every mutation at the designated real field of the existing LLM-authored report rather than at documentation examples",
+              "label": "other"
+            },
+            {
+              "requirement": "nine cases including duplicate/removed claims that need authored edits",
+              "label": "other"
+            },
+            {
+              "requirement": "preserve verify_ledger.py, audit.md and normalized.csv unless a harness-compatibility defect is found",
+              "label": "other"
+            }
+          ],
+          "note": "Match recorded by model decision; skillId confirmed."
+        }
+      ],
+      "verdict": "NOT",
+      "rationale": "2/6 SAME subtasks COVERED (33%). The generation phase is parametric; the follow-up repair phases target the structure of an existing LLM-authored report.",
+      "programNote": "P = candidate-product enumerator with checkpoint/non-negativity constraints, CSV/report templates and a verifier for P's own report grammar. It would not survive maintenance requests phrased against another author's report wording."
+    },
+    {
+      "molecule": "Ammonia",
+      "id": "build-verified-state-model-checker",
+      "successes": 6,
+      "matches": 6,
+      "refusalReason": "The recipe requires interpreting task-specific transition relations, invariants, liveness properties, and output schemas from natural language, which cannot be safely derived by a deterministic script.",
+      "schema": {
+        "entryFile": "string",
+        "resultsFile": "string",
+        "stateComponents": "list<string>",
+        "initialState": "list<string>",
+        "processCount": "int",
+        "variants": "list<string>",
+        "properties": "list<enum[mutual-exclusion,deadlock-freedom]>",
+        "counterexample": "enum[shortest-bfs]",
+        "selfCheckFlag": "string",
+        "note": "attempted schema; the transition relation (guards and updates per pc, buggy-guard variant) is logic and cannot be carried without a logic-carrying expression field"
+      },
+      "subtasks": [
+        {
+          "source": "learned",
+          "run": "a17fbf5d-8137-444c-9b3c-cf33d34b69a9",
+          "text": "Implement model_check.py using only the Python standard library. Model state exactly as (pc0,pc1,flag0,flag1,turn), initially (0,0,false,false,0), with labeled atomic transitions for one process i and j=1-i: pc=0 sets flag[i]=true and pc[i]=1; pc=1 sets turn=j and pc[i]=2; pc=2 advances to pc[i]=3 iff not flag[j] OR turn==i in the correct variant; pc=3 sets flag[i]=false and pc[i]=0; every unmentioned component remains unchanged. Model the buggy variant by changing only the pc=2 guard to not flag[j]. Exhaustively BFS both variants, evaluating both process transitions in every state, retaining all labeled edges including state-preserving edges if any, and serialize deterministic canonical state and edge orderings with counts into results.json. Check mutual exclusion and deadlock-freedom in every reachable state; reconstruct a shortest buggy deadlock trace from BFS predecessors and include every state and transition label. Provide an executable self-check mode that reloads results.json, replays every counterexample step against the applicable transition relation, checks shortestness from BFS depth, and independently recomputes state and edge counts rather than trusting serialized counts. Record successful generation and self-check command evidence.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "labelled transition relation with guards (\"pc=2 advances iff not flag[j] OR turn==i\") and the buggy-guard variant",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "property checks tied to the specific state encoding (critical section = pc 3)",
+              "label": "algorithm/business-rule"
+            }
+          ],
+          "note": ""
+        },
+        {
+          "source": "credited",
+          "run": "a17fbf5d-8137-444c-9b3c-cf33d34b69a9",
+          "text": "Independently audit and, if discrepancies exist, correct model_check.py and results.json. Recompute from (0,0,false,false,0) both complete transition graphs for the exact atomic rules: pc=0 sets flag[i]=true and pc[i]=1; pc=1 sets turn=1-i and pc[i]=2; correct pc=2 advances iff not flag[1-i] OR turn==i; buggy pc=2 advances iff not flag[1-i]; pc=3 clears flag[i] and sets pc[i]=0; all other components are unchanged. Verify canonical deduplicated states, every labeled edge, fixed-point closure, serialized and independently recomputed counts, all mutual-exclusion and enabled-transition evaluations, and the buggy trace transition-by-transition. Confirm no shallower BFS layer contains a buggy deadlock. After any correction, regenerate results.json and refresh recorded generation and self-check evidence so the standing probes correspond to the final artifacts.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "recompute and correct against the exact atomic rules stated as guarded updates",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "correct an existing LLM-authored model_check.py/results.json if discrepancies exist",
+              "label": "other"
+            }
+          ],
+          "note": ""
+        },
+        {
+          "source": "credited",
+          "run": "a17fbf5d-8137-444c-9b3c-cf33d34b69a9",
+          "text": "Write analysis.md from the validated results.json and standing recorded probes. Explain the exact state tuple, initial state, atomic and unchanged-component semantics, transition labels, BFS and canonicalization method, graph counts and safety outcomes for both variants, and the complete shortest buggy deadlock trace with a reader-facing minimality argument. Explain structurally how changing only the pc=2 guard affects reachability and deadlock behavior, state whether mutual exclusion holds in each variant, and clearly distinguish the checked deadlock-freedom property from fairness or starvation-freedom. Explicitly state that no fairness assumption was supplied and that exhaustive safety/deadlock checks do not prove starvation-freedom. Mention that the implementation is offline and Python-standard-library-only. Return a concise final summary containing the key proof observations and delivered file names without re-running already recorded checks.",
+          "job": "OTHER",
+          "coverage": "n/a",
+          "uncovered": [],
+          "note": "Documentation-only analysis.md from validated results."
+        },
+        {
+          "source": "credited",
+          "run": "8738f263-a6b6-4084-897e-a57fc2ea4786",
+          "text": "Create the isolated routing/ workstream only: routing/input.json preserving the undirected positive edges DP=4,DQ=3,PQ=2,PR=5,QR=2,QS=6,RS=2,RT=5,ST=3,TD=6; routing/solve.py using only Python 3 standard library and solely routing/input.json with stable ordering/serialization and --check that fails nonzero for absent, malformed, or incorrect routing/result.json; routing/result.json; and routing/report.md. Find globally shortest closed physical walks starting/ending D and visiting P,Q,R,S,T at least once, both with all edges and with RS removed. Report edge-by-edge walks and costs only, never metric-closure jumps, plus exhaustive shortest-path-plus-order proof. Run focused deterministic reproduction and --check tests within routing/ only; do not read, import, modify, or create files outside routing/ or in another workstream.",
+          "job": "OTHER",
+          "coverage": "n/a",
+          "uncovered": [],
+          "note": "Routing mismatch: shortest closed walk optimisation on a weighted graph, not transition-system model checking. If SAME: NOT (solver objective)."
+        },
+        {
+          "source": "credited",
+          "run": "8738f263-a6b6-4084-897e-a57fc2ea4786",
+          "text": "Create the isolated schedule/ workstream only: schedule/input.json preserving jobs A=3, B=2, C=4, D=2, E=3, F=1; identical benches X,Y; integer starts >=0; A before D; B before D and E; C and D before F; C start >=1; D/E technician non-overlap; and half-open intervals. Create schedule/solve.py using only Python 3 standard library and solely schedule/input.json with stable ordering/serialization and --check that fails nonzero for absent, malformed, or incorrect schedule/result.json; schedule/result.json; and schedule/report.md. Solve both baseline and bench-Y-unavailable-on-[3,5) cases, reporting every job bench/start/end and a complete checkable exhaustive-search or lower-bound proof for minimal makespan in each. Run focused deterministic reproduction and --check tests within schedule/ only; do not read, import, modify, or create files outside schedule/ or in another workstream.",
+          "job": "OTHER",
+          "coverage": "n/a",
+          "uncovered": [],
+          "note": "Routing mismatch: minimal-makespan scheduling with precedence constraints. If SAME: NOT (solver objective)."
+        },
+        {
+          "source": "credited",
+          "run": "8738f263-a6b6-4084-897e-a57fc2ea4786",
+          "text": "Create the isolated packing/ workstream only: packing/input.json preserving boxes X capacity 9 and Y capacity 10 and items A:6:11, B:5:10, C:4:8, D:4:7, E:3:7, F:3:6, G:2:5, H:2:4, I:1:2; packing/solve.py using only Python 3 standard library and deriving all output solely from packing/input.json with stable ordering/serialization and --check that fails nonzero for absent, malformed, or incorrect packing/result.json; packing/result.json; and packing/report.md. Require A and H, allow B and E together only when assigned to different boxes, maximize value then minimize selected weight, report one optimal assignment, omitted IDs, loads, objectives, and an exhaustive assignment-enumeration proof. Run focused deterministic reproduction and --check tests within packing/ only; do not read, import, modify, or create files outside packing/ or in another workstream.",
+          "job": "OTHER",
+          "coverage": "n/a",
+          "uncovered": [],
+          "note": "Routing mismatch: two-bin knapsack assignment with side constraints. If SAME: NOT (solver objective)."
+        },
+        {
+          "source": "credited",
+          "run": "7a247d71-b790-46e8-9c51-d4923503fa85",
+          "text": "Create resolve.js as a dependency-free Node.js 24 CLI invoked as `node resolve.js --input catalog.json --out lock.json`, with `--help`. Strictly validate the complete input before solving: the top-level object has exactly `packages` and `roots`; all four collections are arrays and may be empty; packages are `{name,versions}`, versions are `{version,dependencies}`, and dependencies and roots are `{name,min,max}` with no unknown fields. Names must be nonempty literal strings without trimming; versions and inclusive bounds must be integers from 1 through 1000; reject duplicate package names, duplicate version integers within a package, duplicate dependency names within a version, duplicate root names, wrong types, and `min>max`. Unknown referenced package names are valid schema but make a candidate or root unsatisfiable. Select one version for every included package, satisfy every root and dependency constraint, permit satisfiable cycles, backtrack across globally conflicting choices, and include exactly the closure reachable from roots through dependencies of selected versions. Determine the unique optimum by sorting every catalogue package name in JavaScript code-unit order, forming the full version vector with 0 for absent packages, and choosing the lexicographically greatest vector. Emit exactly `{packages:[{name,version}]}` sorted by name as UTF-8 JSON with a final newline; empty roots emit an empty packages array. Valid unsatisfiable input exits 2 with stderr diagnostics, malformed schema and CLI/I/O failures exit 1, success exits 0, and successful stdout remains empty. Preserve input bytes and any existing output on every failure; reject direct-path, symlink, and hardlink input/output identity collisions; publish successful output atomically; produce byte-identical output for repeated inputs; never execute catalogue content or use network access. Record focused evidence that the script parses and `--help` succeeds.",
+          "job": "OTHER",
+          "coverage": "n/a",
+          "uncovered": [],
+          "note": "Routing mismatch: package dependency resolver with lexicographic-vector optimum. If SAME: NOT. Text truncated at 2000 chars."
+        }
+      ],
+      "verdict": "NOT",
+      "rationale": "0/2 SAME subtasks COVERED. 5 of 7 subtasks were routing mismatches (four constraint solvers and one analysis write-up).",
+      "programNote": "A generic BFS checker is easy to write, but the per-task transition relation is exactly the logic that a typed schema without expression fields cannot carry."
+    },
+    {
+      "molecule": "Ammonia",
+      "id": "build-verified-transport-solution",
+      "successes": 0,
+      "matches": 0,
+      "refusalReason": "compile response missing promotable=true|false (stale: promotionRefusalIsCurrent=false)",
+      "schema": {
+        "sources": "list<string>",
+        "supplies": "list<int>",
+        "sinks": "list<string>",
+        "demands": "list<int>",
+        "costsRowMajor": "list<int>",
+        "forbiddenArcs": "list<string> (e.g. 'A->Z')",
+        "capacityArc": "string (e.g. 'B->Y')",
+        "capacityScenarios": "list<int>",
+        "objective": "enum[min-cost]",
+        "integrality": "enum[integer]",
+        "files": "record{report:string,solution:string,verifier:string}",
+        "verifierLanguage": "enum[python3,node]"
+      },
+      "subtasks": [
+        {
+          "source": "learned",
+          "run": "d9bf3716-ab47-406f-97e7-d5791c595f45",
+          "text": "Using the established solution, write report.md, solution.json, and verify_transport.py. The files must cover both scenarios for supplies A=7, B=9, C=8; demands X=8, Y=6, Z=10; costs [[4,6,8],[5,3,7],[6,5,2]]; forbidden A->Z; and B->Y capacities 4 and 5. report.md must explain feasibility, cost calculations, rigorous optimality certificates, and uniqueness. solution.json must encode the instance, both matrices, objective values, and uniqueness results consistently. verify_transport.py must use only the available runtime's standard library, independently enumerate or otherwise exactly verify all feasible integer shipments for both capacities, check constraints, costs, optimum values, and the number of optimal matrices, exit nonzero on disagreement, and have its successful invocation recorded as reproducible evidence.",
+          "job": "SAME",
+          "coverage": "COVERED",
+          "uncovered": [],
+          "note": "Instance, scenarios and deliverables are literal; exhaustive integer enumeration gives optimum, uniqueness count and an enumeration certificate; report prose is templated from computed values. Only feasible for small instances; n=1."
+        }
+      ],
+      "verdict": "PARAMETRIC",
+      "rationale": "1/1 SAME subtask COVERED, but the recipe has never been matched (0 credited successes).",
+      "programNote": "P = small-instance transportation enumerator + JSON/report templates + independent verifier. No volume."
+    },
+    {
+      "molecule": "Ammonia",
+      "id": "build-verified-vector-geometry",
+      "successes": 0,
+      "matches": 0,
+      "refusalReason": "Deriving arbitrary constrained geometry, analytic metadata, and an independent verifier from natural-language requirements requires irreducible semantic reasoning. (stale: promotionRefusalIsCurrent=false)",
+      "schema": {
+        "files": "record{svg:string,json:string,verifier:string}",
+        "canvas": "record{widthMm:number,heightMm:number,viewBox:string}",
+        "shapes": "list<string> (literal 'rect outline 10 10 100 60 0', 'circle hole-nw 20 20 3', 'rect slot 42 36 36 8 4')",
+        "style": "record{fill:string,stroke:string,strokeWidth:string}",
+        "forbiddenContent": "list<enum[transform,path,image,script,foreignObject,text,hidden,dimension-lines]>",
+        "metrics": "list<enum[material-area,total-perimeter,centroid,min-clearance,capsule-straight-length,capsule-overall-width]>",
+        "expectedSymbolic": "list<string> (literal 'area=5776-52*pi')",
+        "tolerance": "number",
+        "accessibility": "record{title:bool,desc:bool}",
+        "negativeTest": "string (literal 'hole-nw r=4')"
+      },
+      "subtasks": [
+        {
+          "source": "learned",
+          "run": "015988df-9c2a-4311-9229-fa219fc7969b",
+          "text": "Create plate.svg, geometry.json, and verify_geometry.py. plate.svg must be standalone with width=\"120mm\", height=\"80mm\", viewBox=\"0 0 120 80\" and exactly six geometric elements without transforms, paths, raster images, scripts, foreignObject, hidden geometry, visible text, or dimension lines: unrounded rect id=\"outline\" at x=10, y=10, width=100, height=60; circles id=\"hole-nw\", \"hole-ne\", \"hole-sw\", and \"hole-se\", radius 3 at centers (20,20), (100,20), (20,60), and (100,60); and rounded rect id=\"slot\" at x=42, y=36, width=36, height=8, rx=4, ry=4. Every geometric element must have fill=\"none\", stroke=\"#000000\", and stroke-width=\"0.2\". Include an accessible title and description. geometry.json must document its own shape and report exact symbolic and numerical millimeter-based values for material area 5776-52*pi mm^2, total perimeter including the outer boundary and all cutouts 376+32*pi mm, remaining-material centroid (60,40) mm, and minimum cutout-to-boundary clearance 7 mm; state symmetry reasoning and distinguish the capsule straight length of 28 mm from its overall width of 36 mm. verify_geometry.py must use only Python 3 standard-library XML and math facilities, parse the actual plate.svg and geometry.json, independently enforce the fixed expected geometry rather than importing a generator or treating JSON as expected geometry, reject prohibited content, and recompute every numerical claim within 1e-6. Record a real successful `python3 verify_geometry.py` probe and a real nonzero rejection after changing one hole radius to 4 in a temporary SVG copy, then remove only that temporary copy and leave no temporary artefacts.",
+          "job": "SAME",
+          "coverage": "COVERED",
+          "uncovered": [],
+          "note": "Every coordinate, style attribute, expected value and the negative mutation are literal; analytic area/perimeter/centroid/clearance for rect/circle/capsule can be computed generically. Title/description and symmetry sentences are templated. n=1."
+        }
+      ],
+      "verdict": "PARAMETRIC",
+      "rationale": "1/1 SAME subtask COVERED, but the recipe has never been matched (0 credited successes).",
+      "programNote": "P = SVG writer for a rect/circle/capsule primitive set + analytic metric engine (a+b*pi) + XML verifier. No volume."
+    }
+  ],
+  "collectionNotes": "Source: production Atoma MCP readers only (skills_list, skills_show, ledger_tail, run_trace). Atom 5326d19a-f4af-4af3-913a-1653081038d1 (Ammonia). Ledger window: ledger_tail filtered over the newest 1000 of 1064 events; every recipe's skill-save event was inside the window (earliest 2026-09-21 for build-csv-statistics-cli), so no learning run was lost. Subtask text = branch start label following the recipe's match event; skillId of every match was confirmed with section=event. The learning subtask is the branch whose approval preceded the learn event. Successes credited \"via Benzene\" (the recipe executed by another molecule) are included as normal credited matches. Several matches per run were kept as separate subtasks, as instructed. That exceeds the protocol's 7-subtask cap for build-exact-ledger-reconciler (11) and build-text-frequency-cli (10). Under a strict cap (learned + 6 most recent matches) the reconciler verdict is unchanged (NOT, 0/5) and text-frequency becomes MIXED (1/2). Duplicate texts (acceptance retries or reruns): reconciler 2faac5cb x2 and 2c502876 x2, schema-csv-json 72e81903 x2, http-replay learned = credited. Each is counted, and flagged in its note. Text-frequency run 9854553c: the second match (README update) had its credit withheld in the trace. It is listed because it is a match inside a credited run; it is OTHER either way. The learning run of build-csv-statistics-cli contained a second match, for write-verified-readme. It belongs to another recipe and is excluded. build-verified-transport-solution and build-verified-vector-geometry have 0 matches: only the learning subtask exists. Long labels (reconciler, warehouse, resolver, ambiguous-ledger learned) are truncated at 2000 chars, as specified. Judging rule applied consistently: a requirement whose values are not in the subtask text itself is uncovered (label other). This covers payload bytes from an earlier phase, the input table from the goal, and the existing behaviour of an LLM-authored file to preserve. The ZIP and text-frequency PARTIALs come from this rule alone; their notes record the sensitivity. SAME/OTHER used each recipe's whenToUse as the deliverable kind: docs-only, read-only probe and unrelated-domain subtasks are OTHER."
+}

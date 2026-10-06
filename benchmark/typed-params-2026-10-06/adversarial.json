@@ -1,0 +1,226 @@
+{
+  "decisions": [
+    {
+      "group": "B1",
+      "recipe": "Methane/build-in-memory-json-api",
+      "run": "b5e873f8-2f04-4f57-a159-ce31fb46968d",
+      "before": "COVERED",
+      "after": "COVERED",
+      "breakingRequirement": "",
+      "label": "",
+      "reason": "[SAME index 0] Attacks tried: the README 'with startup instructions' is a template over listen/entryFile, so the schema carries it. The bodies of the 400 and 404 responses and the shape of the list (a bare array) are left unspecified, so P may fix them once. 'http or https URL' is the httpUrl member of a fixed validator enum. Every stated value is a literal in the text (server.mjs, PORT/3000/0.0.0.0, /health {\"ok\":true}, /bookmarks, the title and url rules, 201/400/204/404, the unknown-route 404 JSON). The task is greenfield, so there is no existing store or handler to integrate with. Holds."
+    },
+    {
+      "group": "B1",
+      "recipe": "Methane/build-in-memory-json-api",
+      "run": "a05c004c-5d37-479f-acfa-f00bafe3c20c",
+      "before": "COVERED",
+      "after": "COVERED",
+      "breakingRequirement": "",
+      "label": "",
+      "reason": "[SAME index 5] Attack tried: the page copy 'saying the notes API is coming' looks like authored content, but the text spells the phrase out, so rootPage.message is a literal and nothing is invented. The title 'Team notes', /health {\"status\":\"ok\"} and the catch-all 404 {\"error\":\"not found\"} are all literal. Coverage holds. CAVEAT, which is not a coverage defect: the SAME classification is doubtful. The subtask has no resource, no CRUD and no in-memory data, and the matcher itself said so. If it is reclassified OTHER, it leaves both the numerator and the denominator."
+    },
+    {
+      "group": "B2",
+      "recipe": "Ammonia/sync-docs-to-ui-controls",
+      "run": "13f7cce0-ca07-4d60-8b5b-67782561ff5c",
+      "before": "COVERED",
+      "after": "COVERED",
+      "breakingRequirement": "",
+      "label": "",
+      "reason": "[SAME index 0] Attack tried: read literally, 'the sentence ... includes Extend after Long break' binds the sentence itself, and an anchored token swap cannot add text to it. According to the judge's reading of the trace, the anchored sentence only introduces a numbered list that already held '6. **Extend**' after Long break, and the page has six static <button> elements. In that workspace, five->six plus a verify-only list-order check satisfies the requirement, and 'change nothing else' and 'do not modify the page' are assertions P can make. Holds. CAVEAT: the schema and P's verify-only semantics were fitted to this one instance from workspace content read in the trace. The recipe has 0 matches and 0 credited successes, so this carries no volume."
+    },
+    {
+      "group": "C",
+      "recipe": "Ammonia/build-csv-statistics-cli",
+      "run": "a34e4d7e-e887-44ea-8d61-fb2cf974b2bf",
+      "before": "COVERED",
+      "after": "COVERED",
+      "breakingRequirement": "",
+      "label": "",
+      "reason": "[SAME index 0] Attacks tried: the human line format, the JSON object shape and the definition of a numeric cell are all unspecified, so they are choices P fixes once. Piped input to a CLI that takes a path works through /dev/stdin. The probe expectations are computed by P over its own fixed fixtures. The stat set, the 3 decimals, --json, exit codes 0/2/3/4 and the probe list are literal. Holds. CAVEAT: 'Create cli.mjs via the write_file tool' is met only if dispatch writes P's generated files through write_file rather than from inside run_shell. That is a design choice of the hypothetical dispatcher, so it is not used as a refutation."
+    },
+    {
+      "group": "C",
+      "recipe": "Ammonia/build-data-quality-csv-summary",
+      "run": "cc7ed6f1-9ffe-43be-a133-cfe722f6da24",
+      "before": "COVERED",
+      "after": "COVERED",
+      "breakingRequirement": "",
+      "label": "",
+      "reason": "[SAME index 1, the observations.csv fix-up] The header and all 7 rows are literal, and the target content is fully specified, so overwriting the file is a correct correction. The protected files are assertions, and the 'finite reproducible check' compares the file with literals taken from the text. Holds. CAVEAT: SAME is doubtful. This is a literal file rewrite with no quality rule, no summary and no verifier, and mode=observations-only exists only to fit it. If it is reclassified OTHER, the numerator and the denominator each drop by 1."
+    },
+    {
+      "group": "C",
+      "recipe": "Ammonia/build-deterministic-pcm-fixture",
+      "run": "102556e8-0e7e-40c5-9009-4841206e48a0",
+      "before": "COVERED",
+      "after": "PARTIAL",
+      "breakingRequirement": "'remove only that temporary negative-test copy afterward and confirm the four requested deliverables remain'",
+      "label": "other",
+      "reason": "[SAME index 0] The text names only three deliverables: generate_sos.py, verify_sos.py and sos.wav. The fourth is not in the subtask text. It is probably README.md, which the next phase of the same run wrote (credited subtask 'Write README.md ...'), so it did not exist yet at this point. S.files has three slots. Filling a fourth means inventing a value, and a bare file listing does not confirm four named deliverables. The judge's note acknowledges the gap and waives it. That is inconsistent with group C's own rule that a value absent from the subtask text is uncovered, a rule the same judge applied to make the ZIP and text-frequency follow-ups PARTIAL. Everything else is literal and parametric: the RIFF/int16 format, 22400 samples, 800-sample units, gaps of 1/3/1, round(8192*sin(...)) with j restarting per tone, and the corrupted-copy probe. Secondary point, not used as the breaking requirement: the generator and the 'independent' verifier would both be instantiated from one extracted S, so an extraction error would be common-mode. The subtask defines independence at the code level only ('without deriving timing from the generator's data structure')."
+    },
+    {
+      "group": "C",
+      "recipe": "Ammonia/build-deterministic-zip-capsule",
+      "run": "a6989eb1-3c27-4aac-8888-1b8cfb0bb21c",
+      "before": "COVERED",
+      "after": "COVERED",
+      "breakingRequirement": "",
+      "label": "",
+      "reason": "[SAME index 0] Attacks tried. (1) The independent verifier: its expected truth is exactly S.entryNames, S.entryContentsUtf8 and the metadata fields, embedded as literals with no import from the builder, which meets the subtask's own operational definition ('without importing builder constants or trusting manifest values ... embed the fixed names and payload bytes'). (2) The README: the manifest shape, the two commands and the two forbidden claims are all determined by S. (3) The Unix creator, the UTF-8 name flag and 'zero bytes' read as an empty file are fixed choices in P. All five deliverables are named, unlike the PCM subtask. Holds. CAVEAT: there is a common-mode risk from extracting 'Café — été\\n' and 'data/café.txt' once (NFC vs NFD, the em dash), because builder and verifier would share the same bytes."
+    },
+    {
+      "group": "C",
+      "recipe": "Ammonia/build-node-http-replay-verifier",
+      "run": "2026-10-01T21-33-54-552-c7deb659",
+      "before": "COVERED",
+      "after": "COVERED",
+      "breakingRequirement": "",
+      "label": "",
+      "reason": "[SAME index 0] Attacks tried. (a) 'GET /double?n=7 -> 200 {\"value\":14}': a route named double implies value=2n, which the schema does not carry. But the parenthetical is a list of request/response exchanges (it also lists 'GET /missing -> 404'), and only n=7 is stated, so a static route table meets the stated requirement. (b) The manifest field names, the port handshake between CLI and server, and the timeout value are unspecified contract choices that P fixes once for the recipe, not per subtask. (c) '<N> checks passed\\n', 127.0.0.1 with an OS-assigned port, the four failure classes, the derived failing manifest and .atoma-probes.json v1 are literal or a known fixed contract. Holds, with caveats: a reviewer reading the server could call a /double that answers only n=7 a stub, and this is one of two identical texts."
+    },
+    {
+      "group": "C",
+      "recipe": "Ammonia/build-node-http-replay-verifier",
+      "run": "2026-10-01T23-55-59-872-7b03d8e6",
+      "before": "COVERED",
+      "after": "COVERED",
+      "breakingRequirement": "",
+      "label": "",
+      "reason": "[SAME index 1] Same text as index 0, from a re-run of the same operator goal, so the analysis and caveats are identical. Together, the two COVERED subtasks are one distinct subtask."
+    },
+    {
+      "group": "C",
+      "recipe": "Ammonia/build-schema-csv-json-cli",
+      "run": "7bc86c1f-e042-418f-820e-4ece062ec472",
+      "before": "COVERED",
+      "after": "COVERED",
+      "breakingRequirement": "",
+      "label": "",
+      "reason": "[SAME index 0] Attacks tried: the format of the --schema file ('required columns and their types') is unspecified, so it is a contract P fixes once for the recipe, not a per-subtask design. 'ISO date', whether output values are typed as numbers, 'one error per row' when several columns fail, and line numbers across embedded newlines are all free choices. The samples, the npm test suite and the README are fixed in P and determined by S. No requirement needs a value that is absent from the text. Holds."
+    },
+    {
+      "group": "C",
+      "recipe": "Ammonia/build-schema-csv-json-cli",
+      "run": "72e81903-ea51-4d97-b468-f2c014e6a59d",
+      "before": "COVERED",
+      "after": "COVERED",
+      "breakingRequirement": "",
+      "label": "",
+      "reason": "[SAME index 1] Attacks tried. columnRules is a list<string> named 'rules', formally a mini-DSL. It is accepted because each entry is a column plus a closed, parameterised vocabulary whose parameters (0, 2 decimals, 2 letters) are literals from the text. Nothing in it is free text carrying logic. good.csv and bad.csv must be synthesised to satisfy or violate the rules, which is mechanical per rule. 'README documenting the rules' renders fixed per-rule descriptions. The summary line format and the messages are free. 'line <n>: <column>: <message>', {valid, invalid, errors:[...]} and exit codes 0/1/2 are literal. Holds. CAVEAT: the 9-rule vocabulary was read off this very text, so coverage of an unseen rule set is untested."
+    },
+    {
+      "group": "C",
+      "recipe": "Ammonia/build-schema-csv-json-cli",
+      "run": "72e81903-ea51-4d97-b468-f2c014e6a59d",
+      "before": "COVERED",
+      "after": "COVERED",
+      "breakingRequirement": "",
+      "label": "",
+      "reason": "[SAME index 2] Identical text to index 1 (an acceptance retry in the same run, credited via Benzene), so the analysis is the same. Counting it doubles one distinct subtask."
+    },
+    {
+      "group": "C",
+      "recipe": "Ammonia/build-text-frequency-cli",
+      "run": "45d27925-c84d-4624-8683-4ae2a8d15b88",
+      "before": "COVERED",
+      "after": "COVERED",
+      "breakingRequirement": "",
+      "label": "",
+      "reason": "[SAME index 0] Attacks tried: the text leaves 'letters' open between ASCII and Unicode, and either enum value is a reading, not an invented value. The collation for the alphabetical tie-break is free. The README's 'exact output' comes from running P's CLI on P's fixed sample. The task is greenfield, so there is no existing behaviour to preserve. Top 10, 'word count', lowercasing and exit 1 are literal. Holds."
+    },
+    {
+      "group": "C",
+      "recipe": "Ammonia/build-verified-ambiguous-ledger",
+      "run": "c21011cb-101b-4958-962d-1f4c60236339",
+      "before": "COVERED",
+      "after": "COVERED",
+      "breakingRequirement": "",
+      "label": "",
+      "reason": "[SAME index 0] Attack tried: audit.md as a 'report with reasoning'. Every required part (raw candidates, constraints, survivors, the arithmetic for each survivor, identified and ambiguous movements and balances, resolved versus guess) is a rendering of the enumeration that the text itself specifies, under section names the schema enumerates. Nothing calls for an argument beyond that core computation. The verifier re-derives survivors from the embedded raw sets and checkpoints and parses P's own bounded grammar. Checked: 2 survivors (t1 in {+12,+17} and t2 in {-4,-9} ambiguous; t3=+6, t4=-13, t5=+10; the balance after t2 is resolved at 48; balances 54/41/51 after t3/t4/t5). The text is complete at 1987 chars with no truncation marker, so the 'truncated' note in the file is wrong. Holds."
+    },
+    {
+      "group": "C",
+      "recipe": "Ammonia/build-verified-ambiguous-ledger",
+      "run": "c21011cb-101b-4958-962d-1f4c60236339",
+      "before": "COVERED",
+      "after": "PARTIAL",
+      "breakingRequirement": "'Audit normalized.csv, audit.md, and verify_ledger.py against that fresh result, including survivor completeness, arithmetic, raw-versus-surviving separation ... and nonzero verifier behavior on disagreement. Correct any defect in those same files'",
+      "label": "other",
+      "reason": "[SAME index 1] In this run, the model wrote the three files in the previous phase, in a format P does not know. P cannot audit the claims in an LLM-written audit.md or the logic of an LLM-written verifier. The same recipe's later subtasks (3b3efaf3, 947a21a2), which the judge rated PARTIAL or NOT with the label contract/schema design, show exactly this parsing problem. All P can do is overwrite the three files with its own output. Overwriting is not 'correct any defect in those same files': it discards correct existing content, and the audit is never performed, including the nonzero behaviour of the existing verifier. This follows group C's own rule that existing LLM-authored artefacts lie outside S. The recomputation, the final verifier run and the returned conclusions are parametric. This is the WEAKEST of the four downgrades: if wholesale regeneration counts as correction, the subtask goes back to COVERED. The recipe stays NOT either way."
+    },
+    {
+      "group": "C",
+      "recipe": "Ammonia/build-verified-transport-solution",
+      "run": "d9bf3716-ab47-406f-97e7-d5791c595f45",
+      "before": "COVERED",
+      "after": "PARTIAL",
+      "breakingRequirement": "'report.md must explain feasibility, cost calculations, rigorous optimality certificates, and uniqueness'",
+      "label": "content/design authoring",
+      "reason": "[SAME index 0] This is a report with reasoning, and no schema field carries it. The judge's P offers an 'enumeration certificate', which is the same exhaustive enumeration that verify_transport.py is separately required to perform 'independently'. The report therefore contains no certificate a reader can check, and the independence between report and verifier that the subtask sets up collapses into one computation. An optimality certificate for a capacitated transportation problem (dual potentials, reduced costs, a dual for the B->Y capacity) needs a domain algorithm that the subtask names only by the phrase 'rigorous optimality certificates'. It is in neither S nor the judge's P, so it is also algorithm/business-rule. A P with an LP-dual engine could arguably close the gap; that is the sensitivity of this decision. Checked by brute force: both scenarios have a unique optimum (cap 4: cost 89, [[5,2,0],[3,4,2],[0,0,8]] out of 105 feasible matrices; cap 5: cost 85, [[6,1,0],[2,5,2],[0,0,8]] out of 110). solution.json and the verifier therefore stay parametric, and 'Using the established solution', a prior phase that is not in the text, is harmless only because the optimum is unique."
+    },
+    {
+      "group": "C",
+      "recipe": "Ammonia/build-verified-vector-geometry",
+      "run": "015988df-9c2a-4311-9229-fa219fc7969b",
+      "before": "COVERED",
+      "after": "PARTIAL",
+      "breakingRequirement": "'geometry.json must ... state symmetry reasoning'",
+      "label": "content/design authoring",
+      "reason": "[SAME index 0] This is reasoning prose, and no schema field carries it. The judge's P (an SVG writer, an a+b*pi metric engine and an XML verifier) computes the centroid as a number from moments. A symmetry argument (hole-nw/ne and sw/se mirrored about x=60, hole-nw/sw mirrored about y=40, the slot centred at (60,40), hence the centroid) is not an output of that computation. A templated sentence asserting symmetry is content written for this subtask unless P also carries a symmetry detector, and neither S nor the judge's P includes one. Secondary: 'Include an accessible title and description' gives no wording. That point is minor because it can be templated. Everything else is literal and covered: coordinates, styles, the six elements, the forbidden content, the expected values and tolerance, and the r=4 negative test. Values checked: area 6000-224-52pi = 5776-52pi, perimeter 320+24pi+56+8pi = 376+32pi, minimum clearance 7."
+    }
+  ],
+  "recipes": [
+    {
+      "recipe": "Ammonia/sync-docs-to-ui-controls",
+      "before": "PARAMETRIC",
+      "after": "PARAMETRIC",
+      "onePrograms": "yes",
+      "reason": "1/1 SAME subtask COVERED. 'One P' is trivial at n=1. The recipe has 0 matches and 0 credited successes, and its schema was fitted from workspace content read in the trace, so it carries no volume and gives no evidence of generality (the refusal reason, 'arbitrary natural-language documentation requests', is untested)."
+    },
+    {
+      "recipe": "Ammonia/build-csv-statistics-cli",
+      "before": "PARAMETRIC",
+      "after": "PARAMETRIC",
+      "onePrograms": "yes",
+      "reason": "1/1 SAME subtask COVERED. 'One P' is trivial at n=1. Its only credited success was a routing mismatch (csv2json), so it has 0 credited SAME successes."
+    },
+    {
+      "recipe": "Ammonia/build-deterministic-pcm-fixture",
+      "before": "PARAMETRIC",
+      "after": "NOT",
+      "onePrograms": "no",
+      "reason": "0/1 SAME subtasks COVERED after the downgrade: the learned subtask is PARTIAL because the fourth deliverable is unnamed. Both credited matches were OTHER, so the recipe has no credited SAME volume."
+    },
+    {
+      "recipe": "Ammonia/build-node-http-replay-verifier",
+      "before": "PARAMETRIC",
+      "after": "PARAMETRIC",
+      "onePrograms": "yes",
+      "reason": "2/2 SAME subtasks COVERED, but they are one distinct text (a re-run of the same operator goal), so one P serves both trivially. There is 1 credited success. This rests on reading the sample API as a static exchange table."
+    },
+    {
+      "recipe": "Ammonia/build-schema-csv-json-cli",
+      "before": "PARAMETRIC",
+      "after": "PARAMETRIC",
+      "onePrograms": "yes",
+      "reason": "3/3 SAME subtasks COVERED, from 2 distinct texts. One parameterised engine can serve both the csv2json converter and validate-orders: a quote-aware parser, a header check, a per-column rule engine, line-numbered errors, an exit-code table, and generated samples, tests and README. The rules come either from a runtime schema file or from S, and the output is either records or a summary. That is genuinely one program, not two programs behind a switch. Caveats: the 2-value mode enum and the 9-rule vocabulary were read off exactly these two texts. Of the 5 credited successes, 3 were routing mismatches, and the 2 SAME ones are one identical text in one run (an acceptance retry). It formally meets '>= 5 credited successes' while only 2 of those successes match its job."
+    },
+    {
+      "recipe": "Ammonia/build-verified-transport-solution",
+      "before": "PARAMETRIC",
+      "after": "NOT",
+      "onePrograms": "no",
+      "reason": "0/1 SAME subtasks COVERED after the downgrade: report.md's optimality certificates are not carried. The recipe has 0 matches and 0 credited successes."
+    },
+    {
+      "recipe": "Ammonia/build-verified-vector-geometry",
+      "before": "PARAMETRIC",
+      "after": "NOT",
+      "onePrograms": "no",
+      "reason": "0/1 SAME subtasks COVERED after the downgrade: the symmetry reasoning is not carried. The recipe has 0 matches and 0 credited successes."
+    }
+  ],
+  "notes": "Result: 13 CONFIRMED and 4 DOWNGRADED, all to PARTIAL and none to NOT. COVERED falls from 17 to 13. Over the 119 SAME subtasks in the four group files, that is 10.9% (it was 14.3%). Only 11 distinct texts are covered, because 72e81903 and the http-replay text are each counted twice. PARAMETRIC recipes fall from 7 to 4: sync-docs (0 credited), csv-statistics (1 credited, a routing mismatch), http-replay (1 credited) and schema-csv-json (5 credited, 2 of them SAME). No recipe has >= 5 credited SAME successes. BUILD is therefore unreachable under any reading, since it needs 3 such recipes. The share sits in the 10-25% 'pilot on the single best recipe' band by about one subtask (the 10% line is 11.9/119), so these sensitivities decide which band applies. (a) Two COVERED subtasks are borderline SAME: B1 a05c004c (no resource) and the C cc7ed6f1 observations.csv fix-up (a literal file rewrite). If both are OTHER, the share is 11/117 = 9.4%, which is DO NOT BUILD. (b) Reverting the weakest downgrade (ledger c21011cb index 1) gives 14/119 = 11.8%. (c) A population defect that cuts the other way, NOT applied here because it is a correction to the population and not a verdict: the protocol's cap of 7 subtasks per recipe is exceeded in 5 recipes. They are A build-self-contained-static-page (8), A patch-verified-static-ui (10), A build-node-api-web-ui (11), C build-exact-ledger-reconciler (11) and C build-text-frequency-cli (10). Every SAME subtask in them is PARTIAL or NOT, so a strict cap would shrink the denominator by roughly 10-12 and raise the share to about 12%. The main analysis should apply (a) and (c) explicitly rather than leave them implicit. Systemic caveats, which are not used as refutations: (1) In PCM, ZIP, the ledger, transport and vector, the generator and the 'independent' verifier are instantiated from one extracted S, so an extraction error is common-mode. These subtasks define independence at the code level (no import, no reuse of the generator's data), which P meets. (2) Most schemas were fitted after the fact to n=1-2 texts. Enum values mirror the one text they came from (probeCases, readmeForbiddenClaims, auditSections, the CSV rule vocabulary, the modes), so the next match is untested. (3) A requirement such as 'via the write_file tool' assumes the dispatcher writes P's output through elements. Method: each of the 17 texts was read in full from the group files. None was truncated, so no MCP call was made. The transport optima were checked by brute force, and the ledger survivors and geometry values were checked by hand."
+}

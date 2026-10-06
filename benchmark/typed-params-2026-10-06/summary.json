@@ -1,0 +1,423 @@
+{
+  "preregistrationSha256": "d6040572f7c2077211f9c34d746f330ff735de05a9906325a3067eb8da7a8837",
+  "population": {
+    "recipes": 34,
+    "subtasks": 153,
+    "same": 119,
+    "other": 34
+  },
+  "afterAdversarialPass": {
+    "covered": 13,
+    "partial": 24,
+    "not": 82,
+    "coveredShareOfSame": 0.109,
+    "otherShareOfAll": 0.222
+  },
+  "sensitivities": {
+    "two doubtful SAME (a05c004c, cc7ed6f1) read as OTHER": 0.094,
+    "duplicate texts counted once": "11 distinct covered texts"
+  },
+  "parametricRecipes": [
+    {
+      "recipe": "Ammonia/sync-docs-to-ui-controls",
+      "creditedSuccesses": 0,
+      "same": 1,
+      "covered": 1
+    },
+    {
+      "recipe": "Ammonia/build-csv-statistics-cli",
+      "creditedSuccesses": 1,
+      "same": 1,
+      "covered": 1
+    },
+    {
+      "recipe": "Ammonia/build-node-http-replay-verifier",
+      "creditedSuccesses": 1,
+      "same": 2,
+      "covered": 2
+    },
+    {
+      "recipe": "Ammonia/build-schema-csv-json-cli",
+      "creditedSuccesses": 5,
+      "same": 3,
+      "covered": 3
+    }
+  ],
+  "decision": "pilot band (10% <= covered < 25%), 1 subtask above the do-not-build line; BUILD unmet: no PARAMETRIC recipe has >= 5 credited successes on SAME subtasks",
+  "recipes": [
+    {
+      "group": "A",
+      "recipe": "Water/build-responsive-static-multipage-site",
+      "creditedSuccesses": 2,
+      "same": 4,
+      "other": 0,
+      "covered": 0,
+      "partial": 0,
+      "not": 4,
+      "verdict": "NOT"
+    },
+    {
+      "group": "A",
+      "recipe": "Water/build-self-contained-static-page",
+      "creditedSuccesses": 24,
+      "same": 8,
+      "other": 0,
+      "covered": 0,
+      "partial": 0,
+      "not": 8,
+      "verdict": "NOT"
+    },
+    {
+      "group": "A",
+      "recipe": "Water/serve-and-validate-static-page",
+      "creditedSuccesses": 6,
+      "same": 3,
+      "other": 3,
+      "covered": 0,
+      "partial": 0,
+      "not": 3,
+      "verdict": "NOT"
+    },
+    {
+      "group": "A",
+      "recipe": "Glucose/build-node-network-dashboard",
+      "creditedSuccesses": 11,
+      "same": 0,
+      "other": 0,
+      "covered": 0,
+      "partial": 0,
+      "not": 0,
+      "verdict": "UNKNOWN"
+    },
+    {
+      "group": "A",
+      "recipe": "Glucose/verify-responsive-static-layout",
+      "creditedSuccesses": 3,
+      "same": 4,
+      "other": 0,
+      "covered": 0,
+      "partial": 0,
+      "not": 4,
+      "verdict": "NOT"
+    },
+    {
+      "group": "A",
+      "recipe": "Serotonin/patch-verified-static-ui",
+      "creditedSuccesses": 15,
+      "same": 9,
+      "other": 1,
+      "covered": 0,
+      "partial": 0,
+      "not": 9,
+      "verdict": "NOT"
+    },
+    {
+      "group": "A",
+      "recipe": "CarbonDioxide/build-node-api-web-ui",
+      "creditedSuccesses": 8,
+      "same": 9,
+      "other": 2,
+      "covered": 0,
+      "partial": 1,
+      "not": 8,
+      "verdict": "NOT"
+    },
+    {
+      "group": "A",
+      "recipe": "CarbonDioxide/build-offline-typing-studio",
+      "creditedSuccesses": 5,
+      "same": 3,
+      "other": 3,
+      "covered": 0,
+      "partial": 2,
+      "not": 1,
+      "verdict": "NOT"
+    },
+    {
+      "group": "A",
+      "recipe": "CarbonDioxide/verify-form-safe-keyboard-shortcut",
+      "creditedSuccesses": 0,
+      "same": 1,
+      "other": 0,
+      "covered": 0,
+      "partial": 0,
+      "not": 1,
+      "verdict": "NOT"
+    },
+    {
+      "group": "B1",
+      "recipe": "Methane/build-in-memory-json-api",
+      "creditedSuccesses": 24,
+      "same": 7,
+      "other": 0,
+      "covered": 2,
+      "partial": 0,
+      "not": 5,
+      "verdict": "NOT"
+    },
+    {
+      "group": "B1",
+      "recipe": "Methane/build-persisted-json-api",
+      "creditedSuccesses": 16,
+      "same": 7,
+      "other": 0,
+      "covered": 0,
+      "partial": 1,
+      "not": 6,
+      "verdict": "NOT"
+    },
+    {
+      "group": "B1",
+      "recipe": "Benzene/document-verified-geometry-study",
+      "creditedSuccesses": 1,
+      "same": 1,
+      "other": 1,
+      "covered": 0,
+      "partial": 0,
+      "not": 1,
+      "verdict": "NOT"
+    },
+    {
+      "group": "B1",
+      "recipe": "Benzene/reassess-archived-review-findings",
+      "creditedSuccesses": 1,
+      "same": 2,
+      "other": 0,
+      "covered": 0,
+      "partial": 0,
+      "not": 2,
+      "verdict": "NOT"
+    },
+    {
+      "group": "B1",
+      "recipe": "Ammonia/harden-isolated-policy-boundaries",
+      "creditedSuccesses": 4,
+      "same": 4,
+      "other": 1,
+      "covered": 0,
+      "partial": 0,
+      "not": 4,
+      "verdict": "NOT"
+    },
+    {
+      "group": "B1",
+      "recipe": "Ammonia/harden-manifest-exclusions",
+      "creditedSuccesses": 0,
+      "same": 1,
+      "other": 0,
+      "covered": 0,
+      "partial": 0,
+      "not": 1,
+      "verdict": "NOT"
+    },
+    {
+      "group": "B1",
+      "recipe": "Ammonia/harden-node-cli-test-package",
+      "creditedSuccesses": 8,
+      "same": 3,
+      "other": 2,
+      "covered": 0,
+      "partial": 0,
+      "not": 3,
+      "verdict": "NOT"
+    },
+    {
+      "group": "B2",
+      "recipe": "Ammonia/correct-docs-from-verified-artifacts",
+      "creditedSuccesses": 2,
+      "same": 3,
+      "other": 0,
+      "covered": 0,
+      "partial": 0,
+      "not": 3,
+      "verdict": "NOT"
+    },
+    {
+      "group": "B2",
+      "recipe": "Ammonia/create-evidence-dossier-timeline",
+      "creditedSuccesses": 1,
+      "same": 2,
+      "other": 0,
+      "covered": 0,
+      "partial": 0,
+      "not": 2,
+      "verdict": "NOT"
+    },
+    {
+      "group": "B2",
+      "recipe": "Ammonia/document-isolated-negative-tests",
+      "creditedSuccesses": 1,
+      "same": 2,
+      "other": 0,
+      "covered": 0,
+      "partial": 0,
+      "not": 2,
+      "verdict": "NOT"
+    },
+    {
+      "group": "B2",
+      "recipe": "Ammonia/document-verified-shortcut",
+      "creditedSuccesses": 9,
+      "same": 5,
+      "other": 2,
+      "covered": 0,
+      "partial": 4,
+      "not": 1,
+      "verdict": "NOT"
+    },
+    {
+      "group": "B2",
+      "recipe": "Ammonia/integrate-verified-workstreams",
+      "creditedSuccesses": 2,
+      "same": 3,
+      "other": 0,
+      "covered": 0,
+      "partial": 0,
+      "not": 3,
+      "verdict": "NOT"
+    },
+    {
+      "group": "B2",
+      "recipe": "Ammonia/sync-docs-to-ui-controls",
+      "creditedSuccesses": 0,
+      "same": 1,
+      "other": 0,
+      "covered": 1,
+      "partial": 0,
+      "not": 0,
+      "verdict": "PARAMETRIC"
+    },
+    {
+      "group": "C",
+      "recipe": "Ammonia/build-csv-statistics-cli",
+      "creditedSuccesses": 1,
+      "same": 1,
+      "other": 1,
+      "covered": 1,
+      "partial": 0,
+      "not": 0,
+      "verdict": "PARAMETRIC"
+    },
+    {
+      "group": "C",
+      "recipe": "Ammonia/build-data-quality-csv-summary",
+      "creditedSuccesses": 3,
+      "same": 3,
+      "other": 1,
+      "covered": 1,
+      "partial": 1,
+      "not": 1,
+      "verdict": "NOT"
+    },
+    {
+      "group": "C",
+      "recipe": "Ammonia/build-deterministic-pcm-fixture",
+      "creditedSuccesses": 2,
+      "same": 1,
+      "other": 2,
+      "covered": 0,
+      "partial": 1,
+      "not": 0,
+      "verdict": "NOT"
+    },
+    {
+      "group": "C",
+      "recipe": "Ammonia/build-deterministic-zip-capsule",
+      "creditedSuccesses": 2,
+      "same": 3,
+      "other": 0,
+      "covered": 1,
+      "partial": 2,
+      "not": 0,
+      "verdict": "NOT"
+    },
+    {
+      "group": "C",
+      "recipe": "Ammonia/build-exact-ledger-reconciler",
+      "creditedSuccesses": 10,
+      "same": 9,
+      "other": 2,
+      "covered": 0,
+      "partial": 4,
+      "not": 5,
+      "verdict": "NOT"
+    },
+    {
+      "group": "C",
+      "recipe": "Ammonia/build-node-http-replay-verifier",
+      "creditedSuccesses": 1,
+      "same": 2,
+      "other": 0,
+      "covered": 2,
+      "partial": 0,
+      "not": 0,
+      "verdict": "PARAMETRIC"
+    },
+    {
+      "group": "C",
+      "recipe": "Ammonia/build-schema-csv-json-cli",
+      "creditedSuccesses": 5,
+      "same": 3,
+      "other": 3,
+      "covered": 3,
+      "partial": 0,
+      "not": 0,
+      "verdict": "PARAMETRIC"
+    },
+    {
+      "group": "C",
+      "recipe": "Ammonia/build-text-frequency-cli",
+      "creditedSuccesses": 8,
+      "same": 5,
+      "other": 5,
+      "covered": 1,
+      "partial": 4,
+      "not": 0,
+      "verdict": "NOT"
+    },
+    {
+      "group": "C",
+      "recipe": "Ammonia/build-verified-ambiguous-ledger",
+      "creditedSuccesses": 5,
+      "same": 6,
+      "other": 0,
+      "covered": 1,
+      "partial": 2,
+      "not": 3,
+      "verdict": "NOT"
+    },
+    {
+      "group": "C",
+      "recipe": "Ammonia/build-verified-state-model-checker",
+      "creditedSuccesses": 6,
+      "same": 2,
+      "other": 5,
+      "covered": 0,
+      "partial": 0,
+      "not": 2,
+      "verdict": "NOT"
+    },
+    {
+      "group": "C",
+      "recipe": "Ammonia/build-verified-transport-solution",
+      "creditedSuccesses": 0,
+      "same": 1,
+      "other": 0,
+      "covered": 0,
+      "partial": 1,
+      "not": 0,
+      "verdict": "NOT"
+    },
+    {
+      "group": "C",
+      "recipe": "Ammonia/build-verified-vector-geometry",
+      "creditedSuccesses": 0,
+      "same": 1,
+      "other": 0,
+      "covered": 0,
+      "partial": 1,
+      "not": 0,
+      "verdict": "NOT"
+    }
+  ]
+}

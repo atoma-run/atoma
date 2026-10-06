@@ -1,0 +1,838 @@
+{
+  "group": "B1",
+  "recipes": [
+    {
+      "molecule": "Methane",
+      "id": "build-in-memory-json-api",
+      "successes": 24,
+      "matches": 31,
+      "refusalReason": "none: promotionRefusedReason is null and status is promotion-eligible (kind llm, never refused)",
+      "schema": {
+        "entryFile": "string (e.g. \"server.mjs\")",
+        "readmeFile": "string|null",
+        "listen": "{portEnv:string, defaultPort:integer|null, host:string|null}",
+        "health": "{path:string, status:integer, bodyJson:string literal}|null",
+        "rootPage": "{title:string, message:string}|null (static HTML page)",
+        "notFound": "{status:integer, bodyJson:string literal|null}",
+        "resource": "{basePath:string, idStrategy:enum[uuid,counter], timestampField:string|null}|null",
+        "fields": "record<fieldName, enum[nonEmptyString,string,optionalNonEmptyString,httpUrl,integer,boolean]>",
+        "operations": "list<enum[list,create,get,replace,patch,delete]>",
+        "createStatus": "integer",
+        "deleteStatus": "integer",
+        "errorStatus": "{malformedJson:integer, invalidField:integer, unknownId:integer}"
+      },
+      "subtasks": [
+        {
+          "source": "learned",
+          "run": "b5e873f8-2f04-4f57-a159-ce31fb46968d",
+          "text": "Build a self-contained Node.js HTTP JSON bookmarks API using only built-in modules. Deliver server.mjs and a README with startup instructions. Listen on process.env.PORT, default 3000, on 0.0.0.0. GET /health returns 200 with {\"ok\":true}. GET /bookmarks returns an array initially empty. POST /bookmarks accepts JSON with a non-empty title and an http or https URL, returns 201 with a generated id, title and url, or 400 for malformed JSON or invalid fields. DELETE /bookmarks/:id returns 204 for an existing bookmark and 404 otherwise. Unknown routes return 404 JSON. Keep data in memory and require no external services or dependencies.",
+          "job": "SAME",
+          "coverage": "COVERED",
+          "uncovered": [],
+          "note": "Creation run (skill-save created:true, 2026-09-20). Every value is a literal in the text: server.mjs, PORT/3000/0.0.0.0, /health {\"ok\":true}, /bookmarks, fields title=nonEmptyString url=httpUrl, ops list/create/delete, 201/400/204/404, unknown-route 404 JSON (body unspecified, so any JSON default satisfies it). README = startup template."
+        },
+        {
+          "source": "credited",
+          "run": "e9a60a26-1d3c-492b-b702-c3a9a75f8388",
+          "text": "Inspect the existing guestbook and extend server.js without breaking current routes. Add PUT /api/entries/:id so a valid non-empty message replaces the matching entry's message and returns the updated entry with a 2xx response; an empty message returns status 400 with a JSON error; and an unknown id returns status 404 with a JSON error. Boot the Node server on an OS-assigned port and record HTTP evidence for all three PUT outcomes while retaining existing behavior.\n\n== LITERAL CONTRACTS FROM TOP-LEVEL GOAL ==\nAdd PUT /api/entries/:id, which replaces an entry's message and answers the updated entry, 400 with a JSON error for an empty message, and 404 with a JSON error for an unknown id; and add an edit button next to each entry on the page that lets the visitor change the message in place and saves it without reloading.\nUpdate the README to document PUT /api/entries/:id with an example, writing every URL as http://localhost:PORT with the literal word PORT.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Extend the existing guestbook server.js without breaking current routes (code and store shape unknown to P)",
+              "label": "other"
+            },
+            {
+              "requirement": "PUT /api/entries/:id must mutate the existing entry store and return the updated entry",
+              "label": "other"
+            },
+            {
+              "requirement": "Edit button next to each entry that edits in place and saves without reloading",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "In-page edit behaviour validated in a browser against the same server",
+              "label": "browser/visual check"
+            }
+          ],
+          "note": "Matched by Idioblast for CarbonDioxide (jev 0.48). README PUT example with literal PORT is templatable."
+        },
+        {
+          "source": "credited",
+          "run": "a5e5f2a1-4ca5-48ae-b012-b764a51f42ef",
+          "text": "Extend the existing notes server without breaking its routes. Add GET /api/notes/:id, which answers the note with that id, or 404 with a JSON error for an unknown id. Make GET /api/notes accept an optional sort query parameter: sort=newest returns the notes newest first, sort=oldest oldest first, any other value answers 400 with a JSON error, and without sort the order is unchanged; it must still combine with the existing q filter. Update the README: document GET /api/notes/:id and the sort parameter with examples, keep every URL written as http://localhost:PORT with the literal word PORT, and add both changes to the existing Changelog section as bullet points.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Add routes inside the existing notes server without breaking its routes (unknown source/store)",
+              "label": "other"
+            },
+            {
+              "requirement": "sort=newest|oldest ordering over existing notes (timestamp field not named)",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Sort must combine with the existing q filter (semantics defined by prior code)",
+              "label": "other"
+            },
+            {
+              "requirement": "Add bullets to the existing README Changelog section",
+              "label": "content/design authoring"
+            }
+          ],
+          "note": "GET /api/notes/:id 404 and the 400-on-other-sort literal are parametric in isolation; the integration is not."
+        },
+        {
+          "source": "credited",
+          "run": "455a4f43-e3df-46da-8f7a-c3391792d3d1",
+          "text": "Extend the existing notes server without breaking its routes. Add PATCH /api/notes/:id, which updates a note's title and/or body and answers the updated note, 400 with a JSON error when the title is present but empty, and 404 with a JSON error for an unknown id. Make GET /api/notes accept an optional q query parameter that returns only the notes whose title or body contains that text, case-insensitively; without q it returns every note as before. Update the README: document PATCH /api/notes/:id and the q parameter with examples, keep every URL written as http://localhost:PORT with the literal word PORT, and add both changes to the existing Changelog section as bullet points.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Add PATCH to the existing notes server and store without breaking its routes",
+              "label": "other"
+            },
+            {
+              "requirement": "Modify the existing GET /api/notes handler to add a case-insensitive q filter on title/body",
+              "label": "other"
+            },
+            {
+              "requirement": "Document both changes and append Changelog bullets in the existing README",
+              "label": "content/design authoring"
+            }
+          ],
+          "note": "Match event confirms skillId build-in-memory-json-api (L2 model match, no jev)."
+        },
+        {
+          "source": "credited",
+          "run": "f1203c2f-ed2a-4963-8196-ac642bd1cebe",
+          "text": "Extend the existing notes server without breaking its routes. Add DELETE /api/notes/:id, which removes the note and answers 204, or 404 with a JSON error for an unknown id; notes need a stable id, so give every note an id when it is created and keep existing notes working. GET /api/stats gains \"oldest\" and \"newest\", the creation times of the oldest and newest notes, or null when there are none. Update the README: document DELETE /api/notes/:id and the new stats fields with examples, keep every URL written as http://localhost:PORT with the literal word PORT, and end the README with a \"Changelog\" section listing, as bullet points, each route this change added or modified.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Add DELETE to the existing notes server without breaking its routes",
+              "label": "other"
+            },
+            {
+              "requirement": "Introduce stable ids at creation while keeping existing id-less notes working (data migration)",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Extend the existing GET /api/stats with oldest/newest creation times or null",
+              "label": "other"
+            },
+            {
+              "requirement": "Document changes and end README with a Changelog listing changed routes",
+              "label": "content/design authoring"
+            }
+          ],
+          "note": "L2 model match (no skill name in summary); ledger credits this run once."
+        },
+        {
+          "source": "credited",
+          "run": "a05c004c-5d37-479f-acfa-f00bafe3c20c",
+          "text": "Build a Node HTTP server in server.js with no dependencies, listening on the port given by the PORT environment variable. GET /health answers 200 with the JSON {\"status\":\"ok\"}. GET / answers 200 with a small HTML page titled \"Team notes\" saying the notes API is coming. Any other path answers 404 with a JSON body {\"error\":\"not found\"}.",
+          "job": "SAME",
+          "coverage": "COVERED",
+          "uncovered": [],
+          "note": "Matched twice in this run (Methane, then CarbonDioxide after the root validator rejected missing root/404 probes); identical label, counted once. All values literal: PORT env, /health {\"status\":\"ok\"}, GET / HTML titled \"Team notes\" with the phrase \"the notes API is coming\", other paths 404 {\"error\":\"not found\"}. Borderline SAME (no CRUD routes; the match reasoning says so) and borderline COVERED (HTML message paraphrased from the phrase in the text)."
+        },
+        {
+          "source": "credited",
+          "run": "65a7ae3c-48d0-4751-a487-f296a9b135d2",
+          "text": "Extend the existing notes API without breaking its routes. Write routes (POST, PATCH, DELETE) now require an X-API-Key header equal to the NOTES_API_KEY environment variable, answering 401 with an error message when it is missing or wrong; read routes stay open. GET /api/notes accepts ?limit= (1 to 100, default 20) and ?offset= (default 0), answers 400 for values outside those ranges, and sends the number of matching notes before pagination in an X-Total-Count header. Add GET /api/tags returning each tag with the number of notes that carry it, most used first. Update the README with the new header, the pagination parameters and the tags route, each with a curl example.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Add X-API-Key / NOTES_API_KEY auth (401) to the existing write routes, reads stay open",
+              "label": "other"
+            },
+            {
+              "requirement": "Add limit/offset pagination with range 400s and X-Total-Count to the existing list route",
+              "label": "other"
+            },
+            {
+              "requirement": "GET /api/tags: count notes per tag, most used first",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "README updates with a curl example per change",
+              "label": "content/design authoring"
+            }
+          ],
+          "note": ""
+        }
+      ],
+      "verdict": "NOT",
+      "rationale": "7 SAME, 2 COVERED (29%). The two greenfield subtasks (bookmarks API, Team-notes scaffold) are fully expressible as literals in S. Five of seven matched subtasks are \"extend the existing (LLM-written) server\" tasks: their routes must interoperate with an unknown store and existing handlers, which no single P can patch from parameters.",
+      "programNote": "P = template generator for a fresh single-file node:http server (listen params, literal health/root/404 responses, one in-memory resource with a fixed validator-enum library, CRUD subset, README startup template), then start_node_server + fetch probes. Cannot patch an existing server.js of unknown shape, so every \"extend the existing X\" subtask falls outside regardless of how literal its new-route contract is."
+    },
+    {
+      "molecule": "Methane",
+      "id": "build-persisted-json-api",
+      "successes": 16,
+      "matches": 34,
+      "refusalReason": "The recipe requires task-specific interpretation of arbitrary API contracts, schemas, business rules, and exhaustive live-test scenarios, which cannot be deterministically derived from the workspace.",
+      "schema": {
+        "entryFile": "string",
+        "dataStore": "{path:string, engine:enum[jsonFile,sqlite], atomicRename:boolean}",
+        "listen": "{portEnv:string|null, portFlag:string|null, defaultPort:integer|null, host:string|null}",
+        "resourceBasePath": "string",
+        "fields": "record<fieldName, enum[nonEmptyString,string,integer,boolean]>",
+        "generatedFields": "list<enum[id,createdAt,updatedAt]>",
+        "operations": "list<enum[list,create,get,replace,patch,delete]>",
+        "statusCodes": "{create:integer, delete:integer, invalid:integer, notFound:integer}",
+        "errorBodyKey": "string",
+        "preservePaths": "list<string> (existing routes to leave untouched)",
+        "readmeFile": "string|null",
+        "testFile": "string|null"
+      },
+      "subtasks": [
+        {
+          "source": "learned",
+          "run": "c949f7e7-37a6-409e-8e17-210d75dd4f50",
+          "text": "Extend server.js into a notes JSON API persisted to notes.json in the working directory, keeping GET /health and GET / exactly as they are. GET /api/notes answers 200 with the JSON array of notes. POST /api/notes takes a JSON body with title and body, answers 201 with the created note including a generated id and a createdAt timestamp, and 400 with a JSON error when title or body is missing or empty. GET /api/notes/:id answers 200 with the note, or 404 with a JSON error for an unknown id. DELETE /api/notes/:id answers 204, or 404 for an unknown id. Notes survive a server restart. Still no dependencies.",
+          "job": "SAME",
+          "coverage": "PARTIAL",
+          "uncovered": [
+            {
+              "requirement": "Keep GET /health and GET / exactly as they are while extending server.js: their bodies are not in the subtask, regenerating server.js loses them and patching needs the unknown source",
+              "label": "other"
+            }
+          ],
+          "note": "Creation run (2026-09-27). The same label was matched again in this run (CarbonDioxide retry after root rejection) and credited; counted once. notes.json persistence, list/create/get/delete, id+createdAt, 400 validation and restart survival all fit S."
+        },
+        {
+          "source": "credited",
+          "run": "e6655476-edf3-4c48-93f7-8fb9b2e77bb7",
+          "text": "Build an offline dependency-free Node.js 24 HTTP stock-reservation service using durable SQLite (node:sqlite is available). Deliver server.js, package.json with npm test, README and real HTTP subprocess tests. Start: node server.js --db DB --seed SEED.json --port PORT; bind 127.0.0.1, accept port 0, print a JSON line {\"port\":actualPort} when ready. No UI needed. Seed exactly {items:[{sku,capacity}]}; unique nonempty string SKUs, integer capacity 0..1000000. Initialize a new DB once; restart with the same seed must retain all state and receipts. Use explicit logical time, never wall-clock expiration.\n\nGET /state returns exactly {clock,revision,items,holds}; initially clock=0,revision=0. items are {sku,capacity,available}. holds are {id,expiresAt,status,lines:[{sku,qty}]}; status held|confirmed|cancelled|expired. Sort items by sku, holds by id and aggregated hold lines by sku using JS code-unit order. IDs/SKUs/keys are nonempty strings used literally, including __proto__. GET is read-only; identical state gives identical JSON bytes.\n\nPOST /commands accepts only these exact object shapes:\n{key,type:\"reserve\",holdId,ttl,lines:[{sku,qty}]}; ttl and qty integers 1..1000000, lines nonempty. Aggregate repeated SKUs. All SKUs must exist; all aggregated quantities must fit available stock. Atomically reserve the whole bundle or none; holdId must never have existed. expiresAt=clock+ttl. Reserve reduces available.\n{key,type:\"confirm\",holdId}: only a held hold can confirm; it permanently consumes its reserved stock. Availability does not change.\n{key,type:\"cancel\",holdId}: only a held hold can cancel, releasing all stock.\n{key,type:\"advance\",to}: to is integer 0..1000000000 and >=clock. Set clock=to; expire every held hold with expiresAt<=to, releasing stock; never expire confirmed holds. Each successful command increments revision once, even advance to the current clock. Success HTTP200 exactly {ok:true,revision:N}.\n\nBusiness refusals HTTP409 exactly {error:CODE}: missing_item,",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Hold state machine (reserve/confirm/cancel/advance) with logical-clock expiry and atomic multi-SKU bundles",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Idempotency receipts: canonical JSON comparison (key order ignored, arrays ordered), byte-identical replay before business checks, idempotency_conflict, refused receipts cached",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Domain change + receipt in one SQLite transaction, surviving SIGKILL and restart",
+              "label": "other"
+            },
+            {
+              "requirement": "Concurrent requests serialised: no oversell, duplicate application or lost update",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Executed assertion suite: last-unit contention, same-key retries, restart replay, expiry boundary, confirm/advance order, U+10000 vs U+E000 ordering, __defineGetter__ rejection",
+              "label": "other"
+            },
+            {
+              "requirement": "README documenting measured results honestly",
+              "label": "content/design authoring"
+            }
+          ],
+          "note": "Matched twice in the run (Methane, then CarbonDioxide after acceptance refusal), identical label; counted once. Text capped at 2,000 chars (full label ~3.85k)."
+        },
+        {
+          "source": "credited",
+          "run": "4c1a1e8c-30bc-4e89-8dc7-266bceca812f",
+          "text": "Build an offline dependency-free Node.js 24 HTTP stock-reservation service using durable SQLite (node:sqlite is available). Deliver server.js, package.json with npm test, README and real HTTP subprocess tests. Start: node server.js --db DB --seed SEED.json --port PORT; bind 127.0.0.1, accept port 0, print a JSON line {\"port\":actualPort} when ready. No UI needed. Seed exactly {items:[{sku,capacity}]}; unique nonempty string SKUs, integer capacity 0..1000000. Initialize a new DB once; restart with the same seed must retain all state and receipts. Use explicit logical time, never wall-clock expiration.\n\nGET /state returns exactly {clock,revision,items,holds}; initially clock=0,revision=0. items are {sku,capacity,available}. holds are {id,expiresAt,status,lines:[{sku,qty}]}; status held|confirmed|cancelled|expired. Sort items by sku, holds by id and aggregated hold lines by sku using JS code-unit order. IDs/SKUs/keys are nonempty strings used literally, including __proto__. GET is read-only; identical state gives identical JSON bytes.\n\nPOST /commands accepts only these exact object shapes:\n{key,type:\"reserve\",holdId,ttl,lines:[{sku,qty}]}; ttl and qty integers 1..1000000, lines nonempty. Aggregate repeated SKUs. All SKUs must exist; all aggregated quantities must fit available stock. Atomically reserve the whole bundle or none; holdId must never have existed. expiresAt=clock+ttl. Reserve reduces available.\n{key,type:\"confirm\",holdId}: only a held hold can confirm; it permanently consumes its reserved stock. Availability does not change.\n{key,type:\"cancel\",holdId}: only a held hold can cancel, releasing all stock.\n{key,type:\"advance\",to}: to is integer 0..1000000000 and >=clock. Set clock=to; expire every held hold with expiresAt<=to, releasing stock; never expire confirmed holds. Each successful command increments revision once, even advance to the current clock. Success HTTP200 exactly {ok:true,revision:N}.\n\nBusiness refusals HTTP409 exactly {error:CODE}: missing_item,",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Hold state machine (reserve/confirm/cancel/advance) with logical-clock expiry and atomic multi-SKU bundles",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Idempotency receipts: canonical JSON comparison (key order ignored, arrays ordered), byte-identical replay before business checks, idempotency_conflict, refused receipts cached",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Domain change + receipt in one SQLite transaction, surviving SIGKILL and restart",
+              "label": "other"
+            },
+            {
+              "requirement": "Concurrent requests serialised: no oversell, duplicate application or lost update",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Executed assertion suite: last-unit contention, same-key retries, restart replay, expiry boundary, confirm/advance order, U+10000 vs U+E000 ordering, __defineGetter__ rejection",
+              "label": "other"
+            },
+            {
+              "requirement": "README documenting measured results honestly",
+              "label": "content/design authoring"
+            }
+          ],
+          "note": "Identical goal text to e6655476 (project bf6dea73). Run cancelled by user; matched twice, identical label. Text capped at 2,000 chars (full label ~3.85k)."
+        },
+        {
+          "source": "credited",
+          "run": "b873c5a2-bfb0-499b-85e9-f1bcc18a520e",
+          "text": "Build an offline dependency-free Node.js 24 HTTP stock-reservation service using durable SQLite (node:sqlite is available). Deliver server.js, package.json with npm test, README and real HTTP subprocess tests. Start: node server.js --db DB --seed SEED.json --port PORT; bind 127.0.0.1, accept port 0, print a JSON line {\"port\":actualPort} when ready. No UI needed. Seed exactly {items:[{sku,capacity}]}; unique nonempty string SKUs, integer capacity 0..1000000. Initialize a new DB once; restart with the same seed must retain all state and receipts. Use explicit logical time, never wall-clock expiration.\n\nGET /state returns exactly {clock,revision,items,holds}; initially clock=0,revision=0. items are {sku,capacity,available}. holds are {id,expiresAt,status,lines:[{sku,qty}]}; status held|confirmed|cancelled|expired. Sort items by sku, holds by id and aggregated hold lines by sku using JS code-unit order. IDs/SKUs/keys are nonempty strings used literally, including __proto__. GET is read-only; identical state gives identical JSON bytes.\n\nPOST /commands accepts only these exact object shapes:\n{key,type:\"reserve\",holdId,ttl,lines:[{sku,qty}]}; ttl and qty integers 1..1000000, lines nonempty. Aggregate repeated SKUs. All SKUs must exist; all aggregated quantities must fit available stock. Atomically reserve the whole bundle or none; holdId must never have existed. expiresAt=clock+ttl. Reserve reduces available.\n{key,type:\"confirm\",holdId}: only a held hold can confirm; it permanently consumes its reserved stock. Availability does not change.\n{key,type:\"cancel\",holdId}: only a held hold can cancel, releasing all stock.\n{key,type:\"advance\",to}: to is integer 0..1000000000 and >=clock. Set clock=to; expire every held hold with expiresAt<=to, releasing stock; never expire confirmed holds. Each successful command increments revision once, even advance to the current clock. Success HTTP200 exactly {ok:true,revision:N}.\n\nBusiness refusals HTTP409 exactly {error:CODE}: missing_item,",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Hold state machine (reserve/confirm/cancel/advance) with logical-clock expiry and atomic multi-SKU bundles",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Idempotency receipts: canonical JSON comparison (key order ignored, arrays ordered), byte-identical replay before business checks, idempotency_conflict, refused receipts cached",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Domain change + receipt in one SQLite transaction, surviving SIGKILL and restart",
+              "label": "other"
+            },
+            {
+              "requirement": "Concurrent requests serialised: no oversell, duplicate application or lost update",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Executed assertion suite: last-unit contention, same-key retries, restart replay, expiry boundary, confirm/advance order, U+10000 vs U+E000 ordering, __defineGetter__ rejection",
+              "label": "other"
+            },
+            {
+              "requirement": "README documenting measured results honestly",
+              "label": "content/design authoring"
+            }
+          ],
+          "note": "Identical goal text; matched twice (Methane, CarbonDioxide), identical label. Text capped at 2,000 chars (full label ~3.85k)."
+        },
+        {
+          "source": "credited",
+          "run": "715ffc74-7a0a-41a4-9e0e-0be0993ec01c",
+          "text": "Build an offline dependency-free Node.js 24 HTTP stock-reservation service using durable SQLite (node:sqlite is available). Deliver server.js, package.json with npm test, README and real HTTP subprocess tests. Start: node server.js --db DB --seed SEED.json --port PORT; bind 127.0.0.1, accept port 0, print a JSON line {\"port\":actualPort} when ready. No UI needed. Seed exactly {items:[{sku,capacity}]}; unique nonempty string SKUs, integer capacity 0..1000000. Initialize a new DB once; restart with the same seed must retain all state and receipts. Use explicit logical time, never wall-clock expiration.\n\nGET /state returns exactly {clock,revision,items,holds}; initially clock=0,revision=0. items are {sku,capacity,available}. holds are {id,expiresAt,status,lines:[{sku,qty}]}; status held|confirmed|cancelled|expired. Sort items by sku, holds by id and aggregated hold lines by sku using JS code-unit order. IDs/SKUs/keys are nonempty strings used literally, including __proto__. GET is read-only; identical state gives identical JSON bytes.\n\nPOST /commands accepts only these exact object shapes:\n{key,type:\"reserve\",holdId,ttl,lines:[{sku,qty}]}; ttl and qty integers 1..1000000, lines nonempty. Aggregate repeated SKUs. All SKUs must exist; all aggregated quantities must fit available stock. Atomically reserve the whole bundle or none; holdId must never have existed. expiresAt=clock+ttl. Reserve reduces available.\n{key,type:\"confirm\",holdId}: only a held hold can confirm; it permanently consumes its reserved stock. Availability does not change.\n{key,type:\"cancel\",holdId}: only a held hold can cancel, releasing all stock.\n{key,type:\"advance\",to}: to is integer 0..1000000000 and >=clock. Set clock=to; expire every held hold with expiresAt<=to, releasing stock; never expire confirmed holds. Each successful command increments revision once, even advance to the current clock. Success HTTP200 exactly {ok:true,revision:N}.\n\nBusiness refusals HTTP409 exactly {error:CODE}: missing_item,",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Hold state machine (reserve/confirm/cancel/advance) with logical-clock expiry and atomic multi-SKU bundles",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Idempotency receipts: canonical JSON comparison (key order ignored, arrays ordered), byte-identical replay before business checks, idempotency_conflict, refused receipts cached",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Domain change + receipt in one SQLite transaction, surviving SIGKILL and restart",
+              "label": "other"
+            },
+            {
+              "requirement": "Concurrent requests serialised: no oversell, duplicate application or lost update",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Executed assertion suite: last-unit contention, same-key retries, restart replay, expiry boundary, confirm/advance order, U+10000 vs U+E000 ordering, __defineGetter__ rejection",
+              "label": "other"
+            },
+            {
+              "requirement": "README documenting measured results honestly",
+              "label": "content/design authoring"
+            }
+          ],
+          "note": "Identical goal text. Only the first match was opened (first 12 of 158 events read); the ledger shows a second credit via CarbonDioxide, presumed the same label, not opened. Promotion refusal of the current generation was stamped in this run. Text capped at 2,000 chars (full label ~3.85k)."
+        },
+        {
+          "source": "credited",
+          "run": "8d819d66-1de2-4050-8ee0-119db03d1969",
+          "text": "Build an offline dependency-free Node.js 24 HTTP stock-reservation service using durable SQLite (node:sqlite is available). Deliver server.js, package.json with npm test, README and real HTTP subprocess tests. Start: node server.js --db DB --seed SEED.json --port PORT; bind 127.0.0.1, accept port 0, print a JSON line {\"port\":actualPort} when ready. No UI needed. Seed exactly {items:[{sku,capacity}]}; unique nonempty string SKUs, integer capacity 0..1000000. Initialize a new DB once; restart with the same seed must retain all state and receipts. Use explicit logical time, never wall-clock expiration.\n\nGET /state returns exactly {clock,revision,items,holds}; initially clock=0,revision=0. items are {sku,capacity,available}. holds are {id,expiresAt,status,lines:[{sku,qty}]}; status held|confirmed|cancelled|expired. Sort items by sku, holds by id and aggregated hold lines by sku using JS code-unit order. IDs/SKUs/keys are nonempty strings used literally, including __proto__. GET is read-only; identical state gives identical JSON bytes.\n\nPOST /commands accepts only these exact object shapes:\n{key,type:\"reserve\",holdId,ttl,lines:[{sku,qty}]}; ttl and qty integers 1..1000000, lines nonempty. Aggregate repeated SKUs. All SKUs must exist; all aggregated quantities must fit available stock. Atomically reserve the whole bundle or none; holdId must never have existed. expiresAt=clock+ttl. Reserve reduces available.\n{key,type:\"confirm\",holdId}: only a held hold can confirm; it permanently consumes its reserved stock. Availability does not change.\n{key,type:\"cancel\",holdId}: only a held hold can cancel, releasing all stock.\n{key,type:\"advance\",to}: to is integer 0..1000000000 and >=clock. Set clock=to; expire every held hold with expiresAt<=to, releasing stock; never expire confirmed holds. Each successful command increments revision once, even advance to the current clock. Success HTTP200 exactly {ok:true,revision:N}.\n\nBusiness refusals HTTP409 exactly {error:CODE}: missing_item,",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Hold state machine (reserve/confirm/cancel/advance) with logical-clock expiry and atomic multi-SKU bundles",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Idempotency receipts: canonical JSON comparison (key order ignored, arrays ordered), byte-identical replay before business checks, idempotency_conflict, refused receipts cached",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Domain change + receipt in one SQLite transaction, surviving SIGKILL and restart",
+              "label": "other"
+            },
+            {
+              "requirement": "Concurrent requests serialised: no oversell, duplicate application or lost update",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Executed assertion suite: last-unit contention, same-key retries, restart replay, expiry boundary, confirm/advance order, U+10000 vs U+E000 ordering, __defineGetter__ rejection",
+              "label": "other"
+            },
+            {
+              "requirement": "README documenting measured results honestly",
+              "label": "content/design authoring"
+            }
+          ],
+          "note": "Identical goal text. Run cancelled by user. Only the first match opened (first 12 of 220 events); the later CarbonDioxide match (ledger: failure, then the revision that produced the current body) not opened. Text capped at 2,000 chars (full label ~3.85k)."
+        },
+        {
+          "source": "credited",
+          "run": "ce89c84a-c848-428c-8811-de4d090c8d39",
+          "text": "Inspect and continue the existing application, modifying server.js, test/library.test.js, package.json, data/library.json, README.md, public/index.html, public/app.js, and public/styles.css only where necessary. Keep it dependency-free on Node.js 24. Ensure server.js uses PORT (default 3000), serves /api and public/, uses DATA_FILE (default data/library.json), creates exactly 6 seeded books and 3 seeded members when absent, and atomically persists every mutation via a temporary file followed by rename. Enforce exact integer-cent accounting and per-request X-Today: YYYY-MM-DD, falling back to the current UTC date. Preserve these exact contracts and verify them against the live server: POST /api/loans with {bookId, memberId} returns 201 with a due date 14 days after the start date, 400 for malformed bodies, 404 for missing books or members, and 409 when no copy is free for that member, the member has reached the standard limit of 3 or premium limit of 5 active loans, or unpaid fines exceed 5.00; POST /api/loans/:id/return closes an active loan and adds 0.25 per late day capped at 10.00 per loan; POST /api/loans/:id/renew extends the due date by 14 days and returns 409 after two renewals or whenever another member has a hold on that book; POST /api/holds with {bookId, memberId} returns 201 only when no copy is available and 409 otherwise, preserves oldest-hold ordering, reserves a returned copy from everyone except the oldest holder, and consumes that hold when its member next borrows the book; POST /api/members/:id/payments with {amount} records a payment against unpaid fines; GET /api/books returns every book with available copies; GET /api/members returns members; GET /api/members/:id returns active loans with due dates, holds, and fines owed. Run npm test and ensure node:test uses temporary data and covers every stated rule, including date override, loan limits, late fines and their cap, the greater-than-5.00 fine threshold, renewal limits, hold ordering and reserv",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Loan/hold/fine/payment rules: limits 3/5, 14-day due, 0.25/day capped 10.00, >5.00 refusal, two renewals, oldest-hold reservation",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Continue the existing application files only where necessary",
+              "label": "other"
+            },
+            {
+              "requirement": "node:test suite covering every stated rule with temporary data",
+              "label": "other"
+            },
+            {
+              "requirement": "Keyboard-only UI checks at a 390 px viewport with visible refusal messages",
+              "label": "browser/visual check"
+            },
+            {
+              "requirement": "README documenting every route and all business rules",
+              "label": "content/design authoring"
+            }
+          ],
+          "note": "Matched by Protoplast (executor CarbonDioxide), jev 0.91. The atomic temp-file+rename persistence and PORT/DATA_FILE defaults are parametric. Text capped at 2,000 chars (full label ~4.2k)."
+        }
+      ],
+      "verdict": "NOT",
+      "rationale": "7 SAME, 0 COVERED, 1 PARTIAL, 6 NOT. Five of six credited runs are the same stock-reservation goal, whose contract is spelled out exactly but whose program logic (state machine, idempotency receipts, durability, concurrency, oracle tests) is unique to that goal. A CRUD-with-JSON-file schema covers only the learned notes subtask, and even that one needs the unknown existing routes preserved.",
+      "programNote": "A shared P could generate a CRUD resource persisted to a JSON file with atomic rename; it cannot implement per-goal business rules (reservations, lending) or the adversarial test suites the credited subtasks demand."
+    },
+    {
+      "molecule": "Benzene",
+      "id": "document-verified-geometry-study",
+      "successes": 1,
+      "matches": 1,
+      "refusalReason": "compile response missing promotable=true|false (stale refusal, status refusal-stale(will-retry))",
+      "schema": {
+        "docFile": "string",
+        "sourceFiles": "list<string>",
+        "verifyCommand": "string literal",
+        "disclaimer": "enum[fictionalStudy,none]",
+        "units": "string",
+        "statedResults": "record<name, string literal> (e.g. materialArea:\"5776-52*pi mm^2\")",
+        "distinguishedDimensions": "record<name, string literal>",
+        "citeRecordedProbes": "boolean",
+        "rerunAllowed": "boolean"
+      },
+      "subtasks": [
+        {
+          "source": "learned",
+          "run": "015988df-9c2a-4311-9229-fa219fc7969b",
+          "text": "Write README.md using plate.svg, geometry.json, verify_geometry.py, and the recorded probes as sources. Explain that this is a fictional geometric study rather than manufacturing certification; describe the six primitives and cutout/material interpretation; derive outer area, four-hole area and perimeter, capsule area and perimeter while explicitly distinguishing its 28 mm straight length from its 36 mm overall width; derive material area 5776-52*pi mm^2, total perimeter 376+32*pi mm, centroid (60,40) mm by symmetry, and minimum clearance 7 mm. Document the geometry.json shape and provide the exact verification command `python3 verify_geometry.py`. Cite the already recorded passing and intentional-rejection evidence without rerunning verification.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Describe the six primitives and the cutout/material interpretation from plate.svg and geometry.json",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "Derive outer area, four-hole area/perimeter and capsule area/perimeter from the geometry (28 mm straight vs 36 mm overall)",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Explain derivations of the stated totals (material area, perimeter, centroid by symmetry, clearance)",
+              "label": "content/design authoring"
+            }
+          ],
+          "note": "The literal totals, disclaimer, verification command and citation of recorded probes are parametric; a geometry.json shape dump could be mechanical."
+        },
+        {
+          "source": "credited",
+          "run": "40b185c4-b702-4064-831f-909fbbe503fa",
+          "text": "Write composition.md using the completed artefacts and recorded probe evidence as sources. Explain the musical design, including melodic contour, harmonic/bar progression, cadence, register, rhythm, voice separation, exact MIDI track organization and channel assignment, timing of 15360 ticks, tempo, meter, and how score.csv maps to MIDI notes. Document standard-library-only generation and verification commands and report the successful recorded verification without re-running it. Explicitly avoid claiming that mechanical rule compliance proves aesthetic quality. Conclude with the deliverable entry points: miniature.mid and score.csv as outputs, python3 generate_miniature.py to regenerate them, and python3 verify_miniature.py to verify them.",
+          "job": "OTHER",
+          "coverage": "n/a",
+          "uncovered": [],
+          "note": "Routing mismatch: documentation of a MIDI/CSV musical miniature matched to a geometry-documentation recipe (Trichome L2 model match, executor Ammonia)."
+        }
+      ],
+      "verdict": "NOT",
+      "rationale": "1 SAME subtask, NOT covered: the documentation must be written from the geometry and its derivations explained. The only credited match is a music write-up (OTHER).",
+      "programNote": "P could template a README skeleton (disclaimer, literal totals, command, probe citations) but cannot author the primitive descriptions and derivations."
+    },
+    {
+      "molecule": "Benzene",
+      "id": "reassess-archived-review-findings",
+      "successes": 1,
+      "matches": 1,
+      "refusalReason": "The recipe requires semantic interpretation of archived findings, current code, contracts, and reliability tradeoffs that cannot be deterministically derived from arbitrary workspace files.",
+      "schema": {
+        "guidanceFiles": "list<string>",
+        "reviewFile": "string",
+        "findingFilter": "enum[confirmed,all]",
+        "statusLabels": "list<string>",
+        "workstreamCount": "integer",
+        "outputMode": "enum[textOnly,file]",
+        "forbiddenActions": "list<enum[edit,startRun,startServer,deploy,push,destructive]>",
+        "workstreamSections": "list<enum[evidence,files,sequence,dependencies,verification,doneCondition,uncertainty,rankingRationale]>"
+      },
+      "subtasks": [
+        {
+          "source": "learned",
+          "run": "8fc39475-a85a-48c6-be1b-d2fafb3532ae",
+          "text": "Inspect AGENTS.md and applicable subsystem contracts, then reassess every finding marked confirmed in docs/archive/reviews/code-review-2026-10-02.md against the current imported default-branch source and tests. Classify each confirmed finding as resolved, unresolved, partially resolved, or uncertain using current file-specific evidence; do not presume archived conclusions remain valid. From the unresolved or partially resolved findings, select exactly three highest-value reliability workstreams and produce a ranked text-only project plan. For each workstream, give exact current evidence, affected file paths, a bounded implementation sequence, dependencies, a non-live verification method, and an objective done condition. Explain ranking criteria and clearly separate verified facts from uncertainties, including any limits caused by unavailable branch metadata or checks. Inspect or run only finite, non-mutating tests when useful; do not edit files, start an Atoma run or server, deploy, push, or perform destructive commands. Before returning, ensure every confirmed archived finding was explicitly reassessed and all eight acceptance criteria are covered.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Classify every confirmed archived finding against current source/tests as resolved/partial/unresolved/uncertain",
+              "label": "other"
+            },
+            {
+              "requirement": "Select and rank exactly three highest-value reliability workstreams with ranking criteria",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "Per-workstream evidence, bounded implementation sequence, dependencies, verification and done condition",
+              "label": "content/design authoring"
+            }
+          ],
+          "note": "Learning branch (Trichome, before skill-save)."
+        },
+        {
+          "source": "credited",
+          "run": "8fc39475-a85a-48c6-be1b-d2fafb3532ae",
+          "text": "Inspect the current default-branch workspace and produce the final text-only reliability project plan. First read and obey AGENTS.md plus any applicable nested guidance and subsystem contracts. Reassess every confirmed finding in docs/archive/reviews/code-review-2026-10-02.md against current source and tests, explicitly classifying all findings as resolved, partially resolved, unresolved, or uncertain; do not infer current status from the archived review alone. Use exact current file, symbol, test, and bounded check evidence, while avoiding any live Atoma run, server launch, deployment, push, or repository modification. Then select exactly three highest-value unresolved reliability workstreams. For each ranked workstream, provide verified current evidence, affected files, a bounded ordered implementation sequence, dependencies, verification method, clear done condition, and identified uncertainty. Explain the comparative ranking explicitly—including why each workstream outranks those below it and why other unresolved findings were not selected—rather than merely assigning rank numbers. Clearly separate verified facts from uncertainties and report any checks that could not safely be performed.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Classify every confirmed archived finding against current source/tests",
+              "label": "other"
+            },
+            {
+              "requirement": "Comparative ranking rationale: why each workstream outranks the next and why others were excluded",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "Per-workstream plan content (evidence, files, sequence, dependencies, verification, done condition, uncertainty)",
+              "label": "content/design authoring"
+            }
+          ],
+          "note": "Same run, second branch (Protoplast, jev 1.00) after the root validator rejected missing ranking rationale."
+        }
+      ],
+      "verdict": "NOT",
+      "rationale": "2 SAME, 0 COVERED: the deliverable is a semantic code review and an authored plan. Only file names, counts, label sets and forbidden actions are parameters.",
+      "programNote": "No deterministic P can judge finding status or rank workstreams; the schema only fixes the plan skeleton."
+    },
+    {
+      "molecule": "Ammonia",
+      "id": "harden-isolated-policy-boundaries",
+      "successes": 4,
+      "matches": 4,
+      "refusalReason": "The recipe requires semantic interpretation of policy rules, test architecture, and compatible defect fixes that cannot be reliably derived by a deterministic script.",
+      "schema": {
+        "testFile": "string",
+        "subjectFile": "string",
+        "testCommand": "string",
+        "isolation": "enum[tempDir,tempDataFile]",
+        "limits": "record<name, number> (e.g. premiumLoanLimit:5)",
+        "thresholdProbeValues": "list<number> (e.g. 4.99, 5.00, 5.01)",
+        "refusalReasons": "list<string literal>",
+        "fixtureFiles": "record<path, string literal content>",
+        "expectedOutputs": "record<path, string literal content>",
+        "allowFix": "boolean",
+        "helpProbe": "string|null"
+      },
+      "subtasks": [
+        {
+          "source": "learned",
+          "run": "2311d446-5787-4356-b032-fcf8ebf184e3",
+          "text": "Strengthen test/library.test.js with isolated temporary-data regressions for the lending boundaries, preserving all existing assertions and scenarios. For a premium member, derive every member, book, copy, loan, hold, fine, or payment ID from successful responses; demonstrate creation below the limit, establish exactly five successful active loans, assert the actual count is five, then attempt a sixth while a copy remains available to that member, no competing reservation exists, and no disqualifying fine exists; require refusal specifically for the five-loan premium limit and assert the active-loan count remains five afterward. Separately demonstrate outstanding balances of 4.99, exactly 5.00, and 5.01 with loan count below the applicable limit and an available, unreserved copy; assert the observed cent-exact balance and loan count before each request, require 4.99 and 5.00 to permit lending and 5.01 to refuse specifically for the fine threshold, and assert resulting counts. Run the complete existing test suite and record its real result. If and only if a valid regression demonstrates an application defect, make the smallest compatible correction in server.js without changing documented rules, dependency-free Node.js 24 operation, persistence format, existing API, or user data; rerun and record the complete suite after any correction.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Drive the lending API to exactly five active premium loans with an available, unreserved copy (scenario built from domain operations)",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Reach cent-exact outstanding balances 4.99, 5.00 and 5.01 through late fines and payments",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Insert the regressions into the existing test/library.test.js preserving every scenario",
+              "label": "other"
+            },
+            {
+              "requirement": "Smallest compatible fix in server.js if a regression exposes a defect",
+              "label": "algorithm/business-rule"
+            }
+          ],
+          "note": "The boundary literals (5 loans, 4.99/5.00/5.01) are parameters; how to reach those states is not."
+        },
+        {
+          "source": "credited",
+          "run": "7a247d71-b790-46e8-9c51-d4923503fa85",
+          "text": "Inspect the existing resolver and tests without rebuilding accepted deliverables. Create fixtures/impossible-cycle.json containing a root-reachable contradictory dependency cycle, and create test-impossible-cycle.js that invokes resolve.js as a real subprocess, independently determines expected unsatisfiability for the fixed fixture and small deterministic generated catalogues, asserts exit code 2, asserts a diagnostic on stderr, asserts no successful stdout diagnostics, proves termination, and verifies an existing output file remains byte-for-byte unchanged. Include generated unsatisfiable cyclic cases rather than only satisfiable oracle cases. Run the focused test under Node, fix only these new files if necessary, and record the successful probe.\n\n== LITERAL CONTRACTS FROM TOP-LEVEL GOAL ==\npackages is an array of {name,versions}; each version is {version,dependencies}; each dependency and root is {name,min,max}.\nReject duplicate package names, duplicate versions, duplicate dependency names within a version, duplicate root names, unknown fields, invalid types and min>max.\nUnknown referenced package names make that candidate unsatisfiable, not a malformed schema.\nOutput exactly {packages:[{name,version}]} sorted by name.\nOn malformed input, exit 1 and preserve it.\nRepeat inputs must produce identical bytes.\nRequired distinguishing fixture: roots A [1,2] and B [1,1]; A2 requires C2, A1 requires C1, B1 requires C1.\nThe solution must select A1, B1, C1.\nWhitespace-only names are nonempty strings and are literal, never trimmed.",
+          "job": "OTHER",
+          "coverage": "n/a",
+          "uncovered": [],
+          "note": "Routing mismatch (borderline): impossible-cycle fixture plus an independent unsatisfiability oracle for a resolver CLI; refusal and byte preservation but no stateful policy limit or threshold. Third of three matches in the run (the other two were other recipes); match event confirms skillId."
+        },
+        {
+          "source": "credited",
+          "run": "3eea5c57-9370-4189-8275-a93933330b37",
+          "text": "Inspect and narrowly fix stock-reconcile.js so output destinations are refused only when stock.csv or audit.json would resolve to the identity of an actual opening or events input, including through directory symlinks. Preserve the existing reconciliation contract and all seven existing acceptance criteria. Update test/stock-reconcile.test.js without removing passing regression assertions: replace the incorrect non-colliding symlink-directory refusal fixture with valid direct `--out .` and same-directory symlink-alias cases using opening.csv containing `sku,onHand` and `A,10` plus a normal events.csv RECEIVE event `e,A,RECEIVE,1,`; assert exit 0, byte-for-byte preservation of both inputs, stock.csv containing A,11,0,11, and audit.json showing one applied event. Add real collision cases where the opening input is the destination stock.csv and `--out` names either its directory directly or through a directory symlink; assert refusal occurs for the input-identity collision before any input/output bytes change. Retain and exercise direct events-input collisions, audit.json-directory publication failure protection, rollback, CRLF row diagnostics, reservation/CSV/quantity fixes, deterministic outputs, duplicate handling, and excess-return preservation. Assert exit statuses, output and audit state, preserved bytes, and the precise refusal cause. Run and record the complete existing subprocess suite with `npm test`, plus the CLI help probe if not already covered, and report the exact observed pass/fail counts without claiming unobserved results.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Narrow the stock-reconcile.js refusal to true input-identity collisions, including through directory symlinks",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Replace an incorrect fixture inside the existing test file without removing passing assertions",
+              "label": "other"
+            },
+            {
+              "requirement": "Retain and exercise existing protections (rollback, CRLF diagnostics, duplicates, excess return, ...)",
+              "label": "other"
+            },
+            {
+              "requirement": "Assert the precise refusal cause (message not given) and audit.json showing one applied event (audit shape not given)",
+              "label": "other"
+            }
+          ],
+          "note": "The literal fixtures (sku,onHand / A,10 / e,A,RECEIVE,1, / expected A,11,0,11) are parametric."
+        },
+        {
+          "source": "credited",
+          "run": "a239be59-4a72-4592-a634-f3fe3161aff9",
+          "text": "Inspect and finish `stock-reconcile.js`, strengthen `test/stock-reconcile.test.js`, and record final CLI evidence in `.atoma-probes.json` while retaining the complete contract in originalTask. Reproduce and fix all three observed defects: a CRLF header followed by valid RECEIVE and invalid zero quantity must identify events row 3 rather than row 1; an output-directory symlink resolving to an input directory must be refused before `stock.csv` can overwrite opening input `stock.csv`; and failure to publish `audit.json` because that path is a nonempty directory must not replace an existing `stock.csv`. Unsafe destinations must be rejected using resolved path identity, and publication failure must preserve every pre-existing input and output byte. Add explicit subprocess assertions—not test names or success prose—that establish valid prerequisites before conflicting-duplicate and excess-return failures, prepopulate both outputs, compare both outputs and both inputs byte-for-byte afterward, and assert the specific refusal cause. Add direct assertions for opening-only and zero-stock output content, identical SHIP duplication after reservation exhaustion, genuinely extra-column records, arithmetic overflow distinct from unsafe input integers, and direct input/output collision. Preserve and explicitly exercise the full CSV, event-transition, idempotency-before-transition, deterministic output, fixed-example, late-failure, and preservation contracts from originalTask, including quoted multiline and last-column fields, BOM/CRLF, partial transitions, all invalid prerequisites, safe arithmetic, and running valid inputs twice with byte-identical `stock.csv` and `audit.json`. Execute the complete `npm test` suite and the CLI help path as finite recorded probes, confirm subprocess assertions inspect setup, state, stderr, and bytes rather than exit status alone, and return the actual probe results plus an accurate list of any remaining coverage gaps.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Fix three defects: CRLF row numbering, refusal of symlinked output dirs, preservation on audit publish failure",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Subprocess assertions that first establish valid prerequisites before conflicting-duplicate and excess-return failures",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Exercise the full CSV/transition/idempotency/arithmetic contracts from originalTask",
+              "label": "other"
+            },
+            {
+              "requirement": "Accurate list of remaining coverage gaps",
+              "label": "content/design authoring"
+            }
+          ],
+          "note": ""
+        },
+        {
+          "source": "credited",
+          "run": "2c03a3f6-1300-407c-a3b0-7fc21dddb0c1",
+          "text": "Repair stock-reconcile.js and strengthen test/stock-reconcile.test.js, README.md, examples/opening.csv, examples/events.csv, and examples/excess-return-events.csv while retaining `node stock-reconcile.js --opening <path> --events <path> --out <directory>` and `--help`. First reproduce the five known defects with assertions, then fix them: exhausted reservation IDs remain permanently unavailable; reservation IDs are globally unique across SKUs; event quantity `00` is rejected; a quoted final CSV column followed by another record parses correctly; and reservation IDs may equal earlier event IDs because the namespaces are separate. Preserve the complete stated CSV, validation, transition, idempotency, atomic publication, deterministic output, fixed-example, opening-only, and zero-stock contracts. Expand the node:test suite to invoke the actual CLI as subprocesses in isolated directories and assert setup, files, parsed results, stderr details, and preservation—not merely exit codes. Cover partial transitions; every invalid prerequisite and cross-SKU reference; over-release, over-shipment, and over-return; safe-integer and arithmetic overflow; malformed quoting and column counts; blank/internal records; BOM/CRLF; quoted commas, doubled quotes, embedded newlines, and quoted last columns; input/output collision refusal; late-row failure preservation; conflicting duplicate fields with valid prerequisites; identical shipment duplication before exhausted-transition checks; deterministic repeat runs comparing both stock.csv and audit.json byte-for-byte; opening-only and zero-stock content; the fixed example totals and counts; and excess-return preservation. Keep the CLI dependency-free and perform no network access. Execute the help command, the complete npm test suite, and representative documented example success and failure subprocesses, recording reproducible evidence. Report the actual observed pass/fail counts and outputs, distinguish any remaining gaps accurately, and p",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Reproduce and fix five defects (reservation-ID exhaustion, uniqueness and namespace, quantity 00, quoted final CSV column)",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Broad subprocess test expansion across transitions, prerequisites, overflow, CSV edge cases and determinism",
+              "label": "other"
+            },
+            {
+              "requirement": "Update README and example CSV files",
+              "label": "content/design authoring"
+            }
+          ],
+          "note": "First of two matches in the run; the second (CSV-CLI wording) was not credited to this recipe in the ledger (timestamps match the first branch only). Text capped at 2,000 chars (full label 2040 chars)."
+        }
+      ],
+      "verdict": "NOT",
+      "rationale": "4 SAME, 0 COVERED: each SAME subtask hardens a different program (library API, warehouse CLI). Literal boundary values and fixtures exist, but reaching the states, fixing defects and integrating into existing suites is per-subtask logic.",
+      "programNote": "A shared P could write literal fixture files, run the CLI or API and compare literal outputs. Constructing domain states (fines, loans, reservations) and repairing code are not parametric."
+    },
+    {
+      "molecule": "Ammonia",
+      "id": "harden-manifest-exclusions",
+      "successes": 0,
+      "matches": 0,
+      "refusalReason": "Patching arbitrary manifest verifiers and designing compatible regression fixtures requires repository-specific semantic reasoning that cannot be safely encoded as a deterministic script.",
+      "schema": {
+        "verifierFile": "string",
+        "manifestFile": "string",
+        "excludedComponents": "list<string>",
+        "excludedComponentPrefixes": "list<string>",
+        "excludedRootPaths": "list<string>",
+        "excludedFilenames": "list<string>",
+        "excludedExtensions": "list<string>",
+        "caseInsensitive": "boolean",
+        "positiveFixturePaths": "list<string>",
+        "protectedPaths": "list<string>",
+        "verifyCommand": "string"
+      },
+      "subtasks": [
+        {
+          "source": "learned",
+          "run": "afb236ab-ac87-495a-b8ea-f03f92da8e70",
+          "text": "Patch verify_all.py narrowly. Implement one shared case-insensitive path-exclusion predicate used by publishable_files(), validate_manifest() ordinary-file inventory, rejection of manifest entries, and regression fixtures. Exclude components .git, node_modules, __pycache__, .atoma, and components starting .atoma-; root .github/workflows; and the specified credential-like filenames and secret/certificate extensions. Ignore excluded workspace files without reading or executing their contents, but reject manifest entries naming them. Preserve rejection of unexpected ordinary files and missing, altered, omitted, duplicate, or escaping entries. Add a persistent positive disposable-publication regression containing harmless .git/HEAD, .git/config, .atoma/cache, .atoma-probes.json, node_modules/example/index.js, and quality/__pycache__/example.pyc; prove manifest validation and complete verification pass while its manifest remains byte-identical. Add a negative regression whose manifest explicitly lists an excluded file. Retain clean-copy, corruption, and manifest-integrity regressions. Snapshot and prove the four analysis directories and dossier.md remain byte-identical and that complete verification changes no original delivery file. Regenerate manifest.json only after all code changes, then run the README command python3 verify_all.py, confirm deterministic manifest hashes, read back verify_all.py and manifest.json, and report actual command statuses and outputs. Do not create analyses, websites, or modify README.md unless the existing command is inaccurate.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Route publishable_files(), validate_manifest() and manifest-entry rejection in the existing verify_all.py through one shared predicate",
+              "label": "other"
+            },
+            {
+              "requirement": "Credential-like filenames and secret/certificate extensions (\"the specified\" list is not in the subtask text)",
+              "label": "other"
+            },
+            {
+              "requirement": "Add persistent positive/negative regressions inside the verifier's own regression suite",
+              "label": "other"
+            },
+            {
+              "requirement": "Regenerate manifest.json with the project's existing tooling after code changes",
+              "label": "other"
+            }
+          ],
+          "note": "The literal exclusion components and positive fixture paths are parametric. The recipe has no credited match, so this is the only subtask."
+        }
+      ],
+      "verdict": "NOT",
+      "rationale": "1 SAME, NOT covered: the work is a patch to an existing Python verifier of unknown structure, and part of the exclusion list is not stated.",
+      "programNote": "Could be parametric only if every target verifier shared one structure; with one observed subtask, P would have to patch arbitrary code."
+    },
+    {
+      "molecule": "Ammonia",
+      "id": "harden-node-cli-test-package",
+      "successes": 8,
+      "matches": 8,
+      "refusalReason": "The recipe requires task-specific interpretation of CLI behavior, construction of independent correctness oracles, and adversarial test design that cannot be safely derived deterministically from arbitrary workspaces.",
+      "schema": {
+        "entryFile": "string",
+        "cliArgsTemplate": "string literal (e.g. \"--input {in} --out {out}\")",
+        "testFiles": "list<string>",
+        "nodeMajor": "integer",
+        "helpFlag": "string",
+        "scenarioInputs": "record<scenarioName, JSON string literal>",
+        "scenarioExpected": "record<scenarioName, JSON string literal>",
+        "exitCodes": "{success:integer, malformed:integer, unsatisfiable:integer}",
+        "collisionKinds": "list<enum[direct,symlink,hardlink,outputDir]>",
+        "readmeFile": "string",
+        "maxProofFileChars": "integer|null"
+      },
+      "subtasks": [
+        {
+          "source": "learned",
+          "run": "41e069a6-79ab-4722-ba21-c02e1b600d17",
+          "text": "Complete the seeded offline dependency resolver project, preserving the existing correct resolve.js implementation and all twelve acceptance criteria. The previous run 7a247d71-b790-46e8-9c51-d4923503fa85 was partial because c5/c6 fixture contents and direct/symlink byte-preservation assertions were not visible to review. I independently recovered the artifact and verified every file SHA-256 against the production manifest, then ran 244 separate Python-driven subprocess checks (including 180 deterministic catalogues checked with full-vector enumeration). All passed; resolve.js currently needs no behavior change.\n\nFinish this as one coherent tests-and-packaging phase. Keep existing passing assertions. Add package.json with no dependencies and npm test running ALL existing and added test files. Update README with how to run the complete tests and a real fixture example.\n\nAdd a small readable test file with complete inline inputs and literal full expected outputs for:\n1. The exact greedy trap: roots A[1,2], B[1,1]; A1->C1, A2->C2, B1->C1; C has versions1,2. Expect exactly A1,B1,C1.\n2. A shared diamond: R1 depends on A[1,1] and B[1,1]; A1 depends on C[1,2]; B1 depends on C[2,3]; C has versions1,2,3. Expect A1,B1,C2,R1 in code-unit order.\n3. A satisfiable cycle: A1 depends on B[2,2], B2 depends on A[1,1], root A[1,1]. Expect A1,B2. Keep the existing contradictory-cycle fixture and its executed rejection tests.\n4. A global-objective trap: root Z[1,2]; Z2 depends on A1, Z1 depends on A2; A has versions1,2. Expect A2,Z1, proving this is not greedy root preference.\nFor each invoke the REAL CLI, assert status, stderr/stdout contract, full parsed output and original input bytes. Expose those small test contents to final review together with the successful execution.\n\nFor c10, capture original input bytes BEFORE each direct, symlink and hardlink collision invocation; assert exit1, diagnostic stderr, and compare both original input and alias bytes to that saved literal snapshot ",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Strengthen the existing c10 collision tests: snapshot input bytes before each direct/symlink/hardlink invocation",
+              "label": "other"
+            },
+            {
+              "requirement": "Add a sentinel child to the existing output-directory failure test",
+              "label": "other"
+            },
+            {
+              "requirement": "Correct test.js's independent oracle (absence, constraints on selected packages only, reachable closure, null vs empty, lexicographic vector)",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Varying deterministic generated graphs (disconnected, unknown references, empty versions, cycles, competing choices) checked via subprocess",
+              "label": "algorithm/business-rule"
+            }
+          ],
+          "note": "package.json, the README test section and the four literal inline scenarios (inputs and expected outputs spelled out) are parametric. The same label was matched again in this run (via Benzene, jev 1.00) after root rejection; counted once. Text capped at 2,000 chars (full label ~3.45k)."
+        },
+        {
+          "source": "credited",
+          "run": "738678bc-358b-49af-b2d3-40680b4a995e",
+          "text": "Build a dependency-free Node.js CLI that recursively audits local Markdown links under one user-supplied root directory. Read .md files only, skip .git, node_modules and symlinks. Check inline links and images plus reference-style link definitions. Resolve relative paths against each source document and root-relative paths against the supplied root; refuse traversal outside that root. Treat http(s), mailto and data links as external and never fetch them. Decode percent-encoded local paths; check file existence and, for .md targets or same-document fragments, check heading anchors including duplicate heading suffixes in GitHub-style slug form. Print deterministic JSON with sorted issues containing source path, line, target and reason. Exit 0 if clean, 1 if broken links, 2 for invalid invocation or root. Never modify scanned files. Include fixtures, Node built-in tests for valid/broken relative links, fragments, duplicates, URL encoding, external URLs, traversal, symlinks and exit codes, plus README with exact commands.",
+          "job": "OTHER",
+          "coverage": "n/a",
+          "uncovered": [],
+          "note": "Routing mismatch: greenfield Markdown link-auditor CLI; the recipe presumes an existing <entry> to retain and a solver oracle."
+        },
+        {
+          "source": "credited",
+          "run": "842ceba8-21c5-4cb5-93d3-caa0b9c44f43",
+          "text": "Build a dependency-free Node.js command-line tool that recursively scans one user-supplied directory and reports groups of byte-identical regular files. It must never delete, rename, or write to scanned files. Skip symbolic links and .git directories, handle empty files, compare candidate files by size then streaming SHA-256 and finally bytewise confirmation so each reported group truly contains identical bytes. Produce deterministic JSON on stdout with sorted paths and groups, including duplicate byte savings. Give clear usage/help and nonzero exit for invalid or unreadable root. Continue scanning on individual unreadable entries with warnings on stderr. Add a small fixture or example and Node built-in tests using temporary directories for identical content, equal size but different content, empty files, symlinks, deterministic ordering, and error behavior. Include README with exact commands and safety notes.",
+          "job": "OTHER",
+          "coverage": "n/a",
+          "uncovered": [],
+          "note": "Routing mismatch: greenfield duplicate-file finder CLI. Matched twice (Ammonia, then Benzene after the symlink-test rejection), identical label."
+        },
+        {
+          "source": "credited",
+          "run": "cb53b09d-87d7-4c3a-af95-89b9500c209e",
+          "text": "Complete, verify and deliver the existing seeded project against the original contract below. Preserve working behavior and every existing assertion; repair any actual defects. Run the complete tests under Node 24 and keep the source, fixtures and execution evidence available for final acceptance. Do not weaken the twelve acceptance criteria.\n\nBuild a dependency-free Node.js 24 offline dependency resolver CLI: node resolve.js --input catalog.json --out lock.json. Deliver the CLI, README, fixtures and real-subprocess tests.\n\nInput has exactly packages and roots. packages is an array of {name,versions}; each version is {version,dependencies}; each dependency and root is {name,min,max}. Names are nonempty literal strings. Versions and inclusive bounds are integers 1..1000. Reject duplicate package names, duplicate versions, duplicate dependency names within a version, duplicate root names, unknown fields, invalid types and min>max. Unknown referenced package names make that candidate unsatisfiable, not a malformed schema. Empty roots produce an empty solution.\n\nChoose one version for each included package, satisfy every root and every dependency of every selected version, and include exactly the packages reachable from roots through those dependencies. Cycles are legal when their constraints can all be satisfied. Backtrack when a locally highest version prevents a global solution. For a deterministic optimum, sort all catalogue names by JS code-unit order; compare solutions by their full version vector in that order, with 0 for absent packages, and choose the lexicographically greatest vector. Output exactly {packages:[{name,version}]} sorted by name.\n\nOn valid but unsatisfiable input, exit 2 with a diagnostic and preserve any existing output. On malformed input, exit 1 and preserve it. Success exits 0. Preserve input bytes, refuse actual input/output identity collisions, and publish output atomically. Repeat inputs must produce identical bytes.\n\nRequired distinguishin",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Repair any actual defects in the seeded resolver against the full contract",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Tests for shared diamonds, cycles, disconnected packages, multiple solutions and prototype-like names (fixtures not spelled out)",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Separate exhaustive oracle over small generated catalogues",
+              "label": "algorithm/business-rule"
+            }
+          ],
+          "note": "Matched twice (Ammonia, Benzene), identical label (same length and prefix). Text capped at 2,000 chars (full label ~3.1k)."
+        },
+        {
+          "source": "credited",
+          "run": "0a4a3e55-1df2-4cb3-8dd0-b7f69500a648",
+          "text": "Finish the seeded dependency resolver's evidence and delivery without changing resolve.js (SHA-256 0975d287b8729f7958ef73b9313c23ac74a6237239b09d81e9fc10c012ea911a), behavior or the twelve acceptance criteria. Both previous runs passed their suites; the independent external checker passed 244 checks under Node 24.20.0. The latest refusal is c1 because no executed Node version was explicitly observed, plus a global review complaint that test-inline.js is truncated before its complete diamond/cycle/global-objective bodies.\n\nDo one bounded proof-only phase:\n- Execute node --version and node -p process.version, retain their observed outputs as current evidence. Also assert the Node major version is 24 in the test entry so npm test's runtime is explicit.\n- Split the four existing test-inline.js scenarios into small standalone test files under test/proofs/, EACH LESS THAN 1800 CHARACTERS so its full input, expected output, subprocess invocation and assertions can be read without truncation. Keep test-inline.js as a runner that invokes all four. Preserve ALL prior assertions and fixtures, the corrected general oracle, byte preservation checks, and npm test's three suite entries. Each small file must contain its exact fixture and literal full expected lock, invoke the actual CLI, check status and full JSON and unchanged input bytes. Each should print a compact observed JSON record {node:process.version,case,exitCode,actual,expected,ok:true} ONLY after its assertions succeed. Do not use summaries as substitute for actual assertions.\n- The four scenarios are the exact supplied A1/B1/C1 greedy trap; shared diamond yielding A1,B1,C2,R1; satisfiable cycle A1->B2->A1 yielding A1,B2; global objective root Z[1,2], Z2->A1, Z1->A2 yielding A2,Z1. Keep the existing contradictory-cycle rejection suite and do not change solver semantics.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Split the existing test-inline.js scenarios into proof files with exact fixtures (the diamond, cycle and global-objective catalogues are not fully in this text)",
+              "label": "other"
+            },
+            {
+              "requirement": "Keep test-inline.js as a runner while preserving all prior assertions (rewrite of an existing file)",
+              "label": "other"
+            },
+            {
+              "requirement": "Assert Node major 24 inside the existing test entry",
+              "label": "other"
+            },
+            {
+              "requirement": "Keep README accurate after restructuring",
+              "label": "content/design authoring"
+            }
+          ],
+          "note": "Matched twice, identical label. The summary (56k chars) was saved to a file and parsed with jq. Node version probes, read-backs and npm test/--help are parametric. Text truncated at a line boundary (first 1848 of ~2.45k chars)."
+        }
+      ],
+      "verdict": "NOT",
+      "rationale": "3 SAME, 0 COVERED, 2 OTHER. All SAME subtasks concern one resolver project at different stages. Each needs oracle logic, existing-test surgery or fixtures that are not in its own text. The two credited greenfield CLIs (link auditor, duplicate finder) are routing mismatches.",
+      "programNote": "P could add package.json, README sections and literal scenario tests from scenarioInputs/scenarioExpected. Oracle construction, edits to existing tests and defect repair stay outside."
+    }
+  ],
+  "collectionNotes": "All ledger scopes were project runs (UUIDs) read with run_trace runId; no operator traces. The ledger filter scanned the newest 1000 of 1064 events (window from about 2026-09-20). build-in-memory-json-api: learned = creation run b5e873f8 (2026-09-20). The current body is a revision saved in run 6ab0ae3b (2026-09-24, after a CarbonDioxide failure); that subtask, and the 09-21 revision in d3098d25, were not examined. Credited = the 6 most recent distinct runs; older credits (09-21 to 09-26) were not examined. build-persisted-json-api: learned = creation run c949f7e7. Revision-only runs (96d5c845, 87e672d7, 6c582953, 1d42ac2a: failure then revised) were not examined. Runs 715ffc74 and 8d819d66: only the first match was opened (12-event pages); the later CarbonDioxide re-matches were not opened and are presumed to carry the same goal text. Five of six credited runs share one identical stock-reservation goal; they are recorded as separate subtasks per protocol, which weights that goal 5/7. An identical label matched more than once in a single run (retry after an acceptance or validator refusal) was counted once, with a note. Labels above 2,000 chars are truncated, with the approximate full length noted. Run 0a4a3e55 has id 0a4a3e55-1df2-4cb3-8dd0-b7f69500a648 (an earlier transcription error returned 404 and was corrected from the ledger). Cross-molecule execution is common: Methane recipes ran on CarbonDioxide, the Benzene geometry recipe on Ammonia, and the Ammonia CLI recipe on Benzene. The same subtask label is used regardless of executor. harden-manifest-exclusions has 0 matches/successes: only its learning subtask exists. document-verified-geometry-study and reassess-archived-review-findings each have one credit (the latter in its own learning run). SAME/OTHER borderlines: a05c004c (non-CRUD scaffold under the CRUD recipe) was judged SAME. 7a247d71 (resolver refusal test under policy-boundaries), 738678bc and 842ceba8 (greenfield CLIs under the CLI-hardening recipe) were judged OTHER."
+}

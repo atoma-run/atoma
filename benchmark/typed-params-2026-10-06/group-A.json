@@ -1,0 +1,1211 @@
+{
+  "group": "A",
+  "recipes": [
+    {
+      "molecule": "Water",
+      "id": "build-responsive-static-multipage-site",
+      "successes": 2,
+      "matches": 3,
+      "refusalReason": "(ledger 2026-09-27, generation 57aa23d2, before the current revision; skills_show now shows none) The recipe requires task-specific page design and real-browser interaction validation, including WEB probe replay, which cannot be deterministically implemented with the permitted Node-only script.",
+      "schema": {
+        "pageFiles": "list<string>",
+        "navOrder": "list<string>",
+        "sharedStylesheet": "string",
+        "preserveFiles": "list<string>",
+        "mobileWidthPx": "number",
+        "menuToggle": "boolean",
+        "serviceCardCount": "number",
+        "ctaHref": "string",
+        "caseStudyCount": "number",
+        "filterCategories": "list<string>",
+        "contactFields": "list<enum name|email|message|budget|phone>",
+        "browserChecks": "list<enum nav|menu|filter|form-invalid|form-valid|preserved-total|no-console-errors|no-failed-requests>"
+      },
+      "subtasks": [
+        {
+          "source": "learned",
+          "run": "f793b338-0152-4c55-8e98-a7277e95a48b",
+          "text": "Update index.html into a home page with hero, three service cards, and a CTA linking to configurator.html; update configurator.html only as needed to add the shared current-page header while preserving its existing behavior, including a one-off total of 4340 EUR for Business with the blog add-on and 12 pages; create work.html with six case studies and industry filter buttons where All is selected by default and restores all six; create contact.html with name, email, message, and budget controls that shows an invalid-email error without thank-you and shows a thank-you message for valid complete input without submitting; create styles.css shared by all four pages. Give every page identical navigation linking index.html, configurator.html, work.html, and contact.html with the applicable current page marked. Make every page responsive at 375 px with no horizontal scroll and a menu button that opens collapsed navigation. Verify the served static pages in a real browser through navigation, menu, filters, configurator inputs, and both invalid and valid contact submissions, iterating until there are zero console errors and failed requests; record the resulting browser proof.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Hero, three service cards, CTA and six case studies need authored copy; the subtask gives counts, not content",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "Industry filter categories for the case studies are not stated, so S cannot be filled without inventing them",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "Add the shared current-page header to the existing configurator.html while preserving its unstated script (4340 EUR total)",
+              "label": "other"
+            },
+            {
+              "requirement": "No horizontal scroll and an operable collapsed menu at 375 px on every page",
+              "label": "browser/visual check"
+            },
+            {
+              "requirement": "Real-browser proof of navigation, menu, filters incl. All, configurator total, invalid/valid contact submissions, zero console errors and failed requests",
+              "label": "browser/visual check"
+            }
+          ],
+          "note": "Created skill-save run (distilled). Branch ffae2eb7 executed by Water, approved on the trust fast-path; run acceptance rejected it (inline <style> instead of shared styles.css). Page list, nav order, stylesheet name, 375 px and form field names fill S; most requirements do not."
+        },
+        {
+          "source": "learned",
+          "run": "89fde222-256f-44c6-997e-9237ca629b58",
+          "text": "Create a small self-contained static marketing site: update index.html as a home page with hero, three service cards, and CTA to configurator.html; retain configurator.html behaviour so Business plus blog add-on plus 12 pages computes a one-off total of 4340 EUR; create work.html with six case studies and industry filter buttons with All selected by default; create contact.html with name, email, message, and budget inputs that reject invalid email without thank-you and show thank-you for valid completed input; create shared styles.css used by all four pages. Give every page identical header navigation linking to index.html, configurator.html, work.html, and contact.html with its current page marked. Make navigation collapse behind an operable menu button at 375 px with no horizontal scrolling. Verify all static pages and their required filter, form, menu, configurator, and responsive interactions in a browser with no console errors or failed requests.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Hero, three service cards, CTA and six case studies need authored copy; the subtask gives counts, not content",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "Industry filter categories for the case studies are not stated, so S cannot be filled without inventing them",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "Add the shared current-page header to the existing configurator.html while preserving its unstated script (4340 EUR total)",
+              "label": "other"
+            },
+            {
+              "requirement": "No horizontal scroll and an operable collapsed menu at 375 px on every page",
+              "label": "browser/visual check"
+            },
+            {
+              "requirement": "Real-browser proof of navigation, menu, filters incl. All, configurator total, invalid/valid contact submissions, zero console errors and failed requests",
+              "label": "browser/visual check"
+            }
+          ],
+          "note": "REVISION skill-save run (mechanism revised), not the creating save. Match by Idioblast, executor Serotonin; skill failure, then the run aborted at its 1800 s budget. Exclude it for a strict created-save + credited sample."
+        },
+        {
+          "source": "credited",
+          "run": "f33379a4-424d-48b4-9f10-4d5e19b64b80",
+          "text": "Build and verify the static marketing site: update index.html as a home page with hero, three service cards, and a CTA to configurator.html; retain configurator.html's existing configurator behavior, including a one-off total of 4340 EUR for Business with the blog add-on and 12 pages; create work.html with six case studies and industry filter buttons with All selected by default; create contact.html with name, email, message, and budget fields that reject invalid email without showing thanks and show a thank-you message for valid completed submission; create shared styles.css; place identical navigation linking index.html, configurator.html, work.html, and contact.html on every page with the current page marked; ensure a 375 px viewport has no horizontal scrolling and uses a menu button to reveal collapsed navigation. Record browser proof covering every page, configurator calculation, case-study filtering including All, invalid and valid contact form submissions, and selector-driven mobile menu interaction with zero console errors and failed requests.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Hero, three service cards, CTA and six case studies need authored copy; the subtask gives counts, not content",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "Industry filter categories for the case studies are not stated, so S cannot be filled without inventing them",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "Add the shared current-page header to the existing configurator.html while preserving its unstated script (4340 EUR total)",
+              "label": "other"
+            },
+            {
+              "requirement": "No horizontal scroll and an operable collapsed menu at 375 px on every page",
+              "label": "browser/visual check"
+            },
+            {
+              "requirement": "Real-browser proof of navigation, menu, filters incl. All, configurator total, invalid/valid contact submissions, zero console errors and failed requests",
+              "label": "browser/visual check"
+            }
+          ],
+          "note": "Match 19a75f18 by Tracheid, executor Serotonin; branch success. Run acceptance rejected this attempt (mobile proof only on index.html)."
+        },
+        {
+          "source": "credited",
+          "run": "f33379a4-424d-48b4-9f10-4d5e19b64b80",
+          "text": "Create index.html, configurator.html, work.html, contact.html, and styles.css as a small self-contained static marketing site: every page has identical header navigation linking to index.html, configurator.html, work.html, and contact.html with its current page marked; index.html has a hero, three service cards, and a CTA to configurator.html; configurator.html preserves the existing configurator behavior, including Business with the blog add-on and 12 pages totaling one-off 4340 EUR; work.html has six case studies and industry filter buttons with All selected initially; contact.html has name, email, message, and budget controls, browser validation, invalid-email error/no thank-you behavior, and valid-submit thank-you behavior without submission. Use styles.css from all four pages and implement a 375 px menu button that opens the hidden navigation without horizontal overflow on index.html, configurator.html, work.html, or contact.html. Verify all pages in a static browser session with no console errors or failed requests, exercising menu opening on every page at 375 px, configurator calculation, work filtering including restoring All, and both invalid and valid contact form submission paths; record the resulting evidence.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Hero, three service cards, CTA and six case studies need authored copy; the subtask gives counts, not content",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "Industry filter categories for the case studies are not stated, so S cannot be filled without inventing them",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "Add the shared current-page header to the existing configurator.html while preserving its unstated script (4340 EUR total)",
+              "label": "other"
+            },
+            {
+              "requirement": "No horizontal scroll and an operable collapsed menu at 375 px on every page",
+              "label": "browser/visual check"
+            },
+            {
+              "requirement": "Real-browser proof of navigation, menu, filters incl. All, configurator total, invalid/valid contact submissions, zero console errors and failed requests",
+              "label": "browser/visual check"
+            }
+          ],
+          "note": "Match b782972e by Idioblast, executed by Water; branch success, run acceptance approved."
+        }
+      ],
+      "verdict": "NOT",
+      "rationale": "4 SAME subtasks, all one goal (a marketing site around an existing configurator), 0 COVERED. Each needs authored marketing and case-study content, an edit inside an existing page's unstated script, and real-browser proof at 375 px and for the interactions, so none fits a schema plus one program.",
+      "programNote": "One program could scaffold the page files, a shared stylesheet, identical navigation with a current-page marker, a menu toggle and a generic email-validation form. It cannot supply the copy and case studies, merge a header into an arbitrary existing configurator, or attest no-overflow and the interaction flows without a browser."
+    },
+    {
+      "molecule": "Water",
+      "id": "build-self-contained-static-page",
+      "successes": 24,
+      "matches": 27,
+      "refusalReason": "Creating semantic polished page content and performing browser validation require irreducible design judgment and browser tooling unavailable to a deterministic Node script. (2026-09-26, refusal stale: will retry)",
+      "schema": {
+        "entryFile": "string",
+        "documentTitle": "string",
+        "heading": "string",
+        "inlineAssetsOnly": "boolean",
+        "buttonLabels": "list<string>",
+        "exactTexts": "list<string>",
+        "initialDisplay": "string",
+        "selectOptions": "list<string>",
+        "keyboardKeys": "list<string>",
+        "ignoreKeysInside": "list<enum input|select|textarea>",
+        "serverPort": "enum os-assigned",
+        "browserChecks": "list<enum render|click|keyboard|select|countdown|no-console-errors|no-failed-requests>"
+      },
+      "subtasks": [
+        {
+          "source": "credited",
+          "run": "495c20ef-4d2d-4d8e-9ad1-16c32dd1db03",
+          "text": "Restore index.html as a small, self-contained Pomodoro page. The document title and heading must be \"Focus Timer\"; initial display 25:00; countdown once per second; mode labels exactly \"Mode: Pomodoro\", \"Mode: Short Break\", and \"Long break\"; session count with a \"Reset count\" link; focus completion increments the count; buttons ordered Start, Pause, Reset, Break, Long break; breaks select 05:00 and 15:00 and use the same Start/Pause controls; Focus length offers 15, 25, and 45 minutes with 25 initially selected and controls stopped focus mode plus later focus resets/countdowns; running or paused titles use \"MM:SS · Focus Timer\", while Ready and Complete use \"Focus Timer\"; status is exactly Ready, Running, Paused, or Complete; and a shortcut hint appears under the buttons. Implement Space and S to start a stopped countdown or pause a running one, R to reset the current mode, B to select the short break, and L to select the long break. Shortcuts must work while a button has focus and be ignored only in text fields, selects, and textareas. Serve the page on an OS-assigned port and validate every listed behavior in a real browser, including selector-based clicks, focus changes, select changes, keyboard input while a button is focused, ignored keyboard input in the select, countdown progression, reset behavior, all modes, status/title changes, session increment, and Reset count. Iterate on index.html until there are zero console errors and zero failed requests.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Pomodoro timer behaviour: per-second countdown, mode switching, focus-length semantics, session increment on focus completion, status and title transitions",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Shortcuts bound to timer actions that work while a button is focused and are ignored in input/select/textarea",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Real-browser validation of clicks, focus, select changes, keyboard input and countdown progress with zero console errors and failed requests",
+              "label": "browser/visual check"
+            }
+          ],
+          "note": "Match 0273f1f5, executor Serotonin; branch success, run acceptance rejected. The literals (title, labels, durations, button order, statuses, title format) fill S; the behaviour connecting them does not."
+        },
+        {
+          "source": "credited",
+          "run": "495c20ef-4d2d-4d8e-9ad1-16c32dd1db03",
+          "text": "Restore index.html as one small self-contained Pomodoro page. The document title and heading must be \"Focus Timer\"; initial display 25:00; countdown ticks once per second. Show \"Mode: Pomodoro\", \"Mode: Short Break\", or exactly \"Long break\" as appropriate. Show \"Sessions completed: N\" and a \"Reset count\" link; increment N only when a focus countdown reaches 00:00 and reset it to 0 from the link. Provide buttons in exact order Start, Pause, Reset, Break, Long break; Break selects a stopped Ready 05:00 short break and Long break selects a stopped Ready 15:00 long break, including when switching from a running timer. Start and Pause must control every mode. Add a Focus length select with 15, 25, and 45 minutes, initially 25; changing it while stopped in focus mode immediately updates the display, and all later focus starts and resets use it without changing break durations. While running or paused, set the tab title to '<remaining> · Focus Timer'; while Ready or Complete use 'Focus Timer'. Show status exactly Ready, Running, Paused, or Complete. Space and S start a stopped countdown and pause a running one; R resets the current mode; B and L select the corresponding break exactly like their buttons. Shortcuts must work while a button is focused and be ignored only in input, select, or textarea controls. Put a shortcut hint under the buttons. Preserve accessible labels and stable element IDs suitable for interaction testing. Perform an initial browser smoke check from a locally served page and record useful passing evidence.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Pomodoro timer behaviour: per-second countdown, mode switching, focus-length semantics, session increment on focus completion, status and title transitions",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Shortcuts bound to timer actions that work while a button is focused and are ignored in input/select/textarea",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Initial browser smoke check from the served page with recorded passing evidence",
+              "label": "browser/visual check"
+            }
+          ],
+          "note": "Match 4eb16014, executor Serotonin; branch success, run acceptance rejected."
+        },
+        {
+          "source": "credited",
+          "run": "cdc34023-5a92-4c12-9d4c-0f4e8efbf8bd",
+          "text": "Create index.html from scratch as a small self-contained Pomodoro page. The document title and heading must be \"Focus Timer\" and initially show 25:00, \"Mode: Pomodoro\", \"Sessions completed: 0\", a \"Reset count\" link, and status Ready. Provide exactly five timer buttons in this order: Start, Pause, Reset, Break, Long break. Break must enter short-break mode, show 05:00 and \"Mode: Short Break\"; Long break must show 15:00 and exactly \"Long break\" as its mode line. Both breaks use the same Start and Pause controls. Add a \"Focus length\" select with 15, 25, and 45 minute options and 25 initially selected; changing it while focus mode is stopped immediately updates the display, and all later focus starts and resets use that selection without changing either break duration. Increment the session count exactly once whenever a focus countdown reaches 00:00, and make \"Reset count\" restore it to 0. Implement Space to toggle start/pause and R to reset the current mode, with no other keyboard shortcut. Show the exact hint \"Shortcuts: Space starts/pauses the timer · R resets the current mode\". Maintain a status line whose value is Ready, Running, Paused, or Complete according to state. Serve the page on an OS-assigned port and validate in a real browser with selector-based clicks, selection changes, and keyboard input: verify initial content and button order; all three modes and fixed break durations; Start/Pause/Reset behavior; focus-length changes and persistence; session increment at focus completion; Reset count; Space and R; exact hint text; status transitions; and zero console errors or failed requests. Iterate index.html until all checks pass and preserve the verification evidence.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Pomodoro timer behaviour: per-second countdown, mode switching, focus-length semantics, session increment on focus completion, status and title transitions",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Shortcuts bound to timer actions that work while a button is focused and are ignored in input/select/textarea",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Real-browser validation of clicks, focus, select changes, keyboard input and countdown progress with zero console errors and failed requests",
+              "label": "browser/visual check"
+            }
+          ],
+          "note": "Match 4fd29cfc, executor Serotonin; branch success, run acceptance approved."
+        },
+        {
+          "source": "credited",
+          "run": "b9dc4d0b-4631-44be-936c-0ac2e3593f33",
+          "text": "Inspect the existing app, then rewrite index.html via write_file to add a Focus length select beneath the buttons with 15, 25, and 45 minute choices and 25 selected initially. Preserve the existing buttons, modes, session counter, keyboard shortcuts, styling, and break durations. When focus mode is stopped, changing the select must immediately update the display; subsequent focus countdowns and resets must use the selected duration, while break modes retain their current durations. Serve the static page on an OS-assigned port and verify with real selector-based browser interactions that the initial options and selection are correct, stopped focus selection updates the display, starting decrements from the chosen duration, reset restores that chosen duration, break modes retain their existing durations, and existing buttons, mode switching, session counter behavior, and keyboard shortcuts still operate. Iterate on index.html until there are zero console errors and zero failed requests.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Preserve the existing buttons, modes, counter, shortcuts and styling of a page the subtask does not describe (requires merging into unstated existing code)",
+              "label": "other"
+            },
+            {
+              "requirement": "Focus-length semantics wired into the existing timer: a stopped focus selection updates the display, later starts and resets use it, breaks unchanged",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Real-browser validation of clicks, focus, select changes, keyboard input and countdown progress with zero console errors and failed requests",
+              "label": "browser/visual check"
+            }
+          ],
+          "note": "Match 91efd77a, executor Serotonin; branch success (validated by Tracheid), first run acceptance rejected. This modifies an existing page rather than creating one; the deliverable kind (a self-contained page) is kept as SAME."
+        },
+        {
+          "source": "credited",
+          "run": "b9dc4d0b-4631-44be-936c-0ac2e3593f33",
+          "text": "Inspect and rewrite index.html to add a Focus length select beneath the buttons with 15, 25, and 45 minute options and 25 initially selected. Ensure selecting a value while focus mode is stopped immediately updates the display, and ensure every subsequent focus countdown and reset reads the selected focus length, including the previously failing case where reset showed 45:00 while 15 was selected. Preserve break durations, buttons, modes, session counter, and keyboard shortcuts. Serve the static page on an OS-assigned port and record browser evidence with selector-based interactions covering all three choices, stopped-focus display updates, start/countdown/reset behavior, unchanged break durations, session progression, buttons, and keyboard shortcuts, with zero console errors or failed requests.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Preserve the existing buttons, modes, counter, shortcuts and styling of a page the subtask does not describe (requires merging into unstated existing code)",
+              "label": "other"
+            },
+            {
+              "requirement": "Focus-length semantics plus the repair of an observed defect (reset showed 45:00 while 15 was selected)",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Real-browser validation of clicks, focus, select changes, keyboard input and countdown progress with zero console errors and failed requests",
+              "label": "browser/visual check"
+            }
+          ],
+          "note": "Match f24a83a2, executor Serotonin; branch success, second run acceptance approved. Modification of an existing page."
+        },
+        {
+          "source": "credited",
+          "run": "8606cf38-e1b5-4c7b-ae93-8a08a34fb4c2",
+          "text": "Inspect and rewrite index.html via file-writing operations to preserve the existing timer buttons, modes, and session counter while adding a \"Long break\" button and long-break mode. Selecting \"Long break\" must set the display to 15:00, show exactly \"Long break\" on the mode line, and count down through the existing Start and Pause buttons. Serve the static page on an OS-assigned port and verify all old controls plus the new button using real selector-based clicks, including observing countdown progress, pausing it, mode switching, and session-counter continuity; iterate until there are zero console errors and zero failed requests.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Preserve the existing buttons, modes, counter, shortcuts and styling of a page the subtask does not describe (requires merging into unstated existing code)",
+              "label": "other"
+            },
+            {
+              "requirement": "A new long-break mode driven by the existing Start/Pause logic",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Real-browser validation of clicks, focus, select changes, keyboard input and countdown progress with zero console errors and failed requests",
+              "label": "browser/visual check"
+            }
+          ],
+          "note": "Match 8df80c56, executor Serotonin; branch success, run acceptance approved. Modification of an existing page."
+        },
+        {
+          "source": "credited",
+          "run": "000d1e58-04ef-45fd-90d1-8526c025f0a6",
+          "text": "Rewrite index.html to preserve all existing timer buttons and modes while adding a “Sessions completed: N” line directly under the mode line, incrementing it exactly once whenever a 25:00 focus countdown naturally reaches 00:00, and adding a small “Reset count” link that sets the count to 0. Keep the implementation small and self-contained. Serve the page on an OS-assigned port and validate it in a real browser with zero console errors and zero failed requests. Exercise existing buttons and mode controls plus the reset link through selector-based interactions, and exercise the production countdown-completion transition with a controlled clock/tick approach that does not replace the real completion logic.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Preserve the existing buttons, modes, counter, shortcuts and styling of a page the subtask does not describe (requires merging into unstated existing code)",
+              "label": "other"
+            },
+            {
+              "requirement": "Increment exactly once when a focus countdown naturally completes, hooked into the existing countdown",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Browser exercise of the real completion transition under a controlled clock, plus the buttons and reset link",
+              "label": "browser/visual check"
+            }
+          ],
+          "note": "Match c1b13f22, executor Serotonin; branch success, run acceptance approved. Modification of an existing page."
+        },
+        {
+          "source": "credited",
+          "run": "3e4aaed1-7577-444d-9642-593c28efa9de",
+          "text": "Create index.html with inline CSS and JavaScript and no external assets. Show 25:00 initially; provide Start, Pause, and Reset buttons; make Start decrease the display once per second without creating duplicate intervals, Pause stop further countdown, and Reset stop timing and restore 25:00. Serve the page on an OS-assigned port and verify in a real browser with selector-based interactions that Start decreases the timer after one second, Pause prevents further decrease, Reset restores 25:00, and there are zero console errors or failed requests.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Countdown timer behaviour (one interval, pause, reset to the initial value)",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Real-browser validation of clicks, focus, select changes, keyboard input and countdown progress with zero console errors and failed requests",
+              "label": "browser/visual check"
+            }
+          ],
+          "note": "Match 2a196f49, executor Serotonin; branch success, run acceptance approved. The simplest case: a program generic to this recipe's job (any small self-contained page) has no timer behaviour, and a timer template chosen by an enum would be per-subtask logic hidden in P."
+        }
+      ],
+      "verdict": "NOT",
+      "rationale": "8 SAME subtasks, 0 COVERED. All 8 come from one Pomodoro project, but each needs timer and shortcut behaviour (an algorithm, not a value), half of them need merging into an existing page the text does not describe, and all of them demand real-browser validation.",
+      "programNote": "The recipe's job is any small self-contained static page; earlier credits in the ledger come from other projects. A Pomodoro-specific engine would fit this sample only because the 6 most recent credited runs share one project. Even then, the browser validation and the preservation of unstated existing code would stay outside it."
+    },
+    {
+      "molecule": "Water",
+      "id": "serve-and-validate-static-page",
+      "successes": 6,
+      "matches": 7,
+      "refusalReason": "Browser rendering, interaction replay, console, and failed-request validation require browser tooling unavailable to a deterministic Node.js script. (2026-09-29, refusal stale: will retry)",
+      "schema": {
+        "entryFile": "string",
+        "port": "enum os-assigned",
+        "clickSelectors": "list<string>",
+        "keys": "list<string>",
+        "focusContexts": "list<enum button|input|select|textarea>",
+        "expectedTexts": "list<string>",
+        "viewportWidthsPx": "list<number>",
+        "reloadPersistence": "boolean",
+        "requireZeroConsoleErrors": "boolean",
+        "requireZeroFailedRequests": "boolean",
+        "repairAllowed": "boolean"
+      },
+      "subtasks": [
+        {
+          "source": "credited",
+          "run": "5dff35b0-7b49-46b8-8ced-03b0c959bd04",
+          "text": "Validate index.html as a static browser page with selector-driven interactions: click Start so its button has focus, then independently prove Space, R, B, L and S perform their established actions; also prove each shortcut is ignored when focus is in a text field, select or textarea. Check specifically that Space/reset behavior and the B Short Break transition have not regressed. Require zero console errors and failed requests, and minimally repair index.html if any check fails before repeating the affected checks.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "The expected outcome of each shortcut ('their established actions') is not stated, so assertions cannot be filled into S",
+              "label": "other"
+            },
+            {
+              "requirement": "Selector-driven focus and keyboard interactions in a real browser with zero console errors and failed requests",
+              "label": "browser/visual check"
+            },
+            {
+              "requirement": "Minimally repair index.html if any check fails",
+              "label": "algorithm/business-rule"
+            }
+          ],
+          "note": "Match 96b2fdfe, executor Serotonin; branch success."
+        },
+        {
+          "source": "credited",
+          "run": "04ea696f-8406-4d92-a8f8-cc295005fc82",
+          "text": "Serve the completed static page on an OS-assigned port and validate it in a real browser. Use selector-based clicks, select changes, and keyboard input to confirm the long-break mode line reads exactly \"Long break\" while active and that every button, all modes, the focus-length select, session counter, keyboard shortcuts, and other mode labels still behave unchanged. Confirm zero console errors and zero failed requests.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Real-browser clicks, select changes and keyboard input, plus the console and request checks",
+              "label": "browser/visual check"
+            },
+            {
+              "requirement": "'Behave unchanged' refers to an unstated baseline, so expected values cannot be filled into S",
+              "label": "other"
+            }
+          ],
+          "note": "Match 35fa538f, executor Serotonin; branch success. The same run created Serotonin/patch-verified-static-ui."
+        },
+        {
+          "source": "credited",
+          "run": "0a989a58-ce17-412b-88c5-a2be865dc415",
+          "text": "Update index.html to add keyboard handling without breaking existing behavior: Space starts the countdown when stopped and pauses it when running; R resets the current mode to its full duration. Add a short hint line under the buttons listing both shortcuts. Preserve and browser-test the existing buttons, mode switching, and session counter as well as both real keyboard shortcuts; serve the static page on an OS-assigned port and require zero console errors and zero failed requests.",
+          "job": "OTHER",
+          "coverage": "n/a",
+          "uncovered": [],
+          "note": "Routing mismatch: the deliverable is a feature implementation (keyboard shortcuts and a hint line), not the validation of a completed page. Match 772c1c49, executor Serotonin; branch success."
+        },
+        {
+          "source": "credited",
+          "run": "fd64b07e-c1a4-4b41-a272-fc328d071c59",
+          "text": "Create or rewrite index.html to preserve the existing Pomodoro controls while adding a Break button that switches to short-break mode, immediately displays 05:00, uses the same Start and Pause buttons to count down and pause, and shows an accurate active-mode line directly under the timer. Serve the page on an OS-assigned port and verify through selector-based interactions that Pomodoro controls still work, Break changes the display to 05:00, Start advances the break countdown, Pause stops it, and the mode line updates, with zero console errors and failed requests.",
+          "job": "OTHER",
+          "coverage": "n/a",
+          "uncovered": [],
+          "note": "Routing mismatch: the deliverable is a feature implementation (Break button and short-break mode). Match e43e7db0, executor Serotonin; branch success."
+        },
+        {
+          "source": "credited",
+          "run": "cc922a60-90ff-49a7-81ba-fb44d9be9c98",
+          "text": "Make the existing index.html task list responsive without changing what it does. At widths of 320, 375 and 768 CSS pixels the page must have no horizontal overflow: the document's scroll width is never larger than the window's inner width, and no content is hidden or clipped to achieve it. The input, the Add button and every task's controls must stay visible and usable at each of those widths, with touch targets at least 44 pixels high. Verify each of the three widths separately in a real browser, measuring the window's inner width and the document's scroll width at each one, and record the measured numbers in the README.",
+          "job": "OTHER",
+          "coverage": "n/a",
+          "uncovered": [],
+          "note": "Routing mismatch: a responsive adaptation with recorded measurements. In this same run, Glucose/verify-responsive-static-layout was learned from this subtask. Match 01176946 (Water ran it itself); branch success."
+        },
+        {
+          "source": "credited",
+          "run": "fd557ba9-80fa-43bb-9bf4-bedfeb6c45c6",
+          "text": "Serve and validate index.html in a real browser, exercising the labelled input and Add button through selector-based interaction, toggling completion, checking counts and All/Active/Completed filters, deleting tasks, clearing completed tasks, and reloading to confirm localStorage persistence. Confirm responsive rendering, accessible labels, literal text rendering rather than HTML interpretation, zero console errors, and zero failed requests. Read and fix index.html as needed, then repeat validation until all checks pass.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Real-browser interactions (add, toggle, counts, filters, delete, clear completed, reload persistence), responsive rendering, literal-text rendering, console and request checks",
+              "label": "browser/visual check"
+            },
+            {
+              "requirement": "Read and fix index.html as needed",
+              "label": "algorithm/business-rule"
+            }
+          ],
+          "note": "Match 6f1df8ac (Water ran it itself); branch success."
+        }
+      ],
+      "verdict": "NOT",
+      "rationale": "3 SAME and 3 OTHER subtasks (feature work or a responsive adaptation routed to a validation recipe); 0 of the 3 SAME are COVERED. The whole job is real-browser interaction, console and request validation. The expected outcomes are often relative to an unstated baseline, and the job includes repair-on-failure.",
+      "programNote": "A Node script could serve the page and HTTP-probe the entry and its assets. Clicks, keyboard and focus contexts, the console, failed subresources and viewport rendering all need a browser, which a script does not have."
+    },
+    {
+      "molecule": "Glucose",
+      "id": "build-node-network-dashboard",
+      "successes": 11,
+      "matches": 13,
+      "refusalReason": "(none: promotion never refused; status promotion-eligible)",
+      "schema": {},
+      "subtasks": [],
+      "verdict": "UNKNOWN",
+      "rationale": "No skill-save or skill-success event lies in the ledger window (the newest 1000 of 1064 events). The recipe was last matched 2026-09-12 and last revised 2026-09-12, before the window opens around 2026-09-15. Per protocol, matches outside the window are not searched for, so there are no SAME subtasks.",
+      "programNote": "Not assessed. The recipe body alone suggests a fixed server-side target map, bounded upstream requests, UI states, tests and real-browser flows; whether real subtasks vary only in parameters is unobserved."
+    },
+    {
+      "molecule": "Glucose",
+      "id": "verify-responsive-static-layout",
+      "successes": 3,
+      "matches": 4,
+      "refusalReason": "The recipe's required responsive-layout verification needs real-browser viewport and visibility measurements, which cannot be deterministically performed by a Node script without browser tooling. (2026-09-26, refusal stale: will retry)",
+      "schema": {
+        "entryFile": "string",
+        "readmeFile": "string",
+        "viewportWidthsPx": "list<number>",
+        "minTouchTargetPx": "number",
+        "controlSelectors": "list<string>",
+        "measurements": "list<enum innerWidth|scrollWidth>",
+        "forbidHiddenOrClipped": "boolean",
+        "preserveBehavior": "boolean"
+      },
+      "subtasks": [
+        {
+          "source": "learned",
+          "run": "cc922a60-90ff-49a7-81ba-fb44d9be9c98",
+          "text": "Make the existing index.html task list responsive without changing what it does. At widths of 320, 375 and 768 CSS pixels the page must have no horizontal overflow: the document's scroll width is never larger than the window's inner width, and no content is hidden or clipped to achieve it. The input, the Add button and every task's controls must stay visible and usable at each of those widths, with touch targets at least 44 pixels high. Verify each of the three widths separately in a real browser, measuring the window's inner width and the document's scroll width at each one, and record the measured numbers in the README.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Responsive CSS for an existing layout the text does not describe (wrapping, fluid sizing) without hiding or clipping content",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "No horizontal overflow at 320/375/768 (scrollWidth <= innerWidth): only a browser measurement establishes it",
+              "label": "browser/visual check"
+            },
+            {
+              "requirement": "Input, Add button and every task's controls visible and usable at each width",
+              "label": "browser/visual check"
+            },
+            {
+              "requirement": "Measure innerWidth and scrollWidth at each width in a real browser and record the measured numbers in the README",
+              "label": "browser/visual check"
+            }
+          ],
+          "note": "Created skill-save run; learn event 2e1b051f after Glucose's success on branch 786f5bee. Run acceptance rejected (the README recorded a fixed loopback port). Widths, the 44 px minimum and the README file fill S; a CSS min-height rule covers the 44 px requirement."
+        },
+        {
+          "source": "credited",
+          "run": "2ee46cd5-fec9-44dd-9bbf-e0eb40ffbc08",
+          "text": "Make the existing index.html task list responsive without changing what it does. At widths of 320, 375 and 768 CSS pixels the page must have no horizontal overflow: the document's scroll width is never larger than the window's inner width, and no content is hidden or clipped to achieve it. The input, the Add button and every task's controls must stay visible and usable at each of those widths, with touch targets at least 44 pixels high. Verify each of the three widths separately in a real browser, measuring the window's inner width and the document's scroll width at each one, and record the measured numbers in the README.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Responsive CSS for an existing layout the text does not describe (wrapping, fluid sizing) without hiding or clipping content",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "No horizontal overflow at 320/375/768 (scrollWidth <= innerWidth): only a browser measurement establishes it",
+              "label": "browser/visual check"
+            },
+            {
+              "requirement": "Input, Add button and every task's controls visible and usable at each width",
+              "label": "browser/visual check"
+            },
+            {
+              "requirement": "Measure innerWidth and scrollWidth at each width in a real browser and record the measured numbers in the README",
+              "label": "browser/visual check"
+            }
+          ],
+          "note": "Match 1b0f78d1, executor Water; branch success. Identical text: the same goal rerun."
+        },
+        {
+          "source": "credited",
+          "run": "5a5f1e27-cd3a-4189-a712-8d877d3ef27f",
+          "text": "Make the existing index.html task list responsive without changing what it does. At widths of 320, 375 and 768 CSS pixels the page must have no horizontal overflow: the document's scroll width is never larger than the window's inner width, and no content is hidden or clipped to achieve it. The input, the Add button and every task's controls must stay visible and usable at each of those widths, with touch targets at least 44 pixels high. Verify each of the three widths separately in a real browser, measuring the window's inner width and the document's scroll width at each one, and record the measured numbers in the README.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Responsive CSS for an existing layout the text does not describe (wrapping, fluid sizing) without hiding or clipping content",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "No horizontal overflow at 320/375/768 (scrollWidth <= innerWidth): only a browser measurement establishes it",
+              "label": "browser/visual check"
+            },
+            {
+              "requirement": "Input, Add button and every task's controls visible and usable at each width",
+              "label": "browser/visual check"
+            },
+            {
+              "requirement": "Measure innerWidth and scrollWidth at each width in a real browser and record the measured numbers in the README",
+              "label": "browser/visual check"
+            }
+          ],
+          "note": "Match 5c68ba08, executor Water; branch success (trust fast-path)."
+        },
+        {
+          "source": "credited",
+          "run": "5a5f1e27-cd3a-4189-a712-8d877d3ef27f",
+          "text": "Make the existing index.html task list responsive without changing what it does. At widths of 320, 375 and 768 CSS pixels the page must have no horizontal overflow: the document's scroll width is never larger than the window's inner width, and no content is hidden or clipped to achieve it. The input, the Add button and every task's controls must stay visible and usable at each of those widths, with touch targets at least 44 pixels high. Verify each of the three widths separately in a real browser, measuring the window's inner width and the document's scroll width at each one, and record the measured numbers in the README.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Responsive CSS for an existing layout the text does not describe (wrapping, fluid sizing) without hiding or clipping content",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "No horizontal overflow at 320/375/768 (scrollWidth <= innerWidth): only a browser measurement establishes it",
+              "label": "browser/visual check"
+            },
+            {
+              "requirement": "Input, Add button and every task's controls visible and usable at each width",
+              "label": "browser/visual check"
+            },
+            {
+              "requirement": "Measure innerWidth and scrollWidth at each width in a real browser and record the measured numbers in the README",
+              "label": "browser/visual check"
+            }
+          ],
+          "note": "Match e6453db4 (Glucose ran it itself); branch success, second run acceptance rejected."
+        }
+      ],
+      "verdict": "NOT",
+      "rationale": "4 SAME subtasks (one identical goal rerun), 0 COVERED. The core requirements are browser measurements (overflow, visibility, recorded innerWidth/scrollWidth), and the CSS must be designed against an existing layout the text does not describe.",
+      "programNote": "A program could append a generic responsive stylesheet (box-sizing, wrapping, max-width:100%, min-height 44px on controls) and a README section template. It cannot guarantee or measure the absence of overflow and clipping, or produce the measured numbers, without a browser."
+    },
+    {
+      "molecule": "Serotonin",
+      "id": "patch-verified-static-ui",
+      "successes": 15,
+      "matches": 17,
+      "refusalReason": "The recipe requires task-specific UI reasoning and real-browser interaction validation, which cannot be deterministically reproduced with the permitted Node-only script tooling. (2026-10-06, current generation)",
+      "schema": {
+        "entryFile": "string",
+        "key": "string",
+        "action": "enum pause|start|reset|extend|select-mode|set-title|move-element",
+        "actionMinutes": "number",
+        "ignoreKeyIn": "list<enum input|select|textarea>",
+        "hintAddition": "string",
+        "newButtonLabel": "string",
+        "newButtonAfterLabel": "string",
+        "exactTexts": "list<string>",
+        "deleteFiles": "list<string>",
+        "removeFieldsByLabel": "list<string>",
+        "browserChecks": "list<enum click|keyboard|focus-contexts|no-console-errors|no-failed-requests>"
+      },
+      "subtasks": [
+        {
+          "source": "learned",
+          "run": "04ea696f-8406-4d92-a8f8-cc295005fc82",
+          "text": "Inspect the existing pomodoro timer and rewrite index.html via write_file with only the long-break mode-line correction: while long-break mode is active, the mode line must read exactly \"Long break\". Preserve every button, all modes, the focus-length select, session counter, keyboard shortcuts, and every other mode label unchanged.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Locate where the existing script writes the long-break mode line; the current text is not in the subtask, so a find/replace pair cannot be filled without inventing the old value",
+              "label": "other"
+            }
+          ],
+          "note": "Created skill-save run; learn event a1334427 after Serotonin's success on branch ba5f79ae. Only two requirements: the correction itself (uncovered) and preserving the rest (met only by a surgical edit, which depends on the first). Not a minority, so NOT. This label states no browser check."
+        },
+        {
+          "source": "learned",
+          "run": "ff102525-08cb-4032-86e9-2562b5c28099",
+          "text": "Update index.html without changing any other behavior or presentation: pressing P must pause a running countdown, do nothing while the timer is stopped, and be ignored while focus is in an input/text field, select, or textarea; add P to the existing hint line under the buttons. Delete the mistakenly added server.js. Serve the static page on an OS-assigned port and verify through real keyboard interactions that P pauses a running countdown, does nothing when stopped, is ignored in each specified form-control context, the hint includes P, existing timer behavior remains intact, and there are zero console errors or failed requests.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Bind P to the page's existing pause logic (pause when running, no-op when stopped) in unstated code",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Append P to the existing hint line, whose element and wording are not stated",
+              "label": "other"
+            },
+            {
+              "requirement": "Real keyboard interactions in each form-control context, regression and console/request checks in a browser",
+              "label": "browser/visual check"
+            }
+          ],
+          "note": "REVISION skill-save run (two failures, then two revised saves); match 15c8d3c1, executor Water, outcome failure. Deleting server.js and the generic form-control guard are fillable."
+        },
+        {
+          "source": "learned",
+          "run": "ff102525-08cb-4032-86e9-2562b5c28099",
+          "text": "Update index.html without changing any other behavior or presentation: pressing P must pause a running countdown, do nothing while the timer is stopped, and be ignored while focus is in an input/text field, select, or textarea; add P to the existing hint line under the buttons. Delete the mistakenly added server.js. Serve the static page on an OS-assigned port and verify through real keyboard interactions that P pauses a running countdown, does nothing when stopped, is ignored in each specified form-control context, the hint includes P, existing timer behavior remains intact, and there are zero console errors or failed requests.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Bind P to the page's existing pause logic (pause when running, no-op when stopped) in unstated code",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Append P to the existing hint line, whose element and wording are not stated",
+              "label": "other"
+            },
+            {
+              "requirement": "Real keyboard interactions in each form-control context, regression and console/request checks in a browser",
+              "label": "browser/visual check"
+            }
+          ],
+          "note": "Same revision run, second match be3c5411 (executor Glucose); the outcome is unknown because the run aborted at its 1800 s budget."
+        },
+        {
+          "source": "credited",
+          "run": "32437f56-3365-4cdc-a6b5-30e07b974e03",
+          "text": "Inspect the existing transit timetable explorer and its tests before changing anything; add a focused automated regression in tests/timetable.test.mjs for filtering an unmatched stop, repairing app.mjs, index.html, or styles.css only if an observed defect requires it. Run the full existing test suite, read back every modified file, then verify final files from the same Node server: exercise applicable HTTP behavior, perform a 390px real-browser interaction by selecting a route and typing a nonexistent stop, and assert that #empty-state is visible, contains exactly the required 'No departures found' message, and zero .departure-card elements exist. Record the resulting interaction and execution evidence without hand-editing .atoma-probes.json. Also verify final-file keyboard controls, visible focus, and desktop behavior through real browser interactions. Publish only after these final browser proofs and tests are visible.",
+          "job": "OTHER",
+          "coverage": "n/a",
+          "uncovered": [],
+          "note": "Routing mismatch: the deliverable is an automated regression test plus browser evidence on a Node-served app, not a UI label or behaviour correction. Match 54d372db, executor Chlorophyll; branch success."
+        },
+        {
+          "source": "credited",
+          "run": "16a8232a-99e0-468b-b43a-291c1cdf0b4c",
+          "text": "Inspect the existing orbital implementation and update index.html so the rendered planet position and displayed current distance visibly consume the deterministic Kepler-equation results from orbital-math.js rather than a uniform-angle calculation. Preserve the accepted UI and documentation. Run the existing automated math suite and record its successful circular-orbit and e=0.4 periapsis/apoapsis assertions. Serve the static app and validate in a real browser that deterministic sampled states match Kepler-derived position and distance, including a non-apsidal eccentric state that differs from uniform-angle motion; also confirm animation advances through this calculation without browser errors.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Rewire rendering so position and distance consume the Kepler solver in orbital-math.js instead of uniform-angle motion",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Browser validation that sampled states match the Kepler-derived values (incl. a non-apsidal eccentric state) and that animation advances without errors",
+              "label": "browser/visual check"
+            }
+          ],
+          "note": "Match 1c9960aa, executor Chlorophyll; branch success. Running the existing test suite is fillable (a command)."
+        },
+        {
+          "source": "credited",
+          "run": "9ad606d9-e92f-4739-b4eb-fa8b5592dba9",
+          "text": "Inspect and minimally update index.html without changing any other behavior or presentation: add an Extend button immediately after the Long break button; make it add exactly five minutes to running or paused countdowns and do nothing in Ready or Complete; make E perform the same action except when focus is in an input text field, select, or textarea; and add E to the existing hint line under the buttons. Serve the page on an OS-assigned port and verify with real selector-based button clicks and keyboard input that all running, paused, Ready, and Complete cases work, including proving ignored E presses by creating and focusing temporary text input, select, and textarea controls during the browser smoke. Confirm zero console errors and failed requests, and record the successful evidence.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Extend: add exactly five minutes to running or paused countdowns and do nothing in Ready/Complete, wired into unstated timer state",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Append E to the existing hint line, whose element and wording are not stated",
+              "label": "other"
+            },
+            {
+              "requirement": "Browser clicks and keys across running, paused, Ready and Complete states, plus temporary form controls during the browser smoke",
+              "label": "browser/visual check"
+            }
+          ],
+          "note": "Match d2476e69, executor Water; branch success. The button label, its position after 'Long break', the key, the 5 minutes and the ignore contexts are fillable."
+        },
+        {
+          "source": "credited",
+          "run": "3cbef119-06d1-4510-8843-7e89cd2802ce",
+          "text": "Review and, if necessary, fix index.html, then serve the static page on an OS-assigned port and verify in a real browser with selector-based keyboard interaction that P pauses an actively running countdown, P does nothing when stopped, and the visible hint line includes P. Prove suppression while focus is in each of input/text field, select, and textarea; if any such control is not rendered by the page, create it only inside the browser smoke setup rather than adding it to index.html. Replay the recorded browser regression checks invalidated by the index.html mutation, require no console errors or failed requests, confirm server.js is absent, and record the resulting evidence.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Real-browser keyboard checks (P pauses, no-op when stopped, hint), suppression in temporary input/select/textarea, replay of recorded regression checks",
+              "label": "browser/visual check"
+            },
+            {
+              "requirement": "Review and fix index.html if necessary",
+              "label": "algorithm/business-rule"
+            }
+          ],
+          "note": "Match 99b00a2f, executor Water; branch success. A re-verification of an earlier patch; checking that server.js is absent is fillable."
+        },
+        {
+          "source": "credited",
+          "run": "81375f01-6051-48df-b460-242feb69473b",
+          "text": "Inspect and minimally update index.html so pressing F selects focus/Pomodoro mode, stops any running timer, restores the display to the currently chosen focus length, sets the mode line exactly to \"Mode: Pomodoro\", and sets status exactly to \"Ready\". Ignore F when focus is in an input text field, select, or textarea, and add F to the existing hint line under the buttons without changing anything else the page does or shows. Serve the static page on an OS-assigned port and verify with selector-based browser interactions that F works while the timer is running, produces every required display value, updates the hint, and does nothing when each excluded control type has focus; require zero console errors and zero failed requests.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "F selects focus mode, stops the timer and restores the chosen focus length: state transitions in unstated existing code",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Append F to the existing hint line, whose element and wording are not stated",
+              "label": "other"
+            },
+            {
+              "requirement": "Browser keyboard checks while running and in each excluded control, console and request checks",
+              "label": "browser/visual check"
+            }
+          ],
+          "note": "Match ef820b51, executor Water; branch success, run acceptance rejected. The exact texts 'Mode: Pomodoro' and 'Ready' and the ignore contexts are fillable."
+        },
+        {
+          "source": "credited",
+          "run": "81375f01-6051-48df-b460-242feb69473b",
+          "text": "Minimally update index.html so pressing F selects focus mode, stops the timer, displays the configured focus length, sets the mode line to exactly \"Mode: Pomodoro\", and sets status to exactly \"Ready\"; ignore F when focus is in an input/text field, select, or textarea; add F to the existing hint line under the buttons; remove any shortcut-only test fields responsible for the inherited noTestFields regression while preserving every other behavior and visible element. Serve the static page and exercise the F key through real browser keyboard interactions, including while running and while an applicable existing form control is focused; also replay the inherited start, pause, reset, and reset-count interaction paths and confirm zero console errors and failed requests. Record the successful evidence.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "F selects focus mode, stops the timer and restores the chosen focus length: state transitions in unstated existing code",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Append F to the existing hint line, whose element and wording are not stated",
+              "label": "other"
+            },
+            {
+              "requirement": "Remove the 'shortcut-only test fields responsible for the inherited noTestFields regression'; which fields is not stated",
+              "label": "other"
+            },
+            {
+              "requirement": "Browser keyboard checks and replay of the inherited start/pause/reset/reset-count paths",
+              "label": "browser/visual check"
+            }
+          ],
+          "note": "Match bf43a636, executor Water; branch success, run acceptance rejected. In this run CarbonDioxide/verify-form-safe-keyboard-shortcut was learned from the same text."
+        },
+        {
+          "source": "credited",
+          "run": "c195ba35-44dd-4ec4-8a4a-18adb727e36b",
+          "text": "Modify only index.html to: make running and paused titles exactly \"<remaining time> · Focus Timer\" without a status word; make Ready and Complete titles exactly \"Focus Timer\"; remove the visible \"Input\" and \"Notes\" test fields; and place the \"Sessions completed: N\" line with its \"Reset count\" link directly under the mode line. Preserve everything else. Serve the static page and use real selector-based interactions to verify running and paused title formats, Ready title restoration, session-count placement/reset behavior, absence of the test fields, and zero console errors or failed requests.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "The document title must track remaining time while running or paused and revert on Ready/Complete: hooks into unstated timer state",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Move the sessions line and its link directly under the mode line, and remove the 'Input'/'Notes' fields, in markup whose structure is not stated",
+              "label": "other"
+            },
+            {
+              "requirement": "Browser verification of title formats, placement, reset behaviour, field absence, console and requests",
+              "label": "browser/visual check"
+            }
+          ],
+          "note": "Match 54a3ed6b (Serotonin ran it itself); branch success. The title format strings are fillable literals."
+        }
+      ],
+      "verdict": "NOT",
+      "rationale": "9 SAME and 1 OTHER (a regression-test task); 0 COVERED. Every patch binds new behaviour into an existing page's unstated state machine (pause, extend, select-mode, title tracking, Kepler rendering) and edits markup the text does not describe (hint line, placement). Almost all of them demand real-browser verification.",
+      "programNote": "A program could take a key, an ignore-contexts list, a file to delete and literal texts, and inject a generic keydown guard. It cannot bind the key to the page's existing pause/extend/mode logic without reading and understanding that code, which is the per-subtask reasoning the refusal names, and it cannot run the browser checks."
+    },
+    {
+      "molecule": "CarbonDioxide",
+      "id": "build-node-api-web-ui",
+      "successes": 8,
+      "matches": 11,
+      "refusalReason": "The recipe requires irreducible reasoning to derive API contracts and design, implement, and browser-validate task-specific accessible CRUD UI. (2026-10-04, current generation)",
+      "schema": {
+        "serverFile": "string",
+        "pageFiles": "list<string>",
+        "pageTitle": "string",
+        "listEndpoint": "string",
+        "createEndpoint": "string",
+        "updateEndpoint": "string",
+        "deleteEndpoint": "string",
+        "itemFields": "list<string>",
+        "searchFields": "list<string>",
+        "narrowWidthPx": "number",
+        "readmeFile": "string",
+        "browserChecks": "list<enum list|create|update|delete|search|refusal|narrow-viewport|no-console-errors>"
+      },
+      "subtasks": [
+        {
+          "source": "learned",
+          "run": "d162ee31-379e-438e-bb1f-9b76346242ea",
+          "text": "Serve a web UI at / from server.js, replacing the placeholder page but keeping the title Team notes. The page lists the notes returned by GET /api/notes, creates a note from a form with a title and a body through POST /api/notes and shows it without a reload, deletes a note with a button on each note through DELETE /api/notes/:id, and filters the listed notes by title or body as the user types in a search box. Keep every API route and its behaviour exactly as it is, persistence included. The page must be usable at 375px wide without horizontal scrolling. Still no dependencies.",
+          "job": "SAME",
+          "coverage": "PARTIAL",
+          "uncovered": [
+            {
+              "requirement": "Serve the UI at / from server.js in place of the placeholder: editing the existing server's routing, whose shape is not stated",
+              "label": "other"
+            },
+            {
+              "requirement": "Response shapes of GET/POST /api/notes and the id field used by DELETE are not stated; they must be derived from code",
+              "label": "contract/schema design"
+            }
+          ],
+          "note": "Created skill-save run; learn event 00cba1df. CarbonDioxide failed in the branch and Dopamine then succeeded before the learn. Endpoints, fields (title, body), search fields, page title, 375 px and no-dependencies are fillable, and a fixed CRUD template could meet them. This label states no browser check. 2 of about 8 requirements are uncovered."
+        },
+        {
+          "source": "learned",
+          "run": "02d740a1-6870-498d-a717-0132f99ce808",
+          "text": "Create and complete public/index.html, public/app.js, and public/styles.css as an accessible single-page interface backed by the verified API. Include a catalogue table with available copies, a member selector, borrow and hold controls, selected-member active loans with due dates and return/renew controls, holds, fines owed, and a visible accessible message region for every server refusal. Use semantic labels, native keyboard-operable controls, strong focus indication, and a responsive layout with no page overflow at 390 CSS pixels. Boot the actual Node server on an OS-assigned port and validate the page from that same server at desktop and 390-pixel phone width. Through selector-based interactions, use keyboard-accessible controls to select a member and exercise borrow, renew, return, and hold actions, verify refreshed due dates, holds, fines and availability, and deliberately trigger a refusal and verify its visible message. Probe the static routes GET /, GET /app.js, and GET /styles.css over HTTP and record their successful responses.\n\n== LITERAL CONTRACTS FROM TOP-LEVEL GOAL ==\nBuild a library lending web application for a fictional neighbourhood library, as a Node.js 24 project with no npm dependencies (Node built-in modules only).\n- POST /api/loans with {bookId, memberId} creates a loan due 14 days after its start date and answers 201.\nIt is refused with 409 when no copy is free for that member, when the member already has their maximum of active loans, or when the member owes more than 5.00 in unpaid fines; with 404 when the book or member does not exist; with 400 when the body is malformed.\n- POST /api/loans/:id/return closes an active loan.\n- POST /api/loans/:id/renew moves the due date 14 days later.\n- POST /api/holds with {bookId, memberId} queues a hold only when no copy is available (409 otherwise) and answers 201.\n- POST /api/members/:id/payments with {amount} records a payment against unpaid fines.\n- GET /api/books lists every book with its available ",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Map a multi-entity lending API (books, members, loans, holds, fines) onto views and actions; this is not a generic CRUD list",
+              "label": "contract/schema design"
+            },
+            {
+              "requirement": "Which actions apply in which state (renew/return on active loans, hold only when unavailable) and which fields refresh after each action",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Desktop and 390 px real-browser validation with keyboard interactions, refreshed due dates, fines and availability, and a deliberately triggered refusal message",
+              "label": "browser/visual check"
+            }
+          ],
+          "note": "REVISION skill-save run; match c8a05588, outcome failure. Label truncated at 2000 of 2224 chars (literal API contracts). HTTP probes of GET /, /app.js and /styles.css are fillable."
+        },
+        {
+          "source": "learned",
+          "run": "1d42ac2a-d71b-497a-bd29-a9b44ffedbc1",
+          "text": "Complete public/index.html, public/app.js, and public/styles.css as an accessible single-page interface backed by the verified API. Include a catalogue table showing availability, a labelled member selector, borrow and hold controls, selected-member active loans with due dates and return/renew controls, holds, fines owed, and a visible accessible message region whenever the server refuses an action. Use semantic labels, native keyboard-operable controls, clear focus indicators, and responsive styling with no horizontal page overflow at 390 CSS pixels. Boot the actual Node server on an OS-assigned port and validate the UI from that same server at desktop and 390-pixel phone width. Through selector-based interactions using keyboard-accessible controls, select members and exercise borrow, renew, return, and hold actions; verify refreshed due dates, holds, fines, catalogue availability, and a deliberately triggered server refusal in the visible message region. Confirm there are no console errors, page errors, or failed static resources. Record the browser evidence and retain the live served URL for final delivery.\n\n== LITERAL CONTRACTS FROM TOP-LEVEL GOAL ==\nBuild a library lending web application for a fictional neighbourhood library, as a Node.js 24 project with no npm dependencies (Node built-in modules only).\n- POST /api/loans with {bookId, memberId} creates a loan due 14 days after its start date and answers 201.\nIt is refused with 409 when no copy is free for that member, when the member already has their maximum of active loans, or when the member owes more than 5.00 in unpaid fines; with 404 when the book or member does not exist; with 400 when the body is malformed.\n- POST /api/loans/:id/return closes an active loan.\n- POST /api/loans/:id/renew moves the due date 14 days later.\n- POST /api/holds with {bookId, memberId} queues a hold only when no copy is available (409 otherwise) and answers 201.\n- POST /api/members/:id/payments with {amount} records a payment a",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Map a multi-entity lending API (books, members, loans, holds, fines) onto views and actions; this is not a generic CRUD list",
+              "label": "contract/schema design"
+            },
+            {
+              "requirement": "Which actions apply in which state (renew/return on active loans, hold only when unavailable) and which fields refresh after each action",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Desktop and 390 px real-browser validation with keyboard interactions, refreshed due dates, fines and availability, and a deliberately triggered refusal message",
+              "label": "browser/visual check"
+            }
+          ],
+          "note": "REVISION skill-save run; match 9ef3045e, two failures and two revised saves. Label truncated at 2000 of 2298 chars."
+        },
+        {
+          "source": "learned",
+          "run": "1d42ac2a-d71b-497a-bd29-a9b44ffedbc1",
+          "text": "Complete public/index.html, public/app.js, and public/styles.css as an accessible single-page interface backed by the verified API. Include a catalogue table showing availability, a labelled member selector, borrow and hold controls, selected-member active loans with due dates and return/renew controls, holds, fines owed, and a visible accessible message region whenever the server refuses an action. Use semantic labels, native keyboard-operable controls, clear focus indicators, and responsive styling with no horizontal page overflow at 390 CSS pixels. Boot the actual Node server on an OS-assigned port and validate the UI from that same server at desktop and 390-pixel phone width. Through selector-based interactions using keyboard-accessible controls, select members and exercise borrow, renew, return, and hold actions; verify refreshed due dates, holds, fines, catalogue availability, and a deliberately triggered server refusal in the visible message region. Confirm there are no console errors, page errors, or failed static resources. Record the browser evidence and retain the live served URL for final delivery.\n\n== LITERAL CONTRACTS FROM TOP-LEVEL GOAL ==\nBuild a library lending web application for a fictional neighbourhood library, as a Node.js 24 project with no npm dependencies (Node built-in modules only).\n- POST /api/loans with {bookId, memberId} creates a loan due 14 days after its start date and answers 201.\nIt is refused with 409 when no copy is free for that member, when the member already has their maximum of active loans, or when the member owes more than 5.00 in unpaid fines; with 404 when the book or member does not exist; with 400 when the body is malformed.\n- POST /api/loans/:id/return closes an active loan.\n- POST /api/loans/:id/renew moves the due date 14 days later.\n- POST /api/holds with {bookId, memberId} queues a hold only when no copy is available (409 otherwise) and answers 201.\n- POST /api/members/:id/payments with {amount} records a payment a",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Map a multi-entity lending API (books, members, loans, holds, fines) onto views and actions; this is not a generic CRUD list",
+              "label": "contract/schema design"
+            },
+            {
+              "requirement": "Which actions apply in which state (renew/return on active loans, hold only when unavailable) and which fields refresh after each action",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Desktop and 390 px real-browser validation with keyboard interactions, refreshed due dates, fines and availability, and a deliberately triggered refusal message",
+              "label": "browser/visual check"
+            }
+          ],
+          "note": "Same revision run, second match 9cd1e19d (executor Ethanol); outcome unknown (timeout). Label truncated at 2000 of 2298 chars."
+        },
+        {
+          "source": "credited",
+          "run": "6c582953-9485-4cf5-be26-728757c518f3",
+          "text": "Complete public/index.html, public/app.js, and public/styles.css as an accessible single-page interface backed by the verified API. Provide a catalogue table with availability, a labelled member selector, borrow and hold controls, selected-member active loans with due dates and return/renew controls, holds, fines owed, and a visible accessible message region whenever an action is refused. Use semantic markup, native keyboard-operable controls, robust focus indicators, and responsive styling with no horizontal page overflow at 390 CSS pixels. Avoid missing-resource and console errors. Boot the actual Node server on an OS-assigned port and validate the UI from that same server at desktop and 390-pixel phone width. Using selector-based keyboard-accessible interactions, select members and exercise borrow, renew, return, and place-hold actions; verify the resulting due dates, holds, fines display, catalogue availability, and a deliberately triggered server-refusal message. Record the browser evidence and confirm there are no console errors, page errors, or failed subresource requests.\n\n== LITERAL CONTRACTS FROM TOP-LEVEL GOAL ==\nBuild a library lending web application for a fictional neighbourhood library, as a Node.js 24 project with no npm dependencies (Node built-in modules only).\n- POST /api/loans with {bookId, memberId} creates a loan due 14 days after its start date and answers 201.\nIt is refused with 409 when no copy is free for that member, when the member already has their maximum of active loans, or when the member owes more than 5.00 in unpaid fines; with 404 when the book or member does not exist; with 400 when the body is malformed.\n- POST /api/loans/:id/return closes an active loan.\n- POST /api/loans/:id/renew moves the due date 14 days later.\n- POST /api/holds with {bookId, memberId} queues a hold only when no copy is available (409 otherwise) and answers 201.\n- POST /api/members/:id/payments with {amount} records a payment against unpaid fines.\n- GET /api",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Map a multi-entity lending API (books, members, loans, holds, fines) onto views and actions; this is not a generic CRUD list",
+              "label": "contract/schema design"
+            },
+            {
+              "requirement": "Which actions apply in which state (renew/return on active loans, hold only when unavailable) and which fields refresh after each action",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Desktop and 390 px real-browser validation with keyboard interactions, refreshed due dates, fines and availability, and a deliberately triggered refusal message",
+              "label": "browser/visual check"
+            }
+          ],
+          "note": "Match e6b56f81; branch success, then promotion refused 2026-10-04. Label truncated at 2000 of 2267 chars."
+        },
+        {
+          "source": "credited",
+          "run": "7265dd9b-f54a-46c3-9ecb-40f1e1e710d6",
+          "text": "Inspect and extend the existing guestbook while preserving all current routes and behavior. Update server.js so GET /api/entries accepts q and returns only entries whose name or message contains q case-insensitively; return the full list when q is absent or empty. Update public/index.html with a search box above the list that requests filtered entries as the visitor types without reloading, while keeping creation, edit, and delete controls working. Boot the Node app on an OS-assigned port, probe GET /api/entries with q absent, empty, matching names with mixed case, matching messages with mixed case, and nonmatching text, and verify existing routes. Validate the served page against that same server with selector-based typing in the search box and interactions covering edit and delete, iterating until there are zero console errors and failed requests.\n\n== LITERAL CONTRACTS FROM TOP-LEVEL GOAL ==\nExtend the existing guestbook without breaking its routes, its page or its edit and delete buttons: add a q query parameter to GET /api/entries that returns only the entries whose name or message contains the text, case-insensitively (the full list when q is absent or empty), and a search box above the list on the page that filters the entries as the visitor types, without reloading.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Add case-insensitive q filtering to GET /api/entries inside the existing server.js",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Search box integrated into the existing page while its create, edit and delete controls keep working",
+              "label": "other"
+            },
+            {
+              "requirement": "Selector-based typing and edit/delete interactions in a real browser, zero console errors and failed requests",
+              "label": "browser/visual check"
+            }
+          ],
+          "note": "Match 1649eedc; branch success. Half the work is a server-side API change; kept as SAME because the page feature is the visible deliverable. The HTTP probes for q values are fillable."
+        },
+        {
+          "source": "credited",
+          "run": "e9a60a26-1d3c-492b-b702-c3a9a75f8388",
+          "text": "Update index.html so every rendered guestbook entry has an edit button that enables changing its message in place and saves through PUT /api/entries/:id without reloading the page. Update README.md to document PUT /api/entries/:id with an example, using the exact literal URL form http://localhost:PORT for every URL. Against the same live Node server, exercise the edit affordance through selector-based browser interactions, confirm the changed message is saved and displayed without navigation or reload, require zero console errors and zero failed requests, and record any HTTP acceptance evidence invalidated by these mutations.\n\n== LITERAL CONTRACTS FROM TOP-LEVEL GOAL ==\nAdd PUT /api/entries/:id, which replaces an entry's message and answers the updated entry, 400 with a JSON error for an empty message, and 404 with a JSON error for an unknown id; and add an edit button next to each entry on the page that lets the visitor change the message in place and saves it without reloading.\nUpdate the README to document PUT /api/entries/:id with an example, writing every URL as http://localhost:PORT with the literal word PORT.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "An in-place edit affordance on every entry rendered by existing page code (not stated), saving via PUT without reload",
+              "label": "other"
+            },
+            {
+              "requirement": "Selector-based browser proof that the change is saved and shown without reload, zero console errors and failed requests",
+              "label": "browser/visual check"
+            }
+          ],
+          "note": "Match 3352dd8f; branch success. A README example using http://localhost:PORT could be templated from the method, path and body field."
+        },
+        {
+          "source": "credited",
+          "run": "dbfaf275-a4a7-43a9-aa41-0479fd98e172",
+          "text": "Read the existing guestbook implementation and recorded evidence before making repairs; ensure server.js implements DELETE /api/entries/:id so an existing stable-id entry is removed with 204 and an unknown id returns 404 with a JSON error, ensure public/index.html renders a delete button beside every entry that calls DELETE /api/entries/:id and removes only that entry without navigation or reload, and update README.md to document DELETE /api/entries/:id with an example using http://localhost:PORT. Against the same Node server serving both page and API, confirm the recorded API contracts remain represented and use selector-based browser interaction to create or identify an entry, click its delete button, and prove it disappears without navigation or reload, with zero console.error messages and zero failed requests; record the resulting evidence.\n\n== LITERAL CONTRACTS FROM TOP-LEVEL GOAL ==\nAdd DELETE /api/entries/:id, which removes the entry and answers 204, or 404 with a JSON error for an unknown id (give every entry a stable id when it is created and keep existing entries working), and add a delete button next to each entry on the page that removes it without reloading.\nUpdate the README to document DELETE /api/entries/:id with an example, writing every URL as http://localhost:PORT with the literal word PORT.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Ensure the existing server.js implements DELETE with stable ids for both existing and new entries",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "A delete button beside every entry in the existing page that removes only that entry without reload",
+              "label": "other"
+            },
+            {
+              "requirement": "Selector-based browser proof of the deletion without navigation, zero console errors and failed requests",
+              "label": "browser/visual check"
+            }
+          ],
+          "note": "Match 128dfb93, executor Ethanol; branch success. The README example is templatable."
+        },
+        {
+          "source": "credited",
+          "run": "ed84d7be-f890-46c9-be34-68452925c068",
+          "text": "Extend server.js and public/index.html for CSV transfer while preserving all existing routes and behavior. GET /api/notes/export must return every note with header id,title,body,tags,createdAt, join tags with \";\", apply RFC 4180 quoting to fields containing commas, quotes, CR, or LF, and set Content-Disposition to attachment filename notes.csv. POST /api/notes/import must accept that CSV format with optional id and createdAt, validate every row using the existing title, body, and tags rules before any write, return 400 JSON listing every invalid row number and reason without partial writes, and return 201 with the count of notes created on success. Add an Export button and Import file picker to /. Consolidate page resources into public/index.html and remove public/app.js and public/styles.css once unreferenced. Boot the Node app on an OS-assigned port, then record HTTP evidence for GET /health → 200, GET /api/notes/export → 200 CSV, POST /api/notes/import with an empty body → 400 JSON, atomic rejection of a mixed valid/invalid CSV, and an export/import round trip preserving titles, bodies, and tags. Validate / in a real browser against that same server, exercising the Export button and Import file picker through selector-based interactions, and iterate until there are zero console errors and zero failed requests.\n\n== LITERAL CONTRACTS FROM TOP-LEVEL GOAL ==\nGET /api/notes/export returns every note as CSV with a header row id,title,body,tags,createdAt, tags joined by \";\", fields quoted per RFC 4180 when they contain commas, quotes or line breaks, and a Content-Disposition attachment filename of notes.csv.\nPOST /api/notes/import accepts a CSV body in the same format (id and createdAt optional), validates every row with the existing title, body and tags rules before writing anything, and answers 400 with a JSON list of the invalid row numbers and reasons when any row is invalid, or 201 with the count of notes created.",
+          "job": "OTHER",
+          "coverage": "n/a",
+          "uncovered": [],
+          "note": "Routing mismatch: the main deliverable is two API endpoints (RFC 4180 CSV export, validated atomic import); the UI part is one button and one file picker. Match 10c2e058; branch success."
+        },
+        {
+          "source": "credited",
+          "run": "ed84d7be-f890-46c9-be34-68452925c068",
+          "text": "Inspect the existing Team notes app, then rewrite server.js and index.html as needed to preserve all existing behavior while adding GET /api/notes/export and POST /api/notes/import. GET /api/notes/export must return every note as CSV with header id,title,body,tags,createdAt, join tags with \";\", quote fields containing commas, quotes, CR, or LF per RFC 4180, and set Content-Disposition to attachment filename notes.csv. POST /api/notes/import must accept that CSV format with optional id and createdAt, apply the existing title, body, and tags rules to every row before any write, return 400 JSON listing every invalid CSV row number and reason when any row is invalid, and otherwise return 201 with the count created. Add an Export button and Import file picker to /, keeping browser code and styles self-contained in index.html, and physically remove the now-unused app.js and styles.css. The implementation must create or rewrite files through the file-writing capability rather than only inspecting them. Boot server.js on an OS-assigned port and record proof that GET /health returns 200, GET /api/notes/export returns 200 CSV with the required headers and attachment filename, and an empty POST /api/notes/import returns 400 JSON. Also exercise quoted commas, embedded quotes, line breaks, semicolon-joined tags, an invalid mixed import that leaves storage unchanged and reports row numbers with reasons, and export-then-import round-trip preservation of titles, bodies, and tags. Load / from that same Node server in a real browser, use selector-based interaction with the Export button and Import file picker, and iterate until there are zero console errors and zero failed requests. Record the resulting HTTP and browser evidence.\n\n== LITERAL CONTRACTS FROM TOP-LEVEL GOAL ==\nGET /api/notes/export returns every note as CSV with a header row id,title,body,tags,createdAt, tags joined by \";\", fields quoted per RFC 4180 when they contain commas, quotes or line breaks, and a Content-Disposi",
+          "job": "OTHER",
+          "coverage": "n/a",
+          "uncovered": [],
+          "note": "Routing mismatch: the same CSV export/import API task. Match 396fbde8; branch success. Label truncated at 2000 of 2355 chars."
+        },
+        {
+          "source": "credited",
+          "run": "7761081b-1eeb-4855-98e4-0101e2461f37",
+          "text": "Inspect server.js without modifying it, then rewrite public/index.html as the small self-contained Team notes page while preserving all existing behavior and API usage. Make the layout avoid horizontal scrolling at 320, 375, and 768 CSS pixels; switch the note list to one column below 600 pixels; make every button and tag chip at least 44 pixels high; add a header light/dark theme switch that follows the system preference until explicitly selected and persists that selection in localStorage; preserve a sensible Tab order; make tag chips activate with Enter or Space; focus search when / is pressed unless the user is already editing a field; and provide clearly visible focus styling. Boot the unchanged Node server on an OS-assigned port, confirm GET /health returns 200 and GET /api/notes returns 200, and exercise / in real browser sessions against that same server at 320, 375, and 768 CSS-pixel widths. Record proof of no horizontal overflow, the below-600 single-column layout, 44-pixel minimum control heights, selector-driven tag activation, / search focus, visible focus, theme switching, persistence after reload, zero console errors, and zero failed requests.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Rewrite the Team notes page while preserving all existing behaviour and API usage, which the text does not state",
+              "label": "other"
+            },
+            {
+              "requirement": "Theme switch following the system preference until chosen and persisted in localStorage; '/' focuses search unless editing; Enter/Space chip activation, integrated into the existing page",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Layout design: no horizontal scroll at 320/375/768, single column below 600 px, 44 px controls, visible focus",
+              "label": "content/design authoring"
+            },
+            {
+              "requirement": "Real-browser sessions at three widths proving overflow, layout, heights, interactions and persistence after reload",
+              "label": "browser/visual check"
+            }
+          ],
+          "note": "Match cd05eb0a; branch success. The GET /health and GET /api/notes probes and the width values are fillable."
+        }
+      ],
+      "verdict": "NOT",
+      "rationale": "9 SAME and 2 OTHER (a CSV import/export API task); 0 COVERED, 1 PARTIAL. Only the learning subtask (a plain notes CRUD page) comes close to a generic list/create/delete/search template; even there the server routing and the response shapes must be derived from code. The library UI needs domain mapping and state rules, and the guestbook and notes features must be merged into existing pages. Nearly all subtasks require real-browser validation.",
+      "programNote": "A fixed CRUD client template driven by endpoint paths, item fields and search fields is plausible for a single list-of-items resource whose JSON shape is known. The sampled subtasks mostly fall outside that: multi-entity domains, server-side changes and edits to existing pages. The browser proofs remain outside any script."
+    },
+    {
+      "molecule": "CarbonDioxide",
+      "id": "build-offline-typing-studio",
+      "successes": 5,
+      "matches": 5,
+      "refusalReason": "The recipe requires irreducible UI/content design and browser-based interaction validation that a deterministic Node script cannot safely perform. (2026-10-06, current generation)",
+      "schema": {
+        "entryFile": "string",
+        "appModule": "string",
+        "scoringModule": "string",
+        "testFile": "string",
+        "readmeFile": "string",
+        "minPassages": "number",
+        "charsPerWord": "number",
+        "timerStart": "enum first-input",
+        "mobileWidthPx": "number",
+        "serverKind": "enum static|node",
+        "noRemoteAssets": "boolean",
+        "browserChecks": "list<enum typing|backspace|metrics|feedback|completion|reset|new-passage|mobile>"
+      },
+      "subtasks": [
+        {
+          "source": "learned",
+          "run": "df23bda8-ae97-4abf-a4c1-1b3a4e5bf18b",
+          "text": "Build the complete offline typing studio in index.html using scoring.mjs as a deterministic shared scoring/timer module, with scoring.test.mjs covering empty state, errors, edits/backspace, timing, WPM, accuracy, and completion. Include at least three selectable built-in passages; a clearly labelled focused typing control; live elapsed time, standard five-character-word WPM, character accuracy, and character-level correct/incorrect/current/remaining feedback; completion messaging; and keyboard-usable reset and new-passage controls. Timing must begin on first input, remain consistent through edits and backspace, stop at completion, and reset to a fresh state. Use semantic accessible HTML, responsive narrow-mobile styling, no remote assets or services, and no data transmission. Write README.md with concise Node built-in test and local static-launch instructions, using http://localhost:<port> for durable URLs. Run and record the Node test suite, then serve the workspace on an OS-assigned port and validate desktop and narrow-mobile rendering plus real selector-based typing, passage selection, reset, editing/backspace, live metrics, character feedback, and completion interactions. Return a concise completion report naming the entry point and the successful probes.",
+          "job": "SAME",
+          "coverage": "PARTIAL",
+          "uncovered": [
+            {
+              "requirement": "Desktop and narrow-mobile validation plus real selector-based typing, backspace, passage selection, reset, live metrics, character feedback and completion in a browser",
+              "label": "browser/visual check"
+            }
+          ],
+          "note": "Created skill-save run; learn event 9c78c1be (branch 2f228fb7, CarbonDioxide). The build requirements are generic to this narrow job and could be met by one fixed typing-studio program whose passages and UI are authored once in P (not in S); the file names, 3 passages, 5 chars per word and first-input timing fill S. Only the browser validation remains, a minority."
+        },
+        {
+          "source": "credited",
+          "run": "df23bda8-ae97-4abf-a4c1-1b3a4e5bf18b",
+          "text": "Inspect and complete the existing offline typing studio in index.html, app.mjs, scoring.mjs, scoring.test.mjs, and README.md. Ensure at least three genuinely implemented selectable built-in passages, zero remote assets or services, semantic labelled controls, visible elapsed time, standard five-character-word WPM, character accuracy, character-level correct/incorrect/progress feedback, completion state, reset, and new-passage behavior. Timing must begin with the first input, stop upon exact completion, and remain consistent through edits and backspace. Keep scoring and timer calculations deterministic in scoring.mjs and cover empty state, incorrect characters/errors, edits/backspace, WPM, accuracy, timer behavior, and completion using Node's built-in test runner in scoring.test.mjs. Make the interface responsive at a 375px-wide viewport and fully keyboard usable. Update README.md with concise offline local-launch and test commands. Then record passing Node test evidence and serve the static app on an OS-assigned port for browser validation. Browser checks must use selector-driven keyboard interaction to establish focus and labels, type text, visibly observe elapsed time, WPM, accuracy and character feedback, exercise backspace, complete a passage, confirm the timer stops, reset to a fresh state, activate passage selection and the new-passage control from the keyboard, and confirm narrow-viewport layout without horizontal overflow. Also inspect the resulting source to establish at least three passages and the absence of remote asset references. Preserve the resulting reproducible evidence in .atoma-probes.json and report the live validation URL, entry point, launch command, test command, and probe results.",
+          "job": "SAME",
+          "coverage": "PARTIAL",
+          "uncovered": [
+            {
+              "requirement": "Desktop and narrow-mobile validation plus real selector-based typing, backspace, passage selection, reset, live metrics, character feedback and completion in a browser",
+              "label": "browser/visual check"
+            },
+            {
+              "requirement": "Record the browser evidence in .atoma-probes.json and report a live validation URL (depends on the browser run)",
+              "label": "browser/visual check"
+            }
+          ],
+          "note": "Match c0566deb, executor Chlorophyll, after run acceptance rejected the first attempt; credited (skill-success 04:38 in this run). A fixed template can overwrite the five named files; Node tests and source inspection are scriptable."
+        },
+        {
+          "source": "credited",
+          "run": "34da7f81-9cbc-4041-befa-16387eb2f7f4",
+          "text": "Create a responsive, dependency-free transit timetable explorer in index.html, styles.css, app.mjs, and timetable.mjs, with a hardcoded three-route dataset containing at least six trips per route and stop departure times; route, direction, weekday/weekend, and typed stop controls must update chronologically sorted HH:MM departures without losing leading zeros, display all selected values in the results heading, provide a clear no-match empty state, and meet accessible-label, keyboard-operation, visible-focus, 390px mobile, and desktop requirements. Create pure-function Node built-in tests in tests/timetable.test.mjs covering filtering, chronological sorting, day selection, and empty results, plus README.md with exact local static-launch and node-test commands using port placeholders. Verify the final unchanged files by running the tests, probing the served static app over HTTP, and exercising real selector-based browser interactions at both mobile and desktop widths, including typed stop filtering and an empty result.",
+          "job": "OTHER",
+          "coverage": "n/a",
+          "uncovered": [],
+          "note": "Routing mismatch: a transit timetable explorer, not a typing studio. Match 62ea4bca, executor Chlorophyll; branch success."
+        },
+        {
+          "source": "credited",
+          "run": "32f052d8-2d1d-407d-ab1d-1781b101918a",
+          "text": "Create the offline word ladder browser app with at least two solvable bundled four-letter puzzles and no remote assets; implement deterministic move validation and BFS shortest-path hints in word-ladder.js with Node built-in tests covering valid/invalid moves, no path, hints, undo, and win; serve public/index.html and its responsive, semantic, keyboard-accessible controls from server.js; provide README.md launch/test instructions; then verify on the same Node server with HTTP probes and real browser keyboard/control interactions covering rejected nonwords, repeated words, zero/multi-letter changes, hint without path mutation, undo, reset, puzzle selection, and visible completion state.",
+          "job": "OTHER",
+          "coverage": "n/a",
+          "uncovered": [],
+          "note": "Routing mismatch: a word ladder puzzle app. Match 744ad43c (CarbonDioxide ran it itself); branch success."
+        },
+        {
+          "source": "credited",
+          "run": "32f052d8-2d1d-407d-ab1d-1781b101918a",
+          "text": "Build an offline word ladder puzzle app for browsers. Include at least two solvable four-letter puzzles with a small bundled dictionary and no remote assets or API. Show start and target, current path, and clear move feedback. Accept a next word only when it is in the dictionary, has the same length, differs from the current word by exactly one letter, and has not already appeared in the current path. Provide a hint that computes one next step on a shortest remaining path with BFS, plus undo, reset and puzzle selection. Show a win state at the target. Use semantic labelled controls, keyboard access, and responsive layout. Put the move validation and shortest-path logic in a deterministic module with Node built-in tests for valid/invalid moves, no path, hints, undo and win. Provide README with local launch and tests, and executed browser checks for move rejection, hint, undo and completion.",
+          "job": "OTHER",
+          "coverage": "n/a",
+          "uncovered": [],
+          "note": "Routing mismatch: a word ladder puzzle app. Match f0a6eb34, executor Chlorophyll; branch success."
+        },
+        {
+          "source": "credited",
+          "run": "7f8a8b7d-ed3a-49d3-94df-e3bf69cb1f34",
+          "text": "Continue the existing typing studio from the prior landed workspace. Make any necessary corrections, then provide executed browser evidence for the missing behaviors that blocked delivery. In a real browser, type one character, wait at least 1.2 seconds, assert the elapsed-time display advances from 00:00, type a deliberately incorrect character and assert the visible character feedback changes to incorrect and the accuracy decreases, then use backspace/correction and assert accuracy and feedback update. Complete a short passage and assert the timer stops; reset and assert fresh state. Keep the offline page, responsive accessible controls, pure scoring module and tests. Run the Node tests. Record probes with concrete commands and observable assertions, not source inspection alone.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "Executed browser evidence: type, wait 1.2 s and assert elapsed time; incorrect character changes feedback and accuracy; backspace; completion stops the timer; reset",
+              "label": "browser/visual check"
+            },
+            {
+              "requirement": "Make any necessary corrections to the prior landed workspace (the defects are not stated)",
+              "label": "algorithm/business-rule"
+            }
+          ],
+          "note": "Match 8be72c84, executor Chlorophyll; branch success. The bulk of this subtask is browser evidence; running the Node tests is scriptable."
+        }
+      ],
+      "verdict": "NOT",
+      "rationale": "3 SAME and 3 OTHER (a transit timetable and two word-ladder apps routed to a typing-studio recipe); 0 COVERED, 2 PARTIAL. The build part of a typing studio is generic enough for one fixed program, but every SAME subtask also requires real-browser typing and metric validation, and the latest one consists mostly of browser evidence.",
+      "programNote": "This is the closest recipe in group A to a fixed product: a pure WPM/accuracy/timer module with tests and a template page with built-in passages, parameterised by file names and counts. What keeps it short of COVERED is the browser validation that every SAME subtask requests. Half its credited matches are a different job."
+    },
+    {
+      "molecule": "CarbonDioxide",
+      "id": "verify-form-safe-keyboard-shortcut",
+      "successes": 0,
+      "matches": 0,
+      "refusalReason": "The recipe's core work requires real browser keyboard interactions, focus-state checks, and console/request validation, which a deterministic Node script cannot perform without the LLM browser-validation tool loop. (2026-10-01, refusal stale: will retry; never matched)",
+      "schema": {
+        "entryFile": "string",
+        "key": "string",
+        "action": "enum select-focus-mode|pause|start|reset",
+        "exactModeText": "string",
+        "exactStatusText": "string",
+        "ignoreKeyIn": "list<enum input|select|textarea>",
+        "hintAddition": "string",
+        "removeFieldsByLabel": "list<string>",
+        "replayFlows": "list<enum start|pause|reset|reset-count>",
+        "requireZeroConsoleErrors": "boolean",
+        "requireZeroFailedRequests": "boolean"
+      },
+      "subtasks": [
+        {
+          "source": "learned",
+          "run": "81375f01-6051-48df-b460-242feb69473b",
+          "text": "Minimally update index.html so pressing F selects focus mode, stops the timer, displays the configured focus length, sets the mode line to exactly \"Mode: Pomodoro\", and sets status to exactly \"Ready\"; ignore F when focus is in an input/text field, select, or textarea; add F to the existing hint line under the buttons; remove any shortcut-only test fields responsible for the inherited noTestFields regression while preserving every other behavior and visible element. Serve the static page and exercise the F key through real browser keyboard interactions, including while running and while an applicable existing form control is focused; also replay the inherited start, pause, reset, and reset-count interaction paths and confirm zero console errors and failed requests. Record the successful evidence.",
+          "job": "SAME",
+          "coverage": "NOT",
+          "uncovered": [
+            {
+              "requirement": "F selects focus mode, stops the timer and restores the configured focus length: state transitions in unstated existing code",
+              "label": "algorithm/business-rule"
+            },
+            {
+              "requirement": "Append F to the existing hint line, whose element and wording are not stated",
+              "label": "other"
+            },
+            {
+              "requirement": "Remove the 'shortcut-only test fields responsible for the inherited noTestFields regression'; which fields is not stated",
+              "label": "other"
+            },
+            {
+              "requirement": "Real-browser keyboard interactions while running and in a focused form control, plus replay of the inherited start/pause/reset/reset-count paths",
+              "label": "browser/visual check"
+            }
+          ],
+          "note": "Created skill-save run; learn event 30594cbc after CarbonDioxide's success on branch 3ba807b1. The same text was also credited to Serotonin/patch-verified-static-ui in this run. Never matched since."
+        }
+      ],
+      "verdict": "NOT",
+      "rationale": "1 SAME subtask (the learning one), NOT covered: the shortcut must be bound into an existing timer's unstated state, the hint and test-field edits target unstated markup, and the job's core is real-browser keyboard and focus validation.",
+      "programNote": "A program could inject a keydown handler with a form-control guard and literal texts, but it cannot know which existing functions realise 'select focus mode', and it cannot perform the keyboard and focus checks without a browser."
+    }
+  ],
+  "collectionNotes": "Ledger reads used atoma_ledger_tail(entity=<atomId>/<recipeId>, limit=100); the filter scans only the newest 1000 of 1064 events (window starts around 2026-09-15). Glucose/build-node-network-dashboard has no event in that window (last matched and revised 2026-09-12), so it has no subtasks and is UNKNOWN; per protocol it was not searched further. Water/build-self-contained-static-page and Water/serve-and-validate-static-page were created 2026-09-07, outside the window: no learned subtask, credited runs only. build-self-contained-static-page shows lastMatchedAt 2026-10-06 but its newest ledger success is 2026-10-01; the later match (likely a free ride) is not in the ledger and was not searched. Revision skill-save runs (mechanism revised) are included with source 'learned' and flagged in their notes: 89fde222 (build-responsive-static-multipage-site), ff102525 x2 (patch-verified-static-ui), 02d740a1 and 1d42ac2a x2 (build-node-api-web-ui). Their outcomes are failure or unknown. Dropping them gives the strict created-save + credited sample; no verdict changes (SAME counts become 3, 7 and 6). The 7-subtask cap is exceeded for build-self-contained-static-page (8), patch-verified-static-ui (10) and build-node-api-web-ui (11), because several runs matched the recipe twice and revision runs were added. No verdict depends on it. Subtask texts are verbatim branch-start labels (the branch that follows the match/inject, or the branch that preceded the learn event); none needed the L1 'Task:' fallback. 5 build-node-api-web-ui labels were cut at 2000 chars, losing only the tail of the appended literal API contracts. Several subtasks recur across recipes: the cc922a60 responsive subtask was matched to serve-and-validate-static-page (OTHER there) and became the learning subtask of verify-responsive-static-layout. The 81375f01 F-key subtask was credited to patch-verified-static-ui and became the learning subtask of verify-form-safe-keyboard-shortcut. The 4 verify-responsive-static-layout subtasks are one identical goal rerun. Matches are often executed by another molecule (executorName), and the ledger 'via' field names the executor. Branch-level 'success' (often on the trust fast-path) is frequently followed by a rejected run-level acceptance; this is recorded in notes, but coverage does not depend on outcome. Trace reading was split across 5 read-only collector subagents restricted to atoma_run_trace; the judge read the build-responsive-static-multipage-site traces directly."
+}
