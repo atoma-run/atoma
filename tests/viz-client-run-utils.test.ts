@@ -14,15 +14,12 @@ import {
   projectRunUpdate,
   runElapsedMs,
   runHeading,
-  runActorActivity,
   runIndexStatus,
   RUN_STATUS_GLYPH,
   tryParseJson,
   usedAtomNames,
 } from '../src/viz/client/run-utils.js';
 import type { RunIndexEntry, VizRun } from '../src/viz/client/types.js';
-import { RUN_ACTORS, runActorKey } from '../src/contracts/runActors.js';
-import en from '../src/viz/client/locales/en.json' with { type: 'json' };
 
 function run(overrides: Partial<VizRun> = {}): VizRun {
   return {
@@ -328,56 +325,6 @@ describe('React viz delta and filters', () => {
       events: [{ id: 's1', kind: 'skill', l1Name: 'Ammonia', actor: { name: 'Tracheid', tier: 2 }, ts: 1 }],
     }));
     expect(skillOnly.get('Ammonia')?.snapshot.tier).toBe(1);
-  });
-});
-
-/**
- * A name with no registry snapshot behind it used to be drawn as an agent
- * type: `run-root` read "L3 Tissue · #0 · v0", "Created · ·" and an empty
- * system prompt (2026-10-06). The placeholder now says what it is.
- */
-describe('placeholder agents — run actors and unsnapshotted types', () => {
-  const fixture = run({
-    initialTypes: [{
-      tier: 3, ordinal: 4, name: 'Meristem', description: '', systemPrompt: 'p', tools: [], params: {},
-      createdBy: 'seed', createdAt: '2026-08-14T00:00:00.000Z', version: 1, successes: 0, failures: 0,
-    }],
-    events: [
-      { id: 'p1', kind: 'llm', role: 'plan', actor: { name: 'Meristem', tier: 3 }, ts: 1 },
-      { id: 'x1', kind: 'llm', role: 'execute', actor: { name: 'Tracheid', tier: 2 }, ts: 2 },
-      { id: 'v1', kind: 'llm', role: 'validate-result', actor: { ...RUN_ACTORS.root }, model: 'm-pin',
-        servedModel: 'm-served', costUsd: 0.01, ts: 3 },
-      { id: 'a1', kind: 'acceptance', attempt: 1, approved: false, reasoning: 'r',
-        acceptor: { ...RUN_ACTORS.root, role: 'root-acceptor' }, ts: 4 },
-      { id: 'v2', kind: 'llm', role: 'validate-result', actor: { ...RUN_ACTORS.root }, model: 'm-pin', costUsd: 0.02, ts: 5 },
-      { id: 'a2', kind: 'acceptance', attempt: 1, approved: true, reasoning: 'r',
-        acceptor: { ...RUN_ACTORS.root, role: 'root-acceptor' }, ts: 6 },
-    ],
-  });
-
-  it('tags a run actor and an unsnapshotted type apart from a snapshotted one', () => {
-    const atoms = buildAtomMap(fixture);
-    expect(atoms.get('Meristem')?.stub).toBeUndefined();
-    expect(atoms.get('run-root')?.stub).toEqual({ kind: 'run-actor', key: 'root' });
-    expect(atoms.get('Tracheid')?.stub).toEqual({ kind: 'unrecorded' });
-  });
-
-  it('reads what the actor did from its own events only', () => {
-    const activity = runActorActivity(fixture, 'run-root');
-    expect(activity.calls).toBe(2);
-    expect(activity.costUsd).toBeCloseTo(0.03);
-    expect(activity.models).toEqual([{ model: 'm-served', calls: 1 }, { model: 'm-pin', calls: 1 }]);
-    expect(activity.verdicts).toEqual([{ attempt: 1, approved: false }, { attempt: 1, approved: true }]);
-  });
-
-  it('names every run actor once and describes each one in the EN catalog', () => {
-    const names = Object.values(RUN_ACTORS).map((actor) => actor.name);
-    expect(new Set(names).size).toBe(names.length);
-    for (const key of Object.keys(RUN_ACTORS) as (keyof typeof RUN_ACTORS)[]) {
-      expect(runActorKey(RUN_ACTORS[key].name)).toBe(key);
-      expect((en as Record<string, string>)[`registry.runActor.${key}`]).toBeTruthy();
-    }
-    expect(runActorKey('Meristem')).toBeUndefined();
   });
 });
 

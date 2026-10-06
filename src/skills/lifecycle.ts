@@ -32,10 +32,55 @@ import { REFUSAL_GENERATION, refusalStampIsCurrent } from './generations.js';
 import { undeclaredToolMentions } from '../atoms/verdict.js';
 import { skillEventExecutor, type SkillNamespace } from './namespace.js';
 import { transportOf, tryParseModelSelector } from '../contracts/modelSelector.js';
+import { branchRecordCount, executorEvidence } from '../atoms/executorEvidence.js';
+import { baseExecutorOf } from '../core/attestation.js';
 
 // Historical export home — the generation machinery lives in generations.ts
 // (stats/curriculum need the predicate without importing this whole engine).
 export { REFUSAL_GENERATION, refusalStampIsCurrent } from './generations.js';
+
+/**
+ * Why a script that RAN in a phase was not used there. The first three come
+ * from `runScriptSkillDirect`, the rest from its caller.
+ *
+ * - `contract`: a non-zero exit or no envelope; `error`: a tool call threw.
+ *   The workflow may still be right for the phase, so the L1 gets the recipe
+ *   the script was compiled from.
+ * - `deliverable`: the files the subtask names are missing or untouched;
+ *   `anti-redispatch`: an output this run already returned; `refused`: its
+ *   validation refused it. Each says the script's job is not this phase's,
+ *   so its recipe, which describes the same job, is not handed on either.
+ * - `validation-error`: the validation itself failed; nothing was judged.
+ */
+export type ScriptSetAsideCause =
+  | 'contract'
+  | 'error'
+  | 'deliverable'
+  | 'anti-redispatch'
+  | 'refused'
+  | 'validation-error';
+
+/** Causes after which the L1 still gets the script's compiled-from recipe. */
+export function setAsideKeepsRecipe(cause: ScriptSetAsideCause): boolean {
+  return cause === 'contract' || cause === 'error' || cause === 'validation-error';
+}
+
+/**
+ * What one deterministic dispatch did (`runScriptSkillDirect`).
+ *
+ * - `skipped`: a pre-flight refused it and the script never ran. The L1 may
+ *   still run it through the validated loop, as it runs an untrusted script.
+ * - `set-aside`: the script RAN and its result cannot stand. It is
+ *   deterministic, so running it again in this phase reproduces that.
+ * - `ran`: a mechanically sound result, uncommitted and not yet validated.
+ */
+export type ScriptDispatch =
+  | { readonly kind: 'skipped' }
+  | { readonly kind: 'set-aside'; readonly cause: ScriptSetAsideCause }
+  | { readonly kind: 'ran'; readonly result: Result };
+
+const SKIPPED: ScriptDispatch = { kind: 'skipped' };
+const setAside = (cause: 'contract' | 'error' | 'deliverable'): ScriptDispatch => ({ kind: 'set-aside', cause });
 
 /** Codex-served tiers (`sub:openai:` / `own:openai:`) compile at low effort; every other transport at medium. */
 export function compileEffortForModel(model: string): 'low' | 'medium' {
@@ -49,8 +94,8 @@ export function compileEffortForModel(model: string): 'low' | 'medium' {
  * Everything a supervisor does to its L1 children's persistent skills:
  * match (prefilter) → inject, learn (distill on approved novel runs),
  * revise (on escalation), promote llm→script (compile at learn), dispatch
- * a script with ZERO LLM calls, and demote on deterministic-failure
- * streaks. The behaviour, prompts and guards are verbatim from
+ * a script with no model execution (its result is validated by the caller),
+ * and demote on deterministic-failure streaks. The behaviour, prompts and guards are verbatim from
  * L2Atom — the move gives the ~600-line engine its own module boundary,
  * its own import surface (auditable: which LLM calls it can make), and a
  * host interface instead of supervisor internals.
@@ -1455,20 +1500,25 @@ export class SkillLifecycle {
    * L1 (same filename, same interpreter, same argv[2] = JSON-encoded
    * subtask description, same last-stdout-line envelope), but performs
    * the two tool calls DIRECTLY instead of paying an LLM round-trip to
-   * have Haiku wire them. Returns null on ANY deviation — tool error,
-   * non-zero exit, missing/invalid envelope — so the caller falls back
-   * to the normal inject-and-supervise path. A deterministic failure
+   * have Haiku wire them. Any deviation — tool error, non-zero exit,
+   * missing/invalid envelope, the deliverable gate — is `set-aside`, and a
+   * pre-flight refusal that never ran the script is `skipped`, so the
+   * caller can tell a script the L1 may still run from one it must not run
+   * again. A deterministic failure
    * deliberately does NOT bump the skill's failure counter: the LLM
-   * loop gets its shot first, and only a full supervise-loop escalation
-   * counts as a skill failure (existing onFailed semantics, which also
-   * drive script→llm demotion).
+   * loop gets its shot first, untagged, so its outcome is not the script's
+   * either. A script demotes on its own streak of contract failures
+   * (`noteDirectFailure`); the onFailed demotion covers a script the L1 ran
+   * itself, which only an untrusted or pre-flight-skipped one is.
    *
-   * A mechanically successful execution is returned UNCOMMITTED. The caller
-   * owns the run-scoped anti-redispatch memo and must call
-   * `commitScriptSkillDirect` only if it accepts the result. This separation
-   * prevents a byte-identical output rejected by that memo from earning a
-   * success and emitting a phantom direct event. Atom-type counters are never
-   * touched — the L1 model did not execute.
+   * A mechanically successful execution is returned UNCOMMITTED, carrying
+   * the calls the transport attested while it ran, so its validation reads
+   * what the host observed rather than the script's own report. The caller
+   * owns the run-scoped anti-redispatch memo and the validation, and must
+   * call `commitScriptSkillDirect` only if it accepts the result. This
+   * separation prevents a byte-identical output rejected by that memo from
+   * earning a success and emitting a phantom direct event. Atom-type
+   * counters are never touched — the L1 model did not execute.
    */
   async runScriptSkillDirect(
     skill: Skill,
@@ -1489,14 +1539,14 @@ export class SkillLifecycle {
     ctx: RunContext,
     /** Identity of that executor, so a demotion names who ran the script too. */
     executorAtomId?: string
-  ): Promise<Result | null> {
+  ): Promise<ScriptDispatch> {
     const executor = executorAtomId ? { atomId: executorAtomId, name: executorName } : undefined;
-    if (!skill.language) return null;
+    if (!skill.language) return SKIPPED;
     if (!scriptDeclaresEnvelope(skill.body)) {
       ctx.logger.debug(
         `[${this.host.name}] direct dispatch of ${skill.id} skipped: body never emits an {"output","summary"} envelope — running the LLM loop instead (no side effects)`
       );
-      return null;
+      return SKIPPED;
     }
     const filename = scriptScratchFilename(skill.id, skill.language);
     const interpreter = scriptInterpreter(skill.language);
@@ -1511,10 +1561,14 @@ export class SkillLifecycle {
       ctx.logger.debug(
         `[${this.host.name}] direct dispatch of ${skill.id} skipped: subtask is mutating but names no provable output path — running the LLM loop so success cannot be credited without a gate`
       );
-      return null;
+      return SKIPPED;
     }
+    // The host's own reads and the scratch cleanup run on the BASE executor:
+    // a supervisor's reads are never the worker's attested evidence (src/atoms
+    // contract), and the validation that follows reads that evidence.
+    const host = ctx.tools ? baseExecutorOf(ctx.tools) : undefined;
     const before = new Map<string, string>();
-    if (mutating && ctx.tools?.has('read_file')) {
+    if (mutating && host?.has('read_file')) {
       // Snapshot OUTPUTS only. A mutating subtask routinely names inputs too:
       // "write package.json and README.md pointing at pathcase.js". The live
       // package script correctly changed both outputs, then the old all-named
@@ -1524,7 +1578,7 @@ export class SkillLifecycle {
       // gate must not disagree.
       for (const path of mutationTargetPaths) {
         try {
-          const got = await ctx.tools.execute('read_file', { path });
+          const got = await host.execute('read_file', { path });
           const c = got && typeof got === 'object' ? (got as Record<string, unknown>)['content'] : got;
           if (typeof c === 'string') before.set(path, c);
         } catch {
@@ -1532,6 +1586,8 @@ export class SkillLifecycle {
         }
       }
     }
+    // What the transport attests from here on is this run of the script.
+    const since = branchRecordCount(ctx);
     try {
       await ctx.tools!.execute('write_file', { path: filename, content: skill.body });
       const res = (await ctx.tools!.execute('run_shell', {
@@ -1550,7 +1606,7 @@ export class SkillLifecycle {
         );
         ctx.recordRunStat?.('dispatch-fallback');
         this.noteDirectFailure(l1Name, skill, ctx, executor);
-        return null;
+        return setAside('contract');
       }
       const envelope = parseScriptEnvelope(res.stdout);
       if (!envelope) {
@@ -1559,7 +1615,7 @@ export class SkillLifecycle {
         );
         ctx.recordRunStat?.('dispatch-fallback');
         this.noteDirectFailure(l1Name, skill, ctx, executor);
-        return null;
+        return setAside('contract');
       }
       // DELIVERABLE GATE. The envelope parse is the only thing standing
       // between a script's self-report and a recorded success — and a
@@ -1567,7 +1623,7 @@ export class SkillLifecycle {
       // compiled CLI verifier, handed the subtask "Write a README.md
       // documenting the CLI usage", replayed the manifest, printed a valid
       // envelope, exited 0, and wrote NO README — and because this path
-      // returns before superviseLoop, no validator ever saw it, the skill
+      // returned before superviseLoop, no validator ever saw it, the skill
       // was credited, and the phantom success entrenched the script. So:
       // any file the SUBTASK names (not the result — that is the claim we
       // distrust) must exist afterwards, or the deliverable was not
@@ -1583,12 +1639,12 @@ export class SkillLifecycle {
       const namedPaths = mutating
         ? mutationTargetPaths
         : subtaskNamedFilePaths(subTask.description);
-      if (namedPaths.length > 0 && ctx.tools?.has('read_file')) {
+      if (namedPaths.length > 0 && host?.has('read_file')) {
         const missing: string[] = [];
         for (const path of namedPaths) {
           if (ctx.signal?.aborted) break;
           try {
-            const got = await ctx.tools.execute('read_file', { path });
+            const got = await host.execute('read_file', { path });
             const content =
               got && typeof got === 'object'
                 ? (got as Record<string, unknown>)['content']
@@ -1604,7 +1660,7 @@ export class SkillLifecycle {
         for (const [path, prev] of before) {
           if (missing.includes(path)) continue;
           try {
-            const got = await ctx.tools.execute('read_file', { path });
+            const got = await host.execute('read_file', { path });
             const c = got && typeof got === 'object' ? (got as Record<string, unknown>)['content'] : got;
             if (typeof c === 'string' && c === prev) untouched.push(path);
           } catch {
@@ -1616,17 +1672,17 @@ export class SkillLifecycle {
             `[${this.host.name}] direct dispatch of ${skill.id}: subtask asks to change ${untouched.join(', ')} but the file is byte-identical afterwards — falling back to the LLM loop`
           );
           ctx.recordRunStat?.('dispatch-fallback');
-          return null;
+          return setAside('deliverable');
         }
         if (missing.length > 0) {
           ctx.logger.info(
             `[${this.host.name}] direct dispatch of ${skill.id} produced no ${missing.join(', ')} — the subtask names ${missing.length === 1 ? 'that file' : 'those files'} as its deliverable, so the script did not do this job; routing through the validated LLM loop (no counter moved)`
           );
           ctx.recordRunStat?.('dispatch-fallback');
-          return null;
+          return setAside('deliverable');
         }
       }
-      return {
+      const result: Result = {
         output: envelope.output,
         summary: envelope.summary,
         trace: [
@@ -1638,13 +1694,21 @@ export class SkillLifecycle {
           },
         ],
         producedBy: { tier: 1, name: executorName, viaFallback: false },
+        // What the transport attested of THIS script, for the validation that
+        // follows: its scratch write and its run. The parent lane is shared by
+        // sibling dispatches, so records are picked by the scratch file they
+        // name, not by position alone.
+        evidence: executorEvidence(envelope.output, ctx, since, (record) =>
+          (record.tool === 'write_file' || record.tool === 'run_shell') &&
+          record.observation.kind === 'execution' && record.observation.request.includes(filename)),
       };
+      return { kind: 'ran', result };
     } catch (err) {
       ctx.logger.debug(
         `[${this.host.name}] direct dispatch of ${skill.id} threw: ${(err as Error).message} — falling back to the LLM loop`
       );
       ctx.recordRunStat?.('dispatch-fallback');
-      return null;
+      return setAside('error');
     } finally {
       await this.removeScratchScript(filename, ctx);
     }
@@ -1676,7 +1740,7 @@ export class SkillLifecycle {
         skillId: skill.id,
         actorName: this.host.name,
         actorTier: 2,
-        reasoning: `deterministic ${skill.language} run: exit 0, envelope accepted`,
+        reasoning: `deterministic ${skill.language} run: exit 0, envelope accepted, result validated`,
       });
       ctx.recordSkill?.({
         op: 'success',
@@ -1697,7 +1761,59 @@ export class SkillLifecycle {
       );
     }
     ctx.logger.debug(
-      `[${this.host.name}] skill ${skill.id} ran via deterministic dispatch (0 LLM calls)`
+      `[${this.host.name}] skill ${skill.id} ran via deterministic dispatch (no model execution)`
+    );
+    ctx.recordRunStat?.('deterministic');
+  }
+
+  /**
+   * A direct result the caller ACCEPTED as the phase's result without
+   * crediting the script — a read-only phase below a tissue, restored after
+   * this approval, or a restoration that undid the script's own writes. It
+   * is still a phase no model executed, so it is counted and traced as one:
+   * until 2026-10-06 nothing was emitted, and four such phases in production
+   * (8738f263, 947a21a2, b2f5a494, cc7ed6f1) read as zero deterministic
+   * phases while two of them delivered the run. No counter moves: neither the
+   * success nor the failure streak, which a clean exit would otherwise clear.
+   * The `direct` event is followed by `credit-withheld` instead of `success`:
+   * the viz reads "counters not changed", and the trajectory reader closes
+   * the dispatch on it.
+   */
+  noteUncreditedDirect(
+    skill: Skill,
+    l1Name: SkillNamespace,
+    ctx: RunContext,
+    reason: string,
+    executor?: { readonly atomId: string; readonly name: string }
+  ): void {
+    try {
+      ctx.recordSkill?.({
+        op: 'direct',
+        l1Name: this.displayName(l1Name),
+        l1AtomId: l1Name,
+        ...skillEventExecutor(l1Name, executor),
+        skillId: skill.id,
+        actorName: this.host.name,
+        actorTier: 2,
+        reasoning: `deterministic ${skill.language} run accepted, not credited: ${reason}`,
+      });
+      ctx.recordSkill?.({
+        op: 'credit-withheld',
+        l1Name: this.displayName(l1Name),
+        l1AtomId: l1Name,
+        ...skillEventExecutor(l1Name, executor),
+        skillId: skill.id,
+        actorName: this.host.name,
+        actorTier: 2,
+        reasoning: `direct result accepted, not credited: ${reason}`,
+      });
+    } catch (err) {
+      ctx.logger.warn(
+        `[${this.host.name}] direct dispatch of ${skill.id} was accepted but its event publication failed: ${(err as Error).message}`
+      );
+    }
+    ctx.logger.debug(
+      `[${this.host.name}] skill ${skill.id} ran via deterministic dispatch (no model execution; not credited: ${reason})`
     );
     ctx.recordRunStat?.('deterministic');
   }
@@ -1764,7 +1880,8 @@ export class SkillLifecycle {
 
   private async removeScratchScript(filename: string, ctx: RunContext): Promise<void> {
     try {
-      await ctx.tools?.execute('run_shell', {
+      // Housekeeping, not the script's work: on the base executor, unattested.
+      await (ctx.tools ? baseExecutorOf(ctx.tools) : undefined)?.execute('run_shell', {
         command: 'node',
         args: ['-e', 'require("fs").rmSync(process.argv[1],{force:true})', filename],
       });

@@ -626,7 +626,7 @@
   "skillOp.failure": "विफलता काउंटर बढ़ाया गया",
   "skillOp.promote": "Skill को llm → script में पदोन्नत किया गया (Sonnet कंपाइल)",
   "skillOp.demote": "Skill को script → llm में पदावनत किया गया (fallback बहाल)",
-  "skillOp.direct": "निर्धारित डिस्पैच के ज़रिए script निष्पादित हुई (0 LLM कॉल)",
+  "skillOp.direct": "",
   "skillOp.quarantine": "स्थिर स्कैन द्वारा skill को क्वारंटीन किया गया",
   "skillOp.creditWithheld": "काउंटर नहीं बदले गए",
   "registry.none": "कोई रजिस्ट्री कॉन्फ़िगर नहीं है",

@@ -317,8 +317,9 @@ export type PositiveVerdict = {
    * Set by the supervisor — never by a model — when Jev, not the model
    * validator, approved (docs/jev-decisions-2026-09-28.md). It withholds ONE
    * consequence: distilling a NEW recipe from the run. Compile-at-learn makes a
-   * learned script dispatchable from its first match, platform-wide and with
-   * no validator, so a recipe must come from a run a model validated. Trust
+   * learned script dispatchable from its first match, platform-wide, its
+   * results judged by Jev first, so a recipe must come from a run a model
+   * validated, or Jev would be approving its own lesson. Trust
    * and the credit of a recipe that drove the run are not withheld.
    */
   viaJev?: true;
@@ -755,7 +756,8 @@ export interface SkillEventInfo {
     | 'demote'
     | 'direct'
     | 'quarantine'
-    | 'credit-withheld';
+    | 'credit-withheld'
+    | 'set-aside';
   /**
    * DISPLAY name of the molecule that owns the skill — what the viz renders
    * and what an operator reads.

@@ -49,10 +49,12 @@ export function parseScriptEnvelope(stdout: string): ScriptEnvelope | null {
       'output' in obj &&
       typeof obj['summary'] === 'string'
     ) {
-      // SELF-REPORTED FAILURE GUARD. The deterministic path has no validator
-      // downstream (it returns before the supervise loop), so this parse is
-      // the ONLY gate between a script's stdout and a result the parent
-      // treats as a success — and the exit code cannot be trusted alone:
+      // SELF-REPORTED FAILURE GUARD. This parse is the first gate between a
+      // script's stdout and a result the parent treats as a success; until
+      // 2026-10-06 it was the only one, and since then the result is also
+      // validated (Jev, else the model), but a self-reported failure must
+      // never reach that judge dressed as a success. The exit code cannot be
+      // trusted alone:
       // measured on the freshly-promoted `document-cli-from-source`, a run in
       // a workspace without the CLI printed
       //   {"output":null,"summary":"FAILED: index.js ... not found ..."}

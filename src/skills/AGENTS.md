@@ -129,6 +129,28 @@ by owner decision on 2026-09-26
   recorded failure AND a non-empty `_fallback.md` (`shouldTrustSkill` reads no
   threshold). Every preflight gate still applies. An untrusted script runs
   through the normal L1 tool loop.
+- A dispatched script's result is VALIDATED like a molecule's — result gates,
+  ground-truth probe, Jev, then the model — less the type's trust fast path,
+  whose counter the molecule's model earned (`validateScriptDispatch`, owner
+  decision 2026-10-06, [record](../../docs/script-dispatch-validation-2026-10-06.md)).
+  Jev approving keeps the dispatch free of model calls; otherwise one
+  validation call is paid. Its evidence is the script's own attested write and
+  run, picked by scratch filename (the lane is shared with siblings); the
+  host's snapshot, gate reads and cleanup run on the base executor. Its gates
+  read the run's one-shots but never spend them. A refused result is set aside
+  like an upstream content rejection: no counter moves, and the run's
+  anti-redispatch memo keeps it from being validated twice. A script that RAN
+  in a phase and was set aside is never handed back to the L1 to run again; a
+  `set-aside` event names the cause (`ScriptSetAsideCause`). The molecule runs
+  with no active-skill tag, so it neither credits nor blames the script, and
+  opens no verification extraction. After a contract failure, a tool error or
+  a failed validation it gets the `_fallback.md` recipe as guidance; after the
+  deliverable gate, the anti-redispatch guard or a refusal — each saying the
+  script's job is not this phase's — it gets no recipe, and a refusal's reason
+  as coaching. A pre-flight skip still injects the script, as for an untrusted
+  one. A result accepted without credit (a read-only phase below a tissue,
+  restored writes, an uncovered obligation) emits `direct` then
+  `credit-withheld`, and counts as a deterministic phase.
 - Output intent is STRUCTURED first: plans declare `outputs` on every
   file-mutating subtask (threaded onto the child Task) and compilers declare
   `writes` in the promotion envelope, cross-checked once against the static
@@ -220,10 +242,20 @@ by owner decision on 2026-09-26
 - Do NOT restore the earned-run gates as a "safety" fix without the owner. The
   3-success promote threshold, the from-scratch freeze and the 3 clean runs
   before dispatch were removed deliberately on 2026-09-26. What guards a fresh
-  script now is mechanical and does not judge content — envelope, deliverable
-  gate, anti-redispatch, demotion streak to the compiled script's fallback. A
-  defect found in that gap is a finding to report, and the remedy is the
-  owner's call.
+  script is its mechanical contract — envelope, deliverable gate,
+  anti-redispatch, demotion streak to the compiled script's fallback — and,
+  since 2026-10-06, the validation of each result it returns: the owner's
+  remedy for the gap this paragraph named, after a replay that ignored its
+  phase was delivered twice. A defect found in what remains is a finding to
+  report, and the remedy is the owner's call.
+- Do NOT count a refused validation toward the demotion streak. All six
+  project matches of the one production script (2026-10-01 → 10-03) were
+  routing mismatches, not a brittle script; demoting on them would punish the
+  script for the matcher. The streak counts contract failures only.
+- Do NOT edit the compile prompt's "NO validator downstream" line only to make
+  it true again. It is part of `COMPILE_PROMPT_GENERATION`, so any edit
+  re-opens every current refusal stamp for one more compile call, and the
+  instruction it carries — fail loudly, exit non-zero — is still the right one.
 - Do NOT lower the `skills stats --sim` default to catch semantic twins.
   Measured 2026-08-21 against three known pairs: they score 0.41, 0.39 and
   0.26 while a build-vs-probe FALSE positive scores 0.31, so no threshold on
@@ -233,10 +265,11 @@ by owner decision on 2026-09-26
   time, where the distiller judges each recipe's claim.
 - Do NOT force compilation past a compiler refusal (owner decision
   2026-10-03). Compilation already happens at learn time, and the success
-  count never changed a verdict. A trusted script runs without a validator, is
-  credited at dispatch, and an upstream content rejection only stops its
-  re-dispatch within the run, so the refusal is the last step that judges
-  whether a script can do the job. On that date production held one script
+  count never changed a verdict. Each result a script returns is validated
+  since 2026-10-06, but a validation judges one result, never whether the
+  script can do its class of job, and a refused result only stops its
+  re-dispatch within the run, so the refusal is still the step that judges
+  the script itself. On that date production held one script
   among 30 task recipes, and the 24 refusals cited task interpretation or
   browser tooling ([record](../../docs/compiled-script-limits-2026-10-03.md)).
 - Do NOT give compiled scripts a browser (same decision). Only a

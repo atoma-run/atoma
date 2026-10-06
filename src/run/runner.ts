@@ -774,9 +774,10 @@ export async function startTask(
     );
   }
   // Deterministic dispatch of kind:script skills (#C4). A script skill with
-  // no recorded failure executes via write_file + run_shell with ZERO LLM
-  // calls from its first match; any deviation falls back to the normal LLM
-  // loop. Unlike learn/promote this is a kill switch, not an opt-in — the
+  // no recorded failure executes via write_file + run_shell with no model
+  // execution from its first match, and its result is validated (Jev, else
+  // the model); any deviation falls back to the normal LLM loop. Unlike
+  // learn/promote this is a kill switch, not an opt-in — the
   // lib enables it whenever ATOMA_SKILL_DIRECT !== '0'.
   const direct = resolveDirectDispatch(args.noDirectSkills, hostEnv.direct);
   process.env['ATOMA_SKILL_DIRECT'] = direct.enabled ? '1' : '0';

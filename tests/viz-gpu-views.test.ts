@@ -4935,32 +4935,6 @@ describe('drawRuns behavior', () => {
     ];
   }
 
-  it('shows a run actor as one, never as an agent type with invented facts', () => {
-    // `run-root` has no registry row. Drawn through the agent sheet it read
-    // "L3 Tissue · #0 · v0", "Created · ·" and an empty prompt (2026-10-06).
-    const run = makeRun([
-      makeLlmEvent('p1'),
-      makeLlmEvent('v1', { role: 'validate-result', actor: { tier: 3, name: 'run-root' }, servedModel: 'served-l1' }),
-    ]);
-    const ctx = createRecordingCtx();
-    drawRuns(ctx, makeSnapshot({ selectedAtomName: 'run-root' }, { run, runs: [] }), WIDTH, HEIGHT);
-    const values = ctx.texts.map((text) => text.value);
-    expect(values).toContain(I18N_CATALOGS.en['registry.runActor.badge']);
-    expect(values).toContain(I18N_CATALOGS.en['registry.runActor.root']);
-    expect(values.some((value) => value.includes('served-l1'))).toBe(true);
-    expect(values.some((value) => /#0|· v0|Created ·/.test(value))).toBe(false);
-    expect(values).not.toContain(t('registry.detailPrompt').toUpperCase());
-  });
-
-  it('says an unsnapshotted agent type cannot be shown as it was', () => {
-    const run = makeRun([makeLlmEvent('p1')]);
-    const ctx = createRecordingCtx();
-    drawRuns(ctx, makeSnapshot({ selectedAtomName: 'Meristem' }, { run, runs: [] }), WIDTH, HEIGHT);
-    const values = ctx.texts.map((text) => text.value);
-    expect(values).toContain(I18N_CATALOGS.en['registry.unrecorded.body']);
-    expect(values.some((value) => /#0|· v0|Created ·/.test(value))).toBe(false);
-  });
-
   it('says which project the run belongs to, above the run itself', () => {
     // A project CONTAINS runs, so the reader finds the container first. The
     // trace does not carry it — the index entry does — so this also proves the

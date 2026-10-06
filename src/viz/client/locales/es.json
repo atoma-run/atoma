@@ -626,7 +626,7 @@
   "skillOp.failure": "Contador de fallos incrementado",
   "skillOp.promote": "Skill promovido de LLM → script (compilación con Sonnet)",
   "skillOp.demote": "Skill degradado de script → LLM (fallback restaurado)",
-  "skillOp.direct": "Script ejecutado mediante despacho determinista (0 llamadas al LLM)",
+  "skillOp.direct": "",
   "skillOp.quarantine": "Skill puesto EN CUARENTENA por el análisis estático",
   "skillOp.creditWithheld": "Contadores sin cambios",
   "registry.none": "No hay ningún registro configurado",

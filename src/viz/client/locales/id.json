@@ -626,7 +626,7 @@
   "skillOp.failure": "Penghitung kegagalan ditambah",
   "skillOp.promote": "Skill dipromosikan llm → skrip (kompilasi Sonnet)",
   "skillOp.demote": "Skill diturunkan skrip → llm (fallback dipulihkan)",
-  "skillOp.direct": "Skrip dijalankan melalui pengiriman deterministik (0 panggilan LLM)",
+  "skillOp.direct": "",
   "skillOp.quarantine": "Skill DIKARANTINA oleh pemindaian statis",
   "skillOp.creditWithheld": "Penghitung tidak diubah",
   "registry.none": "Tidak ada registri yang dikonfigurasi",

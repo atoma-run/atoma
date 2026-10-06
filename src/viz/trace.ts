@@ -187,8 +187,16 @@ export interface VizTrustEvent {
  *                onApproved / onFailed hook outcomes.
  *   - 'direct'   Trusted `kind: 'script'` skill executed via the
  *                DETERMINISTIC dispatch fast-path (write_file +
- *                run_shell, zero LLM calls — no L1 plan/execute, no
- *                validators). Carries the run outcome as `reasoning`.
+ *                run_shell, no L1 plan/execute) and its result accepted
+ *                after validation (Jev, else the model). Carries the run
+ *                outcome as `reasoning`. Followed by 'success' when
+ *                credited, by 'credit-withheld' when accepted uncredited.
+ *   - 'set-aside' A dispatched script RAN and its result was not used;
+ *                `reasoning` starts with the cause (contract, error,
+ *                deliverable, anti-redispatch, refused,
+ *                validation-error). The molecule loop takes the phase,
+ *                never handed the script again; an 'inject' follows only
+ *                when the script's compiled-from recipe is handed on.
  *   - 'quarantine'      The static scan flagged a matched `kind: script`
  *                body, so it was neither dispatched NOR injected and the
  *                run proceeded skill-less. `reasoning` carries the flags.
@@ -216,7 +224,8 @@ export interface VizSkillEvent {
     | 'demote'
     | 'direct'
     | 'quarantine'
-    | 'credit-withheld';
+    | 'credit-withheld'
+    | 'set-aside';
   /** Display name of the molecule that OWNS the skill. */
   l1Name: string;
   /** Stored namespace key (atom id) — what `/api/skills/:l1Name` expects. */

@@ -763,7 +763,7 @@ export function skillEventTitle(
   t: Translator
 ): string {
   if (event.kind !== 'skill') return event.kind ?? 'skill';
-  const op = event.op === 'credit-withheld' ? 'creditWithheld' : event.op;
+  const op = event.op === 'credit-withheld' ? 'creditWithheld' : event.op === 'set-aside' ? 'setAside' : event.op;
   if (!op) return t('skill.title');
   const key = `skillOp.${op}`;
   const translated = t(key);

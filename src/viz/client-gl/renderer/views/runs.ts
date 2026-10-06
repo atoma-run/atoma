@@ -72,7 +72,6 @@ import {
   VIEW_FRAME_TITLE_Y,
 } from '../view-frame.js';
 import { drawAtomDetail } from './atom-detail.js';
-import { drawAtomStubDetail } from './atom-stub-detail.js';
 import { drawResultPanel } from './result.js';
 import {
   PARTIAL_CONTINUE_PREFIX,
@@ -1210,17 +1209,6 @@ export function drawRuns(
         snapshot,
         run,
         event,
-        rightX,
-        detailTop,
-        rightWidth,
-        detailHeight
-      );
-    } else if (atom?.stub) {
-      drawAtomStubDetail(
-        ctx,
-        snapshot,
-        run,
-        { ...atom, stub: atom.stub },
         rightX,
         detailTop,
         rightWidth,

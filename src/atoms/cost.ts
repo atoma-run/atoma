@@ -287,18 +287,21 @@ export function shouldTrustType(type: AtomType): boolean {
 
 /**
  * Gates the deterministic dispatch of `kind: 'script'` skills in
- * `L2.runSubtask`: a trusted script runs via write_file + run_shell with
- * ZERO LLM calls (no L1 plan/execute, no validators).
+ * `L2.runSubtask`: a trusted script runs via write_file + run_shell with no
+ * L1 plan/execute, and its result is then validated like a molecule's, less
+ * the type's trust fast path (`validateScriptDispatch`) — free when Jev
+ * approves, one validation call otherwise.
  *
  * A script is trusted from its first match unless a failure is on record
  * (owner decision 2026-09-26, docs/compile-at-learn-2026-09-26.md). Until
  * then a freshly compiled script — its counters reset by promotion — had to
  * earn `trustThreshold()` clean runs through the validated LLM loop first.
- * What stands in for those runs now is mechanical: the envelope contract,
- * the before/after deliverable gate, the anti-redispatch memo, and the
- * deterministic-failure demotion streak back to the script's fallback
- * recipe. None of them judges CONTENT; a script that exits 0 with a
- * well-formed envelope and changes the named files is accepted unvalidated.
+ * What stands in for those runs is the envelope contract, the before/after
+ * deliverable gate, the anti-redispatch memo, the deterministic-failure
+ * demotion streak back to the script's fallback recipe, and — since
+ * 2026-10-06 — the validation of every result it returns. Until that date
+ * none of them judged CONTENT, and a replay that ignored what its phase asked
+ * was delivered twice (docs/script-dispatch-validation-2026-10-06.md).
  *
  * THE FALLBACK IS PART OF TRUST. A script without a non-empty `_fallback.md`
  * — a hand-authored one; every compiled script gets one from

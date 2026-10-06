@@ -626,7 +626,7 @@
   "skillOp.failure": "Счётчик неудач увеличен",
   "skillOp.promote": "Skill повышен: llm → script (компиляция Sonnet)",
   "skillOp.demote": "Skill понижен: script → llm (fallback восстановлен)",
-  "skillOp.direct": "Скрипт выполнен через детерминированную диспетчеризацию (0 вызовов LLM)",
+  "skillOp.direct": "",
   "skillOp.quarantine": "Skill ПОМЕЩЁН В КАРАНТИН статическим анализатором",
   "skillOp.creditWithheld": "Счётчики не изменены",
   "registry.none": "Реестр не настроен",

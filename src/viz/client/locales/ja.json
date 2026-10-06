@@ -626,7 +626,7 @@
   "skillOp.failure": "失敗カウンターを増加",
   "skillOp.promote": "skillをllmからscriptへ昇格（Sonnetコンパイル）",
   "skillOp.demote": "skillをscriptからllmへ降格（fallbackを復元）",
-  "skillOp.direct": "決定論的ディスパッチでスクリプトを実行（LLM呼び出し0回）",
+  "skillOp.direct": "",
   "skillOp.quarantine": "静的スキャンによりskillを隔離",
   "skillOp.creditWithheld": "カウンターは変更されていません",
   "registry.none": "レジストリが設定されていません",

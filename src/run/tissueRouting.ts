@@ -2,15 +2,14 @@ import { extractJson } from '../atoms/json.js';
 import { resolveCreationDescription } from '../atoms/capability.js';
 import { PROPORTIONATE_PLANNING_GUIDANCE } from '../atoms/taskContext.js';
 import { tissueDefinitionSchema, tissueRoutingDecisionSchema, type RoutingRepository } from '../contracts/tissueRouting.js';
-import { RUN_ACTORS } from '../contracts/runActors.js';
 import { modelForTier } from '../core/models.js';
 import { JEV_THRESHOLDS } from '../core/jevQuestions.js';
 import type { RunContext, Task, Tool } from '../core/types.js';
 import type { AtomRegistry, AtomType } from '../registry/atomRegistry.js';
 import type { TissueAuthor } from './tissueAuthor.js';
 
-export const TISSUE_ROUTER_ACTOR = RUN_ACTORS.router;
-export const TISSUE_AUTHOR_ACTOR = RUN_ACTORS.tissueAuthor;
+export const TISSUE_ROUTER_ACTOR = { name: 'run-router', tier: 1 } as const;
+export const TISSUE_AUTHOR_ACTOR = { name: 'platform-tissue-author', tier: 3 } as const;
 
 const ROUTING_SYSTEM_PROMPT = [
   'Select a reusable top-level tissue for the requested work.',

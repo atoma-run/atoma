@@ -626,7 +626,7 @@
   "skillOp.failure": "ব্যর্থতার কাউন্টার বাড়ানো হয়েছে",
   "skillOp.promote": "Skill-কে llm → script-এ উন্নীত করা হয়েছে (Sonnet compile)",
   "skillOp.demote": "Skill-কে script → llm-এ অবনমিত করা হয়েছে (fallback পুনরুদ্ধার করা হয়েছে)",
-  "skillOp.direct": "নির্ধারিত dispatch-এর মাধ্যমে script চালানো হয়েছে (০টি LLM call)",
+  "skillOp.direct": "",
   "skillOp.quarantine": "স্থির scan দ্বারা skill-টিকে কোয়ারেন্টাইনে রাখা হয়েছে",
   "skillOp.creditWithheld": "কাউন্টার পরিবর্তন করা হয়নি",
   "registry.none": "কোনো রেজিস্ট্রি কনফিগার করা নেই",

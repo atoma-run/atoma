@@ -66,6 +66,13 @@ no trust wait held any of them back. Forcing compilation past a refusal and
 giving compiled scripts a browser were examined and rejected. See the
 [compiled-script limits decision](compiled-script-limits-2026-10-03.md).
 
+Update, 2026-10-06: item 1 below is answered. A dispatched script's result is
+validated like a molecule's (gates, ground truth, Jev, then the model), after
+the one production script's replay of the probe manifest was delivered twice
+for phases that asked for more. A script set aside in a phase is no longer
+handed back to the L1 to run. See the
+[script dispatch validation decision](script-dispatch-validation-2026-10-06.md).
+
 ## Why the old wait could go
 
 The 2026-08-07 threshold experiment (batches 14–15) found that the success

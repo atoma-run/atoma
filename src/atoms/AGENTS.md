@@ -189,7 +189,10 @@ load-bearing.
 - Atom trust fast paths require the configured consecutive approved-result
   threshold (default 3), read through `trustThreshold()`; historical failures do
   not permanently disqualify a type. Script dispatch retains its separate
-  zero-failure rule; recipe compilation follows the skills contract. Invalid or non-positive threshold values
+  zero-failure rule, and a script's result never takes its molecule's trust
+  fast path: `validateResult(…, { scriptDispatch })` runs gates, probe, Jev and
+  model on it (owner decision 2026-10-06, [src/skills](../skills/AGENTS.md));
+  recipe compilation follows the skills contract. Invalid or non-positive threshold values
   fall back to the default. Result approval still runs the zero-token ground-truth
   probe first. Contradictions and malformed manifests force review; heuristics
   never reject alone.

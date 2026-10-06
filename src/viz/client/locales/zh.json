@@ -626,7 +626,7 @@
   "skillOp.failure": "失败计数器已递增",
   "skillOp.promote": "skill 已从 llm 提升为脚本（Sonnet 编译）",
   "skillOp.demote": "skill 已从脚本降级为 llm（已恢复 fallback）",
-  "skillOp.direct": "已通过确定性分派执行脚本（0 次 LLM 调用）",
+  "skillOp.direct": "",
   "skillOp.quarantine": "skill 已被静态扫描隔离",
   "skillOp.creditWithheld": "计数器未更改",
   "registry.none": "未配置注册表",

@@ -626,7 +626,7 @@
   "skillOp.failure": "Fehlerzähler erhöht",
   "skillOp.promote": "Skill von LLM → Skript hochgestuft (Sonnet-Kompilierung)",
   "skillOp.demote": "Skill von Skript → LLM herabgestuft (Fallback wiederhergestellt)",
-  "skillOp.direct": "Skript per deterministischem Dispatch ausgeführt (0 LLM-Aufrufe)",
+  "skillOp.direct": "",
   "skillOp.quarantine": "Skill durch statische Prüfung UNTER QUARANTÄNE GESTELLT",
   "skillOp.creditWithheld": "Zähler nicht geändert",
   "registry.none": "Kein Register konfiguriert",

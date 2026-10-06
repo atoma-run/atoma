@@ -171,9 +171,11 @@ describe('production verification extraction and semantic dispatch', () => {
     const { ctx, events, run } = verifier();
     ctx.llm.enqueueText(reusable('Water'));
     ctx.llm.enqueueText(JSON.stringify({ kind: 'reuse', target: verification.id, confidence: 'high', fileEffect: 'read-only', reasoning: 'Only recorded verification.' }));
+    // No Jev here: the script's result is validated by the model (2026-10-06).
+    ctx.llm.enqueueText(JSON.stringify({ approved: true, reasoning: 'every recorded probe matched' }));
     expect(subtaskOutputIntent({ description: originalGoal }).mutating).toBe(true);
     await run();
-    expect(ctx.llm.calls.map(c => c.role)).toEqual(['prefilter', 'prefilter']);
+    expect(ctx.llm.calls.map(c => c.role)).toEqual(['prefilter', 'prefilter', 'validate-result']);
     expect(events.map(e => e.op)).toEqual(['match', 'direct', 'success']);
   });
 
@@ -195,8 +197,11 @@ describe('production verification extraction and semantic dispatch', () => {
     await L2Atom.fromType(registry.getByName('Tracheid')!, registry, [], skills).handleDirect({ description: originalGoal }, actual);
     expect(ctx.llm.calls).toHaveLength(0);
     expect(events.map(e => e.op)).toEqual(['match', 'direct', 'success']);
-    expect(questions).toHaveLength(2);
+    // Routing, the recipe pick, then the approval of the script's result:
+    // Jev approving keeps the whole dispatch free of model calls (2026-10-06).
+    expect(questions).toHaveLength(3);
     expect(questions[1]).toContain('task_changes_files');
+    expect(questions[2]!.some((id) => id.startsWith('requirement_'))).toBe(true);
   });
 
   it('never lets a semantic read-only label erase declared outputs', () => {

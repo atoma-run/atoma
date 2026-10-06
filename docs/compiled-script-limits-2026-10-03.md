@@ -4,6 +4,12 @@ Status: decided, nothing built. Two proposals were examined against the
 production catalogue and traces on 2026-10-03, and the owner closed both.
 Neither is proposed again without new evidence that answers the reasons below.
 
+Update, 2026-10-06: "a trusted script runs with no model call and no
+validator" below is no longer true — each result it returns is validated
+([decision](script-dispatch-validation-2026-10-06.md)). A validation judges
+one result, not whether a script can do its class of job, so both decisions
+here stand.
+
 ## The question
 
 Production held one compiled skill, while every other recipe stayed

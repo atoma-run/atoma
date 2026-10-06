@@ -344,6 +344,10 @@ export function deriveTrajectorySignatures(
           const key = directKey(l1Name, skillId, event.branchId ?? null);
           if (directs.delete(key)) return;
           credit(l1Name, event.branchId ?? null, skillId);
+        } else if (event.op === 'credit-withheld') {
+          // A direct result accepted uncredited closes its dispatch here, so
+          // the next genuine `success` in the lane is not taken for it.
+          directs.delete(directKey(l1Name, skillId, event.branchId ?? null));
         }
         return;
       }

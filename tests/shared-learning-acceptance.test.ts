@@ -127,15 +127,18 @@ describe.skipIf(process.platform === 'win32')('W14 shared learning across organi
     expect(b.projects.getProjectRun(b.viewer.orgId, first.runId)).toBeNull();
     const reloadedRegistry = new AtomRegistry(openDb(a.dbPath));
     const skillsB = new SkillRegistry(second.paths.skillsPath, { db });
-    // Never credited anywhere, and B still dispatches it without a model call.
+    // Never credited anywhere, and B still dispatches it with no model
+    // EXECUTION; its result gets one validation (2026-10-06).
     expect(skillsB.loadFor(namespace)[0]).toMatchObject({ id: skillId, kind: 'script', successes: 0 });
     const events: SkillEventInfo[] = [];
     const context = { ...makeCtx(), tools: second.backend.executor, recordSkill: (event: SkillEventInfo) => events.push(event) };
     context.llm.enqueueText(jsonText({ kind: 'reuse', target: molecule.name, confidence: 'high', reasoning: 'shared molecule' }));
     context.llm.enqueueText(jsonText({ kind: 'reuse', target: skillId, confidence: 'high', reasoning: 'shared recipe' }));
+    context.llm.enqueueText(jsonText({ approved: true, reasoning: 'the input text was reported' }));
     const delivered = await L2Atom.fromType(reloadedRegistry.getByAtomId(supervisor.atomId)!, reloadedRegistry, [], skillsB).handleDirect(task, context);
     expect(delivered.output).toEqual({ text: 'beta source' });
-    expect(context.llm.calls).toHaveLength(2); // no L1 model execution or validators
+    // No L1 model execution: two prefilters and the one validation of the result.
+    expect(context.llm.calls.map((call) => call.role)).toEqual(['prefilter', 'prefilter', 'validate-result']);
     expect(events.map(event => event.op)).toEqual(['match', 'direct', 'success']);
     expect(skillsA.loadFor(namespace)[0]!.successes).toBe(1);
     expect(readFileSync(join(first.paths.workspacePath, 'input.txt'), 'utf8')).toBe('alpha source');

@@ -31,6 +31,7 @@ import {
   parseTwoJson,
   planSchema,
   NON_JSON_PAYLOAD_SUMMARY_PREFIX,
+  REMEDIATION_FEEDBACK_MAX_CHARS,
 } from './json.js';
 import { superviseLoop, type SupervisionHooks } from '../core/supervisor.js';
 import { forkBranch } from '../core/branchCtx.js';
@@ -74,7 +75,7 @@ export {
   type GroundTruthCheck,
 } from './groundTruth.js';
 export { extractRecordedProbes } from '../contracts/witness.js';
-import { SkillLifecycle, resultHasSuccessfulToolAction } from '../skills/lifecycle.js';
+import { SkillLifecycle, resultHasSuccessfulToolAction, setAsideKeepsRecipe, type ScriptDispatch, type ScriptSetAsideCause } from '../skills/lifecycle.js';
 import { llmVerdict, undeclaredToolMentions} from './verdict.js';
 import { dispatchWithAggregation, keptWithoutSynthesis, markLanded, synthesizeOrKeep, withinReadOnlyPhase, type DispatchOutcome } from './dispatch.js';
 import { restorationDamaged } from '../contracts/readOnlyPhase.js';
@@ -834,6 +835,8 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     // — each one distilled near-duplicates of the recipe that had
     // matched (observed: 4 replay-twins in 2 days, all operator-merged).
     let matchedSkillId: string | undefined;
+    // A matched script that RAN in this phase and was not used there.
+    let setAside: { readonly cause: ScriptSetAsideCause; readonly refusal?: string } | null = null;
     let visibleNsForHooks: readonly string[] | undefined;
     if (this.skillRegistry && subTask.executionMode !== 'reasoning') {
       skillMatchAttempted = true;
@@ -911,11 +914,12 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         // (zero recorded failures and a fallback recipe to demote to — since
         // 2026-09-26 no clean runs are required first, see `shouldTrustSkill`)
         // is executed DIRECTLY
-        // via write_file + run_shell: zero LLM calls, no L1 plan/execute,
-        // no validators. The script's exit code + envelope contract
-        // ({"output", "summary"} as the last stdout line) IS the ground
-        // truth. Any deviation — non-zero exit, missing envelope, tool
-        // error — falls through to the normal inject-and-supervise path
+        // via write_file + run_shell: no L1 plan/execute. The script's exit
+        // code + envelope contract ({"output", "summary"} as the last stdout
+        // line) is the MECHANICAL half; its result is then validated like a
+        // molecule's, less the type's trust fast path (`validateScriptDispatch`,
+        // 2026-10-06). Any deviation — non-zero exit, missing envelope, tool
+        // error, a refused validation — falls through to the validated loop
         // below, so the fast-path can never make a run fail that the LLM
         // loop would have saved. Kill switch: ATOMA_SKILL_DIRECT=0.
         if (
@@ -926,17 +930,25 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         ) {
           // A read-only subtask's script runs photographed and restored too.
           const matched = skills;
-          const dispatch = () => this.runScriptSkillDirect(
-            matched.skill,
-            matched.ownerNs,
-            // The atom that runs it, which under the shared catalog is not
-            // the atom whose namespace supplied it.
-            l1Type,
-            matched.task,
-            ctx
-          );
+          // What the dispatch did. A pre-flight skip leaves the script to the
+          // validated loop, as an untrusted one is; a script that RAN and was
+          // set aside is never handed to the L1 to run again (below).
+          const outcome: { value: ScriptDispatch } = { value: { kind: 'skipped' } };
+          const dispatch = async (): Promise<Result | null> => {
+            outcome.value = await this.runScriptSkillDirect(
+              matched.skill,
+              matched.ownerNs,
+              // The atom that runs it, which under the shared catalog is not
+              // the atom whose namespace supplied it.
+              l1Type,
+              matched.task,
+              ctx
+            );
+            return outcome.value.kind === 'ran' ? outcome.value.result : null;
+          };
           // Every change a script run makes is its own.
           const direct = await (readOnlyHere ? withinReadOnlyPhase(ctx, subTask, dispatch, { script: true }) : dispatch());
+          if (outcome.value.kind === 'set-aside') setAside = { cause: outcome.value.cause };
           if (direct) {
             // ANTI-REDISPATCH GUARD (epoch-5 run 5, the $1.63 lesson). A
             // trusted script is DETERMINISTIC: same workspace → the
@@ -962,19 +974,42 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
             const seenAnywhere = [...memo.values()].some((list) => list.includes(direct.summary));
             if (seenAnywhere) {
               ctx.logger.info(
-                `[${this.name}] skill "${skills.skill.id}" dispatch reproduced an output this run already returned — routing through the validated LLM loop (a deterministic re-run cannot answer a content rejection)`
+                `[${this.name}] skill "${skills.skill.id}" dispatch reproduced an output this run already returned — falling back to the LLM loop (a deterministic re-run cannot answer a content rejection)`
               );
+              setAside = { cause: 'anti-redispatch' };
             } else {
+              // Memoised BEFORE its validation: a refused output is a content
+              // rejection like an upstream one, and a later re-dispatch of it
+              // in this run is set aside without being validated again.
               memo.set(skills.skill.id, [...seen.slice(-7), direct.summary]);
-              // A script that changed files in a read-only subtask is not
-              // credited: the runtime had to put its work back. Below a
-              // tissue's read-only phase that restoration comes later, too
-              // late to tell: no script run there is credited.
-              const restoredHere = direct.readOnlyRestoration && restorationDamaged(direct.readOnlyRestoration.restoration);
-              if (!restoredHere && !(subTask.readOnly && !readOnlyHere)) {
-                this.lifecycle()?.commitScriptSkillDirect(skills.skill, skills.ownerNs, ctx, l1Type);
+              const verdict = await this.validateScriptDispatch(l1, direct, matched.task, ctx);
+              if (verdict?.approved) {
+                // A script that changed files in a read-only subtask is not
+                // credited: the runtime had to put its work back. Below a
+                // tissue's read-only phase that restoration comes later, too
+                // late to tell: no script run there is credited. An uncovered
+                // proof obligation withholds it as it withholds a molecule's.
+                const restoredHere = direct.readOnlyRestoration && restorationDamaged(direct.readOnlyRestoration.restoration);
+                const uncredited = restoredHere
+                  ? 'the runtime put back the files it changed in a read-only phase'
+                  : subTask.readOnly && !readOnlyHere
+                    ? 'a read-only phase below a tissue is restored after this approval'
+                    : verdict.proofUncovered
+                      ? 'a declared proof obligation is not covered'
+                      : null;
+                if (!restoredHere && verdict.proofUncovered) ctx.recordRunStat?.('uncovered-obligation');
+                if (uncredited) {
+                  this.lifecycle()?.noteUncreditedDirect(skills.skill, skills.ownerNs, ctx, uncredited, l1Type);
+                } else {
+                  this.lifecycle()?.commitScriptSkillDirect(skills.skill, skills.ownerNs, ctx, l1Type);
+                }
+                return direct;
               }
-              return direct;
+              ctx.logger.info(
+                `[${this.name}] skill "${skills.skill.id}" dispatch result not accepted by its validation${verdict ? ` (${verdict.reasoning.slice(0, 200)})` : ''} — falling back to the LLM loop (no counter moved)`
+              );
+              ctx.recordRunStat?.('dispatch-fallback');
+              setAside = verdict ? { cause: 'refused', refusal: verdict.reasoning } : { cause: 'validation-error' };
             }
           }
           const matchedScriptId = skills.skill.id;
@@ -984,41 +1019,99 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
           if (refreshed) {
             skills = { ...skills, skill: refreshed };
           }
+          // A demotion this dispatch just caused has already made the recipe
+          // an llm one: it is injected and tagged as usual below.
+          if (skills.skill.kind !== 'script') setAside = null;
         }
 
-        l1.injectContext({
-          source: 'skill',
-          skillId: skills.skill.id,
-          text: skillContextBlock({
-            id: skills.skill.id,
-            body: skills.skill.body,
-            kind: skills.skill.kind,
-            ...(skills.skill.language ? { language: skills.skill.language } : {}),
-          }),
-        });
-        // The owner namespace rides the instance tag alongside the id —
-        // under the lattice it can differ from l1Type.name (donor match).
-        l1.setActiveSkill(skills.skill.id, skills.ownerNs);
-        // Match + inject are emitted as a paired event sequence so the
-        // viz can render either the match decision alone (rare) or the
-        // full inject side-effect (common). Keeping them separate also
-        // lets a future replay engine elide the inject if it wants to
-        // re-run the model with a fresh body.
-        ctx.recordSkill?.({
-          op: 'inject',
-          // The OWNER namespace, like every other skill event: this pair is
-          // what addresses the catalog. Until 2026-09-24 it carried the
-          // RECEIVING molecule, so a donor match handed the viz a link into a
-          // namespace with no such body — 404, and the GPU client raised it
-          // as a whole-view error over the run graph.
-          l1Name: this.displayNameForNamespace(skills.ownerNs),
-          l1AtomId: skills.ownerNs,
-          ...skillEventExecutor(skills.ownerNs, l1Type),
-          skillId: skills.skill.id,
-          actorName: this.name,
-          actorTier: 2,
-          reasoning: `kind=${skills.skill.kind}${skills.skill.language ? `; language=${skills.skill.language}` : ''}`,
-        });
+        if (setAside) {
+          // A script that ran and was set aside is not run again: it is
+          // deterministic, so the L1 would reproduce what was just refused.
+          // Handed the script with "run it, do not improvise", the L1 of run
+          // 822bb4fe rewrote and re-ran it seven times until the phase budget
+          // ran out, and the run landed; cc7ed6f1's re-ran the very output the
+          // anti-redispatch guard had set aside. The molecule gets no
+          // active-skill tag, so the loop's outcome neither credits nor
+          // blames the script: its record is its own.
+          const cause = setAside.cause;
+          const fallback = setAsideKeepsRecipe(cause) ? (skills.skill.fallbackBody ?? '').trim() : '';
+          ctx.recordSkill?.({
+            op: 'set-aside',
+            l1Name: this.displayNameForNamespace(skills.ownerNs),
+            l1AtomId: skills.ownerNs,
+            ...skillEventExecutor(skills.ownerNs, l1Type),
+            skillId: skills.skill.id,
+            actorName: this.name,
+            actorTier: 2,
+            reasoning: `${cause}: the molecule takes the phase ${fallback ? 'with the recipe the script was compiled from' : 'without the recipe'}`,
+          });
+          if (setAside.refusal) {
+            // The refused method is not handed on (`setAsideKeepsRecipe`); the
+            // reason is. A molecule handed only the recipe of the replay its
+            // validator refused for "recompute… audit hashes" would replay it.
+            l1.injectContext({
+              source: 'coaching',
+              text: [
+                `== A RESULT FOR THIS SUBTASK WAS ALREADY REFUSED ==`,
+                `A compiled recipe ran on this subtask before you, and its validation refused the result:`,
+                setAside.refusal.slice(0, REMEDIATION_FEEDBACK_MAX_CHARS),
+                `Do the subtask yourself; do not reproduce that result.`,
+              ].join('\n'),
+            });
+          }
+          if (fallback) {
+            // The recipe the script was compiled from, as GUIDANCE only.
+            l1.injectContext({
+              source: 'skill',
+              skillId: skills.skill.id,
+              text: skillContextBlock({ id: skills.skill.id, body: fallback, kind: 'llm' }),
+            });
+            ctx.recordSkill?.({
+              op: 'inject',
+              l1Name: this.displayNameForNamespace(skills.ownerNs),
+              l1AtomId: skills.ownerNs,
+              ...skillEventExecutor(skills.ownerNs, l1Type),
+              skillId: skills.skill.id,
+              actorName: this.name,
+              actorTier: 2,
+              reasoning: 'kind=llm; the recipe of a script set aside in this phase, not credited',
+            });
+          }
+        } else {
+          l1.injectContext({
+            source: 'skill',
+            skillId: skills.skill.id,
+            text: skillContextBlock({
+              id: skills.skill.id,
+              body: skills.skill.body,
+              kind: skills.skill.kind,
+              ...(skills.skill.language ? { language: skills.skill.language } : {}),
+            }),
+          });
+          // The owner namespace rides the instance tag alongside the id —
+          // under the lattice it can differ from l1Type.name (donor match).
+          l1.setActiveSkill(skills.skill.id, skills.ownerNs);
+          // Match + inject are emitted as a paired event sequence so the
+          // viz can render either the match decision alone (rare) or the
+          // full inject side-effect (common). Keeping them separate also
+          // lets a future replay engine elide the inject if it wants to
+          // re-run the model with a fresh body.
+          ctx.recordSkill?.({
+            op: 'inject',
+            // The OWNER namespace, like every other skill event: this pair is
+            // what addresses the catalog. Until 2026-09-24 it carried the
+            // RECEIVING molecule, so a donor match handed the viz a link into a
+            // namespace with no such body — 404, and the GPU client raised it
+            // as a whole-view error over the run graph.
+            l1Name: this.displayNameForNamespace(skills.ownerNs),
+            l1AtomId: skills.ownerNs,
+            ...skillEventExecutor(skills.ownerNs, l1Type),
+            skillId: skills.skill.id,
+            actorName: this.name,
+            actorTier: 2,
+            reasoning: `kind=${skills.skill.kind}${skills.skill.language ? `; language=${skills.skill.language}` : ''}`,
+          });
+        }
       }
     }
 
@@ -1046,6 +1139,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       eventState,
       branchId,
       readOnlyHere,
+      scriptSetAside: setAside !== null,
     });
     const branchInfo = {
       branchId,
@@ -1213,7 +1307,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     executor: { readonly atomId: string; readonly name: string },
     subTask: Task,
     ctx: RunContext
-  ): Promise<Result | null> {
+  ): Promise<ScriptDispatch> {
     return (
       (await this.lifecycle()?.runScriptSkillDirect(
         skill,
@@ -1222,8 +1316,44 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         subTask,
         ctx,
         executor.atomId
-      )) ?? null
+      )) ?? { kind: 'skipped' }
     );
+  }
+
+  /**
+   * A compiled script's result faces the validation a molecule's result
+   * faces — the mechanical gates, the ground-truth probe, Jev, then the model
+   * — less the molecule's trust fast path, whose counter that molecule's
+   * model earned, not this script (`validateResult`, `scriptDispatch`).
+   *
+   * Until 2026-10-06 a trusted script's result was accepted unvalidated. The
+   * one compiled script in production ignores its subtask by construction (it
+   * always replays the probe manifest), and four of its six project matches
+   * exited 0 on phases that asked for more: a recomputation, a hash audit,
+   * fresh probes. Two of those replays became the delivered result of their
+   * run (947a21a2, 8738f263). Jev approving keeps the dispatch free of model
+   * calls; a no, an uncertain answer or no Jev costs one validation call,
+   * still far below the molecule's tool loop it replaces.
+   *
+   * `null` when the validation itself failed: the result is then set aside
+   * like a refused one, never accepted on a missing verdict. A deadline abort
+   * is rethrown, so the landing the run owns still happens.
+   */
+  private async validateScriptDispatch(
+    child: L1Atom,
+    result: Result,
+    task: Task,
+    ctx: RunContext
+  ): Promise<Verdict | null> {
+    try {
+      return await this.validateResult(child, result, task, ctx, { scriptDispatch: true });
+    } catch (error) {
+      if (ctx.signal?.aborted) throw error;
+      ctx.logger.warn(
+        `[${this.name}] validation of a deterministic dispatch failed: ${(error as Error).message} — setting the result aside`
+      );
+      return null;
+    }
   }
 
   private resolveL1ForSubtask(
@@ -1370,6 +1500,13 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       eventState: { injected: boolean };
       /** The branch the molecule's tool calls are attested under. */
       branchId: string;
+      /**
+       * A matched script ran in this phase and was set aside. The molecule
+       * then runs untagged, which would otherwise read as "no recipe drove
+       * it" and open the verification extraction: one more L2 call per
+       * phase, and a likely twin of the script it replaced (review 2026-10-06).
+       */
+      scriptSetAside?: boolean;
       /** This cell's own plan made the subtask read-only (else the mark, if any, came from above). */
       readOnlyHere: boolean;
     }
@@ -1790,6 +1927,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         }
         const novel = !skillId && !skillCtx.matchedSkillId;
         const canExtractVerification = result.recordedCommandProbes &&
+          !skillCtx.scriptSetAside &&
           verdict?.activeSkillFollowed !== false &&
           (!skillId || this.skillRegistry?.loadFor(skillNs).find((skill) => skill.id === skillId)?.kind === 'llm');
         if (
@@ -1812,7 +1950,8 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
           this.skillRegistry &&
           process.env['ATOMA_SKILL_LEARN'] === '1' &&
           // A run only Jev approved teaches nothing: its recipe would compile
-          // at learn time and dispatch platform-wide with no validator.
+          // at learn time and dispatch platform-wide, its results judged by
+          // the same Jev first — a lesson no model ever validated.
           !(verdict?.approved === true && verdict.viaJev === true) &&
           // Nor does a read-only subtask, whose writes the restoration of its
           // phase undoes after this approval: its recipe could teach them.
@@ -2283,7 +2422,18 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     return modelVerdict(false);
   }
 
-  async validateResult(child: L1Atom, result: Result, task: Task, ctx: RunContext): Promise<Verdict> {
+  async validateResult(
+    child: L1Atom,
+    result: Result,
+    task: Task,
+    ctx: RunContext,
+    /**
+     * `scriptDispatch`: the result is a compiled script's, run before any
+     * model of `child` executed (`validateScriptDispatch`). Everything below
+     * applies to it except the type's trust fast path.
+     */
+    options: { readonly scriptDispatch?: true } = {}
+  ): Promise<Verdict> {
     // The mechanical gates run as ONE declarative pipeline (resultGates.ts):
     // shared cached workspace reads, an explicit disposition per gate, and a
     // run-wide one-shot memo so a byte-identical mechanical rejection can
@@ -2298,7 +2448,14 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         childToolNames: child.toolNames(),
         ctx,
       }),
-      (ctx.mechanicalResultRejections ??= new Set<string>())
+      // A script's result reads the run's one-shots but never spends them:
+      // a reject-once gate it trips must still reject the molecule that takes
+      // the phase next, as it would without the script (review 2026-10-06:
+      // `required-command-manifest` consumed by a replay, then a model
+      // approved the molecule's substituted harness).
+      options.scriptDispatch
+        ? new Set(ctx.mechanicalResultRejections ?? [])
+        : (ctx.mechanicalResultRejections ??= new Set<string>())
     );
     if (gates.rejection) {
       ctx.logger.warn(
@@ -2373,7 +2530,10 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     // runs its own ground-truth probe internally, so the trusted branch's
     // probe would be a duplicate on that path.
     let trustedProbe: GroundTruthCheck | null = null;
-    if (type && child.matchesRegistryVersion(type) && shouldTrustType(type) && gateFindingsBlock === undefined && !proofUncovered) {
+    if (
+      !options.scriptDispatch &&
+      type && child.matchesRegistryVersion(type) && shouldTrustType(type) && gateFindingsBlock === undefined && !proofUncovered
+    ) {
       trustedProbe = await checkGroundTruth({
         ctx,
         taskDescription: task.description,

@@ -10,8 +10,10 @@ import { openDb } from '../src/registry/db.js';
 import { L2Atom } from '../src/atoms/L2Atom.js';
 import { TRUST_THRESHOLD_SUCCESSES } from '../src/atoms/cost.js';
 import { SkillRegistry } from '../src/skills/registry.js';
-import type { RunContext, SkillEventInfo, ToolExecutor } from '../src/core/types.js';
+import type { JevDecider, RunContext, SkillEventInfo, ToolExecutor } from '../src/core/types.js';
 import { MockLlmClient } from '../src/core/llm.js';
+import { attestingExecutor, createAttestationLog } from '../src/core/attestation.js';
+import { deriveTrajectorySignatures } from '../src/contracts/trajectory.js';
 import { makeCtx, jsonText , nsOf, saveCompiledScript } from './helpers.js';
 
 /**
@@ -20,10 +22,11 @@ import { makeCtx, jsonText , nsOf, saveCompiledScript } from './helpers.js';
  * counters pass the trust gate (0 failures — since 2026-09-26 no clean
  * runs are required first) and
  * `ctx.tools` is wired, L2 executes the script directly via
- * write_file + run_shell — zero LLM calls for the subtask (no L1
- * plan/execute, no validators). Any deviation (non-zero exit, missing
- * {"output","summary"} envelope, tool error, kill-switch env) falls
- * back to the normal inject-and-supervise path.
+ * write_file + run_shell — no L1 plan/execute — and, since 2026-10-06,
+ * validates its result (Jev, else the model). Any deviation (non-zero
+ * exit, missing {"output","summary"} envelope, tool error, a refused
+ * validation, kill-switch env) falls back to the validated loop, which is
+ * never handed a script that already ran in the phase.
  */
 
 const seed = {
@@ -60,6 +63,21 @@ function enqueueExecutedResult(
       usage: { inputTokens: 10, outputTokens: 10 },
     };
   });
+}
+
+/**
+ * A Jev that approves every result it is asked to judge and decides nothing
+ * else. Since 2026-10-06 a direct dispatch's result is validated like a
+ * molecule's (`validateScriptDispatch`); with Jev approving, the tests that
+ * are about something else keep their zero-model-call shape. The model
+ * validator path has its own tests below.
+ */
+function approvingJev(): JevDecider {
+  return {
+    choose: async () => null,
+    approve: async () => ({ approved: true, probability: 0.95 }),
+    twin: async () => null,
+  };
 }
 
 function makeExecutor(runShellResult: unknown): {
@@ -126,7 +144,7 @@ describe('direct dispatch — attribution follows the EXECUTOR, not the namespac
     );
     const ctx = { ...makeCtx(), tools: executor };
 
-    const result = await lifecycle.runScriptSkillDirect(
+    const outcome = await lifecycle.runScriptSkillDirect(
       skill,
       asStoredNamespace('Ammonia'), // where the recipe is FILED
       'Water', // who actually RUNS it
@@ -134,7 +152,8 @@ describe('direct dispatch — attribution follows the EXECUTOR, not the namespac
       ctx
     );
 
-    expect(result).not.toBeNull();
+    expect(outcome.kind).toBe('ran');
+    const result = outcome.kind === 'ran' ? outcome.result : null;
     expect(result!.producedBy).toEqual({ tier: 1, name: 'Water', viaFallback: false });
     expect(result!.trace?.[0]?.atom).toBe('Water');
   });
@@ -204,7 +223,7 @@ describe('L2.runSubtask — deterministic script dispatch (C4)', () => {
     const { executor, calls } = makeExecutor({ exitCode: 0, stdout: `${ENVELOPE_LINE}\n`, stderr: '' });
     const events: SkillEventInfo[] = [];
     const neuron = L2Atom.fromType(reg.getByName('Tracheid')!, reg, [], skills);
-    const ctx = makeCtxWith(executor, events);
+    const ctx = { ...makeCtxWith(executor, events), jev: approvingJev() };
 
     // ONLY the two prefilter replies are queued. If the dispatch fell
     // through to the LLM loop, MockLlmClient would throw "no queued
@@ -264,7 +283,7 @@ describe('L2.runSubtask — deterministic script dispatch (C4)', () => {
 `, stderr: '' });
     const events: SkillEventInfo[] = [];
     const neuron = L2Atom.fromType(reg.getByName('Tracheid')!, reg, [], skills);
-    const ctx = makeCtxWith(executor, events);
+    const ctx = { ...makeCtxWith(executor, events), jev: approvingJev() };
     ctx.llm.enqueueText(
       jsonText({ kind: 'reuse', target: 'Water', confidence: 'high', reasoning: 'tier' })
     );
@@ -496,7 +515,7 @@ describe('L2.runSubtask — deterministic script dispatch (C4)', () => {
     expect(skills.loadFor(nsOf(reg, 'Water'))[0]!.directFailures).toBe(1);
     const { executor } = makeExecutor({ exitCode: 0, stdout: `${ENVELOPE_LINE}\n`, stderr: '' });
     const neuron = L2Atom.fromType(reg.getByName('Tracheid')!, reg, [], skills);
-    const ctx = makeCtxWith(executor);
+    const ctx = { ...makeCtxWith(executor), jev: approvingJev() };
     ctx.llm.enqueueText(
       jsonText({ kind: 'reuse', target: 'Water', confidence: 'high', reasoning: 'tier' })
     );
@@ -759,6 +778,7 @@ describe('anti-redispatch guard — a reproduced dispatch output routes to the L
       ...makeCtx(),
       tools: executor as never,
       recordSkill: (event: SkillEventInfo) => directEvents.push(event),
+      jev: approvingJev(),
     };
 
     // Attempt 1: dispatch fires (2 prefilter calls only).
@@ -792,7 +812,7 @@ describe('anti-redispatch guard — a reproduced dispatch output routes to the L
     expect(directEvents.filter((event) => event.op === 'direct')).toHaveLength(1);
 
     // A NEW run (fresh ctx): the guard resets, dispatch fires again.
-    const ctx2 = { ...makeCtx(), tools: executor as never };
+    const ctx2 = { ...makeCtx(), tools: executor as never, jev: approvingJev() };
     const neuron3 = L2Atom.fromType(reg.getByName('Tracheid')!, reg, [], skills);
     ctx2.llm.enqueueText(jsonText({ kind: 'reuse', target: 'Water', confidence: 'high', reasoning: 't' }));
     ctx2.llm.enqueueText(jsonText({ kind: 'reuse', target: 'verify-stuff', confidence: 'high', reasoning: 'f' }));
@@ -1007,7 +1027,7 @@ describe('deliverable gate — a script cannot report success for a file it neve
     const neuron = L2Atom.fromType(reg2.getByName('Tracheid')!, reg2, [], skills2);
     const base = makeCtx();
     const events: SkillEventInfo[] = [];
-    const ctx = { ...base, tools: executor, recordSkill: (e: SkillEventInfo) => events.push(e) };
+    const ctx = { ...base, tools: executor, recordSkill: (e: SkillEventInfo) => events.push(e), jev: approvingJev() };
     queuePrefilters(ctx);
 
     const description =
@@ -1071,7 +1091,7 @@ describe('deliverable gate — a script cannot report success for a file it neve
     const neuron = L2Atom.fromType(reg2.getByName('Tracheid')!, reg2, [], skills2);
     const base = makeCtx();
     const events: SkillEventInfo[] = [];
-    const ctx = { ...base, tools: executor, recordSkill: (e: SkillEventInfo) => events.push(e) };
+    const ctx = { ...base, tools: executor, recordSkill: (e: SkillEventInfo) => events.push(e), jev: approvingJev() };
     ctx.llm.enqueueText(jsonText({ kind: 'reuse', target: 'Water', confidence: 'high', reasoning: 't' }));
     ctx.llm.enqueueText(jsonText({ kind: 'reuse', target: 'scaffold-config', confidence: 'high', reasoning: 'f' }));
 
@@ -1087,7 +1107,7 @@ describe('deliverable gate — a script cannot report success for a file it neve
     const { executor } = fsExecutor({ 'config.json': '{}' });
     const neuron = L2Atom.fromType(reg2.getByName('Tracheid')!, reg2, [], skills2);
     const base = makeCtx();
-    const ctx = { ...base, tools: executor };
+    const ctx = { ...base, tools: executor, jev: approvingJev() };
     queuePrefilters(ctx);
     // No further LLM replies queued: the dispatch must NOT fall through.
 
@@ -1106,6 +1126,7 @@ describe('deliverable gate — a script cannot report success for a file it neve
       ...base,
       tools: executor,
       recordSkill: (event: SkillEventInfo) => events.push(event),
+      jev: approvingJev(),
     };
     queuePrefilters(ctx);
 
@@ -1128,7 +1149,7 @@ describe('deliverable gate — a script cannot report success for a file it neve
     const neuron = L2Atom.fromType(reg2.getByName('Tracheid')!, reg2, [], skills2);
     const base = makeCtx();
     const events: SkillEventInfo[] = [];
-    const ctx = { ...base, tools: executor, recordSkill: (e: SkillEventInfo) => events.push(e) };
+    const ctx = { ...base, tools: executor, recordSkill: (e: SkillEventInfo) => events.push(e), jev: approvingJev() };
     queuePrefilters(ctx);
 
     await neuron.handleDirect({
@@ -1143,7 +1164,7 @@ describe('deliverable gate — a script cannot report success for a file it neve
     const { executor } = fsExecutor({});
     const neuron = L2Atom.fromType(reg2.getByName('Tracheid')!, reg2, [], skills2);
     const base = makeCtx();
-    const ctx = { ...base, tools: executor };
+    const ctx = { ...base, tools: executor, jev: approvingJev() };
     queuePrefilters(ctx);
 
     await neuron.handleDirect({ description: 'Re-run the recorded invocations and report.' }, ctx);
@@ -1183,4 +1204,345 @@ describe('subtaskMutatesFiles — does the subtask ask for a file to CHANGE', ()
   });
 
 
+});
+
+describe('a direct dispatch is validated, and a script set aside is not run again (2026-10-06)', () => {
+  // Production, 2026-10-01 → 2026-10-03: the one compiled script
+  // (`recheck-recorded-command-probes`) was matched six times in project runs.
+  // It replays the probe manifest whatever its subtask asks; four times it
+  // exited 0 on a phase that asked for more, and twice that replay was the
+  // delivered result (947a21a2, 8738f263). Its one contract failure (822bb4fe)
+  // was handed back to the L1 as "run it, do not improvise", and the L1 re-ran
+  // it until the phase budget ran out. cc7ed6f1 did the same after the
+  // anti-redispatch guard had set its output aside.
+  const FALLBACK = 'FALLBACK-RECIPE: replay each recorded command and compare exit codes.';
+  let dir: string;
+  let skills: SkillRegistry;
+  let reg: AtomRegistry;
+  let envBefore: string | undefined;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'atoma-direct-validated-'));
+    skills = new SkillRegistry(dir);
+    reg = new AtomRegistry(openDb(':memory:'));
+    reg.create(2, seed);
+    reg.create(1, { ...seed, description: 'web builder', systemPrompt: 'You are an L1.' });
+    // A trusted molecule: its own loop needs no validator reply, so every
+    // queued reply below is accounted for by the dispatch and its validation.
+    for (let i = 0; i < TRUST_THRESHOLD_SUCCESSES; i++) reg.recordSuccess('Water');
+    saveCompiledScript(skills, nsOf(reg, 'Water'), {
+      id: 'scaffold-config',
+      description: 'write a canonical config file',
+      whenToUse: 'when the subtask asks for the standard config scaffold',
+      language: 'node',
+      body: SCRIPT_BODY,
+      fallback: FALLBACK,
+    });
+    envBefore = process.env['ATOMA_SKILL_DIRECT'];
+    delete process.env['ATOMA_SKILL_DIRECT'];
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+    if (envBefore === undefined) delete process.env['ATOMA_SKILL_DIRECT'];
+    else process.env['ATOMA_SKILL_DIRECT'] = envBefore;
+  });
+
+  const skill = () => skills.loadFor(nsOf(reg, 'Water')).find((s) => s.id === 'scaffold-config')!;
+  const neuron = () => L2Atom.fromType(reg.getByName('Tracheid')!, reg, [], skills);
+  function queuePrefilters(ctx: { llm: MockLlmClient }): void {
+    ctx.llm.enqueueText(jsonText({ kind: 'reuse', target: 'Water', confidence: 'high', reasoning: 'tier' }));
+    ctx.llm.enqueueText(jsonText({ kind: 'reuse', target: 'scaffold-config', confidence: 'high', reasoning: 'fits' }));
+  }
+  function queueMoleculeLoop(ctx: RunContext & { llm: MockLlmClient }, summary: string): void {
+    ctx.llm.enqueueText(jsonText({ reasoning: 'r', proposedAction: 'a', expectedOutput: 'e' }));
+    enqueueExecutedResult(ctx, { output: 'done by the molecule', summary });
+  }
+  /** The L1 prompts of the molecule loop, after the prefilters and any validation. */
+  const moleculePrompts = (ctx: { llm: MockLlmClient }) =>
+    ctx.llm.calls.filter((call) => call.role === 'plan' || call.role === 'execute').map((call) => call.systemPrompt ?? '');
+
+  it('the model validates the result when no Jev approves it, reading what the host observed the script do', async () => {
+    const log = createAttestationLog();
+    const { executor } = makeExecutor({ exitCode: 0, stdout: `${ENVELOPE_LINE}\n`, stderr: '' });
+    const events: SkillEventInfo[] = [];
+    const ctx = {
+      ...makeCtx(),
+      attestations: log,
+      tools: attestingExecutor(executor, log, undefined)!,
+      recordSkill: (e: SkillEventInfo) => events.push(e),
+    };
+    queuePrefilters(ctx);
+    ctx.llm.enqueueText(jsonText({ approved: true, reasoning: 'the scaffold was written' }));
+
+    const result = await neuron().handleDirect({ description: 'scaffold the config' }, ctx);
+
+    expect(result.summary).toBe('script ran clean');
+    expect(ctx.llm.calls.map((call) => call.role)).toEqual(['prefilter', 'prefilter', 'validate-result']);
+    // The validator read the transport's record of the run, not just the envelope.
+    expect(ctx.llm.calls[2]!.userContent).toContain('_skill_scaffold-config.mjs');
+    expect(events.map((e) => e.op)).toEqual(['match', 'direct', 'success']);
+    expect(skill().successes).toBe(1);
+  });
+
+  it('a Jev that does not approve leaves the decision to the model', async () => {
+    const { executor } = makeExecutor({ exitCode: 0, stdout: `${ENVELOPE_LINE}\n`, stderr: '' });
+    const ctx = {
+      ...makeCtx(),
+      tools: executor,
+      jev: { ...approvingJev(), approve: async () => ({ approved: false, probability: 0.3 }) },
+    };
+    queuePrefilters(ctx);
+    ctx.llm.enqueueText(jsonText({ approved: true, reasoning: 'fine' }));
+
+    await neuron().handleDirect({ description: 'scaffold the config' }, ctx);
+
+    expect(ctx.llm.calls.map((call) => call.role)).toEqual(['prefilter', 'prefilter', 'validate-result']);
+    expect(skill().successes).toBe(1);
+  });
+
+  it('a refused result never stands: the molecule takes the phase with the reason, not the refused recipe, and nothing is credited (8738f263)', async () => {
+    const { executor, calls } = makeExecutor({ exitCode: 0, stdout: `${ENVELOPE_LINE}\n`, stderr: '' });
+    const events: SkillEventInfo[] = [];
+    const ctx = { ...makeCtx(), tools: executor, recordSkill: (e: SkillEventInfo) => events.push(e) };
+    queuePrefilters(ctx);
+    ctx.llm.enqueueText(jsonText({
+      approved: false,
+      reasoning: 'only the recorded probes were replayed; the recomputation the phase asks for was not done',
+      scope: 'ephemeral',
+      modifications: {},
+    }));
+    queueMoleculeLoop(ctx, 'recomputed and audited');
+
+    const result = await neuron().handleDirect(
+      { description: 'scaffold the config and recompute every documented value' },
+      ctx
+    );
+
+    expect(result.summary).toBe('recomputed and audited');
+    expect(calls.filter((call) => call.name === 'run_shell' && call.args['command'] === 'node')).toHaveLength(2); // run + cleanup
+    const [plan] = moleculePrompts(ctx);
+    // The refusal's reason reaches the molecule; the replay it refused does not.
+    expect(plan).toContain('the recomputation the phase asks for was not done');
+    expect(plan).not.toContain(FALLBACK);
+    expect(plan).not.toContain('== SCRIPT BODY ==');
+    expect(events.map((e) => e.op)).toEqual(['match', 'set-aside']);
+    expect(events[1]!.reasoning).toMatch(/^refused: /);
+    // A content refusal is not a broken script: no counter moves.
+    expect(skill()).toMatchObject({ kind: 'script', successes: 0, failures: 0 });
+    expect(skill().directFailures).toBeUndefined();
+
+    // The replan's re-dispatch reproduces the refused output: set aside by the
+    // run's memo, with no second validation call.
+    queuePrefilters(ctx);
+    queueMoleculeLoop(ctx, 'second pass by the molecule');
+    await neuron().handleDirect({ description: 'scaffold the config again and recompute' }, ctx);
+    expect(ctx.llm.calls.filter((call) => call.role === 'validate-result')).toHaveLength(1);
+  });
+
+  it('a script whose contract failed is not handed back to the L1 to run again (822bb4fe)', async () => {
+    const { executor } = makeExecutor({ exitCode: 1, stdout: '', stderr: 'Probe 10 mismatched: python3 .atoma-scratch/manifest-bad/verify.py' });
+    const events: SkillEventInfo[] = [];
+    const ctx = { ...makeCtx(), tools: executor, recordSkill: (e: SkillEventInfo) => events.push(e) };
+    queuePrefilters(ctx);
+    queueMoleculeLoop(ctx, 'ran the documented commands');
+
+    const result = await neuron().handleDirect({ description: 'scaffold the config' }, ctx);
+
+    expect(result.summary).toBe('ran the documented commands');
+    const prompts = moleculePrompts(ctx);
+    expect(prompts).toHaveLength(2);
+    for (const prompt of prompts) {
+      expect(prompt).toContain(FALLBACK);
+      expect(prompt).not.toContain('== SCRIPT BODY ==');
+      expect(prompt).not.toMatch(/kind: script/);
+    }
+    // The streak still counts the contract failure; the molecule's success
+    // is not the script's.
+    expect(skill()).toMatchObject({ kind: 'script', successes: 0, failures: 0, directFailures: 1 });
+    expect(events.map((e) => e.op)).toEqual(['match', 'set-aside', 'inject']);
+    expect(events[1]!.reasoning).toMatch(/^contract: /);
+  });
+
+  it('the anti-redispatch guard hands the L1 neither the script nor its recipe (cc7ed6f1)', async () => {
+    const { executor } = makeExecutor({ exitCode: 0, stdout: `${ENVELOPE_LINE}\n`, stderr: '' });
+    const ctx = { ...makeCtx(), tools: executor, jev: approvingJev() };
+    queuePrefilters(ctx);
+    await neuron().handleDirect({ description: 'scaffold the config' }, ctx);
+    expect(skill().successes).toBe(1);
+
+    queuePrefilters(ctx);
+    queueMoleculeLoop(ctx, 'did it differently');
+    const second = await neuron().handleDirect({ description: 'scaffold the config, reworded' }, ctx);
+
+    expect(second.summary).toBe('did it differently');
+    const [plan] = moleculePrompts(ctx);
+    expect(plan).not.toContain(FALLBACK);
+    expect(plan).not.toContain('== SCRIPT BODY ==');
+    expect(skill().successes).toBe(1);
+  });
+
+  it('counts a deterministic phase below a tissue\'s read-only phase without crediting it (8738f263)', async () => {
+    const { executor } = makeExecutor({ exitCode: 0, stdout: `${ENVELOPE_LINE}\n`, stderr: '' });
+    const events: SkillEventInfo[] = [];
+    const stats: string[] = [];
+    const ctx = {
+      ...makeCtx(),
+      tools: executor,
+      jev: approvingJev(),
+      recordSkill: (e: SkillEventInfo) => events.push(e),
+      recordRunStat: (signal: string) => stats.push(signal),
+    };
+    queuePrefilters(ctx);
+
+    const result = await neuron().handleDirect(
+      { description: 'Audit the scaffold without changing anything.', readOnly: true },
+      ctx
+    );
+
+    expect(result.summary).toBe('script ran clean');
+    expect(events.map((e) => e.op)).toEqual(['match', 'direct', 'credit-withheld']);
+    expect(events[1]!.reasoning).toMatch(/not credited: a read-only phase below a tissue/);
+    expect(stats).toContain('deterministic');
+    expect(skill()).toMatchObject({ successes: 0, failures: 0 });
+  });
+});
+
+describe('the adversarial review of 2026-10-06, as regressions', () => {
+  const REPLAY_ENVELOPE = JSON.stringify({ output: { replayed: 17 }, summary: 'all 17 recorded probes matched' });
+  const REPLAY_BODY = `console.log(${JSON.stringify(REPLAY_ENVELOPE)});`;
+  let dir: string;
+  let skills: SkillRegistry;
+  let reg: AtomRegistry;
+  const env: Record<string, string | undefined> = {};
+
+  function fsExecutor(present: Record<string, string>, opts: { delayMs?: number; exit?: number } = {}): ToolExecutor {
+    return {
+      async execute(name, args) {
+        if (opts.delayMs) await new Promise((resolve) => setTimeout(resolve, opts.delayMs));
+        if (name === 'write_file') return { ok: true, path: args['path'] };
+        if (name === 'run_shell') {
+          if (Array.isArray(args['args']) && args['args'][0] === '-e') return { exitCode: 0, stdout: '', stderr: '' };
+          return { exitCode: opts.exit ?? 0, stdout: `${REPLAY_ENVELOPE}\n`, stderr: '' };
+        }
+        if (name === 'read_file') {
+          const path = String(args['path']);
+          if (path in present) return { content: present[path] };
+          throw new Error(`ENOENT: ${path}`);
+        }
+        throw new Error(`unexpected tool: ${name}`);
+      },
+      has: (name) => ['write_file', 'run_shell', 'read_file'].includes(name),
+    };
+  }
+  const lifecycle = () => new SkillLifecycle({
+    name: 'Tracheid', model: 'm', params: {},
+    toLlmRequest: (role, args) => ({ ...args, model: 'm', systemPrompt: 'sys', role, actor: { name: 'Tracheid', tier: 2 } }),
+  }, skills);
+  const observed = (outcome: Awaited<ReturnType<SkillLifecycle['runScriptSkillDirect']>>) =>
+    (outcome.kind === 'ran' ? outcome.result.evidence ?? [] : [])
+      .flatMap((witness) => witness.source === 'transport-observed' ? [`${witness.tool}: ${witness.observed}`] : []);
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'atoma-review-regressions-'));
+    skills = new SkillRegistry(dir);
+    reg = new AtomRegistry(openDb(':memory:'));
+    reg.create(2, seed);
+    reg.create(1, { ...seed, description: 'web builder', systemPrompt: 'You are an L1.' });
+    for (let i = 0; i < TRUST_THRESHOLD_SUCCESSES; i++) reg.recordSuccess('Water');
+    for (const key of ['ATOMA_SKILL_DIRECT', 'ATOMA_SKILL_LEARN']) env[key] = process.env[key];
+    delete process.env['ATOMA_SKILL_DIRECT'];
+    saveCompiledScript(skills, nsOf(reg, 'Water'), { id: 'recheck', description: 'replay probes', whenToUse: 'recheck', body: REPLAY_BODY });
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+    for (const [key, value] of Object.entries(env)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  it('the host\'s own reads are not filed as the script\'s evidence', async () => {
+    const log = createAttestationLog();
+    const ctx: RunContext = {
+      ...makeCtx(),
+      attestations: log,
+      tools: attestingExecutor(fsExecutor({ 'README.md': '# optimums\nbest=42\n' }), log, undefined)!,
+    };
+    const outcome = await lifecycle().runScriptSkillDirect(skills.loadFor(nsOf(reg, 'Water'))[0]!, nsOf(reg, 'Water'), 'Water',
+      { description: 'Recompute the optimums documented in README.md.' }, ctx, 'x');
+
+    const lines = observed(outcome);
+    expect(lines.some((line) => line.startsWith('run_shell') && line.includes('_skill_recheck.mjs'))).toBe(true);
+    // The deliverable gate read README.md, and the cleanup ran: neither is the script's work.
+    expect(lines.some((line) => line.startsWith('read_file'))).toBe(false);
+    expect(lines.some((line) => line.includes('rmSync'))).toBe(false);
+  });
+
+  it('two dispatches sharing a lane do not read each other\'s runs', async () => {
+    saveCompiledScript(skills, nsOf(reg, 'Water'), { id: 'beta', description: 'b', whenToUse: 'b', body: REPLAY_BODY });
+    const [alpha, beta] = ['recheck', 'beta'].map((id) => skills.loadFor(nsOf(reg, 'Water')).find((s) => s.id === id)!);
+    const log = createAttestationLog();
+    const ctx: RunContext = { ...makeCtx(), attestations: log, currentBranchId: 'phase-lane',
+      tools: attestingExecutor(fsExecutor({}, { delayMs: 5 }), log, 'phase-lane')! };
+    const [a, b] = await Promise.all([
+      lifecycle().runScriptSkillDirect(alpha!, nsOf(reg, 'Water'), 'Water', { description: 'recheck lane A' }, ctx, 'x'),
+      lifecycle().runScriptSkillDirect(beta!, nsOf(reg, 'Water'), 'Water', { description: 'recheck lane B' }, ctx, 'x'),
+    ]);
+
+    expect(observed(a).some((line) => line.includes('_skill_recheck.mjs'))).toBe(true);
+    expect(observed(a).some((line) => line.includes('_skill_beta'))).toBe(false);
+    expect(observed(b).some((line) => line.includes('_skill_recheck'))).toBe(false);
+  });
+
+  it('a gate that rejects the script\'s result still rejects the molecule\'s, at no model cost', async () => {
+    const ctx = { ...makeCtx(), tools: fsExecutor({ 'test-api.js': 'x' }) };
+    ctx.llm.enqueueText(jsonText({ kind: 'reuse', target: 'Water', confidence: 'high', reasoning: 't' }));
+    ctx.llm.enqueueText(jsonText({ kind: 'reuse', target: 'recheck', confidence: 'high', reasoning: 'f' }));
+    for (let i = 0; i < 6; i++) {
+      ctx.llm.enqueueText(jsonText({ reasoning: 'r', proposedAction: 'a', expectedOutput: 'e' }));
+      ctx.llm.enqueue((req) => {
+        req.onToolInvocation?.({ name: 'run_shell', args: { command: 'node', args: ['test-api.js'] }, result: { exitCode: 1 }, durationMs: 1, startedAt: Date.now() });
+        return { text: jsonText({ output: 'ran', summary: 'node test-api.js passes' }), stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } };
+      });
+      ctx.llm.enqueueText(jsonText({ approved: true, reasoning: 'looks fine' }));
+    }
+
+    await L2Atom.fromType(reg.getByName('Tracheid')!, reg, [], skills)
+      .handleDirect({ description: 'Run node test-api.js and confirm it passes.' }, ctx)
+      .catch(() => undefined);
+
+    // `required-command-manifest` refused the replay mechanically, then the
+    // molecule's first result too: no validation call sits between them.
+    expect(ctx.llm.calls.map((call) => call.role).slice(0, 5)).toEqual(['prefilter', 'prefilter', 'plan', 'execute', 'plan']);
+  });
+
+  it('a set-aside script does not open the verification extraction', async () => {
+    process.env['ATOMA_SKILL_LEARN'] = '1';
+    const ctx = { ...makeCtx(), tools: fsExecutor({}, { exit: 1 }) };
+    ctx.llm.enqueueText(jsonText({ kind: 'reuse', target: 'Water', confidence: 'high', reasoning: 't' }));
+    ctx.llm.enqueueText(jsonText({ kind: 'reuse', target: 'recheck', confidence: 'high', reasoning: 'f' }));
+    ctx.llm.enqueueText(jsonText({ reasoning: 'r', proposedAction: 'a', expectedOutput: 'e' }));
+    ctx.llm.enqueue((req) => {
+      req.onToolInvocation?.({ name: 'record_probe', args: { cmd: 'node cli.js' }, result: { recorded: true, exitCode: 0 }, durationMs: 1, startedAt: Date.now() });
+      return { text: jsonText({ output: 'ok', summary: 'replayed the recorded probes' }), stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } };
+    });
+
+    await L2Atom.fromType(reg.getByName('Tracheid')!, reg, [], skills).handleDirect({ description: 'Recheck the recorded invocations.' }, ctx);
+
+    expect(ctx.llm.calls.map((call) => call.role)).not.toContain('skill');
+    expect(skills.loadFor(nsOf(reg, 'Water')).map((s) => s.id)).toEqual(['recheck']);
+  });
+
+  it('an uncredited direct result does not swallow a later success in its lane', () => {
+    const signatures = deriveTrajectorySignatures('r', [
+      { kind: 'skill', id: 's1', op: 'direct', l1Name: 'Water', skillId: 'S', branchId: 'B' },
+      { kind: 'skill', id: 's2', op: 'credit-withheld', l1Name: 'Water', skillId: 'S', branchId: 'B' },
+      { kind: 'skill', id: 's3', op: 'inject', l1Name: 'Water', skillId: 'S', branchId: 'B' },
+      { kind: 'branch', id: 'b1', op: 'start', branchId: 'C', parentBranchId: 'B' },
+      { kind: 'tool', id: 't1', llmEventId: 'L1', name: 'run_shell', actor: { name: 'Water', tier: 1 }, branchId: 'C' },
+      { kind: 'llm', id: 'L1', actor: { name: 'Water', tier: 1 }, branchId: 'C' },
+      { kind: 'skill', id: 's4', op: 'success', l1Name: 'Water', skillId: 'S', branchId: 'B' },
+    ]);
+    expect(signatures[0]!.credited).toBe(true);
+  });
 });

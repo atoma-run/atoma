@@ -344,12 +344,6 @@ npm run viz:mark-turn:analyze
   heading but no body on purpose: it is composed per call from the task, the
   plan and injected skills, so it belongs to a run — the heading points at an
   LLM event in Runs rather than inventing a template nobody ever sent.
-- A NAME WITHOUT A SNAPSHOT IS NOT DRAWN AS AN AGENT TYPE. `buildAtomMap`
-  tags its placeholder (`AtomView.stub`) and Runs draws `atom-stub-detail.ts`:
-  a run actor (`RUN_ACTORS`, [src/contracts](../contracts/AGENTS.md)) gets its
-  role and its calls, models and verdicts in this run; an agent type the trace
-  never snapshotted says so. Through the agent sheet, `run-root` read
-  "L3 Tissue · #0 · v0" and "Created · ·" over an empty prompt (2026-10-06).
 - The run-step detail pane is HIERARCHISED. Order is a PROJECTION ranked once
   in `client/structured-detail.ts` — verdict first, bulk last, eight ranks over
   a TYPE-derived default — so a new key lands mid-list. It sorts OBJECT entries

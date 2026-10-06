@@ -1,4 +1,3 @@
-import { RUN_ACTORS } from '../contracts/runActors.js';
 import type { GenerationParams, RunContext } from '../core/types.js';
 import { modelForTier } from '../core/models.js';
 import { extractJson } from './json.js';
@@ -20,7 +19,7 @@ import {
  * design. Its actor is `run-checklist` at the tier of the model it uses,
  * never `run-root`, whose calls are counted and read on their own.
  */
-export const CHECKLIST_ACTOR = RUN_ACTORS.checklist;
+export const CHECKLIST_ACTOR = { name: 'run-checklist', tier: 1 } as const;
 
 export const CHECKLIST_SYSTEM_PROMPT = [
   'You turn a task goal into a short checklist of outcomes a finished delivery must show, including analysis and explanations when requested.',

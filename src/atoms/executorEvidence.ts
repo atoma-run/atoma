@@ -1,4 +1,4 @@
-import { renderObservations } from '../contracts/attestation.js';
+import { renderObservations, type AttestationRecord } from '../contracts/attestation.js';
 import { witnessesFromPayload, type Witness } from '../contracts/witness.js';
 import type { RunContext } from '../core/types.js';
 
@@ -21,10 +21,16 @@ export function branchRecordCount(ctx: BranchView): number {
  * none of a cell fallback's five browser checks and refused a correct result
  * as narration.
  */
-export function executorEvidence(output: unknown, ctx: BranchView, since = 0): Witness[] {
+export function executorEvidence(
+  output: unknown,
+  ctx: BranchView,
+  since = 0,
+  /** Narrows the branch's records to one execution's, when the branch is shared. */
+  keep: (record: AttestationRecord) => boolean = () => true
+): Witness[] {
   const records = (ctx.attestations?.forBranch(ctx.currentBranchId) ?? [])
     .slice(since)
-    .filter((record) => (record.attempt ?? 1) === (ctx.attempt ?? 1));
+    .filter((record) => (record.attempt ?? 1) === (ctx.attempt ?? 1) && keep(record));
   const lines = renderObservations(records);
   return [
     ...witnessesFromPayload({ output }),

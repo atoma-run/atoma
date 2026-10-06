@@ -4,7 +4,6 @@ import type { Atom } from '../core/atom.js';
 import type { CriterionJudgement, Result, RunContext, Task } from '../core/types.js';
 import { modelForTier } from '../core/models.js';
 import type { DeliveryKind } from '../contracts/taskExecution.js';
-import { RUN_ACTORS } from '../contracts/runActors.js';
 import { establishesDomInteraction, fileReadsNeedingReadback, renderBrowserInputs, renderObservation, supersededFileReads } from '../contracts/attestation.js';
 import type { AcceptanceInfo, PhaseCoverageRecord, ProofFloor } from '../contracts/depthRouting.js';
 import { buildResultGateEnv, renderResultGateFindings, runResultGates } from './resultGates.js';
@@ -494,7 +493,7 @@ export async function acceptRootResult(args: {
   const raw = gates.rejection
     ? { approved: false, reasoning: gates.rejection.reasoning }
     : review ? await llmVerdict({
-      ctx, model: modelForTier(args.delivery === 'text' ? 2 : 1), supervisorName: RUN_ACTORS.root.name, supervisorTier: RUN_ACTORS.root.tier,
+      ctx, model: modelForTier(args.delivery === 'text' ? 2 : 1), supervisorName: 'run-root', supervisorTier: 3,
       subject: 'RESULT', child: actor, task,
       ...(textReference ? { independentTextReference: textReference } : {}),
       payload: { output: result.output, summary: result.summary, producedBy: result.producedBy },
@@ -534,7 +533,7 @@ export async function acceptRootResult(args: {
   const produced = result.producedBy;
   return {
     attempt: ctx.attempt ?? 1, approved: verdict.approved, reasoning: verdict.reasoning ?? '',
-    acceptor: { ...RUN_ACTORS.root, role: 'root-acceptor' },
+    acceptor: { name: 'run-root', tier: 3, role: 'root-acceptor' },
     executor: { name: produced?.name ?? actor.name, tier: produced?.tier ?? actor.tier,
       viaFallback: produced?.viaFallback ?? false },
     gates: [...gates.reviewFindings, ...(gates.rejection ? [gates.rejection] : [])]

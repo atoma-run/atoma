@@ -626,7 +626,7 @@
   "skillOp.failure": "Compteur échec incrémenté",
   "skillOp.promote": "Skill promue llm → script (compile Sonnet)",
   "skillOp.demote": "Skill rétrogradée script → llm (fallback restauré)",
-  "skillOp.direct": "Script exécuté en dispatch déterministe (0 appel LLM)",
+  "skillOp.direct": "",
   "skillOp.quarantine": "Skill mise en QUARANTAINE par le scan statique",
   "skillOp.creditWithheld": "Compteurs inchangés",
   "registry.none": "Aucun registre configuré",
