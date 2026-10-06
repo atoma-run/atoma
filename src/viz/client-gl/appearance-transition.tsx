@@ -5,7 +5,7 @@ import { useGpuStore } from './store.js';
 
 /** The bead charges first, then its light fills the viewport before reveal. */
 export const APPEARANCE_TO_WHITE_MS = 1_200;
-export const APPEARANCE_FROM_WHITE_MS = 2_100;
+export const APPEARANCE_FROM_WHITE_MS = 1_900;
 // The solid sheet covers the corners, so the radial texture can stay bounded.
 const FLOOD_DIAGONALS = 1.4;
 const FLOOD_MAX_ALPHA = 0.7;

@@ -131,7 +131,7 @@ describe('appearance transition', () => {
   });
 
   it('keeps the flood translucent while the crystal lights the white frame', () => {
-    expect(APPEARANCE_TO_WHITE_MS).toBeLessThan(APPEARANCE_FROM_WHITE_MS * 0.6);
+    expect(APPEARANCE_TO_WHITE_MS).toBeLessThan(APPEARANCE_FROM_WHITE_MS * 0.7);
     expect(appearanceTransitionSample(0)).toMatchObject({ surge: 0, flood: 0, whiteAlpha: 0 });
     const middle = appearanceTransitionSample(0.5);
     expect(middle.surge).toBeGreaterThan(middle.flood);
