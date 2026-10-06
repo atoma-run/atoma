@@ -644,7 +644,9 @@ npm run viz:mark-turn:analyze
   the arrival gate and handheld notice stay the way in ("Sign in" links to
   `/app`). Stories are `/showcase/<run id>`; both send `no-store`, or the
   service worker would keep one as its offline `/`.
-- It shows a platform admin's DELIVERED runs. Fail closed: opt-in, gate on, else
+- It shows a platform admin's DELIVERED runs, save a project an organisation
+  admin set `showcase: hidden` ([src/projects](../projects/AGENTS.md#readers-outside-this-subsystem)).
+  Fail closed: opt-in, gate on, else
   404. One store query (`listShowcaseRuns`), an allow-list projection
   (`showcase.ts`): title, request, numbers, file NAMES, a text answer; never
   identities, paths, repositories or bytes. Server-rendered, all values
