@@ -491,6 +491,12 @@ export interface LlmCompletionResponse {
 
 export interface LlmClient {
   complete(req: LlmCompletionRequest): Promise<LlmCompletionResponse>;
+  /**
+   * Whether `params.effort` reaches the provider for `model`, read off the
+   * same gate `complete` applies. Decorators forward it; absent means no. A
+   * decision whose answer the transport would drop is then not asked.
+   */
+  honoursEffort?(model: string): boolean;
 }
 
 /**
@@ -677,6 +683,25 @@ export interface JevCompilationDecision {
   readonly obstacles: readonly string[];
 }
 
+/** One molecule execution about to start, whose reasoning effort Jev may set. */
+export interface JevEffortRequest {
+  readonly task: { readonly description: string; readonly constraints?: readonly string[] };
+  /** The molecule's approved plan: what the execution is about to do. */
+  readonly plan: unknown;
+  /** Tool names the execution may call; empty for a reasoning task. */
+  readonly tools: readonly string[];
+  /** The same task's previous attempt was refused: a `low` reading is not applied. */
+  readonly retry: boolean;
+  readonly actorName?: string;
+  readonly actorTier?: Tier;
+  readonly branchId?: string;
+  readonly signal?: AbortSignal;
+}
+
+export interface JevEffortDecision {
+  readonly effort: NonNullable<GenerationParams['effort']>;
+}
+
 export interface JevDecider {
   /** Exact policy/question/input identity for guarded model fallback caching. Absent disables its reuse. */
   choiceCacheKey?(request: JevChoiceRequest): string;
@@ -690,6 +715,8 @@ export interface JevDecider {
   twin(request: JevTwinRequest): Promise<JevTwinDecision | null>;
   /** Optional for custom deciders; absent/null leaves the decision to the compiler. */
   compilable?(request: JevCompilationRequest): Promise<JevCompilationDecision | null>;
+  /** Optional for custom deciders; absent/null keeps the execution's effort as it was. */
+  effort?(request: JevEffortRequest): Promise<JevEffortDecision | null>;
 }
 
 /** One recorded Jev evaluation. The trace event is `VizJevEvent`. */
@@ -697,7 +724,7 @@ export interface JevDecisionInfo {
   /** HTTP attempts, including retries; zero for a locally skipped decision. */
   requestCount?: number;
   readonly coverage?: { readonly compared: number; readonly total: number; readonly complete: boolean };
-  readonly role: 'prefilter' | 'validate-plan' | 'validate-result' | 'learn-skill' | 'learn-event-skill' | 'compile-skill';
+  readonly role: 'prefilter' | 'validate-plan' | 'validate-result' | 'learn-skill' | 'learn-event-skill' | 'compile-skill' | 'execute-effort';
   /** `<vendor>:<model>` as requested. */
   readonly evaluator: string;
   /** The model the service reports having served, when it says. */
@@ -938,8 +965,9 @@ export interface RunContext {
   readonly recordCacheHit?: (info: CacheHitInfo) => void;
   /**
    * Optional Jev decider — see `JevDecider`. Absent, every decision it could
-   * take is taken exactly as before; present, it takes the prefilter's pick and
-   * the approval half of validation, and the model takes whatever it declines.
+   * take is taken exactly as before; present, it takes the prefilter's pick,
+   * the approval half of validation and a molecule execution's effort, and
+   * the model takes whatever it declines.
    */
   readonly jev?: JevDecider;
   /**

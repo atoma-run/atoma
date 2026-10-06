@@ -38,6 +38,11 @@ export const BUDGET_EXHAUSTED_HINT =
 export class AnthropicLlmClient implements LlmClient {
   constructor(private readonly client: Anthropic) {}
 
+  /** The gate `complete` applies; Z.ai's `glm-*` ids, served by this client too, never pass it. */
+  honoursEffort(model: string): boolean {
+    return modelSupportsEffort(model);
+  }
+
   async complete(req: LlmCompletionRequest): Promise<LlmCompletionResponse> {
     const systemBlocks: Anthropic.Messages.TextBlockParam[] = [
       {
@@ -523,6 +528,12 @@ type MockTurn = (
 export class MockLlmClient implements LlmClient {
   private queue: (LlmCompletionResponse | MockTurn)[] = [];
   public readonly calls: LlmCompletionRequest[] = [];
+  /** Opt-in: the models whose `params.effort` this mock claims to honour. Absent, none. */
+  public honoursEffortFor: ((model: string) => boolean) | undefined;
+
+  honoursEffort(model: string): boolean {
+    return this.honoursEffortFor?.(model) ?? false;
+  }
 
   /**
    * A queued turn may be a plain response OR a function of the request. The

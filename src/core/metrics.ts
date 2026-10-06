@@ -455,4 +455,8 @@ export class MetricsLlmClient implements LlmClient {
     });
     return resp;
   }
+
+  honoursEffort(model: string): boolean {
+    return this.inner.honoursEffort?.(model) ?? false;
+  }
 }

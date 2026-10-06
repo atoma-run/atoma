@@ -84,6 +84,10 @@ export class OpenAiLlmClient implements LlmClient {
     });
   }
 
+  honoursEffort(model: string): boolean {
+    return openAiModelIsReasoning(model);
+  }
+
   async complete(req: LlmCompletionRequest): Promise<LlmCompletionResponse> {
     const tools = toOpenAiTools(req.tools ?? []);
     const reasoning = openAiModelIsReasoning(req.model);

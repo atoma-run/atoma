@@ -175,6 +175,10 @@ export class BudgetGateLlmClient implements LlmClient {
     if (exceeded) throw exceeded;
     return this.inner.complete(req);
   }
+
+  honoursEffort(model: string): boolean {
+    return this.inner.honoursEffort?.(model) ?? false;
+  }
 }
 
 /**
@@ -207,5 +211,9 @@ export class ToolIterationCeilingLlmClient implements LlmClient {
     return this.inner.complete(
       capped === undefined ? req : { ...req, maxToolIterations: capped }
     );
+  }
+
+  honoursEffort(model: string): boolean {
+    return this.inner.honoursEffort?.(model) ?? false;
   }
 }

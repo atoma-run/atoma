@@ -210,6 +210,11 @@ export class ClaudeCliLlmClient implements LlmClient {
     this.callTimeoutMs = ceiling === null ? requested : Math.min(requested, ceiling);
   }
 
+  /** `cliEffortFor`, on this transport's own environment snapshot (the alias it resolves). */
+  honoursEffort(model: string): boolean {
+    return cliEffortFor({ model, systemPrompt: '', userContent: '', params: { effort: 'low' } }, this.env) !== undefined;
+  }
+
   async complete(req: LlmCompletionRequest): Promise<LlmCompletionResponse> {
     // TRANSIENT-OVERLOAD GUARD. The CLI subprocess surfaces upstream 5xx
     // ("API Error: 529 Overloaded") as the assistant TEXT of an otherwise

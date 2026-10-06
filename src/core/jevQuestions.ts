@@ -6,6 +6,8 @@ import type {
   JevChoiceDecision,
   JevChoiceRequest,
   JevDecisionInfo,
+  JevEffortDecision,
+  JevEffortRequest,
   JevTwinDecision,
   JevTwinRequest,
 } from './types.js';
@@ -131,6 +133,15 @@ export const JEV_THRESHOLDS = {
   /** Retained after 14 labelled recipes × 3 production evaluations; see the 2026-10-01 decision record. */
   compilationObstacle: 0.8,
   compilationClear: 0.2,
+  /**
+   * An execution-effort Noul at or above this is a decisive yes, at or below
+   * `effortRuledOut` a decisive no; in between the execution keeps the effort
+   * it had. UNMEASURED (owner decision 2026-10-06): every execution recorded
+   * before it ran at one effort per transport, so no answer could be paired
+   * with the outcome of another. The band is the compilation one.
+   */
+  effortClear: 0.8,
+  effortRuledOut: 0.2,
 } as const;
 
 export type JevThresholds = { readonly [K in keyof typeof JEV_THRESHOLDS]: number };
@@ -970,4 +981,99 @@ export function readCompilation(
     return { decision: null, outcome: 'deferred to the model (uncertain compilation obstacles)', answer: { yes } };
   }
   return { decision: { compilable: true, obstacles: [] }, outcome: 'compilation attempt allowed', answer: { yes } };
+}
+
+// ---------------------------------------------------------------------------
+// Execution effort: how much reasoning a molecule's execution is given
+// ---------------------------------------------------------------------------
+
+/**
+ * Two absolute Nouls, compared in code, rather than one "how hard is it"
+ * Score: difficulty is the broad judgement TypeSafe's guidance warns against,
+ * while each of these names something a literal reader can find in `task`
+ * and `plan`. Only a decisive and CONSISTENT pair acts — spelled out and no
+ * open problem, or the reverse — and anything else keeps the effort the call
+ * had before Jev. `low` is the costly error (a starved execution is a whole
+ * attempt lost, against tokens for a generous one), so it is never applied to
+ * a retry: a refused attempt is evidence the task was not as simple as it read.
+ */
+const EFFORT_QUESTIONS: Readonly<Record<string, JevQuestion>> = {
+  spelled_out: {
+    type: 'noul',
+    instructions:
+      'Do `task` and `plan` spell out every action of the work, so that carrying it out needs no design decision ' +
+      'and no diagnosis?',
+    criteria: {
+      true: {
+        what: 'Each action is named and needs no choice beyond following it.',
+        examples: ['run the commands a manifest lists and report their output', 'write a file whose content the task gives',
+          'serve an existing page and probe it', 'copy, rename or delete named files'],
+      },
+      false: {
+        what: 'Part of the work must still be worked out while doing it.',
+        examples: ['build a feature from a description', 'fix a failure whose cause is not stated', 'choose a data model or an algorithm'],
+      },
+    },
+  },
+  open_problem: {
+    type: 'noul',
+    instructions: 'Must the work in `task` solve a problem whose solution neither `task` nor `plan` gives?',
+    criteria: {
+      true: {
+        what: 'Doing the work means finding a solution, not only following steps.',
+        examples: ['design an algorithm or a data model', 'find the cause of an unexplained failure',
+          'satisfy several requirements that constrain one another', 'implement interacting game, form or UI logic'],
+      },
+      false: {
+        what: 'The steps are given or obvious; only carrying them out remains.',
+        examples: ['follow the steps the plan lists', 'write content the task supplies', 'run, serve or inspect what exists'],
+      },
+    },
+  },
+};
+
+export function buildEffort(request: JevEffortRequest): {
+  readonly state: unknown;
+  readonly questions: Readonly<Record<string, JevQuestion>>;
+} | string {
+  if (!request.task.description.trim()) return 'the task states no work to judge';
+  let state: Record<string, unknown>;
+  try {
+    state = {
+      ...taskState(request.task),
+      plan: capped(request.plan, JEV_STATE_CHARS.plan),
+      tools: request.tools.length > 0 ? request.tools : 'none: the answer is written text',
+    };
+    JSON.stringify(state);
+  } catch (error) {
+    return `unserialisable state: ${error instanceof Error ? error.message : String(error)}`;
+  }
+  return { state, questions: EFFORT_QUESTIONS };
+}
+
+export function readEffort(
+  request: Pick<JevEffortRequest, 'retry'>,
+  answers: JevAnswers,
+  thresholds: JevThresholds = JEV_THRESHOLDS
+): JevReading<JevEffortDecision> {
+  const yes: Record<string, number> = {};
+  for (const key of Object.keys(EFFORT_QUESTIONS)) {
+    const value = noulOf(answers, key);
+    if (value === undefined || !Number.isFinite(value) || value < 0 || value > 1) {
+      return { decision: null, outcome: 'default effort (invalid effort answer)', answer: { yes }, causes: ['invalid'] };
+    }
+    yes[key] = value;
+  }
+  const spelledOut = yes['spelled_out']!;
+  const openProblem = yes['open_problem']!;
+  const readings = `spelled_out ${round2(spelledOut)}, open_problem ${round2(openProblem)}`;
+  if (openProblem >= thresholds.effortClear && spelledOut <= thresholds.effortRuledOut) {
+    return { decision: { effort: 'high' }, outcome: 'effort high', answer: { yes } };
+  }
+  if (spelledOut >= thresholds.effortClear && openProblem <= thresholds.effortRuledOut) {
+    return request.retry
+      ? { decision: null, outcome: `default effort (retry of a refused attempt; ${readings})`, answer: { yes }, causes: ['retry'] }
+      : { decision: { effort: 'low' }, outcome: 'effort low', answer: { yes } };
+  }
+  return { decision: null, outcome: `default effort (${readings})`, answer: { yes }, causes: ['band'] };
 }

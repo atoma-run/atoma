@@ -716,6 +716,22 @@ export class CodexCliLlmClient implements LlmClient {
     }
   }
 
+  /**
+   * True only when BOTH ends reach the model as asked: with a launch
+   * inventory, `effortFor` swaps a level the model lacks for its default, and
+   * an answer that lands as something else is not an answer that landed.
+   */
+  honoursEffort(model: string): boolean {
+    const probe = (effort: 'low' | 'high'): string | undefined => {
+      try {
+        return this.effortFor({ model, systemPrompt: '', userContent: '', params: { effort } });
+      } catch {
+        return undefined;
+      }
+    };
+    return probe('low') === 'low' && probe('high') === 'high';
+  }
+
   private effortFor(req: LlmCompletionRequest): string | undefined {
     const raw = this.modelEnv[CODEX_MODEL_CAPABILITIES_ENV];
     if (!raw) return codexEffortFor(req);

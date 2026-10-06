@@ -66,6 +66,9 @@ the decision with these numbers in hand.
   catalog held three recovery twins on Glucose on 2026-09-28, and the lexical
   similarity of `skills stats --sim` still cannot tell twins from look-alikes
   (the lowest twin pair scored 0.21, a pair of different recipes 0.27).
+- **The reasoning effort of a molecule's execution** (`L1Atom.executionEffort`,
+  since 2026-10-06, below): `low` or `high` on a decisive pair of answers,
+  the call's own effort otherwise.
 
 ## Where it does not
 
@@ -74,7 +77,8 @@ the decision with these numbers in hand.
   delivery is published to the customer's repository automatically. It stays
   the model's, and it is the net under every Jev approval below it.
 - **Anything that writes text**: plans, execution, recipes, the acceptance
-  checklist, remediation. Jev generates none.
+  checklist, remediation. Jev generates none; for an execution it sets the
+  effort the model is given, never what the model writes.
 
 ## Rules this overrides, on purpose
 
@@ -749,6 +753,62 @@ a shortlist escalate, but recipes outside the shortlist stay unscored.
 
 Follow-up: item 5 of "Reading we will see" below.
 
+## Execution effort: owner decision 2026-10-06
+
+The owner's words, answering a proposal to first record Jev's reading without
+applying it: "Change la règle et applique". The rule changed was src/core's
+"effort settings belong on strategy calls only". What was on the table:
+
+- The execute call is where the time goes: 85.4 % of run wall time over the
+  39 runs measured above, against 4.0 % for planning. It was the one LLM call
+  of a run with no effort set, so it ran at each transport's default: `high`
+  on Opus 5 and Sonnet 5 (API and Claude CLI), the `medium` floor on Codex.
+  On the first, Jev can therefore only lower the effort; on Codex it moves
+  both ways.
+- The L1 of the six newest operator runs (2026-10-01), `api:zai:glm-4.5-air`,
+  is served on the Anthropic wire, whose gate sends an effort to `claude-*`
+  ids only. There Jev is not asked at all: a transport answers
+  `honoursEffort(model)` from the gate its `complete` applies. The pins of
+  organisation runs were not read.
+- No calibration was possible: every recorded execution ran at one effort per
+  transport, so nothing says what another effort would have done.
+
+What is asked, before each execute call whose type pins no effort and whose
+transport honours one: two Nouls over the task, its constraints, the
+molecule's approved plan and its tool names — `spelled_out` (every action
+named, no design or diagnosis left) and `open_problem` (a solution neither the
+task nor the plan gives). Difficulty itself is not asked: it is the broad
+judgement TypeSafe's guidance warns against. Read in the compilation band:
+
+| `spelled_out` | `open_problem` | effort |
+|---|---|---|
+| ≥ 0.8 | ≤ 0.2 | `low`, except on the retry of a refused attempt |
+| ≤ 0.2 | ≥ 0.8 | `high` |
+| anything else, a failure, no answer | | the call's own, as before |
+
+`low` is the costly error — a starved execution loses a whole attempt, a
+generous one costs tokens — so it never lands on a retry: the refusal is
+evidence the task was not as simple as it read. `high` still does. Jev never
+picks `medium`; on Codex that is what "as before" already is.
+
+Recorded: one `jev` event per decision asked (role `execute-effort`, both
+probabilities under `answer.yes`, outcome `effort low`, `effort high` or
+`default effort (…)`), and the execute `llm` event's `params` carry the effort
+the call was given. Each decision costs up to `JEV_DECISION_TIMEOUT_MS`
+before the execute call, and its failures count toward the run's
+`JEV_MAX_FAILURES_PER_RUN` with every other Jev decision.
+
+Not measured, and not claimed: whether `low` costs refused attempts, whether
+`high` buys approvals, and whether a varying effort changes `cache_read`
+between execute calls. Follow-up: item 6 below.
+
+The same change closed a gap found while forwarding the new method:
+`forkBranch` rebuilt the decider from a list of four methods and dropped
+`compilable`. A cell's ctx is a fork under a tissue, so the compilation
+question of 2026-10-01 was never asked live there, by reading of the code;
+the production traces were not counted. Every method is now forwarded, and
+`tests/jev-effort.test.ts` fails on the old wrapper.
+
 ## Reading "we will see"
 
 Two weeks after the switch of 2026-09-29 (so around 2026-10-13), or sooner if
@@ -771,6 +831,10 @@ model decides only what Jev hands it, so `atoma_jev_calibrate` with
 5. **Recipes the offer floor refused** (since 2026-10-06): phases left with no
    recipe by `recipeOffer`, and, among those approved, learn calls whose twin
    check names the recipe the floor refused — a false refusal, directly.
+6. **Execution effort** (since 2026-10-06): the share of `effort low`
+   executions whose result was then refused or escalated, against the
+   default-effort ones of the same transport, and the duration and output
+   tokens of `effort high` ones against the default.
 
 If (1) or (2) rises past what the saved seconds pay for, set the platform
 switch `ATOMA_JEV=0` on the host and restart.

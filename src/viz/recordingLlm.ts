@@ -200,4 +200,8 @@ export class RecordingLlmClient implements LlmClient {
       throw err;
     }
   }
+
+  honoursEffort(model: string): boolean {
+    return this.inner.honoursEffort?.(model) ?? false;
+  }
 }

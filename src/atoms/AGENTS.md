@@ -206,7 +206,9 @@ load-bearing.
 - Normal L2/L3 plan and validation calls never receive tools/executors. Their
   last-resort tool-bearing self-execution must use `modelForTier(1)` while
   retaining supervisor provenance.
-- Strategy calls use `STRATEGY_MAX_TOKENS` and medium effort. The cap includes
+- Strategy calls use `STRATEGY_MAX_TOKENS` and medium effort. A molecule's execute
+  effort is Jev's (`L1Atom.executionEffort`, [src/core](../core/AGENTS.md#jev-decisions)),
+  and a type's own effort pin wins over it. The cap includes
   adaptive thinking. Defaults in `planSchema` protect against truncation;
   omitted L3 aggregation defaults to `sequential`.
 - Prompt-cache thresholds are load-bearing. Keep the validation prompt above

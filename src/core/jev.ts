@@ -11,6 +11,7 @@ import {
   buildApproval,
   buildChoice,
   buildCompilation,
+  buildEffort,
   buildTwin,
   capped,
   headAndTail,
@@ -18,6 +19,7 @@ import {
   readApproval,
   readChoice,
   readCompilation,
+  readEffort,
   readTwin,
   resultState,
   taskState,
@@ -35,6 +37,8 @@ import type {
   JevCompilationRequest,
   JevDecider,
   JevDecisionInfo,
+  JevEffortDecision,
+  JevEffortRequest,
   JevTwinDecision,
   JevTwinRequest,
   RunContext,
@@ -51,7 +55,9 @@ export { NEW_RECIPE, NO_CANDIDATE, type JevAnswer, type JevAnswers, type JevQues
  * and yes/no (Noul) questions over a state, far faster and cheaper than a
  * model call — so it takes the prefilter's pick and the APPROVAL half of plan
  * and result validation. It writes no text, so a refusal is always the model
- * validator's: that is where the remediation comes from.
+ * validator's: that is where the remediation comes from. Since 2026-10-06 it
+ * also sets the reasoning effort of a molecule's execution, where the
+ * transport honours one (`effort`).
  *
  * The decider asks the questions TypeSafe's documentation prescribes
  * (`jevQuestions.ts`, read in full on 2026-09-29), read against thresholds
@@ -772,6 +778,23 @@ export function createJevDecider(opts: {
         return null;
       }
       const reading = readCompilation(asked.result.answers);
+      safeRecord({ ...base, ...answered(asked), answer: reading.answer, outcome: reading.outcome });
+      return reading.decision;
+    },
+
+    async effort(request: JevEffortRequest): Promise<JevEffortDecision | null> {
+      const base = { role: 'execute-effort' as const, evaluator: JEV_EVALUATOR, ...attribution(request) };
+      const plan = buildEffort(request);
+      if (typeof plan === 'string') {
+        safeRecord({ ...base, ...unanswered, outcome: 'default effort', failure: plan, durationMs: 0 });
+        return null;
+      }
+      const asked = await ask(plan.state, plan.questions, request.signal);
+      if (!asked.ok) {
+        safeRecord({ ...base, ...unanswered, outcome: 'default effort', failure: asked.failure, durationMs: asked.durationMs, requestCount: asked.requestCount });
+        return null;
+      }
+      const reading = readEffort(request, asked.result.answers);
       safeRecord({ ...base, ...answered(asked), answer: reading.answer, outcome: reading.outcome });
       return reading.decision;
     },

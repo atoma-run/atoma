@@ -111,6 +111,8 @@ export function timelineBranchLabel(
  * strategy call then routes without one, which is what an escalate means there.
  * `picked none_of_these (…; not offered: …; nothing else fits)` is an escalate
  * too: once the recipes contradicting the task are withheld, nothing fits.
+ * An execution's effort is `effort <level>` when Jev set it, and
+ * `default effort (…)` when the call kept the one it had.
  */
 export function jevDecision(event: VizEvent, t: GpuTranslate): string {
   const outcome = scalar(event['outcome']);
@@ -121,6 +123,9 @@ export function jevDecision(event: VizEvent, t: GpuTranslate): string {
   }
   if (outcome === 'saved: new recipe') return t('card.jev.newRecipe');
   if (outcome.startsWith('not saved: twin of ')) return t('card.jev.twin');
+  const effort = /^effort (low|medium|high)$/.exec(outcome);
+  if (effort) return t('card.jev.effort', { level: effort[1]! });
+  if (outcome === 'default effort' || outcome.startsWith('default effort (')) return t('card.jev.defaultEffort');
   const picked = /^picked (\S+)/.exec(outcome);
   return picked ? `→ ${truncate(picked[1]!, 18)}` : '';
 }

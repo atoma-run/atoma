@@ -40,6 +40,7 @@ export function forkBranch(ctx: RunContext, branchId: string): RunContext {
         ...req,
         branchId: req.branchId ?? branchId,
       }),
+    honoursEffort: (model: string) => ctx.llm.honoursEffort?.(model) ?? false,
   };
   const wrappedRecordTrust = ctx.recordTrust
     ? (info: TrustFastPathInfo) => {
@@ -64,12 +65,20 @@ export function forkBranch(ctx: RunContext, branchId: string): RunContext {
   // prefilter and child validation are per subtask — so it is forwarded like
   // the hooks above. Its lane is stamped the way `llm.complete` stamps one (the
   // INNERMOST fork wins), so a Jev record sits in the lane of the decision.
-  const wrappedJev: JevDecider | undefined = ctx.jev
+  // Every method is forwarded, optional ones included: this wrapper once
+  // listed four, and `compilable` — asked on the cell's ctx, which is always a
+  // fork under a tissue — was never asked in a run that had one.
+  const jev = ctx.jev;
+  const wrappedJev: JevDecider | undefined = jev
     ? {
-        choose: (request) => ctx.jev!.choose({ ...request, branchId: request.branchId ?? branchId }),
-        ...(ctx.jev.choiceCacheKey ? { choiceCacheKey: (request: Parameters<JevDecider['choose']>[0]) => ctx.jev!.choiceCacheKey!(request) } : {}),
-        approve: (request) => ctx.jev!.approve({ ...request, branchId: request.branchId ?? branchId }),
-        twin: (request) => ctx.jev!.twin({ ...request, branchId: request.branchId ?? branchId }),
+        choose: (request) => jev.choose({ ...request, branchId: request.branchId ?? branchId }),
+        ...(jev.choiceCacheKey ? { choiceCacheKey: (request: Parameters<JevDecider['choose']>[0]) => jev.choiceCacheKey!(request) } : {}),
+        approve: (request) => jev.approve({ ...request, branchId: request.branchId ?? branchId }),
+        twin: (request) => jev.twin({ ...request, branchId: request.branchId ?? branchId }),
+        ...(jev.compilable ? { compilable: (request: Parameters<NonNullable<JevDecider['compilable']>>[0]) =>
+          jev.compilable!({ ...request, branchId: request.branchId ?? branchId }) } : {}),
+        ...(jev.effort ? { effort: (request: Parameters<NonNullable<JevDecider['effort']>>[0]) =>
+          jev.effort!({ ...request, branchId: request.branchId ?? branchId }) } : {}),
       }
     : undefined;
 

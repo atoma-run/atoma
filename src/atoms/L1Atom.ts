@@ -2,6 +2,7 @@ import { Atom } from '../core/atom.js';
 import { REASONING_EXECUTION_GUIDANCE, REASONING_PLAN_GUIDANCE } from '../contracts/taskExecution.js';
 import { reasoningPrompt, PREVIOUS_OBSERVATIONS_GUIDANCE } from './taskContext.js';
 import type {
+  GenerationParams,
   Plan,
   Result,
   RunContext,
@@ -380,6 +381,38 @@ export class L1Atom extends Atom {
     return parseWith(planSchema, resp.text);
   }
 
+  /**
+   * The execution's reasoning effort, when Jev sets one (owner decision
+   * 2026-10-06, docs/jev-decisions-2026-09-28.md). Not asked when the type
+   * pins its own effort — an explicit pin is intent, not absence — nor when
+   * the transport would drop the answer: a decision that cannot land is not
+   * a decision. `undefined` keeps the call exactly as it was before Jev.
+   */
+  private async executionEffort(
+    task: Task,
+    plan: Plan,
+    tools: readonly import('../core/types.js').Tool[],
+    retry: boolean,
+    ctx: RunContext
+  ): Promise<GenerationParams['effort']> {
+    if (this.params.effort !== undefined || !ctx.jev?.effort || ctx.llm.honoursEffort?.(this.model) !== true) return undefined;
+    try {
+      const decision = await ctx.jev.effort({
+        task: { description: task.description, ...(task.constraints?.length ? { constraints: task.constraints } : {}) },
+        plan,
+        tools: tools.map((tool) => tool.name),
+        retry,
+        actorName: this.name,
+        actorTier: 1,
+        signal: ctx.signal,
+      });
+      return decision?.effort;
+    } catch {
+      // A custom decider may throw; the execution keeps its effort.
+      return undefined;
+    }
+  }
+
   async execute(task: Task, plan: Plan, ctx: RunContext): Promise<Result> {
     const tools = task.executionMode === 'reasoning' ? [] : this.tools;
     const hasValidator = tools.some((t) => t.name === 'validate_html');
@@ -534,12 +567,13 @@ ${previousAttempt}` : '',
       attempt.observe(info);
     };
 
+    const effort = await this.executionEffort(task, plan, tools, previousAttempt !== null, ctx);
     const resp = await ctx.llm.complete(
       this.toLlmRequest('execute', {
         ...(task.executionMode === 'reasoning' ? { systemPromptOverride: REASONING_EXECUTION_GUIDANCE } : {}),
         userContent,
         tools,
-        params: this.params,
+        params: effort === undefined ? this.params : { ...this.params, effort },
         executor: task.executionMode !== 'reasoning' && ctx.tools ? modelFacingExecutor(withAutomaticLoopbackHttpRecording(ctx.tools)) : undefined,
         signal: ctx.signal,
         onToolInvocation,

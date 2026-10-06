@@ -97,8 +97,14 @@ Neighbours:
   The bounded continuation is logged with its safe category; a second failure
   cannot fall back to exec. The text path recognises Codex's status-less
   "Selected model is at capacity" refusal as service-unavailable too.
-- Effort settings belong on strategy calls only. Validators and prefilters are
-  deterministic and cheap.
+- Effort is pinned where the work is known: strategy calls `medium`
+  ([src/atoms](../atoms/AGENTS.md)), compilation per
+  [src/skills](../skills/AGENTS.md), the tissue author `high`. The molecule's
+  EXECUTE call is the one place it varies per task, and Jev sets it (below,
+  owner decision 2026-10-06). Validators and prefilters never carry one: they
+  are deterministic and cheap. Each transport answers `honoursEffort(model)`
+  from the gate its `complete` applies, and every decorator and `forkBranch`
+  forwards it; a client that does not answer honours nothing.
 - A transport cannot outlive its deadline. Keep both per-call abort and outer
   watchdog guards, clean abort listeners in `finally`, and account partial usage
   when a provider exposes it. Tool-loop iteration caps shrink against
@@ -279,6 +285,16 @@ Neighbours:
   false postponement, and 3 deferrals. Labels are reviewer judgments, not
   executed-script proof; mock tests establish retry/fallback behavior
   ([measurement](../../docs/jev-decisions-2026-09-28.md#compilation-eligibility-owner-decision-2026-10-01)).
+- `execute-effort` (owner decision 2026-10-06): before a molecule's execute
+  call, two Nouls — `spelled_out`, `open_problem` — read in the 0.2/0.8 band
+  set `low` or `high`; a middle-band or contradictory pair, a failure, or a
+  `low` on the retry of a refused attempt keeps the call's effort. Not asked
+  when the type pins an effort or the transport would drop the answer. The
+  band is UNMEASURED: no recorded execution ran at a varied effort, so the
+  first calibration pairs these answers with what the execution then did
+  ([record](../../docs/jev-decisions-2026-09-28.md#execution-effort-owner-decision-2026-10-06)).
+- `forkBranch` forwards every `JevDecider` method, optional ones included;
+  until 2026-10-06 it listed four and dropped `compilable` in every fork.
 - The AUDIT keeps Jev measured once the model no longer sees its approvals:
   `JEV_AUDIT_RATE` of them are also judged by the model validator in the
   background (`createJevAudit`, carried as `RunContext.jevAudit` and forwarded

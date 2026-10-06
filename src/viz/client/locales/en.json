@@ -805,6 +805,8 @@
   "card.jev.deferred": "↑ model decides",
   "card.jev.newRecipe": "✓ new recipe",
   "card.jev.twin": "✕ duplicate recipe",
+  "card.jev.effort": "effort {{level}}",
+  "card.jev.defaultEffort": "default effort",
   "card.jev.probability": "score {{value}}%",
   "card.jev.confidence": "conf {{value}}%",
   "summary.cacheHit": "Cache hit",

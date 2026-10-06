@@ -38,4 +38,19 @@ export class RoutingLlmClient implements LlmClient {
     // the observability layers price on.
     return client.complete({ ...req, model: selector.model });
   }
+
+  /**
+   * Asked of the transport the selector routes to, on its bare model id, as
+   * `complete` would be. An unparsable selector honours nothing: `complete`
+   * refuses it with the reason, and a capability probe must not throw first.
+   */
+  honoursEffort(model: string): boolean {
+    let selector: ReturnType<typeof parseModelSelector>;
+    try {
+      selector = parseModelSelector(model, 'request model');
+    } catch {
+      return false;
+    }
+    return this.clients[transportOf(selector)]?.honoursEffort?.(selector.model) ?? false;
+  }
 }

@@ -160,6 +160,10 @@ export class ChatCompletionsLlmClient implements LlmClient {
     this.client = new OpenAI({ apiKey, baseURL: opts.baseUrl });
   }
 
+  honoursEffort(model: string): boolean {
+    return this.dialect.acceptsReasoningEffort(model);
+  }
+
   async complete(req: LlmCompletionRequest): Promise<LlmCompletionResponse> {
     const tools = toChatTools(req.tools ?? []);
     const sampling = this.dialect.acceptsSampling(req.model);
