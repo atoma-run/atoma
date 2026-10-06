@@ -315,7 +315,7 @@ function blindOverwrite(sandbox: ToolSandbox, path: string, abs: string): string
 
 // Describe source bytes separately from their JSON transport. A source-level
 // escape is not a transport error (resolver run 0a4a3e55).
-export const FILE_TEXT_ENCODING = String.raw`Arguments are the exact file text after JSON decoding. Preserve source-level backslashes: JavaScript '\n' contains backslash+n in the file, whereas a line break between statements is an actual newline. In JSON those are encoded as "\\n" and "\n" respectively. Never unescape source code a second time.`;
+export const FILE_TEXT_ENCODING = String.raw`Arguments are the exact file text after JSON decoding. Preserve source-level backslashes: JavaScript '\n' contains backslash+n in the file, whereas a line break between statements is an actual newline. In JSON those are encoded as "\\n" and "\n" respectively. A JavaScript regex /\s+/ has one source backslash and matches whitespace; /\\s+/ has two and matches a literal backslash followed by s. Both can be intentional. Never unescape source code a second time.`;
 
 export function writeFileTool(opts: BuiltinToolOptions): BuiltinTool {
   return {
@@ -476,8 +476,8 @@ export function editFileTool(opts: BuiltinToolOptions): BuiltinTool {
         if (unescaped !== '' && unescaped !== oldString && content.split(unescaped).length - 1 === 1) {
           throw new Error(
             `edit_file: old_string not found in "${path}" — you DOUBLE-ESCAPED it. ` +
-              `Your argument contains the two characters backslash-n (and/or backslash-quote) where the file has real newlines and quotes. ` +
-              `Un-escaping your argument matches exactly one span, so re-send old_string as these RAW bytes, copied verbatim:\n` +
+              `Decoding one extra escape layer in old_string matches exactly one file span. The file may still contain literal backslashes; this does not prove they should become line breaks or quotes. ` +
+              `Re-send old_string as these exact file bytes, copied verbatim:\n` +
               `---8<---\n${unescaped.slice(0, EDIT_SPAN_ECHO_CHARS)}${unescaped.length > EDIT_SPAN_ECHO_CHARS ? '\n… (truncated — copy the full span from read_file)' : ''}\n--->8---` +
               `\nThis match diagnoses old_string only; it does not establish how new_string should be escaped. ${FILE_TEXT_ENCODING}`
           );

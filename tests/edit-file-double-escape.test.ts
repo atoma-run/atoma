@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ToolSandbox } from '../src/tools/sandbox.js';
-import { defaultBuiltinTools, unescapeJsonish } from '../src/tools/builtin.js';
+import { defaultBuiltinTools, FILE_TEXT_ENCODING, unescapeJsonish } from '../src/tools/builtin.js';
 
 /**
  * `edit_file`'s most common failure, and why naming it was not enough.
@@ -128,6 +128,25 @@ describe('edit_file diagnoses a provable double-escape', () => {
 });
 
 describe('the double-escape message never guesses replacement bytes', () => {
+  it('describes a literal source escape without claiming it is a line break', async () => {
+    const source = String.raw`const newline = '\\n';` + '\n';
+    const sandbox = workspace({ 'index.js': source });
+    const oldString = String.raw`'\\\\n'`;
+    await expect(editTool(sandbox).execute({ path: 'index.js', old_string: oldString, new_string: 'x' }))
+      .rejects.toThrow(/The file may still contain literal backslashes/);
+    try {
+      await editTool(sandbox).execute({ path: 'index.js', old_string: oldString, new_string: 'x' });
+    } catch (error) {
+      const message = (error as Error).message;
+      expect(message).toContain(String.raw`'\\n'`);
+      expect(message).not.toContain('where the file has real newlines');
+    }
+    expect(readFileSync(sandbox.resolve('index.js'), 'utf8')).toBe(source);
+    expect(FILE_TEXT_ENCODING).toContain(String.raw`/\s+/ has one source backslash`);
+    expect(FILE_TEXT_ENCODING).toContain(String.raw`/\\s+/ has two`);
+    await sandbox.cleanup();
+  });
+
   it('diagnoses the match without inventing an unescaped replacement', async () => {
     // Round 4: new_string was escaped the same way in 7 of 7 measured cases.
     // Not auto-applied — 6 of those 7 MIX real newlines with escaped ones, so
