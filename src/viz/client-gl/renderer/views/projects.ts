@@ -614,11 +614,21 @@ export function drawProjects(
           snapshot.t('projects.runJevCalls', { value: run.jevCalls == null ? '—'
             : (run.jevCallsLowerBound ? '≥ ' : '') + run.jevCalls.toLocaleString(snapshot.state.locale) }),
         ];
-        ctx.button(pane.content, 'project.run.' + (run.traceId ?? run.projectRunId), 'button',
-          // The short title once the run was named; the bubble keeps the whole goal.
-          run.title ?? run.goal.replace(/\s+/g, ' '), runColumnX, cursor, goalWidth, cardHeight,
-          false, snapshot.onActivate, GPU_COLORS.primary, false, false, undefined, 9,
-          [run.goal, date, statusText + cost, ...metrics].join(' · '));
+        const runTitle = run.title ?? run.goal.replace(/\s+/g, ' ');
+        if (run.traceId) {
+          ctx.button(pane.content, 'project.run.' + run.traceId, 'button',
+            // The short title once the run was named; the bubble keeps the whole goal.
+            runTitle, runColumnX, cursor, goalWidth, cardHeight,
+            false, snapshot.onActivate, GPU_COLORS.primary, false, false, undefined, 9,
+            [run.goal, date, statusText + cost, ...metrics].join(' · '));
+        } else {
+          // A run that failed during preparation has no trace for /api/runs/:id.
+          // Keep its status and error here without offering a link that 404s.
+          ctx.text(pane.content, runTitle, runColumnX, cursor + 9,
+            { size: 13, color: GPU_COLORS.text, width: goalWidth, singleLine: true });
+          ctx.tooltip(pane.content, { x: runColumnX, y: cursor, width: goalWidth,
+            height: cardHeight, text: [run.goal, run.error, statusText].filter(Boolean).join(' · ') });
+        }
         ctx.text(pane.content, date, textX, cursor + 32,
           { size: 12, color: GPU_COLORS.muted, width: textWidth, singleLine: true });
         const exact = timestampTooltip(run.createdAt, snapshot.state.locale);
@@ -649,8 +659,10 @@ export function drawProjects(
           ctx.text(pane.content, run.error.replace(/\s+/g, ' '), textX, extraY,
             { size: 9, color: GPU_COLORS.error, width: textWidth, singleLine: true });
         }
-        ctx.button(pane.content, `result.open.${run.traceId ?? run.projectRunId}`, 'button', snapshot.t('result.title'),
-          runColumnX, cursor + cardHeight + RUN_RESULT_GAP, Math.min(180, goalWidth), RUN_RESULT_HEIGHT, false, snapshot.onActivate);
+        if (run.traceId) {
+          ctx.button(pane.content, `result.open.${run.traceId}`, 'button', snapshot.t('result.title'),
+            runColumnX, cursor + cardHeight + RUN_RESULT_GAP, Math.min(180, goalWidth), RUN_RESULT_HEIGHT, false, snapshot.onActivate);
+        }
         cursor += rowHeight;
       });
     } else if (selected && runs.length === 0) {

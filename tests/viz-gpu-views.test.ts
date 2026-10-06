@@ -2849,7 +2849,9 @@ describe('drawProjects', () => {
     expect(ctx.buttons.some((button) => button.id === 'project.run.trace-1')).toBe(true);
     expect(
       ctx.buttons.some((button) => button.id === 'project.run.bbbbbbbb-cccc-dddd-eeee-ffffffffffff')
-    ).toBe(true);
+    ).toBe(false);
+    expect(ctx.buttons.some((button) => button.id === 'result.open.bbbbbbbb-cccc-dddd-eeee-ffffffffffff')).toBe(false);
+    expect(ctx.texts.some((text) => text.value === 'Broken scene.')).toBe(true);
     expect(ctx.texts.some((text) => String(text.value).includes('401 API key is invalid'))).toBe(true);
     const boundedRowCopy = ctx.texts.filter((text) =>
       text.value === 'repo ready' ||

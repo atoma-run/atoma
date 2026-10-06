@@ -2064,7 +2064,7 @@ try {
           },
           {
             projectRunId: 'eeeeeeee-1111-4222-8333-ffffffffffff', projectId,
-            goal: 'A delivered change ready for review.', status: 'delivered', traceId: null,
+            goal: 'A delivered change ready for review.', status: 'delivered', traceId: 'trace-delivered',
             costUsd: 0.1, durationS: 1, error: null,
             createdAt: '2026-08-20T00:00:00.000Z', endedAt: '2026-08-20T00:00:01.000Z',
             publication: { status: 'published', commitSha: 'a'.repeat(40),
@@ -2359,9 +2359,10 @@ try {
       await accountPage.waitForFunction(() =>
         document.querySelector('.gpu-project-mcp')?.textContent?.includes('Continue Wide Glyph Project')
       );
+      await waitForHitTarget(accountPage, prTarget, 'automatic update did not restore project runs');
       const restoredUpdate = await accountPage.evaluate(() => ({
         selectedProject: document.querySelector('.gpu-project-mcp')?.textContent?.includes('Continue Wide Glyph Project'),
-        projectRunsVisible: globalThis.__ATOMA_GPU__?.hitTargets().some(t => t.id.startsWith('project.run.')),
+        projectRunsVisible: globalThis.__ATOMA_GPU__?.hitTargets().some(t => t.id === 'project.pullRequest.eeeeeeee-1111-4222-8333-ffffffffffff'),
       }));
       if (updateProbes <= probesBefore || !restoredUpdate.selectedProject || !restoredUpdate.projectRunsVisible) {
         throw new Error(`automatic update did not restore project navigation: ${JSON.stringify(restoredUpdate)}`);

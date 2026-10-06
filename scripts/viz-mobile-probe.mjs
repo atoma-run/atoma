@@ -1,4 +1,4 @@
-/* global document, getComputedStyle */
+/* global document, getComputedStyle, WheelEvent */
 
 /** Exercise Chrome's touch/pointer arbitration on the actual Pixi controls. */
 export async function assertMobileProjects(page, projectId) {
@@ -59,6 +59,24 @@ export async function assertMobileProjects(page, projectId) {
     if (dismissPush) {
       await dismissPush.click();
       await page.waitForSelector('.gpu-push-prompt', { hidden: true });
+    }
+    // A trace-less preparation failure has no run link. The next linked row
+    // can begin below this short viewport; scroll it into view before the
+    // touch gesture so the gesture still starts on a real run control.
+    const offscreen = await spot();
+    if (offscreen.y > 560) {
+      await page.evaluate(({ x, y }) => {
+        globalThis.__ATOMA_GPU__.app.canvas.dispatchEvent(new WheelEvent('wheel', {
+          deltaY: y - 420, clientX: x, clientY: 420, bubbles: true, cancelable: true,
+        }));
+      }, offscreen);
+      await page.waitForFunction(({ id }) => {
+        const handle = globalThis.__ATOMA_GPU__;
+        const row = handle?.hitTargets().find(t => t.id === id);
+        if (!row) return false;
+        const point = handle.projectRendererPoint(row.x + row.width / 2, row.y + Math.min(12, row.height / 2));
+        return point.y >= 140 && point.y <= 560;
+      }, {}, { id: targetId });
     }
     const before = await spot();
     const canvasAtStart = await page.evaluate(({ x, y }) =>
