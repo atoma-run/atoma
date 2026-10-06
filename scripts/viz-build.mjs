@@ -1,7 +1,8 @@
 import { spawnSync } from 'node:child_process';
-import { readdirSync, readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { brotliCompressSync, constants as zlibConstants } from 'node:zlib';
 
 const ui = process.argv[2] === 'mui' ? 'mui' : 'gpu';
 const viteCli = fileURLToPath(new URL('../node_modules/vite/bin/vite.js', import.meta.url));
@@ -62,4 +63,26 @@ if (ui === 'gpu') {
     process.exit(1);
   }
 }
+
+// The viz server serves these exact bytes with Content-Encoding: br. Building
+// them once avoids compressing a multi-megabyte module on the first request.
+const clientDir = fileURLToPath(new URL('../dist/viz/client', import.meta.url));
+let compressed = 0;
+function precompress(dir) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      precompress(path);
+    } else if (entry.isFile() && /\.(?:js|css)$/.test(entry.name)) {
+      const bytes = readFileSync(path);
+      const brotli = brotliCompressSync(bytes, {
+        params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 5 },
+      });
+      writeFileSync(`${path}.br`, brotli);
+      compressed += 1;
+    }
+  }
+}
+precompress(clientDir);
+console.log(`viz build: precompressed ${compressed} JS/CSS assets with Brotli`);
 process.exit(0);

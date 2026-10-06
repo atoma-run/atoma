@@ -308,8 +308,25 @@ try {
     const html = await response.text();
     const asset = /<script[^>]+src="([^"]+)"/.exec(html)?.[1];
     if (!asset) throw new Error('compiled viz index has no module asset');
-    const assetResponse = await fetch(`http://127.0.0.1:${port}${asset}`);
+    const assetResponse = await fetch(`http://127.0.0.1:${port}${asset}`, {
+      headers: { 'accept-encoding': 'br' },
+    });
     if (!assetResponse.ok) throw new Error(`compiled viz asset failed: ${assetResponse.status}`);
+    const originalAsset = readFileSync(resolve(root, 'dist/viz/client', asset.slice(1)));
+    if (
+      assetResponse.headers.get('content-encoding') !== 'br' ||
+      assetResponse.headers.get('vary') !== 'Accept-Encoding' ||
+      Number(assetResponse.headers.get('content-length')) >= originalAsset.length ||
+      !Buffer.from(await assetResponse.arrayBuffer()).equals(originalAsset)
+    ) {
+      throw new Error('compiled viz entry asset was not served as valid Brotli');
+    }
+    const identityAsset = await fetch(`http://127.0.0.1:${port}${asset}`, {
+      headers: { 'accept-encoding': 'identity' },
+    });
+    if (identityAsset.headers.get('content-encoding') || !Buffer.from(await identityAsset.arrayBuffer()).equals(originalAsset)) {
+      throw new Error('compiled viz entry asset has no valid identity fallback');
+    }
     const manifestResponse = await fetch(`http://127.0.0.1:${port}/manifest.webmanifest`);
     const manifest = await manifestResponse.json();
     if (

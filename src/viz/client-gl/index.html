@@ -17,12 +17,17 @@
   <link rel="manifest" href="/manifest.webmanifest" />
   <!-- Filled at request time from the deployment's validated public origin. -->
   <!-- ATOMA_DEPLOYMENT_SEO -->
-  <style>html, body { min-height: 100%; margin: 0; background: #070b13; }</style>
+  <style>
+    html, body { min-height: 100%; margin: 0; background: #070b13; }
+    .atoma-boot { box-sizing: border-box; display: grid; min-height: 100vh; place-content: center; justify-items: center; gap: 14px; padding: 32px; color: #f8fbff; font: 700 clamp(32px, 8vw, 52px)/1 ui-sans-serif, system-ui, sans-serif; }
+    .atoma-boot h1 { margin: 0; font: inherit; letter-spacing: -.04em; }
+  </style>
 </head>
 <body>
-  <div id="root"></div>
+  <div id="root"><main class="atoma-boot"><img src="/favicon.svg" width="72" height="72" alt="" /><h1>Atoma</h1></main></div>
   <noscript>
     <style>
+      #root { display: none !important; }
       .atoma-static-landing { box-sizing: border-box; display: grid; min-height: 100vh; place-content: center; gap: 18px; padding: 32px; background: #070b13; color: #e6edf7; text-align: center; font: 16px/1.55 ui-sans-serif, system-ui, sans-serif; }
       .atoma-static-landing h1 { margin: 0; color: #f8fbff; font-size: clamp(42px, 9vw, 76px); letter-spacing: -.04em; }
       .atoma-static-landing p { max-width: 700px; margin: 0 auto; color: #a9b5ca; }

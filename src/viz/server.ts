@@ -3,7 +3,6 @@ import { openDb, unfoldedRegistryPredicate } from '../registry/db.js';
 import { updateOrgModels } from '../auth/orgModels.js';
 import { createServer, request as httpRequest } from 'node:http';
 import { createHash, randomBytes } from 'node:crypto';
-import { brotliCompressSync, constants as zlibConstants } from 'node:zlib';
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { basename, extname, relative, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -1475,22 +1474,15 @@ const CLIENT_DIR = join(HERE, 'client');
  * own content so a deploy never serves a cached old one. Absent in a source
  * checkout and in tests: the pages then keep their static crystal.
  */
-const SHOWCASE_MARK: { assets: ShowcaseAssets; brotli: Buffer | null } = (() => {
+const SHOWCASE_ASSETS: ShowcaseAssets = (() => {
   const file = join(CLIENT_DIR, 'showcase-assets', 'atoma-mark.js');
   try {
-    const bytes = readFileSync(file);
-    const digest = createHash('sha256').update(bytes).digest('hex').slice(0, 16);
-    return {
-      assets: { markScript: `/showcase-assets/atoma-mark.js?v=${digest}` },
-      brotli: brotliCompressSync(bytes, {
-        params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 5 },
-      }),
-    };
+    const digest = createHash('sha256').update(readFileSync(file)).digest('hex').slice(0, 16);
+    return { markScript: `/showcase-assets/atoma-mark.js?v=${digest}` };
   } catch {
-    return { assets: { markScript: null }, brotli: null };
+    return { markScript: null };
   }
 })();
-const SHOWCASE_ASSETS = SHOWCASE_MARK.assets;
 const UI_HTML_PATH = join(CLIENT_DIR, 'index.html');
 const DEV_UI_URL = (() => {
   const configured = process.env['ATOMA_VIZ_DEV_URL']?.trim();
@@ -4740,27 +4732,21 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
     existsSync(assetPath) &&
     statSync(assetPath).isFile()
   ) {
-    if (pathname === '/showcase-assets/atoma-mark.js' && SHOWCASE_MARK.brotli) {
-      const versioned = `${pathname}${url.search}` === SHOWCASE_ASSETS.markScript;
-      const compressed = acceptsBrotli(req.headers['accept-encoding']) ? SHOWCASE_MARK.brotli : null;
-      const body = compressed ?? readFileSync(assetPath);
-      res.writeHead(200, {
-        'content-type': assetContentType(assetPath),
-        'content-length': body.length,
-        'cache-control': versioned ? 'public, max-age=31536000, immutable' : 'public, max-age=3600',
-        vary: 'Accept-Encoding',
-        ...(compressed ? { 'content-encoding': 'br' } : {}),
-      });
-      res.end(body);
-      return;
-    }
-    send(
-      res,
-      200,
-      readFileSync(assetPath),
-      assetContentType(assetPath),
-      staticCacheControl(assetPath)
+    const compressible = /\.(?:js|css)$/.test(assetPath);
+    const brotliPath = compressible ? `${assetPath}.br` : null;
+    const compressed = Boolean(
+      brotliPath && acceptsBrotli(req.headers['accept-encoding']) && existsSync(brotliPath) && statSync(brotliPath).isFile()
     );
+    const body = readFileSync(compressed ? brotliPath! : assetPath);
+    const versionedShowcase = `${pathname}${url.search}` === SHOWCASE_ASSETS.markScript;
+    res.writeHead(200, {
+      'content-type': assetContentType(assetPath),
+      'content-length': body.length,
+      'cache-control': versionedShowcase ? 'public, max-age=31536000, immutable' : staticCacheControl(assetPath),
+      ...(compressible ? { vary: 'Accept-Encoding' } : {}),
+      ...(compressed ? { 'content-encoding': 'br' } : {}),
+    });
+    res.end(body);
     return;
   }
 

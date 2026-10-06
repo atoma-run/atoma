@@ -102,13 +102,15 @@ describe('public arrival SEO', () => {
     expect(robotsTxt(null)).toBe('User-agent: *\nDisallow: /\n');
   });
 
-  it('keeps the no-script fallback without flashing it during app startup', () => {
+  it('shows a static brand until the app mounts and keeps the no-script fallback', () => {
     const source = readFileSync(
       fileURLToPath(new URL('../src/viz/client-gl/index.html', import.meta.url)),
       'utf8'
     );
-    expect(source).toContain('<div id="root"></div>');
+    expect(source).toContain('<div id="root"><main class="atoma-boot">');
+    expect(source).toContain('<h1>Atoma</h1></main></div>');
     const fallback = /<noscript>([\s\S]*?)<\/noscript>/.exec(source)?.[1];
+    expect(fallback).toContain('#root { display: none !important; }');
     expect(fallback).toContain('<h1>Atoma</h1>');
     expect(fallback).toContain('frontier model once per task, not once per step');
     expect(fallback).toContain('<a href="/auth/login">Sign in to Atoma</a>');

@@ -634,7 +634,9 @@ npm run viz:mark-turn:analyze
   `vite.showcase.config.ts`: as a second app input it would leave the lazy
   renderer chunk), over a static SVG visible until its canvas is ready. Offscreen
   crystals wait until they approach the viewport. The versioned bundle is served
-  with Brotli and an immutable cache lifetime. ONE per
+  with Brotli and an immutable cache lifetime. All built JS/CSS assets are
+  precompressed once by `scripts/viz-build.mjs`; the server negotiates Brotli
+  and keeps the original bytes as an identity fallback. ONE per
   page is lit: drawn over its `data-atoma-receiver` section, behind content, on
   `createFarField` (scenery off) so its light and caustics reach the background;
   the others snapshot and restore the page-global field light around each frame.
