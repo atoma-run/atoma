@@ -1,5 +1,5 @@
 import { generateKeyPairSync, randomUUID } from 'node:crypto';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -73,6 +73,65 @@ async function fixture(mode: 'pull-request' | 'fork', transform?: (fake: FakeGit
 }
 
 describe('existing GitHub projects through service, coordinator and publication', () => {
+  it('uses an explicit source selection to omit workflows and oversized evidence before model work', async () => {
+    const f = await fixture('pull-request');
+    f.fake.commitOutside('upstream', 'app', 'main', '.atoma-import.json', JSON.stringify({
+      version: 1, excludePrefixes: ['.github/workflows/', 'benchmark/'],
+    }));
+    f.fake.commitOutside('upstream', 'app', 'main', '.github/workflows/ci.yml', 'name: CI');
+    f.fake.commitOutside('upstream', 'app', 'main', 'benchmark/evidence.tar.gz', 'x'.repeat(11 * 1024 * 1024));
+    const driver = f.driver.getMockImplementation()!;
+    f.driver.mockImplementationOnce(async options => {
+      const seed = options.extraArgs![options.extraArgs!.indexOf('--seed') + 1]!;
+      expect(existsSync(join(seed, '.atoma-import.json'))).toBe(false);
+      expect(existsSync(join(seed, '.github/workflows/ci.yml'))).toBe(false);
+      expect(existsSync(join(seed, 'benchmark/evidence.tar.gz'))).toBe(false);
+      expect(readFileSync(join(seed, 'index.html'), 'utf8')).toBe('<h1>Original</h1>');
+      return driver(options);
+    });
+    const run = await f.start();
+    expect(run.status).toBe('delivered');
+    expect(f.fake.filesOn('upstream', 'app', 'main').get('.github/workflows/ci.yml')?.text).toBe('name: CI');
+  });
+
+  it('refuses workflow import without an explicit selection', async () => {
+    const f = await fixture('pull-request');
+    f.fake.commitOutside('upstream', 'app', 'main', '.github/workflows/ci.yml', 'name: CI');
+    const run = await f.start();
+    expect(run.status).toBe('failed');
+    expect(run.error).toContain('workflow files');
+    expect(f.driver).not.toHaveBeenCalled();
+  });
+
+  it('refuses unsafe import selection prefixes before model work', async () => {
+    const f = await fixture('pull-request');
+    f.fake.commitOutside('upstream', 'app', 'main', '.atoma-import.json', JSON.stringify({
+      version: 1, excludePrefixes: ['../'],
+    }));
+    const run = await f.start();
+    expect(run.status).toBe('failed');
+    expect(run.error).toContain('invalid value');
+    expect(f.driver).not.toHaveBeenCalled();
+  });
+
+  it('still refuses an excluded symbolic link before model work', async () => {
+    const f = await fixture('pull-request', fake => async (url, init) => {
+      const target = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url;
+      const response = await fake.fetch(url, init);
+      if (!target.includes('?recursive=1')) return response;
+      const tree = await response.json() as { truncated: boolean; tree: unknown[] };
+      tree.tree.push({ path: 'benchmark/linked', type: 'blob', mode: '120000', sha: 'a'.repeat(40) });
+      return new Response(JSON.stringify(tree), { status: 200 });
+    });
+    f.fake.commitOutside('upstream', 'app', 'main', '.atoma-import.json', JSON.stringify({
+      version: 1, excludePrefixes: ['benchmark/'],
+    }));
+    const run = await f.start();
+    expect(run.status).toBe('failed');
+    expect(run.error).toContain('symbolic links');
+    expect(f.driver).not.toHaveBeenCalled();
+  });
+
   it.each(['fork', 'pull-request'] as const)('includes child-created assets omitted from the root plan in %s mode', async mode => {
     const f = await fixture(mode);
     const driver = f.driver.getMockImplementation()!;

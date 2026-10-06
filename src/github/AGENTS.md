@@ -22,6 +22,12 @@ Neighbours:
   hard requirements, and what is recoverable — is
   [`docs/github-app-setup.md`](../../docs/github-app-setup.md); keep it in step
   with `GITHUB_PUBLISH_PERMISSIONS` and `snapshotGitHubAppConfig`.
+- An imported repository may carry a root `.atoma-import.json` with version 1
+  and up to 32 case-insensitive directory `excludePrefixes`. Validate the
+  complete tree shape and every path before applying exclusions; reject
+  symlinks and submodules even in excluded directories. Skip selected blobs
+  before download and byte limits. The selection never relaxes publication
+  policy: workflow paths remain forbidden on every write path.
 - `bindInstallation` IS THE ONE PLACE AN INSTALLATION BECOMES AN
   ORGANISATION'S, and both doors — the setup callback and the authorize
   callback — route through it. They did not, and they disagreed: setup checked

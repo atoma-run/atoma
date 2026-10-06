@@ -658,7 +658,7 @@ describe('project run environment', () => {
 });
 
 describe('ProjectRunCoordinator', () => {
-  it.each(['text', 'partial', 'files', 'text-with-seed'] as const)('finalizes %s delivery without confusing an answer with a repository artifact', async (kind) => {
+  it.each(['text', 'partial', 'files', 'text-with-seed', 'text-with-large-seed'] as const)('finalizes %s delivery without confusing an answer with a repository artifact', async (kind) => {
     const f = fixture();
     const publisher = { publish: vi.fn().mockResolvedValue(undefined) };
     const describeDeliveredPreview = vi.fn();
@@ -671,6 +671,11 @@ describe('ProjectRunCoordinator', () => {
       mkdirSync(workspace, { recursive: true });
       mkdirSync(runs, { recursive: true });
       if (kind === 'text-with-seed') writeFileSync(join(workspace, 'existing.txt'), 'unchanged input');
+      if (kind === 'text-with-large-seed') {
+        for (let index = 0; index < 257; index++) {
+          writeFileSync(join(workspace, `source-${index}.txt`), 'unchanged input');
+        }
+      }
       writeFileSync(env['ATOMA_ARTIFACT_MANIFEST_PATH']!, JSON.stringify({
         version: 1, runId, generatedAt: new Date().toISOString(), outputs: [],
         ...(kind.startsWith('text') ? { delivery: 'text' } : {}),
@@ -696,7 +701,9 @@ describe('ProjectRunCoordinator', () => {
     expect(publisher.publish).not.toHaveBeenCalled();
     expect(describeDeliveredPreview).not.toHaveBeenCalled();
     if (kind !== 'files') {
-      expect(finished.artifactManifest?.files).toHaveLength(kind === 'text-with-seed' ? 1 : 0);
+      expect(finished.artifactManifest?.files).toHaveLength(
+        kind === 'text-with-large-seed' ? 257 : kind === 'text-with-seed' ? 1 : 0
+      );
       expect(finished.traceId).toBe(run.projectRunId);
       expect(() => f.store.reservePublication({ orgId: f.viewer.orgId, projectRunId: run.projectRunId, idempotencyKey: 'manual' })).toThrow(/publication requires/);
     }

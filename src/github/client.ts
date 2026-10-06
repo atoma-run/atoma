@@ -459,7 +459,7 @@ function sha(value: unknown, label: string): string {
   return value;
 }
 
-function filePath(value: string): string {
+function repositoryPath(value: string): string {
   if (
     !value ||
     value.startsWith('/') ||
@@ -477,10 +477,34 @@ function filePath(value: string): string {
   if (segments.some((segment) => !segment || segment === '.' || segment === '..' || segment === '.git')) {
     throw new Error('GitHub artifact path has an invalid value');
   }
+  return value;
+}
+
+function filePath(value: string): string {
+  repositoryPath(value);
+  const segments = value.split('/');
   if (segments[0]?.toLowerCase() === '.github' && segments[1]?.toLowerCase() === 'workflows') {
     throw new Error('GitHub workflow files are outside the initial publish scope');
   }
   return value;
+}
+
+function importExcludePrefixes(value: unknown): readonly string[] {
+  const config = asObject(value, 'repository import selection');
+  if (Object.keys(config).some(key => key !== 'version' && key !== 'excludePrefixes') ||
+    config['version'] !== 1 || !Array.isArray(config['excludePrefixes']) || config['excludePrefixes'].length > 32) {
+    throw new Error('Repository import selection has an invalid shape');
+  }
+  const seen = new Set<string>();
+  return config['excludePrefixes'].map((candidate: unknown) => {
+    if (typeof candidate !== 'string' || !candidate.endsWith('/') || candidate.length > 256) {
+      throw new Error('Repository import selection has an invalid prefix');
+    }
+    const prefix = repositoryPath(candidate.slice(0, -1)).toLowerCase() + '/';
+    if (seen.has(prefix)) throw new Error('Repository import selection has duplicate prefixes');
+    seen.add(prefix);
+    return prefix;
+  });
 }
 
 function encodeSegment(value: string): string {
@@ -855,17 +879,45 @@ export class GitHubAppClient {
     if (tree['truncated'] !== false || !Array.isArray(tree['tree'])) throw new Error('Repository tree is incomplete');
     const entries = tree['tree'].map(value => asObject(value, 'GitHub tree entry'));
     if (entries.length > 10_000) throw new Error('Repository exceeds the 10000-entry import limit');
+    // The source repository may explicitly leave bulky or non-publishable
+    // directories out of Atoma's workspace. Read this one small config blob
+    // before the files so exclusions apply before per-file and total limits.
+    const selection = entries.find(entry => entry['path'] === '.atoma-import.json');
+    let excludePrefixes: readonly string[] = [];
+    if (selection) {
+      if (selection['type'] !== 'blob' || selection['mode'] !== '100644') {
+        throw new Error('Repository import selection must be a regular file');
+      }
+      const selected = await this.request({ token: input.token,
+        path: this.gitPath(input.owner, input.name, `blobs/${sha(selection['sha'], 'import selection sha')}`),
+        responseMaxBytes: 64 * 1024, signal: input.signal });
+      const object = asObject(selected.json, 'repository import selection blob');
+      if (object['encoding'] !== 'base64' || typeof object['content'] !== 'string') {
+        throw new Error('Repository import selection has an unsupported encoding');
+      }
+      const content = Buffer.from(object['content'], 'base64');
+      if (content.length > 16 * 1024 || content.length !== object['size']) {
+        throw new Error('Repository import selection exceeds its size limit');
+      }
+      let parsed: unknown;
+      try { parsed = JSON.parse(content.toString('utf8')) as unknown; }
+      catch { throw new Error('Repository import selection is not valid JSON'); }
+      excludePrefixes = importExcludePrefixes(parsed);
+    }
     const files: GitHubPublishFile[] = [];
     const seen = new Set<string>();
     let total = 0;
     for (const entry of entries) {
       input.signal.throwIfAborted();
-      const name = filePath(responseString(entry['path'], 'repository path', 1024));
+      const name = repositoryPath(responseString(entry['path'], 'repository path', 1024));
       if (name.split('/').some(part => part.toLowerCase() === '.git')) throw new Error('Repository contains a reserved git path');
       if (entry['type'] === 'tree') continue;
       if (entry['type'] !== 'blob' || (entry['mode'] !== '100644' && entry['mode'] !== '100755')) {
         throw new Error('Repository import does not support symbolic links or submodules');
       }
+      if (name === '.atoma-import.json') continue;
+      if (excludePrefixes.some(prefix => name.toLowerCase().startsWith(prefix))) continue;
+      filePath(name);
       if (seen.has(name.toLowerCase())) throw new Error('Repository contains conflicting file paths');
       seen.add(name.toLowerCase());
       const blob = await this.request({ token: input.token,
