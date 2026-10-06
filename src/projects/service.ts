@@ -60,6 +60,11 @@ export interface ProjectServiceDeps {
    */
   readonly events?: PlatformEventSink;
   readonly auditRead?: CrossOrgReadSink;
+  /**
+   * Whether this host publishes the showcase (`ATOMA_PUBLIC_SHOWCASE`). Absent
+   * means it does not: a project is then never reported as shown on it.
+   */
+  readonly showcaseEnabled?: () => boolean;
 }
 
 async function readJsonBody(req: IncomingMessage): Promise<unknown> {
@@ -142,7 +147,8 @@ function publicProject(
     costUsd: 0,
     runCount: 0,
     lastRunAt: null,
-  }
+  },
+  showcaseShown = false
 ) {
   return {
     projectId: project.projectId,
@@ -150,6 +156,12 @@ function publicProject(
     slug: project.slug,
     status: project.status,
     showcase: project.showcase,
+    /**
+     * Whether a visitor of the public showcase sees this project NOW: the host
+     * publishes it, and one of its runs is in `listShowcaseRuns` — the very
+     * read the page makes. A listed project with no such run is only eligible.
+     */
+    showcaseShown,
     repositoryTarget: project.repositoryTarget,
     repositoryStatus: project.repositoryStatus,
     repositoryFullName: project.repositoryFullName,
@@ -169,6 +181,7 @@ export class ProjectService {
   private readonly events: PlatformEventSink;
   private readonly readAudit?: CrossOrgReadSink;
   private readonly publisher?: Pick<GitHubPublisher, 'inspectTarget'>;
+  private readonly showcaseEnabled: () => boolean;
 
   constructor(deps: ProjectServiceDeps) {
     this.store = deps.store;
@@ -178,6 +191,13 @@ export class ProjectService {
     this.publisher = deps.publisher;
     // A no-op default keeps every emission site free of `?.` noise.
     this.events = deps.events ?? (() => undefined);
+    this.showcaseEnabled = deps.showcaseEnabled ?? (() => false);
+  }
+
+  /** The projects a showcase visitor sees now, from the page's own read. */
+  private shownOnShowcase(): ReadonlySet<string> {
+    if (!this.showcaseEnabled()) return new Set();
+    return new Set(this.store.listShowcaseRuns().map((run) => run.projectId));
   }
 
   private present(run: ProjectRun, publication: import('../contracts/projects.js').Publication | null) {
@@ -198,11 +218,12 @@ export class ProjectService {
 
   /** GET /api/projects — a platform admin reads ALL organisations' projects. */
   listProjects(viewer: Viewer): unknown {
+    const shown = this.shownOnShowcase();
     if (viewer.platformAdmin) {
       return this.store.listAllProjects().map((project) => {
         this.auditRead(viewer, project.orgId, 'projects.index');
         return {
-          ...publicProject(project, this.store.projectRunSummary(project.orgId, project.projectId)),
+          ...publicProject(project, this.store.projectRunSummary(project.orgId, project.projectId), shown.has(project.projectId)),
           orgId: project.orgId,
           orgName: project.orgName,
         };
@@ -211,7 +232,8 @@ export class ProjectService {
     return this.store.listProjects(viewer.orgId).map((project) =>
       publicProject(
         project,
-        this.store.projectRunSummary(viewer.orgId, project.projectId)
+        this.store.projectRunSummary(viewer.orgId, project.projectId),
+        shown.has(project.projectId)
       )
     );
   }
@@ -271,7 +293,8 @@ export class ProjectService {
         detail: { from: before.showcase, to: project.showcase },
       });
     }
-    return publicProject(project, this.store.projectRunSummary(viewer.orgId, projectId));
+    return publicProject(project, this.store.projectRunSummary(viewer.orgId, projectId),
+      this.shownOnShowcase().has(projectId));
   }
 
   /**

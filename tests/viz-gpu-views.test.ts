@@ -2606,6 +2606,29 @@ describe('drawViewFrame on a narrow column', () => {
 });
 
 describe('drawProjects', () => {
+  it('tells the people who decide it where each project stands on the public showcase', () => {
+    const base = {
+      projectId: 'p-1', name: 'Weather Lab', slug: 'weather-lab', status: 'active' as const, family: 'build',
+      repositoryTarget: { installationId: '501', owner: 'atoma-org', name: 'weather-lab', visibility: 'private' as const },
+      repositoryStatus: 'pending' as const, repositoryFullName: null, repositoryUrl: null, repositoryError: null,
+      runCount: 3, costUsd: 1.23, createdAt: '2026-08-20T00:00:00.000Z', updatedAt: '2026-08-20T00:00:00.000Z',
+    };
+    const metadataFor = (project: VizProject, viewer: Partial<AuthUiSnapshot['viewer']>) => {
+      const ctx = createRecordingCtx();
+      drawProjects(ctx, makeSnapshot({ view: 'projects' }, { auth: makeAuth(viewer), projects: [project] }), 1280, 720);
+      return ctx.texts.map((text) => String(text.value)).find((value) => value.includes('3 runs'));
+    };
+    // First on the line, so a narrow card truncates the dates rather than this.
+    expect(metadataFor({ ...base, showcase: 'listed', showcaseShown: true }, {})).toMatch(/^On the showcase · 3 runs/);
+    expect(metadataFor({ ...base, showcase: 'listed', showcaseShown: false }, { role: 'org:admin' }))
+      .toMatch(/^Eligible for the showcase · /);
+    expect(metadataFor({ ...base, showcase: 'hidden', showcaseShown: false }, { role: 'org:member', platformAdmin: true }))
+      .toMatch(/^Hidden from the showcase · /);
+    // A member cannot change it, and an older server does not say.
+    expect(metadataFor({ ...base, showcase: 'listed', showcaseShown: true }, { role: 'org:member' })).toMatch(/^3 runs/);
+    expect(metadataFor(base, {})).toMatch(/^3 runs/);
+  });
+
   it('tells an ungated viewer the gate is off instead of coaching a 404 connect flow', () => {
     const ctx = createRecordingCtx();
     // Default snapshot: `auth` is null, which in-app means the server runs

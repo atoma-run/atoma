@@ -150,7 +150,9 @@ list. These values come from the host snapshot, never a tenant prompt.
   NULL (created before 2026-10-06). `hidden`, chosen at creation or later by
   an organisation admin (`setProjectShowcase`, MCP `atoma_project_showcase`,
   journaled `project.showcase_changed`), keeps the project's runs off it; any
-  other value hides too. Writes stay in the caller's organisation.
+  other value hides too. Writes stay in the caller's organisation. The project
+  listing carries `showcase` and `showcaseShown` — one of its runs is in this
+  very read, on a host that publishes the page (`showcaseEnabled` dep).
 - Such a reader must not WRITE here. A `running` row that outlived its process
   is repaired by `reconcileInterrupted` at the next boot, never by the
   observer that noticed it. `hasProjectTables` exists so a reader can ask

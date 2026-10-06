@@ -155,6 +155,20 @@ function statusLabel(
   return t(`${prefix}.${status}`);
 }
 
+/**
+ * Where the project stands on the public showcase, for the people who decide
+ * it (organisation owners and admins, platform admins) and nobody else: a
+ * member cannot change it, and the list is theirs to read, not to audit.
+ * Nothing on a server that does not say.
+ */
+function showcaseLabel(snapshot: GpuRenderSnapshot, project: { showcase?: 'listed' | 'hidden'; showcaseShown?: boolean }): string | null {
+  const viewer = snapshot.data.auth?.viewer;
+  if (!viewer || project.showcase === undefined) return null;
+  if (!viewer.platformAdmin && viewer.role !== 'org:owner' && viewer.role !== 'org:admin') return null;
+  if (project.showcase === 'hidden') return snapshot.t('projects.showcaseHidden');
+  return snapshot.t(project.showcaseShown ? 'projects.showcaseShown' : 'projects.showcaseEligible');
+}
+
 /** Horizontal inset the column leaves inside the content viewport, in total. */
 export const PROJECTS_COLUMN_INSET = GPU_LAYOUT.gap * 2;
 
@@ -446,6 +460,8 @@ export function drawProjects(
         ? relativeTime(lastRunAt, snapshot.t, snapshot.state.locale)
         : '';
       const metadata = [
+        // First, so a narrow card truncates the dates rather than this.
+        showcaseLabel(snapshot, project),
         runCount === undefined ? null : snapshot.t('projects.cardRuns', { count: runCount }),
         project.costUsd == null ? null : runCost(project.costUsd),
         snapshot.t('projects.cardCreated', {

@@ -978,6 +978,7 @@ const PROJECTS_RUNTIME: ProjectsRuntime | null = (() => {
     coordinator,
     github: githubStore,
     events: emit,
+    showcaseEnabled: () => showcaseEnabled(),
     ...(publisher ? { publisher } : {}),
   });
   return {

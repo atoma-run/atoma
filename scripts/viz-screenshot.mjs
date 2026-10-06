@@ -354,6 +354,8 @@ function gatedStubs() {
       repositoryError: null,
       runCount: 5,
       costUsd: 1.26,
+      showcase: 'listed',
+      showcaseShown: true,
       lastRunAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
       createdAt: '2026-08-20T00:00:00.000Z',
       updatedAt: '2026-08-20T00:00:00.000Z',

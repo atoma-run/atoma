@@ -246,6 +246,31 @@ describe('who may be shown', () => {
     ]);
   });
 
+  it('tells the project list which projects a visitor sees now, from the page\'s own read', () => {
+    const w = world();
+    const shownRun = seedRun(w, w.admin, { goal: 'Admin delivered', files: ['README.md'] });
+    const project = (slug: string, showcase: 'listed' | 'hidden') => w.store.createProject({
+      orgId: w.admin.orgId, principalId: w.admin.principalId,
+      project: { name: slug, slug, showcase, repositoryTarget: { installationId: '1', owner: 'o', name: slug, visibility: 'private' } },
+    }).projectId;
+    const eligible = project('eligible', 'listed');
+    const hidden = project('hidden', 'hidden');
+    seedRun(w, { ...w.admin, projectId: hidden }, { goal: 'Hidden delivery', files: ['README.md'] });
+    const viewer = { orgId: w.admin.orgId, principalId: w.admin.principalId, role: 'org:owner', platformAdmin: false } as never;
+    const states = (enabled?: boolean) => {
+      const service = new ProjectService({ store: w.store, github: null, coordinator: {} as never,
+        ...(enabled === undefined ? {} : { showcaseEnabled: () => enabled }) });
+      const rows = service.listProjects(viewer) as { projectId: string; showcase: string; showcaseShown: boolean }[];
+      return Object.fromEntries(rows.map((row) => [row.projectId, [row.showcase, row.showcaseShown]]));
+    };
+    expect(states(true)).toEqual({
+      [w.admin.projectId]: ['listed', true], [eligible]: ['listed', false], [hidden]: ['hidden', false],
+    });
+    // A host that does not publish the showcase shows nothing on it, listed or not.
+    for (const off of [false, undefined]) expect(Object.values(states(off)).every(([, shown]) => shown === false)).toBe(true);
+    expect(w.store.listShowcaseRuns().map((run) => run.projectRunId)).toEqual([shownRun]);
+  });
+
   it('follows the admin flag at read time, and answers nothing without an auth table', () => {
     const w = world();
     seedRun(w, w.member, { goal: 'Member run', files: ['README.md'] });

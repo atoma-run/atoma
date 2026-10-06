@@ -646,6 +646,8 @@ npm run viz:mark-turn:analyze
   service worker would keep one as its offline `/`.
 - It shows a platform admin's DELIVERED runs, save a project an organisation
   admin set `showcase: hidden` ([src/projects](../projects/AGENTS.md#readers-outside-this-subsystem)).
+  The Projects list tells owners, admins and platform admins, first on each
+  card, whether the project is on it, eligible or hidden; members see nothing.
   Fail closed: opt-in, gate on, else
   404. One store query (`listShowcaseRuns`), an allow-list projection
   (`showcase.ts`): title, request, numbers, file NAMES, a text answer; never
