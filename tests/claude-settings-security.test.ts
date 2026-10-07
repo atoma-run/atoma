@@ -8,13 +8,22 @@ interface ClaudeProjectSettings {
   };
 }
 
+/**
+ * The only shell grants every collaborator inherits (owner decision
+ * 2026-10-07): reading and merging pull requests through `gh`. None runs
+ * workspace code, and a merge still answers to the collaborator's own
+ * GitHub rights and the ruleset's required checks. Exact strings: any other
+ * `Bash(` rule, however narrow it looks, stays local.
+ */
+const SHARED_SHELL_GRANTS = ['Bash(gh pr view *)', 'Bash(gh pr checks *)', 'Bash(gh pr merge *)'];
+
 describe('Claude Code project permissions', () => {
-  it('never pre-authorizes shell execution for every collaborator', () => {
+  it('pre-authorizes no shell execution for every collaborator beyond the gh pull request grants', () => {
     const settings = JSON.parse(
       readFileSync(resolve('.claude/settings.json'), 'utf8')
     ) as ClaudeProjectSettings;
     const shellGrants = (settings.permissions?.allow ?? []).filter((rule) =>
-      rule.startsWith('Bash(')
+      rule.startsWith('Bash(') && !SHARED_SHELL_GRANTS.includes(rule)
     );
 
     expect(
