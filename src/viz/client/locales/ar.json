@@ -1396,5 +1396,18 @@
   "workspace.loading": "جارٍ تحميل الملفات…",
   "workspace.tooLarge": "هذا الملف كبير جدًا ولا يمكن معاينته (الحد 256 KiB).",
   "workspace.binary": "ملف ثنائي — المعاينة النصية غير متاحة.",
-  "workspace.empty": "لا يحتوي هذا المجلد على ملفات محفوظة."
+  "workspace.empty": "لا يحتوي هذا المجلد على ملفات محفوظة.",
+  "projects.githubAccess.title": "يلزم تخويل GitHub",
+  "projects.githubAccess.resumed": "تمت المتابعة",
+  "projects.githubAccess.savedRequest": "تم حفظ الطلب. لم تُستهلك أي أرصدة.",
+  "projects.githubAccess.savedResult": "تم حفظ النتيجة. لا حاجة إلى إعادة التشغيل.",
+  "projects.githubAccess.selection": "الوصول إلى المستودع: أضِف واحفظ.",
+  "projects.githubAccess.instructions": "على GitHub، أضِف {{repository}} ضمن الوصول إلى المستودع ثم احفظ.",
+  "projects.githubAccess.authorize": "1. خوّل هذا المستودع ↗",
+  "projects.githubAccess.continue": "2. تحقّق وتابع",
+  "projects.githubAccess.publish": "2. تحقّق وانشر",
+  "projects.githubAccess.retryPublication": "أعِد محاولة النشر",
+  "projects.githubAccess.checking": "جارٍ التحقق من صلاحية الوصول إلى GitHub…",
+  "projects.githubAccess.retryFailed": "تعذّرت المتابعة. تحقّق من صلاحية الوصول إلى GitHub وحاول مجددًا.",
+  "projects.githubAccess.requesterOnly": "اطلب من الشخص الذي طلب هذا الـ run المتابعة."
 }

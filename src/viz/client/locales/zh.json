@@ -1396,5 +1396,18 @@
   "workspace.loading": "正在加载文件…",
   "workspace.tooLarge": "此文件过大，无法预览（上限为 256 KiB）。",
   "workspace.binary": "二进制文件——无法进行文本预览。",
-  "workspace.empty": "此文件夹中没有已保存的文件。"
+  "workspace.empty": "此文件夹中没有已保存的文件。",
+  "projects.githubAccess.title": "需要 GitHub 授权",
+  "projects.githubAccess.resumed": "已继续",
+  "projects.githubAccess.savedRequest": "请求已保存，未消耗额度。",
+  "projects.githubAccess.savedResult": "结果已保存，无需重新运行。",
+  "projects.githubAccess.selection": "仓库访问权限：添加并保存。",
+  "projects.githubAccess.instructions": "在 GitHub 上，将 {{repository}} 添加到“仓库访问权限”下并保存。",
+  "projects.githubAccess.authorize": "1. 授权此仓库 ↗",
+  "projects.githubAccess.continue": "2. 验证并继续",
+  "projects.githubAccess.publish": "2. 验证并发布",
+  "projects.githubAccess.retryPublication": "重试发布",
+  "projects.githubAccess.checking": "正在检查 GitHub 访问权限…",
+  "projects.githubAccess.retryFailed": "无法继续。请检查 GitHub 访问权限，然后重试。",
+  "projects.githubAccess.requesterOnly": "请让请求此 run 的人继续。"
 }

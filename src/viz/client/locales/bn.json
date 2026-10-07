@@ -1396,5 +1396,18 @@
   "workspace.loading": "ফাইল লোড হচ্ছে…",
   "workspace.tooLarge": "এই ফাইলটি প্রিভিউ করার জন্য খুব বড় (সীমা ২৫৬ KiB)।",
   "workspace.binary": "বাইনারি ফাইল — টেক্সট প্রিভিউ অনুপলভ্য।",
-  "workspace.empty": "এই ফোল্ডারে কোনো সংরক্ষিত ফাইল নেই।"
+  "workspace.empty": "এই ফোল্ডারে কোনো সংরক্ষিত ফাইল নেই।",
+  "projects.githubAccess.title": "GitHub অনুমোদন প্রয়োজন",
+  "projects.githubAccess.resumed": "চালিয়ে যাওয়া হয়েছে",
+  "projects.githubAccess.savedRequest": "অনুরোধ সংরক্ষিত হয়েছে। কোনো ক্রেডিট খরচ হয়নি।",
+  "projects.githubAccess.savedResult": "ফলাফল সংরক্ষিত হয়েছে। পুনরায় run করার প্রয়োজন নেই।",
+  "projects.githubAccess.selection": "রিপোজিটরি অ্যাক্সেস: যোগ করে সংরক্ষণ করুন।",
+  "projects.githubAccess.instructions": "GitHub-এ Repository access-এর অধীনে {{repository}} যোগ করে সংরক্ষণ করুন।",
+  "projects.githubAccess.authorize": "১. এই রিপোজিটরিকে অনুমোদন দিন ↗",
+  "projects.githubAccess.continue": "২. যাচাই করে চালিয়ে যান",
+  "projects.githubAccess.publish": "২. যাচাই করে প্রকাশ করুন",
+  "projects.githubAccess.retryPublication": "আবার প্রকাশের চেষ্টা করুন",
+  "projects.githubAccess.checking": "GitHub অ্যাক্সেস যাচাই করা হচ্ছে…",
+  "projects.githubAccess.retryFailed": "চালিয়ে যাওয়া যায়নি। GitHub অ্যাক্সেস পরীক্ষা করে আবার চেষ্টা করুন।",
+  "projects.githubAccess.requesterOnly": "যিনি এই run-এর অনুরোধ করেছেন, তাঁকে চালিয়ে যেতে বলুন।"
 }

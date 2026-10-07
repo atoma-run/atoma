@@ -1396,5 +1396,18 @@
   "workspace.loading": "ファイルを読み込み中…",
   "workspace.tooLarge": "このファイルは大きすぎるためプレビューできません（上限256 KiB）。",
   "workspace.binary": "バイナリファイル—テキストプレビューは利用できません。",
-  "workspace.empty": "このフォルダーには保存済みのファイルがありません。"
+  "workspace.empty": "このフォルダーには保存済みのファイルがありません。",
+  "projects.githubAccess.title": "GitHubの認証が必要です",
+  "projects.githubAccess.resumed": "続行しました",
+  "projects.githubAccess.savedRequest": "リクエストを保存しました。クレジットは消費されていません。",
+  "projects.githubAccess.savedResult": "結果を保存しました。再実行は不要です。",
+  "projects.githubAccess.selection": "リポジトリアクセス：追加して保存",
+  "projects.githubAccess.instructions": "GitHubで、リポジトリアクセスに{{repository}}を追加して保存してください。",
+  "projects.githubAccess.authorize": "1. このリポジトリへのアクセスを許可 ↗",
+  "projects.githubAccess.continue": "2. 確認して続行",
+  "projects.githubAccess.publish": "2. 確認して公開",
+  "projects.githubAccess.retryPublication": "公開を再試行",
+  "projects.githubAccess.checking": "GitHubへのアクセスを確認中…",
+  "projects.githubAccess.retryFailed": "続行できませんでした。GitHubへのアクセスを確認して、もう一度お試しください。",
+  "projects.githubAccess.requesterOnly": "このrunをリクエストした人に続行を依頼してください。"
 }

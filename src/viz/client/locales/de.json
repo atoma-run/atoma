@@ -1396,5 +1396,18 @@
   "workspace.loading": "Dateien werden geladen…",
   "workspace.tooLarge": "Diese Datei ist zu groß für die Vorschau (Limit: 256 KiB).",
   "workspace.binary": "Binärdatei — Textvorschau ist nicht verfügbar.",
-  "workspace.empty": "Dieser Ordner enthält keine gespeicherten Dateien."
+  "workspace.empty": "Dieser Ordner enthält keine gespeicherten Dateien.",
+  "projects.githubAccess.title": "GitHub-Autorisierung erforderlich",
+  "projects.githubAccess.resumed": "fortgesetzt",
+  "projects.githubAccess.savedRequest": "Anfrage gespeichert. Keine Credits verbraucht.",
+  "projects.githubAccess.savedResult": "Ergebnis gespeichert. Keine erneute Ausführung nötig.",
+  "projects.githubAccess.selection": "Repository-Zugriff: hinzufügen und speichern.",
+  "projects.githubAccess.instructions": "Auf GitHub {{repository}} unter Repository-Zugriff hinzufügen und speichern.",
+  "projects.githubAccess.authorize": "1. Dieses Repository autorisieren ↗",
+  "projects.githubAccess.continue": "2. Prüfen und fortfahren",
+  "projects.githubAccess.publish": "2. Prüfen und veröffentlichen",
+  "projects.githubAccess.retryPublication": "Veröffentlichung erneut versuchen",
+  "projects.githubAccess.checking": "GitHub-Zugriff wird geprüft…",
+  "projects.githubAccess.retryFailed": "Fortfahren nicht möglich. GitHub-Zugriff prüfen und erneut versuchen.",
+  "projects.githubAccess.requesterOnly": "Bitten Sie die Person, die diesen run angefordert hat, fortzufahren."
 }

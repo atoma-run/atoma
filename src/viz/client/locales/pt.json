@@ -1396,5 +1396,18 @@
   "workspace.loading": "A carregar ficheiros…",
   "workspace.tooLarge": "Este ficheiro é demasiado grande para pré-visualizar (limite de 256 KiB).",
   "workspace.binary": "Ficheiro binário — a pré-visualização de texto não está disponível.",
-  "workspace.empty": "Esta pasta não contém ficheiros guardados."
+  "workspace.empty": "Esta pasta não contém ficheiros guardados.",
+  "projects.githubAccess.title": "Autorização do GitHub necessária",
+  "projects.githubAccess.resumed": "continuado",
+  "projects.githubAccess.savedRequest": "Pedido guardado. Nenhum crédito utilizado.",
+  "projects.githubAccess.savedResult": "Resultado guardado. Não é necessário repetir o run.",
+  "projects.githubAccess.selection": "Acesso ao repositório: adicione e guarde.",
+  "projects.githubAccess.instructions": "No GitHub, adicione {{repository}} em Acesso ao repositório e guarde.",
+  "projects.githubAccess.authorize": "1. Autorizar este repositório ↗",
+  "projects.githubAccess.continue": "2. Verificar e continuar",
+  "projects.githubAccess.publish": "2. Verificar e publicar",
+  "projects.githubAccess.retryPublication": "Tentar publicar novamente",
+  "projects.githubAccess.checking": "A verificar o acesso ao GitHub…",
+  "projects.githubAccess.retryFailed": "Não foi possível continuar. Verifique o acesso ao GitHub e tente novamente.",
+  "projects.githubAccess.requesterOnly": "Peça à pessoa que solicitou este run para continuar."
 }
