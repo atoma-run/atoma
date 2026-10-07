@@ -7,6 +7,7 @@ import {
   BitmapText,
   Cache,
   CanvasTextMetrics,
+  ColorMatrixFilter,
   Container,
   Filter,
   Graphics,
@@ -549,6 +550,8 @@ export class GpuRenderer {
    * bar rather than under it.
    */
   readonly markRoot = new Container({ isRenderGroup: true });
+  /** Counter the light-theme inversion on the crystal and account orbs. */
+  private lightThemeMarkFilter: ColorMatrixFilter | null = null;
   /**
    * The one crystal, RETAINED across scene rebuilds like the far field.
    * Attaching per render leaked its render textures, geometries and shader —
@@ -1596,6 +1599,7 @@ export class GpuRenderer {
     this.navIconSpins.clear();
     // Detach-then-destroy, BEFORE the app tears the stage down: a retained
     // label still parented would otherwise be destroyed twice.
+    this.clearLightThemeMarkFilter();
     this.atomaMark?.handle.destroy();
     this.atomaMark = null;
     this.atomaMarkMotion = null;
@@ -1686,6 +1690,7 @@ export class GpuRenderer {
     try {
       if (scrollOnly) rendered = this.tryScrollRuns(snapshot);
       else if (forceRebuild || !this.tryScrollRuns(snapshot)) this.renderScene(snapshot);
+      this.syncLightThemeMarkFilter(snapshot.state.appearanceTheme === 'snow');
     } finally {
       if (rendered) {
         this.metrics.renderMs = performance.now() - startedAt;
@@ -1694,6 +1699,26 @@ export class GpuRenderer {
       }
     }
     return rendered;
+  }
+
+  private clearLightThemeMarkFilter(): void {
+    this.markRoot.filters = [];
+    this.lightThemeMarkFilter?.destroy();
+    this.lightThemeMarkFilter = null;
+  }
+
+  private syncLightThemeMarkFilter(lightTheme: boolean): void {
+    if (!lightTheme) {
+      if (this.lightThemeMarkFilter) this.clearLightThemeMarkFilter();
+      return;
+    }
+    if (this.lightThemeMarkFilter) return;
+    const filter = new ColorMatrixFilter();
+    filter.negative(false);
+    filter.hue(180, true);
+    filter.saturate(-0.2, true);
+    this.markRoot.filters = [filter];
+    this.lightThemeMarkFilter = filter;
   }
 
   /**
