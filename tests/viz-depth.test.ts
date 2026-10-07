@@ -65,7 +65,13 @@ describe('viz visual depth contract', () => {
     expect(renderer).not.toMatch(/drawAmbientGrid/);
     expect(renderer).toMatch(/this\.stage\.filters = \[filter\]/);
     expect(renderer).not.toMatch(/this\.ambientRoot\.filters\s*=/);
-    expect(renderer).not.toMatch(/this\.markRoot\.filters\s*=/);
+    // Snow color-corrects the crystal on markRoot; the pointer light still
+    // belongs only to stage and its bounded carrier.
+    const pointerLight = renderer.slice(
+      renderer.indexOf('  private installPointerLightFilter()'),
+      renderer.indexOf('  /** Keep the one compiled receiver')
+    );
+    expect(pointerLight).not.toMatch(/this\.markRoot\.filters\s*=/);
     // The bounded carrier relights whatever lies beneath it, so it is chosen
     // only while the ambient field is detached; the full-stage filter, which
     // never saw the field, carries the light over it.
