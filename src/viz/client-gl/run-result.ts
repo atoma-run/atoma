@@ -19,6 +19,17 @@ export function resultSections(run: VizRun): { title: string; text: string }[] {
   return text === null ? [] : [{ title: '', text }];
 }
 
+/** Prose for the reader; the complete structured output stays in details/export. */
+export function resultNarrative(run: VizRun): { title: string; text: string }[] {
+  const output = run.result?.output;
+  if (typeof output === 'string') return [{ title: '', text: output }];
+  if (output && typeof output === 'object' && !Array.isArray(output)) {
+    return Object.entries(output).flatMap(([title, value]) =>
+      typeof value === 'string' && value.trim() ? [{ title, text: value }] : []);
+  }
+  return [];
+}
+
 /** Pin file links to THIS delivery, never to the repository's moving main. */
 export function resultFileUrl(run: VizProjectRun, path: string): string | null {
   const publication = run.publication;

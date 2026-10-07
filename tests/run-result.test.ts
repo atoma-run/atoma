@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { latestDeliveredResult, resultFileUrl, resultSections, resultText } from '../src/viz/client-gl/run-result.js';
+import { latestDeliveredResult, resultFileUrl, resultNarrative, resultSections, resultText } from '../src/viz/client-gl/run-result.js';
 import { useGpuStore } from '../src/viz/client-gl/store.js';
 import type { VizProjectRun, VizRun } from '../src/viz/client/types.js';
 
@@ -23,6 +23,17 @@ describe('final result presentation', () => {
     const output = 'a'.repeat(80000);
     expect(resultText({ ...run, result: { output } })).toHaveLength(80000);
   });
+  it('presents prose without turning file claims and recorded probes into the answer', () => {
+    const output = { files: ['plate.svg'], probes: [{ cmd: 'python3 check.py', exitCode: 0 }],
+      answer: 'The coastal illustration is ready.', conclusion: 'Labels fit inside the canvas.' };
+    const drawing = { ...run, result: { output } };
+    expect(resultNarrative(drawing)).toEqual([
+      { title: 'answer', text: output.answer }, { title: 'conclusion', text: output.conclusion },
+    ]);
+    expect(JSON.parse(resultText(drawing)!)).toEqual(output);
+    expect(resultSections(drawing).map(section => section.title)).toEqual(Object.keys(output));
+    expect(resultNarrative({ ...run, result: { output: 0 } })).toEqual([]);
+  });
   it('links to an immutable published revision and encodes each path component', () => {
     expect(resultFileUrl(row, 'my report/a#b.svg')).toBe(`https://github.com/mgtf/proof/blob/${'a'.repeat(40)}/my%20report/a%23b.svg`);
     for (const path of ['../secret', '/secret', 'a/../secret', 'a\\b']) expect(resultFileUrl(row, path)).toBeNull();
@@ -39,8 +50,13 @@ describe('final result presentation', () => {
     const state = useGpuStore.getState();
     state.setView('projects'); state.selectProject('project'); state.selectResult('trace');
     expect(useGpuStore.getState()).toMatchObject({ view: 'projects', resultRunId: 'trace' });
+    state.toggleResultDetails();
+    expect(useGpuStore.getState().resultDetailsOpen).toBe(true);
     state.selectProject('other');
     expect(useGpuStore.getState().resultRunId).toBeNull();
+    expect(useGpuStore.getState().resultDetailsOpen).toBe(false);
+    state.selectResult('trace'); state.toggleResultDetails(); state.selectResult('other-trace');
+    expect(useGpuStore.getState().resultDetailsOpen).toBe(false);
     state.selectResult('trace'); state.selectRun('other-run');
     expect(useGpuStore.getState().resultRunId).toBeNull();
   });

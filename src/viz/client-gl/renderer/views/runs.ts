@@ -468,7 +468,7 @@ export function drawRuns(
   ctx.button(ctx.root, 'activity.open', 'button', snapshot.t(snapshot.state.runActivityOpen ? 'activity.title' : 'activity.open', { count: activity.touched }),
     leftX + 14, filterTop, actionWidth, 30, snapshot.state.runActivityOpen, snapshot.onActivate);
   ctx.button(ctx.root, `result.open.${run.id}`, 'button', snapshot.t('result.title'),
-    leftX + 22 + actionWidth, filterTop, actionWidth, 30, false, snapshot.onActivate);
+    leftX + 22 + actionWidth, filterTop, actionWidth, 30, snapshot.state.resultRunId === run.id, snapshot.onActivate);
   filterTop += 40;
   if (snapshot.state.runActivityOpen) {
     drawRunActivity(ctx, snapshot, leftX, filterTop, leftWidth, Math.max(0, height - filterTop - GPU_LAYOUT.gap));

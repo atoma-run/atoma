@@ -78,7 +78,10 @@ const tuning = has('--tuning');
 const selectFirst = has('--select-first');
 const githubAccess = has('--github-access');
 const githubAccessProbe = has('--github-access-probe');
-const showResult = has('--result');
+const resultArtwork = has('--result-artwork');
+const showResult = has('--result') || resultArtwork;
+const artworkFiles = ['coastal_plate.svg', 'marsh_icon.svg', 'seagrass_icon.svg', 'reef_icon.svg', 'production_notes.md'];
+const artworkGoal = 'Finalize the Pelagic Atlas illustration suite. Check all four SVG files, their viewBoxes, labels and legends. Deliver the four original illustrations and production notes.';
 const showActivity = has('--activity');
 const activityFile = arg('--activity-file');
 const notifications = has('--notifications');
@@ -171,6 +174,11 @@ function gatedStubs() {
     endedAt: `2026-08-20T00:0${index}:59.000Z`,
     publication,
   }));
+  if (resultArtwork) Object.assign(runs[0], {
+    traceId: 'run-fixture', goal: artworkGoal,
+    artifactManifest: { version: 1, source: 'workspace', totalBytes: 16000,
+      files: artworkFiles.map(path => ({ path, size: 3200, mode: '100644', sha256: 'b'.repeat(64) })) },
+  });
   if (githubAccess) Object.assign(runs[0], {
     status: 'failed', traceId: null, costUsd: null, tokens: null, llmCalls: null, jevCalls: null,
     requestedByPrincipalId: principalId, publication: null,
@@ -347,7 +355,7 @@ function gatedStubs() {
     },
     '/api/projects': [{
       projectId,
-      name: 'Stopwatch E2E two',
+      name: resultArtwork ? 'Pelagic Atlas — Coastal Habitat Illustration Suite' : 'Stopwatch E2E two',
       slug: 'stopwatch-e2e-two',
       status: 'active',
       repositoryTarget: {
@@ -399,8 +407,9 @@ function gatedStubs() {
         // picker's second line shows what a real one shows.
         tokens: 90_561,
         projectId,
-        projectName: 'Stopwatch E2E two',
+        projectName: resultArtwork ? 'Pelagic Atlas — Coastal Habitat Illustration Suite' : 'Stopwatch E2E two',
         projectSlug: 'stopwatch-e2e-two',
+        ...(resultArtwork ? { title: 'Finalize Pelagic Atlas vector showcase', goal: artworkGoal } : {}),
       },
     ],
     '/api/runs/run-fixture': fixtureTrace(),
@@ -518,6 +527,12 @@ function fixtureTrace() {
     durationMs: 1_293_740,
     events,
     result: { output: { answer: 'The original system has 15 reachable states.\n\nA shortest counterexample takes four transitions. The corrected system has 12 reachable states and preserves the invariant.', conclusion: 'Safety alone does not imply eventual progress without fairness.' }, summary: 'Analysis completed from the supplied transition rules.', producedBy: { tier: 3, name: 'Meristem' } },
+    ...(resultArtwork ? {
+      label: 'Finalize Pelagic Atlas vector showcase', task: { description: artworkGoal },
+      result: { output: { files: artworkFiles,
+        probes: [{ cmd: 'python3 verify_artwork.py', exitCode: 0, stdout: 'PASS XML=4 viewBoxes=correct external=none' }] },
+        summary: 'The Pelagic Atlas suite contains a coastal habitat plate, three habitat icons and production notes. The SVG files are self-contained and ready to open individually. Labels, legends and connector geometry were checked.' },
+    } : {}),
     totals: { calls: 26, inputTokens: 10_181, outputTokens: 80_380, costUsd: 1.69 },
   };
 }
@@ -662,6 +677,16 @@ try {
         // handler died is never continued and the page hangs on it forever.
         try {
           const path = new URL(request.url()).pathname;
+          if (resultArtwork && path.endsWith('/workspace') && new URL(request.url()).searchParams.get('format') === 'bytes') {
+            const file = new URL(request.url()).searchParams.get('path');
+            if (artworkFiles.includes(file)) {
+              void request.respond({ status: 200, contentType: 'application/octet-stream',
+                body: file.endsWith('.svg')
+                  ? '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><rect width="200" height="100" fill="#217d9e"/></svg>'
+                  : '# Production notes\n\nScreenshot fixture for the result reader.' });
+              return;
+            }
+          }
           if (githubAccessProbe && path.endsWith('/github-access')) {
             const runs = stubs[path.slice(0, path.lastIndexOf('/runs/') + 5)];
             runs[0].githubAccess.resumedRunId = 'eeeeeeee-1111-4222-8333-ffffffffffff';
@@ -944,7 +969,55 @@ try {
         return handle.projectRendererPoint(target.x + target.width / 2, target.y + target.height / 2);
       });
       await page.mouse.click(spot.x, spot.y);
+      await page.waitForFunction(() => globalThis.__ATOMA_GPU__?.hitTargets().some(entry => entry.id === 'result.details'), { timeout: READY_TIMEOUT_MS });
+      // Drive both directions through the actual canvas, starting from a fresh page.
+      if (await page.evaluate(() => globalThis.__ATOMA_GPU__.hitTargets().some(entry => entry.id === 'result.download'))) {
+        throw new Error('Result technical data must start collapsed');
+      }
+      const toggleDetails = async () => {
+        // Hit targets are published before Pixi updates the transforms used
+        // for pointer dispatch. Wait for its next screen render before clicking.
+        await page.evaluate(() => new Promise(resolveWait => {
+          const { app } = globalThis.__ATOMA_GPU__;
+          const observer = { postrender(options) {
+            if (options.container !== app.stage || options.target !== app.renderer.view.renderTarget) return;
+            app.renderer.runners.postrender.remove(observer);
+            resolveWait();
+          } };
+          app.renderer.runners.postrender.add(observer);
+        }));
+        const point = await page.evaluate(() => {
+          const handle = globalThis.__ATOMA_GPU__;
+          const target = handle.hitTargets().find(entry => entry.id === 'result.details');
+          return handle.projectRendererPoint(target.x + target.width / 2, target.y + target.height / 2);
+        });
+        await page.mouse.click(point.x, point.y);
+      };
+      await toggleDetails();
       await page.waitForFunction(() => globalThis.__ATOMA_GPU__?.hitTargets().some(entry => entry.id === 'result.download'), { timeout: READY_TIMEOUT_MS });
+      await toggleDetails();
+      await page.waitForFunction(() => !globalThis.__ATOMA_GPU__?.hitTargets().some(entry => entry.id === 'result.download'), { timeout: READY_TIMEOUT_MS }).catch(async error => {
+        await page.screenshot({ path: '/tmp/atoma-result-toggle-failure.png' });
+        throw error;
+      });
+      if (resultArtwork) {
+        await page.evaluate(() => new Promise(resolveWait => requestAnimationFrame(() => requestAnimationFrame(resolveWait))));
+        const filePoint = await page.evaluate(() => {
+          const handle = globalThis.__ATOMA_GPU__;
+          const target = handle.hitTargets().find(entry => entry.id === 'result.file.coastal_plate.svg');
+          return handle.projectRendererPoint(target.x + target.width / 2, target.y + target.height / 2);
+        });
+        await page.mouse.click(filePoint.x, filePoint.y);
+        await page.waitForFunction(() => {
+          const img = document.querySelector('iframe[title="coastal_plate.svg"]')?.contentDocument?.querySelector('img');
+          return img?.complete && img.naturalWidth > 0;
+        }, { timeout: READY_TIMEOUT_MS });
+        await page.waitForSelector('.gpu-preview-actions a[download="coastal_plate.svg"]');
+        await page.click('.gpu-preview-actions button');
+        await page.waitForFunction(() => !document.querySelector('.gpu-preview-backdrop'));
+        console.log('Result canvas controls passed: expand, collapse, open SVG, download available, close preview');
+      }
+      await page.mouse.move(5, height - 5);
       await page.evaluate(() => new Promise(resolveWait => setTimeout(resolveWait, 500)));
     }
 

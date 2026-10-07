@@ -2154,7 +2154,8 @@ try {
           id: 'trace-delivered', label: 'A delivered change ready for review.',
           task: { description: 'A delivered change ready for review.' },
           startedAt: '2026-08-20T00:00:00.000Z', endedAt: '2026-08-20T00:00:01.000Z',
-          events: [], result: { output: 'Delivered smoke result', summary: 'Project result is ready.' },
+          events: [], result: { output: { answer: 'Delivered smoke result', files: ['README.md'],
+            probes: [{ cmd: 'recorded-result-probe', exitCode: 0 }] }, summary: 'Project result is ready.' },
         },
         '/api/github/installations': [],
         '/api/admin/announce/draft': {
@@ -2575,9 +2576,20 @@ try {
       console.log('Project workspace explorer ok: canvas project entry, folder, file, parent and back');
       await clickAccountTarget('project.section.result');
       await waitForHitTarget(accountPage, 'result.file.README.md', 'result file missing');
+      const resultHasText = value => accountPage.evaluate(value => {
+        const contains = node => typeof node.text === 'string' && node.text.includes(value) ||
+          (node.children ?? []).some(contains);
+        return contains(globalThis.__ATOMA_GPU__.app.stage);
+      }, value);
+      if (await resultHasText('recorded-result-probe')) throw new Error('Result exposes technical probes by default');
+      await clickAccountTarget('result.details');
+      await waitForHitTarget(accountPage, 'result.download', 'result export missing in technical details');
+      if (!await resultHasText('recorded-result-probe')) throw new Error('Result details lost recorded evidence');
       await accountPage.mouse.move(400, 600);
       await accountPage.mouse.wheel({ deltaY: 900 });
-      await waitForHitTarget(accountPage, 'result.file.README.md', 'result file missing after scroll');
+      await clickAccountTarget('result.details');
+      await waitForHitTarget(accountPage, 'result.file.README.md', 'result files not restored after collapsing details');
+      if (await resultHasText('recorded-result-probe')) throw new Error('Result details did not collapse');
       await accountPage.screenshot({ path: '/tmp/atoma-result-before-file.png' });
       await clickAccountTarget('result.file.README.md');
       await accountPage.waitForFunction(() => document.querySelector('iframe[title="README.md"]')?.contentDocument?.querySelector('h1')?.textContent === 'Preview heading').catch(async error => {

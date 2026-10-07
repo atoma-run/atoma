@@ -44,6 +44,7 @@ export function buttonIconKind(id: string): ButtonIconKind {
   if (/^activity.collapse\.|\.more$/.test(id)) return 'down';
   if (/\.prev$|^activity.newer$/.test(id)) return 'back';
   if (id === 'result.copy') return 'copy';
+  if (id === 'result.details') return 'code';
   if (/^result.download$/.test(id)) return 'download';
   if (id === 'run.preview.stop') return 'stop';
   if (/^run.preview\./.test(id)) return 'eye';

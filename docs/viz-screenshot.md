@@ -16,6 +16,7 @@ npm run viz:shot -- --auth --select-first --github-access # saved request awaiti
 npm run viz:shot -- --auth --select-first --github-access --github-access-probe # scroll and continue through the real canvas (stubbed response)
 npm run viz:shot -- --auth --view Runs              # any nav tab by its label
 npm run viz:shot -- --auth --view Runs --result     # final answer, copy and download controls
+npm run viz:shot -- --auth --view Runs --result-artwork # saved SVG files, summary and collapsed technical evidence
 npm run viz:shot -- --auth --view Runs --activity   # recorded steps and changed files
 npm run viz:shot -- --auth --view Runs --activity-file app.js # bounded recorded edits
 npm run viz:shot -- --auth --select-first --result  # same result reader inside the project

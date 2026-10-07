@@ -9,7 +9,7 @@ export function WorkspaceAccessible({ data, t, onActivate }: {
   if (!run) return null;
   return <section aria-label={t('workspace.title')}>
     <button type="button" onClick={() => onActivate?.('workspace.close')}><ButtonIcon kind="back" />{t('workspace.back')}</button>
-    <p>{t('workspace.snapshot')}</p><p>{data?.index?.createdAt} · {path || '/'}</p>
+    <p>{t('workspace.snapshot')}</p><p>{data?.index?.createdAt}{path ? ` · ${path}` : ''}</p>
     {path ? <button type="button" onClick={() => onActivate?.('workspace.path.' + workspaceParent(path))}><ButtonIcon kind="back" />{t('workspace.parent')}</button> : null}
     {data?.failed ? <p role="alert">{t('workspace.unavailable')}</p> : data?.loading ? <p>{t('workspace.loading')}</p>
       : <ul>{workspaceChildren(data?.index ?? null, path).map(entry => <li key={entry.path}>

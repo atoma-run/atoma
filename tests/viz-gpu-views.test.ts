@@ -611,6 +611,7 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     selectedRunId: null,
     resultRunId: null,
     resultActionStatus: null,
+    resultDetailsOpen: false,
     selectedEventId: null,
     selectedAtomName: null,
     selectedRegistryId: null,
@@ -680,6 +681,7 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     selectRun: noop,
     selectResult: noop,
     setResultActionStatus: noop,
+    toggleResultDetails: noop,
     selectEvent: noop,
     selectAtom: noop,
     selectRegistry: noop,
@@ -5054,15 +5056,44 @@ describe('the run progress panel', () => {
 });
 
 describe('the shared final result panel', () => {
+  it.each([390, 1200])('puts real files and the summary before optional technical evidence at width %i', width => {
+    const run = makeRun([], { task: { description: 'LONG ORIGINAL REQUEST '.repeat(150) },
+      result: { output: { files: ['claimed-only.svg'], probes: [{ cmd: 'python3 verify.py', exitCode: 0 }] },
+        summary: 'Four original illustrations and production notes are ready.' } });
+    const projectRun: VizProjectRun = { projectId: 'project', projectRunId: 'row', traceId: run.id,
+      goal: run.task!.description!, status: 'delivered', costUsd: 0, durationS: 1, error: null,
+      createdAt: run.startedAt, endedAt: run.endedAt!, publication: null,
+      artifactManifest: { version: 1, source: 'workspace', totalBytes: 60,
+        files: ['coastal_plate.svg', 'marsh_icon.svg', 'seagrass_icon.svg', 'reef_icon.svg', 'production_notes.md']
+          .map(path => ({ path, size: 12, mode: '100644' as const, sha256: 'b'.repeat(64) })) } };
+    const data = { resultRun: run, projectRuns: { project: [projectRun] } };
+    const ctx = createRecordingCtx();
+    drawResultPanel(ctx, makeSnapshot({ resultRunId: run.id }, data), 10, 100, width - 20, 600);
+    const fileButtons = ctx.buttons.filter(button => button.id.startsWith('result.file.'));
+    expect(fileButtons).toHaveLength(5);
+    expect(fileButtons.every(button => button.y < ctx.texts.find(text => text.value === run.result!.summary)!.y)).toBe(true);
+    expect(fileButtons.every(button => button.x + button.width <= width - 44)).toBe(true);
+    expect(ctx.texts.some(text => text.value.includes('LONG ORIGINAL REQUEST') || text.value.includes('verify.py'))).toBe(false);
+    expect(ctx.buttons.some(button => button.id.includes('claimed-only'))).toBe(false);
+    expect(ctx.buttons.some(button => button.id === 'result.download')).toBe(false);
+    const expanded = createRecordingCtx();
+    drawResultPanel(expanded, makeSnapshot({ resultRunId: run.id, resultDetailsOpen: true }, data), 10, 100, width - 20, 600);
+    expect(expanded.texts.some(text => text.value.includes('LONG ORIGINAL REQUEST'))).toBe(true);
+    expect(expanded.texts.some(text => text.value.includes('verify.py'))).toBe(true);
+    expect(expanded.buttons.some(button => button.id === 'result.download')).toBe(true);
+    expect(expanded.buttons.find(button => button.id === 'result.details')!.active).toBe(true);
+  });
+
   it.each([390, 1200])('shows the recorded answer with bounded scrolling at width %i', width => {
     const ctx = createRecordingCtx();
     const run = makeRun([], { result: { output: { answer: 'A paragraph.\n'.repeat(200) }, summary: 'Final reasoning.' } });
     drawResultPanel(ctx, makeSnapshot({ resultRunId: run.id }, { resultRun: run }), 10, 100, width - 20, 400);
     expect(ctx.texts.some(text => text.value.startsWith('A paragraph.'))).toBe(true);
     expect(ctx.buttons.some(button => button.id === 'result.copy')).toBe(true);
-    expect(ctx.buttons.some(button => button.id === 'result.download')).toBe(true);
+    expect(ctx.buttons.some(button => button.id === 'result.download')).toBe(false);
+    expect(ctx.buttons.some(button => button.id === 'result.details')).toBe(true);
     expect(ctx.detailScrollMax).toBeGreaterThan(0);
-    expect(ctx.detailBounds?.height).toBe(340);
+    expect(ctx.detailBounds?.height).toBe(width < 600 ? 300 : 340);
     expect(containersWithMask(ctx.root).length).toBeGreaterThan(0);
   });
 

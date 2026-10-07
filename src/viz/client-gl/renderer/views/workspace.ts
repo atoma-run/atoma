@@ -30,10 +30,10 @@ export function drawWorkspace(ctx: RendererCtx, snapshot: GpuRenderSnapshot, wid
       left, top, Math.min(180, contentWidth), 30, false, snapshot.onActivate,
       undefined, false, false, undefined, undefined, undefined, false, 'back');
     top += 40;
+    ctx.text(ctx.root, path, left, top, { size: 12, mono: true, width: contentWidth, singleLine: true });
+    ctx.tooltip(ctx.root, { x: left, y: top, width: contentWidth, height: 22, text: path });
+    top += 30;
   }
-  ctx.text(ctx.root, path || '/', left, top, { size: 12, mono: true, width: contentWidth, singleLine: true });
-  ctx.tooltip(ctx.root, { x: left, y: top, width: contentWidth, height: 22, text: path || '/' });
-  top += 30;
   const pane = createScrollPane(ctx.root, { x: left, y: top, width: contentWidth,
     height: Math.max(0, bottomEdge - top - 12), scrollY: snapshot.state.scrollY.projects });
   let bottom = 0;

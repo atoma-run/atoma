@@ -206,6 +206,7 @@ export interface GpuUiState {
   selectedRunId: string | null;
   resultRunId: string | null;
   resultActionStatus: 'copied' | 'failed' | null;
+  resultDetailsOpen: boolean;
   selectedEventId: string | null;
   selectedAtomName: string | null;
   selectedRegistryId: string | null;
@@ -302,6 +303,7 @@ export interface GpuUiState {
   selectRun: (id: string | null) => void;
   selectResult: (id: string | null) => void;
   setResultActionStatus: (status: 'copied' | 'failed' | null) => void;
+  toggleResultDetails: () => void;
   selectEvent: (id: string | null) => void;
   selectAtom: (name: string | null) => void;
   selectRegistry: (id: string | null) => void;
@@ -373,6 +375,7 @@ function viewChange(
   | 'view'
   | 'resultRunId'
   | 'resultActionStatus'
+  | 'resultDetailsOpen'
   | 'sceneCameraMode'
   | 'focusedInput'
   | 'accountMenuOpen'
@@ -384,6 +387,7 @@ function viewChange(
     view,
     resultRunId: null,
     resultActionStatus: null,
+    resultDetailsOpen: false,
     sceneCameraMode,
     focusedInput: null,
     accountMenuOpen: false,
@@ -429,6 +433,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   runActivityPage: 0, runActivityExpandedChanges: {},
   resultRunId: null,
   resultActionStatus: null,
+  resultDetailsOpen: false,
   selectedAtomName: null,
   selectedRegistryId: null,
   selectedRegistryAtom: null,
@@ -628,6 +633,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
       runActivityPage: 0, runActivityExpandedChanges: {},
       resultRunId: null,
       resultActionStatus: null,
+      resultDetailsOpen: false,
       selectedEventId: null,
       selectedAtomName: null,
       runPickerScrollY: 0,
@@ -658,6 +664,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
     workspaceRunId: null, workspacePath: '',
     resultRunId: null,
     resultActionStatus: null,
+    resultDetailsOpen: false,
     // A selected project can expand with run history. Changing selection
     // while retaining that scroll can place the shorter list
     // entirely above its pane until another wheel event clamps it.
@@ -669,6 +676,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
     workspacePath: '',
     resultRunId: projectSection === 'result' ? runId : null,
     resultActionStatus: null,
+    resultDetailsOpen: false,
     scrollY: { ...state.scrollY, projects: 0 },
   })),
   openWorkspace: (workspaceRunId) => set(state => ({
@@ -683,8 +691,9 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   setActivityChangeExpanded: (id, expanded) => set(state => ({
     runActivityExpandedChanges: { ...state.runActivityExpandedChanges, [id]: expanded },
   })),
-  selectResult: (resultRunId) => set({ resultRunId, resultActionStatus: null, runActivityOpen: false }),
+  selectResult: (resultRunId) => set({ resultRunId, resultActionStatus: null, resultDetailsOpen: false, runActivityOpen: false }),
   setResultActionStatus: (resultActionStatus) => set({ resultActionStatus }),
+  toggleResultDetails: () => set(state => ({ resultDetailsOpen: !state.resultDetailsOpen })),
   setRunFilters: (runFilters) =>
     set((state) => ({
       runFilters,

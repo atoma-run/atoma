@@ -1910,7 +1910,7 @@ export class GpuRenderer {
     this.turnSliderBounds = null;
     const nextDetailKey =
       snapshot.state.resultRunId && (snapshot.state.view === 'runs' || snapshot.state.view === 'projects')
-        ? `result:${snapshot.state.resultRunId}`
+        ? `result:${snapshot.state.resultRunId}:${snapshot.state.resultDetailsOpen}`
         : snapshot.state.view === 'runs'
         ? snapshot.state.runActivityOpen
           ? `activity:${snapshot.state.selectedRunId}:${snapshot.state.runActivityFile ?? ''}:${snapshot.state.runActivityPage}`

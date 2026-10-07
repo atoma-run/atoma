@@ -637,6 +637,10 @@ function GpuAppContent({
     requestPreview, closePreview, stopPreview, reloadPreview } = usePreviewSession({ previewTarget, previewSummary, t });
 
   const activate = useCallback((id: string) => {
+    if (id === 'result.details') {
+      useGpuStore.getState().toggleResultDetails();
+      return;
+    }
     if (id === 'result.close') {
       const current = useGpuStore.getState();
       if (current.view === 'projects' && current.projectSection === 'result') current.selectProjectSection('runs');
