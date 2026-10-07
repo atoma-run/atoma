@@ -1,6 +1,6 @@
 import { Atom } from '../core/atom.js';
 import { REASONING_EXECUTION_GUIDANCE, REASONING_PLAN_GUIDANCE } from '../contracts/taskExecution.js';
-import { reasoningPrompt, PREVIOUS_OBSERVATIONS_GUIDANCE } from './taskContext.js';
+import { reasoningPrompt, taskContextLines } from './taskContext.js';
 import type {
   GenerationParams,
   Plan,
@@ -328,10 +328,11 @@ export class L1Atom extends Atom {
       `tools below during the execute phase. Do not invent tools; use only those listed.`,
       ``,
       `Task: ${task.description}`,
-      task.inputs ? `Inputs: ${JSON.stringify(task.inputs)}` : '',
-      task.inputs?.['previousPhaseObservations'] ? PREVIOUS_OBSERVATIONS_GUIDANCE : '',
+      // Keep the existing planner checklist: a prefilter shortcut forwards
+      // the whole root task here without calling a supervisor planner.
+      // It is context, never an extra phase-validation requirement.
+      ...taskContextLines(task, { includeAcceptanceChecklist: true }),
       ...proofObligationLines(task, this.tools.some((t) => t.name === 'validate_html')),
-      task.constraints?.length ? `Constraints:\n${task.constraints.map((c) => `- ${c}`).join('\n')}` : '',
       ``,
       `Tools available at execute time:`,
       toolCatalog,
@@ -424,8 +425,7 @@ export class L1Atom extends Atom {
       `You are molecule "${this.name}" (tier 1). Your plan has been APPROVED. Execute it now.`,
       ``,
       `Task: ${task.description}`,
-      task.inputs ? `Inputs: ${JSON.stringify(task.inputs)}` : '',
-      task.inputs?.['previousPhaseObservations'] ? PREVIOUS_OBSERVATIONS_GUIDANCE : '',
+      ...taskContextLines(task),
       ...proofObligationLines(task, hasValidator),
       previousAttempt ? `
 ${previousAttempt}` : '',

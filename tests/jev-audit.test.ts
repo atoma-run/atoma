@@ -1,11 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { jevApproval } from '../src/atoms/cost.js';
 import { auditReport, collectCorpus, decisionsOfTrace } from '../src/atoms/jevCalibration.js';
 import { L1Atom } from '../src/atoms/L1Atom.js';
 import { L2Atom } from '../src/atoms/L2Atom.js';
 import { L3Atom } from '../src/atoms/L3Atom.js';
 import { forkBranch } from '../src/core/branchCtx.js';
-import { JEV_AUDIT_RATE, createJevAudit } from '../src/core/jev.js';
+import type { Atom, Supervisor } from '../src/core/atom.js';
+import { JEV_AUDIT_RATE, JEV_RESULT_AUDIT_RATE, createJevAudit } from '../src/core/jev.js';
 import type { JevDecider, RunContext } from '../src/core/types.js';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
@@ -50,6 +51,44 @@ function untrustedL2() {
 }
 
 describe('the audit decides nothing', () => {
+  it.each([2, 3] as const)('audits every result but only sampled plans with the production defaults at tier %i', async tier => {
+    const db = openDb(':memory:');
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.99);
+    try {
+      const reg = new AtomRegistry(db);
+      const { audit, settle } = createJevAudit();
+      const base = makeCtx();
+      const { llm } = base;
+      const run = forkBranch({ ...base, jev: approving(), jevAudit: audit }, 'audited-lane');
+      llm.enqueueText(JSON.stringify({ approved: false, reasoning: 'reference disagrees' }));
+      const validate = async <Child extends Atom>(parent: Supervisor<Child>, child: Child) => {
+        expect(await parent.validatePlan(child, plan, { description: 't' }, run)).toMatchObject({ approved: true });
+        expect(llm.calls).toHaveLength(0);
+        expect(await parent.validateResult(child, {
+          ...result, producedBy: { tier: child.tier, name: child.name, viaFallback: false },
+        }, { description: 't' }, run)).toMatchObject({ approved: true, viaJev: true });
+      };
+      if (tier === 2) await validate(L2Atom.fromType(reg.create(2, seed), reg), L1Atom.fromType(reg.create(1, seed)));
+      else await validate(L3Atom.buildWithModel(reg.create(3, seed), reg, FALLBACK_OPUS), L2Atom.fromType(reg.create(2, seed), reg));
+      await settle(5_000);
+      expect(llm.calls.map(call => [call.role, call.subject, call.branchId])).toEqual([
+        ['jev-audit', 'RESULT', 'audited-lane'],
+      ]);
+      expect(audit.resultRate).toBe(JEV_RESULT_AUDIT_RATE);
+    } finally { random.mockRestore(); db.close(); }
+  });
+
+  it('preserves explicit and legacy audit opt-outs for both subjects', async () => {
+    for (const audit of [createJevAudit(0).audit, { rate: 0, defer: vi.fn() }, { rate: 1, resultRate: 0, defer: vi.fn() }]) {
+      const work = vi.fn(async () => undefined);
+      await jevApproval({ ctx: { ...makeCtx(), jev: approving(), jevAudit: audit }, subject: 'RESULT',
+        supervisorName: 'Cell', supervisorTier: 2, child: { name: 'Water', tier: 1, toolNames: () => [] },
+        task: { description: 't' }, payload: result, audit: work });
+      await Promise.resolve();
+      expect(work).not.toHaveBeenCalled();
+    }
+  });
+
   it("keeps Jev's approval of a plan and a result though the model refuses both, and records the model's verdict as jev-audit", async () => {
     const { l2, l1 } = untrustedL2();
     const { jevAudit, runs } = auditing(1);

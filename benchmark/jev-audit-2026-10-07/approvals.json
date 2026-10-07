@@ -1,0 +1,326 @@
+{
+  "source": "corpus.json.gz",
+  "independentLabels": false,
+  "note": "Every approval is annotated; later root judgments are signals, not independent correctness labels. Full distributions, root reasons and run revisions remain in the corpus.",
+  "approvals": [
+    {
+      "runId": "81375f01-6051-48df-b460-242feb69473b",
+      "startedAt": "2026-10-01T08:33:41.286Z",
+      "revision": "6a16786e3b825b3ed8b941311daed075087bb63a",
+      "eventId": "801ad9f0-bc1c-4fa6-b375-939d56f28d7a",
+      "branchId": "ea2ce3cc-baad-43b5-a89d-9ab1e622d0de",
+      "supervisor": {
+        "name": "Tracheid",
+        "tier": 2
+      },
+      "child": {
+        "name": "Benzene"
+      },
+      "score": 0.76,
+      "category": "inherited-check-regression-signal",
+      "independentCorrectness": null,
+      "annotation": "Later root refusal names inherited noTestFields regressions, then incomplete inherited-check replay. Scope-local correctness is not independently labelled. Test-only-element guidance and replay handling have since changed; no threshold fit is inferred.",
+      "laterRootRefusals": [
+        "68ead092-856c-4cbe-afa3-3dc26f47a08f",
+        "1283a527-62d2-4b2e-8752-22b79d562725"
+      ]
+    },
+    {
+      "runId": "81375f01-6051-48df-b460-242feb69473b",
+      "startedAt": "2026-10-01T08:33:41.286Z",
+      "revision": "6a16786e3b825b3ed8b941311daed075087bb63a",
+      "eventId": "a90c508c-53e6-4c66-b844-669261f4b2b4",
+      "branchId": "cac73765-81c1-4ad8-9116-5fdecd29f933",
+      "supervisor": {
+        "name": "Tracheid",
+        "tier": 2
+      },
+      "child": {
+        "name": "Water"
+      },
+      "score": 0.9299999999999999,
+      "category": "inherited-check-regression-signal",
+      "independentCorrectness": null,
+      "annotation": "Later root refusal names inherited noTestFields regressions, then incomplete inherited-check replay. Scope-local correctness is not independently labelled. Test-only-element guidance and replay handling have since changed; no threshold fit is inferred.",
+      "laterRootRefusals": [
+        "68ead092-856c-4cbe-afa3-3dc26f47a08f",
+        "1283a527-62d2-4b2e-8752-22b79d562725"
+      ]
+    },
+    {
+      "runId": "81375f01-6051-48df-b460-242feb69473b",
+      "startedAt": "2026-10-01T08:33:41.286Z",
+      "revision": "6a16786e3b825b3ed8b941311daed075087bb63a",
+      "eventId": "ef87a4f1-a436-4f99-8ff7-ee0aa4ff53ff",
+      "branchId": "d9be4c75-908e-4940-8a16-e87e36b38df9",
+      "supervisor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "child": {
+        "name": "Tracheid"
+      },
+      "score": 0.94,
+      "category": "inherited-check-regression-signal",
+      "independentCorrectness": null,
+      "annotation": "Later root refusal names inherited noTestFields regressions, then incomplete inherited-check replay. Scope-local correctness is not independently labelled. Test-only-element guidance and replay handling have since changed; no threshold fit is inferred.",
+      "laterRootRefusals": [
+        "68ead092-856c-4cbe-afa3-3dc26f47a08f",
+        "1283a527-62d2-4b2e-8752-22b79d562725"
+      ]
+    },
+    {
+      "runId": "3cbef119-06d1-4510-8843-7e89cd2802ce",
+      "startedAt": "2026-10-01T11:48:44.328Z",
+      "revision": "3936ec0bad79dd1091927f9de857e64eb85d76df",
+      "eventId": "9e726f52-58bd-437e-9e5d-446e730ca715",
+      "branchId": "db28b634-ff82-416b-8857-ab71c9721a6c",
+      "supervisor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "child": {
+        "name": "Tracheid"
+      },
+      "score": 0.89,
+      "category": "no-later-root-refusal",
+      "independentCorrectness": null,
+      "annotation": "No later root refusal recorded. Root acceptance is not an independent label of this phase; local correctness remains unlabelled.",
+      "laterRootRefusals": []
+    },
+    {
+      "runId": "3cbef119-06d1-4510-8843-7e89cd2802ce",
+      "startedAt": "2026-10-01T11:48:44.328Z",
+      "revision": "3936ec0bad79dd1091927f9de857e64eb85d76df",
+      "eventId": "fc5fa7f8-6d3e-4319-a4d3-942ef3469289",
+      "branchId": "c915de97-7a34-4aae-9769-2ba0fa5bb920",
+      "supervisor": {
+        "name": "Tracheid",
+        "tier": 2
+      },
+      "child": {
+        "name": "Ammonia"
+      },
+      "score": 0.87,
+      "category": "no-later-root-refusal",
+      "independentCorrectness": null,
+      "annotation": "No later root refusal recorded. Root acceptance is not an independent label of this phase; local correctness remains unlabelled.",
+      "laterRootRefusals": []
+    },
+    {
+      "runId": "9ad606d9-e92f-4739-b4eb-fa8b5592dba9",
+      "startedAt": "2026-10-01T12:41:51.490Z",
+      "revision": "f0c4be80f5ab523d8add4d65bd07f9781345fe86",
+      "eventId": "fa820dc3-f2e6-4500-b79c-bd4b5843bbd8",
+      "branchId": "87c3e0f1-49f1-418f-b6ef-caa28b025c8c",
+      "supervisor": {
+        "name": "Tracheid",
+        "tier": 2
+      },
+      "child": {
+        "name": "Water"
+      },
+      "score": 0.71,
+      "category": "no-later-root-refusal",
+      "independentCorrectness": null,
+      "annotation": "No later root refusal recorded. Root acceptance is not an independent label of this phase; local correctness remains unlabelled.",
+      "laterRootRefusals": []
+    },
+    {
+      "runId": "cc7ed6f1-9ffe-43be-a133-cfe722f6da24",
+      "startedAt": "2026-10-02T02:56:16.835Z",
+      "revision": "958d4219c4f474e2c94175cefffa43bb610dcc2c",
+      "eventId": "495715fd-1b3f-4327-8484-56121c81d83e",
+      "branchId": "ffcda587-ca88-499e-8303-e8da16884f9c",
+      "supervisor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "child": {
+        "name": "Trichome"
+      },
+      "score": 0.84,
+      "category": "no-later-root-refusal",
+      "independentCorrectness": null,
+      "annotation": "No later root refusal recorded. Root acceptance is not an independent label of this phase; local correctness remains unlabelled.",
+      "laterRootRefusals": []
+    },
+    {
+      "runId": "cc7ed6f1-9ffe-43be-a133-cfe722f6da24",
+      "startedAt": "2026-10-02T02:56:16.835Z",
+      "revision": "958d4219c4f474e2c94175cefffa43bb610dcc2c",
+      "eventId": "58f56e44-9573-465e-a6e4-0d86956d9468",
+      "branchId": "5c340db7-0091-4821-aef6-d1ffa1e24f50",
+      "supervisor": {
+        "name": "Trichome",
+        "tier": 2
+      },
+      "child": {
+        "name": "Benzene"
+      },
+      "score": 0.86,
+      "category": "no-later-root-refusal",
+      "independentCorrectness": null,
+      "annotation": "No later root refusal recorded. Root acceptance is not an independent label of this phase; local correctness remains unlabelled.",
+      "laterRootRefusals": []
+    },
+    {
+      "runId": "cc7ed6f1-9ffe-43be-a133-cfe722f6da24",
+      "startedAt": "2026-10-02T02:56:16.835Z",
+      "revision": "958d4219c4f474e2c94175cefffa43bb610dcc2c",
+      "eventId": "a1304d80-33d5-48f3-84e6-aba2bc56b753",
+      "branchId": "9ac08585-95db-40a0-a97d-35007bff1288",
+      "supervisor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "child": {
+        "name": "Protoplast"
+      },
+      "score": 0.94,
+      "category": "downstream-source-dependence",
+      "independentCorrectness": null,
+      "annotation": "The reporting phase used the prior CSV and its summary as sources. A later root refusal identified altered raw observations in the preceding phase. This flags source provenance, not an independently established false report approval.",
+      "laterRootRefusals": [
+        "056f89aa-2565-4672-90b8-e166c79aa046"
+      ]
+    },
+    {
+      "runId": "cc7ed6f1-9ffe-43be-a133-cfe722f6da24",
+      "startedAt": "2026-10-02T02:56:16.835Z",
+      "revision": "958d4219c4f474e2c94175cefffa43bb610dcc2c",
+      "eventId": "d2294289-61b4-42fd-9e68-34beb6624f49",
+      "branchId": "a762ac6b-dbdc-4533-ae84-c915d5f6293c",
+      "supervisor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "child": {
+        "name": "Protoplast"
+      },
+      "score": 0.94,
+      "category": "missing-original-data",
+      "independentCorrectness": null,
+      "annotation": "The raw-data phase requested exact preservation but its execution prompt omitted the original table. Root acceptance found changed observations despite matching summaries. Original-task propagation was subsequently fixed on October 2; do not label the current policy from this old prompt.",
+      "laterRootRefusals": [
+        "056f89aa-2565-4672-90b8-e166c79aa046"
+      ]
+    },
+    {
+      "runId": "cc7ed6f1-9ffe-43be-a133-cfe722f6da24",
+      "startedAt": "2026-10-02T02:56:16.835Z",
+      "revision": "958d4219c4f474e2c94175cefffa43bb610dcc2c",
+      "eventId": "e8cefa40-c1b8-400f-872f-f4b5926711d1",
+      "branchId": "0b1145ea-5092-4c46-80ff-a829a873ee14",
+      "supervisor": {
+        "name": "Meristem",
+        "tier": 3
+      },
+      "child": {
+        "name": "Trichome"
+      },
+      "score": 0.94,
+      "category": "no-later-root-refusal",
+      "independentCorrectness": null,
+      "annotation": "No later root refusal recorded. Root acceptance is not an independent label of this phase; local correctness remains unlabelled.",
+      "laterRootRefusals": []
+    },
+    {
+      "runId": "c8c67a68-91ca-4205-ab71-6c9c90460333",
+      "startedAt": "2026-10-02T08:53:34.800Z",
+      "revision": "958d4219c4f474e2c94175cefffa43bb610dcc2c",
+      "eventId": "ecbab504-9f02-4bd2-9a49-1fb1d8fa20d4",
+      "branchId": "12bf6058-dcec-4d4c-b6df-49c2f175ecf5",
+      "supervisor": {
+        "name": "Protoplast",
+        "tier": 2
+      },
+      "child": {
+        "name": "Adrenaline"
+      },
+      "score": 0.88,
+      "category": "missing-original-constraints",
+      "independentCorrectness": null,
+      "annotation": "The phase execution prompt lacked the original resource model and no-files constraint; its approved plan already requested a file. Root acceptance found incorrect resources and a forbidden file. Original-task propagation and declared reasoning mode were corrected after this run on October 2.",
+      "laterRootRefusals": [
+        "1ba3bf3a-cb16-4fb4-af95-a11d7f7da507"
+      ]
+    },
+    {
+      "runId": "102556e8-0e7e-40c5-9009-4841206e48a0",
+      "startedAt": "2026-10-02T14:03:21.624Z",
+      "revision": "bf349326822a2b9d7e41e40cd1b813cced70bc69",
+      "eventId": "7de39178-45ff-49a5-93f0-6e49a05baba7",
+      "branchId": "27dd857e-88ee-4475-ae12-8cb62f068ca9",
+      "supervisor": {
+        "name": "Trichome",
+        "tier": 2
+      },
+      "child": {
+        "name": "Benzene"
+      },
+      "score": 0.73,
+      "category": "no-later-root-refusal",
+      "independentCorrectness": null,
+      "annotation": "No later root refusal recorded. Root acceptance is not an independent label of this phase; local correctness remains unlabelled.",
+      "laterRootRefusals": []
+    },
+    {
+      "runId": "2311d446-5787-4356-b032-fcf8ebf184e3",
+      "startedAt": "2026-10-04T23:00:56.594Z",
+      "revision": "134df30ea8ee19a599ef0c6d3849e2c1d4414be2",
+      "eventId": "51f6d3fa-4884-41a9-8f7f-f2b33fbe3bd6",
+      "branchId": "591049e4-d26e-4ca2-82d2-7509d0208bfa",
+      "supervisor": {
+        "name": "Protoplast",
+        "tier": 2
+      },
+      "child": {
+        "name": "CarbonDioxide"
+      },
+      "score": 0.75,
+      "category": "no-later-root-refusal",
+      "independentCorrectness": null,
+      "annotation": "No later root refusal recorded. Root acceptance is not an independent label of this phase; local correctness remains unlabelled.",
+      "laterRootRefusals": []
+    },
+    {
+      "runId": "16a8232a-99e0-468b-b43a-291c1cdf0b4c",
+      "startedAt": "2026-10-06T03:21:58.639Z",
+      "revision": "8608a6e5e359b3c37d77e14a364a5da4d4c7a472",
+      "eventId": "a221ee10-040c-455a-8584-2b08bce7814b",
+      "branchId": "f4c566e5-fb0f-4e16-be30-384190c57e5d",
+      "supervisor": {
+        "name": "Trichome",
+        "tier": 2
+      },
+      "child": {
+        "name": "Chlorophyll"
+      },
+      "score": 0.9299999999999999,
+      "category": "no-later-root-refusal",
+      "independentCorrectness": null,
+      "annotation": "No later root refusal recorded. Root acceptance is not an independent label of this phase; local correctness remains unlabelled.",
+      "laterRootRefusals": []
+    },
+    {
+      "runId": "2f63b887-3894-4560-811b-670aec78bd8c",
+      "startedAt": "2026-10-07T01:38:09.228Z",
+      "revision": "a113a412ca99b606afcd2f993d89bb41ccea84df",
+      "eventId": "45331307-83bf-4652-b5be-c93bff610728",
+      "branchId": "2431cf5c-f581-4e61-a17d-e6203c9d1ddd",
+      "supervisor": {
+        "name": "Idioblast",
+        "tier": 2
+      },
+      "child": {
+        "name": "Ethanol"
+      },
+      "score": 0.78,
+      "category": "no-later-root-refusal",
+      "independentCorrectness": null,
+      "annotation": "No later root refusal recorded. Root acceptance is not an independent label of this phase; local correctness remains unlabelled.",
+      "laterRootRefusals": []
+    }
+  ]
+}

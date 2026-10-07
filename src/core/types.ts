@@ -972,13 +972,19 @@ export interface RunContext {
   readonly jev?: JevDecider;
   /**
    * The Jev audit (docs/jev-decisions-2026-09-28.md): a `rate` share of Jev's
-   * approvals is also judged by the model validator, off the run's path, so
+   * plan approvals (and `resultRate ?? rate` of result approvals) is also
+   * judged by the model validator, off the run's path, so
    * how often the model would refuse what Jev approves stays measured once
    * the model no longer sees those decisions. It decides nothing: Jev's
    * approval stands. `defer` hands the audit to the runner, which awaits what
    * is still pending, bounded, before it closes the trace. Absent, no audit.
    */
-  readonly jevAudit?: { readonly rate: number; readonly defer: (work: () => Promise<unknown>) => void };
+  readonly jevAudit?: {
+    readonly rate: number;
+    /** Absent retains a library caller's shared sampling rate. */
+    readonly resultRate?: number;
+    readonly defer: (work: () => Promise<unknown>) => void;
+  };
   /** Exact subtask lifecycle metadata for timeline fork/join rendering. */
   readonly recordBranch?: (info: BranchEventInfo) => void;
   /**

@@ -10,12 +10,16 @@ import type { Task } from '../src/core/types.js';
 const seed = { description: 'constrained writing', systemPrompt: 'Always use separate modeling, drafting, audit, correction and finalization phases.', tools: [], params: {}, createdBy: 'test' };
 
 describe('runtime planning scope for existing catalog agents', () => {
-  it.each([false, true])('keeps the root checklist only on the root planner (delegated=%s)', async delegated => {
+  it.each([
+    { tier: 2, delegated: false }, { tier: 2, delegated: true },
+    { tier: 3, delegated: false }, { tier: 3, delegated: true },
+  ] as const)('keeps the checklist on root planners only (tier=$tier, delegated=$delegated)', async ({ tier, delegated }) => {
     const db = openDb(':memory:');
     try {
       const reg = new AtomRegistry(db);
-      const molecule = reg.create(1, seed);
-      const cell = L2Atom.fromType(reg.create(2, seed), reg);
+      const molecule = reg.create(tier === 2 ? 1 : 2, seed);
+      const parent = reg.create(tier, seed);
+      const cell = tier === 2 ? L2Atom.fromType(parent, reg) : L3Atom.fromType(parent, reg);
       const original = { description: 'Write a four-stanza poem with six words per line.', inputs: { acceptanceChecklist: 'ROOT_CHECKLIST' } };
       const task: Task = delegated ? {
         description: 'Model the requirements as a checklist; do not draft the poem.',

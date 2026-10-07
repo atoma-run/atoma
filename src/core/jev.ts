@@ -119,12 +119,14 @@ export const JEV_DECISION_TIMEOUT_MS = 2_000;
  */
 export const JEV_MAX_FAILURES_PER_RUN = 3;
 /**
- * The share of Jev's approvals the model validator also judges, in the
+ * The share of Jev's plan approvals the model validator also judges, in the
  * background (2026-09-30): once Jev decides, the model sees only what Jev
  * defers, and without this sample a false approval would go unmeasured. Each
  * audited approval costs one model validation and decides nothing.
  */
 export const JEV_AUDIT_RATE = 0.1;
+/** Results are rare and had no audit in the 160-run October 1–7 corpus. */
+export const JEV_RESULT_AUDIT_RATE = 1;
 /**
  * The share of Jev's DECISIVE effort readings left at the call's own effort,
  * at random, for the measurement pre-registered on 2026-10-06
@@ -857,14 +859,16 @@ export function createJevDecider(opts: {
  * recorded is in it. An audit that fails is dropped: it measures, it never
  * decides, and a model call that failed has already recorded its error.
  */
-export function createJevAudit(rate: number = JEV_AUDIT_RATE): {
+export function createJevAudit(rate?: number): {
   readonly audit: NonNullable<RunContext['jevAudit']>;
   readonly settle: (withinMs: number) => Promise<void>;
 } {
   const pending = new Set<Promise<void>>();
   return {
     audit: {
-      rate,
+      rate: rate ?? JEV_AUDIT_RATE,
+      // An explicit library override retains its historical all-subject meaning.
+      resultRate: rate ?? JEV_RESULT_AUDIT_RATE,
       defer: (work) => {
         const running: Promise<void> = Promise.resolve()
           .then(work)

@@ -297,12 +297,14 @@ Neighbours:
 - `forkBranch` forwards every `JevDecider` method, optional ones included;
   until 2026-10-06 it listed four and dropped `compilable` in every fork.
 - The AUDIT keeps Jev measured once the model no longer sees its approvals:
-  `JEV_AUDIT_RATE` of them are also judged by the model validator in the
+  `JEV_AUDIT_RATE` (10%) of plans and `JEV_RESULT_AUDIT_RATE` (100%) of results
+  are also judged by the model validator in the
   background (`createJevAudit`, carried as `RunContext.jevAudit` and forwarded
   by `forkBranch`). The runner awaits the audits still in flight, at most
   `JEV_AUDIT_SETTLE_MS`, before it closes the trace; one that fails or
   outlasts the bound is dropped. Each audit is one model call on the run's
   bill, and it never changes a decision.
+  The result census follows the [October 7 review](../../docs/jev-calibration-2026-10-07.md).
 
 ## Intentional choices and rejected shortcuts
 

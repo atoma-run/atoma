@@ -395,6 +395,10 @@ terms must name TypeSafe.
 
 ## The audit sample, 2026-09-30
 
+The [October 7 review](jev-calibration-2026-10-07.md) later retained the 10%
+plan sample and changed result approvals to a 100% audit census. The text
+below records the original shared-rate policy.
+
 Once Jev decides, the model judges only what Jev hands it, so nothing in a
 trace says whether a Jev APPROVAL was right: TypeSafe's guidance is to test
 thresholds against your own data, and after the switch there was none for

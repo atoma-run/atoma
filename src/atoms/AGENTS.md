@@ -177,8 +177,8 @@ load-bearing.
   decision, as before. Root delivery acceptance is never Jev's.
 - THE JEV AUDIT: every `jevApproval` call site hands it `audit`, the very model
   verdict it runs without Jev (one `modelVerdict` function per validation, so
-  the audit cannot drift from the real verdict). A `ctx.jevAudit.rate` share of
-  Jev's approvals defers it, under the `jev-audit` role, off the run's path. It
+  the audit cannot drift from the real verdict). The subject's audit rate
+  defers it, under the `jev-audit` role, off the run's path. It
   decides NOTHING — Jev's approval stands whatever the model says — and its
   role keeps it out of every reader that counts validations.
 - The Jev calibration (`jevCalibration.ts`) reads prefilter and validation
@@ -217,6 +217,10 @@ load-bearing.
 ## Aggregation and dispatch shape
 
 - Delegation preserves original task inputs/constraints and preceding phase results.
+  Tool planning/execution and L2/L3 fallback use the same `taskContextLines`
+  as validation; typed `originalTask` wins over its input mirror. Root
+  checklists stay out of phase validation; the molecule planner retains its
+  checklist context for whole-task shortcuts. Current constraints reach execution.
   Sequential handover also carries bounded transport observations from completed
   phases, with event IDs, omission counts and a separate file-change inventory.
   These are historical context for reporting and validation, never new proof

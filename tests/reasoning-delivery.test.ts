@@ -16,6 +16,54 @@ import { TEXT_VERIFICATION_GUIDANCE } from '../src/contracts/taskExecution.js';
 const seed = { description: 'analysis', systemPrompt: 'Always write an answer file.', tools: makeTools(['write_file']), params: {}, createdBy: 'test' };
 
 describe('reasoning delivery across production delegation', () => {
+  it.each([1, 2, 3] as const)('keeps exact source data and constraints in tool execution and fallback at tier %i', async tier => {
+    const db = openDb(':memory:');
+    try {
+      const reg = new AtomRegistry(db);
+      const type = reg.create(tier, { ...seed, tools: makeTools(['read_file']) });
+      const atom = tier === 1 ? L1Atom.fromType(type) : tier === 2 ? L2Atom.fromType(type, reg) : L3Atom.fromType(type, reg);
+      if (tier > 1) atom.setFallbackMode(true);
+      const original = {
+        description: 'Preserve the raw observations exactly; then write a report in the next phase.',
+        inputs: { csv: 'day,A,B\n1,10,20\n2,NA,22\n3,100,NA\n', acceptanceChecklist: 'ROOT_ONLY_CHECKLIST' },
+        constraints: ['Do not impute missing observations.'],
+      };
+      const task: Task = {
+        description: 'Inspect observations.csv. Leave the report to the next phase.',
+        originalTask: original,
+        inputs: { originalTask: { description: 'FORGED_REPLACEMENT' }, acceptanceChecklist: 'ROOT_ONLY_CHECKLIST' },
+        constraints: ['Preserve existing files byte for byte.'],
+      };
+      const execute = vi.fn(async () => original.inputs.csv);
+      const ctx = { ...makeCtx(), tools: { has: () => true, execute } };
+      ctx.llm.enqueueText(jsonText({ reasoning: 'inspect', proposedAction: 'read_file observations.csv', expectedOutput: 'raw rows' }));
+      ctx.llm.enqueue(async req => {
+        await req.executor!.execute('read_file', { path: 'observations.csv' });
+        return { text: jsonText({ output: original.inputs.csv, summary: 'Read the original rows.' }),
+          stopReason: 'end_turn', usage: { inputTokens: 10, outputTokens: 10 } };
+      });
+      const plan = await atom.plan(task, ctx);
+      await atom.execute(task, plan, ctx);
+      expect(ctx.llm.calls).toHaveLength(2);
+      for (const call of ctx.llm.calls) {
+        expect(call.userContent).toContain(original.description);
+        expect(call.userContent).toContain(JSON.stringify(original.inputs.csv));
+        expect(call.userContent).toContain('Do not impute missing observations.');
+        expect(call.userContent).toContain('Preserve existing files byte for byte.');
+        expect(call.userContent).toContain('Task scope: This is a delegated phase');
+        expect(call.userContent).not.toContain('FORGED_REPLACEMENT');
+        // L1 planning retains its historical checklist context, including
+        // when it is the only planner on a whole-task prefilter shortcut.
+        if (tier === 1 && call.role === 'plan') expect(call.userContent).toContain('ROOT_ONLY_CHECKLIST');
+        else expect(call.userContent).not.toContain('ROOT_ONLY_CHECKLIST');
+      }
+      expect(execute).toHaveBeenCalledWith('read_file', { path: 'observations.csv' });
+      // Rendering must not mutate the original task or its historical input shape.
+      expect(original.inputs.acceptanceChecklist).toBe('ROOT_ONLY_CHECKLIST');
+      expect(task.inputs?.['originalTask']).toEqual({ description: 'FORGED_REPLACEMENT' });
+    } finally { db.close(); }
+  });
+
   it('recovers a prose result through L2 supervision without asking the replan for a result envelope', async () => {
     const reg = new AtomRegistry(openDb(':memory:'));
     const molecule = reg.create(1, seed);

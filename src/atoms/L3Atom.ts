@@ -47,7 +47,7 @@ import { superviseLoop, type SupervisionHooks } from '../core/supervisor.js';
 import { forkBranch } from '../core/branchCtx.js';
 import { effectiveObligations, anyUncovered, renderProofCoverage } from './proofCoverage.js';
 import { randomUUID } from 'node:crypto';
-import { delegatedTaskContext, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE } from './taskContext.js';
+import { delegatedTaskContext, taskContextLines, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE } from './taskContext.js';
 import { TASK_EXECUTION_GUIDANCE } from '../contracts/taskExecution.js';
 import { RegistryNotFoundError } from '../core/errors.js';
 import { mergeTools } from './toolMerge.js';
@@ -661,8 +661,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       TASK_EXECUTION_GUIDANCE,
       task.executionMode === 'reasoning' ? 'This task and every descendant are reasoning-only; tools are disabled.' : '',
       `Task: ${task.description}`,
-      task.inputs ? `Inputs: ${JSON.stringify(task.inputs)}` : '',
-      task.constraints?.length ? `Constraints:\n${task.constraints.map((c) => `- ${c}`).join('\n')}` : '',
+      ...taskContextLines(task, { includeAcceptanceChecklist: !task.originalTask && !task.inputs?.['originalTask'] }),
       ``,
       `CRITICAL OUTPUT FORMAT: your entire response MUST be exactly one JSON array`,
       `of TWO objects, with no prose before or after, no markdown fences, no tool calls.`,
@@ -1195,7 +1194,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       TASK_EXECUTION_GUIDANCE,
       task.executionMode === 'reasoning' ? 'This task and every descendant are reasoning-only; tools are disabled.' : '',
       `Task: ${task.description}`,
-      task.inputs ? `Inputs: ${JSON.stringify(task.inputs)}` : '',
+      ...taskContextLines(task),
       hasTools
         ? 'You HAVE tool access in this fallback turn (see Tools below). Plan concrete tool calls — do NOT describe work as prose when a tool can do it.'
         : 'You have NO tool access; produce a reasoning-only answer.',
@@ -1246,7 +1245,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       TASK_EXECUTION_GUIDANCE,
       task.executionMode === 'reasoning' ? 'This task and every descendant are reasoning-only; tools are disabled.' : '',
       `Task: ${task.description}`,
-      task.inputs ? `Inputs: ${JSON.stringify(task.inputs)}` : '',
+      ...taskContextLines(task),
       `Plan: ${JSON.stringify(plan)}`,
       FALLBACK_VERIFICATION_GUIDANCE,
       hasTools ? STATEFUL_EVIDENCE_GUIDANCE : '',

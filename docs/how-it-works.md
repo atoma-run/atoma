@@ -349,7 +349,8 @@ examines a shortlist within the same deadline. It is off by default and has
 no measured quality advantage established by the policy change.
 
 Each `jev` trace event records the decision, fallback or failure, latency,
-usage and separate cost. A random 10% of eligible Jev approvals also receive
+usage and separate cost. A random 10% of eligible Jev plan approvals and all
+eligible Jev result approvals also receive
 the ordinary model verdict in the background (`jev-audit`). This audit does
 not overturn the approval; it measures disagreement with the model, which is
 not independent ground truth. Pending audits may take up to 60 seconds to

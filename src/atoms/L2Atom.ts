@@ -2184,7 +2184,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       TASK_EXECUTION_GUIDANCE,
       task.executionMode === 'reasoning' ? 'This task and every descendant are reasoning-only; tools are disabled.' : '',
       `Task: ${task.description}`,
-      task.inputs ? `Inputs: ${JSON.stringify(task.inputs)}` : '',
+      ...taskContextLines(task),
       hasTools
         ? 'You HAVE tool access in this fallback turn (see Tools below). Plan concrete tool calls — do NOT describe work as prose when a tool can do it.'
         : 'You have NO tool access; produce a reasoning-only answer.',
@@ -2235,7 +2235,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       TASK_EXECUTION_GUIDANCE,
       task.executionMode === 'reasoning' ? 'This task and every descendant are reasoning-only; tools are disabled.' : '',
       `Task: ${task.description}`,
-      task.inputs ? `Inputs: ${JSON.stringify(task.inputs)}` : '',
+      ...taskContextLines(task),
       ``,
       `Plan: ${JSON.stringify(plan)}`,
       FALLBACK_VERIFICATION_GUIDANCE,

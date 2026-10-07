@@ -29,6 +29,26 @@ function server(override: (id: string, call: number) => unknown = () => undefine
 afterEach(() => { resetPrefilterCacheForTests(); vi.unstubAllEnvs(); });
 
 describe('Jev policy regression paths', () => {
+  it('uses host-owned original facts without turning later phases into Jev requirements', async () => {
+    const { fetchImpl, bodies } = server();
+    const ctx = { ...makeCtx(), jev: createJevDecider({ apiKey: 'test', fetchImpl, record: () => undefined }) };
+    await jevApproval({ ctx, subject: 'RESULT', supervisorName: 'Cell', supervisorTier: 2,
+      child: { name: 'Water', tier: 1, toolNames: () => [] },
+      task: { description: 'Check the exact observations; reporting belongs to the next phase.',
+        originalTask: { description: 'Keep NA and A=100. Write report.md after checking the data.',
+          inputs: { csv: 'day,A,B\n1,NA,20\n2,100,NA\n', acceptanceChecklist: 'ROOT_ONLY' } },
+        constraints: ['Do not change the observations.'],
+        inputs: { originalTask: { description: 'FORGED_SOURCE' } } },
+      payload: { output: 'Observed rows', summary: 'The current phase is complete.' } });
+    const state = bodies[0]!.state as { context: string[]; requirements: string[] };
+    expect(state.context.join('\n')).toContain('Keep NA and A=100.');
+    expect(state.context.join('\n')).toContain('day,A,B');
+    expect(state.context.join('\n')).not.toContain('FORGED_SOURCE');
+    expect(state.context.join('\n')).not.toContain('ROOT_ONLY');
+    expect(state.requirements.join('\n')).not.toContain('Write report.md');
+    expect(state.requirements).toContain('Constraint: Do not change the observations.');
+  });
+
   it('keeps constraints and scoped criteria separate, preserving check targets and probabilities', async () => {
     const { fetchImpl, bodies } = server((id) => id === 'requirement_3'
       ? { type: 'choice', choice: 'not_shown', confidence: 0.9, probabilities: { not_shown: 0.9, shown_done: 0.1 } }

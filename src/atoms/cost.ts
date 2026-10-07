@@ -336,8 +336,8 @@ export function trustedApproval(type: AtomType): PositiveVerdict {
  * writes the remediation a refusal needs. An approval here is an ordinary
  * approval: it credits atom trust and skills like the trust fast path does.
  *
- * `audit` is the model verdict the caller would have run without Jev. A
- * `ctx.jevAudit.rate` share of Jev's approvals hands it to `ctx.jevAudit.defer`,
+ * `audit` is the model verdict the caller would have run without Jev.
+ * The subject's audit share hands it to `ctx.jevAudit.defer`,
  * so the model judges them too, off the run's path and under the `jev-audit`
  * role: Jev's approval stands whatever the model says, and the trace keeps how
  * often the model would have refused.
@@ -388,7 +388,10 @@ export async function jevApproval(args: {
   }
   if (!decision?.approved) return null;
   const auditing = args.ctx.jevAudit;
-  if (auditing && args.audit && Math.random() < auditing.rate) auditing.defer(args.audit);
+  if (auditing && args.audit) {
+    const rate = args.subject === 'RESULT' ? auditing.resultRate ?? auditing.rate : auditing.rate;
+    if (Math.random() < rate) auditing.defer(args.audit);
+  }
   return {
     approved: true,
     reasoning: `jev fast-path: ${args.child.name}'s ${args.subject} judged acceptable (decision score=${decision.probability.toFixed(2)})`,

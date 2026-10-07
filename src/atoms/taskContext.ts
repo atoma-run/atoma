@@ -26,7 +26,10 @@ export const DELEGATED_SCOPE_GUIDANCE = 'Task scope: This is a delegated phase, 
 
 /** Shared task evidence for model and Jev validation; the current phase remains the scope. */
 export function taskContextLines(task: Task, options: { includeAcceptanceChecklist?: boolean } = {}): string[] {
-  const inputs = task.inputs ? { ...task.inputs } : undefined;
+  // The typed, host-owned original wins over a stale or model-authored input.
+  const inputs: Task['inputs'] = task.inputs || task.originalTask
+    ? { ...task.inputs, ...(task.originalTask ? { originalTask: task.originalTask } : {}) }
+    : undefined;
   if (inputs) {
     // The root checklist is scoped by the caller, never inherited as phase criteria.
     if (!options.includeAcceptanceChecklist) delete inputs['acceptanceChecklist'];
