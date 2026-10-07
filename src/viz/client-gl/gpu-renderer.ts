@@ -24,7 +24,6 @@ import {
   UniformGroup,
   UPDATE_PRIORITY,
 } from 'pixi.js';
-import { matchesSearchQuery, runSearchText } from '../client/search.js';
 import type {
   BurninRow,
   GoalGuidance,
@@ -429,9 +428,6 @@ function paintPanelShadow(
 export * from './renderer/chip-layout.js';
 export * from './renderer/shaders.js';
 export { gpuEventCardCopy, type GpuEventCardCopy, type GpuTranslate } from './renderer/copy.js';
-import { fmtTokenCount } from './renderer/copy.js';
-import { relativeTime } from './renderer/relative-time.js';
-import { RUN_STATUS_GLYPH, runIndexStatus } from '../client/run-utils.js';
 export {
   emptyRenderMetrics,
   type GpuHitTarget,
@@ -456,8 +452,8 @@ import {
   type VizTuning,
 } from './tuning.js';
 import { prefersReducedMotion } from './renderer/motion.js';
-import { drawScrollbarThumb } from './renderer/scroll-pane.js';
-import { drawRuns, runsPaneLayout, runsPickerControlLayout, RUN_STATUS_COLOR } from './renderer/views/runs.js';
+import { drawRuns } from './renderer/views/runs.js';
+import { drawRunPicker } from './renderer/views/run-picker.js';
 import { drawRegistry } from './renderer/views/registry.js';
 import { drawSkills } from './renderer/views/skills.js';
 import { drawBurnin } from './renderer/views/burnin.js';
@@ -498,15 +494,6 @@ import {
   type TimelineCardMaterial,
 } from './renderer/timeline-card-material.js';
 
-/**
- * The run picker's row carries TWO lines: what the run was, and when it ran
- * with what it spent. The tops are stated together because that is the only
- * thing keeping them inside one 38px control — the first is passed to
- * `button` as its label offset, the second is drawn beside it.
- */
-const RUN_PICKER_ROW_LABEL_TOP = 5;
-const RUN_PICKER_ROW_SECOND_TOP = 24;
-const RUN_PICKER_ROW_SECOND_SIZE = 10;
 
 export class GpuRenderer {
   app = new Application();
@@ -5387,146 +5374,9 @@ export class GpuRenderer {
 
   private drawOverlays(snapshot: GpuRenderSnapshot, width: number, height: number) {
     if (snapshot.state.view !== 'runs' || snapshot.state.focusedInput !== 'run') return;
-    const contentLeft = sidebarWidthForViewport(width);
-    const contentWidth = Math.max(0, width - contentLeft);
-    const picker = runsPickerControlLayout(contentWidth);
-    const pane = runsPaneLayout(contentWidth);
-    const x = contentLeft + picker.x;
-    const popupWidth = Math.max(0, pane.leftWidth - 28);
-    const popupY = picker.y + picker.height + 4;
-    const rowHeight = 43;
-    const headerHeight = 30;
-    const query = snapshot.state.search.run;
-    const matching = snapshot.data.runs
-      .filter((run) => matchesSearchQuery(runSearchText(run), query));
-    const maximumPopupHeight = Math.min(500, height - popupY - 10);
-    const listViewportHeight = Math.max(
-      rowHeight,
-      maximumPopupHeight - headerHeight - 7
-    );
-    const contentHeight = matching.length * rowHeight;
-    this.runPickerScrollMax = Math.max(0, contentHeight - listViewportHeight);
-    const scrollY = Math.max(
-      0,
-      Math.min(this.runPickerScrollMax, snapshot.state.runPickerScrollY)
-    );
-    const visibleListHeight = Math.min(listViewportHeight, Math.max(rowHeight, contentHeight));
-    const popupHeight = headerHeight + visibleListHeight + 7;
-    this.runPickerBounds = new Rectangle(x, popupY, popupWidth, popupHeight);
-    this.panel(
-      this.root,
-      x,
-      popupY,
-      popupWidth,
-      popupHeight,
-      0x0c1321,
-      GPU_COLORS.primary,
-      GPU_LAYOUT.radius,
-      2
-    );
-    this.text(
-      this.root,
-      `${matching.length} / ${snapshot.data.runs.length} RUNS`,
-      x + 12,
-      popupY + 8,
-      { size: 9, color: GPU_COLORS.muted, weight: '700' }
-    );
-
-    const listY = popupY + headerHeight;
-    const listMask = new Graphics();
-    listMask
-      .rect(x + 4, listY, popupWidth - 8, visibleListHeight)
-      .fill(0xffffff);
-    this.root.addChild(listMask);
-    const listLayer = new Container();
-    listLayer.mask = listMask;
-    this.root.addChild(listLayer);
-
-    const start = Math.max(0, Math.floor(scrollY / rowHeight));
-    const visibleCount = Math.ceil(visibleListHeight / rowHeight) + 2;
-    matching.slice(start, start + visibleCount).forEach((run, visibleIndex) => {
-      const index = start + visibleIndex;
-      const rowY = listY + index * rowHeight - scrollY;
-      const keyboardActive = index === snapshot.state.runPickerActiveIndex;
-      const selected = snapshot.state.selectedRunId === run.id;
-      // The SAME answer the run header gives, from the same precedence, and
-      // marked with the same glyphs its status chip spells out. The picker
-      // used to invent its own — `!` for an error, `✕` for a cancellation,
-      // and NOTHING for a run that worked, so a delivered run was the one
-      // outcome the list could not name.
-      const status = runIndexStatus(run);
-      this.button(
-        listLayer,
-        `run.select.${run.id}`,
-        'option',
-        // NOT truncated here. `button` fits its own label to the width it is
-        // given, by measurement, and a character cap ahead of it can only take
-        // away what that measurement would have kept: 82 characters is about
-        // 525px of this face, and these rows are as wide as the panel — so a
-        // third of every row sat empty while its label ended in an ellipsis
-        // (owner report, 2026-09-22). The full label also makes a better
-        // accessible name than a pre-cut one.
-        // The GOAL where the index carries it, because the label is the
-        // COMPACT form — capped at 80 characters when the run was recorded —
-        // and this row is as wide as the panel. The label remains the fallback
-        // for an index that predates the goal, or a run that never had one.
-        // A named run shows its TITLE first: a goal is up to 4 000 characters
-        // of specification, and one row cannot say which run it is with that.
-        `${RUN_STATUS_GLYPH[status]} ${run.projectSlug ? `${run.projectSlug} · ` : ''}${
-          run.title ?? run.goal ?? run.label.replace(/^(?:build-app|baseline):\s*/i, '')
-        }`,
-        x + 5,
-        rowY + 2,
-        popupWidth - 18,
-        38,
-        keyboardActive,
-        snapshot.onActivate,
-        // Selection keeps its own accent; everything else wears its outcome.
-        selected ? GPU_COLORS.tiers[3] : RUN_STATUS_COLOR[status],
-        false,
-        false,
-        undefined,
-        RUN_PICKER_ROW_LABEL_TOP
-      );
-      // WHEN it ran and WHAT IT SPENT, under the goal. The list used to say
-      // neither, so choosing between two runs of the same project meant
-      // opening them. Drawn beside the button rather than inside it: a button
-      // carries one label, and this line is not part of the thing you click.
-      const spent = typeof run.tokens === 'number'
-        ? `${fmtTokenCount(run.tokens)} ${snapshot.t('runs.picker.tokens')}`
-        : '';
-      const second = [
-        relativeTime(run.startedAt, snapshot.t, snapshot.state.locale),
-        spent,
-      ].filter(Boolean).join(' · ');
-      if (second) {
-        this.text(
-          listLayer,
-          this.fitText(second, popupWidth - 38, { size: RUN_PICKER_ROW_SECOND_SIZE }),
-          x + 5 + BUTTON_LABEL_INSET,
-          rowY + RUN_PICKER_ROW_SECOND_TOP,
-          { size: RUN_PICKER_ROW_SECOND_SIZE, color: GPU_COLORS.muted, singleLine: true }
-        );
-      }
-    });
-
-    // ONE scrollbar-thumb definition (renderer/scroll-pane.ts) — the popup
-    // keeps its 4px-inset track but shares geometry/styling with every other
-    // scrollable region. No-ops when runPickerScrollMax is 0.
-    drawScrollbarThumb(this.root, {
-      x,
-      y: listY + 4,
-      width: popupWidth,
-      height: visibleListHeight - 8,
-      scrollY,
-      maxScroll: this.runPickerScrollMax,
-    });
-    if (!matching.length) {
-      this.text(this.root, snapshot.t('runs.none'), x + 14, listY + 12, {
-        size: 11,
-        color: GPU_COLORS.muted,
-      });
-    }
+    const picker = drawRunPicker(this, snapshot, width, height);
+    this.runPickerBounds = picker.bounds;
+    this.runPickerScrollMax = picker.scrollMax;
   }
 
   detailMask(x: number, y: number, width: number, height: number) {

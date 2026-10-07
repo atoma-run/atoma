@@ -3,7 +3,8 @@ import { pendingGitHubAccess, canContinueGitHubAccess, canRetryPublication, type
 import { WorkspaceAccessible } from './WorkspaceAccessible.js';
 import type { WorkspaceBrowserData } from './workspace-browser.js';
 import { UpstreamSetting } from './UpstreamSetting.js';
-import { matchesSearchQuery, runSearchText } from '../client/search.js';
+import { buildRunPicker, runPickerViewportHeight, RUN_PICKER_ROW_HEIGHT } from './run-picker.js';
+import { sceneCameraViewport, visibleSceneLayoutHeight } from './scene-camera.js';
 import {
   LOCALE_NAMES,
   SUPPORTED_LOCALES,
@@ -23,6 +24,14 @@ import {
 import { AnnouncementForm } from './AnnouncementForm.js';
 
 const DEFAULT_VIEWS: ViewName[] = ['projects', 'runs', 'registry', 'skills', 'burnin', 'docs'];
+
+function runPickerInputViewportHeight(input: HTMLInputElement): number {
+  const frame = sceneCameraViewport(input);
+  return runPickerViewportHeight(
+    frame ? visibleSceneLayoutHeight(frame) : window.innerHeight,
+    input.offsetTop + input.offsetHeight + 4
+  );
+}
 
 /**
  * SETTINGS › GENERAL — the display-name field. Real DOM for the same reason
@@ -264,9 +273,7 @@ export function DomBridge({
     }
   };
   const runValue = focusedInput === 'run' ? search.run : selectedRun?.title ?? selectedRun?.label ?? '';
-  const filteredRuns = runs.filter((run) =>
-    matchesSearchQuery(runSearchText(run), search.run)
-  );
+  const runPicker = buildRunPicker(runs, search.run);
   // The account menu is Pixi chrome while text-entry controls are real DOM
   // above the canvas. Forms stay mounted (store-backed values stay on screen),
   // `inert` takes them out of click/focus/a11y, and `.gpu-overlays-veiled`
@@ -371,6 +378,18 @@ export function DomBridge({
           {t(`nav.${view}`)}
           {selectedRun ? ` — ${selectedRun.title ?? selectedRun.label}` : ''}
         </div>
+        {view === 'runs' ? (
+          <select aria-label={t('runs.picker.grouped')} value={selectedRunId ?? ''}
+            onChange={(event) => onSelectRun(event.target.value)}>
+            {runPicker.sections.map(section => (
+              <optgroup key={section.key} label={section.label ?? t('runs.project.operator')}>
+                {section.rows.map(({ run }) => (
+                  <option key={run.id} value={run.id}>{run.title ?? run.goal ?? run.label}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        ) : null}
         {projectGuideEnabled && view === 'projects' && projects.length > 0 ? (
           <section aria-label={t('nav.projects')}>
             {projects.map((project) => (
@@ -469,15 +488,18 @@ export function DomBridge({
           value={runValue}
           placeholder={t('runs.search', { count: runs.length })}
           inert={overlaysInert}
-          onFocus={() => {
+          onFocus={(event) => {
             setSearch('run', '');
             setFocusedInput('run');
+            const options = buildRunPicker(runs).options;
             const selectedIndex = Math.max(
               0,
-              runs.findIndex((run) => run.id === selectedRunId)
+              options.findIndex(({ run }) => run.id === selectedRunId)
             );
             setRunPickerActiveIndex(selectedIndex);
-            setRunPickerScrollY(Math.max(0, (selectedIndex - 4) * 43));
+            const precedingHeight = Math.min(4 * RUN_PICKER_ROW_HEIGHT,
+              runPickerInputViewportHeight(event.currentTarget) - RUN_PICKER_ROW_HEIGHT);
+            setRunPickerScrollY(Math.max(0, (options[selectedIndex]?.top ?? 0) - precedingHeight));
           }}
           onBlur={() => window.setTimeout(() => setFocusedInput(null), 240)}
           onChange={(event) => {
@@ -494,19 +516,22 @@ export function DomBridge({
             if (event.key === 'ArrowDown') nextIndex++;
             else if (event.key === 'ArrowUp') nextIndex--;
             else if (event.key === 'Home') nextIndex = 0;
-            else if (event.key === 'End') nextIndex = filteredRuns.length - 1;
+            else if (event.key === 'End') nextIndex = runPicker.options.length - 1;
             if (nextIndex !== runPickerActiveIndex) {
               event.preventDefault();
-              nextIndex = Math.max(0, Math.min(filteredRuns.length - 1, nextIndex));
+              nextIndex = Math.max(0, Math.min(runPicker.options.length - 1, nextIndex));
               setRunPickerActiveIndex(nextIndex);
-              const rowTop = nextIndex * 43;
-              const currentScroll = useGpuStore.getState().runPickerScrollY;
-              if (rowTop < currentScroll) setRunPickerScrollY(rowTop);
-              else if (rowTop + 43 > currentScroll + 387) {
-                setRunPickerScrollY(rowTop + 43 - 387);
+              const rowTop = runPicker.options[nextIndex]?.top ?? 0;
+              const viewportHeight = runPickerInputViewportHeight(event.currentTarget);
+              const currentScroll = Math.min(Math.max(0, runPicker.height - viewportHeight),
+                useGpuStore.getState().runPickerScrollY);
+              if (nextIndex === 0) setRunPickerScrollY(0);
+              else if (rowTop < currentScroll) setRunPickerScrollY(rowTop);
+              else if (rowTop + RUN_PICKER_ROW_HEIGHT > currentScroll + viewportHeight) {
+                setRunPickerScrollY(rowTop + RUN_PICKER_ROW_HEIGHT - viewportHeight);
               }
             }
-            const activeRun = filteredRuns[runPickerActiveIndex] ?? filteredRuns[0];
+            const activeRun = (runPicker.options[runPickerActiveIndex] ?? runPicker.options[0])?.run;
             if (event.key === 'Enter' && activeRun) {
               onSelectRun(activeRun.id);
               setFocusedInput(null);

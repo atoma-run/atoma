@@ -130,6 +130,7 @@ import {
   RUNS_PROJECT_TITLE_HEIGHT,
 } from '../src/viz/client-gl/renderer/views/runs.js';
 import { drawSkills } from '../src/viz/client-gl/renderer/views/skills.js';
+import { drawRunPicker } from '../src/viz/client-gl/renderer/views/run-picker.js';
 import { timelineConnectorGeometry } from '../src/viz/client-gl/renderer/timeline-rails.js';
 import {
   ADMIN_VIEWS,
@@ -7036,5 +7037,64 @@ describe('incomplete (partial) runs guide the next step', () => {
     expect(texts.filter((value) => plain.startsWith(value.replace(/…$/, '')) && value.length > 8)).toHaveLength(1);
     expect(texts.some((value) => value.includes('loopback'))).toBe(false);
     expect(texts.some((value) => value.startsWith(t('projects.runStatus.partial')))).toBe(true);
+  });
+});
+
+
+describe('project-grouped run picker', () => {
+  const WIDTH = 1600;
+  const HEIGHT = 900;
+  it('keeps projects together, prioritises live activity and never merges equal slugs', () => {
+    const ctx = createRecordingCtx();
+    const now = Date.now();
+    const entry = (id: string, projectId: string, age: number) => ({
+      id, projectId, projectSlug: projectId, label: id,
+      startedAt: new Date(now - age * 60_000).toISOString(),
+      endedAt: new Date(now - age * 60_000 + 1000).toISOString(),
+    });
+    drawRunPicker(ctx, makeSnapshot({}, { runs: [
+      entry('recent', 'newest-project', 1),
+      entry('old', 'newest-project', 100),
+      entry('middle', 'middle-project', 5),
+      { ...entry('live', 'live-project', 60), endedAt: undefined, inFlight: true, lastEventAt: now },
+      { ...entry('other', 'another-project', 10), projectSlug: 'newest-project' },
+      { ...entry('stale', 'stale-project', 120), endedAt: undefined, inFlight: true },
+    ] }), WIDTH, HEIGHT);
+    expect(ctx.buttons.map(button => button.id)).toEqual([
+      'run.select.live', 'run.select.recent', 'run.select.old', 'run.select.middle', 'run.select.other', 'run.select.stale',
+    ]);
+    const labels = ctx.texts.map(text => text.value);
+    expect(labels.filter(label => label === 'newest-project')).toHaveLength(2);
+    expect(labels.indexOf('live-project')).toBeLessThan(labels.indexOf('newest-project'));
+    expect(labels).toContain('2 runs');
+  });
+
+  it('filters within groups, preserves matching goals and omits empty projects', () => {
+    const ctx = createRecordingCtx();
+    drawRunPicker(ctx, makeSnapshot({ search: { run: 'needle', registry: '', skills: '', displayName: '' } }, { runs: [
+      { id: 'a', projectId: 'a', projectSlug: 'Alpha', label: 'Summary', goal: 'Find the needle', startedAt: '2026-10-02' },
+      { id: 'b', projectId: 'b', projectSlug: 'Beta', label: 'No match', startedAt: '2026-10-03' },
+    ] }), WIDTH, HEIGHT);
+    expect(ctx.buttons.map(button => button.id)).toEqual(['run.select.a']);
+    expect(ctx.texts.map(text => text.value)).toContain('Alpha');
+    expect(ctx.texts.map(text => text.value)).not.toContain('Beta');
+  });
+
+  it('includes group headings in scroll bounds and reaches the last run on a short viewport', () => {
+    const runs = Array.from({ length: 60 }, (_, index) => ({
+      id: `run-${index}`, label: `Run ${index}`, projectId: `project-${index}`, projectSlug: `Project ${index}`,
+      startedAt: new Date(Date.UTC(2026, 9, 1) - index * 60_000).toISOString(),
+    }));
+    const first = createRecordingCtx();
+    const { scrollMax, bounds } = drawRunPicker(first, makeSnapshot({}, { runs }), WIDTH, 400);
+    expect(scrollMax).toBeGreaterThan(0);
+    expect(first.buttons[0]!.id).toBe('run.select.run-0');
+    expect(first.buttons.length).toBeLessThan(10);
+    expect(bounds.bottom).toBeLessThanOrEqual(390);
+    const last = createRecordingCtx();
+    drawRunPicker(last, makeSnapshot({ runPickerScrollY: scrollMax }, { runs }), WIDTH, 400);
+    expect(last.buttons.at(-1)!.id).toBe('run.select.run-59');
+    expect(last.buttons.length).toBeLessThan(10);
+    expect(last.buttons.at(-1)!.y + last.buttons.at(-1)!.height).toBeLessThanOrEqual(bounds.bottom);
   });
 });

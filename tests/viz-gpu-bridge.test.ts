@@ -9,7 +9,7 @@ import { translate } from '../src/viz/client/i18n-catalog.js';
 import { SUPPORTED_LOCALES } from '../src/contracts/locales.js';
 import { DomBridge, GpuDomBridge } from '../src/viz/client-gl/DomBridge.js';
 import { projectMcpAccessState } from '../src/viz/client-gl/queries.js';
-import type { VizGitHubInstallation } from '../src/viz/client/types.js';
+import type { RunIndexEntry, VizGitHubInstallation } from '../src/viz/client/types.js';
 import {
   ENTRY_FADE_IN_MS,
   ENTRY_FADE_OUT_MS,
@@ -81,7 +81,7 @@ afterEach(() => {
 
 function renderBridge(
   onSelectRun = vi.fn(),
-  runItems = runs,
+  runItems: RunIndexEntry[] = runs,
   onEnter?: () => void,
   githubInstallations: VizGitHubInstallation[] = [],
   selectedProjectName: string | null = null
@@ -628,6 +628,29 @@ describe('full-GL minimal DOM bridge', () => {
     await user.click(input);
     await user.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}{Enter}');
     expect(onSelectRun).toHaveBeenCalledWith('run-4');
+  });
+
+  it('uses project order for focus, arrows, search and accessible selection', async () => {
+    const user = userEvent.setup();
+    const items = [
+      { id: 'b', label: 'B change', projectId: 'b', projectSlug: 'Beta', startedAt: '2026-10-02' },
+      { id: 'a-old', label: 'Old change', projectId: 'a', projectSlug: 'Alpha', startedAt: '2026-10-01' },
+      { id: 'a-new', label: 'New change', projectId: 'a', projectSlug: 'Alpha', startedAt: '2026-10-03' },
+    ];
+    useGpuStore.setState({ selectedRunId: 'a-new' });
+    const { onSelectRun } = renderBridge(vi.fn(), items);
+    const select = screen.getByRole('combobox', { name: 'Runs by project' });
+    expect(within(select).getAllByRole('group').map(group => group.getAttribute('label'))).toEqual(['Alpha', 'Beta']);
+    expect(within(select).getAllByRole('option').map(option => option.getAttribute('value'))).toEqual(['a-new', 'a-old', 'b']);
+    const input = screen.getByRole('textbox', { name: /Search 3 runs/ });
+    await user.click(input);
+    expect(useGpuStore.getState().runPickerActiveIndex).toBe(0);
+    await user.keyboard('{ArrowDown}{Enter}');
+    expect(onSelectRun).toHaveBeenLastCalledWith('a-old');
+    await user.click(input);
+    await user.type(input, 'Beta');
+    await user.keyboard('{Enter}');
+    expect(onSelectRun).toHaveBeenLastCalledWith('b');
   });
 });
 

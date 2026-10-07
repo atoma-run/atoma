@@ -113,7 +113,6 @@ describe('viz full-GL build contract with MUI fallback', () => {
   it('bounds full-GL rendering and keeps data-heavy widgets on the GPU', () => {
     // Run picker overlay windows its matches instead of truncating the list.
     expect(gpuRenderer).toMatch(/runPickerScrollMax/);
-    expect(gpuRenderer).toMatch(/matching\.slice\(start, start \+ visibleCount\)/);
     expect(gpuRenderer).not.toMatch(/\.slice\(0, 12\)/);
     expect(rendererRuns).not.toMatch(/\.slice\(0, 12\)/);
     // The GPU runs view and the MUI RunsView share ONE heading/detail source.
