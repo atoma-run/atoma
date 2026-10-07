@@ -128,7 +128,7 @@ function showsPartialGuidance(run: VizProjectRun, newest: boolean): boolean {
 function runRowHeight(run: VizProjectRun, compact = false, newest = false): number {
   if (pendingGitHubAccess(run)) return (run.traceId ? (compact ? RUN_COMPACT_CARD_HEIGHT : RUN_CARD_HEIGHT) + RUN_RESULT_SPACE : 82) + GITHUB_ACCESS_HEIGHT + RUN_ROW_GAP;
   const hasSecondLine = Boolean(
-    showsPartialGuidance(run, newest) ||
+    run.status === 'queued' || showsPartialGuidance(run, newest) ||
     (run.error && run.status !== 'partial') ||
     (run.publication?.status === 'published' && run.publication.pullRequestUrl)
   );
@@ -718,6 +718,11 @@ export function drawProjects(
             { size: 9, color: GPU_COLORS.primary, width: textWidth, singleLine: true });
           ctx.linkRegion(pane.content, 'project.pullRequest.' + run.projectRunId, snapshot.t('projects.pullRequest'),
             textX, extraY - 3, textWidth, 18, snapshot.onActivate);
+        } else if (run.status === 'queued') {
+          const waiting = snapshot.t('projects.runWaiting');
+          ctx.text(pane.content, waiting, textX, extraY,
+            { size: 11, color: GPU_COLORS.muted, width: textWidth, singleLine: true });
+          ctx.tooltip(pane.content, { x: textX, y: extraY, width: textWidth, height: 20, text: waiting });
         } else if (showsPartialGuidance(run, newest)) {
           ctx.text(pane.content, snapshot.t(run.rerunOf ? 'projects.runPartial.rerun'
             : project.repositoryTarget.source ? 'projects.runPartial.imported' : 'projects.runPartial.continue'),

@@ -3192,6 +3192,9 @@ describe('drawProjects', () => {
         1000,
         720
       );
+      if (runs.some(run => run.status === 'queued')) {
+        expect(ctx.texts.map(entry => entry.value)).toContain(t('projects.runWaiting'));
+      }
       return ctx.buttons.find((button) => button.id.startsWith('project.run.'))!.width;
     };
 

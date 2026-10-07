@@ -4,11 +4,13 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import Database from 'better-sqlite3';
+import { randomUUID } from 'node:crypto';
 import {
   acquireRunLease,
   acquireRunLeaseWithoutRecovery,
   peekDeploymentPending,
   peekRunLease,
+  peekRunLeases,
   processFingerprint,
   registerDeploymentPending,
   RunLockBusyError,
@@ -61,6 +63,146 @@ describe('MCP cross-process run lease', () => {
     db.exec(SCHEMA);
     return db;
   }
+
+  it('admits ten organisations, excludes duplicate organisations and drains every place', async () => {
+    const organisations = Array.from({ length: 11 }, () => randomUUID());
+    const leases = await Promise.all(organisations.slice(0, 10).map((orgId, index) =>
+      acquireRunLease(`project:${index}`, lockPath, { orgId })));
+    try {
+      expect(peekRunLeases(lockPath)).toHaveLength(10);
+      await expect(acquireRunLease('eleventh', lockPath, { orgId: organisations[10]! })).rejects.toThrow(RunLockBusyError);
+      await expect(acquireRunLease('same-client', lockPath, { orgId: organisations[0]! })).rejects.toThrow(RunLockBusyError);
+      await expect(acquireRunLease('operator', lockPath)).rejects.toThrow(RunLockBusyError);
+      expect(() => acquireRunLeaseWithoutRecovery('analyst:test', lockPath)).toThrow(RunLockBusyError);
+      // Releasing a non-first place must not release its neighbours.
+      leases[5]!.release();
+      expect(peekRunLeases(lockPath)).toHaveLength(9);
+      const replacement = await acquireRunLease('replacement', lockPath, { orgId: organisations[10]! });
+      leases.push(replacement);
+      expect(peekRunLeases(lockPath)).toHaveLength(10);
+      const pending = registerDeploymentPending('deployment:test', lockPath);
+      try {
+        for (const lease of leases.slice(0, -1)) lease.release();
+        expect(runLeaseOwnerLive(lockPath)).toBe(true);
+        expect(peekRunLease(lockPath)?.runId).toBe('replacement');
+        expect(() => acquireRunLeaseWithoutRecovery('deployment:test', lockPath, { pendingToken: pending.token })).toThrow(RunLockBusyError);
+        await expect(acquireRunLease('new', lockPath, { orgId: organisations[0]! })).rejects.toMatchObject({ condition: 'pending' });
+        replacement.release();
+        const deployment = acquireRunLeaseWithoutRecovery('deployment:test', lockPath, { pendingToken: pending.token });
+        deployment.release();
+      } finally { pending.release(); }
+      expect(peekRunLeases(lockPath)).toEqual([]);
+    } finally { for (const lease of leases) lease.release(); }
+  });
+
+  it('migrates the fixed ten-place schema without losing live ownership and admits above ten', async () => {
+    const orgId = randomUUID();
+    const seed = new Database(lockPath);
+    seed.exec(SCHEMA.replace('CHECK (singleton = 1)', 'CHECK (singleton BETWEEN 1 AND 10), org_id TEXT UNIQUE'));
+    seed.prepare(`INSERT INTO mcp_run_lease
+      (singleton, org_id, token, run_id, owner_pid, acquired_at, owner_fingerprint)
+      VALUES (1, ?, 'preserved-token', 'existing', ?, ?, ?)`).run(
+      orgId, process.pid, new Date().toISOString(), processFingerprint(process.pid));
+    seed.close();
+    const leases: Awaited<ReturnType<typeof acquireRunLease>>[] = [];
+    const maxConcurrent = () => 12;
+    try {
+      for (let index = 0; index < 11; index++) {
+        leases.push(await acquireRunLease(`added-${index}`, lockPath, { orgId: randomUUID(), maxConcurrent }));
+      }
+      expect(peekRunLeases(lockPath)).toHaveLength(12);
+      expect(peekRunLeases(lockPath)[0]).toMatchObject({ token: 'preserved-token', runId: 'existing' });
+      await expect(acquireRunLease('same-client', lockPath, { orgId, maxConcurrent })).rejects.toThrow(RunLockBusyError);
+      await expect(acquireRunLease('thirteenth', lockPath, { orgId: randomUUID(), maxConcurrent })).rejects.toMatchObject({ condition: 'capacity' });
+    } finally { for (const lease of leases) lease.release(); }
+  });
+
+  it('keeps an organisation reserved before its project row exists and after another place is released', async () => {
+    const orgId = randomUUID();
+    const first = await acquireRunLease('first', lockPath, { orgId });
+    const other = await acquireRunLease('other', lockPath, { orgId: randomUUID() });
+    try {
+      await expect(acquireRunLease('duplicate', lockPath, { orgId })).rejects.toThrow(/first/);
+      first.release();
+      expect(peekRunLeases(lockPath).map((row) => row.runId)).toEqual(['other']);
+      expect(runLeaseOwnerLive(lockPath)).toBe(true);
+      const successor = await acquireRunLease('successor', lockPath, { orgId });
+      successor.release();
+      expect(peekRunLeases(lockPath).map((row) => row.runId)).toEqual(['other']);
+    } finally { first.release(); other.release(); }
+  });
+
+  it.each([false, true])('enforces capacity across competing processes (duplicate clients: %s)', async (duplicateClients) => {
+    const children: ChildProcessWithoutNullStreams[] = [];
+    const exits: Array<Promise<number | null>> = [];
+    const orgIds = Array.from({ length: 12 }, () => randomUUID());
+    const script = `
+      import { acquireRunLease, RunLockBusyError } from './src/mcp/runLock.ts';
+      (async () => {
+        let lease;
+        try {
+          lease = await acquireRunLease(process.env.ORG_ID, process.env.LOCK_PATH, { orgId: process.env.ORG_ID });
+        } catch (error) { if (!(error instanceof RunLockBusyError)) throw error; }
+        process.stdout.write(lease ? 'LOCKED\\n' : 'REFUSED\\n');
+        process.stdin.resume();
+        process.stdin.on('end', () => { lease?.release(); process.exit(0); });
+      })().catch(error => { console.error(error); process.exit(1); });`;
+    try {
+      const results = await Promise.all(Array.from({ length: 12 }, (_, index) => {
+        const child = spawn(process.execPath, ['--import', 'tsx', '-e', script], {
+          cwd: process.cwd(), env: { ...process.env, LOCK_PATH: lockPath, ORG_ID: orgIds[duplicateClients ? index % 6 : index]! },
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+        children.push(child);
+        exits.push(new Promise((resolve) => child.once('exit', resolve)));
+        return new Promise<string>((resolve, reject) => {
+          let stderr = '', stdout = '';
+          const timer = setTimeout(() => reject(new Error(`admission timed out: ${stderr}`)), 30_000);
+          child.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+          child.stdout.on('data', (chunk: Buffer) => {
+            stdout += chunk.toString();
+            if (!stdout.includes('\n')) return;
+            clearTimeout(timer);
+            resolve(stdout.trim());
+          });
+          child.once('error', (error) => { clearTimeout(timer); reject(error); });
+          child.once('exit', () => { clearTimeout(timer); reject(new Error(`child exited: ${stderr}`)); });
+        });
+      }));
+      const admitted = duplicateClients ? 6 : 10;
+      expect(results.filter((result) => result === 'LOCKED')).toHaveLength(admitted);
+      expect(results.filter((result) => result === 'REFUSED')).toHaveLength(12 - admitted);
+      expect(peekRunLeases(lockPath)).toHaveLength(admitted);
+      expect(() => acquireRunLeaseWithoutRecovery('maintenance:test', lockPath)).toThrow(RunLockBusyError);
+      for (const child of children) child.stdin.end();
+      expect(await Promise.all(exits)).toEqual(Array.from({ length: 12 }, () => 0));
+      expect(peekRunLeases(lockPath)).toEqual([]);
+    } finally {
+      for (const child of children) if (child.exitCode === null) child.kill('SIGKILL');
+      await Promise.all(exits);
+    }
+  }, 60_000);
+
+  it('recovers a stale later place and attaches children without touching a live neighbour', async () => {
+    const first = await acquireRunLease('live', lockPath, { orgId: randomUUID() });
+    const orgId = randomUUID();
+    const second = await acquireRunLease('stale', lockPath, { orgId });
+    try {
+      second.attachChild(process.pid);
+      expect(peekRunLeases(lockPath).find((row) => row.runId === 'live')?.childPgid).toBeUndefined();
+      expect(peekRunLeases(lockPath).find((row) => row.runId === 'stale')?.childPgid).toBe(process.pid);
+      const db = new Database(lockPath);
+      db.prepare("UPDATE mcp_run_lease SET owner_pid = 2147483647, child_pgid = NULL WHERE run_id = 'stale'").run();
+      db.close();
+      const successor = await acquireRunLease('successor', lockPath, { orgId });
+      try {
+        second.release(); // Old token must not delete the successor.
+        expect(peekRunLeases(lockPath).map((row) => row.runId)).toEqual(['live', 'successor']);
+        first.release();
+        expect(runLeaseOwnerLive(lockPath)).toBe(true);
+      } finally { successor.release(); }
+    } finally { first.release(); second.release(); }
+  });
 
   function seedStale(runId = 'stale-run'): void {
     const db = inspect();
@@ -437,6 +579,37 @@ describe('MCP cross-process run lease', () => {
     expect(lease.recovered).toBeUndefined();
     lease.release();
   });
+
+  posixIt('reports every abandoned child reaped before exclusive admission', async () => {
+    const children = Array.from({ length: 2 }, () => spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+      detached: true, stdio: 'ignore',
+    }));
+    const leases = [];
+    try {
+      await Promise.all(children.map((child) => new Promise<void>((resolve, reject) => {
+        child.once('spawn', resolve); child.once('error', reject);
+      })));
+      for (const [index, child] of children.entries()) {
+        const lease = await acquireRunLease(`orphan:${index}`, lockPath, { orgId: randomUUID() });
+        leases.push(lease);
+        lease.attachChild(child.pid!);
+      }
+      const db = new Database(lockPath);
+      db.prepare('UPDATE mcp_run_lease SET owner_pid = 2147483647').run();
+      db.close();
+      const exclusive = await acquireRunLease('operator:recovery', lockPath);
+      try {
+        expect(exclusive.recoveredRuns).toEqual(children.map((child, index) => ({ runId: `orphan:${index}`, childPgid: child.pid })));
+        expect(exclusive.recovered).toEqual(exclusive.recoveredRuns?.[0]);
+        for (const child of children) expect(() => process.kill(-child.pid!, 0)).toThrow();
+        for (const lease of leases) lease.release();
+        expect(peekRunLeases(lockPath).map((row) => row.runId)).toEqual(['operator:recovery']);
+      } finally { exclusive.release(); }
+    } finally {
+      for (const lease of leases) lease.release();
+      for (const child of children) if (child.pid) forceKillTestProcessTree(child.pid);
+    }
+  }, 15_000);
 
   /**
    * peekRunLease exists so atoma_run_status can report a previous server's

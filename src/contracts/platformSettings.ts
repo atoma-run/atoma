@@ -36,7 +36,7 @@ import { z } from 'zod';
  * the variable a reader should mention next to the value, and nothing here
  * consults it. `resolvePlatformLimits` is pure.
  *
- * NOTHING HERE IS A SECRET, a model, a credential or a path. Eight numbers,
+ * NOTHING HERE IS A SECRET, a model, a credential or a path. Numeric limits,
  * bounded, served to a platform admin and journaled when one changes.
  */
 
@@ -46,6 +46,7 @@ import { z } from 'zod';
  * its bounds, its default, its kind and its summary are all stated.
  */
 export const PLATFORM_SETTING_KEYS = [
+  'run.concurrentMax',
   'run.timeoutDefaultMs',
   'run.timeoutMaxMs',
   'run.tokenMaxTotal',
@@ -99,6 +100,12 @@ export interface PlatformSettingSpec {
  * change invisible in exactly the deployments least able to explain it.
  */
 export const PLATFORM_SETTINGS: Record<PlatformSettingKey, PlatformSettingSpec> = {
+  'run.concurrentMax': {
+    key: 'run.concurrentMax', unit: 'count', kind: 'ceiling',
+    min: 1, max: 1_000, fallback: 10, zeroMeansUnlimited: false, env: null,
+    readAt: 'src/mcp/runLock.ts#acquireRunLease',
+    summary: 'Maximum simultaneous project runs across the host; one per organisation. Changes affect new admissions only.',
+  },
   'run.timeoutDefaultMs': {
     key: 'run.timeoutDefaultMs',
     unit: 'ms',

@@ -1203,7 +1203,7 @@ describe('runs as tasks, and the run log', () => {
     const { tasks, start } = projectTaskSession(tenant.service);
     const created = await start.start(PROJECT_ARGS);
     expect(created).toMatchObject({
-      taskId: 'project-run:p-1:is-run-1', status: 'working', statusMessage: 'run is-run-1 queued',
+      taskId: 'project-run:p-1:is-run-1', status: 'working', statusMessage: 'This run is waiting for an available slot to start.',
       ttl: 2 * 60 * 60 * 1000 + 10 * 60 * 1000, pollInterval: 10,
     });
     tenant.set('is-run-1', 'running');
@@ -1311,7 +1311,7 @@ describe('runs as tasks, and the run log', () => {
     expect(await waiting).toMatchObject({ structuredContent: { status: 'delivered' } });
     const settled = sent.length;
     await tick(60);
-    expect(sent[0]).toEqual({ progressToken: 'tok-1', progress: 1, message: 'run alive-run-1 queued' });
+    expect(sent[0]).toEqual({ progressToken: 'tok-1', progress: 1, message: 'This run is waiting for an available slot to start.' });
     expect(sent.map((entry) => entry.message)).toContain('run alive-run-1 running');
     // Heartbeats between status changes, strictly increasing, and silence once the run ended.
     expect(sent.length).toBeGreaterThan(2);

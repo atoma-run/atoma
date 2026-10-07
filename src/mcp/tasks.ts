@@ -1,3 +1,4 @@
+import { PROJECT_RUN_WAITING_MESSAGE } from '../contracts/projects.js';
 import { randomBytes } from 'node:crypto';
 import type { CallToolResult, McpServer, ServerContext } from '@modelcontextprotocol/server';
 import { z } from 'zod';
@@ -493,7 +494,7 @@ export class ProjectRunTasks {
     const cancelled = CANCEL_REQUESTED.has(taskId) || snapshot.status === 'cancelled';
     const line = cancelled && !PROJECT_TERMINAL.has(snapshot.status)
       ? `run ${projectRunId} cancellation requested, ${snapshot.status}`
-      : `run ${projectRunId} ${snapshot.status}`;
+      : snapshot.status === 'queued' ? PROJECT_RUN_WAITING_MESSAGE : `run ${projectRunId} ${snapshot.status}`;
     return {
       taskId,
       status: cancelled ? 'cancelled'

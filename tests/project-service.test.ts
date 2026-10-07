@@ -228,6 +228,7 @@ describe('ProjectService — roles, IDOR and slug identity', () => {
       projectRunId: reserved!.run.projectRunId,
       goal: 'Build a dashboard.',
       status: 'queued',
+      statusMessage: 'This run is waiting for an available slot to start.',
       costUsd: null,
       publication: null,
     });

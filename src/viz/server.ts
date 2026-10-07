@@ -833,6 +833,7 @@ const PROJECTS_RUNTIME: ProjectsRuntime | null = (() => {
   const previewStore = PreviewStore.open(dbPath);
   const coordinator = new ProjectRunCoordinator({
     store: projectStore,
+    queuedRunAllowed: (id, orgId) => AUTH!.store!.listOrganisationsForPrincipal(id).some(membership => membership.orgId === orgId && membership.role !== 'org:viewer'),
     dbPath,
     projectsRoot: PROJECTS_ROOT,
     skillsDir: SKILLS_DIR,

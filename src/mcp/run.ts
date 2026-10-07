@@ -55,7 +55,7 @@ import { GOAL_GUIDANCE } from '../run/guidance.js';
 import { runsDirPath } from './readers.js';
 import {
   acquireRunLease,
-  peekRunLease,
+  peekRunLeases,
   RunLockBusyError,
   type ReapedRun,
   type RunLease,
@@ -109,6 +109,7 @@ export interface RunRecordPublic {
    * caller must be able to name — see RunLease.recovered.
    */
   readonly recovered?: ReapedRun;
+  readonly recoveredRuns?: readonly ReapedRun[];
 }
 
 interface RunRecord {
@@ -302,6 +303,7 @@ function publish(r: RunRecord): RunRecordPublic {
     configFailureSuspected: r.configFailureSuspected,
     hint: r.hint,
     recovered: r.recovered,
+    recoveredRuns: r.lease.recoveredRuns,
   };
 }
 
@@ -374,7 +376,7 @@ function requestCancellation(record: RunRecord, reason: string): void {
 export async function startRun(
   input: StartRunInput,
   driver: RunDriver | undefined = spawnRun,
-  acquireLease: RunLeaseAcquirer | undefined = acquireRunLease
+  acquireLease: RunLeaseAcquirer | undefined = (id) => acquireRunLease(id)
 ): Promise<RunRecordPublic> {
   if (inFlight) {
     throw new RunRejected(
@@ -512,13 +514,18 @@ export async function startRun(
  * reporting it as foreign would be wrong.
  */
 function foreignLeaseReport(): unknown {
-  const owner = peekRunLease();
+  const owners = peekRunLeases();
+  const owner = owners[0];
   if (!owner) return undefined;
   return {
     runId: owner.runId,
     ownerPid: owner.ownerPid,
     childPgid: owner.childPgid ?? null,
     acquiredAt: owner.acquiredAt,
+    ...(owners.length > 1 ? { owners: owners.map((held) => ({
+      runId: held.runId, ownerPid: held.ownerPid,
+      childPgid: held.childPgid ?? null, acquiredAt: held.acquiredAt,
+    })) } : {}),
     note:
       'This lease row belongs to another or a PREVIOUS MCP server process — run records are in-memory only and did not survive it. Its run may still be LIVE; atoma_run_start would recover the lease and REAP any surviving process group as a side effect.',
   };

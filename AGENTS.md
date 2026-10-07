@@ -297,10 +297,10 @@ What a worktree does NOT isolate, and what each one must set:
   `ATOMA_VIZ_API_PORT` per worktree. The `atoma-worker:latest` tag is shared
   too — do not rebuild it while another agent's container run is in flight.
 - The MCP run lease (`~/.atoma/mcp-run-lock.db`) is machine-global ON PURPOSE.
-  Never override `ATOMA_MCP_RUN_LOCK` to win concurrency: it is what keeps two
-  runs off one workspace and one provider quota.
-- Model quota is one account. Runs and their sub-agents draw on it together, so
-  parallel EDITING is safe and parallel RUNNING is not: one live run at a time.
+  Never override `ATOMA_MCP_RUN_LOCK` to win concurrency: it admits a configurable number of
+  isolated project runs, one per organisation; operator work stays exclusive.
+- Model quota is shared by runs using the same payer. Local burn-in and operator
+  runs remain exclusive; hosted runs use bounded admission, never copied stores.
 
 ## Cost discipline
 
@@ -378,7 +378,7 @@ Identify the run from production records and page its evidence to the end. Do no
 If tools are not exposed, check MCP discovery/configuration and report the exact missing capability or connection error before falling back. An empty tool/resource listing does not prove the configured server is absent.
 Never start a run or spend model quota merely to test connectivity.
 
-The server contract lives in [src/mcp](src/mcp/AGENTS.md): ONE HTTP MCP on `/mcp`, protocols 2025-11-25 and 2026-07-28, a role-tiered catalogue, bearer API tokens, runs serialised by memory state and a SQLite lease.
+The server contract lives in [src/mcp](src/mcp/AGENTS.md): ONE HTTP MCP on `/mcp`, protocols 2025-11-25 and 2026-07-28, a role-tiered catalogue, bearer API tokens, and SQLite admission for project runs (10 by default), one per organisation. Operator work stays exclusive.
 The catalogue is a compatibility contract for every registered client. Decisions: [one surface](docs/mcp-one-surface-2026-09-05.md), [two eras](docs/mcp-two-eras-2026-09-30.md).
 
 ## Testing and linting

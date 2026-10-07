@@ -149,10 +149,12 @@ Neighbours:
 
 - `spawnRun` is the sole sanctioned operator run launcher. Keep compiled and
   source paths and flag ordering aligned; the goal is always the last argument.
-- Runs are serialised by both in-memory state and the SQLite lease
-  (`~/.atoma/mcp-run-lock.db`, machine-global on purpose). A second start is
-  refused; stale lease recovery must validate PIDs/PGIDs safely. Deployment
-  takes that same slot through `acquireRunLeaseWithoutRecovery` and never
+- Project runs hold SQLite reservations bounded by `run.concurrentMax` (default 10),
+  at most ONE per organisation, including preparation and finalization. Excess global demand is queued; retries
+  reattach as before. Operator runs remain exclusive through in-memory state
+  and the same lease store (`~/.atoma/mcp-run-lock.db`, machine-global).
+  Stale lease recovery must validate PIDs/PGIDs safely. Deployment
+  waits for EVERY reservation through `acquireRunLeaseWithoutRecovery` and never
   recovers a row that may still have a run behind it. The one row any taker
   there reclaims is a dead owner's that recorded NO process group — what a
   killed analysis, mend, maintenance or guard leaves — because there is
@@ -444,6 +446,11 @@ Neighbours:
 
 ## Intentional choices and rejected shortcuts
 
+- A separate lock file per client bypasses the global capacity and deployment
+  drain: refused. All reservations and the pending deployment share one
+  immediate transaction boundary. Upgrade/rollback must drain and stop all
+  writers: an old binary understands only the former singleton. The migration
+  preserves existing ownership, tokens and process fingerprints.
 - The waiting deployment as a marker file beside `ATOMA_DEPLOY_LOCK_PATH`:
   rejected. A file cannot be checked atomically with the lease row, every
   process would need that path in its environment, and a file survives the

@@ -1,3 +1,4 @@
+import { PlatformSettingsStore } from '../platform/settings.js';
 import { repositorySyncSchema, type RepositorySync } from '../contracts/repositorySync.js';
 import { randomUUID } from 'node:crypto';
 import { orgRunLimitSchema, type OrgRunCapacity } from '../contracts/projects.js';
@@ -467,6 +468,7 @@ interface ProjectRunRow {
   bytes_expired_at?: string | null;
   rerun_of_run_id?: string | null;
   model_overrides_json?: string | null;
+  requested_timeout_ms?: number | null;
   seed_json?: string | null;
   depth?: string | null;
   title?: string | null;
@@ -583,6 +585,7 @@ function runFromRow(row: ProjectRunRow): ProjectRun {
     ...(row.repository_base_json ? { repositoryBase: parseJson(row.repository_base_json, 'repository base') } : {}),
     ...(row.rerun_of_run_id ? { rerunOf: row.rerun_of_run_id } : {}),
     ...(row.model_overrides_json ? { modelOverrides: parseJson(row.model_overrides_json, 'model overrides') } : {}),
+    ...(row.requested_timeout_ms != null ? { requestedTimeoutMs: row.requested_timeout_ms } : {}),
     ...(row.seed_json ? { seed: parseJson(row.seed_json, 'run seed') } : {}),
     ...(row.depth ? { depth: row.depth } : {}),
     traceId: row.trace_id,
@@ -752,6 +755,9 @@ export class ProjectStore {
       ).map((column) => column.name);
       if (!publicationColumns.includes('base_sha')) {
         this.db.exec('ALTER TABLE project_publications ADD COLUMN base_sha TEXT');
+      }
+      if (!(this.db.pragma('table_info(project_runs)') as Array<{ name: string }>).some(column => column.name === 'requested_timeout_ms')) {
+        this.db.exec('ALTER TABLE project_runs ADD COLUMN requested_timeout_ms INTEGER');
       }
       for (const [table, column] of [
         ['projects', 'repository_source_json'],
@@ -1417,13 +1423,20 @@ END;
     return row ? runFromRow(row) : null;
   }
 
+  /** Persistent FIFO; insertion order breaks timestamp ties. No credentials are stored. */
+  listQueuedRuns(): ProjectRun[] {
+    const rows = this.db.prepare("SELECT org_id, project_run_id FROM project_runs WHERE status = 'queued' ORDER BY created_at, rowid")
+      .all() as Array<{ org_id: string; project_run_id: string }>;
+    return rows.map(row => this.getProjectRun(row.org_id, row.project_run_id)!);
+  }
+
   runCapacity(orgIdInput: string): OrgRunCapacity {
     const orgId = organisationIdSchema.parse(orgIdInput);
     const limit = this.db.prepare('SELECT max_concurrent AS value FROM org_run_limits WHERE org_id = ?')
       .get(orgId) as { value: number } | undefined;
     const count = this.db.prepare("SELECT COUNT(*) AS value FROM project_runs WHERE org_id = ? AND status IN ('queued','running')")
       .get(orgId) as { value: number };
-    return { maxConcurrent: orgRunLimitSchema.parse(limit?.value ?? 1), active: count.value, globalMaxConcurrent: 1 };
+    return { maxConcurrent: orgRunLimitSchema.parse(limit?.value ?? 1), active: count.value, globalMaxConcurrent: PlatformSettingsStore.limitsFrom(this.db)['run.concurrentMax'] };
   }
 
   setRunLimit(orgIdInput: string, value: number): void {
@@ -1461,6 +1474,7 @@ END;
     readonly hostPaths: ProjectRunHostPaths;
     readonly projectRunId?: string;
     readonly enforceCapacity?: boolean;
+    readonly requestedTimeoutMs?: number;
   }): { readonly run: ProjectRun; readonly created: boolean } | null {
     const orgId = organisationIdSchema.parse(input.orgId);
     const projectId = projectIdSchema.parse(input.projectId);
@@ -1473,6 +1487,7 @@ END;
     const request = rerun
       ? createProjectRunInputSchema.parse({ goal: input.origin!.goal, idempotencyKey: rerun.idempotencyKey })
       : createProjectRunInputSchema.parse(parsed);
+    const requestedTimeoutMs = projectRunSchema.shape.requestedTimeoutMs.parse(input.requestedTimeoutMs);
     const paths = hostPaths(input.hostPaths);
     const requestedRunId = projectRunIdSchema.parse(input.projectRunId ?? randomUUID());
     let acceptance: RunAcceptance | null = null;
@@ -1497,8 +1512,8 @@ END;
           `INSERT INTO project_runs (
              project_run_id, project_id, org_id, requested_by_principal_id, request_key,
              goal, status, workspace_path, runs_path, log_path, skills_path,
-             rerun_of_run_id, model_overrides_json, depth, created_at, updated_at
-           ) VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+             rerun_of_run_id, model_overrides_json, depth, created_at, updated_at, requested_timeout_ms
+           ) VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           requestedRunId,
@@ -1515,7 +1530,8 @@ END;
           rerun ? JSON.stringify(rerun.models) : null,
           (rerun ? rerun.depth ?? input.origin?.depth : request.depth) ?? null,
           now,
-          now
+          now,
+          requestedTimeoutMs ?? null
         );
       if (acceptance) {
         // `source` NULL is a user list, which is every row written before
@@ -2324,14 +2340,14 @@ END;
 
   /**
    * Boot-time crash recovery. The only writers that move a run out of
-   * `queued`/`running` or a publication out of `publishing` are in-memory
+   * `running` or a publication out of `publishing` are in-memory
    * drivers inside the viz server process (`ProjectRunCoordinator.finish`,
    * `GitHubPublisher.publish`). After a crash no such driver exists, so those
    * rows can never move again on their own — and the publisher short-circuits
    * on `publishing`, which would block even a future retry forever. Fails
    * each orphan through the normal CAS transitions so triggers, timestamps
    * and validation all apply; a row that races a concurrent transition is
-   * skipped, not fatal.
+   * skipped, not fatal. Queued rows remain durable and are dispatched after boot.
    */
   reconcileInterrupted(errorInput: string): { runs: number; publications: number } {
     const error = boundedError(errorInput) ?? 'interrupted';
@@ -2339,7 +2355,7 @@ END;
     const orphanRuns = this.db
       .prepare(
         `SELECT org_id, project_run_id, status FROM project_runs
-         WHERE status IN ('queued','running')`
+         WHERE status = 'running'`
       )
       .all() as { org_id: string; project_run_id: string; status: string }[];
     for (const row of orphanRuns) {

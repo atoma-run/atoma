@@ -1,3 +1,4 @@
+import { assertPlatformSettingValue, DEFAULT_PLATFORM_LIMITS, PLATFORM_SETTINGS } from '../contracts/platformSettings.js';
 /**
  * Cross-process lease for the MCP run slot.
  *
@@ -13,6 +14,7 @@ import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { homedir, uptime } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
+import { organisationIdSchema } from '../contracts/projects.js';
 import {
   RUN_KILL_CONFIRM_MS,
   RUN_KILL_GRACE_MS,
@@ -45,6 +47,8 @@ export interface RunLease {
    * publishes this on its payload.
    */
   readonly recovered?: ReapedRun;
+  /** All recoveries when exclusive admission reaped several abandoned runs. */
+  readonly recoveredRuns?: readonly ReapedRun[];
   /**
    * Present when the slot was held by a row whose owner is gone and which had
    * nothing left behind it — a killed analysis, mend or deployment, or a run
@@ -58,7 +62,9 @@ export interface RunLease {
   release(): void;
 }
 
-export type RunLeaseAcquirer = (runId: string) => Promise<RunLease>;
+/** Omitted organisation means exclusive work (operator, maintenance, publication). */
+export interface RunLeaseOptions { readonly orgId?: string; readonly maxConcurrent?: () => number }
+export type RunLeaseAcquirer = (runId: string, options?: RunLeaseOptions) => Promise<RunLease>;
 
 export class RunLockBusyError extends Error {
   constructor(
@@ -70,9 +76,10 @@ export class RunLockBusyError extends Error {
      * `pending`: a deployment waits for the slot; `owner` is that deployment,
      * and the slot opens again once it has run.
      */
-    readonly condition: 'held' | 'wedged' | 'pending' = 'held',
+    readonly condition: 'held' | 'wedged' | 'pending' | 'capacity' = 'held',
     /** A dead server's surviving run this acquisition destroyed before it was refused. */
-    readonly recovered?: ReapedRun
+    readonly recovered?: ReapedRun,
+    readonly recoveredRuns?: readonly ReapedRun[]
   ) {
     super(message);
     this.name = 'RunLockBusyError';
@@ -86,6 +93,8 @@ export function mcpRunLockPath(): string {
 }
 
 interface LeaseRow {
+  singleton: number;
+  org_id: string | null;
   token: string;
   run_id: string;
   owner_pid: number;
@@ -105,7 +114,8 @@ interface LeaseRow {
  */
 const SCHEMA = `
   CREATE TABLE IF NOT EXISTS mcp_run_lease (
-    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+    singleton INTEGER PRIMARY KEY CHECK (singleton >= 1),
+    org_id TEXT UNIQUE,
     token TEXT NOT NULL,
     run_id TEXT NOT NULL,
     owner_pid INTEGER NOT NULL,
@@ -133,7 +143,21 @@ function openLockDb(path: string): Database.Database {
   mkdirSync(dirname(path), { recursive: true });
   const db = new Database(path);
   db.pragma('busy_timeout = 5000');
-  db.pragma('journal_mode = WAL');
+  // Concurrent first openers can race the journal-mode transition itself;
+  // SQLite does not always run the busy handler for that PRAGMA.
+  const deadline = Date.now() + 5000;
+  for (;;) {
+    try {
+      if (db.pragma('journal_mode', { simple: true }) !== 'wal') db.pragma('journal_mode = WAL');
+      break;
+    } catch (error) {
+      if (!(error instanceof Error) || !('code' in error) || error.code !== 'SQLITE_BUSY' || Date.now() >= deadline) {
+        db.close();
+        throw error;
+      }
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
+    }
+  }
   db.exec(SCHEMA);
   const columns = new Set(
     (db.pragma('table_info(mcp_run_lease)') as Array<{ name: string }>).map((column) =>
@@ -150,6 +174,21 @@ function openLockDb(path: string): Database.Database {
       if (!/duplicate column name/i.test((err as Error).message)) throw err;
     }
   }
+  // Upgrade the singleton without losing a live owner's token or fingerprints.
+  // Activation is drained: old binaries must not run beside the new allocator.
+  db.transaction(() => {
+    const current = db.pragma('table_info(mcp_run_lease)') as Array<{ name: string }>;
+    const hasOrg = current.some((column) => column.name === 'org_id');
+    const definition = db.prepare("SELECT sql FROM sqlite_master WHERE name = 'mcp_run_lease'").get() as { sql: string };
+    if (hasOrg && definition.sql.includes('CHECK (singleton >= 1)')) return;
+    db.exec(`ALTER TABLE mcp_run_lease RENAME TO mcp_run_lease_legacy`);
+    db.exec(SCHEMA);
+    db.exec(`INSERT INTO mcp_run_lease
+      (singleton, org_id, token, run_id, owner_pid, child_pgid, acquired_at, owner_fingerprint, child_fingerprint)
+      SELECT singleton, ${hasOrg ? 'org_id' : 'NULL'}, token, run_id, owner_pid, child_pgid, acquired_at, owner_fingerprint, child_fingerprint
+      FROM mcp_run_lease_legacy`);
+    db.exec('DROP TABLE mcp_run_lease_legacy');
+  }).immediate();
   return db;
 }
 
@@ -313,12 +352,14 @@ function makeLease(
   path: string,
   owner: RunLockOwner,
   recovered?: ReapedRun,
-  reclaimed?: RunLockOwner
+  reclaimed?: RunLockOwner,
+  recoveredRuns?: readonly ReapedRun[]
 ): RunLease {
   let released = false;
   return {
     path,
     ...(recovered ? { recovered } : {}),
+    ...(recoveredRuns?.length ? { recoveredRuns } : {}),
     ...(reclaimed ? { reclaimed } : {}),
     attachChild(pgid) {
       if (released) throw new Error(`cannot attach child ${pgid}: run lease is already released`);
@@ -327,7 +368,7 @@ function makeLease(
         .prepare(
           `UPDATE mcp_run_lease
            SET child_pgid = ?, child_fingerprint = ?
-           WHERE singleton = 1 AND token = ?`
+           WHERE token = ?`
         )
         .run(pgid, childFingerprint, owner.token).changes;
       if (changed !== 1) {
@@ -338,7 +379,7 @@ function makeLease(
       if (released) return;
       released = true;
       try {
-        db.prepare('DELETE FROM mcp_run_lease WHERE singleton = 1 AND token = ?').run(
+        db.prepare('DELETE FROM mcp_run_lease WHERE token = ?').run(
           owner.token
         );
       } finally {
@@ -350,8 +391,11 @@ function makeLease(
 
 export async function acquireRunLease(
   runId: string,
-  path = mcpRunLockPath()
+  path = mcpRunLockPath(),
+  options: RunLeaseOptions = {}
 ): Promise<RunLease> {
+  const orgId = options.orgId === undefined ? null : organisationIdSchema.parse(options.orgId);
+  const capacity = () => assertPlatformSettingValue('run.concurrentMax', options.maxConcurrent?.() ?? DEFAULT_PLATFORM_LIMITS['run.concurrentMax']);
   const db = openLockDb(path);
   const owner: RunLockOwner = {
     token: randomUUID(),
@@ -360,39 +404,49 @@ export async function acquireRunLease(
     acquiredAt: new Date().toISOString(),
   };
   const ownerFingerprint = processFingerprint(owner.ownerPid);
-  const read = db.prepare('SELECT * FROM mcp_run_lease WHERE singleton = 1');
+  const read = db.prepare('SELECT * FROM mcp_run_lease ORDER BY singleton');
+  const blocking = (): LeaseRow | undefined => {
+    const rows = read.all() as LeaseRow[];
+    // Exclusive work cannot enter beside any live owner. Refuse before reaping
+    // abandoned neighbours that would not make admission possible anyway.
+    if (orgId === null) return rows.find((row) => !ownerIsGone(row)) ?? rows[0];
+    const conflict = rows.find((row) => row.org_id === null || row.org_id === orgId);
+    if (conflict) return conflict;
+    return rows.length >= capacity() ? rows.find(ownerIsGone) ?? rows[0] : undefined;
+  };
   const insert = db.prepare(
     `INSERT INTO mcp_run_lease
-      (singleton, token, run_id, owner_pid, child_pgid, acquired_at,
+      (singleton, org_id, token, run_id, owner_pid, child_pgid, acquired_at,
        owner_fingerprint, child_fingerprint)
-     VALUES (1, ?, ?, ?, NULL, ?, ?, NULL)`
+     VALUES (?, ?, ?, ?, ?, NULL, ?, ?, NULL)`
   );
+  const claim = () => {
+    const occupied = new Set((read.all() as LeaseRow[]).map((row) => row.singleton));
+    let slot = 1;
+    while (occupied.has(slot)) slot++;
+    insert.run(slot, orgId, owner.token, owner.runId, owner.ownerPid, owner.acquiredAt, ownerFingerprint);
+  };
   const deleteByToken = db.prepare(
-    'DELETE FROM mcp_run_lease WHERE singleton = 1 AND token = ?'
+    'DELETE FROM mcp_run_lease WHERE token = ?'
   );
+  const recoveredRuns: ReapedRun[] = [];
 
   try {
-    for (let attempt = 0; attempt < 5; attempt++) {
+    for (let attempt = 0; attempt < PLATFORM_SETTINGS['run.concurrentMax'].max + 5; attempt++) {
       // A waiting deployment refuses BEFORE any recovery: a start it turns away
       // must not first reap a dead server's surviving run on its behalf.
       const waiting = db.transaction(() => blockingDeployment(db)).immediate();
       if (waiting) throw deploymentWaitingError(waiting);
-      const existing = read.get() as LeaseRow | undefined;
+      const existing = blocking();
       if (!existing) {
         const claimed = db.transaction(() => {
-          if (read.get() !== undefined) return false;
+          if (blocking() !== undefined) return false;
           const late = blockingDeployment(db);
           if (late) return late;
-          insert.run(
-            owner.token,
-            owner.runId,
-            owner.ownerPid,
-            owner.acquiredAt,
-            ownerFingerprint
-          );
+          claim();
           return true;
         }).immediate();
-        if (claimed === true) return makeLease(db, path, owner);
+        if (claimed === true) return makeLease(db, path, owner, recoveredRuns[0], undefined, recoveredRuns);
         if (claimed) throw deploymentWaitingError(claimed);
         continue;
       }
@@ -404,6 +458,9 @@ export async function acquireRunLease(
         stale.acquiredAt
       );
       if (ownerIdentity === 'match' || ownerIdentity === 'unverifiable') {
+        if (orgId !== null && existing.org_id !== null && existing.org_id !== orgId) {
+          throw new RunLockBusyError(`all ${capacity()} run places are occupied`, undefined, 'capacity');
+        }
         throw new RunLockBusyError(
           `another MCP server owns the run slot (${stale.runId}, pid ${stale.ownerPid}, since ${stale.acquiredAt}${ownerIdentity === 'unverifiable' ? ', process birth unverifiable' : ''})`,
           stale
@@ -438,6 +495,8 @@ export async function acquireRunLease(
           // so — a silent reap leaves the host unable to explain why the
           // previous run's deliverable vanished (2026-08-14 review, MCP §).
           reaped = { runId: stale.runId, childPgid: stale.childPgid };
+          recoveredRuns.push(reaped);
+          process.stderr.write(`[atoma lease] recovered abandoned run ${stale.runId}: reaped group ${stale.childPgid}\n`);
         } else {
           // Same numeric PGID, different process birth: it belongs to someone
           // else now. Reclaim only the stale row and never send a signal.
@@ -453,21 +512,19 @@ export async function acquireRunLease(
         const late = blockingDeployment(db);
         if (late) return late;
         if (deleteByToken.run(stale.token).changes !== 1) return false;
-        insert.run(
-          owner.token,
-          owner.runId,
-          owner.ownerPid,
-          owner.acquiredAt,
-          ownerFingerprint
-        );
+        if (blocking() !== undefined) return false;
+        claim();
         return true;
       }).immediate();
-      if (claimed === true) return makeLease(db, path, owner, reaped);
+      if (claimed === true) return makeLease(db, path, owner, recoveredRuns[0], undefined, recoveredRuns);
       if (claimed) throw deploymentWaitingError(claimed, reaped);
     }
     throw new RunLockBusyError(`could not acquire MCP run lease ${path} after recovery races`);
   } catch (err) {
     db.close();
+    if (err instanceof RunLockBusyError && recoveredRuns.length) {
+      throw new RunLockBusyError(err.message, err.owner, err.condition, recoveredRuns[0], recoveredRuns);
+    }
     throw err;
   }
 }
@@ -509,7 +566,7 @@ export function acquireRunLeaseWithoutRecovery(
     acquiredAt: new Date().toISOString(),
   };
   const ownerFingerprint = processFingerprint(owner.ownerPid);
-  const read = db.prepare('SELECT * FROM mcp_run_lease WHERE singleton = 1');
+  const read = db.prepare('SELECT * FROM mcp_run_lease ORDER BY singleton');
   const insert = db.prepare(
     `INSERT INTO mcp_run_lease
       (singleton, token, run_id, owner_pid, child_pgid, acquired_at,
@@ -517,18 +574,19 @@ export function acquireRunLeaseWithoutRecovery(
      VALUES (1, ?, ?, ?, NULL, ?, ?, NULL)`
   );
 
-  const deleteByToken = db.prepare('DELETE FROM mcp_run_lease WHERE singleton = 1 AND token = ?');
+  const deleteByToken = db.prepare('DELETE FROM mcp_run_lease WHERE token = ?');
 
   try {
     const outcome = db.transaction(() => {
       const waiting = blockingDeployment(db, options.pendingToken);
       if (waiting) return { waiting };
-      const held = read.get() as LeaseRow | undefined;
+      const rows = read.all() as LeaseRow[];
+      const held = rows.find((row) => !ownerIsGone(row) || !nothingBehind(row));
+      if (held) return { held };
       let reclaimed: RunLockOwner | undefined;
-      if (held) {
-        if (!ownerIsGone(held) || !nothingBehind(held)) return { held };
-        deleteByToken.run(held.token);
-        reclaimed = toOwner(held);
+      for (const row of rows) {
+        deleteByToken.run(row.token);
+        reclaimed ??= toOwner(row);
       }
       insert.run(
         owner.token,
@@ -573,26 +631,29 @@ export function acquireRunLeaseWithoutRecovery(
  * under BEGIN IMMEDIATE with fingerprint checks. An absent/torn store is
  * "nothing to report", never a throw in a status poll.
  */
-export function peekRunLease(path = mcpRunLockPath()): RunLockOwner | null {
-  if (!existsSync(path)) return null;
+export function peekRunLeases(path = mcpRunLockPath()): RunLockOwner[] {
+  if (!existsSync(path)) return [];
   let db: Database.Database;
   try {
     db = new Database(path, { readonly: true, fileMustExist: true });
   } catch {
-    return null;
+    return [];
   }
   try {
-    const row = db
-      .prepare('SELECT * FROM mcp_run_lease WHERE singleton = 1')
-      .get() as LeaseRow | undefined;
-    return row ? toOwner(row) : null;
+    const rows = db.prepare('SELECT * FROM mcp_run_lease ORDER BY singleton').all() as LeaseRow[];
+    return rows.map(toOwner);
   } catch {
     // Missing table (a foreign file at this path) or a torn store: a status
     // reader has nothing to say about it.
-    return null;
+    return [];
   } finally {
     db.close();
   }
+}
+
+/** Compatibility reader for consumers that only need to know whether ANY work exists. */
+export function peekRunLease(path = mcpRunLockPath()): RunLockOwner | null {
+  return peekRunLeases(path)[0] ?? null;
 }
 
 export interface DeploymentPendingRegistration {
@@ -708,12 +769,10 @@ export function runLeaseOwnerGone(path = mcpRunLockPath()): boolean {
     return false;
   }
   try {
-    const row = db.prepare('SELECT * FROM mcp_run_lease WHERE singleton = 1').get() as
-      | LeaseRow
-      | undefined;
+    const rows = db.prepare('SELECT * FROM mcp_run_lease').all() as LeaseRow[];
     // Only the row a non-recovery taker must leave: a gone owner with a live
     // group behind it. A gone owner with nothing behind is reclaimed instead.
-    return row ? ownerIsGone(row) && !nothingBehind(row) : false;
+    return rows.some((row) => ownerIsGone(row) && !nothingBehind(row));
   } catch {
     return false;
   } finally {
@@ -747,10 +806,8 @@ export function runLeaseOwnerLive(path = mcpRunLockPath()): boolean {
     return false;
   }
   try {
-    const row = db.prepare('SELECT * FROM mcp_run_lease WHERE singleton = 1').get() as
-      | LeaseRow
-      | undefined;
-    return row ? !ownerIsGone(row) : false;
+    const rows = db.prepare('SELECT * FROM mcp_run_lease').all() as LeaseRow[];
+    return rows.some((row) => !ownerIsGone(row));
   } catch {
     return false;
   } finally {

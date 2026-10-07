@@ -66,7 +66,7 @@ can only report that it cannot be.
 - `deploy:preflight` is quota-free and read-only unless `--hold` is explicit.
   Hold mode takes the machine-global run lease without stale recovery (a dead
   owner's row with no process group is reclaimed: nothing to reap), checks
-  queued/running project rows and live preview rows, then keeps the lease until
+  running project rows and live preview rows (queued work survives activation), then keeps the lease until
   its supervising deploy process releases it. The hold process also removes
   the admission marker when its parent disappears, so an untrappable host
   activator death cannot leave every write on 503. Existing work always blocks

@@ -1,16 +1,19 @@
 import { z } from 'zod';
+import { PLATFORM_SETTINGS } from './platformSettings.js';
 import { deliveryKindSchema } from './taskExecution.js';
 import { runStatsSchema } from './runStats.js';
 import { approvedChecklistInputSchema } from './acceptanceChecklist.js';
 import { runTierModelsSchema, storedRunTierModelsSchema } from './tierModels.js';
 import { depthModeSchema } from './depthRouting.js';
 
-/** Zero suspends admission; the host still has one global run slot. */
+export const PROJECT_RUN_WAITING_MESSAGE = 'This run is waiting for an available slot to start.';
+
+/** Zero suspends admission. */
 export const orgRunLimitSchema = z.number().int().min(0).max(1);
 export const orgRunCapacitySchema = z.object({
   maxConcurrent: orgRunLimitSchema,
   active: z.number().int().nonnegative(),
-  globalMaxConcurrent: z.literal(1),
+  globalMaxConcurrent: z.number().int().min(1).max(PLATFORM_SETTINGS['run.concurrentMax'].max),
 });
 export type OrgRunCapacity = z.infer<typeof orgRunCapacitySchema>;
 
@@ -424,6 +427,8 @@ export const projectRunSchema = z
     rerunOf: projectRunIdSchema.optional(),
     /** The run-level models a comparison rerun was launched with. */
     modelOverrides: storedRunTierModelsSchema.optional(),
+    /** Explicit operator budget survives queue handoff; absent uses current host settings. */
+    requestedTimeoutMs: z.number().int().positive().optional(),
     /** The supervision depth the run was launched with; absent is the profile default. */
     depth: depthModeSchema.optional(),
     seed: runSeedSchema.optional(),

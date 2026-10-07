@@ -75,6 +75,11 @@ export class PlatformSettingsStore {
     this.now = now ?? (() => new Date());
   }
 
+  /** Read settings through an existing product-store handle without owning it. */
+  static limitsFrom(db: Database.Database): PlatformLimits {
+    return new PlatformSettingsStore(db).limits();
+  }
+
   static open(path?: string, now?: () => Date): PlatformSettingsStore {
     return new PlatformSettingsStore(
       openStoreHandle(path ?? storeDbPath(), PLATFORM_SETTINGS_TABLE_DDL),

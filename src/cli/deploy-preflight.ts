@@ -70,7 +70,7 @@ export function deploymentBlockerFacts(options: DeploymentPreflightOptions = {})
   const count = (sql: string): number => (db.prepare(sql).get() as { count: number }).count;
   try {
     if (tableExists(db, 'project_runs')) {
-      facts.projectRuns = count("SELECT COUNT(*) AS count FROM project_runs WHERE status IN ('queued','running')");
+      facts.projectRuns = count("SELECT COUNT(*) AS count FROM project_runs WHERE status = 'running'");
     }
     if (tableExists(db, 'project_run_preview_instances')) {
       facts.previews = count(
@@ -93,7 +93,7 @@ function blockerLines(facts: DeploymentBlockerFacts): string[] {
   if (facts.lease) {
     lines.push(`run lease ${facts.lease.runId} is held by pid ${facts.lease.ownerPid} since ${facts.lease.acquiredAt}`);
   }
-  if (facts.projectRuns > 0) lines.push(`${facts.projectRuns} project run(s) are queued or running`);
+  if (facts.projectRuns > 0) lines.push(`${facts.projectRuns} project run(s) are running`);
   if (facts.previews > 0) lines.push(`${facts.previews} result preview(s) still own runtime`);
   if (facts.publications > 0) lines.push(`${facts.publications} publication(s) are uploading`);
   return lines;
@@ -255,7 +255,7 @@ export async function waitForDeploymentSlot(
         const found = facts();
         if (found.projectRuns > 0) {
           return refuse(
-            `${found.projectRuns} project run(s) are marked queued or running while no run holds the slot; ` +
+            `${found.projectRuns} project run(s) are marked running while no run holds the slot; ` +
               'nothing drives them and only a server start reconciles them — restart the service, then deploy'
           );
         }

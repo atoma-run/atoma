@@ -50,14 +50,14 @@ describe('deployment preflight', () => {
     db.exec(`
       CREATE TABLE project_runs (status TEXT NOT NULL);
       CREATE TABLE project_run_preview_instances (state TEXT NOT NULL);
-      INSERT INTO project_runs VALUES ('running'), ('delivered');
+      INSERT INTO project_runs VALUES ('running'), ('queued');
       INSERT INTO project_run_preview_instances VALUES ('ready'), ('stopped');
     `);
     db.close();
 
     expect(
       deploymentBlockers({ dbPath, runLockPath: join(root, 'absent-lock.db') })
-    ).toEqual(['1 project run(s) are queued or running', '1 result preview(s) still own runtime']);
+    ).toEqual(['1 project run(s) are running', '1 result preview(s) still own runtime']);
 
     const after = new Database(dbPath, { readonly: true });
     expect((after.prepare('SELECT COUNT(*) AS n FROM project_runs').get() as { n: number }).n).toBe(2);
@@ -337,7 +337,7 @@ describe('a deployment that waits for running work', () => {
     }
     // Holding the slot itself, the guard knows no run can be driving these.
     const orphans = await waitForDeploymentSlot(plan, { ...mustNotWait, facts: () => ({ ...NOTHING, projectRuns: 2 }) });
-    expect(orphans).toEqual({ kind: 'refused', reason: expect.stringMatching(/^2 project run\(s\) are marked queued or running while no run holds the slot/) });
+    expect(orphans).toEqual({ kind: 'refused', reason: expect.stringMatching(/^2 project run\(s\) are marked running while no run holds the slot/) });
     expect(peekRunLease(lockPath)).toBeNull();
     expect(peekDeploymentPending(lockPath)).toBeNull();
   });

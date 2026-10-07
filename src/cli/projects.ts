@@ -566,6 +566,7 @@ async function main(): Promise<void> {
   const previewStore = PreviewStore.open(dbPath);
   const coordinator = new ProjectRunCoordinator({
     store: projects,
+    queuedRunAllowed: (id, orgId) => auth.listOrganisationsForPrincipal(id).some(membership => membership.orgId === orgId && membership.role !== 'org:viewer'),
     dbPath,
     ...(timeoutMs === undefined ? {} : { timeoutMs }),
     ...(publisher ? { publisher } : {}),

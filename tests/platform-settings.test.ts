@@ -74,6 +74,7 @@ function openStore(now?: () => Date): { store: PlatformSettingsStore; dbPath: st
  */
 describe('the catalog ships today’s constants, unchanged', () => {
   it('pins every fallback to the constant its call site already used', () => {
+    expect(PLATFORM_SETTINGS['run.concurrentMax'].fallback).toBe(10);
     expect(PLATFORM_SETTINGS['run.timeoutDefaultMs'].fallback).toBe(
       DEFAULT_PROJECT_RUN_TIMEOUT_MS
     );
@@ -545,7 +546,7 @@ describe('the operator CLI', () => {
     expect(listed.out).toContain('effective 5000000');
     // A default nobody stated still reports its effective value, and says so.
     expect(listed.out).toContain('default (nothing stated)');
-    expect(listed.out).toContain('1 of 8 stated');
+    expect(listed.out).toContain(`1 of ${PLATFORM_SETTING_KEYS.length} stated`);
 
     const unset = await cli(['unset', 'run.tokenMaxTotal', '--db', dbPath]);
     expect(unset.code).toBe(0);

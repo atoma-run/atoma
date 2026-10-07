@@ -584,12 +584,11 @@ describe('ProjectStore — idempotency and CAS state machines', () => {
     });
 
     expect(store.reconcileInterrupted('interrupted by server restart')).toEqual({
-      runs: 3,
+      runs: 2,
       publications: 1,
     });
 
     for (const [owner, runId] of [
-      [alice, orphanQueued.projectRunId],
       [alice, orphanRunning.projectRunId],
       [bob, bobRunning.projectRunId],
     ] as const) {
@@ -598,6 +597,7 @@ describe('ProjectStore — idempotency and CAS state machines', () => {
       expect(failed.error).toBe('interrupted by server restart');
       expect(failed.endedAt).not.toBeNull();
     }
+    expect(store.getProjectRun(alice.orgId, orphanQueued.projectRunId)!.status).toBe('queued');
     expect(store.getProjectRun(alice.orgId, deliveredStuck.projectRunId)!.status).toBe('delivered');
     expect(store.getProjectRun(alice.orgId, deliveredDone.projectRunId)!.status).toBe('delivered');
     const failedPublication = store.getPublication(alice.orgId, stuck.publicationId)!;

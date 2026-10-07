@@ -463,8 +463,9 @@ list. These values come from the host snapshot, never a tenant prompt.
 Finished run bytes are eligible after 90 days; current active-project seeds
 and unfinished publications hold them. Offline maintenance preserves run
 metadata, payers and lifecycle_events; expiry never changes delivery status.
-Per-org admission defaults to one (zero suspends), with the global lease still
-limiting the host to one run. Recheck inside reservation after idempotency; an
+Per-org admission defaults to one (zero suspends), with a configurable project-run ceiling (10 by default)
+on the host. Waiting rows hold no lease, survive restart, and can be cancelled. Dispatch rechecks membership, models and limits; its lease reserves the organisation before preparation, through
+cleanup and publication; excess global demand persists as queued runs and resumes FIFO. Recheck inside reservation after idempotency; an
 identical live request (goal, items, depth) re-attaches, any key; refusals name it.
 Operator commands and offline prerequisites: [W9/W10](../../docs/project-maintenance.md).
 ## A landed run, from the tenant's side

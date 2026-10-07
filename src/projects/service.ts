@@ -1,3 +1,4 @@
+import { PROJECT_RUN_WAITING_MESSAGE } from '../contracts/projects.js';
 import { summarizeTraceFile } from '../viz/runIndex.js';
 import { isUtf8 } from 'node:buffer';
 import { assertPublishableArtifactPath, normalizeArtifactPath, readManifestArtifact } from './artifacts.js';
@@ -112,6 +113,7 @@ function publicRun(
   const trace = traceFile ? summarizeTraceFile(traceFile) : null;
   return {
     ...base,
+    ...(run.status === 'queued' ? { statusMessage: PROJECT_RUN_WAITING_MESSAGE } : {}),
     error: redacted(base.error),
     traceId: run.traceId ?? (traceFile ? run.projectRunId : null),
     costUsd: run.stats?.costUsd ?? trace?.costUsd ?? null,
@@ -502,7 +504,7 @@ export class ProjectService {
         orgId: viewer.orgId,
         projectId,
         runId: run.projectRunId,
-        summary: run.rerunOf
+        summary: run.status === 'queued' ? `Run queued: ${eventLabel(run.goal, 120)}` : run.rerunOf
           ? `Comparison rerun started: ${eventLabel(run.goal, 100)}`
           : `Run started: ${eventLabel(run.goal, 120)}`,
         ...(run.rerunOf ? { detail: { rerunOf: run.rerunOf } } : {}),

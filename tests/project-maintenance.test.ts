@@ -1,3 +1,5 @@
+import { spawnSync } from 'node:child_process';
+import { PlatformSettingsStore } from '../src/platform/settings.js';
 import Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, writeFileSync, mkdtempSync, realpathSync, symlinkSync } from 'node:fs';
@@ -11,6 +13,9 @@ import { ProjectRunCoordinator, projectRunHostLayout } from '../src/projects/coo
 import { ProjectStore } from '../src/projects/store.js';
 import { projectRetrievalFixture } from './helpers/projectRetrievalLaunch.js';
 import { rmSync } from 'node:fs';
+import { acquireRunLease, peekRunLeases, registerDeploymentPending } from '../src/mcp/runLock.js';
+import { haystackTestEnvironment } from './helpers/haystack.js';
+import { ANTHROPIC_PINS } from './tier-pins.js';
 
 const roots: string[] = [];
 afterEach(() => {
@@ -26,9 +31,145 @@ function fixture() {
 }
 
 describe('organisation run admission', () => {
+  it.each([10, 12])('runs %i clients and applies live capacity changes without cancelling existing runs', async (limit) => {
+    const f = fixture();
+    const settings = PlatformSettingsStore.open(f.dbPath);
+    if (limit !== 10) settings.set({ 'run.concurrentMax': limit }, null);
+    const clients = [f, ...Array.from({ length: limit }, (_, index) =>
+      projectRetrievalFixture(f.root, { subject: `client-${index}`, slug: `client-${index}` }))];
+    const lockPath = join(f.root, 'lease.db');
+    const driver = vi.fn((options: Parameters<typeof import('../src/cli/burnin.js').spawnRun>[0]) =>
+      new Promise<string>((_resolve, reject) => {
+        options.signal?.addEventListener('abort', () => reject(new Error('cancelled')), { once: true });
+      }));
+    const coordinator = new ProjectRunCoordinator({
+      store: f.projects, dbPath: f.dbPath, projectsRoot: f.root,
+      hostEnv: { ...haystackTestEnvironment(f.root), ...ANTHROPIC_PINS, ANTHROPIC_API_KEY: 'test-key' },
+      driver, acquireLease: (id, scope) => acquireRunLease(id, lockPath, scope),
+    });
+    const start = (index: number, goal = 'Build a clock') => {
+      const client = clients[index]!;
+      return coordinator.start({ orgId: client.viewer.orgId, principalId: client.viewer.principalId,
+        projectId: client.project.projectId, request: { goal, idempotencyKey: randomUUID() } });
+    };
+    try {
+      const runs = await Promise.all(clients.slice(0, limit).map((_, index) => start(index)));
+      await vi.waitFor(() => expect(driver).toHaveBeenCalledTimes(limit));
+      expect(new Set(runs.map((run) => run.hostPaths.workspacePath)).size).toBe(limit);
+      expect(new Set(runs.map((run) => run.hostPaths.runsPath)).size).toBe(limit);
+      expect(peekRunLeases(lockPath)).toHaveLength(limit);
+      expect((await start(0)).projectRunId).toBe(runs[0]!.projectRunId);
+      await expect(start(0, 'A different goal')).rejects.toThrow(/still in progress/);
+      const queued = await start(limit);
+      expect(queued.status).toBe('queued');
+      expect(queued.startedAt).toBeNull();
+      settings.set({ 'run.concurrentMax': 1 }, null);
+      expect(f.projects.runCapacity(f.viewer.orgId).globalMaxConcurrent).toBe(1);
+      expect(peekRunLeases(lockPath)).toHaveLength(limit);
+      coordinator.cancel(f.viewer.orgId, runs[0]!.projectRunId);
+      await vi.waitFor(() => expect(peekRunLeases(lockPath)).toHaveLength(limit - 1));
+      for (const client of clients.slice(1, limit)) expect(client.projects.runCapacity(client.viewer.orgId).active).toBe(1);
+      expect((await start(limit)).projectRunId).toBe(queued.projectRunId);
+      expect(clients[limit]!.projects.getProjectRun(clients[limit]!.viewer.orgId, queued.projectRunId)?.status).toBe('queued');
+      settings.set({ 'run.concurrentMax': limit }, null);
+      expect(f.projects.runCapacity(f.viewer.orgId).globalMaxConcurrent).toBe(limit);
+      coordinator.resumeQueuedRuns();
+      await vi.waitFor(() => expect(driver).toHaveBeenCalledTimes(limit + 1));
+      expect(peekRunLeases(lockPath)).toHaveLength(limit);
+    } finally {
+      for (const client of clients) {
+        for (const run of client.projects.listProjectRuns(client.viewer.orgId, client.project.projectId) ?? []) {
+          coordinator.cancel(client.viewer.orgId, run.projectRunId);
+        }
+      }
+      await coordinator.waitForIdle();
+      coordinator.stopQueue();
+    }
+    expect(peekRunLeases(lockPath)).toEqual([]);
+  });
+
+  it('persists waiting runs across a process restart and never launches a cancelled request', async () => {
+    const f = fixture();
+    const other = projectRetrievalFixture(f.root, { subject: 'waiting-other', slug: 'waiting-other' });
+    PlatformSettingsStore.open(f.dbPath).set({ 'run.concurrentMax': 1 }, null);
+    const lockPath = join(f.root, 'queue-lease.db');
+    const holder = await acquireRunLease('busy', lockPath, { orgId: randomUUID() });
+    const hostEnv = { ...haystackTestEnvironment(f.root), ...ANTHROPIC_PINS, ANTHROPIC_API_KEY: 'test-key' };
+    const driver = vi.fn(() => Promise.reject(new Error('must not launch here')));
+    const coordinator = new ProjectRunCoordinator({ store: f.projects, dbPath: f.dbPath,
+      projectsRoot: f.root, hostEnv, driver, timeoutMs: 123_000, acquireLease: (id, scope) => acquireRunLease(id, lockPath, scope) });
+    try {
+      const first = await coordinator.start({ orgId: f.viewer.orgId, principalId: f.viewer.principalId,
+        projectId: f.project.projectId, request: { goal: 'Cancelled goal', idempotencyKey: randomUUID() } });
+      const second = await coordinator.start({ orgId: other.viewer.orgId, principalId: other.viewer.principalId,
+        projectId: other.project.projectId, request: { goal: 'Surviving goal', idempotencyKey: randomUUID() } });
+      expect(first.status).toBe('queued');
+      expect(second.status).toBe('queued');
+      expect(coordinator.cancel(f.viewer.orgId, first.projectRunId)?.status).toBe('cancelled');
+      coordinator.stopQueue();
+      holder.release();
+      const script = `
+        import { ProjectRunCoordinator } from './src/projects/coordinator.ts';
+        import { ProjectStore } from './src/projects/store.ts';
+        import { acquireRunLease } from './src/mcp/runLock.ts';
+        const coordinator = new ProjectRunCoordinator({
+          store: ProjectStore.open(${JSON.stringify(f.dbPath)}), dbPath: ${JSON.stringify(f.dbPath)},
+          projectsRoot: ${JSON.stringify(f.root)}, hostEnv: ${JSON.stringify(hostEnv)},
+          acquireLease: (id, scope) => acquireRunLease(id, ${JSON.stringify(lockPath)}, scope),
+          driver: async (options) => { console.log('LAUNCHED:' + options.goal + ':' + options.timeoutMs); throw new Error('test driver ended'); },
+        });
+        coordinator.reconcileInterrupted();
+        await coordinator.waitForIdle();
+        coordinator.stopQueue();
+      `;
+      const child = spawnSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', script],
+        { encoding: 'utf8', timeout: 20_000 });
+      expect(child.status, child.stderr).toBe(0);
+      expect(child.stdout).toContain('LAUNCHED:Surviving goal:123000');
+      expect(child.stdout).not.toContain('LAUNCHED:Cancelled goal');
+      expect(driver).not.toHaveBeenCalled();
+      expect(f.projects.getProjectRun(f.viewer.orgId, first.projectRunId)?.status).toBe('cancelled');
+      expect(other.projects.getProjectRun(other.viewer.orgId, second.projectRunId)?.startedAt).not.toBeNull();
+      expect(peekRunLeases(lockPath)).toEqual([]);
+    } finally { coordinator.stopQueue(); holder.release(); }
+  });
+
+  it('dispatches FIFO, skips cancelled work and rechecks requester permission', async () => {
+    const f = fixture();
+    const clients = [f, ...Array.from({ length: 3 }, (_, index) =>
+      projectRetrievalFixture(f.root, { subject: `fifo-${index}`, slug: `fifo-${index}` }))];
+    PlatformSettingsStore.open(f.dbPath).set({ 'run.concurrentMax': 1 }, null);
+    const lockPath = join(f.root, 'fifo-lease.db');
+    const holder = await acquireRunLease('busy', lockPath, { orgId: randomUUID() });
+    const launched: string[] = [];
+    const coordinator = new ProjectRunCoordinator({ store: f.projects, dbPath: f.dbPath, projectsRoot: f.root,
+      hostEnv: { ...haystackTestEnvironment(f.root), ...ANTHROPIC_PINS, ANTHROPIC_API_KEY: 'test-key' },
+      queuedRunAllowed: id => id !== clients[1]!.viewer.principalId,
+      acquireLease: (id, scope) => acquireRunLease(id, lockPath, scope),
+      driver: async options => { launched.push(options.goal); throw new Error('test driver ended'); } });
+    try {
+      const runs = [];
+      for (const [index, client] of clients.entries()) {
+        runs.push(await coordinator.start({ orgId: client.viewer.orgId, principalId: client.viewer.principalId,
+          projectId: client.project.projectId, request: { goal: `Goal ${index}`, idempotencyKey: randomUUID() } }));
+      }
+      coordinator.cancel(clients[2]!.viewer.orgId, runs[2]!.projectRunId);
+      const deployment = registerDeploymentPending('deployment:test', lockPath);
+      try {
+        holder.release();
+        await new Promise(resolve => setTimeout(resolve, 400));
+        expect(launched).toEqual([]);
+        expect(f.projects.listQueuedRuns()).toHaveLength(3);
+      } finally { deployment.release(); }
+      await coordinator.waitForIdle();
+      expect(launched).toEqual(['Goal 0', 'Goal 3']);
+      expect(f.projects.getProjectRun(clients[1]!.viewer.orgId, runs[1]!.projectRunId)?.error).toContain('permission');
+    } finally { coordinator.stopQueue(); holder.release(); }
+  });
+
   it('defaults to one, persists suspension, and refuses before acquiring a lease', async () => {
     const f = fixture();
-    expect(f.projects.runCapacity(f.viewer.orgId)).toEqual({ active: 0, maxConcurrent: 1, globalMaxConcurrent: 1 });
+    expect(f.projects.runCapacity(f.viewer.orgId)).toEqual({ active: 0, maxConcurrent: 1, globalMaxConcurrent: 10 });
     f.projects.setRunLimit(f.viewer.orgId, 0);
     expect(ProjectStore.open(f.dbPath).runCapacity(f.viewer.orgId).maxConcurrent).toBe(0);
     expect(() => f.projects.setRunLimit(f.viewer.orgId, 2)).toThrow();

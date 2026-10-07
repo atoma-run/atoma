@@ -1,3 +1,4 @@
+import { platformLimitsFor } from '../platform/settings.js';
 import { inventoryRepositoryWorkspace, carryRepositoryBase } from './repositorySync.js';
 import { GitHubAccessRequiredError } from './publisher.js';
 import { assertPersonalCodexModels, CODEX_MODEL_CAPABILITIES_ENV, type CodexModelInventory } from '../contracts/codexModels.js';
@@ -238,6 +239,8 @@ export interface ProjectCoordinatorOptions {
    * is what every caller outside a gated deployment gets.
    */
   readonly platformLimits?: () => PlatformLimits;
+  /** Re-check membership when a previously admitted request leaves the queue. */
+  readonly queuedRunAllowed?: (principalId: string, orgId: string) => boolean;
 }
 
 /** What the coordinator knows about a delivered run's deliverable. */
@@ -287,7 +290,10 @@ export class ProjectRunBusy extends Error {
  * maintenance is the documented resource trade (`src/supervisor/AGENTS.md`);
  * saying so is what makes "retry in a few minutes" an honest answer.
  */
-export function tenantBusyMessage(owner: { readonly runId: string } | undefined, condition: 'held' | 'wedged' | 'pending' = 'held'): string {
+export function tenantBusyMessage(owner: { readonly runId: string } | undefined, condition: RunLockBusyError['condition'] = 'held'): string {
+  if (condition === 'capacity') {
+    return 'the instance has reached its concurrent run limit; start your run when a place becomes available';
+  }
   if (condition === 'wedged') {
     return 'the run slot is held by a run the instance could not clean up; an operator has to release it before a new run can start';
   }
@@ -1155,11 +1161,16 @@ export class ProjectRunCoordinator {
   private readonly cwd: string;
   private readonly explicitTimeoutMs?: number;
   private readonly platformLimits: () => PlatformLimits;
+  private readonly queuedRunAllowed?: ProjectCoordinatorOptions['queuedRunAllowed'];
+  private queueTimer?: NodeJS.Timeout;
+  private queuePumping = false;
+  private queueStopped = false;
   private readonly active = new Map<string, ActiveRun>();
   private readonly idleWaiters = new Set<() => void>();
 
   constructor(options: ProjectCoordinatorOptions) {
     this.store = options.store;
+    this.queuedRunAllowed = options.queuedRunAllowed;
     this.dbPath = path.resolve(options.dbPath);
     this.hostEnv = { ...(options.hostEnv ?? process.env) };
     this.root = path.resolve(options.projectsRoot ?? DEFAULT_PROJECTS_ROOT);
@@ -1167,7 +1178,7 @@ export class ProjectRunCoordinator {
     migratePlatformSkills({ dbPath: this.dbPath, projectsRoot: this.root, skillsRoot: this.skillsRoot });
     reconcilePlatformSkills({ db: this.dbPath, skillsRoot: this.skillsRoot });
     this.driver = options.driver ?? spawnRun;
-    this.acquireLease = options.acquireLease ?? acquireRunLease;
+    this.acquireLease = options.acquireLease ?? ((id, scope) => acquireRunLease(id, undefined, scope));
     this.yieldBackground = options.yieldBackground;
     this.publisher = options.publisher;
     if (options.onRunFinished) this.onRunFinished = options.onRunFinished;
@@ -1189,7 +1200,7 @@ export class ProjectRunCoordinator {
     if (options.runTitler) this.runTitler = options.runTitler;
     this.cwd = options.cwd ?? repoRoot();
     if (options.timeoutMs !== undefined) this.explicitTimeoutMs = options.timeoutMs;
-    this.platformLimits = options.platformLimits ?? (() => DEFAULT_PLATFORM_LIMITS);
+    this.platformLimits = options.platformLimits ?? (() => platformLimitsFor(this.dbPath));
     // RESOLVED TWICE ON PURPOSE. Once here, against the SHIPPED limits, so a
     // malformed `ATOMA_PROJECT_TIMEOUT_MS` or an out-of-range flag fails at
     // CONSTRUCTION — a server that boots and then refuses every run is a
@@ -1220,7 +1231,9 @@ export class ProjectRunCoordinator {
     if (this.active.size > 0) {
       throw new Error('reconcileInterrupted is a boot-time operation; runs are active');
     }
-    return this.store.reconcileInterrupted('interrupted by server restart');
+    const recovered = this.store.reconcileInterrupted('interrupted by server restart');
+    this.resumeQueuedRuns();
+    return recovered;
   }
 
   /**
@@ -1345,9 +1358,9 @@ export class ProjectRunCoordinator {
    * released, and the acquisition tried ONCE more. Any other holder — another
    * run, the mender, a deployment — refuses as before.
    */
-  private async acquireLeasePreempting(runId: string): Promise<RunLease> {
+  private async acquireLeasePreempting(runId: string, orgId?: string): Promise<RunLease> {
     try {
-      return await this.acquireLease(runId);
+      return await this.acquireLease(runId, orgId ? { orgId, maxConcurrent: () => this.platformLimits()['run.concurrentMax'] } : undefined);
     } catch (error) {
       if (!(error instanceof RunLockBusyError) || error.condition !== 'held' ||
         !error.owner?.runId.startsWith('analyst:') || !this.yieldBackground) throw error;
@@ -1358,7 +1371,7 @@ export class ProjectRunCoordinator {
       ]).finally(() => clearTimeout(timer));
       if (!yielded) throw error;
       process.stderr.write(`[atoma projects] preempted the post-run analysis ${error.owner.runId} for ${runId}\n`);
-      return this.acquireLease(runId);
+      return this.acquireLease(runId, orgId ? { orgId, maxConcurrent: () => this.platformLimits()['run.concurrentMax'] } : undefined);
     }
   }
 
@@ -1411,8 +1424,7 @@ export class ProjectRunCoordinator {
     const timeoutMs = this.runTimeoutMs();
     // Every new project run carries search. Validate before taking the lease or
     // reserving a run; read-only service startup and idempotent retries still work.
-    let retrievalLaunch: ReturnType<typeof readHaystackLaunch>;
-    try { retrievalLaunch = readHaystackLaunch(this.hostEnv); }
+    try { readHaystackLaunch(this.hostEnv); }
     catch (error) {
       throw new ProjectRunConfigurationError((error as Error).message);
     }
@@ -1440,22 +1452,23 @@ export class ProjectRunCoordinator {
       candidateRunId,
       this.hostEnv['ATOMA_LAUNCHER_SOCKET'] ? this.hostEnv['ATOMA_LAUNCHER_WORKSPACE_ROOT'] : undefined
     );
-    let lease: RunLease;
+    let lease: RunLease | undefined;
     try {
-      lease = await this.acquireLeasePreempting(`project:${candidateRunId}`);
+      if (this.store.listQueuedRuns().length === 0) lease = await this.acquireLeasePreempting(`project:${candidateRunId}`, input.orgId);
     } catch (error) {
       if (error instanceof RunLockBusyError) {
         // A concurrent identical request may have reserved its row while
         // this caller waited for the lease. It is a read, not a second run.
         const retry = findRetry();
         if (retry) return { run: retry, created: false };
-        process.stderr.write(`[atoma projects] run refused, slot busy: ${error.message}\n`);
-        const own = this.store.liveRunOf(input.orgId, input.principalId);
-        throw new ProjectRunBusy(own && error.owner?.runId === `project:${own.projectRunId}`
-          ? ownLiveRunMessage(own)
-          : tenantBusyMessage(error.owner, error.condition));
-      }
-      throw error;
+        if (error.condition !== 'capacity') {
+          process.stderr.write(`[atoma projects] run refused, slot busy: ${error.message}\n`);
+          const own = this.store.liveRunOf(input.orgId, input.principalId);
+          throw new ProjectRunBusy(own && error.owner?.runId === `project:${own.projectRunId}`
+            ? ownLiveRunMessage(own)
+            : tenantBusyMessage(error.owner, error.condition));
+        }
+      } else throw error;
     }
     let reservation: { readonly run: ProjectRun; readonly created: boolean } | null;
     try {
@@ -1468,6 +1481,7 @@ export class ProjectRunCoordinator {
           ...(rerun.origin.depth ? { depth: rerun.origin.depth } : {}) } } : {}),
         projectRunId: candidateRunId,
         enforceCapacity: true,
+        ...(this.explicitTimeoutMs !== undefined ? { requestedTimeoutMs: this.explicitTimeoutMs } : {}),
         hostPaths: {
           workspacePath: candidatePaths.workspacePath,
           runsPath: candidatePaths.runsPath,
@@ -1476,11 +1490,11 @@ export class ProjectRunCoordinator {
         },
       });
     } catch (error) {
-      lease.release();
+      lease?.release();
       throw this.namingOwnRun(error, input.orgId, input.principalId);
     }
     if (!reservation) {
-      lease.release();
+      lease?.release();
       throw new Error('project not found');
     }
     const run = reservation.run;
@@ -1489,9 +1503,32 @@ export class ProjectRunCoordinator {
       run.status !== 'queued' ||
       this.active.has(run.projectRunId)
     ) {
-      lease.release();
+      lease?.release();
       return { run, created: false };
     }
+    if (!lease) {
+      this.resumeQueuedRuns();
+      return { run, created: true };
+    }
+    try { return await this.launchReservedRun(run, lease, rerun, timeoutMs); }
+    catch (error) {
+      lease.release();
+      if (this.store.getProjectRun(run.orgId, run.projectRunId)?.status === 'queued') {
+        this.store.transitionProjectRun({ orgId: run.orgId, projectRunId: run.projectRunId,
+          from: 'queued', to: 'failed', error: String(error).slice(0, 1500) });
+      }
+      throw error;
+    }
+  }
+
+  private async launchReservedRun(run: ProjectRun, lease: RunLease, rerun: RerunOrigin | null, admittedTimeoutMs?: number): Promise<{ run: ProjectRun; created: boolean }> {
+    const input = { orgId: run.orgId, projectId: run.projectId, principalId: run.requestedByPrincipalId };
+    let timeoutMs: number;
+    let retrievalLaunch: ReturnType<typeof readHaystackLaunch>;
+    try {
+      timeoutMs = admittedTimeoutMs ?? projectRunTimeoutMs(this.hostEnv, run.requestedTimeoutMs, this.platformLimits());
+      retrievalLaunch = readHaystackLaunch(this.hostEnv);
+    } catch (error) { lease.release(); throw error; }
     const project = this.store.getProject(input.orgId, input.projectId);
     if (!project) {
       lease.release();
@@ -1565,6 +1602,10 @@ export class ProjectRunCoordinator {
       // funded it — the subscription hook above journals only the runs that
       // touch a CLI login, and an organisation- or host-key run used to leave
       // no durable payer record at all.
+      if (this.store.getProjectRun(run.orgId, run.projectRunId)?.status !== 'queued') {
+        lease.release();
+        return { run: this.store.getProjectRun(run.orgId, run.projectRunId)!, created: false };
+      }
       this.store.startProjectRun({
         orgId: input.orgId,
         projectRunId: run.projectRunId,
@@ -1922,6 +1963,7 @@ export class ProjectRunCoordinator {
         );
       }
       this.active.delete(reservedRun.projectRunId);
+      if (!this.queueStopped) this.resumeQueuedRuns();
       this.resolveIdleIfSettled();
     }
   }
@@ -1947,8 +1989,72 @@ export class ProjectRunCoordinator {
     }
   }
 
+  /** Stop polling on shutdown; queued rows remain durable for the next owner. */
+  stopQueue(): void {
+    this.queueStopped = true;
+    clearTimeout(this.queueTimer);
+    this.queueTimer = undefined;
+  }
+
+  /** Resume persisted work, also used after a lease release or server restart. */
+  resumeQueuedRuns(): void {
+    this.queueStopped = false;
+    if (this.queueTimer || this.queuePumping || this.store.listQueuedRuns().length === 0) return;
+    this.queueTimer = setTimeout(() => {
+      this.queueTimer = undefined;
+      void this.drainQueue();
+    }, 250);
+    if (this.idleWaiters.size === 0) this.queueTimer.unref();
+  }
+
+  private async drainQueue(): Promise<void> {
+    if (this.queuePumping || this.queueStopped) return;
+    this.queuePumping = true;
+    try {
+      for (const queued of this.store.listQueuedRuns()) {
+        if (this.queueStopped) break;
+        if (this.store.runCapacity(queued.orgId).maxConcurrent === 0) continue;
+        let lease: RunLease;
+        try { lease = await this.acquireLeasePreempting(`project:${queued.projectRunId}`, queued.orgId); }
+        catch (error) {
+          if (error instanceof RunLockBusyError) {
+            if (error.condition === 'capacity' || error.condition === 'pending') break;
+            continue;
+          }
+          throw error;
+        }
+        try {
+          const run = this.store.getProjectRun(queued.orgId, queued.projectRunId);
+          if (!run || run.status !== 'queued') { lease.release(); continue; }
+          if (this.queuedRunAllowed && !this.queuedRunAllowed(run.requestedByPrincipalId, run.orgId)) throw new Error('Run requester no longer has permission to start runs');
+          const project = this.store.getProject(run.orgId, run.projectId);
+          if (!project || project.status !== 'active') throw new Error('Project is no longer active');
+          const rerun = run.rerunOf ? resolveRerunOrigin({
+            store: this.store, project, orgId: run.orgId, rerunOf: run.rerunOf,
+            recordedSourceRunId: (id) => ProjectRetrievalLaunchStore.open(this.dbPath).recordedSourceRunId(id),
+          }) : null;
+          await this.launchReservedRun(run, lease, rerun);
+        } catch (error) {
+          lease.release();
+          if (this.store.getProjectRun(queued.orgId, queued.projectRunId)?.status === 'queued') {
+            this.store.transitionProjectRun({ orgId: queued.orgId, projectRunId: queued.projectRunId,
+              from: 'queued', to: 'failed', error: 'Unable to start queued run: ' + String(error).slice(0, 1500) });
+          }
+        }
+      }
+    } catch (error) {
+      process.stderr.write(`[atoma projects] queue dispatch failed: ${String(error)}\n`);
+    } finally {
+      this.queuePumping = false;
+      if (!this.queueStopped) this.resumeQueuedRuns();
+      this.resolveIdleIfSettled();
+    }
+  }
+
   private resolveIdleIfSettled(): void {
-    if (this.active.size > 0 || this.titling.size > 0) return;
+    if (this.active.size > 0 || this.titling.size > 0 || this.queuePumping || this.store.listQueuedRuns().length > 0) return;
+    clearTimeout(this.queueTimer);
+    this.queueTimer = undefined;
     for (const resolveIdle of this.idleWaiters) resolveIdle();
     this.idleWaiters.clear();
   }
@@ -1986,6 +2092,11 @@ export class ProjectRunCoordinator {
   cancel(orgId: string, projectRunId: string): ProjectRun | null {
     const current = this.store.getProjectRun(orgId, projectRunId);
     if (!current) return null;
+    if (current.status === 'queued') {
+      const cancelled = this.store.transitionProjectRun({ orgId, projectRunId, from: 'queued', to: 'cancelled' });
+      this.resolveIdleIfSettled();
+      return cancelled;
+    }
     const active = this.active.get(projectRunId);
     if (active?.orgId === orgId) active.controller.abort(new Error('project run cancelled'));
     return current;
@@ -2000,7 +2111,9 @@ export class ProjectRunCoordinator {
   }
 
   waitForIdle(): Promise<void> {
-    if (this.active.size === 0 && this.titling.size === 0) return Promise.resolve();
+    if (this.active.size === 0 && this.titling.size === 0 && !this.queuePumping && this.store.listQueuedRuns().length === 0) return Promise.resolve();
+    this.resumeQueuedRuns();
+    this.queueTimer?.ref();
     return new Promise<void>((resolveIdle) => this.idleWaiters.add(resolveIdle));
   }
 }

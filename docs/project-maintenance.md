@@ -57,11 +57,41 @@ acceptance work. Never point this command at a live deployment.
 
 ## W10: per-organisation admission
 
+A platform administrator can change `run.concurrentMax` in the admin settings
+or on the production host (against its product database):
+
+```bash
+npm run settings -- set run.concurrentMax 20
+npm run settings -- unset run.concurrentMax
+```
+
+The default is 10; accepted values are integers from 1 to 1,000. Changes apply
+at the next admission without restart. Lowering the ceiling never cancels a
+running job: queued requests start automatically as capacity becomes available. Clearing the setting restores 10. This controls admission,
+not provisioned CPU, memory or provider quota.
+
+
 The default is one concurrent queued/running project run per organisation.
-An operator can set zero to suspend new admission. Values above one are
-refused because the machine-global lease still permits only one run across
-all organisations and operator runs. There is no scheduler or financial
-budget: the owner's BYO-key decision remains in force.
+An operator can set zero to suspend new admission; values above one are refused.
+The host defaults to **10 simultaneous project runs**, each from a different
+organisation. Preparation, execution, finalization and publication retain the
+reservation. A full host saves the request as `queued`, with no slot, worker,
+provider call or running timeout. The client sees "This run is waiting for an
+available slot to start." Eligible requests start in arrival order; a suspended
+organisation is skipped until resumed. One outstanding request per organisation
+remains the limit. Identical retries reattach to their existing run.
+
+Queued runs can be cancelled and survive server restarts. The coordinator
+rechecks membership, models, credentials and current limits before execution.
+A waiting deployment pauses dispatch, drains executing work and leaves the
+queue intact for the new process. Polling also detects capacity increases and
+slots released by other processes.
+
+Operator runs, publication retries, analysis, maintenance and deployment remain
+exclusive. A waiting deployment refuses new starts and drains every reservation.
+The lease schema upgrade preserves existing owners. Deployment and rollback must
+stop old writers before activating a different binary; mixed versions are not
+supported. Provider quotas and host CPU/memory remain independent capacity bounds.
 
 ```bash
 npm run projects:maintenance -- limits --org <uuid>
@@ -73,7 +103,7 @@ The limit lives in `org_run_limits` in the primary product store. The CLI
 updates it and the `org.run_limit_changed` receipt in one immediate
 transaction; a failed audit rolls back the update. Existing runs continue,
 including when the limit becomes zero. Admission checks before acquiring the
-global lease and again inside the run reservation's immediate transaction.
+host lease and again inside the run reservation's immediate transaction.
 Identical request retries return their existing run before either check.
 
 The organisation settings page displays active runs and the allowed count

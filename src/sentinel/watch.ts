@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import type { VizEvent, VizRun } from '../viz/trace.js';
-import { peekRunLease } from '../mcp/runLock.js';
+import { peekRunLeases, type RunLockOwner } from '../mcp/runLock.js';
 import { eventLabel, type PlatformEventInput } from '../contracts/platformEvents.js';
 import { runSentinelRules, type SentinelFinding, type SentinelKind } from './rules.js';
 import type { TrajectoryReference } from '../contracts/trajectory.js';
@@ -193,15 +193,15 @@ export class SentinelWatch {
     const skipped: SentinelSkip[] = [];
     const runs: SentinelLiveRun[] = [];
     const now = this.now();
-    // Contained, like every other read in this pass: `peekRunLease` opens a
+    // Contained, like every other read in this pass: `peekRunLeases` opens a
     // SQLite file this module does not own, and it was the one call in `tick`
     // that could throw past every guard. Context is worth having and never
     // worth a failed pass.
-    let lease: ReturnType<typeof peekRunLease> = null;
+    let leases: RunLockOwner[] = [];
     try {
-      if (this.leasePath) lease = peekRunLease(this.leasePath);
+      if (this.leasePath) leases = peekRunLeases(this.leasePath);
     } catch {
-      lease = null;
+      leases = [];
     }
 
     // The trajectory reference, once per tick and per corpus, before any run
@@ -249,6 +249,7 @@ export class SentinelWatch {
       skipped.push(...discovered.skipped);
       for (const candidate of discovered.runs) {
         runs.push(candidate);
+        const lease = leases.find((owner) => owner.runId === candidate.runId || owner.runId === `project:${candidate.runId}`) ?? null;
         this.screen(candidate, lease, references?.get(candidate.corpus) ?? null, emitted, skipped);
       }
     }
@@ -258,7 +259,7 @@ export class SentinelWatch {
   /** One live run: read, apply the table, journal what has not been said. */
   private screen(
     candidate: SentinelLiveRun,
-    lease: ReturnType<typeof peekRunLease>,
+    lease: RunLockOwner | null,
     reference: TrajectoryReference | null,
     emitted: SentinelFinding[],
     skipped: SentinelSkip[]
