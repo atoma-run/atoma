@@ -397,13 +397,20 @@ describe('full-GL minimal DOM bridge', () => {
     expect(screen.queryByRole('button', { name: 'MCP settings' })).not.toBeInTheDocument();
   });
 
-  it('says when MCP has connected and the agent can start working', () => {
+  it('collapses the connected MCP guide and lets the user reopen it', async () => {
     useGpuStore.setState({ view: 'projects', entered: true });
     render(createElement(DomBridge, {
       runs, releaseVersion: '9.8.7', onSelectRun: vi.fn(),
       t: (key: string, vars?: Record<string, unknown>) => translate('en', key, vars),
       mcpAccessState: 'connected',
     }));
+    expect(screen.queryByRole('button', { name: 'Copy request' })).not.toBeInTheDocument();
+    const toggle = screen.getByRole('button', { name: 'Continue with Atoma' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(useGpuStore.getState().projectMcpCollapsed).toBe(true);
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(useGpuStore.getState().projectMcpCollapsed).toBe(false);
     expect(screen.getByText('Atoma MCP connected for this organisation. Your agent is ready to work.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Copy request' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Connect your agent' })).not.toBeInTheDocument();

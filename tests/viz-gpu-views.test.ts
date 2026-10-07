@@ -617,6 +617,7 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     selectedRegistryAtom: null,
     selectedSkill: null,
     selectedProjectId: null,
+    projectMcpCollapsed: false,
     workspaceRunId: null, workspacePath: '',
     githubRecovery: null, setGitHubRecovery: vi.fn(),
     openWorkspace: vi.fn(), selectProjectSection: vi.fn(), selectWorkspacePath: vi.fn(),
@@ -2741,6 +2742,8 @@ describe('drawProjects', () => {
     expect(projectsGpuContentTop(PROJECTS_NARROW_CONTENT_WIDTH - 1)).toBe(
       PROJECTS_MCP_GUIDE_TOP + PROJECTS_MCP_GUIDE_NARROW_HEIGHT + 16
     );
+    expect(projectsGpuContentTop(1072, true, true)).toBe(PROJECTS_SELECTED_MCP_GUIDE_TOP + 48 + 16);
+    expect(projectsGpuContentTop(320, false, true)).toBe(PROJECTS_MCP_GUIDE_TOP + 48 + 16);
     expect(projectsGpuContentTop(1072, true)).toBe(
       PROJECTS_SELECTED_MCP_GUIDE_TOP + PROJECTS_MCP_GUIDE_HEIGHT + 16
     );
@@ -2989,6 +2992,14 @@ describe('drawProjects', () => {
     const lockOrigin = lock.parent.toGlobal({ x: lock.x, y: lock.y });
     const statusOrigin = status.parent.toGlobal({ x: status.x, y: status.y });
     const separatorOrigin = separator.parent.toGlobal({ x: separator.x, y: separator.y });
+    const runsTab = ctx.buttons.find(button => button.id === 'project.section.runs')!;
+    const tabBottom = runsTab.parent.toGlobal({ x: runsTab.x, y: runsTab.y + runsTab.height }).y;
+    expect(status.parent).toBe(ctx.root);
+    expect(statusOrigin.y).toBeLessThan(tabBottom);
+    expect(statusOrigin.y).toBeGreaterThan(runsTab.y);
+    const resultTab = ctx.buttons.find(button => button.id === 'project.section.result')!;
+    expect(lockOrigin.x).toBeGreaterThan(resultTab.x + resultTab.width);
+    expect(statusOrigin.y).toBeLessThan(PROJECTS_SELECTED_MCP_GUIDE_TOP);
     expect(lockOrigin.x).toBeGreaterThanOrEqual(column.x + 18);
     expect(lockOrigin.x).toBeLessThan(statusOrigin.x);
     expect(statusOrigin.x).toBeLessThan(separatorOrigin.x);

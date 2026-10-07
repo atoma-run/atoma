@@ -212,6 +212,7 @@ export interface GpuUiState {
   selectedSkill: { l1Name: string; id: string } | null;
   selectedProjectId: string | null;
   projectSection: 'runs' | 'files' | 'result';
+  projectMcpCollapsed: boolean;
   workspaceRunId: string | null;
   githubRecovery: import('./github-access.js').GitHubRecoveryProgress | null;
   workspacePath: string;
@@ -430,6 +431,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   selectedRegistryAtom: null,
   selectedSkill: null,
   selectedProjectId: null,
+  projectMcpCollapsed: false,
   projectSection: 'runs',
   workspaceRunId: null,
   githubRecovery: null,

@@ -2359,7 +2359,7 @@ try {
       await otherTab.close();
       const connectionActionGone = () => {
         const guide = document.querySelector('.gpu-project-mcp');
-        return guide && [...guide.querySelectorAll('button')].some((button) => button.textContent === 'Copy request') &&
+        return guide && guide.querySelector('.gpu-project-mcp-toggle')?.getAttribute('aria-expanded') === 'false' && [...guide.querySelectorAll('button')].some((button) => button.textContent === 'Copy request') &&
           ![...guide.querySelectorAll('button')].some((button) => button.textContent === 'Connect your agent') &&
           guide.querySelector('.gpu-project-mcp-connection')?.textContent ===
             'Atoma MCP connected for this organisation. Your agent is ready to work.';
@@ -2368,7 +2368,7 @@ try {
       await accountPage.reload({ waitUntil: 'load' });
       await passArrivalGate(accountPage);
       await accountPage.waitForFunction(connectionActionGone, { timeout: READY_TIMEOUT_MS });
-      console.log('Projects connected MCP access ok: ready status shown on focus and reload');
+      console.log('Projects connected MCP access ok: guide collapsed on focus and reload');
       accountStage = 'project-selection';
 
       // Real Pixi metrics, at the width that exposed the regression: a
@@ -2400,6 +2400,8 @@ try {
         );
       }
       await accountPage.waitForSelector('.gpu-project-mcp-actions input[type="checkbox"]');
+      await accountPage.click('.gpu-project-mcp-toggle');
+      await accountPage.waitForFunction(() => document.querySelector('.gpu-project-mcp-toggle')?.getAttribute('aria-expanded') === 'true');
       await accountPage.click('.gpu-project-mcp-actions input[type="checkbox"]');
       await accountPage.waitForFunction(() => document.querySelector('.gpu-project-mcp-actions input[type="checkbox"]')?.checked);
       await accountPage.reload({ waitUntil: 'load' });

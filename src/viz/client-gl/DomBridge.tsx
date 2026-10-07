@@ -12,7 +12,7 @@ import {
 import type { RunIndexEntry, VizGitHubInstallation, VizProject, VizRun } from '../client/types.js';
 import { AccessibleRunActivity } from './AccessibleRunActivity.js';
 import type { ComponentProps, ReactNode } from 'react';
-import { useState } from 'react';
+import { useLayoutEffect, useState } from 'react';
 import type { AuthUiSnapshot } from './AuthControls.js';
 import { DOC_PAGES, DOC_THEMES, type DocsThemeKey } from './docs-content.js';
 import {
@@ -223,6 +223,10 @@ export function DomBridge({
   const workspaceRunId = useGpuStore(state => state.workspaceRunId);
   const selectedProjectId = useGpuStore((state) => state.selectedProjectId);
   const projectSection = useGpuStore((state) => state.projectSection);
+  const projectMcpCollapsed = useGpuStore(state => state.projectMcpCollapsed);
+  useLayoutEffect(() => {
+    useGpuStore.setState({ projectMcpCollapsed: mcpAccessState === 'connected' });
+  }, [mcpAccessState]);
   const selectedDocsTheme = useGpuStore((state) => state.selectedDocsTheme);
   const accountMenuOpen = useGpuStore((state) => state.accountMenuOpen);
   const localeMenuOpen = useGpuStore((state) => state.localeMenuOpen);
@@ -537,37 +541,43 @@ export function DomBridge({
       ) : null}
       {projectGuideEnabled && view === 'projects' && (!selectedProjectId || projectSection === 'runs') ? (
         <section
-          className={`gpu-panel-skin gpu-project-mcp${selectedProjectId ? ' gpu-project-mcp--selected' : ''}${overlaysInert ? ' gpu-overlays-veiled' : ''}`}
+          className={`gpu-panel-skin gpu-project-mcp${projectMcpCollapsed ? ' gpu-project-mcp--collapsed' : ''}${selectedProjectId ? ' gpu-project-mcp--selected' : ''}${overlaysInert ? ' gpu-overlays-veiled' : ''}`}
           inert={overlaysInert}
           aria-label={t('projects.mcpTitle')}
         >
-          <h2>{t('projects.mcpTitle')}</h2>
-          {mcpAccessState === 'connected' || mcpAccessState === 'authorized' ? (
-            <p className="gpu-project-mcp-connection" aria-live="polite">
-              {t(mcpAccessState === 'connected' ? 'projects.mcpConnected' : 'projects.mcpAuthorized')}
-            </p>
-          ) : null}
-          <p>{selectedProjectName
-            ? t('projects.mcpSelectedIntro', { name: selectedProjectName })
-            : t('projects.mcpCreateIntro')}</p>
-          <p className="gpu-project-mcp-request">{projectRequest}</p>
-          <div className="gpu-project-mcp-actions">
-            {projectAdmin && selectedProject?.repositoryTarget?.source?.mode === 'fork' ?
-              <UpstreamSetting key={selectedProject.projectId} projectId={selectedProject.projectId}
-                enabled={selectedProject.followUpstream ?? false} t={t} /> : null}
-            <button type="button" onClick={() => { void copyProjectRequest(); }}><ButtonIcon kind="copy" />{t('projects.mcpCopy')}</button>
-            {mcpAccessState !== 'connected' && mcpAccessState !== 'authorized' ? (
-              <button type="button" onClick={() => onOpenMcp?.()}><ButtonIcon kind="link" />
-                {t(mcpAccessState === 'unconnected' ? 'projects.mcpConnect' : 'projects.mcpSettings')}
-              </button>
+          <h2><button type="button" className="gpu-project-mcp-toggle"
+            aria-expanded={!projectMcpCollapsed} aria-controls="project-mcp-content"
+            onClick={() => useGpuStore.setState({ projectMcpCollapsed: !projectMcpCollapsed })}>
+            <span aria-hidden="true">{projectMcpCollapsed ? '▸' : '▾'}</span> {t('projects.mcpTitle')}
+          </button></h2>
+          <div id="project-mcp-content" className="gpu-project-mcp-content" hidden={projectMcpCollapsed}>
+            {mcpAccessState === 'connected' || mcpAccessState === 'authorized' ? (
+              <p className="gpu-project-mcp-connection" aria-live="polite">
+                {t(mcpAccessState === 'connected' ? 'projects.mcpConnected' : 'projects.mcpAuthorized')}
+              </p>
             ) : null}
-            {activeGithubInstallations.length === 0 ? (
-              <a href="/auth/github/connect"><ButtonIcon kind="link" />{t('projects.connectGithub')}</a>
+            <p>{selectedProjectName
+              ? t('projects.mcpSelectedIntro', { name: selectedProjectName })
+              : t('projects.mcpCreateIntro')}</p>
+            <p className="gpu-project-mcp-request">{projectRequest}</p>
+            <div className="gpu-project-mcp-actions">
+              {projectAdmin && selectedProject?.repositoryTarget?.source?.mode === 'fork' ?
+                <UpstreamSetting key={selectedProject.projectId} projectId={selectedProject.projectId}
+                  enabled={selectedProject.followUpstream ?? false} t={t} /> : null}
+              <button type="button" onClick={() => { void copyProjectRequest(); }}><ButtonIcon kind="copy" />{t('projects.mcpCopy')}</button>
+              {mcpAccessState !== 'connected' && mcpAccessState !== 'authorized' ? (
+                <button type="button" onClick={() => onOpenMcp?.()}><ButtonIcon kind="link" />
+                  {t(mcpAccessState === 'unconnected' ? 'projects.mcpConnect' : 'projects.mcpSettings')}
+                </button>
+              ) : null}
+              {activeGithubInstallations.length === 0 ? (
+                <a href="/auth/github/connect"><ButtonIcon kind="link" />{t('projects.connectGithub')}</a>
+              ) : null}
+            </div>
+            {copiedRequest?.text === projectRequest ? (
+              <span role="status">{t(copiedRequest.ok ? 'projects.mcpCopied' : 'projects.mcpCopyFailed')}</span>
             ) : null}
           </div>
-          {copiedRequest?.text === projectRequest ? (
-            <span role="status">{t(copiedRequest.ok ? 'projects.mcpCopied' : 'projects.mcpCopyFailed')}</span>
-          ) : null}
         </section>
       ) : null}
       {view === 'settings' && orgModelsForm ? (

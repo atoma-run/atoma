@@ -609,6 +609,27 @@ html.atoma-cursor-active * {
   .gpu-project-mcp { height: 300px; }
 }
 
+.gpu-project-mcp.gpu-project-mcp--collapsed { height: 48px; }
+
+.gpu-project-mcp-toggle {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.gpu-project-mcp-content:not([hidden]) {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 9px;
+}
+
 /* Scene Tuning is DOM chrome because the project guide and settings forms are DOM
    overlays too: no display-list order inside the canvas can rise above a DOM
    sibling. This layer is above view forms and notifications, below the cursor

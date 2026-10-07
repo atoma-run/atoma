@@ -35,9 +35,6 @@ const ROW_HEIGHT = 58;
  */
 const PROJECT_BUTTON_HEIGHT = 46;
 const COMPACT_ROW_HEIGHT = ROW_HEIGHT;
-/** A selected project owns the page title, so its detail row omits the name button. */
-const SELECTED_PROJECT_DETAIL_HEIGHT = ROW_HEIGHT;
-const SELECTED_PROJECT_COMPACT_DETAIL_HEIGHT = ROW_HEIGHT;
 const COMPACT_PROJECT_PANEL_WIDTH = 400;
 const RUN_CARD_HEIGHT = 100;
 const RUN_COMPACT_CARD_HEIGHT = 140;
@@ -96,15 +93,18 @@ export const PROJECTS_NARROW_CONTENT_WIDTH = 480;
 /** Must match the narrow media query in styles.css. */
 export const PROJECTS_MCP_GUIDE_NARROW_HEIGHT = 300;
 
-export function projectsGuideHeight(contentWidth = Number.POSITIVE_INFINITY): number {
+export const PROJECTS_MCP_GUIDE_COLLAPSED_HEIGHT = 48;
+
+export function projectsGuideHeight(contentWidth = Number.POSITIVE_INFINITY, collapsed = false): number {
+  if (collapsed) return PROJECTS_MCP_GUIDE_COLLAPSED_HEIGHT;
   return contentWidth < PROJECTS_NARROW_CONTENT_WIDTH
     ? PROJECTS_MCP_GUIDE_NARROW_HEIGHT
     : PROJECTS_MCP_GUIDE_HEIGHT;
 }
 
-export function projectsGpuContentTop(contentWidth = Number.POSITIVE_INFINITY, selected = false): number {
+export function projectsGpuContentTop(contentWidth = Number.POSITIVE_INFINITY, selected = false, collapsed = false): number {
   return (selected ? PROJECTS_SELECTED_MCP_GUIDE_TOP : PROJECTS_MCP_GUIDE_TOP)
-    + projectsGuideHeight(contentWidth) + 16;
+    + projectsGuideHeight(contentWidth, collapsed) + 16;
 }
 
 /**
@@ -213,7 +213,7 @@ function projectHidden(index: number, selectedIndex: number): boolean {
 
 function projectRowHeight(compact: boolean, selected: boolean): number {
   if (selected) {
-    return compact ? SELECTED_PROJECT_COMPACT_DETAIL_HEIGHT : SELECTED_PROJECT_DETAIL_HEIGHT;
+    return 0;
   }
   return compact ? COMPACT_ROW_HEIGHT : ROW_HEIGHT;
 }
@@ -297,7 +297,7 @@ export function drawProjects(
       frame.innerX,
       guideTop,
       frame.innerWidth,
-      projectsGuideHeight(frame.innerWidth),
+      projectsGuideHeight(frame.innerWidth, snapshot.state.projectMcpCollapsed),
       GPU_COLORS.panel,
       GPU_COLORS.border,
       GPU_LAYOUT.radius,
@@ -307,10 +307,11 @@ export function drawProjects(
 
   // Reserve the guide's band only on the screen where its DOM contents render.
   let contentTop = selectedProject ? frame.contentTop
-    : guideVisible ? projectsGpuContentTop(frame.innerWidth) : frame.contentTop;
+    : guideVisible ? projectsGpuContentTop(frame.innerWidth, false, snapshot.state.projectMcpCollapsed) : frame.contentTop;
   const resultRows = selectedProject ? runsByProject[selectedProject.projectId] ?? [] : [];
   const latestWorkspace = latestWorkspaceRun(resultRows);
   const latestResult = latestDeliveredResult(resultRows);
+  let repositoryHeaderX = frame.innerX;
   if (selectedProject) {
     const sections = [
       { id: 'runs', label: snapshot.t('nav.runs') },
@@ -320,7 +321,9 @@ export function drawProjects(
     const gap = 10;
     const naturalWidths = sections.map(section =>
       Math.ceil(ctx.measureText(section.label, { size: 11, weight: '700' })) + 20 + BUTTON_ICON_SPACE);
-    const room = Math.max(0, frame.innerWidth - gap * (sections.length - 1));
+    const repositoryRoom = snapshot.state.projectSection === 'runs'
+      ? Math.min(400, frame.innerWidth * 0.45) + gap : 0;
+    const room = Math.max(0, frame.innerWidth - repositoryRoom - gap * (sections.length - 1));
     const naturalTotal = naturalWidths.reduce((sum, value) => sum + value, 0);
     const shortLabelsWidth = naturalWidths[0]! + naturalWidths[1]!;
     // Preserve the complete short labels when space is tight; the long result
@@ -338,7 +341,8 @@ export function drawProjects(
         snapshot.onActivate);
       tabX += tabWidth + gap;
     }
-    contentTop = guideVisible ? projectsGpuContentTop(frame.innerWidth, true) : contentTop + PROJECTS_SECTION_TABS_HEIGHT;
+    repositoryHeaderX = tabX;
+    contentTop = guideVisible ? projectsGpuContentTop(frame.innerWidth, true, snapshot.state.projectMcpCollapsed) : contentTop + PROJECTS_SECTION_TABS_HEIGHT;
     if (snapshot.state.projectSection === 'files') {
       if (latestWorkspace && snapshot.state.workspaceRunId) {
         drawWorkspace(ctx, snapshot, width, height, {
@@ -434,8 +438,11 @@ export function drawProjects(
     // A selection filters the list to its own card. Same rule the measuring
     // pass applied, so `scrollMax` describes what is really drawn.
     if (projectHidden(index, selectedIndex)) return;
-    const y = cursor;
     const selected = project.projectId === snapshot.state.selectedProjectId;
+    const y = selected ? frame.contentTop - 5 : cursor;
+    const rowParent = selected ? ctx.root : pane.content;
+    const rowColumnX = selected ? repositoryHeaderX : columnX;
+    const rowWidth = selected ? Math.max(0, frame.innerX + frame.innerWidth - rowColumnX) : innerWidth;
     const rowLabel = project.name.replace(/\s+/g, ' ');
     const repositoryStatusCopy = statusLabel(
       snapshot.t,
@@ -471,14 +478,13 @@ export function drawProjects(
       PROJECT_INFO_SEPARATOR_AFTER_GAP +
       destinationChromeWidth;
     // On a list row the project name keeps a useful left-hand column. In
-    // detail its name is already the page title, so the repository sequence
-    // may use the complete framed row.
+    // detail the repository sequence uses the space after the section tabs.
     const nameReserve = selected
       ? 0
       : Math.min(280, Math.max(140, innerWidth * 0.22));
     const infoMaxWidth = Math.max(
       0,
-      innerWidth - BUTTON_LABEL_INSET * 2 - nameReserve
+      rowWidth - BUTTON_LABEL_INSET * 2 - nameReserve
     );
     const destinationTextWidth = Math.max(
       0,
@@ -486,20 +492,20 @@ export function drawProjects(
     );
     const infoWidth = fixedInfoWidth + destinationTextWidth;
     const infoX = selected
-      ? columnX + BUTTON_LABEL_INSET
-      : columnX + innerWidth - PROJECTS_ROW_PAD - infoWidth;
+      ? rowColumnX + BUTTON_LABEL_INSET
+      : rowColumnX + innerWidth - PROJECTS_ROW_PAD - infoWidth;
     const nameLabelWidth = Math.max(
       0,
-      infoX - columnX - BUTTON_LABEL_INSET * 2 - PROJECT_INFO_GAP
+      infoX - rowColumnX - BUTTON_LABEL_INSET * 2 - PROJECT_INFO_GAP
     );
 
     if (!selected) {
       ctx.button(
-        pane.content,
+        rowParent,
         `project.select.${project.projectId}`,
         'button',
         rowLabel,
-        columnX,
+        rowColumnX,
         y,
         innerWidth,
         PROJECT_BUTTON_HEIGHT,
@@ -527,9 +533,9 @@ export function drawProjects(
         lastRunAgo ? snapshot.t('projects.cardLastRun', { ago: lastRunAgo }) : null,
       ].filter((value): value is string => value !== null).join(' · ');
       ctx.text(
-        pane.content,
+        rowParent,
         metadata,
-        columnX + BUTTON_LABEL_INSET,
+        rowColumnX + BUTTON_LABEL_INSET,
         y + PROJECT_METADATA_Y,
         {
           size: 9,
@@ -540,31 +546,19 @@ export function drawProjects(
       );
       const exactLastRun = lastRunAt ? timestampTooltip(lastRunAt, snapshot.state.locale) : null;
       if (exactLastRun && nameLabelWidth > 0) {
-        ctx.tooltip(pane.content, {
-          x: columnX + BUTTON_LABEL_INSET,
+        ctx.tooltip(rowParent, {
+          x: rowColumnX + BUTTON_LABEL_INSET,
           y: y + PROJECT_METADATA_Y,
           width: nameLabelWidth,
           height: 16,
           text: exactLastRun,
         });
       }
-    } else {
-      ctx.panel(
-        pane.content,
-        columnX,
-        y,
-        innerWidth,
-        PROJECT_BUTTON_HEIGHT,
-        GPU_COLORS.panelRaised,
-        GPU_COLORS.border,
-        7,
-        1
-      );
     }
     let infoCursor = infoX;
     if (project.repositoryTarget.visibility === 'private') {
       ctx.privateRepositoryIcon(
-        pane.content,
+        rowParent,
         infoCursor,
         y + 16,
         PRIVATE_REPOSITORY_ICON_SIZE
@@ -572,7 +566,7 @@ export function drawProjects(
       infoCursor += privateIconSpace;
     }
     ctx.text(
-      pane.content,
+      rowParent,
       repositoryStatusCopy,
       infoCursor,
       y + PROJECT_INFO_TEXT_Y,
@@ -586,7 +580,7 @@ export function drawProjects(
     );
     infoCursor += statusWidth + PROJECT_INFO_SEPARATOR_BEFORE_GAP;
     ctx.text(
-      pane.content,
+      rowParent,
       PROJECT_INFO_SEPARATOR,
       infoCursor,
       y + PROJECT_INFO_TEXT_Y,
@@ -606,7 +600,7 @@ export function drawProjects(
         REPOSITORY_ICON_GAP +
         destinationTextWidth;
       const repositoryLink = ctx.linkRegion(
-        pane.content,
+        rowParent,
         `project.repository.${project.projectId}`,
         destinationText,
         infoCursor,
@@ -635,7 +629,7 @@ export function drawProjects(
       );
     } else {
       ctx.text(
-        pane.content,
+        rowParent,
         destinationText,
         infoCursor,
         y + PROJECT_INFO_TEXT_Y,
