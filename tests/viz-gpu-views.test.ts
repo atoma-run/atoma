@@ -2134,6 +2134,37 @@ function journalEvent(
 describe('drawJournal', () => {
   const auth = makeAuth({ platformAdmin: true });
 
+  it.each([360, 1864])('fits complete event copy to the available columns at %ipx', (width) => {
+    const ctx = createRecordingCtx();
+    const event = journalEvent(9, {
+      kind: 'project.upstream_follow_changed',
+      summary: 'Publication failed: the GitHub App installation does not include mgtf/atoma-fastify: add it under the installation repository settings.',
+    });
+    drawJournal(ctx, makeSnapshot({ view: 'journal' }, { auth, adminEvents: [event] }), width, 920);
+
+    const kind = ctx.texts.find((text) => text.value === event.kind)!;
+    const summary = ctx.texts.find((text) => text.value === event.summary)!;
+    const actor = ctx.texts.find((text) => text.value === event.actorType)!;
+    for (const label of [kind, summary, actor]) {
+      expect(label).toBeDefined();
+      const options = label.options as { singleLine: boolean; width: number };
+      expect(options.singleLine).toBe(true);
+      expect(options.width).toBeGreaterThan(0);
+    }
+    const summaryOptions = summary.options as { width: number; size: number };
+    const kindOptions = kind.options as { width: number; size: number; mono: boolean };
+    const fittedSummary = ctx.fitText(summary.value, summaryOptions.width, summaryOptions);
+    if (width > 1000) {
+      expect(fittedSummary).toBe(event.summary);
+      expect(ctx.fitText(kind.value, kindOptions.width, kindOptions)).toBe(event.kind);
+      expect(kind.x + kindOptions.width).toBeLessThan(actor.x);
+    } else {
+      expect(fittedSummary).not.toBe(event.summary);
+      expect(ctx.measureText(fittedSummary, summaryOptions)).toBeLessThanOrEqual(summaryOptions.width);
+      expect(actor.y).toBeLessThan(summary.y);
+    }
+  });
+
   it('lists events newest-first with its own scroll max', () => {
     const ctx = createRecordingCtx();
     drawJournal(

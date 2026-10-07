@@ -105,15 +105,17 @@ export function drawJournalRow(
       ctx.tooltip(parent, { x: x + 8, y, width: stampWidth, height: 13, text: exact });
     }
   }
-  ctx.text(parent, truncate(event.kind, 28), x + stampWidth + 14, y, {
+  ctx.text(parent, event.kind, x + stampWidth + 14, y, {
     size: 10,
     color,
     mono: true,
+    singleLine: true,
     width: compact ? Math.max(0, innerWidth - stampWidth - 22) : Math.max(0, innerWidth - stampWidth - actorWidth - 30),
   });
-  ctx.text(parent, truncate(event.summary, 96), x + 8, y + (compact ? 32 : 15), {
+  ctx.text(parent, event.summary, x + 8, y + (compact ? 32 : 15), {
     size: 10,
     color: GPU_COLORS.text,
+    singleLine: true,
     width: Math.max(0, innerWidth - 16),
   });
   ctx.text(
@@ -121,13 +123,14 @@ export function drawJournalRow(
     event.actorType,
     compact ? x + 8 : x + innerWidth - actorWidth - 8,
     y + (compact ? 17 : 0),
-    { size: 9, color: GPU_COLORS.muted, mono: true, width: compact ? Math.max(0, innerWidth - 16) : actorWidth }
+    { size: 9, color: GPU_COLORS.muted, mono: true, singleLine: true, width: compact ? Math.max(0, innerWidth - 16) : actorWidth }
   );
   if (options.extra) {
     ctx.text(parent, options.extra, x + 8, y + (compact ? 44 : 30), {
       size: 9,
       color: GPU_COLORS.muted,
       mono: true,
+      singleLine: true,
       width: Math.max(0, innerWidth - 16),
     });
   }
