@@ -1245,7 +1245,7 @@
   "skill.kind.llm": "LLM — 模型引导的配方",
   "skill.kind.script": "SCRIPT — 已编译脚本",
   "result.back": "返回时间线",
-  "result.latest": "",
+  "result.latest": "最新交付结果",
   "result.loading": "正在加载此run的结果…",
   "result.unavailable": "无法加载此run的结果。其跟踪记录可能不可用或已过期。",
   "result.noOutput": "未记录此run的最终输出。",
@@ -1409,5 +1409,7 @@
   "projects.githubAccess.retryPublication": "重试发布",
   "projects.githubAccess.checking": "正在检查 GitHub 访问权限…",
   "projects.githubAccess.retryFailed": "无法继续。请检查 GitHub 访问权限，然后重试。",
-  "projects.githubAccess.requesterOnly": "请让请求此 run 的人继续。"
+  "projects.githubAccess.requesterOnly": "请让请求此 run 的人继续。",
+  "projects.section.noFiles": "此项目还没有已保存的文件。",
+  "projects.section.noDeliveredResult": "此项目还没有已交付的结果。"
 }

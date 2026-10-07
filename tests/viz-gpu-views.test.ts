@@ -3459,7 +3459,7 @@ describe('GPU account menu', () => {
     const ids = ctx.buttons.map((button) => button.id);
     expect(ids).not.toContain('appearance.identity.toggle');
     expect(ids).toContain('appearance.dropdown.toggle');
-    for (const theme of ['nocturne', 'aurora', 'amethyst', 'copper']) {
+    for (const theme of ['nocturne', 'aurora', 'amethyst', 'copper', 'snow']) {
       expect(ids).toContain(`appearance.select.${theme}`);
     }
     expect(ctx.buttons.find((button) => button.id === 'appearance.select.amethyst')?.active).toBe(true);

@@ -20,6 +20,7 @@ export const APPEARANCE_THEMES = [
   { key: 'aurora', labelKey: 'appearance.aurora', color: 0x55d5d0 },
   { key: 'amethyst', labelKey: 'appearance.amethyst', color: 0xbba3ee },
   { key: 'copper', labelKey: 'appearance.copper', color: 0xe4aa65 },
+  { key: 'snow', labelKey: 'appearance.snow', color: 0x8dbff2 },
 ] as const;
 
 export type AppearanceTheme = (typeof APPEARANCE_THEMES)[number]['key'];

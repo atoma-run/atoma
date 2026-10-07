@@ -33,6 +33,7 @@
  *                        arrival (gated only: the tray exists with an account).
  *   --account-menu       Open the account menu on the profile orb after
  *                        arrival (gated only, like the orb itself).
+ *   --appearance <theme>  Switch to a named palette before capture (requires --auth).
  *   --appearance-reveal-ms <ms>  Capture this many milliseconds into the
  *                        white-to-theme reveal (requires --appearance).
  *   --scroll-end         Scroll the Settings body form to its end before
@@ -965,7 +966,7 @@ try {
 
     if (appearanceTheme || showThemeMenu) {
       if (!authed) throw new Error('--appearance and --theme-menu need --auth');
-      if (appearanceTheme && !['nocturne', 'aurora', 'amethyst', 'copper'].includes(appearanceTheme)) {
+      if (appearanceTheme && !['nocturne', 'aurora', 'amethyst', 'copper', 'snow'].includes(appearanceTheme)) {
         throw new Error(`Unknown appearance theme: ${appearanceTheme}`);
       }
       await page.evaluate((theme) => {
@@ -1007,6 +1008,7 @@ try {
         }
         if (!palette) throw new Error('--theme-menu: no visible theme control');
         await page.mouse.click(palette.x, palette.y);
+        await page.evaluate(() => new Promise((resolveWait) => setTimeout(resolveWait, 400)));
         await page.waitForFunction(() =>
           globalThis.__ATOMA_GPU__?.hitTargets().some((entry) => entry.id === 'appearance.select.amethyst'),
         { timeout: READY_TIMEOUT_MS });

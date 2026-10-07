@@ -122,6 +122,17 @@ describe('appearance transition', () => {
     expect(localStorage.getItem('atoma.viz.theme')).toBe('copper');
   });
 
+  it('saves and closes the menu for the snow theme', () => {
+    const theme = 'snow';
+    setReducedMotionOverrideForTests(true);
+    useGpuStore.setState({ accountMenuOpen: true, themeDropdownOpen: true });
+    useGpuStore.getState().setAppearanceTheme(theme);
+    expect(useGpuStore.getState().appearanceTheme).toBe(theme);
+    expect(useGpuStore.getState().accountMenuOpen).toBe(false);
+    expect(useGpuStore.getState().themeDropdownOpen).toBe(false);
+    expect(localStorage.getItem('atoma.viz.theme')).toBe(theme);
+  });
+
   it('dismisses the entire menu when the active theme is selected again', () => {
     useGpuStore.setState({ accountMenuOpen: true, themeDropdownOpen: true });
     useGpuStore.getState().setAppearanceTheme('nocturne');
