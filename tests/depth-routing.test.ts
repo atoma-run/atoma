@@ -93,6 +93,35 @@ it('retains unchanged browser evidence from the refused pass during remediation 
     previousEvidence, ctx, floor: [], phaseCoverage: [] });
 });
 
+it('carries no refused-pass evidence the remediation made untrue or never observed', async () => {
+  const executor = new Executor();
+  const ctx = context(executor);
+  executor.interactionLog = ['FIRST PASS: order persisted after reload'];
+  const first = forkBranch(ctx, 'first-pass');
+  await first.tools!.execute('validate_html', { path: 'index.html' });
+  const previousEvidence = [...executorEvidence({}, first),
+    { source: 'recorded-probe' as const, cmd: 'node domain-tests.js', exitCode: 0, stdout: 'FIRST PASS DECLARATION' }];
+
+  // The remediation rewrites the very page the first pass observed.
+  executor.files['index.html'] = '<button>Rewritten</button>';
+  executor.interactionLog = ['REMEDIATION: page loads'];
+  const remediation = forkBranch(ctx, 'remediation');
+  await remediation.tools!.execute('validate_html', { path: 'index.html' });
+  ctx.llm.enqueue(req => {
+    expect(req.userContent).toContain('REMEDIATION: page loads');
+    expect(req.userContent).not.toContain('FIRST PASS: order persisted after reload');
+    expect(req.userContent).not.toContain('FIRST PASS DECLARATION');
+    return { text: jsonText({ approved: true, reasoning: 'Only the current page is evidenced.' }),
+      stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } };
+  });
+
+  // A full-stack child, as in run b38cb8da: ground truth reads its recorded
+  // probes back, where a carried declaration would replace the current ones.
+  const actor = new Actor(3, false, ['read_file', 'validate_html', 'write_file', 'start_node_server']);
+  await acceptRootResult({ actor, task, result: { ...result, evidence: executorEvidence({}, remediation) },
+    previousEvidence, ctx, floor: [], phaseCoverage: [] });
+  expect(ctx.llm.calls).toHaveLength(1);
+});
 
 describe('standing HTTP evidence at root acceptance (owner decision 2026-10-04)', () => {
   const server = "import { route } from './lib/routes.js';\nroute();\n";

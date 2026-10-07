@@ -231,6 +231,32 @@ function acceptedEvidence(evidence: readonly Witness[] | undefined, stale: Reado
   return evidence.filter((witness) => !(witness.source === 'transport-observed' && stale.has(witness.eventId)));
 }
 
+/**
+ * What the refused pass observed that still holds: its browser observations
+ * of a document whose bytes are unchanged. An attestation lives as long as
+ * the bytes it was made against (src/run/AGENTS.md), and `stale` marks only
+ * restored executions, so a first-pass observation of a page the remediation
+ * rewrote would otherwise read as current. Unbound or unreadable never
+ * carries, and the refused pass's own declarations are not observations.
+ */
+async function carriedEvidence(
+  previous: readonly Witness[] | undefined,
+  current: readonly Witness[] | undefined,
+  recordsById: ReadonlyMap<string, AttestationRecord>,
+  digest: WorkspaceDigest
+): Promise<Witness[]> {
+  const already = new Set((current ?? []).flatMap((witness) =>
+    witness.source === 'transport-observed' ? [witness.eventId] : []));
+  const carried: Witness[] = [];
+  for (const witness of previous ?? []) {
+    if (witness.source !== 'transport-observed' || already.has(witness.eventId)) continue;
+    const observation = recordsById.get(witness.eventId)?.observation;
+    const document = observation?.kind === 'browser' ? observation.document : undefined;
+    if (document && await digest(document.path) === document.sha256) carried.push(witness);
+  }
+  return carried;
+}
+
 /** Root proof is stricter than phase proof: no binding or unreadable bytes never cover. */
 export async function rootProofCoverage(
   ctx: RunContext,
@@ -411,7 +437,7 @@ export async function acceptRootResult(args: {
   checklistOrigin?: { readonly source: ChecklistSource; readonly digest?: string };
   /** The acceptance that refused this attempt's previous pass, when this one closes a remediation. */
   previousAcceptance?: AcceptanceInfo;
-  /** Evidence earned by the refused pass in this same workspace and attempt. */
+  /** Evidence earned by the refused pass in this same workspace and attempt; see `carriedEvidence`. */
   previousEvidence?: readonly Witness[];
 }): Promise<AcceptanceInfo> {
   const { actor, task, result, ctx, floor } = args;
@@ -431,7 +457,8 @@ export async function acceptRootResult(args: {
     childName: actor.name, childToolNames: actor.toolNames() }), ctx.mechanicalResultRejections, 'delegated');
   // A previous phase may have rendered its witness before a later phase
   // edited the same file. Re-render those reads from host-held records.
-  const passEvidence = [...(args.previousEvidence ?? []), ...(result.evidence ?? [])];
+  const passEvidence = [...await carriedEvidence(args.previousEvidence, result.evidence, recordsById, digest),
+    ...(result.evidence ?? [])];
   const evidence = acceptedEvidence(passEvidence.length > 0 ? passEvidence : undefined, stale)?.map((witness) => {
     if (witness.source !== 'transport-observed') return witness;
     const rewritten = superseded.get(witness.eventId);
