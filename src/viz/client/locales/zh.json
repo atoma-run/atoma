@@ -1384,5 +1384,6 @@
   "activity.older": "较早的编辑",
   "projects.showcaseShown": "已在展示区展示",
   "projects.showcaseEligible": "符合展示区资格",
-  "projects.showcaseHidden": "已从展示区隐藏"
+  "projects.showcaseHidden": "已从展示区隐藏",
+  "projects.activityOrder": "最近活跃的优先"
 }

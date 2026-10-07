@@ -1384,5 +1384,6 @@
   "activity.older": "पुराने संपादन",
   "projects.showcaseShown": "शोकेस पर",
   "projects.showcaseEligible": "शोकेस के लिए पात्र",
-  "projects.showcaseHidden": "शोकेस से छिपा हुआ"
+  "projects.showcaseHidden": "शोकेस से छिपा हुआ",
+  "projects.activityOrder": "सबसे हाल में सक्रिय पहले"
 }

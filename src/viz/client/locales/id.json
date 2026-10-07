@@ -1384,5 +1384,6 @@
   "activity.older": "Pengeditan lebih lama",
   "projects.showcaseShown": "Ditampilkan di etalase",
   "projects.showcaseEligible": "Memenuhi syarat untuk etalase",
-  "projects.showcaseHidden": "Disembunyikan dari etalase"
+  "projects.showcaseHidden": "Disembunyikan dari etalase",
+  "projects.activityOrder": "Terakhir aktif di urutan pertama"
 }

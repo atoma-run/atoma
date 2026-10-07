@@ -1384,5 +1384,6 @@
   "activity.older": "Edições mais antigas",
   "projects.showcaseShown": "Na montra",
   "projects.showcaseEligible": "Elegível para a montra",
-  "projects.showcaseHidden": "Oculto da montra"
+  "projects.showcaseHidden": "Oculto da montra",
+  "projects.activityOrder": "Atividade mais recente primeiro"
 }

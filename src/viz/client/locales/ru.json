@@ -1384,5 +1384,6 @@
   "activity.older": "Более старые изменения",
   "projects.showcaseShown": "На витрине",
   "projects.showcaseEligible": "Можно разместить на витрине",
-  "projects.showcaseHidden": "Скрыто с витрины"
+  "projects.showcaseHidden": "Скрыто с витрины",
+  "projects.activityOrder": "Сначала недавно активные"
 }

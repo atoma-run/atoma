@@ -1384,5 +1384,6 @@
   "activity.older": "Ältere Änderungen",
   "projects.showcaseShown": "Im Showcase",
   "projects.showcaseEligible": "Für den Showcase geeignet",
-  "projects.showcaseHidden": "Im Showcase ausgeblendet"
+  "projects.showcaseHidden": "Im Showcase ausgeblendet",
+  "projects.activityOrder": "Zuletzt aktive zuerst"
 }
