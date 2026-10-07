@@ -1387,5 +1387,14 @@
   "projects.showcaseHidden": "ショーケースでは非表示",
   "projects.activityOrder": "最近アクティブな順",
   "projects.followUpstream": "各runの前にupstreamをフォロー",
-  "projects.followUpstreamFailed": "upstream設定を保存できませんでした。"
+  "projects.followUpstreamFailed": "upstream設定を保存できませんでした。",
+  "workspace.title": "ファイル",
+  "workspace.back": "プロジェクトに戻る",
+  "workspace.parent": "親フォルダー",
+  "workspace.snapshot": "このrun用に保存されたワークスペースです。GitHubとは異なる場合があります。",
+  "workspace.unavailable": "このワークスペースは利用できないか、有効期限が切れています。",
+  "workspace.loading": "ファイルを読み込み中…",
+  "workspace.tooLarge": "このファイルは大きすぎるためプレビューできません（上限256 KiB）。",
+  "workspace.binary": "バイナリファイル—テキストプレビューは利用できません。",
+  "workspace.empty": "このフォルダーには保存済みのファイルがありません。"
 }

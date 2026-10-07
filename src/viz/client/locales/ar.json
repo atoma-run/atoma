@@ -1387,5 +1387,14 @@
   "projects.showcaseHidden": "مخفي من الواجهة",
   "projects.activityOrder": "الأحدث نشاطًا أولًا",
   "projects.followUpstream": "اتّباع المنبع قبل كل run",
-  "projects.followUpstreamFailed": "تعذّر حفظ إعداد المنبع."
+  "projects.followUpstreamFailed": "تعذّر حفظ إعداد المنبع.",
+  "workspace.title": "الملفات",
+  "workspace.back": "العودة إلى المشروع",
+  "workspace.parent": "المجلد الأصل",
+  "workspace.snapshot": "مساحة العمل المحفوظة لهذا run؛ قد تختلف عن GitHub.",
+  "workspace.unavailable": "مساحة العمل هذه غير متاحة أو انتهت صلاحيتها.",
+  "workspace.loading": "جارٍ تحميل الملفات…",
+  "workspace.tooLarge": "هذا الملف كبير جدًا ولا يمكن معاينته (الحد 256 KiB).",
+  "workspace.binary": "ملف ثنائي — المعاينة النصية غير متاحة.",
+  "workspace.empty": "لا يحتوي هذا المجلد على ملفات محفوظة."
 }

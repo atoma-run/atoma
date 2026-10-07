@@ -1387,5 +1387,14 @@
   "projects.showcaseHidden": "Скрыто с витрины",
   "projects.activityOrder": "Сначала недавно активные",
   "projects.followUpstream": "Следовать за upstream перед каждым run",
-  "projects.followUpstreamFailed": "Не удалось сохранить настройку upstream."
+  "projects.followUpstreamFailed": "Не удалось сохранить настройку upstream.",
+  "workspace.title": "Файлы",
+  "workspace.back": "Назад к проекту",
+  "workspace.parent": "Родительская папка",
+  "workspace.snapshot": "Сохранённое рабочее пространство для этого run; оно может отличаться от GitHub.",
+  "workspace.unavailable": "Это рабочее пространство недоступно или срок его хранения истёк.",
+  "workspace.loading": "Загрузка файлов…",
+  "workspace.tooLarge": "Этот файл слишком велик для предпросмотра (ограничение — 256 КиБ).",
+  "workspace.binary": "Двоичный файл — текстовый предпросмотр недоступен.",
+  "workspace.empty": "В этой папке нет сохранённых файлов."
 }

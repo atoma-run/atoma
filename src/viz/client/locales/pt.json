@@ -1387,5 +1387,14 @@
   "projects.showcaseHidden": "Oculto da montra",
   "projects.activityOrder": "Atividade mais recente primeiro",
   "projects.followUpstream": "Seguir upstream antes de cada run",
-  "projects.followUpstreamFailed": "Não foi possível guardar a definição de upstream."
+  "projects.followUpstreamFailed": "Não foi possível guardar a definição de upstream.",
+  "workspace.title": "Ficheiros",
+  "workspace.back": "Voltar ao projeto",
+  "workspace.parent": "Pasta principal",
+  "workspace.snapshot": "Espaço de trabalho guardado para este run; pode diferir do GitHub.",
+  "workspace.unavailable": "Este espaço de trabalho está indisponível ou expirou.",
+  "workspace.loading": "A carregar ficheiros…",
+  "workspace.tooLarge": "Este ficheiro é demasiado grande para pré-visualizar (limite de 256 KiB).",
+  "workspace.binary": "Ficheiro binário — a pré-visualização de texto não está disponível.",
+  "workspace.empty": "Esta pasta não contém ficheiros guardados."
 }

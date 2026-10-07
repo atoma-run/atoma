@@ -1387,5 +1387,14 @@
   "projects.showcaseHidden": "শোকেস থেকে লুকানো",
   "projects.activityOrder": "সর্বশেষ সক্রিয়গুলো আগে",
   "projects.followUpstream": "প্রতিটি run-এর আগে আপস্ট্রিম অনুসরণ করুন",
-  "projects.followUpstreamFailed": "আপস্ট্রিম সেটিং সংরক্ষণ করা যায়নি।"
+  "projects.followUpstreamFailed": "আপস্ট্রিম সেটিং সংরক্ষণ করা যায়নি।",
+  "workspace.title": "ফাইল",
+  "workspace.back": "প্রজেক্টে ফিরে যান",
+  "workspace.parent": "মূল ফোল্ডার",
+  "workspace.snapshot": "এই run-এর জন্য সংরক্ষিত ওয়ার্কস্পেস; এটি GitHub থেকে ভিন্ন হতে পারে।",
+  "workspace.unavailable": "এই ওয়ার্কস্পেসটি অনুপলভ্য অথবা এর মেয়াদ শেষ হয়েছে।",
+  "workspace.loading": "ফাইল লোড হচ্ছে…",
+  "workspace.tooLarge": "এই ফাইলটি প্রিভিউ করার জন্য খুব বড় (সীমা ২৫৬ KiB)।",
+  "workspace.binary": "বাইনারি ফাইল — টেক্সট প্রিভিউ অনুপলভ্য।",
+  "workspace.empty": "এই ফোল্ডারে কোনো সংরক্ষিত ফাইল নেই।"
 }

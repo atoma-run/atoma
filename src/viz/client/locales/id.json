@@ -1387,5 +1387,14 @@
   "projects.showcaseHidden": "Disembunyikan dari etalase",
   "projects.activityOrder": "Terakhir aktif di urutan pertama",
   "projects.followUpstream": "Ikuti upstream sebelum setiap run",
-  "projects.followUpstreamFailed": "Tidak dapat menyimpan pengaturan upstream."
+  "projects.followUpstreamFailed": "Tidak dapat menyimpan pengaturan upstream.",
+  "workspace.title": "File",
+  "workspace.back": "Kembali ke proyek",
+  "workspace.parent": "Folder induk",
+  "workspace.snapshot": "Workspace tersimpan untuk run ini; mungkin berbeda dari GitHub.",
+  "workspace.unavailable": "Workspace ini tidak tersedia atau telah kedaluwarsa.",
+  "workspace.loading": "Memuat file…",
+  "workspace.tooLarge": "File ini terlalu besar untuk dipratinjau (batas 256 KiB).",
+  "workspace.binary": "File biner — pratinjau teks tidak tersedia.",
+  "workspace.empty": "Folder ini tidak memiliki file tersimpan."
 }

@@ -1387,5 +1387,14 @@
   "projects.showcaseHidden": "Masqué de la vitrine",
   "projects.activityOrder": "Activité la plus récente en premier",
   "projects.followUpstream": "Suivre l’upstream avant chaque run",
-  "projects.followUpstreamFailed": "Impossible d’enregistrer le paramètre d’upstream."
+  "projects.followUpstreamFailed": "Impossible d’enregistrer le paramètre d’upstream.",
+  "workspace.title": "Fichiers",
+  "workspace.back": "Retour au projet",
+  "workspace.parent": "Dossier parent",
+  "workspace.snapshot": "Workspace enregistré pour ce run ; il peut différer de GitHub.",
+  "workspace.unavailable": "Ce workspace est indisponible ou a expiré.",
+  "workspace.loading": "Chargement des fichiers…",
+  "workspace.tooLarge": "Ce fichier est trop volumineux pour être prévisualisé (limite de 256 Kio).",
+  "workspace.binary": "Fichier binaire — l’aperçu texte est indisponible.",
+  "workspace.empty": "Ce dossier ne contient aucun fichier enregistré."
 }

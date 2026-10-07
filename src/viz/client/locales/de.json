@@ -1387,5 +1387,14 @@
   "projects.showcaseHidden": "Im Showcase ausgeblendet",
   "projects.activityOrder": "Zuletzt aktive zuerst",
   "projects.followUpstream": "Vor jedem run dem Upstream folgen",
-  "projects.followUpstreamFailed": "Die Upstream-Einstellung konnte nicht gespeichert werden."
+  "projects.followUpstreamFailed": "Die Upstream-Einstellung konnte nicht gespeichert werden.",
+  "workspace.title": "Dateien",
+  "workspace.back": "Zurück zum Projekt",
+  "workspace.parent": "Übergeordneter Ordner",
+  "workspace.snapshot": "Gespeicherter Arbeitsbereich für diesen run; er kann von GitHub abweichen.",
+  "workspace.unavailable": "Dieser Arbeitsbereich ist nicht verfügbar oder abgelaufen.",
+  "workspace.loading": "Dateien werden geladen…",
+  "workspace.tooLarge": "Diese Datei ist zu groß für die Vorschau (Limit: 256 KiB).",
+  "workspace.binary": "Binärdatei — Textvorschau ist nicht verfügbar.",
+  "workspace.empty": "Dieser Ordner enthält keine gespeicherten Dateien."
 }

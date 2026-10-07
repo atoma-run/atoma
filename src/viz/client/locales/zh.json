@@ -1387,5 +1387,14 @@
   "projects.showcaseHidden": "已从展示区隐藏",
   "projects.activityOrder": "最近活跃的优先",
   "projects.followUpstream": "每次 run 前跟随上游",
-  "projects.followUpstreamFailed": "无法保存上游设置。"
+  "projects.followUpstreamFailed": "无法保存上游设置。",
+  "workspace.title": "文件",
+  "workspace.back": "返回项目",
+  "workspace.parent": "上级文件夹",
+  "workspace.snapshot": "此 run 保存的工作区；可能与 GitHub 不同。",
+  "workspace.unavailable": "此工作区不可用或已过期。",
+  "workspace.loading": "正在加载文件…",
+  "workspace.tooLarge": "此文件过大，无法预览（上限为 256 KiB）。",
+  "workspace.binary": "二进制文件——无法进行文本预览。",
+  "workspace.empty": "此文件夹中没有已保存的文件。"
 }

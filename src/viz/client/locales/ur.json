@@ -1387,5 +1387,14 @@
   "projects.showcaseHidden": "نمائش سے مخفی",
   "projects.activityOrder": "حال ہی میں فعال پہلے",
   "projects.followUpstream": "ہر run سے پہلے اپ اسٹریم کو فالو کریں",
-  "projects.followUpstreamFailed": "اپ اسٹریم کی ترتیب محفوظ نہیں کی جا سکی۔"
+  "projects.followUpstreamFailed": "اپ اسٹریم کی ترتیب محفوظ نہیں کی جا سکی۔",
+  "workspace.title": "فائلیں",
+  "workspace.back": "پروجیکٹ پر واپس جائیں",
+  "workspace.parent": "اصل فولڈر",
+  "workspace.snapshot": "اس run کے لیے محفوظ کردہ ورک اسپیس؛ یہ GitHub سے مختلف ہو سکتی ہے۔",
+  "workspace.unavailable": "یہ ورک اسپیس دستیاب نہیں یا اس کی میعاد ختم ہو چکی ہے۔",
+  "workspace.loading": "فائلیں لوڈ ہو رہی ہیں…",
+  "workspace.tooLarge": "یہ فائل پیش منظر کے لیے بہت بڑی ہے (حد 256 KiB)۔",
+  "workspace.binary": "بائنری فائل — متنی پیش منظر دستیاب نہیں ہے۔",
+  "workspace.empty": "اس فولڈر میں کوئی محفوظ کردہ فائل نہیں ہے۔"
 }

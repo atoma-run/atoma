@@ -1387,5 +1387,14 @@
   "projects.showcaseHidden": "शोकेस से छिपा हुआ",
   "projects.activityOrder": "सबसे हाल में सक्रिय पहले",
   "projects.followUpstream": "हर run से पहले अपस्ट्रीम को फ़ॉलो करें",
-  "projects.followUpstreamFailed": "अपस्ट्रीम सेटिंग सेव नहीं की जा सकी।"
+  "projects.followUpstreamFailed": "अपस्ट्रीम सेटिंग सेव नहीं की जा सकी।",
+  "workspace.title": "फ़ाइलें",
+  "workspace.back": "प्रोजेक्ट पर वापस जाएँ",
+  "workspace.parent": "मूल फ़ोल्डर",
+  "workspace.snapshot": "इस run के लिए सहेजा गया कार्यस्थान; यह GitHub से अलग हो सकता है।",
+  "workspace.unavailable": "यह कार्यस्थान उपलब्ध नहीं है या इसकी समय-सीमा समाप्त हो गई है।",
+  "workspace.loading": "फ़ाइलें लोड हो रही हैं…",
+  "workspace.tooLarge": "यह फ़ाइल पूर्वावलोकन के लिए बहुत बड़ी है (256 KiB की सीमा)।",
+  "workspace.binary": "बाइनरी फ़ाइल — टेक्स्ट पूर्वावलोकन उपलब्ध नहीं है।",
+  "workspace.empty": "इस फ़ोल्डर में कोई सहेजी गई फ़ाइल नहीं है।"
 }
