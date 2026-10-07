@@ -880,7 +880,6 @@
   "summary.degraded": "⚠ Degraded run — the supervision loop escalated and the parent took over through its fallback. The deliverable is not a true success of the protocol.",
   "summary.live": "● LIVE — the run is still going, this view refreshes every {{seconds}} s.",
   "summary.error": "Error: {{message}}",
-  "result.title": "Result",
   "result.groundTruth": "ground truth",
   "result.byPhase_one": "phase breakdown ({{count}} phase)",
   "result.byPhase_other": "phase breakdown ({{count}} phases)",

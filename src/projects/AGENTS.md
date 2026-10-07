@@ -285,7 +285,8 @@ list. These values come from the host snapshot, never a tenant prompt.
 - The viz workspace reader exposes only a terminal run's manifest paths, under
   project/org read authority. Reuse the artifact jail and hash validation for
   file bytes; no directory traversal, live worker reads or host paths in replies.
-  Text previews stop at 256 KiB; binary/oversized files retain metadata only.
+  The legacy JSON text reader stops at 256 KiB. File preview bytes stop at
+  10 MiB and are returned as attachments with no-store and nosniff.
 
 - DELIVERY IS DECIDED FROM SIX DEPTH-1 TRACE MEMBERS, never from the whole
   document. `verifiedTrace` reads `id`, `endedAt`, `cancelled` and `degraded` as
