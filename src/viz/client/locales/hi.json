@@ -1245,7 +1245,7 @@
   "skill.kind.llm": "LLM — मॉडल-निर्देशित विधि",
   "skill.kind.script": "SCRIPT — कंपाइल की गई स्क्रिप्ट",
   "result.back": "टाइमलाइन पर वापस जाएँ",
-  "result.latest": "",
+  "result.latest": "नवीनतम डिलीवर किए गए परिणाम",
   "result.loading": "इस run का परिणाम लोड हो रहा है…",
   "result.unavailable": "इस run का परिणाम लोड नहीं किया जा सका। इसका ट्रेस अनुपलब्ध हो सकता है या उसकी समय-सीमा समाप्त हो सकती है।",
   "result.noOutput": "इस run के लिए कोई अंतिम आउटपुट रिकॉर्ड नहीं किया गया।",
@@ -1409,5 +1409,7 @@
   "projects.githubAccess.retryPublication": "प्रकाशन का पुनः प्रयास करें",
   "projects.githubAccess.checking": "GitHub एक्सेस की जाँच हो रही है…",
   "projects.githubAccess.retryFailed": "जारी नहीं रखा जा सका। GitHub एक्सेस की जाँच करें और फिर से प्रयास करें।",
-  "projects.githubAccess.requesterOnly": "जिस व्यक्ति ने इस run का अनुरोध किया था, उससे इसे जारी रखने के लिए कहें।"
+  "projects.githubAccess.requesterOnly": "जिस व्यक्ति ने इस run का अनुरोध किया था, उससे इसे जारी रखने के लिए कहें।",
+  "projects.section.noFiles": "इस प्रोजेक्ट में अभी तक कोई फ़ाइल सेव नहीं की गई है।",
+  "projects.section.noDeliveredResult": "इस प्रोजेक्ट में अभी तक कोई परिणाम डिलीवर नहीं किया गया है।"
 }

@@ -1245,7 +1245,7 @@
   "skill.kind.llm": "LLM — resep berpanduan model",
   "skill.kind.script": "SCRIPT — skrip terkompilasi",
   "result.back": "Kembali ke lini masa",
-  "result.latest": "",
+  "result.latest": "Hasil terkirim terbaru",
   "result.loading": "Memuat hasil run ini…",
   "result.unavailable": "Hasil run ini tidak dapat dimuat. Jejaknya mungkin tidak tersedia atau telah kedaluwarsa.",
   "result.noOutput": "Tidak ada output akhir yang direkam untuk run ini.",
@@ -1409,5 +1409,7 @@
   "projects.githubAccess.retryPublication": "Coba publikasikan lagi",
   "projects.githubAccess.checking": "Memeriksa akses GitHub…",
   "projects.githubAccess.retryFailed": "Tidak dapat melanjutkan. Periksa akses GitHub dan coba lagi.",
-  "projects.githubAccess.requesterOnly": "Minta orang yang meminta run ini untuk melanjutkan."
+  "projects.githubAccess.requesterOnly": "Minta orang yang meminta run ini untuk melanjutkan.",
+  "projects.section.noFiles": "Proyek ini belum memiliki file tersimpan.",
+  "projects.section.noDeliveredResult": "Proyek ini belum memiliki hasil terkirim."
 }

@@ -1245,7 +1245,7 @@
   "skill.kind.llm": "LLM — وصفة موجّهة بالنموذج",
   "skill.kind.script": "SCRIPT — برنامج نصي مُترجَم برمجيًا",
   "result.back": "العودة إلى المخطط الزمني",
-  "result.latest": "",
+  "result.latest": "أحدث النتائج المُسلَّمة",
   "result.loading": "جارٍ تحميل نتيجة هذا الـ run…",
   "result.unavailable": "تعذّر تحميل نتيجة هذا الـ run. قد يكون سجل تتبعه غير متاح أو منتهي الصلاحية.",
   "result.noOutput": "لم يُسجَّل أي إخراج نهائي لهذا الـ run.",
@@ -1409,5 +1409,7 @@
   "projects.githubAccess.retryPublication": "أعِد محاولة النشر",
   "projects.githubAccess.checking": "جارٍ التحقق من صلاحية الوصول إلى GitHub…",
   "projects.githubAccess.retryFailed": "تعذّرت المتابعة. تحقّق من صلاحية الوصول إلى GitHub وحاول مجددًا.",
-  "projects.githubAccess.requesterOnly": "اطلب من الشخص الذي طلب هذا الـ run المتابعة."
+  "projects.githubAccess.requesterOnly": "اطلب من الشخص الذي طلب هذا الـ run المتابعة.",
+  "projects.section.noFiles": "لا يحتوي هذا المشروع على ملفات محفوظة حتى الآن.",
+  "projects.section.noDeliveredResult": "لا يحتوي هذا المشروع على نتيجة مُسلَّمة حتى الآن."
 }

@@ -1245,7 +1245,7 @@
   "skill.kind.llm": "LLM — ماڈل کی رہنمائی والی ترکیب",
   "skill.kind.script": "SCRIPT — کمپائل شدہ اسکرپٹ",
   "result.back": "ٹائم لائن پر واپس جائیں",
-  "result.latest": "",
+  "result.latest": "تازہ ترین فراہم کردہ نتائج",
   "result.loading": "اس run کا نتیجہ لوڈ ہو رہا ہے…",
   "result.unavailable": "اس run کا نتیجہ لوڈ نہیں کیا جا سکا۔ ممکن ہے اس کا ٹریس دستیاب نہ ہو یا اس کی میعاد ختم ہو گئی ہو۔",
   "result.noOutput": "اس run کے لیے کوئی حتمی آؤٹ پٹ ریکارڈ نہیں کیا گیا۔",
@@ -1409,5 +1409,7 @@
   "projects.githubAccess.retryPublication": "دوبارہ شائع کرنے کی کوشش کریں",
   "projects.githubAccess.checking": "GitHub تک رسائی کی جانچ ہو رہی ہے…",
   "projects.githubAccess.retryFailed": "جاری نہیں رکھا جا سکا۔ GitHub تک رسائی چیک کریں اور دوبارہ کوشش کریں۔",
-  "projects.githubAccess.requesterOnly": "جس شخص نے اس run کی درخواست کی تھی، اس سے جاری رکھنے کو کہیں۔"
+  "projects.githubAccess.requesterOnly": "جس شخص نے اس run کی درخواست کی تھی، اس سے جاری رکھنے کو کہیں۔",
+  "projects.section.noFiles": "اس پروجیکٹ میں ابھی تک کوئی فائل محفوظ نہیں ہے۔",
+  "projects.section.noDeliveredResult": "اس پروجیکٹ میں ابھی تک کوئی نتیجہ فراہم نہیں کیا گیا۔"
 }

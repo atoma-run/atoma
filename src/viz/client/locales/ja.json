@@ -1245,7 +1245,7 @@
   "skill.kind.llm": "LLM — モデル誘導型レシピ",
   "skill.kind.script": "SCRIPT — コンパイル済みスクリプト",
   "result.back": "タイムラインに戻る",
-  "result.latest": "",
+  "result.latest": "最新の納品済み結果",
   "result.loading": "このrunの結果を読み込んでいます…",
   "result.unavailable": "このrunの結果を読み込めませんでした。トレースが利用できないか、期限切れの可能性があります。",
   "result.noOutput": "このrunには最終出力が記録されていません。",
@@ -1409,5 +1409,7 @@
   "projects.githubAccess.retryPublication": "公開を再試行",
   "projects.githubAccess.checking": "GitHubへのアクセスを確認中…",
   "projects.githubAccess.retryFailed": "続行できませんでした。GitHubへのアクセスを確認して、もう一度お試しください。",
-  "projects.githubAccess.requesterOnly": "このrunをリクエストした人に続行を依頼してください。"
+  "projects.githubAccess.requesterOnly": "このrunをリクエストした人に続行を依頼してください。",
+  "projects.section.noFiles": "このプロジェクトには、まだ保存されたファイルがありません。",
+  "projects.section.noDeliveredResult": "このプロジェクトには、まだ納品済みの結果がありません。"
 }

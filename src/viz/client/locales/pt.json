@@ -1245,7 +1245,7 @@
   "skill.kind.llm": "LLM — receita orientada por modelo",
   "skill.kind.script": "SCRIPT — script compilado",
   "result.back": "Voltar à cronologia",
-  "result.latest": "",
+  "result.latest": "Resultados entregues mais recentes",
   "result.loading": "A carregar o resultado deste run…",
   "result.unavailable": "Não foi possível carregar o resultado deste run. O respetivo registo pode estar indisponível ou ter expirado.",
   "result.noOutput": "Não foi registado nenhum resultado final para este run.",
@@ -1409,5 +1409,7 @@
   "projects.githubAccess.retryPublication": "Tentar publicar novamente",
   "projects.githubAccess.checking": "A verificar o acesso ao GitHub…",
   "projects.githubAccess.retryFailed": "Não foi possível continuar. Verifique o acesso ao GitHub e tente novamente.",
-  "projects.githubAccess.requesterOnly": "Peça à pessoa que solicitou este run para continuar."
+  "projects.githubAccess.requesterOnly": "Peça à pessoa que solicitou este run para continuar.",
+  "projects.section.noFiles": "Este projeto ainda não tem ficheiros guardados.",
+  "projects.section.noDeliveredResult": "Este projeto ainda não tem resultados entregues."
 }

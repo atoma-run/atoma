@@ -1245,7 +1245,7 @@
   "skill.kind.llm": "LLM — modellgesteuertes Rezept",
   "skill.kind.script": "SCRIPT — kompiliertes Skript",
   "result.back": "Zurück zur Zeitleiste",
-  "result.latest": "",
+  "result.latest": "Neueste bereitgestellte Ergebnisse",
   "result.loading": "Ergebnis dieses Runs wird geladen…",
   "result.unavailable": "Das Ergebnis dieses Runs konnte nicht geladen werden. Der zugehörige Trace ist möglicherweise nicht verfügbar oder abgelaufen.",
   "result.noOutput": "Für diesen Run wurde keine endgültige Ausgabe aufgezeichnet.",
@@ -1409,5 +1409,7 @@
   "projects.githubAccess.retryPublication": "Veröffentlichung erneut versuchen",
   "projects.githubAccess.checking": "GitHub-Zugriff wird geprüft…",
   "projects.githubAccess.retryFailed": "Fortfahren nicht möglich. GitHub-Zugriff prüfen und erneut versuchen.",
-  "projects.githubAccess.requesterOnly": "Bitten Sie die Person, die diesen run angefordert hat, fortzufahren."
+  "projects.githubAccess.requesterOnly": "Bitten Sie die Person, die diesen run angefordert hat, fortzufahren.",
+  "projects.section.noFiles": "Für dieses Projekt sind noch keine Dateien gespeichert.",
+  "projects.section.noDeliveredResult": "Für dieses Projekt liegt noch kein bereitgestelltes Ergebnis vor."
 }
