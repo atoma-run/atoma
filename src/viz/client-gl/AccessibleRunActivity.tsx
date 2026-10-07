@@ -1,3 +1,4 @@
+import { ButtonIcon } from './ButtonIcon.js';
 import type { VizRun } from '../client/types.js';
 import { ACTIVITY_CHANGE_PAGE_SIZE, activityFileSummary, buildRunActivity } from './run-activity.js';
 import { buildActivityDiff } from './run-diff.js';
@@ -18,13 +19,13 @@ export function AccessibleRunActivity({ run, t }: {
   const page = Math.min(state.runActivityPage, pages - 1);
   const end = (selected?.changes.length ?? 0) - page * ACTIVITY_CHANGE_PAGE_SIZE;
   return <section aria-label={t('activity.title')}>
-    <button onClick={() => state.showRunActivity(!state.runActivityOpen)} aria-expanded={state.runActivityOpen}>
+    <button onClick={() => state.showRunActivity(!state.runActivityOpen)} aria-expanded={state.runActivityOpen}><ButtonIcon kind="folder" />
       {t(state.runActivityOpen ? 'activity.backTrace' : 'activity.open', { count: activity.touched })}
     </button>
     {state.runActivityOpen && <>
       <p>{t(`runs.flag.${runStatus(run)}`)}</p>
       {selected ? <>
-        <button onClick={() => state.selectActivityFile(null)}>{t('activity.backFiles')}</button>
+        <button onClick={() => state.selectActivityFile(null)}><ButtonIcon kind="back" />{t('activity.backFiles')}</button>
         <h2>{selected.path}</h2>
         <p>{activityFileSummary(selected, t)}</p>
         <p>{t('activity.excerpts')}</p>
@@ -33,7 +34,7 @@ export function AccessibleRunActivity({ run, t }: {
           const expanded = state.runActivityExpandedChanges[change.event.id] ?? index === 0;
           const diff = expanded ? buildActivityDiff(change.event) : null;
           return <article key={change.event.id}>
-          <h3><button aria-expanded={expanded} onClick={() => state.setActivityChangeExpanded(change.event.id, !expanded)}>
+          <h3><button aria-expanded={expanded} onClick={() => state.setActivityChangeExpanded(change.event.id, !expanded)}><ButtonIcon kind="code" />
             {t(expanded ? 'activity.diff.hide' : 'activity.diff.show')} · {t(`activity.${change.status}`)} · {formatDateTime(change.event.ts, state.locale)}
           </button></h3>
           {diff && <>
@@ -57,18 +58,18 @@ export function AccessibleRunActivity({ run, t }: {
             </tbody>
           </table>
           <p>{t('activity.source', { id: change.event.id })}</p>
-          <button onClick={() => state.selectEvent(change.event.id)}>{t('activity.viewSource')}</button>
+          <button onClick={() => state.selectEvent(change.event.id)}><ButtonIcon kind="code" />{t('activity.viewSource')}</button>
           </>}
         </article>; })}
-        {page > 0 && <button onClick={() => state.pageActivity(-1)}>{t('activity.newer')}</button>}
-        {page + 1 < pages && <button onClick={() => state.pageActivity(1)}>{t('activity.older')}</button>}
+        {page > 0 && <button onClick={() => state.pageActivity(-1)}><ButtonIcon kind="back" />{t('activity.newer')}</button>}
+        {page + 1 < pages && <button onClick={() => state.pageActivity(1)}><ButtonIcon kind="forward" />{t('activity.older')}</button>}
       </> : <>
         <h2>{t(activity.touched ? 'activity.files' : 'activity.noSavedFiles', { count: activity.touched })}</h2>
         <p>{t('activity.confirmedCount', { count: activity.edits })} · {t('summary.cost')}: {runUsageValue(run, runCost(run.totals?.costUsd), t)} · {runDuration(runElapsedMs(run), t)}</p>
         <h3>{t('activity.fileHistory')}</h3><p>{t('activity.fileHint')}</p>
         {!activity.files.length && <p>{t('activity.noFiles')}</p>}
         {activity.files.map(file => <div key={file.path}>
-          <button onClick={() => state.selectActivityFile(file.path)} aria-label={t('activity.viewFile', { path: file.path })}>{file.path}</button>
+          <button onClick={() => state.selectActivityFile(file.path)} aria-label={t('activity.viewFile', { path: file.path })}><ButtonIcon kind="file" />{file.path}</button>
           <p>{activityFileSummary(file, t)}</p>
         </div>)}
         <details><summary>{t('activity.fileScope')}</summary><p>{t('activity.coverage')}</p></details>

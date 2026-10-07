@@ -22,8 +22,9 @@ export function drawWorkspace(ctx: RendererCtx, snapshot: GpuRenderSnapshot, wid
     { size: 11, color: GPU_COLORS.muted, width: frame.innerWidth });
   top += caption.height + 14;
   if (path) {
-    ctx.button(ctx.root, 'workspace.path.' + workspaceParent(path), 'button', '‹ ' + t('workspace.parent'),
-      frame.innerX, top, Math.min(180, frame.innerWidth), 30, false, snapshot.onActivate);
+    ctx.button(ctx.root, 'workspace.path.' + workspaceParent(path), 'button', t('workspace.parent'),
+      frame.innerX, top, Math.min(180, frame.innerWidth), 30, false, snapshot.onActivate,
+      undefined, false, false, undefined, undefined, undefined, false, 'back');
     top += 40;
   }
   ctx.text(ctx.root, path || '/', frame.innerX, top, { size: 12, mono: true, width: frame.innerWidth, singleLine: true });
@@ -51,7 +52,8 @@ export function drawWorkspace(ctx: RendererCtx, snapshot: GpuRenderSnapshot, wid
     children.forEach((entry, i) => {
       if (pane.visible(i * 40, i * 40 + 34)) ctx.button(pane.content, 'workspace.path.' + entry.path, 'button',
         entry.directory ? entry.name + '/' : `${entry.name} · ${entry.size.toLocaleString(snapshot.state.locale)} B`,
-        0, i * 40, pane.width - 16, 34, false, snapshot.onActivate, entry.directory ? GPU_COLORS.primary : GPU_COLORS.text);
+        0, i * 40, pane.width - 16, 34, false, snapshot.onActivate, entry.directory ? GPU_COLORS.primary : GPU_COLORS.text,
+        false, false, undefined, undefined, undefined, false, entry.directory ? 'folder' : 'file');
     });
     bottom = Math.max(bottom, children.length * 40);
   }

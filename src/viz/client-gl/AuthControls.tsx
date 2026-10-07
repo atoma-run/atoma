@@ -1,3 +1,4 @@
+import { ButtonIcon } from './ButtonIcon.js';
 import {
   useCallback,
   useEffect,
@@ -266,7 +267,7 @@ function AccountBridge({
         aria-expanded={open}
         aria-label={open ? t('auth.closeMenu') : t('auth.openMenu')}
         onClick={() => toggleAccountMenu()}
-      >
+      ><ButtonIcon kind="user" />
         {t('auth.signedInAs', { name: viewer.displayName })}
       </button>
       <span>{role === roleKey ? viewer.role : role}</span>
@@ -284,7 +285,7 @@ function AccountBridge({
                 type="button"
                 disabled={switchingOrganisationId !== null}
                 onClick={() => activate(`org.switch.${organisation.id}`)}
-              >
+              ><ButtonIcon kind="user" />
                 {t('auth.switchToOrganisation', { name: organisation.name })}
               </button>
             ))}
@@ -292,7 +293,7 @@ function AccountBridge({
             type="button"
             aria-expanded={themeDropdownOpen}
             onClick={toggleThemeDropdown}
-          >
+          ><ButtonIcon kind="palette" />
             {t('appearance.theme')}: {t(`appearance.${appearanceTheme}`)}
           </button>
           {themeDropdownOpen ? (
@@ -303,27 +304,28 @@ function AccountBridge({
                   type="button"
                   aria-pressed={theme.key === appearanceTheme}
                   onClick={() => setAppearanceTheme(theme.key)}
+                  style={{ borderColor: `#${theme.color.toString(16)}`, backgroundColor: `#${theme.color.toString(16)}33` }}
                 >
                   {t(theme.labelKey)}
                 </button>
               ))}
             </div>
           ) : null}
-          <button type="button" onClick={() => setView('settings')}>
+          <button type="button" onClick={() => setView('settings')}><ButtonIcon kind="settings" />
             {t('nav.settings')}
           </button>
           <button
             type="button"
             disabled={signingOut}
             onClick={() => activate('auth.switchAccount')}
-          >
+          ><ButtonIcon kind="user" />
             {t('auth.switchAccount')}
           </button>
           <button
             type="button"
             disabled={signingOut}
             onClick={() => activate('auth.signOut')}
-          >
+          ><ButtonIcon kind="logout" />
             {t('auth.signOut')}
           </button>
         </>

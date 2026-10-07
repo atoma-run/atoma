@@ -1,3 +1,4 @@
+import { ButtonIcon } from './ButtonIcon.js';
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { detectLocale, translate } from '../client/i18n-catalog.js';
 
@@ -22,7 +23,7 @@ export class GpuErrorBoundary extends Component<
       <main className="gpu-crash" role="alert">
         <strong>{translate(locale, 'app.crash.title')}</strong>
         <pre>{this.state.error.message}</pre>
-        <button onClick={() => window.location.reload()}>
+        <button onClick={() => window.location.reload()}><ButtonIcon kind="refresh" />
           {translate(locale, 'app.crash.reload')}
         </button>
       </main>

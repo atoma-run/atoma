@@ -6400,6 +6400,7 @@ describe('FPS follow-ups', () => {
     renderer.addTicker = (callback) => { callbacks.push(callback); };
     renderer.text = (_parent, value, _x, _y, options) => textStub(value, options);
     renderer.fitText = (value) => value;
+    renderer.measureText = (value) => value.length * 6;
     const parent = new Container();
     const control = kind === 'atomButton'
       ? renderer.atomButton(parent, 'test.control', 'Test', 1, 20, 30, 120, 28, false, () => {})

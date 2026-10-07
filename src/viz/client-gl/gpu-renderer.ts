@@ -1,3 +1,5 @@
+import { buttonIconKind, BUTTON_ICON_SPACE, BUTTON_ICON_SIZE, type ButtonIconKind } from './button-icons.js';
+import { drawButtonIcon } from './renderer/button-icon.js';
 import type { WorkspaceBrowserData } from './workspace-browser.js';
 import {
   Application,
@@ -128,7 +130,7 @@ import { publishSceneCapture, type SceneStill } from './scene-capture.js';
 import { cubeTurnPlan } from './cube-turn.js';
 import { viewFrameGutterRects } from './renderer/view-frame.js';
 import { navRowDistance, navRowGroup, type GpuUiState, type ViewName } from './store.js';
-import { CODE_FONT_FAMILY, GPU_COLORS, GPU_LAYOUT, gpuTextRasterOptions, gpuTextSize, sidebarWidthForViewport } from './theme.js';
+import { APPEARANCE_THEMES, CODE_FONT_FAMILY, GPU_COLORS, GPU_LAYOUT, gpuTextRasterOptions, gpuTextSize, sidebarWidthForViewport } from './theme.js';
 import { VIZ_VISUAL_DEPTH } from './visual-depth.js';
 import type { AuthUiSnapshot } from './AuthControls.js';
 import {
@@ -278,6 +280,9 @@ interface TextOptions {
 export const HEADER_ORB_SIZE = 34;
 /** Width of the notification bell control beside it. */
 export const HEADER_BELL_WIDTH = 36;
+const HEADER_CONTROL_GAP = 12;
+const HEADER_RIGHT_INSET = 12;
+const HEADER_LOCALE_WIDTH = 62;
 /** Centred scale used by a hovered left-rail item. */
 export const NAV_HOVER_SCALE = 1.045;
 
@@ -2154,14 +2159,14 @@ export class GpuRenderer {
       this.addTicker(animateUtilityDocks);
     }
     drawAccountMenu(this, snapshot, width, layoutHeight, focusRail?.profile ?? undefined);
-    const accountReserve = snapshot.data.auth ? HEADER_ORB_SIZE + 16 : 0;
-    const bellReserve = snapshot.data.auth ? HEADER_BELL_WIDTH + 8 : 0;
+    const accountReserve = snapshot.data.auth ? HEADER_ORB_SIZE + HEADER_CONTROL_GAP : 0;
+    const bellReserve = snapshot.data.auth ? HEADER_BELL_WIDTH + HEADER_CONTROL_GAP : 0;
     const localeAnchor: LocaleMenuAnchor = snapshot.state.sceneCameraMode === 'focus' && focusRail
       ? focusRail.locale
       : {
-          x: width - 54 - accountReserve - bellReserve,
+          x: width - HEADER_RIGHT_INSET - HEADER_LOCALE_WIDTH - accountReserve - bellReserve,
           y: GPU_LAYOUT.headerHeight / 2 - 16,
-          width: 42,
+          width: HEADER_LOCALE_WIDTH,
           height: 32,
         };
     drawLocaleMenu(this, snapshot, width, layoutHeight, localeAnchor);
@@ -2171,7 +2176,7 @@ export class GpuRenderer {
       ? snapshot.state.sceneCameraMode === 'focus' && focusRail
         ? focusRail.bell ?? undefined
         : {
-            x: width - accountReserve - HEADER_BELL_WIDTH - 4,
+            x: width - HEADER_RIGHT_INSET - accountReserve - HEADER_BELL_WIDTH,
             y: GPU_LAYOUT.headerHeight / 2 - 16,
             width: HEADER_BELL_WIDTH,
             height: 32,
@@ -3330,7 +3335,8 @@ export class GpuRenderer {
      * Continue is the one caller today — a control that must stay readable
      * while it says it can no longer be used.
      */
-    disabled = false
+    disabled = false,
+    iconKind?: ButtonIconKind
   ) {
     const container = new Container();
     container.position.set(x, y);
@@ -3340,13 +3346,15 @@ export class GpuRenderer {
       alpha: 0.4,
       surface: 'button',
     });
+    const themeChoice = APPEARANCE_THEMES.find(theme => id === `appearance.select.${theme.key}`);
+    const faceAccent = themeChoice?.color ?? accent;
     const graphics = new Graphics();
     graphics.roundRect(0, 0, width, height, 7);
     graphics.fill({
-      color: active ? accent : GPU_COLORS.panelRaised,
-      alpha: active ? 0.32 : 0.9,
+      color: themeChoice ? faceAccent : active ? accent : GPU_COLORS.panelRaised,
+      alpha: active ? 0.32 : themeChoice ? 0.16 : 0.9,
     });
-    graphics.stroke({ color: active ? accent : GPU_COLORS.border, width: active ? 1.5 : 1 });
+    graphics.stroke({ color: active || themeChoice ? faceAccent : GPU_COLORS.border, width: active ? 1.5 : 1 });
     container.addChild(graphics);
     // MEASURED against the real glyphs, not `width / 6.2`. That average advance
     // clipped ordinary Latin copy well short of the button's edge — a run goal
@@ -3358,18 +3366,20 @@ export class GpuRenderer {
       color: active ? GPU_COLORS.text : GPU_COLORS.muted,
       weight: active ? '700' : '600',
     } as const;
-    const labelText = this.text(
-      container,
-      this.fitText(
-        label,
-        Math.max(0, Math.min(width - 20, labelMaxWidth ?? Number.POSITIVE_INFINITY)),
-        labelStyle
-      ),
-      centerLabel ? width / 2 : BUTTON_LABEL_INSET,
-      labelY ?? Math.max(5, (height - 16) / 2),
-      labelStyle
-    );
-    if (centerLabel) labelText.anchor.x = 0.5;
+    // Existing glyph-only controls and invisible row hit targets already have
+    // their own visual content. Text controls reserve an icon plus a 6px gap.
+    const compactIcon = centerLabel && width < 64;
+    const sideInset = compactIcon ? 4 : BUTTON_LABEL_INSET;
+    const iconSize = compactIcon ? 12 : BUTTON_ICON_SIZE;
+    const iconSpace = !themeChoice && label && /[\p{L}\p{N}]/u.test(label) && !spinning ? (compactIcon ? 16 : BUTTON_ICON_SPACE) : 0;
+    const fittedLabel = this.fitText(label,
+      Math.max(0, Math.min(width - sideInset * 2 - iconSpace, (labelMaxWidth ?? Infinity) - iconSpace)), labelStyle);
+    const contentX = centerLabel
+      ? Math.max(sideInset, (width - this.measureText(fittedLabel, labelStyle) - iconSpace) / 2)
+      : sideInset;
+    const textY = labelY ?? Math.max(5, (height - 16) / 2);
+    if (iconSpace) drawButtonIcon(container, iconKind ?? buttonIconKind(id), contentX, textY + (16 - iconSize) / 2, labelStyle.color, iconSize);
+    const labelText = this.text(container, fittedLabel, contentX + iconSpace, textY, labelStyle);
     labelText.eventMode = 'none';
     if (spinning) {
       // Rotation needs the glyph centred on BOTH axes, so the label moves to
@@ -3582,17 +3592,18 @@ export class GpuRenderer {
     // The label box tracks the face: 11px renders ~16px tall, so centre on
     // labelSize + 5 rather than a constant tied to the default face.
     const labelBox = gpuTextSize(labelSize) + 5;
-    const fittedLabel = this.fitText(label, Math.max(0, width - 22), {
+    const fittedLabel = this.fitText(label, Math.max(0, width - 22 - BUTTON_ICON_SPACE), {
       size: labelSize, weight: '700',
     });
-    const labelText = this.text(container, fittedLabel, width / 2, Math.max(3, (height - labelBox) / 2), {
+    const labelLeft = Math.max(11, (width - this.measureText(fittedLabel, { size: labelSize, weight: '700' }) - BUTTON_ICON_SPACE) / 2);
+    drawButtonIcon(container, buttonIconKind(id), labelLeft, (height - BUTTON_ICON_SIZE) / 2, GPU_COLORS.text);
+    const labelText = this.text(container, fittedLabel, labelLeft + BUTTON_ICON_SPACE, Math.max(3, (height - labelBox) / 2), {
       // Built BRIGHT and tinted down, never re-coloured through the style —
       // the style is shared, so `style.fill = …` recolours every label using it.
       size: labelSize,
       color: GPU_COLORS.text,
       weight: active ? '700' : '600',
     });
-    labelText.anchor.x = 0.5;
     labelText.eventMode = 'none';
 
     let hovered = false;
@@ -5050,20 +5061,26 @@ export class GpuRenderer {
     // sits between it and the locale control, and everything to the left
     // shifts by the widths it reserves.
     const auth = snapshot.data.auth;
-    const accountReserve = auth ? HEADER_ORB_SIZE + 16 : 0;
+    const accountReserve = auth ? HEADER_ORB_SIZE + HEADER_CONTROL_GAP : 0;
     // Notifications exist exactly where an account does: the tray is the
     // journal projected onto a principal, and the ungated path has neither.
-    const bellReserve = auth ? HEADER_BELL_WIDTH + 8 : 0;
+    const bellReserve = auth ? HEADER_BELL_WIDTH + HEADER_CONTROL_GAP : 0;
     const opacityTargets: { alpha: number }[] = [];
-    if (auth && width >= 860) {
+    const localeX = width - HEADER_RIGHT_INSET - HEADER_LOCALE_WIDTH - accountReserve - bellReserve;
+    const showTheme = auth && width >= 860;
+    const themeWidth = 110;
+    const themeX = localeX - HEADER_CONTROL_GAP - themeWidth;
+    const fpsRight = showTheme ? themeX - 24 : localeX - 24;
+    opacityTargets.push(this.drawFpsReadout(fpsRight, midY));
+    if (showTheme) {
       const themeButton = this.button(
         this.root,
         'appearance.dropdown.toggle',
         'button',
         `${snapshot.t('appearance.theme')} ▾`,
-        width - 314,
+        themeX,
         midY - 16,
-        90,
+        themeWidth,
         32,
         snapshot.state.accountMenuOpen && snapshot.state.themeDropdownOpen,
         snapshot.onActivate,
@@ -5073,15 +5090,14 @@ export class GpuRenderer {
       themeButton.eventMode = interactive ? 'static' : 'none';
       opacityTargets.push(themeButton);
     }
-    opacityTargets.push(this.drawFpsReadout(width - 64 - accountReserve - bellReserve, midY));
     const locale = this.button(
       this.root,
       'locale.menu.toggle',
       'button',
       snapshot.state.locale.toUpperCase(),
-      width - 54 - accountReserve - bellReserve,
+      width - HEADER_RIGHT_INSET - HEADER_LOCALE_WIDTH - accountReserve - bellReserve,
       midY - 16,
-      42,
+      HEADER_LOCALE_WIDTH,
       32,
       snapshot.state.localeMenuOpen,
       snapshot.onActivate,
@@ -5094,7 +5110,7 @@ export class GpuRenderer {
       const bell = drawNotificationsBell(
         this,
         snapshot,
-        width - accountReserve - HEADER_BELL_WIDTH - 4,
+        width - HEADER_RIGHT_INSET - accountReserve - HEADER_BELL_WIDTH,
         midY - 16,
         HEADER_BELL_WIDTH,
         32
@@ -5103,7 +5119,7 @@ export class GpuRenderer {
       opacityTargets.push(bell);
     }
     if (auth) {
-      const orbX = width - HEADER_ORB_SIZE - 12;
+      const orbX = width - HEADER_ORB_SIZE - HEADER_RIGHT_INSET;
       const orbY = (GPU_LAYOUT.headerHeight - HEADER_ORB_SIZE) / 2;
       opacityTargets.push(...this.drawAccountControl(
         snapshot,

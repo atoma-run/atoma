@@ -16,10 +16,10 @@ export function gpuTextRasterOptions() {
 export const CODE_FONT_FAMILY = 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace';
 
 export const APPEARANCE_THEMES = [
-  { key: 'nocturne', labelKey: 'appearance.nocturne' },
-  { key: 'aurora', labelKey: 'appearance.aurora' },
-  { key: 'amethyst', labelKey: 'appearance.amethyst' },
-  { key: 'copper', labelKey: 'appearance.copper' },
+  { key: 'nocturne', labelKey: 'appearance.nocturne', color: 0x6ea8ff },
+  { key: 'aurora', labelKey: 'appearance.aurora', color: 0x55d5d0 },
+  { key: 'amethyst', labelKey: 'appearance.amethyst', color: 0xbba3ee },
+  { key: 'copper', labelKey: 'appearance.copper', color: 0xe4aa65 },
 ] as const;
 
 export type AppearanceTheme = (typeof APPEARANCE_THEMES)[number]['key'];

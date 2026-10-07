@@ -1,3 +1,4 @@
+import { BUTTON_ICON_SPACE } from '../../button-icons.js';
 import { atomSearchText, matchesSearchQuery } from '../../../client/search.js';
 import { trustCountsLabel } from '../../../client/trust-counts.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
@@ -84,7 +85,7 @@ export function drawRegistry(
       const label = registrySourceLabel(snapshot, registry);
       const naturalWidth = Math.max(
         70,
-        ctx.measureText(label, { size: 11, weight: '700' }) + 20
+        ctx.measureText(label, { size: 11, weight: '700' }) + 20 + BUTTON_ICON_SPACE
       );
       const buttonWidth = Math.min(leftWidth - 32, naturalWidth);
       if (selectorX > selectorLeft && selectorX + buttonWidth > selectorRight) {

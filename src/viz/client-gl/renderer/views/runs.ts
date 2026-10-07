@@ -1,3 +1,4 @@
+import { BUTTON_ICON_SPACE } from '../../button-icons.js';
 import { Container, Graphics, Rectangle } from 'pixi.js';
 import { relativeTime, timestampTooltip } from '../relative-time.js';
 import {
@@ -1612,7 +1613,7 @@ function drawPartialContinueControl(
   if (!guidance.project || guidance.rerun) return 0;
   const height = 30;
   const label = snapshot.t(guidance.carriesOver ? 'run.partial.action.continue' : 'run.partial.action.retry');
-  const labelWidth = Math.ceil(ctx.measureText(label, { size: 11, weight: '600' })) + 20;
+  const labelWidth = Math.ceil(ctx.measureText(label, { size: 11, weight: '600' })) + 20 + BUTTON_ICON_SPACE;
   ctx.button(
     ctx.root,
     `${PARTIAL_CONTINUE_PREFIX}${guidance.project.projectId}`,
@@ -1671,8 +1672,8 @@ function drawRunPreviewControl(
   const stopLabel = snapshot.t('preview.stop');
   const openMinWidth = Math.ceil(ctx.measureText(label, {
     size: 11, weight: preview.state === 'starting' ? '700' : '600',
-  })) + 20;
-  const stopWidth = Math.ceil(ctx.measureText(stopLabel, { size: 11, weight: '600' })) + 20;
+  })) + 20 + BUTTON_ICON_SPACE;
+  const stopWidth = Math.ceil(ctx.measureText(stopLabel, { size: 11, weight: '600' })) + 20 + BUTTON_ICON_SPACE;
   const showStop = preview.state === 'ready';
   const stacked = showStop && openMinWidth + gap + stopWidth > availableWidth;
   const openWidth = Math.min(

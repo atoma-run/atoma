@@ -1,3 +1,5 @@
+import { drawButtonIcon } from '../button-icon.js';
+import { BUTTON_ICON_SPACE } from '../../button-icons.js';
 import { Rectangle } from 'pixi.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { GPU_COLORS } from '../../theme.js';
@@ -72,7 +74,7 @@ export function drawRunActivity(ctx: RendererCtx, snapshot: GpuRenderSnapshot,
       const expanded = snapshot.state.runActivityExpandedChanges[event.id] ?? index === 0;
       const heading = `${t(`activity.${change.status}`)} · ${formatDateTime(event.ts, snapshot.state.locale)}`;
       button(`activity.${expanded ? 'collapse' : 'expand'}.${encodeURIComponent(event.id)}`,
-        `${expanded ? '▾' : '▸'} ${heading} · ${t(expanded ? 'activity.diff.hide' : 'activity.diff.show')}`, expanded);
+        `${heading} · ${t(expanded ? 'activity.diff.hide' : 'activity.diff.show')}`, expanded);
       if (!expanded) { cursor += 12; continue; }
       if (change.replacements !== undefined) line(t('activity.replacements', { count: change.replacements }));
       if (change.transformed) line(t('activity.transformed'), { color: GPU_COLORS.warning });
@@ -101,7 +103,8 @@ export function drawRunActivity(ctx: RendererCtx, snapshot: GpuRenderSnapshot,
         const card = ctx.button(pane.content, `activity.file.${encodeURIComponent(file.path)}`, 'button', '',
           columnX, cursor, innerWidth, 66, false, snapshot.onActivate, GPU_COLORS.primary,
           false, false, undefined, undefined, t('activity.viewFile', { path: file.path }));
-        ctx.text(card, ctx.fitText(file.path, innerWidth - actionWidth - 36, { size: 13, weight: '700' }), 12, 10,
+        drawButtonIcon(card, 'file', 12, 12, GPU_COLORS.text);
+        ctx.text(card, ctx.fitText(file.path, innerWidth - actionWidth - 36 - BUTTON_ICON_SPACE, { size: 13, weight: '700' }), 12 + BUTTON_ICON_SPACE, 10,
           { size: 13, weight: '700', singleLine: true });
         ctx.text(card, ctx.fitText(label, actionWidth, { size: 11 }), innerWidth - actionWidth - 12, 12,
           { size: 11, color: GPU_COLORS.primary, singleLine: true });

@@ -1,3 +1,4 @@
+import { ButtonIcon } from './ButtonIcon.js';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../client/data-api.js';
 import type { VizPlatformSettings, VizPlatformSettingSpec } from '../client/types.js';
@@ -131,7 +132,7 @@ export function PlatformLimitsForm({
                   onClick={() => {
                     void apply({ set: { [spec.key]: parsed } }, 'settings.platformLimitsSaved');
                   }}
-                >
+                ><ButtonIcon kind="save" />
                   {t('settings.save')}
                 </button>
                 <button
@@ -140,7 +141,7 @@ export function PlatformLimitsForm({
                   onClick={() => {
                     void apply({ clear: [spec.key] }, 'settings.platformLimitsCleared');
                   }}
-                >
+                ><ButtonIcon kind="refresh" />
                   {t('settings.platformLimitReset')}
                 </button>
               </div>

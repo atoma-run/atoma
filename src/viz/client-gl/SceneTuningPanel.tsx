@@ -1,3 +1,4 @@
+import { ButtonIcon } from './ButtonIcon.js';
 import {
   useCallback,
   useEffect,
@@ -150,7 +151,7 @@ export function SceneTuningPanel() {
             resetTuning();
             setValues({ ...TUNING_IDENTITY });
           }}
-        >
+        ><ButtonIcon kind="refresh" />
           {t('tuning.reset').toUpperCase()}
         </button>
       </header>

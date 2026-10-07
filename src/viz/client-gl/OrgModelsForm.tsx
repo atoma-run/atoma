@@ -1,3 +1,4 @@
+import { ButtonIcon } from './ButtonIcon.js';
 import { useCallback, useEffect, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -391,7 +392,7 @@ export function OrgModelsForm({
                         type="button"
                         disabled={busy}
                         onClick={() => void applyDelegation(member.principalId, !delegated)}
-                      >
+                      ><ButtonIcon kind="key" />
                         {t(
                           delegated
                             ? 'settings.subscriptionDelegateWithdraw'
@@ -415,7 +416,7 @@ export function OrgModelsForm({
             <button type="button" disabled={busy} onClick={() => {
               setBusy(true);
               void refresh(true).finally(() => setBusy(false));
-            }}>{t('settings.refreshModels')}</button>
+            }}><ButtonIcon kind="refresh" />{t('settings.refreshModels')}</button>
             <p role="status">{t(`settings.modelCatalogue.${account.personalCodexModels?.state ?? 'unavailable'}`)}</p>
           </>
         )}
@@ -604,7 +605,7 @@ export function OrgModelsForm({
                             setDraftKeys((previous) => ({ ...previous, [provider.id]: '' }))
                           );
                         }}
-                      >
+                      ><ButtonIcon kind="save" />
                         {t(configured ? 'settings.keyReplace' : 'settings.keySave')}
                       </button>
                       {configured ? (
@@ -617,7 +618,7 @@ export function OrgModelsForm({
                               'settings.keyRemoved'
                             );
                           }}
-                        >
+                        ><ButtonIcon kind="trash" />
                           {t('settings.keyRemove')}
                         </button>
                       ) : null}
@@ -745,7 +746,7 @@ export function PersonalSubscriptionsPanel({
                     onClick={() => {
                       if (attempt.userCode) void onCopyCodex(attempt.userCode);
                     }}
-                  >
+                  ><ButtonIcon kind="copy" />
                     {t('settings.subscriptionCopyCode')}
                   </button>
                 </div>
@@ -761,7 +762,7 @@ export function PersonalSubscriptionsPanel({
                     {t('settings.subscriptionOpenLogin')}
                   </a>
                 ) : null}
-                <button type="button" disabled={busy} onClick={() => void onCancelCodex()}>
+                <button type="button" disabled={busy} onClick={() => void onCancelCodex()}><ButtonIcon kind="close" />
                   {t('settings.subscriptionCancelLogin')}
                 </button>
               </div>
@@ -771,11 +772,11 @@ export function PersonalSubscriptionsPanel({
           {canUse ? (
             <div className="gpu-subscription-actions">
               {disconnect ? (
-                <button type="button" disabled={busy} onClick={() => void onDisconnectCodex()}>
+                <button type="button" disabled={busy} onClick={() => void onDisconnectCodex()}><ButtonIcon kind="logout" />
                   {t('settings.subscriptionDisconnect')}
                 </button>
               ) : !connecting && !codexUnavailable ? (
-                <button type="button" disabled={busy || loading} onClick={() => void onStartCodex()}>
+                <button type="button" disabled={busy || loading} onClick={() => void onStartCodex()}><ButtonIcon kind="link" />
                   {t(
                     reconnect
                       ? 'settings.subscriptionReconnect'
@@ -784,7 +785,7 @@ export function PersonalSubscriptionsPanel({
                 </button>
               ) : null}
               {attempt && attempt.state !== 'connecting' ? (
-                <button type="button" disabled={busy} onClick={() => void onCancelCodex()}>
+                <button type="button" disabled={busy} onClick={() => void onCancelCodex()}><ButtonIcon kind="close" />
                   {t('settings.subscriptionDismissAttempt')}
                 </button>
               ) : null}

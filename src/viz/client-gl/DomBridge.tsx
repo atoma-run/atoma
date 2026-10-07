@@ -1,3 +1,4 @@
+import { ButtonIcon } from './ButtonIcon.js';
 import { WorkspaceAccessible } from './WorkspaceAccessible.js';
 import type { WorkspaceBrowserData } from './workspace-browser.js';
 import { UpstreamSetting } from './UpstreamSetting.js';
@@ -67,7 +68,7 @@ export function SettingsProfileForm({
         onChange={(event) => setSearch('displayName', event.target.value)}
       />
       <div className="gpu-settings-actions">
-        <button type="submit" disabled={displayName.trim().length === 0}>
+        <button type="submit" disabled={displayName.trim().length === 0}><ButtonIcon kind="save" />
           {t('settings.save')}
         </button>
         {accountError ? <span role="alert">{accountError}</span> : null}
@@ -97,7 +98,7 @@ function AccessibleDocs({
             aria-current={theme.key === selected ? 'page' : undefined}
             aria-pressed={theme.key === selected}
             onClick={() => onSelect(theme.key)}
-          >
+          ><ButtonIcon kind="file" />
             {t(theme.navKey)}
           </button>
         ))}
@@ -286,7 +287,7 @@ export function DomBridge({
               disabled={handheldBlocked}
               aria-disabled={handheldBlocked}
               onClick={() => (onEnter ?? enter)()}
-            >
+            ><ButtonIcon kind="forward" />
               {handheldBlocked ? t('welcome.handheld.blocked') : t('welcome.continue')}
             </button>
             {handheldBlocked ? <p>{t('welcome.handheld.hint')}</p> : null}
@@ -318,7 +319,7 @@ export function DomBridge({
             );
           })
         ) : (
-          <button onClick={() => (onEnter ?? enter)()}>{t('welcome.continue')}</button>
+          <button onClick={() => (onEnter ?? enter)()}><ButtonIcon kind="forward" />{t('welcome.continue')}</button>
         )}
       </div>
     );
@@ -331,7 +332,7 @@ export function DomBridge({
         role="application"
         aria-label={t('app.accessibleName')}
       >
-        <button onClick={activateCrystal}>
+        <button onClick={activateCrystal}><ButtonIcon kind="eye" />
           {t(sceneCameraMode === 'focus' ? 'nav.crystalExpand' : 'nav.crystalWelcome')}
         </button>
         <nav role="tablist" aria-label={t('nav.views')}>
@@ -341,7 +342,7 @@ export function DomBridge({
               role="tab"
               aria-selected={view === name}
               onClick={() => activateView(name)}
-            >
+            ><ButtonIcon kind="forward" />
               {t(`nav.${name}`)}
             </button>
           ))}
@@ -374,7 +375,7 @@ export function DomBridge({
                     projectSelectionAfterActivate(selectedProjectId, project.projectId)
                   );
                 }}
-              >
+              ><ButtonIcon kind="folder" />
                 {project.name}
               </button>
             ))}
@@ -387,7 +388,7 @@ export function DomBridge({
               type="button"
               onClick={() => onActivate('run.preview.open')}
               disabled={preview.state === 'starting'}
-            >
+            ><ButtonIcon kind="eye" />
               {t(
                 preview.state === 'ready'
                   ? 'preview.open'
@@ -399,7 +400,7 @@ export function DomBridge({
               )}
             </button>
             {preview.state === 'ready' ? (
-              <button type="button" onClick={() => onActivate('run.preview.stop')}>
+              <button type="button" onClick={() => onActivate('run.preview.stop')}><ButtonIcon kind="stop" />
                 {t('preview.stop')}
               </button>
             ) : null}
@@ -512,14 +513,14 @@ export function DomBridge({
             {projectAdmin && selectedProject?.repositoryTarget?.source?.mode === 'fork' ?
               <UpstreamSetting key={selectedProject.projectId} projectId={selectedProject.projectId}
                 enabled={selectedProject.followUpstream ?? false} t={t} /> : null}
-            <button type="button" onClick={() => { void copyProjectRequest(); }}>{t('projects.mcpCopy')}</button>
+            <button type="button" onClick={() => { void copyProjectRequest(); }}><ButtonIcon kind="copy" />{t('projects.mcpCopy')}</button>
             {mcpAccessState !== 'connected' && mcpAccessState !== 'authorized' ? (
-              <button type="button" onClick={() => onOpenMcp?.()}>
+              <button type="button" onClick={() => onOpenMcp?.()}><ButtonIcon kind="link" />
                 {t(mcpAccessState === 'unconnected' ? 'projects.mcpConnect' : 'projects.mcpSettings')}
               </button>
             ) : null}
             {activeGithubInstallations.length === 0 ? (
-              <a href="/auth/github/connect">{t('projects.connectGithub')}</a>
+              <a href="/auth/github/connect"><ButtonIcon kind="link" />{t('projects.connectGithub')}</a>
             ) : null}
           </div>
           {copiedRequest?.text === projectRequest ? (
@@ -546,14 +547,14 @@ export function DomBridge({
               type="button"
               disabled={pushPrompt === 'busy'}
               onClick={() => onEnablePush?.()}
-            >
+            ><ButtonIcon kind="bell" />
               {t('push.enable')}
             </button>
             <button
               type="button"
               disabled={pushPrompt === 'busy'}
               onClick={() => onDismissPush?.()}
-            >
+            ><ButtonIcon kind="clock" />
               {t('push.later')}
             </button>
           </div>

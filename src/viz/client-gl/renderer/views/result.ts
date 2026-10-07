@@ -1,3 +1,4 @@
+import { BUTTON_ICON_SPACE } from '../../button-icons.js';
 import { Rectangle } from 'pixi.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { GPU_COLORS } from '../../theme.js';
@@ -14,7 +15,7 @@ export function drawResultPanel(ctx: RendererCtx, snapshot: GpuRenderSnapshot,
     .find(row => row.traceId === snapshot.state.resultRunId || row.projectRunId === snapshot.state.resultRunId);
   ctx.panel(ctx.root, x, y, width, height, GPU_COLORS.panel, GPU_COLORS.border);
   const backLabel = snapshot.t('result.back');
-  const backWidth = Math.ceil(ctx.measureText(backLabel, { size: 11, weight: '600' })) + 24;
+  const backWidth = Math.ceil(ctx.measureText(backLabel, { size: 11, weight: '600' })) + 24 + BUTTON_ICON_SPACE;
   const title = snapshot.t('result.title');
   const titleStyle = { size: 16, weight: '700' } as const;
   const stacked = backWidth + 16 + ctx.measureText(title, titleStyle) > width - 32;

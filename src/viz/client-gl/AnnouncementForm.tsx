@@ -1,3 +1,4 @@
+import { ButtonIcon } from './ButtonIcon.js';
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -193,11 +194,11 @@ export function AnnouncementForm({
       </label>
       <div className="gpu-announce-actions">
         {phase === 'compose' || phase === 'drafting' ? (
-          <button type="submit" disabled={!composed || phase === 'drafting'}>
+          <button type="submit" disabled={!composed || phase === 'drafting'}><ButtonIcon kind="file" />
             {t(phase === 'drafting' ? 'announce.drafting' : 'announce.draft')}
           </button>
         ) : (
-          <button type="submit" disabled={!complete || phase === 'sending'}>
+          <button type="submit" disabled={!complete || phase === 'sending'}><ButtonIcon kind="send" />
             {t(
               phase === 'sending'
                 ? 'announce.sending'

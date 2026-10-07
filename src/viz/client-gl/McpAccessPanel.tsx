@@ -1,3 +1,4 @@
+import { ButtonIcon } from './ButtonIcon.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiHttpError } from '../client/data-api.js';
 import { formatDateTime } from '../client/date-format.js';
@@ -117,7 +118,7 @@ export function McpAccessPanel({
             <li key={token.tokenId} className="gpu-subscription-card">
               <div className="gpu-subscription-card-head">
                 <span className="gpu-subscription-name">{token.label}</span>
-                <button type="button" disabled={busy} onClick={() => void onRevoke(token.tokenId)}>
+                <button type="button" disabled={busy} onClick={() => void onRevoke(token.tokenId)}><ButtonIcon kind="trash" />
                   {t('settings.mcpRevoke')}
                 </button>
               </div>
@@ -142,7 +143,7 @@ export function McpAccessPanel({
       {error ? (
         <div className="gpu-subscription-message gpu-subscription-error" role="alert">
           <p>{t('settings.mcpLoadFailed')}: {error}</p>
-          <button type="button" disabled={busy || loading} onClick={() => void onRetry()}>
+          <button type="button" disabled={busy || loading} onClick={() => void onRetry()}><ButtonIcon kind="refresh" />
             {t('settings.mcpRetry')}
           </button>
         </div>
@@ -157,7 +158,7 @@ export function McpAccessPanel({
         {mcpUrl ? (
           <div className="gpu-subscription-code-row">
             <code data-testid="mcp-url">{mcpUrl}</code>
-            <button type="button" disabled={busy} onClick={() => void onCopy(mcpUrl)}>
+            <button type="button" disabled={busy} onClick={() => void onCopy(mcpUrl)}><ButtonIcon kind="copy" />
               {t('settings.mcpCopy')}
             </button>
           </div>
@@ -169,7 +170,7 @@ export function McpAccessPanel({
 
       {hasUsedConnection ? (
         <button type="button" aria-expanded={showSetup} aria-controls="mcp-setup-guide"
-          onClick={() => setSetupExpanded(!setupExpanded)}>
+          onClick={() => setSetupExpanded(!setupExpanded)}><ButtonIcon kind="link" />
           {t(showSetup ? 'settings.mcpHideSetup' : 'settings.mcpConnectAnother')}
         </button>
       ) : null}
@@ -191,7 +192,7 @@ export function McpAccessPanel({
             }</code>
             <button type="button" disabled={busy} onClick={() => void onCopy(
               client === 'claude' ? claudeMcpCommand(mcpUrl) : codexMcpCommand(mcpUrl, client === 'codex-macos', !operator)
-            )}>{t('settings.mcpCopy')}</button>
+            )}><ButtonIcon kind="copy" />{t('settings.mcpCopy')}</button>
           </div>
           {client === 'codex-macos' ? <p>{t('settings.mcpMacHint')}</p> : null}
           {client !== 'claude' ? <p>{t('settings.mcpCodexTimeout')}</p> : null}
@@ -202,7 +203,7 @@ export function McpAccessPanel({
             <p>{t('settings.mcpCodexSetup')}</p>
             <div className="gpu-subscription-code-row">
               <code className="gpu-mcp-command" data-testid="mcp-oauth-config">{codexMcpConfig(mcpUrl)}</code>
-              <button type="button" disabled={busy} onClick={() => void onCopy(codexMcpConfig(mcpUrl))}>
+              <button type="button" disabled={busy} onClick={() => void onCopy(codexMcpConfig(mcpUrl))}><ButtonIcon kind="copy" />
                 {t('settings.mcpCopy')}
               </button>
             </div>
@@ -223,12 +224,12 @@ export function McpAccessPanel({
                 <p>{t('settings.mcpMintedHint')}</p>
                 <div className="gpu-subscription-code-row">
                   <code data-testid="mcp-token">{minted.token}</code>
-                  <button type="button" disabled={busy} onClick={() => void onCopy(minted.token)}>
+                  <button type="button" disabled={busy} onClick={() => void onCopy(minted.token)}><ButtonIcon kind="copy" />
                     {t('settings.mcpCopy')}
                   </button>
                 </div>
                 <p>{t('settings.mcpManualHeader')}</p>
-                <button type="button" onClick={onDismissMinted}>{t('settings.mcpMintedDone')}</button>
+                <button type="button" onClick={onDismissMinted}><ButtonIcon kind="check" />{t('settings.mcpMintedDone')}</button>
               </div>
             ) : (
               <form className="gpu-mcp-create" onSubmit={(event) => {
@@ -243,7 +244,7 @@ export function McpAccessPanel({
                     onChange={(event) => setLabel(event.target.value)} />
                 </label>
                 <div className="gpu-settings-actions">
-                  <button type="submit" disabled={busy || !ready}>{t('settings.mcpCreate')}</button>
+                  <button type="submit" disabled={busy || !ready}><ButtonIcon kind="plus" />{t('settings.mcpCreate')}</button>
                 </div>
               </form>
             )}

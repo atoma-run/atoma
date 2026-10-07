@@ -1599,3 +1599,12 @@ html.atoma-cursor-active * {
 .gpu-preview-stalled {
   color: #f0c674;
 }
+
+/* Inline icons keep native buttons, focus, disabled states and accessible names. */
+.gpu-button-icon {
+  display: inline-block;
+  flex: 0 0 auto;
+  margin-inline-end: 6px;
+  vertical-align: -2px;
+  pointer-events: none;
+}

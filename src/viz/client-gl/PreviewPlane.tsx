@@ -1,3 +1,4 @@
+import { ButtonIcon } from './ButtonIcon.js';
 import { useEffect, useRef, useState } from 'react';
 import { PREVIEW_BROWSER_SANDBOX } from '../../contracts/preview.js';
 import type { VizPreviewSummary } from '../client/types.js';
@@ -157,13 +158,13 @@ export function PreviewPlane({
           <span title={identity}>{identity}</span>
         </div>
         <div className="gpu-preview-actions">
-          <button type="button" ref={closeRef} onClick={onClose}>
+          <button type="button" ref={closeRef} onClick={onClose}><ButtonIcon kind="back" />
             {t('preview.back')}
           </button>
-          <button type="button" onClick={onReload} disabled={!ready}>
+          <button type="button" onClick={onReload} disabled={!ready}><ButtonIcon kind="refresh" />
             {t('preview.reload')}
           </button>
-          <button type="button" onClick={onRestart} disabled={status === 'opening'}>
+          <button type="button" onClick={onRestart} disabled={status === 'opening'}><ButtonIcon kind="refresh" />
             {t('preview.restart')}
           </button>
           {/* NO "open in a new tab" here, and it is not an omission.
@@ -174,7 +175,7 @@ export function PreviewPlane({
               their own preview. Making it work means minting a second claim
               for a top-level context, which is a decision about what a claim
               binds, not a button. Recorded in src/preview/AGENTS.md. */}
-          <button type="button" onClick={onStop} disabled={state === 'stopped'}>
+          <button type="button" onClick={onStop} disabled={state === 'stopped'}><ButtonIcon kind="stop" />
             {t('preview.stop')}
           </button>
         </div>

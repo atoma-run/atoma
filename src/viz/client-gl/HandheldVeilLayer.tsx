@@ -1,3 +1,4 @@
+import { ButtonIcon } from './ButtonIcon.js';
 import { useEffect, useState, type RefObject } from 'react';
 import type { HandheldWhiteoutPhase } from './handheld-whiteout.js';
 
@@ -37,7 +38,7 @@ export function HandheldVeilLayer({
       <div className="gpu-handheld-veil__notice">
         <p role="status">{phase === 'white' ? notice : null}</p>
         {phase === 'white' && canContinue ? (
-          <button className="gpu-handheld-veil__continue" onClick={onContinue}>
+          <button className="gpu-handheld-veil__continue" onClick={onContinue}><ButtonIcon kind="forward" />
             {continueLabel}
           </button>
         ) : null}
