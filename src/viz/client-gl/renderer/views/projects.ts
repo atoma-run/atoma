@@ -253,7 +253,7 @@ export function drawProjects(
   // its name is the title; the collection count and “viewing …” subtitle no
   // longer describe the job in front of the viewer.
   drawViewFrame(ctx, frame, selectedProject ? '' : snapshot.t('nav.projects'),
-    selectedProject ? undefined : snapshot.t('projects.summary', { count: projects.length }));
+    selectedProject ? undefined : `${snapshot.t('projects.summary', { count: projects.length })} · ${snapshot.t('projects.activityOrder')}`);
   if (selectedProject) {
     const titleY = frame.y + VIEW_FRAME_TITLE_Y;
     const linkStyle = { size: VIEW_FRAME_TITLE_SIZE, weight: '700', color: GPU_COLORS.primary } as const;
@@ -481,6 +481,16 @@ export function drawProjects(
           singleLine: true,
         }
       );
+      const exactLastRun = lastRunAt ? timestampTooltip(lastRunAt, snapshot.state.locale) : null;
+      if (exactLastRun && nameLabelWidth > 0) {
+        ctx.tooltip(pane.content, {
+          x: columnX + BUTTON_LABEL_INSET,
+          y: y + PROJECT_METADATA_Y,
+          width: nameLabelWidth,
+          height: 16,
+          text: exactLastRun,
+        });
+      }
     } else {
       ctx.panel(
         pane.content,

@@ -324,6 +324,7 @@
   "nav.projects": "Projects",
   "projects.summary_one": "{{count}} project in this organisation",
   "projects.summary_other": "{{count}} projects in this organisation",
+  "projects.activityOrder": "Most recently active first",
   "projects.selectedTitle": "Project : {{name}}",
   "projects.all": "All projects",
   "projects.empty": "No project yet. Ask your connected agent to create one through Atoma MCP.",

@@ -174,6 +174,13 @@ function publicProject(
   };
 }
 
+/** A run, or creation before the first run, is the activity visible on a project card. */
+function newestActivityFirst(a: ReturnType<typeof publicProject>, b: ReturnType<typeof publicProject>): number {
+  return (b.lastRunAt ?? b.createdAt).localeCompare(a.lastRunAt ?? a.createdAt)
+    || b.createdAt.localeCompare(a.createdAt)
+    || a.projectId.localeCompare(b.projectId);
+}
+
 export class ProjectService {
   private readonly store: import('./store.js').ProjectStore;
   private readonly coordinator: ProjectRunCoordinator;
@@ -227,7 +234,7 @@ export class ProjectService {
           orgId: project.orgId,
           orgName: project.orgName,
         };
-      });
+      }).sort(newestActivityFirst);
     }
     return this.store.listProjects(viewer.orgId).map((project) =>
       publicProject(
@@ -235,7 +242,7 @@ export class ProjectService {
         this.store.projectRunSummary(viewer.orgId, project.projectId),
         shown.has(project.projectId)
       )
-    );
+    ).sort(newestActivityFirst);
   }
 
   /**

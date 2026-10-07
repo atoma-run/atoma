@@ -245,6 +245,41 @@ describe('ProjectService — roles, IDOR and slug identity', () => {
     ]);
   });
 
+  it('lists projects by their last run or creation, not by administrative updates', async () => {
+    linkInstallation(alice, '501', 'alice-org');
+    const { svc } = service();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      const create = async (slug: string, at: string) => {
+        vi.setSystemTime(new Date(at));
+        return await svc.createProject(jsonReq(payload('501', slug)), alice) as { projectId: string };
+      };
+      const older = await create('older', '2026-09-01T00:00:00.000Z');
+      const newer = await create('newer', '2026-09-02T00:00:00.000Z');
+      const run = (projectId: string, at: string) => {
+        vi.setSystemTime(new Date(at));
+        projects.createProjectRun({
+          orgId: alice.orgId,
+          projectId,
+          principalId: alice.principalId,
+          request: { idempotencyKey: randomUUID(), goal: 'Check the project.' },
+          projectRunId: randomUUID(),
+          hostPaths: { workspacePath: '/w', runsPath: '/r', logPath: '/l.log' },
+        });
+      };
+      run(older.projectId, '2026-10-01T00:00:00.000Z');
+      run(newer.projectId, '2026-10-02T00:00:00.000Z');
+      const fresh = await create('fresh', '2026-10-03T00:00:00.000Z');
+      vi.setSystemTime(new Date('2026-10-06T00:00:00.000Z'));
+      projects.setProjectShowcase(alice.orgId, older.projectId, 'hidden');
+
+      expect((svc.listProjects(alice) as Array<{ projectId: string }>).map((project) => project.projectId))
+        .toEqual([fresh.projectId, newer.projectId, older.projectId]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('projects the per-tier models a run was resolved to, from its payer ledger', async () => {
     linkInstallation(alice, '501', 'alice-org');
     const { svc } = service();

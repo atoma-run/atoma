@@ -153,6 +153,10 @@ list. These values come from the host snapshot, never a tenant prompt.
   other value hides too. Writes stay in the caller's organisation. The project
   listing carries `showcase` and `showcaseShown` — one of its runs is in this
   very read, on a host that publishes the page (`showcaseEnabled` dep).
+- `ProjectService.listProjects()` orders the public project cards by their
+  newest run, or by creation before a first run. `projects.updated_at` also
+  changes for repository and showcase administration, so it cannot describe
+  the activity shown on those cards. Break ties by creation and project id.
 - Such a reader must not WRITE here. A `running` row that outlived its process
   is repaired by `reconcileInterrupted` at the next boot, never by the
   observer that noticed it. `hasProjectTables` exists so a reader can ask

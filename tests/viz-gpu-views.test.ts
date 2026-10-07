@@ -2773,6 +2773,8 @@ describe('drawProjects', () => {
     expect(privateCtx.texts.some((text) => String(text.value).includes('3 runs'))).toBe(true);
     expect(privateCtx.texts.some((text) => String(text.value).startsWith('3 runs · $1.23'))).toBe(true);
     expect(privateCtx.texts.some((text) => String(text.value).includes('last run'))).toBe(true);
+    expect(privateCtx.texts.some((text) => String(text.value).includes('Most recently active first'))).toBe(true);
+    expect(privateCtx.tooltips.some((tooltip) => tooltip.text.includes('August 26, 2026'))).toBe(true);
     expect(privateCtx.privateRepositoryIcons).toHaveLength(1);
 
     const publicCtx = createRecordingCtx();
