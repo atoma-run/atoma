@@ -1385,5 +1385,7 @@
   "projects.showcaseShown": "معروض في الواجهة",
   "projects.showcaseEligible": "مؤهل للعرض في الواجهة",
   "projects.showcaseHidden": "مخفي من الواجهة",
-  "projects.activityOrder": "الأحدث نشاطًا أولًا"
+  "projects.activityOrder": "الأحدث نشاطًا أولًا",
+  "projects.followUpstream": "اتّباع المنبع قبل كل run",
+  "projects.followUpstreamFailed": "تعذّر حفظ إعداد المنبع."
 }

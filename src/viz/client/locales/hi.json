@@ -1385,5 +1385,7 @@
   "projects.showcaseShown": "शोकेस पर",
   "projects.showcaseEligible": "शोकेस के लिए पात्र",
   "projects.showcaseHidden": "शोकेस से छिपा हुआ",
-  "projects.activityOrder": "सबसे हाल में सक्रिय पहले"
+  "projects.activityOrder": "सबसे हाल में सक्रिय पहले",
+  "projects.followUpstream": "हर run से पहले अपस्ट्रीम को फ़ॉलो करें",
+  "projects.followUpstreamFailed": "अपस्ट्रीम सेटिंग सेव नहीं की जा सकी।"
 }

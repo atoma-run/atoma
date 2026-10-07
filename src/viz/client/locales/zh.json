@@ -1385,5 +1385,7 @@
   "projects.showcaseShown": "已在展示区展示",
   "projects.showcaseEligible": "符合展示区资格",
   "projects.showcaseHidden": "已从展示区隐藏",
-  "projects.activityOrder": "最近活跃的优先"
+  "projects.activityOrder": "最近活跃的优先",
+  "projects.followUpstream": "每次 run 前跟随上游",
+  "projects.followUpstreamFailed": "无法保存上游设置。"
 }

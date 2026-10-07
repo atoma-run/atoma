@@ -1385,5 +1385,7 @@
   "projects.showcaseShown": "Ditampilkan di etalase",
   "projects.showcaseEligible": "Memenuhi syarat untuk etalase",
   "projects.showcaseHidden": "Disembunyikan dari etalase",
-  "projects.activityOrder": "Terakhir aktif di urutan pertama"
+  "projects.activityOrder": "Terakhir aktif di urutan pertama",
+  "projects.followUpstream": "Ikuti upstream sebelum setiap run",
+  "projects.followUpstreamFailed": "Tidak dapat menyimpan pengaturan upstream."
 }

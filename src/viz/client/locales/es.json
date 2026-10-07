@@ -1385,5 +1385,7 @@
   "projects.showcaseShown": "En la galería",
   "projects.showcaseEligible": "Apto para la galería",
   "projects.showcaseHidden": "Oculto de la galería",
-  "projects.activityOrder": "Más activos recientemente primero"
+  "projects.activityOrder": "Más activos recientemente primero",
+  "projects.followUpstream": "Seguir upstream antes de cada run",
+  "projects.followUpstreamFailed": "No se pudo guardar la configuración de upstream."
 }

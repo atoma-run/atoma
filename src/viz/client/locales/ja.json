@@ -1385,5 +1385,7 @@
   "projects.showcaseShown": "ショーケースに掲載中",
   "projects.showcaseEligible": "ショーケースへの掲載対象",
   "projects.showcaseHidden": "ショーケースでは非表示",
-  "projects.activityOrder": "最近アクティブな順"
+  "projects.activityOrder": "最近アクティブな順",
+  "projects.followUpstream": "各runの前にupstreamをフォロー",
+  "projects.followUpstreamFailed": "upstream設定を保存できませんでした。"
 }

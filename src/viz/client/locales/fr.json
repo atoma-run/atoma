@@ -1385,5 +1385,7 @@
   "projects.showcaseShown": "Dans la vitrine",
   "projects.showcaseEligible": "Éligible à la vitrine",
   "projects.showcaseHidden": "Masqué de la vitrine",
-  "projects.activityOrder": "Activité la plus récente en premier"
+  "projects.activityOrder": "Activité la plus récente en premier",
+  "projects.followUpstream": "Suivre l’upstream avant chaque run",
+  "projects.followUpstreamFailed": "Impossible d’enregistrer le paramètre d’upstream."
 }

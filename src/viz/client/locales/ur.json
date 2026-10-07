@@ -1385,5 +1385,7 @@
   "projects.showcaseShown": "نمائش میں شامل",
   "projects.showcaseEligible": "نمائش کے لیے اہل",
   "projects.showcaseHidden": "نمائش سے مخفی",
-  "projects.activityOrder": "حال ہی میں فعال پہلے"
+  "projects.activityOrder": "حال ہی میں فعال پہلے",
+  "projects.followUpstream": "ہر run سے پہلے اپ اسٹریم کو فالو کریں",
+  "projects.followUpstreamFailed": "اپ اسٹریم کی ترتیب محفوظ نہیں کی جا سکی۔"
 }

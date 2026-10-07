@@ -1385,5 +1385,7 @@
   "projects.showcaseShown": "Im Showcase",
   "projects.showcaseEligible": "Für den Showcase geeignet",
   "projects.showcaseHidden": "Im Showcase ausgeblendet",
-  "projects.activityOrder": "Zuletzt aktive zuerst"
+  "projects.activityOrder": "Zuletzt aktive zuerst",
+  "projects.followUpstream": "Vor jedem run dem Upstream folgen",
+  "projects.followUpstreamFailed": "Die Upstream-Einstellung konnte nicht gespeichert werden."
 }

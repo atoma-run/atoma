@@ -1385,5 +1385,7 @@
   "projects.showcaseShown": "На витрине",
   "projects.showcaseEligible": "Можно разместить на витрине",
   "projects.showcaseHidden": "Скрыто с витрины",
-  "projects.activityOrder": "Сначала недавно активные"
+  "projects.activityOrder": "Сначала недавно активные",
+  "projects.followUpstream": "Следовать за upstream перед каждым run",
+  "projects.followUpstreamFailed": "Не удалось сохранить настройку upstream."
 }

@@ -1385,5 +1385,7 @@
   "projects.showcaseShown": "শোকেসে প্রদর্শিত",
   "projects.showcaseEligible": "শোকেসের জন্য যোগ্য",
   "projects.showcaseHidden": "শোকেস থেকে লুকানো",
-  "projects.activityOrder": "সর্বশেষ সক্রিয়গুলো আগে"
+  "projects.activityOrder": "সর্বশেষ সক্রিয়গুলো আগে",
+  "projects.followUpstream": "প্রতিটি run-এর আগে আপস্ট্রিম অনুসরণ করুন",
+  "projects.followUpstreamFailed": "আপস্ট্রিম সেটিং সংরক্ষণ করা যায়নি।"
 }

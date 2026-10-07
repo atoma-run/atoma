@@ -1385,5 +1385,7 @@
   "projects.showcaseShown": "Na montra",
   "projects.showcaseEligible": "Elegível para a montra",
   "projects.showcaseHidden": "Oculto da montra",
-  "projects.activityOrder": "Atividade mais recente primeiro"
+  "projects.activityOrder": "Atividade mais recente primeiro",
+  "projects.followUpstream": "Seguir upstream antes de cada run",
+  "projects.followUpstreamFailed": "Não foi possível guardar a definição de upstream."
 }
