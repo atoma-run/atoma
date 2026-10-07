@@ -1,4 +1,4 @@
-/* global document, DOMMatrixReadOnly, DOMPoint, getComputedStyle, HTMLButtonElement, HTMLElement, HTMLInputElement, HTMLTextAreaElement, matchMedia, requestAnimationFrame, MutationObserver, WheelEvent, window */
+/* global document, DOMMatrixReadOnly, DOMPoint, getComputedStyle, HTMLButtonElement, HTMLElement, HTMLInputElement, HTMLTextAreaElement, matchMedia, requestAnimationFrame, MutationObserver, WheelEvent, window, location, Worker */
 import { spawn } from 'node:child_process';
 import { mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
@@ -7,12 +7,14 @@ import { join } from 'node:path';
 import puppeteer from 'puppeteer';
 import { assertLiveMarkBead, assertPointerLitMark } from './viz-mark-bead-probe.mjs';
 import { assertMobileProjects } from './viz-mobile-probe.mjs';
+import { fileViewerFixtures } from './file-viewer-fixtures.mjs';
 import { DEFAULT_PLATFORM_LIMITS, PLATFORM_SETTING_SPECS } from '../dist/contracts/platformSettings.js';
 
 const packageMetadata = JSON.parse(
   await readFile(new URL('../package.json', import.meta.url), 'utf8')
 );
 const releaseVersion = packageMetadata.version;
+const extraPreviewFixtures = await fileViewerFixtures();
 if (typeof releaseVersion !== 'string' || releaseVersion.length === 0) {
   throw new Error('package.json must declare a non-empty version');
 }
@@ -2024,7 +2026,15 @@ try {
         }
         if (
           (message.type() === 'error' || message.type() === 'warn') &&
-          !isEnvironmentNoise(message.text())
+          !isEnvironmentNoise(message.text()) &&
+          // Open File Viewer's PDF blank-page check samples Canvas2D pixels.
+          // Chrome's CPU-readback hint is advisory; the PDF pixel assertion
+          // below still requires real rendered content, and errors stay fatal.
+          !(accountStage === 'project-selection' && message.type() === 'warn' &&
+            (message.text().startsWith('Canvas2D: Multiple readback operations using getImageData') ||
+              // Canvas composition needs these sandbox flags. The iframe CSP
+              // forbids scripts; viz:smoke:files proves execution is rejected.
+              message.text() === 'An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing.'))
         ) {
           accountDiagnostics.push(`${accountStage}: ${message.type()}: ${message.text()}`);
         }
@@ -2135,6 +2145,7 @@ try {
             goal: 'A delivered change ready for review.', status: 'delivered', traceId: 'trace-delivered',
             costUsd: 0.1, durationS: 1, error: null,
             createdAt: '2026-08-20T00:00:00.000Z', endedAt: '2026-08-20T00:00:01.000Z',
+            artifactManifest: { files: [{ path: 'README.md', size: 12 }] },
             publication: { status: 'published', commitSha: 'a'.repeat(40),
               repositoryUrl: 'https://github.com/acme/app', pullRequestUrl: 'https://github.com/acme/app/pull/1' },
           },
@@ -2218,10 +2229,39 @@ try {
         }
         if (path === `/api/projects/${projectId}/runs/eeeeeeee-1111-4222-8333-ffffffffffff/workspace`) {
           const file = new URL(request.url()).searchParams.get('path');
-          void request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify(file
-            ? { path: file, size: 31, kind: 'text', text: 'export const greeting = "hello";' }
-            : { runId: 'eeeeeeee-1111-4222-8333-ffffffffffff', createdAt: '2026-08-20T00:00:00.000Z', status: 'delivered',
-              files: [{ path: 'src/app.ts', size: 31 }, { path: 'README.md', size: 12 }] }) });
+          const samples = {
+            ...Object.fromEntries(Object.entries(extraPreviewFixtures).map(([path, fixture]) => [path, fixture.bytes])),
+            'src/app.ts': 'export const greeting = "hello";',
+            'README.md': '# Preview heading\n\n<script>parent.__previewInjected = true</script>\n\n**Rendered Markdown**',
+            'table.csv': 'name,value\nAtoma,42\n',
+            'document.pdf': (() => {
+              const stream = '1 0 0 rg 20 20 80 80 re f';
+              const objects = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+                '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Resources << >> /Contents 4 0 R >>',
+                `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`];
+              let pdf = '%PDF-1.4\n'; const offsets = [0];
+              objects.forEach((object, i) => { offsets.push(pdf.length); pdf += `${i + 1} 0 obj\n${object}\nendobj\n`; });
+              const xref = pdf.length;
+              pdf += `xref\n0 5\n0000000000 65535 f \n${offsets.slice(1).map(offset => `${String(offset).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+              return pdf;
+            })(),
+            'drawing.svg': '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><script>parent.__previewInjected = true</script><rect width="40" height="40" fill="red"/></svg>',
+            'sound.wav': (() => {
+              const wav = Buffer.alloc(2044);
+              wav.write('RIFF'); wav.writeUInt32LE(2036, 4); wav.write('WAVEfmt ', 8);
+              wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22);
+              wav.writeUInt32LE(8000, 24); wav.writeUInt32LE(16000, 28); wav.writeUInt16LE(2, 32);
+              wav.writeUInt16LE(16, 34); wav.write('data', 36); wav.writeUInt32LE(2000, 40);
+              return wav;
+            })(),
+            'photo.jpg': Buffer.from('/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAX/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFAEBAAAAAAAAAAAAAAAAAAAAAP/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AJgA/9k=', 'base64'),
+          };
+          if (file) {
+            void request.respond({ status: 200, contentType: 'application/octet-stream', body: samples[file] ?? 'unknown' });
+          } else void request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify({
+            runId: 'eeeeeeee-1111-4222-8333-ffffffffffff', createdAt: '2026-08-20T00:00:00.000Z', status: 'delivered',
+            files: Object.entries(samples).map(([path, bytes]) => ({ path, size: Buffer.byteLength(bytes) })),
+          }) });
           return;
         }
         const stub = stubs[path];
@@ -2456,21 +2496,96 @@ try {
       });
       await clickAccountTarget('workspace.path.src');
       await waitForHitTarget(accountPage, 'workspace.path.src/app.ts', 'workspace file missing');
-      await clickAccountTarget('workspace.path.src/app.ts');
-      await accountPage.waitForFunction(() => [...document.querySelectorAll('pre')].some(el => el.textContent.includes('export const greeting')));
-      await accountPage.waitForFunction(() => {
-        const contains = node => typeof node.text === 'string' && node.text.includes('export const greeting') ||
-          (node.children ?? []).some(contains);
-        return contains(globalThis.__ATOMA_GPU__.app.stage);
+      await accountPage.evaluate(async () => {
+        const wasm = await fetch('/vendor/file-viewer/libredwg/wasm/libredwg-web.wasm');
+        if (!wasm.ok || wasm.headers.get('content-type') !== 'application/wasm') throw new Error('DWG WASM missing or incorrect MIME');
+        const bytes = new Uint8Array(await wasm.arrayBuffer());
+        if (bytes[0] !== 0 || bytes[1] !== 97 || bytes[2] !== 115 || bytes[3] !== 109) throw new Error('DWG asset is not WASM');
+        const root = `${location.origin}/vendor/file-viewer/libredwg`;
+        const script = `import { LibreDwg } from ${JSON.stringify(`${root}/dist/libredwg-web.js`)};\nawait LibreDwg.create(${JSON.stringify(`${root}/wasm`)});\npostMessage('ready');`;
+        const url = URL.createObjectURL(new Blob([script], { type: 'text/javascript' }));
+        const worker = new Worker(url, { type: 'module' });
+        try {
+          await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => reject(new Error('DWG worker did not initialize')), 30000);
+            worker.onmessage = () => { clearTimeout(timeout); resolve(); };
+            worker.onerror = event => { clearTimeout(timeout); reject(new Error(event.message)); };
+          });
+        } finally { worker.terminate(); URL.revokeObjectURL(url); }
       });
+      await clickAccountTarget('workspace.path.src/app.ts');
+      await accountPage.waitForFunction(() => document.querySelector('iframe[title="src/app.ts"]')?.contentDocument?.body.textContent.includes('export const greeting'));
       await accountPage.screenshot({ path: '/tmp/atoma-workspace-browser.png' });
-      await waitForHitTarget(accountPage, 'workspace.path.src', 'workspace parent missing');
-      await clickAccountTarget('workspace.path.src');
-      await waitForHitTarget(accountPage, 'workspace.path.src/app.ts', 'workspace parent did not restore folder');
+      await accountPage.click('.gpu-preview-actions button');
+      await waitForHitTarget(accountPage, 'workspace.path.', 'workspace parent missing');
+      await clickAccountTarget('workspace.path.');
+      for (const [path, selector, text] of [
+        ['README.md', 'h1', 'Preview heading'], ['table.csv', 'td', 'Atoma'], ['document.pdf', 'canvas.ofv-pdf-page', ''],
+        ['drawing.svg', 'img', ''], ['photo.jpg', 'img', ''], ['sound.wav', 'audio', ''],
+        ...Object.entries(extraPreviewFixtures).map(([path, fixture]) => [path, fixture.selector, fixture.text]),
+      ]) {
+        const folder = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '';
+        if (folder) {
+          await waitForHitTarget(accountPage, `workspace.path.${folder}`, `missing folder ${folder}`);
+          await clickAccountTarget(`workspace.path.${folder}`);
+        }
+        await waitForHitTarget(accountPage, `workspace.path.${path}`, `missing ${path}`);
+        await clickAccountTarget(`workspace.path.${path}`);
+        // Removing the loading status changes the iframe height. Let its
+        // ResizeObserver settle before checking the active rendered page.
+        await accountPage.waitForFunction(path => document.querySelector(`iframe[title="${path}"]`) &&
+          !document.querySelector('.gpu-preview-status'), { timeout: READY_TIMEOUT_MS }, path);
+        await accountPage.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        await accountPage.waitForFunction(({ path, selector, text }) => {
+          const doc = document.querySelector(`iframe[title="${path}"]`)?.contentDocument;
+          const nodes = [...(doc?.querySelectorAll(selector) ?? [])];
+          return nodes.some(el => selector === 'img' ? el.complete && el.naturalWidth > 0
+            : selector === 'audio' ? el.readyState >= 1
+              : selector === '.ofv-model-stage canvas' ? (() => {
+                if (el.width < 100 || el.height < 100) return false;
+                const sample = document.createElement('canvas');
+                sample.width = 1; sample.height = 1;
+                const context = sample.getContext('2d');
+                context.drawImage(el, 0, 0, 1, 1);
+                return context.getImageData(0, 0, 1, 1).data[3] > 0;
+              })() : selector === 'canvas.ofv-pdf-page' ? (() => {
+                if (!el.width || !el.height) return false;
+                const pixel = el.getContext('2d').getImageData(Math.floor(el.width * .3), Math.floor(el.height * .7), 1, 1).data;
+                return pixel[0] > 200 && pixel[1] < 30 && pixel[2] < 30 && pixel[3] === 255;
+              })() : el.textContent.includes(text));
+        }, { timeout: READY_TIMEOUT_MS }, { path, selector, text }).catch(async error => {
+          const diagnostic = await accountPage.evaluate(path => {
+            const doc = document.querySelector(`iframe[title="${path}"]`)?.contentDocument;
+            return { text: doc?.body.innerText, canvases: [...(doc?.querySelectorAll('canvas') ?? [])].map(c => ({
+              width: c.width, height: c.height, rect: c.getBoundingClientRect().toJSON(),
+            })) };
+          }, path);
+          throw new Error(`File preview ${path}: ${JSON.stringify(diagnostic)}`, { cause: error });
+        });
+        if (await accountPage.evaluate(() => globalThis.__previewInjected === true)) throw new Error('Preview executed file-authored script');
+        await accountPage.screenshot({ path: `/tmp/atoma-file-preview-${path.replaceAll(/[/.]/g, '-')}.png` });
+        await accountPage.click('.gpu-preview-actions button');
+        if (folder) {
+          await waitForHitTarget(accountPage, 'workspace.path.', 'workspace parent missing');
+          await clickAccountTarget('workspace.path.');
+        }
+      }
       await clickAccountTarget('project.section.runs');
       await accountPage.waitForSelector('.gpu-project-mcp--selected');
       console.log('Project workspace explorer ok: canvas project entry, folder, file, parent and back');
       await clickAccountTarget('project.section.result');
+      await waitForHitTarget(accountPage, 'result.file.README.md', 'result file missing');
+      await accountPage.mouse.move(400, 600);
+      await accountPage.mouse.wheel({ deltaY: 900 });
+      await waitForHitTarget(accountPage, 'result.file.README.md', 'result file missing after scroll');
+      await accountPage.screenshot({ path: '/tmp/atoma-result-before-file.png' });
+      await clickAccountTarget('result.file.README.md');
+      await accountPage.waitForFunction(() => document.querySelector('iframe[title="README.md"]')?.contentDocument?.querySelector('h1')?.textContent === 'Preview heading').catch(async error => {
+        await accountPage.screenshot({ path: '/tmp/atoma-result-preview-failure.png' });
+        throw error;
+      });
+      await accountPage.click('.gpu-preview-actions button');
+
       await accountPage.waitForFunction(() => !document.querySelector('.gpu-project-mcp'));
       await accountPage.waitForFunction(() => {
         const contains = node => typeof node.text === 'string' && node.text.includes('Delivered smoke result') ||

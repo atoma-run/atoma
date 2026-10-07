@@ -3,7 +3,7 @@ import { Rectangle } from 'pixi.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { GPU_COLORS } from '../../theme.js';
 import { createScrollPane } from '../scroll-pane.js';
-import { resultSections, resultText, resultFileUrl } from '../../run-result.js';
+import { resultSections, resultText } from '../../run-result.js';
 import { runStatus } from '../../../client/run-utils.js';
 import { formatDateTime } from '../../../client/date-format.js';
 
@@ -76,13 +76,13 @@ export function drawResultPanel(ctx: RendererCtx, snapshot: GpuRenderSnapshot,
     if (projectRun.bytesExpiredAt) text(snapshot.t('result.expired'));
     for (const file of files) {
       const label = `${file.path} · ${file.size.toLocaleString(snapshot.state.locale)} B`;
-      if (resultFileUrl(projectRun, file.path)) {
+      if (!projectRun.bytesExpiredAt && ['delivered', 'partial'].includes(projectRun.status)) {
         ctx.button(pane.content, `result.file.${encodeURIComponent(file.path)}`, 'button', label, 4, cursor,
           width - 44, 32, false, snapshot.onActivate);
         cursor += 38;
       } else text(label);
     }
-    text(snapshot.t(files.some(file => resultFileUrl(projectRun, file.path)) ? 'result.filesPublished' : 'result.filesUnavailable'));
+    text(snapshot.t(projectRun.bytesExpiredAt ? 'result.filesUnavailable' : 'workspace.snapshot'));
   }
   pane.extend(cursor);
   ctx.detailScrollMax = pane.finish();

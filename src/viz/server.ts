@@ -1500,7 +1500,10 @@ const DEV_UI_URL = (() => {
 function assetContentType(file: string): string {
   switch (extname(file)) {
     case '.js':
+    case '.mjs':
       return 'text/javascript; charset=utf-8';
+    case '.wasm':
+      return 'application/wasm';
     case '.css':
       return 'text/css; charset=utf-8';
     case '.svg':
@@ -1552,7 +1555,7 @@ function send(
 function staticCacheControl(path: string): string {
   const name = basename(path);
   if (name === 'sw.js') return 'no-cache';
-  if (/[-.][A-Za-z0-9_-]{8,}\.(?:js|css)$/.test(name)) {
+  if (/[-.][A-Za-z0-9_-]{8,}\.(?:m?js|css)$/.test(name)) {
     return 'public, max-age=31536000, immutable';
   }
   return 'public, max-age=3600';
@@ -4305,8 +4308,20 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
       if (!methodAllowed(req, res, 'GET')) return;
       if (!viewer) { sendJson(res, 401, { error: 'authentication required' }); return; }
       try {
-        const filePath = new URL(req.url!, 'http://localhost').searchParams.get('path') ?? undefined;
-        sendJson(res, 200, PROJECTS_RUNTIME.projects.workspace(viewer, workspaceRead[1]!, workspaceRead[2]!, filePath));
+        const params = new URL(req.url!, 'http://localhost').searchParams;
+        const filePath = params.get('path') ?? undefined;
+        if (params.get('format') === 'bytes' && filePath !== undefined) {
+          const bytes = PROJECTS_RUNTIME.projects.workspace(viewer, workspaceRead[1]!, workspaceRead[2]!, filePath, 'bytes');
+          res.writeHead(200, {
+            'Content-Type': 'application/octet-stream',
+            'Content-Disposition': 'attachment',
+            'Content-Length': bytes.length,
+            'Cache-Control': 'no-store',
+            'X-Content-Type-Options': 'nosniff',
+            'Content-Security-Policy': "default-src 'none'; sandbox",
+          });
+          res.end(bytes);
+        } else sendJson(res, 200, PROJECTS_RUNTIME.projects.workspace(viewer, workspaceRead[1]!, workspaceRead[2]!, filePath));
       } catch (error) {
         if (!(error instanceof ProjectHttpError)) throw error;
         sendJson(res, error.status, { error: error.message });
@@ -4769,7 +4784,7 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
     existsSync(assetPath) &&
     statSync(assetPath).isFile()
   ) {
-    const compressible = /\.(?:js|css)$/.test(assetPath);
+    const compressible = /\.(?:m?js|css)$/.test(assetPath);
     const brotliPath = compressible ? `${assetPath}.br` : null;
     const compressed = Boolean(
       brotliPath && acceptsBrotli(req.headers['accept-encoding']) && existsSync(brotliPath) && statSync(brotliPath).isFile()

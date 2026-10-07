@@ -1,3 +1,4 @@
+import type { FilePreviewTarget } from './workspace-browser.js';
 import { create } from 'zustand';
 import { isLocale, type Locale } from '../../contracts/locales.js';
 import { applyDocumentLocale } from '../client/i18n-catalog.js';
@@ -216,6 +217,7 @@ export interface GpuUiState {
   workspaceRunId: string | null;
   githubRecovery: import('./github-access.js').GitHubRecoveryProgress | null;
   workspacePath: string;
+  filePreview: FilePreviewTarget | null;
   runFilters: EventFilters;
   branchHeadingExpanded: boolean;
   runSummaryExpanded: boolean;
@@ -310,6 +312,7 @@ export interface GpuUiState {
   openWorkspace: (runId: string | null) => void;
   setGitHubRecovery: (value: import('./github-access.js').GitHubRecoveryProgress | null) => void;
   selectWorkspacePath: (path: string) => void;
+  previewFile: (file: FilePreviewTarget | null) => void;
   setRunFilters: (filters: EventFilters) => void;
   toggleBranchHeading: () => void;
   toggleRunSummary: () => void;
@@ -437,6 +440,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   githubRecovery: null,
   setGitHubRecovery: (githubRecovery) => set({ githubRecovery }),
   workspacePath: '',
+  filePreview: null,
   runFilters: { kind: 'all', role: 'all', branchId: 'all' },
   branchHeadingExpanded: true,
   runSummaryExpanded: true,
@@ -671,6 +675,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
     projectSection: workspaceRunId ? 'files' : 'runs',
     workspaceRunId, workspacePath: '', scrollY: { ...state.scrollY, projects: 0 },
   })),
+  previewFile: (filePreview) => set({ filePreview }),
   selectWorkspacePath: (workspacePath) => set(state => ({ workspacePath, scrollY: { ...state.scrollY, projects: 0 } })),
   showRunActivity: (open) => set({ runActivityOpen: open, runActivityFile: null, runActivityPage: 0, runActivityExpandedChanges: {}, resultRunId: null }),
   selectActivityFile: (path) => set({ runActivityFile: path, runActivityPage: 0 }),

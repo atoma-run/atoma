@@ -1,11 +1,10 @@
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { GPU_COLORS } from '../../theme.js';
-import { workspaceChildren, workspaceLines, workspaceParent } from '../../workspace-browser.js';
+import { workspaceChildren, workspaceParent } from '../../workspace-browser.js';
 import { createScrollPane } from '../scroll-pane.js';
 import { drawViewFrame, viewFrame } from '../view-frame.js';
 import { formatDateTime } from '../../../client/date-format.js';
 
-let cached: { text: string; width: number; rows: string[] } | undefined;
 export function drawWorkspace(ctx: RendererCtx, snapshot: GpuRenderSnapshot, width: number, height: number,
   embedded?: { x: number; top: number; width: number; bottom: number }): void {
   const frame = viewFrame(width, height), data = snapshot.data.workspace;
@@ -13,7 +12,6 @@ export function drawWorkspace(ctx: RendererCtx, snapshot: GpuRenderSnapshot, wid
   const contentWidth = embedded?.width ?? frame.innerWidth;
   const bottomEdge = embedded?.bottom ?? frame.bottom;
   const path = snapshot.state.workspacePath;
-  const isFile = data?.index?.files.some(f => f.path === path);
   const t = snapshot.t;
   const project = snapshot.data.projects.find(p => p.projectId === snapshot.state.selectedProjectId);
   if (!embedded) drawViewFrame(ctx, frame, `${project?.name ?? ''} · ${t('workspace.title')}`);
@@ -42,17 +40,7 @@ export function drawWorkspace(ctx: RendererCtx, snapshot: GpuRenderSnapshot, wid
   const message = (key: string) => { ctx.text(pane.content, t(key), 0, 0, { size: 12, width: pane.width - 16 }); bottom = 60; };
   if (data?.failed) message('workspace.unavailable');
   else if (!data?.index || data.loading) message('workspace.loading');
-  else if (isFile) {
-    if (data.file?.kind !== 'text') message(data.file?.kind === 'too_large' ? 'workspace.tooLarge' : 'workspace.binary');
-    else {
-      const text = data.file.text ?? '', available = Math.max(20, pane.width - 20);
-      if (!cached || cached.text !== text || cached.width !== available) cached = { text, width: available,
-        rows: workspaceLines(text, available, value => ctx.measureText(value, { size: 12, mono: true })) };
-      cached.rows.forEach((line, i) => { if (pane.visible(i * 19, (i + 1) * 19)) ctx.text(pane.content, line, 0, i * 19,
-        { size: 12, mono: true, singleLine: true }); });
-      bottom = cached.rows.length * 19;
-    }
-  } else {
+  else {
     const children = workspaceChildren(data.index, path);
     if (!children.length) message('workspace.empty');
     children.forEach((entry, i) => {

@@ -1,4 +1,5 @@
-import { workspaceIndexSchema, workspaceFileSchema } from '../../contracts/workspaceBrowser.js';
+import { FilePreview } from './FilePreview.js';
+import { workspaceIndexSchema } from '../../contracts/workspaceBrowser.js';
 import { latestWorkspaceRun } from './workspace-browser.js';
 import { pendingGitHubAccess, canContinueGitHubAccess, canRetryPublication } from './github-access.js';
 import { fetchJson } from '../client/data-api.js';
@@ -86,7 +87,7 @@ import {
 } from './store.js';
 import type { VizAdminInvitation } from '../client/types.js';
 import { openGitHubRepository } from './repository-link.js';
-import { latestDeliveredResult, resultText, resultFileUrl } from './run-result.js';
+import { latestDeliveredResult, resultText } from './run-result.js';
 import { isAppearanceTheme } from './theme.js';
 
 const RELEASE_VERSION = __ATOMA_RELEASE_VERSION__;
@@ -284,16 +285,9 @@ function GpuAppContent({
   const workspaceEnabled = authed && state.view === 'projects' && !!selectedProject && !!state.workspaceRunId;
   const workspaceIndex = useQuery({ queryKey: ['workspace', workspaceUrl],
     queryFn: async () => workspaceIndexSchema.parse(await fetchJson(workspaceUrl)), enabled: workspaceEnabled, retry: false });
-  const workspaceIsFile = workspaceIndex.data?.files.some(f => f.path === state.workspacePath) ?? false;
-  const workspaceFile = useQuery({ queryKey: ['workspace', workspaceUrl, state.workspacePath],
-    queryFn: async () => workspaceFileSchema.parse(await fetchJson(`${workspaceUrl}?path=${encodeURIComponent(state.workspacePath)}`)),
-    enabled: workspaceEnabled && workspaceIsFile, retry: false });
   const workspace = useMemo(() => ({ index: workspaceIndex.data ?? null,
-    file: workspaceIsFile ? workspaceFile.data ?? null : null,
-    loading: workspaceIndex.isLoading || (workspaceIsFile && workspaceFile.isLoading),
-    failed: workspaceIndex.isError || (workspaceIsFile && workspaceFile.isError) }),
-  [workspaceIndex.data, workspaceIndex.isLoading, workspaceIndex.isError, workspaceIsFile,
-    workspaceFile.data, workspaceFile.isLoading, workspaceFile.isError]);
+    file: null, loading: workspaceIndex.isLoading, failed: workspaceIndex.isError }),
+  [workspaceIndex.data, workspaceIndex.isLoading, workspaceIndex.isError]);
   const projectRuns = useMemo<Record<string, import('../client/types.js').VizProjectRun[]>>(
     () =>
       selectedProject && projectRunsQuery.data
@@ -504,6 +498,7 @@ function GpuAppContent({
   // back where an update found it is the first entry, not a navigation.
   const navigationScope = authSnapshot
     ? `${authSnapshot.viewer.principalId}:${authSnapshot.viewer.activeOrganisation?.id ?? 'none'}` : 'ungated';
+  useEffect(() => { useGpuStore.getState().previewFile(null); }, [navigationScope]);
   useEffect(() => {
     if (!apiReady) return undefined;
     return startNavigationHistory({
@@ -659,7 +654,9 @@ function GpuAppContent({
         const rows = queryClient.getQueryData<import('../client/types.js').VizProjectRun[]>(['viz', 'project', resultProjectId, 'runs']) ?? [];
         const row = rows.find(row => row.traceId === resultId || row.projectRunId === resultId);
         const path = decodeURIComponent(id.slice('result.file.'.length));
-        if (row?.artifactManifest?.files.some(file => file.path === path)) openGitHubRepository(resultFileUrl(row, path));
+        if (row && !row.bytesExpiredAt && row.artifactManifest?.files.some(file => file.path === path)) {
+          useGpuStore.getState().previewFile({ projectId: row.projectId, runId: row.projectRunId, path });
+        }
         return;
       }
       const run = queryClient.getQueryData<import('../client/types.js').VizRun>(['viz', 'run', resultId]);
@@ -866,7 +863,13 @@ function GpuAppContent({
     }
     if (id.startsWith('workspace.open.')) { store.openWorkspace(id.slice('workspace.open.'.length)); return; }
     if (id === 'workspace.close') { store.openWorkspace(null); return; }
-    if (id.startsWith('workspace.path.')) { store.selectWorkspacePath(id.slice('workspace.path.'.length)); return; }
+    if (id.startsWith('workspace.path.')) {
+      const path = id.slice('workspace.path.'.length);
+      if (state.selectedProjectId && state.workspaceRunId && workspace.index?.files.some(file => file.path === path)) {
+        store.previewFile({ projectId: state.selectedProjectId, runId: state.workspaceRunId, path });
+      } else store.selectWorkspacePath(path);
+      return;
+    }
     if (id === 'project.all') {
       store.selectProject(null);
       return;
@@ -1013,6 +1016,9 @@ function GpuAppContent({
     activateAuth,
     queryClient,
     resultProjectId,
+    workspace.index,
+    state.selectedProjectId,
+    state.workspaceRunId,
     authSnapshot,
     arrive,
     loadOlderEvents,
@@ -1206,7 +1212,7 @@ function GpuAppContent({
           have done only the last of the three. */}
       {/* Stop rendering the crystal once the mobile notice covers the scene. */}
       {handheldPhase === 'white' ? null : (
-      <div className="gpu-scene-host" inert={previewOpen || handheldPhase !== 'idle' || appearanceTransition.phase !== 'idle'}>
+      <div className="gpu-scene-host" inert={!!state.filePreview || previewOpen || handheldPhase !== 'idle' || appearanceTransition.phase !== 'idle'}>
       <CubeTurnPlane mode={state.sceneCameraMode} navigation={sceneNavigation}>
       <SceneCameraPlane mode={state.sceneCameraMode} onSettled={cameraSettled}>
         <GpuSurface
@@ -1296,6 +1302,8 @@ function GpuAppContent({
       </CubeTurnPlane>
       </div>
       )}
+      {state.filePreview && <FilePreview key={`${state.filePreview.projectId}:${state.filePreview.runId}:${state.filePreview.path}`}
+        target={state.filePreview} t={t} locale={state.locale} onClose={() => useGpuStore.getState().previewFile(null)} />}
       <PreviewPlane
         open={previewOpen}
         summary={previewSummary}

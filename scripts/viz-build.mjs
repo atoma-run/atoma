@@ -73,7 +73,7 @@ function precompress(dir) {
     const path = join(dir, entry.name);
     if (entry.isDirectory()) {
       precompress(path);
-    } else if (entry.isFile() && /\.(?:js|css)$/.test(entry.name)) {
+    } else if (entry.isFile() && /\.(?:m?js|css)$/.test(entry.name)) {
       const bytes = readFileSync(path);
       const brotli = brotliCompressSync(bytes, {
         params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 5 },

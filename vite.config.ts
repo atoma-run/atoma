@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath, URL } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
+import { fileViewerAssets } from './scripts/file-viewer-vite.js';
 
 const packageMetadata = JSON.parse(
   readFileSync(fileURLToPath(new URL('./package.json', import.meta.url)), 'utf8')
@@ -21,14 +22,17 @@ const clientName = process.env['ATOMA_VIZ_UI'] === 'mui' ? 'client' : 'client-gl
 const serviceWorkerInDev = process.env['ATOMA_VIZ_SW_DEV'] === '1';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), fileViewerAssets()],
   define: {
     __ATOMA_RELEASE_VERSION__: JSON.stringify(ATOMA_RELEASE_VERSION),
     __ATOMA_SW_DEV__: JSON.stringify(serviceWorkerInDev),
   },
   root: fileURLToPath(new URL(`./src/viz/${clientName}`, import.meta.url)),
   publicDir: fileURLToPath(new URL('./src/viz/public', import.meta.url)),
+  resolve: { dedupe: ['three', 'prismjs'] },
+  optimizeDeps: { exclude: ['emf-converter'] },
   build: {
+    rollupOptions: { external: ['@napi-rs/canvas'] },
     outDir: fileURLToPath(new URL('./dist/viz/client', import.meta.url)),
     emptyOutDir: true,
     chunkSizeWarningLimit: 500,

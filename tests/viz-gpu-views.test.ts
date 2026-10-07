@@ -618,7 +618,7 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     selectedSkill: null,
     selectedProjectId: null,
     projectMcpCollapsed: false,
-    workspaceRunId: null, workspacePath: '',
+    workspaceRunId: null, workspacePath: '', filePreview: null, previewFile: () => {},
     githubRecovery: null, setGitHubRecovery: vi.fn(),
     openWorkspace: vi.fn(), selectProjectSection: vi.fn(), selectWorkspacePath: vi.fn(),
     runFilters: { kind: 'all', role: 'all', branchId: 'all' },
@@ -5085,7 +5085,7 @@ describe('the shared final result panel', () => {
     expect(ctx.buttons.some(button => button.id === 'result.copy')).toBe(false);
   });
 
-  it('keeps published files accessible when the trace is unavailable', () => {
+  it('does not offer expired file bytes as an available preview', () => {
     const ctx = createRecordingCtx();
     drawResultPanel(ctx, makeSnapshot({ resultRunId: 'expired-trace' }, {
       resultRun: null, resultFailed: true,
@@ -5098,7 +5098,7 @@ describe('the shared final result panel', () => {
           files: [{ path: 'plate.svg', size: 12, mode: '100644', sha256: 'b'.repeat(64) }] },
       }] },
     }), 0, 0, 600, 500);
-    expect(ctx.buttons.some(button => button.id === 'result.file.plate.svg')).toBe(true);
+    expect(ctx.buttons.some(button => button.id === 'result.file.plate.svg')).toBe(false);
     expect(ctx.texts.some(text => text.value === t('result.expired'))).toBe(true);
     expect(ctx.buttons.some(button => button.id === 'result.copy')).toBe(false);
   });

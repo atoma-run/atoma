@@ -1,3 +1,4 @@
+import { parseRunLog } from '../src/cli/burnin.js';
 import { seedBenchmark } from './helpers/retrievalBenchmark.js';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { generateKeyPairSync, randomBytes, randomUUID } from 'node:crypto';
@@ -13,6 +14,7 @@ import { pkceChallenge } from '../src/auth/oidc.js';
 import { MAX_LOGOUT_SESSION_CANDIDATES } from '../src/auth/values.js';
 import { GITHUB_COPY } from '../src/github/http.js';
 import { ProjectStore } from '../src/projects/store.js';
+import { buildArtifactManifest } from '../src/projects/artifacts.js';
 import { projectRunHostLayout } from '../src/projects/coordinator.js';
 import { sleepInhibitorHint } from '../src/sentinel/resident.js';
 import { SkillRegistry } from '../src/skills/registry.js';
@@ -2517,4 +2519,49 @@ it('delegates the host subscription to a plain member, and withdraws it', async 
   } finally {
     db.close();
   }
+});
+
+it('serves saved file preview bytes as authenticated, non-executable attachments', async () => {
+  const instance = tempInstance();
+  const provider = await startFakeProvider({ port: await freePort(), subject: 8808 });
+  const port = await freePort(), base = `http://127.0.0.1:${port}`;
+  const running = startViz([...instance.args, '--port', String(port)], providerEnv(provider, base));
+  await waitReady(running, `${base}/auth/whoami`);
+  const jar = new CookieJar();
+  expect((await fetchWithJar(jar, `${base}/auth/login?provider=github`)).status).toBe(200);
+  const db = new Database(instance.dbPath);
+  try {
+    const orgId = db.prepare('SELECT org_id FROM auth_organisations LIMIT 1').pluck().get() as string;
+    const principalId = db.prepare('SELECT principal_id FROM auth_principals LIMIT 1').pluck().get() as string;
+    const projects = new ProjectStore(db);
+    const project = projects.createProject({ orgId, principalId, project: { name: 'File preview', slug: 'file-preview',
+      repositoryTarget: { installationId: '123', owner: 'owner', name: 'file-preview', visibility: 'private' } } });
+    const runId = randomUUID();
+    const layout = projectRunHostLayout(join(instance.root, 'projects'), orgId, project.projectId, runId);
+    projects.createProjectRun({ orgId, projectId: project.projectId, principalId, projectRunId: runId,
+      request: { idempotencyKey: runId, goal: 'Preview files' }, hostPaths: {
+        workspacePath: layout.workspacePath, runsPath: layout.runsPath, logPath: layout.logPath,
+      } });
+    mkdirSync(layout.workspacePath, { recursive: true });
+    const bytes = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
+    writeFileSync(join(layout.workspacePath, 'drawing.svg'), bytes);
+    const manifest = buildArtifactManifest({ workspaceRoot: layout.workspacePath, declaredPaths: ['drawing.svg'] }).manifest;
+    projects.transitionProjectRun({ orgId, projectRunId: runId, from: 'queued', to: 'running' });
+    projects.transitionProjectRun({ orgId, projectRunId: runId, from: 'running', to: 'delivered', traceId: runId, stats: parseRunLog('✓ build finished') });
+    projects.saveArtifactManifest(orgId, runId, manifest);
+    const url = `${base}/api/projects/${project.projectId}/runs/${runId}/workspace?format=bytes&path=drawing.svg`;
+    expect((await fetch(url)).status).toBe(401);
+    const headers = { cookie: jar.header(base)! };
+    const response = await fetch(url, { headers });
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('application/octet-stream');
+    expect(response.headers.get('content-disposition')).toBe('attachment');
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(response.headers.get('content-security-policy')).toContain('sandbox');
+    expect(Buffer.from(await response.arrayBuffer())).toEqual(bytes);
+    expect((await fetch(url.replace('drawing.svg', '..%2Fsecret'), { headers })).status).toBe(404);
+    writeFileSync(join(layout.workspacePath, 'drawing.svg'), 'modified');
+    expect((await fetch(url, { headers })).status).toBe(409);
+  } finally { db.close(); }
 });

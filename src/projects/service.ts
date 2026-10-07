@@ -2,7 +2,7 @@ import { PROJECT_RUN_WAITING_MESSAGE } from '../contracts/projects.js';
 import { summarizeTraceFile } from '../viz/runIndex.js';
 import { isUtf8 } from 'node:buffer';
 import { assertPublishableArtifactPath, normalizeArtifactPath, readManifestArtifact } from './artifacts.js';
-import { MAX_WORKSPACE_PREVIEW_BYTES, type WorkspaceIndex, type WorkspaceFile } from '../contracts/workspaceBrowser.js';
+import { MAX_WORKSPACE_FILE_BYTES, MAX_WORKSPACE_PREVIEW_BYTES, type WorkspaceIndex, type WorkspaceFile } from '../contracts/workspaceBrowser.js';
 import type { IncomingMessage } from 'node:http';
 import type { Viewer } from '../auth/store.js';
 import { roleAtLeast } from '../auth/store.js';
@@ -387,7 +387,9 @@ export class ProjectService {
   }
 
   /** Read-only browser over the run's saved, publishable inventory. */
-  workspace(viewer: Viewer, projectId: string, runId: string, filePath?: string): WorkspaceIndex | WorkspaceFile {
+  workspace(viewer: Viewer, projectId: string, runId: string, filePath: string, format: 'bytes'): Buffer;
+  workspace(viewer: Viewer, projectId: string, runId: string, filePath?: string): WorkspaceIndex | WorkspaceFile;
+  workspace(viewer: Viewer, projectId: string, runId: string, filePath?: string, format?: 'bytes'): WorkspaceIndex | WorkspaceFile | Buffer {
     if (!projectIdSchema.safeParse(projectId).success || !projectRunIdSchema.safeParse(runId).success) throw new ProjectHttpError(404, 'run not found');
     const orgId = this.readOrgFor(viewer, projectId);
     const run = this.store.getProjectRun(orgId, runId);
@@ -405,10 +407,13 @@ export class ProjectService {
       files: files.map(({ path, size }) => ({ path, size })) };
     const file = files.find(f => f.path === filePath);
     if (!file) throw new ProjectHttpError(404, 'file not found');
-    if (file.size > MAX_WORKSPACE_PREVIEW_BYTES) return { path: file.path, size: file.size, kind: 'too_large', text: null };
+    const maxBytes = format === 'bytes' ? MAX_WORKSPACE_FILE_BYTES : MAX_WORKSPACE_PREVIEW_BYTES;
+    if (format === 'bytes' && file.size > maxBytes) throw new ProjectHttpError(413, 'file is too large to preview');
+    if (file.size > maxBytes) return { path: file.path, size: file.size, kind: 'too_large', text: null };
     try {
       const bytes = readManifestArtifact({ workspaceRoot: run.hostPaths.workspacePath, expected: file,
-        limits: { maxFileBytes: MAX_WORKSPACE_PREVIEW_BYTES } });
+        limits: { maxFileBytes: maxBytes } });
+      if (format === 'bytes') return bytes;
       const text = isUtf8(bytes) && !bytes.includes(0) ? bytes.toString('utf8') : null;
       return { path: file.path, size: file.size, kind: text === null ? 'binary' : 'text', text };
     } catch { throw new ProjectHttpError(409, 'file is unavailable or differs from the saved workspace'); }

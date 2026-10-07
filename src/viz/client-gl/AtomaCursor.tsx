@@ -85,6 +85,10 @@ export function AtomaCursor() {
     const onVisibilityChange = () => {
       if (document.hidden) hide();
     };
+    const onBlur = () => {
+      // Focusing the preview's document is still inside the application.
+      if (!document.activeElement?.matches('iframe[data-atoma-pointer-frame]')) hide();
+    };
     const applyMediaState = () => {
       const next = mediaAllowsCursor(finePointer, reducedMotion, forcedColors);
       if (next === enabled) return;
@@ -98,7 +102,7 @@ export function AtomaCursor() {
     window.addEventListener('pointermove', onPointerMove, { passive: true });
     window.addEventListener('pointerout', onPointerOut, { passive: true });
     window.addEventListener('pointercancel', hide, { passive: true });
-    window.addEventListener('blur', hide);
+    window.addEventListener('blur', onBlur);
     document.documentElement.addEventListener('pointerleave', hide, { passive: true });
     document.addEventListener('visibilitychange', onVisibilityChange);
     applyMediaState();
@@ -112,7 +116,7 @@ export function AtomaCursor() {
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerout', onPointerOut);
       window.removeEventListener('pointercancel', hide);
-      window.removeEventListener('blur', hide);
+      window.removeEventListener('blur', onBlur);
       document.documentElement.removeEventListener('pointerleave', hide);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };

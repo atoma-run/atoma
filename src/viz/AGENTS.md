@@ -43,6 +43,8 @@ npm run viz:serve
 npm run viz:demo
 npm run viz:shot -- --auth --select-first
 npm run viz:smoke
+npm run viz:smoke:files             # isolated shared-reader build, real formats and CSP checks
+npm run viz:smoke:files -- --dev    # same proofs through Vite's development transforms
 npm run viz:smoke:gc
 npm run viz:mark-turn
 npm run viz:mark-turn -- --degree 47
@@ -359,7 +361,16 @@ npm run viz:mark-turn:analyze
 - Projects' Files explorer opens the newest retained delivered/partial lineage
   workspace, excluding comparison reruns. It labels the saved run and does not
   claim to be live GitHub. Folder/file navigation belongs to the shared GPU
-  store and masked view, with a semantic twin; file text is never HTML.
+  store and masked view, with a semantic twin. Files and result artifacts open
+  the same Open File Viewer plane; the recorded-change diff remains separate.
+  All upstream format plugins are registered, with specialized decoders before
+  text and the fallback last. Optional DWG/video decoders and PDF resources are
+  packaged by the Vite asset adapter, including development. Viewer output
+  lives in an iframe whose CSP forbids ALL scripts, with navigation sandboxed;
+  the sandbox allows scripts only because Chrome otherwise suppresses canvas
+  composition, even for trusted parent rendering. Tests prove CSP rejection.
+  Remote images are limited to the GIS plugin's OpenStreetMap basemap.
+  Generated HTML remains source text.
 - Runs' Progress reader projects recorded branch lifecycles and tool receipts
   through `client-gl/run-activity.ts`, shared by GPU and accessibility views.
   Only successful `write_file`/`edit_file` receipts count as changed files;

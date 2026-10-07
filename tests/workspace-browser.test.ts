@@ -1,13 +1,13 @@
 import { mkdtempSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { closeStoreHandles } from '../src/core/stores.js';
 import { ProjectService } from '../src/projects/service.js';
 import { ProjectRunCoordinator } from '../src/projects/coordinator.js';
 import { projectRetrievalFixture } from './helpers/projectRetrievalLaunch.js';
-import { workspaceFileSchema, workspaceIndexSchema } from '../src/contracts/workspaceBrowser.js';
-import { workspaceChildren, workspaceLines } from '../src/viz/client-gl/workspace-browser.js';
+import { MAX_WORKSPACE_FILE_BYTES, workspaceFileSchema, workspaceIndexSchema } from '../src/contracts/workspaceBrowser.js';
+import { workspaceChildren } from '../src/viz/client-gl/workspace-browser.js';
 
 const roots: string[] = [];
 afterEach(() => { closeStoreHandles(); for (const p of roots.splice(0)) rmSync(p, { recursive: true, force: true }); });
@@ -41,13 +41,27 @@ it('refuses foreign organisations, wrong project bindings, live workspaces and c
   symlinkSync('/etc/passwd', join(layout.workspacePath, 'app.txt'));
   expect(() => f.service.workspace(f.viewer, f.project.projectId, run.projectRunId, 'app.txt')).toThrow('differs');
 });
-it('bounds text previews and preserves whitespace when wrapping measured code', () => {
+it('preserves the legacy JSON text preview bound', () => {
   const f = fixture(); const { run } = f.makeRun({ 'large.txt': 'x'.repeat(256 * 1024 + 1) });
   expect(workspaceFileSchema.parse(f.service.workspace(f.viewer, f.project.projectId, run.projectRunId, 'large.txt')).kind).toBe('too_large');
-  expect(workspaceLines('  abcdef\n\nxyz', 4, s => s.length)).toEqual(['  ab', 'cdef', '', 'xyz']);
-  let largestMeasurement = 0;
-  const lines = workspaceLines('x'.repeat(100_000), 80, s => { largestMeasurement = Math.max(largestMeasurement, s.length); return s.length; });
-  expect(lines.join('')).toBe('x'.repeat(100_000));
-  expect(largestMeasurement).toBeLessThanOrEqual(128);
-  expect(workspaceLines('🙂🙂', 1, s => s.length)).toEqual(['🙂', '🙂']);
+
+});
+
+it('serves exact binary preview bytes under the same saved-file authority and size bound', () => {
+  const f = fixture();
+  const audio = Buffer.from([82, 73, 70, 70, 0, 255, 128, 1]);
+  const { run, layout } = f.makeRun({ 'sound.wav': audio, 'large.wav': Buffer.alloc(1) });
+  const read = (path: string) => f.service.workspace(f.viewer, f.project.projectId, run.projectRunId, path, 'bytes');
+  expect(read('sound.wav')).toEqual(audio);
+  const saved = f.projects.getProjectRun(f.viewer.orgId, run.projectRunId)!;
+  const lookup = vi.spyOn(f.projects, 'getProjectRun').mockReturnValueOnce({ ...saved,
+    artifactManifest: { ...saved.artifactManifest!, files: saved.artifactManifest!.files.map(file =>
+      file.path === 'large.wav' ? { ...file, size: MAX_WORKSPACE_FILE_BYTES + 1 } : file) } });
+  expect(() => read('large.wav')).toThrow('too large');
+  lookup.mockRestore();
+  expect(() => read('../sound.wav')).toThrow('file not found');
+  const other = fixture();
+  expect(() => f.service.workspace(other.viewer, f.project.projectId, run.projectRunId, 'sound.wav', 'bytes')).toThrow();
+  writeFileSync(join(layout.workspacePath, 'sound.wav'), Buffer.alloc(audio.length));
+  expect(() => read('sound.wav')).toThrow('differs');
 });

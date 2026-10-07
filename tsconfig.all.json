@@ -20,6 +20,7 @@
   "exclude": [
     "node_modules",
     "dist",
+    "src/viz/public/vendor/file-viewer",
     "benchmark/retrieval-pilot-*/evidence*/**"
   ]
 }

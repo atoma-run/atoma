@@ -22,6 +22,7 @@ export default tseslint.config(
   {
     ignores: [
       'dist/**', 'node_modules/**', 'coverage/**', 'runs/**', 'build/**', 'skills/**',
+      'src/viz/public/vendor/file-viewer/**', // Generated third-party decoder assets.
       // Benchmark SEED fixtures are deliverables-under-test copied into a run's
       // workspace, not project source. They deliberately look like a third-party
       // CLI (their own package.json, their own module system) and belong to no

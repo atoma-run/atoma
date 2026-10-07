@@ -62,3 +62,6 @@ __pycache__/
 # fresh commit SHA on every render, so committing it would churn ~700KB per run.
 /docs/architecture.html
 /docs/ir/.render/
+
+# Reproducible file preview decoder assets, copied by the Vite plugin.
+/src/viz/public/vendor/file-viewer/

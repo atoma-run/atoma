@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render } from '@testing-library/react';
+import { cleanup, render, waitFor } from '@testing-library/react';
 import { createElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AtomaCursor } from '../src/viz/client-gl/AtomaCursor.js';
+import { connectPointerFrame } from '../src/viz/client-gl/pointer-frame.js';
 // FROM THE MODULE THAT OWNS THEM. `AtomaCursor.tsx` used to re-export these
 // beside the component, which is the fast-refresh boundary 0d268a7 / aee4790 /
 // 5e1b0ec establish for this subtree — a component file exports the component
@@ -127,6 +128,34 @@ describe('Atoma pointer light geometry', () => {
 });
 
 describe('Atoma 3D cursor', () => {
+  it('shares its position and accessibility preferences with a preview frame and disconnects on close', async () => {
+    vi.stubGlobal('PointerEvent', class extends MouseEvent {
+      readonly pointerType: string;
+      constructor(type: string, options: PointerEventInit) {
+        super(type, options);
+        this.pointerType = options.pointerType ?? 'mouse';
+      }
+    });
+    const { container } = render(createElement(AtomaCursor));
+    const frame = document.createElement('iframe');
+    document.body.append(frame);
+    vi.spyOn(frame, 'getBoundingClientRect').mockReturnValue({ left: 100, top: 60, width: 500, height: 400 } as DOMRect);
+    const disconnect = connectPointerFrame(frame);
+    try {
+      frame.contentWindow!.dispatchEvent(new PointerEvent('pointermove', { clientX: 40, clientY: 30, pointerType: 'mouse' }));
+      flushFrame();
+      expect(container.querySelector('.atoma-pointer-cursor')).toHaveAttribute('data-x', '140');
+      expect(readPointerLight()).toMatchObject({ clientX: 140, clientY: 90 });
+      await waitFor(() => expect(frame.contentDocument!.documentElement).toHaveClass('atoma-cursor-active'));
+      query('(prefers-reduced-motion: reduce)').setMatches(true);
+      await waitFor(() => expect(frame.contentDocument!.documentElement).not.toHaveClass('atoma-cursor-active'));
+      expect(readPointerLight().active).toBe(false);
+      disconnect();
+      frame.contentWindow!.dispatchEvent(new PointerEvent('pointermove', { clientX: 200, clientY: 200 }));
+      expect(readPointerLight().clientX).toBe(140);
+      expect(frame.hasAttribute('data-atoma-pointer-frame')).toBe(false);
+    } finally { disconnect(); frame.remove(); }
+  });
   it('coalesces pointer movement while keeping the light hotspot exact', () => {
     const { container } = render(createElement(AtomaCursor));
     const cursor = container.querySelector('.atoma-pointer-cursor');

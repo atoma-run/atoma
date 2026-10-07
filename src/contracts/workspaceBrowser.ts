@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { WORKSPACE_LIMITS } from './workspaceLimits.js';
 
 export const workspaceIndexSchema = z.object({
   runId: z.string(), createdAt: z.string(), status: z.enum(['delivered', 'partial']),
@@ -11,3 +12,6 @@ export const workspaceFileSchema = z.object({
 });
 export type WorkspaceFile = z.infer<typeof workspaceFileSchema>;
 export const MAX_WORKSPACE_PREVIEW_BYTES = 256 * 1024;
+
+/** Bound binary previews before reading or decoding a saved artifact. */
+export const MAX_WORKSPACE_FILE_BYTES = WORKSPACE_LIMITS.maxFileBytes;
