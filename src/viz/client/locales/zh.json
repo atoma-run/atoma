@@ -1411,5 +1411,6 @@
   "projects.githubAccess.retryFailed": "无法继续。请检查 GitHub 访问权限，然后重试。",
   "projects.githubAccess.requesterOnly": "请让请求此 run 的人继续。",
   "projects.section.noFiles": "此项目还没有已保存的文件。",
-  "projects.section.noDeliveredResult": "此项目还没有已交付的结果。"
+  "projects.section.noDeliveredResult": "此项目还没有已交付的结果。",
+  "appearance.snow": "雪"
 }

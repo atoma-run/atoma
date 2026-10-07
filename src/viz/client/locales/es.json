@@ -1411,5 +1411,6 @@
   "projects.githubAccess.retryFailed": "No se pudo continuar. Comprueba el acceso a GitHub e inténtalo de nuevo.",
   "projects.githubAccess.requesterOnly": "Pide a la persona que solicitó este run que continúe.",
   "projects.section.noFiles": "Este proyecto aún no tiene archivos guardados.",
-  "projects.section.noDeliveredResult": "Este proyecto aún no tiene resultados entregados."
+  "projects.section.noDeliveredResult": "Este proyecto aún no tiene resultados entregados.",
+  "appearance.snow": "Nieve"
 }

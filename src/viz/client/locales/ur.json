@@ -1411,5 +1411,6 @@
   "projects.githubAccess.retryFailed": "جاری نہیں رکھا جا سکا۔ GitHub تک رسائی چیک کریں اور دوبارہ کوشش کریں۔",
   "projects.githubAccess.requesterOnly": "جس شخص نے اس run کی درخواست کی تھی، اس سے جاری رکھنے کو کہیں۔",
   "projects.section.noFiles": "اس پروجیکٹ میں ابھی تک کوئی فائل محفوظ نہیں ہے۔",
-  "projects.section.noDeliveredResult": "اس پروجیکٹ میں ابھی تک کوئی نتیجہ فراہم نہیں کیا گیا۔"
+  "projects.section.noDeliveredResult": "اس پروجیکٹ میں ابھی تک کوئی نتیجہ فراہم نہیں کیا گیا۔",
+  "appearance.snow": "برف"
 }

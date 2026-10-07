@@ -1411,5 +1411,6 @@
   "projects.githubAccess.retryFailed": "Impossible de continuer. Vérifie l’accès GitHub et réessaie.",
   "projects.githubAccess.requesterOnly": "Demande à la personne qui a demandé ce run de continuer.",
   "projects.section.noFiles": "Ce projet n’a encore aucun fichier enregistré.",
-  "projects.section.noDeliveredResult": "Ce projet n’a encore aucun résultat livré."
+  "projects.section.noDeliveredResult": "Ce projet n’a encore aucun résultat livré.",
+  "appearance.snow": "Neige"
 }

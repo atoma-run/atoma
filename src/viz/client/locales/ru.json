@@ -1411,5 +1411,6 @@
   "projects.githubAccess.retryFailed": "Не удалось продолжить. Проверьте доступ к GitHub и повторите попытку.",
   "projects.githubAccess.requesterOnly": "Попросите пользователя, запросившего этот run, продолжить.",
   "projects.section.noFiles": "В этом проекте пока нет сохранённых файлов.",
-  "projects.section.noDeliveredResult": "В этом проекте пока нет переданных результатов."
+  "projects.section.noDeliveredResult": "В этом проекте пока нет переданных результатов.",
+  "appearance.snow": "Снег"
 }

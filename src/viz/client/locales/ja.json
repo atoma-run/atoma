@@ -1411,5 +1411,6 @@
   "projects.githubAccess.retryFailed": "続行できませんでした。GitHubへのアクセスを確認して、もう一度お試しください。",
   "projects.githubAccess.requesterOnly": "このrunをリクエストした人に続行を依頼してください。",
   "projects.section.noFiles": "このプロジェクトには、まだ保存されたファイルがありません。",
-  "projects.section.noDeliveredResult": "このプロジェクトには、まだ納品済みの結果がありません。"
+  "projects.section.noDeliveredResult": "このプロジェクトには、まだ納品済みの結果がありません。",
+  "appearance.snow": "雪"
 }

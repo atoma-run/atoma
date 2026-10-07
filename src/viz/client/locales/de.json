@@ -1411,5 +1411,6 @@
   "projects.githubAccess.retryFailed": "Fortfahren nicht möglich. GitHub-Zugriff prüfen und erneut versuchen.",
   "projects.githubAccess.requesterOnly": "Bitten Sie die Person, die diesen run angefordert hat, fortzufahren.",
   "projects.section.noFiles": "Für dieses Projekt sind noch keine Dateien gespeichert.",
-  "projects.section.noDeliveredResult": "Für dieses Projekt liegt noch kein bereitgestelltes Ergebnis vor."
+  "projects.section.noDeliveredResult": "Für dieses Projekt liegt noch kein bereitgestelltes Ergebnis vor.",
+  "appearance.snow": "Schnee"
 }
