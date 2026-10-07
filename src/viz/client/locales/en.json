@@ -1,7 +1,7 @@
 {
   "result.title": "Result",
   "result.back": "Back to timeline",
-  "result.latest": "Latest delivered result",
+  "result.latest": "Latest delivered results",
   "result.loading": "Loading this run’s result…",
   "result.unavailable": "This run’s result could not be loaded. Its trace may be unavailable or expired.",
   "result.noOutput": "No final output was recorded for this run.",
@@ -712,6 +712,8 @@
   "login.notice.githubConnectExpired": "GitHub connect transaction expired or was replayed — start again.",
   "projects.runsHeading_one": "Run ({{count}})",
   "projects.runsHeading_other": "Runs ({{count}})",
+  "projects.section.noFiles": "This project has no saved files yet.",
+  "projects.section.noDeliveredResult": "This project has no delivered result yet.",
   "projects.runTokens": "Tokens: {{value}}",
   "projects.runLlmCalls": "LLM calls: {{value}}",
   "projects.runJevCalls": "Jev API calls: {{value}}",

@@ -1245,7 +1245,7 @@
   "skill.kind.llm": "LLM — receta guiada por el modelo",
   "skill.kind.script": "SCRIPT — script compilado",
   "result.back": "Volver a la cronología",
-  "result.latest": "Resultado entregado más reciente",
+  "result.latest": "",
   "result.loading": "Cargando el resultado de este run…",
   "result.unavailable": "No se pudo cargar el resultado de este run. Es posible que su traza no esté disponible o haya caducado.",
   "result.noOutput": "No se registró ningún resultado final para este run.",

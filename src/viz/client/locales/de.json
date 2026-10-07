@@ -1245,7 +1245,7 @@
   "skill.kind.llm": "LLM — modellgesteuertes Rezept",
   "skill.kind.script": "SCRIPT — kompiliertes Skript",
   "result.back": "Zurück zur Zeitleiste",
-  "result.latest": "Zuletzt bereitgestelltes Ergebnis",
+  "result.latest": "",
   "result.loading": "Ergebnis dieses Runs wird geladen…",
   "result.unavailable": "Das Ergebnis dieses Runs konnte nicht geladen werden. Der zugehörige Trace ist möglicherweise nicht verfügbar oder abgelaufen.",
   "result.noOutput": "Für diesen Run wurde keine endgültige Ausgabe aufgezeichnet.",

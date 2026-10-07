@@ -49,6 +49,7 @@ import {
   PROJECTS_MCP_GUIDE_HEIGHT,
   PROJECTS_MCP_GUIDE_NARROW_HEIGHT,
   PROJECTS_MCP_GUIDE_TOP,
+  PROJECTS_SELECTED_MCP_GUIDE_TOP,
   PROJECTS_NARROW_CONTENT_WIDTH,
   PROJECTS_ROW_PAD,
   REPOSITORY_ICON_GAP,
@@ -618,7 +619,7 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     selectedProjectId: null,
     workspaceRunId: null, workspacePath: '',
     githubRecovery: null, setGitHubRecovery: vi.fn(),
-    openWorkspace: vi.fn(), selectWorkspacePath: vi.fn(),
+    openWorkspace: vi.fn(), selectProjectSection: vi.fn(), selectWorkspacePath: vi.fn(),
     runFilters: { kind: 'all', role: 'all', branchId: 'all' },
     branchHeadingExpanded: true,
     runSummaryExpanded: true,
@@ -701,6 +702,7 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     selectDocsTheme: noop,
     setScrollY: noop,
     ...overrides,
+    projectSection: overrides.projectSection ?? 'runs',
   };
 }
 
@@ -2739,6 +2741,13 @@ describe('drawProjects', () => {
     expect(projectsGpuContentTop(PROJECTS_NARROW_CONTENT_WIDTH - 1)).toBe(
       PROJECTS_MCP_GUIDE_TOP + PROJECTS_MCP_GUIDE_NARROW_HEIGHT + 16
     );
+    expect(projectsGpuContentTop(1072, true)).toBe(
+      PROJECTS_SELECTED_MCP_GUIDE_TOP + PROJECTS_MCP_GUIDE_HEIGHT + 16
+    );
+    expect(projectsGpuContentTop(PROJECTS_NARROW_CONTENT_WIDTH - 1, true)).toBe(
+      PROJECTS_SELECTED_MCP_GUIDE_TOP + PROJECTS_MCP_GUIDE_NARROW_HEIGHT + 16
+    );
+    expect(css).toMatch(new RegExp(`\\.gpu-project-mcp--selected\\s*\\{[\\s\\S]*?top:\\s*${PROJECTS_SELECTED_MCP_GUIDE_TOP}px`));
     const narrowWindowMax = PROJECTS_NARROW_CONTENT_WIDTH + GPU_LAYOUT.sidebarWidth - 1;
     expect(css).toContain(`@media (max-width: ${narrowWindowMax}px)`);
     expect(css).toContain(`height: ${PROJECTS_MCP_GUIDE_NARROW_HEIGHT}px`);
@@ -2942,7 +2951,7 @@ describe('drawProjects', () => {
     const listGlobal = listPanel!.parent.toGlobal({ x: listPanel!.x, y: listPanel!.y });
     expect(listGlobal.x).toBe(projectsColumn(1280).x);
     expect(listPanel!.parent.toGlobal({ x: 0, y: 0 }).y).toBe(
-      projectsGpuContentTop() + 44 + 42
+      projectsGpuContentTop(1280, true)
     );
 
     // Project metadata forms one sequence inside the framed row. In detail,
@@ -3023,6 +3032,82 @@ describe('drawProjects', () => {
       expect(origin.x + button.width).toBeLessThanOrEqual(
         narrowFrame.innerX + narrowFrame.innerWidth
       );
+    }
+  });
+
+  it('switches one selected project between aligned Runs, Files, and latest-result sections', () => {
+    const project = guidanceProject();
+    const projectRun = {
+      projectId: project.projectId, projectRunId: 'saved-run', traceId: 'saved-trace',
+      goal: 'Build a dashboard', status: 'delivered' as const, costUsd: 0.12, durationS: 8,
+      error: null, createdAt: '2026-08-20T00:01:00.000Z', endedAt: '2026-08-20T00:02:00.000Z',
+      publication: null,
+    };
+    const resultRun = makeRun([], { id: 'saved-trace', result: { output: 'Delivered answer' } });
+    const data = {
+      auth: makeAuth(), projects: [project], projectRuns: { [project.projectId]: [projectRun] }, resultRun,
+      workspace: { index: { runId: 'saved-run', createdAt: projectRun.createdAt,
+        status: 'delivered' as const, files: [{ path: 'src/app.ts', size: 12 }] },
+      file: null, loading: false, failed: false },
+    };
+    const draw = (projectSection: GpuUiState['projectSection'], width = 1000) => {
+      const ctx = createRecordingCtx();
+      drawProjects(ctx, makeSnapshot({ view: 'projects', selectedProjectId: project.projectId,
+        projectSection, workspaceRunId: projectSection === 'files' ? 'saved-run' : null,
+        resultRunId: projectSection === 'result' ? 'saved-trace' : null }, data), width, 900);
+      return ctx;
+    };
+    const runs = draw('runs');
+    const tabs = runs.buttons.filter(button => button.id.startsWith('project.section.'));
+    expect(tabs.map(button => button.id)).toEqual([
+      'project.section.runs', 'project.section.files', 'project.section.result',
+    ]);
+    expect(new Set(tabs.map(button => button.y)).size).toBe(1);
+    expect(tabs.map(button => button.active)).toEqual([true, false, false]);
+    expect(tabs[0]?.y).toBe(viewFrame(1000, 900).contentTop);
+    expect(runs.panels.some(panel => panel.parent === runs.root && panel.y === PROJECTS_SELECTED_MCP_GUIDE_TOP)).toBe(true);
+    expect(runs.buttons.some(button => button.id === 'project.run.saved-trace')).toBe(true);
+    expect(runs.buttons.some(button => button.id === 'workspace.path.src')).toBe(false);
+
+    const files = draw('files');
+    expect(files.buttons.filter(button => button.id.startsWith('project.section.')).map(button => button.active))
+      .toEqual([false, true, false]);
+    expect(files.buttons.some(button => button.id === 'workspace.path.src')).toBe(true);
+    expect(files.buttons.some(button => button.id === 'project.run.saved-trace')).toBe(false);
+    expect(files.panels.some(panel => panel.parent === files.root && panel.y === PROJECTS_SELECTED_MCP_GUIDE_TOP
+      && panel.height === PROJECTS_MCP_GUIDE_HEIGHT)).toBe(false);
+
+    const result = draw('result');
+    expect(result.buttons.filter(button => button.id.startsWith('project.section.')).map(button => button.active))
+      .toEqual([false, false, true]);
+    expect(result.texts.some(text => text.value === 'Delivered answer')).toBe(true);
+    expect(result.buttons.some(button => button.id === 'project.run.saved-trace')).toBe(false);
+    expect(result.buttons.some(button => button.id === 'result.close')).toBe(false);
+    expect(result.panels.some(panel => panel.parent === result.root && panel.y === PROJECTS_SELECTED_MCP_GUIDE_TOP
+      && panel.height === PROJECTS_MCP_GUIDE_HEIGHT)).toBe(false);
+
+    const narrow = draw('runs', 320);
+    const frame = viewFrame(320, 900);
+    const narrowTabs = narrow.buttons.filter(button => button.id.startsWith('project.section.'));
+    expect(new Set(narrowTabs.map(button => button.y)).size).toBe(1);
+    expect(narrowTabs.at(-1)!.x + narrowTabs.at(-1)!.width)
+      .toBeLessThanOrEqual(frame.innerX + frame.innerWidth);
+    expect(narrow.panels.some(panel => panel.parent === narrow.root && panel.y === PROJECTS_SELECTED_MCP_GUIDE_TOP
+      && panel.height === PROJECTS_MCP_GUIDE_NARROW_HEIGHT)).toBe(true);
+  });
+
+  it('keeps all three project sections available when files or delivered results are absent', () => {
+    const project = guidanceProject();
+    for (const [section, messageKey] of [
+      ['files', 'projects.section.noFiles'],
+      ['result', 'projects.section.noDeliveredResult'],
+    ] as const) {
+      const ctx = createRecordingCtx();
+      drawProjects(ctx, makeSnapshot({ view: 'projects', selectedProjectId: project.projectId,
+        projectSection: section }, { projects: [project], projectRuns: { [project.projectId]: [] } }), 1000, 700);
+      expect(ctx.buttons.filter(button => button.id.startsWith('project.section.'))).toHaveLength(3);
+      expect(ctx.texts.some(text => text.value === t(messageKey))).toBe(true);
+      expect(ctx.scrollMax.projects).toBe(0);
     }
   });
 

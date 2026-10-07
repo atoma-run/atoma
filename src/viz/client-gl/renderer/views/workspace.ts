@@ -6,32 +6,38 @@ import { drawViewFrame, viewFrame } from '../view-frame.js';
 import { formatDateTime } from '../../../client/date-format.js';
 
 let cached: { text: string; width: number; rows: string[] } | undefined;
-export function drawWorkspace(ctx: RendererCtx, snapshot: GpuRenderSnapshot, width: number, height: number): void {
+export function drawWorkspace(ctx: RendererCtx, snapshot: GpuRenderSnapshot, width: number, height: number,
+  embedded?: { x: number; top: number; width: number; bottom: number }): void {
   const frame = viewFrame(width, height), data = snapshot.data.workspace;
+  const left = embedded?.x ?? frame.innerX;
+  const contentWidth = embedded?.width ?? frame.innerWidth;
+  const bottomEdge = embedded?.bottom ?? frame.bottom;
   const path = snapshot.state.workspacePath;
   const isFile = data?.index?.files.some(f => f.path === path);
   const t = snapshot.t;
   const project = snapshot.data.projects.find(p => p.projectId === snapshot.state.selectedProjectId);
-  drawViewFrame(ctx, frame, `${project?.name ?? ''} · ${t('workspace.title')}`);
-  let top = frame.contentTop;
-  ctx.button(ctx.root, 'workspace.close', 'button', t('workspace.back'), frame.innerX, top,
-    Math.min(180, frame.innerWidth), 32, false, snapshot.onActivate);
-  top += 44;
+  if (!embedded) drawViewFrame(ctx, frame, `${project?.name ?? ''} · ${t('workspace.title')}`);
+  let top = embedded?.top ?? frame.contentTop;
+  if (!embedded) {
+    ctx.button(ctx.root, 'workspace.close', 'button', t('workspace.back'), left, top,
+      Math.min(180, contentWidth), 32, false, snapshot.onActivate);
+    top += 44;
+  }
   const identity = data?.index ? `${data.index.runId.slice(0, 8)} · ${formatDateTime(data.index.createdAt, snapshot.state.locale)} · ${t(`projects.runStatus.${data.index.status}`)}` : '';
-  const caption = ctx.text(ctx.root, identity + '\n' + t('workspace.snapshot'), frame.innerX, top,
-    { size: 11, color: GPU_COLORS.muted, width: frame.innerWidth });
+  const caption = ctx.text(ctx.root, identity + '\n' + t('workspace.snapshot'), left, top,
+    { size: 11, color: GPU_COLORS.muted, width: contentWidth });
   top += caption.height + 14;
   if (path) {
     ctx.button(ctx.root, 'workspace.path.' + workspaceParent(path), 'button', t('workspace.parent'),
-      frame.innerX, top, Math.min(180, frame.innerWidth), 30, false, snapshot.onActivate,
+      left, top, Math.min(180, contentWidth), 30, false, snapshot.onActivate,
       undefined, false, false, undefined, undefined, undefined, false, 'back');
     top += 40;
   }
-  ctx.text(ctx.root, path || '/', frame.innerX, top, { size: 12, mono: true, width: frame.innerWidth, singleLine: true });
-  ctx.tooltip(ctx.root, { x: frame.innerX, y: top, width: frame.innerWidth, height: 22, text: path || '/' });
+  ctx.text(ctx.root, path || '/', left, top, { size: 12, mono: true, width: contentWidth, singleLine: true });
+  ctx.tooltip(ctx.root, { x: left, y: top, width: contentWidth, height: 22, text: path || '/' });
   top += 30;
-  const pane = createScrollPane(ctx.root, { x: frame.innerX, y: top, width: frame.innerWidth,
-    height: Math.max(0, frame.bottom - top - 12), scrollY: snapshot.state.scrollY.projects });
+  const pane = createScrollPane(ctx.root, { x: left, y: top, width: contentWidth,
+    height: Math.max(0, bottomEdge - top - 12), scrollY: snapshot.state.scrollY.projects });
   let bottom = 0;
   const message = (key: string) => { ctx.text(pane.content, t(key), 0, 0, { size: 12, width: pane.width - 16 }); bottom = 60; };
   if (data?.failed) message('workspace.unavailable');

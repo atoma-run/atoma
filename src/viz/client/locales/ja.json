@@ -1245,7 +1245,7 @@
   "skill.kind.llm": "LLM — モデル誘導型レシピ",
   "skill.kind.script": "SCRIPT — コンパイル済みスクリプト",
   "result.back": "タイムラインに戻る",
-  "result.latest": "最新の配信済み結果",
+  "result.latest": "",
   "result.loading": "このrunの結果を読み込んでいます…",
   "result.unavailable": "このrunの結果を読み込めませんでした。トレースが利用できないか、期限切れの可能性があります。",
   "result.noOutput": "このrunには最終出力が記録されていません。",

@@ -2139,6 +2139,12 @@ try {
               repositoryUrl: 'https://github.com/acme/app', pullRequestUrl: 'https://github.com/acme/app/pull/1' },
           },
         ],
+        '/api/runs/trace-delivered': {
+          id: 'trace-delivered', label: 'A delivered change ready for review.',
+          task: { description: 'A delivered change ready for review.' },
+          startedAt: '2026-08-20T00:00:00.000Z', endedAt: '2026-08-20T00:00:01.000Z',
+          events: [], result: { output: 'Delivered smoke result', summary: 'Project result is ready.' },
+        },
         '/api/github/installations': [],
         '/api/admin/announce/draft': {
           translated: true,
@@ -2437,8 +2443,10 @@ try {
       // The later reload checks long generic failure copy, a different case.
       delete blocked.githubAccess;
       delete blocked.requestedByPrincipalId;
-      await waitForHitTarget(accountPage, 'workspace.project', 'project files entry missing');
-      await clickAccountTarget('workspace.project');
+      await accountPage.waitForSelector('.gpu-project-mcp--selected');
+      await waitForHitTarget(accountPage, 'project.section.files', 'project files tab missing');
+      await clickAccountTarget('project.section.files');
+      await accountPage.waitForFunction(() => !document.querySelector('.gpu-project-mcp'));
       await waitForHitTarget(accountPage, 'workspace.path.src', 'workspace folder missing').catch(async error => {
         await accountPage.screenshot({ path: '/tmp/atoma-workspace-failure.png' });
         const diagnostic = await accountPage.evaluate(() => ({ text: document.body.innerText.slice(-6000), targets: globalThis.__ATOMA_GPU__.hitTargets().map(t => t.id) }));
@@ -2457,8 +2465,20 @@ try {
       await waitForHitTarget(accountPage, 'workspace.path.src', 'workspace parent missing');
       await clickAccountTarget('workspace.path.src');
       await waitForHitTarget(accountPage, 'workspace.path.src/app.ts', 'workspace parent did not restore folder');
-      await clickAccountTarget('workspace.close');
+      await clickAccountTarget('project.section.runs');
+      await accountPage.waitForSelector('.gpu-project-mcp--selected');
       console.log('Project workspace explorer ok: canvas project entry, folder, file, parent and back');
+      await clickAccountTarget('project.section.result');
+      await accountPage.waitForFunction(() => !document.querySelector('.gpu-project-mcp'));
+      await accountPage.waitForFunction(() => {
+        const contains = node => typeof node.text === 'string' && node.text.includes('Delivered smoke result') ||
+          (node.children ?? []).some(contains);
+        return contains(globalThis.__ATOMA_GPU__.app.stage);
+      });
+      await accountPage.screenshot({ path: '/tmp/atoma-project-result-section.png' });
+      await clickAccountTarget('project.section.runs');
+      await accountPage.waitForSelector('.gpu-project-mcp--selected');
+      console.log('Project sections ok: MCP guide belongs to Runs, not Files or latest result');
       const prTarget = 'project.pullRequest.eeeeeeee-1111-4222-8333-ffffffffffff';
       await waitForHitTarget(accountPage, prTarget, 'delivered PR link did not render');
       // Compact run cards can place this older run below the viewport. Scroll

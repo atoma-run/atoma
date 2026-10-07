@@ -536,6 +536,11 @@ html.atoma-cursor-active * {
   color: #e6edf7;
 }
 
+.gpu-project-mcp--selected {
+  --gpu-overlay-top: 148px;
+  top: 148px;
+}
+
 /* The GPU view draws the card's frame through its shared panel path. */
 .gpu-project-mcp.gpu-panel-skin {
   background: transparent;

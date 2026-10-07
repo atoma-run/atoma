@@ -9,7 +9,7 @@ import { formatDateTime } from '../../../client/date-format.js';
 
 /** One bounded result reader shared by Projects and Runs. No model HTML executes. */
 export function drawResultPanel(ctx: RendererCtx, snapshot: GpuRenderSnapshot,
-  x: number, y: number, width: number, height: number): void {
+  x: number, y: number, width: number, height: number, showBackButton = true): void {
   const run = snapshot.data.resultRun?.id === snapshot.state.resultRunId ? snapshot.data.resultRun : null;
   const projectRun = Object.values(snapshot.data.projectRuns).flat()
     .find(row => row.traceId === snapshot.state.resultRunId || row.projectRunId === snapshot.state.resultRunId);
@@ -18,9 +18,11 @@ export function drawResultPanel(ctx: RendererCtx, snapshot: GpuRenderSnapshot,
   const backWidth = Math.ceil(ctx.measureText(backLabel, { size: 11, weight: '600' })) + 24 + BUTTON_ICON_SPACE;
   const title = snapshot.t('result.title');
   const titleStyle = { size: 16, weight: '700' } as const;
-  const stacked = backWidth + 16 + ctx.measureText(title, titleStyle) > width - 32;
-  ctx.button(ctx.root, 'result.close', 'button', backLabel, x + 16, y + 8, backWidth, 30, false, snapshot.onActivate);
-  ctx.text(ctx.root, title, x + 16 + (stacked ? 0 : backWidth + 16), y + (stacked ? 48 : 12), titleStyle);
+  const stacked = showBackButton && backWidth + 16 + ctx.measureText(title, titleStyle) > width - 32;
+  if (showBackButton) {
+    ctx.button(ctx.root, 'result.close', 'button', backLabel, x + 16, y + 8, backWidth, 30, false, snapshot.onActivate);
+  }
+  ctx.text(ctx.root, title, x + 16 + (stacked || !showBackButton ? 0 : backWidth + 16), y + (stacked ? 48 : 12), titleStyle);
   const top = y + (stacked ? 80 : 48);
   const paneHeight = Math.max(0, height - (top - y) - 12);
   const pane = createScrollPane(ctx.root, { x: x + 12, y: top, width: width - 24,

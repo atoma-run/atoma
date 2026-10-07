@@ -1245,7 +1245,7 @@
   "skill.kind.llm": "LLM — 模型引导的配方",
   "skill.kind.script": "SCRIPT — 已编译脚本",
   "result.back": "返回时间线",
-  "result.latest": "最新交付的结果",
+  "result.latest": "",
   "result.loading": "正在加载此run的结果…",
   "result.unavailable": "无法加载此run的结果。其跟踪记录可能不可用或已过期。",
   "result.noOutput": "未记录此run的最终输出。",

@@ -211,6 +211,7 @@ export interface GpuUiState {
   selectedRegistryAtom: string | null;
   selectedSkill: { l1Name: string; id: string } | null;
   selectedProjectId: string | null;
+  projectSection: 'runs' | 'files' | 'result';
   workspaceRunId: string | null;
   githubRecovery: import('./github-access.js').GitHubRecoveryProgress | null;
   workspacePath: string;
@@ -304,6 +305,7 @@ export interface GpuUiState {
   selectRegistryAtom: (name: string | null) => void;
   selectSkill: (selection: { l1Name: string; id: string } | null) => void;
   selectProject: (id: string | null) => void;
+  selectProjectSection: (section: GpuUiState['projectSection'], runId?: string | null) => void;
   openWorkspace: (runId: string | null) => void;
   setGitHubRecovery: (value: import('./github-access.js').GitHubRecoveryProgress | null) => void;
   selectWorkspacePath: (path: string) => void;
@@ -428,6 +430,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   selectedRegistryAtom: null,
   selectedSkill: null,
   selectedProjectId: null,
+  projectSection: 'runs',
   workspaceRunId: null,
   githubRecovery: null,
   setGitHubRecovery: (githubRecovery) => set({ githubRecovery }),
@@ -645,6 +648,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   selectSkill: (selectedSkill) => set({ selectedSkill }),
   selectProject: (selectedProjectId) => set((state) => ({
     selectedProjectId,
+    projectSection: 'runs',
     workspaceRunId: null, workspacePath: '',
     resultRunId: null,
     resultActionStatus: null,
@@ -653,7 +657,18 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
     // entirely above its pane until another wheel event clamps it.
     scrollY: { ...state.scrollY, projects: 0 },
   })),
-  openWorkspace: (workspaceRunId) => set(state => ({ workspaceRunId, workspacePath: '', scrollY: { ...state.scrollY, projects: 0 } })),
+  selectProjectSection: (projectSection, runId = null) => set(state => ({
+    projectSection,
+    workspaceRunId: projectSection === 'files' ? runId : null,
+    workspacePath: '',
+    resultRunId: projectSection === 'result' ? runId : null,
+    resultActionStatus: null,
+    scrollY: { ...state.scrollY, projects: 0 },
+  })),
+  openWorkspace: (workspaceRunId) => set(state => ({
+    projectSection: workspaceRunId ? 'files' : 'runs',
+    workspaceRunId, workspacePath: '', scrollY: { ...state.scrollY, projects: 0 },
+  })),
   selectWorkspacePath: (workspacePath) => set(state => ({ workspacePath, scrollY: { ...state.scrollY, projects: 0 } })),
   showRunActivity: (open) => set({ runActivityOpen: open, runActivityFile: null, runActivityPage: 0, runActivityExpandedChanges: {}, resultRunId: null }),
   selectActivityFile: (path) => set({ runActivityFile: path, runActivityPage: 0 }),

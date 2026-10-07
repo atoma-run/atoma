@@ -63,20 +63,22 @@ export async function assertMobileProjects(page, projectId) {
     // A trace-less preparation failure has no run link. The next linked row
     // can begin below this short viewport; scroll it into view before the
     // touch gesture so the gesture still starts on a real run control.
+    const guideBottom = await page.$eval('.gpu-project-mcp', guide => guide.getBoundingClientRect().bottom);
+    const visibleTop = Math.max(420, Math.ceil(guideBottom) + 20);
     const offscreen = await spot();
-    if (offscreen.y > 560) {
-      await page.evaluate(({ x, y }) => {
+    if (offscreen.y > 560 || offscreen.y < visibleTop) {
+      await page.evaluate(({ x, y, visibleTop }) => {
         globalThis.__ATOMA_GPU__.app.canvas.dispatchEvent(new WheelEvent('wheel', {
-          deltaY: y - 420, clientX: x, clientY: 420, bubbles: true, cancelable: true,
+          deltaY: y - visibleTop, clientX: x, clientY: visibleTop, bubbles: true, cancelable: true,
         }));
-      }, offscreen);
-      await page.waitForFunction(({ id }) => {
+      }, { ...offscreen, visibleTop });
+      await page.waitForFunction(({ id, visibleTop }) => {
         const handle = globalThis.__ATOMA_GPU__;
         const row = handle?.hitTargets().find(t => t.id === id);
         if (!row) return false;
         const point = handle.projectRendererPoint(row.x + row.width / 2, row.y + Math.min(12, row.height / 2));
-        return point.y >= 140 && point.y <= 560;
-      }, {}, { id: targetId });
+        return point.y >= visibleTop - 5 && point.y <= 560;
+      }, {}, { id: targetId, visibleTop });
     }
     const before = await spot();
     const canvasAtStart = await page.evaluate(({ x, y }) =>

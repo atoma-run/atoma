@@ -50,6 +50,7 @@ beforeEach(() => {
     runActivityPage: 0,
     runActivityExpandedChanges: {},
     selectedProjectId: null,
+    projectSection: 'runs',
     selectedDocsTheme: 'quick',
     appearanceTheme: 'nocturne',
     themeDropdownOpen: false,
@@ -439,6 +440,21 @@ describe('full-GL minimal DOM bridge', () => {
     await user.click(weather);
     expect(useGpuStore.getState().selectedProjectId).toBeNull();
     expect(screen.getByText(/Plan a project for this repository/)).toBeInTheDocument();
+  });
+
+  it('shows the MCP guide only in Runs after selecting a project', () => {
+    useGpuStore.setState({ view: 'projects', entered: true, projectSection: 'runs' });
+    renderBridge(vi.fn(), runs, undefined, [], 'Weather Lab');
+    const tabs = within(screen.getByRole('tablist', { name: 'Weather Lab' })).getAllByRole('tab');
+    expect(tabs).toHaveLength(3);
+    expect(tabs.map(tab => tab.textContent?.trim())).toEqual(['Runs', 'Files', 'Latest delivered results']);
+    expect(document.querySelector('.gpu-project-mcp')).toHaveClass('gpu-project-mcp--selected');
+    act(() => useGpuStore.getState().selectProjectSection('files'));
+    expect(document.querySelector('.gpu-project-mcp')).not.toBeInTheDocument();
+    act(() => useGpuStore.getState().selectProjectSection('result'));
+    expect(document.querySelector('.gpu-project-mcp')).not.toBeInTheDocument();
+    act(() => useGpuStore.getState().selectProjectSection('runs'));
+    expect(document.querySelector('.gpu-project-mcp')).toBeInTheDocument();
   });
 
   it('keeps the GitHub connection reachable before any installation', () => {

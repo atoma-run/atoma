@@ -4,6 +4,7 @@ import { Graphics } from 'pixi.js';
 import { dateTimeFormat } from '../../../client/date-format.js';
 import type { VizProjectRun } from '../../../client/types.js';
 import { BUTTON_LABEL_INSET } from '../../gpu-renderer.js';
+import { BUTTON_ICON_SPACE } from '../../button-icons.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
 import { fmtMs, runCost } from '../../../client/run-utils.js';
@@ -20,8 +21,8 @@ import { pendingGitHubAccess, canContinueGitHubAccess, canRetryPublication } fro
  * decomposition: a free function over the exported RendererCtx, one measured
  * layout pass, scroll through the shared masked pane, honest `scrollMax`.
  *
- * The MCP onboarding guide is a DOM overlay (`.gpu-project-mcp`). GPU copy
- * and the project list start below that band so labels never sit under it.
+ * The MCP guide is a DOM overlay (`.gpu-project-mcp`). A selected project's
+ * tabs precede it, and only Runs reserves space for that guide.
  */
 
 const ROW_HEIGHT = 58;
@@ -81,11 +82,13 @@ function projectCreatedDate(createdAt: string, locale: string): string {
 /** Breathing room between the status column and the row's right border. */
 export const PROJECTS_ROW_PAD = 14;
 /**
- * Must match `.gpu-project-mcp { top }` in styles.css. The guide is the first
- * thing inside the column frame, so this is the frame's own content top.
+ * Must match `.gpu-project-mcp { top }` in styles.css for the collection view.
  */
 export const PROJECTS_MCP_GUIDE_TOP =
   GPU_LAYOUT.headerHeight + GPU_LAYOUT.gap + VIEW_FRAME_CONTENT_TOP;
+const PROJECTS_SECTION_TABS_HEIGHT = 44;
+/** Must match `.gpu-project-mcp--selected { top }` in styles.css. */
+export const PROJECTS_SELECTED_MCP_GUIDE_TOP = PROJECTS_MCP_GUIDE_TOP + PROJECTS_SECTION_TABS_HEIGHT;
 /** The guide has one shape regardless of project selection. */
 export const PROJECTS_MCP_GUIDE_HEIGHT = 180;
 /** Below this content width the guide gains room for wrapped copy. */
@@ -99,8 +102,9 @@ export function projectsGuideHeight(contentWidth = Number.POSITIVE_INFINITY): nu
     : PROJECTS_MCP_GUIDE_HEIGHT;
 }
 
-export function projectsGpuContentTop(contentWidth = Number.POSITIVE_INFINITY): number {
-  return PROJECTS_MCP_GUIDE_TOP + projectsGuideHeight(contentWidth) + 16;
+export function projectsGpuContentTop(contentWidth = Number.POSITIVE_INFINITY, selected = false): number {
+  return (selected ? PROJECTS_SELECTED_MCP_GUIDE_TOP : PROJECTS_MCP_GUIDE_TOP)
+    + projectsGuideHeight(contentWidth) + 16;
 }
 
 /**
@@ -194,8 +198,8 @@ export function projectsColumn(viewportWidth: number): { x: number; width: numbe
 
 /**
  * A SELECTION IS A FILTER, not just a highlight: with one project selected the
- * list shows THAT project and nothing else, so the MCP guide at the top of the
- * column names the project for the connected agent. Its name moves to the page
+ * list shows THAT project and nothing else, so the MCP guide below the Runs
+ * tab names the project for the connected agent. Its name moves to the page
  * title rather than repeating as an active row; re-clicking Projects in the
  * rail returns to the full list.
  *
@@ -249,7 +253,6 @@ export function drawProjects(
   width: number,
   height: number
 ): void {
-  if (snapshot.state.workspaceRunId) { drawWorkspace(ctx, snapshot, width, height); return; }
   const projects = snapshot.data.projects ?? [];
   const installations = snapshot.data.githubInstallations ?? [];
   const runsByProject = snapshot.data.projectRuns ?? {};
@@ -281,18 +284,20 @@ export function drawProjects(
     ctx.text(ctx.root, name, nameX, titleY, { ...titleStyle, singleLine: true });
   }
 
+  const guideVisible = snapshot.data.auth !== null && (!selectedProject || snapshot.state.projectSection === 'runs');
+  const guideTop = selectedProject ? PROJECTS_SELECTED_MCP_GUIDE_TOP : PROJECTS_MCP_GUIDE_TOP;
   // The form's fields are DOM, but its CARD is the same GPU panel as the list
   // below. A CSS imitation could share dimensions and still disagree on the
   // pointer-driven shadow, which is exactly what made the two adjacent cards
   // read at different depths. The DOM wrapper is transparent and supplies
   // interaction only; this panel owns material, border, radius and elevation.
-  if (snapshot.data.auth !== null) {
+  if (guideVisible) {
     ctx.panel(
       ctx.root,
       frame.innerX,
-      PROJECTS_MCP_GUIDE_TOP,
+      guideTop,
       frame.innerWidth,
-      projectsGuideHeight(width),
+      projectsGuideHeight(frame.innerWidth),
       GPU_COLORS.panel,
       GPU_COLORS.border,
       GPU_LAYOUT.radius,
@@ -300,30 +305,69 @@ export function drawProjects(
     );
   }
 
-  // The DOM guide is gated on a session (`projectGuideEnabled` in DomBridge),
-  // so an UNGATED instance renders none — and reserving the band it would have
-  // occupied left a ~260px hole between the title and the copy explaining why
-  // there is nothing here. Reserve the band only when the guide is really there.
-  let contentTop = snapshot.data.auth === null
-    ? frame.contentTop
-    : projectsGpuContentTop(width);
+  // Reserve the guide's band only on the screen where its DOM contents render.
+  let contentTop = selectedProject ? frame.contentTop
+    : guideVisible ? projectsGpuContentTop(frame.innerWidth) : frame.contentTop;
   const resultRows = selectedProject ? runsByProject[selectedProject.projectId] ?? [] : [];
-  if (selectedProject && latestWorkspaceRun(resultRows)) {
-    ctx.button(ctx.root, 'workspace.project', 'button', snapshot.t('workspace.title'), frame.innerX, contentTop,
-      Math.min(180, frame.innerWidth), 32, false, snapshot.onActivate);
-    contentTop += 44;
+  const latestWorkspace = latestWorkspaceRun(resultRows);
+  const latestResult = latestDeliveredResult(resultRows);
+  if (selectedProject) {
+    const sections = [
+      { id: 'runs', label: snapshot.t('nav.runs') },
+      { id: 'files', label: snapshot.t('workspace.title') },
+      { id: 'result', label: snapshot.t('result.latest') },
+    ] as const;
+    const gap = 10;
+    const naturalWidths = sections.map(section =>
+      Math.ceil(ctx.measureText(section.label, { size: 11, weight: '700' })) + 20 + BUTTON_ICON_SPACE);
+    const room = Math.max(0, frame.innerWidth - gap * (sections.length - 1));
+    const naturalTotal = naturalWidths.reduce((sum, value) => sum + value, 0);
+    const shortLabelsWidth = naturalWidths[0]! + naturalWidths[1]!;
+    // Preserve the complete short labels when space is tight; the long result
+    // label can then use all remaining width without pushing a tab to row two.
+    const shortTabWidths = room >= shortLabelsWidth + 64
+      ? naturalWidths.slice(0, 2)
+      : [Math.max(0, (room - 64) / 2), Math.max(0, (room - 64) / 2)];
+    let tabX = frame.innerX;
+    for (const [index, section] of sections.entries()) {
+      const tabWidth = naturalTotal <= room
+        ? naturalWidths[index]!
+        : index < 2 ? shortTabWidths[index]! : Math.max(0, room - shortTabWidths[0]! - shortTabWidths[1]!);
+      ctx.button(ctx.root, `project.section.${section.id}`, 'tab', section.label,
+        tabX, contentTop, tabWidth, 32, snapshot.state.projectSection === section.id,
+        snapshot.onActivate);
+      tabX += tabWidth + gap;
+    }
+    contentTop = guideVisible ? projectsGpuContentTop(frame.innerWidth, true) : contentTop + PROJECTS_SECTION_TABS_HEIGHT;
+    if (snapshot.state.projectSection === 'files') {
+      if (latestWorkspace && snapshot.state.workspaceRunId) {
+        drawWorkspace(ctx, snapshot, width, height, {
+          x: frame.innerX, top: contentTop, width: frame.innerWidth, bottom: frame.bottom,
+        });
+      } else {
+        ctx.text(ctx.root, snapshot.t('projects.section.noFiles'), frame.innerX, contentTop,
+          { size: 13, color: GPU_COLORS.muted, width: frame.innerWidth });
+        ctx.scrollMax.projects = 0;
+      }
+      return;
+    }
+    if (snapshot.state.projectSection === 'result') {
+      if (latestResult && snapshot.state.resultRunId === latestResult.traceId) {
+        drawResultPanel(ctx, snapshot, frame.innerX, contentTop, frame.innerWidth,
+          Math.max(100, frame.bottom - contentTop - VIEW_FRAME_PAD), false);
+      } else {
+        ctx.text(ctx.root, snapshot.t('projects.section.noDeliveredResult'), frame.innerX, contentTop,
+          { size: 13, color: GPU_COLORS.muted, width: frame.innerWidth });
+        ctx.scrollMax.projects = 0;
+      }
+      return;
+    }
   }
   if (snapshot.state.resultRunId && resultRows.some(run => (run.traceId ?? run.projectRunId) === snapshot.state.resultRunId)) {
     drawResultPanel(ctx, snapshot, frame.innerX, contentTop, frame.innerWidth,
       Math.max(100, frame.bottom - contentTop - VIEW_FRAME_PAD));
     ctx.scrollMax.projects = 0;
     return;
-  }
-  const latestResult = latestDeliveredResult(resultRows);
-  if (latestResult) {
-    ctx.button(ctx.root, `result.open.${latestResult.traceId}`, 'button', snapshot.t('result.latest'),
-      frame.innerX, contentTop, Math.min(300, frame.innerWidth), 30, false, snapshot.onActivate);
-    contentTop += 42;
   }
   if (projects.length === 0) {
     // Ungated deployments have no organisations, so projects cannot exist and

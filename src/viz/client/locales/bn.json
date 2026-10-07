@@ -1245,7 +1245,7 @@
   "skill.kind.llm": "LLM — মডেল-নির্দেশিত রেসিপি",
   "skill.kind.script": "SCRIPT — কম্পাইল করা স্ক্রিপ্ট",
   "result.back": "টাইমলাইনে ফিরে যান",
-  "result.latest": "সর্বশেষ সরবরাহ করা ফলাফল",
+  "result.latest": "",
   "result.loading": "এই run-এর ফলাফল লোড হচ্ছে…",
   "result.unavailable": "এই run-এর ফলাফল লোড করা যায়নি। এর ট্রেস অনুপলভ্য বা মেয়াদোত্তীর্ণ হয়ে থাকতে পারে।",
   "result.noOutput": "এই run-এর জন্য কোনো চূড়ান্ত আউটপুট রেকর্ড করা হয়নি।",

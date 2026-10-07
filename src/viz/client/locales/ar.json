@@ -1245,7 +1245,7 @@
   "skill.kind.llm": "LLM — وصفة موجّهة بالنموذج",
   "skill.kind.script": "SCRIPT — برنامج نصي مُترجَم برمجيًا",
   "result.back": "العودة إلى المخطط الزمني",
-  "result.latest": "أحدث نتيجة مُسلَّمة",
+  "result.latest": "",
   "result.loading": "جارٍ تحميل نتيجة هذا الـ run…",
   "result.unavailable": "تعذّر تحميل نتيجة هذا الـ run. قد يكون سجل تتبعه غير متاح أو منتهي الصلاحية.",
   "result.noOutput": "لم يُسجَّل أي إخراج نهائي لهذا الـ run.",

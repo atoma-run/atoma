@@ -146,7 +146,6 @@ export function DomBridge({
   projects = [],
   projectRuns = [], githubRecovery = null, auth = null,
   workspace,
-  workspaceAvailable = false,
   onOpenMcp,
   mcpAccessState = 'unknown',
   projectGuideEnabled = true,
@@ -186,7 +185,6 @@ export function DomBridge({
   /** The MCP setup guide exists only behind the auth gate. */
   projectGuideEnabled?: boolean;
   workspace?: WorkspaceBrowserData;
-  workspaceAvailable?: boolean;
   projectAdmin?: boolean;
   /** Notification offer (first live run for members, login for platform
    *  admins); real DOM buttons because the browser permission request needs a
@@ -224,6 +222,7 @@ export function DomBridge({
   const selectedRunId = useGpuStore((state) => state.selectedRunId);
   const workspaceRunId = useGpuStore(state => state.workspaceRunId);
   const selectedProjectId = useGpuStore((state) => state.selectedProjectId);
+  const projectSection = useGpuStore((state) => state.projectSection);
   const selectedDocsTheme = useGpuStore((state) => state.selectedDocsTheme);
   const accountMenuOpen = useGpuStore((state) => state.accountMenuOpen);
   const localeMenuOpen = useGpuStore((state) => state.localeMenuOpen);
@@ -386,6 +385,20 @@ export function DomBridge({
             ))}
           </section>
         ) : null}
+        {view === 'projects' && selectedProjectId ? (
+          <nav role="tablist" aria-label={projects.find(project => project.projectId === selectedProjectId)?.name ?? t('nav.projects')}>
+            {([
+              ['runs', 'nav.runs', 'play'],
+              ['files', 'workspace.title', 'folder'],
+              ['result', 'result.latest', 'file'],
+            ] as const).map(([section, labelKey, icon]) => (
+              <button key={section} type="button" role="tab" aria-selected={projectSection === section}
+                onClick={() => onActivate?.(`project.section.${section}`)}>
+                <ButtonIcon kind={icon} />{t(labelKey)}
+              </button>
+            ))}
+          </nav>
+        ) : null}
         {view === 'projects' && selectedProjectId && !workspaceRunId ? projectRuns.filter(run => run.projectId === selectedProjectId && pendingGitHubAccess(run)).map(run => {
           const access = pendingGitHubAccess(run)!;
           const progress = githubRecovery?.runId === run.projectRunId ? githubRecovery : null;
@@ -409,7 +422,8 @@ export function DomBridge({
               onClick={() => onActivate?.(`project.githubRetry.${run.projectRunId}`)}>{t('projects.githubAccess.retryPublication')}</button>
             <p role="status">{githubRecovery?.runId === run.projectRunId ? githubRecovery.message : ''}</p>
           </section>) : null}
-        {view === 'projects' && selectedProjectId && (workspaceRunId || workspaceAvailable) ? <WorkspaceAccessible data={workspace} t={t} onActivate={onActivate} /> : null}
+        {view === 'projects' && selectedProjectId && projectSection === 'files' && workspaceRunId ?
+          <WorkspaceAccessible data={workspace} t={t} onActivate={onActivate} /> : null}
         {view === 'runs' && preview && preview.availability === 'available' && onActivate ? (
           <section aria-label={t('preview.region')}>
             <button
@@ -521,9 +535,9 @@ export function DomBridge({
           onChange={(event) => setSearch('skills', event.target.value)}
         />
       ) : null}
-      {projectGuideEnabled && view === 'projects' && !workspaceRunId ? (
+      {projectGuideEnabled && view === 'projects' && (!selectedProjectId || projectSection === 'runs') ? (
         <section
-          className={`gpu-panel-skin gpu-project-mcp${overlaysInert ? ' gpu-overlays-veiled' : ''}`}
+          className={`gpu-panel-skin gpu-project-mcp${selectedProjectId ? ' gpu-project-mcp--selected' : ''}${overlaysInert ? ' gpu-overlays-veiled' : ''}`}
           inert={overlaysInert}
           aria-label={t('projects.mcpTitle')}
         >

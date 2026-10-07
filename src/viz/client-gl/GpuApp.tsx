@@ -86,7 +86,7 @@ import {
 } from './store.js';
 import type { VizAdminInvitation } from '../client/types.js';
 import { openGitHubRepository } from './repository-link.js';
-import { resultText, resultFileUrl } from './run-result.js';
+import { latestDeliveredResult, resultText, resultFileUrl } from './run-result.js';
 import { isAppearanceTheme } from './theme.js';
 
 const RELEASE_VERSION = __ATOMA_RELEASE_VERSION__;
@@ -268,6 +268,18 @@ function GpuAppContent({
     selectedProject?.projectId ?? null,
     (state.view === 'projects' || state.view === 'runs') && !!selectedProject
   );
+  useEffect(() => {
+    if (state.view !== 'projects' || !selectedProject) return;
+    const rows = projectRunsQuery.data ?? [];
+    if (state.projectSection === 'files') {
+      const latestId = latestWorkspaceRun(rows)?.projectRunId ?? null;
+      if (state.workspaceRunId !== latestId) state.selectProjectSection('files', latestId);
+    } else if (state.projectSection === 'result') {
+      const latestId = latestDeliveredResult(rows)?.traceId ?? null;
+      if (state.resultRunId !== latestId) state.selectProjectSection('result', latestId);
+    }
+  }, [projectRunsQuery.data, selectedProject, state.view, state.projectSection,
+    state.workspaceRunId, state.resultRunId, state.selectProjectSection]);
   const workspaceUrl = `/api/projects/${encodeURIComponent(selectedProject?.projectId ?? '')}/runs/${encodeURIComponent(state.workspaceRunId ?? '')}/workspace`;
   const workspaceEnabled = authed && state.view === 'projects' && !!selectedProject && !!state.workspaceRunId;
   const workspaceIndex = useQuery({ queryKey: ['workspace', workspaceUrl],
@@ -630,7 +642,12 @@ function GpuAppContent({
     requestPreview, closePreview, stopPreview, reloadPreview } = usePreviewSession({ previewTarget, previewSummary, t });
 
   const activate = useCallback((id: string) => {
-    if (id === 'result.close') { useGpuStore.getState().selectResult(null); return; }
+    if (id === 'result.close') {
+      const current = useGpuStore.getState();
+      if (current.view === 'projects' && current.projectSection === 'result') current.selectProjectSection('runs');
+      else current.selectResult(null);
+      return;
+    }
     if (id.startsWith('result.open.')) {
       useGpuStore.getState().selectResult(id.slice('result.open.'.length));
       return;
@@ -838,9 +855,13 @@ function GpuAppContent({
       store.setView('projects');
       return;
     }
-    if (id === 'workspace.project') {
-      const run = latestWorkspaceRun(projectRunsQuery.data ?? []);
-      if (run) store.openWorkspace(run.projectRunId);
+    if (id.startsWith('project.section.')) {
+      if (!store.selectedProjectId) return;
+      const section = id.slice('project.section.'.length);
+      const rows = projectRunsQuery.data ?? [];
+      if (section === 'runs') store.selectProjectSection('runs');
+      else if (section === 'files') store.selectProjectSection('files', latestWorkspaceRun(rows)?.projectRunId);
+      else if (section === 'result') store.selectProjectSection('result', latestDeliveredResult(rows)?.traceId);
       return;
     }
     if (id.startsWith('workspace.open.')) { store.openWorkspace(id.slice('workspace.open.'.length)); return; }
@@ -1222,7 +1243,6 @@ function GpuAppContent({
           githubRecovery={githubRecovery}
           auth={authSnapshot}
           workspace={workspace}
-          workspaceAvailable={!!latestWorkspaceRun(projectRunsQuery.data ?? [])}
           mcpAccessState={mcpAccessState}
           onOpenMcp={() => {
             setSettingsInitialTab('mcp');

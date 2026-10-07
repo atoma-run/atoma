@@ -6,7 +6,7 @@ export function WorkspaceAccessible({ data, t, onActivate }: {
   data?: WorkspaceBrowserData; t: (key: string) => string; onActivate?: (id: string) => void;
 }) {
   const run = useGpuStore(s => s.workspaceRunId), path = useGpuStore(s => s.workspacePath);
-  if (!run) return <button type="button" onClick={() => onActivate?.('workspace.project')}><ButtonIcon kind="folder" />{t('workspace.title')}</button>;
+  if (!run) return null;
   const file = data?.index?.files.some(f => f.path === path);
   return <section aria-label={t('workspace.title')}>
     <button type="button" onClick={() => onActivate?.('workspace.close')}><ButtonIcon kind="back" />{t('workspace.back')}</button>

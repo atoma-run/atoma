@@ -1245,7 +1245,7 @@
   "skill.kind.llm": "LLM — resep berpanduan model",
   "skill.kind.script": "SCRIPT — skrip terkompilasi",
   "result.back": "Kembali ke lini masa",
-  "result.latest": "Hasil terbaru yang dikirim",
+  "result.latest": "",
   "result.loading": "Memuat hasil run ini…",
   "result.unavailable": "Hasil run ini tidak dapat dimuat. Jejaknya mungkin tidak tersedia atau telah kedaluwarsa.",
   "result.noOutput": "Tidak ada output akhir yang direkam untuk run ini.",
