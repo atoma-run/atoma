@@ -61,10 +61,20 @@ export function planRepositorySync(input: {
     }
   }
   const remote = input.remoteEntries ?? Object.entries(theirs).map(([path, v]) => ({ path, ...v, type: 'blob' }));
+  const remoteByPath = new Map(remote.map(e => [e.path, e]));
+  const parents = new Set<string>();
+  for (const e of remote) {
+    let end = e.path.lastIndexOf('/');
+    while (end !== -1) { parents.add(e.path.slice(0, end)); end = e.path.lastIndexOf('/', end - 1); }
+  }
   const take: string[] = [], write: string[] = [], conflicts: string[] = [];
   for (const p of all) {
-    const obstructed = remote.some(e => (e.path === p && (e.type !== 'blob' || !repositoryFile(theirs, p))) ||
-      (e.type !== 'tree' && p.startsWith(`${e.path}/`)) || e.path.startsWith(`${p}/`));
+    const exact = remoteByPath.get(p);
+    let obstructed = parents.has(p) || (!!exact && (exact.type !== 'blob' || !repositoryFile(theirs, p)));
+    for (let end = p.lastIndexOf('/'); !obstructed && end !== -1; end = p.lastIndexOf('/', end - 1)) {
+      const ancestor = remoteByPath.get(p.slice(0, end));
+      obstructed = !!ancestor && ancestor.type !== 'tree';
+    }
     if (!debt.has(p)) {
       if (!sameRepositoryFile(repositoryFile(ours, p), repositoryFile(theirs, p)) || (obstructed && repositoryFile(ours, p))) take.push(p);
     } else if (!obstructed && sameRepositoryFile(repositoryFile(theirs, p), repositoryFile(ours, p))) {

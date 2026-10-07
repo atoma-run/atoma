@@ -11,6 +11,7 @@ import {
   type Stats,
 } from 'node:fs';
 import path from 'node:path';
+import { WORKSPACE_LIMITS } from '../contracts/workspaceLimits.js';
 import {
   artifactFileSchema,
   artifactManifestSchema,
@@ -35,16 +36,7 @@ export interface ArtifactLimits {
   readonly maxPathChars: number;
 }
 
-export const DEFAULT_ARTIFACT_LIMITS: ArtifactLimits = {
-  maxFiles: 256,
-  maxFileBytes: 10 * 1024 * 1024,
-  maxTotalBytes: 50 * 1024 * 1024,
-  maxPathChars: 512,
-};
-
-// Text deliveries retain a complete workspace inventory but cannot publish it.
-// A source repository may contain far more files than one publishable delivery.
-const MAX_TEXT_DELIVERY_FILES = 10_000;
+export const DEFAULT_ARTIFACT_LIMITS: ArtifactLimits = WORKSPACE_LIMITS;
 
 export type ArtifactPolicyCode =
   | 'empty'
@@ -370,9 +362,7 @@ function inventoryWorkspace(input: {
   readonly delivery?: import('../contracts/taskExecution.js').DeliveryKind;
   readonly allowEmpty?: boolean;
 }): BuiltArtifactManifest {
-  const limits = resolvedLimits(input.delivery === 'text'
-    ? { maxFiles: MAX_TEXT_DELIVERY_FILES, ...input.limits }
-    : input.limits);
+  const limits = resolvedLimits(input.limits);
   const root = path.resolve(input.workspaceRoot);
   const rootStat = lstatSync(root);
   if (rootStat.isSymbolicLink() || !rootStat.isDirectory()) {

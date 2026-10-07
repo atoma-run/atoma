@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { gitBlobSha, planRepositorySync, repositoryDebt } from '../src/projects/repositorySync.js';
 import { materialiseRepositorySeed } from '../src/projects/repositorySeed.js';
 import type { RepositoryInventory } from '../src/contracts/repositorySync.js';
+import { repositoryInventorySchema } from '../src/contracts/repositorySync.js';
 const file = (text: string) => ({ mode: '100644' as const, sha: gitBlobSha(Buffer.from(text)) });
 const state = (text?: string): RepositoryInventory => text === undefined ? {} : { 'app.js': file(text) };
 
@@ -68,3 +69,11 @@ it('publishes executable-mode changes with identical bytes', () => {
   const base = state('same'), ours = { 'app.js': { ...file('same'), mode: '100755' as const } };
   expect(planRepositorySync({ base, ours, theirs: base, debt: repositoryDebt(base, ours, false) }).write).toEqual(['app.js']);
 });
+
+it('plans a 100,000-file repository and retains large persisted bases', () => {
+  const base = Object.fromEntries(Array.from({ length: 100_000 }, (_, i) => [`src/file-${i}.js`, file('same')]));
+  expect(repositoryInventorySchema.parse(base)).toEqual(base);
+  const ours = { ...base, 'src/file-42.js': file('changed') };
+  const plan = planRepositorySync({ base, ours, theirs: base, debt: repositoryDebt(base, ours, false) });
+  expect(plan).toEqual({ write: ['src/file-42.js'], take: [], conflicts: [] });
+}, 15_000);

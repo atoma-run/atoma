@@ -3,11 +3,12 @@ import { readdir, lstat, mkdir, link, copyFile, readlink, symlink, unlink, rmdir
 import { buildWorkspaceArtifactManifest, normalizeArtifactPath } from './artifacts.js';
 import { gitBlobSha, repositoryFile } from './repositorySync.js';
 import type { RepositoryInventory } from '../contracts/repositorySync.js';
+import { WORKSPACE_LIMITS } from '../contracts/workspaceLimits.js';
 
 /** Copy the lineage without ever writing through a shared inode. */
 export async function materialiseRepositorySeed(input: {
   source: string; destination: string; take: readonly string[]; theirs: RepositoryInventory;
-  blob: (sha: string) => Promise<Buffer>; signal: AbortSignal;
+  blob: (sha: string, signal: AbortSignal) => Promise<Buffer>; signal: AbortSignal;
 }): Promise<void> {
   const copy = async (source: string, destination: string): Promise<void> => {
     input.signal.throwIfAborted();
@@ -42,19 +43,28 @@ export async function materialiseRepositorySeed(input: {
       parent = path.dirname(parent);
     }
   }
-  let total = 0;
-  if (input.take.filter(p => repositoryFile(input.theirs, p)).length > 256) throw new Error('Repository exceeds file limit');
-  for (const p of input.take) {
-    const state = repositoryFile(input.theirs, p);
-    if (!state) continue;
-    input.signal.throwIfAborted();
-    const content = await input.blob(state.sha);
-    input.signal.throwIfAborted();
-    total += content.length;
-    if (total > 50 * 1024 * 1024 || gitBlobSha(content) !== state.sha) throw new Error('Repository blob integrity or size failure');
-    const target = path.join(input.destination, p);
-    await mkdir(path.dirname(target), { recursive: true });
-    await writeFile(target, content, { flag: 'wx', mode: state.mode === '100755' ? 0o755 : 0o644 });
-  }
+  let total = 0, cursor = 0;
+  const files = input.take.filter(p => repositoryFile(input.theirs, p));
+  if (files.length > WORKSPACE_LIMITS.maxFiles) throw new Error('Repository exceeds file limit');
+  const controller = new AbortController();
+  const signal = AbortSignal.any([input.signal, controller.signal]);
+  const readers = Array.from({ length: Math.min(8, files.length) }, async () => {
+    try {
+      while (cursor < files.length) {
+        signal.throwIfAborted();
+        const p = files[cursor++]!;
+        const state = repositoryFile(input.theirs, p)!;
+        const content = await input.blob(state.sha, signal);
+        signal.throwIfAborted();
+        total += content.length;
+        if (content.length > WORKSPACE_LIMITS.maxFileBytes || total > WORKSPACE_LIMITS.maxTotalBytes || gitBlobSha(content) !== state.sha) throw new Error('Repository blob integrity or size failure');
+        const target = path.join(input.destination, p);
+        await mkdir(path.dirname(target), { recursive: true });
+        await writeFile(target, content, { flag: 'wx', mode: state.mode === '100755' ? 0o755 : 0o644 });
+      }
+    } catch (error) { controller.abort(error); throw error; }
+  });
+  await Promise.allSettled(readers);
+  if (signal.aborted) throw signal.reason;
   buildWorkspaceArtifactManifest({ workspaceRoot: input.destination });
 }

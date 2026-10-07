@@ -310,6 +310,15 @@ only, with workflows and sensitive paths excluded. Changes to a fork's head
 during a run are refused instead of overwriting those changes; start a fresh run
 from the updated branch. GitHub credentials stay on the control plane.
 
+Large repositories share a host budget of 100,000 workspace files, 10 MiB per
+file and 512 MiB total. A complete inventory is retained; existing-repository
+publication uploads only changed files. Large GitHub.com imports stream a
+verified archive instead of making one REST request per file. Truncated GitHub
+trees are traversed by subtree, without accepting an incomplete snapshot.
+Archive files omitted or transformed by Git attributes are fetched as immutable
+blobs. Enterprise imports use bounded parallel blob reads and remain subject to
+the installation's API quota. These are resource budgets, not unlimited storage.
+
 For a source repository that contains large evidence archives or GitHub Actions
 workflows, add a root `.atoma-import.json` with `{"version":1,
 "excludePrefixes":["benchmark/",".github/workflows/"]}`. Prefixes are

@@ -1,3 +1,6 @@
+import { readRepositoryArchive } from './repositoryArchive.js';
+import { WORKSPACE_LIMITS } from '../contracts/workspaceLimits.js';
+import { createHash } from 'node:crypto';
 import { repositoryTreeEntrySchema, type RepositoryTreeEntry } from '../contracts/repositorySync.js';
 import type { KeyObject } from 'node:crypto';
 import { canonicalGitHubId } from './config.js';
@@ -12,7 +15,8 @@ export const GITHUB_API_VERSION = '2026-03-10';
 export const DEFAULT_GITHUB_REQUEST_TIMEOUT_MS = 10_000;
 export const DEFAULT_GITHUB_RESPONSE_MAX_BYTES = 1024 * 1024;
 export const MAX_GITHUB_INSTALLATION_PAGES = 10;
-export const MAX_GITHUB_PUBLISH_FILES = 1_000;
+export const MAX_GITHUB_PUBLISH_FILES = WORKSPACE_LIMITS.maxFiles;
+const GITHUB_TREE_BATCH_FILES = 1_000;
 /**
  * Request-body ceiling for any single call. Named because the per-file publish
  * bound below is DERIVED from it and the two must not drift apart.
@@ -26,17 +30,8 @@ export const MAX_GITHUB_REQUEST_BODY_BYTES = 30 * 1024 * 1024;
  * it is the wall behind the wall.
  */
 export const MAX_GITHUB_PUBLISH_FILE_BYTES = 20 * 1024 * 1024;
-/**
- * TOTAL across a manifest, and it exists only to stop an unbounded upload. It
- * MATCHES `DEFAULT_ARTIFACT_LIMITS.maxTotalBytes`, deliberately: a manifest the
- * artifact policy accepted at delivery must never be one publication can never
- * carry. It was 20 MiB against that policy's 50 MiB, which made a 21-50 MiB
- * deliverable land as `delivered` and then fail every publish attempt for ever,
- * with a byte-bound message that read like a transient limit. Nothing derives
- * this number from the request cap — files go one per request — so the only
- * thing keeping the two honest is the test that asserts they agree.
- */
-export const MAX_GITHUB_PUBLISH_TOTAL_BYTES = 50 * 1024 * 1024;
+/** Total upload budget; unchanged repository content is never uploaded. */
+export const MAX_GITHUB_PUBLISH_TOTAL_BYTES = WORKSPACE_LIMITS.maxTotalBytes;
 
 export const GITHUB_PUBLISH_PERMISSIONS = Object.freeze({
   administration: 'write',
@@ -99,12 +94,33 @@ export interface GitHubPublishFile {
   readonly mode?: '100644' | '100755';
 }
 
+/** Metadata stays cheap; bytes are revalidated only immediately before upload. */
+export interface GitHubDeferredPublishFile {
+  readonly path: string;
+  readonly mode?: '100644' | '100755';
+  readonly size: number;
+  readonly readContent: () => Uint8Array;
+}
+type PublishFile = GitHubPublishFile | GitHubDeferredPublishFile;
+
+function publishFileBytes(file: PublishFile): number {
+  return 'readContent' in file ? file.size : typeof file.content === 'string'
+    ? Buffer.byteLength(file.content, 'utf8') : file.content.byteLength;
+}
+function publishFileContent(file: PublishFile): string | Uint8Array {
+  const content = 'readContent' in file ? file.readContent() : file.content;
+  if (('readContent' in file && (typeof content === 'string' ? Buffer.byteLength(content) : content.byteLength) !== file.size) || publishFileBytes(file) > MAX_GITHUB_PUBLISH_FILE_BYTES) {
+    throw new Error('GitHub publish file changed or exceeds its byte bound');
+  }
+  return content;
+}
+
 export interface PublishGitHubManifestInput {
   readonly token: string;
   readonly repository: { readonly owner: string; readonly name: string };
   readonly branch?: string;
   readonly message: string;
-  readonly files: readonly GitHubPublishFile[];
+  readonly files: readonly PublishFile[];
   /**
    * THE AUTHORITY TO WRITE ONTO A BRANCH THAT ALREADY HAS COMMITS: the commit
    * this project itself last published, or null for a first publication.
@@ -119,7 +135,7 @@ export interface PublishGitHubManifestInput {
    */
   readonly expectedHead: string | null;
   /** Resolve the write set against the exact parent used for this commit. */
-  readonly selectFiles?: (head: string) => Promise<{ files: readonly GitHubPublishFile[]; message: string }>;
+  readonly selectFiles?: (head: string) => Promise<{ files: readonly PublishFile[]; message: string }>;
   /** Host-persisted receipt from this same publication, never an observed head. */
   readonly seedCommitSha?: string | null;
   /** Must persist before subsequent remote writes. */
@@ -885,37 +901,78 @@ export class GitHubAppClient {
   }): Promise<RepositoryTreeEntry[]> {
     input.signal?.throwIfAborted();
     const commit = await this.getCommit(input.token, input.owner, input.name, input.commitSha, input.signal);
-    const read = async (treeSha: string, recursive: boolean): Promise<RepositoryTreeEntry[]> => {
+    const read = async (treeSha: string, recursive: boolean) => {
       const result = await this.request({ token: input.token,
         path: this.gitPath(input.owner, input.name, `trees/${treeSha}${recursive ? '?recursive=1' : ''}`),
-        responseMaxBytes: 8 * 1024 * 1024, signal: input.signal });
+        responseMaxBytes: 32 * 1024 * 1024, signal: input.signal });
       const tree = asObject(result.json, 'GitHub tree');
-      if (tree['truncated'] !== false || !Array.isArray(tree['tree'])) throw new Error('Repository tree is incomplete');
-      return tree['tree'].map(value => {
+      if (typeof tree['truncated'] !== 'boolean' || !Array.isArray(tree['tree'])) throw new Error('Repository tree is incomplete');
+      const entries = tree['tree'].map(value => {
         const entry = asObject(value, 'GitHub tree entry');
         return repositoryTreeEntrySchema.parse({ path: entry['path'], mode: entry['mode'],
           sha: entry['sha'], type: entry['type'], ...(entry['size'] === undefined ? {} : { size: entry['size'] }) });
       });
+      return { entries, truncated: tree['truncated'] };
     };
-    if (!input.paths) return read(commit.treeSha, true);
-    const cache = new Map<string, RepositoryTreeEntry[]>();
-    const found = new Map<string, RepositoryTreeEntry>();
-    for (const p of input.paths) {
-      let treeSha = commit.treeSha;
-      const parts = p.split('/');
-      for (let i = 0; i < parts.length; i++) {
-        input.signal?.throwIfAborted();
-        let entries = cache.get(treeSha);
-        if (!entries) { entries = await read(treeSha, false); cache.set(treeSha, entries); }
-        // Keep the directory's entries, including case aliases and path-type conflicts.
-        const prefix = parts.slice(0, i).join('/');
-        for (const e of entries) {
-          const path = prefix ? `${prefix}/${e.path}` : e.path;
-          found.set(path, { ...e, path });
+    if (!input.paths) {
+      try {
+        const recursive = await read(commit.treeSha, true);
+        if (!recursive.truncated) {
+          if (recursive.entries.length > WORKSPACE_LIMITS.maxEntries) throw new Error('Repository exceeds the tree entry limit');
+          return recursive.entries;
         }
-        const next = entries.find(e => e.path === parts[i]);
-        if (!next || next.type !== 'tree') break;
-        treeSha = next.sha;
+      } catch (error) {
+        if (!(error instanceof GitHubApiError) || error.code !== 'response_too_large') throw error;
+      }
+    }
+    // A truncated recursive response is not an inventory. Walk immutable
+    // subtrees instead, or only the directories needed by a publication diff.
+    const cache = new Map<string, Map<string, RepositoryTreeEntry>>();
+    const found = new Map<string, RepositoryTreeEntry>();
+    let visited = 0;
+    const directory = async (treeSha: string, prefix: string) => {
+      if (++visited > WORKSPACE_LIMITS.maxEntries) throw new Error('Repository exceeds the tree traversal limit');
+      input.signal?.throwIfAborted();
+      let entries = cache.get(treeSha);
+      if (!entries) {
+        const result = await read(treeSha, false);
+        if (result.truncated) throw new Error('Repository tree is incomplete');
+        entries = new Map();
+        for (const e of result.entries) {
+          if (e.path.includes('/') || e.path === '.' || e.path === '..' || entries.has(e.path)) throw new Error('Repository contains invalid tree entries');
+          entries.set(e.path, e);
+        }
+        cache.set(treeSha, entries);
+      }
+      for (const e of entries.values()) {
+        const path = prefix ? `${prefix}/${e.path}` : e.path;
+        if (path.length > 4096) throw new Error('Repository path exceeds its bound');
+        found.set(path, { ...e, path });
+      }
+      if (found.size > WORKSPACE_LIMITS.maxEntries) throw new Error('Repository exceeds the tree entry limit');
+      return entries;
+    };
+    if (input.paths) {
+      const expanded = new Set<string>();
+      for (const p of input.paths) {
+        let treeSha = commit.treeSha;
+        const parts = p.split('/');
+        for (let i = 0; i < parts.length; i++) {
+          const prefix = parts.slice(0, i).join('/');
+          let entries = cache.get(treeSha);
+          if (!expanded.has(prefix)) { entries = await directory(treeSha, prefix); expanded.add(prefix); }
+          const next = entries!.get(parts[i]!);
+          if (!next || next.type !== 'tree') break;
+          treeSha = next.sha;
+        }
+      }
+    } else {
+      const pending = [{ sha: commit.treeSha, prefix: '' }];
+      while (pending.length) {
+        const next = pending.pop()!;
+        const entries = await directory(next.sha, next.prefix);
+        for (const e of entries.values()) if (e.type === 'tree') pending.push({ sha: e.sha,
+          prefix: next.prefix ? `${next.prefix}/${e.path}` : e.path });
       }
     }
     return [...found.values()];
@@ -930,23 +987,17 @@ export class GitHubAppClient {
     const object = asObject(result.json, 'GitHub blob');
     if (object['encoding'] !== 'base64' || typeof object['content'] !== 'string') throw new Error('Unsupported repository blob encoding');
     const content = Buffer.from(object['content'], 'base64');
-    if (content.length > 10 * 1024 * 1024 || content.length !== object['size']) throw new Error('Repository blob exceeds its bound or is incomplete');
+    if (content.length > WORKSPACE_LIMITS.maxFileBytes || content.length !== object['size']) throw new Error('Repository blob exceeds its bound or is incomplete');
     return content;
   }
 
   /** Read immutable git objects; never follow archive redirects carrying credentials. */
   async readRepositoryFiles(input: {
     token: string; owner: string; name: string; commitSha: string; signal: AbortSignal;
+    onFile?: (file: GitHubPublishFile) => Promise<void>;
   }): Promise<readonly GitHubPublishFile[]> {
     input.signal.throwIfAborted();
-    const commit = await this.getCommit(input.token, input.owner, input.name, input.commitSha, input.signal);
-    const result = await this.request({ token: input.token,
-      path: this.gitPath(input.owner, input.name, `trees/${commit.treeSha}?recursive=1`),
-      responseMaxBytes: 8 * 1024 * 1024, signal: input.signal });
-    const tree = asObject(result.json, 'GitHub tree');
-    if (tree['truncated'] !== false || !Array.isArray(tree['tree'])) throw new Error('Repository tree is incomplete');
-    const entries = tree['tree'].map(value => asObject(value, 'GitHub tree entry'));
-    if (entries.length > 10_000) throw new Error('Repository exceeds the 10000-entry import limit');
+    const entries = await this.readRepositoryTree(input);
     // The source repository may explicitly leave bulky or non-publishable
     // directories out of Atoma's workspace. Read this one small config blob
     // before the files so exclusions apply before per-file and total limits.
@@ -972,47 +1023,123 @@ export class GitHubAppClient {
       catch { throw new Error('Repository import selection is not valid JSON'); }
       excludePrefixes = importExcludePrefixes(parsed);
     }
-    const files: GitHubPublishFile[] = [];
-    const seen = new Set<string>();
-    let total = 0;
+    const selected: Array<{ path: string; sha: string; mode: '100644' | '100755'; size?: number }> = [];
+    const seen = new Map<string, string>();
+    const paths = new Set<string>();
+    let declaredBytes = 0;
     for (const entry of entries) {
       input.signal.throwIfAborted();
-      const name = repositoryPath(responseString(entry['path'], 'repository path', 1024));
+      const name = repositoryPath(entry.path);
+      if (paths.has(name)) throw new Error('Repository contains duplicate file paths');
+      paths.add(name);
       if (name.split('/').some(part => part.toLowerCase() === '.git')) throw new Error('Repository contains a reserved git path');
-      if (entry['type'] === 'tree') continue;
-      if (entry['type'] !== 'blob' || (entry['mode'] !== '100644' && entry['mode'] !== '100755')) {
+      const parts = name.split('/');
+      for (let i = 1; i <= parts.length; i++) {
+        const prefix = parts.slice(0, i).join('/');
+        const prior = seen.get(prefix.toLowerCase());
+        if (prior && prior !== prefix) throw new Error('Repository contains conflicting file paths');
+        seen.set(prefix.toLowerCase(), prefix);
+      }
+      if (entry.type === 'tree') continue;
+      if (entry.type !== 'blob' || (entry.mode !== '100644' && entry.mode !== '100755')) {
         throw new Error('Repository import does not support symbolic links or submodules');
       }
       if (name === '.atoma-import.json') continue;
       if (excludePrefixes.some(prefix => name.toLowerCase().startsWith(prefix))) continue;
       filePath(name);
-      if (seen.has(name.toLowerCase())) throw new Error('Repository contains conflicting file paths');
-      seen.add(name.toLowerCase());
-      const blob = await this.request({ token: input.token,
-        path: this.gitPath(input.owner, input.name, `blobs/${sha(entry['sha'], 'blob sha')}`),
-        responseMaxBytes: MAX_GITHUB_REQUEST_BODY_BYTES, signal: input.signal });
-      const object = asObject(blob.json, 'GitHub blob');
-      if (object['encoding'] !== 'base64' || typeof object['content'] !== 'string') throw new Error('Unsupported repository blob encoding');
-      const content = Buffer.from(object['content'], 'base64');
-      if (content.length > 10 * 1024 * 1024) throw new Error('Repository file exceeds the 10 MiB import limit');
-      if (content.length !== object['size']) throw new Error('Repository blob is incomplete');
-      total += content.length;
-      if (total > MAX_GITHUB_PUBLISH_TOTAL_BYTES) throw new Error('Repository exceeds the 50 MiB import limit');
-      files.push({ path: name, mode: entry['mode'], content });
+      if (name.length > WORKSPACE_LIMITS.maxPathChars || name !== name.trim()) throw new Error('Repository path exceeds the workspace path policy');
+      if (entry.size !== undefined) {
+        if (entry.size > WORKSPACE_LIMITS.maxFileBytes) throw new Error('Repository file exceeds the 10 MiB import limit');
+        declaredBytes += entry.size;
+      }
+      selected.push({ path: name, sha: entry.sha, mode: entry.mode, size: entry.size });
     }
-    if (!files.length) throw new Error('Repository has no files to import');
-    return files;
+    if (selected.length > WORKSPACE_LIMITS.maxFiles) throw new Error('Repository exceeds the workspace file limit');
+    if (declaredBytes > WORKSPACE_LIMITS.maxTotalBytes) throw new Error('Repository exceeds the 512 MiB import limit');
+    const files: GitHubPublishFile[] = [];
+    let total = 0, cursor = 0;
+    const emit = async (file: GitHubPublishFile) => {
+      total += typeof file.content === 'string' ? Buffer.byteLength(file.content) : file.content.byteLength;
+      if (total > WORKSPACE_LIMITS.maxTotalBytes) throw new Error('Repository exceeds the 512 MiB import limit');
+      if (input.onFile) await input.onFile(file);
+      else files.push(file);
+    };
+    // Avoid thousands of REST blob calls on GitHub.com. The signed archive
+    // URL receives NO installation token. Enterprise hosts retain blob reads.
+    const completed = selected.length > 128 && this.config.apiBaseUrl === 'https://api.github.com'
+      ? await readRepositoryArchive({ body: await this.repositoryArchiveBody(input), files: selected,
+          signal: input.signal, onFile: emit }) : new Set<string>();
+    const remaining = selected.filter(file => !completed.has(file.path));
+    // Bounded parallel reads: the run's preparation signal owns cancellation,
+    // including waiting for active readers to settle before seed cleanup.
+    const controller = new AbortController();
+    const signal = AbortSignal.any([input.signal, controller.signal]);
+    const readers = Array.from({ length: Math.min(8, remaining.length) }, async () => {
+      try {
+        while (cursor < remaining.length) {
+          signal.throwIfAborted();
+          const entry = remaining[cursor++]!;
+          const content = await this.readRepositoryBlob({ ...input, sha: entry.sha, signal });
+          const hash = createHash('sha1').update(`blob ${content.length}\0`).update(content).digest('hex');
+          if (hash !== entry.sha || (entry.size !== undefined && entry.size !== content.length)) throw new Error('Repository blob integrity failure');
+          await emit({ path: entry.path, mode: entry.mode, content });
+        }
+      } catch (error) { controller.abort(error); throw error; }
+    });
+    await Promise.allSettled(readers);
+    if (signal.aborted) throw signal.reason;
+
+    if (!selected.length) throw new Error('Repository has no files to import');
+    return files.sort((a, b) => a.path.localeCompare(b.path));
+  }
+
+  private async repositoryArchiveBody(input: {
+    token: string; owner: string; name: string; commitSha: string; signal: AbortSignal;
+  }): Promise<ReadableStream<Uint8Array>> {
+    const path = `/repos/${encodeSegment(ownerLogin(input.owner))}/${encodeSegment(repositoryName(input.name))}/zipball/${sha(input.commitSha, 'archive commit sha')}`;
+    try {
+      const response = await this.fetchImpl(`${this.config.apiBaseUrl}${path}`, {
+        redirect: 'manual', signal: AbortSignal.any([input.signal, AbortSignal.timeout(this.timeoutMs)]),
+        headers: { Authorization: `Bearer ${safeToken(input.token)}`, Accept: 'application/vnd.github+json',
+          'User-Agent': `atoma-${this.config.appSlug}`, 'X-GitHub-Api-Version': GITHUB_API_VERSION },
+      });
+      await response.body?.cancel();
+      if (response.status !== 302) throw new Error('Archive link unavailable');
+      const url = new URL(response.headers.get('location') ?? '');
+      if (url.origin !== 'https://codeload.github.com' || url.username || url.password || url.hash) throw new Error('Unsafe archive host');
+      const archive = await this.fetchImpl(url, { redirect: 'error', signal: input.signal,
+        headers: { 'User-Agent': `atoma-${this.config.appSlug}` } });
+      if (!archive.ok || !archive.body) { await archive.body?.cancel(); throw new Error('Archive unavailable'); }
+      return archive.body;
+    } catch {
+      input.signal.throwIfAborted();
+      // Never expose signed URLs or transport errors containing credentials.
+      throw new Error('GitHub repository archive could not be downloaded');
+    }
   }
 
   /** Publish from the captured run base, to its own PR branch or directly into a fork. */
   async publishRepositoryRun(input: PublishGitHubManifestInput & {
     baseBranch: string; baseSha: string; pullRequest: boolean;
   }): Promise<GitHubPublishedCommit & { pullRequestUrl: string | null }> {
-    const { owner, repository, branch, files } = this.normalizeManifestFiles(input);
+    const baseSha = sha(input.baseSha, 'run base sha');
+    const normalized = this.normalizeManifestFiles(input);
+    const remote = await this.readRepositoryTree({ token: input.token, owner: input.repository.owner,
+      name: input.repository.name, commitSha: baseSha, paths: normalized.files.map(f => f.path) });
+    const byPath = new Map(remote.map(e => [e.path, e]));
+    const changed = normalized.files.filter(file => {
+      const entry = byPath.get(file.path);
+      if (!entry || entry.type !== 'blob' || entry.mode !== (file.mode ?? '100644')) return true;
+      const content = publishFileContent(file);
+      const bytes = typeof content === 'string' ? Buffer.from(content) : content;
+      return createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex') !== entry.sha;
+    });
+    const { owner, repository, branch, files } = this.normalizeManifestFiles({ ...input, files: changed, expectedHead: baseSha });
     if (input.pullRequest && branch === input.baseBranch) throw new Error('A run branch must differ from its base');
     if (!input.pullRequest && branch !== input.baseBranch) throw new Error('Direct publication must target its base branch');
-    const baseSha = sha(input.baseSha, 'run base sha');
     const base = await this.getCommit(input.token, owner, repository, baseSha);
+    if (!files.length) return { branch, treeSha: base.treeSha, commitSha: baseSha,
+      ref: `refs/heads/${branch}`, baseSha, publishKind: 'unchanged', pullRequestUrl: null };
     const entries = await this.blobEntries(input.token, owner, repository, files);
     const treeSha = await this.createTree({ token: input.token, owner, repository, entries, baseTreeSha: base.treeSha });
     if (treeSha === base.treeSha) return { branch, treeSha, commitSha: baseSha,
@@ -1166,18 +1293,15 @@ export class GitHubAppClient {
         sha: sha(entry.sha, 'GitHub blob sha'),
       };
     });
-    const result = await this.request({
-      method: 'POST',
-      token: input.token,
-      path: this.gitPath(input.owner, input.repository, 'trees'),
-      body: {
-        tree,
-        ...(input.baseTreeSha === undefined
-          ? {}
-          : { base_tree: sha(input.baseTreeSha, 'GitHub tree sha') }),
-      },
-    });
-    return sha(asObject(result.json, 'GitHub tree response')['sha'], 'GitHub tree sha');
+    let baseTreeSha = input.baseTreeSha;
+    for (let offset = 0; offset < tree.length; offset += GITHUB_TREE_BATCH_FILES) {
+      const result = await this.request({ method: 'POST', token: input.token,
+        path: this.gitPath(input.owner, input.repository, 'trees'),
+        body: { tree: tree.slice(offset, offset + GITHUB_TREE_BATCH_FILES),
+          ...(baseTreeSha === undefined ? {} : { base_tree: sha(baseTreeSha, 'GitHub tree sha') }) } });
+      baseTreeSha = sha(asObject(result.json, 'GitHub tree response')['sha'], 'GitHub tree sha');
+    }
+    return baseTreeSha!;
   }
 
   async createCommit(input: {
@@ -1311,7 +1435,7 @@ export class GitHubAppClient {
     owner: string;
     repository: string;
     branch: string;
-    files: Array<{ path: string; content: string | Uint8Array; mode?: '100644' | '100755'; bytes: number }>;
+    files: Array<PublishFile & { bytes: number }>;
   } {
     const owner = ownerLogin(input.repository.owner);
     const repository = repositoryName(input.repository.name);
@@ -1320,16 +1444,12 @@ export class GitHubAppClient {
       throw new Error('GitHub publish has an invalid number of files');
     }
     const files = input.files.map((file) => ({
-      path: filePath(file.path),
-      content: file.content,
-      mode: file.mode,
-      bytes: typeof file.content === 'string'
-        ? Buffer.byteLength(file.content, 'utf8')
-        : file.content.byteLength,
+      ...file, path: filePath(file.path), bytes: publishFileBytes(file),
     })).sort((left, right) => left.path.localeCompare(right.path));
     const seen = new Set<string>();
     let totalBytes = 0;
     for (const file of files) {
+      if (!Number.isSafeInteger(file.bytes) || file.bytes < 0 || file.bytes > MAX_GITHUB_PUBLISH_FILE_BYTES) throw new Error('GitHub file exceeds the per-file publish byte bound');
       if (seen.has(file.path)) throw new Error('GitHub publish contains duplicate paths');
       seen.add(file.path);
       totalBytes += file.bytes;
@@ -1345,14 +1465,14 @@ export class GitHubAppClient {
     token: string,
     owner: string,
     repository: string,
-    files: readonly { path: string; content: string | Uint8Array; mode?: '100644' | '100755' }[]
+    files: readonly PublishFile[]
   ): Promise<Array<{ path: string; sha: string; mode?: '100644' | '100755' }>> {
     const entries: Array<{ path: string; sha: string; mode?: '100644' | '100755' }> = [];
     for (const file of files) {
       entries.push({
         path: file.path,
         ...(file.mode !== undefined ? { mode: file.mode } : {}),
-        sha: await this.createBlob({ token, owner, repository, content: file.content }),
+        sha: await this.createBlob({ token, owner, repository, content: publishFileContent(file) }),
       });
     }
     return entries;
@@ -1467,7 +1587,7 @@ export class GitHubAppClient {
         owner,
         repository,
         path: seed.path,
-        content: seed.content,
+        content: publishFileContent(seed),
         message: input.message,
         branch,
       });

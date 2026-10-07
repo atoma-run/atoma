@@ -1,3 +1,4 @@
+import { WORKSPACE_LIMITS } from '../contracts/workspaceLimits.js';
 import type { RepositoryInventory, RepositorySync } from '../contracts/repositorySync.js';
 import { inventoryRepositoryWorkspace, carryRepositoryBase, repositoryFile, repositoryDebt, planRepositorySync, remoteRepositoryInventory } from './repositorySync.js';
 import { materialiseRepositorySeed } from './repositorySeed.js';
@@ -416,14 +417,14 @@ export class GitHubPublisher {
         const entries = await this.client.readRepositoryTree({ token, owner: project.repositoryTarget.owner,
           name: project.repositoryTarget.name, commitSha: head.sha, signal });
         const theirs = remoteRepositoryInventory(entries);
-        if (Object.keys(theirs).length > 256) throw new Error('Repository exceeds file limit');
+        if (Object.keys(theirs).length > WORKSPACE_LIMITS.maxFiles) throw new Error('Repository exceeds file limit');
         if (legacy) for (const p of Object.keys(ours)) {
           if (!repositoryFile(oldBase, p)) { if (repositoryFile(theirs, p)) debt.delete(p); else debt.add(p); }
         }
         const plan = planRepositorySync({ base: oldBase, ours, theirs, debt, remoteEntries: entries });
         if (plan.take.length) await materialiseRepositorySeed({ source: seed.hostPaths.workspacePath,
           destination: seedPath, take: plan.take, theirs, signal,
-          blob: sha => this.client.readRepositoryBlob({ token, owner: project.repositoryTarget.owner,
+          blob: (sha, signal) => this.client.readRepositoryBlob({ token, owner: project.repositoryTarget.owner,
             name: project.repositoryTarget.name, sha, signal }) });
         signal.throwIfAborted();
         record = { status: plan.take.length ? 'synced' : 'unchanged', head: head.sha, base: theirs,
@@ -507,28 +508,31 @@ export class GitHubPublisher {
     }
     const head = await this.client.readBranchHead(token, target.owner, target.name, repository.defaultBranch);
     if (head.state !== 'head') throw new Error('Repository branch is empty or the fork is still being prepared; retry when it is ready');
-    const files = await this.client.readRepositoryFiles({ token, owner: target.owner, name: target.name, commitSha: head.sha, signal });
-    signal.throwIfAborted();
     const seedPath = path.join(path.dirname(run.hostPaths.workspacePath), 'repository-seed');
+    let fileCount = 0;
     try {
-      await mkdir(seedPath, { recursive: true, mode: 0o700 });
-      for (const file of files) {
-        signal.throwIfAborted();
-        const destination = path.join(seedPath, file.path);
-        await mkdir(path.dirname(destination), { recursive: true });
-        await writeFile(destination, file.content, { flag: 'wx', mode: file.mode === '100755' ? 0o755 : 0o644 });
-      }
-    } catch {
-      signal.throwIfAborted();
-      // Run errors are served to tenants: filesystem exceptions contain host paths.
-      throw new Error('Repository snapshot could not be written on this host');
+      try { await mkdir(seedPath, { recursive: true, mode: 0o700 }); }
+      catch { throw new Error('Repository snapshot could not be written on this host'); }
+      await this.client.readRepositoryFiles({ token, owner: target.owner, name: target.name, commitSha: head.sha, signal,
+        onFile: async file => {
+          signal.throwIfAborted();
+          const destination = path.join(seedPath, file.path);
+          try {
+            await mkdir(path.dirname(destination), { recursive: true });
+            await writeFile(destination, file.content, { flag: 'wx', mode: file.mode === '100755' ? 0o755 : 0o644 });
+            fileCount++;
+          } catch { throw new Error('Repository snapshot could not be written on this host'); }
+        } });
+    } catch (error) {
+      await rm(seedPath, { recursive: true, force: true }).catch(() => {});
+      throw error;
     }
     this.store.saveRepositoryRunBase(project.orgId, run.projectRunId, {
       repositoryId: repository.id, branch: repository.defaultBranch, commitSha: head.sha,
     });
-    if (source.mode === 'fork' && files.length <= 256) this.store.saveRepositorySync(project.orgId, run.projectRunId, {
+    if (source.mode === 'fork') this.store.saveRepositorySync(project.orgId, run.projectRunId, {
       status: 'synced', head: head.sha, base: inventoryRepositoryWorkspace(seedPath),
-      debtResolved: true, materialised: true, seedPath, taken: files.length, conflicts: 0, paths: [],
+      debtResolved: true, materialised: true, seedPath, taken: fileCount, conflicts: 0, paths: [],
     });
     return seedPath;
   }
@@ -738,9 +742,10 @@ export class GitHubPublisher {
         const plan = planRepositorySync({ base, ours, theirs, debt, remoteEntries: entries });
         this.store.recordPublicationConflicts(project.orgId, publication.publicationId, plan.conflicts.length);
         if (plan.conflicts.length) this.repositoryAttention(project, run, 'conflict', plan.conflicts);
-        const files = run.artifactManifest!.files.filter(f => plan.write.includes(f.path));
+        const writes = new Set(plan.write);
+        const files = run.artifactManifest!.files.filter(f => writes.has(f.path));
         return { files: files.map(file => ({ path: file.path, mode: file.mode,
-          content: readManifestArtifact({ workspaceRoot: input.workspaceRoot, expected: file }) })),
+          size: file.size, readContent: () => readManifestArtifact({ workspaceRoot: input.workspaceRoot, expected: file }) })),
           message: publicationCommitMessage({ project, run, manifest: { ...run.artifactManifest!, files,
             totalBytes: files.reduce((n, f) => n + f.size, 0) }, writtenOnly: true }) };
       };
@@ -763,10 +768,8 @@ export class GitHubPublisher {
         files: run.artifactManifest.files.map((file) => ({
           path: file.path,
           mode: file.mode,
-          content: readManifestArtifact({
-            workspaceRoot: input.workspaceRoot,
-            expected: file,
-          }),
+          size: file.size,
+          readContent: () => readManifestArtifact({ workspaceRoot: input.workspaceRoot, expected: file }),
         })),
       };
       const base = this.store.getProjectRun(project.orgId, run.projectRunId)?.repositoryBase;

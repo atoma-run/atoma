@@ -239,6 +239,10 @@ Neighbours:
 
 ## Publication receipts
 
+- `workspaceLimits.ts` owns host budgets shared by GitHub import, workspace
+  inventory and sync. Repository BASE can retain a second workspace's worth
+  of tombstones. These are resource bounds, not a bound on changed files.
+
 - An artifact manifest with `source: workspace` records the complete filtered
   workspace inventory. Absence of this optional field retains the legacy
   explicit-file meaning and its exact hash. Revalidation follows the recorded

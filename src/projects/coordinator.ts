@@ -1642,9 +1642,7 @@ export class ProjectRunCoordinator {
             this.store.saveRepositorySync(project.orgId, run.projectRunId, originSync);
           }
         } else if (this.publisher?.syncRun) {
-          seedFrom = await this.publisher.syncRun(project, run, seedRun, AbortSignal.any([
-            controller.signal, AbortSignal.timeout(Math.min(30_000, PROJECT_RUN_PREPARATION_TIMEOUT_MS / 2)),
-          ]));
+          seedFrom = await this.publisher.syncRun(project, run, seedRun, preparationSignal);
         } else {
           let base = {};
           let debtResolved = true;

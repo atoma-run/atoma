@@ -178,9 +178,19 @@ Neighbours:
   after a remote-write crash. An unchanged tree creates no empty PR.
 - Imported PR runs request `pull_requests: write` in addition to the ordinary
   publish permissions. Forks and new repositories keep the ordinary token.
-- Repository snapshots read bounded immutable trees/blobs; truncated trees,
-  unsafe paths, symlinks and submodules fail before model work. No GitHub
-  credential enters the worker. Fork adoption requires the exact parent id.
+- Repository snapshots share `WORKSPACE_LIMITS` with delivery and sync. A
+  truncated recursive tree is replaced by a complete bounded subtree walk;
+  incomplete subtrees, unsafe paths, symlinks and submodules still refuse.
+  GitHub.com imports above 128 files stream a ZIP archive. Only the API gets
+  the installation token; a manual redirect admits HTTPS codeload.github.com
+  only, without authorization or further redirects. Selected regular files
+  must match the immutable tree's blob SHA and size. Export-ignore/subst gaps
+  fall back to at most eight parallel blob reads; enterprise hosts use those
+  reads throughout. Archive paths never become filesystem paths. Cancellation
+  settles readers before cleanup. No credential enters the worker.
+- Publication retains the complete inventory but reads content lazily, uploads
+  only changed PR/fork paths, and builds trees in bounded batches before one
+  commit/ref move. Fork adoption still requires the exact parent id.
 
 ## Repository reconciliation
 

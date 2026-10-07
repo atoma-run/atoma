@@ -50,6 +50,13 @@ function expectPolicyError(
 }
 
 describe('project artifact manifest construction', () => {
+  it('delivers more than 50 MiB without loading the workspace as one publication buffer', () => {
+    const chunk = Buffer.alloc(9 * 1024 * 1024, 97);
+    for (let i = 0; i < 6; i++) writeFileSync(join(root, `data-${i}.bin`), chunk);
+    const built = buildWorkspaceArtifactManifest({ workspaceRoot: root });
+    expect(built.manifest.totalBytes).toBe(54 * 1024 * 1024);
+    expect(revalidateArtifactManifest({ workspaceRoot: root, manifest: built.manifest, expectedHash: built.hash }).hash).toBe(built.hash);
+  });
   it('omits Python interpreter caches from inventory and explicit publication', () => {
     mkdirSync(join(root, 'src', '__pycache__'), { recursive: true });
     writeFileSync(join(root, 'src', '__pycache__', 'verify.cpython-311.pyc'), 'cache');
@@ -70,12 +77,11 @@ describe('project artifact manifest construction', () => {
     expect(() => revalidateArtifactManifest(input)).toThrow();
   });
 
-  it('inventories a text delivery larger than the publication file limit', () => {
+  it.each(['text', 'files'] as const)('inventories and revalidates a large %s delivery', delivery => {
     for (let index = 0; index < 257; index++) {
       writeFileSync(join(root, `source-${index}.txt`), 'source');
     }
-    expectPolicyError(() => buildWorkspaceArtifactManifest({ workspaceRoot: root }), 'limit');
-    const built = buildWorkspaceArtifactManifest({ workspaceRoot: root, delivery: 'text' });
+    const built = buildWorkspaceArtifactManifest({ workspaceRoot: root, delivery });
     expect(built.manifest.files).toHaveLength(257);
     expectPolicyError(() => buildWorkspaceArtifactManifest({
       workspaceRoot: root, delivery: 'text', limits: { maxTotalBytes: 1 },

@@ -273,9 +273,11 @@ list. These values come from the host snapshot, never a tenant prompt.
 - Inventory uses the existing path jail, size/count limits and exclusions.
   Internal records, VCS, dependencies, workflows and secret-like paths are
   excluded before traversal; other symlinks and special files refuse delivery.
-  Text deliveries may inventory up to 10,000 files so a large imported source
-  tree can finish a text answer; the 256-file publication limit and the
-  50 MiB total byte limit remain in force for their respective paths.
+  `WORKSPACE_LIMITS` is shared with import and sync: 100,000 files, 10 MiB
+  per file, 512 MiB total. Text and file deliveries use the same inventory.
+  Publication loads bytes lazily and sends only changed files for existing
+  repositories; commit messages show a bounded path excerpt, never reject a
+  delivery because its complete file list would exceed GitHub's message bound.
   Revalidation of a workspace manifest compares the complete inventory again,
   so added files cannot silently miss publication after delivery.
 - Delivery status and its manifest commit in one SQLite transaction. A failure

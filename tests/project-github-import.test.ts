@@ -1,3 +1,4 @@
+import { zipSync } from 'fflate';
 import { generateKeyPairSync, randomUUID } from 'node:crypto';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -19,7 +20,7 @@ import { FakeGitHub } from './github-api-fake.js';
 const roots: string[] = [];
 afterEach(() => { vi.restoreAllMocks(); closeStoreHandles(); roots.splice(0).forEach(root => rmSync(root, { recursive: true, force: true })); });
 
-async function fixture(mode: 'pull-request' | 'fork', transform?: (fake: FakeGitHub) => typeof fetch) {
+async function fixture(mode: 'pull-request' | 'fork', transform?: (fake: FakeGitHub) => typeof fetch, apiBaseUrl = 'https://api.github.test') {
   const root = mkdtempSync(join(tmpdir(), 'atoma-import-')); roots.push(root);
   const f = projectRetrievalFixture(root);
   const fake = new FakeGitHub({ existing: ['upstream/app'] });
@@ -30,7 +31,7 @@ async function fixture(mode: 'pull-request' | 'fork', transform?: (fake: FakeGit
     accountLogin: mode === 'fork' ? 'alice' : 'upstream', targetType: 'User', repositorySelection: 'all',
     permissions: { administration: 'write', contents: 'write', pull_requests: 'write' }, connectedByPrincipalId: f.viewer.principalId });
   const client = new GitHubAppClient({ appId: '123', appSlug: 'test',
-    privateKey: generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey, apiBaseUrl: 'https://api.github.test' },
+    privateKey: generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey, apiBaseUrl },
   { fetch: transform?.(fake) ?? fake.fetch, now: () => Date.UTC(2026, 7, 23, 12) });
   const publisher = new GitHubPublisher({ client, github, store: f.projects, resolveUserAccessToken: async () => 'user-token' });
   const seeds: string[] = [];
@@ -362,15 +363,51 @@ describe('existing GitHub projects through service, coordinator and publication'
     expect(f.driver).not.toHaveBeenCalled();
   });
 
-  it('refuses a truncated source tree before invoking the driver', async () => {
+  it('walks subtrees when the recursive source tree is truncated', async () => {
     const f = await fixture('pull-request', fake => async (url, init) => {
       if ((typeof url === 'string' ? url : url instanceof URL ? url.href : url.url).includes('?recursive=1')) return new Response(JSON.stringify({ truncated: true, tree: [] }));
       return fake.fetch(url, init);
     });
     const run = await f.start();
-    expect(run.error).toContain('incomplete');
-    expect(f.driver).not.toHaveBeenCalled();
+    expect(run.status).toBe('delivered');
+    expect(f.driver).toHaveBeenCalledOnce();
   });
+
+  it.each(['fork', 'pull-request'] as const)('delivers 1502 files in %s mode, uploads only the change, and resumes', async mode => {
+    let archiveDownloads = 0;
+    const f = await fixture(mode, fake => async (url, init) => {
+      const target = new URL(typeof url === 'string' ? url : url instanceof URL ? url.href : url.url);
+      if (target.pathname.includes('/zipball/')) return new Response(null, { status: 302,
+        headers: { location: 'https://codeload.github.com/snapshot?token=signed-secret' } });
+      if (target.hostname === 'codeload.github.com') {
+        archiveDownloads++;
+        expect(new Headers(init?.headers).get('authorization')).toBeNull();
+        expect(init?.redirect).toBe('error');
+        const tree = fake.filesOn(mode === 'fork' ? 'alice' : 'upstream', 'app', 'main');
+        return new Response(Buffer.from(zipSync(Object.fromEntries([...tree].map(([path, value]) =>
+          [`snapshot/${path}`, Buffer.from(value.text)])))));
+      }
+      return fake.fetch(url, init);
+    }, 'https://api.github.com');
+    const many = Array.from({ length: 1500 }, (_, i) => ({ path: `src/file-${i}.js`, content: `export default ${i};` }));
+    await f.client.publishManifestCommit({ token: 'installation-token', repository: { owner: 'upstream', name: 'app' },
+      expectedHead: f.fake.refSha('upstream', 'app', 'main'), files: many, message: 'Large source fixture' });
+    const before = f.fake.calls.length;
+    const run = await f.start();
+    expect(run.status).toBe('delivered');
+    expect(run.artifactManifest?.files).toHaveLength(1502);
+    expect(archiveDownloads).toBe(1);
+    expect(f.fake.calls.slice(before).filter(c => c.startsWith('GET') && c.includes('/git/blobs/'))).toHaveLength(0);
+    expect(f.projects.getPublicationForRun(f.viewer.orgId, run.projectRunId)?.status).toBe('published');
+    expect(f.fake.calls.slice(before).filter(c => c.endsWith('/git/blobs') && c.startsWith('POST'))).toHaveLength(1);
+    if (mode === 'fork') {
+      expect(Object.keys(f.projects.getRepositorySync(f.viewer.orgId, run.projectRunId)!.base)).toHaveLength(1502);
+      const again = await f.start('<h1>Changed again</h1>');
+      expect(again.status).toBe('delivered');
+      expect(f.projects.getPublicationForRun(f.viewer.orgId, again.projectRunId)?.status).toBe('published');
+      expect(f.fake.filesOn('alice', 'app', 'main').size).toBe(1502);
+    }
+  }, 30_000);
 
   it('refuses a foreign organisation installation before downloading files or invoking the driver', async () => {
     const f = await fixture('pull-request');

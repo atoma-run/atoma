@@ -163,11 +163,11 @@ Checking the rule against each case:
   leading/trailing whitespace, no traversal) and `assertPublishableArtifactPath`
   ([artifacts.ts:84-175](../src/projects/artifacts.ts));
 - the materialised seed still passes the **file-delivery inventory**. That is the
-  function delivery itself calls, with at most 256 files, 10 MiB per file and
-  50 MiB in total. The materialised seed is test-inventoried before it is
+  function delivery itself calls, with the shared `WORKSPACE_LIMITS` (100,000
+  files, 10 MiB per file and 512 MiB total after the large-repository correction). The materialised seed is test-inventoried before it is
   accepted; a seed that fails is discarded, and the sync fails open.
 
-Without that last check, one push of 300 files, or of a file named `notes `,
+Without that last check, a push above the workspace budget, or of a file named `notes `,
 would make every later run fail at delivery after paying for it. Each time, the
 next run would re-sync from the same seed. That is the
 [2857a579](../src/projects/AGENTS.md) pattern of a run recorded `failed` that

@@ -99,6 +99,24 @@ it('carries failed publication work forward and refuses an older retry under the
   expect(f.release.mock.calls.length).toBe(count + 1);
   expect(existsSync(dirname(first.hostPaths.workspacePath))).toBe(true);
 });
+
+it('synchronises a large remote addition, preserves the previous seed, and publishes one changed file', async () => {
+  const f = fixture();
+  const first = await f.start(w => writeFileSync(join(w, 'app.js'), 'initial'));
+  await f.client.publishManifestCommit({ token: 'installation-token', repository: { owner: 'owner', name: 'docs' },
+    expectedHead: f.fake.refSha('owner', 'docs', 'main'), message: 'Remote large addition',
+    files: Array.from({ length: 1200 }, (_, i) => ({ path: `src/file-${i}.js`, content: `export default ${i};` })) });
+  const before = f.fake.calls.length;
+  const next = await f.start(w => {
+    expect(readFileSync(join(w, 'src/file-1199.js'), 'utf8')).toBe('export default 1199;');
+    writeFileSync(join(w, 'app.js'), 'changed');
+  });
+  expect(f.projects.getRepositorySync(f.viewer.orgId, next.projectRunId)).toMatchObject({ status: 'synced', taken: 1200 });
+  expect(next.artifactManifest?.files).toHaveLength(1201);
+  expect(f.projects.getPublicationForRun(f.viewer.orgId, next.projectRunId)?.status).toBe('published');
+  expect(f.fake.calls.slice(before).filter(c => c.startsWith('POST') && c.endsWith('/git/blobs'))).toHaveLength(1);
+  expect(existsSync(join(first.hostPaths.workspacePath, 'src'))).toBe(false);
+}, 30_000);
 it('fails open on an unavailable sync and still protects remote edits', async () => {
   const f = fixture();
   await f.start(w => writeFileSync(join(w, 'app.js'), 'initial'));

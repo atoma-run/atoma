@@ -1,12 +1,14 @@
 import { z } from 'zod';
 import { commitShaSchema } from './projects.js';
+import { WORKSPACE_LIMITS } from './workspaceLimits.js';
 
 export const repositoryFileStateSchema = z.object({
   mode: z.enum(['100644', '100755']), sha: commitShaSchema,
 }).strict();
 export type RepositoryFileState = z.infer<typeof repositoryFileStateSchema>;
 export const repositoryInventorySchema = z.record(z.string().max(512), repositoryFileStateSchema)
-  .refine(value => Object.keys(value).length <= 1024, 'Repository base exceeds its bound');
+  // BASE may retain tombstones from a previous workspace as well as new paths.
+  .refine(value => Object.keys(value).length <= WORKSPACE_LIMITS.maxFiles * 2, 'Repository base exceeds its bound');
 export type RepositoryInventory = z.infer<typeof repositoryInventorySchema>;
 export const repositorySyncSchema = z.object({
   status: z.enum(['synced', 'unchanged', 'unavailable', 'no_anchor']),

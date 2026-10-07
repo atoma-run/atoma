@@ -36,9 +36,8 @@ export const COMMIT_BODY_WIDTH = 72;
 
 /**
  * `createCommit` and `putContentsFile` refuse a message over 65_536 characters,
- * so this is the budget the renderer must stay inside. A 256-file manifest at
- * the artifact policy's limit plus a 4_000-character goal lands far below it;
- * the bound is asserted by a test rather than trusted.
+ * so the file list is a bounded excerpt. The full inventory remains in the
+ * delivery manifest; the goal and provenance are always retained in full.
  */
 export const MAX_COMMIT_MESSAGE_CHARS = 65_536;
 
@@ -123,14 +122,12 @@ export function publicationCommitMessage(input: PublicationCommitMessageInput): 
   const subject = subjectFromGoal(run.goal);
   const shortRun = run.projectRunId.slice(0, 8);
 
-  const pathWidth = Math.max(...manifest.files.map((file) => file.path.length));
-  const sizeWidth = Math.max(...manifest.files.map((file) => String(file.size).length));
-  const declared = manifest.files
-    .map(
-      (file) =>
-        `  ${file.path.padEnd(pathWidth)}  ${String(file.size).padStart(sizeWidth)} bytes  ${file.mode}`
-    )
-    .join('\n');
+  const preview = manifest.files.slice(0, 100);
+  const pathWidth = preview.reduce((n, f) => Math.max(n, f.path.length), 0);
+  const sizeWidth = preview.reduce((n, f) => Math.max(n, String(f.size).length), 0);
+  const declared = preview.map(file =>
+    `  ${file.path.padEnd(pathWidth)}  ${String(file.size).padStart(sizeWidth)} bytes  ${file.mode}`).join('\n') +
+    (manifest.files.length > preview.length ? `\n  … ${manifest.files.length - preview.length} more paths; see the run's full artifact inventory.` : '');
   const plural = manifest.files.length === 1 ? 'path' : 'paths';
 
   const goal = sanitiseGoalText(run.goal);
@@ -167,8 +164,7 @@ export function publicationCommitMessage(input: PublicationCommitMessageInput): 
   ].join('\n');
 
   if (message.length > MAX_COMMIT_MESSAGE_CHARS) {
-    // Unreachable from the artifact policy's own limits, which is why this
-    // raises rather than truncating: a message this long means a bound moved.
+    // The bounded path excerpt leaves room for the complete goal and trailers.
     throw new Error(
       `publication commit message is ${message.length} characters, over the ${MAX_COMMIT_MESSAGE_CHARS} the GitHub client accepts`
     );
