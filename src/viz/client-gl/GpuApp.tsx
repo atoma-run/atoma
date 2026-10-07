@@ -1,5 +1,6 @@
 import { workspaceIndexSchema, workspaceFileSchema } from '../../contracts/workspaceBrowser.js';
 import { latestWorkspaceRun } from './workspace-browser.js';
+import { pendingGitHubAccess, canContinueGitHubAccess, canRetryPublication } from './github-access.js';
 import { fetchJson } from '../client/data-api.js';
 import {
   useCallback,
@@ -158,6 +159,9 @@ function GpuAppContent({
     [loginParams.invite]
   );
   const [pendingLoginProvider, setPendingLoginProvider] = useState<string | null>(null);
+  const githubRecovery = useGpuStore(state => state.githubRecovery);
+  const setGitHubRecovery = useGpuStore(state => state.setGitHubRecovery);
+  const githubRecoveryLock = useRef(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<'general' | 'mcp'>('general');
   const [cameraRevision, setCameraRevision] = useState(0);
   const cameraSettled = useCallback(
@@ -858,6 +862,30 @@ function GpuAppContent({
       openGitHubRepository(project?.repositoryUrl);
       return;
     }
+    if (id.startsWith('project.githubAuthorize.') || id.startsWith('project.githubContinue.') || id.startsWith('project.githubRetry.')) {
+      const run = projectRunsQuery.data?.find(candidate => candidate.projectRunId === id.split('.').at(-1));
+      const access = run && pendingGitHubAccess(run);
+      if (!run) return;
+      const retryPublication = id.startsWith('project.githubRetry.') && canRetryPublication(run, authSnapshot);
+      if (!access && !retryPublication) return;
+      if (id.startsWith('project.githubAuthorize.')) {
+        if (access) window.open(access.settingsUrl, '_blank', 'noopener,noreferrer');
+        return;
+      }
+      if (githubRecoveryLock.current || (!retryPublication && !canContinueGitHubAccess(run, authSnapshot))) return;
+      githubRecoveryLock.current = true;
+      setGitHubRecovery({ runId: run.projectRunId, busy: true });
+      void (retryPublication ? api.retryPublication(run.projectId, run.projectRunId) : api.continueGitHubAccess(run.projectId, run.projectRunId)).then(async () => {
+        setGitHubRecovery(null);
+        await queryClient.invalidateQueries({ queryKey: ['viz', 'projects'] });
+      }).catch(() => {
+        setGitHubRecovery({ runId: run.projectRunId, busy: false, message: t('projects.githubAccess.retryFailed') });
+      }).finally(() => {
+        githubRecoveryLock.current = false;
+        void queryClient.invalidateQueries({ queryKey: ['viz', 'project', run.projectId, 'runs'] });
+      });
+      return;
+    }
     if (id.startsWith('project.pullRequest.')) {
       const run = projectRunsQuery.data?.find(candidate => candidate.projectRunId === id.slice('project.pullRequest.'.length));
       openGitHubRepository(run?.publication?.pullRequestUrl);
@@ -972,6 +1000,7 @@ function GpuAppContent({
     pendingLoginProvider,
     previewQuery.data?.state,
     projectRunsQuery.data,
+    setGitHubRecovery,
     projectsQuery.data,
     requestPreview,
     runQuery.data,
@@ -1055,6 +1084,7 @@ function GpuAppContent({
     guidance: null,
     workspace,
     projects: projectsQuery.data ?? [],
+    githubRecovery,
     projectRuns: resultProjectId && resultProjectRunsQuery.data
       ? { ...projectRuns, [resultProjectId]: resultProjectRunsQuery.data } : projectRuns,
     githubInstallations: githubInstallationsQuery.data ?? [],
@@ -1082,6 +1112,7 @@ function GpuAppContent({
     loading,
     error,
   }), [
+    githubRecovery,
     workspace,
     accountError,
     accountModelsQuery.data,
@@ -1187,6 +1218,9 @@ function GpuAppContent({
           onEnter={arrive}
           githubInstallations={githubInstallationsQuery.data ?? []}
           projects={projectsQuery.data ?? []}
+          projectRuns={projectRunsQuery.data ?? []}
+          githubRecovery={githubRecovery}
+          auth={authSnapshot}
           workspace={workspace}
           workspaceAvailable={!!latestWorkspaceRun(projectRunsQuery.data ?? [])}
           mcpAccessState={mcpAccessState}

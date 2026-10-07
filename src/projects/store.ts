@@ -24,7 +24,7 @@ import {
   projectIdSchema,
   projectRunHostPathsSchema,
   projectRunIdSchema,
-  projectRunSchema,
+  projectRunSchema, githubAccessRequiredSchema, type GitHubAccessRequired,
   projectRunStatusSchema,
   projectSchema,
   projectShowcaseSchema,
@@ -451,6 +451,7 @@ interface ProjectRow {
 }
 
 interface ProjectRunRow {
+  github_access_json?: string | null;
   project_run_id: string;
   project_id: string;
   org_id: string;
@@ -563,6 +564,7 @@ function isRunLookupId(value: string): boolean {
 
 function runFromRow(row: ProjectRunRow): ProjectRun {
   return projectRunSchema.parse({
+    ...(row.github_access_json ? { githubAccess: parseJson(row.github_access_json, 'GitHub access') } : {}),
     projectRunId: row.project_run_id,
     projectId: row.project_id,
     orgId: row.org_id,
@@ -756,6 +758,7 @@ export class ProjectStore {
         ['projects', 'showcase'],
         ['projects', 'follow_upstream'],
         ['project_runs', 'repository_base_json'],
+        ['project_runs', 'github_access_json'],
         ['project_runs', 'skills_path'],
         ['project_runs', 'bytes_expired_at'],
         ['project_runs', 'bytes_deleted_at'],
@@ -1624,6 +1627,7 @@ END;
       this.db
         .prepare(`SELECT org_id, project_run_id, goal, status FROM project_runs
           WHERE title IS NULL AND status IN ('delivered','partial','failed','cancelled')
+            AND COALESCE(json_extract(github_access_json, '$.phase'), '') <> 'run'
           ORDER BY created_at DESC, project_run_id ASC`)
         .all() as Array<{ org_id: string; project_run_id: string; goal: string; status: string }>
     ).map((row) => ({ orgId: row.org_id, projectRunId: row.project_run_id, goal: row.goal, status: row.status }));
@@ -1826,6 +1830,12 @@ END;
     });
   }
 
+  setGitHubAccess(orgId: string, projectRunId: string, access: GitHubAccessRequired | null): void {
+    const parsed = access ? githubAccessRequiredSchema.parse(access) : null;
+    this.db.prepare('UPDATE project_runs SET github_access_json = ? WHERE org_id = ? AND project_run_id = ?')
+      .run(parsed ? JSON.stringify(parsed) : null, organisationIdSchema.parse(orgId), projectRunIdSchema.parse(projectRunId));
+  }
+
   transitionProjectRun(input: {
     readonly orgId: string;
     readonly projectRunId: string;
@@ -1834,6 +1844,7 @@ END;
     readonly traceId?: string;
     readonly stats?: RunStats;
     readonly error?: string;
+    readonly githubAccess?: GitHubAccessRequired;
   }): ProjectRun | null {
     const orgId = organisationIdSchema.parse(input.orgId);
     const projectRunId = projectRunIdSchema.parse(input.projectRunId);
@@ -1842,6 +1853,7 @@ END;
     const nextTraceId = traceId(input.traceId);
     const stats = input.stats ? runStatsSchema.parse(input.stats) : null;
     const error = boundedError(input.error);
+    const githubAccess = input.githubAccess ? githubAccessRequiredSchema.parse(input.githubAccess) : null;
     if ((to === 'queued' || to === 'running') && (nextTraceId || stats || error)) {
       throw new Error(`transition to ${to} cannot carry completion fields`);
     }
@@ -1895,7 +1907,7 @@ END;
     const changed = this.db
       .prepare(
         `UPDATE project_runs
-         SET status = ?, trace_id = ?, stats_json = ?, error = ?,
+         SET status = ?, trace_id = ?, stats_json = ?, error = ?, github_access_json = ?,
              started_at = CASE WHEN ? = 'running' THEN ? ELSE started_at END,
              ended_at = CASE WHEN ? = 1 THEN ? ELSE ended_at END,
              updated_at = ?
@@ -1906,6 +1918,7 @@ END;
         nextTraceId,
         stats ? JSON.stringify(stats) : null,
         error,
+        githubAccess ? JSON.stringify(githubAccess) : null,
         to,
         now,
         terminal ? 1 : 0,

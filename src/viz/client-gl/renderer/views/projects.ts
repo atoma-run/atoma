@@ -12,6 +12,7 @@ import { createScrollPane } from '../scroll-pane.js';
 import { drawViewFrame, viewFrame, VIEW_FRAME_CONTENT_TOP, VIEW_FRAME_PAD, VIEW_FRAME_TITLE_SIZE, VIEW_FRAME_TITLE_Y } from '../view-frame.js';
 import { drawResultPanel } from './result.js';
 import { latestDeliveredResult } from '../../run-result.js';
+import { pendingGitHubAccess, canContinueGitHubAccess, canRetryPublication } from '../../github-access.js';
 
 /**
  * Projects view: the organisation's projects, their GitHub repository state
@@ -44,6 +45,8 @@ const RUN_RESULT_GAP = 14;
 const RUN_RESULT_HEIGHT = 32;
 const RUN_RESULT_SPACE = RUN_RESULT_GAP + RUN_RESULT_HEIGHT;
 const RUN_SECOND_LINE_EXTRA = 20;
+const GITHUB_ACCESS_HEIGHT = 198;
+const PUBLICATION_RECOVERY_HEIGHT = 90;
 const STATUS_FONT_SIZE = 10;
 /** The linked mesh carries inset detail, so its full box must be visibly larger than the copy. */
 export const REPOSITORY_ICON_SIZE = 42;
@@ -119,12 +122,14 @@ function showsPartialGuidance(run: VizProjectRun, newest: boolean): boolean {
 }
 
 function runRowHeight(run: VizProjectRun, compact = false, newest = false): number {
+  if (pendingGitHubAccess(run)) return (run.traceId ? (compact ? RUN_COMPACT_CARD_HEIGHT : RUN_CARD_HEIGHT) + RUN_RESULT_SPACE : 82) + GITHUB_ACCESS_HEIGHT + RUN_ROW_GAP;
   const hasSecondLine = Boolean(
     showsPartialGuidance(run, newest) ||
     (run.error && run.status !== 'partial') ||
     (run.publication?.status === 'published' && run.publication.pullRequestUrl)
   );
   return (compact ? RUN_COMPACT_CARD_HEIGHT : RUN_CARD_HEIGHT) + RUN_ROW_GAP + RUN_RESULT_SPACE +
+    (run.publication?.status === 'failed' ? PUBLICATION_RECOVERY_HEIGHT : 0) +
     (hasSecondLine ? RUN_SECOND_LINE_EXTRA : 0);
 }
 
@@ -613,7 +618,9 @@ export function drawProjects(
       runs.forEach((run, runIndex) => {
         const newest = runIndex === 0;
         const rowHeight = runRowHeight(run, compactRunRows, newest);
-        const cardHeight = rowHeight - RUN_ROW_GAP - RUN_RESULT_SPACE;
+        const access = pendingGitHubAccess(run);
+        const cardHeight = rowHeight - RUN_ROW_GAP - (access && !run.traceId ? 0 : RUN_RESULT_SPACE) -
+          (access ? GITHUB_ACCESS_HEIGHT : run.publication?.status === 'failed' ? PUBLICATION_RECOVERY_HEIGHT : 0);
         const goalWidth = Math.max(0, layout.panelWidth - 52);
         const textX = runColumnX + BUTTON_LABEL_INSET;
         const textWidth = goalWidth - BUTTON_LABEL_INSET * 2;
@@ -622,9 +629,11 @@ export function drawProjects(
         rail.moveTo(railX, cursor + (newest ? 16 : -RUN_ROW_GAP));
         rail.lineTo(railX, cursor + (runIndex === runs.length - 1 ? 16 : rowHeight));
         rail.stroke({ color: GPU_COLORS.border, width: 2 });
-        rail.circle(railX, cursor + 16, 4).fill(statusColor(run.status));
+        rail.circle(railX, cursor + 16, 4).fill(access ? GPU_COLORS.warning : statusColor(run.status));
         pane.content.addChild(rail);
-        const statusText = statusLabel(snapshot.t, run.status, 'projects.runStatus');
+        const statusText = access ? snapshot.t('projects.githubAccess.title')
+          : run.githubAccess?.resumedRunId ? snapshot.t('projects.githubAccess.resumed')
+          : statusLabel(snapshot.t, run.status, 'projects.runStatus');
         const cost = run.costUsd === null ? '' : ' · ' + runCost(run.costUsd);
         const date = relativeTime(run.createdAt, snapshot.t, snapshot.state.locale) || run.createdAt;
         const metrics = [
@@ -654,9 +663,9 @@ export function drawProjects(
         const exact = timestampTooltip(run.createdAt, snapshot.state.locale);
         if (exact) ctx.tooltip(pane.content, { x: textX, y: cursor + 32, width: textWidth, height: 18, text: exact });
         ctx.text(pane.content, statusText + cost, textX, cursor + 54,
-          { size: 12, color: statusColor(run.status), width: textWidth, singleLine: true });
+          { size: 12, color: access ? GPU_COLORS.warning : statusColor(run.status), width: textWidth, singleLine: true });
         const metricRows = compactRunRows ? [metrics.slice(0, 2), metrics.slice(2, 3), metrics.slice(3)] : [metrics];
-        metricRows.forEach((values, metricIndex) => {
+        (access?.phase === 'run' ? [] : metricRows).forEach((values, metricIndex) => {
           const copy = values.join(' · ');
           const metricY = cursor + 76 + metricIndex * 20;
           ctx.text(pane.content, copy, textX, metricY,
@@ -675,13 +684,53 @@ export function drawProjects(
           ctx.text(pane.content, snapshot.t(run.rerunOf ? 'projects.runPartial.rerun'
             : project.repositoryTarget.source ? 'projects.runPartial.imported' : 'projects.runPartial.continue'),
             textX, extraY, { size: 9, color: GPU_COLORS.warning, width: textWidth, singleLine: true });
-        } else if (run.error && run.status !== 'partial') {
+        } else if (run.error && run.status !== 'partial' && !run.githubAccess) {
           ctx.text(pane.content, run.error.replace(/\s+/g, ' '), textX, extraY,
             { size: 9, color: GPU_COLORS.error, width: textWidth, singleLine: true });
         }
         if (run.traceId) {
           ctx.button(pane.content, `result.open.${run.traceId}`, 'button', snapshot.t('result.title'),
             runColumnX, cursor + cardHeight + RUN_RESULT_GAP, Math.min(180, goalWidth), RUN_RESULT_HEIGHT, false, snapshot.onActivate);
+        }
+        if (!access && run.publication?.status === 'failed') {
+          const retryY = cursor + rowHeight - PUBLICATION_RECOVERY_HEIGHT - RUN_ROW_GAP;
+          const progress = snapshot.data.githubRecovery?.runId === run.projectRunId ? snapshot.data.githubRecovery : null;
+          const busy = progress?.busy;
+          ctx.text(pane.content, snapshot.t('projects.githubAccess.savedResult'), textX, retryY,
+            { size: 11, color: GPU_COLORS.warning, width: textWidth, singleLine: true });
+          ctx.button(pane.content, `project.githubRetry.${run.projectRunId}`, 'button', snapshot.t(busy ? 'projects.githubAccess.checking' : 'projects.githubAccess.retryPublication'),
+            runColumnX, retryY + 22, goalWidth, 40, false, snapshot.onActivate, GPU_COLORS.primary,
+            false, !!busy, undefined, undefined, undefined, !!busy || !canRetryPublication(run, snapshot.data.auth));
+          if (progress?.message) {
+            ctx.text(pane.content, progress.message, textX, retryY + 66, { size: 10, color: GPU_COLORS.warning, width: textWidth, singleLine: true });
+            ctx.tooltip(pane.content, { x: textX, y: retryY + 66, width: textWidth, height: 18, text: progress.message });
+          }
+        }
+        if (access) {
+          const actionY = cursor + rowHeight - GITHUB_ACCESS_HEIGHT - RUN_ROW_GAP;
+          const progress = snapshot.data.githubRecovery?.runId === run.projectRunId ? snapshot.data.githubRecovery : null;
+          const canContinue = canContinueGitHubAccess(run, snapshot.data.auth);
+          const copy = snapshot.t(access.phase === 'run' ? 'projects.githubAccess.savedRequest' : 'projects.githubAccess.savedResult');
+          ctx.text(pane.content, copy, textX, actionY,
+            { size: 11, color: GPU_COLORS.muted, width: textWidth, singleLine: true });
+          ctx.tooltip(pane.content, { x: textX, y: actionY, width: textWidth, height: 18, text: copy });
+          ctx.text(pane.content, access.fullName, textX, actionY + 22,
+            { size: 11, color: GPU_COLORS.text, width: textWidth, singleLine: true });
+          ctx.tooltip(pane.content, { x: textX, y: actionY + 22, width: textWidth, height: 18,
+            text: snapshot.t('projects.githubAccess.instructions', { repository: access.fullName }) });
+          ctx.text(pane.content, snapshot.t('projects.githubAccess.selection'), textX, actionY + 42,
+            { size: 11, color: GPU_COLORS.muted, width: textWidth, singleLine: true });
+          ctx.button(pane.content, `project.githubAuthorize.${run.projectRunId}`, 'button', snapshot.t('projects.githubAccess.authorize'),
+            runColumnX, actionY + 66, goalWidth, 40, false, snapshot.onActivate);
+          ctx.button(pane.content, `project.githubContinue.${run.projectRunId}`, 'button',
+            snapshot.t(progress?.busy ? 'projects.githubAccess.checking' : access.phase === 'run' ? 'projects.githubAccess.continue' : 'projects.githubAccess.publish'),
+            runColumnX, actionY + 114, goalWidth, 40, false, snapshot.onActivate, GPU_COLORS.primary,
+            false, !!progress?.busy, undefined, undefined, undefined, !!progress?.busy || !canContinue);
+          const notice = progress?.message ?? (!canContinue ? snapshot.t('projects.githubAccess.requesterOnly') : '');
+          if (notice) {
+            ctx.text(pane.content, notice, textX, actionY + 164, { size: 10, color: GPU_COLORS.warning, width: textWidth, singleLine: true });
+            ctx.tooltip(pane.content, { x: textX, y: actionY + 164, width: textWidth, height: 18, text: notice });
+          }
         }
         cursor += rowHeight;
       });

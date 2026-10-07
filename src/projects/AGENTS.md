@@ -170,6 +170,8 @@ list. These values come from the host snapshot, never a tenant prompt.
   transition, off the lease. Platform-paid, so `stats` stay the run's spend and
   the cost is the title's receipt; a `sub:`/`own:` tier 1 names nothing, since a
   tenant's goal must not cross a machine login. The trigger makes it immutable.
+  A GitHub access interruption before model work is excluded, including from
+  title backfill: preparing authorization must spend no model quota.
 - It is model text: display copy beside the goal, never in a journal `detail`.
 
 ## Repository visibility
@@ -422,6 +424,14 @@ list. These values come from the host snapshot, never a tenant prompt.
   id, which means nothing outside this instance.
 
 ## Starting from GitHub
+
+- Missing installation repository access is stored as typed `githubAccess`
+  on the run, never inferred from error prose. A refused preparation keeps its
+  failed audit row; the UI presents authorization required. Continue verifies
+  GitHub again, then reuses the saved goal, criteria and depth with a stable
+  retry key, records its successor and permits only the original requester.
+  Delivered work retries publication alone. Normal admission and publication
+  gates still apply; no new GitHub grant is made by either resume path.
 
 - `repositoryTarget.source` explicitly distinguishes work on an existing
   repository (one PR per changed delivered run) from a fork (direct commits).

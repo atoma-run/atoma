@@ -75,6 +75,8 @@ const platformAdmin = has('--platform-admin');
 const settingsTab = arg('--settings-tab', 'general');
 const tuning = has('--tuning');
 const selectFirst = has('--select-first');
+const githubAccess = has('--github-access');
+const githubAccessProbe = has('--github-access-probe');
 const showResult = has('--result');
 const showActivity = has('--activity');
 const activityFile = arg('--activity-file');
@@ -168,6 +170,11 @@ function gatedStubs() {
     endedAt: `2026-08-20T00:0${index}:59.000Z`,
     publication,
   }));
+  if (githubAccess) Object.assign(runs[0], {
+    status: 'failed', traceId: null, costUsd: null, tokens: null, llmCalls: null, jevCalls: null,
+    requestedByPrincipalId: principalId, publication: null,
+    githubAccess: { phase: 'run', repositoryId: '123', fullName: 'example/stopwatch', settingsUrl: 'https://github.com/settings/installations/501' },
+  });
   return {
     '/auth/whoami': {
       enabled: true,
@@ -654,6 +661,12 @@ try {
         // handler died is never continued and the page hangs on it forever.
         try {
           const path = new URL(request.url()).pathname;
+          if (githubAccessProbe && path.endsWith('/github-access')) {
+            const runs = stubs[path.slice(0, path.lastIndexOf('/runs/') + 5)];
+            runs[0].githubAccess.resumedRunId = 'eeeeeeee-1111-4222-8333-ffffffffffff';
+            void request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify(runs[0]) });
+            return;
+          }
           const stub = stubs[path];
           if (stub !== undefined) {
             void request.respond({
@@ -870,6 +883,23 @@ try {
       await page.evaluate(() => new Promise((resolveWait) => setTimeout(resolveWait, 800)));
     }
 
+    if (githubAccessProbe) {
+      const id = 'project.githubContinue.cccccccc-1111-4222-8333-dddddddddd10';
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const spot = await page.evaluate(targetId => {
+          const handle = globalThis.__ATOMA_GPU__;
+          const row = handle.hitTargets().find(entry => entry.id === targetId);
+          const p = handle.projectRendererPoint(row.x + row.width / 2, row.y + row.height / 2);
+          return { ...p, h: globalThis.innerHeight };
+        }, id);
+        if (spot.y < spot.h - 50) { await page.mouse.click(spot.x, spot.y); break; }
+        await page.mouse.move(spot.x, spot.h - 100);
+        await page.mouse.wheel({ deltaY: 180 });
+        await page.evaluate(() => new Promise(resolve => setTimeout(resolve, 300)));
+      }
+      await page.waitForFunction(targetId => !globalThis.__ATOMA_GPU__.hitTargets().some(entry => entry.id === targetId), { timeout: READY_TIMEOUT_MS }, id);
+      console.log('GitHub recovery canvas continuation passed');
+    }
     if (showActivity || activityFile) {
       if (view !== 'Runs') throw new Error('--activity requires --view Runs');
       const clickActivity = async (id) => {

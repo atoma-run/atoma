@@ -17,7 +17,7 @@ import {
 } from '../contracts/projects.js';
 import { eventLabel, type CrossOrgRead, type CrossOrgReadSink, type PlatformEventSink } from '../contracts/platformEvents.js';
 import { GitHubStore } from '../github/store.js';
-import { PublicationSupersededError, type GitHubPublisher } from './publisher.js';
+import { GitHubAccessRequiredError, PublicationSupersededError, type GitHubPublisher } from './publisher.js';
 import { ProjectStateConflict, resolveProjectRunTraceFile } from './store.js';
 import { projectRunHostRedactions, redactHostPaths } from './hostPaths.js';
 import type { RunPayerLedger } from '../contracts/runPayers.js';
@@ -56,7 +56,7 @@ export interface ProjectServiceDeps {
   readonly store: import('./store.js').ProjectStore;
   readonly coordinator: ProjectRunCoordinator;
   readonly github: GitHubStore | null;
-  readonly publisher?: Pick<GitHubPublisher, 'inspectTarget'>;
+  readonly publisher?: Pick<GitHubPublisher, 'inspectTarget'> & Partial<Pick<GitHubPublisher, 'verifyGitHubAccess'>>;
   /**
    * Optional audit sink, injected rather than imported: the project control
    * plane must not learn about the viz server's event log to be testable.
@@ -192,7 +192,7 @@ export class ProjectService {
   private readonly github: GitHubStore | null;
   private readonly events: PlatformEventSink;
   private readonly readAudit?: CrossOrgReadSink;
-  private readonly publisher?: Pick<GitHubPublisher, 'inspectTarget'>;
+  private readonly publisher?: ProjectServiceDeps['publisher'];
   private readonly showcaseEnabled: () => boolean;
 
   constructor(deps: ProjectServiceDeps) {
@@ -551,6 +551,36 @@ export class ProjectService {
     });
     const publication = this.store.getPublicationForRun(viewer.orgId, cancelled.projectRunId);
     return this.present(cancelled, publication);
+  }
+
+  /** Resume only a host-recorded GitHub access interruption, never arbitrary failed work. */
+  async continueGitHubAccess(viewer: Viewer, projectId: string, projectRunId: string): Promise<unknown> {
+    if (!roleAtLeast(viewer.role, 'org:member')) throw new ProjectHttpError(403, 'org:member role or above is required');
+    const run = this.store.getProjectRun(viewer.orgId, projectRunId);
+    const project = this.store.getProject(viewer.orgId, projectId);
+    if (!run || !project || run.projectId !== projectId) throw new ProjectHttpError(404, 'project run not found');
+    const access = run.githubAccess;
+    if (!access) throw new ProjectHttpError(409, 'This run is not waiting for GitHub access');
+    if (access.phase === 'publication') return this.retryPublication(viewer, projectId, projectRunId);
+    if (run.requestedByPrincipalId !== viewer.principalId) throw new ProjectHttpError(403, 'Only the person who requested this run can continue it');
+    if (access.resumedRunId) return this.projectRunStatus(viewer, projectId, access.resumedRunId);
+    if (run.status !== 'failed' || run.stats || run.traceId || run.rerunOf) throw new ProjectHttpError(409, 'This run cannot be resumed before model work');
+    if (!this.publisher?.verifyGitHubAccess) throw new ProjectHttpError(503, 'GitHub access verification is unavailable');
+    try { await this.publisher.verifyGitHubAccess(project, access); }
+    catch (error) {
+      if (error instanceof GitHubAccessRequiredError) {
+        this.store.setGitHubAccess(viewer.orgId, projectRunId, error.access);
+        throw new ProjectHttpError(409, error.message);
+      }
+      throw new ProjectHttpError(502, 'GitHub access could not be checked. Please try again.');
+    }
+    const acceptance = this.store.getRunAcceptanceSpec(viewer.orgId, projectRunId);
+    const resumed = await this.startProjectRunFromInput(viewer, projectId, {
+      goal: run.goal, depth: run.depth, idempotencyKey: `github-access:${projectRunId}`,
+      ...(acceptance ? { acceptanceChecklist: acceptance.items.map(({ behaviour, check }) => ({ behaviour, check })) } : {}),
+    }) as { projectRunId: string };
+    this.store.setGitHubAccess(viewer.orgId, projectRunId, { ...access, resumedRunId: resumed.projectRunId });
+    return resumed;
   }
 
   /** POST /api/projects/:id/runs/:runId/publish — org:member or above. */

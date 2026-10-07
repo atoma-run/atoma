@@ -212,6 +212,7 @@ export interface GpuUiState {
   selectedSkill: { l1Name: string; id: string } | null;
   selectedProjectId: string | null;
   workspaceRunId: string | null;
+  githubRecovery: import('./github-access.js').GitHubRecoveryProgress | null;
   workspacePath: string;
   runFilters: EventFilters;
   branchHeadingExpanded: boolean;
@@ -304,6 +305,7 @@ export interface GpuUiState {
   selectSkill: (selection: { l1Name: string; id: string } | null) => void;
   selectProject: (id: string | null) => void;
   openWorkspace: (runId: string | null) => void;
+  setGitHubRecovery: (value: import('./github-access.js').GitHubRecoveryProgress | null) => void;
   selectWorkspacePath: (path: string) => void;
   setRunFilters: (filters: EventFilters) => void;
   toggleBranchHeading: () => void;
@@ -427,6 +429,8 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   selectedSkill: null,
   selectedProjectId: null,
   workspaceRunId: null,
+  githubRecovery: null,
+  setGitHubRecovery: (githubRecovery) => set({ githubRecovery }),
   workspacePath: '',
   runFilters: { kind: 'all', role: 'all', branchId: 'all' },
   branchHeadingExpanded: true,

@@ -1,4 +1,5 @@
 import { ButtonIcon } from './ButtonIcon.js';
+import { pendingGitHubAccess, canContinueGitHubAccess, canRetryPublication, type GitHubRecoveryProgress } from './github-access.js';
 import { WorkspaceAccessible } from './WorkspaceAccessible.js';
 import type { WorkspaceBrowserData } from './workspace-browser.js';
 import { UpstreamSetting } from './UpstreamSetting.js';
@@ -143,6 +144,7 @@ export function DomBridge({
   onEnter,
   githubInstallations = [],
   projects = [],
+  projectRuns = [], githubRecovery = null, auth = null,
   workspace,
   workspaceAvailable = false,
   onOpenMcp,
@@ -173,6 +175,9 @@ export function DomBridge({
   onSelectRun: (id: string) => void;
   onEnter?: () => void;
   githubInstallations?: VizGitHubInstallation[];
+  projectRuns?: import('../client/types.js').VizProjectRun[];
+  githubRecovery?: GitHubRecoveryProgress | null;
+  auth?: AuthUiSnapshot | null;
   /** Minimal project index mirrored for keyboard and assistive navigation. */
   projects?: readonly (Pick<VizProject, 'projectId' | 'name'> & Partial<Pick<VizProject, 'repositoryTarget' | 'followUpstream'>>)[];
   onOpenMcp?: () => void;
@@ -381,6 +386,29 @@ export function DomBridge({
             ))}
           </section>
         ) : null}
+        {view === 'projects' && selectedProjectId && !workspaceRunId ? projectRuns.filter(run => run.projectId === selectedProjectId && pendingGitHubAccess(run)).map(run => {
+          const access = pendingGitHubAccess(run)!;
+          const progress = githubRecovery?.runId === run.projectRunId ? githubRecovery : null;
+          return <section key={run.projectRunId} aria-label={t('projects.githubAccess.title')}>
+            <h3>{t('projects.githubAccess.title')}</h3>
+            <p>{run.goal}</p>
+            <p>{t(access.phase === 'run' ? 'projects.githubAccess.savedRequest' : 'projects.githubAccess.savedResult')}</p>
+            <p>{t('projects.githubAccess.instructions', { repository: access.fullName })}</p>
+            <button type="button" onClick={() => onActivate?.(`project.githubAuthorize.${run.projectRunId}`)}>{t('projects.githubAccess.authorize')}</button>
+            <button type="button" disabled={!!progress?.busy || !canContinueGitHubAccess(run, auth)}
+              onClick={() => onActivate?.(`project.githubContinue.${run.projectRunId}`)}>
+              {t(progress?.busy ? 'projects.githubAccess.checking' : access.phase === 'run' ? 'projects.githubAccess.continue' : 'projects.githubAccess.publish')}
+            </button>
+            <p role="status">{progress?.message ?? (!canContinueGitHubAccess(run, auth) ? t('projects.githubAccess.requesterOnly') : '')}</p>
+          </section>;
+        }) : null}
+        {view === 'projects' && selectedProjectId && !workspaceRunId ? projectRuns.filter(run => run.projectId === selectedProjectId && !pendingGitHubAccess(run) && run.publication?.status === 'failed').map(run =>
+          <section key={run.projectRunId} aria-label={t('projects.githubAccess.retryPublication')}>
+            <p>{t('projects.githubAccess.savedResult')}</p>
+            <button type="button" disabled={!canRetryPublication(run, auth) || (githubRecovery?.runId === run.projectRunId && githubRecovery.busy)}
+              onClick={() => onActivate?.(`project.githubRetry.${run.projectRunId}`)}>{t('projects.githubAccess.retryPublication')}</button>
+            <p role="status">{githubRecovery?.runId === run.projectRunId ? githubRecovery.message : ''}</p>
+          </section>) : null}
         {view === 'projects' && selectedProjectId && (workspaceRunId || workspaceAvailable) ? <WorkspaceAccessible data={workspace} t={t} onActivate={onActivate} /> : null}
         {view === 'runs' && preview && preview.availability === 'available' && onActivate ? (
           <section aria-label={t('preview.region')}>

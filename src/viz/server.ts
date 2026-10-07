@@ -4536,7 +4536,7 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
       return;
     }
 
-    const retryPublish = pathname.match(/^\/api\/projects\/([^/]+)\/runs\/([^/]+)\/publish$/);
+    const retryPublish = pathname.match(/^\/api\/projects\/([^/]+)\/runs\/([^/]+)\/(publish|github-access)$/);
     if (retryPublish) {
       if (!methodAllowed(req, res, 'POST')) return;
       if (!viewer) {
@@ -4554,7 +4554,9 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
         sendJson(
           res,
           200,
-          await PROJECTS_RUNTIME.projects.retryPublication(viewer, projectId, projectRunId)
+          await (retryPublish[3] === 'github-access'
+            ? PROJECTS_RUNTIME.projects.continueGitHubAccess(viewer, projectId, projectRunId)
+            : PROJECTS_RUNTIME.projects.retryPublication(viewer, projectId, projectRunId))
         );
       } catch (error) {
         if (error instanceof ProjectHttpError) {

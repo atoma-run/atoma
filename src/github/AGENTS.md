@@ -143,7 +143,7 @@ Neighbours:
 - HTTP 422 from repository creation is not proof a name is taken: an account
   can also refuse to create a repository of that visibility, and
   `GitHubApiError` carries no body. See [`src/projects`](../projects/AGENTS.md).
-- THE PUBLICATION PRE-FLIGHT reads before the first write. A `selected`
+- THE ACCESS PRE-FLIGHT reads before imported model work and publication writes. A `selected`
   installation is asked for its own repository list
   (`installationIncludesRepository`) once the repository id is known, and a
   repository outside it is refused with the settings URL to fix it. Measured
@@ -152,6 +152,10 @@ Neighbours:
   response bodies by contract, so the journal could not say why. An `all`
   installation costs no extra call. The selection read is the token's own
   `repository_selection`, never the stored row, which moves only on webhooks.
+  Imported runs use the same guard after identity verification, including the
+  refreshed token after fork creation. Missing access stops preparation before
+  snapshot download or model work; the message names the repository, settings
+  URL and run retry. Publication checks again because access can change mid-run.
 - A PROJECT BOUND TO AN INSTALLATION GITHUB NO LONGER KNOWS moves to its
   organisation's replacement (`GitHubPublisher.projectInstallationToken`). A
   404 on the App-JWT token request is GitHub's own statement, so the row is

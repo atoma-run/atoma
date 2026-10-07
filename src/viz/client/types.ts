@@ -292,6 +292,9 @@ export interface VizPreviewOpen {
 }
 
 export interface VizProjectRun {
+  orgId?: string;
+  githubAccess?: import('../../contracts/projects.js').GitHubAccessRequired;
+  requestedByPrincipalId?: string;
   artifactManifest?: ArtifactManifest | null;
   bytesExpiredAt?: string | null;
   projectRunId: string;

@@ -206,23 +206,33 @@ GitHub not at all.
 4. GitHub returns your browser to the Setup URL, which reads the installation
    with an App JWT and links it to your organisation.
 
-**Prefer "All repositories", especially for a personal-account installation.**
-The reasoning, and its limits: a project's repository is created at publication
-time, so it cannot be pre-selected — it does not exist yet. On the
-personal-account branch it is created with a *user-to-server* token
-([`publisher.ts`](../src/projects/publisher.ts)) while every write
-afterwards uses the *installation* token
-([`publisher.ts`](../src/projects/publisher.ts)), and an installation
-token cannot reach a repository outside its installation's scope.
+**Select the repositories Atoma should use.** "All repositories" is an optional
+account-wide grant, not a prerequisite. Repository permissions (such as Contents
+write) and repository selection are separate: being able to read a public
+repository does not prove the installation can publish to it.
 
-Whether GitHub adds a newly created repository to the installation on that
-branch is **not something this document can assert**: the behaviour is
-documented for App-created repositories without distinguishing the token that
-created them, and an account observed on 2026-09-01 had published successfully
-while scoped to selected repositories. So treat "All repositories" as the
-margin that removes a question, not as a proven requirement. If you keep a
-narrow scope and publication fails on the first write after a repository is
-created, this is the first thing to widen.
+Imported projects verify the target against the freshly issued installation
+token before snapshot download or model work, and again before publication.
+For a new fork, this check happens after fork creation. If it is outside the
+selection, preparation stops with the exact repository and installation settings
+URL. The project's run shows **GitHub authorization required** with two actions:
+**Authorize this repository** opens those settings in a new tab; after adding
+the repository under **Repository access** and saving, **Verify and continue**
+checks access again and resumes the stored goal, criteria and depth. The person
+who requested the run resumes it; another member can help grant GitHub access.
+The interruption survives page reloads, and repeat clicks reuse one successor
+run. The existing fork is reused. No model work runs in the refused attempt.
+
+For projects creating a new empty repository, creation still occurs at
+publication time. If access is missing then, add only that repository and retry
+**publication** using **Verify and publish**, preserving the delivered run. Atoma does not assume that GitHub
+automatically includes a repository created with a user token.
+
+The App cannot add repositories to its own installation with its current
+tokens: GitHub's [add-repository endpoint](https://docs.github.com/en/rest/apps/installations?apiVersion=2022-11-28#add-a-repository-to-an-app-installation)
+requires a classic personal access token with `repo` scope and rejects GitHub
+App tokens. Use the installation settings rather than collecting a customer's
+classic PAT or asking every customer to grant access to all repositories.
 
 A reachable webhook URL is **not** required for any of this. Installations link,
 projects are created, and artifacts publish with deliveries never arriving —
@@ -262,7 +272,7 @@ still mandatory *configuration*, it is simply never exercised.
 | `GitHub user access token has no expiry` | *Expire user authorization tokens* is disabled on the App |
 | `GitHub installation token lacks required publish permissions`, or an opaque 422 when minting a token | Administration and/or Contents write is not granted, or not yet accepted by the installation |
 | `repository creation was refused (HTTP 422)` | an org setting forbids creation or that visibility, or the name is taken outside the installation's scope |
-| publication fails on the first write after a successful creation | most likely an installation scoped to selected repositories, which a just-created repository cannot be in — widen it to all repositories |
+| `the GitHub App installation does not include ...` | add the named repository under Repository access at the supplied settings URL; retry the run if preparation stopped, or publication if work was already delivered |
 | `connect a GitHub App installation first`, and Connect GitHub only ever shows you GitHub's "Configure" page | the App is already installed, so changing repository access does not repeat setup. Return to Atoma → Connect GitHub → Connect the existing account. Deploy the installation-discovery fix if that choice is absent |
 
 ## A note for maintainers
@@ -289,7 +299,8 @@ Fork mode creates a real fork under the selected account when the first run
 starts, then publishes directly to the fork's default branch. The original
 repository is never modified. The account must differ from the source owner.
 For a selected-repositories installation, grant the App access to the new fork
-and retry if it cannot read it yet. Fork creation is asynchronous; preparation
+and retry if preparation reports it outside the selection, even if it is publicly
+readable. Fork creation is asynchronous; preparation
 waits briefly and otherwise reports a retryable failure before any model work.
 
 Import supports regular and executable files, at most 10,000 tree entries,

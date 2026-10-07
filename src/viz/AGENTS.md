@@ -471,7 +471,10 @@ npm run viz:mark-turn:analyze
   the first project: that hid the full list and
   re-selected immediately after every deselect. Only the repair remains: a
   selection whose project is gone falls back to the first that exists. The
-  MCP guide has one explicit TS/CSS height contract for wide and narrow
+  GitHub access recovery offers installation settings in a new tab and Verify
+  and continue (or publish), with an accessible twin. It resumes only a typed,
+  host-recorded interruption, never inferring authority from error prose.
+  The MCP guide has one explicit TS/CSS height contract for wide and narrow
   layouts; GPU rows start below it. Compact GL project and run rows stack
   status metadata below their full-width targets. A SELECTION IS A FILTER:
   one selected project draws that card alone. `projectHidden` is the one rule,

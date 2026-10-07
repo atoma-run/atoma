@@ -2183,9 +2183,17 @@ try {
       let updateBuildAvailable = false;
       let updateProbes = 0;
       const accountSwitchRequests = [];
+      const githubContinueRequests = [];
       const updateShell = await (await fetch(`http://127.0.0.1:${port}/`)).text();
       accountPage.on('request', (request) => {
         const path = new URL(request.url()).pathname;
+        if (path.endsWith('/github-access') && request.method() === 'POST') {
+          githubContinueRequests.push(JSON.parse(request.postData()));
+          const original = stubs[`/api/projects/${projectId}/runs`][0];
+          original.githubAccess.resumedRunId = 'eeeeeeee-1111-4222-8333-ffffffffffff';
+          void request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify(original) });
+          return;
+        }
         if (path === '/auth/logout' || path === '/auth/login') {
           accountSwitchRequests.push({ path, method: request.method(), search: new URL(request.url()).search });
           void request.respond({ status: 200, contentType: 'text/html', body: '<h1>Choose an account</h1>' });
@@ -2394,6 +2402,41 @@ try {
       await clickAccountTarget(`project.select.${projectId}`);
       await accountPage.waitForFunction(() => document.querySelector('.gpu-project-mcp-actions input[type="checkbox"]')?.checked);
       console.log('Fork upstream setting ok: saved toggle survives reload');
+      const blocked = stubs[`/api/projects/${projectId}/runs`][0];
+      blocked.requestedByPrincipalId = principalId;
+      blocked.githubAccess = { phase: 'run', repositoryId: '501', fullName: 'acme/app',
+        settingsUrl: 'https://github.com/settings/installations/501' };
+      await accountPage.reload({ waitUntil: 'load' });
+      await passArrivalGate(accountPage);
+      await waitForHitTarget(accountPage, `project.select.${projectId}`, 'GitHub recovery project missing');
+      await clickAccountTarget(`project.select.${projectId}`);
+      const continueId = `project.githubContinue.${blocked.projectRunId}`;
+      await waitForHitTarget(accountPage, continueId, 'GitHub continuation missing');
+      // Arrival and project entry animate; let the canvas receive wheel input.
+      await new Promise(resolve => setTimeout(resolve, 900));
+      await accountPage.waitForFunction(() => [...document.querySelectorAll('button')].some(button => button.textContent.includes('Verify and continue') && !button.disabled));
+      // The admin login offers notifications over this narrow viewport's
+      // lower canvas. Dismiss that unrelated offer before scrolling the run.
+      const notificationOffer = await accountPage.$('.gpu-push-prompt-actions button:last-child');
+      if (notificationOffer) await notificationOffer.click();
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const point = await accountPage.evaluate(id => {
+          const handle = globalThis.__ATOMA_GPU__;
+          const target = handle.hitTargets().find(entry => entry.id === id);
+          return { ...handle.projectRendererPoint(target.x + target.width / 2, target.y + target.height / 2), height: window.innerHeight };
+        }, continueId);
+        if (point.y < point.height - 50) break;
+        await accountPage.mouse.move(point.x, point.height - 100);
+        await accountPage.mouse.wheel({ deltaY: 180 });
+        await accountPage.evaluate(() => new Promise(resolve => setTimeout(resolve, 300)));
+      }
+      await clickAccountTarget(continueId);
+      await accountPage.waitForFunction(id => !globalThis.__ATOMA_GPU__.hitTargets().some(target => target.id === id), { timeout: READY_TIMEOUT_MS }, continueId);
+      if (githubContinueRequests.length !== 1 || Object.keys(githubContinueRequests[0]).length !== 0) throw new Error('GitHub recovery must resume the saved request exactly once');
+      console.log('GitHub recovery ok: persisted interruption, accessible action and real canvas continuation');
+      // The later reload checks long generic failure copy, a different case.
+      delete blocked.githubAccess;
+      delete blocked.requestedByPrincipalId;
       await waitForHitTarget(accountPage, 'workspace.project', 'project files entry missing');
       await clickAccountTarget('workspace.project');
       await waitForHitTarget(accountPage, 'workspace.path.src', 'workspace folder missing').catch(async error => {

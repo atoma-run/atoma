@@ -1,4 +1,5 @@
 import { inventoryRepositoryWorkspace, carryRepositoryBase } from './repositorySync.js';
+import { GitHubAccessRequiredError } from './publisher.js';
 import { assertPersonalCodexModels, CODEX_MODEL_CAPABILITIES_ENV, type CodexModelInventory } from '../contracts/codexModels.js';
 import { projectWorkspaceRelative } from '../contracts/launcherVolumes.js';
 import { randomUUID } from 'node:crypto';
@@ -1849,6 +1850,7 @@ export class ProjectRunCoordinator {
             projectRunId: reservedRun.projectRunId,
             from: 'running',
             to: signal.aborted ? 'cancelled' : 'failed',
+            ...(!signal.aborted && error instanceof GitHubAccessRequiredError ? { githubAccess: error.access } : {}),
             ...(existsSync(tracePath) ? { traceId: reservedRun.projectRunId } : {}),
             // Preserve the actual spend when host-side finalization refuses
             // a runner delivery. Only the outcome changes to match this row;
@@ -1931,6 +1933,7 @@ export class ProjectRunCoordinator {
     try {
       const settled = this.store.getProjectRun(run.orgId, run.projectRunId);
       if (!settled || settled.title || !TITLED_STATUSES.has(settled.status)) return;
+      if (settled.githubAccess?.phase === 'run') return; // Preparation must spend no model quota, including naming.
       const named = await titler({ goal: settled.goal });
       if (!named) return;
       this.store.recordRunTitle({

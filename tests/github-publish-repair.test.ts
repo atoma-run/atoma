@@ -129,7 +129,7 @@ describe('publication pre-flight: a narrowed installation', () => {
     const publisher = publisherFor(fake);
 
     await expect(publisher.publish({ project, run, workspaceRoot: workspace, manifestHash: hash }))
-      .rejects.toThrow('the GitHub App installation no longer includes alice/weather-lab: add it under Repository access at https://github.com/settings/installations/501, then retry the publication');
+      .rejects.toThrow('the GitHub App installation does not include alice/weather-lab: add it under Repository access at https://github.com/settings/installations/501, then retry the publication');
     // Nothing was written INTO the repository: the refusal came from a READ.
     // (Resolving a new project's repository is a creation attempt, answered
     // 422 here because it exists; the pre-flight needs the id it resolves.)

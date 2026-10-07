@@ -617,6 +617,7 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     selectedSkill: null,
     selectedProjectId: null,
     workspaceRunId: null, workspacePath: '',
+    githubRecovery: null, setGitHubRecovery: vi.fn(),
     openWorkspace: vi.fn(), selectWorkspacePath: vi.fn(),
     runFilters: { kind: 'all', role: 'all', branchId: 'all' },
     branchHeadingExpanded: true,
@@ -2608,6 +2609,36 @@ describe('drawViewFrame on a narrow column', () => {
 });
 
 describe('drawProjects', () => {
+  it.each([1280, 360])('offers bounded GitHub recovery controls at width %s and disables repeat checks', width => {
+    const project: VizProject = { projectId: 'p-1', name: 'App', slug: 'app', status: 'active', family: 'build',
+      repositoryTarget: { installationId: '501', owner: 'acme', name: 'app', visibility: 'public' },
+      repositoryStatus: 'pending', repositoryFullName: null, repositoryUrl: null, repositoryError: null,
+      createdAt: '2026-08-20T00:00:00.000Z', updatedAt: '2026-08-20T00:00:00.000Z' };
+    const auth = makeAuth({ principalId: 'person', activeOrganisation: { id: 'org-1', name: 'Org', role: 'org:member' } });
+    const run: VizProjectRun = { projectRunId: 'run-1', projectId: 'p-1', goal: 'Saved request', status: 'failed',
+      requestedByPrincipalId: 'person', traceId: null, costUsd: null, durationS: null, error: 'technical error', publication: null,
+      createdAt: '2026-08-20T00:00:00.000Z', endedAt: '2026-08-20T00:00:01.000Z',
+      githubAccess: { phase: 'run', fullName: 'acme/app', repositoryId: '123', settingsUrl: 'https://github.com/settings/installations/501' } };
+    const ctx = createRecordingCtx();
+    const snapshot = makeSnapshot({ view: 'projects', selectedProjectId: 'p-1' }, {
+      auth, projects: [project], projectRuns: { 'p-1': [run] }, githubRecovery: { runId: 'run-1', busy: true },
+    });
+    drawProjects(ctx, snapshot, width, 1000);
+    const authorize = ctx.buttons.find(button => button.id === 'project.githubAuthorize.run-1')!;
+    const resume = ctx.buttons.find(button => button.id === 'project.githubContinue.run-1')!;
+    expect(authorize).toBeDefined();
+    expect(resume.disabled).toBe(true);
+    expect(resume.y).toBeGreaterThanOrEqual(authorize.y + authorize.height);
+    expect(resume.width).toBeLessThan(width);
+    expect(ctx.texts.some(text => text.value === t('projects.githubAccess.title'))).toBe(true);
+    expect(ctx.texts.some(text => text.value === 'technical error')).toBe(false);
+    const unsafe = createRecordingCtx();
+    drawProjects(unsafe, makeSnapshot({ view: 'projects', selectedProjectId: 'p-1' }, {
+      auth, projects: [project], projectRuns: { 'p-1': [{ ...run, githubAccess: { ...run.githubAccess!, settingsUrl: 'https://foreign.example/install' } }] },
+    }), width, 1000);
+    expect(unsafe.buttons.some(button => button.id.startsWith('project.githubAuthorize.'))).toBe(false);
+  });
+
   it('tells the people who decide it where each project stands on the public showcase', () => {
     const base = {
       projectId: 'p-1', name: 'Weather Lab', slug: 'weather-lab', status: 'active' as const, family: 'build',

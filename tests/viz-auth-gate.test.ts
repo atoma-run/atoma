@@ -820,6 +820,10 @@ describe('viz auth gate (process level)', () => {
     // Before the grant: an ordinary org owner is NOT the platform operator.
     const whoamiBefore = await fetch(`${base}/auth/whoami`, { headers: cookie });
     expect(await whoamiBefore.json()).toMatchObject({ authenticated: true, platformAdmin: false });
+    const githubResumePath = `${base}/api/projects/aaaaaaaa-1111-4222-8333-bbbbbbbbbbbb/runs/cccccccc-1111-4222-8333-dddddddddddd/github-access`;
+    expect((await fetch(githubResumePath, { headers: cookie })).status).toBe(405);
+    expect((await fetch(githubResumePath, { method: 'POST', headers: { ...cookie, origin: 'https://foreign.example' } })).status).toBe(403);
+    expect((await fetch(githubResumePath, { method: 'POST', headers: { ...cookie, origin: base } })).status).toBe(404);
     expect(await (await fetch(`${base}/api/runs`, { headers: cookie })).json()).toEqual([]);
     expect((await fetch(`${base}/api/runs/${benchmark.start.runId}`, { headers: cookie })).status).toBe(404);
     for (const path of ['/api/skills', '/api/registries']) {

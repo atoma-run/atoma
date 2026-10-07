@@ -396,6 +396,15 @@ export const repositoryRunBaseSchema = z.object({
 }).strict();
 export type RepositoryRunBase = z.infer<typeof repositoryRunBaseSchema>;
 
+export const githubAccessRequiredSchema = z.object({
+  repositoryId: z.string().regex(/^\d+$/),
+  fullName: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/),
+  settingsUrl: z.string().regex(/^https:\/\/github\.com\/(?:organizations\/[A-Za-z0-9_.-]+\/)?settings\/installations\/\d+$/),
+  phase: z.enum(['run', 'publication']),
+  resumedRunId: projectRunIdSchema.optional(),
+}).strict();
+export type GitHubAccessRequired = z.infer<typeof githubAccessRequiredSchema>;
+
 export const projectRunSchema = z
   .object({
     projectRunId: projectRunIdSchema,
@@ -407,6 +416,7 @@ export const projectRunSchema = z
     /** Absent until the run ended and was named, and on every run named before titles existed. */
     title: runTitleSchema.optional(),
     status: projectRunStatusSchema,
+    githubAccess: githubAccessRequiredSchema.optional(),
     hostPaths: projectRunHostPathsSchema,
     bytesExpiredAt: instantSchema.nullable().optional(),
     repositoryBase: repositoryRunBaseSchema.optional(),

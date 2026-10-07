@@ -12,7 +12,7 @@ import {
   revalidateArtifactManifest,
   readManifestArtifact,
 } from './artifacts.js';
-import type { RepositoryTarget, Project, ProjectRun, Publication } from '../contracts/projects.js';
+import type { RepositoryTarget, Project, ProjectRun, Publication, GitHubAccessRequired } from '../contracts/projects.js';
 import { eventLabel, type PlatformEventSink } from '../contracts/platformEvents.js';
 
 /**
@@ -46,6 +46,13 @@ import { eventLabel, type PlatformEventSink } from '../contracts/platformEvents.
  * transport failure and not a divergence: a policy refusal, so the HTTP layer
  * answers 409 rather than 502.
  */
+export class GitHubAccessRequiredError extends Error {
+  constructor(readonly access: GitHubAccessRequired) {
+    super(`the GitHub App installation does not include ${access.fullName}: add it under Repository access at ${access.settingsUrl}, then retry the ${access.phase}`);
+    this.name = 'GitHubAccessRequiredError';
+  }
+}
+
 export class PublicationSupersededError extends Error {
   constructor(message: string) {
     super(message);
@@ -267,7 +274,7 @@ export class GitHubPublisher {
   }
 
   /**
-   * The publication PRE-FLIGHT, before the first write. An installation whose
+   * Access pre-flight, before imported model work and publication writes. An installation whose
    * repository selection was narrowed still mints a token with the right
    * permissions and still reads a public repository, then refuses the first
    * blob with a bare 403 — the response body is dropped by contract, so the
@@ -281,6 +288,7 @@ export class GitHubPublisher {
     owner: string;
     repositoryId: string;
     fullName: string;
+    retry?: 'run' | 'publication';
     signal?: AbortSignal;
   }): Promise<void> {
     if (input.token.repositorySelection !== 'selected') return;
@@ -288,9 +296,18 @@ export class GitHubPublisher {
     const settings = input.targetType === 'Organization'
       ? `https://github.com/organizations/${input.owner}/settings/installations/${input.installationId}`
       : `https://github.com/settings/installations/${input.installationId}`;
-    throw new Error(
-      `the GitHub App installation no longer includes ${input.fullName}: add it under Repository access at ${settings}, then retry the publication`
-    );
+    throw new GitHubAccessRequiredError({ repositoryId: input.repositoryId, fullName: input.fullName,
+      settingsUrl: settings, phase: input.retry ?? 'publication' });
+  }
+
+  /** Read-only verification before resuming a saved request. */
+  async verifyGitHubAccess(project: Project, access: GitHubAccessRequired): Promise<void> {
+    const signal = AbortSignal.timeout(15_000);
+    const resolved = await this.projectInstallationToken(project, project.repositoryTarget.source?.mode === 'pull-request', false, signal);
+    await this.assertInstallationCoversRepository({ token: resolved.token,
+      installationId: resolved.installation.installationId, targetType: resolved.installation.targetType,
+      owner: project.repositoryTarget.owner, repositoryId: access.repositoryId, fullName: access.fullName,
+      retry: access.phase, signal });
   }
 
   /** Creation-time read: resolve actual visibility and the source's immutable identity. */
@@ -436,11 +453,12 @@ export class GitHubPublisher {
     const source = project.repositoryTarget.source;
     if (!source?.repositoryId) throw new Error('Project source must be verified before starting a run');
     const target = project.repositoryTarget;
-    const resolved = await this.projectInstallationToken(project, source.mode === 'pull-request');
+    const resolved = await this.projectInstallationToken(project, source.mode === 'pull-request', false, signal);
     const installation = resolved.installation;
     const linked = this.github.getInstallation(installation.installationId)!;
     if (target.owner.toLowerCase() !== linked.accountLogin.toLowerCase()) throw new Error('Repository account does not match its installation');
-    let token = resolved.token.token;
+    let installationToken = resolved.token;
+    let token = installationToken.token;
     let repository = await this.client.getRepository(token, target.owner, target.name);
     const creatingFork = !repository;
     signal.throwIfAborted();
@@ -450,7 +468,8 @@ export class GitHubPublisher {
         targetName: target.name, ...(installation.targetType === 'Organization' ? { organisation: target.owner } : {}) });
       // Fork creation is asynchronous. A retry observes the same target and
       // verifies its parent, never adopts an unrelated name collision.
-      token = (await this.client.createInstallationToken(installation.installationId)).token;
+      installationToken = await this.client.createInstallationToken(installation.installationId, false, false, signal);
+      token = installationToken.token;
       const readyUntil = Date.now() + 30_000;
       do {
         signal.throwIfAborted();
@@ -469,6 +488,9 @@ export class GitHubPublisher {
       (project.repositoryId && repository.id !== project.repositoryId)) {
       throw new Error('Repository identity, fork parent or visibility no longer matches this project');
     }
+    await this.assertInstallationCoversRepository({ token: installationToken,
+      installationId: installation.installationId, targetType: installation.targetType,
+      owner: target.owner, repositoryId: repository.id, fullName: repository.fullName, retry: 'run', signal });
     const status = this.store.getProject(project.orgId, project.projectId)!.repositoryStatus;
     if (status !== 'ready') {
       if (status !== 'creating') this.store.transitionRepository({ orgId: project.orgId, projectId: project.projectId, from: status, to: 'creating' });
@@ -805,6 +827,7 @@ export class GitHubPublisher {
           files: run.artifactManifest.files.length,
         },
       });
+      this.store.setGitHubAccess(project.orgId, run.projectRunId, null);
       return publishing;
     } catch (error) {
       // Emitted BEFORE the state transition below, and outside its try: the
@@ -822,6 +845,7 @@ export class GitHubPublisher {
         detail: { project: project.slug },
       });
       try {
+        if (error instanceof GitHubAccessRequiredError) this.store.setGitHubAccess(project.orgId, run.projectRunId, error.access);
         const current = this.store.getPublication(project.orgId, publication.publicationId);
         if (current && current.status === 'publishing') {
           this.store.transitionPublication({

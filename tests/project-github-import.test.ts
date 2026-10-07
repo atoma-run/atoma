@@ -52,7 +52,8 @@ async function fixture(mode: 'pull-request' | 'fork', transform?: (fake: FakeGit
     writeFileSync(join(traces, `${env['ATOMA_RUN_ID']}.json`), JSON.stringify({ id: env['ATOMA_RUN_ID'], endedAt: new Date().toISOString(), result: { summary: 'Verified' } }));
     return '✓ build finished';
   });
-  const coordinator = new ProjectRunCoordinator({ store: f.projects, dbPath: f.dbPath, projectsRoot: root,
+  const runTitler = vi.fn(async () => null);
+  const coordinator = new ProjectRunCoordinator({ store: f.projects, dbPath: f.dbPath, projectsRoot: root, runTitler,
     hostEnv: { [HAYSTACK_LAUNCH_ENV]: JSON.stringify(haystackTestRuntime(root)), ATOMA_MODEL_L1: 'api:ollama:test',
       ATOMA_MODEL_L2: 'api:ollama:test', ATOMA_MODEL_L3: 'api:ollama:test', OLLAMA_BASE_URL: 'http://127.0.0.1:1' },
     publisher, driver, acquireLease: async () => ({ path: 'test', attachChild: vi.fn(), release: vi.fn() }) });
@@ -69,10 +70,109 @@ async function fixture(mode: 'pull-request' | 'fork', transform?: (fake: FakeGit
     await coordinator.waitForIdle();
     return f.projects.getProjectRun(f.viewer.orgId, run.projectRunId)!;
   };
-  return { ...f, project, fake, client, publisher, service, coordinator, driver, start, seeds };
+  return { ...f, project, fake, client, publisher, service, coordinator, driver, runTitler, start, seeds };
 }
 
 describe('existing GitHub projects through service, coordinator and publication', () => {
+  it.each(['fork', 'pull-request'] as const)('checks live installation access before model work in %s mode and recovers after approval', async mode => {
+    const f = await fixture(mode);
+    if (mode === 'fork') await f.client.createFork({ token: 'user-token', owner: 'upstream', name: 'app', targetName: 'app' });
+    // The stored installation still says all; GitHub's fresh token says selected.
+    f.fake.repositorySelection = 'selected';
+    const snapshot = vi.spyOn(f.client, 'readRepositoryFiles');
+    const run = await f.start();
+    expect(run.status).toBe('failed');
+    expect(run.error).toContain(`does not include ${mode === 'fork' ? 'alice' : 'upstream'}/app`);
+    expect(run.error).toContain('https://github.com/settings/installations/501, then retry the run');
+    expect(f.driver).not.toHaveBeenCalled();
+    expect(snapshot).not.toHaveBeenCalled();
+    expect(f.projects.getPublicationForRun(f.viewer.orgId, run.projectRunId)).toBeNull();
+    f.fake.selectedRepositories.add(`${mode === 'fork' ? 'alice' : 'upstream'}/app`);
+    const retried = await f.start();
+    expect(retried.status).toBe('delivered');
+    expect(f.projects.getPublicationForRun(f.viewer.orgId, retried.projectRunId)?.status).toBe('published');
+    expect(f.driver).toHaveBeenCalledOnce();
+    expect(f.fake.calls.filter(call => call.endsWith('/forks'))).toHaveLength(mode === 'fork' ? 1 : 0);
+  });
+
+  it('checks the refreshed token after creating a fork before spending model quota', async () => {
+    const f = await fixture('fork', fake => async (url, init) => {
+      const response = await fake.fetch(url, init);
+      const target = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url;
+      if (target.endsWith('/forks')) fake.repositorySelection = 'selected';
+      return response;
+    });
+    const run = await f.start();
+    expect(run.status).toBe('failed');
+    expect(run.error).toContain('does not include alice/app');
+    expect(f.driver).not.toHaveBeenCalled();
+    f.fake.selectedRepositories.add('alice/app');
+    expect((await f.start()).status).toBe('delivered');
+    expect(f.fake.calls.filter(call => call.endsWith('/forks'))).toHaveLength(1);
+  });
+
+  it('resumes the saved request and criteria once, even after a new service instance or repeated clicks', async () => {
+    const f = await fixture('pull-request');
+    f.fake.repositorySelection = 'selected';
+    const requested = await f.coordinator.start({ orgId: f.viewer.orgId, principalId: f.viewer.principalId,
+      projectId: f.project.projectId, request: { goal: 'Keep my original request.', depth: 'short', idempotencyKey: randomUUID(),
+        acceptanceChecklist: [{ behaviour: 'The heading changes.', check: { kind: 'review' } }] } });
+    await f.coordinator.waitForIdle();
+    const run = f.projects.getProjectRun(f.viewer.orgId, requested.projectRunId)!;
+    expect(run.githubAccess).toMatchObject({ phase: 'run', fullName: 'upstream/app' });
+    expect(f.runTitler).not.toHaveBeenCalled();
+    expect(f.projects.listUntitledEndedRuns()).toEqual([]);
+    const service = new ProjectService({ store: f.projects, github: GitHubStore.open(f.dbPath), coordinator: f.coordinator, publisher: f.publisher });
+    await expect(service.continueGitHubAccess(f.viewer, f.project.projectId, run.projectRunId)).rejects.toMatchObject({ status: 409 });
+    expect(f.driver).not.toHaveBeenCalled();
+    expect(f.projects.listProjectRuns(f.viewer.orgId, f.project.projectId)).toHaveLength(1);
+    await expect(service.continueGitHubAccess({ ...f.viewer, role: 'org:viewer' }, f.project.projectId, run.projectRunId)).rejects.toMatchObject({ status: 403 });
+    await expect(service.continueGitHubAccess({ ...f.viewer, principalId: randomUUID() }, f.project.projectId, run.projectRunId)).rejects.toMatchObject({ status: 403 });
+    await expect(service.continueGitHubAccess({ ...f.viewer, orgId: randomUUID() }, f.project.projectId, run.projectRunId)).rejects.toMatchObject({ status: 404 });
+    await expect(service.continueGitHubAccess(f.viewer, randomUUID(), run.projectRunId)).rejects.toMatchObject({ status: 404 });
+    f.fake.selectedRepositories.add('upstream/app');
+    const [first, simultaneous] = await Promise.all([
+      service.continueGitHubAccess(f.viewer, f.project.projectId, run.projectRunId),
+      service.continueGitHubAccess(f.viewer, f.project.projectId, run.projectRunId),
+    ]) as { projectRunId: string }[];
+    expect(simultaneous!.projectRunId).toBe(first!.projectRunId);
+    await f.coordinator.waitForIdle();
+    const again = await service.continueGitHubAccess(f.viewer, f.project.projectId, run.projectRunId) as { projectRunId: string };
+    expect(again.projectRunId).toBe(first!.projectRunId);
+    expect(f.driver).toHaveBeenCalledOnce();
+    expect(f.projects.getProjectRun(f.viewer.orgId, first!.projectRunId)).toMatchObject({ goal: run.goal, depth: 'short' });
+    expect(f.projects.getRunAcceptanceSpec(f.viewer.orgId, first!.projectRunId)).toEqual(f.projects.getRunAcceptanceSpec(f.viewer.orgId, run.projectRunId));
+    expect(f.projects.getProjectRun(f.viewer.orgId, run.projectRunId)?.githubAccess?.resumedRunId).toBe(first!.projectRunId);
+  });
+
+  it('preserves a delivered result and retries only publication after access is removed mid-run', async () => {
+    const f = await fixture('pull-request');
+    const driver = f.driver.getMockImplementation()!;
+    f.driver.mockImplementationOnce(async options => {
+      const result = await driver(options);
+      f.fake.repositorySelection = 'selected';
+      return result;
+    });
+    const run = await f.start();
+    expect(run.status).toBe('delivered');
+    expect(run.githubAccess).toMatchObject({ phase: 'publication' });
+    f.fake.selectedRepositories.add('upstream/app');
+    await f.service.continueGitHubAccess(f.viewer, f.project.projectId, run.projectRunId);
+    expect(f.driver).toHaveBeenCalledOnce();
+    expect(f.projects.getProjectRun(f.viewer.orgId, run.projectRunId)?.githubAccess).toBeUndefined();
+    expect(f.projects.getPublicationForRun(f.viewer.orgId, run.projectRunId)?.status).toBe('published');
+  });
+
+  it('does not interpret an installation repository lookup failure as access', async () => {
+    const f = await fixture('pull-request');
+    f.fake.repositorySelection = 'selected';
+    vi.spyOn(f.client, 'installationIncludesRepository').mockRejectedValue(new Error('GitHub unavailable'));
+    const run = await f.start();
+    expect(run.status).toBe('failed');
+    expect(run.error).toContain('GitHub unavailable');
+    expect(f.driver).not.toHaveBeenCalled();
+  });
+
   it.each([409, 422, 503])('continues from the fork when optional upstream sync refuses with %s', async status => {
     const f = await fixture('fork');
     expect(f.project.followUpstream).toBe(false);
@@ -197,6 +297,7 @@ describe('existing GitHub projects through service, coordinator and publication'
     expect(f.seeds).toEqual(['<h1>Original</h1>', '<h1>Changed</h1>']);
     expect(f.fake.calls.filter(call => call.endsWith('/forks'))).toHaveLength(1);
     expect(f.fake.pullRequests).toHaveLength(0);
+    expect(f.fake.calls).not.toContain('GET /installation/repositories');
   });
 
   it('retries a failed PR creation without a second branch or commit', async () => {
