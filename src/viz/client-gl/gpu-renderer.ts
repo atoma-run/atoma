@@ -1,3 +1,4 @@
+import type { WorkspaceBrowserData } from './workspace-browser.js';
 import {
   Application,
   BitmapFont,
@@ -167,6 +168,7 @@ export interface GpuDataSnapshot {
   guidance: GoalGuidance | null;
   projects: VizProject[];
   projectRuns: Record<string, VizProjectRun[]>;
+  workspace?: WorkspaceBrowserData;
   githubInstallations: VizGitHubInstallation[];
   adminOrganisations: VizAdminOrganisation[];
   adminInvitation: VizAdminInvitation | null;

@@ -278,6 +278,10 @@ list. These values come from the host snapshot, never a tenant prompt.
   so added files cannot silently miss publication after delivery.
 - Delivery status and its manifest commit in one SQLite transaction. A failure
   rolls both back; previews and publication run only after that transaction.
+- The viz workspace reader exposes only a terminal run's manifest paths, under
+  project/org read authority. Reuse the artifact jail and hash validation for
+  file bytes; no directory traversal, live worker reads or host paths in replies.
+  Text previews stop at 256 KiB; binary/oversized files retain metadata only.
 
 - DELIVERY IS DECIDED FROM SIX DEPTH-1 TRACE MEMBERS, never from the whole
   document. `verifiedTrace` reads `id`, `endedAt`, `cancelled` and `degraded` as

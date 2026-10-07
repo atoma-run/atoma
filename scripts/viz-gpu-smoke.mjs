@@ -2202,6 +2202,14 @@ try {
           void request.respond({ status: 200, contentType: 'application/json', body: '{}' });
           return;
         }
+        if (path === `/api/projects/${projectId}/runs/eeeeeeee-1111-4222-8333-ffffffffffff/workspace`) {
+          const file = new URL(request.url()).searchParams.get('path');
+          void request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify(file
+            ? { path: file, size: 31, kind: 'text', text: 'export const greeting = "hello";' }
+            : { runId: 'eeeeeeee-1111-4222-8333-ffffffffffff', createdAt: '2026-08-20T00:00:00.000Z', status: 'delivered',
+              files: [{ path: 'src/app.ts', size: 31 }, { path: 'README.md', size: 12 }] }) });
+          return;
+        }
         const stub = stubs[path];
         if (stub !== undefined) {
           void request.respond({
@@ -2386,6 +2394,28 @@ try {
       await clickAccountTarget(`project.select.${projectId}`);
       await accountPage.waitForFunction(() => document.querySelector('.gpu-project-mcp-actions input[type="checkbox"]')?.checked);
       console.log('Fork upstream setting ok: saved toggle survives reload');
+      await waitForHitTarget(accountPage, 'workspace.project', 'project files entry missing');
+      await clickAccountTarget('workspace.project');
+      await waitForHitTarget(accountPage, 'workspace.path.src', 'workspace folder missing').catch(async error => {
+        await accountPage.screenshot({ path: '/tmp/atoma-workspace-failure.png' });
+        const diagnostic = await accountPage.evaluate(() => ({ text: document.body.innerText.slice(-6000), targets: globalThis.__ATOMA_GPU__.hitTargets().map(t => t.id) }));
+        throw new Error(JSON.stringify(diagnostic), { cause: error });
+      });
+      await clickAccountTarget('workspace.path.src');
+      await waitForHitTarget(accountPage, 'workspace.path.src/app.ts', 'workspace file missing');
+      await clickAccountTarget('workspace.path.src/app.ts');
+      await accountPage.waitForFunction(() => [...document.querySelectorAll('pre')].some(el => el.textContent.includes('export const greeting')));
+      await accountPage.waitForFunction(() => {
+        const contains = node => typeof node.text === 'string' && node.text.includes('export const greeting') ||
+          (node.children ?? []).some(contains);
+        return contains(globalThis.__ATOMA_GPU__.app.stage);
+      });
+      await accountPage.screenshot({ path: '/tmp/atoma-workspace-browser.png' });
+      await waitForHitTarget(accountPage, 'workspace.path.src', 'workspace parent missing');
+      await clickAccountTarget('workspace.path.src');
+      await waitForHitTarget(accountPage, 'workspace.path.src/app.ts', 'workspace parent did not restore folder');
+      await clickAccountTarget('workspace.close');
+      console.log('Project workspace explorer ok: canvas project entry, folder, file, parent and back');
       const prTarget = 'project.pullRequest.eeeeeeee-1111-4222-8333-ffffffffffff';
       await waitForHitTarget(accountPage, prTarget, 'delivered PR link did not render');
       // Compact run cards can place this older run below the viewport. Scroll

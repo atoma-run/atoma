@@ -4299,6 +4299,20 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
       return;
     }
 
+    const workspaceRead = pathname.match(/^\/api\/projects\/([^/]+)\/runs\/([^/]+)\/workspace$/);
+    if (workspaceRead) {
+      if (!methodAllowed(req, res, 'GET')) return;
+      if (!viewer) { sendJson(res, 401, { error: 'authentication required' }); return; }
+      try {
+        const filePath = new URL(req.url!, 'http://localhost').searchParams.get('path') ?? undefined;
+        sendJson(res, 200, PROJECTS_RUNTIME.projects.workspace(viewer, workspaceRead[1]!, workspaceRead[2]!, filePath));
+      } catch (error) {
+        if (!(error instanceof ProjectHttpError)) throw error;
+        sendJson(res, error.status, { error: error.message });
+      }
+      return;
+    }
+
     const upstreamSetting = pathname.match(/^\/api\/projects\/([^/]+)\/upstream$/);
     if (upstreamSetting) {
       if (!methodAllowed(req, res, 'PUT') || !sameOrigin(req, res)) return;

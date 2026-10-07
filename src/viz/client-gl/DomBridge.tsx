@@ -1,3 +1,5 @@
+import { WorkspaceAccessible } from './WorkspaceAccessible.js';
+import type { WorkspaceBrowserData } from './workspace-browser.js';
 import { UpstreamSetting } from './UpstreamSetting.js';
 import { matchesSearchQuery, runSearchText } from '../client/search.js';
 import {
@@ -140,6 +142,8 @@ export function DomBridge({
   onEnter,
   githubInstallations = [],
   projects = [],
+  workspace,
+  workspaceAvailable = false,
   onOpenMcp,
   mcpAccessState = 'unknown',
   projectGuideEnabled = true,
@@ -175,6 +179,8 @@ export function DomBridge({
   mcpAccessState?: 'connected' | 'authorized' | 'unconnected' | 'unknown';
   /** The MCP setup guide exists only behind the auth gate. */
   projectGuideEnabled?: boolean;
+  workspace?: WorkspaceBrowserData;
+  workspaceAvailable?: boolean;
   projectAdmin?: boolean;
   /** Notification offer (first live run for members, login for platform
    *  admins); real DOM buttons because the browser permission request needs a
@@ -210,6 +216,7 @@ export function DomBridge({
   const handheldBlocked = useGpuStore((state) => state.handheldBlocked);
   const locale = useGpuStore((state) => state.locale);
   const selectedRunId = useGpuStore((state) => state.selectedRunId);
+  const workspaceRunId = useGpuStore(state => state.workspaceRunId);
   const selectedProjectId = useGpuStore((state) => state.selectedProjectId);
   const selectedDocsTheme = useGpuStore((state) => state.selectedDocsTheme);
   const accountMenuOpen = useGpuStore((state) => state.accountMenuOpen);
@@ -373,6 +380,7 @@ export function DomBridge({
             ))}
           </section>
         ) : null}
+        {view === 'projects' && selectedProjectId && (workspaceRunId || workspaceAvailable) ? <WorkspaceAccessible data={workspace} t={t} onActivate={onActivate} /> : null}
         {view === 'runs' && preview && preview.availability === 'available' && onActivate ? (
           <section aria-label={t('preview.region')}>
             <button
@@ -484,7 +492,7 @@ export function DomBridge({
           onChange={(event) => setSearch('skills', event.target.value)}
         />
       ) : null}
-      {projectGuideEnabled && view === 'projects' ? (
+      {projectGuideEnabled && view === 'projects' && !workspaceRunId ? (
         <section
           className={`gpu-panel-skin gpu-project-mcp${overlaysInert ? ' gpu-overlays-veiled' : ''}`}
           inert={overlaysInert}

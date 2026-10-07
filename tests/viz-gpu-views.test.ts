@@ -616,6 +616,8 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     selectedRegistryAtom: null,
     selectedSkill: null,
     selectedProjectId: null,
+    workspaceRunId: null, workspacePath: '',
+    openWorkspace: vi.fn(), selectWorkspacePath: vi.fn(),
     runFilters: { kind: 'all', role: 'all', branchId: 'all' },
     branchHeadingExpanded: true,
     runSummaryExpanded: true,
@@ -2909,7 +2911,7 @@ describe('drawProjects', () => {
     const listGlobal = listPanel!.parent.toGlobal({ x: listPanel!.x, y: listPanel!.y });
     expect(listGlobal.x).toBe(projectsColumn(1280).x);
     expect(listPanel!.parent.toGlobal({ x: 0, y: 0 }).y).toBe(
-      projectsGpuContentTop() + 42
+      projectsGpuContentTop() + 44 + 42
     );
 
     // Project metadata forms one sequence inside the framed row. In detail,

@@ -1,10 +1,14 @@
 import { summarizeTraceFile } from '../viz/runIndex.js';
+import { isUtf8 } from 'node:buffer';
+import { assertPublishableArtifactPath, normalizeArtifactPath, readManifestArtifact } from './artifacts.js';
+import { MAX_WORKSPACE_PREVIEW_BYTES, type WorkspaceIndex, type WorkspaceFile } from '../contracts/workspaceBrowser.js';
 import type { IncomingMessage } from 'node:http';
 import type { Viewer } from '../auth/store.js';
 import { roleAtLeast } from '../auth/store.js';
 export { roleAtLeast } from '../auth/store.js';
 import {
   createProjectInputSchema,
+  projectIdSchema, projectRunIdSchema,
   projectShowcaseSchema,
   startProjectRunInputSchema,
   projectRunPublicSchema,
@@ -378,6 +382,34 @@ export class ProjectService {
       }
       throw error;
     }
+  }
+
+  /** Read-only browser over the run's saved, publishable inventory. */
+  workspace(viewer: Viewer, projectId: string, runId: string, filePath?: string): WorkspaceIndex | WorkspaceFile {
+    if (!projectIdSchema.safeParse(projectId).success || !projectRunIdSchema.safeParse(runId).success) throw new ProjectHttpError(404, 'run not found');
+    const orgId = this.readOrgFor(viewer, projectId);
+    const run = this.store.getProjectRun(orgId, runId);
+    if (!run || run.projectId !== projectId) throw new ProjectHttpError(404, 'run not found');
+    if (run.bytesExpiredAt) throw new ProjectHttpError(410, 'workspace expired');
+    if ((run.status !== 'delivered' && run.status !== 'partial') || !run.artifactManifest) {
+      throw new ProjectHttpError(409, 'workspace is not available for this run');
+    }
+    const allowed = (p: string) => {
+      try { assertPublishableArtifactPath(p); return normalizeArtifactPath(p) === p; }
+      catch { return false; }
+    };
+    const files = run.artifactManifest.files.filter(f => allowed(f.path));
+    if (filePath === undefined) return { runId, createdAt: run.createdAt, status: run.status,
+      files: files.map(({ path, size }) => ({ path, size })) };
+    const file = files.find(f => f.path === filePath);
+    if (!file) throw new ProjectHttpError(404, 'file not found');
+    if (file.size > MAX_WORKSPACE_PREVIEW_BYTES) return { path: file.path, size: file.size, kind: 'too_large', text: null };
+    try {
+      const bytes = readManifestArtifact({ workspaceRoot: run.hostPaths.workspacePath, expected: file,
+        limits: { maxFileBytes: MAX_WORKSPACE_PREVIEW_BYTES } });
+      const text = isUtf8(bytes) && !bytes.includes(0) ? bytes.toString('utf8') : null;
+      return { path: file.path, size: file.size, kind: text === null ? 'binary' : 'text', text };
+    } catch { throw new ProjectHttpError(409, 'file is unavailable or differs from the saved workspace'); }
   }
 
   /** GET /api/projects/:id/runs */

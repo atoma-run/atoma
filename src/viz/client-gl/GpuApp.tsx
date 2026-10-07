@@ -1,3 +1,6 @@
+import { workspaceIndexSchema, workspaceFileSchema } from '../../contracts/workspaceBrowser.js';
+import { latestWorkspaceRun } from './workspace-browser.js';
+import { fetchJson } from '../client/data-api.js';
 import {
   useCallback,
   useEffect,
@@ -39,7 +42,7 @@ import { GpuSurface } from './GpuSurface.js';
 import { SceneCameraPlane } from './SceneCameraPlane.js';
 import { CubeTurnPlane } from './CubeTurnPlane.js';
 import { SceneTuningPanel } from './SceneTuningPanel.js';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, pendingApiMutations } from '../client/data-api.js';
 import { startAutoUpdate, restoreUpdateNavigation, saveUpdateNavigation } from './auto-update.js';
 import { startNavigationHistory } from './navigation-history.js';
@@ -261,6 +264,20 @@ function GpuAppContent({
     selectedProject?.projectId ?? null,
     (state.view === 'projects' || state.view === 'runs') && !!selectedProject
   );
+  const workspaceUrl = `/api/projects/${encodeURIComponent(selectedProject?.projectId ?? '')}/runs/${encodeURIComponent(state.workspaceRunId ?? '')}/workspace`;
+  const workspaceEnabled = authed && state.view === 'projects' && !!selectedProject && !!state.workspaceRunId;
+  const workspaceIndex = useQuery({ queryKey: ['workspace', workspaceUrl],
+    queryFn: async () => workspaceIndexSchema.parse(await fetchJson(workspaceUrl)), enabled: workspaceEnabled, retry: false });
+  const workspaceIsFile = workspaceIndex.data?.files.some(f => f.path === state.workspacePath) ?? false;
+  const workspaceFile = useQuery({ queryKey: ['workspace', workspaceUrl, state.workspacePath],
+    queryFn: async () => workspaceFileSchema.parse(await fetchJson(`${workspaceUrl}?path=${encodeURIComponent(state.workspacePath)}`)),
+    enabled: workspaceEnabled && workspaceIsFile, retry: false });
+  const workspace = useMemo(() => ({ index: workspaceIndex.data ?? null,
+    file: workspaceIsFile ? workspaceFile.data ?? null : null,
+    loading: workspaceIndex.isLoading || (workspaceIsFile && workspaceFile.isLoading),
+    failed: workspaceIndex.isError || (workspaceIsFile && workspaceFile.isError) }),
+  [workspaceIndex.data, workspaceIndex.isLoading, workspaceIndex.isError, workspaceIsFile,
+    workspaceFile.data, workspaceFile.isLoading, workspaceFile.isError]);
   const projectRuns = useMemo<Record<string, import('../client/types.js').VizProjectRun[]>>(
     () =>
       selectedProject && projectRunsQuery.data
@@ -817,6 +834,14 @@ function GpuAppContent({
       store.setView('projects');
       return;
     }
+    if (id === 'workspace.project') {
+      const run = latestWorkspaceRun(projectRunsQuery.data ?? []);
+      if (run) store.openWorkspace(run.projectRunId);
+      return;
+    }
+    if (id.startsWith('workspace.open.')) { store.openWorkspace(id.slice('workspace.open.'.length)); return; }
+    if (id === 'workspace.close') { store.openWorkspace(null); return; }
+    if (id.startsWith('workspace.path.')) { store.selectWorkspacePath(id.slice('workspace.path.'.length)); return; }
     if (id === 'project.all') {
       store.selectProject(null);
       return;
@@ -946,6 +971,7 @@ function GpuAppContent({
     mintInvitation,
     pendingLoginProvider,
     previewQuery.data?.state,
+    projectRunsQuery.data,
     projectsQuery.data,
     requestPreview,
     runQuery.data,
@@ -1027,6 +1053,7 @@ function GpuAppContent({
     skillDetailFailed: skillDetailQuery.isError,
     burnin: burninQuery.data ?? null,
     guidance: null,
+    workspace,
     projects: projectsQuery.data ?? [],
     projectRuns: resultProjectId && resultProjectRunsQuery.data
       ? { ...projectRuns, [resultProjectId]: resultProjectRunsQuery.data } : projectRuns,
@@ -1055,6 +1082,7 @@ function GpuAppContent({
     loading,
     error,
   }), [
+    workspace,
     accountError,
     accountModelsQuery.data,
     previewQuery.data,
@@ -1159,6 +1187,8 @@ function GpuAppContent({
           onEnter={arrive}
           githubInstallations={githubInstallationsQuery.data ?? []}
           projects={projectsQuery.data ?? []}
+          workspace={workspace}
+          workspaceAvailable={!!latestWorkspaceRun(projectRunsQuery.data ?? [])}
           mcpAccessState={mcpAccessState}
           onOpenMcp={() => {
             setSettingsInitialTab('mcp');

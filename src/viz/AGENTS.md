@@ -356,6 +356,10 @@ npm run viz:mark-turn:analyze
   before the `maxNodes` slice, never an array, and drops an entry with NO
   content (`stderr: ''`). `detail-layout.ts` packs adjacent fields up to THREE
   per row, at the narrowest count any MEASURES into: 2+2, not 3+1.
+- Projects' Files explorer opens the newest retained delivered/partial lineage
+  workspace, excluding comparison reruns. It labels the saved run and does not
+  claim to be live GitHub. Folder/file navigation belongs to the shared GPU
+  store and masked view, with a semantic twin; file text is never HTML.
 - Runs' Progress reader projects recorded branch lifecycles and tool receipts
   through `client-gl/run-activity.ts`, shared by GPU and accessibility views.
   Only successful `write_file`/`edit_file` receipts count as changed files;

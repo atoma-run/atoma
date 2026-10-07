@@ -211,6 +211,8 @@ export interface GpuUiState {
   selectedRegistryAtom: string | null;
   selectedSkill: { l1Name: string; id: string } | null;
   selectedProjectId: string | null;
+  workspaceRunId: string | null;
+  workspacePath: string;
   runFilters: EventFilters;
   branchHeadingExpanded: boolean;
   runSummaryExpanded: boolean;
@@ -301,6 +303,8 @@ export interface GpuUiState {
   selectRegistryAtom: (name: string | null) => void;
   selectSkill: (selection: { l1Name: string; id: string } | null) => void;
   selectProject: (id: string | null) => void;
+  openWorkspace: (runId: string | null) => void;
+  selectWorkspacePath: (path: string) => void;
   setRunFilters: (filters: EventFilters) => void;
   toggleBranchHeading: () => void;
   toggleRunSummary: () => void;
@@ -422,6 +426,8 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   selectedRegistryAtom: null,
   selectedSkill: null,
   selectedProjectId: null,
+  workspaceRunId: null,
+  workspacePath: '',
   runFilters: { kind: 'all', role: 'all', branchId: 'all' },
   branchHeadingExpanded: true,
   runSummaryExpanded: true,
@@ -635,6 +641,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   selectSkill: (selectedSkill) => set({ selectedSkill }),
   selectProject: (selectedProjectId) => set((state) => ({
     selectedProjectId,
+    workspaceRunId: null, workspacePath: '',
     resultRunId: null,
     resultActionStatus: null,
     // A selected project can expand with run history. Changing selection
@@ -642,6 +649,8 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
     // entirely above its pane until another wheel event clamps it.
     scrollY: { ...state.scrollY, projects: 0 },
   })),
+  openWorkspace: (workspaceRunId) => set(state => ({ workspaceRunId, workspacePath: '', scrollY: { ...state.scrollY, projects: 0 } })),
+  selectWorkspacePath: (workspacePath) => set(state => ({ workspacePath, scrollY: { ...state.scrollY, projects: 0 } })),
   showRunActivity: (open) => set({ runActivityOpen: open, runActivityFile: null, runActivityPage: 0, runActivityExpandedChanges: {}, resultRunId: null }),
   selectActivityFile: (path) => set({ runActivityFile: path, runActivityPage: 0 }),
   pageActivity: (delta) => set(state => ({ runActivityPage: Math.max(0, state.runActivityPage + delta), runActivityExpandedChanges: {} })),

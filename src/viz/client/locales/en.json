@@ -1388,5 +1388,14 @@
   "activity.viewSource": "View source event",
   "activity.page": "Page {{page}} of {{pages}}",
   "activity.newer": "Newer edits",
-  "activity.older": "Older edits"
+  "activity.older": "Older edits",
+  "workspace.title": "Files",
+  "workspace.back": "Back to project",
+  "workspace.parent": "Parent folder",
+  "workspace.snapshot": "Saved workspace for this run; it may differ from GitHub.",
+  "workspace.unavailable": "This workspace is unavailable or has expired.",
+  "workspace.loading": "Loading files…",
+  "workspace.tooLarge": "This file is too large to preview (256 KiB limit).",
+  "workspace.binary": "Binary file — text preview is unavailable.",
+  "workspace.empty": "This folder has no saved files."
 }

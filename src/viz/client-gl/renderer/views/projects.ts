@@ -1,3 +1,5 @@
+import { drawWorkspace } from './workspace.js';
+import { latestWorkspaceRun } from '../../workspace-browser.js';
 import { Graphics } from 'pixi.js';
 import { dateTimeFormat } from '../../../client/date-format.js';
 import type { VizProjectRun } from '../../../client/types.js';
@@ -242,6 +244,7 @@ export function drawProjects(
   width: number,
   height: number
 ): void {
+  if (snapshot.state.workspaceRunId) { drawWorkspace(ctx, snapshot, width, height); return; }
   const projects = snapshot.data.projects ?? [];
   const installations = snapshot.data.githubInstallations ?? [];
   const runsByProject = snapshot.data.projectRuns ?? {};
@@ -300,6 +303,11 @@ export function drawProjects(
     ? frame.contentTop
     : projectsGpuContentTop(width);
   const resultRows = selectedProject ? runsByProject[selectedProject.projectId] ?? [] : [];
+  if (selectedProject && latestWorkspaceRun(resultRows)) {
+    ctx.button(ctx.root, 'workspace.project', 'button', snapshot.t('workspace.title'), frame.innerX, contentTop,
+      Math.min(180, frame.innerWidth), 32, false, snapshot.onActivate);
+    contentTop += 44;
+  }
   if (snapshot.state.resultRunId && resultRows.some(run => (run.traceId ?? run.projectRunId) === snapshot.state.resultRunId)) {
     drawResultPanel(ctx, snapshot, frame.innerX, contentTop, frame.innerWidth,
       Math.max(100, frame.bottom - contentTop - VIEW_FRAME_PAD));
