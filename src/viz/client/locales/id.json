@@ -1396,5 +1396,18 @@
   "workspace.loading": "Memuat file…",
   "workspace.tooLarge": "File ini terlalu besar untuk dipratinjau (batas 256 KiB).",
   "workspace.binary": "File biner — pratinjau teks tidak tersedia.",
-  "workspace.empty": "Folder ini tidak memiliki file tersimpan."
+  "workspace.empty": "Folder ini tidak memiliki file tersimpan.",
+  "projects.githubAccess.title": "Otorisasi GitHub diperlukan",
+  "projects.githubAccess.resumed": "dilanjutkan",
+  "projects.githubAccess.savedRequest": "Permintaan disimpan. Tidak ada kredit yang digunakan.",
+  "projects.githubAccess.savedResult": "Hasil disimpan. Tidak perlu menjalankan ulang.",
+  "projects.githubAccess.selection": "Akses repositori: tambahkan dan simpan.",
+  "projects.githubAccess.instructions": "Di GitHub, tambahkan {{repository}} pada Akses repositori lalu simpan.",
+  "projects.githubAccess.authorize": "1. Otorisasi repositori ini ↗",
+  "projects.githubAccess.continue": "2. Verifikasi dan lanjutkan",
+  "projects.githubAccess.publish": "2. Verifikasi dan publikasikan",
+  "projects.githubAccess.retryPublication": "Coba publikasikan lagi",
+  "projects.githubAccess.checking": "Memeriksa akses GitHub…",
+  "projects.githubAccess.retryFailed": "Tidak dapat melanjutkan. Periksa akses GitHub dan coba lagi.",
+  "projects.githubAccess.requesterOnly": "Minta orang yang meminta run ini untuk melanjutkan."
 }

@@ -1396,5 +1396,18 @@
   "workspace.loading": "Chargement des fichiers…",
   "workspace.tooLarge": "Ce fichier est trop volumineux pour être prévisualisé (limite de 256 Kio).",
   "workspace.binary": "Fichier binaire — l’aperçu texte est indisponible.",
-  "workspace.empty": "Ce dossier ne contient aucun fichier enregistré."
+  "workspace.empty": "Ce dossier ne contient aucun fichier enregistré.",
+  "projects.githubAccess.title": "Autorisation GitHub requise",
+  "projects.githubAccess.resumed": "repris",
+  "projects.githubAccess.savedRequest": "Demande enregistrée. Aucun crédit dépensé.",
+  "projects.githubAccess.savedResult": "Résultat enregistré. Pas besoin de relancer le run.",
+  "projects.githubAccess.selection": "Accès au dépôt : ajoute-le et enregistre.",
+  "projects.githubAccess.instructions": "Sur GitHub, ajoute {{repository}} sous Repository access et enregistre.",
+  "projects.githubAccess.authorize": "1. Autorise ce dépôt ↗",
+  "projects.githubAccess.continue": "2. Vérifie et continue",
+  "projects.githubAccess.publish": "2. Vérifie et publie",
+  "projects.githubAccess.retryPublication": "Réessayer la publication",
+  "projects.githubAccess.checking": "Vérification de l’accès GitHub…",
+  "projects.githubAccess.retryFailed": "Impossible de continuer. Vérifie l’accès GitHub et réessaie.",
+  "projects.githubAccess.requesterOnly": "Demande à la personne qui a demandé ce run de continuer."
 }

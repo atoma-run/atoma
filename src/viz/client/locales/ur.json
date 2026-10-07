@@ -1396,5 +1396,18 @@
   "workspace.loading": "فائلیں لوڈ ہو رہی ہیں…",
   "workspace.tooLarge": "یہ فائل پیش منظر کے لیے بہت بڑی ہے (حد 256 KiB)۔",
   "workspace.binary": "بائنری فائل — متنی پیش منظر دستیاب نہیں ہے۔",
-  "workspace.empty": "اس فولڈر میں کوئی محفوظ کردہ فائل نہیں ہے۔"
+  "workspace.empty": "اس فولڈر میں کوئی محفوظ کردہ فائل نہیں ہے۔",
+  "projects.githubAccess.title": "GitHub کی اجازت درکار ہے",
+  "projects.githubAccess.resumed": "جاری رکھا گیا",
+  "projects.githubAccess.savedRequest": "درخواست محفوظ ہو گئی۔ کوئی کریڈٹ خرچ نہیں ہوا۔",
+  "projects.githubAccess.savedResult": "نتیجہ محفوظ ہو گیا۔ دوبارہ run کی ضرورت نہیں۔",
+  "projects.githubAccess.selection": "ریپوزٹری تک رسائی: شامل کریں اور محفوظ کریں۔",
+  "projects.githubAccess.instructions": "GitHub پر Repository access کے تحت {{repository}} شامل کریں اور محفوظ کریں۔",
+  "projects.githubAccess.authorize": "1. اس ریپوزٹری کی اجازت دیں ↗",
+  "projects.githubAccess.continue": "2. تصدیق کریں اور جاری رکھیں",
+  "projects.githubAccess.publish": "2. تصدیق کریں اور شائع کریں",
+  "projects.githubAccess.retryPublication": "دوبارہ شائع کرنے کی کوشش کریں",
+  "projects.githubAccess.checking": "GitHub تک رسائی کی جانچ ہو رہی ہے…",
+  "projects.githubAccess.retryFailed": "جاری نہیں رکھا جا سکا۔ GitHub تک رسائی چیک کریں اور دوبارہ کوشش کریں۔",
+  "projects.githubAccess.requesterOnly": "جس شخص نے اس run کی درخواست کی تھی، اس سے جاری رکھنے کو کہیں۔"
 }

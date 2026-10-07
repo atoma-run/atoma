@@ -1396,5 +1396,18 @@
   "workspace.loading": "फ़ाइलें लोड हो रही हैं…",
   "workspace.tooLarge": "यह फ़ाइल पूर्वावलोकन के लिए बहुत बड़ी है (256 KiB की सीमा)।",
   "workspace.binary": "बाइनरी फ़ाइल — टेक्स्ट पूर्वावलोकन उपलब्ध नहीं है।",
-  "workspace.empty": "इस फ़ोल्डर में कोई सहेजी गई फ़ाइल नहीं है।"
+  "workspace.empty": "इस फ़ोल्डर में कोई सहेजी गई फ़ाइल नहीं है।",
+  "projects.githubAccess.title": "GitHub प्राधिकरण आवश्यक है",
+  "projects.githubAccess.resumed": "जारी रखा गया",
+  "projects.githubAccess.savedRequest": "अनुरोध सहेजा गया। कोई क्रेडिट खर्च नहीं हुआ।",
+  "projects.githubAccess.savedResult": "परिणाम सहेजा गया। दोबारा run करने की आवश्यकता नहीं है।",
+  "projects.githubAccess.selection": "रिपॉज़िटरी एक्सेस: जोड़ें और सहेजें।",
+  "projects.githubAccess.instructions": "GitHub पर, रिपॉज़िटरी एक्सेस के अंतर्गत {{repository}} जोड़ें और सहेजें।",
+  "projects.githubAccess.authorize": "1. इस रिपॉज़िटरी को अधिकृत करें ↗",
+  "projects.githubAccess.continue": "2. सत्यापित करें और जारी रखें",
+  "projects.githubAccess.publish": "2. सत्यापित करें और प्रकाशित करें",
+  "projects.githubAccess.retryPublication": "प्रकाशन का पुनः प्रयास करें",
+  "projects.githubAccess.checking": "GitHub एक्सेस की जाँच हो रही है…",
+  "projects.githubAccess.retryFailed": "जारी नहीं रखा जा सका। GitHub एक्सेस की जाँच करें और फिर से प्रयास करें।",
+  "projects.githubAccess.requesterOnly": "जिस व्यक्ति ने इस run का अनुरोध किया था, उससे इसे जारी रखने के लिए कहें।"
 }

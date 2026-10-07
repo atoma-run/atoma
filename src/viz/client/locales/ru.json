@@ -1396,5 +1396,18 @@
   "workspace.loading": "Загрузка файлов…",
   "workspace.tooLarge": "Этот файл слишком велик для предпросмотра (ограничение — 256 КиБ).",
   "workspace.binary": "Двоичный файл — текстовый предпросмотр недоступен.",
-  "workspace.empty": "В этой папке нет сохранённых файлов."
+  "workspace.empty": "В этой папке нет сохранённых файлов.",
+  "projects.githubAccess.title": "Требуется авторизация GitHub",
+  "projects.githubAccess.resumed": "продолжено",
+  "projects.githubAccess.savedRequest": "Запрос сохранён. Кредиты не потрачены.",
+  "projects.githubAccess.savedResult": "Результат сохранён. Повторный запуск не требуется.",
+  "projects.githubAccess.selection": "Доступ к репозиторию: добавьте и сохраните.",
+  "projects.githubAccess.instructions": "На GitHub добавьте {{repository}} в разделе «Доступ к репозиториям» и сохраните.",
+  "projects.githubAccess.authorize": "1. Предоставить доступ к этому репозиторию ↗",
+  "projects.githubAccess.continue": "2. Проверить и продолжить",
+  "projects.githubAccess.publish": "2. Проверить и опубликовать",
+  "projects.githubAccess.retryPublication": "Повторить публикацию",
+  "projects.githubAccess.checking": "Проверка доступа к GitHub…",
+  "projects.githubAccess.retryFailed": "Не удалось продолжить. Проверьте доступ к GitHub и повторите попытку.",
+  "projects.githubAccess.requesterOnly": "Попросите пользователя, запросившего этот run, продолжить."
 }
