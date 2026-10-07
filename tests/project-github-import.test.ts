@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { closeStoreHandles } from '../src/core/stores.js';
-import { GitHubAppClient } from '../src/github/client.js';
+import { GitHubAppClient, GitHubApiError } from '../src/github/client.js';
 import { GitHubStore } from '../src/github/store.js';
 import { GitHubPublisher } from '../src/projects/publisher.js';
 import { ProjectRunCoordinator, type ProjectRunDriver } from '../src/projects/coordinator.js';
@@ -73,6 +73,18 @@ async function fixture(mode: 'pull-request' | 'fork', transform?: (fake: FakeGit
 }
 
 describe('existing GitHub projects through service, coordinator and publication', () => {
+  it.each([409, 422, 503])('continues from the fork when optional upstream sync refuses with %s', async status => {
+    const f = await fixture('fork');
+    expect(f.project.followUpstream).toBe(false);
+    const merge = vi.spyOn(f.client, 'mergeUpstream').mockRejectedValue(new GitHubApiError({ status, method: 'POST', path: '/merge-upstream', code: 'http' }));
+    f.projects.setFollowUpstream(f.viewer.orgId, f.project.projectId, true);
+    expect((await f.start()).status).toBe('delivered');
+    expect(merge).not.toHaveBeenCalled(); // Creating the fork already captures upstream.
+    expect((await f.start('<h1>Next</h1>')).status).toBe('delivered');
+    expect(merge).toHaveBeenCalledOnce();
+    expect(f.seeds[1]).toBe('<h1>Changed</h1>');
+  });
+
   it('uses an explicit source selection to omit workflows and oversized evidence before model work', async () => {
     const f = await fixture('pull-request');
     f.fake.commitOutside('upstream', 'app', 'main', '.atoma-import.json', JSON.stringify({
@@ -224,7 +236,7 @@ describe('existing GitHub projects through service, coordinator and publication'
     expect(f.fake.filesOn('alice', 'app', 'main').has('index.html')).toBe(false);
   });
 
-  it('refuses direct publication when the fork changes during a run', async () => {
+  it('keeps a concurrent human edit when publishing a fork', async () => {
     const f = await fixture('fork');
     const driver = f.driver.getMockImplementation()!;
     f.driver.mockImplementationOnce(async options => {
@@ -234,7 +246,7 @@ describe('existing GitHub projects through service, coordinator and publication'
     });
     const run = await f.start();
     expect(run.status).toBe('delivered');
-    expect(f.projects.getPublicationForRun(f.viewer.orgId, run.projectRunId)?.status).toBe('failed');
+    expect(f.projects.getPublicationForRun(f.viewer.orgId, run.projectRunId)?.status).toBe('published');
     expect(f.fake.filesOn('alice', 'app', 'main').get('index.html')?.text).toBe('<h1>Human edit</h1>');
   });
 

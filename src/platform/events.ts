@@ -332,6 +332,11 @@ export class PlatformEventLog {
    * (the MCP reader precedent): an operator typing `limit=5000` gets the
    * maximum page, not a 400.
    */
+  repositoryMovedSince(orgId: string, projectId: string, since: string): boolean {
+    return !!this.db.prepare(`SELECT 1 FROM platform_events WHERE org_id = ? AND project_id = ?
+      AND kind = 'project.repository_moved' AND at >= ? LIMIT 1`).get(orgId, projectId, since);
+  }
+
   list(query: PlatformEventQuery = {}): PlatformEventPage {
     const limit = Math.max(
       1,

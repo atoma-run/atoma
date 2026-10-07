@@ -104,6 +104,7 @@ export interface PublicationCommitMessageInput {
   readonly project: Pick<Project, 'slug' | 'name'>;
   readonly run: Pick<ProjectRun, 'projectRunId' | 'goal'>;
   readonly manifest: ArtifactManifest;
+  readonly writtenOnly?: boolean;
 }
 
 /**
@@ -148,10 +149,12 @@ export function publicationCommitMessage(input: PublicationCommitMessageInput): 
     '',
     `Published by atoma from run ${shortRun} of project ${project.slug}.`,
     '',
-    `${manifest.source === 'workspace' ? 'Delivered workspace' : 'Declared by this run'} — ${manifest.files.length} ${plural}, ${manifest.totalBytes} bytes.`,
-    'These are committed onto what the previous run published, so a path this',
-    'repository holds that is absent below came from an earlier run and is',
-    'not in this diff.',
+    `${input.writtenOnly ? 'Written by this commit' : manifest.source === 'workspace' ? 'Delivered workspace' : 'Declared by this run'} — ${manifest.files.length} ${plural}, ${manifest.totalBytes} bytes.`,
+    ...(input.writtenOnly ? ['Other repository paths are preserved.'] : [
+      'These are committed onto what the previous run published, so a path this',
+      'repository holds that is absent below came from an earlier run and is',
+      'not in this diff.',
+    ]),
     '',
     declared,
     '',

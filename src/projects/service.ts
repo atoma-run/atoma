@@ -156,6 +156,7 @@ function publicProject(
     slug: project.slug,
     status: project.status,
     showcase: project.showcase,
+    followUpstream: project.followUpstream,
     /**
      * Whether a visitor of the public showcase sees this project NOW: the host
      * publishes it, and one of its runs is in `listShowcaseRuns` — the very
@@ -279,6 +280,22 @@ export class ProjectService {
    * organisation's project, platform admin or not (writes stay in the active
    * organisation).
    */
+  async setFollowUpstream(req: IncomingMessage, viewer: Viewer, projectId: string): Promise<unknown> {
+    if (!roleAtLeast(viewer.role, 'org:admin')) throw new ProjectHttpError(403, 'org:admin role or above is required');
+    const body = await readJsonBody(req);
+    if (!body || typeof body !== 'object' || !('followUpstream' in body) ||
+      typeof body.followUpstream !== 'boolean' || Object.keys(body).length !== 1) throw new ProjectHttpError(400, 'followUpstream must be a boolean');
+    const before = this.store.getProject(viewer.orgId, projectId);
+    if (!before) throw new ProjectHttpError(404, 'project not found');
+    if (before.repositoryTarget.source?.mode !== 'fork') throw new ProjectHttpError(400, 'followUpstream requires a fork');
+    const project = this.store.setFollowUpstream(viewer.orgId, projectId, body.followUpstream)!;
+    if (before.followUpstream !== project.followUpstream) this.events({ kind: 'project.upstream_follow_changed',
+      actorType: 'principal', actorId: viewer.principalId, orgId: viewer.orgId, projectId,
+      summary: `Upstream following ${project.followUpstream ? 'enabled' : 'disabled'} for ${eventLabel(project.name, 80)}`,
+      detail: { from: before.followUpstream, to: project.followUpstream } });
+    return publicProject(project);
+  }
+
   setProjectShowcase(viewer: Viewer, projectId: string, showcaseInput: unknown): unknown {
     if (!roleAtLeast(viewer.role, 'org:admin')) {
       throw new ProjectHttpError(403, 'org:admin role or above is required to change what the showcase shows');

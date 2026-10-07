@@ -1,3 +1,4 @@
+import { repositoryPushSchema, type RepositoryPush } from '../contracts/repositorySync.js';
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { TextDecoder } from 'node:util';
 import type { PlatformEventSink } from '../contracts/platformEvents.js';
@@ -42,6 +43,7 @@ export interface ProcessGitHubWebhookInput {
    * knowing nothing about the viz server. Absent means "no journal".
    */
   readonly events?: PlatformEventSink;
+  readonly onPush?: (push: RepositoryPush) => void;
 }
 
 export interface ProcessGitHubWebhookResult {
@@ -151,6 +153,20 @@ export function processGitHubWebhook(
   const appId = canonicalGitHubId(input.appId, 'GitHub App id');
   const payload = parsePayload(rawBody);
   const mutation = installationMutation(payload, input.event, appId);
+  let push: RepositoryPush | undefined;
+  if (input.event === 'push') {
+    const repository = object(payload['repository'], 'repository');
+    const sender = object(payload['sender'], 'sender');
+    const installation = object(payload['installation'], 'installation');
+    const parsed = repositoryPushSchema.safeParse({
+      repositoryId: String(repository['id']), installationId: String(installation['id']),
+      ref: payload['ref'], before: payload['before'], after: payload['after'],
+      created: payload['created'], deleted: payload['deleted'], forced: payload['forced'],
+      senderLogin: sender['login'], senderType: sender['type'],
+    });
+    if (!parsed.success) throw new GitHubWebhookError('invalid_payload', 'GitHub push has an invalid shape');
+    push = parsed.data;
+  }
   const delivery = input.store.recordWebhookDelivery({
     deliveryId: input.deliveryId,
     event: input.event,
@@ -173,6 +189,7 @@ export function processGitHubWebhook(
       detail: { installationId: mutation.installationId, status: mutation.status },
     });
   }
+  if (push && !delivery.duplicate) input.onPush?.(push);
   return Object.freeze({
     accepted: true,
     duplicate: delivery.duplicate,

@@ -1,3 +1,4 @@
+import { inventoryRepositoryWorkspace, carryRepositoryBase } from './repositorySync.js';
 import { assertPersonalCodexModels, CODEX_MODEL_CAPABILITIES_ENV, type CodexModelInventory } from '../contracts/codexModels.js';
 import { projectWorkspaceRelative } from '../contracts/launcherVolumes.js';
 import { randomUUID } from 'node:crypto';
@@ -82,6 +83,7 @@ import { HAYSTACK_LAUNCH_ENV, readHaystackLaunch } from '../contracts/retrievalH
 const MAX_CONTROL_JSON_BYTES = 512 * 1024;
 
 export interface ProjectRunPublisher {
+  syncRun?(project: Project, run: ProjectRun, seed: ProjectRun | null, signal: AbortSignal): Promise<string | undefined>;
   prepareRun?(project: Project, run: ProjectRun, signal: AbortSignal): Promise<string>;
   publish(input: {
     readonly project: Project;
@@ -1629,6 +1631,35 @@ export class ProjectRunCoordinator {
         if (project.repositoryTarget.source) {
           if (!this.publisher?.prepareRun) throw new ProjectRunConfigurationError('GitHub repository import is unavailable');
           seedFrom = await this.publisher.prepareRun(project, run, preparationSignal);
+        } else if (rerun) {
+          const originSync = this.store.getRepositorySync(project.orgId, rerun.origin.projectRunId);
+          if (originSync) {
+            if (originSync.materialised) {
+              if (!originSync.seedPath || !lstatSync(originSync.seedPath).isDirectory()) throw new ProjectStateConflict('The original repository seed has expired');
+              seedFrom = originSync.seedPath;
+            }
+            this.store.saveRepositorySync(project.orgId, run.projectRunId, originSync);
+          }
+        } else if (this.publisher?.syncRun) {
+          seedFrom = await this.publisher.syncRun(project, run, seedRun, AbortSignal.any([
+            controller.signal, AbortSignal.timeout(Math.min(30_000, PROJECT_RUN_PREPARATION_TIMEOUT_MS / 2)),
+          ]));
+        } else {
+          let base = {};
+          let debtResolved = true;
+          try {
+            if (seedRun) {
+              const ours = inventoryRepositoryWorkspace(seedRun.hostPaths.workspacePath);
+              const previous = this.store.getRepositorySync(project.orgId, seedRun.projectRunId);
+              base = { ...ours };
+              if (previous?.debtResolved) {
+                base = carryRepositoryBase(previous.base, ours,
+                  this.store.getPublicationForRun(project.orgId, seedRun.projectRunId)?.status === 'published');
+              } else debtResolved = false;
+            }
+          } catch { debtResolved = false; }
+          this.store.saveRepositorySync(project.orgId, run.projectRunId, { status: 'no_anchor', head: null,
+            base, debtResolved, materialised: false, seedPath: null, taken: 0, conflicts: 0, paths: [] });
         }
         // WHERE THIS RUN STARTED, recorded for every run: it is what a later
         // comparison rerun of THIS run copies (src/projects/rerun.ts).
@@ -1646,18 +1677,18 @@ export class ProjectRunCoordinator {
         // snapshot just above: the refused workspace never reaches the child,
         // so telling it about that workspace's refusal would describe files it
         // does not have. Gated on the seed actually being the previous run's.
-        const landing = seedFrom === seedRun?.hostPaths.workspacePath
+        const landing = !project.repositoryTarget.source && seedRun
           ? encodePreviousLanding(seedRun?.stats?.landingReasons)
           : null;
         if (landing) environment[PREVIOUS_LANDING_ENV] = landing;
         // Text is a deliverable too. Comparisons use their origin's seed;
         // imported repository snapshots must not inherit a different workspace's history.
-        const previousResults = seedFrom === seedRun?.hostPaths.workspacePath
+        const previousResults = !project.repositoryTarget.source && seedRun
           ? previousResultsFor(this.store, seedRun ?? null) : undefined;
         if (previousResults) environment[PREVIOUS_RESULTS_ENV] = previousResults;
         // What the host recorded of the seed lineage's own HTTP probes, which root
         // acceptance counts while the server code is unchanged (standingHttpEvidence).
-        const standing = seedFrom === seedRun?.hostPaths.workspacePath
+        const standing = seedFrom === seedRun?.hostPaths.workspacePath && !this.store.getRepositorySync(project.orgId, run.projectRunId)?.taken
           ? standingHttpEvidenceFor(this.store, seedRun ?? null) : undefined;
         if (standing) environment[STANDING_HTTP_EVIDENCE_ENV] = standing;
         // THE USER'S APPROVED CRITERIA, read back from the STORE the
@@ -1943,13 +1974,11 @@ export class ProjectRunCoordinator {
     }
     const project = this.store.getProject(orgId, run.projectId);
     if (!project) return null;
-    await this.publisher.publish({
-      project,
-      run,
-      workspaceRoot: run.hostPaths.workspacePath,
-      manifest: run.artifactManifest,
-      manifestHash: run.artifactManifestHash,
-    });
+    const lease = await this.acquireLeasePreempting(`publication:${projectRunId}`);
+    try {
+      await this.publisher.publish({ project, run, workspaceRoot: run.hostPaths.workspacePath,
+        manifest: run.artifactManifest, manifestHash: run.artifactManifestHash });
+    } finally { lease.release(); }
     return run;
   }
 

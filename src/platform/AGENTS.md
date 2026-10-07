@@ -62,6 +62,12 @@ Neighbours:
   - Design record and the five settled decisions:
     [platform events](../../docs/platform-events-design.md).
 
+- Repository events: `project.repository_moved` (info, org owners),
+  `project.repository_synced` (info, journal only), `project.repository_attention`
+  (warning, requester and owners), and `project.upstream_follow_changed`
+  (security, journal only). Push movement coalesces by read-back since the last
+  run start, never by a project flag or a journal uniqueness constraint.
+
 ## Cross-organisation reads
 
 `recordCrossOrgRead` is the strict exception to fail-open append: a missing

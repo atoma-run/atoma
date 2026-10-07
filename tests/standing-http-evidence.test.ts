@@ -101,8 +101,11 @@ describe('host-recorded HTTP observations', () => {
     write('a', [fetchEvent('a1', 'http://localhost:1/api/books', 200, { kind: 'node', entry: 'server.js', codeDigest: DIGEST }, 'GET')]);
     write('b', [fetchEvent('b1', 'http://localhost:2/api/loans', 409, { kind: 'node', entry: 'server.js', codeDigest: DIGEST })]);
     write('z', [fetchEvent('z1', 'http://localhost:3/api/old', 200, { kind: 'node', entry: 'server.js', codeDigest: DIGEST }, 'GET')]);
-    const store = { getProjectRun: (_org: string, id: string) => runs[id] ?? null } as unknown as ProjectStore;
+    const store = { getRepositorySync: () => null, getProjectRun: (_org: string, id: string) => runs[id] ?? null } as unknown as ProjectStore;
     const evidence = decodeStandingHttpEvidence(standingHttpEvidenceFor(store, runs['b']!));
     expect(evidence.map((entry) => `${entry.runId}/${entry.eventId}`)).toEqual(['b/b1', 'a/a1']);
+    const synchronised = { ...store, getRepositorySync: () => ({ taken: 1 }) } as unknown as ProjectStore;
+    expect(decodeStandingHttpEvidence(standingHttpEvidenceFor(synchronised, runs['b']!))
+      .map((entry) => `${entry.runId}/${entry.eventId}`)).toEqual(['b/b1']);
   });
 });

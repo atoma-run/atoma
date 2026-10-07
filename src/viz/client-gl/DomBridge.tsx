@@ -1,3 +1,4 @@
+import { UpstreamSetting } from './UpstreamSetting.js';
 import { matchesSearchQuery, runSearchText } from '../client/search.js';
 import {
   LOCALE_NAMES,
@@ -142,6 +143,7 @@ export function DomBridge({
   onOpenMcp,
   mcpAccessState = 'unknown',
   projectGuideEnabled = true,
+  projectAdmin = false,
   pushPrompt = 'hidden',
   pushAdmin = false,
   onEnablePush,
@@ -167,12 +169,13 @@ export function DomBridge({
   onEnter?: () => void;
   githubInstallations?: VizGitHubInstallation[];
   /** Minimal project index mirrored for keyboard and assistive navigation. */
-  projects?: readonly (Pick<VizProject, 'projectId' | 'name'> & Partial<Pick<VizProject, 'repositoryTarget'>>)[];
+  projects?: readonly (Pick<VizProject, 'projectId' | 'name'> & Partial<Pick<VizProject, 'repositoryTarget' | 'followUpstream'>>)[];
   onOpenMcp?: () => void;
   /** Authorized MCP access for the viewer's active organisation. */
   mcpAccessState?: 'connected' | 'authorized' | 'unconnected' | 'unknown';
   /** The MCP setup guide exists only behind the auth gate. */
   projectGuideEnabled?: boolean;
+  projectAdmin?: boolean;
   /** Notification offer (first live run for members, login for platform
    *  admins); real DOM buttons because the browser permission request needs a
    *  user gesture on an actual element. */
@@ -498,6 +501,9 @@ export function DomBridge({
             : t('projects.mcpCreateIntro')}</p>
           <p className="gpu-project-mcp-request">{projectRequest}</p>
           <div className="gpu-project-mcp-actions">
+            {projectAdmin && selectedProject?.repositoryTarget?.source?.mode === 'fork' ?
+              <UpstreamSetting key={selectedProject.projectId} projectId={selectedProject.projectId}
+                enabled={selectedProject.followUpstream ?? false} t={t} /> : null}
             <button type="button" onClick={() => { void copyProjectRequest(); }}>{t('projects.mcpCopy')}</button>
             {mcpAccessState !== 'connected' && mcpAccessState !== 'authorized' ? (
               <button type="button" onClick={() => onOpenMcp?.()}>
@@ -559,7 +565,7 @@ export function GpuDomBridge({
   ...props
 }: Omit<
   ComponentProps<typeof DomBridge>,
-  'projectGuideEnabled' | 'pushAdmin' | 'announcementsEnabled'
+  'projectGuideEnabled' | 'pushAdmin' | 'announcementsEnabled' | 'projectAdmin'
 > & {
   authSnapshot: AuthUiSnapshot | null;
 }) {
@@ -567,6 +573,7 @@ export function GpuDomBridge({
     <DomBridge
       {...props}
       projectGuideEnabled={authSnapshot !== null}
+      projectAdmin={authSnapshot?.viewer.role === 'org:owner' || authSnapshot?.viewer.role === 'org:admin'}
       pushAdmin={authSnapshot?.viewer.platformAdmin === true}
       // Derived HERE with the other auth flags rather than passed in: the
       // composer is operator power, and the server enforces the same

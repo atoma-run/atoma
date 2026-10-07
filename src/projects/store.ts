@@ -1,3 +1,4 @@
+import { repositorySyncSchema, type RepositorySync } from '../contracts/repositorySync.js';
 import { randomUUID } from 'node:crypto';
 import { orgRunLimitSchema, type OrgRunCapacity } from '../contracts/projects.js';
 import { existsSync } from 'node:fs';
@@ -433,6 +434,7 @@ interface ProjectRow {
   status: string;
   /** NULL on a project created before 2026-10-06: listed, as it was. */
   showcase: string | null;
+  follow_upstream: string | null;
   github_installation_id: string;
   repository_source_json: string | null;
   repository_target_owner: string;
@@ -517,6 +519,7 @@ function projectFromRow(row: ProjectRow): Project {
     initialPrompt: row.initial_prompt,
     status: row.status,
     showcase: row.showcase ?? 'listed',
+    followUpstream: row.follow_upstream === '1',
     repositoryTarget: {
       installationId: row.github_installation_id,
       owner: row.repository_target_owner,
@@ -751,6 +754,7 @@ export class ProjectStore {
       for (const [table, column] of [
         ['projects', 'repository_source_json'],
         ['projects', 'showcase'],
+        ['projects', 'follow_upstream'],
         ['project_runs', 'repository_base_json'],
         ['project_runs', 'skills_path'],
         ['project_runs', 'bytes_expired_at'],
@@ -769,6 +773,13 @@ export class ProjectStore {
         const columns = this.db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
         if (!columns.some(item => item.name === column)) this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} TEXT`);
       }
+      if (!publicationColumns.includes('kept_remote')) this.db.exec('ALTER TABLE project_publications ADD COLUMN kept_remote INTEGER');
+      this.db.exec(`CREATE TABLE IF NOT EXISTS project_run_repository_sync (
+        project_run_id TEXT PRIMARY KEY REFERENCES project_runs(project_run_id) ON DELETE CASCADE,
+        org_id TEXT NOT NULL, record_json TEXT NOT NULL);
+        CREATE TRIGGER IF NOT EXISTS repository_sync_immutable BEFORE UPDATE ON project_run_repository_sync
+        BEGIN SELECT RAISE(ABORT, 'repository sync is immutable'); END;
+        CREATE INDEX IF NOT EXISTS projects_repository_idx ON projects(repository_id, repository_default_branch);`);
       // AFTER the ALTER loop and outside the DDL constant, because the columns
       // exist only once that loop ran; `IF NOT EXISTS` recreates them after a
       // rebuild, which restores only what the DDL declares. What a rerun
@@ -932,9 +943,9 @@ END;
         .prepare(
           `INSERT INTO projects (
              project_id, org_id, created_by_principal_id, name, slug, initial_prompt,
-             status, showcase, github_installation_id, repository_target_owner, repository_target_name,
+             status, showcase, follow_upstream, github_installation_id, repository_target_owner, repository_target_name,
              repository_visibility, repository_source_json, repository_status, created_at, updated_at
-           ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`
+           ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`
         )
         .run(
           projectId,
@@ -944,6 +955,7 @@ END;
           project.slug,
           project.initialPrompt,
           project.showcase,
+          project.followUpstream ? '1' : '0',
           project.repositoryTarget.installationId,
           project.repositoryTarget.owner,
           project.repositoryTarget.name,
@@ -2117,6 +2129,40 @@ END;
       .prepare('SELECT * FROM project_publications WHERE publication_id = ? AND org_id = ?')
       .get(publicationId, orgId) as PublicationRow | undefined;
     return row ? publicationFromRow(row) : null;
+  }
+
+  setFollowUpstream(orgId: string, projectId: string, enabled: boolean): Project | null {
+    const project = this.getProject(orgId, projectId);
+    if (!project) return null;
+    if (project.repositoryTarget.source?.mode !== 'fork') throw new ProjectStateConflict('followUpstream requires a fork');
+    this.db.prepare('UPDATE projects SET follow_upstream = ?, updated_at = ? WHERE org_id = ? AND project_id = ?')
+      .run(enabled ? '1' : '0', new Date().toISOString(), orgId, projectId);
+    return this.getProject(orgId, projectId);
+  }
+
+  projectsTrackingRepository(orgId: string, repositoryId: string, branch: string): Project[] {
+    return (this.db.prepare(`SELECT * FROM projects WHERE org_id = ? AND repository_id = ? AND repository_default_branch = ?`)
+      .all(orgId, repositoryId, branch) as ProjectRow[]).map(projectFromRow)
+      .filter(p => p.repositoryTarget.source?.mode !== 'pull-request');
+  }
+
+  saveRepositorySync(orgId: string, runId: string, input: RepositorySync): void {
+    const record = repositorySyncSchema.parse(input);
+    const run = this.getProjectRun(orgId, runId);
+    if (!run || run.status !== 'running') throw new ProjectStateConflict('repository sync requires a running run');
+    this.db.prepare('INSERT INTO project_run_repository_sync (project_run_id, org_id, record_json) VALUES (?, ?, ?)')
+      .run(runId, orgId, JSON.stringify(record));
+  }
+
+  getRepositorySync(orgId: string, runId: string): RepositorySync | null {
+    const row = this.db.prepare('SELECT record_json FROM project_run_repository_sync WHERE org_id = ? AND project_run_id = ?')
+      .get(orgId, runId) as { record_json: string } | undefined;
+    return row ? repositorySyncSchema.parse(JSON.parse(row.record_json)) : null;
+  }
+
+  recordPublicationConflicts(orgId: string, publicationId: string, count: number): void {
+    this.db.prepare("UPDATE project_publications SET kept_remote = ? WHERE org_id = ? AND publication_id = ? AND status = 'publishing'")
+      .run(count, orgId, publicationId);
   }
 
   /** Durable ownership receipt for an interrupted first publication. */

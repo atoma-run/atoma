@@ -2098,6 +2098,7 @@ try {
           {
             projectId,
             name: 'Wide Glyph Project',
+            followUpstream: false,
             slug: 'm'.repeat(48),
             status: 'active',
             repositoryTarget: {
@@ -2105,6 +2106,7 @@ try {
               owner: 'm'.repeat(48),
               name: 'm'.repeat(48),
               visibility: 'private',
+              source: { mode: 'fork', owner: 'upstream', name: 'fixture', repositoryId: '502' },
             },
             repositoryStatus: 'ready',
             repositoryFullName: `${'m'.repeat(48)}/${'m'.repeat(48)}`,
@@ -2193,6 +2195,11 @@ try {
           updateProbes += 1;
           void request.respond({ status: 200, contentType: 'text/html', headers: { 'cache-control': 'no-store' },
             body: updateShell.replace(/\/assets\/index-[\w-]+\.js/, '/assets/index-update-smoke.js') });
+          return;
+        }
+        if (path === `/api/projects/${projectId}/upstream` && request.method() === 'PUT') {
+          stubs['/api/projects'][0].followUpstream = JSON.parse(request.postData()).followUpstream;
+          void request.respond({ status: 200, contentType: 'application/json', body: '{}' });
           return;
         }
         const stub = stubs[path];
@@ -2370,6 +2377,15 @@ try {
           `account scenario: project-row click navigated ${accountUrlBeforeProjectClick} -> ${accountPage.url()}`
         );
       }
+      await accountPage.waitForSelector('.gpu-project-mcp-actions input[type="checkbox"]');
+      await accountPage.click('.gpu-project-mcp-actions input[type="checkbox"]');
+      await accountPage.waitForFunction(() => document.querySelector('.gpu-project-mcp-actions input[type="checkbox"]')?.checked);
+      await accountPage.reload({ waitUntil: 'load' });
+      await passArrivalGate(accountPage);
+      await waitForHitTarget(accountPage, `project.select.${projectId}`, 'fork project missing after reload');
+      await clickAccountTarget(`project.select.${projectId}`);
+      await accountPage.waitForFunction(() => document.querySelector('.gpu-project-mcp-actions input[type="checkbox"]')?.checked);
+      console.log('Fork upstream setting ok: saved toggle survives reload');
       const prTarget = 'project.pullRequest.eeeeeeee-1111-4222-8333-ffffffffffff';
       await waitForHitTarget(accountPage, prTarget, 'delivered PR link did not render');
       // Compact run cards can place this older run below the viewport. Scroll

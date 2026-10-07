@@ -253,6 +253,7 @@ export interface VizProject {
   showcase?: 'listed' | 'hidden';
   /** A showcase visitor sees one of its runs now. Absent on an older server. */
   showcaseShown?: boolean;
+  followUpstream?: boolean;
   createdAt: string;
   updatedAt: string;
 }

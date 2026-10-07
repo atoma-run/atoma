@@ -169,14 +169,27 @@ Neighbours:
 
 - `publishRepositoryRun` consumes the captured run base: PR mode creates an
   immutable `atoma/run-<id>` branch and one PR; fork mode advances the fork's
-  default branch directly. Neither mode force-pushes. Changed fork heads and
-  unrelated run branches are refused; matching tree+parent receipts converge
+  default branch through the live-head debt planner. Neither mode force-pushes.
+  Unrelated run branches are refused; matching tree+parent receipts converge
   after a remote-write crash. An unchanged tree creates no empty PR.
 - Imported PR runs request `pull_requests: write` in addition to the ordinary
   publish permissions. Forks and new repositories keep the ordinary token.
 - Repository snapshots read bounded immutable trees/blobs; truncated trees,
   unsafe paths, symlinks and submodules fail before model work. No GitHub
   credential enters the worker. Fork adoption requires the exact parent id.
+
+## Repository reconciliation
+
+- Read-only sync tokens request Contents read only and use the same installation
+  rebinding/pre-flight as publication. Signals bound token, tree and blob reads.
+- `publishManifestCommit.selectFiles` plans against the exact observed parent
+  before uploads. Empty selection returns that head without creating a tree or
+  commit. Non-fast-forward refusal replans on retry; an ancestor-reset race is
+  still the documented limitation of GitHub's non-CAS reference API.
+- `mergeUpstream` uses Contents write and adds no permission. The measured 422
+  on workflow changes is a fail-open attention event, never a run refusal.
+- Signed `push` deliveries yield a typed injected `onPush` observation after
+  delivery deduplication. GitHub owns no project lookup or notification policy.
 
 ## Intentional choices and rejected shortcuts
 

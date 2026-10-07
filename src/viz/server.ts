@@ -1,3 +1,4 @@
+import { observeRepositoryPush } from '../projects/repositoryPush.js';
 import { assertPersonalCodexModels, UNAVAILABLE_CODEX_MODELS } from '../contracts/codexModels.js';
 import { openDb, unfoldedRegistryPredicate } from '../registry/db.js';
 import { updateOrgModels } from '../auth/orgModels.js';
@@ -2376,6 +2377,11 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
         store: PROJECTS_RUNTIME.githubStore,
         config: PROJECTS_RUNTIME.githubConfig,
         events: emit,
+        onPush: push => observeRepositoryPush(push, {
+          appSlug: PROJECTS_RUNTIME.githubConfig!.appSlug, store: PROJECTS_RUNTIME.store, events: emit,
+          installationOrg: id => PROJECTS_RUNTIME.githubStore.getInstallation(id)?.orgId ?? null,
+          movedSince: (org, project, since) => EVENTS?.repositoryMovedSince(org, project, since) ?? false,
+        }),
       })
     );
     return;
@@ -4290,6 +4296,19 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
       }
       res.writeHead(405, { allow: 'GET, POST', 'content-length': '0', 'cache-control': 'no-store' });
       res.end();
+      return;
+    }
+
+    const upstreamSetting = pathname.match(/^\/api\/projects\/([^/]+)\/upstream$/);
+    if (upstreamSetting) {
+      if (!methodAllowed(req, res, 'PUT') || !sameOrigin(req, res)) return;
+      if (!viewer) { sendJson(res, 401, { error: 'authentication required' }); return; }
+      try {
+        sendJson(res, 200, await PROJECTS_RUNTIME.projects.setFollowUpstream(req, viewer, upstreamSetting[1]!));
+      } catch (error) {
+        if (!(error instanceof ProjectHttpError)) throw error;
+        sendJson(res, error.status, { error: error.message });
+      }
       return;
     }
 

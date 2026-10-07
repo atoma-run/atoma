@@ -40,6 +40,8 @@ export function standingHttpEvidenceFor(store: ProjectStore, seed: ProjectRun | 
     try {
       observations.push(...standingHttpObservationsOf(current.projectRunId, traceOf(current)));
     } catch { /* An unreadable trace is no evidence, never an error for the new run. */ }
+    try { if (store.getRepositorySync(current.orgId, current.projectRunId)?.taken) break; }
+    catch { break; }
     current = current.seed?.kind === 'run' ? store.getProjectRun(seed.orgId, current.seed.runId) : null;
   }
   return encodeStandingHttpEvidence(observations);

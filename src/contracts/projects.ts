@@ -236,11 +236,13 @@ export const createProjectInputSchema = z
     slug: projectSlugSchema,
     initialPrompt: projectPromptSchema.default(''),
     repositoryTarget: repositoryTargetSchema,
+    followUpstream: z.boolean().default(false),
     showcase: projectShowcaseSchema
       .default('listed')
       .describe('hidden keeps every run of this project off the public showcase; listed (default) leaves it eligible.'),
   })
-  .strict();
+  .strict()
+  .refine(p => !p.followUpstream || p.repositoryTarget.source?.mode === 'fork', 'followUpstream requires a fork');
 
 export const projectSchema = z
   .object({
@@ -252,6 +254,7 @@ export const projectSchema = z
     initialPrompt: projectPromptSchema,
     status: projectStatusSchema,
     showcase: projectShowcaseSchema,
+    followUpstream: z.boolean().default(false),
     repositoryTarget: repositoryTargetSchema,
     repositoryStatus: repositoryStatusSchema,
     repositoryId: githubRepositoryIdSchema.nullable(),

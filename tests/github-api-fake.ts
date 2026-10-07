@@ -188,15 +188,18 @@ export class FakeGitHub {
    * build the REAL divergence case, which must not be reported with the words
    * reserved for "the branch already exists".
    */
-  commitOutside(owner: string, name: string, branch: string, path: string, text: string): string {
+  commitOutside(owner: string, name: string, branch: string, path: string, text: string | null): string {
     const repo = this.mustRepo(owner, name);
     const ref = `refs/heads/${branch}`;
     const parent = repo.refs.get(ref) ?? null;
     const base: TreeEntries = parent
       ? new Map(repo.trees.get(repo.commits.get(parent)!.tree) ?? [])
       : new Map();
-    const blob = this.putBlob(repo, Buffer.from(text, 'utf8'));
-    base.set(path, { sha: blob, mode: '100644' });
+    if (text === null) base.delete(path);
+    else {
+      const blob = this.putBlob(repo, Buffer.from(text, 'utf8'));
+      base.set(path, { sha: blob, mode: '100644' });
+    }
     const tree = this.putTree(repo, base);
     const commit = this.putCommit(repo, {
       tree,
@@ -213,7 +216,7 @@ export class FakeGitHub {
   }
 
   private putBlob(repo: FakeRepo, bytes: Buffer): string {
-    const sha = digest('blob', bytes.toString('base64'));
+    const sha = createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
     repo.blobs.set(sha, bytes);
     return sha;
   }
@@ -347,7 +350,27 @@ export class FakeGitHub {
     if (method === 'GET' && treeRead) {
       const tree = repo.trees.get(treeRead[1]!);
       if (!tree) return json({}, 404);
-      return json({ truncated: false, tree: [...tree].map(([path, entry]) => ({ ...entry, path, type: 'blob' })) });
+      if (new URL(urlOf(input)).searchParams.get('recursive') === '1') {
+        return json({ truncated: false, tree: [...tree].map(([path, entry]) => ({ ...entry, path, type: 'blob', size: repo.blobs.get(entry.sha)?.length })) });
+      }
+      const entries: Array<{ path: string; sha: string; mode: string; type: string }> = [];
+      const dirs = new Map<string, TreeEntries>();
+      for (const [path, entry] of tree) {
+        const slash = path.indexOf('/');
+        if (slash < 0) entries.push({ ...entry, path, type: 'blob' });
+        else {
+          const dir = path.slice(0, slash);
+          let subtree = dirs.get(dir);
+          if (!subtree) { subtree = new Map(); dirs.set(dir, subtree); }
+          subtree.set(path.slice(slash + 1), entry);
+        }
+      }
+      for (const [path, subtree] of dirs) {
+        const sha = digest('tree', JSON.stringify([...subtree]));
+        repo.trees.set(sha, subtree);
+        entries.push({ path, sha, mode: '040000', type: 'tree' });
+      }
+      return json({ truncated: false, tree: entries });
     }
     const blobRead = /^\/git\/blobs\/([0-9a-f]{40})$/.exec(rest);
     if (method === 'GET' && blobRead) {

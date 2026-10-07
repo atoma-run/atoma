@@ -1,5 +1,8 @@
+import type { RepositoryInventory, RepositorySync } from '../contracts/repositorySync.js';
+import { inventoryRepositoryWorkspace, carryRepositoryBase, repositoryFile, repositoryDebt, planRepositorySync, remoteRepositoryInventory } from './repositorySync.js';
+import { materialiseRepositorySeed } from './repositorySeed.js';
 import path from 'node:path';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile, rm } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { GitHubApiError, type GitHubAppClient } from '../github/client.js';
 import { GitHubStore } from '../github/store.js';
@@ -200,7 +203,9 @@ export class GitHubPublisher {
    */
   private async projectInstallationToken(
     project: Project,
-    pullRequests: boolean
+    pullRequests: boolean,
+    readOnly = false,
+    signal?: AbortSignal
   ): Promise<{
     project: Project;
     installation: { installationId: string; targetType: 'User' | 'Organization' };
@@ -211,7 +216,7 @@ export class GitHubPublisher {
     const installation = resolveProjectInstallation(this.github, project);
     if (installation) {
       try {
-        const token = await this.client.createInstallationToken(installation.installationId, pullRequests);
+        const token = await this.client.createInstallationToken(installation.installationId, pullRequests, readOnly, signal);
         return { project, installation, token };
       } catch (error) {
         if (!(error instanceof GitHubApiError && error.status === 404)) throw error;
@@ -257,7 +262,7 @@ export class GitHubPublisher {
     });
     const next = resolveProjectInstallation(this.github, rebound);
     if (!next) throw new Error('GitHub installation is not linked to this organisation or is inactive');
-    const token = await this.client.createInstallationToken(next.installationId, pullRequests);
+    const token = await this.client.createInstallationToken(next.installationId, pullRequests, readOnly, signal);
     return { project: rebound, installation: next, token };
   }
 
@@ -276,9 +281,10 @@ export class GitHubPublisher {
     owner: string;
     repositoryId: string;
     fullName: string;
+    signal?: AbortSignal;
   }): Promise<void> {
     if (input.token.repositorySelection !== 'selected') return;
-    if (await this.client.installationIncludesRepository(input.token.token, input.repositoryId)) return;
+    if (await this.client.installationIncludesRepository(input.token.token, input.repositoryId, input.signal)) return;
     const settings = input.targetType === 'Organization'
       ? `https://github.com/organizations/${input.owner}/settings/installations/${input.installationId}`
       : `https://github.com/settings/installations/${input.installationId}`;
@@ -328,6 +334,104 @@ export class GitHubPublisher {
     }
   }
 
+  private repositoryAttention(project: Project, run: ProjectRun, reason: string, paths: readonly string[] = []): void {
+    this.events({ kind: 'project.repository_attention', actorType: 'system', orgId: project.orgId,
+      projectId: project.projectId, runId: run.projectRunId, actorId: run.requestedByPrincipalId,
+      summary: `Repository needs attention: ${reason}`,
+      detail: { reason, paths: paths.slice(0, 20).map(p => eventLabel(p, 60)) } });
+  }
+
+  /** Legacy uncertainty is resolved conservatively; only the published manifest is known. */
+  private async seedBase(project: Project, seed: ProjectRun, token?: string, signal?: AbortSignal): Promise<RepositoryInventory> {
+    let recorded: RepositorySync | null = null;
+    try { recorded = this.store.getRepositorySync(project.orgId, seed.projectRunId); }
+    catch { if (!token) throw new Error('Repository base is unreadable'); }
+    if (recorded?.debtResolved) return recorded.base;
+    if (recorded && !token) throw new Error('Repository debt is unresolved');
+    const previous = this.store.lastPublishedCommitForProject(project.orgId, project.projectId);
+    if (!previous) return {};
+    if (!token) throw new Error('Legacy repository base is unavailable');
+    const published = this.store.getProjectRun(project.orgId, previous.projectRunId);
+    const entries = await this.client.readRepositoryTree({ token, owner: project.repositoryTarget.owner,
+      name: project.repositoryTarget.name, commitSha: previous.commitSha, signal,
+      paths: published?.artifactManifest?.files.map(f => f.path) ?? [] });
+    const states = remoteRepositoryInventory(entries);
+    return Object.fromEntries((published?.artifactManifest?.files ?? []).flatMap(f => states[f.path] ? [[f.path, states[f.path]!]] : []));
+  }
+
+  async syncRun(project: Project, run: ProjectRun, seed: ProjectRun | null, signal: AbortSignal): Promise<string | undefined> {
+    let ours: RepositoryInventory = {};
+    let base: RepositoryInventory = {};
+    let record: RepositorySync = { status: 'no_anchor', head: null, base,
+      debtResolved: false, materialised: false, seedPath: null, taken: 0, conflicts: 0, paths: [] };
+    const seedPath = path.join(path.dirname(run.hostPaths.workspacePath), 'repository-seed');
+    try {
+      ours = seed ? inventoryRepositoryWorkspace(seed.hostPaths.workspacePath) : {};
+      base = { ...ours };
+      record.base = base;
+      record.debtResolved = true;
+      let oldBase: RepositoryInventory = {};
+      let debt = new Set<string>();
+      if (seed) {
+        try { oldBase = await this.seedBase(project, seed); }
+        catch { record.debtResolved = false; }
+        debt = repositoryDebt(oldBase, ours, this.store.getPublicationForRun(project.orgId, seed.projectRunId)?.status === 'published');
+        base = carryRepositoryBase(oldBase, ours, this.store.getPublicationForRun(project.orgId, seed.projectRunId)?.status === 'published');
+      }
+      record.base = base;
+      const previous = this.store.lastPublishedCommitForProject(project.orgId, project.projectId);
+      if (seed && previous && project.repositoryStatus === 'ready' && project.repositoryId && project.defaultBranch) {
+        const resolved = await this.projectInstallationToken(project, false, true, signal);
+        signal.throwIfAborted();
+        await this.assertInstallationCoversRepository({ token: resolved.token,
+          installationId: resolved.installation.installationId, targetType: resolved.installation.targetType,
+          owner: project.repositoryTarget.owner, repositoryId: project.repositoryId, fullName: project.repositoryFullName!, signal });
+        const token = resolved.token.token;
+        oldBase = await this.seedBase(project, seed, token, signal);
+        let legacy = true;
+        try { legacy = !this.store.getRepositorySync(project.orgId, seed.projectRunId)?.debtResolved; }
+        catch { /* The live sync can recover through the conservative legacy rule. */ }
+        debt = repositoryDebt(oldBase, ours, this.store.getPublicationForRun(project.orgId, seed.projectRunId)?.status === 'published');
+        base = carryRepositoryBase(oldBase, ours, this.store.getPublicationForRun(project.orgId, seed.projectRunId)?.status === 'published');
+        record.debtResolved = true;
+        const head = await this.client.readBranchHead(token, project.repositoryTarget.owner, project.repositoryTarget.name, project.defaultBranch, signal);
+        if (head.state !== 'head') throw new Error('Repository branch is unavailable');
+        const entries = await this.client.readRepositoryTree({ token, owner: project.repositoryTarget.owner,
+          name: project.repositoryTarget.name, commitSha: head.sha, signal });
+        const theirs = remoteRepositoryInventory(entries);
+        if (Object.keys(theirs).length > 256) throw new Error('Repository exceeds file limit');
+        if (legacy) for (const p of Object.keys(ours)) {
+          if (!repositoryFile(oldBase, p)) { if (repositoryFile(theirs, p)) debt.delete(p); else debt.add(p); }
+        }
+        const plan = planRepositorySync({ base: oldBase, ours, theirs, debt, remoteEntries: entries });
+        if (plan.take.length) await materialiseRepositorySeed({ source: seed.hostPaths.workspacePath,
+          destination: seedPath, take: plan.take, theirs, signal,
+          blob: sha => this.client.readRepositoryBlob({ token, owner: project.repositoryTarget.owner,
+            name: project.repositoryTarget.name, sha, signal }) });
+        signal.throwIfAborted();
+        record = { status: plan.take.length ? 'synced' : 'unchanged', head: head.sha, base: theirs,
+          debtResolved: true, materialised: !!plan.take.length, seedPath: plan.take.length ? seedPath : null,
+          taken: plan.take.length, conflicts: plan.conflicts.length, paths: plan.take.slice(0, 20) };
+        this.store.saveRepositoryRunBase(project.orgId, run.projectRunId, {
+          repositoryId: project.repositoryId, branch: project.defaultBranch, commitSha: head.sha });
+        this.events({ kind: 'project.repository_synced', actorType: 'system', orgId: project.orgId,
+          projectId: project.projectId, runId: run.projectRunId, summary: 'Repository synchronised at run start',
+          detail: { taken: record.taken, conflicts: record.conflicts } });
+        if (plan.conflicts.length) this.repositoryAttention(project, run, 'conflict', plan.conflicts);
+        const removed = plan.take.filter(p => repositoryFile(ours, p) && !repositoryFile(theirs, p) && entries.some(e =>
+          e.type !== 'tree' && (e.path === p || p.startsWith(`${e.path}/`)) && !repositoryFile(theirs, e.path)));
+        if (removed.length) this.repositoryAttention(project, run, 'removed', removed);
+      }
+    } catch {
+      await rm(seedPath, { recursive: true, force: true });
+      record = { ...record, status: 'unavailable', base, head: null, materialised: false, seedPath: null,
+        taken: 0, conflicts: 0, paths: [] };
+      this.repositoryAttention(project, run, 'sync_unavailable');
+    }
+    this.store.saveRepositorySync(project.orgId, run.projectRunId, record);
+    return record.seedPath ?? seed?.hostPaths.workspacePath;
+  }
+
   private async prepareRepositoryRun(project: Project, run: ProjectRun, signal: AbortSignal): Promise<string> {
     const source = project.repositoryTarget.source;
     if (!source?.repositoryId) throw new Error('Project source must be verified before starting a run');
@@ -338,6 +442,7 @@ export class GitHubPublisher {
     if (target.owner.toLowerCase() !== linked.accountLogin.toLowerCase()) throw new Error('Repository account does not match its installation');
     let token = resolved.token.token;
     let repository = await this.client.getRepository(token, target.owner, target.name);
+    const creatingFork = !repository;
     signal.throwIfAborted();
     if (!repository && source.mode === 'fork' && project.repositoryStatus !== 'ready') {
       const createToken = await this.userAccessToken(run.requestedByPrincipalId);
@@ -370,6 +475,14 @@ export class GitHubPublisher {
       this.store.transitionRepository({ orgId: project.orgId, projectId: project.projectId, from: 'creating', to: 'ready',
         receipt: { repositoryId: repository.id, fullName: repository.fullName, url: repository.htmlUrl, defaultBranch: repository.defaultBranch } });
     }
+    if (source.mode === 'fork' && project.followUpstream && !creatingFork) {
+      try {
+        const mergeType = await this.client.mergeUpstream({ token, owner: target.owner, name: target.name,
+          branch: repository.defaultBranch, signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]) });
+        this.events({ kind: 'project.repository_synced', actorType: 'system', orgId: project.orgId,
+          projectId: project.projectId, runId: run.projectRunId, summary: 'Fork upstream checked', detail: { mergeType } });
+      } catch { this.repositoryAttention(project, run, 'upstream_not_merged'); }
+    }
     const head = await this.client.readBranchHead(token, target.owner, target.name, repository.defaultBranch);
     if (head.state !== 'head') throw new Error('Repository branch is empty or the fork is still being prepared; retry when it is ready');
     const files = await this.client.readRepositoryFiles({ token, owner: target.owner, name: target.name, commitSha: head.sha, signal });
@@ -390,6 +503,10 @@ export class GitHubPublisher {
     }
     this.store.saveRepositoryRunBase(project.orgId, run.projectRunId, {
       repositoryId: repository.id, branch: repository.defaultBranch, commitSha: head.sha,
+    });
+    if (source.mode === 'fork' && files.length <= 256) this.store.saveRepositorySync(project.orgId, run.projectRunId, {
+      status: 'synced', head: head.sha, base: inventoryRepositoryWorkspace(seedPath),
+      debtResolved: true, materialised: true, seedPath, taken: files.length, conflicts: 0, paths: [],
     });
     return seedPath;
   }
@@ -574,6 +691,37 @@ export class GitHubPublisher {
         );
       }
 
+      const line = (this.store.listProjectRuns(project.orgId, project.projectId) ?? []).filter(r => !r.rerunOf);
+      if (project.repositoryTarget.source?.mode !== 'pull-request' && line.some(r => r.projectRunId !== run.projectRunId &&
+        (r.status === 'queued' || r.status === 'running' ||
+         ((r.status === 'delivered' || r.status === 'partial') &&
+          (r.createdAt > run.createdAt || (r.createdAt === run.createdAt && r.projectRunId > run.projectRunId)))))) {
+        throw new PublicationSupersededError('A later lineage run already carries this publication; publish the current run');
+      }
+      const selectFiles = async (head: string) => {
+        const recorded = this.store.getRepositorySync(project.orgId, run.projectRunId);
+        if (recorded && !recorded.debtResolved) throw new Error('Repository debt is unresolved');
+        const captured = this.store.getProjectRun(project.orgId, run.projectRunId)?.repositoryBase;
+        const base = recorded?.base ?? (project.repositoryTarget.source?.mode === 'fork' && captured
+          ? remoteRepositoryInventory(await this.client.readRepositoryTree({ token: installationToken.token,
+              owner: project.repositoryTarget.owner, name: project.repositoryTarget.name,
+              commitSha: captured.commitSha, paths: run.artifactManifest!.files.map(f => f.path) }))
+          : await this.seedBase(project, run, installationToken.token));
+        const ours = inventoryRepositoryWorkspace(input.workspaceRoot);
+        const debt = repositoryDebt(base, ours, false);
+        const entries = await this.client.readRepositoryTree({ token: installationToken.token,
+          owner: project.repositoryTarget.owner, name: project.repositoryTarget.name, commitSha: head, paths: [...debt] });
+        const theirs = remoteRepositoryInventory(entries);
+        if (!recorded && !project.repositoryTarget.source) for (const p of Object.keys(ours)) if (!repositoryFile(base, p) && repositoryFile(theirs, p)) debt.delete(p);
+        const plan = planRepositorySync({ base, ours, theirs, debt, remoteEntries: entries });
+        this.store.recordPublicationConflicts(project.orgId, publication.publicationId, plan.conflicts.length);
+        if (plan.conflicts.length) this.repositoryAttention(project, run, 'conflict', plan.conflicts);
+        const files = run.artifactManifest!.files.filter(f => plan.write.includes(f.path));
+        return { files: files.map(file => ({ path: file.path, mode: file.mode,
+          content: readManifestArtifact({ workspaceRoot: input.workspaceRoot, expected: file }) })),
+          message: publicationCommitMessage({ project, run, manifest: { ...run.artifactManifest!, files,
+            totalBytes: files.reduce((n, f) => n + f.size, 0) }, writtenOnly: true }) };
+      };
       const commitInput = {
         token: installationToken.token,
         repository: {
@@ -603,12 +751,14 @@ export class GitHubPublisher {
       if (project.repositoryTarget.source && (!base || base.repositoryId !== repository.repositoryId)) {
         throw new Error('Imported run has no matching repository base');
       }
-      const commit = project.repositoryTarget.source && base
+      const commit = project.repositoryTarget.source?.mode === 'pull-request' && base
         ? await this.client.publishRepositoryRun({ ...commitInput,
             branch: project.repositoryTarget.source.mode === 'pull-request' ? `atoma/run-${run.projectRunId}` : base.branch,
             baseBranch: base.branch, baseSha: base.commitSha,
             pullRequest: project.repositoryTarget.source.mode === 'pull-request' })
         : await this.client.publishManifestCommit({ ...commitInput,
+            expectedHead: project.repositoryTarget.source?.mode === 'fork' ? base!.commitSha : commitInput.expectedHead,
+            selectFiles,
             seedCommitSha: this.store.publicationSeed(project.orgId, publication.publicationId),
             onSeed: seed => this.store.recordPublicationSeed(project.orgId, publication.publicationId, seed),
           });

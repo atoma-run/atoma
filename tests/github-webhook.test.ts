@@ -212,3 +212,20 @@ describe('GitHub installation webhook transitions', () => {
     expect(deliver({ action: 'suspend', deliveryId: 'delivery-app-check' }).applied).toBe(true);
   });
 });
+
+it('authenticates and deduplicates push observations before handing them to projects', () => {
+  const rawBody = Buffer.from(JSON.stringify({ repository: { id: 9001 }, installation: { id: 501 },
+    ref: 'refs/heads/main', before: 'a'.repeat(40), after: 'b'.repeat(40), created: false, deleted: false, forced: false,
+    sender: { login: 'collaborator', type: 'User' } }));
+  const observed: unknown[] = [];
+  const input = { store, appId: APP_ID, webhookSecret: WEBHOOK_SECRET, rawBody,
+    event: 'push', deliveryId: randomUUID(), onPush: (push: unknown) => { observed.push(push); },
+    signature: `sha256=${createHmac('sha256', WEBHOOK_SECRET).update(rawBody).digest('hex')}` };
+  expect(() => processGitHubWebhook({ ...input, signature: 'forged' })).toThrow(/signature/);
+  expect(observed).toEqual([]);
+  processGitHubWebhook(input);
+  expect(processGitHubWebhook(input).duplicate).toBe(true);
+  expect(observed).toEqual([{ repositoryId: '9001', installationId: '501', ref: 'refs/heads/main',
+    before: 'a'.repeat(40), after: 'b'.repeat(40), created: false, deleted: false, forced: false,
+    senderLogin: 'collaborator', senderType: 'User' }]);
+});

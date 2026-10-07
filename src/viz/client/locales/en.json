@@ -718,6 +718,8 @@
   "projects.runJevCallsLowerBound": "Minimum confirmed by recorded Jev responses. Older traces did not count every HTTP attempt or retry.",
   "projects.cardLastRun": "last run {{ago}}",
   "projects.cardCreated": "Created {{date}}",
+  "projects.followUpstream": "Follow upstream before each run",
+  "projects.followUpstreamFailed": "Could not save the upstream setting.",
   "projects.showcaseShown": "On the showcase",
   "projects.showcaseEligible": "Eligible for the showcase",
   "projects.showcaseHidden": "Hidden from the showcase",

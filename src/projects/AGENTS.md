@@ -320,13 +320,9 @@ list. These values come from the host snapshot, never a tenant prompt.
   last-published column on the projects row: "is the branch where we left it"
   is answerable only by GitHub, and a stored head is a cache of state GitHub
   owns — a stale one is how a wrong divergence verdict gets manufactured.
-- PUBLISHING A RUN OLDER THAN THE ONE ALREADY PUBLISHED IS REFUSED
-  (`PublicationSupersededError`, HTTP 409, not 502). Every entry point accepts
-  any delivered run whose publication is pending or failed, so without the gate
-  a retry of an older run would move the branch back to older artifacts. There
-  is no override flag: a later run's workspace is seeded from the earlier one,
-  so its artifacts already contain that work. The gate reads run creation
-  order, which can differ from delivery order — accepted, for the same reason.
+- Publication retries take the machine run lease. A queued/running project run
+  or a newer delivered/partial lineage run refuses an older publication
+  (`PublicationSupersededError`); PR-mode branches remain independent.
 - STALENESS IS A QUERY, NOT A COLUMN. How far behind a repository is = delivered
   runs of the project newer than the last published one, which `projects list`
   prints. A project can sit at `ready` over a repository several runs old.
@@ -402,7 +398,7 @@ list. These values come from the host snapshot, never a tenant prompt.
   repository, and public if they chose a public one. It is rendered once, by
   `publicationCommitMessage`, and its shape is a decision rather than a format.
 - SUBJECT: the goal through `eventLabel`, cut at a word boundary. BODY: the
-  provenance, the run's publication file set, and the goal in full. TRAILERS:
+  provenance, the paths this commit actually writes, and the goal in full. TRAILERS:
   `Atoma-Project` and `Atoma-Run`, so a machine can read them.
 - The body labels workspace inventories as delivered files and legacy
   manifests as declared files. Publication still merges onto the parent's
@@ -429,10 +425,22 @@ list. These values come from the host snapshot, never a tenant prompt.
   the real GitHub fork. Imported runs snapshot the current default branch before
   model work instead of seeding the previous delivered workspace. Merge a PR
   before starting work that depends on it. Forks advance their own branch.
-- The captured `repositoryBase` belongs to the run in the primary store;
-  publication uses that exact base and persists a PR URL when applicable.
-  Old projects retain their existing publication and seed behaviour. The source
-  choice is immutable; imported visibility is inherited, never chosen locally.
+- The captured `repositoryBase` is the PR parent; fork publication plans against
+  the live fork head, preserving concurrent edits. `followUpstream` is fork-only,
+  off by default, admin-settable and journaled. Merge failure never refuses a run.
+- Projects Atoma created reconcile the prior workspace with GitHub before model
+  work. `project_run_repository_sync` stores an immutable per-run BASE outside
+  strict legacy JSON columns. `planRepositorySync` owns the one per-path rule at
+  start and publication; client changes win, prior workspaces stay untouched.
+  Published runs owe only tombstones; other runs owe their difference from BASE.
+  Hard-linked seeds replace by unlink/create and pass the delivery inventory.
+  Unavailable sync fails open; unresolved debt refuses publication. See
+  [design and measurements](../../docs/repository-sync-2026-10-07.md).
+- Materialised seeds retain landing/text history but invalidate standing HTTP
+  evidence across their boundary. Comparison reruns reuse the recorded seed
+  directory, including reruns of reruns; an expired directory refuses comparison.
+- Push observations notify once per project between runs; they never start work.
+  Source choice is immutable; imported visibility is inherited.
 
 ## Retention and admission
 

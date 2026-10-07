@@ -170,6 +170,11 @@ const RUN_STATUS_WORDS: Partial<Record<PushLocale, Record<string, string>>> = {
   fr: { delivered: 'livré', partial: 'partiel', failed: 'échoué', cancelled: 'annulé' },
 };
 
+const REPOSITORY_REASON_WORDS: Partial<Record<PushLocale, Record<string, string>>> = {
+  en: { conflict: 'remote changes kept', sync_unavailable: 'could not read the repository', upstream_not_merged: 'upstream could not be merged', removed: 'unsupported repository entries removed' },
+  fr: { conflict: 'modifications distantes conservées', sync_unavailable: 'lecture du dépôt impossible', upstream_not_merged: 'fusion de l’amont impossible', removed: 'entrées non prises en charge retirées' },
+};
+
 const INSTALLATION_STATUS_WORDS: Partial<Record<PushLocale, Record<string, string>>> = {
   en: { active: 'active', suspended: 'suspended', deleted: 'deleted' },
   fr: { active: 'active', suspended: 'suspendue', deleted: 'supprimée' },
@@ -302,6 +307,18 @@ const PUSH_ROUTE_SOURCES: Record<PlatformEventKind, PushRouteSource | null> = {
   'principal.renamed': null,
   'project.created': null,
   'project.showcase_changed': null,
+  'project.repository_synced': null,
+  'project.upstream_follow_changed': null,
+  'project.repository_moved': {
+    audience: { orgOwners: true }, vars: () => ({}),
+    copy: { en: { title: 'Atoma — repository changed', body: 'The repository changed outside Atoma. The next run will synchronise it.' },
+      fr: { title: 'Atoma — dépôt modifié', body: 'Le dépôt a changé en dehors d’Atoma. Le prochain run le synchronisera.' } },
+  },
+  'project.repository_attention': {
+    audience: { requester: true, orgOwners: true }, vars: (event, locale) => { const reason = text(event, 'reason'); return { reason: REPOSITORY_REASON_WORDS[locale]?.[reason] ?? REPOSITORY_REASON_WORDS.en?.[reason] ?? reason }; },
+    copy: { en: { title: 'Atoma — repository needs attention', body: 'Repository synchronisation: {{reason}}.' },
+      fr: { title: 'Atoma — dépôt à vérifier', body: 'Synchronisation du dépôt : {{reason}}.' } },
+  },
   'github.installation_linked': null,
   'github.installation_status': {
     // The publication pipeline just changed state under the organisation.

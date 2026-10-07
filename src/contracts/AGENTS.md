@@ -246,7 +246,7 @@ Neighbours:
 
 - `baseSha` on a publication is OBSERVED, never a pointer anything decides
   from — the same rule `attestation.ts` states for a tool observation. It
-  records the publication parent (the captured run base for imported projects); the
+  records the publication parent (the captured run base for PR projects; the live head for forks); the
   authority to publish onto an existing branch is read from GitHub at publish
   time. A required KEY with a nullable VALUE on a `.strict()` object, so a
   writer must state what it built on rather than omitting it.
@@ -288,6 +288,12 @@ Neighbours:
   the request schema on read made one immutable row throw in every reader of
   its project once its model was retired (2026-09-25 review, 1.1).
 
+## Repository sync records
+
+- `repositorySync.ts` owns per-run BASE inventories, immutable sync records and
+  typed push observations. Stored separately from strict historical seed/git JSON
+  so an older binary can ignore them. Unknown debt must never authorise writes.
+
 ## Standing HTTP evidence
 
 - `standingHttpEvidence.ts` + `serverDigest.ts` (owner decision 2026-10-04): an HTTP item
@@ -296,6 +302,7 @@ Neighbours:
   before spawn), while the digest of the entry file and its relative imports is unchanged.
   Never read from `.atoma-probes.json`, which a model can write. Rendered RECORDED EARLIER.
   Limit: a computed import, a package, a data file or the environment is not in the digest.
+  A repository sync that takes remote content stops inheritance across that boundary.
 
 ## Intentional choices and rejected shortcuts
 

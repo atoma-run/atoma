@@ -1,3 +1,4 @@
+import { repositoryTreeEntrySchema, type RepositoryTreeEntry } from '../contracts/repositorySync.js';
 import type { KeyObject } from 'node:crypto';
 import { canonicalGitHubId } from './config.js';
 import { createGitHubAppJwt } from './crypto.js';
@@ -117,6 +118,8 @@ export interface PublishGitHubManifestInput {
    * second project of the same organisation is publishing into — out of reach.
    */
   readonly expectedHead: string | null;
+  /** Resolve the write set against the exact parent used for this commit. */
+  readonly selectFiles?: (head: string) => Promise<{ files: readonly GitHubPublishFile[]; message: string }>;
   /** Host-persisted receipt from this same publication, never an observed head. */
   readonly seedCommitSha?: string | null;
   /** Must persist before subsequent remote writes. */
@@ -691,12 +694,12 @@ export class GitHubAppClient {
    * two forks refused this way while the local row still said `all`. The
    * installation's own repository list is the authoritative answer.
    */
-  async installationIncludesRepository(installationToken: string, repositoryId: string): Promise<boolean> {
+  async installationIncludesRepository(installationToken: string, repositoryId: string, signal?: AbortSignal): Promise<boolean> {
     const id = canonicalGitHubId(repositoryId, 'GitHub repository id');
     let seen = 0;
     for (let page = 1; page <= MAX_GITHUB_INSTALLATION_PAGES; page += 1) {
       const result = await this.request({
-        token: installationToken,
+        token: installationToken, signal,
         path: `/installation/repositories?per_page=100&page=${page}`,
       });
       const object = asObject(result.json, 'GitHub installation repositories response');
@@ -755,13 +758,13 @@ export class GitHubAppClient {
     return appInstallation;
   }
 
-  async createInstallationToken(installationId: string, pullRequests = false): Promise<GitHubInstallationToken> {
+  async createInstallationToken(installationId: string, pullRequests = false, readOnly = false, signal?: AbortSignal): Promise<GitHubInstallationToken> {
     const id = canonicalGitHubId(installationId, 'GitHub installation id');
     const result = await this.request({
       method: 'POST',
-      token: this.appJwt(),
+      token: this.appJwt(), signal,
       path: `/app/installations/${id}/access_tokens`,
-      body: { permissions: { ...GITHUB_PUBLISH_PERMISSIONS, ...(pullRequests ? { pull_requests: 'write' } : {}) } },
+      body: { permissions: readOnly ? { contents: 'read' } : { ...GITHUB_PUBLISH_PERMISSIONS, ...(pullRequests ? { pull_requests: 'write' } : {}) } },
     });
     const object = asObject(result.json, 'GitHub installation token response');
     const token = safeToken(responseString(object['token'], 'GitHub installation token', 16_384));
@@ -776,8 +779,8 @@ export class GitHubAppClient {
     }
     const grantedPermissions = permissions(object['permissions']);
     if (
-      grantedPermissions['administration'] !== 'write' ||
-      grantedPermissions['contents'] !== 'write' ||
+      (!readOnly && grantedPermissions['administration'] !== 'write') ||
+      (readOnly ? !['read', 'write'].includes(grantedPermissions['contents'] ?? '') : grantedPermissions['contents'] !== 'write') ||
       (pullRequests && grantedPermissions['pull_requests'] !== 'write')
     ) {
       throw new Error('GitHub installation token lacks required publish permissions');
@@ -866,12 +869,77 @@ export class GitHubAppClient {
     return parseRepository(result.json);
   }
 
+  async mergeUpstream(input: { token: string; owner: string; name: string; branch: string; signal: AbortSignal }): Promise<string> {
+    const result = await this.request({ token: input.token, method: 'POST', signal: input.signal,
+      path: `/repos/${encodeSegment(ownerLogin(input.owner))}/${encodeSegment(repositoryName(input.name))}/merge-upstream`,
+      body: { branch: branchName(input.branch) } });
+    const object = asObject(result.json, 'GitHub upstream merge');
+    const kind = responseString(object['merge_type'], 'upstream merge type', 32);
+    if (!['fast-forward', 'merge', 'none'].includes(kind)) throw new Error('Unknown upstream merge result');
+    return kind;
+  }
+
+  async readRepositoryTree(input: {
+    token: string; owner: string; name: string; commitSha: string; signal?: AbortSignal;
+    paths?: readonly string[];
+  }): Promise<RepositoryTreeEntry[]> {
+    input.signal?.throwIfAborted();
+    const commit = await this.getCommit(input.token, input.owner, input.name, input.commitSha, input.signal);
+    const read = async (treeSha: string, recursive: boolean): Promise<RepositoryTreeEntry[]> => {
+      const result = await this.request({ token: input.token,
+        path: this.gitPath(input.owner, input.name, `trees/${treeSha}${recursive ? '?recursive=1' : ''}`),
+        responseMaxBytes: 8 * 1024 * 1024, signal: input.signal });
+      const tree = asObject(result.json, 'GitHub tree');
+      if (tree['truncated'] !== false || !Array.isArray(tree['tree'])) throw new Error('Repository tree is incomplete');
+      return tree['tree'].map(value => {
+        const entry = asObject(value, 'GitHub tree entry');
+        return repositoryTreeEntrySchema.parse({ path: entry['path'], mode: entry['mode'],
+          sha: entry['sha'], type: entry['type'], ...(entry['size'] === undefined ? {} : { size: entry['size'] }) });
+      });
+    };
+    if (!input.paths) return read(commit.treeSha, true);
+    const cache = new Map<string, RepositoryTreeEntry[]>();
+    const found = new Map<string, RepositoryTreeEntry>();
+    for (const p of input.paths) {
+      let treeSha = commit.treeSha;
+      const parts = p.split('/');
+      for (let i = 0; i < parts.length; i++) {
+        input.signal?.throwIfAborted();
+        let entries = cache.get(treeSha);
+        if (!entries) { entries = await read(treeSha, false); cache.set(treeSha, entries); }
+        // Keep the directory's entries, including case aliases and path-type conflicts.
+        const prefix = parts.slice(0, i).join('/');
+        for (const e of entries) {
+          const path = prefix ? `${prefix}/${e.path}` : e.path;
+          found.set(path, { ...e, path });
+        }
+        const next = entries.find(e => e.path === parts[i]);
+        if (!next || next.type !== 'tree') break;
+        treeSha = next.sha;
+      }
+    }
+    return [...found.values()];
+  }
+
+  async readRepositoryBlob(input: {
+    token: string; owner: string; name: string; sha: string; signal: AbortSignal;
+  }): Promise<Buffer> {
+    const result = await this.request({ token: input.token,
+      path: this.gitPath(input.owner, input.name, `blobs/${sha(input.sha, 'blob sha')}`),
+      responseMaxBytes: MAX_GITHUB_REQUEST_BODY_BYTES, signal: input.signal });
+    const object = asObject(result.json, 'GitHub blob');
+    if (object['encoding'] !== 'base64' || typeof object['content'] !== 'string') throw new Error('Unsupported repository blob encoding');
+    const content = Buffer.from(object['content'], 'base64');
+    if (content.length > 10 * 1024 * 1024 || content.length !== object['size']) throw new Error('Repository blob exceeds its bound or is incomplete');
+    return content;
+  }
+
   /** Read immutable git objects; never follow archive redirects carrying credentials. */
   async readRepositoryFiles(input: {
     token: string; owner: string; name: string; commitSha: string; signal: AbortSignal;
   }): Promise<readonly GitHubPublishFile[]> {
     input.signal.throwIfAborted();
-    const commit = await this.getCommit(input.token, input.owner, input.name, input.commitSha);
+    const commit = await this.getCommit(input.token, input.owner, input.name, input.commitSha, input.signal);
     const result = await this.request({ token: input.token,
       path: this.gitPath(input.owner, input.name, `trees/${commit.treeSha}?recursive=1`),
       responseMaxBytes: 8 * 1024 * 1024, signal: input.signal });
@@ -1001,13 +1069,14 @@ export class GitHubAppClient {
     token: string,
     owner: string,
     repository: string,
-    branch: string
+    branch: string,
+    signal?: AbortSignal
   ): Promise<GitHubBranchHead> {
     const safeOwner = ownerLogin(owner);
     const safeRepository = repositoryName(repository);
     const safeBranch = branchName(branch);
     const path = `/repos/${encodeSegment(safeOwner)}/${encodeSegment(safeRepository)}/git/ref/heads/${safeBranch.split('/').map(encodeSegment).join('/')}`;
-    const result = await this.request({ token, path, accepted: [200, 404, 409] });
+    const result = await this.request({ token, path, accepted: [200, 404, 409], signal });
     if (result.status === 409) return { state: 'empty' };
     if (result.status === 404) return { state: 'missing' };
     const object = asObject(result.json, 'GitHub reference response');
@@ -1024,10 +1093,11 @@ export class GitHubAppClient {
     token: string,
     owner: string,
     repository: string,
-    commitSha: string
+    commitSha: string,
+    signal?: AbortSignal
   ): Promise<{ treeSha: string; parents: readonly string[] }> {
     const result = await this.request({
-      token,
+      token, signal,
       path: this.gitPath(owner, repository, `commits/${sha(commitSha, 'GitHub commit sha')}`),
     });
     const object = asObject(result.json, 'GitHub commit response');
@@ -1246,7 +1316,7 @@ export class GitHubAppClient {
     const owner = ownerLogin(input.repository.owner);
     const repository = repositoryName(input.repository.name);
     const branch = branchName(input.branch ?? 'main');
-    if (input.files.length < 1 || input.files.length > MAX_GITHUB_PUBLISH_FILES) {
+    if ((!input.files.length && input.expectedHead === null) || input.files.length > MAX_GITHUB_PUBLISH_FILES) {
       throw new Error('GitHub publish has an invalid number of files');
     }
     const files = input.files.map((file) => ({
@@ -1470,7 +1540,11 @@ export class GitHubAppClient {
     // returned as `baseSha`, which makes "somebody moved this branch" a
     // store-only, network-free, timestamped fact afterwards.
     const baseTreeSha = (await this.getCommit(input.token, owner, repository, head.sha)).treeSha;
-    const entries = await this.blobEntries(input.token, owner, repository, files);
+    const selected = input.selectFiles ? await input.selectFiles(head.sha) : { files, message: input.message };
+    const selectedFiles = this.normalizeManifestFiles({ ...input, files: selected.files }).files;
+    if (!selectedFiles.length) return { branch, treeSha: baseTreeSha, commitSha: head.sha,
+      ref, baseSha: head.sha, publishKind: 'unchanged' };
+    const entries = await this.blobEntries(input.token, owner, repository, selectedFiles);
     const treeSha = await this.createTree({
       token: input.token,
       owner,
@@ -1498,7 +1572,7 @@ export class GitHubAppClient {
       token: input.token,
       owner,
       repository,
-      message: input.message,
+      message: selected.message,
       treeSha,
       parents: [head.sha],
     });

@@ -65,12 +65,13 @@ useful in the UI.
 
 Set **Active**, give it the URL above, and set a secret — see step 2.
 
-**Subscribe to no events.** The only two events the code handles are
-`installation` and `installation_repositories`
-([`webhook.ts`](../src/github/webhook.ts)), and GitHub sends both to
-every App by default; neither appears in the subscribe list. Every other event
-is signature-checked, journaled and discarded, and a large `push` payload would
-be refused at the 1 MiB ceiling and journaled as noise.
+**Subscribe to Push.** `installation` and `installation_repositories` are
+still delivered by default. Push deliveries notify owners once per project
+between runs; they never launch work or synchronise a workspace. Select only the
+repositories Atoma should use: an all-repositories installation sends every push.
+Bodies over 1 MiB are refused and journaled as `webhook.rejected`, including
+legitimate very large pushes. Missing a notification does not affect correctness:
+the next run reads the repository again.
 
 ### Permissions
 

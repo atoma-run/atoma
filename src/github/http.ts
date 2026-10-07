@@ -1,3 +1,4 @@
+import type { RepositoryPush } from '../contracts/repositorySync.js';
 import type { IncomingMessage } from 'node:http';
 import type { PlatformEventSink } from '../contracts/platformEvents.js';
 import { eventLabel } from '../contracts/platformEvents.js';
@@ -145,6 +146,7 @@ export async function handleGitHubWebhook(input: {
    * event log (tests, the ungated path) behaves exactly as before.
    */
   readonly events?: PlatformEventSink;
+  readonly onPush?: (push: RepositoryPush) => void;
 }): Promise<GitHubHttpResult> {
   try {
     const rawBody = await readBoundedBody(input.req, GITHUB_WEBHOOK_MAX_BODY_BYTES);
@@ -157,6 +159,8 @@ export async function handleGitHubWebhook(input: {
       deliveryId: headerValue(input.req.headers['x-github-delivery']),
       event: headerValue(input.req.headers['x-github-event']),
       ...(input.events ? { events: input.events } : {}),
+
+      onPush: input.onPush,
     });
     return { kind: 'json', status: 202, body: result };
   } catch (error) {
