@@ -202,6 +202,27 @@ describe('record_probe', () => {
     );
   });
 
+  it('keeps the source-wide refusal when the guard cannot be shown to own every boot', async () => {
+    // Run 7b49d757's own spelling of the guard, unspaced.
+    const guarded =
+      "if(process.argv.includes('--serve')){require('http').createServer((q,r)=>r.end('ok')).listen(0,()=>console.log('LISTENING_ON_PORT=1'));}";
+    writeFileSync(join(root, 'domain-tests.js'), `${guarded}\nelse {console.log('6 passed');}`);
+    writeFileSync(
+      join(root, 'two-boots.js'),
+      `${guarded}\nelse {require('http').createServer((q,r)=>r.end('ok')).listen(0,()=>console.log('LISTENING_ON_PORT=2'));}`
+    );
+    const t = recordProbeTool({ sandbox, shellTimeoutMs: 1_000 });
+
+    await expect(t.execute({ cmd: 'node domain-tests.js' })).resolves.toMatchObject({ exitCode: 0 });
+    // A boot outside the guard runs without the flag.
+    await expect(t.execute({ cmd: 'node two-boots.js' })).rejects.toThrow(/long-running server/);
+    // Words the splitter cannot read are unknown, and unknown words may hold the flag.
+    await expect(t.execute({ cmd: 'echo "a\\"b"; node domain-tests.js' })).rejects.toThrow(
+      /long-running server/
+    );
+    expect(() => manifest()).not.toThrow();
+  });
+
   it('refuses a server hidden behind an env assignment and shell execution', async () => {
     writeFileSync(
       join(root, 'server.js'),
