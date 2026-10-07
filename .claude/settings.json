@@ -6,7 +6,10 @@
       "Skill(claude-api:*)",
       "WebFetch(domain:docs.github.com)",
       "WebSearch",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(gh pr view *)",
+      "Bash(gh pr checks *)",
+      "Bash(gh pr merge *)"
     ],
     "additionalDirectories": [
       "/tmp",
