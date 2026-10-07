@@ -1411,5 +1411,6 @@
   "projects.githubAccess.retryFailed": "চালিয়ে যাওয়া যায়নি। GitHub অ্যাক্সেস পরীক্ষা করে আবার চেষ্টা করুন।",
   "projects.githubAccess.requesterOnly": "যিনি এই run-এর অনুরোধ করেছেন, তাঁকে চালিয়ে যেতে বলুন।",
   "projects.section.noFiles": "এই প্রজেক্টে এখনও কোনো ফাইল সেভ করা হয়নি।",
-  "projects.section.noDeliveredResult": "এই প্রজেক্টে এখনও কোনো ফলাফল ডেলিভার করা হয়নি।"
+  "projects.section.noDeliveredResult": "এই প্রজেক্টে এখনও কোনো ফলাফল ডেলিভার করা হয়নি।",
+  "appearance.snow": "তুষার"
 }

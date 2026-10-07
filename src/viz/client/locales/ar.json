@@ -1411,5 +1411,6 @@
   "projects.githubAccess.retryFailed": "تعذّرت المتابعة. تحقّق من صلاحية الوصول إلى GitHub وحاول مجددًا.",
   "projects.githubAccess.requesterOnly": "اطلب من الشخص الذي طلب هذا الـ run المتابعة.",
   "projects.section.noFiles": "لا يحتوي هذا المشروع على ملفات محفوظة حتى الآن.",
-  "projects.section.noDeliveredResult": "لا يحتوي هذا المشروع على نتيجة مُسلَّمة حتى الآن."
+  "projects.section.noDeliveredResult": "لا يحتوي هذا المشروع على نتيجة مُسلَّمة حتى الآن.",
+  "appearance.snow": "ثلج"
 }

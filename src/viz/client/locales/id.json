@@ -1411,5 +1411,6 @@
   "projects.githubAccess.retryFailed": "Tidak dapat melanjutkan. Periksa akses GitHub dan coba lagi.",
   "projects.githubAccess.requesterOnly": "Minta orang yang meminta run ini untuk melanjutkan.",
   "projects.section.noFiles": "Proyek ini belum memiliki file tersimpan.",
-  "projects.section.noDeliveredResult": "Proyek ini belum memiliki hasil terkirim."
+  "projects.section.noDeliveredResult": "Proyek ini belum memiliki hasil terkirim.",
+  "appearance.snow": "Salju"
 }

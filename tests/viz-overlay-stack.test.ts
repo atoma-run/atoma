@@ -74,15 +74,22 @@ describe('the GL overlay stack', () => {
     const assignments = renderer.match(/this\.\w+(?:\.\w+)*\.filters\s*=\s*[^;]+/g) ?? [];
     // Install and teardown of the full-stage carrier on `stage`, and of the
     // bounded one on `lightRoot`, which lights only what `stage` drew under
-    // it. A filter on markRoot would smear the crystal; one on tooltipRoot
-    // would smear the text a reader opened the bubble to read; a light
-    // missing from both un-lights the product.
+    // it. Snow's separate color correction on markRoot preserves the crystal
+    // through the light theme's CSS inversion; the pointer light stays off it.
     expect(assignments).toEqual([
       'this.stage.filters = [filter]',
       'this.lightRoot.filters = [probe]',
       'this.stage.filters = null',
       'this.lightRoot.filters = null',
+      'this.markRoot.filters = []',
+      'this.markRoot.filters = [filter]',
     ]);
+    const snowFilter = renderer.slice(
+      renderer.indexOf('  private syncLightThemeMarkFilter('),
+      renderer.indexOf('  /**\n   * Parks a live refresh')
+    );
+    expect(snowFilter).toContain('const filter = new ColorMatrixFilter()');
+    expect(snowFilter).not.toContain('this.pointerLightFilter');
   });
 
   it('keeps views off the layers above the light', () => {
