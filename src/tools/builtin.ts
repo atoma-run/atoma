@@ -3477,13 +3477,45 @@ function interpreterScriptPaths(
   return [...paths];
 }
 
-function sourceStartsLongRunningServer(source: string, scriptPath: string): boolean {
+function sourceStartsLongRunningServer(
+  source: string,
+  scriptPath: string,
+  invokedArgs: readonly string[] | undefined
+): boolean {
   if (/\.(?:[cm]?js)$/i.test(scriptPath)) {
     // The canonical Node server contract emits the marker and calls listen.
     // Keep both signals to avoid rejecting finite tests that briefly bind and
     // close their own server.
     const listenAt = source.search(/\.listen\s*\(/);
-    if (!/LISTENING_ON_PORT/.test(source) || listenAt < 0) return false;
+    const markerAt = source.search(/LISTENING_ON_PORT/);
+    if (markerAt < 0 || listenAt < 0) return false;
+
+    // A script may expose several modes. Honour the canonical explicit boot
+    // contract when the detected server is wholly inside an argv flag guard;
+    // source-wide detection must not turn its finite modes into servers.
+    // Unknown arguments may select any mode, and a boot outside the guard
+    // runs whatever the arguments say, so either keeps the source-wide rule.
+    // A selected mode is judged like the whole source: a harness that closes
+    // its own listener stays finite.
+    const guardRe = /if\s*\(\s*process\.argv\.includes\(\s*(['"])([^'"]+)\1\s*\)\s*\)\s*\{/g;
+    for (const guard of invokedArgs ? source.matchAll(guardRe) : []) {
+      const openAt = (guard.index ?? 0) + guard[0].length - 1;
+      let depth = 0;
+      let closeAt = -1;
+      for (let i = openAt; i < source.length; i++) {
+        if (source[i] === '{') depth++;
+        else if (source[i] === '}' && --depth === 0) { closeAt = i; break; }
+      }
+      if (closeAt < 0) continue;
+      const inside = source.slice(openAt, closeAt + 1);
+      const outside = source.slice(0, openAt) + source.slice(closeAt + 1);
+      if (/\.listen\s*\(/.test(inside) && /LISTENING_ON_PORT/.test(inside) &&
+          !/\.listen\s*\(/.test(outside) && !/LISTENING_ON_PORT/.test(outside)) {
+        if (invokedArgs && !invokedArgs.includes(guard[2] ?? '')) return false;
+        break;
+      }
+    }
+
     // A small finite harness may bind, assert the readiness contract and
     // immediately close. Recognise the local close, but not shutdown handlers
     // (`process.on('SIGTERM', ...)`) used by real long-running servers.
@@ -3605,10 +3637,9 @@ export function recordProbeTool(opts: BuiltinToolOptions): BuiltinTool {
         );
       }
 
-      const shellProgram =
-        command === 'bash' && argv[0] === '-c' && typeof argv[1] === 'string'
-          ? argv[1]
-          : cmd;
+      const shellSource =
+        command === 'bash' && argv[0] === '-c' && typeof argv[1] === 'string' ? argv[1] : undefined;
+      const shellProgram = shellSource ?? cmd;
       if (
         /^(?:curl|wget)\b/i.test(command) ||
         /(?:^|[;&|]\s*)(?:curl|wget)\b/i.test(shellProgram)
@@ -3625,10 +3656,22 @@ export function recordProbeTool(opts: BuiltinToolOptions): BuiltinTool {
       // project's explicit boot contract before spawning and route the model
       // to the lifecycle + machine-recorded HTTP path.
       const scriptPaths = interpreterScriptPaths(command, argv, shellProgram);
+      // What a script could read in process.argv: argv itself, or the words
+      // of a shell line. A line this splitter cannot read (`\"`) leaves them
+      // unknown; splitting it inside the try below swallowed the error and
+      // skipped the server check entirely.
+      let invokedArgs: readonly string[] | undefined = argv;
+      if (shellSource !== undefined) {
+        try {
+          invokedArgs = splitCommandLine(shellSource);
+        } catch {
+          invokedArgs = undefined;
+        }
+      }
       for (const scriptPath of scriptPaths) {
         try {
           const source = readFileSync(opts.sandbox.resolve(scriptPath), 'utf8');
-          if (sourceStartsLongRunningServer(source, scriptPath)) {
+          if (sourceStartsLongRunningServer(source, scriptPath, invokedArgs)) {
             throw new Error(
               `record_probe: "${cmd}" starts a long-running server, not a finite probe. ` +
                 'Use start_node_server, then fetch_url with record=true for each endpoint request.'
