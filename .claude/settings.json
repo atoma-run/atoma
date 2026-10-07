@@ -11,6 +11,9 @@
       "Bash(gh pr checks *)",
       "Bash(gh pr merge *)"
     ],
+    "deny": [
+      "Bash(gh pr merge *--admin*)"
+    ],
     "additionalDirectories": [
       "/tmp",
       "/private/tmp"
