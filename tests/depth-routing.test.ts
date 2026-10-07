@@ -30,6 +30,7 @@ const floor = [{ obligation: 'dom-interaction' as const, deliverable: 'index.htm
 const result: Result = { output: { complete: true }, summary: 'Done', trace: [], producedBy: { tier: 1, name: 'leaf', viaFallback: false } };
 class Executor implements ToolExecutor {
   files: Record<string, string> = { 'index.html': '<button>Click</button>' };
+  interactionLog = ['click button'];
   has(name: string) { return ['read_file', 'validate_html'].includes(name); }
   async execute(name: string, args: Record<string, unknown>): Promise<unknown> {
     const path = typeof args['path'] === 'string' ? args['path'] : 'index.html';
@@ -38,7 +39,7 @@ class Executor implements ToolExecutor {
       return { content: this.files[path] };
     }
     return { ok: true, url: 'http://localhost:5050/', errors: [], warnings: [], failedRequests: [],
-      interactionLog: ['click button'], requestedInteractions: 1, ignoredInteractions: 0,
+      interactionLog: this.interactionLog, requestedInteractions: 1, ignoredInteractions: 0,
       document: { path, sha256: createHash('sha256').update(this.files[path]!).digest('hex') } };
   }
 }
@@ -67,6 +68,60 @@ async function observe(ctx: RunContext, branch = 'descendant', path = 'index.htm
   const fork = forkBranch(forkBranch(ctx, 'ancestor'), branch);
   await fork.tools!.execute('validate_html', { path });
 }
+
+it('retains unchanged browser evidence from the refused pass during remediation acceptance', async () => {
+  const executor = new Executor();
+  const ctx = context(executor);
+  executor.interactionLog = ['FIRST PASS: mobile order changed, persisted after reload, then reset'];
+  const first = forkBranch(ctx, 'first-pass');
+  await first.tools!.execute('validate_html', { path: 'index.html' });
+  const previousEvidence = executorEvidence({}, first);
+
+  // The remediation changes another file and records only a smoke journey.
+  executor.files['domain-tests.js'] = 'assertOrderTransitions();';
+  executor.interactionLog = ['REMEDIATION: page loads'];
+  const remediation = forkBranch(ctx, 'remediation');
+  await remediation.tools!.execute('validate_html', { path: 'index.html' });
+  ctx.llm.enqueue(req => {
+    expect(req.userContent).toContain('FIRST PASS: mobile order changed, persisted after reload, then reset');
+    expect(req.userContent).toContain('REMEDIATION: page loads');
+    return { text: jsonText({ approved: true, reasoning: 'Both journeys are evidenced.' }),
+      stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } };
+  });
+
+  await acceptRootResult({ actor: new Actor(3), task, result: { ...result, evidence: executorEvidence({}, remediation) },
+    previousEvidence, ctx, floor: [], phaseCoverage: [] });
+});
+
+it('carries no refused-pass evidence the remediation made untrue or never observed', async () => {
+  const executor = new Executor();
+  const ctx = context(executor);
+  executor.interactionLog = ['FIRST PASS: order persisted after reload'];
+  const first = forkBranch(ctx, 'first-pass');
+  await first.tools!.execute('validate_html', { path: 'index.html' });
+  const previousEvidence = [...executorEvidence({}, first),
+    { source: 'recorded-probe' as const, cmd: 'node domain-tests.js', exitCode: 0, stdout: 'FIRST PASS DECLARATION' }];
+
+  // The remediation rewrites the very page the first pass observed.
+  executor.files['index.html'] = '<button>Rewritten</button>';
+  executor.interactionLog = ['REMEDIATION: page loads'];
+  const remediation = forkBranch(ctx, 'remediation');
+  await remediation.tools!.execute('validate_html', { path: 'index.html' });
+  ctx.llm.enqueue(req => {
+    expect(req.userContent).toContain('REMEDIATION: page loads');
+    expect(req.userContent).not.toContain('FIRST PASS: order persisted after reload');
+    expect(req.userContent).not.toContain('FIRST PASS DECLARATION');
+    return { text: jsonText({ approved: true, reasoning: 'Only the current page is evidenced.' }),
+      stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } };
+  });
+
+  // A full-stack child, as in run b38cb8da: ground truth reads its recorded
+  // probes back, where a carried declaration would replace the current ones.
+  const actor = new Actor(3, false, ['read_file', 'validate_html', 'write_file', 'start_node_server']);
+  await acceptRootResult({ actor, task, result: { ...result, evidence: executorEvidence({}, remediation) },
+    previousEvidence, ctx, floor: [], phaseCoverage: [] });
+  expect(ctx.llm.calls).toHaveLength(1);
+});
 
 describe('standing HTTP evidence at root acceptance (owner decision 2026-10-04)', () => {
   const server = "import { route } from './lib/routes.js';\nroute();\n";

@@ -313,7 +313,8 @@ export async function runDepthTask(args: {
             ...(args.checklistOrigin ? { checklistOrigin: args.checklistOrigin } : {}),
             // The refused pass's own record: a remediation's acceptance must
             // re-check what that one listed (run 5dff35b0).
-            ...(refused ? { previousAcceptance: refused.acceptance } : {}) }), acceptanceCtx.signal);
+            ...(refused ? { previousAcceptance: refused.acceptance,
+              previousEvidence: refused.result.evidence } : {}) }), acceptanceCtx.signal);
           acceptanceCtx.signal.throwIfAborted();
         } catch (error) {
           cancellation.signal.throwIfAborted();
