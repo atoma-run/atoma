@@ -1,6 +1,7 @@
 import { PlatformSettingsStore } from '../platform/settings.js';
 import { repositorySyncSchema, type RepositorySync } from '../contracts/repositorySync.js';
 import { randomUUID } from 'node:crypto';
+import { compactRunSchema, type PageCursor, type ProjectPageInput, type RunPageInput } from '../contracts/clientExperience.js';
 import { orgRunLimitSchema, type OrgRunCapacity } from '../contracts/projects.js';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -997,6 +998,40 @@ END;
         .prepare('SELECT * FROM projects WHERE org_id = ? ORDER BY updated_at DESC, project_id ASC')
         .all(orgId) as ProjectRow[]
     ).map(projectFromRow);
+  }
+
+  /** Bounded activity-ordered menu. Undefined organisation is a platform-admin read. */
+  projectPage(orgId: string | undefined, input: ProjectPageInput, cursor: PageCursor | null) {
+    const rows = this.db.prepare(`
+      WITH cards AS (
+        SELECT p.*, o.name AS org_name,
+          COALESCE((SELECT MAX(r.created_at) FROM project_runs r WHERE r.project_id=p.project_id AND r.org_id=p.org_id), p.created_at) AS activity_at
+        FROM projects p LEFT JOIN auth_organisations o ON o.org_id=p.org_id
+        WHERE (@org IS NULL OR p.org_id=@org)
+          AND (@search='' OR instr(lower(p.name || ' ' || p.slug), lower(@search))>0)
+      ) SELECT * FROM cards WHERE @at IS NULL OR activity_at<@at OR (activity_at=@at AND project_id>@id)
+        ORDER BY activity_at DESC, project_id ASC LIMIT @limit
+    `).all({ org: orgId ?? null, search: input.search ?? '', at: cursor?.at ?? null,
+      id: cursor?.id ?? '', limit: (input.limit ?? 20) + 1 }) as Array<ProjectRow & { org_name: string | null; activity_at: string }>;
+    return rows.map(row => ({ project: projectFromRow(row), orgName: row.org_name, activityAt: row.activity_at }));
+  }
+
+  /** Select only menu fields: manifests, goals in full and traces stay behind detail reads. */
+  projectRunPage(orgId: string, projectId: string, input: RunPageInput, cursor: PageCursor | null) {
+    const rows = this.db.prepare(`
+      SELECT r.project_run_id AS projectRunId, r.project_id AS projectId, r.title,
+        substr(r.goal, 1, 240) AS goalExcerpt, r.status, r.created_at AS createdAt,
+        r.started_at AS startedAt, r.ended_at AS endedAt, json_extract(r.stats_json, '$.costUsd') AS costUsd,
+        p.status AS publicationStatus, p.repository_url AS repositoryUrl, p.pull_request_url AS pullRequestUrl
+      FROM project_runs r LEFT JOIN project_publications p ON p.project_run_id=r.project_run_id AND p.org_id=r.org_id
+      WHERE r.org_id=@org AND r.project_id=@project
+        AND (@status IS NULL OR r.status=@status)
+        AND (@search='' OR instr(lower(COALESCE(r.title,'') || ' ' || r.goal), lower(@search))>0)
+        AND (@at IS NULL OR r.created_at<@at OR (r.created_at=@at AND r.project_run_id>@id))
+      ORDER BY r.created_at DESC, r.project_run_id ASC LIMIT @limit
+    `).all({ org: orgId, project: projectId, status: input.status ?? null, search: input.search ?? '',
+      at: cursor?.at ?? null, id: cursor?.id ?? '', limit: (input.limit ?? 20) + 1 });
+    return rows.map(row => compactRunSchema.parse(row));
   }
 
   /**

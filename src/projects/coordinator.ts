@@ -1222,6 +1222,34 @@ export class ProjectRunCoordinator {
     return projectRunTimeoutMs(this.hostEnv, this.explicitTimeoutMs, this.platformLimits());
   }
 
+  /** Pure configuration resolution shared by launch and the read-only readiness surface. */
+  private configuredEnvironment(input: {
+    orgId: string; principalId: string; runId: string; workspacePath: string; runsPath: string;
+    skillsPath: string; artifactManifestPath: string; runModels?: RunTierModels;
+  }) {
+    const principalCodexProfile = this.resolvePrincipalCodexProfile(input.principalId);
+    const built = projectRunEnvironment({ ...input, hostEnv: this.hostEnv, dbPath: this.dbPath,
+      tierModels: this.resolveTierModels(input.principalId), orgTierModels: this.resolveOrgTierModels(input.orgId),
+      orgProviderKeys: this.resolveOrgProviderKeys(input.orgId),
+      subscriptionTransport: this.resolveSubscriptionGrant(input.principalId, input.orgId), principalCodexProfile });
+    assertServedHostChatGptModels(Object.values(built.payers).map(row => row.selection));
+    return { built, principalCodexProfile };
+  }
+
+  /** No lease, row, directory, provider request or model discovery is created here. */
+  configurationReadiness(orgId: string, principalId: string, projectId: string) {
+    const timeoutMs = this.runTimeoutMs();
+    readHaystackLaunch(this.hostEnv);
+    if (this.hostEnv['ATOMA_LAUNCHER_SOCKET'] && !this.hostEnv['ATOMA_LAUNCHER_WORKSPACE_ROOT']) {
+      throw new ProjectRunConfigurationError('Launcher workspace root is required for project runs');
+    }
+    const layout = projectRunHostLayout(this.root, orgId, projectId, 'readiness');
+    const { built } = this.configuredEnvironment({ orgId, principalId, runId: 'readiness',
+      workspacePath: layout.workspacePath, runsPath: layout.runsPath, skillsPath: this.skillsRoot,
+      artifactManifestPath: layout.artifactManifestPath });
+    return { models: built.payers, timeoutMs };
+  }
+
   /**
    * Boot-time crash recovery: fail every run/publication a dead process left
    * in flight (see `ProjectStore.reconcileInterrupted`). Refuses to run while
@@ -1545,13 +1573,10 @@ export class ProjectRunCoordinator {
       skillsPath: run.hostPaths.skillsPath ?? layout.skillsPath,
       artifactManifestPath: layout.artifactManifestPath,
     };
-    const subscriptionGrant = this.resolveSubscriptionGrant(input.principalId, input.orgId);
-    const principalCodexProfile = this.resolvePrincipalCodexProfile(input.principalId);
     let environment: NodeJS.ProcessEnv;
     try {
-      const built = projectRunEnvironment({
-        hostEnv: this.hostEnv,
-        dbPath: this.dbPath,
+      const { built, principalCodexProfile } = this.configuredEnvironment({
+        principalId: input.principalId,
         workspacePath: paths.workspacePath,
         runsPath: paths.runsPath,
         skillsPath: paths.skillsPath,
@@ -1561,16 +1586,10 @@ export class ProjectRunCoordinator {
         // Read back from the RESERVED ROW, like the acceptance list below: the
         // row is what the rerun was admitted as.
         ...(run.modelOverrides ? { runModels: run.modelOverrides } : {}),
-        tierModels: this.resolveTierModels(input.principalId),
-        orgTierModels: this.resolveOrgTierModels(input.orgId),
-        orgProviderKeys: this.resolveOrgProviderKeys(input.orgId),
-        ...(subscriptionGrant ? { subscriptionTransport: subscriptionGrant } : {}),
-        ...(principalCodexProfile ? { principalCodexProfile } : {}),
       });
       environment = built.environment;
       // Before anything spends: a pin to a slug the host subscription stopped
       // serving failed a minute in, its planner already paid (2026-09-28).
-      assertServedHostChatGptModels(Object.values(built.payers).map((row) => row.selection));
       if (principalSubscriptionTiers(built.payers).length > 0) {
         if (!this.principalCodexModelsFor) {
           throw new ProjectRunConfigurationError('ChatGPT model discovery is unavailable. Refresh your models in Settings.');

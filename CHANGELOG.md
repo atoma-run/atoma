@@ -8,6 +8,13 @@ before launch, incomplete runs kept and explained, and comparison reruns.
 
 ### Added
 
+- MCP client workflow: compact searchable project/run pages, saved artifact
+  text/image readers and downloadable resources, trace-backed progress and
+  acceptance judgements, quota-free configuration readiness and structured
+  errors with next actions. Compatible hosts can show an inline MCP App with
+  files, publication receipts and cancellation; text clients keep their
+  existing response shapes. All file reads enforce the saved manifest and
+  organisation permissions.
 - TypeSafe Jev for bounded agent/recipe selection, eligible intermediate
   approvals and semantic recipe deduplication. Enabled for every organisation
   when the host has `TYPESAFE_API_KEY`, with the global `ATOMA_JEV=0` switch.

@@ -209,7 +209,10 @@ OAuth clients can connect through browser consent, including clients identified
 by a metadata URL. Project run tasks survive a client reconnect, and results
 link to run resources that compatible clients can open or follow.
 
-**Forty-two tools.** The visible subset depends on the caller's role.
+**Forty-five tools.** The visible subset depends on the caller's role. Compact
+searchable menus, recorded progress and saved-file readers keep the workflow
+inside the conversation. Hosts supporting MCP Apps can also display an inline
+run view; every client retains text results and file resource links.
 See the [MCP connection and authorization guide](docs/mcp-oauth.md).
 
 ### A platform that reviews its own runs
@@ -314,7 +317,7 @@ ready for production. See the [changelog](CHANGELOG.md) for what changed.
 | Version | `0.4.0` |
 | Node | 24.20+ (`.nvmrc` 24.20.0, `engines` >=24) |
 | Subsystems under their own contract | 18 |
-| MCP tools | 42 |
+| MCP tools | 45 |
 | Curated agent names | 118 molecules · 40 cells · 20 tissues |
 | Controlled benchmark rounds | 12 (`benchmark/RESULT.md` + `ROUND<n>.md`) |
 | Interface locales | 13 catalogs — 1 source, 12 translated |

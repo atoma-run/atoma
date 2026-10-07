@@ -1,4 +1,10 @@
 import { PROJECT_RUN_WAITING_MESSAGE } from '../contracts/projects.js';
+import { createHash } from 'node:crypto';
+import { z } from 'zod';
+import { artifactPageInputSchema, artifactReadInputSchema, pageCursorSchema, projectPageInputSchema, runPageInputSchema,
+  serviceProblem, type ServiceProblem, type ProjectPageInput, type RunPageInput, type PageCursor } from '../contracts/clientExperience.js';
+import { projectRunProgress } from './runProgress.js';
+import { artifactMime } from './artifactMedia.js';
 import { summarizeTraceFile } from '../viz/runIndex.js';
 import { isUtf8 } from 'node:buffer';
 import { assertPublishableArtifactPath, normalizeArtifactPath, readManifestArtifact } from './artifacts.js';
@@ -42,13 +48,24 @@ import {
 
 const MAX_JSON_BODY_BYTES = 64 * 1024;
 
+function clientInput<T>(schema: z.ZodType<T>, raw: unknown): T {
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) throw new ProjectHttpError(400, 'invalid reader arguments', {
+    fields: [...new Set(parsed.error.issues.map(issue => issue.path.join('.')))],
+  });
+  return parsed.data;
+}
+
 export class ProjectHttpError extends Error {
+  readonly problem: ServiceProblem;
   constructor(
     readonly status: number,
-    message: string
+    message: string,
+    details?: Partial<ServiceProblem>
   ) {
     super(message);
     this.name = 'ProjectHttpError';
+    this.problem = serviceProblem(status, message, details);
   }
 }
 
@@ -188,6 +205,17 @@ function newestActivityFirst(a: ReturnType<typeof publicProject>, b: ReturnType<
     || a.projectId.localeCompare(b.projectId);
 }
 
+function pageCursor(raw: string | undefined, query: string): PageCursor | null {
+  if (raw === undefined) return null;
+  try {
+    const parsed = pageCursorSchema.parse(JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')));
+    if (parsed.query !== query) throw new Error('query changed');
+    return parsed;
+  } catch { throw new ProjectHttpError(400, 'invalid cursor or changed search; restart from the first page', { fields: ['cursor'] }); }
+}
+
+const encodeCursor = (at: string, id: string, query: string) => Buffer.from(JSON.stringify({ at, id, query })).toString('base64url');
+
 export class ProjectService {
   private readonly store: import('./store.js').ProjectStore;
   private readonly coordinator: ProjectRunCoordinator;
@@ -250,6 +278,62 @@ export class ProjectService {
         shown.has(project.projectId)
       )
     ).sort(newestActivityFirst);
+  }
+
+  /** Compact menus are shared by HTTP and MCP; legacy listings keep their shape. */
+  projectPage(viewer: Viewer, raw: ProjectPageInput) {
+    const input = clientInput(projectPageInputSchema, raw);
+    const query = JSON.stringify(['projects', viewer.platformAdmin ? 'all' : viewer.orgId, input.search ?? '']);
+    const rows = this.store.projectPage(viewer.platformAdmin ? undefined : viewer.orgId, input, pageCursor(input.cursor, query));
+    const limit = input.limit ?? 20;
+    const selected = rows.slice(0, limit);
+    for (const orgId of new Set(selected.map(row => row.project.orgId))) this.auditRead(viewer, orgId, 'projects.index');
+    const projects = selected.map(({ project, orgName, activityAt }) => ({
+      projectId: project.projectId, name: project.name, slug: project.slug, status: project.status,
+      repositoryStatus: project.repositoryStatus, repositoryUrl: project.repositoryUrl, lastActivityAt: activityAt,
+      ...(viewer.platformAdmin ? { orgId: project.orgId, orgName } : {}),
+    }));
+    const last = selected.at(-1);
+    return { projects, nextCursor: rows.length > limit && last ? encodeCursor(last.activityAt, last.project.projectId, query) : null };
+  }
+
+  projectRunsPage(viewer: Viewer, projectId: string, raw: RunPageInput) {
+    const input = clientInput(runPageInputSchema, raw);
+    const orgId = this.readOrgFor(viewer, projectId);
+    if (!this.store.getProject(orgId, projectId)) throw new ProjectHttpError(404, 'project not found');
+    const query = JSON.stringify(['runs', orgId, projectId, input.search ?? '', input.status ?? null]);
+    const rows = this.store.projectRunPage(orgId, projectId, input, pageCursor(input.cursor, query));
+    const limit = input.limit ?? 20;
+    const runs = rows.slice(0, limit);
+    const last = runs.at(-1);
+    return { runs, nextCursor: rows.length > limit && last ? encodeCursor(last.createdAt, last.projectRunId, query) : null };
+  }
+
+  /** Configuration inspection is not admission and never starts or reserves work. */
+  projectReadiness(viewer: Viewer, projectId: string) {
+    const orgId = this.readOrgFor(viewer, projectId);
+    const project = this.store.getProject(orgId, projectId);
+    if (!project) throw new ProjectHttpError(404, 'project not found');
+    const problems: ServiceProblem[] = [];
+    const mayStart = orgId === viewer.orgId && roleAtLeast(viewer.role, 'org:member');
+    if (!mayStart) problems.push(serviceProblem(403, 'Starting work requires membership in the active organisation.'));
+    const capacity = this.store.runCapacity(orgId);
+    if (capacity.active >= capacity.maxConcurrent) problems.push(serviceProblem(409, capacity.maxConcurrent === 0
+      ? 'New runs are suspended for this organisation.' : 'The organisation already has its allowed outstanding work.',
+    { code: 'busy', retryable: capacity.maxConcurrent > 0, nextAction: capacity.maxConcurrent === 0
+      ? 'Ask the organisation administrator to enable runs.' : 'Follow the current run, then retry the same request.' }));
+    const installation = this.github?.listInstallations(orgId).find(row => row.installationId === project.repositoryTarget.installationId);
+    if (!installation || installation.status !== 'active') problems.push(serviceProblem(409, 'An active GitHub installation is required.',
+      { code: 'github_required', nextAction: 'Ask an organisation administrator to connect GitHub in Atoma Settings.' }));
+    let configuration: ReturnType<ProjectRunCoordinator['configurationReadiness']> | null = null;
+    if (mayStart) {
+      try { configuration = this.coordinator.configurationReadiness(orgId, viewer.principalId, projectId); }
+      catch { problems.push(serviceProblem(400, 'The configured models or host prerequisites cannot support this run.',
+        { code: 'configuration_required', nextAction: 'Check your model selections and provider connection in Settings. Ask the instance administrator to check host prerequisites if they are already configured.' })); }
+    }
+    return { projectId, organisation: { orgId, name: orgId === viewer.orgId ? viewer.orgName : null },
+      canRequest: mayStart, configured: problems.length === 0, capacity, configuration, problems,
+      liveChecks: 'not-performed', note: 'Configuration only: credentials, repository access, live capacity and personal model availability are checked again at launch. No price estimate or reservation.' };
   }
 
   /**
@@ -419,6 +503,31 @@ export class ProjectService {
     } catch { throw new ProjectHttpError(409, 'file is unavailable or differs from the saved workspace'); }
   }
 
+  artifacts(viewer: Viewer, projectId: string, runId: string, raw: unknown = {}) {
+    const input = clientInput(artifactPageInputSchema, raw);
+    const index = this.workspace(viewer, projectId, runId) as WorkspaceIndex;
+    const files = index.files.filter(file => !input.search || file.path.toLowerCase().includes(input.search.toLowerCase()));
+    const offset = input.offset ?? 0;
+    const limit = input.limit ?? 30;
+    return { projectId, runId, status: index.status, files: files.slice(offset, offset + limit), total: files.length,
+      nextOffset: offset + limit < files.length ? offset + limit : null };
+  }
+
+  artifactFile(viewer: Viewer, projectId: string, runId: string, raw: unknown) {
+    const input = clientInput(artifactReadInputSchema, raw);
+    const bytes = this.workspace(viewer, projectId, runId, input.path, 'bytes');
+    const snapshot = createHash('sha256').update(bytes).digest('hex');
+    if (input.snapshot && input.snapshot !== snapshot) throw new ProjectHttpError(409, 'file snapshot changed; restart at offset zero');
+    const text = isUtf8(bytes) && !bytes.includes(0) ? bytes.toString('utf8') : null;
+    const offset = input.offset ?? 0;
+    const limit = input.limit ?? 12000;
+    if (text !== null && offset > text.length) throw new ProjectHttpError(400, 'offset is beyond the file text', { fields: ['offset'] });
+    return { projectId, runId, path: input.path, size: bytes.length, snapshot, mimeType: artifactMime(bytes, input.path),
+      kind: text === null ? 'binary' as const : 'text' as const, text: text?.slice(offset, offset + limit) ?? null,
+      textOffset: offset, nextTextOffset: text !== null && offset + limit < text.length ? offset + limit : null,
+      untrusted: true as const };
+  }
+
   /** GET /api/projects/:id/runs */
   listProjectRuns(viewer: Viewer, projectId: string): unknown {
     const orgId = this.readOrgFor(viewer, projectId);
@@ -438,16 +547,18 @@ export class ProjectService {
   /** One project run, for a poller: the MCP's `atoma_run_status`. */
   /**
    * The run's ROW state under the same authorization as projectRunStatus,
-   * without its presentation: no trace parse, no payer or publication reads.
+   * without its full presentation: no payer or publication reads. Progress
+   * caches a bounded trace projection and reparses only when the file changes.
    * A synchronous MCP start re-reads its task every poll interval for up to
    * an hour, and presenting the run each time parsed the whole trace file
    * (~1,800 times per hour-long run, 2026-10-03); the task needs only the
-   * status, the binding and the timestamps.
+   * status, the binding, timestamps and a small activity projection.
    */
   projectRunState(viewer: Viewer, projectId: string, projectRunId: string): {
     readonly projectId: string; readonly projectRunId: string; readonly orgId: string;
     readonly requestedByPrincipalId: string; readonly status: string;
     readonly createdAt: string; readonly updatedAt: string; readonly endedAt: string | null;
+    readonly progress: import('../contracts/clientExperience.js').RunProgress;
   } {
     const orgId = this.readOrgFor(viewer, projectId);
     const run = this.store.getProjectRun(orgId, projectRunId);
@@ -455,7 +566,7 @@ export class ProjectService {
     return {
       projectId: run.projectId, projectRunId: run.projectRunId, orgId: run.orgId,
       requestedByPrincipalId: run.requestedByPrincipalId, status: run.status,
-      createdAt: run.createdAt, updatedAt: run.updatedAt, endedAt: run.endedAt ?? null,
+      createdAt: run.createdAt, updatedAt: run.updatedAt, endedAt: run.endedAt ?? null, progress: projectRunProgress(run),
     };
   }
 
@@ -463,7 +574,8 @@ export class ProjectService {
     const orgId = this.readOrgFor(viewer, projectId);
     const run = this.store.getProjectRun(orgId, projectRunId);
     if (!run || run.projectId !== projectId) throw new ProjectHttpError(404, 'project run not found');
-    return this.present(run, this.store.getPublicationForRun(orgId, run.projectRunId));
+    return { ...this.present(run, this.store.getPublicationForRun(orgId, run.projectRunId)), progress: projectRunProgress(run),
+      actions: { canCancel: orgId === viewer.orgId && roleAtLeast(viewer.role, 'org:member') && (run.status === 'queued' || run.status === 'running') } };
   }
 
   /**
@@ -491,7 +603,9 @@ export class ProjectService {
     }
     // ONE schema for both doors: a new run, or a comparison rerun of one.
     const input = startProjectRunInputSchema.safeParse(body);
-    if (!input.success) throw new ProjectHttpError(400, 'invalid run payload');
+    if (!input.success) throw new ProjectHttpError(400, 'invalid run payload', {
+      fields: [...new Set(input.error.issues.map(issue => issue.path.join('.')))],
+    });
     try {
       const { run, created } = await this.coordinator.startOutcome({
         orgId: viewer.orgId,
@@ -517,8 +631,10 @@ export class ProjectService {
       const publication = this.store.getPublicationForRun(viewer.orgId, run.projectRunId);
       return this.present(run, publication);
     } catch (error) {
-      if (error instanceof ProjectRunBusy) throw new ProjectHttpError(409, error.message);
-      if (error instanceof ProjectRunConfigurationError) throw new ProjectHttpError(400, error.message);
+      if (error instanceof ProjectRunBusy) throw new ProjectHttpError(409, error.message,
+        { code: 'busy', retryable: true, nextAction: 'Follow the active run or wait for the instance update, then retry the same request.' });
+      if (error instanceof ProjectRunConfigurationError) throw new ProjectHttpError(400, error.message,
+        { code: 'configuration_required', nextAction: 'Check project readiness and your provider/model settings before starting again.' });
       if (error instanceof ProjectStateConflict) throw new ProjectHttpError(409, error.message);
       if (error instanceof Error && error.message === 'project not found') {
         throw new ProjectHttpError(404, 'project not found');

@@ -92,6 +92,13 @@ export async function smokeMcpOAuth(base, cookie) {
     }));
     const projects = await client.callTool({ name: 'atoma_projects_list', arguments: {} });
     if (projects.isError) throw new Error('compiled MCP OAuth reader failed');
+    const compact = await client.callTool({ name: 'atoma_projects_list', arguments: { view: 'compact', limit: 1 } });
+    assert.ok(Array.isArray(compact.structuredContent?.projects), 'compiled compact project reader');
+    const tools = await client.listTools();
+    assert.equal(tools.tools.find(tool => tool.name === 'atoma_run_status')._meta.ui.resourceUri, 'ui://atoma/run.html');
+    const app = await client.readResource({ uri: 'ui://atoma/run.html' });
+    assert.equal(app.contents[0].mimeType, 'text/html;profile=mcp-app');
+    assert.ok(app.contents[0].text.includes('id="files"'), 'compiled MCP App is packaged');
   } finally { await client.close(); }
   const refresh = await post('/oauth/token', { grant_type: 'refresh_token', client_id,
     refresh_token: tokens.refresh_token, resource: `${base}/mcp` });

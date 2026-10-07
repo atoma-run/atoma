@@ -7,7 +7,7 @@
   "type": "module",
   "description": "Three-tier LLM agent orchestration with persisted types, earned trust, and symmetric supervision",
   "scripts": {
-    "build": "tsc -p tsconfig.json && npm run viz:build",
+    "build": "tsc -p tsconfig.json && npm run mcp:build && npm run viz:build",
     "launcher": "node dist/launcher/main.js",
     "launcher:dev": "tsx src/launcher/main.ts",
     "build:web": "docker build -f docker/web.Dockerfile -t atoma-web:latest .",
@@ -80,11 +80,14 @@
     "i18n:check": "node scripts/i18n.mjs check",
     "i18n:translate": "node scripts/i18n.mjs translate",
     "prepare": "node scripts/husky-install.mjs",
-    "viz:smoke:files": "node scripts/file-viewer-smoke.mjs"
+    "viz:smoke:files": "node scripts/file-viewer-smoke.mjs",
+    "mcp:build": "node scripts/build-mcp-app.mjs",
+    "mcp:smoke": "npm run mcp:build && node scripts/mcp-app-browser-smoke.mjs"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.220",
     "@anthropic-ai/sdk": "^0.115.0",
+    "@modelcontextprotocol/ext-apps": "^2.0.3",
     "@modelcontextprotocol/node": "^2.1.1",
     "@modelcontextprotocol/sdk": "^1.32.1",
     "@modelcontextprotocol/server": "^2.3.0",

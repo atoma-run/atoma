@@ -1,4 +1,6 @@
 import { PROJECT_RUN_WAITING_MESSAGE } from '../contracts/projects.js';
+import { runProgressSchema, serviceProblem, type ServiceProblem } from '../contracts/clientExperience.js';
+import { errorResult } from './results.js';
 import { randomBytes } from 'node:crypto';
 import type { CallToolResult, McpServer, ServerContext } from '@modelcontextprotocol/server';
 import { z } from 'zod';
@@ -74,10 +76,6 @@ export function jsonResult(payload: unknown): CallToolResult {
   const structured =
     payload !== null && typeof payload === 'object' && !Array.isArray(payload) ? { structuredContent: payload as Record<string, unknown> } : {};
   return { content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }], ...structured };
-}
-
-function errorResult(message: string): CallToolResult {
-  return { content: [{ type: 'text', text: message }], isError: true };
 }
 
 /** A status line for `tasks/get`: bounded, and honest that it is model output. */
@@ -415,6 +413,7 @@ interface ProjectRunSnapshot {
   readonly createdAt?: unknown;
   readonly updatedAt?: unknown;
   readonly endedAt?: unknown;
+  readonly progress?: unknown;
 }
 
 /**
@@ -492,9 +491,11 @@ export class ProjectRunTasks {
   private asTask(taskId: string, projectRunId: string, snapshot: ProjectRunSnapshot): TaskState {
     const now = new Date().toISOString();
     const cancelled = CANCEL_REQUESTED.has(taskId) || snapshot.status === 'cancelled';
+    const progress = runProgressSchema.safeParse(snapshot.progress);
     const line = cancelled && !PROJECT_TERMINAL.has(snapshot.status)
       ? `run ${projectRunId} cancellation requested, ${snapshot.status}`
-      : snapshot.status === 'queued' ? PROJECT_RUN_WAITING_MESSAGE : `run ${projectRunId} ${snapshot.status}`;
+      : progress.success ? `run ${projectRunId} ${snapshot.status} — ${progress.data.message}`
+        : snapshot.status === 'queued' ? PROJECT_RUN_WAITING_MESSAGE : `run ${projectRunId} ${snapshot.status}`;
     return {
       taskId,
       status: cancelled ? 'cancelled'
@@ -609,9 +610,9 @@ export class CallerTasks {
     }
   }
 
-  refuse(message: string, ttl: number, pollInterval = TASK_POLL_INTERVAL_MS): TaskState {
+  refuse(message: string, ttl: number, pollInterval = TASK_POLL_INTERVAL_MS, problem?: ServiceProblem): TaskState {
     const state = this.memory.create(this.owner, { ttl, pollInterval });
-    this.memory.finish(state.taskId, 'failed', errorResult(message));
+    this.memory.finish(state.taskId, 'failed', errorResult(message, problem));
     return this.memory.get(this.owner, state.taskId)!;
   }
 }
@@ -723,7 +724,7 @@ export function projectRunTask(
     start: async (args) => {
       const runs = tasks.projectRuns;
       const ttl = deps.service.runTaskBudgetMs() + TASK_RESULT_GRACE_MS;
-      const refuse = (message: string) => tasks.refuse(message, ttl, deps.pollMs ?? TASK_POLL_INTERVAL_MS);
+      const refuse = (message: string, problem?: ServiceProblem) => tasks.refuse(message, ttl, deps.pollMs ?? TASK_POLL_INTERVAL_MS, problem);
       if (!runs) return refuse('refused: project runs are not available to this caller');
       const viewer = deps.viewer();
       // The same line grammar as the console and the CLI: one parser, and a
@@ -731,7 +732,8 @@ export function projectRunTask(
       const parsed = args.acceptanceCriteria?.map((entry) => parseChecklistLines(entry));
       const invalid = (parsed ?? []).flatMap((entry, index) => entry.errors.length > 0 || entry.items.length !== 1
         ? [`entry ${index + 1}: ${entry.errors[0]?.message ?? 'must hold exactly one criterion'}`] : []);
-      if (invalid.length > 0) return refuse(`refused (400): invalid acceptance criteria — ${invalid.join('; ')}`);
+      if (invalid.length > 0) return refuse(`refused (400): invalid acceptance criteria — ${invalid.join('; ')}`,
+        serviceProblem(400, 'Invalid acceptance criteria.', { fields: ['acceptanceCriteria'] }));
       const criteria = parsed ? { items: parsed.flatMap((entry) => entry.items) } : null;
       let started: { projectRunId: string };
       try {
@@ -746,7 +748,7 @@ export function projectRunTask(
           ...(args.depth !== undefined ? { depth: args.depth } : {}),
         })) as { projectRunId: string };
       } catch (error) {
-        if (error instanceof ProjectHttpError) return refuse(`refused (${error.status}): ${error.message}`);
+        if (error instanceof ProjectHttpError) return refuse(`refused (${error.status}): ${error.message}`, error.problem);
         throw error;
       }
       const task = runs.task(projectRunTaskId(args.projectId, started.projectRunId));

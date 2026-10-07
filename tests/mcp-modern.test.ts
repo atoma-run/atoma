@@ -113,7 +113,11 @@ describe('the 2026-07-28 era', () => {
     const platform: McpCaller = { kind: 'principal', viewer: { ...viewer('org:owner'), platformAdmin: true }, tokenId: 'platform' };
     const { url } = await listen(() => platform, {
       ...NO_TENANT,
-      projects: { service: {} as never, store: {} as never },
+      projects: { service: {
+        artifacts: () => ({ projectId: 'p', runId: 'r', status: 'delivered', files: [], total: 0, nextOffset: null }),
+        artifactFile: () => ({ projectId: 'p', runId: 'r', path: 'a.txt', size: 1, snapshot: 'f'.repeat(64), mimeType: 'text/plain',
+          kind: 'text', text: 'a', textOffset: 0, nextTextOffset: null, untrusted: true }),
+      } as never, store: {} as never },
       auth: {} as never,
       journal: { list: () => ({ events: [], nextBefore: null }) },
       notifications: () => ({ notifications: [], nextBefore: null }),
@@ -122,11 +126,12 @@ describe('the 2026-07-28 era', () => {
     try {
       const withSchema = (await client.listTools()).tools.filter((tool) => tool.outputSchema);
       expect(withSchema.map((tool) => tool.name).sort()).toEqual([
-        'atoma_costs', 'atoma_ledger_tail', 'atoma_mcp_health', 'atoma_notifications', 'atoma_sentinel_health',
+        'atoma_costs', 'atoma_ledger_tail', 'atoma_mcp_health', 'atoma_notifications', 'atoma_run_artifacts', 'atoma_run_file', 'atoma_sentinel_health',
       ]);
       for (const tool of withSchema) {
         expect(tool.outputSchema?.['additionalProperties'], tool.name).not.toBe(false);
-        const result = await client.callTool({ name: tool.name, arguments: {} });
+        const args = tool.name === 'atoma_run_artifacts' || tool.name === 'atoma_run_file' ? { projectId: 'p', runId: 'r', path: 'a.txt' } : {};
+        const result = await client.callTool({ name: tool.name, arguments: args });
         expect(result.isError, tool.name).not.toBe(true);
         expect(result.structuredContent, tool.name).toBeDefined();
       }

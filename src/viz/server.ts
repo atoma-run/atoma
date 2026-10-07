@@ -220,6 +220,7 @@ import type { McpCaller } from '../mcp/identity.js';
 import { mcpHostWiring } from '../mcp/server.js';
 import { repoRoot, signalActiveRunOnExit } from '../mcp/run.js';
 import type { McpToolDeps } from '../mcp/tools.js';
+import { runPageInputSchema } from '../contracts/clientExperience.js';
 import { retrievalCampaignHost } from '../cli/retrievalCampaignHost.js';
 import { BenchmarkRuns } from './benchmarkRuns.js';
 import { injectAppShellSeo, robotsTxt, sitemapXml } from './seo.js';
@@ -1713,6 +1714,15 @@ async function readBodyBounded(
 
 function sendJson(res: import('node:http').ServerResponse, code: number, obj: unknown): void {
   send(res, code, JSON.stringify(obj), 'application/json; charset=utf-8');
+}
+
+function projectReaderQuery(params: URLSearchParams) {
+  const raw = Object.fromEntries([...params].filter(([key]) => ['view', 'search', 'limit', 'cursor', 'status'].includes(key)));
+  const parsed = runPageInputSchema.safeParse({ ...raw, ...(params.has('limit') ? { limit: Number(params.get('limit')) } : {}) });
+  if (!parsed.success) throw new ProjectHttpError(400, 'invalid project reader query', {
+    fields: [...new Set(parsed.error.issues.map(issue => issue.path.join('.')))],
+  });
+  return parsed.data;
 }
 
 /** Does a submitted pins body name the host subscription anywhere? */
@@ -4278,7 +4288,10 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
       }
       if (req.method === 'GET') {
         try {
-          sendJson(res, 200, PROJECTS_RUNTIME.projects.listProjects(viewer));
+          const params = new URL(req.url!, 'http://localhost').searchParams;
+          const query = projectReaderQuery(params);
+          sendJson(res, 200, Object.keys(query).length ? PROJECTS_RUNTIME.projects.projectPage(viewer, query)
+            : PROJECTS_RUNTIME.projects.listProjects(viewer));
         } catch (error) {
           if (!(error instanceof ProjectHttpError)) throw error;
           sendJson(res, error.status, { error: error.message });
@@ -4329,6 +4342,28 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
       return;
     }
 
+    const readinessRead = pathname.match(/^\/api\/projects\/([^/]+)\/readiness$/);
+    const clientRunRead = pathname.match(/^\/api\/projects\/([^/]+)\/runs\/([^/]+)\/(status|artifacts|file)$/);
+    if (readinessRead || clientRunRead) {
+      if (!methodAllowed(req, res, 'GET')) return;
+      if (!viewer) { sendJson(res, 401, { error: 'authentication required' }); return; }
+      try {
+        const params = new URL(req.url!, 'http://localhost').searchParams;
+        const service = PROJECTS_RUNTIME.projects;
+        const query: Record<string, unknown> = Object.fromEntries(params);
+        for (const key of ['offset', 'limit']) if (params.has(key)) query[key] = Number(params.get(key));
+        const payload = readinessRead ? service.projectReadiness(viewer, readinessRead[1]!)
+          : clientRunRead![3] === 'status' ? service.projectRunStatus(viewer, clientRunRead![1]!, clientRunRead![2]!)
+            : clientRunRead![3] === 'artifacts' ? service.artifacts(viewer, clientRunRead![1]!, clientRunRead![2]!, query)
+              : service.artifactFile(viewer, clientRunRead![1]!, clientRunRead![2]!, query);
+        sendJson(res, 200, payload);
+      } catch (error) {
+        if (!(error instanceof ProjectHttpError)) throw error;
+        sendJson(res, error.status, { error: error.message, problem: error.problem });
+      }
+      return;
+    }
+
     const upstreamSetting = pathname.match(/^\/api\/projects\/([^/]+)\/upstream$/);
     if (upstreamSetting) {
       if (!methodAllowed(req, res, 'PUT') || !sameOrigin(req, res)) return;
@@ -4355,7 +4390,9 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
       }
       if (req.method === 'GET') {
         try {
-          sendJson(res, 200, PROJECTS_RUNTIME.projects.listProjectRuns(viewer, projectId));
+          const query = projectReaderQuery(new URL(req.url!, 'http://localhost').searchParams);
+          sendJson(res, 200, Object.keys(query).length ? PROJECTS_RUNTIME.projects.projectRunsPage(viewer, projectId, query)
+            : PROJECTS_RUNTIME.projects.listProjectRuns(viewer, projectId));
         } catch (error) {
           if (error instanceof ProjectHttpError) {
             sendJson(res, error.status, { error: error.message });

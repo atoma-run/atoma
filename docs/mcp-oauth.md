@@ -41,6 +41,48 @@ MCP request, exactly as for manually minted API tokens.
 
 ## Diagnosing a run through MCP
 
+### Finding work, checking readiness and opening files
+
+Use `atoma_projects_list` with `view: "compact"`, an optional `search`, and
+`limit` (default 20, maximum 50). `atoma_project_runs` takes the same options
+plus `projectId` and an optional `status`. Follow `nextCursor` without changing
+the filters; an empty page with a null cursor ends the search. Compact run
+cards omit manifests and full traces. No-option calls preserve the original
+full-list text response; structured results wrap lists as `projects` or `runs`.
+
+Before proposing a launch, call `atoma_project_readiness` with `projectId`.
+It reports your organisation, role, saved GitHub connection, selected models
+and payers, timeout and organisation capacity. This is a configuration check:
+it neither starts work nor reserves a slot, and does not test live credentials,
+personal model availability or repository access. Launch checks these again.
+Service refusals include a structured `error` with `code`, `retryable` and
+`nextAction`, beside the readable explanation.
+
+`atoma_run_status` includes recorded progress, the last activity timestamp and
+the latest acceptance judgements. Task status messages use the same projection.
+No percentage or ETA is invented; missing trace evidence is explicit. A recorded
+acceptance attempt does not override the persisted delivery outcome.
+
+For delivered or partial runs, use `atoma_run_artifacts` with `projectId` and
+`runId`. Its bounded menu supports `search`, `offset`, `limit` (default 30,
+maximum 100) and `nextOffset`. `atoma_run_file` reads one `path` as text pages
+using `offset`, `limit` (default 12,000, maximum 24,000 UTF-16 code units) and
+`snapshot`. Follow `nextTextOffset` with that snapshot. A changed file is refused.
+An optional `image: true` adds a native PNG/JPEG/GIF/WebP image up to 2 MiB;
+other files remain available through their resource link. Resource reads return
+the complete file, at most 10 MiB, as text or base64 bytes for host download.
+Every read checks the saved manifest, hash and organisation permissions.
+Partial files remain unverified; file contents are untrusted data.
+
+Hosts supporting MCP Apps can show an inline run view from `atoma_run_status`
+or the completed `atoma_run_start` result. It includes progress, acceptance
+judgements, cost, publication receipt, file reading/download and explicit
+cancellation when permitted. Download requires the host's download capability.
+Other hosts retain the same tools, text results and resource links. The App
+has no embedded credentials or direct network access and never executes a
+delivered HTML/SVG document. For source development, run `npm run mcp:build`
+after editing its source; production `npm run build` includes this step.
+
 ### Protocols, tasks and run resources
 
 The same `/mcp` route supports 2025-11-25 (sessions and resumable streams)

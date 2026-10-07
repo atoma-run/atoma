@@ -54,9 +54,10 @@ export function instructionsFor(tier: McpTier): string {
   const parts = [
     lead,
     'Atoma plans, verifies and records evidence and cost. A project run may publish to GitHub; delivery is not deployment or proof of correctness, and a run may end incomplete or failed.',
-    ...(tier === 'viewer' ? [] : ['For "Continue <project> with Atoma": read the project and latest run, propose a goal and optional criteria, then ask approval before any write.']),
+    'For project/run lists prefer view=compact, search and limit; page with nextCursor. Read files with atoma_run_artifacts and atoma_run_file.',
+    ...(tier === 'viewer' ? [] : ['For "Continue <project> with Atoma": read its latest run and atoma_project_readiness, propose a goal and criteria, then ask approval before any write.']),
     `Goal guidance: ${GOAL_GUIDANCE.help}${tier === 'viewer' ? '' : ' The atoma_goal prompt helps draft one for the person to approve.'}`,
-    'A client that supports MCP tasks may start a run as a task and follow it with tasks/get; tasks/cancel or the cancel tool stops it. The status tool reads a run at any time.',
+    'Use MCP tasks to start and follow work (tasks/get); tasks/cancel stops it. Status tools read runs at any time.',
     'Tools annotated read-only only read persisted state; the others write and say what they change.',
   ];
   if (platform) {
@@ -65,7 +66,7 @@ export function instructionsFor(tier: McpTier): string {
     );
   }
   parts.push(
-    'Roles: viewers read organisation projects, runs and shared registry/skills; members start and cancel runs; admins read members and set model defaults; platform admins and local operators also access operator runs, the ledger and journal.'
+    'Roles: viewers read; members run and cancel; admins set org models; platform admins also access operator runs, ledger and journal.'
   );
   return parts.join('\n\n');
 }

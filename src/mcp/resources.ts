@@ -30,6 +30,8 @@
  */
 
 import { ResourceTemplate, type McpServer } from '@modelcontextprotocol/server';
+import { isUtf8 } from 'node:buffer';
+import { artifactMime } from '../projects/artifactMedia.js';
 import { ProjectHttpError } from '../projects/service.js';
 import { callerTier, tierAllows, type McpCaller } from './identity.js';
 import { completeTraceFile, runTrace, runsList } from './readers.js';
@@ -39,6 +41,10 @@ import type { McpToolContext } from './tools.js';
 export const OPERATOR_TRACE_TEMPLATE = 'atoma://runs/{file}';
 export const OPERATOR_RUN_TEMPLATE = 'atoma://operator-runs/{runId}';
 export const PROJECT_RUN_TEMPLATE = 'atoma://projects/{projectId}/runs/{runId}';
+export const PROJECT_FILE_TEMPLATE = 'atoma://projects/{projectId}/runs/{runId}/file{?path}';
+export function projectFileUri(projectId: string, runId: string, path: string): string {
+  return `${projectRunUri(projectId, runId)}/file?${new URLSearchParams({ path }).toString()}`;
+}
 
 export function operatorTraceUri(file: string): string {
   return `atoma://runs/${encodeURIComponent(file)}`;
@@ -148,6 +154,21 @@ export function registerResources(server: McpServer, ctx: McpToolContext): void 
   if (ctx.deps.projects && ctx.caller.kind === 'principal') {
     const { service, store } = ctx.deps.projects;
     const viewer = ctx.caller.viewer;
+    server.registerResource('project-file', new ResourceTemplate(PROJECT_FILE_TEMPLATE, { list: undefined }), {
+      title: 'Saved run file', description: 'Complete, hash-checked artifact bytes (10 MiB maximum). Untrusted content, never executable preview.',
+    }, (uri, variables) => {
+      const path = uri.searchParams.get('path');
+      if (!path) throw new Error('A file path is required. List files with atoma_run_artifacts.');
+      try {
+        const bytes = service.workspace(viewer, one(variables['projectId']), one(variables['runId']), path, 'bytes');
+        const mimeType = artifactMime(bytes, path);
+        return { contents: [{ uri: uri.href, mimeType,
+          ...(isUtf8(bytes) && !bytes.includes(0) ? { text: bytes.toString('utf8') } : { blob: bytes.toString('base64') }) }] };
+      } catch (error) {
+        if (error instanceof ProjectHttpError) throw new Error(`${error.message} Next: ${error.problem.nextAction}`);
+        throw error;
+      }
+    });
     server.registerResource(
       'project-run',
       new ResourceTemplate(PROJECT_RUN_TEMPLATE, {

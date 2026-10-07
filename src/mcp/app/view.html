@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Atoma</title><style>
+:root{color-scheme:light dark;font-family:var(--font-sans,system-ui,sans-serif);color:var(--color-text-primary,CanvasText);background:var(--color-background-primary,Canvas)}
+*{box-sizing:border-box}body{margin:0;padding:20px;font-size:14px;line-height:1.5}h1{font-size:20px;margin:0 0 8px}h2{font-size:15px;margin:20px 0 8px}p{margin:6px 0}.muted{opacity:.7;font-size:12px}.actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}button,a{font:inherit}button{padding:7px 12px;border:1px solid var(--color-border-primary,GrayText);border-radius:6px;background:var(--color-background-secondary,ButtonFace);color:inherit;cursor:pointer}button:disabled{opacity:.5;cursor:wait}button:focus-visible,a:focus-visible{outline:2px solid Highlight;outline-offset:3px}ul{padding-left:20px}li{margin:7px 0;overflow-wrap:anywhere}#files{list-style:none;padding:0}#files li{display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--color-border-secondary,ButtonFace);padding-bottom:9px}pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow:auto;font-size:12px;padding:12px;background:var(--color-background-secondary,ButtonFace)}img{display:block;max-width:100%;max-height:480px;object-fit:contain}#error{border-inline-start:3px solid Mark;padding-inline-start:10px}a{color:LinkText} [hidden]{display:none!important}
+</style></head><body>
+<main aria-busy="true"><h1 id="title">Atoma</h1><p id="status" role="status" aria-live="polite"></p><p id="activity" class="muted"></p>
+<div class="actions"><button id="refresh" type="button"></button><button id="cancel" type="button" hidden></button></div>
+<p id="error" role="alert" hidden></p><p id="receipt"></p><p id="cost" class="muted"></p>
+<section id="criteria-section" hidden><h2 id="criteria-title"></h2><ul id="criteria"></ul></section>
+<section id="files-section" hidden><h2 id="files-title"></h2><ul id="files"></ul><button id="more-files" type="button" hidden></button></section>
+<section id="preview-section" hidden><h2 id="file-title"></h2><img id="image" hidden alt=""><pre id="text" hidden></pre><button id="more-text" type="button" hidden></button></section>
+<p id="note" class="muted"></p></main>
+<script type="application/json" id="copy"><!-- COPY --></script><script><!-- SCRIPT --></script>
+</body></html>

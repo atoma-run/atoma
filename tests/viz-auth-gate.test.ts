@@ -2560,6 +2560,24 @@ it('serves saved file preview bytes as authenticated, non-executable attachments
     expect(response.headers.get('cache-control')).toBe('no-store');
     expect(response.headers.get('content-security-policy')).toContain('sandbox');
     expect(Buffer.from(await response.arrayBuffer())).toEqual(bytes);
+    // HTTP uses the same compact menus, progress, readiness and artifact reader as MCP.
+    const runBase = `${base}/api/projects/${project.projectId}/runs/${runId}`;
+    const compact = await fetch(`${base}/api/projects/${project.projectId}/runs?view=compact&limit=1`, { headers });
+    expect(await compact.json()).toMatchObject({ runs: [{ projectRunId: runId, goalExcerpt: 'Preview files' }], nextCursor: null });
+    expect(await (await fetch(`${base}/api/projects?search=File&limit=1`, { headers })).json())
+      .toMatchObject({ projects: [{ projectId: project.projectId }], nextCursor: null });
+    expect(await (await fetch(`${runBase}/status`, { headers })).json())
+      .toMatchObject({ status: 'delivered', progress: { stage: 'finished' }, actions: { canCancel: false } });
+    expect(await (await fetch(`${base}/api/projects/${project.projectId}/readiness`, { headers })).json())
+      .toMatchObject({ projectId: project.projectId, canRequest: true, liveChecks: 'not-performed' });
+    expect(await (await fetch(`${runBase}/artifacts?limit=1`, { headers })).json())
+      .toMatchObject({ files: [{ path: 'drawing.svg', size: bytes.length }], total: 1, nextOffset: null });
+    expect((await fetch(`${runBase}/file?path=drawing.svg`)).status).toBe(401);
+    expect(await (await fetch(`${runBase}/file?path=drawing.svg&limit=4`, { headers })).json())
+      .toMatchObject({ text: '<svg', nextTextOffset: 4, untrusted: true, mimeType: 'image/svg+xml' });
+    const invalid = await fetch(`${runBase}/file?path=drawing.svg&limit=-1`, { headers });
+    expect(invalid.status).toBe(400);
+    expect(await invalid.json()).toMatchObject({ problem: { code: 'invalid_input', fields: ['limit'] } });
     expect((await fetch(url.replace('drawing.svg', '..%2Fsecret'), { headers })).status).toBe(404);
     writeFileSync(join(layout.workspacePath, 'drawing.svg'), 'modified');
     expect((await fetch(url, { headers })).status).toBe(409);

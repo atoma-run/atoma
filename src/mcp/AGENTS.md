@@ -138,6 +138,23 @@ Neighbours:
   `passthrough`-shaped, so an additive field never fails the host's
   validation); the older readers with polymorphic payloads (`note` on an
   absent store) declare none. Never add an `outputSchema` a payload can miss.
+- COMPACT MENUS are opt-in (`view=compact`, search, status, limit, cursor);
+  no-option list calls preserve their original array text, with a structured
+  envelope added. Cursor fingerprints bind the filters and read scope.
+  File tools and resources reuse `ProjectService.workspace`: only the saved
+  publishable manifest, with its hash, path jail and byte ceiling. File text
+  pages carry a snapshot; images are optional and all content is untrusted.
+- RUN PROGRESS projects existing trace events and acceptance judgements,
+  cached by file identity and timestamps. Lifecycle rows outrank the trace;
+  unavailable evidence is explicit, never a guessed percentage. Readiness
+  resolves the launcher's existing configuration without admission or a
+  provider request. Structured service errors include the next action.
+- MCP APPS is optional metadata on run start/status, with `ui://atoma/run.html`
+  built by `mcp:build` into `dist/` and included in `build`. The official Apps
+  SDK connects through the host; no credential or direct network access is
+  embedded. The sandbox displays file text literally and SVG only as an image.
+  Hosts without Apps retain the complete text and resource surface. The
+  browser smoke is `npm run mcp:smoke`; compiled OAuth smoke checks packaging.
 - HOST-PROVIDED NEEDS ARE READ AT CALL TIME. `preview`, `sentinel`,
   `analyst` and `notifications` are functions on `McpToolDeps`, because the
   preview runtime comes up after the bind and the watch's health changes every

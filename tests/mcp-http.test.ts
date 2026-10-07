@@ -332,7 +332,10 @@ it('exposes the persisted Git destination over MCP without claiming a PR was mer
       commitSha: 'c'.repeat(40), mergeStatus: 'unknown', remoteState: 'not-checked', error: null } });
     expect(JSON.parse((result.content as { type: string; text: string }[])[0]!.text)).toEqual(result.structuredContent);
     const listed = await client.callTool({ name: 'atoma_project_runs', arguments: { projectId: f.project.projectId } });
-    expect(JSON.parse((listed.content as { type: string; text: string }[])[0]!.text)).toEqual([result.structuredContent]);
+    const legacy = JSON.parse((listed.content as { type: string; text: string }[])[0]!.text) as unknown[];
+    expect(legacy).toHaveLength(1);
+    expect(result.structuredContent).toMatchObject(legacy[0]!);
+    expect(listed.structuredContent).toEqual({ runs: legacy });
     // Both results LINK the run, and the link is a resource this caller can read.
     const link = { type: 'resource_link', uri: projectRunUri(f.project.projectId, run.projectRunId), mimeType: 'application/json' };
     expect(result.content).toEqual([expect.objectContaining({ type: 'text' }), expect.objectContaining(link)]);
@@ -370,7 +373,7 @@ describe('the catalogue by tier', () => {
     // The viewer ladder: the organisation's own readers plus the two platform
     // commons the viz shows every signed-in role — registry and skill catalog.
     expect(asViewer).toEqual([
-      'atoma_projects_list', 'atoma_github_installations', 'atoma_project_runs', 'atoma_run_status', 'atoma_run_trace', 'atoma_run_preview',
+      'atoma_projects_list', 'atoma_github_installations', 'atoma_project_runs', 'atoma_project_readiness', 'atoma_run_artifacts', 'atoma_run_file', 'atoma_run_status', 'atoma_run_trace', 'atoma_run_preview',
       'atoma_registry_list', 'atoma_registry_show', 'atoma_skills_list', 'atoma_registry_history', 'atoma_skills_show',
     ]);
     // Each rung adds exactly its own rows (the table interleaves the tiers).
@@ -746,6 +749,11 @@ describe('the platform commons over MCP — registry and skill catalog', () => {
   it('validates every declared output schema through the 2025 SDK client', async () => {
     const deps: McpToolDeps = {
       ...TENANT_HOST,
+      projects: { service: {
+        artifacts: () => ({ projectId: 'p', runId: 'r', status: 'delivered', files: [], total: 0, nextOffset: null }),
+        artifactFile: () => ({ projectId: 'p', runId: 'r', path: 'a.txt', size: 1, snapshot: 'f'.repeat(64), mimeType: 'text/plain',
+          kind: 'text', text: 'a', textOffset: 0, nextTextOffset: null, untrusted: true }),
+      } as never, store: {} as never },
       notifications: () => ({ notifications: [], nextBefore: null }),
     };
     const { url } = await listen(() => ({ kind: 'principal', viewer: viewer('org:owner', true), tokenId: 'platform' }), deps);
@@ -753,11 +761,12 @@ describe('the platform commons over MCP — registry and skill catalog', () => {
     try {
       const tools = (await client.listTools()).tools.filter((tool) => tool.outputSchema);
       expect(tools.map((tool) => tool.name).sort()).toEqual([
-        'atoma_costs', 'atoma_ledger_tail', 'atoma_mcp_health', 'atoma_notifications', 'atoma_sentinel_health',
+        'atoma_costs', 'atoma_ledger_tail', 'atoma_mcp_health', 'atoma_notifications', 'atoma_run_artifacts', 'atoma_run_file', 'atoma_sentinel_health',
       ]);
       for (const tool of tools) {
         expect(tool.outputSchema?.['additionalProperties'], tool.name).not.toBe(false);
-        const result = await client.callTool({ name: tool.name, arguments: {} });
+        const args = tool.name === 'atoma_run_artifacts' || tool.name === 'atoma_run_file' ? { projectId: 'p', runId: 'r', path: 'a.txt' } : {};
+        const result = await client.callTool({ name: tool.name, arguments: args });
         expect(result.isError, tool.name).toBeFalsy();
         expect(result.structuredContent, tool.name).toBeDefined();
       }
