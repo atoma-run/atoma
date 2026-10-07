@@ -653,6 +653,10 @@ npm run viz:mark-turn:analyze
   (`showcase.ts`): title, request, numbers, file NAMES, a text answer; never
   identities, paths, repositories or bytes. Server-rendered, all values
   escaped, one script pinned by hash in its CSP. English only.
+- The home feed starts from newest projects, but `showcasePage.ts` pulls the
+  newest different kind forward after two cards of one kind. Within each
+  kind, the order remains newest first. This keeps answers, reports and media
+  visible near recent software without suggesting strict global chronology.
 - Its crystals are the REAL Pixi mark (`showcase-mark.ts`, built alone by
   `vite.showcase.config.ts`: as a second app input it would leave the lazy
   renderer chunk), over a static SVG visible until its canvas is ready. Offscreen

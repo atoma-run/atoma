@@ -20,6 +20,8 @@ import {
   servesShowcaseHome,
   titleFromGoal,
   SHOWCASE_TTL_MS,
+  type ShowcaseEntry,
+  type ShowcaseKind,
 } from '../src/viz/showcase.js';
 import { renderShowcaseEntry, renderShowcaseIndex, SHOWCASE_SECURITY_HEADERS } from '../src/viz/showcasePage.js';
 
@@ -317,6 +319,40 @@ describe('classification and grouping', () => {
     expect(entries[0]!.episodes[1]!.sentBack).toBe(1);
     expect(entries[0]!.kind).toBe('software');
     expect(entries[0]!.totalCostUsd).toBeCloseTo(0.6);
+  });
+
+  it('keeps recent software in order while bringing every available kind into the first cards', () => {
+    const entry = (id: string, kind: ShowcaseKind, day: number): ShowcaseEntry => {
+      const endedAt = `2026-10-${String(day).padStart(2, '0')}T12:00:00.000Z`;
+      return {
+        id, kind, endedAt, totalDurationS: 1, totalCostUsd: 0,
+        episodes: [{ id, title: id, request: id, endedAt, durationS: 1, costUsd: 0,
+          sentBack: 0, files: [], textDelivery: kind === 'answers' }],
+      };
+    };
+    const software = Array.from({ length: 18 }, (_, index) => entry(`s${index + 1}`, 'software', 7));
+    const entries = [
+      ...software,
+      entry('a1', 'answers', 3),
+      entry('r1', 'reports', 2),
+      entry('m1', 'media', 2),
+      entry('m2', 'media', 2),
+      entry('r2', 'reports', 2),
+    ];
+    const html = renderShowcaseIndex(entries, null);
+    const cards = [...html.matchAll(/<a class="card" href="\/showcase\/([^"]+)" data-kind="([^"]+)">/g)]
+      .map((match) => ({ id: match[1], kind: match[2] }));
+
+    expect(cards).toHaveLength(entries.length);
+    expect(new Set(cards.slice(0, 9).map((card) => card.kind))).toEqual(
+      new Set(['software', 'answers', 'reports', 'media'])
+    );
+    expect(cards.filter((card) => card.kind === 'software').map((card) => card.id))
+      .toEqual(software.map((item) => item.id));
+    expect(cards.filter((card) => card.kind !== 'software').map((card) => card.id))
+      .toEqual(['a1', 'r1', 'm1', 'm2', 'r2']);
+    expect(cards.slice(0, 3).map((card) => card.id)).toEqual(['s1', 's2', 'a1']);
+    expect(html).toContain('Everything <small>23</small>');
   });
 
   it('rebuilds at most once per TTL', () => {

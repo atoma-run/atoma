@@ -287,6 +287,22 @@ ${more.length ? `<p class="meta" style="display:block">Then: ${more.map((episode
 </div></a>`;
 }
 
+/** Keep each kind newest first while letting older kinds interrupt a long streak. */
+export function orderShowcaseEntries(entries: readonly ShowcaseEntry[]): ShowcaseEntry[] {
+  const remaining = [...entries];
+  const ordered: ShowcaseEntry[] = [];
+  let lastKind: ShowcaseKind | null = null;
+  let streak = 0;
+  while (remaining.length > 0) {
+    const alternative = streak >= 2 ? remaining.findIndex((entry) => entry.kind !== lastKind) : -1;
+    const next = remaining.splice(alternative >= 0 ? alternative : 0, 1)[0]!;
+    streak = next.kind === lastKind ? streak + 1 : 1;
+    lastKind = next.kind;
+    ordered.push(next);
+  }
+  return ordered;
+}
+
 export function renderShowcaseIndex(
   entries: readonly ShowcaseEntry[],
   origin: URL | null,
@@ -309,9 +325,9 @@ export function renderShowcaseIndex(
 <div class="cta"><a class="btn primary" href="#feed">See finished work</a><a class="btn ghost" href="/app">Start your own</a></div></div>
 <div class="stage"><div class="mark mark-hero" data-atoma-mark="hero"><div class="bob"><div class="crystal">${CRYSTAL}</div></div></div></div></div></section>
 <section class="feed" id="feed"><div class="wrap">
-<div class="feedhead"><div><h2>Finished and checked</h2><p>Every piece of work here was delivered. Some grew over several requests: each step is shown, and each one kept what already worked.</p></div>
+<div class="feedhead"><div><h2>Finished and checked</h2><p>Recent work comes first, with different kinds of work woven in. Some grew over several requests: each step is shown, and each one kept what already worked.</p></div>
 <div class="chips" id="filters" role="group" aria-label="Filter by kind of work" hidden>${chips}</div></div>
-${entries.length ? `<div class="cards">${entries.map(card).join('')}</div>` : '<div class="empty">Nothing to show yet. Finished work appears here as it is delivered.</div>'}
+${entries.length ? `<div class="cards">${orderShowcaseEntries(entries).map(card).join('')}</div>` : '<div class="empty">Nothing to show yet. Finished work appears here as it is delivered.</div>'}
 </div></section></main>
 ${closing()}`;
   return page({
