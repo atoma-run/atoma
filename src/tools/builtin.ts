@@ -3495,6 +3495,8 @@ function sourceStartsLongRunningServer(
     // source-wide detection must not turn its finite modes into servers.
     // Unknown arguments may select any mode, and a boot outside the guard
     // runs whatever the arguments say, so either keeps the source-wide rule.
+    // A selected mode is judged like the whole source: a harness that closes
+    // its own listener stays finite.
     const guardRe = /if\s*\(\s*process\.argv\.includes\(\s*(['"])([^'"]+)\1\s*\)\s*\)\s*\{/g;
     for (const guard of invokedArgs ? source.matchAll(guardRe) : []) {
       const openAt = (guard.index ?? 0) + guard[0].length - 1;
@@ -3509,7 +3511,8 @@ function sourceStartsLongRunningServer(
       const outside = source.slice(0, openAt) + source.slice(closeAt + 1);
       if (/\.listen\s*\(/.test(inside) && /LISTENING_ON_PORT/.test(inside) &&
           !/\.listen\s*\(/.test(outside) && !/LISTENING_ON_PORT/.test(outside)) {
-        return invokedArgs?.includes(guard[2] ?? '') ?? true;
+        if (invokedArgs && !invokedArgs.includes(guard[2] ?? '')) return false;
+        break;
       }
     }
 

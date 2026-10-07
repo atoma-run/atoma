@@ -211,16 +211,33 @@ describe('record_probe', () => {
       join(root, 'two-boots.js'),
       `${guarded}\nelse {require('http').createServer((q,r)=>r.end('ok')).listen(0,()=>console.log('LISTENING_ON_PORT=2'));}`
     );
+    writeFileSync(
+      join(root, 'two-guards.js'),
+      `${guarded}\n${guarded.replace("'--serve'", "'--serve-b'")}`
+    );
     const t = recordProbeTool({ sandbox, shellTimeoutMs: 1_000 });
 
     await expect(t.execute({ cmd: 'node domain-tests.js' })).resolves.toMatchObject({ exitCode: 0 });
     // A boot outside the guard runs without the flag.
     await expect(t.execute({ cmd: 'node two-boots.js' })).rejects.toThrow(/long-running server/);
+    // Neither guard owns every boot, so the second mode cannot pass as finite.
+    await expect(t.execute({ cmd: 'node two-guards.js --serve-b' })).rejects.toThrow(/long-running server/);
     // Words the splitter cannot read are unknown, and unknown words may hold the flag.
     await expect(t.execute({ cmd: 'echo "a\\"b"; node domain-tests.js' })).rejects.toThrow(
       /long-running server/
     );
     expect(() => manifest()).not.toThrow();
+  });
+
+  it('judges a selected guarded mode like any source: a harness closing its listener stays finite', async () => {
+    writeFileSync(
+      join(root, 'integration.js'),
+      "if(process.argv.includes('--integration')){const s=require('http').createServer((q,r)=>r.end('ok'));" +
+        "s.listen(0,()=>{console.log('LISTENING_ON_PORT='+s.address().port);s.close();});}\nelse{console.log('unit ok');}"
+    );
+    const t = recordProbeTool({ sandbox, shellTimeoutMs: 1_000 });
+
+    await expect(t.execute({ cmd: 'node integration.js --integration' })).resolves.toMatchObject({ exitCode: 0 });
   });
 
   it('refuses a server hidden behind an env assignment and shell execution', async () => {
