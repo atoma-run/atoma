@@ -152,7 +152,8 @@ Neighbours:
 - MCP APPS is optional metadata on run start/status/review, with `ui://atoma/run.html`
   built by `mcp:build` into `dist/` and included in `build`. The official Apps
   SDK connects through the host; no credential or direct network access is
-  embedded. The sandbox displays file text literally and SVG only as an image.
+  embedded. The sandbox renders sanitized Markdown and highlighted source; raw HTML stays
+  literal, remote document images are omitted, and SVG is displayed only as an image.
   Hosts without Apps retain the complete text and resource surface. The
   browser smoke is `npm run mcp:smoke`; compiled OAuth smoke checks packaging.
 - HOST-PROVIDED NEEDS ARE READ AT CALL TIME. `preview`, `sentinel`,

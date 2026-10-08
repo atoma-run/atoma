@@ -2,6 +2,7 @@ import { App } from '@modelcontextprotocol/ext-apps';
 import { createInstance } from 'i18next';
 import { z } from 'zod';
 import { artifactFileResultSchema, artifactPageResultSchema, runViewSchema, runReviewSchema, serviceProblemSchema } from '../../contracts/clientExperience.js';
+import { fileViewer } from './file-viewer.js';
 import { reviewCard } from './review.js';
 import { questionCard } from './question.js';
 
@@ -12,6 +13,8 @@ void i18n.init({ resources: copy, initAsync: false, lng: 'en', fallbackLng: 'en'
 const t = (key: string, vars?: Record<string, unknown>) => i18n.t(`mcpApp.${key}`, vars);
 const element = (id: string) => document.getElementById(id)!;
 const button = (id: string) => element(id) as HTMLButtonElement;
+const filePreview = element('preview-section');
+let expandedFile: string | null = null;
 let run: z.infer<typeof runViewSchema> | null = null;
 let files: z.infer<typeof artifactPageResultSchema>['files'] = [];
 let nextFiles: number | null = null;
@@ -36,6 +39,11 @@ const review = reviewCard({ ref, call, t, changed: () => { render(); schedule();
     if (response.isError) throw new Error(t('reviewSendUnavailable'));
   } });
 
+const viewer = fileViewer({ t, error: showError, openLink: async url => {
+  const response = await app.openLink({ url });
+  if (response.isError) throw new Error(t('fileViewerLinkUnavailable'));
+} });
+
 function showError(error: unknown) {
   element('error').textContent = error instanceof Error ? error.message : t('failure');
   element('error').hidden = false;
@@ -43,7 +51,9 @@ function showError(error: unknown) {
 function clearPreview() {
   if (imageUrl) URL.revokeObjectURL(imageUrl);
   imageUrl = null;
+  viewer.reset();
   selected = null;
+  expandedFile = null;
   element('preview-section').hidden = true;
   element('image').hidden = true;
   element('text').hidden = true;
@@ -99,19 +109,41 @@ function render() {
     return li;
   }));
   element('files-section').hidden = files.length === 0;
+  // Keep the single preview node (and its image/page state) alive across refreshes.
+  const focused = document.activeElement as HTMLElement | null;
+  const focusedFile = focused?.dataset.fileToggle;
+  const previewFocused = !!focused && filePreview.contains(focused);
+  element('files-section').append(filePreview);
   element('files').replaceChildren(...files.map(file => {
     const li = document.createElement('li');
+    const row = document.createElement('div'); row.className = 'file-row';
+    const expanded = expandedFile === file.path;
+    const open = document.createElement('button'); open.type = 'button'; open.className = 'file-toggle';
+    open.dataset.fileToggle = file.path;
+    open.setAttribute('aria-expanded', String(expanded));
+    open.setAttribute('aria-label', t(expanded ? 'fileCollapse' : 'fileExpand', { path: file.path }));
+    if (expanded) open.setAttribute('aria-controls', 'preview-section');
+    const chevron = document.createElement('span'); chevron.className = 'file-chevron'; chevron.textContent = '›'; chevron.setAttribute('aria-hidden', 'true');
     const name = document.createElement('span'); name.textContent = `${file.path} (${file.size.toLocaleString(i18n.language)} B)`;
-    const open = document.createElement('button'); open.textContent = t('read');
-    open.onclick = () => { void readFile(file).catch(showError); };
+    open.append(chevron, name);
+    open.onclick = () => {
+      if (expandedFile === file.path) { fileGeneration++; clearPreview(); render(); }
+      else void readFile(file).catch(showError);
+    };
     const download = document.createElement('button'); download.textContent = t('download');
     download.hidden = !file.uri || !app.getHostCapabilities()?.downloadFile;
     download.onclick = () => { void downloadFile(file).catch(showError); };
-    li.append(name, open, download); return li;
+    row.append(open, download); li.append(row);
+    if (expanded) li.append(filePreview);
+    return li;
   }));
+  if (focusedFile) {
+    const toggle = [...element('files').querySelectorAll<HTMLButtonElement>('[data-file-toggle]')].find(node => node.dataset.fileToggle === focusedFile);
+    toggle?.focus({ preventScroll: true });
+  } else if (previewFocused) focused?.focus({ preventScroll: true });
   button('more-files').hidden = nextFiles === null;
   button('more-files').disabled = filesReading;
-  decision.render(); review.render();
+  decision.render(); review.render(); viewer.labels();
   document.querySelector('main')!.setAttribute('aria-busy', String(busy));
 }
 async function loadFiles(append = false) {
@@ -121,7 +153,11 @@ async function loadFiles(append = false) {
   try {
     const page = artifactPageResultSchema.parse(await call('atoma_run_artifacts', { ...ref(), offset: append ? nextFiles ?? 0 : 0 }));
     if (epoch !== generation) return;
-    files = append ? [...files, ...page.files] : page.files; nextFiles = page.nextOffset;
+    if (append) { files = [...files, ...page.files]; nextFiles = page.nextOffset; }
+    else if (page.nextOffset !== null && files.length > page.files.length) {
+      // A terminal run's inventory is immutable; refreshing its first page must not discard expanded later rows.
+      files = [...page.files, ...files.slice(page.files.length)];
+    } else { files = page.files; nextFiles = page.nextOffset; }
   } catch (error) { if (epoch === generation) throw error; }
   finally { if (epoch === generation) { filesReading = false; render(); } }
 }
@@ -129,18 +165,32 @@ async function readFile(file: z.infer<typeof artifactPageResultSchema>['files'][
   const epoch = generation;
   const selection = ++fileGeneration;
   const previous = selected;
-  if (!more) clearPreview();
+  if (!more) {
+    clearPreview(); expandedFile = file.path;
+    filePreview.hidden = false;
+    element('file-title').textContent = file.path;
+    element('text').textContent = t('fileLoading'); element('text').hidden = false;
+    button('more-text').hidden = true;
+    render();
+  }
   button('more-text').disabled = true;
   let data: z.infer<typeof artifactFileResultSchema>;
   try { data = artifactFileResultSchema.parse(await call('atoma_run_file', { ...ref(), path: file.path,
     ...(more && previous ? { offset: previous.nextTextOffset, snapshot: previous.snapshot } : {}) }));
-  } catch (error) { if (epoch === generation && selection === fileGeneration) throw error; else return; }
+  } catch (error) {
+    if (epoch === generation && selection === fileGeneration) {
+      element('text').textContent = error instanceof Error ? error.message : t('failure');
+      element('text').hidden = false;
+      throw error;
+    } else return;
+  }
   finally { if (epoch === generation && selection === fileGeneration) button('more-text').disabled = false; }
   if (epoch !== generation || selection !== fileGeneration) return;
   selected = data;
   element('preview-section').hidden = false;
   element('file-title').textContent = `${file.path} · ${t('reviewFilePage', { from: data.text?.length ? data.textOffset + 1 : 0, to: data.textOffset + (data.text?.length ?? 0) })}`;
-  element('text').textContent = data.text ?? t('binary'); element('text').hidden = false;
+  if (data.text !== null) viewer.show(file.path, data.text, data.textOffset !== 0 || data.nextTextOffset !== null);
+  else { viewer.reset(); element('text').textContent = t('binary'); element('text').hidden = false; }
   button('more-text').hidden = data.nextTextOffset === null;
   if (!more && file.uri && ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml'].includes(data.mimeType)) {
     const result = await app.readServerResource({ uri: file.uri });
@@ -148,6 +198,7 @@ async function readFile(file: z.infer<typeof artifactPageResultSchema>['files'][
     const content = result.contents[0];
     if (!content) return;
     const bytes = 'blob' in content ? Uint8Array.from(atob(content.blob), c => c.charCodeAt(0)) : new TextEncoder().encode(content.text);
+    viewer.reset();
     element('file-title').textContent = file.path;
     imageUrl = URL.createObjectURL(new Blob([bytes], { type: data.mimeType }));
     const image = element('image') as HTMLImageElement; image.src = imageUrl; image.alt = file.path; image.hidden = false;

@@ -91,7 +91,11 @@ judgements, cost, publication receipt, file reading/download and explicit
 cancellation when permitted. Download requires the host's download capability.
 Other hosts retain the same tools, text results and resource links. The App
 has no embedded credentials or direct network access and never executes a
-delivered HTML/SVG document. For source development, run `npm run mcp:build`
+delivered HTML/SVG document. File rows expand in place. Their reader renders
+Markdown, highlights common source languages and formats complete JSON pages;
+Source preserves the original text. Long files remain explicitly paged. Embedded
+Markdown images are omitted and links open only through an explicit host request.
+Other binary formats remain downloadable. For source development, run `npm run mcp:build`
 after editing its source; production `npm run build` includes this step.
 
 The card also reads the saved review, compares inventory pages and opens the
