@@ -293,7 +293,7 @@ describe('full-GL minimal DOM bridge', () => {
     await user.click(screen.getByRole('tab', { name: 'Projects' }));
     expect(useGpuStore.getState().view).toBe('projects');
     expect(screen.getByRole('tab', { name: 'Projects', selected: true })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Continue with Atoma' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Create a new project with Atoma' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Connect GitHub' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Connect your agent' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Start run/ })).not.toBeInTheDocument();
@@ -349,7 +349,7 @@ describe('full-GL minimal DOM bridge', () => {
       },
     ]);
     expect(screen.queryByRole('link', { name: 'Connect GitHub' })).not.toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Continue with Atoma' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Create a new project with Atoma' })).toBeInTheDocument();
   });
 
   it('guides project creation through the agent and opens MCP setup', async () => {
@@ -360,7 +360,7 @@ describe('full-GL minimal DOM bridge', () => {
       mcpAccessState: 'unconnected',
       t: (key: string, vars?: Record<string, unknown>) => translate('en', key, vars),
     }));
-    expect(screen.getByRole('region', { name: 'Continue with Atoma' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Create a new project with Atoma' })).toBeInTheDocument();
     expect(screen.getByText('Plan a project for this repository with Atoma.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Create project' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Start run/ })).not.toBeInTheDocument();
@@ -405,7 +405,7 @@ describe('full-GL minimal DOM bridge', () => {
       mcpAccessState: 'connected',
     }));
     expect(screen.queryByRole('button', { name: 'Copy request' })).not.toBeInTheDocument();
-    const toggle = screen.getByRole('button', { name: 'Continue with Atoma' });
+    const toggle = screen.getByRole('button', { name: 'Create a new project with Atoma' });
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
     expect(useGpuStore.getState().projectMcpCollapsed).toBe(true);
     await userEvent.click(toggle);
@@ -442,10 +442,14 @@ describe('full-GL minimal DOM bridge', () => {
     expect(weather).toHaveAttribute('aria-pressed', 'false');
     await user.click(weather);
     expect(useGpuStore.getState().selectedProjectId).toBe('project-weather');
+    expect(screen.getByRole('region', { name: 'Continue with Atoma' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Continue with Atoma' })).toBeInTheDocument();
     expect(screen.getByText('Continue Weather Lab with Atoma.')).toBeInTheDocument();
     expect(weather).toHaveAttribute('aria-pressed', 'true');
     await user.click(weather);
     expect(useGpuStore.getState().selectedProjectId).toBeNull();
+    expect(screen.getByRole('region', { name: 'Create a new project with Atoma' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create a new project with Atoma' })).toBeInTheDocument();
     expect(screen.getByText(/Plan a project for this repository/)).toBeInTheDocument();
   });
 

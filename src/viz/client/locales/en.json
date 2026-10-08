@@ -342,6 +342,7 @@
   "projects.empty": "No project yet. Ask your connected agent to create one through Atoma MCP.",
   "projects.emptyNoInstallation": "Connect GitHub, then ask your agent to create a project through Atoma MCP.",
   "projects.mcpTitle": "Continue with Atoma",
+  "projects.mcpCreateTitle": "Create a new project with Atoma",
   "projects.mcpCreateIntro": "Copy this to your agent. Atoma will inspect your repository and propose a project for your approval.",
   "projects.mcpSelectedIntro": "Copy this to your agent. Atoma will review {{name}} and propose the next step for your approval.",
   "projects.mcpCreateRequest": "Plan a project for this repository with Atoma.",

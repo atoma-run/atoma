@@ -260,6 +260,7 @@ export function DomBridge({
   const selectedRun = runs.find((run) => run.id === selectedRunId);
   const selectedProject = projects.find((project) => project.projectId === selectedProjectId);
   const selectedProjectName = selectedProject?.name ?? null;
+  const projectGuideTitle = t(selectedProjectName ? 'projects.mcpTitle' : 'projects.mcpCreateTitle');
   const projectRequest = selectedProjectName
     ? t('projects.mcpSelectedRequest', { name: selectedProjectName })
     : t('projects.mcpCreateRequest');
@@ -588,12 +589,12 @@ export function DomBridge({
         <section
           className={`gpu-panel-skin gpu-project-mcp${projectMcpCollapsed ? ' gpu-project-mcp--collapsed' : ''}${selectedProjectId ? ' gpu-project-mcp--selected' : ''}${overlaysInert ? ' gpu-overlays-veiled' : ''}`}
           inert={overlaysInert}
-          aria-label={t('projects.mcpTitle')}
+          aria-label={projectGuideTitle}
         >
           <h2><button type="button" className="gpu-project-mcp-toggle"
             aria-expanded={!projectMcpCollapsed} aria-controls="project-mcp-content"
             onClick={() => useGpuStore.setState({ projectMcpCollapsed: !projectMcpCollapsed })}>
-            <span aria-hidden="true">{projectMcpCollapsed ? '▸' : '▾'}</span> {t('projects.mcpTitle')}
+            <span aria-hidden="true">{projectMcpCollapsed ? '▸' : '▾'}</span> {projectGuideTitle}
           </button></h2>
           <div id="project-mcp-content" className="gpu-project-mcp-content" hidden={projectMcpCollapsed}>
             {mcpAccessState === 'connected' || mcpAccessState === 'authorized' ? (
