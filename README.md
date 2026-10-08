@@ -209,9 +209,12 @@ OAuth clients can connect through browser consent, including clients identified
 by a metadata URL. Project run tasks survive a client reconnect, and results
 link to run resources that compatible clients can open or follow.
 
-**Forty-nine tools.** The visible subset depends on the caller's role. Compact
+**Fifty-two tools.** The visible subset depends on the caller's role. Compact
 searchable menus, recorded progress and saved-file readers keep the workflow
-inside the conversation. Clients can pause and resume validated work and compare
+inside the conversation. Versioned project briefs and client-confirmed decisions
+are captured per run through `atoma_project_context` and `atoma_project_context_update`.
+Model suggestions remain proposals until the client confirms them. `atoma_run_review` assembles bounded saved evidence before
+client acceptance, without running tests or opening a preview. Clients can pause and resume validated work and compare
 saved file inventories between runs. `atoma_run_start` accepts `baseRunId` to
 iterate a specific saved version; status and readiness expose the accepted reference. Deliveries await client testing and explicit
 acceptance before GitHub publication. Hosts supporting MCP Apps can also display an inline
@@ -320,7 +323,7 @@ ready for production. See the [changelog](CHANGELOG.md) for what changed.
 | Version | `0.4.0` |
 | Node | 24.20+ (`.nvmrc` 24.20.0, `engines` >=24) |
 | Subsystems under their own contract | 18 |
-| MCP tools | 49 |
+| MCP tools | 52 |
 | Curated agent names | 118 molecules · 40 cells · 20 tissues |
 | Controlled benchmark rounds | 12 (`benchmark/RESULT.md` + `ROUND<n>.md`) |
 | Interface locales | 13 catalogs — 1 source, 12 translated |

@@ -426,6 +426,7 @@ export type GitHubAccessRequired = z.infer<typeof githubAccessRequiredSchema>;
 export const projectRunSchema = z
   .object({
     projectRunId: projectRunIdSchema,
+    contextVersion: z.number().int().nonnegative().optional(),
     projectId: projectIdSchema,
     orgId: organisationIdSchema,
     requestedByPrincipalId: principalIdSchema,

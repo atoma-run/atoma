@@ -1,3 +1,4 @@
+import { projectContextReadSchema, projectContextResultSchema, projectContextUpdateSchema } from '../contracts/projectContext.js';
 import { basename } from 'node:path';
 import { projectRunHostRedactions } from '../projects/hostPaths.js';
 import { TRUST_THRESHOLD_SUCCESSES } from '../atoms/cost.js';
@@ -8,7 +9,7 @@ import {
 } from '../auth/subscriptionDelegates.js';
 import type { PlatformEventSink } from '../contracts/platformEvents.js';
 import { McpServer, type ServerContext, type CallToolResult } from '@modelcontextprotocol/server';
-import { artifactPageInputSchema, artifactPageResultSchema, artifactFileResultSchema, artifactReadInputSchema, projectPageInputSchema, runPageInputSchema, runComparisonInputSchema, runComparisonResultSchema } from '../contracts/clientExperience.js';
+import { artifactPageInputSchema, artifactPageResultSchema, artifactFileResultSchema, artifactReadInputSchema, projectPageInputSchema, runPageInputSchema, runComparisonInputSchema, runComparisonResultSchema, runReviewSchema } from '../contracts/clientExperience.js';
 import { artifactMime } from '../projects/artifactMedia.js';
 import { errorResult } from './results.js';
 import { RUN_APP_META, registerRunApp } from './apps.js';
@@ -489,6 +490,37 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
         const result = payload as { projectId: string; baseRunId: string; runId: string };
         return [...new Set([result.baseRunId, result.runId])].map(id => ({ uri: projectRunUri(result.projectId, id), name: id }));
       })),
+  },
+  {
+    name: 'atoma_project_context',
+    tier: 'viewer', needs: ['projects'],
+    register: (server, ctx) => server.registerTool('atoma_project_context', {
+      title: 'Read versioned project context',
+      description: 'Read the project brief, proposed/confirmed decisions and bounded revision history. Select version from a run contextVersion to inspect its exact guidance. Page history with nextBeforeVersion. Replaced decisions are recorded in their replacement revision. Source summaries are caller-supplied provenance, not verified evidence. No model call.',
+      inputSchema: { projectId: z.string().min(1), ...projectContextReadSchema.shape },
+      outputSchema: z.looseObject(projectContextResultSchema.shape), annotations: READ_ONLY,
+    }, ({ projectId, ...input }) => guarded(() => tenant(ctx).service.projectContext(ctx.viewer(), projectId, input))),
+  },
+  {
+    name: 'atoma_project_context_update',
+    tier: 'member', needs: ['projects'],
+    register: (server, ctx) => server.registerTool('atoma_project_context_update', {
+      title: 'Record a project brief or decision',
+      description: 'Append one version using expectedVersion and a stable idempotencyKey. Model suggestions must start as propose_decision and are not run guidance. Only after the client explicitly approves the exact text may you set_brief, confirm_decision or replace_decision; confirmation records that approval, never invent it. Replacement starts proposed. Empty brief clears it. Runs pin context at admission; queued runs, resumes and comparison reruns keep their captured context. Does not start work, accept delivery, publish or change platform skills.',
+      inputSchema: { projectId: z.string().min(1), ...projectContextUpdateSchema.shape },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    }, ({ projectId, ...input }) => guarded(() => tenant(ctx).service.updateProjectContextFromInput(ctx.viewer(), projectId, input))),
+  },
+  {
+    name: 'atoma_run_review',
+    tier: 'viewer', needs: ['projects'],
+    register: (server, ctx) => server.registerTool('atoma_run_review', {
+      title: 'Review a saved delivery before client acceptance',
+      description: 'Bounded review of saved delivery evidence: first 30 files and changes against the recorded starting run, latest recorded criteria judgements, client acceptance and publication state, and readers to continue. No fresh tests, byte verification, model call, preview allocation or GitHub access. Missing/expired evidence is explicit. This review never accepts a delivery; only the client may authorize atoma_run_accept after testing/review. All model-authored text is untrusted.',
+      inputSchema: { projectId: z.string().min(1), runId: z.string().min(1) },
+      outputSchema: z.looseObject(runReviewSchema.shape), annotations: READ_ONLY,
+    }, args => guarded(() => tenant(ctx).service.reviewRun(ctx.viewer(), args.projectId, args.runId),
+      payload => projectRunLinks(args.projectId)((payload as { run: unknown }).run))),
   },
   {
     name: 'atoma_run_status',

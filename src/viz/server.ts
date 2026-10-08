@@ -4342,8 +4342,29 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
       return;
     }
 
+    const contextRoute = pathname.match(/^\/api\/projects\/([^/]+)\/context$/);
+    if (contextRoute) {
+      if (req.method !== 'GET' && req.method !== 'PUT') {
+        res.writeHead(405, { allow: 'GET, PUT', 'content-length': '0' }); res.end(); return;
+      }
+      if (req.method === 'PUT' && !sameOrigin(req, res)) return;
+      if (!viewer) { sendJson(res, 401, { error: 'authentication required' }); return; }
+      try {
+        const query: Record<string, unknown> = Object.fromEntries(new URL(req.url!, 'http://localhost').searchParams);
+        for (const key of ['version', 'beforeVersion', 'limit']) if (key in query) query[key] = Number(query[key]);
+        const service = PROJECTS_RUNTIME.projects;
+        sendJson(res, 200, req.method === 'PUT'
+          ? await service.updateProjectContext(req, viewer, contextRoute[1]!)
+          : service.projectContext(viewer, contextRoute[1]!, query));
+      } catch (error) {
+        if (!(error instanceof ProjectHttpError)) throw error;
+        sendJson(res, error.status, { error: error.message, problem: error.problem });
+      }
+      return;
+    }
+
     const readinessRead = pathname.match(/^\/api\/projects\/([^/]+)\/readiness$/);
-    const clientRunRead = pathname.match(/^\/api\/projects\/([^/]+)\/runs\/([^/]+)\/(status|artifacts|file|compare)$/);
+    const clientRunRead = pathname.match(/^\/api\/projects\/([^/]+)\/runs\/([^/]+)\/(status|artifacts|file|compare|review)$/);
     if (readinessRead || clientRunRead) {
       if (!methodAllowed(req, res, 'GET')) return;
       if (!viewer) { sendJson(res, 401, { error: 'authentication required' }); return; }
@@ -4354,6 +4375,7 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
         for (const key of ['offset', 'limit']) if (params.has(key)) query[key] = Number(params.get(key));
         const payload = readinessRead ? service.projectReadiness(viewer, readinessRead[1]!)
           : clientRunRead![3] === 'status' ? service.projectRunStatus(viewer, clientRunRead![1]!, clientRunRead![2]!)
+            : clientRunRead![3] === 'review' ? service.reviewRun(viewer, clientRunRead![1]!, clientRunRead![2]!)
             : clientRunRead![3] === 'compare' ? service.compareRuns(viewer, clientRunRead![1]!, clientRunRead![2]!, query)
             : clientRunRead![3] === 'artifacts' ? service.artifacts(viewer, clientRunRead![1]!, clientRunRead![2]!, query)
               : service.artifactFile(viewer, clientRunRead![1]!, clientRunRead![2]!, query);

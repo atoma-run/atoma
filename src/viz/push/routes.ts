@@ -266,6 +266,7 @@ const PUSH_ROUTE_SOURCES: Record<PlatformEventKind, PushRouteSource | null> = {
     },
   },
   'run.client_accepted': null,
+  'project.context_updated': null,
   'publication.failed': {
     // The owners too: a delivered run whose artifacts never reached GitHub is
     // the organisation's problem, not only the requester's.

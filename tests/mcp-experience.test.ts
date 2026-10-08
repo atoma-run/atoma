@@ -12,7 +12,7 @@ import { StreamableHTTPClientTransport as LegacyTransport } from '@modelcontextp
 import { GetTaskResultSchema, CreateTaskResultSchema } from '@modelcontextprotocol/sdk/types.js';
 import { afterEach, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { artifactFileResultSchema, artifactPageResultSchema, compactRunSchema, runViewSchema, serviceProblemSchema, runComparisonResultSchema } from '../src/contracts/clientExperience.js';
+import { artifactFileResultSchema, artifactPageResultSchema, compactRunSchema, runViewSchema, serviceProblemSchema, runComparisonResultSchema, runReviewSchema } from '../src/contracts/clientExperience.js';
 import { closeStoreHandles } from '../src/core/stores.js';
 import { GitHubStore } from '../src/github/store.js';
 import { McpHttpHost } from '../src/mcp/http.js';
@@ -154,6 +154,7 @@ it('projects recorded activity into status and durable tasks without inventing p
     checklist: [{ id: 'c1', behaviour: 'Reads the file', kind: 'review', status: 'review', observationRefs: [], judgement: { met: false, reason: 'Still missing' } }] }] }));
   const checking = runViewSchema.parse((await f.call('atoma_run_status', ref)).structuredContent);
   expect(checking.progress).toMatchObject({ stage: 'checking', acceptanceApproved: false, criteria: [{ met: false, reason: 'Still missing' }] });
+  expect((await f.call('atoma_run_review', ref)).structuredContent).toMatchObject({ verification: { acceptanceApproved: false, criteria: [{ met: false, reason: 'Still missing' }] }, canRequestAcceptance: false });
   f.projects.transitionProjectRun({ orgId: f.viewer.orgId, projectRunId: ref.runId, from: 'running', to: 'failed', error: 'Test failure' });
   expect(runViewSchema.parse((await f.call('atoma_run_status', ref)).structuredContent)).toMatchObject({ status: 'failed', progress: { stage: 'finished' }, actions: { canCancel: false } });
   writeFileSync(file, '{unfinished');
@@ -351,6 +352,11 @@ it('binds client acceptance to member authority and accepts text-only delivery w
   const delivered = f.projects.saveArtifactManifest(text.orgId, text.projectRunId, { version: 1, source: 'workspace', delivery: 'text', files: [], totalBytes: 0 })!;
   const accepted = await f.call('atoma_run_accept', { ...input, runId: text.projectRunId, manifestHash: delivered.artifactManifestHash! });
   expect(accepted.structuredContent).toMatchObject({ awaitingClientAcceptance: false, publication: null, clientAcceptance: { manifestHash: delivered.artifactManifestHash } });
+  const review = runReviewSchema.parse((await f.call('atoma_run_review', { projectId: f.project.projectId, runId: text.projectRunId })).structuredContent);
+  expect(review).toMatchObject({ delivery: 'text', comparisonState: 'text_only', canRequestAcceptance: false,
+    files: { total: 0 }, clientAcceptance: { manifestHash: delivered.artifactManifestHash } });
+  expect(review.nextSteps.map(step => step.tool)).not.toContain('atoma_run_preview');
+  expect(review.nextSteps.map(step => step.tool)).toContain('atoma_run_trace');
   expect(f.driver).not.toHaveBeenCalled();
 });
 
@@ -422,4 +428,105 @@ it('refuses a foreign, missing or changed iteration base before launching or res
   } })).isError).toBe(true);
   expect(f.driver).not.toHaveBeenCalled();
   expect(f.projects.listProjectRuns(f.viewer.orgId, f.project.projectId)).toHaveLength(1);
+});
+
+
+it.each([false, true])('reviews a delivery with bounded evidence without accepting or executing it (legacy=%s)', async legacy => {
+  const publish = vi.fn();
+  const f = await fixture(legacy, () => ({ publish }));
+  const base = f.makeRun({ 'old.txt': 'old' }).run;
+  const target = f.makeRun(Object.fromEntries(Array.from({ length: 35 }, (_, n) => [`file-${n}.txt`, 'new']))).run;
+  // Fixtures are completed without a runner; record the lineage it would have saved at launch.
+  const db = new Database(f.dbPath);
+  try { db.prepare('UPDATE project_runs SET seed_json=? WHERE project_run_id=?').run(JSON.stringify({ kind: 'run', runId: base.projectRunId }), target.projectRunId); }
+  finally { db.close(); }
+  f.projects.acceptDelivery(f.viewer.orgId, base.projectRunId, f.viewer.principalId,
+    { manifestHash: base.artifactManifestHash!, review: 'Client accepted this reference.' });
+  const reference = f.makeRun({ 'reference.txt': 'accepted separately after this iteration started' }).run;
+  f.projects.acceptDelivery(f.viewer.orgId, reference.projectRunId, f.viewer.principalId,
+    { manifestHash: reference.artifactManifestHash!, review: 'Another reviewed version.' });
+  const ref = { projectId: f.project.projectId, runId: target.projectRunId };
+  const result = await f.call('atoma_run_review', ref);
+  const review = runReviewSchema.parse(result.structuredContent);
+  expect(review).toMatchObject({
+    run: { projectRunId: target.projectRunId, artifactManifestHash: target.artifactManifestHash },
+    acceptedReferenceRunId: reference.projectRunId, delivery: 'files', filesState: 'available',
+    comparisonState: 'available', canRequestAcceptance: true, clientAcceptance: null,
+    verification: { evidence: 'unavailable', acceptanceApproved: null }, bytes: 'not-revalidated',
+    files: { total: 35, nextOffset: 30 }, comparison: { baseRunId: base.projectRunId, total: 36, nextOffset: 30 },
+  });
+  expect(review.files!.files).toHaveLength(30);
+  expect(review.comparison!.files).toHaveLength(30);
+  expect(JSON.stringify(result)).not.toContain(f.root);
+  expect(result.content).toEqual(expect.arrayContaining([expect.objectContaining({ type: 'resource_link' })]));
+  expect(f.driver).not.toHaveBeenCalled();
+  expect(publish).not.toHaveBeenCalled();
+  expect(f.projects.getDeliveryAcceptance(f.viewer.orgId, target.projectRunId)).toBeNull();
+  expect(f.projects.getPublicationForRun(f.viewer.orgId, target.projectRunId)).toBeNull();
+  // The legacy session is caller/tier-bound; role changes are exercised by the stateless client.
+  if (legacy) return;
+  f.setViewer({ ...f.viewer, role: 'org:viewer', platformAdmin: false });
+  const viewerReview = runReviewSchema.parse((await f.call('atoma_run_review', ref)).structuredContent);
+  expect(viewerReview.canRequestAcceptance).toBe(false);
+  expect(viewerReview.nextSteps.map(step => step.tool)).not.toContain('atoma_run_accept');
+  f.setViewer({ ...f.viewer, orgId: randomUUID(), platformAdmin: false });
+  expect((await f.client.callTool({ name: 'atoma_run_review', arguments: ref })).isError).toBe(true);
+});
+
+it('keeps missing bases, partial results and expired evidence explicit in delivery review', async () => {
+  const f = await fixture();
+  const target = f.makeRun({ 'saved.txt': 'saved' }).run;
+  const ref = { projectId: f.project.projectId, runId: target.projectRunId };
+  const read = async () => runReviewSchema.parse((await f.call('atoma_run_review', ref)).structuredContent);
+  expect((await read()).comparisonState).toBe('no_recorded_base');
+  const db = new Database(f.dbPath);
+  try {
+    db.prepare('UPDATE project_runs SET seed_json=? WHERE project_run_id=?').run(JSON.stringify({ kind: 'run', runId: randomUUID() }), target.projectRunId);
+    expect((await read()).comparisonState).toBe('base_unavailable');
+    db.prepare("UPDATE project_runs SET status='partial', stats_json=NULL WHERE project_run_id=?").run(target.projectRunId);
+    expect(await read()).toMatchObject({ run: { status: 'partial' }, filesState: 'available', canRequestAcceptance: false });
+    db.prepare('UPDATE project_runs SET bytes_expired_at=? WHERE project_run_id=?').run(new Date().toISOString(), target.projectRunId);
+    expect(await read()).toMatchObject({ filesState: 'expired', files: null, comparisonState: 'delivery_unavailable', canRequestAcceptance: false });
+  } finally { db.close(); }
+  expect((await f.client.callTool({ name: 'atoma_run_review', arguments: { ...ref, projectId: randomUUID() } })).isError).toBe(true);
+  expect(f.driver).not.toHaveBeenCalled();
+});
+
+it.each([false, true])('reads and updates durable project context through MCP (legacy=%s)', async legacy => {
+  const f = await fixture(legacy);
+  const projectId = f.project.projectId;
+  const empty = await f.call('atoma_project_context', { projectId });
+  expect(empty.structuredContent).toMatchObject({ context: { version: 0, brief: null, decisions: [] }, history: [] });
+  const request = { projectId, expectedVersion: 0, idempotencyKey: randomUUID(), change: {
+    kind: 'set_brief', text: 'An accessible offline editor.', source: { kind: 'client', summary: 'Client specification.' }, confirmation: 'Client approved the brief.' } };
+  const saved = await f.call('atoma_project_context_update', request);
+  expect(saved.structuredContent).toMatchObject({ created: true, context: { version: 1, brief: { text: 'An accessible offline editor.', confirmedBy: { principalId: f.viewer.principalId } } } });
+  expect((await f.call('atoma_project_context_update', request)).structuredContent).toMatchObject({ created: false });
+  const stale = await f.client.callTool({ name: 'atoma_project_context_update', arguments: { ...request, idempotencyKey: randomUUID() } });
+  expect(stale.isError).toBe(true);
+  const proposal = await f.call('atoma_project_context_update', { projectId, expectedVersion: 1, idempotencyKey: randomUUID(),
+    change: { kind: 'propose_decision', text: 'Use IndexedDB.', source: { kind: 'model', summary: 'Suggested storage.' } } });
+  expect(proposal.structuredContent).toMatchObject({ context: { version: 2, decisions: [{ status: 'proposed' }] } });
+  const historical = await f.call('atoma_project_context', { projectId, version: 1, limit: 1 });
+  expect(historical.structuredContent).toMatchObject({ context: { version: 1, decisions: [] }, history: [{ version: 2 }], nextBeforeVersion: 2 });
+  const next = await f.call('atoma_project_context', { projectId, beforeVersion: 2, limit: 1 });
+  expect(next.structuredContent).toMatchObject({ history: [{ version: 1 }], nextBeforeVersion: null });
+  expect(f.driver).not.toHaveBeenCalled();
+});
+
+it('keeps context updates member-only and scoped to the active organisation', async () => {
+  const f = await fixture();
+  const projectId = f.project.projectId;
+  const args = { projectId, expectedVersion: 0, idempotencyKey: randomUUID(), change: { kind: 'propose_decision', text: 'A choice', source: { kind: 'model', summary: 'Suggestion' } } };
+  f.setViewer({ ...f.viewer, role: 'org:viewer', platformAdmin: false });
+  const tools = (await f.client.listTools()).tools.map(tool => tool.name);
+  expect(tools).toContain('atoma_project_context');
+  expect(tools).not.toContain('atoma_project_context_update');
+  await f.call('atoma_project_context', { projectId });
+  await expect(f.client.callTool({ name: 'atoma_project_context_update', arguments: args })).rejects.toThrow(/not found/);
+  expect(() => f.service.updateProjectContextFromInput({ ...f.viewer, role: 'org:viewer' }, projectId, args)).toThrow(/member/);
+  f.setViewer({ ...f.viewer, orgId: randomUUID(), platformAdmin: true });
+  expect((await f.client.callTool({ name: 'atoma_project_context_update', arguments: args })).isError).toBe(true);
+  f.setViewer({ ...f.viewer, orgId: randomUUID(), platformAdmin: false });
+  expect((await f.client.callTool({ name: 'atoma_project_context', arguments: { projectId } })).isError).toBe(true);
 });

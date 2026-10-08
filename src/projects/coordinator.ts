@@ -1,3 +1,4 @@
+import { encodeProjectContext, PROJECT_CONTEXT_ENV } from '../contracts/projectContext.js';
 import { RunCheckpointStore, canonicalCheckpointWorkspacePath } from '../run/checkpoint.js';
 import { platformLimitsFor } from '../platform/settings.js';
 import { inventoryRepositoryWorkspace, carryRepositoryBase } from './repositorySync.js';
@@ -1820,6 +1821,12 @@ export class ProjectRunCoordinator {
           retrievalSource, { signal: preparationSignal, deadlineAt: preparationDeadlineAt });
         if (preparationSignal.aborted || Date.now() >= preparationDeadlineAt) throw new Error('project document preparation cancelled');
         environment[HAYSTACK_LAUNCH_ENV] = JSON.stringify(retrievalLaunch);
+        delete environment[PROJECT_CONTEXT_ENV];
+        if (run.contextVersion !== undefined) {
+          const context = this.store.getProjectContext(run.orgId, run.projectId, run.contextVersion);
+          if (!context) throw new ProjectStateConflict('The reserved project context version is unavailable');
+          environment[PROJECT_CONTEXT_ENV] = encodeProjectContext(context);
+        }
         // WHY THE PREVIOUS RUN DID NOT DELIVER, handed to this one.
         //
         // Written HERE and not beside `previousSeedRun`, because a

@@ -92,6 +92,9 @@ describe('organisation run admission', () => {
     const f = fixture();
     const other = projectRetrievalFixture(f.root, { subject: 'waiting-other', slug: 'waiting-other' });
     const selected = other.makeRun({ 'selected.txt': 'saved version' }).run;
+    const setBrief = (text: string, version: number) => other.projects.updateProjectContext(other.viewer.orgId, other.project.projectId, other.viewer.principalId,
+      { expectedVersion: version, idempotencyKey: randomUUID(), change: { kind: 'set_brief', text, source: { kind: 'client', summary: 'Client request' }, confirmation: 'Client approved.' } });
+    setBrief('Original queued guidance', 0);
     PlatformSettingsStore.open(f.dbPath).set({ 'run.concurrentMax': 1 }, null);
     const lockPath = join(f.root, 'queue-lease.db');
     const holder = await acquireRunLease('busy', lockPath, { orgId: randomUUID() });
@@ -106,6 +109,8 @@ describe('organisation run admission', () => {
         projectId: other.project.projectId, request: { goal: 'Surviving goal', baseRunId: selected.projectRunId, idempotencyKey: randomUUID() } });
       expect(first.status).toBe('queued');
       expect(second.status).toBe('queued');
+      expect(second.contextVersion).toBe(1);
+      setBrief('New guidance must not reach queued run', 1);
       other.makeRun({ 'newer.txt': 'must not become the selected seed' });
       expect(coordinator.cancel(f.viewer.orgId, first.projectRunId)?.status).toBe('cancelled');
       coordinator.stopQueue();
@@ -119,7 +124,7 @@ describe('organisation run admission', () => {
           store: ProjectStore.open(${JSON.stringify(f.dbPath)}), dbPath: ${JSON.stringify(f.dbPath)},
           projectsRoot: ${JSON.stringify(f.root)}, hostEnv: ${JSON.stringify(hostEnv)},
           acquireLease: (id, scope) => acquireRunLease(id, ${JSON.stringify(lockPath)}, scope),
-          driver: async (options) => { console.log('LAUNCHED:' + options.goal + ':' + options.timeoutMs + ':' + options.extraArgs.join('|')); throw new Error('test driver ended'); },
+          driver: async (options) => { console.log('CONTEXT:' + options.env.ATOMA_PROJECT_CONTEXT); console.log('LAUNCHED:' + options.goal + ':' + options.timeoutMs + ':' + options.extraArgs.join('|')); throw new Error('test driver ended'); },
         });
         coordinator.reconcileInterrupted();
         await coordinator.waitForIdle();
@@ -133,6 +138,8 @@ describe('organisation run admission', () => {
         expect(other.projects.getProjectRun(other.viewer.orgId, second.projectRunId)?.error).toContain('unavailable or changed');
       } else {
         expect(child.stdout).toContain('LAUNCHED:Surviving goal:123000');
+        expect(child.stdout).toContain('Original queued guidance');
+        expect(child.stdout).not.toContain('New guidance must not reach queued run');
         expect(child.stdout).toContain('--seed|' + selected.hostPaths.workspacePath);
       }
       expect(child.stdout).not.toContain('LAUNCHED:Cancelled goal');

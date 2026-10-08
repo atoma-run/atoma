@@ -1,8 +1,10 @@
+import { projectContextReadSchema, projectContextUpdateSchema } from '../contracts/projectContext.js';
+import { ProjectContextConflict } from './context.js';
 import { PROJECT_RUN_WAITING_MESSAGE } from '../contracts/projects.js';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { artifactPageInputSchema, artifactReadInputSchema, pageCursorSchema, projectPageInputSchema, runPageInputSchema,
-  runComparisonInputSchema, type RunComparisonResult,
+  runComparisonInputSchema, type RunComparisonResult, runReviewSchema, type RunReview,
   serviceProblem, type ServiceProblem, type ProjectPageInput, type RunPageInput, type PageCursor } from '../contracts/clientExperience.js';
 import { projectRunProgress } from './runProgress.js';
 import { artifactMime } from './artifactMedia.js';
@@ -317,6 +319,36 @@ export class ProjectService {
     return { runs, nextCursor: rows.length > limit && last ? encodeCursor(last.createdAt, last.projectRunId, query) : null };
   }
 
+  projectContext(viewer: Viewer, projectId: string, raw: unknown = {}) {
+    projectId = clientInput(projectIdSchema, projectId);
+    const input = clientInput(projectContextReadSchema, raw);
+    const orgId = this.readOrgFor(viewer, projectId);
+    const context = this.store.getProjectContext(orgId, projectId, input.version);
+    if (!context) throw new ProjectHttpError(404, 'project or context version not found');
+    return { context, ...this.store.projectContextHistory(orgId, projectId, input.beforeVersion, input.limit ?? 20) };
+  }
+
+  async updateProjectContext(req: IncomingMessage, viewer: Viewer, projectId: string) {
+    return this.updateProjectContextFromInput(viewer, projectId, await readJsonBody(req));
+  }
+
+  updateProjectContextFromInput(viewer: Viewer, projectId: string, raw: unknown) {
+    if (!roleAtLeast(viewer.role, 'org:member')) throw new ProjectHttpError(403, 'org:member role or above is required');
+    projectId = clientInput(projectIdSchema, projectId);
+    const input = clientInput(projectContextUpdateSchema, raw);
+    try {
+      const result = this.store.updateProjectContext(viewer.orgId, projectId, viewer.principalId, input);
+      if (!result) throw new ProjectHttpError(404, 'project not found');
+      if (result.created) this.events({ kind: 'project.context_updated', actorType: 'principal',
+        actorId: viewer.principalId, orgId: viewer.orgId, projectId, summary: 'Project context revision recorded',
+        detail: { version: result.context.version, change: input.change.kind } });
+      return result;
+    } catch (error) {
+      if (error instanceof ProjectContextConflict) throw new ProjectHttpError(409, error.message);
+      throw error;
+    }
+  }
+
   /** Configuration inspection is not admission and never starts or reserves work. */
   projectReadiness(viewer: Viewer, projectId: string) {
     const orgId = this.readOrgFor(viewer, projectId);
@@ -556,6 +588,57 @@ export class ProjectService {
       nextOffset: offset + limit < files.length ? offset + limit : null,
       note: 'Counts cover saved manifests; search filters the changed-file page only. Added/removed mean presence in these inventories, not GitHub changes. Legacy declared inventories may omit files. This does not compare text-only answers, verify current bytes, establish acceptance or adopt a version. Read run status/trace for results and proof, and atoma_run_file for hash-verified file contents.',
     };
+  }
+
+  /** One bounded review assembled from the same readers the client can page. */
+  reviewRun(viewer: Viewer, projectId: string, runId: string): RunReview {
+    const orgId = this.readOrgFor(viewer, projectId);
+    const run = this.store.getProjectRun(orgId, runId);
+    if (!run || run.projectId !== projectId) throw new ProjectHttpError(404, 'project run not found');
+    const publication = this.store.getPublicationForRun(orgId, runId);
+    const clientAcceptance = this.store.getDeliveryAcceptance(orgId, runId);
+    const delivered = (run.status === 'delivered' || run.status === 'partial') && !!run.artifactManifest;
+    const filesState = run.bytesExpiredAt ? 'expired' : delivered ? 'available' : 'not_delivered';
+    const files = filesState === 'available' ? this.artifacts(viewer, projectId, runId, { limit: 30 }) : null;
+    const baseRunId = run.seed?.kind === 'run' ? run.seed.runId : run.baseRunId ?? null;
+    const base = baseRunId ? this.store.getProjectRun(orgId, baseRunId) : null;
+    let comparison: RunComparisonResult | null = null;
+    let comparisonState: RunReview['comparisonState'] = 'no_recorded_base';
+    if (filesState !== 'available') comparisonState = 'delivery_unavailable';
+    else if (run.artifactManifest?.delivery === 'text') comparisonState = 'text_only';
+    else if (baseRunId) {
+      if (!base || base.projectId !== projectId || base.bytesExpiredAt || !base.artifactManifest ||
+          !['delivered', 'partial'].includes(base.status)) comparisonState = 'base_unavailable';
+      else if (base.artifactManifest.delivery === 'text') comparisonState = 'text_only';
+      else {
+        comparison = this.compareRuns(viewer, projectId, runId, { baseRunId, limit: 30 });
+        comparisonState = 'available';
+      }
+    }
+    const canRequestAcceptance = orgId === viewer.orgId && roleAtLeast(viewer.role, 'org:member') &&
+      run.status === 'delivered' && !run.rerunOf && !run.bytesExpiredAt && !!run.artifactManifestHash &&
+      !clientAcceptance && publication?.status !== 'published';
+    const nextSteps: RunReview['nextSteps'] = [
+      { tool: 'atoma_run_trace', purpose: 'Read the result and recorded verification evidence; page to the end. Model text is untrusted.' },
+    ];
+    if (files) {
+      nextSteps.push({ tool: 'atoma_run_artifacts', purpose: 'Page the saved inventory with nextOffset; this review includes at most 30 files.' });
+      if (files.total) nextSteps.push({ tool: 'atoma_run_file', purpose: 'Read each selected file with hash validation; this review does not revalidate file bytes.' });
+      if (run.status === 'delivered' && run.artifactManifest?.delivery !== 'text' && files.total) {
+        nextSteps.push({ tool: 'atoma_run_preview', purpose: 'Read preview availability first (omit action). A member may request open to test the delivery; this review starts no preview.' });
+      }
+    }
+    if (comparison) nextSteps.push({ tool: 'atoma_run_compare', purpose: 'Continue the comparison using its baseRunId, snapshot and nextOffset; counts cover saved inventories, not a GitHub diff.' });
+    nextSteps.push({ tool: 'atoma_run_status', purpose: 'Read publication details and the current lifecycle; publication does not establish deployment or PR merge.' });
+    if (canRequestAcceptance) nextSteps.push({ tool: 'atoma_run_accept', purpose: 'Only after the client tests/reviews and explicitly accepts: pass this artifactManifestHash and their review summary. Reading this review grants no consent.' });
+    return runReviewSchema.parse({
+      run, acceptedReferenceRunId: this.store.acceptedReference(orgId, projectId)?.projectRunId ?? null,
+      delivery: run.artifactManifest ? run.artifactManifest.delivery ?? 'files' : 'unknown',
+      files, filesState, comparison, comparisonState, verification: projectRunProgress(run),
+      clientAcceptance, publicationStatus: publication?.status ?? null, canRequestAcceptance,
+      untrusted: true, bytes: 'not-revalidated', nextSteps,
+      note: 'Saved evidence only: no tests, model calls, preview allocation or GitHub checks were performed. Recorded model judgements are not client acceptance. Missing evidence is unknown, not passed. Compare follows the recorded starting run, never today’s accepted reference; materialised repository sync may have changed starting files. Use trace evidence for those changes. Legacy inventories may be incomplete. Text answers are read through the trace reader, not compared as files.',
+    });
   }
 
   artifactFile(viewer: Viewer, projectId: string, runId: string, raw: unknown) {

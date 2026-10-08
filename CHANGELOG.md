@@ -8,6 +8,12 @@ before launch, incomplete runs kept and explained, and comparison reruns.
 
 ### Added
 
+- Versioned project briefs and decisions through `atoma_project_context` and
+  `atoma_project_context_update`. Suggestions remain proposed until explicitly
+  confirmed by the client. Runs capture their context revision at admission;
+  queue restarts, checkpoint resumes and comparison reruns keep that revision.
+  Updates preserve authorship/provenance and refuse concurrent overwrites.
+
 - Claude Code plugin `atoma`, installable from this repository's marketplace
   (`claude plugin marketplace add atoma-run/atoma`, then
   `claude plugin install atoma@atoma`): it connects the hosted MCP and adds a

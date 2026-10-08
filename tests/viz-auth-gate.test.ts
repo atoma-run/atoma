@@ -2568,6 +2568,19 @@ it('serves saved file preview bytes as authenticated, non-executable attachments
     expect(Buffer.from(await response.arrayBuffer())).toEqual(bytes);
     // HTTP uses the same compact menus, progress, readiness and artifact reader as MCP.
     const runBase = `${base}/api/projects/${project.projectId}/runs/${runId}`;
+    const contextUrl = `${base}/api/projects/${project.projectId}/context`;
+    expect((await fetch(contextUrl)).status).toBe(401);
+    expect(await (await fetch(contextUrl, { headers })).json()).toMatchObject({ context: { version: 0 } });
+    const contextBody = JSON.stringify({ expectedVersion: 0, idempotencyKey: randomUUID(),
+      change: { kind: 'set_brief', text: 'Offline editor', source: { kind: 'client', summary: 'Client specification' }, confirmation: 'Client approved.' } });
+    expect((await fetch(contextUrl, { method: 'PUT', headers: { ...headers, origin: 'https://foreign.example', 'content-type': 'application/json' }, body: contextBody })).status).toBe(403);
+    const updated = await fetch(contextUrl, { method: 'PUT', headers: { ...headers, origin: base, 'content-type': 'application/json' }, body: contextBody });
+    expect(updated.status).toBe(200);
+    expect(await updated.json()).toMatchObject({ created: true, context: { version: 1, brief: { text: 'Offline editor' } } });
+    expect(await (await fetch(`${contextUrl}?version=0`, { headers })).json()).toMatchObject({ context: { version: 0, brief: null } });
+    expect((await fetch(`${contextUrl}?limit=51`, { headers })).status).toBe(400);
+    expect((await fetch(`${contextUrl}?version=100`, { headers })).status).toBe(404);
+
     const compact = await fetch(`${base}/api/projects/${project.projectId}/runs?view=compact&limit=1`, { headers });
     expect(await compact.json()).toMatchObject({ runs: [{ projectRunId: runId, goalExcerpt: 'Preview files' }], nextCursor: null });
     expect(await (await fetch(`${base}/api/projects?search=File&limit=1`, { headers })).json())
@@ -2578,6 +2591,11 @@ it('serves saved file preview bytes as authenticated, non-executable attachments
       .toMatchObject({ projectId: project.projectId, canRequest: true, liveChecks: 'not-performed' });
     expect(await (await fetch(`${runBase}/artifacts?limit=1`, { headers })).json())
       .toMatchObject({ files: [{ path: 'drawing.svg', size: bytes.length }], total: 1, nextOffset: null });
+    expect((await fetch(`${runBase}/review`)).status).toBe(401);
+    const review = await fetch(`${runBase}/review`, { headers });
+    expect(review.status).toBe(200);
+    expect(await review.json()).toMatchObject({ run: { projectRunId: runId }, filesState: 'available',
+      comparisonState: 'no_recorded_base', clientAcceptance: null, bytes: 'not-revalidated' });
     expect((await fetch(`${runBase}/compare?baseRunId=${runId}`)).status).toBe(401);
     expect(await (await fetch(`${runBase}/compare?baseRunId=${runId}`, { headers })).json())
       .toMatchObject({ evidence: 'saved_manifests', counts: { unchanged: 1 }, files: [], nextOffset: null });

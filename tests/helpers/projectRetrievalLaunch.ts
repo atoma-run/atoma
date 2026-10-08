@@ -1,3 +1,4 @@
+import type { RunReview } from '../../src/contracts/clientExperience.js';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -35,4 +36,19 @@ export function projectRetrievalFixture(root: string, options: { subject?: strin
     return { run: projects.getProjectRun(viewer.orgId, created.run.projectRunId)!, layout };
   };
   return { root, dbPath, auth, viewer, projects, project, makeRun };
+}
+
+
+/** Wire-schema fixture for hosts that stub the shared project reader. */
+export function runReviewFixture(): RunReview {
+  return {
+    run: { projectId: randomUUID(), projectRunId: randomUUID(), goal: 'Review the saved work',
+      status: 'delivered', artifactManifestHash: 'a'.repeat(64) },
+    acceptedReferenceRunId: null, delivery: 'files', files: null, filesState: 'not_delivered',
+    comparison: null, comparisonState: 'no_recorded_base',
+    verification: { stage: 'finished', message: 'Run delivered.', source: 'run', evidence: 'unavailable',
+      lastActivityAt: null, criteria: [], criteriaTruncated: false, acceptanceApproved: null },
+    clientAcceptance: null, publicationStatus: null, canRequestAcceptance: false,
+    untrusted: true, bytes: 'not-revalidated', nextSteps: [], note: 'Saved evidence only.',
+  };
 }

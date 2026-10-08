@@ -1,3 +1,5 @@
+import { initializeProjectContext, readProjectContext, projectContextHistory, updateProjectContext } from './context.js';
+import type { ProjectContextUpdate } from '../contracts/projectContext.js';
 import { PlatformSettingsStore } from '../platform/settings.js';
 import { repositorySyncSchema, type RepositorySync } from '../contracts/repositorySync.js';
 import { randomUUID } from 'node:crypto';
@@ -471,6 +473,7 @@ interface ProjectRunRow {
   rerun_of_run_id?: string | null;
   resume_of_run_id?: string | null;
   base_run_id?: string | null;
+  context_version?: number | null;
   model_overrides_json?: string | null;
   requested_timeout_ms?: number | null;
   seed_json?: string | null;
@@ -589,6 +592,7 @@ function runFromRow(row: ProjectRunRow): ProjectRun {
     ...(row.repository_base_json ? { repositoryBase: parseJson(row.repository_base_json, 'repository base') } : {}),
     ...(row.rerun_of_run_id ? { rerunOf: row.rerun_of_run_id } : {}),
     ...(row.resume_of_run_id ? { resumeOf: row.resume_of_run_id } : {}),
+    ...(row.context_version != null ? { contextVersion: row.context_version } : {}),
     ...(row.base_run_id ? { baseRunId: row.base_run_id } : {}),
     ...(row.model_overrides_json ? { modelOverrides: parseJson(row.model_overrides_json, 'model overrides') } : {}),
     ...(row.requested_timeout_ms != null ? { requestedTimeoutMs: row.requested_timeout_ms } : {}),
@@ -765,6 +769,13 @@ export class ProjectStore {
       if (!(this.db.pragma('table_info(project_runs)') as Array<{ name: string }>).some(column => column.name === 'requested_timeout_ms')) {
         this.db.exec('ALTER TABLE project_runs ADD COLUMN requested_timeout_ms INTEGER');
       }
+      initializeProjectContext(this.db);
+      if (!(this.db.pragma('table_info(project_runs)') as Array<{ name: string }>).some(column => column.name === 'context_version')) {
+        this.db.exec('ALTER TABLE project_runs ADD COLUMN context_version INTEGER');
+      }
+      this.db.exec(`CREATE TRIGGER IF NOT EXISTS run_context_immutable BEFORE UPDATE OF context_version ON project_runs
+        WHEN OLD.context_version IS NOT NEW.context_version
+        BEGIN SELECT RAISE(ABORT, 'run context version is immutable'); END;`);
       for (const [table, column] of [
         ['projects', 'repository_source_json'],
         ['projects', 'showcase'],
@@ -1518,6 +1529,19 @@ END;
     return row ? runFromRow(row) : null;
   }
 
+  getProjectContext(orgId: string, projectId: string, version?: number) {
+    if (!this.getProject(orgId, projectId)) return null;
+    return readProjectContext(this.db, orgId, projectId, version);
+  }
+
+  projectContextHistory(orgId: string, projectId: string, before: number | undefined, limit: number) {
+    return projectContextHistory(this.db, orgId, projectId, before, limit);
+  }
+
+  updateProjectContext(orgId: string, projectId: string, principalId: string, input: ProjectContextUpdate) {
+    return updateProjectContext(this.db, orgId, projectId, principalId, input);
+  }
+
   createProjectRun(input: {
     readonly orgId: string;
     readonly projectId: string;
@@ -1568,6 +1592,11 @@ END;
       if (existing) {
         return { run: existing, created: false } as const;
       }
+      // Pin inside admission's write transaction. Legacy continuations inherit absence.
+      const contextOriginId = rerun?.rerunOf ?? request.resumeOf;
+      const contextOrigin = contextOriginId ? this.getProjectRun(orgId, contextOriginId) : null;
+      if (contextOriginId && (!contextOrigin || contextOrigin.projectId !== projectId)) throw new ProjectStateConflict('Context origin must belong to this project');
+      const contextVersion = contextOriginId ? contextOrigin?.contextVersion : readProjectContext(this.db, orgId, projectId)!.version;
       if (request.baseRunId) this.iterationBase(orgId, projectId, request.baseRunId);
       if (input.enforceCapacity) this.assertRunCapacity(orgId);
       const now = new Date().toISOString();
@@ -1576,8 +1605,8 @@ END;
           `INSERT INTO project_runs (
              project_run_id, project_id, org_id, requested_by_principal_id, request_key,
              goal, status, workspace_path, runs_path, log_path, skills_path,
-             rerun_of_run_id, model_overrides_json, depth, created_at, updated_at, requested_timeout_ms, resume_of_run_id, base_run_id
-           ) VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+             rerun_of_run_id, model_overrides_json, depth, created_at, updated_at, requested_timeout_ms, resume_of_run_id, base_run_id, context_version
+           ) VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           requestedRunId,
@@ -1597,7 +1626,8 @@ END;
           now,
           requestedTimeoutMs ?? null,
           request.resumeOf ?? null,
-          request.baseRunId ?? null
+          request.baseRunId ?? null,
+          contextVersion ?? null
         );
       if (acceptance) {
         // `source` NULL is a user list, which is every row written before

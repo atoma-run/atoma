@@ -50,6 +50,12 @@ the filters; an empty page with a null cursor ends the search. Compact run
 cards omit manifests and full traces. No-option calls preserve the original
 full-list text response; structured results wrap lists as `projects` or `runs`.
 
+Read `atoma_project_context` before drafting the next goal. Members can append a
+brief or decision with `atoma_project_context_update`; proposals guide no run until
+the client explicitly confirms them. The run records `contextVersion`, which the
+reader accepts as `version`. See [versioned project context](project-context.md)
+for operations, concurrency, provenance and bounds.
+
 Before proposing a launch, call `atoma_project_readiness` with `projectId`.
 It reports your organisation, role, saved GitHub connection, selected models
 and payers, timeout and organisation capacity. This is a configuration check:
@@ -82,6 +88,37 @@ Other hosts retain the same tools, text results and resource links. The App
 has no embedded credentials or direct network access and never executes a
 delivered HTML/SVG document. For source development, run `npm run mcp:build`
 after editing its source; production `npm run build` includes this step.
+
+### Review and iterate before publishing
+
+`atoma_run_review` takes `projectId` and `runId` and assembles a bounded review:
+the delivery hash, first 30 saved files, first 30 changed files against the
+recorded starting run, latest recorded criteria judgements, client acceptance,
+and publication status. `nextSteps` points to existing readers to continue;
+file/comparison `nextOffset` and comparison `snapshot` retain their ordinary
+paging contracts. Reads work for viewers; permission to request acceptance is
+project/org/member-scoped and is not an approval recommendation.
+
+This is saved evidence, not a test run. It neither checks current bytes nor
+starts a preview, calls a model or queries GitHub. Use `atoma_run_file` to read
+verified file bytes, `atoma_run_trace` for the result and complete recorded
+checks, and `atoma_run_preview` to inspect availability then explicitly open a
+preview for client testing. Missing trace evidence is unknown, not a pass;
+partial deliveries cannot be accepted. Text answers point to the trace reader,
+not a misleading empty file comparison. Expired bytes and unavailable bases
+remain explicit while metadata is readable. Automatic repository sync may have
+changed starting files: the inventory comparison is against the recorded prior
+run, not a promise of an exact Git diff or a comparison of text answers.
+
+After testing/review and explicit client agreement, `atoma_run_accept` takes the
+exact `artifactManifestHash` as `manifestHash` and a `review` summary. It records
+that agreement then publishes files; `atoma_publication_retry` retries a failed
+publication without granting consent again. A review never calls either tool.
+
+For another iteration, pass `baseRunId` and a new goal/key to `atoma_run_start`.
+Status/readiness/review expose `acceptedReferenceRunId`; it does not replace the
+recorded base used by a review. Selecting a version is not accepting it, resetting
+GitHub or deploying it. No selection preserves the usual automatic seed policy.
 
 ### Protocols, tasks and run resources
 

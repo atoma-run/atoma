@@ -42,7 +42,7 @@ const ENGLISH_NUMBERS = Object.freeze([
   'thirty-three', 'thirty-four', 'thirty-five', 'thirty-six', 'thirty-seven',
   'thirty-eight', 'thirty-nine', 'forty', 'forty-one', 'forty-two',
   'forty-three', 'forty-four', 'forty-five', 'forty-six', 'forty-seven',
-  'forty-eight', 'forty-nine', 'fifty',
+  'forty-eight', 'forty-nine', 'fifty', 'fifty-one', 'fifty-two',
 ]);
 
 /** `13` -> `thirteen`; past the table, the digits. README prose spells these out. */

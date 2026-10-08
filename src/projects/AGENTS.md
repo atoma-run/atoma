@@ -1,7 +1,6 @@
 # Projects — AGENTS.md
 
-`src/projects/` owns organisation-scoped projects: the run corpus they hold,
-their artifact manifests, and publication.
+`src/projects/` owns organisation-scoped projects, run corpora, artifacts and publication.
 
 Read [`AGENTS.md`](../../AGENTS.md) first: it holds the cross-cutting rules.
 Everything below is stated once, here, and is not repeated at the root.
@@ -13,17 +12,18 @@ Neighbours:
 
 ## Run network
 
-Project runs enable isolated, proxied egress by default. The operator may set
-`ATOMA_EGRESS=0` to disable it or `ATOMA_EGRESS_ALLOWLIST` to replace the host
-list. These values come from the host snapshot, never a tenant prompt.
+Project runs enable isolated, proxied egress by default. `ATOMA_EGRESS=0` disables
+it; `ATOMA_EGRESS_ALLOWLIST` replaces the host list. Both are host-only settings.
 
 ## Scoping and storage
-- Projects, GitHub App installations and publications are organisation-scoped;
-  a run belongs to exactly one project and a project to exactly one
-  organisation. Gated `/api/runs` lists that org's project traces from
-  `orgs/<orgId>/projects/<projectId>/runs/<runId>/` (override the host root
-  with `ATOMA_PROJECTS_ROOT`, default `~/.atoma`). It does not mix the
-  operator `./runs` corpus used by CLI, MCP and ungated viz.
+- Projects, installations and publications belong to one organisation. Gated
+  `/api/runs` reads its project traces at `orgs/<orgId>/projects/<projectId>/runs/<runId>/`
+  under `ATOMA_PROJECTS_ROOT` (default `~/.atoma`), never operator `./runs`.
+- `context.ts` versions project briefs and decisions in the product DB. Updates
+  require CAS and idempotency; only explicit client-confirmed guidance reaches
+  models. Admission pins the revision; retries/resumes/reruns preserve it.
+  History never becomes platform skills or trust. See the full bounded storage,
+  transport and provenance contract in [project context](../../docs/project-context.md).
 - A run's USER-APPROVED acceptance list is captured in `project_run_acceptance`
   in the reservation transaction, digested by `src/run/acceptanceSpec.ts` and
   immutable by trigger; `getRunAcceptanceSpec` re-digests on read and throws

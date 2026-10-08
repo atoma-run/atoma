@@ -425,6 +425,16 @@ Neighbours:
 
 ## Changing the catalogue
 
+- `atoma_project_context` reads bounded revisions/history; `_update` is member-only,
+  CAS/idempotent, with explicit client confirmation for durable guidance. Both
+  use ProjectService, also GET/PUT `/api/projects/:id/context`. The storage and
+  pinned-run contract lives in [projects](../projects/AGENTS.md).
+
+- `atoma_run_review` uses the shared `ProjectService.reviewRun` reader, also
+  GET `/api/projects/:project/runs/:run/review`. It returns bounded saved evidence
+  and links to the existing readers; it runs no test, opens no preview, and
+  grants no client approval. Missing/expired evidence remains explicit.
+
 - `atoma_run_start.baseRunId` selects the exact retained project delivery for
   a new goal. Status/readiness expose `acceptedReferenceRunId`; absent selection
   preserves automatic seeding. The shared service refuses comparison/resume
@@ -447,7 +457,7 @@ Neighbours:
   With it come a behavioural test in `tests/mcp-http.test.ts` (which tier sees
   it, what it refuses), the release smoke if it is operator-visible, and the
   README sentence `docs:check` derives from the table (the spelled-out count
-  in `scripts/repo-facts.mjs` runs to fifty; extend the table before the
+  in `scripts/repo-facts.mjs` runs to fifty-two; extend the table before the
   catalogue passes it). Removing or renaming one is a compatibility change for
   every registered client and is stated in the changelog.
 - `server.json` (repository root) is the MCP Registry entry for the deployed

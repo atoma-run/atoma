@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { projectRunStatusSchema } from './projects.js';
+import { projectRunStatusSchema, projectRunPublicSchema, deliveryAcceptanceSchema, publicationStatusSchema } from './projects.js';
 
 /** Opt-in paging keeps the original no-argument list responses compatible. */
 export const projectPageInputSchema = z.object({
@@ -109,3 +109,26 @@ export const runViewSchema = z.object({
   actions: z.object({ canCancel: z.boolean() }).optional(),
   publication: z.object({ status: z.string(), repositoryUrl: z.string().nullable(), pullRequestUrl: z.string().optional() }).nullable().optional(),
 });
+
+
+/** Bounded review of saved evidence, never a fresh test or a client approval. */
+export const runReviewSchema = z.object({
+  run: projectRunPublicSchema.pick({ projectId: true, projectRunId: true, goal: true, status: true,
+    artifactManifestHash: true, baseRunId: true, contextVersion: true, seed: true, bytesExpiredAt: true }),
+  acceptedReferenceRunId: z.string().nullable(),
+  delivery: z.enum(['text', 'files', 'unknown']),
+  files: artifactPageResultSchema.nullable(),
+  filesState: z.enum(['available', 'expired', 'not_delivered']),
+  comparison: runComparisonResultSchema.nullable(),
+  comparisonState: z.enum(['available', 'no_recorded_base', 'base_unavailable', 'text_only', 'delivery_unavailable']),
+  verification: runProgressSchema,
+  clientAcceptance: deliveryAcceptanceSchema.nullable(),
+  publicationStatus: publicationStatusSchema.nullable(),
+  canRequestAcceptance: z.boolean(),
+  untrusted: z.literal(true),
+  bytes: z.literal('not-revalidated'),
+  nextSteps: z.array(z.object({ tool: z.enum(['atoma_run_artifacts', 'atoma_run_file', 'atoma_run_compare',
+    'atoma_run_trace', 'atoma_run_preview', 'atoma_run_status', 'atoma_run_accept']), purpose: z.string() })),
+  note: z.string(),
+});
+export type RunReview = z.infer<typeof runReviewSchema>;

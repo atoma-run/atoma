@@ -59,6 +59,7 @@ export const platformEventKindSchema = z.enum([
   'publication.published',
   'publication.failed',
   'run.client_accepted',
+  'project.context_updated',
   // --- Organisation lifecycle.
   'org.created',
   'org.member_joined',
@@ -355,6 +356,7 @@ export const PLATFORM_EVENT_SEVERITY: Record<PlatformEventKind, PlatformEventSev
   // exists and is unreachable. That is an error, not a warning.
   'publication.failed': 'error',
   'run.client_accepted': 'info',
+  'project.context_updated': 'info',
   'org.created': 'info',
   'org.member_joined': 'security',
   // A display name is what every other member of the organisation sees in the
