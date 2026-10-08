@@ -56,6 +56,11 @@ the client explicitly confirms them. The run records `contextVersion`, which the
 reader accepts as `version`. See [versioned project context](project-context.md)
 for operations, concurrency, provenance and bounds.
 
+When a task returns `awaitingClientAnswer`, read `atoma_run_question`, ask the
+client, record their response with `atoma_run_answer`, then call
+`atoma_run_resume` on that source run. Questions and answers survive reconnects;
+an agent must never invent the client’s answer. See [client questions](client-questions.md).
+
 Before proposing a launch, call `atoma_project_readiness` with `projectId`.
 It reports your organisation, role, saved GitHub connection, selected models
 and payers, timeout and organisation capacity. This is a configuration check:

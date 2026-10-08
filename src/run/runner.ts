@@ -1,3 +1,4 @@
+import { assessClientQuestion } from '../atoms/clientQuestion.js';
 import { withRecoveryEffects } from '../core/recoveryEffects.js';
 import { assertCheckpointWorkerAbsent } from '../launcher/checkpointRecovery.js';
 import { assertProjectRunAuthority } from '../projects/runAuthority.js';
@@ -1027,6 +1028,7 @@ async function startTaskInternal(
     try {
       checkpoint = new SequentialCheckpoint(data, checkpointStore, {
         fresh: !savedCheckpoint, automatic: !!checkpointAuthority,
+        ...(checkpointAuthority ? { assessClientQuestion: (task: Task, next: import('../core/types.js').SubtaskSpec, completed: readonly Result[]) => assessClientQuestion(task, next, completed, ctx) } : {}),
         ...(savedCheckpoint && checkpointAuthority ? { source: savedCheckpoint } : {}), pauseAfter: args.pauseAfterPhase, deadlineAt,
         restoreWorkspace: savedCheckpoint && (checkpointAuthority || savedCheckpoint.interrupted) ? () => {
           if (savedCheckpoint.snapshotId) checkpointStore.materialize(savedCheckpoint, workspaceRoot, !checkpointAuthority);

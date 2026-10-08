@@ -11,6 +11,8 @@
  * value in persisted traces: never rename one.
  */
 export const RUN_ACTORS = {
+  /** Asks only for client-owned choices before a new root phase. */
+  clientQuestion: { name: 'run-client-question', tier: 1 },
   /** Root delivery acceptance: the run's final verdict on what it delivers. */
   root: { name: 'run-root', tier: 3 },
   /** Focused, report-blind review of the acceptance criteria during root acceptance. */

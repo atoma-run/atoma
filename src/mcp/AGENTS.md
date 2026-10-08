@@ -425,6 +425,11 @@ Neighbours:
 
 ## Changing the catalogue
 
+- `atoma_run_question` reads a saved blocking choice; `_answer` records only the
+  original requester’s explicit response. Then `_resume` uses the existing task
+  path. No guessed consent or automatic project-memory update. Details and
+  bounds: [client questions](../../docs/client-questions.md).
+
 - `atoma_project_context` reads bounded revisions/history; `_update` is member-only,
   CAS/idempotent, with explicit client confirmation for durable guidance. Both
   use ProjectService, also GET/PUT `/api/projects/:id/context`. The storage and
@@ -457,7 +462,7 @@ Neighbours:
   With it come a behavioural test in `tests/mcp-http.test.ts` (which tier sees
   it, what it refuses), the release smoke if it is operator-visible, and the
   README sentence `docs:check` derives from the table (the spelled-out count
-  in `scripts/repo-facts.mjs` runs to fifty-two; extend the table before the
+  in `scripts/repo-facts.mjs` runs to fifty-four; extend the table before the
   catalogue passes it). Removing or renaming one is a compatibility change for
   every registered client and is stated in the changelog.
 - `server.json` (repository root) is the MCP Registry entry for the deployed

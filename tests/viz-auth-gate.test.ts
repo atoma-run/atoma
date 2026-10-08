@@ -2568,6 +2568,9 @@ it('serves saved file preview bytes as authenticated, non-executable attachments
     expect(Buffer.from(await response.arrayBuffer())).toEqual(bytes);
     // HTTP uses the same compact menus, progress, readiness and artifact reader as MCP.
     const runBase = `${base}/api/projects/${project.projectId}/runs/${runId}`;
+    expect((await fetch(`${runBase}/question`)).status).toBe(401);
+    expect(await (await fetch(`${runBase}/question`, { headers })).json()).toMatchObject({ question: null, waitingForClient: false, canAnswer: false });
+    expect((await fetch(`${runBase}/question`, { method: 'POST', headers: { ...headers, origin: 'https://foreign.example', 'content-type': 'application/json' }, body: '{}' })).status).toBe(403);
     const contextUrl = `${base}/api/projects/${project.projectId}/context`;
     expect((await fetch(contextUrl)).status).toBe(401);
     expect(await (await fetch(contextUrl, { headers })).json()).toMatchObject({ context: { version: 0 } });

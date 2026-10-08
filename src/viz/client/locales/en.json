@@ -694,6 +694,7 @@
   "registry.runActor.criteria": "Reviews the acceptance criteria during the final check, a few at a time, against evidence the host collected — never against the run's own report.",
   "registry.runActor.textReference": "Writes its own answer to a text request without seeing the delivery, so the final check can compare the two.",
   "registry.runActor.checklist": "Drafts the acceptance checklist once, before the first attempt: the outcomes a finished delivery must show.",
+  "registry.runActor.clientQuestion": "Checks whether the next phase requires an unresolved client decision. If it does, the run saves its progress and waits for the client's answer before continuing.",
   "registry.runActor.router": "Picks the top-level tissue the run enters through, or asks for a new one when none fits.",
   "registry.runActor.tissueAuthor": "Writes a new reusable tissue for the platform catalogue when the router finds none that fits.",
   "registry.runActor.whyHeading": "Why there is no agent sheet",

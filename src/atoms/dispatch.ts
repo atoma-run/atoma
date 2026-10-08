@@ -113,7 +113,7 @@ export async function dispatchWithAggregation(
             }
           : baseSubtask;
       let r: Result;
-      checkpoint?.beforePhase(idx);
+      await checkpoint?.beforePhase(idx, subtask);
       try {
         r = await runOne(subtask, idx);
       } catch (err) {

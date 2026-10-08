@@ -72,6 +72,12 @@ Neighbours:
 
 ## Run host
 
+- Project sequential boundaries can record a client question atomically with a
+  sealed snapshot, including the initial zero-phase boundary. An unanswered
+  question blocks continuation; host-recorded answers travel in the checkpoint,
+  never in the permanent project brief. Only the original requester can answer.
+  No work is replayed while waiting. [Contract and review](../../docs/client-questions.md).
+
 - Opt-in `--checkpoint` / `--pause-after-phase N` / `--resume ID` implement
   durable sequential continuation in `checkpoint.ts`. Same workspace for CLI,
   original plan/checklist and carried budget; fresh trace and proof log. Only

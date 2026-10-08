@@ -1,7 +1,7 @@
 import { startingSnapshotSchema } from './startingWorkspace.js';
 import { z } from 'zod';
 import { acceptanceChecklistSchema } from './acceptanceChecklist.js';
-import type { Plan, Result, Task } from '../core/types.js';
+import type { Plan, Result, Task, SubtaskSpec } from '../core/types.js';
 
 /** Plan/strategy are opaque here; their existing parsers decode them at L3. */
 export const rootPlanCheckpointSchema = z.object({
@@ -30,6 +30,7 @@ export const runCheckpointSchema = z.object({
   root: rootPlanCheckpointSchema.nullable(), completed: z.array(completedPhaseSchema),
   workspaceDigest: z.string().nullable(),
   snapshotId: z.string().uuid().optional(),
+  clientQuestionId: z.string().uuid().optional(),
   worker: z.object({ id: z.string().uuid(), previousIds: z.array(z.string().uuid()).max(1024).optional(), endpoint: z.string().optional() }).strict().optional(),
   // Derived by the host reader for interrupted segments, never model input.
   interrupted: z.boolean().optional(),
@@ -45,15 +46,15 @@ export interface RootPhaseCheckpoint {
   restore(): RootPlanCheckpoint | null;
   planned(task: Task, plan: Plan, strategy: unknown, plannedPhases: number): void;
   readonly completed: readonly Result[];
-  beforePhase(index: number): void;
+  beforePhase(index: number, next?: SubtaskSpec): void | Promise<void>;
   afterPhase(index: number, result: Result): Promise<void>;
   finalizing(): void;
 }
 
 /** A planned pause is a partial result, not an execution/validation failure. */
 export class PhaseBoundaryPause extends Error {
-  constructor(readonly result: Result) {
-    super('Paused at a validated phase boundary; final acceptance is pending');
+  constructor(readonly result: Result, message = 'Paused at a validated phase boundary; final acceptance is pending') {
+    super(message);
     this.name = 'PhaseBoundaryPause';
   }
 }

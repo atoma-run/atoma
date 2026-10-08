@@ -1,3 +1,4 @@
+import { clientQuestionFixture } from '../helpers/clientQuestion.js';
 // Separate process: only the provider is mocked; runner, supervision, tools,
 // registry credit, checkpoint persistence and final acceptance are production code.
 import { mock } from 'node:test';
@@ -23,7 +24,11 @@ const recipe = { id: 'checkpoint-write-file', description: 'Write the requested 
 const complete = async (req: LlmCompletionRequest) => {
   calls.push(`${req.role}:${req.actor?.tier}:${req.actor?.name}`);
   let reply: unknown;
-  if (req.actor?.name === 'run-router') reply = { action: 'reuse', name: 'Meristem', reasoning: 'Fixture' };
+  if (req.actor?.name === 'run-client-question') {
+    const phase = process.env['CHECKPOINT_TEST_QUESTION_PHASE'];
+    reply = { question: phase !== undefined && req.userContent.includes(`Completed phase count: ${phase}\n`) ? clientQuestionFixture() : null };
+  }
+  else if (req.actor?.name === 'run-router') reply = { action: 'reuse', name: 'Meristem', reasoning: 'Fixture' };
   else if (req.role === 'draft-checklist') reply = [];
   else if (req.role === 'prefilter' && req.systemPrompt === SKILL_PREFILTER_SYSTEM_PROMPT) {
     reply = { kind: 'reuse', target: recipe.id, confidence: 'high', reasoning: 'File recipe' };
@@ -41,6 +46,10 @@ const complete = async (req: LlmCompletionRequest) => {
   else if (req.role === 'execute') {
     const path = /^Task: Write (phase-(?:one|two)\.txt)/m.exec(req.userContent)?.[1];
     if (!path) throw new Error(`Unexpected fixture task: ${req.userContent.slice(0, 500)}`);
+    if (process.env['CHECKPOINT_TEST_EXPECT_ANSWER'] === '1') {
+      if (!req.userContent.includes('Keep both login methods')) throw new Error('Client answer was lost before execution');
+      writeFileSync(join(root, 'answer-prompt.txt'), req.userContent);
+    }
     appendFileSync(join(root, 'effects.log'), `${path}\n`);
     if (process.env['CHECKPOINT_TEST_CRASH'] === 'phase' && path === 'phase-two.txt') process.kill(process.pid, 'SIGKILL');
     if (process.env['CHECKPOINT_TEST_CRASH'] === 'external' && path === 'phase-two.txt') await req.executor!.execute('run_shell', { cmd: 'printf external > effect.txt' });

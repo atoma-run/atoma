@@ -226,6 +226,54 @@ describe('durable sequential run continuation', () => {
     expect(() => new RunCheckpointStore(f.db).read(first.id)).toThrow('not at a resumable');
   }, 90000);
 
+  it.each([0, 1])('waits for a client at boundary %i and resumes in another process without repeating work', phase => {
+    const f = fixture();
+    const viewer = AuthStore.open(f.db).completeLogin({ provider: 'github', subject: 'question-owner', displayName: 'Owner', email: null, emailVerified: false }, null)!.viewer;
+    const store = ProjectStore.open(f.db);
+    const project = store.createProject({ orgId: viewer.orgId, principalId: viewer.principalId,
+      project: { name: 'Question', slug: 'question', repositoryTarget: { installationId: '1', owner: 'owner', name: 'question', visibility: 'private' } } });
+    const reserve = (resumeOf?: string) => {
+      const id = randomUUID(), workspace = join(f.root, id, 'workspace'), runs = join(f.root, id, 'traces');
+      store.createProjectRun({ orgId: viewer.orgId, principalId: viewer.principalId, projectId: project.projectId, projectRunId: id,
+        request: { goal: 'Write two files in sequence', idempotencyKey: id, ...(resumeOf ? { resumeOf } : {}) },
+        hostPaths: { workspacePath: workspace, runsPath: runs, skillsPath: join(f.root, 'skills'), logPath: join(f.root, id, 'run.log') } });
+      store.transitionProjectRun({ orgId: viewer.orgId, projectRunId: id, from: 'queued', to: 'running' });
+      return { id, workspace, env: { ATOMA_TENANT_RUN: '1', CHECKPOINT_TEST_TENANT: '1', ATOMA_RUN_ID: id,
+        ATOMA_BUILD_WORKSPACE: workspace, ATOMA_RUNS_DIR: runs, CHECKPOINT_TEST_QUESTION_PHASE: String(phase) } };
+    };
+    const first = reserve();
+    const paused = f.run(['--container', '--checkpoint', 'Write two files in sequence'], '', first.env);
+    expect(paused.status, paused.stdout + paused.stderr).toBe(0);
+    expect(f.report().outcome).toBe('partial');
+    const checkpoints = new RunCheckpointStore(f.db);
+    const question = checkpoints.clientQuestion(viewer.orgId, first.id)!;
+    expect(question).toMatchObject({ phase, answer: null });
+    expect(checkpoints.projectStatus(first.id, viewer.orgId)).toMatchObject({ state: 'paused', completed: phase });
+    expect(() => checkpoints.read(first.id)).toThrow(/client answer/);
+    const request = { questionId: question.questionId, idempotencyKey: randomUUID(), answer: { optionId: 'keep_both' } };
+    expect(checkpoints.answerClientQuestion(viewer.orgId, first.id, viewer.principalId, request).created).toBe(true);
+    expect(checkpoints.answerClientQuestion(viewer.orgId, first.id, viewer.principalId, request).created).toBe(false);
+    const saved = checkpoints.read(first.id);
+    const db = new Database(f.db);
+    db.prepare('UPDATE run_checkpoint_recovery SET deadline=0 WHERE id=?').run(first.id);
+    db.close();
+    expect(checkpoints.read(first.id).remainingMs).toBe(saved.remainingMs); // Waiting uses no execution budget.
+    const credit = f.counters();
+    const digest = checkpointWorkspaceDigest(first.workspace);
+    const second = reserve(first.id);
+    const resumed = f.run(['--container', '--resume', first.id], '', { ...second.env, CHECKPOINT_TEST_EXPECT_ANSWER: '1' });
+    expect(resumed.status, resumed.stdout + resumed.stderr).toBe(0);
+    expect(f.report().outcome).toBe('delivered');
+    expect(readFileSync(join(f.root, 'effects.log'), 'utf8')).toBe('phase-one.txt\nphase-two.txt\n');
+    expect(readFileSync(join(f.root, 'answer-prompt.txt'), 'utf8')).toContain('Keep both login methods');
+    expect(checkpointWorkspaceDigest(first.workspace)).toBe(digest);
+    expect(f.counters().skills.n).toBe(2);
+    if (phase === 1) expect(f.counters().atoms.n).toBe(credit.atoms.n * 2);
+    expect(checkpoints.clientQuestion(viewer.orgId, first.id)?.answer?.principalId).toBe(viewer.principalId);
+    expect(checkpoints.clientQuestion(viewer.orgId, second.id)).toBeNull();
+    expect(() => checkpoints.read(first.id)).toThrow(/not at a resumable/);
+  }, 90000);
+
   it('resumes after SIGKILL exactly at a committed boundary', () => {
     const f = fixture();
     const first = f.run(['--checkpoint', 'Write two files in sequence'], 'boundary');

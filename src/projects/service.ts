@@ -1,3 +1,4 @@
+import { answerClientQuestionSchema } from '../contracts/clientQuestion.js';
 import { projectContextReadSchema, projectContextUpdateSchema } from '../contracts/projectContext.js';
 import { ProjectContextConflict } from './context.js';
 import { PROJECT_RUN_WAITING_MESSAGE } from '../contracts/projects.js';
@@ -248,8 +249,10 @@ export class ProjectService {
 
   private present(run: ProjectRun, publication: import('../contracts/projects.js').Publication | null) {
     const clientAcceptance = this.store.getDeliveryAcceptance(run.orgId, run.projectRunId);
+    const clientQuestion = this.coordinator.clientQuestion(run);
     return { ...publicRun(run, publication, this.store.getRunPayers(run.orgId, run.projectRunId)),
-      clientAcceptance,
+      clientAcceptance, clientQuestion,
+      awaitingClientAnswer: Boolean(clientQuestion && !clientQuestion.answer && this.coordinator.checkpointStatus(run)?.state === 'paused'),
       acceptedReferenceRunId: this.store.acceptedReference(run.orgId, run.projectId)?.projectRunId ?? null,
       awaitingClientAcceptance: run.status === 'delivered' && !run.rerunOf && !run.bytesExpiredAt && Boolean(run.artifactManifestHash)
         && publication?.status !== 'published' && !clientAcceptance,
@@ -770,6 +773,41 @@ export class ProjectService {
       if (error instanceof Error && error.message === 'project run not found') {
         throw new ProjectHttpError(404, 'project run not found');
       }
+      throw error;
+    }
+  }
+
+  runQuestion(viewer: Viewer, projectId: string, runId: string) {
+    const orgId = this.readOrgFor(viewer, projectId);
+    const run = this.store.getProjectRun(orgId, runId);
+    if (!run || run.projectId !== projectId) throw new ProjectHttpError(404, 'project run not found');
+    const question = this.coordinator.clientQuestion(run);
+    const paused = this.coordinator.checkpointStatus(run)?.state === 'paused';
+    const mayAct = orgId === viewer.orgId && run.requestedByPrincipalId === viewer.principalId && roleAtLeast(viewer.role, 'org:member') &&
+      this.store.getProject(orgId, projectId)?.status === 'active' && !run.bytesExpiredAt;
+    const waitingForClient = Boolean(question && !question.answer && paused);
+    return { projectId, runId, question, waitingForClient,
+      canAnswer: mayAct && waitingForClient, canResume: mayAct && paused && Boolean(question?.answer),
+      nextAction: waitingForClient ? 'answer' : paused && question?.answer ? 'resume' : 'none' };
+  }
+
+  async answerRunQuestion(req: IncomingMessage, viewer: Viewer, projectId: string, runId: string) {
+    return this.answerRunQuestionFromInput(viewer, projectId, runId, await readJsonBody(req));
+  }
+
+  answerRunQuestionFromInput(viewer: Viewer, projectId: string, runId: string, raw: unknown) {
+    if (!roleAtLeast(viewer.role, 'org:member')) throw new ProjectHttpError(403, 'org:member role or above is required');
+    const input = clientInput(answerClientQuestionSchema, raw);
+    const run = this.store.getProjectRun(viewer.orgId, runId);
+    if (!run || run.projectId !== projectId) throw new ProjectHttpError(404, 'project run not found');
+    if (run.requestedByPrincipalId !== viewer.principalId) throw new ProjectHttpError(403, 'Only the original requester can answer this question');
+    if (run.status !== 'partial') throw new ProjectHttpError(409, 'The run has not finalized a safe pause');
+    if (run.bytesExpiredAt || this.store.getProject(viewer.orgId, projectId)?.status !== 'active') throw new ProjectHttpError(409, 'This project cannot be continued');
+    try {
+      const result = this.coordinator.answerClientQuestion(run, input);
+      return { ...result, nextAction: 'atoma_run_resume', note: 'Answer recorded. Resume this source run to continue with its remaining budget. This answer is not a permanent project decision or delivery acceptance.' };
+    } catch (error) {
+      if (error instanceof ProjectStateConflict) throw new ProjectHttpError(409, error.message);
       throw error;
     }
   }

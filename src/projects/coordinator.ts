@@ -1,3 +1,5 @@
+import { ClientQuestionConflict } from '../run/clientQuestions.js';
+import type { AnswerClientQuestion } from '../contracts/clientQuestion.js';
 import { encodeProjectContext, PROJECT_CONTEXT_ENV } from '../contracts/projectContext.js';
 import { RunCheckpointStore, canonicalCheckpointWorkspacePath } from '../run/checkpoint.js';
 import { platformLimitsFor } from '../platform/settings.js';
@@ -1430,6 +1432,18 @@ export class ProjectRunCoordinator {
     return status;
   }
 
+  clientQuestion(run: ProjectRun) {
+    return this.checkpoints.clientQuestion(run.orgId, run.projectRunId);
+  }
+
+  answerClientQuestion(run: ProjectRun, input: AnswerClientQuestion) {
+    try { return this.checkpoints.answerClientQuestion(run.orgId, run.projectRunId, run.requestedByPrincipalId, input); }
+    catch (error) {
+      if (error instanceof ClientQuestionConflict) throw new ProjectStateConflict(error.message);
+      throw error;
+    }
+  }
+
   continuationRequestKey(run: ProjectRun): string {
     const previous = this.store.latestContinuation(run.orgId, run.projectRunId);
     return previous && !['failed', 'cancelled'].includes(previous.status) ? previous.requestKey
@@ -1448,6 +1462,8 @@ export class ProjectRunCoordinator {
     if (source.requestedByPrincipalId !== principalId || !['partial', 'failed'].includes(source.status) || source.bytesExpiredAt || source.rerunOf) {
       throw new ProjectStateConflict('This run cannot be continued by this requester');
     }
+    const question = this.clientQuestion(source);
+    if (question && !question.answer) throw new ProjectStateConflict('Answer the pending client question through atoma_run_answer before resuming');
     try {
       const saved = this.checkpoints.read(sourceId);
       if (saved.scope?.orgId !== orgId || saved.scope.projectId !== projectId || saved.scope.principalId !== principalId ||

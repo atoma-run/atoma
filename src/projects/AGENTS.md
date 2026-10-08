@@ -548,12 +548,12 @@ identity. Admission, queue dispatch and payer authorization are unchanged.
 A continuation gets a new run, trace and sealed workspace copy. It retains the
 original repository sync BASE, goal, criteria, plan and cumulative budget; it
 never refreshes GitHub HEAD and calls that a continuation. No proof is inherited.
-Read projections expose phase counts/state only. Retention holds a paused boundary
+Readers expose phase state and blocking client questions. Retention holds a paused boundary
 or a source needed by queued/running continuations. A failed pre-launch attempt
 can retry while the source is still ready. Failed interrupted runs may recover
 from a sealed snapshot when the journal permits it; blocked reasons are projected
 to the requester. Their retrieval corpus stays the recorded starting corpus.
-See [checkpoint contract](../../docs/run-checkpoints-2026-10-08.md).
+See [checkpoints](../../docs/run-checkpoints-2026-10-08.md) and [client questions](../../docs/client-questions.md).
 
 ## Intentional choices and rejected shortcuts
 

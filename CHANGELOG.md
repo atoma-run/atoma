@@ -8,6 +8,11 @@ before launch, incomplete runs kept and explained, and comparison reruns.
 
 ### Added
 
+- Durable client questions at sequential project-run boundaries, exposed through
+  `atoma_run_question` and `atoma_run_answer`. The original requester answers via
+  MCP, then resumes with the existing checkpoint path and remaining budget.
+  Completed phases are preserved; answers do not become permanent project rules.
+
 - Versioned project briefs and decisions through `atoma_project_context` and
   `atoma_project_context_update`. Suggestions remain proposed until explicitly
   confirmed by the client. Runs capture their context revision at admission;

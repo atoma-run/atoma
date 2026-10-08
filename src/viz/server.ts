@@ -4342,6 +4342,23 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
       return;
     }
 
+    const clientQuestionRoute = pathname.match(/^\/api\/projects\/([^/]+)\/runs\/([^/]+)\/question$/);
+    if (clientQuestionRoute) {
+      if (req.method !== 'GET' && req.method !== 'POST') { res.writeHead(405, { allow: 'GET, POST', 'content-length': '0' }); res.end(); return; }
+      if (req.method === 'POST' && !sameOrigin(req, res)) return;
+      if (!viewer) { sendJson(res, 401, { error: 'authentication required' }); return; }
+      try {
+        const service = PROJECTS_RUNTIME.projects;
+        sendJson(res, 200, req.method === 'POST'
+          ? await service.answerRunQuestion(req, viewer, clientQuestionRoute[1]!, clientQuestionRoute[2]!)
+          : service.runQuestion(viewer, clientQuestionRoute[1]!, clientQuestionRoute[2]!));
+      } catch (error) {
+        if (!(error instanceof ProjectHttpError)) throw error;
+        sendJson(res, error.status, { error: error.message, problem: error.problem });
+      }
+      return;
+    }
+
     const contextRoute = pathname.match(/^\/api\/projects\/([^/]+)\/context$/);
     if (contextRoute) {
       if (req.method !== 'GET' && req.method !== 'PUT') {

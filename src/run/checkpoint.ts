@@ -1,3 +1,6 @@
+import { initializeClientQuestions, readClientQuestion, recordClientQuestion, answerClientQuestion, applyClientAnswer } from './clientQuestions.js';
+import type { AnswerClientQuestion, ClientQuestion } from '../contracts/clientQuestion.js';
+import type { Task, SubtaskSpec } from '../core/types.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, realpathSync } from 'node:fs';
 import { hostname } from 'node:os';
@@ -60,6 +63,7 @@ export class RunCheckpointStore {
   private readonly db: Database.Database;
   constructor(path: string) {
     this.db = openStoreHandle(path, DDL);
+    initializeClientQuestions(this.db);
     this.db.exec('CREATE TABLE IF NOT EXISTS run_checkpoint_pauses (id TEXT PRIMARY KEY)');
     initializeCheckpointWorkspaces(this.db);
     this.db.exec(`CREATE TABLE IF NOT EXISTS run_checkpoint_recovery (
@@ -77,7 +81,7 @@ export class RunCheckpointStore {
 
   private recoveryReason(id: string, data: RunCheckpoint, released = false): ProjectCheckpointStatus['reason'] {
     const r = this.recovery(id);
-    if (!r || !data.snapshotId || !data.completed.length) return 'incomplete';
+    if (!r || !data.snapshotId || (!data.completed.length && !data.clientQuestionId)) return 'incomplete';
     if (r.blocked) return r.blocked as ProjectCheckpointStatus['reason'];
     if (this.db.prepare("SELECT 1 FROM run_checkpoint_actions WHERE id=? AND seq>? AND kind='model' AND state<>'done' LIMIT 1").get(id, r.boundary_seq)) return 'model_pending';
     if (this.db.prepare("SELECT 1 FROM run_checkpoint_actions WHERE id=? AND seq>? AND kind='tool' AND state='pending' LIMIT 1").get(id, r.boundary_seq)) return 'tool_pending';
@@ -142,7 +146,7 @@ export class RunCheckpointStore {
       data.recoveryDeadlineAt = r.deadline;
       data.consumed = runCheckpointSchema.shape.consumed.parse(JSON.parse(r.consumed));
     }
-    if (data.id !== id || !data.root || !data.actor || data.checklist === null || data.completed.length === 0 ||
+    if (data.id !== id || !data.root || !data.actor || data.checklist === null || (data.completed.length === 0 && !data.clientQuestionId) ||
         !data.workspaceDigest || !/^[0-9a-f]{64}$/.test(data.workspaceDigest)) {
       throw new Error('Checkpoint is incomplete or corrupt');
     }
@@ -155,7 +159,14 @@ export class RunCheckpointStore {
         if (alive) throw new Error('Checkpoint still has sandbox processes; resume refused');
       }
     }
+    applyClientAnswer(this.db, data);
     return data;
+  }
+
+  clientQuestion(orgId: string, runId: string) { return readClientQuestion(this.db, orgId, runId); }
+
+  answerClientQuestion(orgId: string, runId: string, principalId: string, input: AnswerClientQuestion) {
+    return answerClientQuestion(this.db, orgId, runId, principalId, input);
   }
 
   materialize(data: RunCheckpoint, target: string, archive: boolean): void {
@@ -163,9 +174,10 @@ export class RunCheckpointStore {
     restoreCheckpointWorkspace(this.db, data.snapshotId, data.workspaceDigest, target, archive);
   }
 
-  boundary(data: RunCheckpoint, owner: string): void {
+  boundary(data: RunCheckpoint, owner: string, question?: ClientQuestion): void {
     this.db.transaction(() => {
       const snapshot = saveCheckpointWorkspace(this.db, data.workspace);
+      if (question) recordClientQuestion(this.db, data, question);
       data.snapshotId = snapshot.id;
       data.workspaceDigest = snapshot.digest;
       const seq = (this.db.prepare('SELECT COALESCE(MAX(seq),0) AS n FROM run_checkpoint_actions WHERE id=?').get(data.id) as { n: number }).n;
@@ -270,6 +282,7 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
     processes: () => RunCheckpoint['processes'];
     worker?: () => RunCheckpoint['worker'];
     restoreWorkspace?: () => void;
+    assessClientQuestion?: (task: Task, next: SubtaskSpec, completed: readonly Result[]) => Promise<ClientQuestion | null>;
   }) {
     this.owner = options.source ? store.continueProject(options.source, data) : store.claim(data, options.fresh);
     store.beginSegment(data, options.deadlineAt);
@@ -306,9 +319,35 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
     this.data.root = { plan, strategy, plannedPhases, inputs: task.inputs };
     this.store.write(this.data, this.owner, 'running');
   }
-  beforePhase(index: number): void {
+  async beforePhase(index: number, next?: SubtaskSpec): Promise<void> {
     if (!this.active) return;
     if (index !== this.data.completed.length) throw new Error('Checkpoint phase order mismatch');
+    // A response is applied by the host reader before claiming the continuation.
+    // Skip this boundary's assessment once; never ask the answered question again.
+    const answered = !!this.data.clientQuestionId;
+    delete this.data.clientQuestionId;
+    if (!answered && next && this.options.assessClientQuestion && this.data.scope) {
+      const question = await this.options.assessClientQuestion({ description: this.data.goal, inputs: this.data.root?.inputs }, next,
+        this.data.completed.map(result => ({ ...result, trace: [] })));
+      if (question) {
+        const answers = this.data.root?.inputs?.['clientAnswers'];
+        if (Array.isArray(answers) && answers.length >= 32) throw new Error('Client answer history is full; start a new scoped run');
+        await this.options.settle();
+        this.data.processes = this.options.processes();
+        this.data.worker = this.options.worker?.();
+        this.data.consumed = this.options.account();
+        this.data.remainingMs = Math.max(0, this.options.deadlineAt - Date.now());
+        this.store.boundary(this.data, this.owner, question);
+        this.state = 'ready';
+        this.paused = true;
+        const last = this.data.completed.at(-1);
+        throw new PhaseBoundaryPause({ output: last?.output ?? {}, trace: [],
+          producedBy: last?.producedBy ?? { name: this.data.actor!.name, tier: 3, viaFallback: false },
+          summary: `Waiting for a client decision before phase ${index + 1}: ${question.question}`,
+          refusal: 'Client decision required; answer the recorded question through Atoma MCP, then resume' },
+          'Waiting for a client answer at a safe phase boundary');
+      }
+    }
     this.state = 'running';
     this.data.processes = this.options.processes();
     this.data.worker = this.options.worker?.();

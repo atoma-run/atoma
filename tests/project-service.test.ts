@@ -115,7 +115,7 @@ function service(): {
     github,
     coordinator: {
       start,
-      checkpointStatus: () => undefined,
+      checkpointStatus: () => undefined, clientQuestion: () => null,
       startOutcome: async (input: unknown) => ({ run: await start(input as Parameters<typeof start>[0]), created: true }),
       cancel: vi.fn(),
       retryPublication,
@@ -133,7 +133,7 @@ describe('ProjectService — roles, IDOR and slug identity', () => {
     const pause = vi.fn();
     const startOutcome = vi.fn(async () => ({ run, created: false }));
     const svc = new ProjectService({ store: projects, github, coordinator: {
-      pause, startOutcome, checkpointStatus: () => ({ state: 'paused', completed: 1, total: 2 }),
+      pause, startOutcome, clientQuestion: () => null, checkpointStatus: () => ({ state: 'paused', completed: 1, total: 2 }),
       continuationRequestKey: () => 'saved-resume-key',
     } as unknown as ProjectRunCoordinator });
     await expect(svc.controlCheckpoint(bob, project.projectId, run.projectRunId, 'resume')).rejects.toMatchObject({ status: 404 });

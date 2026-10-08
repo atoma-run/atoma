@@ -375,13 +375,13 @@ describe('the catalogue by tier', () => {
     // The viewer ladder: the organisation's own readers plus the two platform
     // commons the viz shows every signed-in role — registry and skill catalog.
     expect(asViewer).toEqual([
-      'atoma_projects_list', 'atoma_github_installations', 'atoma_project_runs', 'atoma_project_readiness', 'atoma_run_artifacts', 'atoma_run_file', 'atoma_run_compare', 'atoma_project_context', 'atoma_run_review', 'atoma_run_status', 'atoma_run_trace', 'atoma_run_preview',
+      'atoma_projects_list', 'atoma_github_installations', 'atoma_project_runs', 'atoma_project_readiness', 'atoma_run_artifacts', 'atoma_run_file', 'atoma_run_compare', 'atoma_project_context', 'atoma_run_question', 'atoma_run_review', 'atoma_run_status', 'atoma_run_trace', 'atoma_run_preview',
       'atoma_registry_list', 'atoma_registry_show', 'atoma_skills_list', 'atoma_registry_history', 'atoma_skills_show',
     ]);
     // Each rung adds exactly its own rows (the table interleaves the tiers).
     const above = (lower: string[], upper: string[]) => upper.filter((name) => !lower.includes(name));
     expect(asMember).toEqual(expect.arrayContaining(asViewer));
-    expect(above(asViewer, asMember)).toEqual(['atoma_project_context_update', 'atoma_project_create', 'atoma_run_start', 'atoma_run_pause', 'atoma_run_resume', 'atoma_run_cancel', 'atoma_run_accept', 'atoma_publication_retry']);
+    expect(above(asViewer, asMember)).toEqual(['atoma_project_context_update', 'atoma_run_answer', 'atoma_project_create', 'atoma_run_start', 'atoma_run_pause', 'atoma_run_resume', 'atoma_run_cancel', 'atoma_run_accept', 'atoma_publication_retry']);
     expect(asAdmin).toEqual(expect.arrayContaining(asMember));
     expect(above(asMember, asAdmin)).toEqual(['atoma_project_showcase', 'atoma_org_members', 'atoma_org_models']);
     // Handing out the host's own login is operator spend, not organisation

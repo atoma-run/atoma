@@ -530,3 +530,51 @@ it('keeps context updates member-only and scoped to the active organisation', as
   f.setViewer({ ...f.viewer, orgId: randomUUID(), platformAdmin: false });
   expect((await f.client.callTool({ name: 'atoma_project_context', arguments: { projectId } })).isError).toBe(true);
 });
+
+it.each([false, true])('persists client questions and answers through both MCP eras without implicit execution (legacy=%s)', async legacy => {
+  const f = await fixture(legacy);
+  const { clientQuestionFixture } = await import('./helpers/clientQuestion.js');
+  const { run, layout } = f.makeRun();
+  mkdirSync(layout.workspacePath, { recursive: true });
+  writeFileSync(join(layout.workspacePath, 'saved.txt'), 'approved phase');
+  const checkpoints = new RunCheckpointStore(f.dbPath);
+  const data: RunCheckpoint = { version: 1, id: run.projectRunId, goal: run.goal, workspace: realpathSync(layout.workspacePath), policy: '{}',
+    scope: { orgId: f.viewer.orgId, projectId: f.project.projectId, principalId: f.viewer.principalId, runId: run.projectRunId },
+    actor: { name: 'Meristem', atomId: 'actor', version: 1 }, checklist: [],
+    root: { plan: { subtasks: [{}, {}] }, strategy: {}, plannedPhases: 2 }, completed: [{ output: {}, summary: 'Approved first phase', producedBy: { tier: 2, name: 'Cell', viaFallback: false } }],
+    workspaceDigest: null, processes: [], consumed: { tokens: 20, costUsd: 0.01 }, remainingMs: 300000, lastRunId: run.projectRunId };
+  const owner = checkpoints.claim(data, true);
+  checkpoints.beginSegment(data, Date.now() + 300000);
+  checkpoints.boundary(data, owner, clientQuestionFixture());
+  const ref = { projectId: f.project.projectId, runId: run.projectRunId };
+  const id = data.clientQuestionId!;
+  const args = { ...ref, questionId: id, idempotencyKey: randomUUID(), answer: { optionId: 'keep_both' } };
+  expect((await f.client.callTool({ name: 'atoma_run_answer', arguments: args })).isError).toBe(true); // Still draining.
+  checkpoints.write(data, owner, 'ready', true);
+  f.projects.transitionProjectRun({ orgId: f.viewer.orgId, projectRunId: run.projectRunId, from: 'running', to: 'partial', traceId: run.projectRunId,
+    stats: { ...parseRunLog('✓ build finished'), outcome: 'partial' } });
+  const read = await f.call('atoma_run_question', ref);
+  expect(read.structuredContent).toMatchObject({ question: { questionId: id, answer: null }, waitingForClient: true, canAnswer: true, nextAction: 'answer' });
+  expect((await f.call('atoma_run_status', ref)).structuredContent).toMatchObject({ awaitingClientAnswer: true });
+  await expect(f.service.controlCheckpoint(f.viewer, ref.projectId, ref.runId, 'resume')).rejects.toThrow(/pending client question/);
+  expect((await f.client.callTool({ name: 'atoma_run_answer', arguments: { ...args, answer: { optionId: 'invented' } } })).isError).toBe(true);
+  expect((await f.call('atoma_run_answer', args)).structuredContent).toMatchObject({ created: true, nextAction: 'atoma_run_resume',
+    question: { answer: { principalId: f.viewer.principalId, value: { optionId: 'keep_both' } } } });
+  expect((await f.call('atoma_run_answer', args)).structuredContent).toMatchObject({ created: false });
+  expect((await f.client.callTool({ name: 'atoma_run_answer', arguments: { ...args, answer: { text: 'A changed answer' } } })).isError).toBe(true);
+  expect((await f.call('atoma_run_question', ref)).structuredContent).toMatchObject({ waitingForClient: false, canAnswer: false, canResume: true, nextAction: 'resume' });
+  const db = new Database(f.dbPath);
+  try {
+    expect(() => db.prepare('UPDATE run_client_questions SET question_json = ? WHERE id = ?').run('{}', id)).toThrow(/immutable/);
+    expect(() => db.prepare('UPDATE run_client_questions SET answer_json = NULL WHERE id = ?').run(id)).toThrow(/immutable/);
+  } finally { db.close(); }
+  expect(f.driver).not.toHaveBeenCalled();
+  expect(f.projects.getProjectContext(f.viewer.orgId, ref.projectId)?.version).toBe(0);
+  const body = { questionId: id, idempotencyKey: args.idempotencyKey, answer: args.answer };
+  expect(() => f.service.answerRunQuestionFromInput({ ...f.viewer, role: 'org:viewer' }, ref.projectId, ref.runId, body)).toThrow(/member/);
+  expect(() => f.service.answerRunQuestionFromInput({ ...f.viewer, principalId: randomUUID() }, ref.projectId, ref.runId, body)).toThrow(/original requester/);
+  expect(() => f.service.answerRunQuestionFromInput({ ...f.viewer, orgId: randomUUID(), platformAdmin: true }, ref.projectId, ref.runId, body)).toThrow(/not found/);
+  expect(() => f.service.runQuestion({ ...f.viewer, orgId: randomUUID(), platformAdmin: false }, ref.projectId, ref.runId)).toThrow(/not found/);
+  const restartedReader = new RunCheckpointStore(f.dbPath);
+  expect(restartedReader.read(ref.runId).root?.inputs?.['clientAnswers']).toEqual([expect.objectContaining({ questionId: id, selectedOption: { label: 'Keep both login methods', consequence: 'Existing local accounts keep working.' } })]);
+});
