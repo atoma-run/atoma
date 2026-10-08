@@ -1700,7 +1700,6 @@
   "preview.terminal.ui.exited": "Оболочка завершила работу с кодом",
   "preview.terminal.ui.restartHint": "Нажмите «Перезапустить», чтобы начать новый сеанс.",
   "preview.terminal.notice": "Протестируйте временную копию с Node.js и оболочкой. Доступ к сети отключён. Файлы и действия в терминале доступны всем участникам этого предпросмотра; перезапуск удаляет все изменения.",
-  "assistant.open": "Поговорить с Atoma",
   "assistant.title": "Помощник Atoma",
   "assistant.intro": "Опишите свою идею. Проверьте предложение перед созданием проекта или запуском run.",
   "assistant.requestFailed": "Для этого сообщения не удалось подготовить предложение. Попробуйте ещё раз; никаких действий не выполнено.",
@@ -1752,5 +1751,6 @@
   "assistant.apiKeys": "Управление API-ключами организации",
   "assistant.payer.principal-subscription": "Квота вашей подписки",
   "assistant.payer.org-key": "API-ключ вашей организации",
-  "assistant.payer.host-key": "API-подключение Atoma"
+  "assistant.payer.host-key": "API-подключение Atoma",
+  "projects.mcpOwnAgent": "Предпочитаете своего агента? Подключите его через MCP"
 }

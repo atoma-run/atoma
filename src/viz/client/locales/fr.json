@@ -1700,7 +1700,6 @@
   "preview.terminal.ui.exited": "Le shell s’est fermé avec le code",
   "preview.terminal.ui.restartHint": "Utilise Redémarrer pour démarrer une nouvelle session.",
   "preview.terminal.notice": "Teste une copie temporaire avec Node.js et un shell. L’accès au réseau est désactivé. Les fichiers et l’activité du terminal sont partagés dans cet aperçu ; Redémarrer supprime toutes les modifications.",
-  "assistant.open": "Parler à Atoma",
   "assistant.title": "Assistant Atoma",
   "assistant.intro": "Décris ton idée. Vérifie la proposition avant de créer un projet ou de démarrer un run.",
   "assistant.requestFailed": "Aucune proposition n’a été préparée pour ce message. Tu peux réessayer ; aucune action n’a été effectuée.",
@@ -1752,5 +1751,6 @@
   "assistant.apiKeys": "Gérer les clés API de l’organisation",
   "assistant.payer.principal-subscription": "Quota de ton abonnement",
   "assistant.payer.org-key": "Clé API de ton organisation",
-  "assistant.payer.host-key": "Connexion API d’Atoma"
+  "assistant.payer.host-key": "Connexion API d’Atoma",
+  "projects.mcpOwnAgent": "Tu préfères ton propre agent ? Connecte-le via MCP"
 }

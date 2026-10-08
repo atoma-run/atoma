@@ -1700,7 +1700,6 @@
   "preview.terminal.ui.exited": "Shell keluar dengan kode",
   "preview.terminal.ui.restartHint": "Gunakan Mulai Ulang untuk memulai sesi baru.",
   "preview.terminal.notice": "Uji salinan sementara dengan Node.js dan shell. Akses jaringan dinonaktifkan. Berkas dan aktivitas terminal dibagikan dalam pratinjau ini; Mulai Ulang akan membuang semua perubahan.",
-  "assistant.open": "Bicara dengan Atoma",
   "assistant.title": "Asisten Atoma",
   "assistant.intro": "Jelaskan ide Anda. Tinjau usulan sebelum membuat proyek atau memulai run.",
   "assistant.requestFailed": "Tidak ada usulan yang disiapkan untuk pesan tersebut. Anda dapat meminta lagi; tidak ada tindakan yang dilakukan.",
@@ -1752,5 +1751,6 @@
   "assistant.apiKeys": "Kelola kunci API organisasi",
   "assistant.payer.principal-subscription": "Kuota langganan Anda",
   "assistant.payer.org-key": "Kunci API organisasi Anda",
-  "assistant.payer.host-key": "Koneksi API Atoma"
+  "assistant.payer.host-key": "Koneksi API Atoma",
+  "projects.mcpOwnAgent": "Lebih suka agen Anda sendiri? Hubungkan melalui MCP"
 }

@@ -1700,7 +1700,6 @@
   "preview.terminal.ui.exited": "شیل اس کوڈ کے ساتھ بند ہوا",
   "preview.terminal.ui.restartHint": "نیا سیشن شروع کرنے کے لیے دوبارہ شروع کریں استعمال کریں۔",
   "preview.terminal.notice": "Node.js اور شیل کے ساتھ ایک عارضی نقل آزمائیں۔ نیٹ ورک رسائی غیر فعال ہے۔ فائلیں اور ٹرمینل کی سرگرمی اس پیش منظر میں مشترک ہیں؛ دوبارہ شروع کرنے سے تمام تبدیلیاں حذف ہو جاتی ہیں۔",
-  "assistant.open": "Atoma سے بات کریں",
   "assistant.title": "Atoma اسسٹنٹ",
   "assistant.intro": "اپنا خیال بیان کریں۔ پروجیکٹ بنانے یا run شروع کرنے سے پہلے تجویز کا جائزہ لیں۔",
   "assistant.requestFailed": "اس پیغام کے لیے کوئی تجویز تیار نہیں ہوئی۔ آپ دوبارہ پوچھ سکتے ہیں؛ کوئی کارروائی نہیں کی گئی۔",
@@ -1752,5 +1751,6 @@
   "assistant.apiKeys": "تنظیم کی API کلیدوں کا نظم کریں",
   "assistant.payer.principal-subscription": "آپ کی سبسکرپشن کا کوٹا",
   "assistant.payer.org-key": "آپ کی تنظیم کی API کلید",
-  "assistant.payer.host-key": "Atoma کا API کنکشن"
+  "assistant.payer.host-key": "Atoma کا API کنکشن",
+  "projects.mcpOwnAgent": "اپنے agent کو ترجیح دیتے ہیں؟ اسے MCP کے ذریعے منسلک کریں"
 }

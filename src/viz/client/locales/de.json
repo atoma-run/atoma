@@ -1700,7 +1700,6 @@
   "preview.terminal.ui.exited": "Shell beendet mit Code",
   "preview.terminal.ui.restartHint": "Starten Sie neu, um eine neue Sitzung zu beginnen.",
   "preview.terminal.notice": "Testen Sie eine temporäre Kopie mit Node.js und einer Shell. Der Netzwerkzugriff ist deaktiviert. Dateien und Terminalaktivitäten werden innerhalb dieser Vorschau geteilt; ein Neustart verwirft alle Änderungen.",
-  "assistant.open": "Mit Atoma sprechen",
   "assistant.title": "Atoma-Assistent",
   "assistant.intro": "Beschreiben Sie Ihre Idee. Prüfen Sie den Vorschlag, bevor Sie ein Projekt erstellen oder einen Run starten.",
   "assistant.requestFailed": "Für diese Nachricht wurde kein Vorschlag erstellt. Sie können erneut fragen; es wurde keine Aktion ausgeführt.",
@@ -1752,5 +1751,6 @@
   "assistant.apiKeys": "API-Schlüssel der Organisation verwalten",
   "assistant.payer.principal-subscription": "Kontingent Ihres Abonnements",
   "assistant.payer.org-key": "API-Schlüssel Ihrer Organisation",
-  "assistant.payer.host-key": "API-Verbindung von Atoma"
+  "assistant.payer.host-key": "API-Verbindung von Atoma",
+  "projects.mcpOwnAgent": "Bevorzugen Sie Ihren eigenen Agenten? Verbinden Sie ihn über MCP"
 }

@@ -1700,7 +1700,6 @@
   "preview.terminal.ui.exited": "シェルの終了コード",
   "preview.terminal.ui.restartHint": "新しいセッションを開始するには「再起動」を使用してください。",
   "preview.terminal.notice": "Node.jsとシェルを使用して一時コピーをテストします。ネットワークアクセスは無効です。ファイルとターミナル操作はこのプレビュー内で共有されます。「再起動」すると、すべての変更が破棄されます。",
-  "assistant.open": "Atomaに相談",
   "assistant.title": "Atomaアシスタント",
   "assistant.intro": "アイデアを説明してください。プロジェクトの作成またはrunの開始前に、提案を確認してください。",
   "assistant.requestFailed": "そのメッセージに対する提案を準備できませんでした。再度依頼できます。操作は実行されていません。",
@@ -1752,5 +1751,6 @@
   "assistant.apiKeys": "組織のAPIキーを管理",
   "assistant.payer.principal-subscription": "個人サブスクリプションのクォータ",
   "assistant.payer.org-key": "組織のAPIキー",
-  "assistant.payer.host-key": "AtomaのAPI接続"
+  "assistant.payer.host-key": "AtomaのAPI接続",
+  "projects.mcpOwnAgent": "ご自身のエージェントを使いますか？MCP経由で接続できます"
 }

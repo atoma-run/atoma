@@ -1700,7 +1700,6 @@
   "preview.terminal.ui.exited": "O shell terminou com o código",
   "preview.terminal.ui.restartHint": "Use Reiniciar para iniciar uma nova sessão.",
   "preview.terminal.notice": "Teste uma cópia temporária com Node.js e um shell. O acesso à rede está desativado. Os ficheiros e a atividade do terminal são partilhados nesta pré-visualização; Reiniciar descarta todas as alterações.",
-  "assistant.open": "Falar com o Atoma",
   "assistant.title": "Assistente Atoma",
   "assistant.intro": "Descreva a sua ideia. Reveja a proposta antes de criar um projeto ou iniciar um run.",
   "assistant.requestFailed": "Não foi preparada nenhuma proposta para essa mensagem. Pode tentar novamente; nenhuma ação foi realizada.",
@@ -1752,5 +1751,6 @@
   "assistant.apiKeys": "Gerir chaves de API da organização",
   "assistant.payer.principal-subscription": "Quota da sua subscrição",
   "assistant.payer.org-key": "Chave de API da sua organização",
-  "assistant.payer.host-key": "Conexão do Atoma à API"
+  "assistant.payer.host-key": "Conexão do Atoma à API",
+  "projects.mcpOwnAgent": "Prefere o seu próprio agente? Ligue-o através do MCP"
 }

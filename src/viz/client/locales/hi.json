@@ -1700,7 +1700,6 @@
   "preview.terminal.ui.exited": "शेल इस कोड के साथ बंद हुआ",
   "preview.terminal.ui.restartHint": "नया सत्र शुरू करने के लिए रीस्टार्ट का उपयोग करें।",
   "preview.terminal.notice": "Node.js और शेल के साथ एक अस्थायी कॉपी का परीक्षण करें। नेटवर्क एक्सेस अक्षम है। फ़ाइलें और टर्मिनल गतिविधि इस पूर्वावलोकन में साझा होती हैं; रीस्टार्ट सभी बदलाव हटा देता है।",
-  "assistant.open": "Atoma से बात करें",
   "assistant.title": "Atoma असिस्टेंट",
   "assistant.intro": "अपने विचार का वर्णन करें। प्रोजेक्ट बनाने या run शुरू करने से पहले प्रस्ताव की समीक्षा करें।",
   "assistant.requestFailed": "उस संदेश के लिए कोई प्रस्ताव तैयार नहीं हुआ। आप फिर से पूछ सकते हैं; कोई कार्रवाई नहीं की गई।",
@@ -1752,5 +1751,6 @@
   "assistant.apiKeys": "संगठन की API कुंजियाँ प्रबंधित करें",
   "assistant.payer.principal-subscription": "आपका सब्सक्रिप्शन कोटा",
   "assistant.payer.org-key": "आपके संगठन की API कुंजी",
-  "assistant.payer.host-key": "Atoma का API कनेक्शन"
+  "assistant.payer.host-key": "Atoma का API कनेक्शन",
+  "projects.mcpOwnAgent": "अपना agent पसंद है? उसे MCP के ज़रिए कनेक्ट करें"
 }

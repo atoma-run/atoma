@@ -1700,7 +1700,6 @@
   "preview.terminal.ui.exited": "শেল যে কোডসহ বন্ধ হয়েছে",
   "preview.terminal.ui.restartHint": "নতুন সেশন শুরু করতে ‘পুনরায় শুরু করুন’ ব্যবহার করুন।",
   "preview.terminal.notice": "Node.js ও একটি শেল দিয়ে একটি অস্থায়ী কপি পরীক্ষা করুন। নেটওয়ার্ক অ্যাক্সেস নিষ্ক্রিয়। এই প্রিভিউয়ের মধ্যে ফাইল ও টার্মিনালের কার্যকলাপ শেয়ার করা হয়; ‘পুনরায় শুরু করুন’ সব পরিবর্তন বাতিল করে।",
-  "assistant.open": "Atoma-এর সঙ্গে কথা বলুন",
   "assistant.title": "Atoma অ্যাসিস্ট্যান্ট",
   "assistant.intro": "আপনার ধারণাটি বর্ণনা করুন। প্রজেক্ট তৈরি বা run শুরু করার আগে প্রস্তাবটি পর্যালোচনা করুন।",
   "assistant.requestFailed": "ওই বার্তাটির জন্য কোনো প্রস্তাব প্রস্তুত করা হয়নি। আপনি আবার অনুরোধ করতে পারেন; কোনো পদক্ষেপ নেওয়া হয়নি।",
@@ -1752,5 +1751,6 @@
   "assistant.apiKeys": "সংস্থার API কী পরিচালনা করুন",
   "assistant.payer.principal-subscription": "আপনার সাবস্ক্রিপশন কোটা",
   "assistant.payer.org-key": "আপনার সংস্থার API কী",
-  "assistant.payer.host-key": "Atoma-এর API সংযোগ"
+  "assistant.payer.host-key": "Atoma-এর API সংযোগ",
+  "projects.mcpOwnAgent": "নিজের agent ব্যবহার করতে চান? MCP-এর মাধ্যমে এটি সংযুক্ত করুন"
 }

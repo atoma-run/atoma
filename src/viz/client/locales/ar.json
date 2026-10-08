@@ -1700,7 +1700,6 @@
   "preview.terminal.ui.exited": "خرجت الصدفة بالرمز",
   "preview.terminal.ui.restartHint": "استخدم «إعادة التشغيل» لبدء جلسة جديدة.",
   "preview.terminal.notice": "اختبر نسخة مؤقتة باستخدام Node.js وصدفة. الوصول إلى الشبكة معطّل. تتم مشاركة الملفات ونشاط الوحدة الطرفية ضمن هذه المعاينة؛ وتؤدي «إعادة التشغيل» إلى تجاهل جميع التغييرات.",
-  "assistant.open": "تحدّث إلى Atoma",
   "assistant.title": "مساعد Atoma",
   "assistant.intro": "صِف فكرتك. راجع المقترح قبل إنشاء مشروع أو بدء run.",
   "assistant.requestFailed": "لم يُعَدّ أي مقترح لهذه الرسالة. يمكنك السؤال مجددًا؛ لم يُتخذ أي إجراء.",
@@ -1752,5 +1751,6 @@
   "assistant.apiKeys": "إدارة مفاتيح API للمؤسسة",
   "assistant.payer.principal-subscription": "حصة اشتراكك",
   "assistant.payer.org-key": "مفتاح API لمؤسستك",
-  "assistant.payer.host-key": "اتصال API الخاص بـ Atoma"
+  "assistant.payer.host-key": "اتصال API الخاص بـ Atoma",
+  "projects.mcpOwnAgent": "تفضّل وكيلك الخاص؟ وصّله عبر MCP"
 }

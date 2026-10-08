@@ -1700,7 +1700,6 @@
   "preview.terminal.ui.exited": "Shell 已退出，退出代码为",
   "preview.terminal.ui.restartHint": "使用“重新启动”开始全新会话。",
   "preview.terminal.notice": "使用 Node.js 和 Shell 测试临时副本。网络访问已禁用。此预览中的文件和终端活动会被共享；重新启动将丢弃所有更改。",
-  "assistant.open": "与Atoma对话",
   "assistant.title": "Atoma助手",
   "assistant.intro": "描述你的想法。创建项目或启动run前，请检查提案。",
   "assistant.requestFailed": "未能根据该消息准备提案。你可以再次提出请求；尚未执行任何操作。",
@@ -1752,5 +1751,6 @@
   "assistant.apiKeys": "管理组织API密钥",
   "assistant.payer.principal-subscription": "你的订阅配额",
   "assistant.payer.org-key": "你所在组织的API密钥",
-  "assistant.payer.host-key": "Atoma的API连接"
+  "assistant.payer.host-key": "Atoma的API连接",
+  "projects.mcpOwnAgent": "更喜欢使用自己的智能体？通过MCP连接"
 }
