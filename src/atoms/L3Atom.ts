@@ -318,6 +318,18 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
 
   /** Public entry: run the full supervised flow. */
   async handle(task: Task, ctx: RunContext): Promise<Result> {
+    const checkpoint = ctx.currentBranchId === undefined ? ctx.rootCheckpoint : undefined;
+    const saved = checkpoint?.restore();
+    if (saved) {
+      const plan = planSchema.parse(saved.plan);
+      if (plan.aggregation.mode !== 'sequential') throw new Error('Checkpoint root plan is not sequential');
+      this.pendingStrategy = l3StrategySchema.parse(saved.strategy);
+      this.pendingPlannedPhases = saved.plannedPhases;
+      this.triedChildren.beginTask(task.description);
+      checkpoint?.planned({ ...task, inputs: saved.inputs }, plan, this.pendingStrategy, saved.plannedPhases);
+      ctx.recordRootPlan?.(plan);
+      return this.execute({ ...task, inputs: saved.inputs }, plan, ctx);
+    }
     // No parent validator sits above this plan. `acceptL3RootPlan` is the
     // one-shot collision check — see that module, not a second superviseLoop.
     const plan = await acceptL3RootPlan({
@@ -327,6 +339,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       replan: (next) => this.plan(next, ctx),
     });
     ctx.recordRootPlan?.(plan);
+    checkpoint?.planned(task, plan, this.pendingStrategy, this.pendingPlannedPhases ?? plan.subtasks.length);
     return this.execute(task, plan, ctx);
   }
 
@@ -802,7 +815,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         // siblings wrote.
         undeclaredIsReadOnly: plan.aggregation.mode === 'sequential' && plannedPhases >= 2,
       });
-    });
+    }, ctx.currentBranchId === undefined ? ctx.rootCheckpoint : undefined);
   }
 
   private async runSubtask(args: {

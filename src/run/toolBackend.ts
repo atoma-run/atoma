@@ -17,6 +17,8 @@ import { projectRetrievalExecutor } from '../tools/projectRetrievalExecutor.js';
  * by injection, without giving the worker store or credential access.
  */
 export interface ToolBackend {
+  /** Absent means an ungraceful crash cannot prove this backend quiescent. */
+  checkpointProcesses?(): import('../contracts/runCheckpoint.js').CheckpointProcess[];
   /** Passed to `RunContext.tools`. */
   readonly executor: ToolExecutor;
   /** Declarations to seed atoms with — the BACKEND is the authority. */
@@ -71,6 +73,7 @@ export function localToolBackend(opts: { workspaceRoot: string; logger: Logger }
     rootLabel: sandbox.root,
     cleanup: () => sandbox.cleanup(),
     drain: () => sandbox.drain(),
+    checkpointProcesses: () => sandbox.checkpointProcesses(),
   };
 }
 

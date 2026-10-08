@@ -71,6 +71,12 @@ export function retentionPlan(db: Database.Database, projectsRoot: string, works
     }
     const publication = db.prepare("SELECT 1 FROM project_publications WHERE project_run_id = ? AND status <> 'published'").get(row.project_run_id);
     if (publication) held = 'unfinished publication';
+    if (columns.some(column => column.name === 'resume_of_run_id') && db.prepare(
+      "SELECT 1 FROM project_runs WHERE resume_of_run_id = ? AND status IN ('queued','running')"
+    ).get(row.project_run_id)) held = 'active continuation';
+    if (db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='run_checkpoints'").get() && db.prepare(
+      "SELECT 1 FROM run_checkpoints WHERE id = ? AND state='ready' AND released=1"
+    ).get(row.project_run_id)) held = 'paused continuation';
     return { runId: row.project_run_id, orgId: row.org_id, projectId: row.project_id, paths, held };
   });
 }

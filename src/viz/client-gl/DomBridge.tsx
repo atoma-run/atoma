@@ -1,5 +1,5 @@
 import { ButtonIcon } from './ButtonIcon.js';
-import { pendingGitHubAccess, canContinueGitHubAccess, canRetryPublication, type GitHubRecoveryProgress } from './github-access.js';
+import { canControlCheckpoint, pendingGitHubAccess, canContinueGitHubAccess, canRetryPublication, type GitHubRecoveryProgress } from './github-access.js';
 import { WorkspaceAccessible } from './WorkspaceAccessible.js';
 import type { WorkspaceBrowserData } from './workspace-browser.js';
 import { UpstreamSetting } from './UpstreamSetting.js';
@@ -422,6 +422,15 @@ export function DomBridge({
             ))}
           </nav>
         ) : null}
+        {view === 'projects' && selectedProjectId && !workspaceRunId ? projectRuns.filter(run => run.projectId === selectedProjectId && run.checkpoint && run.checkpoint.state !== 'unavailable').map(run =>
+          <section key={`checkpoint-${run.projectRunId}`} aria-label={t('projects.checkpoint.title')}>
+            <p>{t('projects.checkpoint.progress', { completed: run.checkpoint!.completed, total: run.checkpoint!.total })}</p>
+            <button type="button" disabled={!canControlCheckpoint(run, auth) || (githubRecovery?.runId === run.projectRunId && githubRecovery.busy)}
+              onClick={() => onActivate?.(`project.checkpoint.${run.projectRunId}`)}>
+              {t(run.checkpoint!.state === 'paused' ? 'projects.checkpoint.resume' : run.checkpoint!.state === 'pause_requested' ? 'projects.checkpoint.requested' : 'projects.checkpoint.pause')}
+            </button>
+            <p role="status">{githubRecovery?.runId === run.projectRunId ? githubRecovery.message : ''}</p>
+          </section>) : null}
         {view === 'projects' && selectedProjectId && !workspaceRunId ? projectRuns.filter(run => run.projectId === selectedProjectId && pendingGitHubAccess(run)).map(run => {
           const access = pendingGitHubAccess(run)!;
           const progress = githubRecovery?.runId === run.projectRunId ? githubRecovery : null;

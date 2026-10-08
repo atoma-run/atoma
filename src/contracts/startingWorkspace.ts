@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 /**
  * WHAT A SEEDED RUN DID TO THE FILES IT STARTED FROM — a mechanical fact the
  * root acceptor reads beside the delivery, never a verdict.
@@ -15,20 +17,19 @@
  * of its distinct non-blank trimmed lines, only for text small enough to
  * compare: hashes, not text, because the starting side lives for the run.
  */
-export interface WorkspaceFileSnapshot {
-  readonly path: string;
-  readonly bytes: number;
-  readonly sha256: string;
-  readonly lineHashes?: readonly string[];
-  /** The first characters of a text file: what a removed or rewritten file WAS, for the acceptor. */
-  readonly head?: string;
-}
+export const workspaceFileSnapshotSchema = z.object({
+  path: z.string(), bytes: z.number().nonnegative(), sha256: z.string(),
+  lineHashes: z.array(z.string()).readonly().optional(),
+  /** The opening text of the original file, for the final acceptor. */
+  head: z.string().optional(),
+}).strict().readonly();
+export type WorkspaceFileSnapshot = z.infer<typeof workspaceFileSnapshotSchema>;
 
 /** The starting side: the seed's files, and whether a cap cut the walk short. */
-export interface StartingSnapshot {
-  readonly files: readonly WorkspaceFileSnapshot[];
-  readonly truncated: boolean;
-}
+export const startingSnapshotSchema = z.object({
+  files: z.array(workspaceFileSnapshotSchema).readonly(), truncated: z.boolean(),
+}).strict().readonly();
+export type StartingSnapshot = z.infer<typeof startingSnapshotSchema>;
 
 /** The delivered side: the seed's own paths read again, and the files that are new. */
 export interface DeliveredSnapshot {

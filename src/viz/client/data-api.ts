@@ -77,6 +77,8 @@ export const api = {
   projects: () => fetchJson<VizProject[]>('/api/projects'),
   projectRuns: (projectId: string) =>
     fetchJson<VizProjectRun[]>(`/api/projects/${encodeURIComponent(projectId)}/runs`),
+  controlCheckpoint: (projectId: string, runId: string, action: 'pause' | 'resume') =>
+    mutateJson<VizProjectRun>(`/api/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/${action}`, {}),
   continueGitHubAccess: (projectId: string, runId: string) =>
     mutateJson<VizProjectRun>(`/api/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/github-access`, {}),
   retryPublication: (projectId: string, runId: string) =>

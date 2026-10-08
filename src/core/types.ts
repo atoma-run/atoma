@@ -835,6 +835,8 @@ export interface BranchEventInfo {
 }
 
 export interface RunContext {
+  /** Root-only durable phase boundary; deliberately absent from child forks. */
+  readonly rootCheckpoint?: import('../contracts/runCheckpoint.js').RootPhaseCheckpoint;
   /** Present only for the opt-in depth experiment. Forward unchanged across forks. */
   readonly attempt?: number;
   readonly beforeFallback?: (parent: { readonly name: string; readonly tier: Tier }) => void;

@@ -517,6 +517,23 @@ Operator commands and offline prerequisites: [W9/W10](../../docs/project-mainten
   without one. A rerun never seeds (`previousSeedRun`) and never publishes.
   Imported projects are refused. [Contract](../../docs/comparison-reruns-2026-09-25.md).
 
+## Pausing and continuing validated work
+
+Deep non-comparison runs enable root phase checkpoints. Pause is a durable request
+observed after a complete approved sequential phase; it never interrupts a tool.
+The runner drains its backend before making the boundary resumable. Paused runs
+remain `partial`: no preview or publication before fresh final acceptance.
+Only the original requester, still an active member, can pause or resume through
+the same-origin service routes. `resumeOf` is immutable and part of request
+identity. Admission, queue dispatch and payer authorization are unchanged.
+A continuation gets a new run, trace and sealed workspace copy. It retains the
+original repository sync BASE, goal, criteria, plan and cumulative budget; it
+never refreshes GitHub HEAD and calls that a continuation. No proof is inherited.
+Read projections expose phase counts/state only. Retention holds a paused boundary
+or a source needed by queued/running continuations. A failed pre-launch attempt
+can retry while the source is still ready; an in-flight phase cannot be replayed.
+See [checkpoint contract](../../docs/run-checkpoints-2026-10-08.md).
+
 ## Intentional choices and rejected shortcuts
 
 - Reading egress settings, or an ollama destination, from a tenant prompt:

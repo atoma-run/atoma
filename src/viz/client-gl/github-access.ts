@@ -23,3 +23,12 @@ export function canRetryPublication(run: VizProjectRun, auth: AuthUiSnapshot | n
     (!run.orgId || run.orgId === auth?.viewer.activeOrganisation?.id) &&
     ['org:member', 'org:admin', 'org:owner'].includes(auth?.viewer.activeOrganisation?.role ?? '');
 }
+
+export function canControlCheckpoint(run: VizProjectRun, auth: AuthUiSnapshot | null): boolean {
+  const viewer = auth?.viewer;
+  return !!viewer?.activeOrganisation && run.orgId === viewer.activeOrganisation.id &&
+    viewer.principalId === run.requestedByPrincipalId &&
+    ['org:member', 'org:admin', 'org:owner'].includes(viewer.activeOrganisation.role) &&
+    ((run.status === 'running' && run.checkpoint?.state === 'running' && run.checkpoint.total > 0) ||
+      (run.status === 'partial' && run.checkpoint?.state === 'paused'));
+}

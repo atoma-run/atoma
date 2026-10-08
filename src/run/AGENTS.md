@@ -72,6 +72,16 @@ Neighbours:
 
 ## Run host
 
+- Opt-in `--checkpoint` / `--pause-after-phase N` / `--resume ID` implement
+  durable sequential continuation in `checkpoint.ts`. Same workspace for CLI,
+  original plan/checklist and carried budget; fresh trace and proof log. Only
+  complete approved boundaries are resumable, never an in-flight phase. A pause
+  drains before releasing the SQLite claim. Deep project runs enable it automatically;
+  the host binds continuation to the requester/org/project and a new run receipt,
+  copies the complete sealed workspace and atomically consumes the source claim.
+  Short/parallel/comparison runs keep their ordinary lifecycle. Contract and tests:
+  [durable checkpoints](../../docs/run-checkpoints-2026-10-08.md).
+
 - `src/run/platform.ts` is the ONE definition of where a run may execute:
   `darwin` and `linux`. It is not a preference — the run is a detached process
   GROUP reaped through SIGTERM → grace → SIGKILL, and `npm` must be an
@@ -277,6 +287,11 @@ Neighbours:
   not be relabeled timeout merely because the run signal has expired.
 
 ## Intentional choices and rejected shortcuts
+
+- Replaying from the last checkpoint after an interrupted phase is refused:
+  external effects and phase credits are not rolled back with files. Persist
+  `running` before dispatch, require `ready` for resume, and never rehydrate
+  historical attestations as current proof.
 
 - A run family, profile or `family` field (runner argument, MCP input, project
   column, CLI flag, UI picker): removed on 2026-10-03 and not to be

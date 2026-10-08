@@ -468,6 +468,7 @@ interface ProjectRunRow {
   skills_path?: string | null;
   bytes_expired_at?: string | null;
   rerun_of_run_id?: string | null;
+  resume_of_run_id?: string | null;
   model_overrides_json?: string | null;
   requested_timeout_ms?: number | null;
   seed_json?: string | null;
@@ -585,6 +586,7 @@ function runFromRow(row: ProjectRunRow): ProjectRun {
     },
     ...(row.repository_base_json ? { repositoryBase: parseJson(row.repository_base_json, 'repository base') } : {}),
     ...(row.rerun_of_run_id ? { rerunOf: row.rerun_of_run_id } : {}),
+    ...(row.resume_of_run_id ? { resumeOf: row.resume_of_run_id } : {}),
     ...(row.model_overrides_json ? { modelOverrides: parseJson(row.model_overrides_json, 'model overrides') } : {}),
     ...(row.requested_timeout_ms != null ? { requestedTimeoutMs: row.requested_timeout_ms } : {}),
     ...(row.seed_json ? { seed: parseJson(row.seed_json, 'run seed') } : {}),
@@ -770,6 +772,7 @@ export class ProjectStore {
         ['project_runs', 'bytes_expired_at'],
         ['project_runs', 'bytes_deleted_at'],
         ['project_runs', 'rerun_of_run_id'],
+        ['project_runs', 'resume_of_run_id'],
         ['project_runs', 'model_overrides_json'],
         ['project_runs', 'seed_json'],
         ['project_runs', 'depth'],
@@ -796,6 +799,10 @@ export class ProjectStore {
       // re-ran and on which models is fixed at reservation, and a seed once
       // recorded is a fact about the past.
       this.db.exec(`
+CREATE UNIQUE INDEX IF NOT EXISTS project_runs_resume_once ON project_runs(resume_of_run_id) WHERE resume_of_run_id IS NOT NULL AND status NOT IN ('failed','cancelled');
+CREATE TRIGGER IF NOT EXISTS project_runs_resume_immutable BEFORE UPDATE OF resume_of_run_id ON project_runs
+WHEN NEW.resume_of_run_id IS NOT OLD.resume_of_run_id
+BEGIN SELECT RAISE(ABORT, 'run continuation is immutable'); END;
 CREATE TRIGGER IF NOT EXISTS project_runs_rerun_immutable
 BEFORE UPDATE OF rerun_of_run_id, model_overrides_json ON project_runs
 WHEN NEW.rerun_of_run_id IS NOT OLD.rerun_of_run_id
@@ -1403,7 +1410,7 @@ END;
     const wantedDigest = request.acceptanceChecklist ? captureAcceptanceSpec(request.acceptanceChecklist).digest : null;
     const storedDigest = this.getRunAcceptanceSpec(orgId, existing.project_run_id)?.digest ?? null;
     if (existing.requested_by_principal_id !== principalId || existing.goal !== request.goal ||
-        wantedDigest !== storedDigest || (existing.depth ?? null) !== (request.depth ?? null)) {
+        (existing.resume_of_run_id ?? null) !== (request.resumeOf ?? null) || wantedDigest !== storedDigest || (existing.depth ?? null) !== (request.depth ?? null)) {
       throw new ProjectStateConflict('run idempotency key was already used for different input');
     }
     return runFromRow(existing);
@@ -1441,7 +1448,7 @@ END;
     }
     const request = createProjectRunInputSchema.parse(requestInput);
     const wantedDigest = request.acceptanceChecklist ? captureAcceptanceSpec(request.acceptanceChecklist).digest : null;
-    const match = live.find((row) => !row.rerun_of_run_id && row.goal === request.goal &&
+    const match = live.find((row) => !row.rerun_of_run_id && (row.resume_of_run_id ?? null) === (request.resumeOf ?? null) && row.goal === request.goal &&
       (row.depth ?? null) === (request.depth ?? null) &&
       (this.getRunAcceptanceSpec(orgId, row.project_run_id)?.digest ?? null) === wantedDigest);
     return match ? runFromRow(match) : null;
@@ -1488,6 +1495,12 @@ END;
         ? 'New runs are suspended for this organisation'
         : 'Organisation concurrent run limit reached');
     }
+  }
+
+  latestContinuation(orgId: string, sourceRunId: string): ProjectRun | null {
+    const row = this.db.prepare('SELECT * FROM project_runs WHERE org_id = ? AND resume_of_run_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1')
+      .get(orgId, sourceRunId) as ProjectRunRow | undefined;
+    return row ? runFromRow(row) : null;
   }
 
   createProjectRun(input: {
@@ -1547,8 +1560,8 @@ END;
           `INSERT INTO project_runs (
              project_run_id, project_id, org_id, requested_by_principal_id, request_key,
              goal, status, workspace_path, runs_path, log_path, skills_path,
-             rerun_of_run_id, model_overrides_json, depth, created_at, updated_at, requested_timeout_ms
-           ) VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+             rerun_of_run_id, model_overrides_json, depth, created_at, updated_at, requested_timeout_ms, resume_of_run_id
+           ) VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           requestedRunId,
@@ -1566,7 +1579,8 @@ END;
           (rerun ? rerun.depth ?? input.origin?.depth : request.depth) ?? null,
           now,
           now,
-          requestedTimeoutMs ?? null
+          requestedTimeoutMs ?? null,
+          request.resumeOf ?? null
         );
       if (acceptance) {
         // `source` NULL is a user list, which is every row written before

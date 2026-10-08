@@ -1,3 +1,4 @@
+import { RunCheckpointStore } from '../run/checkpoint.js';
 import { platformLimitsFor } from '../platform/settings.js';
 import { inventoryRepositoryWorkspace, carryRepositoryBase } from './repositorySync.js';
 import { GitHubAccessRequiredError } from './publisher.js';
@@ -5,7 +6,7 @@ import { assertPersonalCodexModels, CODEX_MODEL_CAPABILITIES_ENV, type CodexMode
 import { projectWorkspaceRelative } from '../contracts/launcherVolumes.js';
 import { randomUUID } from 'node:crypto';
 import { migratePlatformSkills, reconcilePlatformSkills } from '../skills/migratePlatform.js';
-import { existsSync, lstatSync, readFileSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { parseRunLog, spawnRun, DEFAULT_HARD_KILL_MARGIN_MS, UNKILLABLE_BACKSTOP_EXTRA_MS, type RunStats } from '../cli/burnin.js';
@@ -1134,6 +1135,7 @@ export class ProjectRunCoordinator {
   private readonly principalCodexModelsFor?: (principalId: string) => Promise<CodexModelInventory>;
   private readonly store: ProjectStore;
   private readonly dbPath: string;
+  private readonly checkpoints: RunCheckpointStore;
   private readonly hostEnv: NodeJS.ProcessEnv;
   private readonly root: string;
   private readonly skillsRoot: string;
@@ -1172,6 +1174,7 @@ export class ProjectRunCoordinator {
     this.store = options.store;
     this.queuedRunAllowed = options.queuedRunAllowed;
     this.dbPath = path.resolve(options.dbPath);
+    this.checkpoints = new RunCheckpointStore(this.dbPath);
     this.hostEnv = { ...(options.hostEnv ?? process.env) };
     this.root = path.resolve(options.projectsRoot ?? DEFAULT_PROJECTS_ROOT);
     this.skillsRoot = path.resolve(skillsDirPath(options.skillsDir, this.hostEnv));
@@ -1416,6 +1419,42 @@ export class ProjectRunCoordinator {
     return PROJECT_RUN_PREPARATION_TIMEOUT_MS + runMs + DEFAULT_HARD_KILL_MARGIN_MS + UNKILLABLE_BACKSTOP_EXTRA_MS;
   }
 
+  checkpointStatus(run: ProjectRun) {
+    const status = this.checkpoints.projectStatus(run.projectRunId, run.orgId);
+    if (!status) return undefined;
+    // A boundary is only offered after the project finalizer released its lease.
+    if (status.state === 'paused' && run.status !== 'partial') return { ...status, state: 'unavailable' as const };
+    if (['running', 'pause_requested'].includes(status.state) && run.status !== 'running') return { ...status, state: 'unavailable' as const };
+    return status;
+  }
+
+  continuationRequestKey(run: ProjectRun): string {
+    const previous = this.store.latestContinuation(run.orgId, run.projectRunId);
+    return previous && !['failed', 'cancelled'].includes(previous.status) ? previous.requestKey
+      : `phase-resume:${run.projectRunId}${previous ? `:${previous.projectRunId}` : ''}`;
+  }
+
+  pause(run: ProjectRun): void {
+    if (run.status !== 'running') throw new ProjectStateConflict('Only a running run can pause');
+    try { this.checkpoints.requestPause(run.projectRunId, run.orgId); }
+    catch (error) { throw new ProjectStateConflict((error as Error).message); }
+  }
+
+  private continuation(orgId: string, projectId: string, principalId: string, sourceId: string): ProjectRun {
+    const source = this.store.getProjectRun(orgId, sourceId);
+    if (!source || source.projectId !== projectId) throw new ProjectStateConflict('Continuation source not found');
+    if (source.requestedByPrincipalId !== principalId || source.status !== 'partial' || source.bytesExpiredAt || source.rerunOf) {
+      throw new ProjectStateConflict('This run cannot be continued by this requester');
+    }
+    try {
+      const saved = this.checkpoints.read(sourceId);
+      if (saved.scope?.orgId !== orgId || saved.scope.projectId !== projectId || saved.scope.principalId !== principalId ||
+          saved.scope.runId !== sourceId || saved.workspace !== realpathSync(source.hostPaths.workspacePath)) throw new Error('Checkpoint scope mismatch');
+      if (saved.remainingMs <= 0) throw new Error('The saved execution budget is exhausted');
+    } catch { throw new ProjectStateConflict('Saved continuation is unavailable: its workspace, ownership or remaining budget could not be verified'); }
+    return source;
+  }
+
   async start(input: {
     readonly orgId: string;
     readonly principalId: string;
@@ -1471,6 +1510,15 @@ export class ProjectRunCoordinator {
         rerunOf: input.request.rerunOf,
         recordedSourceRunId: (runId) => retrieval.recordedSourceRunId(runId),
       });
+    }
+    if ('resumeOf' in input.request && input.request.resumeOf) {
+      const source = this.continuation(input.orgId, input.projectId, input.principalId, input.request.resumeOf);
+      const acceptance = this.store.getRunAcceptanceSpec(source.orgId, source.projectRunId);
+      const expected = acceptance?.items.map(({ behaviour, check }) => ({ behaviour, check }));
+      if (source.goal !== input.request.goal || (source.depth ?? 'deep') !== (input.request.depth ?? 'deep') ||
+          JSON.stringify(input.request.acceptanceChecklist) !== JSON.stringify(expected)) {
+        throw new ProjectStateConflict('A continuation must keep its original goal and acceptance criteria');
+      }
     }
     const candidateRunId = randomUUID();
     const candidatePaths = projectRunHostLayout(
@@ -1658,7 +1706,8 @@ export class ProjectRunCoordinator {
     try {
       // A rerun starts where its origin started; every other run continues
       // the project's line.
-      const seedRun = rerun ? rerun.seedRun : previousSeedRun(this.store, input.orgId, input.projectId);
+      const continuation = run.resumeOf ? this.continuation(run.orgId, run.projectId, run.requestedByPrincipalId, run.resumeOf) : null;
+      const seedRun = continuation ?? (rerun ? rerun.seedRun : previousSeedRun(this.store, input.orgId, input.projectId));
       let seedFrom = seedRun?.hostPaths.workspacePath;
       // The tenant's wall clock starts when the CHILD does, not here: the
       // repository import and corpus preparation below have their own bound
@@ -1672,13 +1721,14 @@ export class ProjectRunCoordinator {
         cwd: this.cwd,
         npmScript: 'run:build',
         signal: controller.signal,
-        cleanWorkspace: true,
+        cleanWorkspace: !continuation,
         extraArgs: [
           // Container isolation is the one thing a tenant launch insists on.
           // No lifecycle veto travels: a project run promotes, dispatches and
           // caches like any run (docs/platform-trust-2026-09-15.md).
           '--container',
-          ...(seedFrom ? ['--seed', seedFrom] : []),
+          ...(continuation ? ['--resume', continuation.projectRunId] : seedFrom ? ['--seed', seedFrom] : []),
+          ...(!run.rerunOf && (run.depth ?? 'deep') === 'deep' ? ['--checkpoint'] : []),
           ...(run.depth ? ['--depth', run.depth] : []),
         ],
         env: environment,
@@ -1689,7 +1739,11 @@ export class ProjectRunCoordinator {
           controller.signal,
           AbortSignal.timeout(PROJECT_RUN_PREPARATION_TIMEOUT_MS),
         ]);
-        if (project.repositoryTarget.source) {
+        if (continuation) {
+          if (continuation.repositoryBase) this.store.saveRepositoryRunBase(run.orgId, run.projectRunId, continuation.repositoryBase);
+          const originalSync = this.store.getRepositorySync(run.orgId, continuation.projectRunId);
+          if (originalSync) this.store.saveRepositorySync(run.orgId, run.projectRunId, originalSync);
+        } else if (project.repositoryTarget.source) {
           if (!this.publisher?.prepareRun) throw new ProjectRunConfigurationError('GitHub repository import is unavailable');
           seedFrom = await this.publisher.prepareRun(project, run, preparationSignal);
         } else if (rerun) {
@@ -1723,7 +1777,7 @@ export class ProjectRunCoordinator {
         // WHERE THIS RUN STARTED, recorded for every run: it is what a later
         // comparison rerun of THIS run copies (src/projects/rerun.ts).
         this.store.recordRunSeed(run.orgId, run.projectRunId,
-          project.repositoryTarget.source ? { kind: 'repository' }
+          continuation ? { kind: 'run', runId: continuation.projectRunId } : project.repositoryTarget.source ? { kind: 'repository' }
             : seedRun ? { kind: 'run', runId: seedRun.projectRunId } : { kind: 'none' });
         await ProjectRetrievalLaunchStore.open(this.dbPath).prepare(run.projectRunId,
           seedRun?.projectRunId ?? null, { signal: preparationSignal, deadlineAt: preparationDeadlineAt });
@@ -1747,14 +1801,16 @@ export class ProjectRunCoordinator {
         if (previousResults) environment[PREVIOUS_RESULTS_ENV] = previousResults;
         // What the host recorded of the seed lineage's own HTTP probes, which root
         // acceptance counts while the server code is unchanged (standingHttpEvidence).
-        const standing = seedFrom === seedRun?.hostPaths.workspacePath && !this.store.getRepositorySync(project.orgId, run.projectRunId)?.taken
+        const standing = !continuation && seedFrom === seedRun?.hostPaths.workspacePath && !this.store.getRepositorySync(project.orgId, run.projectRunId)?.taken
           ? standingHttpEvidenceFor(this.store, seedRun ?? null) : undefined;
         if (standing) environment[STANDING_HTTP_EVIDENCE_ENV] = standing;
         // THE USER'S APPROVED CRITERIA, read back from the STORE the
         // reservation wrote them to, never from the request: the child runs
         // against the captured version, and a row that no longer matches its
         // digest fails the run here instead of launching it without them.
-        const acceptance = this.store.getRunAcceptance(run.orgId, run.projectRunId);
+        const acceptance = continuation
+          ? this.store.getRunAcceptance(continuation.orgId, continuation.projectRunId)
+          : this.store.getRunAcceptance(run.orgId, run.projectRunId);
         if (acceptance) {
           environment[ACCEPTANCE_SPEC_ENV] = encodeAcceptanceSpec(acceptance.spec);
           // A rerun of a run that drafted its own list carries that draft, and

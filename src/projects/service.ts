@@ -243,7 +243,8 @@ export class ProjectService {
   }
 
   private present(run: ProjectRun, publication: import('../contracts/projects.js').Publication | null) {
-    return publicRun(run, publication, this.store.getRunPayers(run.orgId, run.projectRunId));
+    return { ...publicRun(run, publication, this.store.getRunPayers(run.orgId, run.projectRunId)),
+      checkpoint: this.coordinator.checkpointStatus(run) };
   }
 
   /** GET /api/github/installations — org-scoped. */
@@ -644,6 +645,23 @@ export class ProjectService {
       }
       throw error;
     }
+  }
+
+  async controlCheckpoint(viewer: Viewer, projectId: string, projectRunId: string, action: 'pause' | 'resume'): Promise<unknown> {
+    if (!roleAtLeast(viewer.role, 'org:member')) throw new ProjectHttpError(403, 'org:member role or above is required');
+    const run = this.store.getProjectRun(viewer.orgId, projectRunId);
+    if (!run || run.projectId !== projectId) throw new ProjectHttpError(404, 'project run not found');
+    if (run.requestedByPrincipalId !== viewer.principalId) throw new ProjectHttpError(403, 'Only the requester can pause or resume this run');
+    if (action === 'pause') {
+      try { this.coordinator.pause(run); }
+      catch (error) { if (error instanceof ProjectStateConflict) throw new ProjectHttpError(409, error.message); throw error; }
+      return this.present(run, this.store.getPublicationForRun(viewer.orgId, projectRunId));
+    }
+    const acceptance = this.store.getRunAcceptanceSpec(viewer.orgId, projectRunId);
+    return this.startProjectRunFromInput(viewer, projectId, {
+      resumeOf: projectRunId, goal: run.goal, depth: run.depth, idempotencyKey: this.coordinator.continuationRequestKey(run),
+      ...(acceptance ? { acceptanceChecklist: acceptance.items.map(({ behaviour, check }) => ({ behaviour, check })) } : {}),
+    });
   }
 
   /** POST /api/projects/:id/runs/:runId/cancel */

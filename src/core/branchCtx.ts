@@ -34,6 +34,8 @@ import { attestingExecutor, createAttestationLog } from './attestation.js';
  *     not a branch-labelled viz event.
  */
 export function forkBranch(ctx: RunContext, branchId: string): RunContext {
+  // rootCheckpoint is intentionally NOT forwarded: a child cannot commit or
+  // consume its parent's phase boundary.
   const wrappedLlm: LlmClient = {
     complete: (req: LlmCompletionRequest) =>
       ctx.llm.complete({

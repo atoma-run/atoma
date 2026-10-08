@@ -292,6 +292,8 @@ export interface VizPreviewOpen {
 }
 
 export interface VizProjectRun {
+  resumeOf?: string;
+  checkpoint?: import('../../contracts/runCheckpoint.js').ProjectCheckpointStatus;
   orgId?: string;
   githubAccess?: import('../../contracts/projects.js').GitHubAccessRequired;
   requestedByPrincipalId?: string;

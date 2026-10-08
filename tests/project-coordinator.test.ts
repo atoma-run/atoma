@@ -1,3 +1,6 @@
+import { RunCheckpointStore, checkpointWorkspaceDigest } from '../src/run/checkpoint.js';
+import type { RunCheckpoint } from '../src/contracts/runCheckpoint.js';
+import { realpathSync } from 'node:fs';
 import { DEFAULT_PLATFORM_LIMITS } from '../src/contracts/platformSettings.js';
 import { haystackTestEnvironment } from './helpers/haystack.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -658,6 +661,71 @@ describe('project run environment', () => {
 });
 
 describe('ProjectRunCoordinator', () => {
+  it('resumes a paused project through admission once, retaining the original repository base', async () => {
+    const f = fixture();
+    const checkpoints = new RunCheckpointStore(f.dbPath);
+    const base = { status: 'no_anchor' as const, head: null, base: {}, debtResolved: true,
+      materialised: false, seedPath: null, taken: 0, conflicts: 0, paths: [] };
+    const repositoryBase = { repositoryId: '123', branch: 'main', commitSha: 'a'.repeat(40) };
+    const syncRun = vi.fn(async (_project, run) => {
+      f.store.saveRepositoryRunBase(f.viewer.orgId, run.projectRunId, repositoryBase);
+      f.store.saveRepositorySync(f.viewer.orgId, run.projectRunId, base);
+      return undefined;
+    });
+    const driver = vi.fn(async (options: SpawnRunOptions) => {
+      const env = options.env!;
+      const id = env['ATOMA_RUN_ID']!;
+      const workspace = env['ATOMA_BUILD_WORKSPACE']!;
+      mkdirSync(workspace, { recursive: true });
+      mkdirSync(env['ATOMA_RUNS_DIR']!, { recursive: true });
+      writeFileSync(join(workspace, 'index.html'), '<h1>Saved</h1>');
+      const resuming = options.extraArgs?.includes('--resume');
+      if (!resuming) {
+        expect(options.extraArgs).toContain('--checkpoint');
+        const data: RunCheckpoint = { version: 1, id, goal: options.goal, workspace: realpathSync(workspace), policy: '{}',
+          scope: { orgId: f.viewer.orgId, projectId: f.project.projectId, principalId: f.viewer.principalId, runId: id },
+          actor: { name: 'Meristem', atomId: 'actor', version: 1 }, checklist: [],
+          root: { plan: { subtasks: [{}, {}] }, strategy: {}, plannedPhases: 2 },
+          completed: [{ output: {}, summary: 'Saved first phase', producedBy: { tier: 2, name: 'Cell', viaFallback: false } }],
+          workspaceDigest: checkpointWorkspaceDigest(realpathSync(workspace)), processes: [],
+          consumed: { tokens: 20, costUsd: 0.01 }, remainingMs: 300000, lastRunId: id };
+        const owner = checkpoints.claim(data, true);
+        checkpoints.write(data, owner, 'ready', true);
+      } else {
+        expect(options.cleanWorkspace).toBe(false);
+        expect(options.extraArgs).not.toContain('--seed');
+      }
+      writeFileSync(env['ATOMA_ARTIFACT_MANIFEST_PATH']!, JSON.stringify({ version: 1, runId: id,
+        generatedAt: new Date().toISOString(), outputs: ['index.html'] }));
+      writeFileSync(join(env['ATOMA_RUNS_DIR']!, `${id}.json`), JSON.stringify({ id, endedAt: new Date().toISOString(),
+        result: { output: {}, summary: 'Saved', ...(!resuming ? { refusal: 'Paused before final acceptance' } : {}) } }));
+      return formatRunStatsEpilogue({ ...DELIVERED_STATS, outcome: resuming ? 'delivered' : 'partial' });
+    });
+    const publish = vi.fn(async () => undefined);
+    const coordinator = new ProjectRunCoordinator({ store: f.store, dbPath: f.dbPath, projectsRoot: f.root,
+      hostEnv: { ...haystackTestEnvironment(f.root), ...ANTHROPIC_PINS, ANTHROPIC_API_KEY: 'model-key' },
+      driver, acquireLease: async () => lease(), publisher: { publish, syncRun } });
+    const input = { orgId: f.viewer.orgId, projectId: f.project.projectId, principalId: f.viewer.principalId };
+    const first = await coordinator.start({ ...input, request: { goal: 'Write two files', idempotencyKey: 'first' } });
+    await coordinator.waitForIdle();
+    const paused = f.store.getProjectRun(f.viewer.orgId, first.projectRunId)!;
+    expect(paused.status).toBe('partial');
+    expect(coordinator.checkpointStatus(paused)?.state).toBe('paused');
+    expect(publish).not.toHaveBeenCalled();
+    await expect(coordinator.start({ ...input, principalId: randomUUID(), request: {
+      goal: first.goal, resumeOf: first.projectRunId, idempotencyKey: 'intruder' } })).rejects.toThrow('requester');
+    const request = { goal: first.goal, resumeOf: first.projectRunId, idempotencyKey: 'resume' };
+    const [next, retry] = await Promise.all([coordinator.start({ ...input, request }), coordinator.start({ ...input, request })]);
+    expect(next.projectRunId).toBe(retry.projectRunId);
+    await coordinator.waitForIdle();
+    expect(driver).toHaveBeenCalledTimes(2);
+    expect(syncRun).toHaveBeenCalledTimes(1);
+    expect(f.store.getRepositorySync(f.viewer.orgId, next.projectRunId)).toEqual(base);
+    expect(next.resumeOf).toBe(first.projectRunId);
+    expect(f.store.getProjectRun(f.viewer.orgId, next.projectRunId)?.repositoryBase).toEqual(repositoryBase);
+    expect(publish).toHaveBeenCalledTimes(1);
+  });
+
   it.each(['text', 'partial', 'files', 'text-with-seed', 'text-with-large-seed'] as const)('finalizes %s delivery without confusing an answer with a repository artifact', async (kind) => {
     const f = fixture();
     const publisher = { publish: vi.fn().mockResolvedValue(undefined) };

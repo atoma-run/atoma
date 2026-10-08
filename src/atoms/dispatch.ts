@@ -7,6 +7,7 @@ import { abortedForLanding, landingSignal, withinSignal } from './cost.js';
 import { previousResultInput } from './taskContext.js';
 import { renderTransportEvidence } from './verdict.js';
 import { transportWitnesses } from '../contracts/witness.js';
+import type { RootPhaseCheckpoint } from '../contracts/runCheckpoint.js';
 
 type Subtask = Plan['subtasks'][number];
 
@@ -70,14 +71,16 @@ export async function dispatchWithAggregation(
   subtasks: readonly Subtask[],
   plan: Plan,
   ctx: RunContext,
-  runOne: (subtask: Subtask, idx: number) => Promise<Result>
+  runOne: (subtask: Subtask, idx: number) => Promise<Result>,
+  checkpoint?: RootPhaseCheckpoint
 ): Promise<DispatchOutcome> {
   if (plan.aggregation.mode === 'sequential') {
-    const out: Result[] = [];
-    let previousSummary: string | undefined;
-    let previousResult: unknown;
-    let previousOutputs: readonly string[] | undefined;
-    for (let idx = 0; idx < subtasks.length; idx++) {
+    const out: Result[] = [...(checkpoint?.completed ?? [])];
+    if (out.length > subtasks.length) throw new Error('Checkpoint has more completed phases than the plan');
+    let previousSummary: string | undefined = out.at(-1)?.summary;
+    let previousResult: unknown = out.length ? previousResultInput(out.at(-1)!.output) : undefined;
+    let previousOutputs: readonly string[] | undefined = subtasks[out.length - 1]?.outputs;
+    for (let idx = out.length; idx < subtasks.length; idx++) {
       // The floor is checked BEFORE the phase is built, and never on a
       // dispatch that has produced nothing yet: a run with no accepted phase
       // has nothing to land on, so it spends what it has left trying.
@@ -110,6 +113,7 @@ export async function dispatchWithAggregation(
             }
           : baseSubtask;
       let r: Result;
+      checkpoint?.beforePhase(idx);
       try {
         r = await runOne(subtask, idx);
       } catch (err) {
@@ -126,6 +130,9 @@ export async function dispatchWithAggregation(
         throw err;
       }
       out.push(r);
+      // runOne has completed validation AND credit/learning before this commit.
+      // Persistence/pause errors must never be swallowed as a budget landing.
+      await checkpoint?.afterPhase(idx, r);
       previousSummary = r.summary;
       previousResult = previousResultInput(r.output);
       // Declared writes of THIS phase become the next phase's structured

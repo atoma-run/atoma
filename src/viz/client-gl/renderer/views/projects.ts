@@ -13,7 +13,7 @@ import { createScrollPane } from '../scroll-pane.js';
 import { drawViewFrame, viewFrame, VIEW_FRAME_CONTENT_TOP, VIEW_FRAME_PAD, VIEW_FRAME_TITLE_SIZE, VIEW_FRAME_TITLE_Y } from '../view-frame.js';
 import { drawResultPanel } from './result.js';
 import { latestDeliveredResult } from '../../run-result.js';
-import { pendingGitHubAccess, canContinueGitHubAccess, canRetryPublication } from '../../github-access.js';
+import { canControlCheckpoint, pendingGitHubAccess, canContinueGitHubAccess, canRetryPublication } from '../../github-access.js';
 
 /**
  * Projects view: the organisation's projects, their GitHub repository state
@@ -122,8 +122,10 @@ const RUNS_HEADING_HEIGHT = 30;
  * heading instead.
  */
 function showsPartialGuidance(run: VizProjectRun, newest: boolean): boolean {
-  return newest && run.status === 'partial';
+  return newest && run.status === 'partial' && run.checkpoint?.state !== 'paused';
 }
+
+function checkpointHeight(run: VizProjectRun): number { return run.checkpoint && run.checkpoint.state !== 'unavailable' ? 82 : 0; }
 
 function runRowHeight(run: VizProjectRun, compact = false, newest = false): number {
   if (pendingGitHubAccess(run)) return (run.traceId ? (compact ? RUN_COMPACT_CARD_HEIGHT : RUN_CARD_HEIGHT) + RUN_RESULT_SPACE : 82) + GITHUB_ACCESS_HEIGHT + RUN_ROW_GAP;
@@ -134,7 +136,7 @@ function runRowHeight(run: VizProjectRun, compact = false, newest = false): numb
   );
   return (compact ? RUN_COMPACT_CARD_HEIGHT : RUN_CARD_HEIGHT) + RUN_ROW_GAP + RUN_RESULT_SPACE +
     (run.publication?.status === 'failed' ? PUBLICATION_RECOVERY_HEIGHT : 0) +
-    (hasSecondLine ? RUN_SECOND_LINE_EXTRA : 0);
+    (hasSecondLine ? RUN_SECOND_LINE_EXTRA : 0) + checkpointHeight(run);
 }
 
 const STATUS_COLORS: Record<string, number> = {
@@ -657,7 +659,7 @@ export function drawProjects(
         const newest = runIndex === 0;
         const rowHeight = runRowHeight(run, compactRunRows, newest);
         const access = pendingGitHubAccess(run);
-        const cardHeight = rowHeight - RUN_ROW_GAP - (access && !run.traceId ? 0 : RUN_RESULT_SPACE) -
+        const cardHeight = rowHeight - checkpointHeight(run) - RUN_ROW_GAP - (access && !run.traceId ? 0 : RUN_RESULT_SPACE) -
           (access ? GITHUB_ACCESS_HEIGHT : run.publication?.status === 'failed' ? PUBLICATION_RECOVERY_HEIGHT : 0);
         const goalWidth = Math.max(0, layout.panelWidth - 52);
         const textX = runColumnX + BUTTON_LABEL_INSET;
@@ -669,7 +671,7 @@ export function drawProjects(
         rail.stroke({ color: GPU_COLORS.border, width: 2 });
         rail.circle(railX, cursor + 16, 4).fill(access ? GPU_COLORS.warning : statusColor(run.status));
         pane.content.addChild(rail);
-        const statusText = access ? snapshot.t('projects.githubAccess.title')
+        const statusText = run.checkpoint?.state === 'paused' ? snapshot.t('projects.checkpoint.paused') : access ? snapshot.t('projects.githubAccess.title')
           : run.githubAccess?.resumedRunId ? snapshot.t('projects.githubAccess.resumed')
           : statusLabel(snapshot.t, run.status, 'projects.runStatus');
         const cost = run.costUsd === null ? '' : ' · ' + runCost(run.costUsd);
@@ -774,6 +776,20 @@ export function drawProjects(
             ctx.text(pane.content, notice, textX, actionY + 164, { size: 10, color: GPU_COLORS.warning, width: textWidth, singleLine: true });
             ctx.tooltip(pane.content, { x: textX, y: actionY + 164, width: textWidth, height: 18, text: notice });
           }
+        }
+        if (checkpointHeight(run)) {
+          const y = cursor + rowHeight - checkpointHeight(run) - RUN_ROW_GAP;
+          const progress = snapshot.data.githubRecovery?.runId === run.projectRunId ? snapshot.data.githubRecovery : null;
+          const key = run.checkpoint!.state === 'paused' ? 'projects.checkpoint.resume'
+            : run.checkpoint!.state === 'pause_requested' ? 'projects.checkpoint.requested' : 'projects.checkpoint.pause';
+          ctx.text(pane.content, snapshot.t('projects.checkpoint.progress', { completed: run.checkpoint!.completed, total: run.checkpoint!.total }),
+            textX, y, { size: 10, color: GPU_COLORS.muted });
+          ctx.button(pane.content, `project.checkpoint.${run.projectRunId}`, 'button', snapshot.t(key),
+            runColumnX, y + 20, Math.min(260, goalWidth), 28,
+            false, snapshot.onActivate, GPU_COLORS.primary, false, !!progress?.busy, undefined, undefined, undefined,
+            !canControlCheckpoint(run, snapshot.data.auth) || !!progress?.busy);
+          if (progress?.message) ctx.text(pane.content, progress.message, textX, y + 54,
+            { size: 10, color: GPU_COLORS.warning, width: textWidth, singleLine: true });
         }
         cursor += rowHeight;
       });

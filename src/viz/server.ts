@@ -4420,6 +4420,24 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
       return;
     }
 
+    const checkpointControl = pathname.match(/^\/api\/projects\/([^/]+)\/runs\/([^/]+)\/(pause|resume)$/);
+    if (checkpointControl) {
+      if (!methodAllowed(req, res, 'POST')) return;
+      if (!viewer) { sendJson(res, 401, { error: 'authentication required' }); return; }
+      if (!sameOrigin(req, res)) return;
+      const projectId = decodePathComponent(checkpointControl[1]!);
+      const runId = decodePathComponent(checkpointControl[2]!);
+      if (!projectId || !runId) { sendJson(res, 400, { error: 'bad project run id' }); return; }
+      try {
+        sendJson(res, 200, await PROJECTS_RUNTIME.projects.controlCheckpoint(viewer, projectId, runId,
+          checkpointControl[3] as 'pause' | 'resume'));
+      } catch (error) {
+        if (error instanceof ProjectHttpError) { sendJson(res, error.status, { error: error.message }); return; }
+        throw error;
+      }
+      return;
+    }
+
     const cancelRun = pathname.match(/^\/api\/projects\/([^/]+)\/runs\/([^/]+)\/cancel$/);
     if (cancelRun) {
       if (!methodAllowed(req, res, 'POST')) return;

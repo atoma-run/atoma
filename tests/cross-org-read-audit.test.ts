@@ -27,7 +27,7 @@ function fixture() {
   const log = PlatformEventLog.open(a.dbPath, now);
   const admin = { ...a.viewer, platformAdmin: true };
   const service = new ProjectService({ store: a.projects, github: null,
-    coordinator: {} as ProjectRunCoordinator, auditRead: read => log.recordCrossOrgRead(read) });
+    coordinator: { checkpointStatus: () => undefined } as unknown as ProjectRunCoordinator, auditRead: read => log.recordCrossOrgRead(read) });
   const read: CrossOrgRead = { actorId: admin.principalId, orgId: b.viewer.orgId, surface: 'projects.index' };
   return { a, b, admin, service, log, read, now, advance: (ms: number) => { clock += ms; } };
 }
@@ -85,7 +85,7 @@ describe('cross-organisation read audit', () => {
       expect(publish).toHaveBeenCalledTimes(1);
       expect(observed).toEqual([{ n: 1 }]);
     } finally { raw.close(); }
-    const unconfigured = new ProjectService({ store: f.a.projects, github: null, coordinator: {} as ProjectRunCoordinator });
+    const unconfigured = new ProjectService({ store: f.a.projects, github: null, coordinator: { checkpointStatus: () => undefined } as unknown as ProjectRunCoordinator });
     expect(() => unconfigured.listProjects(f.admin)).toThrow('cross-organisation audit unavailable');
     expect(unconfigured.listProjects(f.a.viewer)).toHaveLength(1);
   });

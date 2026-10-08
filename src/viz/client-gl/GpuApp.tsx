@@ -1,7 +1,7 @@
 import { FilePreview } from './FilePreview.js';
 import { workspaceIndexSchema } from '../../contracts/workspaceBrowser.js';
 import { latestWorkspaceRun } from './workspace-browser.js';
-import { pendingGitHubAccess, canContinueGitHubAccess, canRetryPublication } from './github-access.js';
+import { canControlCheckpoint, pendingGitHubAccess, canContinueGitHubAccess, canRetryPublication } from './github-access.js';
 import { fetchJson } from '../client/data-api.js';
 import {
   useCallback,
@@ -888,6 +888,22 @@ function GpuAppContent({
       const projectId = id.slice('project.repository.'.length);
       const project = projectsQuery.data?.find((candidate) => candidate.projectId === projectId);
       openGitHubRepository(project?.repositoryUrl);
+      return;
+    }
+    if (id.startsWith('project.checkpoint.')) {
+      const run = projectRunsQuery.data?.find(candidate => candidate.projectRunId === id.split('.').at(-1));
+      if (!run || !canControlCheckpoint(run, authSnapshot) || githubRecoveryLock.current) return;
+      githubRecoveryLock.current = true;
+      setGitHubRecovery({ runId: run.projectRunId, busy: true });
+      void api.controlCheckpoint(run.projectId, run.projectRunId, run.checkpoint?.state === 'paused' ? 'resume' : 'pause')
+        .then(() => { setGitHubRecovery(null); })
+        .catch((error: unknown) => { setGitHubRecovery({ runId: run.projectRunId, busy: false,
+          message: error instanceof Error ? error.message : t('projects.checkpoint.failed') }); })
+        .finally(() => {
+          githubRecoveryLock.current = false;
+          void queryClient.invalidateQueries({ queryKey: ['viz', 'projects'] });
+          void queryClient.invalidateQueries({ queryKey: ['viz', 'project', run.projectId, 'runs'] });
+        });
       return;
     }
     if (id.startsWith('project.githubAuthorize.') || id.startsWith('project.githubContinue.') || id.startsWith('project.githubRetry.')) {

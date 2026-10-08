@@ -274,6 +274,7 @@ export const projectSchema = z
 export const createProjectRunInputSchema = z
   .object({
     goal: projectGoalSchema,
+    resumeOf: projectRunIdSchema.optional(),
     idempotencyKey: idempotencyKeySchema,
     /**
      * The acceptance criteria the user approved before launch. Optional:
@@ -425,6 +426,7 @@ export const projectRunSchema = z
     repositoryBase: repositoryRunBaseSchema.optional(),
     /** Present on a comparison rerun: the run it re-ran, which is never its seed. */
     rerunOf: projectRunIdSchema.optional(),
+    resumeOf: projectRunIdSchema.optional(),
     /** The run-level models a comparison rerun was launched with. */
     modelOverrides: storedRunTierModelsSchema.optional(),
     /** Explicit operator budget survives queue handoff; absent uses current host settings. */

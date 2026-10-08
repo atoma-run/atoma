@@ -1,7 +1,8 @@
 import { assertProjectRunAuthority } from '../projects/runAuthority.js';
 import { ledgerDbPath, setLedgerScope, type LedgerScope } from '../core/ledger.js';
 import { dirname, resolve } from 'node:path';
-import { existsSync, mkdirSync, renameSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { setMaxListeners } from 'node:events';
 import { RunnerConfigError } from '../core/errors.js';
 import { containerImageDigestSchema } from '../contracts/containerImage.js';
@@ -80,6 +81,8 @@ import { modelFacingExecutor } from '../core/attestation.js';
 import type { ToolExecutor } from '../core/types.js';
 import { draftAcceptanceChecklist } from '../atoms/acceptanceChecklist.js';
 import { readAcceptanceSource, readAcceptanceSpec } from './acceptanceSpec.js';
+import { assertCheckpointStoreOutsideWorkspace, checkpointWorkspaceDigest, RunCheckpointStore, SequentialCheckpoint } from './checkpoint.js';
+import { PhaseBoundaryPause, type RunCheckpoint } from '../contracts/runCheckpoint.js';
 
 export const consoleLogger: Logger = {
   debug: (m, meta) => console.debug(m, meta ?? ''),
@@ -113,6 +116,9 @@ export function persistDeclaredArtifactManifest(path: string, runId: string, pla
 }
 
 export interface RunnerArgs {
+  checkpoint?: boolean;
+  resume?: string;
+  pauseAfterPhase?: number;
   depth?: DepthMode;
   goal?: string;
   noLearnSkills: boolean;
@@ -242,6 +248,7 @@ function machineRunStats(
  * for the exact tokens the MCP server is allowed to emit.
  */
 const RUNNER_BOOLEAN_FLAGS = [
+  '--checkpoint',
   '--no-learn-skills',
   '--no-promote-skills',
   '--no-direct-skills',
@@ -259,11 +266,14 @@ export const HELP_FLAGS: readonly string[] = ['--help', '-h'];
 /** Usage text of the run CLI, derived from the shared goal guidance. */
 export function formatUsage(): string {
   const flags = [
-    ...RUNNER_BOOLEAN_FLAGS,
+    ...RUNNER_BOOLEAN_FLAGS.map(flag => flag === '--checkpoint'
+      ? '--checkpoint (durable sequential phases in deep mode)' : flag),
     ...RUNNER_NEGATABLE_FLAGS.flatMap((flag) => [flag, `--no-${stripDashes(flag)}`]),
     '--seed <dir>',
     '--depth <deep|short> (supervision depth, common final acceptance)',
     '--worker-image <sha256:digest> (requires container mode)',
+    '--pause-after-phase <n> (pause after validated root phase n; enables checkpoints)',
+    '--resume <checkpoint-id> (same store; no new goal or seed)',
   ];
   return [
     `Usage: run [flags] "<goal>"`,
@@ -295,7 +305,7 @@ export function parseRunnerArgs(argv: readonly string[]): RunnerArgs {
     negatableFlags: RUNNER_NEGATABLE_FLAGS.map(stripDashes),
     // `--seed` consumes the next token UNCONDITIONALLY (historical contract);
     // a trailing `--seed` records '' and deliberately clobbers ATOMA_SEED.
-    valueFlags: ['seed', 'worker-image', 'depth'],
+    valueFlags: ['seed', 'worker-image', 'depth', 'resume', 'pause-after-phase'],
     undeclared: 'discard',
   });
   for (const token of undeclaredFlags) console.warn(`unknown flag: ${token}`);
@@ -308,6 +318,14 @@ export function parseRunnerArgs(argv: readonly string[]): RunnerArgs {
   const workerImage = flags['worker-image'];
   const depth = flags['depth'] === undefined ? undefined : depthModeSchema.safeParse(flags['depth']);
   const comparison = flags['comparison'] === 'true';
+  const resume = flags['resume'];
+  const pauseAfterPhase = flags['pause-after-phase'] === undefined ? undefined : Number(flags['pause-after-phase']);
+  if (resume !== undefined && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(resume)) {
+    throw new RunnerConfigError('--resume requires a checkpoint UUID');
+  }
+  if (pauseAfterPhase !== undefined && (!Number.isSafeInteger(pauseAfterPhase) || pauseAfterPhase < 1)) {
+    throw new RunnerConfigError('--pause-after-phase requires a positive phase number');
+  }
   if (depth && (!depth.success || baseline || comparison)) {
     throw new RunnerConfigError('--depth must be deep or short and cannot be combined with baseline or a comparison arm');
   }
@@ -316,6 +334,9 @@ export function parseRunnerArgs(argv: readonly string[]): RunnerArgs {
     throw new RunnerConfigError('--worker-image requires container mode and a sha256 image digest');
   }
   return {
+    ...(flags['checkpoint'] === 'true' || resume || pauseAfterPhase !== undefined ? { checkpoint: true } : {}),
+    ...(resume ? { resume } : {}),
+    ...(pauseAfterPhase !== undefined ? { pauseAfterPhase } : {}),
     ...(depth?.success ? { depth: depth.data } : {}),
     goal: command ?? undefined,
     noLearnSkills: flags['no-learn-skills'] === 'true',
@@ -391,6 +412,8 @@ export function resolveSupervisionDepth(
  * concern; it now lives in `runTask`, the thin shell over this handle.
  */
 export interface RunHandle {
+  /** Present only for the opt-in durable sequential runner. */
+  readonly checkpointId?: string;
   /**
    * Settles when the task settles — after ALL of the run's reporting output
    * (result, registry state, metrics, stats epilogue, delivery/failure
@@ -407,6 +430,8 @@ export interface RunHandle {
 }
 
 export interface RunOutcome {
+  /** The backend was drained and a durable boundary released for continuation. */
+  readonly paused?: true;
   /**
    * 'partial' is a landed run: it produced real work and did NOT deliver it,
    * for either of two typed reasons that compose (`Result.unfinishedPhases`,
@@ -587,7 +612,35 @@ export async function startTask(
   const args = parseRunnerArgs(argv);
   const resolvedDepth = resolveSupervisionDepth(args, DEPTH_CONTRACT.defaultMode);
   if (resolvedDepth) args.depth = resolvedDepth;
-  const goal = args.goal?.trim();
+  const checkpointAuthority = process.env['ATOMA_TENANT_RUN'] === '1' && args.checkpoint
+    ? assertProjectRunAuthority({ dbPath: process.env[RUN_ENV.dbPath] ?? RUN_DEFAULTS.dbPath,
+      runId: process.env['ATOMA_RUN_ID'] ?? '', workspacePath: process.env[RUN_ENV.workspace] ?? RUN_DEFAULTS.workspace,
+      runsPath: process.env['ATOMA_RUNS_DIR'] ?? './runs', skillsPath: skillsDirPath() }) : undefined;
+  if (args.checkpoint && (args.depth !== 'deep' || args.baseline || args.comparison)) {
+    throw new RunnerConfigError('Checkpoints require deep supervision');
+  }
+  if (args.resume && (args.seed || args.cleanWorkspace || (!checkpointAuthority && args.goal))) {
+    throw new RunnerConfigError('--resume cannot replace the saved workspace or goal');
+  }
+  if (args.checkpoint && process.env[RUN_ENV.dbPath] === ':memory:') {
+    throw new RunnerConfigError('Durable checkpoints require a file-backed product store');
+  }
+  const checkpointStore = args.checkpoint ? new RunCheckpointStore(process.env[RUN_ENV.dbPath] ?? RUN_DEFAULTS.dbPath) : undefined;
+  let savedCheckpoint: RunCheckpoint | undefined;
+  if (args.resume) {
+    try { savedCheckpoint = checkpointStore!.read(args.resume); }
+    catch (error) { throw new RunnerConfigError((error as Error).message); }
+    if (checkpointAuthority ? savedCheckpoint.scope?.orgId !== checkpointAuthority.orgId ||
+        savedCheckpoint.scope.projectId !== checkpointAuthority.projectId ||
+        savedCheckpoint.scope.principalId !== checkpointAuthority.requestedByPrincipalId ||
+        savedCheckpoint.scope.runId !== checkpointAuthority.resumeOf || args.resume !== checkpointAuthority.resumeOf ||
+        savedCheckpoint.goal !== checkpointAuthority.goal
+      : savedCheckpoint.scope !== undefined) throw new RunnerConfigError('Checkpoint continuation is not authorized');
+    if (args.pauseAfterPhase !== undefined && args.pauseAfterPhase <= savedCheckpoint.completed.length) {
+      throw new RunnerConfigError('--pause-after-phase must name a remaining phase');
+    }
+  }
+  const goal = savedCheckpoint?.goal ?? args.goal?.trim();
   if (!goal) throw new RunnerConfigError('A task goal is required. Describe the outcome you want.');
   // AMBIENT BY DESIGN, unlike the lifecycle toggles and tier pins: the
   // project coordinator sets these on a per-run CHILD PROCESS env, so two
@@ -606,6 +659,9 @@ export async function startTask(
     throw new RunnerConfigError(
       `${ARTIFACT_MANIFEST_PATH_ENV} requires ATOMA_RUN_ID for correlation`
     );
+  }
+  if (args.resume && requestedRunId === savedCheckpoint?.lastRunId) {
+    throw new RunnerConfigError('A continuation needs a fresh trace id; unset ATOMA_RUN_ID');
   }
   // THE USER'S APPROVED ACCEPTANCE LIST, captured by the project host before
   // this process existed (docs/acceptance-contract-2026-09-14.md). Read and
@@ -679,9 +735,10 @@ export async function startTask(
   // A budget nobody asked for is the default, bounded by the ceiling — the
   // runner must not refuse its own default. A REQUEST above it is refused below.
   const defaultTimeoutMs = useClaudeCli ? 15 * 60 * 1000 : 10 * 60 * 1000;
-  const timeoutMs = timeoutRaw === undefined
+  const requestedTimeoutMs = timeoutRaw === undefined
     ? Math.min(defaultTimeoutMs, statedCeilingMs ?? defaultTimeoutMs)
     : Number(timeoutRaw);
+  const timeoutMs = savedCheckpoint ? Math.min(requestedTimeoutMs, savedCheckpoint.remainingMs) : requestedTimeoutMs;
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
     throw new RunnerConfigError(
       `invalid ${RUN_ENV.timeoutMs}="${timeoutRaw}" (expected positive integer in ms)`
@@ -794,6 +851,26 @@ export async function startTask(
   const workspaceRoot = resolve(
     process.env[RUN_ENV.workspace] ?? RUN_DEFAULTS.workspace
   );
+  const checkpointPolicy = JSON.stringify({
+    selectors, acceptanceSpec, acceptanceSource, floor: DEPTH_CONTRACT.floor,
+    learning: learning.enabled, promotion: promotion.enabled, direct: direct.enabled,
+    container: args.container, egress: args.egress, egressAllowlist, workerImage: args.workerImage,
+    skills: resolve(skillsDirPath()),
+  });
+  if (savedCheckpoint) {
+    try {
+      if (savedCheckpoint.policy !== checkpointPolicy || (!checkpointAuthority && realpathSync(workspaceRoot) !== savedCheckpoint.workspace)) {
+        throw new Error('Resume requires the same workspace, models, acceptance criteria and execution policy');
+      }
+      if (checkpointWorkspaceDigest(savedCheckpoint.workspace) !== savedCheckpoint.workspaceDigest) {
+        throw new Error('Workspace changed since the checkpoint; resume refused');
+      }
+    } catch (error) { throw new RunnerConfigError((error as Error).message); }
+  }
+  if (args.checkpoint) {
+    try { assertCheckpointStoreOutsideWorkspace(dbPath, workspaceRoot); }
+    catch (error) { throw new RunnerConfigError((error as Error).message); }
+  }
 
   const runsDir = process.env['ATOMA_RUNS_DIR'] ?? './runs';
   const tenantRun = process.env['ATOMA_TENANT_RUN'] === '1';
@@ -888,7 +965,7 @@ export async function startTask(
     (error) => {
       console.error(`\n✗ ${error.message} — cancelling the run`);
       budgetAbort.abort(error);
-    }
+    }, undefined, savedCheckpoint?.consumed
   );
   // The GATE sits outside the metrics: a call it refuses reaches no transport
   // and costs nothing, so there is nothing to record.
@@ -910,7 +987,7 @@ export async function startTask(
   // Runs BEFORE the sandbox is constructed: ToolSandbox realpath-resolves
   // its root at construction, so archiving the directory afterwards would
   // leave every tool pointing at the archive.
-  prepareWorkspace(workspaceRoot, args.cleanWorkspace);
+  if (!savedCheckpoint) prepareWorkspace(workspaceRoot, args.cleanWorkspace);
   // Seed AFTER preparation — prepareWorkspace archives the whole directory, so
   // copying first would archive the fixture along with the previous run.
   const seed = (): void => {
@@ -921,6 +998,43 @@ export async function startTask(
     if (manifestLine) console.log(manifestLine);
   };
   seed();
+  if (savedCheckpoint && checkpointAuthority) {
+    if (existsSync(workspaceRoot)) throw new RunnerConfigError('Continuation workspace must be new');
+    mkdirSync(dirname(workspaceRoot), { recursive: true });
+    cpSync(savedCheckpoint.workspace, workspaceRoot, { recursive: true, dereference: false, verbatimSymlinks: true, errorOnExist: true, force: false });
+    if (checkpointWorkspaceDigest(realpathSync(workspaceRoot)) !== savedCheckpoint.workspaceDigest ||
+        checkpointWorkspaceDigest(savedCheckpoint.workspace) !== savedCheckpoint.workspaceDigest) {
+      throw new RunnerConfigError('Workspace changed while copying the continuation');
+    }
+  }
+  const startingSnapshot = savedCheckpoint?.startingSnapshot ?? (seedRoot ? snapshotStartingWorkspace(seedRoot) : undefined);
+  let checkpoint: SequentialCheckpoint | undefined;
+  if (checkpointStore) {
+    mkdirSync(workspaceRoot, { recursive: true });
+    const scope = checkpointAuthority ? { orgId: checkpointAuthority.orgId, projectId: checkpointAuthority.projectId,
+      principalId: checkpointAuthority.requestedByPrincipalId, runId: checkpointAuthority.projectRunId } : undefined;
+    const data: RunCheckpoint = savedCheckpoint && checkpointAuthority
+      ? { ...savedCheckpoint, id: checkpointAuthority.projectRunId, workspace: realpathSync(workspaceRoot), scope }
+      : savedCheckpoint ?? {
+      version: 1, id: checkpointAuthority?.projectRunId ?? randomUUID(), ...(scope ? { scope } : {}), goal, workspace: realpathSync(workspaceRoot), policy: checkpointPolicy,
+      ...(startingSnapshot ? { startingSnapshot } : {}),
+      actor: null, checklist: null, root: null, completed: [], workspaceDigest: null, processes: null,
+      consumed: { tokens: 0, costUsd: 0 }, remainingMs: timeoutMs, lastRunId: null,
+    };
+    // Claim before a backend can touch the workspace. A losing resumer starts no tools.
+    try {
+      checkpoint = new SequentialCheckpoint(data, checkpointStore, {
+        fresh: !savedCheckpoint, automatic: !!checkpointAuthority,
+        ...(savedCheckpoint && checkpointAuthority ? { source: savedCheckpoint } : {}), pauseAfter: args.pauseAfterPhase, deadlineAt,
+        processes: () => backend.checkpointProcesses?.() ?? null,
+        account: () => budgetMeter.consumed(), warn: (message) => consoleLogger.warn(message), settle: async () => {
+          await jevAudit?.settle(JEV_AUDIT_SETTLE_MS);
+          if (jevAudit && jevAudit.pendingCount() > 0) throw new Error('Deferred audit work is still in flight; checkpoint refused');
+        },
+      });
+    } catch (error) { throw new RunnerConfigError((error as Error).message); }
+    console.log(`checkpoint: ${data.id}; completed phases: ${data.completed.length}; prior consumption: ${JSON.stringify(data.consumed)}`);
+  }
   // Capture the starting repository before a backend or inherited probe can
   // run its code. The prompt remains the task; these bounded bytes are context.
   const routingRepository = args.baseline ? undefined : readRoutingRepository(workspaceRoot);
@@ -954,10 +1068,10 @@ export async function startTask(
   // recorded, on the untouched seed. Every tool call of the run waits for
   // that replay, and root acceptance compares the delivered page against the
   // checks that held. The replay's own calls go to the backend directly.
-  const inheritedChecks = seedRoot && args.depth && !args.baseline
+  const inheritedChecks = (seedRoot || savedCheckpoint) && args.depth && !args.baseline
     ? inheritedChecksFor({
         workspaceRoot, executor: () => backend.executor, signal, deadlineAt, log: (line) => console.log(line),
-        seedLanded: decodePreviousLanding(process.env[PREVIOUS_LANDING_ENV]).length > 0,
+        seedLanded: !!savedCheckpoint || decodePreviousLanding(process.env[PREVIOUS_LANDING_ENV]).length > 0,
       })
     : undefined;
   // Every call of the run loses the host-replay argument, whoever makes it:
@@ -992,11 +1106,19 @@ export async function startTask(
     else seedCatalog(seedCtx);
     let selectedTissue: Awaited<ReturnType<typeof selectTissue>> | undefined;
     const tissueFor = async (task: Task, context: RunContext) => {
+      if (savedCheckpoint?.actor && !selectedTissue) {
+        const stored = registry.getByName(savedCheckpoint.actor.name);
+        if (!stored || stored.atomId !== savedCheckpoint.actor.atomId || stored.version !== savedCheckpoint.actor.version) {
+          throw new Error('Saved root actor has changed; resume refused');
+        }
+        selectedTissue = stored;
+      }
       // Registered comparison arms retain their original fixed entry protocol.
       selectedTissue ??= args.comparison ? buildTissue : await selectTissue({
         registry, toolDecls: backend.toolDecls, task, repository: routingRepository!, ctx: context,
         author: getTissueAuthor,
       });
+      if (checkpoint) checkpoint.data.actor = { name: selectedTissue.name, atomId: selectedTissue.atomId, version: selectedTissue.version };
       return L3Atom.fromType(selectedTissue, registry, skillRegistry);
     };
 
@@ -1025,19 +1147,18 @@ export async function startTask(
       // loop: a deepening keeps it (docs/acceptance-checklist-2026-09-25.md).
       // A list the user approved REPLACES the draft, and no drafting call is
       // made: the model's reading of the goal never overrides the person's.
-      handle = async (t, c) => runDepthTask({
+      handle = async (t, c) => {
+        const checklist = savedCheckpoint?.checklist ?? (acceptanceSource === 'none' ? [] :
+          acceptanceSpec?.items ?? await draftAcceptanceChecklist(c, t.description));
+        if (checkpoint) checkpoint.data.checklist = checklist;
+        return runDepthTask({
         // A comparison rerun of a run that drafted its own list carries THAT
         // draft: the same yardstick as its origin, judged as a draft, with no
         // second drafting call from the rerun's own models.
         // A rerun of an origin judged WITHOUT a list is judged without one too.
-        ...(acceptanceSource === 'none'
-          ? { checklist: [] }
-          : acceptanceSpec && acceptanceSource === 'drafted'
-          ? { checklist: acceptanceSpec.items }
-          : acceptanceSpec
-            ? { checklist: acceptanceSpec.items,
-                checklistOrigin: { source: 'user' as const, digest: acceptanceSpec.digest } }
-            : { checklist: await draftAcceptanceChecklist(c, t.description) }),
+        checklist,
+        ...(acceptanceSpec && acceptanceSource !== 'drafted' && acceptanceSource !== 'none'
+          ? { checklistOrigin: { source: 'user' as const, digest: acceptanceSpec.digest } } : {}),
         mode: args.depth!, task: t, ctx: c, floor: t.proofFloor!,
         createExecutor: async (mode) => {
           const currentSeed = { ...seedCtx, toolDecls: backend.toolDecls };
@@ -1079,7 +1200,7 @@ export async function startTask(
         },
         onTopology: (info) => recorder.recordTopology(info),
         onAcceptance: (info) => recorder.recordAcceptance(info),
-      });
+      }); };
     } else {
       handle = async (t, c) => (await tissueFor(t, c)).handle(t, c);
     }
@@ -1101,6 +1222,7 @@ export async function startTask(
   const jevAudit = jev ? createJevAudit() : undefined;
 
   const ctx: RunContext = {
+    ...(checkpoint ? { rootCheckpoint: checkpoint } : {}),
     ...(args.depth ? { attestations: createAttestationLog((record) => recorder.recordAttestation(record)) } : {}),
     logger: consoleLogger,
     signal,
@@ -1123,8 +1245,8 @@ export async function startTask(
     // same seed. The delivered side is read from the host path the tools
     // write to (bind-mounted in a container, the launcher's run workspace
     // remotely), by the control plane, once per reviewed acceptance.
-    ...(seedRoot ? (() => {
-      const start = snapshotStartingWorkspace(seedRoot);
+    ...(startingSnapshot ? (() => {
+      const start = startingSnapshot;
       return { startingWorkspace: { start, now: () => snapshotDeliveredWorkspace(workspaceRoot, start) } };
     })() : {}),
     // A phase the root plan gave no outputs is photographed and restored on
@@ -1171,7 +1293,8 @@ export async function startTask(
   // every validator rejection already has.
   const builtTask: Task = {
     description: goal,
-    ...(routingRepository ? { inputs: { startingRepository: routingRepository } } : {}),
+    ...(savedCheckpoint?.root?.inputs ? { inputs: savedCheckpoint.root.inputs }
+      : routingRepository ? { inputs: { startingRepository: routingRepository } } : {}),
   };
   const withLanding = withPreviousRunInputs(builtTask, process.env);
   const task = args.depth ? {
@@ -1240,6 +1363,10 @@ export async function startTask(
   // passes it as ATOMA_RUN_ID); for an operator run it is the one the recorder
   // just minted. Either way it is the id `platform_events.run_id` uses.
   setLedgerScope({ ...runScope, runId: vizRun.id });
+  if (checkpoint) {
+    console.log(`continuation trace: ${vizRun.id}; previous trace: ${checkpoint.data.lastRunId ?? 'none'}`);
+    checkpoint.data.lastRunId = vizRun.id;
+  }
   // LAST-RESORT WATCHDOG. `AbortSignal.timeout` above is ADVISORY — it
   // cancels work that OBSERVES it, and a transport wedged on a dropped
   // connection observes nothing, leaving `l3.handle` pending forever with
@@ -1345,6 +1472,7 @@ export async function startTask(
 
       console.log(`\nLLM usage:`);
       console.log(metrics.formatSummary());
+      if (checkpoint) console.log(`Continuation consumption (all segments): ${JSON.stringify(budgetMeter.consumed())}`);
 
       if (persistedRun) {
         console.log('');
@@ -1377,7 +1505,26 @@ export async function startTask(
       }
       console.log('  Press Ctrl+C when you are done testing.');
       return { outcome: landed ? 'partial' : 'delivered' };
-    } catch (err) {
+    } catch (caught) {
+      let err = caught;
+      if (err instanceof PhaseBoundaryPause && checkpoint) {
+        clearTimeout(watchdog);
+        try {
+          // A graceful pause proves quiescence; cleanup alone only sends signals.
+          if (!backend.drain) throw new Error('Checkpoint backend cannot confirm process exit');
+          await backend.drain();
+          checkpoint.release();
+          recorder.endRun({ result: { output: err.result.output, summary: err.result.summary,
+            producedBy: err.result.producedBy, refusal: err.result.refusal } });
+          console.log(formatRunStatsEpilogue(machineRunStats('partial', metrics, runSignals, [err.message])));
+          await teardown();
+          console.log(`Paused. Resume with: npm run run:build -- --resume ${checkpoint.data.id}`);
+          return { outcome: 'partial', paused: true };
+        } catch (error) {
+          checkpoint.finalizing();
+          err = error;
+        }
+      }
       // The run failed on its own terms (abort, transport error, crash):
       // the watchdog's job is done, and leaving its timer armed would hold
       // the event loop open for the whole grace period on a run that is
@@ -1447,7 +1594,7 @@ export async function startTask(
     }
   })();
 
-  return { settled, shutdown: teardown };
+  return { settled, shutdown: teardown, ...(checkpoint ? { checkpointId: checkpoint.data.id } : {}) };
 }
 
 /**
@@ -1479,8 +1626,9 @@ export async function runTask(argv: readonly string[]): Promise<void> {
   }
   process.on('SIGINT', () => void run.shutdown().finally(() => process.exit(0)));
   process.on('SIGTERM', () => void run.shutdown().finally(() => process.exit(0)));
-  const { outcome } = await run.settled;
+  const { outcome, paused } = await run.settled;
   if (outcome === 'failed') process.exit(1);
+  if (paused) return;
   // Keep the process alive until the user hits Ctrl+C so the static server
   // stays reachable; the signal handlers above own the teardown.
   await new Promise(() => {});

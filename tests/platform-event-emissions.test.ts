@@ -234,6 +234,7 @@ describe('ProjectService emissions', () => {
       github: null,
       ...(events ? { events } : {}),
       coordinator: {
+        checkpointStatus: () => undefined,
         cancel: vi.fn(() => f.store.getProjectRun(f.viewer.orgId, run.projectRunId)),
       } as unknown as ConstructorParameters<typeof ProjectService>[0]['coordinator'],
     });

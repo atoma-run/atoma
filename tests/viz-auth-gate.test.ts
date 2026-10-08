@@ -826,6 +826,12 @@ describe('viz auth gate (process level)', () => {
     expect((await fetch(githubResumePath, { headers: cookie })).status).toBe(405);
     expect((await fetch(githubResumePath, { method: 'POST', headers: { ...cookie, origin: 'https://foreign.example' } })).status).toBe(403);
     expect((await fetch(githubResumePath, { method: 'POST', headers: { ...cookie, origin: base } })).status).toBe(404);
+    for (const action of ['pause', 'resume']) {
+      const controlPath = githubResumePath.replace('github-access', action);
+      expect((await fetch(controlPath, { headers: cookie })).status).toBe(405);
+      expect((await fetch(controlPath, { method: 'POST', headers: { ...cookie, origin: 'https://foreign.example' } })).status).toBe(403);
+      expect((await fetch(controlPath, { method: 'POST', headers: { ...cookie, origin: base } })).status).toBe(404);
+    }
     expect(await (await fetch(`${base}/api/runs`, { headers: cookie })).json()).toEqual([]);
     expect((await fetch(`${base}/api/runs/${benchmark.start.runId}`, { headers: cookie })).status).toBe(404);
     for (const path of ['/api/skills', '/api/registries']) {

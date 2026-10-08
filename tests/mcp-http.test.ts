@@ -1505,7 +1505,7 @@ it('journals a platform-admin MCP trace read under the foreign organisation', as
   }));
   const journal = PlatformEventLog.open(a.dbPath);
   const service = new ProjectService({ store: a.projects, github: null,
-    coordinator: {} as ProjectRunCoordinator, auditRead: read => journal.recordCrossOrgRead(read) });
+    coordinator: { checkpointStatus: () => undefined } as unknown as ProjectRunCoordinator, auditRead: read => journal.recordCrossOrgRead(read) });
   const { url } = await listen(() => ({ kind: 'principal', viewer: { ...a.viewer, platformAdmin: true }, tokenId: 'admin' }),
     { ...NO_TENANT, auth: a.auth, projects: { store: a.projects, service }, journal });
   const client = await connect(url);
@@ -1551,7 +1551,7 @@ it('calibrates Jev over MCP on every organisation, and reads its answers again f
   }));
   const journal = PlatformEventLog.open(a.dbPath);
   const service = new ProjectService({ store: a.projects, github: null,
-    coordinator: {} as ProjectRunCoordinator, auditRead: read => journal.recordCrossOrgRead(read) });
+    coordinator: { checkpointStatus: () => undefined } as unknown as ProjectRunCoordinator, auditRead: read => journal.recordCrossOrgRead(read) });
   const bodies: string[] = [];
   const realFetch = globalThis.fetch;
   vi.stubGlobal('fetch', async (url: string | URL | Request, init?: RequestInit) => {
@@ -1662,7 +1662,7 @@ it('reads complete diagnostics over HTTP with lossless pages and organisation is
   const path = join(own.layout.runsPath, `${own.run.projectRunId}.json`);
   writeFileSync(path, JSON.stringify(trace));
   writeFileSync(own.run.hostPaths.logPath, 'runner stderr: fatal\n' + 'x'.repeat(30_000));
-  const service = new ProjectService({ store: a.projects, github: null, coordinator: {} as ProjectRunCoordinator });
+  const service = new ProjectService({ store: a.projects, github: null, coordinator: { checkpointStatus: () => undefined } as unknown as ProjectRunCoordinator });
   const { url } = await listen(() => ({ kind: 'principal', viewer: a.viewer, tokenId: 'reader' }),
     { ...NO_TENANT, auth: a.auth, projects: { store: a.projects, service } });
   const client = await connect(url);
@@ -1720,7 +1720,7 @@ it('serves a tenant the runner log without the host layout (2026-09-25 review, 2
     `skills root: ${skillsDirPath()}`,
     'runner stderr: fatal',
   ].join('\n'));
-  const service = new ProjectService({ store: a.projects, github: null, coordinator: {} as ProjectRunCoordinator });
+  const service = new ProjectService({ store: a.projects, github: null, coordinator: { checkpointStatus: () => undefined } as unknown as ProjectRunCoordinator });
   const { url } = await listen(() => ({ kind: 'principal', viewer: a.viewer, tokenId: 'reader' }),
     { ...NO_TENANT, auth: a.auth, projects: { store: a.projects, service } });
   const client = await connect(url);

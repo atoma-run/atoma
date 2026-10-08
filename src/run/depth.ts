@@ -9,6 +9,7 @@ import { acceptRootResult } from '../atoms/rootAcceptance.js';
 import { outOfPhaseBudget } from '../core/limits.js';
 import type { AcceptanceInfo, DepthMode, PhaseCoverageRecord, ProofFloor, TopologyInfo } from '../contracts/depthRouting.js';
 import { checklistPlanningLines, type AcceptanceChecklist, type ChecklistSource } from '../contracts/acceptanceChecklist.js';
+import { PhaseBoundaryPause } from '../contracts/runCheckpoint.js';
 
 export class DeepeningSignal extends Error {
   constructor() { super('Entry cell exhausted supervision; deepen once.'); this.name = 'DeepeningSignal'; }
@@ -263,6 +264,7 @@ export async function runDepthTask(args: {
         try {
           result = await handle(currentTask, passCtx);
         } catch (error) {
+          if (error instanceof PhaseBoundaryPause) throw error;
           if (refused && !cancellation.signal.aborted && abortedForLanding(ctx)) {
             const reasoning = refused.acceptance.reasoning.trim() || 'the root acceptor gave no reason';
             return markRefused(refused.result, {
@@ -287,6 +289,8 @@ export async function runDepthTask(args: {
             throw error;
           }
         }
+        // Once delivery review/remediation begins the phase boundary is consumed.
+        ctx.rootCheckpoint?.finalizing();
         // WORK IN HAND leaves the execution clock for the finalization window,
         // landed or complete (2026-09-25 review, 1.2a): a complete result whose
         // root acceptance straddled the deadline used to be thrown away while a
@@ -350,6 +354,7 @@ export async function runDepthTask(args: {
         currentTask = remediationTask(currentTask, acceptance);
       }
     } catch (error) {
+      if (error instanceof PhaseBoundaryPause) throw error;
       ctx.signal.throwIfAborted();
       if (!requested || mode !== 'short') throw error;
       // Parallel dispatch drains cancelled siblings before the handle rejects.

@@ -862,9 +862,11 @@ export function createJevDecider(opts: {
 export function createJevAudit(rate?: number): {
   readonly audit: NonNullable<RunContext['jevAudit']>;
   readonly settle: (withinMs: number) => Promise<void>;
+  readonly pendingCount: () => number;
 } {
   const pending = new Set<Promise<void>>();
   return {
+    pendingCount: () => pending.size,
     audit: {
       rate: rate ?? JEV_AUDIT_RATE,
       // An explicit library override retains its historical all-subject meaning.

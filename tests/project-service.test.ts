@@ -115,6 +115,7 @@ function service(): {
     github,
     coordinator: {
       start,
+      checkpointStatus: () => undefined,
       startOutcome: async (input: unknown) => ({ run: await start(input as Parameters<typeof start>[0]), created: true }),
       cancel: vi.fn(),
       retryPublication,
@@ -124,6 +125,31 @@ function service(): {
 }
 
 describe('ProjectService — roles, IDOR and slug identity', () => {
+  it('binds pause and resume controls to the project, organisation and original requester', async () => {
+    const project = projects.createProject({ orgId: alice.orgId, principalId: alice.principalId, project: payload('1') });
+    const run = projects.createProjectRun({ orgId: alice.orgId, principalId: alice.principalId, projectId: project.projectId,
+      request: { goal: 'Saved goal', idempotencyKey: 'pause-test' },
+      hostPaths: { workspacePath: '/tmp/project/workspace', runsPath: '/tmp/project/runs', logPath: '/tmp/project/run.log' } })!.run;
+    const pause = vi.fn();
+    const startOutcome = vi.fn(async () => ({ run, created: false }));
+    const svc = new ProjectService({ store: projects, github, coordinator: {
+      pause, startOutcome, checkpointStatus: () => ({ state: 'paused', completed: 1, total: 2 }),
+      continuationRequestKey: () => 'saved-resume-key',
+    } as unknown as ProjectRunCoordinator });
+    await expect(svc.controlCheckpoint(bob, project.projectId, run.projectRunId, 'resume')).rejects.toMatchObject({ status: 404 });
+    await expect(svc.controlCheckpoint(alice, randomUUID(), run.projectRunId, 'pause')).rejects.toMatchObject({ status: 404 });
+    await expect(svc.controlCheckpoint({ ...alice, role: 'org:viewer' }, project.projectId, run.projectRunId, 'pause')).rejects.toMatchObject({ status: 403 });
+    await expect(svc.controlCheckpoint({ ...alice, principalId: bob.principalId }, project.projectId, run.projectRunId, 'resume')).rejects.toMatchObject({ status: 403 });
+    expect(startOutcome).not.toHaveBeenCalled();
+    expect(pause).not.toHaveBeenCalled();
+    await svc.controlCheckpoint(alice, project.projectId, run.projectRunId, 'pause');
+    expect(pause).toHaveBeenCalledWith(run);
+    await svc.controlCheckpoint(alice, project.projectId, run.projectRunId, 'resume');
+    expect(startOutcome).toHaveBeenCalledWith(expect.objectContaining({ request: {
+      goal: 'Saved goal', resumeOf: run.projectRunId, depth: undefined, idempotencyKey: 'saved-resume-key',
+    } }));
+  });
+
   it('lets org:member create a project against an installation in their org', async () => {
     const member = principal('Member', 'org:member');
     linkInstallation(member, '501', 'member-org');

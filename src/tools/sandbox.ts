@@ -282,6 +282,14 @@ export class ToolSandbox {
     return this.children.map((c) => c.pid).filter((p): p is number => typeof p === 'number');
   }
 
+  /** Host checkpoint liveness inventory, including groups whose leader exited. */
+  checkpointProcesses(): import('../contracts/runCheckpoint.js').CheckpointProcess[] {
+    return [
+      ...this.trackedChildPids().filter(pid => pid > 1).map(pid => ({ pid, group: false })),
+      ...[...this.childGroups].filter(pid => pid > 1).map(pid => ({ pid, group: true })),
+    ];
+  }
+
   trackChild(child: ChildProcess): void {
     this.children.push(child);
     if (child.pid && ownedGroupExists(child.pid)) this.childGroups.add(child.pid);

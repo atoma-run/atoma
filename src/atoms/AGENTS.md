@@ -36,6 +36,9 @@ Neighbours:
   Fallback uses an explicit direct-executor system role, not the delegator role.
 - `pendingStrategy` couples `plan()` and `execute()` on the same instance. Never
   call `execute()` without the corresponding plan.
+- A resumed root restores its saved plan AND parsed strategy on that instance.
+  `rootCheckpoint` is root-only: child forks cannot commit a parent boundary.
+  Dispatch skips the saved prefix before selecting or crediting children.
 - `fallbackMode` bypasses registry delegation and calls self-plan/self-execute.
 - Mutation scopes flow through `applyByScope`; update the union and every hook
   together when adding a scope.

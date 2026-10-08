@@ -122,12 +122,19 @@ export class RunBudgetMeter implements MetricsRecorder {
     inner: MetricsRecorder,
     ceilings: RunBudgetCeilings,
     onExceeded: (error: RunBudgetExceededError) => void,
-    prices: PriceTable = DEFAULT_PRICES
+    prices: PriceTable = DEFAULT_PRICES,
+    prior: { tokens: number; costUsd: number } = { tokens: 0, costUsd: 0 }
   ) {
     this.inner = inner;
     this.ceilings = ceilings;
     this.onExceeded = onExceeded;
     this.prices = prices;
+    if (!Number.isFinite(prior.tokens) || !Number.isFinite(prior.costUsd) || prior.tokens < 0 || prior.costUsd < 0) {
+      throw new Error('Invalid carried run consumption');
+    }
+    this.tokens = prior.tokens;
+    this.costUsd = prior.costUsd;
+    this.checkCeilings();
   }
 
   /** Consumption so far, for a caller that wants to report it. */
@@ -147,6 +154,10 @@ export class RunBudgetMeter implements MetricsRecorder {
     this.inner.record(call);
     this.tokens += billableTokensOf(call);
     this.costUsd += estimateCostUsd(call, pricesFor(call.model, this.prices));
+    this.checkCeilings();
+  }
+
+  private checkCeilings(): void {
     if (this.fired) return;
     // ONCE. A run keeps calling for as long as it takes the abort to land,
     // and an operator does not need four rows saying the same thing.

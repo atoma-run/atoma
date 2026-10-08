@@ -19,6 +19,17 @@ if (typeof releaseVersion !== 'string' || releaseVersion.length === 0) {
   throw new Error('package.json must declare a non-empty version');
 }
 
+// The preview deliberately blocks scripts. Drive its assertions from the host
+// with fresh evaluations instead of installing a RAF poller in its realm.
+async function waitForPreview(page, predicate, input) {
+  const deadline = Date.now() + READY_TIMEOUT_MS;
+  do {
+    if (await page.evaluate(predicate, input)) return;
+    await new Promise(resolve => setTimeout(resolve, 100));
+  } while (Date.now() < deadline);
+  throw new Error('File preview did not satisfy its rendered-content assertion');
+}
+
 async function freePort() {
   return await new Promise((resolve, reject) => {
     const server = createServer();
@@ -2202,9 +2213,19 @@ try {
       let updateProbes = 0;
       const accountSwitchRequests = [];
       const githubContinueRequests = [];
+      const checkpointRequests = [];
       const updateShell = await (await fetch(`http://127.0.0.1:${port}/`)).text();
       accountPage.on('request', (request) => {
         const path = new URL(request.url()).pathname;
+        if (/\/(pause|resume)$/.test(path) && request.method() === 'POST') {
+          const action = path.split('/').at(-1);
+          checkpointRequests.push(action);
+          const original = stubs[`/api/projects/${projectId}/runs`][0];
+          original.status = 'partial';
+          original.checkpoint = { state: action === 'pause' ? 'paused' : 'unavailable', completed: 1, total: 2 };
+          void request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify(original) });
+          return;
+        }
         if (path.endsWith('/github-access') && request.method() === 'POST') {
           githubContinueRequests.push(JSON.parse(request.postData()));
           const original = stubs[`/api/projects/${projectId}/runs`][0];
@@ -2453,6 +2474,38 @@ try {
       console.log('Fork upstream setting ok: saved toggle survives reload');
       const blocked = stubs[`/api/projects/${projectId}/runs`][0];
       blocked.requestedByPrincipalId = principalId;
+      const originalStatus = blocked.status;
+      blocked.orgId = 'org-a';
+      blocked.status = 'running';
+      blocked.checkpoint = { state: 'running', completed: 0, total: 2 };
+      await accountPage.reload({ waitUntil: 'load' });
+      await passArrivalGate(accountPage);
+      await waitForHitTarget(accountPage, `project.select.${projectId}`, 'checkpoint project missing');
+      await clickAccountTarget(`project.select.${projectId}`);
+      const checkpointTarget = `project.checkpoint.${blocked.projectRunId}`;
+      await waitForHitTarget(accountPage, checkpointTarget, 'pause control missing');
+      await new Promise(resolve => setTimeout(resolve, 900));
+      const checkpointNotification = await accountPage.$('.gpu-push-prompt-actions button:last-child');
+      if (checkpointNotification) await checkpointNotification.click();
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const point = await accountPage.evaluate(id => {
+          const handle = globalThis.__ATOMA_GPU__;
+          const target = handle.hitTargets().find(entry => entry.id === id);
+          return { ...handle.projectRendererPoint(target.x + target.width / 2, target.y + target.height / 2), height: window.innerHeight };
+        }, checkpointTarget);
+        if (point.y < point.height - 50) break;
+        await accountPage.mouse.move(point.x, point.height - 100);
+        await accountPage.mouse.wheel({ deltaY: 180 });
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+      await clickAccountTarget(checkpointTarget);
+      await accountPage.waitForFunction(() => [...document.querySelectorAll('button')].some(button => button.textContent.includes('Resume saved work') && !button.disabled));
+      await clickAccountTarget(checkpointTarget);
+      await accountPage.waitForFunction(id => !globalThis.__ATOMA_GPU__.hitTargets().some(target => target.id === id), {}, checkpointTarget);
+      if (checkpointRequests.join(',') !== 'pause,resume') throw new Error('Checkpoint controls must pause then resume exactly once');
+      console.log('Project checkpoints ok: real canvas pause, saved phase and resume actions');
+      blocked.status = originalStatus;
+      delete blocked.checkpoint;
       blocked.githubAccess = { phase: 'run', repositoryId: '501', fullName: 'acme/app',
         settingsUrl: 'https://github.com/settings/installations/501' };
       await accountPage.reload({ waitUntil: 'load' });
@@ -2515,7 +2568,12 @@ try {
         } finally { worker.terminate(); URL.revokeObjectURL(url); }
       });
       await clickAccountTarget('workspace.path.src/app.ts');
-      await accountPage.waitForFunction(() => document.querySelector('iframe[title="src/app.ts"]')?.contentDocument?.body.textContent.includes('export const greeting'));
+      await waitForPreview(accountPage, () => document.querySelector('iframe[title="src/app.ts"]')?.contentDocument?.body?.textContent?.includes('export const greeting')).catch(async error => {
+        await accountPage.screenshot({ path: '/tmp/atoma-checkpoint-file-preview-failure.png' });
+        const diagnostic = await accountPage.evaluate(() => ({ text: document.body.innerText.slice(-3000),
+          frames: [...document.querySelectorAll('iframe')].map(frame => ({ title: frame.title, text: frame.contentDocument?.body?.textContent?.slice(0, 1000) })) }));
+        throw new Error(JSON.stringify(diagnostic), { cause: error });
+      });
       await accountPage.screenshot({ path: '/tmp/atoma-workspace-browser.png' });
       await accountPage.click('.gpu-preview-actions button');
       await waitForHitTarget(accountPage, 'workspace.path.', 'workspace parent missing');
@@ -2537,7 +2595,7 @@ try {
         await accountPage.waitForFunction(path => document.querySelector(`iframe[title="${path}"]`) &&
           !document.querySelector('.gpu-preview-status'), { timeout: READY_TIMEOUT_MS }, path);
         await accountPage.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-        await accountPage.waitForFunction(({ path, selector, text }) => {
+        await waitForPreview(accountPage, ({ path, selector, text }) => {
           const doc = document.querySelector(`iframe[title="${path}"]`)?.contentDocument;
           const nodes = [...(doc?.querySelectorAll(selector) ?? [])];
           return nodes.some(el => selector === 'img' ? el.complete && el.naturalWidth > 0
@@ -2554,7 +2612,7 @@ try {
                 const pixel = el.getContext('2d').getImageData(Math.floor(el.width * .3), Math.floor(el.height * .7), 1, 1).data;
                 return pixel[0] > 200 && pixel[1] < 30 && pixel[2] < 30 && pixel[3] === 255;
               })() : el.textContent.includes(text));
-        }, { timeout: READY_TIMEOUT_MS }, { path, selector, text }).catch(async error => {
+        }, { path, selector, text }).catch(async error => {
           const diagnostic = await accountPage.evaluate(path => {
             const doc = document.querySelector(`iframe[title="${path}"]`)?.contentDocument;
             return { text: doc?.body.innerText, canvases: [...(doc?.querySelectorAll('canvas') ?? [])].map(c => ({
@@ -2592,7 +2650,7 @@ try {
       if (await resultHasText('recorded-result-probe')) throw new Error('Result details did not collapse');
       await accountPage.screenshot({ path: '/tmp/atoma-result-before-file.png' });
       await clickAccountTarget('result.file.README.md');
-      await accountPage.waitForFunction(() => document.querySelector('iframe[title="README.md"]')?.contentDocument?.querySelector('h1')?.textContent === 'Preview heading').catch(async error => {
+      await waitForPreview(accountPage, () => document.querySelector('iframe[title="README.md"]')?.contentDocument?.querySelector('h1')?.textContent === 'Preview heading').catch(async error => {
         await accountPage.screenshot({ path: '/tmp/atoma-result-preview-failure.png' });
         throw error;
       });
