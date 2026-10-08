@@ -43,7 +43,7 @@ WAIT_SECONDS="${ATOMA_DEPLOY_WAIT_SECONDS:-5400}"
 MENDER_SERVICE="${ATOMA_DEPLOY_MENDER_SERVICE:-atoma-mender.service}"
 MENDER_CHECKOUT="${ATOMA_DEPLOY_MENDER_CHECKOUT:-/home/atoma/mender}"
 MENDER_ENV="${ATOMA_DEPLOY_MENDER_ENV:-/home/atoma/config/mender.env}"
-MENDER_REMOTE="https://github.com/mgtf/atoma.git"
+MENDER_REMOTE="https://github.com/atoma-run/atoma.git"
 
 fail() {
   echo "deployment failed: $*" >&2

@@ -44,7 +44,7 @@ export function homeSocialMeta(
     description: copy.description,
     url: canonical,
     image: socialImage,
-    sameAs: ['https://github.com/mgtf/atoma'],
+    sameAs: ['https://github.com/atoma-run/atoma'],
   }).replaceAll('<', '\\u003c');
   return [
     '  <meta property="og:type" content="website" />',

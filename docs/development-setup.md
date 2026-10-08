@@ -38,7 +38,7 @@ job and the mender image use the pin. The
 runtime evidence behind the driver requirement.
 
 ```bash
-git clone https://github.com/mgtf/atoma.git
+git clone https://github.com/atoma-run/atoma.git
 cd atoma
 nvm install && nvm use
 npm ci                            # `prepare` installs the husky hooks; needs .git
@@ -118,7 +118,7 @@ ext4:
 
 ```bash
 cd ~ && mkdir -p dev && cd dev
-git clone https://github.com/mgtf/atoma.git    # ~/dev/atoma, NOT /mnt/c/...
+git clone https://github.com/atoma-run/atoma.git    # ~/dev/atoma, NOT /mnt/c/...
 ```
 
 ### Do not put the checkout on /mnt/c

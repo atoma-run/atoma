@@ -30,14 +30,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          path-to-document: 'https://github.com/mgtf/atoma/blob/main/CLA.md'
+          path-to-document: 'https://github.com/atoma-run/atoma/blob/main/CLA.md'
           path-to-signatures: 'signatures/cla-v1.json'
           branch: 'cla-signatures'
           allowlist: 'mgtf,bot*'
           lock-pullrequest-aftermerge: true
           custom-notsigned-prcomment: >-
             Thank you for the contribution. Before it can be merged, please read the
-            [Contributor License Agreement](https://github.com/mgtf/atoma/blob/main/CLA.md)
+            [Contributor License Agreement](https://github.com/atoma-run/atoma/blob/main/CLA.md)
             and sign it by posting the sentence below as a comment on this pull request.
             Your signature is recorded once and covers your future contributions.
           custom-pr-sign-comment: 'I have read the CLA Document and I hereby sign the CLA'

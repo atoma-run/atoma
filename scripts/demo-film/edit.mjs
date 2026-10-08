@@ -237,7 +237,7 @@ export const EDIT = [
       lines: [
         { text: 'atoma', size: 110, weight: 700, gap: 120 },
         { text: 'Open source (AGPL-3.0) · self-hostable · 13 languages · 39 MCP tools', size: 34, weight: 500, color: '#cbd5e1', gap: 80 },
-        { text: 'atoma.run   ·   github.com/mgtf/atoma', size: 40, weight: 600, color: '#5eead4', gap: 110 },
+        { text: 'atoma.run   ·   github.com/atoma-run/atoma', size: 40, weight: 600, color: '#5eead4', gap: 110 },
         { text: 'Recorded on the atoma console, with sample data.', size: 22, weight: 400, color: '#94a3b8' },
       ],
     },

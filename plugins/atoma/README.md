@@ -12,7 +12,7 @@ adds:
 ## Install
 
 ```bash
-claude plugin marketplace add mgtf/atoma
+claude plugin marketplace add atoma-run/atoma
 claude plugin install atoma@atoma
 ```
 

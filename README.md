@@ -14,7 +14,7 @@ are taken by TypeSafe's [Jev](#jev-handles-bounded-decisions).
 
 [Demo](#watch-the-demo) · [Use cases](#what-could-your-team-build) · [A run, step by step](#a-run-step-by-step) · [Features](#features) · [How it works](#how-it-works) · [Self-host](#install-and-evaluate-it-locally) · [Documentation](#documentation)
 
-[![CI](https://github.com/mgtf/atoma/actions/workflows/ci.yml/badge.svg)](https://github.com/mgtf/atoma/actions/workflows/ci.yml)
+[![CI](https://github.com/atoma-run/atoma/actions/workflows/ci.yml/badge.svg)](https://github.com/atoma-run/atoma/actions/workflows/ci.yml)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 
 </div>
@@ -266,7 +266,7 @@ prerequisites. Runs and the full test suite require macOS or Linux; on Windows,
 use WSL2 with its own checkout on ext4.
 
 ```bash
-git clone https://github.com/mgtf/atoma.git
+git clone https://github.com/atoma-run/atoma.git
 cd atoma
 nvm install && nvm use
 npm ci
