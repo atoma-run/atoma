@@ -96,6 +96,9 @@ export async function serveLauncher(options: {
           for (const state of held.values()) options.renewLease?.(state.family, state.ownerId);
           lastHeartbeat = Date.now();
           return null;
+        case 'checkpointWorkerAbsent':
+          if (!options.workers?.checkpointWorkerAbsent) throw new Error('Worker recovery reader unavailable');
+          return options.workers.checkpointWorkerAbsent(request.id);
         case 'startWorker': {
           if (!options.workers) throw new Error('Worker service not configured');
           if (held.has(`egress:${request.spec.ownerId}`)) throw new Error('Owner already claimed');

@@ -13,7 +13,7 @@ import { createScrollPane } from '../scroll-pane.js';
 import { drawViewFrame, viewFrame, VIEW_FRAME_CONTENT_TOP, VIEW_FRAME_PAD, VIEW_FRAME_TITLE_SIZE, VIEW_FRAME_TITLE_Y } from '../view-frame.js';
 import { drawResultPanel } from './result.js';
 import { latestDeliveredResult } from '../../run-result.js';
-import { canControlCheckpoint, pendingGitHubAccess, canContinueGitHubAccess, canRetryPublication } from '../../github-access.js';
+import { checkpointActionKey, canControlCheckpoint, pendingGitHubAccess, canContinueGitHubAccess, canRetryPublication } from '../../github-access.js';
 
 /**
  * Projects view: the organisation's projects, their GitHub repository state
@@ -122,7 +122,7 @@ const RUNS_HEADING_HEIGHT = 30;
  * heading instead.
  */
 function showsPartialGuidance(run: VizProjectRun, newest: boolean): boolean {
-  return newest && run.status === 'partial' && run.checkpoint?.state !== 'paused';
+  return newest && run.status === 'partial' && !['paused', 'recoverable'].includes(run.checkpoint?.state ?? '');
 }
 
 function checkpointHeight(run: VizProjectRun): number { return run.checkpoint && run.checkpoint.state !== 'unavailable' ? 82 : 0; }
@@ -780,15 +780,15 @@ export function drawProjects(
         if (checkpointHeight(run)) {
           const y = cursor + rowHeight - checkpointHeight(run) - RUN_ROW_GAP;
           const progress = snapshot.data.githubRecovery?.runId === run.projectRunId ? snapshot.data.githubRecovery : null;
-          const key = run.checkpoint!.state === 'paused' ? 'projects.checkpoint.resume'
-            : run.checkpoint!.state === 'pause_requested' ? 'projects.checkpoint.requested' : 'projects.checkpoint.pause';
+          const key = checkpointActionKey(run);
           ctx.text(pane.content, snapshot.t('projects.checkpoint.progress', { completed: run.checkpoint!.completed, total: run.checkpoint!.total }),
             textX, y, { size: 10, color: GPU_COLORS.muted });
           ctx.button(pane.content, `project.checkpoint.${run.projectRunId}`, 'button', snapshot.t(key),
             runColumnX, y + 20, Math.min(260, goalWidth), 28,
             false, snapshot.onActivate, GPU_COLORS.primary, false, !!progress?.busy, undefined, undefined, undefined,
             !canControlCheckpoint(run, snapshot.data.auth) || !!progress?.busy);
-          if (progress?.message) ctx.text(pane.content, progress.message, textX, y + 54,
+          const message = progress?.message ?? (run.checkpoint?.reason ? snapshot.t(`projects.checkpoint.reason.${run.checkpoint.reason}`) : null);
+          if (message) ctx.text(pane.content, message, textX, y + 54,
             { size: 10, color: GPU_COLORS.warning, width: textWidth, singleLine: true });
         }
         cursor += rowHeight;

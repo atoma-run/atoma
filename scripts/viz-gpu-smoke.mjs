@@ -2504,6 +2504,20 @@ try {
       await accountPage.waitForFunction(id => !globalThis.__ATOMA_GPU__.hitTargets().some(target => target.id === id), {}, checkpointTarget);
       if (checkpointRequests.join(',') !== 'pause,resume') throw new Error('Checkpoint controls must pause then resume exactly once');
       console.log('Project checkpoints ok: real canvas pause, saved phase and resume actions');
+      blocked.status = 'failed';
+      blocked.checkpoint = { state: 'recoverable', completed: 1, total: 2 };
+      await accountPage.reload({ waitUntil: 'load' });
+      await passArrivalGate(accountPage);
+      await waitForHitTarget(accountPage, `project.select.${projectId}`, 'crash recovery project missing');
+      await clickAccountTarget(`project.select.${projectId}`);
+      await accountPage.waitForFunction(() => [...document.querySelectorAll('button')].some(button => button.textContent.includes('Recover validated work') && !button.disabled));
+      // The keyboard mirror must dispatch the same resume action as Pixi.
+      const recoveryButton = await accountPage.evaluateHandle(() => [...document.querySelectorAll('button')].find(button => button.textContent.includes('Recover validated work')));
+      await recoveryButton.asElement().focus();
+      await accountPage.keyboard.press('Enter');
+      await accountPage.waitForFunction(id => !globalThis.__ATOMA_GPU__.hitTargets().some(target => target.id === id), {}, checkpointTarget);
+      if (checkpointRequests.join(',') !== 'pause,resume,resume') throw new Error('Crash recovery must resume exactly once');
+      console.log('Project crash recovery ok: failed run, saved phases, keyboard resume action');
       blocked.status = originalStatus;
       delete blocked.checkpoint;
       blocked.githubAccess = { phase: 'run', repositoryId: '501', fullName: 'acme/app',

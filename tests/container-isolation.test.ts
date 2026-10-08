@@ -8,6 +8,7 @@ import { containerToolBackend } from '../src/run/toolBackend.js';
 import { egressObjectId } from '../src/tools/egressSidecar.js';
 import { drainLines, encodeMessage, isWorkerHello } from '../src/tools/containerProtocol.js';
 import { HOST_REPLAY_ARG } from '../src/contracts/inheritedChecks.js';
+import { assertCheckpointWorkerAbsent } from '../src/launcher/checkpointRecovery.js';
 
 /**
  * The isolation primitive, proven against a real container.
@@ -43,6 +44,22 @@ if (process.env['CI_REQUIRE_DOCKER'] === '1' && !HAVE_DOCKER) {
 const describeDocker = HAVE_DOCKER ? describe : describe.skip;
 
 describeDocker('container depth transition', () => {
+  it('verifies a recorded worker identity against the real engine before and after SIGKILL', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'atoma-container-recovery-'));
+    const backend = await containerToolBackend({ workspaceRoot: join(root, 'workspace') });
+    try {
+      await backend.executor.execute('write_file', { path: 'saved.txt', content: 'before crash' });
+      const receipt = backend.checkpointWorker!()!;
+      await expect(assertCheckpointWorkerAbsent(receipt)).rejects.toThrow('still exists');
+      execFileSync('docker', ['kill', '--signal=KILL', `atoma-worker-${receipt.id}`], { stdio: 'ignore' });
+      await vi.waitFor(async () => { await assertCheckpointWorkerAbsent(receipt); }, { timeout: 10000 });
+      expect(readFileSync(join(root, 'workspace', 'saved.txt'), 'utf8')).toBe('before crash');
+    } finally {
+      await backend.drain!();
+      rmSync(root, { recursive: true, force: true });
+    }
+  }, 120_000);
+
   it('removes a SIGTERM-resistant worker before archiving and replacing its workspace', async () => {
     const root = mkdtempSync(join(tmpdir(), 'atoma-container-depth-'));
     const workspace = join(root, 'workspace');

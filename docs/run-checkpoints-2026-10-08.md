@@ -29,11 +29,13 @@ seeded work is supported. Nothing changes for operator launches without these fl
 tool workspace. It stores the original plan/strategy, original phase count,
 root actor identity/version, checklist, completed output/summary/provenance,
 remaining execution time, consumed tokens/cost and a workspace digest. It stores
-no credentials. Workspace files remain in their original location: this is an
-in-place continuation with byte/mode verification, not backup or rollback.
-Changing a file, adding/removing a directory, encountering an escaping or absolute
-symlink, hardlink or special file,
-or exceeding the existing workspace bounds prevents continuation. Relative internal dependency links are hashed and copied verbatim. The bounded
+no provider credentials. Boundary snapshots (including workspace file bytes) live
+in `run_checkpoint_snapshots` and `run_checkpoint_files`, in that SAME backed-up
+store, outside the worker mount. Snapshot capture and publication are one SQLite
+transaction. Only the latest snapshot still referenced by an unfinished checkpoint
+is retained. Workspace entry/file/byte limits apply; absolute/escaping links,
+hardlinks and special files refuse capture. A graceful pause still verifies the
+original workspace and refuses user edits rather than silently discarding them. Relative internal dependency links are hashed and copied verbatim. The bounded
 state envelope is at most 32 MiB.
 
 The root marks the row `running` before opening each phase. It publishes `ready`
@@ -49,16 +51,39 @@ A SQLite immediate transaction claims one checkpoint for one process. A live
 owner prevents another claim. A graceful pause drains the sandbox, verifies the
 workspace again, then releases ownership. Crash recovery also requires a dead
 owner and absence of the recorded local children/process groups. A container
-backend without a host process inventory must have drained gracefully. The
+backend records its launcher-issued worker UUID. Before recovery, the launcher
+must successfully prove that worker (and every predecessor from a transport restart)
+absent; a missing connection or engine error
+is never absence. The recovery operation is read-only and never stops someone
+else's worker. Older checkpoints without a worker receipt still need graceful drain. The
 host identity is checked; moving the database to a different machine does not
 authorize continuing a potentially live run. PID reuse conservatively refuses.
 
-An interrupted **in-flight phase is never replayed automatically**. There may
-already be external effects or learning credits between its last tool call and
-the next boundary commit. The earlier checkpoint is not a transaction capable
-of undoing those effects. Arbitrary mid-phase recovery needs tool-specific
-idempotency and a durable effect journal; this increment does not pretend to
-provide them.
+An interrupted phase may restart from its last sealed boundary only when the
+write-ahead journal can establish a restorable suffix. `run_checkpoint_actions`
+records each tool/model intent before dispatch, its completion/error, request and
+result digests, and results up to 64 KiB (larger ones retain the digest only).
+Results are audit records, never cached answers or imported proof. File reads,
+listing, writes and edits may repeat against restored bytes. Other tools—including
+shell, HTTP, server startup, browser actions and unknown future tools—block replay
+of that phase even if their call completed: success does not establish idempotency.
+An unfinished tool call blocks replay too. An unfinished or failed model call
+also blocks replay because its final bill may
+be unknown. Completed usage is committed with its journal outcome.
+
+Registry writes and skill mutations install a recovery barrier BEFORE effects;
+registry transactions commit that barrier on the same handle as the counters.
+No shared knowledge is rolled back. A phase that already changed skills or earned
+credit cannot repeat, including skill match counters. Async-local scope prevents
+one library run's barrier from capturing another run's writes. Normal execution
+and learning remain enabled; a barrier changes crash recoverability only.
+
+Recovery builds a private new directory from the stored snapshot, checks its digest,
+then renames it into place. CLI recovery archives the interrupted workspace beside
+it; a project successor restores into its own new workspace. Files, directories,
+modes and internal relative links survive; links are materialised after files so
+they cannot redirect writes. On Linux capture pins directory descriptors; macOS
+rechecks canonical ancestors but retains its platform's residual rename race.
 
 ## Project and UI integration
 
@@ -71,19 +96,24 @@ keyboard controls dispatch the same action and show request errors locally.
 `resumeOf` belongs to the immutable project run receipt and request identity.
 Concurrent retries reattach to one successor. Reservation and launch use normal
 admission, queue, membership and fresh credential checks. Failed preparation may
-be retried while the boundary remains ready; once work begins, no uncertain phase
-is replayed. Changing model pins or execution policy refuses before model calls.
+be retried while the boundary remains ready. Failed interrupted runs expose
+“Recover validated work” only when the journal permits it; blocked runs show the
+reason. Cancelled runs do not offer recovery. No uncertain action is replayed. Changing model pins or execution policy refuses before model calls.
 
 The runner binds the checkpoint to the stored requester/org/project/source run,
-copies the complete workspace to the new run, verifies both copies, then consumes
-the source and claims the successor in one SQLite transaction. Previous artifacts
+consumes the source and claims the successor in one SQLite transaction BEFORE
+restoring its snapshot into the new run. Legacy graceful checkpoints keep the
+verified workspace copy path. Previous artifacts
 and traces remain immutable. Repository BASE is copied rather than refreshed from
 GitHub, including the imported-repository receipt. The original starting-file
 snapshot remains the acceptor's comparison baseline, and inherited browser checks
 are replayed without treating paused work as an accepted seed. Publication rechecks current GitHub authority and remote state.
-The successor has its own retrieval receipt. Retention holds paused checkpoints
-and sources needed by queued/running continuations. This is not recovery from an
-arbitrary server crash in a container or from an interrupted phase.
+The successor has its own retrieval receipt. A failed source has no artifact
+manifest, so recovery reuses its recorded starting corpus, not interrupted files. Retention holds paused checkpoints
+and sources needed by queued/running continuations. Crash recovery is conditional,
+not an exactly-once guarantee for arbitrary external actions. Comparison reruns
+of crash recoveries are refused: the predecessor workspace contains interrupted
+work and is not the sealed snapshot the recovery started from.
 
 ## Proof and accounting
 
@@ -98,7 +128,9 @@ The launch log links the continuation ID and previous trace. The budget meter
 carries prior consumption forward without recording those calls again; a pause
 does not buy a fresh token/cost allowance. Remaining wall time excludes the time
 spent paused and is bounded by the next launch's timeout and current platform
-limits. Learning rows are retained in the same store and skipped phases earn
+limits. An ungraceful interruption keeps the original absolute deadline
+(downtime consumes the remaining allowance); a missing completion never invents
+zero model spend. Learning rows are retained in the same store and skipped phases earn
 no second credit.
 
 ## Adversarial design review and regression evidence
@@ -108,8 +140,17 @@ The design was checked against the existing landing incident
 seed inheritance ([seed inheritance](../docs/seed-inheritance-2026-09-25.md)),
 and the supervisor's already-durable phase credits. Relevant counterexamples:
 
-- Crash after a tool effect or credit but before checkpoint commit: `running`
-  blocks replay, preserving the uncertainty instead of duplicating the effect.
+- Crash after an external action or credit but before checkpoint commit: the
+  journal or host-mutation barrier blocks replay. File-only completed work with
+  settled spend restores the previous snapshot and may restart the unfinished phase.
+- Crash between action completion and budget persistence: both persist in one
+  transaction; an unfinished model call blocks recovery.
+- Corrupt snapshot, escaping paths or links: build and verify in a private new
+  directory before touching the original. No original file is overwritten.
+- Concurrent shared-catalog mutation: only the originating async run is marked;
+  its mutation and registry barrier share a transaction, including rollback.
+- Engine outage, surviving worker, old launcher: refuse recovery; do not infer
+  shutdown from the runner's death or broaden the launcher to arbitrary inspect.
 - Two resumptions read the same ready boundary: transactional claiming admits
   one before either may start tools.
 - A surviving server or process group: refuse recovery until it is gone;
@@ -124,7 +165,8 @@ and the supervisor's already-durable phase credits. Relevant counterexamples:
 `tests/run-checkpoint.test.ts` launches separate Node processes with the real
 runner, supervision, local tools, registry and skill credit. Only the provider
 is mocked. It covers orderly pause/resume, SIGKILL at a committed boundary,
-SIGKILL inside a phase, workspace mutation, competing claims, live orphan
+SIGKILL inside a phase after file writes, after shell effects and after credits,
+corrupted snapshots, workspace mutation, competing claims, live orphan
 refusal, fork isolation and budget carry. Existing depth, dispatch, runner,
 audit and platform-limit tests cover the unchanged paths. No paid run is used
 as a connectivity or correctness test.
@@ -134,3 +176,10 @@ transport, phase pause requests, immutable predecessor bytes, tenant scoping,
 idempotent admission and repository BASE preservation. HTTP tests exercise the
 real authentication and same-origin gate. `viz:smoke` clicks the Pixi pause and
 resume targets and observes their resulting state from a freshly loaded page.
+
+The recovery policy was checked against the same seed/credit incidents above and
+the launcher disconnect contract: no lexical command classifier, approval inferred
+from an old trace, counter rollback, or cleanup request mistaken for absence.
+`tests/launcher-workers.test.ts` kills a real worker process behind a fake engine
+and verifies the new-connection absence proof, including engine failure. Container
+packaging/isolation tests remain the proof of the actual image boundary.

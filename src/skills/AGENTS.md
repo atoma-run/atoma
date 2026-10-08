@@ -229,6 +229,10 @@ by owner decision on 2026-09-26
   measured saving; do not report it as one, and do not spend new rounds
   tuning the compiler unless task decomposition changes.
 
+Checkpointed runs journal a recovery barrier before metadata or body mutations.
+This does not disable learning or matching; it refuses replay of a phase that
+already changed the commons. See [checkpoints](../../docs/run-checkpoints-2026-10-08.md).
+
 ## Intentional choices and rejected shortcuts
 
 - Skill distillation, revision and compilation use a dedicated author role through

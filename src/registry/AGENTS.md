@@ -103,6 +103,10 @@ Neighbours:
   and reverted: it closed one tier of three and renamed branches to orphan
   `-2` names whose unsuffixed twin could never be issued.
 
+Registry writes carry an async-scoped recovery barrier on the same SQLite
+connection, before the mutation. Rollback also rolls back that barrier; no crash
+recovery rolls back shared trust. See [checkpoints](../../docs/run-checkpoints-2026-10-08.md).
+
 ## Intentional choices and rejected shortcuts
 
 - Registry rollback is roll-forward-to-old-content and resets the trust streak.

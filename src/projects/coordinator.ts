@@ -1,4 +1,4 @@
-import { RunCheckpointStore } from '../run/checkpoint.js';
+import { RunCheckpointStore, canonicalCheckpointWorkspacePath } from '../run/checkpoint.js';
 import { platformLimitsFor } from '../platform/settings.js';
 import { inventoryRepositoryWorkspace, carryRepositoryBase } from './repositorySync.js';
 import { GitHubAccessRequiredError } from './publisher.js';
@@ -6,7 +6,7 @@ import { assertPersonalCodexModels, CODEX_MODEL_CAPABILITIES_ENV, type CodexMode
 import { projectWorkspaceRelative } from '../contracts/launcherVolumes.js';
 import { randomUUID } from 'node:crypto';
 import { migratePlatformSkills, reconcilePlatformSkills } from '../skills/migratePlatform.js';
-import { existsSync, lstatSync, readFileSync, realpathSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { parseRunLog, spawnRun, DEFAULT_HARD_KILL_MARGIN_MS, UNKILLABLE_BACKSTOP_EXTRA_MS, type RunStats } from '../cli/burnin.js';
@@ -1423,6 +1423,7 @@ export class ProjectRunCoordinator {
     const status = this.checkpoints.projectStatus(run.projectRunId, run.orgId);
     if (!status) return undefined;
     // A boundary is only offered after the project finalizer released its lease.
+    if (['recoverable', 'blocked'].includes(status.state) && !['failed', 'partial'].includes(run.status)) return { ...status, state: 'unavailable' as const };
     if (status.state === 'paused' && run.status !== 'partial') return { ...status, state: 'unavailable' as const };
     if (['running', 'pause_requested'].includes(status.state) && run.status !== 'running') return { ...status, state: 'unavailable' as const };
     return status;
@@ -1443,13 +1444,13 @@ export class ProjectRunCoordinator {
   private continuation(orgId: string, projectId: string, principalId: string, sourceId: string): ProjectRun {
     const source = this.store.getProjectRun(orgId, sourceId);
     if (!source || source.projectId !== projectId) throw new ProjectStateConflict('Continuation source not found');
-    if (source.requestedByPrincipalId !== principalId || source.status !== 'partial' || source.bytesExpiredAt || source.rerunOf) {
+    if (source.requestedByPrincipalId !== principalId || !['partial', 'failed'].includes(source.status) || source.bytesExpiredAt || source.rerunOf) {
       throw new ProjectStateConflict('This run cannot be continued by this requester');
     }
     try {
       const saved = this.checkpoints.read(sourceId);
       if (saved.scope?.orgId !== orgId || saved.scope.projectId !== projectId || saved.scope.principalId !== principalId ||
-          saved.scope.runId !== sourceId || saved.workspace !== realpathSync(source.hostPaths.workspacePath)) throw new Error('Checkpoint scope mismatch');
+          saved.scope.runId !== sourceId || saved.workspace !== canonicalCheckpointWorkspacePath(source.hostPaths.workspacePath)) throw new Error('Checkpoint scope mismatch');
       if (saved.remainingMs <= 0) throw new Error('The saved execution budget is exhausted');
     } catch { throw new ProjectStateConflict('Saved continuation is unavailable: its workspace, ownership or remaining budget could not be verified'); }
     return source;
@@ -1779,8 +1780,14 @@ export class ProjectRunCoordinator {
         this.store.recordRunSeed(run.orgId, run.projectRunId,
           continuation ? { kind: 'run', runId: continuation.projectRunId } : project.repositoryTarget.source ? { kind: 'repository' }
             : seedRun ? { kind: 'run', runId: seedRun.projectRunId } : { kind: 'none' });
-        await ProjectRetrievalLaunchStore.open(this.dbPath).prepare(run.projectRunId,
-          seedRun?.projectRunId ?? null, { signal: preparationSignal, deadlineAt: preparationDeadlineAt });
+        const retrievalStore = ProjectRetrievalLaunchStore.open(this.dbPath);
+        // A crashed run has no accepted artifact manifest. Keep the corpus it
+        // started with; never promote its interrupted workspace into a receipt.
+        const retrievalSource = continuation?.status === 'failed'
+          ? retrievalStore.recordedSourceRunId(continuation.projectRunId) : seedRun?.projectRunId ?? null;
+        if (retrievalSource === undefined) throw new ProjectStateConflict('The interrupted run has no recorded document corpus');
+        await retrievalStore.prepare(run.projectRunId,
+          retrievalSource, { signal: preparationSignal, deadlineAt: preparationDeadlineAt });
         if (preparationSignal.aborted || Date.now() >= preparationDeadlineAt) throw new Error('project document preparation cancelled');
         environment[HAYSTACK_LAUNCH_ENV] = JSON.stringify(retrievalLaunch);
         // WHY THE PREVIOUS RUN DID NOT DELIVER, handed to this one.

@@ -1,5 +1,6 @@
 import { previousSeedRun } from './coordinator.js';
 import { ProjectStore } from './store.js';
+import { RunCheckpointStore } from '../run/checkpoint.js';
 import { organisationIdSchema, projectIdSchema, projectRunIdSchema } from '../contracts/projects.js';
 import type Database from 'better-sqlite3';
 import { lstatSync, rmSync } from 'node:fs';
@@ -106,6 +107,7 @@ export function applyRetention(db: Database.Database, projectsRoot: string, work
     emit(candidate, 'started');
     db.prepare('UPDATE project_runs SET bytes_expired_at = COALESCE(bytes_expired_at, ?) WHERE project_run_id = ?')
       .run(now.toISOString(), candidate.runId);
+    if (hasTable('run_checkpoints')) new RunCheckpointStore(db.name).expire(candidate.runId);
     try {
       for (const target of candidate.paths) {
         assertRetentionPath(dirname(target), target);

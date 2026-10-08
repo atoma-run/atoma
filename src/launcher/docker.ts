@@ -97,12 +97,22 @@ export function hostContainerUser(): string | undefined {
 }
 
 export type AsyncDockerRunner = (args: string[]) => Promise<string>;
+/** Read-only recovery proof for one host-issued worker identity. A daemon error
+ * is unknown, never absence. No caller-supplied engine name or filter escapes.
+ */
+export async function checkpointWorkerAbsent(id: string, runDocker: AsyncDockerRunner = defaultDocker): Promise<boolean> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) throw new Error('Invalid worker identity');
+  return !(await runDocker(['ps', '-a', '--filter', `name=^/atoma-worker-${id}$`, '--format', '{{.ID}}'])).trim();
+}
 /** Ownership for the attached worker transport; callers never supply an engine target. */
 export function attachedWorkerLifecycle(options: {
   docker?: string;
   runDocker?: AsyncDockerRunner;
+  id?: string;
 } = {}): { name: string; drain: () => Promise<void> } {
-  const name = `atoma-worker-${randomUUID()}`;
+  const id = options.id ?? randomUUID();
+  if (!/^[0-9a-f-]{36}$/.test(id)) throw new Error('Invalid worker identity');
+  const name = `atoma-worker-${id}`;
   const runDocker = options.runDocker ?? (async (args: string[]) => {
     const result = await run(options.docker ?? 'docker', args, { timeout: DOCKER_COMMAND_TIMEOUT_MS });
     return result.stdout;

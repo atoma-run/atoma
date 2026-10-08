@@ -187,6 +187,12 @@ export class LocalContainerToolExecutor implements ToolExecutor {
   }
 
   /** Declarations announced by the WORKER — the image is the authority. */
+  checkpointWorker(): { id: string; previousIds: string[] } | undefined {
+    const worker = this.workers.at(-1);
+    return worker ? { id: worker.name.slice('atoma-worker-'.length),
+      previousIds: this.workers.slice(0, -1).map(previous => previous.name.slice('atoma-worker-'.length)) } : undefined;
+  }
+
   toolDeclarations(): Tool[] {
     return [...this.declarations];
   }

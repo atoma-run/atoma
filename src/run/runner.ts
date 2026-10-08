@@ -1,3 +1,5 @@
+import { withRecoveryEffects } from '../core/recoveryEffects.js';
+import { assertCheckpointWorkerAbsent } from '../launcher/checkpointRecovery.js';
 import { assertProjectRunAuthority } from '../projects/runAuthority.js';
 import { ledgerDbPath, setLedgerScope, type LedgerScope } from '../core/ledger.js';
 import { dirname, resolve } from 'node:path';
@@ -81,7 +83,7 @@ import { modelFacingExecutor } from '../core/attestation.js';
 import type { ToolExecutor } from '../core/types.js';
 import { draftAcceptanceChecklist } from '../atoms/acceptanceChecklist.js';
 import { readAcceptanceSource, readAcceptanceSpec } from './acceptanceSpec.js';
-import { assertCheckpointStoreOutsideWorkspace, checkpointWorkspaceDigest, RunCheckpointStore, SequentialCheckpoint } from './checkpoint.js';
+import { canonicalCheckpointWorkspacePath, assertCheckpointStoreOutsideWorkspace, checkpointWorkspaceDigest, RunCheckpointStore, SequentialCheckpoint } from './checkpoint.js';
 import { PhaseBoundaryPause, type RunCheckpoint } from '../contracts/runCheckpoint.js';
 
 export const consoleLogger: Logger = {
@@ -544,7 +546,11 @@ export function resetHostLifecycleSnapshotForTests(): void {
  * SIGKILLs tracked children). An embedder may substitute its own action,
  * knowing the wedged transport may hold the event loop open regardless.
  */
-export async function startTask(
+export function startTask(argv: readonly string[], opts?: Parameters<typeof startTaskInternal>[1]): Promise<RunHandle> {
+  return withRecoveryEffects(() => startTaskInternal(argv, opts));
+}
+
+async function startTaskInternal(
   argv: readonly string[],
   opts?: {
     onWedged?: () => void;
@@ -738,7 +744,7 @@ export async function startTask(
   const requestedTimeoutMs = timeoutRaw === undefined
     ? Math.min(defaultTimeoutMs, statedCeilingMs ?? defaultTimeoutMs)
     : Number(timeoutRaw);
-  const timeoutMs = savedCheckpoint ? Math.min(requestedTimeoutMs, savedCheckpoint.remainingMs) : requestedTimeoutMs;
+  const timeoutMs = savedCheckpoint ? Math.min(requestedTimeoutMs, savedCheckpoint.remainingMs, savedCheckpoint.recoveryDeadlineAt === undefined ? Infinity : savedCheckpoint.recoveryDeadlineAt - Date.now()) : requestedTimeoutMs;
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
     throw new RunnerConfigError(
       `invalid ${RUN_ENV.timeoutMs}="${timeoutRaw}" (expected positive integer in ms)`
@@ -848,7 +854,7 @@ export async function startTask(
     );
   }
 
-  const workspaceRoot = resolve(
+  const workspaceRoot = (args.checkpoint ? canonicalCheckpointWorkspacePath : resolve)(
     process.env[RUN_ENV.workspace] ?? RUN_DEFAULTS.workspace
   );
   const checkpointPolicy = JSON.stringify({
@@ -859,14 +865,15 @@ export async function startTask(
   });
   if (savedCheckpoint) {
     try {
-      if (savedCheckpoint.policy !== checkpointPolicy || (!checkpointAuthority && realpathSync(workspaceRoot) !== savedCheckpoint.workspace)) {
+      if (savedCheckpoint.policy !== checkpointPolicy || (!checkpointAuthority && (savedCheckpoint.interrupted ? resolve(workspaceRoot) : realpathSync(workspaceRoot)) !== savedCheckpoint.workspace)) {
         throw new Error('Resume requires the same workspace, models, acceptance criteria and execution policy');
       }
-      if (checkpointWorkspaceDigest(savedCheckpoint.workspace) !== savedCheckpoint.workspaceDigest) {
+      if (!savedCheckpoint.interrupted && checkpointWorkspaceDigest(savedCheckpoint.workspace) !== savedCheckpoint.workspaceDigest) {
         throw new Error('Workspace changed since the checkpoint; resume refused');
       }
     } catch (error) { throw new RunnerConfigError((error as Error).message); }
   }
+  if (savedCheckpoint?.worker) await assertCheckpointWorkerAbsent(savedCheckpoint.worker);
   if (args.checkpoint) {
     try { assertCheckpointStoreOutsideWorkspace(dbPath, workspaceRoot); }
     catch (error) { throw new RunnerConfigError((error as Error).message); }
@@ -969,10 +976,15 @@ export async function startTask(
   );
   // The GATE sits outside the metrics: a call it refuses reaches no transport
   // and costs nothing, so there is nothing to record.
-  const observeClient = (client: LlmClient): LlmClient => new ToolIterationCeilingLlmClient(
+  let checkpoint: SequentialCheckpoint | undefined;
+  const observeClient = (client: LlmClient): LlmClient => {
+    const observed = new ToolIterationCeilingLlmClient(
     new BudgetGateLlmClient(new MetricsLlmClient(new RecordingLlmClient(client, recorder), budgetMeter), budgetMeter),
     ceilingOf(platformLimits, 'llm.maxToolIterations')
-  );
+    );
+    return { honoursEffort: model => observed.honoursEffort?.(model) ?? false,
+      complete: req => checkpoint ? checkpoint.client(observed).complete(req) : observed.complete(req) };
+  };
   const llm = observeClient(routedClient);
   let author: TissueAuthor | undefined;
   const getTissueAuthor = (): TissueAuthor => author ??= platformTissueAuthor(authorSnapshot, observeClient, platformLimits);
@@ -998,23 +1010,13 @@ export async function startTask(
     if (manifestLine) console.log(manifestLine);
   };
   seed();
-  if (savedCheckpoint && checkpointAuthority) {
-    if (existsSync(workspaceRoot)) throw new RunnerConfigError('Continuation workspace must be new');
-    mkdirSync(dirname(workspaceRoot), { recursive: true });
-    cpSync(savedCheckpoint.workspace, workspaceRoot, { recursive: true, dereference: false, verbatimSymlinks: true, errorOnExist: true, force: false });
-    if (checkpointWorkspaceDigest(realpathSync(workspaceRoot)) !== savedCheckpoint.workspaceDigest ||
-        checkpointWorkspaceDigest(savedCheckpoint.workspace) !== savedCheckpoint.workspaceDigest) {
-      throw new RunnerConfigError('Workspace changed while copying the continuation');
-    }
-  }
   const startingSnapshot = savedCheckpoint?.startingSnapshot ?? (seedRoot ? snapshotStartingWorkspace(seedRoot) : undefined);
-  let checkpoint: SequentialCheckpoint | undefined;
   if (checkpointStore) {
-    mkdirSync(workspaceRoot, { recursive: true });
+    if (!savedCheckpoint || !checkpointAuthority) mkdirSync(workspaceRoot, { recursive: true });
     const scope = checkpointAuthority ? { orgId: checkpointAuthority.orgId, projectId: checkpointAuthority.projectId,
       principalId: checkpointAuthority.requestedByPrincipalId, runId: checkpointAuthority.projectRunId } : undefined;
     const data: RunCheckpoint = savedCheckpoint && checkpointAuthority
-      ? { ...savedCheckpoint, id: checkpointAuthority.projectRunId, workspace: realpathSync(workspaceRoot), scope }
+      ? { ...savedCheckpoint, id: checkpointAuthority.projectRunId, workspace: resolve(workspaceRoot), scope }
       : savedCheckpoint ?? {
       version: 1, id: checkpointAuthority?.projectRunId ?? randomUUID(), ...(scope ? { scope } : {}), goal, workspace: realpathSync(workspaceRoot), policy: checkpointPolicy,
       ...(startingSnapshot ? { startingSnapshot } : {}),
@@ -1026,6 +1028,16 @@ export async function startTask(
       checkpoint = new SequentialCheckpoint(data, checkpointStore, {
         fresh: !savedCheckpoint, automatic: !!checkpointAuthority,
         ...(savedCheckpoint && checkpointAuthority ? { source: savedCheckpoint } : {}), pauseAfter: args.pauseAfterPhase, deadlineAt,
+        restoreWorkspace: savedCheckpoint && (checkpointAuthority || savedCheckpoint.interrupted) ? () => {
+          if (savedCheckpoint.snapshotId) checkpointStore.materialize(savedCheckpoint, workspaceRoot, !checkpointAuthority);
+          else {
+            // Legacy graceful boundaries retain the verified whole-tree copy.
+            mkdirSync(dirname(workspaceRoot), { recursive: true });
+            cpSync(savedCheckpoint.workspace, workspaceRoot, { recursive: true, dereference: false, verbatimSymlinks: true, errorOnExist: true, force: false });
+            if (checkpointWorkspaceDigest(workspaceRoot) !== savedCheckpoint.workspaceDigest) throw new Error('Workspace changed while copying');
+          }
+        } : undefined,
+        worker: () => backend.checkpointWorker?.(),
         processes: () => backend.checkpointProcesses?.() ?? null,
         account: () => budgetMeter.consumed(), warn: (message) => consoleLogger.warn(message), settle: async () => {
           await jevAudit?.settle(JEV_AUDIT_SETTLE_MS);
@@ -1045,7 +1057,7 @@ export async function startTask(
   // reads the workspace through it — save the host's own read of a seeded
   // run's delivered files for root acceptance (`startingWorkspace` below),
   // which reads the same bytes: the workspace is the mount.
-  const makeBackend = async () => {
+  const makeBackend = async (): Promise<import('./toolBackend.js').ToolBackend> => {
     const selectedBackend = args.container
     ? await containerToolBackend({
         workspaceRoot,
@@ -1058,11 +1070,13 @@ export async function startTask(
         } : {}),
       })
     : localToolBackend({ workspaceRoot, logger: consoleLogger });
-    return retrievalBinding
+    const composed = retrievalBinding
     ? await withProjectRetrievalBackend(selectedBackend, retrievalBinding, { signal, deadlineAt })
     : selectedBackend;
+    return checkpoint ? { ...composed, executor: checkpoint.tools(composed.executor) } : composed;
   };
   let backend = await makeBackend();
+  checkpoint?.backendReady();
   // THE INHERITED CHECKS (docs/inherited-checks-replay-2026-10-01.md): a
   // seeded static-page run replays, now, the browser checks earlier runs
   // recorded, on the untouched seed. Every tool call of the run waits for

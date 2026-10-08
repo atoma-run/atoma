@@ -20,6 +20,7 @@ export const launcherRequestSchema = z.discriminatedUnion('op', [
   operation('heartbeat', {}),
   operation('startWorker', { spec: launcherWorkerSpecSchema }),
   operation('stopWorker', { id: z.string().uuid() }),
+  operation('checkpointWorkerAbsent', { id: z.string().uuid() }),
   operation('purgeOwner', owner),
   operation('armHardExitCleanup', owner),
   operation('disarmHardExitCleanup', owner),
@@ -54,6 +55,7 @@ export const launcherResponseSchema = z.discriminatedUnion('ok', [
 /** Per-operation response validation; void is encoded as null. */
 export const launcherResults = {
   heartbeat: z.null(), hello: launcherHelloSchema, startWorker: launcherWorkerHandleSchema, stopWorker: z.null(),
+  checkpointWorkerAbsent: z.boolean(),
   purgeOwner: z.null(), armHardExitCleanup: z.null(), disarmHardExitCleanup: z.null(),
   createNetwork: launcherNetworkHandleSchema,
   removeNetwork: z.boolean(), removeNetworkBefore: z.boolean(),

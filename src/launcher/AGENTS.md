@@ -35,6 +35,10 @@ environment map, a network name or any other engine option: those are derived
 here. A launcher that accepted them would be a remote shell wearing a typed
 interface, and invariant 2 would buy nothing.
 
+`checkpointWorkerAbsent` accepts only a host-issued worker UUID and returns a
+read-only absence proof. A live launch/cleanup or an engine error never establishes
+absence; it neither claims nor removes another connection's worker.
+
 There is deliberately no `exec`, no raw `inspect`, and no option passthrough.
 Each would reopen the invariant, so each is a change to this file's contract
 rather than an addition to a backend.

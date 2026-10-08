@@ -1,7 +1,7 @@
 import { AuthStore } from '../src/auth/store.js';
 import { ProjectStore } from '../src/projects/store.js';
 import { randomUUID } from 'node:crypto';
-import { mkdtempSync, readFileSync, writeFileSync, rmSync, realpathSync, mkdirSync, symlinkSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync, rmSync, realpathSync, mkdirSync, symlinkSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
@@ -15,6 +15,9 @@ import { makeCtx } from './helpers.js';
 import { parseRunnerArgs } from '../src/run/runner.js';
 import { BudgetGateLlmClient, RunBudgetMeter } from '../src/core/runBudget.js';
 import { InMemoryMetrics } from '../src/core/metrics.js';
+import { AtomRegistry } from '../src/registry/atomRegistry.js';
+import { SkillRegistry } from '../src/skills/registry.js';
+import { withRecoveryEffects, setRecoveryEffectHandler } from '../src/core/recoveryEffects.js';
 
 const roots: string[] = [];
 afterEach(() => { closeStoreHandles(); for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -47,6 +50,105 @@ function fixture() {
 }
 
 describe('durable sequential run continuation', () => {
+  it('commits and rolls back a registry recovery barrier on the mutation connection', () => {
+    const f = fixture();
+    expect(f.run(['--pause-after-phase', '1', 'Write two files in sequence']).status).toBe(0);
+    const store = new RunCheckpointStore(f.db);
+    const data = store.read(f.report().checkpointId);
+    const owner = store.claim(data, false);
+    store.beginSegment(data, Date.now() + 300000);
+    const db = new Database(f.db);
+    const registry = new AtomRegistry(db);
+    const name = registry.listByTier(1)[0]!.name;
+    const initial = registry.getByName(name)!.successes;
+    withRecoveryEffects(() => {
+      setRecoveryEffectHandler(connection => store.blockMutation(data.id, owner, connection));
+      const namespace = (db.prepare('SELECT namespace FROM skill_meta LIMIT 1').get() as { namespace: string }).namespace;
+      expect(new SkillRegistry(join(f.root, 'skills'), { db }).loadFor(namespace).length).toBeGreaterThan(0);
+      expect(db.prepare('SELECT blocked FROM run_checkpoint_recovery WHERE id=?').get(data.id)).toEqual({ blocked: null });
+      expect(() => db.transaction(() => {
+        registry.recordSuccess(name);
+        throw new Error('roll back');
+      })()).toThrow('roll back');
+      expect(registry.getByName(name)!.successes).toBe(initial);
+      expect(db.prepare('SELECT blocked FROM run_checkpoint_recovery WHERE id=?').get(data.id)).toEqual({ blocked: null });
+      registry.recordSuccess(name);
+      expect(db.prepare('SELECT blocked FROM run_checkpoint_recovery WHERE id=?').get(data.id)).toEqual({ blocked: 'host_mutation' });
+    });
+    db.close();
+  }, 90000);
+
+  it('does not invent zero spend for a model interrupted before its final usage', () => {
+    const f = fixture();
+    const env = { CHECKPOINT_TEST_NO_SKILL: '1' };
+    const first = f.run(['--checkpoint', 'Write two files in sequence'], 'phase', env);
+    expect(first.signal).toBe('SIGKILL');
+    const db = new Database(f.db, { readonly: true });
+    const row = db.prepare('SELECT id FROM run_checkpoints').get() as { id: string };
+    db.close();
+    expect(() => new RunCheckpointStore(f.db).read(row.id)).toThrow('model_pending');
+    expect(f.run(['--resume', row.id], '', env).status).toBe(2);
+  }, 90000);
+
+  it('recovers a SIGKILL inside a phase by restoring sealed bytes, preserving spend and not crediting the prefix twice', () => {
+    const f = fixture();
+    const env = { CHECKPOINT_TEST_NO_SKILL: '1' };
+    const first = f.run(['--checkpoint', 'Write two files in sequence'], 'safe', env);
+    expect(first.signal, first.stdout + first.stderr).toBe('SIGKILL');
+    const db = new Database(f.db, { readonly: true });
+    const row = db.prepare('SELECT id,payload FROM run_checkpoints').get() as { id: string; payload: string };
+    const boundary = JSON.parse(row.payload) as { consumed: { tokens: number } };
+    const actions = db.prepare('SELECT kind,name,state,result FROM run_checkpoint_actions WHERE id=?').all(row.id) as { kind: string; name: string; state: string; result: string }[];
+    expect(actions.some(a => a.kind === 'tool' && a.name === 'write_file' && a.state === 'done' && a.result)).toBe(true);
+    db.close();
+    const saved = new RunCheckpointStore(f.db).read(row.id);
+    expect(saved.interrupted).toBe(true);
+    expect(saved.snapshotId).toBeTruthy();
+    expect(saved.completed).toHaveLength(1);
+    expect(saved.consumed.tokens).toBeGreaterThanOrEqual(boundary.consumed.tokens);
+    const credits = f.counters();
+    const workspaceMode = statSync(join(f.root, 'workspace')).mode & 0o777;
+    const next = f.run(['--resume', row.id], '', env);
+    expect(next.status, next.stdout + next.stderr).toBe(0);
+    expect(f.report().outcome).toBe('delivered');
+    expect(statSync(join(f.root, 'workspace')).mode & 0o777).toBe(workspaceMode);
+    expect(readFileSync(join(f.root, 'effects.log'), 'utf8')).toBe('phase-one.txt\nphase-two.txt\nphase-two.txt\n');
+    expect(f.counters().atoms.n).toBe(credits.atoms.n * 2);
+    const archive = readdirSync(f.root).find(n => n.startsWith('workspace.interrupted-'))!;
+    expect(readFileSync(join(f.root, archive, 'phase-two.txt'), 'utf8')).toBe('phase-two.txt');
+    expect(f.report().calls.filter(c => c.endsWith(':run-root'))).toHaveLength(1);
+    expect(next.stdout).toContain(`"tokens":${saved.consumed.tokens}`);
+  }, 90000);
+
+  it.each(['external', 'credit'] as const)('refuses replay after a completed %s effect in the interrupted phase', kind => {
+    const f = fixture();
+    const env = { CHECKPOINT_TEST_NO_SKILL: '1' };
+    const first = f.run(['--checkpoint', 'Write two files in sequence'], kind, env);
+    expect(first.signal, first.stdout + first.stderr).toBe('SIGKILL');
+    const db = new Database(f.db, { readonly: true });
+    const row = db.prepare('SELECT id FROM run_checkpoints').get() as { id: string };
+    db.close();
+    const credits = f.counters();
+    const next = f.run(['--resume', row.id], '', env);
+    expect(next.status).toBe(2);
+    expect(next.stderr).toContain(kind === 'credit' ? 'host_mutation' : 'external_effect');
+    expect(f.counters()).toEqual(credits);
+    expect(readFileSync(join(f.root, 'effects.log'), 'utf8')).toBe('phase-one.txt\nphase-two.txt\n');
+  }, 90000);
+
+  it('does not replace interrupted evidence if a stored snapshot is corrupt', () => {
+    const f = fixture();
+    const first = f.run(['--checkpoint', 'Write two files in sequence'], 'safe', { CHECKPOINT_TEST_NO_SKILL: '1' });
+    expect(first.signal).toBe('SIGKILL');
+    const db = new Database(f.db);
+    const row = db.prepare('SELECT id FROM run_checkpoints').get() as { id: string };
+    db.prepare("UPDATE run_checkpoint_files SET content=? WHERE path='phase-one.txt'").run(Buffer.from('corrupt'));
+    db.close();
+    const next = f.run(['--resume', row.id], '', { CHECKPOINT_TEST_NO_SKILL: '1' });
+    expect(next.status).toBe(2);
+    expect(next.stderr).toContain('snapshot digest mismatch');
+    expect(readFileSync(join(f.root, 'workspace', 'phase-two.txt'), 'utf8')).toBe('phase-two.txt');
+  }, 90000);
   it('restarts the real runner in another process, skips credited work and still accepts the delivery', () => {
     const f = fixture();
     const first = f.run(['--pause-after-phase', '1', 'Write two files in sequence']);
@@ -75,7 +177,7 @@ describe('durable sequential run continuation', () => {
     expect(() => new RunCheckpointStore(f.db).read(before.checkpointId)).toThrow('not at a resumable');
   }, 90000);
 
-  it('continues a tenant in a fresh scoped run and workspace without modifying its predecessor', () => {
+  it.each(['pause', 'crash'] as const)('continues a tenant after %s in a fresh scoped run and workspace without modifying its predecessor', mode => {
     const f = fixture();
     const auth = AuthStore.open(f.db);
     const viewer = auth.completeLogin({ provider: 'github', subject: 'checkpoint-owner', displayName: 'Owner',
@@ -98,9 +200,10 @@ describe('durable sequential run continuation', () => {
     const seed = join(f.root, 'seed');
     mkdirSync(seed);
     writeFileSync(join(seed, 'original.txt'), 'Preserve the original project');
-    const paused = f.run(['--container', '--checkpoint', '--seed', seed, 'Write two files in sequence'], '', { ...first.env, CHECKPOINT_TEST_REQUEST_PAUSE: '1' });
-    expect(paused.status, paused.stdout + paused.stderr).toBe(0);
-    expect(f.report().checkpointId).toBe(first.id);
+    const paused = f.run(['--container', '--checkpoint', '--seed', seed, 'Write two files in sequence'], mode === 'crash' ? 'safe' : '',
+      { ...first.env, CHECKPOINT_TEST_REQUEST_PAUSE: mode === 'pause' ? '1' : '0', CHECKPOINT_TEST_NO_SKILL: mode === 'crash' ? '1' : '0' });
+    if (mode === 'crash') expect(paused.signal, paused.stdout + paused.stderr).toBe('SIGKILL');
+    else { expect(paused.status, paused.stdout + paused.stderr).toBe(0); expect(f.report().checkpointId).toBe(first.id); }
     const saved = new RunCheckpointStore(f.db).read(first.id);
     expect(saved.startingSnapshot?.files.map(file => file.path)).toContain('original.txt');
     const unauthorized = reserve();
@@ -119,7 +222,7 @@ describe('durable sequential run continuation', () => {
     expect(JSON.parse(persisted.payload).startingSnapshot).toEqual(saved.startingSnapshot);
     expect(checkpointWorkspaceDigest(first.workspace)).toBe(digest);
     expect(readFileSync(join(second.workspace, 'phase-two.txt'), 'utf8')).toBe('phase-two.txt');
-    expect(readFileSync(join(f.root, 'effects.log'), 'utf8')).toBe('phase-one.txt\nphase-two.txt\n');
+    expect(readFileSync(join(f.root, 'effects.log'), 'utf8')).toBe(mode === 'crash' ? 'phase-one.txt\nphase-two.txt\nphase-two.txt\n' : 'phase-one.txt\nphase-two.txt\n');
     expect(() => new RunCheckpointStore(f.db).read(first.id)).toThrow('not at a resumable');
   }, 90000);
 
@@ -188,7 +291,7 @@ describe('durable sequential run continuation', () => {
     const a = store.read(id);
     const b = store.read(id);
     const owner = store.claim(a, false);
-    expect(() => store.claim(b, false)).toThrow('not at a resumable');
+    expect(() => store.claim(b, false)).toThrow('still owned');
     store.write(a, owner, 'ready');
     expect(() => store.read(id)).toThrow('still owned');
     // Simulate an exited owner with a surviving process; the pid probe is real.
@@ -199,7 +302,11 @@ describe('durable sequential run continuation', () => {
     expect(() => store.read(id)).toThrow('sandbox processes');
     a.processes = null;
     db.prepare('UPDATE run_checkpoints SET payload=? WHERE id=?').run(JSON.stringify(a), id);
-    expect(() => store.read(id)).toThrow('backend was not drained');
+    expect(() => store.read(id)).toThrow('backend_unknown');
+    a.processes = [];
+    db.prepare('UPDATE run_checkpoints SET payload=? WHERE id=?').run(JSON.stringify(a), id);
+    store.beginAction(a, owner, 'tool', 'write_file', { path: 'uncertain.txt', content: 'intent' });
+    expect(() => store.read(id)).toThrow('tool_pending');
     db.close();
   }, 90000);
 

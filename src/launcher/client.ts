@@ -96,6 +96,7 @@ export class SocketLauncher implements ContainerLauncher {
 
   startWorker(spec: LauncherWorkerSpec): Promise<LauncherWorkerHandle> { return this.call({ op: 'startWorker', spec }); }
   async stopWorker(id: string): Promise<void> { await this.call({ op: 'stopWorker', id }); }
+  checkpointWorkerAbsent(id: string): Promise<boolean> { return this.call({ op: 'checkpointWorkerAbsent', id }); }
 
   networkName(spec: LauncherNetworkSpec): string { return launcherNetworkName(spec); }
   unitName(kind: LauncherUnitKind, ownerId: LauncherOwnerId): string { return launcherUnitName(kind, ownerId); }

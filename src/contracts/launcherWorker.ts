@@ -19,4 +19,5 @@ export type LauncherWorkerHandle = z.infer<typeof launcherWorkerHandleSchema>;
 export interface WorkerLauncher {
   startWorker(spec: LauncherWorkerSpec): Promise<LauncherWorkerHandle>;
   stopWorker(id: string): Promise<void>;
+  checkpointWorkerAbsent?(id: string): Promise<boolean>;
 }

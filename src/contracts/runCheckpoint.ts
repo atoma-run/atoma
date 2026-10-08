@@ -29,6 +29,11 @@ export const runCheckpointSchema = z.object({
   checklist: acceptanceChecklistSchema.nullable(),
   root: rootPlanCheckpointSchema.nullable(), completed: z.array(completedPhaseSchema),
   workspaceDigest: z.string().nullable(),
+  snapshotId: z.string().uuid().optional(),
+  worker: z.object({ id: z.string().uuid(), previousIds: z.array(z.string().uuid()).max(1024).optional(), endpoint: z.string().optional() }).strict().optional(),
+  // Derived by the host reader for interrupted segments, never model input.
+  interrupted: z.boolean().optional(),
+  recoveryDeadlineAt: z.number().nonnegative().optional(),
   processes: z.array(checkpointProcessSchema).max(8192).nullable(),
   consumed: z.object({ tokens: z.number().nonnegative(), costUsd: z.number().nonnegative() }).strict(),
   remainingMs: z.number().nonnegative(), lastRunId: z.string().nullable(),
@@ -54,7 +59,8 @@ export class PhaseBoundaryPause extends Error {
 }
 
 export const projectCheckpointStatusSchema = z.object({
-  state: z.enum(['running', 'pause_requested', 'paused', 'unavailable']),
+  state: z.enum(['running', 'pause_requested', 'paused', 'recoverable', 'blocked', 'unavailable']),
+  reason: z.enum(['model_pending', 'tool_pending', 'external_effect', 'host_mutation', 'backend_unknown', 'budget_exhausted', 'incomplete']).optional(),
   completed: z.number().int().nonnegative(), total: z.number().int().nonnegative(),
 }).strict();
 export type ProjectCheckpointStatus = z.infer<typeof projectCheckpointStatusSchema>;

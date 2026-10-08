@@ -75,7 +75,9 @@ Neighbours:
 - Opt-in `--checkpoint` / `--pause-after-phase N` / `--resume ID` implement
   durable sequential continuation in `checkpoint.ts`. Same workspace for CLI,
   original plan/checklist and carried budget; fresh trace and proof log. Only
-  complete approved boundaries are resumable, never an in-flight phase. A pause
+  complete approved boundaries are restored. An interrupted phase may restart
+  only with a sealed snapshot, settled model spend, no external/commons mutation
+  since that boundary, and verified backend shutdown. A pause
   drains before releasing the SQLite claim. Deep project runs enable it automatically;
   the host binds continuation to the requester/org/project and a new run receipt,
   copies the complete sealed workspace and atomically consumes the source claim.

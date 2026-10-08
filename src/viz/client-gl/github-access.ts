@@ -30,5 +30,16 @@ export function canControlCheckpoint(run: VizProjectRun, auth: AuthUiSnapshot | 
     viewer.principalId === run.requestedByPrincipalId &&
     ['org:member', 'org:admin', 'org:owner'].includes(viewer.activeOrganisation.role) &&
     ((run.status === 'running' && run.checkpoint?.state === 'running' && run.checkpoint.total > 0) ||
-      (run.status === 'partial' && run.checkpoint?.state === 'paused'));
+      (run.status === 'partial' && run.checkpoint?.state === 'paused') ||
+      (['partial', 'failed'].includes(run.status) && run.checkpoint?.state === 'recoverable'));
+}
+
+export function checkpointActionKey(run: VizProjectRun): string {
+  switch (run.checkpoint?.state) {
+    case 'paused': return 'projects.checkpoint.resume';
+    case 'recoverable': return 'projects.checkpoint.recover';
+    case 'blocked': return 'projects.checkpoint.blocked';
+    case 'pause_requested': return 'projects.checkpoint.requested';
+    default: return 'projects.checkpoint.pause';
+  }
 }

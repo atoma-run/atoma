@@ -143,12 +143,41 @@ describe.skipIf(process.platform === 'win32')('launcher worker transport', () =>
     await vi.waitFor(() => expect(children.size).toBe(0));
   });
 
+  it('proves worker absence across a new connection after a killed worker, and refuses an unavailable engine', async () => {
+    const run = executor();
+    await run.start();
+    await run.execute('write_file', { path: 'before-crash.txt', content: 'saved' });
+    const receipt = run.checkpointWorker()!;
+    const reader = await client();
+    expect(await reader.checkpointWorkerAbsent(receipt.id)).toBe(false);
+    const child = children.get(`atoma-worker-${receipt.id}`)!;
+    const killed = new Promise<void>(resolve => child.once('exit', () => resolve()));
+    child.kill('SIGKILL');
+    await killed;
+    await vi.waitFor(async () => expect(await reader.checkpointWorkerAbsent(receipt.id)).toBe(true));
+    expect(calls).toContainEqual(['ps', '-a', '--filter', `name=^/atoma-worker-${receipt.id}$`, '--format', '{{.ID}}']);
+    refuseRemoval = true;
+    await expect(reader.checkpointWorkerAbsent(receipt.id)).rejects.toThrow('operation-failed');
+    await expect(reader.checkpointWorkerAbsent('../other')).rejects.toThrow();
+  });
+
   it('does not certify drain while the engine cannot prove removal', async () => {
     const run = executor();
     await run.start();
     refuseRemoval = true;
     await expect(run.drain()).rejects.toThrow('operation-failed');
     refuseRemoval = false;
+    await run.drain();
+  });
+
+  it('keeps ordinary execution on an older launcher without inventing a recovery identity', async () => {
+    const absent = vi.spyOn(workers, 'checkpointWorkerAbsent').mockRejectedValue(new Error('unsupported operation'));
+    const run = executor();
+    try {
+      await run.start();
+      expect(run.checkpointWorker()).toBeUndefined();
+      await expect(run.execute('write_file', { path: 'old-launcher.txt', content: 'ordinary work' })).resolves.toBeDefined();
+    } finally { absent.mockRestore(); }
     await run.drain();
   });
 

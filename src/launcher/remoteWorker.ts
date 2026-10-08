@@ -11,6 +11,7 @@ export class RemoteWorkerExecutor implements ToolExecutor {
   private launcher?: SocketLauncher;
   private socket?: Socket;
   private id?: string;
+  private recoveryId?: string;
   private ready?: Promise<void>;
   private failure?: Error;
   private declarations: Tool[] = [];
@@ -37,6 +38,11 @@ export class RemoteWorkerExecutor implements ToolExecutor {
         egress: this.options.proxiedEgress ?? false,
       });
       this.id = handle.id;
+      // Older v2 launchers used a different engine UUID. Only a launcher that
+      // implements the recovery reader establishes the new identity contract.
+      // Absence of that optional capability keeps ordinary execution available.
+      try { if (!await this.launcher.checkpointWorkerAbsent(handle.id)) this.recoveryId = handle.id; }
+      catch { /* This backend will require graceful drain before continuation. */ }
       this.assertAlive();
       if (path.resolve(handle.workspaceHostPath) !== path.resolve(this.options.workspaceHostPath)) throw new Error('Launcher workspace mapping mismatch');
       const socket = this.socket = createConnection(handle.socketPath);
@@ -81,6 +87,9 @@ export class RemoteWorkerExecutor implements ToolExecutor {
     this.socket?.destroy();
     for (const call of this.pending.values()) call.reject(this.failure);
     this.pending.clear();
+  }
+  checkpointWorker(): { id: string; endpoint: string } | undefined {
+    return this.recoveryId ? { id: this.recoveryId, endpoint: this.options.endpoint } : undefined;
   }
   toolDeclarations(): Tool[] { return [...this.declarations]; }
   has(name: string): boolean { return this.declarations.some(tool => tool.name === name); }

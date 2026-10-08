@@ -17,6 +17,7 @@ import { projectRetrievalExecutor } from '../tools/projectRetrievalExecutor.js';
  * by injection, without giving the worker store or credential access.
  */
 export interface ToolBackend {
+  checkpointWorker?(): import('../contracts/runCheckpoint.js').RunCheckpoint['worker'];
   /** Absent means an ungraceful crash cannot prove this backend quiescent. */
   checkpointProcesses?(): import('../contracts/runCheckpoint.js').CheckpointProcess[];
   /** Passed to `RunContext.tools`. */
@@ -131,6 +132,7 @@ export async function containerToolBackend(opts: {
   }
   return {
     executor: exec,
+    checkpointWorker: () => exec.checkpointWorker(),
     toolDecls: exec.toolDeclarations(),
     // The host path is what a human opens; /workspace is only the container's
     // view of the same bytes through the bind mount.

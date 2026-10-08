@@ -1,7 +1,7 @@
 // Separate process: only the provider is mocked; runner, supervision, tools,
 // registry credit, checkpoint persistence and final acceptance are production code.
 import { mock } from 'node:test';
-import { appendFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import * as backends from '../../src/run/toolBackend.js';
 const nullLogger = { debug() {}, info() {}, warn() {}, error() {} };
@@ -10,6 +10,7 @@ import type { LlmCompletionRequest } from '../../src/core/types.js';
 import { ensureCanonicalFullStack } from '../../src/atoms/capability.js';
 import { SKILL_PREFILTER_SYSTEM_PROMPT } from '../../src/atoms/cost.js';
 import { SkillRegistry } from '../../src/skills/registry.js';
+import { AtomRegistry } from '../../src/registry/atomRegistry.js';
 import { RunCheckpointStore, SequentialCheckpoint } from '../../src/run/checkpoint.js';
 
 const root = process.env['CHECKPOINT_TEST_ROOT']!;
@@ -42,6 +43,7 @@ const complete = async (req: LlmCompletionRequest) => {
     if (!path) throw new Error(`Unexpected fixture task: ${req.userContent.slice(0, 500)}`);
     appendFileSync(join(root, 'effects.log'), `${path}\n`);
     if (process.env['CHECKPOINT_TEST_CRASH'] === 'phase' && path === 'phase-two.txt') process.kill(process.pid, 'SIGKILL');
+    if (process.env['CHECKPOINT_TEST_CRASH'] === 'external' && path === 'phase-two.txt') await req.executor!.execute('run_shell', { cmd: 'printf external > effect.txt' });
     const args = { path, content: path };
     const result = await req.executor!.execute('write_file', args);
     req.onToolInvocation?.({ name: 'write_file', args, result, startedAt: Date.now(), durationMs: 0 });
@@ -73,6 +75,24 @@ if (process.env['CHECKPOINT_TEST_CRASH'] === 'boundary') {
     if (index === 0) process.kill(process.pid, 'SIGKILL');
   };
 }
+if (['safe', 'external'].includes(process.env['CHECKPOINT_TEST_CRASH'] ?? '')) {
+  const client = SequentialCheckpoint.prototype.client;
+  SequentialCheckpoint.prototype.client = function(inner) {
+    const wrapped = client.call(this, inner);
+    return { ...wrapped, complete: async req => {
+      const result = await wrapped.complete(req);
+      if (req.role === 'execute' && /^Task: Write phase-two\.txt/m.test(req.userContent)) process.kill(process.pid, 'SIGKILL');
+      return result;
+    } };
+  };
+}
+if (process.env['CHECKPOINT_TEST_CRASH'] === 'credit') {
+  const credit = AtomRegistry.prototype.recordSuccess;
+  AtomRegistry.prototype.recordSuccess = function(...args) {
+    credit.apply(this, args);
+    if (existsSync(join(root, 'effects.log')) && readFileSync(join(root, 'effects.log'), 'utf8').includes('phase-two')) process.kill(process.pid, 'SIGKILL');
+  };
+}
 const { startTask } = await import('../../src/run/runner.js');
 try {
   const handle = await startTask(process.argv.slice(2), { seedCatalog(seed, canonical) {
@@ -81,7 +101,7 @@ try {
     leafName = leaf.name;
     cellName = ensureCanonicalFullStack(seed.registry, seed.toolDecls, 2)!.name;
     const skills = new SkillRegistry(process.env['ATOMA_SKILLS_DIR']);
-    if (skills.loadFor(leaf.atomId).length === 0) skills.save(leaf.atomId, recipe);
+    if (process.env['CHECKPOINT_TEST_NO_SKILL'] !== '1' && skills.loadFor(leaf.atomId).length === 0) skills.save(leaf.atomId, recipe);
   } });
   const outcome = await handle.settled;
   await handle.shutdown();

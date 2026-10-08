@@ -1,3 +1,4 @@
+import { checkpointWorkerAbsent } from './docker.js';
 import type { WorkspaceVolumes } from './volumes.js';
 import { projectWorkspaceRelative } from '../contracts/launcherVolumes.js';
 import { createServer, type Server, type Socket } from 'node:net';
@@ -95,7 +96,7 @@ export class LauncherWorkers implements WorkerLauncher {
     mkdirSync(directory, { mode: 0o700 });
     const state: State = {
       handle: { id, ownerId: spec.ownerId, socketPath: clientPath, workspaceHostPath: workspace },
-      workspace, directory, lifecycle: attachedWorkerLifecycle({ runDocker: this.run }),
+      workspace, directory, lifecycle: attachedWorkerLifecycle({ runDocker: this.run, id }),
       servers: [], sockets: new Set(), egress: spec.egress,
     };
     let finishLaunch!: () => void;
@@ -165,6 +166,10 @@ export class LauncherWorkers implements WorkerLauncher {
   }
 
   private readonly stopping = new Map<string, Promise<void>>();
+  async checkpointWorkerAbsent(id: string): Promise<boolean> {
+    return !this.live.has(id) && await checkpointWorkerAbsent(id, this.run);
+  }
+
   stopWorker(id: string): Promise<void> {
     const running = this.stopping.get(id);
     if (running) return running;

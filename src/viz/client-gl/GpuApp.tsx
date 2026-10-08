@@ -895,7 +895,7 @@ function GpuAppContent({
       if (!run || !canControlCheckpoint(run, authSnapshot) || githubRecoveryLock.current) return;
       githubRecoveryLock.current = true;
       setGitHubRecovery({ runId: run.projectRunId, busy: true });
-      void api.controlCheckpoint(run.projectId, run.projectRunId, run.checkpoint?.state === 'paused' ? 'resume' : 'pause')
+      void api.controlCheckpoint(run.projectId, run.projectRunId, ['paused', 'recoverable'].includes(run.checkpoint?.state ?? '') ? 'resume' : 'pause')
         .then(() => { setGitHubRecovery(null); })
         .catch((error: unknown) => { setGitHubRecovery({ runId: run.projectRunId, busy: false,
           message: error instanceof Error ? error.message : t('projects.checkpoint.failed') }); })

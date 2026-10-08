@@ -1,3 +1,4 @@
+import { beforeDurableMutation } from '../core/recoveryEffects.js';
 import { registryIsPartitioned, type DB } from './db.js';
 import { appendLedger } from '../core/ledger.js';
 import type {
@@ -322,7 +323,9 @@ export class AtomRegistry {
   }
 
   private prepare(sql: string) {
-    return this.db.prepare(sql);
+    const statement = this.db.prepare(sql);
+    if (!statement.readonly) beforeDurableMutation(this.db);
+    return statement;
   }
 
   /**

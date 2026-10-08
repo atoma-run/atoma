@@ -1,3 +1,4 @@
+import { beforeDurableMutation, beforeDurableFileMutation } from '../core/recoveryEffects.js';
 import {
   existsSync,
   mkdirSync,
@@ -151,6 +152,7 @@ export class SkillRegistry {
     const file = join(dir, '_namespace.json');
     const bytes = JSON.stringify(parsed);
     if (existsSync(file) && readFileSync(file, 'utf8') === bytes) return;
+    beforeDurableFileMutation(() => this.writeStore()); // Journal before changing catalog bytes.
     const temp = `${file}.${randomUUID()}.tmp`;
     writeFileSync(temp, bytes);
     renameSync(temp, file);
@@ -178,7 +180,7 @@ export class SkillRegistry {
    * only CHECKED: a snapshot that predates the table is read through the
    * sidecars and never written to.
    */
-  private writeStore(): Database.Database {
+  private writeStore(forMutation = true): Database.Database {
     if (this.sidecarsOnly) throw new Error('this SkillRegistry reads legacy sidecars only and does not mutate');
     const db = this.ownDb ?? openLedgerHandle(ledgerDbPath());
     if (!schemaChecked.has(db)) {
@@ -189,6 +191,7 @@ export class SkillRegistry {
       }
       schemaChecked.add(db);
     }
+    if (forMutation) beforeDurableMutation(db);
     return db;
   }
 
@@ -201,7 +204,7 @@ export class SkillRegistry {
   private readStore(): Database.Database | null {
     if (this.sidecarsOnly) return null;
     if (!this.ownDb && !existsSync(ledgerDbPath())) return null;
-    const db = this.writeStore();
+    const db = this.writeStore(false);
     return tableAbsent.has(db) ? null : db;
   }
 
@@ -566,6 +569,7 @@ export class SkillRegistry {
       Partial<Pick<Skill, 'language' | 'trigger'>>,
     provenance?: SkillProvenance
   ): Skill {
+    beforeDurableFileMutation(() => this.writeStore()); // Body writes precede their row; the recovery barrier must precede both.
     if (skill.kind === 'script' && !skill.language) {
       throw new Error(`save: kind:"script" requires a language (node|python|bash)`);
     }
@@ -934,6 +938,7 @@ export class SkillRegistry {
     /** Compiler-declared write paths, already cross-checked by the caller. */
     declaredWrites?: readonly string[];
   }): Skill {
+    beforeDurableFileMutation(() => this.writeStore());
     const dir = this.skillDir(args.l1Name, args.skillId);
     const skillFile = join(dir, 'SKILL.md');
     if (!existsSync(skillFile)) {
@@ -1020,6 +1025,7 @@ export class SkillRegistry {
    * those as "nothing to demote" rather than as errors.
    */
   demoteToLlm(l1Name: string, skillId: string, reason = 'compiled form failed supervised execution'): Skill | null {
+    beforeDurableFileMutation(() => this.writeStore());
     const dir = this.skillDir(l1Name, skillId);
     const skillFile = join(dir, 'SKILL.md');
     if (!existsSync(skillFile)) return null;

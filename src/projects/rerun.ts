@@ -41,6 +41,9 @@ export function resolveRerunOrigin(input: {
     // launch; re-taking it would compare against a different repository head.
     throw new ProjectStateConflict('comparison reruns are not available yet for projects imported from GitHub');
   }
+  if (origin.resumeOf && input.store.getProjectRun(origin.orgId, origin.resumeOf)?.status === 'failed') {
+    throw new ProjectStateConflict('comparison reruns of crash recoveries are not available: the interrupted workspace is not their starting snapshot');
+  }
   if (origin.status !== 'delivered' && origin.status !== 'partial') {
     throw new ProjectStateConflict('only a delivered or partial run can be rerun for comparison');
   }

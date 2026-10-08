@@ -2646,6 +2646,30 @@ describe('drawViewFrame on a narrow column', () => {
 });
 
 describe('drawProjects', () => {
+  it.each([1280, 360])('offers crash recovery and explains blocked replay at width %s', width => {
+    const project: VizProject = { projectId: 'p-1', name: 'App', slug: 'app', status: 'active', family: 'build',
+      repositoryTarget: { installationId: '501', owner: 'acme', name: 'app', visibility: 'private' },
+      repositoryStatus: 'pending', repositoryFullName: null, repositoryUrl: null, repositoryError: null,
+      createdAt: '2026-08-20T00:00:00.000Z', updatedAt: '2026-08-20T00:00:00.000Z' };
+    const auth = makeAuth({ principalId: 'person', activeOrganisation: { id: 'org-1', name: 'Org', role: 'org:member' } });
+    const run: VizProjectRun = { projectRunId: 'run-1', projectId: 'p-1', orgId: 'org-1', goal: 'Saved request', status: 'failed',
+      requestedByPrincipalId: 'person', traceId: null, costUsd: null, durationS: null, error: null, publication: null,
+      createdAt: '2026-08-20T00:00:00.000Z', endedAt: '2026-08-20T00:00:01.000Z',
+      checkpoint: { state: 'recoverable', completed: 1, total: 3 } };
+    for (const blocked of [false, true]) {
+      const ctx = createRecordingCtx();
+      const shown = blocked ? { ...run, checkpoint: { state: 'blocked' as const, completed: 1, total: 3, reason: 'external_effect' as const } } : run;
+      drawProjects(ctx, makeSnapshot({ view: 'projects', selectedProjectId: 'p-1' }, {
+        auth, projects: [project], projectRuns: { 'p-1': [shown] },
+      }), width, 1000);
+      const button = ctx.buttons.find(b => b.id === 'project.checkpoint.run-1')!;
+      expect(button).toBeDefined();
+      expect(!!button.disabled).toBe(blocked);
+      expect(button.width).toBeLessThan(width);
+      if (blocked) expect(ctx.texts.some(text => text.value === t('projects.checkpoint.reason.external_effect'))).toBe(true);
+    }
+  });
+
   it.each([1280, 360])('offers bounded GitHub recovery controls at width %s and disables repeat checks', width => {
     const project: VizProject = { projectId: 'p-1', name: 'App', slug: 'app', status: 'active', family: 'build',
       repositoryTarget: { installationId: '501', owner: 'acme', name: 'app', visibility: 'public' },

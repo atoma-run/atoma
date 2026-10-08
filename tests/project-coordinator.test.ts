@@ -1,3 +1,4 @@
+import Database from 'better-sqlite3';
 import { RunCheckpointStore, checkpointWorkspaceDigest } from '../src/run/checkpoint.js';
 import type { RunCheckpoint } from '../src/contracts/runCheckpoint.js';
 import { realpathSync } from 'node:fs';
@@ -661,7 +662,7 @@ describe('project run environment', () => {
 });
 
 describe('ProjectRunCoordinator', () => {
-  it('resumes a paused project through admission once, retaining the original repository base', async () => {
+  it.each(['pause', 'crash'] as const)('resumes a project after %s through admission once, retaining the original repository base', async mode => {
     const f = fixture();
     const checkpoints = new RunCheckpointStore(f.dbPath);
     const base = { status: 'no_anchor' as const, head: null, base: {}, debtResolved: true,
@@ -691,6 +692,14 @@ describe('ProjectRunCoordinator', () => {
           consumed: { tokens: 20, costUsd: 0.01 }, remainingMs: 300000, lastRunId: id };
         const owner = checkpoints.claim(data, true);
         checkpoints.write(data, owner, 'ready', true);
+        if (mode === 'crash') {
+          checkpoints.beginSegment(data, Date.now() + 300000);
+          checkpoints.boundary(data, owner);
+          const connection = new Database(f.dbPath);
+          connection.prepare('UPDATE run_checkpoints SET pid=? WHERE id=?').run(2000000000, id);
+          connection.close();
+          throw new Error('worker interrupted');
+        }
       } else {
         expect(options.cleanWorkspace).toBe(false);
         expect(options.extraArgs).not.toContain('--seed');
@@ -709,8 +718,8 @@ describe('ProjectRunCoordinator', () => {
     const first = await coordinator.start({ ...input, request: { goal: 'Write two files', idempotencyKey: 'first' } });
     await coordinator.waitForIdle();
     const paused = f.store.getProjectRun(f.viewer.orgId, first.projectRunId)!;
-    expect(paused.status).toBe('partial');
-    expect(coordinator.checkpointStatus(paused)?.state).toBe('paused');
+    expect(paused.status).toBe(mode === 'crash' ? 'failed' : 'partial');
+    expect(coordinator.checkpointStatus(paused)?.state).toBe(mode === 'crash' ? 'recoverable' : 'paused');
     expect(publish).not.toHaveBeenCalled();
     await expect(coordinator.start({ ...input, principalId: randomUUID(), request: {
       goal: first.goal, resumeOf: first.projectRunId, idempotencyKey: 'intruder' } })).rejects.toThrow('requester');
@@ -724,6 +733,8 @@ describe('ProjectRunCoordinator', () => {
     expect(next.resumeOf).toBe(first.projectRunId);
     expect(f.store.getProjectRun(f.viewer.orgId, next.projectRunId)?.repositoryBase).toEqual(repositoryBase);
     expect(publish).toHaveBeenCalledTimes(1);
+    if (mode === 'crash') await expect(coordinator.start({ ...input, request: { rerunOf: next.projectRunId,
+      idempotencyKey: 'compare-recovery', models: { l1: ANTHROPIC_PINS.ATOMA_MODEL_L1, l2: ANTHROPIC_PINS.ATOMA_MODEL_L2, l3: ANTHROPIC_PINS.ATOMA_MODEL_L3 } } })).rejects.toThrow('starting snapshot');
   });
 
   it.each(['text', 'partial', 'files', 'text-with-seed', 'text-with-large-seed'] as const)('finalizes %s delivery without confusing an answer with a repository artifact', async (kind) => {

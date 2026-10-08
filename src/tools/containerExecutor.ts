@@ -21,6 +21,7 @@ export class ContainerToolExecutor implements ToolExecutor {
     } else this.backend = new LocalContainerToolExecutor(options);
   }
   start(): Promise<void> { return this.backend.start(); }
+  checkpointWorker() { return this.backend.checkpointWorker(); }
   toolDeclarations(): Tool[] { return this.backend.toolDeclarations(); }
   has(name: string): boolean { return this.backend.has(name); }
   execute(name: string, args: Record<string, unknown>): Promise<unknown> { return this.backend.execute(name, args); }
