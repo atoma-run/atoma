@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { projectRunStatusSchema, projectRunPublicSchema, deliveryAcceptanceSchema, publicationStatusSchema } from './projects.js';
+import { projectRunStatusSchema, projectRunPublicSchema, deliveryAcceptanceSchema, publicationStatusSchema, publicationSchema } from './projects.js';
 
 /** Opt-in paging keeps the original no-argument list responses compatible. */
 export const projectPageInputSchema = z.object({
@@ -107,7 +107,9 @@ export const runViewSchema = z.object({
   projectId: z.string(), projectRunId: z.string(), title: z.string().nullable().optional(), goal: z.string(),
   status: projectRunStatusSchema, costUsd: z.number().nullable().optional(), progress: runProgressSchema.optional(),
   actions: z.object({ canCancel: z.boolean() }).optional(),
-  publication: z.object({ status: z.string(), repositoryUrl: z.string().nullable(), pullRequestUrl: z.string().optional() }).nullable().optional(),
+  publication: publicationSchema.pick({ status: true, repositoryUrl: true }).extend(
+    publicationSchema.pick({ pullRequestUrl: true, commitSha: true, git: true, error: true, publishedAt: true }).partial().shape,
+  ).nullable().optional(),
 });
 
 
@@ -125,6 +127,7 @@ export const runReviewSchema = z.object({
   clientAcceptance: deliveryAcceptanceSchema.nullable(),
   publicationStatus: publicationStatusSchema.nullable(),
   canRequestAcceptance: z.boolean(),
+  canRetryPublication: z.boolean(),
   untrusted: z.literal(true),
   bytes: z.literal('not-revalidated'),
   nextSteps: z.array(z.object({ tool: z.enum(['atoma_run_artifacts', 'atoma_run_file', 'atoma_run_compare',
@@ -132,3 +135,10 @@ export const runReviewSchema = z.object({
   note: z.string(),
 });
 export type RunReview = z.infer<typeof runReviewSchema>;
+
+/** One bounded JSON detail page; changed or unavailable readers return a note instead. */
+export const traceDetailPageSchema = z.object({
+  section: z.enum(['metadata', 'event', 'log', 'result']), eventId: z.string().optional(),
+  encoding: z.literal('json'), offsetUnit: z.literal('utf16-code-units'), snapshot: z.string(),
+  textOffset: z.number(), totalChars: z.number(), text: z.string(), nextTextOffset: z.number().nullable(), caveat: z.string(),
+});

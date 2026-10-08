@@ -1681,6 +1681,8 @@ it('reads complete diagnostics over HTTP with lossless pages and organisation is
     const summary = await call({});
     expect(summary.structuredContent).toMatchObject({ error: trace.error, provenance: null,
       events: [{ id: verdict.id, approved: false }, { durationMs: 123 }] });
+    const resultOnly = await call({ section: 'result' });
+    expect(JSON.parse((resultOnly.structuredContent as DetailPage).text)).toEqual({ result: trace.result, error: trace.error });
     const header = await call({ section: 'metadata' });
     expect(JSON.parse((header.structuredContent as DetailPage).text)).toEqual({
       id: trace.id, label: trace.label, startedAt: trace.startedAt, error: trace.error, result: trace.result,
@@ -1708,7 +1710,7 @@ it('reads complete diagnostics over HTTP with lossless pages and organisation is
     writeFileSync(path, JSON.stringify(trace));
     expect((await call({ section: 'event', eventId: verdict.id, textOffset: 24_000, snapshot })).structuredContent).toMatchObject({ changed: true });
     expect((await call({ section: 'event' })).isError).toBe(true);
-    for (const section of ['summary', 'metadata', 'event', 'log']) {
+    for (const section of ['summary', 'metadata', 'event', 'log', 'result']) {
       expect((await call({ runId: foreign.run.projectRunId, section, eventId: verdict.id })).isError).toBe(true);
       expect((await call({ file: 'any.json', section, eventId: verdict.id })).isError).toBe(true);
     }

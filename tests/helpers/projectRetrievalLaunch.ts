@@ -48,7 +48,7 @@ export function runReviewFixture(): RunReview {
     comparison: null, comparisonState: 'no_recorded_base',
     verification: { stage: 'finished', message: 'Run delivered.', source: 'run', evidence: 'unavailable',
       lastActivityAt: null, criteria: [], criteriaTruncated: false, acceptanceApproved: null },
-    clientAcceptance: null, publicationStatus: null, canRequestAcceptance: false,
+    clientAcceptance: null, publicationStatus: null, canRequestAcceptance: false, canRetryPublication: false,
     untrusted: true, bytes: 'not-revalidated', nextSteps: [], note: 'Saved evidence only.',
   };
 }

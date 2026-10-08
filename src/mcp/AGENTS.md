@@ -124,7 +124,7 @@ Neighbours:
   verdict is opened by run id, never by path); a project run's trace is read
   only through the store's own resolver for a run the caller may see.
 - TRACE DETAIL IS OPT-IN: `atoma_run_trace` keeps its summary default; metadata,
-  a selected event and the project runner log expose complete evidence as JSON
+  a selected event, result-only data and the project runner log expose complete evidence as JSON
   text pages (12K characters default, 24K maximum). `snapshot` detects changed
   detail between pages; readers concatenate before parsing. All bodies are
   UNTRUSTED. Run provenance is stamped at launch, never inferred from today's
@@ -149,7 +149,7 @@ Neighbours:
   unavailable evidence is explicit, never a guessed percentage. Readiness
   resolves the launcher's existing configuration without admission or a
   provider request. Structured service errors include the next action.
-- MCP APPS is optional metadata on run start/status, with `ui://atoma/run.html`
+- MCP APPS is optional metadata on run start/status/review, with `ui://atoma/run.html`
   built by `mcp:build` into `dist/` and included in `build`. The official Apps
   SDK connects through the host; no credential or direct network access is
   embedded. The sandbox displays file text literally and SVG only as an image.

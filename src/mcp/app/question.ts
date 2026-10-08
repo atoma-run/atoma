@@ -111,7 +111,12 @@ export function questionCard(options: Options) {
       // refresh reads its durable successor meanwhile, including after a host timeout/reconnect.
       await options.call('atoma_run_resume', source, 10_800_000);
       if (current(token)) await load();
-    })().catch(error => { if (current(token)) options.error(error); }).finally(() => {
+    })().catch(async error => {
+      if (current(token)) {
+        options.error(error);
+        if (working === 'resuming') await load().catch(failure => { if (current(token)) options.error(failure); });
+      }
+    }).finally(() => {
       if (current(token)) { working = null; changed(); }
     });
   };
@@ -120,6 +125,7 @@ export function questionCard(options: Options) {
   };
   return {
     load, render,
+    invalidate() { unavailable = true; render(); },
     get waiting() { return !!working || !!view?.waitingForClient; },
     get statusText() { return working === 'resuming' ? options.t('decisionResuming') : view?.waitingForClient ? options.t('decisionWaiting') : null; },
     reset() { epoch++; view = null; working = null; pending = null; builtId = undefined; unavailable = false; render(); },

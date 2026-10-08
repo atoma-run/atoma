@@ -639,6 +639,10 @@ export class ProjectService {
       delivery: run.artifactManifest ? run.artifactManifest.delivery ?? 'files' : 'unknown',
       files, filesState, comparison, comparisonState, verification: projectRunProgress(run),
       clientAcceptance, publicationStatus: publication?.status ?? null, canRequestAcceptance,
+      canRetryPublication: orgId === viewer.orgId && roleAtLeast(viewer.role, 'org:member') &&
+        run.status === 'delivered' && !run.rerunOf && !run.bytesExpiredAt && !!clientAcceptance &&
+        run.artifactManifest?.delivery !== 'text' && !!run.artifactManifest?.files.length &&
+        publication?.status !== 'published' && publication?.status !== 'publishing',
       untrusted: true, bytes: 'not-revalidated', nextSteps,
       note: 'Saved evidence only: no tests, model calls, preview allocation or GitHub checks were performed. Recorded model judgements are not client acceptance. Missing evidence is unknown, not passed. Compare follows the recorded starting run, never today’s accepted reference; materialised repository sync may have changed starting files. Use trace evidence for those changes. Legacy inventories may be incomplete. Text answers are read through the trace reader, not compared as files.',
     });

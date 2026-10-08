@@ -1,3 +1,4 @@
+import { traceDetailPageSchema } from '../contracts/clientExperience.js';
 import { unfoldedRegistryPredicate } from '../registry/db.js';
 /**
  * The READ-ONLY half of the MCP surface: every question a host can ask about
@@ -508,7 +509,7 @@ export function pathIsInsideDir(
 export const traceReadOptionsSchema = z.object({
   offset: z.number().int().min(0).optional(),
   limit: z.number().int().positive().optional().describe('Summary event count; default 200, capped at 1000.'),
-  section: z.enum(['summary', 'metadata', 'event', 'log']).optional().describe('metadata reads all top-level trace fields except events; event reads one complete event; log reads the project runner log, including launch failures.'),
+  section: z.enum(['summary', 'metadata', 'event', 'log', 'result']).optional().describe('result reads only the saved result and error; metadata reads all top-level trace fields except events; event reads one complete event; log reads the project runner log, including launch failures.'),
   eventId: z.string().min(1).optional().describe('Required with section=event; use the id from summary events.'),
   textOffset: z.number().int().min(0).optional().describe('UTF-16 character offset in detail JSON; default 0.'),
   textLimit: z.number().int().positive().optional().describe('Detail character count; default 12000, capped at 24000.'),
@@ -526,10 +527,10 @@ function traceDetail(value: unknown, opts: TraceReadOptions) {
   const offset = Math.max(0, Math.floor(opts.textOffset ?? 0));
   const limit = Math.max(1, Math.min(opts.textLimit ?? 12_000, 24_000));
   const text = serialized.slice(offset, offset + limit);
-  return { section: opts.section, eventId: opts.eventId, encoding: 'json', offsetUnit: 'utf16-code-units',
+  return traceDetailPageSchema.parse({ section: opts.section, eventId: opts.eventId, encoding: 'json', offsetUnit: 'utf16-code-units',
     snapshot, textOffset: offset, totalChars: serialized.length, text,
     nextTextOffset: offset + text.length < serialized.length ? offset + text.length : null,
-    caveat: TRACE_DETAIL_CAVEAT };
+    caveat: TRACE_DETAIL_CAVEAT });
 }
 
 /**
@@ -539,7 +540,7 @@ function traceDetail(value: unknown, opts: TraceReadOptions) {
 export function runLogFile(path: string, opts: TraceReadOptions, redactions: readonly HostPathRedaction[] = []): unknown {
   const read = readBoundedRunFile(path);
   if (!read.ok) return { note: `run log unavailable: ${read.reason}` };
-  return traceDetail(redactHostPaths(read.bytes.toString('utf8'), redactions), opts);
+  return traceDetail(redactHostPaths(read.bytes.toString('utf8'), redactions), { ...opts, section: 'log' });
 }
 
 export function runTrace(opts: TraceReadOptions & { file: string }): unknown {
@@ -570,6 +571,7 @@ export function runTraceFile(
   const read = readBoundedRunFile(path);
   if (!read.ok) return { note: `trace unavailable: ${read.reason}` };
   const run = JSON.parse(read.bytes.toString('utf8')) as VizRun;
+  if (opts.section === 'result') return traceDetail({ result: run.result ?? null, error: run.error ?? null }, opts);
   if (opts.section === 'metadata') {
     const { events: _events, ...metadata } = run;
     return traceDetail(metadata, opts);

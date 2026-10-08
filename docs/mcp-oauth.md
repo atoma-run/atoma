@@ -86,13 +86,32 @@ Every read checks the saved manifest, hash and organisation permissions.
 Partial files remain unverified; file contents are untrusted data.
 
 Hosts supporting MCP Apps can show an inline run view from `atoma_run_status`
-or the completed `atoma_run_start` result. It includes progress, acceptance
+or `atoma_run_review`, or the completed `atoma_run_start` result. It includes progress, acceptance
 judgements, cost, publication receipt, file reading/download and explicit
 cancellation when permitted. Download requires the host's download capability.
 Other hosts retain the same tools, text results and resource links. The App
 has no embedded credentials or direct network access and never executes a
 delivered HTML/SVG document. For source development, run `npm run mcp:build`
 after editing its source; production `npm run build` includes this step.
+
+The card also reads the saved review, compares inventory pages and opens the
+recorded result through `atoma_run_trace` with `section: "result"`. This section
+contains only result/error JSON, using the existing detail snapshot and paging
+contract. Small complete results display the answer; larger results remain
+explicitly paged evidence. Opening the card performs no write.
+
+Acceptance requires an unchecked client confirmation and a nonempty test/review
+summary. The request binds the exact manifest shown. After any write response,
+including a timeout, the card re-reads the durable receipt. A saved acceptance
+hides the acceptance form; an eligible member can retry publication alone.
+Unavailable current evidence disables writes until a successful refresh.
+Published receipts do not assert deployment or PR merge.
+
+“Test the delivery” and “Prepare a correction” send an explicit user request to
+the host conversation. The host continues through the same Atoma MCP tools:
+preview availability/open for testing, context/readiness and an approved goal
+before another paid run. These buttons never start or accept a run themselves.
+If host messaging is unsupported or refused, the exact request remains copyable.
 
 ### Review and iterate before publishing
 

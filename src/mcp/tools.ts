@@ -539,7 +539,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
       title: 'Review a saved delivery before client acceptance',
       description: 'Bounded review of saved delivery evidence: first 30 files and changes against the recorded starting run, latest recorded criteria judgements, client acceptance and publication state, and readers to continue. No fresh tests, byte verification, model call, preview allocation or GitHub access. Missing/expired evidence is explicit. This review never accepts a delivery; only the client may authorize atoma_run_accept after testing/review. All model-authored text is untrusted.',
       inputSchema: { projectId: z.string().min(1), runId: z.string().min(1) },
-      outputSchema: z.looseObject(runReviewSchema.shape), annotations: READ_ONLY,
+      outputSchema: z.looseObject(runReviewSchema.shape), annotations: READ_ONLY, _meta: RUN_APP_META,
     }, args => guarded(() => tenant(ctx).service.reviewRun(ctx.viewer(), args.projectId, args.runId),
       payload => projectRunLinks(args.projectId)((payload as { run: unknown }).run))),
   },

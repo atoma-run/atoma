@@ -1,3 +1,4 @@
+import { traceDetailPageSchema } from '../src/contracts/clientExperience.js';
 import { clientQuestionViewSchema } from '../src/contracts/clientQuestion.js';
 import Database from 'better-sqlite3';
 import { createServer, type Server } from 'node:http';
@@ -330,7 +331,17 @@ it.each([false, true])('requires exact client acceptance before publication and 
   const acceptance = f.projects.getDeliveryAcceptance(f.viewer.orgId, run.projectRunId)!;
   expect(acceptance).toMatchObject({ principalId: f.viewer.principalId, manifestHash: input.manifestHash, review: input.review });
   expect((await f.call('atoma_run_status', ref)).structuredContent).toMatchObject({ awaitingClientAcceptance: false, clientAcceptance: acceptance });
+  expect((await f.call('atoma_run_review', ref)).structuredContent).toMatchObject({ canRequestAcceptance: false, canRetryPublication: true });
+  f.setViewer({ ...f.viewer, role: 'org:viewer', platformAdmin: false });
+  // A legacy session is identity-bound: the viewer needs its own connection.
+  const reader = new LegacyClient({ name: 'review-only', version: '1' });
+  try {
+    await reader.connect(new LegacyTransport(f.url));
+    expect((await reader.callTool({ name: 'atoma_run_review', arguments: ref })).structuredContent)
+      .toMatchObject({ canRequestAcceptance: false, canRetryPublication: false });
+  } finally { await reader.close(); f.setViewer(f.viewer); }
   await f.call('atoma_publication_retry', ref);
+  expect((await f.call('atoma_run_review', ref)).structuredContent).toMatchObject({ canRetryPublication: false });
   await f.call('atoma_run_accept', { ...input, review: 'A retry must not overwrite the original acceptance.' });
   expect(f.projects.getDeliveryAcceptance(f.viewer.orgId, run.projectRunId)).toEqual(acceptance);
   expect(remoteWrites).toBe(1);
@@ -354,7 +365,7 @@ it('binds client acceptance to member authority and accepts text-only delivery w
   const accepted = await f.call('atoma_run_accept', { ...input, runId: text.projectRunId, manifestHash: delivered.artifactManifestHash! });
   expect(accepted.structuredContent).toMatchObject({ awaitingClientAcceptance: false, publication: null, clientAcceptance: { manifestHash: delivered.artifactManifestHash } });
   const review = runReviewSchema.parse((await f.call('atoma_run_review', { projectId: f.project.projectId, runId: text.projectRunId })).structuredContent);
-  expect(review).toMatchObject({ delivery: 'text', comparisonState: 'text_only', canRequestAcceptance: false,
+  expect(review).toMatchObject({ delivery: 'text', comparisonState: 'text_only', canRequestAcceptance: false, canRetryPublication: false,
     files: { total: 0 }, clientAcceptance: { manifestHash: delivered.artifactManifestHash } });
   expect(review.nextSteps.map(step => step.tool)).not.toContain('atoma_run_preview');
   expect(review.nextSteps.map(step => step.tool)).toContain('atoma_run_trace');
@@ -452,7 +463,7 @@ it.each([false, true])('reviews a delivery with bounded evidence without accepti
   expect(review).toMatchObject({
     run: { projectRunId: target.projectRunId, artifactManifestHash: target.artifactManifestHash },
     acceptedReferenceRunId: reference.projectRunId, delivery: 'files', filesState: 'available',
-    comparisonState: 'available', canRequestAcceptance: true, clientAcceptance: null,
+    comparisonState: 'available', canRequestAcceptance: true, canRetryPublication: false, clientAcceptance: null,
     verification: { evidence: 'unavailable', acceptanceApproved: null }, bytes: 'not-revalidated',
     files: { total: 35, nextOffset: 30 }, comparison: { baseRunId: base.projectRunId, total: 36, nextOffset: 30 },
   });
@@ -588,4 +599,27 @@ it.each([false, true])('persists client questions and answers through both MCP e
     .toEqual({ runId: continuationId, status: 'queued' });
   expect(f.driver).not.toHaveBeenCalled();
 
+});
+
+
+it.each([false, true])('pages the literal result without unrelated trace metadata (legacy=%s)', async legacy => {
+  const f = await fixture(legacy);
+  const { run, layout } = f.makeRun({ 'notes.md': 'Saved file' });
+  mkdirSync(layout.runsPath, { recursive: true });
+  const path = join(layout.runsPath, `${run.projectRunId}.json`);
+  const result = { output: '<script>untrusted</script>😀'.repeat(1400) };
+  writeFileSync(path, JSON.stringify({ id: run.projectRunId, result, error: null, events: [], registry: 'unrelated metadata' }));
+  let text = '', offset = 0, snapshot: string | undefined;
+  for (;;) {
+    const raw = await f.call('atoma_run_trace', { runId: run.projectRunId, section: 'result', textOffset: offset, textLimit: 9000, ...(snapshot ? { snapshot } : {}) });
+    const page = traceDetailPageSchema.parse(raw.structuredContent);
+    expect(page.text.length).toBeLessThanOrEqual(9000);
+    text += page.text; snapshot = page.snapshot;
+    if (page.nextTextOffset === null) break;
+    offset = page.nextTextOffset;
+  }
+  expect(JSON.parse(text)).toEqual({ result, error: null });
+  writeFileSync(path, JSON.stringify({ id: run.projectRunId, result: { output: 'changed' }, events: [] }));
+  expect((await f.call('atoma_run_trace', { runId: run.projectRunId, section: 'result', snapshot })).structuredContent).toMatchObject({ changed: true });
+  expect(f.driver).not.toHaveBeenCalled();
 });
