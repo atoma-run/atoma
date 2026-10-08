@@ -438,6 +438,13 @@ Neighbours:
   `tests/mcp-server-json.test.ts` fails when it drifts; publishing it
   (`mcp-publisher login dns --domain atoma.run`, then `publish`) is an
   operator action, never CI.
+- `plugins/atoma` is the Claude Code plugin, listed by the repository's
+  `.claude-plugin/marketplace.json`: the same `/mcp` URL, a skill and a
+  read-only trace reader. It is PACKAGING AND TEXT, never a second surface —
+  no logic, no credential, no hook. Its skill QUOTES `GOAL_GUIDANCE`; its
+  version, URL, cited names and the reader's read-only viewer tools are held
+  by `tests/claude-plugin.test.ts`. Renaming a tool the plugin cites updates
+  the plugin in the same change.
 - A result that names runs LINKS them (`resource_link`, at most 20, after the
   text block), and only to resources this caller's server registered: a link
   is one it may read or subscribe to. `serverInfo` carries the mark as a data

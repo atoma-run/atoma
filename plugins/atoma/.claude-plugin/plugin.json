@@ -1,0 +1,13 @@
+{
+  "name": "atoma",
+  "version": "0.4.0",
+  "description": "Start, continue, follow and investigate Atoma runs: the hosted Atoma MCP, a skill that knows how to drive it, and a read-only trace reader.",
+  "author": {
+    "name": "Matthieu Foillard",
+    "url": "https://atoma.run"
+  },
+  "homepage": "https://atoma.run",
+  "repository": "https://github.com/mgtf/atoma",
+  "license": "AGPL-3.0-only",
+  "keywords": ["atoma", "agents", "orchestration", "mcp"]
+}

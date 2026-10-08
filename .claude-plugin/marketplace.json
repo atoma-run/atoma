@@ -1,0 +1,15 @@
+{
+  "name": "atoma",
+  "description": "The Atoma plugin for Claude Code: the hosted Atoma MCP plus the know-how to drive it.",
+  "owner": {
+    "name": "Matthieu Foillard",
+    "url": "https://atoma.run"
+  },
+  "plugins": [
+    {
+      "name": "atoma",
+      "source": "./plugins/atoma",
+      "description": "Start, continue, follow and investigate Atoma runs from Claude Code."
+    }
+  ]
+}

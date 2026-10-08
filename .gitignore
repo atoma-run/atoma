@@ -11,6 +11,8 @@ coverage/
 .DS_Store
 build/
 runs/
+# The unanchored rule above also matches the plugin skill named `runs`.
+!/plugins/atoma/skills/runs/
 burnin/logs/
 # Learned runtime state — the framework is the repo, the trained state is
 # data. Skills regrow through use (the trained-snapshot tag preserves the
