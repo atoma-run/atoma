@@ -17,7 +17,7 @@ import { PUSH_LOCALES, PUSH_ROUTES } from '../src/viz/push/routes.js';
 // module scope, so it cannot be imported here — which is why these two rules
 // were hand-copied into this file and drifted (2026-08-27, 2.6 and 3.12). They
 // live in `i18n-rules.mjs` now, and this suite reads them rather than a copy.
-import { isBlankValue, placeholdersMatch } from '../scripts/i18n-predicates.mjs';
+import { hasPseudoPlural, isBlankValue, placeholdersMatch, translationDefect } from '../scripts/i18n-predicates.mjs';
 
 /**
  * ONE LIST OF LANGUAGES, and everything that fans out over languages is held
@@ -87,9 +87,13 @@ describe('UI pluralisation', () => {
   });
 
   it('contains no parenthetical pseudo-plurals', () => {
-    for (const catalog of Object.values(I18N_CATALOGS)) {
-      expect(Object.values(catalog).join('\n')).not.toMatch(/\((?:s|es|ies)\)/i);
+    const failures: string[] = [];
+    for (const [locale, catalog] of Object.entries(I18N_CATALOGS)) {
+      for (const [key, value] of Object.entries(catalog)) {
+        if (hasPseudoPlural(value)) failures.push(`${locale}.${key}: ${value}`);
+      }
     }
+    expect(failures).toEqual([]);
   });
 
   it('uses the catalog two-form contract even for richer CLDR locales', () => {
@@ -151,6 +155,20 @@ describe('the locale pipeline invariants', () => {
     expect(isBlankValue('   ')).toBe(true);
     expect(isBlankValue('\n\t')).toBe(true);
     expect(isBlankValue('Bonjour')).toBe(false);
+  });
+
+  it('refuses a pseudo-plural with the SAME verdict the pipeline writes by', () => {
+    // 2026-10-08: `translate` committed `{{active}} actif(s)` because this rule
+    // lived only in this suite — the pipeline wrote what the suite refused.
+    expect(hasPseudoPlural('{{active}} actif(s) / {{limit}}')).toBe(true);
+    expect(hasPseudoPlural('3 entry(ies)')).toBe(true);
+    expect(hasPseudoPlural('archivo(S)')).toBe(true);
+    expect(hasPseudoPlural('Actifs : {{active}}')).toBe(false);
+    // Ordinary parentheses are copy, not a plural.
+    expect(hasPseudoPlural('Coût (estimé)')).toBe(false);
+    expect(translationDefect('{{active}} active', '{{active}} actif(s)')).toBe('parenthetical pseudo-plural');
+    expect(translationDefect('{{active}} active', 'actifs')).toBe('placeholder drift');
+    expect(translationDefect('{{active}} active', 'Actifs : {{active}}')).toBeNull();
   });
 
   it('sees the interpolations i18next actually acts on, not only the bare form', () => {

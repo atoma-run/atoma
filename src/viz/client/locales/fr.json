@@ -1129,7 +1129,7 @@
   "welcome.handheld.hint": "Atoma est encore en cours d’adaptation pour les téléphones et les tablettes. Tu peux continuer avec un accès complet, mais certains écrans peuvent ne pas encore bien fonctionner sur mobile.",
   "welcome.handheld.continue": "Me permettre au moins d’accéder à mon compte",
   "settings.runCapacity": "Runs simultanés",
-  "settings.runCapacityValue": "{{active}} actif(s) / {{limit}} autorisés dans ton organisation",
+  "settings.runCapacityValue": "",
   "auth.switchAccount": "Changer de compte",
   "settings.refreshModels": "Actualiser les modèles ChatGPT",
   "settings.modelCatalogue.ready": "Modèles signalés par ton compte ChatGPT connecté.",

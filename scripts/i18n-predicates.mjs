@@ -48,6 +48,31 @@ export function placeholdersMatch(en, target) {
 }
 
 /**
+ * A parenthetical pseudo-plural — `run(s)`, `actif(s)`, `entry(ies)`. The
+ * catalog pluralises with `_one`/`_other`, so one of these is a value that
+ * dodged that contract. It lived only in `tests/locales-contract.test.ts`
+ * until 2026-10-08, when `translate` committed `{{active}} actif(s)` for an EN
+ * value with no count at all: the pipeline accepted what the suite refused,
+ * and main went red on a bot commit.
+ */
+export const PSEUDO_PLURAL_PATTERN = /\((?:s|es|ies)\)/i;
+
+export function hasPseudoPlural(value) {
+  return typeof value === 'string' && PSEUDO_PLURAL_PATTERN.test(value);
+}
+
+/**
+ * Why a non-blank target value cannot stand for its EN source, or null. The
+ * one verdict `translate`, `sync`, `check` and `fix-drift` all ask, so no gate
+ * writes what another refuses.
+ */
+export function translationDefect(en, target) {
+  if (!placeholdersMatch(en, target)) return 'placeholder drift';
+  if (hasPseudoPlural(target)) return 'parenthetical pseudo-plural';
+  return null;
+}
+
+/**
  * "Awaiting translation" — the ONE definition. A missing key, an empty string
  * and a whitespace-only string are the same state: nothing a reader can use.
  * Every gate that decides whether a value counts must ask HERE, or the

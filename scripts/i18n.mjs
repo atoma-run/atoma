@@ -11,7 +11,8 @@
  *
  * Commands:
  *   check              verify target catalogs, non-empty EN values, matching
- *                      placeholder signatures, and no TARGET key absent from
+ *                      placeholder signatures, no parenthetical pseudo-plural
+ *                      (`actif(s)`), and no TARGET key absent from
  *                      en.json. An EN key a target lacks is NOT a problem — it
  *                      is a blank awaiting translation, and it is counted as
  *                      one. --require-complete also fails on any missing or
@@ -21,8 +22,9 @@
  *                      translation is a normal state on a developer machine.
  *   fix-drift [--apply]
  *                      blank fr values whose {{placeholder}} signature
- *                      disagrees with EN, plus fr keys EN no longer has (after
- *                      manual sync of key sets). Dry-run by default.
+ *                      disagrees with EN or that carry a pseudo-plural, plus
+ *                      fr keys EN no longer has (after manual sync of key
+ *                      sets). Dry-run by default.
  *   translate [--dry]  translate blank fr values with gpt-5.6-sol. Locally,
  *                      Codex CLI reuses `codex login` (ChatGPT Plus/Pro). In
  *                      CI, the OpenAI API uses OPENAI_API_KEY. Honours every
@@ -31,8 +33,8 @@
  *                      later locale's failure never discards an earlier
  *                      locale's successes (the 2026-08-27 incident: a zh
  *                      batch failure left ten `{}` catalogs uncommitted).
- *                      A key the model returns with placeholder drift gets
- *                      ONE isolated retry — including when the whole batch
+ *                      A key the model returns with placeholder drift or a
+ *                      pseudo-plural gets ONE isolated retry — including when the whole batch
  *                      drifted — then a named summary. Blank is one predicate
  *                      shared with `check` (`i18n-predicates.mjs`), so accepted
  *                      values pass its integrity checks. Exit 1 only
@@ -68,7 +70,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import path, { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { isBlankValue, placeholderSignature, placeholdersMatch } from './i18n-predicates.mjs';
+import { hasPseudoPlural, isBlankValue, placeholderSignature, placeholdersMatch, translationDefect } from './i18n-predicates.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..');
@@ -172,6 +174,9 @@ function runCheck() {
         problems.push(`${key}: EN value is empty — EN is the source of truth and never blanks`);
         continue;
       }
+      if (hasPseudoPlural(enValue)) {
+        problems.push(`${key}: EN value carries a parenthetical pseudo-plural — use <key>_one / <key>_other`);
+      }
       const value = target[key];
       if (value === undefined || value === '') {
         blanks += 1;
@@ -185,6 +190,8 @@ function runCheck() {
         problems.push(`${locale}.${key}: value is not a non-empty string`);
       } else if (!placeholdersMatch(enValue, value)) {
         problems.push(`${locale}.${key}: placeholder drift (EN "${placeholderSignature(enValue)}" vs target "${placeholderSignature(value)}")`);
+      } else if (hasPseudoPlural(value)) {
+        problems.push(`${locale}.${key}: parenthetical pseudo-plural — fix-drift blanks it for translate to redo`);
       }
     }
     for (const key of Object.keys(target)) {
@@ -213,19 +220,20 @@ function runFixDrift() {
     const target = readCatalog(targetPath(locale));
     if (!target) continue;
     const drift = Object.entries(en)
-      .filter(([key, value]) => !isBlankValue(target[key]) && !placeholdersMatch(value, target[key]))
-      .map(([key]) => key);
+      .filter(([key]) => !isBlankValue(target[key]))
+      .map(([key, value]) => [key, translationDefect(value, target[key])])
+      .filter(([, defect]) => defect !== null);
     const orphans = Object.keys(target).filter((key) => !(key in en));
     changes += drift.length + orphans.length;
-    for (const key of drift) process.stdout.write(`  ~ ${locale}.${key}: placeholder drift\n`);
+    for (const [key, defect] of drift) process.stdout.write(`  ~ ${locale}.${key}: ${defect}\n`);
     for (const key of orphans) process.stdout.write(`  x ${locale}.${key}: not in EN\n`);
     if (APPLY) {
-      for (const key of drift) target[key] = '';
+      for (const [key] of drift) target[key] = '';
       for (const key of orphans) delete target[key];
       writeCatalog(targetPath(locale), target);
     }
   }
-  if (changes === 0) process.stdout.write('fix-drift: no placeholder drift, no orphan keys.\n');
+  if (changes === 0) process.stdout.write('fix-drift: no placeholder drift, no pseudo-plural, no orphan keys.\n');
   else if (!APPLY) process.stdout.write('\n(dry-run — pass --apply to blank drifted values / drop orphans)\n');
   else process.stdout.write(`fix-drift: repaired ${changes} target value(s). Run translate next.\n`);
 }
@@ -236,6 +244,7 @@ const UNIVERSAL_RULES = `## Universal translation rules
 
 - **Interpolation tokens** — \`{{count}}\`, \`{{name}}\`, \`{{version}}\`, etc. must remain unchanged and in the same number. Only translate the surrounding text.
 - **Pluralisation** — the catalog deliberately has exactly two forms: \`<key>_one\` for count 1 and \`<key>_other\` for every other count. Phrase \`_other\` so it remains grammatical with any displayed number.
+- **No pseudo-plurals** — never write a parenthetical plural such as \`actif(s)\`, \`archivo(s)\` or \`run(s)\`; such a value is rejected. When a number sits in a value without its own \`_one\`/\`_other\` pair, phrase it so it reads correctly for any number (for example \`Actifs : {{active}}\`).
 - **Product vocabulary** — do not translate: atoma, run, skill, burn-in, fallback, trust, tier, registry (but "registry" IS translated per the language rules), GitHub, MCP, WebGPU.
 - **Tone** — match the source register: short UI labels stay short, explanatory copy stays clear and plain.
 - **Faithfulness** — preserve every semantic component, including qualifiers ("up to", "at least") and leading symbols (✓ ✕ ⚠ ● ⟳ ⛔ ⊘ ⚡ 📖 ✏️ 🛡️).
@@ -562,11 +571,13 @@ async function runTranslate() {
         // `!isBlankValue`, not `.length > 0`: the same predicate `check` uses.
         // The two disagreed, and a model answering " " passed here and failed
         // there — written, committed under `always()`, never repaired.
-        if (!isBlankValue(value) && placeholdersMatch(en[key], value)) {
+        if (isBlankValue(value)) continue;
+        const defect = translationDefect(en[key], value);
+        if (defect === null) {
           translated[key] = value;
           got += 1;
-        } else if (!isBlankValue(value)) {
-          process.stderr.write(`\n    rejected ${target.locale}.${key} (placeholder drift in model output)\n`);
+        } else {
+          process.stderr.write(`\n    rejected ${target.locale}.${key} (${defect} in model output)\n`);
           sliceRejected.push(key);
         }
       }
@@ -592,7 +603,7 @@ async function runTranslate() {
           let retried = 0;
           for (const key of sliceRejected) {
             const value = retryParsed[key];
-            if (!isBlankValue(value) && placeholdersMatch(en[key], value)) {
+            if (!isBlankValue(value) && translationDefect(en[key], value) === null) {
               translated[key] = value;
               got += 1;
               retried += 1;
@@ -852,9 +863,10 @@ function runSync() {
     for (const [key, value] of Object.entries(payload)) {
       if (!(key in en)) continue; // never invent keys
       if (typeof value !== 'string' || value === '') continue;
-      if (!placeholdersMatch(en[key], value)) {
+      const defect = translationDefect(en[key], value);
+      if (defect !== null) {
         rejected += 1;
-        process.stderr.write(`  rejected ${key} (placeholder drift)\n`);
+        process.stderr.write(`  rejected ${key} (${defect})\n`);
         continue;
       }
       next[key] = value;

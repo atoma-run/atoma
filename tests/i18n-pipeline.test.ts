@@ -71,6 +71,12 @@ process.stdin.on('end', () => {
     .split(',')
     .filter((entry) => entry.startsWith(locale + ':'))
     .map((entry) => entry.slice(locale.length + 1));
+  // STUB_PSEUDO_PLURAL_KEYS="ar:key" answers the named key with a parenthetical
+  // pseudo-plural EVERY time, retry included — the 2026-10-08 \`actif(s)\`.
+  const pseudoPluralKeys = (process.env.STUB_PSEUDO_PLURAL_KEYS ?? '')
+    .split(',')
+    .filter((entry) => entry.startsWith(locale + ':'))
+    .map((entry) => entry.slice(locale.length + 1));
   const seenPath = process.env.STUB_STATE_FILE;
   let seen = [];
   if (seenPath) {
@@ -80,6 +86,10 @@ process.stdin.on('end', () => {
   for (const item of items) {
     if (blankKeys.includes(item.key)) {
       translations[item.key] = '   ';
+      continue;
+    }
+    if (pseudoPluralKeys.includes(item.key)) {
+      translations[item.key] = '[' + locale + '] ' + item.en + '(s)';
       continue;
     }
     if (onceKeys.includes(item.key) && !seen.includes(locale + ':' + item.key)) {
@@ -254,6 +264,40 @@ describe('translate isolates locale failures', () => {
     const strict = runI18nCheck(['--require-complete']);
     expect(strict.status).toBe(1);
     expect(strict.stdout).toContain('1 awaiting translation');
+  });
+});
+
+describe('a pseudo-plural is refused by every gate, not only by the suite', () => {
+  it('never writes one, whatever the model answers, and leaves the key for the next run', () => {
+    // 2026-10-08. `translate` accepted `{{active}} actif(s)` — placeholders
+    // intact, so its only gate passed — and the bot committed it to main,
+    // where tests/locales-contract.test.ts refused it. One verdict now.
+    writeFixtureCatalogs();
+    const { status, stdout } = runTranslate({ STUB_PSEUDO_PLURAL_KEYS: 'ar:farewell' });
+
+    expect(status).toBe(0);
+    expect(stdout).toContain('retry ar');
+    expect(readCatalog('ar').farewell).toBe('');
+    expect(readCatalog('ar').greetings_other).toBe('[ar] {{count}} greetings');
+    expect(readCatalog('de').farewell).toBe('[de] goodbye');
+    expect(runI18nCheck().status).toBe(0);
+  });
+
+  it('reports one already on disk, and fix-drift blanks it for translate to redo', () => {
+    writeFixtureCatalogs();
+    expect(runTranslate({}).status).toBe(0);
+    const catalog = readCatalog('de');
+    catalog.greetings_other = '[de] {{count}} greeting(s)';
+    writeFileSync(join(workdir, LOCALE_DIR, 'de.json'), JSON.stringify(catalog));
+
+    const check = runI18nCheck();
+    expect(check.status).toBe(1);
+    expect(check.stdout).toContain('de.greetings_other: parenthetical pseudo-plural');
+
+    execFileSync('node', ['scripts/i18n.mjs', 'fix-drift', '--apply'], { cwd: workdir, encoding: 'utf8' });
+    expect(readCatalog('de').greetings_other).toBe('');
+    expect(readCatalog('de').farewell).toBe('[de] goodbye');
+    expect(runI18nCheck().status).toBe(0);
   });
 });
 
