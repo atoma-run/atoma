@@ -471,9 +471,16 @@ npm run viz:mark-turn:analyze
   window's visibility, and its DOM layer sits above view forms. Title-bar
   dragging clamps the complete window inside the viewport; slider values stay
   in the mutable live sample so pointer motion never rebuilds the GPU scene.
-- The Projects screen uses a DOM MCP onboarding guide above the GPU project
-  list. Talk to Atoma opens the integrated conversation; Settings → MCP and
-  the copyable request remain the external-agent path. Creation and launch
+- The Projects screen stacks, for a member of an organisation, the integrated
+  ASSISTANT CARD, then the DOM MCP onboarding guide, then the GPU project list
+  or the selected project's runs (owner, 2026-10-09: the conversation comes
+  first, it no longer replaces the screen). The card is expanded by default,
+  collapses to its title like the guide, keeps its state across project
+  selection, folds the guide to its title while it is expanded (the guide's
+  one automatic rule, beside "MCP connected"), and shares the guide's TS/CSS height contract
+  (`PROJECTS_ASSISTANT_HEIGHT`, `.gpu-assistant`, the guide's
+  `--after-assistant` offsets). A viewer sees the guide alone. Settings → MCP
+  and the copyable request remain the external-agent path. Creation and launch
   require separate proposal confirmations. GitHub remains reachable when the organisation has
   no installation. A selected project's name owns the page title (`Project :
   <name>`) and is not repeated as an active row in its detail card.
@@ -591,9 +598,9 @@ npm run viz:mark-turn:analyze
 - `/api/account/subscriptions*` is self-scoped from the resolved session and
   never accepts a principal id. Status is secret-free; device login material
   is memory-only; connect/cancel/disconnect are same-origin and require
-  `org:member+`. Settings keeps Claude visible but unavailable until Anthropic
-  approval, and offers personal Codex models only while the server confirms
-  the requester's private profile. Disconnect refuses an active run and never
+  `org:member+`. Settings connects Claude by a pasted `claude setup-token`
+  token (beta, [src/auth](../auth/AGENTS.md)) and offers personal Codex models
+  only while the server confirms the requester's private profile. Disconnect refuses an active run and never
   deletes another principal's generation.
 
 ## Web push

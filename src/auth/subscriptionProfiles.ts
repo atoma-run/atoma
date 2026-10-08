@@ -18,6 +18,7 @@ import {
   realpathSync,
   rmSync,
   unlinkSync,
+  writeFileSync,
   writeSync,
   type Dirent,
 } from 'node:fs';
@@ -53,6 +54,9 @@ export const DEFAULT_CODEX_LOGIN_TTL_MS = 10 * 60 * 1_000;
 /** Each pending login owns one app-server process; keep the 4 GiB VPS bounded. */
 export const MAX_PENDING_CODEX_LOGINS = MAX_CODEX_APP_SERVER_PROCESSES;
 const MAX_CODEX_LOGIN_TTL_MS = 30 * 60 * 1_000;
+export const PROFILE_OWNER_FILENAME = '.atoma-profile-owner';
+// Another server may still be completing an uncommitted login generation.
+export const PROFILE_ORPHAN_GRACE_MS = MAX_CODEX_LOGIN_TTL_MS + 60_000;
 const FAILED_ATTEMPT_TTL_MS = 60_000;
 const CODEX_STATUS_FRESH_MS = 5 * 60 * 1_000;
 /**
@@ -471,7 +475,7 @@ export class AccountSubscriptionService {
     }
     const profileId = randomUUID();
     const profilePath = this.profilePath(principalId, profileId, 'claude');
-    ensurePrivateSubdirectory(this.root, [principalId, 'claude', profileId]);
+    this.createProfile(principalId, 'claude', profileId);
     try {
       let probe: ClaudeAuthProbeResult;
       try {
@@ -580,7 +584,7 @@ export class AccountSubscriptionService {
 
     const profileId = randomUUID();
     const profilePath = this.profilePath(principalId, profileId);
-    ensurePrivateSubdirectory(this.root, [principalId, 'codex', profileId]);
+    this.createProfile(principalId, 'codex', profileId);
     const operation: StartingAttempt = {
       principalId,
       orgId: parsedOrgId,
@@ -1315,10 +1319,27 @@ export class AccountSubscriptionService {
     }
   }
 
-  /**
-   * A crash can leave a UUID generation before its receipt is committed.
-   * Reconciliation is deliberately narrow: unknown names and every referenced
-   * generation survive, and unsafe parent links stop traversal altogether.
+  private createProfile(principalId: string, provider: AccountSubscriptionProvider, profileId: string): void {
+    const directory = ensurePrivateSubdirectory(this.root, [principalId, provider, profileId]);
+    writeFileSync(path.join(directory, PROFILE_OWNER_FILENAME), this.auth.subscriptionProfileOwner, {
+      mode: 0o600, flag: 'wx',
+    });
+  }
+
+  private ownsExpiredProfile(principalId: string, provider: AccountSubscriptionProvider, profileId: string): boolean {
+    if (!this.profileDirectoriesUsable(principalId, profileId, provider)) return false;
+    const marker = path.join(this.profilePath(principalId, profileId, provider), PROFILE_OWNER_FILENAME);
+    try {
+      if (!privateCredentialFile(marker)) return false;
+      const stat = lstatSync(marker);
+      return stat.size === 64 && this.now() - stat.mtimeMs > PROFILE_ORPHAN_GRACE_MS &&
+        readFileSync(marker, 'utf8') === this.auth.subscriptionProfileOwner;
+    } catch { return false; }
+  }
+
+  /** Only this physical store's old, unreferenced staging generations are ours to remove.
+   * An empty/test/copied store cannot infer ownership from a missing receipt.
+   * Legacy generations have no proof of ownership and are deliberately preserved.
    */
   private reconcileProfiles(): void {
     const providers: readonly AccountSubscriptionProvider[] = ['codex', 'claude'];
@@ -1367,16 +1388,10 @@ export class AccountSubscriptionService {
           const profileId = accountSubscriptionProfileIdSchema.safeParse(generation.name);
           if (!profileId.success) continue;
           if (referenced.get(`${principal.data}/${provider}`)?.has(profileId.data)) continue;
-          if (generation.isSymbolicLink() || !generation.isDirectory()) {
-            // No legitimate provider child can own a non-directory generation.
-            // Remove the exact entry without asking the lease path resolver to
-            // follow it or letting an unsafe orphan prevent server startup.
-            this.removeProfile(principal.data, profileId.data, provider);
-            continue;
-          }
+          if (generation.isSymbolicLink() || !generation.isDirectory()) continue;
+          if (!this.ownsExpiredProfile(principal.data, provider, profileId.data)) continue;
           if (provider === 'claude') {
-            // No provider process ever holds a Claude generation: the token is
-            // read at launch and travels in the child's environment.
+            // The grace period exceeds the bounded Claude authentication probe.
             this.removeProfile(principal.data, profileId.data, provider);
             continue;
           }

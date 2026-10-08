@@ -97,6 +97,13 @@ Neighbours:
   The bounded continuation is logged with its safe category; a second failure
   cannot fall back to exec. The text path recognises Codex's status-less
   "Selected model is at capacity" refusal as service-unavailable too.
+- AGENTS.md DISCOVERY IS OFF on both Codex paths (`project_doc_max_bytes=0`,
+  2026-10-09). The cwd is an empty jail and the instructions travel by file, so
+  discovery could only find nothing; and under the `:root=deny` profile it runs
+  through Codex's fs sandbox helper, which macOS `sandbox-exec` would not let
+  exec the CLI itself — every personal-profile call died before the model
+  ("failed to load AGENTS.md instructions … execvp() … Operation not permitted"),
+  measured on the integrated assistant with a ChatGPT login.
 - Effort is pinned where the work is known: strategy calls `medium`
   ([src/atoms](../atoms/AGENTS.md)), compilation per
   [src/skills](../skills/AGENTS.md), the tissue author `high`. The molecule's

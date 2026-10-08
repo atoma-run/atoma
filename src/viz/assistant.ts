@@ -58,8 +58,9 @@ export class AssistantService {
         error: typeof status['error'] === 'string' ? status['error'] : null };
     }
     const choices = await this.models.choices(scope);
+    const subscriptions = await this.models.subscriptions(scope);
     const selected = choices.find(choice => choice.id === conversation.modelChoice);
-    return { conversation, busy, nextBefore, choices, available: choices.length > 0, model: selected?.model ?? null, run };
+    return { conversation, busy, nextBefore, choices, subscriptions, available: choices.length > 0, model: selected?.model ?? null, run };
   }
 
   async request(scope: AssistantScope, input: AssistantRequest, mcp: AssistantMcp): Promise<string> {

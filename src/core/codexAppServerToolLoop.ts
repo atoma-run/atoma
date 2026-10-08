@@ -169,6 +169,9 @@ export function codexAppServerConfig(): Record<string, unknown> {
     default_permissions: 'atoma-text-only',
     'permissions.atoma-text-only.filesystem': { ':root': 'deny', ':minimal': 'read', ':workspace_roots': { '.': 'read' } },
     'permissions.atoma-text-only.network.enabled': false,
+    // Same reason as `buildCodexArgs`: AGENTS.md discovery runs through the
+    // fs sandbox helper, which this profile cannot let exec the CLI on macOS.
+    project_doc_max_bytes: 0,
   };
 }
 

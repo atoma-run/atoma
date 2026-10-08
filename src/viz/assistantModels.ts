@@ -1,6 +1,7 @@
 import type { AuthStore } from '../auth/store.js';
 import type { AccountSubscriptionService } from '../auth/subscriptionProfiles.js';
 import type { AssistantModelChoice } from '../contracts/assistant.js';
+import type { AccountSubscriptionStatus } from '../contracts/accountSubscriptions.js';
 import { assertPersonalCodexModels, CODEX_MODEL_CAPABILITIES_ENV } from '../contracts/codexModels.js';
 import { transportOf, tryParseModelSelector, type ModelSelectorVendor } from '../contracts/modelSelector.js';
 import { PERSONAL_CODEX_PROFILE_ROOT_ENV } from '../core/codexHomeLease.js';
@@ -14,12 +15,13 @@ import { AssistantConflict, type AssistantScope } from './assistantStore.js';
 export interface AssistantModel { choice: AssistantModelChoice; llm: LlmClient }
 export interface AssistantModels {
   choices(scope: AssistantScope): Promise<AssistantModelChoice[]>;
+  subscriptions(scope: AssistantScope): Promise<AccountSubscriptionStatus[]>;
   resolve(scope: AssistantScope, id: string): Promise<AssistantModel>;
 }
 interface Options {
   host: NodeJS.ProcessEnv;
   auth: Pick<AuthStore, 'listOrgProviderKeys'>;
-  subscriptions: Pick<AccountSubscriptionService, 'codexProfileForRun' | 'claudeProfileForRun' | 'codexModels'> | null;
+  subscriptions: Pick<AccountSubscriptionService, 'codexProfileForRun' | 'claudeProfileForRun' | 'codexModels' | 'status'> | null;
   orgKey(orgId: string, vendor: ModelSelectorVendor): string | null;
   active(principalId: string): boolean;
   transport?: typeof makeTransportClient;
@@ -31,6 +33,12 @@ const operatingKeys = ['PATH', 'HOME', 'TMPDIR', 'TMP', 'TEMP', 'USER', 'LOGNAME
 /** Selection fixes BOTH model and payer. Credentials are re-resolved on every message. */
 export class ConnectedAssistantModels implements AssistantModels {
   constructor(private readonly options: Options) {}
+
+  async subscriptions(scope: AssistantScope): Promise<AccountSubscriptionStatus[]> {
+    if (!this.options.subscriptions) return [];
+    const { claude, codex } = await this.options.subscriptions.status(scope.principalId, { verify: false });
+    return [claude, codex];
+  }
 
   private platform() {
     return hostRunTitleConfig({ ...this.options.host,

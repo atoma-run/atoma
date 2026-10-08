@@ -32,7 +32,7 @@ import { AuthControls } from './AuthControls.js';
 import { useAuthController } from './session-controller.js';
 import { GpuDomBridge, SettingsProfileForm } from './DomBridge.js';
 import { McpAccess } from './McpAccessPanel.js';
-import { OrgModelsForm } from './OrgModelsForm.js';
+import { OrgModelsForm, type SettingsTab } from './OrgModelsForm.js';
 import { EntryVeilLayer } from './EntryVeilLayer.js';
 import { HandheldVeilLayer } from './HandheldVeilLayer.js';
 import { AppearanceVeilLayer, useAppearanceTransition } from './appearance-transition.js';
@@ -164,7 +164,7 @@ function GpuAppContent({
   const githubRecovery = useGpuStore(state => state.githubRecovery);
   const setGitHubRecovery = useGpuStore(state => state.setGitHubRecovery);
   const githubRecoveryLock = useRef(false);
-  const [settingsInitialTab, setSettingsInitialTab] = useState<'general' | 'mcp'>('general');
+  const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab>('general');
   const [cameraRevision, setCameraRevision] = useState(0);
   const cameraSettled = useCallback(
     () => setCameraRevision((revision) => revision + 1),
@@ -1365,13 +1365,15 @@ function GpuAppContent({
           }
         />
         {projectPreviewSelected && previewPlane}
-        {state.view === 'projects' && state.assistantOpen && authSnapshot?.viewer.activeOrganisation && authSnapshot.viewer.role !== 'org:viewer' ? <AssistantPanel
+        {state.view === 'projects' && (!state.selectedProjectId || state.projectSection === 'runs') && authSnapshot?.viewer.activeOrganisation && authSnapshot.viewer.role !== 'org:viewer' ? <AssistantPanel
           key={`${authSnapshot.viewer.principalId}:${authSnapshot.viewer.activeOrganisation.id}:${state.selectedProjectId ?? 'new'}`}
           scopeKey={`${authSnapshot.viewer.principalId}:${authSnapshot.viewer.activeOrganisation.id}`}
           projectId={state.selectedProjectId} locale={state.locale} t={t}
           inert={state.accountMenuOpen || state.localeMenuOpen || state.notificationsMenuOpen}
-          onSettings={() => { setSettingsInitialTab('general'); state.setView('settings'); }}
-          onClose={() => useGpuStore.setState({ assistantOpen: false })}
+          projectSelected={state.selectedProjectId !== null}
+          collapsed={!state.assistantOpen}
+          onToggle={() => useGpuStore.setState({ assistantOpen: !useGpuStore.getState().assistantOpen })}
+          onSettings={tab => { setSettingsInitialTab(tab); state.setView('settings'); }}
           onScopeChange={id => { state.selectProject(id); useGpuStore.setState({ assistantOpen: true }); }}
           onProject={id => state.selectProject(id)}
           onRun={(run, traceId) => {

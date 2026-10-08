@@ -397,6 +397,15 @@ export class CodexTransportError extends Error {
  *                          of Codex's own preamble (measured: -3.5k input
  *                          tokens, and the atom stops being asked to act
  *                          as "Codex, an agent based on GPT-5").
+ *   -c project_doc_max_bytes=0  no AGENTS.md discovery. The cwd is an empty
+ *                          jail and the instructions travel by file, so the
+ *                          discovery could only find nothing — and on macOS
+ *                          it runs through Codex's fs sandbox helper, which
+ *                          the `:root=deny` profile stops from exec'ing the
+ *                          CLI itself: every personal-profile call died with
+ *                          "failed to load AGENTS.md instructions … sandbox-exec:
+ *                          execvp() … Operation not permitted" before any
+ *                          model call (2026-10-09, measured on the assistant).
  */
 export function buildCodexArgs(opts: {
   model: string;
@@ -444,6 +453,8 @@ export function buildCodexArgs(opts: {
     'permissions.atoma-text-only.network.enabled=false',
     '-c',
     `model_instructions_file=${opts.instructionsFile}`,
+    '-c',
+    'project_doc_max_bytes=0',
     ...(opts.effort ? ['-c', `model_reasoning_effort=${opts.effort}`] : []),
     ...(opts.outputSchemaFile ? ['--output-schema', opts.outputSchemaFile] : []),
     // Prompt on stdin: an atom's userContent carries whole catalogs and can

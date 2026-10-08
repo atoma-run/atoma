@@ -1,7 +1,10 @@
 # Integrated assistant
 
-Projects → **Talk to Atoma** lets a signed-in member describe a new project or
-the next change without installing an external agent. The assistant prepares a
+The Projects screen opens on the **Atoma assistant** card, above the project
+list or above a selected project's runs (collapsible to its title), where a
+signed-in member describes a new project or the next change without installing
+an external agent. Creating a project moves the conversation to that project's
+page, where the first run is proposed and confirmed. The assistant prepares a
 proposal. **Create this project** creates the project; a separate **Approve and
 start run** button authorizes spending run quota. Sending a chat message never
 executes either action. Subsequent messages supersede the previous proposal.
@@ -31,7 +34,11 @@ message. The choice is independent of the three run models. Supported sources:
 The selected account is shown beside the model. A missing or revoked connection
 refuses that message without substituting another model or payer. Choices do
 not require a host API key: a connected personal subscription or organisation
-API key is sufficient. **Manage connections** opens Settings.
+API key is sufficient. If no model is available, the selector is disabled and
+the assistant shows each subscription’s state with direct connection or
+reconnection controls. **Manage connections** opens Settings → Subscriptions;
+the API-key control opens Settings → API keys. These status reads make no model
+call and expose no login codes.
 
 The selection is saved with the conversation. API-equivalent estimates describe
 usage, not an additional subscription invoice. The selected subscription's

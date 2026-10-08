@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { accountSubscriptionStatusSchema } from './accountSubscriptions.js';
 import { createProjectInputSchema, projectGoalSchema, projectIdSchema, projectRunIdSchema } from './projects.js';
 import { MAX_CHECKLIST_ITEMS, parseChecklistLines } from './acceptanceChecklist.js';
 
@@ -60,6 +61,7 @@ export type AssistantConversation = z.infer<typeof assistantConversationSchema>;
 export const assistantViewSchema = z.object({
   conversation: assistantConversationSchema, available: z.boolean(), model: z.string().nullable(), busy: z.boolean(),
   choices: z.array(assistantModelChoiceSchema).max(1500).default([]),
+  subscriptions: z.array(accountSubscriptionStatusSchema).max(2).optional(),
   nextBefore: z.number().int().positive().nullable().default(null),
   run: z.object({ status: z.string(), traceId: z.string().nullable(), costUsd: z.number().nullable(), error: z.string().nullable() }).nullable(),
 });

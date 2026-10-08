@@ -354,11 +354,23 @@ describe('full-GL minimal DOM bridge', () => {
   });
 
   it('offers the native assistant alongside the external agent setup', async () => {
-    useGpuStore.setState({ view: 'projects', entered: true });
+    // The assistant card is expanded by default; its guide button only appears
+    // while it is collapsed, and selecting a project keeps whatever state it has.
+    useGpuStore.setState({ view: 'projects', entered: true, assistantOpen: false });
     const onOpenMcp = vi.fn();
     render(createElement(DomBridge, {
       runs, releaseVersion: '9.8.7', onSelectRun: vi.fn(), onOpenMcp,
       mcpAccessState: 'unconnected',
+      // The card and its re-open button exist for a member of an organisation.
+      auth: {
+        viewer: {
+          displayName: 'Member', role: 'org:member',
+          activeOrganisation: { id: 'org-1', name: 'Org One', role: 'org:member' },
+          organisations: [], platformAdmin: false, principalId: 'principal-member',
+          avatarUrl: null, displayNameSource: 'provider',
+        },
+        failure: false, signingOut: false, switchingOrganisationId: null,
+      },
       t: (key: string, vars?: Record<string, unknown>) => translate('en', key, vars),
     }));
     expect(screen.getByRole('region', { name: 'Create a new project with Atoma' })).toBeInTheDocument();
@@ -375,9 +387,11 @@ describe('full-GL minimal DOM bridge', () => {
     expect(onOpenMcp).toHaveBeenCalledOnce();
     await user.click(screen.getByRole('button', { name: 'Talk to Atoma' }));
     expect(useGpuStore.getState().assistantOpen).toBe(true);
-    expect(screen.queryByRole('region', { name: 'Create a new project with Atoma' })).not.toBeInTheDocument();
+    // The guide stays, below the card, and the button is gone while expanded.
+    expect(screen.getByRole('region', { name: 'Create a new project with Atoma' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Talk to Atoma' })).not.toBeInTheDocument();
     act(() => useGpuStore.getState().selectProject('project-weather'));
-    expect(useGpuStore.getState().assistantOpen).toBe(false);
+    expect(useGpuStore.getState().assistantOpen).toBe(true);
   });
 
   it('uses the selected project in a short agent request without showing a run form', () => {

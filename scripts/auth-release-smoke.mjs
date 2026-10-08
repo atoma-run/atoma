@@ -3,7 +3,7 @@
 import { smokeMcpOAuth, smokeMcpAccountSwitch } from './mcp-oauth-smoke.mjs';
 import { startProvider, CookieJar, request, providerLoginUrl } from './auth-smoke-fixture.mjs';
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer as createNetServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -18,6 +18,11 @@ for (const entry of [vizEntry, authCliEntry]) {
 const scratch = mkdtempSync(join(tmpdir(), 'atoma-auth-release-'));
 const dbPath = join(scratch, 'atoma.db');
 const runsPath = join(scratch, 'runs');
+const profilesPath = join(scratch, 'account-profiles');
+// A non-directory canary makes the compiled server refuse startup if the
+// smoke accidentally forwards an inherited profile root again.
+const inheritedProfilesPath = join(scratch, 'inherited-account-profiles');
+writeFileSync(inheritedProfilesPath, 'preserve caller profiles', { mode: 0o600 });
 
 const freePort = async () =>
   await new Promise((resolvePort, rejectPort) => {
@@ -41,6 +46,7 @@ function cleanEnv(overrides) {
     'ATOMA_VIZ_TRUSTED_PROXIES',
     'ATOMA_VIZ_DEV_URL',
     'ATOMA_DB_PATH',
+    'ATOMA_ACCOUNT_PROFILES_ROOT',
     // The compiled server hosts the mechanical watch. A developer's own
     // ATOMA_RUNS_DIR would point a resident journal writer at their live
     // corpus, and the sentinel switches would decide whether this smoke's
@@ -56,7 +62,8 @@ function cleanEnv(overrides) {
     'CHATGPT_CLIENT_ID',
     'CHATGPT_CLIENT_SECRET',
   ]) delete env[key];
-  return { ...env, ...overrides };
+  // The temporary auth DB must never reconcile the developer's real logins.
+  return { ...env, ...overrides, HOME: join(scratch, 'home'), ATOMA_ACCOUNT_PROFILES_ROOT: profilesPath };
 }
 
 /**
@@ -186,6 +193,7 @@ try {
     {
       cwd: root,
       env: cleanEnv({
+        ATOMA_ACCOUNT_PROFILES_ROOT: inheritedProfilesPath,
         ATOMA_VIZ_AUTH: '1',
         ATOMA_VIZ_PUBLIC_ORIGIN: baseUrl,
         ATOMA_AUTH_GITHUB_CLIENT_ID: 'release-client',
@@ -360,6 +368,11 @@ try {
   }
 
   await smokeMcpAccountSwitch(baseUrl, memberJar.header(`${baseUrl}/oauth/authorize`));
+
+  if ((process.platform !== 'win32' && !existsSync(profilesPath)) ||
+      readFileSync(inheritedProfilesPath, 'utf8') !== 'preserve caller profiles') {
+    throw new Error('compiled auth smoke did not isolate account profiles');
+  }
 
   process.stdout.write(
     'auth release smoke ok: shell login, founder admission, CLI invite, member admission, PKCE, MCP OAuth, session gate, logout\n'

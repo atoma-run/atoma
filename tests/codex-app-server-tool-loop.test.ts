@@ -207,7 +207,7 @@ describe('Codex app-server tool session', () => {
     const spawned = fake.spawned()!;
     expect(spawned.args).toEqual(buildCodexAppServerArgs());
     expect(spawned.args.slice(0, 2)).toEqual(['app-server', '--strict-config']);
-    expect(spawned.args).toEqual(expect.arrayContaining(['--disable', 'shell_tool', '-c', 'default_permissions="atoma-text-only"']));
+    expect(spawned.args).toEqual(expect.arrayContaining(['--disable', 'shell_tool', '-c', 'default_permissions="atoma-text-only"', '-c', 'project_doc_max_bytes=0']));
     expect(spawned.env['CODEX_HOME']).not.toBe(home);
     expect(spawned.env['CODEX_HOME']).toBe(spawned.env['CODEX_SQLITE_HOME']);
     expect(spawned.env[PERSONAL_CODEX_PROFILE_ROOT_ENV]).toBeUndefined();

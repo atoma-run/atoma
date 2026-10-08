@@ -1,3 +1,4 @@
+import { EXAMPLE_ACCOUNT_SUBSCRIPTIONS } from '../src/contracts/accountSubscriptions.js';
 import { ConnectedAssistantModels } from '../src/viz/assistantModels.js';
 import type { makeTransportClient } from '../src/run/providers.js';
 import { TASKS_EXTENSION } from '../src/mcp/taskWire.js';
@@ -63,6 +64,7 @@ async function fixture() {
   const transport = vi.fn<typeof makeTransportClient>(() => ({ complete }));
   const orgKey = vi.fn((): string | null => 'customer-key');
   const subscriptions = {
+    status: vi.fn(async () => EXAMPLE_ACCOUNT_SUBSCRIPTIONS),
     codexProfileForRun: () => null,
     codexModels: async () => ({ state: 'unavailable' as const, checkedAt: null, models: [] }),
     claudeProfileForRun: vi.fn((principal: string) => principal === viewer.principalId

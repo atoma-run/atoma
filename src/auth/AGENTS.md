@@ -104,8 +104,11 @@ Loopback HTTP keeps its development cookie names and paths.
   also excludes a surviving run child or overlapping server process and is
   released by the OS after a crash. Never release it before the provider child
   is reaped. Status verification shares the bounded app-server process budget.
-  Startup removes only safe UUID generations absent from the receipt set, so a
-  crash cannot leave an unbounded credential-bearing staging corpus.
+  Startup removes only old UUID generations with a private ownership marker
+  matching the canonical path of THIS database, absent from its receipts and
+  older than the maximum login window. Foreign stores, legacy unmarked profiles
+  and pending logins survive. Moving a database preserves its old profiles;
+  it does not transfer cleanup authority. Release smokes isolate the profile root.
 - Connecting a personal subscription ARMS the three tier pins when, and only
   when, no level of the chain (account pin > org default > host env) resolves
   any tier: that member could not launch a run at all, and the account choice

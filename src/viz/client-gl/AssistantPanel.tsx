@@ -6,12 +6,22 @@ import { formatDateTime } from '../client/date-format.js';
 
 interface Props {
   scopeKey: string; projectId: string | null; locale: string; inert: boolean;
+  /** A selected project moves the card under the section tabs, like the guide. */
+  projectSelected: boolean;
+  /** Collapsed to its title line; the runs below move up. */
+  collapsed: boolean;
   t: (key: string, vars?: Record<string, unknown>) => string;
-  onSettings: () => void; onScopeChange: (id: string) => void; onClose: () => void; onProject: (id: string) => void; onRun: (run: AssistantRun, traceId: string | null) => void;
+  onToggle: () => void;
+  onSettings: (tab: 'subscriptions' | 'keys') => void; onScopeChange: (id: string) => void; onProject: (id: string) => void; onRun: (run: AssistantRun, traceId: string | null) => void;
 }
 
-/** Selectable conversation and native inputs over the Projects view's GPU-drawn panel. */
-export function AssistantPanel({ scopeKey, projectId, locale, inert, t, onSettings, onScopeChange, onClose, onProject, onRun }: Props) {
+/**
+ * Selectable conversation and native inputs over the Projects view's GPU-drawn
+ * panel. A CARD IN THE FLOW since 2026-10-09: it takes the guide's band above
+ * the project's runs instead of replacing the screen, and collapses to its
+ * title like the guide does.
+ */
+export function AssistantPanel({ scopeKey, projectId, locale, inert, projectSelected, collapsed, t, onToggle, onSettings, onScopeChange, onProject, onRun }: Props) {
   const client = useQueryClient();
   const queryKey = ['viz', 'assistant', scopeKey, projectId];
   const conversationId = useRef<string | undefined>(undefined);
@@ -29,7 +39,9 @@ export function AssistantPanel({ scopeKey, projectId, locale, inert, t, onSettin
   const mounted = useRef(true);
   const log = useRef<HTMLDivElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => { mounted.current = true; composer.current?.focus(); return () => { mounted.current = false; }; }, []);
+  // No focus on mount: the card is on screen whenever Projects is, and a
+  // textarea stealing focus from the canvas on every visit would be a defect.
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => { if (log.current) log.current.scrollTop = log.current.scrollHeight; }, [query.data?.conversation.messages.at(-1)?.id ?? query.data?.conversation.messages.length]);
   const conversation = query.data?.conversation;
   useEffect(() => {
@@ -96,23 +108,38 @@ export function AssistantPanel({ scopeKey, projectId, locale, inert, t, onSettin
     } catch { setError(t('assistant.copyFailed')); }
   }
 
-  return <section className={`gpu-assistant${inert ? ' gpu-overlays-veiled' : ''}`} inert={inert}
-    aria-labelledby="assistant-title" onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); onClose(); } }}>
-    <header><div><h2 id="assistant-title">{t('assistant.title')}</h2><p>{t('assistant.intro')}</p></div>
-      <button type="button" onClick={onClose}>{t('assistant.close')}</button></header>
+  const header = <header>
+    <h2 id="assistant-title"><button type="button" className="gpu-assistant-toggle" aria-expanded={!collapsed} aria-controls="assistant-content" onClick={onToggle}>
+      <span aria-hidden="true">{collapsed ? '▸' : '▾'}</span> {t('assistant.title')}</button></h2>
+    {collapsed ? null : <p>{t('assistant.intro')}</p>}
+  </header>;
+  const className = `gpu-assistant${projectSelected ? ' gpu-assistant--selected' : ''}${collapsed ? ' gpu-assistant--collapsed' : ''}${inert ? ' gpu-overlays-veiled' : ''}`;
+  if (collapsed) return <section className={className} inert={inert} aria-labelledby="assistant-title">{header}</section>;
+  return <section className={className} inert={inert}
+    aria-labelledby="assistant-title" onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); onToggle(); } }}>
+    {header}
+    <div id="assistant-content" className="gpu-assistant-content">
     {conversation?.id ? <div className="gpu-assistant-handoff"><button type="button" onClick={() => void copyContinuation()}>
       {t(copied ? 'assistant.continuationCopied' : 'assistant.continueElsewhere')}</button><small>{t('assistant.continuityHint')}</small></div> : null}
     {query.isError ? <div role="alert"><p>{t('assistant.failed')}</p><button onClick={() => void query.refetch()}>{t('assistant.retry')}</button></div> : null}
     {query.isPending ? <p role="status">{t('assistant.loading')}</p> : null}
     {query.data ? <div className="gpu-assistant-connection">
       <label htmlFor="assistant-model">{t('assistant.model')}</label>
-      <select id="assistant-model" value={modelChoice} disabled={waiting} onChange={event => { setSelection(event.target.value); pending.current = null; }}>
-        <option value="">{t('assistant.chooseModel')}</option>
+      <select id="assistant-model" value={modelChoice} disabled={waiting || choices.length === 0} onChange={event => { setSelection(event.target.value); pending.current = null; }}>
+        <option value="">{t(choices.length ? 'assistant.chooseModel' : 'assistant.noModels')}</option>
         {modelChoice && !selected ? <option value={modelChoice}>{t('assistant.connectionUnavailable')}</option> : null}
         {choices.map(choice => <option key={choice.id} value={choice.id}>{choice.label} · {t(`assistant.payer.${choice.payer}`)}</option>)}
       </select>
-      <button type="button" onClick={onSettings}>{t('assistant.connections')}</button>
+      <button type="button" onClick={() => onSettings('subscriptions')}>{t('assistant.connections')}</button>
       {selected ? <small>{t(`assistant.payer.${selected.payer}`)}</small> : <small role="status">{t(!query.data.available ? 'assistant.unavailable' : modelChoice ? 'assistant.connectionUnavailable' : 'assistant.chooseModel')}</small>}
+    </div> : null}
+    {query.data && choices.length === 0 ? <div className="gpu-assistant-setup">
+      {(query.data.subscriptions ?? []).map(subscription => <div key={subscription.provider}>
+        <span>{subscription.provider === 'claude' ? 'Claude' : 'ChatGPT'} · {t(`settings.subscriptionState.${subscription.state}`)}</span>
+        <button type="button" onClick={() => onSettings('subscriptions')}>{t(subscription.state === 'connected' || subscription.state === 'connecting' ? 'assistant.connections' :
+          `settings.subscription${subscription.state === 'reauth_required' ? 'Reconnect' : 'Connect'}${subscription.provider === 'claude' ? 'Claude' : ''}`)}</button>
+      </div>)}
+      <button type="button" onClick={() => onSettings('keys')}>{t('assistant.apiKeys')}</button>
     </div> : null}
     <div className="gpu-assistant-log" ref={log} role="log" aria-label={t('assistant.conversation')} aria-live="polite" aria-relevant="additions">
       {before ? <button type="button" disabled={loadingHistory} onClick={() => void loadOlder()}>{t('assistant.olderMessages')}</button> : null}
@@ -150,12 +177,13 @@ export function AssistantPanel({ scopeKey, projectId, locale, inert, t, onSettin
     {error ? <p role="alert" className="gpu-assistant-error">{error}</p> : null}
     <form onSubmit={event => { event.preventDefault(); void submit('message'); }}>
       <label htmlFor="assistant-message">{t('assistant.message')}</label>
-      <textarea id="assistant-message" ref={composer} value={draft} maxLength={4000} rows={3}
+      <textarea id="assistant-message" ref={composer} value={draft} maxLength={4000} rows={2}
         placeholder={t('assistant.placeholder')} disabled={waiting || !canSend}
         onChange={event => { setDraft(event.target.value); pending.current = null; }} />
       <div className="gpu-assistant-footer"><small>{t('assistant.cost', { cost: (conversation?.costUsd ?? 0).toFixed(4) })}</small>
         <button type="submit" className="gpu-assistant-primary" disabled={waiting || !draft.trim() || !canSend}>
           {t(waiting ? 'assistant.working' : 'assistant.send')}</button></div>
     </form>
+    </div>
   </section>;
 }

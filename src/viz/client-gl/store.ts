@@ -441,7 +441,9 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   selectedSkill: null,
   selectedProjectId: null,
   projectMcpCollapsed: false,
-  assistantOpen: false,
+  // Expanded by default since 2026-10-09: the conversation IS the first thing
+  // on a project, before its runs. The toggle collapses it to its title.
+  assistantOpen: true,
   projectSection: 'runs',
   workspaceRunId: null,
   githubRecovery: null,
@@ -662,7 +664,6 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   selectSkill: (selectedSkill) => set({ selectedSkill }),
   selectProject: (selectedProjectId) => set((state) => ({
     selectedProjectId,
-    assistantOpen: false,
     projectSection: 'runs',
     workspaceRunId: null, workspacePath: '',
     resultRunId: null,

@@ -226,6 +226,16 @@ describe('buildCodexArgs — the isolation guarantees live here', () => {
     expect(args).toContain('cli_auth_credentials_store="file"');
   });
 
+  // Measured 2026-10-09 on the integrated assistant: with the profile above,
+  // Codex 0.156 on macOS loads AGENTS.md through its fs sandbox helper, and
+  // `sandbox-exec` refused to exec the CLI ("execvp() … Operation not
+  // permitted"), so every personal-profile call failed before the model.
+  // The jail is empty and the instructions travel by file: discovery is off.
+  it('turns AGENTS.md discovery off, which the sandboxed profile could not perform anyway', () => {
+    expect(args).toContain('project_doc_max_bytes=0');
+    expect(args[args.indexOf('project_doc_max_bytes=0') - 1]).toBe('-c');
+  });
+
   it('removes every avoidable Codex tool from a text-only completion', () => {
     const disabled = args.flatMap((arg, index) =>
       arg === '--disable' ? [args[index + 1]] : []

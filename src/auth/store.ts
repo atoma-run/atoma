@@ -1,4 +1,5 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { realpathSync } from 'node:fs';
 import Database from 'better-sqlite3';
 import {
   EMPTY_TIER_MODEL_PINS,
@@ -672,11 +673,15 @@ function personalOrganisationName(displayName: string): string {
 
 export class AuthStore {
   readonly mcpOAuth: McpOAuthStore;
+  /** Local credential-GC ownership, never an API identity or a copied DB row. */
+  readonly subscriptionProfileOwner: string;
   private readonly db: Database.Database;
   private readonly closeOnClose: boolean;
 
   constructor(db: Database.Database, options: AuthStoreOptions = {}) {
     this.db = db;
+    this.subscriptionProfileOwner = createHash('sha256')
+      .update(db.memory || !db.name ? randomUUID() : realpathSync(db.name)).digest('hex');
     this.mcpOAuth = new McpOAuthStore(db);
     this.closeOnClose = options.closeOnClose ?? false;
     this.db.pragma('foreign_keys = ON');

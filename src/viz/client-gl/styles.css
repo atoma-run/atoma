@@ -551,6 +551,11 @@ html.atoma-cursor-active * {
   top: 148px;
 }
 
+/* Below the assistant card: its height plus the 16px gap, expanded or
+   collapsed (PROJECTS_ASSISTANT_HEIGHT / PROJECTS_ASSISTANT_COLLAPSED_HEIGHT). */
+.gpu-project-mcp--after-assistant { top: calc(var(--gpu-overlay-top) + 536px); }
+.gpu-project-mcp--after-assistant-collapsed { top: calc(var(--gpu-overlay-top) + 64px); }
+
 /* The GPU view draws the card's frame through its shared panel path. */
 .gpu-project-mcp.gpu-panel-skin {
   background: transparent;
@@ -1710,34 +1715,45 @@ html.atoma-cursor-active * {
   pointer-events: none;
 }
 
-/* The frame is drawn by drawProjects, in the same GPU material as its neighbours. */
+/* The frame is drawn by drawProjects, in the same GPU material as its
+   neighbours. A CARD IN THE FLOW (2026-10-09): the guide's band, then the
+   guide, then the runs. `top` and `height` must match PROJECTS_MCP_GUIDE_TOP,
+   PROJECTS_SELECTED_MCP_GUIDE_TOP, PROJECTS_ASSISTANT_HEIGHT and
+   PROJECTS_ASSISTANT_COLLAPSED_HEIGHT in renderer/views/projects.ts. */
 .gpu-assistant {
   --gpu-content: calc(100vw - var(--gpu-sidebar));
   --gpu-overlay-top: 104px;
   --gpu-overlay-left: calc(var(--gpu-sidebar) + 26px);
-  position: fixed; z-index: 4; top: var(--gpu-overlay-top); bottom: 32px;
+  position: fixed; z-index: 4; top: var(--gpu-overlay-top); height: 520px;
   left: var(--gpu-overlay-left); width: calc(var(--gpu-content) - 52px);
-  display: flex; flex-direction: column; gap: 12px; padding: 16px; box-sizing: border-box;
+  display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; box-sizing: border-box;
   color: #e6edf7; font: 14px/1.5 ui-sans-serif, system-ui, sans-serif;
 }
-.gpu-scene-camera .gpu-assistant {
-  bottom: max(32px, calc(100vh - var(--gpu-camera-bottom-left-y) + 32px));
+.gpu-assistant--selected { --gpu-overlay-top: 148px; }
+.gpu-assistant--collapsed { height: 48px; overflow: hidden; }
+.gpu-assistant-content { display: flex; flex: 1; min-height: 0; flex-direction: column; gap: 10px; }
+/* The title is the toggle, plain like the guide's: it must beat the panel's
+   generic `.gpu-assistant button` skin below. */
+.gpu-assistant .gpu-assistant-toggle {
+  display: block; width: 100%; padding: 0; border: 0; border-radius: 0; background: transparent;
+  color: inherit; font: inherit; text-align: left; cursor: pointer; min-height: 0;
 }
-.gpu-assistant header, .gpu-assistant-footer, .gpu-assistant-run {
+.gpu-assistant header { display: flex; flex-direction: column; gap: 2px; }
+.gpu-assistant-footer, .gpu-assistant-run {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
 }
 .gpu-assistant h2, .gpu-assistant h3, .gpu-assistant p { margin: 0; }
 .gpu-assistant h2 { font-size: 18px; }
 .gpu-assistant h3 { font-size: 15px; }
 .gpu-assistant header p, .gpu-assistant small, .gpu-assistant-message-meta { color: #b5c5dc; font-size: 12px; }
-.gpu-assistant-log { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; user-select: text; }
+.gpu-assistant-log { flex: 1; min-height: 96px; overflow-y: auto; overscroll-behavior: contain; user-select: text; }
 .gpu-assistant-message, .gpu-assistant-proposal { padding: 14px 0; border-bottom: 1px solid #ffffff26; overflow-wrap: anywhere; }
 .gpu-assistant-message p, .gpu-assistant-proposal p { white-space: pre-wrap; margin: 8px 0; }
 .gpu-assistant-message--user { padding-left: 18px; border-left: 2px solid #81adce; }
 .gpu-assistant-message-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
 .gpu-assistant-empty { padding: 24px 0; color: #b5c5dc; }
 .gpu-assistant form { display: flex; flex-direction: column; gap: 6px; }
-.gpu-assistant textarea { resize: vertical; min-height: 64px; max-height: 180px; width: 100%; box-sizing: border-box;
+.gpu-assistant textarea { resize: vertical; min-height: 44px; max-height: 180px; width: 100%; box-sizing: border-box;
   border: 1px solid #7b9db9; border-radius: 8px; background: #071427a8; color: #e6edf7; padding: 10px; font: inherit; }
 .gpu-assistant button { cursor: pointer; border: 1px solid #7b9db9; border-radius: 7px; color: #e6edf7;
   background: #152b42; padding: 8px 12px; min-height: 36px; font: inherit; }
@@ -1757,7 +1773,6 @@ html.atoma-cursor-active * {
 
 @media (max-width: 600px) {
   .gpu-assistant h2 { font-size: 15px; }
-  .gpu-assistant header button { font-size: 12px; white-space: nowrap; padding: 8px; }
   .gpu-assistant-handoff button { width: 100%; font-size: 12px; padding: 8px; }
   .gpu-assistant-handoff small { display: none; }
   .gpu-assistant-footer { flex-wrap: nowrap; }
@@ -1768,3 +1783,8 @@ html.atoma-cursor-active * {
 .gpu-assistant-connection label { font-size: 12px; }
 .gpu-assistant-connection select { flex: 1; min-width: 160px; max-width: 100%; color: inherit; background: #182a42; border: 1px solid #526781; border-radius: 6px; padding: 7px; }
 .gpu-assistant-connection small { flex-basis: 100%; }
+
+.gpu-assistant-setup { display: grid; gap: 8px; padding-bottom: 12px; }
+.gpu-assistant-setup > div { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.gpu-assistant-setup > div span { flex: 1; min-width: 140px; font-size: 13px; }
+.gpu-assistant-setup > button { justify-self: start; }

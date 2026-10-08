@@ -1703,7 +1703,6 @@
   "assistant.open": "Talk to Atoma",
   "assistant.title": "Atoma assistant",
   "assistant.intro": "Describe your idea. Review the proposal before creating a project or starting a run.",
-  "assistant.close": "Back to projects",
   "assistant.requestFailed": "No proposal was prepared for that message. You can ask again; no action was taken.",
   "assistant.actionUncertain": "This action could not be confirmed. Inspect Projects and Runs before requesting another action.",
   "assistant.failed": "The conversation could not be loaded.",
@@ -1749,6 +1748,8 @@
   "assistant.chooseModel": "Choose a model and account",
   "assistant.connectionUnavailable": "Selected connection unavailable — choose a connection or check Settings",
   "assistant.connections": "Manage connections",
+  "assistant.noModels": "No connected model available",
+  "assistant.apiKeys": "Manage organisation API keys",
   "assistant.payer.principal-subscription": "Your subscription quota",
   "assistant.payer.org-key": "Your organisation’s API key",
   "assistant.payer.host-key": "Atoma’s API connection"

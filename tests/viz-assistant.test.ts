@@ -10,6 +10,7 @@ import { api } from '../src/viz/client/data-api.js';
 import { translate } from '../src/viz/client/i18n-catalog.js';
 import { emptyConversation } from '../src/viz/assistantStore.js';
 import type { AssistantView } from '../src/contracts/assistant.js';
+import { EXAMPLE_ACCOUNT_SUBSCRIPTIONS } from '../src/contracts/accountSubscriptions.js';
 
 const clients: QueryClient[] = [];
 afterEach(() => { cleanup(); clients.splice(0).forEach(client => client.clear()); vi.restoreAllMocks(); });
@@ -21,7 +22,8 @@ function panel(data: AssistantView = view()) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } }); clients.push(client);
   const props = { scopeKey: 'alice:org-a', projectId: null, locale: 'en', inert: false,
     t: (key: string, vars?: Record<string, unknown>) => translate('en', key, vars),
-    onSettings: vi.fn(), onScopeChange: vi.fn(), onClose: vi.fn(), onProject: vi.fn(), onRun: vi.fn() };
+    projectSelected: false, collapsed: false, onToggle: vi.fn(),
+    onSettings: vi.fn(), onScopeChange: vi.fn(), onProject: vi.fn(), onRun: vi.fn() };
   render(createElement(QueryClientProvider, { client }, createElement(AssistantPanel, props)));
   return { client, props };
 }
@@ -84,12 +86,48 @@ it('shows run status, opens the existing run view and separates conversation cos
   expect(props.onRun).toHaveBeenCalledWith(data.conversation.lastRun, 'trace-1');
 });
 
-it('disables inference on an unconfigured host and offers a close control', async () => {
+it('disables inference on an unconfigured host and collapses to its title like the guide', async () => {
   const { props } = panel({ ...view(), available: false, choices: [], model: null });
   await screen.findByText(/Connect your personal subscription/);
   expect(screen.getByRole('textbox')).toBeDisabled();
-  await userEvent.click(screen.getByRole('button', { name: 'Back to projects' }));
-  expect(props.onClose).toHaveBeenCalledOnce();
+  expect(screen.getByRole('combobox', { name: 'Assistant model' })).toBeDisabled();
+  const toggle = screen.getByRole('button', { name: 'Atoma assistant' });
+  expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await userEvent.click(toggle);
+  expect(props.onToggle).toHaveBeenCalledOnce();
+});
+
+// A card in the flow (2026-10-09): collapsed, only the title line remains and
+// the runs below move up; the conversation query still runs so expanding is
+// instant.
+it('renders only its title when collapsed', async () => {
+  vi.spyOn(api, 'assistant').mockResolvedValue(view());
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } }); clients.push(client);
+  const onToggle = vi.fn();
+  render(createElement(QueryClientProvider, { client }, createElement(AssistantPanel, {
+    scopeKey: 'alice:org-a', projectId, locale: 'en', inert: false, projectSelected: true, collapsed: true, onToggle,
+    t: (key: string, vars?: Record<string, unknown>) => translate('en', key, vars),
+    onSettings: vi.fn(), onScopeChange: vi.fn(), onProject: vi.fn(), onRun: vi.fn() })));
+  const toggle = screen.getByRole('button', { name: 'Atoma assistant' });
+  expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  expect(screen.queryByRole('textbox')).toBeNull();
+  expect(document.querySelector('.gpu-assistant')).toHaveClass('gpu-assistant--collapsed', 'gpu-assistant--selected');
+  await userEvent.click(toggle);
+  expect(onToggle).toHaveBeenCalledOnce();
+});
+
+it('explains missing connections and opens the relevant Settings tab directly', async () => {
+  const { props } = panel({ ...view(), available: false, choices: [], model: null, subscriptions:
+    [EXAMPLE_ACCOUNT_SUBSCRIPTIONS.claude, EXAMPLE_ACCOUNT_SUBSCRIPTIONS.codex].map(status => ({ ...status, state: 'reauth_required' })) });
+  expect(await screen.findByText('Claude · Reconnect required')).toBeVisible();
+  expect(screen.getByText('ChatGPT · Reconnect required')).toBeVisible();
+  expect(screen.getByRole('combobox')).toBeDisabled();
+  await userEvent.click(screen.getByRole('button', { name: 'Reconnect Claude' }));
+  expect(props.onSettings).toHaveBeenLastCalledWith('subscriptions');
+  await userEvent.click(screen.getByRole('button', { name: 'Reconnect ChatGPT' }));
+  expect(props.onSettings).toHaveBeenLastCalledWith('subscriptions');
+  await userEvent.click(screen.getByRole('button', { name: 'Manage organisation API keys' }));
+  expect(props.onSettings).toHaveBeenLastCalledWith('keys');
 });
 
 

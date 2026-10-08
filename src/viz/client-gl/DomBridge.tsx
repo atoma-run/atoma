@@ -235,12 +235,20 @@ export function DomBridge({
   const selectedProjectId = useGpuStore((state) => state.selectedProjectId);
   const projectSection = useGpuStore((state) => state.projectSection);
   const projectMcpCollapsed = useGpuStore(state => state.projectMcpCollapsed);
+  const assistantOpen = useGpuStore((state) => state.assistantOpen);
+  // The assistant card sits above this guide on the same screens, for members
+  // of an organisation; the guide's offset follows its expanded/collapsed state.
+  const assistantShown = Boolean(auth?.viewer.activeOrganisation) && auth?.viewer.role !== 'org:viewer';
+  // ONE automatic rule for the guide: it folds to its title once an external
+  // agent is connected, and (2026-10-09) while the assistant card above it is
+  // expanded — the conversation is the primary path then, and an open guide
+  // under a 520px card pushed the project list below the fold. The toggle
+  // still reopens it until the next change of either fact.
   useLayoutEffect(() => {
-    useGpuStore.setState({ projectMcpCollapsed: mcpAccessState === 'connected' });
-  }, [mcpAccessState]);
+    useGpuStore.setState({ projectMcpCollapsed: mcpAccessState === 'connected' || (assistantShown && assistantOpen) });
+  }, [mcpAccessState, assistantShown, assistantOpen]);
   const selectedDocsTheme = useGpuStore((state) => state.selectedDocsTheme);
   const accountMenuOpen = useGpuStore((state) => state.accountMenuOpen);
-  const assistantOpen = useGpuStore((state) => state.assistantOpen);
   const localeMenuOpen = useGpuStore((state) => state.localeMenuOpen);
   const notificationsMenuOpen = useGpuStore((state) => state.notificationsMenuOpen);
   const focusedInput = useGpuStore((state) => state.focusedInput);
@@ -582,9 +590,9 @@ export function DomBridge({
           onChange={(event) => setSearch('skills', event.target.value)}
         />
       ) : null}
-      {projectGuideEnabled && view === 'projects' && !assistantOpen && (!selectedProjectId || projectSection === 'runs') ? (
+      {projectGuideEnabled && view === 'projects' && (!selectedProjectId || projectSection === 'runs') ? (
         <section
-          className={`gpu-panel-skin gpu-project-mcp${projectMcpCollapsed ? ' gpu-project-mcp--collapsed' : ''}${selectedProjectId ? ' gpu-project-mcp--selected' : ''}${overlaysInert ? ' gpu-overlays-veiled' : ''}`}
+          className={`gpu-panel-skin gpu-project-mcp${projectMcpCollapsed ? ' gpu-project-mcp--collapsed' : ''}${selectedProjectId ? ' gpu-project-mcp--selected' : ''}${assistantShown ? (assistantOpen ? ' gpu-project-mcp--after-assistant' : ' gpu-project-mcp--after-assistant-collapsed') : ''}${overlaysInert ? ' gpu-overlays-veiled' : ''}`}
           inert={overlaysInert}
           aria-label={projectGuideTitle}
         >
@@ -604,7 +612,7 @@ export function DomBridge({
               : t('projects.mcpCreateIntro')}</p>
             <p className="gpu-project-mcp-request">{projectRequest}</p>
             <div className="gpu-project-mcp-actions">
-              {auth?.viewer.role !== 'org:viewer' ? <button type="button" data-testid="assistant-open" onClick={() => useGpuStore.setState({ assistantOpen: true })}>
+              {assistantShown && !assistantOpen ? <button type="button" data-testid="assistant-open" onClick={() => useGpuStore.setState({ assistantOpen: true })}>
                 {t('assistant.open')}
               </button> : null}
               {projectAdmin && selectedProject?.repositoryTarget?.source?.mode === 'fork' ?

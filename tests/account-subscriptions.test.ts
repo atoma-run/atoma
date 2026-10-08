@@ -12,6 +12,7 @@ import {
   rmSync,
   symlinkSync,
   unlinkSync,
+  utimesSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -27,6 +28,8 @@ import {
   ClaudeSubscriptionUnavailableError,
   CodexSubscriptionCapacityError,
   MAX_PENDING_CODEX_LOGINS,
+  PROFILE_OWNER_FILENAME,
+  PROFILE_ORPHAN_GRACE_MS,
   type ClaudeAuthProbe,
   type ClaudeAuthProbeInput,
   type CodexProfileForRun,
@@ -254,7 +257,54 @@ function createStoredProfile(
   return { profileId, homePath, profilesRoot };
 }
 
+function markOrphan(directory: string, owner = store.subscriptionProfileOwner): void {
+  const marker = path.join(directory, PROFILE_OWNER_FILENAME);
+  writeFileSync(marker, owner, { mode: 0o600 });
+  const old = new Date(Date.now() - PROFILE_ORPHAN_GRACE_MS - 60_000);
+  utimesSync(marker, old, old);
+}
+
 describe('principal subscription receipts', () => {
+  posixIt('keeps another database’s profiles, even when a copied principal has no receipt', async () => {
+    const alice = viewer('shared-root');
+    const profilesRoot = path.join(temporaryRoot, 'profiles');
+    const original = new AccountSubscriptionService({ auth: store, profilesRoot,
+      probeClaudeAuth: async () => ({ loggedIn: true, authMethod: 'oauth_token' }) });
+    services.push(original);
+    await original.connectClaude(alice.principalId, alice.orgId, 'sk-ant-oat01-test-token-with-enough-characters');
+    const profile = original.claudeProfileForRun(alice.principalId)!;
+    markOrphan(profile.homePath);
+    const copyPath = path.join(temporaryRoot, 'stale-copy.db');
+    await db.backup(copyPath);
+    for (const databasePath of [':memory:', copyPath]) {
+      const foreignDb = new Database(databasePath);
+      const foreignStore = new AuthStore(foreignDb);
+      foreignDb.prepare('DELETE FROM auth_principal_subscriptions').run();
+      try {
+        const other = new AccountSubscriptionService({ auth: foreignStore, profilesRoot });
+        services.push(other);
+        expect(original.claudeProfileForRun(alice.principalId)?.homePath).toBe(profile.homePath);
+        expect(readFileSync(path.join(profile.homePath, CLAUDE_TOKEN_FILENAME), 'utf8')).toContain('test-token');
+      } finally { foreignDb.close(); }
+    }
+  });
+
+  posixIt('shares cleanup ownership only across opens of the same physical database', () => {
+    const firstPath = path.join(temporaryRoot, 'first.db');
+    const firstDb = new Database(firstPath);
+    const reopenedDb = new Database(firstPath);
+    const aliasPath = path.join(temporaryRoot, 'alias.db');
+    symlinkSync(firstPath, aliasPath);
+    const aliasDb = new Database(aliasPath);
+    const otherDb = new Database(path.join(temporaryRoot, 'other.db'));
+    try {
+      const first = new AuthStore(firstDb);
+      expect(new AuthStore(reopenedDb).subscriptionProfileOwner).toBe(first.subscriptionProfileOwner);
+      expect(new AuthStore(aliasDb).subscriptionProfileOwner).toBe(first.subscriptionProfileOwner);
+      expect(new AuthStore(otherDb).subscriptionProfileOwner).not.toBe(first.subscriptionProfileOwner);
+    } finally { for (const handle of [firstDb, reopenedDb, aliasDb, otherDb]) handle.close(); }
+  });
+
   it('isolates principals and stores metadata without credential bytes', () => {
     const alice = viewer('alice');
     const bob = viewer('bob');
@@ -516,6 +566,7 @@ describe('personal Claude Code tokens', () => {
     const orphan = path.join(path.dirname(kept), randomUUID());
     mkdirSync(orphan, { mode: 0o700 });
     writeFileSync(path.join(orphan, CLAUDE_TOKEN_FILENAME), 'sk-ant-oat01-orphan', { mode: 0o600 });
+    markOrphan(orphan);
     first.close();
 
     const second = claudeService(accepting);
@@ -924,6 +975,12 @@ describe.skipIf(process.platform === 'win32')('principal Codex profile service',
       profileId: referenced.profileId,
     });
     const orphan = createStoredProfile(profilesRoot, alice.principalId);
+    markOrphan(orphan.homePath);
+    const legacy = createStoredProfile(profilesRoot, alice.principalId);
+    const recent = createStoredProfile(profilesRoot, alice.principalId);
+    writeFileSync(path.join(recent.homePath, PROFILE_OWNER_FILENAME), store.subscriptionProfileOwner, { mode: 0o600 });
+    const foreign = createStoredProfile(profilesRoot, alice.principalId);
+    markOrphan(foreign.homePath, 'f'.repeat(64));
     const providerRoot = path.dirname(orphan.homePath);
     const unknown = path.join(providerRoot, 'operator-note');
     mkdirSync(unknown);
@@ -948,7 +1005,10 @@ describe.skipIf(process.platform === 'win32')('principal Codex profile service',
     expect(existsSync(referenced.homePath)).toBe(true);
     expect(existsSync(orphan.homePath)).toBe(false);
     expect(existsSync(unknown)).toBe(true);
-    expect(existsSync(linkedGeneration)).toBe(false);
+    expect(existsSync(linkedGeneration)).toBe(true);
+    expect(existsSync(legacy.homePath)).toBe(true);
+    expect(existsSync(recent.homePath)).toBe(true);
+    expect(existsSync(foreign.homePath)).toBe(true);
     expect(readFileSync(marker, 'utf8')).toBe('keep');
     expect(readFileSync(path.join(bobOutside, 'keep.txt'), 'utf8')).toBe('keep');
   });

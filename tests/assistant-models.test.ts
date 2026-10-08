@@ -1,3 +1,4 @@
+import { EXAMPLE_ACCOUNT_SUBSCRIPTIONS } from '../src/contracts/accountSubscriptions.js';
 import { describe, expect, it, vi } from 'vitest';
 import type { CodexModelInventory } from '../src/contracts/codexModels.js';
 import { LLM_PROVIDER_CATALOG } from '../src/core/providerCatalog.js';
@@ -15,6 +16,7 @@ function fixture() {
   const inventory: CodexModelInventory = { state: 'ready', checkedAt: new Date().toISOString(), models: [{ id: 'future-model', label: 'Future model',
     isDefault: true, defaultReasoningEffort: 'medium', supportedReasoningEfforts: ['low', 'medium'] }] };
   const subscriptions = {
+    status: vi.fn(async () => EXAMPLE_ACCOUNT_SUBSCRIPTIONS),
     codexProfileForRun: vi.fn((principal: string) => principal === 'alice' ? codex : null),
     claudeProfileForRun: vi.fn((principal: string) => principal === 'alice' ? claude : null),
     codexModels: vi.fn(async (_principal: string, _refresh?: boolean, _cached?: boolean) => inventory),
@@ -29,6 +31,14 @@ function fixture() {
 }
 
 describe('assistant customer connections', () => {
+  it('reports local connection states without verifying accounts or exposing device codes', async () => {
+    const f = fixture();
+    const states = await f.models.subscriptions(scope);
+    expect(states).toEqual([EXAMPLE_ACCOUNT_SUBSCRIPTIONS.claude, EXAMPLE_ACCOUNT_SUBSCRIPTIONS.codex]);
+    expect(f.subscriptions.status).toHaveBeenCalledWith(scope.principalId, { verify: false });
+    expect(f.subscriptions.codexModels).not.toHaveBeenCalled();
+    expect(f.transport).not.toHaveBeenCalled();
+  });
   it('offers public models and payer attribution without exposing any credential or profile', async () => {
     const f = fixture();
     const choices = await f.models.choices(scope);

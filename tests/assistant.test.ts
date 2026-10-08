@@ -59,7 +59,7 @@ function fixture(action: AssistantAction | null = { kind: 'create_project', proj
   });
   const mcp: AssistantMcp = { call, close: async () => {} };
   const choice = { id: 'platform:api:anthropic:claude-haiku-4-5-20251001', model: 'api:anthropic:claude-haiku-4-5-20251001', label: 'Haiku', payer: 'host-key' as const };
-  const service = new AssistantService(store, { choices: async () => [choice], resolve: async () => ({ choice, llm: { complete } }) });
+  const service = new AssistantService(store, { choices: async () => [choice], subscriptions: async () => [], resolve: async () => ({ choice, llm: { complete } }) });
   const scope = service.scope(viewer, null);
   const message = (text = 'Build a stock tracker'): AssistantRequest => ({ kind: 'message', requestId: randomUUID(),
     version: store.read(scope).conversation.version, projectId: null, text });

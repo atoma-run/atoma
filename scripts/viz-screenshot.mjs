@@ -76,7 +76,8 @@ const platformAdmin = has('--platform-admin');
 const settingsTab = arg('--settings-tab', 'general');
 const tuning = has('--tuning');
 const selectFirst = has('--select-first');
-const showAssistant = has('--assistant');
+const assistantReconnect = has('--assistant-reconnect');
+const showAssistant = has('--assistant') || assistantReconnect;
 const assistantFixture = {
   choices: [{ id: 'own:anthropic:haiku', model: 'own:anthropic:haiku', label: 'Claude · Haiku (beta)', payer: 'principal-subscription' }], nextBefore: null, available: true, model: 'api:anthropic:claude-haiku-4-5-20251001', busy: false, run: null,
   conversation: { id: 'f1195226-8f11-4bca-b408-1e6c10f8b353', projectId: null, version: 1, lastRequestId: null, lastRun: null, modelChoice: 'own:anthropic:haiku', costUsd: 0.0012, inputTokens: 900, outputTokens: 240,
@@ -91,6 +92,15 @@ const assistantFixture = {
     } } },
   },
 };
+if (assistantReconnect) {
+  assistantFixture.choices = [];
+  assistantFixture.available = false;
+  assistantFixture.model = null;
+  assistantFixture.subscriptions = ['claude', 'codex'].map(provider => ({ provider,
+    state: 'reauth_required', connectedAt: null, lastVerifiedAt: null, reason: 'authentication-required' }));
+  assistantFixture.conversation = { ...assistantFixture.conversation, id: null, modelChoice: undefined,
+    messages: [], proposal: null, costUsd: 0, inputTokens: 0, outputTokens: 0 };
+}
 const githubAccess = has('--github-access');
 const githubAccessProbe = has('--github-access-probe');
 const resultArtwork = has('--result-artwork');
@@ -682,7 +692,14 @@ try {
       page.on('response', (response) => {
         if (response.status() >= 400) console.error(`[http ${response.status()}] ${response.url().slice(0, 140)}`);
       });
+
     }
+
+    // A navigation after the first load destroys every evaluation in flight;
+    // name it, so "Execution context was destroyed" has a cause.
+    page.on('framenavigated', (frame) => {
+      if (frame === page.mainFrame()) console.error(`[navigated] ${frame.url().slice(0, 160)}`);
+    });
 
     if (authed) {
       const stubs = gatedStubs();
@@ -692,7 +709,8 @@ try {
         // handler died is never continued and the page hangs on it forever.
         try {
           const path = new URL(request.url()).pathname;
-          if (showAssistant && path === '/api/assistant') {
+          // The assistant card is on every authed Projects shot (2026-10-09).
+          if (path === '/api/assistant') {
             void request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify(assistantFixture) });
             return;
           }
@@ -712,7 +730,11 @@ try {
             void request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify(runs[0]) });
             return;
           }
-          const stub = stubs[path];
+          // A selected project asks for its latest delivered run's preview;
+          // every run of the fixture project answers with the one preview stub.
+          const stub = stubs[path] ?? (/^\/api\/projects\/[^/]+\/runs\/[^/]+\/preview$/.test(path)
+            ? stubs[`/api/projects/${path.split('/')[3]}/runs/run-fixture/preview`]
+            : undefined);
           if (stub !== undefined) {
             void request.respond({
               status: 200,
@@ -918,8 +940,10 @@ try {
         const handle = globalThis.__ATOMA_GPU__;
         const row = handle?.hitTargets().find((entry) => entry.id.startsWith(key));
         if (!row || !handle.projectRendererPoint) return null;
+        // On the row's name, never its centre: a project row carries its
+        // repository link on the right, and a click there leaves the page.
         return handle.projectRendererPoint(
-          row.x + row.width / 2,
+          row.x + Math.min(row.width / 2, 160),
           row.y + row.height / 2
         );
       }, prefix);
@@ -1042,24 +1066,39 @@ try {
 
     if (showAssistant) {
       if (!authed || view !== 'Projects') throw new Error('--assistant requires --auth and Projects');
+      // The card is open by default (2026-10-09); the guide's button only
+      // exists while it is collapsed, and then it is the way back in.
       const button = await page.$('[data-testid="assistant-open"]');
-      if (!button) throw new Error('The integrated assistant entry is missing');
-      await button.click();
-      try { await page.waitForSelector('.gpu-assistant-proposal', { timeout: 10_000 }); }
+      if (button) await button.click();
+      if (!(await page.$('.gpu-assistant'))) throw new Error('The integrated assistant card is missing');
+      try { await page.waitForSelector(assistantReconnect ? '.gpu-assistant-setup' : '.gpu-assistant-proposal', { timeout: 10_000 }); }
       catch (error) { await page.screenshot({ path: '/tmp/atoma-assistant-failure.png' }); throw error; }
       await page.evaluate(() => {
         const log = document.querySelector('.gpu-assistant-log');
         if (log) log.scrollTop = log.scrollHeight;
       });
+      // A card in the flow: its composer stays inside the card, the card
+      // keeps its contracted height, and the guide starts below it.
       const composerVisible = await page.evaluate(() => {
         const button = document.querySelector('.gpu-assistant button[type="submit"]');
         const box = button?.getBoundingClientRect();
         const section = document.querySelector('.gpu-assistant')?.getBoundingClientRect();
-        const panelBottom = globalThis.__ATOMA_GPU__?.projectRendererPoint(globalThis.innerWidth / 2, globalThis.innerHeight - 32)?.y;
-        return box && section && typeof panelBottom === 'number' && section.bottom <= panelBottom + 2 &&
-          box.top >= 0 && box.left >= 0 && box.bottom <= globalThis.innerHeight && box.right <= globalThis.innerWidth;
+        const guide = document.querySelector('.gpu-project-mcp')?.getBoundingClientRect();
+        // The scene camera scales DOM overlays with the canvas, so the
+        // contracted 520px card and its 16px gap are read as a ratio.
+        const scale = section ? section.height / 520 : 0;
+        return box && section && scale > 0.5 && scale < 2 &&
+          box.top >= section.top && box.bottom <= section.bottom + 1 && box.left >= section.left && box.right <= section.right + 1 &&
+          box.bottom <= globalThis.innerHeight && (!guide || Math.abs((guide.top - section.bottom) / scale - 16) < 2);
       });
-      if (!composerVisible) throw new Error('The assistant composer is outside the visible camera viewport');
+      if (!composerVisible) {
+        const diagnostic = await page.evaluate(() => {
+          const rect = (selector) => { const box = document.querySelector(selector)?.getBoundingClientRect(); return box ? { top: Math.round(box.top), bottom: Math.round(box.bottom), left: Math.round(box.left), right: Math.round(box.right), height: Math.round(box.height) } : null; };
+          return { card: rect('.gpu-assistant'), submit: rect('.gpu-assistant button[type="submit"]'), guide: rect('.gpu-project-mcp'), viewport: { width: globalThis.innerWidth, height: globalThis.innerHeight } };
+        });
+        await page.screenshot({ path: '/tmp/atoma-assistant-failure.png' });
+        throw new Error(`The assistant composer is outside its card, or the guide overlaps the card: ${JSON.stringify(diagnostic)}`);
+      }
     }
 
     if (accountMenu) {
