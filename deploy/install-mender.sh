@@ -13,7 +13,7 @@ for command in git gh docker node npm python3; do
   command -v "$command" >/dev/null || { echo "Install prerequisite: $command" >&2; exit 2; }
 done
 if [[ ! -f "$config" ]]; then
-  read -r -s -p 'GitHub publisher PAT (Contents + Pull requests write on mgtf/atoma): ' publisher
+  read -r -s -p 'GitHub publisher PAT (Contents + Pull requests write on atoma-run/atoma): ' publisher
   printf '\n'
   [[ $publisher =~ ^[A-Za-z0-9_]+$ ]] || { echo 'Invalid token format.' >&2; exit 2; }
   install -o root -g atoma -m 640 "$release/deploy/mender.env.example" "$config"
@@ -49,10 +49,10 @@ runuser -u atoma -- env MENDER_REVISION="$revision" bash -c '
   source /home/atoma/config/mender.env
   set +a
   if [[ ! -d /home/atoma/mender/.git ]]; then
-    git clone https://github.com/mgtf/atoma.git /home/atoma/mender
+    git clone https://github.com/atoma-run/atoma.git /home/atoma/mender
   fi
   cd /home/atoma/mender
-  [[ $(git remote get-url origin) == https://github.com/mgtf/atoma.git ]] || exit 2
+  [[ $(git remote get-url origin) == https://github.com/atoma-run/atoma.git ]] || exit 2
   [[ -z $(git status --porcelain) ]] || { echo "Mender checkout is dirty; preserve and inspect it." >&2; exit 2; }
   git fetch origin main
   git checkout --detach "$MENDER_REVISION"

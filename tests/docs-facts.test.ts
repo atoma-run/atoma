@@ -187,7 +187,7 @@ describe('the architecture IR', () => {
   it('adds verifiable provenance only at render time', () => {
     const revision = 'a'.repeat(40);
     const rendered = withRepositoryEvidence(ir, { subsystems: facts.subsystems, revision });
-    expect(rendered.meta.repository).toEqual({ url: 'https://github.com/mgtf/atoma', revision });
+    expect(rendered.meta.repository).toEqual({ url: 'https://github.com/atoma-run/atoma', revision });
     for (const component of rendered.components) {
       expect(component.sources).toEqual([{ path: `src/${component.id}/AGENTS.md`, label: 'contract' }]);
     }

@@ -7,7 +7,7 @@
     "url": "https://atoma.run"
   },
   "homepage": "https://atoma.run",
-  "repository": "https://github.com/mgtf/atoma",
+  "repository": "https://github.com/atoma-run/atoma",
   "license": "AGPL-3.0-only",
   "keywords": ["atoma", "agents", "orchestration", "mcp"]
 }

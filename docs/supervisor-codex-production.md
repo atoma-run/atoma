@@ -35,7 +35,7 @@ sudo bash /home/atoma/current/deploy/install-mender.sh
 ```
 
 The installer asks for the GitHub publisher PAT without echoing it. It needs
-Contents and Pull requests read/write on `mgtf/atoma`; Secrets write is no
+Contents and Pull requests read/write on `atoma-run/atoma`; Secrets write is no
 longer needed. Do not paste credentials in chat. It stores the token in
 `/home/atoma/config/mender.env` (root:atoma, 0640).
 

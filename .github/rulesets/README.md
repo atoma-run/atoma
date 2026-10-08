@@ -6,7 +6,7 @@ import it from **Settings → Rules → Rulesets → New ruleset → Import a
 ruleset**, or with the API:
 
 ```bash
-gh api -X POST repos/mgtf/atoma/rulesets --input .github/rulesets/protect-main.json
+gh api -X POST repos/atoma-run/atoma/rulesets --input .github/rulesets/protect-main.json
 ```
 
 What it enforces on `main`:

@@ -9,7 +9,7 @@ before launch, incomplete runs kept and explained, and comparison reruns.
 ### Added
 
 - Claude Code plugin `atoma`, installable from this repository's marketplace
-  (`claude plugin marketplace add mgtf/atoma`, then
+  (`claude plugin marketplace add atoma-run/atoma`, then
   `claude plugin install atoma@atoma`): it connects the hosted MCP and adds a
   skill for drafting goals, continuing projects and investigating runs, and a
   read-only `atoma:trace-reader` agent. Users who registered the server with

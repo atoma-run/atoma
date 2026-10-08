@@ -47,7 +47,7 @@ import { collectFacts } from './repo-facts.mjs';
 export const IR_PATH = 'docs/ir/atoma.architecture.json';
 export const RENDER_PATH = 'docs/architecture.html';
 export const SVG_PATH = 'docs/architecture.svg';
-const REPOSITORY_URL = 'https://github.com/mgtf/atoma';
+const REPOSITORY_URL = 'https://github.com/atoma-run/atoma';
 
 /**
  * Placement and semantic type per subsystem. Keys are the subsystem directory
