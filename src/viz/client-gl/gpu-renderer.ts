@@ -3349,7 +3349,8 @@ export class GpuRenderer {
      * while it says it can no longer be used.
      */
     disabled = false,
-    iconKind?: ButtonIconKind
+    /** Null omits the decorative icon when the label already carries one. */
+    iconKind?: ButtonIconKind | null
   ) {
     const container = new Container();
     container.position.set(x, y);
@@ -3384,7 +3385,7 @@ export class GpuRenderer {
     const compactIcon = centerLabel && width < 64;
     const sideInset = compactIcon ? 4 : BUTTON_LABEL_INSET;
     const iconSize = compactIcon ? 12 : BUTTON_ICON_SIZE;
-    const iconSpace = !themeChoice && label && /[\p{L}\p{N}]/u.test(label) && !spinning ? (compactIcon ? 16 : BUTTON_ICON_SPACE) : 0;
+    const iconSpace = iconKind !== null && !themeChoice && label && /[\p{L}\p{N}]/u.test(label) && !spinning ? (compactIcon ? 16 : BUTTON_ICON_SPACE) : 0;
     const fittedLabel = this.fitText(label,
       Math.max(0, Math.min(width - sideInset * 2 - iconSpace, (labelMaxWidth ?? Infinity) - iconSpace)), labelStyle);
     const contentX = centerLabel

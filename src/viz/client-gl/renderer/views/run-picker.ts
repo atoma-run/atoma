@@ -113,7 +113,7 @@ export function drawRunPicker(ctx: RendererCtx, snapshot: GpuRenderSnapshot, wid
         rowX,
         rowY + 2,
         rowWidth,
-        38,
+        rowHeight - 5,
         keyboardActive,
         snapshot.onActivate,
         // Selection keeps its own accent; everything else wears its outcome.
@@ -121,7 +121,10 @@ export function drawRunPicker(ctx: RendererCtx, snapshot: GpuRenderSnapshot, wid
         false,
         false,
         undefined,
-        RUN_PICKER_ROW_LABEL_TOP
+        RUN_PICKER_ROW_LABEL_TOP,
+        undefined,
+        false,
+        null
       );
       // WHEN it ran and WHAT IT SPENT, under the goal. The list used to say
       // neither, so choosing between two runs of the same project meant

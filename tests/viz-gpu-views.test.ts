@@ -7107,21 +7107,25 @@ describe('project-grouped run picker', () => {
       startedAt: new Date(now - age * 60_000).toISOString(),
       endedAt: new Date(now - age * 60_000 + 1000).toISOString(),
     });
-    drawRunPicker(ctx, makeSnapshot({}, { runs: [
+    const runs = [
       entry('recent', 'newest-project', 1),
       entry('old', 'newest-project', 100),
       entry('middle', 'middle-project', 5),
       { ...entry('live', 'live-project', 60), endedAt: undefined, inFlight: true, lastEventAt: now },
       { ...entry('other', 'another-project', 10), projectSlug: 'newest-project' },
       { ...entry('stale', 'stale-project', 120), endedAt: undefined, inFlight: true },
-    ] }), WIDTH, HEIGHT);
+    ];
+    const { scrollMax } = drawRunPicker(ctx, makeSnapshot({}, { runs }), WIDTH, HEIGHT);
     expect(ctx.buttons.map(button => button.id)).toEqual([
-      'run.select.live', 'run.select.recent', 'run.select.old', 'run.select.middle', 'run.select.other', 'run.select.stale',
+      'run.select.live', 'run.select.recent', 'run.select.old', 'run.select.middle', 'run.select.other',
     ]);
     const labels = ctx.texts.map(text => text.value);
     expect(labels.filter(label => label === 'newest-project')).toHaveLength(2);
     expect(labels.indexOf('live-project')).toBeLessThan(labels.indexOf('newest-project'));
     expect(labels).toContain('2 runs');
+    const scrolled = createRecordingCtx();
+    drawRunPicker(scrolled, makeSnapshot({ runPickerScrollY: scrollMax }, { runs }), WIDTH, HEIGHT);
+    expect(scrolled.buttons.at(-1)!.id).toBe('run.select.stale');
   });
 
   it('filters within groups, preserves matching goals and omits empty projects', () => {

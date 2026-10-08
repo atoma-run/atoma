@@ -3,7 +3,7 @@ import { isIndexEntryLive, runCost } from '../client/run-utils.js';
 import { matchesSearchQuery, runSearchText } from '../client/search.js';
 import { fmtTokenCount, type GpuTranslate } from './renderer/copy.js';
 
-export const RUN_PICKER_ROW_HEIGHT = 43;
+export const RUN_PICKER_ROW_HEIGHT = 49;
 export const RUN_PICKER_GROUP_HEIGHT = 46;
 export const RUN_PICKER_HEADER_HEIGHT = 30;
 
