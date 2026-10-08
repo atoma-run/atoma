@@ -1,9 +1,10 @@
 import type { RunIndexEntry } from '../client/types.js';
-import { isIndexEntryLive } from '../client/run-utils.js';
+import { isIndexEntryLive, runCost } from '../client/run-utils.js';
 import { matchesSearchQuery, runSearchText } from '../client/search.js';
+import { fmtTokenCount, type GpuTranslate } from './renderer/copy.js';
 
 export const RUN_PICKER_ROW_HEIGHT = 43;
-export const RUN_PICKER_GROUP_HEIGHT = 28;
+export const RUN_PICKER_GROUP_HEIGHT = 46;
 export const RUN_PICKER_HEADER_HEIGHT = 30;
 
 /** Shared by the GPU popup and native input's keyboard navigation. */
@@ -29,6 +30,12 @@ export function buildRunPicker(runs: readonly RunIndexEntry[], query = '', now =
       ?? entries.find(run => run.projectId)?.projectId,
     live: entries.some(run => isIndexEntryLive(run, now)),
     latest: Math.max(...entries.map(started)),
+    // Project spend includes every run, even when search hides some rows.
+    totals: {
+      tokens: sumRecorded(entries, 'tokens'),
+      costUsd: sumRecorded(entries, 'costUsd'),
+      complete: entries.every(run => run.tokens !== undefined && run.costUsd !== undefined),
+    },
     runs: entries.sort((a, b) => Number(isIndexEntryLive(b, now)) - Number(isIndexEntryLive(a, now))
       || started(b) - started(a)).filter(run => matchesSearchQuery(runSearchText(run), query)),
   })).filter(group => group.runs.length > 0)
@@ -45,7 +52,23 @@ export function buildRunPicker(runs: readonly RunIndexEntry[], query = '', now =
       top += RUN_PICKER_ROW_HEIGHT;
       return row;
     });
-    return { key: group.key, label: group.label, top: headerTop, rows };
+    return { key: group.key, label: group.label, totals: group.totals, top: headerTop, rows };
   });
   return { sections, options, height: top };
+}
+
+function sumRecorded(runs: readonly RunIndexEntry[], field: 'tokens' | 'costUsd'): number | undefined {
+  const values = runs.flatMap(run => run[field] === undefined ? [] : [run[field]]);
+  return values.length ? values.reduce((sum, value) => sum + value, 0) : undefined;
+}
+
+/** The canvas and its accessible project groups announce the same spend. */
+export function runPickerTotalsLabel(
+  totals: ReturnType<typeof buildRunPicker>['sections'][number]['totals'],
+  t: GpuTranslate
+): string {
+  return t(totals.complete ? 'runs.picker.projectTotals' : 'runs.picker.projectRecorded', {
+    tokens: totals.tokens === undefined ? '—' : fmtTokenCount(totals.tokens),
+    cost: runCost(totals.costUsd),
+  });
 }

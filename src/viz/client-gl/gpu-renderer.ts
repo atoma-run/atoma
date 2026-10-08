@@ -3605,12 +3605,11 @@ export class GpuRenderer {
     // The label box tracks the face: 11px renders ~16px tall, so centre on
     // labelSize + 5 rather than a constant tied to the default face.
     const labelBox = gpuTextSize(labelSize) + 5;
-    const fittedLabel = this.fitText(label, Math.max(0, width - 22 - BUTTON_ICON_SPACE), {
+    const fittedLabel = this.fitText(label, Math.max(0, width - 22), {
       size: labelSize, weight: '700',
     });
-    const labelLeft = Math.max(11, (width - this.measureText(fittedLabel, { size: labelSize, weight: '700' }) - BUTTON_ICON_SPACE) / 2);
-    drawButtonIcon(container, buttonIconKind(id), labelLeft, (height - BUTTON_ICON_SIZE) / 2, GPU_COLORS.text);
-    const labelText = this.text(container, fittedLabel, labelLeft + BUTTON_ICON_SPACE, Math.max(3, (height - labelBox) / 2), {
+    const labelLeft = Math.max(11, (width - this.measureText(fittedLabel, { size: labelSize, weight: '700' })) / 2);
+    const labelText = this.text(container, fittedLabel, labelLeft, Math.max(3, (height - labelBox) / 2), {
       // Built BRIGHT and tinted down, never re-coloured through the style —
       // the style is shared, so `style.fill = …` recolours every label using it.
       size: labelSize,

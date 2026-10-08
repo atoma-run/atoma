@@ -7127,12 +7127,36 @@ describe('project-grouped run picker', () => {
   it('filters within groups, preserves matching goals and omits empty projects', () => {
     const ctx = createRecordingCtx();
     drawRunPicker(ctx, makeSnapshot({ search: { run: 'needle', registry: '', skills: '', displayName: '' } }, { runs: [
-      { id: 'a', projectId: 'a', projectSlug: 'Alpha', label: 'Summary', goal: 'Find the needle', startedAt: '2026-10-02' },
-      { id: 'b', projectId: 'b', projectSlug: 'Beta', label: 'No match', startedAt: '2026-10-03' },
+      { id: 'a', projectId: 'a', projectSlug: 'Alpha', label: 'Summary', goal: 'Find the needle', startedAt: '2026-10-02', tokens: 144_000, costUsd: 0.32 },
+      { id: 'a-old', projectId: 'a', projectSlug: 'Alpha', label: 'Initial draft', startedAt: '2026-10-01', tokens: 248_000, costUsd: 0.51 },
+      { id: 'b', projectId: 'b', projectSlug: 'Beta', label: 'No match', startedAt: '2026-10-03', tokens: 133_000, costUsd: 0.24 },
     ] }), WIDTH, HEIGHT);
     expect(ctx.buttons.map(button => button.id)).toEqual(['run.select.a']);
     expect(ctx.texts.map(text => text.value)).toContain('Alpha');
     expect(ctx.texts.map(text => text.value)).not.toContain('Beta');
+    expect(ctx.texts.map(text => text.value)).toContain('Total: 392k tokens · $0.83 USD');
+    const project = ctx.texts.find(text => text.value === 'Alpha')!;
+    const totals = ctx.texts.find(text => text.value === 'Total: 392k tokens · $0.83 USD')!;
+    const row = ctx.buttons[0]!;
+    expect(row.x).toBeGreaterThan(project.x);
+    expect(totals.x).toBe(project.x);
+    expect(totals.y).toBeGreaterThan(project.y);
+    expect(row.y).toBeGreaterThan(totals.y + 10);
+  });
+
+  it('distinguishes zero spend, missing metrics and incomplete project totals', () => {
+    const ctx = createRecordingCtx();
+    const entry = (id: string, projectId: string) => ({ id, projectId, label: id, startedAt: '2026-10-02' });
+    drawRunPicker(ctx, makeSnapshot({}, { runs: [
+      { ...entry('zero', 'free'), tokens: 0, costUsd: 0 },
+      entry('unknown', 'unknown'),
+      { ...entry('known', 'partial'), tokens: 1200, costUsd: 0.08 },
+      entry('missing', 'partial'),
+    ] }), WIDTH, HEIGHT);
+    const labels = ctx.texts.map(text => text.value);
+    expect(labels).toContain('Total: 0 tokens · $0.00 USD');
+    expect(labels).toContain('Recorded: — tokens · — USD');
+    expect(labels).toContain('Recorded: 1.2k tokens · $0.08 USD');
   });
 
   it('includes group headings in scroll bounds and reaches the last run on a short viewport', () => {

@@ -2,7 +2,7 @@ import { Container, Graphics, Rectangle } from 'pixi.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { BUTTON_LABEL_INSET } from '../../gpu-renderer.js';
 import { sidebarWidthForViewport, GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
-import { buildRunPicker, runPickerViewportHeight, RUN_PICKER_ROW_HEIGHT, RUN_PICKER_GROUP_HEIGHT, RUN_PICKER_HEADER_HEIGHT } from '../../run-picker.js';
+import { buildRunPicker, runPickerTotalsLabel, runPickerViewportHeight, RUN_PICKER_ROW_HEIGHT, RUN_PICKER_GROUP_HEIGHT, RUN_PICKER_HEADER_HEIGHT } from '../../run-picker.js';
 import { RUN_STATUS_GLYPH, runIndexStatus } from '../../../client/run-utils.js';
 import { fmtTokenCount } from '../copy.js';
 import { relativeTime } from '../relative-time.js';
@@ -54,6 +54,8 @@ export function drawRunPicker(ctx: RendererCtx, snapshot: GpuRenderSnapshot, wid
   );
 
   const listY = popupY + headerHeight;
+  const rowX = x + 30;
+  const rowWidth = Math.max(0, popupWidth - 43);
   const listMask = new Graphics();
   listMask
     .rect(x + 4, listY, popupWidth - 8, visibleListHeight)
@@ -73,6 +75,9 @@ export function drawRunPicker(ctx: RendererCtx, snapshot: GpuRenderSnapshot, wid
         x + 14, headerY + 7, { size: 11, weight: '700', color: GPU_COLORS.text, singleLine: true });
       ctx.text(listLayer, count, x + popupWidth - 18 - countWidth, headerY + 8,
         { size: 9, color: GPU_COLORS.muted, singleLine: true });
+      const totals = runPickerTotalsLabel(section.totals, snapshot.t);
+      ctx.text(listLayer, ctx.fitText(totals, popupWidth - 32, { size: 10, weight: '700' }),
+        x + 14, headerY + 25, { size: 10, weight: '700', color: GPU_COLORS.primary, singleLine: true });
     }
     for (const { run, top, index } of section.rows) {
       const rowY = listY + top - scrollY;
@@ -105,9 +110,9 @@ export function drawRunPicker(ctx: RendererCtx, snapshot: GpuRenderSnapshot, wid
         `${RUN_STATUS_GLYPH[status]} ${
           run.title ?? run.goal ?? run.label.replace(/^(?:build-app|baseline):\s*/i, '')
         }`,
-        x + 5,
+        rowX,
         rowY + 2,
-        popupWidth - 18,
+        rowWidth,
         38,
         keyboardActive,
         snapshot.onActivate,
@@ -132,8 +137,8 @@ export function drawRunPicker(ctx: RendererCtx, snapshot: GpuRenderSnapshot, wid
       if (second) {
         ctx.text(
           listLayer,
-          ctx.fitText(second, popupWidth - 38, { size: RUN_PICKER_ROW_SECOND_SIZE }),
-          x + 5 + BUTTON_LABEL_INSET,
+          ctx.fitText(second, rowWidth - BUTTON_LABEL_INSET * 2, { size: RUN_PICKER_ROW_SECOND_SIZE }),
+          rowX + BUTTON_LABEL_INSET,
           rowY + RUN_PICKER_ROW_SECOND_TOP,
           { size: RUN_PICKER_ROW_SECOND_SIZE, color: GPU_COLORS.muted, singleLine: true }
         );

@@ -23,7 +23,6 @@ export const BUTTON_ICON_PATHS = {
   eye: 'M2 12Q12-2 22 12Q12 26 2 12 M15 12A3 3 0 1 1 9 12A3 3 0 1 1 15 12',
   globe: 'M21 12A9 9 0 1 1 3 12A9 9 0 1 1 21 12 M3 12H21 M12 3C6 8 6 16 12 21C18 16 18 8 12 3',
   palette: 'M12 3A9 9 0 1 0 0 18H14Q17 21 15 17Q14 14 18 14H19Q23 14 21 9Q19 3 12 3 M7 9H8 M11 6H12 M16 8H17',
-  filter: 'M3 4H21L14 12V19L10 21V12Z',
   code: 'M8 6L2 12L8 18 M16 6L22 12L16 18 M14 3L10 21',
   send: 'M3 3L22 12L3 21L7 12Z M7 12H22',
   key: 'M11 8A5 5 0 1 1 1 8A5 5 0 1 1 11 8 M10 11L20 21 M16 17L19 14 M19 20L22 17',
@@ -39,7 +38,6 @@ export function buttonIconKind(id: string): ButtonIconKind {
   if (id === 'project.section.files') return 'folder';
   if (id === 'project.section.result') return 'file';
   if (/^(result|workspace|activity)\.close$|^run.event.close$|^activity.files$|^workspace.parent$/.test(id)) return 'back';
-  if (/^run.filter\.|^burnin\.(filter|status)|^journal\.(severity|family)/.test(id)) return 'filter';
   if (/^activity.source\./.test(id)) return 'code';
   if (/^activity.collapse\.|\.more$/.test(id)) return 'down';
   if (/\.prev$|^activity.newer$/.test(id)) return 'back';

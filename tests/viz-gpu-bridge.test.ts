@@ -633,14 +633,17 @@ describe('full-GL minimal DOM bridge', () => {
   it('uses project order for focus, arrows, search and accessible selection', async () => {
     const user = userEvent.setup();
     const items = [
-      { id: 'b', label: 'B change', projectId: 'b', projectSlug: 'Beta', startedAt: '2026-10-02' },
-      { id: 'a-old', label: 'Old change', projectId: 'a', projectSlug: 'Alpha', startedAt: '2026-10-01' },
-      { id: 'a-new', label: 'New change', projectId: 'a', projectSlug: 'Alpha', startedAt: '2026-10-03' },
+      { id: 'b', label: 'B change', projectId: 'b', projectSlug: 'Beta', startedAt: '2026-10-02', tokens: 1000, costUsd: 0.12 },
+      { id: 'a-old', label: 'Old change', projectId: 'a', projectSlug: 'Alpha', startedAt: '2026-10-01', tokens: 2000, costUsd: 0.21 },
+      { id: 'a-new', label: 'New change', projectId: 'a', projectSlug: 'Alpha', startedAt: '2026-10-03', tokens: 3000, costUsd: 0.31 },
     ];
     useGpuStore.setState({ selectedRunId: 'a-new' });
     const { onSelectRun } = renderBridge(vi.fn(), items);
     const select = screen.getByRole('combobox', { name: 'Runs by project' });
-    expect(within(select).getAllByRole('group').map(group => group.getAttribute('label'))).toEqual(['Alpha', 'Beta']);
+    expect(within(select).getAllByRole('group').map(group => group.getAttribute('label'))).toEqual([
+      'Alpha · Total: 5.0k tokens · $0.52 USD',
+      'Beta · Total: 1.0k tokens · $0.12 USD',
+    ]);
     expect(within(select).getAllByRole('option').map(option => option.getAttribute('value'))).toEqual(['a-new', 'a-old', 'b']);
     const input = screen.getByRole('textbox', { name: /Search 3 runs/ });
     await user.click(input);

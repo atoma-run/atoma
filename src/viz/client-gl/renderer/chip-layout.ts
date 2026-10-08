@@ -1,4 +1,3 @@
-import { BUTTON_ICON_SPACE } from '../button-icons.js';
 /**
  * Pure chip/lane layout for the GPU client — filter blocks, atom lanes, and
  * the label-width heuristics both share. No Pixi objects here: everything is
@@ -9,11 +8,11 @@ import { BUTTON_ICON_SPACE } from '../button-icons.js';
 const CONTROL_HOVER_GAP = 14;
 
 const FILTER_CHIP_MIN_WIDTH = 52;
-const FILTER_CHIP_TEXT_PAD = 24 + BUTTON_ICON_SPACE;
+const FILTER_CHIP_TEXT_PAD = 24;
 const FILTER_CHIP_MIN_WIDTH_COMPACT = 36;
 // Eleven pixels per side: the 8px compact face still needs enough air to stay
 // clear of the bevel and active-state rings drawn inside the chip boundary.
-const FILTER_CHIP_TEXT_PAD_COMPACT = 22 + BUTTON_ICON_SPACE;
+const FILTER_CHIP_TEXT_PAD_COMPACT = 22;
 
 export function gpuFilterButtonWidth(label: string) {
   // FALLBACK ESTIMATE for renderer-less layout (tests, recordings). A view

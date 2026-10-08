@@ -1,4 +1,3 @@
-import { BUTTON_ICON_SPACE } from '../src/viz/client-gl/button-icons.js';
 import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -450,7 +449,7 @@ describe('full-GL filter controls preserve semantic labels', () => {
     const layout = layoutRunFilterBlocks({
       originX: 20,
       originY: 80,
-      maxWidth: 920 + 10 * BUTTON_ICON_SPACE,
+      maxWidth: 920,
       kinds: [
         { id: 'run.filter.kind.all', label: 'ALL' },
         { id: 'run.filter.kind.llm', label: 'LLM' },
@@ -588,7 +587,7 @@ describe('full-GL filter controls preserve semantic labels', () => {
       { size: 'compact', measure }
     );
     for (const chip of block.chips) {
-      expect(chip.width - measure(chip.label)).toBe(22 + BUTTON_ICON_SPACE);
+      expect(chip.width - measure(chip.label)).toBe(22);
     }
   });
 

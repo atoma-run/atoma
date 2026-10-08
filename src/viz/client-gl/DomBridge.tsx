@@ -3,7 +3,7 @@ import { checkpointActionKey, canControlCheckpoint, pendingGitHubAccess, canCont
 import { WorkspaceAccessible } from './WorkspaceAccessible.js';
 import type { WorkspaceBrowserData } from './workspace-browser.js';
 import { UpstreamSetting } from './UpstreamSetting.js';
-import { buildRunPicker, runPickerViewportHeight, RUN_PICKER_ROW_HEIGHT } from './run-picker.js';
+import { buildRunPicker, runPickerTotalsLabel, runPickerViewportHeight, RUN_PICKER_ROW_HEIGHT } from './run-picker.js';
 import { sceneCameraViewport, visibleSceneLayoutHeight } from './scene-camera.js';
 import {
   LOCALE_NAMES,
@@ -382,7 +382,7 @@ export function DomBridge({
           <select aria-label={t('runs.picker.grouped')} value={selectedRunId ?? ''}
             onChange={(event) => onSelectRun(event.target.value)}>
             {runPicker.sections.map(section => (
-              <optgroup key={section.key} label={section.label ?? t('runs.project.operator')}>
+              <optgroup key={section.key} label={`${section.label ?? t('runs.project.operator')} · ${runPickerTotalsLabel(section.totals, t)}`}>
                 {section.rows.map(({ run }) => (
                   <option key={run.id} value={run.id}>{run.title ?? run.goal ?? run.label}</option>
                 ))}
