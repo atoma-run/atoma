@@ -307,6 +307,6 @@ describe('the document itself speaks the viewer\'s language', () => {
     expect(document.title).toBe(translate('ar', 'app.documentTitle'));
     // Back to the source of truth.
     applyDocumentLocale('en');
-    expect(document.title).toBe('Atoma — Inspectable AI Agent Orchestration');
+    expect(document.title).toBe('Atoma — AI agents that turn requests into checked work');
   });
 });

@@ -62,7 +62,7 @@
   "nav.registry": "Registry",
   "nav.skills": "Skills",
   "nav.burnin": "Burn-in",
-  "app.documentTitle": "Atoma — Inspectable AI Agent Orchestration",
+  "app.documentTitle": "Atoma — AI agents that turn requests into checked work",
   "app.accessibleName": "Atoma GPU visualizer",
   "app.queryError": "Unknown visualizer query error",
   "app.crash.title": "GPU renderer stopped",
