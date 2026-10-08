@@ -1586,5 +1586,14 @@
   "projects.checkpoint.resume": "Reprendre le travail enregistré",
   "projects.checkpoint.requested": "Mise en pause demandée…",
   "projects.checkpoint.failed": "Impossible de continuer. Actualise la page et réessaie.",
-  "projects.checkpoint.paused": "En pause"
+  "projects.checkpoint.paused": "En pause",
+  "projects.checkpoint.recover": "Récupérer le travail validé",
+  "projects.checkpoint.blocked": "Récupération indisponible",
+  "projects.checkpoint.reason.model_pending": "Un appel au modèle s’est terminé sans utilisation confirmée. La récupération ne peut pas préserver son budget.",
+  "projects.checkpoint.reason.tool_pending": "Un outil n’a pas renvoyé de résultat confirmé. Son action interrompue ne peut pas être répétée en toute sécurité.",
+  "projects.checkpoint.reason.external_effect": "Une action peut avoir des effets externes. Elle ne peut pas être répétée en toute sécurité.",
+  "projects.checkpoint.reason.host_mutation": "Cette phase a modifié des connaissances partagées ou des compteurs. La rejouer pourrait dupliquer ces modifications.",
+  "projects.checkpoint.reason.backend_unknown": "L’arrêt du worker précédent ne peut pas être vérifié.",
+  "projects.checkpoint.reason.budget_exhausted": "Le délai d’exécution initial est dépassé.",
+  "projects.checkpoint.reason.incomplete": "Aucun snapshot complet du workspace n’est disponible."
 }

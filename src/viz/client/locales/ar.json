@@ -1586,5 +1586,14 @@
   "projects.checkpoint.resume": "استئناف العمل المحفوظ",
   "projects.checkpoint.requested": "طُلب الإيقاف المؤقت…",
   "projects.checkpoint.failed": "تعذّرت المتابعة. حدّث الصفحة وحاول مرة أخرى.",
-  "projects.checkpoint.paused": "متوقف مؤقتًا"
+  "projects.checkpoint.paused": "متوقف مؤقتًا",
+  "projects.checkpoint.recover": "استعادة العمل المتحقق منه",
+  "projects.checkpoint.blocked": "الاستعادة غير متاحة",
+  "projects.checkpoint.reason.model_pending": "انتهى استدعاء نموذج من دون تأكيد الاستخدام. لا يمكن للاستعادة الحفاظ على ميزانيته.",
+  "projects.checkpoint.reason.tool_pending": "لم تُرجع أداة نتيجة مؤكدة. لا يمكن تكرار إجراءها المنقطع بأمان.",
+  "projects.checkpoint.reason.external_effect": "قد يكون لإجراء ما تأثيرات خارجية. لا يمكن تكراره بأمان.",
+  "projects.checkpoint.reason.host_mutation": "غيّرت هذه المرحلة المعرفة المشتركة أو العدّادات. قد تؤدي إعادة تنفيذها إلى تكرار تلك التغييرات.",
+  "projects.checkpoint.reason.backend_unknown": "لا يمكن التحقق من إيقاف العامل السابق.",
+  "projects.checkpoint.reason.budget_exhausted": "انقضى الموعد النهائي للتنفيذ الأصلي.",
+  "projects.checkpoint.reason.incomplete": "لا تتوفر لقطة كاملة لمساحة العمل."
 }

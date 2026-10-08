@@ -1586,5 +1586,14 @@
   "projects.checkpoint.resume": "محفوظ شدہ کام دوبارہ شروع کریں",
   "projects.checkpoint.requested": "موقوف کرنے کی درخواست کی گئی…",
   "projects.checkpoint.failed": "جاری رکھنا ممکن نہیں۔ ریفریش کر کے دوبارہ کوشش کریں۔",
-  "projects.checkpoint.paused": "موقوف"
+  "projects.checkpoint.paused": "موقوف",
+  "projects.checkpoint.recover": "تصدیق شدہ کام بحال کریں",
+  "projects.checkpoint.blocked": "بحالی دستیاب نہیں",
+  "projects.checkpoint.reason.model_pending": "ماڈل کال استعمال کی تصدیق ہوئے بغیر ختم ہو گئی۔ بحالی اس کا بجٹ محفوظ نہیں رکھ سکتی۔",
+  "projects.checkpoint.reason.tool_pending": "ایک ٹول نے تصدیق شدہ نتیجہ واپس نہیں کیا۔ اس کی منقطع کارروائی کو محفوظ طریقے سے دہرایا نہیں جا سکتا۔",
+  "projects.checkpoint.reason.external_effect": "کسی کارروائی کے بیرونی اثرات ہو سکتے ہیں۔ اسے محفوظ طریقے سے دہرایا نہیں جا سکتا۔",
+  "projects.checkpoint.reason.host_mutation": "اس مرحلے نے مشترکہ معلومات یا شمارندوں میں تبدیلی کی۔ اسے دوبارہ چلانے سے وہ تبدیلیاں دو بار لاگو ہو سکتی ہیں۔",
+  "projects.checkpoint.reason.backend_unknown": "پچھلے ورکر کے بند ہونے کی تصدیق نہیں کی جا سکتی۔",
+  "projects.checkpoint.reason.budget_exhausted": "اصل عمل درآمد کی آخری مہلت گزر چکی ہے۔",
+  "projects.checkpoint.reason.incomplete": "ورک اسپیس کا کوئی مکمل اسنیپ شاٹ دستیاب نہیں۔"
 }

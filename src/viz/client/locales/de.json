@@ -1586,5 +1586,14 @@
   "projects.checkpoint.resume": "Gespeicherte Arbeit fortsetzen",
   "projects.checkpoint.requested": "Pause angefordert…",
   "projects.checkpoint.failed": "Fortsetzen nicht möglich. Aktualisieren und erneut versuchen.",
-  "projects.checkpoint.paused": "Pausiert"
+  "projects.checkpoint.paused": "Pausiert",
+  "projects.checkpoint.recover": "Validierte Arbeit wiederherstellen",
+  "projects.checkpoint.blocked": "Wiederherstellung nicht verfügbar",
+  "projects.checkpoint.reason.model_pending": "Ein Modellaufruf wurde ohne bestätigte Nutzung beendet. Bei der Wiederherstellung kann sein Budget nicht beibehalten werden.",
+  "projects.checkpoint.reason.tool_pending": "Ein Tool hat kein bestätigtes Ergebnis zurückgegeben. Die unterbrochene Aktion kann nicht sicher wiederholt werden.",
+  "projects.checkpoint.reason.external_effect": "Eine Aktion kann externe Auswirkungen haben. Sie kann nicht sicher wiederholt werden.",
+  "projects.checkpoint.reason.host_mutation": "Diese Phase hat gemeinsames Wissen oder Zähler geändert. Eine Wiederholung könnte diese Änderungen duplizieren.",
+  "projects.checkpoint.reason.backend_unknown": "Das Herunterfahren des vorherigen Workers kann nicht verifiziert werden.",
+  "projects.checkpoint.reason.budget_exhausted": "Die ursprüngliche Ausführungsfrist ist abgelaufen.",
+  "projects.checkpoint.reason.incomplete": "Es ist kein vollständiger Snapshot des Arbeitsbereichs verfügbar."
 }

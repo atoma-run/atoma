@@ -1586,5 +1586,14 @@
   "projects.checkpoint.resume": "保存した作業を再開",
   "projects.checkpoint.requested": "一時停止をリクエスト中…",
   "projects.checkpoint.failed": "続行できません。再読み込みして、もう一度お試しください。",
-  "projects.checkpoint.paused": "一時停止中"
+  "projects.checkpoint.paused": "一時停止中",
+  "projects.checkpoint.recover": "検証済みの作業を復元",
+  "projects.checkpoint.blocked": "復元できません",
+  "projects.checkpoint.reason.model_pending": "モデル呼び出しが、利用量が確定しないまま終了しました。復元してもその予算を維持できません。",
+  "projects.checkpoint.reason.tool_pending": "ツールから確定した結果が返されませんでした。中断された操作を安全に繰り返すことはできません。",
+  "projects.checkpoint.reason.external_effect": "操作が外部に影響を及ぼした可能性があります。安全に繰り返すことはできません。",
+  "projects.checkpoint.reason.host_mutation": "このフェーズで共有知識またはカウンターが変更されました。再実行すると、それらの変更が重複する可能性があります。",
+  "projects.checkpoint.reason.backend_unknown": "前のワーカーが終了したことを確認できません。",
+  "projects.checkpoint.reason.budget_exhausted": "当初の実行期限を過ぎています。",
+  "projects.checkpoint.reason.incomplete": "完全なワークスペースのスナップショットがありません。"
 }

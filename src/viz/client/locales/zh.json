@@ -1586,5 +1586,14 @@
   "projects.checkpoint.resume": "继续已保存的工作",
   "projects.checkpoint.requested": "已请求暂停…",
   "projects.checkpoint.failed": "无法继续。请刷新后重试。",
-  "projects.checkpoint.paused": "已暂停"
+  "projects.checkpoint.paused": "已暂停",
+  "projects.checkpoint.recover": "恢复已验证的工作",
+  "projects.checkpoint.blocked": "无法恢复",
+  "projects.checkpoint.reason.model_pending": "模型调用已结束，但使用量未经确认。恢复操作无法保留其预算。",
+  "projects.checkpoint.reason.tool_pending": "工具未返回已确认的结果。无法安全地重复其被中断的操作。",
+  "projects.checkpoint.reason.external_effect": "操作可能会产生外部影响，无法安全地重复执行。",
+  "projects.checkpoint.reason.host_mutation": "此阶段更改了共享知识或计数器。重放可能会重复这些更改。",
+  "projects.checkpoint.reason.backend_unknown": "无法验证上一个工作进程是否已关闭。",
+  "projects.checkpoint.reason.budget_exhausted": "原执行截止时间已过。",
+  "projects.checkpoint.reason.incomplete": "没有可用的完整工作区快照。"
 }

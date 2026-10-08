@@ -1586,5 +1586,14 @@
   "projects.checkpoint.resume": "সংরক্ষিত কাজ আবার শুরু করুন",
   "projects.checkpoint.requested": "বিরতির অনুরোধ করা হয়েছে…",
   "projects.checkpoint.failed": "চালিয়ে যাওয়া যাচ্ছে না। রিফ্রেশ করে আবার চেষ্টা করুন।",
-  "projects.checkpoint.paused": "বিরতি দেওয়া হয়েছে"
+  "projects.checkpoint.paused": "বিরতি দেওয়া হয়েছে",
+  "projects.checkpoint.recover": "যাচাইকৃত কাজ পুনরুদ্ধার করুন",
+  "projects.checkpoint.blocked": "পুনরুদ্ধার সম্ভব নয়",
+  "projects.checkpoint.reason.model_pending": "একটি মডেল কল নিশ্চিত ব্যবহার ছাড়াই শেষ হয়েছে। পুনরুদ্ধারের সময় এর বাজেট সংরক্ষণ করা সম্ভব নয়।",
+  "projects.checkpoint.reason.tool_pending": "একটি টুল নিশ্চিত ফলাফল দেয়নি। এর বাধাপ্রাপ্ত ক্রিয়াটি নিরাপদে পুনরাবৃত্তি করা সম্ভব নয়।",
+  "projects.checkpoint.reason.external_effect": "একটি ক্রিয়ার বাহ্যিক প্রভাব থাকতে পারে। এটি নিরাপদে পুনরাবৃত্তি করা সম্ভব নয়।",
+  "projects.checkpoint.reason.host_mutation": "এই ধাপে শেয়ার করা জ্ঞান বা কাউন্টার পরিবর্তিত হয়েছে। এটি আবার চালালে ওই পরিবর্তনগুলো সদৃশ হতে পারে।",
+  "projects.checkpoint.reason.backend_unknown": "আগের ওয়ার্কারের বন্ধ হওয়া যাচাই করা সম্ভব নয়।",
+  "projects.checkpoint.reason.budget_exhausted": "মূল নির্বাহের সময়সীমা পেরিয়ে গেছে।",
+  "projects.checkpoint.reason.incomplete": "কর্মক্ষেত্রের কোনো সম্পূর্ণ স্ন্যাপশট উপলভ্য নেই।"
 }

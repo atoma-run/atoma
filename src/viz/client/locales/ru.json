@@ -1586,5 +1586,14 @@
   "projects.checkpoint.resume": "Продолжить сохранённую работу",
   "projects.checkpoint.requested": "Запрошена приостановка…",
   "projects.checkpoint.failed": "Не удалось продолжить. Обновите страницу и повторите попытку.",
-  "projects.checkpoint.paused": "Приостановлено"
+  "projects.checkpoint.paused": "Приостановлено",
+  "projects.checkpoint.recover": "Восстановить проверенную работу",
+  "projects.checkpoint.blocked": "Восстановление недоступно",
+  "projects.checkpoint.reason.model_pending": "Вызов модели завершился без подтверждения использования. При восстановлении невозможно сохранить выделенный бюджет.",
+  "projects.checkpoint.reason.tool_pending": "Инструмент не вернул подтверждённый результат. Его прерванное действие нельзя безопасно повторить.",
+  "projects.checkpoint.reason.external_effect": "Действие может иметь внешние последствия. Его нельзя безопасно повторить.",
+  "projects.checkpoint.reason.host_mutation": "На этом этапе изменились общие знания или счётчики. Повторное выполнение может продублировать эти изменения.",
+  "projects.checkpoint.reason.backend_unknown": "Невозможно проверить завершение работы предыдущего процесса.",
+  "projects.checkpoint.reason.budget_exhausted": "Исходный срок выполнения истёк.",
+  "projects.checkpoint.reason.incomplete": "Полный снимок рабочего пространства недоступен."
 }

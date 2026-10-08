@@ -1586,5 +1586,14 @@
   "projects.checkpoint.resume": "Lanjutkan pekerjaan tersimpan",
   "projects.checkpoint.requested": "Jeda diminta…",
   "projects.checkpoint.failed": "Tidak dapat melanjutkan. Muat ulang dan coba lagi.",
-  "projects.checkpoint.paused": "Dijeda"
+  "projects.checkpoint.paused": "Dijeda",
+  "projects.checkpoint.recover": "Pulihkan pekerjaan tervalidasi",
+  "projects.checkpoint.blocked": "Pemulihan tidak tersedia",
+  "projects.checkpoint.reason.model_pending": "Panggilan model berakhir tanpa penggunaan terkonfirmasi. Pemulihan tidak dapat mempertahankan anggarannya.",
+  "projects.checkpoint.reason.tool_pending": "Alat tidak mengembalikan hasil terkonfirmasi. Tindakannya yang terputus tidak dapat diulangi dengan aman.",
+  "projects.checkpoint.reason.external_effect": "Tindakan mungkin menimbulkan efek eksternal. Tindakan tersebut tidak dapat diulangi dengan aman.",
+  "projects.checkpoint.reason.host_mutation": "Fase ini mengubah pengetahuan atau penghitung bersama. Menjalankannya kembali dapat menduplikasi perubahan tersebut.",
+  "projects.checkpoint.reason.backend_unknown": "Penghentian worker sebelumnya tidak dapat diverifikasi.",
+  "projects.checkpoint.reason.budget_exhausted": "Batas waktu eksekusi awal telah terlewati.",
+  "projects.checkpoint.reason.incomplete": "Tidak tersedia snapshot lengkap ruang kerja."
 }

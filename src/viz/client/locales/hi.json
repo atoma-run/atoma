@@ -1586,5 +1586,14 @@
   "projects.checkpoint.resume": "सहेजा गया काम फिर शुरू करें",
   "projects.checkpoint.requested": "रोकने का अनुरोध किया गया…",
   "projects.checkpoint.failed": "जारी रखने में असमर्थ। रीफ़्रेश करके फिर से प्रयास करें।",
-  "projects.checkpoint.paused": "रुका हुआ"
+  "projects.checkpoint.paused": "रुका हुआ",
+  "projects.checkpoint.recover": "सत्यापित कार्य पुनर्प्राप्त करें",
+  "projects.checkpoint.blocked": "पुनर्प्राप्ति उपलब्ध नहीं है",
+  "projects.checkpoint.reason.model_pending": "एक मॉडल कॉल पुष्टि किए गए उपयोग के बिना समाप्त हो गई। पुनर्प्राप्ति उसके बजट को सुरक्षित नहीं रख सकती।",
+  "projects.checkpoint.reason.tool_pending": "किसी टूल ने पुष्ट परिणाम नहीं लौटाया। उसकी बाधित कार्रवाई सुरक्षित रूप से दोहराई नहीं जा सकती।",
+  "projects.checkpoint.reason.external_effect": "किसी कार्रवाई के बाहरी प्रभाव हो सकते हैं। उसे सुरक्षित रूप से दोहराया नहीं जा सकता।",
+  "projects.checkpoint.reason.host_mutation": "इस चरण ने साझा ज्ञान या काउंटर बदल दिए। इसे फिर से चलाने पर वे बदलाव दोहराए जा सकते हैं।",
+  "projects.checkpoint.reason.backend_unknown": "पिछले वर्कर के बंद होने की पुष्टि नहीं की जा सकती।",
+  "projects.checkpoint.reason.budget_exhausted": "मूल निष्पादन की समय-सीमा बीत चुकी है।",
+  "projects.checkpoint.reason.incomplete": "कोई पूर्ण वर्कस्पेस स्नैपशॉट उपलब्ध नहीं है।"
 }

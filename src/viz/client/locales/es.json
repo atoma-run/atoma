@@ -1586,5 +1586,14 @@
   "projects.checkpoint.resume": "Reanudar el trabajo guardado",
   "projects.checkpoint.requested": "Pausa solicitada…",
   "projects.checkpoint.failed": "No se puede continuar. Actualiza la página e inténtalo de nuevo.",
-  "projects.checkpoint.paused": "En pausa"
+  "projects.checkpoint.paused": "En pausa",
+  "projects.checkpoint.recover": "Recuperar el trabajo validado",
+  "projects.checkpoint.blocked": "Recuperación no disponible",
+  "projects.checkpoint.reason.model_pending": "Una llamada al modelo finalizó sin un uso confirmado. La recuperación no puede conservar su presupuesto.",
+  "projects.checkpoint.reason.tool_pending": "Una herramienta no devolvió un resultado confirmado. Su acción interrumpida no puede repetirse de forma segura.",
+  "projects.checkpoint.reason.external_effect": "Una acción puede tener efectos externos. No puede repetirse de forma segura.",
+  "projects.checkpoint.reason.host_mutation": "Esta fase modificó el conocimiento compartido o los contadores. Repetirla podría duplicar esos cambios.",
+  "projects.checkpoint.reason.backend_unknown": "No se puede verificar el cierre del worker anterior.",
+  "projects.checkpoint.reason.budget_exhausted": "El plazo de ejecución original ha vencido.",
+  "projects.checkpoint.reason.incomplete": "No hay disponible una instantánea completa del espacio de trabajo."
 }
