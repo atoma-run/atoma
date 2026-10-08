@@ -46,7 +46,11 @@ describe('compiled terminal runtime and real PTY', () => {
       const result = await response.json() as { data: string; cursor: number };
       output += Buffer.from(result.data, 'base64').toString('utf8');
       cursor = result.cursor;
-      if (stripVTControlCharacters(output).includes(text)) return;
+      // Lines, not bytes: the runner's bash runs with bracketed paste, which
+      // writes `\x1b[?2004l\r` right before a command's output, and node colours
+      // a TTY number. Stripped of VT sequences that still left `\r\n\r24\r\n`,
+      // so a `\r\n`-framed expectation failed only on CI (2026-10-09).
+      if (stripVTControlCharacters(output).replace(/\r/g, '').includes(text)) return;
       await new Promise((done) => setTimeout(done, 25));
     }
     throw new Error(`terminal did not emit ${text}: ${output}`);
@@ -56,10 +60,10 @@ describe('compiled terminal runtime and real PTY', () => {
     expect((await fetch(base + '/client.js')).status).toBe(200);
     await waitFor('[exit:0]');
     await post('/input', `'${process.execPath}' cli.cjs input.json\r`);
-    await waitFor('\r\n24\r\n');
+    await waitFor('\n24\n');
     expect((await post('/upload?name=input.json', '[{"amount":21}]')).status).toBe(200);
     await post('/input', `'${process.execPath}' cli.cjs input.json\r`);
-    await waitFor('\r\n42\r\n');
+    await waitFor('\n42\n');
     expect(readFileSync(join(root, 'source', 'input.json'), 'utf8')).toBe('[{"amount":12}]');
   });
   it('supports stdin, terminal dimensions, exit codes and interrupting a foreground process', async () => {
