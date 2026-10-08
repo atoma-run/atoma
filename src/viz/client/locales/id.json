@@ -807,7 +807,7 @@
   "docs.user.projects.anatomy.stream.body": "Gunakan nama yang jelas untuk pekerjaan klien, produk internal, atau utilitas operasional yang kelak mudah dikenali tim.",
   "docs.user.projects.anatomy.repo.tag": "REPOSITORI",
   "docs.user.projects.anatomy.repo.title": "Satu tujuan GitHub",
-  "docs.user.projects.anatomy.repo.body": "Setiap proyek memiliki satu target repositori. Run yang telah dikirimkan dipublikasikan secara otomatis, dan proyek menunjukkan apakah publikasi tersebut berhasil mencapai GitHub.",
+  "docs.user.projects.anatomy.repo.body": "",
   "docs.user.projects.anatomy.history.tag": "KONTINUITAS",
   "docs.user.projects.anatomy.history.title": "Run bertahap, satu riwayat",
   "docs.user.projects.anatomy.history.body": "Run pertama dimulai dari ruang kerja kosong. Setiap run berikutnya dimulai dari ruang kerja sebelumnya yang telah dikirimkan, sehingga perubahan melanjutkan pekerjaan terdahulu.",

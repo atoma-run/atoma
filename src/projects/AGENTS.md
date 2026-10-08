@@ -188,7 +188,7 @@ list. These values come from the host snapshot, never a tenant prompt.
   it is `private`. The reasons are recorded beside it, including the one that
   decides it: nothing in this pipeline reviews what gets published — the file
   set is the finished workspace inventory, the filter is filenames only, publication
-  is automatic on delivery, and the manifest never crosses the API — so a
+  follows client acceptance — so a
   public default hands an unreviewed set to the internet whenever nobody looks.
 - A new empty repository is created at PUBLICATION, not at project creation, so a
   project sits at `repository_status = 'pending'` until its first delivered
@@ -313,7 +313,7 @@ list. These values come from the host snapshot, never a tenant prompt.
   project stats outcome becomes failed/cancelled to match its persisted status;
   the original runner outcome remains in the trace. No delivered stats are
   attached to a failed row, and no paid work disappears from the accounting.
-- PUBLICATION IS A SEQUENCE, one row per run, and every delivered run reaches
+- PUBLICATION IS A SEQUENCE, one row per run, and only a client-accepted delivery reaches
   the repository. Exactly one commit used to be possible per project, because
   `repository_status = 'ready'` is terminal and routed every later run into the
   first publication's empty-branch refusal. `ready` means the repository EXISTS
@@ -330,7 +330,7 @@ list. These values come from the host snapshot, never a tenant prompt.
   is answerable only by GitHub, and a stored head is a cache of state GitHub
   owns — a stale one is how a wrong divergence verdict gets manufactured.
 - Publication retries take the machine run lease. A queued/running project run
-  or a newer delivered/partial lineage run refuses an older publication
+  or a newer accepted lineage run refuses an older publication
   (`PublicationSupersededError`); PR-mode branches remain independent.
 - STALENESS IS A QUERY, NOT A COLUMN. How far behind a repository is = delivered
   runs of the project newer than the last published one, which `projects list`
@@ -390,6 +390,18 @@ list. These values come from the host snapshot, never a tenant prompt.
   `ALTER TABLE` and a store created before that date would refuse every landed
   run. The copy is driven by the OLD table's column list so the additive
   migrations below it are not silently dropped.
+
+## Client acceptance before publication (owner decision 2026-10-08)
+
+Delivery makes the result available for testing, never publishes automatically.
+`project_delivery_acceptance` binds the manifest hash, member, time and review
+in the product store; immutable, it survives errors/restarts. `atoma_run_accept`
+and HTTP record it, then publish files. Text-only results need no publication.
+Model acceptance is not client consent. All publication paths, including CLI retries, meet the store's
+`assertPublicationAccepted` gate before remote writes. Previously published
+receipts stay historical facts without invented client acceptance.
+Newer unaccepted candidates do not supersede older accepted versions; accepted
+or published ones do. GitHub divergence, byte, lease and scope checks remain.
 
 ## Publication read receipts
 
@@ -489,15 +501,10 @@ Operator commands and offline prerequisites: [W9/W10](../../docs/project-mainten
   goal already fills, and it is world-readable in `ps`), and never on a
   repository-backed project, where `seedFrom` is replaced by a fresh repo-HEAD
   snapshot and the refused workspace never reaches the child.
-- THE VALUE IS THE TYPED REASONS (`stats.landingReasons`), never the row's
-  error string. That string is recovered from a log the tenant's own goal is
-  echoed into verbatim, and the recovery took the FIRST matching line while the
-  genuine banner is printed much later — so a goal carrying a newline and a
-  plausible `refused at delivery:` line forged the explanation its own run
-  showed the customer. The epilogue is written once by the runner and
-  `parseRunStatsEpilogue` keeps the LAST valid object, so an earlier forged
-  line cannot win. `landedRunDetail` reads the epilogue and falls back to the
-  banner only to say THAT a run landed, never why.
+- Use typed `stats.landingReasons`, never the row's error string. The tenant's
+  goal is echoed into the log, so a forged early banner must not win.
+  `parseRunStatsEpilogue` keeps the LAST valid object; `landedRunDetail` falls
+  back to the banner only to say THAT a run landed, never why.
 - `verifiedTrace` separates INTEGRITY from PUBLISHABILITY. A failed or
   cancelled trace is never recordable; `degraded` refuses only a run that would
   publish. A refusal reached after a deepening is degraded by construction
@@ -505,7 +512,19 @@ Operator commands and offline prerequisites: [W9/W10](../../docs/project-mainten
   back to `failed` — the feature would have been inert on one of its two
   production shapes while appearing to work.
 
+Explicit `baseRunId` selects a retained delivered/partial non-comparison workspace;
+request identity is immutable and launch rechecks bytes. Its BASE/corpus follow it,
+without GitHub refresh. Default seeding stays. `acceptedReferenceRunId` exposes the
+newest accepted run by creation order; retention holds it and active iteration bases.
+Selection never grants publication. Review cases: [checkpoint contract](../../docs/run-checkpoints-2026-10-08.md).
+
 ## Comparison reruns
+- File comparisons are a separate read: `compareRuns` shares workspace
+  authority, retention and path filtering, then compares saved manifests.
+  Pagination snapshots bind both run identities, both manifest hashes and
+  search. Counts cover all files; search filters changed-file pages only.
+  Legacy declared inventories are explicitly incomplete; missing membership
+  never proves a repository deletion. Byte integrity remains the file reader's job.
 
 - `{rerunOf, models}` reruns a delivered or partial run on other models with
   ITS goal, ITS acceptance list (a drafted one is recovered from its trace and
@@ -566,8 +585,8 @@ See [checkpoint contract](../../docs/run-checkpoints-2026-10-08.md).
   whose visibility disagrees with the row ("never a convergence") and
   `REPOSITORY_TRANSITIONS.ready` is empty.
 - A public repository default: refused. The published set is the finished
-  workspace inventory, the filter is filenames only, publication is automatic
-  on delivery, and the manifest never crosses the API — so a public default
+  workspace inventory, the filter is filenames only, publication follows explicit
+  client acceptance, and the manifest never crosses the API — so a public default
   would hand an unreviewed set to the internet whenever nobody looks.
 - Creating the repository at project creation: deliberately not done. It is
   created at PUBLICATION, so a project with no delivered run leaves no empty

@@ -425,6 +425,24 @@ Neighbours:
 
 ## Changing the catalogue
 
+- `atoma_run_start.baseRunId` selects the exact retained project delivery for
+  a new goal. Status/readiness expose `acceptedReferenceRunId`; absent selection
+  preserves automatic seeding. The shared service refuses comparison/resume
+  combinations; identity, queue and byte checks are owned by projects.
+
+- `atoma_run_accept` records the client's explicit test/review acceptance of
+  the exact manifest hash, then publishes through the existing project service.
+  `atoma_publication_retry` never grants acceptance. Delivery/model validation
+  is not client consent, and publication is not deployment.
+
+- `atoma_run_pause` and task-enabled `atoma_run_resume` call the project's
+  checkpoint service. Resume takes the SOURCE run id and inherits its durable
+  continuation identity; it never invents a client-side second runner.
+- `atoma_run_compare` pages the shared `ProjectService.compareRuns` reader,
+  also mounted on GET `/api/projects/:project/runs/:run/compare`. It compares
+  saved inventory hashes, states legacy coverage, and makes no GitHub,
+  live-byte, acceptance or version-adoption claim.
+
 - Adding a tool is adding a row: name, minimum tier, needs, registration.
   With it come a behavioural test in `tests/mcp-http.test.ts` (which tier sees
   it, what it refuses), the release smoke if it is operator-visible, and the

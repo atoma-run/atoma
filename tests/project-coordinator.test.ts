@@ -732,7 +732,7 @@ describe('ProjectRunCoordinator', () => {
     expect(f.store.getRepositorySync(f.viewer.orgId, next.projectRunId)).toEqual(base);
     expect(next.resumeOf).toBe(first.projectRunId);
     expect(f.store.getProjectRun(f.viewer.orgId, next.projectRunId)?.repositoryBase).toEqual(repositoryBase);
-    expect(publish).toHaveBeenCalledTimes(1);
+    expect(publish).not.toHaveBeenCalled();
     if (mode === 'crash') await expect(coordinator.start({ ...input, request: { rerunOf: next.projectRunId,
       idempotencyKey: 'compare-recovery', models: { l1: ANTHROPIC_PINS.ATOMA_MODEL_L1, l2: ANTHROPIC_PINS.ATOMA_MODEL_L2, l3: ANTHROPIC_PINS.ATOMA_MODEL_L3 } } })).rejects.toThrow('starting snapshot');
   });
@@ -805,7 +805,7 @@ describe('ProjectRunCoordinator', () => {
     expect(driver.mock.calls[0]![0].timeoutMs).toBe(600_000);
   });
 
-  it('isolates, verifies and publishes a delivered project run', async () => {
+  it('isolates and verifies a delivery without publishing before client acceptance', async () => {
     const f = fixture();
     const runLease = lease();
     const publisher = { publish: vi.fn().mockResolvedValue(undefined) };
@@ -864,7 +864,7 @@ describe('ProjectRunCoordinator', () => {
     }
     expect(runLease.attachChild).toHaveBeenCalledWith(4242);
     expect(runLease.release).toHaveBeenCalledOnce();
-    expect(publisher.publish).toHaveBeenCalledOnce();
+    expect(publisher.publish).not.toHaveBeenCalled();
     expect(driver.mock.calls[0]?.[0].extraArgs).not.toContain('--seed');
     expect(driver.mock.calls[0]?.[0].env?.['ATOMA_RUNS_DIR']).toBe(
       join(
@@ -1909,7 +1909,7 @@ describe('ProjectRunCoordinator — a large trace is evidence, not a refusal', (
     expect(row.traceId).toBe(started.projectRunId);
     expect(row.stats?.costUsd).toBe(0.8421);
     expect(row.artifactManifest?.files.map((file) => file.path)).toEqual(['index.html']);
-    expect(publisher.publish).toHaveBeenCalledOnce();
+    expect(publisher.publish).not.toHaveBeenCalled();
   });
 
   it('delivers at 949ecd5d scale too, so the fix is not a raised constant', async () => {

@@ -807,7 +807,7 @@
   "docs.user.projects.anatomy.stream.body": "क्लाइंट एंगेजमेंट, आंतरिक उत्पाद या संचालन यूटिलिटी के लिए ऐसा स्पष्ट नाम रखें जिसे टीम बाद में पहचान सके।",
   "docs.user.projects.anatomy.repo.tag": "रिपॉज़िटरी",
   "docs.user.projects.anatomy.repo.title": "एक GitHub गंतव्य",
-  "docs.user.projects.anatomy.repo.body": "हर प्रोजेक्ट का एक रिपॉज़िटरी लक्ष्य होता है। डिलीवर किया गया run अपने-आप प्रकाशित होता है, और प्रोजेक्ट दिखाता है कि वह प्रकाशन GitHub तक पहुँचा या नहीं।",
+  "docs.user.projects.anatomy.repo.body": "",
   "docs.user.projects.anatomy.history.tag": "निरंतरता",
   "docs.user.projects.anatomy.history.title": "क्रमिक run, एक इतिहास",
   "docs.user.projects.anatomy.history.body": "पहला run खाली वर्कस्पेस से शुरू होता है। हर बाद का run पिछले डिलीवर किए गए वर्कस्पेस से शुरू होता है, इसलिए बदलाव पहले के काम पर आगे बढ़ते हैं।",

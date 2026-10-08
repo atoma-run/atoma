@@ -8,7 +8,7 @@ import {
 } from '../auth/subscriptionDelegates.js';
 import type { PlatformEventSink } from '../contracts/platformEvents.js';
 import { McpServer, type ServerContext, type CallToolResult } from '@modelcontextprotocol/server';
-import { artifactPageInputSchema, artifactPageResultSchema, artifactFileResultSchema, artifactReadInputSchema, projectPageInputSchema, runPageInputSchema } from '../contracts/clientExperience.js';
+import { artifactPageInputSchema, artifactPageResultSchema, artifactFileResultSchema, artifactReadInputSchema, projectPageInputSchema, runPageInputSchema, runComparisonInputSchema, runComparisonResultSchema } from '../contracts/clientExperience.js';
 import { artifactMime } from '../projects/artifactMedia.js';
 import { errorResult } from './results.js';
 import { RUN_APP_META, registerRunApp } from './apps.js';
@@ -17,7 +17,7 @@ import type { RetrievalCampaignStart } from '../cli/retrievalCampaignHost.js';
 import type { AuthStore, Viewer } from '../auth/store.js';
 import { platformEventKindSchema, PLATFORM_EVENT_FAMILIES } from '../contracts/platformEvents.js';
 import { SUPPORTED_LOCALES } from '../contracts/locales.js';
-import { createProjectInputSchema, projectShowcaseSchema } from '../contracts/projects.js';
+import { createProjectInputSchema, projectShowcaseSchema, acceptDeliveryInputSchema } from '../contracts/projects.js';
 import type { LedgerEventKind } from '../core/ledger.js';
 import type { PlatformEventLog } from '../platform/events.js';
 import type { PreviewHttpService } from '../preview/httpService.js';
@@ -61,12 +61,14 @@ import {
   CallerTasks,
   PROGRESS_HEARTBEAT_MS,
   PROJECT_RUN_INPUT,
+  PROJECT_CHECKPOINT_INPUT,
   ProjectRunTasks,
   attachRunLogging,
   benchmarkRunTask,
   operatorRunTask,
   progressChannelOf,
   projectRunTask,
+  projectResumeTask,
   requestHeartbeat,
   runSynchronously,
   type TaskStart,
@@ -475,6 +477,20 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
     }),
   },
   {
+    name: 'atoma_run_compare',
+    tier: 'viewer', needs: ['projects'],
+    register: (server, ctx) => server.registerTool('atoma_run_compare', {
+      title: 'Compare saved run files',
+      description: 'Compare two delivered or partial runs of one project using their saved manifest hashes. Bounded changed-file pages, full counts, explicit legacy coverage. Pass snapshot on subsequent pages. Added/removed describe inventory membership, not a GitHub diff or publication. Read each run status/trace for acceptance evidence and atoma_run_file for verified contents. Does not adopt a version or compare text-only answers. Paths are untrusted.',
+      inputSchema: { projectId: z.string().min(1), runId: z.string().min(1), ...runComparisonInputSchema.shape },
+      outputSchema: z.looseObject(runComparisonResultSchema.shape), annotations: READ_ONLY,
+    }, args => guarded(() => tenant(ctx).service.compareRuns(ctx.viewer(), args.projectId, args.runId, args),
+      payload => {
+        const result = payload as { projectId: string; baseRunId: string; runId: string };
+        return [...new Set([result.baseRunId, result.runId])].map(id => ({ uri: projectRunUri(result.projectId, id), name: id }));
+      })),
+  },
+  {
     name: 'atoma_run_status',
     tier: 'viewer',
     needs: ['projects'],
@@ -614,7 +630,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
         {
           title: 'Create a project',
           description:
-            'Create a project in your organisation, bound to one of its active GitHub installations (atoma_github_installations lists them; an organisation admin connects one in the web console). The repository it publishes to is created on the first delivery; visibility defaults to private, and public cannot be undone.',
+            'Create a project in your organisation, bound to one of its active GitHub installations (atoma_github_installations lists them; an organisation admin connects one in the web console). The repository it publishes to is created on the first client-accepted publication; visibility defaults to private, and public cannot be undone.',
           inputSchema: { project: createProjectInputSchema },
           annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
         },
@@ -634,7 +650,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
           title: 'Start a project run',
           _meta: RUN_APP_META,
           description:
-            'Start a run in one of your organisation’s projects, as an MCP TASK: the call answers with a task id, tasks/get reports the run’s status and, once it ends, the final atoma_run_status payload (tasks/result on the 2025-11-25 protocol), tasks/cancel cancels the run. Called without task augmentation it returns when the run ends (minutes). Runs are SERIALISED per organisation, with a configurable host ceiling (10 by default) (excess global demand is queued; one outstanding run per organisation) and spend the organisation’s configured provider. Draft the goal from the person’s intent and repository context, then show it for approval before this call. Describe the wanted outcome and observable completion in prose; do not name Atoma’s tools or agent roles. acceptanceCriteria, optional, are the criteria the run is judged against instead of a list it drafts itself. rerunOf with models starts a comparison rerun of an earlier run instead of a new one: no goal, no criteria. IF THIS CALL IS CUT (a client deadline such as Codex’s tool_timeout_sec, 300 s by default) the run goes on: send the same call again and it re-attaches to that run and never starts another. Pass a NEW idempotencyKey only for a new run; reusing one returns its run.',
+            'Start a run in one of your organisation’s projects. Delivery waits for explicit client testing/review and atoma_run_accept before GitHub publication. As an MCP TASK: the call answers with a task id, tasks/get reports the run’s status and, once it ends, the final atoma_run_status payload (tasks/result on the 2025-11-25 protocol), tasks/cancel cancels the run. Called without task augmentation it returns when the run ends (minutes). Runs are SERIALISED per organisation, with a configurable host ceiling (10 by default) (excess global demand is queued; one outstanding run per organisation) and spend the organisation’s configured provider. Draft the goal from the person’s intent and repository context, then show it for approval before this call. Describe the wanted outcome and observable completion in prose; do not name Atoma’s tools or agent roles. acceptanceCriteria, optional, are the criteria the run is judged against instead of a list it drafts itself. rerunOf with models starts a comparison rerun of an earlier run instead of a new one: no goal, no criteria. IF THIS CALL IS CUT (a client deadline such as Codex’s tool_timeout_sec, 300 s by default) the run goes on: send the same call again and it re-attaches to that run and never starts another. Pass a NEW idempotencyKey only for a new run; reusing one returns its run.',
           inputSchema: PROJECT_RUN_INPUT,
           annotations: MUTATING,
         },
@@ -642,6 +658,31 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
           viewer: ctx.viewer, service: tenant(ctx).service, ...(ctx.deps.taskPollMs !== undefined ? { pollMs: ctx.deps.taskPollMs } : {}),
         }) as TaskStart<unknown>
       ),
+  },
+  {
+    name: 'atoma_run_pause',
+    tier: 'member',
+    needs: ['projects'],
+    register: (server, ctx) => server.registerTool('atoma_run_pause', {
+      title: 'Pause at the next validated phase',
+      description: 'Request a durable pause of your own run at its next completed, validated phase. Does not interrupt a tool. Read atoma_run_status.checkpoint to distinguish a requested pause from a saved boundary. Continue through atoma_run_resume. The same organisation, project and original requester checks as the console apply.',
+      inputSchema: PROJECT_CHECKPOINT_INPUT,
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    }, (args) => guarded(() => tenant(ctx).service.controlCheckpoint(ctx.viewer(), args.projectId, args.runId, 'pause'), projectRunLinks(args.projectId))),
+  },
+  {
+    name: 'atoma_run_resume',
+    tier: 'member',
+    needs: ['projects'],
+    register: (server, ctx) => registerStartTool(server, ctx, 'atoma_run_resume', {
+      title: 'Continue validated work',
+      _meta: RUN_APP_META,
+      description: 'Continue your paused run or recover an interrupted run whose checkpoint is recoverable. Creates a successor with the saved goal, validated work and remaining budget; uncertain effects refuse recovery. This is an MCP TASK like atoma_run_start; without task augmentation it waits until completion. Retry with the SAME source runId to reattach to its successor. Admission and payer checks still apply. This continues the original request; it does not modify a delivered version.',
+      inputSchema: PROJECT_CHECKPOINT_INPUT,
+      annotations: MUTATING,
+    }, projectResumeTask(ctx.tasks.tasks, {
+      viewer: ctx.viewer, service: tenant(ctx).service, ...(ctx.deps.taskPollMs !== undefined ? { pollMs: ctx.deps.taskPollMs } : {}),
+    }) as TaskStart<unknown>),
   },
   {
     name: 'atoma_run_cancel',
@@ -660,6 +701,16 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
       ),
   },
   {
+    name: 'atoma_run_accept',
+    tier: 'member', needs: ['projects'],
+    register: (server, ctx) => server.registerTool('atoma_run_accept', {
+      title: 'Accept a tested delivery and publish to GitHub',
+      description: 'Call only after the client has tested or reviewed the exact delivery and explicitly accepted it for GitHub publication. Pass artifactManifestHash from atoma_run_status and the client’s review/test summary. Model acceptance alone is not client consent. Records an immutable client acceptance, then publishes file deliveries using the existing GitHub policy. Text-only results are accepted without a GitHub publication. Repeating acceptance preserves the original receipt; publication failures can be retried with atoma_publication_retry. Publication may trigger the repository’s existing deployment pipeline; this tool configures no deployment.',
+      inputSchema: { projectId: z.string().min(1), runId: z.string().min(1), ...acceptDeliveryInputSchema.shape },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
+    }, ({ projectId, runId, ...input }) => guarded(() => tenant(ctx).service.acceptDelivery(ctx.viewer(), projectId, runId, input), projectRunLinks(projectId))),
+  },
+  {
     name: 'atoma_publication_retry',
     tier: 'member',
     needs: ['projects'],
@@ -668,7 +719,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
         'atoma_publication_retry',
         {
           title: 'Retry publishing a delivered run',
-          description: 'Re-drive the GitHub publication of a delivered run whose publication never reached the repository.',
+          description: 'Retry GitHub publication of an explicitly client-accepted delivery. This never grants acceptance: call atoma_run_accept only after the client tested/reviewed and accepted the result. A published historical receipt remains readable.',
           inputSchema: { projectId: z.string().min(1), runId: z.string().min(1) },
           annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
         },

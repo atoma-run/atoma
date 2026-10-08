@@ -110,7 +110,8 @@ function apiError(status: number, path: string): GitHubApiError {
 async function deliveredRun(
   owner: Actor,
   targetType: 'User' | 'Organization',
-  login: string
+  login: string,
+  accepted = true
 ) {
   github.linkInstallation({
     installationId: '501',
@@ -171,6 +172,7 @@ async function deliveredRun(
     stats: deliveredStats,
   });
   const run = store.saveArtifactManifest(owner.orgId, reserved.run.projectRunId, built.manifest)!;
+  if (accepted) store.acceptDelivery(owner.orgId, run.projectRunId, owner.principalId, { manifestHash: built.hash, review: 'Client reviewed fixture delivery.' });
   return { project, run, workspace, hash: built.hash };
 }
 
@@ -206,6 +208,17 @@ function mockClient(overrides: Partial<GitHubAppClient> = {}): GitHubAppClient {
 }
 
 describe('GitHubPublisher token split', () => {
+  it('refuses an unaccepted delivery before tokens, repository creation or uploads', async () => {
+    const owner = actor('Alice');
+    const { project, run, workspace, hash } = await deliveredRun(owner, 'User', 'alice', false);
+    const client = mockClient();
+    const publisher = new GitHubPublisher({ client, github, store });
+    await expect(publisher.publish({ project, run, workspaceRoot: workspace, manifestHash: hash })).rejects.toThrow('Client acceptance');
+    expect(client.createInstallationToken).not.toHaveBeenCalled();
+    expect(client.createUserRepository).not.toHaveBeenCalled();
+    expect(client.publishManifestCommit).not.toHaveBeenCalled();
+    expect(store.getPublicationForRun(owner.orgId, run.projectRunId)).toBeNull();
+  });
   it('creates a personal repository with the user-to-server token and pushes with the installation token', async () => {
     const owner = actor('Alice');
     const { project, run, workspace, hash } = await deliveredRun(owner, 'User', 'alice');
@@ -527,7 +540,8 @@ describe('two delivered runs of one project both reach the repository', () => {
     owner: Actor,
     projectId: string,
     key: string,
-    files: Record<string, string>
+    files: Record<string, string>,
+    accepted = true
   ) {
     const workspace = join(root, `workspace-${key}`);
     mkdirSync(workspace, { recursive: true });
@@ -564,6 +578,7 @@ describe('two delivered runs of one project both reach the repository', () => {
       stats: deliveredStats,
     });
     const run = store.saveArtifactManifest(owner.orgId, reserved.run.projectRunId, built.manifest)!;
+    if (accepted) store.acceptDelivery(owner.orgId, run.projectRunId, owner.principalId, { manifestHash: built.hash, review: 'Client reviewed fixture delivery.' });
     return { run, workspace, hash: built.hash };
   }
 
@@ -573,6 +588,21 @@ describe('two delivered runs of one project both reach the repository', () => {
       repository: { owner: 'alice', name: 'weather-lab' }, message: 'Deliver', expectedHead: null,
       files: [{ path: 'start.sh', content: '#!/bin/sh\necho ready\n', mode: '100755' }] });
     expect(fake.filesOn('alice', 'weather-lab', 'main').get('start.sh')?.mode).toBe('100755');
+  });
+
+  it('publishes the accepted version even when a newer unaccepted candidate exists', async () => {
+    const owner = actor('Alice');
+    const first = await deliveredRun(owner, 'User', 'alice');
+    await nextDeliveredRun(owner, first.project.projectId, 'unaccepted', { 'index.html': '<h1>Not accepted</h1>' }, false);
+    const fake = new FakeGitHub();
+    const publisher = new GitHubPublisher({ client: realClient(fake), github, store, resolveUserAccessToken: async () => 'ghu_user-token' });
+    const result = await publisher.publish({ project: first.project, run: first.run, workspaceRoot: first.workspace, manifestHash: first.hash });
+    expect(result?.status).toBe('published');
+    expect(fake.filesOn('alice', 'weather-lab', 'main').get('index.html')?.text).toBe('<h1>ok</h1>\n');
+    // A historical published receipt remains readable without inventing an approval.
+    db.prepare('DELETE FROM project_delivery_acceptance WHERE project_run_id=?').run(first.run.projectRunId);
+    expect(new ProjectStore(db).getDeliveryAcceptance(owner.orgId, first.run.projectRunId)).toBeNull();
+    expect(await publisher.publish({ project: first.project, run: first.run, workspaceRoot: first.workspace, manifestHash: first.hash })).toEqual(result);
   });
 
   it('refuses a changed branch after recording an initial seed', async () => {
@@ -661,6 +691,10 @@ describe('two delivered runs of one project both reach the repository', () => {
     const finished = store.getProjectRun(owner.orgId, started.projectRunId)!;
     expect(finished.status, finished.error ?? '').toBe('delivered');
     expect(previews.getDescriptor(owner.orgId, started.projectRunId)).toMatchObject({ availability: 'available', kind: 'node' });
+    expect(store.getPublicationForRun(owner.orgId, started.projectRunId)).toBeNull();
+    store.acceptDelivery(owner.orgId, started.projectRunId, owner.principalId, { manifestHash: finished.artifactManifestHash!, review: 'Tested preview before publishing.' });
+    if (failure === 'none') await coordinator.retryPublication(owner.orgId, started.projectRunId);
+    else await expect(coordinator.retryPublication(owner.orgId, started.projectRunId)).rejects.toThrow();
     if (failure !== 'none') {
       expect(store.getPublicationForRun(owner.orgId, started.projectRunId)?.status).toBe('failed');
       expect(finished.stats).toEqual(deliveredStats);
@@ -824,6 +858,7 @@ describe('two delivered runs of one project both reach the repository', () => {
     // `publish-0` was created last but names artifacts older in intent; the
     // gate reads run creation order, so force the comparison the other way by
     // publishing it against a project whose newest published run is later.
+    db.prepare('UPDATE project_runs SET created_at=? WHERE project_run_id=?').run('2020-01-01T00:00:00.000Z', older.run.projectRunId);
     await expect(
       publisher.publish({
         project,

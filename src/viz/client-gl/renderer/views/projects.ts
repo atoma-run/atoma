@@ -673,6 +673,7 @@ export function drawProjects(
         pane.content.addChild(rail);
         const statusText = run.checkpoint?.state === 'paused' ? snapshot.t('projects.checkpoint.paused') : access ? snapshot.t('projects.githubAccess.title')
           : run.githubAccess?.resumedRunId ? snapshot.t('projects.githubAccess.resumed')
+          : run.awaitingClientAcceptance ? snapshot.t('projects.awaitingClientAcceptance')
           : statusLabel(snapshot.t, run.status, 'projects.runStatus');
         const cost = run.costUsd === null ? '' : ' · ' + runCost(run.costUsd);
         const date = relativeTime(run.createdAt, snapshot.t, snapshot.state.locale) || run.createdAt;

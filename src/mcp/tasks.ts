@@ -7,8 +7,8 @@ import { z } from 'zod';
 import { retrievalRegistrationSchema } from '../contracts/retrievalCampaign.js';
 import { MAX_CHECKLIST_BEHAVIOUR_CHARS, MAX_CHECKLIST_ITEMS, parseChecklistLines } from '../contracts/acceptanceChecklist.js';
 import type { RetrievalCampaignStart } from '../cli/retrievalCampaignHost.js';
-import { ProjectHttpError } from '../projects/service.js';
-import { idempotencyKeySchema } from '../contracts/projects.js';
+import { ProjectHttpError, type ProjectService } from '../projects/service.js';
+import { idempotencyKeySchema, createProjectRunInputSchema } from '../contracts/projects.js';
 import type { Viewer } from '../auth/store.js';
 import {
   DEFAULT_RUN_TIMEOUT_MS,
@@ -343,6 +343,9 @@ export const PROJECT_RUN_INPUT = {
     `A criterion's text is at most ${MAX_CHECKLIST_BEHAVIOUR_CHARS} characters, not counting an HTTP criterion's method, path and status when it has text of its own. ` +
     'The run is checked against exactly these; one malformed entry refuses the call.'
   ),
+  baseRunId: createProjectRunInputSchema.shape.baseRunId.describe(
+    'For a new iteration, the exact retained delivered or partial run of this project to start from. Uses its saved workspace, not current GitHub HEAD. Omit to keep automatic seeding. Cannot combine with rerunOf. Inspect acceptedReferenceRunId in run status or project readiness to choose the accepted reference.'
+  ),
   rerunOf: z.string().min(1).optional().describe(
     'A COMPARISON RERUN of this delivered or partial run of the same project: same goal, same acceptance list, same starting workspace, on the models you pass. It is never published and never seeds a later run.'
   ),
@@ -355,6 +358,11 @@ export const PROJECT_RUN_INPUT = {
 };
 
 export const BENCHMARK_RUN_INPUT = { registration: retrievalRegistrationSchema };
+
+export const PROJECT_CHECKPOINT_INPUT = {
+  projectId: z.string().min(1),
+  runId: z.string().min(1).describe('The original run to pause or continue, in this project.'),
+};
 
 /* --------------------------------------------------------------- project */
 
@@ -710,10 +718,32 @@ export function benchmarkRunTask(
   };
 }
 
+/** A continuation uses the service's durable retry identity and the successor's ordinary task. */
+export function projectResumeTask(
+  tasks: CallerTasks,
+  deps: ProjectRunTaskDeps & { service: Pick<ProjectService, 'controlCheckpoint'> }
+): TaskStart<z.infer<z.ZodObject<typeof PROJECT_CHECKPOINT_INPUT>>> {
+  return {
+    schema: z.object(PROJECT_CHECKPOINT_INPUT),
+    start: async (args) => {
+      const ttl = deps.service.runTaskBudgetMs() + TASK_RESULT_GRACE_MS;
+      const refuse = (message: string, problem?: ServiceProblem) => tasks.refuse(message, ttl, deps.pollMs ?? TASK_POLL_INTERVAL_MS, problem);
+      if (!tasks.projectRuns) return refuse('refused: project runs are not available to this caller');
+      try {
+        const started = await deps.service.controlCheckpoint(deps.viewer(), args.projectId, args.runId, 'resume') as { projectRunId: string };
+        return tasks.projectRuns.task(projectRunTaskId(args.projectId, started.projectRunId))
+          ?? refuse(`run ${started.projectRunId} already exists and is past its task retention; read it with atoma_run_status (projectId ${args.projectId}, runId ${started.projectRunId})`);
+      } catch (error) {
+        if (error instanceof ProjectHttpError) return refuse(`refused (${error.status}): ${error.message}`, error.problem);
+        throw error;
+      }
+    },
+  };
+}
+
 /**
- * `atoma_run_start`: the start, then a task that IS the run
- * (`ProjectRunTasks`). A refusal before any run exists — a criterion that does
- * not parse, a service refusal — is an in-memory task that fails at once.
+ * `atoma_run_start`: the start, then a task that IS the run.
+ * Refusals before a run exists are in-memory tasks that fail at once.
  */
 export function projectRunTask(
   tasks: CallerTasks,
@@ -743,6 +773,7 @@ export function projectRunTask(
           ...(args.goal !== undefined ? { goal: args.goal } : {}),
           idempotencyKey: args.idempotencyKey ?? `mcp-task-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
           ...(criteria ? { acceptanceChecklist: criteria.items } : {}),
+          ...(args.baseRunId !== undefined ? { baseRunId: args.baseRunId } : {}),
           ...(args.rerunOf !== undefined ? { rerunOf: args.rerunOf } : {}),
           ...(args.models !== undefined ? { models: args.models } : {}),
           ...(args.depth !== undefined ? { depth: args.depth } : {}),

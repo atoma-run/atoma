@@ -58,6 +58,7 @@ export const platformEventKindSchema = z.enum([
   'run.cancelled',
   'publication.published',
   'publication.failed',
+  'run.client_accepted',
   // --- Organisation lifecycle.
   'org.created',
   'org.member_joined',
@@ -353,6 +354,7 @@ export const PLATFORM_EVENT_SEVERITY: Record<PlatformEventKind, PlatformEventSev
   // A delivered run whose artifacts never reached GitHub: the deliverable
   // exists and is unreachable. That is an error, not a warning.
   'publication.failed': 'error',
+  'run.client_accepted': 'info',
   'org.created': 'info',
   'org.member_joined': 'security',
   // A display name is what every other member of the organisation sees in the

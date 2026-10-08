@@ -69,7 +69,11 @@ export function retentionPlan(db: Database.Database, projectsRoot: string, works
     if (row.project_status === 'active') {
       const seed = previousSeedRun(new ProjectStore(db, { initialize: false }), row.org_id, row.project_id);
       if (seed?.projectRunId === row.project_run_id) held = 'current project seed';
+      if (new ProjectStore(db, { initialize: false }).acceptedReference(row.org_id, row.project_id)?.projectRunId === row.project_run_id) held = 'accepted project reference';
     }
+    if (columns.some(column => column.name === 'base_run_id') && db.prepare(
+      "SELECT 1 FROM project_runs WHERE base_run_id = ? AND status IN ('queued','running')"
+    ).get(row.project_run_id)) held = 'active iteration base';
     const publication = db.prepare("SELECT 1 FROM project_publications WHERE project_run_id = ? AND status <> 'published'").get(row.project_run_id);
     if (publication) held = 'unfinished publication';
     if (columns.some(column => column.name === 'resume_of_run_id') && db.prepare(

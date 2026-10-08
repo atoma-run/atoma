@@ -807,7 +807,7 @@
   "docs.user.projects.anatomy.stream.body": "Verwenden Sie einen eindeutigen Namen für das Kundenprojekt, das interne Produkt oder das betriebliche Hilfsmittel, den das Team später wiedererkennt.",
   "docs.user.projects.anatomy.repo.tag": "REPOSITORY",
   "docs.user.projects.anatomy.repo.title": "Ein GitHub-Ziel",
-  "docs.user.projects.anatomy.repo.body": "Jedes Projekt hat genau ein Repository-Ziel. Ein ausgelieferter run wird automatisch veröffentlicht, und das Projekt zeigt, ob diese Veröffentlichung GitHub erreicht hat.",
+  "docs.user.projects.anatomy.repo.body": "",
   "docs.user.projects.anatomy.history.tag": "KONTINUITÄT",
   "docs.user.projects.anatomy.history.title": "Schrittweise runs, ein Verlauf",
   "docs.user.projects.anatomy.history.body": "Der erste run beginnt mit einem leeren Arbeitsbereich. Jeder spätere run beginnt mit dem zuvor ausgelieferten Arbeitsbereich, sodass Änderungen auf früheren Arbeiten aufbauen.",

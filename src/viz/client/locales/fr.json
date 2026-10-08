@@ -807,7 +807,7 @@
   "docs.user.projects.anatomy.stream.body": "Utilise un nom clair pour la mission client, le produit interne ou l’utilitaire opérationnel que l’équipe pourra reconnaître plus tard.",
   "docs.user.projects.anatomy.repo.tag": "DÉPÔT",
   "docs.user.projects.anatomy.repo.title": "Une destination GitHub",
-  "docs.user.projects.anatomy.repo.body": "Chaque projet possède une cible de dépôt. Un run livré est publié automatiquement, et le projet indique si cette publication a atteint GitHub.",
+  "docs.user.projects.anatomy.repo.body": "",
   "docs.user.projects.anatomy.history.tag": "CONTINUITÉ",
   "docs.user.projects.anatomy.history.title": "Des runs incrémentaux, un seul historique",
   "docs.user.projects.anatomy.history.body": "Le premier run part d’un workspace vide. Chaque run ultérieur part du workspace livré précédent, afin que les modifications s’appuient sur le travail antérieur.",

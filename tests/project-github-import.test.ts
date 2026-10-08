@@ -64,11 +64,17 @@ async function fixture(mode: 'pull-request' | 'fork', transform?: (fake: FakeGit
     source: { owner: 'upstream', name: 'app', mode },
   } }) as { projectId: string };
   const project = f.projects.getProject(f.viewer.orgId, created.projectId)!;
-  const start = async (content = '<h1>Changed</h1>') => {
+  const start = async (content = '<h1>Changed</h1>', baseRunId?: string) => {
     nextContent = content;
     const run = await coordinator.start({ orgId: f.viewer.orgId, principalId: f.viewer.principalId, projectId: project.projectId,
-      request: { idempotencyKey: randomUUID(), goal: 'Change the heading.' } });
+      request: { idempotencyKey: randomUUID(), goal: 'Change the heading.', ...(baseRunId ? { baseRunId } : {}) } });
     await coordinator.waitForIdle();
+    const delivered = f.projects.getProjectRun(f.viewer.orgId, run.projectRunId)!;
+    if (delivered.status === 'delivered') {
+      // This publication fixture represents a client who reviewed the result.
+      await service.acceptDelivery(f.viewer, project.projectId, run.projectRunId, {
+        manifestHash: delivered.artifactManifestHash, review: 'Client tested imported delivery.' }).catch(() => {});
+    }
     return f.projects.getProjectRun(f.viewer.orgId, run.projectRunId)!;
   };
   return { ...f, project, fake, client, publisher, service, coordinator, driver, runTitler, start, seeds };
@@ -424,4 +430,25 @@ describe('GitHub source entry', () => {
   it.each(['https://evil.test/owner/repo', 'https://github.com/owner/repo/tree/main', 'https://u:p@github.com/owner/repo', '../repo', 'git@github.com:owner/repo'])('refuses %s', value => {
     expect(() => parseGitHubRepository(value)).toThrow();
   });
+});
+
+
+it.each(['fork', 'pull-request'] as const)('iterates a selected imported delivery without replacing its bytes from GitHub (%s)', async mode => {
+  const f = await fixture(mode);
+  const first = await f.start('<h1>Accepted</h1>');
+  const owner = mode === 'fork' ? 'alice' : 'upstream';
+  f.fake.commitOutside(owner, 'app', 'main', 'index.html', '<h1>Remote after acceptance</h1>');
+  const prepare = vi.spyOn(f.publisher, 'prepareRun');
+  const second = await f.start('<h1>Iteration</h1>', first.projectRunId);
+  expect(second.status, second.error ?? '').toBe('delivered');
+  expect(f.seeds.at(-1)).toBe('<h1>Accepted</h1>');
+  expect(prepare).not.toHaveBeenCalled();
+  expect(second.repositoryBase).toEqual(first.repositoryBase);
+  expect(second.seed).toEqual({ kind: 'run', runId: first.projectRunId });
+  expect(f.projects.getPublicationForRun(f.viewer.orgId, second.projectRunId)?.status).toBe('published');
+  if (mode === 'pull-request') {
+    expect(f.fake.filesOn(owner, 'app', `atoma/run-${second.projectRunId}`).get('index.html')?.text).toBe('<h1>Iteration</h1>');
+  } else {
+    expect(f.fake.filesOn(owner, 'app', 'main').get('index.html')?.text).toBe('<h1>Remote after acceptance</h1>');
+  }
 });

@@ -807,7 +807,7 @@
   "docs.user.projects.anatomy.stream.body": "Используйте понятное название клиентского проекта, внутреннего продукта или операционного инструмента, которое команда узнает в дальнейшем.",
   "docs.user.projects.anatomy.repo.tag": "РЕПОЗИТОРИЙ",
   "docs.user.projects.anatomy.repo.title": "Одна точка назначения в GitHub",
-  "docs.user.projects.anatomy.repo.body": "У каждого проекта есть один целевой репозиторий. Переданный run публикуется автоматически, а проект показывает, дошла ли публикация до GitHub.",
+  "docs.user.projects.anatomy.repo.body": "",
   "docs.user.projects.anatomy.history.tag": "НЕПРЕРЫВНОСТЬ",
   "docs.user.projects.anatomy.history.title": "Последовательные runs, единая история",
   "docs.user.projects.anatomy.history.body": "Первый run начинается с пустой рабочей области. Каждый последующий run начинается с предыдущей переданной рабочей области, поэтому изменения дополняют ранее выполненную работу.",

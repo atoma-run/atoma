@@ -183,3 +183,60 @@ from an old trace, counter rollback, or cleanup request mistaken for absence.
 `tests/launcher-workers.test.ts` kills a real worker process behind a fake engine
 and verifies the new-connection absence proof, including engine failure. Container
 packaging/isolation tests remain the proof of the actual image boundary.
+
+## MCP iteration follow-up (2026-10-08)
+
+The client enters through Atoma's MCP. Pause and continuation now have MCP
+doors (`atoma_run_pause`, `atoma_run_resume`), with continuation using the same
+durable project task contract as starting a run. `atoma_run_compare` compares
+two saved delivery inventories; status, trace and file readers remain the
+sources of acceptance evidence and verified content.
+
+### Owner decision: client acceptance precedes GitHub publication
+
+Resolved on 2026-10-08: deliver, let the client test/review, obtain explicit
+acceptance, then publish to GitHub. This applies to project deliveries generally,
+not only an opt-in iteration mode. Existing published receipts remain unchanged.
+The MCP acceptance call binds the exact manifest hash and records the client,
+time and review summary. A failed publication retains this receipt for retry.
+No approval is inferred from the model's delivery verdict. Text-only deliveries
+can be accepted without publication. A push may trigger an existing repository
+pipeline; Atoma does not configure or claim a deployment through this operation.
+
+`atoma_run_start` now takes optional `baseRunId` with a new goal, selecting a
+retained delivered or partial non-comparison run of the same project. It is part
+of immutable request identity and survives queued process restart. Both admission
+and launch validate the saved manifest against the selected bytes; unavailable,
+expired or changed files refuse rather than silently choosing another version.
+The ordinary automatic seed policy remains when the field is omitted.
+
+Status and readiness expose `acceptedReferenceRunId`, derived from the newest
+accepted delivery by run creation order (run id breaks ties), not acceptance
+request arrival order. New unaccepted, partial or failed candidates never advance
+this reference. Existing publication alone is not fabricated client acceptance.
+Retention holds the reference of an active project and every base needed by a
+queued/running iteration. Historical references remain readable after expiry.
+
+Explicit selection skips remote refresh at launch, including imported PR/fork
+projects. It copies the selected workspace through the existing runner and carries
+its repository BASE/debt, text history and retrieval corpus. Publication still
+requires fresh client acceptance and the existing remote authority/conflict checks;
+selecting an older version is not a GitHub reset or force push. Imported selections
+require a recorded repository base; unresolved legacy debt stays a publication
+refusal. A separately mutable project reference/rollback command is not introduced.
+
+Adversarial iteration review covers a newer candidate appearing while queued,
+process restart, same key with a different base, foreign org/project, missing or
+mutated bytes, and combinations with comparison or checkpoint continuation.
+Existing seed-inheritance, progressive-run, host-path, repository-sync and recovery
+contracts still apply: no duplicated runner, inherited approval, lost remote edits,
+new LLM calls or expiry fallback. MCP tests use both protocol eras, queue tests
+cross a real child-process boundary, and publication tests use stateful fake GitHub.
+
+Adversarial review of the publication gate covers foreign organisations and
+projects, viewer writes, mismatched manifest hashes, partial/comparison runs,
+expired bytes, duplicate calls, remote failures and restart persistence. It
+retains the existing incident-driven byte revalidation, branch ownership,
+non-fast-forward and first-publication crash-repair guards. An unaccepted newer
+candidate must not prevent the client from publishing an older reviewed version;
+a newer accepted/published version still prevents rollback.

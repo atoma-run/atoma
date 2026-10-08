@@ -233,7 +233,7 @@ describe('the delivered-preview hook fires exactly once, on delivery, for this r
       expect(row.status).toBe('delivered');
       expect(row.stats).toEqual(DELIVERED_STATS);
       expect(row.artifactManifest?.files.map((file) => file.path)).toEqual(['server.js']);
-      expect(publisher.publish).toHaveBeenCalledOnce();
+      expect(publisher.publish).not.toHaveBeenCalled();
       expect(previews.getDescriptor(f.viewer.orgId, started.projectRunId)).toMatchObject({
         availability: 'available', kind: 'node', entry: 'server.js',
       });
@@ -437,9 +437,8 @@ describe('a throwing describer never downgrades a delivered run', () => {
     expect(row.stats?.llmCalls).toBe(20);
     expect(row.stats?.outcome).toBe('delivered');
     expect(row.artifactManifest?.files.map((file) => file.path)).toEqual(['index.html']);
-    // And publication is NOT skipped: the hook sits before it, so a throw that
-    // escaped would have taken the repository push with it.
-    expect(publisher.publish).toHaveBeenCalledOnce();
+    // Preview remains independent of client acceptance; delivery does not publish.
+    expect(publisher.publish).not.toHaveBeenCalled();
     // Contained, but never silent.
     const written = stderr.mock.calls.map(([chunk]) => String(chunk)).join('');
     expect(written).toContain('preview descriptor unavailable');

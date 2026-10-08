@@ -2578,6 +2578,10 @@ it('serves saved file preview bytes as authenticated, non-executable attachments
       .toMatchObject({ projectId: project.projectId, canRequest: true, liveChecks: 'not-performed' });
     expect(await (await fetch(`${runBase}/artifacts?limit=1`, { headers })).json())
       .toMatchObject({ files: [{ path: 'drawing.svg', size: bytes.length }], total: 1, nextOffset: null });
+    expect((await fetch(`${runBase}/compare?baseRunId=${runId}`)).status).toBe(401);
+    expect(await (await fetch(`${runBase}/compare?baseRunId=${runId}`, { headers })).json())
+      .toMatchObject({ evidence: 'saved_manifests', counts: { unchanged: 1 }, files: [], nextOffset: null });
+    expect((await fetch(`${runBase}/compare?baseRunId=${runId}&limit=101`, { headers })).status).toBe(400);
     expect((await fetch(`${runBase}/file?path=drawing.svg`)).status).toBe(401);
     expect(await (await fetch(`${runBase}/file?path=drawing.svg&limit=4`, { headers })).json())
       .toMatchObject({ text: '<svg', nextTextOffset: 4, untrusted: true, mimeType: 'image/svg+xml' });

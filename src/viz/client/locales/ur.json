@@ -807,7 +807,7 @@
   "docs.user.projects.anatomy.stream.body": "کلائنٹ کی مصروفیت، اندرونی پروڈکٹ یا عملی سہولت کے لیے ایسا واضح نام استعمال کریں جسے ٹیم بعد میں پہچان سکے۔",
   "docs.user.projects.anatomy.repo.tag": "ریپوزٹری",
   "docs.user.projects.anatomy.repo.title": "ایک GitHub منزل",
-  "docs.user.projects.anatomy.repo.body": "ہر پروجیکٹ کا ایک ریپوزٹری ہدف ہوتا ہے۔ ڈیلیور شدہ run خودکار طور پر شائع ہوتا ہے، اور پروجیکٹ دکھاتا ہے کہ آیا یہ اشاعت GitHub تک پہنچی۔",
+  "docs.user.projects.anatomy.repo.body": "",
   "docs.user.projects.anatomy.history.tag": "تسلسل",
   "docs.user.projects.anatomy.history.title": "تدریجی runs، ایک تاریخ",
   "docs.user.projects.anatomy.history.body": "پہلا run خالی ورک اسپیس سے شروع ہوتا ہے۔ ہر بعد کا run پچھلی ڈیلیور شدہ ورک اسپیس سے شروع ہوتا ہے، اس لیے تبدیلیاں پہلے کام پر استوار ہوتی ہیں۔",

@@ -48,13 +48,16 @@ function fixture() {
     hostEnv: { [HAYSTACK_LAUNCH_ENV]: JSON.stringify(haystackTestRuntime(root)), ATOMA_MODEL_L1: 'api:ollama:qwen3:8b',
       ATOMA_MODEL_L2: 'api:ollama:qwen3:8b', ATOMA_MODEL_L3: 'api:ollama:qwen3:8b', OLLAMA_BASE_URL: 'http://127.0.0.1:1' },
     publisher, driver, acquireLease: async () => ({ path: 'test', attachChild: vi.fn(), release }) });
-  const start = async (change: typeof edit) => {
+  const start = async (change: typeof edit, baseRunId?: string) => {
     edit = change;
     const run = await coordinator.start({ orgId: f.viewer.orgId, principalId: f.viewer.principalId, projectId: f.project.projectId,
-      request: { idempotencyKey: randomUUID(), goal: 'Improve the application.' } });
+      request: { idempotencyKey: randomUUID(), goal: 'Improve the application.', ...(baseRunId ? { baseRunId } : {}) } });
     await coordinator.waitForIdle();
     const finished = f.projects.getProjectRun(f.viewer.orgId, run.projectRunId)!;
     expect(finished.status, finished.error ?? '').toBe('delivered');
+    f.projects.acceptDelivery(f.viewer.orgId, run.projectRunId, f.viewer.principalId, { manifestHash: finished.artifactManifestHash!, review: 'Client tested synced delivery.' });
+    // Failure cases below assert the persisted publication error.
+    await coordinator.retryPublication(f.viewer.orgId, run.projectRunId).catch(() => {});
     return finished;
   };
   return { ...f, client, fake, publisher, coordinator, start, release, setEdit: (change: typeof edit) => { edit = change; } };
@@ -173,4 +176,22 @@ it('reruns a materialised start, including a rerun of a rerun, without reading G
   };
   await rerun(await rerun(origin.projectRunId));
   expect(sync).not.toHaveBeenCalled();
+});
+
+
+it('starts from the selected saved bytes while publication preserves newer remote edits', async () => {
+  const f = fixture();
+  const first = await f.start(w => writeFileSync(join(w, 'app.js'), 'reviewed'));
+  f.fake.commitOutside('owner', 'docs', 'main', 'app.js', 'remote edit');
+  const second = await f.start(w => {
+    expect(readFileSync(join(w, 'app.js'), 'utf8')).toBe('reviewed');
+    writeFileSync(join(w, 'app.js'), 'Atoma iteration');
+    writeFileSync(join(w, 'iteration.txt'), 'new work');
+  }, first.projectRunId);
+  expect(second.seed).toEqual({ kind: 'run', runId: first.projectRunId });
+  expect(second.baseRunId).toBe(first.projectRunId);
+  expect(f.projects.getPublicationForRun(f.viewer.orgId, second.projectRunId)?.status).toBe('published');
+  expect(f.fake.filesOn('owner', 'docs', 'main').get('app.js')?.text).toBe('remote edit');
+  expect(f.fake.filesOn('owner', 'docs', 'main').get('iteration.txt')?.text).toBe('new work');
+  expect(readFileSync(join(first.hostPaths.workspacePath, 'app.js'), 'utf8')).toBe('reviewed');
 });

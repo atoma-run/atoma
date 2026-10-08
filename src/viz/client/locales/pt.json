@@ -807,7 +807,7 @@
   "docs.user.projects.anatomy.stream.body": "Use um nome claro para o trabalho do cliente, produto interno ou utilitário operacional que a equipa reconhecerá mais tarde.",
   "docs.user.projects.anatomy.repo.tag": "REPOSITÓRIO",
   "docs.user.projects.anatomy.repo.title": "Um destino no GitHub",
-  "docs.user.projects.anatomy.repo.body": "Cada projeto possui um destino de repositório. Um run entregue é publicado automaticamente, e o projeto mostra se essa publicação chegou ao GitHub.",
+  "docs.user.projects.anatomy.repo.body": "",
   "docs.user.projects.anatomy.history.tag": "CONTINUIDADE",
   "docs.user.projects.anatomy.history.title": "Runs incrementais, um só histórico",
   "docs.user.projects.anatomy.history.body": "O primeiro run começa num espaço de trabalho vazio. Cada run posterior começa no espaço de trabalho entregue anteriormente, para que as alterações aproveitem o trabalho anterior.",

@@ -807,7 +807,7 @@
   "docs.user.projects.anatomy.stream.body": "使用清晰的名称，让团队日后能识别对应的客户项目、内部产品或运维工具。",
   "docs.user.projects.anatomy.repo.tag": "代码仓库",
   "docs.user.projects.anatomy.repo.title": "一个 GitHub 目标位置",
-  "docs.user.projects.anatomy.repo.body": "每个项目对应一个代码仓库目标。已交付的 run 会自动发布，项目会显示该发布是否已送达 GitHub。",
+  "docs.user.projects.anatomy.repo.body": "",
   "docs.user.projects.anatomy.history.tag": "连续性",
   "docs.user.projects.anatomy.history.title": "增量 run，统一历史",
   "docs.user.projects.anatomy.history.body": "首次 run 从空工作区开始。后续每个 run 都从上一次已交付的工作区开始，使变更建立在先前工作的基础上。",

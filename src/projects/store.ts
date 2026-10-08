@@ -11,6 +11,7 @@ import { runStatsSchema, type RunStats } from '../contracts/runStats.js';
 import { ledgerRows, runPayerLedgerSchema, type RunPayerLedger } from '../contracts/runPayers.js';
 import {
   artifactManifestSchema,
+  acceptDeliveryInputSchema, deliveryAcceptanceSchema, type DeliveryAcceptance,
   commitShaSchema,
   createProjectInputSchema,
   createProjectRunInputSchema,
@@ -469,6 +470,7 @@ interface ProjectRunRow {
   bytes_expired_at?: string | null;
   rerun_of_run_id?: string | null;
   resume_of_run_id?: string | null;
+  base_run_id?: string | null;
   model_overrides_json?: string | null;
   requested_timeout_ms?: number | null;
   seed_json?: string | null;
@@ -587,6 +589,7 @@ function runFromRow(row: ProjectRunRow): ProjectRun {
     ...(row.repository_base_json ? { repositoryBase: parseJson(row.repository_base_json, 'repository base') } : {}),
     ...(row.rerun_of_run_id ? { rerunOf: row.rerun_of_run_id } : {}),
     ...(row.resume_of_run_id ? { resumeOf: row.resume_of_run_id } : {}),
+    ...(row.base_run_id ? { baseRunId: row.base_run_id } : {}),
     ...(row.model_overrides_json ? { modelOverrides: parseJson(row.model_overrides_json, 'model overrides') } : {}),
     ...(row.requested_timeout_ms != null ? { requestedTimeoutMs: row.requested_timeout_ms } : {}),
     ...(row.seed_json ? { seed: parseJson(row.seed_json, 'run seed') } : {}),
@@ -773,6 +776,7 @@ export class ProjectStore {
         ['project_runs', 'bytes_deleted_at'],
         ['project_runs', 'rerun_of_run_id'],
         ['project_runs', 'resume_of_run_id'],
+        ['project_runs', 'base_run_id'],
         ['project_runs', 'model_overrides_json'],
         ['project_runs', 'seed_json'],
         ['project_runs', 'depth'],
@@ -787,6 +791,13 @@ export class ProjectStore {
         if (!columns.some(item => item.name === column)) this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} TEXT`);
       }
       if (!publicationColumns.includes('kept_remote')) this.db.exec('ALTER TABLE project_publications ADD COLUMN kept_remote INTEGER');
+      this.db.exec(`CREATE TABLE IF NOT EXISTS project_delivery_acceptance (
+        project_run_id TEXT PRIMARY KEY REFERENCES project_runs(project_run_id) ON DELETE CASCADE,
+        org_id TEXT NOT NULL REFERENCES auth_organisations(org_id),
+        principal_id TEXT NOT NULL REFERENCES auth_principals(principal_id),
+        manifest_hash TEXT NOT NULL, review TEXT NOT NULL, accepted_at TEXT NOT NULL);
+        CREATE TRIGGER IF NOT EXISTS delivery_acceptance_immutable BEFORE UPDATE ON project_delivery_acceptance
+        BEGIN SELECT RAISE(ABORT, 'client delivery acceptance is immutable'); END;`);
       this.db.exec(`CREATE TABLE IF NOT EXISTS project_run_repository_sync (
         project_run_id TEXT PRIMARY KEY REFERENCES project_runs(project_run_id) ON DELETE CASCADE,
         org_id TEXT NOT NULL, record_json TEXT NOT NULL);
@@ -799,6 +810,9 @@ export class ProjectStore {
       // re-ran and on which models is fixed at reservation, and a seed once
       // recorded is a fact about the past.
       this.db.exec(`
+CREATE TRIGGER IF NOT EXISTS project_runs_base_immutable BEFORE UPDATE OF base_run_id ON project_runs
+WHEN NEW.base_run_id IS NOT OLD.base_run_id
+BEGIN SELECT RAISE(ABORT, 'iteration base is immutable'); END;
 CREATE UNIQUE INDEX IF NOT EXISTS project_runs_resume_once ON project_runs(resume_of_run_id) WHERE resume_of_run_id IS NOT NULL AND status NOT IN ('failed','cancelled');
 CREATE TRIGGER IF NOT EXISTS project_runs_resume_immutable BEFORE UPDATE OF resume_of_run_id ON project_runs
 WHEN NEW.resume_of_run_id IS NOT OLD.resume_of_run_id
@@ -1410,6 +1424,7 @@ END;
     const wantedDigest = request.acceptanceChecklist ? captureAcceptanceSpec(request.acceptanceChecklist).digest : null;
     const storedDigest = this.getRunAcceptanceSpec(orgId, existing.project_run_id)?.digest ?? null;
     if (existing.requested_by_principal_id !== principalId || existing.goal !== request.goal ||
+        (existing.base_run_id ?? null) !== (request.baseRunId ?? null) ||
         (existing.resume_of_run_id ?? null) !== (request.resumeOf ?? null) || wantedDigest !== storedDigest || (existing.depth ?? null) !== (request.depth ?? null)) {
       throw new ProjectStateConflict('run idempotency key was already used for different input');
     }
@@ -1448,7 +1463,7 @@ END;
     }
     const request = createProjectRunInputSchema.parse(requestInput);
     const wantedDigest = request.acceptanceChecklist ? captureAcceptanceSpec(request.acceptanceChecklist).digest : null;
-    const match = live.find((row) => !row.rerun_of_run_id && (row.resume_of_run_id ?? null) === (request.resumeOf ?? null) && row.goal === request.goal &&
+    const match = live.find((row) => !row.rerun_of_run_id && (row.base_run_id ?? null) === (request.baseRunId ?? null) && (row.resume_of_run_id ?? null) === (request.resumeOf ?? null) && row.goal === request.goal &&
       (row.depth ?? null) === (request.depth ?? null) &&
       (this.getRunAcceptanceSpec(orgId, row.project_run_id)?.digest ?? null) === wantedDigest);
     return match ? runFromRow(match) : null;
@@ -1553,6 +1568,7 @@ END;
       if (existing) {
         return { run: existing, created: false } as const;
       }
+      if (request.baseRunId) this.iterationBase(orgId, projectId, request.baseRunId);
       if (input.enforceCapacity) this.assertRunCapacity(orgId);
       const now = new Date().toISOString();
       this.db
@@ -1560,8 +1576,8 @@ END;
           `INSERT INTO project_runs (
              project_run_id, project_id, org_id, requested_by_principal_id, request_key,
              goal, status, workspace_path, runs_path, log_path, skills_path,
-             rerun_of_run_id, model_overrides_json, depth, created_at, updated_at, requested_timeout_ms, resume_of_run_id
-           ) VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+             rerun_of_run_id, model_overrides_json, depth, created_at, updated_at, requested_timeout_ms, resume_of_run_id, base_run_id
+           ) VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           requestedRunId,
@@ -1580,7 +1596,8 @@ END;
           now,
           now,
           requestedTimeoutMs ?? null,
-          request.resumeOf ?? null
+          request.resumeOf ?? null,
+          request.baseRunId ?? null
         );
       if (acceptance) {
         // `source` NULL is a user list, which is every row written before
@@ -2136,6 +2153,62 @@ END;
     return this.getProjectRun(orgId, projectRunId)!;
   }
 
+  /** A requested iteration base is never replaced by a newer or foreign run. */
+  iterationBase(orgId: string, projectId: string, runId: string): ProjectRun {
+    const run = this.getProjectRun(orgId, runId);
+    if (!run || run.projectId !== projectId || run.rerunOf ||
+        !['delivered', 'partial'].includes(run.status) || run.bytesExpiredAt ||
+        !run.artifactManifest || !run.artifactManifestHash) {
+      throw new ProjectStateConflict('Iteration base requires a retained delivered or partial run of this project');
+    }
+    return run;
+  }
+
+  /** Reference is derived from approvals, never advanced by an unaccepted candidate. */
+  acceptedReference(orgId: string, projectId: string): ProjectRun | null {
+    const row = this.db.prepare(`SELECT r.* FROM project_runs r
+      JOIN project_delivery_acceptance a ON a.project_run_id = r.project_run_id AND a.org_id = r.org_id
+      WHERE r.org_id = ? AND r.project_id = ? AND r.status = 'delivered'
+        AND r.rerun_of_run_id IS NULL AND a.manifest_hash = r.artifact_manifest_hash
+      ORDER BY r.created_at DESC, r.project_run_id DESC LIMIT 1`).get(orgId, projectId) as ProjectRunRow | undefined;
+    return row ? runFromRow(row) : null;
+  }
+
+  getDeliveryAcceptance(orgId: string, projectRunId: string): DeliveryAcceptance | null {
+    const row = this.db.prepare(`SELECT principal_id AS principalId, manifest_hash AS manifestHash,
+      review, accepted_at AS acceptedAt FROM project_delivery_acceptance WHERE org_id=? AND project_run_id=?`)
+      .get(orgId, projectRunId);
+    return row ? deliveryAcceptanceSchema.parse(row) : null;
+  }
+
+  acceptDelivery(orgId: string, projectRunId: string, principalId: string, raw: unknown): { acceptance: DeliveryAcceptance; created: boolean } {
+    const input = acceptDeliveryInputSchema.parse(raw);
+    principalIdSchema.parse(principalId);
+    return this.db.transaction(() => {
+      const run = this.getProjectRun(orgId, projectRunId);
+      if (!run || run.status !== 'delivered' || run.rerunOf || !run.artifactManifestHash || run.bytesExpiredAt) {
+        throw new ProjectStateConflict('Client acceptance requires a retained delivered non-comparison run');
+      }
+      if (run.artifactManifestHash !== input.manifestHash) throw new ProjectStateConflict('The reviewed manifest does not match this delivery');
+      const existing = this.getDeliveryAcceptance(orgId, projectRunId);
+      if (existing) return { acceptance: existing, created: false };
+      const acceptance = { ...input, principalId, acceptedAt: new Date().toISOString() };
+      this.db.prepare(`INSERT INTO project_delivery_acceptance
+        (project_run_id, org_id, principal_id, manifest_hash, review, accepted_at) VALUES (?,?,?,?,?,?)`)
+        .run(projectRunId, orgId, principalId, input.manifestHash, input.review, acceptance.acceptedAt);
+      return { acceptance, created: true };
+    }).immediate();
+  }
+
+  assertPublicationAccepted(run: ProjectRun): void {
+    // Historical successful publications remain receipts, never fabricated client approvals.
+    if (this.getPublicationForRun(run.orgId, run.projectRunId)?.status === 'published') return;
+    const acceptance = this.getDeliveryAcceptance(run.orgId, run.projectRunId);
+    if (!acceptance || acceptance.manifestHash !== run.artifactManifestHash) {
+      throw new ProjectStateConflict('Client acceptance is required before GitHub publication; review the delivery and call atoma_run_accept');
+    }
+  }
+
   reservePublication(input: {
     readonly orgId: string;
     readonly projectRunId: string;
@@ -2165,6 +2238,7 @@ END;
       if (run.rerunOf) {
         throw new ProjectStateConflict('a comparison rerun is never published');
       }
+      this.assertPublicationAccepted(run);
       const byKey = this.db
         .prepare('SELECT * FROM project_publications WHERE org_id = ? AND idempotency_key = ?')
         .get(orgId, idempotencyKey) as PublicationRow | undefined;

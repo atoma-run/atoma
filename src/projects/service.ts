@@ -2,6 +2,7 @@ import { PROJECT_RUN_WAITING_MESSAGE } from '../contracts/projects.js';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { artifactPageInputSchema, artifactReadInputSchema, pageCursorSchema, projectPageInputSchema, runPageInputSchema,
+  runComparisonInputSchema, type RunComparisonResult,
   serviceProblem, type ServiceProblem, type ProjectPageInput, type RunPageInput, type PageCursor } from '../contracts/clientExperience.js';
 import { projectRunProgress } from './runProgress.js';
 import { artifactMime } from './artifactMedia.js';
@@ -15,6 +16,7 @@ import { roleAtLeast } from '../auth/store.js';
 export { roleAtLeast } from '../auth/store.js';
 import {
   createProjectInputSchema,
+  acceptDeliveryInputSchema,
   projectIdSchema, projectRunIdSchema,
   projectShowcaseSchema,
   startProjectRunInputSchema,
@@ -243,7 +245,12 @@ export class ProjectService {
   }
 
   private present(run: ProjectRun, publication: import('../contracts/projects.js').Publication | null) {
+    const clientAcceptance = this.store.getDeliveryAcceptance(run.orgId, run.projectRunId);
     return { ...publicRun(run, publication, this.store.getRunPayers(run.orgId, run.projectRunId)),
+      clientAcceptance,
+      acceptedReferenceRunId: this.store.acceptedReference(run.orgId, run.projectId)?.projectRunId ?? null,
+      awaitingClientAcceptance: run.status === 'delivered' && !run.rerunOf && !run.bytesExpiredAt && Boolean(run.artifactManifestHash)
+        && publication?.status !== 'published' && !clientAcceptance,
       checkpoint: this.coordinator.checkpointStatus(run) };
   }
 
@@ -332,7 +339,7 @@ export class ProjectService {
       catch { problems.push(serviceProblem(400, 'The configured models or host prerequisites cannot support this run.',
         { code: 'configuration_required', nextAction: 'Check your model selections and provider connection in Settings. Ask the instance administrator to check host prerequisites if they are already configured.' })); }
     }
-    return { projectId, organisation: { orgId, name: orgId === viewer.orgId ? viewer.orgName : null },
+    return { projectId, acceptedReferenceRunId: this.store.acceptedReference(orgId, projectId)?.projectRunId ?? null, organisation: { orgId, name: orgId === viewer.orgId ? viewer.orgName : null },
       canRequest: mayStart, configured: problems.length === 0, capacity, configuration, problems,
       liveChecks: 'not-performed', note: 'Configuration only: credentials, repository access, live capacity and personal model availability are checked again at launch. No price estimate or reservation.' };
   }
@@ -512,6 +519,43 @@ export class ProjectService {
     const limit = input.limit ?? 30;
     return { projectId, runId, status: index.status, files: files.slice(offset, offset + limit), total: files.length,
       nextOffset: offset + limit < files.length ? offset + limit : null };
+  }
+
+  /** Compare immutable delivery inventories, never a live workspace or GitHub head. */
+  compareRuns(viewer: Viewer, projectId: string, runId: string, raw: unknown): RunComparisonResult {
+    const input = clientInput(runComparisonInputSchema, raw);
+    // Reuse the file reader's project binding, retention and publishable path policy.
+    const before = this.workspace(viewer, projectId, input.baseRunId) as WorkspaceIndex;
+    const after = this.workspace(viewer, projectId, runId) as WorkspaceIndex;
+    const orgId = this.readOrgFor(viewer, projectId);
+    const base = this.store.getProjectRun(orgId, input.baseRunId)!;
+    const target = this.store.getProjectRun(orgId, runId)!;
+    const snapshot = createHash('sha256').update(JSON.stringify([
+      projectId, base.projectRunId, base.artifactManifestHash, target.projectRunId, target.artifactManifestHash,
+      input.search ?? '',
+    ])).digest('hex');
+    if (input.snapshot && input.snapshot !== snapshot) throw new ProjectHttpError(409, 'comparison snapshot changed; restart paging');
+    const allowedBefore = new Set(before.files.map(file => file.path));
+    const allowedAfter = new Set(after.files.map(file => file.path));
+    const left = new Map(base.artifactManifest!.files.filter(file => allowedBefore.has(file.path)).map(file => [file.path, file]));
+    const right = new Map(target.artifactManifest!.files.filter(file => allowedAfter.has(file.path)).map(file => [file.path, file]));
+    const counts = { added: 0, removed: 0, modified: 0, unchanged: 0 };
+    const files: RunComparisonResult['files'] = [];
+    for (const path of [...new Set([...left.keys(), ...right.keys()])].sort()) {
+      const a = left.get(path), b = right.get(path);
+      const change = !a ? 'added' : !b ? 'removed' : a.sha256 !== b.sha256 || a.size !== b.size ? 'modified' : 'unchanged';
+      counts[change]++;
+      if (change === 'unchanged' || (input.search && !path.toLowerCase().includes(input.search.toLowerCase()))) continue;
+      files.push({ path, change, before: a ? { size: a.size, sha256: a.sha256 } : null, after: b ? { size: b.size, sha256: b.sha256 } : null });
+    }
+    const offset = input.offset ?? 0, limit = input.limit ?? 30;
+    return { projectId, baseRunId: input.baseRunId, runId, snapshot, evidence: 'saved_manifests', untrusted: true,
+      base: { status: before.status, coverage: base.artifactManifest!.source === 'workspace' ? 'workspace' : 'declared' },
+      target: { status: after.status, coverage: target.artifactManifest!.source === 'workspace' ? 'workspace' : 'declared' },
+      counts, files: files.slice(offset, offset + limit), total: files.length,
+      nextOffset: offset + limit < files.length ? offset + limit : null,
+      note: 'Counts cover saved manifests; search filters the changed-file page only. Added/removed mean presence in these inventories, not GitHub changes. Legacy declared inventories may omit files. This does not compare text-only answers, verify current bytes, establish acceptance or adopt a version. Read run status/trace for results and proof, and atoma_run_file for hash-verified file contents.',
+    };
   }
 
   artifactFile(viewer: Viewer, projectId: string, runId: string, raw: unknown) {
@@ -718,13 +762,35 @@ export class ProjectService {
     const acceptance = this.store.getRunAcceptanceSpec(viewer.orgId, projectRunId);
     const resumed = await this.startProjectRunFromInput(viewer, projectId, {
       goal: run.goal, depth: run.depth, idempotencyKey: `github-access:${projectRunId}`,
+      ...(run.baseRunId ? { baseRunId: run.baseRunId } : {}),
       ...(acceptance ? { acceptanceChecklist: acceptance.items.map(({ behaviour, check }) => ({ behaviour, check })) } : {}),
     }) as { projectRunId: string };
     this.store.setGitHubAccess(viewer.orgId, projectRunId, { ...access, resumedRunId: resumed.projectRunId });
     return resumed;
   }
 
-  /** POST /api/projects/:id/runs/:runId/publish — org:member or above. */
+  async acceptDelivery(viewer: Viewer, projectId: string, projectRunId: string, raw: unknown): Promise<unknown> {
+    if (!roleAtLeast(viewer.role, 'org:member')) throw new ProjectHttpError(403, 'org:member role or above is required to accept a delivery');
+    const run = this.store.getProjectRun(viewer.orgId, projectRunId);
+    if (!run || run.projectId !== projectId) throw new ProjectHttpError(404, 'project run not found');
+    const input = clientInput(acceptDeliveryInputSchema, raw);
+    try {
+      const accepted = this.store.acceptDelivery(viewer.orgId, projectRunId, viewer.principalId, input);
+      if (accepted.created) this.events({ kind: 'run.client_accepted', actorType: 'principal', actorId: viewer.principalId,
+        orgId: viewer.orgId, projectId, runId: projectRunId, summary: 'Client accepted the saved delivery for publication',
+        detail: { manifestHash: input.manifestHash } });
+    }
+    catch (error) { if (error instanceof ProjectStateConflict) throw new ProjectHttpError(409, error.message); throw error; }
+    if (run.artifactManifest?.delivery === 'text' || !run.artifactManifest?.files.length) return this.projectRunStatus(viewer, projectId, projectRunId);
+    // Approval survives a publishing failure; retry never asks the client to accept twice.
+    return this.retryPublication(viewer, projectId, projectRunId);
+  }
+
+  async acceptDeliveryRequest(req: IncomingMessage, viewer: Viewer, projectId: string, projectRunId: string): Promise<unknown> {
+    return this.acceptDelivery(viewer, projectId, projectRunId, await readJsonBody(req));
+  }
+
+  /** POST /api/projects/:id/runs/:runId/publish — accepted deliveries only. */
   async retryPublication(viewer: Viewer, projectId: string, projectRunId: string): Promise<unknown> {
     if (!roleAtLeast(viewer.role, 'org:member')) {
       throw new ProjectHttpError(403, 'org:member role or above is required to retry publication');

@@ -144,7 +144,7 @@ describe('comparison reruns', () => {
     expect(f.store.getRunAcceptance(f.viewer.orgId, b.projectRunId)?.source).toBe('drafted');
 
     // Never published, and a retry is refused before the publisher.
-    expect(f.publisher.publish).toHaveBeenCalledTimes(2);
+    expect(f.publisher.publish).not.toHaveBeenCalled();
     await expect(f.coordinator.retryPublication(f.viewer.orgId, b.projectRunId)).rejects.toBeInstanceOf(ProjectStateConflict);
     expect(() => f.store.reservePublication({
       orgId: f.viewer.orgId, projectRunId: b.projectRunId, idempotencyKey: 'pub-b',

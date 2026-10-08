@@ -807,7 +807,7 @@
   "docs.user.projects.anatomy.stream.body": "استخدم اسمًا واضحًا لمشاركة العميل أو المنتج الداخلي أو الأداة التشغيلية، بحيث يتمكن الفريق من التعرّف إليه لاحقًا.",
   "docs.user.projects.anatomy.repo.tag": "المستودع",
   "docs.user.projects.anatomy.repo.title": "وجهة واحدة على GitHub",
-  "docs.user.projects.anatomy.repo.body": "يمتلك كل مشروع مستودعًا مستهدفًا واحدًا. يُنشر أي run تم تسليمه تلقائيًا، ويوضح المشروع ما إذا وصل ذلك النشر إلى GitHub.",
+  "docs.user.projects.anatomy.repo.body": "",
   "docs.user.projects.anatomy.history.tag": "الاستمرارية",
   "docs.user.projects.anatomy.history.title": "عمليات run تزايدية، وسجل واحد",
   "docs.user.projects.anatomy.history.body": "يبدأ أول run من مساحة عمل فارغة. ويبدأ كل run لاحق من مساحة العمل السابقة التي تم تسليمها، بحيث تُبنى التغييرات على العمل السابق.",

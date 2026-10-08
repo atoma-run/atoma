@@ -292,6 +292,8 @@ export interface VizPreviewOpen {
 }
 
 export interface VizProjectRun {
+  awaitingClientAcceptance?: boolean;
+  clientAcceptance?: import('../../contracts/projects.js').DeliveryAcceptance | null;
   resumeOf?: string;
   checkpoint?: import('../../contracts/runCheckpoint.js').ProjectCheckpointStatus;
   orgId?: string;

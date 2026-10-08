@@ -77,7 +77,7 @@ import {
   type RunLeaseAcquirer,
 } from '../mcp/runLock.js';
 import { repoRoot } from '../mcp/run.js';
-import { buildWorkspaceArtifactManifest } from './artifacts.js';
+import { buildWorkspaceArtifactManifest, revalidateArtifactManifest } from './artifacts.js';
 import { ProjectStateConflict, ProjectStore } from './store.js';
 import { ProjectRetrievalLaunchStore } from './retrievalLaunch.js';
 import { resolveRerunOrigin, type RerunOrigin } from './rerun.js';
@@ -1465,6 +1465,19 @@ export class ProjectRunCoordinator {
     return (await this.startOutcome(input)).run;
   }
 
+  private selectedIterationBase(orgId: string, projectId: string, runId: string): ProjectRun {
+    const base = this.store.iterationBase(orgId, projectId, runId);
+    if (this.store.getProject(orgId, projectId)?.repositoryTarget.source && !base.repositoryBase) {
+      throw new ProjectStateConflict('The selected version has no recorded repository base');
+    }
+    try {
+      if (!lstatSync(base.hostPaths.workspacePath).isDirectory()) throw new Error('missing workspace');
+      revalidateArtifactManifest({ workspaceRoot: base.hostPaths.workspacePath,
+        manifest: base.artifactManifest!, expectedHash: base.artifactManifestHash! });
+    } catch { throw new ProjectStateConflict('The selected version files are unavailable or changed; choose a retained intact version'); }
+    return base;
+  }
+
   /**
    * `start`, saying whether THIS call created the run. An exact retry (same
    * key) and a re-sent identical request while its run is live both return
@@ -1520,6 +1533,9 @@ export class ProjectRunCoordinator {
           JSON.stringify(input.request.acceptanceChecklist) !== JSON.stringify(expected)) {
         throw new ProjectStateConflict('A continuation must keep its original goal and acceptance criteria');
       }
+    }
+    if ('baseRunId' in input.request && input.request.baseRunId) {
+      this.selectedIterationBase(input.orgId, input.projectId, input.request.baseRunId);
     }
     const candidateRunId = randomUUID();
     const candidatePaths = projectRunHostLayout(
@@ -1705,10 +1721,11 @@ export class ProjectRunCoordinator {
 
     let driven: Promise<string>;
     try {
-      // A rerun starts where its origin started; every other run continues
-      // the project's line.
+      // Continuations, explicit versions and comparisons keep their own base;
+      // an ordinary request without a selection follows automatic seeding.
       const continuation = run.resumeOf ? this.continuation(run.orgId, run.projectId, run.requestedByPrincipalId, run.resumeOf) : null;
-      const seedRun = continuation ?? (rerun ? rerun.seedRun : previousSeedRun(this.store, input.orgId, input.projectId));
+      const selectedBase = run.baseRunId ? this.selectedIterationBase(run.orgId, run.projectId, run.baseRunId) : null;
+      const seedRun = continuation ?? selectedBase ?? (rerun ? rerun.seedRun : previousSeedRun(this.store, input.orgId, input.projectId));
       let seedFrom = seedRun?.hostPaths.workspacePath;
       // The tenant's wall clock starts when the CHILD does, not here: the
       // repository import and corpus preparation below have their own bound
@@ -1744,6 +1761,19 @@ export class ProjectRunCoordinator {
           if (continuation.repositoryBase) this.store.saveRepositoryRunBase(run.orgId, run.projectRunId, continuation.repositoryBase);
           const originalSync = this.store.getRepositorySync(run.orgId, continuation.projectRunId);
           if (originalSync) this.store.saveRepositorySync(run.orgId, run.projectRunId, originalSync);
+        } else if (selectedBase) {
+          // An explicit version is exact: do not materialise today's GitHub tree
+          // over it. Publication still reconciles against the captured BASE.
+          if (selectedBase.repositoryBase) this.store.saveRepositoryRunBase(run.orgId, run.projectRunId, selectedBase.repositoryBase);
+          const original = this.store.getRepositorySync(run.orgId, selectedBase.projectRunId);
+          const ours = inventoryRepositoryWorkspace(selectedBase.hostPaths.workspacePath);
+          const published = this.store.getPublicationForRun(run.orgId, selectedBase.projectRunId)?.status === 'published';
+          this.store.saveRepositorySync(run.orgId, run.projectRunId, {
+            status: 'unchanged', head: original?.head ?? null,
+            base: original?.debtResolved ? carryRepositoryBase(original.base, ours, published) : ours,
+            debtResolved: original?.debtResolved ?? false,
+            materialised: false, seedPath: null, taken: 0, conflicts: 0, paths: [],
+          });
         } else if (project.repositoryTarget.source) {
           if (!this.publisher?.prepareRun) throw new ProjectRunConfigurationError('GitHub repository import is unavailable');
           seedFrom = await this.publisher.prepareRun(project, run, preparationSignal);
@@ -1778,7 +1808,7 @@ export class ProjectRunCoordinator {
         // WHERE THIS RUN STARTED, recorded for every run: it is what a later
         // comparison rerun of THIS run copies (src/projects/rerun.ts).
         this.store.recordRunSeed(run.orgId, run.projectRunId,
-          continuation ? { kind: 'run', runId: continuation.projectRunId } : project.repositoryTarget.source ? { kind: 'repository' }
+          continuation ? { kind: 'run', runId: continuation.projectRunId } : selectedBase ? { kind: 'run', runId: selectedBase.projectRunId } : project.repositoryTarget.source ? { kind: 'repository' }
             : seedRun ? { kind: 'run', runId: seedRun.projectRunId } : { kind: 'none' });
         const retrievalStore = ProjectRetrievalLaunchStore.open(this.dbPath);
         // A crashed run has no accepted artifact manifest. Keep the corpus it
@@ -1797,13 +1827,13 @@ export class ProjectRunCoordinator {
         // snapshot just above: the refused workspace never reaches the child,
         // so telling it about that workspace's refusal would describe files it
         // does not have. Gated on the seed actually being the previous run's.
-        const landing = !project.repositoryTarget.source && seedRun
+        const landing = (!project.repositoryTarget.source || selectedBase) && seedRun
           ? encodePreviousLanding(seedRun?.stats?.landingReasons)
           : null;
         if (landing) environment[PREVIOUS_LANDING_ENV] = landing;
         // Text is a deliverable too. Comparisons use their origin's seed;
         // imported repository snapshots must not inherit a different workspace's history.
-        const previousResults = !project.repositoryTarget.source && seedRun
+        const previousResults = (!project.repositoryTarget.source || selectedBase) && seedRun
           ? previousResultsFor(this.store, seedRun ?? null) : undefined;
         if (previousResults) environment[PREVIOUS_RESULTS_ENV] = previousResults;
         // What the host recorded of the seed lineage's own HTTP probes, which root
@@ -1942,22 +1972,8 @@ export class ProjectRunCoordinator {
           );
         }
       }
-      // Publication is 'delivered' only, by the operator's decision of
-      // 2026-09-22: a landed run is offered to its customer as a download and
-      // the seed of the next run (no preview since 159ab36), but an incomplete artefact set
-      // never reaches the project's repository, where nothing would mark it
-      // as incomplete afterwards.
-      // Nor ever for a comparison rerun: its repository is the project's
-      // line, and the rerun is a measurement beside it.
-      if (this.publisher && !landed && !completed.rerunOf && fileDelivery) {
-        await this.publisher.publish({
-          project,
-          run: completed,
-          workspaceRoot: reservedRun.hostPaths.workspacePath,
-          manifest: built.manifest,
-          manifestHash: built.hash,
-        });
-      }
+      // Delivery and preview are available for client testing. Only explicit
+      // client acceptance may subsequently authorize GitHub publication.
     } catch (error) {
       try {
         const current = this.store.getProjectRun(reservedRun.orgId, reservedRun.projectRunId);
@@ -2161,6 +2177,7 @@ export class ProjectRunCoordinator {
     if (run.status !== 'delivered' || !run.artifactManifest || !run.artifactManifestHash) {
       throw new ProjectStateConflict('publication retry requires a delivered run with artifacts');
     }
+    this.store.assertPublicationAccepted(run);
     const project = this.store.getProject(orgId, run.projectId);
     if (!project) return null;
     const lease = await this.acquireLeasePreempting(`publication:${projectRunId}`);

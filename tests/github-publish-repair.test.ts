@@ -108,6 +108,7 @@ function deliveredRun(owner: { orgId: string; principalId: string }, installatio
   store.transitionProjectRun({ orgId: owner.orgId, projectRunId: reserved.run.projectRunId, from: 'running',
     to: 'delivered', traceId: 'trace-1', stats });
   const run = store.saveArtifactManifest(owner.orgId, reserved.run.projectRunId, built.manifest)!;
+  store.acceptDelivery(owner.orgId, run.projectRunId, owner.principalId, { manifestHash: built.hash, review: 'Client reviewed fixture delivery.' });
   return { project, run, workspace, hash: built.hash };
 }
 

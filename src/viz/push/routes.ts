@@ -265,6 +265,7 @@ const PUSH_ROUTE_SOURCES: Record<PlatformEventKind, PushRouteSource | null> = {
       fr: { title: 'Atoma — dépôt prêt', body: 'Publié sur {{repository}}' },
     },
   },
+  'run.client_accepted': null,
   'publication.failed': {
     // The owners too: a delivered run whose artifacts never reached GitHub is
     // the organisation's problem, not only the requester's.

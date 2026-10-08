@@ -275,6 +275,7 @@ export const createProjectRunInputSchema = z
   .object({
     goal: projectGoalSchema,
     resumeOf: projectRunIdSchema.optional(),
+    baseRunId: projectRunIdSchema.optional(),
     idempotencyKey: idempotencyKeySchema,
     /**
      * The acceptance criteria the user approved before launch. Optional:
@@ -289,7 +290,9 @@ export const createProjectRunInputSchema = z
      */
     depth: depthModeSchema.optional(),
   })
-  .strict();
+  .strict().refine(value => !value.resumeOf || !value.baseRunId, {
+    message: 'A continuation cannot select another base', path: ['baseRunId'],
+  });
 
 /**
  * A COMPARISON RERUN: run `rerunOf` again, on other models, from the state it
@@ -335,6 +338,17 @@ export const projectRunHostPathsSchema = z
   .strict();
 
 export const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/);
+
+/** A client's explicit review of this exact saved delivery, separate from model acceptance. */
+export const acceptDeliveryInputSchema = z.object({
+  manifestHash: sha256Schema,
+  review: z.string().trim().min(1).max(2000),
+}).strict();
+export const deliveryAcceptanceSchema = acceptDeliveryInputSchema.extend({
+  principalId: principalIdSchema,
+  acceptedAt: z.string().datetime(),
+});
+export type DeliveryAcceptance = z.infer<typeof deliveryAcceptanceSchema>;
 export const artifactPathSchema = z.string().min(1).max(512);
 export const artifactFileSchema = z
   .object({
@@ -427,6 +441,7 @@ export const projectRunSchema = z
     /** Present on a comparison rerun: the run it re-ran, which is never its seed. */
     rerunOf: projectRunIdSchema.optional(),
     resumeOf: projectRunIdSchema.optional(),
+    baseRunId: projectRunIdSchema.optional(),
     /** The run-level models a comparison rerun was launched with. */
     modelOverrides: storedRunTierModelsSchema.optional(),
     /** Explicit operator budget survives queue handoff; absent uses current host settings. */

@@ -807,7 +807,7 @@
   "docs.user.projects.anatomy.stream.body": "クライアント案件、社内製品、運用ユーティリティに、チームが後から識別できる明確な名前を付けてください。",
   "docs.user.projects.anatomy.repo.tag": "リポジトリ",
   "docs.user.projects.anatomy.repo.title": "1つのGitHub公開先",
-  "docs.user.projects.anatomy.repo.body": "各プロジェクトには1つのリポジトリターゲットがあります。デリバリーされたrunは自動的に公開され、GitHubへの公開が成功したかどうかがプロジェクトに表示されます。",
+  "docs.user.projects.anatomy.repo.body": "",
   "docs.user.projects.anatomy.history.tag": "継続性",
   "docs.user.projects.anatomy.history.title": "段階的なrun、1つの履歴",
   "docs.user.projects.anatomy.history.body": "最初のrunは空のワークスペースから始まります。後続の各runは前回デリバリーされたワークスペースから始まるため、変更は以前の作業に積み重なります。",

@@ -17,7 +17,7 @@ import type { RepositoryTarget, Project, ProjectRun, Publication, GitHubAccessRe
 import { eventLabel, type PlatformEventSink } from '../contracts/platformEvents.js';
 
 /**
- * GITHUB PUBLISHER — turns EVERY delivered run's artifact manifest into a
+ * GITHUB PUBLISHER — turns a client-accepted delivery's artifact manifest into a
  * commit on the project's repository.
  *
  * Contract (see AGENTS.md):
@@ -26,7 +26,7 @@ import { eventLabel, type PlatformEventSink } from '../contracts/platformEvents.
  * - Creation is idempotent per project: a retry finds the existing repository
  *   and proceeds to publish; it never creates a second one.
  * - PUBLICATION IS A SEQUENCE, one row per run. The first run creates the
- *   branch; every later delivered run commits on top of what this project last
+ *   branch; every later accepted delivery commits on top of what this project last
  *   published, merging its manifest onto the parent's tree. `expectedHead` —
  *   this project's own last published commit — is the authority for that, and
  *   it is NOT `repository_status = 'ready'`, which says only that the
@@ -548,7 +548,12 @@ export class GitHubPublisher {
     readonly workspaceRoot: string;
     readonly manifestHash: string;
   }): Promise<Publication | null> {
-    const { project, run } = input;
+    const { project } = input;
+    const run = this.store.getProjectRun(project.orgId, input.run.projectRunId);
+    if (!run || run.projectId !== project.projectId || run.artifactManifestHash !== input.manifestHash ||
+        run.hostPaths.workspacePath !== input.workspaceRoot) {
+      throw new ProjectStateConflict('Publication must use the exact saved delivery');
+    }
     if (run.status !== 'delivered' || !run.artifactManifest) {
       throw new Error('publication requires a delivered run with an artifact manifest');
     }
@@ -720,7 +725,7 @@ export class GitHubPublisher {
       const line = (this.store.listProjectRuns(project.orgId, project.projectId) ?? []).filter(r => !r.rerunOf);
       if (project.repositoryTarget.source?.mode !== 'pull-request' && line.some(r => r.projectRunId !== run.projectRunId &&
         (r.status === 'queued' || r.status === 'running' ||
-         ((r.status === 'delivered' || r.status === 'partial') &&
+         (r.status === 'delivered' && this.store.getDeliveryAcceptance(r.orgId, r.projectRunId) &&
           (r.createdAt > run.createdAt || (r.createdAt === run.createdAt && r.projectRunId > run.projectRunId)))))) {
         throw new PublicationSupersededError('A later lineage run already carries this publication; publish the current run');
       }

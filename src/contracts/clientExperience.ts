@@ -65,6 +65,25 @@ export const artifactPageInputSchema = z.object({
   search: z.string().max(200).optional(), offset: z.number().int().min(0).optional(),
   limit: z.number().int().min(1).max(100).optional(),
 });
+export const runComparisonInputSchema = artifactPageInputSchema.extend({
+  baseRunId: z.string().min(1),
+  snapshot: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+});
+export const runComparisonResultSchema = z.object({
+  projectId: z.string(), baseRunId: z.string(), runId: z.string(), snapshot: z.string(),
+  evidence: z.literal('saved_manifests'), untrusted: z.literal(true),
+  base: z.object({ status: z.enum(['delivered', 'partial']), coverage: z.enum(['workspace', 'declared']) }),
+  target: z.object({ status: z.enum(['delivered', 'partial']), coverage: z.enum(['workspace', 'declared']) }),
+  counts: z.object({ added: z.number(), removed: z.number(), modified: z.number(), unchanged: z.number() }),
+  files: z.array(z.object({
+    path: z.string(), change: z.enum(['added', 'removed', 'modified']),
+    before: z.object({ size: z.number(), sha256: z.string() }).nullable(),
+    after: z.object({ size: z.number(), sha256: z.string() }).nullable(),
+  })),
+  total: z.number(), nextOffset: z.number().nullable(),
+  note: z.string(),
+});
+export type RunComparisonResult = z.infer<typeof runComparisonResultSchema>;
 export const artifactReadInputSchema = z.object({
   path: z.string().min(1).max(4096),
   offset: z.number().int().min(0).optional(),

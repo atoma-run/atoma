@@ -431,6 +431,18 @@ describe('ProjectStore — idempotency and CAS state machines', () => {
       })
     ).toThrow(ProjectStateConflict);
 
+    expect(() => store.reservePublication({ orgId: alice.orgId, projectRunId: run.projectRunId, idempotencyKey: 'unapproved' })).toThrow('Client acceptance');
+    const review = { manifestHash: attached.artifactManifestHash!, review: 'Reviewed delivered files.' };
+    expect(() => store.acceptDelivery(bob.orgId, run.projectRunId, bob.principalId, review)).toThrow('retained delivered');
+    expect(() => store.acceptDelivery(alice.orgId, run.projectRunId, alice.principalId, { ...review, manifestHash: 'f'.repeat(64) })).toThrow('reviewed manifest');
+    db.prepare('UPDATE project_runs SET bytes_expired_at=? WHERE project_run_id=?').run(new Date().toISOString(), run.projectRunId);
+    expect(() => store.acceptDelivery(alice.orgId, run.projectRunId, alice.principalId, review)).toThrow('retained delivered');
+    db.prepare('UPDATE project_runs SET bytes_expired_at=NULL WHERE project_run_id=?').run(run.projectRunId);
+    const accepted = store.acceptDelivery(alice.orgId, run.projectRunId, alice.principalId, review);
+    expect(accepted.created).toBe(true);
+    expect(new ProjectStore(db).getDeliveryAcceptance(alice.orgId, run.projectRunId)).toEqual(accepted.acceptance);
+    expect(store.acceptDelivery(alice.orgId, run.projectRunId, alice.principalId, review)).toEqual({ ...accepted, created: false });
+    expect(() => db.prepare('UPDATE project_delivery_acceptance SET review=? WHERE project_run_id=?').run('rewritten', run.projectRunId)).toThrow('immutable');
     const first = store.reservePublication({
       orgId: alice.orgId,
       projectRunId: run.projectRunId,
@@ -542,9 +554,11 @@ describe('ProjectStore — idempotency and CAS state machines', () => {
     const deliveredStuck = makeRun(alice, aliceProject.projectId, 'delivered-stuck');
     advance(alice, deliveredStuck.projectRunId, 'delivered');
     store.saveArtifactManifest(alice.orgId, deliveredStuck.projectRunId, manifest);
+    store.acceptDelivery(alice.orgId, deliveredStuck.projectRunId, alice.principalId, { manifestHash: store.getProjectRun(alice.orgId, deliveredStuck.projectRunId)!.artifactManifestHash!, review: 'Reviewed fixture.' });
     const deliveredDone = makeRun(alice, aliceProject.projectId, 'delivered-done');
     advance(alice, deliveredDone.projectRunId, 'delivered');
     store.saveArtifactManifest(alice.orgId, deliveredDone.projectRunId, manifest);
+    store.acceptDelivery(alice.orgId, deliveredDone.projectRunId, alice.principalId, { manifestHash: store.getProjectRun(alice.orgId, deliveredDone.projectRunId)!.artifactManifestHash!, review: 'Reviewed fixture.' });
 
     const stuck = store.reservePublication({
       orgId: alice.orgId,

@@ -170,12 +170,9 @@ can only report that it cannot be.
   rather than letting the coordinator reject it later.
 - A project slug is unique per organisation, not per instance. An ambiguous
   reference is refused, never guessed.
-- It PUBLISHES too, wired exactly as the viz server wires it — same publisher,
-  same token resolution, same journal sink. Without that this command could
-  deliver an artifact that went nowhere: the repository stayed `pending` for
-  ever and no journal row said why. A CLI that starts a project run must
-  finish it the way the browser does, or "started from a terminal" quietly
-  means half a product. It prints the publication's own state beside the run's.
+- Delivery waits for client testing and explicit acceptance through the MCP.
+  The CLI uses the same publisher and prints publication status, but starting
+  a run never authorizes publication; `publish` retries only an accepted run.
 - PUBLICATION NEEDS THE APP IN THE PROCESS ENVIRONMENT, so the compiled
   `npm run projects` cannot publish on a checkout: only source launchers fill
   unset keys from `.env`, by contract. A delivered run then reports

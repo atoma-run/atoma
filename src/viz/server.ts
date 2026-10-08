@@ -4343,7 +4343,7 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
     }
 
     const readinessRead = pathname.match(/^\/api\/projects\/([^/]+)\/readiness$/);
-    const clientRunRead = pathname.match(/^\/api\/projects\/([^/]+)\/runs\/([^/]+)\/(status|artifacts|file)$/);
+    const clientRunRead = pathname.match(/^\/api\/projects\/([^/]+)\/runs\/([^/]+)\/(status|artifacts|file|compare)$/);
     if (readinessRead || clientRunRead) {
       if (!methodAllowed(req, res, 'GET')) return;
       if (!viewer) { sendJson(res, 401, { error: 'authentication required' }); return; }
@@ -4354,6 +4354,7 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
         for (const key of ['offset', 'limit']) if (params.has(key)) query[key] = Number(params.get(key));
         const payload = readinessRead ? service.projectReadiness(viewer, readinessRead[1]!)
           : clientRunRead![3] === 'status' ? service.projectRunStatus(viewer, clientRunRead![1]!, clientRunRead![2]!)
+            : clientRunRead![3] === 'compare' ? service.compareRuns(viewer, clientRunRead![1]!, clientRunRead![2]!, query)
             : clientRunRead![3] === 'artifacts' ? service.artifacts(viewer, clientRunRead![1]!, clientRunRead![2]!, query)
               : service.artifactFile(viewer, clientRunRead![1]!, clientRunRead![2]!, query);
         sendJson(res, 200, payload);
@@ -4607,7 +4608,7 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
       return;
     }
 
-    const retryPublish = pathname.match(/^\/api\/projects\/([^/]+)\/runs\/([^/]+)\/(publish|github-access)$/);
+    const retryPublish = pathname.match(/^\/api\/projects\/([^/]+)\/runs\/([^/]+)\/(publish|github-access|accept)$/);
     if (retryPublish) {
       if (!methodAllowed(req, res, 'POST')) return;
       if (!viewer) {
@@ -4625,7 +4626,9 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
         sendJson(
           res,
           200,
-          await (retryPublish[3] === 'github-access'
+          await (retryPublish[3] === 'accept'
+            ? PROJECTS_RUNTIME.projects.acceptDeliveryRequest(req, viewer, projectId, projectRunId)
+            : retryPublish[3] === 'github-access'
             ? PROJECTS_RUNTIME.projects.continueGitHubAccess(viewer, projectId, projectRunId)
             : PROJECTS_RUNTIME.projects.retryPublication(viewer, projectId, projectRunId))
         );

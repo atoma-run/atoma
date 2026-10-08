@@ -308,6 +308,7 @@ describe('ProjectService emissions', () => {
       totalBytes: 5,
     })!;
 
+    f.store.acceptDelivery(f.viewer.orgId, run.projectRunId, f.viewer.principalId, { manifestHash: delivered.artifactManifestHash!, review: 'Client accepted fixture.' });
     const publisher = new GitHubPublisher({
       store: f.store,
       // An EMPTY installation store: `resolveProjectInstallation` fails closed,
@@ -321,8 +322,8 @@ describe('ProjectService emissions', () => {
       publisher.publish({
         project: f.project,
         run: delivered,
-        workspaceRoot: join(f.root, 'workspace'),
-        manifestHash: 'b'.repeat(64),
+        workspaceRoot: delivered.hostPaths.workspacePath,
+        manifestHash: delivered.artifactManifestHash!,
       })
     ).rejects.toThrow();
 

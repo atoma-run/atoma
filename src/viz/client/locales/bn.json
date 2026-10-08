@@ -807,7 +807,7 @@
   "docs.user.projects.anatomy.stream.body": "ক্লায়েন্টের কাজ, অভ্যন্তরীণ পণ্য বা পরিচালন ইউটিলিটির জন্য এমন একটি স্পষ্ট নাম ব্যবহার করুন, যা টিম পরে চিনতে পারবে।",
   "docs.user.projects.anatomy.repo.tag": "রিপোজিটরি",
   "docs.user.projects.anatomy.repo.title": "একটি GitHub গন্তব্য",
-  "docs.user.projects.anatomy.repo.body": "প্রতিটি প্রকল্পের একটি রিপোজিটরি লক্ষ্য থাকে। ডেলিভার করা run স্বয়ংক্রিয়ভাবে প্রকাশিত হয় এবং প্রকাশনাটি GitHub-এ পৌঁছেছে কি না, প্রকল্পে তা দেখা যায়।",
+  "docs.user.projects.anatomy.repo.body": "",
   "docs.user.projects.anatomy.history.tag": "ধারাবাহিকতা",
   "docs.user.projects.anatomy.history.title": "ধাপে ধাপে run, একটি ইতিহাস",
   "docs.user.projects.anatomy.history.body": "প্রথম run একটি খালি ওয়ার্কস্পেস থেকে শুরু হয়। পরবর্তী প্রতিটি run আগের ডেলিভার করা ওয়ার্কস্পেস থেকে শুরু হয়, ফলে নতুন পরিবর্তন আগের কাজের ওপর গড়ে ওঠে।",

@@ -312,6 +312,7 @@ it('exposes the persisted Git destination over MCP without claiming a PR was mer
   const root = mkdtempSync(join(tmpdir(), 'atoma-mcp-publication-')); dirs.push(root);
   const f = projectRetrievalFixture(root);
   const { run } = f.makeRun({ 'index.html': '<h1>Published</h1>' });
+  f.projects.acceptDelivery(f.viewer.orgId, run.projectRunId, f.viewer.principalId, { manifestHash: run.artifactManifestHash!, review: 'Reviewed receipt fixture.' });
   const reserved = f.projects.reservePublication({ orgId: f.viewer.orgId, projectRunId: run.projectRunId, idempotencyKey: 'receipt' })!;
   const transition = { orgId: f.viewer.orgId, publicationId: reserved.publication.publicationId };
   f.projects.transitionPublication({ ...transition, from: 'pending', to: 'publishing' });
@@ -373,13 +374,13 @@ describe('the catalogue by tier', () => {
     // The viewer ladder: the organisation's own readers plus the two platform
     // commons the viz shows every signed-in role — registry and skill catalog.
     expect(asViewer).toEqual([
-      'atoma_projects_list', 'atoma_github_installations', 'atoma_project_runs', 'atoma_project_readiness', 'atoma_run_artifacts', 'atoma_run_file', 'atoma_run_status', 'atoma_run_trace', 'atoma_run_preview',
+      'atoma_projects_list', 'atoma_github_installations', 'atoma_project_runs', 'atoma_project_readiness', 'atoma_run_artifacts', 'atoma_run_file', 'atoma_run_compare', 'atoma_run_status', 'atoma_run_trace', 'atoma_run_preview',
       'atoma_registry_list', 'atoma_registry_show', 'atoma_skills_list', 'atoma_registry_history', 'atoma_skills_show',
     ]);
     // Each rung adds exactly its own rows (the table interleaves the tiers).
     const above = (lower: string[], upper: string[]) => upper.filter((name) => !lower.includes(name));
     expect(asMember).toEqual(expect.arrayContaining(asViewer));
-    expect(above(asViewer, asMember)).toEqual(['atoma_project_create', 'atoma_run_start', 'atoma_run_cancel', 'atoma_publication_retry']);
+    expect(above(asViewer, asMember)).toEqual(['atoma_project_create', 'atoma_run_start', 'atoma_run_pause', 'atoma_run_resume', 'atoma_run_cancel', 'atoma_run_accept', 'atoma_publication_retry']);
     expect(asAdmin).toEqual(expect.arrayContaining(asMember));
     expect(above(asMember, asAdmin)).toEqual(['atoma_project_showcase', 'atoma_org_members', 'atoma_org_models']);
     // Handing out the host's own login is operator spend, not organisation
@@ -750,6 +751,9 @@ describe('the platform commons over MCP — registry and skill catalog', () => {
     const deps: McpToolDeps = {
       ...TENANT_HOST,
       projects: { service: {
+        compareRuns: () => ({ projectId: 'p', baseRunId: 'b', runId: 'r', snapshot: 'a'.repeat(64), evidence: 'saved_manifests', untrusted: true,
+          base: { status: 'delivered', coverage: 'workspace' }, target: { status: 'delivered', coverage: 'workspace' },
+          counts: { added: 0, removed: 0, modified: 0, unchanged: 0 }, files: [], total: 0, nextOffset: null, note: 'Saved inventories only.' }),
         artifacts: () => ({ projectId: 'p', runId: 'r', status: 'delivered', files: [], total: 0, nextOffset: null }),
         artifactFile: () => ({ projectId: 'p', runId: 'r', path: 'a.txt', size: 1, snapshot: 'f'.repeat(64), mimeType: 'text/plain',
           kind: 'text', text: 'a', textOffset: 0, nextTextOffset: null, untrusted: true }),
@@ -761,11 +765,11 @@ describe('the platform commons over MCP — registry and skill catalog', () => {
     try {
       const tools = (await client.listTools()).tools.filter((tool) => tool.outputSchema);
       expect(tools.map((tool) => tool.name).sort()).toEqual([
-        'atoma_costs', 'atoma_ledger_tail', 'atoma_mcp_health', 'atoma_notifications', 'atoma_run_artifacts', 'atoma_run_file', 'atoma_sentinel_health',
+        'atoma_costs', 'atoma_ledger_tail', 'atoma_mcp_health', 'atoma_notifications', 'atoma_run_artifacts', 'atoma_run_compare', 'atoma_run_file', 'atoma_sentinel_health',
       ]);
       for (const tool of tools) {
         expect(tool.outputSchema?.['additionalProperties'], tool.name).not.toBe(false);
-        const args = tool.name === 'atoma_run_artifacts' || tool.name === 'atoma_run_file' ? { projectId: 'p', runId: 'r', path: 'a.txt' } : {};
+        const args = tool.name === 'atoma_run_compare' ? { projectId: 'p', runId: 'r', baseRunId: 'b' } : tool.name === 'atoma_run_artifacts' || tool.name === 'atoma_run_file' ? { projectId: 'p', runId: 'r', path: 'a.txt' } : {};
         const result = await client.callTool({ name: tool.name, arguments: args });
         expect(result.isError, tool.name).toBeFalsy();
         expect(result.structuredContent, tool.name).toBeDefined();

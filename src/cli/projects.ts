@@ -101,7 +101,7 @@ create:
   defaults to private, because nothing here reviews what a run publishes.
 
 publish:
-  A delivered run publishes automatically. \`publish\` re-drives one whose
+  A delivered run awaits client testing and acceptance through atoma_run_accept. \`publish\` re-drives one whose
   publication never reached GitHub — an App configured after the fact, a
   network failure, a name clash since cleared. The publication row is the
   idempotency boundary: 'published' returns as-is, a concurrent 'publishing'
@@ -712,7 +712,7 @@ async function main(): Promise<void> {
     if (!publication) {
       process.stdout.write(
         publisher
-          ? '  no publication was recorded for this delivered run\n'
+          ? '  awaiting client testing and acceptance via atoma_run_accept before GitHub publication\n'
           : '  not published: no GitHub App in this process environment.\n' +
             '  The COMPILED cli does not read checkout .env by contract — run\n' +
             '  npm run projects:dev, or export ATOMA_GITHUB_APP_*.\n'

@@ -114,6 +114,9 @@ describe('the 2026-07-28 era', () => {
     const { url } = await listen(() => platform, {
       ...NO_TENANT,
       projects: { service: {
+        compareRuns: () => ({ projectId: 'p', baseRunId: 'b', runId: 'r', snapshot: 'a'.repeat(64), evidence: 'saved_manifests', untrusted: true,
+          base: { status: 'delivered', coverage: 'workspace' }, target: { status: 'delivered', coverage: 'workspace' },
+          counts: { added: 0, removed: 0, modified: 0, unchanged: 0 }, files: [], total: 0, nextOffset: null, note: 'Saved inventories only.' }),
         artifacts: () => ({ projectId: 'p', runId: 'r', status: 'delivered', files: [], total: 0, nextOffset: null }),
         artifactFile: () => ({ projectId: 'p', runId: 'r', path: 'a.txt', size: 1, snapshot: 'f'.repeat(64), mimeType: 'text/plain',
           kind: 'text', text: 'a', textOffset: 0, nextTextOffset: null, untrusted: true }),
@@ -126,11 +129,11 @@ describe('the 2026-07-28 era', () => {
     try {
       const withSchema = (await client.listTools()).tools.filter((tool) => tool.outputSchema);
       expect(withSchema.map((tool) => tool.name).sort()).toEqual([
-        'atoma_costs', 'atoma_ledger_tail', 'atoma_mcp_health', 'atoma_notifications', 'atoma_run_artifacts', 'atoma_run_file', 'atoma_sentinel_health',
+        'atoma_costs', 'atoma_ledger_tail', 'atoma_mcp_health', 'atoma_notifications', 'atoma_run_artifacts', 'atoma_run_compare', 'atoma_run_file', 'atoma_sentinel_health',
       ]);
       for (const tool of withSchema) {
         expect(tool.outputSchema?.['additionalProperties'], tool.name).not.toBe(false);
-        const args = tool.name === 'atoma_run_artifacts' || tool.name === 'atoma_run_file' ? { projectId: 'p', runId: 'r', path: 'a.txt' } : {};
+        const args = tool.name === 'atoma_run_compare' ? { projectId: 'p', runId: 'r', baseRunId: 'b' } : tool.name === 'atoma_run_artifacts' || tool.name === 'atoma_run_file' ? { projectId: 'p', runId: 'r', path: 'a.txt' } : {};
         const result = await client.callTool({ name: tool.name, arguments: args });
         expect(result.isError, tool.name).not.toBe(true);
         expect(result.structuredContent, tool.name).toBeDefined();

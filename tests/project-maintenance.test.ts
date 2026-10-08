@@ -88,9 +88,10 @@ describe('organisation run admission', () => {
     expect(peekRunLeases(lockPath)).toEqual([]);
   });
 
-  it('persists waiting runs across a process restart and never launches a cancelled request', async () => {
+  it.each([false, true])('persists a selected base across process restart and revalidates its bytes (changed=%s)', async changed => {
     const f = fixture();
     const other = projectRetrievalFixture(f.root, { subject: 'waiting-other', slug: 'waiting-other' });
+    const selected = other.makeRun({ 'selected.txt': 'saved version' }).run;
     PlatformSettingsStore.open(f.dbPath).set({ 'run.concurrentMax': 1 }, null);
     const lockPath = join(f.root, 'queue-lease.db');
     const holder = await acquireRunLease('busy', lockPath, { orgId: randomUUID() });
@@ -102,12 +103,14 @@ describe('organisation run admission', () => {
       const first = await coordinator.start({ orgId: f.viewer.orgId, principalId: f.viewer.principalId,
         projectId: f.project.projectId, request: { goal: 'Cancelled goal', idempotencyKey: randomUUID() } });
       const second = await coordinator.start({ orgId: other.viewer.orgId, principalId: other.viewer.principalId,
-        projectId: other.project.projectId, request: { goal: 'Surviving goal', idempotencyKey: randomUUID() } });
+        projectId: other.project.projectId, request: { goal: 'Surviving goal', baseRunId: selected.projectRunId, idempotencyKey: randomUUID() } });
       expect(first.status).toBe('queued');
       expect(second.status).toBe('queued');
+      other.makeRun({ 'newer.txt': 'must not become the selected seed' });
       expect(coordinator.cancel(f.viewer.orgId, first.projectRunId)?.status).toBe('cancelled');
       coordinator.stopQueue();
       holder.release();
+      if (changed) writeFileSync(join(selected.hostPaths.workspacePath, 'selected.txt'), 'changed after admission');
       const script = `
         import { ProjectRunCoordinator } from './src/projects/coordinator.ts';
         import { ProjectStore } from './src/projects/store.ts';
@@ -116,7 +119,7 @@ describe('organisation run admission', () => {
           store: ProjectStore.open(${JSON.stringify(f.dbPath)}), dbPath: ${JSON.stringify(f.dbPath)},
           projectsRoot: ${JSON.stringify(f.root)}, hostEnv: ${JSON.stringify(hostEnv)},
           acquireLease: (id, scope) => acquireRunLease(id, ${JSON.stringify(lockPath)}, scope),
-          driver: async (options) => { console.log('LAUNCHED:' + options.goal + ':' + options.timeoutMs); throw new Error('test driver ended'); },
+          driver: async (options) => { console.log('LAUNCHED:' + options.goal + ':' + options.timeoutMs + ':' + options.extraArgs.join('|')); throw new Error('test driver ended'); },
         });
         coordinator.reconcileInterrupted();
         await coordinator.waitForIdle();
@@ -125,7 +128,13 @@ describe('organisation run admission', () => {
       const child = spawnSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', script],
         { encoding: 'utf8', timeout: 20_000 });
       expect(child.status, child.stderr).toBe(0);
-      expect(child.stdout).toContain('LAUNCHED:Surviving goal:123000');
+      if (changed) {
+        expect(child.stdout).not.toContain('LAUNCHED:');
+        expect(other.projects.getProjectRun(other.viewer.orgId, second.projectRunId)?.error).toContain('unavailable or changed');
+      } else {
+        expect(child.stdout).toContain('LAUNCHED:Surviving goal:123000');
+        expect(child.stdout).toContain('--seed|' + selected.hostPaths.workspacePath);
+      }
       expect(child.stdout).not.toContain('LAUNCHED:Cancelled goal');
       expect(driver).not.toHaveBeenCalled();
       expect(f.projects.getProjectRun(f.viewer.orgId, first.projectRunId)?.status).toBe('cancelled');
@@ -281,4 +290,28 @@ describe('offline run retention', () => {
     symlinkSync(tmpdir(), join(f.root, 'redirect'));
     expect(() => assertRetentionPath(f.root, join(f.root, 'redirect', 'child'))).toThrow('symlinks');
   });
+});
+
+
+it('retains the accepted reference and a queued explicit base despite newer candidates', () => {
+  const f = fixture();
+  const accepted = f.makeRun({ 'app.txt': 'accepted' }).run;
+  const selected = f.makeRun({ 'app.txt': 'selected draft' }).run;
+  f.makeRun({ 'app.txt': 'newer candidate' });
+  f.projects.acceptDelivery(f.viewer.orgId, accepted.projectRunId, f.viewer.principalId,
+    { manifestHash: accepted.artifactManifestHash!, review: 'Tested' });
+  const id = randomUUID();
+  const layout = projectRunHostLayout(f.root, f.viewer.orgId, f.project.projectId, id);
+  f.projects.createProjectRun({ orgId: f.viewer.orgId, projectId: f.project.projectId,
+    principalId: f.viewer.principalId, projectRunId: id,
+    request: { goal: 'Iterate', idempotencyKey: id, baseRunId: selected.projectRunId },
+    hostPaths: { workspacePath: layout.workspacePath, runsPath: layout.runsPath, logPath: layout.logPath } });
+  const db = new Database(f.dbPath);
+  try {
+    db.prepare("UPDATE project_runs SET created_at='2025-01-01T00:00:00Z', ended_at='2025-01-02T00:00:00Z' WHERE status='delivered'").run();
+    const plan = retentionPlan(db, f.root, undefined, new Date('2026-10-08T00:00:00Z'));
+    expect(plan.find(row => row.runId === accepted.projectRunId)?.held).toBe('accepted project reference');
+    expect(plan.find(row => row.runId === selected.projectRunId)?.held).toBe('active iteration base');
+    expect(() => db.prepare('UPDATE project_runs SET base_run_id=NULL WHERE project_run_id=?').run(id)).toThrow('immutable');
+  } finally { db.close(); }
 });
