@@ -807,7 +807,7 @@
   "docs.user.projects.anatomy.stream.body": "使用清晰的名称，让团队日后能识别对应的客户项目、内部产品或运维工具。",
   "docs.user.projects.anatomy.repo.tag": "代码仓库",
   "docs.user.projects.anatomy.repo.title": "一个 GitHub 目标位置",
-  "docs.user.projects.anatomy.repo.body": "",
+  "docs.user.projects.anatomy.repo.body": "每个项目都有一个代码仓库目标。已交付的 run 可供测试。在您通过已连接的代理明确接受后，Atoma 会将其发布到 GitHub，并记录发布结果。",
   "docs.user.projects.anatomy.history.tag": "连续性",
   "docs.user.projects.anatomy.history.title": "增量 run，统一历史",
   "docs.user.projects.anatomy.history.body": "首次 run 从空工作区开始。后续每个 run 都从上一次已交付的工作区开始，使变更建立在先前工作的基础上。",
@@ -1595,5 +1595,6 @@
   "projects.checkpoint.reason.host_mutation": "此阶段更改了共享知识或计数器。重放可能会重复这些更改。",
   "projects.checkpoint.reason.backend_unknown": "无法验证上一个工作进程是否已关闭。",
   "projects.checkpoint.reason.budget_exhausted": "原执行截止时间已过。",
-  "projects.checkpoint.reason.incomplete": "没有可用的完整工作区快照。"
+  "projects.checkpoint.reason.incomplete": "没有可用的完整工作区快照。",
+  "projects.awaitingClientAcceptance": "已交付 · 等待您通过 MCP 接受"
 }

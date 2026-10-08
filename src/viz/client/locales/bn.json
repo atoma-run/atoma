@@ -807,7 +807,7 @@
   "docs.user.projects.anatomy.stream.body": "ক্লায়েন্টের কাজ, অভ্যন্তরীণ পণ্য বা পরিচালন ইউটিলিটির জন্য এমন একটি স্পষ্ট নাম ব্যবহার করুন, যা টিম পরে চিনতে পারবে।",
   "docs.user.projects.anatomy.repo.tag": "রিপোজিটরি",
   "docs.user.projects.anatomy.repo.title": "একটি GitHub গন্তব্য",
-  "docs.user.projects.anatomy.repo.body": "",
+  "docs.user.projects.anatomy.repo.body": "প্রতিটি প্রকল্পের একটি রিপোজিটরি লক্ষ্য থাকে। সরবরাহ করা run পরীক্ষার জন্য উপলভ্য। আপনি সংযুক্ত এজেন্টের মাধ্যমে এটিকে স্পষ্টভাবে গ্রহণ করার পর, Atoma সেটি GitHub-এ প্রকাশ করে এবং প্রকাশনার ফলাফল রেকর্ড করে।",
   "docs.user.projects.anatomy.history.tag": "ধারাবাহিকতা",
   "docs.user.projects.anatomy.history.title": "ধাপে ধাপে run, একটি ইতিহাস",
   "docs.user.projects.anatomy.history.body": "প্রথম run একটি খালি ওয়ার্কস্পেস থেকে শুরু হয়। পরবর্তী প্রতিটি run আগের ডেলিভার করা ওয়ার্কস্পেস থেকে শুরু হয়, ফলে নতুন পরিবর্তন আগের কাজের ওপর গড়ে ওঠে।",
@@ -1595,5 +1595,6 @@
   "projects.checkpoint.reason.host_mutation": "এই ধাপে শেয়ার করা জ্ঞান বা কাউন্টার পরিবর্তিত হয়েছে। এটি আবার চালালে ওই পরিবর্তনগুলো সদৃশ হতে পারে।",
   "projects.checkpoint.reason.backend_unknown": "আগের ওয়ার্কারের বন্ধ হওয়া যাচাই করা সম্ভব নয়।",
   "projects.checkpoint.reason.budget_exhausted": "মূল নির্বাহের সময়সীমা পেরিয়ে গেছে।",
-  "projects.checkpoint.reason.incomplete": "কর্মক্ষেত্রের কোনো সম্পূর্ণ স্ন্যাপশট উপলভ্য নেই।"
+  "projects.checkpoint.reason.incomplete": "কর্মক্ষেত্রের কোনো সম্পূর্ণ স্ন্যাপশট উপলভ্য নেই।",
+  "projects.awaitingClientAcceptance": "সরবরাহ করা হয়েছে · MCP-এর মাধ্যমে আপনার গ্রহণের অপেক্ষায়"
 }

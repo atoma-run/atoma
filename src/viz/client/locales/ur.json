@@ -807,7 +807,7 @@
   "docs.user.projects.anatomy.stream.body": "کلائنٹ کی مصروفیت، اندرونی پروڈکٹ یا عملی سہولت کے لیے ایسا واضح نام استعمال کریں جسے ٹیم بعد میں پہچان سکے۔",
   "docs.user.projects.anatomy.repo.tag": "ریپوزٹری",
   "docs.user.projects.anatomy.repo.title": "ایک GitHub منزل",
-  "docs.user.projects.anatomy.repo.body": "",
+  "docs.user.projects.anatomy.repo.body": "ہر پروجیکٹ کے لیے ریپوزٹری کا ایک ہدف مختص ہوتا ہے۔ فراہم کردہ run جانچ کے لیے دستیاب ہوتا ہے۔ اپنے منسلک ایجنٹ کے ذریعے اسے واضح طور پر قبول کرنے کے بعد، Atoma اسے GitHub پر شائع کرتا اور اشاعت کا نتیجہ ریکارڈ کرتا ہے۔",
   "docs.user.projects.anatomy.history.tag": "تسلسل",
   "docs.user.projects.anatomy.history.title": "تدریجی runs، ایک تاریخ",
   "docs.user.projects.anatomy.history.body": "پہلا run خالی ورک اسپیس سے شروع ہوتا ہے۔ ہر بعد کا run پچھلی ڈیلیور شدہ ورک اسپیس سے شروع ہوتا ہے، اس لیے تبدیلیاں پہلے کام پر استوار ہوتی ہیں۔",
@@ -1595,5 +1595,6 @@
   "projects.checkpoint.reason.host_mutation": "اس مرحلے نے مشترکہ معلومات یا شمارندوں میں تبدیلی کی۔ اسے دوبارہ چلانے سے وہ تبدیلیاں دو بار لاگو ہو سکتی ہیں۔",
   "projects.checkpoint.reason.backend_unknown": "پچھلے ورکر کے بند ہونے کی تصدیق نہیں کی جا سکتی۔",
   "projects.checkpoint.reason.budget_exhausted": "اصل عمل درآمد کی آخری مہلت گزر چکی ہے۔",
-  "projects.checkpoint.reason.incomplete": "ورک اسپیس کا کوئی مکمل اسنیپ شاٹ دستیاب نہیں۔"
+  "projects.checkpoint.reason.incomplete": "ورک اسپیس کا کوئی مکمل اسنیپ شاٹ دستیاب نہیں۔",
+  "projects.awaitingClientAcceptance": "فراہم شدہ · MCP کے ذریعے آپ کی قبولیت کا منتظر"
 }

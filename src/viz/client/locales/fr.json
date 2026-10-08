@@ -807,7 +807,7 @@
   "docs.user.projects.anatomy.stream.body": "Utilise un nom clair pour la mission client, le produit interne ou l’utilitaire opérationnel que l’équipe pourra reconnaître plus tard.",
   "docs.user.projects.anatomy.repo.tag": "DÉPÔT",
   "docs.user.projects.anatomy.repo.title": "Une destination GitHub",
-  "docs.user.projects.anatomy.repo.body": "",
+  "docs.user.projects.anatomy.repo.body": "Chaque projet possède un dépôt cible. Un run livré est disponible pour être testé. Une fois que tu l’as explicitement accepté via ton agent connecté, atoma le publie sur GitHub et enregistre le résultat de la publication.",
   "docs.user.projects.anatomy.history.tag": "CONTINUITÉ",
   "docs.user.projects.anatomy.history.title": "Des runs incrémentaux, un seul historique",
   "docs.user.projects.anatomy.history.body": "Le premier run part d’un workspace vide. Chaque run ultérieur part du workspace livré précédent, afin que les modifications s’appuient sur le travail antérieur.",
@@ -1595,5 +1595,6 @@
   "projects.checkpoint.reason.host_mutation": "Cette phase a modifié des connaissances partagées ou des compteurs. La rejouer pourrait dupliquer ces modifications.",
   "projects.checkpoint.reason.backend_unknown": "L’arrêt du worker précédent ne peut pas être vérifié.",
   "projects.checkpoint.reason.budget_exhausted": "Le délai d’exécution initial est dépassé.",
-  "projects.checkpoint.reason.incomplete": "Aucun snapshot complet du workspace n’est disponible."
+  "projects.checkpoint.reason.incomplete": "Aucun snapshot complet du workspace n’est disponible.",
+  "projects.awaitingClientAcceptance": "Livré · en attente de ton acceptation via MCP"
 }

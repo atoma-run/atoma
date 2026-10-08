@@ -807,7 +807,7 @@
   "docs.user.projects.anatomy.stream.body": "クライアント案件、社内製品、運用ユーティリティに、チームが後から識別できる明確な名前を付けてください。",
   "docs.user.projects.anatomy.repo.tag": "リポジトリ",
   "docs.user.projects.anatomy.repo.title": "1つのGitHub公開先",
-  "docs.user.projects.anatomy.repo.body": "",
+  "docs.user.projects.anatomy.repo.body": "各プロジェクトには1つのリポジトリターゲットがあります。納品されたrunはテストできます。接続済みのエージェントを通じて明示的に承認すると、AtomaがGitHubに公開し、公開結果を記録します。",
   "docs.user.projects.anatomy.history.tag": "継続性",
   "docs.user.projects.anatomy.history.title": "段階的なrun、1つの履歴",
   "docs.user.projects.anatomy.history.body": "最初のrunは空のワークスペースから始まります。後続の各runは前回デリバリーされたワークスペースから始まるため、変更は以前の作業に積み重なります。",
@@ -1595,5 +1595,6 @@
   "projects.checkpoint.reason.host_mutation": "このフェーズで共有知識またはカウンターが変更されました。再実行すると、それらの変更が重複する可能性があります。",
   "projects.checkpoint.reason.backend_unknown": "前のワーカーが終了したことを確認できません。",
   "projects.checkpoint.reason.budget_exhausted": "当初の実行期限を過ぎています。",
-  "projects.checkpoint.reason.incomplete": "完全なワークスペースのスナップショットがありません。"
+  "projects.checkpoint.reason.incomplete": "完全なワークスペースのスナップショットがありません。",
+  "projects.awaitingClientAcceptance": "納品済み・MCP経由の承認待ち"
 }

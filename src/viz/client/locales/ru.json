@@ -807,7 +807,7 @@
   "docs.user.projects.anatomy.stream.body": "Используйте понятное название клиентского проекта, внутреннего продукта или операционного инструмента, которое команда узнает в дальнейшем.",
   "docs.user.projects.anatomy.repo.tag": "РЕПОЗИТОРИЙ",
   "docs.user.projects.anatomy.repo.title": "Одна точка назначения в GitHub",
-  "docs.user.projects.anatomy.repo.body": "",
+  "docs.user.projects.anatomy.repo.body": "У каждого проекта один целевой репозиторий. Доставленный run доступен для тестирования. После того как вы явно примете его через подключённого агента, Atoma опубликует его на GitHub и зафиксирует результат публикации.",
   "docs.user.projects.anatomy.history.tag": "НЕПРЕРЫВНОСТЬ",
   "docs.user.projects.anatomy.history.title": "Последовательные runs, единая история",
   "docs.user.projects.anatomy.history.body": "Первый run начинается с пустой рабочей области. Каждый последующий run начинается с предыдущей переданной рабочей области, поэтому изменения дополняют ранее выполненную работу.",
@@ -1595,5 +1595,6 @@
   "projects.checkpoint.reason.host_mutation": "На этом этапе изменились общие знания или счётчики. Повторное выполнение может продублировать эти изменения.",
   "projects.checkpoint.reason.backend_unknown": "Невозможно проверить завершение работы предыдущего процесса.",
   "projects.checkpoint.reason.budget_exhausted": "Исходный срок выполнения истёк.",
-  "projects.checkpoint.reason.incomplete": "Полный снимок рабочего пространства недоступен."
+  "projects.checkpoint.reason.incomplete": "Полный снимок рабочего пространства недоступен.",
+  "projects.awaitingClientAcceptance": "Доставлено · ожидает вашего принятия через MCP"
 }

@@ -807,7 +807,7 @@
   "docs.user.projects.anatomy.stream.body": "Gunakan nama yang jelas untuk pekerjaan klien, produk internal, atau utilitas operasional yang kelak mudah dikenali tim.",
   "docs.user.projects.anatomy.repo.tag": "REPOSITORI",
   "docs.user.projects.anatomy.repo.title": "Satu tujuan GitHub",
-  "docs.user.projects.anatomy.repo.body": "",
+  "docs.user.projects.anatomy.repo.body": "Setiap proyek memiliki satu repositori tujuan. run yang telah dikirim tersedia untuk pengujian. Setelah Anda menerimanya secara eksplisit melalui agen yang terhubung, Atoma memublikasikannya ke GitHub dan mencatat hasil publikasi.",
   "docs.user.projects.anatomy.history.tag": "KONTINUITAS",
   "docs.user.projects.anatomy.history.title": "Run bertahap, satu riwayat",
   "docs.user.projects.anatomy.history.body": "Run pertama dimulai dari ruang kerja kosong. Setiap run berikutnya dimulai dari ruang kerja sebelumnya yang telah dikirimkan, sehingga perubahan melanjutkan pekerjaan terdahulu.",
@@ -1595,5 +1595,6 @@
   "projects.checkpoint.reason.host_mutation": "Fase ini mengubah pengetahuan atau penghitung bersama. Menjalankannya kembali dapat menduplikasi perubahan tersebut.",
   "projects.checkpoint.reason.backend_unknown": "Penghentian worker sebelumnya tidak dapat diverifikasi.",
   "projects.checkpoint.reason.budget_exhausted": "Batas waktu eksekusi awal telah terlewati.",
-  "projects.checkpoint.reason.incomplete": "Tidak tersedia snapshot lengkap ruang kerja."
+  "projects.checkpoint.reason.incomplete": "Tidak tersedia snapshot lengkap ruang kerja.",
+  "projects.awaitingClientAcceptance": "Terkirim · menunggu persetujuan Anda melalui MCP"
 }

@@ -807,7 +807,7 @@
   "docs.user.projects.anatomy.stream.body": "استخدم اسمًا واضحًا لمشاركة العميل أو المنتج الداخلي أو الأداة التشغيلية، بحيث يتمكن الفريق من التعرّف إليه لاحقًا.",
   "docs.user.projects.anatomy.repo.tag": "المستودع",
   "docs.user.projects.anatomy.repo.title": "وجهة واحدة على GitHub",
-  "docs.user.projects.anatomy.repo.body": "",
+  "docs.user.projects.anatomy.repo.body": "يمتلك كل مشروع هدفًا واحدًا للمستودع. يتوفر run تم تسليمه للاختبار. بعد أن تقبله صراحةً عبر وكيلك المتصل، تنشره Atoma على GitHub وتسجل نتيجة النشر.",
   "docs.user.projects.anatomy.history.tag": "الاستمرارية",
   "docs.user.projects.anatomy.history.title": "عمليات run تزايدية، وسجل واحد",
   "docs.user.projects.anatomy.history.body": "يبدأ أول run من مساحة عمل فارغة. ويبدأ كل run لاحق من مساحة العمل السابقة التي تم تسليمها، بحيث تُبنى التغييرات على العمل السابق.",
@@ -1595,5 +1595,6 @@
   "projects.checkpoint.reason.host_mutation": "غيّرت هذه المرحلة المعرفة المشتركة أو العدّادات. قد تؤدي إعادة تنفيذها إلى تكرار تلك التغييرات.",
   "projects.checkpoint.reason.backend_unknown": "لا يمكن التحقق من إيقاف العامل السابق.",
   "projects.checkpoint.reason.budget_exhausted": "انقضى الموعد النهائي للتنفيذ الأصلي.",
-  "projects.checkpoint.reason.incomplete": "لا تتوفر لقطة كاملة لمساحة العمل."
+  "projects.checkpoint.reason.incomplete": "لا تتوفر لقطة كاملة لمساحة العمل.",
+  "projects.awaitingClientAcceptance": "تم التسليم · بانتظار قبولك عبر MCP"
 }

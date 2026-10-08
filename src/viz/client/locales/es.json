@@ -807,7 +807,7 @@
   "docs.user.projects.anatomy.stream.body": "Use un nombre claro para el encargo del cliente, el producto interno o la utilidad operativa que el equipo reconocerá posteriormente.",
   "docs.user.projects.anatomy.repo.tag": "REPOSITORIO",
   "docs.user.projects.anatomy.repo.title": "Un destino de GitHub",
-  "docs.user.projects.anatomy.repo.body": "",
+  "docs.user.projects.anatomy.repo.body": "Cada proyecto tiene un único repositorio de destino. Un run entregado está disponible para pruebas. Después de que lo acepte explícitamente mediante su agente conectado, Atoma lo publica en GitHub y registra el resultado de la publicación.",
   "docs.user.projects.anatomy.history.tag": "CONTINUIDAD",
   "docs.user.projects.anatomy.history.title": "Runs incrementales, un historial",
   "docs.user.projects.anatomy.history.body": "El primer run comienza con un espacio de trabajo vacío. Cada run posterior parte del espacio de trabajo entregado anteriormente, por lo que los cambios se basan en el trabajo previo.",
@@ -1595,5 +1595,6 @@
   "projects.checkpoint.reason.host_mutation": "Esta fase modificó el conocimiento compartido o los contadores. Repetirla podría duplicar esos cambios.",
   "projects.checkpoint.reason.backend_unknown": "No se puede verificar el cierre del worker anterior.",
   "projects.checkpoint.reason.budget_exhausted": "El plazo de ejecución original ha vencido.",
-  "projects.checkpoint.reason.incomplete": "No hay disponible una instantánea completa del espacio de trabajo."
+  "projects.checkpoint.reason.incomplete": "No hay disponible una instantánea completa del espacio de trabajo.",
+  "projects.awaitingClientAcceptance": "Entregado · pendiente de su aceptación mediante MCP"
 }
