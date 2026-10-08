@@ -1662,5 +1662,13 @@
   "mcpApp.reviewChange_removed": "Отсутствует в этом перечне",
   "mcpApp.reviewIdentityTitle": "Идентификаторы поставки",
   "mcpApp.reviewTextDelivery": "Это текстовый результат. Перед принятием прочитайте записанный ответ; публикация на GitHub не требуется.",
-  "mcpApp.reviewComparisonPage": "Показаны различия {{from}}–{{to}} из {{total}}."
+  "mcpApp.reviewComparisonPage": "Показаны различия {{from}}–{{to}} из {{total}}.",
+  "mcpApp.fileExpand": "Развернуть {{path}}",
+  "mcpApp.fileCollapse": "Свернуть {{path}}",
+  "mcpApp.fileLoading": "Загрузка файла…",
+  "mcpApp.fileViewerPreview": "Предпросмотр",
+  "mcpApp.fileViewerSource": "Исходный текст",
+  "mcpApp.fileViewerPartial": "Предпросмотр этой текстовой страницы. Чтобы продолжить просмотр файла, перейдите к следующей странице.",
+  "mcpApp.fileViewerInvalidJson": "Не удалось отформатировать этот JSON. Показано его исходное содержимое.",
+  "mcpApp.fileViewerLinkUnavailable": "Этому клиенту не удалось открыть ссылку."
 }

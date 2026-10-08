@@ -1662,5 +1662,13 @@
   "mcpApp.reviewChange_removed": "この一覧には存在しません",
   "mcpApp.reviewIdentityTitle": "成果物の識別情報",
   "mcpApp.reviewTextDelivery": "これはテキスト結果です。承認する前に記録済みの回答を確認してください。GitHubへの公開は不要です。",
-  "mcpApp.reviewComparisonPage": "全{{total}}件中{{from}}～{{to}}件の差分を表示しています。"
+  "mcpApp.reviewComparisonPage": "全{{total}}件中{{from}}～{{to}}件の差分を表示しています。",
+  "mcpApp.fileExpand": "{{path}}を展開",
+  "mcpApp.fileCollapse": "{{path}}を折りたたむ",
+  "mcpApp.fileLoading": "ファイルを読み込み中…",
+  "mcpApp.fileViewerPreview": "プレビュー",
+  "mcpApp.fileViewerSource": "ソース",
+  "mcpApp.fileViewerPartial": "このテキストページのプレビューです。ファイルの続きを読むには、次のページに進んでください。",
+  "mcpApp.fileViewerInvalidJson": "このJSONは整形できませんでした。元の内容を表示しています。",
+  "mcpApp.fileViewerLinkUnavailable": "このクライアントではリンクを開けませんでした。"
 }

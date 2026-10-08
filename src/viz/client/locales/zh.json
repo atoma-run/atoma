@@ -1662,5 +1662,13 @@
   "mcpApp.reviewChange_removed": "此清单中缺少",
   "mcpApp.reviewIdentityTitle": "交付标识",
   "mcpApp.reviewTextDelivery": "这是文本结果。接受前请阅读已记录的回答；无需发布到GitHub。",
-  "mcpApp.reviewComparisonPage": "正在显示第{{from}}–{{to}}项差异，共{{total}}项。"
+  "mcpApp.reviewComparisonPage": "正在显示第{{from}}–{{to}}项差异，共{{total}}项。",
+  "mcpApp.fileExpand": "展开{{path}}",
+  "mcpApp.fileCollapse": "收起{{path}}",
+  "mcpApp.fileLoading": "正在加载文件…",
+  "mcpApp.fileViewerPreview": "预览",
+  "mcpApp.fileViewerSource": "源代码",
+  "mcpApp.fileViewerPartial": "这是此文本页面的预览。请阅读下一页以继续查看文件。",
+  "mcpApp.fileViewerInvalidJson": "无法格式化此JSON。现显示其原始内容。",
+  "mcpApp.fileViewerLinkUnavailable": "此客户端无法打开该链接。"
 }

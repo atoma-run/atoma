@@ -1662,5 +1662,13 @@
   "mcpApp.reviewChange_removed": "Ausente deste inventário",
   "mcpApp.reviewIdentityTitle": "Identidade da entrega",
   "mcpApp.reviewTextDelivery": "Este é um resultado de texto. Leia a resposta registada antes de aceitar; não é necessária qualquer publicação no GitHub.",
-  "mcpApp.reviewComparisonPage": "A mostrar as diferenças {{from}}–{{to}} de {{total}}."
+  "mcpApp.reviewComparisonPage": "A mostrar as diferenças {{from}}–{{to}} de {{total}}.",
+  "mcpApp.fileExpand": "Expandir {{path}}",
+  "mcpApp.fileCollapse": "Recolher {{path}}",
+  "mcpApp.fileLoading": "A carregar ficheiro…",
+  "mcpApp.fileViewerPreview": "Pré-visualização",
+  "mcpApp.fileViewerSource": "Fonte",
+  "mcpApp.fileViewerPartial": "Pré-visualização desta página de texto. Leia a página seguinte para continuar a percorrer o ficheiro.",
+  "mcpApp.fileViewerInvalidJson": "Não foi possível formatar este JSON. É apresentado o conteúdo original.",
+  "mcpApp.fileViewerLinkUnavailable": "Este cliente não conseguiu abrir a ligação."
 }

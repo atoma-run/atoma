@@ -1662,5 +1662,13 @@
   "mcpApp.reviewChange_removed": "اس فہرست میں غیر موجود",
   "mcpApp.reviewIdentityTitle": "ڈیلیوری کی شناخت",
   "mcpApp.reviewTextDelivery": "یہ متنی نتیجہ ہے۔ قبول کرنے سے پہلے ریکارڈ شدہ جواب پڑھیں؛ GitHub پر اشاعت ضروری نہیں۔",
-  "mcpApp.reviewComparisonPage": "کل {{total}} میں سے فرق {{from}}–{{to}} دکھائے جا رہے ہیں۔"
+  "mcpApp.reviewComparisonPage": "کل {{total}} میں سے فرق {{from}}–{{to}} دکھائے جا رہے ہیں۔",
+  "mcpApp.fileExpand": "{{path}} کو پھیلائیں",
+  "mcpApp.fileCollapse": "{{path}} کو سمیٹیں",
+  "mcpApp.fileLoading": "فائل لوڈ ہو رہی ہے…",
+  "mcpApp.fileViewerPreview": "پیش منظر",
+  "mcpApp.fileViewerSource": "ماخذ",
+  "mcpApp.fileViewerPartial": "یہ اس متنی صفحے کا پیش منظر ہے۔ فائل میں آگے جاری رکھنے کے لیے اگلا صفحہ پڑھیں۔",
+  "mcpApp.fileViewerInvalidJson": "اس JSON کو فارمیٹ نہیں کیا جا سکا۔ اس کا اصل مواد دکھایا گیا ہے۔",
+  "mcpApp.fileViewerLinkUnavailable": "یہ کلائنٹ لنک نہیں کھول سکا۔"
 }

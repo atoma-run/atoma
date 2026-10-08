@@ -1662,5 +1662,13 @@
   "mcpApp.reviewChange_removed": "Tidak ada dalam inventaris ini",
   "mcpApp.reviewIdentityTitle": "Identitas hasil serahan",
   "mcpApp.reviewTextDelivery": "Ini adalah hasil teks. Baca jawaban yang tercatat sebelum menerima; publikasi ke GitHub tidak diperlukan.",
-  "mcpApp.reviewComparisonPage": "Menampilkan perbedaan {{from}}–{{to}} dari {{total}}."
+  "mcpApp.reviewComparisonPage": "Menampilkan perbedaan {{from}}–{{to}} dari {{total}}.",
+  "mcpApp.fileExpand": "Perluas {{path}}",
+  "mcpApp.fileCollapse": "Ciutkan {{path}}",
+  "mcpApp.fileLoading": "Memuat file…",
+  "mcpApp.fileViewerPreview": "Pratinjau",
+  "mcpApp.fileViewerSource": "Sumber",
+  "mcpApp.fileViewerPartial": "Pratinjau halaman teks ini. Baca halaman berikutnya untuk melanjutkan menelusuri file.",
+  "mcpApp.fileViewerInvalidJson": "JSON ini tidak dapat diformat. Konten aslinya ditampilkan.",
+  "mcpApp.fileViewerLinkUnavailable": "Klien ini tidak dapat membuka tautan."
 }

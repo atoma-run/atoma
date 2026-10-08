@@ -1662,5 +1662,13 @@
   "mcpApp.reviewChange_removed": "এই তালিকায় অনুপস্থিত",
   "mcpApp.reviewIdentityTitle": "ডেলিভারির পরিচয়",
   "mcpApp.reviewTextDelivery": "এটি একটি টেক্সট ফলাফল। গ্রহণের আগে নথিভুক্ত উত্তরটি পড়ুন; GitHub-এ প্রকাশের প্রয়োজন নেই।",
-  "mcpApp.reviewComparisonPage": "মোট {{total}}টি পার্থক্যের মধ্যে {{from}}–{{to}} দেখানো হচ্ছে।"
+  "mcpApp.reviewComparisonPage": "মোট {{total}}টি পার্থক্যের মধ্যে {{from}}–{{to}} দেখানো হচ্ছে।",
+  "mcpApp.fileExpand": "{{path}} প্রসারিত করুন",
+  "mcpApp.fileCollapse": "{{path}} সংকুচিত করুন",
+  "mcpApp.fileLoading": "ফাইল লোড হচ্ছে…",
+  "mcpApp.fileViewerPreview": "প্রিভিউ",
+  "mcpApp.fileViewerSource": "সোর্স",
+  "mcpApp.fileViewerPartial": "এই টেক্সট পৃষ্ঠার প্রিভিউ। ফাইলটি পড়া চালিয়ে যেতে পরবর্তী পৃষ্ঠা পড়ুন।",
+  "mcpApp.fileViewerInvalidJson": "এই JSON ফরম্যাট করা যায়নি। এর মূল কনটেন্ট দেখানো হয়েছে।",
+  "mcpApp.fileViewerLinkUnavailable": "এই ক্লায়েন্ট লিংকটি খুলতে পারেনি।"
 }

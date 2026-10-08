@@ -1662,5 +1662,13 @@
   "mcpApp.reviewChange_removed": "غير موجود في قائمة الجرد هذه",
   "mcpApp.reviewIdentityTitle": "هوية التسليم",
   "mcpApp.reviewTextDelivery": "هذه نتيجة نصية. اقرأ الإجابة المسجّلة قبل القبول؛ لا يلزم النشر على GitHub.",
-  "mcpApp.reviewComparisonPage": "عرض الاختلافات {{from}}–{{to}} من {{total}}."
+  "mcpApp.reviewComparisonPage": "عرض الاختلافات {{from}}–{{to}} من {{total}}.",
+  "mcpApp.fileExpand": "توسيع {{path}}",
+  "mcpApp.fileCollapse": "طيّ {{path}}",
+  "mcpApp.fileLoading": "جارٍ تحميل الملف…",
+  "mcpApp.fileViewerPreview": "معاينة",
+  "mcpApp.fileViewerSource": "المصدر",
+  "mcpApp.fileViewerPartial": "هذه معاينة لصفحة النص. اقرأ الصفحة التالية لمتابعة تصفح الملف.",
+  "mcpApp.fileViewerInvalidJson": "تعذّر تنسيق JSON هذا. يُعرض محتواه الأصلي.",
+  "mcpApp.fileViewerLinkUnavailable": "تعذّر على هذا العميل فتح الرابط."
 }
