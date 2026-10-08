@@ -1598,5 +1598,6 @@
   "projects.checkpoint.reason.incomplete": "لا تتوفر لقطة كاملة لمساحة العمل.",
   "projects.awaitingClientAcceptance": "تم التسليم · بانتظار قبولك عبر MCP",
   "runs.picker.projectTotals": "الإجمالي: عدد الرموز {{tokens}} · التكلفة {{cost}} دولار أمريكي",
-  "runs.picker.projectRecorded": "المسجّل: عدد الرموز {{tokens}} · التكلفة {{cost}} دولار أمريكي"
+  "runs.picker.projectRecorded": "المسجّل: عدد الرموز {{tokens}} · التكلفة {{cost}} دولار أمريكي",
+  "registry.runActor.clientQuestion": "يتحقق مما إذا كانت المرحلة التالية تتطلب قرارًا من العميل لم يُحسم بعد. إذا كان الأمر كذلك، يحفظ run تقدّمه وينتظر إجابة العميل قبل المتابعة."
 }

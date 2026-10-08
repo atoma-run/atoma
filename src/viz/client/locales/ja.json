@@ -1598,5 +1598,6 @@
   "projects.checkpoint.reason.incomplete": "完全なワークスペースのスナップショットがありません。",
   "projects.awaitingClientAcceptance": "納品済み・MCP経由の承認待ち",
   "runs.picker.projectTotals": "合計：{{tokens}}トークン・{{cost}} USD",
-  "runs.picker.projectRecorded": "記録済み：{{tokens}}トークン・{{cost}} USD"
+  "runs.picker.projectRecorded": "記録済み：{{tokens}}トークン・{{cost}} USD",
+  "registry.runActor.clientQuestion": "次のフェーズに、未解決のクライアント判断が必要かどうかを確認します。必要な場合、runは進捗を保存し、クライアントの回答を待ってから続行します。"
 }

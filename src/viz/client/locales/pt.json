@@ -1598,5 +1598,6 @@
   "projects.checkpoint.reason.incomplete": "Não está disponível nenhum instantâneo completo do espaço de trabalho.",
   "projects.awaitingClientAcceptance": "Entregue · aguarda a sua aceitação via MCP",
   "runs.picker.projectTotals": "Total: {{tokens}} tokens · {{cost}} USD",
-  "runs.picker.projectRecorded": "Registado: {{tokens}} tokens · {{cost}} USD"
+  "runs.picker.projectRecorded": "Registado: {{tokens}} tokens · {{cost}} USD",
+  "registry.runActor.clientQuestion": "Verifica se a próxima fase requer uma decisão pendente do cliente. Nesse caso, o run guarda o progresso e aguarda a resposta do cliente antes de continuar."
 }

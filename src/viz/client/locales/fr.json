@@ -1598,5 +1598,6 @@
   "projects.checkpoint.reason.incomplete": "Aucun snapshot complet du workspace n’est disponible.",
   "projects.awaitingClientAcceptance": "Livré · en attente de ton acceptation via MCP",
   "runs.picker.projectTotals": "Total : {{tokens}} tokens · {{cost}} USD",
-  "runs.picker.projectRecorded": "Enregistré : {{tokens}} tokens · {{cost}} USD"
+  "runs.picker.projectRecorded": "Enregistré : {{tokens}} tokens · {{cost}} USD",
+  "registry.runActor.clientQuestion": "Vérifie si la phase suivante nécessite une décision du client qui n’a pas encore été prise. Si c’est le cas, le run enregistre sa progression et attend la réponse du client avant de continuer."
 }

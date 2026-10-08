@@ -1598,5 +1598,6 @@
   "projects.checkpoint.reason.incomplete": "没有可用的完整工作区快照。",
   "projects.awaitingClientAcceptance": "已交付 · 等待您通过 MCP 接受",
   "runs.picker.projectTotals": "总计：{{tokens}} 个 token · {{cost}} 美元",
-  "runs.picker.projectRecorded": "已记录：{{tokens}} 个 token · {{cost}} 美元"
+  "runs.picker.projectRecorded": "已记录：{{tokens}} 个 token · {{cost}} 美元",
+  "registry.runActor.clientQuestion": "检查下一阶段是否需要客户做出尚未解决的决定。如果需要，run 会保存进度并等待客户答复，然后再继续。"
 }

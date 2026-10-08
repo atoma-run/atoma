@@ -1598,5 +1598,6 @@
   "projects.checkpoint.reason.incomplete": "Полный снимок рабочего пространства недоступен.",
   "projects.awaitingClientAcceptance": "Доставлено · ожидает вашего принятия через MCP",
   "runs.picker.projectTotals": "Всего токенов: {{tokens}} · {{cost}} USD",
-  "runs.picker.projectRecorded": "Записано токенов: {{tokens}} · {{cost}} USD"
+  "runs.picker.projectRecorded": "Записано токенов: {{tokens}} · {{cost}} USD",
+  "registry.runActor.clientQuestion": "Проверяет, требуется ли на следующем этапе ещё не принятое решение клиента. Если да, run сохраняет ход выполнения и перед продолжением ожидает ответа клиента."
 }

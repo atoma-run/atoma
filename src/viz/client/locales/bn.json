@@ -1598,5 +1598,6 @@
   "projects.checkpoint.reason.incomplete": "কর্মক্ষেত্রের কোনো সম্পূর্ণ স্ন্যাপশট উপলভ্য নেই।",
   "projects.awaitingClientAcceptance": "সরবরাহ করা হয়েছে · MCP-এর মাধ্যমে আপনার গ্রহণের অপেক্ষায়",
   "runs.picker.projectTotals": "মোট: {{tokens}} টোকেন · {{cost}} USD",
-  "runs.picker.projectRecorded": "রেকর্ডকৃত: {{tokens}} টোকেন · {{cost}} USD"
+  "runs.picker.projectRecorded": "রেকর্ডকৃত: {{tokens}} টোকেন · {{cost}} USD",
+  "registry.runActor.clientQuestion": "পরবর্তী পর্যায়ে ক্লায়েন্টের কোনো অনিষ্পন্ন সিদ্ধান্ত প্রয়োজন কি না তা পরীক্ষা করে। প্রয়োজন হলে, run তার অগ্রগতি সংরক্ষণ করে এবং চালিয়ে যাওয়ার আগে ক্লায়েন্টের উত্তরের জন্য অপেক্ষা করে।"
 }

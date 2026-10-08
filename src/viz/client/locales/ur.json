@@ -1598,5 +1598,6 @@
   "projects.checkpoint.reason.incomplete": "ورک اسپیس کا کوئی مکمل اسنیپ شاٹ دستیاب نہیں۔",
   "projects.awaitingClientAcceptance": "فراہم شدہ · MCP کے ذریعے آپ کی قبولیت کا منتظر",
   "runs.picker.projectTotals": "کل: {{tokens}} ٹوکن · {{cost}} USD",
-  "runs.picker.projectRecorded": "ریکارڈ شدہ: {{tokens}} ٹوکن · {{cost}} USD"
+  "runs.picker.projectRecorded": "ریکارڈ شدہ: {{tokens}} ٹوکن · {{cost}} USD",
+  "registry.runActor.clientQuestion": "یہ جانچتا ہے کہ آیا اگلے مرحلے کے لیے کلائنٹ کے کسی غیر طے شدہ فیصلے کی ضرورت ہے۔ اگر ایسا ہو تو run اپنی پیش رفت محفوظ کر لیتا ہے اور جاری رکھنے سے پہلے کلائنٹ کے جواب کا انتظار کرتا ہے۔"
 }
