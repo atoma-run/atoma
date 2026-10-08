@@ -1579,5 +1579,12 @@
   "mcpApp.openRepository": "リポジトリを開く",
   "mcpApp.openPullRequest": "プルリクエストを開く",
   "mcpApp.moreText": "次のテキストページを読む",
-  "mcpApp.fileChanged": "ファイルが変更されました。先頭ページからもう一度開いてください。"
+  "mcpApp.fileChanged": "ファイルが変更されました。先頭ページからもう一度開いてください。",
+  "projects.checkpoint.title": "進捗を保存しました",
+  "projects.checkpoint.progress": "{{completed}} / {{total}}フェーズを検証済み・最終レビューが必要です",
+  "projects.checkpoint.pause": "現在のフェーズ後に一時停止",
+  "projects.checkpoint.resume": "保存した作業を再開",
+  "projects.checkpoint.requested": "一時停止をリクエスト中…",
+  "projects.checkpoint.failed": "続行できません。再読み込みして、もう一度お試しください。",
+  "projects.checkpoint.paused": "一時停止中"
 }

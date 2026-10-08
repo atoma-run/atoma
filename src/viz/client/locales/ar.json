@@ -1579,5 +1579,12 @@
   "mcpApp.openRepository": "فتح المستودع",
   "mcpApp.openPullRequest": "فتح طلب السحب",
   "mcpApp.moreText": "قراءة الصفحة النصية التالية",
-  "mcpApp.fileChanged": "تغيّر الملف. افتحه مجددًا من صفحته الأولى."
+  "mcpApp.fileChanged": "تغيّر الملف. افتحه مجددًا من صفحته الأولى.",
+  "projects.checkpoint.title": "التقدم المحفوظ",
+  "projects.checkpoint.progress": "تم التحقق من {{completed}} / {{total}} من المراحل · لا تزال المراجعة النهائية مطلوبة",
+  "projects.checkpoint.pause": "إيقاف مؤقت بعد المرحلة الحالية",
+  "projects.checkpoint.resume": "استئناف العمل المحفوظ",
+  "projects.checkpoint.requested": "طُلب الإيقاف المؤقت…",
+  "projects.checkpoint.failed": "تعذّرت المتابعة. حدّث الصفحة وحاول مرة أخرى.",
+  "projects.checkpoint.paused": "متوقف مؤقتًا"
 }

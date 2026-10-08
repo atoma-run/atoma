@@ -1579,5 +1579,12 @@
   "mcpApp.openRepository": "Buka repositori",
   "mcpApp.openPullRequest": "Buka pull request",
   "mcpApp.moreText": "Baca halaman teks berikutnya",
-  "mcpApp.fileChanged": "File telah berubah. Buka lagi dari halaman pertama."
+  "mcpApp.fileChanged": "File telah berubah. Buka lagi dari halaman pertama.",
+  "projects.checkpoint.title": "Progres tersimpan",
+  "projects.checkpoint.progress": "{{completed}} / {{total}} fase telah divalidasi · tinjauan akhir masih diperlukan",
+  "projects.checkpoint.pause": "Jeda setelah fase saat ini",
+  "projects.checkpoint.resume": "Lanjutkan pekerjaan tersimpan",
+  "projects.checkpoint.requested": "Jeda diminta…",
+  "projects.checkpoint.failed": "Tidak dapat melanjutkan. Muat ulang dan coba lagi.",
+  "projects.checkpoint.paused": "Dijeda"
 }

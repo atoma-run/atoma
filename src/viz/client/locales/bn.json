@@ -1579,5 +1579,12 @@
   "mcpApp.openRepository": "রিপোজিটরি খুলুন",
   "mcpApp.openPullRequest": "পুল রিকোয়েস্ট খুলুন",
   "mcpApp.moreText": "পরের টেক্সট পৃষ্ঠা পড়ুন",
-  "mcpApp.fileChanged": "ফাইলটি পরিবর্তিত হয়েছে। প্রথম পৃষ্ঠা থেকে আবার খুলুন।"
+  "mcpApp.fileChanged": "ফাইলটি পরিবর্তিত হয়েছে। প্রথম পৃষ্ঠা থেকে আবার খুলুন।",
+  "projects.checkpoint.title": "সংরক্ষিত অগ্রগতি",
+  "projects.checkpoint.progress": "{{completed}} / {{total}}টি পর্যায় যাচাই করা হয়েছে · চূড়ান্ত পর্যালোচনা এখনও প্রয়োজন",
+  "projects.checkpoint.pause": "বর্তমান পর্যায়ের পর বিরতি দিন",
+  "projects.checkpoint.resume": "সংরক্ষিত কাজ আবার শুরু করুন",
+  "projects.checkpoint.requested": "বিরতির অনুরোধ করা হয়েছে…",
+  "projects.checkpoint.failed": "চালিয়ে যাওয়া যাচ্ছে না। রিফ্রেশ করে আবার চেষ্টা করুন।",
+  "projects.checkpoint.paused": "বিরতি দেওয়া হয়েছে"
 }

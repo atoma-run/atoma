@@ -1579,5 +1579,12 @@
   "mcpApp.openRepository": "打开代码仓库",
   "mcpApp.openPullRequest": "打开拉取请求",
   "mcpApp.moreText": "读取下一页文本",
-  "mcpApp.fileChanged": "文件已更改。请重新打开并从第一页开始查看。"
+  "mcpApp.fileChanged": "文件已更改。请重新打开并从第一页开始查看。",
+  "projects.checkpoint.title": "已保存的进度",
+  "projects.checkpoint.progress": "已验证{{completed}}/{{total}}个阶段 · 仍需最终审核",
+  "projects.checkpoint.pause": "当前阶段结束后暂停",
+  "projects.checkpoint.resume": "继续已保存的工作",
+  "projects.checkpoint.requested": "已请求暂停…",
+  "projects.checkpoint.failed": "无法继续。请刷新后重试。",
+  "projects.checkpoint.paused": "已暂停"
 }

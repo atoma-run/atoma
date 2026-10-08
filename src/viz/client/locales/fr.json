@@ -1579,5 +1579,12 @@
   "mcpApp.openRepository": "Ouvrir le dépôt",
   "mcpApp.openPullRequest": "Ouvrir la pull request",
   "mcpApp.moreText": "Lire la page de texte suivante",
-  "mcpApp.fileChanged": "Le fichier a changé. Ouvre-le à nouveau depuis sa première page."
+  "mcpApp.fileChanged": "Le fichier a changé. Ouvre-le à nouveau depuis sa première page.",
+  "projects.checkpoint.title": "Progression enregistrée",
+  "projects.checkpoint.progress": "{{completed}} / {{total}} phases validées · révision finale encore requise",
+  "projects.checkpoint.pause": "Mettre en pause après la phase actuelle",
+  "projects.checkpoint.resume": "Reprendre le travail enregistré",
+  "projects.checkpoint.requested": "Mise en pause demandée…",
+  "projects.checkpoint.failed": "Impossible de continuer. Actualise la page et réessaie.",
+  "projects.checkpoint.paused": "En pause"
 }

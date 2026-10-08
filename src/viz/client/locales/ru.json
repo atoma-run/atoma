@@ -1579,5 +1579,12 @@
   "mcpApp.openRepository": "Открыть репозиторий",
   "mcpApp.openPullRequest": "Открыть pull request",
   "mcpApp.moreText": "Читать следующую страницу текста",
-  "mcpApp.fileChanged": "Файл изменился. Откройте его снова с первой страницы."
+  "mcpApp.fileChanged": "Файл изменился. Откройте его снова с первой страницы.",
+  "projects.checkpoint.title": "Сохранённый прогресс",
+  "projects.checkpoint.progress": "Проверено этапов: {{completed}} из {{total}} · итоговая проверка ещё не выполнена",
+  "projects.checkpoint.pause": "Приостановить после текущего этапа",
+  "projects.checkpoint.resume": "Продолжить сохранённую работу",
+  "projects.checkpoint.requested": "Запрошена приостановка…",
+  "projects.checkpoint.failed": "Не удалось продолжить. Обновите страницу и повторите попытку.",
+  "projects.checkpoint.paused": "Приостановлено"
 }

@@ -1579,5 +1579,12 @@
   "mcpApp.openRepository": "रिपॉज़िटरी खोलें",
   "mcpApp.openPullRequest": "पुल रिक्वेस्ट खोलें",
   "mcpApp.moreText": "अगला टेक्स्ट पृष्ठ पढ़ें",
-  "mcpApp.fileChanged": "फ़ाइल बदल गई है। इसे पहले पृष्ठ से फिर से खोलें।"
+  "mcpApp.fileChanged": "फ़ाइल बदल गई है। इसे पहले पृष्ठ से फिर से खोलें।",
+  "projects.checkpoint.title": "सहेजी गई प्रगति",
+  "projects.checkpoint.progress": "{{completed}} / {{total}} चरण सत्यापित · अंतिम समीक्षा अभी भी आवश्यक है",
+  "projects.checkpoint.pause": "वर्तमान चरण के बाद रोकें",
+  "projects.checkpoint.resume": "सहेजा गया काम फिर शुरू करें",
+  "projects.checkpoint.requested": "रोकने का अनुरोध किया गया…",
+  "projects.checkpoint.failed": "जारी रखने में असमर्थ। रीफ़्रेश करके फिर से प्रयास करें।",
+  "projects.checkpoint.paused": "रुका हुआ"
 }

@@ -1579,5 +1579,12 @@
   "mcpApp.openRepository": "ریپوزٹری کھولیں",
   "mcpApp.openPullRequest": "پل ریکوئسٹ کھولیں",
   "mcpApp.moreText": "متن کا اگلا صفحہ پڑھیں",
-  "mcpApp.fileChanged": "فائل تبدیل ہو گئی ہے۔ اسے پہلے صفحے سے دوبارہ کھولیں۔"
+  "mcpApp.fileChanged": "فائل تبدیل ہو گئی ہے۔ اسے پہلے صفحے سے دوبارہ کھولیں۔",
+  "projects.checkpoint.title": "محفوظ شدہ پیش رفت",
+  "projects.checkpoint.progress": "{{completed}} / {{total}} مراحل کی توثیق ہو گئی · حتمی جائزہ اب بھی درکار ہے",
+  "projects.checkpoint.pause": "موجودہ مرحلے کے بعد موقوف کریں",
+  "projects.checkpoint.resume": "محفوظ شدہ کام دوبارہ شروع کریں",
+  "projects.checkpoint.requested": "موقوف کرنے کی درخواست کی گئی…",
+  "projects.checkpoint.failed": "جاری رکھنا ممکن نہیں۔ ریفریش کر کے دوبارہ کوشش کریں۔",
+  "projects.checkpoint.paused": "موقوف"
 }

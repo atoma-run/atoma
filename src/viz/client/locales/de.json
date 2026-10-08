@@ -1579,5 +1579,12 @@
   "mcpApp.openRepository": "Repository öffnen",
   "mcpApp.openPullRequest": "Pull Request öffnen",
   "mcpApp.moreText": "Nächste Textseite lesen",
-  "mcpApp.fileChanged": "Die Datei wurde geändert. Öffnen Sie sie erneut ab der ersten Seite."
+  "mcpApp.fileChanged": "Die Datei wurde geändert. Öffnen Sie sie erneut ab der ersten Seite.",
+  "projects.checkpoint.title": "Gespeicherter Fortschritt",
+  "projects.checkpoint.progress": "{{completed}} / {{total}} Phasen validiert · abschließende Prüfung noch erforderlich",
+  "projects.checkpoint.pause": "Nach der aktuellen Phase pausieren",
+  "projects.checkpoint.resume": "Gespeicherte Arbeit fortsetzen",
+  "projects.checkpoint.requested": "Pause angefordert…",
+  "projects.checkpoint.failed": "Fortsetzen nicht möglich. Aktualisieren und erneut versuchen.",
+  "projects.checkpoint.paused": "Pausiert"
 }
