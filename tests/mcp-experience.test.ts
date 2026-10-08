@@ -1,3 +1,4 @@
+import { clientQuestionViewSchema } from '../src/contracts/clientQuestion.js';
 import Database from 'better-sqlite3';
 import { createServer, type Server } from 'node:http';
 import { parseRunLog } from '../src/cli/burnin.js';
@@ -554,6 +555,7 @@ it.each([false, true])('persists client questions and answers through both MCP e
   f.projects.transitionProjectRun({ orgId: f.viewer.orgId, projectRunId: run.projectRunId, from: 'running', to: 'partial', traceId: run.projectRunId,
     stats: { ...parseRunLog('✓ build finished'), outcome: 'partial' } });
   const read = await f.call('atoma_run_question', ref);
+  expect(clientQuestionViewSchema.parse(read.structuredContent).continuation).toBeNull();
   expect(read.structuredContent).toMatchObject({ question: { questionId: id, answer: null }, waitingForClient: true, canAnswer: true, nextAction: 'answer' });
   expect((await f.call('atoma_run_status', ref)).structuredContent).toMatchObject({ awaitingClientAnswer: true });
   await expect(f.service.controlCheckpoint(f.viewer, ref.projectId, ref.runId, 'resume')).rejects.toThrow(/pending client question/);
@@ -577,4 +579,13 @@ it.each([false, true])('persists client questions and answers through both MCP e
   expect(() => f.service.runQuestion({ ...f.viewer, orgId: randomUUID(), platformAdmin: false }, ref.projectId, ref.runId)).toThrow(/not found/);
   const restartedReader = new RunCheckpointStore(f.dbPath);
   expect(restartedReader.read(ref.runId).root?.inputs?.['clientAnswers']).toEqual([expect.objectContaining({ questionId: id, selectedOption: { label: 'Keep both login methods', consequence: 'Existing local accounts keep working.' } })]);
+  const continuationId = randomUUID();
+  f.projects.createProjectRun({ orgId: f.viewer.orgId, projectId: ref.projectId, principalId: f.viewer.principalId,
+    projectRunId: continuationId, request: { goal: run.goal, idempotencyKey: continuationId, resumeOf: run.projectRunId },
+    hostPaths: { workspacePath: join(f.root, continuationId, 'workspace'), runsPath: join(f.root, continuationId, 'runs'), logPath: join(f.root, continuationId, 'run.log') } });
+  f.setViewer(f.viewer);
+  expect(clientQuestionViewSchema.parse((await f.call('atoma_run_question', ref)).structuredContent).continuation)
+    .toEqual({ runId: continuationId, status: 'queued' });
+  expect(f.driver).not.toHaveBeenCalled();
+
 });

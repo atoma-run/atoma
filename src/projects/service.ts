@@ -1,4 +1,4 @@
-import { answerClientQuestionSchema } from '../contracts/clientQuestion.js';
+import { answerClientQuestionSchema, type ClientQuestionView } from '../contracts/clientQuestion.js';
 import { projectContextReadSchema, projectContextUpdateSchema } from '../contracts/projectContext.js';
 import { ProjectContextConflict } from './context.js';
 import { PROJECT_RUN_WAITING_MESSAGE } from '../contracts/projects.js';
@@ -777,7 +777,7 @@ export class ProjectService {
     }
   }
 
-  runQuestion(viewer: Viewer, projectId: string, runId: string) {
+  runQuestion(viewer: Viewer, projectId: string, runId: string): ClientQuestionView {
     const orgId = this.readOrgFor(viewer, projectId);
     const run = this.store.getProjectRun(orgId, runId);
     if (!run || run.projectId !== projectId) throw new ProjectHttpError(404, 'project run not found');
@@ -786,7 +786,9 @@ export class ProjectService {
     const mayAct = orgId === viewer.orgId && run.requestedByPrincipalId === viewer.principalId && roleAtLeast(viewer.role, 'org:member') &&
       this.store.getProject(orgId, projectId)?.status === 'active' && !run.bytesExpiredAt;
     const waitingForClient = Boolean(question && !question.answer && paused);
+    const continuation = this.store.latestContinuation(orgId, runId);
     return { projectId, runId, question, waitingForClient,
+      continuation: continuation?.projectId === projectId ? { runId: continuation.projectRunId, status: continuation.status } : null,
       canAnswer: mayAct && waitingForClient, canResume: mayAct && paused && Boolean(question?.answer),
       nextAction: waitingForClient ? 'answer' : paused && question?.answer ? 'resume' : 'none' };
   }

@@ -1,3 +1,4 @@
+import { clientQuestionViewFixture } from './helpers/clientQuestion.js';
 import { runReviewFixture } from './helpers/projectRetrievalLaunch.js';
 import { PlatformEventLog } from '../src/platform/events.js';
 import { projectRetrievalFixture } from './helpers/projectRetrievalLaunch.js';
@@ -754,6 +755,7 @@ describe('the platform commons over MCP — registry and skill catalog', () => {
       projects: { service: {
         projectContext: () => ({ context: { projectId: '00000000-0000-4000-8000-000000000001', version: 0, brief: null, decisions: [], change: null }, history: [], nextBeforeVersion: null }),
         reviewRun: runReviewFixture,
+        runQuestion: clientQuestionViewFixture,
         compareRuns: () => ({ projectId: 'p', baseRunId: 'b', runId: 'r', snapshot: 'a'.repeat(64), evidence: 'saved_manifests', untrusted: true,
           base: { status: 'delivered', coverage: 'workspace' }, target: { status: 'delivered', coverage: 'workspace' },
           counts: { added: 0, removed: 0, modified: 0, unchanged: 0 }, files: [], total: 0, nextOffset: null, note: 'Saved inventories only.' }),
@@ -768,11 +770,11 @@ describe('the platform commons over MCP — registry and skill catalog', () => {
     try {
       const tools = (await client.listTools()).tools.filter((tool) => tool.outputSchema);
       expect(tools.map((tool) => tool.name).sort()).toEqual([
-        'atoma_costs', 'atoma_ledger_tail', 'atoma_mcp_health', 'atoma_notifications', 'atoma_project_context', 'atoma_run_artifacts', 'atoma_run_compare', 'atoma_run_file', 'atoma_run_review', 'atoma_sentinel_health',
+        'atoma_costs', 'atoma_ledger_tail', 'atoma_mcp_health', 'atoma_notifications', 'atoma_project_context', 'atoma_run_artifacts', 'atoma_run_compare', 'atoma_run_file', 'atoma_run_question', 'atoma_run_review', 'atoma_sentinel_health',
       ]);
       for (const tool of tools) {
         expect(tool.outputSchema?.['additionalProperties'], tool.name).not.toBe(false);
-        const args = tool.name === 'atoma_project_context' ? { projectId: 'p' } : tool.name === 'atoma_run_review' ? { projectId: 'p', runId: 'r' } : tool.name === 'atoma_run_compare' ? { projectId: 'p', runId: 'r', baseRunId: 'b' } : tool.name === 'atoma_run_artifacts' || tool.name === 'atoma_run_file' ? { projectId: 'p', runId: 'r', path: 'a.txt' } : {};
+        const args = tool.name === 'atoma_project_context' ? { projectId: 'p' } : tool.name === 'atoma_run_review' || tool.name === 'atoma_run_question' ? { projectId: 'p', runId: 'r' } : tool.name === 'atoma_run_compare' ? { projectId: 'p', runId: 'r', baseRunId: 'b' } : tool.name === 'atoma_run_artifacts' || tool.name === 'atoma_run_file' ? { projectId: 'p', runId: 'r', path: 'a.txt' } : {};
         const result = await client.callTool({ name: tool.name, arguments: args });
         expect(result.isError, tool.name).toBeFalsy();
         expect(result.structuredContent, tool.name).toBeDefined();

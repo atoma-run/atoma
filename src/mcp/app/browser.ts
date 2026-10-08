@@ -2,6 +2,7 @@ import { App } from '@modelcontextprotocol/ext-apps';
 import { createInstance } from 'i18next';
 import { z } from 'zod';
 import { artifactFileResultSchema, artifactPageResultSchema, runViewSchema } from '../../contracts/clientExperience.js';
+import { questionCard } from './question.js';
 
 const app = new App({ name: 'Atoma run', version: '1.0.0' }, {});
 const i18n = createInstance();
@@ -20,6 +21,12 @@ let busy = false;
 let cancelArmed = false;
 let generation = 0;
 let fileGeneration = 0;
+const decision = questionCard({ ref, call, t, changed: () => { render(); schedule(); }, error: showError,
+  open: async source => {
+    const epoch = generation;
+    const next = runViewSchema.parse(await call('atoma_run_status', source));
+    if (epoch === generation) showRun(next);
+  } });
 
 function showError(error: unknown) {
   element('error').textContent = error instanceof Error ? error.message : t('failure');
@@ -33,8 +40,8 @@ function clearPreview() {
   element('image').hidden = true;
   element('text').hidden = true;
 }
-async function call(name: string, args: Record<string, unknown>) {
-  const result = await app.callServerTool({ name, arguments: args });
+async function call(name: string, args: Record<string, unknown>, timeout?: number) {
+  const result = await app.callServerTool({ name, arguments: args }, timeout ? { timeout } : undefined);
   if (result.isError) {
     const error = result.content.find(item => item.type === 'text');
     throw new Error(error?.type === 'text' ? error.text : t('failure'));
@@ -54,7 +61,7 @@ function render() {
   label('criteria-title', 'criteria'); label('files-title', 'files'); label('more-files', 'more'); label('more-text', 'moreText');
   element('note').textContent = t(run?.status === 'partial' ? 'partial' : 'untrusted');
   element('title').textContent = run?.title || run?.goal.slice(0, 160) || 'Atoma';
-  element('status').textContent = run ? `${run.status} · ${run.progress?.message ?? ''}` : t('waiting');
+  element('status').textContent = decision.statusText ?? (run ? `${run.status} · ${run.progress?.message ?? ''}` : t('waiting'));
   element('activity').textContent = run?.progress?.lastActivityAt
     ? t('lastActivity', { time: new Intl.DateTimeFormat(i18n.language, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(run.progress.lastActivityAt)) }) : '';
   element('cost').textContent = run?.costUsd != null ? t('cost', { cost: new Intl.NumberFormat(i18n.language, { style: 'currency', currency: 'USD', maximumFractionDigits: 4 }).format(run.costUsd) }) : '';
@@ -88,6 +95,7 @@ function render() {
     li.append(name, open, download); return li;
   }));
   button('more-files').hidden = nextFiles === null;
+  decision.render();
   document.querySelector('main')!.setAttribute('aria-busy', String(busy));
 }
 async function loadFiles(append = false) {
@@ -130,7 +138,7 @@ async function downloadFile(file: z.infer<typeof artifactPageResultSchema>['file
 }
 function schedule() {
   clearTimeout(timer);
-  if (run && ['running', 'queued'].includes(run.status) && !document.hidden) timer = setTimeout(() => { void refresh().catch(showError); }, 5000);
+  if (run && (['running', 'queued'].includes(run.status) || decision.waiting) && !document.hidden) timer = setTimeout(() => { void refresh().catch(showError); }, 5000);
 }
 async function refresh() {
   if (!run || busy) return;
@@ -140,6 +148,7 @@ async function refresh() {
     const latest = runViewSchema.parse(await call('atoma_run_status', ref()));
     if (epoch !== generation) return;
     run = latest;
+    await decision.load();
     await loadFiles();
   } finally {
     busy = false; button('refresh').disabled = false; render(); schedule();
@@ -156,11 +165,17 @@ button('cancel').onclick = () => {
     cancelArmed = false; button('cancel').disabled = false; render();
   });
 };
+function showRun(next: z.infer<typeof runViewSchema>) {
+  if (run?.projectId === next.projectId && run.projectRunId === next.projectRunId) {
+    run = next; render(); void refresh().catch(showError); return;
+  }
+  generation++; fileGeneration++; cancelArmed = false; decision.reset(); clearPreview(); run = next; files = []; nextFiles = null; render();
+  void refresh().catch(showError);
+}
 app.ontoolresult = result => {
   const parsed = runViewSchema.safeParse(result.structuredContent);
   if (!parsed.success) return;
-  generation++; fileGeneration++; cancelArmed = false; clearPreview(); run = parsed.data; files = []; nextFiles = null; render();
-  void refresh().catch(showError);
+  showRun(parsed.data);
 };
 app.onhostcontextchanged = context => {
   if (context.theme) document.documentElement.style.colorScheme = context.theme;

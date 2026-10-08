@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { idempotencyKeySchema } from './projects.js';
+import { idempotencyKeySchema, projectRunStatusSchema } from './projects.js';
 
 /** A blocking client choice, never a request for routine implementation advice or credentials. */
 export const clientQuestionSchema = z.object({
@@ -23,6 +23,14 @@ export const clientQuestionRecordSchema = z.object({
   answer: z.object({ principalId: z.string().uuid(), at: z.string().datetime(), value: clientAnswerSchema }).strict().nullable(),
 }).strict();
 export type ClientQuestionRecord = z.infer<typeof clientQuestionRecordSchema>;
+/** Shared read projection for the MCP card and the authenticated HTTP reader. */
+export const clientQuestionViewSchema = z.object({
+  projectId: z.string(), runId: z.string(), question: clientQuestionRecordSchema.nullable(),
+  waitingForClient: z.boolean(), canAnswer: z.boolean(), canResume: z.boolean(),
+  nextAction: z.enum(['answer', 'resume', 'none']),
+  continuation: z.object({ runId: z.string(), status: projectRunStatusSchema }).nullable().optional(),
+});
+export type ClientQuestionView = z.infer<typeof clientQuestionViewSchema>;
 /** Bounded immutable answers carried with the checkpoint, separate from the project brief. */
 export const clientAnswerContextSchema = z.array(z.object({
   questionId: z.string().uuid(), question: z.string().max(600),

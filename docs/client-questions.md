@@ -35,6 +35,17 @@ no polling or model call while the run waits for its client.
   in the existing path. Retrying a failed resume does not require answering
   the question again.
 
+The embedded MCP run card reads this same question and its current permissions.
+It presents unselected choices, their consequences and a free-text field. An
+explicit **Answer and resume** click records the answer and invokes the existing
+resume tool; no publication or permanent project-memory update is implied.
+Uncertain answer retries keep the same payload and key. If resumption fails,
+the recorded answer stays visible and only continuation is retried. The question
+reader also exposes its scoped latest continuation so reconnecting cards can
+open the successor without starting another run. Apps use the ordinary tool
+bridge; the long-running resume retains its synchronous semantics, while reads
+can expose its successor before the call completes. No new transport or runner.
+
 Only the original requester, still a member of the active organisation, may
 answer. Viewers can read; platform-admin cross-org reads retain the audit gate
 and never grant write access. GET/POST `/api/projects/:id/runs/:run/question`
