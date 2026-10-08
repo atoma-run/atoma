@@ -66,7 +66,6 @@ describe('launcher contract shapes', () => {
     expect(launcherUnitSpecSchema.safeParse(smuggled).success).toBe(false);
   });
 });
-
 describe('launcher object naming', () => {
   it('is deterministic, and keeps colliding or truncated owners apart', () => {
     const { launcher } = recordingLauncher();
@@ -249,6 +248,22 @@ describe('launcher preview profiles', () => {
     });
     return { launcher, calls };
   }
+
+  it('launches only the fixed service, with a read-only source and bounded writable memory', async () => {
+    const { launcher, calls } = previewLauncher();
+    const net = await launcher.createNetwork({ family: 'preview', kind: 'internal', ownerId: 'terminal' });
+    calls.length = 0;
+    await launcher.startUnit({ kind: 'preview-app', mode: 'terminal', ownerId: 'terminal',
+      workspace: { ownerId: 'terminal', id: launcherObjectId('terminal') } }, [net]);
+    const args = calls[0]!;
+    expect(args.slice(-2)).toEqual(['preview-image@sha256:abc', '/opt/atoma-terminal/server.mjs']);
+    expect(args).toContain(`/var/lib/atoma/previews/${launcherObjectId('terminal')}:/workspace:ro`);
+    expect(args).toContain('/data:rw,nosuid,nodev,size=512m');
+    expect(args).toContain('--read-only');
+    expect(args[args.indexOf('--runtime') + 1]).toBe('runsc');
+    expect(args[args.indexOf('--memory') + 1]).toBe('1g');
+    expect(args.some((value) => value.startsWith('HTTP_PROXY='))).toBe(false);
+  });
 
   it('labels preview objects as previews, never as egress', async () => {
     const { launcher, calls } = previewLauncher();

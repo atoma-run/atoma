@@ -1508,6 +1508,23 @@ html.atoma-cursor-active * {
 }
 
 /* The preview is a modal over the inert scene; the cursor stays above it. */
+.gpu-project-preview {
+  --gpu-overlay-top: 148px;
+  --gpu-overlay-left: calc(var(--gpu-sidebar) + 26px);
+  position: fixed;
+  z-index: 4;
+  top: var(--gpu-overlay-top);
+  bottom: 26px;
+  left: var(--gpu-overlay-left);
+  right: 26px;
+  display: flex;
+  min-height: 0;
+}
+
+.gpu-project-preview .gpu-preview-plane {
+  box-shadow: none;
+}
+
 .gpu-preview-backdrop {
   position: fixed;
   inset: 0;

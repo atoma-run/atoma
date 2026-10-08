@@ -149,8 +149,8 @@ export async function serveLauncher(options: {
           if (spec.kind === 'preview-app') {
             if (spec.workspace.ownerId !== spec.ownerId || spec.workspace.id !== launcherObjectId(spec.ownerId)) throw new Error('Foreign workspace');
             if (!held.get(`preview:${spec.ownerId}`)?.workspace) throw new Error('Workspace was not issued here');
-            if (spec.entry.startsWith('-') || spec.entry.includes(String.fromCharCode(0)) || !/^[^\\:]+\.(?:js|mjs|cjs)$/.test(spec.entry)
-              || path.posix.isAbsolute(spec.entry) || spec.entry.split('/').some((part) => !part || part === '.' || part === '..')) {
+            if (spec.mode !== 'terminal' && (spec.entry === undefined || spec.entry.startsWith('-') || spec.entry.includes(String.fromCharCode(0)) || !/^[^\\:]+\.(?:js|mjs|cjs)$/.test(spec.entry)
+              || path.posix.isAbsolute(spec.entry) || spec.entry.split('/').some((part) => !part || part === '.' || part === '..'))) {
               throw new Error('Invalid entry');
             }
           }

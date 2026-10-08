@@ -6,6 +6,7 @@ import { createScrollPane } from '../scroll-pane.js';
 import { resultNarrative, resultSections, resultText } from '../../run-result.js';
 import { runStatus } from '../../../client/run-utils.js';
 import { formatDateTime } from '../../../client/date-format.js';
+import { drawPreviewControl } from '../preview-control.js';
 
 /** One bounded result reader shared by Projects and Runs. No model HTML executes. */
 export function drawResultPanel(ctx: RendererCtx, snapshot: GpuRenderSnapshot,
@@ -38,7 +39,8 @@ export function drawResultPanel(ctx: RendererCtx, snapshot: GpuRenderSnapshot,
       detailsStacked ? x + 16 : x + width - 16 - detailsWidth, y + detailsY,
       detailsWidth, 30, details, snapshot.onActivate);
   }
-  const top = y + (run && detailsStacked ? detailsY + 40 : titleStacked ? 80 : 48);
+  let top = y + (run && detailsStacked ? detailsY + 40 : titleStacked ? 80 : 48);
+  top += drawPreviewControl(ctx, snapshot, x + 6, top, width - 12);
   const paneHeight = Math.max(0, height - (top - y) - 12);
   const pane = createScrollPane(ctx.root, { x: x + 12, y: top, width: width - 24,
     height: paneHeight, scrollY: ctx.detailScrollY });

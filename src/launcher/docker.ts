@@ -652,6 +652,7 @@ export class DockerLauncher implements ContainerLauncher {
   ): Promise<LauncherUnitHandle> {
     const labels = this.labels('preview', spec.ownerId);
     if (spec.kind === 'preview-app') {
+      const terminal = spec.mode === 'terminal';
       const workspace = this.workspacePath(spec.workspace.ownerId);
       // Docker's embedded DNS was unavailable inside a production gVisor
       // preview. Resolve the proxy's endpoint on THIS isolated network
@@ -688,10 +689,10 @@ export class DockerLauncher implements ContainerLauncher {
         '--security-opt',
         'no-new-privileges',
         '--memory',
-        PREVIEW_APP_MEMORY,
+        terminal ? '1g' : PREVIEW_APP_MEMORY,
         // Swap equal to memory: otherwise the cap is escapable by swapping.
         '--memory-swap',
-        PREVIEW_APP_MEMORY,
+        terminal ? '1g' : PREVIEW_APP_MEMORY,
         '--cpus',
         PREVIEW_APP_CPUS,
         '--pids-limit',
@@ -705,10 +706,9 @@ export class DockerLauncher implements ContainerLauncher {
         '--tmpfs',
         `/tmp:rw,noexec,nosuid,size=${PREVIEW_TMP_SIZE}`,
         '--tmpfs',
-        `/data:rw,noexec,nosuid,size=${PREVIEW_DATA_SIZE}`,
-        // EXACTLY `node <entry>`, whatever the image declares. An image
-        // ENTRYPOINT would otherwise wrap the one start command this profile
-        // is allowed to run, and the design's D7 is that there is no other.
+        terminal ? '/data:rw,nosuid,nodev,size=512m' : `/data:rw,noexec,nosuid,size=${PREVIEW_DATA_SIZE}`,
+        // The fixed terminal service or the resolved application entry, never
+        // an image-defined wrapper or a caller-supplied shell command.
         '--entrypoint',
         'node',
         '--log-opt',
@@ -733,14 +733,14 @@ export class DockerLauncher implements ContainerLauncher {
           '-e', 'NO_PROXY=127.0.0.1,localhost,::1',
           '-e', 'NODE_USE_ENV_PROXY=1',
         ] : []),
-        // The single mount: the filtered copy, writable because the app may
-        // keep state — on the COPY, which is deleted at teardown.
-        ...(this.volumes ? ['--mount', `type=volume,src=${this.volumes.get('preview', spec.ownerId).volume},dst=/workspace,volume-nocopy`]
-          : ['-v', `${toEnginePath(workspace)}:/workspace`]),
+        // Apps may write the disposable copy. Terminals get a read-only source
+        // and make their own writable copy in the bounded /data tmpfs.
+        ...(this.volumes ? ['--mount', `type=volume,src=${this.volumes.get('preview', spec.ownerId).volume},dst=/workspace,volume-nocopy${terminal ? ',readonly' : ''}`]
+          : ['-v', `${toEnginePath(workspace)}:/workspace${terminal ? ':ro' : ''}`]),
         '-w',
         '/workspace',
         this.previewImage,
-        spec.entry,
+        terminal ? '/opt/atoma-terminal/server.mjs' : spec.entry!,
       ]);
       return { kind: spec.kind, ownerId: spec.ownerId, name };
     }

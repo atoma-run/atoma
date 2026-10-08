@@ -107,9 +107,11 @@ export class PreviewHttpService {
   /** GET — status only. Allocates nothing, ever. */
   status(viewer: Viewer, projectId: string, projectRunId: string): PreviewSummary {
     this.boundRun(viewer, projectId, projectRunId);
-    return this.deps.manager.status(viewer.orgId, projectId, projectRunId, {
+    const summary = this.deps.manager.status(viewer.orgId, projectId, projectRunId, {
       runInFlight: this.runInFlight(viewer, projectRunId),
     });
+    return this.deps.projects.getProjectRun(viewer.orgId, projectRunId)?.status === 'delivered'
+      ? { ...summary, terminalAvailable: true } : summary;
   }
 
   /**
@@ -130,6 +132,9 @@ export class PreviewHttpService {
     this.requirePreviewable(viewer, projectRunId);
     const parsed = previewOpenOptionsSchema.safeParse(options);
     if (!parsed.success) throw new ProjectHttpError(400, 'invalid preview open options');
+    if (options.mode === 'terminal' && this.runInFlight(viewer, projectRunId)) {
+      throw new ProjectHttpError(409, 'terminal testing requires a delivered run');
+    }
     // `Viewer` carries no session id; see `PreviewClaimBinding.sessionId`.
     const opener = { principalId: viewer.principalId, sessionId: null };
     // The caller ASKS; the run's own status ANSWERS. `inFlight` is a
@@ -147,7 +152,7 @@ export class PreviewHttpService {
         ? this.deps.manager.claim(input, options.generation)
         : inFlight
         ? await this.deps.manager.openInFlight({ orgId: viewer.orgId, projectId, projectRunId, opener })
-        : await this.deps.manager.open({ orgId: viewer.orgId, projectId, projectRunId, opener });
+        : await this.deps.manager.open({ orgId: viewer.orgId, projectId, projectRunId, opener, mode: options.mode });
       // Starting a snapshot awaits copying/probing. The run can finish in
       // that interval, including before the instance existed for the hook.
       if (inFlight && !this.runInFlight(viewer, projectRunId)) {
@@ -211,10 +216,17 @@ export class PreviewHttpService {
     viewer: Viewer,
     projectId: string,
     projectRunId: string,
-    options: { readonly inFlight?: boolean } = {}
+    options: PreviewOpenOptions = {}
   ): Promise<{ readonly status: number; readonly body: PreviewOpenResponse }> {
     this.requireMember(viewer, 'restart previews');
     this.boundRun(viewer, projectId, projectRunId);
+    const parsed = previewOpenOptionsSchema.safeParse(options);
+    if (!parsed.success || options.generation !== undefined) throw new ProjectHttpError(400, 'invalid preview restart options');
+    this.requirePreviewable(viewer, projectRunId);
+    const mode = options.mode ?? this.deps.store.getInstance(viewer.orgId, projectRunId)?.mode;
+    if (mode === 'terminal' && this.runInFlight(viewer, projectRunId)) {
+      throw new ProjectHttpError(409, 'terminal testing requires a delivered run');
+    }
     // Asked BEFORE the stop: while a deployment waits the open below would be
     // refused, and the member would have lost the preview they had.
     try {
@@ -223,7 +235,7 @@ export class PreviewHttpService {
       throw this.asHttp(error);
     }
     await this.deps.manager.stop(viewer.orgId, projectId, projectRunId, 'restart');
-    return this.open(viewer, projectId, projectRunId, options);
+    return this.open(viewer, projectId, projectRunId, { ...options, mode });
   }
 
   /** GET egress approvals — readable by anyone who may see the project. */

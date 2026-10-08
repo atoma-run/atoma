@@ -1,3 +1,4 @@
+import { previewModeSchema } from '../contracts/preview.js';
 import { answerClientQuestionSchema, clientQuestionViewSchema } from '../contracts/clientQuestion.js';
 import { projectContextReadSchema, projectContextResultSchema, projectContextUpdateSchema } from '../contracts/projectContext.js';
 import { basename } from 'node:path';
@@ -614,12 +615,13 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
         {
           title: 'Preview of a project run',
           description:
-            'The live preview of one run’s deliverable: omit action to read its state (allocates nothing). Members may pass action "open" (start or reuse the preview; a ready one returns a URL carrying a ONE-TIME claim — hand it to the person, never store it; a starting one answers with retryAfterSeconds) or "stop". inFlight asks for a snapshot of a run still going; the host decides whether one is what you get.',
+            'The live preview of one run’s deliverable: omit action to read its state (allocates nothing). Members may pass action "open" (start or reuse the preview; a ready one returns a URL carrying a ONE-TIME claim — hand it to the person, never store it; a starting one answers with retryAfterSeconds) or "stop". inFlight asks for a snapshot of a run still going; the host decides whether one is what you get. mode=terminal opens an isolated Node.js terminal for a delivered run, including CLI deliverables; it does not execute any caller-supplied command.',
           inputSchema: {
             projectId: z.string().min(1),
             runId: z.string().min(1),
             action: z.enum(['open', 'stop']).optional(),
             inFlight: z.boolean().optional(),
+            mode: previewModeSchema.optional(),
           },
           annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
         },
@@ -633,7 +635,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
               throw new ProjectHttpError(403, 'org:member role or above is required to open or stop previews');
             }
             if (args.action === 'stop') return preview.stop(viewer, args.projectId, args.runId);
-            const answered = await preview.open(viewer, args.projectId, args.runId, { inFlight: args.inFlight === true });
+            const answered = await preview.open(viewer, args.projectId, args.runId, { inFlight: args.inFlight === true, mode: args.mode });
             return { httpStatus: answered.status, ...answered.body };
           })
       ),

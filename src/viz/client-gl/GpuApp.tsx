@@ -304,15 +304,24 @@ function GpuAppContent({
   // else — the runs index, a burn-in row, a deep link — has no project run to
   // preview, and the control below stays absent rather than guessing one.
   const previewTarget = useMemo(
-    () => previewTargetForRun(projectRunsQuery.data ?? [], state.selectedRunId, runsQuery.data ?? []),
-    [projectRunsQuery.data, runsQuery.data, state.selectedRunId]
+    () => {
+      if (state.view === 'projects' && !state.resultRunId) {
+        const latest = latestDeliveredResult(projectRunsQuery.data ?? []);
+        return latest && !latest.bytesExpiredAt
+          ? { projectId: latest.projectId, projectRunId: latest.projectRunId } : null;
+      }
+      return previewTargetForRun(
+      state.resultRunId ? resultProjectRunsQuery.data ?? [] : projectRunsQuery.data ?? [],
+      state.resultRunId ?? state.selectedRunId, runsQuery.data ?? []);
+    },
+    [projectRunsQuery.data, resultProjectRunsQuery.data, runsQuery.data, state.view, state.resultRunId, state.selectedRunId]
   );
   // READS ONLY. A GET allocates nothing server-side, which is what makes it
   // safe to poll from a tab a viewer left open on a run.
   const previewQuery = usePreviewStatus(
     previewTarget?.projectId ?? null,
     previewTarget?.projectRunId ?? null,
-    state.view === 'runs' && authed && !!previewTarget
+    (state.view === 'runs' || state.view === 'projects') && authed && !!previewTarget
   );
   // THE RUN'S STATUS IS WHAT MAKES A PREVIEW POSSIBLE, so a change to it must
   // re-ask. Nothing else will: `usePreviewStatus` stops polling once the state
@@ -636,6 +645,21 @@ function GpuAppContent({
   const { previewOpen, previewUrl, previewStatus, previewError, previewReloadNonce,
     requestPreview, closePreview, stopPreview, reloadPreview } = usePreviewSession({ previewTarget, previewSummary, t });
 
+  const projectPreviewSelected = state.view === 'projects' && !!selectedProject && state.projectSection === 'preview';
+  const requestedProjectPreview = useRef<string | null>(null);
+  useEffect(() => {
+    if (!projectPreviewSelected) {
+      if (requestedProjectPreview.current !== null) closePreview();
+      requestedProjectPreview.current = null;
+      return;
+    }
+    if (!previewTarget || !previewSummary || (previewSummary.availability !== 'available' && !previewSummary.terminalAvailable)) return;
+    const key = `${previewTarget.projectId}/${previewTarget.projectRunId}`;
+    if (requestedProjectPreview.current === key) return;
+    requestedProjectPreview.current = key;
+    void requestPreview('open');
+  }, [projectPreviewSelected, previewTarget, previewSummary, requestPreview, closePreview]);
+
   const activate = useCallback((id: string) => {
     if (id === 'result.details') {
       useGpuStore.getState().toggleResultDetails();
@@ -861,6 +885,7 @@ function GpuAppContent({
       const section = id.slice('project.section.'.length);
       const rows = projectRunsQuery.data ?? [];
       if (section === 'runs') store.selectProjectSection('runs');
+      else if (section === 'preview') store.selectProjectSection('preview');
       else if (section === 'files') store.selectProjectSection('files', latestWorkspaceRun(rows)?.projectRunId);
       else if (section === 'result') store.selectProjectSection('result', latestDeliveredResult(rows)?.traceId);
       return;
@@ -1222,6 +1247,27 @@ function GpuAppContent({
     };
   }, [activate, state.sceneCameraMode, state.selectedRunId, state.view]);
 
+  const previewPlane = (
+    <PreviewPlane
+        embedded={projectPreviewSelected}
+        veiled={state.accountMenuOpen || state.localeMenuOpen || state.notificationsMenuOpen}
+        open={previewOpen}
+        summary={previewSummary}
+        url={previewUrl}
+        projectName={previewProject?.name ?? ''}
+        goal={previewGoal}
+        reloadNonce={previewReloadNonce}
+        status={previewStatus}
+        errorMessage={previewError}
+        t={t}
+        locale={state.locale}
+        onClose={() => { closePreview(); if (projectPreviewSelected) useGpuStore.getState().selectProjectSection('runs'); }}
+        onReload={reloadPreview}
+        onRestart={() => { void requestPreview('restart'); }}
+        onStop={() => { void stopPreview(); }}
+      />
+  );
+
   return (
     <main className="gpu-app" data-entered={state.entered ? 'true' : 'false'} data-theme={state.appearanceTheme} data-theme-transition={appearanceTransition.phase}>
       {/* The product tree goes INERT behind an open preview, not merely
@@ -1232,7 +1278,7 @@ function GpuAppContent({
           have done only the last of the three. */}
       {/* Stop rendering the crystal once the mobile notice covers the scene. */}
       {handheldPhase === 'white' ? null : (
-      <div className="gpu-scene-host" inert={!!state.filePreview || previewOpen || handheldPhase !== 'idle' || appearanceTransition.phase !== 'idle'}>
+      <div className="gpu-scene-host" inert={!!state.filePreview || (previewOpen && !projectPreviewSelected && requestedProjectPreview.current === null) || handheldPhase !== 'idle' || appearanceTransition.phase !== 'idle'}>
       <CubeTurnPlane mode={state.sceneCameraMode} navigation={sceneNavigation}>
       <SceneCameraPlane mode={state.sceneCameraMode} onSettled={cameraSettled}>
         <GpuSurface
@@ -1317,6 +1363,7 @@ function GpuAppContent({
             ) : null
           }
         />
+        {projectPreviewSelected && previewPlane}
         <SceneTuningPanel />
       </SceneCameraPlane>
       </CubeTurnPlane>
@@ -1324,22 +1371,7 @@ function GpuAppContent({
       )}
       {state.filePreview && <FilePreview key={`${state.filePreview.projectId}:${state.filePreview.runId}:${state.filePreview.path}`}
         target={state.filePreview} t={t} locale={state.locale} onClose={() => useGpuStore.getState().previewFile(null)} />}
-      <PreviewPlane
-        open={previewOpen}
-        summary={previewSummary}
-        url={previewUrl}
-        projectName={previewProject?.name ?? ''}
-        goal={previewGoal}
-        reloadNonce={previewReloadNonce}
-        status={previewStatus}
-        errorMessage={previewError}
-        t={t}
-        locale={state.locale}
-        onClose={closePreview}
-        onReload={reloadPreview}
-        onRestart={() => { void requestPreview('restart'); }}
-        onStop={() => { void stopPreview(); }}
-      />
+      {!projectPreviewSelected && requestedProjectPreview.current === null && previewPlane}
       <AtomaCursor />
       <EntryVeilLayer phase={entryPhase} />
       <HandheldVeilLayer

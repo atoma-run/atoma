@@ -187,35 +187,30 @@ describe('worker image closure — everything the worker imports must be in the 
 
 /**
  * The PREVIEW image is the opposite guard: the worker's must CONTAIN
- * everything it imports, and this one must contain NOTHING of ours.
+ * everything it imports; this one contains only the standalone terminal bundle.
  *
- * The process it starts is not our code. It is whatever a run produced, and
- * every line of atoma reachable from inside it is a line a member's generated
- * application inherits. The isolation lives in the launcher's flags; the image
- * only has to stay empty.
+ * Member code can read the image, so control-plane and element code must stay
+ * outside it. Isolation lives in the launcher's flags and network topology.
  */
-describe('preview image — it must hold nothing of atoma', () => {
+describe('preview image — no control-plane or element code', () => {
   const preview = readFileSync(resolve(REPO, 'docker/preview.Dockerfile'), 'utf8');
-  // The INSTRUCTIONS, not the prose. This file explains at length why it
-  // installs nothing, and an assertion that read the comments would fail on
-  // its own rationale.
+  // Inspect Docker instructions, excluding explanatory comments.
   const instructions = preview
     .split(/\r?\n/)
     .filter((line) => !line.trim().startsWith('#'))
     .join('\n');
 
-  it('copies no compiled output, no source and no package manifest', () => {
+  it('copies only the standalone terminal runtime', () => {
     const copies = [...instructions.matchAll(/^COPY\s+(.+)$/gm)].map((m) => m[1]!.trim());
-    expect(copies).toEqual([]);
+    expect(copies).toEqual(['dist/preview-terminal/ /opt/atoma-terminal/']);
   });
 
-  it('installs nothing', () => {
+  it('installs the PTY interpreter but never deliverable dependencies', () => {
     // No `npm install` layer: a deliverable brings its own node_modules in the
     // copied workspace or it does not run. Installing at open time would put a
     // network operation on a member's click, in a container with no egress.
-    // No apt layer either: every package is surface the generated code gets.
     expect(instructions).not.toMatch(/npm\s+(install|ci)/);
-    expect(instructions).not.toMatch(/apt-get\s+install/);
+    expect(instructions).toMatch(/apt-get install -y --no-install-recommends python3 bash/);
   });
 
   it('runs as a non-root user distinct from the worker’s', () => {
@@ -229,9 +224,8 @@ describe('preview image — it must hold nothing of atoma', () => {
   });
 
   it('declares no command of its own', () => {
-    // The launcher passes `--entrypoint node` and the ONE start command the
-    // profile allows. An ENTRYPOINT here would wrap it, and a preview that
-    // could choose its own command would be a remote shell with a nice name.
+    // The launcher chooses either the resolved app entry or the fixed terminal
+    // service. Image metadata must not replace or wrap that choice.
     expect(preview).toMatch(/^ENTRYPOINT \[\]$/m);
     expect(preview).toMatch(/^CMD \[\]$/m);
   });

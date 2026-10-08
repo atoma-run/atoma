@@ -54,6 +54,9 @@ export function usePreviewSession({ previewTarget, previewSummary, t }: {
       // must use it rather than the origin root a previous reload left behind.
       setPreviewReloadNonce(0);
       try {
+        const previewMode = previewSummary?.mode === 'terminal' ||
+          (previewSummary?.availability !== 'available' && previewSummary?.terminalAvailable)
+          ? 'terminal' as const : 'app' as const;
         // `inFlight` is a REQUEST, never an assertion: a run that has
         // delivered gets its delivered preview back and the flag is ignored.
         // The client is not the one that decides which of the two this is.
@@ -61,8 +64,8 @@ export function usePreviewSession({ previewTarget, previewSummary, t }: {
           mode === 'claim'
             ? await api.openPreview(projectId, projectRunId, { generation: previewSummary?.generation })
             : mode === 'open'
-            ? await api.openPreview(projectId, projectRunId, { inFlight: true })
-            : await api.restartPreview(projectId, projectRunId, { inFlight: true });
+            ? await api.openPreview(projectId, projectRunId, { inFlight: true, mode: previewMode })
+            : await api.restartPreview(projectId, projectRunId, { inFlight: true, mode: previewMode });
         if (sequence !== requestSequence.current) return;
         await queryClient.cancelQueries({ queryKey: ['viz', 'preview', projectId, projectRunId] });
         if (sequence !== requestSequence.current) return;
@@ -82,7 +85,7 @@ export function usePreviewSession({ previewTarget, previewSummary, t }: {
         });
       }
     },
-    [previewTarget, previewSummary?.generation, queryClient, t]
+    [previewTarget, previewSummary?.generation, previewSummary?.mode, previewSummary?.availability, previewSummary?.terminalAvailable, queryClient, t]
   );
 
   const reloadPreview = useCallback(() => {

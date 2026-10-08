@@ -1,3 +1,4 @@
+import { drawPreviewControl } from '../preview-control.js';
 import { BUTTON_ICON_SPACE } from '../../button-icons.js';
 import { Container, Graphics, Rectangle } from 'pixi.js';
 import { relativeTime, timestampTooltip } from '../relative-time.js';
@@ -1590,7 +1591,7 @@ function drawRunSummaryCard(
   const continueRow = guidance?.project
     ? drawPartialContinueControl(ctx, snapshot, guidance, x, y + 10 + cursor + 6, width)
     : 0;
-  const previewRow = drawRunPreviewControl(ctx, snapshot, x, y + 10 + cursor + 6 + continueRow, width);
+  const previewRow = drawPreviewControl(ctx, snapshot, x, y + 10 + cursor + 6 + continueRow, width);
   return cursor + 18 + continueRow + previewRow;
 }
 
@@ -1629,85 +1630,6 @@ function drawPartialContinueControl(
   return height + 12;
 }
 
-/**
- * The Preview control, a SIBLING of the summary card and never a child of it.
- *
- * Two Pixi mechanics decide this, and both were read from the engine rather
- * than assumed. A parent `hitArea` PRUNES its whole subtree, so a control
- * drawn inside the card but outside `new Rectangle(0, 0, width - 20, cursor)`
- * would be unreachable — not merely covered. And a nested target that IS
- * inside it still bubbles: `pointertap` propagates over the composed path, so
- * one click would open the preview AND collapse the card. There is no
- * `stopPropagation` precedent anywhere in this client, and adding one to work
- * around a layout choice would be the wrong end to fix.
- *
- * So it sits below the card, on `ctx.root`, with its own measured target —
- * which is exactly what the design asked for when it said the full-card toggle
- * must not swallow it.
- */
-function drawRunPreviewControl(
-  ctx: RendererCtx,
-  snapshot: GpuRenderSnapshot,
-  x: number,
-  y: number,
-  width: number
-): number {
-  const preview = snapshot.data.preview;
-  // Nothing to say for a run this deployment cannot preview: a control that
-  // fails after the click is worse than a stated absence, and the reason has
-  // already been decided at delivery.
-  if (!preview || preview.availability !== 'available') return 0;
-
-  const height = 30;
-  const label =
-    preview.state === 'ready'
-      ? snapshot.t('preview.open')
-      : preview.state === 'starting'
-        ? snapshot.t('preview.starting')
-        : preview.state === 'failed'
-          ? snapshot.t('preview.retry')
-          : snapshot.t('preview.start');
-  const availableWidth = Math.max(0, width - 20);
-  const gap = 8;
-  const stopLabel = snapshot.t('preview.stop');
-  const openMinWidth = Math.ceil(ctx.measureText(label, {
-    size: 11, weight: preview.state === 'starting' ? '700' : '600',
-  })) + 20 + BUTTON_ICON_SPACE;
-  const stopWidth = Math.ceil(ctx.measureText(stopLabel, { size: 11, weight: '600' })) + 20 + BUTTON_ICON_SPACE;
-  const showStop = preview.state === 'ready';
-  const stacked = showStop && openMinWidth + gap + stopWidth > availableWidth;
-  const openWidth = Math.min(
-    openMinWidth,
-    availableWidth - (showStop && !stacked ? stopWidth + gap : 0)
-  );
-  ctx.button(
-    ctx.root,
-    'run.preview.open',
-    'button',
-    label,
-    x + 10,
-    y,
-    openWidth,
-    height,
-    preview.state === 'starting',
-    snapshot.onActivate
-  );
-  if (showStop) {
-    ctx.button(
-      ctx.root,
-      'run.preview.stop',
-      'button',
-      stopLabel,
-      x + 10 + (stacked ? 0 : openWidth + gap),
-      y + (stacked ? height + gap : 0),
-      Math.min(stopWidth, availableWidth),
-      height,
-      false,
-      snapshot.onActivate
-    );
-  }
-  return height + 12 + (stacked ? height + gap : 0);
-}
 
 function drawEventDetail(
   ctx: RendererCtx,

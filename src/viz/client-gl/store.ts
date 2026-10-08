@@ -213,7 +213,7 @@ export interface GpuUiState {
   selectedRegistryAtom: string | null;
   selectedSkill: { l1Name: string; id: string } | null;
   selectedProjectId: string | null;
-  projectSection: 'runs' | 'files' | 'result';
+  projectSection: 'runs' | 'preview' | 'files' | 'result';
   projectMcpCollapsed: boolean;
   workspaceRunId: string | null;
   githubRecovery: import('./github-access.js').GitHubRecoveryProgress | null;

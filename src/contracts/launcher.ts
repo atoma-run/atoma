@@ -133,8 +133,9 @@ export const egressProxyUnitSpecSchema = z
  *
  * The spec carries no image, no mount and no command line. `entry` is a
  * workspace-relative path the DESCRIPTOR resolved from machine-observed facts,
- * and the launcher turns it into exactly `node <entry>` — the one start
- * command a preview will ever run. `workspace` is a handle the launcher itself
+ * and the launcher turns it into exactly `node <entry>`. The terminal variant
+ * instead starts the fixed, packaged terminal service, with no entry or egress.
+ * `workspace` is a handle the launcher itself
  * issued, never a path the caller chose: that is what keeps "no mount paths
  * from callers" true while the copy's CONTENT stays the preview's business.
  */
@@ -143,10 +144,14 @@ export const previewAppUnitSpecSchema = z
     kind: z.literal('preview-app'),
     egress: z.boolean().optional(),
     ownerId: launcherOwnerIdSchema,
-    entry: z.string().min(1).max(512),
+    entry: z.string().min(1).max(512).optional(),
+    /** Fixed terminal service inside the isolate; never a caller command. */
+    mode: z.literal('terminal').optional(),
     workspace: z.object({ ownerId: launcherOwnerIdSchema, id: z.string().min(1).max(255) }).strict(),
   })
-  .strict();
+  .strict()
+  .refine((spec) => spec.mode === 'terminal' ? spec.entry === undefined && !spec.egress : spec.entry !== undefined,
+    'terminal profiles take no entry or egress; applications require an entry');
 
 /**
  * The relay in front of that application. It takes nothing but the identity of

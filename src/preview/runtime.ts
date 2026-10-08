@@ -67,6 +67,7 @@ export interface PreviewRuntimeDeps {
 }
 
 export interface StartPreviewInput {
+  readonly mode?: 'terminal';
   /** Opaque per-generation identity; every engine object is named from it. */
   readonly ownerId: string;
   /**
@@ -237,7 +238,7 @@ export async function startPreview(
     return fail('runtime-unavailable', 'the preview network could not be created');
   }
 
-  const egress = Boolean(input.allowedHosts?.length);
+  const egress = input.mode !== 'terminal' && Boolean(input.allowedHosts?.length);
   if (egress) {
     try {
       created.proxy = await launcher.startUnit({
@@ -255,7 +256,7 @@ export async function startPreview(
         kind: 'preview-app',
         ...(egress ? { egress: true } : {}),
         ownerId: input.ownerId,
-        entry: input.entry,
+        ...(input.mode === 'terminal' ? { mode: 'terminal' as const } : { entry: input.entry }),
         workspace: { ownerId: created.workspace.ownerId, id: created.workspace.id },
       },
       [internal]

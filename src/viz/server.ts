@@ -4549,7 +4549,6 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
           sendJson(res, 400, { error: 'request body is not valid JSON' });
           return;
         }
-        const inFlight = (body as { inFlight?: unknown }).inFlight === true;
         if (action === 'open' || action === 'restart') {
           const options = previewOpenOptionsSchema.safeParse(body);
           if (!options.success) {
@@ -4559,7 +4558,7 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
           const answered =
             action === 'open'
               ? await preview.service.open(viewer, projectId, projectRunId, options.data)
-              : await preview.service.restart(viewer, projectId, projectRunId, { inFlight });
+              : await preview.service.restart(viewer, projectId, projectRunId, options.data);
           if (answered.body.retryAfterSeconds !== undefined) {
             res.setHeader('retry-after', String(answered.body.retryAfterSeconds));
           }

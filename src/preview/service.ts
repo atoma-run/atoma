@@ -71,6 +71,7 @@ export function previewSummary(input: {
   readonly runInFlight?: boolean;
 }): PreviewSummary {
   const { descriptor, instance } = input;
+  const terminal = instance?.mode === 'terminal';
   // AN IN-FLIGHT PREVIEW HAS NO DESCRIPTOR, by contract: a descriptor is
   // immutable and describes what DELIVERY observed, while a snapshot is a
   // moment. Reading its absence as `legacy-run` would describe a run that is
@@ -87,9 +88,10 @@ export function previewSummary(input: {
   const requestedHosts = descriptor?.requestedHosts ?? [];
   const { allowed, blocked } = effectiveEgressHosts(requestedHosts, input.approvedHosts, input.operatorAllowedHosts);
   return previewSummarySchema.parse({
-    availability: descriptor?.availability ?? (inFlight ? 'available' : 'unavailable'),
+    availability: terminal ? 'available' : descriptor?.availability ?? (inFlight ? 'available' : 'unavailable'),
     kind: descriptor?.kind ?? null,
-    reason: descriptor ? descriptor.unavailableReason : inFlight ? null : 'legacy-run',
+    reason: terminal ? null : descriptor ? descriptor.unavailableReason : inFlight ? null : 'legacy-run',
+    ...(instance?.mode ? { mode: instance.mode } : {}),
     state: instance?.state ?? 'stopped',
     generation: instance?.generation ?? 0,
     source: instance?.source ?? 'delivered',
@@ -98,7 +100,7 @@ export function previewSummary(input: {
     expiresAt: instance?.expiresAt ?? null,
     errorCode: instance?.errorCode ?? null,
     requestedHosts,
-    allowedHosts: allowed,
+    allowedHosts: terminal ? [] : allowed,
     blockedHosts: blocked,
   });
 }

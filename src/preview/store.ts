@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS project_run_preview_instances (
   org_id                        TEXT NOT NULL REFERENCES auth_organisations(org_id),
   state                         TEXT NOT NULL CHECK (state IN ('stopped','starting','ready','stopping','failed')),
   generation                    INTEGER NOT NULL CHECK (generation > 0),
+  mode                          TEXT CHECK (mode IS NULL OR mode IN ('app','terminal')),
   -- WHAT ACTUALLY SERVED THIS GENERATION. Null for a static preview, which
   -- runs no container; otherwise the pinned digest and the isolation runtime,
   -- so a rollback can be explained and not merely performed.
@@ -146,6 +147,7 @@ interface InstanceRow {
   org_id: string;
   state: string;
   generation: number;
+  mode: 'app' | 'terminal' | null;
   image_digest: string | null;
   runtime: string | null;
   started_at: string | null;
@@ -179,6 +181,7 @@ function instanceFromRow(row: InstanceRow): PreviewInstance {
     orgId: row.org_id,
     state: row.state,
     generation: row.generation,
+    ...(row.mode ? { mode: row.mode } : {}),
     imageDigest: row.image_digest,
     runtime: row.runtime,
     startedAt: row.started_at,
@@ -223,6 +226,9 @@ export class PreviewStore {
       }
       if (!columns.includes('snapshot_at')) {
         this.db.exec('ALTER TABLE project_run_preview_instances ADD COLUMN snapshot_at TEXT');
+      }
+      if (!columns.includes('mode')) {
+        this.db.exec("ALTER TABLE project_run_preview_instances ADD COLUMN mode TEXT CHECK (mode IS NULL OR mode IN ('app','terminal'))");
       }
     }
   }
@@ -313,6 +319,7 @@ export class PreviewStore {
   openInstance(input: {
     readonly orgId: string;
     readonly projectRunId: string;
+    readonly mode?: 'app' | 'terminal';
     /** `in-flight` carries a snapshot moment; `delivered` must not. */
     readonly source?: 'delivered' | 'in-flight';
     readonly snapshotAt?: string | null;
@@ -335,8 +342,8 @@ export class PreviewStore {
           `INSERT INTO project_run_preview_instances
              (project_run_id, org_id, state, generation, image_digest, runtime,
               started_at, ready_at, last_activity_at, expires_at,
-              error_code, last_stop_reason, source, snapshot_at, updated_at)
-           VALUES (?, ?, 'starting', ?, NULL, NULL, ?, NULL, ?, NULL, NULL, ?, ?, ?, ?)
+              error_code, last_stop_reason, source, snapshot_at, updated_at, mode)
+           VALUES (?, ?, 'starting', ?, NULL, NULL, ?, NULL, ?, NULL, NULL, ?, ?, ?, ?, ?)
            ON CONFLICT(project_run_id) DO UPDATE SET
              state = 'starting',
              generation = excluded.generation,
@@ -349,6 +356,7 @@ export class PreviewStore {
              error_code = NULL,
              source = excluded.source,
              snapshot_at = excluded.snapshot_at,
+             mode = excluded.mode,
              updated_at = excluded.updated_at
            WHERE project_run_preview_instances.generation = ?`
         )
@@ -362,6 +370,7 @@ export class PreviewStore {
           input.source ?? 'delivered',
           input.source === 'in-flight' ? (input.snapshotAt ?? now) : null,
           now,
+          input.mode ?? null,
           current?.generation ?? 0
         );
       const opened = this.getInstance(orgId, projectRunId);

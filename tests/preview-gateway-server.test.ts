@@ -416,3 +416,31 @@ describe('browser grant retention and server expiry', () => {
     expect((await call(port, '/', { headers: { cookie } })).status).toBe(404);
   });
 });
+
+describe('terminal input authorisation', () => {
+  it('checks the grant and exact origin before forwarding any keystrokes', async () => {
+    let forwarded = 0;
+    const upstream = createServer((_req, res) => { forwarded++; res.end('ok'); });
+    upstreams.push(upstream);
+    upstream.listen(0, '127.0.0.1');
+    await once(upstream, 'listening');
+    const address = upstream.address();
+    if (!address || typeof address === 'string') throw new Error('missing port');
+    const { port, claims } = await gateway({ orgId: ORG, projectRunId: RUN, generation: 1,
+      kind: 'node', mode: 'terminal', upstreamPort: address.port, allowedHosts: [] });
+    const cookie = await grantCookie(port, claims);
+    const rejectedHeaders: Array<Record<string, string>> = [
+      { cookie },
+      { cookie, origin: 'https://evil.example', 'x-atoma-terminal': '1' },
+      { cookie, origin: `https://${HOST}` },
+      { cookie: `${PREVIEW_GRANT_COOKIE}=forged`, origin: `https://${HOST}`, 'x-atoma-terminal': '1' },
+    ];
+    for (const headers of rejectedHeaders) {
+      expect((await call(port, '/input', { method: 'POST', body: 'command', headers })).status).toBe(404);
+    }
+    expect(forwarded).toBe(0);
+    expect((await call(port, '/input', { method: 'POST', body: 'command',
+      headers: { cookie, origin: `https://${HOST}`, 'x-atoma-terminal': '1' } })).status).toBe(200);
+    expect(forwarded).toBe(1);
+  });
+});

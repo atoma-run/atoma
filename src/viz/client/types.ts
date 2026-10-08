@@ -265,23 +265,7 @@ export interface VizProject {
  * or token: the server's projection is an ALLOWLIST for exactly that reason,
  * and mirroring more here would invite a future field to cross by accident.
  */
-export interface VizPreviewSummary {
-  availability: 'available' | 'unavailable';
-  kind: 'static' | 'node' | null;
-  reason: string | null;
-  state: 'stopped' | 'starting' | 'ready' | 'stopping' | 'failed';
-  generation: number;
-  /** `delivered` describes a finished run; `in-flight` a snapshot of one building. */
-  source: 'delivered' | 'in-flight';
-  /** When that snapshot was taken. Null for a delivered preview. */
-  snapshotAt: string | null;
-  readyAt: string | null;
-  expiresAt: string | null;
-  errorCode: string | null;
-  requestedHosts: string[];
-  allowedHosts: string[];
-  blockedHosts: string[];
-}
+export type VizPreviewSummary = import('../../contracts/preview.js').PreviewSummary;
 
 /** What an open returns: the summary, and a claim URL only when one is ready. */
 export interface VizPreviewOpen {

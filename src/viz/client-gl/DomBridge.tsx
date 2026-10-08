@@ -1,4 +1,5 @@
 import { ButtonIcon } from './ButtonIcon.js';
+import { previewControlLabel } from './renderer/preview-control.js';
 import { checkpointActionKey, canControlCheckpoint, pendingGitHubAccess, canContinueGitHubAccess, canRetryPublication, type GitHubRecoveryProgress } from './github-access.js';
 import { WorkspaceAccessible } from './WorkspaceAccessible.js';
 import type { WorkspaceBrowserData } from './workspace-browser.js';
@@ -218,11 +219,12 @@ export function DomBridge({
    * the control appears, what it is called — would be the second definition
    * this file exists to avoid.
    */
-  preview?: { state: string; availability: string } | null;
+  preview?: Pick<import('../client/types.js').VizPreviewSummary, 'state' | 'availability' | 'mode' | 'terminalAvailable'> | null;
   /** The one activation channel, shared with the canvas. */
   onActivate?: (id: string) => void;
 }) {
   const view = useGpuStore((state) => state.view);
+  const resultRunId = useGpuStore((state) => state.resultRunId);
   const sceneCameraMode = useGpuStore((state) => state.sceneCameraMode);
   const entered = useGpuStore((state) => state.entered);
   const handheld = useGpuStore((state) => state.handheld && !state.handheldAccepted);
@@ -413,10 +415,12 @@ export function DomBridge({
           <nav role="tablist" aria-label={projects.find(project => project.projectId === selectedProjectId)?.name ?? t('nav.projects')}>
             {([
               ['runs', 'nav.runs', 'play'],
+              ['preview', 'preview.app', 'eye'],
               ['files', 'workspace.title', 'folder'],
               ['result', 'result.latest', 'file'],
             ] as const).map(([section, labelKey, icon]) => (
               <button key={section} type="button" role="tab" aria-selected={projectSection === section}
+                aria-controls={section === 'preview' ? 'project-preview-panel' : undefined}
                 onClick={() => onActivate?.(`project.section.${section}`)}>
                 <ButtonIcon kind={icon} />{t(labelKey)}
               </button>
@@ -457,24 +461,16 @@ export function DomBridge({
           </section>) : null}
         {view === 'projects' && selectedProjectId && projectSection === 'files' && workspaceRunId ?
           <WorkspaceAccessible data={workspace} t={t} onActivate={onActivate} /> : null}
-        {view === 'runs' && preview && preview.availability === 'available' && onActivate ? (
+        {(view === 'runs' || (view === 'projects' && selectedProjectId && (resultRunId || projectSection === 'preview'))) && preview && previewControlLabel(preview) && onActivate ? (
           <section aria-label={t('preview.region')}>
             <button
               type="button"
               onClick={() => onActivate('run.preview.open')}
               disabled={preview.state === 'starting'}
             ><ButtonIcon kind="eye" />
-              {t(
-                preview.state === 'ready'
-                  ? 'preview.open'
-                  : preview.state === 'starting'
-                    ? 'preview.starting'
-                    : preview.state === 'failed'
-                      ? 'preview.retry'
-                      : 'preview.start'
-              )}
+              {t(previewControlLabel(preview)!)}
             </button>
-            {preview.state === 'ready' ? (
+            {preview.state === 'ready' && (view === 'runs' || resultRunId) ? (
               <button type="button" onClick={() => onActivate('run.preview.stop')}><ButtonIcon kind="stop" />
                 {t('preview.stop')}
               </button>

@@ -817,3 +817,48 @@ it('cannot resurrect a generation when the run finishes during snapshot creation
   expect(previews.countLiveInstances(a.orgId).org).toBe(0);
   expect(existsSync(join(root, 'copies', `preview-${r}-1`))).toBe(false);
 });
+
+describe('explicit terminal preview', () => {
+  it('refuses a different mode while a generation is opening and after it is ready', async () => {
+    const a = actor('terminal-race');
+    const projectId = seedProject(a, 'cli');
+    const runId = seedDeliveredRun(a, projectId, 'cli');
+    const opening = service.open(viewerFor(a), projectId, runId, { mode: 'terminal' });
+    await expect(service.open(viewerFor(a), projectId, runId, { mode: 'app' })).rejects.toMatchObject({ status: 409 });
+    expect((await opening).body.summary.mode).toBe('terminal');
+    await expect(service.open(viewerFor(a), projectId, runId, { mode: 'app' })).rejects.toMatchObject({ status: 409 });
+    await service.stop(viewerFor(a), projectId, runId);
+  });
+  it('opens an already-delivered CLI without rewriting its immutable descriptor', async () => {
+    const a = actor('terminal');
+    const projectId = seedProject(a, 'cli');
+    const runId = seedRunningRun(a, projectId, 'cli');
+    const workspace = workspaces.get(runId)!;
+    rmSync(join(workspace, 'index.html'));
+    writeFileSync(join(workspace, 'cli.js'), 'console.log(42)');
+    db.prepare("UPDATE project_runs SET status = 'delivered' WHERE project_run_id = ?").run(runId);
+    const descriptor = recordDeliveredPreview(previews, { orgId: a.orgId, projectId, projectRunId: runId, workspaceRoot: workspace });
+    expect(descriptor.unavailableReason).toBe('unsupported-deliverable');
+    expect(service.status(viewerFor(a), projectId, runId).terminalAvailable).toBe(true);
+    expect(previews.getInstance(a.orgId, runId)).toBeNull();
+    const first = await service.open(viewerFor(a), projectId, runId, { mode: 'terminal' });
+    expect(first.body.summary).toMatchObject({ state: 'ready', mode: 'terminal', allowedHosts: [] });
+    expect(previews.getDescriptor(a.orgId, runId)).toEqual(descriptor);
+    const second = await service.restart(viewerFor(a), projectId, runId);
+    expect(second.body.summary.mode).toBe('terminal');
+    expect(second.body.summary.generation).toBe(first.body.summary.generation + 1);
+    await service.stop(viewerFor(a), projectId, runId);
+  });
+  it('requires a member, a delivered run, and the correct organisation/project', async () => {
+    const a = actor('terminal');
+    const other = actor('other');
+    const projectId = seedProject(a, 'cli');
+    const runId = seedRunningRun(a, projectId, 'cli');
+    await expect(service.open(viewerFor(a), projectId, runId, { mode: 'terminal' })).rejects.toMatchObject({ status: 409 });
+    db.prepare("UPDATE project_runs SET status = 'delivered' WHERE project_run_id = ?").run(runId);
+    await expect(service.open(viewerFor(a, 'org:viewer'), projectId, runId, { mode: 'terminal' })).rejects.toMatchObject({ status: 403 });
+    await expect(service.open(viewerFor(other), projectId, runId, { mode: 'terminal' })).rejects.toMatchObject({ status: 404 });
+    await expect(service.open(viewerFor(a), randomUUID(), runId, { mode: 'terminal' })).rejects.toMatchObject({ status: 404 });
+    expect(previews.getInstance(a.orgId, runId)).toBeNull();
+  });
+});

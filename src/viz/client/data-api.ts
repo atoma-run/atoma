@@ -96,7 +96,7 @@ export const api = {
       `/api/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/preview/open`,
       body
     ),
-  restartPreview: (projectId: string, runId: string, body: { inFlight?: boolean } = {}) =>
+  restartPreview: (projectId: string, runId: string, body: PreviewOpenOptions = {}) =>
     mutateJson<VizPreviewOpen>(
       `/api/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/preview/restart`,
       body

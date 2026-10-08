@@ -3115,6 +3115,9 @@ describe('drawProjects', () => {
     const resultRun = makeRun([], { id: 'saved-trace', result: { output: 'Delivered answer' } });
     const data = {
       auth: makeAuth(), projects: [project], projectRuns: { [project.projectId]: [projectRun] }, resultRun,
+      preview: { availability: 'available' as const, kind: 'node' as const, reason: null,
+        state: 'stopped' as const, generation: 0, source: 'delivered' as const, snapshotAt: null,
+        readyAt: null, expiresAt: null, errorCode: null, requestedHosts: [], allowedHosts: [], blockedHosts: [] },
       workspace: { index: { runId: 'saved-run', createdAt: projectRun.createdAt,
         status: 'delivered' as const, files: [{ path: 'src/app.ts', size: 12 }] },
       file: null, loading: false, failed: false },
@@ -3127,20 +3130,39 @@ describe('drawProjects', () => {
       return ctx;
     };
     const runs = draw('runs');
+    const repositoryPositions = (['runs', 'preview', 'files', 'result'] as const).map(section => {
+      const sectionCtx = draw(section);
+      const links = sectionCtx.links.filter(link => link.id === `project.repository.${project.projectId}`);
+      expect(links).toHaveLength(1);
+      expect(links[0]!.label).toBe(project.repositoryUrl);
+      expect(links[0]!.parent).toBe(sectionCtx.root);
+      expect(sectionCtx.privateRepositoryIcons).toHaveLength(1);
+      expect(sectionCtx.texts.filter(text => text.value === 'repo ready')).toHaveLength(1);
+      const lastTab = sectionCtx.buttons.find(button => button.id === 'project.section.result')!;
+      expect(links[0]!.x).toBeGreaterThan(lastTab.x + lastTab.width);
+      return { x: links[0]!.x, y: links[0]!.y, width: links[0]!.width };
+    });
+    expect(repositoryPositions.every(position => JSON.stringify(position) === JSON.stringify(repositoryPositions[0]))).toBe(true);
     const tabs = runs.buttons.filter(button => button.id.startsWith('project.section.'));
     expect(tabs.map(button => button.id)).toEqual([
-      'project.section.runs', 'project.section.files', 'project.section.result',
+      'project.section.runs', 'project.section.preview', 'project.section.files', 'project.section.result',
     ]);
     expect(new Set(tabs.map(button => button.y)).size).toBe(1);
-    expect(tabs.map(button => button.active)).toEqual([true, false, false]);
+    expect(tabs.map(button => button.active)).toEqual([true, false, false, false]);
     expect(tabs[0]?.y).toBe(viewFrame(1000, 900).contentTop);
     expect(runs.panels.some(panel => panel.parent === runs.root && panel.y === PROJECTS_SELECTED_MCP_GUIDE_TOP)).toBe(true);
     expect(runs.buttons.some(button => button.id === 'project.run.saved-trace')).toBe(true);
     expect(runs.buttons.some(button => button.id === 'workspace.path.src')).toBe(false);
 
+    expect(runs.buttons.some(button => button.id === 'run.preview.open')).toBe(false);
+    const preview = draw('preview');
+    expect(preview.buttons.filter(button => button.id.startsWith('project.section.')).map(button => button.active))
+      .toEqual([false, true, false, false]);
+    expect(preview.buttons.some(button => button.id === 'project.run.saved-trace')).toBe(false);
+    expect(preview.panels.some(panel => panel.y === PROJECTS_SELECTED_MCP_GUIDE_TOP)).toBe(false);
     const files = draw('files');
     expect(files.buttons.filter(button => button.id.startsWith('project.section.')).map(button => button.active))
-      .toEqual([false, true, false]);
+      .toEqual([false, false, true, false]);
     expect(files.buttons.some(button => button.id === 'workspace.path.src')).toBe(true);
     expect(files.buttons.some(button => button.id === 'project.run.saved-trace')).toBe(false);
     expect(files.panels.some(panel => panel.parent === files.root && panel.y === PROJECTS_SELECTED_MCP_GUIDE_TOP
@@ -3148,7 +3170,7 @@ describe('drawProjects', () => {
 
     const result = draw('result');
     expect(result.buttons.filter(button => button.id.startsWith('project.section.')).map(button => button.active))
-      .toEqual([false, false, true]);
+      .toEqual([false, false, false, true]);
     expect(result.texts.some(text => text.value === 'Delivered answer')).toBe(true);
     expect(result.buttons.some(button => button.id === 'project.run.saved-trace')).toBe(false);
     expect(result.buttons.some(button => button.id === 'result.close')).toBe(false);
@@ -3165,16 +3187,17 @@ describe('drawProjects', () => {
       && panel.height === PROJECTS_MCP_GUIDE_NARROW_HEIGHT)).toBe(true);
   });
 
-  it('keeps all three project sections available when files or delivered results are absent', () => {
+  it('keeps all four project sections available when files or delivered results are absent', () => {
     const project = guidanceProject();
     for (const [section, messageKey] of [
+      ['preview', 'projects.section.noDeliveredResult'],
       ['files', 'projects.section.noFiles'],
       ['result', 'projects.section.noDeliveredResult'],
     ] as const) {
       const ctx = createRecordingCtx();
       drawProjects(ctx, makeSnapshot({ view: 'projects', selectedProjectId: project.projectId,
         projectSection: section }, { projects: [project], projectRuns: { [project.projectId]: [] } }), 1000, 700);
-      expect(ctx.buttons.filter(button => button.id.startsWith('project.section.'))).toHaveLength(3);
+      expect(ctx.buttons.filter(button => button.id.startsWith('project.section.'))).toHaveLength(4);
       expect(ctx.texts.some(text => text.value === t(messageKey))).toBe(true);
       expect(ctx.scrollMax.projects).toBe(0);
     }
@@ -5112,6 +5135,20 @@ describe('the run progress panel', () => {
 });
 
 describe('the shared final result panel', () => {
+  it.each([390, 1200])('offers a terminal on the result canvas at width %i', width => {
+    const run = makeRun([], { result: { output: { answer: 'CLI delivered' } } });
+    const ctx = createRecordingCtx();
+    drawResultPanel(ctx, makeSnapshot({ resultRunId: run.id }, {
+      resultRun: run,
+      preview: { availability: 'unavailable', reason: 'unsupported-deliverable', kind: null,
+        state: 'stopped', generation: 0, source: 'delivered', snapshotAt: null,
+        readyAt: null, expiresAt: null, errorCode: null, requestedHosts: [], allowedHosts: [], blockedHosts: [],
+        terminalAvailable: true },
+    }), 10, 100, width - 20, 600);
+    const button = ctx.buttons.find(button => button.id === 'run.preview.open');
+    expect(button).toBeDefined();
+    expect(button!.x + button!.width).toBeLessThanOrEqual(width - 10);
+  });
   it.each([390, 1200])('puts real files and the summary before optional technical evidence at width %i', width => {
     const run = makeRun([], { task: { description: 'LONG ORIGINAL REQUEST '.repeat(150) },
       result: { output: { files: ['claimed-only.svg'], probes: [{ cmd: 'python3 verify.py', exitCode: 0 }] },
@@ -5428,7 +5465,7 @@ describe('drawRuns behavior', () => {
       {
         availability: 'unavailable' as const,
         kind: null,
-        reason: 'no-deliverable',
+        reason: 'unsupported-deliverable' as const,
         state: 'stopped' as const,
         generation: 0,
         source: 'delivered' as const,

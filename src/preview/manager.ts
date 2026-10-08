@@ -106,6 +106,7 @@ export interface PreviewOpener {
 }
 
 interface PreviewOpenInput {
+  readonly mode?: 'app' | 'terminal';
   readonly orgId: string;
   readonly projectId: string;
   readonly projectRunId: string;
@@ -113,7 +114,7 @@ interface PreviewOpenInput {
 }
 
 export class PreviewManager {
-  private readonly starting = new Set<string>();
+  private readonly starting = new Map<string, 'app' | 'terminal'>();
 
   constructor(private readonly deps: PreviewManagerDeps) {}
 
@@ -175,8 +176,13 @@ export class PreviewManager {
   /** Reserve before any await, including replacing an older snapshot. */
   private async withOpening(input: PreviewOpenInput, start: () => Promise<OpenedPreview>): Promise<OpenedPreview> {
     const key = this.key(input.orgId, input.projectRunId);
-    if (this.starting.has(key)) return this.pending(input);
-    this.starting.add(key);
+    const mode = input.mode ?? 'app';
+    const startingMode = this.starting.get(key);
+    if (startingMode !== undefined) {
+      if (startingMode !== mode) throw new PreviewStateConflict('stop the current preview before switching mode');
+      return this.pending(input);
+    }
+    this.starting.set(key, mode);
     try {
       return await start();
     } finally {
@@ -187,15 +193,21 @@ export class PreviewManager {
   private async openDelivered(input: PreviewOpenInput): Promise<OpenedPreview> {
     const { store } = this.deps;
     const descriptor = store.getDescriptor(input.orgId, input.projectRunId);
-    if (!descriptor) throw new PreviewUnavailableError('legacy-run');
-    if (descriptor.availability !== 'available') {
+    const terminal = input.mode === 'terminal';
+    if (!descriptor && !terminal) throw new PreviewUnavailableError('legacy-run');
+    if (descriptor && descriptor.availability !== 'available' && !terminal) {
       throw new PreviewUnavailableError(descriptor.unavailableReason ?? 'unavailable');
     }
+    const requestedHosts = terminal ? [] : descriptor?.requestedHosts ?? [];
 
     const existing = store.getInstance(input.orgId, input.projectRunId);
+    if (existing && ['starting', 'ready'].includes(existing.state) &&
+        (existing.mode ?? 'app') !== (input.mode ?? 'app')) {
+      throw new PreviewStateConflict('stop the current preview before switching mode');
+    }
     if (existing?.state === 'starting' || existing?.state === 'stopping') return this.pending(input);
     if (existing?.state === 'ready' && existing.source === 'delivered') {
-      return this.claimFor(input, existing.generation, descriptor.requestedHosts);
+      return this.claimFor(input, existing.generation, requestedHosts);
     }
     // Refused BEFORE the snapshot below is stopped: a member must not lose
     // the preview they have and be refused the one they asked for.
@@ -209,6 +221,7 @@ export class PreviewManager {
     const opened = store.openInstance({
       orgId: input.orgId,
       projectRunId: input.projectRunId,
+      ...(terminal ? { mode: 'terminal' as const } : {}),
       now: new Date(this.now()),
     });
     if (!opened.started) {
@@ -229,9 +242,9 @@ export class PreviewManager {
       this.assertNoDeploymentWaiting();
       const host = `${previewGenerationHost(input.orgId, input.projectRunId, generation)}.${this.deps.config.domain}`;
       const approved = store.listApprovedHosts(input.orgId, input.projectId);
-      const { allowed } = effectiveEgressHosts(descriptor.requestedHosts, approved, this.deps.config.allowedHosts);
+      const allowed = terminal ? [] : effectiveEgressHosts(requestedHosts, approved, this.deps.config.allowedHosts).allowed;
 
-      if (descriptor.kind === 'static') {
+      if (!terminal && descriptor?.kind === 'static') {
         // No container at all: the gateway serves the copy. It still gets an
         // origin, a generation and a claim, because those are what bound WHO
         // may look, not what is running.
@@ -275,7 +288,8 @@ export class PreviewManager {
               input.projectId,
               input.projectRunId
             ),
-            entry: descriptor.entry ?? '',
+            entry: descriptor?.entry ?? '',
+            ...(terminal ? { mode: 'terminal' as const } : {}),
             allowedHosts: allowed,
           }
         );
@@ -287,6 +301,7 @@ export class PreviewManager {
           projectRunId: input.projectRunId,
           generation,
           kind: 'node',
+          ...(terminal ? { mode: 'terminal' as const } : {}),
           upstreamPort: running.hostPort,
           allowedHosts: allowed,
         });
@@ -301,7 +316,7 @@ export class PreviewManager {
         });
       }
 
-      return this.claimFor(input, generation, descriptor.requestedHosts);
+      return this.claimFor(input, generation, requestedHosts);
     } catch (error) {
       const code = previewErrorCodeFor(error);
       try {

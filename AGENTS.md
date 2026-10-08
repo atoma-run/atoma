@@ -240,9 +240,9 @@ separately billed `OPENAI_API_KEY`. The full contract is in
 - `npm run preview:demo` is DEVELOPMENT TOOLING, never a release path: a
   loopback OAuth provider plus a seeded project and delivered static run, so
   the preview surface is clickable on a machine that cannot execute a run.
-- `npm run build:preview` builds the preview runtime image. It consumes no
-  `dist/` because it contains none: the process it starts is a run's own
-  deliverable, not ours. Production pins it by DIGEST, which means pushing it —
+- `npm run build:preview` builds the preview runtime image. It consumes packaged
+  `dist/preview-terminal` for CLI testing; `build:preview:dev` builds that
+  standalone bundle first. No control-plane code enters the image. Production pins it by DIGEST, which means pushing it —
   a mutable tag is not an identity, and the configuration refuses one.
 - Release archives contain no stores, skills, traces, workspaces, or secrets.
 - Checksums must be generated inside the release directory so they name the

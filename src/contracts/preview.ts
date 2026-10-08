@@ -36,11 +36,13 @@ import {
  */
 
 const instantSchema = z.string().datetime();
+export const previewModeSchema = z.enum(['app', 'terminal']);
 
 /** A generation asks only for access to that snapshot; omission opens anew. */
 export const previewOpenOptionsSchema = z.object({
   inFlight: z.boolean().optional(),
   generation: z.number().int().positive().optional(),
+  mode: previewModeSchema.optional(),
 }).strict();
 export type PreviewOpenOptions = z.infer<typeof previewOpenOptionsSchema>;
 
@@ -306,6 +308,7 @@ export const previewInstanceSchema = z
     orgId: organisationIdSchema,
     state: previewStateSchema,
     generation: z.number().int().positive(),
+    mode: previewModeSchema.optional(),
     /** Null for a static preview, which runs no container at all. */
     imageDigest: previewImageDigestSchema.nullable(),
     runtime: previewRuntimeSchema.nullable(),
@@ -372,6 +375,9 @@ export const previewSummarySchema = z
     reason: previewUnavailableReasonSchema.nullable(),
     state: previewStateSchema,
     generation: z.number().int().nonnegative(),
+    mode: previewModeSchema.optional(),
+    /** Explicit testing capability; does not reclassify historical deliveries. */
+    terminalAvailable: z.boolean().optional(),
     source: previewSourceSchema.default('delivered'),
     /**
      * When the snapshot behind an in-flight preview was taken. Null for a

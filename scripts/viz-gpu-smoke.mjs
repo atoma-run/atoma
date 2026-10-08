@@ -2209,6 +2209,13 @@ try {
           ollamaAvailable: false,
         },
       };
+      const terminalPreviewPath = `/api/projects/${projectId}/runs/eeeeeeee-1111-4222-8333-ffffffffffff/preview`;
+      stubs[terminalPreviewPath] = {
+        availability: 'available', kind: 'node', reason: null, terminalAvailable: true,
+        state: 'stopped', generation: 0, source: 'delivered', snapshotAt: null, readyAt: null,
+        expiresAt: null, errorCode: null, requestedHosts: [], allowedHosts: [], blockedHosts: [],
+      };
+      let terminalOpenMode = null;
       let updateBuildAvailable = false;
       let updateProbes = 0;
       const accountSwitchRequests = [];
@@ -2217,6 +2224,19 @@ try {
       const updateShell = await (await fetch(`http://127.0.0.1:${port}/`)).text();
       accountPage.on('request', (request) => {
         const path = new URL(request.url()).pathname;
+        if (path === `${terminalPreviewPath}/open`) {
+          terminalOpenMode = JSON.parse(request.postData()).mode;
+          stubs[terminalPreviewPath] = { ...stubs[terminalPreviewPath], availability: 'available', reason: null,
+            mode: terminalOpenMode, state: 'ready', generation: 1 };
+          void request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify({
+            summary: stubs[terminalPreviewPath], url: 'http://terminal-preview.localhost/fixture',
+          }) });
+          return;
+        }
+        if (new URL(request.url()).hostname === 'terminal-preview.localhost') {
+          void request.respond({ status: 200, contentType: 'text/html', body: '<h1>Terminal fixture</h1>' });
+          return;
+        }
         if (/\/(pause|resume)$/.test(path) && request.method() === 'POST') {
           const action = path.split('/').at(-1);
           checkpointRequests.push(action);
@@ -2461,6 +2481,62 @@ try {
           `account scenario: project-row click navigated ${accountUrlBeforeProjectClick} -> ${accountPage.url()}`
         );
       }
+      await accountPage.setViewport({ width: 1280, height: 900, deviceScaleFactor: 1 });
+      await accountPage.waitForFunction(() => Math.abs(globalThis.__ATOMA_GPU__.app.screen.width - window.innerWidth) < 1);
+      await waitForHitTarget(accountPage, 'project.section.preview', 'Project preview tab missing');
+      const assertProjectRepository = async section => {
+        const targetId = `project.repository.${projectId}`;
+        await waitForHitTarget(accountPage, targetId, `Repository missing from ${section}`);
+        await accountPage.evaluate(() => {
+          window.__projectRepositoryOpened = null;
+          window.__projectRepositoryOriginalOpen = window.open;
+          window.open = (url, target, features) => {
+            window.__projectRepositoryOpened = { url, target, features };
+            return null;
+          };
+        });
+        try {
+          await clickAccountTarget(targetId);
+          const opened = await accountPage.evaluate(() => window.__projectRepositoryOpened);
+          if (opened?.url !== stubs['/api/projects'][0].repositoryUrl || opened.features !== 'noopener,noreferrer') {
+            throw new Error(`Repository click failed in ${section}: ${JSON.stringify(opened)}`);
+          }
+        } finally {
+          await accountPage.evaluate(() => { window.open = window.__projectRepositoryOriginalOpen; });
+        }
+      };
+      await assertProjectRepository('Runs');
+      await clickAccountTarget('project.section.preview');
+      await accountPage.waitForSelector('.gpu-project-preview iframe').catch(async error => {
+        await accountPage.screenshot({ path: '/tmp/atoma-preview-tab-failure.png' });
+        throw new Error(await accountPage.evaluate(() => document.body.innerText.slice(-4000)), { cause: error });
+      });
+      if (terminalOpenMode !== 'app') throw new Error('Project tab did not open the latest delivered app');
+      if (await accountPage.$('.gpu-preview-backdrop')) throw new Error('Project preview opened as a modal');
+      if (await accountPage.$eval('.gpu-scene-host', node => node.inert)) throw new Error('Preview tab made its sibling tabs inert');
+      await assertProjectRepository('Preview app');
+      await accountPage.screenshot({ path: '/tmp/atoma-project-preview-tab.png' });
+      await clickAccountTarget('project.section.files');
+      await accountPage.waitForFunction(() => !document.querySelector('.gpu-preview-frame'));
+      await waitForHitTarget(accountPage, 'workspace.path.README.md', 'Files scene did not replace the preview');
+      await assertProjectRepository('Files');
+      await clickAccountTarget('project.section.preview');
+      await accountPage.waitForSelector('.gpu-project-preview iframe').catch(async error => {
+        await accountPage.screenshot({ path: '/tmp/atoma-preview-tab-reopen-failure.png' });
+        throw new Error(await accountPage.evaluate(() => JSON.stringify({ text: document.body.innerText.slice(-4000),
+          tabs: [...document.querySelectorAll('[role=tab]')].map(tab => [tab.textContent, tab.getAttribute('aria-selected')]) })), { cause: error });
+      });
+      await clickAccountTarget('project.section.result');
+      await accountPage.waitForFunction(() => !document.querySelector('.gpu-preview-frame'));
+      await waitForHitTarget(accountPage, 'result.details', 'Latest result scene did not replace the preview');
+      await assertProjectRepository('Latest delivered results');
+      await clickAccountTarget('project.section.runs');
+      await accountPage.waitForSelector('.gpu-project-mcp-actions input[type="checkbox"]');
+      console.log('Project repository ok: real canvas link remains clickable in all four tabs');
+      await accountPage.setViewport({ width: 528, height: 800, deviceScaleFactor: 2 });
+      console.log('Project preview tab ok: Runs -> Preview app -> Files; inline frame closes and reopens with a fresh claim');
+      stubs[terminalPreviewPath] = { ...stubs[terminalPreviewPath], availability: 'unavailable',
+        kind: null, reason: 'unsupported-deliverable', mode: undefined, state: 'stopped', generation: 0 };
       await accountPage.waitForSelector('.gpu-project-mcp-actions input[type="checkbox"]');
       await accountPage.click('.gpu-project-mcp-toggle');
       await accountPage.waitForFunction(() => document.querySelector('.gpu-project-mcp-toggle')?.getAttribute('aria-expanded') === 'true');
@@ -2592,6 +2668,29 @@ try {
       await accountPage.click('.gpu-preview-actions button');
       await waitForHitTarget(accountPage, 'workspace.path.', 'workspace parent missing');
       await clickAccountTarget('workspace.path.');
+      await clickAccountTarget('project.section.result');
+      // File buttons can appear before the trace loads. Its arrival adds the
+      // details toolbar and moves the preview control, so await both first.
+      await waitForHitTarget(accountPage, 'result.file.README.md', 'Latest result did not replace Files');
+      await waitForHitTarget(accountPage, 'result.details', 'Latest result trace has not loaded');
+      await waitForHitTarget(accountPage, 'run.preview.open', 'CLI preview control missing from latest result');
+      await clickAccountTarget('run.preview.open');
+      await accountPage.waitForSelector('.gpu-preview-plane iframe').catch(async error => {
+        await accountPage.screenshot({ path: '/tmp/atoma-preview-result-failure.png' });
+        throw new Error(await accountPage.evaluate(() => JSON.stringify({ text: document.body.innerText.slice(-5000),
+          tabs: [...document.querySelectorAll('[role=tab]')].map(tab => [tab.textContent, tab.getAttribute('aria-selected')]),
+          targets: globalThis.__ATOMA_GPU__.hitTargets().filter(target => target.id.includes('preview')) })), { cause: error });
+      });
+      if (terminalOpenMode !== 'terminal') throw new Error('CLI canvas control did not request terminal mode');
+      if (!await accountPage.$eval('.gpu-preview-warning', node => node.textContent.includes('temporary copy'))) {
+        throw new Error('Terminal chrome lost its temporary-workspace notice');
+      }
+      await accountPage.screenshot({ path: '/tmp/atoma-cli-preview-plane.png' });
+      await accountPage.click('.gpu-preview-actions button');
+      await waitForHitTarget(accountPage, 'run.preview.open', 'Result preview control lost after closing');
+      await clickAccountTarget('project.section.files');
+      await waitForHitTarget(accountPage, 'workspace.path.README.md', 'workspace not restored after terminal');
+      console.log('CLI preview control ok: real canvas click from Latest delivered results opens terminal mode');
       for (const [path, selector, text] of [
         ['README.md', 'h1', 'Preview heading'], ['table.csv', 'td', 'Atoma'], ['document.pdf', 'canvas.ofv-pdf-page', ''],
         ['drawing.svg', 'img', ''], ['photo.jpg', 'img', ''], ['sound.wav', 'audio', ''],
@@ -2680,6 +2779,7 @@ try {
       await clickAccountTarget('project.section.runs');
       await accountPage.waitForSelector('.gpu-project-mcp--selected');
       console.log('Project sections ok: MCP guide belongs to Runs, not Files or latest result');
+
       const prTarget = 'project.pullRequest.eeeeeeee-1111-4222-8333-ffffffffffff';
       await waitForHitTarget(accountPage, prTarget, 'delivered PR link did not render');
       // Compact run cards can place this older run below the viewport. Scroll

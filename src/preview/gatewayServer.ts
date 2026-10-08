@@ -48,6 +48,7 @@ export interface PreviewRoute {
   readonly projectRunId: string;
   readonly generation: number;
   readonly kind: 'static' | 'node';
+  readonly mode?: 'terminal';
   /** Loopback port of the relay, for a node preview. */
   readonly upstreamPort?: number;
   /** Filesystem root of the materialised copy, for a static preview. */
@@ -285,6 +286,10 @@ export function startPreviewGateway(
       host,
     });
     if (!grant) return refuse(res);
+    // Terminal input is an execution surface. Check the browser origin here,
+    // before the relay strips headers; the isolate holds no Atoma credential.
+    if (route.mode === 'terminal' && req.method !== 'GET' &&
+        (req.headers.origin !== requestOrigin || req.headers['x-atoma-terminal'] !== '1')) return refuse(res);
 
     const policy = previewResponseHeaders({
       visualizerOrigin: opts.visualizerOrigin,

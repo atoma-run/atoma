@@ -1,8 +1,8 @@
 import { drawWorkspace } from './workspace.js';
 import { latestWorkspaceRun } from '../../workspace-browser.js';
-import { Graphics } from 'pixi.js';
+import { Graphics, type Container } from 'pixi.js';
 import { dateTimeFormat } from '../../../client/date-format.js';
-import type { VizProjectRun } from '../../../client/types.js';
+import type { VizProject, VizProjectRun } from '../../../client/types.js';
 import { BUTTON_LABEL_INSET } from '../../gpu-renderer.js';
 import { BUTTON_ICON_SPACE } from '../../button-icons.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
@@ -13,6 +13,7 @@ import { createScrollPane } from '../scroll-pane.js';
 import { drawViewFrame, viewFrame, VIEW_FRAME_CONTENT_TOP, VIEW_FRAME_PAD, VIEW_FRAME_TITLE_SIZE, VIEW_FRAME_TITLE_Y } from '../view-frame.js';
 import { drawResultPanel } from './result.js';
 import { latestDeliveredResult } from '../../run-result.js';
+import { drawPreviewControl } from '../preview-control.js';
 import { checkpointActionKey, canControlCheckpoint, pendingGitHubAccess, canContinueGitHubAccess, canRetryPublication } from '../../github-access.js';
 
 /**
@@ -248,6 +249,141 @@ export function projectLayout(
   return { x, panelWidth, listTop, contentBottom };
 }
 
+/** Shared metadata for the project header and project collection rows. */
+function repositoryInfo(ctx: RendererCtx, snapshot: GpuRenderSnapshot, project: VizProject, infoMaxWidth: number) {
+  const repositoryStatusCopy = statusLabel(
+    snapshot.t,
+    project.repositoryStatus,
+    'projects.repoStatus'
+  );
+  const privateIconSpace = project.repositoryTarget.visibility === 'private'
+    ? PRIVATE_REPOSITORY_ICON_SIZE + PRIVATE_REPOSITORY_ICON_GAP
+    : 0;
+  const statusWidth = ctx.measureText(repositoryStatusCopy, {
+    size: STATUS_FONT_SIZE,
+    mono: true,
+  });
+  const separatorWidth = ctx.measureText(PROJECT_INFO_SEPARATOR, {
+    size: STATUS_FONT_SIZE,
+    mono: true,
+  });
+  const destinationPath =
+    `${project.repositoryTarget.owner}/${project.repositoryTarget.name}`;
+  const destinationText = project.repositoryUrl ?? destinationPath;
+  const destinationTextSize = project.repositoryUrl ? 9 : 10;
+  const destinationTextNaturalWidth = ctx.measureText(destinationText, {
+    size: destinationTextSize,
+  });
+  const destinationChromeWidth = project.repositoryUrl
+    ? REPOSITORY_ICON_OFFSET_X + REPOSITORY_ICON_SIZE + REPOSITORY_ICON_GAP
+    : 0;
+  const fixedInfoWidth =
+    privateIconSpace +
+    statusWidth +
+    PROJECT_INFO_SEPARATOR_BEFORE_GAP +
+    separatorWidth +
+    PROJECT_INFO_SEPARATOR_AFTER_GAP +
+    destinationChromeWidth;
+  const destinationTextWidth = Math.max(
+    0,
+    Math.min(destinationTextNaturalWidth, infoMaxWidth - fixedInfoWidth)
+  );
+  const infoWidth = fixedInfoWidth + destinationTextWidth;
+  return { repositoryStatusCopy, privateIconSpace, statusWidth, separatorWidth,
+    destinationText, destinationTextWidth, infoWidth };
+}
+
+function drawRepositoryInfo(ctx: RendererCtx, snapshot: GpuRenderSnapshot, project: VizProject,
+  rowParent: Container, infoX: number, y: number, info: ReturnType<typeof repositoryInfo>): void {
+  const { repositoryStatusCopy, privateIconSpace, statusWidth, separatorWidth, destinationText, destinationTextWidth } = info;
+  let infoCursor = infoX;
+  if (project.repositoryTarget.visibility === 'private') {
+    ctx.privateRepositoryIcon(
+      rowParent,
+      infoCursor,
+      y + 16,
+      PRIVATE_REPOSITORY_ICON_SIZE
+    );
+    infoCursor += privateIconSpace;
+  }
+  ctx.text(
+    rowParent,
+    repositoryStatusCopy,
+    infoCursor,
+    y + PROJECT_INFO_TEXT_Y,
+    {
+      size: 10,
+      color: statusColor(project.repositoryStatus),
+      mono: true,
+      width: statusWidth,
+      singleLine: true,
+    }
+  );
+  infoCursor += statusWidth + PROJECT_INFO_SEPARATOR_BEFORE_GAP;
+  ctx.text(
+    rowParent,
+    PROJECT_INFO_SEPARATOR,
+    infoCursor,
+    y + PROJECT_INFO_TEXT_Y,
+    {
+      size: STATUS_FONT_SIZE,
+      color: GPU_COLORS.muted,
+      mono: true,
+      width: separatorWidth,
+      singleLine: true,
+    }
+  );
+  infoCursor += separatorWidth + PROJECT_INFO_SEPARATOR_AFTER_GAP;
+  if (project.repositoryUrl) {
+    const repositoryGroupWidth =
+      REPOSITORY_ICON_OFFSET_X +
+      REPOSITORY_ICON_SIZE +
+      REPOSITORY_ICON_GAP +
+      destinationTextWidth;
+    const repositoryLink = ctx.linkRegion(
+      rowParent,
+      `project.repository.${project.projectId}`,
+      destinationText,
+      infoCursor,
+      y + 2,
+      repositoryGroupWidth,
+      REPOSITORY_ICON_SIZE,
+      snapshot.onActivate
+    );
+    ctx.repositoryIcon(
+      repositoryLink,
+      REPOSITORY_ICON_OFFSET_X,
+      0,
+      REPOSITORY_ICON_SIZE
+    );
+    ctx.text(
+      repositoryLink,
+      destinationText,
+      REPOSITORY_ICON_OFFSET_X + REPOSITORY_ICON_SIZE + REPOSITORY_ICON_GAP,
+      14,
+      {
+        size: 9,
+        color: GPU_COLORS.primary,
+        width: destinationTextWidth,
+        singleLine: true,
+      }
+    );
+  } else {
+    ctx.text(
+      rowParent,
+      destinationText,
+      infoCursor,
+      y + PROJECT_INFO_TEXT_Y,
+      {
+        size: 10,
+        color: GPU_COLORS.muted,
+        width: destinationTextWidth,
+        singleLine: true,
+      }
+    );
+  }
+}
+
 /** Draw the projects list. Selected project expands to show its runs. */
 export function drawProjects(
   ctx: RendererCtx,
@@ -284,6 +420,7 @@ export function drawProjects(
     const name = ctx.fitText(selectedProject.name,
       Math.max(0, frame.innerX + frame.innerWidth - nameX), titleStyle);
     ctx.text(ctx.root, name, nameX, titleY, { ...titleStyle, singleLine: true });
+
   }
 
   const guideVisible = snapshot.data.auth !== null && (!selectedProject || snapshot.state.projectSection === 'runs');
@@ -317,34 +454,46 @@ export function drawProjects(
   if (selectedProject) {
     const sections = [
       { id: 'runs', label: snapshot.t('nav.runs') },
+      { id: 'preview', label: snapshot.t('preview.app') },
       { id: 'files', label: snapshot.t('workspace.title') },
       { id: 'result', label: snapshot.t('result.latest') },
     ] as const;
     const gap = 10;
     const naturalWidths = sections.map(section =>
       Math.ceil(ctx.measureText(section.label, { size: 11, weight: '700' })) + 20 + BUTTON_ICON_SPACE);
-    const repositoryRoom = snapshot.state.projectSection === 'runs'
-      ? Math.min(400, frame.innerWidth * 0.45) + gap : 0;
+    const repositoryRoom = Math.min(400, frame.innerWidth * 0.45) + gap;
     const room = Math.max(0, frame.innerWidth - repositoryRoom - gap * (sections.length - 1));
     const naturalTotal = naturalWidths.reduce((sum, value) => sum + value, 0);
-    const shortLabelsWidth = naturalWidths[0]! + naturalWidths[1]!;
+    const shortLabelsWidth = naturalWidths.slice(0, 3).reduce((sum, value) => sum + value, 0);
     // Preserve the complete short labels when space is tight; the long result
     // label can then use all remaining width without pushing a tab to row two.
     const shortTabWidths = room >= shortLabelsWidth + 64
-      ? naturalWidths.slice(0, 2)
-      : [Math.max(0, (room - 64) / 2), Math.max(0, (room - 64) / 2)];
+      ? naturalWidths.slice(0, 3)
+      : Array.from({ length: 3 }, () => Math.max(0, (room - 64) / 3));
     let tabX = frame.innerX;
     for (const [index, section] of sections.entries()) {
       const tabWidth = naturalTotal <= room
         ? naturalWidths[index]!
-        : index < 2 ? shortTabWidths[index]! : Math.max(0, room - shortTabWidths[0]! - shortTabWidths[1]!);
+        : index < 3 ? shortTabWidths[index]! : Math.max(0, room - shortTabWidths.reduce((sum, value) => sum + value, 0));
       ctx.button(ctx.root, `project.section.${section.id}`, 'tab', section.label,
         tabX, contentTop, tabWidth, 32, snapshot.state.projectSection === section.id,
         snapshot.onActivate);
       tabX += tabWidth + gap;
     }
     repositoryHeaderX = tabX;
+    // Project identity belongs to the shared header, before any section returns.
+    drawRepositoryInfo(ctx, snapshot, selectedProject, ctx.root,
+      repositoryHeaderX + BUTTON_LABEL_INSET, frame.contentTop - 5,
+      repositoryInfo(ctx, snapshot, selectedProject,
+        Math.max(0, frame.innerX + frame.innerWidth - repositoryHeaderX - BUTTON_LABEL_INSET * 2)));
     contentTop = guideVisible ? projectsGpuContentTop(frame.innerWidth, true, snapshot.state.projectMcpCollapsed) : contentTop + PROJECTS_SECTION_TABS_HEIGHT;
+    if (snapshot.state.projectSection === 'preview') {
+      const controlHeight = latestResult ? drawPreviewControl(ctx, snapshot, frame.innerX, contentTop, frame.innerWidth) : 0;
+      if (!controlHeight) ctx.text(ctx.root, snapshot.t(latestResult ? 'preview.unavailable' : 'projects.section.noDeliveredResult'),
+        frame.innerX, contentTop, { size: 13, color: GPU_COLORS.muted, width: frame.innerWidth });
+      ctx.scrollMax.projects = 0;
+      return;
+    }
     if (snapshot.state.projectSection === 'files') {
       if (latestWorkspace && snapshot.state.workspaceRunId) {
         drawWorkspace(ctx, snapshot, width, height, {
@@ -446,39 +595,6 @@ export function drawProjects(
     const rowColumnX = selected ? repositoryHeaderX : columnX;
     const rowWidth = selected ? Math.max(0, frame.innerX + frame.innerWidth - rowColumnX) : innerWidth;
     const rowLabel = project.name.replace(/\s+/g, ' ');
-    const repositoryStatusCopy = statusLabel(
-      snapshot.t,
-      project.repositoryStatus,
-      'projects.repoStatus'
-    );
-    const privateIconSpace = project.repositoryTarget.visibility === 'private'
-      ? PRIVATE_REPOSITORY_ICON_SIZE + PRIVATE_REPOSITORY_ICON_GAP
-      : 0;
-    const statusWidth = ctx.measureText(repositoryStatusCopy, {
-      size: STATUS_FONT_SIZE,
-      mono: true,
-    });
-    const separatorWidth = ctx.measureText(PROJECT_INFO_SEPARATOR, {
-      size: STATUS_FONT_SIZE,
-      mono: true,
-    });
-    const destinationPath =
-      `${project.repositoryTarget.owner}/${project.repositoryTarget.name}`;
-    const destinationText = project.repositoryUrl ?? destinationPath;
-    const destinationTextSize = project.repositoryUrl ? 9 : 10;
-    const destinationTextNaturalWidth = ctx.measureText(destinationText, {
-      size: destinationTextSize,
-    });
-    const destinationChromeWidth = project.repositoryUrl
-      ? REPOSITORY_ICON_OFFSET_X + REPOSITORY_ICON_SIZE + REPOSITORY_ICON_GAP
-      : 0;
-    const fixedInfoWidth =
-      privateIconSpace +
-      statusWidth +
-      PROJECT_INFO_SEPARATOR_BEFORE_GAP +
-      separatorWidth +
-      PROJECT_INFO_SEPARATOR_AFTER_GAP +
-      destinationChromeWidth;
     // On a list row the project name keeps a useful left-hand column. In
     // detail the repository sequence uses the space after the section tabs.
     const nameReserve = selected
@@ -488,11 +604,8 @@ export function drawProjects(
       0,
       rowWidth - BUTTON_LABEL_INSET * 2 - nameReserve
     );
-    const destinationTextWidth = Math.max(
-      0,
-      Math.min(destinationTextNaturalWidth, infoMaxWidth - fixedInfoWidth)
-    );
-    const infoWidth = fixedInfoWidth + destinationTextWidth;
+    const info = repositoryInfo(ctx, snapshot, project, infoMaxWidth);
+    const { infoWidth } = info;
     const infoX = selected
       ? rowColumnX + BUTTON_LABEL_INSET
       : rowColumnX + innerWidth - PROJECTS_ROW_PAD - infoWidth;
@@ -557,92 +670,7 @@ export function drawProjects(
         });
       }
     }
-    let infoCursor = infoX;
-    if (project.repositoryTarget.visibility === 'private') {
-      ctx.privateRepositoryIcon(
-        rowParent,
-        infoCursor,
-        y + 16,
-        PRIVATE_REPOSITORY_ICON_SIZE
-      );
-      infoCursor += privateIconSpace;
-    }
-    ctx.text(
-      rowParent,
-      repositoryStatusCopy,
-      infoCursor,
-      y + PROJECT_INFO_TEXT_Y,
-      {
-        size: 10,
-        color: statusColor(project.repositoryStatus),
-        mono: true,
-        width: statusWidth,
-        singleLine: true,
-      }
-    );
-    infoCursor += statusWidth + PROJECT_INFO_SEPARATOR_BEFORE_GAP;
-    ctx.text(
-      rowParent,
-      PROJECT_INFO_SEPARATOR,
-      infoCursor,
-      y + PROJECT_INFO_TEXT_Y,
-      {
-        size: STATUS_FONT_SIZE,
-        color: GPU_COLORS.muted,
-        mono: true,
-        width: separatorWidth,
-        singleLine: true,
-      }
-    );
-    infoCursor += separatorWidth + PROJECT_INFO_SEPARATOR_AFTER_GAP;
-    if (project.repositoryUrl) {
-      const repositoryGroupWidth =
-        REPOSITORY_ICON_OFFSET_X +
-        REPOSITORY_ICON_SIZE +
-        REPOSITORY_ICON_GAP +
-        destinationTextWidth;
-      const repositoryLink = ctx.linkRegion(
-        rowParent,
-        `project.repository.${project.projectId}`,
-        destinationText,
-        infoCursor,
-        y + 2,
-        repositoryGroupWidth,
-        REPOSITORY_ICON_SIZE,
-        snapshot.onActivate
-      );
-      ctx.repositoryIcon(
-        repositoryLink,
-        REPOSITORY_ICON_OFFSET_X,
-        0,
-        REPOSITORY_ICON_SIZE
-      );
-      ctx.text(
-        repositoryLink,
-        destinationText,
-        REPOSITORY_ICON_OFFSET_X + REPOSITORY_ICON_SIZE + REPOSITORY_ICON_GAP,
-        14,
-        {
-          size: 9,
-          color: GPU_COLORS.primary,
-          width: destinationTextWidth,
-          singleLine: true,
-        }
-      );
-    } else {
-      ctx.text(
-        rowParent,
-        destinationText,
-        infoCursor,
-        y + PROJECT_INFO_TEXT_Y,
-        {
-          size: 10,
-          color: GPU_COLORS.muted,
-          width: destinationTextWidth,
-          singleLine: true,
-        }
-      );
-    }
+    if (!selected) drawRepositoryInfo(ctx, snapshot, project, rowParent, infoX, y, info);
     cursor += projectRowHeight(compactRunRows, selected);
 
     const runs = expandedRunList[index] ?? [];

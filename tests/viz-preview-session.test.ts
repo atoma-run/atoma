@@ -17,10 +17,10 @@ function summary(generation: number, state: VizPreviewSummary['state'] = 'ready'
     source: 'in-flight', snapshotAt: '2026-09-09T12:00:00.000Z', readyAt: null,
     expiresAt: null, errorCode: null, requestedHosts: [], allowedHosts: [], blockedHosts: [] };
 }
-function fixture() {
+function fixture(initial = summary(0, 'stopped')) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   clients.push(client);
-  let current = summary(0, 'stopped');
+  let current = initial;
   client.setQueryData(key, current);
   vi.spyOn(api, 'previewStatus').mockImplementation(async () => current);
   const hook = renderHook(({ selected = target }) => {
@@ -144,4 +144,17 @@ it('discards an opening response after the selected run changes', async () => {
   expect(hook.result.current.previewOpen).toBe(false);
   expect(hook.result.current.previewUrl).toBeNull();
   expect(hook.result.current.previewError).toBeNull();
+});
+
+it('opens a historical CLI delivery in terminal mode and preserves that mode on restart', async () => {
+  const stopped: VizPreviewSummary = { ...summary(0, 'stopped'), source: 'delivered', snapshotAt: null,
+    availability: 'unavailable', reason: 'unsupported-deliverable', terminalAvailable: true, kind: null };
+  const { hook, publish } = fixture(stopped);
+  const ready: VizPreviewSummary = { ...stopped, availability: 'available', reason: null, mode: 'terminal', state: 'ready', generation: 1 };
+  const open = vi.spyOn(api, 'openPreview').mockImplementation(async () => { publish(ready); return { summary: ready, url: 'https://terminal.example/#claim' }; });
+  await act(async () => hook.result.current.requestPreview('open'));
+  expect(open).toHaveBeenCalledWith('project', 'run', { inFlight: true, mode: 'terminal' });
+  const restart = vi.spyOn(api, 'restartPreview').mockImplementation(async () => ({ summary: ready, url: 'https://terminal.example/#new-claim' }));
+  await act(async () => hook.result.current.requestPreview('restart'));
+  expect(restart).toHaveBeenCalledWith('project', 'run', { inFlight: true, mode: 'terminal' });
 });

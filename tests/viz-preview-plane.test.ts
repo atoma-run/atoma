@@ -75,6 +75,21 @@ afterEach(() => {
   cleanup();
 });
 
+it('embeds a preview as project tab content without a modal backdrop or Back button', () => {
+  const { container } = render(plane({ embedded: true }));
+  expect(screen.getByRole('tabpanel', { name: t('preview.app') })).toBeInTheDocument();
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(container.querySelector('.gpu-preview-backdrop')).toBeNull();
+  expect(screen.queryByRole('button', { name: t('preview.back') })).toBeNull();
+  expect(container.querySelector('iframe')?.getAttribute('sandbox')).toContain('allow-scripts');
+});
+
+it('veils the inline preview when a scene menu is open', () => {
+  const { container } = render(plane({ embedded: true, veiled: true }));
+  expect(container.querySelector('.gpu-project-preview')).toHaveAttribute('inert');
+  expect(container.querySelector('.gpu-project-preview')).toHaveClass('gpu-overlays-veiled');
+});
+
 describe('the preview plane', () => {
   it('mounts no iframe until the preview is ready', () => {
     const { container } = render(plane({ summary: summary({ state: 'starting' }) }));
@@ -230,7 +245,7 @@ describe('the preview plane', () => {
 });
 
 describe('the preview control mirrored for the keyboard', () => {
-  function bridge(preview: { state: string; availability: string } | null, onActivate: (id: string) => void) {
+  function bridge(preview: Pick<VizPreviewSummary, 'state' | 'availability' | 'mode' | 'terminalAvailable'> | null, onActivate: (id: string) => void) {
     return createElement(DomBridge, {
       runs: [],
       releaseVersion: 'test',
@@ -260,5 +275,26 @@ describe('the preview control mirrored for the keyboard', () => {
 
     // A control that fails after the click is worse than a stated absence.
     expect(screen.queryByRole('button', { name: t('preview.start') })).toBeNull();
+  });
+
+  it('offers the terminal directly from the latest delivered result', async () => {
+    useGpuStore.setState({ entered: true, view: 'projects', selectedProjectId: 'project', resultRunId: 'delivered', projectSection: 'result' });
+    const onActivate = vi.fn();
+    render(bridge({ state: 'stopped', availability: 'unavailable', terminalAvailable: true }, onActivate));
+    await userEvent.click(screen.getByRole('button', { name: t('preview.terminal.start') }));
+    expect(onActivate).toHaveBeenCalledWith('run.preview.open');
+  });
+
+  it.each(['runs', 'files'] as const)('offers the preview tab between Runs and Files from the project %s section', async (projectSection) => {
+    useGpuStore.setState({ entered: true, view: 'projects', selectedProjectId: 'project', resultRunId: null, projectSection });
+    const onActivate = vi.fn();
+    render(bridge({ state: 'stopped', availability: 'available' }, onActivate));
+    expect([...screen.getByRole('tab', { name: t('preview.app') }).parentElement!.querySelectorAll('[role="tab"]')].map(tab => tab.textContent)).toEqual([
+      t('nav.runs'), t('preview.app'), t('workspace.title'), t('result.latest'),
+    ]);
+    await userEvent.click(screen.getByRole('tab', { name: t('preview.app') }));
+    expect(onActivate).toHaveBeenCalledWith('project.section.preview');
+    expect(screen.queryByRole('button', { name: t('preview.app') })).toBeNull();
+    expect(useGpuStore.getState().projectSection).toBe(projectSection);
   });
 });

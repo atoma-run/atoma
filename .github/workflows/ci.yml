@@ -408,7 +408,7 @@ jobs:
       - run: npm run build:worker:dev
       - run: npm run build:preview
       - name: Preview isolation and network
-        run: npx vitest run tests/preview-isolation.test.ts tests/preview-egress.test.ts
+        run: npx vitest run tests/preview-isolation.test.ts tests/preview-egress.test.ts tests/preview-terminal-container.test.ts
         env:
           # Absence becomes a hard failure HERE and nowhere else: the suite
           # skips this file everywhere a contributor lacks gVisor, and a job
@@ -435,7 +435,7 @@ jobs:
       - run: npm run build:worker:dev
       - run: test -f dist/tools/worker.js && test -f dist/contracts/probeManifest.js
       - run: npm run build:preview
-      - run: npx vitest run tests/container-isolation.test.ts tests/preview-egress.test.ts
+      - run: npx vitest run tests/container-isolation.test.ts tests/preview-egress.test.ts tests/preview-terminal-container.test.ts
         env:
           CI_REQUIRE_DOCKER: "1"
           ATOMA_TEST_PREVIEW_IMAGE: atoma-preview:latest

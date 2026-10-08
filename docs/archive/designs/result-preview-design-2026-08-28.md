@@ -443,7 +443,7 @@ diagnosis only; no browser endpoint for raw app logs in v1.
 | Loopback port-per-preview origins | Cookies ignore ports: previews would share a cookie jar. |
 | Token in the hostname or query | History/log exposure; the fragment claim keeps it off the wire. |
 | Second Pixi/WebGPU context; any MUI feature | One-canvas contract; frozen fallback. |
-| CLI/terminal in the preview | An execution surface, not visualisation; contradicts L1-only tools. |
+| CLI/terminal in the preview | Original v1 exclusion; superseded by the owner decision in [CLI preview](../../cli-preview.md) (2026-10-08): human testing inside a separate isolate is not an L1 element. |
 
 ## 19. Tests and acceptance
 

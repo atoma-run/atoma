@@ -35,6 +35,7 @@ export const BUTTON_ICON_SPACE = 20;
 /** Control identities, never translated copy, determine GPU pictograms. */
 export function buttonIconKind(id: string): ButtonIconKind {
   if (id === 'project.section.runs') return 'play';
+  if (id === 'project.section.preview') return 'eye';
   if (id === 'project.section.files') return 'folder';
   if (id === 'project.section.result') return 'file';
   if (/^(result|workspace|activity)\.close$|^run.event.close$|^activity.files$|^workspace.parent$/.test(id)) return 'back';

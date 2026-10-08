@@ -128,7 +128,7 @@ very directory EMPTY before copying from it.
   stamped on the newest http probe, then `package.json.main`, then `server.js`
   → `index.js` → `app.js`. Each candidate must be a regular non-symlinked file
   ending `.js`/`.mjs`/`.cjs`, because `node <entry>` is the ONLY start command
-  a preview will ever run — an entry node cannot execute is `not-runnable`,
+  for a web application preview — an entry node cannot execute is `not-runnable`,
   reported now, rather than a crash the member has to interpret later.
 - The answer is TOTAL: every delivered run gets a descriptor, available with a
   kind or unavailable with a bounded reason. A control that fails after the
@@ -244,31 +244,31 @@ exists, create, tear down in reverse.
   Measured: a `startUnit` that created a container then threw on a later step
   left it running with no handle to name, and the leak survived the failure.
 
-## The image holds nothing of atoma
+## CLI testing and its packaged runtime
 
-`docker/preview.Dockerfile` (`npm run build:preview`) is a Node runtime and a
-non-root user, and that is the whole file. The process it starts is not our
-code — it is whatever a run produced — so every line of atoma reachable from
-inside it is a line a member's generated application inherits. The worker image
-is the OPPOSITE guard: that one must contain everything it imports, and
-`tests/container-image-closure.test.ts` asserts both directions. Three absences
-are deliberate:
+Owner decision 2026-10-08: members may explicitly open `mode: terminal` on
+any delivered run, including historical CLI deliveries. This is human testing
+of a disposable copy, not an L1 element or a supervisor verification replay.
+Delivery descriptors stay immutable. Instance `mode` records the capability;
+reads report `terminalAvailable` from delivered status and allocate nothing.
+A live generation cannot change modes: stop/restart first. One terminal and
+its temporary files are shared by members opening that generation, visibly.
 
-- **No `npm install` layer.** A deliverable brings its own `node_modules` in
-  the copied workspace or it does not run; installing at open time would put a
-  network operation on a member's click, in a container with no egress for it.
-- **No apt layer.** The worker installs python3 and chromium because TOOLS need
-  them; nothing here runs a tool, and every package is surface the generated
-  code inherits.
-- **No ENTRYPOINT and no CMD.** The launcher passes `--entrypoint node` and the
-  one start command the profile allows. An image command would wrap or replace
-  it, and a preview that could choose its own command would be a remote shell
-  with a nice name.
+The image contains Node, bash, Python's PTY bridge and ONLY the standalone
+terminal bundle, never Atoma's control plane, tools, stores or credentials.
+`build` packages `dist/preview-terminal`; `build:preview` consumes it, and
+`build:preview:dev` builds that bundle first. Production still pins a digest.
+The terminal profile fixes its entry point, has no egress, mounts the filtered
+source read-only and copies it into bounded `/data` tmpfs. Restart destroys
+all edits and processes. No dependency installation takes place on open.
 
-Its uid is 10002, one above the worker's 10001: the same host process mounts
-both, and a shared uid would let a file written for one be written by the
-other. Production pins the image BY DIGEST, which means pushing it — a mutable
-tag is not an identity, and `snapshotPreviewConfig` refuses one.
+Terminal traffic passes through the existing claims/gateway/relay. Each HTTP
+request rechecks its grant; mutations also require the exact preview Origin
+and a non-safelisted header. No WebSocket or indefinitely authorised stream.
+PTY input and output are bounded, discarded history is explicit, and commands
+or output never reach the platform journal. Shared schemas live in
+`contracts/previewTerminal.ts`; the browser uses catalog copy from `en.json`.
+Full contract and deployment: [CLI preview](../../docs/cli-preview.md).
 
 ## Configuration is all-or-nothing
 
@@ -480,10 +480,13 @@ HERE is what the preview's own shape forces on it.
   target that IS inside it still bubbles, so one click would open the preview
   AND collapse the card. There is no `stopPropagation` precedent in that
   client, and a layout choice is the wrong reason to add one.
-- **The plane REPLACES the canvas rather than floating over it**, product tree
+- **The run preview plane REPLACES the canvas rather than floating over it**, product tree
   `inert` behind it — which is what exempts it from the grandfathered CSS-skin
   list: nothing underneath, so no pointer light to escape and no bubble to
   bury.
+- Projects also expose a **Preview app** tab between Runs and Files (owner
+  decision 2026-10-08). It embeds the same preview plane below the tabs, follows
+  the scene camera and overlay veil, and releases its session on leaving.
 - **The iframe mounts only in `ready`**, keyed by generation plus reload nonce.
   A restart is a NEW ORIGIN and gets a new element; reusing one would carry the
   previous origin's session history into it.

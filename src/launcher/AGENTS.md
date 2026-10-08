@@ -189,7 +189,13 @@ what a member is still connected to.
   begin again from the immutable copy), rotated logs, and a fixed set of
   environment variables — never a spread of the parent environment, whose
   variables are credentials and store paths. One mount: the launcher-issued
-  workspace. The command is exactly `node <entry>`, never a shell.
+  workspace. The app command is exactly `node <entry>`.
+  The explicit `mode: terminal` variant instead runs the fixed
+  `/opt/atoma-terminal/server.mjs`; it accepts no entry or egress. It mounts
+  `/workspace` read-only, copies into a 512 MiB `/data` tmpfs, and caps memory
+  and swap at 1 GiB. This tmpfs permits executable CLI files; root stays
+  read-only and capabilities stay dropped. Shell input never crosses launcher
+  RPC: only the terminal inside this isolate receives it.
 - **`preview-ingress`** runs the relay. Its upstream is resolved HERE from the
   app unit of the same owner, which is what makes it impossible to point
   anywhere else. It publishes on **loopback only**, on an OS-assigned port the

@@ -51,7 +51,11 @@ export function PreviewPlane({
   onReload,
   onRestart,
   onStop,
+  embedded = false,
+  veiled = false,
 }: {
+  embedded?: boolean;
+  veiled?: boolean;
   open: boolean;
   summary: VizPreviewSummary | null;
   /** Non-null only while an unspent claim is in hand. Never persisted. */
@@ -80,9 +84,9 @@ export function PreviewPlane({
   // plane is a GL hit target mirrored in the semantic bridge, and only the
   // caller knows which one it was.
   useEffect(() => {
-    if (!open) return;
+    if (!open || embedded) return;
     closeRef.current?.focus();
-  }, [open]);
+  }, [open, embedded]);
 
   // Escape leaves. A member whose focus is inside the iframe is inside
   // another origin and this listener never sees their keys — which is exactly
@@ -143,14 +147,15 @@ export function PreviewPlane({
       : t('preview.snapshot.delivered');
 
   return (
-    <div className="gpu-preview-backdrop" onPointerDown={(event) => {
-      if (event.target === event.currentTarget) onClose();
+    <div className={embedded ? `gpu-project-preview${veiled ? ' gpu-overlays-veiled' : ''}` : 'gpu-preview-backdrop'} inert={embedded && veiled} onPointerDown={(event) => {
+      if (!embedded && event.target === event.currentTarget) onClose();
     }}>
     <section
       className="gpu-preview-plane"
-      role="dialog"
-      aria-modal="true"
-      aria-label={t('preview.region')}
+      id={embedded ? 'project-preview-panel' : undefined}
+      role={embedded ? 'tabpanel' : 'dialog'}
+      aria-modal={embedded ? undefined : true}
+      aria-label={t(embedded ? 'preview.app' : 'preview.region')}
     >
       <header className="gpu-preview-chrome">
         <div className="gpu-preview-identity">
@@ -158,9 +163,9 @@ export function PreviewPlane({
           <span title={identity}>{identity}</span>
         </div>
         <div className="gpu-preview-actions">
-          <button type="button" ref={closeRef} onClick={onClose}><ButtonIcon kind="back" />
+          {!embedded && <button type="button" ref={closeRef} onClick={onClose}><ButtonIcon kind="back" />
             {t('preview.back')}
-          </button>
+          </button>}
           <button type="button" onClick={onReload} disabled={!ready}><ButtonIcon kind="refresh" />
             {t('preview.reload')}
           </button>
@@ -180,7 +185,7 @@ export function PreviewPlane({
           </button>
         </div>
       </header>
-      <p className="gpu-preview-warning">{t('preview.untrusted')}</p>
+      <p className="gpu-preview-warning">{t(summary?.mode === 'terminal' ? 'preview.terminal.notice' : 'preview.untrusted')}</p>
       <div className="gpu-preview-status" aria-live="polite" aria-atomic="true">
         <span>{statusLine}</span>
         <span className="gpu-preview-provenance">{provenance}</span>
