@@ -1596,5 +1596,7 @@
   "projects.checkpoint.reason.backend_unknown": "আগের ওয়ার্কারের বন্ধ হওয়া যাচাই করা সম্ভব নয়।",
   "projects.checkpoint.reason.budget_exhausted": "মূল নির্বাহের সময়সীমা পেরিয়ে গেছে।",
   "projects.checkpoint.reason.incomplete": "কর্মক্ষেত্রের কোনো সম্পূর্ণ স্ন্যাপশট উপলভ্য নেই।",
-  "projects.awaitingClientAcceptance": "সরবরাহ করা হয়েছে · MCP-এর মাধ্যমে আপনার গ্রহণের অপেক্ষায়"
+  "projects.awaitingClientAcceptance": "সরবরাহ করা হয়েছে · MCP-এর মাধ্যমে আপনার গ্রহণের অপেক্ষায়",
+  "runs.picker.projectTotals": "মোট: {{tokens}} টোকেন · {{cost}} USD",
+  "runs.picker.projectRecorded": "রেকর্ডকৃত: {{tokens}} টোকেন · {{cost}} USD"
 }

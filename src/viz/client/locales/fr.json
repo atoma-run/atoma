@@ -1596,5 +1596,7 @@
   "projects.checkpoint.reason.backend_unknown": "L’arrêt du worker précédent ne peut pas être vérifié.",
   "projects.checkpoint.reason.budget_exhausted": "Le délai d’exécution initial est dépassé.",
   "projects.checkpoint.reason.incomplete": "Aucun snapshot complet du workspace n’est disponible.",
-  "projects.awaitingClientAcceptance": "Livré · en attente de ton acceptation via MCP"
+  "projects.awaitingClientAcceptance": "Livré · en attente de ton acceptation via MCP",
+  "runs.picker.projectTotals": "Total : {{tokens}} tokens · {{cost}} USD",
+  "runs.picker.projectRecorded": "Enregistré : {{tokens}} tokens · {{cost}} USD"
 }

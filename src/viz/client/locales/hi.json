@@ -1596,5 +1596,7 @@
   "projects.checkpoint.reason.backend_unknown": "पिछले वर्कर के बंद होने की पुष्टि नहीं की जा सकती।",
   "projects.checkpoint.reason.budget_exhausted": "मूल निष्पादन की समय-सीमा बीत चुकी है।",
   "projects.checkpoint.reason.incomplete": "कोई पूर्ण वर्कस्पेस स्नैपशॉट उपलब्ध नहीं है।",
-  "projects.awaitingClientAcceptance": "डिलीवर किया गया · MCP के ज़रिए आपकी स्वीकृति की प्रतीक्षा में"
+  "projects.awaitingClientAcceptance": "डिलीवर किया गया · MCP के ज़रिए आपकी स्वीकृति की प्रतीक्षा में",
+  "runs.picker.projectTotals": "कुल: {{tokens}} टोकन · {{cost}} USD",
+  "runs.picker.projectRecorded": "रिकॉर्ड किया गया: {{tokens}} टोकन · {{cost}} USD"
 }

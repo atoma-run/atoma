@@ -1596,5 +1596,7 @@
   "projects.checkpoint.reason.backend_unknown": "Não é possível verificar o encerramento do processo de trabalho anterior.",
   "projects.checkpoint.reason.budget_exhausted": "O prazo da execução original já terminou.",
   "projects.checkpoint.reason.incomplete": "Não está disponível nenhum instantâneo completo do espaço de trabalho.",
-  "projects.awaitingClientAcceptance": "Entregue · aguarda a sua aceitação via MCP"
+  "projects.awaitingClientAcceptance": "Entregue · aguarda a sua aceitação via MCP",
+  "runs.picker.projectTotals": "Total: {{tokens}} tokens · {{cost}} USD",
+  "runs.picker.projectRecorded": "Registado: {{tokens}} tokens · {{cost}} USD"
 }

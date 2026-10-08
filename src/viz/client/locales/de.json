@@ -1596,5 +1596,7 @@
   "projects.checkpoint.reason.backend_unknown": "Das Herunterfahren des vorherigen Workers kann nicht verifiziert werden.",
   "projects.checkpoint.reason.budget_exhausted": "Die ursprüngliche Ausführungsfrist ist abgelaufen.",
   "projects.checkpoint.reason.incomplete": "Es ist kein vollständiger Snapshot des Arbeitsbereichs verfügbar.",
-  "projects.awaitingClientAcceptance": "Ausgeliefert · wartet auf Ihre Annahme über MCP"
+  "projects.awaitingClientAcceptance": "Ausgeliefert · wartet auf Ihre Annahme über MCP",
+  "runs.picker.projectTotals": "Gesamt: {{tokens}} Token · {{cost}} USD",
+  "runs.picker.projectRecorded": "Erfasst: {{tokens}} Token · {{cost}} USD"
 }

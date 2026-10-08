@@ -1596,5 +1596,7 @@
   "projects.checkpoint.reason.backend_unknown": "پچھلے ورکر کے بند ہونے کی تصدیق نہیں کی جا سکتی۔",
   "projects.checkpoint.reason.budget_exhausted": "اصل عمل درآمد کی آخری مہلت گزر چکی ہے۔",
   "projects.checkpoint.reason.incomplete": "ورک اسپیس کا کوئی مکمل اسنیپ شاٹ دستیاب نہیں۔",
-  "projects.awaitingClientAcceptance": "فراہم شدہ · MCP کے ذریعے آپ کی قبولیت کا منتظر"
+  "projects.awaitingClientAcceptance": "فراہم شدہ · MCP کے ذریعے آپ کی قبولیت کا منتظر",
+  "runs.picker.projectTotals": "کل: {{tokens}} ٹوکن · {{cost}} USD",
+  "runs.picker.projectRecorded": "ریکارڈ شدہ: {{tokens}} ٹوکن · {{cost}} USD"
 }

@@ -1596,5 +1596,7 @@
   "projects.checkpoint.reason.backend_unknown": "Невозможно проверить завершение работы предыдущего процесса.",
   "projects.checkpoint.reason.budget_exhausted": "Исходный срок выполнения истёк.",
   "projects.checkpoint.reason.incomplete": "Полный снимок рабочего пространства недоступен.",
-  "projects.awaitingClientAcceptance": "Доставлено · ожидает вашего принятия через MCP"
+  "projects.awaitingClientAcceptance": "Доставлено · ожидает вашего принятия через MCP",
+  "runs.picker.projectTotals": "Всего токенов: {{tokens}} · {{cost}} USD",
+  "runs.picker.projectRecorded": "Записано токенов: {{tokens}} · {{cost}} USD"
 }

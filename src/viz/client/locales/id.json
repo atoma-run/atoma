@@ -1596,5 +1596,7 @@
   "projects.checkpoint.reason.backend_unknown": "Penghentian worker sebelumnya tidak dapat diverifikasi.",
   "projects.checkpoint.reason.budget_exhausted": "Batas waktu eksekusi awal telah terlewati.",
   "projects.checkpoint.reason.incomplete": "Tidak tersedia snapshot lengkap ruang kerja.",
-  "projects.awaitingClientAcceptance": "Terkirim · menunggu persetujuan Anda melalui MCP"
+  "projects.awaitingClientAcceptance": "Terkirim · menunggu persetujuan Anda melalui MCP",
+  "runs.picker.projectTotals": "Total: {{tokens}} token · {{cost}} USD",
+  "runs.picker.projectRecorded": "Tercatat: {{tokens}} token · {{cost}} USD"
 }

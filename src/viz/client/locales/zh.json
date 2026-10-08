@@ -1596,5 +1596,7 @@
   "projects.checkpoint.reason.backend_unknown": "无法验证上一个工作进程是否已关闭。",
   "projects.checkpoint.reason.budget_exhausted": "原执行截止时间已过。",
   "projects.checkpoint.reason.incomplete": "没有可用的完整工作区快照。",
-  "projects.awaitingClientAcceptance": "已交付 · 等待您通过 MCP 接受"
+  "projects.awaitingClientAcceptance": "已交付 · 等待您通过 MCP 接受",
+  "runs.picker.projectTotals": "总计：{{tokens}} 个 token · {{cost}} 美元",
+  "runs.picker.projectRecorded": "已记录：{{tokens}} 个 token · {{cost}} 美元"
 }

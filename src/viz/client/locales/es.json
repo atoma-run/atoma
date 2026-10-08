@@ -1596,5 +1596,7 @@
   "projects.checkpoint.reason.backend_unknown": "No se puede verificar el cierre del worker anterior.",
   "projects.checkpoint.reason.budget_exhausted": "El plazo de ejecución original ha vencido.",
   "projects.checkpoint.reason.incomplete": "No hay disponible una instantánea completa del espacio de trabajo.",
-  "projects.awaitingClientAcceptance": "Entregado · pendiente de su aceptación mediante MCP"
+  "projects.awaitingClientAcceptance": "Entregado · pendiente de su aceptación mediante MCP",
+  "runs.picker.projectTotals": "Total: {{tokens}} tokens · {{cost}} USD",
+  "runs.picker.projectRecorded": "Registrado: {{tokens}} tokens · {{cost}} USD"
 }

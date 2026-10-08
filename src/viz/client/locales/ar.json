@@ -1596,5 +1596,7 @@
   "projects.checkpoint.reason.backend_unknown": "لا يمكن التحقق من إيقاف العامل السابق.",
   "projects.checkpoint.reason.budget_exhausted": "انقضى الموعد النهائي للتنفيذ الأصلي.",
   "projects.checkpoint.reason.incomplete": "لا تتوفر لقطة كاملة لمساحة العمل.",
-  "projects.awaitingClientAcceptance": "تم التسليم · بانتظار قبولك عبر MCP"
+  "projects.awaitingClientAcceptance": "تم التسليم · بانتظار قبولك عبر MCP",
+  "runs.picker.projectTotals": "الإجمالي: عدد الرموز {{tokens}} · التكلفة {{cost}} دولار أمريكي",
+  "runs.picker.projectRecorded": "المسجّل: عدد الرموز {{tokens}} · التكلفة {{cost}} دولار أمريكي"
 }

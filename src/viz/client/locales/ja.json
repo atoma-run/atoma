@@ -1596,5 +1596,7 @@
   "projects.checkpoint.reason.backend_unknown": "前のワーカーが終了したことを確認できません。",
   "projects.checkpoint.reason.budget_exhausted": "当初の実行期限を過ぎています。",
   "projects.checkpoint.reason.incomplete": "完全なワークスペースのスナップショットがありません。",
-  "projects.awaitingClientAcceptance": "納品済み・MCP経由の承認待ち"
+  "projects.awaitingClientAcceptance": "納品済み・MCP経由の承認待ち",
+  "runs.picker.projectTotals": "合計：{{tokens}}トークン・{{cost}} USD",
+  "runs.picker.projectRecorded": "記録済み：{{tokens}}トークン・{{cost}} USD"
 }
