@@ -3,7 +3,7 @@ import { seedBenchmark } from './helpers/retrievalBenchmark.js';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { generateKeyPairSync, randomBytes, randomUUID } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
@@ -1083,11 +1083,34 @@ describe('viz auth gate (process level)', () => {
     const provider = await startFakeProvider({ port: await freePort(), subject: 909 });
     const port = await freePort();
     const base = `http://127.0.0.1:${port}`;
+    // A FAKE `claude` ON THE SERVER'S PATH, for the personal Claude token
+    // probe (BETA, 2026-10-08): it answers `auth status --json` the way the
+    // real CLI does with CLAUDE_CODE_OAUTH_TOKEN in its environment, and
+    // records which config dir it was pointed at. Never the real binary: a
+    // test must not touch the developer's own login.
+    const fakeBin = mkdtempSync(join(tmpdir(), 'atoma-fake-claude-'));
+    roots.push(fakeBin);
+    const probeLog = join(fakeBin, 'probe.log');
+    writeFileSync(
+      join(fakeBin, 'claude'),
+      '#!/bin/sh\n' +
+        `printf '%s\\n' "$CLAUDE_CONFIG_DIR" >> "${probeLog}"\n` +
+        'if [ "$1" = "auth" ] && [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]; then\n' +
+        '  echo \'{"loggedIn":true,"authMethod":"oauth_token","apiProvider":"firstParty"}\'\n' +
+        'else\n' +
+        '  echo \'{"loggedIn":false,"authMethod":"none","apiProvider":"firstParty"}\'\n' +
+        'fi\n',
+      { mode: 0o755 }
+    );
+    const profilesRoot = mkdtempSync(join(tmpdir(), 'atoma-account-profiles-'));
+    roots.push(profilesRoot);
     const running = startViz(
       [...instance.args, '--port', String(port)],
       {
         ...providerEnv(provider, base),
         ATOMA_SECRET_ENCRYPTION_KEY: 'k'.repeat(32),
+        ATOMA_ACCOUNT_PROFILES_ROOT: profilesRoot,
+        PATH: `${fakeBin}:${process.env['PATH'] ?? ''}`,
       }
     );
     await waitReady(running, `${base}/auth/whoami`);
@@ -1164,13 +1187,22 @@ describe('viz auth gate (process level)', () => {
     const subscriptions = await fetch(`${base}/api/account/subscriptions`, { headers: cookie });
     expect(subscriptions.status).toBe(200);
     expect(await subscriptions.json()).toEqual({
-      claude: {
-        provider: 'claude',
-        state: 'unavailable',
-        connectedAt: null,
-        lastVerifiedAt: null,
-        reason: 'provider-approval-required',
-      },
+      claude:
+        process.platform === 'win32'
+          ? {
+              provider: 'claude',
+              state: 'unavailable',
+              connectedAt: null,
+              lastVerifiedAt: null,
+              reason: 'profile-permissions-unsupported',
+            }
+          : {
+              provider: 'claude',
+              state: 'disconnected',
+              connectedAt: null,
+              lastVerifiedAt: null,
+              reason: null,
+            },
       codex:
         process.platform === 'win32'
           ? {
@@ -1209,6 +1241,71 @@ describe('viz auth gate (process level)', () => {
       }),
     });
     expect(personalBeforeConnect.status).toBe(409);
+    const claudeBeforeConnect = await fetch(`${base}/api/account/models`, {
+      method: 'PUT',
+      headers: { ...cookie, 'content-type': 'application/json', origin: base },
+      body: JSON.stringify({ pins: { l1: null, l2: 'own:anthropic:sonnet', l3: null } }),
+    });
+    expect(claudeBeforeConnect.status).toBe(409);
+
+    // ---- PERSONAL CLAUDE TOKEN (BETA, 2026-10-08): pasted, probed through
+    // the fake CLI, stored 0600 under the private profiles root, then spent
+    // through an `own:anthropic` pin; disconnecting clears the pin with it.
+    const claudeToken = `sk-ant-oat01-${'t'.repeat(72)}`;
+    const crossSiteClaude = await fetch(`${base}/api/account/subscriptions/claude`, {
+      method: 'POST',
+      headers: { ...cookie, 'content-type': 'application/json', origin: 'https://evil.example' },
+      body: JSON.stringify({ token: claudeToken }),
+    });
+    expect(crossSiteClaude.status).toBe(403);
+    const notAToken = await fetch(`${base}/api/account/subscriptions/claude`, {
+      method: 'POST',
+      headers: { ...cookie, 'content-type': 'application/json', origin: base },
+      body: JSON.stringify({ token: 'sk-ant-api03-this-is-an-api-key-not-a-login' }),
+    });
+    expect(notAToken.status).toBe(400);
+    expect(existsSync(join(profilesRoot, whoami.principalId, 'claude'))).toBe(false);
+    const connectedClaude = await fetch(`${base}/api/account/subscriptions/claude`, {
+      method: 'POST',
+      headers: { ...cookie, 'content-type': 'application/json', origin: base },
+      body: JSON.stringify({ token: claudeToken }),
+    });
+    expect(connectedClaude.status).toBe(200);
+    const connectedClaudeBody = await connectedClaude.json() as { provider: string; state: string; connectedAt: string | null };
+    expect(connectedClaudeBody).toMatchObject({ provider: 'claude', state: 'connected' });
+    expect(JSON.stringify(connectedClaudeBody)).not.toContain('sk-ant-oat');
+    // The probe ran against the generation directory, which holds the token 0600.
+    const generations = readdirSync(join(profilesRoot, whoami.principalId, 'claude'));
+    expect(generations).toHaveLength(1);
+    // The service resolves its root (macOS tmpdir is a /private link).
+    const generationPath = join(realpathSync(profilesRoot), whoami.principalId, 'claude', generations[0]!);
+    expect(readFileSync(probeLog, 'utf8').trim().split('\n')).toEqual([generationPath]);
+    const tokenFile = join(generationPath, 'atoma-oauth-token');
+    expect(readFileSync(tokenFile, 'utf8')).toBe(`${claudeToken}\n`);
+    expect(statSync(tokenFile).mode & 0o777).toBe(0o600);
+    expect((await (await fetch(`${base}/api/account/subscriptions`, { headers: cookie })).json() as { claude: { state: string } }).claude.state)
+      .toBe('connected');
+    expect((await (await fetch(`${base}/api/account/models`, { headers: cookie })).json() as { personalSubscriptions: { claude: boolean; codex: boolean } }).personalSubscriptions)
+      .toEqual({ codex: false, claude: true });
+    const claudePin = await fetch(`${base}/api/account/models`, {
+      method: 'PUT',
+      headers: { ...cookie, 'content-type': 'application/json', origin: base },
+      body: JSON.stringify({ pins: { l1: null, l2: 'own:anthropic:sonnet', l3: null } }),
+    });
+    expect(claudePin.status).toBe(200);
+    expect((await (await fetch(`${base}/api/account/models`, { headers: cookie })).json() as { pins: Record<string, string | null> }).pins.l2)
+      .toBe('own:anthropic:sonnet');
+    const disconnectedClaude = await fetch(`${base}/api/account/subscriptions/claude`, {
+      method: 'DELETE',
+      headers: { ...cookie, origin: base },
+    });
+    expect(disconnectedClaude.status).toBe(200);
+    expect(await disconnectedClaude.json()).toEqual({ disconnected: true });
+    expect(existsSync(tokenFile)).toBe(false);
+    expect((await (await fetch(`${base}/api/account/models`, { headers: cookie })).json() as { pins: Record<string, string | null>; personalSubscriptions: { claude: boolean } }))
+      .toMatchObject({ pins: { l2: null }, personalSubscriptions: { claude: false } });
+    expect((await (await fetch(`${base}/api/account/subscriptions`, { headers: cookie })).json() as { claude: { state: string } }).claude.state)
+      .toBe('disconnected');
     // And they cannot arm it by hand either.
     const refusedSubscription = await fetch(`${base}/api/account/models`, {
       method: 'PUT',
@@ -2322,6 +2419,12 @@ describe('viz auth gate (process level)', () => {
       headers: { cookie, origin: base },
     });
     expect(viewerCodex.status).toBe(403);
+    const viewerClaude = await fetch(`${base}/api/account/subscriptions/claude`, {
+      method: 'POST',
+      headers: { cookie, origin: base, 'content-type': 'application/json' },
+      body: JSON.stringify({ token: `sk-ant-oat01-${'v'.repeat(72)}` }),
+    });
+    expect(viewerClaude.status).toBe(403);
 
     const viewerSubscriptions = await fetch(`${base}/api/account/subscriptions`, {
       headers: { cookie },

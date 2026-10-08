@@ -96,6 +96,11 @@ export function principalChatGptSelection(model: ChatGptSubscriptionModel): stri
   return `own:openai:${model}`;
 }
 
+/** The stored spelling of the requester's own Claude Code login on one tier. */
+export function principalClaudeSelection(alias: HostSubscriptionAlias): string {
+  return `own:anthropic:${alias}`;
+}
+
 /** Is `value` a `sub:` selector (the host's own login)? */
 export function isHostSubscriptionSelection(value: string): boolean {
   return tryParseModelSelector(value)?.mode === 'sub';
@@ -110,6 +115,19 @@ export function isPrincipalSubscriptionSelection(value: string): boolean {
 export function hostSubscriptionAlias(value: string): HostSubscriptionAlias | null {
   const selector = tryParseModelSelector(value);
   if (!selector || selector.mode !== 'sub' || selector.vendor !== 'anthropic') return null;
+  return (HOST_SUBSCRIPTION_ALIASES as readonly string[]).includes(selector.model)
+    ? (selector.model as HostSubscriptionAlias)
+    : null;
+}
+
+/**
+ * The Claude alias an `own:anthropic:` selector names, or null. The same three
+ * aliases as the host's login: a personal Claude Code token serves whatever
+ * generation Claude Code resolves that day, exactly like the operator's.
+ */
+export function principalClaudeAlias(value: string): HostSubscriptionAlias | null {
+  const selector = tryParseModelSelector(value);
+  if (!selector || selector.mode !== 'own' || selector.vendor !== 'anthropic') return null;
   return (HOST_SUBSCRIPTION_ALIASES as readonly string[]).includes(selector.model)
     ? (selector.model as HostSubscriptionAlias)
     : null;
@@ -136,16 +154,22 @@ function codexModelOf(value: string, mode: 'sub' | 'own'): ChatGptSubscriptionMo
     : null;
 }
 
-/** One Codex process has one credential home, so a pin set cannot name both owners. */
-export function selectionsMixCodexOwners(
-  selections: Iterable<string | null | undefined>
+/**
+ * One CLI process has one credential home, so a pin set cannot name both the
+ * host's and the requester's login of the SAME vendor: Codex reads one
+ * `CODEX_HOME`, and Claude Code one `CLAUDE_CODE_OAUTH_TOKEN`. Mixing vendors
+ * (the host's Claude beside the requester's ChatGPT) is fine — two processes.
+ */
+export function selectionsMixSubscriptionOwners(
+  selections: Iterable<string | null | undefined>,
+  vendor: 'openai' | 'anthropic'
 ): boolean {
   let host = false;
   let principal = false;
   for (const selection of selections) {
     if (!selection) continue;
     const selector = tryParseModelSelector(selection);
-    if (!selector || selector.vendor !== 'openai') continue;
+    if (!selector || selector.vendor !== vendor) continue;
     host ||= selector.mode === 'sub';
     principal ||= selector.mode === 'own';
     if (host && principal) return true;

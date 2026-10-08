@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { createSecretKey } from 'node:crypto';
 import { afterAll, describe, expect, it } from 'vitest';
 import { AuthStore } from '../src/auth/store.js';
-import { armStarterChatGptPins } from '../src/auth/accountModels.js';
+import { armStarterChatGptPins, armStarterClaudePins } from '../src/auth/accountModels.js';
 import type { PlatformEventInput } from '../src/contracts/platformEvents.js';
 import {
   resolveSecretEncryption,
@@ -166,6 +166,35 @@ describe('the starter ChatGPT pins armed when a subscription connects', () => {
     const who = member(store);
     expect(armStarterChatGptPins(store, who, {}, () => undefined, 'gpt-5.6-terra')).not.toBeNull();
     expect(armStarterChatGptPins(store, who, {}, () => undefined, 'gpt-5.6-terra')).toBeNull();
+  });
+
+  it('arms the Claude Code gradient under the same into-emptiness rule', () => {
+    const store = freshStore('starter-claude.db');
+    const who = member(store);
+    const events: PlatformEventInput[] = [];
+
+    const pins = armStarterClaudePins(store, who, {}, (event) => events.push(event));
+
+    expect(pins).toEqual({
+      l1: 'own:anthropic:haiku',
+      l2: 'own:anthropic:sonnet',
+      l3: 'own:anthropic:opus',
+    });
+    expect(store.modelPins(who.principalId)).toEqual(pins);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      kind: 'principal.subscription_pin',
+      actorId: who.principalId,
+      detail: { tiers: ['l1', 'l2', 'l3'], automatic: true },
+    });
+    expect(events[0]!.summary).toContain('Claude');
+    // Armed once; and never over a value — a ChatGPT starter already there stays.
+    expect(armStarterClaudePins(store, who, {}, () => undefined)).toBeNull();
+    const other = freshStore('starter-claude-over.db');
+    const chose = member(other);
+    armStarterChatGptPins(other, chose, {}, () => undefined, 'gpt-5.6-terra');
+    expect(armStarterClaudePins(other, chose, {}, () => undefined)).toBeNull();
+    expect(other.modelPins(chose.principalId).l1).toBe('own:openai:gpt-5.6-terra');
   });
 });
 

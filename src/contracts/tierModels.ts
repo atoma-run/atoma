@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { isAccountTierSelection, isValidTierModelSelection } from '../core/providerCatalog.js';
 import { tierPinVariable, tryParseModelSelector, TIERS, type TierNumber } from './modelSelector.js';
-import { principalChatGptSelection } from './runPayers.js';
+import { principalChatGptSelection, principalClaudeSelection } from './runPayers.js';
 
 /**
  * PER-TIER MODEL SELECTION — THE ONE CHOICE CONTRACT.
@@ -213,6 +213,21 @@ export function principalChatGptStarterPins(model: string): TierModelPins {
     l1: principalChatGptSelection(model),
     l2: principalChatGptSelection(model),
     l3: principalChatGptSelection(model),
+  });
+}
+
+/**
+ * THE STARTER GRADIENT FOR A MEMBER'S OWN CLAUDE CODE LOGIN. Same arming rule
+ * as the ChatGPT one above; the aliases are the transport's three, laid out
+ * cheapest-first exactly as the operator's own tiers are (haiku for the
+ * workers, sonnet for the supervisors, opus for the planners), because a
+ * subscription is still spent per call.
+ */
+export function principalClaudeStarterPins(): TierModelPins {
+  return accountTierModelPinsSchema.parse({
+    l1: principalClaudeSelection('haiku'),
+    l2: principalClaudeSelection('sonnet'),
+    l3: principalClaudeSelection('opus'),
   });
 }
 

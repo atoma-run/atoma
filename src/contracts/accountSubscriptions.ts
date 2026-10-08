@@ -24,6 +24,24 @@ export const codexDeviceUserCodeSchema = z
   .max(128)
   .regex(/^[A-Za-z0-9-]+$/, 'expected an ASCII device code');
 
+/**
+ * THE LONG-LIVED CLAUDE CODE TOKEN (`claude setup-token`), pasted by the
+ * member. BETA, owner decision 2026-10-08: Anthropic's third-party approval
+ * for routing claude.ai subscriptions has not been granted, and the product
+ * offers the connection anyway while in beta
+ * (`docs/personal-claude-beta-2026-10-08.md`). The shape is the one Claude
+ * Code mints — an `sk-ant-oat` prefix, a two-digit generation, then printable
+ * ASCII — so a pasted API key (`sk-ant-api…`) or a device code is refused by
+ * spelling before any subprocess sees it. The value never crosses back over
+ * HTTP: it is written to the private profile and read only at launch.
+ */
+export const claudeSubscriptionTokenSchema = z
+  .string()
+  .trim()
+  .min(32)
+  .max(1_024)
+  .regex(/^sk-ant-oat\d{2}-[!-~]{20,}$/, 'expected a Claude Code long-lived token');
+
 export const accountSubscriptionStateSchema = z.enum([
   'disconnected',
   'connecting',
@@ -35,7 +53,7 @@ export const accountSubscriptionStateSchema = z.enum([
 export type AccountSubscriptionState = z.infer<typeof accountSubscriptionStateSchema>;
 
 export const accountSubscriptionReasonSchema = z.enum([
-  'provider-approval-required',
+  'claude-cli-unavailable',
   'codex-cli-unavailable',
   'profile-permissions-unsupported',
   'authentication-required',
@@ -115,10 +133,10 @@ export const EXAMPLE_ACCOUNT_SUBSCRIPTIONS: AccountSubscriptionsResponse =
   accountSubscriptionsResponseSchema.parse({
     claude: {
       provider: 'claude',
-      state: 'unavailable',
+      state: 'disconnected',
       connectedAt: null,
       lastVerifiedAt: null,
-      reason: 'provider-approval-required',
+      reason: null,
     },
     codex: {
       provider: 'codex',

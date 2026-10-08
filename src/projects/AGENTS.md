@@ -116,12 +116,12 @@ it; `ATOMA_EGRESS_ALLOWLIST` replaces the host list. Both are host-only settings
   (its `host-subscription:` / `claude-cli:` spellings predate the selector
   grammar of 2026-09-07).
 
-## Per-tier personal Codex subscription
-- `own:openai:<model>` is an ACCOUNT-only selector on any tier. The
-  coordinator resolves it from the requesting principal's exact private Codex
-  generation at launch, records payer `principal-subscription`, and injects
-  only that generation's `CODEX_HOME`/`CODEX_SQLITE_HOME`. `own:anthropic` has
-  no transport yet (provider approval pending) and is refused by name.
+## Per-tier personal subscriptions
+- `own:openai:<model>` and `own:anthropic:<alias>` are ACCOUNT-only selectors
+  on any tier, resolved at launch from the requester's exact private generation
+  (payer `principal-subscription`): Codex gets `CODEX_HOME`/`CODEX_SQLITE_HOME`,
+  Claude Code gets `CLAUDE_CODE_OAUTH_TOKEN`/`CLAUDE_CONFIG_DIR` (beta,
+  2026-10-08). A run never mixes the host's and the requester's login of one vendor.
 - Missing, revoked, wrong-chain-level and mixed host/personal Codex profiles
   THROW. None may fall through to a host login, organisation key or lower
   preference level. Disconnect is refused while that principal has an active

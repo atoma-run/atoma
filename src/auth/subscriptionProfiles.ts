@@ -1,5 +1,8 @@
+import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { promisify } from 'node:util';
 import { CodexModelCache, readCodexModels } from './codexModels.js';
+import { subscriptionTransportEnv } from '../core/llmClaudeCli.js';
 import { UNAVAILABLE_CODEX_MODELS, type CodexModelInventory } from '../contracts/codexModels.js';
 import {
   closeSync,
@@ -11,9 +14,11 @@ import {
   mkdirSync,
   openSync,
   readdirSync,
+  readFileSync,
   realpathSync,
   rmSync,
   unlinkSync,
+  writeSync,
   type Dirent,
 } from 'node:fs';
 import { homedir } from 'node:os';
@@ -21,8 +26,10 @@ import path from 'node:path';
 import {
   accountSubscriptionsResponseSchema,
   accountSubscriptionProfileIdSchema,
+  claudeSubscriptionTokenSchema,
   codexDeviceUserCodeSchema,
   codexSubscriptionAttemptSchema,
+  type AccountSubscriptionProvider,
   type AccountSubscriptionReason,
   type AccountSubscriptionStatus,
   type AccountSubscriptionsResponse,
@@ -57,6 +64,14 @@ const CODEX_STATUS_FRESH_MS = 5 * 60 * 1_000;
  */
 export const DEFAULT_LOGIN_ACCOUNT_SETTLE_MS = 5_000;
 const LOGIN_ACCOUNT_RETRY_MS = 200;
+/**
+ * The pasted Claude Code token lives in ONE private file inside its
+ * generation directory, which is also the run's `CLAUDE_CONFIG_DIR`. Claude
+ * Code never names a file this way, so its own state writes cannot collide.
+ */
+export const CLAUDE_TOKEN_FILENAME = 'atoma-oauth-token';
+const CLAUDE_AUTH_PROBE_TIMEOUT_MS = 15_000;
+const runFile = promisify(execFile);
 
 export class CodexSubscriptionConflictError extends Error {
   constructor(message: string) {
@@ -77,6 +92,69 @@ export class CodexSubscriptionUnavailableError extends Error {
     super(message);
     this.name = 'CodexSubscriptionUnavailableError';
   }
+}
+
+/** The pasted value is not a Claude Code token, or the CLI did not accept it. */
+export class ClaudeSubscriptionTokenError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ClaudeSubscriptionTokenError';
+  }
+}
+
+export class ClaudeSubscriptionUnavailableError extends Error {
+  constructor(message = 'Claude Code CLI is unavailable') {
+    super(message);
+    this.name = 'ClaudeSubscriptionUnavailableError';
+  }
+}
+
+export interface ClaudeAuthProbeInput {
+  readonly profilePath: string;
+  /** The subprocess environment: the token and the config dir already set. */
+  readonly env: NodeJS.ProcessEnv;
+}
+
+export interface ClaudeAuthProbeResult {
+  readonly loggedIn: boolean;
+  readonly authMethod: string | null;
+}
+
+/**
+ * `claude auth status --json` with the token in the environment. It is a
+ * LOCAL check — the CLI reports which credential it would use, without a
+ * network call — so it proves the CLI is installed and reads the token as its
+ * OAuth bearer, not that the token is still valid upstream. Spending a model
+ * call to prove that would bill the member for connecting.
+ */
+export type ClaudeAuthProbe = (input: ClaudeAuthProbeInput) => Promise<ClaudeAuthProbeResult>;
+
+async function defaultClaudeAuthProbe(input: ClaudeAuthProbeInput): Promise<ClaudeAuthProbeResult> {
+  const result = await runFile('claude', ['auth', 'status', '--json'], {
+    env: input.env,
+    cwd: input.profilePath,
+    timeout: CLAUDE_AUTH_PROBE_TIMEOUT_MS,
+    maxBuffer: 64 * 1024,
+    encoding: 'utf8',
+  });
+  let parsed: { loggedIn?: unknown; authMethod?: unknown };
+  try {
+    parsed = JSON.parse(String(result.stdout)) as { loggedIn?: unknown; authMethod?: unknown };
+  } catch {
+    throw new ClaudeSubscriptionUnavailableError('Claude Code CLI did not answer the auth probe');
+  }
+  return {
+    loggedIn: parsed.loggedIn === true,
+    authMethod: typeof parsed.authMethod === 'string' ? parsed.authMethod : null,
+  };
+}
+
+/** The probe's environment: the run transport's own snapshot rule, plus the two values that select this profile. */
+function claudeProbeEnv(source: NodeJS.ProcessEnv, token: string, profilePath: string): NodeJS.ProcessEnv {
+  const env = subscriptionTransportEnv(source);
+  env['CLAUDE_CODE_OAUTH_TOKEN'] = token;
+  env['CLAUDE_CONFIG_DIR'] = profilePath;
+  return env;
 }
 
 interface PendingAttempt {
@@ -112,6 +190,21 @@ export interface CodexProfileForRun {
   readonly profilesRoot: string;
 }
 
+/**
+ * The requester's Claude Code generation, resolved at launch. UNLIKE the
+ * Codex one this CARRIES THE SECRET: Claude Code authenticates from an
+ * environment variable, not from a home it reads itself, so the coordinator
+ * must place the token into the child's allowlisted environment. It goes
+ * there and nowhere else — never into a row, a journal detail or a response.
+ */
+export interface ClaudeProfileForRun {
+  readonly profileId: string;
+  /** The generation directory, handed to the child as `CLAUDE_CONFIG_DIR`. */
+  readonly homePath: string;
+  readonly profilesRoot: string;
+  readonly oauthToken: string;
+}
+
 export interface AccountSubscriptionServiceOptions {
   readonly auth: AuthStore;
   readonly profilesRoot?: string;
@@ -122,8 +215,18 @@ export interface AccountSubscriptionServiceOptions {
   /** How long a completed login may take to expose its account; see DEFAULT_LOGIN_ACCOUNT_SETTLE_MS. */
   readonly loginAccountSettleMs?: number;
   readonly now?: () => number;
-  readonly onConnected?: (event: { principalId: string; orgId: string }) => void | Promise<void>;
-  readonly onDisconnected?: (event: { principalId: string; orgId: string }) => void;
+  /** Injected by tests; the default runs the installed `claude` binary. */
+  readonly probeClaudeAuth?: ClaudeAuthProbe;
+  readonly onConnected?: (event: {
+    principalId: string;
+    orgId: string;
+    provider: AccountSubscriptionProvider;
+  }) => void | Promise<void>;
+  readonly onDisconnected?: (event: {
+    principalId: string;
+    orgId: string;
+    provider: AccountSubscriptionProvider;
+  }) => void;
 }
 
 export interface AccountSubscriptionStatusOptions {
@@ -272,6 +375,7 @@ export class AccountSubscriptionService {
   private readonly loginTtlMs: number;
   private readonly loginAccountSettleMs: number;
   private readonly now: () => number;
+  private readonly probeClaudeAuth: ClaudeAuthProbe;
   private readonly onConnected: AccountSubscriptionServiceOptions['onConnected'];
   private readonly onDisconnected: AccountSubscriptionServiceOptions['onDisconnected'];
   private readonly profilesSupported: boolean;
@@ -310,6 +414,7 @@ export class AccountSubscriptionService {
         ? Math.trunc(options.loginAccountSettleMs)
         : DEFAULT_LOGIN_ACCOUNT_SETTLE_MS;
     this.now = options.now ?? Date.now;
+    this.probeClaudeAuth = options.probeClaudeAuth ?? defaultClaudeAuthProbe;
     this.onConnected = options.onConnected;
     this.onDisconnected = options.onDisconnected;
     if (this.profilesSupported) this.reconcileProfiles();
@@ -323,16 +428,119 @@ export class AccountSubscriptionService {
     const attempt = this.attempts.get(principalId);
     const codex = await this.codexStatus(principalId, options.verify !== false);
     return accountSubscriptionsResponseSchema.parse({
-      claude: {
-        provider: 'claude',
-        state: 'unavailable',
-        connectedAt: null,
-        lastVerifiedAt: null,
-        reason: 'provider-approval-required',
-      },
+      claude: this.readClaudeStatus(principalId),
       codex,
       codexAttempt: attempt ? this.publicAttempt(attempt) : null,
     });
+  }
+
+  /**
+   * CONNECT A CLAUDE CODE TOKEN (BETA, owner decision 2026-10-08). No device
+   * flow: the member runs `claude setup-token` where Claude Code is signed in
+   * and pastes the long-lived token. The probe runs BEFORE the file exists —
+   * it needs only the environment — so a refused token leaves no credential
+   * byte behind; a committed one replaces the previous generation atomically
+   * through the receipt, as a Codex re-login does.
+   */
+  async connectClaude(
+    principalIdInput: string,
+    orgId: string,
+    tokenInput: unknown
+  ): Promise<AccountSubscriptionStatus> {
+    if (this.closed) throw new ClaudeSubscriptionUnavailableError('subscription service is closed');
+    if (!this.profilesSupported) {
+      throw new ClaudeSubscriptionUnavailableError(
+        'personal Claude profiles require verified POSIX permissions'
+      );
+    }
+    const principalId = principalIdSchema.parse(principalIdInput);
+    const parsedOrgId = organisationIdSchema.parse(orgId);
+    const token = claudeSubscriptionTokenSchema.safeParse(tokenInput);
+    if (!token.success) {
+      throw new ClaudeSubscriptionTokenError(
+        'expected the long-lived token printed by `claude setup-token`'
+      );
+    }
+    const profileId = randomUUID();
+    const profilePath = this.profilePath(principalId, profileId, 'claude');
+    ensurePrivateSubdirectory(this.root, [principalId, 'claude', profileId]);
+    try {
+      let probe: ClaudeAuthProbeResult;
+      try {
+        probe = await this.probeClaudeAuth({
+          profilePath,
+          env: claudeProbeEnv(this.sourceEnv, token.data, profilePath),
+        });
+      } catch (error) {
+        if (error instanceof ClaudeSubscriptionUnavailableError) throw error;
+        // ENOENT, a timeout, a non-zero exit: the deployment, not the token.
+        // Stable text only — a spawn error message carries the command line.
+        throw new ClaudeSubscriptionUnavailableError();
+      }
+      if (!probe.loggedIn) {
+        throw new ClaudeSubscriptionTokenError('the Claude Code CLI did not accept this token');
+      }
+      this.writeClaudeToken(profilePath, token.data);
+      if (!privateCredentialFile(path.join(profilePath, CLAUDE_TOKEN_FILENAME))) {
+        throw new ClaudeSubscriptionUnavailableError(
+          'the Claude token file failed the private-ownership checks'
+        );
+      }
+    } catch (error) {
+      this.removeProfile(principalId, profileId, 'claude');
+      throw error;
+    }
+    const previous = this.auth.principalSubscription(principalId, 'claude');
+    this.auth.setPrincipalSubscription({ principalId, provider: 'claude', profileId });
+    if (previous && previous.profileId !== profileId) {
+      this.removeProfile(principalId, previous.profileId, 'claude');
+    }
+    try {
+      await this.onConnected?.({ principalId, orgId: parsedOrgId, provider: 'claude' });
+    } catch {
+      // An observer cannot roll back a committed token.
+    }
+    return this.readClaudeStatus(principalId);
+  }
+
+  async disconnectClaude(principalIdInput: string, orgId: string): Promise<boolean> {
+    const principalId = principalIdSchema.parse(principalIdInput);
+    const parsedOrgId = organisationIdSchema.parse(orgId);
+    // Receipt first, like Codex: new runs fail closed from this point.
+    const receipt = this.auth.deletePrincipalSubscription(principalId, 'claude');
+    if (!receipt) return false;
+    this.removeProfile(principalId, receipt.profileId, 'claude');
+    try {
+      this.onDisconnected?.({ principalId, orgId: parsedOrgId, provider: 'claude' });
+    } catch {
+      // An observer cannot undo the local disconnect.
+    }
+    return true;
+  }
+
+  /**
+   * Synchronous launch-time resolver, like `codexProfileForRun`: the exact
+   * current generation or nothing, never a fallback to the host's login. The
+   * token is read here, once per launch, and handed to the coordinator for
+   * the child's environment only.
+   */
+  claudeProfileForRun(principalIdInput: string): ClaudeProfileForRun | null {
+    const principalId = principalIdSchema.parse(principalIdInput);
+    if (!this.profilesSupported) return null;
+    const receipt = this.auth.principalSubscription(principalId, 'claude');
+    if (!receipt || receipt.state !== 'connected' || !this.claudeProfileUsable(principalId, receipt)) {
+      return null;
+    }
+    const homePath = this.profilePath(principalId, receipt.profileId, 'claude');
+    let stored: string;
+    try {
+      stored = readFileSync(path.join(homePath, CLAUDE_TOKEN_FILENAME), 'utf8').trim();
+    } catch {
+      return null;
+    }
+    const token = claudeSubscriptionTokenSchema.safeParse(stored);
+    if (!token.success) return null;
+    return { profileId: receipt.profileId, homePath, profilesRoot: this.root, oauthToken: token.data };
   }
 
   async startCodexLogin(principalIdInput: string, orgId: string): Promise<CodexSubscriptionAttempt> {
@@ -501,7 +709,7 @@ export class AccountSubscriptionService {
     }
     await this.removeProfileWhenIdle(principalId, receipt.profileId);
     try {
-      this.onDisconnected?.({ principalId, orgId: parsedOrgId });
+      this.onDisconnected?.({ principalId, orgId: parsedOrgId, provider: 'codex' });
     } catch {
       // An observer cannot undo the local disconnect or leak its credential.
     }
@@ -693,13 +901,74 @@ export class AccountSubscriptionService {
     }
   }
 
+  /**
+   * Local, no subprocess: the receipt and the private token file decide. A
+   * token that upstream has since revoked surfaces at the first call of the
+   * next run, as the CLI's own refusal, exactly as for the host's login.
+   */
+  private readClaudeStatus(principalId: string): AccountSubscriptionStatus {
+    const receipt = this.auth.principalSubscription(principalId, 'claude');
+    if (!this.profilesSupported) {
+      return receipt
+        ? this.receiptStatus(receipt, 'unavailable', 'profile-permissions-unsupported')
+        : {
+            provider: 'claude',
+            state: 'unavailable',
+            connectedAt: null,
+            lastVerifiedAt: null,
+            reason: 'profile-permissions-unsupported',
+          };
+    }
+    if (!receipt) return this.disconnectedStatus('claude');
+    if (!this.claudeProfileUsable(principalId, receipt)) {
+      const marked = this.auth.markPrincipalSubscriptionVerified(
+        principalId,
+        'claude',
+        'reauth_required',
+        receipt.profileId
+      );
+      return marked
+        ? this.receiptStatus(marked, 'reauth_required', 'authentication-required')
+        : this.disconnectedStatus('claude');
+    }
+    return this.currentReceiptStatus(receipt);
+  }
+
+  private claudeProfileUsable(principalId: string, receipt: PrincipalSubscriptionReceipt): boolean {
+    if (receipt.principalId !== principalId || receipt.provider !== 'claude') return false;
+    const profilePath = this.profilePath(principalId, receipt.profileId, 'claude');
+    return (
+      this.profileDirectoriesUsable(principalId, receipt.profileId, 'claude') &&
+      privateCredentialFile(path.join(profilePath, CLAUDE_TOKEN_FILENAME))
+    );
+  }
+
+  /** Create-exclusive, 0600 from the first byte, never through a link. */
+  private writeClaudeToken(profilePath: string, token: string): void {
+    const target = path.join(profilePath, CLAUDE_TOKEN_FILENAME);
+    const descriptor = openSync(
+      target,
+      constants.O_WRONLY |
+        constants.O_CREAT |
+        constants.O_EXCL |
+        (process.platform === 'win32' ? 0 : constants.O_NOFOLLOW),
+      0o600
+    );
+    try {
+      writeSync(descriptor, `${token}\n`);
+      if (process.platform !== 'win32') fchmodSync(descriptor, 0o600);
+    } finally {
+      closeSync(descriptor);
+    }
+  }
+
   private receiptStatus(
     receipt: PrincipalSubscriptionReceipt,
     state: AccountSubscriptionStatus['state'],
     reason: AccountSubscriptionReason | null
   ): AccountSubscriptionStatus {
     return {
-      provider: 'codex',
+      provider: receipt.provider,
       state,
       connectedAt: receipt.connectedAt,
       lastVerifiedAt: receipt.lastVerifiedAt,
@@ -707,9 +976,9 @@ export class AccountSubscriptionService {
     };
   }
 
-  private disconnectedStatus(): AccountSubscriptionStatus {
+  private disconnectedStatus(provider: AccountSubscriptionProvider = 'codex'): AccountSubscriptionStatus {
     return {
-      provider: 'codex',
+      provider,
       state: 'disconnected',
       connectedAt: null,
       lastVerifiedAt: null,
@@ -787,7 +1056,11 @@ export class AccountSubscriptionService {
         await this.removeProfileWhenIdle(attempt.principalId, previous.profileId);
       }
       try {
-        await this.onConnected?.({ principalId: attempt.principalId, orgId: attempt.orgId });
+        await this.onConnected?.({
+          principalId: attempt.principalId,
+          orgId: attempt.orgId,
+          provider: 'codex',
+        });
       } catch {
         // An observer cannot roll back a completed provider-owned login.
       }
@@ -897,10 +1170,14 @@ export class AccountSubscriptionService {
     });
   }
 
-  private profilePath(principalIdInput: string, profileIdInput: string): string {
+  private profilePath(
+    principalIdInput: string,
+    profileIdInput: string,
+    provider: AccountSubscriptionProvider = 'codex'
+  ): string {
     const principalId = principalIdSchema.parse(principalIdInput);
     const profileId = accountSubscriptionProfileIdSchema.parse(profileIdInput);
-    const candidate = path.resolve(this.root, principalId, 'codex', profileId);
+    const candidate = path.resolve(this.root, principalId, provider, profileId);
     const prefix = `${this.root}${path.sep}`;
     if (!candidate.startsWith(prefix)) throw new Error('account profile escaped its root');
     return candidate;
@@ -915,11 +1192,15 @@ export class AccountSubscriptionService {
     );
   }
 
-  private removeProfile(principalId: string, profileId: string): void {
+  private removeProfile(
+    principalId: string,
+    profileId: string,
+    provider: AccountSubscriptionProvider = 'codex'
+  ): void {
     if (!this.profilesSupported) return;
-    const target = this.profilePath(principalId, profileId);
+    const target = this.profilePath(principalId, profileId, provider);
     const principalPath = path.join(this.root, principalId);
-    const providerPath = path.join(principalPath, 'codex');
+    const providerPath = path.join(principalPath, provider);
     try {
       // Never traverse a replaced parent link during cleanup. Leaving an
       // unreachable staging generation is safer than deleting outside root.
@@ -1000,11 +1281,15 @@ export class AccountSubscriptionService {
     }
   }
 
-  private profileDirectoriesUsable(principalId: string, profileId: string): boolean {
+  private profileDirectoriesUsable(
+    principalId: string,
+    profileId: string,
+    provider: AccountSubscriptionProvider = 'codex'
+  ): boolean {
     if (!this.profilesSupported) return false;
     const principalPath = path.join(this.root, principalId);
-    const providerPath = path.join(principalPath, 'codex');
-    const profilePath = this.profilePath(principalId, profileId);
+    const providerPath = path.join(principalPath, provider);
+    const profilePath = this.profilePath(principalId, profileId, provider);
     try {
       return (
         privateDirectory(this.root) &&
@@ -1024,14 +1309,18 @@ export class AccountSubscriptionService {
    * generation survive, and unsafe parent links stop traversal altogether.
    */
   private reconcileProfiles(): void {
+    const providers: readonly AccountSubscriptionProvider[] = ['codex', 'claude'];
     const referenced = new Map<string, Set<string>>();
     try {
       for (const principal of this.auth.listPrincipals()) {
-        const receipt = this.auth.principalSubscription(principal.principalId, 'codex');
-        if (!receipt) continue;
-        const profiles = referenced.get(principal.principalId) ?? new Set<string>();
-        profiles.add(receipt.profileId);
-        referenced.set(principal.principalId, profiles);
+        for (const provider of providers) {
+          const receipt = this.auth.principalSubscription(principal.principalId, provider);
+          if (!receipt) continue;
+          const key = `${principal.principalId}/${provider}`;
+          const profiles = referenced.get(key) ?? new Set<string>();
+          profiles.add(receipt.profileId);
+          referenced.set(key, profiles);
+        }
       }
     } catch {
       // If the store cannot prove the complete reference set, preserve every
@@ -1052,33 +1341,42 @@ export class AccountSubscriptionService {
         continue;
       }
       const principalPath = path.join(this.root, principal.data);
-      const providerPath = path.join(principalPath, 'codex');
-      if (!privateDirectory(principalPath) || !privateDirectory(providerPath)) continue;
-      let generations: Dirent[];
-      try {
-        generations = readdirSync(providerPath, { withFileTypes: true });
-      } catch {
-        continue;
-      }
-      for (const generation of generations) {
-        const profileId = accountSubscriptionProfileIdSchema.safeParse(generation.name);
-        if (!profileId.success) continue;
-        if (referenced.get(principal.data)?.has(profileId.data)) continue;
-        if (generation.isSymbolicLink() || !generation.isDirectory()) {
-          // No legitimate provider child can own a non-directory generation.
-          // Remove the exact entry without asking the lease path resolver to
-          // follow it or letting an unsafe orphan prevent server startup.
-          this.removeProfile(principal.data, profileId.data);
+      if (!privateDirectory(principalPath)) continue;
+      for (const provider of providers) {
+        const providerPath = path.join(principalPath, provider);
+        if (!privateDirectory(providerPath)) continue;
+        let generations: Dirent[];
+        try {
+          generations = readdirSync(providerPath, { withFileTypes: true });
+        } catch {
           continue;
         }
-        const release = tryAcquireCodexHomeLease(
-          this.profilePath(principal.data, profileId.data)
-        );
-        if (!release) continue;
-        try {
-          this.removeProfile(principal.data, profileId.data);
-        } finally {
-          release();
+        for (const generation of generations) {
+          const profileId = accountSubscriptionProfileIdSchema.safeParse(generation.name);
+          if (!profileId.success) continue;
+          if (referenced.get(`${principal.data}/${provider}`)?.has(profileId.data)) continue;
+          if (generation.isSymbolicLink() || !generation.isDirectory()) {
+            // No legitimate provider child can own a non-directory generation.
+            // Remove the exact entry without asking the lease path resolver to
+            // follow it or letting an unsafe orphan prevent server startup.
+            this.removeProfile(principal.data, profileId.data, provider);
+            continue;
+          }
+          if (provider === 'claude') {
+            // No provider process ever holds a Claude generation: the token is
+            // read at launch and travels in the child's environment.
+            this.removeProfile(principal.data, profileId.data, provider);
+            continue;
+          }
+          const release = tryAcquireCodexHomeLease(
+            this.profilePath(principal.data, profileId.data)
+          );
+          if (!release) continue;
+          try {
+            this.removeProfile(principal.data, profileId.data);
+          } finally {
+            release();
+          }
         }
       }
     }

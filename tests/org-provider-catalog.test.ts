@@ -10,7 +10,8 @@ import {
   chatGptSubscriptionModel,
   hostSubscriptionAlias,
   principalChatGptSubscriptionModel,
-  selectionsMixCodexOwners,
+  principalClaudeAlias,
+  selectionsMixSubscriptionOwners,
 } from '../src/contracts/runPayers.js';
 import { transportOf, parseModelSelector } from '../src/contracts/modelSelector.js';
 import { TIERS } from '../src/contracts/modelSelector.js';
@@ -19,6 +20,7 @@ import {
   operatorTierDefaults,
   pinForTier,
   principalChatGptStarterPins,
+  principalClaudeStarterPins,
 } from '../src/contracts/tierModels.js';
 import { pricesFor } from '../src/core/metrics.js';
 import {
@@ -34,6 +36,7 @@ import {
   HOST_SUBSCRIPTION_FAMILY,
   CHATGPT_SUBSCRIPTION_FAMILY,
   PRINCIPAL_CHATGPT_SUBSCRIPTION_FAMILY,
+  PRINCIPAL_CLAUDE_SUBSCRIPTION_FAMILY,
   HOST_SUBSCRIPTION_FAMILIES,
   isAccountTierSelection,
   llmProviderIds,
@@ -140,7 +143,7 @@ describe('the subscriptions are neighbours, not catalogue members', () => {
   it('stays out of the catalogue that decides what may hold a key', () => {
     const ids: string[] = [...llmProviderIds()];
     expect(ids).toEqual(['anthropic', 'openai', 'google', 'xai', 'meta', 'mistral', 'qwen', 'deepseek', 'moonshot', 'zai', 'ollama']);
-    for (const family of [HOST_SUBSCRIPTION_FAMILY, CHATGPT_SUBSCRIPTION_FAMILY, PRINCIPAL_CHATGPT_SUBSCRIPTION_FAMILY]) {
+    for (const family of [HOST_SUBSCRIPTION_FAMILY, CHATGPT_SUBSCRIPTION_FAMILY, PRINCIPAL_CHATGPT_SUBSCRIPTION_FAMILY, PRINCIPAL_CLAUDE_SUBSCRIPTION_FAMILY]) {
       expect(ids).not.toContain(String(family.id));
       expect(LLM_PROVIDER_CATALOG.map((entry) => entry.selectorPrefix)).not.toContain(family.selectorPrefix);
     }
@@ -225,8 +228,54 @@ describe('the subscriptions are neighbours, not catalogue members', () => {
     expect(tierModelSelectionLabel('own:openai:gpt-5.6-sol')).toBe(
       'ChatGPT (your subscription) — GPT-5.6 Sol'
     );
-    expect(selectionsMixCodexOwners(['sub:openai:gpt-5.6-sol', 'own:openai:gpt-5.6-terra'])).toBe(true);
-    expect(selectionsMixCodexOwners(['sub:anthropic:sonnet', 'own:openai:gpt-5.6-terra'])).toBe(false);
+    expect(selectionsMixSubscriptionOwners(['sub:openai:gpt-5.6-sol', 'own:openai:gpt-5.6-terra'], 'openai')).toBe(true);
+    expect(selectionsMixSubscriptionOwners(['sub:anthropic:sonnet', 'own:openai:gpt-5.6-terra'], 'openai')).toBe(false);
+  });
+
+  // BETA, owner decision 2026-10-08: a pasted `claude setup-token` token
+  // serves the same three aliases as the host's login, on the same transport.
+  it("keeps a requester's Claude Code token distinct from the host payer", () => {
+    expect(PRINCIPAL_CLAUDE_SUBSCRIPTION_FAMILY.id).toBe('own:anthropic');
+    expect(PRINCIPAL_CLAUDE_SUBSCRIPTION_FAMILY.models.map((model) => model.id)).toEqual([
+      'opus',
+      'sonnet',
+      'haiku',
+    ]);
+    // Account-only, like every login-bearing selector.
+    expect(isValidTierModelSelection('own:anthropic:sonnet')).toBe(false);
+    for (const tier of TIERS) expect(isAccountTierSelection('own:anthropic:sonnet', tier)).toBe(true);
+    expect(isAccountTierSelection('own:anthropic:gpt-5.6-sol')).toBe(false);
+    expect(principalClaudeAlias('own:anthropic:opus')).toBe('opus');
+    expect(principalClaudeAlias('own:anthropic:gpt')).toBeNull();
+    expect(principalClaudeAlias('sub:anthropic:opus')).toBeNull();
+    expect(transportOf(parseModelSelector('own:anthropic:sonnet'))).toBe('claude-cli');
+    expect(tierModelSelectionLabel('own:anthropic:sonnet')).toBe(
+      'Claude (your subscription) — Sonnet'
+    );
+    // One token per Claude Code process: host and personal never share a run.
+    expect(selectionsMixSubscriptionOwners(['sub:anthropic:sonnet', 'own:anthropic:opus'], 'anthropic')).toBe(true);
+    expect(selectionsMixSubscriptionOwners(['sub:anthropic:sonnet', 'own:openai:gpt-5.6-terra'], 'anthropic')).toBe(false);
+    expect(selectionsMixSubscriptionOwners(['own:anthropic:haiku', 'own:openai:gpt-5.6-terra'], 'anthropic')).toBe(false);
+    const family = PRINCIPAL_CLAUDE_SUBSCRIPTION_FAMILY as unknown as VizLlmCatalogEntry;
+    expect(
+      providerIsUnlocked(family, new Set(), {
+        billedKeyReady: false,
+        ollamaAvailable: false,
+        personalSubscriptions: { claude: true, codex: false },
+        personalClaudeState: 'connected',
+      })
+    ).toBe(true);
+    for (const state of ['disconnected', 'reauth_required', 'unavailable', 'error'] as const) {
+      expect(
+        providerIsUnlocked(family, new Set(), {
+          billedKeyReady: true,
+          ollamaAvailable: true,
+          personalSubscriptions: { claude: true, codex: true },
+          personalClaudeState: state,
+        }),
+        state
+      ).toBe(false);
+    }
   });
 });
 
@@ -247,7 +296,21 @@ describe('the starter gradient armed on an unconfigured account', () => {
     }
     // Never the host's login: an automatic pin may only spend the requester's.
     expect(Object.values(pins).every((value) => principalChatGptSubscriptionModel(value!))).toBe(true);
-    expect(selectionsMixCodexOwners(Object.values(pins))).toBe(false);
+    expect(selectionsMixSubscriptionOwners(Object.values(pins), 'openai')).toBe(false);
+  });
+
+  it('lays the Claude Code aliases out cheapest-first on the requester OWN login', () => {
+    const pins = principalClaudeStarterPins();
+    expect(pins).toEqual({
+      l1: 'own:anthropic:haiku',
+      l2: 'own:anthropic:sonnet',
+      l3: 'own:anthropic:opus',
+    });
+    for (const tier of TIERS) {
+      expect(isAccountTierSelection(pinForTier(pins, tier)!, tier)).toBe(true);
+    }
+    expect(Object.values(pins).every((value) => principalClaudeAlias(value!))).toBe(true);
+    expect(selectionsMixSubscriptionOwners(Object.values(pins), 'anthropic')).toBe(false);
     // The same provider default has the same price on each tier.
     const outputs = TIERS.map((tier) => pricesFor(pinForTier(pins, tier)!).output);
     expect(outputs).toEqual([...outputs].sort((a, b) => a - b));

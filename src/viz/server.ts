@@ -37,10 +37,11 @@ import {
   ledgerTouchesSubscription,
   principalSubscriptionSummary,
   runPayerDetail,
-  selectionsMixCodexOwners,
+  selectionsMixSubscriptionOwners,
 } from '../contracts/runPayers.js';
+import { tryParseModelSelector } from '../contracts/modelSelector.js';
 import { operatorTierDefaults } from '../contracts/tierModels.js';
-import { armStarterChatGptPins } from '../auth/accountModels.js';
+import { armStarterChatGptPins, armStarterClaudePins } from '../auth/accountModels.js';
 import {
   ORG_ROLES,
   sha256Hex,
@@ -61,6 +62,8 @@ import {
 import {
   AccountSubscriptionService,
   ACCOUNT_PROFILES_ROOT_ENV,
+  ClaudeSubscriptionTokenError,
+  ClaudeSubscriptionUnavailableError,
   CodexSubscriptionCapacityError,
   CodexSubscriptionConflictError,
   CodexSubscriptionUnavailableError,
@@ -574,35 +577,40 @@ const ACCOUNT_SUBSCRIPTIONS: AccountSubscriptionService | null = AUTH?.store
       ...(process.env[ACCOUNT_PROFILES_ROOT_ENV]?.trim()
         ? { profilesRoot: process.env[ACCOUNT_PROFILES_ROOT_ENV].trim() }
         : {}),
-      onConnected: async ({ principalId, orgId }) => {
+      onConnected: async ({ principalId, orgId, provider }) => {
+        const label = provider === 'claude' ? 'Claude' : 'Codex';
         emit({
           kind: 'principal.subscription_connected',
           actorType: 'principal',
           actorId: principalId,
           orgId,
-          summary: 'Personal Codex subscription connected',
-          detail: { provider: 'codex' },
+          summary: `Personal ${label} subscription connected`,
+          detail: { provider },
         });
         try {
-          const inventory = await ACCOUNT_SUBSCRIPTIONS?.codexModels(principalId);
-          const defaultModel = inventory?.state === 'ready'
-            ? inventory.models.find((model) => model.isDefault)?.id : undefined;
-          armStarterChatGptPins(AUTH.store!, { principalId, orgId }, process.env, emit, defaultModel);
+          if (provider === 'claude') {
+            armStarterClaudePins(AUTH.store!, { principalId, orgId }, process.env, emit);
+          } else {
+            const inventory = await ACCOUNT_SUBSCRIPTIONS?.codexModels(principalId);
+            const defaultModel = inventory?.state === 'ready'
+              ? inventory.models.find((model) => model.isDefault)?.id : undefined;
+            armStarterChatGptPins(AUTH.store!, { principalId, orgId }, process.env, emit, defaultModel);
+          }
         } catch (error) {
           // A convenience, never a precondition: a failed write leaves the
           // member exactly where a connected subscription without pins
           // already leaves them, choosing their models in Settings.
-          console.error('[viz subscriptions] could not arm the starter ChatGPT pins', error);
+          console.error(`[viz subscriptions] could not arm the starter ${label} pins`, error);
         }
       },
-      onDisconnected: ({ principalId, orgId }) => {
+      onDisconnected: ({ principalId, orgId, provider }) => {
         emit({
           kind: 'principal.subscription_disconnected',
           actorType: 'principal',
           actorId: principalId,
           orgId,
-          summary: 'Personal Codex subscription disconnected',
-          detail: { provider: 'codex' },
+          summary: `Personal ${provider === 'claude' ? 'Claude' : 'Codex'} subscription disconnected`,
+          detail: { provider },
         });
       },
     })
@@ -888,6 +896,8 @@ const PROJECTS_RUNTIME: ProjectsRuntime | null = (() => {
           principalCodexProfileFor: (principalId: string) =>
             ACCOUNT_SUBSCRIPTIONS.codexProfileForRun(principalId),
           principalCodexModelsFor: (principalId: string) => ACCOUNT_SUBSCRIPTIONS.codexModels(principalId, true),
+          principalClaudeProfileFor: (principalId: string) =>
+            ACCOUNT_SUBSCRIPTIONS.claudeProfileForRun(principalId),
         }
       : {}),
     // A run billed to a host or requester login is journaled, never pushed.
@@ -1743,6 +1753,18 @@ function namesPrincipalSubscription(pins: unknown): boolean {
 
 function isAnyAccountSubscriptionSelection(value: string): boolean {
   return isHostSubscriptionSelection(value) || isPrincipalSubscriptionSelection(value);
+}
+
+/** The vendors whose personal login a submitted pin set names, so each is checked against its own profile. */
+function principalSubscriptionVendors(pins: unknown): Set<string> {
+  const vendors = new Set<string>();
+  if (!pins || typeof pins !== 'object') return vendors;
+  for (const value of Object.values(pins as Record<string, unknown>)) {
+    if (typeof value !== 'string') continue;
+    const selector = tryParseModelSelector(value);
+    if (selector?.mode === 'own') vendors.add(selector.vendor);
+  }
+  return vendors;
 }
 
 /** The tiers a saved pin set arms the subscription on, in tier order. */
@@ -3031,10 +3053,12 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
           codex:
             roleAtLeast(viewer.role, 'org:member') &&
             Boolean(ACCOUNT_SUBSCRIPTIONS?.codexProfileForRun(viewer.principalId)),
-          // Anthropic requires prior approval before a third-party product may
-          // offer claude.ai subscription login. Keep the capability explicit
-          // and server-owned; the client cannot turn it on.
-          claude: false,
+          // BETA (owner decision 2026-10-08): a pasted Claude Code token,
+          // offered without the provider approval Anthropic's terms ask for.
+          // Server-owned: true only while a usable generation exists.
+          claude:
+            roleAtLeast(viewer.role, 'org:member') &&
+            Boolean(ACCOUNT_SUBSCRIPTIONS?.claudeProfileForRun(viewer.principalId)),
         },
         ...(offers ? { hostSubscriptions: offers } : {}),
         // Compatibility for a cached pre-upgrade client: it can still show
@@ -3124,6 +3148,72 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
       if (!sameOrigin(req, res)) return;
       sendJson(res, 200, {
         cancelled: await ACCOUNT_SUBSCRIPTIONS.cancelCodexLogin(viewer.principalId),
+      });
+      return;
+    }
+
+    if (pathname === '/api/account/subscriptions/claude') {
+      if (!roleAtLeast(viewer.role, 'org:member')) {
+        sendJson(res, 403, { error: 'org:member role or above is required' });
+        return;
+      }
+      if (!ACCOUNT_SUBSCRIPTIONS) {
+        sendJson(res, 503, { error: 'personal subscriptions are unavailable' });
+        return;
+      }
+      if (req.method !== 'POST' && !methodAllowed(req, res, 'DELETE')) return;
+      if (!sameOrigin(req, res)) return;
+      // A run child already holds this principal's token in its environment
+      // and its config dir on disk: neither may be replaced or removed under
+      // it. The same rule as the Codex disconnect, applied to both verbs.
+      if (PROJECTS_RUNTIME?.coordinator.hasActiveRunForPrincipal(viewer.principalId)) {
+        sendJson(res, 409, {
+          error: 'cancel the active run before changing its Claude subscription',
+        });
+        return;
+      }
+      if (req.method === 'POST') {
+        // Rate-limited like a login: a pasted token spawns a CLI probe.
+        const rate = acceptLoginAttempt(req, AUTH_RUNTIME!.trustedProxies);
+        if (!rate.accepted) {
+          res.setHeader('retry-after', String(rate.retryAfterSeconds));
+          sendJson(res, 429, { error: 'too many login attempts' });
+          return;
+        }
+        let body: unknown;
+        try {
+          body = JSON.parse((await readBodyBounded(req, 4_096)).toString('utf8') || '{}');
+        } catch {
+          sendJson(res, 400, { error: 'request body is not valid JSON' });
+          return;
+        }
+        try {
+          sendJson(
+            res,
+            200,
+            await ACCOUNT_SUBSCRIPTIONS.connectClaude(
+              viewer.principalId,
+              viewer.orgId,
+              (body as { token?: unknown })?.token
+            )
+          );
+        } catch (error) {
+          if (error instanceof ClaudeSubscriptionTokenError) {
+            sendJson(res, 400, { error: error.message });
+          } else if (error instanceof ClaudeSubscriptionUnavailableError) {
+            sendJson(res, 503, { error: 'Claude Code CLI is unavailable on this deployment' });
+          } else {
+            console.error('[viz subscriptions] Claude connect failed', error);
+            sendJson(res, 502, { error: 'Claude connection could not be completed' });
+          }
+        }
+        return;
+      }
+      sendJson(res, 200, {
+        disconnected: await ACCOUNT_SUBSCRIPTIONS.disconnectClaude(
+          viewer.principalId,
+          viewer.orgId
+        ),
       });
       return;
     }
@@ -3226,24 +3316,36 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
             });
             return;
           }
-          if (!ACCOUNT_SUBSCRIPTIONS?.codexProfileForRun(viewer.principalId)) {
+          const vendors = principalSubscriptionVendors(requested);
+          if (vendors.has('openai') && !ACCOUNT_SUBSCRIPTIONS?.codexProfileForRun(viewer.principalId)) {
             sendJson(res, 409, {
               error: 'connect your Codex subscription before selecting it for a tier',
             });
             return;
           }
+          if (vendors.has('anthropic') && !ACCOUNT_SUBSCRIPTIONS?.claudeProfileForRun(viewer.principalId)) {
+            sendJson(res, 409, {
+              error: 'connect your Claude subscription before selecting it for a tier',
+            });
+            return;
+          }
         }
-        if (
-          requested &&
-          typeof requested === 'object' &&
-          selectionsMixCodexOwners(Object.values(requested as Record<string, unknown>).map(
+        if (requested && typeof requested === 'object') {
+          const values = Object.values(requested as Record<string, unknown>).map(
             (value) => typeof value === 'string' ? value : null
-          ))
-        ) {
-          sendJson(res, 409, {
-            error: 'one account pin set cannot mix host and personal ChatGPT subscriptions',
-          });
-          return;
+          );
+          if (selectionsMixSubscriptionOwners(values, 'openai')) {
+            sendJson(res, 409, {
+              error: 'one account pin set cannot mix host and personal ChatGPT subscriptions',
+            });
+            return;
+          }
+          if (selectionsMixSubscriptionOwners(values, 'anthropic')) {
+            sendJson(res, 409, {
+              error: 'one account pin set cannot mix host and personal Claude subscriptions',
+            });
+            return;
+          }
         }
         const before = authStore.modelPins(viewer.principalId);
         if (requested && typeof requested === 'object') {

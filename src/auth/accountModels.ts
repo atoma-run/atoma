@@ -4,6 +4,7 @@ import {
   everyTierUnresolved,
   operatorTierDefaults,
   principalChatGptStarterPins,
+  principalClaudeStarterPins,
   type TierModelPins,
 } from '../contracts/tierModels.js';
 import { isPrincipalSubscriptionSelection } from '../contracts/runPayers.js';
@@ -36,13 +37,40 @@ export function armStarterChatGptPins(
   emit: PlatformEventSink,
   defaultModel?: string
 ): TierModelPins | null {
+  if (!defaultModel) return null;
+  return armStarterPins(auth, principal, env, emit, principalChatGptStarterPins(defaultModel), 'Codex');
+}
+
+/**
+ * The same rule for a member's own Claude Code login. The gradient is static
+ * (`principalClaudeStarterPins`): the transport serves three aliases, so there
+ * is no per-account inventory to discover first.
+ */
+export function armStarterClaudePins(
+  auth: AuthStore,
+  principal: { readonly principalId: string; readonly orgId: string },
+  env: NodeJS.ProcessEnv,
+  emit: PlatformEventSink
+): TierModelPins | null {
+  return armStarterPins(auth, principal, env, emit, principalClaudeStarterPins(), 'Claude');
+}
+
+/** ONE arming rule, two providers: into emptiness only, journaled as a choice. */
+function armStarterPins(
+  auth: AuthStore,
+  principal: { readonly principalId: string; readonly orgId: string },
+  env: NodeJS.ProcessEnv,
+  emit: PlatformEventSink,
+  starter: TierModelPins,
+  providerLabel: 'Codex' | 'Claude'
+): TierModelPins | null {
   const unresolved = everyTierUnresolved({
     account: auth.modelPins(principal.principalId),
     org: auth.orgTierModels(principal.orgId),
     host: operatorTierDefaults(env),
   });
-  if (!unresolved || !defaultModel) return null;
-  const pins = auth.setModelPins(principal.principalId, principalChatGptStarterPins(defaultModel));
+  if (!unresolved) return null;
+  const pins = auth.setModelPins(principal.principalId, starter);
   const tiers = (['l1', 'l2', 'l3'] as const).filter((tier) => {
     const value = pins[tier];
     return typeof value === 'string' && isPrincipalSubscriptionSelection(value);
@@ -52,7 +80,7 @@ export function armStarterChatGptPins(
     actorType: 'principal',
     actorId: principal.principalId,
     orgId: principal.orgId,
-    summary: `Account subscription armed on ${tiers.join(', ')} by connecting a personal Codex subscription with no model configured on any tier`,
+    summary: `Account subscription armed on ${tiers.join(', ')} by connecting a personal ${providerLabel} subscription with no model configured on any tier`,
     detail: {
       tiers: [...tiers],
       selections: Object.fromEntries(tiers.map((tier) => [tier, pins[tier] as string])),

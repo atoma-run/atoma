@@ -193,6 +193,14 @@ export interface ProjectCoordinatorOptions {
   ) => PrincipalCodexProfile | null;
   readonly principalCodexModelsFor?: (principalId: string) => Promise<CodexModelInventory>;
   /**
+   * The requesting principal's CURRENT Claude Code token generation, asked at
+   * launch under the same fail-closed rule as the Codex resolver. Carries the
+   * token itself (see `PrincipalClaudeProfile`).
+   */
+  readonly principalClaudeProfileFor?: (
+    principalId: string
+  ) => PrincipalClaudeProfile | null;
+  /**
    * Observer fired when a run spends any CLI subscription (host or requesting
    * principal). The payer ledger distinguishes them; the caller journals it,
    * so there is one delivery path as with `onRunFinished`.
@@ -348,6 +356,20 @@ export interface PrincipalCodexProfile {
   readonly profilesRoot: string;
 }
 
+/**
+ * The requester's Claude Code generation. NOT secret-free: Claude Code reads
+ * its OAuth bearer from `CLAUDE_CODE_OAUTH_TOKEN`, so the token must cross
+ * into the child's allowlisted environment, exactly as a decrypted org key
+ * does. It is placed there and nowhere else.
+ */
+export interface PrincipalClaudeProfile {
+  readonly profileId: string;
+  /** Becomes the child's `CLAUDE_CONFIG_DIR`: the CLI's state stays in the generation. */
+  readonly homePath: string;
+  readonly profilesRoot: string;
+  readonly oauthToken: string;
+}
+
 const FORWARDED_HOST_ENV = [
   'PATH',
   'HOME',
@@ -477,7 +499,8 @@ function assertPrincipalSubscriptionPinIsHonourable(input: {
   readonly tier: TierNumber;
   readonly level: TierChainLevel;
   readonly vendor: ModelSelector['vendor'];
-  readonly profile: PrincipalCodexProfile | undefined;
+  readonly codexProfile: PrincipalCodexProfile | undefined;
+  readonly claudeProfile: PrincipalClaudeProfile | undefined;
 }): void {
   const where = tierPinVariable(input.tier);
   if (input.level !== 'account' && input.level !== 'run') {
@@ -486,14 +509,23 @@ function assertPrincipalSubscriptionPinIsHonourable(input: {
         "requesting member's own account pin may spend their subscription"
     );
   }
+  if (input.vendor === 'anthropic') {
+    // BETA (owner decision 2026-10-08): a pasted `claude setup-token` token,
+    // without the provider approval Anthropic's terms ask of a third party.
+    if (!input.claudeProfile) {
+      throw new ProjectRunConfigurationError(
+        `${where} names the requester's Claude subscription, but their Claude Code token is no ` +
+          'longer connected. Reconnect it in Settings or clear the pin'
+      );
+    }
+    return;
+  }
   if (input.vendor !== 'openai') {
-    // Anthropic requires prior approval before a third-party product may
-    // offer claude.ai login; until then `own:anthropic` has no transport.
     throw new ProjectRunConfigurationError(
-      `${where} names a personal Claude subscription, which this deployment cannot offer yet`
+      `${where} names a personal ${input.vendor} subscription, which has no transport`
     );
   }
-  if (!input.profile) {
+  if (!input.codexProfile) {
     throw new ProjectRunConfigurationError(
       `${where} names the requester's ChatGPT subscription, but their Codex account is no ` +
         'longer connected. Reconnect it in Settings or clear the pin'
@@ -568,6 +600,8 @@ export function projectRunEnvironment(input: {
   readonly subscriptionTransport?: { readonly principalId: string };
   /** Exact personal Codex generation resolved for the requesting principal. */
   readonly principalCodexProfile?: PrincipalCodexProfile;
+  /** Exact personal Claude Code generation resolved for the requesting principal. */
+  readonly principalClaudeProfile?: PrincipalClaudeProfile;
 }): ProjectRunEnvironment {
   const environment: NodeJS.ProcessEnv = {};
   for (const key of FORWARDED_HOST_ENV) {
@@ -635,7 +669,8 @@ export function projectRunEnvironment(input: {
             tier,
             level: candidate.level,
             vendor: selector.vendor,
-            profile: input.principalCodexProfile,
+            codexProfile: input.principalCodexProfile,
+            claudeProfile: input.principalClaudeProfile,
           });
           return 'take';
         }
@@ -731,7 +766,8 @@ export function projectRunEnvironment(input: {
     }
   }
 
-  if (principalSubscriptionTiers(payers).length > 0) {
+  const rows = [payers.l1, payers.l2, payers.l3];
+  if (rows.some((row) => row.provider === 'codex-cli' && row.payer === 'principal-subscription')) {
     if (!input.principalCodexProfile) {
       // Kept next to the environment mutation as a defensive invariant even
       // though the candidate gate above already refuses this state.
@@ -739,11 +775,7 @@ export function projectRunEnvironment(input: {
         "the requester's Codex profile disappeared while constructing the run"
       );
     }
-    if (
-      [payers.l1, payers.l2, payers.l3].some(
-        (row) => row.provider === 'codex-cli' && row.payer === 'host-subscription'
-      )
-    ) {
+    if (rows.some((row) => row.provider === 'codex-cli' && row.payer === 'host-subscription')) {
       throw new ProjectRunConfigurationError(
         'one run cannot mix the host and requester ChatGPT subscriptions because Codex has ' +
           'one credential home per process'
@@ -754,6 +786,27 @@ export function projectRunEnvironment(input: {
     environment[PERSONAL_CODEX_PROFILE_ROOT_ENV] = path.resolve(
       input.principalCodexProfile.profilesRoot
     );
+  }
+  if (rows.some((row) => row.provider === 'claude-cli' && row.payer === 'principal-subscription')) {
+    if (!input.principalClaudeProfile) {
+      throw new ProjectRunConfigurationError(
+        "the requester's Claude Code profile disappeared while constructing the run"
+      );
+    }
+    if (rows.some((row) => row.provider === 'claude-cli' && row.payer === 'host-subscription')) {
+      // ONE token per Claude Code process: `subscriptionTransportEnv` hands
+      // every claude-cli tier the same environment, so a host tier beside a
+      // personal one would silently bill the member for the operator's tier.
+      throw new ProjectRunConfigurationError(
+        'one run cannot mix the host and requester Claude subscriptions because Claude Code ' +
+          'reads one token per process'
+      );
+    }
+    // THE PAYER, as an environment value: Claude Code prefers this bearer
+    // over any stored login, and the config dir keeps its state in the
+    // generation instead of the service account's home.
+    environment['CLAUDE_CODE_OAUTH_TOKEN'] = input.principalClaudeProfile.oauthToken;
+    environment['CLAUDE_CONFIG_DIR'] = path.resolve(input.principalClaudeProfile.homePath);
   }
   if (ledgerTouchesSubscription(payers)) {
     // A GATEWAY AND A SUBSCRIPTION DO NOT SHARE A RUN. `ANTHROPIC_BASE_URL`
@@ -1158,6 +1211,9 @@ export class ProjectRunCoordinator {
   private readonly principalCodexProfileFor?: (
     principalId: string
   ) => PrincipalCodexProfile | null;
+  private readonly principalClaudeProfileFor?: (
+    principalId: string
+  ) => PrincipalClaudeProfile | null;
   private readonly onSubscriptionTransport?: (info: SubscriptionTransportUse) => void;
   private readonly describeDeliveredPreview?: (input: DeliveredPreviewSubject) => void;
   private readonly runTitler?: RunTitler;
@@ -1197,6 +1253,9 @@ export class ProjectRunCoordinator {
     if (options.principalCodexProfileFor) {
       this.principalCodexProfileFor = options.principalCodexProfileFor;
     }
+    if (options.principalClaudeProfileFor) {
+      this.principalClaudeProfileFor = options.principalClaudeProfileFor;
+    }
     if (options.onSubscriptionTransport) {
       this.onSubscriptionTransport = options.onSubscriptionTransport;
     }
@@ -1234,12 +1293,14 @@ export class ProjectRunCoordinator {
     skillsPath: string; artifactManifestPath: string; runModels?: RunTierModels;
   }) {
     const principalCodexProfile = this.resolvePrincipalCodexProfile(input.principalId);
+    const principalClaudeProfile = this.resolvePrincipalClaudeProfile(input.principalId);
     const built = projectRunEnvironment({ ...input, hostEnv: this.hostEnv, dbPath: this.dbPath,
       tierModels: this.resolveTierModels(input.principalId), orgTierModels: this.resolveOrgTierModels(input.orgId),
       orgProviderKeys: this.resolveOrgProviderKeys(input.orgId),
-      subscriptionTransport: this.resolveSubscriptionGrant(input.principalId, input.orgId), principalCodexProfile });
+      subscriptionTransport: this.resolveSubscriptionGrant(input.principalId, input.orgId),
+      principalCodexProfile, principalClaudeProfile });
     assertServedHostChatGptModels(Object.values(built.payers).map(row => row.selection));
-    return { built, principalCodexProfile };
+    return { built, principalCodexProfile, principalClaudeProfile };
   }
 
   /** No lease, row, directory, provider request or model discovery is created here. */
@@ -1381,6 +1442,21 @@ export class ProjectRunCoordinator {
     } catch {
       process.stderr.write(
         `[atoma projects] personal Codex profile lookup failed for ${principalId}; refusing personal subscription pins\n`
+      );
+      return undefined;
+    }
+  }
+
+  /** Same fail-closed rule for the Claude Code token generation. */
+  private resolvePrincipalClaudeProfile(
+    principalId: string
+  ): PrincipalClaudeProfile | undefined {
+    if (!this.principalClaudeProfileFor) return undefined;
+    try {
+      return this.principalClaudeProfileFor(principalId) ?? undefined;
+    } catch {
+      process.stderr.write(
+        `[atoma projects] personal Claude profile lookup failed for ${principalId}; refusing personal subscription pins\n`
       );
       return undefined;
     }
@@ -1657,7 +1733,7 @@ export class ProjectRunCoordinator {
     };
     let environment: NodeJS.ProcessEnv;
     try {
-      const { built, principalCodexProfile } = this.configuredEnvironment({
+      const { built, principalCodexProfile, principalClaudeProfile } = this.configuredEnvironment({
         principalId: input.principalId,
         workspacePath: paths.workspacePath,
         runsPath: paths.runsPath,
@@ -1672,16 +1748,25 @@ export class ProjectRunCoordinator {
       environment = built.environment;
       // Before anything spends: a pin to a slug the host subscription stopped
       // serving failed a minute in, its planner already paid (2026-09-28).
-      if (principalSubscriptionTiers(built.payers).length > 0) {
+      const payerRows = Object.values(built.payers);
+      if (payerRows.some((row) => row.provider === 'codex-cli' && row.payer === 'principal-subscription')) {
         if (!this.principalCodexModelsFor) {
           throw new ProjectRunConfigurationError('ChatGPT model discovery is unavailable. Refresh your models in Settings.');
         }
         const inventory = await this.principalCodexModelsFor(input.principalId);
-        assertPersonalCodexModels(Object.values(built.payers).map((row) => row.selection), inventory);
+        assertPersonalCodexModels(payerRows.map((row) => row.selection), inventory);
         if (this.resolvePrincipalCodexProfile(input.principalId)?.profileId !== principalCodexProfile?.profileId) {
           throw new ProjectRunConfigurationError('Your ChatGPT connection changed. Start the run again.');
         }
         environment[CODEX_MODEL_CAPABILITIES_ENV] = JSON.stringify(inventory.models);
+      }
+      if (payerRows.some((row) => row.provider === 'claude-cli' && row.payer === 'principal-subscription')) {
+        // No inventory to discover: the three aliases are static. Only the
+        // generation is re-asked, so a token replaced between the two
+        // resolutions cannot spend the one the row no longer names.
+        if (this.resolvePrincipalClaudeProfile(input.principalId)?.profileId !== principalClaudeProfile?.profileId) {
+          throw new ProjectRunConfigurationError('Your Claude connection changed. Start the run again.');
+        }
       }
       // FIRED FROM THE LEDGER, not from the host env. A run may now spend the
       // subscription on some tiers and a key on others, so "did this run touch

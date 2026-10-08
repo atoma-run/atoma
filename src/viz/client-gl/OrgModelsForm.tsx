@@ -3,24 +3,28 @@ import { useCallback, useEffect, useState, type KeyboardEvent, type ReactNode } 
 import { useQueryClient } from '@tanstack/react-query';
 import {
   CHATGPT_SUBSCRIPTION_FAMILY,
+  findProvider,
   HOST_SUBSCRIPTION_FAMILY,
   orgHasBilledProviderKey,
   orgProviderIsReady,
   PRINCIPAL_CHATGPT_SUBSCRIPTION_FAMILY,
+  PRINCIPAL_CLAUDE_SUBSCRIPTION_FAMILY,
   tierModelSelectionLabel,
 } from '../../core/providerCatalog.js';
 import { formatDate, formatDateTime } from '../client/date-format.js';
 import { api } from '../client/data-api.js';
+import { formatModelSelector, tryParseModelSelector } from '../../contracts/modelSelector.js';
 import {
-  chatGptSubscriptionModel,
-  principalChatGptSubscriptionModel,
+  CHATGPT_SUBSCRIPTION_MODELS,
+  HOST_SUBSCRIPTION_ALIASES,
 } from '../../contracts/runPayers.js';
 
-// The selector prefixes of the three subscription families, as the catalogue
+// The selector prefixes of the four subscription families, as the catalogue
 // states them — the form never spells a selector by hand.
 const HOST_CLAUDE_ID = HOST_SUBSCRIPTION_FAMILY.id;
 const HOST_CHATGPT_ID = CHATGPT_SUBSCRIPTION_FAMILY.id;
 const PERSONAL_CHATGPT_ID = PRINCIPAL_CHATGPT_SUBSCRIPTION_FAMILY.id;
+const PERSONAL_CLAUDE_ID = PRINCIPAL_CLAUDE_SUBSCRIPTION_FAMILY.id;
 import type {
   VizAccountModels,
   VizAccountSubscriptions,
@@ -249,18 +253,21 @@ export function OrgModelsForm({
     canUsePersonalSubscriptions && subscriptions.error === null
       ? subscriptions.data?.codex.state
       : undefined;
+  const personalClaudeState =
+    canUsePersonalSubscriptions && subscriptions.error === null
+      ? subscriptions.data?.claude.state
+      : undefined;
   const personalSubscriptionUsable =
-    account.personalSubscriptions?.codex === true && personalSubscriptionState === 'connected';
+    (account.personalSubscriptions?.codex === true && personalSubscriptionState === 'connected') ||
+    (account.personalSubscriptions?.claude === true && personalClaudeState === 'connected');
   const canPickAccountModels = canPickModels || personalSubscriptionUsable;
   const retainPersonalCodexFamily = Object.values(account.pins).some((selection) =>
     selection?.startsWith(`${PERSONAL_CHATGPT_ID}:`)
   );
-  const hostCodexSelected = Object.values(account.pins).some(
-    (selection) => Boolean(selection && chatGptSubscriptionModel(selection))
+  const retainPersonalClaudeFamily = Object.values(account.pins).some((selection) =>
+    selection?.startsWith(`${PERSONAL_CLAUDE_ID}:`)
   );
-  const personalCodexSelected = Object.values(account.pins).some(
-    (selection) => Boolean(selection && principalChatGptSubscriptionModel(selection))
-  );
+  const personalCodexModelIds = (account.personalCodexModels?.models ?? []).map((model) => model.id);
   const tierIds = ['l1', 'l2', 'l3'] as const;
 
   const inheritLabel = (tier: (typeof tierIds)[number]): string => {
@@ -432,13 +439,16 @@ export function OrgModelsForm({
               id={`accountmodel-${tier}`}
               className="gpu-dom-input gpu-dom-select"
               disabled={busy}
+              aria-describedby={`accountmodel-${tier}-origin`}
               value={account.pins[tier] ?? ''}
               onChange={(event) => {
                 const value = event.target.value === '' ? null : event.target.value;
                 if (!canPickAccountModels && value !== null) return;
                 if (value === null && !org.models[tier]) return;
                 void apply(
-                  () => api.saveAccountModels({ ...account.pins, [tier]: value }),
+                  () => api.saveAccountModels(
+                    reownSubscriptionPins(account.pins, tier, value, personalCodexModelIds)
+                  ),
                   'settings.saved'
                 );
               }}
@@ -453,11 +463,15 @@ export function OrgModelsForm({
                 personalSubscriptions: account.personalSubscriptions,
                 personalCodexModels: account.personalCodexModels,
                 personalSubscriptionState,
+                personalClaudeState,
                 retainPersonalCodexFamily,
-                hostCodexSelected,
-                personalCodexSelected,
+                retainPersonalClaudeFamily,
               }, index + 1 as 1 | 2 | 3)}
             </select>
+            <PinOrigin
+              id={`accountmodel-${tier}-origin`}
+              label={selectionOriginLabel(t, account.pins[tier] ?? org.models[tier], configuredProviders)}
+            />
           </div>
         ))}
 
@@ -480,6 +494,7 @@ export function OrgModelsForm({
               id={`orgmodel-${tier}`}
               className="gpu-dom-input gpu-dom-select"
               disabled={busy || !canManageOrg}
+              aria-describedby={`orgmodel-${tier}-origin`}
               value={org.models[tier] ?? ''}
               onChange={(event) => {
                 const value = event.target.value === '' ? null : event.target.value;
@@ -501,6 +516,10 @@ export function OrgModelsForm({
                 ollamaAvailable,
               }, index + 1 as 1 | 2 | 3)}
             </select>
+            <PinOrigin
+              id={`orgmodel-${tier}-origin`}
+              label={selectionOriginLabel(t, org.models[tier], configuredProviders)}
+            />
           </div>
         ))}
       </section>
@@ -533,6 +552,20 @@ export function OrgModelsForm({
             )
           }
           onCopyCodex={copyCodexCode}
+          onConnectClaude={(token) =>
+            applySubscription(
+              async () => {
+                await api.connectClaudeSubscription(token);
+              },
+              'settings.subscriptionClaudeConnected'
+            )
+          }
+          onDisconnectClaude={() =>
+            applySubscription(
+              api.disconnectClaudeSubscription,
+              'settings.subscriptionClaudeDisconnected'
+            )
+          }
         />
       </section>
 
@@ -647,6 +680,9 @@ export interface PersonalSubscriptionsPanelProps {
   readonly onCancelCodex: () => Promise<void>;
   readonly onDisconnectCodex: () => Promise<void>;
   readonly onCopyCodex: (code: string) => Promise<void>;
+  /** The pasted `claude setup-token` value; the panel clears its draft after the call. */
+  readonly onConnectClaude: (token: string) => Promise<void>;
+  readonly onDisconnectClaude: () => Promise<void>;
 }
 
 export function roleCanUsePersonalSubscriptions(role: string): boolean {
@@ -670,7 +706,34 @@ export function PersonalSubscriptionsPanel({
   onCancelCodex,
   onDisconnectCodex,
   onCopyCodex,
+  onConnectClaude,
+  onDisconnectClaude,
 }: PersonalSubscriptionsPanelProps) {
+  // The draft token lives only in this component, for the length of one
+  // paste: it is cleared the moment the call returns, success or refusal, so
+  // the secret never outlives the action in the DOM.
+  const [claudeToken, setClaudeToken] = useState('');
+  const claude = subscriptions?.claude ?? null;
+  const claudeConnected = claude?.state === 'connected';
+  const claudeUnavailable =
+    error !== null || claude?.state === 'unavailable' || claude?.state === 'error';
+  const claudeReconnect = claude?.state === 'reauth_required';
+  const claudeDisconnect =
+    claudeConnected ||
+    (Boolean(claude?.connectedAt) &&
+      (error !== null || claude?.state === 'error' || claude?.state === 'unavailable'));
+  const claudeReason = claude?.reason ?? null;
+  const displayedClaudeState = error
+    ? 'unavailable'
+    : loading && !claude
+      ? 'loading'
+      : (claude?.state ?? 'disconnected');
+  const submitClaude = (): void => {
+    const token = claudeToken.trim();
+    if (token.length === 0 || busy) return;
+    setClaudeToken('');
+    void onConnectClaude(token);
+  };
   const codex = subscriptions?.codex ?? null;
   const attempt = subscriptions?.codexAttempt ?? null;
   const connecting = codex?.state === 'connecting' || attempt?.state === 'connecting';
@@ -708,12 +771,73 @@ export function PersonalSubscriptionsPanel({
       <div className="gpu-subscription-grid">
         <article className="gpu-subscription-card">
           <div className="gpu-subscription-card-head">
-            <span className="gpu-subscription-name">{t('settings.subscriptionClaude')}</span>
-            <span className="gpu-subscription-state" data-state="unavailable">
-              {t('settings.subscriptionState.unavailable')}
+            <span className="gpu-subscription-name">
+              {t('settings.subscriptionClaude')}
+              <span className="gpu-subscription-beta">{t('settings.subscriptionClaudeBeta')}</span>
+            </span>
+            <span className="gpu-subscription-state" data-state={displayedClaudeState}>
+              {t(`settings.subscriptionState.${displayedClaudeState}`)}
             </span>
           </div>
-          <p>{t('settings.subscriptionClaudeApproval')}</p>
+          <p>{t('settings.subscriptionClaudeHint')}</p>
+
+          {claudeReason ? (
+            <p className="gpu-subscription-message" role="note">
+              {t(`settings.subscriptionReason.${claudeReason}`)}
+            </p>
+          ) : null}
+
+          {canUse && !claudeDisconnect && !claudeUnavailable ? (
+            <div className="gpu-subscription-token">
+              <label htmlFor="claude-subscription-token" className="gpu-subscription-token-label">
+                {t('settings.subscriptionClaudeTokenLabel')}
+              </label>
+              <input
+                id="claude-subscription-token"
+                className="gpu-dom-input gpu-subscription-token-input"
+                type="password"
+                name="claude-subscription-token"
+                autoComplete="off"
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
+                data-1p-ignore="true"
+                data-lpignore="true"
+                data-form-type="other"
+                placeholder={t('settings.subscriptionClaudeTokenPlaceholder')}
+                disabled={busy || loading}
+                value={claudeToken}
+                onChange={(event) => setClaudeToken(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    submitClaude();
+                  }
+                }}
+              />
+              <div className="gpu-subscription-actions">
+                <button
+                  type="button"
+                  disabled={busy || loading || claudeToken.trim().length === 0}
+                  onClick={submitClaude}
+                ><ButtonIcon kind="link" />
+                  {t(
+                    claudeReconnect
+                      ? 'settings.subscriptionReconnectClaude'
+                      : 'settings.subscriptionConnectClaude'
+                  )}
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {canUse && claudeDisconnect ? (
+            <div className="gpu-subscription-actions">
+              <button type="button" disabled={busy} onClick={() => void onDisconnectClaude()}><ButtonIcon kind="logout" />
+                {t('settings.subscriptionDisconnect')}
+              </button>
+            </div>
+          ) : null}
         </article>
 
         <article className="gpu-subscription-card">
@@ -804,6 +928,45 @@ export function PersonalSubscriptionsPanel({
 }
 
 /**
+ * WHO PAYS FOR A STORED SELECTION, in one line under the picker. A closed
+ * native select shows only the option text ("Haiku"), and its optgroup — the
+ * family that names the payer — only while the list is open (2026-10-08). The
+ * rule is the contract's (`payerForSelector`): the mode decides, and only an
+ * `api:` vendor needs the second fact, whether the organisation brought its key.
+ */
+export function selectionOriginLabel(
+  t: (key: string, vars?: Record<string, unknown>) => string,
+  value: string | null | undefined,
+  configuredProviders: ReadonlySet<string>
+): string | null {
+  if (!value) return null;
+  const selector = tryParseModelSelector(value);
+  if (!selector) return null;
+  if (selector.mode === 'sub') return t('settings.pinOrigin.host', { vendor: cliVendorLabel(selector.vendor) });
+  if (selector.mode === 'own') return t('settings.pinOrigin.own', { vendor: cliVendorLabel(selector.vendor) });
+  if (selector.vendor === 'ollama') return t('settings.pinOrigin.ollama');
+  const vendor = findProvider(selector.vendor)?.label ?? selector.vendor;
+  return t(
+    configuredProviders.has(selector.vendor) ? 'settings.pinOrigin.orgKey' : 'settings.pinOrigin.hostKey',
+    { vendor }
+  );
+}
+
+/** The product a CLI login belongs to, as the subscription cards name it. */
+function cliVendorLabel(vendor: string): string {
+  return vendor === 'anthropic' ? 'Claude' : vendor === 'openai' ? 'ChatGPT' : vendor;
+}
+
+/** The caption element keeps its id even when empty, so `aria-describedby` never dangles. */
+function PinOrigin({ id, label }: { readonly id: string; readonly label: string | null }) {
+  return (
+    <p id={id} className="gpu-org-models-origin" hidden={label === null}>
+      {label ?? ''}
+    </p>
+  );
+}
+
+/**
  * PURE, AND THAT IS THE POINT. Every unlock decision is computed here from
  * declared facts, so what the picker offers can be proven without a browser —
  * the browser smoke cannot run in CI, and "who may spend which payer" is not a
@@ -819,11 +982,10 @@ export interface CatalogueUnlocks {
   readonly personalSubscriptions?: VizAccountModels['personalSubscriptions'];
   /** Detailed state independently read from the account self-care endpoint. */
   readonly personalSubscriptionState?: VizAccountSubscriptions['codex']['state'];
+  readonly personalClaudeState?: VizAccountSubscriptions['claude']['state'];
   /** Keep a disconnected selected family visible so its pin can be cleared. */
   readonly retainPersonalCodexFamily?: boolean;
-  /** Hide choices that would mix two credential homes in one run process. */
-  readonly hostCodexSelected?: boolean;
-  readonly personalCodexSelected?: boolean;
+  readonly retainPersonalClaudeFamily?: boolean;
 }
 
 export function providerIsUnlocked(
@@ -848,6 +1010,10 @@ export function providerIsUnlocked(
       && opts.personalCodexModels?.state === 'ready'
     );
   }
+  if (provider.id === PERSONAL_CLAUDE_ID) {
+    // No inventory to discover: the family serves its three aliases.
+    return opts.personalSubscriptions?.claude === true && opts.personalClaudeState === 'connected';
+  }
   // NO BLANKET ADMIN UNLOCK. A platform admin picking a billed model still
   // needs the key that pays for it; the subscription is its own family, named.
   return (
@@ -871,11 +1037,7 @@ function catalogOptions(
     ...catalog,
     ...(opts.hostSubscriptions ?? []).map((subscription) => subscription.family),
     ...personalSubscriptionFamilies(opts),
-  ].filter((provider) => {
-    if (provider.id === HOST_CHATGPT_ID && opts.personalCodexSelected) return false;
-    if (provider.id === PERSONAL_CHATGPT_ID && opts.hostCodexSelected) return false;
-    return true;
-  });
+  ];
   const options = families.map((provider) => {
     // The honest label: ollama compute is the platform's, and where the
     // deployment declared no endpoint the family stays visible but locked —
@@ -883,7 +1045,8 @@ function catalogOptions(
     const isOllama = provider.id === 'ollama';
     const isSubscription =
       provider.id === HOST_CLAUDE_ID || provider.id === HOST_CHATGPT_ID;
-    const isPersonalSubscription = provider.id === PERSONAL_CHATGPT_ID;
+    const isPersonalSubscription =
+      provider.id === PERSONAL_CHATGPT_ID || provider.id === PERSONAL_CLAUDE_ID;
     const unlocked = providerIsUnlocked(provider, configuredProviders, opts);
     const label = isOllama
       ? t(opts.ollamaAvailable ? 'settings.ollamaHosted' : 'settings.ollamaUnavailable', {
@@ -929,12 +1092,64 @@ function catalogOptions(
   return options;
 }
 
-/** The personal Codex family appears when usable, or while one of its pins remains selected. */
+/**
+ * ONE OWNER PER VENDOR, IN ONE SAVE. A run process reads one credential —
+ * `CLAUDE_CODE_OAUTH_TOKEN`, one `CODEX_HOME` — so a pin set may not hold the
+ * host's login on one tier and the member's on another (the server refuses it
+ * with 409). The picker used to HIDE the other owner's family, which forced a
+ * member to empty every tier of that vendor before their own subscription even
+ * appeared (seen twice on 2026-10-08, Claude then ChatGPT). Both families are
+ * offered now, and choosing an owner on one tier carries the vendor's other
+ * tiers to that owner: the model is kept where the new owner serves it (the
+ * three Claude aliases always; a ChatGPT slug only when the host list or the
+ * member's discovered inventory has it) and is otherwise the model just
+ * chosen, which that owner serves by construction. Every moved selection is
+ * journaled by the save as a chosen pin.
+ */
+export function reownSubscriptionPins(
+  pins: { l1: string | null; l2: string | null; l3: string | null },
+  tier: 'l1' | 'l2' | 'l3',
+  value: string | null,
+  personalCodexModelIds: readonly string[]
+): { l1: string | null; l2: string | null; l3: string | null } {
+  const next = { ...pins, [tier]: value };
+  const chosen = value === null ? null : tryParseModelSelector(value);
+  if (!chosen || (chosen.mode !== 'sub' && chosen.mode !== 'own')) return next;
+  const serves = (model: string): boolean =>
+    chosen.vendor === 'anthropic'
+      ? (HOST_SUBSCRIPTION_ALIASES as readonly string[]).includes(model)
+      : chosen.mode === 'sub'
+        ? (CHATGPT_SUBSCRIPTION_MODELS as readonly string[]).includes(model)
+        : personalCodexModelIds.includes(model);
+  for (const other of ['l1', 'l2', 'l3'] as const) {
+    if (other === tier) continue;
+    const current = next[other];
+    const sibling = current ? tryParseModelSelector(current) : null;
+    if (!sibling || sibling.vendor !== chosen.vendor || sibling.mode === chosen.mode) continue;
+    if (sibling.mode !== 'sub' && sibling.mode !== 'own') continue;
+    next[other] = formatModelSelector({
+      mode: chosen.mode,
+      vendor: chosen.vendor,
+      model: serves(sibling.model) ? sibling.model : chosen.model,
+    });
+  }
+  return next;
+}
+
+/** A personal family appears when usable, or while one of its pins remains selected. */
 export function personalSubscriptionFamilies(opts: CatalogueUnlocks): VizLlmCatalogEntry[] {
-  if (opts.hostCodexSelected) return [];
-  if (!opts.personalSubscriptions?.codex && !opts.retainPersonalCodexFamily) return [];
-  return [{
-    ...PRINCIPAL_CHATGPT_SUBSCRIPTION_FAMILY,
-    models: (opts.personalCodexModels?.models ?? []).map((model) => ({ id: model.id, label: model.label })),
-  }];
+  const families: VizLlmCatalogEntry[] = [];
+  if (opts.personalSubscriptions?.claude || opts.retainPersonalClaudeFamily) {
+    families.push({
+      ...PRINCIPAL_CLAUDE_SUBSCRIPTION_FAMILY,
+      models: PRINCIPAL_CLAUDE_SUBSCRIPTION_FAMILY.models.map((model) => ({ id: model.id, label: model.label })),
+    });
+  }
+  if (opts.personalSubscriptions?.codex || opts.retainPersonalCodexFamily) {
+    families.push({
+      ...PRINCIPAL_CHATGPT_SUBSCRIPTION_FAMILY,
+      models: (opts.personalCodexModels?.models ?? []).map((model) => ({ id: model.id, label: model.label })),
+    });
+  }
+  return families;
 }

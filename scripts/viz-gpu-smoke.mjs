@@ -2102,7 +2102,7 @@ try {
         },
         // Settings mounts the subscription reader even on its General tab.
         '/api/account/subscriptions': {
-          claude: { provider: 'claude', state: 'unavailable', connectedAt: null, lastVerifiedAt: null, reason: 'provider-approval-required' },
+          claude: { provider: 'claude', state: 'disconnected', connectedAt: null, lastVerifiedAt: null, reason: null },
           codex: { provider: 'codex', state: 'disconnected', connectedAt: null, lastVerifiedAt: null, reason: null },
           codexAttempt: null,
         },

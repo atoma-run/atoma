@@ -308,6 +308,21 @@ export const PRINCIPAL_CHATGPT_SUBSCRIPTION_FAMILY: SubscriptionFamily = {
   models: [],
 };
 
+/**
+ * The signed-in requester's own Claude Code login, through the same CLI
+ * transport as the host's: the three aliases, never a dated generation, for
+ * the reason given on `HOST_SUBSCRIPTION_FAMILY`. Account-only. BETA — the
+ * token is pasted from `claude setup-token` (owner decision 2026-10-08).
+ */
+export const PRINCIPAL_CLAUDE_SUBSCRIPTION_FAMILY: SubscriptionFamily = {
+  id: 'own:anthropic',
+  selectorPrefix: 'own:anthropic',
+  label: 'Claude (your subscription)',
+  credentialEnvVar: null,
+  suggestive: false,
+  models: HOST_SUBSCRIPTION_ALIASES.map((alias) => ({ id: alias, label: aliasLabel(alias) })),
+};
+
 /** Every machine-bound family offered beside (never inside) the key catalogue. */
 export const HOST_SUBSCRIPTION_FAMILIES: readonly SubscriptionFamily[] = [
   HOST_SUBSCRIPTION_FAMILY,
@@ -372,6 +387,7 @@ function subscriptionFamilyOf(
     HOST_SUBSCRIPTION_FAMILY,
     CHATGPT_SUBSCRIPTION_FAMILY,
     PRINCIPAL_CHATGPT_SUBSCRIPTION_FAMILY,
+    PRINCIPAL_CLAUDE_SUBSCRIPTION_FAMILY,
   ].find((candidate) => candidate.selectorPrefix === `${selector.mode}:${selector.vendor}`);
   if (!family) return null;
   if (selector.mode === 'own' && selector.vendor === 'openai') return family;

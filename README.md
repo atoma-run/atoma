@@ -132,7 +132,7 @@ form `<api|sub|own>:<vendor>:<model>`, across Anthropic, OpenAI, Google
 DeepMind, xAI, Meta, Mistral, Alibaba Qwen, DeepSeek, Moonshot, Z.ai and a
 self-hosted Ollama: `api:` bills a key, `sub:` the host's Claude or ChatGPT subscription,
 and `own:` the member's own ChatGPT account, whose available models Settings
-lists. The operator can delegate the host subscription to named members without
+lists, or their own Claude Code token (beta). The operator can delegate the host subscription to named members without
 making them administrators. The offered models and their per-token prices are
 one versioned file, `src/core/modelCatalog.json`, kept current with
 `npm run models -- refresh`: prices are a dated history, so a vendor's change

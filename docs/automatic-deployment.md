@@ -318,11 +318,18 @@ For the optional host profile, sign in as the platform admin and choose:
 - L2: `ChatGPT (host subscription) — GPT-5.6-Terra`;
 - L3: `ChatGPT (host subscription) — GPT-5.6-Sol`.
 
-Claude CLI remains available as a separate host-subscription family. The
-Settings page does not offer personal Claude subscription login: Anthropic
-requires prior approval before a third-party product may offer `claude.ai`
-login or route Free/Pro/Max subscription credentials. The disabled card makes
-that boundary visible until such approval exists. See Anthropic's
+Claude CLI remains available as a separate host-subscription family. Since
+2026-10-08 the Settings page also offers a personal Claude connection, in
+BETA: a member runs `claude setup-token` on a machine where Claude Code is
+signed in with their subscription and pastes the long-lived token; the host
+keeps it in a private per-account profile and passes it to that member's runs
+as `CLAUDE_CODE_OAUTH_TOKEN`. The deployment therefore needs the `claude`
+binary on the service account's `PATH` for the connect probe
+(`claude auth status --json`) and for the runs. Anthropic requires prior
+approval before a third-party product routes `claude.ai` subscription
+credentials, and that approval has not been granted: the owner chose to ship
+the connection as a beta anyway
+([decision](personal-claude-beta-2026-10-08.md)). See Anthropic's
 [Agent SDK authentication boundary](https://code.claude.com/docs/en/agent-sdk#authentication)
 and [legal and compliance guidance](https://code.claude.com/docs/en/legal-and-compliance#authentication-and-credential-use).
 

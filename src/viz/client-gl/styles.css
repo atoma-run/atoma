@@ -1164,6 +1164,20 @@ html.atoma-cursor-active * {
   min-width: 0;
 }
 
+/* Who pays for the pin above it: a second grid row under the select, never
+   under the tier label. Hidden (not removed) when there is nothing to say, so
+   the select's aria-describedby keeps its target. */
+.gpu-org-models-origin {
+  grid-column: 2 / -1;
+  margin: -4px 0 0;
+  font: 12px/1.4 ui-sans-serif, system-ui, sans-serif;
+  color: #7f91ab;
+}
+
+.gpu-org-models-origin[hidden] {
+  display: none;
+}
+
 /* Nested fields must leave `position: fixed` — that containing block is the
    viewport, so `width: 100%` was the whole window (the overflow the Settings
    card could not clip). Same reset as the announce form. */
@@ -1355,6 +1369,36 @@ html.atoma-cursor-active * {
   opacity: .55;
 }
 
+.gpu-subscription-beta {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border: 1px solid rgba(250, 204, 21, .45);
+  border-radius: 999px;
+  color: #fde68a;
+  font: 700 10px/1.4 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.gpu-subscription-token {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(110, 168, 255, .16);
+}
+
+.gpu-subscription-token-label {
+  color: #9fb0c7;
+  font: 12px/1.4 ui-sans-serif, system-ui, sans-serif;
+}
+
+.gpu-org-models-form .gpu-subscription-token-input {
+  font: 12px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
 .gpu-org-directory {
   margin-top: 8px;
   padding-top: 12px;
@@ -1410,6 +1454,10 @@ html.atoma-cursor-active * {
   .gpu-org-models-row:has(.gpu-settings-actions) {
     grid-template-columns: minmax(0, 1fr);
     align-items: stretch;
+  }
+
+  .gpu-org-models-origin {
+    grid-column: 1 / -1;
   }
 
   .gpu-org-directory-facts {

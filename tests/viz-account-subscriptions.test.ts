@@ -6,13 +6,18 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 import { userEvent } from '@testing-library/user-event';
 import { createElement, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { PRINCIPAL_CHATGPT_SUBSCRIPTION_FAMILY } from '../src/core/providerCatalog.js';
+import {
+  PRINCIPAL_CHATGPT_SUBSCRIPTION_FAMILY,
+  PRINCIPAL_CLAUDE_SUBSCRIPTION_FAMILY,
+} from '../src/core/providerCatalog.js';
 import {
   OrgModelsForm,
   PersonalSubscriptionsPanel,
   personalSubscriptionFamilies,
   providerIsUnlocked,
+  reownSubscriptionPins,
   roleCanUsePersonalSubscriptions,
+  selectionOriginLabel,
   type PersonalSubscriptionsPanelProps,
 } from '../src/viz/client-gl/OrgModelsForm.js';
 import { api } from '../src/viz/client/data-api.js';
@@ -28,10 +33,10 @@ import type {
 const CONNECTING: VizAccountSubscriptions = {
   claude: {
     provider: 'claude',
-    state: 'unavailable',
+    state: 'disconnected',
     connectedAt: null,
     lastVerifiedAt: null,
-    reason: 'provider-approval-required',
+    reason: null,
   },
   codex: {
     provider: 'codex',
@@ -115,6 +120,8 @@ function panel(overrides: Partial<PersonalSubscriptionsPanelProps> = {}) {
     onCancelCodex: noop,
     onDisconnectCodex: noop,
     onCopyCodex: noop,
+    onConnectClaude: noop,
+    onDisconnectClaude: noop,
     ...overrides,
   };
   return render(createElement(PersonalSubscriptionsPanel, props));
@@ -166,7 +173,8 @@ describe('personal subscription settings', () => {
     panel({ onCopyCodex: copy, onCancelCodex: cancel });
 
     expect(screen.getByText('Claude')).toBeInTheDocument();
-    expect(screen.getByText('Personal Claude subscription login needs provider approval before Atoma can offer it here.')).toBeInTheDocument();
+    expect(screen.getByText('Beta')).toBeInTheDocument();
+    expect(screen.getByLabelText('Claude Code token')).toBeInTheDocument();
     expect(screen.getByText('ABCD-EFGH')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open sign-in page' })).toHaveAttribute(
       'href',
@@ -179,6 +187,64 @@ describe('personal subscription settings', () => {
     expect(cancel).toHaveBeenCalledOnce();
   });
 
+  // BETA, owner decision 2026-10-08: the Claude card takes a pasted
+  // `claude setup-token` token instead of a device flow.
+  it('connects a pasted Claude Code token and clears the draft at once', async () => {
+    const connect = vi.fn(async () => undefined);
+    const user = userEvent.setup();
+    panel({ subscriptions: DISCONNECTED, onConnectClaude: connect });
+
+    const input = screen.getByLabelText('Claude Code token');
+    expect(input).toHaveAttribute('type', 'password');
+    const button = screen.getByRole('button', { name: 'Connect Claude' });
+    expect(button).toBeDisabled();
+    await user.type(input, '  sk-ant-oat01-pasted-token  ');
+    expect(button).toBeEnabled();
+    await user.click(button);
+    expect(connect).toHaveBeenCalledWith('sk-ant-oat01-pasted-token');
+    // The secret never outlives the action in the DOM.
+    expect(input).toHaveValue('');
+    expect(screen.queryByRole('button', { name: 'Disconnect' })).not.toBeInTheDocument();
+  });
+
+  it('offers only disconnect for a connected Claude token, and reconnect after a lost one', async () => {
+    const disconnect = vi.fn(async () => undefined);
+    const user = userEvent.setup();
+    const { unmount } = panel({
+      subscriptions: {
+        ...DISCONNECTED,
+        claude: {
+          provider: 'claude',
+          state: 'connected',
+          connectedAt: '2026-10-08T10:00:00.000Z',
+          lastVerifiedAt: '2026-10-08T10:00:00.000Z',
+          reason: null,
+        },
+      },
+      onDisconnectClaude: disconnect,
+    });
+    expect(screen.queryByLabelText('Claude Code token')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Disconnect' }));
+    expect(disconnect).toHaveBeenCalledOnce();
+    unmount();
+
+    panel({
+      subscriptions: {
+        ...DISCONNECTED,
+        claude: {
+          provider: 'claude',
+          state: 'reauth_required',
+          connectedAt: '2026-10-08T10:00:00.000Z',
+          lastVerifiedAt: null,
+          reason: 'authentication-required',
+        },
+      },
+    });
+    expect(screen.getByLabelText('Claude Code token')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reconnect Claude' })).toBeInTheDocument();
+    expect(screen.getByRole('note')).toHaveTextContent('Your provider session is no longer valid');
+  });
+
   it('keeps subscription actions unavailable to an organisation viewer', () => {
     panel({ canUse: false });
 
@@ -188,6 +254,7 @@ describe('personal subscription settings', () => {
     expect(screen.queryByRole('link', { name: 'Open sign-in page' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Copy code' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Cancel login' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Claude Code token')).not.toBeInTheDocument();
     expect(
       ['org:owner', 'org:admin', 'org:member'].every(roleCanUsePersonalSubscriptions)
     ).toBe(true);
@@ -435,15 +502,135 @@ describe('personal subscription settings', () => {
         retainPersonalCodexFamily: true,
       }).map((entry) => entry.id)
     ).toEqual(['own:openai']);
+    // A host ChatGPT pin elsewhere no longer hides the member's own family:
+    // choosing it re-owns the sibling tiers in the same save instead.
     expect(
       personalSubscriptionFamilies({
         billedKeyReady: false,
         ollamaAvailable: false,
         personalSubscriptions: { claude: false, codex: true },
         personalSubscriptionState: 'connected',
-        hostCodexSelected: true,
+      }).map((entry) => entry.id)
+    ).toEqual(['own:openai']);
+  });
+
+  it('offers personal Claude beside personal Codex, whatever the host pins', () => {
+    const both = personalSubscriptionFamilies({
+      billedKeyReady: false,
+      ollamaAvailable: false,
+      personalSubscriptions: { claude: true, codex: true },
+      personalClaudeState: 'connected',
+      personalSubscriptionState: 'connected',
+      personalCodexModels: { state: 'ready', checkedAt: null, models: [] },
+    });
+    expect(both.map((entry) => entry.id)).toEqual(['own:anthropic', 'own:openai']);
+    expect(both[0]!.models.map((model) => model.id)).toEqual(['opus', 'sonnet', 'haiku']);
+    // Nothing hides behind a host pin any more: choosing the member's own
+    // family re-owns that vendor's other tiers in the same save.
+    expect(
+      personalSubscriptionFamilies({
+        billedKeyReady: false,
+        ollamaAvailable: false,
+        personalSubscriptions: { claude: true, codex: true },
+      }).map((entry) => entry.id)
+    ).toEqual(['own:anthropic', 'own:openai']);
+    // A disconnected token keeps its armed pin visible so it can be cleared.
+    expect(
+      personalSubscriptionFamilies({
+        billedKeyReady: false,
+        ollamaAvailable: false,
+        personalSubscriptions: { claude: false, codex: false },
+        retainPersonalClaudeFamily: true,
+      }).map((entry) => entry.id)
+    ).toEqual(['own:anthropic']);
+    expect(
+      providerIsUnlocked(PRINCIPAL_CLAUDE_SUBSCRIPTION_FAMILY, new Set(), {
+        billedKeyReady: false,
+        ollamaAvailable: false,
+        personalSubscriptions: { claude: false, codex: false },
+        retainPersonalClaudeFamily: true,
       })
-    ).toEqual([]);
+    ).toBe(false);
+  });
+
+  // Seen live on 2026-10-08: with `sub:anthropic:haiku` armed, the member's
+  // own Claude never appeared in the picker and there was no one-step way to
+  // switch. One owner per vendor is the server's rule; the picker now honours
+  // it by moving the sibling Claude tiers, alias kept, in the same save.
+  it('moves the other Claude tiers to the chosen owner, alias kept, and touches nothing else', () => {
+    const host = { l1: 'sub:anthropic:haiku', l2: 'sub:anthropic:sonnet', l3: 'api:zai:glm-4.5' };
+    expect(reownSubscriptionPins(host, 'l2', 'own:anthropic:opus', [])).toEqual({
+      l1: 'own:anthropic:haiku',
+      l2: 'own:anthropic:opus',
+      l3: 'api:zai:glm-4.5',
+    });
+    const own = { l1: 'own:anthropic:haiku', l2: 'own:openai:gpt-5.6-sol', l3: 'own:anthropic:opus' };
+    expect(reownSubscriptionPins(own, 'l1', 'sub:anthropic:haiku', [])).toEqual({
+      l1: 'sub:anthropic:haiku',
+      l2: 'own:openai:gpt-5.6-sol',
+      l3: 'sub:anthropic:opus',
+    });
+    // A key, an inherit or another vendor's choice re-owns nothing.
+    expect(reownSubscriptionPins(host, 'l3', 'api:anthropic:claude-opus-5', [])).toEqual({ ...host, l3: 'api:anthropic:claude-opus-5' });
+    expect(reownSubscriptionPins(host, 'l1', null, [])).toEqual({ ...host, l1: null });
+    expect(reownSubscriptionPins(host, 'l3', 'own:openai:gpt-5.6-sol', ['gpt-5.6-sol'])).toEqual({ ...host, l3: 'own:openai:gpt-5.6-sol' });
+    expect(host).toEqual({ l1: 'sub:anthropic:haiku', l2: 'sub:anthropic:sonnet', l3: 'api:zai:glm-4.5' });
+  });
+
+  // Seen live the same evening with ChatGPT: `sub:openai:gpt-5.6-terra` on a
+  // tier hid the member's own ChatGPT entirely. The slug is kept only where the
+  // new owner serves it; otherwise the tier takes the model just chosen.
+  it('moves the other ChatGPT tiers to the chosen owner, slug kept only where that owner serves it', () => {
+    const inventory = ['gpt-6-astra', 'gpt-6-sol', 'gpt-5.6-terra'];
+    const host = { l1: 'sub:openai:gpt-5.6-sol', l2: 'sub:openai:gpt-5.6-terra', l3: 'sub:anthropic:opus' };
+    expect(reownSubscriptionPins(host, 'l1', 'own:openai:gpt-6-astra', inventory)).toEqual({
+      l1: 'own:openai:gpt-6-astra',
+      // Terra exists in the member's inventory: kept. Claude is another vendor: untouched.
+      l2: 'own:openai:gpt-5.6-terra',
+      l3: 'sub:anthropic:opus',
+    });
+    const luna = { ...host, l2: 'sub:openai:gpt-5.6-luna' };
+    expect(reownSubscriptionPins(luna, 'l1', 'own:openai:gpt-6-astra', inventory).l2).toBe('own:openai:gpt-6-astra');
+    // Back to the host: a GPT-6 slug the host list does not serve takes the chosen model.
+    const own = { l1: 'own:openai:gpt-6-astra', l2: 'own:openai:gpt-5.6-terra', l3: null };
+    expect(reownSubscriptionPins(own, 'l2', 'sub:openai:gpt-5.6-sol', inventory)).toEqual({
+      l1: 'sub:openai:gpt-5.6-sol',
+      l2: 'sub:openai:gpt-5.6-sol',
+      l3: null,
+    });
+  });
+
+  // A closed native select shows "Haiku" and nothing of the family that pays
+  // for it (2026-10-08). The caption under each tier says who does.
+  it('names the payer of every pinned or inherited tier under its picker', async () => {
+    const t = (key: string, vars?: Record<string, unknown>) => translate('en', key, vars);
+    const keys = new Set(['openai']);
+    expect(selectionOriginLabel(t, 'own:anthropic:haiku', keys)).toBe('Paid by your own subscription · Claude');
+    expect(selectionOriginLabel(t, 'sub:openai:gpt-5.6-sol', keys)).toBe('Paid by the host subscription · ChatGPT');
+    expect(selectionOriginLabel(t, 'api:openai:gpt-test', keys)).toBe('Billed to the organisation’s OpenAI key');
+    expect(selectionOriginLabel(t, 'api:zai:glm-4.5', keys)).toBe('Billed to the host’s Z.ai key');
+    expect(selectionOriginLabel(t, 'api:ollama:llama3', keys)).toBe('Self-hosted Ollama · nothing billed');
+    expect(selectionOriginLabel(t, null, keys)).toBeNull();
+    expect(selectionOriginLabel(t, 'claude-cli:opus', keys)).toBeNull();
+
+    vi.spyOn(api, 'accountModels').mockResolvedValue({
+      ...ACCOUNT_MODELS,
+      pins: { l1: 'own:anthropic:haiku', l2: null, l3: 'api:zai:glm-4.5' },
+      personalSubscriptions: { claude: true, codex: false },
+    });
+    vi.spyOn(api, 'orgModels').mockResolvedValue({ ...ORG_MODELS, models: { l1: null, l2: 'api:openai:gpt-test', l3: null } });
+    vi.spyOn(api, 'accountSubscriptions').mockResolvedValue({
+      ...DISCONNECTED,
+      claude: { ...DISCONNECTED.claude, state: 'connected', connectedAt: '2026-10-08T10:00:00.000Z' },
+    });
+    const user = userEvent.setup();
+    orgModelsForm('org:member');
+    await user.click(await screen.findByRole('tab', { name: 'LLM models' }));
+    const [l1, l2, l3] = screen.getAllByRole('combobox');
+    expect(l1).toHaveAccessibleDescription('Paid by your own subscription · Claude');
+    // An inherited tier describes the organisation default it will run on.
+    expect(l2).toHaveAccessibleDescription('Billed to the organisation’s OpenAI key');
+    expect(l3).toHaveAccessibleDescription('Billed to the host’s Z.ai key');
   });
 
   it('uses only the self-scoped account subscription endpoints', async () => {
@@ -459,6 +646,8 @@ describe('personal subscription settings', () => {
     await api.startCodexSubscriptionLogin();
     await api.cancelCodexSubscriptionLogin();
     await api.disconnectCodexSubscription();
+    await api.connectClaudeSubscription('sk-ant-oat01-pasted');
+    await api.disconnectClaudeSubscription();
 
     expect(
       fetchMock.mock.calls.map(([path, init]) => [path, (init as RequestInit).method])
@@ -466,9 +655,14 @@ describe('personal subscription settings', () => {
       ['/api/account/subscriptions/codex/login', 'POST'],
       ['/api/account/subscriptions/codex/login', 'DELETE'],
       ['/api/account/subscriptions/codex', 'DELETE'],
+      ['/api/account/subscriptions/claude', 'POST'],
+      ['/api/account/subscriptions/claude', 'DELETE'],
     ]);
-    for (const [, init] of fetchMock.mock.calls) {
-      expect(init).toMatchObject({ credentials: 'same-origin', body: '{}' });
+    for (const [path, init] of fetchMock.mock.calls) {
+      const body = path === '/api/account/subscriptions/claude' && (init as RequestInit).method === 'POST'
+        ? JSON.stringify({ token: 'sk-ant-oat01-pasted' })
+        : '{}';
+      expect(init).toMatchObject({ credentials: 'same-origin', body });
     }
   });
 });

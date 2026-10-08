@@ -118,6 +118,8 @@ describe('the subscription transport authenticates from its login session alone'
       CLAUDE_CODE_USE_BEDROCK: '1',
       CLAUDE_CODE_USE_VERTEX: '1',
       ENABLE_CLAUDEAI_MCP_SERVERS: 'true',
+      CLAUDE_CODE_OAUTH_TOKEN: 'sk-ant-oat01-member-token',
+      CLAUDE_CONFIG_DIR: '/profiles/p/claude/generation',
     });
     expect(Object.keys(env).filter((key) => key.startsWith('ANTHROPIC_'))).toEqual([]);
     expect(env['CLAUDE_CODE_USE_BEDROCK']).toBeUndefined();
@@ -127,6 +129,11 @@ describe('the subscription transport authenticates from its login session alone'
     // Everything the subprocess still needs is untouched.
     expect(env['PATH']).toBe('/bin');
     expect(env['HOME']).toBe('/home/op');
+    // THE PAYER of an `own:anthropic` tier (2026-10-08): the coordinator places
+    // the member's token and config dir here on purpose, and stripping them
+    // would silently move the tier onto the service account's own login.
+    expect(env['CLAUDE_CODE_OAUTH_TOKEN']).toBe('sk-ant-oat01-member-token');
+    expect(env['CLAUDE_CONFIG_DIR']).toBe('/profiles/p/claude/generation');
   });
 
   it('does not mutate the environment it was handed', () => {

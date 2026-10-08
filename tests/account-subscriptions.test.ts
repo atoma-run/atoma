@@ -6,6 +6,7 @@ import {
   lstatSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
@@ -21,8 +22,13 @@ import Database from 'better-sqlite3';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   AccountSubscriptionService,
+  CLAUDE_TOKEN_FILENAME,
+  ClaudeSubscriptionTokenError,
+  ClaudeSubscriptionUnavailableError,
   CodexSubscriptionCapacityError,
   MAX_PENDING_CODEX_LOGINS,
+  type ClaudeAuthProbe,
+  type ClaudeAuthProbeInput,
   type CodexProfileForRun,
 } from '../src/auth/subscriptionProfiles.js';
 import {
@@ -34,7 +40,7 @@ import type {
   CodexAppServerSpawn,
   CodexAppServerSpawnInput,
 } from '../src/auth/codexAppServer.js';
-import { principalChatGptSelection } from '../src/contracts/runPayers.js';
+import { principalChatGptSelection, principalClaudeSelection } from '../src/contracts/runPayers.js';
 
 interface FakeProcess {
   readonly child: ChildProcess;
@@ -322,11 +328,193 @@ describe('principal Codex profile platform boundary', () => {
       subscriptions.startCodexLogin(alice.principalId, alice.orgId)
     ).rejects.toThrow('require verified POSIX permissions');
     expect(subscriptions.codexProfileForRun(alice.principalId)).toBeNull();
+    await expect(
+      subscriptions.connectClaude(alice.principalId, alice.orgId, CLAUDE_TOKEN)
+    ).rejects.toThrow('require verified POSIX permissions');
+    expect(subscriptions.claudeProfileForRun(alice.principalId)).toBeNull();
     await expect(subscriptions.status(alice.principalId)).resolves.toMatchObject({
+      claude: { state: 'unavailable', reason: 'profile-permissions-unsupported' },
       codex: { state: 'unavailable', reason: 'profile-permissions-unsupported' },
     });
   });
 });
+
+/**
+ * PERSONAL CLAUDE CODE TOKENS — BETA, owner decision 2026-10-08. No device
+ * flow: a `claude setup-token` value is pasted, probed through the CLI's own
+ * `auth status` with the token in the environment, and kept 0600 in a UUID
+ * generation that is also the run's CLAUDE_CONFIG_DIR.
+ */
+const CLAUDE_TOKEN = `sk-ant-oat01-${'a'.repeat(72)}`;
+
+describe('personal Claude Code tokens', () => {
+  function claudeService(
+    probe: ClaudeAuthProbe,
+    hooks: Partial<Pick<ConstructorParameters<typeof AccountSubscriptionService>[0], 'onConnected' | 'onDisconnected'>> = {}
+  ): AccountSubscriptionService {
+    const instance = new AccountSubscriptionService({
+      auth: store,
+      profilesRoot: path.join(temporaryRoot, 'profiles'),
+      sourceEnv: { PATH: process.env['PATH'], ANTHROPIC_API_KEY: 'stale-host-key', HOME: '/home/op' },
+      probeClaudeAuth: probe,
+      ...hooks,
+    });
+    services.push(instance);
+    return instance;
+  }
+
+  const accepting: ClaudeAuthProbe = async () => ({ loggedIn: true, authMethod: 'oauth_token' });
+
+  function claudeGenerations(principalId: string): string[] {
+    const providerRoot = path.join(temporaryRoot, 'profiles', principalId, 'claude');
+    return existsSync(providerRoot) ? readdirSync(providerRoot) : [];
+  }
+
+  it('connects a pasted token, keeps it 0600 in a private generation and resolves it at launch', async () => {
+    const alice = viewer('alice');
+    const probed: ClaudeAuthProbeInput[] = [];
+    const connected: unknown[] = [];
+    const subscriptions = claudeService(async (input) => {
+      probed.push(input);
+      return { loggedIn: true, authMethod: 'oauth_token' };
+    }, { onConnected: (event) => { connected.push(event); } });
+
+    const status = await subscriptions.connectClaude(alice.principalId, alice.orgId, `  ${CLAUDE_TOKEN}\n`);
+    expect(status).toMatchObject({ provider: 'claude', state: 'connected', reason: null });
+    expect(status.connectedAt).not.toBeNull();
+    // The probe saw the token as the CLI's bearer, in the generation, and
+    // none of the host's own Anthropic credentials.
+    expect(probed).toHaveLength(1);
+    expect(probed[0]!.env['CLAUDE_CODE_OAUTH_TOKEN']).toBe(CLAUDE_TOKEN);
+    expect(probed[0]!.env['CLAUDE_CONFIG_DIR']).toBe(probed[0]!.profilePath);
+    expect(probed[0]!.env['ANTHROPIC_API_KEY']).toBeUndefined();
+    expect(probed[0]!.env['HOME']).toBe('/home/op');
+
+    const receipt = store.principalSubscription(alice.principalId, 'claude');
+    expect(receipt).toMatchObject({ provider: 'claude', state: 'connected' });
+    const profile = subscriptions.claudeProfileForRun(alice.principalId);
+    expect(profile).toMatchObject({ profileId: receipt!.profileId, oauthToken: CLAUDE_TOKEN });
+    expect(profile!.homePath).toBe(path.join(temporaryRoot, 'profiles', alice.principalId, 'claude', receipt!.profileId));
+    expect(profile!.homePath).toBe(probed[0]!.profilePath);
+    const tokenFile = path.join(profile!.homePath, CLAUDE_TOKEN_FILENAME);
+    expect(readFileSync(tokenFile, 'utf8')).toBe(`${CLAUDE_TOKEN}\n`);
+    if (process.platform !== 'win32') {
+      expect(lstatSync(tokenFile).mode & 0o777).toBe(0o600);
+      expect(lstatSync(profile!.homePath).mode & 0o777).toBe(0o700);
+    }
+    expect(connected).toEqual([{ principalId: alice.principalId, orgId: alice.orgId, provider: 'claude' }]);
+    // The secret-free projection carries no token, and the store no column for one.
+    const projection = await subscriptions.status(alice.principalId);
+    expect(projection.claude).toMatchObject({ state: 'connected' });
+    expect(JSON.stringify(projection)).not.toContain('sk-ant-oat');
+    expect(JSON.stringify(store.principalSubscription(alice.principalId, 'claude'))).not.toContain('sk-ant-oat');
+    // Another principal sees nothing of it.
+    const bob = viewer('bob');
+    expect(subscriptions.claudeProfileForRun(bob.principalId)).toBeNull();
+    expect((await subscriptions.status(bob.principalId)).claude).toMatchObject({ state: 'disconnected' });
+  });
+
+  it('refuses a value that is not a Claude Code token before any probe runs', async () => {
+    const alice = viewer('alice');
+    const probe = vi.fn(accepting);
+    const subscriptions = claudeService(probe);
+    for (const value of ['sk-ant-api03-not-an-oauth-token-at-all-0123456789', 'ABCD-EFGH', '', 42, undefined]) {
+      await expect(
+        subscriptions.connectClaude(alice.principalId, alice.orgId, value)
+      ).rejects.toBeInstanceOf(ClaudeSubscriptionTokenError);
+    }
+    expect(probe).not.toHaveBeenCalled();
+    expect(store.principalSubscription(alice.principalId, 'claude')).toBeNull();
+    expect(claudeGenerations(alice.principalId)).toEqual([]);
+  });
+
+  it('refuses a token the CLI does not accept and leaves no credential byte behind', async () => {
+    const alice = viewer('alice');
+    const subscriptions = claudeService(async () => ({ loggedIn: false, authMethod: 'none' }));
+    await expect(
+      subscriptions.connectClaude(alice.principalId, alice.orgId, CLAUDE_TOKEN)
+    ).rejects.toThrow('did not accept this token');
+    expect(store.principalSubscription(alice.principalId, 'claude')).toBeNull();
+    expect(claudeGenerations(alice.principalId)).toEqual([]);
+    expect((await subscriptions.status(alice.principalId)).claude).toMatchObject({ state: 'disconnected' });
+  });
+
+  it('reports the CLI unavailable when the probe cannot spawn, without echoing the command', async () => {
+    const alice = viewer('alice');
+    const subscriptions = claudeService(async () => {
+      const error = new Error(`spawn claude ENOENT ${CLAUDE_TOKEN}`) as NodeJS.ErrnoException;
+      error.code = 'ENOENT';
+      throw error;
+    });
+    const refusal = await subscriptions.connectClaude(alice.principalId, alice.orgId, CLAUDE_TOKEN)
+      .then(() => null, (error: unknown) => error);
+    expect(refusal).toBeInstanceOf(ClaudeSubscriptionUnavailableError);
+    expect((refusal as Error).message).not.toContain('sk-ant-oat');
+    expect(store.principalSubscription(alice.principalId, 'claude')).toBeNull();
+    expect(claudeGenerations(alice.principalId)).toEqual([]);
+  });
+
+  it('replaces the previous generation on reconnect and clears the pins on disconnect', async () => {
+    const alice = viewer('alice');
+    const disconnected: unknown[] = [];
+    const subscriptions = claudeService(accepting, { onDisconnected: (event) => { disconnected.push(event); } });
+    await subscriptions.connectClaude(alice.principalId, alice.orgId, CLAUDE_TOKEN);
+    const first = subscriptions.claudeProfileForRun(alice.principalId)!;
+    await subscriptions.connectClaude(alice.principalId, alice.orgId, `sk-ant-oat01-${'b'.repeat(72)}`);
+    const second = subscriptions.claudeProfileForRun(alice.principalId)!;
+    expect(second.profileId).not.toBe(first.profileId);
+    expect(second.oauthToken).toBe(`sk-ant-oat01-${'b'.repeat(72)}`);
+    expect(existsSync(first.homePath)).toBe(false);
+    expect(claudeGenerations(alice.principalId)).toEqual([second.profileId]);
+
+    const sonnet = principalClaudeSelection('sonnet');
+    store.setModelPins(alice.principalId, { l1: null, l2: sonnet, l3: principalClaudeSelection('opus') });
+    expect(await subscriptions.disconnectClaude(alice.principalId, alice.orgId)).toBe(true);
+    expect(store.principalSubscription(alice.principalId, 'claude')).toBeNull();
+    expect(store.modelPins(alice.principalId)).toEqual({ l1: null, l2: null, l3: null });
+    expect(claudeGenerations(alice.principalId)).toEqual([]);
+    expect(subscriptions.claudeProfileForRun(alice.principalId)).toBeNull();
+    expect(disconnected).toEqual([{ principalId: alice.principalId, orgId: alice.orgId, provider: 'claude' }]);
+    expect(await subscriptions.disconnectClaude(alice.principalId, alice.orgId)).toBe(false);
+  });
+
+  it('asks for reconnection when the token file is gone, and never resolves a half profile', async () => {
+    const alice = viewer('alice');
+    const subscriptions = claudeService(accepting);
+    await subscriptions.connectClaude(alice.principalId, alice.orgId, CLAUDE_TOKEN);
+    const profile = subscriptions.claudeProfileForRun(alice.principalId)!;
+    unlinkSync(path.join(profile.homePath, CLAUDE_TOKEN_FILENAME));
+    expect((await subscriptions.status(alice.principalId)).claude).toMatchObject({
+      state: 'reauth_required',
+      reason: 'authentication-required',
+    });
+    expect(subscriptions.claudeProfileForRun(alice.principalId)).toBeNull();
+    expect(store.principalSubscription(alice.principalId, 'claude')?.state).toBe('reauth_required');
+  });
+
+  it('reconciles an unreferenced Claude generation at startup and keeps the referenced one', async () => {
+    const alice = viewer('alice');
+    const first = claudeService(accepting);
+    await first.connectClaude(alice.principalId, alice.orgId, CLAUDE_TOKEN);
+    const kept = subscriptionsProfile(first, alice.principalId);
+    // A crash between the write and the receipt leaves a UUID with a token.
+    const orphan = path.join(path.dirname(kept), randomUUID());
+    mkdirSync(orphan, { mode: 0o700 });
+    writeFileSync(path.join(orphan, CLAUDE_TOKEN_FILENAME), 'sk-ant-oat01-orphan', { mode: 0o600 });
+    first.close();
+
+    const second = claudeService(accepting);
+    expect(existsSync(orphan)).toBe(false);
+    expect(existsSync(kept)).toBe(true);
+    expect(second.claudeProfileForRun(alice.principalId)?.homePath).toBe(kept);
+  });
+});
+
+function subscriptionsProfile(service: AccountSubscriptionService, principalId: string): string {
+  const profile = service.claudeProfileForRun(principalId);
+  if (!profile) throw new Error('expected a connected Claude profile');
+  return profile.homePath;
+}
 
 describe.skipIf(process.platform === 'win32')('principal Codex profile service', () => {
   it('discovers models in the exact private generation and invalidates on disconnect', async () => {

@@ -198,6 +198,12 @@ export const api = {
     mutateWithoutResult('/api/account/subscriptions/codex/login', 'DELETE'),
   disconnectCodexSubscription: () =>
     mutateWithoutResult('/api/account/subscriptions/codex', 'DELETE'),
+  // The pasted Claude Code token crosses ONCE, in this POST; the status that
+  // comes back is the secret-free projection and nothing echoes the token.
+  connectClaudeSubscription: (token: string) =>
+    mutateJson<VizAccountSubscriptions['claude']>('/api/account/subscriptions/claude', { token }),
+  disconnectClaudeSubscription: () =>
+    mutateWithoutResult('/api/account/subscriptions/claude', 'DELETE'),
   // MCP ACCESS. The token plaintext comes back ONCE, from the POST; the list
   // is labels and dates. Revocation is a DELETE on the viewer's own token.
   apiTokens: () => fetchJson<VizApiTokens>('/api/tokens'),

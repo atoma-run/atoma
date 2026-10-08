@@ -492,13 +492,41 @@ describe('project run environment', () => {
           profilesRoot: '/private',
         },
       }).payers.l1).toMatchObject({ provider: 'codex-cli', payer: 'principal-subscription' });
-    // A personal Claude login has no transport yet: refused, named.
+    // A personal Claude pin without a connected token: refused, named — never
+    // a fall-through to the host key (BETA, owner decision 2026-10-08).
     expect(() =>
       projectRunEnvironment({
         ...base,
         tierModels: { l1: null, l2: 'own:anthropic:sonnet', l3: null },
       })
-    ).toThrow(/personal Claude subscription/);
+    ).toThrow(/Claude Code token is no longer connected/);
+    const claudeProfile = {
+      profileId: 'a0c7a4f3-6a73-4d1a-9f94-1d6a4c0f2b11',
+      homePath: '/private/profiles/p/claude/a0c7a4f3-6a73-4d1a-9f94-1d6a4c0f2b11',
+      profilesRoot: '/private/profiles',
+      oauthToken: 'sk-ant-oat01-member-token',
+    };
+    const claude = projectRunEnvironment({
+      ...base,
+      tierModels: { l1: null, l2: 'own:anthropic:sonnet', l3: 'own:anthropic:opus' },
+      principalClaudeProfile: claudeProfile,
+    });
+    // THE PAYER TRAVELS AS THE ENVIRONMENT: Claude Code prefers this bearer
+    // over the service account's own login, and keeps its state in the
+    // generation rather than in HOME.
+    expect(claude.environment['CLAUDE_CODE_OAUTH_TOKEN']).toBe('sk-ant-oat01-member-token');
+    expect(claude.environment['CLAUDE_CONFIG_DIR']).toBe(resolvePath(claudeProfile.homePath));
+    expect(claude.environment['CODEX_HOME']).toBeUndefined();
+    expect(claude.environment['ATOMA_SUBSCRIPTION_TIERS']).toBe('l2,l3');
+    expect(claude.environment['ATOMA_MODEL_L2']).toBe('own:anthropic:sonnet');
+    expect(claude.payers.l2).toMatchObject({
+      provider: 'claude-cli',
+      payer: 'principal-subscription',
+      source: 'account',
+    });
+    expect(claude.payers.l1).toMatchObject({ payer: 'host-key' });
+    // The token is in the environment and nowhere else.
+    expect(JSON.stringify(claude.payers)).not.toContain('sk-ant-oat01');
   });
 
   it('refuses personal subscription pins inherited from an org and mixed Codex owners', () => {
@@ -532,6 +560,37 @@ describe('project run environment', () => {
         tierModels: { l1: null, l2: 'sub:openai:gpt-5.6-terra', l3: 'own:openai:gpt-5.6-sol' },
       })
     ).toThrow(/cannot mix the host and requester ChatGPT subscriptions/);
+    // Same rule for Claude Code: `subscriptionTransportEnv` hands every
+    // claude-cli tier ONE environment, so one token per run.
+    const claudeProfile = {
+      profileId: 'a0c7a4f3-6a73-4d1a-9f94-1d6a4c0f2b11',
+      homePath: '/private/profile-claude',
+      profilesRoot: '/private',
+      oauthToken: 'sk-ant-oat01-member-token',
+    };
+    expect(() =>
+      projectRunEnvironment({
+        ...base,
+        subscriptionTransport: { principalId: 'platform-admin' },
+        tierModels: { l1: null, l2: 'sub:anthropic:sonnet', l3: 'own:anthropic:opus' },
+        principalClaudeProfile: claudeProfile,
+      })
+    ).toThrow(/cannot mix the host and requester Claude subscriptions/);
+    expect(() =>
+      projectRunEnvironment({
+        ...base,
+        orgTierModels: { l1: null, l2: 'own:anthropic:sonnet', l3: null },
+        principalClaudeProfile: claudeProfile,
+      })
+    ).toThrow(/personal subscription from the org level/);
+    // Mixed VENDORS are two processes: the requester's Claude beside their ChatGPT.
+    const mixedVendors = projectRunEnvironment({
+      ...base,
+      tierModels: { l1: null, l2: 'own:anthropic:sonnet', l3: 'own:openai:gpt-5.6-sol' },
+      principalClaudeProfile: claudeProfile,
+    });
+    expect(mixedVendors.environment['CLAUDE_CODE_OAUTH_TOKEN']).toBe('sk-ant-oat01-member-token');
+    expect(mixedVendors.environment['CODEX_HOME']).toBe(resolvePath('/private/profile'));
   });
 
   it('refuses a host-subscription pin that arrives from the org or the host level', () => {
@@ -1743,6 +1802,67 @@ describe('the subscription-transport door, at the coordinator', () => {
     );
     expect(passed.env?.['ATOMA_MODEL_L2']).toBe('own:openai:gpt-5.6-terra');
     await coordinator.waitForIdle();
+  });
+
+  it("resolves a personal Claude Code generation from the run's requesting principal", async () => {
+    const f = fixture();
+    const lookedUp: string[] = [];
+    const seen: Array<{ principalId: string; payer: string; transport: string }> = [];
+    const driver = deliveringDriver();
+    const profileHome = join(f.root, 'account-profiles', f.viewer.principalId, 'claude', 'one');
+    const coordinator = new ProjectRunCoordinator({
+      store: f.store,
+      dbPath: f.dbPath,
+      projectsRoot: f.root,
+      hostEnv: { ...haystackTestEnvironment(f.root), PATH: process.env['PATH'], ...ANTHROPIC_PINS, ANTHROPIC_API_KEY: 'model-key' },
+      driver: driver as unknown as ProjectRunDriver,
+      acquireLease: async () => lease(),
+      tierModelsFor: () => ({ l1: null, l2: 'own:anthropic:sonnet', l3: null }),
+      principalClaudeProfileFor: (principalId) => {
+        lookedUp.push(principalId);
+        return {
+          profileId: 'a0c7a4f3-6a73-4d1a-9f94-1d6a4c0f2b11',
+          homePath: profileHome,
+          profilesRoot: join(f.root, 'account-profiles'),
+          oauthToken: 'sk-ant-oat01-member-token',
+        };
+      },
+      onSubscriptionTransport: (info) => {
+        seen.push({ principalId: info.principalId, payer: info.payers.l2.payer, transport: info.transport });
+      },
+    });
+    await coordinator.start({
+      orgId: f.viewer.orgId,
+      principalId: f.viewer.principalId,
+      projectId: f.project.projectId,
+      request: { idempotencyKey: 'personal-claude', goal: 'Build a clock.' },
+    });
+    await coordinator.waitForIdle();
+    // Resolved at launch and re-asked once before spawn, never from a request.
+    expect(lookedUp).toEqual([f.viewer.principalId, f.viewer.principalId]);
+    expect(seen).toEqual([
+      { principalId: f.viewer.principalId, payer: 'principal-subscription', transport: 'claude-cli' },
+    ]);
+    const passed = driver.mock.calls[0]![0] as SpawnRunOptions;
+    expect(passed.env?.['CLAUDE_CODE_OAUTH_TOKEN']).toBe('sk-ant-oat01-member-token');
+    expect(passed.env?.['CLAUDE_CONFIG_DIR']).toBe(resolvePath(profileHome));
+    expect(passed.env?.['ATOMA_MODEL_L2']).toBe('own:anthropic:sonnet');
+    expect(passed.env?.['ATOMA_SUBSCRIPTION_TIERS']).toBe('l2');
+    // No ChatGPT discovery is asked of a run that spends no ChatGPT tier.
+    expect(passed.env?.['CODEX_HOME']).toBeUndefined();
+  });
+
+  it('refuses a personal Claude pin before spawning when its token was disconnected', async () => {
+    const f = fixture();
+    const driver = deliveringDriver();
+    const coordinator = new ProjectRunCoordinator({
+      store: f.store, dbPath: f.dbPath, projectsRoot: f.root,
+      hostEnv: { ...haystackTestEnvironment(f.root), ...ANTHROPIC_PINS, ANTHROPIC_API_KEY: 'model-key' },
+      driver: driver as unknown as ProjectRunDriver, acquireLease: async () => lease(),
+      tierModelsFor: () => ({ l1: 'own:anthropic:haiku', l2: null, l3: null }),
+      principalClaudeProfileFor: () => null,
+    });
+    await expectRefused(f, coordinator, driver, 'claude-disconnected', /Claude Code token is no longer connected/);
   });
 });
 

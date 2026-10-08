@@ -1943,9 +1943,10 @@ export class AuthStore {
           )
           .run(principalId, provider);
       }
-      if (provider === 'codex') {
-        // Every `own:openai:` selector this principal stored, whatever the model.
-        const prefix = 'own:openai:%';
+      {
+        // Every `own:<vendor>:` selector this principal stored, whatever the
+        // model: the receipt and the pins that spend it leave together.
+        const prefix = provider === 'codex' ? 'own:openai:%' : 'own:anthropic:%';
         this.db
           .prepare(
             `UPDATE auth_principal_model_pins

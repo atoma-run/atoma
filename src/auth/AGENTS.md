@@ -124,9 +124,17 @@ Loopback HTTP keeps its development cookie names and paths.
   read as null, the tier would fall silently to another payer — and is refused
   as a new pin and before a launch spends. Discovering the host's list through
   `model/list`, as for personal logins, is the open follow-up.
-- Personal Claude/claude.ai login is unavailable until Anthropic grants the
-  third-party approval its SDK terms require. Keep that a server-owned disabled
-  capability, not a client flag or an emulated OAuth flow.
+- Personal Claude Code login is a PASTED TOKEN, in beta (owner decision
+  2026-10-08, [docs/personal-claude-beta-2026-10-08.md](../../docs/personal-claude-beta-2026-10-08.md)):
+  the member runs `claude setup-token` where Claude Code is signed in and
+  pastes the long-lived token; `connectClaude` refuses it by spelling, probes
+  `claude auth status --json` with the token in the environment (local, no
+  model call), then writes it `0600` as `atoma-oauth-token` inside a UUID
+  generation that is also the run's `CLAUDE_CONFIG_DIR`. Status is local
+  (receipt plus private file), never a subprocess. `claudeProfileForRun` is
+  the ONE reader of the token and hands it to the coordinator for the child's
+  environment only. Anthropic's third-party approval has not been granted;
+  the beta badge in Settings says so, and the capability stays server-owned.
 
 ## MCP OAuth authorization server
 
@@ -186,3 +194,10 @@ Loopback HTTP keeps its development cookie names and paths.
 - Failing on the first empty `account/read`: refused (2026-09-15). The
   app-server may report no account before `account/updated` arrives; the
   caller retries until the window closes.
+- Emulating Claude Code's OAuth client, or driving `claude setup-token`'s
+  interactive prompt from the server: refused (2026-10-08). Both would put
+  the browser flow's secrets through this process; the pasted token keeps the
+  provider's own CLI as the only thing that ever logs in.
+- Verifying a pasted Claude token with a model call: refused. It would bill
+  the member for connecting; a revoked token surfaces as the CLI's refusal
+  at the next run's first call, exactly as the host's login does.

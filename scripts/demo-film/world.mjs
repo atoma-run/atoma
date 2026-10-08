@@ -555,7 +555,7 @@ export function createWorld({ now }) {
       catalog: [],
     }),
     '/api/account/subscriptions': () => ({
-      claude: { provider: 'claude', state: 'unavailable', connectedAt: null, lastVerifiedAt: null, reason: 'provider-approval-required' },
+      claude: { provider: 'claude', state: 'disconnected', connectedAt: null, lastVerifiedAt: null, reason: null },
       codex: { provider: 'codex', state: 'connected', connectedAt: t(-6 * DAY), lastVerifiedAt: t(-1 * HOUR), reason: null },
       codexAttempt: null,
     }),
