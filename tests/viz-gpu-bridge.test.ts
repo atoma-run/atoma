@@ -652,6 +652,29 @@ describe('full-GL minimal DOM bridge', () => {
     await user.keyboard('{Enter}');
     expect(onSelectRun).toHaveBeenLastCalledWith('b');
   });
+
+  it('keeps the run search when the input is refocused before its blur delay ends', async () => {
+    const user = userEvent.setup();
+    const items = [
+      { id: 'b', label: 'B change', projectId: 'b', projectSlug: 'Beta', startedAt: '2026-10-02' },
+      { id: 'a-new', label: 'New change', projectId: 'a', projectSlug: 'Alpha', startedAt: '2026-10-03' },
+    ];
+    useGpuStore.setState({ selectedRunId: 'a-new' });
+    const { onSelectRun } = renderBridge(vi.fn(), items);
+    const input = screen.getByRole('textbox', { name: /Search 2 runs/ });
+    await user.click(input);
+    await user.keyboard('{Enter}');
+    expect(onSelectRun).toHaveBeenLastCalledWith('a-new');
+    // Enter blurs the field and arms the picker's 240ms close; returning to it
+    // inside that window must not let the stale close fire mid-typing
+    // (CI run 37721952238, where a loaded runner made the window real).
+    await user.click(input);
+    await new Promise(resolve => setTimeout(resolve, 300));
+    expect(input).toHaveValue('');
+    await user.type(input, 'Beta');
+    await user.keyboard('{Enter}');
+    expect(onSelectRun).toHaveBeenLastCalledWith('b');
+  });
 });
 
 describe('arrival entry fade', () => {

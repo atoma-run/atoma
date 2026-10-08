@@ -510,7 +510,18 @@ export function DomBridge({
               runPickerInputViewportHeight(event.currentTarget) - RUN_PICKER_ROW_HEIGHT);
             setRunPickerScrollY(Math.max(0, (options[selectedIndex]?.top ?? 0) - precedingHeight));
           }}
-          onBlur={() => window.setTimeout(() => setFocusedInput(null), 240)}
+          onBlur={() => {
+            // The delay lets a click on a GPU picker row land before the picker
+            // closes. A run search focused again inside it (Enter blurs, then a
+            // click returns, or a remounted field takes over) keeps the picker:
+            // clearing it would swap the field back to the selected run's label
+            // while the person types.
+            window.setTimeout(() => {
+              const active = document.activeElement;
+              if (active instanceof HTMLInputElement && active.classList.contains('gpu-run-input')) return;
+              if (useGpuStore.getState().focusedInput === 'run') setFocusedInput(null);
+            }, 240);
+          }}
           onChange={(event) => {
             setSearch('run', event.target.value);
             setRunPickerActiveIndex(0);
