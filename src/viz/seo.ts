@@ -7,9 +7,9 @@
  */
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES, type Locale } from '../contracts/locales.js';
 
-export const SEO_TITLE = 'Atoma — Inspectable AI Agent Orchestration';
+export const SEO_TITLE = 'Atoma — AI agents that turn requests into checked work';
 export const SEO_DESCRIPTION =
-  'Atoma orchestrates specialized AI agents across planning, execution, and verification for cost-aware, inspectable software delivery.';
+  'Atoma coordinates AI agents to produce drawings, sounds, reports, data studies, proofs and software, checks the result against what you asked for, and records every step.';
 export const SEO_SOCIAL_IMAGE_PATH = '/og-card.png';
 
 const SEO_SLOT = '<!-- ATOMA_DEPLOYMENT_SEO -->';
@@ -57,12 +57,12 @@ export function homeSocialMeta(
     '  <meta property="og:image:type" content="image/png" />',
     '  <meta property="og:image:width" content="1200" />',
     '  <meta property="og:image:height" content="630" />',
-    '  <meta property="og:image:alt" content="Atoma — frontier reasoning once per task" />',
+    '  <meta property="og:image:alt" content="Atoma — Watch a request turn into finished work." />',
     '  <meta name="twitter:card" content="summary_large_image" />',
     `  <meta name="twitter:title" content="${escapeAttribute(copy.title)}" />`,
     `  <meta name="twitter:description" content="${escapeAttribute(copy.description)}" />`,
     `  <meta name="twitter:image" content="${escapeAttribute(socialImage)}" />`,
-    '  <meta name="twitter:image:alt" content="Atoma — frontier reasoning once per task" />',
+    '  <meta name="twitter:image:alt" content="Atoma — Watch a request turn into finished work." />',
     `  <script type="application/ld+json">${structuredData}</script>`,
   ];
 }

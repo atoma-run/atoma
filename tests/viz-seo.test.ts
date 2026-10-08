@@ -112,7 +112,7 @@ describe('public arrival SEO', () => {
     const fallback = /<noscript>([\s\S]*?)<\/noscript>/.exec(source)?.[1];
     expect(fallback).toContain('#root { display: none !important; }');
     expect(fallback).toContain('<h1>Atoma</h1>');
-    expect(fallback).toContain('frontier model once per task, not once per step');
+    expect(fallback).toContain('Watch a request turn into finished work.');
     expect(fallback).toContain('<a href="/auth/login">Sign in to Atoma</a>');
   });
 });

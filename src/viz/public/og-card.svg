@@ -18,9 +18,10 @@
     <path d="M452 256 256 460 256 256Z" fill="#7c3aed"/>
     <path d="M256 200 316 256 256 312 196 256Z" fill="#f8fbff"/>
   </g>
-  <text x="470" y="250" fill="#f8fbff" font-family="Segoe UI, Arial, sans-serif" font-size="86" font-weight="700" letter-spacing="-3">Atoma</text>
-  <text x="474" y="316" fill="#a9b5ca" font-family="Segoe UI, Arial, sans-serif" font-size="30">Inspectable AI agent orchestration</text>
-  <path d="M474 359h570" stroke="#6ea8ff" stroke-opacity=".5"/>
-  <text x="474" y="418" fill="#e6edf7" font-family="Segoe UI, Arial, sans-serif" font-size="25">Frontier reasoning once per task,</text>
-  <text x="474" y="454" fill="#e6edf7" font-family="Segoe UI, Arial, sans-serif" font-size="25">not once per step.</text>
+  <text x="470" y="236" fill="#f8fbff" font-family="-apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Arial, sans-serif" font-size="86" font-weight="700" letter-spacing="-3">Atoma</text>
+  <text x="474" y="304" fill="#e6edf7" font-family="-apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Arial, sans-serif" font-size="33" font-weight="600" letter-spacing="-0.4">Watch a request turn into finished work.</text>
+  <path d="M474 349h600" stroke="#6ea8ff" stroke-opacity=".5"/>
+  <text x="474" y="404" fill="#a9b5ca" font-family="-apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Arial, sans-serif" font-size="25">AI agents produce it, check it against what</text>
+  <text x="474" y="440" fill="#a9b5ca" font-family="-apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Arial, sans-serif" font-size="25">you asked for, and show you every step.</text>
+  <text x="474" y="520" fill="#6ea8ff" font-family="-apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Arial, sans-serif" font-size="24" font-weight="600">atoma.run</text>
 </svg>
