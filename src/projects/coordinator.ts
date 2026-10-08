@@ -1915,11 +1915,12 @@ export class ProjectRunCoordinator {
         const retrievalStore = ProjectRetrievalLaunchStore.open(this.dbPath);
         // A crashed run has no accepted artifact manifest. Keep the corpus it
         // started with; never promote its interrupted workspace into a receipt.
-        const retrievalSource = continuation?.status === 'failed'
+        const retrievalSource = continuation
           ? retrievalStore.recordedSourceRunId(continuation.projectRunId) : seedRun?.projectRunId ?? null;
         if (retrievalSource === undefined) throw new ProjectStateConflict('The interrupted run has no recorded document corpus');
         await retrievalStore.prepare(run.projectRunId,
-          retrievalSource, { signal: preparationSignal, deadlineAt: preparationDeadlineAt });
+          retrievalSource, { signal: preparationSignal, deadlineAt: preparationDeadlineAt },
+          continuation ? undefined : seedFrom, continuation?.projectRunId);
         if (preparationSignal.aborted || Date.now() >= preparationDeadlineAt) throw new Error('project document preparation cancelled');
         environment[HAYSTACK_LAUNCH_ENV] = JSON.stringify(retrievalLaunch);
         delete environment[PROJECT_CONTEXT_ENV];

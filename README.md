@@ -151,7 +151,7 @@ result; it never publishes and never seeds a later run.
 Install the GitHub App to import a repository into a project or create a new
 one, then publish delivered results to it. A project's earlier deliverables,
 including Markdown, CSV, PDF and Office documents, are indexed so later runs
-can search them and cite exact passages. See [GitHub App setup](docs/github-app-setup.md).
+can search them and cite exact passages. TypeScript/JavaScript sources also expose symbols and resolved local imports through Haystack; clients use `atoma_run_search` to inspect saved versions ([scope and evaluation](docs/code-retrieval.md)). See [GitHub App setup](docs/github-app-setup.md).
 
 ### Verification you can read
 
@@ -215,7 +215,7 @@ OAuth clients can connect through browser consent, including clients identified
 by a metadata URL. Project run tasks survive a client reconnect, and results
 link to run resources that compatible clients can open or follow.
 
-**Fifty-six tools.** The visible subset depends on the caller's role. Compact
+**Fifty-seven tools.** The visible subset depends on the caller's role. Compact
 searchable menus, recorded progress and saved-file readers keep the workflow
 inside the conversation. Versioned project briefs and client-confirmed decisions
 are captured per run through `atoma_project_context` and `atoma_project_context_update`.
@@ -331,7 +331,7 @@ ready for production. See the [changelog](CHANGELOG.md) for what changed.
 | Version | `0.4.0` |
 | Node | 24.20+ (`.nvmrc` 24.20.0, `engines` >=24) |
 | Subsystems under their own contract | 18 |
-| MCP tools | 56 |
+| MCP tools | 57 |
 | Curated agent names | 118 molecules · 40 cells · 20 tissues |
 | Controlled benchmark rounds | 12 (`benchmark/RESULT.md` + `ROUND<n>.md`) |
 | Interface locales | 13 catalogs — 1 source, 12 translated |

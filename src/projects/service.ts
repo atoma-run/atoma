@@ -1,3 +1,5 @@
+import { projectRetrievalRequestSchema } from '../contracts/projectRetrieval.js';
+import { searchSavedProjectCode } from './retrievalRead.js';
 import { answerClientQuestionSchema, type ClientQuestionView } from '../contracts/clientQuestion.js';
 import { projectContextReadSchema, projectContextUpdateSchema } from '../contracts/projectContext.js';
 import { ProjectContextConflict } from './context.js';
@@ -544,6 +546,20 @@ export class ProjectService {
       const text = isUtf8(bytes) && !bytes.includes(0) ? bytes.toString('utf8') : null;
       return { path: file.path, size: file.size, kind: text === null ? 'binary' : 'text', text };
     } catch { throw new ProjectHttpError(409, 'file is unavailable or differs from the saved workspace'); }
+  }
+
+  async searchCode(viewer: Viewer, projectId: string, runId: string, raw: unknown) {
+    const input = clientInput(projectRetrievalRequestSchema, raw);
+    this.workspace(viewer, projectId, runId);
+    const orgId = this.readOrgFor(viewer, projectId);
+    const run = this.store.getProjectRun(orgId, runId)!;
+    return searchSavedProjectCode({ run, principalId: viewer.principalId, query: input,
+      read: path => this.workspace(viewer, projectId, runId, path, 'bytes'),
+      authorize: () => {
+        try { this.workspace(viewer, projectId, runId); return this.store.canReadProjectNow(viewer.principalId, orgId, projectId, viewer.orgId) && this.store.getProjectRun(orgId, runId)?.artifactManifestHash === run.artifactManifestHash; }
+        catch { return false; }
+      },
+    });
   }
 
   artifacts(viewer: Viewer, projectId: string, runId: string, raw: unknown = {}) {

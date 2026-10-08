@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { projectDocumentDigestSchema, projectDocumentPathSchema,
-  projectRetrievalIdentitySchema, projectDocumentFormat } from './projectRetrieval.js';
+  projectRetrievalIdentitySchema, projectDocumentFormat, projectRetrievalCoverageSchema } from './projectRetrieval.js';
 
 export const PROJECT_RETRIEVAL_CORPUS_LIMITS = Object.freeze({
   documents: 200, documentBytes: 8_000_000, extractedDocumentBytes: 1_000_000, sourceBytes: 8_000_000, passages: 20_000,
@@ -8,6 +8,7 @@ export const PROJECT_RETRIEVAL_CORPUS_LIMITS = Object.freeze({
 
 /** Admission is supplied by the host snapshot owner, never inferred by a crawl. */
 export const projectRetrievalManifestSchema = z.object({
+  coverage: projectRetrievalCoverageSchema.optional(),
   version: z.literal(1),
   corpusId: projectRetrievalIdentitySchema,
   snapshotId: projectRetrievalIdentitySchema,
@@ -39,7 +40,7 @@ export const PROJECT_RETRIEVAL_TOKENIZER = 'unicode61 remove_diacritics 2';
 /** Every index-affecting choice is pinned; unsupported future modes fail closed. */
 export const projectRetrievalIndexConfigSchema = z.object({
   storageVersion: z.literal(1), extractionVersion: z.enum(['utf8-files-v1', 'officeparser-7.8.0-v1']),
-  chunkerVersion: z.literal('markdown-lines-v1'), chunks: projectRetrievalChunkSettingsSchema,
+  chunkerVersion: z.enum(['markdown-lines-v1', 'typescript-symbols-v1']), chunks: projectRetrievalChunkSettingsSchema,
   contextVersion: z.literal('path-headings-source-v1'),
   tokenizer: z.literal(PROJECT_RETRIEVAL_TOKENIZER),
   normalization: z.enum(['original-bytes; no overlap', 'original-text-or-extracted-utf8; no overlap']),

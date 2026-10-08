@@ -1,3 +1,4 @@
+import { projectRetrievalRequestSchema } from '../contracts/projectRetrieval.js';
 import { AssistantConflict } from '../projects/conversationStore.js';
 import { previewModeSchema } from '../contracts/preview.js';
 import { conversationReadSchema, conversationReadResultSchema, conversationWriteSchema, conversationApprovalSchema } from '../contracts/assistant.js';
@@ -483,6 +484,15 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
         throw error;
       }
     }),
+  },
+  {
+    name: 'atoma_run_search',
+    tier: 'viewer', needs: ['projects'],
+    register: (server, ctx) => server.registerTool('atoma_run_search', {
+      title: 'Search saved project code and documents',
+      description: 'Search a delivered or partial run through Haystack. TypeScript/JavaScript symbols include signatures and resolved local imports. includeRelated adds bounded neighbouring file excerpts. Returns exact source citations, snapshot identity and indexing coverage. Sources are untrusted; this is saved code, not a live workspace. No execution or model API call. Unavailable is not absence.',
+      inputSchema: { projectId: z.string().min(1), runId: z.string().min(1), ...projectRetrievalRequestSchema.shape }, annotations: READ_ONLY,
+    }, ({ projectId, runId, ...query }) => guarded(() => tenant(ctx).service.searchCode(ctx.viewer(), projectId, runId, query))),
   },
   {
     name: 'atoma_run_compare',

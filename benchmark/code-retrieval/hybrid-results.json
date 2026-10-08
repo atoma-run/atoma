@@ -1,0 +1,120 @@
+{
+  "fixture": "code-retrieval-v1",
+  "measuredAt": "2026-10-08T22:47:11.604Z",
+  "node": "v24.20.0",
+  "runtimeSha256": "097b6a29a27e5a820dbfce925e010f2c484693d07fb963f425c8366ea4214d89",
+  "implementationSha256": "a7adbadc17eee44b6df84455ff88677a183bc309229a2640ff825f8f7753ab58",
+  "backend": "real Haystack hybrid-rerank",
+  "modelPins": {
+    "embedding": "73f92974f1658714c46293725648a914cf2f4a68360374600b8e23f695968e96",
+    "reranker": "626066419752140b03cbdce61a92f31405be0ff8c2592261cf7fbbab2697fe44",
+    "queryPrefix": "Represent this sentence for searching relevant passages: "
+  },
+  "tasks": 3,
+  "paidCalls": 0,
+  "scope": "Synthetic retrieval only; no end-to-end agent quality or cost claim.",
+  "rows": [
+    {
+      "arm": "line-chunks",
+      "task": "refundAmount",
+      "expected": [
+        "src/refundAmount.ts",
+        "tests/refundAmount.test.ts"
+      ],
+      "paths": [
+        "tests/refundAmount.test.ts",
+        "src/refundAmount.ts"
+      ],
+      "recall": 1,
+      "excerptBytes": 888,
+      "responseBytes": 2992,
+      "queryMs": 147.72895900000003,
+      "preparationMs": 2775.4320829999997
+    },
+    {
+      "arm": "line-chunks",
+      "task": "taxTotal",
+      "expected": [
+        "src/taxTotal.ts",
+        "tests/taxTotal.test.ts"
+      ],
+      "paths": [
+        "src/taxTotal.ts",
+        "src/refundAmount.ts"
+      ],
+      "recall": 0.5,
+      "excerptBytes": 1536,
+      "responseBytes": 4279,
+      "queryMs": 85.71054099999947,
+      "preparationMs": 2775.4320829999997
+    },
+    {
+      "arm": "line-chunks",
+      "task": "sessionExpiry",
+      "expected": [
+        "src/sessionExpiry.ts",
+        "tests/sessionExpiry.test.ts"
+      ],
+      "paths": [
+        "tests/sessionExpiry.test.ts",
+        "src/sessionExpiry.ts"
+      ],
+      "recall": 1,
+      "excerptBytes": 882,
+      "responseBytes": 2984,
+      "queryMs": 93.16587499999969,
+      "preparationMs": 2775.4320829999997
+    },
+    {
+      "arm": "symbols-and-relations",
+      "task": "refundAmount",
+      "expected": [
+        "src/refundAmount.ts",
+        "tests/refundAmount.test.ts"
+      ],
+      "paths": [
+        "src/refundAmount.ts",
+        "tests/refundAmount.test.ts"
+      ],
+      "recall": 1,
+      "excerptBytes": 144,
+      "responseBytes": 2008,
+      "queryMs": 298.1064580000002,
+      "preparationMs": 3179.6759580000007
+    },
+    {
+      "arm": "symbols-and-relations",
+      "task": "taxTotal",
+      "expected": [
+        "src/taxTotal.ts",
+        "tests/taxTotal.test.ts"
+      ],
+      "paths": [
+        "src/taxTotal.ts",
+        "tests/taxTotal.test.ts"
+      ],
+      "recall": 1,
+      "excerptBytes": 134,
+      "responseBytes": 1952,
+      "queryMs": 222.93995800000084,
+      "preparationMs": 3179.6759580000007
+    },
+    {
+      "arm": "symbols-and-relations",
+      "task": "sessionExpiry",
+      "expected": [
+        "src/sessionExpiry.ts",
+        "tests/sessionExpiry.test.ts"
+      ],
+      "paths": [
+        "src/sessionExpiry.ts",
+        "tests/sessionExpiry.test.ts"
+      ],
+      "recall": 1,
+      "excerptBytes": 136,
+      "responseBytes": 2002,
+      "queryMs": 238.24904199999946,
+      "preparationMs": 3179.6759580000007
+    }
+  ]
+}

@@ -574,3 +574,8 @@ runner, implicit project-memory update or whole-chat export belongs here.
   (2026-09-05): `npm run viz` already serves loopback ungated, so the local
   MCP is the same URL on `127.0.0.1`, and a second transport was code kept
   for a case that does not exist.
+
+`atoma_run_search` (viewer) and GET `/api/projects/:project/runs/:run/search`
+share `ProjectService.searchCode`: saved artifacts, host Haystack configuration,
+exact citations, optional bounded file relations and explicit corpus coverage.
+No live workspace, model API call or durable search store is exposed.

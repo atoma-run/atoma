@@ -4521,7 +4521,7 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
     }
 
     const readinessRead = pathname.match(/^\/api\/projects\/([^/]+)\/readiness$/);
-    const clientRunRead = pathname.match(/^\/api\/projects\/([^/]+)\/runs\/([^/]+)\/(status|artifacts|file|compare|review)$/);
+    const clientRunRead = pathname.match(/^\/api\/projects\/([^/]+)\/runs\/([^/]+)\/(status|artifacts|file|compare|review|search)$/);
     if (readinessRead || clientRunRead) {
       if (!methodAllowed(req, res, 'GET')) return;
       if (!viewer) { sendJson(res, 401, { error: 'authentication required' }); return; }
@@ -4529,7 +4529,16 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
         const params = new URL(req.url!, 'http://localhost').searchParams;
         const service = PROJECTS_RUNTIME.projects;
         const query: Record<string, unknown> = Object.fromEntries(params);
-        for (const key of ['offset', 'limit']) if (params.has(key)) query[key] = Number(params.get(key));
+        for (const key of ['offset', 'limit', 'maxExcerptBytes']) if (params.has(key)) query[key] = Number(params.get(key));
+        if (clientRunRead?.[3] === 'search') {
+          if (params.has('includeRelated')) {
+            if (!['true', 'false'].includes(params.get('includeRelated')!)) throw new ProjectHttpError(400, 'invalid includeRelated');
+            query['includeRelated'] = params.get('includeRelated') === 'true';
+          }
+          if (params.has('filters')) { try { query['filters'] = JSON.parse(params.get('filters')!); } catch { throw new ProjectHttpError(400, 'invalid filters'); } }
+          sendJson(res, 200, await service.searchCode(viewer, clientRunRead[1]!, clientRunRead[2]!, query));
+          return;
+        }
         const payload = readinessRead ? service.projectReadiness(viewer, readinessRead[1]!)
           : clientRunRead![3] === 'status' ? service.projectRunStatus(viewer, clientRunRead![1]!, clientRunRead![2]!)
             : clientRunRead![3] === 'review' ? service.reviewRun(viewer, clientRunRead![1]!, clientRunRead![2]!)

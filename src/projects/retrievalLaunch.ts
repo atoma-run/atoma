@@ -1,3 +1,4 @@
+import { selectRetrievalDocuments } from './retrievalSelection.js';
 import Database from 'better-sqlite3';
 import { mkdir, realpath, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
@@ -5,11 +6,11 @@ import { openStoreHandle } from '../core/stores.js';
 import { eligibleProjectRun, projectRunPathsMatch } from './runAuthority.js';
 import { projectRunIdSchema, type ProjectRun } from '../contracts/projects.js';
 import { projectRetrievalLaunchSchema, type ProjectRetrievalLaunch } from '../contracts/projectRetrievalLaunch.js';
-import { projectDocumentFormat, projectRetrievalScopeSchema, type ProjectRetrievalScope } from '../contracts/projectRetrieval.js';
+import { projectRetrievalScopeSchema, type ProjectRetrievalScope } from '../contracts/projectRetrieval.js';
 import { canonicalRetrievalManifest, captureProjectDocument, assertRetrievalTime,
   prepareProjectRetrievalCorpus, projectRetrievalHash, retrievalGeneration, retrievalConfigForManifest } from './retrievalCorpus.js';
 import { ProjectStore } from './store.js';
-import { artifactManifestHash, assertPublishableArtifactPath } from './artifacts.js';
+import { artifactManifestHash, assertPublishableArtifactPath, buildWorkspaceArtifactManifest } from './artifacts.js';
 import type { ProjectRetrievalBinding, ProjectRetrievalCallContext, ProjectRetrievalService } from '../tools/projectRetrieval.js';
 
 /** Source receipts are authoritative; retrieval indexes belong to the run-owned Haystack process. */
@@ -98,7 +99,7 @@ export class ProjectRetrievalLaunchStore {
     this.db.prepare('UPDATE project_retrieval_launches SET revoked = 1 WHERE run_id = ?').run(projectRunIdSchema.parse(runId));
   }
 
-  async prepare(runId: string, sourceRunId: string | null, context: ProjectRetrievalCallContext): Promise<ProjectRetrievalLaunch> {
+  async prepare(runId: string, sourceRunId: string | null, context: ProjectRetrievalCallContext, startingRoot?: string, reuseRunId?: string): Promise<ProjectRetrievalLaunch> {
     try {
       assertRetrievalTime(context);
       const run = this.eligibleRun(runId);
@@ -107,21 +108,21 @@ export class ProjectRetrievalLaunchStore {
       if (sourceRunId && (!source || source.bytesExpiredAt || source.projectId !== run.projectId ||
           (source.status !== 'delivered' && source.status !== 'partial'))) throw new Error('invalid source run');
       if (source?.artifactManifest && artifactManifestHash(source.artifactManifest) !== source.artifactManifestHash) throw new Error('invalid source manifest');
-      const documents = (source?.artifactManifest?.files ?? [])
-        .filter(file => projectDocumentFormat(file.path) !== null && file.mode === '100644')
-        .map(file => {
-          assertPublishableArtifactPath(file.path);
-          return { path: file.path, sha256: file.sha256, bytes: file.size };
-        });
+      const reused = reuseRunId ? this.read(reuseRunId) : null;
+      if (reuseRunId && (!reused || reused.scope.kind !== 'tenant' || reused.scope.orgId !== run.orgId || reused.scope.projectId !== run.projectId)) throw new Error('missing recorded corpus');
+      const startingFiles = startingRoot ? buildWorkspaceArtifactManifest({ workspaceRoot: startingRoot, allowEmpty: true }).manifest.files : undefined;
+      const selected = selectRetrievalDocuments(startingFiles ?? source?.artifactManifest?.files ?? []);
+      const documents = reused?.manifest.documents ?? selected.documents;
+      for (const document of documents) assertPublishableArtifactPath(document.path);
       const manifest = canonicalRetrievalManifest({
         version: 1, corpusId: 'project-docs', snapshotId: run.projectRunId,
         snapshotSha256: projectRetrievalHash(JSON.stringify([run.orgId, run.projectId, sourceRunId, source?.artifactManifestHash ?? null, documents])),
-        documents,
+        documents, coverage: reused ? reused.manifest.coverage : selected.coverage,
       });
       const sourceRoot = sourceRootFor(run);
       await mkdir(dirname(sourceRoot), { recursive: true, mode: 0o700 });
       await mkdir(sourceRoot, { mode: 0o700 }); // reserve a fresh archive; never overwrite evidence
-      const originalRoot = source && documents.length ? await realpath(source.hostPaths.workspacePath) : null;
+      const originalRoot = documents.length ? await realpath(reused?.sourceRoot ?? startingRoot ?? source!.hostPaths.workspacePath) : null;
       for (const document of manifest.documents) {
         assertRetrievalTime(context);
         const bytes = await captureProjectDocument(originalRoot!, document, context);

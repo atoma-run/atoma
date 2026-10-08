@@ -58,7 +58,7 @@ describe('project retrieval request and authority boundary', () => {
       additionalProperties: false, required: ['query'],
       properties: { query: { type: 'string' }, limit: { type: 'integer', maximum: 10 } },
     });
-    expect(Object.keys(projectRetrievalDeclaration.inputSchema['properties']!)).toEqual(['query', 'filters', 'limit', 'maxExcerptBytes']);
+    expect(Object.keys(projectRetrievalDeclaration.inputSchema['properties']!)).toEqual(['query', 'filters', 'includeRelated', 'limit', 'maxExcerptBytes']);
     expect(projectRetrievalDeclaration.element).toMatchObject({ number: 11, name: 'Sodium' });
   });
 

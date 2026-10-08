@@ -1,6 +1,6 @@
 # Projects — AGENTS.md
 
-`src/projects/` owns organisation-scoped projects, run corpora, artifacts, publication and [private conversation continuity](../../docs/integrated-assistant.md).
+`src/projects/` owns organisation-scoped projects, run corpora, artifacts, publication and [private conversation continuity](../../docs/integrated-assistant.md) and [structured Haystack code retrieval](../../docs/code-retrieval.md).
 
 Read [`AGENTS.md`](../../AGENTS.md) first: it holds the cross-cutting rules.
 Everything below is stated once, here, and is not repeated at the root.

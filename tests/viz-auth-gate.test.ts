@@ -2697,6 +2697,10 @@ it('serves saved file preview bytes as authenticated, non-executable attachments
       .toMatchObject({ projectId: project.projectId, canRequest: true, liveChecks: 'not-performed' });
     expect(await (await fetch(`${runBase}/artifacts?limit=1`, { headers })).json())
       .toMatchObject({ files: [{ path: 'drawing.svg', size: bytes.length }], total: 1, nextOffset: null });
+    expect((await fetch(`${runBase}/search?query=refund`)).status).toBe(401);
+    expect((await fetch(`${runBase}/search?query=refund&includeRelated=invalid`, { headers })).status).toBe(400);
+    expect((await fetch(`${runBase}/search?query=refund&filters=not-json`, { headers })).status).toBe(400);
+    expect((await fetch(`${runBase}/search?query=refund&limit=100`, { headers })).status).toBe(400);
     expect((await fetch(`${runBase}/review`)).status).toBe(401);
     const review = await fetch(`${runBase}/review`, { headers });
     expect(review.status).toBe(200);

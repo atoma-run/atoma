@@ -25,15 +25,29 @@ export const projectDocumentPathSchema = z.string().min(1).max(512).refine(path 
   !Array.from(path).some(char => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127) &&
   path.split('/').every(part => part !== '' && part !== '.' && part !== '..'),
 'expected a normalized relative document path');
-export const PROJECT_DOCUMENT_FORMATS = ['md', 'txt', 'csv', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp', 'rtf'] as const;
+export const PROJECT_DOCUMENT_FORMATS = ['md', 'txt', 'csv', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp', 'rtf', 'ts', 'tsx', 'js', 'jsx', 'mts', 'cts', 'mjs', 'cjs'] as const;
 export const projectDocumentFormatSchema = z.enum(PROJECT_DOCUMENT_FORMATS);
 export function projectDocumentFormat(path: string): z.infer<typeof projectDocumentFormatSchema> | null {
   const parsed = projectDocumentFormatSchema.safeParse(path.split('.').at(-1)?.toLowerCase());
   return parsed.success ? parsed.data : null;
 }
 export function isPlainProjectDocument(path: string): boolean {
-  return ['md', 'txt', 'csv'].includes(projectDocumentFormat(path) ?? '');
+  return ['md', 'txt', 'csv', ...PROJECT_CODE_FORMATS].includes(projectDocumentFormat(path) ?? '');
 }
+
+export const PROJECT_CODE_FORMATS = ['ts', 'tsx', 'js', 'jsx', 'mts', 'cts', 'mjs', 'cjs'] as const;
+export function isProjectCode(path: string): boolean {
+  return (PROJECT_CODE_FORMATS as readonly string[]).includes(projectDocumentFormat(path) ?? '');
+}
+export const projectCodeMetadataSchema = z.object({
+  symbol: z.string().max(256), kind: z.string().max(40), signature: z.string().max(512),
+  startLine: z.number().int().positive(), endLine: z.number().int().positive(),
+  parseStatus: z.enum(['parsed', 'syntax-errors']),
+  relations: z.array(z.object({ path: projectDocumentPathSchema,
+    kind: z.enum(['imports', 'imported-by']) }).strict()).max(20),
+  relationsTruncated: z.boolean(),
+}).strict();
+export type ProjectCodeMetadata = z.infer<typeof projectCodeMetadataSchema>;
 
 /** Optional narrowing only; authority and snapshot are always host-owned. */
 export const projectRetrievalFiltersSchema = z.object({
@@ -52,6 +66,7 @@ export function matchesProjectRetrievalFilters(path: string, filters?: ProjectRe
 export const projectRetrievalRequestSchema = z.object({
   query: z.string().min(1).max(1000),
   filters: projectRetrievalFiltersSchema.optional(),
+  includeRelated: z.boolean().optional(),
   limit: z.number().int().min(1).max(10).optional(),
   maxExcerptBytes: z.number().int().min(128).max(4096).optional(),
 }).strict();
@@ -91,6 +106,7 @@ export const DEFAULT_PROJECT_RETRIEVAL_LIMITS = projectRetrievalLimitsSchema.par
 export const projectRetrievalQuerySchema = z.object({
   text: projectRetrievalRequestSchema.shape.query,
   filters: projectRetrievalFiltersSchema.optional(),
+  includeRelated: z.boolean().optional(),
   terms: z.array(z.string().min(1).max(128)).min(1).max(32).readonly(),
   limit: z.number().int().min(1).max(10),
   maxExcerptBytes: z.number().int().min(128).max(4096),
@@ -107,6 +123,7 @@ export function parseProjectRetrievalQuery(
   const query = projectRetrievalQuerySchema.safeParse({
     text: parsed.data.query.normalize('NFC'),
     ...(parsed.data.filters ? { filters: parsed.data.filters } : {}),
+    includeRelated: parsed.data.includeRelated,
     terms, limit: Math.min(parsed.data.limit ?? limits.maxResults, limits.maxResults),
     maxExcerptBytes: Math.min(parsed.data.maxExcerptBytes ?? limits.maxExcerptBytes, limits.maxExcerptBytes),
     maxCandidates: limits.maxCandidates,
@@ -130,6 +147,7 @@ export const projectRetrievalCitationSchema = z.object({
 }).strict();
 
 export const projectRetrievalPassageSchema = z.object({
+  code: projectCodeMetadataSchema.optional(),
   documentId: projectDocumentDigestSchema,
   path: projectDocumentPathSchema,
   sha256: projectDocumentDigestSchema,
@@ -164,8 +182,12 @@ export function projectRetrievalCitation(passage: ProjectRetrievalPassage): z.in
     endLine: passage.endLine, quote: passage.excerpt };
 }
 
+export const projectRetrievalCoverageSchema = z.object({ eligible: z.number().int().nonnegative(),
+  indexed: z.number().int().nonnegative(), omitted: z.number().int().nonnegative() }).strict();
+
 export const projectRetrievalResponseSchema = z.discriminatedUnion('ok', [
   z.object({ ok: z.literal(true), status: z.literal('ok'), ...sourceBinding,
+    coverage: projectRetrievalCoverageSchema.optional(),
     passages: z.array(projectRetrievalPassageSchema).max(100), truncated: z.boolean() }).strict(),
   z.object({ ok: z.literal(false),
     status: z.enum(['denied', 'invalid_request', 'unavailable', 'cancelled', 'timed_out']) }).strict(),

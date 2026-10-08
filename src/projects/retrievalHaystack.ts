@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { once } from 'node:events';
 import { HAYSTACK_FRAME_BYTES, HAYSTACK_REPLY_BYTES, haystackReplySchema, haystackSettingsSchema,
   type HaystackReply, type HaystackSettings } from '../contracts/retrievalHaystack.js';
-import { matchesProjectRetrievalFilters, projectDocumentFormat, projectRetrievalPassageSchema } from '../contracts/projectRetrieval.js';
+import { matchesProjectRetrievalFilters, projectDocumentFormat, projectRetrievalPassageSchema, type ProjectRetrievalPassage } from '../contracts/projectRetrieval.js';
 import { PROJECT_RETRIEVAL_CORPUS_LIMITS } from '../contracts/projectRetrievalCorpus.js';
 import { haystackModelRevision } from './retrievalModelFiles.js';
 import { validateProjectRetrievalBinding, type ProjectRetrievalBinding,
@@ -120,7 +120,7 @@ export async function createHaystackRetrievalBinding(input: {
     child = new HaystackProcess(input.python);
     const ready = await child.send({ op: 'init', settings, documents: [...passages].map(([id, p]) => ({
       id, content: retrievalPassageContext(manifest, p) + '\n' + p.excerpt,
-      meta: { path: p.path, format: projectDocumentFormat(p.path),
+      meta: { path: p.path, ...(p.code ? { symbol: p.code.symbol, kind: p.code.kind } : {}), format: projectDocumentFormat(p.path),
         snapshotId: manifest.snapshotId, snapshotSha256: manifest.snapshotSha256 },
     })) }, input.context, true);
     if (ready.kind !== 'ready' || (input.runtimeSha256 !== undefined && ready.runtimeSha256 !== input.runtimeSha256) ||
@@ -142,15 +142,30 @@ export async function createHaystackRetrievalBinding(input: {
         if (result.kind !== 'result' || result.hits.length > query.maxCandidates || new Set(result.hits.map(h => h.id)).size !== result.hits.length) {
           throw new Error('Haystack invalid result');
         }
+        const ranked = result.hits.map(hit => {
+          const passage = passages.get(hit.id);
+          if (!passage || !matchesProjectRetrievalFilters(passage.path, query.filters)) throw new Error('Haystack unknown or excluded passage');
+          return { ...passage, score: hit.score };
+        });
+        // Keep the best match first, then one source excerpt per resolved neighbouring file.
+        // Expansion never escapes the caller's filters or the same admitted snapshot.
+        const expanded: ProjectRetrievalPassage[] = [...ranked];
+        if (query.includeRelated && ranked[0]?.code) {
+          const seen = new Set([ranked[0].path]);
+          const related = ranked[0].code.relations.flatMap(relation => {
+            if (seen.has(relation.path)) return [];
+            const neighbours = [...passages.values()].filter(p => p.path === relation.path && matchesProjectRetrievalFilters(p.path, query.filters));
+            const passage = neighbours.find(p => p.code?.symbol !== '<module>' || p.code?.kind === 'ExpressionStatement') ?? neighbours[0];
+            if (!passage) return [];
+            seen.add(relation.path); return [passage];
+          }).slice(0, Math.max(0, query.limit - 1));
+          expanded.splice(1, 0, ...related);
+        }
+        const unique = expanded.filter((p, i, all) => all.findIndex(q => q.path === p.path && q.startByte === p.startByte) === i);
         return { ok: true, status: 'ok', corpusId: scope.corpusId, snapshotId: scope.snapshotId,
           snapshotSha256: scope.snapshotSha256, generation: scope.generation,
-          passages: result.hits.map(hit => {
-            const passage = passages.get(hit.id);
-            if (!passage || !matchesProjectRetrievalFilters(passage.path, query.filters)) {
-              throw new Error('Haystack unknown or excluded passage');
-            }
-            return { ...passage, score: hit.score };
-          }), truncated: result.hits.length >= query.maxCandidates };
+          ...(manifest.coverage ? { coverage: manifest.coverage } : {}),
+          passages: unique.slice(0, query.maxCandidates), truncated: result.hits.length >= query.maxCandidates || unique.length > query.maxCandidates };
       },
       dispose: async () => {
         if (closed) return;

@@ -1,3 +1,4 @@
+import { analyseProjectCode, codeRelations, type ProjectCodeAnalysis } from './retrievalCode.js';
 import { createHash } from 'node:crypto';
 import { constants } from 'node:fs';
 import { lstat, open, realpath } from 'node:fs/promises';
@@ -8,7 +9,7 @@ import {
   projectRetrievalManifestSchema, type ProjectRetrievalChunkSettings,
   type ProjectRetrievalIndexConfig, type ProjectRetrievalManifest,
 } from '../contracts/projectRetrievalCorpus.js';
-import { isPlainProjectDocument, projectRetrievalPassageSchema, type ProjectRetrievalPassage } from '../contracts/projectRetrieval.js';
+import { isPlainProjectDocument, isProjectCode, projectRetrievalPassageSchema, type ProjectRetrievalPassage } from '../contracts/projectRetrieval.js';
 import { extractProjectDocument } from './retrievalExtract.js';
 import type { ProjectRetrievalCallContext } from '../tools/projectRetrieval.js';
 
@@ -41,6 +42,8 @@ export function retrievalIndexConfig(chunks: Partial<ProjectRetrievalChunkSettin
 export function retrievalConfigForManifest(manifest: ProjectRetrievalManifest,
   chunks: Partial<ProjectRetrievalChunkSettings> = {}): ProjectRetrievalIndexConfig {
   const config = retrievalIndexConfig(chunks);
+  if (manifest.documents.some(d => isProjectCode(d.path))) return projectRetrievalIndexConfigSchema.parse({ ...config,
+    chunkerVersion: 'typescript-symbols-v1', normalization: manifest.documents.some(d => !isPlainProjectDocument(d.path)) ? 'original-text-or-extracted-utf8; no overlap' : 'original-bytes; no overlap', extractionVersion: manifest.documents.some(d => !isPlainProjectDocument(d.path)) ? 'officeparser-7.8.0-v1' : 'utf8-files-v1' });
   return manifest.documents.some(d => !isPlainProjectDocument(d.path))
     ? projectRetrievalIndexConfigSchema.parse({ ...config, extractionVersion: 'officeparser-7.8.0-v1',
       normalization: 'original-text-or-extracted-utf8; no overlap' }) : config;
@@ -56,7 +59,8 @@ export function retrievalDocumentId(path: string, sha256: string): string {
 
 /** Searchable decoration is never substituted for an original-source excerpt. */
 export function retrievalPassageContext(manifest: ProjectRetrievalManifest, passage: ProjectRetrievalPassage): string {
-  return [passage.path, ...passage.headingContext, manifest.corpusId, manifest.snapshotId,
+  return [passage.path, ...(passage.code ? [passage.code.symbol, passage.code.signature,
+    passage.code.symbol.replace(/([a-z])([A-Z])/g, '$1 $2').replaceAll('_', ' ')] : []), ...passage.headingContext, manifest.corpusId, manifest.snapshotId,
     manifest.snapshotSha256, passage.sha256].join('\n');
 }
 
@@ -80,7 +84,7 @@ export async function captureProjectDocument(root: string, document: ProjectRetr
   const handle = await open(canonical, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
     const before = await handle.stat();
-    if (!before.isFile() || (before.mode & 0o111) !== 0 || before.size !== document.bytes) {
+    if (!before.isFile() || ((before.mode & 0o111) !== 0 && !isProjectCode(document.path)) || before.size !== document.bytes) {
       throw new Error('document is not an admitted regular file');
     }
     // Bounded even if a file grows after stat. Never readFile an unbounded descriptor.
@@ -116,10 +120,11 @@ function sourceLines(bytes: Buffer): SourceLine[] {
   return lines;
 }
 
-function chunkDocument(document: ProjectRetrievalManifest['documents'][number], bytes: Buffer,
-  settings: ProjectRetrievalChunkSettings, extraction?: ProjectRetrievalPassage['extraction']): Readonly<ProjectRetrievalPassage>[] {
+export function chunkDocument(document: ProjectRetrievalManifest['documents'][number], bytes: Buffer,
+  settings: ProjectRetrievalChunkSettings, extraction?: ProjectRetrievalPassage['extraction'], analysis?: ProjectCodeAnalysis): Readonly<ProjectRetrievalPassage>[] {
   const lines = sourceLines(bytes);
   const passages: Readonly<ProjectRetrievalPassage>[] = [];
+  const boundaries = new Set(analysis?.symbols.map(s => s.startLine));
   const headings: { level: number; title: string }[] = [];
   let start = -1, end = -1, startLine = 1, endLine = 1;
   const flush = () => {
@@ -150,6 +155,7 @@ function chunkDocument(document: ProjectRetrievalManifest['documents'][number], 
   };
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!;
+    if (boundaries.has(line.number)) flush();
     const markdown = document.path.toLowerCase().endsWith('.md');
     const heading = markdown ? /^ {0,3}(#{1,6})[ \t]+(.+?)\s*#*\s*$/.exec(line.text) : null;
     const setext = markdown && !heading && line.text.trim() && i + 1 < lines.length ?
@@ -184,16 +190,33 @@ export async function prepareProjectRetrievalCorpus(root: string, input: unknown
   context: ProjectRetrievalCallContext, chunks: Partial<ProjectRetrievalChunkSettings> = {}): Promise<PreparedProjectRetrievalCorpus> {
   try {
     assertRetrievalTime(context);
-    const manifest = canonicalRetrievalManifest(input);
-    const config = retrievalConfigForManifest(manifest, chunks);
     const canonicalRoot = await realpath(root);
     if (!(await lstat(canonicalRoot)).isDirectory()) throw new Error('invalid snapshot root');
+    return await prepareProjectRetrievalSources(input, context, document => captureProjectDocument(canonicalRoot, document, context), chunks);
+  } catch { assertRetrievalTime(context); throw new Error('project document ingestion failed'); }
+}
+
+/** Shared ingestion over authority-verified bytes, also used by the client reader. */
+export async function prepareProjectRetrievalSources(input: unknown, context: ProjectRetrievalCallContext,
+  read: (document: ProjectRetrievalManifest['documents'][number]) => Promise<Buffer>,
+  chunks: Partial<ProjectRetrievalChunkSettings> = {}): Promise<PreparedProjectRetrievalCorpus> {
+  try {
+    assertRetrievalTime(context);
+    const manifest = canonicalRetrievalManifest(input);
+    const config = retrievalConfigForManifest(manifest, chunks);
     const passages: Readonly<ProjectRetrievalPassage>[] = [];
     let extractedBytes = 0;
+    const analyses = new Map<string, ProjectCodeAnalysis>();
     for (const document of manifest.documents) {
       assertRetrievalTime(context);
-      const bytes = await captureProjectDocument(canonicalRoot, document, context);
-      if (isPlainProjectDocument(document.path)) passages.push(...chunkDocument(document, bytes, config.chunks));
+      const bytes = await read(document);
+      if (bytes.length !== document.bytes || projectRetrievalHash(bytes) !== document.sha256 ||
+          (isPlainProjectDocument(document.path) && (bytes.includes(0) || !Buffer.from(bytes.toString('utf8')).equals(bytes)))) throw new Error('source mismatch');
+      if (isPlainProjectDocument(document.path)) {
+        const analysis = isProjectCode(document.path) ? analyseProjectCode(document.path, bytes.toString('utf8'), manifest.documents.map(d => d.path)) : undefined;
+        if (analysis) analyses.set(document.path, analysis);
+        passages.push(...chunkDocument(document, bytes, config.chunks, undefined, analysis));
+      }
       else {
         const extracted = await extractProjectDocument(document.path, bytes, context);
         extractedBytes += extracted.length;
@@ -204,6 +227,22 @@ export async function prepareProjectRetrievalCorpus(root: string, input: unknown
         }));
       }
       if (passages.length > PROJECT_RETRIEVAL_CORPUS_LIMITS.passages) throw new Error('too many passages');
+    }
+    const relations = new Map([...analyses.keys()].map(path => [path, codeRelations(path, analyses)]));
+    for (let i = 0; i < passages.length; i++) {
+      const passage = passages[i]!;
+      const analysis = analyses.get(passage.path);
+      if (!analysis) continue;
+      let low = 0, high = analysis.symbols.length;
+      while (low < high) { const mid = (low + high) >>> 1;
+        if (analysis.symbols[mid]!.startLine <= passage.startLine) low = mid + 1; else high = mid;
+      }
+      const candidate = analysis.symbols[low - 1];
+      const symbol = candidate && candidate.endLine >= passage.startLine ? candidate : undefined;
+      passages[i] = Object.freeze(projectRetrievalPassageSchema.parse({ ...passage, code: {
+        ...(symbol ?? { symbol: '<module>', kind: 'SourceFile', signature: '', startLine: passage.startLine,
+          endLine: passage.endLine, parseStatus: analysis.parseStatus }), ...relations.get(passage.path)!,
+      } }));
     }
     assertRetrievalTime(context);
     return Object.freeze({ manifest, config, generation: retrievalGeneration(manifest, config),

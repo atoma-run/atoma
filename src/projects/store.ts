@@ -728,6 +728,14 @@ function createIndexOrReason(db: Database.Database, sql: string): string | null 
 }
 
 export class ProjectStore {
+  /** Long-running read revalidation; a captured Viewer is not a durable grant. */
+  canReadProjectNow(principalId: string, orgId: string, projectId: string, activeOrgId = orgId): boolean {
+    return !!this.db.prepare(`SELECT 1 FROM projects p WHERE p.org_id = ? AND p.project_id = ? AND p.status = 'active'
+      AND (EXISTS (SELECT 1 FROM auth_memberships m WHERE m.org_id = p.org_id AND m.org_id = ? AND m.principal_id = ?)
+        OR EXISTS (SELECT 1 FROM auth_platform_admins a WHERE a.principal_id = ?))`)
+      .get(orgId, projectId, activeOrgId, principalId, principalId);
+  }
+
   private readonly db: Database.Database;
   private readonly closeOnClose: boolean;
 

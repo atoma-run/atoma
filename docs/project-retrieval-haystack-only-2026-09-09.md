@@ -33,10 +33,10 @@ available without this configuration.
 
 There is no activation switch or child activation marker. Every new project run archives its
 admitted source documents, records its receipt and initializes Haystack before
-model execution. A first run still exposes search with an empty corpus. The
-corpus remains the previous delivered run's manifest-admitted document artifacts
-(see [document formats](#document-formats)); mandatory search does not expand
-which documents a tenant can read.
+model execution. A first run without a seed exposes an empty corpus. Runs with
+a repository seed capture that actual starting version; continuations reuse
+their recorded corpus. Documentation and TS/JS sources share bounded admission
+with explicit coverage (see [structured code retrieval](code-retrieval.md)).
 
 The child reads the recorded receipt directly from the product store after
 validating project authority. An existing receipt requires Haystack even when
@@ -225,8 +225,8 @@ absence of a receipt; they cannot inherit the host engine configuration.
 ```
 
 `paths` selects exact normalized relative file paths; `directories` selects
-recursive descendants, without a trailing slash; `formats` accepts `md` and
-`txt`. Each path/directory list accepts 1–20 entries. Values within a field
+recursive descendants, without a trailing slash; `formats` accepts the supported document and TS/JS extensions (see
+[structured code retrieval](code-retrieval.md)). Each path/directory list accepts 1–20 entries. Values within a field
 are alternatives; fields combine with AND. Omitted or empty filter objects
 retain the full admitted snapshot; empty lists are invalid. A valid filter
 matching no documents returns a successful empty result.

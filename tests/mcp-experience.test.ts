@@ -1,3 +1,6 @@
+import { projectRetrievalResponseSchema } from '../src/contracts/projectRetrieval.js';
+import { ProjectRetrievalLaunchStore } from '../src/projects/retrievalLaunch.js';
+import { retrievalContext } from './helpers/projectRetrievalCorpus.js';
 import { traceDetailPageSchema } from '../src/contracts/clientExperience.js';
 import { clientQuestionViewSchema } from '../src/contracts/clientQuestion.js';
 import Database from 'better-sqlite3';
@@ -215,6 +218,8 @@ it.each([false, true])('pauses and resumes through MCP tasks (legacy=%s), reatta
   const { run, layout } = f.makeRun();
   mkdirSync(layout.workspacePath, { recursive: true });
   writeFileSync(join(layout.workspacePath, 'saved.txt'), 'validated work');
+  // Production captures the starting corpus before any checkpoint can be written.
+  await ProjectRetrievalLaunchStore.open(f.dbPath).prepare(run.projectRunId, null, retrievalContext());
   const checkpoints = new RunCheckpointStore(f.dbPath);
   const data: RunCheckpoint = { version: 1, id: run.projectRunId, goal: run.goal,
     workspace: realpathSync(layout.workspacePath), policy: '{}',
@@ -622,4 +627,20 @@ it.each([false, true])('pages the literal result without unrelated trace metadat
   writeFileSync(path, JSON.stringify({ id: run.projectRunId, result: { output: 'changed' }, events: [] }));
   expect((await f.call('atoma_run_trace', { runId: run.projectRunId, section: 'result', snapshot })).structuredContent).toMatchObject({ changed: true });
   expect(f.driver).not.toHaveBeenCalled();
+});
+
+
+it.each([false, true])('searches saved code through Haystack on both MCP eras (legacy=%s)', async legacy => {
+  const f = await fixture(legacy);
+  const { run } = f.makeRun({ 'refund.ts': 'export function refundAmount(hours: number) { return hours >= 24 ? 100 : 0; }\n' });
+  const environment = haystackTestEnvironment(f.root);
+  vi.stubEnv('ATOMA_HAYSTACK_CONFIG', environment['ATOMA_HAYSTACK_CONFIG']);
+  try {
+    const result = projectRetrievalResponseSchema.parse((await f.call('atoma_run_search', {
+      projectId: f.project.projectId, runId: run.projectRunId, query: 'refund amount', includeRelated: true,
+    })).structuredContent);
+    expect(result).toMatchObject({ ok: true, coverage: { indexed: 1 }, passages: [{ code: { symbol: 'refundAmount' },
+      citation: { path: 'refund.ts', startLine: 1 } }] });
+    expect(f.driver).not.toHaveBeenCalled();
+  } finally { vi.unstubAllEnvs(); }
 });

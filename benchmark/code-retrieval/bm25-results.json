@@ -1,0 +1,116 @@
+{
+  "fixture": "code-retrieval-v1",
+  "measuredAt": "2026-10-08T22:47:00.511Z",
+  "node": "v24.20.0",
+  "runtimeSha256": "097b6a29a27e5a820dbfce925e010f2c484693d07fb963f425c8366ea4214d89",
+  "implementationSha256": "a7adbadc17eee44b6df84455ff88677a183bc309229a2640ff825f8f7753ab58",
+  "backend": "real Haystack bm25",
+  "modelPins": null,
+  "tasks": 3,
+  "paidCalls": 0,
+  "scope": "Synthetic retrieval only; no end-to-end agent quality or cost claim.",
+  "rows": [
+    {
+      "arm": "line-chunks",
+      "task": "refundAmount",
+      "expected": [
+        "src/refundAmount.ts",
+        "tests/refundAmount.test.ts"
+      ],
+      "paths": [
+        "src/refundAmount.ts",
+        "tests/refundAmount.test.ts"
+      ],
+      "recall": 1,
+      "excerptBytes": 888,
+      "responseBytes": 2953,
+      "queryMs": 104.18733299999985,
+      "preparationMs": 727.482209
+    },
+    {
+      "arm": "line-chunks",
+      "task": "taxTotal",
+      "expected": [
+        "src/taxTotal.ts",
+        "tests/taxTotal.test.ts"
+      ],
+      "paths": [
+        "src/refundAmount.ts",
+        "tests/refundAmount.test.ts"
+      ],
+      "recall": 0,
+      "excerptBytes": 888,
+      "responseBytes": 2953,
+      "queryMs": 0.8361669999999322,
+      "preparationMs": 727.482209
+    },
+    {
+      "arm": "line-chunks",
+      "task": "sessionExpiry",
+      "expected": [
+        "src/sessionExpiry.ts",
+        "tests/sessionExpiry.test.ts"
+      ],
+      "paths": [
+        "src/refundAmount.ts",
+        "tests/refundAmount.test.ts"
+      ],
+      "recall": 0,
+      "excerptBytes": 888,
+      "responseBytes": 2953,
+      "queryMs": 0.735957999999755,
+      "preparationMs": 727.482209
+    },
+    {
+      "arm": "symbols-and-relations",
+      "task": "refundAmount",
+      "expected": [
+        "src/refundAmount.ts",
+        "tests/refundAmount.test.ts"
+      ],
+      "paths": [
+        "src/refundAmount.ts",
+        "tests/refundAmount.test.ts"
+      ],
+      "recall": 1,
+      "excerptBytes": 144,
+      "responseBytes": 2007,
+      "queryMs": 62.861667000000125,
+      "preparationMs": 728.2827500000003
+    },
+    {
+      "arm": "symbols-and-relations",
+      "task": "taxTotal",
+      "expected": [
+        "src/taxTotal.ts",
+        "tests/taxTotal.test.ts"
+      ],
+      "paths": [
+        "src/taxTotal.ts",
+        "tests/taxTotal.test.ts"
+      ],
+      "recall": 1,
+      "excerptBytes": 134,
+      "responseBytes": 1947,
+      "queryMs": 0.9585000000001855,
+      "preparationMs": 728.2827500000003
+    },
+    {
+      "arm": "symbols-and-relations",
+      "task": "sessionExpiry",
+      "expected": [
+        "src/sessionExpiry.ts",
+        "tests/sessionExpiry.test.ts"
+      ],
+      "paths": [
+        "src/sessionExpiry.ts",
+        "tests/sessionExpiry.test.ts"
+      ],
+      "recall": 1,
+      "excerptBytes": 136,
+      "responseBytes": 2001,
+      "queryMs": 1.0258749999998145,
+      "preparationMs": 728.2827500000003
+    }
+  ]
+}

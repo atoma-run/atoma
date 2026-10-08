@@ -378,7 +378,7 @@ describe('the catalogue by tier', () => {
     // The viewer ladder: the organisation's own readers plus the two platform
     // commons the viz shows every signed-in role — registry and skill catalog.
     expect(asViewer).toEqual([
-      'atoma_projects_list', 'atoma_github_installations', 'atoma_project_runs', 'atoma_project_readiness', 'atoma_run_artifacts', 'atoma_run_file', 'atoma_run_compare', 'atoma_project_context', 'atoma_run_question', 'atoma_run_review', 'atoma_run_status', 'atoma_run_trace', 'atoma_run_preview',
+      'atoma_projects_list', 'atoma_github_installations', 'atoma_project_runs', 'atoma_project_readiness', 'atoma_run_artifacts', 'atoma_run_file', 'atoma_run_search', 'atoma_run_compare', 'atoma_project_context', 'atoma_run_question', 'atoma_run_review', 'atoma_run_status', 'atoma_run_trace', 'atoma_run_preview',
       'atoma_registry_list', 'atoma_registry_show', 'atoma_skills_list', 'atoma_registry_history', 'atoma_skills_show',
     ]);
     // Each rung adds exactly its own rows (the table interleaves the tiers).
@@ -1747,5 +1747,23 @@ it('serves a tenant the runner log without the host layout (2026-09-25 review, 2
     expect(text).toContain('skills root: <platform-skills>');
     expect(text).not.toContain(root);
     expect(text).not.toContain(skillsDirPath());
+  } finally { await client.close(); }
+});
+
+
+it('exposes saved code search through the shared reader and preserves typed refusals', async () => {
+  const searchCode = vi.fn(async () => ({ ok: false, status: 'unavailable' }));
+  const { url } = await listen(() => ({ kind: 'principal', viewer: viewer('org:viewer'), tokenId: 'test' }),
+    { ...TENANT_HOST, projects: { ...TENANT_HOST.projects!, service: { searchCode } as never } });
+  const client = await connect(url, 'reader');
+  try {
+    const result = await client.callTool({ name: 'atoma_run_search', arguments: { projectId: 'p', runId: 'r', query: 'refund amount', includeRelated: true } });
+    expect(result.structuredContent).toMatchObject({ ok: false, status: 'unavailable' });
+    expect(searchCode).toHaveBeenCalledWith(expect.anything(), 'p', 'r', { query: 'refund amount', includeRelated: true });
+    searchCode.mockRejectedValueOnce(new ProjectHttpError(404, 'run not found'));
+    expect((await client.callTool({ name: 'atoma_run_search', arguments: { projectId: 'foreign', runId: 'r', query: 'refund' } })).isError).toBe(true);
+    const invalid = await client.callTool({ name: 'atoma_run_search', arguments: { projectId: 'p', runId: 'r', query: 'refund', filters: { paths: ['../escape'] } } });
+    expect(invalid.isError).toBe(true);
+    expect(searchCode).toHaveBeenCalledTimes(2);
   } finally { await client.close(); }
 });
