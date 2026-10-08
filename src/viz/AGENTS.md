@@ -471,17 +471,17 @@ npm run viz:mark-turn:analyze
   window's visibility, and its DOM layer sits above view forms. Title-bar
   dragging clamps the complete window inside the viewport; slider values stay
   in the mutable live sample so pointer motion never rebuilds the GPU scene.
-- The Projects screen stacks, for a member of an organisation, the integrated
-  ASSISTANT CARD, then the DOM MCP onboarding guide, then the GPU project list
-  or the selected project's runs (owner, 2026-10-09: the conversation comes
-  first, it no longer replaces the screen). The card is expanded by default,
-  collapses to its title like the guide, keeps its state across project
-  selection, folds the guide to its title while it is expanded (the guide's
-  one automatic rule, beside "MCP connected"), and shares the guide's TS/CSS height contract
-  (`PROJECTS_ASSISTANT_HEIGHT`, `.gpu-assistant`, the guide's
-  `--after-assistant` offsets). A viewer sees the guide alone. Settings → MCP
-  and the copyable request remain the external-agent path. Creation and launch
-  require separate proposal confirmations. GitHub remains reachable when the organisation has
+- The Projects screen is ONE DOM guide card above the GPU project list or the
+  selected project's runs. For a member of an organisation the guide HOSTS the
+  integrated conversation (`assistant` prop, owner 2026-10-09: it no longer
+  replaces the screen, and a second card read as the assistant twice), with
+  the external-agent path (connection notice, copyable request, MCP, GitHub,
+  upstream) folded under it in a `<details>`; the card is then
+  `PROJECTS_MCP_GUIDE_ASSISTANT_HEIGHT` tall and the "fold once MCP is
+  connected" rule stops applying. A viewer sees the guide alone, as before.
+  The guide's toggle collapses the whole card, conversation included, and
+  creating a project from it keeps the card open on the new project's page.
+  Creation and launch require separate proposal confirmations. GitHub remains reachable when the organisation has
   no installation. A selected project's name owns the page title (`Project :
   <name>`) and is not repeated as an active row in its detail card.
   Re-clicking Projects in the rail returns to the full list; the accessible DOM

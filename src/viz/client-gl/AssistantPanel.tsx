@@ -5,23 +5,18 @@ import { api } from '../client/data-api.js';
 import { formatDateTime } from '../client/date-format.js';
 
 interface Props {
-  scopeKey: string; projectId: string | null; locale: string; inert: boolean;
-  /** A selected project moves the card under the section tabs, like the guide. */
-  projectSelected: boolean;
-  /** Collapsed to its title line; the runs below move up. */
-  collapsed: boolean;
+  scopeKey: string; projectId: string | null; locale: string;
   t: (key: string, vars?: Record<string, unknown>) => string;
-  onToggle: () => void;
   onSettings: (tab: 'subscriptions' | 'keys') => void; onScopeChange: (id: string) => void; onProject: (id: string) => void; onRun: (run: AssistantRun, traceId: string | null) => void;
 }
 
 /**
- * Selectable conversation and native inputs over the Projects view's GPU-drawn
- * panel. A CARD IN THE FLOW since 2026-10-09: it takes the guide's band above
- * the project's runs instead of replacing the screen, and collapses to its
- * title like the guide does.
+ * Selectable conversation and native inputs INSIDE the Projects guide card
+ * (owner, 2026-10-09): the guide's contextual title is the card's, this is
+ * its body, and the external-agent path folds under it. The guide owns the
+ * frame, the veil and the collapse; this block only fills it.
  */
-export function AssistantPanel({ scopeKey, projectId, locale, inert, projectSelected, collapsed, t, onToggle, onSettings, onScopeChange, onProject, onRun }: Props) {
+export function AssistantPanel({ scopeKey, projectId, locale, t, onSettings, onScopeChange, onProject, onRun }: Props) {
   const client = useQueryClient();
   const queryKey = ['viz', 'assistant', scopeKey, projectId];
   const conversationId = useRef<string | undefined>(undefined);
@@ -108,17 +103,8 @@ export function AssistantPanel({ scopeKey, projectId, locale, inert, projectSele
     } catch { setError(t('assistant.copyFailed')); }
   }
 
-  const header = <header>
-    <h2 id="assistant-title"><button type="button" className="gpu-assistant-toggle" aria-expanded={!collapsed} aria-controls="assistant-content" onClick={onToggle}>
-      <span aria-hidden="true">{collapsed ? '▸' : '▾'}</span> {t('assistant.title')}</button></h2>
-    {collapsed ? null : <p>{t('assistant.intro')}</p>}
-  </header>;
-  const className = `gpu-assistant${projectSelected ? ' gpu-assistant--selected' : ''}${collapsed ? ' gpu-assistant--collapsed' : ''}${inert ? ' gpu-overlays-veiled' : ''}`;
-  if (collapsed) return <section className={className} inert={inert} aria-labelledby="assistant-title">{header}</section>;
-  return <section className={className} inert={inert}
-    aria-labelledby="assistant-title" onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); onToggle(); } }}>
-    {header}
-    <div id="assistant-content" className="gpu-assistant-content">
+  return <section className="gpu-assistant" aria-label={t('assistant.title')}>
+    <p className="gpu-assistant-intro">{t('assistant.intro')}</p>
     {conversation?.id ? <div className="gpu-assistant-handoff"><button type="button" onClick={() => void copyContinuation()}>
       {t(copied ? 'assistant.continuationCopied' : 'assistant.continueElsewhere')}</button><small>{t('assistant.continuityHint')}</small></div> : null}
     {query.isError ? <div role="alert"><p>{t('assistant.failed')}</p><button onClick={() => void query.refetch()}>{t('assistant.retry')}</button></div> : null}
@@ -184,6 +170,5 @@ export function AssistantPanel({ scopeKey, projectId, locale, inert, projectSele
         <button type="submit" className="gpu-assistant-primary" disabled={waiting || !draft.trim() || !canSend}>
           {t(waiting ? 'assistant.working' : 'assistant.send')}</button></div>
     </form>
-    </div>
   </section>;
 }

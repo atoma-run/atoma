@@ -551,10 +551,6 @@ html.atoma-cursor-active * {
   top: 148px;
 }
 
-/* Below the assistant card: its height plus the 16px gap, expanded or
-   collapsed (PROJECTS_ASSISTANT_HEIGHT / PROJECTS_ASSISTANT_COLLAPSED_HEIGHT). */
-.gpu-project-mcp--after-assistant { top: calc(var(--gpu-overlay-top) + 536px); }
-.gpu-project-mcp--after-assistant-collapsed { top: calc(var(--gpu-overlay-top) + 64px); }
 
 /* The GPU view draws the card's frame through its shared panel path. */
 .gpu-project-mcp.gpu-panel-skin {
@@ -614,7 +610,18 @@ html.atoma-cursor-active * {
   .gpu-project-mcp { height: 300px; }
 }
 
+/* Hosting the conversation (PROJECTS_MCP_GUIDE_ASSISTANT_HEIGHT); collapsed
+   still wins below. */
+.gpu-project-mcp.gpu-project-mcp--assistant { height: 600px; }
+
 .gpu-project-mcp.gpu-project-mcp--collapsed { height: 48px; }
+
+/* The external-agent path, folded under the conversation. */
+.gpu-project-mcp-own-agent { margin-top: 2px; }
+.gpu-project-mcp-own-agent > summary {
+  cursor: pointer; color: #a9c8f2; font: 12px/1.4 ui-sans-serif, system-ui, sans-serif;
+}
+.gpu-project-mcp-own-agent-body { display: flex; flex-direction: column; gap: 9px; margin-top: 9px; }
 
 .gpu-project-mcp-toggle {
   display: block;
@@ -631,6 +638,9 @@ html.atoma-cursor-active * {
 .gpu-project-mcp-content:not([hidden]) {
   display: flex;
   flex: 1;
+  /* The hosted conversation scrolls its own log: this box must be allowed to
+     shrink to the card, or the composer slides below the card's edge. */
+  min-height: 0;
   flex-direction: column;
   gap: 9px;
 }
@@ -1715,30 +1725,14 @@ html.atoma-cursor-active * {
   pointer-events: none;
 }
 
-/* The frame is drawn by drawProjects, in the same GPU material as its
-   neighbours. A CARD IN THE FLOW (2026-10-09): the guide's band, then the
-   guide, then the runs. `top` and `height` must match PROJECTS_MCP_GUIDE_TOP,
-   PROJECTS_SELECTED_MCP_GUIDE_TOP, PROJECTS_ASSISTANT_HEIGHT and
-   PROJECTS_ASSISTANT_COLLAPSED_HEIGHT in renderer/views/projects.ts. */
+/* The conversation INSIDE the project guide card (owner, 2026-10-09): the
+   guide owns frame, veil, collapse and height; this block fills it and keeps
+   its own log scrolling. */
 .gpu-assistant {
-  --gpu-content: calc(100vw - var(--gpu-sidebar));
-  --gpu-overlay-top: 104px;
-  --gpu-overlay-left: calc(var(--gpu-sidebar) + 26px);
-  position: fixed; z-index: 4; top: var(--gpu-overlay-top); height: 520px;
-  left: var(--gpu-overlay-left); width: calc(var(--gpu-content) - 52px);
-  display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; box-sizing: border-box;
+  display: flex; flex: 1; min-height: 0; flex-direction: column; gap: 10px;
   color: #e6edf7; font: 14px/1.5 ui-sans-serif, system-ui, sans-serif;
 }
-.gpu-assistant--selected { --gpu-overlay-top: 148px; }
-.gpu-assistant--collapsed { height: 48px; overflow: hidden; }
-.gpu-assistant-content { display: flex; flex: 1; min-height: 0; flex-direction: column; gap: 10px; }
-/* The title is the toggle, plain like the guide's: it must beat the panel's
-   generic `.gpu-assistant button` skin below. */
-.gpu-assistant .gpu-assistant-toggle {
-  display: block; width: 100%; padding: 0; border: 0; border-radius: 0; background: transparent;
-  color: inherit; font: inherit; text-align: left; cursor: pointer; min-height: 0;
-}
-.gpu-assistant header { display: flex; flex-direction: column; gap: 2px; }
+.gpu-assistant-intro { margin: 0; color: #b5c5dc; font-size: 12px; }
 .gpu-assistant-footer, .gpu-assistant-run {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
 }

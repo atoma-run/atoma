@@ -1066,38 +1066,30 @@ try {
 
     if (showAssistant) {
       if (!authed || view !== 'Projects') throw new Error('--assistant requires --auth and Projects');
-      // The card is open by default (2026-10-09); the guide's button only
-      // exists while it is collapsed, and then it is the way back in.
-      const button = await page.$('[data-testid="assistant-open"]');
-      if (button) await button.click();
-      if (!(await page.$('.gpu-assistant'))) throw new Error('The integrated assistant card is missing');
+      // The conversation lives inside the project guide card (2026-10-09).
+      if (!(await page.$('.gpu-project-mcp--assistant .gpu-assistant'))) throw new Error('The integrated assistant is missing from the guide');
       try { await page.waitForSelector(assistantReconnect ? '.gpu-assistant-setup' : '.gpu-assistant-proposal', { timeout: 10_000 }); }
       catch (error) { await page.screenshot({ path: '/tmp/atoma-assistant-failure.png' }); throw error; }
       await page.evaluate(() => {
         const log = document.querySelector('.gpu-assistant-log');
         if (log) log.scrollTop = log.scrollHeight;
       });
-      // A card in the flow: its composer stays inside the card, the card
-      // keeps its contracted height, and the guide starts below it.
+      // The composer stays inside the guide card that hosts it, on screen.
       const composerVisible = await page.evaluate(() => {
         const button = document.querySelector('.gpu-assistant button[type="submit"]');
         const box = button?.getBoundingClientRect();
-        const section = document.querySelector('.gpu-assistant')?.getBoundingClientRect();
-        const guide = document.querySelector('.gpu-project-mcp')?.getBoundingClientRect();
-        // The scene camera scales DOM overlays with the canvas, so the
-        // contracted 520px card and its 16px gap are read as a ratio.
-        const scale = section ? section.height / 520 : 0;
-        return box && section && scale > 0.5 && scale < 2 &&
-          box.top >= section.top && box.bottom <= section.bottom + 1 && box.left >= section.left && box.right <= section.right + 1 &&
-          box.bottom <= globalThis.innerHeight && (!guide || Math.abs((guide.top - section.bottom) / scale - 16) < 2);
+        const guide = document.querySelector('.gpu-project-mcp--assistant')?.getBoundingClientRect();
+        return box && guide &&
+          box.top >= guide.top && box.bottom <= guide.bottom + 1 && box.left >= guide.left && box.right <= guide.right + 1 &&
+          box.bottom <= globalThis.innerHeight;
       });
       if (!composerVisible) {
         const diagnostic = await page.evaluate(() => {
           const rect = (selector) => { const box = document.querySelector(selector)?.getBoundingClientRect(); return box ? { top: Math.round(box.top), bottom: Math.round(box.bottom), left: Math.round(box.left), right: Math.round(box.right), height: Math.round(box.height) } : null; };
-          return { card: rect('.gpu-assistant'), submit: rect('.gpu-assistant button[type="submit"]'), guide: rect('.gpu-project-mcp'), viewport: { width: globalThis.innerWidth, height: globalThis.innerHeight } };
+          return { submit: rect('.gpu-assistant button[type="submit"]'), guide: rect('.gpu-project-mcp--assistant'), viewport: { width: globalThis.innerWidth, height: globalThis.innerHeight } };
         });
         await page.screenshot({ path: '/tmp/atoma-assistant-failure.png' });
-        throw new Error(`The assistant composer is outside its card, or the guide overlaps the card: ${JSON.stringify(diagnostic)}`);
+        throw new Error(`The assistant composer is outside its host card: ${JSON.stringify(diagnostic)}`);
       }
     }
 

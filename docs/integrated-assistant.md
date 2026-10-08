@@ -1,10 +1,12 @@
 # Integrated assistant
 
-The Projects screen opens on the **Atoma assistant** card, above the project
-list or above a selected project's runs (collapsible to its title), where a
-signed-in member describes a new project or the next change without installing
-an external agent. Creating a project moves the conversation to that project's
-page, where the first run is proposed and confirmed. The assistant prepares a
+The Projects guide card (**Create a new project with Atoma**, or **Continue
+<project> with Atoma** once a project is selected) hosts the conversation,
+above the project list or the project's runs, where a signed-in member
+describes a new project or the next change without installing an external
+agent. The external-agent path folds under it. Creating a project moves the
+conversation to that project's page, where the first run is proposed and
+confirmed. The assistant prepares a
 proposal. **Create this project** creates the project; a separate **Approve and
 start run** button authorizes spending run quota. Sending a chat message never
 executes either action. Subsequent messages supersede the previous proposal.

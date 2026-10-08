@@ -50,7 +50,6 @@ beforeEach(() => {
     runActivityPage: 0,
     runActivityExpandedChanges: {},
     selectedProjectId: null,
-    assistantOpen: false,
     projectSection: 'runs',
     selectedDocsTheme: 'quick',
     appearanceTheme: 'nocturne',
@@ -353,24 +352,12 @@ describe('full-GL minimal DOM bridge', () => {
     expect(screen.getByRole('region', { name: 'Create a new project with Atoma' })).toBeInTheDocument();
   });
 
-  it('offers the native assistant alongside the external agent setup', async () => {
-    // The assistant card is expanded by default; its guide button only appears
-    // while it is collapsed, and selecting a project keeps whatever state it has.
-    useGpuStore.setState({ view: 'projects', entered: true, assistantOpen: false });
+  it('offers the external agent setup in the guide when no assistant is hosted', async () => {
+    useGpuStore.setState({ view: 'projects', entered: true });
     const onOpenMcp = vi.fn();
     render(createElement(DomBridge, {
       runs, releaseVersion: '9.8.7', onSelectRun: vi.fn(), onOpenMcp,
       mcpAccessState: 'unconnected',
-      // The card and its re-open button exist for a member of an organisation.
-      auth: {
-        viewer: {
-          displayName: 'Member', role: 'org:member',
-          activeOrganisation: { id: 'org-1', name: 'Org One', role: 'org:member' },
-          organisations: [], platformAdmin: false, principalId: 'principal-member',
-          avatarUrl: null, displayNameSource: 'provider',
-        },
-        failure: false, signingOut: false, switchingOrganisationId: null,
-      },
       t: (key: string, vars?: Record<string, unknown>) => translate('en', key, vars),
     }));
     expect(screen.getByRole('region', { name: 'Create a new project with Atoma' })).toBeInTheDocument();
@@ -385,13 +372,36 @@ describe('full-GL minimal DOM bridge', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Copied — paste it into your agent.');
     await user.click(screen.getByRole('button', { name: 'Connect your agent' }));
     expect(onOpenMcp).toHaveBeenCalledOnce();
-    await user.click(screen.getByRole('button', { name: 'Talk to Atoma' }));
-    expect(useGpuStore.getState().assistantOpen).toBe(true);
-    // The guide stays, below the card, and the button is gone while expanded.
-    expect(screen.getByRole('region', { name: 'Create a new project with Atoma' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Talk to Atoma' })).not.toBeInTheDocument();
-    act(() => useGpuStore.getState().selectProject('project-weather'));
-    expect(useGpuStore.getState().assistantOpen).toBe(true);
+  });
+
+  // ONE card (owner, 2026-10-09): the guide hosts the integrated conversation
+  // and folds the external-agent path under it. Two cards read as "the
+  // assistant twice", and the connected-MCP auto-fold would have hidden the
+  // conversation by default.
+  it('hosts the integrated assistant inside the guide and folds the external path under it', async () => {
+    useGpuStore.setState({ view: 'projects', entered: true, projectMcpCollapsed: true });
+    render(createElement(DomBridge, {
+      runs, releaseVersion: '9.8.7', onSelectRun: vi.fn(), onOpenMcp: vi.fn(),
+      mcpAccessState: 'connected',
+      assistant: createElement('p', { 'data-testid': 'assistant-stub' }, 'conversation'),
+      t: (key: string, vars?: Record<string, unknown>) => translate('en', key, vars),
+    }));
+    const guide = screen.getByRole('region', { name: 'Create a new project with Atoma' });
+    expect(guide).toHaveClass('gpu-project-mcp--assistant');
+    // Connected MCP no longer folds the card: the conversation is what it is for.
+    expect(useGpuStore.getState().projectMcpCollapsed).toBe(false);
+    expect(within(guide).getByTestId('assistant-stub')).toBeVisible();
+    // The external path is one closed disclosure, every control still inside it.
+    const ownAgent = guide.querySelector('details.gpu-project-mcp-own-agent') as HTMLDetailsElement;
+    expect(ownAgent.open).toBe(false);
+    expect(within(ownAgent).getByRole('button', { name: 'Copy request' })).toBeInTheDocument();
+    expect(within(ownAgent).getByText('Atoma MCP connected for this organisation. Your agent is ready to work.')).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByText('Prefer your own agent? Connect it through MCP'));
+    expect(ownAgent.open).toBe(true);
+    // The guide still collapses as a whole, conversation included.
+    await user.click(screen.getByRole('button', { name: 'Create a new project with Atoma' }));
+    expect(useGpuStore.getState().projectMcpCollapsed).toBe(true);
   });
 
   it('uses the selected project in a short agent request without showing a run form', () => {

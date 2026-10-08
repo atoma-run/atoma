@@ -95,44 +95,25 @@ export const PROJECTS_NARROW_CONTENT_WIDTH = 480;
 export const PROJECTS_MCP_GUIDE_NARROW_HEIGHT = 300;
 
 export const PROJECTS_MCP_GUIDE_COLLAPSED_HEIGHT = 48;
-
 /**
- * THE ASSISTANT IS A CARD IN THE FLOW, NOT A SCREEN (2026-10-09). It used to
- * replace the whole view below the title; the owner wants the conversation
- * first, then the project's runs. It takes the guide's band, the guide moves
- * below it, and the list follows both. Must match `.gpu-assistant { height }`
- * and `.gpu-assistant--collapsed { height }` in styles.css, and the guide's
- * `--after-assistant` offsets.
+ * The guide HOSTING THE ASSISTANT CONVERSATION (owner, 2026-10-09): one card,
+ * the conversation first and the external-agent path folded under it, then
+ * the runs. Must match `.gpu-project-mcp--assistant { height }` in styles.css.
+ * It used to be a second card, which read as the assistant twice.
  */
-export const PROJECTS_ASSISTANT_HEIGHT = 520;
-export const PROJECTS_ASSISTANT_COLLAPSED_HEIGHT = 48;
-/** How the assistant card is shown on this screen, if at all. */
-export type ProjectsAssistantBand = 'expanded' | 'collapsed' | null;
+export const PROJECTS_MCP_GUIDE_ASSISTANT_HEIGHT = 600;
 
-export function projectsAssistantHeight(band: ProjectsAssistantBand): number {
-  return band === 'expanded' ? PROJECTS_ASSISTANT_HEIGHT : band === 'collapsed' ? PROJECTS_ASSISTANT_COLLAPSED_HEIGHT : 0;
-}
-
-/** Where the MCP guide card starts: the assistant's band pushes it down. */
-export function projectsGuideTop(selected = false, assistant: ProjectsAssistantBand = null): number {
-  const base = selected ? PROJECTS_SELECTED_MCP_GUIDE_TOP : PROJECTS_MCP_GUIDE_TOP;
-  return assistant ? base + projectsAssistantHeight(assistant) + 16 : base;
-}
-
-export function projectsGuideHeight(contentWidth = Number.POSITIVE_INFINITY, collapsed = false): number {
+export function projectsGuideHeight(contentWidth = Number.POSITIVE_INFINITY, collapsed = false, assistant = false): number {
   if (collapsed) return PROJECTS_MCP_GUIDE_COLLAPSED_HEIGHT;
+  if (assistant) return PROJECTS_MCP_GUIDE_ASSISTANT_HEIGHT;
   return contentWidth < PROJECTS_NARROW_CONTENT_WIDTH
     ? PROJECTS_MCP_GUIDE_NARROW_HEIGHT
     : PROJECTS_MCP_GUIDE_HEIGHT;
 }
 
-export function projectsGpuContentTop(
-  contentWidth = Number.POSITIVE_INFINITY,
-  selected = false,
-  collapsed = false,
-  assistant: ProjectsAssistantBand = null
-): number {
-  return projectsGuideTop(selected, assistant) + projectsGuideHeight(contentWidth, collapsed) + 16;
+export function projectsGpuContentTop(contentWidth = Number.POSITIVE_INFINITY, selected = false, collapsed = false, assistant = false): number {
+  return (selected ? PROJECTS_SELECTED_MCP_GUIDE_TOP : PROJECTS_MCP_GUIDE_TOP)
+    + projectsGuideHeight(contentWidth, collapsed, assistant) + 16;
 }
 
 /**
@@ -451,17 +432,11 @@ export function drawProjects(
   }
 
   const guideVisible = snapshot.data.auth !== null && (!selectedProject || snapshot.state.projectSection === 'runs');
-  // The assistant shares the guide's screens (the collection, a project's
-  // runs) and its member-only audience; a viewer sees the guide alone.
-  const assistant: ProjectsAssistantBand =
-    guideVisible && snapshot.data.auth?.viewer.activeOrganisation && snapshot.data.auth.viewer.role !== 'org:viewer'
-      ? snapshot.state.assistantOpen ? 'expanded' : 'collapsed'
-      : null;
-  if (assistant) {
-    ctx.panel(ctx.root, frame.innerX, selectedProject ? PROJECTS_SELECTED_MCP_GUIDE_TOP : PROJECTS_MCP_GUIDE_TOP,
-      frame.innerWidth, projectsAssistantHeight(assistant), GPU_COLORS.panel, GPU_COLORS.border, GPU_LAYOUT.radius, 2);
-  }
-  const guideTop = projectsGuideTop(selectedProject !== undefined && selectedProject !== null, assistant);
+  // The guide hosts the assistant conversation for a member of an
+  // organisation, and is taller for it; a viewer sees the guide alone.
+  const assistant = guideVisible && Boolean(snapshot.data.auth?.viewer.activeOrganisation) &&
+    snapshot.data.auth?.viewer.role !== 'org:viewer';
+  const guideTop = selectedProject ? PROJECTS_SELECTED_MCP_GUIDE_TOP : PROJECTS_MCP_GUIDE_TOP;
   // The form's fields are DOM, but its CARD is the same GPU panel as the list
   // below. A CSS imitation could share dimensions and still disagree on the
   // pointer-driven shadow, which is exactly what made the two adjacent cards
@@ -473,7 +448,7 @@ export function drawProjects(
       frame.innerX,
       guideTop,
       frame.innerWidth,
-      projectsGuideHeight(frame.innerWidth, snapshot.state.projectMcpCollapsed),
+      projectsGuideHeight(frame.innerWidth, snapshot.state.projectMcpCollapsed, assistant),
       GPU_COLORS.panel,
       GPU_COLORS.border,
       GPU_LAYOUT.radius,

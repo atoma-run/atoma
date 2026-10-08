@@ -215,7 +215,6 @@ export interface GpuUiState {
   selectedProjectId: string | null;
   projectSection: 'runs' | 'preview' | 'files' | 'result';
   projectMcpCollapsed: boolean;
-  assistantOpen: boolean;
   workspaceRunId: string | null;
   githubRecovery: import('./github-access.js').GitHubRecoveryProgress | null;
   workspacePath: string;
@@ -441,9 +440,6 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   selectedSkill: null,
   selectedProjectId: null,
   projectMcpCollapsed: false,
-  // Expanded by default since 2026-10-09: the conversation IS the first thing
-  // on a project, before its runs. The toggle collapses it to its title.
-  assistantOpen: true,
   projectSection: 'runs',
   workspaceRunId: null,
   githubRecovery: null,

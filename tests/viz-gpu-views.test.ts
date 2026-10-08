@@ -48,8 +48,7 @@ import {
   PROJECTS_COLUMN_INSET,
   PROJECTS_MCP_GUIDE_HEIGHT,
   PROJECTS_MCP_GUIDE_NARROW_HEIGHT,
-  PROJECTS_ASSISTANT_COLLAPSED_HEIGHT,
-  PROJECTS_ASSISTANT_HEIGHT,
+  PROJECTS_MCP_GUIDE_ASSISTANT_HEIGHT,
   PROJECTS_MCP_GUIDE_TOP,
   PROJECTS_SELECTED_MCP_GUIDE_TOP,
   PROJECTS_NARROW_CONTENT_WIDTH,
@@ -58,7 +57,6 @@ import {
   REPOSITORY_ICON_SIZE,
   projectsColumn,
   projectsGuideHeight,
-  projectsGuideTop,
   projectsGpuContentTop,
 } from '../src/viz/client-gl/renderer/views/projects.js';
 import {
@@ -623,7 +621,6 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     selectedSkill: null,
     selectedProjectId: null,
     projectMcpCollapsed: false,
-    assistantOpen: false,
     workspaceRunId: null, workspacePath: '', filePreview: null, previewFile: () => {},
     githubRecovery: null, setGitHubRecovery: vi.fn(),
     openWorkspace: vi.fn(), selectProjectSection: vi.fn(), selectWorkspacePath: vi.fn(),
@@ -2753,9 +2750,9 @@ describe('drawProjects', () => {
     const gatedHint = gated.texts.find(
       (text) => text.value === t('projects.emptyNoInstallation')
     );
-    // A member of an organisation gets the assistant card above the guide;
-    // `makeState` leaves it collapsed, so the band is its title line.
-    expect(gatedHint?.y).toBe(projectsGpuContentTop(1280, false, false, 'collapsed'));
+    // A member of an organisation gets the guide hosting the assistant
+    // conversation, which makes the card taller.
+    expect(gatedHint?.y).toBe(projectsGpuContentTop(1280, false, false, true));
     expect(gatedHint?.y).toBeGreaterThan(frame.contentTop);
   });
 
@@ -2772,7 +2769,7 @@ describe('drawProjects', () => {
     );
     expect(title?.y).toBeLessThan(PROJECTS_MCP_GUIDE_TOP);
     expect(PROJECTS_MCP_GUIDE_TOP - (title?.y ?? 0)).toBeGreaterThanOrEqual(24);
-    expect(empty?.y).toBe(projectsGpuContentTop(undefined, false, false, 'collapsed'));
+    expect(empty?.y).toBe(projectsGpuContentTop(undefined, false, false, true));
     expect(empty?.y).toBeGreaterThanOrEqual(
       PROJECTS_MCP_GUIDE_TOP + PROJECTS_MCP_GUIDE_HEIGHT
     );
@@ -2815,14 +2812,12 @@ describe('drawProjects', () => {
       PROJECTS_SELECTED_MCP_GUIDE_TOP + PROJECTS_MCP_GUIDE_NARROW_HEIGHT + 16
     );
     expect(css).toMatch(new RegExp(`\\.gpu-project-mcp--selected\\s*\\{[\\s\\S]*?top:\\s*${PROJECTS_SELECTED_MCP_GUIDE_TOP}px`));
-    // The assistant card shares the band and the guide follows it (2026-10-09).
-    expect(css).toMatch(new RegExp(`\\.gpu-assistant\\s*\\{[\\s\\S]*?height:\\s*${PROJECTS_ASSISTANT_HEIGHT}px`));
-    expect(css).toMatch(new RegExp(`\\.gpu-assistant--collapsed\\s*\\{[\\s\\S]*?height:\\s*${PROJECTS_ASSISTANT_COLLAPSED_HEIGHT}px`));
-    expect(css).toContain(`.gpu-assistant--selected { --gpu-overlay-top: ${PROJECTS_SELECTED_MCP_GUIDE_TOP}px; }`);
-    expect(css).toContain(`.gpu-project-mcp--after-assistant { top: calc(var(--gpu-overlay-top) + ${PROJECTS_ASSISTANT_HEIGHT + 16}px); }`);
-    expect(css).toContain(`.gpu-project-mcp--after-assistant-collapsed { top: calc(var(--gpu-overlay-top) + ${PROJECTS_ASSISTANT_COLLAPSED_HEIGHT + 16}px); }`);
-    expect(projectsGuideTop(true, 'expanded')).toBe(PROJECTS_SELECTED_MCP_GUIDE_TOP + PROJECTS_ASSISTANT_HEIGHT + 16);
-    expect(projectsGpuContentTop(1072, false, true, 'expanded')).toBe(PROJECTS_MCP_GUIDE_TOP + PROJECTS_ASSISTANT_HEIGHT + 16 + 48 + 16);
+    // Hosting the assistant conversation, the guide is one taller card
+    // (2026-10-09); collapsed still wins, and it folds like any guide.
+    expect(css).toContain(`.gpu-project-mcp.gpu-project-mcp--assistant { height: ${PROJECTS_MCP_GUIDE_ASSISTANT_HEIGHT}px; }`);
+    expect(projectsGuideHeight(320, false, true)).toBe(PROJECTS_MCP_GUIDE_ASSISTANT_HEIGHT);
+    expect(projectsGpuContentTop(1072, true, false, true)).toBe(PROJECTS_SELECTED_MCP_GUIDE_TOP + PROJECTS_MCP_GUIDE_ASSISTANT_HEIGHT + 16);
+    expect(projectsGpuContentTop(1072, false, true, true)).toBe(PROJECTS_MCP_GUIDE_TOP + 48 + 16);
     const narrowWindowMax = PROJECTS_NARROW_CONTENT_WIDTH + GPU_LAYOUT.sidebarWidth - 1;
     expect(css).toContain(`@media (max-width: ${narrowWindowMax}px)`);
     expect(css).toContain(`height: ${PROJECTS_MCP_GUIDE_NARROW_HEIGHT}px`);
@@ -2834,21 +2829,14 @@ describe('drawProjects', () => {
     const viewportWidth = 1280;
     drawProjects(ctx, makeSnapshot({ view: 'projects' }, { auth }), viewportWidth, 720);
     const frame = viewFrame(viewportWidth, 720);
-    // The assistant card takes the band first (collapsed in `makeState`), and
-    // the guide's frame follows it through the same panel path.
+    // ONE card: the guide hosts the assistant for this member, and its frame
+    // is drawn through the same panel path at the hosting height.
     expect(ctx.panels).toContainEqual({
       parent: ctx.root,
       x: frame.innerX,
       y: PROJECTS_MCP_GUIDE_TOP,
       width: frame.innerWidth,
-      height: PROJECTS_ASSISTANT_COLLAPSED_HEIGHT,
-    });
-    expect(ctx.panels).toContainEqual({
-      parent: ctx.root,
-      x: frame.innerX,
-      y: projectsGuideTop(false, 'collapsed'),
-      width: frame.innerWidth,
-      height: projectsGuideHeight(viewportWidth),
+      height: projectsGuideHeight(viewportWidth, false, true),
     });
     const css = readFileSync('src/viz/client-gl/styles.css', 'utf8');
     const domSkin = css.slice(
@@ -3024,7 +3012,9 @@ describe('drawProjects', () => {
       expect(label.options).toMatchObject({ singleLine: true });
     }
     expect(ctx.scrollMax.projects).toBeGreaterThanOrEqual(0);
-    expect(ctx.scrollMax.projects).toBeLessThan(200);
+    // The guide hosts the assistant for this member (600px of a 720px frame),
+    // which is exactly how much more of the list scrolls past the fold.
+    expect(ctx.scrollMax.projects).toBeLessThan(200 + PROJECTS_MCP_GUIDE_ASSISTANT_HEIGHT - PROJECTS_MCP_GUIDE_HEIGHT);
 
     // The project list lives in a centred scroll pane. Its draw coordinates
     // are pane-local, so applying the real Pixi ancestry must land on the same
@@ -3035,7 +3025,7 @@ describe('drawProjects', () => {
     const listGlobal = listPanel!.parent.toGlobal({ x: listPanel!.x, y: listPanel!.y });
     expect(listGlobal.x).toBe(projectsColumn(1280).x);
     expect(listPanel!.parent.toGlobal({ x: 0, y: 0 }).y).toBe(
-      projectsGpuContentTop(1280, true, false, 'collapsed')
+      projectsGpuContentTop(1280, true, false, true)
     );
 
     // Project metadata forms one sequence inside the framed row. In detail,
@@ -3206,9 +3196,9 @@ describe('drawProjects', () => {
     expect(new Set(narrowTabs.map(button => button.y)).size).toBe(1);
     expect(narrowTabs.at(-1)!.x + narrowTabs.at(-1)!.width)
       .toBeLessThanOrEqual(frame.innerX + frame.innerWidth);
-    // The guide's frame follows the (collapsed) assistant card in the band.
-    expect(narrow.panels.some(panel => panel.parent === narrow.root && panel.y === projectsGuideTop(true, 'collapsed')
-      && panel.height === PROJECTS_MCP_GUIDE_NARROW_HEIGHT)).toBe(true);
+    // The guide hosts the assistant for this member: the hosting height wins over the narrow one.
+    expect(narrow.panels.some(panel => panel.parent === narrow.root && panel.y === PROJECTS_SELECTED_MCP_GUIDE_TOP
+      && panel.height === projectsGuideHeight(320, false, true))).toBe(true);
   });
 
   it('keeps all four project sections available when files or delivered results are absent', () => {

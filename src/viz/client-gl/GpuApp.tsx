@@ -1315,6 +1315,21 @@ function GpuAppContent({
           projectRuns={projectRunsQuery.data ?? []}
           githubRecovery={githubRecovery}
           auth={authSnapshot}
+          // ONE card on Projects (owner, 2026-10-09): the guide hosts the
+          // conversation for a member of an organisation; a viewer gets the
+          // guide alone. Keyed on the scope so a created project remounts it.
+          assistant={state.view === 'projects' && authSnapshot?.viewer.activeOrganisation && authSnapshot.viewer.role !== 'org:viewer' ? <AssistantPanel
+            key={`${authSnapshot.viewer.principalId}:${authSnapshot.viewer.activeOrganisation.id}:${state.selectedProjectId ?? 'new'}`}
+            scopeKey={`${authSnapshot.viewer.principalId}:${authSnapshot.viewer.activeOrganisation.id}`}
+            projectId={state.selectedProjectId} locale={state.locale} t={t}
+            onSettings={tab => { setSettingsInitialTab(tab); state.setView('settings'); }}
+            onScopeChange={id => { state.selectProject(id); useGpuStore.setState({ projectMcpCollapsed: false }); }}
+            onProject={id => state.selectProject(id)}
+            onRun={(run, traceId) => {
+              state.selectProject(run.projectId);
+              if (traceId) { state.selectRun(traceId); state.setView('runs'); }
+            }}
+          /> : null}
           workspace={workspace}
           mcpAccessState={mcpAccessState}
           onOpenMcp={() => {
@@ -1365,22 +1380,6 @@ function GpuAppContent({
           }
         />
         {projectPreviewSelected && previewPlane}
-        {state.view === 'projects' && (!state.selectedProjectId || state.projectSection === 'runs') && authSnapshot?.viewer.activeOrganisation && authSnapshot.viewer.role !== 'org:viewer' ? <AssistantPanel
-          key={`${authSnapshot.viewer.principalId}:${authSnapshot.viewer.activeOrganisation.id}:${state.selectedProjectId ?? 'new'}`}
-          scopeKey={`${authSnapshot.viewer.principalId}:${authSnapshot.viewer.activeOrganisation.id}`}
-          projectId={state.selectedProjectId} locale={state.locale} t={t}
-          inert={state.accountMenuOpen || state.localeMenuOpen || state.notificationsMenuOpen}
-          projectSelected={state.selectedProjectId !== null}
-          collapsed={!state.assistantOpen}
-          onToggle={() => useGpuStore.setState({ assistantOpen: !useGpuStore.getState().assistantOpen })}
-          onSettings={tab => { setSettingsInitialTab(tab); state.setView('settings'); }}
-          onScopeChange={id => { state.selectProject(id); useGpuStore.setState({ assistantOpen: true }); }}
-          onProject={id => state.selectProject(id)}
-          onRun={(run, traceId) => {
-            state.selectProject(run.projectId);
-            if (traceId) { state.selectRun(traceId); state.setView('runs'); }
-          }}
-        /> : null}
         <SceneTuningPanel />
       </SceneCameraPlane>
       </CubeTurnPlane>

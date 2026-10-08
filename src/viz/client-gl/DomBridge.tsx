@@ -159,6 +159,7 @@ export function DomBridge({
   onOpenMcp,
   mcpAccessState = 'unknown',
   projectGuideEnabled = true,
+  assistant = null,
   projectAdmin = false,
   pushPrompt = 'hidden',
   pushAdmin = false,
@@ -192,6 +193,8 @@ export function DomBridge({
   onOpenMcp?: () => void;
   /** Authorized MCP access for the viewer's active organisation. */
   mcpAccessState?: 'connected' | 'authorized' | 'unconnected' | 'unknown';
+  /** The integrated conversation, hosted by the project guide when present. */
+  assistant?: ReactNode;
   /** The MCP setup guide exists only behind the auth gate. */
   projectGuideEnabled?: boolean;
   workspace?: WorkspaceBrowserData;
@@ -235,18 +238,14 @@ export function DomBridge({
   const selectedProjectId = useGpuStore((state) => state.selectedProjectId);
   const projectSection = useGpuStore((state) => state.projectSection);
   const projectMcpCollapsed = useGpuStore(state => state.projectMcpCollapsed);
-  const assistantOpen = useGpuStore((state) => state.assistantOpen);
-  // The assistant card sits above this guide on the same screens, for members
-  // of an organisation; the guide's offset follows its expanded/collapsed state.
-  const assistantShown = Boolean(auth?.viewer.activeOrganisation) && auth?.viewer.role !== 'org:viewer';
-  // ONE automatic rule for the guide: it folds to its title once an external
-  // agent is connected, and (2026-10-09) while the assistant card above it is
-  // expanded — the conversation is the primary path then, and an open guide
-  // under a 520px card pushed the project list below the fold. The toggle
-  // still reopens it until the next change of either fact.
+  // ONE card (owner, 2026-10-09): when the app hands this guide the assistant
+  // conversation, the guide is its frame and the external-agent path folds
+  // under it. Its one automatic rule, folding once an external agent is
+  // connected, then no longer applies: the conversation is what the card is for.
+  const assistantShown = assistant !== undefined && assistant !== null;
   useLayoutEffect(() => {
-    useGpuStore.setState({ projectMcpCollapsed: mcpAccessState === 'connected' || (assistantShown && assistantOpen) });
-  }, [mcpAccessState, assistantShown, assistantOpen]);
+    useGpuStore.setState({ projectMcpCollapsed: !assistantShown && mcpAccessState === 'connected' });
+  }, [mcpAccessState, assistantShown]);
   const selectedDocsTheme = useGpuStore((state) => state.selectedDocsTheme);
   const accountMenuOpen = useGpuStore((state) => state.accountMenuOpen);
   const localeMenuOpen = useGpuStore((state) => state.localeMenuOpen);
@@ -592,7 +591,7 @@ export function DomBridge({
       ) : null}
       {projectGuideEnabled && view === 'projects' && (!selectedProjectId || projectSection === 'runs') ? (
         <section
-          className={`gpu-panel-skin gpu-project-mcp${projectMcpCollapsed ? ' gpu-project-mcp--collapsed' : ''}${selectedProjectId ? ' gpu-project-mcp--selected' : ''}${assistantShown ? (assistantOpen ? ' gpu-project-mcp--after-assistant' : ' gpu-project-mcp--after-assistant-collapsed') : ''}${overlaysInert ? ' gpu-overlays-veiled' : ''}`}
+          className={`gpu-panel-skin gpu-project-mcp${projectMcpCollapsed ? ' gpu-project-mcp--collapsed' : ''}${selectedProjectId ? ' gpu-project-mcp--selected' : ''}${assistantShown ? ' gpu-project-mcp--assistant' : ''}${overlaysInert ? ' gpu-overlays-veiled' : ''}`}
           inert={overlaysInert}
           aria-label={projectGuideTitle}
         >
@@ -602,6 +601,43 @@ export function DomBridge({
             <span aria-hidden="true">{projectMcpCollapsed ? '▸' : '▾'}</span> {projectGuideTitle}
           </button></h2>
           <div id="project-mcp-content" className="gpu-project-mcp-content" hidden={projectMcpCollapsed}>
+            {assistantShown ? assistant : null}
+            {assistantShown ? (
+              <details className="gpu-project-mcp-own-agent">
+                <summary>{t('projects.mcpOwnAgent')}</summary>
+                <div className="gpu-project-mcp-own-agent-body">
+
+                {mcpAccessState === 'connected' || mcpAccessState === 'authorized' ? (
+                  <p className="gpu-project-mcp-connection" aria-live="polite">
+                    {t(mcpAccessState === 'connected' ? 'projects.mcpConnected' : 'projects.mcpAuthorized')}
+                  </p>
+                ) : null}
+                <p>{selectedProjectName
+                  ? t('projects.mcpSelectedIntro', { name: selectedProjectName })
+                  : t('projects.mcpCreateIntro')}</p>
+                <p className="gpu-project-mcp-request">{projectRequest}</p>
+                <div className="gpu-project-mcp-actions">
+                  {projectAdmin && selectedProject?.repositoryTarget?.source?.mode === 'fork' ?
+                    <UpstreamSetting key={selectedProject.projectId} projectId={selectedProject.projectId}
+                      enabled={selectedProject.followUpstream ?? false} t={t} /> : null}
+                  <button type="button" onClick={() => { void copyProjectRequest(); }}><ButtonIcon kind="copy" />{t('projects.mcpCopy')}</button>
+                  {mcpAccessState !== 'connected' && mcpAccessState !== 'authorized' ? (
+                    <button type="button" onClick={() => onOpenMcp?.()}><ButtonIcon kind="link" />
+                      {t(mcpAccessState === 'unconnected' ? 'projects.mcpConnect' : 'projects.mcpSettings')}
+                    </button>
+                  ) : null}
+                  {activeGithubInstallations.length === 0 ? (
+                    <a href="/auth/github/connect"><ButtonIcon kind="link" />{t('projects.connectGithub')}</a>
+                  ) : null}
+                </div>
+                {copiedRequest?.text === projectRequest ? (
+                  <span role="status">{t(copiedRequest.ok ? 'projects.mcpCopied' : 'projects.mcpCopyFailed')}</span>
+                ) : null}
+
+                </div>
+              </details>
+            ) : (<>
+
             {mcpAccessState === 'connected' || mcpAccessState === 'authorized' ? (
               <p className="gpu-project-mcp-connection" aria-live="polite">
                 {t(mcpAccessState === 'connected' ? 'projects.mcpConnected' : 'projects.mcpAuthorized')}
@@ -612,9 +648,6 @@ export function DomBridge({
               : t('projects.mcpCreateIntro')}</p>
             <p className="gpu-project-mcp-request">{projectRequest}</p>
             <div className="gpu-project-mcp-actions">
-              {assistantShown && !assistantOpen ? <button type="button" data-testid="assistant-open" onClick={() => useGpuStore.setState({ assistantOpen: true })}>
-                {t('assistant.open')}
-              </button> : null}
               {projectAdmin && selectedProject?.repositoryTarget?.source?.mode === 'fork' ?
                 <UpstreamSetting key={selectedProject.projectId} projectId={selectedProject.projectId}
                   enabled={selectedProject.followUpstream ?? false} t={t} /> : null}
@@ -631,6 +664,8 @@ export function DomBridge({
             {copiedRequest?.text === projectRequest ? (
               <span role="status">{t(copiedRequest.ok ? 'projects.mcpCopied' : 'projects.mcpCopyFailed')}</span>
             ) : null}
+
+            </>)}
           </div>
         </section>
       ) : null}
