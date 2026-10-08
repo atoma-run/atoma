@@ -7,6 +7,7 @@ import type { Plan, Result, Task, SubtaskSpec } from '../core/types.js';
 export const rootPlanCheckpointSchema = z.object({
   plan: z.unknown(), strategy: z.unknown(), plannedPhases: z.number().int().positive(),
   inputs: z.record(z.string(), z.unknown()).optional(),
+  reconciledQuestionId: z.string().uuid().optional(),
 }).strict();
 export type RootPlanCheckpoint = z.infer<typeof rootPlanCheckpointSchema>;
 export const checkpointProcessSchema = z.object({ pid: z.number().int().min(2), group: z.boolean() }).strict();
@@ -44,6 +45,7 @@ export type RunCheckpoint = z.infer<typeof runCheckpointSchema>;
 /** Host-owned, root-only control hook. Never propagate into a child fork. */
 export interface RootPhaseCheckpoint {
   restore(): RootPlanCheckpoint | null;
+  readonly replanAfterAnswer?: boolean;
   planned(task: Task, plan: Plan, strategy: unknown, plannedPhases: number): void;
   readonly completed: readonly Result[];
   beforePhase(index: number, next?: SubtaskSpec): void | Promise<void>;

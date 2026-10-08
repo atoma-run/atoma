@@ -36,12 +36,23 @@ const complete = async (req: LlmCompletionRequest) => {
     reply = { kind: 'reuse', target: req.actor?.tier === 3 ? cellName : leafName, confidence: 'high', reasoning: 'Reuse' };
   } else if (req.role === 'validate-plan' || req.role === 'validate-result') {
     reply = { approved: true, reasoning: 'Fixture approved', activeSkillFollowed: true };
-  } else if (req.role === 'plan' && req.actor?.tier === 3) reply = [
-    { strategy: 'reuse', target: cellName, reasoning: 'Two ordered files' },
-    { reasoning: 'Two phases', delivery: 'files', subtasks: ['one', 'two'].map(n => ({
-      description: `Write phase-${n}.txt`, preferredChild: cellName, outputs: [`phase-${n}.txt`],
-    })), aggregation: { mode: 'sequential' }, expectedOutput: 'Two files' },
-  ];
+  } else if (req.role === 'plan' && req.actor?.tier === 3) {
+    const questionPhase = process.env['CHECKPOINT_TEST_QUESTION_PHASE'];
+    const answering = process.env['CHECKPOINT_TEST_EXPECT_ANSWER'] === '1';
+    if (answering && (!req.userContent.includes('Keep both login methods') || !req.userContent.includes('checkpointContinuation'))) {
+      throw new Error('Remaining plan did not receive the client answer and continuation scope');
+    }
+    const files = ['one', 'two'].slice(answering ? Number(questionPhase) : 0);
+    const subtasks = files.map(n => ({ description: `Write phase-${n}.txt`, preferredChild: cellName, outputs: [`phase-${n}.txt`] }));
+    // Reproduce the production planner that stops its plan at a clarification.
+    if (questionPhase !== undefined && !answering) subtasks.splice(Number(questionPhase), subtasks.length,
+      { description: 'Ask the client which login methods to keep before writing more files', preferredChild: cellName, outputs: [] });
+    reply = [
+      { strategy: 'reuse', target: cellName, reasoning: 'Ordered work' },
+      { reasoning: 'Remaining phases', delivery: questionPhase === '0' && !answering ? 'text' : 'files',
+        subtasks, aggregation: { mode: 'sequential' }, expectedOutput: 'Two files' },
+    ];
+  }
   else if (req.role === 'plan') reply = { reasoning: 'Write requested file', proposedAction: 'Write file', expectedOutput: 'File' };
   else if (req.role === 'execute') {
     const path = /^Task: Write (phase-(?:one|two)\.txt)/m.exec(req.userContent)?.[1];
@@ -75,6 +86,13 @@ if (process.env['CHECKPOINT_TEST_REQUEST_PAUSE'] === '1') {
   SequentialCheckpoint.prototype.planned = function (...args) {
     planned.apply(this, args);
     new RunCheckpointStore(process.env['ATOMA_DB_PATH']!).requestPause(this.data.id, this.data.scope!.orgId);
+  };
+}
+if (process.env['CHECKPOINT_TEST_CRASH'] === 'replanned') {
+  const planned = SequentialCheckpoint.prototype.planned;
+  SequentialCheckpoint.prototype.planned = function (...args) {
+    planned.apply(this, args);
+    process.kill(process.pid, 'SIGKILL');
   };
 }
 if (process.env['CHECKPOINT_TEST_CRASH'] === 'boundary') {

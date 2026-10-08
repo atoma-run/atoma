@@ -321,12 +321,24 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     const checkpoint = ctx.currentBranchId === undefined ? ctx.rootCheckpoint : undefined;
     const saved = checkpoint?.restore();
     if (saved) {
-      const plan = planSchema.parse(saved.plan);
+      let plan: Plan = planSchema.parse(saved.plan);
       if (plan.aggregation.mode !== 'sequential') throw new Error('Checkpoint root plan is not sequential');
       this.pendingStrategy = l3StrategySchema.parse(saved.strategy);
       this.pendingPlannedPhases = saved.plannedPhases;
       this.triedChildren.beginTask(task.description);
-      checkpoint?.planned({ ...task, inputs: saved.inputs }, plan, this.pendingStrategy, saved.plannedPhases);
+      if (checkpoint?.replanAfterAnswer) {
+        const prefix = plan.subtasks.slice(0, checkpoint.completed.length);
+        const continuation = { ...task, inputs: { ...saved.inputs, checkpointContinuation: {
+          instruction: 'The client has answered the blocking question in clientAnswers. Replan ONLY the remaining work toward the original goal. Do not ask the answered question again or replay completed phases. Preserve their files and results. Return a sequential plan for the remaining phases only; the host retains the completed prefix. Historical summaries are context, not fresh proof.',
+          completedPhaseCount: prefix.length,
+          completedSummaries: checkpoint.completed.map(result => result.summary).join('\n').slice(0, 12000),
+        } } };
+        const remaining = await this.plan(continuation, ctx);
+        if (remaining.aggregation.mode !== 'sequential') throw new Error('Client answer continuation requires a sequential remaining plan');
+        plan = { ...remaining, subtasks: [...prefix, ...remaining.subtasks] };
+        this.pendingPlannedPhases = prefix.length + (this.pendingPlannedPhases ?? remaining.subtasks.length);
+      }
+      checkpoint?.planned({ ...task, inputs: saved.inputs }, plan, this.pendingStrategy, this.pendingPlannedPhases);
       ctx.recordRootPlan?.(plan);
       return this.execute({ ...task, inputs: saved.inputs }, plan, ctx);
     }

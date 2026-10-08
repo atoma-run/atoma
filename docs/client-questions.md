@@ -64,7 +64,14 @@ a direct CLI invocation. The answer is checked and attached before claiming a
 continuation, so an answer write cannot race a live worker consuming it.
 
 Recorded answers travel in the checkpoint's `clientAnswers` task input. The
-answered boundary skips its question assessment once. Child-authored inputs
+answered boundary replans the remaining work through the ordinary root planner,
+with the answer and bounded historical summaries. The host retains the exact
+completed prefix; the old unexecuted suffix is replaced, including any obsolete
+clarification-only phase. The remaining plan must stay sequential. Its strategy
+and reconciled question identity are persisted together before dispatch, so a
+recoverable crash after planning does not plan again. Ordinary pause/crash resumes
+retain their saved plan. This uses the existing L3 planning budget and does not
+consume a root remediation. The answered boundary skips its question assessment once. Child-authored inputs
 cannot replace these answers. A response applies to its particular question;
 it changes neither the frozen project context revision nor the goal, acceptance
 criteria, shared skills or publication permissions. A permanent rule still
@@ -96,3 +103,15 @@ live-owner refusals. Model judgments are mocked; these tests prove protocol
 and persistence behavior, not that every real ambiguity will be classified
 correctly. Live calibration should measure necessary questions versus avoidable
 interruptions before broadening the intervention points.
+
+## Live regression, 2026-10-08
+
+Production source `f8d0bb51-2d0d-4520-ad79-ad5ed846d980` paused before a
+clarification-only phase. After the client delegated a refund-policy choice,
+continuation `113ed33f-7373-4f39-b348-9e94027e3dc4` received the answer but
+executed the stale phase and asked again. Root acceptance refused it; one
+remediation eventually delivered the correct files. The fix refreshes the suffix
+before dispatch, without a semantic detector or an extra validation loop.
+Fresh-process regressions cover zero and completed prefixes, obsolete text plans,
+exactly one root acceptance, unchanged credits, and a crash after the new plan
+was persisted. These mocked tests establish the protocol, not live model quality.

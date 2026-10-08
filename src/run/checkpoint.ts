@@ -305,6 +305,9 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
     this.restored = true;
     return this.data.root;
   }
+  get replanAfterAnswer(): boolean {
+    return !!this.data.clientQuestionId && this.data.root?.reconciledQuestionId !== this.data.clientQuestionId;
+  }
   planned(task: Parameters<RootPhaseCheckpoint['planned']>[0], plan: Parameters<RootPhaseCheckpoint['planned']>[1],
     strategy: unknown, plannedPhases: number): void {
     if (!this.active) return;
@@ -316,7 +319,8 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
     if (this.options.pauseAfter !== undefined && this.options.pauseAfter > plan.subtasks.length) {
       throw new Error('--pause-after-phase exceeds the number of root phases');
     }
-    this.data.root = { plan, strategy, plannedPhases, inputs: task.inputs };
+    this.data.root = { plan, strategy, plannedPhases, inputs: task.inputs,
+      ...(this.data.clientQuestionId ? { reconciledQuestionId: this.data.clientQuestionId } : {}) };
     this.store.write(this.data, this.owner, 'running');
   }
   async beforePhase(index: number, next?: SubtaskSpec): Promise<void> {
