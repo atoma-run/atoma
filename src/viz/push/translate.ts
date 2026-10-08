@@ -12,7 +12,7 @@ import type { LlmClient } from '../../core/types.js';
  * DRAFT TRANSLATIONS FOR AN OPERATOR ANNOUNCEMENT.
  * ================================================
  *
- * The only LLM call site in the viz subsystem (the projects coordinator the
+ * The announcement LLM call site in the viz subsystem (the projects coordinator the
  * server hosts names ended runs, from `src/projects/runTitle.ts`), and it is
  * deliberately shaped so that being one changes nothing else:
  *

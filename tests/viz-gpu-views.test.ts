@@ -620,6 +620,7 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     selectedSkill: null,
     selectedProjectId: null,
     projectMcpCollapsed: false,
+    assistantOpen: false,
     workspaceRunId: null, workspacePath: '', filePreview: null, previewFile: () => {},
     githubRecovery: null, setGitHubRecovery: vi.fn(),
     openWorkspace: vi.fn(), selectProjectSection: vi.fn(), selectWorkspacePath: vi.fn(),

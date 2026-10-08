@@ -135,7 +135,7 @@ describe('the GL overlay stack', () => {
     expect(plane.includes('gpu-panel-skin')).toBe(false);
     // Every full-screen veil disables the scene without weakening the
     // preview's unconditional lock.
-    expect(app).toMatch(/className="gpu-scene-host"\s+inert=\{!!state\.filePreview\s*\|\|\s*previewOpen\s*\|\|\s*handheldPhase !== 'idle'\s*\|\|\s*appearanceTransition\.phase !== 'idle'\}/);
+    expect(app).toMatch(/className="gpu-scene-host"\s+inert=\{!!state\.filePreview\s*\|\|\s*\(previewOpen && !projectPreviewSelected && requestedProjectPreview\.current === null\)\s*\|\|\s*handheldPhase !== 'idle'\s*\|\|\s*appearanceTransition\.phase !== 'idle'\}/);
     const rule = styles.match(/\.gpu-preview-backdrop\s*\{[^}]*\}/);
     expect(rule).not.toBeNull();
     expect(rule![0]).toContain('position: fixed');

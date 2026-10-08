@@ -50,6 +50,7 @@ beforeEach(() => {
     runActivityPage: 0,
     runActivityExpandedChanges: {},
     selectedProjectId: null,
+    assistantOpen: false,
     projectSection: 'runs',
     selectedDocsTheme: 'quick',
     appearanceTheme: 'nocturne',
@@ -352,7 +353,7 @@ describe('full-GL minimal DOM bridge', () => {
     expect(screen.getByRole('region', { name: 'Create a new project with Atoma' })).toBeInTheDocument();
   });
 
-  it('guides project creation through the agent and opens MCP setup', async () => {
+  it('offers the native assistant alongside the external agent setup', async () => {
     useGpuStore.setState({ view: 'projects', entered: true });
     const onOpenMcp = vi.fn();
     render(createElement(DomBridge, {
@@ -372,6 +373,11 @@ describe('full-GL minimal DOM bridge', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Copied — paste it into your agent.');
     await user.click(screen.getByRole('button', { name: 'Connect your agent' }));
     expect(onOpenMcp).toHaveBeenCalledOnce();
+    await user.click(screen.getByRole('button', { name: 'Talk to Atoma' }));
+    expect(useGpuStore.getState().assistantOpen).toBe(true);
+    expect(screen.queryByRole('region', { name: 'Create a new project with Atoma' })).not.toBeInTheDocument();
+    act(() => useGpuStore.getState().selectProject('project-weather'));
+    expect(useGpuStore.getState().assistantOpen).toBe(false);
   });
 
   it('uses the selected project in a short agent request without showing a run form', () => {
@@ -457,10 +463,12 @@ describe('full-GL minimal DOM bridge', () => {
     useGpuStore.setState({ view: 'projects', entered: true, projectSection: 'runs' });
     renderBridge(vi.fn(), runs, undefined, [], 'Weather Lab');
     const tabs = within(screen.getByRole('tablist', { name: 'Weather Lab' })).getAllByRole('tab');
-    expect(tabs).toHaveLength(3);
-    expect(tabs.map(tab => tab.textContent?.trim())).toEqual(['Runs', 'Files', 'Latest delivered results']);
+    expect(tabs).toHaveLength(4);
+    expect(tabs.map(tab => tab.textContent?.trim())).toEqual(['Runs', 'Preview app', 'Files', 'Latest delivered results']);
     expect(document.querySelector('.gpu-project-mcp')).toHaveClass('gpu-project-mcp--selected');
     act(() => useGpuStore.getState().selectProjectSection('files'));
+    expect(document.querySelector('.gpu-project-mcp')).not.toBeInTheDocument();
+    act(() => useGpuStore.getState().selectProjectSection('preview'));
     expect(document.querySelector('.gpu-project-mcp')).not.toBeInTheDocument();
     act(() => useGpuStore.getState().selectProjectSection('result'));
     expect(document.querySelector('.gpu-project-mcp')).not.toBeInTheDocument();

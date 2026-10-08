@@ -1,3 +1,10 @@
+import { Conversations } from '../projects/conversations.js';
+import { AssistantGrants } from '../auth/assistantGrants.js';
+import { AssistantService } from './assistant.js';
+import { ConnectedAssistantModels } from './assistantModels.js';
+import { AssistantStore } from './assistantStore.js';
+import { connectAssistantMcp } from './assistantMcp.js';
+import { assistantHttp } from './assistantHttp.js';
 import { observeRepositoryPush } from '../projects/repositoryPush.js';
 import { assertPersonalCodexModels, UNAVAILABLE_CODEX_MODELS } from '../contracts/codexModels.js';
 import { openDb, unfoldedRegistryPredicate } from '../registry/db.js';
@@ -574,6 +581,7 @@ const ACCOUNT_SUBSCRIPTIONS: AccountSubscriptionService | null = AUTH?.store
   ? new AccountSubscriptionService({
       auth: AUTH.store,
       sourceEnv: process.env,
+      canChangeProfile: principalId => !subscriptionInUse(principalId),
       ...(process.env[ACCOUNT_PROFILES_ROOT_ENV]?.trim()
         ? { profilesRoot: process.env[ACCOUNT_PROFILES_ROOT_ENV].trim() }
         : {}),
@@ -1344,7 +1352,10 @@ const ANALYST: ResidentAnalyst | null = (() => {
  * the CLI clients that send none are untouched (`src/mcp/http.ts`).
  */
 const BENCHMARK_RUNS = new BenchmarkRuns(join(RUNS_DIR, 'benchmarks'));
+const CONVERSATION_STORE = PROJECTS_RUNTIME && AUTH_RUNTIME && AUTH?.store ? AssistantStore.open(DBS[0]!.path) : null;
+const CONVERSATIONS = CONVERSATION_STORE && PROJECTS_RUNTIME ? new Conversations(CONVERSATION_STORE, PROJECTS_RUNTIME.projects) : null;
 const MCP_DEPS: McpToolDeps = {
+  conversations: CONVERSATIONS,
   benchmarkStart: retrievalCampaignHost(repoRoot(), BENCHMARK_RUNS.root),
   projects: PROJECTS_RUNTIME ? { service: PROJECTS_RUNTIME.projects, store: PROJECTS_RUNTIME.store } : null,
   auth: AUTH?.store ?? null,
@@ -1378,6 +1389,16 @@ const MCP_OAUTH = AUTH_RUNTIME && AUTH?.store ? new McpOAuth({
   clientAddress: (req) => loginClientAddress(req, AUTH_RUNTIME.trustedProxies),
   emit,
 }) : null;
+const ASSISTANT_GRANTS = new AssistantGrants();
+const ASSISTANT = CONVERSATION_STORE && AUTH?.store
+  ? new AssistantService(CONVERSATION_STORE, new ConnectedAssistantModels({
+    host: process.env, auth: AUTH.store, subscriptions: ACCOUNT_SUBSCRIPTIONS,
+    orgKey: (orgId, vendor) => AUTH.store!.decryptOrgProviderKey(orgId, vendor, SECRET_ENCRYPTION.context),
+    active: principalId => Boolean(PROJECTS_RUNTIME?.coordinator.hasActiveRunForPrincipal(principalId) || CONVERSATION_STORE.hasActiveRequestForPrincipal(principalId)),
+  })) : null;
+function subscriptionInUse(principalId: string): boolean {
+  return Boolean(PROJECTS_RUNTIME?.coordinator.hasActiveRunForPrincipal(principalId) || CONVERSATION_STORE?.hasActiveRequestForPrincipal(principalId));
+}
 const MCP_HOST = new McpHttpHost({
   ...(MCP_OAUTH ? { resourceMetadataUrl: MCP_OAUTH.metadataUrl } : {}),
   resolveCaller: (req): McpCaller | null => {
@@ -1385,6 +1406,8 @@ const MCP_HOST = new McpHttpHost({
     const header = req.headers.authorization;
     const match = typeof header === 'string' ? /^Bearer\s+(\S+)$/i.exec(header.trim()) : null;
     if (!match) return null;
+    const assistant = ASSISTANT_GRANTS.resolve(match[1]!);
+    if (assistant) return { kind: 'principal', ...assistant };
     const resolved = AUTH.store.resolveApiToken(match[1]!);
     if (!resolved) return null;
     const { tokenId, ...viewer } = resolved;
@@ -3046,7 +3069,7 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
         personalCodexModels: roleAtLeast(viewer.role, 'org:member')
           ? await ACCOUNT_SUBSCRIPTIONS?.codexModels(
               viewer.principalId, url.searchParams.get('refresh') === '1',
-              PROJECTS_RUNTIME?.coordinator.hasActiveRunForPrincipal(viewer.principalId) ?? false
+              subscriptionInUse(viewer.principalId)
             ) ?? UNAVAILABLE_CODEX_MODELS
           : UNAVAILABLE_CODEX_MODELS,
         personalSubscriptions: {
@@ -3096,9 +3119,7 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
           // A run child owns this exact auth.json generation. Return the
           // persisted receipt while it is live instead of starting a second
           // provider process that could rotate the same credentials.
-          verify: !PROJECTS_RUNTIME?.coordinator.hasActiveRunForPrincipal(
-            viewer.principalId
-          ),
+          verify: !subscriptionInUse(viewer.principalId),
         })
       );
       return;
@@ -3166,9 +3187,9 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
       // A run child already holds this principal's token in its environment
       // and its config dir on disk: neither may be replaced or removed under
       // it. The same rule as the Codex disconnect, applied to both verbs.
-      if (PROJECTS_RUNTIME?.coordinator.hasActiveRunForPrincipal(viewer.principalId)) {
+      if (subscriptionInUse(viewer.principalId)) {
         sendJson(res, 409, {
-          error: 'cancel the active run before changing its Claude subscription',
+          error: 'wait for the assistant or cancel the active run before changing the Claude subscription',
         });
         return;
       }
@@ -3198,7 +3219,9 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
             )
           );
         } catch (error) {
-          if (error instanceof ClaudeSubscriptionTokenError) {
+          if (error instanceof CodexSubscriptionConflictError) {
+            sendJson(res, 409, { error: error.message });
+          } else if (error instanceof ClaudeSubscriptionTokenError) {
             sendJson(res, 400, { error: error.message });
           } else if (error instanceof ClaudeSubscriptionUnavailableError) {
             sendJson(res, 503, { error: 'Claude Code CLI is unavailable on this deployment' });
@@ -3229,9 +3252,9 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
         sendJson(res, 503, { error: 'personal subscriptions are unavailable' });
         return;
       }
-      if (PROJECTS_RUNTIME?.coordinator.hasActiveRunForPrincipal(viewer.principalId)) {
+      if (subscriptionInUse(viewer.principalId)) {
         sendJson(res, 409, {
-          error: 'cancel the active run before disconnecting its Codex subscription',
+          error: 'wait for the assistant or cancel the active run before disconnecting the Codex subscription',
         });
         return;
       }
@@ -4373,6 +4396,21 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
 
   if (PROJECTS_RUNTIME && AUTH) {
     const viewer = AUTH.resolve(req);
+    if (pathname === '/api/assistant' && ASSISTANT && AUTH_RUNTIME) {
+      await assistantHttp(req, res, {
+        resolve: () => AUTH.resolve(req), sameOrigin: () => sameOrigin(req, res),
+        readBody: () => readBodyBounded(req, 24_000), service: ASSISTANT,
+        connect: async () => {
+          const grant = ASSISTANT_GRANTS.issue(() => AUTH.resolve(req));
+          try {
+            const client = await connectAssistantMcp(new URL(`http://127.0.0.1:${cli.port}/mcp`), AUTH_RUNTIME.publicOrigin.host, grant.token);
+            return { signal: client.signal, call: (name, args, task) => client.call(name, args, task),
+              close: async () => { try { await client.close(); } finally { grant.release(); } } };
+          } catch (error) { grant.release(); throw error; }
+        },
+      });
+      return;
+    }
     if (pathname === '/api/github/installations') {
       if (!methodAllowed(req, res, 'GET')) return;
       if (!viewer) {

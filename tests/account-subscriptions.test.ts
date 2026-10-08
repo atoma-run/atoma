@@ -222,13 +222,13 @@ function viewer(subject: string): Viewer {
   return outcome.viewer;
 }
 
-function service(harness: CodexHarness, requestTimeoutMs = 100): AccountSubscriptionService {
+function service(harness: CodexHarness, requestTimeoutMs = 100, canChangeProfile?: (principalId: string) => boolean): AccountSubscriptionService {
   const instance = new AccountSubscriptionService({
     auth: store,
     profilesRoot: path.join(temporaryRoot, 'profiles'),
     sourceEnv: { PATH: process.env['PATH'] },
     spawnFn: harness.spawn,
-    requestTimeoutMs,
+    requestTimeoutMs, canChangeProfile,
   });
   services.push(instance);
   return instance;
@@ -350,7 +350,7 @@ const CLAUDE_TOKEN = `sk-ant-oat01-${'a'.repeat(72)}`;
 describe('personal Claude Code tokens', () => {
   function claudeService(
     probe: ClaudeAuthProbe,
-    hooks: Partial<Pick<ConstructorParameters<typeof AccountSubscriptionService>[0], 'onConnected' | 'onDisconnected'>> = {}
+    hooks: Partial<Pick<ConstructorParameters<typeof AccountSubscriptionService>[0], 'onConnected' | 'onDisconnected' | 'canChangeProfile'>> = {}
   ): AccountSubscriptionService {
     const instance = new AccountSubscriptionService({
       auth: store,
@@ -369,6 +369,21 @@ describe('personal Claude Code tokens', () => {
     const providerRoot = path.join(temporaryRoot, 'profiles', principalId, 'claude');
     return existsSync(providerRoot) ? readdirSync(providerRoot) : [];
   }
+
+  it('keeps the captured Claude generation when an assistant starts during a reconnect probe', async () => {
+    const alice = viewer('assistant-alice');
+    let busy = false;
+    const subscriptions = claudeService(async () => ({ loggedIn: true, authMethod: 'oauth_token' }), { canChangeProfile: () => !busy });
+    await subscriptions.connectClaude(alice.principalId, alice.orgId, CLAUDE_TOKEN);
+    const previous = subscriptions.claudeProfileForRun(alice.principalId)!;
+    const reconnect = claudeService(async () => { busy = true; return { loggedIn: true, authMethod: 'oauth_token' }; }, { canChangeProfile: () => !busy });
+    await expect(reconnect.connectClaude(alice.principalId, alice.orgId, CLAUDE_TOKEN)).rejects.toThrow('Wait for the assistant');
+    await expect(subscriptions.disconnectClaude(alice.principalId, alice.orgId)).rejects.toThrow('Wait for the assistant');
+    expect(subscriptions.claudeProfileForRun(alice.principalId)).toEqual(previous);
+    expect(claudeGenerations(alice.principalId)).toEqual([previous.profileId]);
+    busy = false;
+    expect(await subscriptions.disconnectClaude(alice.principalId, alice.orgId)).toBe(true);
+  });
 
   it('connects a pasted token, keeps it 0600 in a private generation and resolves it at launch', async () => {
     const alice = viewer('alice');
@@ -517,6 +532,26 @@ function subscriptionsProfile(service: AccountSubscriptionService, principalId: 
 }
 
 describe.skipIf(process.platform === 'win32')('principal Codex profile service', () => {
+  it('refuses Codex disconnection and an in-flight login completion while the assistant holds a profile', async () => {
+    const alice = viewer('assistant-codex');
+    const harness = new CodexHarness();
+    let busy = false;
+    const instance = service(harness, 100, () => !busy);
+    const profile = createStoredProfile(path.join(temporaryRoot, 'profiles'), alice.principalId);
+    store.setPrincipalSubscription({ principalId: alice.principalId, provider: 'codex', profileId: profile.profileId });
+    busy = true;
+    await expect(instance.disconnectCodex(alice.principalId, alice.orgId)).rejects.toThrow('Wait for the assistant');
+    expect(instance.codexProfileForRun(alice.principalId)).toEqual(profile);
+    busy = false;
+    store.markPrincipalSubscriptionVerified(alice.principalId, 'codex', 'reauth_required', profile.profileId);
+    await instance.startCodexLogin(alice.principalId, alice.orgId);
+    busy = true;
+    harness.complete(harness.records[0]!);
+    await vi.waitFor(async () => expect((await instance.status(alice.principalId, { verify: false })).codexAttempt?.state).toBe('error'));
+    expect(store.principalSubscription(alice.principalId, 'codex')?.profileId).toBe(profile.profileId);
+    expect(existsSync(path.join(profile.homePath, 'auth.json'))).toBe(true);
+  });
+
   it('discovers models in the exact private generation and invalidates on disconnect', async () => {
     const alice = viewer('catalogue-alice');
     const harness = new CodexHarness();

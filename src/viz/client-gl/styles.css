@@ -1709,3 +1709,62 @@ html.atoma-cursor-active * {
   vertical-align: -2px;
   pointer-events: none;
 }
+
+/* The frame is drawn by drawProjects, in the same GPU material as its neighbours. */
+.gpu-assistant {
+  --gpu-content: calc(100vw - var(--gpu-sidebar));
+  --gpu-overlay-top: 104px;
+  --gpu-overlay-left: calc(var(--gpu-sidebar) + 26px);
+  position: fixed; z-index: 4; top: var(--gpu-overlay-top); bottom: 32px;
+  left: var(--gpu-overlay-left); width: calc(var(--gpu-content) - 52px);
+  display: flex; flex-direction: column; gap: 12px; padding: 16px; box-sizing: border-box;
+  color: #e6edf7; font: 14px/1.5 ui-sans-serif, system-ui, sans-serif;
+}
+.gpu-scene-camera .gpu-assistant {
+  bottom: max(32px, calc(100vh - var(--gpu-camera-bottom-left-y) + 32px));
+}
+.gpu-assistant header, .gpu-assistant-footer, .gpu-assistant-run {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.gpu-assistant h2, .gpu-assistant h3, .gpu-assistant p { margin: 0; }
+.gpu-assistant h2 { font-size: 18px; }
+.gpu-assistant h3 { font-size: 15px; }
+.gpu-assistant header p, .gpu-assistant small, .gpu-assistant-message-meta { color: #b5c5dc; font-size: 12px; }
+.gpu-assistant-log { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; user-select: text; }
+.gpu-assistant-message, .gpu-assistant-proposal { padding: 14px 0; border-bottom: 1px solid #ffffff26; overflow-wrap: anywhere; }
+.gpu-assistant-message p, .gpu-assistant-proposal p { white-space: pre-wrap; margin: 8px 0; }
+.gpu-assistant-message--user { padding-left: 18px; border-left: 2px solid #81adce; }
+.gpu-assistant-message-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.gpu-assistant-empty { padding: 24px 0; color: #b5c5dc; }
+.gpu-assistant form { display: flex; flex-direction: column; gap: 6px; }
+.gpu-assistant textarea { resize: vertical; min-height: 64px; max-height: 180px; width: 100%; box-sizing: border-box;
+  border: 1px solid #7b9db9; border-radius: 8px; background: #071427a8; color: #e6edf7; padding: 10px; font: inherit; }
+.gpu-assistant button { cursor: pointer; border: 1px solid #7b9db9; border-radius: 7px; color: #e6edf7;
+  background: #152b42; padding: 8px 12px; min-height: 36px; font: inherit; }
+.gpu-assistant button:disabled { opacity: .5; cursor: default; }
+.gpu-assistant button:focus-visible, .gpu-assistant textarea:focus-visible { outline: 2px solid #a8d7ff; outline-offset: 3px; }
+.gpu-assistant .gpu-assistant-primary { background: #245176; }
+.gpu-assistant-error { color: #ffc5be; overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  .gpu-assistant { padding: 10px; gap: 8px; font-size: 13px; }
+  .gpu-assistant header p { display: none; }
+  .gpu-assistant-footer, .gpu-assistant-run { flex-wrap: wrap; }
+  .gpu-assistant button { min-height: 44px; }
+}
+
+.gpu-assistant-handoff { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.gpu-assistant-handoff small { opacity: .75; }
+
+@media (max-width: 600px) {
+  .gpu-assistant h2 { font-size: 15px; }
+  .gpu-assistant header button { font-size: 12px; white-space: nowrap; padding: 8px; }
+  .gpu-assistant-handoff button { width: 100%; font-size: 12px; padding: 8px; }
+  .gpu-assistant-handoff small { display: none; }
+  .gpu-assistant-footer { flex-wrap: nowrap; }
+  .gpu-assistant-footer small { flex: 1; min-width: 0; }
+}
+
+.gpu-assistant-connection { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px 0; }
+.gpu-assistant-connection label { font-size: 12px; }
+.gpu-assistant-connection select { flex: 1; min-width: 160px; max-width: 100%; color: inherit; background: #182a42; border: 1px solid #526781; border-radius: 6px; padding: 7px; }
+.gpu-assistant-connection small { flex-basis: 100%; }

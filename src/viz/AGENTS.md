@@ -472,9 +472,9 @@ npm run viz:mark-turn:analyze
   dragging clamps the complete window inside the viewport; slider values stay
   in the mutable live sample so pointer motion never rebuilds the GPU scene.
 - The Projects screen uses a DOM MCP onboarding guide above the GPU project
-  list. It offers one route to Settings → MCP and a concrete request to give
-  the connected agent. The Web client has no project creation or run launch
-  form. GitHub connection remains reachable when the active organisation has
+  list. Talk to Atoma opens the integrated conversation; Settings → MCP and
+  the copyable request remain the external-agent path. Creation and launch
+  require separate proposal confirmations. GitHub remains reachable when the organisation has
   no installation. A selected project's name owns the page title (`Project :
   <name>`) and is not repeated as an active row in its detail card.
   Re-clicking Projects in the rail returns to the full list; the accessible DOM
@@ -506,9 +506,15 @@ npm run viz:mark-turn:analyze
   with), and the per-character `gpuFilterButtonWidth*` estimates are the
   renderer-less FALLBACK only. An estimate must over-shoot to never clip, so
   it pads long labels unevenly; do not add a new chip surface on the fallback.
-- There is no Launch tab in the GPU client. Projects directs the customer to
-  connect an agent through Settings → MCP, ask it to use repository and run
-  context, and review the drafted goal and acceptance criteria before a run.
+- There is no Launch tab in the GPU client. Projects offers the integrated
+  assistant or an agent connected through Settings → MCP; both prepare goals
+  and criteria for client approval. The assistant's transparent DOM conversation
+  uses a GPU-drawn Projects panel. Its project-owned shared history is principal/org scoped,
+  with version-bound confirmations and separately recorded model/payer usage.
+  The person selects a connected personal subscription, organisation API key or
+  explicit platform API model; an unavailable selection never changes payer.
+  Its fixed context reads and confirmed writes use the existing HTTP MCP;
+  see [contract and limits](../../docs/integrated-assistant.md).
   The `atoma_goal` MCP prompt and server tool guidance own the agent-facing
   instructions. `/api/goal-guidance` remains a read-only compatibility route;
   it has no browser launch power. The frozen MUI fallback keeps its own Launch
@@ -641,7 +647,7 @@ npm run viz:mark-turn:analyze
   draft is in progress preserves it. It follows the canvas-control method
   above: the reset signal lives in the shared GPU store, and the real-GPU smoke
   drives the active Pixi hit target after a complete stubbed send.
-  `src/viz/push/translate.ts` is viz's ONLY LLM call site (run titles are
+  `src/viz/push/translate.ts` is the announcement LLM call site (run titles are
   src/projects'): tier 1, built on first use so no deployment is asked for a credential it never
   needs, and returning `null` (never a partial draft) whenever the
   provider is absent or the reply unreadable — the form then asks the

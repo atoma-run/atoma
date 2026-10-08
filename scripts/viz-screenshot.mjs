@@ -76,6 +76,21 @@ const platformAdmin = has('--platform-admin');
 const settingsTab = arg('--settings-tab', 'general');
 const tuning = has('--tuning');
 const selectFirst = has('--select-first');
+const showAssistant = has('--assistant');
+const assistantFixture = {
+  choices: [{ id: 'own:anthropic:haiku', model: 'own:anthropic:haiku', label: 'Claude · Haiku (beta)', payer: 'principal-subscription' }], nextBefore: null, available: true, model: 'api:anthropic:claude-haiku-4-5-20251001', busy: false, run: null,
+  conversation: { id: 'f1195226-8f11-4bca-b408-1e6c10f8b353', projectId: null, version: 1, lastRequestId: null, lastRun: null, modelChoice: 'own:anthropic:haiku', costUsd: 0.0012, inputTokens: 900, outputTokens: 240,
+    messages: [
+      { role: 'user', text: 'I need a stock tracker for my small shop. I want to see which products need reordering.', at: '2026-10-08T10:00:00.000Z' },
+      { role: 'assistant', text: 'We can start with a stock list, quantities, and a low-stock warning for each product. Here is the project I suggest. You can change the proposal before creating it.', at: '2026-10-08T10:00:01.000Z' },
+    ],
+    proposal: { id: 'dddddddd-1111-4222-8333-aaaaaaaaaaaa', state: 'pending', action: { kind: 'create_project', project: {
+      name: 'Shop stock tracker', slug: 'shop-stock-tracker', initialPrompt: 'Build a stock tracker with a product list, editable quantities, and a reorder threshold per product. Highlight low-stock items and include sample data.',
+      repositoryTarget: { installationId: '123', owner: 'example', name: 'shop-stock-tracker', visibility: 'private' },
+      followUpstream: false, showcase: 'listed',
+    } } },
+  },
+};
 const githubAccess = has('--github-access');
 const githubAccessProbe = has('--github-access-probe');
 const resultArtwork = has('--result-artwork');
@@ -677,6 +692,10 @@ try {
         // handler died is never continued and the page hangs on it forever.
         try {
           const path = new URL(request.url()).pathname;
+          if (showAssistant && path === '/api/assistant') {
+            void request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify(assistantFixture) });
+            return;
+          }
           if (resultArtwork && path.endsWith('/workspace') && new URL(request.url()).searchParams.get('format') === 'bytes') {
             const file = new URL(request.url()).searchParams.get('path');
             if (artworkFiles.includes(file)) {
@@ -1019,6 +1038,28 @@ try {
       }
       await page.mouse.move(5, height - 5);
       await page.evaluate(() => new Promise(resolveWait => setTimeout(resolveWait, 500)));
+    }
+
+    if (showAssistant) {
+      if (!authed || view !== 'Projects') throw new Error('--assistant requires --auth and Projects');
+      const button = await page.$('[data-testid="assistant-open"]');
+      if (!button) throw new Error('The integrated assistant entry is missing');
+      await button.click();
+      try { await page.waitForSelector('.gpu-assistant-proposal', { timeout: 10_000 }); }
+      catch (error) { await page.screenshot({ path: '/tmp/atoma-assistant-failure.png' }); throw error; }
+      await page.evaluate(() => {
+        const log = document.querySelector('.gpu-assistant-log');
+        if (log) log.scrollTop = log.scrollHeight;
+      });
+      const composerVisible = await page.evaluate(() => {
+        const button = document.querySelector('.gpu-assistant button[type="submit"]');
+        const box = button?.getBoundingClientRect();
+        const section = document.querySelector('.gpu-assistant')?.getBoundingClientRect();
+        const panelBottom = globalThis.__ATOMA_GPU__?.projectRendererPoint(globalThis.innerWidth / 2, globalThis.innerHeight - 32)?.y;
+        return box && section && typeof panelBottom === 'number' && section.bottom <= panelBottom + 2 &&
+          box.top >= 0 && box.left >= 0 && box.bottom <= globalThis.innerHeight && box.right <= globalThis.innerWidth;
+      });
+      if (!composerVisible) throw new Error('The assistant composer is outside the visible camera viewport');
     }
 
     if (accountMenu) {

@@ -11,6 +11,7 @@ release gate: nothing in `check` or `release:check` depends on it.
 ```bash
 npm run viz:shot                                    # anonymous visitor (login gate when auth is armed)
 npm run viz:shot -- --auth                          # logged-in member, Projects MCP guide
+npm run viz:shot -- --auth --assistant              # integrated conversation and approval card (stubbed)
 npm run viz:shot -- --auth --select-first           # first project selected: run list + MCP guide
 npm run viz:shot -- --auth --select-first --github-access # saved request awaiting GitHub authorization
 npm run viz:shot -- --auth --select-first --github-access --github-access-probe # scroll and continue through the real canvas (stubbed response)

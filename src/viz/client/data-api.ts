@@ -29,6 +29,7 @@ import type {
 } from './types.js';
 import { redirectIfAuthenticationRequired } from './session-guard.js';
 import type { PreviewOpenOptions } from '../../contracts/preview.js';
+import type { AssistantRequest, AssistantView } from '../../contracts/assistant.js';
 
 let activeMutations = 0;
 export function pendingApiMutations(): number { return activeMutations; }
@@ -54,6 +55,14 @@ export async function fetchJson<T>(path: string): Promise<T> {
 }
 
 export const api = {
+  assistant: (projectId: string | null, options: { conversationId?: string; before?: number } = {}) => {
+    const params = new URLSearchParams();
+    if (projectId) params.set('projectId', projectId);
+    if (options.conversationId) params.set('conversationId', options.conversationId);
+    if (options.before !== undefined) params.set('before', String(options.before));
+    return fetchJson<AssistantView>(`/api/assistant?${params}`);
+  },
+  assistantRequest: (request: AssistantRequest) => mutateJson<AssistantView>('/api/assistant', request),
   runs: () => fetchJson<RunIndexEntry[]>('/api/runs'),
   run: async (id: string, after?: number) =>
     fetchJson<VizRun>(

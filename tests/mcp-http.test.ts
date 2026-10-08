@@ -1,3 +1,4 @@
+import { emptyConversation } from '../src/projects/conversationStore.js';
 import { clientQuestionViewFixture } from './helpers/clientQuestion.js';
 import { runReviewFixture } from './helpers/projectRetrievalLaunch.js';
 import { PlatformEventLog } from '../src/platform/events.js';
@@ -81,6 +82,7 @@ function viewer(role: Viewer['role'], platformAdmin = false): Viewer {
 const NO_TENANT: McpToolDeps = { projects: null, auth: null, journal: null, operatorRuns: true };
 /** A host that HAS the tenant runtime, as far as the catalogue's `needs` are concerned. */
 const TENANT_HOST: McpToolDeps = {
+  conversations: {} as never,
   projects: { service: {} as never, store: {} as never },
   auth: {} as never,
   journal: { list: () => ({ events: [], nextBefore: null }) },
@@ -382,7 +384,7 @@ describe('the catalogue by tier', () => {
     // Each rung adds exactly its own rows (the table interleaves the tiers).
     const above = (lower: string[], upper: string[]) => upper.filter((name) => !lower.includes(name));
     expect(asMember).toEqual(expect.arrayContaining(asViewer));
-    expect(above(asViewer, asMember)).toEqual(['atoma_project_context_update', 'atoma_run_answer', 'atoma_project_create', 'atoma_run_start', 'atoma_run_pause', 'atoma_run_resume', 'atoma_run_cancel', 'atoma_run_accept', 'atoma_publication_retry']);
+    expect(above(asViewer, asMember)).toEqual(['atoma_project_context_update', 'atoma_run_answer', 'atoma_conversation', 'atoma_conversation_update', 'atoma_project_create', 'atoma_run_start', 'atoma_run_pause', 'atoma_run_resume', 'atoma_run_cancel', 'atoma_run_accept', 'atoma_publication_retry']);
     expect(asAdmin).toEqual(expect.arrayContaining(asMember));
     expect(above(asMember, asAdmin)).toEqual(['atoma_project_showcase', 'atoma_org_members', 'atoma_org_models']);
     // Handing out the host's own login is operator spend, not organisation
@@ -750,8 +752,10 @@ describe('the platform commons over MCP — registry and skill catalog', () => {
   });
 
   it('validates every declared output schema through the 2025 SDK client', async () => {
+    const page = () => ({ conversation: emptyConversation(), busy: false, nextBefore: null, untrusted: true });
     const deps: McpToolDeps = {
       ...TENANT_HOST,
+      conversations: { read: page, update: page } as never,
       projects: { service: {
         projectContext: () => ({ context: { projectId: '00000000-0000-4000-8000-000000000001', version: 0, brief: null, decisions: [], change: null }, history: [], nextBeforeVersion: null }),
         reviewRun: runReviewFixture,
@@ -770,11 +774,11 @@ describe('the platform commons over MCP — registry and skill catalog', () => {
     try {
       const tools = (await client.listTools()).tools.filter((tool) => tool.outputSchema);
       expect(tools.map((tool) => tool.name).sort()).toEqual([
-        'atoma_costs', 'atoma_ledger_tail', 'atoma_mcp_health', 'atoma_notifications', 'atoma_project_context', 'atoma_run_artifacts', 'atoma_run_compare', 'atoma_run_file', 'atoma_run_question', 'atoma_run_review', 'atoma_sentinel_health',
+        'atoma_conversation', 'atoma_conversation_update', 'atoma_costs', 'atoma_ledger_tail', 'atoma_mcp_health', 'atoma_notifications', 'atoma_project_context', 'atoma_run_artifacts', 'atoma_run_compare', 'atoma_run_file', 'atoma_run_question', 'atoma_run_review', 'atoma_sentinel_health',
       ]);
       for (const tool of tools) {
         expect(tool.outputSchema?.['additionalProperties'], tool.name).not.toBe(false);
-        const args = tool.name === 'atoma_project_context' ? { projectId: 'p' } : tool.name === 'atoma_run_review' || tool.name === 'atoma_run_question' ? { projectId: 'p', runId: 'r' } : tool.name === 'atoma_run_compare' ? { projectId: 'p', runId: 'r', baseRunId: 'b' } : tool.name === 'atoma_run_artifacts' || tool.name === 'atoma_run_file' ? { projectId: 'p', runId: 'r', path: 'a.txt' } : {};
+        const args = tool.name === 'atoma_conversation_update' ? { requestId: '00000000-0000-4000-8000-000000000001', expectedVersion: 0 } : tool.name === 'atoma_project_context' ? { projectId: 'p' } : tool.name === 'atoma_run_review' || tool.name === 'atoma_run_question' ? { projectId: 'p', runId: 'r' } : tool.name === 'atoma_run_compare' ? { projectId: 'p', runId: 'r', baseRunId: 'b' } : tool.name === 'atoma_run_artifacts' || tool.name === 'atoma_run_file' ? { projectId: 'p', runId: 'r', path: 'a.txt' } : {};
         const result = await client.callTool({ name: tool.name, arguments: args });
         expect(result.isError, tool.name).toBeFalsy();
         expect(result.structuredContent, tool.name).toBeDefined();

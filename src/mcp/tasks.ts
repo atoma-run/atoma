@@ -1,3 +1,6 @@
+import { conversationApprovalSchema } from '../contracts/assistant.js';
+import { AssistantConflict } from '../projects/conversationStore.js';
+import type { Conversations } from '../projects/conversations.js';
 import { PROJECT_RUN_WAITING_MESSAGE } from '../contracts/projects.js';
 import { runProgressSchema, serviceProblem, type ServiceProblem } from '../contracts/clientExperience.js';
 import { errorResult } from './results.js';
@@ -335,10 +338,11 @@ export const OPERATOR_RUN_INPUT = {
 };
 
 export const PROJECT_RUN_INPUT = {
+  conversationApproval: conversationApprovalSchema.optional().describe('Confirm the exact saved shared proposal after explicit client approval. Use task augmentation; the receipt is shared with Atoma.'),
   projectId: z.string().min(1),
   goal: z.string().min(1).max(MAX_GOAL_CHARS).optional().describe('Required for a new run; omitted for a rerun, which re-asks its origin’s goal.'),
   idempotencyKey: idempotencyKeySchema.optional().describe('Opaque ASCII token, one per intended run: the same key returns that run, so use a new one for a new run.'),
-  acceptanceCriteria: z.array(z.string().min(1).max(400)).min(1).max(MAX_CHECKLIST_ITEMS).optional().describe(
+  acceptanceCriteria: z.array(z.string().min(1).max(400)).max(MAX_CHECKLIST_ITEMS).optional().describe(
     'Acceptance criteria you approve for this run, one per entry. "GET /api/notes/:id 404 — unknown id is refused" is an HTTP criterion (status optional, any 2xx without one); any other text is judged by review. ' +
     `A criterion's text is at most ${MAX_CHECKLIST_BEHAVIOUR_CHARS} characters, not counting an HTTP criterion's method, path and status when it has text of its own. ` +
     'The run is checked against exactly these; one malformed entry refuses the call.'
@@ -367,6 +371,7 @@ export const PROJECT_CHECKPOINT_INPUT = {
 /* --------------------------------------------------------------- project */
 
 export interface ProjectRunTaskDeps {
+  readonly conversations?: Conversations | null;
   readonly viewer: () => Viewer;
   readonly service: {
     runTaskBudgetMs(): number;
@@ -406,7 +411,7 @@ export function isProjectRunTaskId(taskId: string): boolean {
 }
 
 /** Both halves are UUIDs, which hold no colon; anything else is not a task this host minted. */
-function parseProjectRunTaskId(taskId: string): { projectId: string; projectRunId: string } | null {
+export function parseProjectRunTaskId(taskId: string): { projectId: string; projectRunId: string } | null {
   if (!isProjectRunTaskId(taskId)) return null;
   const parts = taskId.slice(PROJECT_TASK_PREFIX.length).split(':');
   return parts.length === 2 && parts[0] && parts[1] ? { projectId: parts[0], projectRunId: parts[1] } : null;
@@ -759,26 +764,39 @@ export function projectRunTask(
       const viewer = deps.viewer();
       // The same line grammar as the console and the CLI: one parser, and a
       // criterion that does not parse refuses the call rather than vanishing.
+      if (args.acceptanceCriteria?.length === 0 && !args.conversationApproval) return refuse('refused (400): omit acceptanceCriteria when none are supplied', serviceProblem(400, 'Empty acceptance criteria.'));
       const parsed = args.acceptanceCriteria?.map((entry) => parseChecklistLines(entry));
       const invalid = (parsed ?? []).flatMap((entry, index) => entry.errors.length > 0 || entry.items.length !== 1
         ? [`entry ${index + 1}: ${entry.errors[0]?.message ?? 'must hold exactly one criterion'}`] : []);
       if (invalid.length > 0) return refuse(`refused (400): invalid acceptance criteria — ${invalid.join('; ')}`,
         serviceProblem(400, 'Invalid acceptance criteria.', { fields: ['acceptanceCriteria'] }));
-      const criteria = parsed ? { items: parsed.flatMap((entry) => entry.items) } : null;
+      const criteria = parsed?.length ? { items: parsed.flatMap((entry) => entry.items) } : null;
       let started: { projectRunId: string };
       try {
         // Forwarded as given: the service's one schema decides which combination
         // is a run and which a rerun, and refuses every other one with 400.
-        started = (await deps.service.startProjectRunFromInput(viewer, args.projectId, {
+        const execute = async (idempotencyKey: string) => (await deps.service.startProjectRunFromInput(viewer, args.projectId, {
           ...(args.goal !== undefined ? { goal: args.goal } : {}),
-          idempotencyKey: args.idempotencyKey ?? `mcp-task-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+          idempotencyKey,
           ...(criteria ? { acceptanceChecklist: criteria.items } : {}),
           ...(args.baseRunId !== undefined ? { baseRunId: args.baseRunId } : {}),
           ...(args.rerunOf !== undefined ? { rerunOf: args.rerunOf } : {}),
           ...(args.models !== undefined ? { models: args.models } : {}),
           ...(args.depth !== undefined ? { depth: args.depth } : {}),
         })) as { projectRunId: string };
+        if (args.conversationApproval) {
+          if (!deps.conversations) throw new AssistantConflict('Shared conversations are unavailable.');
+          if (args.goal === undefined || args.baseRunId !== undefined || args.rerunOf !== undefined || args.models !== undefined || args.depth !== undefined ||
+            (args.idempotencyKey !== undefined && args.idempotencyKey !== `assistant:${args.conversationApproval.proposalId}`)) {
+            throw new AssistantConflict('Confirm the saved goal and criteria without run overrides.');
+          }
+          const receipt = await deps.conversations.approve(viewer, args.conversationApproval, {
+            kind: 'start_run', projectId: args.projectId, goal: args.goal, acceptanceCriteria: args.acceptanceCriteria ?? [],
+          }, async key => ({ run: { projectId: args.projectId, runId: (await execute(key)).projectRunId } }));
+          started = { projectRunId: receipt.run!.runId };
+        } else started = await execute(args.idempotencyKey ?? `mcp-task-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
       } catch (error) {
+        if (error instanceof AssistantConflict) return refuse(error.message, serviceProblem(409, error.message));
         if (error instanceof ProjectHttpError) return refuse(`refused (${error.status}): ${error.message}`, error.problem);
         throw error;
       }

@@ -66,13 +66,14 @@ For example:
 
 ## A run, step by step
 
-1. **Connect your existing agent through MCP** from Settings in the Atoma
-   console. Say “Continue <project name> with Atoma” or “Plan a project for this
-   repository with Atoma.” The agent inspects the relevant context and proposes
-   what to do next.
+1. **Open Projects → Talk to Atoma**, or connect your existing agent through
+   MCP from Settings. Describe the project you want to create or the change
+   you want to make. The integrated assistant uses the saved project brief
+   and latest run to prepare a proposal.
 2. **Review the agent's proposal** for a new or existing project, the run goal
-   and optional acceptance criteria. Approve the project and run before the
-   agent starts them through MCP. Without criteria, the run drafts its own
+   and optional acceptance criteria. In the integrated assistant, creation and
+   run launch have separate confirmation buttons. Both use the existing MCP.
+   Without criteria, the run drafts its own
    checklist from the goal.
 3. **Follow the run** as agents plan, write files, start servers and check their
    work, with the model, tokens and cost behind every step.
@@ -202,14 +203,19 @@ The console serves an HTTP MCP endpoint at `https://<your-instance>/mcp`.
 Compatible clients such as Claude Code or Codex can create projects, draft run
 goals from the conversation and repository context, start runs, pass acceptance
 criteria, request reruns and read traces, costs and diagnostics. The Web console
-is where customers connect the agent and review projects and results.
+also provides an integrated assistant for customers without an external agent,
+and remains the place to review projects and results. Choose a personal subscription, organisation API key or configured platform API
+connection; conversation usage is accounted separately from runs; see [setup and limits](docs/integrated-assistant.md).
+Conversations can continue in either direction between Atoma and an MCP client.
+Use **Continue in Claude or another agent** to copy the continuation prompt;
+shared messages and proposals remain private to the same account and organisation.
 
 One endpoint supports both MCP protocol revisions 2025-11-25 and 2026-07-28.
 OAuth clients can connect through browser consent, including clients identified
 by a metadata URL. Project run tasks survive a client reconnect, and results
 link to run resources that compatible clients can open or follow.
 
-**Fifty-four tools.** The visible subset depends on the caller's role. Compact
+**Fifty-six tools.** The visible subset depends on the caller's role. Compact
 searchable menus, recorded progress and saved-file readers keep the workflow
 inside the conversation. Versioned project briefs and client-confirmed decisions
 are captured per run through `atoma_project_context` and `atoma_project_context_update`.
@@ -325,7 +331,7 @@ ready for production. See the [changelog](CHANGELOG.md) for what changed.
 | Version | `0.4.0` |
 | Node | 24.20+ (`.nvmrc` 24.20.0, `engines` >=24) |
 | Subsystems under their own contract | 18 |
-| MCP tools | 54 |
+| MCP tools | 56 |
 | Curated agent names | 118 molecules · 40 cells · 20 tissues |
 | Controlled benchmark rounds | 12 (`benchmark/RESULT.md` + `ROUND<n>.md`) |
 | Interface locales | 13 catalogs — 1 source, 12 translated |

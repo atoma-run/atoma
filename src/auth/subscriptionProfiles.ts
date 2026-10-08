@@ -207,6 +207,8 @@ export interface ClaudeProfileForRun {
 
 export interface AccountSubscriptionServiceOptions {
   readonly auth: AuthStore;
+  /** Rechecked after async login/probing, before replacing any credential generation. */
+  readonly canChangeProfile?: (principalId: string) => boolean;
   readonly profilesRoot?: string;
   readonly sourceEnv?: NodeJS.ProcessEnv;
   readonly spawnFn?: CodexAppServerSpawn;
@@ -377,6 +379,7 @@ export class AccountSubscriptionService {
   private readonly now: () => number;
   private readonly probeClaudeAuth: ClaudeAuthProbe;
   private readonly onConnected: AccountSubscriptionServiceOptions['onConnected'];
+  private readonly canChangeProfile: (principalId: string) => boolean;
   private readonly onDisconnected: AccountSubscriptionServiceOptions['onDisconnected'];
   private readonly profilesSupported: boolean;
   private readonly lifecycle = new AbortController();
@@ -415,6 +418,7 @@ export class AccountSubscriptionService {
         : DEFAULT_LOGIN_ACCOUNT_SETTLE_MS;
     this.now = options.now ?? Date.now;
     this.probeClaudeAuth = options.probeClaudeAuth ?? defaultClaudeAuthProbe;
+    this.canChangeProfile = options.canChangeProfile ?? (() => true);
     this.onConnected = options.onConnected;
     this.onDisconnected = options.onDisconnected;
     if (this.profilesSupported) this.reconcileProfiles();
@@ -432,6 +436,10 @@ export class AccountSubscriptionService {
       codex,
       codexAttempt: attempt ? this.publicAttempt(attempt) : null,
     });
+  }
+
+  private assertProfileIdle(principalId: string): void {
+    if (!this.canChangeProfile(principalId)) throw new CodexSubscriptionConflictError('Wait for the assistant or cancel the active run before changing the subscription.');
   }
 
   /**
@@ -480,6 +488,7 @@ export class AccountSubscriptionService {
       if (!probe.loggedIn) {
         throw new ClaudeSubscriptionTokenError('the Claude Code CLI did not accept this token');
       }
+      this.assertProfileIdle(principalId);
       this.writeClaudeToken(profilePath, token.data);
       if (!privateCredentialFile(path.join(profilePath, CLAUDE_TOKEN_FILENAME))) {
         throw new ClaudeSubscriptionUnavailableError(
@@ -506,6 +515,7 @@ export class AccountSubscriptionService {
   async disconnectClaude(principalIdInput: string, orgId: string): Promise<boolean> {
     const principalId = principalIdSchema.parse(principalIdInput);
     const parsedOrgId = organisationIdSchema.parse(orgId);
+    this.assertProfileIdle(principalId);
     // Receipt first, like Codex: new runs fail closed from this point.
     const receipt = this.auth.deletePrincipalSubscription(principalId, 'claude');
     if (!receipt) return false;
@@ -688,6 +698,7 @@ export class AccountSubscriptionService {
   async disconnectCodex(principalIdInput: string, orgId: string): Promise<boolean> {
     const principalId = principalIdSchema.parse(principalIdInput);
     const parsedOrgId = organisationIdSchema.parse(orgId);
+    this.assertProfileIdle(principalId);
     // Delete the receipt BEFORE awaiting the provider: new runs fail closed
     // from this point even if cancellation/app-server is slow or unavailable.
     const receipt = this.auth.deletePrincipalSubscription(principalId, 'codex');
@@ -1044,6 +1055,7 @@ export class AccountSubscriptionService {
       ) {
         return;
       }
+      this.assertProfileIdle(attempt.principalId);
       this.auth.setPrincipalSubscription({
         principalId: attempt.principalId,
         provider: 'codex',

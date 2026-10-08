@@ -423,6 +423,12 @@ export function drawProjects(
 
   }
 
+  if (snapshot.state.assistantOpen && snapshot.data.auth?.viewer.activeOrganisation && snapshot.data.auth.viewer.role !== 'org:viewer') {
+    ctx.panel(ctx.root, frame.innerX, PROJECTS_MCP_GUIDE_TOP, frame.innerWidth,
+      Math.max(0, height - PROJECTS_MCP_GUIDE_TOP - 32), GPU_COLORS.panel, GPU_COLORS.border, GPU_LAYOUT.radius, 2);
+    ctx.scrollMax.projects = 0;
+    return;
+  }
   const guideVisible = snapshot.data.auth !== null && (!selectedProject || snapshot.state.projectSection === 'runs');
   const guideTop = selectedProject ? PROJECTS_SELECTED_MCP_GUIDE_TOP : PROJECTS_MCP_GUIDE_TOP;
   // The form's fields are DOM, but its CARD is the same GPU panel as the list

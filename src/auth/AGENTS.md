@@ -97,7 +97,7 @@ Loopback HTTP keeps its development cookie names and paths.
   (≤0.154) notifies `account/login/completed` BEFORE reloading its auth cache,
   so the first `account/read` may report no account. Retry until `account/updated`
   or the window closes; never fail on the first empty read (2026-09-15).
-  A run resolves the exact current generation from its requesting principal;
+  A run or integrated assistant resolves the exact current generation from its requesting principal;
   disconnection deletes the receipt first and never falls back to the host.
   App-server access shares the same per-`CODEX_HOME` lease as run calls. The
   lease combines an in-process FIFO with a sibling SQLite transaction, so it
@@ -136,7 +136,18 @@ Loopback HTTP keeps its development cookie names and paths.
   environment only. Anthropic's third-party approval has not been granted;
   the beta badge in Settings says so, and the capability stays server-owned.
 
+The shared subscription service rechecks `canChangeProfile` after asynchronous
+login/probing and before replacing or disconnecting a generation. Viz includes
+both active runs and assistant requests in this guard; a profile captured by an
+assistant remains live until its provider call has finished and been reaped.
+
 ## MCP OAuth authorization server
+
+The integrated assistant's `assistantGrants.ts` delegates a live browser session
+to a server-only bearer for 90 seconds. Every MCP request re-resolves that session
+and its original principal/org; logout, switching or demotion refuses it. Grants
+are memory-only, bounded and released with the HTTP client. They cap authority at
+member, including for platform admins, and never expose tokens to the browser.
 
 - `mcpOAuth.ts` owns OAuth discovery, public-client registration, consent and
   token endpoints, mounted only behind the deployment gate. The existing web

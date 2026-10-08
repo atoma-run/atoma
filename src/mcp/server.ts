@@ -56,7 +56,7 @@ export function instructionsFor(tier: McpTier): string {
     'atoma_run_review reads saved evidence; delivery proves neither correctness nor deployment. After client testing/review and explicit acceptance, use atoma_run_accept with artifactManifestHash and the review summary to publish to GitHub. Model approval is not client consent.',
     'Lists: view=compact, search, limit, nextCursor. Files: atoma_run_artifacts and atoma_run_file.',
     'If awaitingClientAnswer: read atoma_run_question, ask the client, record their response with atoma_run_answer, then atoma_run_resume. Never invent an answer.',
-    ...(tier === 'viewer' ? [] : ['For "Continue <project> with Atoma": read its latest run, atoma_project_context and atoma_project_readiness; propose a goal and criteria, then ask approval before any write.']),
+    ...(tier === 'viewer' ? [] : ['For "Continue <project> with Atoma": read atoma_conversation, its latest run, atoma_project_context and atoma_project_readiness; propose a goal and criteria, then ask approval before any write.']),
     `Goal guidance: ${GOAL_GUIDANCE.help}${tier === 'viewer' ? '' : ' The atoma_goal prompt helps draft one for the person to approve.'}`,
     'MCP tasks: tasks/get follows work; tasks/cancel stops it.',
   ];

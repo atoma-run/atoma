@@ -107,6 +107,9 @@ Neighbours:
   are `token.created` / `token.revoked` journal rows. Ungated: the caller is
   the operator, by possession of the machine, as for the CLI; there is no
   token to present and no organisation to act in.
+  The integrated assistant also delegates its live browser session through a
+  short-lived server-only bearer (`auth/assistantGrants.ts`); it uses this same
+  HTTP route, capped at member in the active org, never a cookie path into MCP.
 - HOST IS PINNED, AND ORIGIN BESIDE IT, for both eras by the host itself
   (`admitted`: the SDK's 2026 handler checks neither). `allowedHosts` — the public origin's host (gated) or the
   loopback host:port (ungated) — which is the control that defeats rebinding:
@@ -501,6 +504,14 @@ Neighbours:
   (`createProjectFromInput`, `startProjectRunFromInput`, `projectRunStatus`);
   the HTTP routes are body readers in front of the same checks. Never
   re-implement a role check in a tool.
+
+## Shared conversations
+
+`atoma_conversation` and `atoma_conversation_update` expose the project-owned
+private history to members. The existing create/run tools optionally consume
+`conversationApproval`; run starts remain MCP tasks in both eras. See the
+[continuity contract](../../docs/integrated-assistant.md). No inference, second
+runner, implicit project-memory update or whole-chat export belongs here.
 
 ## Intentional choices and rejected shortcuts
 

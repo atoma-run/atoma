@@ -240,6 +240,7 @@ export function DomBridge({
   }, [mcpAccessState]);
   const selectedDocsTheme = useGpuStore((state) => state.selectedDocsTheme);
   const accountMenuOpen = useGpuStore((state) => state.accountMenuOpen);
+  const assistantOpen = useGpuStore((state) => state.assistantOpen);
   const localeMenuOpen = useGpuStore((state) => state.localeMenuOpen);
   const notificationsMenuOpen = useGpuStore((state) => state.notificationsMenuOpen);
   const focusedInput = useGpuStore((state) => state.focusedInput);
@@ -581,7 +582,7 @@ export function DomBridge({
           onChange={(event) => setSearch('skills', event.target.value)}
         />
       ) : null}
-      {projectGuideEnabled && view === 'projects' && (!selectedProjectId || projectSection === 'runs') ? (
+      {projectGuideEnabled && view === 'projects' && !assistantOpen && (!selectedProjectId || projectSection === 'runs') ? (
         <section
           className={`gpu-panel-skin gpu-project-mcp${projectMcpCollapsed ? ' gpu-project-mcp--collapsed' : ''}${selectedProjectId ? ' gpu-project-mcp--selected' : ''}${overlaysInert ? ' gpu-overlays-veiled' : ''}`}
           inert={overlaysInert}
@@ -603,6 +604,9 @@ export function DomBridge({
               : t('projects.mcpCreateIntro')}</p>
             <p className="gpu-project-mcp-request">{projectRequest}</p>
             <div className="gpu-project-mcp-actions">
+              {auth?.viewer.role !== 'org:viewer' ? <button type="button" data-testid="assistant-open" onClick={() => useGpuStore.setState({ assistantOpen: true })}>
+                {t('assistant.open')}
+              </button> : null}
               {projectAdmin && selectedProject?.repositoryTarget?.source?.mode === 'fork' ?
                 <UpstreamSetting key={selectedProject.projectId} projectId={selectedProject.projectId}
                   enabled={selectedProject.followUpstream ?? false} t={t} /> : null}
