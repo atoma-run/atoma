@@ -731,7 +731,7 @@
   "announce.sentAll": "Dikirim ke setiap organisasi.",
   "announce.error": "Pengumuman tidak dapat dikirim.",
   "announce.emptySegment": "Tidak ada organisasi yang cocok dengan segmen ini.",
-  "app.documentTitle": "",
+  "app.documentTitle": "Atoma — agen AI yang mengubah permintaan menjadi pekerjaan terverifikasi",
   "settings.username": "Nama pengguna Anda",
   "settings.inheritOrg": "Default organisasi ({{fallback}})",
   "settings.orgDefaults": "Default organisasi per tier",

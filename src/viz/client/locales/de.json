@@ -731,7 +731,7 @@
   "announce.sentAll": "An alle Organisationen gesendet.",
   "announce.error": "Die Ankündigung konnte nicht gesendet werden.",
   "announce.emptySegment": "Keine Organisation entspricht diesem Segment.",
-  "app.documentTitle": "",
+  "app.documentTitle": "Atoma — KI-Agenten, die Anfragen in geprüfte Arbeit umsetzen",
   "settings.username": "Ihr Benutzername",
   "settings.inheritOrg": "Organisationsstandard ({{fallback}})",
   "settings.orgDefaults": "Organisationsstandards je Tier",
