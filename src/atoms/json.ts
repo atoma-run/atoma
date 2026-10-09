@@ -975,6 +975,16 @@ export const subtaskSpecSchema = z.object({
       const cleaned = (v ?? []).map((o) => o.trim()).filter(isProofObligation);
       return cleaned.length > 0 ? [...new Set(cleaned)] : undefined;
     }),
+}).transform((spec) => {
+  // A reasoning subtask that declares file outputs or proof obligations
+  // contradicts itself: reasoning has no tools, and the "at least one tool
+  // action" gate stands down for it, while no gate reads `outputs` for that
+  // mode. The guidance forbids it (TASK_EXECUTION_GUIDANCE), and a prompt
+  // rule is no gate (code review 2026-10-09 2.6). The declared work decides:
+  // the subtask runs with tools, the default, so its gates hold. The failure
+  // direction is a tool-bearing child, never an unchecked file claim.
+  const contradicted = spec.executionMode === 'reasoning' && (spec.outputs !== undefined || spec.proofObligations !== undefined);
+  return contradicted ? { ...spec, executionMode: undefined } : spec;
 });
 
 /**

@@ -230,8 +230,8 @@ load-bearing.
   credit. Nested handovers preserve enclosing observations with labelled bounds.
   Run 2311d446's report made 53 tool calls searching a manifest for browser
   observations that only the runtime trace held.
-  Declared reasoning mode disables tools/skills through descendants and fallbacks;
-  only its observed-action gate is skipped. [Contract and review](../../docs/incidents/text-delivery-2026-10-02.md).
+  Declared reasoning mode disables tools/skills through descendants and fallbacks; only its observed-action gate
+  is skipped, and the plan parse drops it on a subtask declaring outputs or proof obligations (review 2026-10-09 2.6). [Contract and review](../../docs/incidents/text-delivery-2026-10-02.md).
   Runtime planning keeps the current phase's scope and scales reusable workflows to the task, without a phase-count gate ([review](../../docs/incidents/planning-scope-2026-10-03.md)).
   Validation retains that host-owned scope too: original facts remain binding,
   but tests assigned to a forthcoming phase are not current-phase prerequisites.

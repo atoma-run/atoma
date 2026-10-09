@@ -221,6 +221,23 @@ describe('reasoning delivery across production delegation', () => {
     expect(ctx.tools.execute).not.toHaveBeenCalled();
   });
 
+  // Code review 2026-10-09 2.6: a reasoning subtask that declared file
+  // outputs stood the "at least one tool action" gate down, and no gate read
+  // its outputs. The plan's own declarations decide: it runs with tools.
+  it('runs a reasoning subtask that declares file outputs or proof obligations with tools', () => {
+    const plan = planSchema.parse({
+      reasoning: 'r', delivery: 'files', expectedOutput: 'e', aggregation: { mode: 'sequential' },
+      subtasks: [
+        { description: 'write the report', executionMode: 'reasoning', outputs: ['report.md'] },
+        { description: 'prove the page', executionMode: 'reasoning', proofObligations: ['dom-interaction'] },
+        { description: 'think it through', executionMode: 'reasoning', outputs: [] },
+      ],
+    });
+    expect(plan.subtasks.map((subtask) => subtask.executionMode)).toEqual([undefined, undefined, 'reasoning']);
+    expect(plan.subtasks[0]!.outputs).toEqual(['report.md']);
+    expect(plan.subtasks[1]!.proofObligations).toEqual(['dom-interaction']);
+  });
+
   it('preserves structured small answers and labels bounded large handovers', () => {
     expect(previousResultInput({ exact: 'M1' })).toEqual({ exact: 'M1' });
     expect(previousResultInput('x'.repeat(30_000))).toMatchObject({ truncated: true, originalChars: 30_002 });
