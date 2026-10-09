@@ -32,8 +32,17 @@ export type ButtonIconKind = keyof typeof BUTTON_ICON_PATHS;
 export const BUTTON_ICON_SIZE = 14;
 export const BUTTON_ICON_SPACE = 20;
 
+/** One chevron geometry for native disclosures/selects and canvas controls. */
+export const CHEVRON_SIZE = BUTTON_ICON_SIZE;
+export const CHEVRON_SPACE = BUTTON_ICON_SPACE;
+export const CHEVRON_CSS_VARS = {
+  '--gpu-chevron-size': `${CHEVRON_SIZE}px`,
+  '--gpu-chevron-image': `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="${BUTTON_ICON_PATHS.down}" fill="none" stroke="#9fb0c9" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`)}")`,
+};
+
 /** Control identities, never translated copy, determine GPU pictograms. */
 export function buttonIconKind(id: string): ButtonIconKind {
+  if (id === 'project.section.conversation') return 'send';
   if (id === 'project.section.runs') return 'play';
   if (id === 'project.section.preview') return 'eye';
   if (id === 'project.section.files') return 'folder';

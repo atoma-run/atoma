@@ -73,6 +73,16 @@ npm run viz:mark-turn:analyze
   source in the GL client. Every animation system consults it and JUMPS to its
   final state — exit effects are skipped entirely, never left running.
 - The GPU client uses one Pixi context (WebGPU with WebGL fallback). Do not add a second context for a tiny widget. Smoke tests assert exactly one canvas and both backends.
+- Chevrons share the 14px geometry in `client-gl/button-icons.ts`: DOM
+  disclosures and selects use its CSS variables; canvas controls use
+  `drawChevron`. Never substitute a font glyph or a browser's native marker.
+- New action buttons include a semantic icon beside their label, including
+  compact controls such as Change model and Send. Reuse the shared 14px
+  `client-gl/button-icons.ts` catalog through `ButtonIcon` for DOM buttons and
+  `drawButtonIcon`/`buttonIconKind` for GPU buttons; add missing geometry there.
+  Keep decorative icons hidden from accessibility and preserve the button's
+  text or explicit accessible name. Do not introduce text-only action buttons,
+  emoji substitutes, or a separate icon style for one feature.
 - The renderer stops its ticker when the document is hidden or loses focus. Camera draws are gated too;
   background snapshots coalesce until focus returns, when the latest scene is rebuilt before animation resumes.
 - Keep GPU animation state out of React/Zustand hot paths. Use mutable samples
@@ -471,15 +481,34 @@ npm run viz:mark-turn:analyze
   window's visibility, and its DOM layer sits above view forms. Title-bar
   dragging clamps the complete window inside the viewport; slider values stay
   in the mutable live sample so pointer motion never rebuilds the GPU scene.
-- The Projects screen is ONE DOM guide card above the GPU project list or the
-  selected project's runs. For a member of an organisation the guide HOSTS the
+- The Projects collection is ONE DOM guide card above the GPU project list.
+  A selected project opens **Continue this project**, with **Runs** in a
+  separate tab; never stack the conversation above its run history. Keep the
+  conversation mounted but hidden across section changes, preserving drafts
+  and pending replies. The measured section controls wrap when needed and
+  publish the same content top to the GPU and DOM. For a member the guide HOSTS the
   integrated conversation (`assistant` prop, owner 2026-10-09: it no longer
   replaces the screen, and a second card read as the assistant twice), with
   the external-agent path (connection notice, copyable request, MCP, GitHub,
-  upstream) folded under it in a `<details>`; the card is then
-  `PROJECTS_MCP_GUIDE_ASSISTANT_HEIGHT` tall and the "fold once MCP is
-  connected" rule stops applying. A viewer sees the guide alone, as before.
-  The guide's toggle collapses the whole card, conversation included, and
+  upstream) accessible from a `<details>`. Opening it uses the whole card;
+  returning to the conversation preserves its draft. Never squeeze that guide
+  into a small scroll strip below the composer. `projectsGuideLayoutHeight`
+  gives the selected conversation all available viewport height; the collection
+  reserves room for the project list. The renderer publishes that height to the DOM;
+  `projectsGuideHeight` supplies the minimum and compact bands,
+  with a shorter band for the guide or an empty conversation
+  (`projectAssistantCompact`); an empty log reserves no history space.
+  An empty conversation measures its natural DOM height, including wrapped
+  controls, into `projectAssistantCompactHeight`; the GPU card and project
+  rows use that same value. Fixed compact bands are the loading fallback and
+  the external guide's height, not reserved blank space below an empty form.
+  The "fold once MCP is connected" rule stops applying to the assistant.
+  The model shares the guide heading and is read-only until Change model is
+  pressed. The browser remembers the exact model/payer choice per principal
+  and organisation, even before sending; a revoked choice never falls back
+  to another payer. User, assistant and activity messages keep distinct rails.
+  A viewer sees the guide alone, as before.
+  The collection guide's toggle collapses the whole card, conversation included, and
   creating a project from it keeps the card open on the new project's page.
   Creation and launch require separate proposal confirmations. GitHub remains reachable when the organisation has
   no installation. A selected project's name owns the page title (`Project :

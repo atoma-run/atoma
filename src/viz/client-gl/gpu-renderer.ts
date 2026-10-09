@@ -1,5 +1,5 @@
-import { buttonIconKind, BUTTON_ICON_SPACE, BUTTON_ICON_SIZE, type ButtonIconKind } from './button-icons.js';
-import { drawButtonIcon } from './renderer/button-icon.js';
+import { buttonIconKind, BUTTON_ICON_SPACE, BUTTON_ICON_SIZE, CHEVRON_SIZE, CHEVRON_SPACE, type ButtonIconKind } from './button-icons.js';
+import { drawButtonIcon, drawChevron } from './renderer/button-icon.js';
 import type { WorkspaceBrowserData } from './workspace-browser.js';
 import {
   Application,
@@ -120,7 +120,7 @@ import {
   movePointerLight,
   hidePointerLight,
 } from './pointer-light.js';
-import { TooltipLayer } from './renderer/tooltip.js';
+import { TooltipLayer, type TooltipRegion } from './renderer/tooltip.js';
 import {
   LIVE_REFRESH_QUIET_MS,
   classifySnapshotChange,
@@ -458,7 +458,7 @@ import { drawRegistry } from './renderer/views/registry.js';
 import { drawSkills } from './renderer/views/skills.js';
 import { drawBurnin } from './renderer/views/burnin.js';
 import { drawDocs } from './renderer/views/docs.js';
-import { drawProjects } from './renderer/views/projects.js';
+import { drawProjects, projectSectionLayout, projectsGuideLayoutHeight, PROJECTS_MCP_GUIDE_TOP } from './renderer/views/projects.js';
 import { drawAdmin } from './renderer/views/admin.js';
 import { drawJournal } from './renderer/views/journal.js';
 import { drawLedger } from './renderer/views/ledger.js';
@@ -2060,9 +2060,15 @@ export class GpuRenderer {
         });
       } else {
         switch (snapshot.state.view) {
-          case 'projects':
+          case 'projects': {
+            const guideTop = snapshot.data.projects?.some(project => project.projectId === snapshot.state.selectedProjectId)
+              ? projectSectionLayout(this, snapshot, contentWidth).contentTop : PROJECTS_MCP_GUIDE_TOP;
+            const style = this.app.canvas.closest<HTMLElement>('.gpu-scene-camera')?.style;
+            style?.setProperty('--gpu-project-guide-top', `${guideTop}px`);
+            style?.setProperty('--gpu-project-guide-height', `${projectsGuideLayoutHeight(snapshot, contentWidth, layoutHeight, guideTop)}px`);
             drawProjects(this, snapshot, contentWidth, layoutHeight);
             break;
+          }
           case 'admin':
             drawAdmin(this, snapshot, contentWidth, layoutHeight);
             break;
@@ -2294,7 +2300,7 @@ export class GpuRenderer {
    */
   tooltip(
     parent: Container,
-    region: { x: number; y: number; width: number; height: number; text: string }
+    region: TooltipRegion
   ): void {
     const layer = this.tooltipLayer;
     if (!layer) return;
@@ -2304,11 +2310,11 @@ export class GpuRenderer {
       y: region.y + region.height,
     });
     layer.register({
+      ...region,
       x: Math.min(start.x, end.x),
       y: Math.min(start.y, end.y),
       width: Math.abs(end.x - start.x),
       height: Math.abs(end.y - start.y),
-      text: region.text,
     });
   }
 
@@ -2846,18 +2852,7 @@ export class GpuRenderer {
     expanded: boolean,
     color: number
   ) {
-    const size = 12;
-    const graphics = new Graphics();
-    if (expanded) {
-      graphics.poly([0, 2, size, 2, size / 2, size]);
-    } else {
-      graphics.poly([2, 0, size, size / 2, 2, size]);
-    }
-    graphics.fill({ color, alpha: 0.95 });
-    graphics.eventMode = 'none';
-    graphics.position.set(right - size, top);
-    parent.addChild(graphics);
-    return graphics;
+    return drawChevron(parent, right - CHEVRON_SIZE, top, color, expanded ? 'down' : 'right');
   }
 
   /**
@@ -3384,17 +3379,20 @@ export class GpuRenderer {
     // their own visual content. Text controls reserve an icon plus a 6px gap.
     const compactIcon = centerLabel && width < 64;
     const sideInset = compactIcon ? 4 : BUTTON_LABEL_INSET;
-    const iconSize = compactIcon ? 12 : BUTTON_ICON_SIZE;
+    const iconSize = (iconKind ?? buttonIconKind(id)) === 'down' ? CHEVRON_SIZE : compactIcon ? 12 : BUTTON_ICON_SIZE;
     const iconSpace = iconKind !== null && !themeChoice && label && /[\p{L}\p{N}]/u.test(label) && !spinning ? (compactIcon ? 16 : BUTTON_ICON_SPACE) : 0;
+    const chevronSpace = id === 'appearance.dropdown.toggle' ? CHEVRON_SPACE : 0;
     const fittedLabel = this.fitText(label,
-      Math.max(0, Math.min(width - sideInset * 2 - iconSpace, (labelMaxWidth ?? Infinity) - iconSpace)), labelStyle);
+      Math.max(0, Math.min(width - sideInset * 2 - iconSpace - chevronSpace, (labelMaxWidth ?? Infinity) - iconSpace - chevronSpace)), labelStyle);
     const contentX = centerLabel
-      ? Math.max(sideInset, (width - this.measureText(fittedLabel, labelStyle) - iconSpace) / 2)
+      ? Math.max(sideInset, (width - this.measureText(fittedLabel, labelStyle) - iconSpace - chevronSpace) / 2)
       : sideInset;
     const textY = labelY ?? Math.max(5, (height - 16) / 2);
     if (iconSpace) drawButtonIcon(container, iconKind ?? buttonIconKind(id), contentX, textY + (16 - iconSize) / 2, labelStyle.color, iconSize);
     const labelText = this.text(container, fittedLabel, contentX + iconSpace, textY, labelStyle);
     labelText.eventMode = 'none';
+    if (chevronSpace) drawChevron(container, width - sideInset - CHEVRON_SIZE, (height - CHEVRON_SIZE) / 2,
+      labelStyle.color, active ? 'up' : 'down');
     if (spinning) {
       // Rotation needs the glyph centred on BOTH axes, so the label moves to
       // the button's middle for the duration. `rotation` is a per-instance
@@ -5090,7 +5088,7 @@ export class GpuRenderer {
         this.root,
         'appearance.dropdown.toggle',
         'button',
-        `${snapshot.t('appearance.theme')} ▾`,
+        snapshot.t('appearance.theme'),
         themeX,
         midY - 16,
         themeWidth,

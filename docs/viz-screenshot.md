@@ -13,10 +13,17 @@ npm run viz:shot                                    # anonymous visitor (login g
 npm run viz:shot -- --auth                          # logged-in member, Projects MCP guide
 npm run viz:shot -- --auth --assistant              # integrated conversation and approval card (stubbed)
 npm run viz:shot -- --auth --assistant-reconnect    # missing connections and recovery controls (stubbed)
-npm run viz:shot -- --auth --select-first           # first project selected: run list + MCP guide
+npm run viz:shot -- --auth --assistant-empty        # compact empty conversation before model selection
+npm run viz:shot -- --auth --select-first --assistant-history --assistant-no-runs --camera overview # adaptive conversation height and speaker borders
+npm run viz:shot -- --auth --assistant-model-probe  # remember an unsent model choice through a full reload
+npm run viz:shot -- --auth --assistant-empty --assistant-own-agent # external guide and return to a preserved draft
+npm run viz:shot -- --auth --select-first           # first project selected: conversation tab
+npm run viz:shot -- --auth --select-first --assistant-history --project-tabs-probe # chat/run tabs, preserved draft
 npm run viz:shot -- --auth --select-first --github-access # saved request awaiting GitHub authorization
 npm run viz:shot -- --auth --select-first --github-access --github-access-probe # scroll and continue through the real canvas (stubbed response)
 npm run viz:shot -- --auth --view Runs              # any nav tab by its label
+npm run viz:shot -- --auth --view Runs --timeline-probe # hover preview and canvas navigation through the mini timeline
+npm run viz:shot -- --auth --view Runs --run-picker-probe # project-scoped search, counts and canvas selection
 npm run viz:shot -- --auth --view Runs --result     # final answer, copy and download controls
 npm run viz:shot -- --auth --view Runs --result-artwork # saved SVG files, summary and collapsed technical evidence
 npm run viz:shot -- --auth --view Runs --activity   # recorded steps and changed files
@@ -43,6 +50,14 @@ npm run viz:shot -- --handheld                      # phone: notice, acknowledge
 
 PNGs default to `screenshots/<view>-<auth-mode>-<camera>.png` (git-ignored). Viewport
 defaults to 1600×900 at deviceScaleFactor 2.
+
+`--assistant-empty` checks that the empty hint sits next to the composer and
+the external-agent entry remains in the card. `--assistant-own-agent` checks
+that the opened guide has a usable height and that returning to the chat
+preserves the draft. Combine either with `--width 528` for the narrow layout.
+`--project-tabs-probe` clicks the Conversation and Runs canvas tabs, checks
+that run cards appear only under Runs and that the draft survives the switch.
+It saves the Runs view beside the conversation image with a `-runs` suffix.
 
 `--touch-probe` requires `--auth --select-first` on Projects. It resizes to
 390×600, checks the compact rail, and sends native Chrome touch events over a
@@ -74,7 +89,10 @@ exercise either camera pose. The same probe is part of `viz:smoke`.
   `--auth`, entry reaches the MCP guide and writes `<out>-projects.png`.
   The pointer-capability media query must match.
 - **`--select-first`** — clicks the first project row through the canvas hit
-  targets (`?atomaDiag=1`), so the expanded run list and selected-project guide render.
+  targets (`?atomaDiag=1`), opening **Continue this project**. Run-oriented
+  probes select **Runs** before exercising its controls.
+  Opening a project focuses the content and compacts the left rail, including
+  when the capture starts with `--camera overview`.
 - **`--scroll-end`** — Settings only: scrolls `.gpu-org-models-form` to its
   end so the organisation directory (below the keys) is in frame.
 - **`--camera overview|focus`** — captures either endpoint of the global scene

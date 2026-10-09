@@ -290,7 +290,7 @@ describe('the preview control mirrored for the keyboard', () => {
     const onActivate = vi.fn();
     render(bridge({ state: 'stopped', availability: 'available' }, onActivate));
     expect([...screen.getByRole('tab', { name: t('preview.app') }).parentElement!.querySelectorAll('[role="tab"]')].map(tab => tab.textContent)).toEqual([
-      t('nav.runs'), t('preview.app'), t('workspace.title'), t('result.latest'),
+      t('projects.mcpTitle'), t('nav.runs'), t('preview.app'), t('workspace.title'), t('result.latest'),
     ]);
     await userEvent.click(screen.getByRole('tab', { name: t('preview.app') }));
     expect(onActivate).toHaveBeenCalledWith('project.section.preview');

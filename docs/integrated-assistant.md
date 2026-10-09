@@ -1,8 +1,9 @@
 # Integrated assistant
 
-The Projects guide card (**Create a new project with Atoma**, or **Continue
-<project> with Atoma** once a project is selected) hosts the conversation,
-above the project list or the project's runs, where a signed-in member
+The Projects guide card (**Create a new project with Atoma**) hosts the
+conversation above the project list. Opening a project selects **Continue this
+project**, with **Runs** in a separate tab. The conversation uses the available
+height, and switching tabs preserves drafts and pending replies. A signed-in member
 describes a new project or the next change without installing an external
 agent. The external-agent path folds under it. Creating a project moves the
 conversation to that project's page, where the first run is proposed and
@@ -10,6 +11,16 @@ confirmed. The assistant prepares a
 proposal. **Create this project** creates the project; a separate **Approve and
 start run** button authorizes spending run quota. Sending a chat message never
 executes either action. Subsequent messages supersede the previous proposal.
+In the message field, **Enter** sends the draft and **Shift+Enter** inserts a
+new line. Empty drafts and Enter presses during text composition are not sent.
+Sending clears and disables the composer immediately. A three-dot indicator
+stays visible while the assistant is working; a failed request restores the
+draft so it can be corrected or retried.
+
+Assistant replies render Markdown headings, lists, emphasis, quotations, links,
+tables and code blocks inside the conversation. Saved text remains unchanged;
+raw HTML is displayed as text and external images are not loaded. Web links
+open in a new tab.
 
 The conversation shows recorded run status and cost. **Open run** leads to the
 existing progress and result reader; the project offers supported previews.
@@ -42,7 +53,11 @@ reconnection controls. **Manage connections** opens Settings → Subscriptions;
 the API-key control opens Settings → API keys. These status reads make no model
 call and expose no login codes.
 
-The selection is saved with the conversation. API-equivalent estimates describe
+The selection is saved with the conversation and remembered in this browser
+per account and organisation, including changes made before sending a message.
+The retained model and payer appear in the conversation heading; **Change model**
+opens the selector and connection controls. An unavailable saved choice requires
+an explicit replacement. API-equivalent estimates describe
 usage, not an additional subscription invoice. The selected subscription's
 quota or organisation API account bears the conversation usage; run usage and
 run-model settings remain separate.

@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import puppeteer from 'puppeteer';
 import { assertLiveMarkBead, assertPointerLitMark } from './viz-mark-bead-probe.mjs';
 import { assertMobileProjects } from './viz-mobile-probe.mjs';
+import { assertTimelineMinimap } from './viz-timeline-probe.mjs';
 import { fileViewerFixtures } from './file-viewer-fixtures.mjs';
 import { DEFAULT_PLATFORM_LIMITS, PLATFORM_SETTING_SPECS } from '../dist/contracts/platformSettings.js';
 
@@ -1655,6 +1656,8 @@ try {
         `${cardMaterialStats.eventIds.length} cards in one shared diffuse + normal mesh`
     );
 
+    await assertTimelineMinimap(page);
+
     // Select through the real moved Pixi row, not its accessibility mirror.
     const retainedPick = await page.evaluate(async () => {
       const handle = globalThis.__ATOMA_GPU__;
@@ -2505,6 +2508,8 @@ try {
           await accountPage.evaluate(() => { window.open = window.__projectRepositoryOriginalOpen; });
         }
       };
+      await assertProjectRepository('Continue this project');
+      await clickAccountTarget('project.section.runs');
       await assertProjectRepository('Runs');
       await clickAccountTarget('project.section.preview');
       await accountPage.waitForSelector('.gpu-project-preview iframe').catch(async error => {
@@ -2530,16 +2535,14 @@ try {
       await accountPage.waitForFunction(() => !document.querySelector('.gpu-preview-frame'));
       await waitForHitTarget(accountPage, 'result.details', 'Latest result scene did not replace the preview');
       await assertProjectRepository('Latest delivered results');
-      await clickAccountTarget('project.section.runs');
+      await clickAccountTarget('project.section.conversation');
       await accountPage.waitForSelector('.gpu-project-mcp-actions input[type="checkbox"]');
-      console.log('Project repository ok: real canvas link remains clickable in all four tabs');
+      console.log('Project repository ok: real canvas link remains clickable in all five tabs');
       await accountPage.setViewport({ width: 528, height: 800, deviceScaleFactor: 2 });
       console.log('Project preview tab ok: Runs -> Preview app -> Files; inline frame closes and reopens with a fresh claim');
       stubs[terminalPreviewPath] = { ...stubs[terminalPreviewPath], availability: 'unavailable',
         kind: null, reason: 'unsupported-deliverable', mode: undefined, state: 'stopped', generation: 0 };
       await accountPage.waitForSelector('.gpu-project-mcp-actions input[type="checkbox"]');
-      await accountPage.click('.gpu-project-mcp-toggle');
-      await accountPage.waitForFunction(() => document.querySelector('.gpu-project-mcp-toggle')?.getAttribute('aria-expanded') === 'true');
       await accountPage.click('.gpu-project-mcp-actions input[type="checkbox"]');
       await accountPage.waitForFunction(() => document.querySelector('.gpu-project-mcp-actions input[type="checkbox"]')?.checked);
       await accountPage.reload({ waitUntil: 'load' });
@@ -2558,6 +2561,7 @@ try {
       await passArrivalGate(accountPage);
       await waitForHitTarget(accountPage, `project.select.${projectId}`, 'checkpoint project missing');
       await clickAccountTarget(`project.select.${projectId}`);
+      await clickAccountTarget('project.section.runs');
       const checkpointTarget = `project.checkpoint.${blocked.projectRunId}`;
       await waitForHitTarget(accountPage, checkpointTarget, 'pause control missing');
       await new Promise(resolve => setTimeout(resolve, 900));
@@ -2586,6 +2590,7 @@ try {
       await passArrivalGate(accountPage);
       await waitForHitTarget(accountPage, `project.select.${projectId}`, 'crash recovery project missing');
       await clickAccountTarget(`project.select.${projectId}`);
+      await clickAccountTarget('project.section.runs');
       await accountPage.waitForFunction(() => [...document.querySelectorAll('button')].some(button => button.textContent.includes('Recover validated work') && !button.disabled));
       // The keyboard mirror must dispatch the same resume action as Pixi.
       const recoveryButton = await accountPage.evaluateHandle(() => [...document.querySelectorAll('button')].find(button => button.textContent.includes('Recover validated work')));
@@ -2602,6 +2607,7 @@ try {
       await passArrivalGate(accountPage);
       await waitForHitTarget(accountPage, `project.select.${projectId}`, 'GitHub recovery project missing');
       await clickAccountTarget(`project.select.${projectId}`);
+      await clickAccountTarget('project.section.runs');
       const continueId = `project.githubContinue.${blocked.projectRunId}`;
       await waitForHitTarget(accountPage, continueId, 'GitHub continuation missing');
       // Arrival and project entry animate; let the canvas receive wheel input.
@@ -2632,7 +2638,7 @@ try {
       await accountPage.waitForSelector('.gpu-project-mcp--selected');
       await waitForHitTarget(accountPage, 'project.section.files', 'project files tab missing');
       await clickAccountTarget('project.section.files');
-      await accountPage.waitForFunction(() => !document.querySelector('.gpu-project-mcp'));
+      await accountPage.waitForFunction(() => document.querySelector('.gpu-project-mcp')?.hidden);
       await waitForHitTarget(accountPage, 'workspace.path.src', 'workspace folder missing').catch(async error => {
         await accountPage.screenshot({ path: '/tmp/atoma-workspace-failure.png' });
         const diagnostic = await accountPage.evaluate(() => ({ text: document.body.innerText.slice(-6000), targets: globalThis.__ATOMA_GPU__.hitTargets().map(t => t.id) }));
@@ -2769,7 +2775,7 @@ try {
       });
       await accountPage.click('.gpu-preview-actions button');
 
-      await accountPage.waitForFunction(() => !document.querySelector('.gpu-project-mcp'));
+      await accountPage.waitForFunction(() => document.querySelector('.gpu-project-mcp')?.hidden);
       await accountPage.waitForFunction(() => {
         const contains = node => typeof node.text === 'string' && node.text.includes('Delivered smoke result') ||
           (node.children ?? []).some(contains);
@@ -2778,7 +2784,8 @@ try {
       await accountPage.screenshot({ path: '/tmp/atoma-project-result-section.png' });
       await clickAccountTarget('project.section.runs');
       await accountPage.waitForSelector('.gpu-project-mcp--selected');
-      console.log('Project sections ok: MCP guide belongs to Runs, not Files or latest result');
+      await accountPage.waitForFunction(() => document.querySelector('.gpu-project-mcp')?.hidden);
+      console.log('Project sections ok: conversation, runs, files and latest result are separate');
 
       const prTarget = 'project.pullRequest.eeeeeeee-1111-4222-8333-ffffffffffff';
       await waitForHitTarget(accountPage, prTarget, 'delivered PR link did not render');
@@ -2835,6 +2842,7 @@ try {
       await accountPage.waitForFunction(() =>
         document.querySelector('.gpu-project-mcp')?.textContent?.includes('Continue Wide Glyph Project')
       );
+      await clickAccountTarget('project.section.runs');
       await waitForHitTarget(accountPage, prTarget, 'automatic update did not restore project runs');
       const restoredUpdate = await accountPage.evaluate(() => ({
         selectedProject: document.querySelector('.gpu-project-mcp')?.textContent?.includes('Continue Wide Glyph Project'),

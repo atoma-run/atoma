@@ -1,5 +1,5 @@
-import { drawButtonIcon } from '../button-icon.js';
-import { BUTTON_ICON_SPACE } from '../../button-icons.js';
+import { drawButtonIcon, drawChevron } from '../button-icon.js';
+import { BUTTON_ICON_SPACE, CHEVRON_SIZE, CHEVRON_SPACE } from '../../button-icons.js';
 import { Rectangle } from 'pixi.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { GPU_COLORS } from '../../theme.js';
@@ -99,15 +99,16 @@ export function drawRunActivity(ctx: RendererCtx, snapshot: GpuRenderSnapshot,
     for (const file of activity.files) {
       if (pane.visible(cursor, cursor + 66)) {
         const label = t('activity.viewChanges');
-        const actionWidth = Math.min(innerWidth * 0.34, ctx.measureText(label, { size: 11 }) + 16);
+        const actionWidth = Math.min(innerWidth * 0.34, ctx.measureText(label, { size: 11 }) + 16 + CHEVRON_SPACE);
         const card = ctx.button(pane.content, `activity.file.${encodeURIComponent(file.path)}`, 'button', '',
           columnX, cursor, innerWidth, 66, false, snapshot.onActivate, GPU_COLORS.primary,
           false, false, undefined, undefined, t('activity.viewFile', { path: file.path }));
         drawButtonIcon(card, 'file', 12, 12, GPU_COLORS.text);
         ctx.text(card, ctx.fitText(file.path, innerWidth - actionWidth - 36 - BUTTON_ICON_SPACE, { size: 13, weight: '700' }), 12 + BUTTON_ICON_SPACE, 10,
           { size: 13, weight: '700', singleLine: true });
-        ctx.text(card, ctx.fitText(label, actionWidth, { size: 11 }), innerWidth - actionWidth - 12, 12,
+        ctx.text(card, ctx.fitText(label, Math.max(0, actionWidth - CHEVRON_SPACE), { size: 11 }), innerWidth - actionWidth - 12, 12,
           { size: 11, color: GPU_COLORS.primary, singleLine: true });
+        drawChevron(card, innerWidth - 12 - CHEVRON_SIZE, 12, GPU_COLORS.primary, 'right');
         const summary = activityFileSummary(file, t);
         ctx.text(card, ctx.fitText(summary, innerWidth - 24, { size: 12 }), 12, 37,
           { size: 12, color: file.failed ? GPU_COLORS.warning : GPU_COLORS.muted, singleLine: true });

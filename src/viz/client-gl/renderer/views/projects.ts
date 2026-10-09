@@ -4,7 +4,8 @@ import { Graphics, type Container } from 'pixi.js';
 import { dateTimeFormat } from '../../../client/date-format.js';
 import type { VizProject, VizProjectRun } from '../../../client/types.js';
 import { BUTTON_LABEL_INSET } from '../../gpu-renderer.js';
-import { BUTTON_ICON_SPACE } from '../../button-icons.js';
+import { BUTTON_ICON_SPACE, CHEVRON_SIZE, CHEVRON_SPACE } from '../../button-icons.js';
+import { drawChevron } from '../button-icon.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
 import { fmtMs, runCost } from '../../../client/run-utils.js';
@@ -23,7 +24,7 @@ import { checkpointActionKey, canControlCheckpoint, pendingGitHubAccess, canCont
  * layout pass, scroll through the shared masked pane, honest `scrollMax`.
  *
  * The MCP guide is a DOM overlay (`.gpu-project-mcp`). A selected project's
- * tabs precede it, and only Runs reserves space for that guide.
+ * tabs precede it; Conversation and Runs use separate panels.
  */
 
 const ROW_HEIGHT = 58;
@@ -98,22 +99,33 @@ export const PROJECTS_MCP_GUIDE_COLLAPSED_HEIGHT = 48;
 /**
  * The guide HOSTING THE ASSISTANT CONVERSATION (owner, 2026-10-09): one card,
  * the conversation first and the external-agent path folded under it, then
- * the runs. Must match `.gpu-project-mcp--assistant { height }` in styles.css.
+ * the project list. Selected projects give Conversation its own tab.
+ * Must match `.gpu-project-mcp--assistant { height }` in styles.css.
  * It used to be a second card, which read as the assistant twice.
  */
-export const PROJECTS_MCP_GUIDE_ASSISTANT_HEIGHT = 600;
+export const PROJECTS_MCP_GUIDE_ASSISTANT_HEIGHT = 400;
+/** Wrapped controls need more room, while still leaving the runs in view. */
+export const PROJECTS_MCP_GUIDE_ASSISTANT_NARROW_HEIGHT = 420;
+/** An empty conversation needs no reserved history; keep DOM and canvas aligned. */
+export const PROJECTS_MCP_GUIDE_ASSISTANT_COMPACT_HEIGHT = 300;
+export const PROJECTS_MCP_GUIDE_ASSISTANT_COMPACT_NARROW_HEIGHT = 360;
 
-export function projectsGuideHeight(contentWidth = Number.POSITIVE_INFINITY, collapsed = false, assistant = false): number {
+export function projectsGuideHeight(contentWidth = Number.POSITIVE_INFINITY, collapsed = false, assistant = false, compact = false): number {
   if (collapsed) return PROJECTS_MCP_GUIDE_COLLAPSED_HEIGHT;
-  if (assistant) return PROJECTS_MCP_GUIDE_ASSISTANT_HEIGHT;
+  if (assistant && compact) return contentWidth < PROJECTS_NARROW_CONTENT_WIDTH
+    ? PROJECTS_MCP_GUIDE_ASSISTANT_COMPACT_NARROW_HEIGHT
+    : PROJECTS_MCP_GUIDE_ASSISTANT_COMPACT_HEIGHT;
+  if (assistant) return contentWidth < PROJECTS_NARROW_CONTENT_WIDTH
+    ? PROJECTS_MCP_GUIDE_ASSISTANT_NARROW_HEIGHT
+    : PROJECTS_MCP_GUIDE_ASSISTANT_HEIGHT;
   return contentWidth < PROJECTS_NARROW_CONTENT_WIDTH
     ? PROJECTS_MCP_GUIDE_NARROW_HEIGHT
     : PROJECTS_MCP_GUIDE_HEIGHT;
 }
 
-export function projectsGpuContentTop(contentWidth = Number.POSITIVE_INFINITY, selected = false, collapsed = false, assistant = false): number {
+export function projectsGpuContentTop(contentWidth = Number.POSITIVE_INFINITY, selected = false, collapsed = false, assistant = false, compact = false): number {
   return (selected ? PROJECTS_SELECTED_MCP_GUIDE_TOP : PROJECTS_MCP_GUIDE_TOP)
-    + projectsGuideHeight(contentWidth, collapsed, assistant) + 16;
+    + projectsGuideHeight(contentWidth, collapsed, assistant, compact) + 16;
 }
 
 /**
@@ -121,6 +133,7 @@ export function projectsGpuContentTop(contentWidth = Number.POSITIVE_INFINITY, s
  * two copies of this number would desynchronise `scrollMax` from the rows.
  */
 const RUNS_HEADING_HEIGHT = 30;
+const PROJECTS_LIST_BOTTOM_PADDING = 24;
 
 /**
  * Whether a run row says, in plain words, what to do next. Only the NEWEST
@@ -255,6 +268,57 @@ export function projectLayout(
   }
   const contentBottom = cursor + 20;
   return { x, panelWidth, listTop, contentBottom };
+}
+
+/** One height for the GPU card and its DOM contents, in scene coordinates. */
+export function projectsGuideLayoutHeight(snapshot: GpuRenderSnapshot, width: number, height: number,
+  guideTop = snapshot.state.selectedProjectId ? PROJECTS_SELECTED_MCP_GUIDE_TOP : PROJECTS_MCP_GUIDE_TOP): number {
+  const frame = viewFrame(width, height);
+  const projects = snapshot.data.projects ?? [];
+  const selectedIndex = projects.findIndex(project => project.projectId === snapshot.state.selectedProjectId);
+  const selected = selectedIndex >= 0;
+  const assistant = Boolean(snapshot.data.auth?.viewer.activeOrganisation) && snapshot.data.auth?.viewer.role !== 'org:viewer';
+  const collapsed = !selected && snapshot.state.projectMcpCollapsed;
+  const base = projectsGuideHeight(frame.innerWidth, collapsed, assistant, snapshot.state.projectAssistantCompact);
+  if (assistant && !collapsed && snapshot.state.projectAssistantCompact &&
+    snapshot.state.projectAssistantCompactHeight !== null) {
+    return Math.max(PROJECTS_MCP_GUIDE_COLLAPSED_HEIGHT, snapshot.state.projectAssistantCompactHeight);
+  }
+  if (!assistant || collapsed || snapshot.state.projectAssistantCompact) return base;
+  const available = Math.max(0, frame.bottom - VIEW_FRAME_PAD - guideTop);
+  if (selected) return available;
+  const runs = selected ? snapshot.data.projectRuns?.[projects[selectedIndex]!.projectId] ?? [] : [];
+  const listHeight = projectLayout(width, projects.length, selectedIndex, runs).contentBottom + PROJECTS_LIST_BOTTOM_PADDING;
+  // Short lists keep only the space they use. Longer lists retain a visible
+  // band below the conversation and scroll independently.
+  const reserved = Math.min(listHeight, Math.max(180, available * 0.35));
+  return Math.max(base, available - 16 - reserved);
+}
+
+/** Measured tabs wrap rather than squeezing their labels into unreadable slivers. */
+export function projectSectionLayout(ctx: Pick<RendererCtx, 'measureText'>, snapshot: GpuRenderSnapshot, width: number) {
+  const frame = viewFrame(width, 0);
+  const narrow = frame.innerWidth < PROJECTS_NARROW_CONTENT_WIDTH;
+  const sections = [
+    { id: 'conversation', label: snapshot.t('projects.mcpTitle') },
+    { id: 'runs', label: snapshot.t('nav.runs') },
+    { id: 'preview', label: snapshot.t(narrow ? 'preview.title' : 'preview.app') },
+    { id: 'files', label: snapshot.t('workspace.title') },
+    { id: 'result', label: snapshot.t(narrow ? 'result.title' : 'result.latest') },
+  ] as const;
+  const right = frame.innerX + frame.innerWidth;
+  let x = frame.innerX;
+  let y = frame.contentTop;
+  const tabs = sections.map(section => {
+    const tabWidth = Math.min(frame.innerWidth,
+      Math.ceil(ctx.measureText(section.label, { size: 11, weight: '700' })) + 20 + BUTTON_ICON_SPACE);
+    if (x > frame.innerX && x + tabWidth > right) { x = frame.innerX; y += PROJECTS_SECTION_TABS_HEIGHT; }
+    const tab = { ...section, x, y, width: tabWidth };
+    x += tabWidth + 10;
+    return tab;
+  });
+  if (right - x < Math.min(240, frame.innerWidth)) { x = frame.innerX; y += PROJECTS_SECTION_TABS_HEIGHT; }
+  return { tabs, repository: { x, y, width: right - x }, contentTop: y + PROJECTS_SECTION_TABS_HEIGHT };
 }
 
 /** Shared metadata for the project header and project collection rows. */
@@ -416,14 +480,14 @@ export function drawProjects(
     const linkStyle = { size: VIEW_FRAME_TITLE_SIZE, weight: '700', color: GPU_COLORS.primary } as const;
     const titleStyle = { size: VIEW_FRAME_TITLE_SIZE, weight: '700' } as const;
     const allProjects = snapshot.t('projects.all');
-    const separator = ' › ';
     const linkLabel = ctx.fitText(allProjects, Math.max(0, frame.innerWidth * 0.4), linkStyle);
     const linkWidth = ctx.measureText(linkLabel, linkStyle);
-    const separatorWidth = ctx.measureText(separator, titleStyle);
-    ctx.text(ctx.root, linkLabel, frame.innerX, titleY, { ...linkStyle, singleLine: true });
+    const separatorWidth = CHEVRON_SPACE;
+    const linkText = ctx.text(ctx.root, linkLabel, frame.innerX, titleY, { ...linkStyle, singleLine: true });
     ctx.linkRegion(ctx.root, 'project.all', allProjects, frame.innerX, titleY - 4,
       linkWidth, 28, snapshot.onActivate);
-    ctx.text(ctx.root, separator, frame.innerX + linkWidth, titleY, titleStyle);
+    drawChevron(ctx.root, frame.innerX + linkWidth + (separatorWidth - CHEVRON_SIZE) / 2,
+      titleY + (linkText.height - CHEVRON_SIZE) / 2, GPU_COLORS.text, 'right');
     const nameX = frame.innerX + linkWidth + separatorWidth;
     const name = ctx.fitText(selectedProject.name,
       Math.max(0, frame.innerX + frame.innerWidth - nameX), titleStyle);
@@ -431,12 +495,10 @@ export function drawProjects(
 
   }
 
-  const guideVisible = snapshot.data.auth !== null && (!selectedProject || snapshot.state.projectSection === 'runs');
-  // The guide hosts the assistant conversation for a member of an
-  // organisation, and is taller for it; a viewer sees the guide alone.
-  const assistant = guideVisible && Boolean(snapshot.data.auth?.viewer.activeOrganisation) &&
-    snapshot.data.auth?.viewer.role !== 'org:viewer';
-  const guideTop = selectedProject ? PROJECTS_SELECTED_MCP_GUIDE_TOP : PROJECTS_MCP_GUIDE_TOP;
+  const sectionLayout = selectedProject ? projectSectionLayout(ctx, snapshot, width) : null;
+  const guideVisible = snapshot.data.auth !== null && (!selectedProject || snapshot.state.projectSection === 'conversation');
+  const guideTop = sectionLayout?.contentTop ?? PROJECTS_MCP_GUIDE_TOP;
+  const guideHeight = projectsGuideLayoutHeight(snapshot, width, height, guideTop);
   // The form's fields are DOM, but its CARD is the same GPU panel as the list
   // below. A CSS imitation could share dimensions and still disagree on the
   // pointer-driven shadow, which is exactly what made the two adjacent cards
@@ -448,7 +510,7 @@ export function drawProjects(
       frame.innerX,
       guideTop,
       frame.innerWidth,
-      projectsGuideHeight(frame.innerWidth, snapshot.state.projectMcpCollapsed, assistant),
+      guideHeight,
       GPU_COLORS.panel,
       GPU_COLORS.border,
       GPU_LAYOUT.radius,
@@ -458,47 +520,26 @@ export function drawProjects(
 
   // Reserve the guide's band only on the screen where its DOM contents render.
   let contentTop = selectedProject ? frame.contentTop
-    : guideVisible ? projectsGpuContentTop(frame.innerWidth, false, snapshot.state.projectMcpCollapsed, assistant) : frame.contentTop;
+    : guideVisible ? guideTop + guideHeight + 16 : frame.contentTop;
   const resultRows = selectedProject ? runsByProject[selectedProject.projectId] ?? [] : [];
   const latestWorkspace = latestWorkspaceRun(resultRows);
   const latestResult = latestDeliveredResult(resultRows);
-  let repositoryHeaderX = frame.innerX;
-  if (selectedProject) {
-    const sections = [
-      { id: 'runs', label: snapshot.t('nav.runs') },
-      { id: 'preview', label: snapshot.t('preview.app') },
-      { id: 'files', label: snapshot.t('workspace.title') },
-      { id: 'result', label: snapshot.t('result.latest') },
-    ] as const;
-    const gap = 10;
-    const naturalWidths = sections.map(section =>
-      Math.ceil(ctx.measureText(section.label, { size: 11, weight: '700' })) + 20 + BUTTON_ICON_SPACE);
-    const repositoryRoom = Math.min(400, frame.innerWidth * 0.45) + gap;
-    const room = Math.max(0, frame.innerWidth - repositoryRoom - gap * (sections.length - 1));
-    const naturalTotal = naturalWidths.reduce((sum, value) => sum + value, 0);
-    const shortLabelsWidth = naturalWidths.slice(0, 3).reduce((sum, value) => sum + value, 0);
-    // Preserve the complete short labels when space is tight; the long result
-    // label can then use all remaining width without pushing a tab to row two.
-    const shortTabWidths = room >= shortLabelsWidth + 64
-      ? naturalWidths.slice(0, 3)
-      : Array.from({ length: 3 }, () => Math.max(0, (room - 64) / 3));
-    let tabX = frame.innerX;
-    for (const [index, section] of sections.entries()) {
-      const tabWidth = naturalTotal <= room
-        ? naturalWidths[index]!
-        : index < 3 ? shortTabWidths[index]! : Math.max(0, room - shortTabWidths.reduce((sum, value) => sum + value, 0));
+  if (selectedProject && sectionLayout) {
+    for (const section of sectionLayout.tabs) {
       ctx.button(ctx.root, `project.section.${section.id}`, 'tab', section.label,
-        tabX, contentTop, tabWidth, 32, snapshot.state.projectSection === section.id,
+        section.x, section.y, section.width, 32, snapshot.state.projectSection === section.id,
         snapshot.onActivate);
-      tabX += tabWidth + gap;
     }
-    repositoryHeaderX = tabX;
     // Project identity belongs to the shared header, before any section returns.
     drawRepositoryInfo(ctx, snapshot, selectedProject, ctx.root,
-      repositoryHeaderX + BUTTON_LABEL_INSET, frame.contentTop - 5,
+      sectionLayout.repository.x + BUTTON_LABEL_INSET, sectionLayout.repository.y - 5,
       repositoryInfo(ctx, snapshot, selectedProject,
-        Math.max(0, frame.innerX + frame.innerWidth - repositoryHeaderX - BUTTON_LABEL_INSET * 2)));
-    contentTop = guideVisible ? projectsGpuContentTop(frame.innerWidth, true, snapshot.state.projectMcpCollapsed, assistant) : contentTop + PROJECTS_SECTION_TABS_HEIGHT;
+        Math.max(0, sectionLayout.repository.width - BUTTON_LABEL_INSET * 2)));
+    contentTop = sectionLayout.contentTop;
+    if (snapshot.state.projectSection === 'conversation') {
+      ctx.scrollMax.projects = 0;
+      return;
+    }
     if (snapshot.state.projectSection === 'preview') {
       const controlHeight = latestResult ? drawPreviewControl(ctx, snapshot, frame.innerX, contentTop, frame.innerWidth) : 0;
       if (!controlHeight) ctx.text(ctx.root, snapshot.t(latestResult ? 'preview.unavailable' : 'projects.section.noDeliveredResult'),
@@ -562,7 +603,7 @@ export function drawProjects(
     width: frame.width,
     height: Math.max(0, frame.bottom - VIEW_FRAME_PAD - contentTop),
     scrollY: scroll,
-    bottomPadding: 24,
+    bottomPadding: PROJECTS_LIST_BOTTOM_PADDING,
   });
 
   const expandedRunList: (readonly VizProjectRun[])[] = projects.map(
@@ -604,7 +645,7 @@ export function drawProjects(
     const selected = project.projectId === snapshot.state.selectedProjectId;
     const y = selected ? frame.contentTop - 5 : cursor;
     const rowParent = selected ? ctx.root : pane.content;
-    const rowColumnX = selected ? repositoryHeaderX : columnX;
+    const rowColumnX = selected ? sectionLayout!.repository.x : columnX;
     const rowWidth = selected ? Math.max(0, frame.innerX + frame.innerWidth - rowColumnX) : innerWidth;
     const rowLabel = project.name.replace(/\s+/g, ' ');
     // On a list row the project name keeps a useful left-hand column. In

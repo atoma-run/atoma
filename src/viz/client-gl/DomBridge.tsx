@@ -4,7 +4,7 @@ import { checkpointActionKey, canControlCheckpoint, pendingGitHubAccess, canCont
 import { WorkspaceAccessible } from './WorkspaceAccessible.js';
 import type { WorkspaceBrowserData } from './workspace-browser.js';
 import { UpstreamSetting } from './UpstreamSetting.js';
-import { buildRunPicker, runPickerTotalsLabel, runPickerViewportHeight, RUN_PICKER_ROW_HEIGHT } from './run-picker.js';
+import { buildRunPicker, runsInPickerScope, runPickerTotalsLabel, runPickerViewportHeight, RUN_PICKER_ROW_HEIGHT } from './run-picker.js';
 import { sceneCameraViewport, visibleSceneLayoutHeight } from './scene-camera.js';
 import {
   LOCALE_NAMES,
@@ -13,8 +13,11 @@ import {
 } from '../../contracts/locales.js';
 import type { RunIndexEntry, VizGitHubInstallation, VizProject, VizRun } from '../client/types.js';
 import { AccessibleRunActivity } from './AccessibleRunActivity.js';
+import { buildTimelineLayout } from '../client/timeline-layout.js';
+import { coerceEventFilters } from '../client/run-utils.js';
+import { TIMELINE_JUMP_PREFIX } from './renderer/timeline-minimap.js';
 import type { ComponentProps, ReactNode } from 'react';
-import { useLayoutEffect, useState } from 'react';
+import { useLayoutEffect, useMemo, useState } from 'react';
 import type { AuthUiSnapshot } from './AuthControls.js';
 import { DOC_PAGES, DOC_THEMES, type DocsThemeKey } from './docs-content.js';
 import {
@@ -25,6 +28,29 @@ import {
 import { AnnouncementForm } from './AnnouncementForm.js';
 
 const DEFAULT_VIEWS: ViewName[] = ['projects', 'runs', 'registry', 'skills', 'burnin', 'docs'];
+
+function TimelineNavigator({ run, t, onActivate }: {
+  run: VizRun;
+  t: (key: string, vars?: Record<string, unknown>) => string;
+  onActivate: (id: string) => void;
+}) {
+  const filters = useGpuStore(state => state.runFilters);
+  const activityOpen = useGpuStore(state => state.runActivityOpen);
+  const resultRunId = useGpuStore(state => state.resultRunId);
+  const timeline = useMemo(() => buildTimelineLayout(run.events,
+    coerceEventFilters(run.events, filters), { newestFirst: true }), [run.events, filters]);
+  const [step, setStep] = useState(0);
+  if (activityOpen || resultRunId) return null;
+  return <label>{t('timeline.minimap')}
+    <input type="range" min={0} max={timeline.items.length + 1} step={1}
+      value={Math.min(step, timeline.items.length + 1)}
+      onChange={event => {
+        const row = Number(event.target.value);
+        setStep(row);
+        onActivate(`${TIMELINE_JUMP_PREFIX}${row}`);
+      }} />
+  </label>;
+}
 
 function runPickerInputViewportHeight(input: HTMLInputElement): number {
   const frame = sceneCameraViewport(input);
@@ -194,7 +220,7 @@ export function DomBridge({
   /** Authorized MCP access for the viewer's active organisation. */
   mcpAccessState?: 'connected' | 'authorized' | 'unconnected' | 'unknown';
   /** The integrated conversation, hosted by the project guide when present. */
-  assistant?: ReactNode;
+  assistant?: ((externalAgentGuide: ReactNode, heading: ReactNode) => ReactNode) | null;
   /** The MCP setup guide exists only behind the auth gate. */
   projectGuideEnabled?: boolean;
   workspace?: WorkspaceBrowserData;
@@ -238,6 +264,7 @@ export function DomBridge({
   const selectedProjectId = useGpuStore((state) => state.selectedProjectId);
   const projectSection = useGpuStore((state) => state.projectSection);
   const projectMcpCollapsed = useGpuStore(state => state.projectMcpCollapsed);
+  const projectAssistantCompact = useGpuStore(state => state.projectAssistantCompact);
   // ONE card (owner, 2026-10-09): when the app hands this guide the assistant
   // conversation, the guide is its frame and the external-agent path folds
   // under it. Its one automatic rule, folding once an external agent is
@@ -271,6 +298,12 @@ export function DomBridge({
   const selectedProject = projects.find((project) => project.projectId === selectedProjectId);
   const selectedProjectName = selectedProject?.name ?? null;
   const projectGuideTitle = t(selectedProjectName ? 'projects.mcpTitle' : 'projects.mcpCreateTitle');
+  const projectGuideCollapsed = !selectedProjectId && projectMcpCollapsed;
+  const projectGuideHeading = selectedProjectId ? null : <h2><button type="button" className="gpu-project-mcp-toggle"
+    aria-expanded={!projectMcpCollapsed} aria-controls="project-mcp-content"
+    onClick={() => useGpuStore.setState({ projectMcpCollapsed: !projectMcpCollapsed })}>
+    <span className="gpu-chevron" aria-hidden="true" />{projectGuideTitle}
+  </button></h2>;
   const projectRequest = selectedProjectName
     ? t('projects.mcpSelectedRequest', { name: selectedProjectName })
     : t('projects.mcpCreateRequest');
@@ -283,8 +316,37 @@ export function DomBridge({
       setCopiedRequest({ text: projectRequest, ok: false });
     }
   };
+  const externalAgentGuide = <>
+    {mcpAccessState === 'connected' || mcpAccessState === 'authorized' ? (
+      <p className="gpu-project-mcp-connection" aria-live="polite">
+        {t(mcpAccessState === 'connected' ? 'projects.mcpConnected' : 'projects.mcpAuthorized')}
+      </p>
+    ) : null}
+    <p>{selectedProjectName
+      ? t('projects.mcpSelectedIntro', { name: selectedProjectName })
+      : t('projects.mcpCreateIntro')}</p>
+    <p className="gpu-project-mcp-request">{projectRequest}</p>
+    <div className="gpu-project-mcp-actions">
+      {projectAdmin && selectedProject?.repositoryTarget?.source?.mode === 'fork' ?
+        <UpstreamSetting key={selectedProject.projectId} projectId={selectedProject.projectId}
+          enabled={selectedProject.followUpstream ?? false} t={t} /> : null}
+      <button type="button" onClick={() => { void copyProjectRequest(); }}><ButtonIcon kind="copy" />{t('projects.mcpCopy')}</button>
+      {mcpAccessState !== 'connected' && mcpAccessState !== 'authorized' ? (
+        <button type="button" onClick={() => onOpenMcp?.()}><ButtonIcon kind="link" />
+          {t(mcpAccessState === 'unconnected' ? 'projects.mcpConnect' : 'projects.mcpSettings')}
+        </button>
+      ) : null}
+      {activeGithubInstallations.length === 0 ? (
+        <a href="/auth/github/connect"><ButtonIcon kind="link" />{t('projects.connectGithub')}</a>
+      ) : null}
+    </div>
+    {copiedRequest?.text === projectRequest ? (
+      <span role="status">{t(copiedRequest.ok ? 'projects.mcpCopied' : 'projects.mcpCopyFailed')}</span>
+    ) : null}
+  </>;
   const runValue = focusedInput === 'run' ? search.run : selectedRun?.title ?? selectedRun?.label ?? '';
-  const runPicker = buildRunPicker(runs, search.run);
+  const pickerRuns = runsInPickerScope(runs, selectedRunId, selectedProjectId);
+  const runPicker = buildRunPicker(pickerRuns, search.run);
   // The account menu is Pixi chrome while text-entry controls are real DOM
   // above the canvas. Forms stay mounted (store-backed values stay on screen),
   // `inert` takes them out of click/focus/a11y, and `.gpu-overlays-veiled`
@@ -401,6 +463,8 @@ export function DomBridge({
             ))}
           </select>
         ) : null}
+        {view === 'runs' && run && onActivate ?
+          <TimelineNavigator key={run.id} run={run} t={t} onActivate={onActivate} /> : null}
         {projectGuideEnabled && view === 'projects' && projects.length > 0 ? (
           <section aria-label={t('nav.projects')}>
             {projects.map((project) => (
@@ -422,20 +486,21 @@ export function DomBridge({
         {view === 'projects' && selectedProjectId ? (
           <nav role="tablist" aria-label={projects.find(project => project.projectId === selectedProjectId)?.name ?? t('nav.projects')}>
             {([
+              ['conversation', 'projects.mcpTitle', 'send'],
               ['runs', 'nav.runs', 'play'],
               ['preview', 'preview.app', 'eye'],
               ['files', 'workspace.title', 'folder'],
               ['result', 'result.latest', 'file'],
             ] as const).map(([section, labelKey, icon]) => (
-              <button key={section} type="button" role="tab" aria-selected={projectSection === section}
-                aria-controls={section === 'preview' ? 'project-preview-panel' : undefined}
+              <button key={section} id={`project-tab-${section}`} type="button" role="tab" aria-selected={projectSection === section}
+                aria-controls={section === 'preview' ? 'project-preview-panel' : section === 'conversation' ? 'project-conversation-panel' : undefined}
                 onClick={() => onActivate?.(`project.section.${section}`)}>
                 <ButtonIcon kind={icon} />{t(labelKey)}
               </button>
             ))}
           </nav>
         ) : null}
-        {view === 'projects' && selectedProjectId && !workspaceRunId ? projectRuns.filter(run => run.projectId === selectedProjectId && run.checkpoint && run.checkpoint.state !== 'unavailable').map(run =>
+        {view === 'projects' && selectedProjectId && projectSection === 'runs' && !workspaceRunId ? projectRuns.filter(run => run.projectId === selectedProjectId && run.checkpoint && run.checkpoint.state !== 'unavailable').map(run =>
           <section key={`checkpoint-${run.projectRunId}`} aria-label={t('projects.checkpoint.title')}>
             <p>{t('projects.checkpoint.progress', { completed: run.checkpoint!.completed, total: run.checkpoint!.total })}</p>
             <button type="button" disabled={!canControlCheckpoint(run, auth) || (githubRecovery?.runId === run.projectRunId && githubRecovery.busy)}
@@ -444,7 +509,7 @@ export function DomBridge({
             </button>
             <p role="status">{githubRecovery?.runId === run.projectRunId ? githubRecovery.message : run.checkpoint?.reason ? t(`projects.checkpoint.reason.${run.checkpoint.reason}`) : ''}</p>
           </section>) : null}
-        {view === 'projects' && selectedProjectId && !workspaceRunId ? projectRuns.filter(run => run.projectId === selectedProjectId && pendingGitHubAccess(run)).map(run => {
+        {view === 'projects' && selectedProjectId && projectSection === 'runs' && !workspaceRunId ? projectRuns.filter(run => run.projectId === selectedProjectId && pendingGitHubAccess(run)).map(run => {
           const access = pendingGitHubAccess(run)!;
           const progress = githubRecovery?.runId === run.projectRunId ? githubRecovery : null;
           return <section key={run.projectRunId} aria-label={t('projects.githubAccess.title')}>
@@ -460,7 +525,7 @@ export function DomBridge({
             <p role="status">{progress?.message ?? (!canContinueGitHubAccess(run, auth) ? t('projects.githubAccess.requesterOnly') : '')}</p>
           </section>;
         }) : null}
-        {view === 'projects' && selectedProjectId && !workspaceRunId ? projectRuns.filter(run => run.projectId === selectedProjectId && !pendingGitHubAccess(run) && run.publication?.status === 'failed').map(run =>
+        {view === 'projects' && selectedProjectId && projectSection === 'runs' && !workspaceRunId ? projectRuns.filter(run => run.projectId === selectedProjectId && !pendingGitHubAccess(run) && run.publication?.status === 'failed').map(run =>
           <section key={run.projectRunId} aria-label={t('projects.githubAccess.retryPublication')}>
             <p>{t('projects.githubAccess.savedResult')}</p>
             <button type="button" disabled={!canRetryPublication(run, auth) || (githubRecovery?.runId === run.projectRunId && githubRecovery.busy)}
@@ -498,14 +563,14 @@ export function DomBridge({
       {view === 'runs' ? (
         <input
           className={`gpu-dom-input gpu-run-input${overlaysInert ? ' gpu-overlays-veiled' : ''}`}
-          aria-label={t('runs.search', { count: runs.length })}
+          aria-label={t('runs.search', { count: pickerRuns.length })}
           value={runValue}
-          placeholder={t('runs.search', { count: runs.length })}
+          placeholder={t('runs.search', { count: pickerRuns.length })}
           inert={overlaysInert}
           onFocus={(event) => {
             setSearch('run', '');
             setFocusedInput('run');
-            const options = buildRunPicker(runs).options;
+            const options = buildRunPicker(pickerRuns).options;
             const selectedIndex = Math.max(
               0,
               options.findIndex(({ run }) => run.id === selectedRunId)
@@ -589,84 +654,20 @@ export function DomBridge({
           onChange={(event) => setSearch('skills', event.target.value)}
         />
       ) : null}
-      {projectGuideEnabled && view === 'projects' && (!selectedProjectId || projectSection === 'runs') ? (
+      {projectGuideEnabled && view === 'projects' ? (
         <section
-          className={`gpu-panel-skin gpu-project-mcp${projectMcpCollapsed ? ' gpu-project-mcp--collapsed' : ''}${selectedProjectId ? ' gpu-project-mcp--selected' : ''}${assistantShown ? ' gpu-project-mcp--assistant' : ''}${overlaysInert ? ' gpu-overlays-veiled' : ''}`}
+          id="project-conversation-panel"
+          hidden={!!selectedProjectId && projectSection !== 'conversation'}
+          className={`gpu-panel-skin gpu-project-mcp${projectGuideCollapsed ? ' gpu-project-mcp--collapsed' : ''}${selectedProjectId ? ' gpu-project-mcp--selected' : ''}${assistantShown ? ' gpu-project-mcp--assistant' : ''}${assistantShown && projectAssistantCompact ? ' gpu-project-mcp--assistant-compact' : ''}${overlaysInert ? ' gpu-overlays-veiled' : ''}`}
           inert={overlaysInert}
           aria-label={projectGuideTitle}
         >
-          <h2><button type="button" className="gpu-project-mcp-toggle"
-            aria-expanded={!projectMcpCollapsed} aria-controls="project-mcp-content"
-            onClick={() => useGpuStore.setState({ projectMcpCollapsed: !projectMcpCollapsed })}>
-            <span aria-hidden="true">{projectMcpCollapsed ? '▸' : '▾'}</span> {projectGuideTitle}
-          </button></h2>
-          <div id="project-mcp-content" className="gpu-project-mcp-content" hidden={projectMcpCollapsed}>
-            {assistantShown ? assistant : null}
-            {assistantShown ? (
-              <details className="gpu-project-mcp-own-agent">
-                <summary>{t('projects.mcpOwnAgent')}</summary>
-                <div className="gpu-project-mcp-own-agent-body">
-
-                {mcpAccessState === 'connected' || mcpAccessState === 'authorized' ? (
-                  <p className="gpu-project-mcp-connection" aria-live="polite">
-                    {t(mcpAccessState === 'connected' ? 'projects.mcpConnected' : 'projects.mcpAuthorized')}
-                  </p>
-                ) : null}
-                <p>{selectedProjectName
-                  ? t('projects.mcpSelectedIntro', { name: selectedProjectName })
-                  : t('projects.mcpCreateIntro')}</p>
-                <p className="gpu-project-mcp-request">{projectRequest}</p>
-                <div className="gpu-project-mcp-actions">
-                  {projectAdmin && selectedProject?.repositoryTarget?.source?.mode === 'fork' ?
-                    <UpstreamSetting key={selectedProject.projectId} projectId={selectedProject.projectId}
-                      enabled={selectedProject.followUpstream ?? false} t={t} /> : null}
-                  <button type="button" onClick={() => { void copyProjectRequest(); }}><ButtonIcon kind="copy" />{t('projects.mcpCopy')}</button>
-                  {mcpAccessState !== 'connected' && mcpAccessState !== 'authorized' ? (
-                    <button type="button" onClick={() => onOpenMcp?.()}><ButtonIcon kind="link" />
-                      {t(mcpAccessState === 'unconnected' ? 'projects.mcpConnect' : 'projects.mcpSettings')}
-                    </button>
-                  ) : null}
-                  {activeGithubInstallations.length === 0 ? (
-                    <a href="/auth/github/connect"><ButtonIcon kind="link" />{t('projects.connectGithub')}</a>
-                  ) : null}
-                </div>
-                {copiedRequest?.text === projectRequest ? (
-                  <span role="status">{t(copiedRequest.ok ? 'projects.mcpCopied' : 'projects.mcpCopyFailed')}</span>
-                ) : null}
-
-                </div>
-              </details>
-            ) : (<>
-
-            {mcpAccessState === 'connected' || mcpAccessState === 'authorized' ? (
-              <p className="gpu-project-mcp-connection" aria-live="polite">
-                {t(mcpAccessState === 'connected' ? 'projects.mcpConnected' : 'projects.mcpAuthorized')}
-              </p>
-            ) : null}
-            <p>{selectedProjectName
-              ? t('projects.mcpSelectedIntro', { name: selectedProjectName })
-              : t('projects.mcpCreateIntro')}</p>
-            <p className="gpu-project-mcp-request">{projectRequest}</p>
-            <div className="gpu-project-mcp-actions">
-              {projectAdmin && selectedProject?.repositoryTarget?.source?.mode === 'fork' ?
-                <UpstreamSetting key={selectedProject.projectId} projectId={selectedProject.projectId}
-                  enabled={selectedProject.followUpstream ?? false} t={t} /> : null}
-              <button type="button" onClick={() => { void copyProjectRequest(); }}><ButtonIcon kind="copy" />{t('projects.mcpCopy')}</button>
-              {mcpAccessState !== 'connected' && mcpAccessState !== 'authorized' ? (
-                <button type="button" onClick={() => onOpenMcp?.()}><ButtonIcon kind="link" />
-                  {t(mcpAccessState === 'unconnected' ? 'projects.mcpConnect' : 'projects.mcpSettings')}
-                </button>
-              ) : null}
-              {activeGithubInstallations.length === 0 ? (
-                <a href="/auth/github/connect"><ButtonIcon kind="link" />{t('projects.connectGithub')}</a>
-              ) : null}
-            </div>
-            {copiedRequest?.text === projectRequest ? (
-              <span role="status">{t(copiedRequest.ok ? 'projects.mcpCopied' : 'projects.mcpCopyFailed')}</span>
-            ) : null}
-
-            </>)}
+          {assistant ? assistant(externalAgentGuide, projectGuideHeading) : <>
+          {projectGuideHeading}
+          <div id="project-mcp-content" className="gpu-project-mcp-content" hidden={projectGuideCollapsed}>
+            {externalAgentGuide}
           </div>
+          </>}
         </section>
       ) : null}
       {view === 'settings' && orgModelsForm ? (

@@ -213,8 +213,10 @@ export interface GpuUiState {
   selectedRegistryAtom: string | null;
   selectedSkill: { l1Name: string; id: string } | null;
   selectedProjectId: string | null;
-  projectSection: 'runs' | 'preview' | 'files' | 'result';
+  projectSection: 'conversation' | 'runs' | 'preview' | 'files' | 'result';
   projectMcpCollapsed: boolean;
+  projectAssistantCompact: boolean;
+  projectAssistantCompactHeight: number | null;
   workspaceRunId: string | null;
   githubRecovery: import('./github-access.js').GitHubRecoveryProgress | null;
   workspacePath: string;
@@ -440,7 +442,9 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   selectedSkill: null,
   selectedProjectId: null,
   projectMcpCollapsed: false,
-  projectSection: 'runs',
+  projectAssistantCompact: false,
+  projectAssistantCompactHeight: null,
+  projectSection: 'conversation',
   workspaceRunId: null,
   githubRecovery: null,
   setGitHubRecovery: (githubRecovery) => set({ githubRecovery }),
@@ -660,7 +664,9 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   selectSkill: (selectedSkill) => set({ selectedSkill }),
   selectProject: (selectedProjectId) => set((state) => ({
     selectedProjectId,
-    projectSection: 'runs',
+    // Opening a project focuses its content from both canvas and keyboard.
+    sceneCameraMode: selectedProjectId ? 'focus' : state.sceneCameraMode,
+    projectSection: 'conversation',
     workspaceRunId: null, workspacePath: '',
     resultRunId: null,
     resultActionStatus: null,

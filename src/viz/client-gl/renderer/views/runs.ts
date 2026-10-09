@@ -1,5 +1,6 @@
 import { drawPreviewControl } from '../preview-control.js';
-import { BUTTON_ICON_SPACE } from '../../button-icons.js';
+import { BUTTON_ICON_SPACE, CHEVRON_SIZE, CHEVRON_SPACE } from '../../button-icons.js';
+import { drawChevron } from '../button-icon.js';
 import { Container, Graphics, Rectangle } from 'pixi.js';
 import { relativeTime, timestampTooltip } from '../relative-time.js';
 import {
@@ -67,7 +68,9 @@ import {
 } from '../copy.js';
 import { LLM_FAMILY_COLOR, eventKindColor, llmRoleColor } from '../event-palette.js';
 import { drawScrollbarThumb } from '../scroll-pane.js';
+import { prefersReducedMotion } from '../motion.js';
 import { timelineConnectorGeometry } from '../timeline-rails.js';
+import { drawTimelineMinimap, TIMELINE_MINIMAP_WIDTH } from '../timeline-minimap.js';
 import {
   viewFrame,
   VIEW_FRAME_CONTENT_TOP,
@@ -321,8 +324,7 @@ function drawRunsBreadcrumb(
     return;
   }
   const linkStyle = { ...titleStyle, color: GPU_COLORS.primary } as const;
-  const separator = ' › ';
-  const separatorWidth = ctx.measureText(separator, titleStyle);
+  const separatorWidth = CHEVRON_SPACE;
   const crumbs = [
     { id: 'runs.projects.all', label: snapshot.t('projects.all'), share: 0.25 },
     { id: `runs.project.open.${projectId}`, label: projectName, share: 0.3 },
@@ -331,10 +333,11 @@ function drawRunsBreadcrumb(
   for (const crumb of crumbs) {
     const label = ctx.fitText(crumb.label, Math.max(0, width * crumb.share), linkStyle);
     const labelWidth = ctx.measureText(label, linkStyle);
-    ctx.text(ctx.root, label, cursor, y, { ...linkStyle, singleLine: true });
+    const linkText = ctx.text(ctx.root, label, cursor, y, { ...linkStyle, singleLine: true });
     ctx.linkRegion(ctx.root, crumb.id, crumb.label, cursor, y - 4, labelWidth, 28, snapshot.onActivate);
     cursor += labelWidth;
-    ctx.text(ctx.root, separator, cursor, y, { ...titleStyle, color: GPU_COLORS.muted });
+    drawChevron(ctx.root, cursor + (separatorWidth - CHEVRON_SIZE) / 2,
+      y + (linkText.height - CHEVRON_SIZE) / 2, GPU_COLORS.muted, 'right');
     cursor += separatorWidth;
   }
   const runTitle = snapshot.state.runActivityOpen
@@ -409,27 +412,6 @@ export function drawRuns(
   // the Projects view's own “All projects ›” trail carried one level deeper.
   const indexEntry = snapshot.data.runs.find((entry) => entry.id === run.id);
   drawRunsBreadcrumb(ctx, snapshot, indexEntry, leftX + 14, top + RUNS_PROJECT_TITLE_TOP, leftWidth - 28);
-  // The native selector now owns the title row inside this panel. Drawing the
-  // same run title under it would duplicate the selected value; the subtitle
-  // carries what that title cannot: when it ran.
-  // WHEN this run happened, as an age. The exact instant is one hover away —
-  // `fmtTime` still formats it, in the reader's locale, inside the bubble.
-  const startedAge = relativeTime(run.startedAt, snapshot.t, snapshot.state.locale);
-  ctx.text(ctx.root, startedAge, leftX + 14, top + 46 + RUNS_PROJECT_TITLE_HEIGHT, {
-    size: 11,
-    color: GPU_COLORS.muted,
-    width: leftWidth - 28,
-  });
-  const startedExact = timestampTooltip(run.startedAt, snapshot.state.locale);
-  if (startedExact && startedAge) {
-    ctx.tooltip(ctx.root, {
-      x: leftX + 14,
-      y: top + 46 + RUNS_PROJECT_TITLE_HEIGHT,
-      width: leftWidth - 28,
-      height: 15,
-      text: startedExact,
-    });
-  }
   // What happened to this run, always visible: the header used to flag only
   // LIVE, so a cancelled or failed run looked exactly like a delivered one
   // (2026-08-15 review of a real cancelled run).
@@ -457,6 +439,29 @@ export function drawRuns(
     singleLine: true,
   });
   statusText.anchor.set(0.5, 0.5);
+
+  // Keep the run's age directly below its status, sharing the right edge.
+  // The exact instant remains available on hover in the reader's locale.
+  const startedAge = relativeTime(run.startedAt, snapshot.t, snapshot.state.locale);
+  const ageRight = statusX + statusWidth;
+  const ageY = statusY + 26;
+  const ageText = ctx.text(ctx.root, startedAge, ageRight, ageY, {
+    size: 11,
+    color: GPU_COLORS.muted,
+    width: Math.min(RUN_PICKER_STATUS_RESERVE, leftWidth - RUN_PICKER_HORIZONTAL_INSET * 2),
+    singleLine: true,
+  });
+  ageText.anchor.set(1, 0);
+  const startedExact = timestampTooltip(run.startedAt, snapshot.state.locale);
+  if (startedExact && startedAge) {
+    ctx.tooltip(ctx.root, {
+      x: ageRight - ageText.width,
+      y: ageY,
+      width: ageText.width,
+      height: ageText.height,
+      text: startedExact,
+    });
+  }
 
   const inFlight = inFlightLlmEvents(run);
   const atoms = buildAtomMap(run);
@@ -817,7 +822,7 @@ export function drawRuns(
   const rowHeight = timeline.rowHeight;
   const contentTopPadding = 18;
   const contentBottomPadding = 20;
-  const cardRightPadding = 24;
+  const cardRightPadding = TIMELINE_MINIMAP_WIDTH + 16;
   // Two bookend rows frame the events: "run ended" on top (newest), "run
   // started" at the bottom. They are rows like any other, so they scroll,
   // cull and project with the rest.
@@ -892,6 +897,7 @@ export function drawRuns(
     totalHeight: totalRows * rowHeight + contentTopPadding + contentBottomPadding,
     scrollY,
     rowOffset,
+    eventIds: timeline.items.map(item => item.event.id),
   };
   if (timeline.items.length === 0) {
     ctx.text(listLayer, snapshot.t('filters.noMatch'), leftX + 24, listY + 22, {
@@ -972,18 +978,43 @@ export function drawRuns(
       alpha: connector.kind === 'fork' ? 0.78 : 0.48,
     });
   }
+  listLayer.addChild(graph);
   for (const item of timeline.items.slice(itemStart, itemStart + count)) {
     const branch = item.branchId
       ? timeline.branches.find((candidate) => candidate.id === item.branchId)
       : undefined;
+    const color = branch ? timelineBranchColor(branch) : GPU_COLORS.primary;
+    if (item.event.id === snapshot.state.selectedEventId) {
+      // Animate only the selected marker's group, never the static rails or
+      // cards. Keeping it in listLayer preserves masked, retained scrolling.
+      const layer = ctx.animatedLayer(listLayer, 'timeline-selection');
+      layer.eventMode = 'none';
+      const marker = new Container();
+      marker.label = `timeline-selection:${item.event.id}`;
+      marker.position.set(railX(item.lane), rowCenterY(displayRow(item.row)));
+      layer.addChild(marker);
+      const halo = new Graphics().circle(0, 0, 9).fill(color);
+      halo.alpha = 0.16;
+      const dot = new Graphics().circle(0, 0, 5.5).fill(color);
+      marker.addChild(halo, dot);
+      let elapsed = 0;
+      ctx.addTicker(ticker => {
+        const reduced = prefersReducedMotion();
+        if (!reduced) elapsed += ticker.deltaMS;
+        const pulse = reduced ? 0 : (1 - Math.cos(elapsed * Math.PI * 2 / 2200)) / 2;
+        dot.scale.set(1 + pulse * 0.1);
+        halo.scale.set(1 + pulse * 0.15);
+        halo.alpha = 0.16 + pulse * 0.08;
+      });
+      continue;
+    }
     graph
       .circle(railX(item.lane), rowCenterY(displayRow(item.row)), item.branchStart ? 4 : 2.4);
     graph.fill({
-      color: branch ? timelineBranchColor(branch) : GPU_COLORS.primary,
+      color,
       alpha: item.branchStart || item.branchEnd ? 0.95 : 0.62,
     });
   }
-  listLayer.addChild(graph);
 
   // The two bookends: the run's own start and end are steps of the story,
   // not decorations. They replace the tiny rail ticks that said "START" and
@@ -1198,7 +1229,7 @@ export function drawRuns(
         branch.parallel
           ? `B${branch.path.join('.')}`
           : `P${branch.path.join('.')}`,
-        railX(branch.lane) + 6,
+        railX(branch.lane) + (selected ? 12 : 6),
         y + 4,
         {
           size: EVENT_BRANCH_TAG_SIZE,
@@ -1212,10 +1243,16 @@ export function drawRuns(
   const timelineTargets = ctx.metrics.hitTargets.slice(firstTimelineTarget)
     .map((target) => ({ target, y: target.y }));
   const viewport = ctx.metrics.timelineViewport;
+  const moveMinimap = drawTimelineMinimap(ctx, lowerControlsLayer, snapshot, timeline, {
+    start: snapshot.t('timeline.runStarted'),
+    end: `${snapshot.t(runOver ? 'timeline.runEnded' : 'timeline.runUnfinished')} · ${statusLabel}`,
+    endColor: statusColor,
+  });
   const applyScroll = (offset: number) => {
     const delta = scrollY - offset;
     listLayer.y = delta;
     viewport.scrollY = offset;
+    moveMinimap(offset);
     // Diagnostics must remain clickable in renderer space after translation.
     // Drop overscan targets from the public list while retaining their bounds.
     const owned = new Set(timelineTargets.map(({ target }) => target));

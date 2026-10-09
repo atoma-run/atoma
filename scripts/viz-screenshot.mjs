@@ -27,6 +27,14 @@
  *   --settings-tab <id>   Settings panel to capture (default general).
  *   --select-first       Click the first project row after arrival (the run
  *                        list and selected-project MCP guide).
+ *   --assistant-empty    Empty conversation before choosing a model.
+ *   --assistant-history  Conversation without an approval card.
+ *   --assistant-no-runs  Selected project has no runs yet.
+ *   --assistant-model-probe Change model and prove retention across reload.
+ *   --project-tabs-probe Switch between Conversation and Runs, preserving a draft
+ *                        (with --auth --select-first --assistant-history).
+ *   --assistant-own-agent Open the external guide, check its usable height
+ *                        and the return to a preserved draft (with --auth).
  *   --result             Open Result through its real canvas control (Runs,
  *                        or Projects with --select-first).
  *   --notifications      Open the header bell's notification tray after
@@ -60,6 +68,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer';
 import { assertMobileProjects } from './viz-mobile-probe.mjs';
+import { assertTimelineMinimap } from './viz-timeline-probe.mjs';
 import { DEFAULT_PLATFORM_LIMITS, PLATFORM_SETTING_SPECS } from '../src/contracts/platformSettings.ts';
 
 const READY_TIMEOUT_MS = 60_000;
@@ -77,7 +86,13 @@ const settingsTab = arg('--settings-tab', 'general');
 const tuning = has('--tuning');
 const selectFirst = has('--select-first');
 const assistantReconnect = has('--assistant-reconnect');
-const showAssistant = has('--assistant') || assistantReconnect;
+const assistantEmpty = has('--assistant-empty');
+const assistantOwnAgent = has('--assistant-own-agent');
+const assistantHistory = has('--assistant-history');
+const assistantNoRuns = has('--assistant-no-runs');
+const assistantModelProbe = has('--assistant-model-probe');
+const projectTabsProbe = has('--project-tabs-probe');
+const showAssistant = has('--assistant') || assistantReconnect || assistantEmpty || assistantOwnAgent || assistantHistory || assistantModelProbe;
 const assistantFixture = {
   choices: [{ id: 'own:anthropic:haiku', model: 'own:anthropic:haiku', label: 'Claude · Haiku (beta)', payer: 'principal-subscription' }], nextBefore: null, available: true, model: 'api:anthropic:claude-haiku-4-5-20251001', busy: false, run: null,
   conversation: { id: 'f1195226-8f11-4bca-b408-1e6c10f8b353', projectId: null, version: 1, lastRequestId: null, lastRun: null, modelChoice: 'own:anthropic:haiku', costUsd: 0.0012, inputTokens: 900, outputTokens: 240,
@@ -92,6 +107,26 @@ const assistantFixture = {
     } } },
   },
 };
+if (assistantHistory) {
+  assistantFixture.conversation.proposal = null;
+  assistantFixture.conversation.messages.push(
+    { role: 'user', text: 'Add filters and an alert when stock is low.', at: new Date(Date.now() - 300_000).toISOString() },
+    { role: 'assistant', text: ['## Proposed goal', '',
+      'Add **stock alerts** to the inventory table, with category filters and editable quantities.', '',
+      '> Keep the first version simple: sample products, local storage, and no server dependency.', '',
+      '**Acceptance criteria**', '- Highlight products below their reorder threshold.',
+      '- Save changes and verify persistence with `node --test`.', '',
+      '```js', 'const lowStock = products.filter(product => product.quantity < product.reorderThreshold);', '```', '',
+      '| Check | Expected result |', '| --- | --- |', '| Reload inventory | Saved quantities remain available |', '',
+      'Review the [project repository](https://example.com/stock-tracker) before starting the run.',
+    ].join('\n'), at: new Date(Date.now() - 120_000).toISOString() },
+  );
+}
+if (assistantModelProbe) assistantFixture.choices.push({ id: 'own:anthropic:opus', model: 'own:anthropic:opus', label: 'Claude · Opus (beta)', payer: 'principal-subscription' });
+if (assistantEmpty) {
+  assistantFixture.conversation = { ...assistantFixture.conversation, id: null, modelChoice: undefined,
+    messages: [], proposal: null, costUsd: 0, inputTokens: 0, outputTokens: 0 };
+}
 if (assistantReconnect) {
   assistantFixture.choices = [];
   assistantFixture.available = false;
@@ -393,15 +428,15 @@ function gatedStubs() {
       repositoryFullName: 'example/atoma-e2e-stopwatch-2',
       repositoryUrl: 'https://github.com/example/atoma-e2e-stopwatch-2',
       repositoryError: null,
-      runCount: 5,
-      costUsd: 1.26,
+      runCount: assistantNoRuns ? 0 : 5,
+      costUsd: assistantNoRuns ? 0 : 1.26,
       showcase: 'listed',
       showcaseShown: true,
       lastRunAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
       createdAt: '2026-08-20T00:00:00.000Z',
       updatedAt: '2026-08-20T00:00:00.000Z',
     }],
-    [`/api/projects/${projectId}/runs`]: runs,
+    [`/api/projects/${projectId}/runs`]: assistantNoRuns ? [] : runs,
     ...Object.fromEntries(runs.filter(run => run.traceId).map(run => [`/api/runs/${run.traceId}`, {
       ...fixtureTrace(), id: run.traceId, task: { description: run.goal },
     }])),
@@ -703,6 +738,14 @@ try {
 
     if (authed) {
       const stubs = gatedStubs();
+      if (has('--run-picker-probe')) {
+        const current = stubs['/api/runs'][0];
+        stubs['/api/runs'].push(
+          { ...current, id: 'run-earlier', title: 'Earlier project run', startedAt: '2026-08-22T10:00:00.000Z' },
+          { ...current, id: 'run-foreign', title: 'Foreign project run', projectId: 'another-project', projectName: 'Another project' }
+        );
+        stubs['/api/runs/run-earlier'] = { ...stubs['/api/runs/run-fixture'], id: 'run-earlier' };
+      }
       await page.setRequestInterception(true);
       page.on('request', (request) => {
         // NEVER let this handler throw: with interception on, a request whose
@@ -816,6 +859,27 @@ try {
       process.exit(0);
     }
     await page.waitForSelector('[role="tab"]', { timeout: READY_TIMEOUT_MS });
+
+    if (assistantModelProbe) {
+      await page.waitForSelector('.gpu-assistant-connection');
+      await page.waitForFunction(() => !document.querySelector('.gpu-scene-host')?.inert && document.querySelector('.gpu-scene-camera')?.dataset.sceneCameraMotion === 'settled');
+      await page.waitForFunction(() => !document.querySelector('.gpu-entry-veil')?.hasAttribute('data-phase'));
+      if (!(await page.$('#assistant-model'))) await page.click('.gpu-assistant-connection button');
+      try { await page.waitForSelector('#assistant-model', { visible: true, timeout: 5000 }); }
+      catch (error) {
+        await page.screenshot({ path: '/tmp/atoma-model-change-failure.png' });
+        throw error;
+      }
+      await page.select('#assistant-model', 'own:anthropic:opus');
+      await page.waitForFunction(() => document.querySelector('.gpu-assistant-model-value')?.textContent.includes('Opus'));
+      await page.reload({ waitUntil: 'load' });
+      await page.waitForSelector('.gpu-a11y-bridge [data-release-version]');
+      await page.evaluate(() => document.querySelector('.gpu-a11y-bridge [data-release-version]').closest('.gpu-a11y-bridge').querySelector('button').click());
+      await page.waitForSelector('[role="tab"]', { timeout: READY_TIMEOUT_MS });
+      await page.waitForFunction(() => document.querySelector('.gpu-assistant-model-value')?.textContent.includes('Opus'));
+      if (await page.$('#assistant-model')) throw new Error('The retained model should render as text after reload');
+      console.log('Assistant model: an unsent choice survives a full page reload');
+    }
 
     // Open the requested view and let the 560ms view transition finish.
     // Settings is reached from the account menu, not the rail.
@@ -949,9 +1013,20 @@ try {
       }, prefix);
       if (!spot) throw new Error('--select-first: no selectable row on screen');
       await page.mouse.click(spot.x, spot.y);
+      if (view === 'Projects') {
+        await page.waitForFunction(() => {
+          const plane = document.querySelector('.gpu-scene-camera');
+          return plane?.getAttribute('data-scene-camera-mode') === 'focus' &&
+            plane.getAttribute('data-scene-camera-motion') === 'settled';
+        }, { timeout: READY_TIMEOUT_MS });
+      }
       await page.evaluate(() => new Promise((resolveWait) => setTimeout(resolveWait, 800)));
     }
 
+    if (view === 'Projects' && selectFirst && (githubAccessProbe || has('--github-access') || showResult || has('--touch-probe'))) {
+      await page.$eval('#project-tab-runs', tab => tab.click());
+      await page.waitForFunction(() => document.querySelector('.gpu-project-mcp')?.hidden);
+    }
     if (githubAccessProbe) {
       const id = 'project.githubContinue.cccccccc-1111-4222-8333-dddddddddd10';
       for (let attempt = 0; attempt < 4; attempt++) {
@@ -1068,7 +1143,7 @@ try {
       if (!authed || view !== 'Projects') throw new Error('--assistant requires --auth and Projects');
       // The conversation lives inside the project guide card (2026-10-09).
       if (!(await page.$('.gpu-project-mcp--assistant .gpu-assistant'))) throw new Error('The integrated assistant is missing from the guide');
-      try { await page.waitForSelector(assistantReconnect ? '.gpu-assistant-setup' : '.gpu-assistant-proposal', { timeout: 10_000 }); }
+      try { await page.waitForSelector(assistantReconnect ? '.gpu-assistant-setup' : assistantEmpty ? '.gpu-project-mcp--assistant-compact .gpu-assistant-empty' : assistantHistory ? '.gpu-assistant-message--assistant' : '.gpu-assistant-proposal', { timeout: 10_000 }); }
       catch (error) { await page.screenshot({ path: '/tmp/atoma-assistant-failure.png' }); throw error; }
       await page.evaluate(() => {
         const log = document.querySelector('.gpu-assistant-log');
@@ -1091,6 +1166,138 @@ try {
         await page.screenshot({ path: '/tmp/atoma-assistant-failure.png' });
         throw new Error(`The assistant composer is outside its host card: ${JSON.stringify(diagnostic)}`);
       }
+      if (assistantHistory) {
+        const layout = await page.evaluate(() => {
+          const header = document.querySelector('.gpu-assistant-header h2')?.getBoundingClientRect();
+          const model = document.querySelector('.gpu-assistant-connection').getBoundingClientRect();
+          const user = globalThis.getComputedStyle(document.querySelector('.gpu-assistant-message--user'));
+          const assistant = globalThis.getComputedStyle(document.querySelector('.gpu-assistant-message--assistant'));
+          const guide = document.querySelector('.gpu-project-mcp').getBoundingClientRect();
+          return { headerTop: header?.top, headerBottom: header?.bottom, modelTop: model.top, modelBottom: model.bottom,
+            userBorder: user.borderLeftWidth, assistantBorder: assistant.borderLeftWidth,
+            userColor: user.borderLeftColor, assistantColor: assistant.borderLeftColor, bottomGap: innerHeight - guide.bottom };
+        });
+        if (width >= 1100 && layout.headerTop !== undefined && (layout.headerBottom <= layout.modelTop || layout.modelBottom <= layout.headerTop)) {
+          throw new Error(`The model did not share the heading row: ${JSON.stringify(layout)}`);
+        }
+        if (layout.userBorder !== '2px' || layout.assistantBorder !== '2px' || layout.userColor === layout.assistantColor) {
+          throw new Error(`Speakers need consistent, distinct borders: ${JSON.stringify(layout)}`);
+        }
+        if (assistantNoRuns && selectFirst && cameraMode === 'overview' && height >= 800 && layout.bottomGap > 140) {
+          throw new Error(`Unused space remains below the conversation: ${JSON.stringify(layout)}`);
+        }
+        console.log('Assistant layout: shared heading, distinct speaker borders, available height used');
+        const markdown = await page.evaluate(() => {
+          const prose = document.querySelector('.gpu-assistant-message--assistant:last-child .gpu-assistant-markdown');
+          const log = document.querySelector('.gpu-assistant-log');
+          return { heading: prose?.querySelector('h2')?.textContent,
+            strong: prose?.querySelector('strong')?.textContent, items: prose?.querySelectorAll('li').length,
+            quote: Boolean(prose?.querySelector('blockquote')), code: Boolean(prose?.querySelector('pre code')),
+            table: Boolean(prose?.querySelector('table')), link: prose?.querySelector('a')?.getAttribute('href'),
+            overflow: log.scrollWidth - log.clientWidth,
+            boundedBlocks: Array.from(prose?.querySelectorAll('pre, table') ?? []).every(block =>
+              block.getBoundingClientRect().right <= prose.getBoundingClientRect().right + 1) };
+        });
+        if (markdown.heading !== 'Proposed goal' || markdown.strong !== 'stock alerts' || markdown.items !== 2 ||
+          !markdown.quote || !markdown.code || !markdown.table || markdown.link !== 'https://example.com/stock-tracker' ||
+          markdown.overflow > 1 || !markdown.boundedBlocks) {
+          throw new Error(`Assistant Markdown did not render or overflowed its conversation: ${JSON.stringify(markdown)}`);
+        }
+        console.log('Assistant Markdown: headings, emphasis, lists, quote, code, table and link; no horizontal overflow');
+      }
+      if (assistantEmpty) {
+        const spacing = await page.evaluate(() => {
+          const hintNode = document.querySelector('.gpu-assistant-empty');
+          const hint = hintNode.getBoundingClientRect();
+          const composer = document.querySelector(hintNode.tagName === 'LABEL' ? '#assistant-message' : '.gpu-assistant form').getBoundingClientRect();
+          const guideNode = document.querySelector('.gpu-project-mcp--assistant');
+          const guide = guideNode.getBoundingClientRect();
+          const summary = document.querySelector('.gpu-project-mcp-own-agent > summary').getBoundingClientRect();
+          return { gap: composer.top - hint.bottom, guideBottom: guide.bottom, summaryBottom: summary.bottom,
+            bottomGap: (guide.bottom - summary.bottom) / (guide.height / guideNode.offsetHeight) };
+        });
+        if (spacing.gap > 16 || spacing.gap < 0 || spacing.summaryBottom > spacing.guideBottom || spacing.bottomGap > 20) {
+          throw new Error(`Empty conversation has wasted space or clipped controls: ${JSON.stringify(spacing)}`);
+        }
+        console.log('Empty conversation: compact card, hint adjacent to composer, external-agent entry visible');
+      }
+      if (assistantOwnAgent) {
+        if (await page.$('#assistant-model')) await page.select('#assistant-model', 'own:anthropic:haiku');
+        await page.type('#assistant-message', 'Preserve this draft while connecting my agent');
+        const summary = '.gpu-project-mcp-own-agent > summary';
+        await page.click(summary);
+        await page.waitForFunction(() => document.querySelector('.gpu-assistant-conversation')?.hidden &&
+          document.querySelector('.gpu-project-mcp--assistant-compact'));
+        const guideLayout = await page.evaluate(() => {
+          const details = document.querySelector('.gpu-project-mcp-own-agent');
+          const box = details.getBoundingClientRect();
+          const guide = document.querySelector('.gpu-project-mcp--assistant');
+          const card = guide.getBoundingClientRect();
+          const minimumHeight = guide.clientHeight - document.querySelector('.gpu-assistant-header').offsetHeight - 44;
+          return { height: details.clientHeight, minimumHeight, top: box.top, bottom: box.bottom, cardTop: card.top, cardBottom: card.bottom };
+        });
+        if (guideLayout.height < guideLayout.minimumHeight || guideLayout.top < guideLayout.cardTop || guideLayout.bottom > guideLayout.cardBottom + 1) {
+          throw new Error(`External guide is squeezed or clipped: ${JSON.stringify(guideLayout)}`);
+        }
+        await browser.defaultBrowserContext().overridePermissions(new URL(stack.url).origin, ['clipboard-read', 'clipboard-sanitized-write']);
+        const copyButton = '.gpu-project-mcp-actions button';
+        const copyReachable = await page.$eval(copyButton, node => {
+          node.scrollIntoView({ block: 'nearest' });
+          const box = node.getBoundingClientRect();
+          return node.contains(document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2));
+        });
+        if (!copyReachable) throw new Error('The external guide copy action is clipped or covered');
+        await page.click(copyButton);
+        try {
+          await page.waitForSelector('.gpu-project-mcp-own-agent [role="status"]', { timeout: 5000 });
+          const status = await page.$eval('.gpu-project-mcp-own-agent [role="status"]', node => node.textContent);
+          if (!status.includes('Copied')) throw new Error(`Copy request failed: ${status}`);
+        } catch (error) {
+          await page.screenshot({ path: '/tmp/atoma-assistant-copy-failure.png' });
+          throw error;
+        }
+        await page.$eval('.gpu-project-mcp-own-agent', node => { node.scrollTop = 0; });
+        // Exercise the return through the native disclosure, including draft preservation.
+        await page.click(summary);
+        await page.waitForFunction(() => !document.querySelector('.gpu-assistant-conversation')?.hidden);
+        if (await page.$eval('#assistant-message', node => node.value) !== 'Preserve this draft while connecting my agent') {
+          throw new Error('Switching back from the external guide lost the draft');
+        }
+        // Capture the open guide, with its last action scrolled into reach.
+        await page.click(summary);
+        await page.waitForFunction(() => document.querySelector('.gpu-assistant-conversation')?.hidden);
+        await page.$eval('.gpu-project-mcp-actions button', node => node.scrollIntoView({ block: 'nearest' }));
+        console.log('External guide: full card, copy action works, return preserves the draft');
+      }
+    }
+
+    if (projectTabsProbe) {
+      if (!selectFirst || !showAssistant || assistantOwnAgent) throw new Error('--project-tabs-probe needs a selected project conversation');
+      const clickSection = async section => {
+        const point = await page.evaluate(async id => {
+          await new Promise(resolveWait => requestAnimationFrame(() => requestAnimationFrame(resolveWait)));
+          const handle = globalThis.__ATOMA_GPU__;
+          const target = handle.hitTargets().find(entry => entry.id === id);
+          if (!target) throw new Error(`Project tab is missing: ${id}`);
+          return handle.projectRendererPoint(target.x + target.width / 2, target.y + target.height / 2);
+        }, `project.section.${section}`);
+        await page.mouse.click(point.x, point.y);
+      };
+      if (await page.$('#assistant-model')) await page.select('#assistant-model', 'own:anthropic:haiku');
+      await page.type('#assistant-message', 'Keep this draft between tabs');
+      if (await page.evaluate(() => globalThis.__ATOMA_GPU__.hitTargets().some(target => target.id.startsWith('project.run.')))) {
+        throw new Error('Run cards still appear below the conversation');
+      }
+      await clickSection('runs');
+      await page.waitForFunction(() => document.querySelector('.gpu-project-mcp')?.hidden);
+      if (!assistantNoRuns) await page.waitForFunction(() => globalThis.__ATOMA_GPU__.hitTargets().some(target => target.id.startsWith('project.run.')));
+      await page.screenshot({ path: outPath.replace(/\.png$/, '-runs.png') });
+      await clickSection('conversation');
+      await page.waitForFunction(() => !document.querySelector('.gpu-project-mcp')?.hidden);
+      if (await page.$eval('#assistant-message', node => node.value) !== 'Keep this draft between tabs') throw new Error('Changing project tabs lost the draft');
+      await page.$eval('#assistant-message', node => { node.focus(); node.select(); });
+      await page.keyboard.press('Backspace');
+      console.log('Project tabs: real canvas switches, separate run list, conversation draft retained');
     }
 
     if (accountMenu) {
@@ -1181,6 +1388,40 @@ try {
     }
 
     await mkdir(dirname(outPath), { recursive: true });
+    if (has('--run-picker-probe')) {
+      if (!authed || view !== 'Runs') throw new Error('--run-picker-probe requires --auth --view Runs');
+      await page.click('.gpu-run-input');
+      const waitForRuns = ids => page.waitForFunction(expected => {
+        const actual = globalThis.__ATOMA_GPU__.hitTargets()
+          .filter(target => target.id.startsWith('run.select.')).map(target => target.id.slice(11)).sort();
+        return JSON.stringify(actual) === JSON.stringify([...expected].sort());
+      }, { timeout: READY_TIMEOUT_MS }, ids);
+      await waitForRuns(['run-fixture', 'run-earlier']);
+      const placeholder = await page.$eval('.gpu-run-input', input => input.placeholder);
+      if (placeholder !== 'Search 2 runs…') throw new Error(`Unscoped run count: ${placeholder}`);
+      await page.type('.gpu-run-input', 'Foreign');
+      await waitForRuns([]);
+      await page.keyboard.press('Escape');
+      await page.click('.gpu-run-input');
+      await page.type('.gpu-run-input', 'Earlier');
+      await waitForRuns(['run-earlier']);
+      const point = await page.evaluate(async () => {
+        for (let frame = 0; frame < 2; frame++) await new Promise(resolve => requestAnimationFrame(resolve));
+        const handle = globalThis.__ATOMA_GPU__;
+        const target = handle.hitTargets().find(entry => entry.id === 'run.select.run-earlier');
+        return handle.projectRendererPoint(target.x + target.width / 2, target.y + target.height / 2);
+      });
+      await page.mouse.click(point.x, point.y);
+      await page.waitForFunction(() => document.querySelector('.gpu-run-input')?.value === 'Earlier project run',
+        { timeout: READY_TIMEOUT_MS });
+      await page.click('.gpu-run-input');
+      await waitForRuns(['run-fixture', 'run-earlier']);
+      console.log('viz run picker ok: project scope, search, count and canvas selection');
+    }
+    if (has('--timeline-probe')) {
+      if (view !== 'Runs') throw new Error('--timeline-probe requires --view Runs');
+      await assertTimelineMinimap(page, { leaveHovered: true });
+    }
     if (has('--touch-probe')) {
       if (!authed || !selectFirst || view !== 'Projects') {
         throw new Error('--touch-probe requires --auth --select-first and the Projects view');
@@ -1189,7 +1430,8 @@ try {
     }
     await page.screenshot({ path: outPath });
     const capturedViewport = page.viewport();
-    console.log(`viz screenshot: ${outPath} (${view}, ${authed ? 'gated' : 'ungated'}, camera ${cameraMode}${selectFirst ? ', first row selected' : ''}${notifications ? ', notification tray open' : ''}${accountMenu ? ', account menu open' : ''}, ${capturedViewport.width}x${capturedViewport.height})`);
+    const capturedCameraMode = await page.evaluate(() => document.querySelector('.gpu-scene-camera')?.getAttribute('data-scene-camera-mode') ?? 'none');
+    console.log(`viz screenshot: ${outPath} (${view}, ${authed ? 'gated' : 'ungated'}, camera ${capturedCameraMode}${selectFirst ? ', first row selected' : ''}${notifications ? ', notification tray open' : ''}${accountMenu ? ', account menu open' : ''}, ${capturedViewport.width}x${capturedViewport.height})`);
   } finally {
     await browser.close();
   }

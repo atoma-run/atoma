@@ -1,4 +1,6 @@
 import { FilePreview } from './FilePreview.js';
+import { CHEVRON_CSS_VARS } from './button-icons.js';
+import { TIMELINE_JUMP_PREFIX } from './renderer/timeline-minimap.js';
 import { AssistantPanel } from './AssistantPanel.js';
 import { workspaceIndexSchema } from '../../contracts/workspaceBrowser.js';
 import { latestWorkspaceRun } from './workspace-browser.js';
@@ -10,6 +12,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
 } from 'react';
 import { isLocale } from '../../contracts/locales.js';
 import { applyDocumentLocale, translate } from '../client/i18n-catalog.js';
@@ -803,6 +806,19 @@ function GpuAppContent({
       store.setFocusedInput(null);
       return;
     }
+    if (id.startsWith(TIMELINE_JUMP_PREFIX)) {
+      const row = Number(id.slice(TIMELINE_JUMP_PREFIX.length));
+      const viewport = metrics.current.timelineViewport;
+      if (store.view === 'runs' && viewport && Number.isInteger(row) && row >= 0) {
+        const maximum = Math.max(0, viewport.totalHeight - viewport.height);
+        store.setScrollY('runs', Math.max(0, Math.min(maximum,
+          viewport.contentTopPadding + (row + 0.5) * viewport.rowHeight - viewport.height / 2)));
+        // Resolve against the displayed rows: a live refresh may already have
+        // newer events in the query cache while this reader's view is retained.
+        store.selectEvent(viewport.eventIds[row - viewport.rowOffset] ?? null);
+      }
+      return;
+    }
     if (id.startsWith('event.')) {
       store.selectEvent(id.slice('event.'.length));
       return;
@@ -885,7 +901,8 @@ function GpuAppContent({
       if (!store.selectedProjectId) return;
       const section = id.slice('project.section.'.length);
       const rows = projectRunsQuery.data ?? [];
-      if (section === 'runs') store.selectProjectSection('runs');
+      if (section === 'conversation') store.selectProjectSection('conversation');
+      else if (section === 'runs') store.selectProjectSection('runs');
       else if (section === 'preview') store.selectProjectSection('preview');
       else if (section === 'files') store.selectProjectSection('files', latestWorkspaceRun(rows)?.projectRunId);
       else if (section === 'result') store.selectProjectSection('result', latestDeliveredResult(rows)?.traceId);
@@ -1270,7 +1287,7 @@ function GpuAppContent({
   );
 
   return (
-    <main className="gpu-app" data-entered={state.entered ? 'true' : 'false'} data-theme={state.appearanceTheme} data-theme-transition={appearanceTransition.phase}>
+    <main className="gpu-app" style={CHEVRON_CSS_VARS as CSSProperties} data-entered={state.entered ? 'true' : 'false'} data-theme={state.appearanceTheme} data-theme-transition={appearanceTransition.phase}>
       {/* The product tree goes INERT behind an open preview, not merely
           hidden: `inert` takes the whole subtree out of focus order, hit
           testing and the accessibility tree in one attribute, so a tab press
@@ -1318,15 +1335,17 @@ function GpuAppContent({
           // ONE card on Projects (owner, 2026-10-09): the guide hosts the
           // conversation for a member of an organisation; a viewer gets the
           // guide alone. Keyed on the scope so a created project remounts it.
-          assistant={state.view === 'projects' && authSnapshot?.viewer.activeOrganisation && authSnapshot.viewer.role !== 'org:viewer' ? <AssistantPanel
-            key={`${authSnapshot.viewer.principalId}:${authSnapshot.viewer.activeOrganisation.id}:${state.selectedProjectId ?? 'new'}`}
-            scopeKey={`${authSnapshot.viewer.principalId}:${authSnapshot.viewer.activeOrganisation.id}`}
-            projectId={state.selectedProjectId} locale={state.locale} t={t}
+          assistant={state.view === 'projects' && authSnapshot && activeOrgId && authSnapshot.viewer.role !== 'org:viewer' ? (externalAgentGuide, heading) => <AssistantPanel
+            key={`${authSnapshot.viewer.principalId}:${activeOrgId}:${state.selectedProjectId ?? 'new'}`}
+            scopeKey={`${authSnapshot.viewer.principalId}:${activeOrgId}`}
+            projectId={state.selectedProjectId} locale={state.locale} t={t} externalAgentGuide={externalAgentGuide}
+            heading={heading} collapsed={!state.selectedProjectId && state.projectMcpCollapsed}
             onSettings={tab => { setSettingsInitialTab(tab); state.setView('settings'); }}
             onScopeChange={id => { state.selectProject(id); useGpuStore.setState({ projectMcpCollapsed: false }); }}
             onProject={id => state.selectProject(id)}
             onRun={(run, traceId) => {
               state.selectProject(run.projectId);
+              state.selectProjectSection('runs');
               if (traceId) { state.selectRun(traceId); state.setView('runs'); }
             }}
           /> : null}

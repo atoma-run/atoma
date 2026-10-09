@@ -34,6 +34,8 @@ export interface GpuTimelineViewport {
    * add it — the layout knows nothing about the view's bookends.
    */
   rowOffset: number;
+  /** Filtered event identities in the exact display order this viewport drew. */
+  eventIds: readonly string[];
 }
 
 export interface GpuRenderMetrics {

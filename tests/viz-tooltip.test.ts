@@ -63,6 +63,32 @@ describe('the shared hover bubble', () => {
     expect(bubble().visible).toBe(false);
   });
 
+  it('opens timeline previews immediately to the left of their region, including while scrubbing', () => {
+    layer.register({ x: 700, y: 300, width: 36, height: 10, text: 'step one', placement: 'left', instant: true });
+    layer.register({ x: 700, y: 310, width: 36, height: 10, text: 'step two', placement: 'left', instant: true });
+    hover(layer, 720, 305, 0);
+    expect(bubble().visible).toBe(true);
+    expect(bubble().x + bubbleWidth('step one')).toBeLessThan(700);
+    const x = bubble().x;
+    hover(layer, 730, 308, 1);
+    expect(bubble().x).toBe(x);
+    hover(layer, 720, 315, 2);
+    expect(layer.diagnostics().text).toBe('step two');
+    expect(bubble().visible).toBe(true);
+    expect(bubble().y + (MEASURE('').height + 12) / 2).toBe(315);
+  });
+
+  it('keeps the normal delay after leaving an instant region, even for identical text', () => {
+    layer.register({ x: 700, y: 300, width: 36, height: 10, text: 'step', instant: true });
+    layer.register({ x: 700, y: 310, width: 36, height: 10, text: 'step' });
+    hover(layer, 720, 305, 0);
+    expect(bubble().visible).toBe(true);
+    hover(layer, 720, 315, 1);
+    expect(bubble().visible).toBe(false);
+    hover(layer, 720, 315, AFTER_DELAY);
+    expect(bubble().visible).toBe(true);
+  });
+
   it('closes when the pointer leaves the region, or leaves the window', () => {
     layer.beginRender();
     layer.register({ x: 0, y: 0, width: 100, height: 20, text: 'stamp' });

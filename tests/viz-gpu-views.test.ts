@@ -49,6 +49,9 @@ import {
   PROJECTS_MCP_GUIDE_HEIGHT,
   PROJECTS_MCP_GUIDE_NARROW_HEIGHT,
   PROJECTS_MCP_GUIDE_ASSISTANT_HEIGHT,
+  PROJECTS_MCP_GUIDE_ASSISTANT_NARROW_HEIGHT,
+  PROJECTS_MCP_GUIDE_ASSISTANT_COMPACT_HEIGHT,
+  PROJECTS_MCP_GUIDE_ASSISTANT_COMPACT_NARROW_HEIGHT,
   PROJECTS_MCP_GUIDE_TOP,
   PROJECTS_SELECTED_MCP_GUIDE_TOP,
   PROJECTS_NARROW_CONTENT_WIDTH,
@@ -57,6 +60,8 @@ import {
   REPOSITORY_ICON_SIZE,
   projectsColumn,
   projectsGuideHeight,
+  projectsGuideLayoutHeight,
+  projectSectionLayout,
   projectsGpuContentTop,
 } from '../src/viz/client-gl/renderer/views/projects.js';
 import {
@@ -621,6 +626,8 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     selectedSkill: null,
     selectedProjectId: null,
     projectMcpCollapsed: false,
+    projectAssistantCompact: false,
+    projectAssistantCompactHeight: null,
     workspaceRunId: null, workspacePath: '', filePreview: null, previewFile: () => {},
     githubRecovery: null, setGitHubRecovery: vi.fn(),
     openWorkspace: vi.fn(), selectProjectSection: vi.fn(), selectWorkspacePath: vi.fn(),
@@ -2752,7 +2759,7 @@ describe('drawProjects', () => {
     );
     // A member of an organisation gets the guide hosting the assistant
     // conversation, which makes the card taller.
-    expect(gatedHint?.y).toBe(projectsGpuContentTop(1280, false, false, true));
+    expect(gatedHint?.y).toBe(PROJECTS_MCP_GUIDE_TOP + projectsGuideLayoutHeight(makeSnapshot({ view: 'projects' }, { auth: makeAuth() }), 1280, 720) + 16);
     expect(gatedHint?.y).toBeGreaterThan(frame.contentTop);
   });
 
@@ -2769,7 +2776,7 @@ describe('drawProjects', () => {
     );
     expect(title?.y).toBeLessThan(PROJECTS_MCP_GUIDE_TOP);
     expect(PROJECTS_MCP_GUIDE_TOP - (title?.y ?? 0)).toBeGreaterThanOrEqual(24);
-    expect(empty?.y).toBe(projectsGpuContentTop(undefined, false, false, true));
+    expect(empty?.y).toBe(PROJECTS_MCP_GUIDE_TOP + projectsGuideLayoutHeight(makeSnapshot({ view: 'projects' }, { auth }), 1280, 720) + 16);
     expect(empty?.y).toBeGreaterThanOrEqual(
       PROJECTS_MCP_GUIDE_TOP + PROJECTS_MCP_GUIDE_HEIGHT
     );
@@ -2811,11 +2818,19 @@ describe('drawProjects', () => {
     expect(projectsGpuContentTop(PROJECTS_NARROW_CONTENT_WIDTH - 1, true)).toBe(
       PROJECTS_SELECTED_MCP_GUIDE_TOP + PROJECTS_MCP_GUIDE_NARROW_HEIGHT + 16
     );
-    expect(css).toMatch(new RegExp(`\\.gpu-project-mcp--selected\\s*\\{[\\s\\S]*?top:\\s*${PROJECTS_SELECTED_MCP_GUIDE_TOP}px`));
-    // Hosting the assistant conversation, the guide is one taller card
-    // (2026-10-09); collapsed still wins, and it folds like any guide.
-    expect(css).toContain(`.gpu-project-mcp.gpu-project-mcp--assistant { height: ${PROJECTS_MCP_GUIDE_ASSISTANT_HEIGHT}px; }`);
-    expect(projectsGuideHeight(320, false, true)).toBe(PROJECTS_MCP_GUIDE_ASSISTANT_HEIGHT);
+    expect(css).toContain('top: var(--gpu-project-guide-top, 148px)');
+    // The assistant reserves a compact band, with room for wrapped controls
+    // on narrow columns; collapsed still wins.
+    expect(css).toContain(`.gpu-project-mcp.gpu-project-mcp--assistant { height: var(--gpu-project-guide-height, ${PROJECTS_MCP_GUIDE_ASSISTANT_HEIGHT}px); }`);
+    expect(css).toContain(`.gpu-project-mcp.gpu-project-mcp--assistant { height: var(--gpu-project-guide-height, ${PROJECTS_MCP_GUIDE_ASSISTANT_NARROW_HEIGHT}px); }`);
+    expect(css).toContain(`@media (max-width: ${PROJECTS_NARROW_CONTENT_WIDTH + GPU_LAYOUT.sidebarWidth + PROJECTS_COLUMN_INSET + VIEW_FRAME_PAD * 2 - 1}px)`);
+    expect(projectsGuideHeight(320, false, true)).toBe(PROJECTS_MCP_GUIDE_ASSISTANT_NARROW_HEIGHT);
+    expect(css).toContain(`.gpu-project-mcp.gpu-project-mcp--assistant-compact { height: var(--gpu-project-guide-height, ${PROJECTS_MCP_GUIDE_ASSISTANT_COMPACT_HEIGHT}px); }`);
+    expect(css).toContain(`.gpu-project-mcp.gpu-project-mcp--assistant-compact { height: var(--gpu-project-guide-height, ${PROJECTS_MCP_GUIDE_ASSISTANT_COMPACT_NARROW_HEIGHT}px); }`);
+    expect(projectsGuideHeight(1072, false, true, true)).toBe(PROJECTS_MCP_GUIDE_ASSISTANT_COMPACT_HEIGHT);
+    expect(projectsGuideHeight(320, false, true, true)).toBe(PROJECTS_MCP_GUIDE_ASSISTANT_COMPACT_NARROW_HEIGHT);
+    expect(projectsGpuContentTop(1072, true, false, true, true)).toBe(PROJECTS_SELECTED_MCP_GUIDE_TOP + PROJECTS_MCP_GUIDE_ASSISTANT_COMPACT_HEIGHT + 16);
+    expect(projectsGuideHeight(320, true, true, true)).toBe(48);
     expect(projectsGpuContentTop(1072, true, false, true)).toBe(PROJECTS_SELECTED_MCP_GUIDE_TOP + PROJECTS_MCP_GUIDE_ASSISTANT_HEIGHT + 16);
     expect(projectsGpuContentTop(1072, false, true, true)).toBe(PROJECTS_MCP_GUIDE_TOP + 48 + 16);
     const narrowWindowMax = PROJECTS_NARROW_CONTENT_WIDTH + GPU_LAYOUT.sidebarWidth - 1;
@@ -2836,7 +2851,7 @@ describe('drawProjects', () => {
       x: frame.innerX,
       y: PROJECTS_MCP_GUIDE_TOP,
       width: frame.innerWidth,
-      height: projectsGuideHeight(viewportWidth, false, true),
+      height: projectsGuideLayoutHeight(makeSnapshot({ view: 'projects' }, { auth }), viewportWidth, 720),
     });
     const css = readFileSync('src/viz/client-gl/styles.css', 'utf8');
     const domSkin = css.slice(
@@ -2846,6 +2861,38 @@ describe('drawProjects', () => {
     expect(domSkin).toContain('background: transparent');
     expect(domSkin).toContain('border-color: transparent');
     expect(domSkin).toContain('box-shadow: none');
+  });
+
+  it('moves the GPU project list up with the empty conversation card', () => {
+    const ctx = createRecordingCtx();
+    const width = 1072;
+    const frame = viewFrame(width, 720);
+    const measuredHeight = 218;
+    drawProjects(ctx, makeSnapshot({ view: 'projects', projectAssistantCompact: true,
+      projectAssistantCompactHeight: measuredHeight }, { auth: makeAuth() }), width, 720);
+    expect(ctx.panels).toContainEqual({ parent: ctx.root, x: frame.innerX, y: PROJECTS_MCP_GUIDE_TOP,
+      width: frame.innerWidth, height: measuredHeight });
+    const empty = ctx.texts.find(text => text.value === t('projects.emptyNoInstallation'));
+    expect(empty?.y).toBe(PROJECTS_MCP_GUIDE_TOP + measuredHeight + 16);
+  });
+
+  it('gives the conversation its own full-height panel without a run list below it', () => {
+    const project = guidanceProject();
+    const snapshot = makeSnapshot({ view: 'projects', selectedProjectId: project.projectId, projectSection: 'conversation' },
+      { auth: makeAuth(), projects: [project], projectRuns: { [project.projectId]: [] } });
+    const width = 1102;
+    const height = 888;
+    const guideHeight = projectsGuideLayoutHeight(snapshot, width, height);
+    expect(guideHeight).toBeGreaterThan(PROJECTS_MCP_GUIDE_ASSISTANT_HEIGHT + 200);
+    expect(PROJECTS_SELECTED_MCP_GUIDE_TOP + guideHeight + VIEW_FRAME_PAD).toBe(viewFrame(width, height).bottom);
+    const ctx = createRecordingCtx();
+    drawProjects(ctx, snapshot, width, height);
+    expect(ctx.scrollMax.projects).toBe(0);
+    expect(projectsGuideLayoutHeight(snapshot, width, height + 100)).toBe(guideHeight + 100);
+    const compact = { ...snapshot, state: { ...snapshot.state, projectAssistantCompact: true } };
+    expect(projectsGuideLayoutHeight(compact, width, height)).toBe(PROJECTS_MCP_GUIDE_ASSISTANT_COMPACT_HEIGHT);
+    const collapsed = { ...snapshot, state: { ...snapshot.state, projectMcpCollapsed: true } };
+    expect(projectsGuideLayoutHeight(collapsed, width, height)).toBe(guideHeight);
   });
 
   it('shows the private lock only for private repositories', () => {
@@ -3012,8 +3059,10 @@ describe('drawProjects', () => {
       expect(label.options).toMatchObject({ singleLine: true });
     }
     expect(ctx.scrollMax.projects).toBeGreaterThanOrEqual(0);
-    // The guide hosts the assistant for this member (600px of a 720px frame),
-    // which is exactly how much more of the list scrolls past the fold.
+    // An open conversation still leaves the first complete run visible.
+    const firstRun = ctx.buttons.find(button => button.id === 'project.run.trace-1')!;
+    const firstRunBottom = firstRun.parent.toGlobal({ x: firstRun.x, y: firstRun.y + firstRun.height }).y;
+    expect(firstRunBottom).toBeLessThanOrEqual(viewFrame(1280, 720).bottom);
     expect(ctx.scrollMax.projects).toBeLessThan(200 + PROJECTS_MCP_GUIDE_ASSISTANT_HEIGHT - PROJECTS_MCP_GUIDE_HEIGHT);
 
     // The project list lives in a centred scroll pane. Its draw coordinates
@@ -3025,7 +3074,7 @@ describe('drawProjects', () => {
     const listGlobal = listPanel!.parent.toGlobal({ x: listPanel!.x, y: listPanel!.y });
     expect(listGlobal.x).toBe(projectsColumn(1280).x);
     expect(listPanel!.parent.toGlobal({ x: 0, y: 0 }).y).toBe(
-      projectsGpuContentTop(1280, true, false, true)
+      projectSectionLayout(ctx, makeSnapshot({}), 1280).contentTop
     );
 
     // Project metadata forms one sequence inside the framed row. In detail,
@@ -3143,7 +3192,7 @@ describe('drawProjects', () => {
       return ctx;
     };
     const runs = draw('runs');
-    const repositoryPositions = (['runs', 'preview', 'files', 'result'] as const).map(section => {
+    const repositoryPositions = (['conversation', 'runs', 'preview', 'files', 'result'] as const).map(section => {
       const sectionCtx = draw(section);
       const links = sectionCtx.links.filter(link => link.id === `project.repository.${project.projectId}`);
       expect(links).toHaveLength(1);
@@ -3152,30 +3201,34 @@ describe('drawProjects', () => {
       expect(sectionCtx.privateRepositoryIcons).toHaveLength(1);
       expect(sectionCtx.texts.filter(text => text.value === 'repo ready')).toHaveLength(1);
       const lastTab = sectionCtx.buttons.find(button => button.id === 'project.section.result')!;
-      expect(links[0]!.x).toBeGreaterThan(lastTab.x + lastTab.width);
+      expect(links[0]!.y > lastTab.y + 32 || links[0]!.x > lastTab.x + lastTab.width).toBe(true);
       return { x: links[0]!.x, y: links[0]!.y, width: links[0]!.width };
     });
     expect(repositoryPositions.every(position => JSON.stringify(position) === JSON.stringify(repositoryPositions[0]))).toBe(true);
     const tabs = runs.buttons.filter(button => button.id.startsWith('project.section.'));
     expect(tabs.map(button => button.id)).toEqual([
-      'project.section.runs', 'project.section.preview', 'project.section.files', 'project.section.result',
+      'project.section.conversation', 'project.section.runs', 'project.section.preview', 'project.section.files', 'project.section.result',
     ]);
     expect(new Set(tabs.map(button => button.y)).size).toBe(1);
-    expect(tabs.map(button => button.active)).toEqual([true, false, false, false]);
+    expect(tabs.map(button => button.active)).toEqual([false, true, false, false, false]);
     expect(tabs[0]?.y).toBe(viewFrame(1000, 900).contentTop);
-    expect(runs.panels.some(panel => panel.parent === runs.root && panel.y === PROJECTS_SELECTED_MCP_GUIDE_TOP)).toBe(true);
+    const conversation = draw('conversation');
+    expect(conversation.buttons.some(button => button.id === 'project.run.saved-trace')).toBe(false);
+    expect(conversation.scrollMax.projects).toBe(0);
+    expect(conversation.panels.some(panel => panel.parent === conversation.root &&
+      panel.y === projectSectionLayout(conversation, makeSnapshot({}, data), 1000).contentTop)).toBe(true);
     expect(runs.buttons.some(button => button.id === 'project.run.saved-trace')).toBe(true);
     expect(runs.buttons.some(button => button.id === 'workspace.path.src')).toBe(false);
 
     expect(runs.buttons.some(button => button.id === 'run.preview.open')).toBe(false);
     const preview = draw('preview');
     expect(preview.buttons.filter(button => button.id.startsWith('project.section.')).map(button => button.active))
-      .toEqual([false, true, false, false]);
+      .toEqual([false, false, true, false, false]);
     expect(preview.buttons.some(button => button.id === 'project.run.saved-trace')).toBe(false);
     expect(preview.panels.some(panel => panel.y === PROJECTS_SELECTED_MCP_GUIDE_TOP)).toBe(false);
     const files = draw('files');
     expect(files.buttons.filter(button => button.id.startsWith('project.section.')).map(button => button.active))
-      .toEqual([false, false, true, false]);
+      .toEqual([false, false, false, true, false]);
     expect(files.buttons.some(button => button.id === 'workspace.path.src')).toBe(true);
     expect(files.buttons.some(button => button.id === 'project.run.saved-trace')).toBe(false);
     expect(files.panels.some(panel => panel.parent === files.root && panel.y === PROJECTS_SELECTED_MCP_GUIDE_TOP
@@ -3183,7 +3236,7 @@ describe('drawProjects', () => {
 
     const result = draw('result');
     expect(result.buttons.filter(button => button.id.startsWith('project.section.')).map(button => button.active))
-      .toEqual([false, false, false, true]);
+      .toEqual([false, false, false, false, true]);
     expect(result.texts.some(text => text.value === 'Delivered answer')).toBe(true);
     expect(result.buttons.some(button => button.id === 'project.run.saved-trace')).toBe(false);
     expect(result.buttons.some(button => button.id === 'result.close')).toBe(false);
@@ -3193,15 +3246,17 @@ describe('drawProjects', () => {
     const narrow = draw('runs', 320);
     const frame = viewFrame(320, 900);
     const narrowTabs = narrow.buttons.filter(button => button.id.startsWith('project.section.'));
-    expect(new Set(narrowTabs.map(button => button.y)).size).toBe(1);
+    expect(new Set(narrowTabs.map(button => button.y)).size).toBeGreaterThan(1);
+    for (const tab of narrowTabs) {
+      expect(tab.width).toBeGreaterThan(40);
+      expect(tab.x + tab.width).toBeLessThanOrEqual(frame.innerX + frame.innerWidth);
+    }
     expect(narrowTabs.at(-1)!.x + narrowTabs.at(-1)!.width)
       .toBeLessThanOrEqual(frame.innerX + frame.innerWidth);
-    // The guide hosts the assistant for this member: the hosting height wins over the narrow one.
-    expect(narrow.panels.some(panel => panel.parent === narrow.root && panel.y === PROJECTS_SELECTED_MCP_GUIDE_TOP
-      && panel.height === projectsGuideHeight(320, false, true))).toBe(true);
+    expect(narrow.buttons.some(button => button.id === 'project.run.saved-trace')).toBe(true);
   });
 
-  it('keeps all four project sections available when files or delivered results are absent', () => {
+  it('keeps all five project sections available when files or delivered results are absent', () => {
     const project = guidanceProject();
     for (const [section, messageKey] of [
       ['preview', 'projects.section.noDeliveredResult'],
@@ -3211,7 +3266,7 @@ describe('drawProjects', () => {
       const ctx = createRecordingCtx();
       drawProjects(ctx, makeSnapshot({ view: 'projects', selectedProjectId: project.projectId,
         projectSection: section }, { projects: [project], projectRuns: { [project.projectId]: [] } }), 1000, 700);
-      expect(ctx.buttons.filter(button => button.id.startsWith('project.section.'))).toHaveLength(4);
+      expect(ctx.buttons.filter(button => button.id.startsWith('project.section.'))).toHaveLength(5);
       expect(ctx.texts.some(text => text.value === t(messageKey))).toBe(true);
       expect(ctx.scrollMax.projects).toBe(0);
     }
@@ -5108,7 +5163,7 @@ describe('the run progress panel', () => {
     const process = ctx.texts.find(text => text.value === 'What happened')!;
     expect(file.width).toBeGreaterThan(500);
     expect(file.x + file.width).toBeLessThan(process.x);
-    expect(ctx.texts.some(text => text.value === 'View changes ›')).toBe(true);
+    expect(ctx.texts.some(text => text.value === 'View changes')).toBe(true);
     expect(ctx.buttons.some(button => button.id === 'activity.close')).toBe(true);
   });
 
@@ -6715,6 +6770,46 @@ describe('FPS follow-ups', () => {
     }
   });
 
+  it('keeps a bounded minimap fixed while its timeline scrolls and maps clicks to filtered rows', () => {
+    const events = Array.from({ length: 200 }, (_, i) => makeLlmEvent(`e${i}`));
+    const ctx = createRecordingCtx();
+    const onActivate = vi.fn();
+    drawRuns(ctx, { ...makeSnapshot({}, { run: makeRun(events) }), onActivate }, 1280, 800);
+    const rail = ctx.root.getChildByLabel('timeline-minimap', true)!;
+    const targets = ctx.metrics.hitTargets.filter(target => target.id.startsWith('run.timeline.row.'));
+    expect(targets.length).toBeGreaterThan(2);
+    expect(targets.length).toBeLessThan(80);
+    expect(targets[0]!.id).toBe('run.timeline.row.0');
+    expect(targets.at(-1)!.id).toBe('run.timeline.row.201');
+    expect(ctx.tooltips.some(region => region.text.startsWith('Run started'))).toBe(true);
+    const position = { x: rail.x, y: rail.y };
+    const bounds = targets.map(target => ({ ...target }));
+    ctx.runsScroll!.move(20);
+    expect({ x: rail.x, y: rail.y }).toEqual(position);
+    expect(targets).toEqual(bounds);
+    for (const card of ctx.eventCards) expect(card.x + card.width).toBeLessThan(rail.x);
+    rail.getChildByLabel(targets.at(-1)!.id)!.emit('pointertap', {} as FederatedPointerEvent);
+    expect(onActivate).toHaveBeenCalledWith('run.timeline.row.201');
+
+    const filtered = createRecordingCtx();
+    drawRuns(filtered, makeSnapshot({ runFilters: { kind: 'tool', role: 'all', branchId: 'all' } },
+      { run: makeRun([...events, { id: 'only-tool', kind: 'tool', ts: 1000, name: 'read_file' }]) }), 1280, 800);
+    expect(filtered.metrics.hitTargets.filter(target => target.id.startsWith('run.timeline.row.'))
+      .map(target => target.id)).toEqual(['run.timeline.row.0', 'run.timeline.row.1', 'run.timeline.row.2']);
+    expect(filtered.metrics.timelineViewport!.eventIds).toEqual(['only-tool']);
+    expect(filtered.tooltips.some(region => region.text.includes('read_file'))).toBe(true);
+    const preview = filtered.tooltips.find(region => region.text.includes('read_file'));
+    expect(preview).toMatchObject({ placement: 'left', instant: true });
+    const filteredRail = filtered.root.getChildByLabel('timeline-minimap', true)!;
+    const ink = filteredRail.children[0] as Graphics;
+    const colors = () => ink.context.instructions.filter(instruction => instruction.action === 'stroke')
+      .map(instruction => instruction.data.style.color);
+    // The two bookends keep their card accents; read_file keeps its tool blue.
+    expect(colors()).toEqual([GPU_COLORS.success, 0x38bdf8, GPU_COLORS.primary]);
+    filteredRail.getChildByLabel('run.timeline.row.1')!.emit('pointerover', {} as FederatedPointerEvent);
+    expect(colors()).toEqual([GPU_COLORS.success, 0x38bdf8, GPU_COLORS.primary]);
+  });
+
   it('reuses only scroll updates; data, filters and window crossings rebuild', () => {
     const renderer = new GpuRenderer();
     const first = makeSnapshot({ view: 'runs' });
@@ -7150,6 +7245,29 @@ describe('incomplete (partial) runs guide the next step', () => {
 describe('project-grouped run picker', () => {
   const WIDTH = 1600;
   const HEIGHT = 900;
+  it.each([
+    { selectedRunId: 'a', selectedProjectId: null },
+    { selectedRunId: 'a', selectedProjectId: 'b' },
+    { selectedRunId: 'loading', selectedProjectId: 'a' },
+  ])('scopes the canvas rows and counts to the current project (%j)', state => {
+    const runs = [
+      { id: 'a', projectId: 'a', projectSlug: 'same-name', label: 'First', startedAt: '2026-10-03' },
+      { id: 'a-old', projectId: 'a', projectSlug: 'same-name', label: 'Previous', startedAt: '2026-10-02' },
+      { id: 'b', projectId: 'b', projectSlug: 'same-name', label: 'Other', startedAt: '2026-10-01' },
+      { id: 'operator', label: 'Local', startedAt: '2026-10-04' },
+    ];
+    const ctx = createRecordingCtx();
+    drawRunPicker(ctx, makeSnapshot(state, { runs }), WIDTH, HEIGHT);
+    expect(ctx.buttons.map(button => button.id)).toEqual(['run.select.a', 'run.select.a-old']);
+    expect(ctx.texts.map(text => text.value)).toContain('2 / 2 RUNS');
+    const searched = createRecordingCtx();
+    drawRunPicker(searched, makeSnapshot({ ...state,
+      search: { run: 'Other', registry: '', skills: '', displayName: '' },
+    }, { runs }), WIDTH, HEIGHT);
+    expect(searched.buttons).toHaveLength(0);
+    expect(searched.texts.map(text => text.value)).toContain('0 / 2 RUNS');
+  });
+
   it('keeps projects together, prioritises live activity and never merges equal slugs', () => {
     const ctx = createRecordingCtx();
     const now = Date.now();

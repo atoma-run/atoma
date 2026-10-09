@@ -45,6 +45,13 @@ export interface TooltipRegion {
   readonly width: number;
   readonly height: number;
   readonly text: string;
+  /** Anchor beside the region rather than below the pointer. */
+  readonly placement?: 'left';
+  /** Scrubbing a timeline needs its preview on the first hovered frame. */
+  readonly instant?: boolean;
+  readonly fontSize?: number;
+  /** Optional event colour for the border and a subtle background tint. */
+  readonly accent?: number;
 }
 
 /**
@@ -68,15 +75,19 @@ export class TooltipLayer {
   /** Rebuilt every render. The pointer reads it; nothing else mutates it. */
   private regions: TooltipRegion[] = [];
   private shownText: string | null = null;
+  private shownFontSize = FONT_SIZE;
+  private shownAccent: number | undefined;
   /** When the current hover began, or null while the pointer is over nothing. */
   private hoverStartedAt: number | null = null;
   private hoveredText: string | null = null;
+  private hoveredInstant = false;
 
   private readonly measure: TooltipMeasure;
   /** Size of the bubble currently shown, so it is measured once per string. */
   private shownSize = { width: 0, height: 0 };
 
   constructor(parent: Container, measure?: TooltipMeasure) {
+    this.bubble.label = 'hover-tooltip';
     this.label = new Text({
       text: '',
       ...gpuTextRasterOptions(),
@@ -130,15 +141,16 @@ export class TooltipLayer {
     }
     // A move WITHIN one region keeps its timer; moving to a different string
     // restarts it, so sweeping a list does not flash a bubble per row.
-    if (hit.text !== this.hoveredText) {
+    if (hit.text !== this.hoveredText || !!hit.instant !== this.hoveredInstant) {
       this.hoveredText = hit.text;
+      this.hoveredInstant = !!hit.instant;
       this.hoverStartedAt = now;
     }
-    if (this.hoverStartedAt === null || now - this.hoverStartedAt < OPEN_DELAY_MS) {
+    if (!hit.instant && (this.hoverStartedAt === null || now - this.hoverStartedAt < OPEN_DELAY_MS)) {
       this.hide();
       return;
     }
-    this.show(hit.text, pointer.x, pointer.y, viewport);
+    this.show(hit, pointer.x, pointer.y, viewport);
   }
 
   /** Topmost match: later declarations draw over earlier ones. */
@@ -158,12 +170,15 @@ export class TooltipLayer {
   }
 
   private show(
-    text: string,
+    region: TooltipRegion,
     pointerX: number,
     pointerY: number,
     viewport: { readonly width: number; readonly height: number }
   ): void {
-    if (text !== this.shownText) {
+    const { text, accent } = region;
+    const fontSize = region.fontSize ?? FONT_SIZE;
+    if (text !== this.shownText || fontSize !== this.shownFontSize || accent !== this.shownAccent) {
+      this.label.style.fontSize = fontSize;
       const measured = this.measure(text);
       this.label.text = text;
       this.shownSize = {
@@ -173,8 +188,14 @@ export class TooltipLayer {
       this.background.clear();
       this.background.roundRect(0, 0, this.shownSize.width, this.shownSize.height, 6);
       this.background.fill({ color: 0x080e19, alpha: 0.97 });
-      this.background.stroke({ color: GPU_COLORS.border, width: 1, alpha: 0.9 });
+      if (accent !== undefined) {
+        this.background.roundRect(0, 0, this.shownSize.width, this.shownSize.height, 6);
+        this.background.fill({ color: accent, alpha: 0.18 });
+      }
+      this.background.stroke({ color: accent ?? GPU_COLORS.border, width: 1, alpha: 0.9 });
       this.shownText = text;
+      this.shownFontSize = fontSize;
+      this.shownAccent = accent;
     }
     const { width, height } = this.shownSize;
     // Below-right of the pointer by default, flipped rather than clamped when
@@ -183,6 +204,10 @@ export class TooltipLayer {
     if (x + width > viewport.width - EDGE_MARGIN) x = pointerX - POINTER_GAP_X - width;
     let y = pointerY + POINTER_GAP_Y;
     if (y + height > viewport.height - EDGE_MARGIN) y = pointerY - POINTER_GAP_Y - height;
+    if (region.placement === 'left') {
+      x = region.x - POINTER_GAP_X - width;
+      y = region.y + (region.height - height) / 2;
+    }
     this.bubble.position.set(
       Math.max(EDGE_MARGIN, Math.min(x, viewport.width - EDGE_MARGIN - width)),
       Math.max(EDGE_MARGIN, Math.min(y, viewport.height - EDGE_MARGIN - height))

@@ -7,6 +7,23 @@ export const RUN_PICKER_ROW_HEIGHT = 49;
 export const RUN_PICKER_GROUP_HEIGHT = 46;
 export const RUN_PICKER_HEADER_HEIGHT = 30;
 
+function runProjectKey(run: RunIndexEntry): string {
+  return run.projectId ? `id:${run.projectId}`
+    : run.projectSlug ? `slug:${run.projectSlug}` : 'unassigned';
+}
+
+/** Follow the displayed run's breadcrumb, not a project left in another view. */
+export function runsInPickerScope(
+  runs: readonly RunIndexEntry[],
+  selectedRunId: string | null,
+  selectedProjectId: string | null
+): readonly RunIndexEntry[] {
+  const selected = runs.find(run => run.id === selectedRunId);
+  const key = selected ? runProjectKey(selected)
+    : selectedProjectId ? `id:${selectedProjectId}` : 'unassigned';
+  return key === 'unassigned' ? runs : runs.filter(run => runProjectKey(run) === key);
+}
+
 /** Shared by the GPU popup and native input's keyboard navigation. */
 export function runPickerViewportHeight(height: number, popupY: number): number {
   return Math.max(RUN_PICKER_ROW_HEIGHT, Math.min(500, height - popupY - 10) - RUN_PICKER_HEADER_HEIGHT - 7);
@@ -16,8 +33,7 @@ export function runPickerViewportHeight(height: number, popupY: number): number 
 export function buildRunPicker(runs: readonly RunIndexEntry[], query = '', now = Date.now()) {
   const byProject = new Map<string, RunIndexEntry[]>();
   for (const run of runs) {
-    const key = run.projectId ? `id:${run.projectId}`
-      : run.projectSlug ? `slug:${run.projectSlug}` : 'unassigned';
+    const key = runProjectKey(run);
     const group = byProject.get(key) ?? [];
     group.push(run);
     byProject.set(key, group);

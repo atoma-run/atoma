@@ -2,7 +2,7 @@ import { Container, Graphics, Rectangle } from 'pixi.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { BUTTON_LABEL_INSET } from '../../gpu-renderer.js';
 import { sidebarWidthForViewport, GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
-import { buildRunPicker, runPickerTotalsLabel, runPickerViewportHeight, RUN_PICKER_ROW_HEIGHT, RUN_PICKER_GROUP_HEIGHT, RUN_PICKER_HEADER_HEIGHT } from '../../run-picker.js';
+import { buildRunPicker, runsInPickerScope, runPickerTotalsLabel, runPickerViewportHeight, RUN_PICKER_ROW_HEIGHT, RUN_PICKER_GROUP_HEIGHT, RUN_PICKER_HEADER_HEIGHT } from '../../run-picker.js';
 import { RUN_STATUS_GLYPH, runIndexStatus } from '../../../client/run-utils.js';
 import { fmtTokenCount } from '../copy.js';
 import { relativeTime } from '../relative-time.js';
@@ -23,7 +23,8 @@ export function drawRunPicker(ctx: RendererCtx, snapshot: GpuRenderSnapshot, wid
   const popupY = picker.y + picker.height + 4;
   const rowHeight = RUN_PICKER_ROW_HEIGHT;
   const headerHeight = RUN_PICKER_HEADER_HEIGHT;
-  const model = buildRunPicker(snapshot.data.runs, snapshot.state.search.run);
+  const runs = runsInPickerScope(snapshot.data.runs, snapshot.state.selectedRunId, snapshot.state.selectedProjectId);
+  const model = buildRunPicker(runs, snapshot.state.search.run);
   const listViewportHeight = runPickerViewportHeight(height, popupY);
   const contentHeight = model.height;
   const scrollMax = Math.max(0, contentHeight - listViewportHeight);
@@ -47,7 +48,7 @@ export function drawRunPicker(ctx: RendererCtx, snapshot: GpuRenderSnapshot, wid
   );
   ctx.text(
     ctx.root,
-    snapshot.t('runs.picker.count', { count: model.options.length, total: snapshot.data.runs.length }),
+    snapshot.t('runs.picker.count', { count: model.options.length, total: runs.length }),
     x + 12,
     popupY + 8,
     { size: 9, color: GPU_COLORS.muted, weight: '700' }

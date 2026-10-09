@@ -1,4 +1,6 @@
 import { Container, Graphics, Rectangle } from 'pixi.js';
+import { CHEVRON_SIZE } from '../../button-icons.js';
+import { drawChevron } from '../button-icon.js';
 import type { Ticker } from 'pixi.js';
 import { fmtCost } from '../../../client/run-utils.js';
 import type { BurninRow } from '../../../client/types.js';
@@ -484,6 +486,12 @@ export function drawBurnin(
     size: 10,
     color: GPU_COLORS.muted,
   });
-  if (page > 1) ctx.button(ctx.root, 'burnin.page.prev', 'button', '‹', width - 172, height - 34, 34, 25, false, snapshot.onActivate);
-  if (page < pageCount) ctx.button(ctx.root, 'burnin.page.next', 'button', '›', width - 66, height - 34, 34, 25, false, snapshot.onActivate);
+  for (const direction of ['prev', 'next'] as const) {
+    if (direction === 'prev' ? page <= 1 : page >= pageCount) continue;
+    const control = ctx.button(ctx.root, `burnin.page.${direction}`, 'button', '',
+      width - (direction === 'prev' ? 172 : 66), height - 34, 34, 25, false, snapshot.onActivate,
+      GPU_COLORS.primary, true, false, undefined, undefined, snapshot.t(direction === 'prev' ? 'burnin.previous' : 'burnin.next'));
+    drawChevron(control, (34 - CHEVRON_SIZE) / 2, (25 - CHEVRON_SIZE) / 2, GPU_COLORS.muted,
+      direction === 'prev' ? 'left' : 'right');
+  }
 }

@@ -480,14 +480,17 @@ html.atoma-cursor-active * {
 /* ONE native-select geometry throughout the live GL client. `appearance`
    removes browser-specific arrows so every select gets the same inset and the
    chevron never touches the right border. */
-.gpu-dom-select {
+.gpu-app select, .gpu-dom-select {
   appearance: none;
-  min-height: 32px;
-  padding: 5px 36px 5px 11px !important;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='m1 1 4 4 4-4' fill='none' stroke='%239fb0c9' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  padding-right: 36px !important;
+  background-image: var(--gpu-chevron-image);
   background-repeat: no-repeat;
   background-position: right 12px center;
-  background-size: 10px 6px;
+  background-size: var(--gpu-chevron-size) var(--gpu-chevron-size);
+}
+.gpu-dom-select {
+  min-height: 32px;
+  padding: 5px 36px 5px 11px !important;
 }
 
 .gpu-run-input {
@@ -547,9 +550,10 @@ html.atoma-cursor-active * {
 }
 
 .gpu-project-mcp--selected {
-  --gpu-overlay-top: 148px;
-  top: 148px;
+  --gpu-overlay-top: var(--gpu-project-guide-top, 148px);
+  top: var(--gpu-project-guide-top, 148px);
 }
+.gpu-project-mcp[hidden] { display: none; }
 
 
 /* The GPU view draws the card's frame through its shared panel path. */
@@ -612,7 +616,14 @@ html.atoma-cursor-active * {
 
 /* Hosting the conversation (PROJECTS_MCP_GUIDE_ASSISTANT_HEIGHT); collapsed
    still wins below. */
-.gpu-project-mcp.gpu-project-mcp--assistant { height: 600px; }
+.gpu-project-mcp.gpu-project-mcp--assistant { height: var(--gpu-project-guide-height, 400px); }
+@media (max-width: 739px) {
+  .gpu-project-mcp.gpu-project-mcp--assistant { height: var(--gpu-project-guide-height, 420px); }
+}
+.gpu-project-mcp.gpu-project-mcp--assistant-compact { height: var(--gpu-project-guide-height, 300px); }
+@media (max-width: 739px) {
+  .gpu-project-mcp.gpu-project-mcp--assistant-compact { height: var(--gpu-project-guide-height, 360px); }
+}
 
 .gpu-project-mcp.gpu-project-mcp--collapsed { height: 48px; }
 
@@ -856,7 +867,7 @@ html.atoma-cursor-active * {
   border: 1px solid rgba(110, 168, 255, .62);
   border-radius: 6px;
   padding: 6px 9px;
-  background: #182941;
+  background-color: #182941;
   color: #e6edf7;
 }
 
@@ -1572,7 +1583,7 @@ html.atoma-cursor-active * {
 
 /* The preview is a modal over the inert scene; the cursor stays above it. */
 .gpu-project-preview {
-  --gpu-overlay-top: 148px;
+  --gpu-overlay-top: var(--gpu-project-guide-top, 148px);
   --gpu-overlay-left: calc(var(--gpu-sidebar) + 26px);
   position: fixed;
   z-index: 4;
@@ -1717,6 +1728,18 @@ html.atoma-cursor-active * {
 }
 
 /* Inline icons keep native buttons, focus, disabled states and accessible names. */
+.gpu-app summary { list-style: none; }
+.gpu-app summary::-webkit-details-marker { display: none; }
+.gpu-app summary::marker { content: ''; }
+.gpu-chevron, .gpu-app summary::before {
+  content: ''; display: inline-block; flex: 0 0 auto;
+  width: var(--gpu-chevron-size); height: var(--gpu-chevron-size);
+  margin-inline-end: 6px; vertical-align: -2px; pointer-events: none;
+  background: currentColor; mask: var(--gpu-chevron-image) center / contain no-repeat;
+}
+.gpu-app details:not([open]) > summary::before,
+.gpu-app button[aria-expanded='false'] > .gpu-chevron { transform: rotate(-90deg); }
+
 .gpu-button-icon {
   display: inline-block;
   flex: 0 0 auto;
@@ -1729,26 +1752,82 @@ html.atoma-cursor-active * {
    guide owns frame, veil, collapse and height; this block fills it and keeps
    its own log scrolling. */
 .gpu-assistant {
-  display: flex; flex: 1; min-height: 0; flex-direction: column; gap: 10px;
+  display: flex; flex: 1; min-height: 0; flex-direction: column; gap: 6px;
   color: #e6edf7; font: 14px/1.5 ui-sans-serif, system-ui, sans-serif;
 }
-.gpu-assistant-intro { margin: 0; color: #b5c5dc; font-size: 12px; }
+.gpu-assistant-header { display: flex; flex: 0 0 auto; align-items: center; flex-wrap: wrap; gap: 6px 16px; }
+.gpu-assistant .gpu-assistant-header h2 { flex: 0 0 auto; font-size: 14px; max-width: 100%; }
+.gpu-assistant .gpu-project-mcp-toggle { border: 0; border-radius: 0; padding: 0; min-height: 28px; background: transparent; font: 600 14px/1.3 ui-sans-serif, system-ui, sans-serif; }
+.gpu-assistant-content:not([hidden]) { display: flex; flex: 1; min-height: 0; flex-direction: column; gap: 6px; }
+/* Empty conversations report their natural height to the GPU card. */
+.gpu-assistant--fit, .gpu-assistant--fit .gpu-assistant-content:not([hidden]) { flex: 0 0 auto; }
+.gpu-assistant-conversation:not([hidden]) { display: flex; flex: 1; min-height: 0; flex-direction: column; gap: 6px; }
+.gpu-assistant-conversation--empty:not([hidden]) { flex: 0 0 auto; }
 .gpu-assistant-footer, .gpu-assistant-run {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
 }
+.gpu-assistant-footer { margin-top: 6px; }
 .gpu-assistant h2, .gpu-assistant h3, .gpu-assistant p { margin: 0; }
 .gpu-assistant h2 { font-size: 18px; }
 .gpu-assistant h3 { font-size: 15px; }
 .gpu-assistant header p, .gpu-assistant small, .gpu-assistant-message-meta { color: #b5c5dc; font-size: 12px; }
 .gpu-assistant-log { flex: 1; min-height: 96px; overflow-y: auto; overscroll-behavior: contain; user-select: text; }
-.gpu-assistant-message, .gpu-assistant-proposal { padding: 14px 0; border-bottom: 1px solid #ffffff26; overflow-wrap: anywhere; }
-.gpu-assistant-message p, .gpu-assistant-proposal p { white-space: pre-wrap; margin: 8px 0; }
-.gpu-assistant-message--user { padding-left: 18px; border-left: 2px solid #81adce; }
-.gpu-assistant-message-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
-.gpu-assistant-empty { padding: 24px 0; color: #b5c5dc; }
+.gpu-assistant-log:not(.gpu-assistant-log--empty) {
+  box-sizing: border-box; padding: 8px; border-radius: 8px; background: #07142724;
+  box-shadow: 0 2px 6px #01040a40, inset 0 8px 10px -8px #01040aa6, inset 0 -8px 10px -8px #01040aa6;
+}
+.gpu-assistant-log--empty { flex: 0 0 auto; min-height: 0; overflow: visible; }
+.gpu-assistant-log > * + * { margin-top: 6px; }
+.gpu-assistant-message, .gpu-assistant-proposal { overflow-wrap: anywhere; }
+.gpu-assistant-message { box-sizing: border-box; width: fit-content; max-width: 88%; padding: 6px 10px; border: 1px solid #ffffff26; border-left: 2px solid #81adce; border-radius: 8px; font-size: 12px; line-height: 1.4; }
+.gpu-assistant-message p { white-space: pre-wrap; margin: 2px 0 0; }
+.gpu-assistant-markdown { min-width: 0; }
+.gpu-assistant-markdown > * { margin: 8px 0 0; }
+.gpu-assistant-markdown > :first-child { margin-top: 4px; }
+.gpu-assistant .gpu-assistant-markdown p { white-space: normal; margin: 8px 0 0; font: inherit; }
+.gpu-assistant .gpu-assistant-markdown :is(h1, h2, h3, h4, h5, h6) {
+  margin: 12px 0 6px; font-size: 12px; line-height: 1.4; font-weight: 700; color: #e6edf7;
+}
+.gpu-assistant .gpu-assistant-markdown h1 { font-size: 16px; }
+.gpu-assistant .gpu-assistant-markdown h2 { font-size: 14px; }
+.gpu-assistant-markdown :is(ul, ol) { padding-inline-start: 22px; }
+.gpu-assistant-markdown li + li { margin-top: 3px; }
+.gpu-assistant .gpu-assistant-markdown li > p { margin-top: 3px; }
+.gpu-assistant-markdown blockquote { margin-inline: 0; padding-inline-start: 12px; border-inline-start: 3px solid #78c9b0; color: #b5c5dc; }
+.gpu-assistant-markdown code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: .92em; }
+.gpu-assistant-markdown :not(pre) > code { padding: 1px 4px; border-radius: 4px; background: #07142799; }
+.gpu-assistant-markdown pre { box-sizing: border-box; max-width: 100%; overflow-x: auto; padding: 10px; border-radius: 6px; background: #07142799; white-space: pre; overflow-wrap: normal; }
+.gpu-assistant-markdown table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
+.gpu-assistant-markdown :is(th, td) { padding: 5px 9px; border: 1px solid #526781; text-align: start; }
+.gpu-assistant-markdown th { background: #07142766; }
+.gpu-assistant-markdown a { color: #a9c8f2; text-decoration: underline; text-underline-offset: 2px; }
+.gpu-assistant-markdown a:focus-visible { outline: 2px solid #a8d7ff; outline-offset: 2px; }
+.gpu-assistant-markdown hr { border: 0; border-top: 1px solid #526781; }
+.gpu-assistant-proposal { padding: 10px 0; border-bottom: 1px solid #ffffff26; }
+.gpu-assistant-proposal p { white-space: pre-wrap; margin: 6px 0; }
+.gpu-assistant-message--user { margin-left: auto; background: #81adce0f; }
+.gpu-assistant-message--assistant { border-left-color: #78c9b0; background: #78c9b00f; }
+.gpu-assistant-message--receipt { border-left-color: #ada0cd; background: #ada0cd0f; }
+.gpu-assistant-message--assistant .gpu-assistant-message-meta strong { color: #9bdcc7; }
+.gpu-assistant-message--receipt .gpu-assistant-message-meta strong { color: #c3b8df; }
+.gpu-assistant-message-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 8px; }
+.gpu-assistant-typing-dots { display: flex; align-items: center; gap: 4px; height: 20px; }
+.gpu-assistant-typing-dots > span { width: 6px; height: 6px; border-radius: 50%; background: #9bdcc7; animation: gpu-assistant-typing 1.2s ease-in-out infinite; }
+.gpu-assistant-typing-dots > span:nth-child(2) { animation-delay: .15s; }
+.gpu-assistant-typing-dots > span:nth-child(3) { animation-delay: .3s; }
+@keyframes gpu-assistant-typing {
+  0%, 60%, 100% { opacity: .4; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-3px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gpu-assistant-typing-dots > span { animation: none; }
+}
+.gpu-assistant-empty { padding: 4px 0; color: #b5c5dc; }
 .gpu-assistant form { display: flex; flex-direction: column; gap: 6px; }
-.gpu-assistant textarea { resize: vertical; min-height: 44px; max-height: 180px; width: 100%; box-sizing: border-box;
-  border: 1px solid #7b9db9; border-radius: 8px; background: #071427a8; color: #e6edf7; padding: 10px; font: inherit; }
+.gpu-assistant form[aria-busy='true'] { opacity: .55; }
+.gpu-assistant form[aria-busy='true'] textarea { background: #1f2b3b; border-color: #526176; cursor: wait; }
+.gpu-assistant textarea { resize: vertical; min-height: 44px; max-height: 100px; width: 100%; box-sizing: border-box;
+  border: 1px solid #7b9db9; border-radius: 8px; background: #071427a8; color: #e6edf7; padding: 6px 8px; font: 13px/1.4 ui-sans-serif, system-ui, sans-serif; }
 .gpu-assistant button { cursor: pointer; border: 1px solid #7b9db9; border-radius: 7px; color: #e6edf7;
   background: #152b42; padding: 8px 12px; min-height: 36px; font: inherit; }
 .gpu-assistant button:disabled { opacity: .5; cursor: default; }
@@ -1756,7 +1835,7 @@ html.atoma-cursor-active * {
 .gpu-assistant .gpu-assistant-primary { background: #245176; }
 .gpu-assistant-error { color: #ffc5be; overflow-wrap: anywhere; }
 @media (max-width: 600px) {
-  .gpu-assistant { padding: 10px; gap: 8px; font-size: 13px; }
+  .gpu-assistant { font-size: 13px; }
   .gpu-assistant header p { display: none; }
   .gpu-assistant-footer, .gpu-assistant-run { flex-wrap: wrap; }
   .gpu-assistant button { min-height: 44px; }
@@ -1764,6 +1843,7 @@ html.atoma-cursor-active * {
 
 .gpu-assistant-handoff { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .gpu-assistant-handoff small { opacity: .75; }
+.gpu-assistant-content > .gpu-project-mcp-own-agent[open] { flex: 1; min-height: 0; overflow-y: auto; }
 
 @media (max-width: 600px) {
   .gpu-assistant h2 { font-size: 15px; }
@@ -1773,10 +1853,27 @@ html.atoma-cursor-active * {
   .gpu-assistant-footer small { flex: 1; min-width: 0; }
 }
 
-.gpu-assistant-connection { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px 0; }
+.gpu-assistant-connection { display: flex; flex: 1; min-width: 0; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px; }
 .gpu-assistant-connection label { font-size: 12px; }
-.gpu-assistant-connection select { flex: 1; min-width: 160px; max-width: 100%; color: inherit; background: #182a42; border: 1px solid #526781; border-radius: 6px; padding: 7px; }
+.gpu-assistant-model-label { font-size: 12px; }
+.gpu-assistant-model-value { font-size: 12px; color: #b5c5dc; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 380px; }
+.gpu-assistant-connection select { flex: 0 1 380px; min-width: 160px; max-width: 100%; height: 28px; color: inherit; background-color: #182a42; border: 1px solid #526781; border-radius: 5px; padding: 3px 6px; font: 12px/1.4 ui-sans-serif, system-ui, sans-serif; }
+.gpu-assistant-connection button { min-height: 28px; padding: 3px 8px; border-radius: 5px; font-size: 12px; line-height: 1.4; }
+.gpu-assistant-connection .gpu-assistant-model-change { min-height: 24px; padding: 2px 6px; border-radius: 4px; font-size: 11px; line-height: 1.3; }
 .gpu-assistant-connection small { flex-basis: 100%; }
+.gpu-assistant-footer button { margin-left: auto; min-height: 26px; padding: 3px 9px; border-radius: 5px; font-size: 12px; line-height: 1.3; }
+
+@media (max-width: 739px) {
+  .gpu-assistant-connection { display: grid; flex-basis: 100%; grid-template-columns: minmax(0, 1fr) auto; }
+  .gpu-assistant-connection label { grid-area: 1 / 1; }
+  .gpu-assistant-connection button { grid-area: 1 / 2; }
+  .gpu-assistant-connection .gpu-assistant-model-keep { grid-area: auto / 1 / auto / -1; justify-self: end; }
+  .gpu-assistant-connection select { grid-area: 2 / 1 / auto / -1; width: 100%; min-width: 0; }
+  .gpu-assistant-connection small { grid-column: 1 / -1; }
+  .gpu-assistant-model-value { grid-area: 2 / 1 / auto / -1; max-width: 100%; }
+  .gpu-assistant form > label:not(.gpu-assistant-empty) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .gpu-assistant-footer small { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
 
 .gpu-assistant-setup { display: grid; gap: 8px; padding-bottom: 12px; }
 .gpu-assistant-setup > div { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }

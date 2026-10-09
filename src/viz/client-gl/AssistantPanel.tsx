@@ -1,11 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AssistantRequest, AssistantRun, AssistantView } from '../../contracts/assistant.js';
 import { api } from '../client/data-api.js';
-import { formatDateTime } from '../client/date-format.js';
+import { relativeTime, timestampTooltip } from './renderer/relative-time.js';
+import { useGpuStore } from './store.js';
+import { ButtonIcon } from './ButtonIcon.js';
+import { AssistantMarkdown } from './AssistantMarkdown.js';
 
 interface Props {
   scopeKey: string; projectId: string | null; locale: string;
+  externalAgentGuide?: ReactNode;
+  heading?: ReactNode;
+  collapsed?: boolean;
   t: (key: string, vars?: Record<string, unknown>) => string;
   onSettings: (tab: 'subscriptions' | 'keys') => void; onScopeChange: (id: string) => void; onProject: (id: string) => void; onRun: (run: AssistantRun, traceId: string | null) => void;
 }
@@ -13,10 +19,10 @@ interface Props {
 /**
  * Selectable conversation and native inputs INSIDE the Projects guide card
  * (owner, 2026-10-09): the guide's contextual title is the card's, this is
- * its body, and the external-agent path folds under it. The guide owns the
- * frame, the veil and the collapse; this block only fills it.
+ * its body, and the external-agent path takes over the body when opened.
+ * The guide owns the frame, the veil and the collapse; this block fills it.
  */
-export function AssistantPanel({ scopeKey, projectId, locale, t, onSettings, onScopeChange, onProject, onRun }: Props) {
+export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide, heading, collapsed = false, t, onSettings, onScopeChange, onProject, onRun }: Props) {
   const client = useQueryClient();
   const queryKey = ['viz', 'assistant', scopeKey, projectId];
   const conversationId = useRef<string | undefined>(undefined);
@@ -27,18 +33,29 @@ export function AssistantPanel({ scopeKey, projectId, locale, t, onSettings, onS
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [copied, setCopied] = useState(false);
   const [draft, setDraft] = useState('');
-  const [selection, setSelection] = useState<string | null>(null);
+  const modelPreferenceKey = `atoma.viz.assistant-model:${encodeURIComponent(scopeKey)}`;
+  const [selection, setSelection] = useState<string | null>(() => {
+    try { return localStorage.getItem(modelPreferenceKey); } catch { return null; }
+  });
+  const [editingModel, setEditingModel] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [now, setNow] = useState(Date.now);
+  const [externalAgentOpen, setExternalAgentOpen] = useState(false);
   const pending = useRef<AssistantRequest | null>(null);
   const mounted = useRef(true);
+  const panel = useRef<HTMLElement>(null);
   const log = useRef<HTMLDivElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
   // No focus on mount: the card is on screen whenever Projects is, and a
   // textarea stealing focus from the canvas on every visit would be a defect.
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-  useEffect(() => { if (log.current) log.current.scrollTop = log.current.scrollHeight; }, [query.data?.conversation.messages.at(-1)?.id ?? query.data?.conversation.messages.length]);
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
   const conversation = query.data?.conversation;
+  const hasUsage = (conversation?.inputTokens ?? 0) > 0 || (conversation?.outputTokens ?? 0) > 0;
   useEffect(() => {
     conversationId.current = conversation?.id ?? undefined;
     setOlder([]); setBefore(query.data?.nextBefore ?? null);
@@ -47,14 +64,55 @@ export function AssistantPanel({ scopeKey, projectId, locale, t, onSettings, onS
     if (conversation?.projectId && conversation.projectId !== projectId) onScopeChange(conversation.projectId);
   }, [conversation?.projectId, projectId, onScopeChange]);
   const waiting = busy || query.data?.busy === true;
+  const active = useGpuStore(state => !state.selectedProjectId || state.projectSection === 'conversation');
+  useEffect(() => { if (log.current) log.current.scrollTop = log.current.scrollHeight; },
+    [conversation?.messages.at(-1)?.id ?? conversation?.messages.length, waiting, active]);
   const proposal = conversation?.proposal;
   const modelChoice = selection ?? conversation?.modelChoice ?? '';
   const choices = query.data?.choices ?? [];
   const selected = choices.find(choice => choice.id === modelChoice);
+  const modelLabel = selected ? `${selected.label} · ${t(`assistant.payer.${selected.payer}`)}` : '';
+  useEffect(() => {
+    if (!selected) return;
+    try { localStorage.setItem(modelPreferenceKey, selected.id); } catch { /* Storage may be disabled. */ }
+  }, [modelPreferenceKey, selected?.id]);
   const canSend = query.data?.available && selected !== undefined;
+  const empty = !waiting && older.length === 0 && !conversation?.messages.length && !before &&
+    (!proposal || proposal.state === 'done');
+  const newProjectPrompt = empty && !projectId;
+  const compact = externalAgentOpen || Boolean(query.data && choices.length > 0 && empty && !error && !query.isError && !query.data.run);
+  useLayoutEffect(() => {
+    useGpuStore.setState({ projectAssistantCompact: compact });
+    return () => { useGpuStore.setState({ projectAssistantCompact: false }); };
+  }, [compact]);
+  const fitContents = compact && !externalAgentOpen && !collapsed;
+  useLayoutEffect(() => {
+    const element = panel.current;
+    const card = element?.closest<HTMLElement>('.gpu-project-mcp');
+    if (!fitContents || !element || !card || typeof ResizeObserver === 'undefined') return;
+    // Measure natural DOM height, before the camera transform. The renderer
+    // uses the same value for the card and the following project rows.
+    const measure = () => {
+      if (card.hidden) return;
+      const style = getComputedStyle(card);
+      const inset = [style.paddingTop, style.paddingBottom, style.borderTopWidth, style.borderBottomWidth]
+        .reduce((sum, value) => sum + (parseFloat(value) || 0), 0);
+      const height = Math.ceil(element.offsetHeight + inset);
+      if (height !== useGpuStore.getState().projectAssistantCompactHeight) {
+        useGpuStore.setState({ projectAssistantCompactHeight: height });
+      }
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    measure();
+    return () => {
+      observer.disconnect();
+      useGpuStore.setState({ projectAssistantCompactHeight: null });
+    };
+  }, [fitContents]);
 
   async function submit(kind: 'message' | 'confirm') {
-    if (!conversation || waiting || (kind === 'message' && !canSend)) return;
+    if (!conversation || waiting || (kind === 'message' && (!canSend || !draft.trim()))) return;
     const previous = pending.current;
     const request: AssistantRequest = previous && previous.kind === kind &&
       (previous.kind === 'confirm' ? previous.proposalId === proposal?.id : previous.text === draft.trim() && previous.modelChoice === modelChoice)
@@ -63,18 +121,20 @@ export function AssistantPanel({ scopeKey, projectId, locale, t, onSettings, onS
         ? { kind, requestId: crypto.randomUUID(), version: conversation.version, projectId, ...(conversation.id ? { conversationId: conversation.id } : {}), text: draft.trim(), modelChoice }
         : { kind, requestId: crypto.randomUUID(), version: conversation.version, projectId, ...(conversation.id ? { conversationId: conversation.id } : {}), proposalId: proposal!.id };
     pending.current = request;
+    const submittedDraft = draft;
+    if (kind === 'message') setDraft('');
     setBusy(true); setError(null);
     try {
       const result = await api.assistantRequest(request);
       if (!mounted.current) return;
       client.setQueryData<AssistantView>(queryKey, result);
       pending.current = null;
-      if (kind === 'message') setDraft('');
       void client.invalidateQueries({ queryKey: ['viz', 'projects'] });
       void client.invalidateQueries({ queryKey: ['viz', 'project'] });
       void client.invalidateQueries({ queryKey: ['viz', 'runs'] });
     } catch (failure) {
       if (mounted.current) {
+        if (kind === 'message') setDraft(submittedDraft);
         setError(failure instanceof Error ? failure.message : t('assistant.failed'));
         const refreshed = await query.refetch();
         // A received request has already spent its allowance, including a failed model response.
@@ -103,22 +163,35 @@ export function AssistantPanel({ scopeKey, projectId, locale, t, onSettings, onS
     } catch { setError(t('assistant.copyFailed')); }
   }
 
-  return <section className="gpu-assistant" aria-label={t('assistant.title')}>
-    <p className="gpu-assistant-intro">{t('assistant.intro')}</p>
-    {conversation?.id ? <div className="gpu-assistant-handoff"><button type="button" onClick={() => void copyContinuation()}>
-      {t(copied ? 'assistant.continuationCopied' : 'assistant.continueElsewhere')}</button><small>{t('assistant.continuityHint')}</small></div> : null}
-    {query.isError ? <div role="alert"><p>{t('assistant.failed')}</p><button onClick={() => void query.refetch()}>{t('assistant.retry')}</button></div> : null}
-    {query.isPending ? <p role="status">{t('assistant.loading')}</p> : null}
-    {query.data ? <div className="gpu-assistant-connection">
+  return <section ref={panel} className={`gpu-assistant${fitContents ? ' gpu-assistant--fit' : ''}`} aria-label={t('assistant.title')}>
+    <header className="gpu-assistant-header">
+    {heading}
+    {query.data && !collapsed && !externalAgentOpen ? <div className="gpu-assistant-connection">
+      {selected && !editingModel ? <>
+        <span className="gpu-assistant-model-label">{t('assistant.model')}</span>
+        <span className="gpu-assistant-model-value" title={modelLabel}>{modelLabel}</span>
+        <button type="button" className="gpu-assistant-model-change" disabled={waiting} onClick={() => setEditingModel(true)}><ButtonIcon kind="settings" />{t('assistant.changeModel')}</button>
+      </> : <>
       <label htmlFor="assistant-model">{t('assistant.model')}</label>
-      <select id="assistant-model" value={modelChoice} disabled={waiting || choices.length === 0} onChange={event => { setSelection(event.target.value); pending.current = null; }}>
+      <select id="assistant-model" value={modelChoice} autoFocus={editingModel} disabled={waiting || choices.length === 0} onChange={event => {
+        setSelection(event.target.value); pending.current = null;
+        try { localStorage.setItem(modelPreferenceKey, event.target.value); } catch { /* Keep the in-memory choice. */ }
+        setEditingModel(false);
+      }}>
         <option value="">{t(choices.length ? 'assistant.chooseModel' : 'assistant.noModels')}</option>
         {modelChoice && !selected ? <option value={modelChoice}>{t('assistant.connectionUnavailable')}</option> : null}
         {choices.map(choice => <option key={choice.id} value={choice.id}>{choice.label} · {t(`assistant.payer.${choice.payer}`)}</option>)}
       </select>
       <button type="button" onClick={() => onSettings('subscriptions')}>{t('assistant.connections')}</button>
-      {selected ? <small>{t(`assistant.payer.${selected.payer}`)}</small> : <small role="status">{t(!query.data.available ? 'assistant.unavailable' : modelChoice ? 'assistant.connectionUnavailable' : 'assistant.chooseModel')}</small>}
+      {selected ? <button type="button" className="gpu-assistant-model-keep" onClick={() => setEditingModel(false)}>{t('assistant.keepModel')}</button> : null}
+      </>}
+      {!query.data.available || (modelChoice && !selected) ? <small role="status">{t(!query.data.available ? 'assistant.unavailable' : 'assistant.connectionUnavailable')}</small> : null}
     </div> : null}
+    </header>
+    <div id="project-mcp-content" className="gpu-assistant-content" hidden={collapsed}>
+    <div className={`gpu-assistant-conversation${empty ? ' gpu-assistant-conversation--empty' : ''}`} hidden={externalAgentOpen}>
+    {query.isError ? <div role="alert"><p>{t('assistant.failed')}</p><button onClick={() => void query.refetch()}>{t('assistant.retry')}</button></div> : null}
+    {query.isPending ? <p role="status">{t('assistant.loading')}</p> : null}
     {query.data && choices.length === 0 ? <div className="gpu-assistant-setup">
       {(query.data.subscriptions ?? []).map(subscription => <div key={subscription.provider}>
         <span>{subscription.provider === 'claude' ? 'Claude' : 'ChatGPT'} · {t(`settings.subscriptionState.${subscription.state}`)}</span>
@@ -127,14 +200,16 @@ export function AssistantPanel({ scopeKey, projectId, locale, t, onSettings, onS
       </div>)}
       <button type="button" onClick={() => onSettings('keys')}>{t('assistant.apiKeys')}</button>
     </div> : null}
-    <div className="gpu-assistant-log" ref={log} role="log" aria-label={t('assistant.conversation')} aria-live="polite" aria-relevant="additions">
+    <div className={`gpu-assistant-log${empty ? ' gpu-assistant-log--empty' : ''}`} hidden={newProjectPrompt} ref={log} role="log" aria-label={t('assistant.conversation')} aria-live="polite" aria-relevant="additions">
       {before ? <button type="button" disabled={loadingHistory} onClick={() => void loadOlder()}>{t('assistant.olderMessages')}</button> : null}
-      {conversation?.messages.length === 0 ? <p className="gpu-assistant-empty">{t(projectId ? 'assistant.existingHint' : 'assistant.newHint')}</p> : null}
+      {empty && conversation && projectId ? <p className="gpu-assistant-empty">{t('assistant.existingHint')}</p> : null}
       {[...older, ...(conversation?.messages ?? [])].map((message, i) => <article key={message.id ?? `${message.at}:${i}`} className={`gpu-assistant-message gpu-assistant-message--${message.role}`}>
         <div className="gpu-assistant-message-meta"><strong>{t(message.role === 'user' ? 'assistant.you' : message.role === 'receipt' ? 'assistant.receipt' : 'assistant.title')}</strong>
           {message.origin === 'mcp' ? <span>{t('assistant.sharedFrom', { client: message.clientLabel ?? 'MCP' })}</span> : null}
-          <time dateTime={message.at}>{formatDateTime(message.at, locale)}</time></div>
-        <p>{message.role === 'receipt' ? t(message.text) : message.text}</p>
+          <time dateTime={message.at} title={timestampTooltip(message.at, locale) ?? message.at}>
+            {relativeTime(message.at, t, locale, now) || message.at}</time></div>
+        {message.role === 'assistant' ? <AssistantMarkdown text={message.text} />
+          : <p>{message.role === 'receipt' ? t(message.text) : message.text}</p>}
         {message.projectId ? <button onClick={() => onProject(message.projectId!)}>{t('assistant.openProject')}</button> : null}
         {message.run ? <button onClick={() => onRun(message.run!, conversation?.lastRun?.runId === message.run!.runId ? query.data?.run?.traceId ?? null : null)}>{t('assistant.openRun')}</button> : null}
       </article>)}
@@ -154,6 +229,9 @@ export function AssistantPanel({ scopeKey, projectId, locale, t, onSettings, onS
           onClick={() => void submit('confirm')}>{t(proposal.action.kind === 'create_project' ? 'assistant.create' : 'assistant.launch')}</button>
           : <p role="status">{t(waiting ? 'assistant.working' : 'assistant.uncertain')}</p>}
       </article> : null}
+      {waiting ? <div className="gpu-assistant-message gpu-assistant-message--assistant gpu-assistant-typing" role="status" aria-label={t('assistant.working')}>
+        <span className="gpu-assistant-typing-dots" aria-hidden="true"><span /><span /><span /></span>
+      </div> : null}
     </div>
     {query.data?.run && conversation?.lastRun ? <div className="gpu-assistant-run" role="status">
       <span>{t('assistant.runStatus', { status: t(`projects.runStatus.${query.data.run.status}`) })}
@@ -161,14 +239,31 @@ export function AssistantPanel({ scopeKey, projectId, locale, t, onSettings, onS
       <button onClick={() => onRun(conversation.lastRun!, query.data?.run?.traceId ?? null)}>{t('assistant.openRun')}</button>
     </div> : null}
     {error ? <p role="alert" className="gpu-assistant-error">{error}</p> : null}
-    <form onSubmit={event => { event.preventDefault(); void submit('message'); }}>
-      <label htmlFor="assistant-message">{t('assistant.message')}</label>
-      <textarea id="assistant-message" ref={composer} value={draft} maxLength={4000} rows={2}
-        placeholder={t('assistant.placeholder')} disabled={waiting || !canSend}
+    <form aria-busy={waiting} onSubmit={event => { event.preventDefault(); void submit('message'); }}>
+      <label htmlFor="assistant-message" className={newProjectPrompt ? 'gpu-assistant-empty' : undefined}>{t(newProjectPrompt ? 'assistant.newHint' : 'assistant.message')}</label>
+      <textarea id="assistant-message" ref={composer} value={draft} maxLength={4000} rows={2} enterKeyHint="send"
+        placeholder={waiting ? '' : t('assistant.placeholder')} disabled={waiting || !canSend}
+        onKeyDown={event => {
+          if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
+          event.preventDefault();
+          if (!event.repeat) event.currentTarget.form?.requestSubmit();
+        }}
         onChange={event => { setDraft(event.target.value); pending.current = null; }} />
-      <div className="gpu-assistant-footer"><small>{t('assistant.cost', { cost: (conversation?.costUsd ?? 0).toFixed(4) })}</small>
+      <div className="gpu-assistant-footer">{hasUsage ? <small title={t('assistant.cost', { cost: (conversation?.costUsd ?? 0).toFixed(4) })}>{t('assistant.cost', { cost: (conversation?.costUsd ?? 0).toFixed(4) })}</small> : null}
         <button type="submit" className="gpu-assistant-primary" disabled={waiting || !draft.trim() || !canSend}>
-          {t(waiting ? 'assistant.working' : 'assistant.send')}</button></div>
+          <ButtonIcon kind={waiting ? 'clock' : 'send'} />{t(waiting ? 'assistant.working' : 'assistant.send')}</button></div>
     </form>
+    </div>
+    {externalAgentOpen && error ? <p role="alert" className="gpu-assistant-error">{error}</p> : null}
+    <details className="gpu-project-mcp-own-agent" open={externalAgentOpen}
+      onToggle={event => setExternalAgentOpen(event.currentTarget.open)}>
+      <summary>{t(externalAgentOpen ? 'assistant.backToConversation' : 'projects.mcpOwnAgent')}</summary>
+      <div className="gpu-project-mcp-own-agent-body">
+        {conversation?.id ? <div className="gpu-assistant-handoff"><button type="button" onClick={() => void copyContinuation()}>
+          {t(copied ? 'assistant.continuationCopied' : 'assistant.continueElsewhere')}</button><small>{t('assistant.continuityHint')}</small></div> : null}
+        {externalAgentGuide}
+      </div>
+    </details>
+    </div>
   </section>;
 }

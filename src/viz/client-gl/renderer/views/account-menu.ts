@@ -264,7 +264,7 @@ export function drawAccountMenu(
     if (item.kind === 'themeDropdown' && item.id) {
       ctx.button(
         ctx.root, item.id, 'menuitem',
-        `${snapshot.t('appearance.theme')}: ${snapshot.t(`appearance.${snapshot.state.appearanceTheme}`)} ${snapshot.state.themeDropdownOpen ? '▴' : '▾'}`,
+        `${snapshot.t('appearance.theme')}: ${snapshot.t(`appearance.${snapshot.state.appearanceTheme}`)}`,
         innerX, y, innerWidth, ACTION_HEIGHT - ACTION_GAP,
         snapshot.state.themeDropdownOpen, snapshot.onActivate, GPU_COLORS.primary
       );

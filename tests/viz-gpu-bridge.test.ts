@@ -1,13 +1,17 @@
 // @vitest-environment jsdom
 
 import '@testing-library/jest-dom/vitest';
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { createElement } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { translate } from '../src/viz/client/i18n-catalog.js';
 import { SUPPORTED_LOCALES } from '../src/contracts/locales.js';
 import { DomBridge, GpuDomBridge } from '../src/viz/client-gl/DomBridge.js';
+import { AssistantPanel } from '../src/viz/client-gl/AssistantPanel.js';
+import { api } from '../src/viz/client/data-api.js';
+import { emptyConversation } from '../src/viz/assistantStore.js';
 import { projectMcpAccessState } from '../src/viz/client-gl/queries.js';
 import type { RunIndexEntry, VizGitHubInstallation } from '../src/viz/client/types.js';
 import {
@@ -50,7 +54,7 @@ beforeEach(() => {
     runActivityPage: 0,
     runActivityExpandedChanges: {},
     selectedProjectId: null,
-    projectSection: 'runs',
+    projectSection: 'conversation',
     selectedDocsTheme: 'quick',
     appearanceTheme: 'nocturne',
     themeDropdownOpen: false,
@@ -72,6 +76,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   setReducedMotionOverrideForTests(null);
   pinMarkElapsedMs(null);
   setMarkBeadVisible(true);
@@ -117,6 +122,25 @@ function EntryFadeProbe() {
 }
 
 describe('full-GL minimal DOM bridge', () => {
+  it('navigates filtered timeline steps through the same activation as the canvas', () => {
+    const onActivate = vi.fn();
+    useGpuStore.setState({ runFilters: { kind: 'tool', role: 'all', branchId: 'all' }, resultRunId: null });
+    render(createElement(DomBridge, {
+      runs, releaseVersion: '9.8.7', onSelectRun: vi.fn(), onActivate,
+      t: (key: string, vars?: Record<string, unknown>) => translate('en', key, vars),
+      run: { id: 'run-1', label: 'Build the page', startedAt: '2026-10-09T00:00:00Z', events: [
+        { id: 'plan', kind: 'llm', role: 'plan', ts: 0 },
+        { id: 'read', kind: 'tool', name: 'read_file', ts: 1 },
+      ] },
+    }));
+    const navigation = screen.getByRole('slider', { name: 'Navigate the timeline' });
+    expect(navigation).toHaveAttribute('max', '2');
+    fireEvent.change(navigation, { target: { value: '2' } });
+    expect(onActivate).toHaveBeenCalledWith('run.timeline.row.2');
+    act(() => useGpuStore.getState().showRunActivity(true));
+    expect(screen.queryByRole('slider', { name: 'Navigate the timeline' })).not.toBeInTheDocument();
+  });
+
   it('opens recorded changes by keyboard and returns to the same source event', async () => {
     const user = userEvent.setup();
     render(createElement(AccessibleRunActivity, {
@@ -380,17 +404,25 @@ describe('full-GL minimal DOM bridge', () => {
   // conversation by default.
   it('hosts the integrated assistant inside the guide and folds the external path under it', async () => {
     useGpuStore.setState({ view: 'projects', entered: true, projectMcpCollapsed: true });
-    render(createElement(DomBridge, {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.spyOn(api, 'assistant').mockResolvedValue({ available: false, busy: false, nextBefore: null,
+      choices: [], model: null, run: null, conversation: emptyConversation() });
+    const { unmount } = render(createElement(QueryClientProvider, { client }, createElement(DomBridge, {
       runs, releaseVersion: '9.8.7', onSelectRun: vi.fn(), onOpenMcp: vi.fn(),
       mcpAccessState: 'connected',
-      assistant: createElement('p', { 'data-testid': 'assistant-stub' }, 'conversation'),
+      assistant: (externalAgentGuide, heading) => createElement(AssistantPanel, {
+        heading, collapsed: useGpuStore.getState().projectMcpCollapsed,
+        scopeKey: 'alice:org-a', projectId: null, locale: 'en', externalAgentGuide,
+        t: (key, vars) => translate('en', key, vars),
+        onSettings: vi.fn(), onScopeChange: vi.fn(), onProject: vi.fn(), onRun: vi.fn(),
+      }),
       t: (key: string, vars?: Record<string, unknown>) => translate('en', key, vars),
-    }));
+    })));
     const guide = screen.getByRole('region', { name: 'Create a new project with Atoma' });
     expect(guide).toHaveClass('gpu-project-mcp--assistant');
     // Connected MCP no longer folds the card: the conversation is what it is for.
     expect(useGpuStore.getState().projectMcpCollapsed).toBe(false);
-    expect(within(guide).getByTestId('assistant-stub')).toBeVisible();
+    expect(await within(guide).findByRole('combobox', { name: 'Assistant model' })).toBeVisible();
     // The external path is one closed disclosure, every control still inside it.
     const ownAgent = guide.querySelector('details.gpu-project-mcp-own-agent') as HTMLDetailsElement;
     expect(ownAgent.open).toBe(false);
@@ -402,6 +434,7 @@ describe('full-GL minimal DOM bridge', () => {
     // The guide still collapses as a whole, conversation included.
     await user.click(screen.getByRole('button', { name: 'Create a new project with Atoma' }));
     expect(useGpuStore.getState().projectMcpCollapsed).toBe(true);
+    unmount(); client.clear();
   });
 
   it('uses the selected project in a short agent request without showing a run form', () => {
@@ -472,8 +505,9 @@ describe('full-GL minimal DOM bridge', () => {
     expect(weather).toHaveAttribute('aria-pressed', 'false');
     await user.click(weather);
     expect(useGpuStore.getState().selectedProjectId).toBe('project-weather');
-    expect(screen.getByRole('region', { name: 'Continue with Atoma' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Continue with Atoma' })).toBeInTheDocument();
+    expect(useGpuStore.getState().sceneCameraMode).toBe('focus');
+    expect(screen.getByRole('region', { name: 'Continue this project' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Continue this project' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByText('Continue Weather Lab with Atoma.')).toBeInTheDocument();
     expect(weather).toHaveAttribute('aria-pressed', 'true');
     await user.click(weather);
@@ -483,27 +517,79 @@ describe('full-GL minimal DOM bridge', () => {
     expect(screen.getByText(/Plan a project for this repository/)).toBeInTheDocument();
   });
 
-  it('shows the MCP guide only in Runs after selecting a project', () => {
-    useGpuStore.setState({ view: 'projects', entered: true, projectSection: 'runs' });
+  it('shows the conversation independently from runs and other project sections', () => {
+    useGpuStore.setState({ view: 'projects', entered: true, projectSection: 'conversation' });
     renderBridge(vi.fn(), runs, undefined, [], 'Weather Lab');
     const tabs = within(screen.getByRole('tablist', { name: 'Weather Lab' })).getAllByRole('tab');
-    expect(tabs).toHaveLength(4);
-    expect(tabs.map(tab => tab.textContent?.trim())).toEqual(['Runs', 'Preview app', 'Files', 'Latest delivered results']);
+    expect(tabs).toHaveLength(5);
+    expect(tabs.map(tab => tab.textContent?.trim())).toEqual(['Continue this project', 'Runs', 'Preview app', 'Files', 'Latest delivered results']);
     expect(document.querySelector('.gpu-project-mcp')).toHaveClass('gpu-project-mcp--selected');
     act(() => useGpuStore.getState().selectProjectSection('files'));
-    expect(document.querySelector('.gpu-project-mcp')).not.toBeInTheDocument();
+    expect(document.querySelector('.gpu-project-mcp')).not.toBeVisible();
     act(() => useGpuStore.getState().selectProjectSection('preview'));
-    expect(document.querySelector('.gpu-project-mcp')).not.toBeInTheDocument();
+    expect(document.querySelector('.gpu-project-mcp')).not.toBeVisible();
     act(() => useGpuStore.getState().selectProjectSection('result'));
-    expect(document.querySelector('.gpu-project-mcp')).not.toBeInTheDocument();
+    expect(document.querySelector('.gpu-project-mcp')).not.toBeVisible();
     act(() => useGpuStore.getState().selectProjectSection('runs'));
-    expect(document.querySelector('.gpu-project-mcp')).toBeInTheDocument();
+    expect(document.querySelector('.gpu-project-mcp')).not.toBeVisible();
+    act(() => useGpuStore.getState().selectProjectSection('conversation'));
+    expect(document.querySelector('.gpu-project-mcp')).toBeVisible();
   });
 
   it('keeps the GitHub connection reachable before any installation', () => {
     useGpuStore.setState({ view: 'projects', entered: true });
     renderBridge(vi.fn(), runs, undefined, [], 'Weather Lab');
     expect(screen.getByRole('link', { name: 'Connect GitHub' })).toBeInTheDocument();
+  });
+
+  it('keeps the draft and receives an in-flight reply while the Runs tab is open', async () => {
+    useGpuStore.setState({ view: 'projects', entered: true });
+    useGpuStore.getState().selectProject('project-weather');
+    expect(useGpuStore.getState().projectSection).toBe('conversation');
+    const data = { available: true, busy: false, nextBefore: null, run: null, model: 'api:openai:small',
+      choices: [{ id: 'api:openai:small', model: 'api:openai:small', label: 'Small', payer: 'org-key' as const }],
+      conversation: { ...emptyConversation(), modelChoice: 'api:openai:small' } };
+    vi.spyOn(api, 'assistant').mockResolvedValue(data);
+    let finish!: (result: Awaited<ReturnType<typeof api.assistantRequest>>) => void;
+    const request = vi.spyOn(api, 'assistantRequest').mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { unmount } = render(createElement(QueryClientProvider, { client }, createElement(DomBridge, {
+      runs, releaseVersion: '9.8.7', onSelectRun: vi.fn(), projects: [{ projectId: 'project-weather', name: 'Weather Lab' }],
+      onActivate: id => {
+        if (id === 'project.section.runs') useGpuStore.getState().selectProjectSection('runs');
+        if (id === 'project.section.conversation') useGpuStore.getState().selectProjectSection('conversation');
+      },
+      assistant: (externalAgentGuide, heading) => createElement(AssistantPanel, {
+        heading, scopeKey: 'alice:org-a', projectId: 'project-weather', locale: 'en', externalAgentGuide,
+        t: (key, vars) => translate('en', key, vars),
+        onSettings: vi.fn(), onScopeChange: vi.fn(), onProject: vi.fn(), onRun: vi.fn(),
+      }),
+      t: (key, vars) => translate('en', key, vars),
+    })));
+    const input = screen.getByRole('textbox');
+    const conversationTab = screen.getByRole('tab', { name: 'Continue this project' });
+    const runsTab = within(conversationTab.closest('nav')!).getByRole('tab', { name: 'Runs' });
+    await waitFor(() => expect(input).toBeEnabled());
+    const user = userEvent.setup();
+    await user.type(input, 'Keep my draft');
+    await user.click(runsTab);
+    expect(input).not.toBeVisible();
+    expect(runsTab).toHaveAttribute('aria-selected', 'true');
+    await user.click(conversationTab);
+    expect(input).toBeVisible();
+    expect(input).toHaveValue('Keep my draft');
+    await user.click(input);
+    await user.keyboard('{Enter}');
+    expect(input).toBeDisabled();
+    await user.click(runsTab);
+    await act(async () => finish({ ...data, conversation: { ...data.conversation, version: 1,
+      messages: [{ role: 'assistant', text: 'Your plan is ready.', at: '2026-10-09T10:00:00Z' }] } }));
+    await user.click(conversationTab);
+    expect(screen.getByText('Your plan is ready.')).toBeVisible();
+    expect(input).toBeEnabled();
+    expect(input).toHaveValue('');
+    expect(request).toHaveBeenCalledOnce();
+    unmount(); client.clear();
   });
 
   it('renders DOM view overlays inert while the Pixi account menu is open', () => {
@@ -647,7 +733,7 @@ describe('full-GL minimal DOM bridge', () => {
 
     // Projects now routes setup through MCP instead of offering a goal field.
     useGpuStore.getState().setView('projects');
-    expect(await screen.findByRole('region', { name: 'Continue with Atoma' })).toBeInTheDocument();
+    expect(await screen.findByRole('region', { name: 'Continue this project' })).toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: 'Run prompt' })).not.toBeInTheDocument();
   });
 
@@ -666,7 +752,7 @@ describe('full-GL minimal DOM bridge', () => {
     expect(onSelectRun).toHaveBeenCalledWith('run-4');
   });
 
-  it('uses project order for focus, arrows, search and accessible selection', async () => {
+  it('keeps focus, arrows, search and accessible selection inside the displayed project', async () => {
     const user = userEvent.setup();
     const items = [
       { id: 'b', label: 'B change', projectId: 'b', projectSlug: 'Beta', startedAt: '2026-10-02', tokens: 1000, costUsd: 0.12 },
@@ -678,18 +764,19 @@ describe('full-GL minimal DOM bridge', () => {
     const select = screen.getByRole('combobox', { name: 'Runs by project' });
     expect(within(select).getAllByRole('group').map(group => group.getAttribute('label'))).toEqual([
       'Alpha · Total: 5.0k tokens · $0.52 USD',
-      'Beta · Total: 1.0k tokens · $0.12 USD',
     ]);
-    expect(within(select).getAllByRole('option').map(option => option.getAttribute('value'))).toEqual(['a-new', 'a-old', 'b']);
-    const input = screen.getByRole('textbox', { name: /Search 3 runs/ });
+    expect(within(select).getAllByRole('option').map(option => option.getAttribute('value'))).toEqual(['a-new', 'a-old']);
+    const input = screen.getByRole('textbox', { name: /Search 2 runs/ });
     await user.click(input);
     expect(useGpuStore.getState().runPickerActiveIndex).toBe(0);
     await user.keyboard('{ArrowDown}{Enter}');
     expect(onSelectRun).toHaveBeenLastCalledWith('a-old');
     await user.click(input);
     await user.type(input, 'Beta');
+    expect(within(select).queryAllByRole('option')).toHaveLength(0);
+    onSelectRun.mockClear();
     await user.keyboard('{Enter}');
-    expect(onSelectRun).toHaveBeenLastCalledWith('b');
+    expect(onSelectRun).not.toHaveBeenCalled();
   });
 
   it('keeps the run search when the input is refocused before its blur delay ends', async () => {
@@ -700,7 +787,7 @@ describe('full-GL minimal DOM bridge', () => {
     ];
     useGpuStore.setState({ selectedRunId: 'a-new' });
     const { onSelectRun } = renderBridge(vi.fn(), items);
-    const input = screen.getByRole('textbox', { name: /Search 2 runs/ });
+    const input = screen.getByRole('textbox', { name: /Search 1 run/ });
     await user.click(input);
     await user.keyboard('{Enter}');
     expect(onSelectRun).toHaveBeenLastCalledWith('a-new');
@@ -710,9 +797,9 @@ describe('full-GL minimal DOM bridge', () => {
     await user.click(input);
     await new Promise(resolve => setTimeout(resolve, 300));
     expect(input).toHaveValue('');
-    await user.type(input, 'Beta');
+    await user.type(input, 'New');
     await user.keyboard('{Enter}');
-    expect(onSelectRun).toHaveBeenLastCalledWith('b');
+    expect(onSelectRun).toHaveBeenLastCalledWith('a-new');
   });
 });
 
