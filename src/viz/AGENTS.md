@@ -376,6 +376,12 @@ npm run viz:mark-turn:analyze
   claim to be live GitHub. Folder/file navigation belongs to the shared GPU
   store and masked view, with a semantic twin. Files and result artifacts open
   the same Open File Viewer plane; the recorded-change diff remains separate.
+  Where `workspaceSplit` (`workspace-browser.ts`, asked by renderer and GpuApp
+  from the viewport width alone) fits both, a Files reader DOCKS beside the
+  narrowed list — a transparent region over the view's `panel()`, scene left
+  live, height from `--gpu-project-section-height` — so the next file is one
+  canvas click in the same iframe; narrower, it stays the modal. Leaving the
+  section, project or view clears `filePreview`, or it would reopen as a modal.
   All upstream format plugins are registered, with specialized decoders before
   text and the fallback last. Optional DWG/video decoders and PDF resources are
   packaged by the Vite asset adapter, including development. Viewer output

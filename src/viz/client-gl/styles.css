@@ -1599,6 +1599,35 @@ html.atoma-cursor-active * {
   box-shadow: none;
 }
 
+/* The Files section's reader, docked beside the GPU list (`workspaceSplit`).
+   Its frame is the panel `drawWorkspace` draws, so the plane is transparent
+   and inset by the 1px border it must not cover; the radius clips the
+   document to that panel's corners. */
+.gpu-workspace-reader {
+  --gpu-overlay-top: var(--gpu-project-guide-top, 148px);
+  --gpu-overlay-left: calc(var(--gpu-sidebar) + 26px + var(--gpu-workspace-reader-x, 0px));
+  position: fixed;
+  z-index: 4;
+  top: var(--gpu-overlay-top);
+  left: var(--gpu-overlay-left);
+  right: 26px;
+  height: var(--gpu-project-section-height, calc(100vh - var(--gpu-overlay-top) - 26px));
+  display: flex;
+  min-height: 0;
+}
+
+.gpu-workspace-reader .gpu-preview-plane {
+  margin: 1px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.gpu-workspace-reader .gpu-preview-frame {
+  background: #0b101f;
+}
+
 .gpu-preview-backdrop {
   position: fixed;
   inset: 0;

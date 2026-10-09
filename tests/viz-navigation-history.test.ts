@@ -76,6 +76,7 @@ describe('browser history over the store navigation', () => {
     useGpuStore.getState().setView('runs');
     useGpuStore.getState().selectEvent('event-1');
     useGpuStore.getState().toggleAccountMenu();
+    useGpuStore.getState().previewFile({ projectId: 'project-a', runId: 'run-a', path: 'README.md' });
     await settle();
     const lengthBeforePop = history.length;
     pop(before);
@@ -85,6 +86,7 @@ describe('browser history over the store navigation', () => {
     expect(state.selectedRunId).toBe('run-a');
     expect(state.selectedEventId).toBeNull();
     expect(state.accountMenuOpen).toBe(false);
+    expect(state.filePreview).toBeNull();
     expect(history.length).toBe(lengthBeforePop);
   });
 

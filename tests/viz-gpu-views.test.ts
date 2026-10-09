@@ -34,6 +34,8 @@ import {
   setReducedMotionOverrideForTests,
 } from '../src/viz/client-gl/renderer/motion.js';
 import { drawBurnin } from '../src/viz/client-gl/renderer/views/burnin.js';
+import { workspaceReaderHeight } from '../src/viz/client-gl/renderer/views/workspace.js';
+import { workspaceSplit, workspaceSplitForViewport } from '../src/viz/client-gl/workspace-browser.js';
 import { drawResultPanel } from '../src/viz/client-gl/renderer/views/result.js';
 import { drawRunActivity } from '../src/viz/client-gl/renderer/views/run-activity.js';
 import {
@@ -3274,6 +3276,62 @@ describe('drawProjects', () => {
     expect(narrowTabs.at(-1)!.x + narrowTabs.at(-1)!.width)
       .toBeLessThanOrEqual(frame.innerX + frame.innerWidth);
     expect(narrow.buttons.some(button => button.id === 'project.run.saved-trace')).toBe(true);
+  });
+
+  // Reading file after file without closing a modal each time: on a column
+  // that holds both, the open file docks beside a narrowed list. GpuApp makes
+  // the same call from the viewport width alone, so the two must agree.
+  it('docks the open file beside a narrowed Files list only when the column holds both', () => {
+    const project = guidanceProject();
+    const projectRun = {
+      projectId: project.projectId, projectRunId: 'saved-run', traceId: 'saved-trace',
+      goal: 'Build a dashboard', status: 'delivered' as const, costUsd: 0.12, durationS: 8,
+      error: null, createdAt: '2026-08-20T00:01:00.000Z', endedAt: '2026-08-20T00:02:00.000Z',
+      publication: null,
+    };
+    const data = {
+      auth: makeAuth(), projects: [project], projectRuns: { [project.projectId]: [projectRun] },
+      workspace: { index: { runId: 'saved-run', createdAt: projectRun.createdAt, status: 'delivered' as const,
+        files: [{ path: 'src/app.ts', size: 12 }, { path: 'README.md', size: 5 }] },
+      file: null, loading: false, failed: false },
+    };
+    const reading = { projectId: project.projectId, runId: 'saved-run', path: 'README.md' };
+    const state = (filePreview: typeof reading | null) => ({ view: 'projects' as const,
+      selectedProjectId: project.projectId, projectSection: 'files' as const, workspaceRunId: 'saved-run', filePreview });
+    const draw = (viewport: number, filePreview: typeof reading | null) => {
+      const ctx = createRecordingCtx();
+      drawProjects(ctx, makeSnapshot(state(filePreview), data), viewport - sidebarWidthForViewport(viewport), 900);
+      return ctx;
+    };
+    const row = (ctx: RecordingCtx, path: string) => ctx.metrics.hitTargets.find(target => target.id === `workspace.path.${path}`)!;
+
+    const wide = 1280 - sidebarWidthForViewport(1280);
+    const frame = viewFrame(wide, 900);
+    const split = workspaceSplitForViewport(1280)!;
+    expect(split).toEqual(workspaceSplit(frame.innerWidth));
+    const docked = draw(1280, reading);
+    const top = projectSectionLayout(docked, makeSnapshot(state(reading), data), wide).contentTop;
+    // The reader's frame is a GPU panel the DOM wrapper fills, edge to edge
+    // with the column's right edge and one pad above the frame's foot.
+    const reader = docked.panels.find(panel => panel.x === frame.innerX + split.readerX);
+    expect(reader).toMatchObject({ parent: docked.root, y: top, width: split.readerWidth,
+      height: workspaceReaderHeight(frame.bottom, top) });
+    expect(reader!.x + reader!.width).toBe(frame.innerX + frame.innerWidth);
+    expect(reader!.y + reader!.height).toBe(frame.bottom - VIEW_FRAME_PAD);
+    expect(row(docked, 'README.md').x + row(docked, 'README.md').width).toBeLessThanOrEqual(frame.innerX + split.listWidth);
+    expect(docked.buttons.find(button => button.id === 'workspace.path.README.md')!.active).toBe(true);
+    expect(docked.buttons.find(button => button.id === 'workspace.path.src')!.active).toBe(false);
+
+    // Closed, the list takes the whole column back.
+    const closed = draw(1280, null);
+    expect(closed.panels).toHaveLength(docked.panels.length - 1);
+    expect(row(closed, 'README.md').width).toBeGreaterThan(split.listWidth);
+
+    // Too narrow for both: no reader frame, a full-width list, and the modal.
+    expect(workspaceSplitForViewport(900)).toBeNull();
+    const single = draw(900, reading);
+    expect(single.panels).toHaveLength(draw(900, null).panels.length);
+    expect(row(single, 'README.md').width).toBe(row(draw(900, null), 'README.md').width);
   });
 
   it('keeps all five project sections available when files or delivered results are absent', () => {

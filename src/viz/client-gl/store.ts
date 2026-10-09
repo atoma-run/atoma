@@ -386,9 +386,12 @@ function viewChange(
   | 'localeMenuOpen'
   | 'notificationsMenuOpen'
   | 'announcementResetSignal'
+  | 'filePreview'
 > {
   return {
     view,
+    // A reader docked in the Files section belongs to the screen being left.
+    filePreview: view === state.view ? state.filePreview : null,
     resultRunId: null,
     resultActionStatus: null,
     resultDetailsOpen: false,
@@ -670,7 +673,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
     // Opening a project focuses its content from both canvas and keyboard.
     sceneCameraMode: selectedProjectId ? 'focus' : state.sceneCameraMode,
     projectSection: 'conversation',
-    workspaceRunId: null, workspacePath: '',
+    workspaceRunId: null, workspacePath: '', filePreview: null,
     resultRunId: null,
     resultActionStatus: null,
     resultDetailsOpen: false,
@@ -682,7 +685,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   selectProjectSection: (projectSection, runId = null) => set(state => ({
     projectSection,
     workspaceRunId: projectSection === 'files' ? runId : null,
-    workspacePath: '',
+    workspacePath: '', filePreview: null,
     resultRunId: projectSection === 'result' ? runId : null,
     resultActionStatus: null,
     resultDetailsOpen: false,
@@ -690,7 +693,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   })),
   openWorkspace: (workspaceRunId) => set(state => ({
     projectSection: workspaceRunId ? 'files' : 'runs',
-    workspaceRunId, workspacePath: '', scrollY: { ...state.scrollY, projects: 0 },
+    workspaceRunId, workspacePath: '', filePreview: null, scrollY: { ...state.scrollY, projects: 0 },
   })),
   previewFile: (filePreview) => set({ filePreview }),
   selectWorkspacePath: (workspacePath) => set(state => ({ workspacePath, scrollY: { ...state.scrollY, projects: 0 } })),

@@ -128,7 +128,8 @@ import {
 } from './renderer/live-refresh.js';
 import { publishSceneCapture, type SceneStill } from './scene-capture.js';
 import { cubeTurnPlan } from './cube-turn.js';
-import { viewFrameGutterRects } from './renderer/view-frame.js';
+import { viewFrame, viewFrameGutterRects } from './renderer/view-frame.js';
+import { workspaceReaderHeight } from './renderer/views/workspace.js';
 import { navRowDistance, navRowGroup, type GpuUiState, type ViewName } from './store.js';
 import { APPEARANCE_THEMES, CODE_FONT_FAMILY, GPU_COLORS, GPU_LAYOUT, gpuTextRasterOptions, gpuTextSize, sidebarWidthForViewport } from './theme.js';
 import { VIZ_VISUAL_DEPTH } from './visual-depth.js';
@@ -2068,6 +2069,10 @@ export class GpuRenderer {
             const style = this.app.canvas.closest<HTMLElement>('.gpu-scene-camera')?.style;
             style?.setProperty('--gpu-project-guide-top', `${guideTop}px`);
             style?.setProperty('--gpu-project-guide-height', `${projectsGuideLayoutHeight(snapshot, contentWidth, layoutHeight, guideTop)}px`);
+            // The docked file reader's box: CSS cannot see the layout height a
+            // focused camera leaves visible, so `bottom: 26px` would overshoot.
+            style?.setProperty('--gpu-project-section-height',
+              `${workspaceReaderHeight(viewFrame(contentWidth, layoutHeight).bottom, guideTop)}px`);
             drawProjects(this, snapshot, contentWidth, layoutHeight);
             break;
           }

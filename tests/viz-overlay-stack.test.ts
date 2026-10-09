@@ -135,11 +135,26 @@ describe('the GL overlay stack', () => {
     expect(plane.includes('gpu-panel-skin')).toBe(false);
     // Every full-screen veil disables the scene without weakening the
     // preview's unconditional lock.
-    expect(app).toMatch(/className="gpu-scene-host"\s+inert=\{!!state\.filePreview\s*\|\|\s*\(previewOpen && !projectPreviewSelected && requestedProjectPreview\.current === null\)\s*\|\|\s*handheldPhase !== 'idle'\s*\|\|\s*appearanceTransition\.phase !== 'idle'\}/);
+    // A file reader docked in the Files column is the one preview that leaves
+    // the scene live: its list is how the next file is opened.
+    expect(app).toMatch(/className="gpu-scene-host"\s+inert=\{\(!!state\.filePreview && !dockedFileReader\)\s*\|\|\s*\(previewOpen && !projectPreviewSelected && requestedProjectPreview\.current === null\)\s*\|\|\s*handheldPhase !== 'idle'\s*\|\|\s*appearanceTransition\.phase !== 'idle'\}/);
     const rule = styles.match(/\.gpu-preview-backdrop\s*\{[^}]*\}/);
     expect(rule).not.toBeNull();
     expect(rule![0]).toContain('position: fixed');
     expect(rule![0]).toContain('inset: 0');
+  });
+
+  it('docks the file reader as a transparent view overlay that takes the veil', () => {
+    const styles = readFileSync(join(GL_ROOT, 'styles.css'), 'utf8');
+    const wrapper = styles.match(/\.gpu-workspace-reader\s*\{[^}]*\}/);
+    expect(wrapper).not.toBeNull();
+    expect(wrapper![0]).toContain('--gpu-overlay-top: var(--gpu-project-guide-top');
+    expect(wrapper![0]).toContain('--gpu-overlay-left: calc(var(--gpu-sidebar) + 26px + var(--gpu-workspace-reader-x');
+    expect(wrapper![0]).toContain('height: var(--gpu-project-section-height');
+    const plane = styles.match(/\.gpu-workspace-reader \.gpu-preview-plane\s*\{[^}]*\}/);
+    expect(plane![0]).toContain('background: transparent');
+    expect(plane![0]).toContain('border: 0');
+    expect(plane![0]).toContain('box-shadow: none');
   });
 
   it('keeps the reference pattern honest: the MCP guide skin stays neutralised', () => {

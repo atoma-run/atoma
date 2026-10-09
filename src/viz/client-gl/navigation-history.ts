@@ -182,6 +182,7 @@ export function startNavigationHistory(options: {
         selectedSkill: location.selectedSkill,
         resultRunId: null,
         resultActionStatus: null,
+        filePreview: null,
         focusedInput: null,
         accountMenuOpen: false,
         localeMenuOpen: false,

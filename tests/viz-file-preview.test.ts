@@ -90,3 +90,39 @@ it('aborts a pending file read when the reader closes', () => {
   expect(options.signal!.aborted).toBe(true);
   expect(mocks.create).not.toHaveBeenCalled();
 });
+it('docked, reads file after file in one document without taking focus or the page Escape', async () => {
+  vi.stubGlobal('fetch', mocks.fetch);
+  vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:download', revokeObjectURL: mocks.revoke }));
+  mocks.fetch.mockResolvedValue({ ok: true, status: 200, arrayBuffer: async () => new ArrayBuffer(4) });
+  const onClose = vi.fn();
+  const outside = document.body.appendChild(document.createElement('button'));
+  outside.focus();
+  const props = (path: string, veiled = false) => ({ target: { ...target, path }, locale: 'en' as const, t: (key: string) => key,
+    onClose, docked: { readerX: 256, veiled } });
+  const view = render(createElement(FilePreview, props('a.txt')));
+  const frame = view.container.querySelector('iframe')!;
+  frame.contentDocument!.body.innerHTML = '<div id="viewer"></div>';
+  fireEvent.load(frame);
+  await waitFor(() => expect(mocks.create).toHaveBeenCalledOnce());
+  const region = screen.getByRole('region', { name: 'workspace.preview' });
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(region.parentElement!.className).toBe('gpu-workspace-reader');
+  expect(region.parentElement!.style.getPropertyValue('--gpu-workspace-reader-x')).toBe('256px');
+  expect(document.activeElement).toBe(outside);
+  fireEvent.keyDown(window, { key: 'Escape' });
+  expect(onClose).not.toHaveBeenCalled();
+
+  view.rerender(createElement(FilePreview, props('b.txt')));
+  await waitFor(() => expect(mocks.create).toHaveBeenCalledTimes(2));
+  expect(view.container.querySelector('iframe')).toBe(frame);
+  expect(mocks.destroy).toHaveBeenCalledOnce();
+  expect(mocks.fetch.mock.calls[1]![0]).toContain('path=b.txt');
+  expect((mocks.create.mock.calls[1]![0] as PreviewOptions).fileName).toBe('b.txt');
+
+  view.rerender(createElement(FilePreview, props('b.txt', true)));
+  expect(region.parentElement!.className).toBe('gpu-workspace-reader gpu-overlays-veiled');
+  expect(region.parentElement!.hasAttribute('inert')).toBe(true);
+  fireEvent.keyDown(screen.getByRole('button', { name: 'workspace.close' }), { key: 'Escape' });
+  expect(onClose).toHaveBeenCalledOnce();
+  outside.remove();
+});

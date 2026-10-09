@@ -3,7 +3,7 @@ import { CHEVRON_CSS_VARS } from './button-icons.js';
 import { TIMELINE_JUMP_PREFIX } from './renderer/timeline-minimap.js';
 import { AssistantPanel } from './AssistantPanel.js';
 import { workspaceIndexSchema } from '../../contracts/workspaceBrowser.js';
-import { latestWorkspaceRun } from './workspace-browser.js';
+import { latestWorkspaceRun, workspacePreviewPath, workspaceSplitForViewport } from './workspace-browser.js';
 import { canControlCheckpoint, pendingGitHubAccess, canContinueGitHubAccess, canRetryPublication } from './github-access.js';
 import { fetchJson } from '../client/data-api.js';
 import {
@@ -12,6 +12,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type CSSProperties,
 } from 'react';
 import { isLocale } from '../../contracts/locales.js';
@@ -116,6 +117,14 @@ function errorMessage(errors: unknown[], t: (key: string) => string) {
   if (typeof found === 'number' || typeof found === 'boolean') return String(found);
   return found ? t('app.queryError') : null;
 }
+
+// The canvas host is `position: fixed; inset: 0`, so its width — the one the
+// renderer lays out against — is the initial containing block's.
+function subscribeViewportWidth(change: () => void) {
+  window.addEventListener('resize', change);
+  return () => window.removeEventListener('resize', change);
+}
+function viewportWidthSnapshot() { return document.documentElement.clientWidth; }
 
 export function GpuApp() {
   const locale = useGpuStore((snapshot) => snapshot.locale);
@@ -652,6 +661,10 @@ function GpuAppContent({
     requestPreview, closePreview, stopPreview, reloadPreview } = usePreviewSession({ previewTarget, previewSummary, t });
 
   const projectPreviewSelected = state.view === 'projects' && !!selectedProject && state.projectSection === 'preview';
+  // The renderer asks `workspaceSplit` with the same viewport width, so the
+  // list narrows exactly when the reader docks; otherwise the modal opens.
+  const viewportWidth = useSyncExternalStore(subscribeViewportWidth, viewportWidthSnapshot, () => 0);
+  const dockedFileReader = workspacePreviewPath(state) !== null ? workspaceSplitForViewport(viewportWidth) : null;
   const requestedProjectPreview = useRef<string | null>(null);
   useEffect(() => {
     if (!projectPreviewSelected) {
@@ -1314,7 +1327,7 @@ function GpuAppContent({
           have done only the last of the three. */}
       {/* Stop rendering the crystal once the mobile notice covers the scene. */}
       {handheldPhase === 'white' ? null : (
-      <div className="gpu-scene-host" inert={!!state.filePreview || (previewOpen && !projectPreviewSelected && requestedProjectPreview.current === null) || handheldPhase !== 'idle' || appearanceTransition.phase !== 'idle'}>
+      <div className="gpu-scene-host" inert={(!!state.filePreview && !dockedFileReader) || (previewOpen && !projectPreviewSelected && requestedProjectPreview.current === null) || handheldPhase !== 'idle' || appearanceTransition.phase !== 'idle'}>
       <CubeTurnPlane mode={state.sceneCameraMode} navigation={sceneNavigation}>
       <SceneCameraPlane mode={state.sceneCameraMode} onSettled={cameraSettled}>
         <GpuSurface
@@ -1418,12 +1431,16 @@ function GpuAppContent({
           }
         />
         {projectPreviewSelected && previewPlane}
+        {state.filePreview && dockedFileReader && <FilePreview key={`${state.filePreview.projectId}:${state.filePreview.runId}`}
+          target={state.filePreview} t={t} locale={state.locale} onClose={() => useGpuStore.getState().previewFile(null)}
+          docked={{ readerX: dockedFileReader.readerX,
+            veiled: state.accountMenuOpen || state.localeMenuOpen || state.notificationsMenuOpen }} />}
         <SceneTuningPanel />
       </SceneCameraPlane>
       </CubeTurnPlane>
       </div>
       )}
-      {state.filePreview && <FilePreview key={`${state.filePreview.projectId}:${state.filePreview.runId}:${state.filePreview.path}`}
+      {state.filePreview && !dockedFileReader && <FilePreview key={`${state.filePreview.projectId}:${state.filePreview.runId}:${state.filePreview.path}`}
         target={state.filePreview} t={t} locale={state.locale} onClose={() => useGpuStore.getState().previewFile(null)} />}
       {!projectPreviewSelected && requestedProjectPreview.current === null && previewPlane}
       <AtomaCursor />

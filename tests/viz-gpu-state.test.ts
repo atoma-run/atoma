@@ -326,6 +326,31 @@ describe('full-GL Zustand scene state', () => {
     });
   });
 
+  // A docked reader leaves the scene live, so navigation can now happen with
+  // a file open: it must close with the screen it belongs to, or it would
+  // reopen as a modal over the next one.
+  it('closes an open file when its screen is left, and keeps it across folders and camera poses', () => {
+    const reading = { projectId: 'project-a', runId: 'run-a', path: 'src/app.ts' };
+    const open = () => useGpuStore.setState({ view: 'projects', sceneCameraMode: 'focus', selectedProjectId: 'project-a',
+      projectSection: 'files', workspaceRunId: 'run-a', filePreview: reading });
+    const store = () => useGpuStore.getState();
+    open(); store().selectWorkspacePath('src');
+    expect(store().filePreview).toBe(reading);
+    store().activateCrystal();
+    expect(store().filePreview).toBe(reading);
+    for (const leave of [
+      () => store().selectProjectSection('runs'),
+      () => store().selectProjectSection('files', 'run-a'),
+      () => store().openWorkspace(null),
+      () => store().selectProject('project-b'),
+      () => store().setView('runs'),
+      () => store().activateView('docs'),
+    ]) {
+      open(); leave();
+      expect(store().filePreview).toBeNull();
+    }
+  });
+
   it('opens the end-user guide on quick start and resets scroll between topics', () => {
     expect(useGpuStore.getState().selectedDocsTheme).toBe('quick');
     useGpuStore.setState((state) => ({

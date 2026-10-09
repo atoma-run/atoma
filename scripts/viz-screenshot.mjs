@@ -99,6 +99,13 @@ if (assistantLinksProbe && (!authed || !selectFirst || !arg('--url'))) {
   throw new Error('--assistant-links-probe needs --auth --select-first --url <frontend URL>');
 }
 const projectTabsProbe = has('--project-tabs-probe');
+const filesProbe = has('--files-probe');
+// The saved workspace `--files-probe` browses: one root file and a folder.
+const probeFiles = {
+  'README.md': '# Stopwatch\n\nStart, stop and reset, shown as mm:ss.cc.',
+  'src/app.js': 'export function startStopwatch(clock) {\n  return clock.now();\n}\n',
+  'src/styles.css': 'body { font-family: system-ui; }\n',
+};
 const showAssistant = has('--assistant') || assistantReconnect || assistantEmpty || assistantOwnAgent || assistantHistory || assistantModelProbe || assistantLinksProbe;
 const assistantFixture = {
   choices: [{ id: 'own:anthropic:haiku', model: 'own:anthropic:haiku', label: 'Claude · Haiku (beta)', payer: 'principal-subscription' }], nextBefore: null, available: true, model: 'api:anthropic:claude-haiku-4-5-20251001', busy: false, run: null,
@@ -799,6 +806,20 @@ try {
               return;
             }
           }
+          if (filesProbe && path.endsWith('/workspace')) {
+            const params = new URL(request.url()).searchParams;
+            const runId = path.split('/').at(-2);
+            if (params.get('format') === 'bytes') {
+              const text = probeFiles[params.get('path')];
+              void request.respond(text === undefined ? { status: 404, body: '' }
+                : { status: 200, contentType: 'application/octet-stream', body: text });
+            } else {
+              void request.respond({ status: 200, contentType: 'application/json', headers: { 'cache-control': 'no-store' },
+                body: JSON.stringify({ runId, createdAt: '2026-08-20T00:00:59.000Z', status: 'delivered',
+                  files: Object.entries(probeFiles).map(([file, text]) => ({ path: file, size: Buffer.byteLength(text) })) }) });
+            }
+            return;
+          }
           if (githubAccessProbe && path.endsWith('/github-access')) {
             const runs = stubs[path.slice(0, path.lastIndexOf('/runs/') + 5)];
             runs[0].githubAccess.resumedRunId = 'eeeeeeee-1111-4222-8333-ffffffffffff';
@@ -1373,6 +1394,41 @@ try {
       await page.$eval('#assistant-message', node => { node.focus(); node.select(); });
       await page.keyboard.press('Backspace');
       console.log('Project tabs: real canvas switches, separate run list, conversation draft retained');
+    }
+
+    if (filesProbe) {
+      if (!authed || !selectFirst || view !== 'Projects') throw new Error('--files-probe requires --auth --select-first and the Projects view');
+      // Real canvas clicks: the list is GPU, the reader is DOM.
+      const clickTarget = async id => {
+        await page.waitForFunction(key => globalThis.__ATOMA_GPU__?.hitTargets().some(entry => entry.id === key),
+          { timeout: READY_TIMEOUT_MS }, id);
+        const point = await page.evaluate(async key => {
+          await new Promise(resolveWait => requestAnimationFrame(() => requestAnimationFrame(resolveWait)));
+          const handle = globalThis.__ATOMA_GPU__;
+          const target = handle.hitTargets().find(entry => entry.id === key);
+          return handle.projectRendererPoint(target.x + Math.min(target.width / 2, 80), target.y + target.height / 2);
+        }, id);
+        await page.mouse.click(point.x, point.y);
+      };
+      const reads = text => page.waitForFunction(expected => [...document.querySelectorAll('.gpu-preview-frame')]
+        .some(frame => frame.contentDocument?.body?.textContent?.includes(expected)), { timeout: READY_TIMEOUT_MS }, text);
+      await clickTarget('project.section.files');
+      await clickTarget('workspace.path.README.md');
+      await reads('Start, stop and reset');
+      if (await page.$('.gpu-workspace-reader')) {
+        if (await page.$eval('.gpu-scene-host', host => host.inert)) throw new Error('A docked reader left the scene inert');
+        await page.evaluate(() => { globalThis.__probeReader = document.querySelector('.gpu-workspace-reader iframe'); });
+        await clickTarget('workspace.path.src');
+        await clickTarget('workspace.path.src/app.js');
+        await reads('startStopwatch');
+        if (!await page.evaluate(() => document.querySelector('.gpu-workspace-reader iframe') === globalThis.__probeReader)) {
+          throw new Error('Switching files remounted the docked reader');
+        }
+        console.log('Files reader: docked beside the list; README.md then src/app.js read in one document through canvas clicks');
+      } else {
+        if (!await page.$eval('.gpu-scene-host', host => host.inert)) throw new Error('The modal reader left the scene live');
+        console.log('Files reader: modal, the column is too narrow to dock it');
+      }
     }
 
     if (accountMenu) {

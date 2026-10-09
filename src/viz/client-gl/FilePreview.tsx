@@ -1,5 +1,5 @@
 import type { FilePreviewTarget } from './workspace-browser.js';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import type { FileViewer } from '@open-file-viewer/core';
 import { MAX_WORKSPACE_FILE_BYTES } from '../../contracts/workspaceBrowser.js';
 import { ButtonIcon } from './ButtonIcon.js';
@@ -17,12 +17,20 @@ const DOCUMENT = `<!doctype html><html style="height:100%;background:#0b101f"><h
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'none'; img-src blob: data: https://*.tile.openstreetmap.org; media-src blob: data:; frame-src blob:; style-src 'unsafe-inline'; font-src blob: data:; base-uri 'none'; form-action 'none'">
 </head><body style="margin:0;height:100%"><div id="viewer" style="height:100vh"></div></body></html>`;
 
-export function FilePreview({ target, t, locale, onClose }: {
+/**
+ * A modal over the inert scene, or — `docked` — the Files section's second
+ * column beside the GPU list, so the next file is one click away. Docked, it
+ * is a region, not a dialog: it neither takes focus nor claims Escape from
+ * the page, and one mount reads file after file in the same document.
+ */
+export function FilePreview({ target, t, locale, onClose, docked }: {
   target: FilePreviewTarget;
   t: (key: string, vars?: Record<string, unknown>) => string;
   locale: Locale;
   onClose: () => void;
+  docked?: { readerX: number; veiled: boolean };
 }) {
+  const isDocked = !!docked;
   const frame = useRef<HTMLIFrameElement>(null);
   const close = useRef<HTMLButtonElement>(null);
   const [documentReady, setDocumentReady] = useState(false);
@@ -38,13 +46,14 @@ export function FilePreview({ target, t, locale, onClose }: {
     doc.documentElement.dir = localeDirection(locale);
   }, [documentReady, locale]);
   useEffect(() => {
+    if (isDocked) return;
     const previous = document.activeElement;
     close.current?.focus();
     return () => { if (previous instanceof HTMLElement && previous.isConnected) previous.focus(); };
-  }, []);
+  }, [isDocked]);
   useEffect(() => {
     const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', escape);
+    if (!isDocked) window.addEventListener('keydown', escape);
     const child = frame.current?.contentWindow;
     const blockNavigation = (event: MouseEvent) => {
       const anchor = (event.target as Element | null)?.closest?.('a[href]');
@@ -54,7 +63,7 @@ export function FilePreview({ target, t, locale, onClose }: {
     childDocument?.addEventListener('click', blockNavigation, true);
     child?.addEventListener('keydown', escape);
     return () => { window.removeEventListener('keydown', escape); child?.removeEventListener('keydown', escape); childDocument?.removeEventListener('click', blockNavigation, true); };
-  }, [onClose, documentReady]);
+  }, [onClose, documentReady, isDocked]);
   useEffect(() => {
     if (!documentReady) return;
     const controller = new AbortController();
@@ -108,8 +117,8 @@ export function FilePreview({ target, t, locale, onClose }: {
     });
     return () => { controller.abort(); viewer?.destroy(); viewerStyle?.remove(); if (url) URL.revokeObjectURL(url); };
   }, [target, t, locale, documentReady]);
-  return <div className="gpu-preview-backdrop">
-    <section className="gpu-preview-plane" role="dialog" aria-modal="true" aria-label={t('workspace.preview')}>
+  const plane = <section className="gpu-preview-plane" role={docked ? 'region' : 'dialog'} aria-modal={docked ? undefined : true}
+    aria-label={t('workspace.preview')} onKeyDown={docked ? event => { if (event.key === 'Escape') onClose(); } : undefined}>
       <header className="gpu-preview-chrome">
         <div className="gpu-preview-identity"><strong>{target.path}</strong><span>{t('workspace.snapshot')}</span></div>
         <div className="gpu-preview-actions">
@@ -120,6 +129,11 @@ export function FilePreview({ target, t, locale, onClose }: {
       {status && <p className="gpu-preview-status" role="status">{t(status)}</p>}
       <div className="gpu-preview-stage"><iframe ref={frame} className="gpu-preview-frame" title={target.path} sandbox="allow-same-origin allow-scripts"
         referrerPolicy="no-referrer" srcDoc={DOCUMENT} onLoad={() => setDocumentReady(true)} /></div>
-    </section>
-  </div>;
+    </section>;
+  // Docked, the wrapper is transparent and the view draws the frame
+  // (`drawWorkspace`); it takes the menu veil like every other view overlay.
+  return docked
+    ? <div className={`gpu-workspace-reader${docked.veiled ? ' gpu-overlays-veiled' : ''}`} inert={docked.veiled}
+      style={{ '--gpu-workspace-reader-x': `${docked.readerX}px` } as CSSProperties}>{plane}</div>
+    : <div className="gpu-preview-backdrop">{plane}</div>;
 }
