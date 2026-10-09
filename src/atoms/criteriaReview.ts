@@ -55,7 +55,15 @@ export async function reviewAcceptanceCriteria(args: {
     let verdict;
     try { verdict = parseVerdict(response.text); }
     catch { incomplete('invalid verdict JSON'); continue; }
-    const judged = verdict.criteria ?? [];
+    // The evidence lists the whole checklist, so a batch reviewer may also
+    // judge items of OTHER batches. Those are judged in their own batch and
+    // are dropped here, never counted. Runs 299627a9 and cb3843c6 (2026-10-09)
+    // returned c1, c2 and c3 for the batch {c1, c2}, all met, and each replayed
+    // its whole workflow on "Criterion review incomplete". Ids outside the
+    // checklist still make the review incomplete.
+    const batchIds = new Set(batch.map(item => item.id));
+    const checklistIds = new Set(args.checklist.map(item => item.id));
+    const judged = (verdict.criteria ?? []).filter(j => batchIds.has(j.id) || !checklistIds.has(j.id));
     if (judged.length !== batch.length || batch.some(item => judged.filter(j => j.id === item.id).length !== 1) ||
       judged.some(j => !j.reason?.trim())) {
       incomplete('missing, duplicate, unknown or unexplained criterion judgments');

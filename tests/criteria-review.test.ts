@@ -136,6 +136,53 @@ describe('focused criterion review', () => {
     expect(reviewed.criteria.every(c => !c.met && c.reason?.includes('no implementation defect'))).toBe(true);
   });
 
+  // Runs 299627a9 and cb3843c6 (2026-10-09): the evidence lists the whole
+  // checklist, the batch {c1, c2} answered c1, c2 and c3, all met, and each run
+  // replayed its whole workflow on "Criterion review incomplete".
+  const three = [...checklist, { id: 'c7', behaviour: 'README.md documents the reserve cards.', check: { kind: 'review' as const } }];
+  const observed = (ids: string[], value = true) => ids.map(id => ({ id, met: value, reason: `Observed evidence for ${id}.` }));
+
+  it('drops judgments of other batches instead of calling the review incomplete', async () => {
+    const ctx = makeCtx();
+    ctx.llm.enqueue(reply(observed(['c4', 'c6', 'c7'])));
+    ctx.llm.enqueue(reply(observed(['c7'])));
+    const reviewed = await reviewAcceptanceCriteria({ ctx, task, checklist: three, evidence: 'host evidence' });
+    expect(reviewed).toMatchObject({ approved: true, reasoning: '' });
+    expect(reviewed.criteria.map(c => c.id)).toEqual(['c4', 'c6', 'c7']);
+    expect(ctx.llm.calls).toHaveLength(2);
+  });
+
+  it('never lets an out-of-batch judgment stand in for its own batch', async () => {
+    const ctx = makeCtx();
+    // c7 judged unmet out of turn and met in its own batch: only its own batch counts.
+    ctx.llm.enqueue(reply([...observed(['c4', 'c6']), ...observed(['c7'], false)]));
+    ctx.llm.enqueue(reply(observed(['c7'])));
+    const own = await reviewAcceptanceCriteria({ ctx, task, checklist: three, evidence: '' });
+    expect(own.criteria.find(c => c.id === 'c7')?.met).toBe(true);
+    // A batch that skips one of its own ids stays incomplete, whatever else it judged.
+    const skipped = makeCtx();
+    skipped.llm.enqueue(reply(observed(['c4', 'c7'])));
+    skipped.llm.enqueue(reply(observed(['c7'])));
+    const incomplete = await reviewAcceptanceCriteria({ ctx: skipped, task, checklist: three, evidence: '' });
+    expect(incomplete.approved).toBe(false);
+    expect(incomplete.criteria.filter(c => c.id !== 'c7').every(c => !c.met && c.reason?.includes('no implementation defect'))).toBe(true);
+  });
+
+  it('accepts a supported root delivery whose first focused batch over-answers', async () => {
+    const ctx = makeCtx();
+    ctx.llm.enqueue(reply(observed(['c4', 'c6', 'c7'])));
+    ctx.llm.enqueue(req => {
+      // The production evidence shows every criterion, which is what invites the extra judgment.
+      expect(req.userContent).toContain('README.md documents the reserve cards.');
+      return reply(observed(['c4', 'c6', 'c7']));
+    });
+    ctx.llm.enqueue(reply(observed(['c7'])));
+    const accepted = await acceptRootResult({ actor, task, result: { ...result, output: {} }, ctx,
+      floor: [], phaseCoverage: [], checklist: three, checklistOrigin: { source: 'user' } });
+    expect(accepted.approved).toBe(true);
+    expect(accepted.checklist?.map(item => item.judgement?.met)).toEqual([true, true, true]);
+  });
+
   it('rejects a truncated but parseable response without retrying or inventing proof', async () => {
     const ctx = makeCtx();
     ctx.llm.enqueue({ ...reply(met), stopReason: 'max_tokens' });
