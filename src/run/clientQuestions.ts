@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
-import { answerClientQuestionSchema, clientQuestionRecordSchema, clientAnswerContextSchema,
+import { answerClientQuestionSchema, clientQuestionRecordSchema, clientAnswerContextSchema, CLIENT_ANSWERS_MAX_CHARS,
   type AnswerClientQuestion, type ClientQuestion, type ClientQuestionRecord } from '../contracts/clientQuestion.js';
 import type { RunCheckpoint } from '../contracts/runCheckpoint.js';
 
@@ -52,7 +52,7 @@ export function answerClientQuestion(db: Database.Database, orgId: string, runId
     db.prepare('UPDATE run_client_questions SET answer_json=?,request_key=?,request_json=? WHERE id=? AND answer_json IS NULL')
       .run(JSON.stringify(answer), input.idempotencyKey, JSON.stringify(input), input.questionId);
     try { applyClientAnswer(db, JSON.parse(boundary.payload) as RunCheckpoint); }
-    catch { throw new ClientQuestionConflict('Answer cannot be recorded in this checkpoint; shorten it if the 24000-character history budget is exhausted'); }
+    catch { throw new ClientQuestionConflict(`Answer cannot be recorded in this checkpoint; shorten it if the ${CLIENT_ANSWERS_MAX_CHARS}-character history budget is exhausted`); }
     return { question: { ...question, answer }, created: true };
   }).immediate();
 }

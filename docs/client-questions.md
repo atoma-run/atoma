@@ -92,8 +92,11 @@ question gets its own immutable record.
 
 Answer text is limited to 2,000 characters; accumulated answer context is limited
 to 32 answers and 24,000 encoded characters. Oversized answers are refused
-atomically, never silently shortened. A lineage exhausting these bounds needs
-a new scoped run. Waiting consumes no execution time or tokens; already consumed
+atomically, never silently shortened. Both bounds are checked before a
+question is asked, the characters with room for the largest answer the
+question admits (its longest option and a full text), so a question is never
+asked into a history that could not record its answer. A lineage exhausting
+these bounds needs a new scoped run. Waiting consumes no execution time or tokens; already consumed
 spend and the remaining execution budget carry into the resumed segment.
 
 ## Deliberate limits and adversarial review

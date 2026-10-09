@@ -489,6 +489,43 @@ describe('durable sequential run continuation', () => {
     expect(store.clientQuestion('o', id)).toBeNull();
   });
 
+  // Code review 2026-10-09, 2.4: only the count (32) was checked before a
+  // question was asked, not the 24000-character budget. A few long answers
+  // filled the history, the question was asked, and no answer could then be
+  // recorded, a plain option included: the run could only be cancelled.
+  it('does not ask a client question the answer history has no characters left to record', async () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'atoma-checkpoint-history-'))); roots.push(root);
+    const workspace = join(root, 'workspace');
+    mkdirSync(workspace);
+    writeFileSync(join(workspace, 'index.html'), '<p>hi</p>');
+    const store = new RunCheckpointStore(join(root, 'atoma.db'));
+    const id = randomUUID();
+    const data = {
+      version: 1, id, scope: { orgId: 'o', projectId: 'p', principalId: 'u', runId: id }, goal: 'g', workspace,
+      policy: '{}', actor: { name: 'Meristem', atomId: 'a', version: 1 }, checklist: [], root: null, completed: [],
+      workspaceDigest: null, processes: [], consumed: { tokens: 0, costUsd: 0 }, remainingMs: 600_000, lastRunId: null,
+    };
+    // Eight answers, far below the 32-entry count, about 22000 encoded characters.
+    const clientAnswers = Array.from({ length: 8 }, () => ({
+      questionId: randomUUID(), question: 'q'.repeat(600), selectedOption: null, text: 't'.repeat(2000),
+      principalId: randomUUID(), at: new Date().toISOString(),
+    }));
+    expect(JSON.stringify(clientAnswers).length).toBeLessThan(24_000);
+    let asked = 0;
+    await withRecoveryEffects(async () => {
+      const cp = new SequentialCheckpoint(data as never, store, {
+        fresh: true, automatic: true, account: () => ({ tokens: 1, costUsd: 0.1 }), deadlineAt: Date.now() + 600_000,
+        settle: async () => {}, processes: () => [], warn: () => {}, drain: () => Promise.resolve(),
+        assessClientQuestion: () => { asked++; return Promise.resolve({ question: 'Which database should the app use?', whyClient: 'w', missingDecision: 'm', options: [
+          { id: 'a', label: 'SQLite', consequence: 'file' }, { id: 'b', label: 'Postgres', consequence: 'server' }] }); },
+      });
+      cp.planned({ description: 'g', inputs: { clientAnswers } }, { subtasks: [{}, {}], aggregation: { mode: 'sequential' } } as never, {}, 2);
+      await expect(cp.beforePhase(0, {} as never)).rejects.toThrow('Client answer history is full; start a new scoped run');
+    });
+    expect(asked).toBe(1);
+    expect(store.clientQuestion('o', id)).toBeNull();
+  });
+
   // Code review 2026-10-09, 1.4: the saved root actor is checked after the
   // successor claimed the continuation, and the successor's own catalog
   // seeding can move Meristem's version. The refusal consumed the source for

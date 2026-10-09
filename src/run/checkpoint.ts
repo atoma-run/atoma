@@ -1,5 +1,5 @@
 import { initializeClientQuestions, readClientQuestion, recordClientQuestion, answerClientQuestion, applyClientAnswer } from './clientQuestions.js';
-import type { AnswerClientQuestion, ClientQuestion } from '../contracts/clientQuestion.js';
+import { clientAnswerHistoryHasRoom, type AnswerClientQuestion, type ClientQuestion } from '../contracts/clientQuestion.js';
 import type { Task, SubtaskSpec } from '../core/types.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, realpathSync } from 'node:fs';
@@ -361,8 +361,9 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
       const question = await this.options.assessClientQuestion({ description: this.data.goal, inputs: this.data.root?.inputs }, next,
         this.data.completed.map(result => ({ ...result, trace: [] })));
       if (question) {
-        const answers = this.data.root?.inputs?.['clientAnswers'];
-        if (Array.isArray(answers) && answers.length >= 32) throw new Error('Client answer history is full; start a new scoped run');
+        if (!clientAnswerHistoryHasRoom(this.data.root?.inputs?.['clientAnswers'], question)) {
+          throw new Error('Client answer history is full; start a new scoped run');
+        }
         await this.options.settle();
         // Same degradation as afterPhase (code review 2026-10-09, 1.6): content
         // the snapshot refuses (an oversized file, an escaping link) disables
