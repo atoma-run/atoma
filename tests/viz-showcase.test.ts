@@ -314,7 +314,7 @@ describe('classification and grouping', () => {
     expect(kind(['weaving-pattern.svg', 'threading.md'])).toBe('media');
   });
 
-  it('classifies the delivered Last Cabinet EPUB ahead of its cover and source files', () => {
+  it('classifies the delivered Futures Cabinet EPUB ahead of its cover and source files', () => {
     expect(kind([
       'build_epub.py', 'futures-cabinet.epub', 'inventory.json', 'README.md', 'scene-graph.json',
       'source/EPUB/container.xml', 'source/EPUB/cover.svg', 'source/EPUB/cover.xhtml',
@@ -339,7 +339,7 @@ describe('classification and grouping', () => {
   });
 
   it.each([
-    ['bdf', 'typefaces'], ['otf', 'typefaces'], ['ttf', 'typefaces'], ['wif', 'textiles'],
+    ['bdf', 'typefaces'], ['wif', 'textiles'],
     ['epub', 'books'],
     ['stl', 'models'], ['3mf', 'models'], ['step', 'models'], ['stp', 'models'],
   ])('recognizes .%s artifacts without relabelling software that bundles them', (extension, expectedKind) => {
@@ -349,6 +349,23 @@ describe('classification and grouping', () => {
       expect(kind([`app/${marker}`, artifact, 'specimen.svg'])).toBe('software');
     }
     expect(kind([artifact], 'text')).toBe('answers');
+  });
+
+  it('treats an outline font as a typeface only beside the sources it was built from', () => {
+    // Alone, OTF/TTF are what a report, a poster or an app bundles, as WOFF is.
+    expect(kind(['report.pdf', 'fonts/Body.ttf'])).toBe('reports');
+    expect(kind(['poster.svg', 'fonts/Display.OTF'])).toBe('media');
+    expect(kind(['artifacts/Example.TTF', 'specimen.png'])).toBe('media');
+    for (const source of ['sources/Orchard.glyphs', 'sources/Orchard.designspace', 'Orchard.sfd', 'features.fea',
+      'sources/Orchard-Regular.ufo/fontinfo.plist', 'sources/Orchard.glyphspackage/fontinfo.plist']) {
+      expect(kind(['fonts/ttf/Orchard-Regular.ttf', source, 'specimen.pdf'])).toBe('typefaces');
+      expect(kind(['fonts/otf/Orchard-Regular.otf', source, 'specimen.png'])).toBe('typefaces');
+      // Sources without a compiled font deliver no typeface; software keeps its bundled fonts.
+      expect(kind([source, 'README.md'])).toBe('reports');
+      expect(kind(['app/package.json', 'fonts/ttf/Orchard-Regular.ttf', source])).toBe('software');
+    }
+    // A name ending like a source directory is not one unless it is a directory.
+    expect(kind(['notes.ufo', 'fonts/Body.ttf'])).toBe('reports');
   });
 
   it('does not treat webfont assets, font prose or misleading suffixes as a typeface delivery', () => {
