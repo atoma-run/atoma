@@ -60,7 +60,7 @@ Neighbours:
   forces review. Explicit proof floors require an executed DOM interaction
   bound to the named, still-unchanged file in the accepted attempt. A run
   without a floor always receives semantic review; a recorded root text plan uses
-  `modelForTier(2)`, others `modelForTier(1)`. Text always receives review. The contract has no
+  `modelForTier(2)`, others `modelForTier(1)`. Text always receives review. A complete pass whose root plan declared no delivery (the prefilter's) is `observedDelivery`: text when no attested write, edit or shell call, never a blind file review; the depth runner records it in the declared manifest (code review 2026-10-09, 1.2). The contract has no
   universal `index.html` floor: APIs and CLIs are first-class deliverables.
   File deliveries with covered floors and no findings retain mechanical acceptance.
   Text review derives a bounded L2 reference blinded to the current answer, plan and remediation (`textReview.ts`).

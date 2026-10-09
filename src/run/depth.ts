@@ -1,11 +1,11 @@
 import { EARLIER_LISTED_INPUT } from '../contracts/inheritedChecks.js';
 import type { Atom } from '../core/atom.js';
 import { setMaxListeners } from 'node:events';
-import type { Result, RunContext, Task, ToolExecutor } from '../core/types.js';
+import type { Plan, Result, RunContext, Task, ToolExecutor } from '../core/types.js';
 import type { DeliveryKind } from '../contracts/taskExecution.js';
 import { attestingExecutor, createAttestationLog } from '../core/attestation.js';
 import { abortedForLanding, finalizationSignal, landingSignal, withinSignal } from '../atoms/cost.js';
-import { acceptRootResult } from '../atoms/rootAcceptance.js';
+import { acceptRootResult, observedDelivery } from '../atoms/rootAcceptance.js';
 import { outOfPhaseBudget } from '../core/limits.js';
 import type { AcceptanceInfo, DepthMode, PhaseCoverageRecord, ProofFloor, TopologyInfo } from '../contracts/depthRouting.js';
 import { checklistPlanningLines, type AcceptanceChecklist, type ChecklistSource } from '../contracts/acceptanceChecklist.js';
@@ -279,9 +279,11 @@ export async function runDepthTask(args: {
         try {
           let result: Result;
           let delivery: DeliveryKind | undefined;
+          let rootPlan: Plan | undefined;
           let rootPhases: readonly string[] = [];
           const passCtx: RunContext = { ...attemptCtx, deferredLearning: { defer: (learn) => { lessons.push(learn); } },
             recordRootPlan: (plan) => {
+              rootPlan = plan;
               delivery = plan.delivery;
               rootPhases = plan.subtasks.map((subtask) => subtask.description);
               attemptCtx.recordRootPlan?.(plan);
@@ -334,10 +336,18 @@ export async function runDepthTask(args: {
           const acceptanceCtx: RunContext = { ...attemptCtx,
             signal: AbortSignal.any([...(bound ? [bound] : []), cancellation.signal, explicitCancellation.signal]),
           };
+          // A COMPLETE pass whose root plan declared no delivery (the cell's
+          // prefilter shortcut builds its plan in code) is judged as what the
+          // pass did, and the declared manifest records it: undeclared read as
+          // files, so a text answer went to the report-blind criteria review and
+          // publication read it as an empty file delivery (code review
+          // 2026-10-09, 1.2). A landing keeps its own protocol.
+          const judged = rootPlan && !delivery && !landed ? observedDelivery(attemptCtx) : delivery;
+          if (rootPlan && judged !== delivery) attemptCtx.recordRootPlan?.({ ...rootPlan, delivery: judged });
           let acceptance: AcceptanceInfo;
           try {
             acceptance = await withinSignal(acceptRootResult({ actor, task: currentTask, result, ctx: acceptanceCtx,
-              ...(delivery ? { delivery } : {}),
+              ...(judged ? { delivery: judged } : {}),
               floor: args.floor, phaseCoverage, ...(args.checklist ? { checklist: args.checklist } : {}),
               ...(args.checklistOrigin ? { checklistOrigin: args.checklistOrigin } : {}),
               // The refused pass's own record: a remediation's acceptance must

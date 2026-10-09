@@ -426,6 +426,21 @@ async function baselineOnly(
   };
 }
 
+/**
+ * What a complete pass whose root plan declared no delivery delivered, read
+ * from what the attempt did (code review 2026-10-09, 1.2). The cell's
+ * prefilter shortcut builds its root plan in code, so it never declares one,
+ * and undeclared read as files: a short-depth text answer went to the
+ * report-blind criteria review, which never sees it, and was refused. Only an
+ * attempt with no attested element that can change the workspace delivered
+ * text; a shell call may have written files, so it keeps the file review.
+ */
+export function observedDelivery(ctx: RunContext): DeliveryKind {
+  const changing = ['write_file', 'edit_file', 'run_shell', 'record_probe'];
+  return (ctx.attestations?.forAttempt(ctx.attempt ?? 1) ?? []).some((record) => changing.includes(record.tool))
+    ? 'files' : 'text';
+}
+
 /** A delivery verdict only: no registry, learning hook, or remediation lives here. */
 export async function acceptRootResult(args: {
   actor: Atom; task: Task; result: Result; ctx: RunContext; floor: ProofFloor;
