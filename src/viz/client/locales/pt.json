@@ -268,8 +268,8 @@
   "login.notice.invitationRequired": "Esta conta não foi convidada para esta instância.",
   "login.notice.providerFailure": "Não foi possível concluir o início de sessão. Se utilizou um convite, reabra a ligação original antes de tentar novamente.",
   "login.notice.githubConnectExpired": "A transação de ligação ao GitHub expirou ou foi repetida — recomece.",
-  "projects.runsHeading_one": "",
-  "projects.runsHeading_other": "",
+  "projects.runsHeading_one": "{{count}} run até agora neste projeto",
+  "projects.runsHeading_other": "{{count}} runs até agora neste projeto",
   "projects.cardCreated": "Criado em {{date}}",
   "projects.cardRuns_one": "{{count}} run",
   "projects.cardRuns_other": "{{count}} runs",
@@ -1765,5 +1765,6 @@
   "liveRuns.empty": "Não há runs em execução nas organizações.",
   "liveRuns.started": "Iniciado {{at}}",
   "liveRuns.open": "Acompanhar run",
-  "liveRuns.preparing": "A preparar — o rastreio do run ainda não está disponível."
+  "liveRuns.preparing": "A preparar — o rastreio do run ainda não está disponível.",
+  "runs.backToProject": "Voltar ao projeto"
 }

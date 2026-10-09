@@ -268,8 +268,8 @@
   "login.notice.invitationRequired": "Esta cuenta no ha sido invitada a esta instancia.",
   "login.notice.providerFailure": "No se pudo completar el inicio de sesión. Si usaste una invitación, vuelve a abrir su enlace original antes de intentarlo de nuevo.",
   "login.notice.githubConnectExpired": "La transacción de conexión con GitHub caducó o se reutilizó. Empieza de nuevo.",
-  "projects.runsHeading_one": "",
-  "projects.runsHeading_other": "",
+  "projects.runsHeading_one": "{{count}} run hasta ahora en este proyecto",
+  "projects.runsHeading_other": "{{count}} runs hasta ahora en este proyecto",
   "projects.cardCreated": "Creado el {{date}}",
   "projects.cardRuns_one": "{{count}} run",
   "projects.cardRuns_other": "{{count}} runs",
@@ -1765,5 +1765,6 @@
   "liveRuns.empty": "No hay runs en curso en ninguna organización.",
   "liveRuns.started": "Iniciado {{at}}",
   "liveRuns.open": "Seguir run",
-  "liveRuns.preparing": "Preparando — el seguimiento del run aún no está disponible."
+  "liveRuns.preparing": "Preparando — el seguimiento del run aún no está disponible.",
+  "runs.backToProject": "Volver al proyecto"
 }

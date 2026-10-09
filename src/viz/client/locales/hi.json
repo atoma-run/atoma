@@ -268,8 +268,8 @@
   "login.notice.invitationRequired": "इस अकाउंट को इस इंस्टेंस पर आमंत्रित नहीं किया गया है।",
   "login.notice.providerFailure": "लॉगिन पूरा नहीं किया जा सका। यदि आपने आमंत्रण का उपयोग किया था, तो फिर से कोशिश करने से पहले उसका मूल लिंक दोबारा खोलें।",
   "login.notice.githubConnectExpired": "GitHub कनेक्ट ट्रांज़ैक्शन की समय-सीमा समाप्त हो गई या उसे दोबारा चलाया गया — फिर से शुरू करें।",
-  "projects.runsHeading_one": "",
-  "projects.runsHeading_other": "",
+  "projects.runsHeading_one": "इस प्रोजेक्ट में अब तक {{count}} run",
+  "projects.runsHeading_other": "इस प्रोजेक्ट में अब तक {{count}} run",
   "projects.cardCreated": "{{date}} को बनाया गया",
   "projects.cardRuns_one": "{{count}} run",
   "projects.cardRuns_other": "{{count}} runs",
@@ -1765,5 +1765,6 @@
   "liveRuns.empty": "फ़िलहाल किसी भी संगठन में कोई run नहीं चल रहा है।",
   "liveRuns.started": "{{at}} को शुरू हुआ",
   "liveRuns.open": "run को फ़ॉलो करें",
-  "liveRuns.preparing": "तैयार किया जा रहा है — run ट्रेस अभी उपलब्ध नहीं है।"
+  "liveRuns.preparing": "तैयार किया जा रहा है — run ट्रेस अभी उपलब्ध नहीं है।",
+  "runs.backToProject": "प्रोजेक्ट पर वापस जाएँ"
 }

@@ -268,8 +268,8 @@
   "login.notice.invitationRequired": "Dieses Konto wurde nicht zu dieser Instanz eingeladen.",
   "login.notice.providerFailure": "Die Anmeldung konnte nicht abgeschlossen werden. Falls Sie eine Einladung verwendet haben, öffnen Sie vor einem erneuten Versuch den ursprünglichen Link.",
   "login.notice.githubConnectExpired": "Der GitHub-Verbindungsvorgang ist abgelaufen oder wurde erneut verwendet — starten Sie neu.",
-  "projects.runsHeading_one": "",
-  "projects.runsHeading_other": "",
+  "projects.runsHeading_one": "Bisher {{count}} run in diesem Projekt",
+  "projects.runsHeading_other": "Bisher {{count}} runs in diesem Projekt",
   "projects.cardCreated": "Erstellt {{date}}",
   "projects.cardRuns_one": "{{count}} Run",
   "projects.cardRuns_other": "{{count}} Runs",
@@ -1765,5 +1765,6 @@
   "liveRuns.empty": "Derzeit laufen keine runs in den Organisationen.",
   "liveRuns.started": "Gestartet {{at}}",
   "liveRuns.open": "run verfolgen",
-  "liveRuns.preparing": "Vorbereitung läuft — der run-Verlauf ist noch nicht verfügbar."
+  "liveRuns.preparing": "Vorbereitung läuft — der run-Verlauf ist noch nicht verfügbar.",
+  "runs.backToProject": "Zurück zum Projekt"
 }

@@ -268,8 +268,8 @@
   "login.notice.invitationRequired": "此账户尚未获邀加入此实例。",
   "login.notice.providerFailure": "无法完成登录。如果您使用了邀请，请先重新打开原始邀请链接再重试。",
   "login.notice.githubConnectExpired": "GitHub 连接事务已过期或被重放——请重新开始。",
-  "projects.runsHeading_one": "",
-  "projects.runsHeading_other": "",
+  "projects.runsHeading_one": "此项目目前有 {{count}} 个 run",
+  "projects.runsHeading_other": "此项目目前有 {{count}} 个 run",
   "projects.cardCreated": "创建于 {{date}}",
   "projects.cardRuns_one": "{{count}} 个 run",
   "projects.cardRuns_other": "{{count}} 个 run",
@@ -1765,5 +1765,6 @@
   "liveRuns.empty": "所有组织中目前均无正在运行的 run。",
   "liveRuns.started": "开始于 {{at}}",
   "liveRuns.open": "跟踪 run",
-  "liveRuns.preparing": "正在准备—run 跟踪记录尚不可用。"
+  "liveRuns.preparing": "正在准备—run 跟踪记录尚不可用。",
+  "runs.backToProject": "返回项目"
 }

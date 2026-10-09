@@ -268,8 +268,8 @@
   "login.notice.invitationRequired": "このアカウントはこのインスタンスに招待されていません。",
   "login.notice.providerFailure": "ログインを完了できませんでした。招待を使用した場合は、元のリンクを再度開いてからやり直してください。",
   "login.notice.githubConnectExpired": "GitHub接続トランザクションが期限切れか、再利用されました—最初からやり直してください。",
-  "projects.runsHeading_one": "",
-  "projects.runsHeading_other": "",
+  "projects.runsHeading_one": "このプロジェクトでこれまでに{{count}}件のrun",
+  "projects.runsHeading_other": "このプロジェクトでこれまでに{{count}}件のrun",
   "projects.cardCreated": "{{date}}に作成",
   "projects.cardRuns_one": "{{count}} run",
   "projects.cardRuns_other": "{{count}} runs",
@@ -1765,5 +1765,6 @@
   "liveRuns.empty": "現在、組織全体で実行中のrunはありません。",
   "liveRuns.started": "{{at}}に開始",
   "liveRuns.open": "runを追跡",
-  "liveRuns.preparing": "準備中—runのトレースはまだ利用できません。"
+  "liveRuns.preparing": "準備中—runのトレースはまだ利用できません。",
+  "runs.backToProject": "プロジェクトに戻る"
 }

@@ -268,8 +268,8 @@
   "login.notice.invitationRequired": "Эта учётная запись не приглашена в этот экземпляр.",
   "login.notice.providerFailure": "Не удалось завершить вход. Если вы использовали приглашение, снова откройте исходную ссылку приглашения и повторите попытку.",
   "login.notice.githubConnectExpired": "Транзакция подключения GitHub истекла или была использована повторно — начните заново.",
-  "projects.runsHeading_one": "",
-  "projects.runsHeading_other": "",
+  "projects.runsHeading_one": "Пока в этом проекте {{count}} run",
+  "projects.runsHeading_other": "Количество run в этом проекте: {{count}}",
   "projects.cardCreated": "Создано {{date}}",
   "projects.cardRuns_one": "{{count}} run",
   "projects.cardRuns_other": "Количество runs: {{count}}",
@@ -1765,5 +1765,6 @@
   "liveRuns.empty": "Сейчас ни в одной из организаций не выполняются run.",
   "liveRuns.started": "Запущен {{at}}",
   "liveRuns.open": "Следить за run",
-  "liveRuns.preparing": "Подготовка — трассировка run пока недоступна."
+  "liveRuns.preparing": "Подготовка — трассировка run пока недоступна.",
+  "runs.backToProject": "Назад к проекту"
 }
