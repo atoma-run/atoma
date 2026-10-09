@@ -51,33 +51,41 @@ function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-async function waitForBlockedProfile(profile: string): Promise<void> {
-  for (let attempt = 0; attempt < 100; attempt++) {
-    const release = tryAcquireCodexHomeLease(profile);
-    if (!release) return;
-    release();
+// The wrapper is a detached Node process: on a loaded CI runner its start
+// alone outlasted the former 2.5s window (run 37897585052, 2026-10-09).
+// These waits return as soon as the state is reached; only a failure waits long.
+const WRAPPER_WAIT_MS = 10_000;
+
+async function waitUntil<T>(probe: () => T | null, failure: string): Promise<T> {
+  const deadline = Date.now() + WRAPPER_WAIT_MS;
+  for (;;) {
+    const found = probe();
+    if (found !== null) return found;
+    if (Date.now() >= deadline) throw new Error(failure);
     await delay(25);
   }
-  throw new Error('wrapper did not acquire the profile lease');
+}
+
+async function waitForBlockedProfile(profile: string): Promise<void> {
+  await waitUntil(() => {
+    const release = tryAcquireCodexHomeLease(profile);
+    if (!release) return true;
+    release();
+    return null;
+  }, 'wrapper did not acquire the profile lease');
 }
 
 async function waitForAvailableProfile(profile: string): Promise<() => void> {
-  for (let attempt = 0; attempt < 120; attempt++) {
-    const release = tryAcquireCodexHomeLease(profile);
-    if (release) return release;
-    await delay(25);
-  }
-  throw new Error('wrapper did not release the profile lease');
+  return waitUntil(() => tryAcquireCodexHomeLease(profile), 'wrapper did not release the profile lease');
 }
 
 async function waitForFullCapacity(profilesRoot: string): Promise<void> {
-  for (let attempt = 0; attempt < 100; attempt++) {
+  await waitUntil(() => {
     const release = tryAcquirePersonalCodexProcessSlot(profilesRoot);
-    if (!release) return;
+    if (!release) return true;
     release();
-    await delay(25);
-  }
-  throw new Error('wrapper did not reserve a process seat');
+    return null;
+  }, 'wrapper did not reserve a process seat');
 }
 
 function fakeCodexExecutable(binRoot: string, source: string): void {
@@ -352,7 +360,9 @@ describe('Codex app-server transport', () => {
           }
         }
       }
-    }
+    },
+    // Three sequential waits, each bounded by WRAPPER_WAIT_MS.
+    40_000
   );
 
   it('holds the CODEX_HOME lease for the lifetime of an app-server connection', async () => {
