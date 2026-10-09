@@ -437,7 +437,14 @@ refresh_mender() {
     set -Eeuo pipefail
     set -a; source "$1"; set +a
     cd "$2"
-    [[ $(git remote get-url origin) == "$MENDER_REMOTE" ]] || { echo "mender checkout has another origin" >&2; exit 2; }
+    origin="$(git remote get-url origin)"
+    # The repository moved from mgtf/atoma (2026-10-08): a clone made before
+    # follows the move, any other origin is still refused.
+    if [[ $origin == https://github.com/mgtf/atoma || $origin == https://github.com/mgtf/atoma.git ]]; then
+      git remote set-url origin "$MENDER_REMOTE"
+      origin="$MENDER_REMOTE"
+    fi
+    [[ $origin == "$MENDER_REMOTE" ]] || { echo "mender checkout has another origin" >&2; exit 2; }
     [[ -z $(git status --porcelain) ]] || { echo "mender checkout is dirty; preserve and inspect it" >&2; exit 2; }
     git fetch --quiet origin main
     git checkout --quiet --detach "$MENDER_REVISION"

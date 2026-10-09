@@ -195,6 +195,39 @@ describe('post-CI deployment pipeline', () => {
     expect(hostDeploy.indexOf('docker tag "atoma-worker:${REVISION}" atoma-worker:latest')).toBeGreaterThan(stop);
   });
 
+  it('moves a mender clone made before the repository transfer onto the new origin, and still refuses any other', () => {
+    // code review 2026-10-09 2.30: the host clone kept origin on mgtf/atoma,
+    // so refresh_mender stopped the service and then failed on the origin
+    // check, and the install-mender.sh it pointed to failed the same way.
+    const install = readFileSync('deploy/install-mender.sh', 'utf8');
+    const guard = (script: string) => {
+      const start = script.indexOf('origin="$(git remote get-url origin)"');
+      const end = script.indexOf('\n', script.indexOf('has another origin', start));
+      expect(start).toBeGreaterThan(0);
+      return script.slice(start, end);
+    };
+    for (const script of [hostDeploy, install]) {
+      for (const [before, after, status] of [
+        ['https://github.com/mgtf/atoma.git', 'https://github.com/atoma-run/atoma.git', 0],
+        ['https://github.com/mgtf/atoma', 'https://github.com/atoma-run/atoma.git', 0],
+        ['https://github.com/atoma-run/atoma.git', 'https://github.com/atoma-run/atoma.git', 0],
+        ['https://github.com/someone/atoma.git', 'https://github.com/someone/atoma.git', 2],
+      ] as const) {
+        const dir = mkdtempSync(join(tmpdir(), 'atoma-mender-origin-'));
+        try {
+          expect(spawnSync('git', ['init', '--quiet', dir]).status).toBe(0);
+          expect(spawnSync('git', ['-C', dir, 'remote', 'add', 'origin', before]).status).toBe(0);
+          const ran = spawnSync('bash', ['-c', `set -Eeuo pipefail\ncd "$1"\n${guard(script)}`, 'bash', dir], {
+            encoding: 'utf8', env: { ...process.env, MENDER_REMOTE: 'https://github.com/atoma-run/atoma.git' } });
+          expect(ran.status, `${before}: ${ran.stderr}`).toBe(status);
+          expect(spawnSync('git', ['-C', dir, 'remote', 'get-url', 'origin'], { encoding: 'utf8' }).stdout.trim()).toBe(after);
+        } finally { rmSync(dir, { recursive: true, force: true }); }
+      }
+    }
+    expect(hostDeploy).toContain('MENDER_REMOTE="https://github.com/atoma-run/atoma.git"');
+    expect(install).toContain('MENDER_REMOTE=https://github.com/atoma-run/atoma.git');
+  });
+
   it('rebuilds the mender from the verified release, reinstalling only for a changed lockfile', () => {
     // 2026-09-27: `npm ci` and `tsc` took about 90 s of every deployment on
     // the 4 GB host, with the run lease held throughout.

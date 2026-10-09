@@ -48,11 +48,19 @@ runuser -u atoma -- env MENDER_REVISION="$revision" bash -c '
   set -a
   source /home/atoma/config/mender.env
   set +a
+  MENDER_REMOTE=https://github.com/atoma-run/atoma.git
   if [[ ! -d /home/atoma/mender/.git ]]; then
-    git clone https://github.com/atoma-run/atoma.git /home/atoma/mender
+    git clone "$MENDER_REMOTE" /home/atoma/mender
   fi
   cd /home/atoma/mender
-  [[ $(git remote get-url origin) == https://github.com/atoma-run/atoma.git ]] || exit 2
+  origin="$(git remote get-url origin)"
+  # The repository moved from mgtf/atoma (2026-10-08): a clone made before
+  # follows the move, any other origin is still refused.
+  if [[ $origin == https://github.com/mgtf/atoma || $origin == https://github.com/mgtf/atoma.git ]]; then
+    git remote set-url origin "$MENDER_REMOTE"
+    origin="$MENDER_REMOTE"
+  fi
+  [[ $origin == "$MENDER_REMOTE" ]] || { echo "mender checkout has another origin" >&2; exit 2; }
   [[ -z $(git status --porcelain) ]] || { echo "Mender checkout is dirty; preserve and inspect it." >&2; exit 2; }
   git fetch origin main
   git checkout --detach "$MENDER_REVISION"
