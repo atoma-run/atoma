@@ -3,11 +3,15 @@ import {
   closeSync,
   constants,
   fstatSync,
+  lchownSync,
   lstatSync,
   mkdirSync,
   openSync,
   readSync,
   readdirSync,
+  readlinkSync,
+  realpathSync,
+  symlinkSync,
   writeSync,
   type Stats,
 } from 'node:fs';
@@ -301,15 +305,77 @@ function copyRegularFileNoFollow(source: string, destination: string): number {
 }
 
 /**
+ * The link target to copy AS WRITTEN, or `null` when the link is skipped.
+ *
+ * One definition with the seed copy (`verbatimSymlinks`) and the checkpoint
+ * digest (`checkpointWorkspaceDigest`): a link is kept only when it is
+ * relative and resolves inside the workspace root. Two refusals are stricter
+ * than the checkpoint, because the copy is mounted at a different path:
+ *
+ *   - the target, read segment by segment, never climbs above the root, and
+ *     never says `..` after a name — `d/../x` is resolved by the kernel
+ *     through whatever `d` is, which no lexical reading can promise;
+ *   - the link's real path, resolved in the SOURCE, lies inside the source's
+ *     real root. That refuses a link to an escaping link, to a directory that
+ *     is itself a link out, and a dangling link nobody can vouch for.
+ *
+ * Nothing here opens a file: `readlink` and `realpath` read link strings and
+ * directory entries, never bytes, inside or outside the workspace. The string
+ * is read twice and must not change across the check, so the string that is
+ * copied is the string that was checked.
+ */
+function containedLinkTarget(
+  linkPath: string,
+  linkRelative: string,
+  realSourceRoot: string
+): string | null {
+  let target: string;
+  try {
+    target = readlinkSync(linkPath);
+  } catch {
+    return null;
+  }
+  if (target === '' || target.includes('\0') || path.isAbsolute(target)) return null;
+  let depth = linkRelative.split('/').length - 1;
+  let named = false;
+  for (const segment of target.split('/')) {
+    if (segment === '' || segment === '.') continue;
+    if (segment === '..') {
+      if (named || depth === 0) return null;
+      depth -= 1;
+    } else {
+      named = true;
+    }
+  }
+  let resolved: string;
+  try {
+    resolved = path.relative(realSourceRoot, realpathSync(linkPath));
+  } catch {
+    return null;
+  }
+  if (resolved === '..' || resolved.startsWith(`..${path.sep}`) || path.isAbsolute(resolved)) {
+    return null;
+  }
+  try {
+    return readlinkSync(linkPath) === target ? target : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Copy a delivered workspace into a fresh ephemeral directory an isolate can
  * mount read-write.
  *
  * THE ORIGINAL IS NEVER TOUCHED. The delivered workspace is the durable
  * deliverable AND the seed of the next run (`previousDeliveredWorkspace`), so
  * the app writes to the copy and the copy is deleted at teardown. Everything
- * here is `lstat`-driven: a symlink is SKIPPED rather than followed, because
- * following one would let a link inside the workspace pull bytes from outside
- * it into a directory that is about to be mounted into a container.
+ * here is `lstat`-driven and a symlink is NEVER followed: following one would
+ * let a link inside the workspace pull bytes from outside it into a directory
+ * that is about to be mounted into a container. A contained relative link
+ * (`node_modules/.bin/vitest -> ../vitest/vitest.mjs`) is recreated AS A LINK,
+ * so `npm test` finds its executables; every other link is skipped (see
+ * `containedLinkTarget`). A link counts as one file and as its target's bytes.
  *
  * Caps are refusals, not truncations. A copy that silently stopped at the cap
  * would mount a half-application and report `ready`, and the member would be
@@ -356,6 +422,24 @@ export function materializePreviewWorkspace(input: {
   let files = 0;
   let bytes = 0;
   let skipped = 0;
+  const realSource = realpathSync(source);
+
+  const count = (added: number): void => {
+    files += 1;
+    if (files > limits.maxFiles) {
+      throw new PreviewPolicyError(
+        'limit',
+        `the delivered workspace holds more than ${limits.maxFiles} files`
+      );
+    }
+    bytes += added;
+    if (bytes > limits.maxBytes) {
+      throw new PreviewPolicyError(
+        'limit',
+        `the delivered workspace exceeds ${limits.maxBytes} bytes`
+      );
+    }
+  };
 
   const walk = (relative: string, depth: number): void => {
     if (depth > MAX_COPY_DEPTH) {
@@ -392,7 +476,19 @@ export function materializePreviewWorkspace(input: {
         skipped += 1;
         continue;
       }
-      if (stat.isSymbolicLink() || (!stat.isFile() && !stat.isDirectory())) {
+      if (stat.isSymbolicLink()) {
+        const target = containedLinkTarget(childSource, childRelative, realSource);
+        if (target === null) {
+          skipped += 1;
+          continue;
+        }
+        const written = path.join(destination, ...childRelative.split('/'));
+        symlinkSync(target, written);
+        if (input.ownership) lchownSync(written, input.ownership.uid, input.ownership.gid);
+        count(Buffer.byteLength(target));
+        continue;
+      }
+      if (!stat.isFile() && !stat.isDirectory()) {
         skipped += 1;
         continue;
       }
@@ -400,25 +496,14 @@ export function materializePreviewWorkspace(input: {
         walk(childRelative, depth + 1);
         continue;
       }
-      files += 1;
-      if (files > limits.maxFiles) {
-        throw new PreviewPolicyError(
-          'limit',
-          `the delivered workspace holds more than ${limits.maxFiles} files`
-        );
-      }
+      if (files + 1 > limits.maxFiles) count(0);
       // Count what was ACTUALLY copied, not what `lstat` predicted. A file
       // that grew between the two would otherwise let the copy exceed a cap
       // the caller was told it respected.
       const written = path.join(destination, ...childRelative.split('/'));
-      bytes += copyRegularFileNoFollow(childSource, written);
+      const copied = copyRegularFileNoFollow(childSource, written);
       if (input.ownership) chownSync(written, input.ownership.uid, input.ownership.gid);
-      if (bytes > limits.maxBytes) {
-        throw new PreviewPolicyError(
-          'limit',
-          `the delivered workspace exceeds ${limits.maxBytes} bytes`
-        );
-      }
+      count(copied);
     }
   };
 

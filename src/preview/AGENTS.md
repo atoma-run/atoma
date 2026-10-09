@@ -178,9 +178,16 @@ consumers, never a second copy that drifts.
 - The delivered workspace is NEVER touched. It is the durable deliverable and
   the seed of the next run (`previousDeliveredWorkspace`), so the app writes to
   a filtered ephemeral copy that is deleted at teardown.
-- Everything is `lstat`-driven and a symlink is SKIPPED, never followed: a link
-  inside the workspace would otherwise pull bytes from outside it into a
-  directory about to be mounted into a container.
+- Everything is `lstat`-driven and a symlink is NEVER followed: a link inside
+  the workspace would otherwise pull bytes from outside it into a directory
+  about to be mounted into a container. A link is recreated AS A LINK, target
+  as written, only when it is contained — the seed's and the checkpoint's
+  definition: relative, never climbing above the root nor saying `..` after a
+  name, and resolving (real path, in the source) inside the root, so a link to
+  an escaping link or a dangling one is skipped too. Every other link is
+  SKIPPED. Skipping them all lost `node_modules/.bin`, so the terminal's
+  `npm test` answered "not found" (code review 2026-10-09, 1.9). A kept link
+  counts as one file and its target's bytes against the caps.
 - Caps are REFUSALS, not truncations. A copy that silently stopped at the cap
   would mount half an application and report `ready`, leaving the member to
   debug our bookkeeping instead of their app.

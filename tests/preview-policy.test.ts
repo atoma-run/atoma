@@ -1,9 +1,11 @@
 import {
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
+  readlinkSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -291,6 +293,59 @@ describe('materialising the preview copy', () => {
     expect(existsSync(join(destination, 'link.txt'))).toBe(false);
     expect(existsSync(join(destination, 'link-dir'))).toBe(false);
     expect(readdirSync(destination)).toEqual(['index.html']);
+  });
+
+  onPosix('keeps contained relative links as links and skips every escaping one', () => {
+    // The shape npm installs: `.bin/vitest` is a relative link to the package.
+    mkdirSync(join(source, 'node_modules', '.bin'), { recursive: true });
+    mkdirSync(join(source, 'node_modules', 'vitest'), { recursive: true });
+    writeFileSync(join(source, 'node_modules', 'vitest', 'vitest.mjs'), APP);
+    symlinkSync('../vitest/vitest.mjs', join(source, 'node_modules', '.bin', 'vitest'));
+    writeFileSync(join(root, 'outside.txt'), 'bytes from outside the workspace');
+    // Absolute, out of the root.
+    symlinkSync(join(root, 'outside.txt'), join(source, 'node_modules', '.bin', 'absolute'));
+    // Relative, climbing above the root.
+    symlinkSync('../../../outside.txt', join(source, 'node_modules', '.bin', 'climbs'));
+    // Climbs out and back in: resolves inside the source, not inside the copy.
+    symlinkSync('../../../workspace/node_modules/vitest/vitest.mjs', join(source, 'node_modules', '.bin', 'reenters'));
+    // Relative and lexically inside, but to a link that leaves.
+    symlinkSync(join(root, 'outside.txt'), join(source, 'escape'));
+    symlinkSync('../escape', join(source, 'node_modules', 'via-escape'));
+    // `..` after a name is resolved through whatever the name is.
+    symlinkSync('.', join(source, 'here'));
+    symlinkSync('here/../outside.txt', join(source, 'through-here'));
+
+    const result = materializePreviewWorkspace({ sourceRoot: source, destinationRoot: destination });
+
+    const bin = join(destination, 'node_modules', '.bin');
+    expect(readdirSync(bin)).toEqual(['vitest']);
+    expect(lstatSync(join(bin, 'vitest')).isSymbolicLink()).toBe(true);
+    expect(readlinkSync(join(bin, 'vitest'))).toBe('../vitest/vitest.mjs');
+    expect(readFileSync(join(bin, 'vitest'), 'utf8')).toBe(APP);
+    expect(existsSync(join(destination, 'escape'))).toBe(false);
+    expect(existsSync(join(destination, 'node_modules', 'via-escape'))).toBe(false);
+    expect(existsSync(join(destination, 'through-here'))).toBe(false);
+    // `here -> .` is contained, and kept.
+    expect(readlinkSync(join(destination, 'here'))).toBe('.');
+    expect(result).toEqual({
+      files: 3,
+      bytes: Buffer.byteLength(APP) + Buffer.byteLength('../vitest/vitest.mjs') + 1,
+      skipped: 6,
+    });
+  });
+
+  onPosix('counts a kept link against both copy caps', () => {
+    writeFileSync(join(source, 'a.txt'), 'aaa');
+    symlinkSync('a.txt', join(source, 'b.txt'));
+    expectPreviewError(
+      () => materializePreviewWorkspace({ sourceRoot: source, destinationRoot: destination, limits: { maxFiles: 1 } }),
+      'limit'
+    );
+    rmSync(destination, { recursive: true, force: true });
+    expectPreviewError(
+      () => materializePreviewWorkspace({ sourceRoot: source, destinationRoot: destination, limits: { maxBytes: 4 } }),
+      'limit'
+    );
   });
 
   it('refuses rather than truncates when the file count exceeds the cap', () => {
