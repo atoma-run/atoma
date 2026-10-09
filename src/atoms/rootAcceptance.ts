@@ -24,6 +24,7 @@ import {
   inheritedChecksItems,
   recordedChecks,
   renderInheritedChecksBlock,
+  baselineEstablishedNothing,
   type InheritedChecksReport,
   type InheritedJudgement,
   type ShownInheritedItem,
@@ -520,7 +521,7 @@ export async function acceptRootResult(args: {
   const review = args.delivery === 'text' || floor.length === 0 || gates.reviewFindings.length > 0 || probe.requiresReview ||
     floorCoverage.some((item) => item.status === 'uncovered') || userCriteria || restorations.length > 0 ||
     inheritedItems.length > 0 || (inherited?.report.notReplayed ?? 0) > 0 ||
-    inherited?.report.baseline.stopped !== undefined ||
+    (inherited !== undefined && baselineEstablishedNothing(inherited.report.baseline)) ||
     // Refused below whatever it says; the call keeps the acceptor's own reading in the record.
     unrechecked !== undefined;
   const judgementsAsked = checklistBlock !== '';

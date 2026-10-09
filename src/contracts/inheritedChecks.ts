@@ -328,6 +328,21 @@ export interface InheritedBaseline {
   readonly note?: string;
 }
 
+/**
+ * Whether the run-start replay established NO baseline: it stopped short, or
+ * it went to the end and kept none of the checks it selected (each could not
+ * run, was too slow, or failed). Either way the acceptance replay has nothing
+ * to compare, so the acceptor is told and the review is forced: a start
+ * replay whose every check was `cannot-run` once left an empty block and
+ * "0 kept" only in the trace (code review 2026-10-09 2.1). The one definition,
+ * read by root acceptance and by the remediation scoping.
+ */
+export function baselineEstablishedNothing(
+  baseline: Pick<InheritedBaseline, 'selected' | 'kept' | 'stopped'>
+): boolean {
+  return baseline.stopped !== undefined || (baseline.kept === 0 && baseline.selected > 0);
+}
+
 export interface InheritedChecksReport {
   readonly baseline: InheritedBaseline;
   /** Kept checks replayed on the delivered page by this acceptance. */
@@ -517,9 +532,14 @@ export function renderInheritedChecksBlock(
       `(${report.stopped ? `stopped: ${report.stopped}` : 'a call timed out, could not run, or met a request the delivery added'}). ` +
       'That is no finding against the delivery, nor by itself a reason to refuse: STARTING WORKSPACE is the evidence left.'
     : undefined;
-  const baselineStopped = report.baseline.stopped
-    ? `Starting replay stopped: ${report.baseline.stopped}; ${report.baseline.kept} of ${report.baseline.selected} selected checks established a baseline. Unchecked behaviour remains unknown; this is not evidence of a regression.`
-    : undefined;
+  const { baseline } = report;
+  const baselineStopped = baseline.stopped
+    ? `Starting replay stopped: ${baseline.stopped}; ${baseline.kept} of ${baseline.selected} selected checks established a baseline. Unchecked behaviour remains unknown; this is not evidence of a regression.`
+    : baselineEstablishedNothing(baseline)
+      ? `Starting replay established no baseline: none of the ${baseline.selected} selected checks passed twice on the page this run started from ` +
+        `(${baseline.cannotRun} could not run${baseline.note ? `, first reason: ${quoted(baseline.note, 160)}` : ''}). ` +
+        'Unchecked behaviour remains unknown; this is not evidence of a regression.'
+      : undefined;
   if (items.length === 0 && unreplayed === undefined && earlier.length === 0 && !baselineStopped) return '';
   return [
     'INHERITED BROWSER CHECKS (host replay, mechanical). Earlier runs of this project recorded these checks in',

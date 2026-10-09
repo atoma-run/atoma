@@ -195,7 +195,11 @@ ALSO emit "inherited": [{"id": "r1", "asked": true|false, "reason": "<at most 15
   had refused was approved and published.
 - **A short replay is said.** Whenever the replay left kept checks unrun
   (stopped, or a check that could not run), the block tells the acceptor how
-  many and why, and the review is forced; silence is never a pass.
+  many and why, and the review is forced; silence is never a pass. The
+  same holds for the run-start replay: one that stopped, or that went to the
+  end and kept none of the checks it selected (each could not run, too slow,
+  or failed), is said in the block and forces the review
+  (`baselineEstablishedNothing`; code review 2026-10-09 2.1).
 - **Trace.** `AcceptanceInfo.inheritedChecks` records the run-start replay
   (checks considered, kept, how many could not run, why it stopped, the first
   reason) and the acceptance's (replayed, still passing, flaky, listed, not

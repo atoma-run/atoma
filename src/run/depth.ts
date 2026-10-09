@@ -1,4 +1,4 @@
-import { EARLIER_LISTED_INPUT } from '../contracts/inheritedChecks.js';
+import { EARLIER_LISTED_INPUT, baselineEstablishedNothing } from '../contracts/inheritedChecks.js';
 import type { Atom } from '../core/atom.js';
 import { setMaxListeners } from 'node:events';
 import type { Plan, Result, RunContext, Task, ToolExecutor } from '../core/types.js';
@@ -81,7 +81,10 @@ export const MAX_ROOT_REMEDIATIONS = 1;
  */
 function soleRefusalReason(acceptance: AcceptanceInfo, criterionId: string): boolean {
   if (acceptance.gates.length > 0 || acceptance.probe.contradiction) return false;
-  if ((acceptance.inheritedChecks?.items.length ?? 0) > 0 || (acceptance.inheritedChecks?.notReplayed ?? 0) > 0 || acceptance.inheritedChecks?.stopped || acceptance.inheritedChecks?.baselineStopped) return false;
+  if ((acceptance.inheritedChecks?.items.length ?? 0) > 0 || (acceptance.inheritedChecks?.notReplayed ?? 0) > 0 || acceptance.inheritedChecks?.stopped ||
+    acceptance.inheritedChecks?.baselineStopped) return false;
+  const inherited = acceptance.inheritedChecks;
+  if (inherited && baselineEstablishedNothing({ selected: inherited.selected ?? 0, kept: inherited.kept ?? 0 })) return false;
   if (acceptance.floorCoverage.some((item) => item.status === 'uncovered')) return false;
   return !(acceptance.checklist ?? []).some((item) => item.id !== criterionId && (
     item.status === 'uncovered' || (item.layouts ?? []).some((layout) => layout.status !== 'passed')

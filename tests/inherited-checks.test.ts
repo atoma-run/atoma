@@ -753,6 +753,20 @@ describe('root acceptance of a page an earlier run shaped', () => {
     expect(info.inheritedChecks?.baselineStopped).toBe('server');
   });
 
+  it('forces a review when a complete starting replay kept none of its checks (code review 2026-10-09 2.1)', async () => {
+    // Not stopped: every selected check went to the end as cannot-run.
+    const { base, info } = await acceptance({ approved: true, reasoning: 'reviewed with unknown inherited state' }, [], {
+      replay: { baseline: { selected: 2, considered: 2, kept: 0, cannotRun: 2, note: 'browser crashed (Target closed)' },
+        replayed: 0, stillPassing: 0, notReplayed: 0 },
+    });
+    expect(base.llm.calls).toHaveLength(1);
+    const prompt = base.llm.calls[0]!.userContent;
+    expect(prompt).toContain('Starting replay established no baseline: none of the 2 selected checks passed twice on the page this run started from ' +
+      '(2 could not run, first reason: "browser crashed (Target closed)").');
+    expect(prompt).toContain('This replay ran none of them.');
+    expect(info.inheritedChecks).toMatchObject({ kept: 0, baselineCannotRun: 2 });
+  });
+
   it('forces a review a covered floor would have skipped, and refuses an approval that says the change was not asked for', async () => {
     const { info, base } = await acceptance({ approved: true, reasoning: 'the select works', inherited: [{ id: 'r1', asked: false, reason: 'the task asked for a select only' }] }, [regression]);
     expect(base.llm.calls).toHaveLength(1);
