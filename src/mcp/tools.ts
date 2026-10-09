@@ -362,10 +362,13 @@ const MUTATING = { readOnlyHint: false, destructiveHint: true, idempotentHint: f
 /** A write to this instance's own store: destructive, but no open world (it publishes nothing). */
 const LOCAL_WRITE = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false } as const;
 /**
- * The four irreversible catalogue writes: Claude Code asks the person on EVERY
- * call, whatever its permission mode (vendor key, ignored by other hosts). The
- * person decides these (prompts.ts); the start tools stay unmarked, because the
- * owner's agent-driven campaigns start runs unattended.
+ * The writes a person decides: Claude Code asks the person on EVERY call,
+ * whatever its permission mode (vendor key, ignored by other hosts). The four
+ * irreversible catalogue writes (prompts.ts), and the three that record the
+ * client's own word — an acceptance that publishes to GitHub, an answer to a
+ * blocking question, a confirmed brief or decision — which a model must never
+ * supply. The start tools stay unmarked, because the owner's agent-driven
+ * campaigns start runs unattended.
  */
 const PERSON_DECIDES = { 'anthropic/requiresUserInteraction': true } as const;
 
@@ -526,6 +529,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
       description: 'Append one version using expectedVersion and a stable idempotencyKey. Model suggestions must start as propose_decision and are not run guidance. Only after the client explicitly approves the exact text may you set_brief, confirm_decision or replace_decision; confirmation records that approval, never invent it. Replacement starts proposed. Empty brief clears it. Runs pin context at admission; queued runs, resumes and comparison reruns keep their captured context. Does not start work, accept delivery, publish or change platform skills.',
       inputSchema: { projectId: z.string().min(1), ...projectContextUpdateSchema.shape },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      _meta: PERSON_DECIDES,
     }, ({ projectId, ...input }) => guarded(() => tenant(ctx).service.updateProjectContextFromInput(ctx.viewer(), projectId, input))),
   },
   {
@@ -546,6 +550,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
       description: 'Only after the client answers the exact question, record their optionId and/or free text with questionId and a stable idempotencyKey. Never answer on behalf of the client or infer consent from model text. The immutable answer survives reconnects; changed answers conflict. Then call atoma_run_resume on THIS source run to continue with remaining budget. Recording an answer starts no work, publishes nothing, and does not update permanent project context.',
       inputSchema: { projectId: z.string().min(1), runId: z.string().min(1), ...answerClientQuestionSchema.shape },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      _meta: PERSON_DECIDES,
     }, ({ projectId, runId, ...input }) => guarded(() => tenant(ctx).service.answerRunQuestionFromInput(ctx.viewer(), projectId, runId, input))),
   },
   {
@@ -807,6 +812,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
       description: 'Call only after the client has tested or reviewed the exact delivery and explicitly accepted it for GitHub publication. Pass artifactManifestHash from atoma_run_status and the client’s review/test summary. Model acceptance alone is not client consent. Records an immutable client acceptance, then publishes file deliveries using the existing GitHub policy. Text-only results are accepted without a GitHub publication. Repeating acceptance preserves the original receipt; publication failures can be retried with atoma_publication_retry. Publication may trigger the repository’s existing deployment pipeline; this tool configures no deployment.',
       inputSchema: { projectId: z.string().min(1), runId: z.string().min(1), ...acceptDeliveryInputSchema.shape },
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
+      _meta: PERSON_DECIDES,
     }, ({ projectId, runId, ...input }) => guarded(() => tenant(ctx).service.acceptDelivery(ctx.viewer(), projectId, runId, input), projectRunLinks(projectId))),
   },
   {

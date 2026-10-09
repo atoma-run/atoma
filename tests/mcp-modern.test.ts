@@ -188,6 +188,26 @@ describe('the 2026-07-28 era', () => {
     }
   });
 
+  it('marks the three writes that record the client’s own word for a person, and leaves the start unmarked', async () => {
+    const member: McpCaller = { kind: 'principal', viewer: viewer('org:member'), tokenId: 'm' };
+    const { url } = await listen(() => member, {
+      ...NO_TENANT, operatorRuns: false, auth: {} as never,
+      projects: { service: {} as never, store: {} as never },
+    });
+    const client = await modernClient(url);
+    try {
+      const tools = new Map((await client.listTools()).tools.map((tool) => [tool.name, tool]));
+      for (const name of ['atoma_run_accept', 'atoma_run_answer', 'atoma_project_context_update']) {
+        expect(tools.get(name), name).toBeDefined();
+        expect(tools.get(name)?._meta, name).toMatchObject({ 'anthropic/requiresUserInteraction': true });
+      }
+      expect(tools.get('atoma_run_start')).toBeDefined();
+      expect(tools.get('atoma_run_start')?._meta?.['anthropic/requiresUserInteraction']).toBeUndefined();
+    } finally {
+      await client.close();
+    }
+  });
+
   it('serves a 2026 client per request with its tier’s tools, beside a 2025 session, and counts who speaks what', async () => {
     const callers: Record<string, McpCaller> = {
       viewer: { kind: 'principal', viewer: viewer('org:viewer'), tokenId: 'v' },
