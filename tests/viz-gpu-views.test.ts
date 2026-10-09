@@ -7312,6 +7312,11 @@ describe('incomplete (partial) runs guide the next step', () => {
     expect(superseded.texts).toContain(t('run.partial.next.superseded'));
     expect(superseded.texts).not.toContain(t('run.partial.next.continue'));
     expect(superseded.continues).toBe(true);
+    // The server refuses (409) a next run whose latest workspace expired
+    // (`previousSeedRun`): the card must not promise a fresh start instead
+    // (code review 2026-10-09 2.23).
+    expect(t('run.partial.next.superseded')).not.toMatch(/afresh|from scratch/i);
+    expect(t('run.partial.next.superseded')).toMatch(/expired.*restored/);
     // A later run that failed, is still live, or is a comparison rerun seeds
     // nothing: this partial is still what the next run continues.
     const { endedAt: _ended, ...live } = later;

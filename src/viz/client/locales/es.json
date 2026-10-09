@@ -1187,7 +1187,7 @@
   "run.partial.details": "Detalles técnicos",
   "projects.runPartial.rerun": "Run de comparación repetido, no finalizado. Permanece junto al proyecto; el siguiente run del proyecto continúa con su propio trabajo.",
   "run.partial.next.rerun": "Este run de comparación repetido permanece junto al proyecto para compararlo: el siguiente run del proyecto continúa con el trabajo del propio proyecto, no con este.",
-  "run.partial.next.superseded": "Un run posterior de este proyecto ha finalizado. El siguiente run usa el espacio de trabajo más reciente que aún esté disponible; si no queda ninguno, empieza desde cero.",
+  "run.partial.next.superseded": "",
   "depth.checklist.judged_one": "{{met}} de {{count}} criterio considerado cumplido",
   "depth.checklist.judged_other": "{{met}} de {{count}} criterios considerados cumplidos",
   "admin.ledgerFact.by": "por {{value}}",

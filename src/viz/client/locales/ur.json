@@ -1187,7 +1187,7 @@
   "run.partial.details": "تکنیکی تفصیلات",
   "projects.runPartial.rerun": "تقابل کے لیے دوبارہ کیا گیا run مکمل نہیں ہوا۔ یہ پروجیکٹ کے ساتھ موجود رہتا ہے؛ پروجیکٹ کا اگلا run اپنا کام جاری رکھتا ہے۔",
   "run.partial.next.rerun": "تقابل کے لیے دوبارہ کیا گیا یہ run پروجیکٹ کے ساتھ موجود رہتا ہے: پروجیکٹ کا اگلا run پروجیکٹ کا اپنا کام جاری رکھتا ہے، اس run کا نہیں۔",
-  "run.partial.next.superseded": "اس پروجیکٹ کا بعد میں شروع کیا گیا run مکمل ہو چکا ہے۔ اگلا run اب بھی دستیاب تازہ ترین ورک اسپیس استعمال کرتا ہے؛ اگر کوئی باقی نہ ہو تو یہ نئے سرے سے شروع ہوتا ہے۔",
+  "run.partial.next.superseded": "",
   "depth.checklist.judged_one": "{{count}} میں سے {{met}} معیار پورا قرار دیا گیا",
   "depth.checklist.judged_other": "{{count}} میں سے {{met}} معیارات پورے قرار دیے گئے",
   "admin.ledgerFact.by": "{{value}} کے ذریعے",
