@@ -210,8 +210,10 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
             {relativeTime(message.at, t, locale, now) || message.at}</time></div>
         {message.role === 'assistant' ? <AssistantMarkdown text={message.text} />
           : <p>{message.role === 'receipt' ? t(message.text) : message.text}</p>}
-        {message.projectId ? <button onClick={() => onProject(message.projectId!)}>{t('assistant.openProject')}</button> : null}
-        {message.run ? <button onClick={() => onRun(message.run!, conversation?.lastRun?.runId === message.run!.runId ? query.data?.run?.traceId ?? null : null)}>{t('assistant.openRun')}</button> : null}
+        {message.projectId || message.run ? <div className="gpu-assistant-message-actions">
+          {message.projectId ? <button type="button" onClick={() => onProject(message.projectId!)}><ButtonIcon kind="folder" />{t('assistant.openProject')}</button> : null}
+          {message.run ? <button type="button" onClick={() => onRun(message.run!, conversation?.lastRun?.runId === message.run!.runId ? query.data?.run?.traceId ?? null : null)}><ButtonIcon kind="play" />{t('assistant.openRun')}</button> : null}
+        </div> : null}
       </article>)}
       {proposal && proposal.state !== 'done' ? <article className="gpu-assistant-proposal" aria-label={t('assistant.proposal')}>
         <h3>{t('assistant.proposal')}</h3>
@@ -236,7 +238,7 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
     {query.data?.run && conversation?.lastRun ? <div className="gpu-assistant-run" role="status">
       <span>{t('assistant.runStatus', { status: t(`projects.runStatus.${query.data.run.status}`) })}
         {query.data.run.costUsd !== null ? ` · $${query.data.run.costUsd.toFixed(2)}` : ''}</span>
-      <button onClick={() => onRun(conversation.lastRun!, query.data?.run?.traceId ?? null)}>{t('assistant.openRun')}</button>
+      <button type="button" onClick={() => onRun(conversation.lastRun!, query.data?.run?.traceId ?? null)}><ButtonIcon kind="play" />{t('assistant.openRun')}</button>
     </div> : null}
     {error ? <p role="alert" className="gpu-assistant-error">{error}</p> : null}
     <form aria-busy={waiting} onSubmit={event => { event.preventDefault(); void submit('message'); }}>

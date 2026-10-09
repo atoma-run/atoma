@@ -698,7 +698,8 @@ export function drawProjects(
         snapshot.t('projects.cardCreated', {
           date: projectCreatedDate(project.createdAt, snapshot.state.locale),
         }),
-        lastRunAgo ? snapshot.t('projects.cardLastRun', { ago: lastRunAgo }) : null,
+        project.hasRunningRun ? snapshot.t('projects.runInProgress')
+          : lastRunAgo ? snapshot.t('projects.cardLastRun', { ago: lastRunAgo }) : null,
       ].filter((value): value is string => value !== null).join(' · ');
       ctx.text(
         rowParent,
@@ -712,7 +713,7 @@ export function drawProjects(
           singleLine: true,
         }
       );
-      const exactLastRun = lastRunAt ? timestampTooltip(lastRunAt, snapshot.state.locale) : null;
+      const exactLastRun = !project.hasRunningRun && lastRunAt ? timestampTooltip(lastRunAt, snapshot.state.locale) : null;
       if (exactLastRun && nameLabelWidth > 0) {
         ctx.tooltip(rowParent, {
           x: rowColumnX + BUTTON_LABEL_INSET,

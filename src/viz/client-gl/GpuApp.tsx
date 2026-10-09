@@ -1342,7 +1342,7 @@ function GpuAppContent({
             heading={heading} collapsed={!state.selectedProjectId && state.projectMcpCollapsed}
             onSettings={tab => { setSettingsInitialTab(tab); state.setView('settings'); }}
             onScopeChange={id => { state.selectProject(id); useGpuStore.setState({ projectMcpCollapsed: false }); }}
-            onProject={id => state.selectProject(id)}
+            onProject={id => { state.selectProject(id); state.selectProjectSection('runs'); }}
             onRun={(run, traceId) => {
               state.selectProject(run.projectId);
               state.selectProjectSection('runs');

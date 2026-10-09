@@ -1781,6 +1781,7 @@ html.atoma-cursor-active * {
 .gpu-assistant-message, .gpu-assistant-proposal { overflow-wrap: anywhere; }
 .gpu-assistant-message { box-sizing: border-box; width: fit-content; max-width: 88%; padding: 6px 10px; border: 1px solid #ffffff26; border-left: 2px solid #81adce; border-radius: 8px; font-size: 12px; line-height: 1.4; }
 .gpu-assistant-message p { white-space: pre-wrap; margin: 2px 0 0; }
+.gpu-assistant-message-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; }
 .gpu-assistant-markdown { min-width: 0; }
 .gpu-assistant-markdown > * { margin: 8px 0 0; }
 .gpu-assistant-markdown > :first-child { margin-top: 4px; }
@@ -1828,8 +1829,8 @@ html.atoma-cursor-active * {
 .gpu-assistant form[aria-busy='true'] textarea { background: #1f2b3b; border-color: #526176; cursor: wait; }
 .gpu-assistant textarea { resize: vertical; min-height: 44px; max-height: 100px; width: 100%; box-sizing: border-box;
   border: 1px solid #7b9db9; border-radius: 8px; background: #071427a8; color: #e6edf7; padding: 6px 8px; font: 13px/1.4 ui-sans-serif, system-ui, sans-serif; }
-.gpu-assistant button { cursor: pointer; border: 1px solid #7b9db9; border-radius: 7px; color: #e6edf7;
-  background: #152b42; padding: 8px 12px; min-height: 36px; font: inherit; }
+.gpu-assistant button { cursor: pointer; border: 1px solid #7b9db9; border-radius: 5px; color: #e6edf7;
+  background: #152b42; padding: 3px 8px; min-height: 26px; font: 12px/1.3 ui-sans-serif, system-ui, sans-serif; }
 .gpu-assistant button:disabled { opacity: .5; cursor: default; }
 .gpu-assistant button:focus-visible, .gpu-assistant textarea:focus-visible { outline: 2px solid #a8d7ff; outline-offset: 3px; }
 .gpu-assistant .gpu-assistant-primary { background: #245176; }
@@ -1838,7 +1839,6 @@ html.atoma-cursor-active * {
   .gpu-assistant { font-size: 13px; }
   .gpu-assistant header p { display: none; }
   .gpu-assistant-footer, .gpu-assistant-run { flex-wrap: wrap; }
-  .gpu-assistant button { min-height: 44px; }
 }
 
 .gpu-assistant-handoff { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
@@ -1847,7 +1847,7 @@ html.atoma-cursor-active * {
 
 @media (max-width: 600px) {
   .gpu-assistant h2 { font-size: 15px; }
-  .gpu-assistant-handoff button { width: 100%; font-size: 12px; padding: 8px; }
+  .gpu-assistant-handoff button { width: 100%; }
   .gpu-assistant-handoff small { display: none; }
   .gpu-assistant-footer { flex-wrap: nowrap; }
   .gpu-assistant-footer small { flex: 1; min-width: 0; }

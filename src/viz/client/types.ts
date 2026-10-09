@@ -249,6 +249,8 @@ export interface VizProject {
   costUsd?: number | null;
   runCount?: number;
   lastRunAt?: string | null;
+  /** A persisted project run is executing. Absent on an older server. */
+  hasRunningRun?: boolean;
   /** Kept on, or off, the public showcase. Absent on an older server. */
   showcase?: 'listed' | 'hidden';
   /** A showcase visitor sees one of its runs now. Absent on an older server. */

@@ -2962,6 +2962,24 @@ describe('drawProjects', () => {
     expect(publicCtx.texts.some((text) => String(text.value).includes('github.com'))).toBe(false);
   });
 
+  it.each([true, false, undefined])('labels project activity from its summary without loading run history (running: %s)', (hasRunningRun) => {
+    const project: VizProject = {
+      ...guidanceProject(),
+      runCount: 1,
+      lastRunAt: new Date().toISOString(),
+      ...(hasRunningRun === undefined ? {} : { hasRunningRun }),
+    };
+    const ctx = createRecordingCtx();
+    drawProjects(ctx, makeSnapshot({ view: 'projects' }, {
+      auth: makeAuth(), projects: [project], projectRuns: {}, runs: [],
+    }), 1280, 720);
+    const metadata = ctx.texts.find(text => String(text.value).includes('Created'));
+    expect(metadata).toBeDefined();
+    expect(String(metadata!.value).includes(t('projects.runInProgress'))).toBe(hasRunningRun === true);
+    expect(String(metadata!.value).includes('last run')).toBe(hasRunningRun !== true);
+    expect(ctx.tooltips.length > 0).toBe(hasRunningRun !== true);
+  });
+
   it('renders a project row and expands its runs when selected', () => {
     const ctx = createRecordingCtx();
     const projectId = '3c584a3c-933d-4488-ac44-4cdcc8e66f31';

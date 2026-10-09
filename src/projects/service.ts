@@ -173,10 +173,11 @@ function publicRun(
 
 function publicProject(
   project: Project,
-  runSummary: { runCount: number; lastRunAt: string | null; costUsd: number | null } = {
+  runSummary: ReturnType<ProjectServiceDeps['store']['projectRunSummary']> = {
     costUsd: 0,
     runCount: 0,
     lastRunAt: null,
+    hasRunningRun: false,
   },
   showcaseShown = false
 ) {

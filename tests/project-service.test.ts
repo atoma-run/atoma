@@ -268,7 +268,18 @@ describe('ProjectService — roles, IDOR and slug identity', () => {
         projectId: created.projectId,
         runCount: 1,
         lastRunAt: reserved!.run.createdAt,
+        hasRunningRun: false,
       }),
+    ]);
+    projects.transitionProjectRun({ orgId: alice.orgId, projectRunId: reserved!.run.projectRunId,
+      from: 'queued', to: 'running' });
+    expect(svc.listProjects(alice)).toEqual([
+      expect.objectContaining({ projectId: created.projectId, hasRunningRun: true }),
+    ]);
+    projects.transitionProjectRun({ orgId: alice.orgId, projectRunId: reserved!.run.projectRunId,
+      from: 'running', to: 'failed', error: 'Run stopped' });
+    expect(svc.listProjects(alice)).toEqual([
+      expect.objectContaining({ projectId: created.projectId, hasRunningRun: false }),
     ]);
   });
 

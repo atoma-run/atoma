@@ -31,6 +31,8 @@
  *   --assistant-history  Conversation without an approval card.
  *   --assistant-no-runs  Selected project has no runs yet.
  *   --assistant-model-probe Change model and prove retention across reload.
+ *   --assistant-links-probe Verify compact receipt buttons and their destinations
+ *                        (with --auth --select-first --url <frontend URL>).
  *   --project-tabs-probe Switch between Conversation and Runs, preserving a draft
  *                        (with --auth --select-first --assistant-history).
  *   --assistant-own-agent Open the external guide, check its usable height
@@ -91,8 +93,12 @@ const assistantOwnAgent = has('--assistant-own-agent');
 const assistantHistory = has('--assistant-history');
 const assistantNoRuns = has('--assistant-no-runs');
 const assistantModelProbe = has('--assistant-model-probe');
+const assistantLinksProbe = has('--assistant-links-probe');
+if (assistantLinksProbe && (!authed || !selectFirst || !arg('--url'))) {
+  throw new Error('--assistant-links-probe needs --auth --select-first --url <frontend URL>');
+}
 const projectTabsProbe = has('--project-tabs-probe');
-const showAssistant = has('--assistant') || assistantReconnect || assistantEmpty || assistantOwnAgent || assistantHistory || assistantModelProbe;
+const showAssistant = has('--assistant') || assistantReconnect || assistantEmpty || assistantOwnAgent || assistantHistory || assistantModelProbe || assistantLinksProbe;
 const assistantFixture = {
   choices: [{ id: 'own:anthropic:haiku', model: 'own:anthropic:haiku', label: 'Claude · Haiku (beta)', payer: 'principal-subscription' }], nextBefore: null, available: true, model: 'api:anthropic:claude-haiku-4-5-20251001', busy: false, run: null,
   conversation: { id: 'f1195226-8f11-4bca-b408-1e6c10f8b353', projectId: null, version: 1, lastRequestId: null, lastRun: null, modelChoice: 'own:anthropic:haiku', costUsd: 0.0012, inputTokens: 900, outputTokens: 240,
@@ -738,6 +744,19 @@ try {
 
     if (authed) {
       const stubs = gatedStubs();
+      if (assistantLinksProbe) {
+        const projectId = stubs['/api/projects'][0].projectId;
+        const run = stubs[`/api/projects/${projectId}/runs`][0];
+        run.traceId = 'run-fixture';
+        const reference = { projectId, runId: run.projectRunId };
+        assistantFixture.conversation.proposal = null;
+        assistantFixture.conversation.lastRun = reference;
+        assistantFixture.run = { status: run.status, costUsd: run.costUsd, traceId: run.traceId, error: null };
+        assistantFixture.conversation.messages = [
+          { role: 'receipt', text: 'assistant.projectCreated', projectId, at: new Date().toISOString() },
+          { role: 'receipt', text: 'assistant.runStarted', run: reference, at: new Date().toISOString() },
+        ];
+      }
       if (has('--run-picker-probe')) {
         const current = stubs['/api/runs'][0];
         stubs['/api/runs'].push(
@@ -1143,7 +1162,7 @@ try {
       if (!authed || view !== 'Projects') throw new Error('--assistant requires --auth and Projects');
       // The conversation lives inside the project guide card (2026-10-09).
       if (!(await page.$('.gpu-project-mcp--assistant .gpu-assistant'))) throw new Error('The integrated assistant is missing from the guide');
-      try { await page.waitForSelector(assistantReconnect ? '.gpu-assistant-setup' : assistantEmpty ? '.gpu-project-mcp--assistant-compact .gpu-assistant-empty' : assistantHistory ? '.gpu-assistant-message--assistant' : '.gpu-assistant-proposal', { timeout: 10_000 }); }
+      try { await page.waitForSelector(assistantReconnect ? '.gpu-assistant-setup' : assistantEmpty ? '.gpu-project-mcp--assistant-compact .gpu-assistant-empty' : assistantHistory ? '.gpu-assistant-message--assistant' : assistantLinksProbe ? '.gpu-assistant-message--receipt' : '.gpu-assistant-proposal', { timeout: 10_000 }); }
       catch (error) { await page.screenshot({ path: '/tmp/atoma-assistant-failure.png' }); throw error; }
       await page.evaluate(() => {
         const log = document.querySelector('.gpu-assistant-log');
@@ -1269,6 +1288,49 @@ try {
         await page.$eval('.gpu-project-mcp-actions button', node => node.scrollIntoView({ block: 'nearest' }));
         console.log('External guide: full card, copy action works, return preserves the draft');
       }
+    }
+
+    if (assistantLinksProbe) {
+      const clickReceipt = async label => {
+        const button = await page.evaluateHandle(text => [...document.querySelectorAll('.gpu-assistant-message-actions button')]
+          .find(node => node.textContent.trim() === text), label);
+        await button.asElement().click();
+        await button.dispose();
+      };
+      const buttons = await page.$$eval('.gpu-assistant-message-actions button', nodes => nodes.map(node => ({
+        label: node.textContent.trim(), height: node.offsetHeight, icon: !!node.querySelector('svg[aria-hidden="true"]'),
+      })));
+      if (buttons.length !== 2 || buttons.some(button => button.height < 24 || button.height > 28 || !button.icon)) {
+        throw new Error(`Receipt buttons are not compact and labelled: ${JSON.stringify(buttons)}`);
+      }
+      await page.type('#assistant-message', 'Keep this draft while opening the project');
+      await clickReceipt('Open project');
+      await page.waitForFunction(() => document.querySelector('#project-tab-runs')?.getAttribute('aria-selected') === 'true' &&
+        document.querySelector('.gpu-project-mcp')?.hidden && globalThis.__ATOMA_GPU__.hitTargets().some(target => target.id.startsWith('project.run.')))
+        .catch(async error => {
+          await page.screenshot({ path: outPath.replace(/\.png$/, '-failure.png') });
+          throw new Error(JSON.stringify(await page.evaluate(() => ({
+            tabs: [...document.querySelectorAll('[role="tab"]')].map(node => [node.id, node.getAttribute('aria-selected')]),
+            guideHidden: document.querySelector('.gpu-project-mcp')?.hidden,
+            targets: globalThis.__ATOMA_GPU__.hitTargets().map(target => target.id),
+          }))), { cause: error });
+        });
+      const point = await page.evaluate(async () => {
+        await new Promise(resolveWait => requestAnimationFrame(() => requestAnimationFrame(resolveWait)));
+        const handle = globalThis.__ATOMA_GPU__;
+        const tab = handle.hitTargets().find(target => target.id === 'project.section.conversation');
+        return handle.projectRendererPoint(tab.x + tab.width / 2, tab.y + tab.height / 2);
+      });
+      await page.mouse.click(point.x, point.y);
+      await page.waitForFunction(() => !document.querySelector('.gpu-project-mcp')?.hidden)
+        .catch(async error => { await page.screenshot({ path: outPath.replace(/\.png$/, '-return-failure.png') }); throw error; });
+      if (await page.$eval('#assistant-message', node => node.value) !== 'Keep this draft while opening the project') {
+        throw new Error('Opening the current project discarded the conversation draft');
+      }
+      await page.screenshot({ path: outPath.replace(/\.png$/, '-chat.png') });
+      await clickReceipt('Open run');
+      await page.waitForFunction(() => document.querySelector('[data-viz-live]')?.textContent?.startsWith('Runs —'));
+      console.log(`Assistant links: current project opens its Runs tab, draft retained, Open run opens the trace; buttons ${JSON.stringify(buttons)}`);
     }
 
     if (projectTabsProbe) {

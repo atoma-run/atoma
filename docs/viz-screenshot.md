@@ -19,6 +19,7 @@ npm run viz:shot -- --auth --assistant-model-probe  # remember an unsent model c
 npm run viz:shot -- --auth --assistant-empty --assistant-own-agent # external guide and return to a preserved draft
 npm run viz:shot -- --auth --select-first           # first project selected: conversation tab
 npm run viz:shot -- --auth --select-first --assistant-history --project-tabs-probe # chat/run tabs, preserved draft
+npm run viz:shot -- --url http://127.0.0.1:5187 --auth --select-first --assistant-links-probe # compact receipt buttons and their destinations on an isolated frontend
 npm run viz:shot -- --auth --select-first --github-access # saved request awaiting GitHub authorization
 npm run viz:shot -- --auth --select-first --github-access --github-access-probe # scroll and continue through the real canvas (stubbed response)
 npm run viz:shot -- --auth --view Runs              # any nav tab by its label
