@@ -1,6 +1,5 @@
 import type { WorkspaceVolumes } from './volumes.js';
 import { launcherObjectId, launcherNetworkName, launcherUnitName } from './names.js';
-import { TERMINAL_DATA_BYTES } from '../contracts/previewTerminal.js';
 export { launcherObjectId } from './names.js';
 import { execFile, execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -23,6 +22,7 @@ import type {
   LauncherUnitSummary,
   LauncherWorkspaceHandle,
 } from '../contracts/launcher.js';
+import { TERMINAL_DATA_BYTES } from '../contracts/launcher.js';
 
 /**
  * THE DOCKER BACKEND — the one component that speaks to the engine.

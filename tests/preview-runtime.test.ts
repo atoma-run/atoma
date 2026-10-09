@@ -14,6 +14,7 @@ import type {
   LauncherUnitSummary,
   LauncherWorkspaceHandle,
 } from '../src/contracts/launcher.js';
+import { TERMINAL_COPY_HEADROOM_BYTES, TERMINAL_DATA_BYTES } from '../src/contracts/launcher.js';
 import {
   previewCopyLimits,
   PreviewRuntimeError,
@@ -21,7 +22,6 @@ import {
   teardownPreview,
 } from '../src/preview/runtime.js';
 import { previewOrigin } from '../src/preview/gateway.js';
-import { TERMINAL_COPY_HEADROOM_BYTES, TERMINAL_DATA_BYTES } from '../src/contracts/previewTerminal.js';
 import {
   PREVIEW_ENV,
   PreviewConfigError,

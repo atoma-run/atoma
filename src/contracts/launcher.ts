@@ -383,3 +383,17 @@ export const EXAMPLE_EGRESS_PROXY_SPEC: LauncherUnitSpec = launcherUnitSpecSchem
   ownerId: 'run-4f2c1a',
   allowlist: ['registry.npmjs.org', '.npmjs.org'],
 });
+
+/**
+ * The terminal's writable `/data` tmpfs, and the share of it the copied
+ * workspace may take. The terminal server copies the read-only source into
+ * this tmpfs before it answers, so a copy cap EQUAL to the tmpfs let an
+ * admitted workspace fail with ENOSPC inside the container, reported as
+ * `readiness-timeout` instead of the `copy-limit` a member can act on. The
+ * headroom is for the member's edits and build output, and the copy is
+ * charged in whole tmpfs pages so that many small files cannot spend it.
+ */
+export const TERMINAL_DATA_BYTES = 512 * 1024 * 1024;
+export const TERMINAL_COPY_HEADROOM_BYTES = 128 * 1024 * 1024;
+export const TERMINAL_COPY_MAX_BYTES = TERMINAL_DATA_BYTES - TERMINAL_COPY_HEADROOM_BYTES;
+export const TERMINAL_COPY_PAGE_BYTES = 4096;

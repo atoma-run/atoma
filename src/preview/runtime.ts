@@ -5,9 +5,9 @@ import type {
   LauncherUnitHandle,
   LauncherWorkspaceHandle,
 } from '../contracts/launcher.js';
+import { TERMINAL_COPY_MAX_BYTES, TERMINAL_COPY_PAGE_BYTES } from '../contracts/launcher.js';
 import type { PreviewErrorCode } from '../contracts/preview.js';
 import { DEFAULT_PREVIEW_COPY_LIMITS, materializePreviewWorkspace, PreviewPolicyError, type PreviewCopyLimits } from './policy.js';
-import { TERMINAL_COPY_MAX_BYTES, TERMINAL_COPY_PAGE_BYTES } from '../contracts/previewTerminal.js';
 
 /**
  * BRINGING ONE PREVIEW UP, AND TAKING IT DOWN AGAIN.
