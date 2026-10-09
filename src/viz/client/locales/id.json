@@ -1757,5 +1757,13 @@
   "timeline.jumpTo": "Buka langkah {{step}}: {{title}}",
   "assistant.backToConversation": "Kembali ke percakapan",
   "assistant.changeModel": "Ganti model",
-  "assistant.keepModel": "Pertahankan model ini"
+  "assistant.keepModel": "Pertahankan model ini",
+  "nav.liveRuns": "Run aktif",
+  "liveRuns.count_one": "{{count}} run sedang berjalan",
+  "liveRuns.count_other": "{{count}} run sedang berjalan",
+  "liveRuns.scope": "Run proyek yang berjalan di semua organisasi. Diperbarui otomatis.",
+  "liveRuns.empty": "Tidak ada run yang sedang berjalan di semua organisasi.",
+  "liveRuns.started": "Dimulai {{at}}",
+  "liveRuns.open": "Ikuti run",
+  "liveRuns.preparing": "Menyiapkan — jejak run belum tersedia."
 }

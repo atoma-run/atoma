@@ -1757,5 +1757,13 @@
   "timeline.jumpTo": "Zu Schritt {{step}}: {{title}} wechseln",
   "assistant.backToConversation": "Zurück zur Unterhaltung",
   "assistant.changeModel": "Modell wechseln",
-  "assistant.keepModel": "Dieses Modell beibehalten"
+  "assistant.keepModel": "Dieses Modell beibehalten",
+  "nav.liveRuns": "Live-runs",
+  "liveRuns.count_one": "{{count}} laufender run",
+  "liveRuns.count_other": "{{count}} laufende runs",
+  "liveRuns.scope": "Laufende Projekt-runs in allen Organisationen. Wird automatisch aktualisiert.",
+  "liveRuns.empty": "Derzeit laufen keine runs in den Organisationen.",
+  "liveRuns.started": "Gestartet {{at}}",
+  "liveRuns.open": "run verfolgen",
+  "liveRuns.preparing": "Vorbereitung läuft — der run-Verlauf ist noch nicht verfügbar."
 }

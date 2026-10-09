@@ -1757,5 +1757,13 @@
   "timeline.jumpTo": "转到步骤{{step}}：{{title}}",
   "assistant.backToConversation": "返回对话",
   "assistant.changeModel": "更改模型",
-  "assistant.keepModel": "保留此模型"
+  "assistant.keepModel": "保留此模型",
+  "nav.liveRuns": "实时 run",
+  "liveRuns.count_one": "{{count}} 个正在运行的 run",
+  "liveRuns.count_other": "{{count}} 个正在运行的 run",
+  "liveRuns.scope": "所有组织中正在运行的项目 run。自动更新。",
+  "liveRuns.empty": "所有组织中目前均无正在运行的 run。",
+  "liveRuns.started": "开始于 {{at}}",
+  "liveRuns.open": "跟踪 run",
+  "liveRuns.preparing": "正在准备—run 跟踪记录尚不可用。"
 }

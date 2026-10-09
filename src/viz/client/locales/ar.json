@@ -1757,5 +1757,13 @@
   "timeline.jumpTo": "الانتقال إلى الخطوة {{step}}: {{title}}",
   "assistant.backToConversation": "العودة إلى المحادثة",
   "assistant.changeModel": "تغيير النموذج",
-  "assistant.keepModel": "الاحتفاظ بهذا النموذج"
+  "assistant.keepModel": "الاحتفاظ بهذا النموذج",
+  "nav.liveRuns": "عمليات run المباشرة",
+  "liveRuns.count_one": "{{count}} run قيد التشغيل",
+  "liveRuns.count_other": "عدد عمليات run قيد التشغيل: {{count}}",
+  "liveRuns.scope": "عمليات run للمشروعات قيد التشغيل في جميع المؤسسات. تُحدَّث تلقائيًا.",
+  "liveRuns.empty": "لا توجد حاليًا عمليات run قيد التشغيل في المؤسسات.",
+  "liveRuns.started": "بدأت في {{at}}",
+  "liveRuns.open": "متابعة run",
+  "liveRuns.preparing": "جارٍ التحضير — تتبّع run غير متاح بعد."
 }

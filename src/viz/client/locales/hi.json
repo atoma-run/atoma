@@ -1757,5 +1757,13 @@
   "timeline.jumpTo": "चरण {{step}} पर जाएँ: {{title}}",
   "assistant.backToConversation": "बातचीत पर वापस जाएँ",
   "assistant.changeModel": "मॉडल बदलें",
-  "assistant.keepModel": "यह मॉडल बनाए रखें"
+  "assistant.keepModel": "यह मॉडल बनाए रखें",
+  "nav.liveRuns": "लाइव run",
+  "liveRuns.count_one": "{{count}} run चल रहा है",
+  "liveRuns.count_other": "{{count}} run चल रहे हैं",
+  "liveRuns.scope": "सभी संगठनों में चल रहे प्रोजेक्ट run। अपने-आप अपडेट होता है।",
+  "liveRuns.empty": "फ़िलहाल किसी भी संगठन में कोई run नहीं चल रहा है।",
+  "liveRuns.started": "{{at}} को शुरू हुआ",
+  "liveRuns.open": "run को फ़ॉलो करें",
+  "liveRuns.preparing": "तैयार किया जा रहा है — run ट्रेस अभी उपलब्ध नहीं है।"
 }

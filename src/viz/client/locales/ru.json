@@ -1757,5 +1757,13 @@
   "timeline.jumpTo": "Перейти к шагу {{step}}: {{title}}",
   "assistant.backToConversation": "Вернуться к разговору",
   "assistant.changeModel": "Сменить модель",
-  "assistant.keepModel": "Оставить эту модель"
+  "assistant.keepModel": "Оставить эту модель",
+  "nav.liveRuns": "Активные run",
+  "liveRuns.count_one": "Выполняется {{count}} run",
+  "liveRuns.count_other": "Количество выполняемых run: {{count}}",
+  "liveRuns.scope": "Выполняемые run проектов во всех организациях. Обновляется автоматически.",
+  "liveRuns.empty": "Сейчас ни в одной из организаций не выполняются run.",
+  "liveRuns.started": "Запущен {{at}}",
+  "liveRuns.open": "Следить за run",
+  "liveRuns.preparing": "Подготовка — трассировка run пока недоступна."
 }

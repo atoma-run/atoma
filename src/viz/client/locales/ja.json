@@ -1757,5 +1757,13 @@
   "timeline.jumpTo": "ステップ{{step}}「{{title}}」に移動",
   "assistant.backToConversation": "会話に戻る",
   "assistant.changeModel": "モデルを変更",
-  "assistant.keepModel": "このモデルを維持"
+  "assistant.keepModel": "このモデルを維持",
+  "nav.liveRuns": "ライブrun",
+  "liveRuns.count_one": "実行中のrun：{{count}}件",
+  "liveRuns.count_other": "実行中のrun：{{count}}件",
+  "liveRuns.scope": "全組織で実行中のプロジェクトrunです。自動更新されます。",
+  "liveRuns.empty": "現在、組織全体で実行中のrunはありません。",
+  "liveRuns.started": "{{at}}に開始",
+  "liveRuns.open": "runを追跡",
+  "liveRuns.preparing": "準備中—runのトレースはまだ利用できません。"
 }

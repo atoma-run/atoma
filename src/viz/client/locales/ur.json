@@ -1757,5 +1757,13 @@
   "timeline.jumpTo": "مرحلہ {{step}} پر جائیں: {{title}}",
   "assistant.backToConversation": "گفتگو پر واپس جائیں",
   "assistant.changeModel": "ماڈل تبدیل کریں",
-  "assistant.keepModel": "یہ ماڈل برقرار رکھیں"
+  "assistant.keepModel": "یہ ماڈل برقرار رکھیں",
+  "nav.liveRuns": "جاری runs",
+  "liveRuns.count_one": "{{count}} run جاری ہے",
+  "liveRuns.count_other": "{{count}} run جاری ہیں",
+  "liveRuns.scope": "تمام تنظیموں میں پروجیکٹ runs جاری ہیں۔ خودکار طور پر اپ ڈیٹ ہوتا ہے۔",
+  "liveRuns.empty": "اس وقت تنظیموں میں کوئی run جاری نہیں ہے۔",
+  "liveRuns.started": "{{at}} کو شروع ہوا",
+  "liveRuns.open": "run کی پیروی کریں",
+  "liveRuns.preparing": "تیاری جاری ہے — run کا ٹریس ابھی دستیاب نہیں ہے۔"
 }
