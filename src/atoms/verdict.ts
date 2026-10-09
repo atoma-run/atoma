@@ -758,9 +758,21 @@ export const MAX_TOOL_EVIDENCE_CHARS = 24_000;
  * `MAX_BROWSER_EVIDENCE_LINES` are always kept; execution results share the
  * rest of the budget. Up to half the total budget is reserved for file reads,
  * so subsequent probes cannot erase the assertions a worker inspected.
- * Remaining space keeps an execution suffix. One suffix for both let a burst of file
+ * Recorded probes come next, one per command, newest first; remaining space
+ * keeps an execution suffix. One suffix for both let a burst of file
  * reads evict the browser lines (2026-09-25 review, 1.4).
  */
+/** The command a probe line ran, notes aside; the raw request when it was cut. */
+function probeCommand(observed: string): string {
+  const start = observed.indexOf('request=');
+  const end = observed.indexOf('; observed result=', start);
+  const request = start < 0 || end < 0 ? observed : observed.slice(start + 'request='.length, end);
+  try {
+    const cmd: unknown = (JSON.parse(request) as Record<string, unknown> | null)?.['cmd'];
+    return typeof cmd === 'string' ? cmd : request;
+  } catch { return request; }
+}
+
 export function renderTransportEvidence(
   evidence: Result['evidence']
 ): { readonly lines: readonly string[]; readonly omitted: number; readonly eventIds: ReadonlySet<string> } {
@@ -781,6 +793,21 @@ export function renderTransportEvidence(
         evidenceChars + length > MAX_TOOL_EVIDENCE_CHARS) break;
     keep.add(witness.eventId);
     readChars += length;
+    evidenceChars += length;
+  }
+  // Recorded probes are the worker's declared proofs. They take the space the
+  // reads left before any other execution, newest first; an older record of a
+  // command a kept one re-ran waits for the suffix. Run 43682d38 (2026-10-09)
+  // was refused for a mutation proof a retry's re-runs had pushed out.
+  const probeCommands = new Set<string>();
+  for (const witness of [...observed].reverse()) {
+    if (witness.tool !== 'record_probe' || keep.has(witness.eventId)) continue;
+    const command = probeCommand(witness.observed);
+    if (probeCommands.has(command)) continue;
+    const length = witness.eventId.length + 2 + witness.observed.length;
+    if (evidenceChars + length > MAX_TOOL_EVIDENCE_CHARS) continue;
+    keep.add(witness.eventId);
+    probeCommands.add(command);
     evidenceChars += length;
   }
   for (const witness of [...observed].reverse()) {

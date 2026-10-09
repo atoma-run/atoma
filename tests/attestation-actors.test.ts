@@ -272,6 +272,36 @@ describe('the result validator prompt', () => {
     expect(rendered.omitted).toBeGreaterThan(0);
   });
 
+  it('keeps a still-current probe a retry did not re-run ahead of its re-runs and reads (43682d38)', () => {
+    const record = (eventId: string, tool: string, args: Record<string, unknown>, raw: unknown) =>
+      ({ eventId, tool, observation: parseExecutionObservation(tool, args, raw)! });
+    const probe = (eventId: string, cmd: string, note: string, stdout: string) =>
+      record(eventId, 'record_probe', { cmd, note }, { exitCode: 0, stdout, recorded: true, manifest: '.atoma-probes.json' });
+    const records = [
+      probe('first-check', 'python3 check-kit.py', 'exhaustive semantic validator', 'OK: 256 evidence states\n'),
+      probe('four-mutations', 'python3 .atoma-scratch/negative_tests.py', 'four disposable semantic rejection mutations',
+        'stored card assertion: rejected\nreversed key value_order: rejected\nerased answer conflict: rejected\n' +
+        'source card 17 category: rejected\ncanonical hashes preserved\n'),
+      // The retry: full-file reads, then many probes re-running the same checks and one new mutation.
+      ...Array.from({ length: 12 }, (_, i) => record(`read-${i}`, 'read_file', { path: `kit/file${i}.json` }, { content: 'y'.repeat(1_500) })),
+      ...Array.from({ length: 10 }, (_, i) => probe(`recheck-${i}`, 'python3 check-kit.py', `final validator ${i}`, `OK ${'z'.repeat(1_200)}\n`)),
+      probe('glow-only', 'python3 mutate.py glow', 'stored-glow mutation', 'rejected: cards.json assertions mismatch at card 1\n'),
+      ...Array.from({ length: 30 }, (_, i) => record(`edit-${i}`, 'edit_file', { path: 'inventory.json' }, { ok: true, replacements: 1 })),
+    ];
+    const lines = renderObservations(records);
+    const rendered = renderTransportEvidence(records.map((entry, i) => ({ source: 'transport-observed',
+      eventId: entry.eventId, tool: entry.tool, observed: lines[i]! })));
+    const kept = new Set(rendered.eventIds);
+    expect(kept.has('four-mutations')).toBe(true);
+    expect(kept.has('glow-only')).toBe(true);
+    // The newest record of a re-run command stands for it; reads keep their reserve.
+    expect(kept.has('recheck-9')).toBe(true);
+    expect(kept.has('first-check')).toBe(false);
+    expect([...kept].filter(id => id.startsWith('read-')).length).toBeGreaterThan(0);
+    expect(rendered.lines.reduce((total, line) => total + line.length, 0)).toBeLessThanOrEqual(MAX_TOOL_EVIDENCE_CHARS);
+    expect(rendered.omitted).toBeGreaterThan(0);
+  });
+
   it('keeps the browser observations however many file reads follow them', async () => {
     const names = ['write_file', 'read_file', 'validate_html'];
     const child = new L1Atom({ name: 'Methane', ordinal: 2, systemPrompt: 'full stack', tools: names.map(declare), params: {} });
