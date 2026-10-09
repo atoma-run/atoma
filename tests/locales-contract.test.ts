@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_LOCALE,
@@ -198,5 +200,32 @@ describe('the locale pipeline invariants', () => {
       fr: { ...I18N_CATALOGS.fr, [probe]: '' },
     });
     expect(translateBlank('fr', probe)).toBe(I18N_CATALOGS.en[probe]);
+  });
+});
+
+/**
+ * A key the client asks for but EN never defines renders as the raw key in
+ * every language — `settings.keyRemove` did, on a destructive button, and no
+ * test compared the client's calls to the catalog (code review 2026-10-09
+ * 2.28). This reads every LITERAL key the GPU client passes to `t()`, bare or
+ * as either branch of a ternary; a computed key stays the caller's to prove.
+ */
+describe('the GPU client asks only for keys EN defines', () => {
+  it('every literal t() key exists in en.json, directly or as an i18next plural', () => {
+    const en = I18N_CATALOGS.en;
+    const walk = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap(entry =>
+      entry.isDirectory() ? walk(join(dir, entry.name)) : /\.tsx?$/.test(entry.name) ? [join(dir, entry.name)] : []);
+    // t('key', …) or t(cond ? 'a' : 'b', …): groups 2, 4 and 6 are the keys.
+    const call = /(?<![\w.$])t\(\s*(?:(['"])([\w.-]+)\1|[^()'"`?]+\?\s*(['"])([\w.-]+)\3\s*:\s*(['"])([\w.-]+)\5)/g;
+    const asked = new Map<string, string>();
+    for (const file of walk('src/viz/client-gl')) {
+      for (const match of readFileSync(file, 'utf8').matchAll(call)) {
+        for (const key of [match[2], match[4], match[6]]) if (key) asked.set(key, file);
+      }
+    }
+    expect(asked.size).toBeGreaterThan(300);
+    expect(asked.has('settings.keyReplace') && asked.has('settings.keySave'), 'ternary branches are read').toBe(true);
+    const missing = [...asked].filter(([key]) => !(key in en) && !(`${key}_other` in en));
+    expect(missing).toEqual([]);
   });
 });

@@ -318,6 +318,7 @@
   "settings.personalSubscriptionUnavailable": "{{label}} — reconnect to use it",
   "settings.keySave": "Save key",
   "settings.keyReplace": "Replace key",
+  "settings.keyRemove": "Remove key",
   "settings.keyRemoved": "Key removed",
   "settings.keySaved": "Key saved",
   "settings.orgSaved": "Organisation defaults saved",
