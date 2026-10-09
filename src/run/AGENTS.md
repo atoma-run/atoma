@@ -268,7 +268,10 @@ Neighbours:
   depth-routed (`2102979`); after it, a project run that deepened rebuilt its
   corpus from nothing and seeded the next run from that. A seed that cannot be
   copied at restart fails the run with the first attempt in `.prevN`. The copy
-  filters the inherited probe manifest ([src/contracts](../contracts/AGENTS.md)).
+  filters the inherited probe manifest ([src/contracts](../contracts/AGENTS.md))
+  and keeps links as written (`verbatimSymlinks`): a rewritten absolute
+  `node_modules/.bin` link is an escaping link to the checkpoint, which then
+  disabled pause, questions and resume for every seeded Node project.
 - `ATOMA_ACCEPTANCE_SPEC` is read and re-digested at LAUNCH
   (`readAcceptanceSpec`): unreadable, or present on a run that is not
   depth-routed, is a `RunnerConfigError` before any model call. Present, it

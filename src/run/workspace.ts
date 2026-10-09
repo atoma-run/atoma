@@ -131,7 +131,13 @@ export interface SeedReport {
  */
 export function seedWorkspace(seedRoot: string, workspaceRoot: string): SeedReport {
   mkdirSync(workspaceRoot, { recursive: true });
-  cpSync(seedRoot, workspaceRoot, { recursive: true });
+  // Links are copied as written. Without `verbatimSymlinks`, cpSync rewrites a
+  // relative link (`node_modules/.bin/vite -> ../vite/bin/vite.js`) into an
+  // absolute one into the SEED, which the checkpoint digest refuses as
+  // escaping: every seeded run with installed dependencies lost pause, client
+  // questions and resume without an error (code review 2026-10-09, 1.5). A link
+  // that leaves the tree stays refused by the checkpoint, as before.
+  cpSync(seedRoot, workspaceRoot, { recursive: true, verbatimSymlinks: true });
   const entries = readdirSync(workspaceRoot).length;
   const manifestPath = join(workspaceRoot, PROBE_MANIFEST_FILENAME);
   let stat;

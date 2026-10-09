@@ -1,9 +1,12 @@
-import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
 import { inheritProbeManifest, validateProbeManifest } from '../src/contracts/probeManifest.js';
 import { describeSeedManifest, seedWorkspace } from '../src/run/workspace.js';
+import { checkpointWorkspaceDigest, RunCheckpointStore, SequentialCheckpoint } from '../src/run/checkpoint.js';
+import { withRecoveryEffects } from '../src/core/recoveryEffects.js';
 import { localToolBackend } from '../src/run/toolBackend.js';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
@@ -148,6 +151,59 @@ describe('seedWorkspace', () => {
     expect(() => lstatSync(join(workspace, '.atoma-probes.json'))).toThrow();
     expect(readFileSync(target, 'utf8')).toBe(JSON.stringify(INHERITED));
     expect(readlinkSync(join(seed, '.atoma-probes.json'))).toBe(target);
+  });
+
+  // Code review 2026-10-09, 1.5: cpSync without `verbatimSymlinks` rewrote
+  // `node_modules/.bin/vite -> ../vite/bin/vite.js` into an absolute link into
+  // the seed. The checkpoint refused it as escaping, so a seeded project run
+  // with installed dependencies lost pause, client questions and resume.
+  it.skipIf(process.platform === 'win32')('keeps relative links as written, so the seeded run can checkpoint and ask', async () => {
+    const seed = tempDir('atoma-seed-src-');
+    mkdirSync(join(seed, 'node_modules', 'vite', 'bin'), { recursive: true });
+    mkdirSync(join(seed, 'node_modules', '.bin'), { recursive: true });
+    writeFileSync(join(seed, 'node_modules', 'vite', 'bin', 'vite.js'), '#!/usr/bin/env node\n');
+    symlinkSync('../vite/bin/vite.js', join(seed, 'node_modules', '.bin', 'vite'));
+    writeFileSync(join(seed, 'index.html'), '<p>hi</p>');
+    const workspace = join(realpathSync(tempDir('atoma-seed-dst-')), 'workspace');
+    seedWorkspace(seed, workspace);
+    expect(readlinkSync(join(workspace, 'node_modules', '.bin', 'vite'))).toBe('../vite/bin/vite.js');
+    expect(checkpointWorkspaceDigest(workspace)).toBe(checkpointWorkspaceDigest(realpathSync(seed)));
+
+    // The phase-0 client-question boundary over the seeded tree commits.
+    const store = new RunCheckpointStore(join(tempDir('atoma-seed-db-'), 'atoma.db'));
+    const id = randomUUID();
+    const warnings: string[] = [];
+    const data = {
+      version: 1, id, scope: { orgId: 'o', projectId: 'p', principalId: 'u', runId: id }, goal: 'g', workspace,
+      policy: '{}', actor: { name: 'Meristem', atomId: 'a', version: 1 }, checklist: [], root: null, completed: [],
+      workspaceDigest: null, processes: [], consumed: { tokens: 0, costUsd: 0 }, remainingMs: 600_000, lastRunId: null,
+    };
+    let paused: unknown = null;
+    await withRecoveryEffects(async () => {
+      const cp = new SequentialCheckpoint(data as never, store, {
+        fresh: true, automatic: true, account: () => ({ tokens: 1, costUsd: 0.1 }), deadlineAt: Date.now() + 600_000,
+        settle: async () => {}, processes: () => [], warn: (m: string) => warnings.push(m),
+        assessClientQuestion: () => Promise.resolve({ question: 'Which database?', options: [
+          { id: 'a', label: 'SQLite', consequence: 'file' }, { id: 'b', label: 'Postgres', consequence: 'server' }] }),
+      } as never);
+      cp.planned({ description: 'g' }, { subtasks: [{}, {}], aggregation: { mode: 'sequential' } } as never, {}, 2);
+      try { await cp.beforePhase(0, {} as never); } catch (e) { paused = e; }
+    });
+    expect(warnings).toEqual([]);
+    // The run pauses on the recorded question instead of failing on the copy.
+    expect((paused as Error | null)?.message).toBe('Waiting for a client answer at a safe phase boundary');
+  });
+
+  it.skipIf(process.platform === 'win32')('copies a link that leaves the tree as written, and the checkpoint still refuses it', () => {
+    const seed = tempDir('atoma-seed-src-');
+    writeFileSync(join(seed, 'index.html'), '<p>hi</p>');
+    symlinkSync('../outside.txt', join(seed, 'escape'));
+    const dst = realpathSync(tempDir('atoma-seed-dst-'));
+    writeFileSync(join(dst, 'outside.txt'), 'host');
+    const workspace = join(dst, 'workspace');
+    seedWorkspace(seed, workspace);
+    expect(readlinkSync(join(workspace, 'escape'))).toBe('../outside.txt');
+    expect(() => checkpointWorkspaceDigest(workspace)).toThrow('escaping link');
   });
 });
 
