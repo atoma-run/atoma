@@ -1274,7 +1274,7 @@
   "appearance.amethyst": "অ্যামেথিস্ট",
   "appearance.copper": "কপার",
   "projects.all": "সব প্রকল্প",
-  "projects.mcpTitle": "",
+  "projects.mcpTitle": "এই প্রকল্পটি চালিয়ে যান",
   "projects.mcpCreateIntro": "এখানে Atoma-এর সঙ্গে কথা বলুন, অথবা একটি প্রজেক্ট প্রস্তুত করতে আপনার নিজস্ব এজেন্ট সংযুক্ত করুন।",
   "projects.mcpSelectedIntro": "{{name}} সম্পর্কে Atoma-এর সঙ্গে কথা বলুন, অথবা পরবর্তী run প্রস্তুত করতে আপনার সংযুক্ত এজেন্টকে বলুন।",
   "projects.mcpCreateRequest": "Atoma দিয়ে এই রিপোজিটরির জন্য একটি প্রকল্প পরিকল্পনা করুন।",
@@ -1330,7 +1330,7 @@
   "activity.errors_other": "{{count}}টি রেকর্ড করা ত্রুটি",
   "activity.fileHistory": "পরিবর্তিত ফাইল",
   "activity.fileHint": "কী পরিবর্তন হয়েছে তা দেখতে একটি ফাইল বেছে নিন।",
-  "activity.viewChanges": "",
+  "activity.viewChanges": "পরিবর্তনগুলি দেখুন",
   "activity.viewFile": "{{path}}-এর পরিবর্তন দেখুন",
   "activity.fileScope": "এই run চলাকালীন ধারণ করা ফাইল সম্পাদনা",
   "activity.fullTrace": "সম্পূর্ণ কার্যকলাপের লগ",
@@ -1752,5 +1752,10 @@
   "assistant.payer.principal-subscription": "আপনার সাবস্ক্রিপশন কোটা",
   "assistant.payer.org-key": "আপনার সংস্থার API কী",
   "assistant.payer.host-key": "Atoma-এর API সংযোগ",
-  "projects.mcpOwnAgent": "নিজের agent ব্যবহার করতে চান? MCP-এর মাধ্যমে এটি সংযুক্ত করুন"
+  "projects.mcpOwnAgent": "নিজের agent ব্যবহার করতে চান? MCP-এর মাধ্যমে এটি সংযুক্ত করুন",
+  "timeline.minimap": "টাইমলাইনে নেভিগেট করুন",
+  "timeline.jumpTo": "ধাপ {{step}}-এ যান: {{title}}",
+  "assistant.backToConversation": "কথোপকথনে ফিরে যান",
+  "assistant.changeModel": "মডেল পরিবর্তন করুন",
+  "assistant.keepModel": "এই মডেলটি রাখুন"
 }

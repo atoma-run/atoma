@@ -1274,7 +1274,7 @@
   "appearance.amethyst": "الجمشت",
   "appearance.copper": "النحاس",
   "projects.all": "كل المشاريع",
-  "projects.mcpTitle": "",
+  "projects.mcpTitle": "متابعة هذا المشروع",
   "projects.mcpCreateIntro": "تحدّث إلى Atoma هنا، أو اربط وكيلك لإعداد مشروع.",
   "projects.mcpSelectedIntro": "تحدّث إلى Atoma بشأن {{name}}، أو اطلب من وكيلك المتصل إعداد run التالي.",
   "projects.mcpCreateRequest": "خطط لمشروع لهذا المستودع باستخدام Atoma.",
@@ -1330,7 +1330,7 @@
   "activity.errors_other": "الأخطاء المسجّلة: {{count}}",
   "activity.fileHistory": "الملفات التي تغيّرت",
   "activity.fileHint": "اختر ملفًا لمعرفة ما تغيّر.",
-  "activity.viewChanges": "",
+  "activity.viewChanges": "عرض التغييرات",
   "activity.viewFile": "عرض تغييرات {{path}}",
   "activity.fileScope": "تعديلات الملفات المسجّلة أثناء هذا run",
   "activity.fullTrace": "سجل النشاط الكامل",
@@ -1752,5 +1752,10 @@
   "assistant.payer.principal-subscription": "حصة اشتراكك",
   "assistant.payer.org-key": "مفتاح API لمؤسستك",
   "assistant.payer.host-key": "اتصال API الخاص بـ Atoma",
-  "projects.mcpOwnAgent": "تفضّل وكيلك الخاص؟ وصّله عبر MCP"
+  "projects.mcpOwnAgent": "تفضّل وكيلك الخاص؟ وصّله عبر MCP",
+  "timeline.minimap": "التنقل في المخطط الزمني",
+  "timeline.jumpTo": "الانتقال إلى الخطوة {{step}}: {{title}}",
+  "assistant.backToConversation": "العودة إلى المحادثة",
+  "assistant.changeModel": "تغيير النموذج",
+  "assistant.keepModel": "الاحتفاظ بهذا النموذج"
 }

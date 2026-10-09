@@ -1274,7 +1274,7 @@
   "appearance.amethyst": "Ametis",
   "appearance.copper": "Tembaga",
   "projects.all": "Semua proyek",
-  "projects.mcpTitle": "",
+  "projects.mcpTitle": "Lanjutkan proyek ini",
   "projects.mcpCreateIntro": "Bicaralah dengan Atoma di sini, atau hubungkan agen Anda sendiri untuk menyiapkan proyek.",
   "projects.mcpSelectedIntro": "Bicaralah dengan Atoma tentang {{name}}, atau minta agen terhubung Anda menyiapkan run berikutnya.",
   "projects.mcpCreateRequest": "Rencanakan proyek untuk repositori ini dengan Atoma.",
@@ -1330,7 +1330,7 @@
   "activity.errors_other": "{{count}} kesalahan direkam",
   "activity.fileHistory": "File yang diubah",
   "activity.fileHint": "Pilih file untuk melihat perubahannya.",
-  "activity.viewChanges": "",
+  "activity.viewChanges": "Lihat perubahan",
   "activity.viewFile": "Lihat perubahan pada {{path}}",
   "activity.fileScope": "Pengeditan file yang direkam selama run ini",
   "activity.fullTrace": "Log aktivitas lengkap",
@@ -1752,5 +1752,10 @@
   "assistant.payer.principal-subscription": "Kuota langganan Anda",
   "assistant.payer.org-key": "Kunci API organisasi Anda",
   "assistant.payer.host-key": "Koneksi API Atoma",
-  "projects.mcpOwnAgent": "Lebih suka agen Anda sendiri? Hubungkan melalui MCP"
+  "projects.mcpOwnAgent": "Lebih suka agen Anda sendiri? Hubungkan melalui MCP",
+  "timeline.minimap": "Navigasi linimasa",
+  "timeline.jumpTo": "Buka langkah {{step}}: {{title}}",
+  "assistant.backToConversation": "Kembali ke percakapan",
+  "assistant.changeModel": "Ganti model",
+  "assistant.keepModel": "Pertahankan model ini"
 }

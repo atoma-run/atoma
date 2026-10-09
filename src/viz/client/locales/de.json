@@ -1274,7 +1274,7 @@
   "appearance.amethyst": "Amethyst",
   "appearance.copper": "Kupfer",
   "projects.all": "Alle Projekte",
-  "projects.mcpTitle": "",
+  "projects.mcpTitle": "Dieses Projekt fortsetzen",
   "projects.mcpCreateIntro": "Sprechen Sie hier mit Atoma oder verbinden Sie Ihren eigenen Agenten, um ein Projekt vorzubereiten.",
   "projects.mcpSelectedIntro": "Sprechen Sie mit Atoma über {{name}} oder bitten Sie Ihren verbundenen Agenten, den nächsten Run vorzubereiten.",
   "projects.mcpCreateRequest": "Plane mit Atoma ein Projekt für dieses Repository.",
@@ -1330,7 +1330,7 @@
   "activity.errors_other": "{{count}} erfasste Fehler",
   "activity.fileHistory": "Geänderte Dateien",
   "activity.fileHint": "Wählen Sie eine Datei aus, um die Änderungen zu sehen.",
-  "activity.viewChanges": "",
+  "activity.viewChanges": "Änderungen anzeigen",
   "activity.viewFile": "Änderungen an {{path}} anzeigen",
   "activity.fileScope": "Während dieses runs erfasste Dateiänderungen",
   "activity.fullTrace": "Vollständiges Aktivitätsprotokoll",
@@ -1752,5 +1752,10 @@
   "assistant.payer.principal-subscription": "Kontingent Ihres Abonnements",
   "assistant.payer.org-key": "API-Schlüssel Ihrer Organisation",
   "assistant.payer.host-key": "API-Verbindung von Atoma",
-  "projects.mcpOwnAgent": "Bevorzugen Sie Ihren eigenen Agenten? Verbinden Sie ihn über MCP"
+  "projects.mcpOwnAgent": "Bevorzugen Sie Ihren eigenen Agenten? Verbinden Sie ihn über MCP",
+  "timeline.minimap": "Zeitleiste navigieren",
+  "timeline.jumpTo": "Zu Schritt {{step}}: {{title}} wechseln",
+  "assistant.backToConversation": "Zurück zur Unterhaltung",
+  "assistant.changeModel": "Modell wechseln",
+  "assistant.keepModel": "Dieses Modell beibehalten"
 }

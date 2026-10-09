@@ -1274,7 +1274,7 @@
   "appearance.amethyst": "Аметист",
   "appearance.copper": "Медь",
   "projects.all": "Все проекты",
-  "projects.mcpTitle": "",
+  "projects.mcpTitle": "Продолжить этот проект",
   "projects.mcpCreateIntro": "Поговорите с Atoma здесь или подключите собственного агента, чтобы подготовить проект.",
   "projects.mcpSelectedIntro": "Поговорите с Atoma о {{name}} или попросите подключённого агента подготовить следующий run.",
   "projects.mcpCreateRequest": "Спланируй проект для этого репозитория с помощью Atoma.",
@@ -1330,7 +1330,7 @@
   "activity.errors_other": "Записано ошибок: {{count}}",
   "activity.fileHistory": "Изменённые файлы",
   "activity.fileHint": "Выберите файл, чтобы посмотреть изменения.",
-  "activity.viewChanges": "",
+  "activity.viewChanges": "Просмотреть изменения",
   "activity.viewFile": "Посмотреть изменения в {{path}}",
   "activity.fileScope": "Изменения файлов, зафиксированные во время этого run",
   "activity.fullTrace": "Полный журнал действий",
@@ -1752,5 +1752,10 @@
   "assistant.payer.principal-subscription": "Квота вашей подписки",
   "assistant.payer.org-key": "API-ключ вашей организации",
   "assistant.payer.host-key": "API-подключение Atoma",
-  "projects.mcpOwnAgent": "Предпочитаете своего агента? Подключите его через MCP"
+  "projects.mcpOwnAgent": "Предпочитаете своего агента? Подключите его через MCP",
+  "timeline.minimap": "Навигация по временной шкале",
+  "timeline.jumpTo": "Перейти к шагу {{step}}: {{title}}",
+  "assistant.backToConversation": "Вернуться к разговору",
+  "assistant.changeModel": "Сменить модель",
+  "assistant.keepModel": "Оставить эту модель"
 }

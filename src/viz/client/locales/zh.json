@@ -1274,7 +1274,7 @@
   "appearance.amethyst": "紫水晶",
   "appearance.copper": "铜色",
   "projects.all": "所有项目",
-  "projects.mcpTitle": "",
+  "projects.mcpTitle": "继续此项目",
   "projects.mcpCreateIntro": "在此与Atoma对话，或连接你自己的智能体来准备项目。",
   "projects.mcpSelectedIntro": "与Atoma讨论{{name}}，或让已连接的智能体准备下一次run。",
   "projects.mcpCreateRequest": "使用 Atoma 为此仓库规划一个项目。",
@@ -1330,7 +1330,7 @@
   "activity.errors_other": "已记录{{count}}个错误",
   "activity.fileHistory": "已更改的文件",
   "activity.fileHint": "选择文件以查看更改。",
-  "activity.viewChanges": "",
+  "activity.viewChanges": "查看更改",
   "activity.viewFile": "查看{{path}}的更改",
   "activity.fileScope": "此run期间捕获的文件编辑",
   "activity.fullTrace": "完整活动日志",
@@ -1752,5 +1752,10 @@
   "assistant.payer.principal-subscription": "你的订阅配额",
   "assistant.payer.org-key": "你所在组织的API密钥",
   "assistant.payer.host-key": "Atoma的API连接",
-  "projects.mcpOwnAgent": "更喜欢使用自己的智能体？通过MCP连接"
+  "projects.mcpOwnAgent": "更喜欢使用自己的智能体？通过MCP连接",
+  "timeline.minimap": "浏览时间线",
+  "timeline.jumpTo": "转到步骤{{step}}：{{title}}",
+  "assistant.backToConversation": "返回对话",
+  "assistant.changeModel": "更改模型",
+  "assistant.keepModel": "保留此模型"
 }
