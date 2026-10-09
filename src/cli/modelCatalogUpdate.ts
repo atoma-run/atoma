@@ -9,6 +9,7 @@ import {
 } from '../contracts/modelCatalog.js';
 import { MODEL_SELECTOR_VENDORS, type ModelSelectorVendor } from '../contracts/modelSelector.js';
 import type { LlmProviderEntry } from '../core/providerCatalog.js';
+import { CACHE_CREATE_MULTIPLIER_5M } from '../core/metrics.js';
 
 /**
  * HOW THE CATALOGUE LEARNS WHAT CHANGED — the pure half of `npm run models`.
@@ -203,9 +204,10 @@ export function diffCatalog(
         !samePrice(current.input, proposed.input) ||
         !samePrice(current.output, proposed.output) ||
         (proposed.cachedInput !== undefined && !samePrice(current.cachedInput, proposed.cachedInput)) ||
-        (current.cacheWrite !== undefined &&
-          proposed.cacheWrite !== undefined &&
-          !samePrice(current.cacheWrite, proposed.cacheWrite));
+        // A point without `cacheWrite` bills 1.25 × input, so a source that
+        // declares one is compared with that, not skipped.
+        (proposed.cacheWrite !== undefined &&
+          !samePrice(current.cacheWrite ?? current.input * CACHE_CREATE_MULTIPLIER_5M, proposed.cacheWrite));
       if (!moved) continue;
       const change = { vendor, id: model.id, sourceId: found.id, current, proposed };
       (model.manualPrice ? manualDisagreements : priceChanges).push(change);
@@ -263,7 +265,7 @@ export function pricePointFromSource(
     input: price.input,
     output: price.output,
     cachedInput: price.cachedInput ?? current?.cachedInput ?? price.input,
-    ...(cacheWrite !== undefined && !samePrice(cacheWrite, price.input * 1.25)
+    ...(cacheWrite !== undefined && !samePrice(cacheWrite, price.input * CACHE_CREATE_MULTIPLIER_5M)
       ? { cacheWrite }
       : {}),
     ...(price.source ? { source: price.source } : {}),

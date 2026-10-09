@@ -171,3 +171,20 @@ it('preserves every known free cache-write price when the reference omits it', (
     expect(next.cacheWrite).toBe(0);
   }
 });
+
+it('proposes a cache-write price only the source declares, against the 1.25 × input default', () => {
+  const at = new Date('2026-10-09T12:00:00Z');
+  const base = catalog();
+  const model = base.vendors.anthropic.models.find((m) => { const p = pricePointAt(m, at); return p && p.cacheWrite === undefined; })!;
+  const current = pricePointAt(model, at)!;
+  const price = { input: current.input, output: current.output, cachedInput: current.cachedInput, toolCalling: true };
+  const declared = (cacheWrite: number) => diffCatalog(base, new Map([['anthropic', new Map([[model.id, { ...price, cacheWrite }]])]]),
+    { at, vendors: ['anthropic'] }).priceChanges;
+  // Equal to what the point already bills: nothing moved.
+  expect(declared(current.input * 1.25)).toEqual([]);
+  // A different vendor price: proposed, and written on the new point.
+  const changes = declared(current.input * 2);
+  expect(changes.map((change) => change.id)).toEqual([model.id]);
+  const next = applyPriceChanges(base, changes, '2026-10-09');
+  expect(pricePointAt(next.vendors.anthropic.models.find((m) => m.id === model.id)!, at)?.cacheWrite).toBe(current.input * 2);
+});
