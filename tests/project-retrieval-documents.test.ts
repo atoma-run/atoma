@@ -51,6 +51,28 @@ describe('real document ingestion through the bounded subprocess', () => {
     await expect(prepareProjectRetrievalCorpus(root, documentManifest(root, { [`bad.${format}`]: Buffer.from('not a document') }),
       retrievalContext())).rejects.toThrow('ingestion failed');
   });
+  it('omits an unextractable document from a deciding corpus and counts it, while strict ingestion still refuses it', async () => {
+    // The exact bytes of run b17772fc's reading-edition.pdf, whose page tree
+    // references objects that do not exist. The next run, asked to repair it,
+    // never started (ea294153, 2026-10-09).
+    const broken = readFileSync(new URL('./fixtures/retrieval-documents/malformed-page-tree.pdf', import.meta.url));
+    const files = { 'README.md': '# Atlas\nSixteen pages of misplaced shadows.\n', 'reading-edition.pdf': broken };
+    const manifest = { ...documentManifest(root, files), coverage: { eligible: 2, indexed: 2, omitted: 0 } };
+    await expect(prepareProjectRetrievalCorpus(root, manifest, retrievalContext())).rejects.toThrow('ingestion failed');
+    const corpus = await prepareProjectRetrievalCorpus(root, manifest, retrievalContext(), {}, { omitUnextractable: true });
+    expect(corpus.manifest.documents.map(d => d.path)).toEqual(['README.md']);
+    expect(corpus.manifest.coverage).toEqual({ eligible: 2, indexed: 1, omitted: 1 });
+    expect(corpus.manifest.snapshotSha256).toBe(manifest.snapshotSha256);
+    expect(corpus.config.extractionVersion).toBe('utf8-files-v1');
+    expect(corpus.passages.map(p => p.path)).toEqual(['README.md']);
+    // The reduced manifest is what a strict consumer re-ingests: same generation, no failure.
+    expect((await prepareProjectRetrievalCorpus(root, corpus.manifest, retrievalContext())).generation).toBe(corpus.generation);
+  }, 30_000);
+  it('never turns a cancelled or expired extraction into an omission', async () => {
+    const manifest = documentManifest(root, { 'pricing.docx': fixture('docx') });
+    await expect(prepareProjectRetrievalCorpus(root, manifest, retrievalContext(10), {}, { omitUnextractable: true }))
+      .rejects.toThrow('deadline');
+  });
   it('interrupts an active extraction at its deadline', async () => {
     await expect(prepareProjectRetrievalCorpus(root, documentManifest(root, { 'pricing.docx': fixture('docx') }),
       retrievalContext(10))).rejects.toThrow('deadline');

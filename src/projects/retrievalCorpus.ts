@@ -186,27 +186,43 @@ export function chunkDocument(document: ProjectRetrievalManifest['documents'][nu
   return passages;
 }
 
+/**
+ * `omitUnextractable` is for the two places that DECIDE a corpus (a run's
+ * launch receipt and the client reader): a binary document whose text cannot
+ * be extracted leaves the manifest and is counted in `coverage.omitted`
+ * instead of failing everything. Run `ea294153` (2026-10-09) was asked to
+ * repair a malformed PDF and never started, because that PDF was in its seed.
+ * Ingesting an already decided manifest (the run-owned Haystack process) stays
+ * strict: a receipt that promised a document must deliver it.
+ */
+export interface ProjectRetrievalIngestionOptions {
+  readonly omitUnextractable?: boolean;
+}
+
 export async function prepareProjectRetrievalCorpus(root: string, input: unknown,
-  context: ProjectRetrievalCallContext, chunks: Partial<ProjectRetrievalChunkSettings> = {}): Promise<PreparedProjectRetrievalCorpus> {
+  context: ProjectRetrievalCallContext, chunks: Partial<ProjectRetrievalChunkSettings> = {},
+  options: ProjectRetrievalIngestionOptions = {}): Promise<PreparedProjectRetrievalCorpus> {
   try {
     assertRetrievalTime(context);
     const canonicalRoot = await realpath(root);
     if (!(await lstat(canonicalRoot)).isDirectory()) throw new Error('invalid snapshot root');
-    return await prepareProjectRetrievalSources(input, context, document => captureProjectDocument(canonicalRoot, document, context), chunks);
-  } catch { assertRetrievalTime(context); throw new Error('project document ingestion failed'); }
+    return await prepareProjectRetrievalSources(input, context, document => captureProjectDocument(canonicalRoot, document, context), chunks, options);
+  } catch (cause) { assertRetrievalTime(context); throw new Error('project document ingestion failed', { cause }); }
 }
 
 /** Shared ingestion over authority-verified bytes, also used by the client reader. */
 export async function prepareProjectRetrievalSources(input: unknown, context: ProjectRetrievalCallContext,
   read: (document: ProjectRetrievalManifest['documents'][number]) => Promise<Buffer>,
-  chunks: Partial<ProjectRetrievalChunkSettings> = {}): Promise<PreparedProjectRetrievalCorpus> {
+  chunks: Partial<ProjectRetrievalChunkSettings> = {},
+  options: ProjectRetrievalIngestionOptions = {}): Promise<PreparedProjectRetrievalCorpus> {
   try {
     assertRetrievalTime(context);
-    const manifest = canonicalRetrievalManifest(input);
-    const config = retrievalConfigForManifest(manifest, chunks);
+    let manifest = canonicalRetrievalManifest(input);
+    let config = retrievalConfigForManifest(manifest, chunks);
     const passages: Readonly<ProjectRetrievalPassage>[] = [];
     let extractedBytes = 0;
     const analyses = new Map<string, ProjectCodeAnalysis>();
+    const unextractable = new Set<string>();
     for (const document of manifest.documents) {
       assertRetrievalTime(context);
       const bytes = await read(document);
@@ -218,7 +234,15 @@ export async function prepareProjectRetrievalSources(input: unknown, context: Pr
         passages.push(...chunkDocument(document, bytes, config.chunks, undefined, analysis));
       }
       else {
-        const extracted = await extractProjectDocument(document.path, bytes, context);
+        let extracted: Buffer;
+        try { extracted = await extractProjectDocument(document.path, bytes, context); }
+        catch (error) {
+          // A cancelled or expired preparation is never an omission.
+          assertRetrievalTime(context);
+          if (!options.omitUnextractable) throw error;
+          unextractable.add(document.path);
+          continue;
+        }
         extractedBytes += extracted.length;
         if (extractedBytes > PROJECT_RETRIEVAL_CORPUS_LIMITS.sourceBytes) throw new Error('extracted corpus too large');
         passages.push(...chunkDocument(document, extracted, config.chunks, {
@@ -245,10 +269,19 @@ export async function prepareProjectRetrievalSources(input: unknown, context: Pr
       } }));
     }
     assertRetrievalTime(context);
+    if (unextractable.size) {
+      // The omitted documents contributed no passage. The snapshot identity is
+      // unchanged: it names the authority's snapshot, which may hold non-indexed assets.
+      const coverage = manifest.coverage && { ...manifest.coverage,
+        indexed: manifest.coverage.indexed - unextractable.size, omitted: manifest.coverage.omitted + unextractable.size };
+      manifest = canonicalRetrievalManifest({ ...manifest, ...(coverage ? { coverage } : {}),
+        documents: manifest.documents.filter(document => !unextractable.has(document.path)) });
+      config = retrievalConfigForManifest(manifest, chunks);
+    }
     return Object.freeze({ manifest, config, generation: retrievalGeneration(manifest, config),
       passages: Object.freeze(passages) });
-  } catch {
+  } catch (cause) {
     assertRetrievalTime(context);
-    throw new Error('project document ingestion failed');
+    throw new Error('project document ingestion failed', { cause });
   }
 }

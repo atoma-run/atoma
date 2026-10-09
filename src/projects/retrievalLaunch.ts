@@ -130,12 +130,14 @@ export class ProjectRetrievalLaunchStore {
         await mkdir(dirname(target), { recursive: true, mode: 0o700 });
         await writeFile(target, bytes, { flag: 'wx', mode: 0o400 });
       }
-      const corpus = await prepareProjectRetrievalCorpus(sourceRoot, manifest, context);
+      // The receipt records the corpus as ingested: an unextractable document
+      // is omitted there, and its bytes stay in the archived snapshot.
+      const corpus = await prepareProjectRetrievalCorpus(sourceRoot, manifest, context, {}, { omitUnextractable: true });
       const scope = projectRetrievalScopeSchema.parse({ kind: 'tenant', runId,
         orgId: run.orgId, projectId: run.projectId, principalId: run.requestedByPrincipalId,
-        corpusId: manifest.corpusId, snapshotId: manifest.snapshotId,
-        snapshotSha256: manifest.snapshotSha256, generation: corpus.generation });
-      const receipt = projectRetrievalLaunchSchema.parse({ version: 1, scope, manifest, sourceRoot,
+        corpusId: corpus.manifest.corpusId, snapshotId: corpus.manifest.snapshotId,
+        snapshotSha256: corpus.manifest.snapshotSha256, generation: corpus.generation });
+      const receipt = projectRetrievalLaunchSchema.parse({ version: 1, scope, manifest: corpus.manifest, sourceRoot,
         sourceRunId, sourceManifestHash: source?.artifactManifestHash ?? null });
       this.db.transaction(() => {
         assertRetrievalTime(context);
@@ -144,9 +146,11 @@ export class ProjectRetrievalLaunchStore {
         if (!this.resolve(runId)) throw new Error('source changed');
       }).immediate();
       return receipt;
-    } catch {
+    } catch (cause) {
+      // The row's error stays generic; the cause chain reaches the run log
+      // through the coordinator, where host paths are redacted for tenants.
       throw new Error(context.signal.aborted ? 'project document preparation cancelled' :
-        'project document preparation failed');
+        'project document preparation failed', { cause });
     }
   }
 }

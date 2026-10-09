@@ -1,8 +1,9 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { closeStoreHandles } from '../src/core/stores.js';
+import { closeStoreHandles, openStoreHandle } from '../src/core/stores.js';
+import { projectRetrievalLaunchSchema } from '../src/contracts/projectRetrievalLaunch.js';
 import { ProjectRunCoordinator, ProjectRunConfigurationError, type ProjectRunDriver } from '../src/projects/coordinator.js';
 import { ProjectRetrievalLaunchStore } from '../src/projects/retrievalLaunch.js';
 import { openProjectRunHaystack } from '../src/projects/retrievalHaystackLaunch.js';
@@ -112,6 +113,64 @@ describe('coordinator retrieval admission before spawn', () => {
     const reader = new ProjectRunCoordinator({ store: f.projects, dbPath: f.dbPath, hostEnv: {} });
     expect((await reader.start(input)).projectRunId).toBe(run.projectRunId);
     expect(driver).toHaveBeenCalledOnce();
+  });
+
+  it('launches a run whose seed holds an unextractable PDF, omitting it from the corpus (ea294153)', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'atoma-retrieval-broken-pdf-')); roots.push(root);
+    const f = projectRetrievalFixture(root);
+    const broken = readFileSync(new URL('./fixtures/retrieval-documents/malformed-page-tree.pdf', import.meta.url));
+    f.makeRun({ 'README.md': 'Pocket atlas of misplaced shadows.\n', 'reading-edition.pdf': broken });
+    let result: ProjectRetrievalResponse | undefined;
+    const driver: ProjectRunDriver = vi.fn(async options => {
+      const env = options.env!;
+      const prepared = openProjectRunHaystack({ dbPath: env['ATOMA_DB_PATH']!, runId: env['ATOMA_RUN_ID']!,
+        workspacePath: env['ATOMA_BUILD_WORKSPACE']!, skillsPath: env['ATOMA_SKILLS_DIR']!, runsPath: env['ATOMA_RUNS_DIR']! }, readHaystackLaunch(env));
+      await prepared.prepare(retrievalContext());
+      const tool = createProjectRetrievalTool(prepared.binding, retrievalContext());
+      try { result = await tool.execute({ query: 'misplaced shadows' }); }
+      finally { await tool.close(); }
+      return '--- run failed --- boundary test ends before delivery';
+    });
+    const coordinator = new ProjectRunCoordinator({ store: f.projects, dbPath: f.dbPath, projectsRoot: root,
+      hostEnv: { [HAYSTACK_LAUNCH_ENV]: JSON.stringify(haystackTestRuntime(root)), ATOMA_MODEL_L1: 'api:ollama:test', ATOMA_MODEL_L2: 'api:ollama:test', ATOMA_MODEL_L3: 'api:ollama:test',
+        OLLAMA_BASE_URL: 'http://127.0.0.1:1' }, driver,
+      acquireLease: async () => ({ path: 'test', attachChild: vi.fn(), release: vi.fn() }) });
+    const run = await coordinator.start({ orgId: f.viewer.orgId, principalId: f.viewer.principalId,
+      projectId: f.project.projectId, request: { idempotencyKey: 'broken-pdf', goal: 'Repair the reading edition.' } });
+    await coordinator.waitForIdle();
+    expect(driver).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({ ok: true, coverage: { eligible: 2, indexed: 1, omitted: 1 },
+      passages: [expect.objectContaining({ path: 'README.md' })] });
+    const row = openStoreHandle(f.dbPath, '').prepare('SELECT receipt_json FROM project_retrieval_launches WHERE run_id = ?')
+      .get(run.projectRunId) as { receipt_json: string };
+    const receipt = projectRetrievalLaunchSchema.parse(JSON.parse(row.receipt_json));
+    expect(receipt.manifest.documents.map(d => d.path)).toEqual(['README.md']);
+    expect(readFileSync(join(receipt.sourceRoot, 'reading-edition.pdf'))).toEqual(broken);
+  }, 60_000);
+
+  it('records the cause of a failed preparation in the run log the runner never wrote', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'atoma-retrieval-cause-')); roots.push(root);
+    const f = projectRetrievalFixture(root);
+    const source = f.makeRun({ 'docs.md': 'Original source\n' });
+    // A symlink in the seed refuses the starting inventory inside preparation.
+    rmSync(join(source.layout.workspacePath, 'docs.md'));
+    symlinkSync('/etc/hosts', join(source.layout.workspacePath, 'docs.md'));
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const driver = vi.fn<ProjectRunDriver>(async () => 'not reached');
+    const coordinator = new ProjectRunCoordinator({ store: f.projects, dbPath: f.dbPath, projectsRoot: root,
+      hostEnv: { [HAYSTACK_LAUNCH_ENV]: JSON.stringify(haystackTestRuntime(root)), ATOMA_MODEL_L1: 'api:ollama:test', ATOMA_MODEL_L2: 'api:ollama:test', ATOMA_MODEL_L3: 'api:ollama:test',
+        OLLAMA_BASE_URL: 'http://127.0.0.1:1' }, driver,
+      acquireLease: async () => ({ path: 'test', attachChild: vi.fn(), release: vi.fn() }) });
+    const run = await coordinator.start({ orgId: f.viewer.orgId, principalId: f.viewer.principalId,
+      projectId: f.project.projectId, request: { idempotencyKey: 'failed-preparation', goal: 'Consult project docs.' } });
+    await coordinator.waitForIdle();
+    expect(driver).not.toHaveBeenCalled();
+    const failed = f.projects.getProjectRun(f.viewer.orgId, run.projectRunId)!;
+    expect(failed).toMatchObject({ status: 'failed', error: 'project document preparation failed' });
+    const log = readFileSync(failed.hostPaths.logPath, 'utf8');
+    expect(log).toMatch(/^\[atoma projects\] run preparation failed: project document preparation failed <- \S/);
+    expect(log.split(' <- ').length).toBeGreaterThan(1);
+    expect(stderr.mock.calls.some(([line]) => String(line).includes(`run preparation failed`) && String(line).includes(run.projectRunId))).toBe(true);
   });
 
   it('does not spawn on cancelled preparation and preserves the original source', async () => {

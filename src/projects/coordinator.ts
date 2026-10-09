@@ -9,7 +9,7 @@ import { assertPersonalCodexModels, CODEX_MODEL_CAPABILITIES_ENV, type CodexMode
 import { projectWorkspaceRelative } from '../contracts/launcherVolumes.js';
 import { randomUUID } from 'node:crypto';
 import { migratePlatformSkills, reconcilePlatformSkills } from '../skills/migratePlatform.js';
-import { existsSync, lstatSync, readFileSync } from 'node:fs';
+import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { parseRunLog, spawnRun, DEFAULT_HARD_KILL_MARGIN_MS, UNKILLABLE_BACKSTOP_EXTRA_MS, type RunStats } from '../cli/burnin.js';
@@ -977,6 +977,29 @@ function verifiedTrace(
 }
 
 /** First `✖ …` line from a failed runner log, else a bounded outcome label. */
+/**
+ * A failure before the runner spawned leaves no run log, and its row error is
+ * deliberately generic. Run `ea294153` (2026-10-09) failed that way with an
+ * unreadable log and no cause anywhere. Its cause chain is appended to the run
+ * log, which `atoma_run_trace section=log` reads with host paths redacted for
+ * tenants, and to the server's stderr.
+ */
+export function recordPreparationFailure(logPath: string, projectRunId: string, error: unknown): void {
+  const chain: string[] = [];
+  for (let current: unknown = error; current !== undefined && chain.length < 8;
+    current = current instanceof Error ? current.cause : undefined) {
+    chain.push(current instanceof Error ? current.message : typeof current === 'string' ? current : JSON.stringify(current) ?? typeof current);
+  }
+  const line = `[atoma projects] run preparation failed: ${chain.join(' <- ')}`.slice(0, 4_000);
+  process.stderr.write(`${line} (${projectRunId})\n`);
+  try {
+    mkdirSync(path.dirname(logPath), { recursive: true });
+    appendFileSync(logPath, `${line}\n`);
+  } catch (logError) {
+    process.stderr.write(`[atoma projects] preparation failure not logged for ${projectRunId}: ${String(logError)}\n`);
+  }
+}
+
 export function runnerFailureDetail(log: string, outcome: string): string {
   const lines = log.split('\n');
   for (let i = 0; i < lines.length; i++) {
@@ -1854,6 +1877,7 @@ export class ProjectRunCoordinator {
         env: environment,
         onSpawn: (pid) => lease.attachChild(pid),
       });
+      let launched = false;
       driven = (async () => {
         const preparationSignal = AbortSignal.any([
           controller.signal,
@@ -1968,8 +1992,14 @@ export class ProjectRunCoordinator {
           // list: it must not draft one from its own models either.
           environment[ACCEPTANCE_SOURCE_ENV] = 'none';
         }
+        launched = true;
         return launch();
-      })();
+      })().catch((error: unknown) => {
+        // The runner never started, so no log exists and the row keeps only
+        // a generic message. The cause chain goes to the run log instead.
+        if (!launched && !controller.signal.aborted) recordPreparationFailure(paths.logPath, run.projectRunId, error);
+        throw error;
+      });
     } catch (error) {
       driven = Promise.reject(error instanceof Error ? error : new Error(String(error)));
     }

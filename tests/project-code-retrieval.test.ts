@@ -88,6 +88,15 @@ it('uses the same reader for saved artifacts, refuses revoked access and altered
   expect(await searchSavedProjectCode(input)).toEqual({ ok: false, status: 'unavailable' });
 });
 
+it('serves a saved run whose unextractable PDF is counted as omitted, not a failed search (ea294153)', async () => {
+  const f = projectRetrievalFixture(root);
+  const broken = readFileSync(new URL('./fixtures/retrieval-documents/malformed-page-tree.pdf', import.meta.url));
+  const saved = f.makeRun({ ...files, 'reading-edition.pdf': broken });
+  const result = await searchSavedProjectCode({ run: saved.run, principalId: f.viewer.principalId,
+    launch: haystackTestRuntime(root), query: { query: 'refund' },
+    read: (path: string) => readFileSync(join(saved.layout.workspacePath, path)), authorize: () => true });
+  expect(result).toMatchObject({ ok: true, coverage: { eligible: 4, indexed: 3, omitted: 1 } });
+}, 60_000);
 
 it('extracts class members and refuses ambiguous local module edges', () => {
   const analysis = analyseProjectCode('a.ts', 'export class Refund {\n  calculate(hours: number) { return hours; }\n}\n', ['a.ts']);

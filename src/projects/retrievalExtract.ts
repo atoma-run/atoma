@@ -45,7 +45,7 @@ export async function extractProjectDocument(path: string, bytes: Buffer,
         const text = Buffer.concat(output);
         if (failed || code !== 0 || context.signal.aborted || Date.now() >= context.deadlineAt ||
             !text.toString('utf8').trim() || text.includes(0) || !Buffer.from(text.toString('utf8')).equals(text)) {
-          reject(new Error('document text extraction failed'));
+          reject(new Error(`document text extraction failed: ${path}`));
         } else resolve(text);
       });
       if (context.signal.aborted || Date.now() >= context.deadlineAt) stop();

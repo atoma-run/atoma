@@ -22,7 +22,7 @@ export async function searchSavedProjectCode(input: {
     const selected = selectRetrievalDocuments(input.run.artifactManifest!.files);
     const corpus = await prepareProjectRetrievalSources({ version: 1, corpusId: 'project-docs',
       snapshotId: input.run.projectRunId, snapshotSha256: input.run.artifactManifestHash!, ...selected,
-    }, context, async document => input.read(document.path));
+    }, context, async document => input.read(document.path), {}, { omitUnextractable: true });
     const scope = projectRetrievalScopeSchema.parse({ kind: 'tenant', runId: input.run.projectRunId,
       projectId: input.run.projectId, orgId: input.run.orgId, principalId: input.principalId,
       corpusId: corpus.manifest.corpusId, snapshotId: corpus.manifest.snapshotId,
