@@ -41,6 +41,8 @@ record in `../incidents/` retains its original inline paths.
 - [Value audit — September 14](reviews/value-audit-2026-09-14.md)
 - [Code review — September 24](reviews/code-review-2026-09-24.md)
 - [Code review — September 25](reviews/code-review-2026-09-25.md)
+- [Code review — October 2](reviews/code-review-2026-10-02.md)
+- [Code review — October 9](reviews/code-review-2026-10-09.md)
 
 ## Release and recovery evidence
 
