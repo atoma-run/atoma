@@ -6,7 +6,7 @@ import { openDb } from '../src/registry/db.js';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { createJevDecider } from '../src/core/jev.js';
 import type { JevChoiceRequest, JevDecider, JevDecisionInfo, Tool } from '../src/core/types.js';
-import { selectTissue, tissuePrompt } from '../src/run/tissueRouting.js';
+import { selectTissue, tissueForRun, tissuePrompt } from '../src/run/tissueRouting.js';
 import { readRoutingRepository } from '../src/run/routingRepository.js';
 import { seedTissueCatalog } from '../src/run/tissues.js';
 import { buildChoice, readChoice, type JevAnswers } from '../src/core/jevQuestions.js';
@@ -105,6 +105,32 @@ describe('root tissue selection', () => {
     expect(builder.atomId).not.toBe(first.atomId);
     expect(reg.getByAtomId(first.atomId)!.systemPrompt).toBe(first.systemPrompt);
     expect(seedTissueCatalog({ registry: reg, toolDecls: tools, log: () => {} }).atomId).toBe(builder.atomId);
+  });
+
+  // Code review 2026-10-09 2.8: a tissue written during a project run kept
+  // `search_project_docs`, so every run without that host tool filtered it
+  // out, paid another author call and registered a near duplicate.
+  it('registers a written tissue without host tools, so a run without them reuses it', async () => {
+    const reg = registry();
+    const search: Tool = { name: 'search_project_docs', description: 'Search project docs', inputSchema: { type: 'object' } };
+    const workflow = 'Delegate repository reading and evidence synthesis to cells. Return a grounded explanation.';
+    const authorContext = makeCtx();
+    const author = () => ({ model: 'api:openai:gpt-6', llm: authorContext.llm });
+    const project = makeCtx();
+    project.llm.enqueueText(jsonText({ action: 'create', reasoning: 'No analysis method exists.' }));
+    authorContext.llm.enqueueText(jsonText({ description: 'Repository analysis orchestrator', workflow }));
+    const written = await selectTissue({ registry: reg, toolDecls: [...tools, search], task, repository, ctx: project, author });
+    expect(written.tools.map((tool) => tool.name)).toEqual(['read_file']);
+    // The project run's own root still holds the host tool, never persisted.
+    expect(tissueForRun(written, [...tools, search]).tools.map((tool) => tool.name)).toEqual(['read_file', 'search_project_docs']);
+    expect(reg.getByAtomId(written.atomId)!.tools.map((tool) => tool.name)).toEqual(['read_file']);
+    const operator = makeCtx();
+    operator.llm.enqueueText(jsonText({ action: 'reuse', name: written.name, reasoning: 'The analysis method fits.' }));
+    const reused = await selectTissue({ registry: reg, toolDecls: tools, task, repository, ctx: operator, author });
+    expect(reused.atomId).toBe(written.atomId);
+    expect(JSON.parse(operator.llm.calls[0]!.userContent).candidates.map((c: { name: string }) => c.name)).toContain(written.name);
+    expect(authorContext.llm.calls).toHaveLength(1);
+    expect(tissueForRun(reused, tools)).toBe(reused);
   });
 
   it('refuses an unknown or unavailable model selection instead of silently routing to the builder', async () => {

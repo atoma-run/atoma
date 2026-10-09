@@ -42,7 +42,10 @@ Neighbours:
   never the run's pins, keys or personal login. One text-only, high-effort call
   shares the run's recording and budget meter, then `createOrReuse(3)` owns
   allocation. Missing platform configuration refuses creation, not reuse.
-  Tools, parameters and delegation discipline remain host-owned.
+  Tools, parameters and delegation discipline remain host-owned. A written
+  tissue is registered WITHOUT host tools and `tissueForRun` lends the run's
+  back to the executing L3, as Meristem's seeding patch does; kept, they hid
+  a project-run tissue from every other run (review 2026-10-09 2.8).
   Repository excerpts are untrusted context, never persisted agent prompts.
   `tissues.ts` seeds the existing builder as a candidate, not a default route;
   bootstrap recognizes its provenance so a custom Meristem is never replaced.

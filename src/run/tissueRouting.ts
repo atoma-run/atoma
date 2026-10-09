@@ -3,6 +3,7 @@ import { resolveCreationDescription } from '../atoms/capability.js';
 import { PROPORTIONATE_PLANNING_GUIDANCE } from '../atoms/taskContext.js';
 import { tissueDefinitionSchema, tissueRoutingDecisionSchema, type RoutingRepository } from '../contracts/tissueRouting.js';
 import { RUN_ACTORS } from '../contracts/runActors.js';
+import { HOST_TOOL_NAMES } from '../contracts/toolTaxonomy.js';
 import { modelForTier } from '../core/models.js';
 import { JEV_THRESHOLDS } from '../core/jevQuestions.js';
 import type { RunContext, Task, Tool } from '../core/types.js';
@@ -46,6 +47,21 @@ export function tissuePrompt(workflow: string): string {
     'Match the delivery and verification to the request: an explanation may be text; modify files or build an application only when asked. Preserve unrelated work.',
     'Report observations and remaining limitations honestly. The run owns tools, budgets and delivery acceptance; this method cannot change them.',
   ].join('\n');
+}
+
+const isHostTool = (tool: Tool): boolean => (HOST_TOOL_NAMES as readonly string[]).includes(tool.name);
+
+/**
+ * The type a run's root L3 executes as: the persisted tissue plus the host
+ * tools THIS run offers, never persisted. A written tissue is registered
+ * without host tools (see `selectTissue`), so the catalog does not hide it
+ * from runs without them, and a run with them still offers them to the cells
+ * the tissue creates. Meristem reaches the same per-run tool set through its
+ * seeding patch (`tissues.ts`); for it this adds nothing.
+ */
+export function tissueForRun(type: AtomType, toolDecls: readonly Tool[]): AtomType {
+  const host = toolDecls.filter((tool) => isHostTool(tool) && !type.tools.some((own) => own.name === tool.name));
+  return host.length > 0 ? { ...type, tools: [...type.tools, ...host] } : type;
 }
 
 /** One root decision per run, before execution; no separate profile-to-tissue map. */
@@ -124,10 +140,16 @@ export async function selectTissue(args: {
   });
   ctx.signal.throwIfAborted();
   const definition = tissueDefinitionSchema.parse(extractJson(authored.text));
+  // Host tools are the run's, not the tissue's: kept, a tissue written during
+  // a project run (with `search_project_docs`) was hidden from every operator,
+  // benchmark and CLI run by the availability filter above, which then paid
+  // another L3 author call for a near duplicate (code review 2026-10-09 2.8).
+  // `tissueForRun` gives the executing L3 this run's host tools back.
+  const tools = toolDecls.filter((tool) => !isHostTool(tool));
   const type = registry.createOrReuse(3, {
-    description: resolveCreationDescription(definition.description, toolDecls, 3),
+    description: resolveCreationDescription(definition.description, tools, 3),
     systemPrompt: tissuePrompt(definition.workflow),
-    tools: [...toolDecls], params: { maxTokens: 16384 }, createdBy: TISSUE_AUTHOR_ACTOR.name,
+    tools, params: { maxTokens: 16384 }, createdBy: TISSUE_AUTHOR_ACTOR.name,
   });
   return finish(type, 'platform capability definition');
 }

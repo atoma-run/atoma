@@ -72,7 +72,7 @@ import type { LlmClient, Logger, Plan, Result, RunContext, Task } from '../core/
 import { GOAL_GUIDANCE } from './guidance.js';
 import { DEPTH_CONTRACT, RUN_DEFAULTS, RUN_ENV, TRACE_LABEL_PREFIX, prepareWorkspace, seedCatalog, type SeedContext } from './setup.js';
 import { seedTissueCatalog } from './tissues.js';
-import { selectTissue } from './tissueRouting.js';
+import { selectTissue, tissueForRun } from './tissueRouting.js';
 import { capturePlatformTissueAuthor, platformTissueAuthor, type TissueAuthor } from './tissueAuthor.js';
 import { PLATFORM_TISSUE_AUTHOR_ENV } from '../contracts/tissueRouting.js';
 import { readRoutingRepository } from './routingRepository.js';
@@ -1136,7 +1136,7 @@ async function startTaskInternal(
         author: getTissueAuthor,
       });
       if (checkpoint) checkpoint.data.actor = { name: selectedTissue.name, atomId: selectedTissue.atomId, version: selectedTissue.version };
-      return L3Atom.fromType(selectedTissue, registry, skillRegistry);
+      return L3Atom.fromType(tissueForRun(selectedTissue, backend.toolDecls), registry, skillRegistry);
     };
 
     // Skill store — shared by every atom in the run. Bodies are
