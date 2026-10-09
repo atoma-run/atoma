@@ -1187,7 +1187,7 @@
   "run.partial.details": "প্রযুক্তিগত বিবরণ",
   "projects.runPartial.rerun": "তুলনার জন্য পুনরায় run, শেষ হয়নি। এটি প্রকল্পের পাশে থাকে; প্রকল্পের পরবর্তী run তার নিজের কাজ চালিয়ে যায়।",
   "run.partial.next.rerun": "তুলনার জন্য এই পুনরায় run প্রকল্পের পাশে থাকে: প্রকল্পের পরবর্তী run এই run-এর নয়, প্রকল্পের নিজের কাজ চালিয়ে যায়।",
-  "run.partial.next.superseded": "",
+  "run.partial.next.superseded": "এই প্রকল্পের পরবর্তী একটি run শেষ হয়েছে। পরের run এই প্রকল্পের সর্বশেষ workspace থেকে চলতে থাকবে; সেই workspace-এর মেয়াদ শেষ হয়ে থাকলে, প্রকল্পটি চালিয়ে যাওয়ার আগে সেটি পুনরুদ্ধার করতে হবে।",
   "depth.checklist.judged_one": "{{count}}টি মানদণ্ডের মধ্যে {{met}}টি পূরণ হয়েছে বলে বিবেচিত",
   "depth.checklist.judged_other": "{{count}}টি মানদণ্ডের মধ্যে {{met}}টি পূরণ হয়েছে বলে বিবেচিত",
   "admin.ledgerFact.by": "{{value}} দ্বারা",
@@ -1449,7 +1449,7 @@
   "fileViewer.message.remoteUrl": "রিমোট URL",
   "fileViewer.message.localFile": "স্থানীয় বা ইন-মেমরি ফাইল",
   "fileViewer.message.textPlainLanguage": "প্লেইন টেক্সট",
-  "fileViewer.message.textLineCount": "",
+  "fileViewer.message.textLineCount": "লাইন: {{count}}",
   "fileViewer.message.textWrap": "লাইন মোড়ান",
   "fileViewer.message.textCopy": "কপি করুন",
   "fileViewer.message.textCopied": "কপি হয়েছে",
@@ -1486,7 +1486,7 @@
   "fileViewer.message.officeLegacyOleDetected": "OLE Compound File সিগনেচার শনাক্ত হয়েছে",
   "fileViewer.message.officeLegacyOleMissing": "কোনো স্ট্যান্ডার্ড OLE সিগনেচার শনাক্ত হয়নি; কাঁচা বাইনারি ডেটা থেকে এক্সট্র্যাক্ট করা হচ্ছে",
   "fileViewer.message.officeLegacyMetaTextFragments": "টেক্সট খণ্ড",
-  "fileViewer.message.officeLegacyTextFragmentCount": "",
+  "fileViewer.message.officeLegacyTextFragmentCount": "খণ্ডাংশ: {{count}}",
   "fileViewer.message.officeLegacyMetaParseStatus": "পার্সের অবস্থা",
   "fileViewer.message.officeLegacyReadableFragments": "পাঠযোগ্য টেক্সট খণ্ড",
   "fileViewer.message.officeLegacyNoText": "স্থিতিশীল ও পাঠযোগ্য কোনো টেক্সট এক্সট্র্যাক্ট করা যায়নি। ফাইলটি কমপ্রেসড বা এনক্রিপ্টেড হতে পারে, অথবা এমন টেক্সট এনকোডিং ব্যবহার করতে পারে যা ব্রাউজারে নির্ভরযোগ্যভাবে শনাক্ত করা যায় না; প্রিভিউ করার আগে LibreOffice/OnlyOffice সার্ভার দিয়ে কনভার্ট করুন।",
@@ -1766,5 +1766,6 @@
   "liveRuns.started": "{{at}}-এ শুরু হয়েছে",
   "liveRuns.open": "run অনুসরণ করুন",
   "liveRuns.preparing": "প্রস্তুত হচ্ছে — run ট্রেস এখনও উপলভ্য নয়।",
-  "runs.backToProject": "প্রকল্পে ফিরে যান"
+  "runs.backToProject": "প্রকল্পে ফিরে যান",
+  "settings.keyRemove": "কী সরান"
 }

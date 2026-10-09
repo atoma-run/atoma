@@ -1187,7 +1187,7 @@
   "run.partial.details": "التفاصيل التقنية",
   "projects.runPartial.rerun": "لم يكتمل run المقارنة المُعاد. ويظل بجوار المشروع؛ أما run التالي للمشروع فيتابع عمل المشروع نفسه.",
   "run.partial.next.rerun": "يظل run المقارنة المُعاد هذا بجوار المشروع لأغراض المقارنة: يتابع run التالي للمشروع عمل المشروع نفسه، لا عمل هذا run.",
-  "run.partial.next.superseded": "",
+  "run.partial.next.superseded": "اكتمل run لاحق لهذا المشروع. يستأنف run التالي من أحدث مساحة عمل لهذا المشروع؛ وإذا انتهت صلاحية مساحة العمل تلك، فيجب استعادتها قبل أن يتمكن المشروع من المتابعة.",
   "depth.checklist.judged_one": "المعيار الذي اعتُبر مستوفًى: {{met}} من أصل {{count}}",
   "depth.checklist.judged_other": "المعايير التي اعتُبرت مستوفاة: {{met}} من أصل {{count}}",
   "admin.ledgerFact.by": "بواسطة {{value}}",
@@ -1447,7 +1447,7 @@
   "fileViewer.message.remoteUrl": "عنوان URL بعيد",
   "fileViewer.message.localFile": "ملف محلي أو في الذاكرة",
   "fileViewer.message.textPlainLanguage": "نص عادي",
-  "fileViewer.message.textLineCount": "",
+  "fileViewer.message.textLineCount": "الأسطر: {{count}}",
   "fileViewer.message.textWrap": "التفاف",
   "fileViewer.message.textCopy": "نسخ",
   "fileViewer.message.textCopied": "تم النسخ",
@@ -1484,7 +1484,7 @@
   "fileViewer.message.officeLegacyOleDetected": "تم اكتشاف توقيع ملف OLE مركّب",
   "fileViewer.message.officeLegacyOleMissing": "لم يُكتشف توقيع OLE قياسي؛ جارٍ الاستخراج من البيانات الثنائية الخام",
   "fileViewer.message.officeLegacyMetaTextFragments": "الأجزاء النصية",
-  "fileViewer.message.officeLegacyTextFragmentCount": "",
+  "fileViewer.message.officeLegacyTextFragmentCount": "المقاطع: {{count}}",
   "fileViewer.message.officeLegacyMetaParseStatus": "حالة التحليل",
   "fileViewer.message.officeLegacyReadableFragments": "الأجزاء النصية القابلة للقراءة",
   "fileViewer.message.officeLegacyNoText": "لم يتم استخراج نص ثابت قابل للقراءة. قد يكون الملف مضغوطًا أو مشفرًا، أو يستخدم ترميزًا نصيًا لا يمكن التعرّف عليه بشكل موثوق في المتصفح؛ استخدم التحويل على الخادم عبر LibreOffice/OnlyOffice قبل المعاينة.",
@@ -1766,5 +1766,6 @@
   "liveRuns.started": "بدأت في {{at}}",
   "liveRuns.open": "متابعة run",
   "liveRuns.preparing": "جارٍ التحضير — تتبّع run غير متاح بعد.",
-  "runs.backToProject": "العودة إلى المشروع"
+  "runs.backToProject": "العودة إلى المشروع",
+  "settings.keyRemove": "إزالة المفتاح"
 }

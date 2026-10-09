@@ -1187,7 +1187,7 @@
   "run.partial.details": "تکنیکی تفصیلات",
   "projects.runPartial.rerun": "تقابل کے لیے دوبارہ کیا گیا run مکمل نہیں ہوا۔ یہ پروجیکٹ کے ساتھ موجود رہتا ہے؛ پروجیکٹ کا اگلا run اپنا کام جاری رکھتا ہے۔",
   "run.partial.next.rerun": "تقابل کے لیے دوبارہ کیا گیا یہ run پروجیکٹ کے ساتھ موجود رہتا ہے: پروجیکٹ کا اگلا run پروجیکٹ کا اپنا کام جاری رکھتا ہے، اس run کا نہیں۔",
-  "run.partial.next.superseded": "",
+  "run.partial.next.superseded": "اس پروجیکٹ کا بعد والا run مکمل ہو چکا ہے۔ اگلا run اس پروجیکٹ کی تازہ ترین ورک اسپیس سے جاری ہوگا؛ اگر وہ ورک اسپیس زائد المیعاد ہو چکی ہے تو پروجیکٹ جاری رکھنے سے پہلے اسے بحال کرنا ہوگا۔",
   "depth.checklist.judged_one": "{{count}} میں سے {{met}} معیار پورا قرار دیا گیا",
   "depth.checklist.judged_other": "{{count}} میں سے {{met}} معیارات پورے قرار دیے گئے",
   "admin.ledgerFact.by": "{{value}} کے ذریعے",
@@ -1449,7 +1449,7 @@
   "fileViewer.message.remoteUrl": "ریموٹ URL",
   "fileViewer.message.localFile": "مقامی یا میموری میں موجود فائل",
   "fileViewer.message.textPlainLanguage": "سادہ متن",
-  "fileViewer.message.textLineCount": "",
+  "fileViewer.message.textLineCount": "سطریں: {{count}}",
   "fileViewer.message.textWrap": "سطری التفاف",
   "fileViewer.message.textCopy": "کاپی کریں",
   "fileViewer.message.textCopied": "کاپی ہو گیا",
@@ -1486,7 +1486,7 @@
   "fileViewer.message.officeLegacyOleDetected": "OLE Compound File کا دستخط ملا",
   "fileViewer.message.officeLegacyOleMissing": "کوئی معیاری OLE دستخط نہیں ملا؛ خام بائنری ڈیٹا سے اخذ کیا جا رہا ہے",
   "fileViewer.message.officeLegacyMetaTextFragments": "متنی ٹکڑے",
-  "fileViewer.message.officeLegacyTextFragmentCount": "",
+  "fileViewer.message.officeLegacyTextFragmentCount": "ٹکڑے: {{count}}",
   "fileViewer.message.officeLegacyMetaParseStatus": "تجزیے کی حالت",
   "fileViewer.message.officeLegacyReadableFragments": "پڑھنے کے قابل متنی ٹکڑے",
   "fileViewer.message.officeLegacyNoText": "کوئی مستحکم اور قابلِ مطالعہ متن اخذ نہیں ہوا۔ فائل کمپریسڈ یا مرموز ہو سکتی ہے، یا ایسی متن انکوڈنگ استعمال کرتی ہو جسے براؤزر میں قابلِ اعتماد طور پر شناخت نہیں کیا جا سکتا؛ پیش منظر سے پہلے LibreOffice/OnlyOffice سرور کے ذریعے تبدیل کریں۔",
@@ -1766,5 +1766,6 @@
   "liveRuns.started": "{{at}} کو شروع ہوا",
   "liveRuns.open": "run کی پیروی کریں",
   "liveRuns.preparing": "تیاری جاری ہے — run کا ٹریس ابھی دستیاب نہیں ہے۔",
-  "runs.backToProject": "پروجیکٹ پر واپس جائیں"
+  "runs.backToProject": "پروجیکٹ پر واپس جائیں",
+  "settings.keyRemove": "کلید ہٹائیں"
 }

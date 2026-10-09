@@ -1187,7 +1187,7 @@
   "run.partial.details": "Technische Details",
   "projects.runPartial.rerun": "Erneuter Vergleichs-run, nicht abgeschlossen. Er bleibt neben dem Projekt; der nächste run des Projekts setzt dessen eigene Arbeit fort.",
   "run.partial.next.rerun": "Dieser erneute Vergleichs-run bleibt zum Vergleich neben dem Projekt: Der nächste run des Projekts setzt die eigene Arbeit des Projekts fort, nicht die dieses runs.",
-  "run.partial.next.superseded": "",
+  "run.partial.next.superseded": "Ein späterer run dieses Projekts wurde abgeschlossen. Der nächste run wird im neuesten Workspace dieses Projekts fortgesetzt. Falls dieser Workspace abgelaufen ist, muss er wiederhergestellt werden, bevor das Projekt fortgesetzt werden kann.",
   "depth.checklist.judged_one": "{{met}} von {{count}} Kriterium als erfüllt bewertet",
   "depth.checklist.judged_other": "{{met}} von {{count}} Kriterien als erfüllt bewertet",
   "admin.ledgerFact.by": "von {{value}}",
@@ -1449,7 +1449,7 @@
   "fileViewer.message.remoteUrl": "Remote-URL",
   "fileViewer.message.localFile": "Lokale Datei oder Datei im Arbeitsspeicher",
   "fileViewer.message.textPlainLanguage": "Nur-Text",
-  "fileViewer.message.textLineCount": "",
+  "fileViewer.message.textLineCount": "Zeilen: {{count}}",
   "fileViewer.message.textWrap": "Zeilenumbruch",
   "fileViewer.message.textCopy": "Kopieren",
   "fileViewer.message.textCopied": "Kopiert",
@@ -1486,7 +1486,7 @@
   "fileViewer.message.officeLegacyOleDetected": "OLE-Compound-File-Signatur erkannt",
   "fileViewer.message.officeLegacyOleMissing": "Keine standardmäßige OLE-Signatur erkannt; Extraktion aus binären Rohdaten",
   "fileViewer.message.officeLegacyMetaTextFragments": "Textfragmente",
-  "fileViewer.message.officeLegacyTextFragmentCount": "",
+  "fileViewer.message.officeLegacyTextFragmentCount": "Fragmente: {{count}}",
   "fileViewer.message.officeLegacyMetaParseStatus": "Analysestatus",
   "fileViewer.message.officeLegacyReadableFragments": "Lesbare Textfragmente",
   "fileViewer.message.officeLegacyNoText": "Es wurde kein stabil lesbarer Text extrahiert. Die Datei ist möglicherweise komprimiert oder verschlüsselt oder verwendet eine Textkodierung, die im Browser nicht zuverlässig erkannt werden kann. Konvertieren Sie sie vor der Vorschau serverseitig mit LibreOffice/OnlyOffice.",
@@ -1766,5 +1766,6 @@
   "liveRuns.started": "Gestartet {{at}}",
   "liveRuns.open": "run verfolgen",
   "liveRuns.preparing": "Vorbereitung läuft — der run-Verlauf ist noch nicht verfügbar.",
-  "runs.backToProject": "Zurück zum Projekt"
+  "runs.backToProject": "Zurück zum Projekt",
+  "settings.keyRemove": "Schlüssel entfernen"
 }

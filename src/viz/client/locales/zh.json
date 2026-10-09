@@ -1187,7 +1187,7 @@
   "run.partial.details": "技术详情",
   "projects.runPartial.rerun": "对比重跑，尚未完成。它会与项目并列保留；项目的下一次run将继续其自身工作。",
   "run.partial.next.rerun": "此对比重跑会与项目并列保留，以供比较：项目的下一次run将继续项目自身的工作，而不是本次重跑。",
-  "run.partial.next.superseded": "",
+  "run.partial.next.superseded": "此项目的后续 run 已完成。下一次 run 将从此项目最新的工作区继续；如果该工作区已过期，则必须先恢复工作区，才能继续项目。",
   "depth.checklist.judged_one": "{{count}}项标准中，{{met}}项判定为已满足",
   "depth.checklist.judged_other": "{{count}}项标准中，{{met}}项判定为已满足",
   "admin.ledgerFact.by": "由 {{value}}",
@@ -1449,7 +1449,7 @@
   "fileViewer.message.remoteUrl": "远程URL",
   "fileViewer.message.localFile": "本地或内存中的文件",
   "fileViewer.message.textPlainLanguage": "纯文本",
-  "fileViewer.message.textLineCount": "",
+  "fileViewer.message.textLineCount": "行数：{{count}}",
   "fileViewer.message.textWrap": "自动换行",
   "fileViewer.message.textCopy": "复制",
   "fileViewer.message.textCopied": "已复制",
@@ -1486,7 +1486,7 @@
   "fileViewer.message.officeLegacyOleDetected": "检测到OLE复合文件签名",
   "fileViewer.message.officeLegacyOleMissing": "未检测到标准OLE签名；正在从原始二进制数据中提取",
   "fileViewer.message.officeLegacyMetaTextFragments": "文本片段",
-  "fileViewer.message.officeLegacyTextFragmentCount": "",
+  "fileViewer.message.officeLegacyTextFragmentCount": "片段数：{{count}}",
   "fileViewer.message.officeLegacyMetaParseStatus": "解析状态",
   "fileViewer.message.officeLegacyReadableFragments": "可读文本片段",
   "fileViewer.message.officeLegacyNoText": "未提取到稳定的可读文本。文件可能已压缩、加密，或使用了浏览器无法可靠识别的文本编码；请先使用LibreOffice/OnlyOffice服务器转换，再进行预览。",
@@ -1766,5 +1766,6 @@
   "liveRuns.started": "开始于 {{at}}",
   "liveRuns.open": "跟踪 run",
   "liveRuns.preparing": "正在准备—run 跟踪记录尚不可用。",
-  "runs.backToProject": "返回项目"
+  "runs.backToProject": "返回项目",
+  "settings.keyRemove": "移除密钥"
 }

@@ -1187,7 +1187,7 @@
   "run.partial.details": "Detalhes técnicos",
   "projects.runPartial.rerun": "Novo run de comparação, não concluído. Permanece junto ao projeto; o próximo run do projeto continua o trabalho do próprio projeto.",
   "run.partial.next.rerun": "Este novo run de comparação permanece junto ao projeto para comparação: o próximo run do projeto continua o trabalho do próprio projeto, não o deste run.",
-  "run.partial.next.superseded": "",
+  "run.partial.next.superseded": "Uma run posterior deste projeto foi concluída. A próxima run continua a partir do espaço de trabalho mais recente deste projeto; se esse espaço de trabalho tiver expirado, terá de ser restaurado antes de o projeto poder continuar.",
   "depth.checklist.judged_one": "{{met}} de {{count}} critério considerado cumprido",
   "depth.checklist.judged_other": "{{met}} de {{count}} critérios considerados cumpridos",
   "admin.ledgerFact.by": "por {{value}}",
@@ -1449,7 +1449,7 @@
   "fileViewer.message.remoteUrl": "URL remoto",
   "fileViewer.message.localFile": "Ficheiro local ou em memória",
   "fileViewer.message.textPlainLanguage": "texto simples",
-  "fileViewer.message.textLineCount": "",
+  "fileViewer.message.textLineCount": "Linhas: {{count}}",
   "fileViewer.message.textWrap": "Quebra automática",
   "fileViewer.message.textCopy": "Copiar",
   "fileViewer.message.textCopied": "Copiado",
@@ -1486,7 +1486,7 @@
   "fileViewer.message.officeLegacyOleDetected": "Assinatura de Ficheiro Composto OLE detetada",
   "fileViewer.message.officeLegacyOleMissing": "Nenhuma assinatura OLE padrão detetada; a extrair dos dados binários brutos",
   "fileViewer.message.officeLegacyMetaTextFragments": "Fragmentos de texto",
-  "fileViewer.message.officeLegacyTextFragmentCount": "",
+  "fileViewer.message.officeLegacyTextFragmentCount": "Fragmentos: {{count}}",
   "fileViewer.message.officeLegacyMetaParseStatus": "Estado da análise",
   "fileViewer.message.officeLegacyReadableFragments": "Fragmentos de texto legíveis",
   "fileViewer.message.officeLegacyNoText": "Não foi extraído texto legível estável. O ficheiro pode estar comprimido, encriptado ou usar uma codificação de texto que não pode ser reconhecida de forma fiável no navegador; use a conversão no servidor com LibreOffice/OnlyOffice antes da pré-visualização.",
@@ -1766,5 +1766,6 @@
   "liveRuns.started": "Iniciado {{at}}",
   "liveRuns.open": "Acompanhar run",
   "liveRuns.preparing": "A preparar — o rastreio do run ainda não está disponível.",
-  "runs.backToProject": "Voltar ao projeto"
+  "runs.backToProject": "Voltar ao projeto",
+  "settings.keyRemove": "Remover chave"
 }

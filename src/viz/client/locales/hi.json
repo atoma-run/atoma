@@ -1187,7 +1187,7 @@
   "run.partial.details": "तकनीकी विवरण",
   "projects.runPartial.rerun": "तुलना के लिए पुनः run, पूरा नहीं हुआ। यह प्रोजेक्ट के साथ रहता है; प्रोजेक्ट का अगला run अपना काम जारी रखता है।",
   "run.partial.next.rerun": "तुलना के लिए किया गया यह पुनः run प्रोजेक्ट के साथ रहता है: प्रोजेक्ट का अगला run प्रोजेक्ट का अपना काम जारी रखता है, इसका नहीं।",
-  "run.partial.next.superseded": "",
+  "run.partial.next.superseded": "इस प्रोजेक्ट का एक बाद का run पूरा हो गया है। अगला run इस प्रोजेक्ट के सबसे हालिया वर्कस्पेस से जारी रहेगा; अगर उस वर्कस्पेस की समय-सीमा समाप्त हो गई है, तो प्रोजेक्ट को जारी रखने से पहले उसे पुनर्स्थापित करना होगा।",
   "depth.checklist.judged_one": "{{count}} मानदंड में से {{met}} को पूरा माना गया",
   "depth.checklist.judged_other": "{{count}} मानदंडों में से {{met}} को पूरा माना गया",
   "admin.ledgerFact.by": "{{value}} द्वारा",
@@ -1449,7 +1449,7 @@
   "fileViewer.message.remoteUrl": "रिमोट URL",
   "fileViewer.message.localFile": "लोकल या इन-मेमोरी फ़ाइल",
   "fileViewer.message.textPlainLanguage": "सादा टेक्स्ट",
-  "fileViewer.message.textLineCount": "",
+  "fileViewer.message.textLineCount": "पंक्तियाँ: {{count}}",
   "fileViewer.message.textWrap": "रैप करें",
   "fileViewer.message.textCopy": "कॉपी करें",
   "fileViewer.message.textCopied": "कॉपी किया गया",
@@ -1486,7 +1486,7 @@
   "fileViewer.message.officeLegacyOleDetected": "OLE Compound File सिग्नेचर मिला",
   "fileViewer.message.officeLegacyOleMissing": "कोई मानक OLE सिग्नेचर नहीं मिला; रॉ बाइनरी डेटा से एक्सट्रैक्ट किया जा रहा है",
   "fileViewer.message.officeLegacyMetaTextFragments": "टेक्स्ट फ़्रैगमेंट",
-  "fileViewer.message.officeLegacyTextFragmentCount": "",
+  "fileViewer.message.officeLegacyTextFragmentCount": "अंश: {{count}}",
   "fileViewer.message.officeLegacyMetaParseStatus": "पार्स स्थिति",
   "fileViewer.message.officeLegacyReadableFragments": "पढ़ने योग्य टेक्स्ट फ़्रैगमेंट",
   "fileViewer.message.officeLegacyNoText": "कोई स्थिर, पढ़ने योग्य टेक्स्ट एक्सट्रैक्ट नहीं हुआ। फ़ाइल कंप्रेस्ड या एन्क्रिप्टेड हो सकती है, या ऐसी टेक्स्ट एन्कोडिंग का उपयोग कर सकती है जिसे ब्राउज़र में विश्वसनीय रूप से पहचाना नहीं जा सकता; प्रीव्यू से पहले LibreOffice/OnlyOffice सर्वर से कन्वर्ट करें।",
@@ -1766,5 +1766,6 @@
   "liveRuns.started": "{{at}} को शुरू हुआ",
   "liveRuns.open": "run को फ़ॉलो करें",
   "liveRuns.preparing": "तैयार किया जा रहा है — run ट्रेस अभी उपलब्ध नहीं है।",
-  "runs.backToProject": "प्रोजेक्ट पर वापस जाएँ"
+  "runs.backToProject": "प्रोजेक्ट पर वापस जाएँ",
+  "settings.keyRemove": "कुंजी हटाएँ"
 }

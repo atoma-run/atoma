@@ -1187,7 +1187,7 @@
   "run.partial.details": "Détails techniques",
   "projects.runPartial.rerun": "Run de comparaison relancé, non terminé. Il reste à côté du projet ; le prochain run du projet poursuit son propre travail.",
   "run.partial.next.rerun": "Ce run de comparaison relancé reste à côté du projet à des fins de comparaison : le prochain run du projet poursuit le travail propre au projet, pas celui de ce run.",
-  "run.partial.next.superseded": "",
+  "run.partial.next.superseded": "Un run ultérieur de ce projet est terminé. Le prochain run reprend depuis le workspace le plus récent de ce projet ; si ce workspace a expiré, il doit être restauré avant que le projet puisse continuer.",
   "depth.checklist.judged_one": "{{met}} critère sur {{count}} jugé rempli",
   "depth.checklist.judged_other": "{{met}} critères sur {{count}} jugés remplis",
   "admin.ledgerFact.by": "par {{value}}",
@@ -1449,7 +1449,7 @@
   "fileViewer.message.remoteUrl": "URL distante",
   "fileViewer.message.localFile": "Fichier local ou en mémoire",
   "fileViewer.message.textPlainLanguage": "texte brut",
-  "fileViewer.message.textLineCount": "",
+  "fileViewer.message.textLineCount": "Lignes : {{count}}",
   "fileViewer.message.textWrap": "Retour à la ligne",
   "fileViewer.message.textCopy": "Copier",
   "fileViewer.message.textCopied": "Copié",
@@ -1486,7 +1486,7 @@
   "fileViewer.message.officeLegacyOleDetected": "Signature de fichier composé OLE détectée",
   "fileViewer.message.officeLegacyOleMissing": "Aucune signature OLE standard détectée ; extraction depuis les données binaires brutes",
   "fileViewer.message.officeLegacyMetaTextFragments": "Fragments de texte",
-  "fileViewer.message.officeLegacyTextFragmentCount": "",
+  "fileViewer.message.officeLegacyTextFragmentCount": "Fragments : {{count}}",
   "fileViewer.message.officeLegacyMetaParseStatus": "État de l’analyse",
   "fileViewer.message.officeLegacyReadableFragments": "Fragments de texte lisibles",
   "fileViewer.message.officeLegacyNoText": "Aucun texte lisible stable n’a été extrait. Le fichier est peut-être compressé ou chiffré, ou utilise un encodage de texte que le navigateur ne peut pas reconnaître de manière fiable ; utilise une conversion serveur LibreOffice/OnlyOffice avant l’aperçu.",
@@ -1766,5 +1766,6 @@
   "liveRuns.started": "Démarré {{at}}",
   "liveRuns.open": "Suivre le run",
   "liveRuns.preparing": "Préparation — la trace du run n’est pas encore disponible.",
-  "runs.backToProject": "Retour au projet"
+  "runs.backToProject": "Retour au projet",
+  "settings.keyRemove": "Supprimer la clé"
 }

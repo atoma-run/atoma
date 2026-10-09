@@ -1187,7 +1187,7 @@
   "run.partial.details": "Detail teknis",
   "projects.runPartial.rerun": "run ulang perbandingan, belum selesai. run ini tetap berada di samping proyek; run proyek berikutnya melanjutkan pekerjaannya sendiri.",
   "run.partial.next.rerun": "run ulang perbandingan ini tetap berada di samping proyek untuk perbandingan: run proyek berikutnya melanjutkan pekerjaan proyek sendiri, bukan run ini.",
-  "run.partial.next.superseded": "",
+  "run.partial.next.superseded": "run berikutnya dari proyek ini telah selesai. run selanjutnya dilanjutkan dari ruang kerja terbaru proyek ini; jika ruang kerja tersebut telah kedaluwarsa, ruang kerja itu harus dipulihkan sebelum proyek dapat dilanjutkan.",
   "depth.checklist.judged_one": "{{met}} dari {{count}} kriteria dinilai terpenuhi",
   "depth.checklist.judged_other": "{{met}} dari {{count}} kriteria dinilai terpenuhi",
   "admin.ledgerFact.by": "oleh {{value}}",
@@ -1449,7 +1449,7 @@
   "fileViewer.message.remoteUrl": "URL jarak jauh",
   "fileViewer.message.localFile": "File lokal atau dalam memori",
   "fileViewer.message.textPlainLanguage": "teks biasa",
-  "fileViewer.message.textLineCount": "",
+  "fileViewer.message.textLineCount": "Baris: {{count}}",
   "fileViewer.message.textWrap": "Lipat baris",
   "fileViewer.message.textCopy": "Salin",
   "fileViewer.message.textCopied": "Disalin",
@@ -1486,7 +1486,7 @@
   "fileViewer.message.officeLegacyOleDetected": "Tanda tangan OLE Compound File terdeteksi",
   "fileViewer.message.officeLegacyOleMissing": "Tidak ada tanda tangan OLE standar yang terdeteksi; mengekstrak dari data biner mentah",
   "fileViewer.message.officeLegacyMetaTextFragments": "Fragmen teks",
-  "fileViewer.message.officeLegacyTextFragmentCount": "",
+  "fileViewer.message.officeLegacyTextFragmentCount": "Fragmen: {{count}}",
   "fileViewer.message.officeLegacyMetaParseStatus": "Status penguraian",
   "fileViewer.message.officeLegacyReadableFragments": "Fragmen teks yang dapat dibaca",
   "fileViewer.message.officeLegacyNoText": "Tidak ada teks stabil yang dapat dibaca berhasil diekstrak. File mungkin dikompresi, dienkripsi, atau menggunakan pengodean teks yang tidak dapat dikenali secara andal di browser; gunakan konversi server LibreOffice/OnlyOffice sebelum melihat pratinjau.",
@@ -1766,5 +1766,6 @@
   "liveRuns.started": "Dimulai {{at}}",
   "liveRuns.open": "Ikuti run",
   "liveRuns.preparing": "Menyiapkan — jejak run belum tersedia.",
-  "runs.backToProject": "Kembali ke proyek"
+  "runs.backToProject": "Kembali ke proyek",
+  "settings.keyRemove": "Hapus kunci"
 }

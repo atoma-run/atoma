@@ -1187,7 +1187,7 @@
   "run.partial.details": "Технические сведения",
   "projects.runPartial.rerun": "Повторный run для сравнения не завершён. Он остаётся рядом с проектом; следующий run проекта продолжит его собственную работу.",
   "run.partial.next.rerun": "Этот повторный run для сравнения остаётся рядом с проектом: следующий run проекта продолжит собственную работу проекта, а не эту.",
-  "run.partial.next.superseded": "",
+  "run.partial.next.superseded": "Более поздний run этого проекта завершён. Следующий run продолжится из последнего рабочего пространства этого проекта; если срок его хранения истёк, его нужно восстановить, прежде чем проект сможет продолжиться.",
   "depth.checklist.judged_one": "Критерий признан выполненным: {{met}} из {{count}}",
   "depth.checklist.judged_other": "Критериев признано выполненными: {{met}} из {{count}}",
   "admin.ledgerFact.by": "кем: {{value}}",
@@ -1449,7 +1449,7 @@
   "fileViewer.message.remoteUrl": "Удалённый URL",
   "fileViewer.message.localFile": "Локальный файл или файл в памяти",
   "fileViewer.message.textPlainLanguage": "обычный текст",
-  "fileViewer.message.textLineCount": "",
+  "fileViewer.message.textLineCount": "Строки: {{count}}",
   "fileViewer.message.textWrap": "Перенос строк",
   "fileViewer.message.textCopy": "Копировать",
   "fileViewer.message.textCopied": "Скопировано",
@@ -1486,7 +1486,7 @@
   "fileViewer.message.officeLegacyOleDetected": "Обнаружена сигнатура составного файла OLE",
   "fileViewer.message.officeLegacyOleMissing": "Стандартная сигнатура OLE не обнаружена; выполняется извлечение из необработанных двоичных данных",
   "fileViewer.message.officeLegacyMetaTextFragments": "Фрагменты текста",
-  "fileViewer.message.officeLegacyTextFragmentCount": "",
+  "fileViewer.message.officeLegacyTextFragmentCount": "Фрагменты: {{count}}",
   "fileViewer.message.officeLegacyMetaParseStatus": "Состояние разбора",
   "fileViewer.message.officeLegacyReadableFragments": "Читаемые фрагменты текста",
   "fileViewer.message.officeLegacyNoText": "Не удалось извлечь стабильно читаемый текст. Возможно, файл сжат, зашифрован или использует кодировку текста, которую нельзя надёжно распознать в браузере. Перед предпросмотром выполните серверное преобразование с помощью LibreOffice/OnlyOffice.",
@@ -1766,5 +1766,6 @@
   "liveRuns.started": "Запущен {{at}}",
   "liveRuns.open": "Следить за run",
   "liveRuns.preparing": "Подготовка — трассировка run пока недоступна.",
-  "runs.backToProject": "Назад к проекту"
+  "runs.backToProject": "Назад к проекту",
+  "settings.keyRemove": "Удалить ключ"
 }

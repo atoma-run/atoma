@@ -1187,7 +1187,7 @@
   "run.partial.details": "技術的な詳細",
   "projects.runPartial.rerun": "比較用の再runは未完了です。プロジェクトの横に残り、プロジェクトの次のrunでは、プロジェクト自体の作業が続行されます。",
   "run.partial.next.rerun": "この比較用の再runは、比較のためプロジェクトの横に残ります。プロジェクトの次のrunでは、このrunではなく、プロジェクト自体の作業が続行されます。",
-  "run.partial.next.superseded": "",
+  "run.partial.next.superseded": "このプロジェクトの後続のrunが完了しました。次のrunは、このプロジェクトの最新のワークスペースから続行されます。そのワークスペースの有効期限が切れている場合、プロジェクトを続行する前に復元する必要があります。",
   "depth.checklist.judged_one": "{{count}}件の基準のうち{{met}}件を満たしていると判定",
   "depth.checklist.judged_other": "{{count}}件の基準のうち{{met}}件を満たしていると判定",
   "admin.ledgerFact.by": "{{value}}による",
@@ -1449,7 +1449,7 @@
   "fileViewer.message.remoteUrl": "リモートURL",
   "fileViewer.message.localFile": "ローカルまたはメモリ内のファイル",
   "fileViewer.message.textPlainLanguage": "プレーンテキスト",
-  "fileViewer.message.textLineCount": "",
+  "fileViewer.message.textLineCount": "行数：{{count}}",
   "fileViewer.message.textWrap": "折り返し",
   "fileViewer.message.textCopy": "コピー",
   "fileViewer.message.textCopied": "コピーしました",
@@ -1486,7 +1486,7 @@
   "fileViewer.message.officeLegacyOleDetected": "OLE複合ファイルのシグネチャを検出しました",
   "fileViewer.message.officeLegacyOleMissing": "標準のOLEシグネチャが検出されなかったため、未加工のバイナリデータから抽出しています",
   "fileViewer.message.officeLegacyMetaTextFragments": "テキスト断片",
-  "fileViewer.message.officeLegacyTextFragmentCount": "",
+  "fileViewer.message.officeLegacyTextFragmentCount": "フラグメント数：{{count}}",
   "fileViewer.message.officeLegacyMetaParseStatus": "解析ステータス",
   "fileViewer.message.officeLegacyReadableFragments": "読み取り可能なテキスト断片",
   "fileViewer.message.officeLegacyNoText": "安定して読み取れるテキストを抽出できませんでした。ファイルが圧縮または暗号化されているか、ブラウザーで確実に認識できない文字エンコーディングが使用されている可能性があります。プレビューする前に、LibreOffice/OnlyOfficeサーバーで変換してください。",
@@ -1766,5 +1766,6 @@
   "liveRuns.started": "{{at}}に開始",
   "liveRuns.open": "runを追跡",
   "liveRuns.preparing": "準備中—runのトレースはまだ利用できません。",
-  "runs.backToProject": "プロジェクトに戻る"
+  "runs.backToProject": "プロジェクトに戻る",
+  "settings.keyRemove": "キーを削除"
 }
