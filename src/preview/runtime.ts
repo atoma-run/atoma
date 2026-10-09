@@ -6,7 +6,8 @@ import type {
   LauncherWorkspaceHandle,
 } from '../contracts/launcher.js';
 import type { PreviewErrorCode } from '../contracts/preview.js';
-import { materializePreviewWorkspace, PreviewPolicyError } from './policy.js';
+import { DEFAULT_PREVIEW_COPY_LIMITS, materializePreviewWorkspace, PreviewPolicyError, type PreviewCopyLimits } from './policy.js';
+import { TERMINAL_COPY_MAX_BYTES, TERMINAL_COPY_PAGE_BYTES } from '../contracts/previewTerminal.js';
 
 /**
  * BRINGING ONE PREVIEW UP, AND TAKING IT DOWN AGAIN.
@@ -152,6 +153,20 @@ export async function teardownPreview(
 }
 
 /**
+ * The copy's caps for one mode. A terminal copies this copy AGAIN into its
+ * bounded `/data` tmpfs before it answers, so its cap leaves that tmpfs room
+ * and is charged in pages: a workspace the tmpfs cannot hold is refused here
+ * as `copy-limit`, never discovered inside the container as ENOSPC and
+ * reported as `readiness-timeout`. The deployment cap still applies when it
+ * is the smaller one.
+ */
+export function previewCopyLimits(mode: 'terminal' | undefined, copyMaxBytes?: number): Partial<PreviewCopyLimits> {
+  const maxBytes = copyMaxBytes || DEFAULT_PREVIEW_COPY_LIMITS.maxBytes;
+  if (mode !== 'terminal') return { maxBytes };
+  return { maxBytes: Math.min(maxBytes, TERMINAL_COPY_MAX_BYTES), pageBytes: TERMINAL_COPY_PAGE_BYTES };
+}
+
+/**
  * Start one preview generation.
  *
  * On ANY failure it tears down what it created and throws a
@@ -205,7 +220,7 @@ export async function startPreview(
       materializePreviewWorkspace({
         sourceRoot: input.sourceWorkspace!,
         destinationRoot: destination,
-        ...(deps.copyMaxBytes ? { limits: { maxBytes: deps.copyMaxBytes } } : {}),
+        limits: previewCopyLimits(input.mode, deps.copyMaxBytes),
         ...(deps.copyOwnership ? { ownership: deps.copyOwnership } : {}),
       });
     } catch (error) {

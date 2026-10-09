@@ -15,11 +15,13 @@ import type {
   LauncherWorkspaceHandle,
 } from '../src/contracts/launcher.js';
 import {
+  previewCopyLimits,
   PreviewRuntimeError,
   startPreview,
   teardownPreview,
 } from '../src/preview/runtime.js';
 import { previewOrigin } from '../src/preview/gateway.js';
+import { TERMINAL_COPY_HEADROOM_BYTES, TERMINAL_DATA_BYTES } from '../src/contracts/previewTerminal.js';
 import {
   PREVIEW_ENV,
   PreviewConfigError,
@@ -297,6 +299,25 @@ describe('preview start failure leaves nothing behind', () => {
     ).catch((e: unknown) => e);
 
     expect((error as PreviewRuntimeError).code).toBe('copy-limit');
+  });
+
+  it('refuses a terminal copy its /data tmpfs could not hold as copy-limit', async () => {
+    // The terminal copies the copy again into a bounded tmpfs before it
+    // answers. Charged in exact bytes against a cap equal to that tmpfs, an
+    // admitted workspace died there with ENOSPC, reported as readiness-timeout.
+    writeFileSync(join(source, 'a.txt'), 'a');
+    writeFileSync(join(source, 'b.txt'), 'b');
+    const app = await startPreview({ ...deps(new FakeLauncher()), copyMaxBytes: 8192 }, input());
+    expect(app.hostPort).toBeGreaterThan(0);
+
+    const error = await startPreview(
+      { ...deps(new FakeLauncher()), copyMaxBytes: 8192 },
+      { ...input(), ownerId: 'prev-2', mode: 'terminal' as const }
+    ).catch((e: unknown) => e);
+
+    expect((error as PreviewRuntimeError).code).toBe('copy-limit');
+    const terminal = previewCopyLimits('terminal', 512 * 1024 * 1024);
+    expect(terminal.maxBytes! + TERMINAL_COPY_HEADROOM_BYTES).toBeLessThanOrEqual(TERMINAL_DATA_BYTES);
   });
 
   it('reports server-exited when the application stops answering before exposure', async () => {

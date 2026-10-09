@@ -1,5 +1,6 @@
 import type { WorkspaceVolumes } from './volumes.js';
 import { launcherObjectId, launcherNetworkName, launcherUnitName } from './names.js';
+import { TERMINAL_DATA_BYTES } from '../contracts/previewTerminal.js';
 export { launcherObjectId } from './names.js';
 import { execFile, execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -706,7 +707,7 @@ export class DockerLauncher implements ContainerLauncher {
         '--tmpfs',
         `/tmp:rw,noexec,nosuid,size=${PREVIEW_TMP_SIZE}`,
         '--tmpfs',
-        terminal ? '/data:rw,nosuid,nodev,size=512m' : `/data:rw,noexec,nosuid,size=${PREVIEW_DATA_SIZE}`,
+        terminal ? `/data:rw,nosuid,nodev,size=${TERMINAL_DATA_BYTES / (1024 * 1024)}m` : `/data:rw,noexec,nosuid,size=${PREVIEW_DATA_SIZE}`,
         // The fixed terminal service or the resolved application entry, never
         // an image-defined wrapper or a caller-supplied shell command.
         '--entrypoint',

@@ -384,6 +384,7 @@ describe('materialising the preview copy', () => {
     expect(DEFAULT_PREVIEW_COPY_LIMITS).toEqual({
       maxBytes: 512 * 1024 * 1024,
       maxFiles: 50_000,
+      pageBytes: 1,
     });
   });
 

@@ -43,7 +43,8 @@ root, non-root identity, dropped capabilities and bounded CPU/processes.
 
 The filtered delivered copy is mounted read-only at `/workspace`. The service
 copies it into `/data/workspace`, on a 512 MiB tmpfs, with memory and swap both
-capped at 1 GiB. CLI executables may run from that tmpfs; `/tmp` remains
+capped at 1 GiB. A terminal copy is capped at 384 MiB charged in 4 KiB pages,
+so the tmpfs keeps room for edits and a too-large workspace is `copy-limit`. CLI executables may run from that tmpfs; `/tmp` remains
 noexec. All test edits disappear at teardown. The original workspace, stores,
 credentials and Docker socket are absent. The terminal has no external egress
 proxy, and its browser CSP allows no external resource hosts.

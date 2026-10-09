@@ -242,12 +242,18 @@ export type PreviewCopyOwnership = Readonly<LauncherPreviewOwnership>;
 export interface PreviewCopyLimits {
   readonly maxBytes: number;
   readonly maxFiles: number;
+  /**
+   * The allocation unit each copied entry is charged in. 1 charges exact
+   * bytes; a tmpfs destination charges whole pages, which is what it spends.
+   */
+  readonly pageBytes: number;
 }
 
 /** Design §5. Overridable per deployment through `ATOMA_PREVIEW_COPY_MAX_BYTES`. */
 export const DEFAULT_PREVIEW_COPY_LIMITS: PreviewCopyLimits = {
   maxBytes: 512 * 1024 * 1024,
   maxFiles: 50_000,
+  pageBytes: 1,
 };
 
 export interface PreviewCopyResult {
@@ -432,7 +438,7 @@ export function materializePreviewWorkspace(input: {
         `the delivered workspace holds more than ${limits.maxFiles} files`
       );
     }
-    bytes += added;
+    bytes += Math.ceil(added / limits.pageBytes) * limits.pageBytes;
     if (bytes > limits.maxBytes) {
       throw new PreviewPolicyError(
         'limit',

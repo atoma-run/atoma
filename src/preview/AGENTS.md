@@ -266,8 +266,10 @@ terminal bundle, never Atoma's control plane, tools, stores or credentials.
 `build` packages `dist/preview-terminal`; `build:preview` consumes it, and
 `build:preview:dev` builds that bundle first. Production still pins a digest.
 The terminal profile fixes its entry point, has no egress, mounts the filtered
-source read-only and copies it into bounded `/data` tmpfs. Restart destroys
-all edits and processes. No dependency installation takes place on open.
+source read-only and copies it into bounded `/data` tmpfs. Its copy cap
+leaves that tmpfs 128 MiB and charges whole pages (`previewCopyLimits`), so a
+workspace it cannot hold is `copy-limit`, never an in-container ENOSPC read as
+`readiness-timeout`. Restart destroys all edits and processes. No dependency installation takes place on open.
 
 Terminal traffic passes through the existing claims/gateway/relay. Each HTTP
 request rechecks its grant; mutations also require the exact preview Origin
