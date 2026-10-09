@@ -7,12 +7,12 @@ import { haystackTestEnvironment } from './helpers/haystack.js';
 import { createServer, type IncomingMessage, type Server } from 'node:http';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthStore, sha256Hex, type Viewer } from '../src/auth/store.js';
-import { closeStoreHandles, skillsDirPath } from '../src/core/stores.js';
+import { closeStoreHandles, DEFAULT_DB_PATH, skillsDirPath, storeDbPath } from '../src/core/stores.js';
 import { readLedger } from '../src/core/ledger.js';
 import { SkillRegistry } from '../src/skills/registry.js';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
@@ -435,10 +435,22 @@ describe('the HTTP host', () => {
     const names = await toolNames(client);
     expect(names).toContain('atoma_operator_run_start');
     expect(names).not.toContain('atoma_projects_list');
-    // A reader tool answers through the session.
+    // A reader tool answers through the session — and reads a REAL registry,
+    // not the "no agent store yet" branch an empty `types` would also satisfy.
+    // The store is this test's own (tests/setup-store-isolation.ts), never the
+    // checkout's ./atoma.db: an earlier file's operator-run validation once
+    // left a partial one there and this call failed on "no such table"
+    // (code review 2026-10-09 1.10).
+    const store = storeDbPath();
+    expect(resolve(store)).not.toBe(resolve(DEFAULT_DB_PATH));
+    const seeded = openDb(store);
+    const type = new AtomRegistry(seeded).create(1, { description: 'listed through the session', systemPrompt: 'p', tools: [], params: {}, createdBy: 'test' });
+    seeded.close();
     const registry = await client.callTool({ name: 'atoma_registry_list', arguments: {} });
     const text = (registry.content as { type: string; text: string }[])[0]!.text;
-    expect(JSON.parse(text)).toHaveProperty('types');
+    const listed = JSON.parse(text) as Record<string, unknown>;
+    expect(listed).not.toHaveProperty('note');
+    expect(listed).toMatchObject({ store, types: [expect.objectContaining({ name: type.name, description: 'listed through the session' })] });
     // The prompt surface rides the platform tier.
     expect((await client.listPrompts()).prompts.length).toBeGreaterThan(3);
     await client.close();

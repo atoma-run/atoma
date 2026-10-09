@@ -5,7 +5,17 @@ import { join } from 'node:path';
 import { closeStoreHandles } from '../src/core/stores.js';
 
 /**
- * ONE FRESH STORE PER TEST for every handle-less writer.
+ * ONE FRESH STORE PER TEST for every default reader and writer.
+ *
+ * Both names of the product store are pinned to the same per-test file:
+ * `ATOMA_LEDGER_DB` (the handle-less writers) and `ATOMA_DB_PATH` (every
+ * `storeDbPath()` caller — the MCP readers, `PlatformSettingsStore.open()`,
+ * the runner's default). Pinning only the first left the second on
+ * `./atoma.db`: an MCP operator-run start validated its input through
+ * `platformLimitsFor()`, which CREATED a partial `./atoma.db` holding only
+ * `platform_settings`, and a later `atoma_registry_list` in another file read
+ * it and failed on "no such table" — an order-dependent suite that, in a
+ * developer checkout, opened the real store (code review 2026-10-09 1.10).
  *
  * `vitest.config.ts` pins `ATOMA_LEDGER_DB` to one file under `node_modules`
  * so that no test appends to the developer's real store. That was enough
@@ -32,6 +42,7 @@ beforeEach(() => {
   closeStoreHandles();
   current = mkdtempSync(join(tmpdir(), 'atoma-test-store-'));
   process.env['ATOMA_LEDGER_DB'] = join(current, 'store.db');
+  process.env['ATOMA_DB_PATH'] = join(current, 'store.db');
 });
 
 afterEach(() => {

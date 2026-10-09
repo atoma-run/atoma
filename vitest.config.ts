@@ -74,6 +74,12 @@ export default defineConfig({
       // construction — but SkillRegistry has no store handle and still
       // resolves a default.
       ATOMA_LEDGER_DB: './node_modules/.atoma-test-ledger.db',
+      // The product store itself, for the same reason: `storeDbPath()` falls
+      // back to `./atoma.db`, so an unpinned reader or writer (the MCP
+      // readers, `platformLimitsFor()`) would create or read the developer's
+      // real store. tests/setup-store-isolation.ts replaces both with a fresh
+      // file per test; this pin only covers code outside a test's hooks.
+      ATOMA_DB_PATH: './node_modules/.atoma-test-store.db',
       // Same isolation story for the prefilter decision cache — and OFF, not
       // just relocated: mock-driven tests enqueue prefilter responses and
       // assert exact LLM call counts, so a shared cache would make test
