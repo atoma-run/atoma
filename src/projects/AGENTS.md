@@ -165,13 +165,13 @@ it; `ATOMA_EGRESS_ALLOWLIST` replaces the host list. Both are host-only settings
 
 ## Run titles
 
-- Every run that ENDS is named once (`runTitle.ts`): one line, written by the
-  HOST's `api:` tier-1 model on the host's credential, after the terminal
-  transition, off the lease. Platform-paid, so `stats` stay the run's spend and
-  the cost is the title's receipt; a `sub:`/`own:` tier 1 names nothing, since a
-  tenant's goal must not cross a machine login. The trigger makes it immutable.
-  A GitHub access interruption before model work is excluded, including from
-  title backfill: preparing authorization must spend no model quota.
+- Every run that ENDS is named once (`runTitle.ts`): one line, by the HOST's
+  `api:` tier-1 model on the host's credential, after the terminal transition,
+  off the lease. Platform-paid: `stats` stay the run's spend, the cost is the
+  title's receipt, kept under a NULL title when a paid call named nothing (never
+  re-paid). A `sub:`/`own:` tier 1 names nothing: a tenant's goal must not cross
+  a machine login. The trigger makes it immutable. A GitHub access interruption
+  before model work is excluded, backfill included: it must spend no quota.
 - It is model text: display copy beside the goal, never in a journal `detail`.
 
 ## Repository visibility

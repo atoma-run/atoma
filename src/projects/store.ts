@@ -1729,40 +1729,44 @@ END;
    * trigger refuses any later rewrite: a second naming attempt (a retry, a
    * second process) changes nothing and answers false. `updated_at` is left
    * alone on purpose — the run did not change, only its display copy arrived.
+   * A null title records a PAID call that named nothing: its receipt is kept,
+   * and the run is not named again, by its end or by the backfill.
    */
   recordRunTitle(input: {
     readonly orgId: string;
     readonly projectRunId: string;
-    readonly title: string;
+    readonly title: string | null;
     readonly receipt: RunTitleReceipt;
   }): boolean {
     const orgId = organisationIdSchema.parse(input.orgId);
     const projectRunId = projectRunIdSchema.parse(input.projectRunId);
-    const title = runTitleSchema.parse(input.title);
+    const title = input.title === null ? null : runTitleSchema.parse(input.title);
     const receipt = runTitleReceiptSchema.parse(input.receipt);
     return this.db
       .prepare(`UPDATE project_runs SET title = ?, title_receipt_json = ?
-        WHERE org_id = ? AND project_run_id = ? AND title IS NULL
+        WHERE org_id = ? AND project_run_id = ? AND title IS NULL AND title_receipt_json IS NULL
           AND status IN ('delivered','partial','failed','cancelled')`)
       .run(title, JSON.stringify(receipt), orgId, projectRunId).changes === 1;
   }
 
   /**
    * Ended runs of EVERY organisation that carry no title yet, newest first:
-   * the operator backfill's work list (`projects titles`). Read-only.
+   * the operator backfill's work list (`projects titles`). Read-only. A run
+   * whose paid naming call named nothing carries a receipt and is not listed:
+   * a backfill pays for a run once, never at every `--apply`.
    */
   listUntitledEndedRuns(): Array<{ orgId: string; projectRunId: string; goal: string; status: string }> {
     return (
       this.db
         .prepare(`SELECT org_id, project_run_id, goal, status FROM project_runs
-          WHERE title IS NULL AND status IN ('delivered','partial','failed','cancelled')
+          WHERE title IS NULL AND title_receipt_json IS NULL AND status IN ('delivered','partial','failed','cancelled')
             AND COALESCE(json_extract(github_access_json, '$.phase'), '') <> 'run'
           ORDER BY created_at DESC, project_run_id ASC`)
         .all() as Array<{ org_id: string; project_run_id: string; goal: string; status: string }>
     ).map((row) => ({ orgId: row.org_id, projectRunId: row.project_run_id, goal: row.goal, status: row.status }));
   }
 
-  /** What naming this run cost; null when it was never named. */
+  /** What naming this run cost, a paid call that named nothing included; null when no call was recorded. */
   getRunTitleReceipt(orgIdInput: string, projectRunIdInput: string): RunTitleReceipt | null {
     const orgId = organisationIdSchema.parse(orgIdInput);
     const projectRunId = projectRunIdSchema.parse(projectRunIdInput);

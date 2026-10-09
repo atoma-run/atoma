@@ -9,6 +9,7 @@ import { AuthStore } from '../src/auth/store.js';
 import { RUN_TITLE_MAX, projectRunPublicSchema, type RunTitleReceipt } from '../src/contracts/projects.js';
 import { formatRunStatsEpilogue, type RunStats } from '../src/contracts/runStats.js';
 import { closeStoreHandles } from '../src/core/stores.js';
+import { withPartialUsage } from '../src/core/metrics.js';
 import type { LlmClient, LlmCompletionRequest, LlmCompletionResponse } from '../src/core/types.js';
 import { ProjectRunCoordinator, type ProjectRunDriver } from '../src/projects/coordinator.js';
 import {
@@ -227,13 +228,24 @@ describe('runTitlerFor makes one bounded, accounted call', () => {
     expect(named!.receipt.costUsd).toBeGreaterThan(0);
   });
 
-  it('answers null, and says why, when the provider throws or the reply is unusable', async () => {
+  it('answers null, and says why, when the provider throws before spending anything', async () => {
     const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true);
     expect(await runTitlerFor(fakeLlm(new Error('rate limited')).llm, 'api:zai:glm-4.5-air')({ goal: GOAL })).toBeNull();
-    expect(await runTitlerFor(fakeLlm('  ""  ').llm, 'api:zai:glm-4.5-air')({ goal: GOAL })).toBeNull();
+    expect(stderr.mock.calls.map(([chunk]) => String(chunk)).join('')).toContain('rate limited');
+  });
+
+  it('keeps the receipt of a PAID call that names nothing, a failed one included (code review 2026-10-09 2.20)', async () => {
+    const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true);
+    const unusable = await runTitlerFor(fakeLlm('  ""  ').llm, 'api:zai:glm-4.5-air')({ goal: GOAL });
+    expect(unusable).toMatchObject({ title: null, receipt: { model: 'api:zai:glm-4.5-air', inputTokens: 1_000, outputTokens: 10 } });
+    expect(unusable!.receipt.costUsd).toBeGreaterThan(0);
+    const cut = withPartialUsage(new Error('stream cut'), { inputTokens: 800, outputTokens: 4 });
+    const failed = await runTitlerFor(fakeLlm(cut).llm, 'api:zai:glm-4.5-air')({ goal: GOAL });
+    expect(failed).toMatchObject({ title: null, receipt: { inputTokens: 800, outputTokens: 4 } });
+    expect(failed!.receipt.costUsd).toBeGreaterThan(0);
     const written = stderr.mock.calls.map(([chunk]) => String(chunk)).join('');
-    expect(written).toContain('rate limited');
     expect(written).toContain('no usable line');
+    expect(written).toContain('stream cut');
   });
 });
 
@@ -397,6 +409,29 @@ describe('the operator backfill names runs that ended before titles existed', ()
 
     expect(await backfillRunTitles({ store: f.store, titler: titler as RunTitler, apply: true })).toEqual([]);
     expect(titler).toHaveBeenCalledTimes(2);
+  });
+
+  it('records a paid call that named nothing once, and never pays for that run again (code review 2026-10-09 2.20)', async () => {
+    vi.spyOn(process.stderr, 'write').mockReturnValue(true);
+    const f = fixture();
+    // The run's own end pays for an unusable reply...
+    const { llm, requests } = fakeLlm('  ""  ');
+    const ended = await runOnce(f, coordinatorFor(f, deliveringDriver(), { runTitler: runTitlerFor(llm, 'api:zai:glm-4.5-air') }), 'paid-nothing-end');
+    expect(requests).toHaveLength(1);
+    expect(ended.row.title).toBeUndefined();
+    expect(f.store.getRunTitleReceipt(f.viewer.orgId, ended.started.projectRunId)).toMatchObject({ inputTokens: 1_000, outputTokens: 10 });
+    // ...a backfill pays once for a run that ended before titles existed...
+    const old = await runOnce(f, coordinatorFor(f, deliveringDriver()), 'paid-nothing-backfill');
+    const first = await backfillRunTitles({ store: f.store, titler: runTitlerFor(llm, 'api:zai:glm-4.5-air'), apply: true });
+    expect(first.map((item) => item.projectRunId)).toEqual([old.started.projectRunId]);
+    expect(first[0]!.title).toBeUndefined();
+    expect(first[0]!.costUsd).toBeGreaterThan(0);
+    expect(requests).toHaveLength(2);
+    // ...and neither run is listed or paid for again.
+    expect(f.store.listUntitledEndedRuns()).toEqual([]);
+    expect(await backfillRunTitles({ store: f.store, titler: runTitlerFor(llm, 'api:zai:glm-4.5-air'), apply: true })).toEqual([]);
+    expect(requests).toHaveLength(2);
+    expect(f.store.recordRunTitle({ orgId: f.viewer.orgId, projectRunId: old.started.projectRunId, title: 'Late name', receipt: RECEIPT })).toBe(false);
   });
 
   it('leaves a run untitled, and listed again, when naming gives up', async () => {

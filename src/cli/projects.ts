@@ -407,10 +407,9 @@ async function main(): Promise<void> {
       titler: hostRunTitler(process.env),
       apply,
       onItem: (item) => {
-        if (item.title) {
-          named += 1;
-          costUsd += item.costUsd ?? 0;
-        }
+        if (item.title) named += 1;
+        // A paid call that named nothing is spent too.
+        costUsd += item.costUsd ?? 0;
         process.stdout.write(
           `${item.projectRunId}  ${item.status.padEnd(9)}  ${
             item.title ? safeTerminal(item.title) : apply ? '(not named)' : '(would be named)'
