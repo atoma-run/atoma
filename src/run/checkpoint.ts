@@ -12,6 +12,7 @@ import type Database from 'better-sqlite3';
 import { openStoreHandle } from '../core/stores.js';
 import type { Result } from '../core/types.js';
 import { isLanded } from '../contracts/runLanding.js';
+import type { AtomRegistry, AtomType } from '../registry/atomRegistry.js';
 import { outOfPhaseBudget } from '../core/limits.js';
 import { checkpointWorkspaceDigest, saveCheckpointWorkspace, restoreCheckpointWorkspace, initializeCheckpointWorkspaces } from './checkpointWorkspace.js';
 export { checkpointWorkspaceDigest } from './checkpointWorkspace.js';
@@ -118,12 +119,27 @@ export class RunCheckpointStore {
     return !!this.db.prepare('SELECT 1 FROM run_checkpoint_pauses WHERE id = ?').get(id);
   }
 
-  /** Consume the source and claim a separate segment in one transaction. */
-  continueProject(source: RunCheckpoint, next: RunCheckpoint): string {
+  /** Consume the source and claim a separate segment in one transaction.
+   * Returns the source's prior state, which `restoreContinuation` puts back. */
+  continueProject(source: RunCheckpoint, next: RunCheckpoint): { owner: string; sourceState: string } {
     return this.db.transaction(() => {
       if (encoded(this.read(source.id)) !== encoded(source)) throw new Error('Checkpoint changed before continuation');
+      const { state: sourceState } = this.db.prepare('SELECT state FROM run_checkpoints WHERE id=?').get(source.id) as { state: string };
       this.db.prepare("UPDATE run_checkpoints SET state='finished' WHERE id=?").run(source.id);
-      return this.claim(next, true);
+      return { owner: this.claim(next, true), sourceState };
+    }).immediate();
+  }
+
+  /** Undo a continuation refused before any work (code review 2026-10-09,
+   * 1.4): the untouched source is resumable again, the successor finished. */
+  restoreContinuation(sourceId: string, sourceState: string, nextId: string, owner: string): void {
+    this.db.transaction(() => {
+      const next = this.db.prepare('SELECT owner, state FROM run_checkpoints WHERE id=?').get(nextId) as Pick<Row, 'owner' | 'state'> | undefined;
+      if (next?.owner !== owner || next.state === 'finished') throw new Error('Checkpoint ownership lost');
+      if (this.db.prepare("UPDATE run_checkpoints SET state=? WHERE id=? AND state='finished'").run(sourceState, sourceId).changes !== 1) {
+        throw new Error('Continuation source changed');
+      }
+      this.db.prepare("UPDATE run_checkpoints SET state='finished' WHERE id=?").run(nextId);
     }).immediate();
   }
 
@@ -269,6 +285,7 @@ export class RunCheckpointStore {
  * effects, unsettled model spend, or live processes. Proof is always fresh. */
 export class SequentialCheckpoint implements RootPhaseCheckpoint {
   private readonly owner: string;
+  private readonly sourceState?: string;
   private restored = false;
   private active = true;
   private phaseCount = 0;
@@ -287,7 +304,8 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
     restoreWorkspace?: () => void;
     assessClientQuestion?: (task: Task, next: SubtaskSpec, completed: readonly Result[]) => Promise<ClientQuestion | null>;
   }) {
-    this.owner = options.source ? store.continueProject(options.source, data) : store.claim(data, options.fresh);
+    if (options.source) ({ owner: this.owner, sourceState: this.sourceState } = store.continueProject(options.source, data));
+    else this.owner = store.claim(data, options.fresh);
     store.beginSegment(data, options.deadlineAt);
     options.restoreWorkspace?.();
     delete data.interrupted;
@@ -464,6 +482,14 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
     this.active = false; // A root remediation is fresh supervised work, never a checkpoint replay.
     this.store.pruneSnapshots();
   }
+  /** A project continuation refused before any phase (its saved root actor
+   * changed) hands the source back and leaves no successor running. */
+  refuseContinuation(): void {
+    if (!this.options.source || this.sourceState === undefined || !this.active || this.state !== 'running') return;
+    this.store.restoreContinuation(this.options.source.id, this.sourceState, this.data.id, this.owner);
+    this.state = 'finished';
+    this.active = false;
+  }
   release(): void {
     if (this.state === 'ready') {
       if (checkpointWorkspaceDigest(this.data.workspace) !== this.data.workspaceDigest) {
@@ -473,4 +499,15 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
       this.store.write(this.data, this.owner, 'ready', true);
     }
   }
+}
+
+/** The saved root actor, unchanged, or a refusal. The refusal comes after the
+ * successor's claim — its own catalog seeding can move the version — so it
+ * hands a claimed project continuation back (code review 2026-10-09, 1.4). */
+export function savedRootActor(registry: Pick<AtomRegistry, 'getByName'>, actor: NonNullable<RunCheckpoint['actor']>,
+  checkpoint?: SequentialCheckpoint): AtomType {
+  const stored = registry.getByName(actor.name);
+  if (stored && stored.atomId === actor.atomId && stored.version === actor.version) return stored;
+  checkpoint?.refuseContinuation();
+  throw new Error('Saved root actor has changed; resume refused');
 }

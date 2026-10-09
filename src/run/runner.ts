@@ -84,7 +84,7 @@ import { modelFacingExecutor } from '../core/attestation.js';
 import type { ToolExecutor } from '../core/types.js';
 import { draftAcceptanceChecklist } from '../atoms/acceptanceChecklist.js';
 import { readAcceptanceSource, readAcceptanceSpec } from './acceptanceSpec.js';
-import { canonicalCheckpointWorkspacePath, assertCheckpointStoreOutsideWorkspace, checkpointWorkspaceDigest, RunCheckpointStore, SequentialCheckpoint } from './checkpoint.js';
+import { canonicalCheckpointWorkspacePath, assertCheckpointStoreOutsideWorkspace, checkpointWorkspaceDigest, RunCheckpointStore, SequentialCheckpoint, savedRootActor } from './checkpoint.js';
 import { PhaseBoundaryPause, type RunCheckpoint } from '../contracts/runCheckpoint.js';
 
 export const consoleLogger: Logger = {
@@ -1129,13 +1129,7 @@ async function startTaskInternal(
     else seedCatalog(seedCtx);
     let selectedTissue: Awaited<ReturnType<typeof selectTissue>> | undefined;
     const tissueFor = async (task: Task, context: RunContext) => {
-      if (savedCheckpoint?.actor && !selectedTissue) {
-        const stored = registry.getByName(savedCheckpoint.actor.name);
-        if (!stored || stored.atomId !== savedCheckpoint.actor.atomId || stored.version !== savedCheckpoint.actor.version) {
-          throw new Error('Saved root actor has changed; resume refused');
-        }
-        selectedTissue = stored;
-      }
+      if (savedCheckpoint?.actor && !selectedTissue) selectedTissue = savedRootActor(registry, savedCheckpoint.actor, checkpoint);
       // Registered comparison arms retain their original fixed entry protocol.
       selectedTissue ??= args.comparison ? buildTissue : await selectTissue({
         registry, toolDecls: backend.toolDecls, task, repository: routingRepository!, ctx: context,

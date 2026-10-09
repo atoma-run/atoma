@@ -7,7 +7,9 @@ import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
-import { assertCheckpointStoreOutsideWorkspace, checkpointWorkspaceDigest, RunCheckpointStore, SequentialCheckpoint } from '../src/run/checkpoint.js';
+import { assertCheckpointStoreOutsideWorkspace, checkpointWorkspaceDigest, RunCheckpointStore, SequentialCheckpoint, savedRootActor } from '../src/run/checkpoint.js';
+import { openDb } from '../src/registry/db.js';
+import { seedTissueCatalog } from '../src/run/tissues.js';
 import { closeStoreHandles } from '../src/core/stores.js';
 import { OLLAMA_PINS } from './tier-pins.js';
 import { forkBranch } from '../src/core/branchCtx.js';
@@ -485,6 +487,57 @@ describe('durable sequential run continuation', () => {
     // The live backend was never stopped for a tree that cannot be sealed.
     expect(drained).toBe(0);
     expect(store.clientQuestion('o', id)).toBeNull();
+  });
+
+  // Code review 2026-10-09, 1.4: the saved root actor is checked after the
+  // successor claimed the continuation, and the successor's own catalog
+  // seeding can move Meristem's version. The refusal consumed the source for
+  // good and left the successor `running`, blocked by its own seeding.
+  it('hands a project continuation back when its saved root actor has changed', async () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'atoma-checkpoint-actor-'))); roots.push(root);
+    const dbPath = join(root, 'atoma.db');
+    const registry = new AtomRegistry(openDb(dbPath));
+    const schema = { type: 'object', properties: {} };
+    const base = [{ name: 'read_file', description: 'Read a file', inputSchema: schema }];
+    const docs = { name: 'search_project_docs', description: 'Search the project documents', inputSchema: schema };
+    const seed = (toolDecls: typeof base) => seedTissueCatalog({ registry, toolDecls, log: () => {} });
+    const paused = seed([...base, docs]);
+    const workspace = join(root, 'ws-source');
+    mkdirSync(workspace);
+    writeFileSync(join(workspace, 'index.html'), '<p>phase 1 validated</p>');
+    const store = new RunCheckpointStore(dbPath);
+    const sourceId = randomUUID();
+    const scope = { orgId: 'org', projectId: 'proj', principalId: 'alice', runId: sourceId };
+    const data = { version: 1, id: sourceId, scope, goal: 'Build the app', workspace, policy: '{}',
+      actor: { name: paused.name, atomId: paused.atomId, version: paused.version }, checklist: [], root: null, completed: [],
+      workspaceDigest: null, processes: [], consumed: { tokens: 0, costUsd: 0 }, remainingMs: 600_000, lastRunId: null };
+    const phase = (n: number) => ({ description: `phase ${n}`, child: 'Cell' });
+    await withRecoveryEffects(async () => {
+      const cp = new SequentialCheckpoint(data as never, store, { fresh: true, automatic: true, pauseAfter: 1,
+        account: () => ({ tokens: 1000, costUsd: 0.42 }), deadlineAt: Date.now() + 600_000, settle: async () => {}, processes: () => [] });
+      cp.planned({ description: 'Build the app' }, { subtasks: [phase(1), phase(2)], aggregation: { mode: 'sequential' } } as never, {}, 2);
+      await cp.beforePhase(0, phase(1));
+      await expect(cp.afterPhase(0, { output: { ok: true }, summary: 'phase 1 done', producedBy: { name: 'Cell', tier: 2, viaFallback: false },
+        trace: [{ kind: 'verdict-result', payload: { approved: true } }] } as never)).rejects.toThrow();
+      cp.release();
+    });
+    expect(store.projectStatus(sourceId, 'org')?.state).toBe('paused');
+    // Another run of the commons has no retrieval corpus: Meristem moves on.
+    seed(base);
+    const saved = store.read(sourceId);
+    const nextId = randomUUID();
+    const nextWorkspace = join(root, 'ws-next');
+    await withRecoveryEffects(async () => {
+      const successor = new SequentialCheckpoint({ ...saved, id: nextId, workspace: nextWorkspace, scope: { ...scope, runId: nextId } }, store, {
+        fresh: false, source: saved, automatic: true, account: () => saved.consumed, deadlineAt: Date.now() + 600_000,
+        settle: async () => {}, processes: () => [], restoreWorkspace: () => store.materialize(saved, nextWorkspace, false) });
+      // The runner's order: the successor seeds its catalog, then selects the saved actor.
+      seed([...base, docs]);
+      expect(() => savedRootActor(registry, saved.actor!, successor)).toThrow('Saved root actor has changed; resume refused');
+    });
+    expect(store.projectStatus(sourceId, 'org')?.state).toBe('paused');
+    expect(store.projectStatus(nextId, 'org')?.state).toBe('unavailable');
+    expect(store.read(sourceId)).toEqual(saved);
   });
 
   it('cannot place its authority store inside the workspace through a parent symlink', () => {

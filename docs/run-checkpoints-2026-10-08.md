@@ -106,7 +106,11 @@ reason. Cancelled runs do not offer recovery. No uncertain action is replayed. C
 
 The runner binds the checkpoint to the stored requester/org/project/source run,
 consumes the source and claims the successor in one SQLite transaction BEFORE
-restoring its snapshot into the new run. Legacy graceful checkpoints keep the
+restoring its snapshot into the new run. The saved root actor is compared after
+that claim, because the successor's own catalog seeding can move its version; a
+changed actor hands the untouched source back and finishes the successor in one
+transaction, so the source stays as resumable as it was (code review 2026-10-09, 1.4).
+Legacy graceful checkpoints keep the
 verified workspace copy path. Previous artifacts
 and traces remain immutable. Repository BASE is copied rather than refreshed from
 GitHub, including the imported-repository receipt. The original starting-file
