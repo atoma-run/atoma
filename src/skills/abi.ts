@@ -16,10 +16,29 @@ import type { SkillLanguage } from './types.js';
  * gate); this module owns the INVOCATION half.
  */
 
-/** Sandbox-local scratch filename: `_skill_<id>.<ext>`. Extension policy
- * (.mjs, never bare .js) is scriptExtension's — see its comment. */
-export function scriptScratchFilename(skillId: string, language: SkillLanguage): string {
-  return `_skill_${skillId}.${scriptExtension(language)}`;
+/**
+ * Sandbox-local scratch filename: `_skill_<id>.<ext>` on the L1-driven path,
+ * `_skill_<id>.<namespace>.<dispatch>.<ext>` for one trusted direct dispatch.
+ * Extension policy (.mjs, never bare .js) is scriptExtension's — see its
+ * comment.
+ *
+ * A direct dispatch names its OWN file: parallel subtasks share one
+ * workspace, and with one name per skill the cleanup of one dispatch deleted
+ * the file another was about to run — an `ENOENT` counted as a deterministic
+ * failure, two of which demote the script (code review 2026-10-09, 2.25).
+ * The `_skill_` prefix stays, so evidence filters and the L1's own scratch
+ * check still recognise it. The L1 path keeps the bare name: it is folded
+ * into the molecule's system prompt, where a per-dispatch token would defeat
+ * its prompt cache.
+ */
+export function scriptScratchFilename(
+  skillId: string,
+  language: SkillLanguage,
+  dispatch?: { readonly namespace: string; readonly dispatchId: string }
+): string {
+  const token = (value: string) => value.replace(/[^A-Za-z0-9-]/g, '-');
+  const unique = dispatch ? `.${token(dispatch.namespace)}.${token(dispatch.dispatchId)}` : '';
+  return `_skill_${skillId}${unique}.${scriptExtension(language)}`;
 }
 
 /** Interpreter binary for run_shell. All three appear in the run_shell allowlist. */

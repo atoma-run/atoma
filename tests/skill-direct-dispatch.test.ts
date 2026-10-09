@@ -246,21 +246,25 @@ describe('L2.runSubtask — deterministic script dispatch (C4)', () => {
     // write + run mirror skillContextBlock's calling convention, then the
     // scratch script is removed — it is scaffolding, not deliverable, and
     // subtasks routinely assert the exact workspace contents afterwards.
+    // The scratch file is this dispatch's own: skill id, namespace, dispatch id.
     expect(calls).toHaveLength(3);
+    const scratch = String(calls[0]!.args['path']);
+    expect(scratch).toMatch(/^_skill_scaffold-config\.[A-Za-z0-9-]+\.[0-9a-f]{12}\.mjs$/);
+    expect(scratch).toContain(`.${nsOf(reg, 'Water')}.`);
     expect(calls[0]).toEqual({
       name: 'write_file',
-      args: { path: '_skill_scaffold-config.mjs', content: SCRIPT_BODY },
+      args: { path: scratch, content: SCRIPT_BODY },
     });
     expect(calls[1]!.name).toBe('run_shell');
     expect(calls[1]!.args).toEqual({
       command: 'node',
-      args: ['_skill_scaffold-config.mjs', JSON.stringify('scaffold the config')],
+      args: [scratch, JSON.stringify('scaffold the config')],
     });
     expect(calls[2]!.name).toBe('run_shell');
     expect(calls[2]!.args['args']).toEqual([
       '-e',
       'require("fs").rmSync(process.argv[1],{force:true})',
-      '_skill_scaffold-config.mjs',
+      scratch,
     ]);
 
     // Skill success counter bumped by the dispatch itself (the supervise
@@ -435,7 +439,7 @@ describe('L2.runSubtask — deterministic script dispatch (C4)', () => {
     // cleaned up its scratch file on the way out (the `finally`), so a failed
     // dispatch doesn't leave debris for the LLM loop to trip over.
     expect(calls.map((c) => c.name)).toEqual(['write_file', 'run_shell', 'run_shell']);
-    expect(calls[2]!.args['args']).toContain('_skill_scaffold-config.mjs');
+    expect(calls[2]!.args['args']).toContain(calls[0]!.args['path']);
     // A deterministic failure is NOT a skill failure. The fallback LLM
     // delivered, but it did not execute the injected script scratch body, so
     // that delivery cannot credit the script either.
@@ -1330,7 +1334,7 @@ describe('a direct dispatch is validated, and a script set aside is not run agai
     expect(result.summary).toBe('script ran clean');
     expect(ctx.llm.calls.map((call) => call.role)).toEqual(['prefilter', 'prefilter', 'validate-result']);
     // The validator read the transport's record of the run, not just the envelope.
-    expect(ctx.llm.calls[2]!.userContent).toContain('_skill_scaffold-config.mjs');
+    expect(ctx.llm.calls[2]!.userContent).toMatch(/_skill_scaffold-config\.[^\s"]+\.mjs/);
     expect(events.map((e) => e.op)).toEqual(['match', 'direct', 'success']);
     expect(skill().successes).toBe(1);
   });
@@ -1523,7 +1527,7 @@ describe('the adversarial review of 2026-10-06, as regressions', () => {
       { description: 'Recompute the optimums documented in README.md.' }, ctx, 'x');
 
     const lines = observed(outcome);
-    expect(lines.some((line) => line.startsWith('run_shell') && line.includes('_skill_recheck.mjs'))).toBe(true);
+    expect(lines.some((line) => line.startsWith('run_shell') && /_skill_recheck\.\S+\.mjs/.test(line))).toBe(true);
     // The deliverable gate read README.md, and the cleanup ran: neither is the script's work.
     expect(lines.some((line) => line.startsWith('read_file'))).toBe(false);
     expect(lines.some((line) => line.includes('rmSync'))).toBe(false);
@@ -1540,9 +1544,57 @@ describe('the adversarial review of 2026-10-06, as regressions', () => {
       lifecycle().runScriptSkillDirect(beta!, nsOf(reg, 'Water'), 'Water', { description: 'recheck lane B' }, ctx, 'x'),
     ]);
 
-    expect(observed(a).some((line) => line.includes('_skill_recheck.mjs'))).toBe(true);
+    expect(observed(a).some((line) => line.includes('_skill_recheck.'))).toBe(true);
     expect(observed(a).some((line) => line.includes('_skill_beta'))).toBe(false);
     expect(observed(b).some((line) => line.includes('_skill_recheck'))).toBe(false);
+  });
+
+  it('two parallel dispatches of one script in one workspace never delete each other\'s scratch file (2.25)', async () => {
+    // A shared workspace, ordered so the worst interleaving is certain: B
+    // writes its scratch file before A runs, and B runs only after A's
+    // cleanup. With one name per skill, A's cleanup was B's ENOENT.
+    const files = new Set<string>();
+    const written: string[] = [];
+    let bWrote!: () => void;
+    let aRemoved!: () => void;
+    const bWroteP = new Promise<void>((resolve) => { bWrote = resolve; });
+    const aRemovedP = new Promise<void>((resolve) => { aRemoved = resolve; });
+    const workspace: ToolExecutor = {
+      async execute(name, args) {
+        if (name === 'write_file') {
+          files.add(String(args['path']));
+          written.push(String(args['path']));
+          if (written.length === 2) bWrote();
+          return { ok: true, path: args['path'] };
+        }
+        if (name === 'run_shell' && Array.isArray(args['args'])) {
+          const argv = args['args'].map(String);
+          if (argv[0] === '-e') {
+            files.delete(argv[2]!);
+            if (argv[2] === written[0]) aRemoved();
+            return { exitCode: 0, stdout: '', stderr: '' };
+          }
+          await (argv[1]!.includes('lane A') ? bWroteP : aRemovedP);
+          return files.has(argv[0]!)
+            ? { exitCode: 0, stdout: `${REPLAY_ENVELOPE}\n`, stderr: '' }
+            : { exitCode: 1, stdout: '', stderr: `ENOENT: ${argv[0]}` };
+        }
+        throw new Error(`unexpected tool: ${name}`);
+      },
+      has: (name) => ['write_file', 'run_shell'].includes(name),
+    };
+    const skill = skills.loadFor(nsOf(reg, 'Water')).find((s) => s.id === 'recheck')!;
+    const ctx: RunContext = { ...makeCtx(), tools: workspace };
+    const [a, b] = await Promise.all([
+      lifecycle().runScriptSkillDirect(skill, nsOf(reg, 'Water'), 'Water', { description: 'recheck lane A' }, ctx, 'x'),
+      lifecycle().runScriptSkillDirect(skill, nsOf(reg, 'Water'), 'Water', { description: 'recheck lane B' }, ctx, 'x'),
+    ]);
+
+    expect([a.kind, b.kind]).toEqual(['ran', 'ran']);
+    expect(new Set(written).size).toBe(2);
+    // Each dispatch cleaned up its own file, and only its own.
+    expect([...files]).toEqual([]);
+    expect(skills.loadFor(nsOf(reg, 'Water')).find((s) => s.id === 'recheck')!.failures).toBe(0);
   });
 
   it('a gate that rejects the script\'s result still rejects the molecule\'s, at no model cost', async () => {

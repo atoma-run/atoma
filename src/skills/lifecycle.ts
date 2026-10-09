@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { basename } from 'node:path';
 import type { GenerationParams, LlmCompletionRequest, Result, RunContext, Task } from '../core/types.js';
 import type { L1Atom } from '../atoms/L1Atom.js';
@@ -1548,7 +1549,11 @@ export class SkillLifecycle {
       );
       return SKIPPED;
     }
-    const filename = scriptScratchFilename(skill.id, skill.language);
+    // One file per dispatch: parallel subtasks share the workspace.
+    const filename = scriptScratchFilename(skill.id, skill.language, {
+      namespace: l1Name,
+      dispatchId: randomUUID().replaceAll('-', '').slice(0, 12),
+    });
     const interpreter = scriptInterpreter(skill.language);
     // Snapshot the named files BEFORE the script runs. On a maintenance task
     // every one of them already exists, so the existence check below cannot

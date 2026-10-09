@@ -140,7 +140,9 @@ by owner decision on 2026-09-26
   decision 2026-10-06, [record](../../docs/script-dispatch-validation-2026-10-06.md)).
   Jev approving keeps the dispatch free of model calls; otherwise one
   validation call is paid. Its evidence is the script's own attested write and
-  run, picked by scratch filename (the lane is shared with siblings); the
+  run, picked by scratch filename, which is the dispatch's own
+  (`_skill_<id>.<namespace>.<dispatch>`: the lane and workspace are shared
+  with siblings, whose cleanup must not delete it); the
   host's snapshot, gate reads and cleanup run on the base executor. Its gates
   read the run's one-shots but never spend them. A refused result is set aside
   like an upstream content rejection: no counter moves, and the run's
