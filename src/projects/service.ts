@@ -969,8 +969,14 @@ export class ProjectService {
       if (error instanceof ProjectRunConfigurationError) {
         throw new ProjectHttpError(503, error.message);
       }
-      // The publisher already recorded the failure on the publication row;
-      // surface a bounded message so the operator can see why it failed.
+      // The run slot was taken: nothing was attempted, and the message is
+      // already the tenant's redaction of the lease holder.
+      if (error instanceof ProjectRunBusy) {
+        throw new ProjectHttpError(409, error.message,
+          { code: 'busy', retryable: true, nextAction: 'Wait for the current work on the instance to finish, then retry the publication.' });
+      }
+      // Anything else came from the publisher, which recorded it on the
+      // publication row; surface a bounded message so the caller sees why.
       throw new ProjectHttpError(
         502,
         `publication retry failed: ${(error instanceof Error ? error.message : String(error)).slice(0, 500)}`

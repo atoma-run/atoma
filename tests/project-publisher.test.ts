@@ -21,6 +21,8 @@ import { ProjectRunCoordinator } from '../src/projects/coordinator.js';
 import { publicationCommitMessage } from '../src/projects/commitMessage.js';
 import { GitHubPublisher, PublicationSupersededError } from '../src/projects/publisher.js';
 import { ProjectStore } from '../src/projects/store.js';
+import { ProjectHttpError, ProjectService } from '../src/projects/service.js';
+import { acquireRunLease } from '../src/mcp/runLock.js';
 import { FakeGitHub } from './github-api-fake.js';
 import { formatRunStatsEpilogue, type RunStats } from '../src/contracts/runStats.js';
 import { PreviewStore } from '../src/preview/store.js';
@@ -481,6 +483,42 @@ describe('coordinator publication retry', () => {
     await coordinator.retryPublication(owner.orgId, run.projectRunId);
     expect(upClient.createUserRepository).toHaveBeenCalledTimes(1);
     expect(upClient.publishManifestCommit).toHaveBeenCalledTimes(1);
+  });
+
+  it('tells the tenant the slot is busy without another organisation\'s run id, pid or start time (code review 2026-10-09 2.3)', async () => {
+    const owner = actor('Alice');
+    const other = actor('Bob');
+    const { project, run } = await deliveredRun(owner, 'User', 'alice');
+    const lockPath = join(root, 'run-lock.db');
+    const foreignRunId = randomUUID();
+    const held = await acquireRunLease(`project:${foreignRunId}`, lockPath, { orgId: other.orgId });
+    try {
+      const client = mockClient();
+      const coordinator = new ProjectRunCoordinator({
+        store,
+        dbPath: join(root, 'product.db'),
+        projectsRoot: join(root, 'projects-root'),
+        publisher: new GitHubPublisher({ client, github, store, resolveUserAccessToken: async () => 'ghu_user-token' }),
+        acquireLease: (id, options) => acquireRunLease(id, lockPath, options),
+      });
+      const service = new ProjectService({ store, github, coordinator });
+      const viewer = {
+        principalId: owner.principalId, displayName: 'Alice', kind: 'human' as const, orgId: owner.orgId,
+        orgName: 'Alice Org', role: 'org:owner' as const, platformAdmin: false, displayNameSource: 'provider' as const,
+      };
+      const refusal = await service.retryPublication(viewer, project.projectId, run.projectRunId)
+        .then(() => null, (error: unknown) => error);
+      expect(refusal).toBeInstanceOf(ProjectHttpError);
+      const http = refusal as ProjectHttpError;
+      expect(http.status).toBe(409);
+      expect(http.message).toMatch(/another run is in progress .* retry the publication/);
+      expect(http.message).not.toContain(foreignRunId);
+      expect(http.message).not.toContain(String(process.pid));
+      expect(http.message).not.toMatch(/pid|since \d{4}-/);
+      expect(client.createUserRepository).not.toHaveBeenCalled();
+    } finally {
+      held.release();
+    }
   });
 
   it('refuses a retry without a configured publisher or a delivered run', async () => {

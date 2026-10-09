@@ -301,33 +301,41 @@ export class ProjectRunBusy extends Error {
  * tenant as a 409 until 2026-09-26. Holding the slot for post-run
  * maintenance is the documented resource trade (`src/supervisor/AGENTS.md`);
  * saying so is what makes "retry in a few minutes" an honest answer.
+ * A publication takes the same exclusive slot and is told the same, with
+ * its own next step: the acceptance is kept, only the publication waits.
  */
-export function tenantBusyMessage(owner: { readonly runId: string } | undefined, condition: RunLockBusyError['condition'] = 'held'): string {
+export function tenantBusyMessage(
+  owner: { readonly runId: string } | undefined,
+  condition: RunLockBusyError['condition'] = 'held',
+  action: 'start' | 'publish' = 'start'
+): string {
+  const again = action === 'start' ? 'start this run again' : 'retry the publication';
+  const yours = action === 'start' ? 'start your run' : 'retry the publication';
   if (condition === 'capacity') {
-    return 'the instance has reached its concurrent run limit; start your run when a place becomes available';
+    return `the instance has reached its concurrent run limit; ${yours} when a place becomes available`;
   }
   if (condition === 'wedged') {
-    return 'the run slot is held by a run the instance could not clean up; an operator has to release it before a new run can start';
+    return `the run slot is held by a run the instance could not clean up; an operator has to release it before ${action === 'start' ? 'a new run can start' : 'the publication can proceed'}`;
   }
   if (condition === 'pending') {
     // Waiting can outlast "a few minutes": the update lets the current work
     // finish first, however long that takes.
-    return 'the instance is about to be updated and is letting the current work finish first; start this run again once the update is done';
+    return `the instance is about to be updated and is letting the current work finish first; ${again} once the update is done`;
   }
   const holder = owner?.runId ?? '';
   if (holder.startsWith('analyst:')) {
-    return 'the platform is reviewing a finished run and holds the one run slot for a few minutes; start this run again shortly';
+    return `the platform is reviewing a finished run and holds the one run slot for a few minutes; ${again} shortly`;
   }
   if (holder.startsWith('mender:')) {
-    return 'the platform is preparing a fix for a finished run and holds the one run slot; start this run again later';
+    return `the platform is preparing a fix for a finished run and holds the one run slot; ${again} later`;
   }
   if (holder.startsWith('deployment:')) {
-    return 'the instance is being updated; start this run again in a few minutes';
+    return `the instance is being updated; ${again} in a few minutes`;
   }
   if (holder.startsWith('maintenance:')) {
-    return 'the instance is running scheduled maintenance; start this run again shortly';
+    return `the instance is running scheduled maintenance; ${again} shortly`;
   }
-  return 'another run is in progress on this instance; start your run once that one finishes';
+  return `another run is in progress on this instance; ${yours} once that one finishes`;
 }
 
 /** The refusal when the run holding the place is the caller's own. */
@@ -2319,7 +2327,15 @@ export class ProjectRunCoordinator {
     this.store.assertPublicationAccepted(run);
     const project = this.store.getProject(orgId, run.projectId);
     if (!project) return null;
-    const lease = await this.acquireLeasePreempting(`publication:${projectRunId}`);
+    let lease: RunLease;
+    try { lease = await this.acquireLeasePreempting(`publication:${projectRunId}`); }
+    catch (error) {
+      // The lease's own message names the holder's run id — possibly another
+      // organisation's — its host pid and start time: never a tenant's to read.
+      if (!(error instanceof RunLockBusyError)) throw error;
+      process.stderr.write(`[atoma projects] publication refused, slot busy: ${error.message}\n`);
+      throw new ProjectRunBusy(`publication waits for the run slot; the client acceptance is kept. ${tenantBusyMessage(error.owner, error.condition, 'publish')}`);
+    }
     try {
       await this.publisher.publish({ project, run, workspaceRoot: run.hostPaths.workspacePath,
         manifest: run.artifactManifest, manifestHash: run.artifactManifestHash });
