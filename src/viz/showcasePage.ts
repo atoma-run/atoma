@@ -56,24 +56,40 @@ const KIND_LABEL: Record<ShowcaseKind, string> = {
   answers: 'Answers',
   reports: 'Reports & data',
   media: 'Drawings & sound',
+  books: 'Books',
+  textiles: 'Weaving patterns',
+  models: '3D models',
+  typefaces: 'Typefaces',
   software: 'Software',
 };
 const KIND_NOUN: Record<ShowcaseKind, string> = {
   answers: 'Written answer',
   reports: 'Report & data',
   media: 'Drawing & sound',
+  books: 'Book',
+  textiles: 'Weaving pattern',
+  models: '3D model',
+  typefaces: 'Typeface',
   software: 'Software',
 };
 const KIND_COLOR: Record<ShowcaseKind, string> = {
   answers: '#fbbf24',
   reports: '#c084fc',
   media: '#22d3ee',
+  books: '#fdba74',
+  textiles: '#5eead4',
+  models: '#a3e635',
+  typefaces: '#f9a8d4',
   software: '#6ea8ff',
 };
 const KIND_GLYPH: Record<ShowcaseKind, string> = {
   answers: '<path d="M5 6h14M5 11h14M5 16h9"/>',
   reports: '<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/>',
   media: '<path d="M3 12h2M7 7v10M11 4v16M15 8v8M19 10v4M21 12h0"/>',
+  books: '<path d="M12 5v16M12 5C9 3 5 3 2 4v15c3-1 7-1 10 2 3-3 7-3 10-2V4c-3-1-7-1-10 1"/>',
+  textiles: '<path d="M6 3v18M12 3v18M18 3v18M3 6h18M3 12h18M3 18h18"/>',
+  models: '<path d="m12 3 9 5v9l-9 5-9-5V8l9-5Zm0 10 9-5M12 13 3 8m9 5v9"/>',
+  typefaces: '<path d="M4 20 12 4l8 16M7 14h10M2 20h5M17 20h5"/>',
   software: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18M7 7h0M10 7h0"/>',
 };
 
