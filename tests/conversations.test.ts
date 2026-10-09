@@ -3,7 +3,7 @@ import Database from 'better-sqlite3';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { Viewer } from '../src/auth/store.js';
 import { assistantActionSchema, conversationReadResultSchema, type AssistantAction } from '../src/contracts/assistant.js';
-import { AssistantStore, emptyConversation } from '../src/projects/conversationStore.js';
+import { AssistantStore, emptyConversation, SHARED_WRITES_PER_DAY } from '../src/projects/conversationStore.js';
 import { Conversations } from '../src/projects/conversations.js';
 import type { ProjectService } from '../src/projects/service.js';
 
@@ -84,6 +84,34 @@ it('deduplicates updates without spending, refuses changed retries and concurren
   expect(f.write({ requestId })).toEqual(saved);
   expect(() => f.write({ requestId, messages: [{ role: 'user', text: 'Different' }] })).toThrow('different content');
   expect(() => f.write()).toThrow('changed');
+  expect(f.db.prepare('SELECT COUNT(*) AS n FROM assistant_daily_usage').get()).toEqual({ n: 0 });
+});
+
+it('admits a bounded number of shared writes per principal, organisation and UTC day', () => {
+  const f = fixture();
+  let clock = Date.parse('2026-10-09T08:00:00.000Z');
+  const shared = new Conversations(new AssistantStore(f.db, () => clock), f.projects);
+  const journal = () => (f.db.prepare('SELECT COUNT(*) AS n FROM conversation_messages').get() as { n: number }).n;
+  let saved = shared.update(f.viewer, { expectedVersion: 0, requestId: randomUUID(), messages: [{ role: 'user', text: 'x' }] }).conversation;
+  const next = (viewer = f.viewer, requestId: string = randomUUID()) => shared.update(viewer, {
+    conversationId: viewer === f.viewer ? saved.id : undefined, expectedVersion: viewer === f.viewer ? saved.version : 0,
+    requestId, messages: [{ role: 'user', text: 'x' }],
+  });
+  let last: string = randomUUID();
+  for (let n = 1; n < SHARED_WRITES_PER_DAY; n++) { last = randomUUID(); saved = next(f.viewer, last).conversation; }
+  expect(journal()).toBe(SHARED_WRITES_PER_DAY);
+  // A retry of an admitted write is not a new write.
+  expect(shared.update(f.viewer, { conversationId: saved.id, expectedVersion: saved.version - 1, requestId: last,
+    messages: [{ role: 'user', text: 'x' }] }).conversation.version).toBe(saved.version);
+  expect(() => next()).toThrow('Daily shared-message limit reached');
+  expect(journal()).toBe(SHARED_WRITES_PER_DAY);
+  expect(shared.read(f.viewer, { conversationId: saved.id }).conversation.version).toBe(saved.version);
+  // Another principal keeps its own allowance.
+  next({ ...f.viewer, principalId: randomUUID() });
+  clock += 24 * 3600_000;
+  saved = next().conversation;
+  expect(journal()).toBe(SHARED_WRITES_PER_DAY + 2);
+  // Model attempts are a separate counter: shared writes never spend them.
   expect(f.db.prepare('SELECT COUNT(*) AS n FROM assistant_daily_usage').get()).toEqual({ n: 0 });
 });
 

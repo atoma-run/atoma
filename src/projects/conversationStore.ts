@@ -26,6 +26,10 @@ CREATE TABLE IF NOT EXISTS assistant_daily_usage (
   calls INTEGER NOT NULL DEFAULT 0, cost_usd REAL NOT NULL DEFAULT 0,
   PRIMARY KEY (principal_id, org_id, day)
 );
+CREATE TABLE IF NOT EXISTS conversation_daily_writes (
+  principal_id TEXT NOT NULL, org_id TEXT NOT NULL, day TEXT NOT NULL, writes INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (principal_id, org_id, day)
+);
 CREATE TABLE IF NOT EXISTS assistant_calls (
   principal_id TEXT NOT NULL, org_id TEXT NOT NULL, request_id TEXT NOT NULL,
   created_at TEXT NOT NULL, model TEXT NOT NULL, served_model TEXT NOT NULL,
@@ -37,6 +41,17 @@ export const emptyConversation = (projectId: string | null = null): AssistantCon
   lastRun: null, costUsd: 0, inputTokens: 0, outputTokens: 0, lastRequestId: null });
 
 export class AssistantConflict extends Error {}
+
+/**
+ * Shared writes (`atoma_conversation_update`) admitted per principal and
+ * organisation per UTC day. They spend no model call, so they never draw on
+ * the assistant's attempts, but each appends up to 12,000 characters to a
+ * journal that keeps every message: this bounds how fast it can grow.
+ */
+export const SHARED_WRITES_PER_DAY = 100;
+
+/** What a claim admits: a model call (and its payer), a shared write, or neither. */
+export type ClaimAdmission = boolean | AssistantPayer | 'shared-write';
 
 /** Bounded conversation snapshots, in the primary product DB, never in a second store. */
 export class AssistantStore {
@@ -80,7 +95,7 @@ export class AssistantStore {
       busy: (row?.locked_until ?? 0) > this.now() };
   }
 
-  claim(scope: AssistantScope, version: number, requestId: string, spend: boolean | AssistantPayer, fingerprint = ''): AssistantConversation | null {
+  claim(scope: AssistantScope, version: number, requestId: string, spend: ClaimAdmission, fingerprint = ''): AssistantConversation | null {
     return this.db.transaction(() => {
       const current = this.read(scope);
       if (current.busy) throw new AssistantConflict('The conversation is busy. Wait for the current request.');
@@ -102,7 +117,13 @@ export class AssistantStore {
         throw new AssistantConflict('Another conversation is busy. Wait for it to finish.');
       }
       if (active.length >= 8) throw new AssistantConflict('The assistant is busy. Please try again shortly.');
-      if (spend) {
+      if (spend === 'shared-write') {
+        const day = new Date(this.now()).toISOString().slice(0, 10);
+        const admitted = this.db.prepare(`INSERT INTO conversation_daily_writes (principal_id, org_id, day, writes) VALUES (?, ?, ?, 1)
+          ON CONFLICT (principal_id, org_id, day) DO UPDATE SET writes=writes+1 WHERE writes < ?`)
+          .run(scope.principalId, scope.orgId, day, SHARED_WRITES_PER_DAY);
+        if (!admitted.changes) throw new AssistantConflict('Daily shared-message limit reached. Try again tomorrow; your runs are unaffected.');
+      } else if (spend) {
         const day = new Date(this.now()).toISOString().slice(0, 10);
         this.db.prepare('INSERT OR IGNORE INTO assistant_daily_usage (principal_id, org_id, day) VALUES (?, ?, ?)')
           .run(scope.principalId, scope.orgId, day);

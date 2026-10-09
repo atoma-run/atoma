@@ -31,7 +31,7 @@ export class Conversations {
     const scope = this.scope(viewer, input.projectId, input.conversationId);
     const current = this.store.read(scope).conversation;
     if (input.proposal) this.validateProposal(viewer, current.projectId, input.proposal);
-    const conversation = this.store.claim(scope, input.expectedVersion, input.requestId, false, JSON.stringify(input));
+    const conversation = this.store.claim(scope, input.expectedVersion, input.requestId, 'shared-write', JSON.stringify(input));
     if (!conversation) return this.read(viewer, { conversationId: current.id });
     try {
       conversation.messages.push(...input.messages.map(message => ({ ...message, at: new Date().toISOString(), origin: 'mcp' as const,

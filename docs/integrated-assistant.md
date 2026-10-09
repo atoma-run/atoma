@@ -118,7 +118,11 @@ can also read by projectId. Proposals and run receipts are included.
 
 **External agent → Atoma:** share relevant exchanges or a faithful handoff using
 `atoma_conversation_update`. Supply the latest `expectedVersion`, a stable UUID
-`requestId`, and up to eight messages / 12,000 text characters. The native
+`requestId`, and up to eight messages / 12,000 text characters. At most 100
+such writes are admitted per principal/organisation per UTC day
+(`SHARED_WRITES_PER_DAY`), counted apart from the assistant's model attempts; a
+retried `requestId` is not a new write. Since the journal keeps every message,
+that cap is what bounds its growth. The native
 conversation refreshes every five seconds while open. Reading and sharing do
 not invoke Atoma's model or spend run quota. External clients control which
 messages they share: this does not automatically synchronize an entire private
