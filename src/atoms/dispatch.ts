@@ -7,7 +7,7 @@ import { abortedForLanding, landingSignal, withinSignal } from './cost.js';
 import { previousResultInput } from './taskContext.js';
 import { renderTransportEvidence } from './verdict.js';
 import { transportWitnesses } from '../contracts/witness.js';
-import type { RootPhaseCheckpoint } from '../contracts/runCheckpoint.js';
+import { PhaseBoundaryPause, type RootPhaseCheckpoint } from '../contracts/runCheckpoint.js';
 
 type Subtask = Plan['subtasks'][number];
 
@@ -113,15 +113,18 @@ export async function dispatchWithAggregation(
             }
           : baseSubtask;
       let r: Result;
-      await checkpoint?.beforePhase(idx, subtask);
       try {
+        // The boundary assessment spends model time on the run signal, so a
+        // deadline there lands the accepted phases like one inside the phase
+        // (code review 2026-10-09, 2.5). A sealed pause is never a landing.
+        await checkpoint?.beforePhase(idx, subtask);
         r = await runOne(subtask, idx);
       } catch (err) {
         // The deadline landing INSIDE a phase — the exact shape of both
         // 2026-09-21 runs. Everything already accepted still lands; anything
         // else rethrows unchanged, including a deadline that arrived before
         // the first phase closed.
-        if (out.length > 0 && ctx.signal.aborted) {
+        if (out.length > 0 && ctx.signal.aborted && !(err instanceof PhaseBoundaryPause)) {
           ctx.logger.warn(
             `[dispatch] landing on ${out.length}/${subtasks.length} phase(s): the run budget (deadline or ceiling) aborted phase #${idx + 1}`
           );

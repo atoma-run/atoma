@@ -7,6 +7,7 @@ import { afterAll, describe, expect, it, vi } from 'vitest';
 
 import { dispatchWithAggregation, markLanded } from '../src/atoms/dispatch.js';
 import { MIN_PHASE_LANDING_MS, outOfPhaseBudget } from '../src/core/limits.js';
+import { PhaseBoundaryPause } from '../src/contracts/runCheckpoint.js';
 import { AuthStore } from '../src/auth/store.js';
 import { ProjectStore, PROJECT_TABLES_DDL } from '../src/projects/store.js';
 import { ProjectRunCoordinator, previousSeedRun } from '../src/projects/coordinator.js';
@@ -177,6 +178,47 @@ describe('a sequential dispatch landing on the run deadline', () => {
         }
       )
     ).rejects.toThrow(/aborted/);
+  });
+
+  // Code review 2026-10-09, 2.5: the boundary assessment ran outside the
+  // landing try, so a deadline there discarded the accepted phases and the
+  // run reported "Nothing was accepted".
+  it('keeps the completed phases when the deadline aborts the client-question assessment', async () => {
+    const controller = new AbortController();
+    const ctx: RunContext = { ...makeCtx(), signal: controller.signal, deadlineAt: Date.now() + 30 * 60_000 };
+    const subtasks = ['implement', 'harden', 'document'];
+    const ran: number[] = [];
+    const outcome = await dispatchWithAggregation(
+      plan('sequential', subtasks).subtasks,
+      plan('sequential', subtasks),
+      ctx,
+      async (_subtask, idx) => { ran.push(idx); return result(`phase ${idx + 1}`); },
+      { completed: [], finalizing: () => {}, afterPhase: async () => {},
+        beforePhase: (idx: number) => {
+          if (idx < 2) return;
+          const reason = new DOMException('The operation timed out.', 'TimeoutError');
+          controller.abort(reason);
+          throw reason;
+        } } as never
+    );
+    expect(ran).toEqual([0, 1]);
+    expect(outcome.results.map((r) => r.summary)).toEqual(['phase 1', 'phase 2']);
+    expect(outcome.unfinished.map((s) => s.description)).toEqual(['document']);
+  });
+
+  it('never lands a sealed client-question pause, even on an aborted signal', async () => {
+    const ctx = ctxAbortedMidPhase();
+    const pause = new PhaseBoundaryPause(result('phase 1'));
+    await expect(
+      dispatchWithAggregation(
+        plan('sequential', ['implement', 'document']).subtasks,
+        plan('sequential', ['implement', 'document']),
+        ctx,
+        async (_subtask, idx) => result(`phase ${idx + 1}`),
+        { completed: [], finalizing: () => {}, afterPhase: async () => {},
+          beforePhase: (idx: number) => { if (idx === 1) throw pause; } } as never
+      )
+    ).rejects.toBe(pause);
   });
 
   it('never turns a genuine failure into a landing', async () => {

@@ -346,6 +346,15 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
         const answers = this.data.root?.inputs?.['clientAnswers'];
         if (Array.isArray(answers) && answers.length >= 32) throw new Error('Client answer history is full; start a new scoped run');
         await this.options.settle();
+        // Same degradation as afterPhase (code review 2026-10-09, 1.6): content
+        // the snapshot refuses (an oversized file, an escaping link) disables
+        // the checkpoint and the run goes on unasked, its backend untouched.
+        try { checkpointWorkspaceDigest(this.data.workspace); } catch (error) {
+          this.finalizing();
+          if (!this.options.automatic) throw error;
+          this.options.warn?.('Durable continuation unavailable: workspace snapshot could not be committed; the client question was not asked');
+          return;
+        }
         await this.quiesce();
         this.data.processes = this.options.processes();
         this.data.worker = this.options.worker?.();

@@ -76,7 +76,10 @@ Neighbours:
   sealed snapshot, including the initial zero-phase boundary. An unanswered
   question blocks continuation; host-recorded answers travel in the checkpoint,
   never in the permanent project brief. Only the original requester can answer.
-  No work is replayed while waiting. [Contract and review](../../docs/client-questions.md).
+  No work is replayed while waiting. A question boundary over a tree the
+  snapshot refuses degrades like `afterPhase`: continuation disabled, a warning,
+  no question asked, the run goes on (code review 2026-10-09, 1.6).
+  [Contract and review](../../docs/client-questions.md).
 
 - Opt-in `--checkpoint` / `--pause-after-phase N` / `--resume ID` implement
   durable sequential continuation in `checkpoint.ts`. Same workspace for CLI,

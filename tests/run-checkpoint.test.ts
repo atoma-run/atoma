@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
-import { assertCheckpointStoreOutsideWorkspace, checkpointWorkspaceDigest, RunCheckpointStore } from '../src/run/checkpoint.js';
+import { assertCheckpointStoreOutsideWorkspace, checkpointWorkspaceDigest, RunCheckpointStore, SequentialCheckpoint } from '../src/run/checkpoint.js';
 import { closeStoreHandles } from '../src/core/stores.js';
 import { OLLAMA_PINS } from './tier-pins.js';
 import { forkBranch } from '../src/core/branchCtx.js';
@@ -449,6 +449,42 @@ describe('durable sequential run continuation', () => {
     expect(checkpointWorkspaceDigest(root)).not.toBe(linked);
     symlinkSync('/tmp', join(root, 'link'));
     expect(() => checkpointWorkspaceDigest(root)).toThrow('link or special');
+  });
+
+  // Code review 2026-10-09, 1.6: the client-question boundary sealed without
+  // afterPhase's degradation, so a seed the snapshot refuses (here an 11 MiB
+  // file) failed the whole run when a question was due before phase 1.
+  it('degrades a client-question boundary over an unsupported workspace like afterPhase: no question, run goes on', async () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'atoma-checkpoint-question-'))); roots.push(root);
+    const workspace = join(root, 'workspace');
+    mkdirSync(workspace);
+    writeFileSync(join(workspace, 'dataset.bin'), Buffer.alloc(11 * 1024 * 1024));
+    const store = new RunCheckpointStore(join(root, 'atoma.db'));
+    const id = randomUUID();
+    const data = {
+      version: 1, id, scope: { orgId: 'o', projectId: 'p', principalId: 'u', runId: id }, goal: 'g', workspace,
+      policy: '{}', actor: { name: 'Meristem', atomId: 'a', version: 1 }, checklist: [], root: null, completed: [],
+      workspaceDigest: null, processes: [], consumed: { tokens: 0, costUsd: 0 }, remainingMs: 600_000, lastRunId: null,
+    };
+    const warnings: string[] = [];
+    let drained = 0;
+    await withRecoveryEffects(async () => {
+      const cp = new SequentialCheckpoint(data as never, store, {
+        fresh: true, automatic: true, account: () => ({ tokens: 1, costUsd: 0.1 }), deadlineAt: Date.now() + 600_000,
+        settle: async () => {}, processes: () => [], warn: (m: string) => warnings.push(m),
+        drain: () => { drained++; return Promise.resolve(); },
+        assessClientQuestion: () => Promise.resolve({ question: 'Which database?', options: [
+          { id: 'a', label: 'SQLite', consequence: 'file' }, { id: 'b', label: 'Postgres', consequence: 'server' }] }),
+      } as never);
+      cp.planned({ description: 'g' }, { subtasks: [{}, {}], aggregation: { mode: 'sequential' } } as never, {}, 2);
+      await cp.beforePhase(0, {} as never);
+      expect(cp.paused).toBe(false);
+      expect(cp.completed).toEqual([]);
+    });
+    expect(warnings).toEqual([expect.stringContaining('Durable continuation unavailable')]);
+    // The live backend was never stopped for a tree that cannot be sealed.
+    expect(drained).toBe(0);
+    expect(store.clientQuestion('o', id)).toBeNull();
   });
 
   it('cannot place its authority store inside the workspace through a parent symlink', () => {
