@@ -1688,16 +1688,18 @@ export function startNodeServerTool(opts: BuiltinToolOptions): BuiltinTool {
       live.splice(0, live.length, ...running);
       while (live.length > MAX_LIVE_NODE_SERVERS) {
         const oldest = live.shift()!;
+        // Its own process group (detached above), so what it spawned goes too.
+        // SIGTERM, a short grace, then SIGKILL, and the exit CONFIRMED: a
+        // server that handles SIGTERM to close cleanly kept answering after
+        // the bare SIGTERM this sent, while a probe was told it had stopped
+        // (code review 2026-10-09, 1.8). Bounded, so a start never hangs.
+        const stopped = await opts.sandbox.stopChild(oldest.child);
+        if (!stopped) {
+          opts.logger?.warn(`[tool:start_node_server] pid ${oldest.child.pid} on :${oldest.port} did not exit after SIGKILL`);
+          continue;
+        }
         const current = opts.servedOrigins?.get(oldest.port);
         if (current && current.pid === oldest.child.pid) opts.servedOrigins?.set(oldest.port, { ...current, stoppedByHost: true });
-        try {
-          // Its own process group (detached above), so what it spawned goes too.
-          const pgid = oldest.child.pid;
-          if (pgid !== undefined && Number.isSafeInteger(pgid) && pgid > 1) process.kill(-pgid, 'SIGTERM');
-          else oldest.child.kill('SIGTERM');
-        } catch {
-          try { oldest.child.kill('SIGTERM'); } catch { /* already gone */ }
-        }
       }
 
       return {

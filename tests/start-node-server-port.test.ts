@@ -174,6 +174,49 @@ describe('start_node_server port', () => {
     }
   }, 60_000);
 
+  // Code review 2026-10-09, 1.8: the cap sent ONE group SIGTERM and marked the
+  // oldest stopped at once. A server that handles SIGTERM to close cleanly
+  // (the shape real long-running servers take) kept answering: 7 starts, 7
+  // answering, 3 "stopped by the host". The host now escalates to SIGKILL and
+  // marks it stopped only once its exit is confirmed.
+  it.each([
+    { mode: 'ignores SIGTERM', handler: "process.on('SIGTERM', () => console.error('draining...'));", signal: 'SIGKILL' },
+    { mode: 'obeys SIGTERM', handler: '', signal: 'SIGTERM' },
+  ])('keeps the cap with a server that $mode, and calls stopped only what exited', async ({ handler, signal }) => {
+    const dir = mkdtempSync(join(tmpdir(), 'atoma-node-cap-term-'));
+    dirs.push(dir);
+    writeFileSync(join(dir, 'server.mjs'), [
+      "import { createServer } from 'node:http';",
+      handler,
+      "const server = createServer((_req, res) => res.end('ok'));",
+      "server.listen(Number(process.env.PORT) || 0, () => console.log('LISTENING_ON_PORT=' + server.address().port));",
+    ].join('\n'));
+    const sandbox = new ToolSandbox(dir);
+    sandboxes.push(sandbox);
+    const origins: ServedOrigins = new Map();
+    const tool = startNodeServerTool({ sandbox, servedOrigins: origins });
+    const started: { ok: boolean; port: number; pid: number }[] = [];
+    for (let i = 0; i < MAX_LIVE_NODE_SERVERS + 3; i++) {
+      started.push((await tool.execute({ entry: 'server.mjs' })) as { ok: boolean; port: number; pid: number });
+    }
+    expect(started.every((server) => server.ok)).toBe(true);
+    let answering = 0;
+    for (const server of started) {
+      const text = await fetch(`http://127.0.0.1:${server.port}/`, { signal: AbortSignal.timeout(2000) })
+        .then((res) => res.text(), () => undefined);
+      if (text === 'ok') answering++;
+    }
+    expect(answering).toBeLessThanOrEqual(MAX_LIVE_NODE_SERVERS);
+    const stopped = started.filter((server) => origins.get(server.port)?.stoppedByHost);
+    expect(stopped.map((server) => server.port)).toEqual(started.slice(0, 3).map((server) => server.port));
+    for (const server of stopped) {
+      // Stopped means EXITED, never a signal merely sent; an obedient server
+      // goes on the SIGTERM, before any escalation.
+      expect(origins.get(server.port)?.exited?.signal).toBe(signal);
+      expect(() => process.kill(server.pid, 0)).toThrow();
+    }
+  }, 60_000);
+
   it('stamps the server code digest on what fetch_url observes, as the host records it', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'atoma-node-digest-'));
     dirs.push(dir);

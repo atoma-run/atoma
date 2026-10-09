@@ -307,21 +307,36 @@ export class ToolSandbox {
     const children = [...this.children];
     const groups = [...this.childGroups];
     await this.cleanup();
-    for (const pid of groups) {
-      if (!ownedGroupExists(pid)) continue;
-      try { process.kill(-pid, 'SIGKILL'); } catch { /* confirmed below */ }
-    }
-    for (const child of children) {
-      if (child.exitCode !== null || child.signalCode !== null) continue;
-      try { child.kill('SIGKILL'); } catch { /* confirmed below */ }
-    }
-    const deadline = Date.now() + 5000;
-    while (groups.some(ownedGroupExists) || children.some((child) =>
-      child.pid !== undefined && child.exitCode === null && child.signalCode === null)) {
-      if (Date.now() >= deadline) throw new Error('Sandbox processes did not exit; workspace cannot be replaced');
-      await new Promise((resolveWait) => setTimeout(resolveWait, 25));
+    if (!(await killAndConfirmExit(children, groups))) {
+      throw new Error('Sandbox processes did not exit; workspace cannot be replaced');
     }
     this.childGroups.clear();
+  }
+
+  /**
+   * Stop ONE tracked child and its owned process group, and CONFIRM it: a
+   * group SIGTERM, `graceMs` for a graceful exit, then the same SIGKILL and
+   * exit confirmation as `drain()`. Bounded: resolves `false` when something
+   * of it outlived the kill deadline, never waits longer. A server that
+   * handles SIGTERM (to close cleanly) can keep answering after it, so a
+   * SIGTERM sent is never a stop (code review 2026-10-09, 1.8).
+   */
+  async stopChild(child: ChildProcess, graceMs = 1000): Promise<boolean> {
+    const pid = child.pid;
+    const groups = pid !== undefined && this.childGroups.has(pid) ? [pid] : [];
+    const gone = (): boolean => !childOrGroupsLive([child], groups);
+    if (gone()) return true;
+    try {
+      if (groups.length > 0) process.kill(-groups[0]!, 'SIGTERM');
+      else child.kill('SIGTERM');
+    } catch {
+      try { child.kill('SIGTERM'); } catch { /* confirmed below */ }
+    }
+    const graceEnd = Date.now() + graceMs;
+    while (!gone() && Date.now() < graceEnd) await sleepMs(25);
+    const stopped = gone() || await killAndConfirmExit([child], groups);
+    if (stopped && pid !== undefined) this.childGroups.delete(pid);
+    return stopped;
   }
 
   /**
@@ -359,6 +374,36 @@ export class ToolSandbox {
     // Small grace period before returning so sockets unbind.
     await new Promise((r) => setTimeout(r, 150));
   }
+}
+
+function sleepMs(ms: number): Promise<void> {
+  return new Promise((resolveWait) => setTimeout(resolveWait, ms));
+}
+
+function childOrGroupsLive(children: readonly ChildProcess[], groups: readonly number[]): boolean {
+  return groups.some(ownedGroupExists) || children.some((child) =>
+    child.pid !== undefined && child.exitCode === null && child.signalCode === null);
+}
+
+/**
+ * SIGKILL owned groups and children, then wait until none remains. `false`
+ * when one outlived `deadlineMs`: a kill sent is not an exit confirmed.
+ */
+async function killAndConfirmExit(children: readonly ChildProcess[], groups: readonly number[], deadlineMs = 5000): Promise<boolean> {
+  for (const pid of groups) {
+    if (!ownedGroupExists(pid)) continue;
+    try { process.kill(-pid, 'SIGKILL'); } catch { /* confirmed below */ }
+  }
+  for (const child of children) {
+    if (child.exitCode !== null || child.signalCode !== null) continue;
+    try { child.kill('SIGKILL'); } catch { /* confirmed below */ }
+  }
+  const deadline = Date.now() + deadlineMs;
+  while (childOrGroupsLive(children, groups)) {
+    if (Date.now() >= deadline) return false;
+    await sleepMs(25);
+  }
+  return true;
 }
 
 function ownedGroupExists(pid: number): boolean {

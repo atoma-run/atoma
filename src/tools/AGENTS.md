@@ -66,8 +66,11 @@ Neighbours:
   read. Do not kill arbitrary process groups; only safe integer PGIDs greater
   than 1 may reach group syscalls.
 - At most `MAX_LIVE_NODE_SERVERS` (4) node servers per tool set run at once;
-  a fifth start stops the oldest still running, marked `stoppedByHost` so a probe
-  of its port says so. Run 96d5c845 (2026-10-04) held 53, 812 MB, and swapped
+  a fifth start stops the oldest still running through `ToolSandbox.stopChild`
+  (group SIGTERM, a short grace, then `drain()`'s SIGKILL and exit
+  confirmation, bounded), and marks it `stoppedByHost` only once its exit is
+  confirmed, so a probe of its port says so. A SIGTERM sent is not a stop: a
+  server that handles it kept answering (code review 2026-10-09, 1.8). Run 96d5c845 (2026-10-04) held 53, 812 MB, and swapped
   the production host until nothing on it answered.
 - A loopback URL with NO port is refused PRE-FLIGHT by both probe tools
   (`unservedLoopbackProbeRefusal`, prefix `PROBE_URL_REFUSAL_PREFIX` from
