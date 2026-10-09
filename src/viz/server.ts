@@ -1014,11 +1014,13 @@ const PROJECTS_RUNTIME: ProjectsRuntime | null = (() => {
 })();
 
 /**
- * THE PUBLIC SHOWCASE (`showcase.ts`): the platform admin's delivered runs for
- * anyone, signed in or not. FAIL CLOSED three ways: the host must opt in
- * (`ATOMA_PUBLIC_SHOWCASE=1`), the gate must be on (an ungated developer path
- * has no notion of an admin), and a projects store must exist. `null` means
- * the routes answer 404, indistinguishable from a path that was never there.
+ * THE PUBLIC SHOWCASE (`showcase.ts`): for anyone, the delivered runs a
+ * platform admin requested in an organisation they founded and still own,
+ * minus hidden projects and comparison reruns. FAIL CLOSED three ways: the
+ * host must opt in (`ATOMA_PUBLIC_SHOWCASE=1`), the gate must be on (an
+ * ungated developer path has no notion of an admin), and a projects store
+ * must exist. `null` means the routes answer 404, indistinguishable from a
+ * path that was never there.
  */
 const SHOWCASE: ShowcaseSource | null =
   AUTH_RUNTIME && PROJECTS_RUNTIME && showcaseEnabled()
@@ -4271,9 +4273,10 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
   }
 
   // THE SHOWCASE'S STORY PAGES. No session is read, and none is needed: the
-  // pages carry only the allow-listed projection of a platform admin's
-  // delivered runs (`showcase.ts`). GET only and its own CSP. `/showcase`
-  // itself is the home page now, so it answers with a redirect to `/`.
+  // pages carry only the allow-listed projection of the delivered runs a
+  // platform admin requested in an organisation they founded and still own
+  // (`showcase.ts`). GET only and its own CSP. `/showcase` itself is the home
+  // page now, so it answers with a redirect to `/`.
   if (pathname === '/showcase' || pathname.startsWith('/showcase/')) {
     if (!methodAllowed(req, res, 'GET')) return;
     if (!SHOWCASE) {

@@ -251,9 +251,13 @@ export interface VizProject {
   lastRunAt?: string | null;
   /** A persisted project run is executing. Absent on an older server. */
   hasRunningRun?: boolean;
-  /** Kept on, or off, the public showcase. Absent on an older server. */
+  /**
+   * Kept on, or off, the public showcase. Absent on an older server, and for a
+   * project of an organisation no platform admin founded and still owns, which
+   * cannot be on it.
+   */
   showcase?: 'listed' | 'hidden';
-  /** A showcase visitor sees one of its runs now. Absent on an older server. */
+  /** A showcase visitor sees one of its runs now. Absent whenever `showcase` is. */
   showcaseShown?: boolean;
   followUpstream?: boolean;
   createdAt: string;

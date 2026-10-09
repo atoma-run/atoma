@@ -318,6 +318,71 @@ describe('ProjectService — roles, IDOR and slug identity', () => {
     }
   });
 
+  it('carries the showcase fields only where a platform admin founded and still owns the organisation', async () => {
+    linkInstallation(alice, '501', 'alice-org');
+    const { svc } = service();
+    // What JSON carries to the browser and the MCP: an omitted key, never a null one.
+    const wire = <T = Record<string, unknown>>(value: unknown): T => JSON.parse(JSON.stringify(value)) as T;
+    const listed = () => wire<Record<string, unknown>[]>(svc.listProjects(alice));
+    // No platform admin founded Alice's organisation: its projects cannot be on the showcase.
+    const first = wire(await svc.createProject(jsonReq(payload('501', 'first')), alice));
+    expect(first).not.toHaveProperty('showcase');
+    expect(first).not.toHaveProperty('showcaseShown');
+    expect(listed().map((row) => 'showcase' in row || 'showcaseShown' in row)).toEqual([false]);
+    let refused: unknown = null;
+    try { svc.setProjectShowcase(alice, first['projectId'] as string, 'hidden'); } catch (error) { refused = error; }
+    expect(refused).toBeInstanceOf(ProjectHttpError);
+    expect((refused as ProjectHttpError).status).toBe(409);
+    expect(projects.getProject(alice.orgId, first['projectId'] as string)!.showcase).toBe('listed');
+
+    // Alice becomes a platform admin, and a co-owner of Carol's organisation, joined after Carol founded it.
+    const carol = principal('Carol', 'org:owner');
+    linkInstallation(carol, '601', 'carol-org');
+    const later = new Date(Date.now() + 1_000).toISOString();
+    db.prepare('INSERT INTO auth_memberships (org_id, principal_id, role, created_at) VALUES (?, ?, ?, ?)')
+      .run(carol.orgId, alice.principalId, 'org:owner', later);
+    db.prepare("INSERT INTO auth_platform_admins (principal_id, granted_at, granted_by) VALUES (?, ?, 'test')")
+      .run(alice.principalId, later);
+    // Carol's organisation still has no platform-admin founder: owning it is not founding it.
+    expect(wire(await svc.createProject(jsonReq(payload('601', 'carol-work')), carol))).not.toHaveProperty('showcase');
+    // Alice's own organisation now has one, read at call time: the same project is eligible.
+    expect(listed()).toEqual([expect.objectContaining({ projectId: first['projectId'], showcase: 'listed', showcaseShown: false })]);
+    expect(wire(await svc.createProject(jsonReq(payload('501', 'second')), alice)))
+      .toMatchObject({ showcase: 'listed', showcaseShown: false });
+  });
+
+  it('answers a fork\'s upstream setting with the showcase fields only where a platform admin founded the organisation', async () => {
+    // What JSON carries back from PUT /api/projects/:id/upstream: an omitted key, never a null one.
+    const wire = (value: unknown) => JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
+    const fork = (owner: Viewer, slug: string) => projects.createProject({ orgId: owner.orgId, principalId: owner.principalId,
+      project: { ...payload('501', slug), repositoryTarget: { ...payload('501', slug).repositoryTarget,
+        source: { owner: 'upstream', name: 'app', mode: 'fork' as const } } } }).projectId;
+    const svc = new ProjectService({ store: projects, github, coordinator: {} as ProjectRunCoordinator, showcaseEnabled: () => true });
+    const follow = async (viewer: Viewer, projectId: string) =>
+      wire(await svc.setFollowUpstream(jsonReq({ followUpstream: true }), viewer, projectId));
+
+    // No platform admin founded Bob's organisation: the answer says nothing about the showcase.
+    const theirs = fork(bob, 'bob-fork');
+    const answer = await follow(bob, theirs);
+    expect(answer).toMatchObject({ projectId: theirs, followUpstream: true });
+    expect(answer).not.toHaveProperty('showcase');
+    expect(answer).not.toHaveProperty('showcaseShown');
+
+    // Alice founded hers; flagged, her fork answers where it stands, exactly as her list does.
+    const own = fork(alice, 'alice-fork');
+    db.prepare("INSERT INTO auth_platform_admins (principal_id, granted_at, granted_by) VALUES (?, ?, 'test')")
+      .run(alice.principalId, new Date().toISOString());
+    const run = projects.createProjectRun({ orgId: alice.orgId, principalId: alice.principalId, projectId: own,
+      request: { goal: 'Delivered work', idempotencyKey: randomUUID() },
+      hostPaths: { workspacePath: '/tmp/fork/workspace', runsPath: '/tmp/fork/runs', logPath: '/tmp/fork/run.log' } })!.run;
+    // Only the status matters to the showcase's read; the run's lifecycle is not under test here.
+    db.prepare("UPDATE project_runs SET status = 'delivered' WHERE project_run_id = ?").run(run.projectRunId);
+    const mine = await follow(alice, own);
+    expect(mine).toMatchObject({ projectId: own, followUpstream: true, showcase: 'listed', showcaseShown: true });
+    const row = (svc.listProjects(alice) as { projectId: string }[]).find((project) => project.projectId === own);
+    expect(row).toMatchObject({ showcase: mine['showcase'], showcaseShown: mine['showcaseShown'] });
+  });
+
   it('projects the per-tier models a run was resolved to, from its payer ledger', async () => {
     linkInstallation(alice, '501', 'alice-org');
     const { svc } = service();

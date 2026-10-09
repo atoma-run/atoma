@@ -711,10 +711,17 @@ npm run viz:mark-turn:analyze
   the arrival gate and handheld notice stay the way in ("Sign in" links to
   `/app`). Stories are `/showcase/<run id>`; both send `no-store`, or the
   service worker would keep one as its offline `/`.
-- It shows a platform admin's DELIVERED runs, save a project an organisation
-  admin set `showcase: hidden` ([src/projects](../projects/AGENTS.md#readers-outside-this-subsystem)).
-  The Projects list tells owners, admins and platform admins, first on each
-  card, whether the project is on it, eligible or hidden; members see nothing.
+- It shows the DELIVERED runs, never a comparison rerun, a platform admin
+  requested in an organisation they FOUNDED (its first member) and still OWN
+  (`org:owner`), never a client organisation's, even one the admin joined as
+  an owner (owner decision 2026-10-09), save a `showcase: hidden` project (set
+  at creation, or later by an organisation admin; [src/projects](../projects/AGENTS.md#readers-outside-this-subsystem)).
+  Flag and role are read per query, and the page reuses one read for
+  `SHOWCASE_TTL_MS` (a minute of elapsed time), so a revocation leaves it
+  within that. In such an organisation the Projects list tells owners, admins
+  and platform admins, first on each card, whether the project is on it,
+  eligible or hidden; members see nothing. A project of any other
+  organisation carries no showcase field, so nobody sees a badge for it.
   Fail closed: opt-in, gate on, else
   404. One store query (`listShowcaseRuns`), an allow-list projection
   (`showcase.ts`): title, request, numbers, file NAMES, a text answer; never
@@ -765,6 +772,13 @@ npm run viz:mark-turn:analyze
   so recordings test geometry with no renderer, and it obeys the measurement
   rule by INJECTION — the view passes `ctx.measureText` through the layout's
   `measure` option.
+- Showing a platform admin's runs in every organisation they belong to, or
+  in every one they own: refused 2026-10-09. Every invitation, `org:owner`
+  included, is minted by a platform admin or the host CLI, so an admin who
+  joined a client organisation would publish that client's work under a
+  `listed` default it never chose; founding the run's organisation, and still
+  owning it, decides. Sending `showcase: null` for such a project is refused
+  too: the client renders a badge for anything but an absent field.
 - Authoring or repairing a target locale catalog by hand: refused for agents
   and humans alike. `en.json` is the source, a blank target means "awaiting
   translation", and CI fills it. A hand-written translation is a value no

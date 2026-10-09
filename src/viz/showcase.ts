@@ -4,7 +4,8 @@ import { resolveProjectRunTraceFile, type ProjectStore } from '../projects/store
 import { readBoundedRunFile } from './runIndex.js';
 
 /**
- * THE PUBLIC SHOWCASE: the platform admin's delivered runs, readable by anyone.
+ * THE PUBLIC SHOWCASE: the delivered runs a platform admin requested in an
+ * organisation they founded and still own, readable by anyone.
  * ============================================================================
  *
  * Exposure is the whole risk here, so the contract is narrow and written once:
@@ -12,8 +13,11 @@ import { readBoundedRunFile } from './runIndex.js';
  * - OFF UNLESS THE HOST SAYS SO (`ATOMA_PUBLIC_SHOWCASE=1`). Publishing a
  *   person's work is an operator decision, never a side effect of a deploy.
  * - THE SET is `ProjectStore.listShowcaseRuns`: delivered, not a rerun,
- *   requested by a PLATFORM ADMIN, in a project not created `showcase: hidden`.
- *   Nothing here widens it.
+ *   requested by THE PLATFORM ADMIN WHO FOUNDED THE RUN'S ORGANISATION (its
+ *   first member) AND STILL OWNS IT (`org:owner`), both read per query, in a
+ *   project not set `showcase: hidden` (at creation or later). A client
+ *   organisation the admin was invited into, even as an owner, is never on it
+ *   (owner decision 2026-10-09). Nothing here widens it.
  * - THE PROJECTION is an allow-list. A visitor sees a title, the request, the
  *   outcome's numbers, deliverable file NAMES and sizes, and the answer of a
  *   text delivery. Never an organisation, project or principal identity, a
@@ -44,7 +48,12 @@ export function servesShowcaseHome(input: {
 export const SHOWCASE_TITLE_MAX = 80;
 export const SHOWCASE_ANSWER_MAX = 8_000;
 export const SHOWCASE_FILES_MAX = 12;
-/** How long a built showcase is reused: the page is public, the store is not a CDN. */
+/**
+ * How long a built showcase is reused: the page is public, the store is not a
+ * CDN. It also bounds how long a revoked flag, a lost ownership or a newly
+ * hidden project stays on the pages, counted in elapsed time
+ * (`createShowcaseSource`), never on a wall clock that can step back.
+ */
 export const SHOWCASE_TTL_MS = 60_000;
 
 /** What a visitor filters by; derived from the deliverable, never from prose. */
@@ -183,14 +192,22 @@ export interface ShowcaseSource {
   answer(entryId: string, episodeId: string): string | null;
 }
 
-/** A showcase over the store, rebuilt at most once per TTL. */
+/**
+ * A showcase over the store, rebuilt at most once per TTL. The default clock
+ * is monotonic: on `Date.now`, a host clock stepped back would keep a build,
+ * and every run it still shows, for as long as the step. A clock that does go
+ * back (an injected one) expires the build rather than stretching it.
+ */
 export function createShowcaseSource(
   store: Pick<ProjectStore, 'listShowcaseRuns'>,
-  now: () => number = Date.now
+  now: () => number = () => performance.now()
 ): ShowcaseSource {
   let built: { at: number; runs: Map<string, ProjectRun>; entries: ShowcaseEntry[] } | null = null;
   const current = () => {
-    if (built && now() - built.at < SHOWCASE_TTL_MS) return built;
+    if (built) {
+      const age = now() - built.at;
+      if (age >= 0 && age < SHOWCASE_TTL_MS) return built;
+    }
     const runs = store.listShowcaseRuns();
     built = {
       at: now(),

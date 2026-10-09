@@ -837,7 +837,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
         {
           title: 'Show or hide a project on the public showcase',
           description:
-            'Put one of your organisation’s projects on (listed) or take it off (hidden) the public showcase, which only ever shows delivered runs a platform admin requested. Hidden keeps every run of the project off it, past and future. Journaled.',
+            'The public showcase shows only delivered runs a platform admin requested in an organisation they founded and still own. When a platform admin founded your organisation and still owns it, put one of its projects on (listed) or take it off (hidden) the showcase; hidden keeps every run of the project off it, past and future. Journaled. Refused in any other organisation, none of whose runs can appear on the showcase.',
           inputSchema: { projectId: z.string().min(1), showcase: projectShowcaseSchema },
           annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
         },

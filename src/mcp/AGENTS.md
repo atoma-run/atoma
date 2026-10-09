@@ -47,8 +47,9 @@ Neighbours:
   runner log is served through `src/projects/hostPaths.ts`, the redaction
   the projects service applies to run and publication errors;
   `member` starts, cancels and publishes its runs; `admin` reads the
-  organisation's members, sets its model defaults and keeps a project on or
-  off the public showcase; `platform` — the
+  organisation's members, sets its model defaults and, where a platform admin
+  founded the organisation and still owns it (the only kind the public
+  showcase shows), keeps a project on or off it; `platform` — the
   platform-admin flag, or the operator on the ungated loopback — everything
   above plus operator runs, skill analytics (`stats`, `review`), the four
   writes, ledger, the operator corpus, friction, the journal, every

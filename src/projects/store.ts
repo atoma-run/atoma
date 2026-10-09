@@ -728,6 +728,37 @@ function createIndexOrReason(db: Database.Database, sql: string): string | null 
   }
 }
 
+/**
+ * THE PLATFORM-ADMIN FOUNDERS: every (organisation, principal) pair where a
+ * platform admin is the organisation's FIRST MEMBER (the login that created
+ * it; on a store converged from pre-release invitations, its first owner) and
+ * still holds `org:owner` there. The public showcase is defined over these
+ * pairs and nothing else: a run is shown only when its requester and its
+ * organisation form one (`listShowcaseRuns`), and a project can be eligible
+ * only in an organisation that has one (`showcaseOrganisations`). One text for
+ * both reads, so who is shown and what is eligible cannot drift.
+ * Owning is not enough (owner decision 2026-10-09: never a client
+ * organisation the admin was invited into): every invitation is minted by a
+ * platform admin or the host CLI, at any role, so an admin who joined a
+ * client's organisation as an owner would otherwise publish its work.
+ * FIRST is ordered by wall-clock `created_at`, which a host clock stepping
+ * back can misorder: a client founding while it ran fast, the admin admitted
+ * after the step, and the admin would sort first. So the founder is anchored
+ * to the organisation row, never written after any of its memberships (the
+ * founding login stamps both from one clock reading, `AuthStore.completeLogin`;
+ * a converged organisation exists before anyone joins it): a membership
+ * stamped earlier than its organisation comes from such a step and founds
+ * nothing. Such a step can still unseat a founder, which fails closed.
+ * Product code never deletes or re-dates a membership; a tie fails closed too.
+ */
+const PLATFORM_ADMIN_FOUNDERS_SQL = `SELECT m.org_id, m.principal_id FROM auth_memberships m
+  JOIN auth_organisations o ON o.org_id = m.org_id
+  JOIN auth_platform_admins a ON a.principal_id = m.principal_id
+  WHERE m.role = 'org:owner' AND m.created_at >= o.created_at
+    AND NOT EXISTS (SELECT 1 FROM auth_memberships e
+                     WHERE e.org_id = m.org_id AND e.principal_id <> m.principal_id
+                       AND e.created_at <= m.created_at)`;
+
 export class ProjectStore {
   /** Long-running read revalidation; a captured Viewer is not a durable grant. */
   canReadProjectNow(principalId: string, orgId: string, projectId: string, activeOrgId = orgId): boolean {
@@ -1096,9 +1127,13 @@ END;
 
   /**
    * Whether this organisation's project may appear on the public showcase
-   * (`listShowcaseRuns`). The ONE write of the column after creation; bound to
-   * the organisation, so it never reaches another tenant's row. Null when the
-   * project is not this organisation's.
+   * (`listShowcaseRuns`). The value matters only in an organisation a platform
+   * admin founded and still owns, the only kind that read shows; the service
+   * refuses the write anywhere else (409), because policy lives there, as the
+   * role check does.
+   * The ONE write of the column after creation; bound to the organisation, so
+   * it never reaches another tenant's row. Null when the project is not this
+   * organisation's.
    */
   setProjectShowcase(orgIdInput: string, projectIdInput: string, showcaseInput: unknown): Project | null {
     const orgId = organisationIdSchema.parse(orgIdInput);
@@ -1776,22 +1811,24 @@ END;
 
   /**
    * THE RUNS THE PUBLIC SHOWCASE MAY SHOW: delivered, not a comparison rerun,
-   * REQUESTED BY A PLATFORM ADMIN, in a project not marked `hidden` (a value
-   * other than `listed` or NULL hides too). All of it is decided here, in one
-   * query, so no caller can widen the set: the page receives only these rows
-   * and projects them again (`src/viz/showcase.ts`). Oldest first, the newest
-   * `limit` kept. A store with no auth table has no admin, so the answer is
-   * empty rather than "everyone". Read-only.
+   * in a project not marked `hidden` (a value other than `listed` or NULL
+   * hides too), and REQUESTED BY THE PLATFORM ADMIN WHO FOUNDED THE RUN'S
+   * ORGANISATION (its first member) AND STILL OWNS IT (`org:owner`): never a
+   * client organisation the admin joined, at any role, owner included (owner
+   * decision 2026-10-09). The flag and the role are read here, per query, so
+   * revoking either removes the runs. All of it is decided here, in one query,
+   * so no caller can widen the set: the page receives only these rows and
+   * projects them again (`src/viz/showcase.ts`). Oldest first, the newest
+   * `limit` kept. A store missing any of the three auth tables read here has
+   * no such founder, so the answer is empty rather than "everyone". Read-only.
    */
   listShowcaseRuns(limit = 500): ProjectRun[] {
-    const hasAdmins = this.db
-      .prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'auth_platform_admins'`)
-      .get();
-    if (!hasAdmins) return [];
+    if (!this.hasShowcaseAuthTables()) return [];
     const rows = this.db
       .prepare(
         `SELECT r.* FROM project_runs r
-           JOIN auth_platform_admins a ON a.principal_id = r.requested_by_principal_id
+           JOIN (${PLATFORM_ADMIN_FOUNDERS_SQL}) f
+             ON f.org_id = r.org_id AND f.principal_id = r.requested_by_principal_id
            JOIN projects p ON p.project_id = r.project_id AND p.org_id = r.org_id
           WHERE r.status = 'delivered' AND r.rerun_of_run_id IS NULL
             AND COALESCE(p.showcase, 'listed') = 'listed'
@@ -1799,6 +1836,32 @@ END;
       )
       .all(Math.max(1, Math.min(2_000, Math.floor(limit)))) as ProjectRunRow[];
     return rows.map(runFromRow).reverse();
+  }
+
+  /**
+   * THE ORGANISATIONS WHOSE PROJECTS CAN BE ON THE PUBLIC SHOWCASE: those a
+   * platform admin founded and still owns, from the same pairs
+   * `listShowcaseRuns` joins on. Anywhere else no project is eligible,
+   * whatever its `showcase` value (owner decision 2026-10-09). Read per call;
+   * empty without the three auth tables. Read-only.
+   */
+  showcaseOrganisations(): ReadonlySet<string> {
+    if (!this.hasShowcaseAuthTables()) return new Set();
+    const rows = this.db
+      .prepare(`SELECT DISTINCT org_id FROM (${PLATFORM_ADMIN_FOUNDERS_SQL})`)
+      .all() as Array<{ org_id: string }>;
+    return new Set(rows.map((row) => row.org_id));
+  }
+
+  /** The three tables the showcase is defined over: without any one, nobody founded or owns anything here. */
+  private hasShowcaseAuthTables(): boolean {
+    const found = this.db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM sqlite_master
+          WHERE type = 'table' AND name IN ('auth_platform_admins', 'auth_memberships', 'auth_organisations')`
+      )
+      .get() as { n: number };
+    return found.n === 3;
   }
 
   /** A platform admin's READ across organisations; never a write path. */
