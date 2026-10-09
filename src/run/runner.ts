@@ -1043,6 +1043,11 @@ async function startTaskInternal(
         } : undefined,
         worker: () => backend.checkpointWorker?.(),
         processes: () => backend.checkpointProcesses?.() ?? null,
+        // A graceful pause proves quiescence; cleanup alone only sends signals.
+        drain: async () => {
+          if (!backend.drain) throw new Error('Checkpoint backend cannot confirm process exit');
+          await backend.drain();
+        },
         account: () => budgetMeter.consumed(), warn: (message) => consoleLogger.warn(message), settle: async () => {
           await jevAudit?.settle(JEV_AUDIT_SETTLE_MS);
           if (jevAudit && jevAudit.pendingCount() > 0) throw new Error('Deferred audit work is still in flight; checkpoint refused');
@@ -1528,9 +1533,8 @@ async function startTaskInternal(
       if (err instanceof PhaseBoundaryPause && checkpoint) {
         clearTimeout(watchdog);
         try {
-          // A graceful pause proves quiescence; cleanup alone only sends signals.
-          if (!backend.drain) throw new Error('Checkpoint backend cannot confirm process exit');
-          await backend.drain();
+          // The boundary drained before it sealed; this is the same settled drain.
+          await checkpoint.quiesce();
           checkpoint.release();
           recorder.endRun({ result: { output: err.result.output, summary: err.result.summary,
             producedBy: err.result.producedBy, refusal: err.result.refusal } });

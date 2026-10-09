@@ -275,10 +275,13 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
   private state: 'running' | 'ready' | 'finished' = 'running';
   paused = false;
   private readonly prior: Result[];
+  private drained?: Promise<void>;
 
   constructor(readonly data: RunCheckpoint, private readonly store: RunCheckpointStore, private readonly options: {
     fresh: boolean; source?: RunCheckpoint; automatic?: boolean; pauseAfter?: number; account: () => RunCheckpoint['consumed']; deadlineAt: number;
     settle: () => Promise<void>; warn?: (message: string) => void;
+    /** Stop every run process and confirm its exit. A pausing boundary seals only after it. */
+    drain?: () => Promise<void>;
     processes: () => RunCheckpoint['processes'];
     worker?: () => RunCheckpoint['worker'];
     restoreWorkspace?: () => void;
@@ -295,6 +298,12 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
       summary: `[COMPLETED BEFORE RESTART — historical context; recheck runtime endpoints and evidence] ${result.summary}` }));
   }
   get completed(): readonly Result[] { return this.active ? this.prior : []; }
+  /** Once per run: a paused boundary seals a tree no run process can still
+   * write. Shutdown handlers (JSON persistence, a WAL checkpoint) run here,
+   * before the seal, never between the seal and `release()`. */
+  quiesce(): Promise<void> {
+    return this.drained ??= this.options.drain?.() ?? Promise.resolve();
+  }
   backendReady(): void {
     this.data.processes = this.options.processes();
     this.data.worker = this.options.worker?.();
@@ -337,6 +346,7 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
         const answers = this.data.root?.inputs?.['clientAnswers'];
         if (Array.isArray(answers) && answers.length >= 32) throw new Error('Client answer history is full; start a new scoped run');
         await this.options.settle();
+        await this.quiesce();
         this.data.processes = this.options.processes();
         this.data.worker = this.options.worker?.();
         this.data.consumed = this.options.account();
@@ -406,20 +416,32 @@ export class SequentialCheckpoint implements RootPhaseCheckpoint {
       return;
     }
     await this.options.settle(); // Account deferred audit calls before publishing a resumable boundary.
+    const pausing = this.store.pauseRequested(this.data.id) || this.options.pauseAfter === index + 1 ||
+      (index + 1 < this.phaseCount && outOfPhaseBudget(this.options.deadlineAt));
     this.data.completed.push({ output: result.output, summary: result.summary, producedBy: result.producedBy });
-    this.data.processes = this.options.processes();
-    this.data.worker = this.options.worker?.();
-    this.data.consumed = this.options.account();
-    this.data.remainingMs = Math.max(0, this.options.deadlineAt - Date.now());
-    this.state = 'ready';
-    try { this.store.boundary(this.data, this.owner); }
-    catch (error) {
+    let stopping = false;
+    try {
+      if (pausing) {
+        // Unsupported content keeps the run going on its live backend; only a
+        // sealable tree is worth stopping the run's processes for.
+        checkpointWorkspaceDigest(this.data.workspace);
+        stopping = true;
+        await this.quiesce();
+      }
+      this.data.processes = this.options.processes();
+      this.data.worker = this.options.worker?.();
+      this.data.consumed = this.options.account();
+      this.data.remainingMs = Math.max(0, this.options.deadlineAt - Date.now());
+      this.state = 'ready';
+      this.store.boundary(this.data, this.owner);
+    } catch (error) {
       this.finalizing();
-      if (!this.options.automatic) throw error;
+      // A drained backend cannot carry the run further.
+      if (!this.options.automatic || stopping) throw error;
       this.options.warn?.('Durable continuation unavailable: workspace snapshot could not be committed');
       return;
     }
-    if (this.store.pauseRequested(this.data.id) || this.options.pauseAfter === index + 1 || (index + 1 < this.phaseCount && outOfPhaseBudget(this.options.deadlineAt))) {
+    if (pausing) {
       this.paused = true;
       throw new PhaseBoundaryPause({ ...result, trace: [],
         summary: `Paused after ${index + 1} validated phase(s). ${result.summary}`,

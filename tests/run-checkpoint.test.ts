@@ -343,6 +343,53 @@ describe('durable sequential run continuation', () => {
     expect(readFileSync(join(f.root, 'effects.log'), 'utf8')).toBe('phase-one.txt\n');
   }, 90000);
 
+  // Code review 2026-10-09, 1.1: the boundary was sealed while the phase's
+  // server ran; the pause's drain sent SIGTERM, the server persisted its state,
+  // and release() failed the run as 'Workspace changed during shutdown'.
+  it('pauses a phase whose server writes on SIGTERM, and resumes it', () => {
+    const f = fixture();
+    const first = f.run(['--pause-after-phase', '1', 'Write two files in sequence'], '', { CHECKPOINT_TEST_SERVER: '1' });
+    expect(first.status, first.stdout + first.stderr).toBe(0);
+    expect(f.report()).toMatchObject({ outcome: 'partial', paused: true });
+    expect(readFileSync(join(f.root, 'workspace', 'notes.json'), 'utf8')).toBe('[]');
+    const next = f.run(['--resume', f.report().checkpointId]);
+    expect(next.status, next.stdout + next.stderr).toBe(0);
+    expect(f.report().outcome).toBe('delivered');
+    expect(readFileSync(join(f.root, 'effects.log'), 'utf8')).toBe('phase-one.txt\nphase-two.txt\n');
+  }, 90000);
+
+  it('keeps a client question answerable when the phase before it left a server that writes on SIGTERM', () => {
+    const f = fixture();
+    const viewer = AuthStore.open(f.db).completeLogin({ provider: 'github', subject: 'drain-owner', displayName: 'Owner', email: null, emailVerified: false }, null)!.viewer;
+    const store = ProjectStore.open(f.db);
+    const project = store.createProject({ orgId: viewer.orgId, principalId: viewer.principalId,
+      project: { name: 'Drain', slug: 'drain', repositoryTarget: { installationId: '1', owner: 'owner', name: 'drain', visibility: 'private' } } });
+    const reserve = (resumeOf?: string) => {
+      const id = randomUUID(), workspace = join(f.root, id, 'workspace'), runs = join(f.root, id, 'traces');
+      store.createProjectRun({ orgId: viewer.orgId, principalId: viewer.principalId, projectId: project.projectId, projectRunId: id,
+        request: { goal: 'Write two files in sequence', idempotencyKey: id, ...(resumeOf ? { resumeOf } : {}) },
+        hostPaths: { workspacePath: workspace, runsPath: runs, skillsPath: join(f.root, 'skills'), logPath: join(f.root, id, 'run.log') } });
+      store.transitionProjectRun({ orgId: viewer.orgId, projectRunId: id, from: 'queued', to: 'running' });
+      return { id, workspace, env: { ATOMA_TENANT_RUN: '1', CHECKPOINT_TEST_TENANT: '1', ATOMA_RUN_ID: id,
+        ATOMA_BUILD_WORKSPACE: workspace, ATOMA_RUNS_DIR: runs, CHECKPOINT_TEST_QUESTION_PHASE: '1' } };
+    };
+    const first = reserve();
+    const paused = f.run(['--container', '--checkpoint', 'Write two files in sequence'], '', { ...first.env, CHECKPOINT_TEST_SERVER: '1' });
+    expect(paused.status, paused.stdout + paused.stderr).toBe(0);
+    expect(f.report().outcome).toBe('partial');
+    expect(readFileSync(join(first.workspace, 'notes.json'), 'utf8')).toBe('[]');
+    const checkpoints = new RunCheckpointStore(f.db);
+    expect(checkpoints.projectStatus(first.id, viewer.orgId)).toMatchObject({ state: 'paused', completed: 1 });
+    const question = checkpoints.clientQuestion(viewer.orgId, first.id)!;
+    expect(checkpoints.answerClientQuestion(viewer.orgId, first.id, viewer.principalId,
+      { questionId: question.questionId, idempotencyKey: randomUUID(), answer: { optionId: 'keep_both' } }).created).toBe(true);
+    const second = reserve(first.id);
+    const resumed = f.run(['--container', '--resume', first.id], '', { ...second.env, CHECKPOINT_TEST_EXPECT_ANSWER: '1' });
+    expect(resumed.status, resumed.stdout + resumed.stderr).toBe(0);
+    expect(f.report().outcome).toBe('delivered');
+    expect(readFileSync(join(second.workspace, 'notes.json'), 'utf8')).toBe('[]');
+  }, 90000);
+
   it('atomically admits only one claimant and refuses live sandbox processes', () => {
     const f = fixture();
     const first = f.run(['--pause-after-phase', '1', 'Write two files in sequence']);

@@ -48,8 +48,12 @@ Root review/remediation consumes the checkpoint; a final refusal remains the
 ordinary partial-run path.
 
 A SQLite immediate transaction claims one checkpoint for one process. A live
-owner prevents another claim. A graceful pause drains the sandbox, verifies the
-workspace again, then releases ownership. Crash recovery also requires a dead
+owner prevents another claim. A graceful pause drains the sandbox BEFORE it
+seals the boundary, so what the run's processes write while shutting down is
+part of the snapshot; it then verifies the workspace again and releases
+ownership. A drained backend cannot continue the run: a pausing boundary first
+checks that the tree can be sealed, and an unsupported tree keeps the run going
+with continuation disabled. Crash recovery also requires a dead
 owner and absence of the recorded local children/process groups. A container
 backend records its launcher-issued worker UUID. Before recovery, the launcher
 must successfully prove that worker (and every predecessor from a transport restart)

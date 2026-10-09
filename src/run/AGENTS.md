@@ -83,8 +83,11 @@ Neighbours:
   original plan/checklist and carried budget; fresh trace and proof log. Only
   complete approved boundaries are restored. An interrupted phase may restart
   only with a sealed snapshot, settled model spend, no external/commons mutation
-  since that boundary, and verified backend shutdown. A pause
-  drains before releasing the SQLite claim. Deep project runs enable it automatically;
+  since that boundary, and verified backend shutdown. A pausing boundary (pause
+  request, `--pause-after-phase`, phase budget, client question) drains the
+  backend BEFORE it seals the snapshot, so shutdown writes (JSON persistence, a
+  WAL checkpoint) are part of the sealed tree and never fail `release()`
+  (code review 2026-10-09, 1.1). Deep project runs enable it automatically;
   the host binds continuation to the requester/org/project and a new run receipt,
   copies the complete sealed workspace and atomically consumes the source claim.
   Short/parallel/comparison runs keep their ordinary lifecycle. Contract and tests:

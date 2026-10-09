@@ -18,6 +18,8 @@ const root = process.env['CHECKPOINT_TEST_ROOT']!;
 let cellName = '';
 let leafName = '';
 const calls: string[] = [];
+const PERSISTING_SERVER = "const s=require('http').createServer((q,r)=>r.end('ok')).listen(Number(process.env.PORT)||0,function(){console.log('LISTENING_ON_PORT='+this.address().port)});" +
+  "process.on('SIGTERM',()=>{require('fs').writeFileSync('notes.json','[]');process.exit(0)});";
 const recipe = { id: 'checkpoint-write-file', description: 'Write the requested file',
   whenToUse: 'When asked to write a file', kind: 'llm' as const,
   body: 'Write the file named by the task using write_file and read it back.' };
@@ -66,6 +68,12 @@ const complete = async (req: LlmCompletionRequest) => {
     if (process.env['CHECKPOINT_TEST_CRASH'] === 'external' && path === 'phase-two.txt') await req.executor!.execute('run_shell', { cmd: 'printf external > effect.txt' });
     const args = { path, content: path };
     const result = await req.executor!.execute('write_file', args);
+    if (process.env['CHECKPOINT_TEST_SERVER'] === '1' && path === 'phase-one.txt') {
+      // The phase leaves a real server that persists its state on SIGTERM (code review 2026-10-09, 1.1).
+      await req.executor!.execute('write_file', { path: 'server.js', content: PERSISTING_SERVER });
+      const started = JSON.stringify(await req.executor!.execute('start_node_server', { entry: 'server.js' }));
+      if (!started.includes('http://')) throw new Error(`Fixture server did not start: ${started}`);
+    }
     req.onToolInvocation?.({ name: 'write_file', args, result, startedAt: Date.now(), durationMs: 0 });
     reply = { output: { files: [path] }, summary: `Wrote ${path}` };
   } else throw new Error(`Unexpected fixture call ${req.role}`);
