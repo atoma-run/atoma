@@ -31,7 +31,7 @@ afterEach(async () => {
   databases.splice(0).forEach(db => db.close());
 });
 
-async function fixture() {
+async function fixture(otherProjectId?: string) {
   const db = new Database(':memory:'); databases.push(db);
   const viewer: Viewer = { principalId: randomUUID(), orgId: randomUUID(), role: 'org:owner', platformAdmin: true,
     displayName: 'Alice', orgName: 'A', kind: 'human', displayNameSource: 'provider' };
@@ -46,10 +46,11 @@ async function fixture() {
     createProjectFromInput: create,
     projectPage: vi.fn((caller: Viewer) => {
       expect(caller.platformAdmin).toBe(false); expect(caller.orgId).toBe(viewer.orgId);
-      return { projects: [{ projectId, name: 'Stock tracker' }], nextCursor: null };
+      return { projects: [{ projectId, name: 'Stock tracker' },
+        ...(otherProjectId ? [{ projectId: otherProjectId, name: 'Minesweeper' }] : [])], nextCursor: null };
     }),
     listInstallations: () => [{ installationId: '123', accountLogin: 'example', status: 'active' }],
-    projectContext: () => ({ context: { projectId, version: 0, brief: null, decisions: [], change: null }, history: [], nextBeforeVersion: null }),
+    projectContext: (_caller: Viewer, id: string) => ({ context: { projectId: id, version: 0, brief: null, decisions: [], change: null }, history: [], nextBeforeVersion: null }),
     projectReadiness: () => ({ ready: true }),
     projectRunsPage: () => ({ runs: [], nextCursor: null }),
     startProjectRunFromInput: start, runTaskBudgetMs: () => 60_000,
@@ -133,6 +134,56 @@ it('drives the actual HTTP MCP with a delegated member bearer and starts a task 
   const reloaded = await fetch(`${f.url}/api/assistant?conversationId=${view.conversation.id}`, { headers: { cookie: 'session=test' } });
   expect((await reloaded.json() as AssistantView).run?.status).toBe('running');
   expect(f.complete).toHaveBeenCalledTimes(1);
+});
+
+it('keeps project chats and model context separate through browser and MCP round trips', async () => {
+  const otherProjectId = randomUUID();
+  const f = await fixture(otherProjectId);
+  f.complete.mockResolvedValue({ text: JSON.stringify({ message: 'Scoped reply.', proposal: null }),
+    stopReason: 'end_turn', usage: { inputTokens: 100, outputTokens: 100 } });
+  const external = await f.external();
+  try {
+    await external.call('atoma_conversation_update', { projectId: otherProjectId, expectedVersion: 0, requestId: randomUUID(),
+      messages: [{ role: 'assistant', text: 'Minesweeper shared exchange' }] });
+  } finally { await external.close(); }
+
+  const first = await f.post({ ...f.message, projectId: f.projectId, text: 'Stock alerts discussion' });
+  expect(first.status).toBe(200);
+  const stock = (await first.json() as AssistantView).conversation;
+  const second = await f.post({ ...f.message, projectId: otherProjectId, version: 1, requestId: randomUUID(), text: 'Minesweeper board discussion' });
+  expect(second.status).toBe(200);
+  const minesweeper = (await second.json() as AssistantView).conversation;
+  expect(minesweeper.id).not.toBe(stock.id);
+
+  // Resuming by stable conversation ID must retain its project, even without a projectId in the request.
+  const resumed = await f.post({ ...f.message, conversationId: stock.id!, version: stock.version, requestId: randomUUID(), text: 'Continue stock alerts' });
+  expect(resumed.status).toBe(200);
+  expect((await resumed.json() as AssistantView).conversation.projectId).toBe(f.projectId);
+  for (const index of [0, 2]) {
+    const prompt = f.complete.mock.calls[index]![0]!.userContent;
+    expect(prompt).toContain('Stock alerts discussion');
+    expect(prompt).toContain('Stock tracker');
+    expect(prompt).not.toContain(otherProjectId);
+    expect(prompt).not.toContain('Minesweeper');
+  }
+  const otherPrompt = f.complete.mock.calls[1]![0]!.userContent;
+  expect(otherPrompt).toContain('Minesweeper shared exchange');
+  expect(otherPrompt).toContain('Minesweeper board discussion');
+  expect(otherPrompt).not.toContain(f.projectId);
+  expect(otherPrompt).not.toContain('Stock');
+
+  for (const [projectId, ownText, otherText] of [[f.projectId, 'Stock alerts discussion', 'Minesweeper'],
+    [otherProjectId, 'Minesweeper shared exchange', 'Stock']]) {
+    const reloaded = await fetch(`${f.url}/api/assistant?projectId=${projectId}`, { headers: { cookie: 'session=test' } });
+    expect(reloaded.status).toBe(200);
+    const history = JSON.stringify((await reloaded.json() as AssistantView).conversation.messages);
+    expect(history).toContain(ownText);
+    expect(history).not.toContain(otherText);
+  }
+  const mismatch = await f.post({ ...f.message, projectId: otherProjectId, conversationId: stock.id!, requestId: randomUUID() });
+  expect(mismatch.status).toBe(409);
+  expect(f.complete).toHaveBeenCalledTimes(3);
+  expect(f.start).not.toHaveBeenCalled();
 });
 
 it('reads the refusal from an immediately failed MCP task instead of claiming a run started', async () => {

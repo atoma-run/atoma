@@ -104,6 +104,29 @@ describe('the integrated assistant', () => {
     expect(f.call).toHaveBeenCalledWith('atoma_run_start', expect.objectContaining({ acceptanceCriteria: start.acceptanceCriteria }), true);
   });
 
+  it('limits selected-project context to its own catalogue entry, brief and runs', async () => {
+    const f = fixture(start);
+    const otherId = randomUUID();
+    const call = f.call.getMockImplementation()!;
+    f.call.mockImplementation(async (name, args, task) => name === 'atoma_projects_list'
+      ? { projects: [{ projectId, name: 'Stock tracker', repositoryUrl: 'https://github.com/example/stock-tracker' },
+        { projectId: otherId, name: 'Minesweeper', repositoryUrl: 'https://github.com/example/minesweeper' }], nextCursor: 'foreign-catalogue-cursor' }
+      : call(name, args, task));
+    const scope = f.service.scope(f.viewer, projectId);
+    await f.service.request(scope, { ...f.message(), projectId }, f.mcp);
+    const { userContent, systemPrompt } = f.complete.mock.calls[0]![0];
+    expect(userContent).toContain('Stock tracker');
+    expect(userContent).toContain('https://github.com/example/stock-tracker');
+    expect(userContent).toContain('Saved project brief');
+    expect(userContent).toContain(runId);
+    for (const foreign of [otherId, 'Minesweeper', 'example/minesweeper', 'foreign-catalogue-cursor']) {
+      expect(userContent).not.toContain(foreign);
+    }
+    expect(f.call).not.toHaveBeenCalledWith('atoma_github_installations', {});
+    expect(systemPrompt).toContain(`exclusively to project ${projectId}`);
+    expect(f.store.read(scope).conversation.proposal?.projectName).toBe('Stock tracker');
+  });
+
   it('invalidates old proposals after a new message and refuses caller-authored action arguments', async () => {
     const f = fixture();
     await f.service.request(f.scope, f.message(), f.mcp);

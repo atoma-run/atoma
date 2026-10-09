@@ -83,9 +83,14 @@ retains the full journal. Reads return 10 messages by default (at most 20 and
 `nextBefore` for older pages. The previous `assistant_conversations` snapshots
 migrate transactionally on startup. Already-trimmed historical messages cannot
 be recovered. Model context uses the latest 16 messages, at most 24,000
-characters, plus at most 20,000 characters of MCP context. Project discovery
-is the latest 20 projects; selecting a project provides its saved brief,
-readiness and latest run even outside that page. This is saved Atoma context,
+characters, plus at most 20,000 characters of MCP context. Only an unbound
+new-project conversation receives the latest 20 projects and GitHub installations
+for discovery. For a selected project, catalogue metadata is filtered by its
+saved project ID before serialization; no other project's entry or catalogue
+cursor reaches the model. Its saved brief, readiness and latest run are read
+by that same ID even outside the catalogue page. Instructions keep replies in
+that project, including when old messages mentioned another one. Saved messages
+remain unchanged. This is saved Atoma context,
 not a claim to inspect live GitHub or local files.
 
 ## Moving between Atoma and an external agent

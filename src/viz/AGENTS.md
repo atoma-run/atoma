@@ -518,6 +518,10 @@ npm run viz:mark-turn:analyze
   and criteria for client approval. The assistant's transparent DOM conversation
   uses a GPU-drawn Projects panel. Its project-owned shared history is principal/org scoped,
   with version-bound confirmations and separately recorded model/payer usage.
+  A project chat's model context is scoped by the conversation's saved project ID:
+  filter catalogue metadata before serialization, omit organisation installation
+  discovery, and read only that project's brief, readiness and runs. Organisation
+  project discovery belongs only to the unbound new-project conversation.
   The person selects a connected personal subscription, organisation API key or
   explicit platform API model; an unavailable selection never changes payer.
   Its fixed context reads and confirmed writes use the existing HTTP MCP;

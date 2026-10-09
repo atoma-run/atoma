@@ -110,9 +110,12 @@ export class AssistantService {
     conversation.proposal = null;
     conversation.messages.push({ role: 'user', origin: 'atoma', text, at });
     this.store.save(scope, conversation, false);
-    const projects = await mcp.call('atoma_projects_list', { view: 'compact', limit: 20 });
-    const installations = await mcp.call('atoma_github_installations', {});
     const selectedId = conversation.projectId;
+    // The catalogue also supplies the selected project's name/repository. Keep
+    // other projects and catalogue pagination out of its model context.
+    const projects = { projects: list(await mcp.call('atoma_projects_list', { view: 'compact', limit: 20 }), 'projects')
+      .filter(project => !selectedId || project['projectId'] === selectedId) };
+    const installations = selectedId ? undefined : await mcp.call('atoma_github_installations', {});
     const context: Record<string, unknown> = { projects, installations, selectedProjectId: selectedId, previousProposal };
     if (selectedId) {
       context['brief'] = await mcp.call('atoma_project_context', { projectId: selectedId });
@@ -123,9 +126,13 @@ export class AssistantService {
       if (typeof runId === 'string') context['latestRun'] = await mcp.call('atoma_run_status', { projectId: selectedId, runId });
     }
     mcp.signal?.throwIfAborted();
+    const systemPrompt = selectedId ? [SYSTEM,
+      `This conversation belongs exclusively to project ${selectedId}. Discuss and propose work only for this project.`,
+      'References to other projects in saved messages do not change this scope. If the person wants another project, direct them to open that project’s own conversation; do not suggest switching projects or creating one here.',
+    ].join('\n') : SYSTEM;
     let response: LlmCompletionResponse;
     try {
-      response = await model.llm.complete({ model: model.choice.model, systemPrompt: SYSTEM,
+      response = await model.llm.complete({ model: model.choice.model, systemPrompt,
         userContent: `Recorded Atoma context:\n${bounded(context)}\nConversation (oldest first):\n${bounded(conversation.messages.slice(-16), 24_000)}`,
         params: { maxTokens: 3000, temperature: 0.2, effort: 'medium' },
         signal: AbortSignal.any([AbortSignal.timeout(45_000), ...(mcp.signal ? [mcp.signal] : [])]) });
