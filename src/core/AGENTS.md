@@ -81,7 +81,9 @@ Neighbours:
   response: counted in calls, run 96d5c845 spent 40 in two batches of HTTP checks
   and never reached its browser check. Calls of the last allowed response carry
   the exhaustion hint, later calls are refused, eight refusals end the turn for a
-  tool-free finalizing turn, and that final is `toolBudgetExhausted`.
+  tool-free finalizing turn, and that final is `toolBudgetExhausted`. The rest of
+  a batch refused while the interrupt is in flight drains under its own bound of
+  256; sixteen refusals counted outside that drain fail the call.
   A session that fails before any tool call reached the host falls back to the
   exec loop (nothing ran twice), except on a timeout, rate limit or login failure
   that exec would meet too; after one, the failure is the call's.

@@ -84,9 +84,14 @@ When the work is done, reply with your final response as plain assistant text, w
  * Calls refused after the budget before the turn is interrupted for a
  * tool-free finalizing turn, and in total before the call fails. Counted in
  * calls, so one response batching several does not end the session at once.
+ * The calls of a batch arrive together, ahead of the interrupt: those refused
+ * while it is in flight are the rest of that batch, not a model that ignored
+ * the finalizing turn, and only the larger drain bound counts them (code
+ * review 2026-10-09 1.7: 17 calls in one response failed the whole call).
  */
 const REFUSALS_BEFORE_FINAL_TURN = 8;
 const MAX_REFUSALS = 16;
+const MAX_REFUSALS_WHILE_INTERRUPTING = 256;
 
 /**
  * THE BUDGET COUNTS MODEL RESPONSES, as every native tool loop here does
@@ -379,6 +384,7 @@ async function runSession(
   const recoveryAbort = new AbortController();
   let executed = 0;
   let refused = 0;
+  let drained = 0;
   // Completed model responses so far: a call belongs to response `responses + 1`.
   let responses = 0;
   const overBudget = (): boolean => responses >= budget || executed >= budget * MAX_CALLS_PER_RESPONSE;
@@ -436,7 +442,7 @@ async function runSession(
     } });
   };
 
-  const handleToolCall = async (id: unknown, params: Record<string, unknown>): Promise<void> => {
+  const handleToolCall = async (id: unknown, params: Record<string, unknown>, inFinalTurn: boolean): Promise<void> => {
     if (!accepting) return;
     const name = typeof params['tool'] === 'string' ? params['tool'] : '';
     const raw = params['arguments'];
@@ -444,9 +450,11 @@ async function runSession(
     const startedAt = Date.now();
     try {
       if (overBudget()) {
-        refused++;
+        // Sent before the finalizing turn, refused after the interrupt: the batch draining.
+        if (finalTurn !== 'none' && !inFinalTurn) drained++;
+        else refused++;
         observe({ name, args, startedAt, durationMs: 0, error: BUDGET_EXHAUSTED_HINT });
-        if (refused > MAX_REFUSALS) { budgetFailure = true; end(); return; }
+        if (refused > MAX_REFUSALS || drained > MAX_REFUSALS_WHILE_INTERRUPTING) { budgetFailure = true; end(); return; }
         reply(id, BUDGET_EXHAUSTED_HINT, false);
         if (refused >= REFUSALS_BEFORE_FINAL_TURN && finalTurn === 'none' && threadId && turnId) {
           // Answered refusals did not stop it: end this turn, and say it in a new one.
@@ -519,10 +527,11 @@ async function runSession(
       // A message before a tool call was commentary, not the final answer.
       text = '';
       const id = message['id'];
+      const inFinalTurn = finalTurn === 'started';
       // Strictly one at a time, in arrival order: a server must start
       // before the request that probes it.
       pendingTools++;
-      pending = pending.then(() => handleToolCall(id, params)).catch(() => undefined).finally(() => { pendingTools--; });
+      pending = pending.then(() => handleToolCall(id, params, inFinalTurn)).catch(() => undefined).finally(() => { pendingTools--; });
       return;
     }
     if (message['id'] !== undefined) {

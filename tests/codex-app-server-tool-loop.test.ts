@@ -544,6 +544,47 @@ describe('Codex app-server tool session', () => {
     expect(fake.sent.some((m) => m['method'] === 'turn/interrupt')).toBe(true);
   });
 
+  // Code review 2026-10-09 1.7: the calls of one response arrive ahead of the
+  // interrupt; past 16 refusals the whole call failed instead of finalizing.
+  for (const [label, calls, usageFirst] of [
+    ['a batch of 17 calls past the budget', 17, true],
+    ['a batch of 25 calls past the budget', 25, true],
+    ['a first response of 29 calls on a one-response budget', 29, false],
+  ] as const) {
+    it(`finalizes in a tool-free turn after ${label}`, async () => {
+      const home = codexHome();
+      const fake = fakeAppServer(async (server, turn) => {
+        if (turn === 0) {
+          if (usageFirst) server.usage({ inputTokens: 1, cachedInputTokens: 0, cacheWriteInputTokens: 0, outputTokens: 1, reasoningOutputTokens: 0 });
+          for (let i = 0; i < calls; i++) void server.callTool('fetch_url', { url: `http://localhost:1/${i}` });
+          return;
+        }
+        server.message('final after a large batch');
+        server.complete();
+      });
+      const req = request({ maxToolIterations: 1 });
+      const response = await new CodexCliLlmClient({ env: { CODEX_HOME: home }, appServerSpawnFn: fake.spawnFn }).complete(req);
+      expect(response).toMatchObject({ text: 'final after a large batch', toolBudgetExhausted: true });
+      expect(req.executor!.execute).toHaveBeenCalledTimes(usageFirst ? 0 : 12);
+      expect(fake.sent.filter((m) => m['method'] === 'turn/start')).toHaveLength(2);
+      expect(fake.sent.filter((m) => m['method'] === 'turn/interrupt')).toHaveLength(1);
+    });
+  }
+
+  it('still fails a model that keeps calling tools in the finalizing turn', async () => {
+    const home = codexHome();
+    const fake = fakeAppServer(async (server, turn) => {
+      server.usage({ inputTokens: 1, cachedInputTokens: 0, cacheWriteInputTokens: 0, outputTokens: 1, reasoningOutputTokens: 0 });
+      // A large batch first, then the finalizing turn still calling.
+      for (let i = 0; i < (turn === 0 ? 25 : 12); i++) void server.callTool('fetch_url', { url: `http://localhost:1/${turn}/${i}` });
+    });
+    const req = request({ maxToolIterations: 1 });
+    await expect(new CodexCliLlmClient({ env: { CODEX_HOME: home }, appServerSpawnFn: fake.spawnFn }).complete(req))
+      .rejects.toThrow('Codex requested a tool after its tool budget was exhausted');
+    expect(req.executor!.execute).not.toHaveBeenCalled();
+    expect(fake.sent.filter((m) => m['method'] === 'turn/start')).toHaveLength(2);
+  });
+
   it('decodes a multibyte character split across two stdout chunks', async () => {
     const home = codexHome();
     const fake = fakeAppServer(async (server) => {
