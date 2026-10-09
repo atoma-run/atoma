@@ -297,6 +297,66 @@ describe('classification and grouping', () => {
     expect(classifyShowcase({ artifactManifest: null })).toBe('answers');
   });
 
+  it('classifies the delivered Signal Orchard typeface ahead of its specimen image', () => {
+    expect(kind([
+      'signal-orchard.bdf', 'signal-orchard-specimen.svg', 'signal-orchard-glyphs.json',
+      'build-signal-orchard.js', 'check-bdf.js', 'render-specimen.js', 'README.md', 'VERIFICATION.md',
+    ])).toBe('typefaces');
+  });
+
+  it('classifies the delivered Shuttle Bloom weaving pattern ahead of its diagrams', () => {
+    expect(kind([
+      'opening-flowers.wif', 'drawdown.svg', 'printable-threading-treadling.svg',
+      'check_sampler.py', 'generate_sampler.py', 'measured-results.json', 'README.md',
+    ])).toBe('textiles');
+    expect(kind(['opening-flowers.wif', 'preview.stl', 'labels.ttf', 'drawdown.svg'])).toBe('textiles');
+    expect(kind(['opening-flowers.wif.json', 'README.md'])).toBe('reports');
+    expect(kind(['weaving-pattern.svg', 'threading.md'])).toBe('media');
+  });
+
+  it('classifies the delivered Last Cabinet EPUB ahead of its cover and source files', () => {
+    expect(kind([
+      'build_epub.py', 'futures-cabinet.epub', 'inventory.json', 'README.md', 'scene-graph.json',
+      'source/EPUB/container.xml', 'source/EPUB/cover.svg', 'source/EPUB/cover.xhtml',
+      'source/EPUB/nav.xhtml', 'source/EPUB/navigation.xhtml', 'source/EPUB/package.opf',
+      'source/EPUB/story.xhtml', 'source/EPUB/style.css', 'source/META-INF/container.xml',
+      'source/mimetype', 'validate_epub.py', 'verification.md',
+    ])).toBe('books');
+    expect(kind(['book.epub', 'pattern.wif', 'model.stl', 'labels.ttf', 'cover.svg'])).toBe('books');
+    expect(kind(['book.epub.json', 'story.xhtml'])).toBe('reports');
+    expect(kind(['book-cover.svg', 'story.md'])).toBe('media');
+  });
+
+  it('classifies the delivered Touchmarks models ahead of their contact sheet', () => {
+    expect(kind([
+      'concentric-squares.stl', 'contact-sheet.svg', 'cross.stl', 'design-spec.json', 'dots.stl',
+      'generate_tokens.py', 'inventory.sha256', 'mesh-report.json', 'parallel-bars.stl',
+      'README.md', 'spiral.stl', 'validate_mesh.py', 'verify_delivery.py', 'zigzag.stl',
+    ])).toBe('models');
+    expect(kind(['model.stl', 'labels.ttf', 'contact-sheet.svg'])).toBe('models');
+    expect(kind(['mesh.obj', 'part.stl.json', 'model.3mf.md', 'assembly.step.txt', 'part.stp.csv'])).toBe('reports');
+    expect(kind(['model.svg', 'mesh.obj', 'design.md'])).toBe('media');
+  });
+
+  it.each([
+    ['bdf', 'typefaces'], ['otf', 'typefaces'], ['ttf', 'typefaces'], ['wif', 'textiles'],
+    ['epub', 'books'],
+    ['stl', 'models'], ['3mf', 'models'], ['step', 'models'], ['stp', 'models'],
+  ])('recognizes .%s artifacts without relabelling software that bundles them', (extension, expectedKind) => {
+    const artifact = `artifacts/Example.${extension.toUpperCase()}`;
+    expect(kind([artifact, 'specimen.png'])).toBe(expectedKind);
+    for (const marker of ['index.html', 'server.js', 'package.json', 'app.py', 'main.py']) {
+      expect(kind([`app/${marker}`, artifact, 'specimen.svg'])).toBe('software');
+    }
+    expect(kind([artifact], 'text')).toBe('answers');
+  });
+
+  it('does not treat webfont assets, font prose or misleading suffixes as a typeface delivery', () => {
+    expect(kind(['fonts/example.woff', 'fonts/example.woff2', 'README.md'])).toBe('reports');
+    expect(kind(['font.bdf.json', 'font.otf.txt', 'font.ttf.md'])).toBe('reports');
+    expect(kind(['typeface.svg', 'font-design.md'])).toBe('media');
+  });
+
   it('cuts an unnamed goal to one short line', () => {
     expect(titleFromGoal('  A  short\n goal ')).toBe('A short goal');
     const long = titleFromGoal('word '.repeat(60));
@@ -321,6 +381,37 @@ describe('classification and grouping', () => {
     expect(entries[0]!.totalCostUsd).toBeCloseTo(0.6);
   });
 
+  it.each([
+    { category: 'typefaces', label: 'Typefaces', noun: 'Typeface', artifact: 'signal-orchard.bdf' },
+    { category: 'textiles', label: 'Weaving patterns', noun: 'Weaving pattern', artifact: 'opening-flowers.wif' },
+    { category: 'books', label: 'Books', noun: 'Book', artifact: 'futures-cabinet.epub' },
+    { category: 'models', label: '3D models', noun: '3D model', artifact: 'concentric-squares.stl' },
+  ])('counts a $category project once and uses its latest delivered format on the index and story', ({ category, label, noun, artifact }) => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-09T10:00:00.000Z'));
+    const w = world();
+    const first = seedRun(w, w.admin, { goal: 'Draw the design', files: ['specimen.svg'] });
+    vi.setSystemTime(new Date('2026-10-09T10:01:00.000Z'));
+    const second = seedRun(w, w.admin, { goal: 'Package the design', files: [artifact, 'specimen.svg'] });
+    const source = createShowcaseSource(w.store);
+    const entries = source.entries();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ id: first, kind: category });
+    expect(entries[0]!.episodes.map((episode) => episode.id)).toEqual([first, second]);
+
+    const index = renderShowcaseIndex(entries, null);
+    const story = renderShowcaseEntry(source.entry(first)!, new Map(), null);
+    expect(index).toContain('Everything <small>1</small>');
+    expect(index).toContain(`data-filter="${category}" aria-pressed="false">${label} <small>1</small>`);
+    expect(index).not.toContain('data-filter="media"');
+    expect(index).toContain(`href="/showcase/${first}" data-kind="${category}"`);
+    for (const page of [index, story]) {
+      expect(page).toContain(`>${noun}</span>`);
+      expect(page).not.toContain('undefined');
+    }
+    expect(renderShowcaseIndex([], null)).not.toContain(`data-filter="${category}"`);
+  });
+
   it('keeps recent software in order while bringing every available kind into the first cards', () => {
     const entry = (id: string, kind: ShowcaseKind, day: number): ShowcaseEntry => {
       const endedAt = `2026-10-${String(day).padStart(2, '0')}T12:00:00.000Z`;
@@ -336,6 +427,10 @@ describe('classification and grouping', () => {
       entry('a1', 'answers', 3),
       entry('r1', 'reports', 2),
       entry('m1', 'media', 2),
+      entry('b1', 'books', 2),
+      entry('w1', 'textiles', 2),
+      entry('d1', 'models', 2),
+      entry('t1', 'typefaces', 2),
       entry('m2', 'media', 2),
       entry('r2', 'reports', 2),
     ];
@@ -347,12 +442,15 @@ describe('classification and grouping', () => {
     expect(new Set(cards.slice(0, 9).map((card) => card.kind))).toEqual(
       new Set(['software', 'answers', 'reports', 'media'])
     );
+    expect(new Set(cards.slice(0, 21).map((card) => card.kind))).toEqual(
+      new Set(['software', 'answers', 'reports', 'media', 'books', 'textiles', 'models', 'typefaces'])
+    );
     expect(cards.filter((card) => card.kind === 'software').map((card) => card.id))
       .toEqual(software.map((item) => item.id));
     expect(cards.filter((card) => card.kind !== 'software').map((card) => card.id))
-      .toEqual(['a1', 'r1', 'm1', 'm2', 'r2']);
+      .toEqual(['a1', 'r1', 'm1', 'b1', 'w1', 'd1', 't1', 'm2', 'r2']);
     expect(cards.slice(0, 3).map((card) => card.id)).toEqual(['s1', 's2', 'a1']);
-    expect(html).toContain('Everything <small>23</small>');
+    expect(html).toContain('Everything <small>27</small>');
   });
 
   it('rebuilds at most once per TTL', () => {

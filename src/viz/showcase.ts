@@ -48,9 +48,11 @@ export const SHOWCASE_FILES_MAX = 12;
 export const SHOWCASE_TTL_MS = 60_000;
 
 /** What a visitor filters by; derived from the deliverable, never from prose. */
-export type ShowcaseKind = 'answers' | 'reports' | 'media' | 'software';
+export type ShowcaseKind = 'answers' | 'reports' | 'media' | 'books' | 'textiles' | 'models' | 'typefaces' | 'software';
 
-export const SHOWCASE_KINDS: readonly ShowcaseKind[] = ['answers', 'reports', 'media', 'software'];
+export const SHOWCASE_KINDS: readonly ShowcaseKind[] = [
+  'answers', 'reports', 'media', 'books', 'textiles', 'models', 'typefaces', 'software',
+];
 
 export interface ShowcaseFile {
   readonly path: string;
@@ -86,6 +88,10 @@ const MEDIA_EXTENSIONS = new Set([
   '.wav', '.mp3', '.ogg', '.flac', '.mp4', '.webm', '.svg', '.png', '.jpg', '.jpeg', '.gif', '.webp',
 ]);
 const SOFTWARE_MARKERS = new Set(['index.html', 'server.js', 'package.json', 'app.py', 'main.py']);
+const BOOK_EXTENSIONS = new Set(['.epub']);
+const TEXTILE_EXTENSIONS = new Set(['.wif']);
+const MODEL_EXTENSIONS = new Set(['.stl', '.3mf', '.step', '.stp']);
+const TYPEFACE_EXTENSIONS = new Set(['.bdf', '.otf', '.ttf']);
 
 /** A deliverable's kind from its file names alone: deterministic, display-only. */
 export function classifyShowcase(run: Pick<ProjectRun, 'artifactManifest'>): ShowcaseKind {
@@ -93,6 +99,11 @@ export function classifyShowcase(run: Pick<ProjectRun, 'artifactManifest'>): Sho
   if (!manifest || manifest.delivery === 'text' || manifest.files.length === 0) return 'answers';
   const names = manifest.files.map((file) => file.path.toLowerCase());
   if (names.some((name) => SOFTWARE_MARKERS.has(path.posix.basename(name)))) return 'software';
+  // Specialized formats win over their fonts and previews, while software keeps its bundled assets.
+  if (names.some((name) => BOOK_EXTENSIONS.has(path.posix.extname(name)))) return 'books';
+  if (names.some((name) => TEXTILE_EXTENSIONS.has(path.posix.extname(name)))) return 'textiles';
+  if (names.some((name) => MODEL_EXTENSIONS.has(path.posix.extname(name)))) return 'models';
+  if (names.some((name) => TYPEFACE_EXTENSIONS.has(path.posix.extname(name)))) return 'typefaces';
   if (names.some((name) => MEDIA_EXTENSIONS.has(path.posix.extname(name)))) return 'media';
   return 'reports';
 }

@@ -720,6 +720,10 @@ npm run viz:mark-turn:analyze
   (`showcase.ts`): title, request, numbers, file NAMES, a text answer; never
   identities, paths, repositories or bytes. Server-rendered, all values
   escaped, one script pinned by hash in its CSP. English only.
+- Categories follow delivered file formats, never words in the request. Software
+  markers win over bundled assets; EPUB books win over WIF weaving patterns,
+  then STL/3MF/STEP/STP models, then BDF/OTF/TTF typefaces, then preview images.
+  Ambiguous OBJ files and webfont assets (WOFF/WOFF2) do not establish these categories.
 - The home feed starts from newest projects, but `showcasePage.ts` pulls the
   newest different kind forward after two cards of one kind. Within each
   kind, the order remains newest first. This keeps answers, reports and media

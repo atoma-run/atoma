@@ -2101,6 +2101,17 @@ try {
           pendingInvitations: 0,
         },
         '/api/tokens': { mode: 'bearer', mcpUrl: 'https://atoma.example.com/mcp', tokens: [] },
+        // The Projects guide now hosts the assistant for members. Keep its
+        // read deterministic so this account scenario exercises a usable
+        // conversation, without making a provider call or falling through to 404.
+        '/api/assistant': {
+          available: true, busy: false, nextBefore: null, model: 'api:openai:smoke', run: null,
+          choices: [{ id: 'api:openai:smoke', model: 'api:openai:smoke', label: 'Smoke model', payer: 'org-key' }],
+          conversation: {
+            id: null, projectId: null, version: 0, messages: [], proposal: null, lastRun: null,
+            costUsd: 0, inputTokens: 0, outputTokens: 0, lastRequestId: null, modelChoice: 'api:openai:smoke',
+          },
+        },
         '/api/admin/live-runs': [
           { projectRunId: 'eeeeeeee-1111-4222-8333-ffffffffffff', projectId,
             projectName: 'App', projectSlug: 'app',
@@ -2415,9 +2426,11 @@ try {
       await passArrivalGate(accountPage);
       await accountPage.evaluate(() => new Promise((resolve) => setTimeout(resolve, 900)));
 
-      // The customer path starts in an existing agent. The Projects guide
+      // An owner starts in the conversation. The external-agent disclosure
       // opens the MCP connection panel, then the reader can return to the list.
-      await accountPage.waitForSelector('.gpu-project-mcp-actions button');
+      await accountPage.waitForSelector('.gpu-assistant textarea:not([disabled])', { visible: true });
+      await accountPage.click('.gpu-project-mcp-own-agent > summary');
+      await accountPage.waitForSelector('.gpu-project-mcp-own-agent[open] .gpu-project-mcp-actions button', { visible: true });
       if (await accountPage.$('input[aria-label="Project name"], textarea[aria-label="Run prompt"]')) {
         throw new Error('Projects still exposes direct Web project or run fields');
       }
@@ -2439,7 +2452,7 @@ try {
       console.log('Projects MCP guide ok: direct forms absent, setup tab opened');
       // An authorization for this principal and organisation must remove the
       // setup action when the browser regains focus, then stay removed after
-      // reload. A token for another organisation cannot claim this one is connected.
+      // reload. It must leave the owner's conversation open and usable.
       stubs['/api/tokens'].tokens = [{
         tokenId: 'mcp-connected-org-a',
         orgId: 'org-a',
@@ -2453,18 +2466,54 @@ try {
       await otherTab.bringToFront();
       await accountPage.bringToFront();
       await otherTab.close();
-      const connectionActionGone = () => {
+      const connectedGuideState = (assistantExpected) => {
         const guide = document.querySelector('.gpu-project-mcp');
-        return guide && guide.querySelector('.gpu-project-mcp-toggle')?.getAttribute('aria-expanded') === 'false' && [...guide.querySelectorAll('button')].some((button) => button.textContent === 'Copy request') &&
+        const content = guide?.querySelector('#project-mcp-content');
+        const assistant = guide?.querySelector('.gpu-assistant');
+        const composer = assistant?.querySelector('textarea');
+        const correctLayout = assistantExpected
+          ? assistant && content && !content.hidden && composer instanceof HTMLTextAreaElement &&
+            !composer.disabled && composer.getClientRects().length > 0
+          : !assistant && content?.hidden;
+        return guide && correctLayout &&
+          guide.querySelector('.gpu-project-mcp-toggle')?.getAttribute('aria-expanded') === String(assistantExpected) &&
+          [...guide.querySelectorAll('button')].some((button) => button.textContent === 'Copy request') &&
           ![...guide.querySelectorAll('button')].some((button) => button.textContent === 'Connect your agent') &&
           guide.querySelector('.gpu-project-mcp-connection')?.textContent ===
             'Atoma MCP connected for this organisation. Your agent is ready to work.';
       };
-      await accountPage.waitForFunction(connectionActionGone, { timeout: READY_TIMEOUT_MS });
+      await accountPage.waitForFunction(connectedGuideState, { timeout: READY_TIMEOUT_MS }, true);
       await accountPage.reload({ waitUntil: 'load' });
       await passArrivalGate(accountPage);
-      await accountPage.waitForFunction(connectionActionGone, { timeout: READY_TIMEOUT_MS });
-      console.log('Projects connected MCP access ok: guide collapsed on focus and reload');
+      await accountPage.waitForFunction(connectedGuideState, { timeout: READY_TIMEOUT_MS }, true);
+      await accountPage.click('.gpu-project-mcp-own-agent > summary');
+      await accountPage.waitForSelector('.gpu-project-mcp-own-agent[open] .gpu-project-mcp-connection', { visible: true });
+      await accountPage.click('.gpu-project-mcp-own-agent > summary');
+      await accountPage.waitForFunction(connectedGuideState, { timeout: READY_TIMEOUT_MS }, true);
+      console.log('Projects connected MCP access ok: owner conversation stays open on focus and reload; external guide remains reachable');
+
+      // A viewer has no assistant: its standalone guide still folds once
+      // connected. Restore the owner before continuing the account scenario.
+      const ownerAuth = stubs['/auth/whoami'];
+      const ownerOrg = stubs['/api/org'];
+      stubs['/auth/whoami'] = {
+        ...ownerAuth, role: 'org:viewer',
+        activeOrganisation: { ...ownerAuth.activeOrganisation, role: 'org:viewer' },
+        organisations: ownerAuth.organisations.map(org => org.id === 'org-a' ? { ...org, role: 'org:viewer' } : org),
+      };
+      stubs['/api/org'] = {
+        ...ownerOrg, viewerRole: 'org:viewer',
+        members: ownerOrg.members.map(member => member.principalId === principalId ? { ...member, role: 'org:viewer' } : member),
+      };
+      await accountPage.reload({ waitUntil: 'load' });
+      await passArrivalGate(accountPage);
+      await accountPage.waitForFunction(connectedGuideState, { timeout: READY_TIMEOUT_MS }, false);
+      console.log('Projects connected MCP access ok: viewer guide without assistant remains collapsed');
+      stubs['/auth/whoami'] = ownerAuth;
+      stubs['/api/org'] = ownerOrg;
+      await accountPage.reload({ waitUntil: 'load' });
+      await passArrivalGate(accountPage);
+      await accountPage.waitForFunction(connectedGuideState, { timeout: READY_TIMEOUT_MS }, true);
       accountStage = 'project-selection';
 
       // Real Pixi metrics, at the width that exposed the regression: a
@@ -2547,19 +2596,22 @@ try {
       await waitForHitTarget(accountPage, 'result.details', 'Latest result scene did not replace the preview');
       await assertProjectRepository('Latest delivered results');
       await clickAccountTarget('project.section.conversation');
-      await accountPage.waitForSelector('.gpu-project-mcp-actions input[type="checkbox"]');
+      await accountPage.click('.gpu-project-mcp-own-agent > summary');
+      await accountPage.waitForSelector('.gpu-project-mcp-own-agent[open] .gpu-project-mcp-actions input[type="checkbox"]', { visible: true });
       console.log('Project repository ok: real canvas link remains clickable in all five tabs');
       await accountPage.setViewport({ width: 528, height: 800, deviceScaleFactor: 2 });
       console.log('Project preview tab ok: Runs -> Preview app -> Files; inline frame closes and reopens with a fresh claim');
       stubs[terminalPreviewPath] = { ...stubs[terminalPreviewPath], availability: 'unavailable',
         kind: null, reason: 'unsupported-deliverable', mode: undefined, state: 'stopped', generation: 0 };
-      await accountPage.waitForSelector('.gpu-project-mcp-actions input[type="checkbox"]');
+      await accountPage.waitForSelector('.gpu-project-mcp-actions input[type="checkbox"]', { visible: true });
       await accountPage.click('.gpu-project-mcp-actions input[type="checkbox"]');
       await accountPage.waitForFunction(() => document.querySelector('.gpu-project-mcp-actions input[type="checkbox"]')?.checked);
       await accountPage.reload({ waitUntil: 'load' });
       await passArrivalGate(accountPage);
       await waitForHitTarget(accountPage, `project.select.${projectId}`, 'fork project missing after reload');
       await clickAccountTarget(`project.select.${projectId}`);
+      await accountPage.click('.gpu-project-mcp-own-agent > summary');
+      await accountPage.waitForSelector('.gpu-project-mcp-own-agent[open] .gpu-project-mcp-actions input[type="checkbox"]', { visible: true });
       await accountPage.waitForFunction(() => document.querySelector('.gpu-project-mcp-actions input[type="checkbox"]')?.checked);
       console.log('Fork upstream setting ok: saved toggle survives reload');
       const blocked = stubs[`/api/projects/${projectId}/runs`][0];
@@ -2850,15 +2902,21 @@ try {
       });
       await accountPage.waitForSelector('.gpu-ui-host[data-gpu-backend]', { timeout: READY_TIMEOUT_MS });
       updateBuildAvailable = false;
-      await accountPage.waitForFunction(() =>
-        document.querySelector('.gpu-project-mcp')?.textContent?.includes('Continue Wide Glyph Project')
+      // The selected project's identity survives reload; its guide heading is
+      // now the generic "Continue this project", not a copy of its name.
+      const selectedProjectRestored = (id) => Boolean(
+        document.querySelector('.gpu-project-mcp--selected') &&
+        globalThis.__ATOMA_GPU__?.hitTargets().some(target => target.id === `project.repository.${id}`)
       );
+      await accountPage.waitForFunction(selectedProjectRestored, { timeout: READY_TIMEOUT_MS }, projectId);
       await clickAccountTarget('project.section.runs');
       await waitForHitTarget(accountPage, prTarget, 'automatic update did not restore project runs');
-      const restoredUpdate = await accountPage.evaluate(() => ({
-        selectedProject: document.querySelector('.gpu-project-mcp')?.textContent?.includes('Continue Wide Glyph Project'),
-        projectRunsVisible: globalThis.__ATOMA_GPU__?.hitTargets().some(t => t.id === 'project.pullRequest.eeeeeeee-1111-4222-8333-ffffffffffff'),
-      }));
+      const restoredUpdate = {
+        selectedProject: await accountPage.evaluate(selectedProjectRestored, projectId),
+        projectRunsVisible: await accountPage.evaluate(() =>
+          globalThis.__ATOMA_GPU__?.hitTargets().some(t => t.id === 'project.pullRequest.eeeeeeee-1111-4222-8333-ffffffffffff')
+        ),
+      };
       if (updateProbes <= probesBefore || !restoredUpdate.selectedProject || !restoredUpdate.projectRunsVisible) {
         throw new Error(`automatic update did not restore project navigation: ${JSON.stringify(restoredUpdate)}`);
       }
