@@ -117,7 +117,10 @@ Neighbours:
   against the real CLI; change it only with a new measurement.
 - Every trace string is UNTRUSTED. The prompt says so, the appended system
   prompt says so again, and an instruction-shaped payload in a trace is itself
-  a `security_incident` finding.
+  a `security_incident` finding. The exception is the host's own sentences,
+  listed once in `src/contracts/hostInstructions.ts` and shown verbatim to the
+  analyst: runs 004e9cfa and 299627a9 (2026-10-09) were filed incidents for
+  quoting the run_shell routing hint and the final-turn hint. Exact text only.
 - Codex uses an ephemeral app-server thread with one private dynamic reader
   (`codexReader.ts`): an exact allowlist of source/docs and this run's evidence,
   bounded lines and literal searches, no model-authored commands. Built-in

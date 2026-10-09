@@ -1,4 +1,5 @@
 import { withPartialUsage } from './metrics.js';
+import { BUDGET_EXHAUSTED_HINT } from '../contracts/hostInstructions.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { modelSupportsEffort, modelSupportsSamplingParams } from './models.js';
 import type {
@@ -24,16 +25,8 @@ export const DEFAULT_MAX_TOOL_ITERATIONS = 24;
  */
 export const MAX_TOOL_RESULT_CHARS = 20_000;
 
-/**
- * Hint appended alongside the final tool_result batch when the budget is
- * exhausted. Tells the model it has NO more tool access this turn and must
- * produce its final response as text now. Kept short so it doesn't steer the
- * content of the final answer beyond "stop calling tools".
- */
-export const BUDGET_EXHAUSTED_HINT =
-  'TOOL BUDGET EXHAUSTED for this turn. You have no more tool access. ' +
-  'Produce the final response now as plain text (or structured JSON if the task requires it). ' +
-  'Do NOT attempt to call any more tools — tools are disabled for this message.';
+/** Host-authored, defined beside the other sentences the analyst must recognise. */
+export { BUDGET_EXHAUSTED_HINT };
 
 export class AnthropicLlmClient implements LlmClient {
   constructor(private readonly client: Anthropic) {}

@@ -13,6 +13,7 @@ import { digestRun, runStatusOf } from '../src/supervisor/digest.js';
 import { eligibleFindings } from '../src/supervisor/menderPolicy.js';
 import { acquireRunLeaseWithoutRecovery, peekRunLease } from '../src/mcp/runLock.js';
 import { ASSERTION_EVIDENCE_GUIDANCE } from '../src/atoms/prompts.js';
+import { RUN_SHELL_BASH_ROUTE_HINT } from '../src/contracts/hostInstructions.js';
 
 /**
  * STAGE 2, THE ANALYST, with a stub in place of the model. What these hold:
@@ -270,6 +271,7 @@ describe('analyseRun', () => {
     expect(args.at(-1)).toContain('supervisor/work/');
     expect(args.at(-1)).toContain('Required review of every stage');
     expect(args.at(-1)).toContain(ASSERTION_EVIDENCE_GUIDANCE);
+    expect(args.at(-1)).toContain(JSON.stringify(RUN_SHELL_BASH_ROUTE_HINT));
     expect(args.at(-1)).toContain('A refusal followed by approval does not itself establish a recovered proof gap.');
     // The prompt the session is held to carries the calibration, because the
     // kind a finding gets is decided there and nowhere else.

@@ -30,6 +30,7 @@ export { appendHttpProbe, mergeProbeManifestWrite, mergeShellProbe, probeManifes
 import { elementForTool } from '../contracts/toolTaxonomy.js';
 import { MAX_VIEWPORT_PX, MIN_VIEWPORT_PX, PROBE_URL_REFUSAL_PREFIX, SMOKE_PREFLIGHT_REFUSAL_PREFIX } from '../contracts/attestation.js';
 import { HOST_REPLAY_ARG } from '../contracts/inheritedChecks.js';
+import { RUN_SHELL_BASH_ROUTE_HINT } from '../contracts/hostInstructions.js';
 import { serverCodeDigest } from '../contracts/serverDigest.js';
 import {
   DEFAULT_HOLD_MS,
@@ -980,7 +981,7 @@ export function runShellTool(opts: BuiltinToolOptions): BuiltinTool {
           );
         }
         throw new Error(
-          `run_shell: command "${command}" is not in allowlist (${[...allowlist].join(', ')}). For anything else, invoke it through bash: command: "bash", args: ["-c", "..."] — except network fetches, which belong to the fetch_url tool.`
+          `run_shell: command "${command}" is not in allowlist (${[...allowlist].join(', ')}). ${RUN_SHELL_BASH_ROUTE_HINT}`
         );
       }
       opts.logger?.info(`[tool:run_shell] ${command} ${argv.join(' ')}`);
