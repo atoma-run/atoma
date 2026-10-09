@@ -1,6 +1,6 @@
 import { WORKSPACE_LIMITS } from '../contracts/workspaceLimits.js';
 import type { RepositoryInventory, RepositorySync } from '../contracts/repositorySync.js';
-import { inventoryRepositoryWorkspace, carryRepositoryBase, repositoryFile, repositoryDebt, planRepositorySync, remoteRepositoryInventory } from './repositorySync.js';
+import { inventoryRepositoryWorkspace, carryRepositoryBase, repositoryFile, sameRepositoryFile, repositoryDebt, planRepositorySync, remoteRepositoryInventory } from './repositorySync.js';
 import { materialiseRepositorySeed } from './repositorySeed.js';
 import path from 'node:path';
 import { mkdir, writeFile, rm } from 'node:fs/promises';
@@ -733,15 +733,42 @@ export class GitHubPublisher {
         const recorded = this.store.getRepositorySync(project.orgId, run.projectRunId);
         if (recorded && !recorded.debtResolved) throw new Error('Repository debt is unresolved');
         const captured = this.store.getProjectRun(project.orgId, run.projectRunId)?.repositoryBase;
-        const base = recorded?.base ?? (project.repositoryTarget.source?.mode === 'fork' && captured
+        const base = recorded ? { ...recorded.base } : (project.repositoryTarget.source?.mode === 'fork' && captured
           ? remoteRepositoryInventory(await this.client.readRepositoryTree({ token: installationToken.token,
               owner: project.repositoryTarget.owner, name: project.repositoryTarget.name,
               commitSha: captured.commitSha, paths: run.artifactManifest!.files.map(f => f.path) }))
           : await this.seedBase(project, run, installationToken.token));
         const ours = inventoryRepositoryWorkspace(input.workspaceRoot);
-        const debt = repositoryDebt(base, ours, false);
-        const entries = await this.client.readRepositoryTree({ token: installationToken.token,
-          owner: project.repositoryTarget.owner, name: project.repositoryTarget.name, commitSha: head, paths: [...debt] });
+        let debt = repositoryDebt(base, ours, false);
+        const read = (commitSha: string, paths: string[]) => this.client.readRepositoryTree({ token: installationToken.token,
+          owner: project.repositoryTarget.owner, name: project.repositoryTarget.name, commitSha, paths });
+        const entries = await read(head, [...debt]);
+        // ATOMA'S OWN COMMITS ARE NOT THE PERSON'S EDITS. The recorded base is
+        // the head this run synchronised from; an older run accepted and
+        // published since then (its seed, typically) wrote the branch too.
+        // Read against the old base, that commit looks like a client edit on
+        // every path both runs changed, and this run's accepted bytes were
+        // dropped as a "conflict" and then lost from the lineage. Advance the
+        // base by exactly what each such commit changed, so a person's edit
+        // made on top of it still wins.
+        if (recorded && debt.size) {
+          const paths = [...debt];
+          for (const own of this.store.publishedCommitsSince(project.orgId, project.projectId, run.startedAt ?? run.createdAt)) {
+            if (own.projectRunId === run.projectRunId || own.commitSha === own.baseSha) continue;
+            const parents = (await this.client.getCommit(installationToken.token, project.repositoryTarget.owner,
+              project.repositoryTarget.name, own.commitSha)).parents;
+            if (parents.length > 1) continue;
+            const after = remoteRepositoryInventory(await read(own.commitSha, paths));
+            const before = parents[0] ? remoteRepositoryInventory(await read(parents[0], paths)) : {};
+            for (const p of paths) {
+              const value = repositoryFile(after, p);
+              if (sameRepositoryFile(value, repositoryFile(before, p))) continue;
+              if (value) Object.defineProperty(base, p, { value, enumerable: true, writable: true, configurable: true });
+              else delete base[p];
+            }
+          }
+          debt = repositoryDebt(base, ours, false);
+        }
         const theirs = remoteRepositoryInventory(entries);
         if (!recorded && !project.repositoryTarget.source) for (const p of Object.keys(ours)) if (!repositoryFile(base, p) && repositoryFile(theirs, p)) debt.delete(p);
         const plan = planRepositorySync({ base, ours, theirs, debt, remoteEntries: entries });

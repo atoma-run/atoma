@@ -8,6 +8,7 @@ import { GitHubAppClient } from '../src/github/client.js';
 import { GitHubStore } from '../src/github/store.js';
 import { GitHubPublisher } from '../src/projects/publisher.js';
 import { ProjectRunCoordinator, type ProjectRunDriver } from '../src/projects/coordinator.js';
+import { ProjectService } from '../src/projects/service.js';
 import { ARTIFACT_MANIFEST_PATH_ENV } from '../src/run/runner.js';
 import { HAYSTACK_LAUNCH_ENV } from '../src/contracts/retrievalHaystack.js';
 import { projectRetrievalFixture } from './helpers/projectRetrievalLaunch.js';
@@ -60,7 +61,19 @@ function fixture() {
     await coordinator.retryPublication(f.viewer.orgId, run.projectRunId).catch(() => {});
     return finished;
   };
-  return { ...f, client, fake, publisher, coordinator, start, release, setEdit: (change: typeof edit) => { edit = change; } };
+  const deliver = async (change: typeof edit) => {
+    edit = change;
+    const run = await coordinator.start({ orgId: f.viewer.orgId, principalId: f.viewer.principalId, projectId: f.project.projectId,
+      request: { idempotencyKey: randomUUID(), goal: 'Improve the application.' } });
+    await coordinator.waitForIdle();
+    const finished = f.projects.getProjectRun(f.viewer.orgId, run.projectRunId)!;
+    expect(finished.status, finished.error ?? '').toBe('delivered');
+    return finished;
+  };
+  const service = new ProjectService({ store: f.projects, coordinator, github });
+  const accept = (run: { projectRunId: string; artifactManifestHash?: string | null }) => service.acceptDelivery(f.viewer,
+    f.project.projectId, run.projectRunId, { manifestHash: run.artifactManifestHash!, review: 'Client tested it.' });
+  return { ...f, client, fake, publisher, coordinator, start, deliver, accept, release, setEdit: (change: typeof edit) => { edit = change; } };
 }
 it('syncs remote edits and additions before model work and protects concurrent edits at publication', async () => {
   const f = fixture();
@@ -194,4 +207,31 @@ it('starts from the selected saved bytes while publication preserves newer remot
   expect(f.fake.filesOn('owner', 'docs', 'main').get('app.js')?.text).toBe('remote edit');
   expect(f.fake.filesOn('owner', 'docs', 'main').get('iteration.txt')?.text).toBe('new work');
   expect(readFileSync(join(first.hostPaths.workspacePath, 'app.js'), 'utf8')).toBe('reviewed');
+});
+
+it('publishes a later accepted run over the older one accepted and published after it synchronised', async () => {
+  // Code review 2026-10-09 1.3: Y is seeded from X while X waits for acceptance.
+  // Accepting X, then Y, used to drop Y's edits as a "conflict" with X's commit.
+  const f = fixture();
+  const put = (files: Record<string, string>) => (w: string) => {
+    for (const [p, text] of Object.entries(files)) writeFileSync(join(w, p), text);
+  };
+  const repo = (p: string) => f.fake.filesOn('owner', 'docs', 'main').get(p)?.text;
+  await f.start(put({ 'app.js': 'app', 'F.txt': 'f0', 'G.txt': 'g0', 'H.txt': 'h0' }));
+  const x = await f.deliver(put({ 'F.txt': 'f1', 'G.txt': 'g1' }));
+  const y = await f.deliver(w => {
+    expect(readFileSync(join(w, 'G.txt'), 'utf8')).toBe('g1');
+    put({ 'F.txt': 'f2', 'H.txt': 'h2' })(w);
+  });
+  await f.accept(x);
+  expect(f.projects.getPublicationForRun(f.viewer.orgId, x.projectRunId)?.status).toBe('published');
+  expect(repo('F.txt')).toBe('f1');
+  f.fake.commitOutside('owner', 'docs', 'main', 'H.txt', 'client');
+  await f.accept(y);
+  const published = f.projects.getPublicationForRun(f.viewer.orgId, y.projectRunId);
+  expect(published?.status).toBe('published');
+  expect(repo('F.txt')).toBe('f2');
+  expect(repo('G.txt')).toBe('g1');
+  expect(repo('H.txt')).toBe('client');
+  await f.deliver(w => expect(readFileSync(join(w, 'F.txt'), 'utf8')).toBe('f2'));
 });

@@ -2442,6 +2442,30 @@ END;
     };
   }
 
+  /**
+   * This project's own commits published AFTER `since`, oldest first. A run's
+   * repository base is the head it synchronised from; an older lineage run
+   * accepted and published after that is Atoma's write, not the person's, and
+   * the later run's publication must not read it as an edit to keep.
+   */
+  publishedCommitsSince(
+    orgIdInput: string,
+    projectIdInput: string,
+    since: string
+  ): { projectRunId: string; commitSha: string; baseSha: string | null }[] {
+    const orgId = organisationIdSchema.parse(orgIdInput);
+    const projectId = projectIdSchema.parse(projectIdInput);
+    const rows = this.db.prepare(
+      `SELECT pub.project_run_id, pub.commit_sha, pub.base_sha
+         FROM project_publications pub
+         JOIN project_runs r ON r.project_run_id = pub.project_run_id AND r.org_id = pub.org_id
+        WHERE pub.org_id = ? AND r.project_id = ? AND pub.status = 'published'
+          AND pub.commit_sha IS NOT NULL AND pub.published_at > ?
+        ORDER BY pub.published_at ASC, pub.project_run_id ASC`
+    ).all(orgId, projectId, since) as { project_run_id: string; commit_sha: string; base_sha: string | null }[];
+    return rows.map(row => ({ projectRunId: row.project_run_id, commitSha: row.commit_sha, baseSha: row.base_sha }));
+  }
+
   transitionPublication(input: {
     readonly orgId: string;
     readonly publicationId: string;
