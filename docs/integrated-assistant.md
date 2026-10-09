@@ -102,8 +102,10 @@ characters, plus at most 20,000 characters of MCP context. Only an unbound
 new-project conversation receives the latest 20 projects and GitHub installations
 for discovery. For a selected project, catalogue metadata is filtered by its
 saved project ID before serialization; no other project's entry or catalogue
-cursor reaches the model. Its saved brief, readiness and latest run are read
-by that same ID even outside the catalogue page. Instructions keep replies in
+cursor reaches the model. A project beyond the first catalogue page is found
+by following the cursor, so its name and repository still reach the model and
+the confirmation card. Its saved brief, readiness and latest run are read by
+that same ID. Instructions keep replies in
 that project, including when old messages mentioned another one. Saved messages
 remain unchanged. This is saved Atoma context,
 not a claim to inspect live GitHub or local files.

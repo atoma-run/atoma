@@ -127,6 +127,28 @@ describe('the integrated assistant', () => {
     expect(f.store.read(scope).conversation.proposal?.projectName).toBe('Stock tracker');
   });
 
+  it('names a selected project beyond the first catalogue page, by following its cursor', async () => {
+    const f = fixture(start);
+    const otherId = randomUUID();
+    const call = f.call.getMockImplementation()!;
+    f.call.mockImplementation(async (name, args, task) => {
+      if (name !== 'atoma_projects_list') return call(name, args, task);
+      if (args['cursor'] === undefined) {
+        return { projects: [{ projectId: otherId, name: 'Minesweeper', repositoryUrl: 'https://github.com/example/minesweeper' }], nextCursor: 'page-2' };
+      }
+      return args['cursor'] === 'page-2'
+        ? { projects: [{ projectId, name: 'Stock tracker', repositoryUrl: 'https://github.com/example/stock-tracker' }], nextCursor: null }
+        : { projects: [], nextCursor: null };
+    });
+    const scope = f.service.scope(f.viewer, projectId);
+    await f.service.request(scope, { ...f.message(), projectId }, f.mcp);
+    const { userContent } = f.complete.mock.calls[0]![0];
+    expect(userContent).toContain('Stock tracker');
+    expect(userContent).toContain('https://github.com/example/stock-tracker');
+    for (const foreign of [otherId, 'Minesweeper', 'page-2']) expect(userContent).not.toContain(foreign);
+    expect(f.store.read(scope).conversation.proposal?.projectName).toBe('Stock tracker');
+  });
+
   it('invalidates old proposals after a new message and refuses caller-authored action arguments', async () => {
     const f = fixture();
     await f.service.request(f.scope, f.message(), f.mcp);

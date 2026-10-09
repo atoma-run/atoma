@@ -112,9 +112,23 @@ export class AssistantService {
     this.store.save(scope, conversation, false);
     const selectedId = conversation.projectId;
     // The catalogue also supplies the selected project's name/repository. Keep
-    // other projects and catalogue pagination out of its model context.
-    const projects = { projects: list(await mcp.call('atoma_projects_list', { view: 'compact', limit: 20 }), 'projects')
-      .filter(project => !selectedId || project['projectId'] === selectedId) };
+    // other projects and catalogue pagination out of its model context. A
+    // selected project beyond the first page is followed by cursor, so it never
+    // reaches the model, or the confirmation card, as a bare id.
+    let page = await mcp.call('atoma_projects_list', { view: 'compact', limit: 20 });
+    let entries = list(page, 'projects');
+    if (selectedId) {
+      let selected = entries.filter(project => project['projectId'] === selectedId);
+      const seen = new Set<string>();
+      for (let cursor = object(page)['nextCursor']; !selected.length && typeof cursor === 'string' && !seen.has(cursor);
+        cursor = object(page)['nextCursor']) {
+        seen.add(cursor);
+        page = await mcp.call('atoma_projects_list', { view: 'compact', limit: 50, cursor });
+        selected = list(page, 'projects').filter(project => project['projectId'] === selectedId);
+      }
+      entries = selected;
+    }
+    const projects = { projects: entries };
     const installations = selectedId ? undefined : await mcp.call('atoma_github_installations', {});
     const context: Record<string, unknown> = { projects, installations, selectedProjectId: selectedId, previousProposal };
     if (selectedId) {
