@@ -599,3 +599,38 @@ describe('ProjectService — roles, IDOR and slug identity', () => {
     ).rejects.toMatchObject({ status: 404 });
   });
 });
+
+describe('ProjectService — platform live runs', () => {
+  it('lists running work across organisations before traces exist, audits it, and omits finished work and paths', () => {
+    const auditRead = vi.fn(() => true as const);
+    const svc = new ProjectService({ store: projects, github, auditRead,
+      coordinator: {} as ProjectRunCoordinator });
+    const rows = [alice, bob].map(owner => {
+      const project = projects.createProject({ orgId: owner.orgId, principalId: owner.principalId,
+        project: payload('1') });
+      const run = projects.createProjectRun({ orgId: owner.orgId, principalId: owner.principalId,
+        projectId: project.projectId, request: { goal: `${owner.displayName} live work`, idempotencyKey: randomUUID() },
+        hostPaths: { workspacePath: '/missing/workspace', runsPath: `/missing/${randomUUID()}`, logPath: '/missing/run.log' } })!.run;
+      return { owner, project, run };
+    });
+    const admin = { ...alice, platformAdmin: true };
+    expect(() => svc.listLiveRuns(alice)).toThrow('platform admin required');
+    expect(svc.listLiveRuns(admin)).toEqual([]);
+    for (const { owner, run } of rows) projects.transitionProjectRun({ orgId: owner.orgId,
+      projectRunId: run.projectRunId, from: 'queued', to: 'running' });
+    const listed = svc.listLiveRuns(admin);
+    expect(listed).toHaveLength(2);
+    for (const { owner, project, run } of rows) {
+      expect(listed).toContainEqual({ projectRunId: run.projectRunId, projectId: project.projectId,
+        projectName: project.name, projectSlug: project.slug, orgId: owner.orgId, orgName: owner.orgName,
+        goal: run.goal, startedAt: expect.any(String), traceId: null });
+    }
+    expect(JSON.stringify(listed)).not.toContain('/missing');
+    expect(auditRead).toHaveBeenCalledExactlyOnceWith({ actorId: alice.principalId, orgId: bob.orgId, surface: 'runs.index' });
+    auditRead.mockImplementationOnce(() => { throw new Error('journal unavailable'); });
+    expect(() => svc.listLiveRuns(admin)).toThrow('cross-organisation audit unavailable');
+    for (const { owner, run } of rows) projects.transitionProjectRun({ orgId: owner.orgId,
+      projectRunId: run.projectRunId, from: 'running', to: 'cancelled' });
+    expect(svc.listLiveRuns(admin)).toEqual([]);
+  });
+});

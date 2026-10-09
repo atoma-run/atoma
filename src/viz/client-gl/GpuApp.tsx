@@ -61,6 +61,7 @@ import {
   useNotificationsPages,
   useAdminLedger,
   useAdminSentinel,
+  useAdminLiveRuns,
   useAdminOrganisations,
   useBurnin,
   useOrganisation,
@@ -476,6 +477,7 @@ function GpuAppContent({
   });
   const adminLedgerQuery = useAdminLedger(state.view === 'ledger' && isPlatformAdmin);
   const adminSentinelQuery = useAdminSentinel(state.view === 'sentinel' && isPlatformAdmin);
+  const adminLiveRunsQuery = useAdminLiveRuns(state.view === 'liveRuns' && isPlatformAdmin);
   // ONE way to ask for the next page, so the wheel gesture and the button
   // cannot diverge. React Query makes a second call while one is in flight a
   // no-op, and `hasNextPage` false makes it a no-op too — which is what lets
@@ -1075,6 +1077,17 @@ function GpuAppContent({
       if (role && orgId) void mintInvitation(orgId, role);
       return;
     }
+    if (id.startsWith('liveRuns.run.')) {
+      // Read the latest poll without changing the activation callback on every
+      // refresh; the renderer can then defer that refresh while the reader scrolls.
+      const runs = queryClient.getQueryData<import('../../contracts/projects.js').PlatformLiveRun[]>(['viz', 'admin', 'live-runs']);
+      const run = runs?.find(row => row.projectRunId === id.slice('liveRuns.run.'.length));
+      if (!run?.traceId) return;
+      store.selectProject(run.projectId);
+      store.selectRun(run.traceId);
+      store.setView('runs');
+      return;
+    }
   }, [
     activateAuth,
     queryClient,
@@ -1132,6 +1145,7 @@ function GpuAppContent({
     (state.view === 'journal' && adminEventsQuery.isLoading) ||
     (state.view === 'ledger' && adminLedgerQuery.isLoading) ||
     (state.view === 'sentinel' && adminSentinelQuery.isLoading) ||
+    (state.view === 'liveRuns' && adminLiveRunsQuery.isLoading) ||
     (state.view === 'settings' && (organisationQuery.isLoading || accountModelsQuery.isLoading));
   const error = errorMessage([
     runsQuery.error,
@@ -1157,6 +1171,7 @@ function GpuAppContent({
     adminEventsQuery.error,
     adminLedgerQuery.error,
     adminSentinelQuery.error,
+    adminLiveRunsQuery.error,
   ], t);
   const data = useMemo(() => ({
     auth: authSnapshot,
@@ -1192,6 +1207,7 @@ function GpuAppContent({
     notificationsError: notificationsQuery.isError,
     adminLedger: adminLedgerQuery.data?.events ?? [],
     adminSentinel: adminSentinelQuery.data ?? null,
+    adminLiveRuns: isPlatformAdmin ? adminLiveRunsQuery.data ?? [] : [],
     adminInvitation,
     adminError,
     organisation: organisationQuery.data ?? null,
@@ -1220,6 +1236,8 @@ function GpuAppContent({
     notificationsQuery.isError,
     adminLedgerQuery.data,
     adminSentinelQuery.data,
+    adminLiveRunsQuery.data,
+    isPlatformAdmin,
     authSnapshot,
     organisationQuery.data,
     login,
@@ -1309,6 +1327,7 @@ function GpuAppContent({
         />
         <GpuDomBridge
           authSnapshot={authSnapshot}
+          adminLiveRuns={data.adminLiveRuns}
           runs={runsQuery.data ?? []}
           run={runQuery.data ?? null}
           releaseVersion={RELEASE_VERSION}

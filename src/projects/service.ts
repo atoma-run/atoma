@@ -26,6 +26,7 @@ import {
   projectShowcaseSchema,
   startProjectRunInputSchema,
   projectRunPublicSchema,
+  platformLiveRunSchema,
   type Project,
   type ProjectRun,
 } from '../contracts/projects.js';
@@ -294,6 +295,17 @@ export class ProjectService {
         shown.has(project.projectId)
       )
     ).sort(newestActivityFirst);
+  }
+
+  /** GET /api/admin/live-runs — the same transactional live set as Sentinel. */
+  listLiveRuns(viewer: Viewer) {
+    if (!viewer.platformAdmin) throw new ProjectHttpError(403, 'platform admin required');
+    const rows = this.store.listLiveRunTraces();
+    for (const orgId of new Set(rows.map(row => row.orgId))) {
+      this.auditRead(viewer, orgId, 'runs.index');
+    }
+    // The schema strips internal trace paths before anything reaches a browser.
+    return rows.map(row => platformLiveRunSchema.parse(row));
   }
 
   /** Compact menus are shared by HTTP and MCP; legacy listings keep their shape. */

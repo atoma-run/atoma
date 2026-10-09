@@ -21,6 +21,7 @@ export type NavIconKind =
 const CONTROL_ICON: Readonly<Record<string, NavIconKind>> = {
   'nav.projects': 'projects',
   'nav.runs': 'runs',
+  'nav.liveRuns': 'runs',
   'nav.docs': 'docs',
   'nav.registry': 'registry',
   'nav.skills': 'skills',

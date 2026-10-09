@@ -73,6 +73,20 @@ export function projectSlugFromName(name: string): string {
 export const projectPromptSchema = z.string().trim().max(4_000);
 export const projectGoalSchema = z.string().trim().min(1).max(4_000);
 
+/** Platform-only live listing. Trace availability does not determine liveness. */
+export const platformLiveRunSchema = z.object({
+  projectRunId: projectRunIdSchema,
+  projectId: projectIdSchema,
+  orgId: organisationIdSchema,
+  orgName: z.string().nullable(),
+  projectName: projectNameSchema,
+  projectSlug: projectSlugSchema,
+  goal: projectGoalSchema,
+  startedAt: z.string().datetime().nullable(),
+  traceId: z.string().nullable(),
+});
+export type PlatformLiveRun = z.infer<typeof platformLiveRunSchema>;
+
 /**
  * A run's SHORT TITLE: one line naming what the goal asked, written once by
  * the platform's tier-1 model when the run ends (`src/projects/runTitle.ts`).

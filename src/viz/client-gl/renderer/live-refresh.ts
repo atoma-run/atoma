@@ -70,6 +70,8 @@ function isLiveRefreshKey(
       return previous.runs.some((entry) => isIndexEntryLive(entry, now));
     case 'projectRuns':
       return anyProjectRunLive(previous.projectRuns);
+    case 'adminLiveRuns':
+      return previous.adminLiveRuns.length > 0;
     default:
       return false;
   }

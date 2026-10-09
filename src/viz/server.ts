@@ -3700,6 +3700,16 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
         sendJson(res, 403, { error: 'platform admin required' });
         return;
       }
+      if (pathname === '/api/admin/live-runs') {
+        if (!methodAllowed(req, res, 'GET')) return;
+        try {
+          sendJson(res, 200, PROJECTS_RUNTIME?.projects.listLiveRuns(viewer) ?? []);
+        } catch (error) {
+          if (!(error instanceof ProjectHttpError)) throw error;
+          sendJson(res, error.status, error.problem);
+        }
+        return;
+      }
       const authStore = AUTH.store!;
       // THE AUDIT JOURNAL. Newest-first, cursor-paged on `seq` — the same
       // reading direction as the runs timeline. `before` is exclusive so a

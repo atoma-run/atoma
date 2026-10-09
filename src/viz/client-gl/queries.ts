@@ -299,6 +299,18 @@ export function useNotificationsPages(active: boolean, locale: string) {
   });
 }
 
+/** The platform-wide running set, refreshed only while its admin view is open. */
+export function useAdminLiveRuns(active: boolean) {
+  const query = useQuery({
+    queryKey: ['viz', 'admin', 'live-runs'],
+    queryFn: api.adminLiveRuns,
+    enabled: active,
+    staleTime: 750,
+    refetchInterval: active ? 2_000 : false,
+  });
+  return { ...query, error: active ? query.error : null };
+}
+
 /**
  * The sentinel's own screen: rule table, live coverage, findings. Polled at
  * the runs cadence rather than the journal's, because half of it IS live

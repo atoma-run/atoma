@@ -166,6 +166,7 @@ import { buildAtomaMarkFrame } from '../src/viz/client-gl/brand-mark.js';
 import { drawAdmin } from '../src/viz/client-gl/renderer/views/admin.js';
 import { drawJournal, JOURNAL_SEVERITIES } from '../src/viz/client-gl/renderer/views/journal.js';
 import { drawLedger } from '../src/viz/client-gl/renderer/views/ledger.js';
+import { drawLiveRuns } from '../src/viz/client-gl/renderer/views/live-runs.js';
 import { drawSentinel } from '../src/viz/client-gl/renderer/views/sentinel.js';
 import { PLATFORM_EVENT_FAMILIES } from '../src/contracts/platformEvents.js';
 
@@ -657,7 +658,7 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     appearanceTheme: 'nocturne',
     appearanceTransitionTarget: null,
     themeDropdownOpen: false,
-    scrollY: { projects: 0, runs: 0, registry: 0, skills: 0, burnin: 0, docs: 0, admin: 0, journal: 0, ledger: 0, sentinel: 0, announce: 0, settings: 0 },
+    scrollY: { projects: 0, runs: 0, registry: 0, skills: 0, burnin: 0, docs: 0, admin: 0, journal: 0, ledger: 0, sentinel: 0, liveRuns: 0, announce: 0, settings: 0 },
     entered: true,
     handheld: false,
     handheldAccepted: false,
@@ -744,6 +745,7 @@ function makeData(overrides: Partial<GpuDataSnapshot> = {}): GpuDataSnapshot {
     notificationsError: false,
     adminLedger: [],
     adminSentinel: null,
+    adminLiveRuns: [],
     adminInvitation: null,
     adminError: null,
     organisation: null,
@@ -1966,7 +1968,7 @@ describe('visibleViews', () => {
     // exist to poison the global data error. Docs stays: it is static prose,
     // not a fetch of gated data.
     expect(visibleViews({ ...base, viewer })).toEqual(['projects', 'runs', 'registry', 'skills', 'docs']);
-    // The admin plane is FIVE destinations, one per job, not one tab holding
+    // The admin plane is SIX destinations, one per job, not one tab holding
     // organisations, the journal, the ledger and the sentinel at once — and
     // the composer that used to ride at the foot of the organisation list is
     // one of them, not a form bolted onto a screen about something else.
@@ -1974,7 +1976,7 @@ describe('visibleViews', () => {
       visibleViews({ ...base, viewer: { ...viewer, platformAdmin: true } })
     ).toEqual([
       'projects', 'runs', 'registry', 'skills', 'burnin', 'docs',
-      'admin', 'journal', 'ledger', 'sentinel', 'announce',
+      'liveRuns', 'admin', 'journal', 'ledger', 'sentinel', 'announce',
     ]);
   });
 
@@ -4312,6 +4314,7 @@ describe('drawRegistry scrolling honesty', () => {
             journal: 0,
             ledger: 0,
             sentinel: 0,
+            liveRuns: 0,
             announce: 0,
             settings: 0,
           },
@@ -4719,7 +4722,7 @@ describe('drawBurnin scroll, pagination and lifecycle columns', () => {
         {
           view: 'burnin',
           burninPage: 2,
-          scrollY: { projects: 0, runs: 0, registry: 0, skills: 0, burnin: 500, docs: 0, admin: 0, journal: 0, ledger: 0, sentinel: 0, announce: 0, settings: 0 },
+          scrollY: { projects: 0, runs: 0, registry: 0, skills: 0, burnin: 500, docs: 0, admin: 0, journal: 0, ledger: 0, sentinel: 0, liveRuns: 0, announce: 0, settings: 0 },
         },
         data
       ),
@@ -4770,7 +4773,7 @@ describe('drawBurnin scroll, pagination and lifecycle columns', () => {
       makeSnapshot(
         {
           view: 'burnin',
-          scrollY: { projects: 0, runs: 0, registry: 0, skills: 0, burnin: SCROLL, docs: 0, admin: 0, journal: 0, ledger: 0, sentinel: 0, announce: 0, settings: 0 },
+          scrollY: { projects: 0, runs: 0, registry: 0, skills: 0, burnin: SCROLL, docs: 0, admin: 0, journal: 0, ledger: 0, sentinel: 0, liveRuns: 0, announce: 0, settings: 0 },
         },
         data
       ),
@@ -5961,6 +5964,7 @@ describe('drawRuns behavior', () => {
             journal: 0,
             ledger: 0,
             sentinel: 0,
+            liveRuns: 0,
             announce: 0,
             settings: 0,
           },
@@ -7366,5 +7370,40 @@ describe('project-grouped run picker', () => {
     expect(last.buttons.at(-1)!.id).toBe('run.select.run-59');
     expect(last.buttons.length).toBeLessThan(10);
     expect(last.buttons.at(-1)!.y + last.buttons.at(-1)!.height).toBeLessThanOrEqual(bounds.bottom);
+  });
+});
+
+describe('drawLiveRuns', () => {
+  const runs = [
+    { projectRunId: 'run-a', projectId: 'project-a', projectName: 'Weather Lab', projectSlug: 'weather',
+      orgId: 'org-a', orgName: 'Alice Org', goal: 'Build a weather dashboard',
+      startedAt: '2026-10-09T10:00:00.000Z', traceId: 'run-a' },
+    { projectRunId: 'run-b', projectId: 'project-b', projectName: 'Store', projectSlug: 'store',
+      orgId: 'org-b', orgName: 'Bob Org', goal: 'Prepare the store',
+      startedAt: null, traceId: null },
+  ];
+  it.each([360, 1280])('shows cross-org context and only opens available traces at width %i', width => {
+    const ctx = createRecordingCtx();
+    const snapshot = makeSnapshot({ view: 'liveRuns' }, { adminLiveRuns: runs });
+    drawLiveRuns(ctx, snapshot, width, 720);
+    const values = ctx.texts.map(text => text.value);
+    expect(values).toEqual(expect.arrayContaining(['Alice Org', 'Bob Org', 'Weather Lab', 'Store', runs[0]!.goal]));
+    expect(values).toContain('Preparing — the run trace is not available yet.');
+    expect(ctx.buttons.map(button => button.id)).toEqual(['liveRuns.run.run-a']);
+    expect(ctx.tooltips.some(tooltip => tooltip.text === runs[0]!.goal)).toBe(true);
+    for (const button of ctx.buttons) {
+      expect(button.x).toBeGreaterThanOrEqual(0);
+      expect(button.x + button.width).toBeLessThanOrEqual(width);
+    }
+    expect(ctx.scrollMax.liveRuns).toBeGreaterThanOrEqual(0);
+  });
+  it('has an explicit empty state and a scrollable list', () => {
+    const empty = createRecordingCtx();
+    drawLiveRuns(empty, makeSnapshot({ view: 'liveRuns' }), 1280, 720);
+    expect(empty.texts.map(text => text.value)).toContain('No runs are currently running across the organisations.');
+    const full = createRecordingCtx();
+    drawLiveRuns(full, makeSnapshot({ view: 'liveRuns' }, { adminLiveRuns: Array.from({ length: 20 }, () => runs[0]!) }), 360, 600);
+    expect(full.scrollMax.liveRuns).toBeGreaterThan(1000);
+    expect(full.buttons.length).toBeLessThan(20);
   });
 });

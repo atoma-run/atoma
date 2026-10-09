@@ -37,6 +37,7 @@ npm run viz:shot -- --auth --appearance amethyst --theme-menu # selected theme a
 npm run viz:shot -- --auth --appearance amethyst --appearance-reveal-ms 1200 --out /tmp/theme-reveal.png # midpoint of the colour reveal
 npm run viz:shot -- --auth --view Settings          # account menu, not a rail tab
 npm run viz:shot -- --auth --platform-admin --view Settings --settings-tab limits # platform budgets
+npm run viz:shot -- --auth --platform-admin --view "Live runs" --live-runs-probe # cross-org list, canvas follow and live refresh
 npm run viz:shot -- --auth --view Settings --scroll-end  # org directory at the foot of the form
 npm run viz:shot -- --auth --camera overview        # neutral, undeformed whole-scene pose
 npm run viz:shot -- --auth --camera focus           # content-column pose (default)

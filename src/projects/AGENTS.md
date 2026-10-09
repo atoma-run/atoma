@@ -136,7 +136,7 @@ it; `ATOMA_EGRESS_ALLOWLIST` replaces the host list. Both are host-only settings
   `startedAt`), including host finalization, not the narrower trace duration.
   A missing endpoint or reversed interval remains unknown (`null`).
 - `listLiveRunTraces()` is the ONE read that exposes which project runs are
-  executing, and it exists for the sentinel
+  executing, shared by the platform-admin live listing and the sentinel
   ([src/sentinel](../sentinel/AGENTS.md)). It has to: each project run writes
   into its own `runs/<runId>/traces` directory, so there is no shared index to
   poll and `status = 'running'` is the only fact. Cross-org by construction,

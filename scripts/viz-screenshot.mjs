@@ -69,6 +69,7 @@ import { createServer } from 'node:net';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer';
+import { assertLiveRuns } from './viz-live-runs-probe.mjs';
 import { assertMobileProjects } from './viz-mobile-probe.mjs';
 import { assertTimelineMinimap } from './viz-timeline-probe.mjs';
 import { DEFAULT_PLATFORM_LIMITS, PLATFORM_SETTING_SPECS } from '../src/contracts/platformSettings.ts';
@@ -264,6 +265,18 @@ function gatedStubs() {
       organisations: [{ id: 'org-a', name: 'Analytical Engines', role: 'org:owner' }],
       providers: [{ id: 'github', label: 'GitHub' }],
     },
+    '/api/admin/live-runs': [
+      { projectRunId: 'cccccccc-1111-4222-8333-dddddddddd10', projectId,
+        projectName: 'Stopwatch', projectSlug: 'stopwatch',
+        orgId: '11111111-2222-4333-8444-555555555555', orgName: 'Analytical Engines',
+        goal: 'Add a dark mode toggle while preserving the elapsed time and recorded laps.',
+        startedAt: new Date().toISOString(), traceId: 'trace-0' },
+      { projectRunId: 'cccccccc-1111-4222-8333-dddddddddd11', projectId,
+        projectName: 'Customer portal', projectSlug: 'customer-portal',
+        orgId: '11111111-2222-4333-8444-666666666666', orgName: 'Difference Engines',
+        goal: 'Prepare the customer portal repository.',
+        startedAt: new Date().toISOString(), traceId: null },
+    ],
     '/api/admin/settings': {
       catalog: PLATFORM_SETTING_SPECS, limits: DEFAULT_PLATFORM_LIMITS, rows: [], env: {},
     },
@@ -742,8 +755,8 @@ try {
       if (frame === page.mainFrame()) console.error(`[navigated] ${frame.url().slice(0, 160)}`);
     });
 
+    const stubs = authed ? gatedStubs() : {};
     if (authed) {
-      const stubs = gatedStubs();
       if (assistantLinksProbe) {
         const projectId = stubs['/api/projects'][0].projectId;
         const run = stubs[`/api/projects/${projectId}/runs`][0];
@@ -825,7 +838,7 @@ try {
       } catch {
         // Storage is optional; the gate simply shows.
       }
-    }, view === 'Settings');
+    }, view === 'Settings' || has('--live-runs-probe'));
     await page.goto(`${stack.url}/?atomaDiag=1${tuning ? '&atomaTune=1' : ''}`, { waitUntil: 'load' });
     await page.waitForSelector('.gpu-ui-host[data-gpu-backend]', { timeout: READY_TIMEOUT_MS })
       .catch(async (error) => {
@@ -1450,6 +1463,15 @@ try {
     }
 
     await mkdir(dirname(outPath), { recursive: true });
+    if (has('--live-runs-probe')) {
+      if (!authed || !platformAdmin || view !== 'Live runs') throw new Error('--live-runs-probe requires --auth --platform-admin --view "Live runs"');
+      const first = stubs['/api/admin/live-runs'][0];
+      const trace = stubs[`/api/runs/${first.traceId}`];
+      stubs['/api/runs'].push({ id: first.traceId, projectId: first.projectId, projectRunId: first.projectRunId,
+        label: trace.label, startedAt: trace.startedAt, endedAt: trace.endedAt });
+      await assertLiveRuns(page, { runs: stubs['/api/admin/live-runs'],
+        updateRuns: runs => { stubs['/api/admin/live-runs'] = runs; }, followLabel: trace.label });
+    }
     if (has('--run-picker-probe')) {
       if (!authed || view !== 'Runs') throw new Error('--run-picker-probe requires --auth --view Runs');
       await page.click('.gpu-run-input');

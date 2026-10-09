@@ -19,6 +19,7 @@ export type ViewName =
   | 'burnin'
   | 'docs'
   | 'admin'
+  | 'liveRuns'
   | 'journal'
   | 'ledger'
   | 'sentinel'
@@ -35,12 +36,13 @@ export type ViewName =
  * position and its own filters — which one stacked view could not give them.
  *
  * `announce` is the plane's only WRITE surface, and it is last for that
- * reason: the other four report what happened, this one reaches every
+ * reason: the other views report platform activity, this one reaches every
  * subscriber's pocket. It rode at the foot of the organisation list, which
  * put a broadcast composer under a screen nobody opens to broadcast, and cost
  * that list 260px of height on every visit.
  */
 export const ADMIN_VIEWS: readonly ViewName[] = [
+  'liveRuns',
   'admin',
   'journal',
   'ledger',
@@ -483,6 +485,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
     journal: 0,
     ledger: 0,
     sentinel: 0,
+    liveRuns: 0,
     announce: 0,
     settings: 0,
   },

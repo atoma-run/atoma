@@ -1,3 +1,4 @@
+import { platformLiveRunSchema } from '../../contracts/projects.js';
 import type {
   BurninRow,
   GoalGuidance,
@@ -161,6 +162,7 @@ export const api = {
     if (query.family && query.family !== 'all') params.set('family', query.family);
     return fetchJson<VizPlatformEventPage>(`/api/admin/events?${params.toString()}`);
   },
+  adminLiveRuns: async () => platformLiveRunSchema.array().parse(await fetchJson('/api/admin/live-runs')),
   adminSentinel: () => fetchJson<VizSentinelSnapshot>('/api/admin/sentinel'),
   // THE INSTANCE'S RUN LIMITS. PUT and not POST for the same reason the
   // model surfaces use it: the request replaces the stated set, and the

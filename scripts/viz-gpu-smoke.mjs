@@ -5,6 +5,7 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import puppeteer from 'puppeteer';
+import { assertLiveRuns } from './viz-live-runs-probe.mjs';
 import { assertLiveMarkBead, assertPointerLitMark } from './viz-mark-bead-probe.mjs';
 import { assertMobileProjects } from './viz-mobile-probe.mjs';
 import { assertTimelineMinimap } from './viz-timeline-probe.mjs';
@@ -2100,6 +2101,16 @@ try {
           pendingInvitations: 0,
         },
         '/api/tokens': { mode: 'bearer', mcpUrl: 'https://atoma.example.com/mcp', tokens: [] },
+        '/api/admin/live-runs': [
+          { projectRunId: 'eeeeeeee-1111-4222-8333-ffffffffffff', projectId,
+            projectName: 'App', projectSlug: 'app',
+            orgId: '11111111-2222-4333-8444-555555555555', orgName: 'Analytical Engines',
+            goal: 'A live cross-organisation run', startedAt: '2026-10-09T10:00:00.000Z', traceId: 'trace-delivered' },
+          { projectRunId: 'eeeeeeee-1111-4222-8333-fffffffffff1', projectId,
+            projectName: 'Portal', projectSlug: 'portal',
+            orgId: '11111111-2222-4333-8444-666666666666', orgName: 'Difference Engines',
+            goal: 'Preparing another organisation', startedAt: '2026-10-09T10:00:01.000Z', traceId: null },
+        ],
         '/api/admin/settings': {
           catalog: PLATFORM_SETTING_SPECS, limits: DEFAULT_PLATFORM_LIMITS, rows: [], env: {},
         },
@@ -3093,6 +3104,17 @@ try {
       await accountPage.evaluate(() => new Promise((resolve) => setTimeout(resolve, 900)));
       const afterTab = await targetIds();
       const meshesAfterTab = await countScene();
+
+      // The platform live list is entered and followed through the actual canvas targets.
+      accountStage = 'live-runs';
+      stubs['/api/runs'] = [{ id: 'trace-delivered', label: 'A delivered change ready for review.',
+        startedAt: '2026-08-20T00:00:00.000Z', endedAt: '2026-08-20T00:00:01.000Z',
+        projectId, projectRunId: 'eeeeeeee-1111-4222-8333-ffffffffffff' }];
+      await assertLiveRuns(accountPage, {
+        runs: stubs['/api/admin/live-runs'],
+        updateRuns: runs => { stubs['/api/admin/live-runs'] = runs; },
+        followLabel: 'A delivered change ready for review.',
+      });
 
       // THE ACTIVE ADMIN-NAV REPRO. After a send, Announcements is already the
       // selected rail destination; clicking it again must reset the receipt to

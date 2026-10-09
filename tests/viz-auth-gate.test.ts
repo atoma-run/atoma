@@ -1480,7 +1480,7 @@ describe('viz auth gate (process level)', () => {
     const cookie = { cookie: jar.header(base)! };
 
     // Before the grant the journal is operator-level state, like burn-in.
-    for (const path of ['/api/admin/events', '/api/admin/ledger', '/api/admin/sentinel']) {
+    for (const path of ['/api/admin/events', '/api/admin/ledger', '/api/admin/sentinel', '/api/admin/live-runs']) {
       expect((await fetch(`${base}${path}`, { headers: cookie })).status).toBe(403);
     }
 
@@ -2437,7 +2437,7 @@ describe('viz auth gate (process level)', () => {
   });
 });
 
-it('audits all four HTTP cross-org read paths and refuses reads if the journal fails', async () => {
+it('audits all HTTP cross-org read paths and refuses reads if the journal fails', async () => {
   const instance = tempInstance();
   const provider = await startFakeProvider({ port: await freePort(), subject: 7707 });
   const port = await freePort();
@@ -2468,7 +2468,9 @@ it('audits all four HTTP cross-org read paths and refuses reads if the journal f
     mkdirSync(layout.runsPath, { recursive: true });
     writeFileSync(join(layout.runsPath, `${runId}.json`), JSON.stringify({ id: runId,
       label: 'Audit fixture', startedAt: '2026-09-20T12:00:00Z', events: [] }));
+    projects.transitionProjectRun({ orgId: foreign.orgId, projectRunId: runId, from: 'queued', to: 'running' });
     const paths = [
+      ['/api/admin/live-runs', 'runs.index'],
       ['/api/projects', 'projects.index'],
       [`/api/projects/${project.projectId}/runs`, 'projects.detail'],
       ['/api/runs', 'runs.index'],
@@ -2491,6 +2493,7 @@ it('audits all four HTTP cross-org read paths and refuses reads if the journal f
       finally { db.exec('DROP TRIGGER refuse_read_audit'); }
     }
     auth.revokePlatformAdmin(adminId);
+    expect((await fetch(`${base}/api/admin/live-runs`, { headers: cookie })).status).toBe(403);
     expect((await fetch(`${base}/api/runs/${runId}`, { headers: cookie })).status).toBe(404);
     expect((await fetch(`${base}/auth/whoami`, { headers: cookie })).status).toBe(200);
   } finally { db.close(); }

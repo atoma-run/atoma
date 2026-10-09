@@ -200,6 +200,7 @@ export interface GpuDataSnapshot {
   adminLedger: VizLedgerEvent[];
   /** Rule table, live coverage and findings for the Sentinel view. */
   adminSentinel: VizSentinelSnapshot | null;
+  adminLiveRuns: import('../../contracts/projects.js').PlatformLiveRun[];
   /** The viewer's own organisation — the Settings org card. */
   organisation: VizOrganisation | null;
   /** Per-tier model pins plus the operator defaults to label them against. */
@@ -463,6 +464,7 @@ import { drawAdmin } from './renderer/views/admin.js';
 import { drawJournal } from './renderer/views/journal.js';
 import { drawLedger } from './renderer/views/ledger.js';
 import { drawSentinel } from './renderer/views/sentinel.js';
+import { drawLiveRuns } from './renderer/views/live-runs.js';
 import { drawAnnounce } from './renderer/views/announce.js';
 import { drawWelcome } from './renderer/views/welcome.js';
 import { drawAccountMenu } from './renderer/views/account-menu.js';
@@ -2080,6 +2082,9 @@ export class GpuRenderer {
             break;
           case 'sentinel':
             drawSentinel(this, snapshot, contentWidth, layoutHeight);
+            break;
+          case 'liveRuns':
+            drawLiveRuns(this, snapshot, contentWidth, layoutHeight);
             break;
           case 'announce':
             drawAnnounce(this, snapshot, contentWidth, layoutHeight);

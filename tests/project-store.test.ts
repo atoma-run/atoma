@@ -773,6 +773,11 @@ describe('ProjectStore — the live-run reader the sentinel uses', () => {
         orgId: alice.orgId,
         projectId: project.projectId,
         projectSlug: 'weather-lab',
+        projectName: project.name,
+        orgName: 'Org Alice',
+        goal: run.goal,
+        startedAt: expect.any(String),
+        traceId: null,
         file: null,
       },
     ]);
@@ -781,6 +786,8 @@ describe('ProjectStore — the live-run reader the sentinel uses', () => {
     expect(store.listLiveRunTraces()[0]!.file).toBe(
       join(paths.runsPath, `${run.projectRunId}.json`)
     );
+
+    expect(store.listLiveRunTraces()[0]!.traceId).toBe(run.projectRunId);
 
     // And a finished run leaves the live list.
     store.transitionProjectRun({

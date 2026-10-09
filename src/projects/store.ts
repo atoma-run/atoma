@@ -47,6 +47,7 @@ import {
   type StartProjectRunInput,
   type Project,
   type ProjectRun,
+  type PlatformLiveRun,
   type ProjectRunHostPaths,
   type ProjectRunStatus,
   type Publication,
@@ -1193,19 +1194,15 @@ END;
    * serves, and for the same reason: the caller is the platform-wide sentinel,
    * reachable only by a platform admin.
    */
-  listLiveRunTraces(): Array<{
-    projectRunId: string;
-    orgId: string;
-    projectId: string;
-    projectSlug: string;
-    file: string | null;
-  }> {
+  listLiveRunTraces(): Array<PlatformLiveRun & { file: string | null }> {
     const rows = this.db
       .prepare(
         `SELECT r.project_run_id, r.trace_id, r.runs_path, r.org_id, r.project_id,
-                p.slug AS project_slug
+                r.goal, r.started_at, p.slug AS project_slug, p.name AS project_name,
+                o.name AS org_name
          FROM project_runs r
          JOIN projects p ON p.project_id = r.project_id AND p.org_id = r.org_id
+         LEFT JOIN auth_organisations o ON o.org_id = r.org_id
          WHERE r.status = 'running'
          ORDER BY r.started_at ASC, r.project_run_id ASC`
       )
@@ -1216,18 +1213,30 @@ END;
       org_id: string;
       project_id: string;
       project_slug: string;
+      project_name: string;
+      org_name: string | null;
+      goal: string;
+      started_at: string | null;
     }>;
-    return rows.map((row) => ({
-      projectRunId: row.project_run_id,
-      orgId: row.org_id,
-      projectId: row.project_id,
-      projectSlug: row.project_slug,
-      file: resolveProjectRunTraceFile({
+    return rows.map((row) => {
+      const file = resolveProjectRunTraceFile({
         projectRunId: row.project_run_id,
         runsPath: row.runs_path,
         traceId: row.trace_id,
-      }),
-    }));
+      });
+      return {
+        projectRunId: row.project_run_id,
+        orgId: row.org_id,
+        orgName: row.org_name,
+        projectId: row.project_id,
+        projectName: row.project_name,
+        projectSlug: row.project_slug,
+        goal: row.goal,
+        startedAt: row.started_at,
+        traceId: file ? row.trace_id ?? row.project_run_id : null,
+        file,
+      };
+    });
   }
 
   /**

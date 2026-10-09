@@ -2,6 +2,7 @@ import { ButtonIcon } from './ButtonIcon.js';
 import { previewControlLabel } from './renderer/preview-control.js';
 import { checkpointActionKey, canControlCheckpoint, pendingGitHubAccess, canContinueGitHubAccess, canRetryPublication, type GitHubRecoveryProgress } from './github-access.js';
 import { WorkspaceAccessible } from './WorkspaceAccessible.js';
+import { formatDateTime } from '../client/date-format.js';
 import type { WorkspaceBrowserData } from './workspace-browser.js';
 import { UpstreamSetting } from './UpstreamSetting.js';
 import { buildRunPicker, runsInPickerScope, runPickerTotalsLabel, runPickerViewportHeight, RUN_PICKER_ROW_HEIGHT } from './run-picker.js';
@@ -170,6 +171,7 @@ function AccessibleDocs({
 export function DomBridge({
   runs,
   run = null,
+  adminLiveRuns = [],
   releaseVersion,
   views = DEFAULT_VIEWS,
   loginLinks = null,
@@ -199,6 +201,7 @@ export function DomBridge({
 }: {
   runs: RunIndexEntry[];
   run?: VizRun | null;
+  adminLiveRuns?: import('../../contracts/projects.js').PlatformLiveRun[];
   releaseVersion: string;
   /** Nav tabs for this viewer — computed once by `visibleViews`, shared with the GL rail. */
   views?: ViewName[];
@@ -551,6 +554,24 @@ export function DomBridge({
           </section>
         ) : null}
         {view === 'runs' && run ? <AccessibleRunActivity run={run} t={t} /> : null}
+        {view === 'liveRuns' && auth?.viewer.platformAdmin ? (
+          <section aria-label={t('nav.liveRuns')}>
+            <p>{t('liveRuns.scope')}</p>
+            {adminLiveRuns.length === 0 ? <p>{t('liveRuns.empty')}</p> : adminLiveRuns.map(row => (
+              <article key={row.projectRunId}>
+                <h3>{row.orgName ?? row.orgId} · {row.projectName}</h3>
+                <p>{row.goal}</p>
+                <p>{row.projectRunId}</p>
+                <p>{t('liveRuns.started', { at: row.startedAt ? formatDateTime(row.startedAt, locale) : '—' })}</p>
+                {row.traceId ? (
+                  <button type="button" onClick={() => onActivate?.(`liveRuns.run.${row.projectRunId}`)}>
+                    <ButtonIcon kind="play" />{t('liveRuns.open')}
+                  </button>
+                ) : <p>{t('liveRuns.preparing')}</p>}
+              </article>
+            ))}
+          </section>
+        ) : null}
         {view === 'docs' ? (
           <AccessibleDocs
             selected={selectedDocsTheme}
