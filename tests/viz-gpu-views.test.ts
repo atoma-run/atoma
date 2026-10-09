@@ -1,8 +1,13 @@
+import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import Database from 'better-sqlite3';
 import { CanvasTextMetrics, Container, Graphics, Rectangle } from 'pixi.js';
 import type { FederatedPointerEvent, Text, Ticker } from 'pixi.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { AUTH_TABLES_DDL, type Viewer } from '../src/auth/store.js';
+import { ProjectService } from '../src/projects/service.js';
+import { ProjectStore } from '../src/projects/store.js';
 import { I18N_CATALOGS, translate } from '../src/viz/client/i18n-catalog.js';
 import type {
   BurninRow,
@@ -2732,9 +2737,70 @@ describe('drawProjects', () => {
       .toMatch(/^Eligible for the showcase · /);
     expect(metadataFor({ ...base, showcase: 'hidden', showcaseShown: false }, { role: 'org:member', platformAdmin: true }))
       .toMatch(/^Hidden from the showcase · /);
-    // A member cannot change it, and an older server does not say.
+    // A member cannot change it; an older server, or a project of an
+    // organisation no platform admin founded and still owns, carries no
+    // showcase field at all.
     expect(metadataFor({ ...base, showcase: 'listed', showcaseShown: true }, { role: 'org:member' })).toMatch(/^3 runs/);
-    expect(metadataFor(base, {})).toMatch(/^3 runs/);
+    for (const viewer of [{}, { role: 'org:admin' as const }, { role: 'org:member' as const, platformAdmin: true }]) {
+      expect(metadataFor(base, viewer)).toMatch(/^3 runs/);
+    }
+  });
+
+  it('shows nobody a showcase state on a client organisation\'s project, from the row the server sends', () => {
+    // The real service through JSON, as `/api/projects` delivers it: the badge
+    // stays silent on what the server omits (owner decision 2026-10-09).
+    const db = new Database(':memory:');
+    try {
+      db.pragma('foreign_keys = ON');
+      db.exec(AUTH_TABLES_DDL);
+      const now = new Date().toISOString();
+      const [admin, client, ownOrg, clientOrg] = [randomUUID(), randomUUID(), randomUUID(), randomUUID()];
+      for (const orgId of [ownOrg, clientOrg]) {
+        db.prepare('INSERT INTO auth_organisations (org_id, name, created_at) VALUES (?, ?, ?)').run(orgId, 'Org', now);
+      }
+      for (const principalId of [admin, client]) {
+        db.prepare("INSERT INTO auth_principals (principal_id, kind, display_name, created_at) VALUES (?, 'human', 'P', ?)")
+          .run(principalId, now);
+      }
+      const membership = db.prepare('INSERT INTO auth_memberships (org_id, principal_id, role, created_at) VALUES (?, ?, ?, ?)');
+      membership.run(ownOrg, admin, 'org:owner', now);
+      membership.run(clientOrg, client, 'org:owner', now);
+      // The platform admin was invited into the client's organisation after
+      // the client founded it: an owner there too, never its founder.
+      membership.run(clientOrg, admin, 'org:owner', new Date(Date.parse(now) + 1_000).toISOString());
+      db.prepare("INSERT INTO auth_platform_admins (principal_id, granted_at, granted_by) VALUES (?, ?, 'test')").run(admin, now);
+      const store = new ProjectStore(db);
+      const create = (orgId: string, principalId: string, slug: string, showcase: 'listed' | 'hidden' = 'listed') =>
+        store.createProject({ orgId, principalId, project: { name: slug, slug, showcase,
+          repositoryTarget: { installationId: '501', owner: 'atoma-org', name: slug, visibility: 'private' } } }).projectId;
+      const own = create(ownOrg, admin, 'own-work');
+      const theirs = create(clientOrg, client, 'client-work');
+      // Created hidden: still no badge, not even "Hidden".
+      const theirsHidden = create(clientOrg, client, 'client-hidden', 'hidden');
+      const service = new ProjectService({ store, github: null, coordinator: {} as never, auditRead: () => true });
+      const platformAdmin: Viewer = { principalId: admin, displayName: 'Admin', kind: 'human', orgId: ownOrg, orgName: 'Org',
+        role: 'org:owner', platformAdmin: true, displayNameSource: 'provider' };
+      const rows = JSON.parse(JSON.stringify(service.listProjects(platformAdmin))) as VizProject[];
+      const metadataOf = (projectId: string, viewer: Partial<AuthUiSnapshot['viewer']>) => {
+        const project = rows.find((row) => row.projectId === projectId)!;
+        const ctx = createRecordingCtx();
+        drawProjects(ctx, makeSnapshot({ view: 'projects' }, { auth: makeAuth(viewer), projects: [project] }), 1280, 720);
+        return ctx.texts.map((text) => String(text.value)).find((value) => value.includes('0 runs'));
+      };
+      for (const projectId of [theirs, theirsHidden]) {
+        const row = rows.find((candidate) => candidate.projectId === projectId);
+        expect(row).toBeDefined();
+        expect(row).not.toHaveProperty('showcase');
+        expect(row).not.toHaveProperty('showcaseShown');
+        for (const viewer of [{}, { role: 'org:admin' as const }, { role: 'org:member' as const, platformAdmin: true }]) {
+          expect(metadataOf(projectId, viewer)).toMatch(/^0 runs/);
+        }
+      }
+      // The same list still tells the deciders where the admin's own project stands.
+      expect(metadataOf(own, {})).toMatch(/^Eligible for the showcase · 0 runs/);
+    } finally {
+      db.close();
+    }
   });
 
   it('tells an ungated viewer the gate is off instead of coaching a 404 connect flow', () => {

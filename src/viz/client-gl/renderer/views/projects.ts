@@ -200,7 +200,10 @@ function statusLabel(
  * Where the project stands on the public showcase, for the people who decide
  * it (organisation owners and admins, platform admins) and nobody else: a
  * member cannot change it, and the list is theirs to read, not to audit.
- * Nothing on a server that does not say.
+ * Nothing on a server that does not say, and nothing for a project of an
+ * organisation no platform admin founded and still owns: it cannot be on the
+ * showcase, so the server sends it no showcase field at all (owner decision
+ * 2026-10-09).
  */
 function showcaseLabel(snapshot: GpuRenderSnapshot, project: { showcase?: 'listed' | 'hidden'; showcaseShown?: boolean }): string | null {
   const viewer = snapshot.data.auth?.viewer;

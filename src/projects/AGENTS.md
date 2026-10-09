@@ -145,14 +145,14 @@ it; `ATOMA_EGRESS_ALLOWLIST` replaces the host list. Both are host-only settings
   one principal's runs in its own organisation, live or ended since a cut-off,
   keyed on who STARTED the run, never on who may read it (a platform admin too).
 - `listShowcaseRuns()` is the public showcase's ONE read
-  ([src/viz](../viz/AGENTS.md#public-showcase)): delivered, not a rerun,
-  requested by a platform admin, in a project whose `showcase` is `listed` or
-  NULL (created before 2026-10-06). `hidden`, chosen at creation or later by
-  an organisation admin (`setProjectShowcase`, MCP `atoma_project_showcase`,
-  journaled `project.showcase_changed`), keeps the project's runs off it; any
-  other value hides too. Writes stay in the caller's organisation. The project
-  listing carries `showcase` and `showcaseShown` — one of its runs is in this
-  very read, on a host that publishes the page (`showcaseEnabled` dep).
+  ([src/viz](../viz/AGENTS.md#public-showcase)): delivered, not a rerun, in a
+  `listed` or NULL (pre-2026-10-06) project, REQUESTED BY THE PLATFORM ADMIN WHO
+  FOUNDED (first member) AND STILL OWNS THE RUN'S ORGANISATION, never a client
+  one they joined, even as owner (owner decision 2026-10-09); read per query.
+  `hidden` (at creation, or `setProjectShowcase`/MCP `atoma_project_showcase`,
+  journaled, caller's organisation only, 409 unless such a one) keeps the runs
+  off; other values hide too. Projects of `showcaseOrganisations()` (same pairs)
+  alone carry `showcase` and `showcaseShown` (a run in this read, page served).
 - `ProjectService.listProjects()` orders the public project cards by their
   newest run, or by creation before a first run. `projects.updated_at` also
   changes for repository and showcase administration, so it cannot describe

@@ -1,17 +1,17 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AuthStore } from '../src/auth/store.js';
+import { AuthStore, type OrgRole, type Viewer } from '../src/auth/store.js';
 import type { ArtifactManifest } from '../src/contracts/projects.js';
 import type { RunStats } from '../src/contracts/runStats.js';
 import { closeStoreHandles } from '../src/core/stores.js';
 import { repoRoot } from '../src/mcp/run.js';
-import { ProjectService } from '../src/projects/service.js';
+import { ProjectHttpError, ProjectService } from '../src/projects/service.js';
 import { ProjectStore } from '../src/projects/store.js';
 import { platformEventInputSchema, type PlatformEventInput } from '../src/contracts/platformEvents.js';
 import {
@@ -25,6 +25,7 @@ import {
   type ShowcaseKind,
 } from '../src/viz/showcase.js';
 import { renderShowcaseEntry, renderShowcaseIndex, SHOWCASE_SECURITY_HEADERS } from '../src/viz/showcasePage.js';
+import { ANTHROPIC_PINS } from './tier-pins.js';
 
 /**
  * THE PUBLIC SHOWCASE: who may be shown, what a visitor may read, and that the
@@ -114,6 +115,8 @@ function seedRun(
     outcome?: 'delivered' | 'failed' | 'partial';
     remediations?: number;
     answer?: string;
+    /** A comparison rerun of this run, on other models; `goal` is then the origin's. */
+    rerunOf?: string;
   }
 ): string {
   const projectRunId = randomUUID();
@@ -123,7 +126,14 @@ function seedRun(
     principalId: who.principalId,
     projectId: who.projectId,
     projectRunId,
-    request: { idempotencyKey: `k-${projectRunId}`, goal: input.goal },
+    ...(input.rerunOf
+      ? {
+        request: { idempotencyKey: `k-${projectRunId}`, rerunOf: input.rerunOf, models: {
+          l1: ANTHROPIC_PINS.ATOMA_MODEL_L1, l2: ANTHROPIC_PINS.ATOMA_MODEL_L2, l3: ANTHROPIC_PINS.ATOMA_MODEL_L3,
+        } },
+        origin: { goal: input.goal, acceptance: null },
+      }
+      : { request: { idempotencyKey: `k-${projectRunId}`, goal: input.goal } }),
     hostPaths: {
       workspacePath: join(base, 'workspace'),
       runsPath: join(base, 'traces'),
@@ -159,14 +169,192 @@ function seedRun(
   return projectRunId;
 }
 
+interface ClientOrganisation {
+  /** Its founder and owner, by their first login; not a platform admin. */
+  readonly owner: Viewer;
+  /** The platform admin, admitted there by invitation at any role, owner included: never its founder. */
+  readonly admin: Viewer;
+  /** Where the platform admin's runs there are seeded: their principal, its organisation and project. */
+  readonly asAdmin: World['admin'];
+}
+
+/**
+ * A CLIENT ORGANISATION the platform admin was invited into with `role`, with
+ * one project left at the default `listed`: exactly the shape the owner
+ * decision of 2026-10-09 keeps off the public showcase, `org:owner` included,
+ * since every invitation is minted by a platform admin or the host CLI.
+ */
+function joinClientOrganisation(w: World, role: OrgRole = 'org:admin'): ClientOrganisation {
+  const auth = AuthStore.open(w.dbPath);
+  const founded = auth.completeLogin(
+    { provider: 'github', subject: `client-${role}`, displayName: `Client ${role}`, email: null, emailVerified: false },
+    null
+  );
+  if (!founded) throw new Error('client bootstrap failed');
+  const invitation = auth.createInvitation({ orgId: founded.viewer.orgId, token: `admin-joins-as-${role}`, role, ttlMs: 60_000 });
+  nextMillisecond();
+  const joined = auth.completeLogin(
+    { provider: 'github', subject: 'admin', displayName: 'admin', email: null, emailVerified: false },
+    invitation.tokenHash
+  );
+  if (!joined || joined.viewer.role !== role || !joined.viewer.platformAdmin) throw new Error('admin admission failed');
+  const slug = `client-${role.slice('org:'.length)}`;
+  const project = w.store.createProject({
+    orgId: founded.viewer.orgId,
+    principalId: founded.viewer.principalId,
+    project: {
+      name: `Client ${role} project`, slug, initialPrompt: 'x',
+      repositoryTarget: { installationId: '123', owner: 'client-owner', name: slug, visibility: 'private' },
+    },
+  });
+  return {
+    owner: founded.viewer,
+    admin: joined.viewer,
+    asAdmin: { orgId: founded.viewer.orgId, principalId: w.admin.principalId, projectId: project.projectId },
+  };
+}
+
+/**
+ * Spin to the next millisecond, the resolution of a membership's `created_at`,
+ * so the next membership is strictly later than every one before it: who came
+ * FIRST to an organisation is what the showcase asks.
+ */
+function nextMillisecond(): void {
+  const start = Date.now();
+  while (Date.now() === start) {
+    // Busy for under a millisecond.
+  }
+}
+
+/** The refusal `act` throws; fails the test when it throws none. */
+function refusalOf(act: () => unknown): unknown {
+  try {
+    act();
+  } catch (error) {
+    return error;
+  }
+  throw new Error('expected a refusal');
+}
+
 describe('who may be shown', () => {
-  it('is exactly the delivered runs of a platform admin', () => {
+  it('is exactly the delivered runs of a platform admin, in an organisation they founded and still own', () => {
     const w = world();
     const shown = seedRun(w, w.admin, { goal: 'Admin delivered', files: ['README.md'] });
     seedRun(w, w.admin, { goal: 'Admin failed', outcome: 'failed' });
     seedRun(w, w.admin, { goal: 'Admin partial', outcome: 'partial', files: ['a.md'] });
     seedRun(w, w.member, { goal: 'Member delivered, not an admin', files: ['README.md'] });
     expect(w.store.listShowcaseRuns().map((run) => run.projectRunId)).toEqual([shown]);
+  });
+
+  it('never shows a platform admin\'s run in a client organisation they joined, at any role, owner included', () => {
+    const w = world();
+    const own = seedRun(w, w.admin, { goal: 'Admin delivered', files: ['README.md'] });
+    const clients = (['org:admin', 'org:member', 'org:owner'] as const).map((role) => joinClientOrganisation(w, role));
+    for (const client of clients) seedRun(w, client.asAdmin, { goal: 'Client work', files: ['README.md'] });
+    // Listed, as every new project is: who founded the organisation keeps them off, not the flag or the role.
+    for (const client of clients) {
+      expect(w.store.getProject(client.asAdmin.orgId, client.asAdmin.projectId)!.showcase).toBe('listed');
+    }
+    const ids = () => new Set(w.store.listShowcaseRuns().map((run) => run.projectRunId));
+    expect(ids()).toEqual(new Set([own]));
+    expect(w.store.showcaseOrganisations()).toEqual(new Set([w.admin.orgId]));
+    // The first member decides, never the earliest remaining owner: the
+    // client's founder stepping down (no product path does) promotes nobody.
+    const invitedOwner = clients[2]!;
+    const db = new Database(w.dbPath);
+    try {
+      db.prepare('UPDATE auth_memberships SET role = ? WHERE org_id = ? AND principal_id = ?')
+        .run('org:admin', invitedOwner.asAdmin.orgId, invitedOwner.owner.principalId);
+      expect(ids()).toEqual(new Set([own]));
+      expect(w.store.showcaseOrganisations()).toEqual(new Set([w.admin.orgId]));
+    } finally {
+      db.close();
+    }
+  });
+
+  it('never takes an admission stamped before its organisation existed, by a clock stepped back, for the founding', () => {
+    const w = world();
+    const own = seedRun(w, w.admin, { goal: 'Admin delivered', files: ['README.md'] });
+    const auth = AuthStore.open(w.dbPath);
+    // The client founds an organisation while the host clock runs an hour fast...
+    const wall = Date.now;
+    const fast = vi.spyOn(Date, 'now').mockImplementation(() => wall() + 3_600_000);
+    let founded: ReturnType<AuthStore['completeLogin']>;
+    try {
+      founded = auth.completeLogin(
+        { provider: 'github', subject: 'client', displayName: 'Client', email: null, emailVerified: false }, null);
+    } finally {
+      fast.mockRestore();
+    }
+    if (!founded) throw new Error('client bootstrap failed');
+    // ...then the clock steps back, and the platform admin joins as an owner:
+    // later in fact, yet an hour EARLIER on the clock than the founding.
+    const invitation = auth.createInvitation({ orgId: founded.viewer.orgId, token: 'admin-after-the-step', role: 'org:owner', ttlMs: 60_000 });
+    const joined = auth.completeLogin(
+      { provider: 'github', subject: 'admin', displayName: 'admin', email: null, emailVerified: false }, invitation.tokenHash);
+    expect(joined?.viewer).toMatchObject({ orgId: founded.viewer.orgId, role: 'org:owner', platformAdmin: true });
+    const project = w.store.createProject({
+      orgId: founded.viewer.orgId, principalId: founded.viewer.principalId,
+      project: { name: 'Client project', slug: 'client-stepped', initialPrompt: 'x',
+        repositoryTarget: { installationId: '123', owner: 'client-owner', name: 'client-stepped', visibility: 'private' } },
+    });
+    seedRun(w, { orgId: founded.viewer.orgId, principalId: w.admin.principalId, projectId: project.projectId },
+      { goal: 'Client work', files: ['README.md'] });
+    expect(w.store.showcaseOrganisations()).toEqual(new Set([w.admin.orgId]));
+    expect(w.store.listShowcaseRuns().map((run) => run.projectRunId)).toEqual([own]);
+  });
+
+  it('fails closed on a tie: two first members stamped in one millisecond found nothing', () => {
+    const w = world();
+    const own = seedRun(w, w.admin, { goal: 'Admin delivered', files: ['README.md'] });
+    // A member-less organisation (a converged pre-release store) whose two
+    // owner invitations, the client's and the platform admin's, were consumed
+    // within one millisecond: one `created_at` for both memberships.
+    const tied = randomUUID();
+    const joinedAt = new Date().toISOString();
+    const db = new Database(w.dbPath);
+    try {
+      db.prepare('INSERT INTO auth_organisations (org_id, name, created_at) VALUES (?, ?, ?)')
+        .run(tied, 'Primary', new Date(Date.parse(joinedAt) - 60_000).toISOString());
+      const membership = db.prepare('INSERT INTO auth_memberships (org_id, principal_id, role, created_at) VALUES (?, ?, ?, ?)');
+      membership.run(tied, w.member.principalId, 'org:owner', joinedAt);
+      membership.run(tied, w.admin.principalId, 'org:owner', joinedAt);
+    } finally {
+      db.close();
+    }
+    const project = w.store.createProject({
+      orgId: tied, principalId: w.member.principalId,
+      project: { name: 'Tied project', slug: 'tied', initialPrompt: 'x',
+        repositoryTarget: { installationId: '123', owner: 'client-owner', name: 'tied', visibility: 'private' } },
+    });
+    seedRun(w, { orgId: tied, principalId: w.admin.principalId, projectId: project.projectId }, { goal: 'Tied work', files: ['README.md'] });
+    expect(w.store.showcaseOrganisations()).toEqual(new Set([w.admin.orgId]));
+    expect(w.store.listShowcaseRuns().map((run) => run.projectRunId)).toEqual([own]);
+  });
+
+  it('asks whether the requester founded the run\'s organisation, not only whether they own it', () => {
+    const w = world();
+    const own = seedRun(w, w.admin, { goal: 'Admin delivered', files: ['README.md'] });
+    // A second platform admin, invited into the first one's organisation as an owner.
+    const auth = AuthStore.open(w.dbPath);
+    auth.grantPlatformAdmin(w.member.principalId);
+    const invitation = auth.createInvitation({ orgId: w.admin.orgId, token: 'second-admin-joins', role: 'org:owner', ttlMs: 60_000 });
+    nextMillisecond();
+    const joined = auth.completeLogin(
+      { provider: 'github', subject: 'member', displayName: 'member', email: null, emailVerified: false },
+      invitation.tokenHash
+    );
+    expect(joined?.viewer).toMatchObject({ orgId: w.admin.orgId, role: 'org:owner', platformAdmin: true });
+    seedRun(w, { ...w.admin, principalId: w.member.principalId }, { goal: 'Not the founder here', files: ['README.md'] });
+    const theirOwn = seedRun(w, w.member, { goal: 'In their own organisation', files: ['README.md'] });
+    expect(new Set(w.store.listShowcaseRuns().map((run) => run.projectRunId))).toEqual(new Set([own, theirOwn]));
+  });
+
+  it('keeps a comparison rerun off it', () => {
+    const w = world();
+    const origin = seedRun(w, w.admin, { goal: 'Admin delivered', files: ['README.md'] });
+    seedRun(w, w.admin, { goal: 'Admin delivered', files: ['README.md'], rerunOf: origin });
+    expect(w.store.listShowcaseRuns().map((run) => run.projectRunId)).toEqual([origin]);
   });
 
   it('keeps a project created hidden off it, lists one that predates the flag, and hides any other value', () => {
@@ -274,13 +462,148 @@ describe('who may be shown', () => {
     expect(w.store.listShowcaseRuns().map((run) => run.projectRunId)).toEqual([shownRun]);
   });
 
-  it('follows the admin flag at read time, and answers nothing without an auth table', () => {
+  it('never marks a client organisation\'s project eligible, for its owner or a platform admin, and refuses to set it', () => {
     const w = world();
+    seedRun(w, w.admin, { goal: 'Admin delivered', files: ['README.md'] });
+    // Invited as an owner, the highest role an invitation carries: still not theirs.
+    const client = joinClientOrganisation(w, 'org:owner');
+    seedRun(w, client.asAdmin, { goal: 'Client work', files: ['README.md'] });
+    // A client project created hidden gets no badge either, not even "Hidden".
+    const hidden = w.store.createProject({
+      orgId: client.owner.orgId, principalId: client.owner.principalId,
+      project: { name: 'Client hidden', slug: 'client-hidden', showcase: 'hidden',
+        repositoryTarget: { installationId: '123', owner: 'client-owner', name: 'client-hidden', visibility: 'private' } },
+    }).projectId;
+    const events: PlatformEventInput[] = [];
+    const service = new ProjectService({ store: w.store, github: null, coordinator: {} as never,
+      showcaseEnabled: () => true, auditRead: () => true, events: (event) => events.push(event) });
+    // As JSON carries it: an omitted key, never a null one ('none' when both are absent).
+    const states = (viewer: Viewer) => Object.fromEntries(
+      (JSON.parse(JSON.stringify(service.listProjects(viewer))) as Record<string, unknown>[]).map((row) => [row['projectId'],
+        'showcase' in row || 'showcaseShown' in row ? [row['showcase'], row['showcaseShown']] : 'none'])
+    );
+    expect(states(client.owner)).toEqual({ [client.asAdmin.projectId]: 'none', [hidden]: 'none' });
+    // The platform admin's cross-organisation list: only their own organisation's project says anything.
+    expect(states(client.admin)).toEqual({
+      [w.admin.projectId]: ['listed', true], [w.member.projectId]: 'none', [client.asAdmin.projectId]: 'none', [hidden]: 'none',
+    });
+
+    // Neither the client's founder nor the platform admin who co-owns it may set what cannot show.
+    for (const viewer of [client.owner, client.admin]) {
+      for (const projectId of [client.asAdmin.projectId, hidden]) {
+        for (const value of ['hidden', 'listed']) {
+          const refused = refusalOf(() => service.setProjectShowcase(viewer, projectId, value));
+          expect(refused).toBeInstanceOf(ProjectHttpError);
+          expect(refused).toMatchObject({
+            status: 409, message: expect.stringMatching(/no platform admin founded and still owns this one/),
+            // Nothing the caller can change makes a retry succeed, and the guidance says so.
+            problem: { code: 'conflict', retryable: false, nextAction: expect.stringMatching(/^Nothing to retry: /) },
+          });
+        }
+      }
+    }
+    expect(events).toEqual([]);
+    expect(w.store.getProject(client.asAdmin.orgId, client.asAdmin.projectId)!.showcase).toBe('listed');
+    expect(w.store.getProject(client.asAdmin.orgId, hidden)!.showcase).toBe('hidden');
+    // Another organisation's project is still not found first.
+    expect(refusalOf(() => service.setProjectShowcase(client.owner, w.admin.projectId, 'hidden'))).toMatchObject({ status: 404 });
+
+    // The flag is read per call: revoked, the admin's own organisation is no longer eligible either.
+    AuthStore.open(w.dbPath).revokePlatformAdmin(w.admin.principalId);
+    const ownOwner: Viewer = { ...client.admin, orgId: w.admin.orgId, role: 'org:owner', platformAdmin: false };
+    expect(states(ownOwner)).toEqual({ [w.admin.projectId]: 'none' });
+  });
+
+  it('follows the admin flag and the ownership at read time, and the page\'s own source within one TTL', () => {
+    const w = world();
+    const own = seedRun(w, w.admin, { goal: 'Admin delivered', files: ['README.md'] });
     seedRun(w, w.member, { goal: 'Member run', files: ['README.md'] });
-    expect(w.store.listShowcaseRuns()).toEqual([]);
+    const ids = () => w.store.listShowcaseRuns().map((run) => run.projectRunId);
+    const auth = AuthStore.open(w.dbPath);
+    expect(ids()).toEqual([own]);
+    auth.revokePlatformAdmin(w.admin.principalId);
+    expect(ids()).toEqual([]);
+    expect(w.store.showcaseOrganisations().size).toBe(0);
+    auth.grantPlatformAdmin(w.admin.principalId);
+    expect(ids()).toEqual([own]);
+
+    let clock = 0;
+    const source = createShowcaseSource(w.store, () => clock);
+    expect(source.entry(own)).not.toBeNull();
+    // No product path changes a role, and a run's foreign key keeps its
+    // requester's membership: an owner stepping down is this UPDATE.
+    const db = new Database(w.dbPath);
+    try {
+      const role = db.prepare('UPDATE auth_memberships SET role = ? WHERE org_id = ? AND principal_id = ?');
+      role.run('org:admin', w.admin.orgId, w.admin.principalId);
+      expect(ids()).toEqual([]);
+      expect(w.store.showcaseOrganisations().size).toBe(0);
+      // The page reuses its read for one TTL, then the run is gone from it.
+      expect(source.entry(own)).not.toBeNull();
+      clock += SHOWCASE_TTL_MS;
+      expect(source.entry(own)).toBeNull();
+      expect(source.entries()).toEqual([]);
+      expect(source.answer(own, own)).toBeNull();
+      role.run('org:owner', w.admin.orgId, w.admin.principalId);
+      expect(ids()).toEqual([own]);
+      clock += SHOWCASE_TTL_MS;
+      expect(source.entry(own)).not.toBeNull();
+      // A clock that steps back expires the read at once, never stretches it.
+      role.run('org:admin', w.admin.orgId, w.admin.principalId);
+      clock -= 10 * SHOWCASE_TTL_MS;
+      expect(source.entry(own)).toBeNull();
+    } finally {
+      db.close();
+    }
+  });
+
+  it('counts its TTL in elapsed time, so the wall clock stepping back never stretches it', () => {
+    const w = world();
+    const own = seedRun(w, w.admin, { goal: 'Admin delivered', files: ['README.md'] });
+    vi.useFakeTimers({ toFake: ['Date', 'performance'] });
+    // The server's own source: no clock injected.
+    const source = createShowcaseSource(w.store);
+    expect(source.entry(own)).not.toBeNull();
+    AuthStore.open(w.dbPath).revokePlatformAdmin(w.admin.principalId);
+    // Built while the wall clock ran ten minutes fast; it is then stepped
+    // back, and ten and a half minutes on it reads half a TTL past the build.
+    vi.setSystemTime(Date.now() - 10 * 60_000);
+    vi.advanceTimersByTime(10 * 60_000 + SHOWCASE_TTL_MS / 2);
+    expect(source.entry(own)).toBeNull();
+    expect(source.entries()).toEqual([]);
+  });
+
+  it('answers nothing, without throwing, unless the store holds all three auth tables', () => {
+    const w = world();
     closeStoreHandles();
     const bare = ProjectStore.open(join(w.root, 'other.db'));
     expect(bare.listShowcaseRuns()).toEqual([]);
+    expect(bare.showcaseOrganisations().size).toBe(0);
+    // A partial store missing any one of them: GET / and every project list read it, so no throw.
+    const tables = {
+      auth_platform_admins: ['CREATE TABLE auth_platform_admins (principal_id TEXT PRIMARY KEY, granted_at TEXT NOT NULL, granted_by TEXT NOT NULL)',
+        "INSERT INTO auth_platform_admins VALUES ('p', 'now', 'test')"],
+      auth_memberships: ['CREATE TABLE auth_memberships (org_id TEXT NOT NULL, principal_id TEXT NOT NULL, role TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (org_id, principal_id))',
+        "INSERT INTO auth_memberships VALUES ('o', 'p', 'org:owner', 'now')"],
+      auth_organisations: ['CREATE TABLE auth_organisations (org_id TEXT PRIMARY KEY, name TEXT NOT NULL, created_at TEXT NOT NULL)',
+        "INSERT INTO auth_organisations VALUES ('o', 'Org', 'now')"],
+    } as const;
+    for (const missing of [...Object.keys(tables), null]) {
+      const db = new Database(':memory:');
+      try {
+        const partial = new ProjectStore(db);
+        for (const [name, [table, row]] of Object.entries(tables)) {
+          if (name === missing) continue;
+          db.exec(table);
+          db.exec(row);
+        }
+        expect(partial.listShowcaseRuns()).toEqual([]);
+        // The same rows make a founder once all three tables hold them.
+        expect([...partial.showcaseOrganisations()]).toEqual(missing === null ? ['o'] : []);
+      } finally {
+        db.close();
+      }
+    }
   });
 });
 
@@ -741,6 +1064,19 @@ describe('the real server', () => {
     const w = world();
     const id = seedRun(w, w.admin, { goal: 'Admin goal', title: 'An admin title', files: ['README.md'] });
     seedRun(w, w.member, { goal: 'MEMBER SECRET GOAL', title: 'Member secret title', files: ['README.md'] });
+    // The platform admin's own deliveries in client organisations they were
+    // invited into, as an admin and as an owner.
+    const clients = (['org:admin', 'org:owner'] as const).map((role) => joinClientOrganisation(w, role));
+    const leaked = clients.map((client) => seedRun(w, client.asAdmin, {
+      goal: 'CLIENT SECRET GOAL', title: 'Client secret title', delivery: 'text', answer: 'CLIENT SECRET ANSWER',
+    }));
+    const auth = AuthStore.open(w.dbPath);
+    const sessionOf = (viewer: Viewer) => {
+      const token = randomBytes(32).toString('base64url');
+      auth.createSession({ principalId: viewer.principalId, orgId: viewer.orgId, token, ttlMs: 600_000 });
+      return token;
+    };
+    const sessions = clients.map((client) => ({ owner: sessionOf(client.owner), admin: sessionOf(client.admin) }));
     closeStoreHandles();
     const origin = await boot(w, { ATOMA_PUBLIC_SHOWCASE: '1' });
 
@@ -754,6 +1090,10 @@ describe('the real server', () => {
     expect(html).toContain(`rel="canonical" href="${origin}/"`);
     expect(html).not.toContain('MEMBER SECRET GOAL');
     expect(html).not.toContain('Member secret title');
+    for (const secret of ['CLIENT SECRET', 'Client secret title', ...leaked.map((run) => `/showcase/${run}`)]) {
+      expect(html).not.toContain(secret);
+    }
+    expect(html).toContain('Everything <small>1</small>');
     expect(html).toContain(`href="/showcase/${id}"`);
     // A stale or forged cookie is just no session.
     const forged = await fetch(`${origin}/`, { headers: { cookie: 'atoma_session=forged' } });
@@ -770,11 +1110,20 @@ describe('the real server', () => {
     const story = await fetch(`${origin}/showcase/${id}`);
     expect(story.status).toBe(200);
     expect(await story.text()).toContain('An admin title');
-    expect((await fetch(`${origin}/showcase/${randomUUID()}`)).status).toBe(404);
+    const unknown = await fetch(`${origin}/showcase/${randomUUID()}`);
+    expect(unknown.status).toBe(404);
+    // A client organisation's story is no story at all: the same 404 as a made-up id.
+    const unknownBody = await unknown.text();
+    for (const run of leaked) {
+      const clientStory = await fetch(`${origin}/showcase/${run}`);
+      expect(clientStory.status).toBe(404);
+      expect(await clientStory.text()).toBe(unknownBody);
+    }
     expect((await fetch(`${origin}/showcase`, { method: 'POST' })).status).toBe(405);
 
     const sitemap = await (await fetch(`${origin}/sitemap.xml`)).text();
     expect(sitemap).toContain(`/showcase/${id}</loc>`);
+    for (const run of leaked) expect(sitemap).not.toContain(run);
     expect(sitemap).toContain(`<loc>${origin}/?lang=en</loc>`);
     expect(sitemap).toContain(`hreflang="fr" href="${origin}/?lang=fr"`);
     const frenchApp = await (await fetch(`${origin}/?lang=fr`)).text();
@@ -782,6 +1131,24 @@ describe('the real server', () => {
     expect(frenchApp).toContain(`hreflang="en" href="${origin}/?lang=en"`);
     // The control plane is untouched: runs still need a session.
     expect((await fetch(`${origin}/api/runs`)).status).toBe(401);
+
+    // The project list over HTTP: no showcase field on a client's project, for
+    // its own founder or for the platform admin's list of every organisation.
+    const listed = async (token: string) => {
+      const response = await fetch(`${origin}/api/projects`, { headers: { cookie: `atoma_session=${token}` } });
+      expect(response.status).toBe(200);
+      return new Map(((await response.json()) as Record<string, unknown>[]).map((row) => [row['projectId'], row]));
+    };
+    for (const [index, client] of clients.entries()) {
+      const asOwner = await listed(sessions[index]!.owner);
+      const asAdmin = await listed(sessions[index]!.admin);
+      for (const rows of [asOwner, asAdmin]) {
+        expect(rows.get(client.asAdmin.projectId)).toBeDefined();
+        expect(rows.get(client.asAdmin.projectId)).not.toHaveProperty('showcase');
+        expect(rows.get(client.asAdmin.projectId)).not.toHaveProperty('showcaseShown');
+      }
+      expect(asAdmin.get(w.admin.projectId)).toMatchObject({ showcase: 'listed', showcaseShown: true });
+    }
   });
 
   it('keeps the app as the home page, and answers 404 for stories, unless the host opted in', async () => {

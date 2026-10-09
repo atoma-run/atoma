@@ -414,7 +414,8 @@ defaults to false.
 - It lives in its own project column, not inside `repositoryTarget.source`. The
   source is identity and immutable; this is a policy a person may revoke.
 - The precedent is `showcase`: chosen at creation, changed later by an admin
-  (`setProjectShowcase`, `atoma_project_showcase`).
+  (`setProjectShowcase`, `atoma_project_showcase`); since 2026-10-09, only in
+  an organisation a platform admin founded and still owns (409 elsewhere).
 
 **Surfaces.**
 - `createProjectInputSchema` gains one optional field, which reaches the HTTP

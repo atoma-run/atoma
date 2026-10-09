@@ -352,6 +352,42 @@ it('exposes the persisted Git destination over MCP without claiming a PR was mer
   } finally { await client.close(); }
 });
 
+it('refuses atoma_project_showcase where no platform admin founded the organisation, and its description says so', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'atoma-mcp-showcase-')); dirs.push(root);
+  const dbPath = join(root, 'store.db');
+  const auth = AuthStore.open(dbPath);
+  const login = auth.completeLogin({ provider: 'github', subject: 'client', displayName: 'Client', email: null, emailVerified: false }, null)!;
+  const store = ProjectStore.open(dbPath);
+  const project = store.createProject({ orgId: login.viewer.orgId, principalId: login.viewer.principalId,
+    project: { name: 'Board', slug: 'board', repositoryTarget: { installationId: '123', owner: 'owner', name: 'board', visibility: 'private' } } });
+  const service = new ProjectService({ store, coordinator: {} as never, github: null });
+  const { url } = await listen(() => ({ kind: 'principal', viewer: login.viewer, tokenId: 'client' }),
+    { ...NO_TENANT, projects: { store, service }, auth });
+  const client = await connect(url);
+  const hide = () => client.callTool({ name: 'atoma_project_showcase', arguments: { projectId: project.projectId, showcase: 'hidden' } });
+  try {
+    const tool = (await client.listTools()).tools.find((candidate) => candidate.name === 'atoma_project_showcase')!;
+    expect(tool.description).toMatch(/only delivered runs a platform admin requested in an organisation they founded and still own/);
+    // Writes stay in the caller's organisation, as the service does.
+    expect(tool.description).toMatch(/When a platform admin founded your organisation and still owns it, put one of its projects/);
+    expect(tool.description).toMatch(/Refused in any other organisation/);
+    // The organisation's founder and owner, no platform admin anywhere in it.
+    const refused = await hide();
+    expect(refused.isError).toBe(true);
+    const [message, next] = (refused.content as { type: string; text: string }[])[0]!.text.split('\n');
+    expect(message).toMatch(/^refused \(409\): .*no platform admin founded and still owns this one/);
+    // No state the caller can read or change makes a retry succeed, and the guidance says so.
+    expect(next).toMatch(/^Next: Nothing to retry: /);
+    expect(refused.structuredContent).toMatchObject({ error: { code: 'conflict', retryable: false,
+      nextAction: expect.stringMatching(/^Nothing to retry: /) } });
+    expect(store.getProject(login.viewer.orgId, project.projectId)!.showcase).toBe('listed');
+    // Granted the flag, its founder is a platform admin who still owns it: read per call, so the next one is honoured.
+    auth.grantPlatformAdmin(login.viewer.principalId);
+    expect((await hide()).isError).not.toBe(true);
+    expect(store.getProject(login.viewer.orgId, project.projectId)!.showcase).toBe('hidden');
+  } finally { await client.close(); }
+});
+
 it('tells a platform admin which protocol each client speaks, itself included', async () => {
   // 2026-09-30: the host counted `<version> <client>` pairs and nothing read
   // them, so nobody could say which protocol production clients speak.

@@ -242,8 +242,11 @@ const httpsUrlSchema = z.string().url().refine((value) => new URL(value).protoco
 
 /**
  * Whether a project's delivered runs may appear on the public showcase, which
- * only ever shows a platform admin's runs (src/viz/showcase.ts). `hidden`
- * keeps them off it: experiments and measurements whose goals are not stories.
+ * only ever shows runs a platform admin requested in an organisation they
+ * founded and still own (`ProjectStore.listShowcaseRuns`; owner decision
+ * 2026-10-09). `hidden` keeps them off it: experiments and measurements whose
+ * goals are not stories. In any other organisation the value is stored but
+ * shows or hides nothing.
  */
 export const projectShowcaseSchema = z.enum(['listed', 'hidden']);
 
@@ -256,7 +259,7 @@ export const createProjectInputSchema = z
     followUpstream: z.boolean().default(false),
     showcase: projectShowcaseSchema
       .default('listed')
-      .describe('hidden keeps every run of this project off the public showcase; listed (default) leaves it eligible.'),
+      .describe('Only matters in an organisation a platform admin founded and still owns, the only kind the public showcase shows: hidden keeps every run of this project off it; listed (default) leaves it eligible. In any other organisation no run appears on the showcase, whatever this value.'),
   })
   .strict()
   .refine(p => !p.followUpstream || p.repositoryTarget.source?.mode === 'fork', 'followUpstream requires a fork');

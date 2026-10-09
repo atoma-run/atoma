@@ -172,6 +172,11 @@ function publicRun(
   };
 }
 
+/** Where a project stands on the public showcase; null where it cannot be. */
+interface ShowcaseView {
+  readonly shown: boolean;
+}
+
 function publicProject(
   project: Project,
   runSummary: ReturnType<ProjectServiceDeps['store']['projectRunSummary']> = {
@@ -180,21 +185,25 @@ function publicProject(
     lastRunAt: null,
     hasRunningRun: false,
   },
-  showcaseShown = false
+  showcase: ShowcaseView | null = null
 ) {
   return {
     projectId: project.projectId,
     name: project.name,
     slug: project.slug,
     status: project.status,
-    showcase: project.showcase,
     followUpstream: project.followUpstream,
     /**
-     * Whether a visitor of the public showcase sees this project NOW: the host
-     * publishes it, and one of its runs is in `listShowcaseRuns` — the very
-     * read the page makes. A listed project with no such run is only eligible.
+     * `showcase` and `showcaseShown` exist ONLY for a project of an
+     * organisation a platform admin founded and still owns: any other project
+     * cannot be on the public showcase and carries neither (owner decision
+     * 2026-10-09), so absent, never null, is what "not eligible" looks like.
+     * `showcaseShown`: a visitor sees the project NOW, because the host
+     * publishes the page and one of its runs is in `listShowcaseRuns`, the
+     * very read the page makes. A listed project with no such run is only
+     * eligible.
      */
-    showcaseShown,
+    ...(showcase ? { showcase: project.showcase, showcaseShown: showcase.shown } : {}),
     repositoryTarget: project.repositoryTarget,
     repositoryStatus: project.repositoryStatus,
     repositoryFullName: project.repositoryFullName,
@@ -251,6 +260,24 @@ export class ProjectService {
     return new Set(this.store.listShowcaseRuns().map((run) => run.projectId));
   }
 
+  /**
+   * Where each project stands on the public showcase, read once per answer:
+   * null for a project of an organisation no platform admin founded and still
+   * owns, which cannot be on it (`showcaseOrganisations`, owner decision
+   * 2026-10-09); otherwise whether a visitor sees one of its runs now. The
+   * page's own read happens only for such a project, so a client
+   * organisation's list, polled every few seconds, never pays for it.
+   */
+  private showcaseViews(): (orgId: string, projectId: string) => ShowcaseView | null {
+    const owned = this.store.showcaseOrganisations();
+    let shown: ReadonlySet<string> | null = null;
+    return (orgId, projectId) => {
+      if (!owned.has(orgId)) return null;
+      shown ??= this.shownOnShowcase();
+      return { shown: shown.has(projectId) };
+    };
+  }
+
   private present(run: ProjectRun, publication: import('../contracts/projects.js').Publication | null) {
     const clientAcceptance = this.store.getDeliveryAcceptance(run.orgId, run.projectRunId);
     const clientQuestion = this.coordinator.clientQuestion(run);
@@ -277,12 +304,13 @@ export class ProjectService {
 
   /** GET /api/projects — a platform admin reads ALL organisations' projects. */
   listProjects(viewer: Viewer): unknown {
-    const shown = this.shownOnShowcase();
+    const showcase = this.showcaseViews();
     if (viewer.platformAdmin) {
       return this.store.listAllProjects().map((project) => {
         this.auditRead(viewer, project.orgId, 'projects.index');
         return {
-          ...publicProject(project, this.store.projectRunSummary(project.orgId, project.projectId), shown.has(project.projectId)),
+          ...publicProject(project, this.store.projectRunSummary(project.orgId, project.projectId),
+            showcase(project.orgId, project.projectId)),
           orgId: project.orgId,
           orgName: project.orgName,
         };
@@ -292,7 +320,7 @@ export class ProjectService {
       publicProject(
         project,
         this.store.projectRunSummary(viewer.orgId, project.projectId),
-        shown.has(project.projectId)
+        showcase(viewer.orgId, project.projectId)
       )
     ).sort(newestActivityFirst);
   }
@@ -422,12 +450,7 @@ export class ProjectService {
     return this.createProjectFromInput(viewer, await readJsonBody(req));
   }
 
-  /**
-   * Put a project of the viewer's organisation on, or take it off, the public
-   * showcase. An organisation admin's decision, journaled; never another
-   * organisation's project, platform admin or not (writes stay in the active
-   * organisation).
-   */
+  /** Whether a fork project follows its upstream: an organisation admin's decision, journaled. */
   async setFollowUpstream(req: IncomingMessage, viewer: Viewer, projectId: string): Promise<unknown> {
     if (!roleAtLeast(viewer.role, 'org:admin')) throw new ProjectHttpError(403, 'org:admin role or above is required');
     const body = await readJsonBody(req);
@@ -441,9 +464,18 @@ export class ProjectService {
       actorType: 'principal', actorId: viewer.principalId, orgId: viewer.orgId, projectId,
       summary: `Upstream following ${project.followUpstream ? 'enabled' : 'disabled'} for ${eventLabel(project.name, 80)}`,
       detail: { from: before.followUpstream, to: project.followUpstream } });
-    return publicProject(project);
+    return publicProject(project, undefined, this.showcaseViews()(viewer.orgId, projectId));
   }
 
+  /**
+   * Put a project of the viewer's organisation on, or take it off, the public
+   * showcase: an organisation admin's decision, journaled. Only where a
+   * platform admin founded the organisation and still owns it, the only kind
+   * whose runs the showcase shows (owner decision 2026-10-09); refused (409)
+   * anywhere else, where the value shows or hides nothing and a journaled
+   * change would say it did. Never another organisation's project, platform
+   * admin or not (writes stay in the active organisation).
+   */
   setProjectShowcase(viewer: Viewer, projectId: string, showcaseInput: unknown): unknown {
     if (!roleAtLeast(viewer.role, 'org:admin')) {
       throw new ProjectHttpError(403, 'org:admin role or above is required to change what the showcase shows');
@@ -452,6 +484,12 @@ export class ProjectService {
     if (!showcase.success) throw new ProjectHttpError(400, 'showcase must be listed or hidden');
     const before = this.store.getProject(viewer.orgId, projectId);
     if (!before) throw new ProjectHttpError(404, 'project not found');
+    if (!this.store.showcaseOrganisations().has(viewer.orgId)) {
+      throw new ProjectHttpError(409, 'the public showcase shows only runs a platform admin requested in an '
+        + 'organisation they founded and still own; no platform admin founded and still owns this one, so none of '
+        + 'its runs can appear on it', { nextAction: 'Nothing to retry: no project of this organisation can appear '
+        + 'on the public showcase, so there is nothing to show or hide.' });
+    }
     const project = this.store.setProjectShowcase(viewer.orgId, projectId, showcase.data);
     if (!project) throw new ProjectHttpError(404, 'project not found');
     if (before.showcase !== project.showcase) {
@@ -466,7 +504,7 @@ export class ProjectService {
       });
     }
     return publicProject(project, this.store.projectRunSummary(viewer.orgId, projectId),
-      this.shownOnShowcase().has(projectId));
+      { shown: this.shownOnShowcase().has(projectId) });
   }
 
   /**
@@ -513,7 +551,7 @@ export class ProjectService {
         summary: `Project "${eventLabel(project.name)}" created`,
         detail: { slug: project.slug },
       });
-      return publicProject(project);
+      return publicProject(project, undefined, this.showcaseViews()(viewer.orgId, project.projectId));
     } catch (error) {
       // The store says WHICH identity collided — a slug or a repository — and
       // both are 409. This used to depend on matching a driver's own prose for

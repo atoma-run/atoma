@@ -167,6 +167,8 @@ describe('the 2026-07-28 era', () => {
       expect(project.required).toEqual(expect.arrayContaining(['name', 'slug', 'repositoryTarget']));
       // Keeping a project off the public showcase is optional: a client that never heard of it still creates one.
       expect(project.required).not.toContain('showcase');
+      // And the model reads where it has any effect at all (owner decision 2026-10-09).
+      expect(JSON.stringify(project.properties?.['showcase'])).toMatch(/Only matters in an organisation a platform admin founded and still owns/);
     } finally {
       await client.close();
     }
