@@ -2760,6 +2760,60 @@ try {
       await clickAccountTarget('project.section.files');
       await waitForHitTarget(accountPage, 'workspace.path.README.md', 'workspace not restored after terminal');
       console.log('CLI preview control ok: real canvas click from Latest delivered results opens terminal mode');
+      // The workspace list scrolls inside its pane, and at this narrow width
+      // the fixture folders push most files below its fold. A row partly
+      // under the pane's mask keeps a hit target whose centre is inside the
+      // window, so a click there reached nothing and README.md's preview never
+      // opened (60s wait, 2026-10-09); a row wholly outside the pane is not
+      // drawn and has no hit target at all. Find each row by scrolling the
+      // pane, click it, and check the click did what it should, scrolling
+      // toward the row again when it did not.
+      const workspaceRows = () => accountPage.evaluate(() => {
+        const handle = globalThis.__ATOMA_GPU__;
+        return handle.hitTargets().filter(entry => entry.id.startsWith('workspace.path.')).map(entry => ({ id: entry.id,
+          ...handle.projectRendererPoint(entry.x + entry.width / 2, entry.y + entry.height / 2), height: window.innerHeight }));
+      });
+      const scrollWorkspace = async deltaY => {
+        await accountPage.mouse.move(await accountPage.evaluate(() => window.innerWidth / 2),
+          await accountPage.evaluate(() => window.innerHeight - 150));
+        await accountPage.mouse.wheel({ deltaY });
+        await accountPage.evaluate(() => new Promise(resolve => setTimeout(resolve, 300)));
+      };
+      const findWorkspaceRow = async id => {
+        let sweep = -180;
+        for (let attempt = 0; attempt < 40; attempt++) {
+          const rows = await workspaceRows();
+          const point = rows.find(row => row.id === id);
+          if (point) {
+            if (point.y >= 1 && point.y <= point.height - 100) return;
+            await scrollWorkspace(point.y > point.height / 2 ? 180 : -180);
+            // The list's last rows cannot rise further: stop where it stopped.
+            const moved = (await workspaceRows()).find(row => row.id === id);
+            if (moved && Math.abs(moved.y - point.y) < 1) return;
+            continue;
+          }
+          // Not drawn: sweep the pane up to its top, then down to its end.
+          const before = rows.map(row => `${row.id}@${Math.round(row.y)}`).join();
+          await scrollWorkspace(sweep);
+          const after = (await workspaceRows()).map(row => `${row.id}@${Math.round(row.y)}`).join();
+          if (after === before) {
+            if (sweep > 0) break;
+            sweep = 180;
+          }
+        }
+        throw new Error(`workspace row ${id} is not in the list`);
+      };
+      const clickWorkspaceRow = async (id, landed, describe) => {
+        for (let attempt = 0; attempt < 6; attempt++) {
+          await findWorkspaceRow(id);
+          await clickAccountTarget(id);
+          if (await accountPage.waitForFunction(landed, { timeout: 3_000 }, id).then(() => true, () => false)) return;
+          // Still under a mask of the pane, upper or lower: scroll toward the row.
+          const point = (await workspaceRows()).find(row => row.id === id);
+          if (point) await scrollWorkspace(point.y > point.height / 2 ? 180 : -180);
+        }
+        throw new Error(describe);
+      };
       for (const [path, selector, text] of [
         ['README.md', 'h1', 'Preview heading'], ['table.csv', 'td', 'Atoma'], ['document.pdf', 'canvas.ofv-pdf-page', ''],
         ['drawing.svg', 'img', ''], ['photo.jpg', 'img', ''], ['sound.wav', 'audio', ''],
@@ -2767,11 +2821,11 @@ try {
       ]) {
         const folder = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '';
         if (folder) {
-          await waitForHitTarget(accountPage, `workspace.path.${folder}`, `missing folder ${folder}`);
-          await clickAccountTarget(`workspace.path.${folder}`);
+          await clickWorkspaceRow(`workspace.path.${folder}`, id => globalThis.__ATOMA_GPU__.hitTargets()
+            .some(entry => entry.id.startsWith(`${id}/`)), `folder ${folder} never opened`);
         }
-        await waitForHitTarget(accountPage, `workspace.path.${path}`, `missing ${path}`);
-        await clickAccountTarget(`workspace.path.${path}`);
+        await clickWorkspaceRow(`workspace.path.${path}`, id => Boolean(
+          document.querySelector(`iframe[title="${id.slice('workspace.path.'.length)}"]`)), `file preview for ${path} never opened`);
         // Removing the loading status changes the iframe height. Let its
         // ResizeObserver settle before checking the active rendered page.
         await accountPage.waitForFunction(path => document.querySelector(`iframe[title="${path}"]`) &&
@@ -2782,14 +2836,9 @@ try {
           const nodes = [...(doc?.querySelectorAll(selector) ?? [])];
           return nodes.some(el => selector === 'img' ? el.complete && el.naturalWidth > 0
             : selector === 'audio' ? el.readyState >= 1
-              : selector === '.ofv-model-stage canvas' ? (() => {
-                if (el.width < 100 || el.height < 100) return false;
-                const sample = document.createElement('canvas');
-                sample.width = 1; sample.height = 1;
-                const context = sample.getContext('2d');
-                context.drawImage(el, 0, 0, 1, 1);
-                return context.getImageData(0, 0, 1, 1).data[3] > 0;
-              })() : selector === 'canvas.ofv-pdf-page' ? (() => {
+              // Its pixels are read from the composited page below.
+              : selector === '.ofv-model-stage canvas' ? el.width >= 100 && el.height >= 100
+              : selector === 'canvas.ofv-pdf-page' ? (() => {
                 if (!el.width || !el.height) return false;
                 const pixel = el.getContext('2d').getImageData(Math.floor(el.width * .3), Math.floor(el.height * .7), 1, 1).data;
                 return pixel[0] > 200 && pixel[1] < 30 && pixel[2] < 30 && pixel[3] === 255;
@@ -2803,12 +2852,39 @@ try {
           }, path);
           throw new Error(`File preview ${path}: ${JSON.stringify(diagnostic)}`, { cause: error });
         });
+        if (selector === '.ofv-model-stage canvas') {
+          // As viz:smoke:files does: read the composited page, never the WebGL
+          // buffer, which drawImage reads back blank once the frame has been
+          // presented (engineering/triangle.obj failed so, 2026-10-09). Counted
+          // in a blank page: the console's CSP forbids fetching a data: URL.
+          // The stage is light; a canvas left uncomposited shows the frame's
+          // dark body instead, so most of its rectangle must read bright.
+          const box = await accountPage.$eval(`iframe[title="${path}"]`, frame => {
+            const outer = frame.getBoundingClientRect();
+            const stage = frame.contentDocument.querySelector('.ofv-model-stage canvas').getBoundingClientRect();
+            return { x: outer.x + stage.x, y: outer.y + stage.y, width: stage.width, height: stage.height };
+          });
+          const png = await accountPage.screenshot({ encoding: 'base64', clip: box });
+          const counter = await accountPage.browser().newPage();
+          const lit = await counter.evaluate(async png => {
+            const bitmap = await globalThis.createImageBitmap(await (await fetch(`data:image/png;base64,${png}`)).blob());
+            const copy = document.createElement('canvas'); copy.width = bitmap.width; copy.height = bitmap.height;
+            const context = copy.getContext('2d'); context.drawImage(bitmap, 0, 0);
+            const pixels = context.getImageData(0, 0, copy.width, copy.height).data;
+            bitmap.close();
+            let bright = 0;
+            for (let i = 0; i < pixels.length; i += 4) if (pixels[i] > 200 && pixels[i + 1] > 200 && pixels[i + 2] > 200) bright++;
+            return { bright, total: pixels.length / 4 };
+          }, png).finally(() => counter.close());
+          if (lit.bright < lit.total / 2) throw new Error(`3D preview ${path} is not composited: ${JSON.stringify(lit)}`);
+          console.log(`3D preview composited: ${path}, ${lit.bright} of ${lit.total} stage pixels lit`);
+        }
         if (await accountPage.evaluate(() => globalThis.__previewInjected === true)) throw new Error('Preview executed file-authored script');
         await accountPage.screenshot({ path: `/tmp/atoma-file-preview-${path.replaceAll(/[/.]/g, '-')}.png` });
         await accountPage.click('.gpu-preview-actions button');
         if (folder) {
-          await waitForHitTarget(accountPage, 'workspace.path.', 'workspace parent missing');
-          await clickAccountTarget('workspace.path.');
+          await clickWorkspaceRow('workspace.path.', () => globalThis.__ATOMA_GPU__.hitTargets()
+            .some(entry => /^workspace\.path\.[^/]+$/.test(entry.id)), `workspace parent of ${folder} never reopened the root`);
         }
       }
       await clickAccountTarget('project.section.runs');
