@@ -305,7 +305,9 @@ Neighbours:
   the seed lineage (trace tool events, `servedBy.codeDigest` taken by `start_node_server`
   before spawn), while the digest of the entry file and its relative imports is unchanged.
   Never read from `.atoma-probes.json`, which a model can write. Rendered RECORDED EARLIER.
-  Limit: a computed import, a package, a data file or the environment is not in the digest.
+  Limit: a computed import, a package, a data file or the environment is not in the digest;
+  an `import()`/`require()` of a template with a substitution fails closed instead.
+  Model-facing texts say "literal relative imports" and never promise more.
   A repository sync that takes remote content stops inheritance across that boundary.
 
 ## Intentional choices and rejected shortcuts

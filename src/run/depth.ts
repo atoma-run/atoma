@@ -170,7 +170,9 @@ export function withAcceptanceChecklist(task: Task, checklist: AcceptanceCheckli
             'Plan work that satisfies every one and exercises every HTTP item with fetch_url against the server ' +
             'this run starts.' + (standing
             ? ' Requests an earlier run of this project recorded against the server entry the delivery runs count ' +
-              'while that server code is unchanged; editing the server entry or any module it imports voids them all.'
+              'while that server code is unchanged; editing the server entry or a module it imports by a literal ' +
+              'relative path voids them all. A module loaded through a computed path is not tracked: after editing ' +
+              'one, exercise its HTTP items again.'
             : '')
           : 'Drafted from the goal: the root acceptor will look for evidence of each behaviour. Plan work that ' +
             'exercises every HTTP item with fetch_url against the server this run starts; it adds no requirement ' +

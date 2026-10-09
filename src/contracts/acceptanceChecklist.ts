@@ -458,9 +458,10 @@ export function renderChecklistCoverage(
     'run_shell is invisible here — not that the behaviour is broken; weigh it with the rest of the evidence.',
     ...(coverage.some(isStandingCoverage)
       ? ['RECORDED EARLIER is mechanical too: an earlier run of this project made that request, as the host recorded',
-        'it, to the server entry the delivery still runs, whose code (entry, relative imports, package.json, by',
-        'digest) is unchanged since. This attempt did not repeat it. Data files the server reads, dependencies and',
-        'the environment are not in the digest: it is standing evidence of that status, not a new observation.']
+        'it, to the server entry the delivery still runs, whose code (entry, literal relative imports, package.json,',
+        'by digest) is unchanged since. This attempt did not repeat it. A module loaded through a computed path, data',
+        'files the server reads, dependencies and the environment are not in the digest: it is standing evidence of',
+        'that status, not a new observation.']
       : []),
     ...(layouts
       ? ['A width after an item is a screen width its text names. LAID OUT / NOT LAID OUT are mechanical too:',

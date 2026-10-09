@@ -60,6 +60,12 @@ describe('the server code digest', () => {
     expect(await serverCodeDigest('a.js', (p: string) => ({ 'a.js': "import x from './gone.js';" } as Record<string, string>)[p])).toBeUndefined();
     expect(await serverCodeDigest('b.js', (p: string) => ({ 'b.js': "import x from '#internal';" } as Record<string, string>)[p])).toBeUndefined();
     expect(await serverCodeDigest('c.js', (p: string) => ({ 'c.js': 'const m = require(`./${name}.js`);' } as Record<string, string>)[p])).toBeUndefined();
+    // A template that starts from a directory variable computes its path just
+    // the same; it matched no relative specifier and was silently ignored.
+    for (const source of ['require(`${__dirname}/routes/items.js`);', 'await import(`${import.meta.dirname}/x.js`);',
+      'require( `${__filename}/../y.js`);']) {
+      expect(await serverCodeDigest('d.js', (p: string) => ({ 'd.js': source, 'routes/items.js': '1' } as Record<string, string>)[p])).toBeUndefined();
+    }
   });
 });
 

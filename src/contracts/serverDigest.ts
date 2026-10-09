@@ -17,11 +17,16 @@ import { posix } from 'node:path';
  * 2026-10-04, option 1).
  *
  * FAILS CLOSED (undefined, no evidence) on what it cannot follow: an
- * unresolvable relative specifier, a `#subpath` import, a computed template
- * literal, or more than MAX_FILES modules. Still outside it, stated: a data
- * file the server reads at runtime, a dependency's bytes, the host environment.
+ * unresolvable relative specifier, a `#subpath` import, an `import()` or
+ * `require()` of a template literal with a substitution (`./${name}.js`, and
+ * `${__dirname}/x.js` or `${import.meta.dirname}/x.js` alike), or more than
+ * MAX_FILES modules. Still outside it, stated: a specifier built by any other
+ * computation (`'./' + name`, a variable, `path.join(...)`), a data file the
+ * server reads at runtime, a dependency's bytes, the host environment.
  */
 const SPECIFIER = /(?:\bfrom\s*|\bimport\s*\(\s*|\brequire\s*\(\s*|\bimport\s+)(['"`])((?:\.{1,2}\/|#)[^'"`\n]+)\1/g;
+/** An `import()`/`require()` whose template literal computes its path. */
+const COMPUTED_TEMPLATE = /(?:\bimport|\brequire)\s*\(\s*`[^`]*\$\{/;
 const CANDIDATE_SUFFIXES = ['', '.js', '.mjs', '.cjs', '.ts', '.json', '/index.js', '/index.mjs', '/index.cjs', '/index.json'];
 const MAX_FILES = 64;
 
@@ -48,6 +53,7 @@ export async function serverCodeDigest(
     const text = await read(path);
     if (text === undefined) return undefined;
     seen.set(path, createHash('sha256').update(text).digest('hex'));
+    if (COMPUTED_TEMPLATE.test(text)) return undefined;
     for (const specifier of relativeSpecifiers(text)) {
       if (specifier.startsWith('#') || specifier.includes('${')) return undefined;
       const base = posix.normalize(posix.join(posix.dirname(path), specifier));
