@@ -15,10 +15,16 @@ class SkipStored {
 }
 class SkipDeflated extends SkipStored { static override compression = 8; }
 class ArchiveReadError extends Error {}
+/** The transport's own budget ran out — often on bytes or entries an
+ * `.atoma-import.json` exclusion leaves out, which a zipball cannot skip
+ * before download. Not a repository failure: stop reading and let the caller
+ * fetch whatever is still missing as immutable blobs. */
+class ArchiveBudgetExhausted extends Error {}
 
 /** An archive is a transport, never authority: only git-verified regular files
  * enter the workspace. Git export-ignore/export-subst omissions fall back to
- * immutable blobs at the caller. No zip path is ever passed to a filesystem API.
+ * immutable blobs at the caller, and so does everything still unread when the
+ * archive exceeds its entry or download budget. No zip path is ever passed to a filesystem API.
  */
 export async function readRepositoryArchive(input: {
   body: ReadableStream<Uint8Array>; files: readonly ArchiveFile[]; signal: AbortSignal;
@@ -29,7 +35,7 @@ export async function readRepositoryArchive(input: {
   const ready: GitHubPublishFile[] = [];
   let root: string | undefined, entries = 0, expanded = 0;
   const zip = new Unzip(file => {
-    if (++entries > WORKSPACE_LIMITS.maxEntries + 1) throw new ArchiveReadError('Repository archive exceeds the entry limit');
+    if (++entries > WORKSPACE_LIMITS.maxEntries + 1) throw new ArchiveBudgetExhausted();
     const parts = file.name.split('/');
     if (file.name.length > 4608 || file.name.includes('\\') || parts.some((p, i) =>
       p === '.' || p === '..' || p.includes('\0') || (!p && i !== parts.length - 1)) || !parts[0]) {
@@ -79,7 +85,7 @@ export async function readRepositoryArchive(input: {
       input.signal.throwIfAborted();
       if (next.done) break;
       compressed += next.value.length;
-      if (compressed > WORKSPACE_LIMITS.maxTotalBytes * 2) throw new ArchiveReadError('Repository archive exceeds the download byte limit');
+      if (compressed > WORKSPACE_LIMITS.maxTotalBytes * 2) throw new ArchiveBudgetExhausted();
       // Bound decoder output and backpressure: never retain the whole archive.
       for (let offset = 0; offset < next.value.length; offset += 16_384) {
         input.signal.throwIfAborted();
@@ -93,6 +99,11 @@ export async function readRepositoryArchive(input: {
     return completed;
   } catch (error) {
     input.signal.throwIfAborted();
+    if (error instanceof ArchiveBudgetExhausted) {
+      // Files verified before the budget ran out are kept; the rest are blobs.
+      while (ready.length) await input.onFile(ready.shift()!);
+      return completed;
+    }
     if (error instanceof ArchiveReadError) throw error;
     // Transport errors may carry a signed URL. Never persist those in a run.
     throw new Error('Repository archive could not be read');

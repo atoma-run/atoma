@@ -25,9 +25,13 @@ Neighbours:
 - An imported repository may carry a root `.atoma-import.json` with version 1
   and up to 32 case-insensitive directory `excludePrefixes`. Validate the
   complete tree shape and every path before applying exclusions; reject
-  symlinks and submodules even in excluded directories. Skip selected blobs
-  before download and byte limits. The selection never relaxes publication
-  policy: workflow paths remain forbidden on every write path.
+  symlinks and submodules even in excluded directories. Excluded files are
+  never read as blobs, never enter the workspace and never count toward its
+  file and byte limits. A GitHub.com zipball cannot skip them before download,
+  so an archive that exceeds its entry or 1 GiB download budget stops there and
+  every selected file it did not complete is read as a blob — never an import
+  failure. The selection never relaxes publication policy: workflow paths
+  remain forbidden on every write path.
 - `bindInstallation` IS THE ONE PLACE AN INSTALLATION BECOMES AN
   ORGANISATION'S, and both doors — the setup callback and the authorize
   callback — route through it. They did not, and they disagreed: setup checked

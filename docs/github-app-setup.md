@@ -303,9 +303,8 @@ and retry if preparation reports it outside the selection, even if it is publicl
 readable. Fork creation is asynchronous; preparation
 waits briefly and otherwise reports a retryable failure before any model work.
 
-Import supports regular and executable files, at most 10,000 tree entries,
-10 MiB per file and 50 MiB total. Truncated trees, symlinks and submodules are
-refused. Publication retains the existing manifest policy: additions and updates
+Import supports regular and executable files within the host budget below.
+Symlinks and submodules are refused. Publication retains the existing manifest policy: additions and updates
 only, with workflows and sensitive paths excluded. Changes to a fork's head
 during a run are refused instead of overwriting those changes; start a fresh run
 from the updated branch. GitHub credentials stay on the control plane.
@@ -322,10 +321,13 @@ the installation's API quota. These are resource budgets, not unlimited storage.
 For a source repository that contains large evidence archives or GitHub Actions
 workflows, add a root `.atoma-import.json` with `{"version":1,
 "excludePrefixes":["benchmark/",".github/workflows/"]}`. Prefixes are
-case-insensitive directory paths. Excluded directories are not downloaded into
-the run workspace, and the selection file itself is not part of the workspace;
-the 10 MiB file and 50 MiB total limits still apply to the
-remaining files. The source tree itself must still fit the 10,000-entry limit.
+case-insensitive directory paths. Excluded directories never enter the run
+workspace, and the selection file itself is not part of the workspace; the
+100,000-file, 10 MiB file and 512 MiB total limits apply to the remaining files
+only. The source tree itself must still fit the 400,000-entry limit. A GitHub.com
+archive cannot leave excluded directories out of its download: when they push it
+past its 1 GiB download budget, Atoma stops reading it and fetches the remaining
+selected files as immutable blobs instead of failing the import.
 This selection does not grant workflow publication: that remains refused even
 when a run creates a workflow file.
 
