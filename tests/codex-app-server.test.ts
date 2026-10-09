@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { EventEmitter, once } from 'node:events';
-import { chmodSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { PassThrough } from 'node:stream';
@@ -66,26 +66,17 @@ async function waitUntil<T>(probe: () => T | null, failure: string): Promise<T> 
   }
 }
 
-async function waitForBlockedProfile(profile: string): Promise<void> {
-  await waitUntil(() => {
-    const release = tryAcquireCodexHomeLease(profile);
-    if (!release) return true;
-    release();
-    return null;
-  }, 'wrapper did not acquire the profile lease');
-}
-
 async function waitForAvailableProfile(profile: string): Promise<() => void> {
   return waitUntil(() => tryAcquireCodexHomeLease(profile), 'wrapper did not release the profile lease');
 }
 
-async function waitForFullCapacity(profilesRoot: string): Promise<void> {
-  await waitUntil(() => {
-    const release = tryAcquirePersonalCodexProcessSlot(profilesRoot);
-    if (!release) return true;
-    release();
-    return null;
-  }, 'wrapper did not reserve a process seat');
+// The wrapper spawns Codex only once it holds both the profile lease and a
+// process seat, so the fake Codex's start marker proves both without probing.
+// A probe that acquired and released a seat could hold the last free one at
+// the instant the wrapper made its single attempt, and send it away for
+// capacity (run 37959614095, 2026-10-09).
+async function waitForStartedCodex(marker: string): Promise<void> {
+  await waitUntil(() => (existsSync(marker) ? true : null), 'wrapper did not start Codex');
 }
 
 function fakeCodexExecutable(binRoot: string, source: string): void {
@@ -287,9 +278,11 @@ describe('Codex app-server transport', () => {
       const profilesRoot = path.dirname(profile);
       const binRoot = path.join(profilesRoot, 'bin');
       mkdirSync(binRoot);
+      const started = path.join(profilesRoot, 'codex-started');
       fakeCodexExecutable(
         binRoot,
         [
+          `require('node:fs').writeFileSync(${JSON.stringify(started)}, '')`,
           "process.on('SIGTERM', () => setTimeout(() => process.exit(0), 50))",
           'setInterval(() => undefined, 1000)',
         ].join(';')
@@ -332,8 +325,8 @@ describe('Codex app-server transport', () => {
         const [pidChunk] = (await once(parent.stdout, 'data')) as [Buffer];
         wrapperPid = Number.parseInt(pidChunk.toString().trim(), 10);
         expect(wrapperPid).toBeGreaterThan(0);
-        await waitForBlockedProfile(profile);
-        await waitForFullCapacity(profilesRoot);
+        await waitForStartedCodex(started);
+        expect(tryAcquireCodexHomeLease(profile)).toBeNull();
         expect(tryAcquirePersonalCodexProcessSlot(profilesRoot)).toBeNull();
 
         const parentClosed = once(parent, 'close');

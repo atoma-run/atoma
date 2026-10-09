@@ -5,18 +5,20 @@ import { join } from 'node:path';
 import type Database from 'better-sqlite3';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-// Every directory the checkpoint walks is listed through this spy, which
-// records whether the store's write transaction was open at that moment.
+// Every walk of the checkpoint opens the workspace root through this spy, which
+// records whether the store's write transaction was open at that moment. The
+// root's OPEN is counted, not its listing: on Linux the walker lists the pinned
+// `/proc/self/fd/<n>` path, which never equals the root.
 const walks = vi.hoisted(() => ({ root: '', db: undefined as { inTransaction: boolean } | undefined, inside: 0, outside: 0 }));
 vi.mock('node:fs', async (original) => {
   const fs = await original<typeof import('node:fs')>();
-  const readdirSync = ((path: Parameters<typeof fs.readdirSync>[0], ...rest: unknown[]) => {
+  const openSync = ((path: Parameters<typeof fs.openSync>[0], ...rest: unknown[]) => {
     if (walks.root && String(path) === walks.root) {
       if (walks.db?.inTransaction) walks.inside += 1; else walks.outside += 1;
     }
-    return (fs.readdirSync as (...args: unknown[]) => unknown)(path, ...rest);
-  }) as typeof fs.readdirSync;
-  return { ...fs, default: { ...fs, readdirSync }, readdirSync };
+    return (fs.openSync as (...args: unknown[]) => unknown)(path, ...rest);
+  }) as typeof fs.openSync;
+  return { ...fs, default: { ...fs, openSync }, openSync };
 });
 
 const { RunCheckpointStore } = await import('../src/run/checkpoint.js');
