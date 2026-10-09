@@ -823,6 +823,57 @@ describe('anti-redispatch guard — a reproduced dispatch output routes to the L
   });
 });
 
+describe('anti-redispatch guard keys on the output, not the summary alone (code review 2026-10-09, 2.24)', () => {
+  it('a different output under the same summary is dispatched and validated, not set aside', async () => {
+    process.env['ATOMA_SKILL_DIRECT'] = '1';
+    const dir = mkdtempSync(join(tmpdir(), 'atoma-redispatch-output-'));
+    const skills = new SkillRegistry(dir);
+    const reg = new AtomRegistry(openDb(':memory:'));
+    reg.create(2, { description: 'l2', systemPrompt: 'l2', tools: [], params: {}, createdBy: 't' });
+    reg.create(1, { description: 'l1', systemPrompt: 'l1', tools: [], params: {}, createdBy: 't' });
+    for (let i = 0; i < 3; i++) reg.recordSuccess('Water');
+    saveCompiledScript(skills, nsOf(reg, 'Water'), {
+      id: 'count-rows', description: 'd', whenToUse: 'w', language: 'node',
+      body: 'console.log(JSON.stringify({output: "rows", summary: "done"}))',
+    });
+    for (let i = 0; i < 3; i++) skills.recordSuccess(nsOf(reg, 'Water'), 'count-rows');
+    let runs = 0;
+    const executor = {
+      has: () => true,
+      declarations: () => [],
+      execute: async (name: string) => {
+        if (name === 'run_shell') {
+          runs += 1;
+          return { stdout: JSON.stringify({ output: `rows: ${runs}`, summary: 'done' }) + '\n', exitCode: 0, stderr: '' };
+        }
+        return { ok: true };
+      },
+    };
+    const directEvents: SkillEventInfo[] = [];
+    const ctx = {
+      ...makeCtx(),
+      tools: executor as never,
+      recordSkill: (event: SkillEventInfo) => directEvents.push(event),
+      jev: approvingJev(),
+    };
+    const outputs: unknown[] = [];
+    for (const attempt of [1, 2]) {
+      const neuron = L2Atom.fromType(reg.getByName('Tracheid')!, reg, [], skills);
+      ctx.llm.enqueueText(jsonText({ kind: 'reuse', target: 'Water', confidence: 'high', reasoning: 't' }));
+      ctx.llm.enqueueText(jsonText({ kind: 'reuse', target: 'count-rows', confidence: 'high', reasoning: 'f' }));
+      const result = await neuron.handleDirect({ description: `count the rows, attempt ${attempt}` }, ctx);
+      expect(result.summary).toBe('done');
+      outputs.push(result.output);
+    }
+    expect(outputs.every((output) => typeof output === 'string' && output.startsWith('rows: '))).toBe(true);
+    expect(new Set(outputs).size).toBe(2);
+    // Two prefilter calls per attempt and no L1 loop: both dispatches stood.
+    expect(ctx.llm.calls).toHaveLength(4);
+    expect(directEvents.filter((event) => event.op === 'direct')).toHaveLength(2);
+    rmSync(dir, { recursive: true, force: true });
+  });
+});
+
 describe('deliverable gate — a script cannot report success for a file it never wrote', () => {
   // NOTE ON LAYERING (2026-08-11): the match-time capability test now refuses a
   // script whose PROVABLE write destinations miss the files a mutating subtask

@@ -41,7 +41,7 @@ import {
   effectiveObligations,
   renderProofCoverage,
 } from './proofCoverage.js';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { delegatedTaskContext, taskContextLines, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE } from './taskContext.js';
 import { TASK_EXECUTION_GUIDANCE } from '../contracts/taskExecution.js';
 import { RegistryNotFoundError } from '../core/errors.js';
@@ -291,6 +291,21 @@ export function taskRequiresRealBrowser(description: string): boolean {
         phaseDescription
       ))
   );
+}
+
+/**
+ * What the anti-redispatch memo compares: a digest of a script dispatch's
+ * output AND summary. A script's envelope is parsed JSON, so the encoding is
+ * stable for byte-identical stdout; an unencodable output never matches.
+ */
+function dispatchSignature(result: Result): string {
+  let output: string;
+  try {
+    output = JSON.stringify(result.output) ?? 'undefined';
+  } catch {
+    output = randomUUID();
+  }
+  return createHash('sha256').update(JSON.stringify([output, result.summary])).digest('hex');
 }
 
 export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom> {
@@ -971,18 +986,21 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
             // SIX identical dispatches, two escalations, three Opus plans
             // in one run. Replans build FRESH L2/L1 instances and reword
             // subtasks, so the memo lives on the run CONTEXT and keys on
-            // the OUTPUT: a dispatch whose summary this run has already
-            // seen from this skill is a loop, and only the validated LLM
-            // loop can adapt. The redundant script run costs two tool
-            // calls and zero LLM.
+            // the OUTPUT: a dispatch whose output and summary this run has
+            // already seen is a loop, and only the validated LLM loop can
+            // adapt. The redundant script run costs two tool calls and zero
+            // LLM. The key is a digest of BOTH: a different output under
+            // the same summary is new work, never a loop to set aside
+            // unvalidated (code review 2026-10-09, 2.24).
             const memo = (ctx.dispatchedScriptSignatures ??= new Map<string, string[]>());
             const seen = memo.get(skills.skill.id) ?? [];
-            // R4: sweep the UNION of all memoised summaries, not just this
+            const signature = dispatchSignature(direct);
+            // R4: sweep the UNION of all memoised signatures, not just this
             // id's — twin scripts (different ids, same compiledGeneration,
             // same function) coexist in merged catalogs, and the prefilter
             // alternating between them would sidestep an id-keyed memo and
             // re-open the six-identical-dispatches loop through a sibling.
-            const seenAnywhere = [...memo.values()].some((list) => list.includes(direct.summary));
+            const seenAnywhere = [...memo.values()].some((list) => list.includes(signature));
             if (seenAnywhere) {
               ctx.logger.info(
                 `[${this.name}] skill "${skills.skill.id}" dispatch reproduced an output this run already returned — falling back to the LLM loop (a deterministic re-run cannot answer a content rejection)`
@@ -992,7 +1010,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
               // Memoised BEFORE its validation: a refused output is a content
               // rejection like an upstream one, and a later re-dispatch of it
               // in this run is set aside without being validated again.
-              memo.set(skills.skill.id, [...seen.slice(-7), direct.summary]);
+              memo.set(skills.skill.id, [...seen.slice(-7), signature]);
               const verdict = await this.validateScriptDispatch(l1, direct, matched.task, ctx);
               if (verdict?.approved) {
                 // A script that changed files in a read-only subtask is not

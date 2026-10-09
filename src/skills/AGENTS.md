@@ -198,8 +198,10 @@ by owner decision on 2026-09-26
   Glucose, never matched, and lexical overlap separates twins from
   look-alikes no better than in August.
 - `validateProbeManifest` gates malformed machine input before dispatch.
-- Anti-redispatch state is run-scoped. A repeated deterministic output rejected
-  for content must not earn credit or be dispatched again in a later phase.
+- Anti-redispatch state is run-scoped and keyed on a digest of the output AND
+  summary: a new output under an old summary is new work, validated as such. A
+  repeated deterministic output rejected for content must not earn credit or be
+  dispatched again in a later phase.
 - Deterministic failure streaks demote brittle scripts, but environment/executor
   failures are not evidence against the recipe.
 - A deterministic dispatch must prove the deliverable, not merely that named
