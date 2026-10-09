@@ -56,12 +56,24 @@ it('passes exact bytes to the shared decoder and destroys it and its download UR
 it('localizes toolbar controls and preserves reader interpolation tokens', () => {
   const t = vi.fn((key: string, vars?: Record<string, unknown>) => `localized:${translate('en', key, vars)}`);
   const { messages, toolbar } = filePreviewTranslations(t);
-  expect(messages.textLineCount).toBe('localized:{count} lines');
+  expect(messages.textLineCount).toBe('localized:Lines: {count}');
   expect(messages.pdfPageLabel).toBe('localized:Page {page}');
   expect(messages.textWrap).toBe('localized:Wrap');
   expect(toolbar.labels?.['rotate-right']).toBe('localized:Rotate');
   expect(toolbar.titles?.search).toBe('localized:Search preview text');
   expect(filePreviewTranslations((key, vars) => translate('fr', key, vars)).messages.textCopy).toBe('Copier');
+});
+// The reader formats ONE template per message after the count is known, so
+// i18next never sees a number and cannot choose `_one`/`_other`: a count
+// followed by a noun read "1 lines" (code review 2026-10-09 2.29). EN keeps
+// such counts in a number-neutral form instead.
+it('words reader counts so they read correctly for any number', () => {
+  const { messages } = filePreviewTranslations((key, vars) => translate('en', key, vars));
+  const counted = Object.entries(messages).filter(([, value]) => value?.includes('{count}'));
+  expect(counted.map(([key]) => key)).toEqual(expect.arrayContaining(['textLineCount', 'officeLegacyTextFragmentCount']));
+  for (const [key, value] of counted) {
+    expect(value!.replace('{count}', '1'), key).not.toMatch(/\b1\s*\p{L}/u);
+  }
 });
 it.each([413, 403, 409])('surfaces HTTP %i without sending unavailable bytes to a decoder', async status => {
   mocks.fetch.mockResolvedValue({ ok: false, status });

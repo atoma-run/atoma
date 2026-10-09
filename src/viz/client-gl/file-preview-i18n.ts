@@ -10,6 +10,8 @@ export function filePreviewTranslations(t: Translate) {
     .map(([key, source]) => {
       // The reader substitutes single-brace tokens after i18next resolves the
       // template. Preserve those tokens through our double-brace interpolation.
+      // i18next therefore never sees a number and cannot pluralise: word a
+      // count so it reads for any value ("Lines: {{count}}", not "… lines").
       const vars = Object.fromEntries([...source.matchAll(/\{\{(\w+)\}\}/g)]
         .map(([, token]) => [token!, `{${token}}`]));
       return [key.slice(`fileViewer.${name}.`.length), t(key, vars)];
