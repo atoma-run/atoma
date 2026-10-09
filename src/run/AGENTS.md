@@ -93,7 +93,9 @@ Neighbours:
   request, `--pause-after-phase`, phase budget, client question) drains the
   backend BEFORE it seals the snapshot, so shutdown writes (JSON persistence, a
   WAL checkpoint) are part of the sealed tree and never fail `release()`
-  (code review 2026-10-09, 1.1). Deep project runs enable it automatically;
+  (code review 2026-10-09, 1.1). Sealing digests the tree before its store
+  transaction and captures it inside: the shared write lock covers one walk,
+  not two (2.9). Deep project runs enable it automatically;
   the host binds continuation to the requester/org/project and a new run receipt,
   copies the complete sealed workspace and atomically consumes the source claim.
   A saved root actor that changed (its version moves with a deploy, another

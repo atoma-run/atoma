@@ -14,7 +14,7 @@ import type { Result } from '../core/types.js';
 import { isLanded } from '../contracts/runLanding.js';
 import type { AtomRegistry, AtomType } from '../registry/atomRegistry.js';
 import { outOfPhaseBudget } from '../core/limits.js';
-import { checkpointWorkspaceDigest, saveCheckpointWorkspace, restoreCheckpointWorkspace, initializeCheckpointWorkspaces } from './checkpointWorkspace.js';
+import { checkpointWorkspaceDigest, readCheckpointWorkspace, saveCheckpointWorkspace, restoreCheckpointWorkspace, initializeCheckpointWorkspaces } from './checkpointWorkspace.js';
 export { checkpointWorkspaceDigest } from './checkpointWorkspace.js';
 import { PhaseBoundaryPause, runCheckpointSchema, type RootPhaseCheckpoint, type RunCheckpoint, type ProjectCheckpointStatus } from '../contracts/runCheckpoint.js';
 
@@ -191,8 +191,9 @@ export class RunCheckpointStore {
   }
 
   boundary(data: RunCheckpoint, owner: string, question?: ClientQuestion): void {
+    const before = readCheckpointWorkspace(data.workspace);
     this.db.transaction(() => {
-      const snapshot = saveCheckpointWorkspace(this.db, data.workspace);
+      const snapshot = saveCheckpointWorkspace(this.db, data.workspace, before);
       if (question) recordClientQuestion(this.db, data, question);
       data.snapshotId = snapshot.id;
       data.workspaceDigest = snapshot.digest;

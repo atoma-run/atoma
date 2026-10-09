@@ -84,15 +84,27 @@ export function initializeCheckpointWorkspaces(db: Database.Database): void {
   }
 }
 
+/** The tree's state read BEFORE the boundary's transaction opens (`saveCheckpointWorkspace`). */
+export interface CheckpointWorkspaceReading { readonly digest: string; readonly mode: number }
+export function readCheckpointWorkspace(root: string): CheckpointWorkspaceReading {
+  const mode = lstatSync(root).mode & 0o777;
+  return { digest: checkpointWorkspaceDigest(root), mode };
+}
+
 /** Called inside the same transaction that publishes the boundary. Failed or
  * changing captures roll back completely. Blobs stay in the backed-up product DB.
+ * The stability check compares the capture with a reading taken just before
+ * the transaction, not with a second walk inside it: the write lock of the
+ * shared store is held for one walk, not two (code review 2026-10-09 2.9).
+ * Two consecutive equal walks prove the same either way; no SQLite lock ever
+ * held the files still.
  */
-export function saveCheckpointWorkspace(db: Database.Database, root: string): { id: string; digest: string } {
+export function saveCheckpointWorkspace(db: Database.Database, root: string, before: CheckpointWorkspaceReading): { id: string; digest: string } {
   const id = randomUUID();
-  const mode = lstatSync(root).mode & 0o777;
   const insert = db.prepare('INSERT INTO run_checkpoint_files VALUES (?,?,?,?,?)');
   const digest = checkpointWorkspaceDigest(root, e => { insert.run(id, e.path, e.kind, e.mode, e.content); });
-  if (checkpointWorkspaceDigest(root) !== digest || (lstatSync(root).mode & 0o777) !== mode) throw new Error('Checkpoint workspace is still changing');
+  const mode = lstatSync(root).mode & 0o777;
+  if (before.digest !== digest || before.mode !== mode) throw new Error('Checkpoint workspace is still changing');
   db.prepare('INSERT INTO run_checkpoint_snapshots (id,digest,root_mode) VALUES (?,?,?)').run(id, digest, mode);
   return { id, digest };
 }
