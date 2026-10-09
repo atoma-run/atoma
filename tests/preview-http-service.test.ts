@@ -849,6 +849,12 @@ describe('explicit terminal preview', () => {
     expect(second.body.summary.mode).toBe('terminal');
     expect(second.body.summary.generation).toBe(first.body.summary.generation + 1);
     await service.stop(viewerFor(a), projectId, runId);
+    // The stopped terminal leaves its mode on the row; the run's capability
+    // is still the descriptor's, so an app open is not advertised.
+    const stopped = service.status(viewerFor(a), projectId, runId);
+    expect(stopped).toMatchObject({ state: 'stopped', mode: 'terminal', terminalAvailable: true,
+      availability: 'unavailable', reason: 'unsupported-deliverable' });
+    await expect(service.open(viewerFor(a), projectId, runId, {})).rejects.toMatchObject({ status: 409 });
   });
   it('requires a member, a delivered run, and the correct organisation/project', async () => {
     const a = actor('terminal');

@@ -88,9 +88,13 @@ export function previewSummary(input: {
   const requestedHosts = descriptor?.requestedHosts ?? [];
   const { allowed, blocked } = effectiveEgressHosts(requestedHosts, input.approvedHosts, input.operatorAllowedHosts);
   return previewSummarySchema.parse({
-    availability: terminal ? 'available' : descriptor?.availability ?? (inFlight ? 'available' : 'unavailable'),
+    // What the DELIVERY supports, never the mode the last instance used: a
+    // stopped terminal left `mode` on its row, and reading that as the run's
+    // capability announced `available` for a run an app open refuses. The
+    // terminal capability is `terminalAvailable`, from the run's status.
+    availability: descriptor?.availability ?? (inFlight ? 'available' : 'unavailable'),
     kind: descriptor?.kind ?? null,
-    reason: terminal ? null : descriptor ? descriptor.unavailableReason : inFlight ? null : 'legacy-run',
+    reason: descriptor ? descriptor.unavailableReason : inFlight ? null : 'legacy-run',
     ...(instance?.mode ? { mode: instance.mode } : {}),
     state: instance?.state ?? 'stopped',
     generation: instance?.generation ?? 0,
