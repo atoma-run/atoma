@@ -2,7 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -10,6 +10,7 @@ import { AuthStore } from '../src/auth/store.js';
 import type { ArtifactManifest } from '../src/contracts/projects.js';
 import type { RunStats } from '../src/contracts/runStats.js';
 import { closeStoreHandles } from '../src/core/stores.js';
+import { repoRoot } from '../src/mcp/run.js';
 import { ProjectService } from '../src/projects/service.js';
 import { ProjectStore } from '../src/projects/store.js';
 import { platformEventInputSchema, type PlatformEventInput } from '../src/contracts/platformEvents.js';
@@ -517,6 +518,15 @@ describe('what a visitor can read', () => {
     expect(source.answer(entryId, text)).toBe(`${'x'.repeat(8_000)}…`);
     expect(source.answer(entryId, files)).toBeNull();
     expect(source.answer(entryId, 'not-an-episode')).toBeNull();
+  });
+
+  it('withholds a host path the answer names', () => {
+    const w = world();
+    const install = join(repoRoot(), 'dist', 'cli', 'run.js');
+    const home = join(homedir(), '.atoma', 'workspaces', 'build');
+    const id = seedRun(w, w.admin, { goal: 'Where', delivery: 'text', answer: `Built by ${install} in ${home}.` });
+    const answer = createShowcaseSource(w.store).answer(id, id);
+    expect(answer).toBe('Built by <atoma>/dist/cli/run.js in ~/.atoma/workspaces/build.');
   });
 
   it('escapes every tenant- and model-authored value', () => {

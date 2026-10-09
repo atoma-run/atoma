@@ -1,5 +1,6 @@
 import path from 'node:path';
 import type { ProjectRun } from '../contracts/projects.js';
+import { projectRunHostRedactions, redactHostPaths } from '../projects/hostPaths.js';
 import { resolveProjectRunTraceFile, type ProjectStore } from '../projects/store.js';
 import { readBoundedRunFile } from './runIndex.js';
 
@@ -193,7 +194,11 @@ export function readShowcaseAnswer(run: ProjectRun): string | null {
     const trace = JSON.parse(read.bytes.toString('utf8')) as { result?: { output?: unknown } };
     const output = trace.result?.output;
     if (output === undefined || output === null) return null;
-    const text = typeof output === 'string' ? output : JSON.stringify(output, null, 2);
+    // Model-authored, on an anonymous page that promises never a host path.
+    const text = redactHostPaths(
+      typeof output === 'string' ? output : JSON.stringify(output, null, 2),
+      projectRunHostRedactions(run)
+    );
     return text.length > SHOWCASE_ANSWER_MAX ? `${text.slice(0, SHOWCASE_ANSWER_MAX)}…` : text;
   } catch {
     return null;
