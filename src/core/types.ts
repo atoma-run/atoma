@@ -834,6 +834,16 @@ export interface BranchEventInfo {
   readonly actorTier: Tier;
 }
 
+/**
+ * Skill lessons a run distils wait here for the root's verdict (owner decision
+ * 2026-10-09): run fc2a68cf learned a recipe from a phase whose checker root
+ * acceptance then refused for an uncaught ZeroDivisionError. A lesson receives
+ * the signal it must run under, or none to keep its own.
+ */
+export interface DeferredLearning {
+  defer(learn: (signal?: AbortSignal) => Promise<void>): void;
+}
+
 export interface RunContext {
   /** Root-only durable phase boundary; deliberately absent from child forks. */
   readonly rootCheckpoint?: import('../contracts/runCheckpoint.js').RootPhaseCheckpoint;
@@ -841,6 +851,8 @@ export interface RunContext {
   readonly attempt?: number;
   readonly beforeFallback?: (parent: { readonly name: string; readonly tier: Tier }) => void;
   readonly recordPhaseCoverage?: (record: import('../contracts/depthRouting.js').PhaseCoverageRecord) => void;
+  /** Set where a root acceptance judges the run (depth routing); shared by every fork. */
+  readonly deferredLearning?: DeferredLearning;
   readonly logger: Logger;
   /**
    * Run-scoped memo of deterministic-dispatch outputs: skill id → the

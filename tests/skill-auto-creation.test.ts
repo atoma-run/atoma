@@ -306,6 +306,41 @@ describe('L2 onApproved — skill auto-creation (C3)', () => {
     expect(learnPrompt).toMatch(/WHERE THIS SPLIT USUALLY DIES/);
   });
 
+  it('queues the lesson for the root verdict when one will judge the run (owner decision 2026-10-09)', async () => {
+    // Run fc2a68cf learned build-verified-probability-workshop from a phase
+    // whose checker the root then refused for an uncaught ZeroDivisionError.
+    process.env['ATOMA_SKILL_LEARN'] = '1';
+    ensureChildIsTrusted();
+    skills.save(nsOf(reg, 'Water'), {
+      id: 'unrelated', description: 'something else', whenToUse: 'never matches our task', kind: 'llm', body: 'b',
+    });
+    const neuron = L2Atom.fromType(reg.getByName('Tracheid')!, reg, [], skills);
+    const queued: Array<(signal?: AbortSignal) => Promise<void>> = [];
+    const ctx = { ...makeCtx(), deferredLearning: { defer: (learn: (signal?: AbortSignal) => Promise<void>) => { queued.push(learn); } } };
+    ctx.llm.enqueueText(jsonText({ kind: 'reuse', target: 'Water', confidence: 'high', reasoning: 't' }));
+    ctx.llm.enqueueText(jsonText({ kind: 'escalate', reasoning: 'no fit' }));
+    ctx.llm.enqueueText(jsonText({ reasoning: 'r', proposedAction: 'a', expectedOutput: 'e' }));
+    enqueueExecutedResult(ctx, { output: 'http://localhost:8000/', summary: 'built a clean web app' });
+
+    await neuron.handleDirect({ description: 'build a small web thing' }, ctx);
+    // Nothing distilled yet: the lesson waits, and the phase has already returned.
+    expect(queued).toHaveLength(1);
+    expect(skills.loadFor(nsOf(reg, 'Water')).map((s) => s.id)).toEqual(['unrelated']);
+    expect(ctx.llm.calls.some((c) => c.userContent.includes('"when_to_use"'))).toBe(false);
+
+    // A lesson handed a closed signal distils nothing: the root's window is over.
+    const closed = new AbortController();
+    closed.abort();
+    await queued[0]!(closed.signal);
+    expect(ctx.llm.calls.some((c) => c.userContent.includes('"when_to_use"'))).toBe(false);
+    // The root approved within its window: the lesson runs under that signal.
+    ctx.llm.enqueueText(JSON.stringify({ id: 'web-build-loop', description: 'write, serve, validate',
+      when_to_use: 'when the subtask is a single-file web artefact build',
+      body: '1. write_file index.html\n2. start_static_server\n3. validate_html with smoke' }));
+    await queued[0]!(new AbortController().signal);
+    expect(skills.loadFor(nsOf(reg, 'Water')).map((s) => s.id).sort()).toEqual(['unrelated', 'web-build-loop']);
+  });
+
   it('F2: rejects a draft whose body teaches a tool the host cannot call', async () => {
     // Regression (app-task-tracker run, 2026-08-07): two skills taught
     // "validate_html" on an HTTP-bucket atom that cannot declare it — the

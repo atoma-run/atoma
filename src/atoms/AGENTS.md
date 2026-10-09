@@ -66,7 +66,7 @@ Neighbours:
   Text review derives a bounded L2 reference blinded to the current answer, plan and remediation (`textReview.ts`).
   One extra tool-free call per text acceptance; no effort override, automatic vote or proof credit.
   The reviewer judges the whole task; references remain fallible model text. [Review](../../docs/text-review-and-history-2026-10-03.md).
-  The root changes no phase credits or learning state. The probe receives only `output` and `summary`, as at L3; internal plan/verdict/fallback trace quotes are not delivery claims. Phase coverage is collected with its original attempt and branch, never reevaluated against the root floor. The floor is not inherited by phases. The review
+  The root changes no phase credits; a pass's new skill lessons wait for its approval and a refusal drops them (owner decision 2026-10-09, run fc2a68cf). The probe receives only `output` and `summary`, as at L3; internal plan/verdict/fallback trace quotes are not delivery claims. Phase coverage is collected with its original attempt and branch, never reevaluated against the root floor. The floor is not inherited by phases. The review
   reads one mechanical line naming the sizes the attempt's pages were laid
   out at (`observedLayoutsBlock`): run 134d916a was accepted on "no overflow
   at 375 and 1280 pixels" with every check at 800x600. That line alone did

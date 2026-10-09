@@ -1073,6 +1073,49 @@ describe('depth transition through the production supervision loop', () => {
     expect(kept.approved).toBe(true);
   });
 
+  it('saves a pass\'s skill lessons only when the root approves that pass (owner decision 2026-10-09)', async () => {
+    // Run fc2a68cf: a recipe was learned from a phase the root then refused.
+    const ctx = context();
+    const stats = vi.fn();
+    const ran: Array<{ pass: number; signal: AbortSignal | undefined }> = [];
+    let pass = 0;
+    ctx.llm.enqueueText(jsonText({ approved: false, reasoning: 'the zero-denominator path raises' }));
+    ctx.llm.enqueueText(jsonText({ approved: true, reasoning: 'repaired and proven' }));
+    await runDepthTask({
+      mode: 'short', task, floor, restart: vi.fn(), onTopology: vi.fn(), onAcceptance: vi.fn(),
+      ctx: { ...ctx, recordRunStat: stats },
+      createExecutor: () => ({ actor: new Actor(), handle: async (_t, passCtx) => {
+        const current = ++pass;
+        // Lessons are queued from inside a phase, through a fork, as L2 does.
+        forkBranch(passCtx, `phase-${current}`).deferredLearning!.defer(async (signal) => { ran.push({ pass: current, signal }); });
+        return result;
+      } }),
+    });
+    expect(pass).toBe(2);
+    expect(ran.map((lesson) => lesson.pass)).toEqual([2]);
+    expect(ran[0]!.signal).toBeInstanceOf(AbortSignal);
+    expect(stats.mock.calls.filter(([signal]) => signal === 'discarded-lesson')).toHaveLength(1);
+  });
+
+  it('drops the lessons of a pass that lands refused', async () => {
+    const ctx = context();
+    const stats = vi.fn();
+    const ran = vi.fn();
+    ctx.llm.enqueueText(jsonText({ approved: false, reasoning: 'first refusal' }));
+    ctx.llm.enqueueText(jsonText({ approved: false, reasoning: 'second refusal' }));
+    const out = await runDepthTask({
+      mode: 'short', task, floor, restart: vi.fn(), onTopology: vi.fn(), onAcceptance: vi.fn(),
+      ctx: { ...ctx, recordRunStat: stats },
+      createExecutor: () => ({ actor: new Actor(), handle: async (_t, passCtx) => {
+        passCtx.deferredLearning!.defer(async () => { ran(); });
+        return result;
+      } }),
+    });
+    expect(out.refusal).toBe('second refusal');
+    expect(ran).not.toHaveBeenCalled();
+    expect(stats.mock.calls.filter(([signal]) => signal === 'discarded-lesson')).toHaveLength(2);
+  });
+
   it('refuses for good after the last remediation, without a third pass', async () => {
     const ctx = context();
     const stats = vi.fn();

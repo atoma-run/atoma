@@ -178,6 +178,24 @@ export function withAcceptanceChecklist(task: Task, checklist: AcceptanceCheckli
   };
 }
 
+/** Run in order under the approved pass's finalization signal; each lesson logs its own failure. */
+async function saveLessons(lessons: readonly ((signal?: AbortSignal) => Promise<void>)[], signal: AbortSignal,
+  ctx: RunContext): Promise<void> {
+  for (const [index, learn] of lessons.entries()) {
+    if (signal.aborted) {
+      discardLessons(lessons.slice(index), ctx, 'the finalization window closed first');
+      return;
+    }
+    await learn(signal);
+  }
+}
+
+function discardLessons(lessons: readonly unknown[], ctx: RunContext, why: string): void {
+  if (lessons.length === 0) return;
+  for (let i = 0; i < lessons.length; i += 1) ctx.recordRunStat?.('discarded-lesson');
+  ctx.logger.warn(`[root] ${lessons.length} skill lesson(s) not saved: ${why}`);
+}
+
 /** The existing atom protocol executes each attempt; this owns only their lifetime. */
 export async function runDepthTask(args: {
   mode: DepthMode; task: Task; ctx: RunContext; floor: ProofFloor;
@@ -253,105 +271,119 @@ export async function runDepthTask(args: {
       // 2026-09-26 that discarded a complete first result as `failed`.
       let refused: { readonly result: Result; readonly acceptance: AcceptanceInfo } | null = null;
       for (;;) {
-        let result: Result;
-        let delivery: DeliveryKind | undefined;
-        let rootPhases: readonly string[] = [];
-        const passCtx: RunContext = { ...attemptCtx, recordRootPlan: (plan) => {
-          delivery = plan.delivery;
-          rootPhases = plan.subtasks.map((subtask) => subtask.description);
-          attemptCtx.recordRootPlan?.(plan);
-        } };
+        // ONE PASS'S LESSONS wait for the root's verdict on that pass: saved
+        // when it approves, dropped on every other way out (owner decision
+        // 2026-10-09; run fc2a68cf learned from a phase the root then refused).
+        const lessons: Array<(signal?: AbortSignal) => Promise<void>> = [];
+        let lessonsSaved = false;
         try {
-          result = await handle(currentTask, passCtx);
-        } catch (error) {
-          if (error instanceof PhaseBoundaryPause) throw error;
-          if (refused && !cancellation.signal.aborted && abortedForLanding(ctx)) {
-            const reasoning = refused.acceptance.reasoning.trim() || 'the root acceptor gave no reason';
-            return markRefused(refused.result, {
-              reasoning: `${reasoning} — the remediation pass was cut by the run deadline before it completed a phase`,
-            });
+          let result: Result;
+          let delivery: DeliveryKind | undefined;
+          let rootPhases: readonly string[] = [];
+          const passCtx: RunContext = { ...attemptCtx, deferredLearning: { defer: (learn) => { lessons.push(learn); } },
+            recordRootPlan: (plan) => {
+              delivery = plan.delivery;
+              rootPhases = plan.subtasks.map((subtask) => subtask.description);
+              attemptCtx.recordRootPlan?.(plan);
+            } };
+          try {
+            result = await handle(currentTask, passCtx);
+          } catch (error) {
+            if (error instanceof PhaseBoundaryPause) throw error;
+            if (refused && !cancellation.signal.aborted && abortedForLanding(ctx)) {
+              const reasoning = refused.acceptance.reasoning.trim() || 'the root acceptor gave no reason';
+              return markRefused(refused.result, {
+                reasoning: `${reasoning} — the remediation pass was cut by the run deadline before it completed a phase`,
+              });
+            }
+            // THE FIRST PASS, cut by the run budget before any of its phases was
+            // accepted, still wrote real work: it lands with every phase it
+            // planned unfinished, so the next run of the project starts from
+            // those files instead of from nothing. On a thirty-minute ceiling a
+            // phase too large to close in one run otherwise failed every time,
+            // each relaunch starting over (production run dfa20873, 2026-10-03,
+            // closed its first phase only through a false trust approval). A
+            // pass cut before its root plan existed has run no phase and fails.
+            // Only the budget's own abort lands: a genuine failure a parallel
+            // dispatch rethrew after the deadline cut a sibling keeps its meaning.
+            // The landing is then JUDGED like any work in hand, so what it broke
+            // in a seed (an inherited check) is recorded before it seeds a run.
+            if (!refused && rootPhases.length > 0 && !cancellation.signal.aborted && abortedForLanding(ctx) && budgetAbort(error, ctx)) {
+              result = landedBeforeAnyPhase(actor, rootPhases);
+            } else {
+              throw error;
+            }
           }
-          // THE FIRST PASS, cut by the run budget before any of its phases was
-          // accepted, still wrote real work: it lands with every phase it
-          // planned unfinished, so the next run of the project starts from
-          // those files instead of from nothing. On a thirty-minute ceiling a
-          // phase too large to close in one run otherwise failed every time,
-          // each relaunch starting over (production run dfa20873, 2026-10-03,
-          // closed its first phase only through a false trust approval). A
-          // pass cut before its root plan existed has run no phase and fails.
-          // Only the budget's own abort lands: a genuine failure a parallel
-          // dispatch rethrew after the deadline cut a sibling keeps its meaning.
-          // The landing is then JUDGED like any work in hand, so what it broke
-          // in a seed (an inherited check) is recorded before it seeds a run.
-          if (!refused && rootPhases.length > 0 && !cancellation.signal.aborted && abortedForLanding(ctx) && budgetAbort(error, ctx)) {
-            result = landedBeforeAnyPhase(actor, rootPhases);
-          } else {
-            throw error;
-          }
-        }
-        // Once delivery review/remediation begins the phase boundary is consumed.
-        ctx.rootCheckpoint?.finalizing();
-        // WORK IN HAND leaves the execution clock for the finalization window,
-        // landed or complete (2026-09-25 review, 1.2a): a complete result whose
-        // root acceptance straddled the deadline used to be thrown away while a
-        // landed one was kept. Deepening and explicit cancellation still abort.
-        cancellation.signal.throwIfAborted();
-        const landed = Boolean(result.unfinishedPhases?.length);
-        if (!abortedForLanding(ctx)) attemptCtx.signal.throwIfAborted();
-        const explicitCancellation = new AbortController();
-        const forwardCancellation = () => {
-          if (!abortedForLanding(ctx)) explicitCancellation.abort(ctx.signal.reason);
-        };
-        ctx.signal.addEventListener('abort', forwardCancellation, { once: true });
-        // Deadline + grace, absolute. Without a run deadline a landed result keeps
-        // the post-approval cap and a complete one only its cancellations.
-        const bound = finalizationSignal(ctx.deadlineAt) ?? (landed ? landingSignal() : undefined);
-        const acceptanceCtx: RunContext = { ...attemptCtx,
-          signal: AbortSignal.any([...(bound ? [bound] : []), cancellation.signal, explicitCancellation.signal]),
-        };
-        let acceptance: AcceptanceInfo;
-        try {
-          acceptance = await withinSignal(acceptRootResult({ actor, task: currentTask, result, ctx: acceptanceCtx,
-            ...(delivery ? { delivery } : {}),
-            floor: args.floor, phaseCoverage, ...(args.checklist ? { checklist: args.checklist } : {}),
-            ...(args.checklistOrigin ? { checklistOrigin: args.checklistOrigin } : {}),
-            // The refused pass's own record: a remediation's acceptance must
-            // re-check what that one listed (run 5dff35b0).
-            ...(refused ? { previousAcceptance: refused.acceptance,
-              previousEvidence: refused.result.evidence } : {}) }), acceptanceCtx.signal);
-          acceptanceCtx.signal.throwIfAborted();
-        } catch (error) {
+          // Once delivery review/remediation begins the phase boundary is consumed.
+          ctx.rootCheckpoint?.finalizing();
+          // WORK IN HAND leaves the execution clock for the finalization window,
+          // landed or complete (2026-09-25 review, 1.2a): a complete result whose
+          // root acceptance straddled the deadline used to be thrown away while a
+          // landed one was kept. Deepening and explicit cancellation still abort.
           cancellation.signal.throwIfAborted();
-          explicitCancellation.signal.throwIfAborted();
-          // A real error before the deadline is still an error. Once the clock
-          // is involved — the window closed, or the run deadline passed — the
-          // work in hand is kept, never delivered, and no new pass is opened.
-          if (!acceptanceCtx.signal.aborted && !abortedForLanding(ctx)) throw error;
-          return markRefused(result, { reasoning: 'Root acceptance could not finish within the landing budget' });
+          const landed = Boolean(result.unfinishedPhases?.length);
+          if (!abortedForLanding(ctx)) attemptCtx.signal.throwIfAborted();
+          const explicitCancellation = new AbortController();
+          const forwardCancellation = () => {
+            if (!abortedForLanding(ctx)) explicitCancellation.abort(ctx.signal.reason);
+          };
+          ctx.signal.addEventListener('abort', forwardCancellation, { once: true });
+          // Deadline + grace, absolute. Without a run deadline a landed result keeps
+          // the post-approval cap and a complete one only its cancellations.
+          const bound = finalizationSignal(ctx.deadlineAt) ?? (landed ? landingSignal() : undefined);
+          const acceptanceCtx: RunContext = { ...attemptCtx,
+            signal: AbortSignal.any([...(bound ? [bound] : []), cancellation.signal, explicitCancellation.signal]),
+          };
+          let acceptance: AcceptanceInfo;
+          try {
+            acceptance = await withinSignal(acceptRootResult({ actor, task: currentTask, result, ctx: acceptanceCtx,
+              ...(delivery ? { delivery } : {}),
+              floor: args.floor, phaseCoverage, ...(args.checklist ? { checklist: args.checklist } : {}),
+              ...(args.checklistOrigin ? { checklistOrigin: args.checklistOrigin } : {}),
+              // The refused pass's own record: a remediation's acceptance must
+              // re-check what that one listed (run 5dff35b0).
+              ...(refused ? { previousAcceptance: refused.acceptance,
+                previousEvidence: refused.result.evidence } : {}) }), acceptanceCtx.signal);
+            acceptanceCtx.signal.throwIfAborted();
+          } catch (error) {
+            cancellation.signal.throwIfAborted();
+            explicitCancellation.signal.throwIfAborted();
+            // A real error before the deadline is still an error. Once the clock
+            // is involved — the window closed, or the run deadline passed — the
+            // work in hand is kept, never delivered, and no new pass is opened.
+            if (!acceptanceCtx.signal.aborted && !abortedForLanding(ctx)) throw error;
+            return markRefused(result, { reasoning: 'Root acceptance could not finish within the landing budget' });
+          } finally {
+            ctx.signal.removeEventListener('abort', forwardCancellation);
+          }
+          args.onAcceptance(acceptance);
+          if (acceptance.approved) {
+            lessonsSaved = true;
+            await saveLessons(lessons.splice(0), acceptanceCtx.signal, ctx);
+            return result;
+          }
+          // A refusal LANDS when there is no pass left to spend, or when the
+          // wall clock cannot pay for one. `outOfPhaseBudget` is the floor
+          // landing already uses: opening work the deadline will truncate buys
+          // nothing, and here it would also cost the refusal's own diagnosis.
+          //
+          // It used to throw. The run then recorded `failed`, and every byte the
+          // molecule had written seeded nothing, because `previousSeedRun` skips
+          // a failed run on its status filter — thirty minutes and 0.42 USD of
+          // real work discarded on production run `6ab0ae3b`.
+          if (ctx.signal.aborted || remediations >= MAX_ROOT_REMEDIATIONS || outOfPhaseBudget(ctx.deadlineAt)) {
+            return markRefused(result, acceptance);
+          }
+          remediations += 1;
+          refused = { result, acceptance };
+          ctx.recordRunStat?.('root-remediation');
+          ctx.logger.warn(
+            `[root] delivery refused; one more pass with the acceptor's reasons (${remediations}/${MAX_ROOT_REMEDIATIONS})`
+          );
+          currentTask = remediationTask(currentTask, acceptance);
         } finally {
-          ctx.signal.removeEventListener('abort', forwardCancellation);
+          if (!lessonsSaved) discardLessons(lessons.splice(0), ctx, 'the root did not approve this pass');
         }
-        args.onAcceptance(acceptance);
-        if (acceptance.approved) return result;
-        // A refusal LANDS when there is no pass left to spend, or when the
-        // wall clock cannot pay for one. `outOfPhaseBudget` is the floor
-        // landing already uses: opening work the deadline will truncate buys
-        // nothing, and here it would also cost the refusal's own diagnosis.
-        //
-        // It used to throw. The run then recorded `failed`, and every byte the
-        // molecule had written seeded nothing, because `previousSeedRun` skips
-        // a failed run on its status filter — thirty minutes and 0.42 USD of
-        // real work discarded on production run `6ab0ae3b`.
-        if (ctx.signal.aborted || remediations >= MAX_ROOT_REMEDIATIONS || outOfPhaseBudget(ctx.deadlineAt)) {
-          return markRefused(result, acceptance);
-        }
-        remediations += 1;
-        refused = { result, acceptance };
-        ctx.recordRunStat?.('root-remediation');
-        ctx.logger.warn(
-          `[root] delivery refused; one more pass with the acceptor's reasons (${remediations}/${MAX_ROOT_REMEDIATIONS})`
-        );
-        currentTask = remediationTask(currentTask, acceptance);
       }
     } catch (error) {
       if (error instanceof PhaseBoundaryPause) throw error;

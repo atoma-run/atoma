@@ -76,9 +76,10 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
       else if (req.role === 'validate-plan') reply = { approved: true, reasoning: 'Plan approved' };
       else if (req.role === 'validate-result') {
         if (req.actor?.name === 'run-root') {
-          // Credits and distillation must already be durable BEFORE root rejection.
+          // Credits must already be durable BEFORE the root's verdict; a new
+          // lesson waits for it (owner decision 2026-10-09, run fc2a68cf).
           expect(registry.getByName(leafName)!.successes).toBe(1);
-          expect(skills.loadFor(leafId)).toHaveLength(1);
+          expect(skills.loadFor(leafId)).toHaveLength(matched ? 1 : 0);
           if (matched) expect(skills.loadFor(leafId)[0]!.successes).toBe(1);
           reply = { approved: rootApproved, reasoning: rootApproved ? 'Reviewed delivery accepted' : 'Required route behavior is unverified' };
         } else reply = { approved: true, reasoning: 'Server phase approved', activeSkillFollowed: true };
@@ -115,7 +116,8 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
       // wrote and seeds the next run, so the outcome is `partial`, not
       // `failed`. What this test is about is unchanged and is asserted below —
       // phase trust and skill credit survive a root refusal, because the root
-      // judges the DELIVERY and never the method.
+      // judges the DELIVERY and never the method. A NEW lesson does not: it is
+      // distilled only from a pass the root approved (owner decision 2026-10-09).
       expect(await handle.settled).toEqual({ outcome: rootApproved && !deadline ? 'delivered' : 'partial' });
       const path = readdirSync(runs).find((name) => name.endsWith('.json') && name !== 'index.json')!;
       const trace = JSON.parse(readFileSync(join(runs, path), 'utf8')) as VizRun;
@@ -141,10 +143,11 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
         { approved: rootApproved, floorCoverage: [], phaseCoverage: [{ obligations: [] }] },
       ]);
       expect(calls.filter((req) => req.actor?.name === 'run-root')).toHaveLength(1);
-      expect(calls.some((req) => req.role === 'skill')).toBe(!matched);
-      expect(parseRunLog(logs.join('\n'))).toMatchObject({ uncoveredObligations: 0, deepenings: 0 });
+      expect(calls.some((req) => req.role === 'skill')).toBe(!matched && rootApproved);
+      expect(parseRunLog(logs.join('\n'))).toMatchObject({ uncoveredObligations: 0, deepenings: 0,
+        discardedLessons: !matched && !rootApproved ? 1 : 0 });
       expect(trace.events.some((event) => event.kind === 'skill' && event.op === 'credit-withheld')).toBe(false);
-      expect(skills.loadFor(leafId)).toHaveLength(1);
+      expect(skills.loadFor(leafId)).toHaveLength(matched || rootApproved ? 1 : 0);
     } finally {
       await handle?.shutdown();
       // The test's registry holds the cached handle on the store (W4);

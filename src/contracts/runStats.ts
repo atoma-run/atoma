@@ -89,6 +89,12 @@ export const runStatsSchema = z.object({
    */
   rootRemediations: countSchema.default(0),
   /**
+   * Skill lessons distilled during a pass that root acceptance then refused,
+   * and therefore never saved (owner decision 2026-10-09). Defaulted, like its
+   * neighbours, so archived epilogues still parse.
+   */
+  discardedLessons: countSchema.default(0),
+  /**
    * WHY a `partial` run did not deliver, in the words `landingReasons` builds
    * from the typed fields (`src/contracts/runLanding.ts`). Empty on every other
    * outcome.
@@ -121,7 +127,8 @@ export type RunStatSignal =
   | 'dispatch-fallback'
   | 'uncovered-obligation'
   | 'deepening'
-  | 'root-remediation';
+  | 'root-remediation'
+  | 'discarded-lesson';
 
 export function formatRunStatsEpilogue(stats: RunStats): string {
   // The trace retains full descriptions; the epilogue is a bounded projection.

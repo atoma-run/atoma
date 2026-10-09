@@ -146,6 +146,17 @@ import { namespaceOf, skillEventExecutor, type SkillNamespace } from '../skills/
 
 
 /**
+ * Run a skill lesson now, or queue it for the root's verdict when one will
+ * judge this run (`ctx.deferredLearning`, set by depth routing). A queued
+ * lesson runs under the signal the root hands it: the branch's own may have
+ * closed with the run's deadline by the time an approval comes.
+ */
+async function learnAfterRoot(ctx: RunContext, learn: (learnCtx: RunContext) => Promise<void>): Promise<void> {
+  if (!ctx.deferredLearning) return learn(ctx);
+  ctx.deferredLearning.defer((signal) => learn(signal ? { ...ctx, signal } : ctx));
+}
+
+/**
  * Did the molecule of `branchId` write a workspace file through an element?
  * Runtime files (`.atoma-*`) are its own records and inputs, never a change.
  */
@@ -1164,18 +1175,22 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       // trace, ultimately approved, not a fallback deliverable) carries the
       // failure→fix delta worth keying on the event signature. Opportunistic:
       // errors are logged and swallowed, the run is already delivered.
-      try {
-        await this.maybeLearnEventSkill({
-          l1Name: namespaceOf(l1Type),
-          subTask,
-          res,
-          eventSkillInjected: eventState.injected,
-          ctx: branchCtx,
+      const eventLesson = this.eventSkillLesson({
+        l1Name: namespaceOf(l1Type),
+        subTask,
+        res,
+        eventSkillInjected: eventState.injected,
+      });
+      if (eventLesson) {
+        await learnAfterRoot(branchCtx, async (learnCtx) => {
+          try {
+            await eventLesson(learnCtx);
+          } catch (err) {
+            ctx.logger.warn(
+              `[${this.name}] event-skill learning attempt errored: ${(err as Error).message}`
+            );
+          }
         });
-      } catch (err) {
-        ctx.logger.warn(
-          `[${this.name}] event-skill learning attempt errored: ${(err as Error).message}`
-        );
       }
       return res;
     } finally {
@@ -1251,7 +1266,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
   }
 
   /**
-   * Post-loop gate for event-skill distillation (#E1). Fires only when
+   * Post-loop gate for event-skill distillation (#E1). Returns the lesson only when
    * ALL of: learning is on (same flag as C3), the run RECOVERED (at
    * least one rejection in the trace, ultimately approved), the
    * deliverable is NOT a parent-fallback (that recovery pattern is
@@ -1259,35 +1274,36 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
    * NO event skill was injected during the loop (novel event; if one
    * WAS injected, the recovery is confounded with the existing skill).
    */
-  private async maybeLearnEventSkill(args: {
+  private eventSkillLesson(args: {
     l1Name: SkillNamespace;
     subTask: Task;
     res: Result;
     eventSkillInjected: boolean;
-    ctx: RunContext;
-  }): Promise<void> {
-    if (process.env['ATOMA_SKILL_LEARN'] !== '1') return;
-    if (!this.skillRegistry) return;
-    if (args.eventSkillInjected) return;
+  }): ((ctx: RunContext) => Promise<void>) | null {
+    if (process.env['ATOMA_SKILL_LEARN'] !== '1') return null;
+    if (!this.skillRegistry) return null;
+    if (args.eventSkillInjected) return null;
     // A read-only subtask's recovery may be a fix the restoration undid.
-    if (args.subTask.readOnly) return;
-    if (args.res.producedBy.viaFallback) return;
-    if (!resultHasSuccessfulToolAction(args.res)) return;
+    if (args.subTask.readOnly) return null;
+    if (args.res.producedBy.viaFallback) return null;
+    if (!resultHasSuccessfulToolAction(args.res)) return null;
     const hadRejection = args.res.trace.some(
       (e) =>
         (e.kind === 'verdict-plan' || e.kind === 'verdict-result') &&
         (e.payload as { approved?: boolean } | null)?.approved === false
     );
-    if (!hadRejection) return;
+    if (!hadRejection) return null;
     const diagnostic = extractBranchDiagnostic(args.res.trace);
-    if (!diagnostic) return;
-    await this.lifecycle()?.learnEventSkillFromRecovery({
-      l1Name: args.l1Name,
-      subTask: args.subTask,
-      diagnostic,
-      recoverySummary: args.res.summary,
-      ctx: args.ctx,
-    });
+    if (!diagnostic) return null;
+    return async (ctx) => {
+      await this.lifecycle()?.learnEventSkillFromRecovery({
+        l1Name: args.l1Name,
+        subTask: args.subTask,
+        diagnostic,
+        recoverySummary: args.res.summary,
+        ctx,
+      });
+    };
   }
 
   private async tryPromoteSkill(args: {
@@ -1957,26 +1973,29 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
           // phase undoes after this approval: its recipe could teach them.
           !skillCtx.subTask.readOnly
         ) {
-          try {
-            await this.learnSkillFromRun({
-              l1Name: skillCtx.l1Name,
-              subTask: skillCtx.subTask,
-              result,
-              child,
-              ctx,
-              verificationOnly: !novel,
-              ...(skillCtx.visibleNamespaces
-                ? { visibleNamespaces: skillCtx.visibleNamespaces }
-                : {}),
-              // Learning compiles what it learns; the scan reads the HOME's
-              // declared tools, as the credit path's promotion does (R3).
-              hostTools: (this.registry.getByAtomId(skillCtx.l1Name)?.tools ?? []).map((t) => t.name),
-            });
-          } catch (err) {
-            ctx.logger.warn(
-              `[${this.name}] skill auto-creation failed: ${(err as Error).message}`
-            );
-          }
+          // Learning compiles what it learns; the scan reads the HOME's
+          // declared tools, as the credit path's promotion does (R3).
+          const hostTools = (this.registry.getByAtomId(skillCtx.l1Name)?.tools ?? []).map((t) => t.name);
+          await learnAfterRoot(ctx, async (learnCtx) => {
+            try {
+              await this.learnSkillFromRun({
+                l1Name: skillCtx.l1Name,
+                subTask: skillCtx.subTask,
+                result,
+                child,
+                ctx: learnCtx,
+                verificationOnly: !novel,
+                ...(skillCtx.visibleNamespaces
+                  ? { visibleNamespaces: skillCtx.visibleNamespaces }
+                  : {}),
+                hostTools,
+              });
+            } catch (err) {
+              ctx.logger.warn(
+                `[${this.name}] skill auto-creation failed: ${(err as Error).message}`
+              );
+            }
+          });
         }
       },
       onFailed: async (child, _reason, lastResultVerdict) => {

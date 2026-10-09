@@ -183,7 +183,7 @@ function argKeyFor(name: string, args: Record<string, unknown>): string {
 /**
  * A run counts as APPROVED when it completed normally AND no validator
  * verdict in its trace rejected — mirroring (in reverse) the conditions
- * `maybeLearnEventSkill` uses to call a run "recovered". `degraded` mirrors
+ * `eventSkillLesson` uses to call a run "recovered". `degraded` mirrors
  * its fallback-deliverable exclusion.
  */
 export function runWasApproved(run: VizRun): boolean {

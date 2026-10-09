@@ -231,6 +231,7 @@ function machineRunStats(
     uncoveredObligations: signals['uncovered-obligation'],
     deepenings: signals.deepening,
     rootRemediations: signals['root-remediation'],
+    discardedLessons: signals['discarded-lesson'],
     landingReasons: [...landing],
   };
 }
@@ -941,6 +942,7 @@ async function startTaskInternal(
     'uncovered-obligation': 0,
     deepening: 0,
     'root-remediation': 0,
+    'discarded-lesson': 0,
   };
   // ONE construction switch per transport, shared with curriculum and the viz
   // server (review §3.9): only the transports the three selectors reach are
