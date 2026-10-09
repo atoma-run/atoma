@@ -40,6 +40,8 @@ export function taskContextLines(task: Task, options: { includeAcceptanceCheckli
       // The host-owned value already renders at top level; do not double its tokens.
       delete originalInputs['projectContext'];
       delete originalInputs['clientAnswers'];
+      // The host's run history too, up to 24000 characters a call (code review 2026-10-09 2.7).
+      if (inputs['previousRunResults'] !== undefined) delete originalInputs['previousRunResults'];
       inputs['originalTask'] = { ...original, inputs: originalInputs };
     }
   }
@@ -80,6 +82,8 @@ export function delegatedTaskContext(parent: Task, child: SubtaskSpec): Pick<Tas
   const childInputs = { ...child.inputs };
   delete childInputs['projectContext'];
   delete childInputs['clientAnswers'];
+  // Host-owned like the two above: a plan cannot replace the run history the prompt renders once.
+  delete childInputs['previousRunResults'];
   const executionMode = parent.executionMode === 'reasoning' ? 'reasoning' : child.executionMode;
   return {
     originalTask,
