@@ -226,6 +226,12 @@ describe('record_probe', () => {
     await expect(t.execute({ cmd: 'echo "a\\"b"; node domain-tests.js' })).rejects.toThrow(
       /long-running server/
     );
+    // Words bash expands are not the words the script reads: any of these may
+    // produce the flag, so each keeps the source-wide refusal.
+    for (const cmd of ['node domain-tests.js "$(echo --serve)"', 'node domain-tests.js `echo --serve`',
+      'node domain-tests.js "${MODE:---serve}"', 'MODE=--serve node domain-tests.js $MODE']) {
+      await expect(t.execute({ cmd })).rejects.toThrow(/long-running server/);
+    }
     expect(() => manifest()).not.toThrow();
   });
 

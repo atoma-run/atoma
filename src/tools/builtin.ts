@@ -3670,6 +3670,11 @@ export function recordProbeTool(opts: BuiltinToolOptions): BuiltinTool {
         } catch {
           invokedArgs = undefined;
         }
+        // These words are NOT what the script reads: bash expands them first.
+        // A substitution or parameter expansion can produce any flag —
+        // `"$(echo --serve)"` booted a guarded server under record_probe until
+        // its timeout — so a word that expands leaves the arguments unknown.
+        if (invokedArgs?.some((word) => /`|\$[({\w@*#?!$-]/.test(word))) invokedArgs = undefined;
       }
       for (const scriptPath of scriptPaths) {
         try {
