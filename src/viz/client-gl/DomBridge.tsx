@@ -553,6 +553,11 @@ export function DomBridge({
             ) : null}
           </section>
         ) : null}
+        {view === 'runs' && run ? (() => {
+          const entry = runs.find(candidate => candidate.id === run.id);
+          return entry?.projectId && entry.projectName ? <button type="button"
+            onClick={() => onActivate?.(`runs.project.back.${entry.projectId}`)}><ButtonIcon kind="back" />{t('runs.backToProject')}</button> : null;
+        })() : null}
         {view === 'runs' && run ? <AccessibleRunActivity run={run} t={t} /> : null}
         {view === 'liveRuns' && auth?.viewer.platformAdmin ? (
           <section aria-label={t('nav.liveRuns')}>

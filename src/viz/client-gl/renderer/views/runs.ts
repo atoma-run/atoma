@@ -1,4 +1,4 @@
-import { drawPreviewControl } from '../preview-control.js';
+import { previewActions } from '../preview-control.js';
 import { BUTTON_ICON_SPACE, CHEVRON_SIZE, CHEVRON_SPACE } from '../../button-icons.js';
 import { drawChevron } from '../button-icon.js';
 import { Container, Graphics, Rectangle } from 'pixi.js';
@@ -99,6 +99,36 @@ export const RUN_STATUS_COLOR: Record<RunStatus, number> = {
   failed: GPU_COLORS.error,
   abandoned: GPU_COLORS.warning,
 };
+
+const RUN_ACTION_MAX_WIDTH = 180;
+const RUN_ACTION_HEIGHT = 30;
+const RUN_ACTION_ROW_PITCH = 40;
+const RUN_ACTION_GAP = 8;
+
+/**
+ * Where each of the run's actions goes, from its MEASURED natural width. One
+ * row of equal buttons while every label fits that share; otherwise each
+ * keeps its own width and the row wraps, so a narrow pane gains a row rather
+ * than ellipses. Offsets are relative to the row's top-left corner.
+ */
+export function layoutRunActions(naturals: readonly number[], available: number): { x: number; y: number; width: number }[] {
+  const count = Math.max(1, naturals.length);
+  const uniform = Math.min(RUN_ACTION_MAX_WIDTH, (available - RUN_ACTION_GAP * (count - 1)) / count);
+  if (naturals.every(natural => Math.min(RUN_ACTION_MAX_WIDTH, natural) <= uniform)) {
+    return naturals.map((_, index) => ({ x: index * (uniform + RUN_ACTION_GAP), y: 0, width: uniform }));
+  }
+  let x = 0, y = 0;
+  return naturals.map(natural => {
+    const width = Math.min(RUN_ACTION_MAX_WIDTH, natural, available);
+    if (x > 0 && x + width > available) {
+      x = 0;
+      y += RUN_ACTION_ROW_PITCH;
+    }
+    const slot = { x, y, width };
+    x += width + RUN_ACTION_GAP;
+    return slot;
+  });
+}
 
 /**
  * Rows the view inserts ABOVE the first event row for its "run ended"
@@ -469,13 +499,28 @@ export function drawRuns(
   // card on the right pane; a single-pane viewport has no summary card, so
   // both keep a row here instead.
   let filterTop = top + 72 + RUNS_PROJECT_TITLE_HEIGHT;
-  const actionWidth = Math.min(180, (leftWidth - 36) / 2);
+  const actionWidth = Math.min(RUN_ACTION_MAX_WIDTH, (leftWidth - 36) / 2);
   const activity = buildRunActivity(run);
-  ctx.button(ctx.root, 'activity.open', 'button', snapshot.t(snapshot.state.runActivityOpen ? 'activity.title' : 'activity.open', { count: activity.touched }),
-    leftX + 14, filterTop, actionWidth, 30, snapshot.state.runActivityOpen, snapshot.onActivate);
-  ctx.button(ctx.root, `result.open.${run.id}`, 'button', snapshot.t('result.title'),
-    leftX + 22 + actionWidth, filterTop, actionWidth, 30, snapshot.state.resultRunId === run.id, snapshot.onActivate);
-  filterTop += 40;
+  // ONE row of the run's actions: the way back to a project run's list, its
+  // two readers, then the app preview — on every pane width, where the
+  // preview used to hang under the summary card that a single pane lacks.
+  const backProjectId = indexEntry?.projectId && indexEntry.projectName ? indexEntry.projectId : null;
+  const actions = [
+    ...(backProjectId ? [{ id: `runs.project.back.${backProjectId}`, label: snapshot.t('runs.backToProject'), active: false }] : []),
+    { id: 'activity.open', label: snapshot.t(snapshot.state.runActivityOpen ? 'activity.title' : 'activity.open', { count: activity.touched }),
+      active: snapshot.state.runActivityOpen },
+    { id: `result.open.${run.id}`, label: snapshot.t('result.title'), active: snapshot.state.resultRunId === run.id },
+    ...previewActions(snapshot),
+  ];
+  const slots = layoutRunActions(actions.map(action =>
+    Math.ceil(ctx.measureText(action.label, { size: 11, weight: action.active ? '700' : '600' })) + 20 + BUTTON_ICON_SPACE),
+  Math.max(0, leftWidth - 28));
+  actions.forEach((action, index) => {
+    const slot = slots[index]!;
+    ctx.button(ctx.root, action.id, 'button', action.label, leftX + 14 + slot.x, filterTop + slot.y,
+      slot.width, RUN_ACTION_HEIGHT, action.active, snapshot.onActivate);
+  });
+  filterTop += (slots.at(-1)?.y ?? 0) + RUN_ACTION_ROW_PITCH;
   if (snapshot.state.runActivityOpen) {
     drawRunActivity(ctx, snapshot, leftX, filterTop, leftWidth, Math.max(0, height - filterTop - GPU_LAYOUT.gap));
     ctx.scrollMax.runs = 0;
@@ -483,7 +528,7 @@ export function drawRuns(
   }
   if (snapshot.state.resultRunId === run.id) {
     drawResultPanel(ctx, snapshot, leftX, filterTop, width - leftX - GPU_LAYOUT.gap,
-      Math.max(100, height - filterTop - GPU_LAYOUT.gap));
+      Math.max(100, height - filterTop - GPU_LAYOUT.gap), true, false);
     ctx.scrollMax.runs = 0;
     return;
   }
@@ -1628,15 +1673,14 @@ function drawRunSummaryCard(
   const continueRow = guidance?.project
     ? drawPartialContinueControl(ctx, snapshot, guidance, x, y + 10 + cursor + 6, width)
     : 0;
-  const previewRow = drawPreviewControl(ctx, snapshot, x, y + 10 + cursor + 6 + continueRow, width);
-  return cursor + 18 + continueRow + previewRow;
+  return cursor + 18 + continueRow;
 }
 
 /**
  * The next step of an incomplete project run, as ONE control: it opens the
  * project with this run's goal already in the prompt, so continuing is a
  * review and a click rather than knowing where runs are started. A sibling of
- * the summary card for the reason the Preview control is (below).
+ * the summary card, for the reason `drawPreviewControl` gives.
  */
 function drawPartialContinueControl(
   ctx: RendererCtx,

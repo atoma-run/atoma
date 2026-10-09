@@ -48,7 +48,7 @@ export function buttonIconKind(id: string): ButtonIconKind {
   if (id === 'project.section.preview') return 'eye';
   if (id === 'project.section.files') return 'folder';
   if (id === 'project.section.result') return 'file';
-  if (/^(result|workspace|activity)\.close$|^run.event.close$|^activity.files$|^workspace.parent$/.test(id)) return 'back';
+  if (/^(result|workspace|activity)\.close$|^run.event.close$|^activity.files$|^workspace.parent$|^runs\.project\.back\./.test(id)) return 'back';
   if (/^activity.source\./.test(id)) return 'code';
   if (/^activity.collapse\.|\.more$/.test(id)) return 'down';
   if (/\.prev$|^activity.newer$/.test(id)) return 'back';

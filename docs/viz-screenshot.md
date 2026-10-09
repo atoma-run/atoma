@@ -26,6 +26,8 @@ npm run viz:shot -- --auth --view Runs              # any nav tab by its label
 npm run viz:shot -- --auth --view Runs --timeline-probe # hover preview and canvas navigation through the mini timeline
 npm run viz:shot -- --auth --view Runs --run-picker-probe # project-scoped search, counts and canvas selection
 npm run viz:shot -- --auth --view Runs --result     # final answer, copy and download controls
+npm run viz:shot -- --auth --view Runs --back-probe # Back to project, clicked on the canvas, lands on its Runs section
+npm run viz:shot -- --auth --view Runs --preview-ready # a running app preview: open and stop end the action row
 npm run viz:shot -- --auth --view Runs --result-artwork # saved SVG files, summary and collapsed technical evidence
 npm run viz:shot -- --auth --view Runs --activity   # recorded steps and changed files
 npm run viz:shot -- --auth --view Runs --activity-file app.js # bounded recorded edits

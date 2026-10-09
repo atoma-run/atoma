@@ -907,6 +907,10 @@ function GpuAppContent({
       store.setView('projects');
       return;
     }
+    if (id.startsWith('runs.project.back.')) {
+      store.openProjectRuns(id.slice('runs.project.back.'.length));
+      return;
+    }
     if (id.startsWith('runs.project.open.')) {
       store.selectProject(id.slice('runs.project.open.'.length));
       store.setView('projects');

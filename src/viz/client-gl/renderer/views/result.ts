@@ -10,7 +10,9 @@ import { drawPreviewControl } from '../preview-control.js';
 
 /** One bounded result reader shared by Projects and Runs. No model HTML executes. */
 export function drawResultPanel(ctx: RendererCtx, snapshot: GpuRenderSnapshot,
-  x: number, y: number, width: number, height: number, showBackButton = true): void {
+  x: number, y: number, width: number, height: number, showBackButton = true,
+  /** Runs carries the preview in its own action row, above this reader. */
+  showPreview = true): void {
   const run = snapshot.data.resultRun?.id === snapshot.state.resultRunId ? snapshot.data.resultRun : null;
   const projectRun = Object.values(snapshot.data.projectRuns).flat()
     .find(row => row.traceId === snapshot.state.resultRunId || row.projectRunId === snapshot.state.resultRunId);
@@ -40,7 +42,7 @@ export function drawResultPanel(ctx: RendererCtx, snapshot: GpuRenderSnapshot,
       detailsWidth, 30, details, snapshot.onActivate);
   }
   let top = y + (run && detailsStacked ? detailsY + 40 : titleStacked ? 80 : 48);
-  top += drawPreviewControl(ctx, snapshot, x + 6, top, width - 12);
+  if (showPreview) top += drawPreviewControl(ctx, snapshot, x + 6, top, width - 12);
   const paneHeight = Math.max(0, height - (top - y) - 12);
   const pane = createScrollPane(ctx.root, { x: x + 12, y: top, width: width - 24,
     height: paneHeight, scrollY: ctx.detailScrollY });

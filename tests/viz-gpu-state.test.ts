@@ -351,6 +351,14 @@ describe('full-GL Zustand scene state', () => {
     }
   });
 
+  it('takes a run back to its project\'s Runs section', () => {
+    useGpuStore.setState({ view: 'runs', selectedProjectId: null, projectSection: 'conversation', sceneCameraMode: 'overview' });
+    useGpuStore.getState().openProjectRuns('project-a');
+    expect(useGpuStore.getState()).toMatchObject({
+      view: 'projects', selectedProjectId: 'project-a', projectSection: 'runs', sceneCameraMode: 'focus',
+    });
+  });
+
   it('opens the end-user guide on quick start and resets scroll between topics', () => {
     expect(useGpuStore.getState().selectedDocsTheme).toBe('quick');
     useGpuStore.setState((state) => ({

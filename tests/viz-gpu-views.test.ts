@@ -124,9 +124,11 @@ import {
 } from '../src/viz/client-gl/renderer/mark-clock.js';
 import { MARK_SURGE, setMarkCoreSurge } from '../src/viz/client-gl/renderer/mark-surge.js';
 import { drawRegistry } from '../src/viz/client-gl/renderer/views/registry.js';
+import { BUTTON_ICON_SPACE } from '../src/viz/client-gl/button-icons.js';
 import {
   drawRuns,
   eventDecisionLeft,
+  layoutRunActions,
   RUN_PICKER_CONTROL_HEIGHT,
   RUN_PICKER_CONTROL_TOP,
   RUN_PICKER_HORIZONTAL_INSET,
@@ -633,7 +635,7 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     projectAssistantCompactHeight: null,
     workspaceRunId: null, workspacePath: '', filePreview: null, previewFile: () => {},
     githubRecovery: null, setGitHubRecovery: vi.fn(),
-    openWorkspace: vi.fn(), selectProjectSection: vi.fn(), selectWorkspacePath: vi.fn(),
+    openWorkspace: vi.fn(), openProjectRuns: vi.fn(), selectProjectSection: vi.fn(), selectWorkspacePath: vi.fn(),
     runFilters: { kind: 'all', role: 'all', branchId: 'all' },
     branchHeadingExpanded: true,
     runSummaryExpanded: true,
@@ -3334,6 +3336,45 @@ describe('drawProjects', () => {
     expect(row(single, 'README.md').width).toBe(row(draw(900, null), 'README.md').width);
   });
 
+  // Result belongs to its run: inside the card, at its right edge beside the
+  // short date and status lines, never a free-standing row under the card.
+  it('puts each run\'s Result inside its card, beside the date and status lines', () => {
+    const project = guidanceProject();
+    const run = (index: number, traceId: string | null) => ({
+      projectId: project.projectId, projectRunId: `run-${index}`, traceId,
+      goal: 'Extend the existing expenses service without rewriting it and keep both endpoints working exactly as they do now',
+      status: traceId ? 'delivered' as const : 'failed' as const, costUsd: 0.21, durationS: 121, tokens: 11972, llmCalls: 4, jevCalls: 0,
+      error: null, createdAt: `2026-09-2${index}T00:00:00.000Z`, endedAt: `2026-09-2${index}T00:02:00.000Z`, publication: null,
+    });
+    const runs = [run(5, 'trace-a'), run(4, 'trace-b'), run(3, null)];
+    const data = { auth: makeAuth(), projects: [project], projectRuns: { [project.projectId]: runs } };
+    expect(t('projects.runsHeading', { count: 1 })).toBe('1 run so far in this project');
+    for (const width of [1000, 360]) {
+      const ctx = createRecordingCtx();
+      drawProjects(ctx, makeSnapshot({ view: 'projects', selectedProjectId: project.projectId, projectSection: 'runs' }, data), width, 900);
+      expect(ctx.texts.some(text => text.value === '3 runs so far in this project')).toBe(true);
+      const cards = runs.filter(entry => entry.traceId).map(entry => ctx.buttons.find(button => button.id === `project.run.${entry.traceId}`)!);
+      for (const card of cards) {
+        const result = ctx.buttons.find(button => button.id === `result.open.${card.id.slice('project.run.'.length)}`)!;
+        expect(result.parent).toBe(card.parent);
+        expect(result.x).toBeGreaterThan(card.x);
+        expect(result.x + result.width).toBeLessThanOrEqual(card.x + card.width);
+        expect(result.y).toBeGreaterThan(card.y + 26);
+        expect(result.y + result.height).toBeLessThanOrEqual(card.y + card.height);
+        // The lines beside it stop short of it; the metrics below run full width.
+        for (const offset of [32, 54]) {
+          const line = ctx.texts.find(text => text.parent === card.parent && text.y === card.y + offset)!;
+          expect(line.x + (line.options as { width: number }).width).toBeLessThan(result.x);
+        }
+        const metrics = ctx.texts.find(text => text.parent === card.parent && text.y === card.y + 76)!;
+        expect(metrics.y).toBeGreaterThanOrEqual(result.y + result.height);
+      }
+      // No row is reserved under a card any more: the next card follows the gap.
+      expect(cards[1]!.y).toBe(cards[0]!.y + cards[0]!.height + 14);
+      expect(ctx.buttons.some(button => button.id === 'result.open.null')).toBe(false);
+    }
+  });
+
   it('keeps all five project sections available when files or delivered results are absent', () => {
     const project = guidanceProject();
     for (const [section, messageKey] of [
@@ -5534,6 +5575,32 @@ describe('drawRuns behavior', () => {
     expect(ctx.texts.some((text) => text.value === 'Operator runs')).toBe(true);
   });
 
+  it('leads a project run\'s readers with the way back to its project', () => {
+    const run = makeRun([makeLlmEvent('one', { role: 'execute' })]);
+    const entry = { id: run.id, label: run.label, startedAt: run.startedAt, projectId: 'project-a', projectName: 'Stopwatch E2E two' };
+    const draw = (width: number, runs = [entry]) => {
+      const ctx = createRecordingCtx();
+      drawRuns(ctx, makeSnapshot({}, { run, runs }), width, HEIGHT);
+      return ctx;
+    };
+    const control = (ctx: RecordingCtx, id: string) => ctx.buttons.find(button => button.id === id)!;
+    const controls = (ctx: RecordingCtx) => [control(ctx, 'runs.project.back.project-a'),
+      control(ctx, 'activity.open'), control(ctx, `result.open.${run.id}`)] as const;
+    const [back, progress, result] = controls(draw(WIDTH));
+    expect(back.label).toBe('Back to project');
+    expect(new Set([back.y, progress.y, result.y]).size).toBe(1);
+    expect(back.x + back.width).toBeLessThan(progress.x);
+    expect(progress.x + progress.width).toBeLessThan(result.x);
+    // Too narrow for an even row: the actions keep their measured widths and
+    // wrap rather than clip.
+    for (const control of controls(draw(334))) {
+      expect(control.width).toBeGreaterThanOrEqual(
+        Math.min(180, textStub(control.label, { size: 11 }).width + 20 + BUTTON_ICON_SPACE));
+    }
+    // An operator run has no project to return to.
+    expect(draw(WIDTH, []).buttons.some(button => button.id.startsWith('runs.project.back.'))).toBe(false);
+  });
+
   it('places the run selector inside the primary Runs panel in both layouts', () => {
     for (const width of [RUNS_TWO_PANE_MIN_WIDTH - 1, WIDTH]) {
       const pane = runsPaneLayout(width);
@@ -5555,55 +5622,54 @@ describe('drawRuns behavior', () => {
     }
   });
 
-  it.each([RUNS_TWO_PANE_MIN_WIDTH, 1200, WIDTH])('fits preview controls below the summary at viewport width %i', (viewportWidth) => {
-    const event = makeLlmEvent('selected', { role: 'execute' });
-    const ctx = createRecordingCtx();
-    drawRuns(
-      ctx,
-      makeSnapshot(
-        {},
-        {
-          run: makeRun([event]),
-          preview: {
-            availability: 'available',
-            kind: 'node',
-            reason: null,
-            state: 'ready',
-            generation: 2,
-            source: 'delivered',
-            snapshotAt: null,
-            readyAt: null,
-            expiresAt: null,
-            errorCode: null,
-            requestedHosts: [],
-            allowedHosts: [],
-            blockedHosts: [],
-          },
-        }
-      ),
-      viewportWidth,
-      HEIGHT
-    );
-
-    const open = ctx.buttons.find((button) => button.id === 'run.preview.open');
-    const stop = ctx.buttons.find((button) => button.id === 'run.preview.stop');
-    expect(open).toBeDefined();
-    expect(stop).toBeDefined();
-    // A SIBLING of the summary card, on the root, and never a child of it: a
-    // parent `hitArea` prunes its whole subtree, and a nested target that IS
-    // inside it still bubbles — one click would open the preview AND collapse
-    // the card.
-    const toggle = ctx.metrics.hitTargets.find((target) => target.id === 'run.summary.toggle');
-    expect(toggle).toBeDefined();
-    expect(open!.y).toBeGreaterThanOrEqual(toggle!.y + toggle!.height);
-    for (const control of [open!, stop!]) {
-      expect(control.x).toBeGreaterThanOrEqual(toggle!.x);
-      expect(control.x + control.width).toBeLessThanOrEqual(toggle!.x + toggle!.width);
+  // The preview is one of the run's actions: at the end of the row, on every
+  // pane width — it used to hang under the summary card, which a single pane
+  // does not draw, so a narrow screen had no preview control at all.
+  it.each([334, RUNS_TWO_PANE_MIN_WIDTH - 1, RUNS_TWO_PANE_MIN_WIDTH, 1200, WIDTH])('ends the run\'s action row with the preview at viewport width %i', (viewportWidth) => {
+    const run = makeRun([makeLlmEvent('selected', { role: 'execute' })]);
+    const preview = {
+      availability: 'available' as const, kind: 'node' as const, reason: null, state: 'ready' as const, generation: 2,
+      source: 'delivered' as const, snapshotAt: null, readyAt: null, expiresAt: null, errorCode: null,
+      requestedHosts: [], allowedHosts: [], blockedHosts: [],
+    };
+    const runs = [{ id: run.id, label: run.label, startedAt: run.startedAt, projectId: 'project-a', projectName: 'Stopwatch E2E two' }];
+    const draw = (state: Partial<GpuUiState> = {}) => {
+      const ctx = createRecordingCtx();
+      drawRuns(ctx, makeSnapshot(state, { run, runs, preview, resultRun: run }), viewportWidth, HEIGHT);
+      return ctx;
+    };
+    const ctx = draw();
+    const ids = ['runs.project.back.project-a', 'activity.open', `result.open.${run.id}`, 'run.preview.open', 'run.preview.stop'];
+    const row = ids.map(id => ctx.buttons.find(button => button.id === id)!);
+    const pane = runsPaneLayout(viewportWidth);
+    row.forEach((control, index) => {
+      expect(control, ids[index]).toBeDefined();
+      expect(control.x).toBeGreaterThanOrEqual(pane.leftX + 14);
+      expect(control.x + control.width).toBeLessThanOrEqual(pane.leftX + pane.leftWidth - 14 + 0.5);
+      // Measured, never clipped.
       expect(control.width).toBeGreaterThanOrEqual(
-        ctx.measureText(control.label, { size: 11, weight: '600' }) + 20
-      );
-    }
-    expect(stop!.y >= open!.y + open!.height || stop!.x >= open!.x + open!.width + 8).toBe(true);
+        Math.min(180, ctx.measureText(control.label, { size: 11, weight: '600' }) + 20 + BUTTON_ICON_SPACE));
+      const previous = row[index - 1];
+      // Reading order: left to right, then down; never overlapping.
+      if (previous) expect(control.y > previous.y || control.x >= previous.x + previous.width + 8).toBe(true);
+    });
+    // Never under the summary card again.
+    expect(ctx.metrics.hitTargets.filter(target => target.id === 'run.preview.open')).toHaveLength(1);
+    // Opening the result keeps ONE preview control: the row's, not the reader's.
+    const reading = draw({ resultRunId: run.id });
+    expect(reading.buttons.filter(button => button.id === 'run.preview.open')).toHaveLength(1);
+  });
+
+  it('lays the run\'s actions out as one even row, or wraps them at their measured widths', () => {
+    expect(layoutRunActions([120, 140, 90], 700)).toEqual([
+      { x: 0, y: 0, width: 180 }, { x: 188, y: 0, width: 180 }, { x: 376, y: 0, width: 180 },
+    ]);
+    expect(layoutRunActions([120, 140, 90, 130], 300)).toEqual([
+      { x: 0, y: 0, width: 120 }, { x: 128, y: 0, width: 140 },
+      { x: 0, y: 40, width: 90 }, { x: 98, y: 40, width: 130 },
+    ]);
+    // A label wider than the pane gets the pane, alone on its row.
+    expect(layoutRunActions([400, 90], 250)).toEqual([{ x: 0, y: 0, width: 180 }, { x: 0, y: 40, width: 90 }]);
   });
 
   it('offers no preview control for a run this deployment cannot preview', () => {

@@ -14,7 +14,22 @@ export function previewControlLabel(preview: PreviewControlState | null | undefi
 }
 
 /**
- * The Preview control, a SIBLING of the summary card and never a child of it.
+ * The preview's controls in order — open (or start, retry), then stop once it
+ * is ready — for every surface that draws them, so none decides alone.
+ */
+export function previewActions(snapshot: GpuRenderSnapshot): { id: string; label: string; active: boolean }[] {
+  const preview = snapshot.data.preview;
+  const labelKey = previewControlLabel(preview);
+  if (!preview || !labelKey) return [];
+  const actions = [{ id: 'run.preview.open', label: snapshot.t(labelKey), active: preview.state === 'starting' }];
+  if (preview.state === 'ready') actions.push({ id: 'run.preview.stop', label: snapshot.t('preview.stop'), active: false });
+  return actions;
+}
+
+/**
+ * The Preview control where a surface has no action row of its own (the
+ * result reader, the project's Preview section); Runs carries the same
+ * actions at the end of its row. Never a child of a card.
  *
  * Two Pixi mechanics decide this, and both were read from the engine rather
  * than assumed. A parent `hitArea` PRUNES its whole subtree, so a control
@@ -36,21 +51,20 @@ export function drawPreviewControl(
   y: number,
   width: number
 ): number {
-  const preview = snapshot.data.preview;
   // Web descriptors and terminal capability are separate, host-owned facts.
-  const labelKey = previewControlLabel(preview);
-  if (!preview || !labelKey) return 0;
+  const [open, stop] = previewActions(snapshot);
+  if (!open) return 0;
 
   const height = 30;
-  const label = snapshot.t(labelKey);
+  const label = open.label;
   const availableWidth = Math.max(0, width - 20);
   const gap = 8;
-  const stopLabel = snapshot.t('preview.stop');
+  const stopLabel = stop?.label ?? '';
   const openMinWidth = Math.ceil(ctx.measureText(label, {
-    size: 11, weight: preview.state === 'starting' ? '700' : '600',
+    size: 11, weight: open.active ? '700' : '600',
   })) + 20 + BUTTON_ICON_SPACE;
   const stopWidth = Math.ceil(ctx.measureText(stopLabel, { size: 11, weight: '600' })) + 20 + BUTTON_ICON_SPACE;
-  const showStop = preview.state === 'ready';
+  const showStop = !!stop;
   const stacked = showStop && openMinWidth + gap + stopWidth > availableWidth;
   const openWidth = Math.min(
     openMinWidth,
@@ -65,7 +79,7 @@ export function drawPreviewControl(
     y,
     openWidth,
     height,
-    preview.state === 'starting',
+    open.active,
     snapshot.onActivate
   );
   if (showStop) {

@@ -100,6 +100,8 @@ if (assistantLinksProbe && (!authed || !selectFirst || !arg('--url'))) {
 }
 const projectTabsProbe = has('--project-tabs-probe');
 const filesProbe = has('--files-probe');
+// A running app preview, so its controls (open, stop) are drawn.
+const previewReady = has('--preview-ready');
 // The saved workspace `--files-probe` browses: one root file and a folder.
 const probeFiles = {
   'README.md': '# Stopwatch\n\nStart, stop and reset, shown as mm:ss.cc.',
@@ -502,8 +504,9 @@ function gatedStubs() {
     // Runs also reads preview availability. A real 401 here reloads the page
     // back to the arrival gate before the screenshot can capture the run.
     [`/api/projects/${projectId}/runs/run-fixture/preview`]: {
-      availability: 'unavailable', kind: null, reason: 'disabled',
-      state: 'stopped', generation: 0, source: 'delivered', snapshotAt: null,
+      ...(previewReady ? { availability: 'available', kind: 'node', reason: null, state: 'ready', generation: 1 }
+        : { availability: 'unavailable', kind: null, reason: 'disabled', state: 'stopped', generation: 0 }),
+      source: 'delivered', snapshotAt: null,
       readyAt: null, expiresAt: null, errorCode: null,
       requestedHosts: [], allowedHosts: [], blockedHosts: [],
     },
@@ -1527,6 +1530,32 @@ try {
         label: trace.label, startedAt: trace.startedAt, endedAt: trace.endedAt });
       await assertLiveRuns(page, { runs: stubs['/api/admin/live-runs'],
         updateRuns: runs => { stubs['/api/admin/live-runs'] = runs; }, followLabel: trace.label });
+    }
+    if (has('--back-probe')) {
+      if (!authed || view !== 'Runs') throw new Error('--back-probe requires --auth --view Runs');
+      // The real canvas control, not its DOM twin: a project run returns to
+      // the Runs section of its project.
+      await page.waitForFunction(() => globalThis.__ATOMA_GPU__?.hitTargets().some(entry => entry.id.startsWith('runs.project.back.')),
+        { timeout: READY_TIMEOUT_MS });
+      const back = await page.evaluate(async () => {
+        await new Promise(resolveWait => requestAnimationFrame(() => requestAnimationFrame(resolveWait)));
+        const handle = globalThis.__ATOMA_GPU__;
+        const target = handle.hitTargets().find(entry => entry.id.startsWith('runs.project.back.'));
+        return { id: target.id, ...handle.projectRendererPoint(target.x + target.width / 2, target.y + target.height / 2) };
+      });
+      await page.mouse.click(back.x, back.y);
+      await page.waitForFunction(() => globalThis.__ATOMA_GPU__?.hitTargets().some(entry => entry.id.startsWith('project.run.')),
+        { timeout: READY_TIMEOUT_MS });
+      const landed = await page.evaluate(() => ({
+        view: globalThis.__ATOMA_VIZ_TEST__?.view,
+        tab: globalThis.__ATOMA_GPU__.hitTargets().some(entry => entry.id === 'project.section.runs'),
+      }));
+      if (landed.view !== 'projects' || !landed.tab) throw new Error(`--back-probe landed on ${JSON.stringify(landed)}`);
+      // Capture the arrived face, not the column turning towards it.
+      await page.waitForFunction(() => document.querySelector('.gpu-cube')?.getAttribute('data-cube-turn') !== 'turning',
+        { timeout: READY_TIMEOUT_MS });
+      await page.evaluate(() => new Promise(resolveWait => setTimeout(resolveWait, 400)));
+      console.log(`Back to project: ${back.id} opened the project's Runs section through the canvas`);
     }
     if (has('--run-picker-probe')) {
       if (!authed || view !== 'Runs') throw new Error('--run-picker-probe requires --auth --view Runs');

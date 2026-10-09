@@ -41,9 +41,15 @@ const COMPACT_PROJECT_PANEL_WIDTH = 400;
 const RUN_CARD_HEIGHT = 100;
 const RUN_COMPACT_CARD_HEIGHT = 140;
 const RUN_ROW_GAP = 14;
-const RUN_RESULT_GAP = 14;
+/**
+ * The Result control sits INSIDE the run's card, at its right edge beside the
+ * date and status lines — the short ones — so it never truncates the title or
+ * the metrics. It used to stand alone under the card, a second row per run
+ * that read as belonging to the card below as much as to its own.
+ */
+const RUN_RESULT_Y = 35;
 const RUN_RESULT_HEIGHT = 32;
-const RUN_RESULT_SPACE = RUN_RESULT_GAP + RUN_RESULT_HEIGHT;
+const RUN_RESULT_INSET = 12;
 const RUN_SECOND_LINE_EXTRA = 20;
 const GITHUB_ACCESS_HEIGHT = 198;
 const PUBLICATION_RECOVERY_HEIGHT = 90;
@@ -150,13 +156,13 @@ function showsPartialGuidance(run: VizProjectRun, newest: boolean): boolean {
 function checkpointHeight(run: VizProjectRun): number { return run.checkpoint && run.checkpoint.state !== 'unavailable' ? 82 : 0; }
 
 function runRowHeight(run: VizProjectRun, compact = false, newest = false): number {
-  if (pendingGitHubAccess(run)) return (run.traceId ? (compact ? RUN_COMPACT_CARD_HEIGHT : RUN_CARD_HEIGHT) + RUN_RESULT_SPACE : 82) + GITHUB_ACCESS_HEIGHT + RUN_ROW_GAP;
+  if (pendingGitHubAccess(run)) return (run.traceId ? (compact ? RUN_COMPACT_CARD_HEIGHT : RUN_CARD_HEIGHT) : 82) + GITHUB_ACCESS_HEIGHT + RUN_ROW_GAP;
   const hasSecondLine = Boolean(
     run.status === 'queued' || showsPartialGuidance(run, newest) ||
     (run.error && run.status !== 'partial') ||
     (run.publication?.status === 'published' && run.publication.pullRequestUrl)
   );
-  return (compact ? RUN_COMPACT_CARD_HEIGHT : RUN_CARD_HEIGHT) + RUN_ROW_GAP + RUN_RESULT_SPACE +
+  return (compact ? RUN_COMPACT_CARD_HEIGHT : RUN_CARD_HEIGHT) + RUN_ROW_GAP +
     (run.publication?.status === 'failed' ? PUBLICATION_RECOVERY_HEIGHT : 0) +
     (hasSecondLine ? RUN_SECOND_LINE_EXTRA : 0) + checkpointHeight(run);
 }
@@ -741,11 +747,16 @@ export function drawProjects(
         const newest = runIndex === 0;
         const rowHeight = runRowHeight(run, compactRunRows, newest);
         const access = pendingGitHubAccess(run);
-        const cardHeight = rowHeight - checkpointHeight(run) - RUN_ROW_GAP - (access && !run.traceId ? 0 : RUN_RESULT_SPACE) -
+        const cardHeight = rowHeight - checkpointHeight(run) - RUN_ROW_GAP -
           (access ? GITHUB_ACCESS_HEIGHT : run.publication?.status === 'failed' ? PUBLICATION_RECOVERY_HEIGHT : 0);
         const goalWidth = Math.max(0, layout.panelWidth - 52);
         const textX = runColumnX + BUTTON_LABEL_INSET;
         const textWidth = goalWidth - BUTTON_LABEL_INSET * 2;
+        const resultLabel = snapshot.t('result.title');
+        const resultWidth = run.traceId
+          ? Math.ceil(ctx.measureText(resultLabel, { size: 11, weight: '600' })) + BUTTON_LABEL_INSET * 2 + BUTTON_ICON_SPACE : 0;
+        // The date and status lines share the card's right edge with Result.
+        const besideResultWidth = resultWidth ? Math.max(0, textWidth - resultWidth - RUN_RESULT_INSET) : textWidth;
         const rail = new Graphics();
         const railX = runColumnX - 12;
         rail.moveTo(railX, cursor + (newest ? 16 : -RUN_ROW_GAP));
@@ -782,11 +793,11 @@ export function drawProjects(
             height: cardHeight, text: [run.goal, run.error, statusText].filter(Boolean).join(' · ') });
         }
         ctx.text(pane.content, date, textX, cursor + 32,
-          { size: 12, color: GPU_COLORS.muted, width: textWidth, singleLine: true });
+          { size: 12, color: GPU_COLORS.muted, width: besideResultWidth, singleLine: true });
         const exact = timestampTooltip(run.createdAt, snapshot.state.locale);
-        if (exact) ctx.tooltip(pane.content, { x: textX, y: cursor + 32, width: textWidth, height: 18, text: exact });
+        if (exact) ctx.tooltip(pane.content, { x: textX, y: cursor + 32, width: besideResultWidth, height: 18, text: exact });
         ctx.text(pane.content, statusText + cost, textX, cursor + 54,
-          { size: 12, color: access ? GPU_COLORS.warning : statusColor(run.status), width: textWidth, singleLine: true });
+          { size: 12, color: access ? GPU_COLORS.warning : statusColor(run.status), width: besideResultWidth, singleLine: true });
         const metricRows = compactRunRows ? [metrics.slice(0, 2), metrics.slice(2, 3), metrics.slice(3)] : [metrics];
         (access?.phase === 'run' ? [] : metricRows).forEach((values, metricIndex) => {
           const copy = values.join(' · ');
@@ -817,8 +828,10 @@ export function drawProjects(
             { size: 9, color: GPU_COLORS.error, width: textWidth, singleLine: true });
         }
         if (run.traceId) {
-          ctx.button(pane.content, `result.open.${run.traceId}`, 'button', snapshot.t('result.title'),
-            runColumnX, cursor + cardHeight + RUN_RESULT_GAP, Math.min(180, goalWidth), RUN_RESULT_HEIGHT, false, snapshot.onActivate);
+          // Drawn after the card, so it is the topmost target where they overlap.
+          ctx.button(pane.content, `result.open.${run.traceId}`, 'button', resultLabel,
+            runColumnX + goalWidth - RUN_RESULT_INSET - resultWidth, cursor + RUN_RESULT_Y,
+            resultWidth, RUN_RESULT_HEIGHT, false, snapshot.onActivate);
         }
         if (!access && run.publication?.status === 'failed') {
           const retryY = cursor + rowHeight - PUBLICATION_RECOVERY_HEIGHT - RUN_ROW_GAP;

@@ -316,6 +316,8 @@ export interface GpuUiState {
   selectProject: (id: string | null) => void;
   selectProjectSection: (section: GpuUiState['projectSection'], runId?: string | null) => void;
   openWorkspace: (runId: string | null) => void;
+  /** A run's way back: its project, on the Runs section that lists it. */
+  openProjectRuns: (projectId: string) => void;
   setGitHubRecovery: (value: import('./github-access.js').GitHubRecoveryProgress | null) => void;
   selectWorkspacePath: (path: string) => void;
   previewFile: (file: FilePreviewTarget | null) => void;
@@ -695,6 +697,11 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
     projectSection: workspaceRunId ? 'files' : 'runs',
     workspaceRunId, workspacePath: '', filePreview: null, scrollY: { ...state.scrollY, projects: 0 },
   })),
+  openProjectRuns: (projectId) => {
+    get().selectProject(projectId);
+    get().selectProjectSection('runs');
+    get().setView('projects');
+  },
   previewFile: (filePreview) => set({ filePreview }),
   selectWorkspacePath: (workspacePath) => set(state => ({ workspacePath, scrollY: { ...state.scrollY, projects: 0 } })),
   showRunActivity: (open) => set({ runActivityOpen: open, runActivityFile: null, runActivityPage: 0, runActivityExpandedChanges: {}, resultRunId: null }),

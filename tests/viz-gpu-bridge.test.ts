@@ -141,6 +141,21 @@ describe('full-GL minimal DOM bridge', () => {
     expect(screen.queryByRole('slider', { name: 'Navigate the timeline' })).not.toBeInTheDocument();
   });
 
+  it('mirrors a project run\'s way back to its project, and offers none for an operator run', () => {
+    const onActivate = vi.fn();
+    const run = { id: 'run-1', label: 'Build the page', startedAt: '2026-10-09T00:00:00Z', events: [] };
+    const bridge = (items: RunIndexEntry[]) => render(createElement(DomBridge, {
+      runs: items, releaseVersion: '9.8.7', onSelectRun: vi.fn(), onActivate, run,
+      t: (key: string, vars?: Record<string, unknown>) => translate('en', key, vars),
+    }));
+    bridge([{ ...runs[0]!, projectId: 'project-a', projectName: 'Weather Lab' }]);
+    fireEvent.click(screen.getByRole('button', { name: 'Back to project' }));
+    expect(onActivate).toHaveBeenCalledWith('runs.project.back.project-a');
+    cleanup();
+    bridge(runs);
+    expect(screen.queryByRole('button', { name: 'Back to project' })).not.toBeInTheDocument();
+  });
+
   it('opens recorded changes by keyboard and returns to the same source event', async () => {
     const user = userEvent.setup();
     render(createElement(AccessibleRunActivity, {
