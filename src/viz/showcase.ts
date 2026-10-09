@@ -212,12 +212,21 @@ export interface ShowcaseSource {
   answer(entryId: string, episodeId: string): string | null;
 }
 
-/** A showcase over the store, rebuilt at most once per TTL. */
+/**
+ * A showcase over the store, rebuilt at most once per TTL. An episode's answer
+ * is read from its trace once per build and kept with the list, so an
+ * anonymous GET never re-reads and re-parses a trace within the TTL.
+ */
 export function createShowcaseSource(
   store: Pick<ProjectStore, 'listShowcaseRuns'>,
   now: () => number = Date.now
 ): ShowcaseSource {
-  let built: { at: number; runs: Map<string, ProjectRun>; entries: ShowcaseEntry[] } | null = null;
+  let built: {
+    at: number;
+    runs: Map<string, ProjectRun>;
+    entries: ShowcaseEntry[];
+    answers: Map<string, string | null>;
+  } | null = null;
   const current = () => {
     if (built && now() - built.at < SHOWCASE_TTL_MS) return built;
     const runs = store.listShowcaseRuns();
@@ -225,6 +234,7 @@ export function createShowcaseSource(
       at: now(),
       runs: new Map(runs.map((run) => [run.projectRunId, run])),
       entries: buildShowcase(runs),
+      answers: new Map(),
     };
     return built;
   };
@@ -235,8 +245,12 @@ export function createShowcaseSource(
       const state = current();
       const entry = state.entries.find((candidate) => candidate.id === entryId);
       if (!entry?.episodes.some((episode) => episode.id === episodeId)) return null;
+      const cached = state.answers.get(episodeId);
+      if (cached !== undefined) return cached;
       const run = state.runs.get(episodeId);
-      return run ? readShowcaseAnswer(run) : null;
+      const answer = run ? readShowcaseAnswer(run) : null;
+      state.answers.set(episodeId, answer);
+      return answer;
     },
   };
 }

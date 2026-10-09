@@ -482,6 +482,20 @@ describe('classification and grouping', () => {
     source.entries();
     expect(calls).toHaveLength(2);
   });
+
+  it('reads an answer\'s trace once per TTL, with the list', () => {
+    const w = world();
+    const id = seedRun(w, w.admin, { goal: 'Answer', delivery: 'text', answer: 'first' });
+    const trace = join(w.root, 'runs', id, 'traces', `${id}.json`);
+    let clock = 1_000;
+    const source = createShowcaseSource(w.store, () => clock);
+    expect(source.answer(id, id)).toBe('first');
+    // A trace rewritten within the TTL is not read again: the answer is cached.
+    writeFileSync(trace, JSON.stringify({ id, result: { output: 'second' } }));
+    expect(source.answer(id, id)).toBe('first');
+    clock += SHOWCASE_TTL_MS + 1;
+    expect(source.answer(id, id)).toBe('second');
+  });
 });
 
 describe('what a visitor can read', () => {

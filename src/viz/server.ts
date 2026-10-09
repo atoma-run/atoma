@@ -1559,7 +1559,8 @@ function assetContentType(file: string): string {
  * A showcase page: its own CSP, and `no-store` on purpose. The service worker
  * keeps every navigation response as its offline copy of `/` unless the
  * response forbids it, and a visitor's story must not become a signed-in
- * member's offline app shell. The data is cached on the server (a minute).
+ * member's offline app shell. The data, answers included, is cached on the
+ * server for `SHOWCASE_TTL_MS` (a minute).
  */
 function sendShowcase(res: import('node:http').ServerResponse, code: number, html: string): void {
   res.writeHead(code, {
