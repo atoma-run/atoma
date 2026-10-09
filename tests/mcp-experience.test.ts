@@ -29,6 +29,7 @@ import { acquireRunLease } from '../src/mcp/runLock.js';
 import { RunCheckpointStore, checkpointWorkspaceDigest } from '../src/run/checkpoint.js';
 import type { RunCheckpoint } from '../src/contracts/runCheckpoint.js';
 import { ProjectService } from '../src/projects/service.js';
+import { POLLED_PROGRESS_REUSE_MS } from '../src/projects/runProgress.js';
 import { projectRetrievalFixture } from './helpers/projectRetrievalLaunch.js';
 import { haystackTestEnvironment } from './helpers/haystack.js';
 import { ANTHROPIC_PINS } from './tier-pins.js';
@@ -164,6 +165,36 @@ it('projects recorded activity into status and durable tasks without inventing p
   expect(runViewSchema.parse((await f.call('atoma_run_status', ref)).structuredContent)).toMatchObject({ status: 'failed', progress: { stage: 'finished' }, actions: { canCancel: false } });
   writeFileSync(file, '{unfinished');
   expect(runViewSchema.parse((await f.call('atoma_run_status', ref)).structuredContent).progress).toMatchObject({ stage: 'finished', evidence: 'unavailable' });
+});
+
+it('parses a live trace at most once per window for a polled task, not at every rewrite (code review 2026-10-09 2.15)', async () => {
+  // A live trace is rewritten every ~300 ms and a synchronous start polls its
+  // task every 2 s: a stamp-keyed cache alone reparsed the trace at each poll.
+  const f = await fixture(true);
+  const { run, layout } = f.makeRun();
+  const ref = { projectId: f.project.projectId, runId: run.projectRunId };
+  mkdirSync(layout.runsPath, { recursive: true });
+  const file = join(layout.runsPath, `${run.projectRunId}.json`);
+  const at = Date.now();
+  writeFileSync(file, JSON.stringify({ id: run.projectRunId, events: [{ kind: 'llm-start', ts: at, role: 'execute' }] }));
+  const taskId = projectRunTaskId(ref.projectId, ref.runId);
+  const poll = async () => (await (f.client as LegacyClient).request({ method: 'tasks/get', params: { taskId } }, GetTaskResultSchema)).statusMessage;
+  expect(await poll()).toContain('Carrying out the planned work.');
+  // The trace moves on, as it does several times between two polls.
+  writeFileSync(file, JSON.stringify({ id: run.projectRunId, events: [{ kind: 'llm-start', ts: at, role: 'execute' },
+    { kind: 'llm-start', ts: at + 1, role: 'validate-result' }] }));
+  expect(await poll()).toContain('Carrying out the planned work.');
+  expect(f.service.projectRunState(f.viewer, ref.projectId, ref.runId).progress.stage).toBe('building');
+  // A read on demand is never stale, and refreshes what the next poll sees.
+  expect(runViewSchema.parse((await f.call('atoma_run_status', ref)).structuredContent).progress?.stage).toBe('checking');
+  expect(await poll()).toContain('Checking the work against its requirements.');
+  // Once the window has passed, a poll parses the changed trace again.
+  writeFileSync(file, JSON.stringify({ id: run.projectRunId, events: [{ kind: 'llm-start', ts: at + 2, role: 'plan' }] }));
+  expect(f.service.projectRunState(f.viewer, ref.projectId, ref.runId).progress.stage).toBe('checking');
+  const later = vi.spyOn(Date, 'now').mockReturnValue(at + POLLED_PROGRESS_REUSE_MS + 1_000);
+  try {
+    expect(f.service.projectRunState(f.viewer, ref.projectId, ref.runId).progress.stage).toBe('planning');
+  } finally { later.mockRestore(); }
 });
 
 it('checks saved readiness without executing, reserving work or exposing credentials', async () => {

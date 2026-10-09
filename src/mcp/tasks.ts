@@ -524,7 +524,8 @@ export class ProjectRunTasks {
   }
 
   task(taskId: string): TaskState | null {
-    // The status, binding and timestamps only: a row read, never a trace parse.
+    // The row's status, binding and timestamps, plus a progress line whose
+    // trace parse is bounded to one per POLLED_PROGRESS_REUSE_MS, never one per poll.
     const found = this.read(taskId, true);
     return found ? this.asTask(taskId, found.ref.projectRunId, found.snapshot) : null;
   }

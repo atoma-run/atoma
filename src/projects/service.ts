@@ -9,7 +9,7 @@ import { z } from 'zod';
 import { artifactPageInputSchema, artifactReadInputSchema, pageCursorSchema, projectPageInputSchema, runPageInputSchema,
   runComparisonInputSchema, type RunComparisonResult, runReviewSchema, type RunReview,
   serviceProblem, type ServiceProblem, type ProjectPageInput, type RunPageInput, type PageCursor } from '../contracts/clientExperience.js';
-import { projectRunProgress } from './runProgress.js';
+import { POLLED_PROGRESS_REUSE_MS, projectRunProgress } from './runProgress.js';
 import { artifactMime } from './artifactMedia.js';
 import { summarizeTraceFile } from '../viz/runIndex.js';
 import { isUtf8 } from 'node:buffer';
@@ -711,12 +711,14 @@ export class ProjectService {
   /** One project run, for a poller: the MCP's `atoma_run_status`. */
   /**
    * The run's ROW state under the same authorization as projectRunStatus,
-   * without its full presentation: no payer or publication reads. Progress
-   * caches a bounded trace projection and reparses only when the file changes.
-   * A synchronous MCP start re-reads its task every poll interval for up to
+   * without its full presentation: no payer or publication reads. A
+   * synchronous MCP start re-reads its task every poll interval for up to
    * an hour, and presenting the run each time parsed the whole trace file
    * (~1,800 times per hour-long run, 2026-10-03); the task needs only the
-   * status, the binding, timestamps and a small activity projection.
+   * status, the binding, timestamps and a small activity projection. That
+   * projection parses the trace at most once per POLLED_PROGRESS_REUSE_MS:
+   * a live trace changes every ~300 ms, so "reparse only when the file
+   * changes" was every poll again (code review 2026-10-09 2.15).
    */
   projectRunState(viewer: Viewer, projectId: string, projectRunId: string): {
     readonly projectId: string; readonly projectRunId: string; readonly orgId: string;
@@ -730,7 +732,8 @@ export class ProjectService {
     return {
       projectId: run.projectId, projectRunId: run.projectRunId, orgId: run.orgId,
       requestedByPrincipalId: run.requestedByPrincipalId, status: run.status,
-      createdAt: run.createdAt, updatedAt: run.updatedAt, endedAt: run.endedAt ?? null, progress: projectRunProgress(run),
+      createdAt: run.createdAt, updatedAt: run.updatedAt, endedAt: run.endedAt ?? null,
+      progress: projectRunProgress(run, { reuseWithinMs: POLLED_PROGRESS_REUSE_MS }),
     };
   }
 

@@ -9,17 +9,25 @@ import { resolveProjectRunTraceFile } from './store.js';
 const traceProgressSchema = z.object({ id: z.string(), endedAt: z.string().optional(), events: z.array(z.unknown()) });
 const eventSchema = z.object({ kind: z.string(), ts: z.number().finite().min(0).max(8.64e15), role: z.string().optional() });
 type Evidence = Omit<RunProgress, 'message'> & { ended: boolean };
-// Only the small projection is cached, never a trace or model response. A task
-// poll stats the receipt; unchanged files are not parsed again.
-const cache = new Map<string, { stamp: string; value: Evidence | null }>();
+// Only the small projection is cached, never a trace or model response.
+// Unchanged files are not parsed again. A file that changed is not enough on
+// a poll: a live trace is rewritten every ~300 ms (`src/viz/trace.ts`), so a
+// task polled every 2 s would reparse it at every poll (code review
+// 2026-10-09 2.15). A poll passes `reuseWithinMs` and keeps the projection
+// that young, whatever the file did since.
+const cache = new Map<string, { stamp: string; at: number; value: Evidence | null }>();
 
-function evidence(file: string, runId: string): Evidence | null {
+/** How stale a task poll's progress line may be: one trace parse per window, not per poll. */
+export const POLLED_PROGRESS_REUSE_MS = 30_000;
+
+function evidence(file: string, runId: string, reuseWithinMs: number): Evidence | null {
   try {
     const stat = lstatSync(file);
     if (!stat.isFile()) return null;
     const stamp = `${stat.ino}:${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}`;
     const prior = cache.get(file);
-    if (prior?.stamp === stamp) return prior.value;
+    const now = Date.now();
+    if (prior && (prior.stamp === stamp || now - prior.at < reuseWithinMs)) return prior.value;
     const read = readBoundedRunFile(file);
     let value: Evidence | null = null;
     if (read.ok) {
@@ -53,7 +61,7 @@ function evidence(file: string, runId: string): Evidence | null {
       }
     }
     if (cache.size >= 100) cache.delete(cache.keys().next().value!);
-    cache.set(file, { stamp, value });
+    cache.set(file, { stamp, at: now, value });
     return value;
   } catch { return null; }
 }
@@ -64,10 +72,14 @@ const messages: Record<RunProgress['stage'], string> = {
   finalizing: 'Finalizing the result and its files.', finished: 'Run finished.', unknown: 'Run in progress; detailed activity is unavailable.',
 };
 
-/** Read-only projection. Persisted lifecycle status always outranks trace activity. */
-export function projectRunProgress(run: ProjectRun): RunProgress {
+/**
+ * Read-only projection. Persisted lifecycle status always outranks trace activity.
+ * A poller passes `reuseWithinMs` (POLLED_PROGRESS_REUSE_MS) to bound how often
+ * it parses a trace that is still being written; a read on demand omits it.
+ */
+export function projectRunProgress(run: ProjectRun, options: { readonly reuseWithinMs?: number } = {}): RunProgress {
   const file = resolveProjectRunTraceFile({ projectRunId: run.projectRunId, runsPath: run.hostPaths.runsPath, traceId: run.traceId });
-  const detail = file ? evidence(file, run.traceId ?? run.projectRunId) : null;
+  const detail = file ? evidence(file, run.traceId ?? run.projectRunId, options.reuseWithinMs ?? 0) : null;
   const terminal = run.status !== 'queued' && run.status !== 'running';
   const stage = terminal ? 'finished' : run.status === 'queued' ? 'queued' : detail?.ended ? 'finalizing' : detail?.stage ?? 'unknown';
   const criteria = detail?.criteria ?? [];
