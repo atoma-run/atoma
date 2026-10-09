@@ -292,6 +292,13 @@ describe('jevAsk — the one Jev client', () => {
     ).rejects.toThrow(/2 to 10 levels/);
   });
 
+  it.each([-0.5, 2.5, 100])('refuses a Score %s off its levels at the transport boundary', async value => {
+    const questions = { s: { type: 'score' as const, instructions: 'x', criteria: ['different', 'related', 'same'] } };
+    const answer = (score: number) => async () => respond({ s: { type: 'score', score, confidence: 0.9, probabilities: {} } });
+    await expect(jevAsk({ apiKey: KEY, state: 's', questions, fetchImpl: answer(value) })).rejects.toThrow(/no score answer for "s"/);
+    await expect(jevAsk({ apiKey: KEY, state: 's', questions, fetchImpl: answer(2) })).resolves.toMatchObject({ answers: { s: { score: 2 } } });
+  });
+
   it('retries a 429 once when the wait it asks for fits the deadline, and keeps the request id', async () => {
     let sent = 0;
     const limited = (async () => {

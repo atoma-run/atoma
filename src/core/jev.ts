@@ -261,7 +261,13 @@ function completeAnswer(question: JevQuestion, raw: unknown): JevAnswer | null {
   const answer = parsed.data;
   if (answer.type !== undefined && answer.type !== question.type) return null;
   if (question.type === 'choice') return answer.choice !== undefined && answer.probabilities !== undefined ? answer : null;
-  if (question.type === 'score') return answer.score !== undefined && answer.probabilities !== undefined ? answer : null;
+  // A Score is an expected level index, 0 to levels - 1. One off that scale
+  // is no answer: `readTwin` decides on the score alone, so an unbounded one
+  // would read as "the same recipe" and the lesson would not be kept.
+  if (question.type === 'score') {
+    return answer.score !== undefined && answer.probabilities !== undefined &&
+      answer.score >= 0 && answer.score <= question.criteria.length - 1 ? answer : null;
+  }
   return answer.noul !== undefined ? answer : null;
 }
 
