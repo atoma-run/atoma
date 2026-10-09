@@ -1511,7 +1511,8 @@ export function fetchUrlTool(opts: BuiltinToolOptions): BuiltinTool {
  *           const p = srv.address().port;
  *           console.log('LISTENING_ON_PORT=' + p);
  *         });
- *     A complete JSON line {"port": N} is also an explicit readiness marker.
+ *     A complete JSON line {"port": N} is also an explicit readiness marker
+ *     for a task CLI started with literal args, and only for one.
  *     Arbitrary startup prose is not parsed. Optional argv preserves a
  *     task-defined CLI without rewriting it for the tool's PORT convention.
  *   - If the child exits before emitting the marker (e.g. a syntax
@@ -1527,7 +1528,7 @@ export function startNodeServerTool(opts: BuiltinToolOptions): BuiltinTool {
       name: 'start_node_server',
       description: [
         'Spawn `node <entry> ...args` as a background process with PORT set to a free port the host picked, and return the bound URL.',
-        'Once bound, the server must emit either "LISTENING_ON_PORT=<port>" or a complete JSON line {"port":<port>} on stdout. Preserve the task-required CLI and stdout format; pass its options through args instead of changing the application to fit this tool.',
+        'Once bound, the server must emit "LISTENING_ON_PORT=<port>" on stdout; a task CLI started with args may instead emit a complete JSON line {"port":<port>}. Preserve the task-required CLI and stdout format; pass its options through args instead of changing the application to fit this tool.',
         'Example listener:',
         '  app.listen(Number(process.env.PORT) || 0, function(){ console.log("LISTENING_ON_PORT=" + this.address().port); });',
         `At most ${MAX_LIVE_NODE_SERVERS} run at once: starting another stops the oldest one still running. The others run until the run exits.`,
@@ -1639,7 +1640,10 @@ export function startNodeServerTool(opts: BuiltinToolOptions): BuiltinTool {
           stdoutBuf = (stdoutBuf + chunk.toString()).slice(-4096);
           const match = stdoutBuf.match(/LISTENING_ON_PORT=(\d+)(?!\d)/);
           let announced = match?.[1] ? Number(match[1]) : undefined;
-          if (announced === undefined) {
+          // The JSON line is a task CLI's convention, and only one started
+          // with literal args: from any other server a one-field `{"port":N}`
+          // (a config dump, a peer's address) would be read as its readiness.
+          if (announced === undefined && cliArgs.length > 0) {
             for (const line of stdoutBuf.split('\n').slice(0, -1)) {
               try {
                 const value: unknown = JSON.parse(line);

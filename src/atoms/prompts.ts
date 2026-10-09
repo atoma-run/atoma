@@ -583,7 +583,7 @@ export const SCRIBE_PORTABLE_DOC_GUIDANCE = [
 ].join('\n');
 
 /** Runtime guidance also reaches agents whose stored prompt predates CLI support. */
-export const HTTP_STARTUP_GUIDANCE = 'Preserve a task-defined server CLI and readiness format. start_node_server accepts literal args and a JSON {"port":N} readiness line as well as LISTENING_ON_PORT=<N>. If reusable instructions mandate the latter or require a no-argument entry, the current tool declaration supersedes that convention; do not add unwanted stdout or application defaults merely to fit the tool.';
+export const HTTP_STARTUP_GUIDANCE = 'Preserve a task-defined server CLI and readiness format. start_node_server accepts literal args and, from a CLI started with them, a JSON {"port":N} readiness line as well as LISTENING_ON_PORT=<N>. If reusable instructions mandate the latter or require a no-argument entry, the current tool declaration supersedes that convention; do not add unwanted stdout or application defaults merely to fit the tool.';
 
 /** Durable HTTP docs must not capture the one port assigned to this run. */
 export const HTTP_PORTABLE_DOC_GUIDANCE = [

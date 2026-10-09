@@ -97,6 +97,17 @@ describe('start_node_server port', () => {
     await expect(startNodeServerTool({ sandbox }).execute({ entry: 'server.mjs' })).rejects.toThrow('exited early');
   });
 
+  it('takes a JSON port line as readiness only from a CLI started with literal args', async () => {
+    // Any server may print a JSON object with one `port` field (a config dump,
+    // a peer's address); only a task CLI given args announces itself that way.
+    const dir = mkdtempSync(join(tmpdir(), 'atoma-node-json-only-cli-'));
+    dirs.push(dir);
+    writeFileSync(join(dir, 'server.mjs'), "process.stdout.write('{\"port\":1234}\\n');");
+    const sandbox = new ToolSandbox(dir);
+    sandboxes.push(sandbox);
+    await expect(startNodeServerTool({ sandbox }).execute({ entry: 'server.mjs' })).rejects.toThrow('exited early');
+  });
+
   it('gives a "default 3000" server a real port, so a restart in the same run does not collide', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'atoma-node-port-'));
     dirs.push(dir);
