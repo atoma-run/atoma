@@ -142,10 +142,32 @@ code, as it does for canonicals. Concretely:
   names tools. The tissue prompt should ask it to, and the measurement is
   whether eleven-tool molecules stop appearing.
 
-## Decisions needed
+## Decisions — owner, 2026-10-10
 
-1. Family reuse with template refresh: adopt, and does a refresh reset
-   trust as a patch does?
-2. Narrowing seeds (intersection) at both creation sites.
-3. Labels by signature, the seed honoured for novel signatures only.
-4. Dedupe of the present catalogue, with the owner naming winners.
+1. **Family reuse with template refresh: adopted, streak kept.**
+   `AtomRegistry.createOrRefresh` reuses an exact behavior match, else the
+   oldest type of the same tier, tool names and parameters whose prompt the
+   template predicate recognises (`isNarrowL1Template`,
+   `isNarrowL2Template`: the template's first line), and patches it to the
+   current prompt and tool declarations with `keepStreak` — version
+   recorded as `template refresh`, no trust reset. Both creation sites and
+   both escalation-branch sites use it; a validator's prompt is never a
+   family member.
+2. **Narrowing seeds: adopted at both sites.** `scopeTools` keeps the
+   parent's declarations for the names the seed lists, the whole set when
+   it lists none the parent holds. The strategy schema keeps seed tool
+   NAMES (it dropped them before, so a seed could never narrow), and an
+   object the model writes contributes its name only: an invented
+   declaration never enters the registry.
+3. **Labels by signature: adopted.** `resolveCreationDescription` takes
+   `signatureKnown`; a seed or validator label on a signature the tier
+   already holds becomes the canonical label.
+4. **Dedupe of the present catalogue: list first, decide after.** The
+   candidates with their histories, trust and skill namespaces are the next
+   deliverable; no write to the production registry before the owner names
+   the winners.
+
+What a planner writes in a create seed therefore persists nowhere any more:
+the label is the signature's, the prompt the template, the tools the
+parent's. The privacy tests that documented the opposite sharing now
+document this; a validator's patch or branch still persists what it wrote.

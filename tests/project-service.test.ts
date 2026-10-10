@@ -547,8 +547,8 @@ describe('ProjectService — roles, IDOR and slug identity', () => {
       expect(listed[0]).toMatchObject({ tokens: 125, llmCalls: 7, jevCalls: 2, costUsd: 0.12,
         requestedByName: expect.any(String),
         costBreakdown: { l3: { calls: 1, costUsd: 0.12 }, jev: { calls: 2, requests: 2, costUsd: 0.01 }, l1: { calls: 0 } } });
-      // The breakdown is the run LIST's: a single run's status does not carry it.
-      expect(svc.projectRunStatus(alice, created.projectId, reserved!.run.projectRunId)).not.toHaveProperty('costBreakdown');
+      // A single run's status stays a superset of its list entry.
+      expect(svc.projectRunStatus(alice, created.projectId, reserved!.run.projectRunId)).toMatchObject(listed[0]!);
       writeFileSync(join(runsPath, `${reserved!.run.projectRunId}.json`), JSON.stringify({
         id: reserved!.run.projectRunId, label: 'historical project run',
         startedAt: '2026-09-30T09:50:27.984Z',

@@ -83,6 +83,14 @@ Neighbours:
 - Automatic creation and branching use `createOrReuse` / `branchOrReuse`.
   Equivalence includes tier, complete tool declarations, parameters and prompt
   (apart from the leading persona name), never merely the tools or description.
+  A TEMPLATE-born creation (the narrow L1/L2 prompts the code renders) goes
+  through `createOrRefresh`: an exact match is reused, else the oldest type
+  of the same tier, tool names and parameters whose prompt the template
+  predicate recognises is reused and refreshed to the current template —
+  streak kept, version recorded as `template refresh` — as the bootstrap
+  refreshes canonicals. Before 2026-10-10 each template revision made every
+  earlier type non-equivalent and the next creation a clone
+  ([the clone engine](../../docs/registry-reconciliation-2026-10-10.md)).
   `listCapabilities` presents one oldest identity per equivalent behavior and
   excludes an entire equivalent group if any member is excluded. It never
   deletes history, moves skill namespaces or transfers trust between identities.

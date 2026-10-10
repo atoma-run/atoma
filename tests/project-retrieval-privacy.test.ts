@@ -264,7 +264,7 @@ describe('tenant retrieval downstream: what the platform registry shares', () =>
     } finally { await f.backend.cleanup(); }
   });
 
-  it('shares planner-created L1 descriptions and tool metadata with the next project', async () => {
+  it('persists nothing a planner wrote in a create seed: label by signature, template prompt, the cell\'s tools', async () => {
     const f = await fixture(); vi.stubEnv('ATOMA_SKILL_LEARN', '0');
     const ctx = { ...makeCtx(), tools: f.backend.executor };
     ctx.llm.enqueueText(jsonText({ kind: 'escalate', reasoning: 'new reader' }));
@@ -275,9 +275,13 @@ describe('tenant retrieval downstream: what the platform registry shares', () =>
     enqueueAttempt(ctx); ctx.llm.enqueueText(jsonText({ approved: true, reasoning: 'source consulted' }));
     try {
       await L2Atom.fromType(f.supervisor, f.registry, [], f.skills).handleDirect({ description: 'Find annual price' }, ctx);
-      expect(f.registry.listByTier(1).some(type => JSON.stringify(type).includes(FACT))).toBe(true);
+      // Since 2026-10-10 a seed narrows the cell's tools (an invented
+      // declaration never enters the registry), a known signature keeps its
+      // canonical label, and the prompt is the template: the seed's text
+      // reaches the instance once and no project after this one.
+      expect(f.registry.listByTier(1).some(type => JSON.stringify(type).includes(FACT))).toBe(false);
       const other = projectRetrievalFixture(root, { subject: 'other-owner', slug: 'other' }).makeRun();
-      expect(JSON.stringify((await readNextProject(f.dbPath, other)).types)).toContain(FACT);
+      expect(JSON.stringify((await readNextProject(f.dbPath, other)).types)).not.toContain(FACT);
     } finally { await f.backend.cleanup(); }
   });
 
@@ -307,10 +311,14 @@ describe('tenant retrieval downstream: what the platform registry shares', () =>
     ctx.llm.enqueueText(jsonText({ approved: true, reasoning: 'done' }));
     try {
       await L3Atom.buildWithModel(root, f.registry, 'api:ollama:test').handle({ description: 'Find annual price' }, ctx);
-      expect(f.registry.listByTier(2).some(type => JSON.stringify(type).includes(FACT))).toBe(true);
+      // A validator's patch or branch persists what it wrote and every
+      // project reads it; a create seed persists nothing of its own text
+      // (2026-10-10: label by signature, template prompt, narrowed tools).
+      const shared = scope !== 'create';
+      expect(f.registry.listByTier(2).some(type => JSON.stringify(type).includes(FACT))).toBe(shared);
       const other = projectRetrievalFixture(f.root, { subject: 'other-owner', slug: 'other' }).makeRun();
-      expect(JSON.stringify((await readNextProject(f.dbPath, other)).types)).toContain(FACT);
-      expect(JSON.stringify(await readNextProject(f.dbPath, f.makeRun()))).toContain(FACT);
+      expect(JSON.stringify((await readNextProject(f.dbPath, other)).types).includes(FACT)).toBe(shared);
+      expect(JSON.stringify(await readNextProject(f.dbPath, f.makeRun())).includes(FACT)).toBe(shared);
     } finally { await f.backend.cleanup(); }
   });
 

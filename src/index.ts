@@ -51,7 +51,7 @@ export {
   llmVerdict,
 } from './atoms/L2Atom.js';
 export { L3Atom, L3Atom as TissueAgent } from './atoms/L3Atom.js';
-export { mergeTools } from './atoms/toolMerge.js';
+export { mergeTools, scopeTools } from './atoms/toolMerge.js';
 export {
   TRUST_THRESHOLD_SUCCESSES,
   STRATEGY_MAX_TOKENS,

@@ -404,6 +404,48 @@ export class AtomRegistry {
     }).immediate();
   }
 
+  /**
+   * Automatic creation of a TEMPLATE-born type: the seed's prompt is the
+   * template the code renders today for these tools. An exact behavior
+   * match is reused as `createOrReuse` does; otherwise the OLDEST type of
+   * the same tier, tool names and parameters whose prompt `isTemplate`
+   * recognises is reused and its prompt refreshed to the seed's — the
+   * refresh the bootstrap applies to canonicals on every start, extended to
+   * what the system created itself. Its streak is kept: a template revision
+   * is the code's finding, not a validator's (owner decision 2026-10-10).
+   * Until then each revision of the template made every earlier type
+   * non-equivalent and the next creation a clone (Dopamine 2026-09-27 and
+   * DNA 2026-10-07: same tools, two added sentences;
+   * docs/registry-reconciliation-2026-10-10.md). A prompt a validator wrote
+   * is not a template and keeps its own identity.
+   */
+  createOrRefresh(tier: Tier, seed: CreateSeed, isTemplate: (systemPrompt: string) => boolean): AtomType {
+    return this.db.transaction((): AtomType => {
+      const key = atomBehaviorKey(tier, seed);
+      const exact = this.listCapabilities(tier).find(type => atomBehaviorKey(tier, type) === key);
+      if (exact) return exact;
+      const names = seed.tools.map(tool => tool.name).sort().join(',');
+      const params = canonicalJson(seed.params);
+      const family = this.listByTier(tier)
+        .filter(type =>
+          type.tools.map(tool => tool.name).sort().join(',') === names &&
+          canonicalJson(type.params) === params &&
+          isTemplate(type.systemPrompt))
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.ordinal - b.ordinal);
+      const elder = family[0];
+      if (!elder) return this.create(tier, seed);
+      // The declarations are refreshed with the prompt: a tool's schema is
+      // part of the behavior key, and it drifts with the code too.
+      return this.patch(
+        elder.name,
+        { systemPromptReplace: seed.systemPrompt, removeTools: elder.tools.map(tool => tool.name), addTools: [...seed.tools] },
+        seed.createdBy,
+        'template refresh',
+        { keepStreak: true }
+      );
+    }).immediate();
+  }
+
   /** Automatic repair allocates only when it actually introduces new behavior. */
   branchOrReuse(
     fromName: string,
@@ -556,7 +598,11 @@ export class AtomRegistry {
     name: string,
     mods: AtomModifications,
     modifiedBy: string,
-    reason?: string
+    reason?: string,
+    opts: {
+      /** A template refresh (`createOrRefresh`) changes no earned behavior: the streak stays. */
+      readonly keepStreak?: boolean;
+    } = {}
   ): AtomType {
     return this.db.transaction((): AtomType => {
       const current = this.getByName(name);
@@ -605,7 +651,8 @@ export class AtomRegistry {
 
       // Preserve history. Only behavior changes require earning trust again;
       // changing a catalog label supplies no new evidence about execution.
-      const behaviorChanged = atomBehaviorKey(current.tier, merged) !== atomBehaviorKey(current.tier, current);
+      const behaviorChanged = !opts.keepStreak &&
+        atomBehaviorKey(current.tier, merged) !== atomBehaviorKey(current.tier, current);
       const consecutiveSuccesses = behaviorChanged ? 0 : current.consecutiveSuccesses;
       this
         .prepare(

@@ -2,8 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AtomRegistry, type CreateSeed } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
 import { L1Atom } from '../src/atoms/L1Atom.js';
-import { L2Atom, buildNarrowL1Prompt } from '../src/atoms/L2Atom.js';
+import { L2Atom, NARROW_L1_TEMPLATE_HEADER, buildNarrowL1Prompt, isNarrowL1Template } from '../src/atoms/L2Atom.js';
 import { L3Atom, buildNarrowL2Prompt } from '../src/atoms/L3Atom.js';
+import { capabilityDescription } from '../src/atoms/capability.js';
 import { DEFAULT_LIMITS } from '../src/core/limits.js';
 import type { Result } from '../src/core/types.js';
 import { makeCtx, jsonText, jsonTextPair } from './helpers.js';
@@ -72,6 +73,71 @@ describe('automatic registry capability reuse', () => {
       .toMatchObject({ atomId: variant.atomId, failures: 1 });
     expect(reg.listByTier(1)).toHaveLength(3);
   });
+});
+
+describe('template families, narrowing seeds and labels by signature (2026-10-10)', () => {
+  const tools = makeTools(['read_file', 'write_file']);
+  const current = buildNarrowL1Prompt('', tools);
+  // What an earlier code revision rendered for the same tools (Dopamine, 2026-09-27).
+  const older = `${NARROW_L1_TEMPLATE_HEADER}\n\nAn earlier revision of the narrow template.`;
+  const born = (systemPrompt: string) => ({ ...seed, params: {}, systemPrompt, createdBy: 'Idioblast' });
+
+  it('reuses the oldest template-born type of the same tools and params, refreshed, its streak kept', () => {
+    const reg = new AtomRegistry(openDb(':memory:'));
+    const elder = reg.create(1, born(older));
+    reg.recordSuccess(elder.name);
+    reg.recordSuccess(elder.name);
+    const younger = reg.create(1, born(older));
+    const authored = reg.create(1, born('A prompt a validator wrote.'));
+    const found = reg.createOrRefresh(1, born(current), isNarrowL1Template);
+    expect(found.atomId).toBe(elder.atomId);
+    expect(found).toMatchObject({ systemPrompt: current, version: 2, successes: 2, consecutiveSuccesses: 2 });
+    expect(reg.listVersions(elder.name).map(row => row.reason)).toEqual(['template refresh']);
+    expect(reg.getByAtomId(younger.atomId)!.systemPrompt).toBe(older);
+    expect(reg.getByAtomId(authored.atomId)!.systemPrompt).toBe('A prompt a validator wrote.');
+    expect(reg.listByTier(1)).toHaveLength(3);
+    // Now exact: the next creation reuses it without another version.
+    expect(reg.createOrRefresh(1, born(current), isNarrowL1Template)).toMatchObject({ atomId: elder.atomId, version: 2 });
+    // Other parameters are another family; a validator's prompt is never one.
+    const warmer = reg.createOrRefresh(1, { ...born(current), params: { temperature: 0.1 } }, isNarrowL1Template);
+    expect(warmer.atomId).not.toBe(elder.atomId);
+    expect(reg.listByTier(1)).toHaveLength(4);
+  });
+
+  it('a create seed narrows the cell\'s tools, a novel signature keeps the seed\'s label, a known one the canonical', () => {
+    const reg = new AtomRegistry(openDb(':memory:'));
+    const cellTools = makeTools(['read_file', 'write_file', 'run_shell']);
+    const cell = L2Atom.fromType(reg.create(2, { ...seed, tools: cellTools, params: {}, systemPrompt: 'Supervise.' }), reg);
+    const create = (seedTools: string[], description?: string) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (cell as any).createSubtaskL1({ description: 'x' },
+        { strategy: 'create', reasoning: 'r', seed: { description, tools: seedTools, params: {} } }, { description: 'p' });
+    const scribe = create(['write_file', 'read_file'], 'focused file writer');
+    expect(scribe.tools.map((tool: { name: string }) => tool.name).sort()).toEqual(['read_file', 'write_file']);
+    expect(scribe.description).toBe('focused file writer');
+    expect(create(['read_file', 'write_file'], 'another name for the same thing').atomId).toBe(scribe.atomId);
+    // Names the cell does not hold narrow nothing: the whole set, as before.
+    const whole = create(['telepathy'], 'mind reader');
+    expect(whole.tools.map((tool: { name: string }) => tool.name).sort()).toEqual(['read_file', 'run_shell', 'write_file']);
+    expect(whole.description).toBe('mind reader');
+    // The lexical filter let this narrative through (Insulin, 2026-10-02); the
+    // signature being known, the canonical label applies.
+    const narrative = 'Derive and present a self-contained exact-fraction Bayesian urn analysis';
+    reg.create(1, { ...seed, tools: cellTools, params: { temperature: 0.1 }, systemPrompt: 'A prompt a validator wrote.' });
+    const labelled = create([], narrative);
+    expect(labelled.atomId).toBe(whole.atomId);
+    expect(reg.listByTier(1).every(type => !type.description.includes('Bayesian'))).toBe(true);
+    expect(resolveLabel(reg, cellTools)).toBe(capabilityDescription(cellTools, 1));
+  });
+
+  function resolveLabel(reg: AtomRegistry, cellTools: ReturnType<typeof makeTools>): string {
+    // A fresh family on a known signature: the label is the signature's.
+    const cell = L2Atom.fromType(reg.create(2, { ...seed, tools: cellTools, params: { maxTokens: 50 }, systemPrompt: 'Supervise.' }), reg);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (cell as any).createSubtaskL1({ description: 'x' },
+      { strategy: 'create', reasoning: 'r', seed: { description: 'Audit a fictional decision brief', tools: [], params: { maxTokens: 50 } } },
+      { description: 'p' }).description;
+  }
 });
 
 describe.each([2, 3] as const)('L%i automatic creation and repair', tier => {

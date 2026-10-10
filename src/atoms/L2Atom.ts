@@ -45,7 +45,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { delegatedTaskContext, taskContextLines, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE } from './taskContext.js';
 import { TASK_EXECUTION_GUIDANCE } from '../contracts/taskExecution.js';
 import { RegistryNotFoundError } from '../core/errors.js';
-import { mergeTools } from './toolMerge.js';
+import { scopeTools } from './toolMerge.js';
 import {
   prefilterStrategy,
   shouldTrustSkill,
@@ -64,6 +64,7 @@ import {
   WEB_GROUND_TRUTH_EVIDENCE_LINES,
   lastResultVerdictSkillFollowed,
   resolveCreationDescription,
+  signatureKnown,
   withToolLine,
 } from './capability.js';
 import { checkGroundTruth, type GroundTruthCheck } from './groundTruth.js';
@@ -194,13 +195,25 @@ function wroteInBranch(ctx: RunContext, branchId: string): boolean {
  * unknown-bucket branch falls back to a domain-neutral tools-only
  * template.
  */
+/** The first line of every prompt `buildNarrowL1Prompt` renders: what marks a template-born molecule. */
+export const NARROW_L1_TEMPLATE_HEADER = 'You are an L1 molecule builder with ONE narrow responsibility.';
+
+/**
+ * Whether a stored prompt was rendered by `buildNarrowL1Prompt` — at any
+ * revision of it. `createOrRefresh` refreshes such a prompt to the current
+ * template; one a validator wrote keeps its identity.
+ */
+export function isNarrowL1Template(systemPrompt: string): boolean {
+  return systemPrompt.startsWith(NARROW_L1_TEMPLATE_HEADER);
+}
+
 export function buildNarrowL1Prompt(
   subtaskDescription: string,
   childTools: readonly Tool[] = [],
   diagnostic: string = ''
 ): string {
   const header: string[] = [
-    `You are an L1 molecule builder with ONE narrow responsibility.`,
+    NARROW_L1_TEMPLATE_HEADER,
     ...(subtaskDescription ? [`Your current subtask: ${subtaskDescription}`] : []),
     ``,
     `Do NOT import assumptions from other domains — the parent type you`,
@@ -633,13 +646,16 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
             .map((p) => `  - ${p.name} — tools: ${p.tools.join(', ') || '(none)'}`)
             .join('\n'),
       ``,
-      `Tools the L1 you spawn will inherit — this is its COMPLETE toolset (for`,
-      `context only — do NOT call them yourself):`,
+      `Tools the L1 you spawn can hold — seed.tools NAMES the ones it gets, and`,
+      `it gets them all when seed.tools is empty (for context only — do NOT call`,
+      `them yourself):`,
       this.tools.length === 0
         ? '  (none)'
         : this.tools.map((t) => `  - ${t.name}: ${t.description}`).join('\n'),
       `A "create" seed CANNOT add tools: names listed in seed.tools that are not`,
-      `above are dropped, and a plan relying on them is rejected. When a subtask`,
+      `above are dropped, and a plan relying on them is rejected. Name only the`,
+      `tools the subtask needs: a narrower molecule is reused across tasks, a`,
+      `copy of this cell's whole toolset is one more clone. When a subtask`,
       `needs a tool you do not hold, "mutualize" to the peer that lists it, or`,
       `scope the subtask to what your tools can prove and state the limit.`,
       ``,
@@ -1469,7 +1485,10 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
   ): AtomType {
     const seed: NonNullable<typeof strategy.seed> =
       strategy.seed ?? ({ tools: [], params: {} });
-    const mergedTools = mergeTools(this.tools, (seed.tools ?? []));
+    // The seed narrows this cell's tools, never adds to them: until
+    // 2026-10-10 a union gave every created molecule the cell's whole
+    // signature (docs/registry-reconciliation-2026-10-10.md).
+    const childTools = scopeTools(this.tools, seed.tools ?? []);
     // IMPORTANT: the registry description is the prefilter key on future
     // runs. Early versions echoed the full task narrative here ("L1 for
     // subtask: build a chess puzzle with 8x8 board + drag-and-drop + …"),
@@ -1478,14 +1497,17 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     // cross-domain. We now force a capability-first label derived from
     // the tool signature; task-specific info still flows to the atom via
     // `handle(task, ctx)` at runtime. See `src/atoms/capability.ts` for
-    // the full rationale.
+    // the full rationale. A signature the registry already holds keeps
+    // its label whatever the seed says.
     // Persist only the capability role; planner-authored seed instructions
     // are injected once into the newly created instance below.
-    const basePrompt = buildNarrowL1Prompt('', mergedTools);
+    const basePrompt = buildNarrowL1Prompt('', childTools);
     void subtask;
     void parentTask;
-    const created = this.registry.createOrReuse(1, {
-      description: resolveCreationDescription(seed.description, mergedTools, 1),
+    const created = this.registry.createOrRefresh(1, {
+      description: resolveCreationDescription(seed.description, childTools, 1, {
+        signatureKnown: signatureKnown(this.registry.listByTier(1), 1, childTools),
+      }),
       // Default system prompt emphasises SINGLE-RESPONSIBILITY. A freshly
       // created L1 should be a narrow specialist — one concern, one output
       // shape — not a Swiss-army knife that tries to solve the whole task.
@@ -1495,10 +1517,10 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       // reporting contracts and web L1s a record_probe instruction for a
       // tool they do not hold, with two incompatible "probes" schemas.
       systemPrompt: basePrompt,
-      tools: mergedTools,
+      tools: childTools,
       params: (seed.params ?? this.params),
       createdBy: this.name,
-    });
+    }, isNarrowL1Template);
     if (seed.systemPrompt) this.pendingSeedContext.set(created.atomId, seed.systemPrompt);
     return created;
   }
@@ -1629,10 +1651,12 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         // stay a capability label; a validator-authored theme ("Minesweeper
         // builder") falls back to the tool-derived label like any seed.
         if (persistentModifications.descriptionReplace !== undefined) {
+          // The child's signature is known by definition: its label is the signature's.
           persistentModifications.descriptionReplace = resolveCreationDescription(
             persistentModifications.descriptionReplace,
             this.registry.getByName(child.name)?.tools ?? [],
-            1
+            1,
+            { signatureKnown: true }
           );
         }
         if (verdict.scope === 'patch') {
@@ -1815,18 +1839,18 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
           }
         }
 
-        const narrowPrompt = buildNarrowL1Prompt('', childTools);
-        const narrowDesc = resolveCreationDescription(undefined, childTools, 1);
-        const branched = this.registry.branchOrReuse(
-          child.name,
-          {
-            systemPromptReplace: narrowPrompt,
-            descriptionReplace: narrowDesc,
-
-          },
-          this.name,
-          undefined
-        );
+        if (!childType) throw new RegistryNotFoundError(child.name);
+        // The narrow template for these tools: the child itself when it is
+        // current, the family's elder refreshed when it is not — never a
+        // branch that differs from its source by the template's latest
+        // sentences (Dopamine, 2026-09-27, was such a branch).
+        const branched = this.registry.createOrRefresh(1, {
+          description: resolveCreationDescription(undefined, childTools, 1),
+          systemPrompt: buildNarrowL1Prompt('', childTools),
+          tools: childTools,
+          params: childType.params,
+          createdBy: this.name,
+        }, isNarrowL1Template);
         ctx.logger.warn(
           `[${this.name}] escalation — branched ${child.name} → ${branched.name} (${reason})`
         );

@@ -7,8 +7,26 @@ import {
   capabilityDescription,
   looksTaskThemed,
   resolveCreationDescription,
+  signatureKnown,
+  toolSignature,
 } from '../src/atoms/capability.js';
 import { makeTools } from './helpers/factories.js';
+
+describe('labels by signature (owner decision 2026-10-10)', () => {
+  it('a known tool signature keeps the canonical label whatever a seed or validator wrote', () => {
+    const tools = makeTools(['write_file', 'run_shell']);
+    const types = [{ tier: 1 as const, tools: makeTools(['run_shell', 'write_file']) }];
+    expect(toolSignature(tools)).toBe('run_shell,write_file');
+    expect(signatureKnown(types, 1, tools)).toBe(true);
+    expect(signatureKnown(types, 2, tools)).toBe(false);
+    expect(signatureKnown(types, 1, makeTools(['write_file']))).toBe(false);
+    // The lexical filter let this narrative through (Insulin, 2026-10-02).
+    const narrative = 'Derive and present a self-contained exact-fraction Bayesian urn analysis';
+    expect(looksTaskThemed(narrative)).toBe(false);
+    expect(resolveCreationDescription(narrative, tools, 1, { signatureKnown: true })).toBe(capabilityDescription(tools, 1));
+    expect(resolveCreationDescription(narrative, tools, 1, { signatureKnown: false })).toBe(narrative);
+  });
+});
 
 describe('capabilityDescription', () => {
   it('picks the web-artefact-build+validate bucket when write + serve + validate are present (tier 1 = builder)', () => {

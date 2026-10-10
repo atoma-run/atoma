@@ -50,7 +50,7 @@ import { randomUUID } from 'node:crypto';
 import { delegatedTaskContext, taskContextLines, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE } from './taskContext.js';
 import { TASK_EXECUTION_GUIDANCE } from '../contracts/taskExecution.js';
 import { RegistryNotFoundError } from '../core/errors.js';
-import { mergeTools } from './toolMerge.js';
+import { scopeTools } from './toolMerge.js';
 import {
   prefilterStrategy,
   shouldTrustType,
@@ -64,6 +64,7 @@ import {
   canonicalFullStackPrompt,
   extractBranchDiagnostic,
   resolveCreationDescription,
+  signatureKnown,
 } from './capability.js';
 import {
   HTTP_PORTABLE_DOC_GUIDANCE,
@@ -91,6 +92,14 @@ import type { SkillRegistry } from '../skills/registry.js';
  * of inheriting the failed parent's prompt. The template is capability-only:
  * it names no atom and no task, so nothing in it needs rebranding.
  */
+/** The first line of every prompt `buildNarrowL2Prompt` renders: what marks a template-born cell. */
+export const NARROW_L2_TEMPLATE_HEADER = 'You are an L2 cell that decomposes a single-purpose task into';
+
+/** Whether a stored prompt was rendered by `buildNarrowL2Prompt`, at any revision — see `isNarrowL1Template`. */
+export function isNarrowL2Template(systemPrompt: string): boolean {
+  return systemPrompt.startsWith(NARROW_L2_TEMPLATE_HEADER);
+}
+
 export function buildNarrowL2Prompt(
   subtaskDescription: string,
   childTools: readonly Tool[] = [],
@@ -110,7 +119,7 @@ export function buildNarrowL2Prompt(
         ? `Your leaf tier-1 will write a single-file web artefact, serve it via start_static_server, and validate via headless browser (validate_html).`
         : `Your leaf tier-1 works with whatever tools it has been handed — do not assume a specific bucket.`;
   const lines: string[] = [
-    `You are an L2 cell that decomposes a single-purpose task into`,
+    NARROW_L2_TEMPLATE_HEADER,
     `orthogonal L1 molecule subtasks and supervises their parallel execution.`,
     ``,
     ...(subtaskDescription ? [`Your current subtask: ${subtaskDescription}`] : []),
@@ -982,20 +991,23 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
   ): AtomType {
     const seed: NonNullable<typeof strategy.seed> =
       strategy.seed ?? ({ tools: [], params: {} });
-    const mergedTools = mergeTools(this.tools, (seed.tools ?? []));
+    // The seed narrows this tissue's tools, never adds to them (2026-10-10).
+    const childTools = scopeTools(this.tools, seed.tools ?? []);
     void subtask;
     void parentTask;
     // Registry description is a CAPABILITY label, not a task narrative —
     // see `src/atoms/capability.ts` for why. Same motivation as
     // `L2Atom.createSubtaskL1`: prevent per-task L2 singletons from
-    // poisoning L3's prefilter catalog.
-    const created = this.registry.createOrReuse(2, {
-      description: resolveCreationDescription(seed.description, mergedTools, 2),
-      systemPrompt: buildNarrowL2Prompt('', mergedTools),
-      tools: mergedTools,
+    // poisoning L3's prefilter catalog. A known signature keeps its label.
+    const created = this.registry.createOrRefresh(2, {
+      description: resolveCreationDescription(seed.description, childTools, 2, {
+        signatureKnown: signatureKnown(this.registry.listByTier(2), 2, childTools),
+      }),
+      systemPrompt: buildNarrowL2Prompt('', childTools),
+      tools: childTools,
       params: (seed.params ?? this.params),
       createdBy: this.name,
-    });
+    }, isNarrowL2Template);
     if (seed.systemPrompt) this.pendingSeedContext.set(created.atomId, seed.systemPrompt);
     return created;
   }
@@ -1013,7 +1025,8 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
           persistentModifications.descriptionReplace = resolveCreationDescription(
             persistentModifications.descriptionReplace,
             this.registry.getByName(child.name)?.tools ?? [],
-            2
+            2,
+            { signatureKnown: true }
           );
         }
         if (verdict.scope === 'patch') {
@@ -1048,26 +1061,22 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         // validator rejection reasonings into the narrow prompt so
         // the branched L2 can target the specific failure (#1).
         const childType = this.registry.getByName(child.name);
-        const childTools = childType?.tools ?? [];
+        if (!childType) throw new RegistryNotFoundError(child.name);
+        const childTools = childType.tools;
         const diagnostic = extractBranchDiagnostic(trace);
-        const narrowPrompt = buildNarrowL2Prompt('', childTools);
         // Capability-first description — match the rule enforced in
-        // createSubtaskL2. The task and diagnosis live only in the recovery instance;
-        // the registry must stay tier/tool-
-        // scoped so prefilter cross-domain reuse stays clean.
-        // Atom.tools is protected — pull the tool signature via the
-        // registry, which is the authoritative source anyway.
-        const narrowDesc = resolveCreationDescription(undefined, childTools, 2);
-        const branched = this.registry.branchOrReuse(
-          child.name,
-          {
-            systemPromptReplace: narrowPrompt,
-            descriptionReplace: narrowDesc,
-
-          },
-          this.name,
-          undefined
-        );
+        // createSubtaskL2. The task and diagnosis live only in the recovery
+        // instance; the registry must stay tier/tool-scoped so prefilter
+        // cross-domain reuse stays clean. The narrow template for these
+        // tools is the child itself when current, else the family's elder
+        // refreshed — never a branch one template revision apart.
+        const branched = this.registry.createOrRefresh(2, {
+          description: resolveCreationDescription(undefined, childTools, 2),
+          systemPrompt: buildNarrowL2Prompt('', childTools),
+          tools: childTools,
+          params: childType.params,
+          createdBy: this.name,
+        }, isNarrowL2Template);
         ctx.logger.warn(
           `[${this.name}] escalation — branched ${child.name} → ${branched.name} (${reason})`
         );

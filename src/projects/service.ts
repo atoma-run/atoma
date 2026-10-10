@@ -789,7 +789,10 @@ export class ProjectService {
     const orgId = this.readOrgFor(viewer, projectId);
     const run = this.store.getProjectRun(orgId, projectRunId);
     if (!run || run.projectId !== projectId) throw new ProjectHttpError(404, 'project run not found');
-    return { ...this.present(run, this.store.getPublicationForRun(orgId, run.projectRunId)), progress: projectRunProgress(run),
+    // A superset of the run's entry in the project's run list, which MCP readers compare.
+    return { ...this.present(run, this.store.getPublicationForRun(orgId, run.projectRunId), { costBreakdown: true }),
+      requestedByName: this.store.principalDisplayNames([run.requestedByPrincipalId]).get(run.requestedByPrincipalId) ?? null,
+      progress: projectRunProgress(run),
       actions: { canCancel: orgId === viewer.orgId && roleAtLeast(viewer.role, 'org:member') && (run.status === 'queued' || run.status === 'running') } };
   }
 

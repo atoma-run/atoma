@@ -6,6 +6,7 @@ import { L3Atom } from '../src/atoms/L3Atom.js';
 import { FALLBACK_OPUS } from './tier-pins.js';
 import type { Tool } from '../src/core/types.js';
 import { makeCtx, jsonTextPair, silentLogger } from './helpers.js';
+import { l2StrategySchema } from '../src/atoms/json.js';
 
 /**
  * A "create" seed's `tools` are NAMES the schema drops: the created L1
@@ -105,6 +106,21 @@ describe('L2 create seed — tool names cannot grow the toolset', () => {
     expect(
       logger.warn.mock.calls.some((c) => String(c[0]).includes('create seed asked for tool(s)'))
     ).toBe(false);
+  });
+});
+
+describe('L2 create seed — tool names narrow the child (2026-10-10)', () => {
+  it('the schema keeps names, objects contribute their name only, and the created L1 holds what was named', () => {
+    const parsed = l2StrategySchema.parse({
+      strategy: 'create', reasoning: 'r',
+      seed: { tools: ['write_file', { name: 'validate_html', description: 'x', inputSchema: {} }, 7, { nope: true }] },
+    });
+    expect(parsed.seed?.tools).toEqual(['write_file', 'validate_html']);
+    const { web, reg } = makeCells();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const created = (web as any).createSubtaskL1({ description: 'write the page' }, parsed, { description: 'p' });
+    expect(created.tools.map((t: Tool) => t.name)).toEqual(['write_file', 'validate_html']);
+    expect(reg.getByName(created.name)!.tools.map((t: Tool) => t.name)).toEqual(['write_file', 'validate_html']);
   });
 });
 

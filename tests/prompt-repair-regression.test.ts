@@ -190,11 +190,14 @@ describe('prompt review regressions', () => {
         approved: false, reasoning: 'drift', scope: 'branch', branchName: 'Themed',
         modifications: { descriptionReplace: themed, systemPromptAppend: 'paste evidence' } });
       expect(reg.getByName(branched.name)!.description).not.toMatch(/Minesweeper|WebGL/i);
-      // A clean capability label authored by the validator is honoured.
+      // A clean label authored by the validator is not honoured either: the
+      // child's signature is known, and a known signature keeps the
+      // signature's label (owner decision 2026-10-10) — a second line for
+      // one capability is what the Jev prefilter could not tell apart.
       const clean = await hooks.applyByScope(L1Atom.fromType(leaf), {
         approved: false, reasoning: 'drift', scope: 'patch',
         modifications: { descriptionReplace: 'file and HTTP builder: writes files, boots a Node server and probes endpoints over HTTP' } });
-      expect(reg.getByName(clean.name)!.description).toMatch(/^file and HTTP builder/);
+      expect(reg.getByName(clean.name)!.description).toBe(capabilityDescription(tools, 1));
     } finally { db.close(); }
   });
 

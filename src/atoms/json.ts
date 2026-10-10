@@ -1327,26 +1327,21 @@ export function parseVerdict(text: string): z.infer<typeof verdictSchema> {
   return parsed.data;
 }
 
-const toolObjectSchema = z.object({
-  name: z.string(),
-  description: z.string(),
-  inputSchema: z.record(z.string(), z.unknown()),
-});
-
 /**
- * LLMs often return `tools` as an array of strings (tool names they want
- * inherited) instead of full Tool objects. We tolerate both: strings are
- * silently dropped here — the parent atom's tools will be merged back in by
- * `mergeTools` at the call site, so mentioning them by name is a no-op.
+ * A seed's `tools` are NAMES: the ones of its parent's tools the child
+ * should hold (`scopeTools`). A model that writes full Tool objects instead
+ * contributes their names only — a declaration it invented never enters the
+ * registry (until 2026-10-10 it did: the union kept any name the parent
+ * lacked, with the model's schema). Anything else is dropped.
  */
 const lenientToolArraySchema = z.preprocess((raw) => {
   if (!Array.isArray(raw)) return raw;
-  return raw.filter(
-    (t) =>
-      t && typeof t === 'object' && !Array.isArray(t) &&
-      typeof (t as { name?: unknown }).name === 'string'
-  );
-}, z.array(toolObjectSchema).default([]));
+  return raw.flatMap((t) => {
+    if (typeof t === 'string') return [t];
+    const name = t && typeof t === 'object' && !Array.isArray(t) ? (t as { name?: unknown }).name : undefined;
+    return typeof name === 'string' ? [name] : [];
+  });
+}, z.array(z.string()).default([]));
 
 const seedSchema = z
   .object({

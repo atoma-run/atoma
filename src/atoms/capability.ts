@@ -163,7 +163,7 @@ export function capabilityDescription(
   // KITCHEN-SINK detection: a toolset that satisfies BOTH genuinely
   // distinct workflow families (Node-HTTP request/response loop AND
   // web-artefact render/validate loop) has no single specialty — it is
-  // the full executor set that dynamic children inherit via mergeTools.
+  // the full executor set a dynamic child inherits from a wide parent.
   // Labelling it with the first matching bucket ASSERTED a specialty
   // the atom doesn't have: every dynamically created L2/L1 came out
   // "Node HTTP server orchestrator/builder", the domain-match rule then
@@ -287,13 +287,38 @@ export function looksTaskThemed(desc: string): boolean {
 export function resolveCreationDescription(
   suggested: string | undefined,
   tools: readonly Tool[],
-  tier: Tier
+  tier: Tier,
+  opts: {
+    /**
+     * A type at this tier already holds this tool signature: the label is
+     * the signature's, so the catalogue shows one line per capability and
+     * the lexical filter below is not the only guard (owner decision
+     * 2026-10-10: it let "Derive and present an exact-fraction Bayesian urn
+     * analysis" through; docs/registry-reconciliation-2026-10-10.md).
+     */
+    readonly signatureKnown?: boolean;
+  } = {}
 ): string {
   const canonical = capabilityDescription(tools, tier);
   const cleaned = suggested?.trim();
   if (!cleaned) return canonical;
-  if (looksTaskThemed(cleaned)) return canonical;
+  if (opts.signatureKnown || looksTaskThemed(cleaned)) return canonical;
   return cleaned;
+}
+
+/** Sorted tool names: what a created type is, for the registry's families and labels. */
+export function toolSignature(tools: readonly { readonly name: string }[]): string {
+  return tools.map((tool) => tool.name).sort().join(',');
+}
+
+/** Whether a type of the given tier already holds exactly this tool signature. */
+export function signatureKnown(
+  types: readonly { readonly tier: Tier; readonly tools: readonly { readonly name: string }[] }[],
+  tier: Tier,
+  tools: readonly { readonly name: string }[]
+): boolean {
+  const wanted = toolSignature(tools);
+  return types.some((type) => type.tier === tier && toolSignature(type.tools) === wanted);
 }
 
 /** Marker for the canonical WEB L1/L2 entries (single-file artefact + headless

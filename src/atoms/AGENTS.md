@@ -550,7 +550,12 @@ Read the archived sections before changing something that merely looks odd.
   signature plus workflow shape), never on task domain, and validator-authored
   `descriptionReplace` passes through `resolveCreationDescription`. The earlier
   domain-match rule could only spawn identical clones once descriptions became
-  capability labels; the theme travels in the subtask description.
+  capability labels; the theme travels in the subtask description. Since
+  2026-10-10 a signature the tier already holds keeps the canonical label
+  whatever a seed or validator wrote (the lexical filter let "Bayesian urn
+  analysis" through), a create seed NARROWS its parent's tools (`scopeTools`;
+  the union gave every child the parent's whole signature) and template-born
+  types are created through `createOrRefresh` ([src/registry](../registry/AGENTS.md)).
 - The full-stack canonical pairs Node-server and browser tools without a static
   server. It precedes HTTP in bucket selection; HTTP-only and static-web
   canonicals retain their narrower scopes and identities.
