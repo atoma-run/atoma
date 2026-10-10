@@ -248,7 +248,9 @@ Neighbours:
   their pass rebuilt the whole task, the first replacing a working page.
   Anything else keeps the broad pass: a scope that left a second reason
   standing would be refused again and land a partial. Free-form refusal
-  prose is never parsed for a scope.
+  prose is never parsed for a scope. Every remediation's phases carry only
+  the criteria the acceptor did NOT judge met (`Task.criteria`, src/atoms);
+  none judged leaves the whole list, all met leaves none.
 - WORK IN HAND IS FINALIZED, landed or complete: its root acceptance runs to
   the absolute deadline + 45s (`finalizationSignal`), explicit cancellation
   and deepening still abort, and expiry keeps the work as a refused partial —

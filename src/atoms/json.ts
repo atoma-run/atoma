@@ -975,6 +975,17 @@ export const subtaskSpecSchema = z.object({
       const cleaned = (v ?? []).map((o) => o.trim()).filter(isProofObligation);
       return cleaned.length > 0 ? [...new Set(cleaned)] : undefined;
     }),
+  // Criterion ids the plan assigns this subtask (Task.criteria). Same
+  // null-tolerance; an id the parent does not hold is dropped at delegation,
+  // so a malformed entry costs an assignment, never the plan.
+  criteria: z
+    .array(z.unknown())
+    .nullable()
+    .optional()
+    .transform((v) => {
+      const cleaned = (v ?? []).filter((id): id is string => typeof id === 'string').map((id) => id.trim()).filter((id) => id.length > 0);
+      return cleaned.length > 0 ? [...new Set(cleaned)] : undefined;
+    }),
 }).transform((spec) => {
   // A reasoning subtask that declares file outputs or proof obligations
   // contradicts itself: reasoning has no tools, and the "at least one tool

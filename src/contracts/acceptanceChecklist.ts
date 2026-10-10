@@ -61,6 +61,28 @@ export const checklistSourceSchema = z.enum(['drafted', 'user']);
 export type ChecklistSource = z.infer<typeof checklistSourceSchema>;
 
 /**
+ * One criterion as a PHASE carries it (`Task.criteria`): the exact words the
+ * root acceptor judges and who wrote them. Runs 50be47bf and ebc60ee4
+ * (2026-10-10) clicked before a journey their criterion said had "no mouse":
+ * the molecule that wrote the check saw the phase description, never the
+ * criterion's text.
+ */
+export interface PhaseCriterion {
+  readonly id: string;
+  readonly behaviour: string;
+  readonly source: ChecklistSource;
+  /** No subtask of the plan named it: the last phase hears it, as context only. */
+  readonly unassigned?: true;
+}
+
+export function phaseCriteriaOf(checklist: AcceptanceChecklist, source: ChecklistSource): PhaseCriterion[] {
+  // An http item is covered only by a request with that method and path, so
+  // the phase hears them as the planner does (checklistPlanningLines).
+  return checklist.map((item) => ({ id: item.id, source,
+    behaviour: item.check.kind === 'http' ? `${item.behaviour} (fetch_url ${describeCheck(item.check)})` : item.behaviour }));
+}
+
+/**
  * THE USER-APPROVED LIST, as a caller submits it — docs/acceptance-contract-2026-09-14.md.
  *
  * STRICT where the drafted parse is lenient: an unknown key, a malformed item

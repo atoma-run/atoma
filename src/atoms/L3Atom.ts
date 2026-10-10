@@ -47,7 +47,7 @@ import { superviseLoop, type SupervisionHooks } from '../core/supervisor.js';
 import { forkBranch } from '../core/branchCtx.js';
 import { effectiveObligations, anyUncovered, renderProofCoverage } from './proofCoverage.js';
 import { randomUUID } from 'node:crypto';
-import { delegatedTaskContext, taskContextLines, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE } from './taskContext.js';
+import { criteriaAssignmentLine, delegatedCriteria, delegatedTaskContext, taskContextLines, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE } from './taskContext.js';
 import { TASK_EXECUTION_GUIDANCE } from '../contracts/taskExecution.js';
 import { RegistryNotFoundError } from '../core/errors.js';
 import { scopeTools } from './toolMerge.js';
@@ -705,6 +705,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       `  {"reasoning": "...", "delivery": "text"|"files", "subtasks": [{"description": "...", "executionMode": "reasoning"|"tools", "preferredChild": "<L2-name>"?, "inputs": {}?, "outputs": ["<file the subtask creates/modifies>", ...]}, ...], "aggregation": {"mode": "concat"|"llm-synthesize"|"sequential", "instruction": "..."?}, "expectedOutput": "..."}`,
       `]`,
       `Every file-mutating subtask MUST include "outputs". Omit the key only on read-only phases.`,
+      criteriaAssignmentLine(task),
       `The first character of your response MUST be "[". Do NOT call any tools.`,
     ]
       .filter(Boolean)
@@ -825,6 +826,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         parentTask: task,
         idx,
         total: subtasks.length,
+        siblings: subtasks,
         aggregationMode: plan.aggregation.mode,
         hooks,
         ctx,
@@ -845,6 +847,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     parentTask: Task;
     idx: number;
     total: number;
+    siblings: Plan['subtasks'];
     aggregationMode: Plan['aggregation']['mode'];
     hooks: SupervisionHooks<L2Atom>;
     ctx: RunContext;
@@ -856,6 +859,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       parentTask,
       idx,
       total,
+      siblings,
       aggregationMode,
       hooks,
       ctx,
@@ -898,6 +902,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       ...(effectiveObligations(subtask, parentTask).length > 0
         ? { proofObligations: effectiveObligations(subtask, parentTask) }
         : {}),
+      ...delegatedCriteria(parentTask, siblings, idx, aggregationMode === 'sequential'),
     };
     // Fork a branch-scoped ctx so the viz can render each L2 subtask
     // (and its downstream L1 tree) as its own lane.

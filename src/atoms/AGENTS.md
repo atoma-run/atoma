@@ -219,9 +219,16 @@ load-bearing.
 
 - Delegation preserves original task inputs/constraints and preceding phase results.
   Tool planning/execution and L2/L3 fallback use the same `taskContextLines`
-  as validation; typed `originalTask` wins over its input mirror. Root
-  checklists stay out of phase validation; the molecule planner retains its
-  checklist context for whole-task shortcuts. Current constraints reach execution.
+  as validation; typed `originalTask` wins over its input mirror. The WHOLE
+  root checklist stays out of phase validation; the molecule planner retains its
+  checklist context for whole-task shortcuts. A phase carries only the criteria
+  its plan assigned it (`Task.criteria`, subtask `criteria` ids), rendered word
+  for word to its planner, executor and validators: a user criterion is that
+  phase's requirement, a drafted one adds nothing. An id no subtask names is
+  CONTEXT for the last sequential phase only; a script dispatch is judged
+  without criteria. 60 of 118 first root refusals named a clause no
+  phase had seen ([measurement](../../docs/incidents/first-refusals-2026-10-10.md)).
+  Current constraints reach execution.
   Sequential handover also carries bounded transport observations from completed
   phases, with event IDs, omission counts and a separate file-change inventory.
   These are historical context for reporting and validation, never new proof

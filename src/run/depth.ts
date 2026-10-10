@@ -8,7 +8,7 @@ import { abortedForLanding, finalizationSignal, landingSignal, withinSignal } fr
 import { acceptRootResult, observedDelivery } from '../atoms/rootAcceptance.js';
 import { outOfPhaseBudget } from '../core/limits.js';
 import type { AcceptanceInfo, DepthMode, PhaseCoverageRecord, ProofFloor, TopologyInfo } from '../contracts/depthRouting.js';
-import { checklistPlanningLines, type AcceptanceChecklist, type ChecklistSource } from '../contracts/acceptanceChecklist.js';
+import { checklistPlanningLines, phaseCriteriaOf, type AcceptanceChecklist, type ChecklistSource } from '../contracts/acceptanceChecklist.js';
 import { PhaseBoundaryPause } from '../contracts/runCheckpoint.js';
 
 export class DeepeningSignal extends Error {
@@ -137,8 +137,14 @@ export function remediationTask(task: Task, acceptance: AcceptanceInfo): Task {
   } : {};
   // The listing is the LATEST acceptance's: an earlier pass's never rides on.
   const { [EARLIER_LISTED_INPUT]: _stale, ...inputs } = task.inputs ?? {};
+  // A criterion the acceptor judged met keeps its evidence (metCriteria):
+  // the phases of this pass hear only the ones it did not.
+  const met = new Set((acceptance.checklist ?? []).filter((item) => item.judgement?.met === true).map((item) => item.id));
+  const { criteria: allCriteria, ...rest } = task;
+  const criteria = allCriteria?.filter((item) => !met.has(item.id)) ?? [];
   return {
-    ...task,
+    ...rest,
+    ...(criteria.length > 0 ? { criteria } : {}),
     inputs: {
       ...inputs,
       rootAcceptanceRefusal: acceptance.reasoning,
@@ -162,6 +168,9 @@ export function withAcceptanceChecklist(task: Task, checklist: AcceptanceCheckli
   if (checklist.length === 0) return task;
   return {
     ...task,
+    // The typed channel phases read (Task.criteria): the planner assigns ids
+    // to subtasks and each phase hears only its own, word for word.
+    criteria: phaseCriteriaOf(checklist, source),
     inputs: {
       ...(task.inputs ?? {}),
       acceptanceChecklist: {

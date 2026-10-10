@@ -47,6 +47,15 @@ export interface Task {
   readonly proofObligations?: readonly ProofObligation[];
   /** Profile-owned delivery obligations, frozen before routing; never inherited as phase obligations. */
   readonly proofFloor?: import('../contracts/depthRouting.js').ProofFloor;
+  /**
+   * The run's acceptance criteria THIS task must record evidence for, with
+   * the exact text the root acceptor will judge. Set by the host on the root
+   * task and narrowed at each delegation to what the plan assigned that
+   * subtask (`SubtaskSpec.criteria`); a criterion no subtask names goes to the
+   * last one. Never the whole list on a phase: a phase judged on criteria
+   * another phase owns fails for work it was never asked to do (2026-10-02).
+   */
+  readonly criteria?: readonly import('../contracts/acceptanceChecklist.js').PhaseCriterion[];
 }
 
 export interface ToolCall {
@@ -103,6 +112,8 @@ export interface SubtaskSpec {
    * reaches the supervisor that watches the tool-bearing child.
    */
   readonly proofObligations?: readonly ProofObligation[];
+  /** Ids of the parent task's `criteria` this subtask records evidence for; see `Task.criteria`. */
+  readonly criteria?: readonly string[];
 }
 
 /**

@@ -330,7 +330,8 @@ export class L1Atom extends Atom {
       `Task: ${task.description}`,
       // Keep the existing planner checklist: a prefilter shortcut forwards
       // the whole root task here without calling a supervisor planner.
-      // It is context, never an extra phase-validation requirement.
+      // It is context, never an extra phase-validation requirement; the
+      // phase's own criteria render beside it (Task.criteria).
       ...taskContextLines(task, { includeAcceptanceChecklist: true }),
       ...proofObligationLines(task, this.tools.some((t) => t.name === 'validate_html')),
       ``,

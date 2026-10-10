@@ -42,7 +42,7 @@ import {
   renderProofCoverage,
 } from './proofCoverage.js';
 import { createHash, randomUUID } from 'node:crypto';
-import { delegatedTaskContext, taskContextLines, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE } from './taskContext.js';
+import { criteriaAssignmentLine, delegatedCriteria, delegatedTaskContext, taskContextLines, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE } from './taskContext.js';
 import { TASK_EXECUTION_GUIDANCE } from '../contracts/taskExecution.js';
 import { RegistryNotFoundError } from '../core/errors.js';
 import { scopeTools } from './toolMerge.js';
@@ -672,6 +672,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       `  {"reasoning": "...", "delivery": "text"|"files", "subtasks": [{"description": "...", "executionMode": "reasoning"|"tools", "preferredChild": "<L1-name>"?, "inputs": {}?, "outputs": ["<file the subtask creates/modifies>", ...]}, ...], "aggregation": {"mode": "concat"|"llm-synthesize"|"sequential", "instruction": "..."?}, "expectedOutput": "..."}`,
       `]`,
       `Every file-mutating subtask MUST include "outputs". Omit the key only on read-only subtasks.`,
+      criteriaAssignmentLine(task),
       `The first character of your response MUST be "[". Do NOT call any tools.`,
     ]
       .filter(Boolean)
@@ -783,6 +784,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         parentTask: task,
         idx,
         total: subtasks.length,
+        siblings: subtasks,
         aggregationMode: plan.aggregation.mode,
         ctx,
         // Only a ROOT cell's own sequential decomposition declares phases: a
@@ -813,6 +815,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     parentTask: Task;
     idx: number;
     total: number;
+    siblings: Plan['subtasks'];
     aggregationMode: Plan['aggregation']['mode'];
     ctx: RunContext;
     undeclaredIsReadOnly: boolean;
@@ -823,6 +826,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       parentTask,
       idx,
       total,
+      siblings,
       aggregationMode,
       ctx,
       undeclaredIsReadOnly,
@@ -855,6 +859,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       ...(effectiveObligations(subtask, parentTask).length > 0
         ? { proofObligations: effectiveObligations(subtask, parentTask) }
         : {}),
+      ...delegatedCriteria(parentTask, siblings, idx, aggregationMode === 'sequential'),
     };
 
     // Skill prefilter (C2a). When a SkillRegistry is wired and the
@@ -1396,7 +1401,11 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     ctx: RunContext
   ): Promise<Verdict | null> {
     try {
-      return await this.validateResult(child, result, task, ctx, { scriptDispatch: true });
+      // A script replays what it was compiled from; it never read the phase's
+      // criteria, and a refusal here counts against it. The phase's criteria
+      // stay the root acceptor's to judge, as before they reached phases.
+      const { criteria: _criteria, ...judged } = task;
+      return await this.validateResult(child, result, judged, ctx, { scriptDispatch: true });
     } catch (error) {
       if (ctx.signal?.aborted) throw error;
       ctx.logger.warn(
