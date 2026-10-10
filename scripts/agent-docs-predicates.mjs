@@ -42,7 +42,9 @@ export function repoRelativeIfInside(repoRoot, resolvedPath, pathImpl = { relati
 // the pressure it needs is "one subsystem, one file", not a word count.
 // 500 until 2026-10-04: src/atoms sat at 499 and new rules were being folded
 // into existing lines to fit (owner decision, raised to 600).
-export const SUBSYSTEM_LINE_BUDGET = 600;
+// 2026-10-10: raised to 700 (owner decision). src/atoms sat at 599 and three
+// rules landed that day by shortening neighbouring paragraphs to fit.
+export const SUBSYSTEM_LINE_BUDGET = 700;
 // src/viz owns more surfaces than any other subtree (trace projection, the GPU
 // client, the frozen MUI fallback, the gated HTTP surfaces, push, and the i18n
 // catalog contract). Splitting it further would mean inventing sub-subsystems

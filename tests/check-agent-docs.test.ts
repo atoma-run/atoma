@@ -71,7 +71,7 @@ describe('link containment', () => {
 
 describe('subsystem line budgets', () => {
   it('pins the policy values, so a budget change is a conscious test change', () => {
-    expect(SUBSYSTEM_LINE_BUDGET).toBe(600);
+    expect(SUBSYSTEM_LINE_BUDGET).toBe(700);
   });
 
   it('requires the intentional-choices heading in EVERY subsystem doc', () => {
