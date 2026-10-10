@@ -119,6 +119,17 @@ describe('applyIdentityMerge', () => {
     expect(readLedger(db).filter((event) => event.kind === 'type-merge')).toHaveLength(1);
   });
 
+  it('never reissues a loser\'s name: the merge leaves a tombstone at its ordinal', async () => {
+    const { dir, dbPath, db, registry, skills, winner, clone, empty } = fixture();
+    const plan = planIdentityMerge(registry, skills, winner.name, [clone.name, empty.name]);
+    const archiveDir = await archiveForMerge({ db, dbPath, skills, plan, archiveRoot: join(dir, 'archives') });
+    applyIdentityMerge({ registry, skills, plan, modifiedBy: 'test', archiveDir });
+    // Production, 2026-10-10: Water's next escalation branch came out named Glucose.
+    const next = registry.create(1, { description: 'd', systemPrompt: 'p', tools: makeTools(['read_file']), params: {}, createdBy: 'Idioblast' });
+    expect([clone.name, empty.name]).not.toContain(next.name);
+    expect(next.ordinal).toBeGreaterThan(Math.max(clone.ordinal, empty.ordinal));
+  });
+
   it('refuses a plan that carries refusals and an apply without its archive, and writes nothing', async () => {
     const { dir, dbPath, db, registry, skills, winner, clone } = fixture();
     const refused = planIdentityMerge(registry, skills, clone.name, [winner.name]);

@@ -1268,6 +1268,29 @@ export class AtomRegistry {
         this
           .prepare(`DELETE FROM atom_type_versions WHERE tier = ? AND ordinal = ?`)
           .run(loser.tier, loser.ordinal);
+        // A TOMBSTONE at the loser's ordinal, as `remove` leaves one: the
+        // allocator reads live rows ∪ version history, so without it the
+        // ordinal — and the taxonomy NAME — is reissued. On 2026-10-10 the
+        // five production merges freed Glucose's ordinal and the next
+        // escalation branch of Water was named Glucose again, inheriting
+        // the dead molecule's name in every earlier trace.
+        this
+          .prepare(
+            `INSERT INTO atom_type_versions
+             (tier, ordinal, version, system_prompt, tools_json, params_json, modified_by, modified_at, reason)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          )
+          .run(
+            loser.tier,
+            loser.ordinal,
+            loser.version,
+            loser.systemPrompt,
+            JSON.stringify(loser.tools),
+            JSON.stringify(loser.params),
+            'registry-merge',
+            new Date().toISOString(),
+            `[merged into ${winner.name}]`
+          );
         this
           .prepare(`DELETE FROM atom_types WHERE tier = ? AND ordinal = ?`)
           .run(loser.tier, loser.ordinal);
