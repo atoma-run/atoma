@@ -1833,5 +1833,8 @@
   "projects.overview.coverage_other": "Aufschlüsselung für {{covered}} von {{count}} Runs mit lesbarem Trace.",
   "projects.overview.table": "Kosten nach Modell-Tier als Tabelle",
   "projects.overview.share": "Teilen",
-  "projects.overview.cost": "Kosten"
+  "projects.overview.cost": "Kosten",
+  "projects.overview.collapse": "Übersicht ausblenden",
+  "projects.overview.expand": "Übersicht anzeigen",
+  "projects.overview.collapsedTotal": "Projektkosten nach Modell-tier: {{value}}. Übersicht anzeigen, um die Aufschlüsselung zu sehen."
 }

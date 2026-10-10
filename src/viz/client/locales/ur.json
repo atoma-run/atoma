@@ -1833,5 +1833,8 @@
   "projects.overview.coverage_other": "قابلِ مطالعہ ٹریس والے {{count}} run میں سے {{covered}} کا تجزیہ۔",
   "projects.overview.table": "ماڈل tier کے لحاظ سے لاگت، جدول کی صورت میں",
   "projects.overview.share": "شیئر کریں",
-  "projects.overview.cost": "لاگت"
+  "projects.overview.cost": "لاگت",
+  "projects.overview.collapse": "جائزہ چھپائیں",
+  "projects.overview.expand": "جائزہ دکھائیں",
+  "projects.overview.collapsedTotal": "ماڈل tier کے لحاظ سے پروجیکٹ کی لاگت: {{value}}۔ تفصیل کے لیے جائزہ دکھائیں۔"
 }

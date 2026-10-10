@@ -1833,5 +1833,8 @@
   "projects.overview.coverage_other": "细分数据来自 {{count}} 次 run 中具有可读追踪记录的 {{covered}} 次。",
   "projects.overview.table": "以表格形式显示按模型 tier 划分的费用",
   "projects.overview.share": "分享",
-  "projects.overview.cost": "费用"
+  "projects.overview.cost": "费用",
+  "projects.overview.collapse": "隐藏概览",
+  "projects.overview.expand": "显示概览",
+  "projects.overview.collapsedTotal": "按模型 tier 计算的项目成本：{{value}}。显示概览以查看明细。"
 }

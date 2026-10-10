@@ -1833,5 +1833,8 @@
   "projects.overview.coverage_other": "पढ़ने योग्य ट्रेस वाले {{count}} run में से {{covered}} का विवरण।",
   "projects.overview.table": "तालिका के रूप में मॉडल tier के अनुसार लागत",
   "projects.overview.share": "साझा करें",
-  "projects.overview.cost": "लागत"
+  "projects.overview.cost": "लागत",
+  "projects.overview.collapse": "ओवरव्यू छिपाएँ",
+  "projects.overview.expand": "ओवरव्यू दिखाएँ",
+  "projects.overview.collapsedTotal": "मॉडल tier के अनुसार प्रोजेक्ट की लागत: {{value}}। विवरण के लिए ओवरव्यू दिखाएँ।"
 }

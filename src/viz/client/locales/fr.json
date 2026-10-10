@@ -1833,5 +1833,8 @@
   "projects.overview.coverage_other": "Ventilation basée sur {{covered}} sur {{count}} runs disposant d’une trace lisible.",
   "projects.overview.table": "Coût par tier de modèle, sous forme de tableau",
   "projects.overview.share": "Partager",
-  "projects.overview.cost": "Coût"
+  "projects.overview.cost": "Coût",
+  "projects.overview.collapse": "Masquer l’aperçu",
+  "projects.overview.expand": "Afficher l’aperçu",
+  "projects.overview.collapsedTotal": "Coût du projet par tier de modèle : {{value}}. Affiche l’aperçu pour voir le détail."
 }

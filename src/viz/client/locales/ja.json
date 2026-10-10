@@ -1833,5 +1833,8 @@
   "projects.overview.coverage_other": "読み取り可能なトレースがある{{count}}件のrunのうち、{{covered}}件に基づく内訳です。",
   "projects.overview.table": "モデルtier別コストを表で表示",
   "projects.overview.share": "共有",
-  "projects.overview.cost": "コスト"
+  "projects.overview.cost": "コスト",
+  "projects.overview.collapse": "概要を非表示",
+  "projects.overview.expand": "概要を表示",
+  "projects.overview.collapsedTotal": "モデルtier別のプロジェクトコスト：{{value}}。内訳を確認するには概要を表示してください。"
 }

@@ -1833,5 +1833,8 @@
   "projects.overview.coverage_other": "পাঠযোগ্য ট্রেসসহ {{count}}টি run-এর মধ্যে {{covered}}টি থেকে বিশ্লেষণ।",
   "projects.overview.table": "সারণি হিসেবে মডেল tier অনুযায়ী খরচ",
   "projects.overview.share": "শেয়ার করুন",
-  "projects.overview.cost": "খরচ"
+  "projects.overview.cost": "খরচ",
+  "projects.overview.collapse": "ওভারভিউ লুকান",
+  "projects.overview.expand": "ওভারভিউ দেখান",
+  "projects.overview.collapsedTotal": "মডেল tier অনুযায়ী প্রকল্পের খরচ: {{value}}। বিস্তারিত বিভাজন দেখতে ওভারভিউ দেখান।"
 }

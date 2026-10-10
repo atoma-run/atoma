@@ -1833,5 +1833,8 @@
   "projects.overview.coverage_other": "Desglose de {{covered}} de {{count}} runs con una traza legible.",
   "projects.overview.table": "Costo por tier de modelo, en formato de tabla",
   "projects.overview.share": "Compartir",
-  "projects.overview.cost": "Costo"
+  "projects.overview.cost": "Costo",
+  "projects.overview.collapse": "Ocultar resumen",
+  "projects.overview.expand": "Mostrar resumen",
+  "projects.overview.collapsedTotal": "Costo del proyecto por tier de modelo: {{value}}. Muestra el resumen para ver el desglose."
 }

@@ -1833,5 +1833,8 @@
   "projects.overview.coverage_other": "تفصيل من {{covered}} من أصل عدد من عمليات run قدره {{count}} ذات تتبّع قابل للقراءة.",
   "projects.overview.table": "التكلفة حسب tier النموذج، في جدول",
   "projects.overview.share": "مشاركة",
-  "projects.overview.cost": "التكلفة"
+  "projects.overview.cost": "التكلفة",
+  "projects.overview.collapse": "إخفاء النظرة العامة",
+  "projects.overview.expand": "إظهار النظرة العامة",
+  "projects.overview.collapsedTotal": "تكلفة المشروع حسب فئة النموذج: {{value}}. أظهر النظرة العامة للاطلاع على التفاصيل."
 }

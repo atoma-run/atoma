@@ -1833,5 +1833,8 @@
   "projects.overview.coverage_other": "Детализация по run с читаемой трассировкой: {{covered}} из {{count}}.",
   "projects.overview.table": "Стоимость по tier моделей в виде таблицы",
   "projects.overview.share": "Поделиться",
-  "projects.overview.cost": "Стоимость"
+  "projects.overview.cost": "Стоимость",
+  "projects.overview.collapse": "Скрыть обзор",
+  "projects.overview.expand": "Показать обзор",
+  "projects.overview.collapsedTotal": "Стоимость проекта по tier моделей: {{value}}. Показать обзор с разбивкой."
 }

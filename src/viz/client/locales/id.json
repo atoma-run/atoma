@@ -1833,5 +1833,8 @@
   "projects.overview.coverage_other": "Rincian untuk {{covered}} dari {{count}} run dengan jejak yang dapat dibaca.",
   "projects.overview.table": "Biaya menurut tier model, dalam bentuk tabel",
   "projects.overview.share": "Bagikan",
-  "projects.overview.cost": "Biaya"
+  "projects.overview.cost": "Biaya",
+  "projects.overview.collapse": "Sembunyikan ringkasan",
+  "projects.overview.expand": "Tampilkan ringkasan",
+  "projects.overview.collapsedTotal": "Biaya proyek berdasarkan tier model: {{value}}. Tampilkan ringkasan untuk melihat perinciannya."
 }
