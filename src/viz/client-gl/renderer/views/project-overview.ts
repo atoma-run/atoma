@@ -9,7 +9,7 @@ import { drawChevron } from '../button-icon.js';
 import { CHEVRON_SIZE } from '../../button-icons.js';
 import { createScrollPane } from '../scroll-pane.js';
 import { viewFrame } from '../view-frame.js';
-import { projectOverview, type OverviewSlice, type ProjectOverview } from '../../project-overview.js';
+import { projectOverview, type OverviewSlice, type OverviewSliceModel, type ProjectOverview } from '../../project-overview.js';
 import type { CostSliceKey } from '../../../../contracts/runCostBreakdown.js';
 
 /**
@@ -30,6 +30,9 @@ const ROW = 18;
 const SECTION_GAP = 14;
 const HEADING_HEIGHT = 20;
 const LEGEND_ROW = 22;
+const LEGEND_SUB_ROW = 18;
+const RIM_WIDTH = 3;
+const RIM_GAP = 3;
 const DONUT_MAX = 168;
 /**
  * Clear of the pane's scrollbar, which is drawn 5–8px inside the pane's right
@@ -59,6 +62,25 @@ export const OVERVIEW_SLICE_COLORS: Readonly<Record<CostSliceKey, number>> = {
   jev: 0xfb7185,
   other: GPU_COLORS.muted,
 };
+
+/**
+ * The shade of the `index`-th model to serve a tier, in order of first use:
+ * the tier's own colour first, then alternately lighter and darker steps of
+ * the SAME hue, so every shade still reads as its tier. Identity never rests
+ * on the shade alone: the legend names each model and a hairline parts them.
+ */
+const SHADE_STEPS: ReadonlyArray<readonly [number, number]> = [
+  [0xffffff, 0], [0x000000, 0.34], [0xffffff, 0.42], [0x000000, 0.55], [0xffffff, 0.68], [0x000000, 0.18],
+];
+export function modelShade(base: number, index: number): number {
+  const [toward, amount] = SHADE_STEPS[index % SHADE_STEPS.length]!;
+  const mix = (shift: number) => {
+    const from = (base >> shift) & 0xff;
+    const to = (toward >> shift) & 0xff;
+    return Math.round(from + (to - from) * amount) << shift;
+  };
+  return mix(16) | mix(8) | mix(0);
+}
 
 /** Where the column sits, or null when the frame is too narrow for it. */
 export function projectAsideLayout(viewportWidth: number, collapsed = false): { mainWidth: number; asideX: number; asideWidth: number } | null {
@@ -133,7 +155,7 @@ export function overviewSliceDetail(t: Translate, slice: OverviewSlice, overview
   if (slice.models.length) {
     lines.push(t('projects.overview.detail.models'));
     for (const model of slice.models.slice(0, 6)) {
-      lines.push(`  ${model.model} — ${cost(model.costUsd)} · ${t('projects.overview.detail.callsShort', { count: model.calls, value: whole(model.calls, locale) })}`);
+      lines.push(`  ${model.model} — ${cost(model.costUsd)} · ${t('projects.overview.detail.callsShort', { count: model.calls, value: whole(model.calls, locale) })} · ${t('projects.overview.runs', { count: model.runs })}`);
     }
     if (slice.models.length > 6) lines.push(`  ${t('projects.overview.detail.more', { count: slice.models.length - 6 })}`);
   }
@@ -159,6 +181,25 @@ export function overviewSliceDetail(t: Translate, slice: OverviewSlice, overview
     lines.push(t('projects.overview.coverage', { covered: overview.breakdownRuns, count: overview.runCount }));
   }
   return lines.join('\n');
+}
+
+/** One model's share of its tier: the bubble of its shaded wedge and legend row. */
+export function overviewModelDetail(t: Translate, slice: OverviewSlice, model: OverviewSliceModel,
+  overview: ProjectOverview, locale: string): string {
+  const firstUse = new Date(model.firstRunAt);
+  return [
+    `${sliceLabel(t, slice.key)} › ${model.model}`,
+    t('projects.overview.modelShare', {
+      cost: cost(model.costUsd),
+      share: percent(overview.breakdownTotalUsd > 0 ? model.costUsd / overview.breakdownTotalUsd : 0, locale),
+      tierShare: percent(slice.costUsd > 0 ? model.costUsd / slice.costUsd : 0, locale),
+      tier: sliceLabel(t, slice.key),
+    }),
+    `${t('projects.overview.detail.callsShort', { count: model.calls, value: whole(model.calls, locale) })} · ${t('projects.overview.modelRuns', {
+      count: model.runs,
+      date: Number.isNaN(firstUse.getTime()) ? model.firstRunAt : dateTimeFormat(locale, { dateStyle: 'medium' }).format(firstUse),
+    })}`,
+  ].join('\n');
 }
 
 /** Draw the overview body from `y`; returns its height. */
@@ -246,34 +287,65 @@ function drawBody(ctx: RendererCtx, snapshot: GpuRenderSnapshot, parent: Contain
     return cursor + empty.height - y;
   }
   const diameter = Math.min(DONUT_MAX, width - 24);
-  const outer = diameter / 2;
-  const inner = outer * 0.6;
+  // The rim groups a tier's shades as one tier; the ring sits inside it.
+  const rimOuter = diameter / 2;
+  const outer = rimOuter - RIM_GAP - RIM_WIDTH;
+  const inner = outer * 0.62;
   const cx = x + width / 2;
-  const cy = cursor + outer + 4;
+  const cy = cursor + rimOuter + 4;
   const donut = new Graphics();
+  const rims = new Graphics();
   let angle = -Math.PI / 2;
   const turn = Math.PI * 2;
   const paid = overview.slices.filter(slice => slice.costUsd > 0);
+  const boundaries: number[] = [];
   for (const slice of paid) {
-    const sweep = turn * slice.costUsd / overview.breakdownTotalUsd;
-    const end = angle + sweep;
-    donut.moveTo(cx + outer * Math.cos(angle), cy + outer * Math.sin(angle));
-    donut.arc(cx, cy, outer, angle, end);
-    donut.lineTo(cx + inner * Math.cos(end), cy + inner * Math.sin(end));
-    donut.arc(cx, cy, inner, end, angle, true);
-    donut.closePath();
-    donut.fill({ color: OVERVIEW_SLICE_COLORS[slice.key] });
-    // The 2px surface gap between fills: the panel colour, so slices separate.
-    if (paid.length > 1) donut.stroke({ color: GPU_COLORS.panel, width: 2 });
-    tip({
-      x: cx - outer, y: cy - outer, width: diameter, height: diameter,
-      text: overviewSliceDetail(t, slice, overview, locale),
-      accent: OVERVIEW_SLICE_COLORS[slice.key], fontSize: 11,
-      wedge: { cx, cy, inner, outer, start: angle, end },
+    const sliceEnd = angle + turn * slice.costUsd / overview.breakdownTotalUsd;
+    const base = OVERVIEW_SLICE_COLORS[slice.key];
+    const sliceDetail = overviewSliceDetail(t, slice, overview, locale);
+    // One wedge per model that served this tier, shaded in order of first use.
+    let modelStart = angle;
+    const shaded = slice.modelsByFirstUse.filter(model => model.costUsd > 0);
+    shaded.forEach((model, index) => {
+      const modelEnd = index === shaded.length - 1 ? sliceEnd
+        : modelStart + turn * model.costUsd / overview.breakdownTotalUsd;
+      const color = modelShade(base, index);
+      donut.moveTo(cx + outer * Math.cos(modelStart), cy + outer * Math.sin(modelStart));
+      donut.arc(cx, cy, outer, modelStart, modelEnd);
+      donut.lineTo(cx + inner * Math.cos(modelEnd), cy + inner * Math.sin(modelEnd));
+      donut.arc(cx, cy, inner, modelEnd, modelStart, true);
+      donut.closePath();
+      donut.fill({ color });
+      // A hairline between a tier's models; tiers get the wider gap below.
+      if (shaded.length > 1) donut.stroke({ color: GPU_COLORS.panel, width: 1 });
+      tip({
+        x: cx - rimOuter, y: cy - rimOuter, width: diameter, height: diameter,
+        // The model's own share; the tier's full detail is its rim's and its legend row's.
+        text: overviewModelDetail(t, slice, model, overview, locale),
+        accent: color, fontSize: 11,
+        wedge: { cx, cy, inner, outer, start: modelStart, end: modelEnd },
+      });
+      modelStart = modelEnd;
     });
-    angle = end;
+    rims.arc(cx, cy, rimOuter - RIM_WIDTH / 2, angle, sliceEnd);
+    rims.stroke({ color: base, width: RIM_WIDTH });
+    tip({
+      x: cx - rimOuter, y: cy - rimOuter, width: diameter, height: diameter,
+      text: sliceDetail, accent: base, fontSize: 11,
+      wedge: { cx, cy, inner: outer, outer: rimOuter, start: angle, end: sliceEnd },
+    });
+    boundaries.push(angle);
+    angle = sliceEnd;
   }
-  parent.addChild(donut);
+  // The surface gap between TIERS, wider than the hairline between a tier's models.
+  if (paid.length > 1) {
+    for (const boundary of boundaries) {
+      donut.moveTo(cx + (inner - 1) * Math.cos(boundary), cy + (inner - 1) * Math.sin(boundary));
+      donut.lineTo(cx + (rimOuter + 1) * Math.cos(boundary), cy + (rimOuter + 1) * Math.sin(boundary));
+      donut.stroke({ color: GPU_COLORS.panel, width: 3 });
+    }
+  }
+  parent.addChild(rims, donut);
   const total = runCost(overview.breakdownTotalUsd);
   const totalStyle = { size: 16, weight: '700' } as const;
   const totalWidth = Math.ceil(ctx.measureText(total, totalStyle));
@@ -283,19 +355,39 @@ function drawBody(ctx: RendererCtx, snapshot: GpuRenderSnapshot, parent: Contain
   ctx.text(parent, caption, cx - captionWidth / 2, cy + 6, { size: 9, color: GPU_COLORS.muted, width: captionWidth + 2, singleLine: true });
   cursor += diameter + 16;
 
-  for (const slice of overview.slices) {
+  const legendRow = (swatchColor: number, indent: number, label: string, value: string, tooltip: string,
+    accent: number, size: number, labelColor: number = GPU_COLORS.text) => {
+    const main = size >= 11;
     const swatch = new Graphics();
-    swatch.roundRect(x, cursor + 3, 10, 10, 2).fill({ color: OVERVIEW_SLICE_COLORS[slice.key] });
+    const box = main ? 10 : 8;
+    swatch.roundRect(x + indent, cursor + (main ? 3 : 4), box, box, 2).fill({ color: swatchColor });
     parent.addChild(swatch);
-    const value = `${cost(slice.costUsd)} · ${percent(slice.share, locale)}`;
-    const valueWidth = Math.ceil(ctx.measureText(value, { size: 11 }));
-    const mainModel = slice.models[0]?.model;
-    const label = mainModel ? `${sliceLabel(t, slice.key)} · ${mainModel}` : sliceLabel(t, slice.key);
-    ctx.text(parent, label, x + 18, cursor, { size: 11, width: Math.max(0, width - 18 - valueWidth - 10), singleLine: true });
-    ctx.text(parent, value, x + width - valueWidth, cursor, { size: 11, color: GPU_COLORS.muted, width: valueWidth + 2, singleLine: true });
-    tip({ x, y: cursor, width, height: LEGEND_ROW - 2,
-      text: overviewSliceDetail(t, slice, overview, locale), accent: OVERVIEW_SLICE_COLORS[slice.key], fontSize: 11 });
-    cursor += LEGEND_ROW;
+    const valueWidth = Math.ceil(ctx.measureText(value, { size }));
+    const labelX = x + indent + box + 8;
+    ctx.text(parent, label, labelX, cursor, { size, color: labelColor,
+      width: Math.max(0, x + width - valueWidth - 10 - labelX), singleLine: true });
+    ctx.text(parent, value, x + width - valueWidth, cursor, { size, color: GPU_COLORS.muted, width: valueWidth + 2, singleLine: true });
+    tip({ x, y: cursor, width, height: (main ? LEGEND_ROW : LEGEND_SUB_ROW) - 2, text: tooltip, accent, fontSize: 11 });
+    cursor += main ? LEGEND_ROW : LEGEND_SUB_ROW;
+  };
+  for (const slice of overview.slices) {
+    const base = OVERVIEW_SLICE_COLORS[slice.key];
+    const sliceDetail = overviewSliceDetail(t, slice, overview, locale);
+    const models = slice.modelsByFirstUse;
+    // One model: named on the tier's row. Several: counted there, each on its own shaded row.
+    const label = models.length === 1 ? `${sliceLabel(t, slice.key)} · ${models[0]!.model}`
+      : models.length > 1 ? `${sliceLabel(t, slice.key)} · ${t('projects.overview.models', { count: models.length })}`
+        : sliceLabel(t, slice.key);
+    legendRow(base, 0, label, `${cost(slice.costUsd)} · ${percent(slice.share, locale)}`, sliceDetail, base, 11);
+    if (models.length > 1) {
+      models.forEach((model, index) => {
+        const color = modelShade(base, index);
+        legendRow(color, 18, model.model,
+          `${cost(model.costUsd)} · ${percent(model.costUsd / overview.breakdownTotalUsd, locale)}`,
+          overviewModelDetail(t, slice, model, overview, locale), color, 10, GPU_COLORS.muted);
+      });
+      cursor += 4;
+    }
   }
   const notes = [
     overview.slices.some(slice => slice.key === 'jev') ? t('projects.overview.jevNote') : null,

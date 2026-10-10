@@ -6,6 +6,7 @@ import { runCostBreakdown } from '../src/contracts/runCostBreakdown.js';
 import { summarizeTraceFile, summarizeTraceFileWithCost } from '../src/viz/runIndex.js';
 import { projectOverview } from '../src/viz/client-gl/project-overview.js';
 import { wedgeContains } from '../src/viz/client-gl/renderer/tooltip.js';
+import { modelShade } from '../src/viz/client-gl/renderer/views/project-overview.js';
 import type { VizProjectRun } from '../src/viz/client/types.js';
 
 const usage = (inputTokens: number, outputTokens: number) =>
@@ -110,6 +111,24 @@ describe('projectOverview', () => {
     expect(overview.subscriptionPriced).toBe(true);
   });
 
+  it('keeps every model a tier was pinned to, in order of first use', () => {
+    const on = (model: string, costUsd: number) => runCostBreakdown(trace([
+      { kind: 'llm', role: 'execute', model, actor: { tier: 1 }, usage: usage(1, 1), costUsd },
+    ], { l1: `api:openai:${model}`, l2: 'api:openai:mid', l3: 'api:openai:big' }));
+    // Newest first, as the API lists them: haiku served L1 first, luna after the re-pin.
+    const overview = projectOverview([
+      run({ projectRunId: 'c', createdAt: '2026-10-03T00:00:00.000Z', costBreakdown: on('luna', 3) }),
+      run({ projectRunId: 'b', createdAt: '2026-10-02T00:00:00.000Z', costBreakdown: on('luna', 3) }),
+      run({ projectRunId: 'a', createdAt: '2026-10-01T00:00:00.000Z', costBreakdown: on('haiku', 1) }),
+    ], 'Unknown');
+    const l1 = overview.slices.find(slice => slice.key === 'l1')!;
+    expect(l1.costUsd).toBe(7);
+    expect(l1.models.map(model => model.model)).toEqual(['luna', 'haiku']);
+    expect(l1.modelsByFirstUse.map(model => [model.model, model.runs, model.firstRunAt])).toEqual([
+      ['haiku', 1, '2026-10-01T00:00:00.000Z'], ['luna', 2, '2026-10-02T00:00:00.000Z'],
+    ]);
+  });
+
   it('is empty, not wrong, for a project with no run', () => {
     const overview = projectOverview([], 'Unknown');
     expect(overview).toMatchObject({ runCount: 0, llmCostUsd: null, medianDurationS: null, slices: [], breakdownTotalUsd: 0 });
@@ -124,5 +143,18 @@ describe('wedgeContains', () => {
     expect(wedgeContains(quarter, 20, -20)).toBe(false);
     expect(wedgeContains(quarter, -5, 5)).toBe(false);
     expect(wedgeContains({ ...quarter, start: Math.PI, end: Math.PI * 2.5 }, 0, 7)).toBe(true);
+  });
+});
+
+describe('modelShade', () => {
+  it('starts on the tier colour and steps through distinct shades of it', () => {
+    const base = 0x2dd4bf;
+    expect(modelShade(base, 0)).toBe(base);
+    const shades = Array.from({ length: 6 }, (_, index) => modelShade(base, index));
+    expect(new Set(shades).size).toBe(6);
+    // A darker step keeps the hue: every channel scales toward black together.
+    const darker = modelShade(base, 1);
+    expect(darker >> 16).toBeLessThan(base >> 16);
+    expect((darker >> 8) & 0xff).toBeLessThan((base >> 8) & 0xff);
   });
 });

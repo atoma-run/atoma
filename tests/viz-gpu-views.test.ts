@@ -42,7 +42,7 @@ import { drawBurnin } from '../src/viz/client-gl/renderer/views/burnin.js';
 import { workspaceReaderHeight } from '../src/viz/client-gl/renderer/views/workspace.js';
 import { workspaceSplit, workspaceSplitForViewport } from '../src/viz/client-gl/workspace-browser.js';
 import { drawResultPanel } from '../src/viz/client-gl/renderer/views/result.js';
-import { projectAsideLayout, projectAsideReserve, PROJECT_ASIDE_COLLAPSED_WIDTH, PROJECT_ASIDE_GAP } from '../src/viz/client-gl/renderer/views/project-overview.js';
+import { modelShade, projectAsideLayout, projectAsideReserve, PROJECT_ASIDE_COLLAPSED_WIDTH, PROJECT_ASIDE_GAP } from '../src/viz/client-gl/renderer/views/project-overview.js';
 import { runCostBreakdown } from '../src/contracts/runCostBreakdown.js';
 import { drawRunActivity } from '../src/viz/client-gl/renderer/views/run-activity.js';
 import {
@@ -3289,9 +3289,12 @@ describe('drawProjects', () => {
       expect(projectAsideReserve(snapshot, wide)).toBe(aside.asideWidth + PROJECT_ASIDE_GAP);
       expect(ctx.panels.some(panel => panel.x === aside.asideX && panel.width === aside.asideWidth)).toBe(true);
       expect(ctx.detailBounds).not.toBeNull();
+      // One wedge per model, then the tier's rim, for each tier.
       const slices = ctx.tooltips.filter(tip => (tip as { wedge?: unknown }).wedge);
       expect(slices.map(tip => tip.text.split('\n')[0])).toEqual([
-        'L1 · Molecules — $0.25 (23.8%)', 'L3 · Tissues — $0.75 (71.4%)', 'Jev — $0.05 (4.8%)',
+        'L1 · Molecules › small', 'L1 · Molecules — $0.25 (23.8%)',
+        'L3 · Tissues › big', 'L3 · Tissues — $0.75 (71.4%)',
+        'Jev › jev', 'Jev — $0.05 (4.8%)',
       ]);
       expect(ctx.tooltips.some(tip => tip.text.startsWith('Ada Lovelace'))).toBe(true);
       expect(ctx.texts.some(text => text.value === '$1.05')).toBe(true);
@@ -3352,6 +3355,35 @@ describe('drawProjects', () => {
     const runButton = narrowRuns.buttons.find(button => button.id === 'project.run.saved-trace')!;
     expect(runButton.parent.toGlobal({ x: 0, y: runButton.y }).y).toBeGreaterThan(launcher.y);
     expect(narrowRuns.scrollMax.projects).toBeGreaterThan(0);
+  });
+
+  it('shades a tier by the models that served it, and lists each one under it', () => {
+    const project = guidanceProject();
+    const onL1 = (model: string, costUsd: number) => runCostBreakdown({
+      tierModels: { l1: `api:openai:${model}`, l2: 'api:openai:mid', l3: 'api:openai:big' },
+      events: [{ kind: 'llm', role: 'execute', model, actor: { tier: 1 }, usage: { inputTokens: 1, outputTokens: 1 }, costUsd }],
+    });
+    const projectRun = (id: string, createdAt: string, model: string, costUsd: number) => ({
+      projectId: project.projectId, projectRunId: id, traceId: id, goal: 'Build', status: 'delivered' as const,
+      costUsd, durationS: 8, error: null, createdAt, endedAt: createdAt, publication: null,
+      requestedByPrincipalId: 'p-1', requestedByName: 'Ada', costBreakdown: onL1(model, costUsd),
+    });
+    const data = { auth: makeAuth(), projects: [project], projectRuns: { [project.projectId]: [
+      projectRun('new', '2026-10-02T00:00:00.000Z', 'luna', 0.75),
+      projectRun('old', '2026-10-01T00:00:00.000Z', 'haiku', 0.25),
+    ] } };
+    const ctx = createRecordingCtx();
+    drawProjects(ctx, makeSnapshot({ view: 'projects', selectedProjectId: project.projectId, projectSection: 'runs' }, data), 1400, 900);
+    const wedges = ctx.tooltips.filter(tip => (tip as { wedge?: unknown }).wedge) as Array<{ text: string; accent?: number }>;
+    // First use orders the shades: haiku keeps the tier colour, luna takes the next shade.
+    expect(wedges.map(tip => tip.text.split('\n')[0])).toEqual([
+      'L1 · Molecules › haiku', 'L1 · Molecules › luna', 'L1 · Molecules — $1.00 (100%)',
+    ]);
+    expect(wedges[0]!.accent).toBe(GPU_COLORS.tiers[1]);
+    expect(wedges[1]!.accent).toBe(modelShade(GPU_COLORS.tiers[1], 1));
+    expect(wedges[1]!.text.split('\n')[1]).toBe('$0.75: 75% of the project, 75% of L1 · Molecules');
+    expect(ctx.texts.some(text => text.value === 'L1 · Molecules · 2 models')).toBe(true);
+    expect(ctx.texts.filter(text => text.value === 'haiku' || text.value === 'luna').map(text => text.value)).toEqual(['haiku', 'luna']);
   });
 
   it('switches one selected project between aligned Runs, Files, and latest-result sections', () => {

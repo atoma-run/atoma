@@ -40,11 +40,19 @@ export function ProjectOverviewAccessible({ runs, t }: {
         <th scope="col">{t('projects.overview.cost')}</th>
         <th scope="col">{t('projects.overview.share')}</th>
       </tr></thead>
-      <tbody>{overview.slices.map(slice => <tr key={slice.key}>
-        <th scope="row">{t(`projects.overview.slice.${slice.key}`)}{slice.models[0] ? ` (${slice.models[0].model})` : ''}</th>
-        <td>{runCost(slice.costUsd)}</td>
-        <td>{percent.format(slice.share)}</td>
-      </tr>)}</tbody>
+      <tbody>{overview.slices.flatMap(slice => [
+        <tr key={slice.key}>
+          <th scope="row">{t(`projects.overview.slice.${slice.key}`)}{slice.models.length === 1 ? ` (${slice.models[0]!.model})` : ''}</th>
+          <td>{runCost(slice.costUsd)}</td>
+          <td>{percent.format(slice.share)}</td>
+        </tr>,
+        // Several models served this tier: one row each, as the donut shades them.
+        ...(slice.models.length > 1 ? slice.modelsByFirstUse.map(model => <tr key={`${slice.key}:${model.model}`}>
+          <th scope="row">{t(`projects.overview.slice.${slice.key}`)} › {model.model}</th>
+          <td>{runCost(model.costUsd)}</td>
+          <td>{percent.format(overview.breakdownTotalUsd > 0 ? model.costUsd / overview.breakdownTotalUsd : 0)}</td>
+        </tr>) : []),
+      ])}</tbody>
     </table> : null}
   </section>;
 }

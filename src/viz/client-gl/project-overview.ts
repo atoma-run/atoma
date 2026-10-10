@@ -18,7 +18,22 @@ import type {
 export const OVERVIEW_SLICE_ORDER = ['l1', 'l2', 'l3', 'jev', 'other'] as const satisfies readonly CostSliceKey[];
 const TIER_SLICES = ['l1', 'l2', 'l3'] as const;
 
-export interface OverviewSlice extends CostSlice {
+/** One model's share of a tier, with when it first worked there. */
+export interface OverviewSliceModel extends CostSliceModel {
+  /** Runs in which this model served this tier. */
+  readonly runs: number;
+  readonly firstRunAt: string;
+}
+
+export interface OverviewSlice extends Omit<CostSlice, 'models'> {
+  /** Most expensive first, for reading. */
+  readonly models: readonly OverviewSliceModel[];
+  /**
+   * The same models in the order they FIRST served this tier: the order the
+   * donut shades them in, so a model keeps its shade as spend accrues — colour
+   * follows the entity, never its rank.
+   */
+  readonly modelsByFirstUse: readonly OverviewSliceModel[];
   readonly key: CostSliceKey;
   /** Share of the breakdown total, 0..1. */
   readonly share: number;
@@ -65,7 +80,7 @@ export interface ProjectOverview {
 
 type Mutable<T> = { -readonly [K in keyof T]: T[K] };
 
-function mergeNamed<T extends CostSliceModel | CostSliceRole>(target: Map<string, Mutable<T>>, values: readonly T[],
+function mergeNamed<T extends CostSliceRole>(target: Map<string, Mutable<T>>, values: readonly T[],
   name: (value: T) => string): void {
   for (const value of values) {
     const key = name(value);
@@ -116,7 +131,7 @@ export function projectOverview(runs: readonly VizProjectRun[], unknownName: str
   const requesters = new Map<string, Mutable<OverviewRequester>>();
   const slices = new Map<CostSliceKey, {
     totals: Mutable<Omit<CostSlice, 'models' | 'roles'>>;
-    models: Map<string, Mutable<CostSliceModel>>;
+    models: Map<string, Mutable<OverviewSliceModel>>;
     roles: Map<string, Mutable<CostSliceRole>>;
     runs: number;
     pins: Map<string, number>;
@@ -180,7 +195,17 @@ export function projectOverview(runs: readonly VizProjectRun[], unknownName: str
       entry.totals.cacheReadInputTokens += part.cacheReadInputTokens;
       entry.totals.cacheCreationInputTokens += part.cacheCreationInputTokens;
       if (part.requests !== undefined) entry.totals.requests = (entry.totals.requests ?? 0) + part.requests;
-      mergeNamed(entry.models, part.models, value => value.model);
+      for (const model of part.models) {
+        const existing = entry.models.get(model.model);
+        if (existing) {
+          existing.calls += model.calls;
+          existing.costUsd += model.costUsd;
+          existing.runs += 1;
+          if (run.createdAt < existing.firstRunAt) existing.firstRunAt = run.createdAt;
+        } else {
+          entry.models.set(model.model, { ...model, runs: 1, firstRunAt: run.createdAt });
+        }
+      }
       mergeNamed(entry.roles, part.roles, value => value.role);
       if (key !== 'jev' && key !== 'other' && SUBSCRIPTION_PAYERS.has(run.models?.[key]?.payer ?? '')) subscriptionPriced = true;
     }
@@ -214,6 +239,8 @@ export function projectOverview(runs: readonly VizProjectRun[], unknownName: str
       share: breakdownTotalUsd > 0 ? entry.totals.costUsd / breakdownTotalUsd : 0,
       runs: entry.runs,
       models: byCost(entry.models.values()),
+      modelsByFirstUse: [...entry.models.values()]
+        .sort((a, b) => a.firstRunAt.localeCompare(b.firstRunAt) || b.costUsd - a.costUsd || a.model.localeCompare(b.model)),
       roles: byCost(entry.roles.values()),
       pins: sortedCounts(entry.pins).map(([selection, count]) => ({ selection, runs: count })),
       payers: sortedCounts(entry.payers).map(([payer, count]) => ({ payer, runs: count })),

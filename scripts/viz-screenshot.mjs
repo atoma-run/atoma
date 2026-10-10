@@ -227,8 +227,8 @@ function gatedStubs() {
   const stubSlice = (costUsd, calls, model, roles) => ({ calls, costUsd, inputTokens: calls * 1800, outputTokens: calls * 420,
     cacheReadInputTokens: calls * 900, cacheCreationInputTokens: 0, models: [{ model, calls, costUsd }],
     roles: roles.map(([role, share]) => ({ role, calls: Math.max(1, Math.round(calls * share)), costUsd: costUsd * share })) });
-  const stubCostBreakdown = (costUsd) => ({
-    l1: stubSlice(costUsd * 0.46, 9, 'claude-haiku-4-5-20251001', [['execute', 0.8], ['prefilter', 0.2]]),
+  const stubCostBreakdown = (costUsd, index) => ({
+    l1: stubSlice(costUsd * 0.46, 9, index === 0 ? 'gpt-5.6-luna' : 'claude-haiku-4-5-20251001', [['execute', 0.8], ['prefilter', 0.2]]),
     l2: stubSlice(costUsd * 0.22, 5, 'claude-sonnet-4-5', [['validate-result', 0.7], ['validate-plan', 0.3]]),
     l3: stubSlice(costUsd * 0.32, 2, 'claude-opus-4-1', [['plan', 1]]),
     jev: { ...stubSlice(0.004, 8, 'jev-1', [['prefilter', 0.5], ['validate-plan', 0.5]]), requests: 9 },
@@ -264,7 +264,7 @@ function gatedStubs() {
     // The overview column: who launched each run and where its money went.
     requestedByPrincipalId: index % 2 ? 'stub-principal-2' : principalId,
     requestedByName: index % 2 ? 'Grace Hopper' : 'Ada Lovelace',
-    costBreakdown: costUsd === null ? null : stubCostBreakdown(costUsd),
+    costBreakdown: costUsd === null ? null : stubCostBreakdown(costUsd, index),
   }));
   if (resultArtwork) Object.assign(runs[0], {
     traceId: 'run-fixture', goal: artworkGoal,
