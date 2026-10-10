@@ -125,6 +125,74 @@ describe('the attested browser observation', () => {
     expect(prompt).not.toContain('keypress Tab');
   });
 
+  it('keeps an earlier passing check the latest browser lines pushed out, never a stale or later-failed one (run 7f80148d)', async () => {
+    // The shape of run 7f80148d (2026-10-10): a reload persistence and a
+    // Tab-and-Enter journey proved early, then many browser calls tuning a
+    // timer, and the root refused both criteria as never observed.
+    type Step = { smoke: string; ok: boolean; actions: string[]; sha: string };
+    const OLD = 'b'.repeat(64);
+    const NOW = 'a'.repeat(64);
+    const steps: Step[] = [
+      { smoke: 'stale-pass', ok: true, actions: ['click at (1, 2) on #go'], sha: OLD },
+      { smoke: 'reload-persists', ok: true, actions: ['type "Ada" into #t', 'reload'], sha: NOW },
+      { smoke: 'keyboard-journey', ok: true, actions: ['keypress Tab (120ms)', 'type "Ada" at focus on textarea#t'], sha: NOW },
+      { smoke: 'later-fails', ok: true, actions: ['click at (1, 2) on #reset'], sha: NOW },
+      { smoke: 'later-fails', ok: false, actions: ['click at (1, 2) on #reset'], sha: NOW },
+      ...Array.from({ length: 12 }, (_, i): Step => ({ smoke: `timer-${i}`, ok: i % 2 === 0, actions: [`type "x${i}" into #t`], sha: NOW })),
+    ];
+    const child = new L1Atom({ name: 'Water', ordinal: 1, systemPrompt: 'verify', tools: [declare('validate_html')], params: {} });
+    const attestations = createAttestationLog();
+    const queue = [...steps];
+    const base: ToolExecutor = { has: () => true, execute: async () => {
+      const step = queue.shift()!;
+      return { ...browserResult(800), ok: step.ok, errors: step.ok ? [] : ['smoke check failed'], requestedInteractions: step.actions.length,
+        interactionLog: step.actions, document: { path: 'index.html', sha256: step.sha }, smokeResult: { ok: step.ok, check: step.smoke } };
+    } };
+    const ctx = { ...makeCtx(), attestations, attempt: 1, currentBranchId: 'phase',
+      tools: attestingExecutor(base, attestations, 'phase', undefined, 1)! };
+    ctx.llm.enqueue(async (req: LlmCompletionRequest) => {
+      for (const step of steps) await req.executor!.execute('validate_html', { url: 'http://127.0.0.1:4000/', smoke: `"${step.smoke}"` });
+      return reply({ output: 'verified', summary: 'Reload persistence and the keyboard journey were observed.' });
+    });
+    const task = { description: 'Prove the best survives a reload and the test works with Tab and Enter only.' };
+    const result = await child.execute(task, makePlan({ proposedAction: 'verify' }), ctx);
+    ctx.llm.enqueue(reply({ approved: true, reasoning: 'ok' }));
+    await llmVerdict({ ctx, model: 'api:anthropic:claude-haiku-4-5-20251001', supervisorName: 'run-root', supervisorTier: 3,
+      child, task, subject: 'RESULT', payload: { output: result.output, summary: result.summary },
+      evidence: result.evidence, groundTruthBlock: '' });
+    const prompt = ctx.llm.calls.at(-1)!.userContent;
+    // The two proofs reach the judge although twelve later calls followed them.
+    expect(prompt).toContain('"check":"reload-persists"');
+    expect(prompt).toContain('"check":"keyboard-journey"');
+    // The latest eight are still all there.
+    for (let i = 4; i < 12; i += 1) expect(prompt).toContain(`"check":"timer-${i}"`);
+    // An older pass of a check whose latest run failed, and a pass of a page since rewritten, stay out.
+    expect(prompt).not.toContain('"ok":true,"check":"later-fails"');
+    expect(prompt).not.toContain('"check":"stale-pass"');
+    // A failed tuning call that the latest eight no longer show is not revived either.
+    expect(prompt).not.toContain('"check":"timer-1"');
+  });
+
+  it('does not revive a passing check of a page a later write rewrote, though no browser call saw it since', () => {
+    const browser = (eventId: string, smoke: string, ok: boolean) => ({ eventId, tool: 'validate_html',
+      observation: parseBrowserObservation({ smoke }, { ...browserResult(800), ok, interactionLog: ['click at (1, 2) on #go'],
+        smokeResult: { ok, check: smoke } })! });
+    const records = [
+      browser('proof', 'persists', true),
+      ...Array.from({ length: 9 }, (_, i) => browser(`later-${i}`, `other-${i}`, false)),
+      { eventId: 'rewrite', tool: 'write_file', observation: parseExecutionObservation('write_file', { path: './index.html', content: 'x' }, { ok: true })! },
+    ];
+    const lines = renderObservations(records);
+    const witnesses = (rewrite: boolean) => records.filter((record) => rewrite || record.eventId !== 'rewrite').map((record) => ({
+      source: 'transport-observed' as const, eventId: record.eventId, tool: record.tool, observed: lines[records.indexOf(record)]!,
+      ...(record.observation.kind === 'browser' ? { browser: { ok: record.observation.ok,
+        check: JSON.stringify([record.observation.executedInteractions, record.observation.smoke ?? null, record.observation.viewport ?? null]),
+        ...(record.observation.document ? { document: record.observation.document } : {}) } } : {}),
+    }));
+    expect(renderTransportEvidence(witnesses(false)).eventIds.has('proof')).toBe(true);
+    expect(renderTransportEvidence(witnesses(true)).eventIds.has('proof')).toBe(false);
+  });
+
   it('carries the size the page was laid out at, so 320px and 800px proofs differ', () => {
     const at320 = parseBrowserObservation({ url: 'http://127.0.0.1:4000/', viewport: { width: 320 } }, browserResult(320))!;
     const at800 = parseBrowserObservation({ url: 'http://127.0.0.1:4000/' }, browserResult(800))!;

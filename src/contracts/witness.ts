@@ -43,6 +43,17 @@ export interface TransportWitness {
   readonly tool: string;
   /** One-line rendering of what the transport saw. */
   readonly observed: string;
+  /**
+   * A browser observation's own facts, read from the record when the witness
+   * is made, so evidence selection never parses the rendered line: whether it
+   * passed, WHICH check it was (executed actions, smoke, viewport) and the
+   * document it was bound to. Absent on other tools and older witnesses.
+   */
+  readonly browser?: {
+    readonly ok: boolean;
+    readonly check: string;
+    readonly document?: { readonly path: string; readonly sha256: string };
+  };
 }
 
 /**

@@ -1,5 +1,5 @@
 import { renderObservations, type AttestationRecord } from '../contracts/attestation.js';
-import { witnessesFromPayload, type Witness } from '../contracts/witness.js';
+import { witnessesFromPayload, type TransportWitness, type Witness } from '../contracts/witness.js';
 import type { RunContext } from '../core/types.js';
 
 type BranchView = Pick<RunContext, 'attestations' | 'currentBranchId' | 'attempt'>;
@@ -39,6 +39,18 @@ export function executorEvidence(
       eventId: record.eventId,
       tool: record.tool,
       observed: lines[index]!,
+      ...(record.observation.kind === 'browser' ? { browser: browserFacts(record.observation) } : {}),
     })),
   ];
+}
+
+/** What evidence selection reads of a browser observation (`renderTransportEvidence`). */
+function browserFacts(observation: Extract<AttestationRecord['observation'], { kind: 'browser' }>): NonNullable<TransportWitness['browser']> {
+  return {
+    ok: observation.ok,
+    // The runtime's executed log, never the request: two calls are one check
+    // when the page received the same actions under the same smoke and size.
+    check: JSON.stringify([observation.executedInteractions, observation.smoke ?? null, observation.viewport ?? null]),
+    ...(observation.document ? { document: { path: observation.document.path, sha256: observation.document.sha256 } } : {}),
+  };
 }

@@ -440,8 +440,8 @@ load-bearing.
   supervisor's own probe and gate reads run on `baseExecutorOf(ctx.tools)`
   and report through their ground-truth block — attested, they read as the
   child's evidence and covered checklist items by looking (review 1.4, 2.4).
-  The latest 8 browser lines are always shown; file reads reserve up to half the 24,000-character
-  budget; recorded probes follow, one per command, newest first (43682d38 lost a mutation proof to a
+  The latest 8 browser lines are always shown, then the latest PASSING run of each other check (actions, smoke, size) of a page no later write or observation changed, within a third of the budget (7f80148d lost a reload and a keyboard proof to 150 later calls);
+  file reads reserve up to half the 24,000-character budget and keep at least a quarter; recorded probes follow, one per command, newest first (43682d38 lost a mutation proof to a
   retry's re-runs), then the execution suffix. Excerpts and omissions establish no coverage of unseen assertions.
 - ROOT ACCEPTANCE REPLAYS THE BROWSER CHECKS EARLIER RUNS RECORDED, the one
   exception to "supervisors never replay" (owner decision 2026-10-01,

@@ -755,22 +755,32 @@ export const MAX_TOOL_EVIDENCE_CHARS = 24_000;
  * A BUDGET PER KIND, in observation order, with explicit omissions. Browser
  * observations are one short line each and carry the facts nothing else does
  * (FILTERED interactions, the viewport), so the latest
- * `MAX_BROWSER_EVIDENCE_LINES` are always kept; execution results share the
- * rest of the budget. Up to half the total budget is reserved for file reads,
+ * `MAX_BROWSER_EVIDENCE_LINES` are always kept, and the latest PASSING run of
+ * each other distinct check of an unchanged document joins them within a
+ * third of the budget; execution results share the rest. Up to half the total budget is reserved for file reads,
  * so subsequent probes cannot erase the assertions a worker inspected.
  * Recorded probes come next, one per command, newest first; remaining space
  * keeps an execution suffix. One suffix for both let a burst of file
  * reads evict the browser lines (2026-09-25 review, 1.4).
  */
-/** The command a probe line ran, notes aside; the raw request when it was cut. */
-function probeCommand(observed: string): string {
+/** One string field of an execution line's request, as `renderObservation` encodes it; undefined when cut or absent. */
+function requestField(observed: string, field: string): string | undefined {
   const start = observed.indexOf('request=');
   const end = observed.indexOf('; observed result=', start);
-  const request = start < 0 || end < 0 ? observed : observed.slice(start + 'request='.length, end);
+  if (start < 0 || end < 0) return undefined;
   try {
-    const cmd: unknown = (JSON.parse(request) as Record<string, unknown> | null)?.['cmd'];
-    return typeof cmd === 'string' ? cmd : request;
-  } catch { return request; }
+    const value: unknown = (JSON.parse(observed.slice(start + 'request='.length, end)) as Record<string, unknown> | null)?.[field];
+    return typeof value === 'string' ? value : undefined;
+  } catch { return undefined; }
+}
+
+/** The command a probe line ran, notes aside; the raw request when it was cut. */
+function probeCommand(observed: string): string {
+  const cmd = requestField(observed, 'cmd');
+  if (cmd !== undefined) return cmd;
+  const start = observed.indexOf('request=');
+  const end = observed.indexOf('; observed result=', start);
+  return start < 0 || end < 0 ? observed : observed.slice(start + 'request='.length, end);
 }
 
 export function renderTransportEvidence(
@@ -782,6 +792,44 @@ export function renderTransportEvidence(
   const keep = new Set(browserIds);
   let evidenceChars = observed.filter((witness) => browserIds.has(witness.eventId))
     .reduce((total, witness) => total + witness.eventId.length + 2 + witness.observed.length, 0);
+  // EARLIER PASSING CHECKS the latest lines no longer show, newest first,
+  // within a third of the budget. Run 7f80148d (2026-10-10) proved a reload
+  // persistence and a Tab-and-Enter journey, then made ~150 more browser calls
+  // tuning a timer; the root saw the last eight and refused both criteria as
+  // never observed. A check is its executed actions, smoke and size. Its
+  // LATEST run decides (an older pass of a check that later failed stays out),
+  // and a pass of a document since rewritten stays out: the page it proved is
+  // gone. The same per-command rule recorded probes follow below.
+  const latestDocument = new Map<string, string>();
+  for (const witness of observed) {
+    const document = witness.browser?.document;
+    if (document) latestDocument.set(document.path, document.sha256);
+  }
+  const seenChecks = new Set(observed.filter((witness) => browserIds.has(witness.eventId))
+    .flatMap((witness) => witness.browser ? [witness.browser.check] : []));
+  // Paths a write or edit touched AFTER the witness being considered: the
+  // walk is newest first, so the set holds exactly the later writes.
+  const writtenLater = new Set<string>();
+  let revivedChars = 0;
+  for (const witness of [...observed].reverse()) {
+    if (witness.tool === 'write_file' || witness.tool === 'edit_file') {
+      const path = requestField(witness.observed, 'path');
+      if (path) writtenLater.add(path.replace(/^\.\//, ''));
+      continue;
+    }
+    const facts = witness.browser;
+    if (witness.tool !== 'validate_html' || !facts || keep.has(witness.eventId) || seenChecks.has(facts.check)) continue;
+    seenChecks.add(facts.check);
+    if (!facts.ok) continue;
+    if (facts.document && (latestDocument.get(facts.document.path) !== facts.document.sha256 || writtenLater.has(facts.document.path))) continue;
+    const length = witness.eventId.length + 2 + witness.observed.length;
+    // A quarter of the budget stays for the file reads below (run ce89c84a).
+    if (revivedChars + length > MAX_TOOL_EVIDENCE_CHARS / 3 ||
+        evidenceChars + length > MAX_TOOL_EVIDENCE_CHARS - MAX_TOOL_EVIDENCE_CHARS / 4) continue;
+    keep.add(witness.eventId);
+    revivedChars += length;
+    evidenceChars += length;
+  }
   // Preserve inspected source alongside execution results. These are still
   // bounded historical excerpts, including any stale-read marker; no coverage
   // or current-file claim follows from selecting them (run ce89c84a).
