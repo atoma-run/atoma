@@ -58,7 +58,11 @@ Neighbours:
   bounds the creation rate, not the catalogue. Evidence and the refuted
   credit-loss hypothesis:
   [the production catalogue, measured](../../docs/incidents/registry-catalogue-2026-09-16.md).
-  Do not design the reconciliation in the session that hits it.
+  The reconciliation is designed from that record and
+  [the clone engine, measured 2026-10-10](../../docs/registry-reconciliation-2026-10-10.md)
+  (18 molecules, a prompt revision mints a generation of clones), under
+  adversarial review — the deferral the record asked for was the
+  cooling-off rule, removed 2026-09-27.
 - Canonical bootstrap is idempotent and bucket-specific. Prompt/tool changes
   patch and reset trust only when content genuinely differs.
 
