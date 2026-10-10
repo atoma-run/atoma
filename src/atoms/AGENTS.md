@@ -514,6 +514,11 @@ load-bearing.
 - The same table applies envelope and explicit validation failures to L2 results at L3 before trust
   (`appliesToDelegatedResult`); a reporting one (`read-only-validation-failed`, `tool-budget-exhausted`, `unvalidated-fallback` for the cell's own fallback) takes
   L3's trust and Jev paths away as at L2 (run dfa20873). Leaf action, disk and proof checks stay at L2.
+- `declared-unverified` reads a molecule's own summary admitting its checks did
+  not run (`DECLARED_UNVERIFIED_RE`) and forces review, at the cell over that
+  molecule only: the summary travels up into every aggregate, and a tier above
+  would re-review an admission already judged (run d162ee31; review 2026-10-10).
+  Standing evidence of an unchanged document still counts.
 
 ## Declared proof obligations
 

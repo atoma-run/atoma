@@ -111,12 +111,28 @@ anywhere, root acceptance reads 48,000 characters instead of 24,000 (owner
 decision 2026-10-10); a phase judge keeps 24,000, because it runs on every
 phase validation.
 
+## The opposite direction: five suspected false approvals
+
+Read back on 2026-10-10 from the recorded acceptance prompts:
+
+| Run | Date | Approval | What let it through |
+|---|---|---|---|
+| 2b0f701b | 10-03 | wrong: Case A's first stanza ends "birds", the table says "dawn" | root review on gpt-5.6-luna alone; the host layout block in its own prompt showed "birds" |
+| c343e664 | 10-03 | wrong: stanzas end "welcome", "quietly", the result repeats the author's thaw/sun | luna alone, layout block present and overridden |
+| 8d3a16a0 | 10-03 | wrong, same error | luna alone, before the layout block existed |
+| d162ee31 | 09-27 | wrong as a decision: the final molecule wrote "verification incomplete … probes … not completed" | its cell recorded a success; the root (luna) approved on older smokes |
+| 7761081b | 09-28 | right on substance: a fresh load observed the stored theme | "follows the system preference" never emulated |
+
+The matched refusals of the same errors (cf0ab5ec, 64d5478e) were made on
+gpt-5.6-terra. Text deliveries have been reviewed on the tier-2 model with a
+blinded reference since 2026-10-03 (196e6bbb). File deliveries are still
+reviewed, and their criteria judged, on tier 1: a replay of recorded root
+prompts on both models measures that choice before it changes. A molecule's
+admission that its checks did not run now forces its cell's full review
+(`declared-unverified`).
+
 ## Not addressed here
 
-- False approvals the collection surfaced in the opposite direction:
-  2b0f701b, c343e664 and 8d3a16a0 approved a wrong stanza audit; d162ee31
-  approved a result that said its probes were not run; 7761081b judged a
-  reload criterion met on an errored reload check. Not yet analysed.
 - The prediction is that E1 and E2 first refusals fall on the next campaign.
   Today's tool fixes (`reload`, typing at focus, focus/activation pairs) also
   target E1, so a fall cannot be credited to this change alone.

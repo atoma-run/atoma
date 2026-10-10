@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  DECLARED_UNVERIFIED_RE,
   RESULT_GATE_IDS,
   buildResultGateEnv,
   renderResultGateFindings,
@@ -78,6 +79,7 @@ describe('result-gate pipeline', () => {
       'non-json-envelope',
       'internal-validation-failed',
       'unvalidated-fallback',
+      'declared-unverified',
       'tool-budget-exhausted',
       'read-only-validation-failed',
       'recorded-json-shape',
@@ -169,5 +171,54 @@ describe('result-gate pipeline', () => {
     expect(block).toMatch(/leads to VERIFY/);
     expect(block).toMatch(/\[web-styling-evidence\] no styling evidence recorded/);
     expect(renderResultGateFindings([])).toBe('');
+  });
+});
+
+describe('declared-unverified: an executor admits its checks did not run', () => {
+  it.each([
+    'Built the page; verification incomplete. Required fetch_url probes and validate_html browser verification were not completed.',
+    'Validation was not performed because the server failed to start.',
+    'The HTTP probes were not run before the deadline.',
+    'I could not run the required tests: npm is unavailable.',
+    'I did not run the tests.',
+    'No probes were run against the server.',
+    'Verification could not be completed before the deadline.',
+  ])('reads %j as an admission', (summary) => {
+    expect(DECLARED_UNVERIFIED_RE.test(summary)).toBe(true);
+  });
+
+  it.each([
+    'All 12 tests passed; the reload check and both widths were verified.',
+    'Verification complete: every probe passed.',
+    'Removed the unverified claim from the README.',
+  ])('does not read %j as one', (summary) => {
+    expect(DECLARED_UNVERIFIED_RE.test(summary)).toBe(false);
+  });
+
+  it('forces review with the admission quoted, and never rejects', async () => {
+    const { gateEnv } = env({
+      description: 'build and verify the notes page',
+      result: result({ summary: 'Server started. Verification incomplete: the browser checks were not run.' }),
+    });
+    const outcome = await runResultGates(gateEnv, new Set());
+    expect(outcome.rejection).toBeNull();
+    expect(outcome.reviewFindings.map((f) => f.gateId)).toEqual(['declared-unverified']);
+    expect(renderResultGateFindings(outcome.reviewFindings)).toContain('Verification incomplete');
+    expect(renderResultGateFindings(outcome.reviewFindings)).toContain('a standing observation of an unchanged document or server counts');
+  });
+
+  it('is judged once, by the cell over the molecule that wrote it', async () => {
+    const summary = 'phase #1 (Water): scaffolded; tests were not run | phase #2: all 5 probes pass';
+    const run = async (partial: Partial<Result>) => {
+      const { gateEnv } = env({ description: 'build and verify', result: result({ summary, ...partial }) });
+      return (await runResultGates(gateEnv, new Set())).reviewFindings.map((f) => f.gateId);
+    };
+    expect(await run({})).toContain('declared-unverified');
+    // A cell's aggregate judged by the tissue, and a molecule's result passed up unchanged.
+    expect(await run({ producedBy: { tier: 2, name: 'Water', viaFallback: false } })).not.toContain('declared-unverified');
+    expect(await run({ producedBy: { tier: 1, name: 'Ammonia', viaFallback: false } })).not.toContain('declared-unverified');
+    // Its own findings already say it.
+    expect(await run({ toolBudgetExhausted: true })).not.toContain('declared-unverified');
+    expect(await run({ producedBy: { tier: 1, name: 'Water', viaFallback: true } })).not.toContain('declared-unverified');
   });
 });

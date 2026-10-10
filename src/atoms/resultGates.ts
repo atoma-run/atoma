@@ -290,6 +290,16 @@ export function requiredCommandManifestMismatch(
 const COMMAND_MANIFEST_COACHING =
   'Fix the exact required finite test/probe script instead of substituting a different harness. Run it through record_probe until that same command exits 0; its manifest entry must be replaced with the successful observation before returning.';
 
+/** An executor's admission that its verification did not happen; read only by a `requires-review` gate. */
+export const DECLARED_UNVERIFIED_RE = new RegExp([
+  String.raw`\b(?:verification|validation|testing)\s+(?:is\s+|was\s+|remains\s+|remained\s+)?(?:incomplete|unfinished|not\s+(?:completed|performed|run|done|executed))\b`,
+  String.raw`\b(?:probes?|checks?|tests?|verifications?|assertions?)\b[^.;\n]{0,80}?\b(?:were|was)\s+not\s+(?:run|executed|completed|performed|observed)\b`,
+  String.raw`\bcould\s+not\s+(?:verify|run|execute|complete)\s+(?:the\s+)?(?:required\s+|requested\s+)?(?:probes?|checks?|tests?|verification|validation)\b`,
+  String.raw`\bdid\s+not\s+(?:run|execute|verify)\s+(?:the\s+|any\s+)?(?:tests?|probes?|checks?)\b`,
+  String.raw`\bno\s+(?:tests?|probes?|checks?)\s+were\s+(?:run|executed)\b`,
+  String.raw`\bverification\s+could\s+not\s+be\s+completed\b`,
+].join('|'), 'i');
+
 const RESULT_GATES: readonly ResultGate[] = [
   {
     // Transport witness: the run's own tool observer saw zero successful
@@ -435,6 +445,36 @@ const RESULT_GATES: readonly ResultGate[] = [
             }
           : null
       ),
+  },
+  {
+    // The executor's OWN words say its verification did not happen. Prose, so
+    // it never rejects: a summary may quote an earlier attempt or describe a
+    // check it then ran. It takes the result off every fast path and tells the
+    // judge to hold the result to what it admitted. Run d162ee31 (2026-09-27):
+    // the final molecule wrote "verification incomplete… required fetch_url
+    // probes and validate_html browser verification were not completed", its
+    // cell recorded a success and the root approved on older smokes.
+    // Judged ONCE, by the cell supervising the molecule that wrote it: a
+    // summary passes up unchanged and into every aggregate, and a tier above
+    // would review an admission already judged, quoting a phase a later one
+    // proved (review 2026-10-10). A budget-exhausted or fallback result has
+    // its own finding saying the same.
+    id: 'declared-unverified',
+    disposition: 'requires-review',
+    check: (env) => {
+      const own = env.result.producedBy.tier === 1 && env.result.producedBy.name === env.childName &&
+        !env.result.producedBy.viaFallback && !env.result.toolBudgetExhausted;
+      const admission = own ? DECLARED_UNVERIFIED_RE.exec(executorSummary(env.result))?.[0] : undefined;
+      return Promise.resolve(admission
+        ? {
+            reasoning: `the result's own summary says its verification did not happen (${JSON.stringify(admission.slice(0, 160))})`,
+            coaching:
+              'what the summary names as not run, incomplete or unverified is established only by recorded tool evidence that still applies ' +
+              '(a standing observation of an unchanged document or server counts; one of a page or server changed since does not). ' +
+              'Without it, reject with that check named.',
+          }
+        : null);
+    },
   },
   {
     id: 'tool-budget-exhausted',

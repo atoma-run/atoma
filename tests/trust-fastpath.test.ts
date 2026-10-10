@@ -238,12 +238,33 @@ describe('trust fast-path in validators', () => {
     expect(events).toHaveLength(0);
     expect(ctx.llm.calls).toHaveLength(1);
     expect(ctx.llm.calls[0]!.userContent).toContain('[tool-budget-exhausted]');
-    // The same result without the transport fact keeps the earned fast path.
+    // The same result without the transport fact keeps the earned fast path,
+    // once its summary no longer admits unfinished verification
+    // (`declared-unverified` reads that admission on its own).
     const { toolBudgetExhausted: _fact, ...complete } = exhausted(1, 'Water', false);
     void _fact;
-    const trusted = await l2.validateResult(l1, complete, { description: 'build and probe the API' }, ctx);
+    const trusted = await l2.validateResult(l1, { ...complete, summary: 'Existing artifacts were inspected.' },
+      { description: 'build and probe the API' }, ctx);
     expect(trusted.approved).toBe(true);
     expect(ctx.llm.calls).toHaveLength(1);
+  });
+
+  it("L2 hands a trusted molecule's result that admits its verification did not happen to the model (run d162ee31)", async () => {
+    const reg = new AtomRegistry(openDb(':memory:'));
+    reg.create(2, seed);
+    const l1Type = reg.create(1, seed);
+    for (let i = 0; i < TRUST_THRESHOLD_SUCCESSES; i++) reg.recordSuccess(l1Type.name);
+    const l2 = L2Atom.fromType(reg.getByName('Tracheid')!, reg);
+    const l1 = L1Atom.fromType(reg.getByName('Water')!);
+    const events: TrustFastPathInfo[] = [];
+    const ctx = { ...makeCtx(), recordTrust: (event: TrustFastPathInfo) => events.push(event) };
+    ctx.llm.enqueueText(reject);
+    const admitted = { output: {}, summary: 'Read the files and started the server; verification incomplete. Required fetch_url probes and validate_html browser verification were not completed.',
+      trace: [], toolCallResults: [{ name: 'list_files', args: {}, result: '[]' }], producedBy: { tier: 1 as const, name: 'Water', viaFallback: false } };
+    const v = await l2.validateResult(l1, admitted, { description: 'build and probe the notes app' }, ctx);
+    expect(v.approved).toBe(false);
+    expect(events).toHaveLength(0);
+    expect(ctx.llm.calls[0]!.userContent).toContain('[declared-unverified]');
   });
 
   it("L3 hands a trusted cell's budget-exhausted fallback result to the model", async () => {
