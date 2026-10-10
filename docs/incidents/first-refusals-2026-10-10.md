@@ -126,10 +126,32 @@ Read back on 2026-10-10 from the recorded acceptance prompts:
 The matched refusals of the same errors (cf0ab5ec, 64d5478e) were made on
 gpt-5.6-terra. Text deliveries have been reviewed on the tier-2 model with a
 blinded reference since 2026-10-03 (196e6bbb). File deliveries are still
-reviewed, and their criteria judged, on tier 1: a replay of recorded root
-prompts on both models measures that choice before it changes. A molecule's
-admission that its checks did not run now forces its cell's full review
+reviewed, and their criteria judged, on tier 1. A molecule's admission that
+its checks did not run now forces its cell's full review
 (`declared-unverified`).
+
+### Should file deliveries move to tier 2? Measured: no
+
+Offline replay, 2026-10-10, of the first root-acceptance call recorded in
+production for ten runs, the production system prompt and user content byte
+for byte, three calls per model at production parameters (60 calls, no
+transport error). Labels from the reviewed analysis above.
+
+| | gpt-5.6-luna | gpt-5.6-terra |
+|---|---|---|
+| False approvals, 4 file-delivery refuse cases (12 calls) | 4 | 3 |
+| False refusals, 4 file-delivery approve cases (12 calls) | 0 | 0 |
+| Median latency per call | 8.9 s | 14.0 s |
+| Cost per call (~26.8k tokens in) | ≈ $0.005 | ≈ $0.052 |
+
+Terra approved d162ee31, the case that motivated the question, twice in three;
+both models approved 495c20ef once. Two further cases (19b740fe's first and
+50be47bf's second acceptance) had gone through the text path in production and
+are left out of the comparison. The per-criterion batch calls were not
+replayed. On this sample tier 2 buys no detectable accuracy on file
+deliveries at ten times the price, so root file review stays on tier 1; the
+text path, where the matched pairs differed, already uses tier 2. Three calls
+per case is a small sample: revisit with a larger one before claiming parity.
 
 ## Not addressed here
 
