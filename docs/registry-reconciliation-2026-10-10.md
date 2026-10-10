@@ -267,6 +267,17 @@ absorbed recipes of Glucose (dashboard, 13/11), Serotonin (static-UI patch,
 recipe id collides with its winner's. Ethanol's fifteen-streak and the
 narratives' streaks are absorbed as totals.
 
+**Executed 2026-10-10 05:53 UTC** through `atoma_registry_merge`, each
+group dry-run first, no refusal, every one journaled (`registry.merged`)
+and archived under `/home/atoma/state/archives/registry-merge-<stamp>`:
+Water 77/13 (nine recipes moved, one absorbed), CarbonDioxide 80/24 (two
+moved, one absorbed), Methane 44/11, Adrenaline 79/10 relabelled (three
+moved, the dashboard recipe 17/1 among them), Protoplast 218/0 relabelled.
+Tier 1 holds six molecules (Water, Methane, Ammonia, CarbonDioxide,
+Benzene, Adrenaline), none trusted but Ammonia and Benzene until the
+winners re-earn three successes. `atoma_ledger_check` afterwards: 20 types,
+117 recipes, no impossible drift.
+
 **Benzene and Ammonia stay two canonicals** (decided 2026-10-10, delegated).
 A fusion at the bootstrap would put the docs-first prompt — consult the
 snapshot before editing, cite digests and line spans — on every file write,
