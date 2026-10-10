@@ -246,7 +246,7 @@ describe('the corpus: model decisions, in the window, from runs Jev did not deci
     response: '{}',
   });
 
-  it('reads prefilters and phase validations, never root acceptance or a failed call', () => {
+  it('reads prefilters and phase validations, never a run actor\'s call or a failed one', () => {
     const found = decisionsOfTrace(
       {
         startedAt: '2026-09-27T10:00:00.000Z',
@@ -254,6 +254,12 @@ describe('the corpus: model decisions, in the window, from runs Jev did not deci
           llm('a', 'prefilter'),
           llm('b', 'validate-result'),
           llm('c', 'validate-result', 'run-root'),
+          // The criteria batches, the text reference and the tissue router are
+          // run actors too, each with its own prompt layout: read as decisions,
+          // they were 42 % "unparsed" in the October 1–9 window.
+          llm('c2', 'validate-result', 'run-criteria'),
+          llm('c3', 'validate-result', 'run-text-reference'),
+          llm('c4', 'prefilter', 'run-router'),
           llm('d', 'plan'),
           { ...llm('e', 'validate-plan'), response: undefined },
           { id: 'j', kind: 'jev', role: 'prefilter' },

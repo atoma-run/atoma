@@ -437,4 +437,24 @@ describe('the effort rows of the outcome report', () => {
     ]);
     expect(report.effort.every((row) => typeof row.executeDurationMs === 'number' && row.executeEventId !== null)).toBe(true);
   });
+
+  it('counts no run actor\'s call as a model fallback for a Jev role', () => {
+    const llm = (id: string, name: string, costUsd: number) =>
+      ({ id, kind: 'llm', role: 'validate-result', actor: { name, tier: 3 }, costUsd });
+    const report = jevOutcomeReport({
+      startedAt: '2026-10-07T18:34:50.077Z',
+      events: [
+        { id: 'j', kind: 'jev', role: 'validate-result', outcome: 'deferred', costUsd: 0.001 },
+        llm('cell', 'Idioblast', 0.01),
+        // Run 67890568: no phase validation by the model, yet its validate-result
+        // fallback read 0.07 USD — root acceptance and three criteria batches.
+        llm('root', 'run-root', 0.02),
+        llm('c1', 'run-criteria', 0.02),
+        llm('c2', 'run-criteria', 0.02),
+      ],
+    }, 'run');
+    const role = report.roles.find((row) => row.role === 'validate-result');
+    expect(role?.modelFallbackCostUsd).toBeCloseTo(0.01);
+    expect(role?.baselineSamples).toBe(1);
+  });
 });

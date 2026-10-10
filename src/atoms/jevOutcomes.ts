@@ -1,4 +1,4 @@
-import { RUN_ACTORS } from '../contracts/runActors.js';
+import { runActorKey } from '../contracts/runActors.js';
 
 /** Read-only outcome correlations. Later run failures are signals, never proof Jev caused them. */
 export function jevOutcomeReport(trace: unknown, runId: string) {
@@ -63,7 +63,10 @@ export function jevOutcomeReport(trace: unknown, runId: string) {
     startedAt: typeof run['startedAt'] === 'string' ? run['startedAt'] : null,
     roles: roles.map((role) => {
       const rows = jev.filter((event) => event['role'] === role);
-      const model = events.filter((event) => event['kind'] === 'llm' && event['role'] === role && object(event['actor'])['name'] !== RUN_ACTORS.root.name);
+      // A run actor's call (root acceptance, its criteria batches) is not a
+      // model fallback for a Jev role: it is never Jev's to decide.
+      const model = events.filter((event) => event['kind'] === 'llm' && event['role'] === role &&
+        runActorKey(object(event['actor'])['name'] as string | undefined) === undefined);
       const audits = events.filter((event) => event['kind'] === 'llm' && event['role'] === 'jev-audit' &&
         event['subject'] === (role === 'validate-plan' ? 'PLAN' : role === 'validate-result' ? 'RESULT' : undefined));
       const avoided = rows.filter((event) => event['outcome'] === 'approved' ||

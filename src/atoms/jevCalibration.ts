@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { RUN_ACTORS } from '../contracts/runActors.js';
+import { runActorKey } from '../contracts/runActors.js';
 import {
   JEV_THRESHOLDS,
   NEW_RECIPE,
@@ -101,9 +101,13 @@ export interface TraceDecisions {
 
 /**
  * The model decisions one trace holds: its prefilter and phase-validation
- * `llm` events. Root acceptance is left out — it is never Jev's — and so is a
- * call that failed before answering. Its audits of Jev approvals are read
- * apart: they are the model judging what Jev decided, not a decision.
+ * `llm` events. Every RUN actor's call is left out — root acceptance, its
+ * criteria batches and text reference, the tissue router — none is ever
+ * Jev's, and each renders its own layout: until 2026-10-10 only `run-root`
+ * was, and the others were counted as decisions that did not parse (42 % of
+ * the October 1–9 window). A call that failed before answering is left out
+ * too. Audits of Jev approvals are read apart: they are the model judging
+ * what Jev decided, not a decision.
  */
 export function decisionsOfTrace(trace: unknown, meta: { readonly runId: string; readonly orgId: string }): TraceDecisions {
   const run = trace as { startedAt?: unknown; events?: unknown } | null;
@@ -142,7 +146,7 @@ export function decisionsOfTrace(trace: unknown, meta: { readonly runId: string;
     if (typeof event.id !== 'string' || typeof event.userContent !== 'string' || typeof event.response !== 'string') continue;
     const name = event.actor?.name;
     const tier = event.actor?.tier;
-    if (typeof name !== 'string' || typeof tier !== 'number' || name === RUN_ACTORS.root.name) continue;
+    if (typeof name !== 'string' || typeof tier !== 'number' || runActorKey(name) !== undefined) continue;
     decisions.push({
       runId: meta.runId,
       orgId: meta.orgId,
