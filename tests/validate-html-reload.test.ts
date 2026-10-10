@@ -119,6 +119,19 @@ describe('validate_html: keyboard-only typing and a real reload', () => {
     expect(result.interactionLog).toEqual([]);
   }, 60_000);
 
+  it('a selectorless type on a focused button is refused and types nothing: a space would press it (run 7f80148d)', async () => {
+    const { url, validate } = await serve();
+    // Two Tabs reach the Save button, one Tab short of a field it could
+    // press: a space in the text would submit the form.
+    const result = (await validate.execute({ url, smoke: READ, interactions: [
+      { type: 'keypress', key: 'Tab' }, { type: 'keypress', key: 'Tab' }, { type: 'type', text: 'Ada Lovelace' },
+    ] })) as Validation;
+    expect(result.ok).toBe(false);
+    expect(result.errors.join(' ')).toMatch(/focus is on button#save, which takes no text/);
+    expect(result.interactionLog).toEqual(['keypress Tab (120ms)', 'keypress Tab (120ms)']);
+    expect(result.smokeResult).toMatchObject({ saved: 'none', sameDocument: false, focus: 'save' });
+  }, 60_000);
+
   it('the host replay of an inherited check reloads in its own context', async () => {
     const { url, validate } = await serve();
     const result = (await validate.execute({ url, smoke: READ, [HOST_REPLAY_ARG]: true, interactions: [

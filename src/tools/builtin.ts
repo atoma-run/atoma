@@ -2281,18 +2281,26 @@ ${pageRevision}`;
               // d7179253). The log says "at focus" and names the element.
               if (it.text === undefined) throw new Error('type requires "text"');
               // A string expression: `document` in this scope is the binding.
-              const focused = (await page.evaluate(
-                `(() => { const e = document.activeElement; if (!e || e === document.body || e === document.documentElement) return null; ` +
-                  "return e.tagName.toLowerCase() + (e.id ? '#' + e.id : ''); })()"
-              )) as string | null;
-              if (!focused) {
+              const focus = (await page.evaluate(TEXT_FOCUS_EXPRESSION)) as { name: string; editable: boolean } | null;
+              if (!focus) {
                 throw new Error(
                   'type without a selector types where focus is, and nothing has focus: reach the field with keypress Tab first, ' +
                     'or give a selector (which clicks it, so it proves no keyboard journey)'
                 );
               }
+              // A control that takes no text is refused, never typed on: a
+              // space ACTIVATES a focused button. Run 7f80148d (2026-10-10)
+              // typed eight passages onto buttons one Tab short of the field —
+              // Clear history among them — with no word from the tool.
+              if (!focus.editable) {
+                throw new Error(
+                  `type without a selector types where focus is, and focus is on ${focus.name}, which takes no text ` +
+                    '(a space would activate it): reach the text field with keypress Tab first, ' +
+                    'or press a key on purpose with keypress'
+                );
+              }
               await page.keyboard.type(it.text);
-              interactionLog.push(`type ${JSON.stringify(it.text)} at focus on ${focused}`);
+              interactionLog.push(`type ${JSON.stringify(it.text)} at focus on ${focus.name}`);
             } else if (it.type === 'type') {
               if (it.text === undefined) throw new Error('type requires "text"');
               const coords = await resolveInteractionCoords(page, it);
@@ -2610,6 +2618,21 @@ export function parseViewport(raw: unknown): { width: number; height: number } {
   return { width: dimension('width', undefined), height: dimension('height', DEFAULT_VIEWPORT.height) };
 }
 
+
+/**
+ * Runs IN THE PAGE as a string expression: the focused element's name and
+ * whether it takes text — an enabled, writable textarea, a text-like input or
+ * an editable host. Null when nothing has focus.
+ */
+const TEXT_FOCUS_EXPRESSION = `(() => {
+  const e = document.activeElement;
+  if (!e || e === document.body || e === document.documentElement) return null;
+  const name = e.tagName.toLowerCase() + (e.id ? '#' + e.id : '');
+  const writable = !e.disabled && !e.readOnly;
+  const textInput = e.tagName === 'INPUT' &&
+    ['', 'text', 'search', 'email', 'url', 'tel', 'password', 'number'].includes((e.getAttribute('type') || '').toLowerCase());
+  return { name, editable: e.isContentEditable || (writable && (e.tagName === 'TEXTAREA' || textInput)) };
+})()`;
 
 /**
  * Focus the element a keyboard interaction names, so its keys reach it rather

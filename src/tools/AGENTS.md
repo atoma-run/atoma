@@ -199,7 +199,9 @@ Neighbours:
 - A `reload` interaction reloads the page in place (storage, cookies and
   origin kept, document and memory gone), and `type` without a selector types
   where focus is, with no click — the keyboard-only form, logged "at focus on
-  <element>" and refused when nothing has focus. No key reloads a headless
+  <element>" and refused when nothing has focus or focus is on a control that
+  takes no text (a space would press a button: run 7f80148d typed eight
+  passages onto buttons, Clear history among them). No key reloads a headless
   page: `F5` and `r` under a held Control or Meta are refused as interaction
   errors (`reloadKeyRefusal`, [src/contracts](../contracts/AGENTS.md)) and
   never executed. Run 779d854c (2026-10-10) delivered "survives a reload" on
