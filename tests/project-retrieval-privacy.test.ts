@@ -344,7 +344,10 @@ describe('tenant retrieval downstream: what the platform registry shares', () =>
     try {
       await L2Atom.fromType(f.supervisor, f.registry, [], f.skills).handleDirect({ description: 'Find the annual price.' }, ctx);
       const other = projectRetrievalFixture(root, { subject: 'other-owner', slug: 'other' }).makeRun();
-      expect((await readNextProject(f.dbPath, other)).catalogue).toContain(marker);
+      // A branch NAME a validator chose reaches every catalogue; a DESCRIPTION
+      // it wrote no longer does (2026-10-10): the child's signature is known,
+      // so its label stays the signature's canonical one.
+      expect((await readNextProject(f.dbPath, other)).catalogue.includes(marker)).toBe(field === 'branch-name');
     } finally { await f.backend.cleanup(); }
   });
 });
