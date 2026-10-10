@@ -525,7 +525,19 @@ export class AtomRegistry {
    */
   private takenNames(): Set<string> {
     const rows = this.prepare(`SELECT name FROM atom_types`).all() as { name: string }[];
-    return new Set(rows.map((r) => r.name));
+    const taken = new Set(rows.map((r) => r.name));
+    // A name a merge absorbed stays taken. Merges before 2026-10-10's
+    // tombstone left only this history row under the winner, so the loser's
+    // ordinal reads free: Glucose, Trichome and Sucrose were each reissued
+    // to a new identity within hours of the morning's five merges.
+    const merged = this
+      .prepare(`SELECT reason FROM atom_type_versions WHERE reason LIKE '[merged from % current state]'`)
+      .all() as { reason: string }[];
+    for (const { reason } of merged) {
+      const name = /^\[merged from (.+) current state\]$/.exec(reason)?.[1];
+      if (name) taken.add(name);
+    }
+    return taken;
   }
 
   /** The highest archived version at an ordinal, 0 with none: what a new archive row must exceed. */

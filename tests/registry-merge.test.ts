@@ -130,6 +130,22 @@ describe('applyIdentityMerge', () => {
     expect(next.ordinal).toBeGreaterThan(Math.max(clone.ordinal, empty.ordinal));
   });
 
+  it('a name a merge absorbed BEFORE the tombstone existed is never reissued either', () => {
+    const { db, registry, winner, clone, empty } = fixture();
+    // The shape a production merge left on 2026-10-10 before e100bdb1: the
+    // loser's current state archived under the winner, the loser's rows gone,
+    // no tombstone at its ordinal. Sucrose was reissued from exactly this.
+    db.prepare(
+      `INSERT INTO atom_type_versions (tier, ordinal, version, system_prompt, tools_json, params_json, modified_by, modified_at, reason)
+       VALUES (1, ?, 99, 'p', '[]', '{}', 'Idioblast', '2026-10-10T05:53:00Z', ?)`
+    ).run(winner.ordinal, `[merged from ${clone.name} current state]`);
+    db.prepare(`DELETE FROM atom_type_versions WHERE tier = 1 AND ordinal = ?`).run(clone.ordinal);
+    db.prepare(`DELETE FROM atom_types WHERE tier = 1 AND ordinal = ?`).run(clone.ordinal);
+    const next = registry.create(1, { description: 'd', systemPrompt: 'p', tools: makeTools(['read_file']), params: {}, createdBy: 'Idioblast' });
+    expect(next.name).not.toBe(clone.name);
+    expect([winner.name, empty.name]).not.toContain(next.name);
+  });
+
   it('the winner can be patched and rolled back after the merge: its versions stay unique and rising', async () => {
     const { dir, dbPath, db, registry, skills, winner, clone, empty } = fixture();
     const plan = planIdentityMerge(registry, skills, winner.name, [clone.name, empty.name]);
