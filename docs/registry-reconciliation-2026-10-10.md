@@ -167,6 +167,85 @@ code, as it does for canonicals. Concretely:
    deliverable; no write to the production registry before the owner names
    the winners.
 
+## Dedupe candidates — for the owner to name winners
+
+Read on 2026-10-10 from `atoma_registry_list` and `atoma_skills_list`.
+Counters are ✓successes/✗failures, then the streak; "skills" counts the
+molecule's recipes, with the ones that carry matches named. Nothing below
+has been written.
+
+**Web artefact, 6 tools** — one signature, three prompts (the 2026-09-16
+record's Water/Glucose/Sucrose) plus a branch:
+
+| Type | Created | ✓/✗, streak | Trusted | Skills |
+|---|---|---|---|---|
+| Water | bootstrap | 32/5, 11 | yes | 9: build-self-contained-static-page 29/26, serve-and-validate-static-page 8/7, harden-scenario-state-validation 4/4, build-responsive-static-multipage-site 3/2 |
+| Glucose | Tracheid, 09-07 | 16/6, 1 | no | 7: build-node-network-dashboard 13/11, verify-responsive-static-layout 4/3 |
+| Sucrose | Tracheid, 09-07 | 3/1, 0 | no | 1 recover, unmatched |
+| Serotonin | Idioblast, 09-26 | 26/1, 0 | no | 2: patch-verified-static-ui 18/16 |
+
+Winner by every reading: Water. The cost is in the skills: Glucose's
+dashboard recipe and Serotonin's static-UI patch recipe are matched and
+credited, and a merge that drops them loses 31 matches of evidence.
+
+**Full-stack, 8 tools** — six clones of the canonical plus one narrative:
+
+| Type | Created | ✓/✗, streak | Trusted | Skills |
+|---|---|---|---|---|
+| CarbonDioxide | bootstrap | 59/16, 31 | yes | 13: verify-persistent-operations-dashboard 23/23, build-node-api-web-ui 11/8, harden-persistent-scenario-library 9/9, build-offline-typing-studio 5/5 |
+| Ethanol | Idioblast, 09-11 | 18/7, 15 | yes | 3 recovers, unmatched |
+| Methanol | Idioblast, 09-12 | 0/0 | no | none |
+| Acetone | Idioblast, 09-12 | 1/0 | no | none |
+| Caffeine | Idioblast, 09-24 | 0/1 | no | none |
+| Dopamine | Idioblast, 09-27 | 1/0 | no | none |
+| DNA ("fictional decision brief") | Idioblast, 10-07 | 1/0 | no | none |
+
+Winner: CarbonDioxide. Five of the six losers carry nothing; Ethanol's
+fifteen-streak is absorbed as totals (a merge resets the streak by
+contract) and its recovers were never matched.
+
+**Node server, 7 tools**:
+
+| Type | Created | ✓/✗, streak | Trusted | Skills |
+|---|---|---|---|---|
+| Methane | bootstrap | 30/11, 5 | yes | 5: build-persisted-json-api 34/16 (13 failures), build-in-memory-json-api 31/24 |
+| Hemoglobin ("coding-theory exercise") | Sclereid, 10-03 | 14/0, 14 | yes | none |
+
+Winner: Methane. Hemoglobin is a narrative label on the node signature and
+holds no recipe.
+
+**All eleven tools** — no canonical; three narratives born under the
+eleven-tool cells a tissue created:
+
+| Type | Created | ✓/✗, streak | Trusted | Skills |
+|---|---|---|---|---|
+| Adrenaline ("scheduling model… without tools") | Protoplast, 10-02 | 45/10, 39 | yes | 1 recover, unmatched |
+| Insulin ("Bayesian urn analysis") | Trichome, 10-02 | 15/0, 15 | yes | none |
+| Chlorophyll ("orbital mechanics lab") | Protoplast, 10-06 | 19/0, 19 | yes | 3: build-persistent-operations-dashboard 17/17, build-offline-assessment-workspace 3/3 |
+
+Winner: Adrenaline as the elder, relabelled with the signature's canonical
+label (the honest general-purpose one). Chlorophyll's dashboard recipe is
+the one to keep. The same signature has two CELLS, Protoplast (114/0) and
+Trichome ("Offline data-file remediation cell", 104/0), both trusted:
+candidates on the same terms, Protoplast the elder.
+
+**Benzene and Ammonia** are not a dedupe: different tools, both canonical.
+Folding the project-docs canonical into the file scribe (the search tool and
+its citation lines added when the host has docs) is the bootstrap change
+the owner raised on 2026-10-10; it would merge 53/0 into 176/2 and move
+Benzene's seven recipes.
+
+**Tooling before any write.** `registry dedupe` groups by NAME (a fuzzy key
+over the display name), so it finds none of the groups above — they are
+chemistry names. `AtomRegistry.mergeInto` does the merge and the CLI
+reaches it only through `dedupe`; and the CLI then DROPS the losers' skill
+namespaces (`skills/<atom-id>/`), which is what would lose Glucose's,
+Serotonin's and Chlorophyll's recipes. The merge therefore needs a
+`registry merge <winner> <losers…>` that moves each loser's namespace
+under the winner (duplicate ids by `skills merge`), with the store and
+skills archived first. That command is the next piece of work, if the
+owner names winners.
+
 What a planner writes in a create seed therefore persists nowhere any more:
 the label is the signature's, the prompt the template, the tools the
 parent's. The privacy tests that documented the opposite sharing now
