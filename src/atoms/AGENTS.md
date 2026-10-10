@@ -185,10 +185,10 @@ load-bearing.
   decides NOTHING — Jev's approval stands whatever the model says — and its
   role keeps it out of every reader that counts validations.
 - The Jev calibration (`jevCalibration.ts`) reads prefilter and validation
-  prompts back out of traces, so the LAYOUT of what `prefilterStrategy` and
-  `llmVerdict` send is a contract with it: `tests/jev-calibration.test.ts`
-  renders with the production code and parses the result, and a prompt change
-  keeps it passing or changes the parser with it.
+  prompts back out of traces: the LAYOUT `prefilterStrategy` and `llmVerdict`
+  send is a contract with it (`tests/jev-calibration.test.ts` renders with the
+  production code and parses it back). A recipe's opening steps, which that
+  prompt lacks, come from the deferring `jev` event's `details` (2026-10-10).
 - Atom trust fast paths require the configured consecutive approved-result
   threshold (default 3), read through `trustThreshold()`; historical failures do
   not permanently disqualify a type. Script dispatch retains its separate

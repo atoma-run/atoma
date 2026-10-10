@@ -740,6 +740,12 @@ export function createJevDecider(opts: {
         safeRecord({ ...base, ...unanswered, outcome: 'model decides', failure: plan, durationMs: 0 });
         return null;
       }
+      // What Jev read of each recipe beyond its description: the model's
+      // prompt carries no opening steps, so the calibration reads them here.
+      const details = Object.fromEntries(
+        selected.candidates.flatMap((candidate) =>
+          candidate.detail ? [[candidate.name, capped(candidate.detail, JEV_STATE_CHARS.recipeDetail) as string]] : [])
+      );
       const asked = await ask(plan.state, plan.questions, request.signal, deadlineAt);
       if (!asked.ok) {
         safeRecord({ ...base, ...unanswered, outcome: 'model decides', failure: asked.failure, durationMs: asked.durationMs, requestCount: asked.requestCount });
@@ -749,6 +755,7 @@ export function createJevDecider(opts: {
       const stray = reading.causes?.includes('not_an_option') ? asked.result.answers['choice']?.choice : undefined;
       safeRecord({
         ...base,
+        ...(Object.keys(details).length > 0 ? { details } : {}),
         ...answered(asked),
         answer: reading.answer,
         outcome: reading.outcome,

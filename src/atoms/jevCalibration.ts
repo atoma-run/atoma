@@ -69,6 +69,12 @@ export interface RecordedDecision {
   readonly actor: { readonly name: string; readonly tier: number };
   /** A skill-catalog prefilter rather than the agent one. */
   readonly recipe: boolean;
+  /**
+   * The opening steps Jev read per recipe, from the `jev` event of the same
+   * actor that deferred this decision: the model's prompt carries none.
+   * Absent on traces recorded before 2026-10-10 and on agent prefilters.
+   */
+  readonly details?: Readonly<Record<string, string>>;
   readonly userContent: string;
   readonly response: string;
 }
@@ -116,6 +122,9 @@ export function decisionsOfTrace(trace: unknown, meta: { readonly runId: string;
   const decisions: RecordedDecision[] = [];
   const audits: RecordedAudit[] = [];
   let jevEvents = 0;
+  // The opening steps the latest recipe prefilter of each actor read: a
+  // deferral's model call follows its `jev` event in the same actor.
+  const detailsByActor = new Map<string, Readonly<Record<string, string>>>();
   for (const raw of events) {
     const event = raw as {
       id?: unknown;
@@ -128,8 +137,14 @@ export function decisionsOfTrace(trace: unknown, meta: { readonly runId: string;
       userContent?: unknown;
       response?: unknown;
       error?: unknown;
+      details?: unknown;
     } | null;
-    if (event?.kind === 'jev') jevEvents += 1;
+    if (event?.kind === 'jev') {
+      jevEvents += 1;
+      if (event.role === 'prefilter' && typeof event.actor?.name === 'string' && isDetails(event.details)) {
+        detailsByActor.set(event.actor.name, event.details);
+      }
+    }
     if (event?.kind === 'llm' && event.role === 'jev-audit' && typeof event.id === 'string') {
       if (event.subject === 'PLAN' || event.subject === 'RESULT') {
         audits.push({
@@ -147,6 +162,8 @@ export function decisionsOfTrace(trace: unknown, meta: { readonly runId: string;
     const name = event.actor?.name;
     const tier = event.actor?.tier;
     if (typeof name !== 'string' || typeof tier !== 'number' || runActorKey(name) !== undefined) continue;
+    const recipe = isRecipePrefilter(event.systemPrompt);
+    const details = recipe && event.role === 'prefilter' ? detailsByActor.get(name) : undefined;
     decisions.push({
       runId: meta.runId,
       orgId: meta.orgId,
@@ -154,12 +171,18 @@ export function decisionsOfTrace(trace: unknown, meta: { readonly runId: string;
       eventId: event.id,
       role: event.role as RecordedRole,
       actor: { name, tier },
-      recipe: isRecipePrefilter(event.systemPrompt),
+      recipe,
+      ...(details ? { details } : {}),
       userContent: event.userContent,
       response: event.response,
     });
   }
   return { startedAt, jevEvents, decisions, audits };
+}
+
+function isDetails(value: unknown): value is Readonly<Record<string, string>> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value) &&
+    Object.values(value as Record<string, unknown>).every((text) => typeof text === 'string');
 }
 
 /** One run's trace, as the door hands it over: read only when it can hold the window. */
@@ -278,10 +301,13 @@ export function parsePrefilterPrompt(decision: RecordedDecision): JevChoiceReque
           .filter((line) => line.startsWith('- '))
           .map((line) => line.slice(2))
       : [];
-  const candidates: { name: string; description: string }[] = [];
+  const candidates: { name: string; description: string; detail?: string }[] = [];
   for (const line of text.slice(catalogAt + '\nCatalog:\n'.length).split('\n')) {
     const entry = /^ {2}- ([^:\s]+): (.*)$/.exec(line);
-    if (entry) candidates.push({ name: entry[1]!, description: entry[2]! });
+    if (entry) {
+      const detail = decision.details?.[entry[1]!];
+      candidates.push({ name: entry[1]!, description: entry[2]!, ...(detail !== undefined ? { detail } : {}) });
+    }
     else if (/^ {4}/.test(line) && candidates.length > 0) {
       const last = candidates[candidates.length - 1]!;
       candidates[candidates.length - 1] = { ...last, description: `${last.description}\n${line}` };
@@ -533,6 +559,11 @@ export interface Calibration {
   readonly records: CalibrationRecord[];
   /** Decisions whose prompt or answer did not parse back: skipped, never guessed. */
   readonly unparsed: number;
+  /**
+   * Recipe decisions asked without their opening steps: the trace predates
+   * their recording (2026-10-10), so Jev read less than it does in a run.
+   */
+  readonly recipesWithoutDetail: number;
   /** Validations the fast path is never asked about, per subject: not sent. */
   readonly ineligible: { readonly PLAN: number; readonly RESULT: number };
   /** Decisions not asked because the call's budget ran out or it was cancelled. */
@@ -562,6 +593,7 @@ export async function calibrate(args: {
   const timeoutMs = args.timeoutMs ?? 20_000;
   const budgetMs = args.budgetMs ?? Infinity;
   let unparsed = 0;
+  let recipesWithoutDetail = 0;
   const ineligible = { PLAN: 0, RESULT: 0 };
   const jobs: Job[] = [];
   for (const [index, compilation] of (args.compilations ?? []).entries()) {
@@ -600,6 +632,7 @@ export async function calibrate(args: {
         unparsed += 1;
         continue;
       }
+      if (decision.recipe && !decision.details) recipesWithoutDetail += 1;
       const plan = buildChoice(request);
       jobs.push({
         decisionIndex,
@@ -717,6 +750,7 @@ export async function calibrate(args: {
   return {
     records: kept,
     unparsed,
+    recipesWithoutDetail,
     ineligible,
     unasked: jobs.length - kept.length,
     resumeAt: firstUnasked < 0 ? null : jobs[firstUnasked]!.decisionIndex!,

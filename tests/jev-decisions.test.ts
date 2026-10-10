@@ -470,6 +470,12 @@ describe('the Jev decider — choices', () => {
     );
     // Structured, so a reading counts withholds without parsing the outcome.
     expect(records[0]!.withheld).toEqual(['serve-and-validate-static-page']);
+    // What Jev read beyond the descriptions, for the calibration to replay:
+    // the model's prompt carries no opening steps.
+    expect(records[0]!.details).toEqual({
+      'serve-and-validate-static-page': '1. start_static_server 2. validate_html',
+      'build-self-contained-static-page': '1. write_file index.html',
+    });
     const questions = requests[0]!.body.questions;
     expect(Object.keys(questions['choice']!.criteria as object)).toEqual([
       'serve-and-validate-static-page',

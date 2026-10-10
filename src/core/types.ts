@@ -734,6 +734,12 @@ export interface JevDecisionInfo {
   /** Prefilter candidates, recipes compared for twins, or the compilation candidate. */
   readonly candidates?: readonly string[];
   /**
+   * The opening steps Jev read per recipe candidate, as capped for the
+   * question — what the model's recorded prompt does not carry, so a
+   * calibration can replay the recipe question as Jev saw it.
+   */
+  readonly details?: Readonly<Record<string, string>>;
+  /**
    * What Jev answered: a choice with its distribution, yes-probabilities by
    * question, and a twin check's pairwise scores by recipe id.
    */

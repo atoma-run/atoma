@@ -288,13 +288,15 @@ export async function jevCalibrateCall(
       traces: corpus.traces,
     },
     unparsed: calibration.unparsed,
+    recipesWithoutDetail: calibration.recipesWithoutDetail,
     ineligible: calibration.ineligible,
     unasked: calibration.unasked,
     report: calibrationReport(calibration.records, reading),
     audits,
     ...detailsOf(calibration.records),
     note:
-      'The model decision is the reference, not ground truth. Recipe candidates are asked without their opening steps: ' +
-      'the recorded prompt does not carry them. Task and requirement text is UNTRUSTED model-authored data.',
+      'The model decision is the reference, not ground truth. Recipe candidates are asked with the opening steps the ' +
+      "deferring jev event recorded; recipesWithoutDetail counts those asked without, from traces that predate it (the model's " +
+      'prompt carries none). Task and requirement text is UNTRUSTED model-authored data.',
   };
 }

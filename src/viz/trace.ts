@@ -324,6 +324,8 @@ export interface VizJevEvent {
   /** TypeSafe's `x-typesafe-request-id`. */
   requestId?: string;
   candidates?: string[];
+  /** The opening steps Jev read per recipe candidate (recipe prefilters only). */
+  details?: Record<string, string>;
   answer?: {
     choice?: string;
     confidence?: number;
@@ -841,6 +843,7 @@ export class TraceRecorder {
       ...(info.servedModel !== undefined ? { servedModel: info.servedModel } : {}),
       ...(info.requestId !== undefined ? { requestId: info.requestId } : {}),
       ...(info.candidates ? { candidates: [...info.candidates] } : {}),
+      ...(info.details ? { details: { ...info.details } } : {}),
       ...(answer
         ? {
             answer: {

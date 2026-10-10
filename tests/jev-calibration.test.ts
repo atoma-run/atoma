@@ -128,6 +128,17 @@ describe('reading the model prefilter prompt back', () => {
     });
   });
 
+  it('hands a recipe candidate the opening steps the deferring jev event recorded', () => {
+    const prompt = 'Task: add a break mode\n\nCatalog:\n  - build-page: build a page\n  - verify-page: verify a page';
+    const recorded = { ...decision('prefilter', prompt, '{}', true), details: { 'build-page': '1. write_file index.html' } };
+    expect(parsePrefilterPrompt(recorded)?.candidates).toEqual([
+      { name: 'build-page', description: 'build a page', detail: '1. write_file index.html' },
+      { name: 'verify-page', description: 'verify a page' },
+    ]);
+    // A trace from before the recording asks without them, as before.
+    expect(parsePrefilterPrompt(decision('prefilter', prompt, '{}', true))?.candidates.every((c) => c.detail === undefined)).toBe(true);
+  });
+
   it('tells the recipe prefilter from the agent one by its system prompt', () => {
     expect(isRecipePrefilter(SKILL_PREFILTER_SYSTEM_PROMPT)).toBe(true);
     expect(isRecipePrefilter('You pre-filter catalog lookups for a three-tier LLM orchestrator.')).toBe(false);
@@ -269,6 +280,37 @@ describe('the corpus: model decisions, in the window, from runs Jev did not deci
     );
     expect(found.decisions.map((d) => d.eventId)).toEqual(['a', 'b']);
     expect(found.jevEvents).toBe(1);
+  });
+
+  it('pairs a recipe prefilter with the opening steps its actor\'s jev deferral recorded', () => {
+    const recipe = (id: string, name = 'Idioblast') => ({ ...llm(id, 'prefilter', name), systemPrompt: SKILL_PREFILTER_SYSTEM_PROMPT });
+    const jev = (name: string, details?: Record<string, string>) =>
+      ({ id: `j-${name}`, kind: 'jev', role: 'prefilter', actor: { name, tier: 2 }, outcome: 'model decides', ...(details ? { details } : {}) });
+    const found = decisionsOfTrace(
+      {
+        startedAt: '2026-10-10T10:00:00.000Z',
+        events: [
+          jev('Idioblast', { 'build-page': '1. write_file' }),
+          jev('Tracheid', { 'other-recipe': '1. run_shell' }),
+          recipe('r1'),
+          // An agent prefilter of the same actor reads no recipe steps.
+          llm('a1', 'prefilter'),
+          // A later recipe deferral replaces what its actor read.
+          jev('Idioblast', { 'verify-page': '1. validate_html' }),
+          recipe('r2'),
+          // A jev event without details (an older binary) leaves the next decision bare.
+          jev('Idioblast'),
+          recipe('r3'),
+        ],
+      },
+      { runId: 'r', orgId: 'o' }
+    );
+    expect(found.decisions.map((d) => [d.eventId, d.details])).toEqual([
+      ['r1', { 'build-page': '1. write_file' }],
+      ['a1', undefined],
+      ['r2', { 'verify-page': '1. validate_html' }],
+      ['r3', { 'verify-page': '1. validate_html' }],
+    ]);
   });
 
   it('keeps the window, skips a file last written before it unread, and leaves out a run Jev decided in', () => {
