@@ -144,19 +144,16 @@ nav.top a{color:#c9d4e6;text-decoration:none;font-size:15px;padding:12px 14px;mi
 .stage{position:relative;height:420px;display:flex;align-items:center;justify-content:center;background:radial-gradient(closest-side,rgba(53,184,240,.30),transparent)}
 .mark{position:relative;display:inline-block;flex:none}
 .mark>.mark-canvas{position:absolute;inset:0;width:100%!important;height:100%!important}
-.mark.mark-live>:not(.mark-canvas){visibility:hidden}
 .mark-receiver-live>.mark-canvas{position:absolute;left:0;top:0;z-index:0;pointer-events:none}
 .mark-receiver-live .stage{background:none}
 main.story{position:relative}main.story>.wrap{position:relative;z-index:1}
-.mark-logo{width:40px;height:40px}.mark-logo svg{width:100%;height:100%}
+.mark-logo{width:40px;height:40px}
 .mark-hero{width:300px;height:380px}
 .mark-story{width:150px;height:180px}
 .mark-band{width:150px;height:180px}
 .story .titlerow{display:flex;align-items:center;justify-content:space-between;gap:24px}
 .cta-band .row{display:flex;align-items:center;gap:28px}
 @media (max-width:640px){.mark-story,.mark-band{display:none}}
-.crystal{animation:turn 15s ease-in-out infinite;transform-style:preserve-3d}
-.bob{animation:bob 1.8s ease-in-out infinite alternate;perspective:900px}
 section.feed{padding:64px 0 88px;background:#0b1424}
 .feedhead{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:28px}
 .feedhead h2{font-size:38px;letter-spacing:-.03em;color:#f8fbff}
@@ -212,17 +209,10 @@ ol.steps span{font-size:14px;color:#b9c5da}
 .flist li{display:flex;justify-content:space-between;gap:12px;padding:8px 12px;border-radius:8px;background:var(--raised);font:13px ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}
 .flist em{font-style:normal;color:#8a99b4;white-space:nowrap}
 @keyframes aurora{from{background-position:0 0,0 0,0 0,0 0}to{background-position:6% 4%,-5% -3%,0 0,0 0}}
-@keyframes turn{0%,100%{transform:rotateY(-26deg) rotateX(6deg)}50%{transform:rotateY(26deg) rotateX(-4deg)}}
-@keyframes bob{from{transform:translateY(-6px)}to{transform:translateY(6px)}}
-@media (prefers-reduced-motion:reduce){.hero,.crystal,.bob{animation:none}}
+@media (prefers-reduced-motion:reduce){.hero{animation:none}}
 @media (max-width:640px){.act{border-right:0;border-bottom:1px solid #1f3350}header.top{padding:12px 16px;gap:8px}.brand{gap:8px;font-size:20px}.brand .pill,nav.top a.secondary{display:none}nav.top{gap:4px}nav.top a{padding:10px 10px;font-size:14px}.wrap{padding:0 16px}.hero{margin-top:-68px;padding:104px 0 48px}.stage{height:300px}.mark-hero{width:230px;height:290px}.cta-band .box{padding:24px}}
 `;
 
-const LOGO =
-  '<svg width="30" height="30" viewBox="0 0 512 512" aria-hidden="true"><path d="M256 52 452 256 60 256Z" fill="#f59e0b"/><path d="M60 256 256 256 256 460Z" fill="#0f766e"/><path d="M452 256 256 460 256 256Z" fill="#7c3aed"/><path d="M256 200 316 256 256 312 196 256Z" fill="#f8fbff"/></svg>';
-
-const CRYSTAL =
-  '<svg width="260" height="330" viewBox="0 0 400 480" role="img" aria-label="The Atoma crystal"><path d="M200 20 20 240 140 262Z" fill="#efc14a" fill-opacity=".92"/><path d="M200 20 140 262 268 258Z" fill="#f59e0b" fill-opacity=".9"/><path d="M200 20 268 258 380 240Z" fill="#8b5cf6" fill-opacity=".9"/><path d="M200 460 20 240 140 262Z" fill="#0f9f92" fill-opacity=".92"/><path d="M200 460 140 262 268 258Z" fill="#2563eb" fill-opacity=".9"/><path d="M200 460 268 258 380 240Z" fill="#db2777" fill-opacity=".88"/><path d="M200 20 20 240 200 460 380 240Z" fill="none" stroke="#f8fbff" stroke-opacity=".25" stroke-width="2"/><circle cx="200" cy="240" r="30" fill="#dff1ff"/></svg>';
 
 function socialFallback(title: string, description: string, canonical: string | null): string {
   return [
@@ -272,13 +262,13 @@ ${input.assets.markScript ? `<script type="module" src="${esc(input.assets.markS
 }
 
 function header(): string {
-  return `<header class="top"><a class="brand" href="/"><span class="mark mark-logo" data-atoma-mark="logo">${LOGO}</span><span>Atoma</span><span class="pill">Live showcase</span></a>
+  return `<header class="top"><a class="brand" href="/"><span class="mark mark-logo" data-atoma-mark="logo"></span><span>Atoma</span><span class="pill">Live showcase</span></a>
 <nav class="top" aria-label="Site"><a class="secondary" href="/#feed">Finished work</a><a href="/app">Sign in</a><a class="primary" href="/app">Start your own</a></nav></header>`;
 }
 
 function closing(): string {
   return `<section class="cta-band"><div class="wrap"><div class="box"><div class="row">
-<div class="mark mark-band" data-atoma-mark="band">${CRYSTAL}</div><div style="display:flex;flex-direction:column;gap:16px">
+<div class="mark mark-band" data-atoma-mark="band"></div><div style="display:flex;flex-direction:column;gap:16px">
 <h2 class="display">Have a request of your own?</h2>
 <p>Describe the outcome you want. Atoma works on it in a private project and gives you the same story: every step, every check, and the finished result.</p>
 <a class="btn primary" style="align-self:flex-start" href="/app">Start your own</a></div></div></div></div></section>
@@ -339,7 +329,7 @@ export function renderShowcaseIndex(
 <h1 class="display">Watch a request turn into finished work.</h1>
 <p class="lead">A drawing, a sound, a report, a data study, a proof, a piece of software. Atoma takes on requests and works on them in the open. Only work that was delivered and passed its checks is shown here.</p>
 <div class="cta"><a class="btn primary" href="#feed">See finished work</a><a class="btn ghost" href="/app">Start your own</a></div></div>
-<div class="stage"><div class="mark mark-hero" data-atoma-mark="hero"><div class="bob"><div class="crystal">${CRYSTAL}</div></div></div></div></div></section>
+<div class="stage"><div class="mark mark-hero" data-atoma-mark="hero"></div></div></div></section>
 <section class="feed" id="feed"><div class="wrap">
 <div class="feedhead"><div><h2>Finished and checked</h2><p>Recent work comes first, with different kinds of work woven in. Some grew over several requests: each step is shown, and each one kept what already worked.</p></div>
 <div class="chips" id="filters" role="group" aria-label="Filter by kind of work" hidden>${chips}</div></div>
@@ -405,7 +395,7 @@ export function renderShowcaseEntry(
   const body = `${header()}
 <main class="story" data-atoma-receiver><div class="wrap">
 <a class="crumb" href="/">← All finished work</a>
-<div class="titlerow"><h1 class="display">${esc(first.title)}</h1><div class="mark mark-story" data-atoma-mark="story">${CRYSTAL}</div></div>
+<div class="titlerow"><h1 class="display">${esc(first.title)}</h1><div class="mark mark-story" data-atoma-mark="story"></div></div>
 <div class="facts"><span style="color:${KIND_COLOR[entry.kind]}">${esc(KIND_NOUN[entry.kind])}</span><span>${entry.episodes.length > 1 ? `${entry.episodes.length} deliveries` : '1 delivery'}</span><span>${esc(formatDuration(entry.totalDurationS))} in total</span><span>${esc(formatCost(entry.totalCostUsd))} in total</span></div>
 ${entry.episodes.map((episode, index) => episodeSection(episode, index, entry.episodes.length, answers.get(episode.id) ?? null, entry.kind)).join('\n')}
 </div></main>

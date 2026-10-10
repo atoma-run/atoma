@@ -745,7 +745,8 @@ npm run viz:mark-turn:analyze
   visible near recent software without suggesting strict global chronology.
 - Its crystals are the REAL Pixi mark (`showcase-mark.ts`, built alone by
   `vite.showcase.config.ts`: as a second app input it would leave the lazy
-  renderer chunk), over a static SVG visible until its canvas is ready. Offscreen
+  renderer chunk), in hosts that stay EMPTY until its canvas mounts: no static
+  SVG crystal, before or instead (owner, twice: 936d00cc, 2026-10-10). Offscreen
   crystals wait until they approach the viewport. The versioned bundle is served
   with Brotli and an immutable cache lifetime. All built JS/CSS assets are
   precompressed once by `scripts/viz-build.mjs`; the server negotiates Brotli

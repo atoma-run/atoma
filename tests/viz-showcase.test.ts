@@ -896,7 +896,7 @@ describe('what a visitor can read', () => {
     expect(csp).toContain(`'sha256-${hash}'`);
   });
 
-  it('puts the real crystal on every page when the build has it, and keeps the static one as fallback', () => {
+  it('puts the real crystal on every page when the build has it', () => {
     const w = world();
     const id = seedRun(w, w.admin, { goal: 'Goal', title: 'A title', files: ['a.md'] });
     const source = createShowcaseSource(w.store);
@@ -908,8 +908,6 @@ describe('what a visitor can read', () => {
     for (const html of pages) {
       expect(html).toContain('<script type="module" src="/showcase-assets/atoma-mark.js?v=0123456789abcdef"></script>');
       expect(html.match(/data-atoma-mark="/g)!.length).toBeGreaterThanOrEqual(3);
-      // The static crystal is inside every host, for a browser without WebGL.
-      expect(html).toContain('aria-label="The Atoma crystal"');
     }
     // Exactly one section per page receives the lit crystal's light and caustics.
     for (const html of pages) expect(html.match(/data-atoma-receiver/g)).toHaveLength(1);
@@ -920,16 +918,16 @@ describe('what a visitor can read', () => {
     expect(renderShowcaseIndex([], null)).not.toContain('type="module"');
   });
 
-  it('shows the static crystal immediately while the real crystal loads', () => {
+  it('never shows a static crystal before or instead of the real one', () => {
     const assets = { markScript: '/showcase-assets/atoma-mark.js?v=0123456789abcdef' };
-    const loading = renderShowcaseIndex([], null, assets);
-    expect(loading).toContain('<body>');
-    expect(loading).not.toContain('marks-pending');
-    expect(loading).toContain('.mark.mark-live>:not(.mark-canvas){visibility:hidden}');
-    // The fallback stays visible if the module never loads or JavaScript is off.
-    const plain = renderShowcaseIndex([], null);
-    expect(plain).toContain('<body>');
-    expect(plain).not.toContain('type="module"');
+    for (const html of [renderShowcaseIndex([], null, assets), renderShowcaseIndex([], null)]) {
+      // Every crystal host is empty until the Pixi canvas mounts in it: no SVG
+      // placeholder for the 3D crystal to replace (removed twice, 936d00cc and here).
+      const hosts = html.match(/data-atoma-mark="[a-z]+">.{0,8}/g)!;
+      expect(hosts.length).toBeGreaterThanOrEqual(2);
+      for (const host of hosts) expect(host).toMatch(/">(<\/div>|<\/span>)/);
+      expect(html).not.toContain('aria-label="The Atoma crystal"');
+    }
   });
 
   it('writes clean head metadata on every page, and nothing stray before the header', () => {
