@@ -1,4 +1,5 @@
 import type { RunContext } from '../core/types.js';
+import { posix } from 'node:path';
 import { baseExecutorOf } from '../core/attestation.js';
 import type { AcceptanceChecklist } from '../contracts/acceptanceChecklist.js';
 import { PROBE_MANIFEST_FILENAME } from '../contracts/probeManifest.js';
@@ -6,27 +7,84 @@ import { PROBE_MANIFEST_FILENAME } from '../contracts/probeManifest.js';
 const NAMED_PATH = /(?<![\w./-])(\.?[\w-][\w.-]+(?:\/[\w.-]+)*\.(?:md|markdown|txt|html?|css|m?js|cjs|ts|json|csv|py|sh|ya?ml))(?![\w/-])/gi;
 const CRITERIA_FILES_MAX = 16;
 const CRITERIA_SOURCE_CHARS = 24_000;
-const CRITERIA_FILE_MATCHED_LINES = 15;
+const CRITERIA_FILE_MATCHED_BLOCKS = 15;
+/** At most this much of a long file's allowance goes to the blocks past its head. */
+const CRITERIA_FILE_BLOCKS_CHARS = 6_000;
+const CRITERIA_BLOCK_LINES = 25;
+const CRITERIA_LINE_CHARS = 300;
 const CRITERIA_TOKEN = /[a-z][a-z0-9_-]{3,}/g;
 const COMMON_WORDS = new Set(['with', 'that', 'this', 'every', 'each', 'from', 'into', 'have', 'shows', 'show', 'must',
-  'documents', 'document', 'explains', 'lists', 'links', 'file', 'files', 'example', 'examples', 'readme']);
+  'documents', 'document', 'explains', 'lists', 'links', 'file', 'files', 'example', 'examples', 'readme',
+  // On every title of a test file: "test/errors.test.js" would match each one before the one asked for.
+  'test', 'tests', 'spec', 'specs']);
+
+/** Test scripts, whose quoted relative paths name the fixtures their assertions load. */
+const SCRIPT_PATH = /\.(?:m?js|cjs|ts|py|sh)$/i;
+const QUOTED_RELATIVE_PATH = /['"`]((?:\.{1,2}\/)?[\w-][\w.-]*(?:\/[\w.-]+)*\.(?:json|csv|txt|md|ya?ml|html?|ndjson|lock))['"`]/g;
+const TEST_SCRIPT = /(?:^|[/._-])(?:tests?|specs?|__tests__)(?:[/._-]|$)/i;
+const REFERENCED_FILES_MAX = 4;
+const REFERENCED_FILE_CHARS = 3_000;
+const REFERENCED_TOTAL_CHARS = 6_000;
+
+const indentOf = (line: string) => line.length - line.trimStart().length;
 
 /**
- * What of a named file reaches the acceptor: its head, and past it the lines
+ * The line holding a criterion's word and the block it opens: the lines after
+ * it indented deeper, blank ones included, and the closer that ends them. A
+ * test's title line names the behaviour; its assertions are the lines below
+ * it, and a lone title proved nothing (runs f0a51beb, 834ed524, 41e069a6,
+ * 2faac5cb: "only the title is visible, its assertion is truncated").
+ */
+function blockEnd(lines: readonly string[], at: number): number {
+  const indent = indentOf(lines[at]!);
+  let end = at + 1;
+  while (end < lines.length && end - at < CRITERIA_BLOCK_LINES && (lines[end]!.trim() === '' || indentOf(lines[end]!) > indent)) end++;
+  if (end < lines.length && end - at < CRITERIA_BLOCK_LINES && /^[\]})]/.test(lines[end]!.trim()) && indentOf(lines[end]!) === indent) end++;
+  while (end - 1 > at && lines[end - 1]!.trim() === '') end--;
+  return end;
+}
+
+/**
+ * What of a named file reaches the acceptor: its head, and past it the blocks
  * holding a word of the criteria that name it ("curl", "route", "exit"), so a
- * criterion about a long README is not judged on its first screen only.
+ * criterion about a long file is not judged on its first screen only.
  */
 function namedFileExcerpt(content: string, words: ReadonlySet<string>, allowance: number): string {
   // Keep complete small files: keyword excerpts retain test titles while
   // dropping their fixtures and assertions (warehouse run 22af997d).
   if (content.length <= allowance) return JSON.stringify(content);
-  const headLength = allowance - Math.min(CRITERIA_FILE_MATCHED_LINES * 200, Math.floor(allowance / 2));
+  const blocksBudget = Math.min(CRITERIA_FILE_BLOCKS_CHARS, Math.floor(allowance / 2));
+  // One block takes at most a quarter, so an early wide match (a describe(),
+  // a wrapping <div>) cannot starve the ones after it.
+  const blockChars = Math.floor(blocksBudget / 4);
+  const tentativeHead = allowance - blocksBudget;
+  const lines = content.split(/\r?\n/);
+  // Real offsets: a CRLF file's lines are one character longer than they split.
+  const starts = [0];
+  for (let at = content.indexOf('\n'); at >= 0 && starts.length < lines.length; at = content.indexOf('\n', at + 1)) starts.push(at + 1);
+  let first = 0;
+  while (first + 1 < starts.length && starts[first + 1]! <= tentativeHead) first++;
+  // The line the head cuts through is searched too: its title may be the one asked for.
+  const blocks: string[] = [];
+  let used = 0, firstBlockStart = content.length;
+  for (let at = first; at < lines.length && blocks.length < CRITERIA_FILE_MATCHED_BLOCKS && used < blocksBudget; at++) {
+    if (![...lines[at]!.toLowerCase().matchAll(CRITERIA_TOKEN)].some((match) => words.has(match[0]))) continue;
+    const end = blockEnd(lines, at);
+    const prefix = `${at + 1}: `;
+    const room = Math.min(blockChars, blocksBudget - used) - prefix.length;
+    if (room <= 0) break;
+    const entry = prefix + lines.slice(at, end).map((line) => line.slice(0, CRITERIA_LINE_CHARS)).join('\n').slice(0, room);
+    if (blocks.length === 0) firstBlockStart = starts[at]!;
+    blocks.push(entry);
+    used += entry.length;
+    at = end - 1;
+  }
+  // The head keeps what the blocks left unused, up to where the first block
+  // starts: never the same lines twice.
+  const headLength = blocks.length === 0 ? allowance : Math.max(Math.min(allowance - used, firstBlockStart), Math.min(tentativeHead, firstBlockStart));
   const head = content.slice(0, headLength);
-  const later = content.slice(headLength).split(/\r?\n/)
-    .filter((line) => [...line.toLowerCase().matchAll(CRITERIA_TOKEN)].some((match) => words.has(match[0])))
-    .slice(0, CRITERIA_FILE_MATCHED_LINES).map((line) => line.slice(0, 200));
   return `${JSON.stringify(head)} …(cut at ${headLength} of ${content.length} chars)` +
-    (later.length > 0 ? `\n    later lines naming the criteria's words: ${JSON.stringify(later)}` : '');
+    (blocks.length > 0 ? `\n    later blocks naming the criteria's words (line: text): ${JSON.stringify(blocks)}` : '');
 }
 
 /**
@@ -63,7 +121,7 @@ export async function criteriaFilesBlock(
   // of this separate read-back. An explicitly named criterion still gets it.
   wanted.push(...refreshPaths.filter(path => path !== PROBE_MANIFEST_FILENAME));
   const lines: string[] = [];
-  const files: Array<{ label: string; content: string; words: ReadonlySet<string> }> = [];
+  const files: Array<{ label: string; content: string; words: ReadonlySet<string>; referencedBy?: string }> = [];
   const paths = [...new Set(wanted)].filter((path) => !path.split('/').includes('..') && !/^(?:\/|[a-z]:)/i.test(path));
   let attempted = 0;
   for (const path of paths) {
@@ -86,6 +144,41 @@ export async function criteriaFilesBlock(
       if (refreshPaths.includes(path)) lines.push(`- ${JSON.stringify(path)}: current read unavailable; superseded contents remain omitted. This establishes no current content or absence.`);
     }
   }
+  // The small files a read-back script loads by a quoted relative path — the
+  // fixtures and expected outputs its assertions compare against. Run cb53b09d
+  // was refused because its diamond test named fixture files nobody showed.
+  // Inside the same I/O cap, after every file asked for, small files only.
+  let referencedChars = 0, referenced = 0, referenceReads = 0;
+  for (const file of [...files]) {
+    if (!SCRIPT_PATH.test(file.label) || !TEST_SCRIPT.test(file.label)) continue;
+    const dir = file.label.includes('/') ? file.label.slice(0, file.label.lastIndexOf('/') + 1) : '';
+    for (const match of file.content.matchAll(QUOTED_RELATIVE_PATH)) {
+      if (attempted + referenceReads >= CRITERIA_FILES_MAX || referenced >= REFERENCED_FILES_MAX || ctx.signal?.aborted) break;
+      // `new URL('./x', import.meta.url)` resolves beside the script, a bare
+      // `readFileSync('x')` from the working directory: try the likelier first.
+      const relative = match[1]!;
+      const candidates = [...new Set((relative.startsWith('.') ? [`${dir}${relative}`, relative] : [relative, `${dir}${relative}`])
+        .map((candidate) => posix.normalize(candidate)))]
+        .filter((path) => !path.startsWith('..') && !path.startsWith('/') && !/(?:^|\/)(?:node_modules|\.atoma-[^/]*)(?:\/|$)/.test(path) &&
+          !/(?:^|\/)package(?:-lock)?\.json$/.test(path) && !paths.includes(path) && !files.some((known) => known.label === path));
+      for (const path of candidates) {
+        if (attempted + referenceReads >= CRITERIA_FILES_MAX || ctx.signal?.aborted) break;
+        referenceReads++;
+        try {
+          const read: unknown = await tools.execute('read_file', { path });
+          const content = typeof read === 'string' ? read : read && typeof read === 'object' &&
+            'content' in read && typeof read.content === 'string' ? read.content : undefined;
+          if (content === undefined) continue;
+          if (content.length <= REFERENCED_FILE_CHARS && referencedChars + content.length <= REFERENCED_TOTAL_CHARS) {
+            files.push({ label: path, content, words: file.words, referencedBy: file.label });
+            referencedChars += content.length;
+            referenced++;
+          }
+          break;
+        } catch { /* a path in a string is not always a workspace file */ }
+      }
+    }
+  }
   // Water-fill the same total allowance: small files give their unused share
   // to larger ones. Crossing the total by one character must not collapse
   // every long file back to a 1,200-character head.
@@ -97,8 +190,8 @@ export async function criteriaFilesBlock(
     allowances.set(file.label, allowance);
     remaining -= allowance;
   }
-  lines.push(...files.map(({ label, content, words }) =>
-    `- ${label} (${content.length} chars): ${namedFileExcerpt(content, words, allowances.get(label)!)}`));
+  lines.push(...files.map(({ label, content, words, referencedBy }) =>
+    `- ${label} (${content.length} chars${referencedBy ? `, referenced by a string literal in ${referencedBy}` : ''}): ${namedFileExcerpt(content, words, allowances.get(label)!)}`));
   if (attempted < paths.length) lines.push(`${paths.length - attempted} further file reads omitted by the bound or cancellation; their current contents are unknown.`);
   return lines.length > 0
     ? [`FILES THE CRITERIA NAME${refreshPaths.length ? ' OR WHOSE READS WERE SUPERSEDED OR TRUNCATED' : ''}, read back by the host (mechanical). An excerpt cut short is SILENT about what it`,

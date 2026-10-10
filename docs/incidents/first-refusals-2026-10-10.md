@@ -92,10 +92,25 @@ and the shortcut contract pinned by `tests/reasoning-delivery.test.ts`).
 The 2026-10-02 rule still holds: no phase is judged on the whole root list,
 only on the criteria its plan gave it.
 
+## E3: evidence cut by the read-back
+
+Four of the eight showed a test's title line and not its assertions: past a
+long file's head, `criteriaFilesBlock` kept up to 15 ISOLATED lines holding a
+criterion word, and the word sits on the title. One (cb53b09d) cited fixture
+files nobody read; three cut a long page or calendar before the part judged.
+Seven of the eight came after the 2026-10-05 read-back fixes. Since
+2026-10-10 the reader keeps the block each such line opens (its
+deeper-indented lines and closer), no longer matches "test" or "spec" (on
+every title of a test file), and reads the small files a test script names in
+a string literal. Its adversarial review, before it shipped, capped one block
+at a quarter of the block budget (an early `describe()` starved the rest),
+gave the head back what the blocks left unused without overlapping them,
+counted line offsets on CRLF files, and limited references to test scripts,
+outside `package.json`. The long-page cases are not addressed: their judged
+part may sit anywhere.
+
 ## Not addressed here
 
-- E3: the acceptor reads cut evidence. That is the evidence renderer's budget
-  (`renderTransportEvidence`, file read-back), not the phases.
 - False approvals the collection surfaced in the opposite direction:
   2b0f701b, c343e664 and 8d3a16a0 approved a wrong stanza audit; d162ee31
   approved a result that said its probes were not run; 7761081b judged a

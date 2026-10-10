@@ -358,7 +358,13 @@ load-bearing.
   and paired replay: `benchmark/evidence-discrimination-2026-10-05/`.
   Root and phase file read-back share 24,000 source characters across at most sixteen
   files: unused shares from small files go to larger files; a batch that fits
-  stays complete. Longer files retain bounded heads and matching lines.
+  stays complete. Longer files retain bounded heads and, past them, the BLOCK
+  each line naming a criterion word opens (its deeper-indented lines and closer,
+  a quarter of the block budget at most, never overlapping the head; "test" and
+  "spec" never match): four first refusals saw a test title without its
+  assertions. Small files a TEST script names in a string literal follow it,
+  inside the same read cap, labelled as referenced, never as loaded (run
+  cb53b09d's unshown fixtures).
   The probe manifest has its own schema/observation reader and does not consume
   a refresh slot unless a criterion explicitly names it. Run b873c5a2 lost
   assertion bodies when that growing internal record pushed the batch over budget.
