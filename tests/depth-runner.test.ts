@@ -235,7 +235,9 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
         { mode: 'short', attempt: 1 }, { at: 'deepening', mode: 'deep', attempt: 2 },
       ]);
       expect(trace.events.filter((event) => event.kind === 'acceptance')).toMatchObject([
-        { approved: false, attempt: 2, executor: { tier: 3, viaFallback: true }, basis: 'validation-call' },
+        // One ladder per root phase (2026-10-10): the cell's refused fallback
+        // goes up as it is; the tissue no longer runs its own over it.
+        { approved: false, attempt: 2, executor: { tier: 2, viaFallback: true }, basis: 'validation-call' },
       ]);
       // Every call belongs to an attempt, except the acceptance checklist's
       // draft: it is made ONCE before the attempt loop so a deepening keeps it.
