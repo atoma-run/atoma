@@ -80,6 +80,7 @@ describe('result-gate pipeline', () => {
       'internal-validation-failed',
       'unvalidated-fallback',
       'declared-unverified',
+      'phase-budget-spent',
       'tool-budget-exhausted',
       'read-only-validation-failed',
       'recorded-json-shape',

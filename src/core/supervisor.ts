@@ -73,6 +73,13 @@ export interface SupervisionHooks<C extends Atom> {
    * the workspace as it stands, whatever path wrote to it.
    */
   aroundExecute?(execute: () => Promise<Result>): Promise<Result>;
+
+  /**
+   * Optional: a refused result this loop hands up as it is instead of
+   * retrying (`src/core/phaseBudget.ts`). Returned results get no approval
+   * consequence: no trust, credit or lesson.
+   */
+  handUpRefused?(child: C, result: Result, verdict: Verdict): Result | undefined;
 }
 
 const now = (): string => new Date().toISOString();
@@ -347,6 +354,9 @@ export async function superviseLoop<C extends Atom>(
           if (hooks.onApproved) await hooks.onApproved(current, result, v2);
           return { ...result, trace };
         }
+
+        const handedUp = hooks.handUpRefused?.(current, result, v2);
+        if (handedUp) return { ...handedUp, trace };
 
         const hit = resultRepeat.push(v2.reasoning ?? '');
         if (hit.repeated) {

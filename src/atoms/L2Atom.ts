@@ -2149,6 +2149,9 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     const unfinishedBelow = subResults.flatMap((result) => result.unfinishedPhases ?? []);
     const unfinishedField =
       unfinishedBelow.length > 0 ? { unfinishedPhases: unfinishedBelow } : {};
+    // A phase that spent its execution budget went up unjudged: the tier that
+    // judges this aggregate must know it (`phase-budget-spent`).
+    const spentField = subResults.some((result) => result.phaseBudgetSpent) ? { phaseBudgetSpent: true as const } : {};
     // A fallback's proof below rides up to the tier that judges this aggregate.
     const coverageBelow = subResults.flatMap((result) => result.proofCoverage ?? []);
     const coverageField = coverageBelow.length > 0 ? { proofCoverage: coverageBelow } : {};
@@ -2165,7 +2168,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         trace: [],
         producedBy: { tier: 2, name: this.name, viaFallback: false },
         ...evidenceField,
-        ...unfinishedField,
+        ...unfinishedField, ...spentField,
         ...coverageField,
       };
     }
@@ -2180,7 +2183,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         trace: [],
         producedBy: { tier: 2, name: this.name, viaFallback: false },
         ...evidenceField,
-        ...unfinishedField,
+        ...unfinishedField, ...spentField,
         ...coverageField,
       };
     }
@@ -2218,7 +2221,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       trace: [],
       producedBy: { tier: 2, name: this.name, viaFallback: false },
       ...evidenceField,
-      ...unfinishedField,
+      ...unfinishedField, ...spentField,
       ...coverageField,
     };
   }

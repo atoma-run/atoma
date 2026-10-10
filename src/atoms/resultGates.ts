@@ -477,6 +477,25 @@ const RESULT_GATES: readonly ResultGate[] = [
     },
   },
   {
+    // A root phase spent its execution budget and went up unjudged
+    // (src/core/phaseBudget.ts, owner decision 2026-10-10: judge what exists).
+    // Never a rejection: the result may hold; it must be read.
+    id: 'phase-budget-spent',
+    disposition: 'requires-review',
+    appliesToDelegatedResult: true,
+    check: (env) =>
+      Promise.resolve(
+        env.result.phaseBudgetSpent
+          ? {
+              reasoning: 'a phase of this delivery spent its execution budget, and its latest result went up without any supervisor approving it',
+              coaching:
+                'judge that phase on what its latest result and the recorded evidence show; approve only what that evidence establishes, ' +
+                'and name what it leaves unproven',
+            }
+          : null
+      ),
+  },
+  {
     id: 'tool-budget-exhausted',
     disposition: 'requires-review',
     appliesToDelegatedResult: true,

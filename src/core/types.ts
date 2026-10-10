@@ -274,6 +274,13 @@ export interface Result {
    * rejected three times for the same missing evidence.
    */
   readonly toolBudgetExhausted?: true;
+  /**
+   * A root phase's cell spent its whole retry ladder (retries, a branch, its
+   * own fallback) and the tissue still refused this result: it went up
+   * unjudged instead of a re-run (`src/core/phaseBudget.ts`). Carried up by
+   * aggregates; the `phase-budget-spent` gate forces root review.
+   */
+  readonly phaseBudgetSpent?: true;
 }
 
 export type MutationScope = 'ephemeral' | 'branch' | 'patch';

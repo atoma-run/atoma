@@ -13,6 +13,12 @@ Neighbours:
 - [`src/registry`](../registry/AGENTS.md) — atom identity and trust storage
 
 ## Supervision protocol
+- ONE LADDER PER ROOT PHASE (owner decision 2026-10-10, judge what exists): a
+  tissue that refuses its root phase's result when that result is the cell's own
+  fallback does not re-run the phase; `handUpRefused` hands it up marked
+  (`phaseBudgetSpent`, `src/core/phaseBudget.ts`) and `phase-budget-spent`
+  forces root review. Run bad74240 ran a spent ladder twice. A per-phase
+  execution counter was refused in review: it starved multi-subtask phases.
 - `superviseLoop` is the only plan → validate → execute → validate protocol.
   L2 and L3 reuse it for children; never duplicate that loop in concrete
   atoms. The L3 root `handle` is plan → execute (no parent). A parallel

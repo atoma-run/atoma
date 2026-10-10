@@ -45,6 +45,7 @@ import {
 } from './json.js';
 import { superviseLoop, type SupervisionHooks } from '../core/supervisor.js';
 import { forkBranch } from '../core/branchCtx.js';
+import { ladderSpent, spentPhaseResult } from '../core/phaseBudget.js';
 import { effectiveObligations, anyUncovered, renderProofCoverage } from './proofCoverage.js';
 import { randomUUID } from 'node:crypto';
 import { criteriaAssignmentLine, delegatedCriteria, delegatedTaskContext, taskContextLines, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE } from './taskContext.js';
@@ -925,7 +926,17 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       ? { ...hooks, aroundExecute: (execute) => withinReadOnlyPhase(ctx, subTask, execute) }
       : hooks;
     try {
-      return await superviseLoop<L2Atom>(this, l2, subTask, branchCtx, phaseHooks);
+      // A root phase gets one ladder: its cell's own fallback, refused here,
+      // goes up for root acceptance to judge instead of a re-run.
+      const rootPhase = ctx.currentBranchId === undefined;
+      return await superviseLoop<L2Atom>(this, l2, subTask, branchCtx, rootPhase ? {
+        ...phaseHooks,
+        handUpRefused: (cell, result, verdict) => {
+          if (!ladderSpent(result, cell.name)) return undefined;
+          ctx.logger.warn(`[${this.name}] ${cell.name} spent its ladder on "${subtask.description.slice(0, 80)}"; its refused result goes to root acceptance`);
+          return spentPhaseResult(result, verdict.reasoning ?? '');
+        },
+      } : phaseHooks);
     } finally {
       ctx.recordBranch?.({ op: 'end', ...branchInfo });
     }
@@ -1143,6 +1154,9 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     const unfinishedBelow = subResults.flatMap((result) => result.unfinishedPhases ?? []);
     const unfinishedField =
       unfinishedBelow.length > 0 ? { unfinishedPhases: unfinishedBelow } : {};
+    // A phase that spent its execution budget went up unjudged: the tier that
+    // judges this aggregate must know it (`phase-budget-spent`).
+    const spentField = subResults.some((result) => result.phaseBudgetSpent) ? { phaseBudgetSpent: true as const } : {};
     // A fallback's proof below rides up to the tier that judges this aggregate.
     const coverageBelow = subResults.flatMap((result) => result.proofCoverage ?? []);
     const coverageField = coverageBelow.length > 0 ? { proofCoverage: coverageBelow } : {};
@@ -1161,7 +1175,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         trace: [],
         producedBy: { tier: 3, name: this.name, viaFallback: false },
         ...evidenceField,
-        ...unfinishedField,
+        ...unfinishedField, ...spentField,
         ...coverageField,
       };
     }
@@ -1176,7 +1190,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         trace: [],
         producedBy: { tier: 3, name: this.name, viaFallback: false },
         ...evidenceField,
-        ...unfinishedField,
+        ...unfinishedField, ...spentField,
         ...coverageField,
       };
     }
@@ -1213,7 +1227,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       trace: [],
       producedBy: { tier: 3, name: this.name, viaFallback: false },
       ...evidenceField,
-      ...unfinishedField,
+      ...unfinishedField, ...spentField,
       ...coverageField,
     };
   }
