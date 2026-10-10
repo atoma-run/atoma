@@ -470,6 +470,7 @@ export function probeEntryProblems(e: unknown, i: number): string[] {
         'keypress',
         'upload',
         'select',
+        'reload',
       ]);
       inter.forEach((action, actionIndex) => {
         if (!action || typeof action !== 'object' || Array.isArray(action)) {
@@ -491,11 +492,13 @@ export function probeEntryProblems(e: unknown, i: number): string[] {
             `entry #${i} (web): interaction #${actionIndex} ${a['type']} is missing a selector`
           );
         } else if (
+          // Without a selector, type enters the text where focus is: the
+          // keyboard-only form (2026-10-10). A selector, when present, is a string.
           a['type'] === 'type' &&
-          (typeof a['selector'] !== 'string' || typeof a['text'] !== 'string')
+          (typeof a['text'] !== 'string' || ('selector' in a && typeof a['selector'] !== 'string'))
         ) {
           problems.push(
-            `entry #${i} (web): interaction #${actionIndex} type requires string selector and text`
+            `entry #${i} (web): interaction #${actionIndex} type requires string text (and a string selector, when one is given)`
           );
         } else if (
           (a['type'] === 'keydown' || a['type'] === 'keyup' || a['type'] === 'keypress') &&

@@ -196,6 +196,16 @@ Neighbours:
   choose (not rendered, disabled, no such option) and warns where a slider's
   bounds moved the value. Keyboard interactions focus their `selector` first:
   a keypress meant for a slider went to the checkbox clicked before it.
+- A `reload` interaction reloads the page in place (storage, cookies and
+  origin kept, document and memory gone), and `type` without a selector types
+  where focus is, with no click — the keyboard-only form, logged "at focus on
+  <element>" and refused when nothing has focus. No key reloads a headless
+  page: `F5` and `r` under a held Control or Meta are refused as interaction
+  errors (`reloadKeyRefusal`, [src/contracts](../contracts/AGENTS.md)) and
+  never executed. Run 779d854c (2026-10-10) delivered "survives a reload" on
+  a keypress F5 whose smoke read the unreloaded page, and the typing studio
+  was refused twice because neither a reload nor Tab-reached typing could be
+  shown. A reload alone establishes no DOM interaction.
 - `validate_html` reports `requestedInteractions`, `ignoredInteractions` and
   the served `document` digest alongside `interactionLog`. The counts are the
   CALLER's fact and the log is the runtime's; a result that carries only one

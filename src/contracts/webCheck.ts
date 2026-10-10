@@ -10,7 +10,7 @@ import { MAX_VIEWPORT_PX, MIN_VIEWPORT_PX } from './attestation.js';
  */
 
 export interface ParsedInteraction {
-  type: 'click' | 'rightclick' | 'type' | 'keydown' | 'keyup' | 'keypress' | 'upload' | 'select';
+  type: 'click' | 'rightclick' | 'type' | 'keydown' | 'keyup' | 'keypress' | 'upload' | 'select' | 'reload';
   selector?: string;
   x?: number;
   y?: number;
@@ -66,7 +66,8 @@ export function parseInteractions(raw: unknown): ParsedInteraction[] {
       t !== 'keyup' &&
       t !== 'keypress' &&
       t !== 'upload' &&
-      t !== 'select'
+      t !== 'select' &&
+      t !== 'reload'
     )
       continue;
     const parsed: ParsedInteraction = { type: t };
@@ -98,6 +99,26 @@ export function parseInteractions(raw: unknown): ParsedInteraction[] {
     out.push(parsed);
   }
   return out;
+}
+
+/**
+ * THE ONE WAY A CHECK RELOADS ITS PAGE: `{ type: 'reload' }`. A key event a
+ * page receives from the browser driver is not a browser accelerator: `F5`,
+ * or `r` with Control or Meta held, reaches the document as a keystroke and
+ * reloads nothing (verified in headless Chrome, 2026-10-10: zero
+ * navigations, the same document). Production run 779d854c delivered a
+ * "favourites survive a page reload" criterion on a keypress F5 whose smoke
+ * read the unreloaded page, and the typing studio was refused twice ($2,
+ * 92 minutes) because no check could reload at all. Returns the refusal
+ * the tool reports for such a key, or null.
+ */
+export function reloadKeyRefusal(key: string, held: ReadonlySet<string>): string | null {
+  const modifier = held.has('Control') || held.has('Meta');
+  if (key !== 'F5' && !(modifier && (key === 'r' || key === 'R'))) return null;
+  const pressed = key === 'F5' ? 'F5' : `${held.has('Meta') ? 'Meta' : 'Control'}+${key}`;
+  return `${pressed} does not reload the page: a key a headless page receives is a keystroke, never a browser shortcut. ` +
+    'Use the interaction { "type": "reload" }, which reloads the page and keeps its storage; ' +
+    'the smoke then reads the reloaded page.';
 }
 
 /** Letters, digits, `_ - . /` and spaces: a path that reaches a prompt as itself. */

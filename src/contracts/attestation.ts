@@ -249,7 +249,9 @@ export interface AttestationLog {
 export function establishesDomInteraction(record: AttestationRecord): boolean {
   return (
     record.observation.kind === 'browser' &&
-    record.observation.executedInteractions.length > 0
+    // A reload navigates; it puts no input on the page's controls, so a call
+    // whose only executed action is a reload is the cold case too (2026-10-10).
+    record.observation.executedInteractions.some((action) => action !== 'reload')
   );
 }
 
@@ -321,12 +323,14 @@ export const MAX_RENDERED_ACTIONS_CHARS = 600;
 export function renderBrowserInputs(records: readonly AttestationRecord[]): string {
   const browsers = records.filter((record) => record.observation.kind === 'browser');
   if (browsers.length === 0) return '';
-  const counts = { click: 0, rightclick: 0, type: 0, select: 0, upload: 0, keydown: 0, keyup: 0, keypress: 0, other: 0 };
+  const counts = { click: 0, rightclick: 0, type: 0, select: 0, upload: 0, keydown: 0, keyup: 0, keypress: 0, reload: 0, other: 0 };
   for (const record of browsers) {
     if (record.observation.kind !== 'browser') continue;
     for (const action of record.observation.executedInteractions) {
       // The tool authors the prefix; selector/text suffixes remain untrusted.
-      const kind = action.slice(0, action.indexOf(' '));
+      // A bare word (`reload`) is its own kind.
+      const space = action.indexOf(' ');
+      const kind = space < 0 ? action : action.slice(0, space);
       const known = Object.keys(counts).find((key) => key !== 'other' && key === kind) as keyof typeof counts | undefined;
       counts[known ?? 'other'] += 1;
     }

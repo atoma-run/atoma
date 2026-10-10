@@ -41,6 +41,7 @@ import {
   FALSE_FIELD_LIMIT,
   falseBooleanFields,
   parseInteractions,
+  reloadKeyRefusal,
   type ParsedInteraction,
 } from '../contracts/webCheck.js';
 // What a browser check runs is read once, in src/contracts/webCheck.ts;
@@ -1909,15 +1910,15 @@ export function validateHtmlTool(opts: BuiltinToolOptions): BuiltinTool {
             // a partial enumeration of a seven-verb regex would reproduce the
             // frozen-vocabulary defect exactly.
             description:
-              'Sequence of user interactions replayed AFTER the page loads and COMPLETELY BEFORE `smoke`: the whole list runs first, then `smoke` is evaluated once, so a snapshot taken at the top of your smoke is a POST-interaction snapshot. Nothing observes the page between two interactions. Use type with selector+text for text fields and select with selector+value for a <select> or a range/date/colour/number input; keypress accepts one key name, not a whole string. MUTUALLY EXCLUSIVE with a self-driving smoke: if `smoke` itself calls a state-changing method on the page, EVERY interaction here is DISCARDED before the page opens and the smoke sees a page nobody touched. Pick one per call — replay input here and let `smoke` only READ state (the proof that a user can do it: prefer it for anything a control reaches), or send `interactions: []` and drive every step inside the smoke.',
+              'Sequence of user interactions replayed AFTER the page loads and COMPLETELY BEFORE `smoke`: the whole list runs first, then `smoke` is evaluated once, so a snapshot taken at the top of your smoke is a POST-interaction snapshot. Nothing observes the page between two interactions. Use type with selector+text for text fields (or text alone, after keypress Tab, to type by keyboard only), reload to prove what survives a page reload, and select with selector+value for a <select> or a range/date/colour/number input; keypress accepts one key name, not a whole string. MUTUALLY EXCLUSIVE with a self-driving smoke: if `smoke` itself calls a state-changing method on the page, EVERY interaction here is DISCARDED before the page opens and the smoke sees a page nobody touched. Pick one per call — replay input here and let `smoke` only READ state (the proof that a user can do it: prefer it for anything a control reaches), or send `interactions: []` and drive every step inside the smoke.',
             items: {
               type: 'object',
               properties: {
                 type: {
                   type: 'string',
-                  enum: ['click', 'rightclick', 'type', 'keydown', 'keyup', 'keypress', 'upload', 'select'],
+                  enum: ['click', 'rightclick', 'type', 'keydown', 'keyup', 'keypress', 'upload', 'select', 'reload'],
                   description:
-                    'Event kind. "type" enters a text string into selector; "keypress" = one keydown then keyup after holdMs; "upload" attaches a workspace file to the <input type="file"> at selector, firing its input and change events as a person picking it would; "select" sets the <select> at selector to the option whose value (or label) is `value`, or a range, date, month, week, time, datetime-local, colour or number input to `value`, firing input and change as a person choosing it would.',
+                    'Event kind. "type" enters a text string: into selector after clicking it, or, with NO selector, where focus already is, with no click (the keyboard-only form, after keypress Tab); "keypress" = one keydown then keyup after holdMs; "reload" reloads the page as a person would and keeps its storage, so the smoke reads the reloaded page — the only way to prove that something survives a reload, since no key (F5, Control+R) reloads a headless page; "upload" attaches a workspace file to the <input type="file"> at selector, firing its input and change events as a person picking it would; "select" sets the <select> at selector to the option whose value (or label) is `value`, or a range, date, month, week, time, datetime-local, colour or number input to `value`, firing input and change as a person choosing it would.',
                 },
                 file: {
                   type: 'string',
@@ -1926,7 +1927,7 @@ export function validateHtmlTool(opts: BuiltinToolOptions): BuiltinTool {
                 selector: {
                   type: 'string',
                   description:
-                    'CSS selector of the target. A mouse event clicks it (if omitted, x/y are absolute page coordinates); a keyboard event focuses it first (if omitted, keys go to whatever has focus); type, select and upload fill it.',
+                    'CSS selector of the target. A mouse event clicks it (if omitted, x/y are absolute page coordinates); a keyboard event focuses it first (if omitted, keys go to whatever has focus); select and upload fill it; type clicks it, or types where focus is when omitted.',
                 },
                 x: {
                   type: 'number',
@@ -1941,7 +1942,7 @@ export function validateHtmlTool(opts: BuiltinToolOptions): BuiltinTool {
                 },
                 text: {
                   type: 'string',
-                  description: 'type-only. Full text to enter in the selected form field.',
+                  description: 'type-only. Full text to enter in the selected field, or in the focused one when no selector is given.',
                 },
                 value: {
                   type: 'string',
@@ -2247,6 +2248,8 @@ ${pageRevision}`;
         const budgetMs = interactionPhaseBudgetMs();
         const interactionDeadline = Date.now() + budgetMs;
         let skippedInteractions = 0;
+        // Keys a keydown holds until its keyup: what makes `r` a Control+R.
+        const heldKeys = new Set<string>();
         for (const [idx, it] of interactions.entries()) {
           if (Date.now() > interactionDeadline) {
             skippedInteractions = interactions.length - idx;
@@ -2269,8 +2272,28 @@ ${pageRevision}`;
                     : ''
                 }`
               );
+            } else if (it.type === 'type' && !it.selector) {
+              // KEYBOARD-ONLY TYPING (2026-10-10): the text goes where focus
+              // already is, with no click and no select-all — what a person
+              // who reached the field with Tab does. With a selector, `type`
+              // clicks to focus and so never proves a keyboard journey; the
+              // typing studio was refused twice for that (runs bad74240,
+              // d7179253). The log says "at focus" and names the element.
+              if (it.text === undefined) throw new Error('type requires "text"');
+              // A string expression: `document` in this scope is the binding.
+              const focused = (await page.evaluate(
+                `(() => { const e = document.activeElement; if (!e || e === document.body || e === document.documentElement) return null; ` +
+                  "return e.tagName.toLowerCase() + (e.id ? '#' + e.id : ''); })()"
+              )) as string | null;
+              if (!focused) {
+                throw new Error(
+                  'type without a selector types where focus is, and nothing has focus: reach the field with keypress Tab first, ' +
+                    'or give a selector (which clicks it, so it proves no keyboard journey)'
+                );
+              }
+              await page.keyboard.type(it.text);
+              interactionLog.push(`type ${JSON.stringify(it.text)} at focus on ${focused}`);
             } else if (it.type === 'type') {
-              if (!it.selector) throw new Error('type requires "selector"');
               if (it.text === undefined) throw new Error('type requires "text"');
               const coords = await resolveInteractionCoords(page, it);
               await page.mouse.click(coords.x, coords.y);
@@ -2290,17 +2313,32 @@ ${pageRevision}`;
               );
             } else if (it.type === 'keydown') {
               if (!it.key) throw new Error('keydown requires "key"');
+              const notReload = reloadKeyRefusal(it.key, heldKeys);
+              if (notReload) throw new Error(notReload);
               const target = await focusKeyTarget(page, it.selector, warnings);
               await page.keyboard.down(it.key as import('puppeteer').KeyInput);
+              heldKeys.add(it.key);
               interactionLog.push(`keydown ${it.key}${target}`);
             } else if (it.type === 'keyup') {
               if (!it.key) throw new Error('keyup requires "key"');
               // No focus here: a keyup releases the key where the keydown left
               // focus, which a Tab keydown has just moved on purpose.
               await page.keyboard.up(it.key as import('puppeteer').KeyInput);
+              heldKeys.delete(it.key);
               interactionLog.push(`keyup ${it.key}`);
+            } else if (it.type === 'reload') {
+              // A real navigation of the same page: storage, cookies and the
+              // served origin stay, the document and its in-memory state go.
+              // The smoke after it reads the RELOADED page.
+              await page.reload({ waitUntil: 'domcontentloaded', timeout: 15_000 });
+              if (waitMs > 0) await new Promise((r) => setTimeout(r, waitMs));
+              // `heldKeys` stays: the driver's keyboard keeps a held Control
+              // across the navigation, so Control+R after a reload is still one.
+              interactionLog.push('reload');
             } else if (it.type === 'keypress') {
               if (!it.key) throw new Error('keypress requires "key"');
+              const notReload = reloadKeyRefusal(it.key, heldKeys);
+              if (notReload) throw new Error(notReload);
               const requestedHoldMs =
                 typeof it.holdMs === 'number' && Number.isFinite(it.holdMs)
                   ? Math.max(0, Math.floor(it.holdMs))
