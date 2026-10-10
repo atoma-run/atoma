@@ -1836,5 +1836,10 @@
   "projects.overview.cost": "Coût",
   "projects.overview.collapse": "Masquer l’aperçu",
   "projects.overview.expand": "Afficher l’aperçu",
-  "projects.overview.collapsedTotal": "Coût du projet par tier de modèle : {{value}}. Affiche l’aperçu pour voir le détail."
+  "projects.overview.collapsedTotal": "Coût du projet par tier de modèle : {{value}}. Affiche l’aperçu pour voir le détail.",
+  "projects.overview.models_one": "{{count}} modèle",
+  "projects.overview.models_other": "{{count}} modèles",
+  "projects.overview.modelShare": "{{cost}} : {{share}} du projet, {{tierShare}} de {{tier}}",
+  "projects.overview.modelRuns_one": "dans {{count}} run, première utilisation le {{date}}",
+  "projects.overview.modelRuns_other": "dans {{count}} runs, première utilisation le {{date}}"
 }

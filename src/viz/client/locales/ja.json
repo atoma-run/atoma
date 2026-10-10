@@ -1836,5 +1836,10 @@
   "projects.overview.cost": "コスト",
   "projects.overview.collapse": "概要を非表示",
   "projects.overview.expand": "概要を表示",
-  "projects.overview.collapsedTotal": "モデルtier別のプロジェクトコスト：{{value}}。内訳を確認するには概要を表示してください。"
+  "projects.overview.collapsedTotal": "モデルtier別のプロジェクトコスト：{{value}}。内訳を確認するには概要を表示してください。",
+  "projects.overview.models_one": "{{count}}個のモデル",
+  "projects.overview.models_other": "{{count}}個のモデル",
+  "projects.overview.modelShare": "{{cost}}：プロジェクト全体の{{share}}、{{tier}}の{{tierShare}}",
+  "projects.overview.modelRuns_one": "{{count}}件のrunで、初回は{{date}}",
+  "projects.overview.modelRuns_other": "{{count}}件のrunで、初回は{{date}}"
 }

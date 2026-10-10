@@ -1836,5 +1836,10 @@
   "projects.overview.cost": "Biaya",
   "projects.overview.collapse": "Sembunyikan ringkasan",
   "projects.overview.expand": "Tampilkan ringkasan",
-  "projects.overview.collapsedTotal": "Biaya proyek berdasarkan tier model: {{value}}. Tampilkan ringkasan untuk melihat perinciannya."
+  "projects.overview.collapsedTotal": "Biaya proyek berdasarkan tier model: {{value}}. Tampilkan ringkasan untuk melihat perinciannya.",
+  "projects.overview.models_one": "{{count}} model",
+  "projects.overview.models_other": "{{count}} model",
+  "projects.overview.modelShare": "{{cost}}: {{share}} dari proyek, {{tierShare}} dari {{tier}}",
+  "projects.overview.modelRuns_one": "dalam {{count}} run, pertama pada {{date}}",
+  "projects.overview.modelRuns_other": "dalam {{count}} run, pertama pada {{date}}"
 }

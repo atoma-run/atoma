@@ -1836,5 +1836,10 @@
   "projects.overview.cost": "খরচ",
   "projects.overview.collapse": "ওভারভিউ লুকান",
   "projects.overview.expand": "ওভারভিউ দেখান",
-  "projects.overview.collapsedTotal": "মডেল tier অনুযায়ী প্রকল্পের খরচ: {{value}}। বিস্তারিত বিভাজন দেখতে ওভারভিউ দেখান।"
+  "projects.overview.collapsedTotal": "মডেল tier অনুযায়ী প্রকল্পের খরচ: {{value}}। বিস্তারিত বিভাজন দেখতে ওভারভিউ দেখান।",
+  "projects.overview.models_one": "{{count}}টি মডেল",
+  "projects.overview.models_other": "{{count}}টি মডেল",
+  "projects.overview.modelShare": "{{cost}}: প্রকল্পের {{share}}, {{tier}}-এর {{tierShare}}",
+  "projects.overview.modelRuns_one": "{{count}}টি run-এ, প্রথম {{date}} তারিখে",
+  "projects.overview.modelRuns_other": "{{count}}টি run-এ, প্রথম {{date}} তারিখে"
 }

@@ -1836,5 +1836,10 @@
   "projects.overview.cost": "लागत",
   "projects.overview.collapse": "ओवरव्यू छिपाएँ",
   "projects.overview.expand": "ओवरव्यू दिखाएँ",
-  "projects.overview.collapsedTotal": "मॉडल tier के अनुसार प्रोजेक्ट की लागत: {{value}}। विवरण के लिए ओवरव्यू दिखाएँ।"
+  "projects.overview.collapsedTotal": "मॉडल tier के अनुसार प्रोजेक्ट की लागत: {{value}}। विवरण के लिए ओवरव्यू दिखाएँ।",
+  "projects.overview.models_one": "{{count}} मॉडल",
+  "projects.overview.models_other": "{{count}} मॉडल",
+  "projects.overview.modelShare": "{{cost}}: परियोजना का {{share}}, {{tier}} का {{tierShare}}",
+  "projects.overview.modelRuns_one": "{{count}} run में, पहली बार {{date}} को",
+  "projects.overview.modelRuns_other": "{{count}} run में, पहली बार {{date}} को"
 }

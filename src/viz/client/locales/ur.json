@@ -1836,5 +1836,10 @@
   "projects.overview.cost": "لاگت",
   "projects.overview.collapse": "جائزہ چھپائیں",
   "projects.overview.expand": "جائزہ دکھائیں",
-  "projects.overview.collapsedTotal": "ماڈل tier کے لحاظ سے پروجیکٹ کی لاگت: {{value}}۔ تفصیل کے لیے جائزہ دکھائیں۔"
+  "projects.overview.collapsedTotal": "ماڈل tier کے لحاظ سے پروجیکٹ کی لاگت: {{value}}۔ تفصیل کے لیے جائزہ دکھائیں۔",
+  "projects.overview.models_one": "{{count}} ماڈل",
+  "projects.overview.models_other": "{{count}} ماڈلز",
+  "projects.overview.modelShare": "{{cost}}: پروجیکٹ کا {{share}}، {{tier}} کا {{tierShare}}",
+  "projects.overview.modelRuns_one": "{{count}} run میں، پہلی بار {{date}} کو",
+  "projects.overview.modelRuns_other": "{{count}} run میں، پہلی بار {{date}} کو"
 }

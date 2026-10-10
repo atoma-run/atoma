@@ -1836,5 +1836,10 @@
   "projects.overview.cost": "费用",
   "projects.overview.collapse": "隐藏概览",
   "projects.overview.expand": "显示概览",
-  "projects.overview.collapsedTotal": "按模型 tier 计算的项目成本：{{value}}。显示概览以查看明细。"
+  "projects.overview.collapsedTotal": "按模型 tier 计算的项目成本：{{value}}。显示概览以查看明细。",
+  "projects.overview.models_one": "{{count}}个模型",
+  "projects.overview.models_other": "{{count}}个模型",
+  "projects.overview.modelShare": "{{cost}}：占项目的{{share}}，占{{tier}}的{{tierShare}}",
+  "projects.overview.modelRuns_one": "在{{count}}次run中，首次于{{date}}",
+  "projects.overview.modelRuns_other": "在{{count}}次run中，首次于{{date}}"
 }

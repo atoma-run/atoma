@@ -1836,5 +1836,10 @@
   "projects.overview.cost": "التكلفة",
   "projects.overview.collapse": "إخفاء النظرة العامة",
   "projects.overview.expand": "إظهار النظرة العامة",
-  "projects.overview.collapsedTotal": "تكلفة المشروع حسب فئة النموذج: {{value}}. أظهر النظرة العامة للاطلاع على التفاصيل."
+  "projects.overview.collapsedTotal": "تكلفة المشروع حسب فئة النموذج: {{value}}. أظهر النظرة العامة للاطلاع على التفاصيل.",
+  "projects.overview.models_one": "{{count}} نموذج",
+  "projects.overview.models_other": "عدد النماذج: {{count}}",
+  "projects.overview.modelShare": "{{cost}}: ‏{{share}} من المشروع، و{{tierShare}} من {{tier}}",
+  "projects.overview.modelRuns_one": "في run واحدة، العدد: {{count}}، أولها في {{date}}",
+  "projects.overview.modelRuns_other": "في عمليات run، العدد: {{count}}، أولها في {{date}}"
 }
