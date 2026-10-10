@@ -93,7 +93,7 @@ function world(): World {
       project: {
         name: `Secret ${name} project`,
         slug: `secret-${name}`,
-        initialPrompt: 'x',
+        initialPrompt: 'x', showcase: 'listed',
         repositoryTarget: { installationId: '123', owner: `secret-owner-${name}`, name: `secret-repo-${name}`, visibility: 'private' },
       },
     });
@@ -203,7 +203,7 @@ function joinClientOrganisation(w: World, role: OrgRole = 'org:admin'): ClientOr
     orgId: founded.viewer.orgId,
     principalId: founded.viewer.principalId,
     project: {
-      name: `Client ${role} project`, slug, initialPrompt: 'x',
+      name: `Client ${role} project`, slug, initialPrompt: 'x', showcase: 'listed',
       repositoryTarget: { installationId: '123', owner: 'client-owner', name: slug, visibility: 'private' },
     },
   });
@@ -295,7 +295,7 @@ describe('who may be shown', () => {
     expect(joined?.viewer).toMatchObject({ orgId: founded.viewer.orgId, role: 'org:owner', platformAdmin: true });
     const project = w.store.createProject({
       orgId: founded.viewer.orgId, principalId: founded.viewer.principalId,
-      project: { name: 'Client project', slug: 'client-stepped', initialPrompt: 'x',
+      project: { name: 'Client project', slug: 'client-stepped', initialPrompt: 'x', showcase: 'listed',
         repositoryTarget: { installationId: '123', owner: 'client-owner', name: 'client-stepped', visibility: 'private' } },
     });
     seedRun(w, { orgId: founded.viewer.orgId, principalId: w.admin.principalId, projectId: project.projectId },
@@ -324,7 +324,7 @@ describe('who may be shown', () => {
     }
     const project = w.store.createProject({
       orgId: tied, principalId: w.member.principalId,
-      project: { name: 'Tied project', slug: 'tied', initialPrompt: 'x',
+      project: { name: 'Tied project', slug: 'tied', initialPrompt: 'x', showcase: 'listed',
         repositoryTarget: { installationId: '123', owner: 'client-owner', name: 'tied', visibility: 'private' } },
     });
     seedRun(w, { orgId: tied, principalId: w.admin.principalId, projectId: project.projectId }, { goal: 'Tied work', files: ['README.md'] });
@@ -371,6 +371,17 @@ describe('who may be shown', () => {
     expect(measured.showcase).toBe('hidden');
     expect(w.store.getProject(w.admin.orgId, w.admin.projectId)!.showcase).toBe('listed');
     seedRun(w, { ...w.admin, projectId: measured.projectId }, { goal: 'Measurement run', files: ['README.md'] });
+    // Created without a choice, a project is off it too: listing is opt-in (owner decision 2026-10-10).
+    const unchosen = w.store.createProject({
+      orgId: w.admin.orgId,
+      principalId: w.admin.principalId,
+      project: {
+        name: 'Test campaign', slug: 'test-campaign',
+        repositoryTarget: { installationId: '123', owner: 'secret-owner-admin', name: 'test-campaign', visibility: 'private' },
+      },
+    });
+    expect(unchosen.showcase).toBe('hidden');
+    seedRun(w, { ...w.admin, projectId: unchosen.projectId }, { goal: 'Campaign run', files: ['README.md'] });
     expect(w.store.listShowcaseRuns().map((run) => run.projectRunId)).toEqual([shown]);
     const db = new Database(w.dbPath);
     try {
@@ -400,7 +411,7 @@ describe('who may be shown', () => {
     auth.grantPlatformAdmin(owner!.principalId);
     const project = store.createProject({
       orgId: owner!.orgId, principalId: owner!.principalId,
-      project: { name: 'L3 experiment', slug: 'l3-experiment', repositoryTarget: { installationId: '1', owner: 'o', name: 'l3', visibility: 'private' } },
+      project: { name: 'L3 experiment', slug: 'l3-experiment', showcase: 'listed', repositoryTarget: { installationId: '1', owner: 'o', name: 'l3', visibility: 'private' } },
     });
     const w = { root, dbPath, store, admin: { orgId: owner!.orgId, principalId: owner!.principalId, projectId: project.projectId } } as World;
     const run = seedRun(w, w.admin, { goal: 'A contrived puzzle', files: ['report.md'] });

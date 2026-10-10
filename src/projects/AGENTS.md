@@ -149,9 +149,9 @@ it; `ATOMA_EGRESS_ALLOWLIST` replaces the host list. Both are host-only settings
   `listed` or NULL (pre-2026-10-06) project, REQUESTED BY THE PLATFORM ADMIN WHO
   FOUNDED (first member) AND STILL OWNS THE RUN'S ORGANISATION, never a client
   one they joined, even as owner (owner decision 2026-10-09); read per query.
-  `hidden` (at creation, or `setProjectShowcase`/MCP `atoma_project_showcase`,
-  journaled, caller's organisation only, 409 unless such a one) keeps the runs
-  off; other values hide too. Projects of `showcaseOrganisations()` (same pairs)
+  `hidden` (the creation default since 2026-10-10, opt-in `listed`; later
+  `setProjectShowcase`/MCP `atoma_project_showcase`, journaled, caller's
+  organisation only, 409 unless such a one) keeps the runs off; other values hide too. Projects of `showcaseOrganisations()` (same pairs)
   alone carry `showcase` and `showcaseShown` (a run in this read, page served).
 - `ProjectService.listProjects()` orders the public project cards by their
   newest run, or by creation before a first run. `projects.updated_at` also

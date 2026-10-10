@@ -333,7 +333,8 @@ describe('ProjectService — roles, IDOR and slug identity', () => {
     try { svc.setProjectShowcase(alice, first['projectId'] as string, 'hidden'); } catch (error) { refused = error; }
     expect(refused).toBeInstanceOf(ProjectHttpError);
     expect((refused as ProjectHttpError).status).toBe(409);
-    expect(projects.getProject(alice.orgId, first['projectId'] as string)!.showcase).toBe('listed');
+    // Created without a choice, a project is off the showcase: listing it is opt-in (owner decision 2026-10-10).
+    expect(projects.getProject(alice.orgId, first['projectId'] as string)!.showcase).toBe('hidden');
 
     // Alice becomes a platform admin, and a co-owner of Carol's organisation, joined after Carol founded it.
     const carol = principal('Carol', 'org:owner');
@@ -346,8 +347,10 @@ describe('ProjectService — roles, IDOR and slug identity', () => {
     // Carol's organisation still has no platform-admin founder: owning it is not founding it.
     expect(wire(await svc.createProject(jsonReq(payload('601', 'carol-work')), carol))).not.toHaveProperty('showcase');
     // Alice's own organisation now has one, read at call time: the same project is eligible.
-    expect(listed()).toEqual([expect.objectContaining({ projectId: first['projectId'], showcase: 'listed', showcaseShown: false })]);
+    expect(listed()).toEqual([expect.objectContaining({ projectId: first['projectId'], showcase: 'hidden', showcaseShown: false })]);
     expect(wire(await svc.createProject(jsonReq(payload('501', 'second')), alice)))
+      .toMatchObject({ showcase: 'hidden', showcaseShown: false });
+    expect(wire(await svc.createProject(jsonReq({ ...payload('501', 'third'), showcase: 'listed' }), alice)))
       .toMatchObject({ showcase: 'listed', showcaseShown: false });
   });
 
@@ -355,7 +358,7 @@ describe('ProjectService — roles, IDOR and slug identity', () => {
     // What JSON carries back from PUT /api/projects/:id/upstream: an omitted key, never a null one.
     const wire = (value: unknown) => JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
     const fork = (owner: Viewer, slug: string) => projects.createProject({ orgId: owner.orgId, principalId: owner.principalId,
-      project: { ...payload('501', slug), repositoryTarget: { ...payload('501', slug).repositoryTarget,
+      project: { ...payload('501', slug), showcase: 'listed' as const, repositoryTarget: { ...payload('501', slug).repositoryTarget,
         source: { owner: 'upstream', name: 'app', mode: 'fork' as const } } } }).projectId;
     const svc = new ProjectService({ store: projects, github, coordinator: {} as ProjectRunCoordinator, showcaseEnabled: () => true });
     const follow = async (viewer: Viewer, projectId: string) =>

@@ -359,7 +359,7 @@ it('refuses atoma_project_showcase where no platform admin founded the organisat
   const login = auth.completeLogin({ provider: 'github', subject: 'client', displayName: 'Client', email: null, emailVerified: false }, null)!;
   const store = ProjectStore.open(dbPath);
   const project = store.createProject({ orgId: login.viewer.orgId, principalId: login.viewer.principalId,
-    project: { name: 'Board', slug: 'board', repositoryTarget: { installationId: '123', owner: 'owner', name: 'board', visibility: 'private' } } });
+    project: { name: 'Board', slug: 'board', showcase: 'listed', repositoryTarget: { installationId: '123', owner: 'owner', name: 'board', visibility: 'private' } } });
   const service = new ProjectService({ store, coordinator: {} as never, github: null });
   const { url } = await listen(() => ({ kind: 'principal', viewer: login.viewer, tokenId: 'client' }),
     { ...NO_TENANT, projects: { store, service }, auth });

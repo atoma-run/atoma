@@ -721,8 +721,9 @@ npm run viz:mark-turn:analyze
 - It shows the DELIVERED runs, never a comparison rerun, a platform admin
   requested in an organisation they FOUNDED (its first member) and still OWN
   (`org:owner`), never a client organisation's, even one the admin joined as
-  an owner (owner decision 2026-10-09), save a `showcase: hidden` project (set
-  at creation, or later by an organisation admin; [src/projects](../projects/AGENTS.md#readers-outside-this-subsystem)).
+  an owner (owner decision 2026-10-09), save a `showcase: hidden` project (the
+  creation default since 2026-10-10: a project is on it only once listed, at
+  creation or later by an organisation admin; [src/projects](../projects/AGENTS.md#readers-outside-this-subsystem)).
   Flag and role are read per query, and the page reuses one read for
   `SHOWCASE_TTL_MS` (a minute of elapsed time), so a revocation leaves it
   within that. In such an organisation the Projects list tells owners, admins

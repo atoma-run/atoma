@@ -246,7 +246,12 @@ const httpsUrlSchema = z.string().url().refine((value) => new URL(value).protoco
  * founded and still own (`ProjectStore.listShowcaseRuns`; owner decision
  * 2026-10-09). `hidden` keeps them off it: experiments and measurements whose
  * goals are not stories. In any other organisation the value is stored but
- * shows or hides nothing.
+ * shows or hides nothing. A new project is `hidden` unless its creator says
+ * `listed` (owner decision 2026-10-10): the test campaigns of 2026-10-09/10
+ * put every project on the page, repair and re-verification runs included,
+ * several with documented broken deliverables. The showcase is curated, never
+ * the default destination of a run. A NULL row
+ * predates the column and still reads `listed`.
  */
 export const projectShowcaseSchema = z.enum(['listed', 'hidden']);
 
@@ -258,8 +263,8 @@ export const createProjectInputSchema = z
     repositoryTarget: repositoryTargetSchema,
     followUpstream: z.boolean().default(false),
     showcase: projectShowcaseSchema
-      .default('listed')
-      .describe('Only matters in an organisation a platform admin founded and still owns, the only kind the public showcase shows: hidden keeps every run of this project off it; listed (default) leaves it eligible. In any other organisation no run appears on the showcase, whatever this value.'),
+      .default('hidden')
+      .describe('Only matters in an organisation a platform admin founded and still owns, the only kind the public showcase shows: listed puts this project\'s delivered runs on it; hidden (default) keeps every run of it off. Leave it hidden for tests and experiments. In any other organisation no run appears on the showcase, whatever this value.'),
   })
   .strict()
   .refine(p => !p.followUpstream || p.repositoryTarget.source?.mode === 'fork', 'followUpstream requires a fork');
