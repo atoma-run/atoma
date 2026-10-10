@@ -31,11 +31,15 @@ export async function reviewAcceptanceCriteria(args: {
   for (const key of ['acceptanceChecklist', 'rootAcceptanceRefusal', 'rootRemediationScope',
     'previousStepResult', 'previousStepSummary', 'previousStepOutputs', 'previousPhaseObservations',
     'previousRunResults']) delete inputs[key];
-  const criteria: CriterionJudgement[] = [];
-  const refusals: string[] = [];
-  for (let offset = 0; offset < args.checklist.length; offset += CRITERIA_PER_REVIEW) {
-    args.ctx.signal?.throwIfAborted();
-    const batch = args.checklist.slice(offset, offset + CRITERIA_PER_REVIEW);
+  args.ctx.signal?.throwIfAborted();
+  const batches: AcceptanceChecklist[] = [];
+  for (let offset = 0; offset < args.checklist.length; offset += CRITERIA_PER_REVIEW) batches.push(args.checklist.slice(offset, offset + CRITERIA_PER_REVIEW));
+  // The batches share nothing: each judges its own ids on the same evidence.
+  // Run together, a twelve-criterion review costs one call's wall time, not
+  // six (2026-10-10, run timing analysis). Results keep checklist order.
+  const reviewed = await Promise.all(batches.map(async (batch) => {
+    const criteria: CriterionJudgement[] = [];
+    const refusals: string[] = [];
     const response = await args.ctx.llm.complete({
       model: modelForTier(1), systemPrompt: CRITERIA_REVIEW_PROMPT,
       userContent: [`Original task: ${args.task.description}`, ...taskContextLines({ ...args.task, inputs }),
@@ -51,10 +55,10 @@ export async function reviewAcceptanceCriteria(args: {
     };
     // The recording client retains the raw response and usage. Never salvage
     // an incomplete verdict into approval or retry tools to repair its format.
-    if (response.stopReason !== 'end_turn') { incomplete('response did not finish'); continue; }
+    if (response.stopReason !== 'end_turn') { incomplete('response did not finish'); return { criteria, refusals }; }
     let verdict;
     try { verdict = parseVerdict(response.text); }
-    catch { incomplete('invalid verdict JSON'); continue; }
+    catch { incomplete('invalid verdict JSON'); return { criteria, refusals }; }
     // The evidence lists the whole checklist, so a batch reviewer may also
     // judge items of OTHER batches. Those are judged in their own batch and
     // are dropped here, never counted. Runs 299627a9 and cb3843c6 (2026-10-09)
@@ -67,7 +71,7 @@ export async function reviewAcceptanceCriteria(args: {
     if (judged.length !== batch.length || batch.some(item => judged.filter(j => j.id === item.id).length !== 1) ||
       judged.some(j => !j.reason?.trim())) {
       incomplete('missing, duplicate, unknown or unexplained criterion judgments');
-      continue;
+      return { criteria, refusals };
     }
     criteria.push(...judged);
     const unmet = judged.filter(j => !j.met);
@@ -76,6 +80,9 @@ export async function reviewAcceptanceCriteria(args: {
         ? unmet.map(j => `${j.id}: ${j.reason}`).join('; ')
         : `Focused review refused ${batch.map(item => item.id).join(', ')}: ${verdict.reasoning}`);
     }
-  }
+    return { criteria, refusals };
+  }));
+  const criteria = reviewed.flatMap((batch) => batch.criteria);
+  const refusals = reviewed.flatMap((batch) => batch.refusals);
   return { approved: refusals.length === 0, reasoning: refusals.join('\n'), criteria };
 }

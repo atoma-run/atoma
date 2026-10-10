@@ -858,7 +858,8 @@ export interface BranchEventInfo {
  * the signal it must run under, or none to keep its own.
  */
 export interface DeferredLearning {
-  defer(learn: (signal?: AbortSignal) => Promise<void>): void;
+  /** `owner` is the skill namespace written; lessons of one owner run in order, owners side by side. */
+  defer(learn: (signal?: AbortSignal) => Promise<void>, owner?: string): void;
 }
 
 export interface RunContext {

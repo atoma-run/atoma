@@ -192,16 +192,29 @@ export function withAcceptanceChecklist(task: Task, checklist: AcceptanceCheckli
   };
 }
 
-/** Run in order under the approved pass's finalization signal; each lesson logs its own failure. */
-async function saveLessons(lessons: readonly ((signal?: AbortSignal) => Promise<void>)[], signal: AbortSignal,
-  ctx: RunContext): Promise<void> {
-  for (const [index, learn] of lessons.entries()) {
-    if (signal.aborted) {
-      discardLessons(lessons.slice(index), ctx, 'the finalization window closed first');
-      return;
+export type Lesson = { readonly learn: (signal?: AbortSignal) => Promise<void>; readonly owner: string | undefined };
+
+/**
+ * Run under the approved pass's finalization signal; each lesson logs its own
+ * failure. One owner's lessons run in order (they write the same skill
+ * namespace) and owners run side by side: a delivery waited for every
+ * molecule's recipe one after another (2026-10-10 timing analysis). Lessons
+ * with no owner run last, in order, as before.
+ */
+export async function saveLessons(lessons: readonly Lesson[], signal: AbortSignal, ctx: RunContext): Promise<void> {
+  const queues = new Map<string, Lesson[]>();
+  for (const lesson of lessons) if (lesson.owner !== undefined) queues.set(lesson.owner, [...(queues.get(lesson.owner) ?? []), lesson]);
+  const run = async (queue: readonly Lesson[]) => {
+    for (const [index, lesson] of queue.entries()) {
+      if (signal.aborted) {
+        discardLessons(queue.slice(index), ctx, 'the finalization window closed first');
+        return;
+      }
+      await lesson.learn(signal);
     }
-    await learn(signal);
-  }
+  };
+  await Promise.all([...queues.values()].map(run));
+  await run(lessons.filter((lesson) => lesson.owner === undefined));
 }
 
 function discardLessons(lessons: readonly unknown[], ctx: RunContext, why: string): void {
@@ -288,14 +301,14 @@ export async function runDepthTask(args: {
         // ONE PASS'S LESSONS wait for the root's verdict on that pass: saved
         // when it approves, dropped on every other way out (owner decision
         // 2026-10-09; run fc2a68cf learned from a phase the root then refused).
-        const lessons: Array<(signal?: AbortSignal) => Promise<void>> = [];
+        const lessons: Lesson[] = [];
         let lessonsSaved = false;
         try {
           let result: Result;
           let delivery: DeliveryKind | undefined;
           let rootPlan: Plan | undefined;
           let rootPhases: readonly string[] = [];
-          const passCtx: RunContext = { ...attemptCtx, deferredLearning: { defer: (learn) => { lessons.push(learn); } },
+          const passCtx: RunContext = { ...attemptCtx, deferredLearning: { defer: (learn, owner) => { lessons.push({ learn, owner }); } },
             recordRootPlan: (plan) => {
               rootPlan = plan;
               delivery = plan.delivery;

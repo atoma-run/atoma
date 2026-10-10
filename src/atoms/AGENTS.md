@@ -66,7 +66,7 @@ Neighbours:
   Text review derives a bounded L2 reference blinded to the current answer, plan and remediation (`textReview.ts`).
   One extra tool-free call per text acceptance; no effort override, automatic vote or proof credit.
   The reviewer judges the whole task; references remain fallible model text. [Review](../../docs/text-review-and-history-2026-10-03.md).
-  The root changes no phase credits; a pass's new skill lessons wait for its approval and a refusal drops them (owner decision 2026-10-09, run fc2a68cf). The probe receives only `output` and `summary`, as at L3; internal plan/verdict/fallback trace quotes are not delivery claims. Phase coverage is collected with its original attempt and branch, never reevaluated against the root floor. The floor is not inherited by phases. The review
+  The root changes no phase credits; a pass's new skill lessons wait for its approval and a refusal drops them (owner decision 2026-10-09, run fc2a68cf); after it, one owner's lessons run in order and owners side by side (`saveLessons`). The probe receives only `output` and `summary`, as at L3; internal plan/verdict/fallback trace quotes are not delivery claims. Phase coverage is collected with its original attempt and branch, never reevaluated against the root floor. The floor is not inherited by phases. The review
   reads one mechanical line naming the sizes the attempt's pages were laid
   out at (`observedLayoutsBlock`): run 134d916a was accepted on "no overflow
   at 375 and 1280 pixels" with every check at 800x600. That line alone did
@@ -87,7 +87,7 @@ Neighbours:
   so it refuses with that criterion. A drafted item judged unmet is recorded
   and never fails a run by itself.
 - A completed FILE delivery reviewed against a USER list also
-  passes `reviewAcceptanceCriteria`: sequential batches of at most two items,
+  passes `reviewAcceptanceCriteria`: concurrent batches of at most two items,
   on the cheapest tier, with host evidence but no result report or global
   verdict. Those judgments replace the global call's checklist judgments;
   any unmet item or refused batch prevents delivery. Invalid, truncated,

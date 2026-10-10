@@ -152,9 +152,9 @@ import { namespaceOf, skillEventExecutor, type SkillNamespace } from '../skills/
  * lesson runs under the signal the root hands it: the branch's own may have
  * closed with the run's deadline by the time an approval comes.
  */
-async function learnAfterRoot(ctx: RunContext, learn: (learnCtx: RunContext) => Promise<void>): Promise<void> {
+async function learnAfterRoot(ctx: RunContext, owner: string, learn: (learnCtx: RunContext) => Promise<void>): Promise<void> {
   if (!ctx.deferredLearning) return learn(ctx);
-  ctx.deferredLearning.defer((signal) => learn(signal ? { ...ctx, signal } : ctx));
+  ctx.deferredLearning.defer((signal) => learn(signal ? { ...ctx, signal } : ctx), owner);
 }
 
 /**
@@ -1221,7 +1221,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         eventSkillInjected: eventState.injected,
       });
       if (eventLesson) {
-        await learnAfterRoot(branchCtx, async (learnCtx) => {
+        await learnAfterRoot(branchCtx, namespaceOf(l1Type), async (learnCtx) => {
           try {
             await eventLesson(learnCtx);
           } catch (err) {
@@ -2027,7 +2027,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
           // Learning compiles what it learns; the scan reads the HOME's
           // declared tools, as the credit path's promotion does (R3).
           const hostTools = (this.registry.getByAtomId(skillCtx.l1Name)?.tools ?? []).map((t) => t.name);
-          await learnAfterRoot(ctx, async (learnCtx) => {
+          await learnAfterRoot(ctx, skillCtx.l1Name, async (learnCtx) => {
             try {
               await this.learnSkillFromRun({
                 l1Name: skillCtx.l1Name,
