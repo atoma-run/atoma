@@ -278,6 +278,11 @@ Benzene, Adrenaline), none trusted but Ammonia and Benzene until the
 winners re-earn three successes. `atoma_ledger_check` afterwards: 20 types,
 117 recipes, no impossible drift.
 
+What twelve production runs showed the same afternoon — two defects the
+merges caused and fixed, narrowing seeds at work, the first result-audit
+sample — is in
+[production-runs-2026-10-10.md](incidents/production-runs-2026-10-10.md).
+
 **Benzene and Ammonia stay two canonicals** (decided 2026-10-10, delegated).
 A fusion at the bootstrap would put the docs-first prompt — consult the
 snapshot before editing, cite digests and line spans — on every file write,
