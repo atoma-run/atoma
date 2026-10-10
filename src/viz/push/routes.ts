@@ -203,6 +203,7 @@ const PUSH_ROUTE_SOURCES: Record<PlatformEventKind, PushRouteSource | null> = {
   'skill.dropped': null,
   'skill.merged': null,
   'registry.rolled_back': null,
+  'registry.merged': null,
   // Not pushed while the rule table is uncalibrated: an alert nobody trusts
   // trains the operator to dismiss the channel. Revisit once the rules have
   // run against real batches.

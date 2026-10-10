@@ -16,6 +16,8 @@ import { skillsDirPath, storeDbPath } from '../core/stores.js';
 import { SkillRegistry } from '../skills/registry.js';
 import { parseCliArgs } from './args.js';
 import { AtomRegistry, type AtomType } from '../registry/atomRegistry.js';
+import { applyIdentityMerge, archiveForMerge, planIdentityMerge } from '../registry/mergeIdentities.js';
+import { capabilityDescription } from '../atoms/capability.js';
 import type { Tier } from '../core/types.js';
 import { shouldTrustType, trustThreshold } from '../atoms/cost.js';
 
@@ -34,6 +36,7 @@ interface Args {
     | 'show'
     | 'top'
     | 'dedupe'
+    | 'merge'
     | 'describe'
     | 'rebrand'
     | 'remove'
@@ -54,7 +57,7 @@ function parseArgs(argv: string[]): Args {
     booleanFlags: ['apply', 'fuzzy', 'all', 'force', 'clear'],
   });
   if (command === null) return { command: 'help', positional, flags };
-  if (!['list', 'show', 'top', 'dedupe', 'describe', 'rebrand', 'remove', 'history', 'rollback', 'cache', 'help'].includes(command)) {
+  if (!['list', 'show', 'top', 'dedupe', 'merge', 'describe', 'rebrand', 'remove', 'history', 'rollback', 'cache', 'help'].includes(command)) {
     return { command: 'help', positional: [command, ...positional], flags };
   }
   return { command: command as Args['command'], positional, flags };
@@ -244,6 +247,48 @@ function dropLeftoverSkillNamespaces(skills: SkillRegistry, atomIds: readonly st
   }
 }
 
+/**
+ * `merge <winner> <losers…>`: the identity merge `dedupe` cannot find (it
+ * groups by display name) and would do wrong (it drops the losers' skill
+ * namespaces). Dry run by default; `--apply` archives the store and the
+ * touched namespaces, then merges (docs/registry-reconciliation-2026-10-10.md).
+ */
+async function cmdMerge(
+  registry: AtomRegistry,
+  skills: SkillRegistry,
+  db: ReturnType<typeof openDb>,
+  dbPath: string,
+  winner: string,
+  losers: string[],
+  flags: Record<string, string>
+): Promise<void> {
+  const plan = planIdentityMerge(registry, skills, winner, losers, { force: flags['force'] === 'true' });
+  if (plan.refusals.length > 0) {
+    for (const refusal of plan.refusals) console.error(`refused: ${refusal}`);
+    process.exit(1);
+  }
+  const relabel = flags['relabel'] === 'canonical'
+    ? capabilityDescription(plan.winner.tools, plan.winner.tier)
+    : flags['relabel'];
+  console.log(`winner  : ${plan.winner.name} (tier ${plan.winner.tier}, ✓${plan.winner.successes}/✗${plan.winner.failures}, streak ${plan.winner.consecutiveSuccesses})`);
+  for (const loser of plan.losers) {
+    console.log(`merge ← : ${loser.name} (✓${loser.successes}/✗${loser.failures}, streak ${loser.consecutiveSuccesses}, createdBy ${loser.createdBy})`);
+  }
+  for (const skill of plan.skills) {
+    console.log(`  ${skill.action === 'move' ? 'moves  ' : 'absorbs'} ${skill.fromName}/${skill.id} (✓${skill.successes}/✗${skill.failures})`);
+  }
+  if (relabel) console.log(`relabel : ${relabel}`);
+  if (flags['apply'] !== 'true') {
+    console.log('\nDRY RUN. Rerun with --apply to archive the store and the touched namespaces, then merge.');
+    return;
+  }
+  const archiveDir = await archiveForMerge({ db, dbPath, skills, plan });
+  const result = applyIdentityMerge({ registry, skills, plan, modifiedBy: 'cli', archiveDir, ...(relabel ? { relabel } : {}) });
+  console.log(`\n✓ merged — ${result.winner.name} now ✓${result.winner.successes}/✗${result.winner.failures}, streak ${result.winner.consecutiveSuccesses}`);
+  console.log(`  recipes moved: ${result.moved.length}, absorbed: ${result.absorbed.length}`);
+  console.log(`  archive: ${result.archiveDir}`);
+}
+
 function cmdDedupe(registry: AtomRegistry, skills: SkillRegistry, apply: boolean, fuzzy: boolean): void {
   const groups = registry.findDuplicateGroups({ fuzzy });
   if (groups.length === 0) {
@@ -410,6 +455,17 @@ function help(): void {
                                 "minesweeper_webgl"). --fuzzy also matches
                                 word-order variants ("WebGLMinesweeper" vs
                                 "MinesweeperWebGL") by sorting tokens.
+  merge <winner> <losers…>    — absorb named types of the same tier into the
+       [--apply] [--force]      winner: totals summed (its streak resets),
+       [--relabel <text>|canonical] history archived under its versions, the
+                                losers' recipes MOVED under its namespace (an
+                                id the winner holds is absorbed as "skills
+                                merge" does). Dry run without --apply; with it
+                                the store and every touched namespace are
+                                archived under archives/ first. A loser a
+                                bootstrap, a person or the tissue author
+                                created needs --force. Finds the clones
+                                dedupe cannot: dedupe groups by NAME.
   describe <name> <text>      — overwrite the short description of a type
                                 (useful to heal "description drift" — e.g. a
                                 patched type whose description still says
@@ -549,6 +605,18 @@ function main(): void {
         args.flags['apply'] === 'true',
         args.flags['fuzzy'] === 'true'
       );
+    case 'merge': {
+      const [winner, ...losers] = args.positional;
+      if (!winner || losers.length === 0) {
+        console.error('usage: merge <winner> <loser…> [--apply] [--force] [--relabel <text>|canonical]');
+        process.exit(2);
+      }
+      cmdMerge(registry, skills, db, dbPath, winner, losers, args.flags).catch((error: unknown) => {
+        console.error(`merge failed: ${error instanceof Error ? error.message : String(error)}`);
+        process.exit(1);
+      });
+      return;
+    }
     case 'describe': {
       const name = args.positional[0];
       const newDescription = args.positional.slice(1).join(' ');

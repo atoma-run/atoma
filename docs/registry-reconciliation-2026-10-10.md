@@ -235,16 +235,47 @@ its citation lines added when the host has docs) is the bootstrap change
 the owner raised on 2026-10-10; it would merge 53/0 into 176/2 and move
 Benzene's seven recipes.
 
-**Tooling before any write.** `registry dedupe` groups by NAME (a fuzzy key
-over the display name), so it finds none of the groups above — they are
-chemistry names. `AtomRegistry.mergeInto` does the merge and the CLI
-reaches it only through `dedupe`; and the CLI then DROPS the losers' skill
-namespaces (`skills/<atom-id>/`), which is what would lose Glucose's,
-Serotonin's and Chlorophyll's recipes. The merge therefore needs a
-`registry merge <winner> <losers…>` that moves each loser's namespace
-under the winner (duplicate ids by `skills merge`), with the store and
-skills archived first. That command is the next piece of work, if the
-owner names winners.
+**Tooling.** `registry dedupe` groups by NAME (a fuzzy key over the display
+name), so it finds none of the groups above — they are chemistry names;
+`AtomRegistry.mergeInto` does the merge and the CLI reached it only through
+`dedupe`, which then DROPS the losers' skill namespaces. `registry merge
+<winner> <losers…>` and `atoma_registry_merge` (`src/registry/mergeIdentities.ts`,
+2026-10-10) do what the record asked: a pure plan, an archive of the store
+and every touched namespace under `archives/registry-merge-<stamp>`, then
+the losers' recipes MOVED under the winner (`SkillRegistry.moveNamespace`:
+a moved recipe keeps its counters, the ledger receives a compensation on
+its new entity; an id the winner holds is absorbed as `skills merge`
+absorbs), then `mergeInto`, then an optional relabel.
+
+**Winners, named 2026-10-10** (the owner delegated the naming):
+
+| Winner | Absorbs | Relabel |
+|---|---|---|
+| Water | Glucose, Sucrose, Serotonin | — |
+| CarbonDioxide | Ethanol, Methanol, Acetone, Caffeine, Dopamine, DNA | — |
+| Methane | Hemoglobin | — |
+| Adrenaline | Insulin, Chlorophyll | canonical (the eleven-tool general-purpose label) |
+| Protoplast | Trichome | canonical |
+
+Reasoning: the canonical of each signature wins where one exists, since the
+bootstrap keeps its prompt current and its label is the signature's; where
+none exists the elder wins and takes the canonical label. What it costs,
+by contract: a merge resets the winner's streak, so Protoplast (114/0,
+streak 100) and Adrenaline (streak 39) re-earn their three successes; the
+absorbed recipes of Glucose (dashboard, 13/11), Serotonin (static-UI patch,
+18/16) and Chlorophyll (dashboard, 17/17) move with their counters, and no
+recipe id collides with its winner's. Ethanol's fifteen-streak and the
+narratives' streaks are absorbed as totals.
+
+**Benzene and Ammonia stay two canonicals** (decided 2026-10-10, delegated).
+A fusion at the bootstrap would put the docs-first prompt — consult the
+snapshot before editing, cite digests and line spans — on every file write,
+including the many without a project snapshot; Benzene searches the docs
+twice per task where Ammonia writes at once, and the model itself takes
+Ammonia 66 times to Benzene's 12. The Jev fold of the same day removes the
+mass-splitting that was the measured cost of the pair, and `createOrRefresh`
+keeps both current. Revisit if a reading shows deliveries that needed the
+snapshot going to Ammonia.
 
 What a planner writes in a create seed therefore persists nowhere any more:
 the label is the signature's, the prompt the template, the tools the

@@ -91,6 +91,11 @@ Neighbours:
   refreshes canonicals. Before 2026-10-10 each template revision made every
   earlier type non-equivalent and the next creation a clone
   ([the clone engine](../../docs/registry-reconciliation-2026-10-10.md)).
+  The clones that exist are merged by a PERSON naming the winner:
+  `registry merge` / `atoma_registry_merge` (`mergeIdentities.ts`) archive
+  the store and the touched namespaces, move the losers' recipes under the
+  winner, then `mergeInto`. `dedupe` groups by display name and finds none
+  of them.
   `listCapabilities` presents one oldest identity per equivalent behavior and
   excludes an entire equivalent group if any member is excluded. It never
   deletes history, moves skill namespaces or transfers trust between identities.

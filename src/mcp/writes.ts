@@ -38,6 +38,8 @@ import { type PlatformEventInput, type PlatformEventSink, eventLabel } from '../
 import { withLedgerScope, type LedgerScope } from '../core/ledger.js';
 import { skillsDirPath, storeDbPath } from '../core/stores.js';
 import { AtomRegistry } from '../registry/atomRegistry.js';
+import { applyIdentityMerge, archiveForMerge, planIdentityMerge } from '../registry/mergeIdentities.js';
+import { capabilityDescription } from '../atoms/capability.js';
 import { openDb } from '../registry/db.js';
 import { resolveMoleculeRef } from '../skills/namespace.js';
 import { SkillRegistry } from '../skills/registry.js';
@@ -169,6 +171,64 @@ export function skillMerge(input: { l1: string; keep: string; absorb: string; fo
     journaled,
     note: 'The keeper’s body, counters and kind are untouched; the absorbed body and its counters are gone.',
   };
+}
+
+/**
+ * `registry merge`: absorb named losers into a winner — counters and history
+ * through `mergeInto`, recipes moved under the winner, the store and the
+ * touched namespaces archived first (docs/registry-reconciliation-2026-10-10.md).
+ * `dryRun` answers with the plan and writes nothing.
+ */
+export async function registryMerge(input: {
+  winner: string; losers: string[]; relabel?: string; force?: boolean; dryRun?: boolean; actor: OperatorActor; emit?: PlatformEventSink;
+}): Promise<unknown> {
+  const dbPath = storeDbPath();
+  if (!existsSync(dbPath)) throw new WriteRefused(`no agent store at ${dbPath}`);
+  const db = openDb(dbPath);
+  try {
+    const registry = new AtomRegistry(db);
+    const skills = new SkillRegistry(skillsDirPath(), { db });
+    const plan = planIdentityMerge(registry, skills, input.winner, input.losers, { force: Boolean(input.force) });
+    const relabel = input.relabel === 'canonical' && plan.refusals.length === 0
+      ? capabilityDescription(plan.winner.tools, plan.winner.tier)
+      : input.relabel;
+    const planned = {
+      winner: { name: plan.winner.name, tier: plan.winner.tier, successes: plan.winner.successes, failures: plan.winner.failures, description: plan.winner.description },
+      losers: plan.losers.map((loser) => ({ name: loser.name, createdBy: loser.createdBy, successes: loser.successes, failures: loser.failures, consecutiveSuccesses: loser.consecutiveSuccesses })),
+      skills: plan.skills,
+      relabel: relabel ?? null,
+      refusals: plan.refusals,
+    };
+    if (plan.refusals.length > 0) throw new WriteRefused(`merge refused: ${plan.refusals.join('; ')}`);
+    if (input.dryRun) {
+      return { dryRun: true, ...planned, actor: input.actor.label, note: 'Nothing was written. Call again without dryRun to archive, then merge.' };
+    }
+    // The archive is the one asynchronous step and runs OUTSIDE the ledger
+    // scope, which refuses a promise; the merge itself is synchronous inside it.
+    const archiveDir = await archiveForMerge({ db, dbPath, skills, plan });
+    const result = withLedgerScope(ledgerScopeOf(input.actor), () =>
+      applyIdentityMerge({ registry, skills, plan, modifiedBy: input.actor.label, archiveDir, ...(relabel !== undefined ? { relabel } : {}) }));
+    const journaled = journal(input.emit, input.actor, {
+      kind: 'registry.merged',
+      summary: `agent types ${plan.losers.map((loser) => eventLabel(loser.name)).join(', ')} merged into ${eventLabel(plan.winner.name)} by ${input.actor.label}`,
+      detail: {
+        winner: plan.winner.name, tier: plan.winner.tier, losers: plan.losers.map((loser) => loser.name),
+        successes: plan.losers.reduce((sum, loser) => sum + loser.successes, 0),
+        failures: plan.losers.reduce((sum, loser) => sum + loser.failures, 0),
+        skillsMoved: result.moved.length, skillsAbsorbed: result.absorbed.length, relabelled: result.relabelled, archiveDir: result.archiveDir,
+      },
+    });
+    return {
+      dryRun: false,
+      ...planned,
+      merged: { name: result.winner.name, successes: result.winner.successes, failures: result.winner.failures, consecutiveSuccesses: result.winner.consecutiveSuccesses, description: result.winner.description, version: result.winner.version },
+      skillsMoved: result.moved, skillsAbsorbed: result.absorbed, archiveDir: result.archiveDir,
+      actor: input.actor.label, journaled,
+      note: 'Losers deleted, their totals summed into the winner (its streak resets by contract), their history archived under the winner’s versions, their recipes moved; absorbed recipes lost their body and counters. The archive holds the store and every touched namespace as they were.',
+    };
+  } finally {
+    db.close();
+  }
 }
 
 /** `registry rollback`: restore an old version's content as a NEW live version; trust resets. */

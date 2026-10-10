@@ -5,7 +5,7 @@ import { PlatformEventLog } from '../src/platform/events.js';
 import { projectRetrievalFixture } from './helpers/projectRetrievalLaunch.js';
 import { haystackTestEnvironment } from './helpers/haystack.js';
 import { createServer, type IncomingMessage, type Server } from 'node:http';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -447,7 +447,7 @@ describe('the catalogue by tier', () => {
     expect(asOperator).toContain('atoma_run_trace');
     // The operator-only readers and writes the roadmap owed, all platform-tier:
     // skill analytics and the four lifecycle writes included.
-    for (const owed of ['atoma_ledger_tail', 'atoma_costs', 'atoma_skills_stats', 'atoma_skills_review', 'atoma_verdicts_list', 'atoma_verdict_show', 'atoma_sentinel_health', 'atoma_mcp_health', 'atoma_skill_reset', 'atoma_skill_drop', 'atoma_skill_merge', 'atoma_registry_rollback']) {
+    for (const owed of ['atoma_ledger_tail', 'atoma_costs', 'atoma_skills_stats', 'atoma_skills_review', 'atoma_verdicts_list', 'atoma_verdict_show', 'atoma_sentinel_health', 'atoma_mcp_health', 'atoma_skill_reset', 'atoma_skill_drop', 'atoma_skill_merge', 'atoma_registry_rollback', 'atoma_registry_merge']) {
       expect(asOperator).toContain(owed);
       expect(asAdmin).not.toContain(owed);
     }
@@ -669,6 +669,50 @@ describe('operator writes over MCP — attributed and journaled', () => {
     expect(rollback.isError).toBe(true);
     expect(JSON.stringify(rollback.content)).toMatch(/refused/);
     await operator.close();
+  });
+
+  it('merges named identities with their recipes, after a dry run that writes nothing, attributed and journaled', async () => {
+    const { dir } = skillsFixture();
+    const db = openDb(join(dir, 'atoma.db'));
+    const registry = new AtomRegistry(db);
+    const seed = { description: 'file scribe', systemPrompt: 'behavior', tools: [], params: {}, createdBy: 'Idioblast' };
+    const winner = registry.create(1, seed);
+    const loser = registry.create(1, { ...seed, systemPrompt: 'older behavior' });
+    registry.recordSuccess(loser.name);
+    const skills = new SkillRegistry(join(dir, 'skills'), { db });
+    skills.save(loser.atomId, { id: 'moves', description: 'm', whenToUse: 'when moving', kind: 'llm', body: 'body M' });
+    skills.recordSuccess(loser.atomId, 'moves');
+    db.close();
+    const events: unknown[] = [];
+    const admin = viewer('org:owner', true);
+    const { url } = await listen(() => ({ kind: 'principal', viewer: admin, tokenId: 'a' }), { ...TENANT_HOST, emit: (event) => { events.push(event); } });
+    const client = await connect(url);
+    try {
+      const refused = await client.callTool({ name: 'atoma_registry_merge', arguments: { winner: winner.name, losers: [winner.name] } });
+      expect(refused.isError).toBe(true);
+      expect(JSON.stringify(refused.content)).toMatch(/both the winner and a loser/);
+      const dry = await client.callTool({ name: 'atoma_registry_merge', arguments: { winner: winner.name, losers: [loser.name], dryRun: true } });
+      expect(dry.isError).not.toBe(true);
+      expect(dry.structuredContent).toMatchObject({ dryRun: true, skills: [expect.objectContaining({ id: 'moves', action: 'move', successes: 1 })] });
+      expect(events).toEqual([]);
+      const untouched = openDb(join(dir, 'atoma.db'));
+      expect(new AtomRegistry(untouched).listByTier(1)).toHaveLength(2);
+      untouched.close();
+      const merged = await client.callTool({ name: 'atoma_registry_merge', arguments: { winner: winner.name, losers: [loser.name] } });
+      expect(merged.isError).not.toBe(true);
+      expect(merged.structuredContent).toMatchObject({
+        dryRun: false, merged: { name: winner.name, successes: 1, failures: 0 }, skillsMoved: [`${loser.name}/moves`], journaled: true, actor: `mcp:${admin.principalId}`,
+      });
+      expect(events).toEqual([expect.objectContaining({ kind: 'registry.merged', actorType: 'principal', actorId: admin.principalId, detail: expect.objectContaining({ winner: winner.name, losers: [loser.name], skillsMoved: 1 }) })]);
+      expect(JSON.stringify(events)).not.toContain('body M');
+      const afterDb = openDb(join(dir, 'atoma.db'));
+      expect(new AtomRegistry(afterDb).listByTier(1).map((type) => type.name)).toEqual([winner.name]);
+      expect(new SkillRegistry(join(dir, 'skills'), { db: afterDb }).loadFor(winner.atomId).map((skill) => [skill.id, skill.successes])).toEqual([['moves', 1]]);
+      afterDb.close();
+      expect(existsSync(join(dir, 'archives'))).toBe(true);
+    } finally {
+      await client.close();
+    }
   });
 
   it('reports recovered trust and resets only its streak on an attributed rollback', async () => {

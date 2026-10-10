@@ -233,6 +233,10 @@ by owner decision on 2026-09-26
   budget-kill failures via all-or-nothing `reset` cost 7 earned successes. `registry remove` and
   `registry dedupe --apply` drop the deleted atom's skill namespace
   (`skills/<atom-id>/`); `mergeInto` itself does not touch the skill store.
+  `registry merge` (2026-10-10) MOVES the loser's namespace under the winner
+  (`moveNamespace`): a moved recipe keeps its row and gets a
+  `skill-counter-compensation` on its new entity carrying its counters, an
+  id the winner holds is absorbed as `merge` absorbs.
 - Compilation's measured value is maintenance verification, not from-scratch
   builds. Compiling everywhere at learn time is an owner policy, not a
   measured saving; do not report it as one, and do not spend new rounds

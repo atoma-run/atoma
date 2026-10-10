@@ -821,6 +821,80 @@ export class SkillRegistry {
   }
 
   /**
+   * Move every recipe of one namespace under another — an identity merge
+   * (`registry merge`, docs/registry-reconciliation-2026-10-10.md), where
+   * the loser's knowledge follows its counters to the winner instead of
+   * dying with the row as `dropNamespace` makes it.
+   *
+   * An id the winner lacks MOVES: folder and row keep their body, counters
+   * and stamps under the new namespace, and the ledger receives a
+   * `skill-counter-compensation` on the new entity carrying the counters,
+   * with the reason naming the move, so `ledger check` projects the moved
+   * recipe exactly where it now is (its old entity has no store row to
+   * compare). An id the winner already holds is ABSORBED exactly as
+   * `merge` absorbs: the winner's body, counters and stamps stay, its
+   * matching surface takes the loser's `when_to_use`, and the loser's body
+   * and counters are gone — counters earned by a different body never sum.
+   *
+   * CRASH ORDER, per recipe: the folder first (rename or removal), then
+   * one transaction for the row and its event — the orders `merge` and
+   * `drop` already reason through. Returns what moved and what was
+   * absorbed; both empty when the loser had no namespace.
+   */
+  moveNamespace(from: string, to: string): { moved: string[]; absorbed: string[] } {
+    const moved: string[] = [];
+    const absorbed: string[] = [];
+    if (from === to) return { moved, absorbed };
+    const fromDir = this.namespaceDir(from);
+    if (!existsSync(fromDir)) return { moved, absorbed };
+    beforeDurableFileMutation(() => this.writeStore());
+    const db = this.writeStore();
+    this.assertNotNested(db);
+    mkdirSync(this.namespaceDir(to), { recursive: true });
+    for (const skill of this.loadFor(from)) {
+      const source = this.skillDir(from, skill.id);
+      const target = this.skillDir(to, skill.id);
+      if (existsSync(join(target, 'SKILL.md'))) {
+        const keep = parseFrontmatter(readFileSync(join(target, 'SKILL.md'), 'utf8'));
+        const mergedWhenToUse = keep.frontmatter.whenToUse.includes(skill.whenToUse)
+          ? keep.frontmatter.whenToUse
+          : `${keep.frontmatter.whenToUse}; also: ${skill.whenToUse}`;
+        if (mergedWhenToUse !== keep.frontmatter.whenToUse) {
+          writeFileSync(join(target, 'SKILL.md'), renderFrontmatter({ ...keep.frontmatter, whenToUse: mergedWhenToUse }, keep.body), 'utf8');
+        }
+        rmSync(source, { recursive: true, force: true });
+        db.transaction(() => {
+          deleteMetaRow(db, from, skill.id);
+          // `absorbedEntity` names the loser's recipe in full: the projection
+          // zeroes THAT key, never the keeper's, and no counters move.
+          this.recordEvent({ kind: 'skill-merge', entity: `${to}/${skill.id}`, detail: { absorbedEntity: `${from}/${skill.id}` } }, db);
+        }).immediate();
+        absorbed.push(skill.id);
+        continue;
+      }
+      renameSync(source, target);
+      db.transaction(() => {
+        const row = readMetaRow(db, from, skill.id);
+        deleteMetaRow(db, from, skill.id);
+        if (row) writeMetaRow(db, to, skill.id, row);
+        this.recordEvent({
+          kind: 'skill-counter-compensation',
+          entity: `${to}/${skill.id}`,
+          detail: { successes: row?.successes ?? 0, failures: row?.failures ?? 0, reason: `moved from ${from}` },
+        }, db);
+      }).immediate();
+      moved.push(skill.id);
+    }
+    rmSync(fromDir, { recursive: true, force: true });
+    db.transaction(() => {
+      if (deleteNamespaceRows(db, from) > 0) {
+        this.recordEvent({ kind: 'skill-drop', entity: from, detail: { namespace: true } }, db);
+      }
+    }).immediate();
+    return { moved, absorbed };
+  }
+
+  /**
    * Consolidate two skills of one L1 (CLI `skills merge`): the KEEPER's
    * matching surface absorbs the other skill's `when_to_use`, and the
    * absorbed skill is deleted. Deliberately MECHANICAL, no LLM:

@@ -90,7 +90,7 @@ import {
   type StartRunInput,
 } from './run.js';
 import type { RunLeaseAcquirer } from './runLock.js';
-import { WriteRefused, registryRollback, skillDrop, skillMerge, skillReset, type OperatorActor } from './writes.js';
+import { WriteRefused, registryMerge, registryRollback, skillDrop, skillMerge, skillReset, type OperatorActor } from './writes.js';
 
 /**
  * THE CATALOGUE — every `atoma_*` tool, its minimum tier, and what it needs
@@ -1362,6 +1362,30 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
           _meta: PERSON_DECIDES,
         },
         (args) => guarded(() => registryRollback({ ...args, actor: actorOf(ctx), ...(ctx.deps.emit ? { emit: ctx.deps.emit } : {}) }))
+      ),
+  },
+  {
+    name: 'atoma_registry_merge',
+    tier: 'platform',
+    needs: ['operator-runs'],
+    register: (server, ctx) =>
+      server.registerTool(
+        'atoma_registry_merge',
+        {
+          title: 'Merge agent types into one',
+          description:
+            'Absorb the named losers into the winner, same tier: their success/failure totals are summed into it (its streak resets), their version history is archived under its versions, their recipes MOVE under its namespace (an id the winner already holds is absorbed: the winner’s body and counters stay, the loser’s are lost), and the store plus every touched namespace are archived under the store’s archives/ first. A loser a bootstrap, a person or the tissue author created is refused without force. relabel replaces the winner’s description afterwards; "canonical" means the label its tool signature derives. dryRun returns the plan and writes nothing. Attributed and journaled.',
+          inputSchema: {
+            winner: z.string().min(1),
+            losers: z.array(z.string().min(1)).min(1).max(32),
+            relabel: z.string().max(400).optional(),
+            force: z.boolean().optional(),
+            dryRun: z.boolean().optional(),
+          },
+          annotations: LOCAL_WRITE,
+          _meta: PERSON_DECIDES,
+        },
+        (args) => guarded(() => registryMerge({ ...args, actor: actorOf(ctx), ...(ctx.deps.emit ? { emit: ctx.deps.emit } : {}) }))
       ),
   },
   {

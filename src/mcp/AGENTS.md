@@ -363,8 +363,8 @@ Neighbours:
   bearer (`mcp:<principalId>`) or the loopback operator (`mcp:operator`), and
   it is written into the payload, into `AtomRegistry.rollback`'s `modifiedBy`,
   and — on a gated host — into one journal row per action (`skill.reset`,
-  `skill.dropped`, `skill.merged`, `registry.rolled_back`, `actorType:
-  principal`, severity warning, never pushed). Rows carry names, ids and
+  `skill.dropped`, `skill.merged`, `registry.rolled_back`, `registry.merged`,
+  `actorType: principal`, severity warning, never pushed). Rows carry names, ids and
   counters, NEVER a body. On the ungated path there is no journal and the
   payload says `journaled: false`; that matches the CLI, which has no principal
   to name.
