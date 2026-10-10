@@ -185,10 +185,8 @@ load-bearing.
   decides NOTHING — Jev's approval stands whatever the model says — and its
   role keeps it out of every reader that counts validations.
 - The Jev calibration (`jevCalibration.ts`) reads prefilter and validation
-  prompts back out of traces: the LAYOUT `prefilterStrategy` and `llmVerdict`
-  send is a contract with it (`tests/jev-calibration.test.ts` renders with the
-  production code and parses it back). A recipe's opening steps, which that
-  prompt lacks, come from the deferring `jev` event's `details` (2026-10-10).
+  prompts back out of traces: their LAYOUT is a contract with it (`tests/jev-calibration.test.ts`);
+  a recipe's opening steps come from the deferring `jev` event's `details`.
 - Atom trust fast paths require the configured consecutive approved-result
   threshold (default 3), read through `trustThreshold()`; historical failures do
   not permanently disqualify a type. Script dispatch retains its separate
@@ -551,11 +549,8 @@ Read the archived sections before changing something that merely looks odd.
   `descriptionReplace` passes through `resolveCreationDescription`. The earlier
   domain-match rule could only spawn identical clones once descriptions became
   capability labels; the theme travels in the subtask description. Since
-  2026-10-10 a signature the tier already holds keeps the canonical label
-  whatever a seed or validator wrote (the lexical filter let "Bayesian urn
-  analysis" through), a create seed NARROWS its parent's tools (`scopeTools`;
-  the union gave every child the parent's whole signature) and template-born
-  types are created through `createOrRefresh` ([src/registry](../registry/AGENTS.md)).
+  2026-10-10 a known signature keeps its canonical label, a seed NARROWS its parent's
+  tools (`scopeTools`), and template-born types go through `createOrRefresh` ([src/registry](../registry/AGENTS.md)).
 - The full-stack canonical pairs Node-server and browser tools without a static
   server. It precedes HTTP in bucket selection; HTTP-only and static-web
   canonicals retain their narrower scopes and identities.
