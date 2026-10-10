@@ -356,8 +356,9 @@ load-bearing.
   together without importing new obligations from earlier validator coaching.
   No mutation execution or extra model call is authorised. Invoice counterexample
   and paired replay: `benchmark/evidence-discrimination-2026-10-05/`.
-  Root and phase file read-back share 24,000 source characters across at most sixteen
-  files: unused shares from small files go to larger files; a batch that fits
+  Phase file read-back shares 24,000 source characters, root acceptance 48,000
+  (one call per pass, a refusal costs a replan; three first refusals judged a
+  page cut past 24,000), across at most sixteen files: unused shares from small files go to larger files; a batch that fits
   stays complete. Longer files retain bounded heads and, past them, the BLOCK
   each line naming a criterion word opens (its deeper-indented lines and closer,
   a quarter of the block budget at most, never overlapping the head; "test" and

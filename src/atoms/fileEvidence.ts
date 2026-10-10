@@ -6,10 +6,16 @@ import { PROBE_MANIFEST_FILENAME } from '../contracts/probeManifest.js';
 
 const NAMED_PATH = /(?<![\w./-])(\.?[\w-][\w.-]+(?:\/[\w.-]+)*\.(?:md|markdown|txt|html?|css|m?js|cjs|ts|json|csv|py|sh|ya?ml))(?![\w/-])/gi;
 const CRITERIA_FILES_MAX = 16;
-const CRITERIA_SOURCE_CHARS = 24_000;
+/** A phase judge's read-back budget; root acceptance passes `ROOT_CRITERIA_SOURCE_CHARS`. */
+export const CRITERIA_SOURCE_CHARS = 24_000;
+/**
+ * Root acceptance reads twice as much: it is one call per pass, its refusal
+ * costs a whole replan, and three of the eight first refusals measured as cut
+ * evidence judged a long page or calendar past 24,000 characters
+ * (docs/incidents/first-refusals-2026-10-10.md).
+ */
+export const ROOT_CRITERIA_SOURCE_CHARS = 48_000;
 const CRITERIA_FILE_MATCHED_BLOCKS = 15;
-/** At most this much of a long file's allowance goes to the blocks past its head. */
-const CRITERIA_FILE_BLOCKS_CHARS = 6_000;
 const CRITERIA_BLOCK_LINES = 25;
 const CRITERIA_LINE_CHARS = 300;
 const CRITERIA_TOKEN = /[a-z][a-z0-9_-]{3,}/g;
@@ -49,11 +55,11 @@ function blockEnd(lines: readonly string[], at: number): number {
  * holding a word of the criteria that name it ("curl", "route", "exit"), so a
  * criterion about a long file is not judged on its first screen only.
  */
-function namedFileExcerpt(content: string, words: ReadonlySet<string>, allowance: number): string {
+function namedFileExcerpt(content: string, words: ReadonlySet<string>, allowance: number, blocksCap: number): string {
   // Keep complete small files: keyword excerpts retain test titles while
   // dropping their fixtures and assertions (warehouse run 22af997d).
   if (content.length <= allowance) return JSON.stringify(content);
-  const blocksBudget = Math.min(CRITERIA_FILE_BLOCKS_CHARS, Math.floor(allowance / 2));
+  const blocksBudget = Math.min(blocksCap, Math.floor(allowance / 2));
   // One block takes at most a quarter, so an early wide match (a describe(),
   // a wrapping <div>) cannot starve the ones after it.
   const blockChars = Math.floor(blocksBudget / 4);
@@ -99,7 +105,8 @@ function namedFileExcerpt(content: string, words: ReadonlySet<string>, allowance
  * path leaving the workspace root is never read.
  */
 export async function criteriaFilesBlock(
-  ctx: RunContext, checklist: AcceptanceChecklist, refreshPaths: readonly string[], taskDescription: string
+  ctx: RunContext, checklist: AcceptanceChecklist, refreshPaths: readonly string[], taskDescription: string,
+  sourceChars: number = CRITERIA_SOURCE_CHARS,
 ): Promise<string> {
   if (!ctx.tools?.has('read_file') || (checklist.length === 0 && refreshPaths.length === 0)) return '';
   const tools = baseExecutorOf(ctx.tools);
@@ -182,7 +189,7 @@ export async function criteriaFilesBlock(
   // Water-fill the same total allowance: small files give their unused share
   // to larger ones. Crossing the total by one character must not collapse
   // every long file back to a 1,200-character head.
-  let remaining = CRITERIA_SOURCE_CHARS;
+  let remaining = sourceChars;
   const allowances = new Map<string, number>();
   const bySize = [...files].sort((a, b) => a.content.length - b.content.length);
   for (const [index, file] of bySize.entries()) {
@@ -191,7 +198,7 @@ export async function criteriaFilesBlock(
     remaining -= allowance;
   }
   lines.push(...files.map(({ label, content, words, referencedBy }) =>
-    `- ${label} (${content.length} chars${referencedBy ? `, referenced by a string literal in ${referencedBy}` : ''}): ${namedFileExcerpt(content, words, allowances.get(label)!)}`));
+    `- ${label} (${content.length} chars${referencedBy ? `, referenced by a string literal in ${referencedBy}` : ''}): ${namedFileExcerpt(content, words, allowances.get(label)!, Math.floor(sourceChars / 4))}`));
   if (attempted < paths.length) lines.push(`${paths.length - attempted} further file reads omitted by the bound or cancellation; their current contents are unknown.`);
   return lines.length > 0
     ? [`FILES THE CRITERIA NAME${refreshPaths.length ? ' OR WHOSE READS WERE SUPERSEDED OR TRUNCATED' : ''}, read back by the host (mechanical). An excerpt cut short is SILENT about what it`,

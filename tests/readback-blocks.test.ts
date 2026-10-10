@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { criteriaFilesBlock } from '../src/atoms/fileEvidence.js';
+import { criteriaFilesBlock, ROOT_CRITERIA_SOURCE_CHARS } from '../src/atoms/fileEvidence.js';
 import type { AcceptanceChecklist } from '../src/contracts/acceptanceChecklist.js';
 import { makeCtx } from './helpers.js';
 
@@ -112,5 +112,16 @@ describe('read-back blocks stay inside the allowance', () => {
     const headLines = head.split(/\r?\n/).length;
     expect(firstLine).toBeGreaterThanOrEqual(headLines);
     expect(firstLine).toBeLessThanOrEqual(headLines + 5);
+  });
+});
+
+describe('root acceptance reads twice the phase budget', () => {
+  it('a 40,000-character page is whole for the root and cut for a phase judge', async () => {
+    const page = `<main>${'<p>row</p>'.repeat(4_000)}</main>`;
+    const { ctx } = workspace({ 'index.html': page });
+    const phase = await criteriaFilesBlock(ctx, [], ['index.html'], '');
+    const root = await criteriaFilesBlock(ctx, [], ['index.html'], '', ROOT_CRITERIA_SOURCE_CHARS);
+    expect(phase).toContain('…(cut at 24000 of');
+    expect(root).toContain(JSON.stringify(page));
   });
 });

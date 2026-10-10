@@ -106,8 +106,10 @@ a string literal. Its adversarial review, before it shipped, capped one block
 at a quarter of the block budget (an early `describe()` starved the rest),
 gave the head back what the blocks left unused without overlapping them,
 counted line offsets on CRLF files, and limited references to test scripts,
-outside `package.json`. The long-page cases are not addressed: their judged
-part may sit anywhere.
+outside `package.json`. For the long-page cases, whose judged part may sit
+anywhere, root acceptance reads 48,000 characters instead of 24,000 (owner
+decision 2026-10-10); a phase judge keeps 24,000, because it runs on every
+phase validation.
 
 ## Not addressed here
 

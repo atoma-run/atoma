@@ -133,7 +133,7 @@ describe('what the root acceptor reads', () => {
   });
 
   it('reads the starting workspace comparison and the files the criteria name, long ones past their head', async () => {
-    const readme = `# Notes API\n${'Intro text. '.repeat(2200)}\n## Routes\ncurl -X POST http://localhost:<port>/api/notes\n`;
+    const readme = `# Notes API\n${'Intro text. '.repeat(4200)}\n## Routes\ncurl -X POST http://localhost:<port>/api/notes\n`;
     const seed = dir({ 'index.html': CONFIGURATOR });
     const now = dir({ 'index.html': '<h1>Home</h1>\n' });
     const start = snapshotStartingWorkspace(seed);
@@ -152,7 +152,8 @@ describe('what the root acceptor reads', () => {
     // Read although the ground-truth block lists it: that block shows a 400-character head.
     expect(prompt).toContain('FILES THE CRITERIA NAME, read back by the host');
     expect(prompt).toContain(`- README.md (${readme.length} chars):`);
-    expect(prompt).toContain(`…(cut at 23951 of ${readme.length} chars)`);
+    // Root acceptance reads 48,000 characters (ROOT_CRITERIA_SOURCE_CHARS).
+    expect(prompt).toContain(`…(cut at 47951 of ${readme.length} chars)`);
     expect(prompt).toContain(`later blocks naming the criteria's words (line: text): ["4: curl -X POST http://localhost:<port>/api/notes"]`);
     expect(prompt).toContain('never judge a criterion unmet on a part of the file you were not shown');
     // A named file that is no workspace file (a download) says nothing.
