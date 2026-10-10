@@ -59,6 +59,12 @@ export interface TooltipRegion {
    * the same space as the rectangle.
    */
   readonly wedge?: TooltipWedge;
+  /**
+   * Keep the bubble inside this horizontal band, wrapping its copy to the
+   * band's width. A region beside DOM overlays needs it: the canvas sits
+   * UNDER every DOM field, so a bubble flipped over one is painted over.
+   */
+  readonly lane?: { readonly x: number; readonly width: number };
 }
 
 export interface TooltipWedge {
@@ -104,6 +110,7 @@ export class TooltipLayer {
   private shownText: string | null = null;
   private shownFontSize = FONT_SIZE;
   private shownAccent: number | undefined;
+  private shownWrap = 0;
   /** When the current hover began, or null while the pointer is over nothing. */
   private hoverStartedAt: number | null = null;
   private hoveredText: string | null = null;
@@ -205,8 +212,12 @@ export class TooltipLayer {
   ): void {
     const { text, accent } = region;
     const fontSize = region.fontSize ?? FONT_SIZE;
-    if (text !== this.shownText || fontSize !== this.shownFontSize || accent !== this.shownAccent) {
+    const wrap = region.lane ? Math.max(80, Math.floor(region.lane.width - PADDING_X * 2)) : 0;
+    if (text !== this.shownText || fontSize !== this.shownFontSize || accent !== this.shownAccent || wrap !== this.shownWrap) {
       this.label.style.fontSize = fontSize;
+      this.label.style.wordWrap = wrap > 0;
+      this.label.style.breakWords = wrap > 0;
+      if (wrap > 0) this.label.style.wordWrapWidth = wrap;
       const measured = this.measure(text);
       this.label.text = text;
       this.shownSize = {
@@ -224,6 +235,7 @@ export class TooltipLayer {
       this.shownText = text;
       this.shownFontSize = fontSize;
       this.shownAccent = accent;
+      this.shownWrap = wrap;
     }
     const { width, height } = this.shownSize;
     // Below-right of the pointer by default, flipped rather than clamped when
@@ -236,6 +248,8 @@ export class TooltipLayer {
       x = region.x - POINTER_GAP_X - width;
       y = region.y + (region.height - height) / 2;
     }
+    // Inside the lane: beside the pointer where it fits, else flush with its edge.
+    if (region.lane) x = Math.max(region.lane.x, Math.min(x, region.lane.x + region.lane.width - width));
     this.bubble.position.set(
       Math.max(EDGE_MARGIN, Math.min(x, viewport.width - EDGE_MARGIN - width)),
       Math.max(EDGE_MARGIN, Math.min(y, viewport.height - EDGE_MARGIN - height))

@@ -5,6 +5,8 @@ import { GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
 import { dateTimeFormat } from '../../../client/date-format.js';
 import { fmtCost, runCost, runDuration } from '../../../client/run-utils.js';
 import { relativeTime, timestampTooltip } from '../relative-time.js';
+import { drawChevron } from '../button-icon.js';
+import { CHEVRON_SIZE } from '../../button-icons.js';
 import { createScrollPane } from '../scroll-pane.js';
 import { viewFrame } from '../view-frame.js';
 import { projectOverview, type OverviewSlice, type ProjectOverview } from '../../project-overview.js';
@@ -29,6 +31,20 @@ const SECTION_GAP = 14;
 const HEADING_HEIGHT = 20;
 const LEGEND_ROW = 22;
 const DONUT_MAX = 168;
+/**
+ * Clear of the pane's scrollbar, which is drawn 5–8px inside the pane's right
+ * edge: content that ran to 4px of it read as glued to the thumb.
+ */
+const SCROLLBAR_GUTTER = 24;
+/** The folded column: a strip holding the toggle and the total. */
+export const PROJECT_ASIDE_COLLAPSED_WIDTH = 52;
+const TOGGLE_SIZE = 28;
+const TOGGLE_ID = 'project.overview.toggle';
+/**
+ * Where hover bubbles for a region stay, so none slides under the DOM
+ * conversation. In the coordinates of the parent that declares the bubble.
+ */
+type Lane = { readonly x: number; readonly width: number };
 
 /**
  * Categorical identity of each slice. L1/L2/L3 are the tier colours the rest
@@ -45,10 +61,11 @@ export const OVERVIEW_SLICE_COLORS: Readonly<Record<CostSliceKey, number>> = {
 };
 
 /** Where the column sits, or null when the frame is too narrow for it. */
-export function projectAsideLayout(viewportWidth: number): { mainWidth: number; asideX: number; asideWidth: number } | null {
+export function projectAsideLayout(viewportWidth: number, collapsed = false): { mainWidth: number; asideX: number; asideWidth: number } | null {
   const frame = viewFrame(viewportWidth, 0);
   if (frame.innerWidth < PROJECT_ASIDE_MIN_CONTENT_WIDTH) return null;
-  const asideWidth = Math.round(Math.min(ASIDE_MAX_WIDTH, Math.max(ASIDE_MIN_WIDTH, frame.innerWidth * 0.28)));
+  const asideWidth = collapsed ? PROJECT_ASIDE_COLLAPSED_WIDTH
+    : Math.round(Math.min(ASIDE_MAX_WIDTH, Math.max(ASIDE_MIN_WIDTH, frame.innerWidth * 0.28)));
   return {
     mainWidth: frame.innerWidth - asideWidth - PROJECT_ASIDE_GAP,
     asideX: frame.innerX + frame.innerWidth - asideWidth,
@@ -69,7 +86,7 @@ export function projectSectionShowsAside(section: GpuRenderSnapshot['state']['pr
 export function projectAsideReserve(snapshot: GpuRenderSnapshot, viewportWidth: number): number {
   if (!snapshot.state.selectedProjectId || !projectSectionShowsAside(snapshot.state.projectSection)) return 0;
   if (!snapshot.data.projects?.some(project => project.projectId === snapshot.state.selectedProjectId)) return 0;
-  const aside = projectAsideLayout(viewportWidth);
+  const aside = projectAsideLayout(viewportWidth, snapshot.state.projectOverviewCollapsed);
   return aside ? aside.asideWidth + PROJECT_ASIDE_GAP : 0;
 }
 
@@ -146,8 +163,10 @@ export function overviewSliceDetail(t: Translate, slice: OverviewSlice, overview
 
 /** Draw the overview body from `y`; returns its height. */
 function drawBody(ctx: RendererCtx, snapshot: GpuRenderSnapshot, parent: Container, x: number, y: number, width: number,
-  project: VizProject, overview: ProjectOverview): number {
+  project: VizProject, overview: ProjectOverview, lane: Lane, withHeader: boolean): number {
   const { t } = snapshot;
+  // Every bubble of this column stays inside it (`TooltipRegion.lane`).
+  const tip = (region: Parameters<RendererCtx['tooltip']>[1]) => ctx.tooltip(parent, { ...region, lane });
   const locale = snapshot.state.locale;
   let cursor = y;
   const heading = (copy: string) => {
@@ -159,14 +178,16 @@ function drawBody(ctx: RendererCtx, snapshot: GpuRenderSnapshot, parent: Contain
   const row = (label: string, value: string, tooltip?: string | null, color: number = GPU_COLORS.text) => {
     ctx.text(parent, label, x, cursor, { size: 11, color: GPU_COLORS.muted, width: labelWidth - 8, singleLine: true });
     ctx.text(parent, value, x + labelWidth, cursor, { size: 11, color, width: width - labelWidth, singleLine: true });
-    ctx.tooltip(parent, { x, y: cursor, width, height: ROW - 2, text: tooltip ?? `${label}: ${value}` });
+    tip({ x, y: cursor, width, height: ROW - 2, text: tooltip ?? `${label}: ${value}` });
     cursor += ROW;
   };
   const exact = (instant: string | null) => instant ? timestampTooltip(instant, locale) : null;
   const ago = (instant: string | null) => instant ? relativeTime(instant, t, locale) || instant : '—';
 
-  ctx.text(parent, t('projects.overview.title'), x, cursor, { size: 14, weight: '700', width, singleLine: true });
-  cursor += 26;
+  if (withHeader) {
+    drawHeader(ctx, snapshot, parent, x, cursor, width, lane);
+    cursor += 34;
+  }
 
   heading(t('projects.overview.project'));
   const created = new Date(project.createdAt);
@@ -210,7 +231,7 @@ function drawBody(ctx: RendererCtx, snapshot: GpuRenderSnapshot, parent: Contain
       const valueWidth = Math.min(width * 0.5, Math.ceil(ctx.measureText(value, { size: 11 })));
       ctx.text(parent, requester.name, x, cursor, { size: 11, width: width - valueWidth - 10, singleLine: true });
       ctx.text(parent, value, x + width - valueWidth, cursor, { size: 11, color: GPU_COLORS.muted, width: valueWidth, singleLine: true });
-      ctx.tooltip(parent, { x, y: cursor, width, height: ROW - 2, text: [
+      tip({ x, y: cursor, width, height: ROW - 2, text: [
         requester.name, value,
         t('projects.overview.lastRunBy', { value: exact(requester.lastRunAt) ?? requester.lastRunAt }),
       ].join('\n') });
@@ -244,7 +265,7 @@ function drawBody(ctx: RendererCtx, snapshot: GpuRenderSnapshot, parent: Contain
     donut.fill({ color: OVERVIEW_SLICE_COLORS[slice.key] });
     // The 2px surface gap between fills: the panel colour, so slices separate.
     if (paid.length > 1) donut.stroke({ color: GPU_COLORS.panel, width: 2 });
-    ctx.tooltip(parent, {
+    tip({
       x: cx - outer, y: cy - outer, width: diameter, height: diameter,
       text: overviewSliceDetail(t, slice, overview, locale),
       accent: OVERVIEW_SLICE_COLORS[slice.key], fontSize: 11,
@@ -272,7 +293,7 @@ function drawBody(ctx: RendererCtx, snapshot: GpuRenderSnapshot, parent: Contain
     const label = mainModel ? `${sliceLabel(t, slice.key)} · ${mainModel}` : sliceLabel(t, slice.key);
     ctx.text(parent, label, x + 18, cursor, { size: 11, width: Math.max(0, width - 18 - valueWidth - 10), singleLine: true });
     ctx.text(parent, value, x + width - valueWidth, cursor, { size: 11, color: GPU_COLORS.muted, width: valueWidth + 2, singleLine: true });
-    ctx.tooltip(parent, { x, y: cursor, width, height: LEGEND_ROW - 2,
+    tip({ x, y: cursor, width, height: LEGEND_ROW - 2,
       text: overviewSliceDetail(t, slice, overview, locale), accent: OVERVIEW_SLICE_COLORS[slice.key], fontSize: 11 });
     cursor += LEGEND_ROW;
   }
@@ -296,33 +317,73 @@ export function selectedProjectOverview(snapshot: GpuRenderSnapshot, projectId: 
   return projectOverview(runs, snapshot.t('projects.overview.unknownUser'));
 }
 
+/** The fold control: a chevron pointing where the column goes. */
+function drawToggle(ctx: RendererCtx, snapshot: GpuRenderSnapshot, parent: Container, x: number, y: number,
+  lane: Lane): void {
+  const collapsed = snapshot.state.projectOverviewCollapsed;
+  const label = snapshot.t(collapsed ? 'projects.overview.expand' : 'projects.overview.collapse');
+  ctx.button(parent, TOGGLE_ID, 'button', '', x, y, TOGGLE_SIZE, TOGGLE_SIZE, false, snapshot.onActivate,
+    GPU_COLORS.primary, true, false, undefined, undefined, label, false, null);
+  drawChevron(parent, x + (TOGGLE_SIZE - CHEVRON_SIZE) / 2, y + (TOGGLE_SIZE - CHEVRON_SIZE) / 2, GPU_COLORS.muted,
+    collapsed ? 'left' : 'right');
+  ctx.tooltip(parent, { x, y, width: TOGGLE_SIZE, height: TOGGLE_SIZE, text: label, lane });
+}
+
+function drawHeader(ctx: RendererCtx, snapshot: GpuRenderSnapshot, parent: Container, x: number, y: number,
+  width: number, lane: Lane): void {
+  ctx.text(parent, snapshot.t('projects.overview.title'), x, y + 5,
+    { size: 14, weight: '700', width: width - TOGGLE_SIZE - 8, singleLine: true });
+  drawToggle(ctx, snapshot, parent, x + width - TOGGLE_SIZE, y, lane);
+}
+
 /**
  * The right column: a framed card from `top` to the frame's foot, its body
  * in its own masked pane on the detail wheel channel, so a long list of
- * launchers never pushes the chart out of reach.
+ * launchers never pushes the chart out of reach. Folded, it is a strip with
+ * the toggle and the total, and the conversation takes the width back.
  */
 export function drawProjectAside(ctx: RendererCtx, snapshot: GpuRenderSnapshot, project: VizProject,
   aside: { asideX: number; asideWidth: number }, top: number, bottom: number): void {
   const height = Math.max(0, bottom - top);
   ctx.panel(ctx.root, aside.asideX, top, aside.asideWidth, height, GPU_COLORS.panel, GPU_COLORS.border, GPU_LAYOUT.radius, 2);
+  const lane = { x: aside.asideX, width: aside.asideWidth };
+  const overview = selectedProjectOverview(snapshot, project.projectId);
+  if (snapshot.state.projectOverviewCollapsed) {
+    drawToggle(ctx, snapshot, ctx.root, aside.asideX + (aside.asideWidth - TOGGLE_SIZE) / 2, top + 12, lane);
+    if (overview.breakdownTotalUsd > 0) {
+      const total = runCost(overview.breakdownTotalUsd);
+      const style = { size: 10, weight: '600', color: GPU_COLORS.muted } as const;
+      const fitted = ctx.fitText(total, aside.asideWidth - 8, style);
+      const totalWidth = Math.ceil(ctx.measureText(fitted, style));
+      ctx.text(ctx.root, fitted, aside.asideX + (aside.asideWidth - totalWidth) / 2, top + 50, { ...style, width: totalWidth + 2, singleLine: true });
+      ctx.tooltip(ctx.root, { x: aside.asideX, y: top + 46, width: aside.asideWidth, height: 20,
+        text: snapshot.t('projects.overview.collapsedTotal', { value: total }) });
+    }
+    return;
+  }
+  // The header stays put above the scrolled body, so the toggle never scrolls away.
+  const inset = PAD;
+  drawHeader(ctx, snapshot, ctx.root, aside.asideX + inset, top + 12, aside.asideWidth - inset - SCROLLBAR_GUTTER + 8, lane);
   const paneX = aside.asideX + 4;
-  const paneY = top + 4;
+  const paneY = top + 50;
   const paneWidth = aside.asideWidth - 8;
-  const paneHeight = Math.max(0, height - 8);
+  const paneHeight = Math.max(0, bottom - 4 - paneY);
   const pane = createScrollPane(ctx.root, { x: paneX, y: paneY, width: paneWidth, height: paneHeight,
     scrollY: ctx.detailScrollY, bottomPadding: PAD });
   ctx.detailBounds = new Rectangle(paneX, paneY, paneWidth, paneHeight);
-  const used = drawBody(ctx, snapshot, pane.content, PAD - 4, PAD - 4, paneWidth - (PAD - 4) * 2, project,
-    selectedProjectOverview(snapshot, project.projectId));
-  pane.extend(used + PAD);
+  const left = inset - 4;
+  // A lane is in the coordinates of the parent that declares the bubble: the pane's content here.
+  const used = drawBody(ctx, snapshot, pane.content, left, 4, paneWidth - left - SCROLLBAR_GUTTER, project,
+    overview, { x: aside.asideX - paneX, width: aside.asideWidth }, false);
+  pane.extend(used + 4);
   ctx.detailScrollMax = pane.finish();
   ctx.detailScrollY = Math.min(ctx.detailScrollY, ctx.detailScrollMax);
 }
 
 /**
  * The same overview as a card INSIDE a scrolled list (narrow frames): drawn
- * first so its height is measured, then framed beneath its own body.
- * Returns the card's height.
+ * first so its height is measured, then framed beneath its own body. Folded,
+ * only its header remains. Returns the card's height.
  */
 export function drawProjectOverviewCard(ctx: RendererCtx, snapshot: GpuRenderSnapshot, parent: Container,
   project: VizProject, x: number, y: number, width: number): number {
@@ -330,9 +391,13 @@ export function drawProjectOverviewCard(ctx: RendererCtx, snapshot: GpuRenderSna
   parent.addChild(card);
   const body = new Container();
   card.addChild(body);
-  const used = drawBody(ctx, snapshot, body, x + PAD, y + PAD, width - PAD * 2, project,
-    selectedProjectOverview(snapshot, project.projectId));
-  const height = used + PAD * 2;
+  const lane = { x, width };
+  const collapsed = snapshot.state.projectOverviewCollapsed;
+  const used = collapsed
+    ? (drawHeader(ctx, snapshot, body, x + PAD, y + 10, width - PAD * 2, lane), TOGGLE_SIZE)
+    : drawBody(ctx, snapshot, body, x + PAD, y + PAD, width - PAD * 2, project,
+      selectedProjectOverview(snapshot, project.projectId), lane, true);
+  const height = used + (collapsed ? 20 : PAD * 2);
   ctx.panel(card, x, y, width, height, GPU_COLORS.panel, GPU_COLORS.border, GPU_LAYOUT.radius, 2);
   // Re-adding moves the body above the frame; its position, and so every
   // hover region already projected from it, is unchanged.

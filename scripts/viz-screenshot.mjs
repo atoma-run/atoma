@@ -99,6 +99,7 @@ if (assistantLinksProbe && (!authed || !selectFirst || !arg('--url'))) {
   throw new Error('--assistant-links-probe needs --auth --select-first --url <frontend URL>');
 }
 const projectTabsProbe = has('--project-tabs-probe');
+const overviewProbe = has('--overview-probe');
 const filesProbe = has('--files-probe');
 // A running app preview, so its controls (open, stop) are drawn.
 const previewReady = has('--preview-ready');
@@ -1412,6 +1413,38 @@ try {
       await page.$eval('#assistant-message', node => { node.focus(); node.select(); });
       await page.keyboard.press('Backspace');
       console.log('Project tabs: real canvas switches, separate run list, conversation draft retained');
+    }
+
+    if (overviewProbe) {
+      if (!authed || !selectFirst) throw new Error('--overview-probe requires --auth --select-first');
+      // The overview column, by the real pointer: hover a donut slice (its
+      // bubble must stay inside the column), then fold it with its toggle.
+      const toggle = async () => page.evaluate(async () => {
+        await new Promise(resolveWait => requestAnimationFrame(() => requestAnimationFrame(resolveWait)));
+        const handle = globalThis.__ATOMA_GPU__;
+        const target = handle.hitTargets().find(entry => entry.id === 'project.overview.toggle');
+        if (!target) throw new Error('The overview toggle is missing');
+        return { target, centre: handle.projectRendererPoint(target.x + target.width / 2, target.y + target.height / 2) };
+      });
+      const { target } = await toggle();
+      let slice = null;
+      for (let y = target.y + 520; y < target.y + 820 && !slice; y += 24) {
+        for (let x = target.x - 240; x <= target.x && !slice; x += 40) {
+          const point = await page.evaluate((px, py) => globalThis.__ATOMA_GPU__.projectRendererPoint(px, py), x, y);
+          await page.mouse.move(point.x, point.y);
+          await new Promise(resolveWait => setTimeout(resolveWait, 420));
+          const shown = await page.evaluate(() => globalThis.__ATOMA_GPU__.tooltip());
+          if (shown.visible && /^(L[123]|Jev) /.test(shown.text ?? '')) slice = shown.text.split('\n')[0];
+        }
+      }
+      if (!slice) throw new Error('No donut slice opened its bubble');
+      await page.screenshot({ path: outPath.replace(/\.png$/, '-hover.png') });
+      const { centre } = await toggle();
+      await page.mouse.click(centre.x, centre.y);
+      await page.mouse.move(10, 10);
+      await new Promise(resolveWait => setTimeout(resolveWait, 600));
+      await page.screenshot({ path: outPath.replace(/\.png$/, '-folded.png') });
+      console.log(`Overview: hovered "${slice}", then folded the column`);
     }
 
     if (filesProbe) {

@@ -916,6 +916,10 @@ function GpuAppContent({
       store.setView('projects');
       return;
     }
+    if (id === 'project.overview.toggle') {
+      store.toggleProjectOverview();
+      return;
+    }
     if (id.startsWith('project.section.')) {
       if (!store.selectedProjectId) return;
       const section = id.slice('project.section.'.length);

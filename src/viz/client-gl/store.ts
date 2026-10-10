@@ -217,6 +217,8 @@ export interface GpuUiState {
   selectedProjectId: string | null;
   projectSection: 'conversation' | 'runs' | 'preview' | 'files' | 'result';
   projectMcpCollapsed: boolean;
+  /** The selected project's overview column folded to a strip; one setting for every project. */
+  projectOverviewCollapsed: boolean;
   projectAssistantCompact: boolean;
   projectAssistantCompactHeight: number | null;
   workspaceRunId: string | null;
@@ -315,6 +317,7 @@ export interface GpuUiState {
   selectSkill: (selection: { l1Name: string; id: string } | null) => void;
   selectProject: (id: string | null) => void;
   selectProjectSection: (section: GpuUiState['projectSection'], runId?: string | null) => void;
+  toggleProjectOverview: () => void;
   openWorkspace: (runId: string | null) => void;
   /** A run's way back: its project, on the Runs section that lists it. */
   openProjectRuns: (projectId: string) => void;
@@ -449,6 +452,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
   selectedSkill: null,
   selectedProjectId: null,
   projectMcpCollapsed: false,
+  projectOverviewCollapsed: false,
   projectAssistantCompact: false,
   projectAssistantCompactHeight: null,
   projectSection: 'conversation',
@@ -693,6 +697,7 @@ export const useGpuStore = create<GpuUiState>()((set, get) => ({
     resultDetailsOpen: false,
     scrollY: { ...state.scrollY, projects: 0 },
   })),
+  toggleProjectOverview: () => set(state => ({ projectOverviewCollapsed: !state.projectOverviewCollapsed })),
   openWorkspace: (workspaceRunId) => set(state => ({
     projectSection: workspaceRunId ? 'files' : 'runs',
     workspaceRunId, workspacePath: '', filePreview: null, scrollY: { ...state.scrollY, projects: 0 },

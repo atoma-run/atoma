@@ -2329,6 +2329,7 @@ export class GpuRenderer {
     const wedge = region.wedge;
     const scale = region.width > 0 ? Math.abs(end.x - start.x) / region.width : 1;
     const centre = wedge ? parent.toGlobal({ x: wedge.cx, y: wedge.cy }) : null;
+    const laneStart = region.lane ? parent.toGlobal({ x: region.lane.x, y: region.y }) : null;
     layer.register({
       ...region,
       x: Math.min(start.x, end.x),
@@ -2337,6 +2338,7 @@ export class GpuRenderer {
       height: Math.abs(end.y - start.y),
       ...(wedge && centre ? { wedge: { ...wedge, cx: centre.x, cy: centre.y,
         inner: wedge.inner * scale, outer: wedge.outer * scale } } : {}),
+      ...(region.lane && laneStart ? { lane: { x: laneStart.x, width: region.lane.width * scale } } : {}),
     });
   }
 

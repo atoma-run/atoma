@@ -518,7 +518,7 @@ export function drawProjects(
   const guideHeight = projectsGuideLayoutHeight(snapshot, width, height, guideTop);
   // The project overview column, on the sections it accompanies.
   const aside = selectedProject && projectSectionShowsAside(snapshot.state.projectSection) && !snapshot.state.resultRunId
-    ? projectAsideLayout(width) : null;
+    ? projectAsideLayout(width, snapshot.state.projectOverviewCollapsed) : null;
   // The form's fields are DOM, but its CARD is the same GPU panel as the list
   // below. A CSS imitation could share dimensions and still disagree on the
   // pointer-driven shadow, which is exactly what made the two adjacent cards
@@ -557,7 +557,8 @@ export function drawProjects(
         Math.max(0, sectionLayout.repository.width - BUTTON_LABEL_INSET * 2)));
     contentTop = sectionLayout.contentTop;
     if (snapshot.state.projectSection === 'conversation') {
-      if (aside) drawProjectAside(ctx, snapshot, selectedProject, aside, guideTop, guideTop + guideHeight);
+      // The column keeps the frame's full height, whatever height an empty conversation shrank to.
+      if (aside) drawProjectAside(ctx, snapshot, selectedProject, aside, guideTop, frame.bottom - VIEW_FRAME_PAD);
       ctx.scrollMax.projects = 0;
       return;
     }

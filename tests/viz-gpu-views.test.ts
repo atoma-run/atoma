@@ -42,7 +42,7 @@ import { drawBurnin } from '../src/viz/client-gl/renderer/views/burnin.js';
 import { workspaceReaderHeight } from '../src/viz/client-gl/renderer/views/workspace.js';
 import { workspaceSplit, workspaceSplitForViewport } from '../src/viz/client-gl/workspace-browser.js';
 import { drawResultPanel } from '../src/viz/client-gl/renderer/views/result.js';
-import { projectAsideLayout, projectAsideReserve, PROJECT_ASIDE_GAP } from '../src/viz/client-gl/renderer/views/project-overview.js';
+import { projectAsideLayout, projectAsideReserve, PROJECT_ASIDE_COLLAPSED_WIDTH, PROJECT_ASIDE_GAP } from '../src/viz/client-gl/renderer/views/project-overview.js';
 import { runCostBreakdown } from '../src/contracts/runCostBreakdown.js';
 import { drawRunActivity } from '../src/viz/client-gl/renderer/views/run-activity.js';
 import {
@@ -396,7 +396,9 @@ function createRecordingCtx(): RecordingCtx {
     },
     tooltip(parent, region) {
       const start = parent.toGlobal({ x: region.x, y: region.y });
-      ctx.tooltips.push({ ...region, x: start.x, y: start.y });
+      // Projected like the renderer's: a lane local to a scrolled pane is not the column's x.
+      ctx.tooltips.push({ ...region, x: start.x, y: start.y,
+        ...(region.lane ? { lane: { x: parent.toGlobal({ x: region.lane.x, y: 0 }).x, width: region.lane.width } } : {}) });
     },
     recordHitTarget(parent, target) {
       const start = parent.toGlobal({ x: target.x, y: target.y });
@@ -638,11 +640,12 @@ function makeState(overrides: Partial<GpuUiState> = {}): GpuUiState {
     selectedSkill: null,
     selectedProjectId: null,
     projectMcpCollapsed: false,
+    projectOverviewCollapsed: false,
     projectAssistantCompact: false,
     projectAssistantCompactHeight: null,
     workspaceRunId: null, workspacePath: '', filePreview: null, previewFile: () => {},
     githubRecovery: null, setGitHubRecovery: vi.fn(),
-    openWorkspace: vi.fn(), openProjectRuns: vi.fn(), selectProjectSection: vi.fn(), selectWorkspacePath: vi.fn(),
+    openWorkspace: vi.fn(), openProjectRuns: vi.fn(), selectProjectSection: vi.fn(), toggleProjectOverview: vi.fn(), selectWorkspacePath: vi.fn(),
     runFilters: { kind: 'all', role: 'all', branchId: 'all' },
     branchHeadingExpanded: true,
     runSummaryExpanded: true,
@@ -3300,6 +3303,41 @@ describe('drawProjects', () => {
     for (const button of runs.buttons.filter(candidate => candidate.id.startsWith('project.run.'))) {
       expect(button.parent.toGlobal({ x: button.x + button.width, y: 0 }).x).toBeLessThanOrEqual(aside.asideX);
     }
+    // Full height even beside an empty (compact) conversation, and every bubble kept in the column.
+    const compact = createRecordingCtx();
+    drawProjects(compact, makeSnapshot({ view: 'projects', selectedProjectId: project.projectId,
+      projectSection: 'conversation', projectAssistantCompact: true, projectAssistantCompactHeight: 120 }, data), wide, 900);
+    const column = compact.panels.find(panel => panel.x === aside.asideX)!;
+    expect(column.y + column.height).toBe(viewFrame(wide, 900).bottom - VIEW_FRAME_PAD);
+    const columnTips = compact.tooltips.filter(tip => tip.x >= aside.asideX);
+    expect(columnTips.length).toBeGreaterThan(5);
+    // Projected, every lane is the column itself, whichever parent declared the bubble.
+    expect(columnTips.every(tip => {
+      const lane = (tip as { lane?: { x: number; width: number } }).lane;
+      return lane?.x === aside.asideX && lane.width === aside.asideWidth;
+    })).toBe(true);
+    // Content keeps clear of the pane's scrollbar (drawn 8px inside its right edge).
+    const columnTexts = compact.texts.filter(text => text.parent !== compact.root &&
+      text.parent.toGlobal({ x: text.x, y: 0 }).x >= aside.asideX);
+    for (const text of columnTexts) {
+      const width = (text.options as { width?: number } | undefined)?.width ?? 0;
+      expect(text.parent.toGlobal({ x: text.x + width, y: 0 }).x).toBeLessThanOrEqual(aside.asideX + aside.asideWidth - 20);
+    }
+    expect(compact.buttons.some(button => button.id === 'project.overview.toggle')).toBe(true);
+
+    // Folded: a strip with the toggle, and the conversation takes the width back.
+    const folded = createRecordingCtx();
+    const foldedSnapshot = makeSnapshot({ view: 'projects', selectedProjectId: project.projectId,
+      projectSection: 'conversation', projectOverviewCollapsed: true }, data);
+    drawProjects(folded, foldedSnapshot, wide, 900);
+    const strip = projectAsideLayout(wide, true)!;
+    expect(strip.asideWidth).toBe(PROJECT_ASIDE_COLLAPSED_WIDTH);
+    expect(projectAsideReserve(foldedSnapshot, wide)).toBe(PROJECT_ASIDE_COLLAPSED_WIDTH + PROJECT_ASIDE_GAP);
+    expect(folded.panels.some(panel => panel.x === strip.asideX && panel.width === strip.asideWidth)).toBe(true);
+    expect(folded.buttons.some(button => button.id === 'project.overview.toggle')).toBe(true);
+    expect(folded.tooltips.some(tip => tip.text.startsWith('Ada Lovelace'))).toBe(false);
+    expect(folded.detailBounds).toBeNull();
+
     const files = draw('files', wide);
     expect(files.ctx.panels.some(panel => panel.x === aside.asideX)).toBe(false);
     expect(projectAsideReserve(files.snapshot, wide)).toBe(0);

@@ -12,10 +12,15 @@ export function ProjectOverviewAccessible({ runs, t }: {
   runs: readonly VizProjectRun[]; t: (key: string, vars?: Record<string, unknown>) => string;
 }) {
   const locale = useGpuStore(s => s.locale);
+  const collapsed = useGpuStore(s => s.projectOverviewCollapsed);
+  const toggle = useGpuStore(s => s.toggleProjectOverview);
   const overview = projectOverview(runs, t('projects.overview.unknownUser'));
   const percent = new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 1 });
   return <section aria-label={t('projects.overview.title')}>
     <h3>{t('projects.overview.title')}</h3>
+    <button type="button" aria-expanded={!collapsed} onClick={toggle}>
+      {t(collapsed ? 'projects.overview.expand' : 'projects.overview.collapse')}
+    </button>
     <ul>
       <li>{t('projects.overview.runCount')}: {overview.runCount}</li>
       <li>{t('projects.overview.llmCost')}: {runCost(overview.llmCostUsd)}</li>
