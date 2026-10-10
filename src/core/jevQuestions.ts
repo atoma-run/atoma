@@ -334,10 +334,42 @@ const DECOMPOSABLE_INSTRUCTIONS: JevJson = {
 export interface JevChoiceOption {
   /** The key Jev sees. Agents get opaque keys: their chemistry names mean nothing to a literal reader. */
   readonly key: string;
-  /** Catalog order; the first is the canonical type the others were branched from. */
+  /**
+   * Catalog order; the first is the canonical type the others were branched
+   * from — or, for twins, the narrowest, which is the one dispatched.
+   */
   readonly names: readonly string[];
   readonly description: string;
   readonly detail?: string;
+  /** Folded from wider twins (below), not identical clones. */
+  readonly twins?: true;
+}
+
+/** The tool line `withToolLine` (src/atoms/capability.ts) appends to a catalog description. */
+const TOOL_LINE = '\n    tools: ';
+
+/** A catalog description read back into its prose and its sorted tool names. */
+function describedTools(description: string): { readonly prose: string; readonly tools: readonly string[] } {
+  const at = description.indexOf(TOOL_LINE);
+  if (at < 0) return { prose: description, tools: [] };
+  const end = description.indexOf('\n', at + TOOL_LINE.length);
+  const line = description.slice(at + TOOL_LINE.length, end < 0 ? description.length : end);
+  return { prose: description.slice(0, at), tools: line.split(',').map((name) => name.trim()).filter(Boolean) };
+}
+
+/**
+ * Whether `wide` is a twin of `narrow` one capability wider: every tool of the
+ * narrow one and a description that only prolongs its prose. Measured
+ * 2026-10-10 on Benzene (the file scribe plus `search_project_docs`) and
+ * Ammonia: as two options they split the mass in 82 of 256 agent picks, 44
+ * of the 119 deferred on confidence; as one, 27 of those decide with one
+ * disagreement against the model's 39 Ammonia and 3 Benzene
+ * (docs/jev-decisions-2026-09-28.md, "twin agents — 2026-10-10").
+ */
+function isWiderTwin(narrow: { prose: string; tools: readonly string[] }, wide: { prose: string; tools: readonly string[] }): boolean {
+  if (narrow.tools.length === 0 || wide.tools.length <= narrow.tools.length) return false;
+  if (!narrow.tools.every((tool) => wide.tools.includes(tool))) return false;
+  return wide.prose !== narrow.prose && wide.prose.startsWith(narrow.prose);
 }
 
 export interface JevChoicePlan {
@@ -371,17 +403,34 @@ export function buildChoice(request: JevChoiceRequest): JevChoicePlan | string {
     if (group) group.names.push(candidate.name);
     else byDescription.set(identity, { description: candidate.description, names: [candidate.name], ...(candidate.detail ? { detail: candidate.detail } : {}) });
   }
-  if (byDescription.size + 1 > JEV_MAX_OPTIONS) {
+  // Twin agents fold into the narrowest: a wider twin is an option whose mass
+  // only competes with its own. Narrowest first, so a chain folds in one pass;
+  // the option keeps the narrow description, which is what is dispatched.
+  const groups = [...byDescription.values()].map((group) => ({ ...group, ...describedTools(group.description), twins: false }));
+  if (request.question === 'agent') {
+    groups.sort((a, b) => a.tools.length - b.tools.length);
+    for (let wide = groups.length - 1; wide >= 0; wide -= 1) {
+      const narrow = groups.findIndex((candidate, index) => index < wide && isWiderTwin(candidate, groups[wide]!));
+      if (narrow < 0) continue;
+      groups[narrow] = { ...groups[narrow]!, names: [...groups[narrow]!.names, ...groups[wide]!.names], twins: true };
+      groups.splice(wide, 1);
+    }
+  }
+  if (groups.length + 1 > JEV_MAX_OPTIONS) {
     return `${request.candidates.length} candidates exceed the ${JEV_MAX_OPTIONS - 1} a Choice can carry`;
   }
   const options: JevChoiceOption[] = [];
   let index = 0;
-  for (const group of byDescription.values()) {
+  for (const group of groups) {
     const { description } = group;
     index += 1;
     // Recipe ids are descriptive kebab-case and stay; agent names are not.
     const key = request.question === 'recipe' ? group.names[0]! : `agent_${index}`;
-    options.push({ key, names: group.names, description, ...(group.detail ? { detail: group.detail } : {}) });
+    options.push({
+      key, names: group.names, description,
+      ...(group.detail ? { detail: group.detail } : {}),
+      ...(group.twins ? { twins: true as const } : {}),
+    });
   }
   const optionEntry = (option: JevChoiceOption): JevJson =>
     option.detail
@@ -583,7 +632,9 @@ function listed(names: readonly string[]): string {
 }
 
 function pickedOutcome(option: JevChoiceOption, decomposable: boolean): string {
-  const clones = option.names.length > 1 ? ` (first of ${option.names.length} identical)` : '';
+  const clones = option.names.length > 1
+    ? ` (${option.twins ? 'narrowest' : 'first'} of ${option.names.length} ${option.twins ? 'twins' : 'identical'})`
+    : '';
   return `picked ${option.names[0]}${clones}${decomposable ? ' (decomposable)' : ''}`;
 }
 

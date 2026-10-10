@@ -842,6 +842,59 @@ question of 2026-10-01 was never asked live there, by reading of the code;
 the production traces were not counted. Every method is now forwarded, and
 `tests/jev-effort.test.ts` fails on the old wrapper.
 
+## The October 1–9 reading, and twin agents — 2026-10-10
+
+`atoma_jev_calibrate` over the 191 project traces of October 1–9 (six
+organisations, `includeJevRuns`, 0.19 USD): 563 decisions asked, 21 refused
+by Jev as carrying too many independent requirements, 125 results ineligible
+for any fast path. With Jev deciding in every run, the sample is the band Jev
+DEFERRED, never its live take rate (108 of 211 plans and 16 of 112 results
+in the October 1–7 corpus): the right band for a threshold question, since
+a lower threshold acts on it alone, and no measure of Jev's accuracy.
+
+- **Plans** (86, 11 refused by the model): at `requirementCovered` 0.8 no
+  false approval; at 0.7 one appears, at every `flag`, as the 0.61 + 0.17
+  margin of the switch predicted. Unchanged.
+- **Results** (95, 47 refused): none false at 0.7, one to two at 0.6. In
+  September no bar from 0.6 to 0.9 produced one; 0.7 is now the lowest safe
+  bar, with no slack under it. Unchanged.
+- **Recipes** (105): 27 agree, 28 disagree, at every threshold — on a replay
+  that asked each recipe WITHOUT its opening steps, which the model's
+  recorded prompt does not carry. Not evidence either way. The deferring `jev`
+  event now records them (`details`), the reader pairs them by actor, and
+  the report counts the recipes replayed bare (`recipesWithoutDetail`).
+- **Reader defect**: 502 of the 1,190 recorded decisions (42 %) "did not
+  parse". They were the criteria batches (`run-criteria`), the text reference
+  and the tissue router — run actors with their own layouts, which only
+  `run-root` was kept out of. Both readers now leave every run actor out; the
+  outcome report had also summed those calls as `validate-result` model
+  fallbacks (run 67890568: 0.07 USD with no phase validation).
+
+**Twin agents.** Of 256 agent picks at L2, the documented questions decided
+12 (8 agree, 4 disagree — every one `Jev Benzene, model Ammonia`) and
+deferred 119 on confidence. Benzene is the file scribe plus
+`search_project_docs`, its description Ammonia's prolonged by one clause;
+the two were the top pair in 82 of the 256 picks and in 44 of the 119
+confidence deferrals, where the model took Ammonia 39 times and Benzene 3.
+Read on the recorded probabilities, without a new call:
+
+| rule, on the 119 confidence deferrals | decides | agree | disagree |
+|---|---|---|---|
+| top two both fit ≥ 0.7 and share ≥ 0.5 of the mass → the first | 22 | 12 | 10 |
+| Benzene and Ammonia one option (mass summed, fit the larger) | 27 | 26 | 1 |
+
+The first rule buys decisions at 45 % disagreement: Jev leans Benzene where
+the model takes Ammonia, both fitting above 0.75. The second's one miss is a
+three-way split the model escalated at confidence 0.23, and it turns the four
+standing disagreements into agreements. Owner decision 2026-10-10:
+`buildChoice` folds an agent whose tools include another's and whose prose
+only prolongs the other's into ONE option, described and dispatched as the
+NARROWEST (the model's pick in 39 of 44). The tool line the catalog already
+carries is the reading, so the calibration replay folds as the run does.
+`fit` 0.5 and `pickConfidence` 0.7 (35 agree, 6 disagree on the same band)
+stays a candidate: its gain is latency on nine per cent of the picks, and one
+reading apart from the fold cannot tell the two apart.
+
 ## Reading "we will see"
 
 Two weeks after the switch of 2026-09-29 (so around 2026-10-13), or sooner if

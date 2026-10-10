@@ -14,6 +14,7 @@ import {
   type JevQuestion,
 } from '../src/core/jevQuestions.js';
 import type { JevApprovalRequest, JevChoiceRequest, JevTwinRequest } from '../src/core/types.js';
+import { withToolLine } from '../src/atoms/capability.js';
 
 /**
  * The questions TypeSafe's documentation prescribes (docs.typesafe.ai, read in
@@ -162,6 +163,37 @@ describe('the prefilter: a Choice for which, a Noul per option for whether', () 
     );
     expect(reading.decision).toEqual({ target: 'CarbonDioxide', confidence: 0.85, decomposable: false });
     expect(reading.outcome).toBe('picked CarbonDioxide (first of 3 identical)');
+  });
+
+  it('folds a twin one capability wider into the narrowest, which it dispatches', () => {
+    // 2026-10-10: Benzene (the file scribe plus search_project_docs) and
+    // Ammonia split the mass in 44 of the 119 agent picks deferred on confidence.
+    const scribe = 'file scribe: reads, writes, and lists workspace files; executes shell commands inside the sandbox';
+    const tool = (name: string) => ({ name });
+    const base = ['write_file', 'edit_file', 'read_file', 'list_files', 'run_shell', 'record_probe'].map(tool);
+    const plan = built(
+      buildChoice({
+        ...choiceRequest,
+        candidates: [
+          { name: 'Benzene', description: withToolLine(`${scribe}; searches authorized project documentation`, [...base, tool('search_project_docs')]) },
+          { name: 'Water', description: withToolLine('web page builder', [tool('write_file'), tool('validate_html')]) },
+          { name: 'Ammonia', description: withToolLine(scribe, base) },
+          // Same tools as Ammonia, other prose: a different capability, not a twin.
+          { name: 'Methane', description: withToolLine('config file author', base) },
+        ],
+      })
+    );
+    expect(plan.options.map((option) => option.names)).toEqual([['Water'], ['Ammonia', 'Benzene'], ['Methane']]);
+    expect(plan.options[1]).toMatchObject({ description: withToolLine(scribe, base), twins: true });
+    const reading = readChoice(plan, answersFor(plan.questions, { choice: choiceAnswer('agent_2', 0.8), 'fits::agent_2': noulAnswer(0.85) }));
+    expect(reading.decision).toMatchObject({ target: 'Ammonia' });
+    expect(reading.outcome).toBe('picked Ammonia (narrowest of 2 twins)');
+    // The recipe question never folds: ids are the option.
+    const recipes = built(buildChoice({
+      question: 'recipe', task: choiceRequest.task, actorTier: 2,
+      candidates: [{ name: 'a', description: withToolLine('x', base) }, { name: 'b', description: withToolLine('x; more', [...base, tool('t')]) }],
+    }));
+    expect(recipes.options.map((option) => option.names)).toEqual([['a'], ['b']]);
   });
 
   it('at L3 gives a routing hint or none, never a model call, and asks no decomposition', () => {
