@@ -42,6 +42,8 @@ import { drawBurnin } from '../src/viz/client-gl/renderer/views/burnin.js';
 import { workspaceReaderHeight } from '../src/viz/client-gl/renderer/views/workspace.js';
 import { workspaceSplit, workspaceSplitForViewport } from '../src/viz/client-gl/workspace-browser.js';
 import { drawResultPanel } from '../src/viz/client-gl/renderer/views/result.js';
+import { projectAsideLayout, projectAsideReserve, PROJECT_ASIDE_GAP } from '../src/viz/client-gl/renderer/views/project-overview.js';
+import { runCostBreakdown } from '../src/contracts/runCostBreakdown.js';
 import { drawRunActivity } from '../src/viz/client-gl/renderer/views/run-activity.js';
 import {
   COMPACT_VALUE_MAX_CHARS,
@@ -3254,6 +3256,64 @@ describe('drawProjects', () => {
         narrowFrame.innerX + narrowFrame.innerWidth
       );
     }
+  });
+
+  it('puts the project overview in a right column beside Conversation and Runs, and heads Runs when narrow', () => {
+    const project = guidanceProject();
+    const costBreakdown = runCostBreakdown({ tierModels: { l1: 'api:anthropic:small', l2: 'api:anthropic:mid', l3: 'api:anthropic:big' }, events: [
+      { kind: 'llm', role: 'execute', model: 'small', actor: { tier: 1 }, usage: { inputTokens: 10, outputTokens: 2 }, costUsd: 0.25 },
+      { kind: 'llm', role: 'plan', model: 'big', actor: { tier: 3 }, usage: { inputTokens: 10, outputTokens: 2 }, costUsd: 0.75 },
+      { kind: 'jev', role: 'prefilter', evaluator: 'jev', usage: { inputTokens: 1, outputTokens: 1 }, costUsd: 0.05, requestCount: 1 },
+    ] });
+    const projectRun = {
+      projectId: project.projectId, projectRunId: 'saved-run', traceId: 'saved-trace',
+      goal: 'Build a dashboard', status: 'delivered' as const, costUsd: 1, durationS: 8,
+      error: null, createdAt: '2026-08-20T00:01:00.000Z', endedAt: '2026-08-20T00:02:00.000Z',
+      publication: null, requestedByPrincipalId: 'p-1', requestedByName: 'Ada Lovelace', costBreakdown,
+    };
+    const data = { auth: makeAuth(), projects: [project], projectRuns: { [project.projectId]: [projectRun] } };
+    const draw = (projectSection: GpuUiState['projectSection'], width: number) => {
+      const ctx = createRecordingCtx();
+      const snapshot = makeSnapshot({ view: 'projects', selectedProjectId: project.projectId, projectSection }, data);
+      drawProjects(ctx, snapshot, width, 900);
+      return { ctx, snapshot };
+    };
+    const wide = 1400;
+    const aside = projectAsideLayout(wide)!;
+    expect(aside).not.toBeNull();
+    for (const section of ['conversation', 'runs'] as const) {
+      const { ctx, snapshot } = draw(section, wide);
+      expect(projectAsideReserve(snapshot, wide)).toBe(aside.asideWidth + PROJECT_ASIDE_GAP);
+      expect(ctx.panels.some(panel => panel.x === aside.asideX && panel.width === aside.asideWidth)).toBe(true);
+      expect(ctx.detailBounds).not.toBeNull();
+      const slices = ctx.tooltips.filter(tip => (tip as { wedge?: unknown }).wedge);
+      expect(slices.map(tip => tip.text.split('\n')[0])).toEqual([
+        'L1 · Molecules — $0.25 (23.8%)', 'L3 · Tissues — $0.75 (71.4%)', 'Jev — $0.05 (4.8%)',
+      ]);
+      expect(ctx.tooltips.some(tip => tip.text.startsWith('Ada Lovelace'))).toBe(true);
+      expect(ctx.texts.some(text => text.value === '$1.05')).toBe(true);
+    }
+    const conversation = draw('conversation', wide).ctx;
+    const guideTop = projectSectionLayout(conversation, makeSnapshot({}, data), wide).contentTop;
+    expect(conversation.panels.find(panel => panel.y === guideTop && panel.x !== aside.asideX)?.width).toBe(aside.mainWidth);
+    const runs = draw('runs', wide).ctx;
+    for (const button of runs.buttons.filter(candidate => candidate.id.startsWith('project.run.'))) {
+      expect(button.parent.toGlobal({ x: button.x + button.width, y: 0 }).x).toBeLessThanOrEqual(aside.asideX);
+    }
+    const files = draw('files', wide);
+    expect(files.ctx.panels.some(panel => panel.x === aside.asideX)).toBe(false);
+    expect(projectAsideReserve(files.snapshot, wide)).toBe(0);
+
+    // Narrow: no column, no reserve; the overview card heads the Runs list.
+    expect(projectAsideLayout(1000)).toBeNull();
+    const narrowConversation = draw('conversation', 1000);
+    expect(projectAsideReserve(narrowConversation.snapshot, 1000)).toBe(0);
+    expect(narrowConversation.ctx.tooltips.some(tip => tip.text.startsWith('Ada Lovelace'))).toBe(false);
+    const narrowRuns = draw('runs', 1000).ctx;
+    const launcher = narrowRuns.tooltips.find(tip => tip.text.startsWith('Ada Lovelace'))!;
+    const runButton = narrowRuns.buttons.find(button => button.id === 'project.run.saved-trace')!;
+    expect(runButton.parent.toGlobal({ x: 0, y: runButton.y }).y).toBeGreaterThan(launcher.y);
+    expect(narrowRuns.scrollMax.projects).toBeGreaterThan(0);
   });
 
   it('switches one selected project between aligned Runs, Files, and latest-result sections', () => {

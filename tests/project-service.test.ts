@@ -536,12 +536,19 @@ describe('ProjectService — roles, IDOR and slug identity', () => {
           label: 'project run',
           startedAt: '2026-08-20T00:00:00.000Z',
           totals: { calls: 7, inputTokens: 100, outputTokens: 25, costUsd: 0.12 },
-          events: [{ kind: 'jev', requestCount: 2 }, { kind: 'jev', requestCount: 0 }],
+          tierModels: { l1: 'api:anthropic:small', l2: 'api:anthropic:mid', l3: 'api:anthropic:big' },
+          events: [{ kind: 'jev', requestCount: 2, costUsd: 0.01 }, { kind: 'jev', requestCount: 0 },
+            { kind: 'llm', role: 'plan', model: 'big', actor: { tier: 3 },
+              usage: { inputTokens: 100, outputTokens: 25, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 }, costUsd: 0.12 }],
         })
       );
       const listed = svc.listProjectRuns(alice, created.projectId) as Record<string, unknown>[];
       expect(listed[0]?.['traceId']).toBe(reserved!.run.projectRunId);
-      expect(listed[0]).toMatchObject({ tokens: 125, llmCalls: 7, jevCalls: 2, costUsd: 0.12 });
+      expect(listed[0]).toMatchObject({ tokens: 125, llmCalls: 7, jevCalls: 2, costUsd: 0.12,
+        requestedByName: expect.any(String),
+        costBreakdown: { l3: { calls: 1, costUsd: 0.12 }, jev: { calls: 2, requests: 2, costUsd: 0.01 }, l1: { calls: 0 } } });
+      // The breakdown is the run LIST's: a single run's status does not carry it.
+      expect(svc.projectRunStatus(alice, created.projectId, reserved!.run.projectRunId)).not.toHaveProperty('costBreakdown');
       writeFileSync(join(runsPath, `${reserved!.run.projectRunId}.json`), JSON.stringify({
         id: reserved!.run.projectRunId, label: 'historical project run',
         startedAt: '2026-09-30T09:50:27.984Z',

@@ -222,6 +222,17 @@ function gatedStubs() {
     tools: ['read_file'], elements: [{ tool: 'read_file', number: 3, name: 'Lithium', symbol: 'Li' }], params: {},
     createdBy: 'bootstrap', createdAt: '2026-09-15T00:00:00.000Z', version: 1, successes: 3, failures: 0, history: [],
   };
+  // L1 executes, L2 validates, L3 plans; Jev is priced apart from the run total.
+  const stubSlice = (costUsd, calls, model, roles) => ({ calls, costUsd, inputTokens: calls * 1800, outputTokens: calls * 420,
+    cacheReadInputTokens: calls * 900, cacheCreationInputTokens: 0, models: [{ model, calls, costUsd }],
+    roles: roles.map(([role, share]) => ({ role, calls: Math.max(1, Math.round(calls * share)), costUsd: costUsd * share })) });
+  const stubCostBreakdown = (costUsd) => ({
+    l1: stubSlice(costUsd * 0.46, 9, 'claude-haiku-4-5-20251001', [['execute', 0.8], ['prefilter', 0.2]]),
+    l2: stubSlice(costUsd * 0.22, 5, 'claude-sonnet-4-5', [['validate-result', 0.7], ['validate-plan', 0.3]]),
+    l3: stubSlice(costUsd * 0.32, 2, 'claude-opus-4-1', [['plan', 1]]),
+    jev: { ...stubSlice(0.004, 8, 'jev-1', [['prefilter', 0.5], ['validate-plan', 0.5]]), requests: 9 },
+    other: { calls: 0, costUsd: 0, inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 0, cacheCreationInputTokens: 0, models: [], roles: [] },
+  });
   const runs = [
     ['delivered', 0.63, null, { status: 'published', commitSha: 'c28afe4f8e3d2b1a0c9e', repositoryUrl: 'https://github.com/example/stopwatch' }],
     ['failed', null, 'control-plane JSON is not a bounded regular file: /tmp/example/trace.json', null],
@@ -249,6 +260,10 @@ function gatedStubs() {
     createdAt: `2026-08-20T00:0${index}:00.000Z`,
     endedAt: `2026-08-20T00:0${index}:59.000Z`,
     publication,
+    // The overview column: who launched each run and where its money went.
+    requestedByPrincipalId: index % 2 ? 'stub-principal-2' : principalId,
+    requestedByName: index % 2 ? 'Grace Hopper' : 'Ada Lovelace',
+    costBreakdown: costUsd === null ? null : stubCostBreakdown(costUsd),
   }));
   if (resultArtwork) Object.assign(runs[0], {
     traceId: 'run-fixture', goal: artworkGoal,

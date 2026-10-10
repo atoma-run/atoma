@@ -289,6 +289,10 @@ export interface VizProjectRun {
   orgId?: string;
   githubAccess?: import('../../contracts/projects.js').GitHubAccessRequired;
   requestedByPrincipalId?: string;
+  /** Who launched it, by display name; on the project's run list only. */
+  requestedByName?: string | null;
+  /** Spend by L1/L2/L3 pin and Jev; on the project's run list only, null without a readable trace. */
+  costBreakdown?: import('../../contracts/runCostBreakdown.js').RunCostBreakdown | null;
   artifactManifest?: ArtifactManifest | null;
   bytesExpiredAt?: string | null;
   projectRunId: string;

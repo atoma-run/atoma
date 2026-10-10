@@ -461,6 +461,7 @@ import { drawSkills } from './renderer/views/skills.js';
 import { drawBurnin } from './renderer/views/burnin.js';
 import { drawDocs } from './renderer/views/docs.js';
 import { drawProjects, projectSectionLayout, projectsGuideLayoutHeight, PROJECTS_MCP_GUIDE_TOP } from './renderer/views/projects.js';
+import { projectAsideReserve } from './renderer/views/project-overview.js';
 import { drawAdmin } from './renderer/views/admin.js';
 import { drawJournal } from './renderer/views/journal.js';
 import { drawLedger } from './renderer/views/ledger.js';
@@ -1913,7 +1914,9 @@ export class GpuRenderer {
           ? `registry:${snapshot.state.selectedRegistryAtom ?? ''}`
           : snapshot.state.view === 'skills'
             ? `skill:${snapshot.state.selectedSkill?.l1Name ?? ''}::${snapshot.state.selectedSkill?.id ?? ''}`
-            : null;
+            : snapshot.state.view === 'projects' && snapshot.state.selectedProjectId
+              ? `project-overview:${snapshot.state.selectedProjectId}`
+              : null;
     if (nextDetailKey !== this.detailKey) this.detailScrollY = 0;
     this.detailKey = nextDetailKey;
     this.detailBounds = null;
@@ -2069,6 +2072,8 @@ export class GpuRenderer {
             const style = this.app.canvas.closest<HTMLElement>('.gpu-scene-camera')?.style;
             style?.setProperty('--gpu-project-guide-top', `${guideTop}px`);
             style?.setProperty('--gpu-project-guide-height', `${projectsGuideLayoutHeight(snapshot, contentWidth, layoutHeight, guideTop)}px`);
+            // The overview column's share of the frame: the conversation form ends where it begins.
+            style?.setProperty('--gpu-project-aside', `${projectAsideReserve(snapshot, contentWidth)}px`);
             // The docked file reader's box: CSS cannot see the layout height a
             // focused camera leaves visible, so `bottom: 26px` would overshoot.
             style?.setProperty('--gpu-project-section-height',
@@ -2319,12 +2324,19 @@ export class GpuRenderer {
       x: region.x + region.width,
       y: region.y + region.height,
     });
+    // A sector projects through the same transform: its centre as a point,
+    // its radii by the rectangle's scale (the camera is face-on, so uniform).
+    const wedge = region.wedge;
+    const scale = region.width > 0 ? Math.abs(end.x - start.x) / region.width : 1;
+    const centre = wedge ? parent.toGlobal({ x: wedge.cx, y: wedge.cy }) : null;
     layer.register({
       ...region,
       x: Math.min(start.x, end.x),
       y: Math.min(start.y, end.y),
       width: Math.abs(end.x - start.x),
       height: Math.abs(end.y - start.y),
+      ...(wedge && centre ? { wedge: { ...wedge, cx: centre.x, cy: centre.y,
+        inner: wedge.inner * scale, outer: wedge.outer * scale } } : {}),
     });
   }
 

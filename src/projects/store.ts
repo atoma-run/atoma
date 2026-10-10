@@ -2185,6 +2185,16 @@ END;
    * NOT an org-wide cost surface: what a tenant may be shown about spend is
    * an open product decision, and this is the evidence underneath it.
    */
+  /** Display names of these principals, for readers that list who did what. */
+  principalDisplayNames(principalIds: readonly string[]): Map<string, string> {
+    const unique = [...new Set(principalIds)];
+    if (unique.length === 0) return new Map();
+    const rows = this.db
+      .prepare(`SELECT principal_id, display_name FROM auth_principals WHERE principal_id IN (${unique.map(() => '?').join(', ')})`)
+      .all(...unique) as Array<{ principal_id: string; display_name: string }>;
+    return new Map(rows.map(row => [row.principal_id, row.display_name]));
+  }
+
   getRunPayers(orgIdInput: string, projectRunIdInput: string): RunPayerLedger | null {
     const orgId = organisationIdSchema.parse(orgIdInput);
     const projectRunId = projectRunIdSchema.parse(projectRunIdInput);

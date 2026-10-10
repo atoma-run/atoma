@@ -537,6 +537,7 @@ npm run viz:mark-turn:analyze
   read by both measuring and drawing, keeping `scrollMax` in sync. The guide
   remains a transparent DOM overlay above the canvas, with its frame drawn on
   the GPU.
+- A selected project's OVERVIEW (`renderer/views/project-overview.ts`) is a right column beside Conversation and Runs where `projectAsideLayout` fits it, and heads the Runs list otherwise; the renderer publishes its reserve as `--gpu-project-aside` so the DOM conversation and its GPU card share one right edge. It aggregates the run list already fetched (`client-gl/project-overview.ts`), never a second request; the pie slices come from `runCostBreakdown` ([src/contracts](../contracts/AGENTS.md)), attributed by the PIN that served a call, and include Jev, which a run's LLM total does not — the column says so rather than reconciling the two figures.
 - WIDTHS ARE MEASURED, NEVER ESTIMATED, and row copy stays single-line: a
   character count is not a geometry bound. `ctx.measureText`/`ctx.fitText` are
   the one source and `button()` fits every label through them, so views pass

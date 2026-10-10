@@ -52,6 +52,33 @@ export interface TooltipRegion {
   readonly fontSize?: number;
   /** Optional event colour for the border and a subtle background tint. */
   readonly accent?: number;
+  /**
+   * Narrow the rectangle to an annular sector — a pie or donut slice — so
+   * neighbouring slices inside one bounding box answer separately. Angles in
+   * radians, clockwise from the positive x axis, `end > start`; geometry in
+   * the same space as the rectangle.
+   */
+  readonly wedge?: TooltipWedge;
+}
+
+export interface TooltipWedge {
+  readonly cx: number;
+  readonly cy: number;
+  readonly inner: number;
+  readonly outer: number;
+  readonly start: number;
+  readonly end: number;
+}
+
+/** Whether a point lies in the sector, angles normalised from `start`. */
+export function wedgeContains(wedge: TooltipWedge, x: number, y: number): boolean {
+  const dx = x - wedge.cx;
+  const dy = y - wedge.cy;
+  const distance = Math.hypot(dx, dy);
+  if (distance < wedge.inner || distance > wedge.outer) return false;
+  const turn = Math.PI * 2;
+  const offset = (((Math.atan2(dy, dx) - wedge.start) % turn) + turn) % turn;
+  return offset <= wedge.end - wedge.start;
 }
 
 /**
@@ -161,7 +188,8 @@ export class TooltipLayer {
         x >= region.x &&
         x <= region.x + region.width &&
         y >= region.y &&
-        y <= region.y + region.height
+        y <= region.y + region.height &&
+        (!region.wedge || wedgeContains(region.wedge, x, y))
       ) {
         return region;
       }

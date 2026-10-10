@@ -2,6 +2,7 @@ import { ButtonIcon } from './ButtonIcon.js';
 import { previewControlLabel } from './renderer/preview-control.js';
 import { checkpointActionKey, canControlCheckpoint, pendingGitHubAccess, canContinueGitHubAccess, canRetryPublication, type GitHubRecoveryProgress } from './github-access.js';
 import { WorkspaceAccessible } from './WorkspaceAccessible.js';
+import { ProjectOverviewAccessible } from './ProjectOverviewAccessible.js';
 import { formatDateTime } from '../client/date-format.js';
 import type { WorkspaceBrowserData } from './workspace-browser.js';
 import { UpstreamSetting } from './UpstreamSetting.js';
@@ -503,6 +504,8 @@ export function DomBridge({
             ))}
           </nav>
         ) : null}
+        {view === 'projects' && selectedProjectId && (projectSection === 'conversation' || projectSection === 'runs') ?
+          <ProjectOverviewAccessible runs={projectRuns.filter(run => run.projectId === selectedProjectId)} t={t} /> : null}
         {view === 'projects' && selectedProjectId && projectSection === 'runs' && !workspaceRunId ? projectRuns.filter(run => run.projectId === selectedProjectId && run.checkpoint && run.checkpoint.state !== 'unavailable').map(run =>
           <section key={`checkpoint-${run.projectRunId}`} aria-label={t('projects.checkpoint.title')}>
             <p>{t('projects.checkpoint.progress', { completed: run.checkpoint!.completed, total: run.checkpoint!.total })}</p>

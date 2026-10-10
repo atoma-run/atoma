@@ -2,6 +2,7 @@ import { lstatSync, readFileSync } from 'node:fs';
 import { MAX_TRACE_BYTES } from '../contracts/traceFields.js';
 import { RUN_INDEX_GOAL_MAX, runLabelFromGoal, type VizRun, type VizRunIndexEntry } from './trace.js';
 import { isLanded } from '../contracts/runLanding.js';
+import { runCostBreakdown, type RunCostBreakdown } from '../contracts/runCostBreakdown.js';
 
 /**
  * The members this row is built from, PINNED AGAINST `VizRun` so renaming one
@@ -99,6 +100,20 @@ export function readBoundedRunFile(file: string): BoundedRunFileRead {
  * not built.
  */
 export function summarizeTraceFile(file: string): VizRunIndexEntry | null {
+  return summarizeTraceFileWith(file, false)?.entry ?? null;
+}
+
+/**
+ * The same row plus where the run's money went (`runCostBreakdown`), from the
+ * ONE parse: a project's run list asks for both, and reading the trace twice
+ * per run would double the cost of the poll that lists them.
+ */
+export function summarizeTraceFileWithCost(file: string): { entry: VizRunIndexEntry; costBreakdown: RunCostBreakdown } | null {
+  const summary = summarizeTraceFileWith(file, true);
+  return summary?.costBreakdown ? { entry: summary.entry, costBreakdown: summary.costBreakdown } : null;
+}
+
+function summarizeTraceFileWith(file: string, withCost: boolean): { entry: VizRunIndexEntry; costBreakdown?: RunCostBreakdown } | null {
   try {
     // The ceiling and the symlink refusal live in the shared reader; the
     // fail-SOFT disposition over them stays HERE, where a skipped row is not a
@@ -167,7 +182,7 @@ export function summarizeTraceFile(file: string): VizRunIndexEntry | null {
         if (last > 0) entry.lastEventAt = last;
       }
     }
-    return entry;
+    return withCost ? { entry, costBreakdown: runCostBreakdown(run) } : { entry };
   } catch {
     return null;
   }

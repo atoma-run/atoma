@@ -552,6 +552,8 @@ html.atoma-cursor-active * {
 .gpu-project-mcp--selected {
   --gpu-overlay-top: var(--gpu-project-guide-top, 148px);
   top: var(--gpu-project-guide-top, 148px);
+  /* The project overview column (`projectAsideReserve`) keeps the frame's right. */
+  width: calc(var(--gpu-frame) - 32px - var(--gpu-project-aside, 0px));
 }
 .gpu-project-mcp[hidden] { display: none; }
 

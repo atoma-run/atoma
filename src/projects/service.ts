@@ -11,7 +11,7 @@ import { artifactPageInputSchema, artifactReadInputSchema, pageCursorSchema, pro
   serviceProblem, type ServiceProblem, type ProjectPageInput, type RunPageInput, type PageCursor } from '../contracts/clientExperience.js';
 import { POLLED_PROGRESS_REUSE_MS, projectRunProgress } from './runProgress.js';
 import { artifactMime } from './artifactMedia.js';
-import { summarizeTraceFile } from '../viz/runIndex.js';
+import { summarizeTraceFile, summarizeTraceFileWithCost } from '../viz/runIndex.js';
 import { isUtf8 } from 'node:buffer';
 import { assertPublishableArtifactPath, normalizeArtifactPath, readManifestArtifact } from './artifacts.js';
 import { MAX_WORKSPACE_FILE_BYTES, MAX_WORKSPACE_PREVIEW_BYTES, type WorkspaceIndex, type WorkspaceFile } from '../contracts/workspaceBrowser.js';
@@ -117,7 +117,8 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
 function publicRun(
   run: ProjectRun,
   publication: import('../contracts/projects.js').Publication | null,
-  models: RunPayerLedger | null
+  models: RunPayerLedger | null,
+  options: { readonly costBreakdown?: boolean } = {}
 ) {
   const base = projectRunPublicSchema.parse(run);
   // The projection omits `hostPaths`, and an error must not carry them back:
@@ -135,7 +136,8 @@ function publicRun(
     runsPath: run.hostPaths.runsPath,
     traceId: run.traceId,
   });
-  const trace = traceFile ? summarizeTraceFile(traceFile) : null;
+  const withCost = options.costBreakdown && traceFile ? summarizeTraceFileWithCost(traceFile) : null;
+  const trace = withCost?.entry ?? (traceFile ? summarizeTraceFile(traceFile) : null);
   return {
     ...base,
     ...(run.status === 'queued' ? { statusMessage: PROJECT_RUN_WAITING_MESSAGE } : {}),
@@ -150,6 +152,9 @@ function publicRun(
     // ledger written at start: what a relaunch on other models is compared
     // against. Null for a run started before the ledger existed.
     models,
+    // Where the money went, L1/L2/L3 pins and Jev: only on the project's run
+    // list, the one reader that draws it (the Projects overview).
+    ...(options.costBreakdown ? { costBreakdown: withCost?.costBreakdown ?? null } : {}),
     durationS: Number.isFinite(elapsedMs) && elapsedMs >= 0 ? elapsedMs / 1000 : null,
     publication: publication
       ? {
@@ -278,10 +283,11 @@ export class ProjectService {
     };
   }
 
-  private present(run: ProjectRun, publication: import('../contracts/projects.js').Publication | null) {
+  private present(run: ProjectRun, publication: import('../contracts/projects.js').Publication | null,
+    options: { readonly costBreakdown?: boolean } = {}) {
     const clientAcceptance = this.store.getDeliveryAcceptance(run.orgId, run.projectRunId);
     const clientQuestion = this.coordinator.clientQuestion(run);
-    return { ...publicRun(run, publication, this.store.getRunPayers(run.orgId, run.projectRunId)),
+    return { ...publicRun(run, publication, this.store.getRunPayers(run.orgId, run.projectRunId), options),
       clientAcceptance, clientQuestion,
       awaitingClientAnswer: Boolean(clientQuestion && !clientQuestion.answer && this.coordinator.checkpointStatus(run)?.state === 'paused'),
       acceptedReferenceRunId: this.store.acceptedReference(run.orgId, run.projectId)?.projectRunId ?? null,
@@ -735,9 +741,13 @@ export class ProjectService {
     const orgId = this.readOrgFor(viewer, projectId);
     const runs = this.store.listProjectRuns(orgId, projectId);
     if (!runs) throw new ProjectHttpError(404, 'project not found');
+    // Who launched each run, by name: the overview lists them. Members of the
+    // organisation already read each other's names on /api/org.
+    const names = this.store.principalDisplayNames(runs.map(run => run.requestedByPrincipalId));
     return runs.map((run) => {
       const publication = this.store.getPublicationForRun(orgId, run.projectRunId);
-      return this.present(run, publication);
+      return { ...this.present(run, publication, { costBreakdown: true }),
+        requestedByName: names.get(run.requestedByPrincipalId) ?? null };
     });
   }
 

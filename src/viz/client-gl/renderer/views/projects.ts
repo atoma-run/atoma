@@ -15,6 +15,7 @@ import { drawViewFrame, viewFrame, VIEW_FRAME_CONTENT_TOP, VIEW_FRAME_PAD, VIEW_
 import { drawResultPanel } from './result.js';
 import { latestDeliveredResult } from '../../run-result.js';
 import { drawPreviewControl } from '../preview-control.js';
+import { drawProjectAside, drawProjectOverviewCard, projectAsideLayout, projectSectionShowsAside } from './project-overview.js';
 import { checkpointActionKey, canControlCheckpoint, pendingGitHubAccess, canContinueGitHubAccess, canRetryPublication } from '../../github-access.js';
 
 /**
@@ -213,6 +214,9 @@ function showcaseLabel(snapshot: GpuRenderSnapshot, project: { showcase?: 'liste
   return snapshot.t(project.showcaseShown ? 'projects.showcaseShown' : 'projects.showcaseEligible');
 }
 
+/** Air between the scrolled list's mask and the overview column, so a card's shadow is not clipped flush. */
+const PROJECT_LIST_ASIDE_CLEARANCE = 8;
+
 /** Horizontal inset the column leaves inside the content viewport, in total. */
 export const PROJECTS_COLUMN_INSET = GPU_LAYOUT.gap * 2;
 
@@ -255,9 +259,13 @@ export function projectLayout(
   viewportWidth: number,
   projectCount: number,
   selectedIndex: number,
-  selectedRuns: readonly VizProjectRun[]
+  selectedRuns: readonly VizProjectRun[],
+  /** A narrower column, when the project overview takes the right of the frame. */
+  columnWidth?: number
 ) {
-  const { x, width: panelWidth } = projectsColumn(viewportWidth);
+  const column = projectsColumn(viewportWidth);
+  const x = column.x;
+  const panelWidth = columnWidth ?? column.width;
   const compactRunRows = panelWidth < COMPACT_PROJECT_PANEL_WIDTH;
 
   const listTop = 16;
@@ -508,6 +516,9 @@ export function drawProjects(
   const guideVisible = snapshot.data.auth !== null && (!selectedProject || snapshot.state.projectSection === 'conversation');
   const guideTop = sectionLayout?.contentTop ?? PROJECTS_MCP_GUIDE_TOP;
   const guideHeight = projectsGuideLayoutHeight(snapshot, width, height, guideTop);
+  // The project overview column, on the sections it accompanies.
+  const aside = selectedProject && projectSectionShowsAside(snapshot.state.projectSection) && !snapshot.state.resultRunId
+    ? projectAsideLayout(width) : null;
   // The form's fields are DOM, but its CARD is the same GPU panel as the list
   // below. A CSS imitation could share dimensions and still disagree on the
   // pointer-driven shadow, which is exactly what made the two adjacent cards
@@ -518,7 +529,7 @@ export function drawProjects(
       ctx.root,
       frame.innerX,
       guideTop,
-      frame.innerWidth,
+      aside ? aside.mainWidth : frame.innerWidth,
       guideHeight,
       GPU_COLORS.panel,
       GPU_COLORS.border,
@@ -546,6 +557,7 @@ export function drawProjects(
         Math.max(0, sectionLayout.repository.width - BUTTON_LABEL_INSET * 2)));
     contentTop = sectionLayout.contentTop;
     if (snapshot.state.projectSection === 'conversation') {
+      if (aside) drawProjectAside(ctx, snapshot, selectedProject, aside, guideTop, guideTop + guideHeight);
       ctx.scrollMax.projects = 0;
       return;
     }
@@ -604,12 +616,15 @@ export function drawProjects(
     return;
   }
 
+  if (selectedProject && aside) {
+    drawProjectAside(ctx, snapshot, selectedProject, aside, contentTop, frame.bottom - VIEW_FRAME_PAD);
+  }
   // Clipped to the FRAME, not the viewport: rows that scrolled past the
   // column's bottom edge would otherwise draw over the page beneath it.
   const pane = createScrollPane(ctx.root, {
     x: frame.x,
     y: contentTop,
-    width: frame.width,
+    width: aside ? aside.asideX - PROJECT_LIST_ASIDE_CLEARANCE - frame.x : frame.width,
     height: Math.max(0, frame.bottom - VIEW_FRAME_PAD - contentTop),
     scrollY: scroll,
     bottomPadding: PROJECTS_LIST_BOTTOM_PADDING,
@@ -622,20 +637,25 @@ export function drawProjects(
     ? projects.findIndex((project) => project.projectId === selectedProject.projectId)
     : -1;
   const selectedRuns = selectedIndex >= 0 ? expandedRunList[selectedIndex] ?? [] : [];
-  const viewportLayout = projectLayout(width, projects.length, selectedIndex, selectedRuns);
+  const viewportLayout = projectLayout(width, projects.length, selectedIndex, selectedRuns, aside?.mainWidth);
+  // Narrow frames have no room for the column: the overview heads the Runs list.
+  const overviewHeight = selectedProject && !aside && snapshot.state.projectSection === 'runs'
+    ? drawProjectOverviewCard(ctx, snapshot, pane.content, selectedProject, viewportLayout.x - frame.x, 0, viewportLayout.panelWidth) + 16
+    : 0;
   // `projectLayout` stays viewport-absolute because the DOM guide consumes its
   // edges too. The scroll pane is positioned at `frame.x`, so drawing inside
   // `pane.content` uses the same layout relative to that pane.
-  const layout = { ...viewportLayout, x: viewportLayout.x - frame.x };
+  const layout = { ...viewportLayout, x: viewportLayout.x - frame.x,
+    listTop: viewportLayout.listTop + overviewHeight, contentBottom: viewportLayout.contentBottom + overviewHeight };
 
   // Hug the list. Stretching to the remaining viewport left a hollow slab
   // under a handful of rows.
   ctx.panel(
     pane.content,
     layout.x,
-    0,
+    overviewHeight,
     layout.panelWidth,
-    layout.contentBottom,
+    layout.contentBottom - overviewHeight,
     GPU_COLORS.panel,
     GPU_COLORS.border,
     GPU_LAYOUT.radius,
