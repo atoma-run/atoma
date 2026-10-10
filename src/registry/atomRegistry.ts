@@ -528,6 +528,14 @@ export class AtomRegistry {
     return new Set(rows.map((r) => r.name));
   }
 
+  /** The highest archived version at an ordinal, 0 with none: what a new archive row must exceed. */
+  private maxArchivedVersion(tier: Tier, ordinal: number): number {
+    const row = this
+      .prepare(`SELECT MAX(version) AS mv FROM atom_type_versions WHERE tier = ? AND ordinal = ?`)
+      .get(tier, ordinal) as { mv: number | null } | undefined;
+    return typeof row?.mv === 'number' ? row.mv : 0;
+  }
+
   private usedOrdinals(tier: Tier): Set<number> {
     const rows = this
       .prepare(
@@ -628,7 +636,15 @@ export class AtomRegistry {
         return current;
       }
 
-      const nextVersion = current.version + 1;
+      // The current content is archived ABOVE every row the ordinal already
+      // holds, and the live version above that. A merge transplants the
+      // losers' history under the winner at synthetic numbers past its live
+      // version; until 2026-10-10 the second patch after one archived at a
+      // number already taken and the run died on the UNIQUE constraint
+      // (production run 35178ec3, Water). The floor repairs such a winner on
+      // its next patch; `mergeInto` now lifts the live version too.
+      const archivedAs = Math.max(current.version, this.maxArchivedVersion(current.tier, current.ordinal) + 1);
+      const nextVersion = archivedAs + 1;
       const now = new Date().toISOString();
 
       this
@@ -640,7 +656,7 @@ export class AtomRegistry {
         .run(
           current.tier,
           current.ordinal,
-          current.version,
+          archivedAs,
           current.systemPrompt,
           currentToolsJson,
           currentParamsJson,
@@ -769,7 +785,9 @@ export class AtomRegistry {
       }
 
       const now = new Date().toISOString();
-      const nextVersion = current.version + 1;
+      // Same floor as `patch`: archive above every row the ordinal holds.
+      const archivedAs = Math.max(current.version, this.maxArchivedVersion(current.tier, current.ordinal) + 1);
+      const nextVersion = archivedAs + 1;
       this
         .prepare(
           `INSERT INTO atom_type_versions
@@ -779,7 +797,7 @@ export class AtomRegistry {
         .run(
           current.tier,
           current.ordinal,
-          current.version,
+          archivedAs,
           current.systemPrompt,
           JSON.stringify(current.tools),
           JSON.stringify(current.params),
@@ -1295,13 +1313,15 @@ export class AtomRegistry {
           .prepare(`DELETE FROM atom_types WHERE tier = ? AND ordinal = ?`)
           .run(loser.tier, loser.ordinal);
       }
+      // The live version rises above every transplanted row, or the second
+      // patch after the merge archives at a taken number (run 35178ec3).
       this
         .prepare(
           `UPDATE atom_types
-             SET successes = successes + ?, failures = failures + ?, consecutive_successes = 0
+             SET successes = successes + ?, failures = failures + ?, consecutive_successes = 0, version = ?
            WHERE tier = ? AND ordinal = ?`
         )
-        .run(sumSucc, sumFail, winner.tier, winner.ordinal);
+        .run(sumSucc, sumFail, Math.max(winner.version, nextVersion + 1), winner.tier, winner.ordinal);
       // A COUNTER MUTATION THE LEDGER USED TO MISS ENTIRELY. `mergeInto` moves
       // the losers' trust onto the winner and deletes their rows, so before
       // this the winner simply grew by an unexplained amount — which `check`
