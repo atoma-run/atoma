@@ -1,25 +1,34 @@
-# Portable project memory
+# Shared project memory
 
-This directory contains a snapshot of Atoma's project-specific Claude memory,
-copied on 2026-10-11. Start with [MEMORY.md](MEMORY.md) for the index.
-The 39 original Markdown files retain their content; trailing whitespace and
-final blank lines have been cleaned up for Git.
+This directory is the working project memory, shared through Git. Start with
+[MEMORY.md](MEMORY.md); read topic notes as needed. The root `AGENTS.md` asks
+coding agents to read that index and write durable project memories here.
+Current code and project contracts take precedence over dated notes.
 
-## Using it on another computer
+## Claude Code setup (once per checkout)
 
-1. Clone or pull this repository.
-2. Locate the external project memory directory associated with the new Atoma
-   checkout in Claude Code. Its path depends on the computer and checkout path.
-3. Back up any existing memory there, then copy or merge the Markdown files
-   from this directory, excluding this README, into that directory.
+After cloning or pulling, run from the repository root:
 
-The original source directory was
-`C:\Users\mgf\.claude\projects\c--Users-mgf-dev-atoma\memory`.
-Do not reuse that machine-specific directory name blindly on another computer.
-Keeping this snapshot in Git does not automatically install it as agent memory.
-An agent can also read these files directly from the repository when requested.
+```sh
+node scripts/setup-project-memory.mjs
+```
 
-These notes include dated findings and machine-specific paths. Check them
-against the current code and project contracts before acting; the current
-`AGENTS.md` files remain authoritative. This is a snapshot, not automatic
-synchronization: future external memory updates must be copied back explicitly.
+Restart Claude Code and check the directory with `/memory`. The script sets
+`autoMemoryDirectory` to this checkout's absolute `memory/` path and enables
+auto memory in the ignored `.claude/settings.local.json`, preserving other
+settings. Run it again if you move the checkout. No notes are copied or deleted.
+Each worktree can run the command to use its own versioned memory directory.
+
+Claude Code requires an absolute or home-relative path for this setting:
+[storage documentation](https://code.claude.com/docs/en/memory#storage-location).
+The machine-specific configuration stays out of Git.
+
+## Sharing changes
+
+Pull before starting work on another computer. Review, commit and push changes
+to `memory/` after updating notes; resolve concurrent edits through Git as with
+code. There is no automatic commit or push. Do not store credentials here.
+
+The initial 39 notes were imported on 2026-10-11 from the external Claude
+project memory directory. That old directory is retained as a backup and is no
+longer the configured memory location after setup.
