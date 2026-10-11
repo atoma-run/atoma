@@ -1,5 +1,5 @@
 import { initializeProjectContext, readProjectContext, projectContextHistory, updateProjectContext } from './context.js';
-import { learningReceipt } from '../skills/learningQueue.js';
+import { learningReceipt } from '../skills/learningReceipts.js';
 import type { ProjectContextUpdate } from '../contracts/projectContext.js';
 import { PlatformSettingsStore } from '../platform/settings.js';
 import { repositorySyncSchema, type RepositorySync } from '../contracts/repositorySync.js';

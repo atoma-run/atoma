@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -44,6 +45,23 @@ function fixture(twoOwners = false) {
 const recipe = { id: 'read-entry-file', description: 'Read an entry file', when_to_use: 'Read an entry file', body: '1. read_file <entry>.' };
 
 describe('approved learning outside delivery', () => {
+  it('reads project storage in a fresh process without importing the learning worker or providers', () => {
+    const script = `
+      import { registerHooks } from 'node:module';
+      registerHooks({ resolve(specifier, context, next) {
+        const resolved = next(specifier, context);
+        if (/\\/(?:learningQueue|learningProcess|providers)\\.(?:ts|js)$/.test(resolved.url)) {
+          throw new Error('Project storage loaded execution machinery: ' + resolved.url);
+        }
+        return resolved;
+      } });
+      const { ProjectStore } = await import(${JSON.stringify(new URL('../src/projects/store.ts', import.meta.url).href)});
+      if (typeof ProjectStore !== 'function') throw new Error('ProjectStore did not load');
+    `;
+    expect(() => execFileSync(process.execPath, ['--import', 'tsx', '--input-type=module', '--eval', script],
+      { encoding: 'utf8', timeout: 10_000 })).not.toThrow();
+  });
+
   it('crosses the real worker boundary, persists usage and keeps compilation at learn', async () => {
     const { root, dbPath, job, env, queue } = fixture();
     const requests: unknown[] = [];

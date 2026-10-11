@@ -1,7 +1,9 @@
 import type Database from 'better-sqlite3';
 import { openStoreHandle } from '../core/stores.js';
 import { estimateCostUsd, pricesFor, type LlmCallMetrics } from '../core/metrics.js';
-import { learningJobSchema, learningReceiptSchema, type LearningJob, type LearningReceipt } from '../contracts/skillLearning.js';
+import { learningJobSchema, type LearningJob, type LearningReceipt } from '../contracts/skillLearning.js';
+import { learningReceipt, learningReceipts } from './learningReceipts.js';
+export { learningReceipt, learningReceipts } from './learningReceipts.js';
 import { processFingerprint, recordedProcessLive } from '../mcp/runLock.js';
 import { billableTokensOf } from '../core/runBudget.js';
 
@@ -17,25 +19,9 @@ CREATE TABLE IF NOT EXISTS skill_learning_jobs (
   error TEXT, updated_at TEXT NOT NULL, retries TEXT NOT NULL DEFAULT '[]'
 );
 `;
-type Row = { run_id: string; payload: string; lesson_count: number; status: LearningReceipt['status']; pid: number | null; fingerprint: string | null;
+export type LearningQueueRow = { run_id: string; payload: string; lesson_count: number; status: LearningReceipt['status']; pid: number | null; fingerprint: string | null;
   in_flight: number; active_lessons: string; completed: string; calls: number; tokens: number; input_tokens: number;
   output_tokens: number; cost_usd: number; error: string | null; updated_at: string; retries: string };
-
-export function learningReceipt(db: Database.Database, runId: string): LearningReceipt | undefined {
-  if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'skill_learning_jobs'").get()) return;
-  const row = db.prepare('SELECT status, lesson_count, completed, calls, input_tokens, output_tokens, cost_usd, error, updated_at, retries FROM skill_learning_jobs WHERE run_id = ?').get(runId) as Row | undefined;
-  if (!row) return;
-  return learningReceiptSchema.parse({ status: row.status, lessons: row.lesson_count,
-    completedLessons: (JSON.parse(row.completed) as number[]).length, llmCalls: row.calls,
-    inputTokens: row.input_tokens, outputTokens: row.output_tokens, costUsd: row.cost_usd,
-    error: row.error, updatedAt: row.updated_at, retries: JSON.parse(row.retries) });
-}
-
-export function learningReceipts(db: Database.Database): Array<{ runId: string; receipt: LearningReceipt }> {
-  if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'skill_learning_jobs'").get()) return [];
-  return (db.prepare('SELECT run_id FROM skill_learning_jobs ORDER BY updated_at DESC LIMIT 100').all() as { run_id: string }[])
-    .map(row => ({ runId: row.run_id, receipt: learningReceipt(db, row.run_id)! }));
-}
 
 /** The primary product store owns the outbox. Bodies, prompts and costs survive the run child. */
 export class LearningQueue {
@@ -62,7 +48,7 @@ export class LearningQueue {
 
   /** Never repay a call whose response died with its process. Unstarted work can resume automatically. */
   recover(isAlive: (pid: number, fingerprint: string | null) => boolean = (pid, fingerprint) => recordedProcessLive(pid, fingerprint ?? '')): void {
-    const rows = this.db.prepare("SELECT run_id, pid, fingerprint, in_flight, active_lessons FROM skill_learning_jobs WHERE status = 'running'").all() as Row[];
+    const rows = this.db.prepare("SELECT run_id, pid, fingerprint, in_flight, active_lessons FROM skill_learning_jobs WHERE status = 'running'").all() as LearningQueueRow[];
     for (const row of rows) {
       if (row.pid !== null && isAlive(row.pid, row.fingerprint)) continue;
       const uncertain = row.in_flight > 0 || (JSON.parse(row.active_lessons) as number[]).length > 0;
