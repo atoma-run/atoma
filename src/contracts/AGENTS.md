@@ -21,8 +21,9 @@ Neighbours:
 ## Probe manifests
 
 - Probe manifests are structured records. Normalize paths before recognizing
-  `.atoma-probes.json`; machine writers merge entries, and model hand-edits are
-  refused.
+  `.atoma-probes.json`; its three machine writers merge entries
+  (`mergeShellProbe`, `appendHttpProbe`, `appendWebProbe`), and no model writes
+  it: `write_file` and `edit_file` refuse the path (2026-10-11).
 - Manifest MERGE semantics have one definition: `src/contracts/probeManifest.ts`
   owns entry identity per shape (shell by `cmd`, web by `webEntryIdentity`,
   http = ordered append) and documents the three writers' corrupt-input

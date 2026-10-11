@@ -27,6 +27,8 @@ describe('browser proof lines at execution', () => {
     expect(prompt).toContain('viewport {width: 375}');
     expect(prompt).toContain('{type:"select", selector, value}');
     expect(prompt).toContain(KEYBOARD_EVIDENCE_GUIDANCE);
+    // The manifest is never written by hand (2026-10-11): the runtime line reaches stored prompts that still say 'ALSO write_file'.
+    expect(prompt).toContain('validate_html records each PASSING check it runs into .atoma-probes.json itself');
   });
 
   it('adds no width line when the task names none, and nothing without a browser tool', async () => {
@@ -41,5 +43,6 @@ describe('browser proof lines at execution', () => {
     expect(docs.llm.calls[0]!.userContent).not.toContain('This task names');
     expect(docs.llm.calls[0]!.userContent).not.toContain('{type:"select"');
     expect(docs.llm.calls[0]!.userContent).not.toContain(KEYBOARD_EVIDENCE_GUIDANCE);
+    expect(docs.llm.calls[0]!.userContent).not.toContain('records each PASSING check');
   });
 });

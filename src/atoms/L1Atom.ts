@@ -17,6 +17,7 @@ import { capToolIterations } from '../core/limits.js';
 import { NON_JSON_PAYLOAD_SUMMARY_PREFIX, parsePayloadTolerant, parseWith, planSchema } from './json.js';
 import type { Skill } from '../skills/types.js';
 import { modelFacingExecutor } from '../core/attestation.js';
+import { PROBE_MANIFEST_FILENAME } from '../contracts/probeManifest.js';
 import { executorEvidence } from './executorEvidence.js';
 import { AttemptDigest } from './attemptDigest.js';
 import { namedLayoutWidths } from '../contracts/acceptanceChecklist.js';
@@ -67,6 +68,8 @@ export function browserProofLines(task: Task): string[] {
     `  result; drive state from the smoke only where no control reaches it. Choose from a <select>, or set a`,
     `  range, date or colour input, with {type:"select", selector, value}: a click on an <option> or arrow keys`,
     `  on a closed select change nothing.`,
+    `- validate_html records each PASSING check it runs into ${PROBE_MANIFEST_FILENAME} itself; never write_file or edit_file`,
+    `  that manifest (both are refused) — to record a check, run it through validate_html.`,
     ...(widths.length > 0
       ? [`- This task names ${widths.map((width) => `${width} px`).join(' and ')} wide. Lay the page out at EACH with its own`,
         `  validate_html call, viewport {width: ${widths[0]}} and so on: the default 800x600 proves nothing about another width.`]

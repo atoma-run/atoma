@@ -34,7 +34,7 @@ describe('which recipe fits a documentation phase', () => {
     for (const block of [skillContextBlock({ id: 'patch-verified-static-ui', body: recipe }), eventSkillBlock({ id: 'recover', body: 'rewrite index.html', trigger: 'x' })]) {
       expect(flat(block)).toContain(edit);
       expect(flat(block)).toContain(rerun);
-      expect(flat(block)).toContain('.atoma-probes.json is outside this rule.');
+      expect(flat(block)).toContain('never written by hand: validate_html, fetch_url record:true and record_probe record into it.');
     }
     // The validator judging adherence reads them with the recipe: obeying them is following it.
     expect(flat(renderActiveSkillBlock({ id: 'patch-verified-static-ui', body: recipe }))).toContain(edit);

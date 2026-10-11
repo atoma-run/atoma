@@ -10,8 +10,9 @@ import {
   PORT_BEARING_STDOUT_RE,
   PROBE_MANIFEST_FILENAME,
   appendHttpProbe,
+  appendWebProbe,
+  WEB_PROBE_DISCRIMINANT,
   mergeProbeManifestWrite,
-  validateProbeManifest,
   probeManifestWriteRefusal,
   mergeShellProbe,
   SMOKE_TWO_CALL_LINES,
@@ -272,6 +273,23 @@ export function withElementTaxonomy(tool: BuiltinTool): BuiltinTool {
  * phases had recorded, the exact cross-phase data loss the merge exists to
  * prevent. Compare resolved absolute paths, exactly like the file op does.
  */
+/**
+ * NOTHING WRITES THE PROBE MANIFEST BY HAND (2026-10-11). Its three shapes
+ * have three recorders — validate_html for a passing browser check, fetch_url
+ * record:true for a request, record_probe for a command — each merging its
+ * own entry. A model that wrote it by hand wrote prose labels where a smoke
+ * belongs, then spent whole batches of edit_file calls "repairing" them:
+ * 28 of 36 edit_file failures in the 2026-10-10 corpus, 17 in run bad74240,
+ * whose molecule had no record_probe to follow the old message with.
+ */
+function manifestHandWriteRefusal(tool: 'write_file' | 'edit_file'): string {
+  return `${tool}: ${tool === 'edit_file' ? 'refuse to hand-edit' : 'refuse to hand-write'} "${PROBE_MANIFEST_FILENAME}". ` +
+    'Nothing writes it by hand: validate_html records each PASSING browser check it runs, fetch_url with record:true ' +
+    'each request, record_probe each command, each merged into the manifest by the tool itself. A check you want ' +
+    'recorded is recorded by running it through its tool; a failing check records nothing and needs no entry. ' +
+    'Do not edit or rewrite this file.';
+}
+
 function isProbeManifestPath(sandbox: ToolSandbox, path: string): boolean {
   if (path === PROBE_MANIFEST_FILENAME) return true;
   try {
@@ -324,7 +342,7 @@ export function writeFileTool(opts: BuiltinToolOptions): BuiltinTool {
     declaration: {
       name: 'write_file',
       description:
-        `Write a text file inside the workspace. Creates parent directories as needed. Overwrites an existing file only once this run has read or written it: read_file work from before the run first. Use RELATIVE paths only (e.g. "index.html", "src/main.js"). Writing ${PROBE_MANIFEST_FILENAME} preserves and merges entries from earlier phases instead of deleting them.`,
+        `Write a text file inside the workspace. Creates parent directories as needed. Overwrites an existing file only once this run has read or written it: read_file work from before the run first. Use RELATIVE paths only (e.g. "index.html", "src/main.js"). ${PROBE_MANIFEST_FILENAME} is never written by hand: its recording tools write it.`,
       inputSchema: {
         type: 'object',
         properties: {
@@ -339,55 +357,15 @@ export function writeFileTool(opts: BuiltinToolOptions): BuiltinTool {
       const content = expectString(args, 'content');
       const abs = opts.sandbox.resolve(path);
       const isManifest = isProbeManifestPath(opts.sandbox, path);
-      if (isManifest) {
-        // Refuse BEFORE mkdir/write: an unparseable manifest must never reach
-        // disk, whether it would have been merged or created. See
-        // `probeManifestWriteRefusal` for the measurement.
-        const refusal = probeManifestWriteRefusal(content);
-        if (refusal) throw new Error(refusal);
-      } else {
-        const blind = blindOverwrite(opts.sandbox, path, abs);
-        if (blind) throw new Error(blind);
-      }
+      if (isManifest) throw new Error(manifestHandWriteRefusal('write_file'));
+      const blind = blindOverwrite(opts.sandbox, path, abs);
+      if (blind) throw new Error(blind);
       mkdirSync(dirname(abs), { recursive: true });
-      const merging = isManifest && existsSync(abs);
-      const finalContent = merging ? mergeProbeManifestWrite(readFileSync(abs, 'utf8'), content) : content;
-      writeFileSync(abs, finalContent, 'utf8');
+      writeFileSync(abs, content, 'utf8');
       markSeen(opts.sandbox, abs);
-      opts.logger?.info(`[tool:write_file] ${path} (${Buffer.byteLength(finalContent, 'utf8')} bytes)`);
-      // A merged manifest is many times what the call sent: say why, so the
-      // caller has no reason to read every earlier phase's entries back (run
-      // 0b51e494 read 75 KB, and its next turn took 324 s).
-      const merged = merging ? manifestMergeSummary(content, finalContent) : undefined;
-      return { ok: true, path, bytes: Buffer.byteLength(finalContent, 'utf8'), ...(merged ? { merged } : {}) };
+      opts.logger?.info(`[tool:write_file] ${path} (${Buffer.byteLength(content, 'utf8')} bytes)`);
+      return { ok: true, path, bytes: Buffer.byteLength(content, 'utf8') };
     },
-  };
-}
-
-/**
- * Entries the call sent, and entries the merged manifest now holds; undefined
- * when either is unreadable, or when the file holds just what was sent.
- */
-function manifestMergeSummary(sent: string, merged: string): { sent: number; total: number; note: string } | undefined {
-  const count = (text: string): number | undefined => {
-    try {
-      const entries: unknown = (JSON.parse(text) as { entries?: unknown }).entries;
-      return Array.isArray(entries) ? entries.length : undefined;
-    } catch {
-      return undefined;
-    }
-  };
-  const ofCall = count(sent);
-  const total = count(merged);
-  if (ofCall === undefined || total === undefined || total <= ofCall) return undefined;
-  const kept = `${total - ofCall} entries already recorded were kept beside yours (write_file merges and never removes one)`;
-  const problem = validateProbeManifest(merged)[0];
-  return {
-    sent: ofCall,
-    total,
-    note: problem === undefined
-      ? `${kept}; no need to read the file back`
-      : `${kept}, and the manifest fails its check: ${problem.slice(0, 200)}`,
   };
 }
 
@@ -441,25 +419,8 @@ export function editFileTool(opts: BuiltinToolOptions): BuiltinTool {
         throw new Error(`edit_file: no such file "${path}" — use write_file to create it first`);
       }
       const content = readFileSync(abs, 'utf8');
-      // THE PROBE MANIFEST IS NOT EDITABLE BY HAND. Measured across 122
-      // archived traces: 31 of the 50 `old_string not found` failures were on
-      // this one file — 62% of every edit_file failure in the corpus. The
-      // cause is structural, not sloppiness: the manifest is a JSON document
-      // the model must MERGE into, and compiled verification scripts rewrite
-      // it behind the model's back (`node _skill_*.mjs` merges its
-      // observations back in), so a span remembered from an earlier tool call
-      // is stale by construction. Refused here rather than diagnosed, because
-      // `record_probe` now does the merge correctly and a better error message
-      // would still cost a wasted round-trip.
-      if (isProbeManifestPath(opts.sandbox, path)) {
-        throw new Error(
-          `edit_file: refuse to hand-edit "${PROBE_MANIFEST_FILENAME}". It is a merged record that ` +
-            `compiled verification scripts also rewrite, so any span you remember from earlier is ` +
-            `likely stale — this was 62% of all edit_file failures before the tool existed. ` +
-            `Use record_probe to run a command AND record its real result, or write_file the whole ` +
-            `document after read_file if you must repair its structure.`
-        );
-      }
+      // The probe manifest is never written by hand (`manifestHandWriteRefusal`).
+      if (isProbeManifestPath(opts.sandbox, path)) throw new Error(manifestHandWriteRefusal('edit_file'));
 
       const occurrences = content.split(oldString).length - 1;
       if (occurrences === 0) {
@@ -2512,8 +2473,48 @@ ${pageRevision}`;
         if (exitNote && (allErrors.length > 0 || realFailedRequests.length > 0)) allErrors.push(exitNote.trim());
 
         const title = await page.title();
+        const ok = allErrors.length === 0 && realFailedRequests.length === 0 && smokeOk;
+        // THE THIRD MACHINE RECORDER (2026-10-11, `manifestHandWriteRefusal`).
+        // A passing check, bound to the document it observed, is a web entry
+        // of the probe manifest, written here as fetch_url record:true and
+        // record_probe write theirs. A host replay is no molecule's check; a
+        // failing call records nothing; the interactions are recorded as
+        // sent, the identity a replay keys on (`webEntryIdentity`).
+        let recorded: { recorded: true; manifest: string } | undefined;
+        // A record is a CHECK: real input, or a smoke that reads the page. A
+        // literal verdict ("true") or a load-only sanity read would fill the
+        // 40 identities a later run replays (review 2026-10-11).
+        const isCheck = interactions.length > 0 || SMOKE_READS_PAGE.test(smoke ?? '');
+        if (ok && !hostReplay && smoke && isCheck && !document) {
+          warnings.push(`not recorded in ${PROBE_MANIFEST_FILENAME}: the page could not be bound to a workspace file (a server returning generated or non-root HTML binds nothing)`);
+        }
+        if (ok && !hostReplay && document && smoke && isCheck) {
+          const encoded = JSON.stringify(smokeResult ?? null);
+          const manifestPath = opts.sandbox.resolve(PROBE_MANIFEST_FILENAME);
+          const next = appendWebProbe(existsSync(manifestPath) ? readFileSync(manifestPath, 'utf8') : null, {
+            probe: WEB_PROBE_DISCRIMINANT,
+            file: document.path,
+            // The steps that RAN, as parsed: what a replay keys on and re-runs.
+            ...(interactions.length > 0 ? { interactions } : {}),
+            smoke,
+            // A replay judges the smoke's own verdict; a state dump is not
+            // the record's job.
+            ...(encoded.length <= RECORDED_EXPECTED_CHARS
+              ? { expected: encoded }
+              : { expected: JSON.stringify({ ok: true }), expectedTruncated: true }),
+            consoleErrors: 0,
+            failedRequests: 0,
+            // Only what the caller sent: a defaulted viewport or wait would give
+            // the entry another replay identity than the request's.
+            ...(args['viewport'] !== undefined && args['viewport'] !== null ? { viewport } : {}),
+            ...(typeof args['waitMs'] === 'number' ? { waitMs } : {}),
+          });
+          writeFileSync(manifestPath, next, 'utf8');
+          opts.logger?.info(`[tool:validate_html] recorded a passing check of ${document.path} in ${PROBE_MANIFEST_FILENAME}`);
+          recorded = { recorded: true, manifest: PROBE_MANIFEST_FILENAME };
+        }
         return {
-          ok: allErrors.length === 0 && realFailedRequests.length === 0 && smokeOk,
+          ok,
           url,
           title,
           errors: allErrors,
@@ -2534,6 +2535,7 @@ ${pageRevision}`;
           // response status: what a host replay judges a check by.
           ...(hostReplay && smoke ? { smokeOk, smokeThrew } : {}),
           ...(hostReplay && navigation ? { httpStatus: navigation.status() } : {}),
+          ...(recorded ?? {}),
         };
       } catch (err) {
         // Navigation failed, so the icon-link probe is unavailable; treating
@@ -2570,6 +2572,12 @@ ${pageRevision}`;
     },
   };
 }
+
+/** A smoke that reads the page, as against a literal verdict; with no interactions, only such a smoke is a check worth recording. */
+const SMOKE_READS_PAGE = /\b(?:document|window|localStorage|sessionStorage|getComputedStyle|location|navigator)\b/;
+
+/** Beyond this, a recorded "expected" keeps only the verdict: a state dump is not the record's job. */
+const RECORDED_EXPECTED_CHARS = 4_000;
 
 /** Marks a host replay's smoke that threw, inside the page; removed from the result. */
 const HOST_SMOKE_THREW = '__atomaHostSmokeThrew';

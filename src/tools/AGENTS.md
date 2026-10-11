@@ -21,8 +21,10 @@ Neighbours:
   do not compare raw user spellings for protected files.
 - Default builtins and the closed tool vocabulary must stay in lockstep. Tests
   compare names/order; executor scope is the ultimate permission gate.
-- `record_probe` writes the manifest from machine-observed results. Models choose
-  what to probe; they do not transcribe the record.
+- The probe manifest has THREE recorders and no hand: `record_probe` for a
+  command, `fetch_url record:true` for a request, `validate_html` for a PASSING
+  browser check (2026-10-11). Models choose what to probe; they do not
+  transcribe the record, and `write_file`/`edit_file` refuse the file.
 - Worker and in-process backends share contracts from `src/contracts/`; never
   fork protocol shapes.
 - Container execution uses `network none` unless explicit egress is selected.
@@ -150,16 +152,26 @@ Neighbours:
 
 ## Probe manifest writes
 
-- `write_file` REFUSES an unparseable `.atoma-probes.json`
-  (`probeManifestWriteRefusal`) before touching disk. The verbatim
-  pass-through exists so the model can REPAIR a broken manifest, and only the
-  INCOMING document is checked, so repair still works — but a repair that does
-  not itself parse is corruption, and no writer may leave a record no reader
-  can read back. Measured 2026-08-21: a hand-authored 10857-byte document with
-  a raw newline inside a string reached disk, the ground-truth probe reported
-  MALFORMED, the validator rejected, and the run paid an extra execute cycle
-  to repair our own write. `edit_file` refuses manifest edits and points at
-  this path, so the two halves must hold the same standard.
+- `write_file` and `edit_file` REFUSE `.atoma-probes.json`
+  (`manifestHandWriteRefusal`), naming the recorder of each shape. Until
+  2026-10-11 the web canonical asked the molecule to write_file the manifest
+  itself; measured on the 140 project runs since 2026-10-05: 1,198 edit_file
+  calls, 171 failures, 43 of them this refusal — the only category that
+  repeats in streaks (15, 9 and 7 calls in one run), because the molecule had
+  written prose labels where a smoke belongs, then tried to repair them, and
+  the old message pointed at `record_probe`, a tool web molecules do not hold
+  ([measurement](../../docs/incidents/edit-file-failures-2026-10-11.md)).
+- `validate_html` records a PASSING check bound to its document
+  (`appendWebProbe`, replay identity `webEntryIdentity`): the interactions as
+  sent, the viewport and waitMs only when the caller gave them (a defaulted
+  value is another identity), `expected` as the encoded smoke result up to
+  4,000 characters (beyond, the verdict alone, marked `expectedTruncated`).
+  A record is a CHECK: real input, or a smoke that reads the page; a literal
+  verdict would fill the forty identities a later run replays. A host replay,
+  a failing, refused or smoke-less call records nothing, and a page that could
+  not be bound to a workspace file (a server returning generated HTML) gets a
+  warning, not a record. The 2026-08-21 incident (a hand-authored document with a raw newline reaching
+  disk) is closed by the refusal itself.
 
 ## Browser observation
 

@@ -94,7 +94,7 @@ describe('a delivered document is for its reader', () => {
     const rule = flat(EXISTING_FILE_GUIDANCE);
     expect(rule).toContain('Never write_file over a file the workspace already holds, even where your instructions or a recipe step say to');
     expect(rule).toContain('Restoring a behaviour is an edit.');
-    expect(rule).toContain('.atoma-probes.json is outside this rule.');
+    expect(rule).toContain('.atoma-probes.json is');
   });
 
   it('tells a molecule that validates a page to prove a control the page lacks from its smoke, never in the page (runs 81375f01, ff102525)', async () => {

@@ -509,7 +509,7 @@ export const EXISTING_FILE_RULE: readonly string[] = [
   `change it with edit_file, only where it must change. Restoring a behaviour is an edit. Two exceptions, each after`,
   `reading the file: the subtask says to replace, rebuild or redesign that file as a whole, and you keep every id, hook,`,
   `label and behaviour it does not ask to change; or you put back what your own checks changed. .atoma-probes.json is`,
-  `outside this rule.`,
+  `never written by hand: validate_html, fetch_url record:true and record_probe record into it.`,
 ];
 export const EXISTING_FILE_GUIDANCE = EXISTING_FILE_RULE.join('\n');
 

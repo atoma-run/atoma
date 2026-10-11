@@ -93,7 +93,7 @@ describe('ensureCanonicalL1 / ensureCanonicalL2 — idempotent bootstrap', () =>
     expect(l1.systemPrompt).toMatch(/PROBE MANIFEST ON DISK/);
     expect(l1.systemPrompt).toMatch(/"probe": "web"/);
     expect(l1.systemPrompt).toMatch(/served\s+URL is EPHEMERAL/);
-    expect(l1.systemPrompt).toMatch(/INTERACTIONS MUST BE SELECTOR-BASED/);
+    expect(l1.systemPrompt).toMatch(/CLICK BY SELECTOR — MANDATORY/);
   });
 
   it('tells the web L1 the port rule the root acceptor enforces on its README (runs cc922a60, 5a5f1e27)', () => {

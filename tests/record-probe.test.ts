@@ -518,41 +518,36 @@ describe('write_file refuses an unparseable probe manifest — the production pa
    * Exercised through the TOOL, not the pure merge, because the tool is what
    * wrote the file.
    */
-  it('leaves the existing valid manifest untouched and explains why', async () => {
+  // Since 2026-10-11 no model writes the manifest at all: write_file refuses
+  // it, valid or not, and names the recorder of each shape. The readable
+  // document on disk is the recorders' to keep.
+  it('refuses a hand-written manifest, valid or broken, and leaves the recorded one untouched', async () => {
     const tool = writeFileTool({ sandbox });
-    const good = JSON.stringify({ version: 1, entries: [{ cmd: 'node ok.js', exitCode: 0 }] });
-    await tool.execute({ path: PROBE_MANIFEST_FILENAME, content: good });
-
-    // A raw newline inside a string value — exactly the observed corruption.
+    const recorded = JSON.stringify({ version: 1, entries: [{ cmd: 'node ok.js', exitCode: 0 }] });
+    writeFileSync(manifestPath(), recorded, 'utf8');
+    const good = JSON.stringify({ version: 1, entries: [{ cmd: 'node more.js', exitCode: 0 }] });
     const broken = '{"version":1,"entries":[{"probe":"web","file":"i.html","smoke":"a\nb"}]}';
-    await expect(
-      tool.execute({ path: PROBE_MANIFEST_FILENAME, content: broken })
-    ).rejects.toThrow(/not valid JSON/);
-
-    // The point of the fix: disk still holds the READABLE document.
-    const onDisk = readFileSync(manifestPath(), 'utf8');
-    expect(JSON.parse(onDisk).entries).toEqual([{ cmd: 'node ok.js', exitCode: 0 }]);
-    expect(validateProbeManifest(onDisk)).toEqual([]);
+    for (const content of [good, broken]) {
+      await expect(tool.execute({ path: PROBE_MANIFEST_FILENAME, content })).rejects.toThrow(/refuse to hand-write[\s\S]*validate_html records/);
+    }
+    expect(readFileSync(manifestPath(), 'utf8')).toBe(recorded);
   });
 
-  it('never creates the manifest from an unparseable first write', async () => {
+  it('never creates the manifest from a model write', async () => {
     const tool = writeFileTool({ sandbox });
     await expect(
       tool.execute({ path: PROBE_MANIFEST_FILENAME, content: '{"version":1,"entries":[' })
-    ).rejects.toThrow(/not valid JSON/);
+    ).rejects.toThrow(/refuse to hand-write/);
     expect(existsSync(manifestPath())).toBe(false);
   });
 
-  it('still lets a VALID document repair a manifest that is already broken', async () => {
-    // Repair is the reason the verbatim pass-through exists; only the INCOMING
-    // side is checked, so this must keep working.
+  it('a corrupt manifest is reset by the next recorder, never repaired by hand', async () => {
     writeFileSync(manifestPath(), '{"version":1,"entries":[', 'utf8');
     const tool = writeFileTool({ sandbox });
-    const repaired = JSON.stringify({ version: 1, entries: [{ cmd: 'node fixed.js', exitCode: 0 }] });
-    expect(await tool.execute({ path: PROBE_MANIFEST_FILENAME, content: repaired })).not.toHaveProperty('merged');
-    expect(JSON.parse(readFileSync(manifestPath(), 'utf8')).entries).toEqual([
-      { cmd: 'node fixed.js', exitCode: 0 },
-    ]);
+    await expect(tool.execute({ path: PROBE_MANIFEST_FILENAME, content: JSON.stringify({ version: 1, entries: [] }) })).rejects.toThrow(/refuse to hand-write/);
+    expect(readFileSync(manifestPath(), 'utf8')).toBe('{"version":1,"entries":[');
+    const reset = JSON.parse(mergeShellProbe(readFileSync(manifestPath(), 'utf8'), { cmd: 'node fixed.js', exitCode: 0 })) as { entries: unknown[] };
+    expect(reset.entries).toEqual([{ cmd: 'node fixed.js', exitCode: 0 }]);
   });
 
   it('does not police ordinary files', async () => {
@@ -561,18 +556,6 @@ describe('write_file refuses an unparseable probe manifest — the production pa
     expect(readFileSync(join(root, 'notes.json'), 'utf8')).toBe('not json at all');
   });
 
-  it('says what a manifest write merged, so nothing reads every earlier entry back (run 0b51e494)', async () => {
-    const tool = writeFileTool({ sandbox });
-    const earlier = JSON.stringify({ version: 1, entries: [{ cmd: 'node a.js', exitCode: 0 }, { cmd: 'node b.js', exitCode: 0 }] });
-    expect(await tool.execute({ path: PROBE_MANIFEST_FILENAME, content: earlier })).not.toHaveProperty('merged');
-    const added = JSON.stringify({ version: 1, entries: [{ cmd: 'node c.js', exitCode: 0 }] });
-    expect(await tool.execute({ path: PROBE_MANIFEST_FILENAME, content: added }))
-      .toMatchObject({ ok: true, merged: { sent: 1, total: 3, note: '2 entries already recorded were kept beside yours (write_file merges and never removes one); no need to read the file back' } });
-    // A bad entry the merge keeps is said, never reassured away.
-    writeFileSync(manifestPath(), JSON.stringify({ version: 1, entries: [{ probe: 'reset_after_increments', file: 'index.html', smoke: 'true', expected: 'true' }] }));
-    const fixed = await tool.execute({ path: PROBE_MANIFEST_FILENAME, content: JSON.stringify({ version: 1, entries: [{ probe: 'web', file: 'index.html', smoke: 'true', expected: 'true' }] }) });
-    expect(fixed).toMatchObject({ merged: { sent: 1, total: 2, note: expect.stringContaining('the manifest fails its check') } });
-  });
 });
 
 describe('appendHttpProbe — sequence semantics', () => {

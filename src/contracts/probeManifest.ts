@@ -714,31 +714,28 @@ export function manifestWriterLines(kind: 'shell' | 'http' | 'web'): string[] {
   }
   if (kind === 'web') {
     return [
-      `PROBE MANIFEST ON DISK: whenever you validated a page, ALSO write_file`,
-      `"${PROBE_MANIFEST_FILENAME}" in the workspace root:`,
+      `PROBE MANIFEST ON DISK: validate_html RECORDS every PASSING check it ran`,
+      `into "${PROBE_MANIFEST_FILENAME}" itself — the page file, the interactions`,
+      `as sent, the smoke, its result as "expected", the viewport and waitMs —`,
+      `as this entry:`,
       ...exampleLines(EXAMPLE_WEB_ENTRY),
-      `One entry per DISTINCT validation you performed, in the order you ran`,
-      `them; one with the same file, interactions, smoke, viewport and waitMs`,
-      `as an entry already there replaces it. WHY: the served`,
-      `URL is EPHEMERAL (a fresh port every run) but the FILE, the`,
-      `interactions and the smoke expression are stable — recording those`,
-      `three makes a later pass able to re-serve the artefact and replay the`,
-      `exact same validation. Prose in a README cannot be replayed; this can.`,
-      `For an embedded UI served from a Node application, "file" is the real`,
-      `server entry (for example server.js), never an extracted/fake index.html`,
-      `or a test script.`,
-      `The discriminator is EXACT: "probe" MUST be the literal "web". Never`,
-      `put a scenario label there (for example "reset_after_increments");`,
-      `the smoke/interactions already distinguish scenarios, and every reader`,
-      `dispatches on the literal value.`,
-      `"expected" is a STRING containing JSON.stringify(smokeResult), never the`,
-      `object itself. The checker and replay reader require that encoded form.`,
-      `Because replay compares that result, smokeResult must exclude volatile`,
+      `NEVER write_file or edit_file that manifest: both are refused. A check`,
+      `you want recorded is recorded by running it through validate_html; a`,
+      `failing, refused or exploratory call records nothing, and a passing call`,
+      `with the same file, interactions, smoke, viewport and waitMs as an entry`,
+      `already there replaces it. WHY: the served URL is EPHEMERAL (a fresh`,
+      `port every run) but the file, the interactions and the smoke are stable`,
+      `— a later pass re-serves the artefact and replays the exact validation.`,
+      `Only a page bound to a workspace file is recorded: the tool says so in a`,
+      `warning when a served page could not be bound, and that is not a defect.`,
+      `The record's discriminator is EXACT: "probe" MUST be the literal "web";`,
+      `every reader dispatches on it, and the smoke/interactions distinguish scenarios.`,
+      `"expected" is the recorded JSON.stringify(smokeResult). Because replay`,
+      `compares that result, smokeResult must exclude volatile`,
       `timestamps, generated ids, numeric ports and locale-formatted dates;`,
       `return stable booleans/counts/source-defined labels instead.`,
-      `INTERACTIONS MUST BE SELECTOR-BASED — MANDATORY. Record`,
-      `{"type": "click", "selector": "#start"}, NEVER pixel coordinates`,
-      `({"x":304,"y":392}), even though validate_html accepts them: coordinates`,
+      `CLICK BY SELECTOR — MANDATORY: send {"type": "click", "selector": "#start"},`,
+      `NEVER pixel coordinates ({"x":304,"y":392}), even though validate_html accepts them: coordinates`,
       `depend on the viewport, fonts and layout of THIS run and are worthless`,
       `to a later pass, while a selector survives any re-render. If an element`,
       `has no usable selector, ADD an id to it in the artefact — that is a`,
@@ -962,6 +959,7 @@ export function matchesWebIdentity(candidate: unknown, entry: Readonly<Record<st
  *
  * Returns the coaching message, or null when the write may proceed.
  */
+/** No tool calls this since 2026-10-11 (`write_file` refuses the manifest outright); kept beside the merge it guarded. */
 export function probeManifestWriteRefusal(incomingRaw: string): string | null {
   try {
     JSON.parse(incomingRaw);
@@ -980,8 +978,11 @@ export function probeManifestWriteRefusal(incomingRaw: string): string | null {
 }
 
 /**
- * Structural merge for a MODEL-authored whole-document manifest write
- * (write_file). Shell entries replace by `cmd`, web entries replace by
+ * Structural merge for a whole-document manifest write. NO TOOL CALLS IT since
+ * 2026-10-11 (`write_file` refuses the manifest; each shape has its recorder);
+ * it stays as the one definition of whole-document merge semantics the tests
+ * exercise, and for any future host-side whole-document write.
+ * Formerly the MODEL-authored write_file path. Shell entries replace by `cmd`, web entries replace by
  * `webEntryIdentity`, anything else appends unless it is an exact duplicate.
  * Corrupt input → the incoming document passes through verbatim (see the
  * policy block above).
@@ -1020,6 +1021,35 @@ export function mergeProbeManifestWrite(existingRaw: string, incomingRaw: string
     else merged.push(entry);
   }
   return `${JSON.stringify({ ...(incoming as Record<string, unknown>), version: 1, entries: merged }, null, 2)}\n`;
+}
+
+/** A browser check as validate_html records it; the on-disk checker, not the zod schema, judges it (selectorless keys are valid). */
+export type RecordedWebEntry = Readonly<Record<string, unknown>> & { readonly probe: typeof WEB_PROBE_DISCRIMINANT; readonly file: string; readonly smoke: string; readonly expected: string };
+
+/**
+ * Merge one MACHINE-recorded web entry into a probe manifest, by its replay
+ * identity (`matchesWebIdentity`). validate_html records each PASSING check
+ * it ran, so no model writes a browser entry by hand: until 2026-10-11 the
+ * web canonical asked the molecule to write_file the manifest itself, and it
+ * wrote prose labels ("completion best update") where a smoke belongs, then
+ * tried to repair them with edit_file, refused — 28 of the 36 edit_file
+ * failures of the 2026-10-10 timing corpus, 17 in one run (bad74240).
+ * Corrupt/absent existing manifest → reset, as `mergeShellProbe` does.
+ */
+export function appendWebProbe(existingRaw: string | null, entry: RecordedWebEntry): string {
+  let entries: unknown[] = [];
+  if (existingRaw) {
+    try {
+      const parsed = JSON.parse(existingRaw) as { entries?: unknown };
+      if (parsed && Array.isArray(parsed.entries)) entries = parsed.entries;
+    } catch {
+      // Half a JSON document is not a record anyone can replay.
+    }
+  }
+  const at = entries.findIndex((candidate) => matchesWebIdentity(candidate, entry));
+  if (at >= 0) entries[at] = entry;
+  else entries.push(entry);
+  return `${JSON.stringify({ version: 1, entries }, null, 2)}\n`;
 }
 
 /**
