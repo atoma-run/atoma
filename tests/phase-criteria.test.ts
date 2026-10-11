@@ -110,6 +110,14 @@ describe('acceptance criteria reach the phase that proves them', () => {
     expect(delegatedCriteria(parent, lanes, 0, false).criteria?.map((c) => c.id)).toEqual(['c1']);
     expect(delegatedCriteria(parent, lanes, 1, false)).toEqual({});
     expect(delegatedCriteria(parent, [{ description: 'whole task' }], 0, false).criteria?.map((c) => c.id)).toEqual(['c1', 'c2', 'c3']);
+    // The only subtask is the whole task: requirements stay requirements (run 76a9486c).
+    const whole = delegatedCriteria(parent, [{ description: 'whole task' }], 0, true).criteria ?? [];
+    expect(whole.every((c) => c.unassigned === undefined)).toBe(true);
+    const lines = taskContextLines({ description: 'whole task', originalTask: { description: 'p' }, criteria: whole }).join('\n');
+    expect(lines).toContain('Acceptance criteria this phase must prove');
+    // What the parent held as context stays context.
+    const context = delegatedCriteria({ description: 'p', criteria: whole.map((c) => ({ ...c, unassigned: true as const })) }, [{ description: 'w' }], 0, true).criteria ?? [];
+    expect(context.every((c) => c.unassigned)).toBe(true);
   });
 
   it('only a delegated phase renders them; the root planner reads the whole list through inputs', () => {

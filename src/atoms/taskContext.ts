@@ -66,7 +66,13 @@ export function delegatedCriteria(parent: Task, subtasks: readonly SubtaskSpec[]
   const named = new Set(subtasks[idx]?.criteria ?? []);
   const assigned = new Set(subtasks.flatMap((subtask) => subtask.criteria ?? []));
   const takesRest = idx === subtasks.length - 1 && (sequential || subtasks.length === 1);
-  const criteria = all.flatMap((item) => named.has(item.id) ? [item]
+  // A plan's ONLY subtask is the whole task: it keeps what the task held, a
+  // requirement stays one. Run 76a9486c (2026-10-11): the tissue assigned
+  // c1–c9 to its phase, the cell's prefilter shortcut named none, and the
+  // molecule and its validators read them as context; the root then refused
+  // the keyboard journey they said nothing about.
+  const whole = subtasks.length === 1;
+  const criteria = all.flatMap((item) => named.has(item.id) || (whole && !assigned.has(item.id)) ? [item]
     : takesRest && !assigned.has(item.id) ? [{ ...item, unassigned: true as const }] : []);
   return criteria.length > 0 ? { criteria } : {};
 }
