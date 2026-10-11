@@ -10,7 +10,7 @@ import { RECIPE_STEP_LIMITS } from '../skills/events.js';
 import { TEXT_VERIFICATION_GUIDANCE } from '../contracts/taskExecution.js';
 import { renderTextLayouts } from './textLayout.js';
 import { ROOT_TEXT_REVIEW_REQUEST } from './textReview.js';
-import { KEYBOARD_EVIDENCE_GUIDANCE, STATEFUL_EVIDENCE_GUIDANCE, STATEFUL_EVIDENCE_REVIEW } from './prompts.js';
+import { WEB_DELIVERY_GUIDANCE, KEYBOARD_EVIDENCE_GUIDANCE, STATEFUL_EVIDENCE_GUIDANCE, STATEFUL_EVIDENCE_REVIEW } from './prompts.js';
 
 /**
  * VERDICT ENGINE — extracted from L2Atom (structural slice 2b).
@@ -607,6 +607,7 @@ export const VALIDATION_SYSTEM_PROMPT = [
   'If you edit this prompt and shrink it below ~4100 tokens, expect',
   'validators to stop caching and run cost to roughly double.',
   '',
+  WEB_DELIVERY_GUIDANCE,
   KEYBOARD_EVIDENCE_GUIDANCE,
   '',
   STATEFUL_EVIDENCE_GUIDANCE,
@@ -943,6 +944,8 @@ export async function llmVerdict(args: {
    * under the `jev-audit` role so no reader counts it as the run's validation.
    */
   audit?: boolean;
+  /** A conflict reread must finish before it can replace a refusal. */
+  requireComplete?: boolean;
   /** Blinded, model-authored analysis; never a ground-truth probe. Root text review only. */
   independentTextReference?: string;
 }): Promise<Verdict> {
@@ -1053,6 +1056,7 @@ export async function llmVerdict(args: {
     subject: args.subject,
   });
 
+  if (args.requireComplete && resp.stopReason !== 'end_turn') throw new Error('Incomplete root review reconciliation');
   const raw = parseVerdict(resp.text);
   // Normalise `null` (an LLM emission quirk nullish() tolerates) to
   // `undefined` at the parse boundary — same treatment as branchName —

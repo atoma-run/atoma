@@ -97,6 +97,7 @@ import {
   FALLBACK_VERIFICATION_GUIDANCE,
   FALLBACK_SYSTEM_PROMPT,
   EXISTING_FILE_GUIDANCE,
+  WEB_DELIVERY_GUIDANCE,
   KEYBOARD_EVIDENCE_GUIDANCE,
   STATEFUL_EVIDENCE_GUIDANCE,
   TEST_ONLY_ELEMENT_GUIDANCE,
@@ -2316,7 +2317,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       hasTools ? READER_FACING_DOC_GUIDANCE : '',
       hasTools && this.tools.some((tool) => tool.name === 'edit_file') ? EXISTING_FILE_GUIDANCE : '',
       hasValidator ? TEST_ONLY_ELEMENT_GUIDANCE : '',
-      hasValidator ? KEYBOARD_EVIDENCE_GUIDANCE : '',
+      hasValidator ? WEB_DELIVERY_GUIDANCE + '\n' + KEYBOARD_EVIDENCE_GUIDANCE : '',
       // The phase's declared proof, heard as a molecule hears it.
       ...(hasTools ? fallbackObligationLines(task, hasValidator) : []),
       ``,

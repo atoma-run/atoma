@@ -1,0 +1,107 @@
+{
+  "runId": "53556e22-a71f-48d3-ab3c-76a6a00de742",
+  "revision": "82416b94fc819188a2f933e4ab83c90e5314e5c3",
+  "observation": "41d53d99-f274-414d-a650-2d684a078e23: validate_html: ok=true, requested=1, executed=1, viewport=1280x800, doc=index.html, consoleErrors=0, failedRequests=0, executedActions=[\"reload\"], smoke=\"(() => { const titles=[...document.querySelectorAll('.book-title')].map(x=>x.textContent); const checks={staysRemoved:!titles.includes('The Left Hand of Darkness'),remaining:titles.length===2,noOverflow:document.documentElement.scrollWidth<=document.documentElement.clientWidth}; return {ok:Object.values(checks).every(Boolean),checks,titles}; })()\", smokeResult={\"ok\":true,\"checks\":{\"staysRemoved\":true,\"remaining\":true,\"noOverflow\":true},\"titles\":[\"A Future Classic\",\"Current Pages\"]}",
+  "globalVerdict": {
+    "approved": false,
+    "reasoning": "Most criteria are supported, but 1280px no-horizontal-scrolling is not asserted by any observed probe; the 375px reload probe alone cannot establish both required widths.",
+    "modifications": {
+      "additionalContext": "Run a 1280px browser probe that asserts document.documentElement.scrollWidth <= document.documentElement.clientWidth, then report its result."
+    },
+    "scope": "ephemeral",
+    "criteria": [
+      {
+        "id": "c1",
+        "met": true,
+        "reason": "Browser probes add books and verify title/status, plus finished ratings 1 and 5."
+      },
+      {
+        "id": "c2",
+        "met": true,
+        "reason": "Probes visibly show refusal messages for 0, 6, and unfinished ratings while preserving the list."
+      },
+      {
+        "id": "c3",
+        "met": true,
+        "reason": "Keyboard filter probes verify want to read, reading, and finished-only results and finished counts."
+      },
+      {
+        "id": "c4",
+        "met": true,
+        "reason": "Reload probe confirms all added books remain listed."
+      },
+      {
+        "id": "c5",
+        "met": true,
+        "reason": "Removal probe verifies removal and a later reload confirms it stays removed."
+      },
+      {
+        "id": "c6",
+        "met": true,
+        "reason": "Observed validate_html actions use keyboard navigation for add, filtering, and removal with no clicks."
+      },
+      {
+        "id": "c7",
+        "met": false,
+        "reason": "375px probe asserts no overflow, but no 1280px probe asserts scrollWidth against clientWidth."
+      },
+      {
+        "id": "c8",
+        "met": true,
+        "reason": "Recorded node --test exits 0 with assertions for bounds 1/5, refusal of 0/6, and unfinished ratings."
+      },
+      {
+        "id": "c9",
+        "met": true,
+        "reason": "README read-back explains opening the app and running node --test."
+      }
+    ]
+  },
+  "focusedCriterion": {
+    "id": "c7",
+    "behaviour": "No horizontal scrolling at 375 px wide and at 1280 px wide",
+    "kind": "review",
+    "status": "review",
+    "observationRefs": [],
+    "layouts": [
+      {
+        "width": 375,
+        "status": "passed",
+        "observationRefs": [
+          "2c2a57c4-9f62-4c47-ac8c-f2bcac774b3a",
+          "304359b9-c3de-4e62-86e5-f9f0105c1f62",
+          "2153d6e1-f2f4-4006-9071-8038bc4a3311",
+          "7f88bfda-c44a-4aa9-8934-c0ecde41d866",
+          "78db990f-9116-41a5-90a1-b74295bc51ea",
+          "4f3e7b36-2125-4076-8dc8-f4ae4b54bf54",
+          "7f7a1795-1fe8-4e94-b956-b8fa263917b4",
+          "4619799b-e7d4-4af7-b2d1-4e6ffa37eb31",
+          "176245e6-b7ab-4aa0-8997-7a1be06702de"
+        ]
+      },
+      {
+        "width": 1280,
+        "status": "passed",
+        "observationRefs": [
+          "6d3bb58d-c756-4231-be21-f9ca29aaa28e",
+          "97611645-63bf-43ab-8d4a-f510946b76fd",
+          "84525ff9-6639-41d3-ade0-fe1dde470fef",
+          "bbf0af1a-8e61-4403-9c0e-33e7ea38a1a7",
+          "495f2b55-7cf3-4f11-a5ba-33a5c0290142",
+          "32bccc20-bcf8-47f7-840d-1345b29c17bc",
+          "99c00bb4-cf61-490b-8f8d-ffa869c490bb",
+          "41d53d99-f274-414d-a650-2d684a078e23",
+          "3ec7d1c5-372d-46c7-9a25-88cdea0e8580",
+          "7d898d01-436e-4c2a-a637-782770cf2ff9",
+          "774a689c-cc21-47f3-88af-64f4dc17f4f4",
+          "d85301d9-e919-4492-b729-d3466c3be27b",
+          "b0890447-8569-4d23-a802-f9bba5cb0475"
+        ]
+      }
+    ],
+    "judgement": {
+      "met": true,
+      "reason": "Browser layouts were observed at 375x800 and 1280x800; reload probes at both widths assert document scrollWidth <= clientWidth, with noOverflow true (7f88..., 41d...)."
+    }
+  }
+}

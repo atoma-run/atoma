@@ -21,7 +21,7 @@ import { PROBE_MANIFEST_FILENAME } from '../contracts/probeManifest.js';
 import { executorEvidence } from './executorEvidence.js';
 import { AttemptDigest } from './attemptDigest.js';
 import { namedLayoutWidths } from '../contracts/acceptanceChecklist.js';
-import { HTTP_STARTUP_GUIDANCE, STATEFUL_EVIDENCE_GUIDANCE, KEYBOARD_EVIDENCE_GUIDANCE, EXISTING_FILE_GUIDANCE, READER_FACING_DOC_GUIDANCE, TEST_ONLY_ELEMENT_GUIDANCE } from './prompts.js';
+import { WEB_DELIVERY_GUIDANCE, HTTP_STARTUP_GUIDANCE, STATEFUL_EVIDENCE_GUIDANCE, KEYBOARD_EVIDENCE_GUIDANCE, EXISTING_FILE_GUIDANCE, READER_FACING_DOC_GUIDANCE, TEST_ONLY_ELEMENT_GUIDANCE } from './prompts.js';
 
 /**
  * Where a molecule puts what only EXERCISES the artefact. Publication and the
@@ -353,7 +353,7 @@ export class L1Atom extends Atom {
       writesFiles(this.tools) ? READER_FACING_DOC_GUIDANCE : '',
       editsFiles(this.tools) ? EXISTING_FILE_GUIDANCE : '',
       this.tools.some((t) => t.name === 'validate_html') ? TEST_ONLY_ELEMENT_GUIDANCE : '',
-      this.tools.some((t) => t.name === 'validate_html') ? KEYBOARD_EVIDENCE_GUIDANCE : '',
+      this.tools.some((t) => t.name === 'validate_html') ? WEB_DELIVERY_GUIDANCE + '\n' + KEYBOARD_EVIDENCE_GUIDANCE : '',
       ``,
       `CRITICAL — plan shape (aspirational, no literal payloads):`,
       `Describe your intended tool sequence in the "proposedAction" field as PROSE`,
@@ -449,7 +449,7 @@ ${previousAttempt}` : '',
       STATEFUL_EVIDENCE_GUIDANCE,
       this.tools.some((t) => t.name === 'start_node_server') ? HTTP_STARTUP_GUIDANCE : null,
       hasValidator ? TEST_ONLY_ELEMENT_GUIDANCE : null,
-      hasValidator ? KEYBOARD_EVIDENCE_GUIDANCE : null,
+      hasValidator ? WEB_DELIVERY_GUIDANCE + '\n' + KEYBOARD_EVIDENCE_GUIDANCE : null,
       ...(hasValidator ? browserProofLines(task) : []),
       hasValidator
         ? `- For ANY web artifact you produce, call validate_html on the server URL.`

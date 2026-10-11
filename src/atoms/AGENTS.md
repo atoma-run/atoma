@@ -102,6 +102,12 @@ Neighbours:
   still propagates. Drafted lists, text and landings keep their existing paths.
   A holistic refusal also receives this inventory, so remediation hears all
   criterion gaps together; a focused approval cannot override that refusal.
+  When all focused items pass but the global verdict explicitly judged a
+  criterion unmet, one tool-free L1 reread resolves the disagreement against
+  the same evidence. Its complete checklist replaces the disputed judgments
+  and its verdict retains unrelated defects; an incomplete or failed reread preserves the refusal, and cancellation
+  propagates. No vote, repeated tools, or automatic override. See
+  [Reading Log counterexamples](../../docs/incidents/reading-log-review-2026-10-11.md).
   Run 715ffc74 otherwise spent its one repair on an expiry example before
   learning that schema and successful-receipt tests were missing. This adds
   at most six tool-free calls for twelve user criteria, no tool replay or phase credit. The incident and adversarial
@@ -326,6 +332,11 @@ load-bearing.
 
 ## Verification and ground truth
 
+- Browser executors and reviewers share `WEB_DELIVERY_GUIDANCE`: user-entered
+  plain text stays data in DOM attributes too, and documented launch modes must
+  work. Served module success proves nothing about direct file opening. These
+  are behavioral review instructions, not an HTML/source-pattern gate; intentional
+  rich HTML and a documented required static server remain valid choices.
 - L1 plans express intent in prose; actual tool calls happen during execute.
   Do not encourage large literal `toolCalls` payloads in plans.
 - Tool scopes are bucket-specific and enforced twice: prompts/plans must name

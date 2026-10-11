@@ -5,7 +5,7 @@ import { remediationTask } from '../src/run/depth.js';
 import { acceptRootResult } from '../src/atoms/rootAcceptance.js';
 import { L1Atom } from '../src/atoms/L1Atom.js';
 import { markLanded } from '../src/atoms/dispatch.js';
-import { ASSERTION_EVIDENCE_GUIDANCE } from '../src/atoms/prompts.js';
+import { WEB_DELIVERY_GUIDANCE, ASSERTION_EVIDENCE_GUIDANCE } from '../src/atoms/prompts.js';
 import { DELEGATED_SCOPE_GUIDANCE } from '../src/atoms/taskContext.js';
 import type { LlmCompletionResponse, Result } from '../src/core/types.js';
 import { makeCtx, jsonText } from './helpers.js';
@@ -42,6 +42,7 @@ describe('focused criterion review', () => {
       // This verifies policy delivery and propagation, not model understanding.
       // Real semantic judgments are retained in the paired benchmark replay.
       expect(request.systemPrompt).toContain(ASSERTION_EVIDENCE_GUIDANCE);
+      expect(request.systemPrompt).toContain(WEB_DELIVERY_GUIDANCE);
       expect(request.systemPrompt).toContain('Report every unsupported part');
       expect(request.tools).toBeUndefined();
       expect(request.executor).toBeUndefined();
@@ -256,5 +257,64 @@ describe('focused criterion review', () => {
       expect(accepted.approved).toBe(true);
       expect(ctx.llm.calls).toHaveLength(1);
     }
+  });
+});
+
+
+describe('root review disagreement on observed evidence', () => {
+  const fixture = JSON.parse(readFileSync(new URL('./fixtures/reading-log-review-2026-10-11.json', import.meta.url), 'utf8')) as {
+    observation: string; globalVerdict: { approved: boolean; reasoning: string; criteria: Array<{id: string; met: boolean; reason: string}> };
+    focusedCriterion: { id: string; behaviour: string; judgement: { met: boolean; reason: string } };
+  };
+  const required = [{ id: 'c7', behaviour: fixture.focusedCriterion.behaviour, check: { kind: 'review' as const } }];
+  const supported = [{ id: 'c7', ...fixture.focusedCriterion.judgement }];
+  const candidate: Result = { ...result, output: {}, evidence: [{ source: 'transport-observed',
+    eventId: '41d53d99-f274-414d-a650-2d684a078e23', tool: 'validate_html', observed: fixture.observation }] };
+  const accept = (ctx: ReturnType<typeof makeCtx>) => acceptRootResult({ actor, task, result: candidate, ctx,
+    floor: [], phaseCoverage: [], checklist: required, checklistOrigin: { source: 'user' } });
+  const prepare = () => {
+    const ctx = makeCtx();
+    ctx.llm.enqueue({ ...reply(supported, false), text: jsonText({ ...fixture.globalVerdict, scope: 'ephemeral', modifications: {} }) });
+    ctx.llm.enqueue(reply(supported));
+    return ctx;
+  };
+
+  it.each([true, false])('re-reads the production conflict once and honors a remaining whole-task defect (approval=%s)', async approved => {
+    const ctx = prepare();
+    ctx.llm.enqueue(req => {
+      expect(req.userContent).toContain(fixture.observation);
+      expect(req.userContent).toContain('ROOT REVIEW DISAGREEMENT');
+      expect(req.userContent).toContain(fixture.focusedCriterion.judgement.reason);
+      expect(req.userContent).toContain('including problems outside the checklist');
+      expect(req.tools).toBeUndefined();
+      expect(req.executor).toBeUndefined();
+      return { ...reply(supported, approved), text: jsonText({ approved, reasoning: approved ? 'The cited 1280px assertion passed.' : 'The plain-text title executes an injected handler.',
+        criteria: supported, scope: 'ephemeral', modifications: {} }) };
+    });
+    const verdict = await accept(ctx);
+    expect(verdict.approved).toBe(approved);
+    if (!approved) expect(verdict.reasoning).toContain('injected handler');
+    expect(ctx.llm.calls).toHaveLength(3);
+  });
+
+  it.each(['invalid', 'truncated', 'missing', 'duplicate', 'unmet', 'provider'])('retains refusal after an unusable reread: %s', async mode => {
+    const ctx = prepare();
+    ctx.llm.enqueue(() => {
+      if (mode === 'provider') throw new Error('provider unavailable');
+      if (mode === 'invalid') return { ...reply(supported), text: 'not JSON' };
+      if (mode === 'truncated') return { ...reply(supported), stopReason: 'max_tokens' };
+      return reply(mode === 'missing' ? [] : mode === 'duplicate' ? [...supported, ...supported] : supported.map(j => ({ ...j, met: false })));
+    });
+    const verdict = await accept(ctx);
+    expect(verdict.approved).toBe(false);
+    if (mode === 'unmet') expect(verdict.checklist?.[0]?.judgement?.met).toBe(false);
+    expect(ctx.llm.calls).toHaveLength(3);
+  });
+
+  it('propagates cancellation from the conflict reread', async () => {
+    const controller = new AbortController();
+    const ctx = { ...prepare(), signal: controller.signal };
+    ctx.llm.enqueue(() => { controller.abort(new Error('cancelled')); throw controller.signal.reason; });
+    await expect(accept(ctx)).rejects.toThrow('cancelled');
   });
 });
