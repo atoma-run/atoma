@@ -1,4 +1,5 @@
 import { initializeProjectContext, readProjectContext, projectContextHistory, updateProjectContext } from './context.js';
+import { learningReceipt } from '../skills/learningQueue.js';
 import type { ProjectContextUpdate } from '../contracts/projectContext.js';
 import { PlatformSettingsStore } from '../platform/settings.js';
 import { repositorySyncSchema, type RepositorySync } from '../contracts/repositorySync.js';
@@ -760,6 +761,15 @@ const PLATFORM_ADMIN_FOUNDERS_SQL = `SELECT m.org_id, m.principal_id FROM auth_m
                        AND e.created_at <= m.created_at)`;
 
 export class ProjectStore {
+  hasActiveLearningForPrincipal(principalId: string): boolean {
+    if (!this.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'skill_learning_jobs'").get()) return false;
+    return !!this.db.prepare("SELECT 1 FROM skill_learning_jobs WHERE status = 'running' AND json_extract(payload, '$.scope.principalId') = ? LIMIT 1").get(principalId);
+  }
+  private runWithLearning(row: ProjectRunRow): ProjectRun {
+    const run = runFromRow(row);
+    const learning = learningReceipt(this.db, run.projectRunId);
+    return learning ? { ...run, learning } : run;
+  }
   /** Long-running read revalidation; a captured Viewer is not a durable grant. */
   canReadProjectNow(principalId: string, orgId: string, projectId: string, activeOrgId = orgId): boolean {
     return !!this.db.prepare(`SELECT 1 FROM projects p WHERE p.org_id = ? AND p.project_id = ? AND p.status = 'active'
@@ -1476,7 +1486,7 @@ END;
           (parsed.depth !== undefined && (existing.depth ?? null) !== parsed.depth)) {
         throw new ProjectStateConflict('run idempotency key was already used for different input');
       }
-      return runFromRow(existing);
+      return this.runWithLearning(existing);
     }
     const request = createProjectRunInputSchema.parse(requestInput);
     if (existing.rerun_of_run_id) {
@@ -1491,7 +1501,7 @@ END;
         (existing.resume_of_run_id ?? null) !== (request.resumeOf ?? null) || wantedDigest !== storedDigest || (existing.depth ?? null) !== (request.depth ?? null)) {
       throw new ProjectStateConflict('run idempotency key was already used for different input');
     }
-    return runFromRow(existing);
+    return this.runWithLearning(existing);
   }
 
   /**
@@ -1522,14 +1532,14 @@ END;
       const match = live.find((row) => row.rerun_of_run_id === parsed.rerunOf &&
         row.model_overrides_json === JSON.stringify(parsed.models) &&
         (parsed.depth === undefined || (row.depth ?? null) === parsed.depth));
-      return match ? runFromRow(match) : null;
+      return match ? this.runWithLearning(match) : null;
     }
     const request = createProjectRunInputSchema.parse(requestInput);
     const wantedDigest = request.acceptanceChecklist ? captureAcceptanceSpec(request.acceptanceChecklist).digest : null;
     const match = live.find((row) => !row.rerun_of_run_id && (row.base_run_id ?? null) === (request.baseRunId ?? null) && (row.resume_of_run_id ?? null) === (request.resumeOf ?? null) && row.goal === request.goal &&
       (row.depth ?? null) === (request.depth ?? null) &&
       (this.getRunAcceptanceSpec(orgId, row.project_run_id)?.digest ?? null) === wantedDigest);
-    return match ? runFromRow(match) : null;
+    return match ? this.runWithLearning(match) : null;
   }
 
   /** The caller's own live run in the organisation, to name it in a refusal. */
@@ -1540,7 +1550,7 @@ END;
       .prepare(`SELECT * FROM project_runs WHERE org_id = ? AND requested_by_principal_id = ?
         AND status IN ('queued','running') ORDER BY created_at DESC LIMIT 1`)
       .get(orgId, principalId) as ProjectRunRow | undefined;
-    return row ? runFromRow(row) : null;
+    return row ? this.runWithLearning(row) : null;
   }
 
   /** Persistent FIFO; insertion order breaks timestamp ties. No credentials are stored. */
@@ -1578,7 +1588,7 @@ END;
   latestContinuation(orgId: string, sourceRunId: string): ProjectRun | null {
     const row = this.db.prepare('SELECT * FROM project_runs WHERE org_id = ? AND resume_of_run_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1')
       .get(orgId, sourceRunId) as ProjectRunRow | undefined;
-    return row ? runFromRow(row) : null;
+    return row ? this.runWithLearning(row) : null;
   }
 
   getProjectContext(orgId: string, projectId: string, version?: number) {
@@ -1704,7 +1714,7 @@ END;
     const row = this.db
       .prepare('SELECT * FROM project_runs WHERE project_run_id = ? AND org_id = ?')
       .get(projectRunId, orgId) as ProjectRunRow | undefined;
-    return row ? runFromRow(row) : null;
+    return row ? this.runWithLearning(row) : null;
   }
 
   /**
@@ -1839,7 +1849,7 @@ END;
           ORDER BY r.created_at DESC, r.project_run_id ASC LIMIT ?`
       )
       .all(Math.max(1, Math.min(2_000, Math.floor(limit)))) as ProjectRunRow[];
-    return rows.map(runFromRow).reverse();
+    return rows.map(row => this.runWithLearning(row)).reverse();
   }
 
   /**
@@ -1874,7 +1884,7 @@ END;
     const row = this.db
       .prepare('SELECT * FROM project_runs WHERE project_run_id = ?')
       .get(projectRunId) as ProjectRunRow | undefined;
-    return row ? runFromRow(row) : null;
+    return row ? this.runWithLearning(row) : null;
   }
 
   /** The organisation's newest runs across its projects, the scan bounded by `limit`. */
@@ -1884,7 +1894,7 @@ END;
       this.db
         .prepare('SELECT * FROM project_runs WHERE org_id = ? ORDER BY created_at DESC, project_run_id ASC LIMIT ?')
         .all(orgId, Math.max(0, Math.floor(limit))) as ProjectRunRow[]
-    ).map(runFromRow);
+    ).map(row => this.runWithLearning(row));
   }
 
   listProjectRuns(orgIdInput: string, projectIdInput: string): ProjectRun[] | null {
@@ -1897,7 +1907,7 @@ END;
           'SELECT * FROM project_runs WHERE project_id = ? AND org_id = ? ORDER BY created_at DESC, project_run_id ASC'
         )
         .all(projectId, orgId) as ProjectRunRow[]
-    ).map(runFromRow);
+    ).map(row => this.runWithLearning(row));
   }
 
   /**
@@ -1919,7 +1929,7 @@ END;
            ORDER BY created_at DESC, project_run_id ASC LIMIT ?`
         )
         .all(orgId, principalId, endedSince, limit) as ProjectRunRow[]
-    ).map(runFromRow);
+    ).map(row => this.runWithLearning(row));
   }
 
   projectRunSummary(
@@ -1936,10 +1946,14 @@ END;
          FROM project_runs WHERE project_id = ? AND org_id = ?`
       )
       .get(projectId, orgId) as { run_count: number; last_run_at: string | null; cost_usd: number | null; has_running_run: number | null };
+    const learningCost = this.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'skill_learning_jobs'").get()
+      ? (this.db.prepare(`SELECT COALESCE(SUM(j.cost_usd), 0) AS cost FROM skill_learning_jobs j
+          JOIN project_runs r ON r.project_run_id = j.run_id WHERE r.project_id = ? AND r.org_id = ?`)
+        .get(projectId, orgId) as { cost: number }).cost : 0;
     return {
       runCount: row.run_count,
       lastRunAt: row.last_run_at,
-      costUsd: row.run_count === 0 ? 0 : row.cost_usd,
+      costUsd: row.run_count === 0 ? 0 : row.cost_usd === null ? null : row.cost_usd + learningCost,
       hasRunningRun: row.has_running_run === 1,
     };
   }
@@ -2301,7 +2315,7 @@ END;
       WHERE r.org_id = ? AND r.project_id = ? AND r.status = 'delivered'
         AND r.rerun_of_run_id IS NULL AND a.manifest_hash = r.artifact_manifest_hash
       ORDER BY r.created_at DESC, r.project_run_id DESC LIMIT 1`).get(orgId, projectId) as ProjectRunRow | undefined;
-    return row ? runFromRow(row) : null;
+    return row ? this.runWithLearning(row) : null;
   }
 
   getDeliveryAcceptance(orgId: string, projectRunId: string): DeliveryAcceptance | null {

@@ -25,6 +25,7 @@ if (!existsSync(mcpTools)) {
 await import('./sqlite-release-smoke.mjs');
 await import('./retrieval-project-smoke.mjs');
 await import('./code-retrieval-smoke.mjs');
+await import('./learning-release-smoke.mjs');
 const smokeRoot = mkdtempSync(join(tmpdir(), 'atoma-release-smoke-'));
 
 const freePort = async () =>

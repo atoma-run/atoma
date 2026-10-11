@@ -1,4 +1,8 @@
 import { ClientQuestionConflict } from '../run/clientQuestions.js';
+import { LearningQueue } from '../skills/learningQueue.js';
+import { spawnApprovedLearning } from '../run/learningProcess.js';
+import { deploymentPaused } from '../viz/deployment.js';
+import { peekDeploymentPending } from '../mcp/runLock.js';
 import type { AnswerClientQuestion } from '../contracts/clientQuestion.js';
 import { encodeProjectContext, PROJECT_CONTEXT_ENV } from '../contracts/projectContext.js';
 import { RunCheckpointStore, canonicalCheckpointWorkspacePath } from '../run/checkpoint.js';
@@ -125,6 +129,7 @@ export interface ProjectCoordinatorOptions {
   readonly projectsRoot?: string;
   readonly skillsDir?: string;
   readonly driver?: ProjectRunDriver;
+  readonly learningDriver?: typeof spawnApprovedLearning;
   readonly acquireLease?: RunLeaseAcquirer;
   /**
    * Ask this host's background analysis to give the run slot up; true once
@@ -1227,6 +1232,7 @@ export class ProjectRunCoordinator {
   private readonly root: string;
   private readonly skillsRoot: string;
   private readonly driver: ProjectRunDriver;
+  private readonly learningDriver: typeof spawnApprovedLearning;
   private readonly acquireLease: RunLeaseAcquirer;
   private readonly yieldBackground?: () => Promise<boolean>;
   private readonly publisher?: ProjectRunPublisher;
@@ -1257,6 +1263,9 @@ export class ProjectRunCoordinator {
   private queueTimer?: NodeJS.Timeout;
   private queuePumping = false;
   private queueStopped = false;
+  private learningTimer?: NodeJS.Timeout;
+  private learningPumping = false;
+  private learningPrincipal?: string;
   private readonly active = new Map<string, ActiveRun>();
   private readonly idleWaiters = new Set<() => void>();
 
@@ -1271,6 +1280,7 @@ export class ProjectRunCoordinator {
     migratePlatformSkills({ dbPath: this.dbPath, projectsRoot: this.root, skillsRoot: this.skillsRoot });
     reconcilePlatformSkills({ db: this.dbPath, skillsRoot: this.skillsRoot });
     this.driver = options.driver ?? spawnRun;
+    this.learningDriver = options.learningDriver ?? spawnApprovedLearning;
     this.acquireLease = options.acquireLease ?? ((id, scope) => acquireRunLease(id, undefined, scope));
     this.yieldBackground = options.yieldBackground;
     this.publisher = options.publisher;
@@ -1358,6 +1368,8 @@ export class ProjectRunCoordinator {
       throw new Error('reconcileInterrupted is a boot-time operation; runs are active');
     }
     const recovered = this.store.reconcileInterrupted('interrupted by server restart');
+    new LearningQueue(this.dbPath).recover();
+    this.resumeLearning();
     this.resumeQueuedRuns();
     return recovered;
   }
@@ -2208,6 +2220,7 @@ export class ProjectRunCoordinator {
         );
       }
       this.active.delete(reservedRun.projectRunId);
+      if (!this.queueStopped) this.resumeLearning();
       if (!this.queueStopped) this.resumeQueuedRuns();
       this.resolveIdleIfSettled();
     }
@@ -2234,10 +2247,70 @@ export class ProjectRunCoordinator {
     }
   }
 
+  /** Learning is outside delivery and its lease, with the original payer re-authorized on every launch. */
+  private resumeLearning(delayed = false): void {
+    if (this.learningPumping || this.queueStopped) return;
+    if (!delayed) {
+      clearTimeout(this.learningTimer);
+      this.learningTimer = undefined;
+      void this.drainLearning().catch(error => process.stderr.write(`[atoma learning] ${String(error)}\n`));
+      return;
+    }
+    if (this.learningTimer) return;
+    this.learningTimer = setTimeout(() => {
+      this.learningTimer = undefined;
+      void this.drainLearning().catch(error => process.stderr.write(`[atoma learning] ${String(error)}\n`));
+    }, 10_000);
+    this.learningTimer.unref();
+  }
+
+  private async drainLearning(): Promise<void> {
+    if (this.learningPumping || this.queueStopped) return;
+    this.learningPumping = true;
+    const queue = new LearningQueue(this.dbPath);
+    try {
+      queue.recover();
+      for (const job of queue.pending()) {
+        if (this.queueStopped) break;
+        if (deploymentPaused(this.hostEnv) || peekDeploymentPending()) break;
+        if (!job.scope) continue;
+        const run = this.store.getProjectRun(job.scope.orgId, job.runId);
+        if (run?.status === 'running' || run?.status === 'queued') continue;
+        try {
+          if (!run || run.status === 'cancelled' || run.projectId !== job.scope.projectId || run.requestedByPrincipalId !== job.scope.principalId) {
+            throw new Error('The approved source run is unavailable');
+          }
+          // Missing authority is a refusal, as on the queued-run path. Never persist credentials.
+          if (!this.queuedRunAllowed?.(job.scope.principalId, job.scope.orgId)) throw new Error('The requester is no longer authorized');
+          const payers = this.store.getRunPayers(run.orgId, run.projectRunId);
+          if (!payers || payers.l2.selection !== job.model) throw new Error('The original payer receipt is unavailable');
+          // Cover spawn/startup too, before the worker has claimed its durable row.
+          this.learningPrincipal = run.requestedByPrincipalId;
+          const layout = projectRunHostLayout(this.root, run.orgId, run.projectId, run.projectRunId);
+          const { built } = this.configuredEnvironment({ orgId: run.orgId, principalId: run.requestedByPrincipalId,
+            runId: run.projectRunId, workspacePath: run.hostPaths.workspacePath, runsPath: run.hostPaths.runsPath,
+            skillsPath: job.skillsPath, artifactManifestPath: layout.artifactManifestPath,
+            runModels: { l1: payers.l1.selection, l2: payers.l2.selection, l3: payers.l3.selection } });
+          if (built.payers.l2.selection !== job.model || built.payers.l2.payer !== payers.l2.payer) throw new Error('The original learning payer is unavailable');
+          await this.learningDriver(this.dbPath, job, built.environment);
+        } catch (error) {
+          queue.block(job.runId, 'Learning is blocked: the original authorization or worker is unavailable.');
+          process.stderr.write(`[atoma learning] ${job.runId}: ${String(error)}\n`);
+        } finally { this.learningPrincipal = undefined; }
+      }
+    } finally {
+      this.learningPumping = false;
+      // A pending job can be waiting for another process's learner, or for its source delivery.
+      if (queue.pending().some(job => job.scope)) this.resumeLearning(true);
+    }
+  }
+
   /** Stop polling on shutdown; queued rows remain durable for the next owner. */
   stopQueue(): void {
     this.queueStopped = true;
     clearTimeout(this.queueTimer);
+    clearTimeout(this.learningTimer);
+    this.learningTimer = undefined;
     this.queueTimer = undefined;
   }
 
@@ -2358,10 +2431,11 @@ export class ProjectRunCoordinator {
 
   /** Disconnecting a profile cannot race a run that already captured it. */
   hasActiveRunForPrincipal(principalId: string): boolean {
+    if (this.learningPrincipal === principalId) return true;
     for (const active of this.active.values()) {
       if (active.principalId === principalId) return true;
     }
-    return false;
+    return this.store.hasActiveLearningForPrincipal(principalId);
   }
 
   waitForIdle(): Promise<void> {

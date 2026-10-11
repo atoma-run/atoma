@@ -1097,6 +1097,29 @@ describe('depth transition through the production supervision loop', () => {
     expect(stats.mock.calls.filter(([signal]) => signal === 'discarded-lesson')).toHaveLength(1);
   });
 
+  it('commits only the approved pass without invoking or waiting for its learning closure', async () => {
+    const ctx = context();
+    ctx.llm.enqueueText(jsonText({ approved: false, reasoning: 'repair it' }));
+    ctx.llm.enqueueText(jsonText({ approved: true, reasoning: 'proven' }));
+    const enqueue = vi.fn();
+    const learn = vi.fn(async () => new Promise<void>(() => {}));
+    let pass = 0;
+    await runDepthTask({ mode: 'short', task, floor, restart: vi.fn(), onTopology: vi.fn(), onAcceptance: vi.fn(),
+      ctx: { ...ctx, enqueueApprovedLessons: enqueue },
+      createExecutor: () => ({ actor: new Actor(), handle: async (_task, passCtx) => {
+        pass++;
+        forkBranch(passCtx, `phase-${pass}`).deferredLearning!.defer(learn, 'owner', {
+          kind: 'event', owner: 'owner', host: { name: 'Cell', model: 'api:ollama:fixture', params: {}, systemPrompt: 'Author' },
+          task: `pass ${pass}`, summary: 'recovered', diagnostic: 'a runtime error',
+        });
+        return result;
+      } }),
+    });
+    expect(enqueue).toHaveBeenCalledTimes(1);
+    expect(enqueue.mock.calls[0]![0]).toMatchObject([{ task: 'pass 2' }]);
+    expect(learn).not.toHaveBeenCalled();
+  });
+
   it('drops the lessons of a pass that lands refused', async () => {
     const ctx = context();
     const stats = vi.fn();

@@ -1011,7 +1011,7 @@ export function snapshotType(t: AtomType): VizRegistrySnapshot {
     name: t.name,
     description: t.description,
     systemPrompt: t.systemPrompt,
-    params: t.params as Record<string, unknown>,
+    params: t.params,
     tools: t.tools.map((tool) => tool.name),
     version: t.version,
     successes: t.successes,

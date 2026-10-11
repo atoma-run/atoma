@@ -31,10 +31,11 @@ import { hostAllowsLoopbackNetwork, scanScriptBody } from './scriptScan.js';
 import { LEARNED_CONTENT_TRUST_BOUNDARY_LINES, RECIPE_STEP_LIMITS } from './events.js';
 import { REFUSAL_GENERATION, refusalStampIsCurrent } from './generations.js';
 import { undeclaredToolMentions } from '../atoms/verdict.js';
-import { skillEventExecutor, type SkillNamespace } from './namespace.js';
+import { namespaceOf, skillEventExecutor, type SkillNamespace } from './namespace.js';
 import { transportOf, tryParseModelSelector } from '../contracts/modelSelector.js';
 import { branchRecordCount, executorEvidence } from '../atoms/executorEvidence.js';
 import { baseExecutorOf } from '../core/attestation.js';
+import type { SkillLesson } from '../contracts/skillLearning.js';
 
 // Historical export home — the generation machinery lives in generations.ts
 // (stats/curriculum need the predicate without importing this whole engine).
@@ -388,6 +389,40 @@ export class SkillLifecycle {
     private readonly displayName: (ns: SkillNamespace) => string = (ns) => ns
   ) {}
 
+  /** Freeze the author's identity and context while its phase is still in scope. */
+  lessonHost(): SkillLesson['host'] {
+    const request = this.host.toLlmRequest('skill', { userContent: '', systemPromptOverride: SKILL_AUTHOR_SYSTEM_PROMPT });
+    return { name: this.host.name, model: this.host.model, params: { ...this.host.params },
+      systemPrompt: request.systemPrompt, ...(request.context ? { context: [...request.context] } : {}) };
+  }
+
+  async learnLesson(lesson: SkillLesson, ctx: RunContext): Promise<void> {
+    const owner = namespaceOf({ atomId: lesson.owner, name: lesson.owner });
+    if (lesson.kind === 'event') {
+      return this.learnEventSkillFromRecovery({ l1Name: owner, subTask: { description: lesson.task },
+        diagnostic: lesson.diagnostic, recoverySummary: lesson.summary, ctx });
+    }
+    if (!lesson.successfulToolAction && !lesson.recordedCommandProbes) return;
+    // An explicit retry may follow a crash after save but before compile. The
+    // provenance is committed with the body metadata, so the exact-id guard
+    // must not strand that body's learn-time compilation.
+    if (ctx.learningSource) {
+      for (const skill of this.skills.loadFor(owner)) {
+        if (skill.provenance?.learning?.runId === ctx.learningSource.runId &&
+            skill.provenance.learning.lessonIndex === ctx.learningSource.lessonIndex) {
+          await this.tryPromoteSkill({ l1Name: owner, skillId: skill.id, subTask: { description: lesson.task },
+            result: { summary: lesson.summary }, ctx, ...(lesson.hostTools ? { hostTools: lesson.hostTools } : {}) });
+        }
+      }
+    }
+    return this.distillTaskSkill({ l1Name: owner, subTask: { description: lesson.task },
+      result: { summary: lesson.summary, recordedCommandProbes: lesson.recordedCommandProbes },
+      child: { name: lesson.childName, toolNames: () => lesson.childTools }, ctx,
+      ...(lesson.hostTools ? { hostTools: lesson.hostTools } : {}),
+      ...(lesson.visibleNamespaces ? { visibleNamespaces: lesson.visibleNamespaces } : {}),
+      ...(lesson.verificationOnly !== undefined ? { verificationOnly: lesson.verificationOnly } : {}) });
+  }
+
   /**
    * The existing recipe Jev judges `draft` to duplicate, or `null` — when there
    * is no decider, nothing to compare with, no answer, or a genuinely new
@@ -471,6 +506,15 @@ export class SkillLifecycle {
       );
       return;
     }
+    return this.distillTaskSkill(args);
+  }
+
+  private async distillTaskSkill(args: {
+    l1Name: SkillNamespace; subTask: Pick<Task, 'description'>;
+    result: { summary: string; recordedCommandProbes?: boolean };
+    child: Pick<L1Atom, 'name' | 'toolNames'>; ctx: RunContext;
+    visibleNamespaces?: readonly string[]; hostTools?: readonly string[]; verificationOnly?: boolean;
+  }): Promise<void> {
     // The namespaces the no-overwrite guard will consult (home first). Read
     // ONCE, here, because the model needs to SEE them: a draft is refused
     // by id below, and a model that cannot read the ids it must avoid can
@@ -748,7 +792,8 @@ export class SkillLifecycle {
         whenToUse: draft.whenToUse,
         kind: 'llm',
         body: draft.body,
-      }, { mechanism: 'distilled', model: this.host.model });
+      }, { mechanism: 'distilled', model: this.host.model,
+        ...(args.ctx.learningSource ? { learning: args.ctx.learningSource } : {}) });
       args.ctx.logger.info(
         `[${this.host.name}] learned new skill "${draft.id}" for ${args.l1Name}`
       );
@@ -905,7 +950,8 @@ export class SkillLifecycle {
         trigger: draft.trigger,
         body: draft.body,
       },
-      { mechanism: 'distilled', model: this.host.model }
+      { mechanism: 'distilled', model: this.host.model,
+        ...(args.ctx.learningSource ? { learning: args.ctx.learningSource } : {}) }
     );
     args.ctx.logger.info(
       `[${this.host.name}] learned event skill "${draft.id}" for ${args.l1Name} (trigger: ${draft.trigger})`
@@ -1025,8 +1071,8 @@ export class SkillLifecycle {
   async tryPromoteSkill(args: {
     l1Name: SkillNamespace;
     skillId: string;
-    subTask: Task;
-    result: Result;
+    subTask: Pick<Task, 'description'>;
+    result: Pick<Result, 'summary'>;
     ctx: RunContext;
     /**
      * DECLARED tools of the host L1. The static scan reads them to decide

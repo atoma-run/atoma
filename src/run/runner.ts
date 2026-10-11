@@ -45,6 +45,8 @@ import { decodePreviousLanding, isLanded, landingReasons, PREVIOUS_LANDING_ENV }
 import { withPreviousRunInputs } from './taskInputs.js';
 import { runDepthTask } from './depth.js';
 import { SkillRegistry } from '../skills/registry.js';
+import { LearningQueue } from '../skills/learningQueue.js';
+import { spawnApprovedLearning } from './learningProcess.js';
 import { reconcilePlatformSkills } from '../skills/migratePlatform.js';
 import { isTraceRunId, TraceRecorder, runLabelFromGoal } from '../viz/trace.js';
 import { formatDecompositionReport, formatTimeoutPostMortem } from '../viz/report.js';
@@ -562,6 +564,8 @@ async function startTaskInternal(
     requireIsolation?: boolean;
     /** Trusted library injection; marked project children resolve a stored receipt instead. */
     projectRetrieval?: ProjectRetrievalBinding;
+    /** Trusted test/library seam; production uses the separate learning process. */
+    launchLearning?: typeof spawnApprovedLearning;
   }
 ): Promise<RunHandle> {
   // PROVIDER CREDENTIALS ARE A PER-RUN VALUE (invariant T10). `providerEnv`
@@ -1238,6 +1242,8 @@ async function startTaskInternal(
   // so its false approvals stay measured (docs/jev-decisions-2026-09-28.md).
   const jevAudit = jev ? createJevAudit() : undefined;
 
+  let learningEnqueued = false;
+
   const ctx: RunContext = {
     ...(checkpoint ? { rootCheckpoint: checkpoint } : {}),
     ...(args.depth ? { attestations: createAttestationLog((record) => recorder.recordAttestation(record)) } : {}),
@@ -1246,6 +1252,20 @@ async function startTaskInternal(
     deadlineAt,
     llm,
     limits: DEFAULT_LIMITS,
+    ...(process.env['ATOMA_DEFER_LEARNING'] === '0' ? {} : { enqueueApprovedLessons: (lessons: readonly import('../contracts/skillLearning.js').SkillLesson[]) => {
+      if (lessons.length === 0) return;
+      new LearningQueue(dbPath).enqueue({ version: 1, runId: vizRun.id, approvedAt: new Date().toISOString(),
+        skillsPath: resolve(skillsDirPath()), runsPath: resolve(runsDir),
+        ...(tenantRun && runScope.orgId && runScope.projectId && runScope.actorId ? {
+          scope: { orgId: runScope.orgId, projectId: runScope.projectId, principalId: runScope.actorId },
+        } : {}),
+        model: formatModelSelector(selectors[2]), policy: { promote: process.env['ATOMA_SKILL_PROMOTE'], threshold: process.env['ATOMA_PROMOTE_THRESHOLD'] },
+        // Do not authorize spend until the final audit usage has settled.
+        budget: { tokens: 0, costUsd: 0 },
+        lessons: [...lessons],
+      });
+      learningEnqueued = true;
+    } }),
     tools: runTools(backend.executor),
     requireObservedToolAction: true,
     // Surface trust fast-path decisions in the trace so the viz lane
@@ -1446,6 +1466,18 @@ async function startTaskInternal(
       // Audits still in flight record into this run's trace before it closes;
       // one that outlasts the bound is dropped, since it measures and decides nothing.
       await jevAudit?.settle(JEV_AUDIT_SETTLE_MS);
+      if (learningEnqueued) {
+        const consumed = budgetMeter.consumed();
+        const remaining = (key: 'run.tokenMaxTotal' | 'run.costMaxUsd', spent: number) => {
+          const ceiling = ceilingOf(platformLimits, key);
+          return ceiling === null ? null : Math.max(0, ceiling - spent);
+        };
+        try {
+          new LearningQueue(dbPath).setBudget(vizRun.id, {
+            tokens: remaining('run.tokenMaxTotal', consumed.tokens), costUsd: remaining('run.costMaxUsd', consumed.costUsd),
+          });
+        } catch (error) { console.error(`[learning] could not persist the remaining budget: ${String(error)}`); }
+      }
       // A run lands for either of TWO typed reasons, and they compose: the
       // deadline left phases unrun (`markLanded`), or root delivery acceptance
       // refused the result (`markRefused`). `isLanded` is the one derivation
@@ -1465,6 +1497,21 @@ async function startTaskInternal(
           ...(result.refusal ? { refusal: result.refusal } : {}),
         },
       });
+
+      // The launcher may reap this process as soon as it sees the epilogue.
+      // Start every operator learner first; tenant jobs belong to the host.
+      if (!tenantRun && process.env['ATOMA_DEFER_LEARNING'] !== '0') {
+        try {
+          const learningQueue = new LearningQueue(dbPath);
+          learningQueue.recover();
+          const jobs = learningQueue.pending().filter(job => !job.scope && job.model === formatModelSelector(selectors[2]));
+          const learningEnv = { ...providerEnv, ...(!suppliedProviderEnv ? { ATOMA_SUBSCRIPTION_TIERS: 'l1,l2,l3' } : {}) };
+          for (const job of jobs) {
+            void (opts?.launchLearning ?? spawnApprovedLearning)(dbPath, job, learningEnv)
+              .catch(error => console.error(`[learning] background processing unavailable: ${String(error)}`));
+          }
+        } catch (error) { console.error(`[learning] background processing unavailable: ${String(error)}`); }
+      }
 
       console.log('\n--- result ---');
       console.log(

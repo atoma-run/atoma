@@ -9,6 +9,7 @@ import { baseExecutorOf } from '../src/core/attestation.js';
 import { ensureCanonicalFullStack } from '../src/atoms/capability.js';
 import { SKILL_PREFILTER_SYSTEM_PROMPT } from '../src/atoms/cost.js';
 import { SkillRegistry } from '../src/skills/registry.js';
+import { LearningQueue } from '../src/skills/learningQueue.js';
 import { closeStoreHandles } from '../src/core/stores.js';
 import type { AtomRegistry } from '../src/registry/atomRegistry.js';
 import type { LlmCompletionRequest, ToolExecutor } from '../src/core/types.js';
@@ -25,14 +26,17 @@ vi.mock('../src/run/providers.js', async (original) => ({
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); resetHostLifecycleSnapshotForTests(); });
 
 describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
-  it.each<{ mode: string; matched: boolean; rootApproved: boolean; deadline?: boolean }>([
+  it.each<{ mode: string; matched: boolean; rootApproved: boolean; deadline?: boolean; deferred?: boolean; launchFails?: boolean }>([
     { mode: 'short', matched: false, rootApproved: true, deadline: true },
     { mode: 'short', matched: false, rootApproved: false, deadline: true },
     { mode: 'default', matched: false, rootApproved: false }, { mode: 'default', matched: true, rootApproved: false },
     { mode: 'default', matched: false, rootApproved: true },
     { mode: 'short', matched: false, rootApproved: false }, { mode: 'deep', matched: false, rootApproved: false },
     { mode: 'short', matched: true, rootApproved: false }, { mode: 'deep', matched: true, rootApproved: false },
-  ])('keeps phase trust and learning/credit with $mode supervision (matched=$matched, rootApproved=$rootApproved)', async ({ mode, matched, rootApproved, deadline }) => {
+    { mode: 'default', matched: false, rootApproved: true, deferred: true },
+    { mode: 'default', matched: false, rootApproved: false, deferred: true },
+    { mode: 'default', matched: false, rootApproved: true, deferred: true, launchFails: true },
+  ])('keeps phase trust and learning/credit with $mode supervision (matched=$matched, rootApproved=$rootApproved, deferred=$deferred, launchFails=$launchFails)', async ({ mode, matched, rootApproved, deadline, deferred, launchFails }) => {
     const unfinishedDescription = 'Write unfinished.txt. ' + 'Verify restart persistence and concurrent writes. '.repeat(100);
     const root = mkdtempSync(join(tmpdir(), 'atoma-depth-credit-'));
     const runs = join(root, 'runs');
@@ -103,8 +107,16 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
       return { text: JSON.stringify(reply), stopReason: 'end_turn', usage: { inputTokens: 10, outputTokens: 10 } };
     } } });
     let handle: Awaited<ReturnType<typeof startTask>> | undefined;
+    const launchLearning = vi.fn(() => {
+      expect(logs.some(line => line.startsWith('ATOMA_RUN_STATS'))).toBe(false);
+      if (launchFails) throw new Error('Learning process could not launch');
+      return new Promise<void>(() => {});
+    });
     try {
-      handle = await startTask([...(mode === 'default' ? [] : ['--depth', mode]), '--clean-workspace', 'Build a page backed by server.js'], { seedCatalog(seed, canonical) {
+      // This fixture measures the entire serial path, including learning; the
+      // separate-process path and approval handoff have their own regressions.
+      vi.stubEnv('ATOMA_DEFER_LEARNING', deferred ? '1' : '0');
+      handle = await startTask([...(mode === 'default' ? [] : ['--depth', mode]), '--clean-workspace', 'Build a page backed by server.js'], { launchLearning, seedCatalog(seed, canonical) {
         canonical(seed);
         registry = seed.registry;
         const leaf = ensureCanonicalFullStack(seed.registry, seed.toolDecls, 1)!;
@@ -143,11 +155,21 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
         { approved: rootApproved, floorCoverage: [], phaseCoverage: [{ obligations: [] }] },
       ]);
       expect(calls.filter((req) => req.actor?.name === 'run-root')).toHaveLength(1);
-      expect(calls.some((req) => req.role === 'skill')).toBe(!matched && rootApproved);
+      expect(calls.some((req) => req.role === 'skill')).toBe(!deferred && !matched && rootApproved);
       expect(parseRunLog(logs.join('\n'))).toMatchObject({ uncoveredObligations: 0, deepenings: 0,
         discardedLessons: !matched && !rootApproved ? 1 : 0 });
       expect(trace.events.some((event) => event.kind === 'skill' && event.op === 'credit-withheld')).toBe(false);
-      expect(skills.loadFor(leafId)).toHaveLength(matched || rootApproved ? 1 : 0);
+      expect(skills.loadFor(leafId)).toHaveLength(matched || (!deferred && rootApproved) ? 1 : 0);
+      if (deferred) {
+        const queue = new LearningQueue(join(root, 'store.db'));
+        expect(queue.pending()).toHaveLength(rootApproved ? 1 : 0);
+        expect(launchLearning).toHaveBeenCalledTimes(rootApproved ? 1 : 0);
+        if (rootApproved) {
+          expect(queue.get(trace.id)).toMatchObject({ lessons: [{ owner: leafId, kind: 'task' }] });
+          expect(queue.get(trace.id)!.budget.tokens).not.toBe(0);
+          expect(queue.get(trace.id)!.budget.costUsd).not.toBe(0);
+        }
+      }
     } finally {
       await handle?.shutdown();
       // The test's registry holds the cached handle on the store (W4);

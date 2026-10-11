@@ -44,6 +44,8 @@ import { ProjectStore } from '../src/projects/store.js';
 import { unsupportedRunHostMessage } from '../src/run/platform.js';
 import { RunLockBusyError, type RunLease } from '../src/mcp/runLock.js';
 import { TraceRecorder } from '../src/viz/trace.js';
+import { LearningQueue } from '../src/skills/learningQueue.js';
+import type { LearningJob } from '../src/contracts/skillLearning.js';
 
 type SpawnRunOptions = Parameters<typeof import('../src/cli/burnin.js').spawnRun>[0];
 
@@ -939,6 +941,61 @@ describe('ProjectRunCoordinator', () => {
       )
     );
     expect(started.hostPaths.runsPath).toBe(driver.mock.calls[0]?.[0].env?.['ATOMA_RUNS_DIR']);
+  });
+
+  it.each(['allowed', 'revoked', 'payer-changed'] as const)('releases delivery before learning and rechecks its authority: %s', async mode => {
+    const f = fixture();
+    const runLease = lease();
+    let ended = false;
+    let releaseLearning!: () => void;
+    const waiting = new Promise<void>(resolve => { releaseLearning = resolve; });
+    const learningDriver = vi.fn(async (dbPath: string, job: LearningJob) => {
+      expect(runLease.release).toHaveBeenCalledOnce();
+      expect(coordinator.hasActiveRunForPrincipal(f.viewer.principalId)).toBe(true);
+      const queue = new LearningQueue(dbPath);
+      expect(queue.claim(job.runId)).toBe(true);
+      queue.recordCall(job.runId, { model: job.model, inputTokens: 10, outputTokens: 10,
+        cacheCreationInputTokens: 0, cacheReadInputTokens: 0, durationMs: 1, stopReason: 'end_turn' });
+      await waiting;
+      queue.finish(job.runId, 'completed');
+    });
+    const driver: ProjectRunDriver = async options => {
+      const env = options.env!;
+      const runId = env['ATOMA_RUN_ID']!;
+      const workspace = env['ATOMA_BUILD_WORKSPACE']!;
+      const runs = env['ATOMA_RUNS_DIR']!;
+      mkdirSync(workspace, { recursive: true });
+      mkdirSync(runs, { recursive: true });
+      writeFileSync(join(workspace, 'index.html'), '<h1>Clock</h1>');
+      writeFileSync(env['ATOMA_ARTIFACT_MANIFEST_PATH']!, JSON.stringify({ version: 1, runId, generatedAt: new Date().toISOString(), outputs: ['index.html'] }));
+      writeFileSync(join(runs, `${runId}.json`), JSON.stringify({ id: runId, endedAt: new Date().toISOString(), result: { summary: 'verified' } }));
+      new LearningQueue(f.dbPath).enqueue({ version: 1, runId, approvedAt: new Date().toISOString(),
+        skillsPath: env['ATOMA_SKILLS_DIR']!, runsPath: runs, model: env['ATOMA_MODEL_L2']!,
+        scope: { orgId: f.viewer.orgId, projectId: f.project.projectId, principalId: f.viewer.principalId },
+        policy: { promote: '1' }, budget: { tokens: 1000, costUsd: 1 },
+        lessons: [{ kind: 'event', owner: randomUUID(), task: 'Recover', summary: 'Recovered', diagnostic: 'Runtime error',
+          host: { name: 'Cell', model: env['ATOMA_MODEL_L2']!, params: {}, systemPrompt: 'Author' } }],
+      });
+      ended = true;
+      return formatRunStatsEpilogue(DELIVERED_STATS);
+    };
+    const coordinator = new ProjectRunCoordinator({ store: f.store, dbPath: f.dbPath, projectsRoot: f.root,
+      skillsDir: join(f.root, 'skills'), hostEnv: { ...haystackTestEnvironment(f.root), ...ANTHROPIC_PINS, ANTHROPIC_API_KEY: 'host-key' },
+      driver, learningDriver, acquireLease: async () => runLease,
+      queuedRunAllowed: () => mode !== 'revoked',
+      orgProviderKeyFor: () => ended && mode === 'payer-changed' ? 'org-key' : null,
+    });
+    try {
+      const started = await coordinator.start({ orgId: f.viewer.orgId, projectId: f.project.projectId, principalId: f.viewer.principalId,
+        request: { idempotencyKey: `learning-${mode}`, goal: 'Build a clock.' } });
+      await coordinator.waitForIdle();
+      expect(f.store.getProjectRun(f.viewer.orgId, started.projectRunId)).toMatchObject({ status: 'delivered', stats: DELIVERED_STATS,
+        learning: { status: mode === 'allowed' ? 'running' : 'blocked', llmCalls: mode === 'allowed' ? 1 : 0 } });
+      expect(learningDriver).toHaveBeenCalledTimes(mode === 'allowed' ? 1 : 0);
+      const learning = f.store.getProjectRun(f.viewer.orgId, started.projectRunId)!.learning!;
+      expect(f.store.projectRunSummary(f.viewer.orgId, f.project.projectId).costUsd).toBe(DELIVERED_STATS.costUsd! + learning.costUsd);
+      expect(coordinator.hasActiveRunForPrincipal(f.viewer.principalId)).toBe(mode === 'allowed');
+    } finally { coordinator.stopQueue(); releaseLearning(); await waiting; }
   });
 
   it('exposes whether the requesting principal still owns an active run', async () => {

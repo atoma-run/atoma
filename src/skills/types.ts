@@ -42,6 +42,8 @@ export interface SkillProvenance {
   readonly mechanism: 'distilled' | 'revised' | 'compiled' | 'hand-authored';
   readonly model?: string;
   readonly at?: string;
+  /** The approved lesson that wrote this body; retained with its metadata commit. */
+  readonly learning?: import('../contracts/skillLearning.js').LearningSource;
 }
 
 /**

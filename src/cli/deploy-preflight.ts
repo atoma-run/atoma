@@ -55,13 +55,14 @@ export interface DeploymentBlockerFacts {
   readonly previews: number;
   /** A publication in flight runs without the lease, and a restart fails it. */
   readonly publications: number;
+  readonly learning?: number;
 }
 
 /** Read-only facts that make replacing the running generation unsafe. */
 export function deploymentBlockerFacts(options: DeploymentPreflightOptions = {}): DeploymentBlockerFacts {
   const lockPath = resolve(options.runLockPath ?? mcpRunLockPath());
   const lease = options.ignoreRunLease ? null : peekRunLease(lockPath);
-  const facts = { lease, projectRuns: 0, previews: 0, publications: 0 };
+  const facts: { lease: RunLockOwner | null; projectRuns: number; previews: number; publications: number; learning?: number } = { lease, projectRuns: 0, previews: 0, publications: 0 };
 
   const dbPath = resolve(options.dbPath ?? storeDbPath());
   if (!existsSync(dbPath)) return facts;
@@ -82,6 +83,9 @@ export function deploymentBlockerFacts(options: DeploymentPreflightOptions = {})
     if (tableExists(db, 'project_publications')) {
       facts.publications = count("SELECT COUNT(*) AS count FROM project_publications WHERE status = 'publishing'");
     }
+    if (tableExists(db, 'skill_learning_jobs')) {
+      facts.learning = count("SELECT COUNT(*) AS count FROM skill_learning_jobs WHERE status = 'running'");
+    }
   } finally {
     db.close();
   }
@@ -96,6 +100,7 @@ function blockerLines(facts: DeploymentBlockerFacts): string[] {
   if (facts.projectRuns > 0) lines.push(`${facts.projectRuns} project run(s) are running`);
   if (facts.previews > 0) lines.push(`${facts.previews} result preview(s) still own runtime`);
   if (facts.publications > 0) lines.push(`${facts.publications} publication(s) are uploading`);
+  if (facts.learning) lines.push(`${facts.learning} approved learning job(s) are running`);
   return lines;
 }
 

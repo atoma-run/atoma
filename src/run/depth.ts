@@ -192,7 +192,8 @@ export function withAcceptanceChecklist(task: Task, checklist: AcceptanceCheckli
   };
 }
 
-export type Lesson = { readonly learn: (signal?: AbortSignal) => Promise<void>; readonly owner: string | undefined };
+export type Lesson = { readonly learn: (signal?: AbortSignal) => Promise<void>; readonly owner: string | undefined;
+  readonly lesson?: import('../contracts/skillLearning.js').SkillLesson };
 
 /**
  * Run under the approved pass's finalization signal; each lesson logs its own
@@ -308,7 +309,7 @@ export async function runDepthTask(args: {
           let delivery: DeliveryKind | undefined;
           let rootPlan: Plan | undefined;
           let rootPhases: readonly string[] = [];
-          const passCtx: RunContext = { ...attemptCtx, deferredLearning: { defer: (learn, owner) => { lessons.push({ learn, owner }); } },
+          const passCtx: RunContext = { ...attemptCtx, deferredLearning: { defer: (learn, owner, lesson) => { lessons.push({ learn, owner, ...(lesson ? { lesson } : {}) }); } },
             recordRootPlan: (plan) => {
               rootPlan = plan;
               delivery = plan.delivery;
@@ -396,7 +397,11 @@ export async function runDepthTask(args: {
           args.onAcceptance(acceptance);
           if (acceptance.approved) {
             lessonsSaved = true;
-            await saveLessons(lessons.splice(0), acceptanceCtx.signal, ctx);
+            if (ctx.enqueueApprovedLessons && lessons.every(entry => entry.lesson)) {
+              try { ctx.enqueueApprovedLessons(lessons.map(entry => entry.lesson!)); }
+              catch (error) { discardLessons(lessons, ctx, `could not persist approved lessons: ${String(error)}`); }
+              lessons.length = 0;
+            } else await saveLessons(lessons.splice(0), acceptanceCtx.signal, ctx);
             return result;
           }
           // A refusal LANDS when there is no pass left to spend, or when the

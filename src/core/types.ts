@@ -75,19 +75,7 @@ export interface Tool {
   readonly element?: import('../contracts/toolTaxonomy.js').Element;
 }
 
-export interface GenerationParams {
-  temperature?: number;
-  maxTokens?: number;
-  topP?: number;
-  /**
-   * Reasoning-depth hint (`output_config: {effort}`) for models that
-   * support it (Sonnet 4.6+/5, Opus 4.5+/5 — the client gates via
-   * `modelSupportsEffort`; Haiku rejects the param). Plan/strategy call
-   * sites pin `'medium'`: those models default to `'high'`, the most
-   * expensive setting, and a routing JSON pair does not need it.
-   */
-  effort?: 'low' | 'medium' | 'high';
-}
+export type GenerationParams = import('zod').infer<typeof import('../contracts/skillLearning.js').generationParamsSchema>;
 
 /**
  * One unit of work a supervisor hands to a child agent. Spelled out as its
@@ -866,7 +854,8 @@ export interface BranchEventInfo {
  */
 export interface DeferredLearning {
   /** `owner` is the skill namespace written; lessons of one owner run in order, owners side by side. */
-  defer(learn: (signal?: AbortSignal) => Promise<void>, owner?: string): void;
+  defer(learn: (signal?: AbortSignal) => Promise<void>, owner?: string,
+    lesson?: import('../contracts/skillLearning.js').SkillLesson): void;
 }
 
 export interface RunContext {
@@ -878,6 +867,9 @@ export interface RunContext {
   readonly recordPhaseCoverage?: (record: import('../contracts/depthRouting.js').PhaseCoverageRecord) => void;
   /** Set where a root acceptance judges the run (depth routing); shared by every fork. */
   readonly deferredLearning?: DeferredLearning;
+  /** Root approval commits serializable lessons before delivery; the host processes them separately. */
+  readonly enqueueApprovedLessons?: (lessons: readonly import('../contracts/skillLearning.js').SkillLesson[]) => void;
+  readonly learningSource?: import('../contracts/skillLearning.js').LearningSource;
   readonly logger: Logger;
   /**
    * Run-scoped memo of deterministic-dispatch outputs: skill id → digests

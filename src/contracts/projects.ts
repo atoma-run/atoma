@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { learningReceiptSchema } from './skillLearning.js';
 import { PLATFORM_SETTINGS } from './platformSettings.js';
 import { deliveryKindSchema } from './taskExecution.js';
 import { runStatsSchema } from './runStats.js';
@@ -474,6 +475,8 @@ export const projectRunSchema = z
     seed: runSeedSchema.optional(),
     traceId: z.string().min(1).max(255).nullable(),
     stats: runStatsSchema.nullable(),
+    /** Post-delivery work has its own receipt; stats remain the delivery's measured spend. */
+    learning: learningReceiptSchema.optional(),
     artifactManifest: artifactManifestSchema.nullable(),
     artifactManifestHash: sha256Schema.nullable(),
     error: boundedErrorSchema,

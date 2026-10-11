@@ -196,6 +196,14 @@ Neighbours:
 
 ## Run accounting
 
+- Root-approved lessons are committed before delivery and processed outside its
+  trace and deadline by `learningWorker.ts`. The worker has no tool backend,
+  uses the shared lifecycle/provider/metrics code and the source run's remaining
+  spend allowance, and writes a separate receipt and trace. A separate process
+  group survives the run launcher's reap. Serial measurements can explicitly
+  retain inline learning with `ATOMA_DEFER_LEARNING=0`.
+  [Lifetime, recovery and review](../../docs/approved-learning-2026-10-11.md).
+
 - New ordinary runs default to deep supervision through the selected tissue.
   `--depth short` explicitly retains direct L2 entry and selects an L3 only
   when it deepens. A project

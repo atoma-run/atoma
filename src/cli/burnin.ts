@@ -593,6 +593,8 @@ export function spawnRun(opts: {
   readonly onSpawn?: (pid: number) => void;
   /** Pass `--clean-workspace`. Defaults to true (the measurement default). */
   readonly cleanWorkspace?: boolean;
+  /** Serial measurements wait for learning so batches never overlap paid work or omit its cost. */
+  readonly waitForLearning?: boolean;
   /**
    * Margin past `timeoutMs` before the hard reap. The 180s default leaves the
    * runner's own watchdog (timeoutMs + 60s) room to exit cleanly first. A
@@ -657,6 +659,7 @@ export function spawnRun(opts: {
           ATOMA_BASELINE: undefined,
           ATOMA_SEED: undefined,
           ATOMA_BUILD_TIMEOUT_MS: String(timeoutMs),
+          ...(opts.waitForLearning ? { ATOMA_DEFER_LEARNING: '0' } : {}),
           ...(opts.extraEnv ?? {}),
         },
       }
@@ -813,6 +816,7 @@ async function main(): Promise<void> {
     const log = await withUnkillableBackstop(
       spawnRun({
         goal: task.goal,
+        waitForLearning: true,
         timeoutMs,
         logPath: join(logsDir, `${task.id}-${ts.replace(/[:.]/g, '-')}.log`),
       }),

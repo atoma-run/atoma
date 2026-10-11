@@ -20,6 +20,8 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { SkillRegistry } from '../skills/registry.js';
+import { LearningQueue, learningReceipt, learningReceipts } from '../skills/learningQueue.js';
+import { spawnApprovedLearning } from '../run/learningProcess.js';
 import { resolveMoleculeRef } from '../skills/namespace.js';
 import { openLedgerHandle, setLedgerScope } from '../core/ledger.js';
 import { skillsDirPath, storeDbPath } from '../core/stores.js';
@@ -36,7 +38,7 @@ import { computeStatsRows, similarityPairs } from '../skills/stats.js';
 import type { Skill } from '../skills/types.js';
 
 interface Args {
-  command: 'list' | 'show' | 'reset' | 'forgive' | 'stats' | 'drop' | 'merge' | 'export' | 'review' | 'help';
+  command: 'list' | 'show' | 'reset' | 'forgive' | 'stats' | 'drop' | 'merge' | 'export' | 'review' | 'learning' | 'help';
   positional: string[];
   flags: Record<string, string>;
 }
@@ -50,11 +52,11 @@ function parseArgs(argv: string[]): Args {
   // (found by adversarial review, 2026-08-21). Declared, a trailing
   // `--reason` records '' and fails the guard as it should.
   const { command, positional, flags } = parseCliArgs(argv, {
-    booleanFlags: ['force'],
+    booleanFlags: ['force', 'retry'],
     valueFlags: ['reason'],
   });
   if (command === null) return { command: 'help', positional, flags };
-  if (!['list', 'show', 'reset', 'forgive', 'stats', 'drop', 'merge', 'export', 'review', 'help'].includes(command)) {
+  if (!['list', 'show', 'reset', 'forgive', 'stats', 'drop', 'merge', 'export', 'review', 'learning', 'help'].includes(command)) {
     return { command: 'help', positional: [command, ...positional], flags };
   }
   return { command: command as Args['command'], positional, flags };
@@ -411,6 +413,7 @@ function help(unknown?: string): void {
   console.log(
     [
       'atoma skills CLI',
+      '  learning [<run-id>] [--retry] — receipts; explicitly retry interrupted/blocked learning (may spend again)',
       '',
       '  list [--molecule <name>]  — list skills (all namespaces, or one molecule)',
       '  show <l1> <skill-id>      — full body + counters + promotion state',
@@ -537,6 +540,25 @@ function main(): void {
   // catalog, so an operator inspecting a copy names both. A read on a machine
   // with no store yet must not create one; a mutating verb opens it.
   const storePath = storeDbPath(args.flags['db']);
+  if (args.command === 'learning') {
+    if (!existsSync(storePath)) { console.error('Learning store does not exist'); process.exitCode = 1; return; }
+    const runId = args.positional[0];
+    if (args.flags['retry']) {
+      const queue = new LearningQueue(storePath);
+      if (!runId) { console.error('learning --retry requires one run id'); process.exitCode = 2; return; }
+      queue.recover();
+      if (!queue.retry(runId)) { console.error('This learning job cannot be retried'); process.exitCode = 1; return; }
+      const job = queue.get(runId)!;
+      if (!job.scope) {
+        void spawnApprovedLearning(storePath, job, { ...process.env, ATOMA_SUBSCRIPTION_TIERS: 'l1,l2,l3' })
+          .catch(error => console.error(String(error)));
+      }
+    }
+    const learningDb = new Database(storePath, { readonly: true, fileMustExist: true });
+    try { console.log(JSON.stringify(runId ? learningReceipt(learningDb, runId) ?? null : learningReceipts(learningDb), null, 2)); }
+    finally { learningDb.close(); }
+    return;
+  }
   const mutating = ['drop', 'merge', 'forgive', 'reset'].includes(args.command);
   const registry = new SkillRegistry(
     dirFrom(args.flags),

@@ -226,6 +226,12 @@ it; `ATOMA_EGRESS_ALLOWLIST` replaces the host list. Both are host-only settings
 
 ## What a tenant run may learn
 
+- Approved learning runs after the source run's lease is released. Dispatch
+  rechecks membership and the original selectors/payer; it never saves keys or
+  permission to spend. `ProjectRun.learning` reports its separate costs/status.
+  Active learning also holds the requesting principal's profile-change guard.
+  [Recovery and accounting](../../docs/approved-learning-2026-10-11.md).
+
 - SKILL LEARNING IS ON (`ATOMA_SKILL_LEARN=1`, `ATOMA_EVENT_SKILLS=1`). It is
   the point of the platform: a tenant's runs get cheaper as their project
   grows. It was off, and two delivered runs measured the cost of that —

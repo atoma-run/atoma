@@ -91,10 +91,14 @@ by owner decision on 2026-09-26
 - Credit is usage-conditioned. Atom-type counters move with child outcomes;
   skill counters move only when the skill demonstrably drove the attempt.
 - Where a root acceptance judges the run (depth routing), distillation and its
-  compile wait in `ctx.deferredLearning` for that pass's verdict: approval runs
-  them under the finalization signal, any other end drops them and counts
+  compile wait in `ctx.deferredLearning` for that pass's verdict: approval queues
+  them durably for a separate learner, any other end drops them and counts
   `discardedLessons` (owner decision 2026-10-09: run fc2a68cf learned from a
   phase the root refused). Credit is unchanged; other runs learn at once.
+  `skill_learning_jobs` is in the product store. Jobs carry evidence and policy,
+  never credentials or tools. One learner owns its claim; owner namespaces
+  remain serial within a batch. Its receipts, interruption/retry policy and
+  adversarial cases are in [approved learning](../../docs/approved-learning-2026-10-11.md).
 - Updates after failure are opportunistic. Invalid skill JSON must not fail an
   otherwise valid run, and an unchanged body is not a revision.
 - Auto-created/revised skill bodies must stay within the owner's toolset and

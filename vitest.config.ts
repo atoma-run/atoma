@@ -85,6 +85,9 @@ export default defineConfig({
       // assert exact LLM call counts, so a shared cache would make test
       // order change which calls fire. Cache tests re-enable it per-test.
       ATOMA_PREFILTER_CACHE: '0',
+      // Mock LLMs live in this process. Ordinary fixtures retain inline learning;
+      // the worker regressions opt in explicitly and use only local fake servers.
+      ATOMA_DEFER_LEARNING: '0',
     },
     // Process-bound fixtures start their own Node/Python workers. Spawning a
     // worker per CPU oversubscribed these deadlines in the full suite. Bound

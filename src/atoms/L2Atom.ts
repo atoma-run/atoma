@@ -138,6 +138,7 @@ import type { Skill } from '../skills/types.js';
 import type { SkillRegistry } from '../skills/registry.js';
 import { visibleSkillNamespaces } from '../skills/visibility.js';
 import { namespaceOf, skillEventExecutor, type SkillNamespace } from '../skills/namespace.js';
+import type { SkillLesson } from '../contracts/skillLearning.js';
 
 
 
@@ -152,9 +153,9 @@ import { namespaceOf, skillEventExecutor, type SkillNamespace } from '../skills/
  * lesson runs under the signal the root hands it: the branch's own may have
  * closed with the run's deadline by the time an approval comes.
  */
-async function learnAfterRoot(ctx: RunContext, owner: string, learn: (learnCtx: RunContext) => Promise<void>): Promise<void> {
+async function learnAfterRoot(ctx: RunContext, owner: string, learn: (learnCtx: RunContext) => Promise<void>, lesson?: SkillLesson): Promise<void> {
   if (!ctx.deferredLearning) return learn(ctx);
-  ctx.deferredLearning.defer((signal) => learn(signal ? { ...ctx, signal } : ctx), owner);
+  ctx.deferredLearning.defer((signal) => learn(signal ? { ...ctx, signal } : ctx), owner, lesson);
 }
 
 /**
@@ -1223,13 +1224,13 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       if (eventLesson) {
         await learnAfterRoot(branchCtx, namespaceOf(l1Type), async (learnCtx) => {
           try {
-            await eventLesson(learnCtx);
+            await this.lifecycle()?.learnLesson(eventLesson, learnCtx);
           } catch (err) {
             ctx.logger.warn(
               `[${this.name}] event-skill learning attempt errored: ${(err as Error).message}`
             );
           }
-        });
+        }, { ...eventLesson, ...(branchCtx.currentBranchId ? { branchId: branchCtx.currentBranchId } : {}) });
       }
       return res;
     } finally {
@@ -1318,7 +1319,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     subTask: Task;
     res: Result;
     eventSkillInjected: boolean;
-  }): ((ctx: RunContext) => Promise<void>) | null {
+  }): SkillLesson | null {
     if (process.env['ATOMA_SKILL_LEARN'] !== '1') return null;
     if (!this.skillRegistry) return null;
     if (args.eventSkillInjected) return null;
@@ -1334,15 +1335,8 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
     if (!hadRejection) return null;
     const diagnostic = extractBranchDiagnostic(args.res.trace);
     if (!diagnostic) return null;
-    return async (ctx) => {
-      await this.lifecycle()?.learnEventSkillFromRecovery({
-        l1Name: args.l1Name,
-        subTask: args.subTask,
-        diagnostic,
-        recoverySummary: args.res.summary,
-        ctx,
-      });
-    };
+    return { kind: 'event', owner: args.l1Name, host: this.lifecycle()!.lessonHost(),
+      task: args.subTask.description, diagnostic, summary: args.res.summary };
   }
 
   private async tryPromoteSkill(args: {
@@ -2046,7 +2040,13 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
                 `[${this.name}] skill auto-creation failed: ${(err as Error).message}`
               );
             }
-          });
+          }, { kind: 'task', owner: skillCtx.l1Name, host: this.lifecycle()!.lessonHost(),
+            task: skillCtx.subTask.description, summary: result.summary,
+            childName: child.name, childTools: child.toolNames(), hostTools,
+            successfulToolAction: resultHasSuccessfulToolAction(result),
+            recordedCommandProbes: Boolean(result.recordedCommandProbes), verificationOnly: !novel,
+            ...(skillCtx.visibleNamespaces ? { visibleNamespaces: [...skillCtx.visibleNamespaces] } : {}),
+            ...(ctx.currentBranchId ? { branchId: ctx.currentBranchId } : {}) });
         }
       },
       onFailed: async (child, _reason, lastResultVerdict) => {

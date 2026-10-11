@@ -149,6 +149,13 @@ can only report that it cannot be.
 
 ## Burn-in and friction
 
+- Burn-in asks `spawnRun` to wait for learning (`ATOMA_DEFER_LEARNING=0`), keeping
+  paid work and all costs inside each measured task. Ordinary deliveries defer
+  it. `skills learning [run-id]` reads the separate receipts; `--retry` explicitly
+  requeues interrupted/blocked work and may spend again. Project retries wait
+  for the coordinator's next wake/delivery/restart and recheck its authority.
+  [Contract](../../docs/approved-learning-2026-10-11.md).
+
 - Burn-in CSVs belong to exactly one writer/schema. Refuse foreign headers
   before append. Measurements committed to the repo must remain parseable.
 - The friction report is offline and includes recency. Fix recurring real tool
