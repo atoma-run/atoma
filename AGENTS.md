@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Project guidance for coding agents. Read this file before making changes.
+Project guidance for coding agents. Read this file and [memory/MEMORY.md](memory/MEMORY.md) at session start; read topic notes as needed. Keep durable project memories in `memory/`, never in an external per-machine copy. Current code and contracts take precedence over dated notes.
 
 This is the ROOT contract. `CLAUDE.md` imports it so Codex and Claude Code
 receive the same guidance. It keeps what is cross-cutting: taxonomy, commands,

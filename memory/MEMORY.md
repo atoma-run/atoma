@@ -1,0 +1,40 @@
+# Memory index
+
+- [Windows portability state](windows-portability-state.md) — audit verdicts, open defects, devcontainer proof, report URL
+- [Machine setup](machine-setup.md) — WSL2/Debian default, Node 24.20.0 at ~/.local/node24 (Node 22 segfaults better-sqlite3 13), PowerShell/WSL quirks
+- [Public repo licensing](public-repo-licensing.md) — AGPL-3.0-only since 2026-09-06 (was FSL); CLA with OSI commitment; CLA Assistant Lite workflow added 2026-09-06 (branch cla-signatures to push); skill-catalogue terms still open
+- [Business entity](business-entity.md) — Greek sole proprietorship in own name; Greek law for CLA, copyright = the person
+- [Supervisor mender state](supervisor-mender-state.md) — FIRST mender PR #6 on 2026-09-28, all checks green; fixed: harness full-check OOM, AGENTS.md prompt contradiction, host CMD_CHECK override, case-sensitive analyst reader; MCP now platform admin
+- [MCP one surface](mcp-one-surface.md) — one HTTP MCP on /mcp, role tiers, bearer API tokens, stdio removed 2026-09-05; Settings token panel done; OAuth still open
+- [Viz frame cost measurement](viz-frame-cost-measurement.md) — probe usage, thermal drift, measure unlocked (vsync hides cost), live-run stutter fixed 020464d8, MSAA ×2 at DPR1 (owner decision open), smoke scroll budget fails here on HEAD too
+- [Skills commons premise](skills-commons-premise.md) — superseded 2026-09-15: a run is a run, one registry/catalog/trust for the whole platform
+- [Public domain atoma.run](public-domain-atoma-run.md) — live public domain since 2026-09-06 (VPS 46.225.4.14, nginx+certbot); old atoma.iotanet.net redirects; previews need a second domain
+- [Verification ledger state](verification-ledger-state.md) — 2026-09-15 L1 validation ledger fix for verification replays; stacked branch on codex/recovery-validation (draft PR #5); WSL campaign paths
+- [Codex device-login race](codex-device-login-race.md) — prod ChatGPT connection fails: Codex ≤0.154 notifies completed before reloading auth; Atoma must retry account/read (diagnosed and fixed 2026-09-15; verify it was committed)
+- [Production runs 2026-09-26/27](production-runs-2026-09-26.md) — README use cases on prod; 78c3fff widths/select fix; open owner decision (hard width refusal); MCP/WSL/heredoc gotchas
+- [OpenClaw host on atoma.run](openclaw-host-atoma-run.md) — ChatGPT subscription runs only via the native ~/.codex home; gpt-5.6-sol everywhere, no 5.3 on a ChatGPT account; no sudo
+- [README video upload](readme-video-upload.md) — gh api upload to user-attachments works from CLI; main push still blocked by classifier
+- [No cooling-off](no-cooling-off.md) — rule removed 2026-09-27 at user request: fix in-session, keep adversarial review — prompt rules and parser salvages included (ff102525)
+- [Deploy pipeline state](deploy-pipeline-state.md) — 2026-09-27: deploys wait for work (pending row), activator reinstalled from 000dc15 (manual reinstall on every host-deploy.sh change), CI 5m30, stale-lease fix procedure
+- [Jev decisions state](jev-decisions-state.md) — Jev decides in EVERY run of every org since 76e1c51 (2026-09-30), ATOMA_JEV=0 = platform off switch; documented questions at measured thresholds (e83f5ce); classifier blocks third-party-data changes; reading ~2026-10-13
+- [Project search timeout](project-search-timeout.md) — RESOLVED ab93554a: 10 s default budget; archived registrations keep 2000
+- [MCP two eras](mcp-two-eras.md) — 2026-09-30 SDK v2 + zod 4, /mcp serves 2026-07-28 beside 2025-11-25; tasks are ours; health().clients decides when 2025 goes; open spec ideas
+- [Disk full 2026-09-29](disk-full-2026-09-29.md) — C: hit 0 GB during my WSL clones; cleaned same day (≈4.6 GB free); VHDX not compacted; check space and reuse ONE clone
+- [Push to prod authorized](push-to-prod-authorized.md) — since 2026-09-30 I push to main (= prod) myself after verifying; watch CI + deploy and report
+- [Read-only phases](read-only-phases.md) — outputless root phases are photographed and restored by the host (chosen 2026-09-30 over refusal); limits; repair done (cdc34023)
+- [MCP Registry publication](mcp-registry-publication.md) — run.atoma/atoma listed 2026-09-30; DNS TXT on Gandi, key in WSL ~/.config/atoma, republish steps
+- [Verification speed](verification-speed.md) — no full WSL run before ordinary pushes: targeted tests + checks, push, CI gates the deploy
+- [Reader-facing docs](reader-facing-docs.md) — no verification evidence in delivered docs (owner 2026-09-30), f82ee3ad; 2026-10-01: also REMOVE earlier runs' evidence on edit
+- [Supervisor replay exception](supervisor-replay-exception.md) — inherited web-check replay + dead marks + one web identity + fail-closed remediation acceptance + EXISTING_FILE_RULE (a697acaa…c2ed5921); 5dff35b0 published a regression, repaired by c195ba35; offline luna replay rejected a judgement rewording
+- [Shared checkout staging](shared-checkout-staging.md) — never stage from a status listing; never reset --hard/stash the shared tree (wiped a Codex edit 2026-10-04)
+- [Compiled skills prod state](compiled-skills-prod-state.md) — 2026-10-03: 1 script / 30 task recipes, no trust wait (promote 0); forcing compilation and browser-for-scripts CLOSED by owner, docs/compiled-script-limits-2026-10-03.md (913c159a)
+- [Run titles state](run-titles-state.md) — short run titles live in prod since d1a1d71b (2026-10-02); host api: tier 1 pays; past runs not backfilled; first real naming still to confirm
+- [Server dev checkout](server-dev-checkout.md) — mgf@atoma.run has ~/dev/atoma on the 50 GB volume (2026-10-02); volume also holds OpenClaw backups; root disk ~80 % full
+- [Validator prompt replay](validator-prompt-replay.md) — PR #12 replayed on d5ca365f: no gain (full worse), terra 10/10; intermediate validators use tier-1 model; Windows codex replay recipe
+- [Run family removed](run-family-removed.md) — TaskProfile/family gone 2026-10-03 (eb24f1c3, in prod); burn-in family label kept; CI-vs-local store trap
+- [Jev calibration 2026-10-10](jev-calibration-2026-10-10.md) — Oct 1–9 reading: thresholds stay, agent 0.7/0.5 is a candidate measurement, 42 % unparsed = run actors (fixed ee0ed038), deferral-band ≠ live rates
+- [MCP review 2026-10-03](mcp-review-2026-10-03.md) — Atoma vs MCP 2026-07-28: fixes pushed 2026-10-04 (bridge isolation, Codex timeout, re-attach, instructions, tasks wire, smoke, OAuth, installations); owner decisions still open
+- [Showcase curation](showcase-curation.md) — opt-in since 2026-10-10 (default hidden); 7 campaign projects hidden, 2 left to owner
+- [First refusals 2026-10-10](first-refusals-2026-10-10.md) — 118/275 prod first root refusals classified (60 = criterion clause unseen by phases); phase criteria shipped 11f4d837; E3 and false approvals open
+- [Worktree junction hazard](worktree-junction-hazard.md) — `git worktree remove --force` followed a node_modules junction and wiped the main checkout's node_modules (2026-10-11); rmdir the link first, verify node_modules after npx surprises
+- [edit_file manifest fix 2026-10-11](edit-file-manifest-2026-10-11.md) — 171/1198 edit_file failures measured; manifest refusal was the only loop; 4cf75d87: validate_html records, no model writes the manifest; other categories open
