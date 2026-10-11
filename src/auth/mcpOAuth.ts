@@ -66,14 +66,56 @@ function params(raw: string): URLSearchParams {
  * by any program on the machine, so the page says so for THIS request's
  * return address (MCP authorization 2026-07-28).
  */
-function consentClientNotice(clientId: string, redirectUri: string): string {
-  const described = metadataClientUrl(clientId)
-    ? `<p>Its description was read at <code>${escape(clientId)}</code>.</p>` : '';
-  const warning = new URL(redirectUri).protocol === 'http:'
-    ? '<p><strong>This connection returns to a program on your own computer.</strong> Any program there could use this name; continue only if you started this connection from an application you trust.</p>'
-    : '';
-  return described + warning;
+function consentClientNotice(redirectUri: string): string {
+  return new URL(redirectUri).protocol === 'http:'
+    ? '<strong>This connection returns to a program on your own computer.</strong> Any program there could use this name. Continue only if you started this connection in an application you trust.'
+    : '<strong>Client names are supplied by the application.</strong> Continue only if you started this connection in an application you trust.';
 }
+
+// This standalone consent page has no scripts or external assets under its CSP.
+const CONSENT_STYLE = `
+:root{color-scheme:dark;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#e7eeeb;background:#101918}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;min-height:100svh;display:flex;padding:24px;font-size:15px;line-height:1.5}
+main{width:100%;max-width:640px;margin:auto;min-width:0}
+.card{padding:28px;border:1px solid #34463f;border-radius:20px;background:#15211d;box-shadow:0 20px 64px #0003}
+h1,h2,p,dl,dd{margin:0}
+h1{font-size:30px;line-height:1.2;letter-spacing:-.8px;margin:6px 0 8px}
+h2,.eyebrow,dt{font-size:12px;font-weight:600;letter-spacing:.06em}
+.eyebrow{color:#9bd5b4;text-transform:uppercase}
+.subtitle{color:#b8c8bf}.subtitle strong{color:#eef5f0}
+.client-source{margin-top:10px;font-size:12px;color:#aebfb5}
+code{font:12px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;color:#c4d7cd}
+.client-source code{display:block}
+header,dd,code,.notice{overflow-wrap:anywhere}
+.identity{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin:18px 0;padding:12px 16px;background:#1c2b24;border:1px solid #34483c;border-radius:12px}
+.identity>div{min-width:0}
+dt{color:#aebfb5;margin-bottom:4px;letter-spacing:.02em}
+dd{font-weight:600}
+.login,.role{display:block;font-size:12px;color:#b8c8bf;font-weight:400;margin-top:3px}
+.provider{text-transform:capitalize}
+.permissions h2{color:#aebfb5;margin-bottom:6px}
+.permissions p+p{margin-top:4px}
+.permissions .admin{color:#f0d49a;font-size:13px}
+.muted{color:#aebfb5;font-size:12px}
+.notice{border-left:2px solid #6a8b76;padding-left:12px;margin:16px 0;font-size:13px;color:#b8c8bf}
+.notice strong{color:#dfe9e2;font-weight:600}
+details{font-size:13px;color:#b8c8bf}
+summary{cursor:pointer;width:fit-content;padding:4px 0}
+details dl{margin-top:8px;padding:12px;background:#101918;border-radius:8px}
+details dd{font-weight:400}
+.actions{display:grid;grid-template-columns:1fr 1.4fr;gap:12px;margin-top:16px}
+button{font:inherit;font-weight:600;min-height:44px;padding:10px 18px;border:1px solid #4a6053;border-radius:9px;background:transparent;color:#e7eeeb;cursor:pointer}
+button:hover{background:#263b2f}
+.allow{background:#b2e5c4;border-color:#b2e5c4;color:#102519}
+.allow:hover{background:#caf3d8;border-color:#caf3d8}
+button:focus-visible,summary:focus-visible{outline:3px solid #b2e5c4;outline-offset:4px}
+.switch{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:0 8px;margin-top:10px}
+.switch button{font-size:13px;font-weight:500;border:0;padding:6px;min-height:36px;color:#c0d2c5;text-decoration:underline;text-underline-offset:3px}
+.revoke{text-align:center;margin-top:14px;color:#aebfb5;font-size:12px}
+@media(max-width:480px){body{padding:12px}.card{padding:20px;border-radius:16px}h1{font-size:26px}.identity{grid-template-columns:1fr;gap:12px;margin:16px 0;padding:12px}.actions{gap:8px;margin-top:16px}}
+@media(max-height:740px) and (min-width:481px){body{padding:12px}.card{padding:20px}.identity{margin:14px 0}}
+`;
 
 /** OAuth routes are mounted before the browser API gate, only on authenticated deployments. */
 export class McpOAuth {
@@ -295,15 +337,23 @@ export class McpOAuth {
       'referrer-policy': 'same-origin', 'x-frame-options': 'DENY',
       // Browsers apply form-action to the POST's redirect too, including desktop loopback callbacks.
       'content-security-policy': `default-src 'none'; style-src 'unsafe-inline'; form-action 'self' ${new URL(pending.redirectUri).origin}; frame-ancestors 'none'; base-uri 'none'` });
-    res.end(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Connect to Atoma</title><style>body{font:17px system-ui;background:#101918;color:#e7eeeb;max-width:560px;margin:12vh auto;padding:24px;line-height:1.6}button{font:inherit;padding:10px 24px;margin:16px 12px 0 0;border-radius:8px;cursor:pointer}code{overflow-wrap:anywhere}</style>
-<h1>Connect to Atoma</h1><p><strong>${escape(client.client_name)}</strong> wants access to your Atoma account.</p>${consentClientNotice(client.client_id, pending.redirectUri)}
-<dl><dt>Account</dt><dd>${escape(viewer.displayName)}</dd>${auth.listLoginIdentities(viewer.principalId).map(identity => `<dt>${escape(identity.provider)} account</dt><dd>${escape(identity.email ?? identity.subject)}</dd>`).join('')}
-<dt>Organisation</dt><dd>${escape(viewer.orgName)}</dd><dt>Role</dt><dd>${escape(viewer.role.replace('org:', ''))}${viewer.platformAdmin ? ' · Platform administrator' : ''}</dd></dl>
-<p>${viewer.role === 'org:viewer' && !viewer.platformAdmin ? 'This connection can read the information available to your account; with your current role it cannot start runs.' : 'This connection can use your current MCP permissions, including starting runs and consuming the configured AI provider quota.'}${viewer.platformAdmin ? ' Your platform administrator access is included.' : ''} It acts with your role at each request: if your role changes, what it may do changes with it.</p>
-<p>Client names are supplied by the application. Continue only if you started this connection.</p>
-<p>Return address: <code>${escape(pending.redirectUri)}</code></p><p>You can revoke this connection in Settings → MCP access.</p>
-<form method="post" action="/oauth/authorize"><input type="hidden" name="request" value="${id}"><button name="decision" value="allow">Allow access</button><button name="decision" value="deny">Cancel</button><button name="decision" value="switch">Use another account</button></form>
-<p>Using another account signs this browser out of Atoma and returns here after sign-in.</p></html>`);
+    res.end(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Connect to Atoma</title><style>${CONSENT_STYLE}</style></head><body>
+<main aria-labelledby="consent-title"><section class="card">
+<header><p class="eyebrow">MCP connection</p><h1 id="consent-title">Connect to Atoma</h1>
+<p class="subtitle"><strong>${escape(client.client_name)}</strong> wants access to your Atoma account.</p>
+${metadataClientUrl(client.client_id) ? `<p class="client-source">Client description read at <code>${escape(client.client_id)}</code></p>` : ''}</header>
+<dl class="identity"><div><dt>Account</dt><dd>${escape(viewer.displayName)}${auth.listLoginIdentities(viewer.principalId).map(identity => `<span class="login"><span class="provider">${escape(identity.provider)}</span> · ${escape(identity.email ?? identity.subject)}</span>`).join('')}</dd></div>
+<div><dt>Organisation</dt><dd>${escape(viewer.orgName)}<span class="role">Role: ${escape(viewer.role.replace('org:', ''))}</span></dd></div></dl>
+<section class="permissions" aria-labelledby="permissions-title"><h2 id="permissions-title">Access requested</h2>
+<p>${viewer.role === 'org:viewer' && !viewer.platformAdmin ? 'Read the information available to your account. Your current role cannot start runs.' : 'Use your current MCP permissions, including <strong>starting runs and consuming the configured AI provider quota</strong>.'}</p>
+${viewer.platformAdmin ? '<p class="admin"><strong>Platform administrator access is included.</strong></p>' : ''}
+<p class="muted">Permissions follow your role on each request.</p></section>
+<p class="notice">${consentClientNotice(pending.redirectUri)}</p>
+<details><summary>Connection details</summary><dl><dt>Return address</dt><dd><code>${escape(pending.redirectUri)}</code></dd></dl></details>
+<form method="post" action="/oauth/authorize"><input type="hidden" name="request" value="${id}">
+<div class="actions"><button type="submit" name="decision" value="deny">Cancel</button><button class="allow" type="submit" name="decision" value="allow">Allow access</button></div>
+<div class="switch"><button type="submit" name="decision" value="switch" aria-describedby="switch-note">Use another account</button><span class="muted" id="switch-note">Signs this browser out first.</span></div></form>
+</section><p class="revoke">You can revoke this connection in <strong>Settings → MCP access</strong>.</p></main></body></html>`);
   }
 }

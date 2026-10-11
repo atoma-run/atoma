@@ -145,7 +145,7 @@ describe('MCP OAuth over HTTP', () => {
     const page = await consent(clientId);
     expect(page.status).toBe(200);
     const html = await page.text();
-    expect(html).toContain(`Its description was read at <code>${clientId}</code>`);
+    expect(html).toContain(`Client description read at <code>${clientId}</code>`);
     expect(html).toContain('returns to a program on your own computer');
     // Nothing is written for a client nobody has allowed yet.
     expect(auth.mcpOAuth.client(clientId)).toBeNull();
