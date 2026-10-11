@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { snapshotDeliveredWorkspace, snapshotStartingWorkspace } from '../src/run/workspace.js';
 import { reviewAcceptanceCriteria } from '../src/atoms/criteriaReview.js';
 import { remediationTask } from '../src/run/depth.js';
 import { acceptRootResult } from '../src/atoms/rootAcceptance.js';
@@ -316,5 +319,23 @@ describe('root review disagreement on observed evidence', () => {
     const ctx = { ...prepare(), signal: controller.signal };
     ctx.llm.enqueue(() => { controller.abort(new Error('cancelled')); throw controller.signal.reason; });
     await expect(accept(ctx)).rejects.toThrow('cancelled');
+  });
+
+  it('does not reopen acceptance over a listed inherited regression', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'atoma-review-inherited-'));
+    try {
+      writeFileSync(join(dir, 'index.html'), '<button id="keep">Keep</button>');
+      const start = snapshotStartingWorkspace(dir);
+      writeFileSync(join(dir, 'index.html'), '<p>Removed</p>');
+      const baseline = { selected: 1, considered: 1, kept: 1, cannotRun: 0 };
+      const ctx = { ...prepare(), startingWorkspace: { start, now: () => snapshotDeliveredWorkspace(dir, start) },
+        inheritedChecks: { ready: Promise.resolve(), baseline: async () => baseline,
+          compare: async () => ({ baseline, replayed: 1, stillPassing: 0, flaky: 0, notReplayed: 0,
+            listed: [{ check: { file: 'index.html', interactions: [{ type: 'click' as const, selector: '#keep' }], smoke: '(() => ({ok: true}))()' },
+              cause: 'element-missing' as const, detail: 'Keep button is missing' }] }),
+          reseeded: () => undefined, waiting: () => undefined } };
+      expect((await accept(ctx)).approved).toBe(false);
+      expect(ctx.llm.calls).toHaveLength(2);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });

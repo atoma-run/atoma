@@ -103,7 +103,7 @@ Neighbours:
   A holistic refusal also receives this inventory, so remediation hears all
   criterion gaps together; a focused approval cannot override that refusal.
   When all focused items pass but the global verdict explicitly judged a
-  criterion unmet, one tool-free L1 reread resolves the disagreement against
+  criterion unmet, with no inherited-check finding to preserve, one tool-free L1 reread resolves the disagreement against
   the same evidence. Its complete checklist replaces the disputed judgments
   and its verdict retains unrelated defects; an incomplete or failed reread preserves the refusal, and cancellation
   propagates. No vote, repeated tools, or automatic override. See

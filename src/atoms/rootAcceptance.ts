@@ -579,7 +579,8 @@ export async function acceptRootResult(args: {
   // automatic override. Both original calls remain in the trace.
   const disputed = initialJudged.filter(item => item.judgement?.met === false &&
     focused?.criteria.some(j => j.id === item.id && j.met));
-  if (focused?.approved && !initial.approved && disputed.length > 0) {
+  if (focused?.approved && !initial.approved && disputed.length > 0 &&
+    inheritedItems.length === 0 && earlier.length === 0) {
     try {
       const reread = await reviewRoot([
         '== ROOT REVIEW DISAGREEMENT ==',

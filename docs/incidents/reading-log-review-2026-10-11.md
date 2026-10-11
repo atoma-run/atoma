@@ -35,7 +35,7 @@ refusal; malformed, truncated, missing, duplicate or negative judgments cannot
 promote it. Provider failure preserves the earlier refusal; cancellation
 propagates. Original inherited-check and mechanical safeguards still apply.
 Ordinary approvals, non-criterion refusals, focused failures, drafted lists,
-landings and text deliveries retain their call count. This adds at most one
+landings, inherited-check findings and text deliveries retain their call count. This adds at most one
 cheap call in the contradictory case, never another execution pass.
 
 Adversarial cases include a correct width with an unrelated injection defect,
