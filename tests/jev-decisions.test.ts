@@ -1448,7 +1448,7 @@ describe('the jev card in the run view', () => {
 
   it('names the decision, the pick and what it cost', async () => {
     const [card] = await cardsFor((d) => d.choose(choiceRequest), { ...pickMethane, choice: choiceAnswer('agent_2', 0.9) });
-    expect(card).toMatchObject({ title: 'Jev · prefilter', decision: '→ Methane', body: 'picked Methane' });
+    expect(card).toMatchObject({ title: 'Jev · Routing', decision: '→ Methane', body: 'picked Methane' });
     expect(card!.meta).toContain('L2 Idioblast');
     expect(card!.footer).toMatch(/^jev-1\.13\.0 · conf 90% · \d+ms · \$0\.0000 · /);
   });
@@ -1458,14 +1458,14 @@ describe('the jev card in the run view', () => {
       skillId: 'build-page', prompt: 'Write and design an arbitrary page',
       allowLoopbackNetwork: false, actorName: 'Idioblast', actorTier: 2,
     }), { semantic_judgment: noulAnswer(0.95), unavailable_capability: noulAnswer(0.05), unspecified_inputs: noulAnswer(0.05) });
-    expect(card).toMatchObject({ title: 'Jev · compile-skill',
+    expect(card).toMatchObject({ title: 'Jev · Compile skill',
       body: 'compilation postponed: semantic_judgment; reconsider on next credited success' });
     expect(card!.meta).toContain('L2 Idioblast');
   });
 
   it('badges an approval with its weakest link, and a deferral as the model deciding', async () => {
     const [approved] = await cardsFor((d) => d.approve(approval), { requirement_1: choiceAnswer('shown_done', 0.83) });
-    expect(approved).toMatchObject({ title: 'Jev · validate-result', decision: '✓ approved' });
+    expect(approved).toMatchObject({ title: 'Jev · Result validation', decision: '✓ approved' });
     expect(approved!.footer).toContain('score 83%');
     const [deferred] = await cardsFor((d) => d.approve(approval), { requirement_1: choiceAnswer('not_shown', 0.8) });
     expect(deferred!.decision).toBe('↑ model decides');
@@ -1523,7 +1523,7 @@ describe('the jev card in the run view', () => {
 
   it('badges a twin verdict both ways', async () => {
     const [duplicate] = await cardsFor((d) => d.twin(twin), { 'twin::serve-json-api': scoreAnswer(1.9, 0.8) });
-    expect(duplicate).toMatchObject({ title: 'Jev · learn-skill', decision: '✕ duplicate recipe' });
+    expect(duplicate).toMatchObject({ title: 'Jev · Recipe learning', decision: '✕ duplicate recipe' });
     const [fresh] = await cardsFor((d) => d.twin(twin), { 'twin::serve-json-api': scoreAnswer(0.4, 0.8) });
     expect(fresh!.decision).toBe('✓ new recipe');
   });

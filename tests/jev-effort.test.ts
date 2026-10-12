@@ -374,7 +374,7 @@ describe('the effort card in the run view', () => {
   }
 
   it('badges the effort Jev set, and the default it kept', async () => {
-    expect(await cardFor(0.95, 0.05)).toMatchObject({ title: 'Jev · execute-effort', decision: 'effort low', body: 'effort low' });
+    expect(await cardFor(0.95, 0.05)).toMatchObject({ title: 'Jev · Execute effort', decision: 'effort low', body: 'effort low' });
     expect(await cardFor(0.05, 0.95)).toMatchObject({ decision: 'effort high' });
     const kept = await cardFor(0.95, 0.05, true);
     expect(kept.decision).toBe('default effort');
