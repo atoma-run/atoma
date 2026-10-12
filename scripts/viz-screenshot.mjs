@@ -627,6 +627,11 @@ function fixtureTrace() {
     task.total = 1;
     task.aggregationMode = 'concat';
   }
+  if (has('--event-participants-probe')) {
+    events.push(ev(1292, { id: 'participants-fixture', kind: 'registry', op: 'recordSuccess',
+      by: 'Protoplast', name: 'RNA', tier: 1, attempt: 1, version: 1,
+      actor: { name: 'Protoplast', tier: 2 }, child: { name: 'RNA', tier: 1 } }));
+  }
   if (has('--skill-context-probe')) {
     const preview = [
       '== ACTIVE SKILL: build-stateful-widget-html ==',
@@ -1612,6 +1617,39 @@ try {
     }
 
     await mkdir(dirname(outPath), { recursive: true });
+    if (has('--event-participants-probe')) {
+      if (!authed || view !== 'Runs') throw new Error('--event-participants-probe requires --auth --view Runs');
+      const viewport = page.viewport();
+      if (viewport.width < 1100) await page.setViewport({ ...viewport, width: 1600 });
+      const click = async id => {
+        await page.waitForFunction(targetId => globalThis.__ATOMA_GPU__?.hitTargets().some(entry => entry.id === targetId),
+          { timeout: READY_TIMEOUT_MS }, id);
+        await page.evaluate(() => new Promise(resolve => setTimeout(resolve, 400)));
+        const point = await page.evaluate(targetId => {
+          const handle = globalThis.__ATOMA_GPU__;
+          const target = handle.hitTargets().find(entry => entry.id === targetId);
+          return handle.projectRendererPoint(target.x + target.width / 2, target.y + target.height / 2);
+        }, id);
+        await page.mouse.click(point.x, point.y);
+      };
+      await click('event.participants-fixture');
+      await page.screenshot({ path: outPath });
+      await click('participant.atom.Protoplast');
+      await page.waitForFunction(() => {
+        const texts = [];
+        const visit = node => {
+          if (typeof node.text === 'string') texts.push(node.text);
+          for (const child of node.children ?? []) visit(child);
+        };
+        visit(globalThis.__ATOMA_GPU__.app.stage);
+        return texts.includes('Protoplast') && !globalThis.__ATOMA_GPU__.hitTargets().some(entry => entry.id === 'participant.atom.RNA');
+      }, { timeout: READY_TIMEOUT_MS });
+      await click('event.participants-fixture');
+      if (viewport.width < 1100) await page.setViewport(viewport);
+      await page.waitForFunction(() => globalThis.__ATOMA_GPU__?.hitTargets().some(entry => entry.id === 'participant.atom.RNA'),
+        { timeout: READY_TIMEOUT_MS });
+      console.log('Event participants: distinct initiator and target controls; initiator navigation verified');
+    }
     if (has('--skill-context-probe')) {
       if (!authed || view !== 'Runs') throw new Error('--skill-context-probe requires --auth --view Runs');
       const detailViewport = page.viewport();

@@ -5904,6 +5904,36 @@ describe('drawRuns behavior', () => {
     }
   });
 
+  it('renders registry participants as tiered controls without duplicate identity cards', () => {
+    const event: VizEvent = {
+      id: 'credit', kind: 'registry', ts: 1, op: 'recordSuccess',
+      by: 'Protoplast', name: 'RNA', tier: 1,
+      actor: { name: 'Protoplast', tier: 2 }, child: { name: 'RNA', tier: 1 },
+    };
+    const ctx = createRecordingCtx();
+    drawRuns(ctx, makeSnapshot({ selectedEventId: event.id }, { run: makeRun([event]) }), WIDTH, HEIGHT);
+    expect(ctx.atomButtons.filter(button => button.id.startsWith('participant.atom.')).map(button => button.label))
+      .toEqual(['Protoplast', 'RNA']);
+    const texts = ctx.texts.map(text => text.value);
+    expect(texts).toContain('Initiator · L2 · Cell');
+    expect(texts).toContain('Target agent · L1 · Molecule');
+    expect(texts).not.toContain('Initiated by');
+    expect(texts).not.toContain('Tier');
+  });
+
+  it.each(['context', 'cache', 'llm', 'tool', 'trust', 'skill'] as const)(
+    'uses participant controls on %s details', (kind) => {
+      const event: VizEvent = {
+        id: 'participant', kind, ts: 1, actor: { name: 'RNA', tier: 1 },
+        ...(kind === 'skill' ? { l1Name: 'RNA', skillId: 'recipe' } : {}),
+      };
+      const ctx = createRecordingCtx();
+      drawRuns(ctx, makeSnapshot({ selectedEventId: event.id }, { run: makeRun([event]) }), WIDTH, HEIGHT);
+      expect(ctx.atomButtons.filter(button => button.id === 'participant.atom.RNA')).toHaveLength(1);
+      if (kind === 'skill') expect(ctx.texts.map(text => text.value)).toContain('Initiator / Recipe owner · L1 · Molecule');
+    }
+  );
+
   it('explains a selected llm-start marker instead of dumping its identifiers', () => {
     const started = Date.now() - 5_000;
     const events: VizEvent[] = [

@@ -1,3 +1,4 @@
+import { taxonomyForTier } from '../../../../core/taxonomy.js';
 import { previewActions } from '../preview-control.js';
 import { BUTTON_ICON_SPACE, CHEVRON_SIZE, CHEVRON_SPACE } from '../../button-icons.js';
 import { drawChevron } from '../button-icon.js';
@@ -27,7 +28,6 @@ import {
   buildStructuredDetail,
   eventRoleLabel,
   filePathFromArgs,
-  skillEventSubtitle,
   skillEventTitle,
   type StructuredDetailField,
   type StructuredDetailNode,
@@ -35,6 +35,7 @@ import {
 } from '../../../client/structured-detail.js';
 import type { AtomView, RunStatus } from '../../../client/run-utils.js';
 import { clockTime } from '../../../client/date-format.js';
+import { eventParticipants, eventDetailPayload } from '../../../client/event-participants.js';
 import { skillContextDetail } from '../../../client/skill-context-detail.js';
 import type { VizEvent, VizRun } from '../../../client/types.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
@@ -1726,22 +1727,57 @@ function drawEventDetail(
   width: number,
   height: number
 ) {
+  const title = ctx.text(ctx.root,
+    event.kind === 'skill' ? skillEventTitle(event, snapshot.t) : gpuEventCardCopy(event, snapshot.t).title,
+    x + 18, y + 16, { size: 15, weight: '700', color: eventAccent(event), width: width - 36 });
+  let headerBottom = y + 24 + title.height;
+  const atoms = buildAtomMap(run);
+  const participants = eventParticipants(event);
+  const controls = ctx.animatedLayer(ctx.root, 'event-participants');
+  const grouped = new Map<string, { name: string; tier?: number; roles: string[] }>();
+  for (const participant of participants) {
+    const prior = grouped.get(participant.name);
+    if (prior) {
+      prior.roles.push(participant.role);
+      prior.tier ??= participant.tier;
+    } else grouped.set(participant.name, { ...participant, roles: [participant.role] });
+  }
+  for (const participant of grouped.values()) {
+    const atom = atoms.get(participant.name);
+    const tier = participant.tier ?? atom?.snapshot.tier;
+    const knownTier = atom?.stub?.kind !== 'run-actor' && (tier === 1 || tier === 2 || tier === 3) ? tier : null;
+    const rank = knownTier ? snapshot.t(`rank.${taxonomyForTier(knownTier).rank}`) : '';
+    const label = [participant.roles.map(role => snapshot.t(`detail.field.${role}`)).join(' / '),
+      knownTier ? `L${knownTier} · ${rank}` : atom?.stub?.kind === 'run-actor'
+        ? snapshot.t('registry.runActor.badge') : snapshot.t('detail.participant.unknownTier')].join(' · ');
+    headerBottom += ctx.text(ctx.root, label, x + 18, headerBottom, {
+      size: 10, color: GPU_COLORS.muted, width: width - 36,
+    }).height + 4;
+    const id = `participant.atom.${participant.name}`;
+    if (knownTier && atom?.stub?.kind !== 'run-actor') {
+      ctx.atomButton(controls, id, participant.name, knownTier,
+        x + 18, headerBottom, width - 36, 30, false, snapshot.onActivate);
+    } else {
+      ctx.button(controls, id, 'button', participant.name,
+        x + 18, headerBottom, width - 36, 30, false, snapshot.onActivate);
+    }
+    headerBottom += 40;
+  }
+  if (event.model) {
+    headerBottom += ctx.text(ctx.root, event.model, x + 18, headerBottom, {
+      size: 10, color: GPU_COLORS.muted, width: width - 36,
+    }).height + 8;
+  }
+  // Preserve the pane's bottom while letting every event family share this header.
+  const headerGrowth = Math.max(0, headerBottom - (y + 60));
+  y += headerGrowth;
+  height -= headerGrowth;
   if (event.kind === 'skill') {
-    const title = ctx.text(ctx.root, skillEventTitle(event, snapshot.t), x + 18, y + 16, {
-      size: 15,
-      weight: '700',
-      color: eventAccent(event),
-      width: width - 36,
-    });
-    const subtitle = ctx.text(ctx.root, skillEventSubtitle(event), x + 18, y + 22 + title.height, {
-      size: 10,
-      color: GPU_COLORS.muted,
-      width: width - 36,
-    });
     const skill =
       snapshot.data.skillDetail?.id === event.skillId ? snapshot.data.skillDetail : null;
-    const structured = buildSkillEventDetail(event, skill, snapshot.t, snapshot.state.locale);
-    const detailTop = y + 36 + title.height + subtitle.height;
+    const structured = buildSkillEventDetail(event, skill, snapshot.t, snapshot.state.locale)
+      .filter((node) => !participants.some((participant) => participant.role === node.key));
+    const detailTop = y + 68;
     const detailBottom = y + height - 62;
     const detailHeight = Math.max(40, detailBottom - detailTop);
     ctx.detailBounds = new Rectangle(x + 12, detailTop - 6, width - 24, detailHeight + 6);
@@ -1787,22 +1823,6 @@ function drawEventDetail(
     }
     return;
   }
-  ctx.text(
-    ctx.root,
-    gpuEventCardCopy(event, snapshot.t).title,
-    x + 18,
-    y + 16,
-    {
-    size: 15,
-    weight: '700',
-    color: eventAccent(event),
-    }
-  );
-  ctx.text(ctx.root, `${event.actor?.name ?? ''} ${event.model ?? ''}`, x + 18, y + 42, {
-    size: 10,
-    color: GPU_COLORS.muted,
-    width: width - 36,
-  });
   if (event.kind === 'llm-start') {
     // The marker's own fields are identifiers; what the step IS lives in the
     // run around it. `buildLlmStartDetail` makes the joins, this only draws.
@@ -1952,7 +1972,7 @@ function drawEventDetail(
         // outcome-first anyway, so the two agree on sight.
         ? { result: event.result, args: event.args ?? {} }
         : !event.error
-          ? event
+          ? eventDetailPayload(event)
           : undefined;
   const envelope =
     event.kind === 'llm' ? buildLlmEnvelopeDetail(event, snapshot.t) : [];

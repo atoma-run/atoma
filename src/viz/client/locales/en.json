@@ -1,4 +1,5 @@
 {
+  "detail.participant.unknownTier": "Tier not recorded",
   "result.title": "Result",
   "result.back": "Back to timeline",
   "result.latest": "Latest delivered results",

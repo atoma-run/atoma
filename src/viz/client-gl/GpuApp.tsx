@@ -859,6 +859,10 @@ function GpuAppContent({
       store.pageActivity(id === 'activity.older' ? 1 : -1);
       return;
     }
+    if (id.startsWith('participant.atom.')) {
+      store.selectAtom(id.slice('participant.atom.'.length));
+      return;
+    }
     if (id.startsWith('atom.')) {
       store.selectAtom(id.slice('atom.'.length));
       return;

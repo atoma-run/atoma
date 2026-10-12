@@ -1,3 +1,4 @@
+import { eventParticipants } from './event-participants.js';
 import type { RegistryType, RunIndexEntry, VizEvent, VizRun } from './types.js';
 import { taxonomyForTier } from '../../core/taxonomy.js';
 import { isLanded } from '../../contracts/runLanding.js';
@@ -430,6 +431,7 @@ export function usedAtomNames(run: VizRun): Set<string> {
   const names = new Set<string>();
   rememberAtomName(names, run.result?.producedBy?.name);
   for (const event of run.events) {
+    for (const participant of eventParticipants(event)) rememberAtomName(names, participant.name);
     rememberAtomName(names, event.actor?.name);
     rememberAtomName(names, event.child?.name);
     rememberAtomName(names, event.l1Name);
@@ -443,6 +445,8 @@ function atomRefTier(run: VizRun, name: string): number {
     return run.result.producedBy.tier;
   }
   for (const event of run.events) {
+    const participant = eventParticipants(event).find((ref) => ref.name === name && ref.tier);
+    if (participant?.tier) return participant.tier;
     if (event.actor?.name === name && event.actor.tier) return event.actor.tier;
     if (event.child?.name === name && event.child.tier) return event.child.tier;
     if (event.kind === 'registry' && event.snapshot?.name === name && event.snapshot.tier) {
