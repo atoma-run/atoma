@@ -5934,6 +5934,27 @@ describe('drawRuns behavior', () => {
     }
   );
 
+  it('renders skill context and simple plan lists as prose without nested item cards', () => {
+    const preview = '# Verification\n\n- Read the entry file.\n- Start the local server.';
+    const event: VizEvent = {
+      id: 'planning-prose', kind: 'llm', role: 'plan', ts: 1,
+      response: JSON.stringify({ steps: ['Inspect the page', 'Verify the controls'] }),
+      context: [{ id: 'recipe', source: 'skill', skillId: 'verify-ui', preview, chars: preview.length }],
+    };
+    const ctx = createRecordingCtx();
+    drawRuns(ctx, makeSnapshot({ selectedEventId: event.id }, { run: makeRun([event]) }), WIDTH, HEIGHT);
+    const texts = ctx.texts.map(text => text.value);
+    expect(texts).toContain('•  Read the entry file.');
+    expect(texts).toContain('•  Start the local server.');
+    expect(texts).toContain('•  Inspect the page');
+    expect(texts).toContain('Skill · verify-ui');
+    expect(texts).not.toContain('List · 2');
+    expect(texts).not.toContain('Item');
+    expect(texts).not.toContain('Item 1');
+    const recipeTexts = ctx.texts.filter(text => ['Skill · verify-ui', 'Verification', '•  Read the entry file.'].includes(text.value));
+    expect(new Set(recipeTexts.map(text => text.x)).size).toBe(1);
+  });
+
   it('explains a selected llm-start marker instead of dumping its identifiers', () => {
     const started = Date.now() - 5_000;
     const events: VizEvent[] = [

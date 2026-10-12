@@ -2054,7 +2054,7 @@ function drawSkillContextNodes(
       }
       cursor = drawSkillContextNodes(ctx, parent, node.children, x, cursor, width);
     } else {
-      const listItem = node.key.startsWith('item-');
+      const listItem = /^item(?:-| )/.test(node.key);
       const value = listItem ? `•  ${node.value}` : node.value;
       cursor += ctx.text(parent, value, x, cursor, {
         size: 12, mono: node.presentation === 'code', color: DETAIL_VALUE_COLOR, width,
@@ -2276,6 +2276,15 @@ function drawStructuredDetailNodes(
   for (const row of layoutDetailRows(nodes, nodeWidth, measure)) {
     const first = row.cards[0]!;
     if (first.node.kind === 'section') {
+      const section = first.node;
+      // Recipe documents and scalar lists need typography, not a card and a
+      // rail for every paragraph. Object records retain their field hierarchy.
+      const proseList = section.children.length > 0 && section.children.every(child =>
+        child.kind === 'field' && child.presentation === 'text' && /^item(?:-| )/.test(child.key));
+      if (section.key === 'resources' || proseList) {
+        cursor = drawSkillContextNodes(ctx, parent, [section], nodeX, cursor, nodeWidth);
+        continue;
+      }
       cursor = drawDetailSection(
         ctx,
         parent,
