@@ -1,4 +1,10 @@
 {
+  "detail.planning.mission": "Assigned task",
+  "detail.planning.proposal": "Proposed plan",
+  "detail.llm.response": "Agent response",
+  "detail.llm.missingResponse": "No response was recorded for this call.",
+  "detail.llm.resources": "Context provided to the agent",
+  "detail.llm.showReadable": "Show readable context",
   "detail.participant.unknownTier": "Tier not recorded",
   "result.title": "Result",
   "result.back": "Back to timeline",

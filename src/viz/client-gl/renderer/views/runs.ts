@@ -23,7 +23,6 @@ import {
   timelineBranchHeading,
 } from '../../../client/timeline-layout.js';
 import {
-  buildLlmEnvelopeDetail,
   buildSkillEventDetail,
   buildStructuredDetail,
   eventRoleLabel,
@@ -36,6 +35,7 @@ import {
 import type { AtomView, RunStatus } from '../../../client/run-utils.js';
 import { clockTime } from '../../../client/date-format.js';
 import { eventParticipants, eventDetailPayload } from '../../../client/event-participants.js';
+import { llmDetailNodes } from '../../../client/llm-detail.js';
 import { skillContextDetail } from '../../../client/skill-context-detail.js';
 import type { VizEvent, VizRun } from '../../../client/types.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
@@ -1974,9 +1974,11 @@ function drawEventDetail(
         : !event.error
           ? eventDetailPayload(event)
           : undefined;
-  const envelope =
-    event.kind === 'llm' ? buildLlmEnvelopeDetail(event, snapshot.t) : [];
-  const detailTop = y + 68;
+  const hasContext = event.kind === 'llm' && Boolean(event.context?.length);
+  if (hasContext) ctx.button(ctx.root, 'context.raw.toggle', 'button',
+    snapshot.t(snapshot.state.contextRawOpen ? 'detail.llm.showReadable' : 'detail.skillContext.showRaw'),
+    x + 18, y + 68, width - 36, 32, snapshot.state.contextRawOpen, snapshot.onActivate);
+  const detailTop = y + (hasContext ? 112 : 68);
   const detailBottom = y + height - 14;
   const detailHeight = Math.max(40, detailBottom - detailTop);
   ctx.detailBounds = new Rectangle(x + 12, detailTop - 6, width - 24, detailHeight + 6);
@@ -2004,8 +2006,11 @@ function drawEventDetail(
           markdownPath: event.kind === 'tool' ? filePathFromArgs(event.args) : undefined,
           locale: snapshot.state.locale,
         });
+  const detailNodes = event.kind === 'llm'
+    ? llmDetailNodes(event, run, bodyNodes, snapshot.state.contextRawOpen, snapshot.t)
+    : bodyNodes;
   const contentBottom =
-    envelope.length === 0 && bodyNodes.length === 0
+    detailNodes.length === 0
       ? detailTop +
         ctx.text(detailLayer, truncate(raw, DETAIL_RAW_VALUE_CAP), x + 18, detailTop, {
           size: 10,
@@ -2016,7 +2021,7 @@ function drawEventDetail(
       : drawStructuredDetailNodes(
           ctx,
           detailLayer,
-          [...envelope, ...bodyNodes],
+          detailNodes,
           x + 18,
           detailTop,
           width - 42
