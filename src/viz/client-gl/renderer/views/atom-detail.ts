@@ -102,7 +102,7 @@ export function drawAtomDetail(
     body(
       atom.tools
         .map(tool => toolDisplayName(tool, snapshot.t))
-        .join('   '),
+        .join(' · '),
       { mono: true }
     );
   }
