@@ -273,9 +273,9 @@ describe('readTraceTopLevelFields — the projection is bounded, the file is not
    * suite cannot make deterministic. It is kept because a stat is stale the
    * moment it returns and the child owns that directory.
    */
-  it('shares one ceiling with the sentinel', () => {
+  it('bounds captures independently of the streaming scan size', () => {
     expect(MAX_TRACE_BYTES).toBe(32 * 1024 * 1024);
-    expect(DEFAULT_TRACE_READ_LIMITS.maxFileBytes).toBe(MAX_TRACE_BYTES);
+    expect(DEFAULT_TRACE_READ_LIMITS.maxFileBytes).toBe(Number.MAX_SAFE_INTEGER);
   });
 });
 

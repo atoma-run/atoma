@@ -1,3 +1,4 @@
+import { projectTraceDocument } from '../contracts/traceFields.js';
 import { traceDetailPageSchema } from '../contracts/clientExperience.js';
 import { unfoldedRegistryPredicate } from '../registry/db.js';
 /**
@@ -569,8 +570,40 @@ export function runTraceFile(
 ): unknown {
   if (!existsSync(path)) return { note: `no trace at ${label}` };
   const read = readBoundedRunFile(path);
-  if (!read.ok) return { note: `trace unavailable: ${read.reason}` };
-  const run = JSON.parse(read.bytes.toString('utf8')) as VizRun;
+  if (!read.ok && read.reason !== 'overCeiling') return { note: `trace unavailable: ${read.reason}` };
+  let run: VizRun;
+  let projectedTotal: number | undefined;
+  const offset = typeof opts.offset === 'number' && Number.isInteger(opts.offset) && opts.offset > 0 ? opts.offset : 0;
+  const limit = typeof opts.limit === 'number' && Number.isInteger(opts.limit) && opts.limit >= 1
+    ? Math.min(opts.limit, TRACE_EVENTS_MAX_LIMIT) : TRACE_EVENTS_DEFAULT_LIMIT;
+  try {
+    if (read.ok) run = JSON.parse(read.bytes.toString('utf8')) as VizRun;
+    else {
+      const projection = projectTraceDocument(path, (name, readValue) => {
+        if (opts.section === 'event') return undefined;
+        if (opts.section === 'result' && name !== 'result' && name !== 'error') return undefined;
+        if ((!opts.section || opts.section === 'summary') && ![
+          'id', 'label', 'startedAt', 'endedAt', 'cancelled', 'degraded', 'error', 'provenance', 'tierModels', 'totals',
+        ].includes(name)) return undefined;
+        return readValue();
+      }, (readValue, index) => {
+        if (opts.section === 'metadata' || opts.section === 'result') return undefined;
+        if (opts.section !== 'event' && (index < offset || index >= offset + limit)) return undefined;
+        const value = readValue();
+        if (!value || typeof value !== 'object') return undefined;
+        const e = value as Record<string, unknown>;
+        if (opts.section === 'event') return e['id'] === opts.eventId ? value : undefined;
+        return Object.fromEntries([
+          'id', 'kind', 'ts', 'actor', 'role', 'model', 'name', 'op', 'durationMs',
+          'approved', 'attempt', 'error', 'reasoning', 'outcome', 'failure',
+        ].map(key => [key, ['error', 'reasoning', 'outcome', 'failure'].includes(key) && typeof e[key] === 'string' ? truncate(e[key]) : e[key]]));
+      });
+      run = projection.run as unknown as VizRun;
+      projectedTotal = projection.totalEvents;
+    }
+  } catch {
+    return { note: 'trace unavailable: malformed or projection exceeds the capture budget' };
+  }
   if (opts.section === 'result') return traceDetail({ result: run.result ?? null, error: run.error ?? null }, opts);
   if (opts.section === 'metadata') {
     const { events: _events, ...metadata } = run;
@@ -583,16 +616,8 @@ export function runTraceFile(
     return traceDetail(event, opts);
   }
   const allEvents = run.events ?? [];
-  const totalEvents = allEvents.length;
-  const offset =
-    typeof opts.offset === 'number' && Number.isInteger(opts.offset) && opts.offset > 0
-      ? opts.offset
-      : 0;
-  const limit =
-    typeof opts.limit === 'number' && Number.isInteger(opts.limit) && opts.limit >= 1
-      ? Math.min(opts.limit, TRACE_EVENTS_MAX_LIMIT)
-      : TRACE_EVENTS_DEFAULT_LIMIT;
-  const page = allEvents.slice(offset, offset + limit);
+  const totalEvents = projectedTotal ?? allEvents.length;
+  const page = projectedTotal === undefined ? allEvents.slice(offset, offset + limit) : allEvents;
   return {
     file: label,
     id: run.id,

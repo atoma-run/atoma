@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, truncateSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
 import { request } from 'node:http';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -86,11 +86,7 @@ async function rawRequestStatus(
 }
 
 describe('GET /api/runs/:id', () => {
-  it('refuses a trace past the read ceiling instead of materialising it', async () => {
-    // 2026-08-27 review, 2.4: this route read the trace with no cap while every
-    // other reader of the corpus was bounded, and the live client polls it
-    // ~1×/s per tab. Crosses the PROCESS boundary on purpose — the unbounded
-    // read was in the server, not in a helper.
+  it('streams large traces and deltas across the server process boundary', async () => {
     const root = mkdtempSync(join(tmpdir(), 'atoma-viz-trace-cap-'));
     roots.push(root);
     const runs = join(root, 'runs');
@@ -101,25 +97,30 @@ describe('GET /api/runs/:id', () => {
       '{"id":"small","label":"small run","startedAt":"2026-08-27T00:00:00.000Z","events":[]}'
     );
     const huge = join(runs, 'huge.json');
-    writeFileSync(huge, '{"id":"huge","label":"huge run","startedAt":"2026-08-27T00:00:00.000Z"}');
-    // Sparse: what the reader stats is the size, and 33 MiB of real bytes would
-    // buy the test nothing but seconds.
-    truncateSync(huge, 33 * 1024 * 1024);
+    const events = Array.from({ length: 34 }, (_, index) => ({
+      id: `e${index}`, kind: 'tool', ts: index, name: 'fetch_url',
+      result: { body: 'α😀'.repeat(180_000) },
+    }));
+    const trace = { id: 'huge', label: 'huge run', startedAt: '2026-10-13T00:00:00Z', events, endedAt: 'now' };
+    writeFileSync(huge, JSON.stringify(trace));
     const port = await freePort();
     startViz(port, root);
 
     const ok = await waitForResponse(`http://127.0.0.1:${port}/api/runs/small`);
     expect(ok?.status).toBe(200);
-    // 413, not 404: the trace exists, and saying "not found" about a run the
-    // list still shows would send an operator hunting for a deleted file.
-    expect(await rawRequestStatus(port, '/api/runs/huge')).toBe(413);
-    // The delta path is the one polled every second, so it is bounded too.
-    expect(await rawRequestStatus(port, '/api/runs/huge?after=0')).toBe(413);
-    // And the refusal is per trace: the oversized one does not take the
-    // listing, or its neighbours, down with it.
+    const base = `http://127.0.0.1:${port}/api/runs/huge`;
+    const full = await fetch(base);
+    expect(full.status).toBe(200);
+    expect(await full.text()).toBe(readFileSync(huge, 'utf8'));
+    const delta = await fetch(`${base}?after=33`);
+    expect(delta.status).toBe(200);
+    expect(await delta.json()).toEqual({ ...trace, events: events.slice(33), eventsFrom: 33, eventsTotal: 34 });
+    expect(await (await fetch(`${base}?after=34`)).json()).toMatchObject({ events: [], eventsFrom: 34, eventsTotal: 34 });
+    expect((await fetch(`${base}?after=-1`)).status).toBe(400);
     const index = await waitForResponse(`http://127.0.0.1:${port}/api/runs`);
     const rows = (await index!.json()) as Array<{ id: string }>;
     expect(rows.map((row) => row.id)).toContain('small');
+    expect(rows.map((row) => row.id)).toContain('huge');
   }, 20_000);
 });
 

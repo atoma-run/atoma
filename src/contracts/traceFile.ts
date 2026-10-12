@@ -29,8 +29,8 @@ export type BoundedRunFileRead =
  * `lstatSync`, not `statSync`: a symlink is refused rather than followed out of
  * the corpus. The stat is a moment older than the read it guards, accepted
  * deliberately — at 32 MiB against ~19KB per persist the race overshoots by a
- * flush, never by an order of magnitude, and the streaming alternative
- * (`src/contracts/traceFields.ts`) cannot return a document by construction.
+ * flush, never by an order of magnitude, and large-trace consumers instead use the bounded projections or streaming
+ * ranges in `src/contracts/traceFields.ts`.
  */
 export function readBoundedRunFile(file: string): BoundedRunFileRead {
   let size: number;

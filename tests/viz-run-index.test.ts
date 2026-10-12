@@ -119,7 +119,7 @@ describe('viz run index', () => {
  * not a wrong answer about whether work was delivered.
  */
 describe('viz run index is bounded', () => {
-  it('skips a trace over the shared ceiling instead of parsing it', () => {
+  it('projects a trace over the whole-file ceiling without losing its row', () => {
     root = mkdtempSync(join(tmpdir(), 'atoma-run-index-'));
     const file = join(root, 'huge.json');
     const filler = 'x'.repeat(1024 * 1024);
@@ -132,7 +132,7 @@ describe('viz run index is bounded', () => {
         .join(',')}]}`
     );
     expect(statSync(file).size).toBeGreaterThan(MAX_TRACE_BYTES);
-    expect(summarizeTraceFile(file)).toBeNull();
+    expect(summarizeTraceFile(file)).toMatchObject({ id: 'big', label: 'big run' });
   });
 
   it('still summarizes a large-but-acceptable trace', () => {

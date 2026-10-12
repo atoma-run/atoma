@@ -188,16 +188,12 @@ npm run viz:mark-turn:analyze
 - `GpuRenderer.destroy()` nulls `this.snapshot` FIRST. Two end-of-transition
   `requestAnimationFrame`s re-render behind an identity guard on that field,
   and nothing else in teardown makes them false.
-- EVERY read of the run corpus goes through `readBoundedRunFile`
-  (`runIndex.ts`), under the one `MAX_TRACE_BYTES` ceiling
-  ([src/contracts](../contracts/AGENTS.md)). A trace has no cap in the
-  pipeline and `/api/runs/:id` is polled ~1×/s per live tab, so an unbounded
-  read there materialised an arbitrary document per second per client. Over
-  the ceiling the detail route answers 413 — reusing the status this codebase
-  gives an oversized request body, told apart by its `error` string, because
-  404 would make an existing trace look deleted. The delta still parses the
-  whole document once per poll: a cache keyed on mtime, or a streaming
-  projection of `events`, is REGISTERED, not built.
+- Whole-file corpus reads use `readBoundedRunFile` under `MAX_TRACE_BYTES`
+  ([src/contracts](../contracts/AGENTS.md)). Larger traces remain readable:
+  `/api/runs/:id` streams raw bytes or event deltas with backpressure from one
+  descriptor; lists project accounting fields one event at a time. The shared
+  byte scanner indexes ranges without materializing the trace. Memory is
+  bounded by chunks, the range index and selected projections, not file size.
 - The runs timeline reads NEWEST FIRST and is framed by two bookend rows
   (run ended / run started) that carry the verdict. Bookends are view rows:
   the view publishes `rowOffset` on the timeline viewport and overlays add it,

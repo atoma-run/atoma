@@ -49,15 +49,7 @@
 
 import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync } from 'node:fs';
 
-/**
- * The one ceiling shared by every reader of a trace file. Re-exported by
- * `src/sentinel/sources.ts`, which owns the fail-SOFT disposition over the
- * same number.
- *
- * 32 MiB at the measured ~19KB per tool call is roughly 1,700 tool events,
- * i.e. ~1.9 tool calls per second sustained across the whole 900s run budget:
- * unreachable on a legitimate run, which is exactly the property 512KB lacked.
- */
+/** Maximum materialized JSON selection; streaming scans are independent of file size. */
 export const MAX_TRACE_BYTES = 32 * 1024 * 1024;
 
 /** Every refusal this reader can raise, so callers and tests name one string. */
@@ -126,7 +118,7 @@ export const DEFAULT_TRACE_READ_LIMITS: TraceReadLimits = {
   maxKeyBytes: 256,
   maxValueBytes: 512,
   maxCaptureBytes: 2_048,
-  maxFileBytes: MAX_TRACE_BYTES,
+  maxFileBytes: Number.MAX_SAFE_INTEGER,
 };
 
 const EOF = -1;
@@ -328,7 +320,46 @@ function positiveInt(value: number, field: string): number {
   return value;
 }
 
-function scanTopLevel(fd: number, spec: TraceFieldSpec, limits: TraceReadLimits): TraceFields {
+export interface TraceByteRange { readonly start: number; readonly end: number }
+
+interface TraceRangeVisitor {
+  member(name: string, range: TraceByteRange): void;
+  events(ranges: TraceByteRange[] | null): void;
+}
+
+function position(s: Scan): number { return s.read - s.len + s.pos; }
+
+function skipValue(s: Scan): void {
+  const shape = shapeOf(skipWhitespace(s));
+  if (shape === 'object' || shape === 'array') skipContainer(s);
+  else if (shape === 'string') scanString(s, null, 0);
+  else if (shape !== null) {
+    const bytes: number[] = [];
+    scanToken(s, bytes, s.limits.maxValueBytes);
+    validateToken(bytes, shape);
+  } else refuse(TRACE_READ_ERRORS.malformed);
+}
+
+function scanEvents(s: Scan): TraceByteRange[] {
+  const ranges: TraceByteRange[] = [];
+  s.pos += 1;
+  if (skipWhitespace(s) === BYTE.bracketClose) { s.pos += 1; return ranges; }
+  for (;;) {
+    skipWhitespace(s);
+    const start = position(s);
+    skipValue(s);
+    // Bound the offset index too, independently of payload bytes.
+    if (ranges.length >= MAX_TRACE_BYTES / 64) refuse(TRACE_READ_ERRORS.overCapture);
+    ranges.push({ start, end: position(s) });
+    const separator = skipWhitespace(s);
+    s.pos += 1;
+    if (separator === BYTE.bracketClose) return ranges;
+    if (separator === EOF) refuse(TRACE_READ_ERRORS.truncated);
+    if (separator !== BYTE.comma) refuse(TRACE_READ_ERRORS.malformed);
+  }
+}
+
+function scanTopLevel(fd: number, spec: TraceFieldSpec, limits: TraceReadLimits, visitor?: TraceRangeVisitor): TraceFields {
   const wantValue = new Set(spec.values);
   const wantShape = new Set([...spec.values, ...spec.shapes]);
   // Null prototype, not a literal: a `__proto__` member of the document must
@@ -376,9 +407,12 @@ function scanTopLevel(fd: number, spec: TraceFieldSpec, limits: TraceReadLimits)
       const shape = shapeOf(valueStart);
       if (shape === null) refuse(TRACE_READ_ERRORS.malformed);
 
+      const start = position(s);
       const takeValue = name !== null && wantValue.has(name);
       let valueBytes: number[] | null = null;
-      if (shape === 'object' || shape === 'array') {
+      if (visitor && name === 'events' && shape === 'array') {
+        visitor.events(scanEvents(s));
+      } else if (shape === 'object' || shape === 'array') {
         skipContainer(s);
       } else if (shape === 'string') {
         if (takeValue) {
@@ -397,6 +431,8 @@ function scanTopLevel(fd: number, spec: TraceFieldSpec, limits: TraceReadLimits)
       }
 
       if (name !== null) {
+        visitor?.member(name, { start, end: position(s) });
+        if (name === 'events' && shape !== 'array') visitor?.events(null);
         if (wantShape.has(name)) shapes[name] = shape;
         if (takeValue) {
           if (valueBytes === null) {
@@ -468,6 +504,17 @@ export function readTraceTopLevelFields(
   if (!stat.isFile()) refuse(TRACE_READ_ERRORS.notRegular);
   if (stat.size > resolved.maxFileBytes) refuse(TRACE_READ_ERRORS.overCeiling);
 
+  return withTraceFile(pathname, resolved.maxFileBytes, fd => scanTopLevel(fd, spec, resolved));
+}
+
+function withTraceFile<T>(pathname: string, maxFileBytes: number, read: (fd: number) => T): T {
+  const fd = openTraceFile(pathname, maxFileBytes);
+  try { return read(fd); } finally { closeSync(fd); }
+}
+
+function openTraceFile(pathname: string, maxFileBytes: number): number {
+  const stat = lstatSync(pathname);
+  if (!stat.isFile()) refuse(TRACE_READ_ERRORS.notRegular);
   const optional = fsConstants as Partial<typeof fsConstants>;
   const flags = fsConstants.O_RDONLY | (optional.O_NOFOLLOW ?? 0) | (optional.O_NONBLOCK ?? 0);
   const fd = openSync(pathname, flags);
@@ -477,9 +524,125 @@ export function readTraceTopLevelFields(
     // the old whole-file reader left exactly that window open.
     const opened = fstatSync(fd);
     if (!opened.isFile()) refuse(TRACE_READ_ERRORS.notRegular);
-    if (opened.size > resolved.maxFileBytes) refuse(TRACE_READ_ERRORS.overCeiling);
-    return scanTopLevel(fd, spec, resolved);
-  } finally {
+    if (opened.size > maxFileBytes) refuse(TRACE_READ_ERRORS.overCeiling);
+    return fd;
+  } catch (error) {
     closeSync(fd);
+    throw error;
   }
+}
+
+/**
+ * Index and read one immutable recorder snapshot. All ranges and subsequent
+ * reads share an fd, so an atomic persist cannot mix two generations.
+ * The callback is synchronous: callers must finish reading before it returns.
+ */
+export function withTraceDocument<T>(pathname: string, use: (document: TraceDocument) => T): T {
+  return withTraceFile(pathname, Number.MAX_SAFE_INTEGER, fd => {
+    const { fields, events } = indexTraceDocument(fd);
+    return use({ fields, events, read: range => readTraceRange(fd, range) });
+  });
+}
+
+export interface TraceDocument {
+  readonly fields: ReadonlyMap<string, TraceByteRange>;
+  readonly events: readonly TraceByteRange[] | null;
+  read(range: TraceByteRange): unknown;
+}
+
+function readTraceRange(fd: number, range: TraceByteRange): unknown {
+  const size = range.end - range.start;
+  if (size > MAX_TRACE_BYTES) refuse(TRACE_READ_ERRORS.overCapture);
+  const bytes = Buffer.allocUnsafe(size);
+  let offset = 0;
+  while (offset < size) {
+    const count = readSync(fd, bytes, offset, size - offset, range.start + offset);
+    if (!count) refuse(TRACE_READ_ERRORS.truncated);
+    offset += count;
+  }
+  try { return JSON.parse(bytes.toString('utf8')) as unknown; }
+  catch { return refuse(TRACE_READ_ERRORS.malformed); }
+}
+
+/** Bounded projection, reading one member/event at a time instead of the file. */
+export function projectTraceDocument(
+  pathname: string,
+  member: (name: string, read: () => unknown) => unknown,
+  event: (read: () => unknown, index: number) => unknown,
+): { run: Record<string, unknown>; totalEvents: number } {
+  return withTraceDocument(pathname, document => {
+    const run: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
+    let captured = 0;
+    const budget = (value: unknown): unknown => {
+      if (value !== undefined) captured += Buffer.byteLength(JSON.stringify(value));
+      if (captured > MAX_TRACE_BYTES) refuse(TRACE_READ_ERRORS.overCapture);
+      return value;
+    };
+    for (const [name, range] of document.fields) {
+      if (name !== 'events') {
+        const value = budget(member(name, () => document.read(range)));
+        if (value !== undefined) run[name] = value;
+      }
+    }
+    if (document.events) {
+      run['events'] = document.events.flatMap((range, index) => {
+        const value = budget(event(() => document.read(range), index));
+        return value === undefined ? [] : [value];
+      });
+    }
+    return { run, totalEvents: document.events?.length ?? 0 };
+  });
+}
+
+/** Stream complete or delta JSON with backpressure; never materialize payloads. */
+export async function* traceDocumentChunks(pathname: string, after?: number): AsyncGenerator<Buffer | string> {
+  const fd = openTraceFile(pathname, Number.MAX_SAFE_INTEGER);
+  try {
+    const chunks = function* (range: TraceByteRange): Generator<Buffer> {
+      for (let offset = range.start; offset < range.end;) {
+        const buffer = Buffer.allocUnsafe(Math.min(64 * 1024, range.end - offset));
+        const count = readSync(fd, buffer, 0, buffer.length, offset);
+        if (!count) refuse(TRACE_READ_ERRORS.truncated);
+        offset += count;
+        yield buffer.subarray(0, count);
+      }
+    };
+    if (after === undefined) {
+      yield* chunks({ start: 0, end: fstatSync(fd).size });
+      return;
+    }
+    const { fields, events } = indexTraceDocument(fd);
+    if (events === null) {
+      yield* chunks({ start: 0, end: fstatSync(fd).size });
+      return;
+    }
+    const ranges: TraceByteRange[] = events;
+    const from = after <= ranges.length ? after : 0;
+    yield '{';
+    for (const [name, range] of fields) {
+      if (name === 'events' || name === 'eventsFrom' || name === 'eventsTotal') continue;
+      yield JSON.stringify(name) + ':';
+      yield* chunks(range);
+      yield ',';
+    }
+    yield '"events":[';
+    for (let index = from; index < ranges.length; index += 1) {
+      if (index > from) yield ',';
+      yield* chunks(ranges[index]!);
+    }
+    yield `],"eventsFrom":${from},"eventsTotal":${ranges.length}}`;
+  } finally { closeSync(fd); }
+}
+
+function indexTraceDocument(fd: number): { fields: Map<string, TraceByteRange>; events: TraceByteRange[] | null } {
+  const fields = new Map<string, TraceByteRange>();
+  let events: TraceByteRange[] | null = null;
+  scanTopLevel(fd, { values: [], shapes: [] }, DEFAULT_TRACE_READ_LIMITS, {
+    member(name, range) {
+      if (fields.size >= 4096 && !fields.has(name)) refuse(TRACE_READ_ERRORS.overCapture);
+      fields.set(name, range);
+    },
+    events(ranges) { events = ranges; },
+  });
+  return { fields, events };
 }

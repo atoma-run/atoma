@@ -2091,6 +2091,17 @@ describe('ProjectRunCoordinator — a large trace is evidence, not a refusal', (
     expect(publisher.publish).not.toHaveBeenCalled();
   });
 
+  it('delivers past the 32 MiB ceiling that failed b5077432 at finalization', async () => {
+    const f = fixture();
+    const driver = bigTraceDriver({
+      targetBytes: 33 * 1024 * 1024,
+      finish: r => void r.endRun({ result: deliveredResult }),
+    });
+    const { row, tracePath } = await runOnce(f, driver, 'run-over-32-mib');
+    expect(statSync(tracePath).size).toBeGreaterThan(32 * 1024 * 1024);
+    expect(row.status).toBe('delivered');
+  });
+
   it('delivers at 949ecd5d scale too, so the fix is not a raised constant', async () => {
     const f = fixture();
     const driver = bigTraceDriver({

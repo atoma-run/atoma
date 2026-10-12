@@ -156,7 +156,7 @@ Neighbours:
   lives here, not in `src/viz`, because `src/viz/server.ts` imports four
   `src/projects` modules and a value edge back would close a subsystem cycle;
   it is allowed here for the same reason `runStats.ts` holds its own parser,
-  and because no model-authored payload ever enters it.
+  and keeps coordinator decisions shape-only even when detail readers capture payloads.
 - `llmTrace.ts` CITES model-visible context, it does not copy it:
   `citeContext` records a block's source, its true `chars` and a preview
   capped at `CONTEXT_PREVIEW_CHARS`, and the same id is cited on the `llm`
@@ -184,18 +184,14 @@ Neighbours:
   so a document malformed only below depth 1 is accepted where `JSON.parse`
   would refuse. Unreachable from `TraceRecorder`, which emits one
   `JSON.stringify` per persist, and the projected members are still exact.
-- ONE ceiling (`MAX_TRACE_BYTES`, 32 MiB), SIX dispositions above it, stated
-  here once: the coordinator fails HARD, because it is deciding whether work
-  was delivered; the sentinel fails SOFT (`readBoundedJson` returns null — no
-  watch is better than a stall); `summarizeTraceFile` fails soft by skipping the
-  row; `/api/runs/:id` REFUSES with a status, because a reader asking for one
-  named trace is owed an answer and a skipped row is not one
-  ([src/viz](../viz/AGENTS.md)); a comparison rerun that needs its origin's
-  drafted list REFUSES (409), because a new draft would be a second yardstick
-  ([src/projects](../projects/AGENTS.md)); the MCP detail readers (trace
-  metadata, event, runner log) answer a soft `unavailable` note, because a
-  paged reader must stay answerable ([src/mcp](../mcp/AGENTS.md)). The ceiling is re-exported by
-  `src/sentinel/sources.ts`; it is not redefined there.
+- `MAX_TRACE_BYTES` (32 MiB) bounds WHOLE-FILE materialization and selected
+  projections, never the shape-only coordinator scan. Larger traces use the
+  SAME scanner to index top-level members and event byte ranges. Reads and
+  streamed HTTP deltas retain one descriptor across atomic recorder persists;
+  the range index and materialized selections are bounded independently.
+  Viz lists project event accounting fields; MCP projects its requested page
+  or detail. An oversized selection remains explicitly unavailable. Sentinel,
+  runner-log and optional whole-file consumers retain their bounded refusal.
 - No refusal message carries a filesystem path. `project_runs.error` is served
   to tenants, and the row this reader replaced leaked an absolute host path.
 

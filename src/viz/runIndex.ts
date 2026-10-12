@@ -1,3 +1,4 @@
+import { projectTraceDocument } from '../contracts/traceFields.js';
 import { readBoundedRunFile } from '../contracts/traceFile.js';
 export { readBoundedRunFile, type BoundedRunFileRead } from '../contracts/traceFile.js';
 import { RUN_INDEX_GOAL_MAX, runLabelFromGoal, type VizRun, type VizRunIndexEntry } from './trace.js';
@@ -36,18 +37,9 @@ type TraceFileHeader = {
 /**
  * Lightweight Runs-tab row from a persisted trace JSON.
  *
- * BOUNDED, and fail-SOFT: a trace over the shared ceiling yields null and the
- * row is skipped. It used to parse the whole document with no bound at all, on
- * a GATED HTTP path — the same files the coordinator refused to read whole,
- * measured at 1.48 MB and growing ~19KB per tool call. The ceiling is the one
- * in `src/contracts/traceFields.ts`; the disposition over it is this
- * subsystem's, and it differs from the coordinator's on purpose: a missing row
- * in a list is not a wrong answer about whether work was delivered.
- *
- * This still materialises the document it accepts, because the row needs
- * `totals.calls` and `totals.costUsd` — values BELOW depth 1, which the
- * projecting reader deliberately does not give. Projecting them is registered,
- * not built.
+ * Whole documents are bounded; larger traces are projected one event at a
+ * time, retaining only the fields used for the index and cost attribution.
+ * Malformed or over-budget projections remain fail-soft.
  */
 export function summarizeTraceFile(file: string): VizRunIndexEntry | null {
   return summarizeTraceFileWith(file, false)?.entry ?? null;
@@ -69,8 +61,28 @@ function summarizeTraceFileWith(file: string, withCost: boolean): { entry: VizRu
     // fail-SOFT disposition over them stays HERE, where a skipped row is not a
     // wrong answer about whether work was delivered.
     const read = readBoundedRunFile(file);
-    if (!read.ok) return null;
-    const run = JSON.parse(read.bytes.toString('utf8')) as TraceFileHeader;
+    if (!read.ok && read.reason !== 'overCeiling') return null;
+    const run = (read.ok ? JSON.parse(read.bytes.toString('utf8')) : projectTraceDocument(
+      file,
+      (name, readValue) => {
+        if (!(TRACE_HEADER_KEYS as readonly string[]).includes(name) && name !== 'tierModels') return undefined;
+        const value = readValue();
+        if (name === 'result' && value && typeof value === 'object') {
+          const result = value as Record<string, unknown>;
+          return { refusal: result['refusal'], unfinishedPhases: result['unfinishedPhases'] };
+        }
+        return value;
+      },
+      readValue => {
+        const value = readValue();
+        if (!value || typeof value !== 'object') return null;
+        const e = value as Record<string, unknown>;
+        return Object.fromEntries([
+          'kind', 'ts', 'requestCount', 'requestId', 'role', 'model', 'servedModel',
+          'actor', 'costUsd', 'usage', 'evaluator',
+        ].map(key => [key, e[key]]).concat([['answer', e['answer'] && typeof e['answer'] === 'object' && !Array.isArray(e['answer']) ? {} : null]]));
+      },
+    ).run) as TraceFileHeader;
     if (typeof run.id !== 'string' || typeof run.label !== 'string' || typeof run.startedAt !== 'string') {
       return null;
     }

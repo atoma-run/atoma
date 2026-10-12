@@ -1,3 +1,6 @@
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
+import { traceDocumentChunks } from '../contracts/traceFields.js';
 import { Conversations } from '../projects/conversations.js';
 import { AssistantGrants } from '../auth/assistantGrants.js';
 import { AssistantService } from './assistant.js';
@@ -4886,22 +4889,19 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
       sendJson(res, 404, { error: 'not found' });
       return;
     }
-    // BOUNDED, like every other reader of this corpus (2026-08-27 review, 2.4).
-    // A trace has no cap in the pipeline and this route is polled ~1×/s per
-    // live client and per tab, so the unbounded read let one long-running
-    // tenant run materialise an arbitrary document in the server process every
-    // second, multiplied by the open tabs.
-    //
-    // 413 for the refusal, KNOWINGLY reusing the status this codebase gives to
-    // an oversized REQUEST body (`src/projects/service.ts`, `src/github/http.ts`
-    // and the bounded readers above). There is no response-side size code in
-    // HTTP; the alternatives lie harder — 404 makes an existing trace
-    // indistinguishable from a deleted one, and 500 calls a policy an error.
-    // The distinct `error` string is what tells the two 413s apart.
+    const afterRaw = url.searchParams.get('after');
+    const after = afterRaw === null ? undefined : Number(afterRaw);
+    if (after !== undefined && (!Number.isInteger(after) || after < 0)) {
+      sendJson(res, 400, { error: 'bad after' });
+      return;
+    }
+    // Large traces use the same delta wire, streamed from one recorder snapshot.
     const read = readBoundedRunFile(file);
     if (!read.ok) {
       if (read.reason === 'overCeiling') {
-        sendJson(res, 413, { error: 'run trace exceeds the read ceiling' });
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-store');
+        await pipeline(Readable.from(traceDocumentChunks(file, after)), res);
         return;
       }
       // Unlinked, replaced, or no longer a regular file since it resolved.
@@ -4918,19 +4918,7 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
     // as before — first load, non-live runs, and any other consumer are
     // untouched.
     //
-    // The ceiling above is what bounds the parse below: the delta still
-    // materialises the whole document ONCE PER POLL, because slicing `events`
-    // needs it. Removing that needs a server-side cache keyed on the trace's
-    // mtime, or a streaming projection of the events array — and
-    // `contracts/traceFields.ts` cannot return a document by construction, so
-    // neither exists today. Both are new mechanisms. Registered, not built.
-    const afterRaw = url.searchParams.get('after');
-    if (afterRaw !== null) {
-      const after = Number(afterRaw);
-      if (!Number.isInteger(after) || after < 0) {
-        sendJson(res, 400, { error: 'bad after' });
-        return;
-      }
+    if (after !== undefined) {
       const run = safeParseJson<{ events?: unknown[] } | null>(body.toString('utf8'), null);
       if (!run || !Array.isArray(run.events)) {
         // Unparseable or shapeless on disk (a torn partial write): fall

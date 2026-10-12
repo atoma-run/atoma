@@ -132,7 +132,8 @@ Neighbours:
   text pages (12K characters default, 24K maximum). `snapshot` detects changed
   detail between pages; readers concatenate before parsing. All bodies are
   UNTRUSTED. Run provenance is stamped at launch, never inferred from today's
-  deployment for old traces. Detail reads use the viz corpus size ceiling.
+  deployment for old traces. Large traces project the selected page or detail
+  through the shared byte scanner; the capture ceiling applies to the selection.
 - PUBLICATION DETAILS come from the shared project run reader: persisted Git
   destination, commit, PR URL, failure and timestamps. Delivery is not publication,
   and a published PR is not a merge. Unknown legacy destinations remain null.
