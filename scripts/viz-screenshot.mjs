@@ -619,6 +619,13 @@ function fixtureTrace() {
     ev(1200, { kind: 'branch', op: 'end', branchId: 'p2' }),
     ev(1290, { kind: 'llm', role: 'aggregate', actor: { tier: 3, name: 'Meristem' }, durationMs: 4000, costUsd: 0.05 }),
   ];
+  if (has('--timeline-probe')) {
+    events.push(...Array.from({ length: 160 }, (_, i) => ev(1201 + i / 2, {
+      kind: 'tool', name: 'read_file', actor: { tier: 1, name: 'Ethane' },
+      args: { path: `src/module-${i}.ts` }, result: { ok: true },
+    })));
+    events.sort((a, b) => a.ts - b.ts);
+  }
   return {
     id: 'run-fixture',
     label:

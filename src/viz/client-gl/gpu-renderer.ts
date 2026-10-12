@@ -629,6 +629,7 @@ export class GpuRenderer {
     overscan: number;
     move: (offset: number) => void;
   } | null = null;
+  timelineMinimapScroll: { bounds: Rectangle; move: (delta: number) => void } | null = null;
   /** Re-centres the retained window once the reader stops (`recenterRunsWindow`). */
   private runsRecenterTimer: ReturnType<typeof setTimeout> | null = null;
   private runsScrollWidth = 0;
@@ -952,6 +953,13 @@ export class GpuRenderer {
           this.detailScrollY = next;
           this.render(this.snapshot);
         }
+        return;
+      }
+    }
+    if (this.snapshot.state.view === 'runs' && this.timelineMinimapScroll) {
+      const local = this.clientToRendererPosition(clientX, clientY);
+      if (this.timelineMinimapScroll.bounds.contains(local.x, local.y)) {
+        this.timelineMinimapScroll.move(deltaY);
         return;
       }
     }
@@ -1550,6 +1558,7 @@ export class GpuRenderer {
     window.removeEventListener('blur', this.syncRenderActivity);
     document.removeEventListener('visibilitychange', this.syncRenderActivity);
     this.runsScroll = null;
+    this.timelineMinimapScroll = null;
     publishSceneCapture(null);
     this.cameraFrameUnsubscribe?.();
     this.cameraFrameUnsubscribe = null;
@@ -1827,6 +1836,7 @@ export class GpuRenderer {
     if (this.runsRecenterTimer) clearTimeout(this.runsRecenterTimer);
     this.runsRecenterTimer = null;
     this.runsScroll = null;
+    this.timelineMinimapScroll = null;
     this.runsScrollWidth = this.app.screen.width;
     this.runsScrollHeight = this.app.screen.height;
     this.snapshot = snapshot;
@@ -2312,11 +2322,12 @@ export class GpuRenderer {
    * Coordinates are LOCAL to `parent`, like `recordHitTarget`'s, and are
    * projected here while the parent transform is still live — a view drawn
    * into the offset content viewport must not have to know its own offset.
+   * Return the registered handle so retained slots can refresh their copy.
    */
   tooltip(
     parent: Container,
     region: TooltipRegion
-  ): void {
+  ): TooltipRegion | undefined {
     const layer = this.tooltipLayer;
     if (!layer) return;
     const start = parent.toGlobal({ x: region.x, y: region.y });
@@ -2330,7 +2341,7 @@ export class GpuRenderer {
     const scale = region.width > 0 ? Math.abs(end.x - start.x) / region.width : 1;
     const centre = wedge ? parent.toGlobal({ x: wedge.cx, y: wedge.cy }) : null;
     const laneStart = region.lane ? parent.toGlobal({ x: region.lane.x, y: region.y }) : null;
-    layer.register({
+    const projected = {
       ...region,
       x: Math.min(start.x, end.x),
       y: Math.min(start.y, end.y),
@@ -2339,7 +2350,9 @@ export class GpuRenderer {
       ...(wedge && centre ? { wedge: { ...wedge, cx: centre.x, cy: centre.y,
         inner: wedge.inner * scale, outer: wedge.outer * scale } } : {}),
       ...(region.lane && laneStart ? { lane: { x: laneStart.x, width: region.lane.width * scale } } : {}),
-    });
+    };
+    layer.register(projected);
+    return projected;
   }
 
   /** Detail bounds are a plain Rectangle, so project the view's x offset once. */
@@ -5459,6 +5472,7 @@ export type RendererCtx = Pick<
   | 'metrics'
   | 'scrollMax'
   | 'runsScroll'
+  | 'timelineMinimapScroll'
   | 'detailScrollY'
   | 'detailScrollMax'
   | 'detailBounds'

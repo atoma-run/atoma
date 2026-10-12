@@ -329,6 +329,7 @@ function createRecordingCtx(): RecordingCtx {
     links: [],
     metrics: emptyRenderMetrics(),
     runsScroll: null,
+    timelineMinimapScroll: null,
     // Headless retention stub: no renderer, so no textures to retain — every
     // call attaches a fresh mark, which is what the layout assertions read.
     // The orb is a Mesh with a shader and a decoded texture: recording the
@@ -397,8 +398,10 @@ function createRecordingCtx(): RecordingCtx {
     tooltip(parent, region) {
       const start = parent.toGlobal({ x: region.x, y: region.y });
       // Projected like the renderer's: a lane local to a scrolled pane is not the column's x.
-      ctx.tooltips.push({ ...region, x: start.x, y: start.y,
-        ...(region.lane ? { lane: { x: parent.toGlobal({ x: region.lane.x, y: 0 }).x, width: region.lane.width } } : {}) });
+      const projected = { ...region, x: start.x, y: start.y,
+        ...(region.lane ? { lane: { x: parent.toGlobal({ x: region.lane.x, y: 0 }).x, width: region.lane.width } } : {}) };
+      ctx.tooltips.push(projected);
+      return projected;
     },
     recordHitTarget(parent, target) {
       const start = parent.toGlobal({ x: target.x, y: target.y });
@@ -6909,6 +6912,7 @@ describe('touch scrolling — a finger drag drives the same router as the wheel'
     scrollMax: Partial<Record<string, number>>;
     runPickerBounds: Rectangle | null;
     runPickerScrollMax: number;
+    timelineMinimapScroll: GpuRenderer['timelineMinimapScroll'];
     app: unknown;
     touchScroll: unknown;
     touchStart(event: { touches: TouchLike[] }): void;
@@ -6956,6 +6960,17 @@ describe('touch scrolling — a finger drag drives the same router as the wheel'
     expect(onScroll).toHaveBeenCalledTimes(2);
     internals.touchEnd();
     expect(internals.touchScroll).toBeNull();
+  });
+
+  it('routes a swipe on the minimap independently of the central cards', () => {
+    const onScroll = vi.fn();
+    const internals = armRenderer({ ...makeSnapshot({ view: 'runs' }), onScroll });
+    const move = vi.fn();
+    internals.timelineMinimapScroll = { bounds: new Rectangle(350, 300, 36, 400), move };
+    internals.touchStart({ touches: [{ identifier: 1, clientX: 365, clientY: 500 }] });
+    internals.touchMove({ changedTouches: [{ identifier: 1, clientX: 365, clientY: 400 }] });
+    expect(move).toHaveBeenCalledWith(100);
+    expect(onScroll).not.toHaveBeenCalled();
   });
 
   it('fails closed like the wheel: a view with no declared maximum does not move', () => {
@@ -7122,16 +7137,41 @@ describe('FPS follow-ups', () => {
     expect(targets.length).toBeGreaterThan(2);
     expect(targets.length).toBeLessThan(80);
     expect(targets[0]!.id).toBe('run.timeline.row.0');
-    expect(targets.at(-1)!.id).toBe('run.timeline.row.201');
-    expect(ctx.tooltips.some(region => region.text.startsWith('Run started'))).toBe(true);
+    expect(targets.at(-1)!.id).toBe(`run.timeline.row.${targets.length - 1}`);
+    expect(targets.length).toBeLessThanOrEqual(40);
     const position = { x: rail.x, y: rail.y };
     const bounds = targets.map(target => ({ ...target }));
     ctx.runsScroll!.move(20);
     expect({ x: rail.x, y: rail.y }).toEqual(position);
     expect(targets).toEqual(bounds);
     for (const card of ctx.eventCards) expect(card.x + card.width).toBeLessThan(rail.x);
-    rail.getChildByLabel(targets.at(-1)!.id)!.emit('pointertap', {} as FederatedPointerEvent);
+    const visited = new Set(targets.map(target => target.id));
+    const ink = rail.getChildByLabel('timeline-minimap-bars', true) as Graphics;
+    const alphas = () => ink.context.instructions.filter(instruction => instruction.action === 'stroke')
+      .map(instruction => instruction.data.style.alpha);
+    expect(alphas()[0]).toBeGreaterThan(alphas().at(-1)!);
+    // Traverse every row, including ones the old sampled minimap omitted.
+    for (let step = 0; step < 202; step++) {
+      ctx.timelineMinimapScroll!.move(10);
+      for (const target of targets) visited.add(target.id);
+      expect(ctx.metrics.hitTargets.filter(target => target.id.startsWith('run.timeline.row.'))).toHaveLength(targets.length);
+    }
+    expect(visited.size).toBe(202);
+    expect(targets.at(-1)!.id).toBe('run.timeline.row.201');
+    expect(ctx.tooltips.some(region => region.text.startsWith('Run started'))).toBe(true);
+    rail.getChildByLabel(targets.at(-1)!.id, true)!.emit('pointertap', {} as FederatedPointerEvent);
     expect(onActivate).toHaveBeenCalledWith('run.timeline.row.201');
+    expect(alphas()[0]).toBeLessThan(alphas().at(-1)!);
+    ctx.timelineMinimapScroll!.move(-500);
+    expect(alphas()[0]).toBeLessThan(alphas()[4]!);
+    expect(alphas().at(-1)).toBeLessThan(alphas().at(-5)!);
+    // Main-card movement re-centres the index, including retained-window moves.
+    ctx.runsScroll!.move(ctx.metrics.timelineViewport!.rowHeight * 100);
+    const ids = targets.map(target => Number(target.id.slice('run.timeline.row.'.length)));
+    expect(ids).toContain(100);
+    expect(ids).toEqual(Array.from({ length: ids.length }, (_, i) => ids[0]! + i));
+    ctx.runsScroll!.move(0);
+    expect(targets[0]!.id).toBe('run.timeline.row.0');
 
     const filtered = createRecordingCtx();
     drawRuns(filtered, makeSnapshot({ runFilters: { kind: 'tool', role: 'all', branchId: 'all' } },
@@ -7143,12 +7183,12 @@ describe('FPS follow-ups', () => {
     const preview = filtered.tooltips.find(region => region.text.includes('read_file'));
     expect(preview).toMatchObject({ placement: 'left', instant: true });
     const filteredRail = filtered.root.getChildByLabel('timeline-minimap', true)!;
-    const ink = filteredRail.children[0] as Graphics;
-    const colors = () => ink.context.instructions.filter(instruction => instruction.action === 'stroke')
+    const filteredInk = filteredRail.getChildByLabel('timeline-minimap-bars', true) as Graphics;
+    const colors = () => filteredInk.context.instructions.filter(instruction => instruction.action === 'stroke')
       .map(instruction => instruction.data.style.color);
     // The two bookends keep their card accents; read_file keeps its tool blue.
     expect(colors()).toEqual([GPU_COLORS.success, 0x38bdf8, GPU_COLORS.primary]);
-    filteredRail.getChildByLabel('run.timeline.row.1')!.emit('pointerover', {} as FederatedPointerEvent);
+    filteredRail.getChildByLabel('run.timeline.row.1', true)!.emit('pointerover', {} as FederatedPointerEvent);
     expect(colors()).toEqual([GPU_COLORS.success, 0x38bdf8, GPU_COLORS.primary]);
   });
 
