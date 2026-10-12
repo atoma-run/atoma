@@ -1,3 +1,4 @@
+import { GROUND_TRUTH_MARKER } from '../../contracts/scriptEnvelope.js';
 import type { VizProjectRun, VizRun } from '../client/types.js';
 
 /** Only the persisted final output is a delivery; intermediate events are not. */
@@ -28,6 +29,57 @@ export function resultNarrative(run: VizRun): { title: string; text: string }[] 
       typeof value === 'string' && value.trim() ? [{ title, text: value }] : []);
   }
   return [];
+}
+
+/**
+ * A summary is what was done, then — after the host-taught marker line — how
+ * it was checked. A reader leads with the first; the second is evidence.
+ */
+export function splitSummary(summary: string): { lead: string; checks: string | null } {
+  const lines = summary.split(/\r?\n/);
+  const at = lines.findIndex(line => line.trim() === GROUND_TRUTH_MARKER);
+  if (at < 0) return { lead: summary.trim(), checks: null };
+  const checks = lines.slice(at + 1).filter(line => line.trim() !== GROUND_TRUTH_MARKER).join('\n').trim();
+  return { lead: lines.slice(0, at).join('\n').trim(), checks: checks || null };
+}
+
+export interface ReadableBlock { readonly kind: 'heading' | 'text'; readonly text: string }
+
+const inlineMarkdown = (text: string) =>
+  text.replace(/\*\*(.+?)\*\*/g, '$1').replace(/__(.+?)__/g, '$1').replace(/`([^`\n]+)`/g, '$1');
+
+/**
+ * Markdown an answer was written in, as blocks the canvas can draw: headings
+ * become headings, emphasis and inline code marks go, list items take a
+ * bullet, table rows read as cells, and fenced code stays verbatim. The
+ * canvas draws text, never HTML, so this changes how it reads, not what runs.
+ */
+export function readableBlocks(source: string): ReadableBlock[] {
+  const blocks: ReadableBlock[] = [];
+  let paragraph: string[] = [];
+  let fenced = false;
+  const flush = () => {
+    if (paragraph.length > 0) blocks.push({ kind: 'text', text: paragraph.join('\n') });
+    paragraph = [];
+  };
+  for (const raw of source.split(/\r?\n/)) {
+    if (/^\s*(```|~~~)/.test(raw)) { flush(); fenced = !fenced; continue; }
+    if (fenced) { paragraph.push(raw); continue; }
+    const line = raw.trimEnd();
+    if (!line.trim()) { flush(); continue; }
+    const heading = /^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/.exec(line);
+    if (heading) { flush(); blocks.push({ kind: 'heading', text: inlineMarkdown(heading[1]!) }); continue; }
+    // A table's separator row, or a horizontal rule: structure, not content.
+    if (/^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/.test(line)) continue;
+    if (/^\s*\|.*\|\s*$/.test(line)) {
+      paragraph.push(line.trim().slice(1, -1).split('|').map(cell => inlineMarkdown(cell.trim())).join('  ·  '));
+      continue;
+    }
+    const bullet = /^(\s*)[-*+]\s+(.*)$/.exec(line);
+    paragraph.push(bullet ? `${bullet[1]}• ${inlineMarkdown(bullet[2]!)}` : inlineMarkdown(line));
+  }
+  flush();
+  return blocks;
 }
 
 /** Pin file links to THIS delivery, never to the repository's moving main. */

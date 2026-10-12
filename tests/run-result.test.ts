@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { latestDeliveredResult, resultFileUrl, resultNarrative, resultSections, resultText } from '../src/viz/client-gl/run-result.js';
+import { latestDeliveredResult, readableBlocks, resultFileUrl, resultNarrative, resultSections, resultText, splitSummary } from '../src/viz/client-gl/run-result.js';
 import { useGpuStore } from '../src/viz/client-gl/store.js';
 import type { VizProjectRun, VizRun } from '../src/viz/client/types.js';
 
@@ -10,6 +10,26 @@ const row: VizProjectRun = { projectRunId: 'row', traceId: run.id, projectId: 'p
   publication: { status: 'published', repositoryUrl: 'https://github.com/mgtf/proof', commitSha: 'a'.repeat(40) } };
 
 describe('final result presentation', () => {
+  it('leads a summary with what was done and keeps its evidence block apart', () => {
+    expect(splitSummary('Built the tracker.\n== GROUND TRUTH ==\nnode --test: 8 passed\n== GROUND TRUTH ==\nsha256 abc'))
+      .toEqual({ lead: 'Built the tracker.', checks: 'node --test: 8 passed\nsha256 abc' });
+    expect(splitSummary('No evidence block.')).toEqual({ lead: 'No evidence block.', checks: null });
+    // Only the marker on its own line splits: a mention inside prose does not.
+    expect(splitSummary('Explains the == GROUND TRUTH == convention.').checks).toBeNull();
+    expect(splitSummary('Done.\n== GROUND TRUTH ==\n')).toEqual({ lead: 'Done.', checks: null });
+  });
+  it('reads a Markdown answer as headings and plain paragraphs, keeping code verbatim', () => {
+    expect(readableBlocks([
+      '## Timetable', '', '| Task | **Start** |', '|---|---:|', '| A | 0 |', '', '- **Bold** item with `code`',
+      '  - nested', '1. kept as written', '', '```', '  **not emphasis** | x |', '```', '---', 'Last.',
+    ].join('\n'))).toEqual([
+      { kind: 'heading', text: 'Timetable' },
+      { kind: 'text', text: 'Task  ·  Start\nA  ·  0' },
+      { kind: 'text', text: '• Bold item with code\n  • nested\n1. kept as written' },
+      { kind: 'text', text: '  **not emphasis** | x |' },
+      { kind: 'text', text: 'Last.' },
+    ]);
+  });
   it('reads only the final output, preserves paragraphs and exposes every structured field', () => {
     expect(resultSections(run)).toEqual([{ title: 'answer', text: '15 states\nA valid witness.' }, { title: 'count', text: '15' }]);
     expect(JSON.parse(resultText(run)!)).toEqual(run.result!.output);

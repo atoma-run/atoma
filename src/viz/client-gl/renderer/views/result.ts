@@ -3,7 +3,7 @@ import { Rectangle } from 'pixi.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { GPU_COLORS } from '../../theme.js';
 import { createScrollPane } from '../scroll-pane.js';
-import { resultNarrative, resultSections, resultText } from '../../run-result.js';
+import { readableBlocks, resultNarrative, resultSections, resultText, splitSummary } from '../../run-result.js';
 import { runStatus } from '../../../client/run-utils.js';
 import { formatDateTime } from '../../../client/date-format.js';
 import { drawPreviewControl } from '../preview-control.js';
@@ -73,6 +73,19 @@ export function drawResultPanel(ctx: RendererCtx, snapshot: GpuRenderSnapshot,
     }
     if (shortened || values.length > 80) text(snapshot.t('result.truncated'), false, true);
   };
+  /** An answer, read as prose: its Markdown drawn as headings and paragraphs. */
+  const readable = (values: { title: string; text: string }[]) => {
+    let remaining = 24000;
+    for (const section of values.slice(0, 80)) {
+      if (section.title) text(section.title, true);
+      for (const block of readableBlocks(section.text)) {
+        if (remaining <= 0) { text(snapshot.t('result.truncated'), false, true); return; }
+        text(block.text.slice(0, remaining), block.kind === 'heading');
+        remaining -= block.text.length;
+      }
+    }
+    if (values.length > 80) text(snapshot.t('result.truncated'), false, true);
+  };
 
   if (run) {
     text(`${snapshot.t(`runs.flag.${runStatus(run)}`)} · ${formatDateTime(run.endedAt ?? run.startedAt, snapshot.state.locale)}`, false, true);
@@ -83,8 +96,12 @@ export function drawResultPanel(ctx: RendererCtx, snapshot: GpuRenderSnapshot,
 
   // Only the host's manifest grants file actions; names in model output do not.
   const files = projectRun?.artifactManifest?.files ?? [];
+  // A text answer delivers no files: its inventory is the workspace it read.
+  const textDelivery = projectRun?.artifactManifest?.delivery === 'text';
   if (files.length > 0 && projectRun) {
-    text(snapshot.t(projectRun.status === 'delivered' ? 'result.files' : 'result.savedFiles', { count: files.length }), true);
+    text(snapshot.t(textDelivery ? 'result.workspaceFiles' : projectRun.status === 'delivered' ? 'result.files' : 'result.savedFiles',
+      { count: files.length }), true);
+    if (textDelivery) text(snapshot.t('result.workspaceFilesHint'), false, true);
     const canOpen = !projectRun.bytesExpiredAt && ['delivered', 'partial'].includes(projectRun.status);
     if (projectRun.bytesExpiredAt) text(snapshot.t('result.expired'), false, true);
     else if (canOpen) text(snapshot.t('result.openFiles'), false, true);
@@ -111,14 +128,23 @@ export function drawResultPanel(ctx: RendererCtx, snapshot: GpuRenderSnapshot,
     const output = resultText(run);
     const narrative = resultNarrative(run);
     const summary = run.result?.summary;
-    if (summary && !narrative.some(section => section.text === summary)) {
+    // The summary leads with what was done; its evidence block is for whoever
+    // wants to check, so it moves to the technical details. A text answer
+    // that only exists inside that block (an agent that kept its file
+    // envelope) is still the answer, and stays here.
+    const { lead, checks } = splitSummary(summary ?? '');
+    const answerInChecks = textDelivery && narrative.length === 0 && checks !== null;
+    if (lead && !narrative.some(section => section.text === summary)) {
       text(snapshot.t('result.overview'), true);
-      text(summary.slice(0, 12000));
-      if (summary.length > 12000) text(snapshot.t('result.truncated'), false, true);
+      text(lead.slice(0, 12000));
+      if (lead.length > 12000) text(snapshot.t('result.truncated'), false, true);
     }
     if (narrative.length > 0) {
       text(snapshot.t('result.answer'), true);
-      sections(narrative.map((section, index) => ({ ...section, title: index === 0 ? '' : section.title })));
+      readable(narrative.map((section, index) => ({ ...section, title: index === 0 ? '' : section.title })));
+    } else if (answerInChecks) {
+      text(snapshot.t('result.answer'), true);
+      readable([{ title: '', text: checks }]);
     } else if (output !== null && !summary && files.length === 0) {
       text(snapshot.t('result.structured'), false, true);
     }
@@ -131,6 +157,11 @@ export function drawResultPanel(ctx: RendererCtx, snapshot: GpuRenderSnapshot,
       text(snapshot.t('result.details'), true);
       if (output !== null && narrative.length === 0) action('result.copy', 'result.copyOutput');
       if (output !== null) action('result.download', 'result.download');
+      if (checks && !answerInChecks) {
+        text(snapshot.t('result.checks'), true);
+        text(checks.slice(0, 12000));
+        if (checks.length > 12000) text(snapshot.t('result.truncated'), false, true);
+      }
       text(snapshot.t('result.request'), true);
       const goal = run.task?.description ?? run.label;
       text(goal.slice(0, 12000));

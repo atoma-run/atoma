@@ -5570,6 +5570,49 @@ describe('the shared final result panel', () => {
     expect(expanded.buttons.find(button => button.id === 'result.details')!.active).toBe(true);
   });
 
+  it('leads with the summary and moves its evidence block to the technical details', () => {
+    const run = makeRun([], { result: { output: { files: ['index.html'], probes: [] },
+      summary: 'The tracker is ready.\n== GROUND TRUTH ==\nsha256 0123abcd  index.html\nnode --test: 8 passed' } });
+    const ctx = createRecordingCtx();
+    drawResultPanel(ctx, makeSnapshot({ resultRunId: run.id }, { resultRun: run }), 10, 100, 1180, 600);
+    expect(ctx.texts.some(text => text.value === 'The tracker is ready.')).toBe(true);
+    expect(ctx.texts.some(text => /GROUND TRUTH|sha256/.test(text.value))).toBe(false);
+    const expanded = createRecordingCtx();
+    drawResultPanel(expanded, makeSnapshot({ resultRunId: run.id, resultDetailsOpen: true }, { resultRun: run }), 10, 100, 1180, 600);
+    expect(expanded.texts.some(text => text.value === t('result.checks'))).toBe(true);
+    expect(expanded.texts.some(text => text.value === 'sha256 0123abcd  index.html\nnode --test: 8 passed')).toBe(true);
+    expect(expanded.texts.some(text => text.value.includes('GROUND TRUTH'))).toBe(false);
+  });
+
+  it('keeps a text answer written into the evidence block as the answer, and its files as project files', () => {
+    // Production run 4e5c5c4b (2026-10-12): a tool-using review delivered text
+    // with its file envelope, so the ranked answer sat after the marker.
+    const run = makeRun([], { result: { output: { files: [], probes: [] },
+      summary: 'Ranked review completed.\n== GROUND TRUTH ==\n## Cases\n1. **Currency symbol**: refused on line 2.' } });
+    const projectRun: VizProjectRun = { projectId: 'project', projectRunId: 'row', traceId: run.id, goal: 'Review',
+      status: 'delivered', costUsd: 0, durationS: 1, error: null, createdAt: run.startedAt, endedAt: run.endedAt!,
+      publication: null, artifactManifest: { version: 1, source: 'workspace', delivery: 'text', totalBytes: 12,
+        files: [{ path: 'budget.mjs', size: 12, mode: '100644' as const, sha256: 'b'.repeat(64) }] } };
+    const ctx = createRecordingCtx();
+    drawResultPanel(ctx, makeSnapshot({ resultRunId: run.id }, { resultRun: run, projectRuns: { project: [projectRun] } }), 10, 100, 1180, 600);
+    const values = ctx.texts.map(text => text.value);
+    expect(values).toContain(t('result.workspaceFiles', { count: 1 }));
+    expect(values).not.toContain(t('result.files', { count: 1 }));
+    expect(values).toContain(t('result.answer'));
+    expect(values).toContain('Cases');
+    expect(values).toContain('1. Currency symbol: refused on line 2.');
+    expect(values.some(value => /GROUND TRUTH|\*\*|##/.test(value))).toBe(false);
+  });
+
+  it('draws a Markdown answer as headings and paragraphs, not raw marks', () => {
+    const run = makeRun([], { result: { output: '## Timetable\n\n| Task | Start |\n|---|---:|\n| A | 0 |\n\n- **E** finishes at 8', summary: 'Scheduled.' } });
+    const ctx = createRecordingCtx();
+    drawResultPanel(ctx, makeSnapshot({ resultRunId: run.id }, { resultRun: run }), 10, 100, 1180, 600);
+    const values = ctx.texts.map(text => text.value);
+    expect(values).toEqual(expect.arrayContaining(['Timetable', 'Task  ·  Start\nA  ·  0', '• E finishes at 8']));
+    expect(values.some(value => /##|\*\*|\|---/.test(value))).toBe(false);
+  });
+
   it.each([390, 1200])('shows the recorded answer with bounded scrolling at width %i', width => {
     const ctx = createRecordingCtx();
     const run = makeRun([], { result: { output: { answer: 'A paragraph.\n'.repeat(200) }, summary: 'Final reasoning.' } });

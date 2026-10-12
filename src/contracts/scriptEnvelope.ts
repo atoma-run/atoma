@@ -22,6 +22,13 @@ export const scriptEnvelopeSchema = z.object({
 
 export type ScriptEnvelope = { output: unknown; summary: string };
 
+/**
+ * The line that opens a summary's evidence block, on its own line: what was
+ * done comes before it, how it was checked after it. Readers split on it;
+ * the prompts that teach it still spell it inline.
+ */
+export const GROUND_TRUTH_MARKER = '== GROUND TRUTH ==';
+
 /** Schema-validated example embedded in prompts that teach the envelope. */
 export const EXAMPLE_ENVELOPE: ScriptEnvelope = scriptEnvelopeSchema.parse({
   output: '<the deliverable value>',
