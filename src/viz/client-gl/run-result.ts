@@ -1,11 +1,32 @@
 import { GROUND_TRUTH_MARKER } from '../../contracts/scriptEnvelope.js';
 import type { VizProjectRun, VizRun } from '../client/types.js';
 
+/**
+ * The text parts of an answer aggregated by concatenation, nested at any
+ * depth (an L3 concat over L2 concats); null as soon as one part is not text.
+ */
+function textParts(output: unknown): string[] | null {
+  if (!Array.isArray(output) || output.length === 0) return null;
+  const parts: string[] = [];
+  for (const part of output) {
+    if (typeof part === 'string') parts.push(part);
+    else {
+      const nested = textParts(part);
+      if (!nested) return null;
+      parts.push(...nested);
+    }
+  }
+  return parts;
+}
+
 /** Only the persisted final output is a delivery; intermediate events are not. */
 export function resultText(run: VizRun | null): string | null {
   const output = run?.result?.output;
   if (output === undefined || output === null) return null;
   if (typeof output === 'string') return output;
+  // Copy and export read text as text, not as its JSON encoding.
+  const parts = textParts(output);
+  if (parts) return parts.filter(part => part.trim()).join('\n\n');
   return JSON.stringify(output, null, 2);
 }
 
@@ -24,6 +45,9 @@ export function resultSections(run: VizRun): { title: string; text: string }[] {
 export function resultNarrative(run: VizRun): { title: string; text: string }[] {
   const output = run.result?.output;
   if (typeof output === 'string') return [{ title: '', text: output }];
+  // Concatenated phases of a text delivery: one answer in parts.
+  const parts = textParts(output);
+  if (parts) return parts.filter(part => part.trim()).map(text => ({ title: '', text }));
   if (output && typeof output === 'object' && !Array.isArray(output)) {
     return Object.entries(output).flatMap(([title, value]) =>
       typeof value === 'string' && value.trim() ? [{ title, text: value }] : []);

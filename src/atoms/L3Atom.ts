@@ -49,7 +49,7 @@ import { forkBranch } from '../core/branchCtx.js';
 import { ladderSpent, spentPhaseResult } from '../core/phaseBudget.js';
 import { effectiveObligations, anyUncovered, renderProofCoverage } from './proofCoverage.js';
 import { randomUUID } from 'node:crypto';
-import { criteriaAssignmentLine, delegatedCriteria, delegatedTaskContext, taskContextLines, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE } from './taskContext.js';
+import { criteriaAssignmentLine, delegatedCriteria, delegatedDelivery, delegatedTaskContext, taskContextLines, withPlannedDelivery, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE } from './taskContext.js';
 import { TASK_EXECUTION_GUIDANCE } from '../contracts/taskExecution.js';
 import { RegistryNotFoundError } from '../core/errors.js';
 import { scopeTools } from './toolMerge.js';
@@ -347,12 +347,14 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         } } };
         const remaining = await this.plan(continuation, ctx);
         if (remaining.aggregation.mode !== 'sequential') throw new Error('Client answer continuation requires a sequential remaining plan');
-        plan = { ...remaining, subtasks: [...prefix, ...remaining.subtasks] };
+        // The delivery is the original request's: a replan of the remaining phases may omit it.
+        const delivery = remaining.delivery ?? plan.delivery;
+        plan = { ...remaining, ...(delivery ? { delivery } : {}), subtasks: [...prefix, ...remaining.subtasks] };
         this.pendingPlannedPhases = prefix.length + (this.pendingPlannedPhases ?? remaining.subtasks.length);
       }
       checkpoint?.planned({ ...task, inputs: saved.inputs }, plan, this.pendingStrategy, this.pendingPlannedPhases);
       ctx.recordRootPlan?.(plan);
-      return this.execute({ ...task, inputs: saved.inputs }, plan, ctx);
+      return this.execute(withPlannedDelivery({ ...task, inputs: saved.inputs }, plan), plan, ctx);
     }
     // No parent validator sits above this plan. `acceptL3RootPlan` is the
     // one-shot collision check — see that module, not a second superviseLoop.
@@ -364,7 +366,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     });
     ctx.recordRootPlan?.(plan);
     checkpoint?.planned(task, plan, this.pendingStrategy, this.pendingPlannedPhases ?? plan.subtasks.length);
-    return this.execute(task, plan, ctx);
+    return this.execute(withPlannedDelivery(task, plan), plan, ctx);
   }
 
   async plan(task: Task, ctx: RunContext): Promise<Plan> {
@@ -906,6 +908,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         ? { proofObligations: effectiveObligations(subtask, parentTask) }
         : {}),
       ...delegatedCriteria(parentTask, siblings, idx, aggregationMode === 'sequential'),
+      ...delegatedDelivery(parentTask, subtask, idx, siblings.length, aggregationMode),
     };
     // Fork a branch-scoped ctx so the viz can render each L2 subtask
     // (and its downstream L1 tree) as its own lane.
@@ -1255,7 +1258,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       TASK_EXECUTION_GUIDANCE,
       task.executionMode === 'reasoning' ? 'This task and every descendant are reasoning-only; tools are disabled.' : '',
       `Task: ${task.description}`,
-      ...taskContextLines(task),
+      ...taskContextLines(task, { executor: true }),
       hasTools
         ? 'You HAVE tool access in this fallback turn (see Tools below). Plan concrete tool calls — do NOT describe work as prose when a tool can do it.'
         : 'You have NO tool access; produce a reasoning-only answer.',
@@ -1306,7 +1309,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
       TASK_EXECUTION_GUIDANCE,
       task.executionMode === 'reasoning' ? 'This task and every descendant are reasoning-only; tools are disabled.' : '',
       `Task: ${task.description}`,
-      ...taskContextLines(task),
+      ...taskContextLines(task, { executor: true }),
       `Plan: ${JSON.stringify(plan)}`,
       FALLBACK_VERIFICATION_GUIDANCE,
       hasTools ? STATEFUL_EVIDENCE_GUIDANCE : '',

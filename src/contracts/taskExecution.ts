@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { GROUND_TRUTH_MARKER } from './scriptEnvelope.js';
 
 /** Planner declarations, never inferred from vocabulary in the goal. */
 export const executionModeSchema = z.enum(['reasoning', 'tools']);
@@ -23,6 +24,20 @@ Use "tools" (the default) for work requiring reads, writes, external research or
 The originalTask input preserves the user's exact data and global constraints; perform only
 the current subtask, using that context without replacing literal values or inventing sources.
 previousStepResult is the preceding phase's answer, not just its progress summary.`;
+
+/**
+ * A tool-using task whose result IS the text a run delivers. Tool-using
+ * molecules are taught a file envelope ({files, probes}) by their stored
+ * prompts, so their answer used to land in the summary beside the evidence,
+ * and the person read checksums and commands as the answer (run 4e5c5c4b,
+ * 2026-10-12). Reasoning tasks already answer in output. The exception is the
+ * PERSON's request: in that run the planner's own phase text asked for the
+ * probes, which the summary carries.
+ */
+export const TEXT_DELIVERY_GUIDANCE = `Delivery: text. The person receives this result as a written answer, not as files. Your output is that answer, or your section of it when sibling tasks write the other sections: one Markdown string written for that person, with what you found, your conclusions and what they mean. This replaces any instruction to put files or probes in output. Keep verification evidence (hashes, exit codes, tool commands, raw test inputs) out of output unless the person's original request asks for it; report what you observed after "${GROUND_TRUTH_MARKER}" in the summary, even when a phase description asks you to state it. Files you write while working are not delivered.`;
+
+/** The same fact for planners and validators, who judge or plan that answer rather than write it. */
+export const TEXT_DELIVERY_CONTEXT = `Delivery: text. This task's result reaches the person as a written answer, not as files; its executor is asked to write that answer in output as Markdown and its evidence in the summary. Judge the answer wherever it was placed: never refuse a correct result for its placement alone, and never propose its placement as a lasting prompt change. The delivery shape belongs to this run.`;
 
 const REASONING_TASK_GUIDANCE = `This is a reasoning-only task. No tools are available.
 Solve it directly from the supplied task, originalTask and previous phase results.

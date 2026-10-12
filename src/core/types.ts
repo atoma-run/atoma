@@ -6,6 +6,12 @@ export interface Task {
   readonly description: string;
   readonly originalTask?: Pick<Task, 'description' | 'inputs' | 'constraints'>;
   readonly executionMode?: import('../contracts/taskExecution.js').ExecutionMode;
+  /**
+   * The root plan's declared delivery, stamped on the root task once planned
+   * (`withPlannedDelivery`) and inherited by every descendant like
+   * `executionMode`. Only a text delivery is carried: it changes what output is.
+   */
+  readonly delivery?: 'text';
   /** Semantic file intent from a recipe prefilter; never a restoration-policy flag. */
   readonly fileEffect?: import('../contracts/fileEffect.js').FileEffect;
   readonly inputs?: Record<string, unknown>;

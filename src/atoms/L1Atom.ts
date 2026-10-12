@@ -335,7 +335,7 @@ export class L1Atom extends Atom {
       // the whole root task here without calling a supervisor planner.
       // It is context, never an extra phase-validation requirement; the
       // phase's own criteria render beside it (Task.criteria).
-      ...taskContextLines(task, { includeAcceptanceChecklist: true }),
+      ...taskContextLines(task, { includeAcceptanceChecklist: true, executor: true }),
       ...proofObligationLines(task, this.tools.some((t) => t.name === 'validate_html')),
       ``,
       `Tools available at execute time:`,
@@ -429,7 +429,7 @@ export class L1Atom extends Atom {
       `You are molecule "${this.name}" (tier 1). Your plan has been APPROVED. Execute it now.`,
       ``,
       `Task: ${task.description}`,
-      ...taskContextLines(task),
+      ...taskContextLines(task, { executor: true }),
       ...proofObligationLines(task, hasValidator),
       previousAttempt ? `
 ${previousAttempt}` : '',

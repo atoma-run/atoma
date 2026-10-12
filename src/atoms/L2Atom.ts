@@ -43,7 +43,7 @@ import {
   renderProofCoverage,
 } from './proofCoverage.js';
 import { createHash, randomUUID } from 'node:crypto';
-import { criteriaAssignmentLine, delegatedCriteria, delegatedTaskContext, taskContextLines, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE } from './taskContext.js';
+import { criteriaAssignmentLine, delegatedCriteria, delegatedDelivery, delegatedTaskContext, taskContextLines, PLANNING_SCOPE_GUIDANCE, PROPORTIONATE_PLANNING_GUIDANCE } from './taskContext.js';
 import { TASK_EXECUTION_GUIDANCE } from '../contracts/taskExecution.js';
 import { RegistryNotFoundError } from '../core/errors.js';
 import { scopeTools } from './toolMerge.js';
@@ -863,6 +863,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         ? { proofObligations: effectiveObligations(subtask, parentTask) }
         : {}),
       ...delegatedCriteria(parentTask, siblings, idx, aggregationMode === 'sequential'),
+      ...delegatedDelivery(parentTask, subtask, idx, siblings.length, aggregationMode),
     };
 
     // Skill prefilter (C2a). When a SkillRegistry is wired and the
@@ -2265,7 +2266,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       TASK_EXECUTION_GUIDANCE,
       task.executionMode === 'reasoning' ? 'This task and every descendant are reasoning-only; tools are disabled.' : '',
       `Task: ${task.description}`,
-      ...taskContextLines(task),
+      ...taskContextLines(task, { executor: true }),
       hasTools
         ? 'You HAVE tool access in this fallback turn (see Tools below). Plan concrete tool calls — do NOT describe work as prose when a tool can do it.'
         : 'You have NO tool access; produce a reasoning-only answer.',
@@ -2316,7 +2317,7 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
       TASK_EXECUTION_GUIDANCE,
       task.executionMode === 'reasoning' ? 'This task and every descendant are reasoning-only; tools are disabled.' : '',
       `Task: ${task.description}`,
-      ...taskContextLines(task),
+      ...taskContextLines(task, { executor: true }),
       ``,
       `Plan: ${JSON.stringify(plan)}`,
       FALLBACK_VERIFICATION_GUIDANCE,

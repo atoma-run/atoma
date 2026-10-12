@@ -41,6 +41,7 @@ import { openDb } from '../registry/db.js';
 import { skillsDirPath } from '../core/stores.js';
 import { L3Atom } from '../atoms/L3Atom.js';
 import { L2Atom } from '../atoms/L2Atom.js';
+import { withPlannedDelivery } from '../atoms/taskContext.js';
 import { depthModeSchema, type DepthMode } from '../contracts/depthRouting.js';
 import { decodePreviousLanding, isLanded, landingReasons, PREVIOUS_LANDING_ENV } from '../contracts/runLanding.js';
 import { withPreviousRunInputs } from './taskInputs.js';
@@ -98,6 +99,18 @@ export const consoleLogger: Logger = {
 };
 
 export const ARTIFACT_MANIFEST_PATH_ENV = 'ATOMA_ARTIFACT_MANIFEST_PATH';
+
+/**
+ * SHORT depth's root: the entry cell plans, the plan is recorded, and a
+ * declared text delivery reaches every descendant before execution.
+ */
+export function shortRootHandle(cell: L2Atom): (task: Task, context: RunContext) => Promise<Result> {
+  return async (task, context) => {
+    const plan = await cell.plan(task, context);
+    context.recordRootPlan?.(plan);
+    return cell.execute(withPlannedDelivery(task, plan), plan, context);
+  };
+}
 
 export function persistDeclaredArtifactManifest(path: string, runId: string, plan: Plan): void {
   // Declared outputs are MODEL-AUTHORED and unbounded on `planSchema`, while
@@ -1189,11 +1202,7 @@ async function startTaskInternal(
             const peers = registry.listByTier(2).filter((type) => type.name !== entry.name)
               .map((type) => L2Atom.fromType(type, registry, [], skillRegistry));
             const cell = L2Atom.fromType(entry, registry, peers, skillRegistry);
-            return { actor: cell, handle: async (task, context) => {
-              const plan = await cell.plan(task, context);
-              context.recordRootPlan?.(plan);
-              return cell.execute(task, plan, context);
-            } };
+            return { actor: cell, handle: shortRootHandle(cell) };
           }
           const tissue = await tissueFor(t, c);
           return { actor: tissue, handle: (task, context) => tissue.handle(task, context) };

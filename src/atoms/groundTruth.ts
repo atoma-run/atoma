@@ -1013,14 +1013,21 @@ export function extractResultUrl(payload: unknown): string | null {
   // the live traces contained `http://localhost:<port>/:` and `/;`, which
   // made the independent probe request a missing path. Explicit URL fields
   // and bare URL outputs above remain byte-honest, including legal punctuation.
-  const freeTextRe = /https?:\/\/[^\s"'`<>)]+/i;
+  //
+  // Free text yields LOOPBACK URLs only, the rule the hybrid sniff above
+  // states: a text answer is Markdown for a reader and routinely cites
+  // external pages, and the first of them must not become a supervisor
+  // browser or HTTP probe of a third-party site (review 2026-10-13).
+  const freeTextRe = /https?:\/\/[^\s"'`<>)]+/gi;
   const candidates: string[] = [];
   if (typeof output === 'string') candidates.push(output);
   const summary = obj['summary'];
   if (typeof summary === 'string') candidates.push(summary);
   for (const s of candidates) {
-    const m = s.match(freeTextRe);
-    if (m && m[0]) return m[0].replace(/[.,;:]+$/, '');
+    for (const m of s.matchAll(freeTextRe)) {
+      const url = m[0].replace(/[.,;:]+$/, '');
+      if (LOOPBACK_URL_RE.test(url)) return url;
+    }
   }
   return null;
 }

@@ -10,7 +10,8 @@ import { createAttestationLog } from '../src/core/attestation.js';
 import { RUN_ACTORS } from '../src/contracts/runActors.js';
 import type { DeliveryKind } from '../src/contracts/taskExecution.js';
 import type { LlmCompletionRequest, Plan, RunContext, Task } from '../src/core/types.js';
-import { persistDeclaredArtifactManifest } from '../src/run/runner.js';
+import { persistDeclaredArtifactManifest, shortRootHandle } from '../src/run/runner.js';
+import { TEXT_DELIVERY_CONTEXT, TEXT_DELIVERY_GUIDANCE } from '../src/contracts/taskExecution.js';
 import { buildWorkspaceArtifactManifest } from '../src/projects/artifacts.js';
 import { declaredArtifactManifestSchema } from '../src/contracts/artifactManifest.js';
 import { makeCtx, jsonText } from './helpers.js';
@@ -31,7 +32,7 @@ const checklist = [
  * it, and a correct answer was refused. The model here is honest: a reviewer
  * judges a criterion met only when the delivered answer is in its prompt.
  */
-async function shortRun(options: { writes: boolean; userList?: false; onPlan?: (plan: Plan) => void }) {
+async function shortRun(options: { writes: boolean; userList?: false; declare?: boolean; onPlan?: (plan: Plan) => void }) {
   for (const [key, value] of Object.entries({
     ATOMA_MODEL_L1: 'api:anthropic:claude-haiku-4-5', ATOMA_MODEL_L2: 'api:anthropic:claude-haiku-4-5',
     ATOMA_MODEL_L3: 'api:anthropic:claude-haiku-4-5', ATOMA_PREFILTER_CACHE: '0',
@@ -44,6 +45,7 @@ async function shortRun(options: { writes: boolean; userList?: false; onPlan?: (
     tools: { has: () => true, execute: async (name: string) => name === 'list_files' ? 'data.txt' : name === 'write_file' ? 'ok' : '40\n42\n44' },
   } as unknown as RunContext;
   const calls: string[] = [];
+  const prompts: Array<{ call: string; userContent: string }> = [];
   const recorded: Array<DeliveryKind | undefined> = [];
   const passes: Plan[] = [];
   const acceptances: boolean[] = [];
@@ -51,8 +53,10 @@ async function shortRun(options: { writes: boolean; userList?: false; onPlan?: (
   const respond = async (req: LlmCompletionRequest) => {
     const sees = req.userContent.includes('THE_DELIVERED_TEXT_ANSWER');
     calls.push(`${req.role}/${req.actor?.name ?? '?'}`);
+    prompts.push({ call: `${req.role}/${req.actor?.name ?? '?'}`, userContent: req.userContent });
     let reply: unknown;
-    if (req.role === 'prefilter') reply = { kind: 'reuse', target: leaf.name, confidence: 'high', reasoning: 'one molecule answers it' };
+    if (req.role === 'prefilter') reply = options.declare ? { kind: 'escalate', reasoning: 'the cell plans this itself' }
+      : { kind: 'reuse', target: leaf.name, confidence: 'high', reasoning: 'one molecule answers it' };
     // A remediation pass: the prefilter target is excluded, so the cell plans itself.
     else if (req.role === 'plan' && req.actor?.tier === 2) reply = [
       { strategy: 'reuse', target: leaf.name, reasoning: 'same molecule, address the refusal' },
@@ -88,15 +92,12 @@ async function shortRun(options: { writes: boolean; userList?: false; onPlan?: (
     onAcceptance: (acceptance) => { acceptances.push(acceptance.approved); },
     createExecutor: () => {
       const cell = L2Atom.fromType(cellType, registry, [], null);
-      // The exact short handle of `runner.ts`.
-      return { actor: cell, handle: async (t: Task, c: RunContext) => {
-        const plan = await cell.plan(t, c);
-        passes.push(plan);
-        c.recordRootPlan?.(plan);
-        return cell.execute(t, plan, c);
-      } };
+      // The production short handle of `runner.ts`, observed through recordRootPlan.
+      const handle = shortRootHandle(cell);
+      return { actor: cell, handle: (t: Task, c: RunContext) => handle(t, { ...c,
+        recordRootPlan: (plan) => { passes.push(plan); c.recordRootPlan?.(plan); } }) };
     } });
-  return { result, calls, recorded, passes, acceptances };
+  return { result, calls, prompts, leaf: leaf.name, recorded, passes, acceptances };
 }
 
 describe('short depth: an undeclared delivery is never judged blind', () => {
@@ -112,6 +113,28 @@ describe('short depth: an undeclared delivery is never judged blind', () => {
     expect(calls.some((call) => call.endsWith(`/${RUN_ACTORS.criteria.name}`))).toBe(false);
     // The declared manifest learns the delivery the pass was judged as.
     expect(recorded).toEqual([undefined, 'text']);
+  });
+
+  it('tells the tool-using molecule and its validator that a declared text delivery is the answer', async () => {
+    // Run 4e5c5c4b (2026-10-12): a tool-using review kept its file envelope,
+    // so its answer sat in the summary beside checksums and commands.
+    const { result, prompts, leaf, passes } = await shortRun({ writes: false, declare: true });
+    expect(passes[0]!.delivery).toBe('text');
+    const molecule = prompts.filter(({ call }) => call === `plan/${leaf}` || call === `execute/${leaf}`);
+    expect(molecule.map(({ call }) => call)).toEqual([`plan/${leaf}`, `execute/${leaf}`]);
+    expect(molecule.every(({ userContent }) => userContent.includes(TEXT_DELIVERY_GUIDANCE))).toBe(true);
+    const cellReview = prompts.find(({ call }) => call.startsWith('validate-result/') && !call.endsWith(RUN_ACTORS.root.name)
+      && !call.endsWith('run-text-reference'));
+    // The validator reads the fact, never the executor's instruction.
+    expect(cellReview?.userContent).toContain(TEXT_DELIVERY_CONTEXT);
+    expect(cellReview?.userContent).not.toContain(TEXT_DELIVERY_GUIDANCE);
+    expect(result.output).toBe(ANSWER);
+  });
+
+  it('says nothing about delivery before a plan declared one', async () => {
+    // The prefilter shortcut plans in code; its delivery is observed afterwards.
+    const { prompts } = await shortRun({ writes: false });
+    expect(prompts.some(({ userContent }) => userContent.includes('Delivery: text'))).toBe(false);
   });
 
   it('keeps the report-blind criteria review for a pass that wrote files', async () => {

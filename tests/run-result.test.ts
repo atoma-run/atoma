@@ -36,8 +36,13 @@ describe('final result presentation', () => {
     expect(resultText(run)).not.toContain('Earlier phases');
     expect(resultText({ ...run, result: { summary: 'A summary is not an answer.' } })).toBeNull();
   });
-  it.each([false, 0, '', ['a', 'b']])('keeps valid output %j', output => {
+  it.each([false, 0, '', ['a', { b: 1 }]])('keeps valid output %j', output => {
     expect(resultText({ ...run, result: { output } })).toBe(typeof output === 'string' ? output : JSON.stringify(output, null, 2));
+  });
+  it('copies a concatenated text answer as text, nested parts included', () => {
+    const output = [['First part.', ''], ['Second part.'], 'Third part.'];
+    expect(resultText({ ...run, result: { output } })).toBe('First part.\n\nSecond part.\n\nThird part.');
+    expect(resultNarrative({ ...run, result: { output } }).map(section => section.text)).toEqual(['First part.', 'Second part.', 'Third part.']);
   });
   it('preserves the complete answer for export, even when the GPU preview is bounded', () => {
     const output = 'a'.repeat(80000);
