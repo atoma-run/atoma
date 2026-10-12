@@ -152,6 +152,10 @@ Neighbours:
 
 ## Probe manifest writes
 
+- `fetch_url record:true` persists `serverKind` and `entry` only from its
+  verified `servedBy` observation: a live process holding the requested port,
+  no redirect. A static HTTP response must not classify browser `app.js` as
+  a Node server. Foreign or stale origins remain unstamped.
 - `write_file` and `edit_file` REFUSE `.atoma-probes.json`
   (`manifestHandWriteRefusal`), naming the recorder of each shape. Until
   2026-10-11 the web canonical asked the molecule to write_file the manifest

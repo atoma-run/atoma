@@ -9,6 +9,7 @@ import {
   defaultBuiltinTools,
   fetchUrlTool,
   startNodeServerTool,
+  startStaticServerTool,
   type BuiltinTool,
   type ServedOrigins,
 } from '../src/tools/builtin.js';
@@ -17,6 +18,7 @@ import {
   appendHttpProbe,
   validateProbeManifest,
 } from '../src/contracts/probeManifest.js';
+import { classifyDeliveredWorkspace } from '../src/preview/descriptor.js';
 
 /**
  * THE ONE CROSS-TOOL CHANNEL that carries the machine-observed entry file.
@@ -52,6 +54,7 @@ interface RecordedHttpEntry {
   body?: string;
   note?: string;
   entry?: string;
+  serverKind?: 'static' | 'node';
 }
 
 function readManifestEntries(root: string): RecordedHttpEntry[] {
@@ -89,6 +92,37 @@ describe('start_node_server records the entry file against the bound port', () =
     // server survives the test file and squats its port.
     await sandbox.cleanup();
     rmSync(root, { recursive: true, force: true });
+  });
+
+  it('keeps a real static HTTP probe static through recording and delivery classification (fb84de15)', async () => {
+    writeFileSync(join(root, 'index.html'), '<!doctype html><script src="app.js"></script>');
+    writeFileSync(join(root, 'app.js'), 'window.readingLog = true;');
+    const servedOrigins: ServedOrigins = new Map();
+    const started = await startStaticServerTool({ sandbox, servedOrigins }).execute({}) as { port: number };
+    const result = await fetchUrlTool({ sandbox, servedOrigins }).execute({
+      url: `http://127.0.0.1:${started.port}/index.html`, record: true,
+    }) as { recorded: boolean; servedBy: { kind: string } };
+    expect(result.recorded).toBe(true);
+    expect(result.servedBy.kind).toBe('static');
+    expect(readManifestEntries(root)[0]).toMatchObject({ serverKind: 'static' });
+    expect(readManifestEntries(root)[0]).not.toHaveProperty('entry');
+    expect(classifyDeliveredWorkspace(root)).toMatchObject({ kind: 'static', entry: null });
+  });
+
+  it('does not stamp a redirected response with the requested server identity', async () => {
+    writeFileSync(join(root, 'server.js'), `
+      const http = require('node:http');
+      const server = http.createServer((req, res) => {
+        if (req.url === '/redirect') res.writeHead(302, { location: '/final' });
+        res.end('ok');
+      });
+      server.listen(Number(process.env.PORT), '127.0.0.1', () => console.log('LISTENING_ON_PORT=' + server.address().port));
+    `);
+    const servedOrigins: ServedOrigins = new Map();
+    const started = await startNodeServerTool({ sandbox, servedOrigins }).execute({ entry: 'server.js' }) as { port: number };
+    await fetchUrlTool({ sandbox, servedOrigins }).execute({ url: `http://127.0.0.1:${started.port}/redirect`, record: true });
+    expect(readManifestEntries(root)[0]).not.toHaveProperty('serverKind');
+    expect(readManifestEntries(root)[0]).not.toHaveProperty('entry');
   });
 
   it('returns the entry and publishes it into the shared servedOrigins registry', async () => {
@@ -180,6 +214,7 @@ describe('start_node_server records the entry file against the bound port', () =
     expect(entries).toHaveLength(1);
     expect(entries[0]!.path).toBe('/status');
     expect(entries[0]!.entry).toBe('server.js');
+    expect(entries[0]!.serverKind).toBe('node');
   });
 });
 
@@ -225,6 +260,7 @@ describe('fetch_url stamps ONLY what this tool set actually started', () => {
     const entries = readManifestEntries(root);
     expect(entries).toHaveLength(1);
     expect(Object.prototype.hasOwnProperty.call(entries[0]!, 'entry')).toBe(false);
+    expect(entries[0]).not.toHaveProperty('serverKind');
     // Still valid evidence — the stamp is an enrichment, never a requirement.
     expect(validateProbeManifest(readFileSync(join(root, PROBE_MANIFEST_FILENAME), 'utf8'))).toEqual(
       []
@@ -244,6 +280,13 @@ describe('fetch_url stamps ONLY what this tool set actually started', () => {
     const entries = readManifestEntries(root);
     expect(entries).toHaveLength(1);
     expect(Object.prototype.hasOwnProperty.call(entries[0]!, 'entry')).toBe(false);
+  });
+
+  it('does not persist a stale origin whose process no longer owns the port', async () => {
+    const servedOrigins: ServedOrigins = new Map([[port, { kind: 'node', pid: 2147483647, entry: 'server.js' }]]);
+    await fetchUrlTool({ sandbox, servedOrigins }).execute({ url: `http://127.0.0.1:${port}/`, record: true });
+    expect(readManifestEntries(root)[0]).not.toHaveProperty('serverKind');
+    expect(readManifestEntries(root)[0]).not.toHaveProperty('entry');
   });
 
   // Same port, same map, same live server — ONLY the hostname differs. That

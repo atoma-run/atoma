@@ -20,6 +20,7 @@ import {
   smokeOkIncludesStyling,
   smokeResultIncludesStyling,
   stylingFieldPaths,
+  type HttpEntry,
 } from '../contracts/probeManifest.js';
 
 // The manifest MERGE semantics (entry identity per shape + the three
@@ -1388,15 +1389,7 @@ export function fetchUrlTool(opts: BuiltinToolOptions): BuiltinTool {
         };
         if (args['record'] === true) {
           const parsedUrl = new URL(url);
-          const entry: {
-            probe: 'http';
-            method: string;
-            path: string;
-            status: number;
-            body?: string;
-            note?: string;
-            entry?: string;
-          } = {
+          const entry: HttpEntry = {
             probe: 'http',
             method,
             path: `${parsedUrl.pathname}${parsedUrl.search}` || '/',
@@ -1406,19 +1399,12 @@ export function fetchUrlTool(opts: BuiltinToolOptions): BuiltinTool {
           if (typeof args['note'] === 'string' && args['note'].trim()) {
             entry.note = args['note'].trim();
           }
-          // WHICH FILE ANSWERED. Only for a loopback request whose port this
-          // tool set actually started: an external API on 443 is not one of
-          // our servers, and stamping it with an unrelated entry file would
-          // manufacture evidence rather than record it. The bound port is
-          // OS-assigned and ephemeral, so the lookup is exact.
-          const loopback =
-            parsedUrl.hostname === 'localhost' ||
-            parsedUrl.hostname === '127.0.0.1' ||
-            parsedUrl.hostname === '[::1]' ||
-            parsedUrl.hostname === '::1';
-          if (loopback && parsedUrl.port) {
-            const servedByEntry = opts.servedOrigins?.get(Number(parsedUrl.port))?.entry;
-            if (servedByEntry) entry.entry = servedByEntry;
+          // Persist the SAME verified origin as the observation above. A
+          // static HTTP response must not make a browser app.js a Node entry.
+          // Redirects, dead processes and foreign ports establish no identity.
+          if (servedBy) {
+            entry.serverKind = servedBy.kind;
+            if (servedBy.entry) entry.entry = servedBy.entry;
           }
           const manifestPath = opts.sandbox.resolve(PROBE_MANIFEST_FILENAME);
           const existing = existsSync(manifestPath)

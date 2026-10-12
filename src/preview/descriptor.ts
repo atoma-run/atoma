@@ -226,8 +226,13 @@ export function classifyDeliveredWorkspace(
     .filter(isRecord)
     .map(entryKind);
 
-  if (kinds.includes('http')) {
-    let resolved = usableEntry(workspaceRoot, stampedEntry(entries ?? []));
+  // Static servers also answer HTTP. Only a host-observed static identity
+  // excludes a request from Node evidence; old unstamped entries stay unknown.
+  // A contradictory entry stamp remains Node evidence rather than hiding it.
+  const nodeEvidence = (entries ?? []).filter((entry) => !isRecord(entry)
+    || entryKind(entry) !== 'http' || entry['serverKind'] !== 'static' || entry['entry'] !== undefined);
+  if (nodeEvidence.some((entry) => isRecord(entry) && entryKind(entry) === 'http')) {
+    let resolved = usableEntry(workspaceRoot, stampedEntry(nodeEvidence));
     if (resolved === null) {
       let main: string | null;
       try {
@@ -255,7 +260,7 @@ export function classifyDeliveredWorkspace(
     }
     // Probes of a server that is gone say nothing about this workspace; the
     // page a browser validated is what remains. Otherwise it is not runnable.
-    if (!httpProbesOutlivedTheirServer(workspaceRoot, entries ?? [])) return unavailable('not-runnable');
+    if (!httpProbesOutlivedTheirServer(workspaceRoot, nodeEvidence)) return unavailable('not-runnable');
   }
 
   // A web probe means a browser validated a page in this workspace; the page

@@ -341,6 +341,25 @@ describe('an http probe classifies the deliverable as node', () => {
 });
 
 describe('a web probe or a bare index.html classifies as static', () => {
+  it('ignores only explicitly observed static HTTP servers, preserving Node and unknown evidence', () => {
+    const files = { 'index.html': '<script src="app.js"></script>', 'app.js': 'window.app = true;' };
+    const staticProbe = httpEntry({ serverKind: 'static', path: '/index.html' });
+    const classify = (...entries: unknown[]) => classifyDeliveredWorkspace(workspace({
+      ...files, [PROBE_MANIFEST_FILENAME]: manifest(...entries),
+    }));
+    expect(classify(staticProbe)).toMatchObject({ kind: 'static', entry: null });
+    // A static probe must not hide a real Node server, in either order.
+    for (const other of [httpEntry(), httpEntry({ serverKind: 'node', entry: 'app.js' }),
+      httpEntry({ serverKind: 'static', entry: 'app.js' })]) {
+      expect(classify(staticProbe, other).kind).toBe('node');
+      expect(classify(other, staticProbe).kind).toBe('node');
+    }
+    // A static response is not a promise that the deliverable has an HTML entry.
+    expect(classifyDeliveredWorkspace(workspace({
+      'app.js': 'window.app = true;', [PROBE_MANIFEST_FILENAME]: manifest(staticProbe),
+    })).unavailableReason).toBe('unsupported-deliverable');
+  });
+
   it('classifies a web probe as static with no entry', () => {
     const root = workspace({
       [PROBE_MANIFEST_FILENAME]: manifest(WEB_ENTRY),

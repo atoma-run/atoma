@@ -79,6 +79,10 @@ export const httpEntrySchema = z
     path: z.string().min(1),
     status: z.number(),
     body: z.string().optional(),
+    note: z.string().optional(),
+    /** Host-observed server identity; absent in historical manifests. Never model-authored. */
+    serverKind: z.enum(['static', 'node']).optional(),
+    entry: z.string().optional(),
   })
   .passthrough();
 
@@ -1091,27 +1095,9 @@ export function mergeShellProbe(
  */
 export function appendHttpProbe(
   existingRaw: string | null,
-  entry: {
-    probe: 'http';
-    method: string;
-    path: string;
-    status: number;
-    body?: string;
-    note?: string;
-    /**
-     * The entry file `start_node_server` spawned for the port this request
-     * reached, when the recorder knew it.
-     *
-     * MACHINE-STAMPED AND DELIBERATELY UNTAUGHT. It is absent from
-     * `EXAMPLE_HTTP_ENTRY` and from `manifestWriterLines`, because a field the
-     * prompt teaches is a field a model authors — and the whole reason this
-     * one exists is to be an observation. Its OMISSION means "unknown", not
-     * "varies between runs", which is the opposite of what an omitted
-     * `stdout` means on a shell entry; a replayer preserving entry shape must
-     * not read the two the same way.
-     */
-    entry?: string;
-  }
+  // serverKind and entry are deliberately absent from the taught example:
+  // omission means unknown, never an assertion that the server was static.
+  entry: HttpEntry
 ): string {
   let doc: { version: number; entries: Record<string, unknown>[] } = {
     version: 1,

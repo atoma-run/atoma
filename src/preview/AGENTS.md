@@ -114,9 +114,13 @@ very directory EMPTY before copying from it.
   Verification is read-only, and a classifier trusting a model's claim about
   its own deliverable is the supervisor replaying a child's command wearing a
   different hat.
-- An `http` probe entry means `node`; a `web` entry, or a bare `index.html`,
+- An `http` probe entry means `node` unless its host-observed `serverKind`
+  is `static` and it carries no conflicting `entry` stamp. Static HTTP probes
+  do not choose a Node entry; any other HTTP evidence keeps its precedence.
+  Missing server identity stays unknown, including historical manifests.
+  A `web` entry, or a bare `index.html`,
   means `static`; anything else is `unsupported-deliverable`. One exception,
-  asked only once no node entry resolves: when every http entry stamps a
+  asked only once no node entry resolves: when every remaining http entry stamps a
   `.js`/`.mjs`/`.cjs` path with nothing left at it, no `package.json` exists,
   and a web entry names a servable HTML file that does, the probes describe
   a server a later run deleted, and the page is `static`. A stray
@@ -124,6 +128,8 @@ very directory EMPTY before copying from it.
   page `not-runnable`, without preview or replay. A looser test turned
   renamed, cleaned or deleted Node servers `static`, and the replay then
   removed their checks as dead (review 2026-10-01).
+  The static HTTP recorder loss and its archived operator repair are recorded
+  in [the Reading log incident](../../docs/incidents/reading-log-preview-2026-10-12.md).
 - The node entry resolves in one order and stops at the first hit: the `entry`
   stamped on the newest http probe, then `package.json.main`, then `server.js`
   → `index.js` → `app.js`. Each candidate must be a regular non-symlinked file
