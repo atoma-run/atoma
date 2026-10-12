@@ -92,6 +92,17 @@ describe('the integrated assistant', () => {
     expect(f.complete).toHaveBeenCalledTimes(1); // no model call for approval or tracking
   });
 
+  it("presents the project's newest run, even one this conversation did not start", async () => {
+    const f = fixture(start);
+    const scope = f.service.scope(f.viewer, projectId);
+    expect(f.store.read(scope).conversation.lastRun).toBeNull();
+    expect((await f.service.view(scope, f.mcp)).run).toMatchObject({ projectId, runId, status: 'running', traceId: 'trace' });
+    expect(f.call).toHaveBeenCalledWith('atoma_project_runs', { projectId, view: 'compact', limit: 1 });
+    expect(f.call).toHaveBeenCalledWith('atoma_run_status', { projectId, runId });
+    // An unbound conversation has no project to list, and no run until it starts one.
+    expect((await f.service.view(f.scope, f.mcp)).run).toBeNull();
+  });
+
   it('uses the saved brief and latest run as context, and carries the approved criteria verbatim', async () => {
     const f = fixture(start);
     const scope = f.service.scope(f.viewer, projectId);

@@ -34,7 +34,7 @@ function deliveryReview(): RunReview {
 }
 function deliveredView() {
   const data = view();
-  data.run = { status: 'delivered', costUsd: 0.52, traceId: 'trace-1', error: null };
+  data.run = { projectId, runId: 'run-1', status: 'delivered', costUsd: 0.52, traceId: 'trace-1', error: null };
   data.conversation.lastRun = { projectId, runId: 'run-1' };
   return data;
 }
@@ -236,7 +236,7 @@ it('shows refreshing relative message ages with the exact timestamp available on
 it('shows run status, opens the existing run view and separates conversation cost', async () => {
   vi.spyOn(api, 'runReview').mockResolvedValue(deliveryReview());
   const data = view();
-  data.run = { status: 'delivered', costUsd: 0.52, traceId: 'trace-1', error: null };
+  data.run = { projectId, runId: 'run-1', status: 'delivered', costUsd: 0.52, traceId: 'trace-1', error: null };
   data.conversation.lastRun = { projectId, runId: 'run-1' };
   data.conversation.costUsd = 0.0012;
   data.conversation.inputTokens = 900;
@@ -274,6 +274,18 @@ it('recovers a delivered run on re-entry and publishes only after explicit revie
   expect(await screen.findByText('Published to GitHub. Open the run for publication details.')).toBeVisible();
   expect(screen.queryByRole('button', { name: 'Review and publish to GitHub' })).not.toBeInTheDocument();
   expect(inference).not.toHaveBeenCalled();
+});
+
+it('offers review and publication for a run this conversation did not start', async () => {
+  // Started over MCP or the CLI: the conversation never recorded it, and the
+  // browser had no other place to accept it (2026-10-12).
+  const read = vi.spyOn(api, 'runReview').mockResolvedValue(deliveryReview());
+  const data = deliveredView(); data.conversation.lastRun = null;
+  const { props } = panel(data);
+  expect(await screen.findByRole('button', { name: 'Review and publish to GitHub' })).toBeVisible();
+  expect(read).toHaveBeenCalledWith(projectId, 'run-1');
+  await userEvent.click(screen.getByRole('button', { name: 'Open run' }));
+  expect(props.onRun).toHaveBeenCalledWith({ projectId, runId: 'run-1' }, 'trace-1');
 });
 
 it.each(['partial', 'failed', 'cancelled'])('announces a %s outcome without offering publication', async status => {

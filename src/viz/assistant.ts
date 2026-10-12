@@ -51,9 +51,17 @@ export class AssistantService {
     const { conversation, busy, nextBefore } = this.store.page(scope, before);
     if (conversation.projectId) await mcp.call('atoma_project_context', { projectId: conversation.projectId });
     let run: AssistantView['run'] = null;
-    if (conversation.lastRun) {
-      const status = object(await mcp.call('atoma_run_status', conversation.lastRun));
-      run = { status: typeof status['status'] === 'string' ? status['status'] : 'unknown', traceId: typeof status['traceId'] === 'string' ? status['traceId'] : null,
+    // The project's newest run, whoever started it: a run launched over MCP or
+    // the CLI awaits the same client acceptance, and this card is where the
+    // browser offers it. An unbound conversation keeps the run it started.
+    const newest = conversation.projectId
+      ? list(await mcp.call('atoma_project_runs', { projectId: conversation.projectId, view: 'compact', limit: 1 }), 'runs')[0]
+      : undefined;
+    const target = typeof newest?.['projectRunId'] === 'string'
+      ? { projectId: conversation.projectId!, runId: newest['projectRunId'] } : conversation.lastRun;
+    if (target) {
+      const status = object(await mcp.call('atoma_run_status', target));
+      run = { ...target, status: typeof status['status'] === 'string' ? status['status'] : 'unknown', traceId: typeof status['traceId'] === 'string' ? status['traceId'] : null,
         costUsd: typeof status['costUsd'] === 'number' ? status['costUsd'] : null,
         error: typeof status['error'] === 'string' ? status['error'] : null };
     }

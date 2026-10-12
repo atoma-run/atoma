@@ -69,6 +69,7 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
   useEffect(() => { if (log.current) log.current.scrollTop = log.current.scrollHeight; },
     [conversation?.messages.at(-1)?.id ?? conversation?.messages.length, query.data?.run?.status, waiting, active]);
   const proposal = conversation?.proposal;
+  const shownRun = query.data?.run ?? null;
   const modelChoice = selection ?? conversation?.modelChoice ?? '';
   const choices = query.data?.choices ?? [];
   const selected = choices.find(choice => choice.id === modelChoice);
@@ -213,11 +214,12 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
           : <p>{message.role === 'receipt' ? t(message.text) : message.text}</p>}
         {message.projectId || message.run ? <div className="gpu-assistant-message-actions">
           {message.projectId ? <button type="button" onClick={() => onProject(message.projectId!)}><ButtonIcon kind="folder" />{t('assistant.openProject')}</button> : null}
-          {message.run ? <button type="button" onClick={() => onRun(message.run!, conversation?.lastRun?.runId === message.run!.runId ? query.data?.run?.traceId ?? null : null)}><ButtonIcon kind="play" />{t('assistant.openRun')}</button> : null}
+          {message.run ? <button type="button" onClick={() => onRun(message.run!, query.data?.run?.runId === message.run!.runId ? query.data.run.traceId : null)}><ButtonIcon kind="play" />{t('assistant.openRun')}</button> : null}
         </div> : null}
       </article>)}
-      {query.data?.run && conversation?.lastRun && ['delivered', 'partial', 'failed', 'cancelled'].includes(query.data.run.status) ?
-        <AssistantRunResult key={`${scopeKey}:${conversation.lastRun.runId}`} scopeKey={scopeKey} target={conversation.lastRun}
+      {query.data?.run && ['delivered', 'partial', 'failed', 'cancelled'].includes(query.data.run.status) ?
+        <AssistantRunResult key={`${scopeKey}:${query.data.run.runId}`} scopeKey={scopeKey}
+          target={{ projectId: query.data.run.projectId, runId: query.data.run.runId }}
           run={query.data.run} t={t} onRun={onRun} /> : null}
       {proposal && proposal.state !== 'done' ? <article className="gpu-assistant-proposal" aria-label={t('assistant.proposal')}>
         <h3>{t('assistant.proposal')}</h3>
@@ -239,10 +241,10 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
         <span className="gpu-assistant-typing-dots" aria-hidden="true"><span /><span /><span /></span>
       </div> : null}
     </div>
-    {query.data?.run && conversation?.lastRun && !['delivered', 'partial', 'failed', 'cancelled'].includes(query.data.run.status) ? <div className="gpu-assistant-run" role="status">
-      <span>{t('assistant.runStatus', { status: t(`projects.runStatus.${query.data.run.status}`) })}
-        {query.data.run.costUsd !== null ? ` · $${query.data.run.costUsd.toFixed(2)}` : ''}</span>
-      <button type="button" onClick={() => onRun(conversation.lastRun!, query.data?.run?.traceId ?? null)}><ButtonIcon kind="play" />{t('assistant.openRun')}</button>
+    {shownRun && !['delivered', 'partial', 'failed', 'cancelled'].includes(shownRun.status) ? <div className="gpu-assistant-run" role="status">
+      <span>{t('assistant.runStatus', { status: t(`projects.runStatus.${shownRun.status}`) })}
+        {shownRun.costUsd !== null ? ` · $${shownRun.costUsd.toFixed(2)}` : ''}</span>
+      <button type="button" onClick={() => onRun({ projectId: shownRun.projectId, runId: shownRun.runId }, shownRun.traceId)}><ButtonIcon kind="play" />{t('assistant.openRun')}</button>
     </div> : null}
     {error ? <p role="alert" className="gpu-assistant-error">{error}</p> : null}
     <form aria-busy={waiting} onSubmit={event => { event.preventDefault(); void submit('message'); }}>

@@ -23,7 +23,9 @@ raw HTML is displayed as text and external images are not loaded. Web links
 open in a new tab.
 
 The conversation shows recorded run status and cost, including a result card
-when a run finishes, even after returning to the project. **Open run** leads to
+when a run finishes, even after returning to the project. In a project, that
+card follows the project's newest run, whether the conversation, an MCP client
+or the CLI started it, so every delivery can be accepted here. **Open run** leads to
 the existing progress and result reader; the project offers supported previews.
 For a delivered result, **Review and publish to GitHub** opens a review field.
 After testing or reviewing the result, enter your review and choose **Accept

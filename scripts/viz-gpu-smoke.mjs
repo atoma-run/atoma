@@ -2578,7 +2578,7 @@ try {
       const deliveryRunId = 'eeeeeeee-1111-4222-8333-ffffffffffff';
       const reviewPath = `/api/projects/${projectId}/runs/${deliveryRunId}/review`;
       stubs['/api/assistant'] = { ...originalAssistant,
-        run: { status: 'delivered', costUsd: 0.22, traceId: 'trace-delivered', error: null },
+        run: { projectId, runId: deliveryRunId, status: 'delivered', costUsd: 0.22, traceId: 'trace-delivered', error: null },
         conversation: { ...originalAssistant.conversation, projectId,
           lastRun: { projectId, runId: deliveryRunId }, messages: [
             { role: 'receipt', text: 'assistant.runStarted', at: '2026-10-12T03:19:18.000Z' },
