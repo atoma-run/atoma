@@ -1733,6 +1733,7 @@ function drawEventDetail(
   let headerBottom = y + 24 + title.height;
   const atoms = buildAtomMap(run);
   const participants = eventParticipants(event);
+  const model = event.servedModel ?? event.model;
   const controls = ctx.animatedLayer(ctx.root, 'event-participants');
   const grouped = new Map<string, { name: string; tier?: number; roles: string[] }>();
   for (const participant of participants) {
@@ -1749,7 +1750,8 @@ function drawEventDetail(
     const rank = knownTier ? snapshot.t(`rank.${taxonomyForTier(knownTier).rank}`) : '';
     const label = [participant.roles.map(role => snapshot.t(`detail.field.${role}`)).join(' / '),
       knownTier ? `L${knownTier} · ${rank}` : atom?.stub?.kind === 'run-actor'
-        ? snapshot.t('registry.runActor.badge') : snapshot.t('detail.participant.unknownTier')].join(' · ');
+        ? snapshot.t('registry.runActor.badge') : snapshot.t('detail.participant.unknownTier'),
+      participant.roles.includes('actor') ? model : undefined].filter(Boolean).join(' · ');
     headerBottom += ctx.text(ctx.root, label, x + 18, headerBottom, {
       size: 10, color: GPU_COLORS.muted, width: width - 36,
     }).height + 4;
@@ -1763,8 +1765,8 @@ function drawEventDetail(
     }
     headerBottom += 40;
   }
-  if (event.model) {
-    headerBottom += ctx.text(ctx.root, event.model, x + 18, headerBottom, {
+  if (model && !participants.some(participant => participant.role === 'actor')) {
+    headerBottom += ctx.text(ctx.root, model, x + 18, headerBottom, {
       size: 10, color: GPU_COLORS.muted, width: width - 36,
     }).height + 8;
   }
