@@ -2331,7 +2331,10 @@ try {
           }) });
           return;
         }
-        const stub = stubs[path];
+        let stub = stubs[path];
+        if (path === '/api/assistant' && stub?.conversation.projectId && !new URL(request.url()).searchParams.has('projectId')) {
+          stub = { ...stub, run: null, conversation: { ...stub.conversation, projectId: null, lastRun: null, messages: [] } };
+        }
         if (stub !== undefined) {
           void request.respond({
             status: 200,
@@ -2569,6 +2572,67 @@ try {
         }
       };
       await assertProjectRepository('Continue this project');
+      // Returning to a project after completion must expose delivery and the
+      // explicit GitHub action, without another chat/model request.
+      const originalAssistant = stubs['/api/assistant'];
+      const deliveryRunId = 'eeeeeeee-1111-4222-8333-ffffffffffff';
+      const reviewPath = `/api/projects/${projectId}/runs/${deliveryRunId}/review`;
+      stubs['/api/assistant'] = { ...originalAssistant,
+        run: { status: 'delivered', costUsd: 0.22, traceId: 'trace-delivered', error: null },
+        conversation: { ...originalAssistant.conversation, projectId,
+          lastRun: { projectId, runId: deliveryRunId }, messages: [
+            { role: 'receipt', text: 'assistant.runStarted', at: '2026-10-12T03:19:18.000Z' },
+          ] },
+      };
+      stubs[reviewPath] = {
+        run: { projectId, projectRunId: deliveryRunId, goal: 'Deliver the app', status: 'delivered', artifactManifestHash: 'a'.repeat(64) },
+        acceptedReferenceRunId: null, delivery: 'files', filesState: 'available',
+        files: { projectId, runId: deliveryRunId, status: 'delivered', files: [{ path: 'index.html', size: 10 }], total: 1, nextOffset: null },
+        comparison: null, comparisonState: 'no_recorded_base',
+        verification: { stage: 'finished', message: 'Run delivered.', source: 'trace', evidence: 'available',
+          lastActivityAt: null, criteria: [], criteriaTruncated: false, acceptanceApproved: true },
+        clientAcceptance: null, publicationStatus: null, canRequestAcceptance: true, canRetryPublication: false,
+        untrusted: true, bytes: 'not-revalidated', nextSteps: [], note: 'Saved evidence only.',
+      };
+      // At desktop width the repository link occupies the row centre; use
+      // the same stacked project target as the selection arm above.
+      await accountPage.setViewport({ width: 528, height: 800, deviceScaleFactor: 2 });
+      await accountPage.reload({ waitUntil: 'load' });
+      await passArrivalGate(accountPage);
+      await waitForHitTarget(accountPage, `project.select.${projectId}`, 'Delivery project missing after reload');
+      await clickAccountTarget(`project.select.${projectId}`);
+      await accountPage.setViewport({ width: 1280, height: 900, deviceScaleFactor: 1 });
+      await accountPage.waitForSelector('.gpu-assistant-result', { visible: true }).catch(async error => {
+        await accountPage.screenshot({ path: '/tmp/atoma-assistant-delivery-failure.png' });
+        throw new Error(JSON.stringify({ diagnostics: accountDiagnostics,
+          state: await accountPage.evaluate(() => ({ text: document.body.innerText.slice(-5000),
+            requests: performance.getEntriesByType('resource').filter(entry => entry.name.includes('/api/assistant')).map(entry => entry.name) })) }), { cause: error });
+      });
+      await accountPage.waitForFunction(() => [...document.querySelectorAll('.gpu-assistant-result button')]
+        .some(button => button.textContent === 'Review and publish to GitHub'));
+      await accountPage.evaluate(() => [...document.querySelectorAll('.gpu-assistant-result button')]
+        .find(button => button.textContent === 'Review and publish to GitHub').click());
+      await accountPage.waitForSelector('#assistant-delivery-review', { visible: true });
+      await accountPage.type('#assistant-delivery-review', 'Tested the delivered app.');
+      await accountPage.screenshot({ path: '/tmp/atoma-assistant-delivery-review.png' });
+      const reviewLayout = await accountPage.$eval('.gpu-assistant-result', element => {
+        const log = element.closest('.gpu-assistant-log');
+        return { fits: element.scrollWidth <= element.clientWidth, logFits: log.scrollWidth <= log.clientWidth };
+      });
+      if (!reviewLayout.fits || !reviewLayout.logFits) throw new Error('Delivery review overflows the conversation');
+      await clickAccountTarget('project.section.runs');
+      await clickAccountTarget('project.section.conversation');
+      if (await accountPage.$eval('#assistant-delivery-review', element => element.value) !== 'Tested the delivered app.') {
+        throw new Error('Switching project tabs lost the delivery review');
+      }
+      stubs['/api/assistant'] = originalAssistant;
+      await accountPage.setViewport({ width: 528, height: 800, deviceScaleFactor: 2 });
+      await accountPage.reload({ waitUntil: 'load' });
+      await passArrivalGate(accountPage);
+      await waitForHitTarget(accountPage, `project.select.${projectId}`, 'Project missing after delivery review');
+      await clickAccountTarget(`project.select.${projectId}`);
+      await accountPage.setViewport({ width: 1280, height: 900, deviceScaleFactor: 1 });
+      console.log('Assistant delivery ok: completion and explicit GitHub review survive project re-entry');
       await clickAccountTarget('project.section.runs');
       await assertProjectRepository('Runs');
       await clickAccountTarget('project.section.preview');

@@ -31,6 +31,8 @@ import type {
 import { redirectIfAuthenticationRequired } from './session-guard.js';
 import type { PreviewOpenOptions } from '../../contracts/preview.js';
 import type { AssistantRequest, AssistantView } from '../../contracts/assistant.js';
+import type { RunReview } from '../../contracts/clientExperience.js';
+import type { DeliveryAcceptance } from '../../contracts/projects.js';
 
 let activeMutations = 0;
 export function pendingApiMutations(): number { return activeMutations; }
@@ -93,6 +95,10 @@ export const api = {
     mutateJson<VizProjectRun>(`/api/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/github-access`, {}),
   retryPublication: (projectId: string, runId: string) =>
     mutateJson<VizProjectRun>(`/api/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/publish`, {}),
+  runReview: (projectId: string, runId: string) =>
+    fetchJson<RunReview>(`/api/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/review`),
+  acceptDelivery: (projectId: string, runId: string, body: Pick<DeliveryAcceptance, 'manifestHash' | 'review'>) =>
+    mutateJson<unknown>(`/api/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/accept`, body),
   githubInstallations: () =>
     fetchJson<VizGitHubInstallation[]>('/api/github/installations'),
   // PREVIEW. A GET allocates nothing on the server, which is why status may be

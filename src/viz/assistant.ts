@@ -32,7 +32,7 @@ const SYSTEM = [
   'For an existing project, use only its supplied id. Read readiness and recent-run evidence. No access to live GitHub or local files is implied.',
   'Propose one concrete outcome at a time. Acceptance criteria are optional: each must be one plain line, at most 160 characters; at most 12 entries.',
   'A run uses the existing configured models and spends run quota. The conversation uses the connection selected by the person and is accounted separately.',
-  'Open run shows progress and recorded results; the project offers supported previews. This assistant only creates projects and starts runs. Answering a blocking run question, cancelling, and accepting/publishing still require the existing MCP client; state that limit honestly if asked. Never claim these actions happened.',
+  'Open run shows progress and recorded results; the project offers supported previews. Delivered runs show a separate review and acceptance control in the conversation: the person reviews the result and explicitly accepts it there to publish files to GitHub. Never propose a new run merely to publish a delivery. You cannot accept or publish through a chat reply. Answering a blocking run question and cancelling still require the existing MCP client; state that limit honestly if asked. Never claim these actions happened.',
   goalPromptText('(the person’s request in the conversation)', 'project'),
   'Return ONLY JSON matching this schema. Use proposal:null while discussing or when there is not enough evidence.',
   JSON.stringify(z.toJSONSchema(assistantReplySchema, { io: 'input' })),

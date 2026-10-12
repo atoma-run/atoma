@@ -10,6 +10,7 @@ import { api } from '../src/viz/client/data-api.js';
 import { translate } from '../src/viz/client/i18n-catalog.js';
 import { emptyConversation } from '../src/viz/assistantStore.js';
 import type { AssistantView } from '../src/contracts/assistant.js';
+import type { RunReview } from '../src/contracts/clientExperience.js';
 import { EXAMPLE_ACCOUNT_SUBSCRIPTIONS } from '../src/contracts/accountSubscriptions.js';
 import { timestampTooltip } from '../src/viz/client-gl/renderer/relative-time.js';
 import { useGpuStore } from '../src/viz/client-gl/store.js';
@@ -19,6 +20,24 @@ afterEach(() => { cleanup(); clients.splice(0).forEach(client => client.clear())
 const projectId = 'a660aa4f-4b75-49a8-9454-449b77c06f9d';
 const proposalId = '6019a7f7-680f-4725-9a9b-5edca21730eb';
 function view(): AssistantView { return { available: true, busy: false, nextBefore: null, choices: [{ id: 'api:openai:small', model: 'api:openai:small', label: 'Small', payer: 'org-key' }], model: 'api:openai:small', run: null, conversation: { ...emptyConversation(), modelChoice: 'api:openai:small' } }; }
+function deliveryReview(): RunReview {
+  return {
+    run: { projectId, projectRunId: 'run-1', goal: 'Build the tracker', status: 'delivered', artifactManifestHash: 'a'.repeat(64) },
+    acceptedReferenceRunId: null, delivery: 'files', filesState: 'available',
+    files: { projectId, runId: 'run-1', status: 'delivered', files: [{ path: 'index.html', size: 10 }], total: 1, nextOffset: null },
+    comparison: null, comparisonState: 'no_recorded_base',
+    verification: { stage: 'finished', message: 'Run delivered.', source: 'trace', evidence: 'available',
+      lastActivityAt: null, criteria: [], criteriaTruncated: false, acceptanceApproved: true },
+    clientAcceptance: null, publicationStatus: null, canRequestAcceptance: true, canRetryPublication: false,
+    untrusted: true, bytes: 'not-revalidated', nextSteps: [], note: 'Saved evidence only.',
+  };
+}
+function deliveredView() {
+  const data = view();
+  data.run = { status: 'delivered', costUsd: 0.52, traceId: 'trace-1', error: null };
+  data.conversation.lastRun = { projectId, runId: 'run-1' };
+  return data;
+}
 function panel(data: AssistantView = view(), scopeKey = 'alice:org-a') {
   vi.spyOn(api, 'assistant').mockResolvedValue(data);
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } }); clients.push(client);
@@ -215,6 +234,7 @@ it('shows refreshing relative message ages with the exact timestamp available on
 });
 
 it('shows run status, opens the existing run view and separates conversation cost', async () => {
+  vi.spyOn(api, 'runReview').mockResolvedValue(deliveryReview());
   const data = view();
   data.run = { status: 'delivered', costUsd: 0.52, traceId: 'trace-1', error: null };
   data.conversation.lastRun = { projectId, runId: 'run-1' };
@@ -222,10 +242,90 @@ it('shows run status, opens the existing run view and separates conversation cos
   data.conversation.inputTokens = 900;
   data.conversation.outputTokens = 240;
   const { props } = panel(data);
-  expect(await screen.findByText(/Run: delivered/)).toHaveTextContent('$0.52');
+  expect(await screen.findByRole('article', { name: 'Run result' })).toHaveTextContent('$0.52');
   expect(screen.getByText(/Conversation:/)).toHaveTextContent('$0.0012');
   await userEvent.click(screen.getByRole('button', { name: 'Open run' }));
   expect(props.onRun).toHaveBeenCalledWith(data.conversation.lastRun, 'trace-1');
+});
+
+it('recovers a delivered run on re-entry and publishes only after explicit review of its manifest', async () => {
+  const review = deliveryReview();
+  vi.spyOn(api, 'runReview').mockImplementation(async () => review);
+  // Exercise the real HTTP client mutation, including the exact URL and JSON body.
+  const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+    review.clientAcceptance = { manifestHash: 'a'.repeat(64), review: 'Tested adding and removing books.', principalId: projectId, acceptedAt: '2026-10-12T10:00:00.000Z' };
+    review.canRequestAcceptance = false; review.publicationStatus = 'published';
+    return new Response('{}', { status: 200 });
+  });
+  const inference = vi.spyOn(api, 'assistantRequest');
+  panel({ ...deliveredView(), available: false, choices: [] }); // No connected model is needed.
+  const result = await screen.findByRole('article', { name: 'Run result' });
+  expect(within(result).getByText('Run delivered — ready for your review.')).toBeVisible();
+  await userEvent.click(await screen.findByRole('button', { name: 'Review and publish to GitHub' }));
+  expect(fetch).not.toHaveBeenCalled();
+  const confirm = screen.getByRole('button', { name: 'Accept and publish to GitHub' });
+  expect(confirm).toBeDisabled();
+  await userEvent.type(screen.getByRole('textbox', { name: 'Your review of this delivery' }), 'Tested adding and removing books.');
+  await userEvent.click(confirm);
+  expect(fetch).toHaveBeenCalledOnce();
+  expect(fetch).toHaveBeenCalledWith(`/api/projects/${projectId}/runs/run-1/accept`, expect.objectContaining({
+    method: 'POST', body: JSON.stringify({ manifestHash: 'a'.repeat(64), review: 'Tested adding and removing books.' }),
+  }));
+  expect(await screen.findByText('Published to GitHub. Open the run for publication details.')).toBeVisible();
+  expect(screen.queryByRole('button', { name: 'Review and publish to GitHub' })).not.toBeInTheDocument();
+  expect(inference).not.toHaveBeenCalled();
+});
+
+it.each(['partial', 'failed', 'cancelled'])('announces a %s outcome without offering publication', async status => {
+  const read = vi.spyOn(api, 'runReview');
+  const data = deliveredView(); data.run!.status = status;
+  panel(data);
+  expect(await screen.findByRole('article', { name: 'Run result' })).toBeVisible();
+  expect(screen.queryByRole('button', { name: /publish to GitHub/ })).not.toBeInTheDocument();
+  expect(read).not.toHaveBeenCalled();
+});
+
+it('replaces live status with the completion card when the polling result changes', async () => {
+  vi.spyOn(api, 'runReview').mockResolvedValue(deliveryReview());
+  const data = deliveredView(); data.run!.status = 'running';
+  const { client } = panel(data);
+  expect(await screen.findByText(/Run: running/)).toBeVisible();
+  await act(async () => { client.setQueryData(['viz', 'assistant', 'alice:org-a', null], deliveredView()); });
+  expect(await screen.findByRole('button', { name: 'Review and publish to GitHub' })).toBeVisible();
+  expect(screen.queryByText(/Run: running/)).not.toBeInTheDocument();
+});
+
+it('offers acceptance without GitHub for text-only results and refuses unavailable review evidence', async () => {
+  const review = deliveryReview(); review.delivery = 'text'; review.files!.files = []; review.files!.total = 0;
+  vi.spyOn(api, 'runReview').mockResolvedValue(review);
+  const first = panel(deliveredView());
+  expect(await screen.findByRole('button', { name: 'Review and accept delivery' })).toBeVisible();
+  expect(screen.queryByRole('button', { name: /GitHub/ })).not.toBeInTheDocument();
+  first.unmount();
+  vi.mocked(api.runReview).mockRejectedValue(new Error('Unavailable'));
+  panel(deliveredView());
+  expect(await screen.findByRole('alert')).toHaveTextContent('Could not load the delivery review');
+  expect(screen.queryByRole('button', { name: /Review and/ })).not.toBeInTheDocument();
+});
+
+it('refreshes acceptance after a lost publication response and retries publication without accepting again', async () => {
+  let review = deliveryReview();
+  vi.spyOn(api, 'runReview').mockImplementation(async () => review);
+  const accept = vi.spyOn(api, 'acceptDelivery').mockImplementation(async () => {
+    review = { ...review, canRequestAcceptance: false, canRetryPublication: true, publicationStatus: 'failed',
+      clientAcceptance: { manifestHash: 'a'.repeat(64), review: 'Reviewed.', principalId: projectId, acceptedAt: '2026-10-12T10:00:00.000Z' } };
+    throw new Error('Publication response lost');
+  });
+  const publish = vi.spyOn(api, 'retryPublication').mockResolvedValue({} as Awaited<ReturnType<typeof api.retryPublication>>);
+  panel(deliveredView());
+  await userEvent.click(await screen.findByRole('button', { name: 'Review and publish to GitHub' }));
+  await userEvent.type(screen.getByRole('textbox', { name: 'Your review of this delivery' }), 'Reviewed.');
+  await userEvent.click(screen.getByRole('button', { name: 'Accept and publish to GitHub' }));
+  const retry = await screen.findByRole('button', { name: 'Retry GitHub publication' });
+  await waitFor(() => expect(retry).toBeEnabled());
+  await userEvent.click(retry);
+  expect(accept).toHaveBeenCalledOnce();
+  expect(publish).toHaveBeenCalledWith(projectId, 'run-1');
 });
 
 it('disables inference on an unconfigured host and fills its host card without a frame of its own', async () => {

@@ -22,12 +22,17 @@ tables and code blocks inside the conversation. Saved text remains unchanged;
 raw HTML is displayed as text and external images are not loaded. Web links
 open in a new tab.
 
-The conversation shows recorded run status and cost. **Open run** leads to the
-existing progress and result reader; the project offers supported previews.
-This first surface covers project creation and run launch. Answering blocking
-run questions, cancelling, and accepting a delivery still use an external MCP
-client connected through Settings. Delivery does not publish: testing and
-explicit client acceptance remain required.
+The conversation shows recorded run status and cost, including a result card
+when a run finishes, even after returning to the project. **Open run** leads to
+the existing progress and result reader; the project offers supported previews.
+For a delivered result, **Review and publish to GitHub** opens a review field.
+After testing or reviewing the result, enter your review and choose **Accept
+and publish to GitHub**. Acceptance binds the exact saved delivery; publication
+uses the existing server checks. Text-only results offer acceptance without
+GitHub publication. A failed publication can be retried without another run.
+These controls read host receipts and make no model call. Answering blocking
+run questions and cancelling still use an external MCP client connected through
+Settings. Delivery alone does not publish.
 
 ## Configuration and cost
 

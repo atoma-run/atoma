@@ -563,7 +563,7 @@ npm run viz:mark-turn:analyze
   project discovery belongs only to the unbound new-project conversation.
   The person selects a connected personal subscription, organisation API key or
   explicit platform API model; an unavailable selection never changes payer.
-  Its fixed context reads and confirmed writes use the existing HTTP MCP;
+  Its model-context reads and proposal confirmations use the HTTP MCP. The terminal run card reads the project review route and uses the existing acceptance/publication routes after explicit client review, without model calls or rewriting the conversation journal;
   see [contract and limits](../../docs/integrated-assistant.md).
   The `atoma_goal` MCP prompt and server tool guidance own the agent-facing
   instructions. `/api/goal-guidance` remains a read-only compatibility route;
