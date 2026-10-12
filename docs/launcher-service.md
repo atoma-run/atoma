@@ -22,6 +22,15 @@ Egress remains explicit and deny-by-default. For service workers,
 when absent). The caller chooses whether to use the closed proxy topology,
 never its network names or policy. Local mode retains its host allowlist.
 
+Set `ATOMA_EGRESS_ALLOWLIST=*` on the host (or separate launcher) to permit
+all public Internet destinations and all TCP ports through the proxy. Private,
+loopback, link-local and reserved addresses remain blocked, including DNS
+answers that mix public and private addresses. The proxy connects to the
+checked address without resolving it again. This supports HTTP and CONNECT;
+applications must use the supplied proxy, and direct UDP is not enabled.
+The setting takes effect for new proxies after the host service is restarted;
+existing runs retain their original policy.
+
 ## Build and configure
 
 Compile with `npm run build`, then build the worker and launcher images with

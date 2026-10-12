@@ -14,6 +14,9 @@
  */
 
 /** Destinations available when the operator enables proxied run egress. */
+import { promises as dns, type LookupAddress } from 'node:dns';
+import { isIP } from 'node:net';
+import { isPublicAddress } from '../core/networkAddress.js';
 import { DEFAULT_WEB_RESOURCE_HOSTS } from '../contracts/webResources.js';
 
 export const DEFAULT_EGRESS_ALLOWLIST: readonly string[] = [
@@ -45,7 +48,8 @@ export function parseTarget(raw: string, defaultPort: number): { host: string; p
     try {
       const u = new URL(s);
       const port = u.port ? Number(u.port) : u.protocol === 'https:' ? 443 : 80;
-      if (!u.hostname || !Number.isInteger(port)) return null;
+      if (!['http:', 'https:'].includes(u.protocol) || u.username || u.password ||
+          !u.hostname || !Number.isInteger(port) || port < 1 || port > 65535) return null;
       return { host: u.hostname.toLowerCase(), port };
     } catch {
       return null;
@@ -116,6 +120,13 @@ export function decideEgress(
   const parsed = parseTarget(target, opts.defaultPort ?? 443);
   if (!parsed) return { allowed: false, host: target, port: 0, reason: 'unparseable target' };
   const { host, port } = parsed;
+  if (allowlist.includes('*')) {
+    const address = host.replace(/^\[|\]$/g, '');
+    if (isIpLiteral(host) && !isPublicAddress(address)) {
+      return { allowed: false, host, port, reason: 'non-public addresses are not allowed' };
+    }
+    return { allowed: true, host, port, reason: 'public Internet access; resolved addresses checked before connection' };
+  }
   if (isIpLiteral(host)) {
     return { allowed: false, host, port, reason: 'IP literals are never allowed — allowlist names only' };
   }
@@ -126,4 +137,32 @@ export function decideEgress(
   return hit
     ? { allowed: true, host, port, reason: `matched allowlist entry "${hit}"` }
     : { allowed: false, host, port, reason: 'not in the egress allowlist' };
+}
+
+/** Resolve once, validate EVERY answer, then connect to the returned literal.
+ * A second lookup at connect time would allow DNS rebinding into the private network.
+ * Wildcard mode opens all TCP ports, but never private/loopback/link-local destinations.
+ */
+export async function resolvePublicEgress(
+  host: string,
+  resolve: (hostname: string) => Promise<LookupAddress[]> = resolvePublicHost
+): Promise<LookupAddress> {
+  const literal = host.replace(/^\[|\]$/g, '');
+  const family = isIP(literal);
+  const addresses = family ? [{ address: literal, family }] : await resolve(host);
+  if (!addresses.length || addresses.some(({ address }) => !isPublicAddress(address))) {
+    throw Object.assign(new Error(`${host} does not resolve to public addresses only`), { code: 'EACCES' });
+  }
+  return addresses[0]!;
+}
+
+async function resolvePublicHost(hostname: string): Promise<LookupAddress[]> {
+  const resolver = new dns.Resolver({ timeout: 2_000, tries: 1 });
+  const [v4, v6] = await Promise.allSettled([resolver.resolve4(hostname), resolver.resolve6(hostname)]);
+  const addresses = [
+    ...(v4.status === 'fulfilled' ? v4.value.map(address => ({ address, family: 4 })) : []),
+    ...(v6.status === 'fulfilled' ? v6.value.map(address => ({ address, family: 6 })) : []),
+  ];
+  if (!addresses.length) throw new Error(`${hostname} does not resolve`);
+  return addresses;
 }

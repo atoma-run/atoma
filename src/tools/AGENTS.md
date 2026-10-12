@@ -44,7 +44,12 @@ Neighbours:
   path never saw this because its workspace persists across runs while a
   project run gets a fresh path every time. `tests/container-executor-lifecycle`
   asserts the property at the seam: the source is a directory at spawn time.
-- Network allowlists compare parsed hostnames; lookalikes and IP literals fail.
+- Network allowlists compare parsed hostnames; lookalikes and IP literals fail
+  in the default restricted mode. The operator may set `ATOMA_EGRESS_ALLOWLIST=*`
+  to allow all public Internet destinations and TCP ports (owner decision
+  2026-10-13). Wildcard mode resolves once, rejects any non-public address, and
+  connects to the checked IP; private, loopback and link-local networks stay
+  isolated. The run cannot widen this host-owned policy.
   Default egress includes package registries and the shared public resource
   hosts in `contracts/webResources.ts`. Chromium receives the worker proxy
   explicitly; its loopback bypass keeps local application probes direct.

@@ -1,4 +1,5 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
+import { promises as dns } from 'node:dns';
 import { createServer, type Server } from 'node:http';
 import { spawn } from 'node:child_process';
 import { connect } from 'node:net';
@@ -21,6 +22,7 @@ afterEach(async () => {
   proxy = null;
   await new Promise<void>((r) => (origin ? origin.close(() => r()) : r()));
   origin = null;
+  vi.restoreAllMocks();
 });
 
 function startOrigin(): Promise<number> {
@@ -57,6 +59,45 @@ async function through(proxyPort: number, url: string): Promise<{ status: number
 }
 
 describe('egress proxy', () => {
+  it('rejects authority-form HTTP requests without crashing the wildcard proxy', async () => {
+    proxy = await startEgressProxy({ port: 0, allowlist: ['*'], log: () => {} });
+    for (const target of ['8.8.8.8', '8.8.8.8:443', '/relative', 'https://example.com/']) {
+      const reply = await new Promise<string>((resolve, reject) => {
+        const socket = connect(proxy!.port, '127.0.0.1', () => {
+          socket.write(`GET ${target} HTTP/1.1\r\nHost: example.com\r\nConnection: close\r\n\r\n`);
+        });
+        let data = '';
+        socket.on('data', chunk => { data += chunk.toString(); });
+        socket.on('end', () => resolve(data));
+        socket.on('error', reject);
+      });
+      expect(reply).toContain('400 Bad Request');
+    }
+  });
+
+  it('wildcard mode denies private DNS destinations on HTTP and CONNECT', async () => {
+    const port = await startOrigin();
+    const resolve4 = vi.spyOn(dns.Resolver.prototype, 'resolve4').mockResolvedValue(['127.0.0.1']);
+    vi.spyOn(dns.Resolver.prototype, 'resolve6').mockRejectedValue(new Error('no AAAA'));
+    proxy = await startEgressProxy({ port: 0, allowlist: ['*'], log: () => {} });
+    const result = await through(proxy.port, `http://private.example:${port}/secret`);
+    expect(result.status).toBe(403);
+    expect(result.body).toContain('public addresses only');
+    expect(result.body).not.toContain('ORIGIN_PAYLOAD');
+    const reply = await new Promise<string>((resolve, reject) => {
+      const socket = connect(proxy!.port, '127.0.0.1', () => {
+        socket.write(`CONNECT private.example:${port} HTTP/1.1\r\nHost: private.example:${port}\r\n\r\n`);
+      });
+      let data = '';
+      socket.on('data', chunk => { data += chunk.toString(); });
+      socket.on('end', () => resolve(data));
+      socket.on('error', reject);
+    });
+    expect(reply).toContain('403 Forbidden');
+    expect(reply).not.toContain('200 Connection Established');
+    expect(resolve4).toHaveBeenCalledWith('private.example');
+  });
+
   it('keeps its process alive when a denied CONNECT client resets the socket', async () => {
     const port = await startOrigin();
     const child = spawn(process.execPath, ['--import', 'tsx', 'src/tools/egressProxy.ts'], {

@@ -5,6 +5,7 @@ import {
   isIpLiteral,
   parseTarget,
   DEFAULT_EGRESS_ALLOWLIST,
+  resolvePublicEgress,
 } from '../src/tools/egressPolicy.js';
 
 /**
@@ -59,6 +60,46 @@ describe('hostMatchesEntry — anchoring is the whole point', () => {
   it('is case-insensitive and tolerates the FQDN trailing dot', () => {
     expect(hostMatchesEntry('Registry.NPMJS.org', 'registry.npmjs.org')).toBe(true);
     expect(hostMatchesEntry('registry.npmjs.org.', 'registry.npmjs.org')).toBe(true);
+  });
+});
+
+describe('operator-selected public Internet egress', () => {
+  it.each(['www.spitogatos.gr:443', 'xe.gr:80', 'example.com:22', 'example.com:65535', '8.8.8.8:53', '[2606:4700:4700::1111]:443'])(
+    'permits public destinations on every TCP port: %s', (target) => {
+      expect(decideEgress(target, { allowlist: ['*'] }).allowed).toBe(true);
+    }
+  );
+
+  it.each(['127.0.0.1:443', '10.0.0.1:22', '169.254.169.254:80', '[::1]:443', '[::ffff:127.0.0.1]:443', 'http://2130706433/', 'http://0x7f000001/'])(
+    'still refuses private destinations: %s', (target) => {
+      expect(decideEgress(target, { allowlist: ['*'] }).allowed).toBe(false);
+    }
+  );
+
+  it.each(['example.com:0', 'example.com:65536', 'http://example.com:0/', 'file:///etc/passwd', 'ftp://example.com/'])(
+    'rejects malformed proxy targets: %s', (target) => {
+      expect(decideEgress(target, { allowlist: ['*'] }).allowed).toBe(false);
+    }
+  );
+
+  it('pins the checked public DNS answer rather than returning the hostname', async () => {
+    expect(await resolvePublicEgress('public.example', async () => [{ address: '8.8.8.8', family: 4 }]))
+      .toEqual({ address: '8.8.8.8', family: 4 });
+    expect(await resolvePublicEgress('[2606:4700:4700::1111]'))
+      .toEqual({ address: '2606:4700:4700::1111', family: 6 });
+  });
+
+  it.each(['127.0.0.1', '10.0.0.1', '172.18.0.1', '192.168.1.1', '169.254.169.254', '::1', '::ffff:7f00:1', 'fc00::1'])(
+    'refuses a DNS name containing ANY private answer (%s)', async address => {
+      await expect(resolvePublicEgress('mixed.example', async () => [
+        { address: '8.8.8.8', family: 4 }, { address, family: address.includes(':') ? 6 : 4 },
+      ])).rejects.toThrow('public addresses only');
+    }
+  );
+
+  it('refuses empty DNS answers and private literals before connecting', async () => {
+    await expect(resolvePublicEgress('empty.example', async () => [])).rejects.toThrow('public addresses only');
+    await expect(resolvePublicEgress('127.0.0.1')).rejects.toThrow('public addresses only');
   });
 });
 

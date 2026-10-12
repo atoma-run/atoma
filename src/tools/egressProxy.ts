@@ -16,12 +16,12 @@
  */
 import { createServer, request as httpRequest, type IncomingMessage, type ServerResponse } from 'node:http';
 import { connect as netConnect, type Socket } from 'node:net';
-import { decideEgress, DEFAULT_EGRESS_ALLOWLIST } from './egressPolicy.js';
+import { decideEgress, DEFAULT_EGRESS_ALLOWLIST, resolvePublicEgress } from './egressPolicy.js';
 
 export interface EgressProxyOptions {
   readonly port: number;
   readonly allowlist?: readonly string[];
-  /** Defaults to 80/443. Widen only for a private registry on another port. */
+  /** Defaults to 80/443 in allowlist mode. Wildcard mode permits all TCP ports. */
   readonly allowedPorts?: readonly number[];
   /** Where decisions are written. Defaults to stderr. */
   readonly log?: (line: string) => void;
@@ -35,12 +35,23 @@ export interface RunningEgressProxy {
 export function startEgressProxy(opts: EgressProxyOptions): Promise<RunningEgressProxy> {
   const allowlist = opts.allowlist ?? DEFAULT_EGRESS_ALLOWLIST;
   const log = opts.log ?? ((l: string) => process.stderr.write(l + '\n'));
+  const destination = async (host: string): Promise<string> =>
+    allowlist.includes('*') ? (await resolvePublicEgress(host)).address : host;
 
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
     // Absolute-form request line is what a client sends to a proxy. A
     // relative path means someone is talking to us as if we were an origin
     // server, which is not a shape this proxy serves.
     const target = req.url ?? '';
+    let targetUrl: URL;
+    try {
+      targetUrl = new URL(target);
+      if (targetUrl.protocol !== 'http:') throw new Error('HTTP absolute-form required');
+    } catch {
+      res.writeHead(400, { 'content-type': 'text/plain' });
+      res.end('proxy requires an absolute http:// URL; use CONNECT for TLS\n');
+      return;
+    }
     const d = decideEgress(target, { allowlist, defaultPort: 80, ...(opts.allowedPorts ? { allowedPorts: opts.allowedPorts } : {}) });
     log(`[egress] ${d.allowed ? 'ALLOW' : 'DENY '} http ${d.host}:${d.port} — ${d.reason}`);
     if (!d.allowed) {
@@ -48,18 +59,28 @@ export function startEgressProxy(opts: EgressProxyOptions): Promise<RunningEgres
       res.end(`egress denied: ${d.host}:${d.port} — ${d.reason}\n`);
       return;
     }
-    const upstream = httpRequest(
-      { host: d.host, port: d.port, method: req.method, path: new URL(target).pathname + new URL(target).search, headers: req.headers },
-      (up) => {
-        res.writeHead(up.statusCode ?? 502, up.headers);
-        up.pipe(res);
-      }
-    );
-    upstream.on('error', (err) => {
-      res.writeHead(502, { 'content-type': 'text/plain' });
-      res.end(`upstream error: ${err.message}\n`);
+    void destination(d.host).then((address) => {
+      if (res.destroyed) return;
+      const upstream = httpRequest(
+        { host: address, port: d.port, method: req.method, path: targetUrl.pathname + targetUrl.search, headers: req.headers },
+        (up) => {
+          res.writeHead(up.statusCode ?? 502, up.headers);
+          up.pipe(res);
+        }
+      );
+      upstream.on('error', (err) => {
+        if (res.headersSent) { res.destroy(); return; }
+        res.writeHead(502, { 'content-type': 'text/plain' });
+        res.end(`upstream error: ${err.message}\n`);
+      });
+      req.pipe(upstream);
+    }).catch((err: Error) => {
+      log(`[egress] DENY http ${d.host}:${d.port} — ${err.message}`);
+      if (res.destroyed) return;
+      if (res.headersSent) { res.destroy(); return; }
+      res.writeHead(403, { 'content-type': 'text/plain' });
+      res.end(`egress denied: ${err.message}\n`);
     });
-    req.pipe(upstream);
   });
 
   // CONNECT is where npm actually goes. Once the tunnel is open the proxy
@@ -75,18 +96,28 @@ export function startEgressProxy(opts: EgressProxyOptions): Promise<RunningEgres
       clientSocket.end(`HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\n\r\negress denied: ${d.reason}\n`);
       return;
     }
-    const upstream = netConnect(d.port, d.host, () => {
-      clientSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
-      if (head.length) upstream.write(head);
-      upstream.pipe(clientSocket);
-      clientSocket.pipe(upstream);
+    // A client may disconnect during DNS resolution, including a refused client.
+    clientSocket.on('error', () => clientSocket.destroy());
+    void destination(d.host).then((address) => {
+      if (clientSocket.destroyed) return;
+      const upstream = netConnect(d.port, address, () => {
+        clientSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
+        if (head.length) upstream.write(head);
+        upstream.pipe(clientSocket);
+        clientSocket.pipe(upstream);
+      });
+      const fail = (err: Error): void => {
+        log(`[egress] ERROR CONNECT ${d.host}:${d.port} — ${err.message}`);
+        clientSocket.destroy();
+      };
+      upstream.on('error', fail);
+      clientSocket.on('error', () => upstream.destroy());
+      clientSocket.on('close', () => upstream.destroy());
+    }).catch((err: Error) => {
+      log(`[egress] DENY CONNECT ${d.host}:${d.port} — ${err.message}`);
+      if (clientSocket.destroyed) return;
+      clientSocket.end(`HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\n\r\negress denied: ${err.message}\n`);
     });
-    const fail = (err: Error): void => {
-      log(`[egress] ERROR CONNECT ${d.host}:${d.port} — ${err.message}`);
-      clientSocket.destroy();
-    };
-    upstream.on('error', fail);
-    clientSocket.on('error', () => upstream.destroy());
   });
 
   return new Promise((resolve, reject) => {

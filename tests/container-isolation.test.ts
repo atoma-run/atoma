@@ -412,4 +412,37 @@ describeDocker('a containerised run cannot reach the stores', () => {
       await backend.cleanup();
     }
   }, 120_000);
+
+  it('opens public Internet egress without exposing the private proxy network', async () => {
+    const workspaceRoot = join(dir, 'public-egress-ws');
+    mkdirSync(workspaceRoot, { recursive: true });
+    const runId = `test-public-${process.pid}`;
+    const fixture = `atoma-private-fixture-${process.pid}`;
+    const backend = await containerToolBackend({ workspaceRoot, egress: true, runId, egressAllowlist: ['*'] });
+    try {
+      execFileSync('docker', [
+        'run', '-d', '--rm', '--name', fixture,
+        '--network', `atoma-uplink-${egressObjectId(runId)}`,
+        '--network-alias', 'private.atoma-test.invalid',
+        'atoma-worker:latest', 'node', '-e',
+        'require("http").createServer((q,r)=>r.end("PRIVATE_SECRET")).listen(4111,"0.0.0.0",()=>console.log("READY"))',
+      ], { stdio: 'ignore' });
+      await vi.waitFor(() => expect(execFileSync('docker', ['logs', fixture], { encoding: 'utf8' })).toContain('READY'));
+      // Not a destination on the default allowlist. This traverses the real
+      // worker, env proxy, CONNECT policy, DNS guard and pinned upstream socket.
+      const external = await backend.executor.execute('fetch_url', {
+        url: 'https://example.com/', timeoutMs: 20_000,
+      }) as { status?: number; body?: string };
+      expect(external.status, JSON.stringify(external)).toBe(200);
+      expect(external.body).toContain('Example Domain');
+      const denied = await backend.executor.execute('fetch_url', {
+        url: 'http://private.atoma-test.invalid:4111/secret', timeoutMs: 5000,
+      });
+      expect(denied).toMatchObject({ ok: false, error: expect.any(String) });
+      expect(JSON.stringify(denied)).not.toContain('PRIVATE_SECRET');
+    } finally {
+      try { execFileSync('docker', ['rm', '-f', fixture], { stdio: 'ignore' }); } catch { /* never started */ }
+      await backend.drain?.();
+    }
+  }, 120_000);
 });
