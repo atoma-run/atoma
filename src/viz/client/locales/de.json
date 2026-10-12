@@ -1877,5 +1877,6 @@
   "detail.skillContext.showRaw": "Aufgezeichneten Kontext anzeigen",
   "detail.skillContext.showRecipe": "Zurück zum Rezept",
   "detail.skillContext.truncated": "Der Trace enthält nur einen Auszug aus dem Kontext dieses skills.",
-  "detail.skillContext.missingRecipe": "Der aufgezeichnete Auszug enthält nur Einrichtungsanweisungen. Das Rezept ist in diesem Auszug nicht verfügbar."
+  "detail.skillContext.missingRecipe": "Der aufgezeichnete Auszug enthält nur Einrichtungsanweisungen. Das Rezept ist in diesem Auszug nicht verfügbar.",
+  "detail.participant.unknownTier": "Tier nicht erfasst"
 }

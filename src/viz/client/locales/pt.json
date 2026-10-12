@@ -1877,5 +1877,6 @@
   "detail.skillContext.showRaw": "Mostrar contexto registado",
   "detail.skillContext.showRecipe": "Voltar à receita",
   "detail.skillContext.truncated": "O rastreio contém apenas um excerto do contexto deste skill.",
-  "detail.skillContext.missingRecipe": "O excerto registado contém apenas instruções de configuração. A receita não está disponível neste excerto."
+  "detail.skillContext.missingRecipe": "O excerto registado contém apenas instruções de configuração. A receita não está disponível neste excerto.",
+  "detail.participant.unknownTier": "Tier não registado"
 }

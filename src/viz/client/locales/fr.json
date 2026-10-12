@@ -1877,5 +1877,6 @@
   "detail.skillContext.showRaw": "Afficher le contexte enregistré",
   "detail.skillContext.showRecipe": "Revenir à la recette",
   "detail.skillContext.truncated": "La trace ne contient qu’un extrait du contexte de ce skill.",
-  "detail.skillContext.missingRecipe": "L’extrait enregistré contient uniquement les instructions de configuration. La recette n’est pas disponible dans cet extrait."
+  "detail.skillContext.missingRecipe": "L’extrait enregistré contient uniquement les instructions de configuration. La recette n’est pas disponible dans cet extrait.",
+  "detail.participant.unknownTier": "Tier non enregistré"
 }

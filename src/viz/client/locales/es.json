@@ -1877,5 +1877,6 @@
   "detail.skillContext.showRaw": "Mostrar contexto registrado",
   "detail.skillContext.showRecipe": "Volver a la receta",
   "detail.skillContext.truncated": "La traza contiene solo un extracto del contexto de este skill.",
-  "detail.skillContext.missingRecipe": "El extracto registrado solo contiene instrucciones de configuración. La receta no está disponible en este extracto."
+  "detail.skillContext.missingRecipe": "El extracto registrado solo contiene instrucciones de configuración. La receta no está disponible en este extracto.",
+  "detail.participant.unknownTier": "Tier no registrado"
 }

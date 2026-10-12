@@ -1877,5 +1877,6 @@
   "detail.skillContext.showRaw": "রেকর্ড করা প্রেক্ষাপট দেখুন",
   "detail.skillContext.showRecipe": "প্রণালীতে ফিরে যান",
   "detail.skillContext.truncated": "ট্রেসটিতে এই skill-এর প্রেক্ষাপটের কেবল একটি অংশবিশেষ রয়েছে।",
-  "detail.skillContext.missingRecipe": "রেকর্ড করা অংশবিশেষে শুধু সেটআপের নির্দেশনা রয়েছে। এই অংশবিশেষে প্রণালীটি উপলভ্য নয়।"
+  "detail.skillContext.missingRecipe": "রেকর্ড করা অংশবিশেষে শুধু সেটআপের নির্দেশনা রয়েছে। এই অংশবিশেষে প্রণালীটি উপলভ্য নয়।",
+  "detail.participant.unknownTier": "Tier রেকর্ড করা হয়নি"
 }

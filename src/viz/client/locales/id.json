@@ -1877,5 +1877,6 @@
   "detail.skillContext.showRaw": "Tampilkan konteks yang direkam",
   "detail.skillContext.showRecipe": "Kembali ke resep",
   "detail.skillContext.truncated": "Jejak hanya memuat cuplikan konteks skill ini.",
-  "detail.skillContext.missingRecipe": "Cuplikan yang direkam hanya memuat instruksi penyiapan. Resep tidak tersedia dalam cuplikan ini."
+  "detail.skillContext.missingRecipe": "Cuplikan yang direkam hanya memuat instruksi penyiapan. Resep tidak tersedia dalam cuplikan ini.",
+  "detail.participant.unknownTier": "Tier tidak tercatat"
 }

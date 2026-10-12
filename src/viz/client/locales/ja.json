@@ -1877,5 +1877,6 @@
   "detail.skillContext.showRaw": "記録されたコンテキストを表示",
   "detail.skillContext.showRecipe": "レシピに戻る",
   "detail.skillContext.truncated": "トレースには、このskillのコンテキストの抜粋のみが含まれています。",
-  "detail.skillContext.missingRecipe": "記録された抜粋にはセットアップ手順のみが含まれています。この抜粋ではレシピを確認できません。"
+  "detail.skillContext.missingRecipe": "記録された抜粋にはセットアップ手順のみが含まれています。この抜粋ではレシピを確認できません。",
+  "detail.participant.unknownTier": "tierは記録されていません"
 }

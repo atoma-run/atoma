@@ -1877,5 +1877,6 @@
   "detail.skillContext.showRaw": "显示记录的上下文",
   "detail.skillContext.showRecipe": "返回配方",
   "detail.skillContext.truncated": "追踪记录仅包含此 skill 上下文的摘录。",
-  "detail.skillContext.missingRecipe": "记录的摘录仅包含设置说明。此摘录中没有配方。"
+  "detail.skillContext.missingRecipe": "记录的摘录仅包含设置说明。此摘录中没有配方。",
+  "detail.participant.unknownTier": "未记录tier"
 }

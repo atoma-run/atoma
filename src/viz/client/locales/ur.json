@@ -1877,5 +1877,6 @@
   "detail.skillContext.showRaw": "ریکارڈ شدہ سیاق دکھائیں",
   "detail.skillContext.showRecipe": "ترکیب پر واپس جائیں",
   "detail.skillContext.truncated": "ٹریس میں اس skill کے سیاق کا صرف ایک اقتباس شامل ہے۔",
-  "detail.skillContext.missingRecipe": "ریکارڈ شدہ اقتباس میں صرف سیٹ اپ کی ہدایات شامل ہیں۔ اس اقتباس میں ترکیب دستیاب نہیں ہے۔"
+  "detail.skillContext.missingRecipe": "ریکارڈ شدہ اقتباس میں صرف سیٹ اپ کی ہدایات شامل ہیں۔ اس اقتباس میں ترکیب دستیاب نہیں ہے۔",
+  "detail.participant.unknownTier": "tier ریکارڈ نہیں کیا گیا"
 }
