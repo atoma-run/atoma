@@ -1908,5 +1908,9 @@
   "assistant.cancelDeliveryReview": "Abbrechen",
   "assistant.deliverySaving": "Ihre Annahme und der Veröffentlichungsstatus werden gespeichert…",
   "assistant.deliveryReadFailed": "Die Prüfung der Lieferung konnte nicht geladen werden. Aktualisieren Sie sie vor der Annahme.",
-  "assistant.deliveryFailed": "Die Lieferaktion konnte nicht abgeschlossen werden. Aktualisieren Sie den Status, bevor Sie es erneut versuchen."
+  "assistant.deliveryFailed": "Die Lieferaktion konnte nicht abgeschlossen werden. Aktualisieren Sie den Status, bevor Sie es erneut versuchen.",
+  "result.workspaceFiles_one": "Projektdateien ({{count}} Datei)",
+  "result.workspaceFiles_other": "Projektdateien ({{count}} Dateien)",
+  "result.workspaceFilesHint": "Dieses Ergebnis ist eine Textantwort. Dies sind die Projektdateien, auf deren Grundlage sie erstellt wurde; keine davon wird ausgegeben.",
+  "result.checks": "So hat Atoma dieses Ergebnis geprüft"
 }

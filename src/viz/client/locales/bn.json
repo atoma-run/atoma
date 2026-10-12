@@ -1908,5 +1908,9 @@
   "assistant.cancelDeliveryReview": "বাতিল করুন",
   "assistant.deliverySaving": "আপনার গ্রহণ ও প্রকাশনার অবস্থা সংরক্ষণ করা হচ্ছে…",
   "assistant.deliveryReadFailed": "ডেলিভারির পর্যালোচনা লোড করা যায়নি। গ্রহণ করার আগে রিফ্রেশ করুন।",
-  "assistant.deliveryFailed": "ডেলিভারি-সংক্রান্ত কাজটি সম্পন্ন করা যায়নি। আবার চেষ্টা করার আগে অবস্থা রিফ্রেশ করুন।"
+  "assistant.deliveryFailed": "ডেলিভারি-সংক্রান্ত কাজটি সম্পন্ন করা যায়নি। আবার চেষ্টা করার আগে অবস্থা রিফ্রেশ করুন।",
+  "result.workspaceFiles_one": "প্রজেক্ট ফাইল ({{count}}টি ফাইল)",
+  "result.workspaceFiles_other": "প্রজেক্ট ফাইল ({{count}}টি ফাইল)",
+  "result.workspaceFilesHint": "এই ফলাফলটি একটি টেক্সট উত্তর। এগুলো সেই প্রজেক্ট ফাইল, যেগুলোর ভিত্তিতে এটি কাজ করেছে; তবে এগুলোর কোনোটিই এটি সরবরাহ করে না।",
+  "result.checks": "Atoma এই ফলাফল কীভাবে যাচাই করেছে"
 }

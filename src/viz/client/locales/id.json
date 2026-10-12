@@ -1908,5 +1908,9 @@
   "assistant.cancelDeliveryReview": "Batal",
   "assistant.deliverySaving": "Menyimpan status penerimaan dan publikasi Anda…",
   "assistant.deliveryReadFailed": "Tidak dapat memuat tinjauan pengiriman. Muat ulang sebelum menerima.",
-  "assistant.deliveryFailed": "Tidak dapat menyelesaikan tindakan pengiriman. Muat ulang status sebelum mencoba lagi."
+  "assistant.deliveryFailed": "Tidak dapat menyelesaikan tindakan pengiriman. Muat ulang status sebelum mencoba lagi.",
+  "result.workspaceFiles_one": "File proyek ({{count}} file)",
+  "result.workspaceFiles_other": "File proyek ({{count}} file)",
+  "result.workspaceFilesHint": "Hasil ini berupa jawaban teks. Ini adalah file proyek yang digunakan sebagai sumber; tidak ada file yang disertakan dalam hasil.",
+  "result.checks": "Cara Atoma memeriksa hasil ini"
 }

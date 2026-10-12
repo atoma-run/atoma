@@ -1908,5 +1908,9 @@
   "assistant.cancelDeliveryReview": "Отмена",
   "assistant.deliverySaving": "Сохранение статуса принятия и публикации…",
   "assistant.deliveryReadFailed": "Не удалось загрузить отзыв о результате. Обновите данные перед принятием.",
-  "assistant.deliveryFailed": "Не удалось выполнить действие с результатом. Обновите статус перед повторной попыткой."
+  "assistant.deliveryFailed": "Не удалось выполнить действие с результатом. Обновите статус перед повторной попыткой.",
+  "result.workspaceFiles_one": "Файлы проекта ({{count}} файл)",
+  "result.workspaceFiles_other": "Файлы проекта (количество: {{count}})",
+  "result.workspaceFilesHint": "Этот результат — текстовый ответ. Вот файлы проекта, на основе которых он подготовлен; сами файлы в него не входят.",
+  "result.checks": "Как Atoma проверила этот результат"
 }

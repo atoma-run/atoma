@@ -1908,5 +1908,9 @@
   "assistant.cancelDeliveryReview": "Cancelar",
   "assistant.deliverySaving": "A guardar o estado da aceitação e da publicação…",
   "assistant.deliveryReadFailed": "Não foi possível carregar a análise da entrega. Atualize antes de aceitar.",
-  "assistant.deliveryFailed": "Não foi possível concluir a ação de entrega. Atualize o estado antes de tentar novamente."
+  "assistant.deliveryFailed": "Não foi possível concluir a ação de entrega. Atualize o estado antes de tentar novamente.",
+  "result.workspaceFiles_one": "Ficheiros do projeto ({{count}} ficheiro)",
+  "result.workspaceFiles_other": "Ficheiros do projeto ({{count}} ficheiros)",
+  "result.workspaceFilesHint": "Este resultado é uma resposta em texto. Estes são os ficheiros do projeto usados como base; nenhum deles é entregue.",
+  "result.checks": "Como a Atoma verificou este resultado"
 }

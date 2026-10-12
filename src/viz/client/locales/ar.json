@@ -1908,5 +1908,9 @@
   "assistant.cancelDeliveryReview": "إلغاء",
   "assistant.deliverySaving": "جارٍ حفظ حالة القبول والنشر…",
   "assistant.deliveryReadFailed": "تعذر تحميل مراجعة التسليم. حدّثها قبل القبول.",
-  "assistant.deliveryFailed": "تعذر إكمال إجراء التسليم. حدّث الحالة قبل إعادة المحاولة."
+  "assistant.deliveryFailed": "تعذر إكمال إجراء التسليم. حدّث الحالة قبل إعادة المحاولة.",
+  "result.workspaceFiles_one": "ملفات المشروع ({{count}} ملف)",
+  "result.workspaceFiles_other": "ملفات المشروع (عدد الملفات: {{count}})",
+  "result.workspaceFilesHint": "هذه النتيجة إجابة نصية. وهذه هي ملفات المشروع التي استندت إليها؛ ولا تقدّم أيًا منها.",
+  "result.checks": "كيفية تحقّق Atoma من هذه النتيجة"
 }

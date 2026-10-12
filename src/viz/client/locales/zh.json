@@ -1908,5 +1908,9 @@
   "assistant.cancelDeliveryReview": "取消",
   "assistant.deliverySaving": "正在保存您的接受和发布状态…",
   "assistant.deliveryReadFailed": "无法加载交付审核。请刷新后再接受。",
-  "assistant.deliveryFailed": "无法完成交付操作。请刷新状态后重试。"
+  "assistant.deliveryFailed": "无法完成交付操作。请刷新状态后重试。",
+  "result.workspaceFiles_one": "项目文件（{{count}}个文件）",
+  "result.workspaceFiles_other": "项目文件（{{count}}个文件）",
+  "result.workspaceFilesHint": "此结果为文本回答。以下是生成回答时所依据的项目文件；结果中不包含这些文件。",
+  "result.checks": "Atoma 如何检查此结果"
 }

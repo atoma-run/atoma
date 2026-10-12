@@ -1908,5 +1908,9 @@
   "assistant.cancelDeliveryReview": "Annuler",
   "assistant.deliverySaving": "Enregistrement de ton acceptation et du statut de publication…",
   "assistant.deliveryReadFailed": "Impossible de charger la vérification de la livraison. Actualise-la avant d’accepter.",
-  "assistant.deliveryFailed": "Impossible de terminer l’action de livraison. Actualise le statut avant de réessayer."
+  "assistant.deliveryFailed": "Impossible de terminer l’action de livraison. Actualise le statut avant de réessayer.",
+  "result.workspaceFiles_one": "Fichiers du projet ({{count}} fichier)",
+  "result.workspaceFiles_other": "Fichiers du projet ({{count}} fichiers)",
+  "result.workspaceFilesHint": "Ce résultat est une réponse textuelle. Voici les fichiers du projet à partir desquels il a travaillé ; il n’en livre aucun.",
+  "result.checks": "Comment Atoma a vérifié ce résultat"
 }

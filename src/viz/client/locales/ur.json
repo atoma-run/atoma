@@ -1908,5 +1908,9 @@
   "assistant.cancelDeliveryReview": "منسوخ کریں",
   "assistant.deliverySaving": "آپ کی قبولیت اور اشاعت کی حالت محفوظ کی جا رہی ہے…",
   "assistant.deliveryReadFailed": "ترسیل کا جائزہ لوڈ نہیں ہو سکا۔ قبول کرنے سے پہلے اسے ریفریش کریں۔",
-  "assistant.deliveryFailed": "ترسیل کی کارروائی مکمل نہیں ہو سکی۔ دوبارہ کوشش کرنے سے پہلے حالت ریفریش کریں۔"
+  "assistant.deliveryFailed": "ترسیل کی کارروائی مکمل نہیں ہو سکی۔ دوبارہ کوشش کرنے سے پہلے حالت ریفریش کریں۔",
+  "result.workspaceFiles_one": "پروجیکٹ فائلیں ({{count}} فائل)",
+  "result.workspaceFiles_other": "پروجیکٹ فائلیں ({{count}} فائلیں)",
+  "result.workspaceFilesHint": "یہ نتیجہ ایک متنی جواب ہے۔ یہ وہ پروجیکٹ فائلیں ہیں جن کی بنیاد پر اس نے کام کیا؛ یہ ان میں سے کوئی بھی فراہم نہیں کرتا۔",
+  "result.checks": "Atoma نے اس نتیجے کی جانچ کیسے کی"
 }

@@ -1908,5 +1908,9 @@
   "assistant.cancelDeliveryReview": "キャンセル",
   "assistant.deliverySaving": "承認と公開のステータスを保存中…",
   "assistant.deliveryReadFailed": "納品レビューを読み込めませんでした。承認する前に更新してください。",
-  "assistant.deliveryFailed": "納品操作を完了できませんでした。再試行する前にステータスを更新してください。"
+  "assistant.deliveryFailed": "納品操作を完了できませんでした。再試行する前にステータスを更新してください。",
+  "result.workspaceFiles_one": "プロジェクトファイル（{{count}}件）",
+  "result.workspaceFiles_other": "プロジェクトファイル（{{count}}件）",
+  "result.workspaceFilesHint": "この結果はテキスト回答です。以下は回答の作成に使用したプロジェクトファイルであり、結果には含まれません。",
+  "result.checks": "Atomaがこの結果を確認した方法"
 }
