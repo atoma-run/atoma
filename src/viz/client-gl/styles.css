@@ -1813,6 +1813,9 @@ html.atoma-cursor-active * {
 .gpu-assistant-message { box-sizing: border-box; width: fit-content; max-width: 88%; padding: 6px 10px; border: 1px solid #ffffff26; border-left: 2px solid #81adce; border-radius: 8px; font-size: 12px; line-height: 1.4; }
 .gpu-assistant-message p { white-space: pre-wrap; margin: 2px 0 0; }
 .gpu-assistant-message-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; }
+/* The delivery review sits under the card's actions, not glued to them. */
+.gpu-assistant-result form { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.gpu-assistant-result form .gpu-assistant-message-actions { margin-top: 2px; }
 .gpu-assistant-markdown { min-width: 0; }
 .gpu-assistant-markdown > * { margin: 8px 0 0; }
 .gpu-assistant-markdown > :first-child { margin-top: 4px; }
