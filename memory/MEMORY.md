@@ -38,3 +38,4 @@
 - [First refusals 2026-10-10](first-refusals-2026-10-10.md) — 118/275 prod first root refusals classified (60 = criterion clause unseen by phases); phase criteria shipped 11f4d837; E3 and false approvals open
 - [Worktree junction hazard](worktree-junction-hazard.md) — `git worktree remove --force` followed a node_modules junction and wiped the main checkout's node_modules (2026-10-11); rmdir the link first, verify node_modules after npx surprises
 - [edit_file manifest fix 2026-10-11](edit-file-manifest-2026-10-11.md) — 171/1198 edit_file failures measured; manifest refusal was the only loop; 4cf75d87: validate_html records, no model writes the manifest; other categories open
+- [Project chat acceptance](project-chat-acceptance.md) — 2026-10-12: the conversation is the one acceptance surface for runs started anywhere (live > pending delivery > newest); open: GROUND TRUTH in text answers, L3 astra cost
