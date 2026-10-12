@@ -170,6 +170,50 @@ describe('the shared hover bubble', () => {
     expect(label.text).toBe('over');
   });
 
+  it('wraps every bubble, lane or not, so one line is never as wide as its copy', () => {
+    type Label = { text: string; style: { wordWrap: boolean; breakWords: boolean; wordWrapWidth: number } };
+    const label = () => bubble().children.find((child) => 'text' in child) as unknown as Label;
+    // A run goal plus an unbroken 240-character error token: unwrapped, this
+    // asked WebGPU for a 16384px text texture (viz:smoke, 2026-10-12).
+    const copy = `Exercise the bounded project row copy. · ${'W'.repeat(240)}`;
+    layer.beginRender();
+    layer.register({ x: 0, y: 0, width: 200, height: 20, text: copy });
+    hover(layer, 10, 10, 0);
+    hover(layer, 10, 10, AFTER_DELAY);
+    expect(label().style).toMatchObject({ wordWrap: true, breakWords: true, wordWrapWidth: 480 - 18 });
+    // A phone is narrower than the cap: the viewport bounds the bubble.
+    const phone = { width: 390, height: 600 };
+    layer.update({ x: 10, y: 10, active: true }, AFTER_DELAY * 2, phone);
+    expect(label().style.wordWrapWidth).toBe(390 - 12 - 18);
+  });
+
+  it('shortens wrapped copy that would stand taller than the viewport', () => {
+    let wrapWidth = 0;
+    const lineHeight = 13;
+    // Wrap-aware stand-in for Pixi: 6px per character, broken at wrapWidth.
+    const wrapped = (text: string) => ({
+      width: Math.min(text.length * 6, wrapWidth),
+      height: Math.ceil((text.length * 6) / wrapWidth) * lineHeight,
+    });
+    root = new Container();
+    layer = new TooltipLayer(root, (text) => {
+      wrapWidth = ((root.children[0]!.children.find((child) => 'text' in child) as unknown) as
+        { style: { wordWrapWidth: number } }).style.wordWrapWidth;
+      return wrapped(text);
+    });
+    const copy = 'x'.repeat(20_000);
+    layer.beginRender();
+    layer.register({ x: 0, y: 0, width: 200, height: 20, text: copy });
+    hover(layer, 10, 10, 0);
+    hover(layer, 10, 10, AFTER_DELAY);
+    const label = bubble().children.find((child) => 'text' in child) as { text: string };
+    expect(label.text.endsWith('…')).toBe(true);
+    expect(label.text.length).toBeLessThan(copy.length);
+    expect(wrapped(label.text).height).toBeLessThanOrEqual(VIEWPORT.height - 12 - 12);
+    // The bubble shows less; what it answers for is still the whole copy.
+    expect(layer.diagnostics().text).toBe(copy);
+  });
+
   it('ignores an empty string or a collapsed rectangle', () => {
     layer.beginRender();
     layer.register({ x: 0, y: 0, width: 100, height: 20, text: '' });

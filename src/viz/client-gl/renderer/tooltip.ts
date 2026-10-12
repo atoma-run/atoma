@@ -38,6 +38,13 @@ const POINTER_GAP_X = 14;
 const POINTER_GAP_Y = 24;
 /** Keep the bubble this far inside the viewport when it would overflow. */
 const EDGE_MARGIN = 6;
+/**
+ * Widest bubble outside a lane. Every bubble wraps: one unwrapped line is as
+ * wide as its copy, and a run's whole goal or a 240-character error token
+ * asked WebGPU for a 16384px text texture past the device's 8192px limit,
+ * which invalidated the frame's command buffer (viz:smoke, 2026-10-12).
+ */
+const MAX_BUBBLE_WIDTH = 480;
 
 export interface TooltipRegion {
   readonly x: number;
@@ -111,6 +118,7 @@ export class TooltipLayer {
   private shownFontSize = FONT_SIZE;
   private shownAccent: number | undefined;
   private shownWrap = 0;
+  private shownMaxTextHeight = 0;
   /** When the current hover began, or null while the pointer is over nothing. */
   private hoverStartedAt: number | null = null;
   private hoveredText: string | null = null;
@@ -212,14 +220,27 @@ export class TooltipLayer {
   ): void {
     const { text, accent } = region;
     const fontSize = region.fontSize ?? FONT_SIZE;
-    const wrap = region.lane ? Math.max(80, Math.floor(region.lane.width - PADDING_X * 2)) : 0;
-    if (text !== this.shownText || fontSize !== this.shownFontSize || accent !== this.shownAccent || wrap !== this.shownWrap) {
+    const band = region.lane?.width ?? Math.min(MAX_BUBBLE_WIDTH, viewport.width - EDGE_MARGIN * 2);
+    const wrap = Math.max(80, Math.floor(band - PADDING_X * 2));
+    const maxTextHeight = Math.max(0, viewport.height - EDGE_MARGIN * 2 - PADDING_Y * 2);
+    if (
+      text !== this.shownText || fontSize !== this.shownFontSize || accent !== this.shownAccent ||
+      wrap !== this.shownWrap || maxTextHeight !== this.shownMaxTextHeight
+    ) {
       this.label.style.fontSize = fontSize;
-      this.label.style.wordWrap = wrap > 0;
-      this.label.style.breakWords = wrap > 0;
-      if (wrap > 0) this.label.style.wordWrapWidth = wrap;
-      const measured = this.measure(text);
-      this.label.text = text;
+      this.label.style.wordWrap = true;
+      this.label.style.breakWords = true;
+      this.label.style.wordWrapWidth = wrap;
+      // Wrapped copy taller than the viewport could never be read whole, and
+      // its texture height is the same device limit: shorten it until it fits.
+      let shown = text;
+      let measured = this.measure(shown);
+      for (let attempt = 0; attempt < 4 && measured.height > maxTextHeight && shown.length > 1; attempt++) {
+        const keep = Math.max(1, Math.floor(shown.length * (maxTextHeight / measured.height)) - 1);
+        shown = shown.slice(0, keep).trimEnd() + '…';
+        measured = this.measure(shown);
+      }
+      this.label.text = shown;
       this.shownSize = {
         width: measured.width + PADDING_X * 2,
         height: measured.height + PADDING_Y * 2,
@@ -236,6 +257,7 @@ export class TooltipLayer {
       this.shownFontSize = fontSize;
       this.shownAccent = accent;
       this.shownWrap = wrap;
+      this.shownMaxTextHeight = maxTextHeight;
     }
     const { width, height } = this.shownSize;
     // Below-right of the pointer by default, flipped rather than clamped when
