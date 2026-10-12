@@ -1869,5 +1869,13 @@
   "detail.role.draft-checklist": "Rédiger la checklist d’acceptation",
   "detail.role.jev-audit": "Audit Jev",
   "detail.role.unknown": "Action inconnue",
-  "detail.role.aggregate": "Agréger"
+  "detail.role.aggregate": "Agréger",
+  "timeline.task": "Tâche {{n}}",
+  "timeline.inheritedExecution": "Exécution de {{parent}}",
+  "timeline.inheritedInstructions": "Cette tâche exécute les instructions de {{parent}}. Les événements ci-dessous montrent son exécution.",
+  "detail.skillContext.recipe": "Recette du skill",
+  "detail.skillContext.showRaw": "Afficher le contexte enregistré",
+  "detail.skillContext.showRecipe": "Revenir à la recette",
+  "detail.skillContext.truncated": "La trace ne contient qu’un extrait du contexte de ce skill.",
+  "detail.skillContext.missingRecipe": "L’extrait enregistré contient uniquement les instructions de configuration. La recette n’est pas disponible dans cet extrait."
 }

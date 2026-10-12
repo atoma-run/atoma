@@ -1869,5 +1869,13 @@
   "detail.role.draft-checklist": "গ্রহণযোগ্যতার চেকলিস্টের খসড়া তৈরি করুন",
   "detail.role.jev-audit": "Jev অডিট",
   "detail.role.unknown": "অজানা অ্যাকশন",
-  "detail.role.aggregate": "সমষ্টি"
+  "detail.role.aggregate": "সমষ্টি",
+  "timeline.task": "কাজ {{n}}",
+  "timeline.inheritedExecution": "{{parent}}-এর সম্পাদন",
+  "timeline.inheritedInstructions": "এই কাজটি {{parent}}-এর নির্দেশনা কার্যকর করে। নিচের ইভেন্টগুলোতে এর সম্পাদন দেখানো হয়েছে।",
+  "detail.skillContext.recipe": "skill-এর প্রণালী",
+  "detail.skillContext.showRaw": "রেকর্ড করা প্রেক্ষাপট দেখুন",
+  "detail.skillContext.showRecipe": "প্রণালীতে ফিরে যান",
+  "detail.skillContext.truncated": "ট্রেসটিতে এই skill-এর প্রেক্ষাপটের কেবল একটি অংশবিশেষ রয়েছে।",
+  "detail.skillContext.missingRecipe": "রেকর্ড করা অংশবিশেষে শুধু সেটআপের নির্দেশনা রয়েছে। এই অংশবিশেষে প্রণালীটি উপলভ্য নয়।"
 }

@@ -1869,5 +1869,13 @@
   "detail.role.draft-checklist": "受け入れチェックリストの下書き",
   "detail.role.jev-audit": "Jev監査",
   "detail.role.unknown": "不明なアクション",
-  "detail.role.aggregate": "集約"
+  "detail.role.aggregate": "集約",
+  "timeline.task": "タスク{{n}}",
+  "timeline.inheritedExecution": "{{parent}}の実行",
+  "timeline.inheritedInstructions": "このタスクは{{parent}}の指示を実行します。以下のイベントにその実行内容が表示されます。",
+  "detail.skillContext.recipe": "skillレシピ",
+  "detail.skillContext.showRaw": "記録されたコンテキストを表示",
+  "detail.skillContext.showRecipe": "レシピに戻る",
+  "detail.skillContext.truncated": "トレースには、このskillのコンテキストの抜粋のみが含まれています。",
+  "detail.skillContext.missingRecipe": "記録された抜粋にはセットアップ手順のみが含まれています。この抜粋ではレシピを確認できません。"
 }

@@ -1869,5 +1869,13 @@
   "detail.role.draft-checklist": "स्वीकृति चेकलिस्ट का मसौदा बनाएँ",
   "detail.role.jev-audit": "Jev ऑडिट",
   "detail.role.unknown": "अज्ञात कार्रवाई",
-  "detail.role.aggregate": "एकत्रित करें"
+  "detail.role.aggregate": "एकत्रित करें",
+  "timeline.task": "कार्य {{n}}",
+  "timeline.inheritedExecution": "{{parent}} का निष्पादन",
+  "timeline.inheritedInstructions": "यह कार्य {{parent}} के निर्देशों को पूरा करता है। नीचे दिए गए इवेंट इसका निष्पादन दिखाते हैं।",
+  "detail.skillContext.recipe": "Skill रेसिपी",
+  "detail.skillContext.showRaw": "रिकॉर्ड किया गया संदर्भ दिखाएँ",
+  "detail.skillContext.showRecipe": "रेसिपी पर वापस जाएँ",
+  "detail.skillContext.truncated": "ट्रेस में इस skill के संदर्भ का केवल एक अंश है।",
+  "detail.skillContext.missingRecipe": "रिकॉर्ड किए गए अंश में केवल सेटअप निर्देश हैं। इस अंश में रेसिपी उपलब्ध नहीं है।"
 }

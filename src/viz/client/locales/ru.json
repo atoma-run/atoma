@@ -1869,5 +1869,13 @@
   "detail.role.draft-checklist": "Составить контрольный список приёмки",
   "detail.role.jev-audit": "Аудит Jev",
   "detail.role.unknown": "Неизвестное действие",
-  "detail.role.aggregate": "Агрегировать"
+  "detail.role.aggregate": "Агрегировать",
+  "timeline.task": "Задача {{n}}",
+  "timeline.inheritedExecution": "Выполнение {{parent}}",
+  "timeline.inheritedInstructions": "Эта задача выполняет инструкции {{parent}}. События ниже показывают ход её выполнения.",
+  "detail.skillContext.recipe": "Рецепт skill",
+  "detail.skillContext.showRaw": "Показать записанный контекст",
+  "detail.skillContext.showRecipe": "Вернуться к рецепту",
+  "detail.skillContext.truncated": "Трассировка содержит только фрагмент контекста этого skill.",
+  "detail.skillContext.missingRecipe": "Записанный фрагмент содержит только инструкции по настройке. Рецепт в этом фрагменте недоступен."
 }

@@ -1869,5 +1869,13 @@
   "detail.role.draft-checklist": "Susun draf daftar periksa penerimaan",
   "detail.role.jev-audit": "Audit Jev",
   "detail.role.unknown": "Tindakan tidak diketahui",
-  "detail.role.aggregate": "Agregat"
+  "detail.role.aggregate": "Agregat",
+  "timeline.task": "Tugas {{n}}",
+  "timeline.inheritedExecution": "Eksekusi {{parent}}",
+  "timeline.inheritedInstructions": "Tugas ini menjalankan instruksi dari {{parent}}. Peristiwa di bawah menunjukkan eksekusinya.",
+  "detail.skillContext.recipe": "Resep skill",
+  "detail.skillContext.showRaw": "Tampilkan konteks yang direkam",
+  "detail.skillContext.showRecipe": "Kembali ke resep",
+  "detail.skillContext.truncated": "Jejak hanya memuat cuplikan konteks skill ini.",
+  "detail.skillContext.missingRecipe": "Cuplikan yang direkam hanya memuat instruksi penyiapan. Resep tidak tersedia dalam cuplikan ini."
 }

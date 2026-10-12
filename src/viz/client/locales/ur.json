@@ -1869,5 +1869,13 @@
   "detail.role.draft-checklist": "قبولیت کی چیک لسٹ کا مسودہ",
   "detail.role.jev-audit": "Jev آڈٹ",
   "detail.role.unknown": "نامعلوم کارروائی",
-  "detail.role.aggregate": "مجموعہ"
+  "detail.role.aggregate": "مجموعہ",
+  "timeline.task": "کام {{n}}",
+  "timeline.inheritedExecution": "{{parent}} کا نفاذ",
+  "timeline.inheritedInstructions": "یہ کام {{parent}} کی ہدایات پر عمل کرتا ہے۔ ذیل کے واقعات اس کا نفاذ دکھاتے ہیں۔",
+  "detail.skillContext.recipe": "skill کی ترکیب",
+  "detail.skillContext.showRaw": "ریکارڈ شدہ سیاق دکھائیں",
+  "detail.skillContext.showRecipe": "ترکیب پر واپس جائیں",
+  "detail.skillContext.truncated": "ٹریس میں اس skill کے سیاق کا صرف ایک اقتباس شامل ہے۔",
+  "detail.skillContext.missingRecipe": "ریکارڈ شدہ اقتباس میں صرف سیٹ اپ کی ہدایات شامل ہیں۔ اس اقتباس میں ترکیب دستیاب نہیں ہے۔"
 }

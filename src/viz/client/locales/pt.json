@@ -1869,5 +1869,13 @@
   "detail.role.draft-checklist": "Elaborar lista de verificação de aceitação",
   "detail.role.jev-audit": "Auditoria Jev",
   "detail.role.unknown": "Ação desconhecida",
-  "detail.role.aggregate": "Agregar"
+  "detail.role.aggregate": "Agregar",
+  "timeline.task": "Tarefa {{n}}",
+  "timeline.inheritedExecution": "Execução de {{parent}}",
+  "timeline.inheritedInstructions": "Esta tarefa executa as instruções de {{parent}}. Os eventos abaixo mostram a sua execução.",
+  "detail.skillContext.recipe": "Receita do skill",
+  "detail.skillContext.showRaw": "Mostrar contexto registado",
+  "detail.skillContext.showRecipe": "Voltar à receita",
+  "detail.skillContext.truncated": "O rastreio contém apenas um excerto do contexto deste skill.",
+  "detail.skillContext.missingRecipe": "O excerto registado contém apenas instruções de configuração. A receita não está disponível neste excerto."
 }

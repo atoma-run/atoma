@@ -1869,5 +1869,13 @@
   "detail.role.draft-checklist": "起草验收清单",
   "detail.role.jev-audit": "Jev 审计",
   "detail.role.unknown": "未知操作",
-  "detail.role.aggregate": "汇总"
+  "detail.role.aggregate": "汇总",
+  "timeline.task": "任务{{n}}",
+  "timeline.inheritedExecution": "{{parent}}的执行过程",
+  "timeline.inheritedInstructions": "此任务执行{{parent}}的指令。以下事件展示了其执行过程。",
+  "detail.skillContext.recipe": "Skill 配方",
+  "detail.skillContext.showRaw": "显示记录的上下文",
+  "detail.skillContext.showRecipe": "返回配方",
+  "detail.skillContext.truncated": "追踪记录仅包含此 skill 上下文的摘录。",
+  "detail.skillContext.missingRecipe": "记录的摘录仅包含设置说明。此摘录中没有配方。"
 }

@@ -1869,5 +1869,13 @@
   "detail.role.draft-checklist": "Akzeptanz-Checkliste entwerfen",
   "detail.role.jev-audit": "Jev-Audit",
   "detail.role.unknown": "Unbekannte Aktion",
-  "detail.role.aggregate": "Aggregieren"
+  "detail.role.aggregate": "Aggregieren",
+  "timeline.task": "Aufgabe {{n}}",
+  "timeline.inheritedExecution": "Ausführung von {{parent}}",
+  "timeline.inheritedInstructions": "Diese Aufgabe führt die Anweisungen von {{parent}} aus. Die Ereignisse unten zeigen ihre Ausführung.",
+  "detail.skillContext.recipe": "skill-Rezept",
+  "detail.skillContext.showRaw": "Aufgezeichneten Kontext anzeigen",
+  "detail.skillContext.showRecipe": "Zurück zum Rezept",
+  "detail.skillContext.truncated": "Der Trace enthält nur einen Auszug aus dem Kontext dieses skills.",
+  "detail.skillContext.missingRecipe": "Der aufgezeichnete Auszug enthält nur Einrichtungsanweisungen. Das Rezept ist in diesem Auszug nicht verfügbar."
 }

@@ -1869,5 +1869,13 @@
   "detail.role.draft-checklist": "صياغة قائمة تحقق القبول",
   "detail.role.jev-audit": "تدقيق Jev",
   "detail.role.unknown": "إجراء غير معروف",
-  "detail.role.aggregate": "تجميع"
+  "detail.role.aggregate": "تجميع",
+  "timeline.task": "المهمة {{n}}",
+  "timeline.inheritedExecution": "تنفيذ {{parent}}",
+  "timeline.inheritedInstructions": "تنفّذ هذه المهمة تعليمات {{parent}}. وتعرض الأحداث أدناه تنفيذها.",
+  "detail.skillContext.recipe": "وصفة skill",
+  "detail.skillContext.showRaw": "عرض السياق المسجّل",
+  "detail.skillContext.showRecipe": "العودة إلى الوصفة",
+  "detail.skillContext.truncated": "يحتوي التتبّع على مقتطف فقط من سياق هذا skill.",
+  "detail.skillContext.missingRecipe": "يحتوي المقتطف المسجّل على تعليمات الإعداد فقط. الوصفة غير متاحة في هذا المقتطف."
 }
