@@ -1274,7 +1274,7 @@ export function drawRuns(
     if (item.branchStart && branch) {
       ctx.text(
         listLayer,
-        branch.parallel
+        branch.parallel || branch.parentId
           ? `B${branch.path.join('.')}`
           : `P${branch.path.join('.')}`,
         railX(branch.lane) + (selected ? 12 : 6),

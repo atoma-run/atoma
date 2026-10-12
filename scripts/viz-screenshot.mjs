@@ -619,6 +619,14 @@ function fixtureTrace() {
     ev(1200, { kind: 'branch', op: 'end', branchId: 'p2' }),
     ev(1290, { kind: 'llm', role: 'aggregate', actor: { tier: 3, name: 'Meristem' }, durationMs: 4000, costUsd: 0.05 }),
   ];
+  if (has('--branch-heading-probe')) {
+    const phase = events.find(event => event.kind === 'branch' && event.op === 'start' && event.branchId === 'p1');
+    const task = events.find(event => event.kind === 'branch' && event.op === 'start' && event.branchId === 'c1');
+    task.label = phase.label;
+    task.index = 0;
+    task.total = 1;
+    task.aggregationMode = 'concat';
+  }
   if (has('--timeline-probe')) {
     events.push(...Array.from({ length: 160 }, (_, i) => ev(1201 + i / 2, {
       kind: 'tool', name: 'read_file', actor: { tier: 1, name: 'Ethane' },
@@ -1577,6 +1585,34 @@ try {
     }
 
     await mkdir(dirname(outPath), { recursive: true });
+    if (has('--branch-heading-probe')) {
+      if (!authed || view !== 'Runs') throw new Error('--branch-heading-probe requires --auth --view Runs');
+      for (const [branch, expected] of [['p1', 'Write index.html and app.js'], ['c1', 'Execution of Phase 1']]) {
+        const id = `run.filter.branch.${branch}`;
+        await page.waitForFunction(targetId => globalThis.__ATOMA_GPU__?.hitTargets().some(entry => entry.id === targetId),
+          { timeout: READY_TIMEOUT_MS }, id);
+        const point = await page.evaluate(targetId => {
+          const handle = globalThis.__ATOMA_GPU__;
+          const target = handle.hitTargets().find(entry => entry.id === targetId);
+          return handle.projectRendererPoint(target.x + target.width / 2, target.y + target.height / 2);
+        }, id);
+        await page.mouse.click(point.x, point.y);
+        await page.waitForFunction(title => {
+          const texts = [];
+          const visit = node => {
+            if (typeof node.text === 'string') texts.push(node.text);
+            for (const child of node.children ?? []) visit(child);
+          };
+          visit(globalThis.__ATOMA_GPU__.app.stage);
+          return texts.includes(title);
+        }, { timeout: READY_TIMEOUT_MS }, expected);
+        if (branch === 'p1') await page.screenshot({ path: outPath.replace(/\.png$/, '-phase.png') });
+      }
+      const label = await page.evaluate(() => globalThis.__ATOMA_GPU__.hitTargets()
+        .find(entry => entry.id === 'run.filter.branch.c1').label);
+      if (label !== 'TASK 1.1 · EXECUTION OF PHASE 1') throw new Error(`Unexpected task chip: ${label}`);
+      console.log('Branch headings: distinct phase and delegated execution selected through canvas controls');
+    }
     if (has('--live-runs-probe')) {
       if (!authed || !platformAdmin || view !== 'Live runs') throw new Error('--live-runs-probe requires --auth --platform-admin --view "Live runs"');
       const first = stubs['/api/admin/live-runs'][0];

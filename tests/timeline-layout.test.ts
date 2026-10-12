@@ -5,6 +5,7 @@ import {
   timelineBranchTitle,
 } from '../src/viz/client/timeline-layout.js';
 import type { VizEvent } from '../src/viz/client/types.js';
+import en from '../src/viz/client/locales/en.json' with { type: 'json' };
 
 function event(
   id: string,
@@ -15,8 +16,65 @@ function event(
 }
 
 const all = { kind: 'all', role: 'all', branchId: 'all' };
+const translate = (key: string, vars?: Record<string, unknown>) =>
+  (en[key as keyof typeof en] ?? key).replace(/\{\{(\w+)\}\}/g, (_, name: string) => {
+    const value = vars?.[name];
+    return typeof value === 'string' || typeof value === 'number' ? String(value) : '';
+  });
 
 describe('Runs timeline layout', () => {
+  const delegatedEvents = (label = 'Create index.html. Verify the game in a browser.', total = 1) => [
+    event('phase-start', 1, {
+      kind: 'branch', op: 'start', branchId: 'phase', index: 0, total: 1,
+      aggregationMode: 'sequential', label: 'Create index.html. Verify the game in a browser.',
+    }),
+    event('phase-plan', 2, { branchId: 'phase', role: 'plan' }),
+    event('task-start', 3, {
+      kind: 'branch', op: 'start', branchId: 'task', parentBranchId: 'phase',
+      index: 0, total, aggregationMode: 'concat', label,
+    }),
+    event('task-tool', 4, { branchId: 'task', kind: 'tool', name: 'write_file' }),
+    event('task-end', 5, { kind: 'branch', op: 'end', branchId: 'task' }),
+    event('phase-end', 6, { kind: 'branch', op: 'end', branchId: 'phase' }),
+  ];
+
+  it('distinguishes a delegated copy of the phase brief without inventing parallel work', () => {
+    const events = delegatedEvents();
+    const original = structuredClone(events);
+    const { branches } = buildTimelineLayout(events, all);
+    const phase = branches[0]!;
+    const task = branches[1]!;
+    expect(task.parallel).toBe(false);
+    expect(timelineBranchTitle(phase, translate)).toBe('Phase 1 · Create index.html.');
+    expect(timelineBranchTitle(task, translate)).toBe('Task 1.1 · Execution of Phase 1');
+    expect(timelineBranchHeading(task, translate).lines).toEqual([
+      'This task carries out the instructions of Phase 1. The events below show its execution.',
+    ]);
+    expect(task.label).toBe(phase.label);
+    expect(events).toEqual(original);
+  });
+
+  it('keeps parent identity and inherited instructions when filters hide the parent events', () => {
+    const layout = buildTimelineLayout(delegatedEvents(), { ...all, kind: 'tool', branchId: 'task' });
+    expect(layout.items.map(item => item.event.id)).toEqual(['task-tool']);
+    expect(timelineBranchTitle(layout.branches[0]!, translate)).toBe('Task 1.1 · Execution of Phase 1');
+  });
+
+  it('keeps a distinct task brief even when its opening sentence matches the phase', () => {
+    const label = 'Create index.html. Check keyboard controls.';
+    const task = buildTimelineLayout(delegatedEvents(label), all).branches[1]!;
+    expect(task.inheritedFromPath).toBeUndefined();
+    expect(timelineBranchHeading(task, translate)).toEqual({
+      eyebrow: 'Task 1.1', title: 'Create index.html.', lines: ['Check keyboard controls.'],
+    });
+  });
+
+  it('keeps a declared parallel fan-out labelled parallel even before its sibling has events', () => {
+    const task = buildTimelineLayout(delegatedEvents('Verify the game.', 2), all).branches[1]!;
+    expect(task.parallel).toBe(true);
+    expect(timelineBranchHeading(task, translate).eyebrow).toBe('Parallel branch 1.1');
+  });
+
   it('places trunk-only events oldest-to-newest in one lane', () => {
     const layout = buildTimelineLayout([
       event('new', 30),

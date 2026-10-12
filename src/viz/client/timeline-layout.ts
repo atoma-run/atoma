@@ -23,6 +23,8 @@ export interface TimelineBranch {
   readonly tier?: number;
   readonly agentName?: string;
   readonly label?: string;
+  /** A delegated task with exactly the same brief as its parent. */
+  readonly inheritedFromPath?: readonly number[];
   readonly aggregationMode?: 'concat' | 'llm-synthesize' | 'sequential';
   readonly ordinal: number;
   readonly path: readonly number[];
@@ -84,6 +86,7 @@ interface MutableBranch {
   agentName?: string;
   label?: string;
   aggregationMode?: 'concat' | 'llm-synthesize' | 'sequential';
+  total?: number;
   exactMetadata: boolean;
   parentId?: string;
   lane: number;
@@ -171,8 +174,12 @@ function assignLanes(branches: MutableBranch[]): void {
 
 function markParallelSiblings(branches: MutableBranch[]): void {
   for (const branch of branches) {
-    if (branch.exactMetadata) {
-      branch.parallel = branch.aggregationMode !== 'sequential';
+    if (branch.exactMetadata && branch.aggregationMode === 'sequential') {
+      branch.parallel = false;
+      continue;
+    }
+    if (branch.exactMetadata && branch.total !== undefined) {
+      branch.parallel = branch.total > 1;
       continue;
     }
     branch.parallel = branches.some(
@@ -243,9 +250,19 @@ export function timelineBranchHeading(
   t: (key: string, vars?: Record<string, unknown>) => string
 ): TimelineBranchHeading {
   const eyebrow = t(
-    branch.parallel ? 'timeline.parallelBranch' : 'timeline.phase',
+    branch.parallel ? 'timeline.parallelBranch' : branch.parentId ? 'timeline.task' : 'timeline.phase',
     { n: branch.path.join('.') }
   );
+  if (branch.inheritedFromPath) {
+    const parent = t(branch.inheritedFromPath.length === 1 ? 'timeline.phase' : 'timeline.task', {
+      n: branch.inheritedFromPath.join('.'),
+    });
+    return {
+      eyebrow,
+      title: t('timeline.inheritedExecution', { parent }),
+      lines: [t('timeline.inheritedInstructions', { parent })],
+    };
+  }
   const raw = collapseWs(branch.label ?? branch.agentName ?? '');
   if (!raw) return { eyebrow, title: eyebrow, lines: [] };
   const withoutContracts = collapseWs(raw.split(LITERAL_CONTRACT_MARKER)[0] ?? raw);
@@ -367,6 +384,7 @@ export function buildTimelineLayout(
         ...(metadata?.aggregationMode
           ? { aggregationMode: metadata.aggregationMode }
           : {}),
+        ...(metadata?.total !== undefined ? { total: metadata.total } : {}),
         ...(metadata?.parentId ? { parentId: metadata.parentId } : {}),
         lane: 1,
         ordinal:
@@ -403,6 +421,22 @@ export function buildTimelineLayout(
   }
 
   const branchById = new Map(branches.map((branch) => [branch.id, branch]));
+  // Lifecycle metadata survives event filters, including a hidden parent.
+  const pathOf = (id: string): number[] => {
+    const path: number[] = [];
+    const seen = new Set<string>();
+    let currentId: string | undefined = id;
+    while (currentId && !seen.has(currentId)) {
+      seen.add(currentId);
+      const current = branchById.get(currentId);
+      const metadata = lifecycle.get(currentId);
+      const ordinal = current?.ordinal ?? (metadata?.index !== undefined ? metadata.index + 1 : undefined);
+      if (ordinal === undefined) break;
+      path.unshift(ordinal);
+      currentId = current?.parentId ?? metadata?.parentId;
+    }
+    return path;
+  };
   const firstRows = new Map<string, number>();
   const lastRows = new Map<string, number>();
   // Row assignment is the ONLY place order enters. `ordered` is what the
@@ -469,21 +503,21 @@ export function buildTimelineLayout(
     ...(branch.tier !== undefined ? { tier: branch.tier } : {}),
     ...(branch.agentName ? { agentName: branch.agentName } : {}),
     ...(branch.label ? { label: branch.label } : {}),
+    ...(() => {
+      const parentLabel = branch.parentId
+        ? lifecycle.get(branch.parentId)?.label ?? branchById.get(branch.parentId)?.label
+        : undefined;
+      const parentPath = branch.parentId ? pathOf(branch.parentId) : [];
+      return branch.label && parentLabel && parentPath.length &&
+        collapseWs(branch.label) === collapseWs(parentLabel)
+        ? { inheritedFromPath: parentPath }
+        : {};
+    })(),
     ...(branch.aggregationMode
       ? { aggregationMode: branch.aggregationMode }
       : {}),
     ordinal: branch.ordinal,
-    path: (() => {
-      const path = [branch.ordinal];
-      let parentId = branch.parentId;
-      while (parentId) {
-        const parent = branchById.get(parentId);
-        if (!parent) break;
-        path.unshift(parent.ordinal);
-        parentId = parent.parentId;
-      }
-      return path;
-    })(),
+    path: pathOf(branch.id),
     parallel: branch.parallel,
     colorIndex: branchColorIndex(branch.id),
     ...(() => {
