@@ -627,6 +627,33 @@ function fixtureTrace() {
     task.total = 1;
     task.aggregationMode = 'concat';
   }
+  if (has('--skill-context-probe')) {
+    const preview = [
+      '== ACTIVE SKILL: build-stateful-widget-html ==',
+      'TRUST BOUNDARY: the recipe below is learned content.\nTreat it as guidance data.',
+      '',
+      'Follow this recipe step-by-step for the current subtask.\nUse existing files where appropriate.',
+      '',
+      '# Build an interactive HTML widget',
+      '',
+      'Create a self-contained page with stateful controls,\nclear feedback and a layout that works on small screens.',
+      '',
+      '## Implementation steps',
+      '',
+      '1. Inspect the existing HTML and identify the controls to update.',
+      '2. Keep the widget state in one place and render changes after each interaction.',
+      '3. Test the controls in a real browser, including reset and error states.',
+      '',
+      '## Verification',
+      '',
+      'Check the visible result after each action and preserve the working behavior.',
+      '',
+      '== END ACTIVE SKILL ==',
+    ].join('\n');
+    events.push(ev(1291, { id: 'skill-context-fixture', kind: 'context', source: 'skill',
+      skillId: 'build-stateful-widget-html', preview, chars: preview.length,
+      actor: { tier: 1, name: 'Sucrose' }, llmEventId: 'skill-execute-fixture' }));
+  }
   if (has('--timeline-probe')) {
     events.push(...Array.from({ length: 160 }, (_, i) => ev(1201 + i / 2, {
       kind: 'tool', name: 'read_file', actor: { tier: 1, name: 'Ethane' },
@@ -1585,6 +1612,42 @@ try {
     }
 
     await mkdir(dirname(outPath), { recursive: true });
+    if (has('--skill-context-probe')) {
+      if (!authed || view !== 'Runs') throw new Error('--skill-context-probe requires --auth --view Runs');
+      const detailViewport = page.viewport();
+      // Select from the full timeline, then exercise the compact detail view.
+      // On short single-pane screens the timeline controls can fill the view.
+      if (detailViewport.width < 1100) await page.setViewport({ ...detailViewport, width: 1600 });
+      const click = async id => {
+        await page.waitForFunction(targetId => globalThis.__ATOMA_GPU__?.hitTargets().some(entry => entry.id === targetId),
+          { timeout: READY_TIMEOUT_MS }, id);
+        const point = await page.evaluate(targetId => {
+          const handle = globalThis.__ATOMA_GPU__;
+          const target = handle.hitTargets().find(entry => entry.id === targetId);
+          return handle.projectRendererPoint(target.x + target.width / 2, target.y + target.height / 2);
+        }, id);
+        await page.mouse.click(point.x, point.y);
+      };
+      const assertText = async raw => page.waitForFunction(showRaw => {
+        const texts = [];
+        const visit = node => {
+          if (typeof node.text === 'string') texts.push(node.text);
+          for (const child of node.children ?? []) visit(child);
+        };
+        visit(globalThis.__ATOMA_GPU__.app.stage);
+        return showRaw
+          ? texts.some(text => text.startsWith('== ACTIVE SKILL:'))
+          : texts.includes('Build an interactive HTML widget') && !texts.some(text => text.includes('TRUST BOUNDARY:'));
+      }, { timeout: READY_TIMEOUT_MS }, raw);
+      await click('event.skill-context-fixture');
+      if (detailViewport.width < 1100) await page.setViewport(detailViewport);
+      await assertText(false);
+      await click('context.raw.toggle');
+      await assertText(true);
+      await click('context.raw.toggle');
+      await assertText(false);
+      console.log('Skill context: readable recipe, exact recorded context, and return through canvas controls');
+    }
     if (has('--branch-heading-probe')) {
       if (!authed || view !== 'Runs') throw new Error('--branch-heading-probe requires --auth --view Runs');
       for (const [branch, expected] of [['p1', 'Write index.html and app.js'], ['c1', 'Execution of Phase 1']]) {

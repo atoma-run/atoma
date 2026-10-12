@@ -35,6 +35,7 @@ import {
 } from '../../../client/structured-detail.js';
 import type { AtomView, RunStatus } from '../../../client/run-utils.js';
 import { clockTime } from '../../../client/date-format.js';
+import { skillContextDetail } from '../../../client/skill-context-detail.js';
 import type { VizEvent, VizRun } from '../../../client/types.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
@@ -1867,18 +1868,20 @@ function drawEventDetail(
     return;
   }
   if (event.kind === 'context') {
+    const skillContext = event.source === 'skill' ? skillContextDetail(event, snapshot.t) : null;
+    const showRaw = !skillContext || snapshot.state.contextRawOpen;
     const sourceKey = event.source
       ? `detail.enum.contextSource.${event.source}`
       : 'detail.field.source';
-    ctx.text(ctx.root, snapshot.t('detail.field.context'), x + 18, y + 72, {
+    ctx.text(ctx.root, snapshot.t(skillContext ? 'detail.skillContext.recipe' : 'detail.field.context'), x + 18, y + 72, {
       size: 13,
       color: eventAccent(event),
       weight: '700',
       width: width - 36,
     });
-    ctx.text(
+    const contextLabel = ctx.text(
       ctx.root,
-      [snapshot.t(sourceKey), event.skillId, typeof event.chars === 'number' ? `${event.chars}` : '']
+      [snapshot.t(sourceKey), event.skillId]
         .filter(Boolean)
         .join(' · '),
       x + 18,
@@ -1889,12 +1892,13 @@ function drawEventDetail(
         width: width - 36,
       }
     );
-    // The injected text used to be drawn straight onto the pane at a fixed y,
-    // with no mask and no scroll, so anything past the pane's bottom edge was
-    // simply gone — while the `chars` count beside it announced how much
-    // (2026-09-21). It now shares the scrolled, masked layer every other kind
-    // uses, and mono, because this is the literal tail of a system prompt.
-    const contextTop = y + 140;
+    let contextTop = y + 120 + contextLabel.height;
+    if (skillContext) {
+      ctx.button(ctx.root, 'context.raw.toggle', 'button',
+        snapshot.t(showRaw ? 'detail.skillContext.showRecipe' : 'detail.skillContext.showRaw'),
+        x + 18, contextTop, width - 36, 32, showRaw, snapshot.onActivate);
+      contextTop += 44;
+    }
     const contextBottom = y + height - 14;
     const contextHeight = Math.max(40, contextBottom - contextTop);
     ctx.detailBounds = new Rectangle(x + 12, contextTop - 6, width - 24, contextHeight + 6);
@@ -1903,19 +1907,24 @@ function drawEventDetail(
     contextLayer.position.y = -ctx.detailScrollY;
     ctx.root.addChild(contextLayer);
     contextLayer.mask = ctx.detailMask(x + 12, contextTop - 6, width - 24, contextHeight + 6);
-    const contextText = ctx.text(
-      contextLayer,
-      truncate(event.preview ?? '', DETAIL_RAW_VALUE_CAP),
-      x + 18,
-      contextTop,
-      {
-        size: 10,
-        mono: true,
-        color: DETAIL_VALUE_COLOR,
-        width: width - 42,
-      }
-    );
-    ctx.detailScrollMax = Math.max(0, contextTop + contextText.height - contextBottom + 8);
+    let cursor = contextTop;
+    if (skillContext?.truncated) {
+      cursor += ctx.text(contextLayer, snapshot.t('detail.skillContext.truncated'), x + 18, cursor, {
+        size: 11, color: GPU_COLORS.warning, width: width - 42,
+      }).height + 14;
+    }
+    if (showRaw) {
+      cursor += ctx.text(contextLayer, event.preview ?? '', x + 18, cursor, {
+        size: 11, mono: true, color: DETAIL_VALUE_COLOR, width: width - 42,
+      }).height;
+    } else if (skillContext?.nodes.length) {
+      cursor = drawSkillContextNodes(ctx, contextLayer, skillContext.nodes, x + 18, cursor, width - 42);
+    } else {
+      cursor += ctx.text(contextLayer, snapshot.t('detail.skillContext.missingRecipe'), x + 18, cursor, {
+        size: 12, color: GPU_COLORS.muted, width: width - 42,
+      }).height;
+    }
+    ctx.detailScrollMax = Math.max(0, cursor - contextBottom + 8);
     ctx.detailScrollY = Math.min(ctx.detailScrollY, ctx.detailScrollMax);
     contextLayer.position.y = -ctx.detailScrollY;
     drawScrollbarThumb(ctx.root, {
@@ -2003,6 +2012,31 @@ function drawEventDetail(
     scrollY: ctx.detailScrollY,
     maxScroll: ctx.detailScrollMax,
   });
+}
+
+/** Recipe prose reads as a document; only fenced code retains fixed spacing. */
+function drawSkillContextNodes(
+  ctx: RendererCtx, parent: Container, nodes: readonly StructuredDetailNode[],
+  x: number, y: number, width: number
+): number {
+  let cursor = y;
+  for (const node of nodes) {
+    if (node.kind === 'section') {
+      if (node.key !== 'list') {
+        cursor += ctx.text(parent, node.label, x, cursor, {
+          size: 13, weight: '700', color: GPU_COLORS.text, width,
+        }).height + 8;
+      }
+      cursor = drawSkillContextNodes(ctx, parent, node.children, x, cursor, width);
+    } else {
+      const listItem = node.key.startsWith('item-');
+      const value = listItem ? `•  ${node.value}` : node.value;
+      cursor += ctx.text(parent, value, x, cursor, {
+        size: 12, mono: node.presentation === 'code', color: DETAIL_VALUE_COLOR, width,
+      }).height + (listItem ? 8 : 16);
+    }
+  }
+  return cursor;
 }
 
 /**

@@ -885,6 +885,10 @@ function GpuAppContent({
       store.toggleBranchHeading();
       return;
     }
+    if (id === 'context.raw.toggle') {
+      store.toggleContextRaw();
+      return;
+    }
     if (id === 'run.summary.toggle') {
       store.toggleRunSummary();
       return;
