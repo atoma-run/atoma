@@ -79,10 +79,15 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
     try { localStorage.setItem(modelPreferenceKey, selected.id); } catch { /* Storage may be disabled. */ }
   }, [modelPreferenceKey, selected?.id]);
   const canSend = query.data?.available && selected !== undefined;
-  const empty = !waiting && older.length === 0 && !conversation?.messages.length && !before &&
-    (!proposal || proposal.state === 'done') && !query.data?.run;
-  const newProjectPrompt = empty && !projectId;
-  const compact = externalAgentOpen || Boolean(query.data && choices.length > 0 && empty && !error && !query.isError && !query.data.run);
+  // No exchange yet. A run started elsewhere does not make the conversation
+  // tall: the card keeps its natural height, the result card or the live
+  // status included (2026-10-12: a full-height empty log above "running").
+  const quiet = !waiting && older.length === 0 && !conversation?.messages.length && !before &&
+    (!proposal || proposal.state === 'done');
+  const finishedRun = shownRun && ['delivered', 'partial', 'failed', 'cancelled'].includes(shownRun.status) ? shownRun : null;
+  const empty = quiet && !finishedRun;
+  const newProjectPrompt = empty && !projectId && !shownRun;
+  const compact = externalAgentOpen || Boolean(query.data && choices.length > 0 && quiet && !error && !query.isError);
   useLayoutEffect(() => {
     useGpuStore.setState({ projectAssistantCompact: compact });
     return () => { useGpuStore.setState({ projectAssistantCompact: false }); };
@@ -217,10 +222,8 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
           {message.run ? <button type="button" onClick={() => onRun(message.run!, query.data?.run?.runId === message.run!.runId ? query.data.run.traceId : null)}><ButtonIcon kind="play" />{t('assistant.openRun')}</button> : null}
         </div> : null}
       </article>)}
-      {query.data?.run && ['delivered', 'partial', 'failed', 'cancelled'].includes(query.data.run.status) ?
-        <AssistantRunResult key={`${scopeKey}:${query.data.run.runId}`} scopeKey={scopeKey}
-          target={{ projectId: query.data.run.projectId, runId: query.data.run.runId }}
-          run={query.data.run} t={t} onRun={onRun} /> : null}
+      {finishedRun ? <AssistantRunResult key={`${scopeKey}:${finishedRun.runId}`} scopeKey={scopeKey}
+        target={{ projectId: finishedRun.projectId, runId: finishedRun.runId }} run={finishedRun} t={t} onRun={onRun} /> : null}
       {proposal && proposal.state !== 'done' ? <article className="gpu-assistant-proposal" aria-label={t('assistant.proposal')}>
         <h3>{t('assistant.proposal')}</h3>
         {proposal.action.kind === 'create_project' ? <>
@@ -241,7 +244,7 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
         <span className="gpu-assistant-typing-dots" aria-hidden="true"><span /><span /><span /></span>
       </div> : null}
     </div>
-    {shownRun && !['delivered', 'partial', 'failed', 'cancelled'].includes(shownRun.status) ? <div className="gpu-assistant-run" role="status">
+    {shownRun && !finishedRun ? <div className="gpu-assistant-run" role="status">
       <span>{t('assistant.runStatus', { status: t(`projects.runStatus.${shownRun.status}`) })}
         {shownRun.costUsd !== null ? ` · $${shownRun.costUsd.toFixed(2)}` : ''}</span>
       <button type="button" onClick={() => onRun({ projectId: shownRun.projectId, runId: shownRun.runId }, shownRun.traceId)}><ButtonIcon kind="play" />{t('assistant.openRun')}</button>

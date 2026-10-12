@@ -406,6 +406,26 @@ it('gives the external guide the card and restores the compact empty conversatio
   expect(useGpuStore.getState().projectAssistantCompact).toBe(false);
 });
 
+it('keeps a conversation without messages at its natural height while a run shows', async () => {
+  // A run started elsewhere, no exchange: a full-height empty log sat above
+  // "Run: running" (2026-10-12). Neither the live status nor the result card
+  // turns the card into a tall conversation; a message still does.
+  vi.spyOn(api, 'runReview').mockResolvedValue(deliveryReview());
+  const data = deliveredView(); data.conversation.lastRun = null; data.run!.status = 'running';
+  const { client } = panel(data);
+  expect(await screen.findByText(/Run: running/)).toBeVisible();
+  expect(screen.getByRole('log')).toHaveClass('gpu-assistant-log--empty');
+  expect(useGpuStore.getState().projectAssistantCompact).toBe(true);
+  await act(async () => { client.setQueryData(['viz', 'assistant', 'alice:org-a', null], { ...data, run: { ...data.run!, status: 'delivered' } }); });
+  expect(await screen.findByRole('button', { name: 'Review and publish to GitHub' })).toBeVisible();
+  expect(screen.getByRole('log')).not.toHaveClass('gpu-assistant-log--empty');
+  expect(useGpuStore.getState().projectAssistantCompact).toBe(true);
+  await act(async () => { client.setQueryData(['viz', 'assistant', 'alice:org-a', null], { ...data, run: { ...data.run!, status: 'delivered' },
+    conversation: { ...data.conversation, version: 1, messages: [{ role: 'assistant', text: 'A shared update', at: '2026-10-09T10:00:00.000Z' }] } }); });
+  expect(await screen.findByText('A shared update')).toBeVisible();
+  expect(useGpuStore.getState().projectAssistantCompact).toBe(false);
+});
+
 it('expands the empty card when a shared message arrives', async () => {
   const data = view();
   const { client } = panel(data);
