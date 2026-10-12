@@ -1878,5 +1878,11 @@
   "detail.skillContext.showRecipe": "ترکیب پر واپس جائیں",
   "detail.skillContext.truncated": "ٹریس میں اس skill کے سیاق کا صرف ایک اقتباس شامل ہے۔",
   "detail.skillContext.missingRecipe": "ریکارڈ شدہ اقتباس میں صرف سیٹ اپ کی ہدایات شامل ہیں۔ اس اقتباس میں ترکیب دستیاب نہیں ہے۔",
-  "detail.participant.unknownTier": "tier ریکارڈ نہیں کیا گیا"
+  "detail.participant.unknownTier": "tier ریکارڈ نہیں کیا گیا",
+  "detail.planning.mission": "تفویض کردہ کام",
+  "detail.planning.proposal": "مجوزہ منصوبہ",
+  "detail.llm.response": "ایجنٹ کا جواب",
+  "detail.llm.missingResponse": "اس کال کے لیے کوئی جواب ریکارڈ نہیں کیا گیا۔",
+  "detail.llm.resources": "ایجنٹ کو فراہم کردہ سیاق و سباق",
+  "detail.llm.showReadable": "قابلِ مطالعہ سیاق و سباق دکھائیں"
 }

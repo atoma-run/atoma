@@ -1878,5 +1878,11 @@
   "detail.skillContext.showRecipe": "रेसिपी पर वापस जाएँ",
   "detail.skillContext.truncated": "ट्रेस में इस skill के संदर्भ का केवल एक अंश है।",
   "detail.skillContext.missingRecipe": "रिकॉर्ड किए गए अंश में केवल सेटअप निर्देश हैं। इस अंश में रेसिपी उपलब्ध नहीं है।",
-  "detail.participant.unknownTier": "tier दर्ज नहीं किया गया"
+  "detail.participant.unknownTier": "tier दर्ज नहीं किया गया",
+  "detail.planning.mission": "सौंपा गया कार्य",
+  "detail.planning.proposal": "प्रस्तावित योजना",
+  "detail.llm.response": "एजेंट की प्रतिक्रिया",
+  "detail.llm.missingResponse": "इस कॉल के लिए कोई प्रतिक्रिया रिकॉर्ड नहीं की गई।",
+  "detail.llm.resources": "एजेंट को दिया गया संदर्भ",
+  "detail.llm.showReadable": "पठनीय संदर्भ दिखाएँ"
 }

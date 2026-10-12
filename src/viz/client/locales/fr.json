@@ -1878,5 +1878,11 @@
   "detail.skillContext.showRecipe": "Revenir à la recette",
   "detail.skillContext.truncated": "La trace ne contient qu’un extrait du contexte de ce skill.",
   "detail.skillContext.missingRecipe": "L’extrait enregistré contient uniquement les instructions de configuration. La recette n’est pas disponible dans cet extrait.",
-  "detail.participant.unknownTier": "Tier non enregistré"
+  "detail.participant.unknownTier": "Tier non enregistré",
+  "detail.planning.mission": "Tâche assignée",
+  "detail.planning.proposal": "Plan proposé",
+  "detail.llm.response": "Réponse de l’agent",
+  "detail.llm.missingResponse": "Aucune réponse n’a été enregistrée pour cet appel.",
+  "detail.llm.resources": "Contexte fourni à l’agent",
+  "detail.llm.showReadable": "Afficher le contexte lisible"
 }

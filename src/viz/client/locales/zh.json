@@ -1878,5 +1878,11 @@
   "detail.skillContext.showRecipe": "返回配方",
   "detail.skillContext.truncated": "追踪记录仅包含此 skill 上下文的摘录。",
   "detail.skillContext.missingRecipe": "记录的摘录仅包含设置说明。此摘录中没有配方。",
-  "detail.participant.unknownTier": "未记录tier"
+  "detail.participant.unknownTier": "未记录tier",
+  "detail.planning.mission": "已分配的任务",
+  "detail.planning.proposal": "建议的计划",
+  "detail.llm.response": "智能体响应",
+  "detail.llm.missingResponse": "未记录此次调用的响应。",
+  "detail.llm.resources": "提供给智能体的上下文",
+  "detail.llm.showReadable": "显示可读上下文"
 }

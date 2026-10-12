@@ -1878,5 +1878,11 @@
   "detail.skillContext.showRecipe": "العودة إلى الوصفة",
   "detail.skillContext.truncated": "يحتوي التتبّع على مقتطف فقط من سياق هذا skill.",
   "detail.skillContext.missingRecipe": "يحتوي المقتطف المسجّل على تعليمات الإعداد فقط. الوصفة غير متاحة في هذا المقتطف.",
-  "detail.participant.unknownTier": "لم يُسجَّل tier"
+  "detail.participant.unknownTier": "لم يُسجَّل tier",
+  "detail.planning.mission": "المهمة المسندة",
+  "detail.planning.proposal": "الخطة المقترحة",
+  "detail.llm.response": "استجابة الوكيل",
+  "detail.llm.missingResponse": "لم تُسجَّل أي استجابة لهذه المكالمة.",
+  "detail.llm.resources": "السياق المقدَّم إلى الوكيل",
+  "detail.llm.showReadable": "عرض السياق المقروء"
 }

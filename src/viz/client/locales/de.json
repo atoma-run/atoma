@@ -1878,5 +1878,11 @@
   "detail.skillContext.showRecipe": "Zurück zum Rezept",
   "detail.skillContext.truncated": "Der Trace enthält nur einen Auszug aus dem Kontext dieses skills.",
   "detail.skillContext.missingRecipe": "Der aufgezeichnete Auszug enthält nur Einrichtungsanweisungen. Das Rezept ist in diesem Auszug nicht verfügbar.",
-  "detail.participant.unknownTier": "Tier nicht erfasst"
+  "detail.participant.unknownTier": "Tier nicht erfasst",
+  "detail.planning.mission": "Zugewiesene Aufgabe",
+  "detail.planning.proposal": "Vorgeschlagener Plan",
+  "detail.llm.response": "Agentenantwort",
+  "detail.llm.missingResponse": "Für diesen Aufruf wurde keine Antwort aufgezeichnet.",
+  "detail.llm.resources": "Dem Agenten bereitgestellter Kontext",
+  "detail.llm.showReadable": "Lesbaren Kontext anzeigen"
 }

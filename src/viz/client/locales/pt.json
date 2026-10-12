@@ -1878,5 +1878,11 @@
   "detail.skillContext.showRecipe": "Voltar à receita",
   "detail.skillContext.truncated": "O rastreio contém apenas um excerto do contexto deste skill.",
   "detail.skillContext.missingRecipe": "O excerto registado contém apenas instruções de configuração. A receita não está disponível neste excerto.",
-  "detail.participant.unknownTier": "Tier não registado"
+  "detail.participant.unknownTier": "Tier não registado",
+  "detail.planning.mission": "Tarefa atribuída",
+  "detail.planning.proposal": "Plano proposto",
+  "detail.llm.response": "Resposta do agente",
+  "detail.llm.missingResponse": "Não foi registada nenhuma resposta para esta chamada.",
+  "detail.llm.resources": "Contexto fornecido ao agente",
+  "detail.llm.showReadable": "Mostrar contexto legível"
 }

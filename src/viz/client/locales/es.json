@@ -1878,5 +1878,11 @@
   "detail.skillContext.showRecipe": "Volver a la receta",
   "detail.skillContext.truncated": "La traza contiene solo un extracto del contexto de este skill.",
   "detail.skillContext.missingRecipe": "El extracto registrado solo contiene instrucciones de configuración. La receta no está disponible en este extracto.",
-  "detail.participant.unknownTier": "Tier no registrado"
+  "detail.participant.unknownTier": "Tier no registrado",
+  "detail.planning.mission": "Tarea asignada",
+  "detail.planning.proposal": "Plan propuesto",
+  "detail.llm.response": "Respuesta del agente",
+  "detail.llm.missingResponse": "No se registró ninguna respuesta para esta llamada.",
+  "detail.llm.resources": "Contexto proporcionado al agente",
+  "detail.llm.showReadable": "Mostrar contexto legible"
 }

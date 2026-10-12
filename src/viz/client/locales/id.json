@@ -1878,5 +1878,11 @@
   "detail.skillContext.showRecipe": "Kembali ke resep",
   "detail.skillContext.truncated": "Jejak hanya memuat cuplikan konteks skill ini.",
   "detail.skillContext.missingRecipe": "Cuplikan yang direkam hanya memuat instruksi penyiapan. Resep tidak tersedia dalam cuplikan ini.",
-  "detail.participant.unknownTier": "Tier tidak tercatat"
+  "detail.participant.unknownTier": "Tier tidak tercatat",
+  "detail.planning.mission": "Tugas yang diberikan",
+  "detail.planning.proposal": "Rencana yang diusulkan",
+  "detail.llm.response": "Respons agen",
+  "detail.llm.missingResponse": "Tidak ada respons yang direkam untuk panggilan ini.",
+  "detail.llm.resources": "Konteks yang diberikan kepada agen",
+  "detail.llm.showReadable": "Tampilkan konteks yang mudah dibaca"
 }
