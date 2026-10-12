@@ -55,6 +55,21 @@ export function drawTimelineMinimap(
   let railOffset = 0;
   const key = JSON.stringify([snapshot.data.run?.id, snapshot.state.runFilters, totalRows]);
   let motion = ctx.timelineMinimapMotion?.key === key ? ctx.timelineMinimapMotion : null;
+  const previous = ctx.timelineMinimapPosition?.key === key ? ctx.timelineMinimapPosition : null;
+  // A manual card scroll can cross the retained window and rebuild the scene.
+  // Only an unarmed bar click is allowed to carry a tween across that jump.
+  if (previous && previous.scrollY !== offset && motion?.target !== null) motion = null;
+  const position = ctx.timelineMinimapPosition = {
+    key, position: previous?.position ?? 0, scrollY: offset,
+    selectedEventId: snapshot.state.selectedEventId,
+  };
+  const selectedIndex = timeline.items.findIndex(item => item.event.id === snapshot.state.selectedEventId);
+  const centreOn = (row: number) => Math.max(0, Math.min(maxFirst, row + 0.5 - tickCount / 2));
+  // Selection can come from a card or the keyboard, without scrolling the cards.
+  if (previous && selectedIndex >= 0 && previous.selectedEventId !== snapshot.state.selectedEventId) {
+    const from = motion?.position ?? previous.position;
+    motion = { key, from, position: from, target: centreOn(selectedIndex + viewport.rowOffset), elapsed: 0 };
+  }
   ctx.timelineMinimapMotion = motion;
   let followed = false;
   const fit = (text: string) => ctx.fitText(text.replace(/\s+/g, ' ').trim(),
@@ -84,6 +99,7 @@ export function drawTimelineMinimap(
     return { hit, target, tooltip, color: GPU_COLORS.primary, row: -1 };
   });
   function redraw() {
+    position.position = railOffset / PITCH;
     ink.clear();
     const first = Math.max(0, (offset - viewport.contentTopPadding) / viewport.rowHeight);
     const last = (offset + viewport.height - viewport.contentTopPadding) / viewport.rowHeight;
@@ -135,6 +151,17 @@ export function drawTimelineMinimap(
   const topLeft = layer.toGlobal({ x: 0, y: 0 });
   ctx.timelineMinimapScroll = {
     bounds: new Rectangle(topLeft.x, topLeft.y, TIMELINE_MINIMAP_WIDTH, height),
+    select(eventId) {
+      const index = timeline.items.findIndex(item => item.event.id === eventId);
+      if (index < 0) return;
+      const from = railOffset / PITCH;
+      const target = centreOn(index + viewport.rowOffset);
+      motion = ctx.timelineMinimapMotion = { key, from, position: from, target, elapsed: 0 };
+      if (prefersReducedMotion()) {
+        motion = ctx.timelineMinimapMotion = null;
+        place(target);
+      }
+    },
     move(delta) {
       motion = ctx.timelineMinimapMotion = null;
       railOffset = Math.max(0, Math.min(maxFirst * PITCH, railOffset + delta));
@@ -155,14 +182,18 @@ export function drawTimelineMinimap(
       motion = pending;
       followed = false;
     }
+    if (followed && scrollY === offset) return;
     // Direct card scrolling takes over immediately, even during a click tween.
     if (followed && scrollY !== offset) motion = ctx.timelineMinimapMotion = null;
+    const initial = !followed;
     followed = true;
     offset = scrollY;
+    position.scrollY = scrollY;
     const maximum = Math.max(0, viewport.totalHeight - viewport.height);
     const centreRow = (offset + viewport.height / 2 - viewport.contentTopPadding) / viewport.rowHeight;
-    const target = offset <= 0 ? 0 : offset >= maximum ? maxFirst
+    const viewportTarget = offset <= 0 ? 0 : offset >= maximum ? maxFirst
       : Math.max(0, Math.min(maxFirst, Math.floor(centreRow - tickCount / 2)));
+    const target = motion?.target ?? (initial && previous?.scrollY === offset ? position.position : viewportTarget);
     if (motion && !prefersReducedMotion()) {
       motion.target = target;
       place(motion.position);

@@ -100,6 +100,35 @@ export async function assertTimelineMinimap(page, { leaveHovered = false } = {})
       throw new Error('Clicked minimap bar did not glide through intermediate positions');
     }
     if (Math.abs(positions.at(-1) - positions.at(-2)) > 0.1) throw new Error('Minimap recenter did not settle');
+    const cards = await page.evaluate(() => globalThis.__ATOMA_GPU__.hitTargets()
+      .filter(target => target.id.startsWith('event.')).map(({ id, y }) => ({ id, y })));
+    const cardId = cards[0].id;
+    for (let click = 0; click < 2; click++) {
+      await wheelRail(60);
+      const cardPoint = await pointFor(cardId);
+      await page.mouse.click(cardPoint.x, cardPoint.y);
+      const movement = await page.evaluate(async () => {
+        const samples = [];
+        const started = performance.now();
+        while (performance.now() - started < 250) {
+          const handle = globalThis.__ATOMA_GPU__;
+          const ink = handle.app.stage.getChildByLabel('timeline-minimap-bars', true);
+          const strokes = ink.context.instructions.filter(instruction => instruction.action === 'stroke');
+          const index = strokes.findIndex(instruction => instruction.data.style.width === 2);
+          const rows = handle.hitTargets().filter(target => target.id.startsWith('run.timeline.row.'));
+          if (index >= 0) samples.push(rows[index].y + rows[index].height / 2);
+          await new Promise(resolve => requestAnimationFrame(resolve));
+        }
+        const rows = globalThis.__ATOMA_GPU__.hitTargets().filter(target => target.id.startsWith('run.timeline.row.'));
+        return { samples, centre: (rows[0].y + rows.at(-1).y + rows.at(-1).height) / 2 };
+      });
+      if (new Set(movement.samples.map(y => Math.round(y * 10))).size < 3) throw new Error('Card click did not animate its timeline bar');
+      // The first clipped slot can shorten the measured window by half a pitch.
+      if (Math.abs(movement.samples.at(-1) - movement.centre) > 5) throw new Error('Card click did not centre its timeline bar');
+      const afterCards = await page.evaluate(() => globalThis.__ATOMA_GPU__.hitTargets()
+        .filter(target => target.id.startsWith('event.')).map(({ id, y }) => ({ id, y })));
+      if (JSON.stringify(cards) !== JSON.stringify(afterCards)) throw new Error('Selecting a card moved the central viewport');
+    }
     await wheelRail(-1000000);
     const resetPoint = await pointFor(first);
     await page.mouse.click(resetPoint.x, resetPoint.y);

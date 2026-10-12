@@ -331,6 +331,7 @@ function createRecordingCtx(): RecordingCtx {
     runsScroll: null,
     timelineMinimapScroll: null,
     timelineMinimapMotion: null,
+    timelineMinimapPosition: null,
     // Headless retention stub: no renderer, so no textures to retain — every
     // call attaches a fresh mark, which is what the layout assertions read.
     // The orb is a Mesh with a shader and a decoded texture: recording the
@@ -593,8 +594,9 @@ function createRecordingCtx(): RecordingCtx {
       parent.addChild(container);
       return container;
     },
-    eventCard(parent, id, x, y, width, height, _accent, selected) {
+    eventCard(parent, id, x, y, width, height, _accent, selected, onActivate) {
       const content = new Container();
+      content.on('pointertap', () => onActivate(`event.${id}`));
       ctx.eventCards.push({ id, x, y, width, height, selected, content });
       ctx.recordHitTarget(parent, {
         id,
@@ -6967,7 +6969,7 @@ describe('touch scrolling — a finger drag drives the same router as the wheel'
     const onScroll = vi.fn();
     const internals = armRenderer({ ...makeSnapshot({ view: 'runs' }), onScroll });
     const move = vi.fn();
-    internals.timelineMinimapScroll = { bounds: new Rectangle(350, 300, 36, 400), move };
+    internals.timelineMinimapScroll = { bounds: new Rectangle(350, 300, 36, 400), move, select: vi.fn() };
     internals.touchStart({ touches: [{ identifier: 1, clientX: 365, clientY: 500 }] });
     internals.touchMove({ changedTouches: [{ identifier: 1, clientX: 365, clientY: 400 }] });
     expect(move).toHaveBeenCalledWith(100);
@@ -7248,6 +7250,64 @@ describe('FPS follow-ups', () => {
     const positions = ctx.metrics.hitTargets.filter(target => target.id.startsWith('run.timeline.row.')).map(target => ({ ...target }));
     ctx.tickers.forEach(tick => tick({ deltaMS: 200 } as Ticker));
     expect(ctx.metrics.hitTargets.filter(target => target.id.startsWith('run.timeline.row.'))).toEqual(positions);
+  });
+
+  it.each([false, true])('centres a selected central card without moving the cards (reduced motion: %s)', reduced => {
+    setReducedMotionOverrideForTests(reduced);
+    const snapshot = makeSnapshot({ scrollY: { ...makeState().scrollY, runs: 3000 } }, {
+      run: makeRun(Array.from({ length: 200 }, (_, i) => makeLlmEvent(`e${i}`))),
+    });
+    const before = createRecordingCtx();
+    drawRuns(before, snapshot, 1280, 800);
+    before.timelineMinimapScroll!.move(250);
+    const viewport = before.metrics.timelineViewport!;
+    const row = 80;
+    const eventId = viewport.eventIds[row - viewport.rowOffset]!;
+    const card = before.eventCards.find(card => card.id === eventId)!;
+    card.content.emit('pointertap', {} as FederatedPointerEvent);
+    if (!reduced) expect(before.timelineMinimapMotion?.target).toBeDefined();
+    const after = createRecordingCtx();
+    after.timelineMinimapMotion = before.timelineMinimapMotion;
+    after.timelineMinimapPosition = before.timelineMinimapPosition;
+    const selected = { ...snapshot, state: { ...snapshot.state, selectedEventId: eventId } };
+    drawRuns(after, selected, 1280, 800);
+    if (!reduced) {
+      const from = after.timelineMinimapMotion!.position;
+      after.tickers.forEach(tick => tick({ deltaMS: 40 } as Ticker));
+      expect(after.timelineMinimapMotion!.position).not.toBe(from);
+      after.tickers.forEach(tick => tick({ deltaMS: 120 } as Ticker));
+    }
+    expect(after.timelineMinimapMotion).toBeNull();
+    expect(after.metrics.timelineViewport!.scrollY).toBe(3000);
+    const target = after.metrics.hitTargets.find(target => target.id === `run.timeline.row.${row}`)!;
+    const bounds = after.timelineMinimapScroll!.bounds;
+    expect(target.y + target.height / 2).toBeCloseTo(bounds.y + bounds.height / 2);
+    // A subsequent scene refresh keeps the centred position.
+    const refreshed = createRecordingCtx();
+    refreshed.timelineMinimapPosition = after.timelineMinimapPosition;
+    drawRuns(refreshed, selected, 1280, 800);
+    expect(refreshed.metrics.hitTargets.find(entry => entry.id === target.id)?.y).toBeCloseTo(target.y);
+    expect(refreshed.timelineMinimapPosition!.position).toBe(after.timelineMinimapPosition!.position);
+    // Clicking the same card again also recentres after manually browsing away.
+    refreshed.timelineMinimapScroll!.move(200);
+    refreshed.eventCards.find(card => card.id === eventId)!.content.emit('pointertap', {} as FederatedPointerEvent);
+    refreshed.tickers.forEach(tick => tick({ deltaMS: 160 } as Ticker));
+    expect(refreshed.timelineMinimapPosition!.position).toBe(after.timelineMinimapPosition!.position);
+  });
+
+  it('lets a card scroll cancel recentring across a full scene rebuild', () => {
+    const snapshot = makeSnapshot({}, { run: makeRun(Array.from({ length: 200 }, (_, i) => makeLlmEvent(`e${i}`))) });
+    const before = createRecordingCtx();
+    drawRuns(before, snapshot, 1280, 800);
+    before.root.getChildByLabel('run.timeline.row.0', true)!.emit('pointertap', {} as FederatedPointerEvent);
+    before.runsScroll!.move(0);
+    expect(before.timelineMinimapMotion!.target).toBe(0);
+    const after = createRecordingCtx();
+    after.timelineMinimapMotion = before.timelineMinimapMotion;
+    after.timelineMinimapPosition = before.timelineMinimapPosition;
+    drawRuns(after, { ...snapshot, state: { ...snapshot.state, scrollY: { ...snapshot.state.scrollY, runs: 2200 } } }, 1280, 800);
+    expect(after.timelineMinimapMotion).toBeNull();
+    expect(after.timelineMinimapPosition!.position).toBeGreaterThan(0);
   });
 
   it('reuses only scroll updates; data, filters and window crossings rebuild', () => {

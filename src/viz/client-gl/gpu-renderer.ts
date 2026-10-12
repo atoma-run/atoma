@@ -629,7 +629,10 @@ export class GpuRenderer {
     overscan: number;
     move: (offset: number) => void;
   } | null = null;
-  timelineMinimapScroll: { bounds: Rectangle; move: (delta: number) => void } | null = null;
+  timelineMinimapScroll: { bounds: Rectangle; move: (delta: number) => void; select: (eventId: string) => void } | null = null;
+  timelineMinimapPosition: {
+    key: string; position: number; scrollY: number; selectedEventId: string | null;
+  } | null = null;
   /** Carries a clicked bar's position across the selection/scroll rebuild. */
   timelineMinimapMotion: {
     key: string; position: number; from: number; target: number | null; elapsed: number;
@@ -1564,6 +1567,7 @@ export class GpuRenderer {
     this.runsScroll = null;
     this.timelineMinimapScroll = null;
     this.timelineMinimapMotion = null;
+    this.timelineMinimapPosition = null;
     publishSceneCapture(null);
     this.cameraFrameUnsubscribe?.();
     this.cameraFrameUnsubscribe = null;
@@ -5480,6 +5484,7 @@ export type RendererCtx = Pick<
   | 'runsScroll'
   | 'timelineMinimapScroll'
   | 'timelineMinimapMotion'
+  | 'timelineMinimapPosition'
   | 'detailScrollY'
   | 'detailScrollMax'
   | 'detailBounds'

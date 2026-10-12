@@ -1180,7 +1180,10 @@ export function drawRuns(
       cardHeight,
       eventAccent(event),
       selected,
-      snapshot.onActivate,
+      id => {
+        ctx.timelineMinimapScroll?.select(event.id);
+        snapshot.onActivate(id);
+      },
       zDepth
     );
     const copy = gpuEventCardCopy(event, snapshot.t);
