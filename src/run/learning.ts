@@ -1,3 +1,5 @@
+import { consolidatePrompt } from '../atoms/promptLearning.js';
+import { RecordingRegistry } from '../viz/recordingRegistry.js';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -28,7 +30,7 @@ export async function executeApprovedLearning(dbPath: string, runId: string, env
   const queue = new LearningQueue(dbPath);
   const job = queue.get(runId);
   if (!job) throw new Error('Approved learning job is unavailable');
-  if (job.model !== env['ATOMA_MODEL_L2'] || job.lessons.some(lesson => lesson.host.model !== job.model)) {
+  if (job.model !== env['ATOMA_MODEL_L2'] || job.lessons.some(lesson => lesson.host.model !== job.model || (lesson.kind === 'atom' && lesson.reviewerModel !== env['ATOMA_MODEL_L1']))) {
     throw new Error('Learning must retain its original model and payer');
   }
   // Same credential gate as the run; only the host resolver may authorize a resumed subscription.
@@ -58,7 +60,7 @@ export async function executeApprovedLearning(dbPath: string, runId: string, env
   const controller = new AbortController();
   const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(LEARNING_TIMEOUT_MS), ...(options.signal ? [options.signal] : [])]);
   const recorder = new TraceRecorder(join(job.runsPath, 'learning'));
-  const trace = recorder.beginRun({ description: `Learn recipes from approved run ${runId}` }, `Learning ${runId}`, { runId: randomUUID() });
+  const trace = recorder.beginRun({ description: `Consolidate lessons from approved run ${runId}` }, `Learning ${runId}`, { runId: randomUUID() });
   const db = openDb(dbPath);
   try {
     const scope = job.scope ? { orgId: job.scope.orgId, projectId: job.scope.projectId,
@@ -67,6 +69,7 @@ export async function executeApprovedLearning(dbPath: string, runId: string, env
     process.env['ATOMA_SKILL_PROMOTE'] = job.policy.promote ?? '0';
     if (job.policy.threshold === undefined) delete process.env['ATOMA_PROMOTE_THRESHOLD'];
     else process.env['ATOMA_PROMOTE_THRESHOLD'] = job.policy.threshold;
+    const registry = new RecordingRegistry(db, recorder);
     const skills = new SkillRegistry(job.skillsPath, { db });
     const meter = new RunBudgetMeter({ record: call => queue.recordCall(runId, call) }, job.budget,
       error => controller.abort(error), undefined, queue.consumed(runId));
@@ -106,6 +109,13 @@ export async function executeApprovedLearning(dbPath: string, runId: string, env
             },
           },
         };
+        if (lesson.kind === 'atom') {
+          try { await consolidatePrompt(registry, lesson, ctx, { runId, index }); }
+          catch (error) { failed = true; console.error(error); }
+          if (failed) errors.push(`Prompt lesson ${index + 1} could not finish; see learning trace ${trace.id}`);
+          else queue.completeLesson(runId, index);
+          continue;
+        }
         const lifecycle = new SkillLifecycle({ ...lesson.host,
           toLlmRequest: (role, args) => ({ model: lesson.host.model, role, userContent: args.userContent,
             systemPrompt: lesson.host.systemPrompt, actor: { name: lesson.host.name, tier: 2 },

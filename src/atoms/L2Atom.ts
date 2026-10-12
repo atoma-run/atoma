@@ -1,3 +1,4 @@
+import { deferPromptLearning } from './promptLearning.js';
 import { Atom, type Peerable, type Supervisor } from '../core/atom.js';
 import { modelFacingExecutor } from '../core/attestation.js';
 import { branchRecordCount, executorEvidence } from './executorEvidence.js';
@@ -1611,11 +1612,14 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
         reasoning: `event-trigger (${match.score.toFixed(2)}): ${eventText.slice(0, 160)}`,
       });
     };
+    const learningFeedback: string[] = [];
     const rejectionEventText = (verdict: NegativeVerdict): string =>
       [verdict.reasoning, verdict.modifications.additionalContext ?? ''].join('\n');
 
     return {
       applyByScope: async (child, verdict) => {
+        learningFeedback.push(verdict.reasoning);
+        if (learningFeedback.length > 4) learningFeedback.shift();
         if (verdict.scope === 'ephemeral') {
           child.applyModifications(verdict.modifications);
           injectEventSkill(child, rejectionEventText(verdict));
@@ -1914,6 +1918,9 @@ export class L2Atom extends Atom implements Supervisor<L1Atom>, Peerable<L2Atom>
           return;
         }
         this.registry.recordSuccess(child.name, this.name, child.registryVersion());
+        if (!(verdict?.approved && verdict.viaJev)) {
+          deferPromptLearning(this.registry, child, skillCtx.subTask, result, ctx, learningFeedback, verdict?.approved ? verdict.reasoning : undefined);
+        }
         // Skill trust counter bump (C2a). When the supervise loop
         // approves a result and a skill drove the run, record a
         // success on the skill itself — this is what lets future

@@ -414,7 +414,7 @@ describe('the catalogue by tier', () => {
     // The viewer ladder: the organisation's own readers plus the two platform
     // commons the viz shows every signed-in role — registry and skill catalog.
     expect(asViewer).toEqual([
-      'atoma_projects_list', 'atoma_github_installations', 'atoma_project_runs', 'atoma_project_readiness', 'atoma_run_artifacts', 'atoma_run_file', 'atoma_run_search', 'atoma_run_compare', 'atoma_project_context', 'atoma_run_question', 'atoma_run_review', 'atoma_run_status', 'atoma_run_trace', 'atoma_run_preview',
+      'atoma_projects_list', 'atoma_github_installations', 'atoma_project_runs', 'atoma_project_learning', 'atoma_project_readiness', 'atoma_run_artifacts', 'atoma_run_file', 'atoma_run_search', 'atoma_run_compare', 'atoma_project_context', 'atoma_run_question', 'atoma_run_review', 'atoma_run_status', 'atoma_run_trace', 'atoma_run_preview',
       'atoma_registry_list', 'atoma_registry_show', 'atoma_skills_list', 'atoma_registry_history', 'atoma_skills_show',
     ]);
     // Each rung adds exactly its own rows (the table interleaves the tiers).
@@ -849,6 +849,7 @@ describe('the platform commons over MCP — registry and skill catalog', () => {
       ...TENANT_HOST,
       conversations: { read: page, update: page } as never,
       projects: { service: {
+        projectLearning: () => ({ projectId: 'p', nextCursor: null, snapshot: { runCeiling: 0, ledgerCeiling: 0 }, coverage: { selectedRuns: 0, totalRuns: 0, note: 'No runs' }, runs: [] }),
         projectContext: () => ({ context: { projectId: '00000000-0000-4000-8000-000000000001', version: 0, brief: null, decisions: [], change: null }, history: [], nextBeforeVersion: null }),
         reviewRun: runReviewFixture,
         runQuestion: clientQuestionViewFixture,
@@ -866,11 +867,11 @@ describe('the platform commons over MCP — registry and skill catalog', () => {
     try {
       const tools = (await client.listTools()).tools.filter((tool) => tool.outputSchema);
       expect(tools.map((tool) => tool.name).sort()).toEqual([
-        'atoma_conversation', 'atoma_conversation_update', 'atoma_costs', 'atoma_ledger_tail', 'atoma_mcp_health', 'atoma_notifications', 'atoma_project_context', 'atoma_run_artifacts', 'atoma_run_compare', 'atoma_run_file', 'atoma_run_question', 'atoma_run_review', 'atoma_sentinel_health',
+        'atoma_conversation', 'atoma_conversation_update', 'atoma_costs', 'atoma_ledger_tail', 'atoma_mcp_health', 'atoma_notifications', 'atoma_project_context', 'atoma_project_learning', 'atoma_run_artifacts', 'atoma_run_compare', 'atoma_run_file', 'atoma_run_question', 'atoma_run_review', 'atoma_sentinel_health',
       ]);
       for (const tool of tools) {
         expect(tool.outputSchema?.['additionalProperties'], tool.name).not.toBe(false);
-        const args = tool.name === 'atoma_conversation_update' ? { requestId: '00000000-0000-4000-8000-000000000001', expectedVersion: 0 } : tool.name === 'atoma_project_context' ? { projectId: 'p' } : tool.name === 'atoma_run_review' || tool.name === 'atoma_run_question' ? { projectId: 'p', runId: 'r' } : tool.name === 'atoma_run_compare' ? { projectId: 'p', runId: 'r', baseRunId: 'b' } : tool.name === 'atoma_run_artifacts' || tool.name === 'atoma_run_file' ? { projectId: 'p', runId: 'r', path: 'a.txt' } : {};
+        const args = tool.name === 'atoma_conversation_update' ? { requestId: '00000000-0000-4000-8000-000000000001', expectedVersion: 0 } : (tool.name === 'atoma_project_context' || tool.name === 'atoma_project_learning') ? { projectId: 'p' } : tool.name === 'atoma_run_review' || tool.name === 'atoma_run_question' ? { projectId: 'p', runId: 'r' } : tool.name === 'atoma_run_compare' ? { projectId: 'p', runId: 'r', baseRunId: 'b' } : tool.name === 'atoma_run_artifacts' || tool.name === 'atoma_run_file' ? { projectId: 'p', runId: 'r', path: 'a.txt' } : {};
         const result = await client.callTool({ name: tool.name, arguments: args });
         expect(result.isError, tool.name).toBeFalsy();
         expect(result.structuredContent, tool.name).toBeDefined();

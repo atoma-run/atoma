@@ -1,3 +1,4 @@
+import { deferPromptLearning } from '../atoms/promptLearning.js';
 import { assessClientQuestion } from '../atoms/clientQuestion.js';
 import { withRecoveryEffects } from '../core/recoveryEffects.js';
 import { assertCheckpointWorkerAbsent } from '../launcher/checkpointRecovery.js';
@@ -1221,6 +1222,7 @@ async function startTaskInternal(
         },
         onTopology: (info) => recorder.recordTopology(info),
         onAcceptance: (info) => recorder.recordAcceptance(info),
+        onApproved: (actor, task, result, context, feedback, approval) => deferPromptLearning(registry, actor, task, result, context, feedback, approval),
       }); };
     } else {
       handle = async (t, c) => (await tissueFor(t, c)).handle(t, c);
@@ -1252,7 +1254,7 @@ async function startTaskInternal(
     deadlineAt,
     llm,
     limits: DEFAULT_LIMITS,
-    ...(process.env['ATOMA_DEFER_LEARNING'] === '0' ? {} : { enqueueApprovedLessons: (lessons: readonly import('../contracts/skillLearning.js').SkillLesson[]) => {
+    ...(process.env['ATOMA_DEFER_LEARNING'] === '0' ? {} : { enqueueApprovedLessons: (lessons: readonly import('../contracts/skillLearning.js').ApprovedLesson[]) => {
       if (lessons.length === 0) return;
       new LearningQueue(dbPath).enqueue({ version: 1, runId: vizRun.id, approvedAt: new Date().toISOString(),
         skillsPath: resolve(skillsDirPath()), runsPath: resolve(runsDir),

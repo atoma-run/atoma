@@ -1,3 +1,4 @@
+import { deferPromptLearning } from './promptLearning.js';
 import { modelFacingExecutor } from '../core/attestation.js';
 import { branchRecordCount, executorEvidence } from './executorEvidence.js';
 import { fallbackObligationLines, proveFallback } from './fallbackProof.js';
@@ -1030,8 +1031,11 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
   }
 
   private makeL2Hooks(ctx: RunContext, subtaskDescription: string): SupervisionHooks<L2Atom> {
+    const learningFeedback: string[] = [];
     return {
       applyByScope: async (child, verdict) => {
+        learningFeedback.push(verdict.reasoning);
+        if (learningFeedback.length > 4) learningFeedback.shift();
         if (verdict.scope === 'ephemeral') {
           child.applyModifications(verdict.modifications);
           return child;
@@ -1119,6 +1123,9 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
           return;
         }
         this.registry.recordSuccess(child.name, this.name, child.registryVersion());
+        if (!(verdict?.approved && verdict.viaJev)) {
+          deferPromptLearning(this.registry, child, { description: subtaskDescription }, result, ctx, learningFeedback, verdict?.approved ? verdict.reasoning : undefined);
+        }
       },
       onFailed: async (child, _reason) => {
         this.registry.recordFailure(child.name, this.name);

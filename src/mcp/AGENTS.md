@@ -516,6 +516,8 @@ runner, implicit project-memory update or whole-chat export belongs here.
 
 ## Intentional choices and rejected shortcuts
 
+- `atoma_project_learning` pages project-wide trace/ledger evidence and deferred-learning receipts through ProjectService; fixed run/ledger ceilings, explicit missing/omitted evidence. [Contract](../../docs/prompt-consolidation-2026-10-12.md).
+
 - A separate lock file per client bypasses the global capacity and deployment
   drain: refused. All reservations and the pending deployment share one
   immediate transaction boundary. Upgrade/rollback must drain and stop all

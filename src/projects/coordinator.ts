@@ -2292,6 +2292,11 @@ export class ProjectRunCoordinator {
             skillsPath: job.skillsPath, artifactManifestPath: layout.artifactManifestPath,
             runModels: { l1: payers.l1.selection, l2: payers.l2.selection, l3: payers.l3.selection } });
           if (built.payers.l2.selection !== job.model || built.payers.l2.payer !== payers.l2.payer) throw new Error('The original learning payer is unavailable');
+          if (job.lessons.some(lesson => lesson.kind === 'atom') &&
+            (built.payers.l1.selection !== payers.l1.selection || built.payers.l1.payer !== payers.l1.payer ||
+              job.lessons.some(lesson => lesson.kind === 'atom' && lesson.reviewerModel !== payers.l1.selection))) {
+            throw new Error('The original prompt reviewer payer is unavailable');
+          }
           await this.learningDriver(this.dbPath, job, built.environment);
         } catch (error) {
           queue.block(job.runId, 'Learning is blocked: the original authorization or worker is unavailable.');

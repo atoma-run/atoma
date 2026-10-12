@@ -56,10 +56,11 @@ export class RecordingRegistry extends AtomRegistry {
     name: string,
     mods: AtomModifications,
     modifiedBy: string,
-    reason?: string
+    reason?: string,
+    opts: { keepStreak?: boolean } = {}
   ): AtomType {
     const before = this.getByName(name);
-    const t = super.patch(name, mods, modifiedBy, reason);
+    const t = super.patch(name, mods, modifiedBy, reason, opts);
     // `AtomRegistry.patch` short-circuits no-op patches (merged ≡ current).
     // When that happens the version stays the same and nothing was persisted;
     // we mirror that by not emitting a registry event at all, so the viz

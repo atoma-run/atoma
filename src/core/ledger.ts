@@ -91,6 +91,8 @@ export interface LedgerScope {
 }
 
 export type LedgerEventKind =
+  | 'type-patch'
+  | 'prompt-learning'
   | 'type-success'
   | 'type-failure'
   | 'skill-success'

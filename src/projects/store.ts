@@ -1,3 +1,5 @@
+import { readProjectLearning } from './learningRead.js';
+import type { ProjectLearningInput, ProjectLearningCursor } from '../contracts/projectLearning.js';
 import { initializeProjectContext, readProjectContext, projectContextHistory, updateProjectContext } from './context.js';
 import { learningReceipt } from '../skills/learningReceipts.js';
 import type { ProjectContextUpdate } from '../contracts/projectContext.js';
@@ -1096,6 +1098,10 @@ END;
     `).all({ org: orgId ?? null, search: input.search ?? '', at: cursor?.at ?? null,
       id: cursor?.id ?? '', limit: (input.limit ?? 20) + 1 }) as Array<ProjectRow & { org_name: string | null; activity_at: string }>;
     return rows.map(row => ({ project: projectFromRow(row), orgName: row.org_name, activityAt: row.activity_at }));
+  }
+
+  projectLearning(orgId: string, projectId: string, input: ProjectLearningInput, cursor: ProjectLearningCursor | null, redact: (run: ProjectRun, text: string) => string) {
+    return readProjectLearning(this.db, orgId, projectId, input, cursor, id => this.getProjectRun(orgId, id), redact);
   }
 
   /** Select only menu fields: manifests, goals in full and traces stay behind detail reads. */

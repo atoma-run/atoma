@@ -1,3 +1,4 @@
+import { projectLearningInputSchema, projectLearningCursorSchema } from '../contracts/projectLearning.js';
 import { projectRetrievalRequestSchema } from '../contracts/projectRetrieval.js';
 import { searchSavedProjectCode } from './retrievalRead.js';
 import { answerClientQuestionSchema, type ClientQuestionView } from '../contracts/clientQuestion.js';
@@ -369,6 +370,25 @@ export class ProjectService {
     const runs = rows.slice(0, limit);
     const last = runs.at(-1);
     return { runs, nextCursor: rows.length > limit && last ? encodeCursor(last.createdAt, last.projectRunId, query) : null };
+  }
+
+  projectLearning(viewer: Viewer, projectId: string, raw: unknown = {}) {
+    projectId = clientInput(projectIdSchema, projectId);
+    const input = clientInput(projectLearningInputSchema, raw);
+    if (input.since) input.since = new Date(input.since).toISOString();
+    if (input.until) input.until = new Date(input.until).toISOString();
+    if (input.since && input.until && input.since > input.until) throw new ProjectHttpError(400, 'since must precede until');
+    const orgId = this.readOrgFor(viewer, projectId);
+    if (!this.store.getProject(orgId, projectId)) throw new ProjectHttpError(404, 'project not found');
+    let cursor = null;
+    if (input.cursor) {
+      try { cursor = projectLearningCursorSchema.parse(JSON.parse(Buffer.from(input.cursor, 'base64url').toString('utf8'))); }
+      catch { throw new ProjectHttpError(400, 'invalid learning cursor'); }
+      if (cursor.query !== JSON.stringify([orgId, projectId, input.since ?? null, input.until ?? null]))
+        throw new ProjectHttpError(400, 'learning cursor belongs to another query');
+    }
+    this.auditRead(viewer, orgId, 'mcp.trace');
+    return this.store.projectLearning(orgId, projectId, input, cursor, (run, text) => redactHostPaths(text, projectRunHostRedactions(run)));
   }
 
   projectContext(viewer: Viewer, projectId: string, raw: unknown = {}) {

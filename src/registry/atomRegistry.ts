@@ -395,6 +395,76 @@ export class AtomRegistry {
    * no I/O wait can ever sit inside one. Nested calls (`createOrReuse` into
    * `create`) become savepoints and inherit the outermost mode.
    */
+  /** Register a host template without making model-authored text a template. */
+  createTemplate(tier: Tier, seed: CreateSeed): AtomType {
+    return this.db.transaction(() => {
+      const type = this.create(tier, seed);
+      this.prepare('INSERT INTO atom_prompt_templates(atom_id, prompt) VALUES (?, ?)')
+        .run(type.atomId, type.systemPrompt);
+      return type;
+    }).immediate();
+  }
+
+  templatePrompt(type: AtomType): string | undefined {
+    return (this.prepare('SELECT prompt FROM atom_prompt_templates WHERE atom_id = ?').get(type.atomId) as
+      { prompt: string } | undefined)?.prompt;
+  }
+
+  /** Refresh the known template prefix, retaining appended learning. Unknown replacements stay intact. */
+  refreshTemplate(name: string, mods: AtomModifications, by: string, reason: string,
+    opts: { keepStreak?: boolean } = {}): AtomType {
+    return this.db.transaction(() => {
+      const current = this.getByName(name);
+      if (!current) throw new RegistryNotFoundError(name);
+      const next = mods.systemPromptReplace;
+      if (next === undefined) return this.patch(name, mods, by, reason, opts);
+      const previous = this.templatePrompt(current);
+      // Legacy mismatches have no trustworthy boundary. Preserve their content;
+      // the new baseline records what future exact template updates may replace.
+      const prefix = previous ?? next;
+      const matches = current.systemPrompt === prefix || current.systemPrompt.startsWith(prefix + '\n\n');
+      const { systemPromptReplace: _replacement, ...other } = mods;
+      const patched = this.patch(name, { ...other,
+        ...(matches ? { systemPromptReplace: next + current.systemPrompt.slice(prefix.length) } : {}),
+      }, by, matches ? reason : reason + ' (custom prompt preserved)', opts);
+      if ((matches || previous === undefined) && previous !== next) {
+        this.prepare('INSERT INTO atom_prompt_templates(atom_id, prompt) VALUES (?, ?) ON CONFLICT(atom_id) DO UPDATE SET prompt = excluded.prompt')
+          .run(current.atomId, next);
+      }
+      return patched;
+    }).immediate();
+  }
+
+  learningOutcome(runId: string, index: number): string | undefined {
+    return (this.prepare('SELECT outcome FROM atom_prompt_learning WHERE run_id = ? AND lesson_index = ?')
+      .get(runId, index) as { outcome: string } | undefined)?.outcome;
+  }
+
+  /** The CAS, amendment and receipt share one write lock. No model call enters it. */
+  finishPromptLearning(args: { runId: string; index: number; atomId: string; version: number;
+    outcome: string; detail: string; amendment?: string }): string {
+    return this.db.transaction(() => {
+      const prior = this.learningOutcome(args.runId, args.index);
+      if (prior) return prior;
+      const current = this.getByAtomId(args.atomId);
+      let outcome = args.outcome;
+      if (args.amendment) {
+        if (!current || current.version !== args.version) outcome = 'stale';
+        else {
+          this.patch(current.name, { systemPromptAppend: args.amendment }, 'prompt-consolidation',
+            `Reviewed method amendment from run ${args.runId}, lesson ${args.index}`);
+          outcome = 'applied';
+        }
+      }
+      this.prepare('INSERT INTO atom_prompt_learning VALUES (?, ?, ?, ?, ?, ?)')
+        .run(args.runId, args.index, args.atomId, outcome, args.detail, new Date().toISOString());
+      this.note({ kind: 'prompt-learning', entity: current?.name ?? args.atomId, entityId: args.atomId,
+        detail: { outcome, sourceRunId: args.runId, lessonIndex: args.index, fromVersion: args.version,
+          toVersion: current && outcome === 'applied' ? this.getByName(current.name)?.version : null, reason: args.detail } });
+      return outcome;
+    }).immediate();
+  }
+
   /** Automatic creation reuses existing behavior without changing its history. */
   createOrReuse(tier: Tier, seed: CreateSeed): AtomType {
     return this.db.transaction((): AtomType => {
@@ -423,20 +493,29 @@ export class AtomRegistry {
     return this.db.transaction((): AtomType => {
       const key = atomBehaviorKey(tier, seed);
       const exact = this.listCapabilities(tier).find(type => atomBehaviorKey(tier, type) === key);
-      if (exact) return exact;
+      if (exact) {
+        if (this.templatePrompt(exact) === undefined) {
+          this.prepare('INSERT INTO atom_prompt_templates(atom_id, prompt) VALUES (?, ?)').run(exact.atomId, exact.systemPrompt);
+        }
+        return exact;
+      }
       const names = seed.tools.map(tool => tool.name).sort().join(',');
       const params = canonicalJson(seed.params);
       const family = this.listByTier(tier)
         .filter(type =>
           type.tools.map(tool => tool.name).sort().join(',') === names &&
           canonicalJson(type.params) === params &&
-          isTemplate(type.systemPrompt))
+          (() => {
+            const baseline = this.templatePrompt(type);
+            return baseline === undefined ? isTemplate(type.systemPrompt) : isTemplate(baseline) &&
+              (type.systemPrompt === baseline || type.systemPrompt.startsWith(baseline + '\n\n'));
+          })())
         .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.ordinal - b.ordinal);
       const elder = family[0];
-      if (!elder) return this.create(tier, seed);
+      if (!elder) return this.createTemplate(tier, seed);
       // The declarations are refreshed with the prompt: a tool's schema is
       // part of the behavior key, and it drifts with the code too.
-      return this.patch(
+      return this.refreshTemplate(
         elder.name,
         { systemPromptReplace: seed.systemPrompt, removeTools: elder.tools.map(tool => tool.name), addTools: [...seed.tools] },
         seed.createdBy,
@@ -699,6 +778,7 @@ export class AtomRegistry {
           current.tier,
           current.ordinal
         );
+      this.note({ kind: 'type-patch', entity: name, detail: { by: modifiedBy, reason: reason ?? null, fromVersion: current.version, toVersion: nextVersion, promptChanged: merged.systemPrompt !== current.systemPrompt } });
       if (behaviorChanged) this.note({ kind: 'type-trust-reset', entity: name, detail: { reason: 'patch', by: modifiedBy } });
 
       return { ...merged, version: nextVersion, consecutiveSuccesses };

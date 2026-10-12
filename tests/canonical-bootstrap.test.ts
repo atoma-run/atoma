@@ -116,7 +116,7 @@ describe('ensureCanonicalL1 / ensureCanonicalL2 — idempotent bootstrap', () =>
     // A store holding the previous prompt is re-aligned on the next boot.
     const stale = new AtomRegistry(openDb(':memory:'));
     const before = ensureCanonicalL1(stale, WEB_TOOLS, SMOKE);
-    stale.patch(before.name, { systemPromptReplace: before.systemPrompt.replace(STATIC_PORTABLE_DOC_GUIDANCE, '') }, 'test', 'older prompt');
+    stale.refreshTemplate(before.name, { systemPromptReplace: before.systemPrompt.replace(STATIC_PORTABLE_DOC_GUIDANCE, '') }, 'test', 'older prompt');
     expect(ensureCanonicalL1(stale, WEB_TOOLS, SMOKE).systemPrompt).toContain(STATIC_PORTABLE_DOC_GUIDANCE);
   });
 
@@ -153,7 +153,7 @@ describe('ensureCanonicalL1 / ensureCanonicalL2 — idempotent bootstrap', () =>
     // The store's row is re-aligned on the next boot, and the changed type
     // re-earns its trust like any behaviour patch.
     for (let i = 0; i < 4; i++) reg.recordSuccess(scribe.name);
-    reg.patch(scribe.name, { systemPromptReplace: scribe.systemPrompt.replace(`${SCRIBE_PORTABLE_DOC_GUIDANCE}\n\n`, '') }, 'test', 'older prompt');
+    reg.refreshTemplate(scribe.name, { systemPromptReplace: scribe.systemPrompt.replace(`${SCRIBE_PORTABLE_DOC_GUIDANCE}\n\n`, '') }, 'test', 'older prompt');
     for (let i = 0; i < 4; i++) reg.recordSuccess(scribe.name);
     const refreshed = ensureCanonicalFileScribeL1(reg, fileTools);
     expect(refreshed.systemPrompt).toContain(SCRIBE_PORTABLE_DOC_GUIDANCE);

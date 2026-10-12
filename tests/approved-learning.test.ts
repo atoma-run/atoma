@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { LearningQueue } from '../src/skills/learningQueue.js';
 import { closeStoreHandles } from '../src/core/stores.js';
 import { withPartialUsage } from '../src/core/metrics.js';
@@ -19,7 +20,7 @@ import type { LearningJob } from '../src/contracts/skillLearning.js';
 const roots: string[] = [];
 afterEach(() => { vi.unstubAllEnvs(); closeStoreHandles(); for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 
-function fixture(twoOwners = false) {
+function fixture(twoOwners = false, atoms = false) {
   const root = mkdtempSync(join(tmpdir(), 'atoma-approved-learning-'));
   roots.push(root);
   const dbPath = join(root, 'store.db');
@@ -37,6 +38,16 @@ function fixture(twoOwners = false) {
   const env: NodeJS.ProcessEnv = { PATH: process.env['PATH'], SystemRoot: process.env['SystemRoot'],
     ATOMA_MODEL_L1: model, ATOMA_MODEL_L2: model, ATOMA_MODEL_L3: model, ATOMA_JEV: '0',
     ATOMA_MCP_RUN_LOCK: join(root, 'lease.db'), HOME: root, USERPROFILE: root };
+  if (atoms) {
+    const db = openDb(dbPath); const registry = new AtomRegistry(db);
+    job.lessons = [1, 2, 3].map(tier => {
+      const atom = registry.createTemplate(tier as 1 | 2 | 3, { description: 'Reusable method', systemPrompt: 'Keep the protocol.', tools: [], params: {}, createdBy: 'test' });
+      return { kind: 'atom', owner: atom.atomId, name: atom.name, tier: atom.tier, version: atom.version, prompt: atom.systemPrompt,
+        host: { name: 'prompt-consolidation', model, params: {}, systemPrompt: 'Must not be inherited.' }, reviewerModel: model,
+        task: 'Repair then verify', summary: 'Verified', feedback: ['Earlier probe failed.'], observations: [{ id: 'probe', text: 'Host observed a corrected probe pass.' }] };
+    });
+    db.close();
+  }
   const queue = new LearningQueue(dbPath);
   queue.enqueue(job);
   return { root, dbPath, job, env, queue };
@@ -228,4 +239,40 @@ describe('approved learning outside delivery', () => {
     expect(complete).toHaveBeenCalledOnce();
     expect(queue.receipt(next.runId)?.status).toBe('completed');
   });
+});
+
+
+it('consolidates all three ranks across the real learning worker process and preserves source provenance', async () => {
+  const { dbPath, job, env, queue } = fixture(false, true);
+  let calls = 0;
+  const server = createServer((req, res) => {
+    let body = ''; req.on('data', chunk => { body += String(chunk); });
+    req.on('end', () => {
+      calls++;
+      const request = JSON.parse(body) as { messages: { role: string; content: string }[] };
+      const reviewer = request.messages.some(message => message.role === 'system' && message.content.startsWith('Review a proposed'));
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ message: { role: 'assistant', content: JSON.stringify(reviewer ? { approved: true, reason: 'Useful method; private source detail must stay out of registry history.' }
+        : { amendment: 'Repeat the previously failing probe after a correction.', evidenceIds: ['probe'], reason: 'Observed recovery.' }) },
+        done: true, prompt_eval_count: 11, eval_count: 7 }));
+    });
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address(); if (!address || typeof address === 'string') throw new Error('No listener');
+  try {
+    await spawnApprovedLearning(dbPath, job, { ...env, OLLAMA_BASE_URL: `http://127.0.0.1:${address.port}` });
+    expect(queue.receipt(job.runId)).toMatchObject({ status: 'completed', completedLessons: 3, llmCalls: 6 });
+    const db = openDb(dbPath);
+    try {
+      const registry = new AtomRegistry(db);
+      for (const lesson of job.lessons) {
+        if (lesson.kind !== 'atom') throw new Error('Bad fixture');
+        const atom = registry.getByAtomId(lesson.owner)!;
+        expect(atom.version).toBe(2); expect(atom.systemPrompt).toContain('Repeat the previously failing probe');
+        expect(JSON.stringify(registry.versionsOf(atom.name))).not.toContain('private source detail');
+      }
+      expect(db.prepare("SELECT seq FROM lifecycle_events WHERE run_id=? AND kind='prompt-learning'").all(job.runId)).toHaveLength(3);
+    } finally { db.close(); }
+    await spawnApprovedLearning(dbPath, job, env); expect(calls).toBe(6);
+  } finally { await new Promise<void>(resolve => server.close(() => resolve())); }
 });

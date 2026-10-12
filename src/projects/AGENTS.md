@@ -563,6 +563,8 @@ See [checkpoints](../../docs/run-checkpoints-2026-10-08.md) and [client question
 
 ## Intentional choices and rejected shortcuts
 
+- The project learning reader shares one org-authorized body across HTTP/MCP, including deferred-worker ledger provenance. Read-only, bounded and explicit about coverage: [contract](../../docs/prompt-consolidation-2026-10-12.md).
+
 - Reading egress settings, or an ollama destination, from a tenant prompt:
   refused. They come from the HOST snapshot. An organisation picks ollama
   MODELS, never an endpoint — a tenant URL would be SSRF from the platform's

@@ -419,12 +419,12 @@ export function ensureCanonicalFullStack(
   const systemPrompt = canonicalFullStackPrompt(tier);
   const existing = registry.listByTier(tier).find(type => type.createdBy === CANONICAL_FULL_STACK_BOOTSTRAP_MARKER);
   if (existing) {
-    return registry.patch(existing.name, {
+    return registry.refreshTemplate(existing.name, {
       addTools: scoped,
-      ...(existing.systemPrompt !== systemPrompt ? { systemPromptReplace: systemPrompt } : {}),
+      systemPromptReplace: systemPrompt,
     }, 'build-app-bootstrap', 'refresh canonical full-stack tools + seed prompt');
   }
-  return registry.create(tier, {
+  return registry.createTemplate(tier, {
     description: capabilityDescription(scoped, tier), systemPrompt, tools: scoped,
     params: {}, createdBy: CANONICAL_FULL_STACK_BOOTSTRAP_MARKER,
   });
@@ -924,19 +924,17 @@ export function ensureCanonicalL1(
     // The patch no-op guard keeps this free (no version bump, counters
     // preserved) on every run where nothing actually changed; a real
     // prompt change legitimately resets trust (changed type must re-earn).
-    return registry.patch(
+    return registry.refreshTemplate(
       existing.name,
       {
         addTools: scoped,
-        ...(existing.systemPrompt !== systemPrompt
-          ? { systemPromptReplace: systemPrompt }
-          : {}),
+        systemPromptReplace: systemPrompt,
       },
       'build-app-bootstrap',
       'refresh canonical L1 tools + seed prompt'
     );
   }
-  return registry.create(1, {
+  return registry.createTemplate(1, {
     description: capabilityDescription(scoped, 1),
     systemPrompt,
     tools: scoped,
@@ -959,19 +957,17 @@ export function ensureCanonicalL2(
     .listByTier(2)
     .find((t) => t.createdBy === CANONICAL_BOOTSTRAP_MARKER);
   if (existing) {
-    return registry.patch(
+    return registry.refreshTemplate(
       existing.name,
       {
         addTools: scoped,
-        ...(existing.systemPrompt !== systemPrompt
-          ? { systemPromptReplace: systemPrompt }
-          : {}),
+        systemPromptReplace: systemPrompt,
       },
       'build-app-bootstrap',
       'refresh canonical L2 tools + seed prompt'
     );
   }
-  return registry.create(2, {
+  return registry.createTemplate(2, {
     description: capabilityDescription(scoped, 2),
     systemPrompt,
     tools: scoped,
@@ -1004,19 +1000,17 @@ export function ensureCanonicalHttpL1(
     .listByTier(1)
     .find((t) => t.createdBy === CANONICAL_HTTP_BOOTSTRAP_MARKER);
   if (existing) {
-    return registry.patch(
+    return registry.refreshTemplate(
       existing.name,
       {
         addTools: scoped,
-        ...(existing.systemPrompt !== systemPrompt
-          ? { systemPromptReplace: systemPrompt }
-          : {}),
+        systemPromptReplace: systemPrompt,
       },
       'build-app-bootstrap',
       'refresh canonical HTTP L1 tools + seed prompt'
     );
   }
-  return registry.create(1, {
+  return registry.createTemplate(1, {
     description: capabilityDescription(scoped, 1),
     systemPrompt,
     tools: scoped,
@@ -1042,19 +1036,17 @@ export function ensureCanonicalHttpL2(
     .listByTier(2)
     .find((t) => t.createdBy === CANONICAL_HTTP_BOOTSTRAP_MARKER);
   if (existing) {
-    return registry.patch(
+    return registry.refreshTemplate(
       existing.name,
       {
         addTools: scoped,
-        ...(existing.systemPrompt !== systemPrompt
-          ? { systemPromptReplace: systemPrompt }
-          : {}),
+        systemPromptReplace: systemPrompt,
       },
       'build-app-bootstrap',
       'refresh canonical HTTP L2 tools + seed prompt'
     );
   }
-  return registry.create(2, {
+  return registry.createTemplate(2, {
     description: capabilityDescription(scoped, 2),
     systemPrompt,
     tools: scoped,
@@ -1102,19 +1094,17 @@ export function ensureCanonicalFileScribeL1(
     .listByTier(1)
     .find((t) => t.createdBy === CANONICAL_FILESCRIBE_BOOTSTRAP_MARKER);
   if (existing) {
-    return registry.patch(
+    return registry.refreshTemplate(
       existing.name,
       {
         addTools: scoped,
-        ...(existing.systemPrompt !== systemPrompt
-          ? { systemPromptReplace: systemPrompt }
-          : {}),
+        systemPromptReplace: systemPrompt,
       },
       'build-app-bootstrap',
       'refresh canonical file-scribe L1 tools + seed prompt'
     );
   }
-  return registry.create(1, {
+  return registry.createTemplate(1, {
     description: capabilityDescription(scoped, 1),
     systemPrompt,
     tools: scoped,
@@ -1153,11 +1143,11 @@ export function ensureCanonicalProjectDocsL1(registry: AtomRegistry, tools: read
   if (!enabled && !existing) return undefined;
   const scoped = pickTools(tools, [...FILESCRIBE_L1_TOOL_SCOPE, ...(enabled ? [search] : [])]);
   const systemPrompt = canonicalProjectDocsPrompt(enabled);
-  if (existing) return registry.patch(existing.name, {
+  if (existing) return registry.refreshTemplate(existing.name, {
     addTools: scoped, ...(!enabled ? { removeTools: [search] } : {}),
-    ...(existing.systemPrompt !== systemPrompt ? { systemPromptReplace: systemPrompt } : {}),
+    systemPromptReplace: systemPrompt,
     ...(existing.description !== capabilityDescription(scoped, 1) ? { descriptionReplace: capabilityDescription(scoped, 1) } : {}),
   }, 'build-app-bootstrap', 'refresh project document capability');
-  return registry.create(1, { description: capabilityDescription(scoped, 1), systemPrompt,
+  return registry.createTemplate(1, { description: capabilityDescription(scoped, 1), systemPrompt,
     tools: scoped, params: {}, createdBy: CANONICAL_PROJECT_DOCS_MARKER });
 }

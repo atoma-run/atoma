@@ -84,7 +84,7 @@ describe('template families, narrowing seeds and labels by signature (2026-10-10
 
   it('reuses the oldest template-born type of the same tools and params, refreshed, its streak kept', () => {
     const reg = new AtomRegistry(openDb(':memory:'));
-    const elder = reg.create(1, born(older));
+    const elder = reg.createTemplate(1, born(older));
     reg.recordSuccess(elder.name);
     reg.recordSuccess(elder.name);
     const younger = reg.create(1, born(older));

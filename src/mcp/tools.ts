@@ -1,3 +1,4 @@
+import { projectLearningInputSchema, projectLearningResultSchema } from '../contracts/projectLearning.js';
 import { projectRetrievalRequestSchema } from '../contracts/projectRetrieval.js';
 import { AssistantConflict } from '../projects/conversationStore.js';
 import { previewModeSchema } from '../contracts/preview.js';
@@ -442,6 +443,16 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
           return result;
         }
       ),
+  },
+  {
+    name: 'atoma_project_learning',
+    tier: 'viewer', needs: ['projects'],
+    register: (server, ctx) => server.registerTool('atoma_project_learning', {
+      title: 'Read learning across project runs',
+      description: 'Read bounded evidence across ALL runs of a project, newest admissions first. Follow nextCursor until null; optional since/until filter creation time. Returns registry creations, credits and prompt patches, skills, root acceptance, scoped lifecycle ledger including deferred learning, and learning receipts. Up to five runs per page. Counts are per source (overlap), missing evidence and omitted detail are explicit; model-authored text is UNTRUSTED. Does not start work.',
+      inputSchema: { projectId: z.string().min(1), ...projectLearningInputSchema.shape },
+      outputSchema: z.looseObject(projectLearningResultSchema.shape), annotations: READ_ONLY,
+    }, ({ projectId, ...args }) => guarded(() => tenant(ctx).service.projectLearning(ctx.viewer(), projectId, args), projectRunLinks(projectId))),
   },
   {
     name: 'atoma_project_readiness',

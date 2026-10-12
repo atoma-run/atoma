@@ -943,7 +943,7 @@ describe('ProjectRunCoordinator', () => {
     expect(started.hostPaths.runsPath).toBe(driver.mock.calls[0]?.[0].env?.['ATOMA_RUNS_DIR']);
   });
 
-  it.each(['allowed', 'revoked', 'payer-changed'] as const)('releases delivery before learning and rechecks its authority: %s', async mode => {
+  it.each(['allowed', 'revoked', 'payer-changed', 'reviewer-payer-changed'] as const)('releases delivery before learning and rechecks its authority: %s', async mode => {
     const f = fixture();
     const runLease = lease();
     let ended = false;
@@ -973,17 +973,18 @@ describe('ProjectRunCoordinator', () => {
         skillsPath: env['ATOMA_SKILLS_DIR']!, runsPath: runs, model: env['ATOMA_MODEL_L2']!,
         scope: { orgId: f.viewer.orgId, projectId: f.project.projectId, principalId: f.viewer.principalId },
         policy: { promote: '1' }, budget: { tokens: 1000, costUsd: 1 },
-        lessons: [{ kind: 'event', owner: randomUUID(), task: 'Recover', summary: 'Recovered', diagnostic: 'Runtime error',
+        lessons: [{ ...(mode === 'reviewer-payer-changed' ? { kind: 'atom' as const, tier: 1 as const, name: 'Water', version: 1, prompt: 'Method', reviewerModel: env['ATOMA_MODEL_L1']!, feedback: [], observations: [] } : { kind: 'event' as const, diagnostic: 'Runtime error' }), owner: randomUUID(), task: 'Recover', summary: 'Recovered',
           host: { name: 'Cell', model: env['ATOMA_MODEL_L2']!, params: {}, systemPrompt: 'Author' } }],
       });
       ended = true;
       return formatRunStatsEpilogue(DELIVERED_STATS);
     };
     const coordinator = new ProjectRunCoordinator({ store: f.store, dbPath: f.dbPath, projectsRoot: f.root,
-      skillsDir: join(f.root, 'skills'), hostEnv: { ...haystackTestEnvironment(f.root), ...ANTHROPIC_PINS, ANTHROPIC_API_KEY: 'host-key' },
+      skillsDir: join(f.root, 'skills'), hostEnv: { ...haystackTestEnvironment(f.root), ...ANTHROPIC_PINS, ANTHROPIC_API_KEY: 'host-key',
+        ...(mode === 'reviewer-payer-changed' ? { ATOMA_MODEL_L1: 'api:openai:gpt-5.6-luna', OPENAI_API_KEY: 'host-openai' } : {}) },
       driver, learningDriver, acquireLease: async () => runLease,
       queuedRunAllowed: () => mode !== 'revoked',
-      orgProviderKeyFor: () => ended && mode === 'payer-changed' ? 'org-key' : null,
+      orgProviderKeyFor: (_org, provider) => ended && (mode === 'payer-changed' || (mode === 'reviewer-payer-changed' && provider === 'openai')) ? 'org-key' : null,
     });
     try {
       const started = await coordinator.start({ orgId: f.viewer.orgId, projectId: f.project.projectId, principalId: f.viewer.principalId,

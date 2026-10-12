@@ -116,6 +116,7 @@ describe('the 2026-07-28 era', () => {
     const { url } = await listen(() => platform, {
       ...NO_TENANT,
       projects: { service: {
+        projectLearning: () => ({ projectId: 'p', nextCursor: null, snapshot: { runCeiling: 0, ledgerCeiling: 0 }, coverage: { selectedRuns: 0, totalRuns: 0, note: 'No runs' }, runs: [] }),
         projectContext: () => ({ context: { projectId: '00000000-0000-4000-8000-000000000001', version: 0, brief: null, decisions: [], change: null }, history: [], nextBeforeVersion: null }),
         reviewRun: runReviewFixture,
         runQuestion: clientQuestionViewFixture,
@@ -134,11 +135,11 @@ describe('the 2026-07-28 era', () => {
     try {
       const withSchema = (await client.listTools()).tools.filter((tool) => tool.outputSchema);
       expect(withSchema.map((tool) => tool.name).sort()).toEqual([
-        'atoma_costs', 'atoma_ledger_tail', 'atoma_mcp_health', 'atoma_notifications', 'atoma_project_context', 'atoma_run_artifacts', 'atoma_run_compare', 'atoma_run_file', 'atoma_run_question', 'atoma_run_review', 'atoma_sentinel_health',
+        'atoma_costs', 'atoma_ledger_tail', 'atoma_mcp_health', 'atoma_notifications', 'atoma_project_context', 'atoma_project_learning', 'atoma_run_artifacts', 'atoma_run_compare', 'atoma_run_file', 'atoma_run_question', 'atoma_run_review', 'atoma_sentinel_health',
       ]);
       for (const tool of withSchema) {
         expect(tool.outputSchema?.['additionalProperties'], tool.name).not.toBe(false);
-        const args = tool.name === 'atoma_project_context' ? { projectId: 'p' } : tool.name === 'atoma_run_review' || tool.name === 'atoma_run_question' ? { projectId: 'p', runId: 'r' } : tool.name === 'atoma_run_compare' ? { projectId: 'p', runId: 'r', baseRunId: 'b' } : tool.name === 'atoma_run_artifacts' || tool.name === 'atoma_run_file' ? { projectId: 'p', runId: 'r', path: 'a.txt' } : {};
+        const args = (tool.name === 'atoma_project_context' || tool.name === 'atoma_project_learning') ? { projectId: 'p' } : tool.name === 'atoma_run_review' || tool.name === 'atoma_run_question' ? { projectId: 'p', runId: 'r' } : tool.name === 'atoma_run_compare' ? { projectId: 'p', runId: 'r', baseRunId: 'b' } : tool.name === 'atoma_run_artifacts' || tool.name === 'atoma_run_file' ? { projectId: 'p', runId: 'r', path: 'a.txt' } : {};
         const result = await client.callTool({ name: tool.name, arguments: args });
         expect(result.isError, tool.name).not.toBe(true);
         expect(result.structuredContent, tool.name).toBeDefined();

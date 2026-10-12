@@ -18,7 +18,7 @@ export function seedTissueCatalog({ registry, toolDecls, log }: SeedContext): At
   let l3Type = registry.listByTier(3).find((t) => t.createdBy === 'bootstrap-tissue-build'
     || (t.name === 'Meristem' && t.description === MERISTEM_DESCRIPTION));
   if (!l3Type) {
-    l3Type = registry.create(3, {
+    l3Type = registry.createTemplate(3, {
       description: MERISTEM_DESCRIPTION,
       systemPrompt: MERISTEM_SYSTEM_PROMPT,
       tools: [...toolDecls],
@@ -29,14 +29,12 @@ export function seedTissueCatalog({ registry, toolDecls, log }: SeedContext): At
   } else {
     // Always refresh the tools (executor set may have changed across
     // runs) and re-align the system prompt with the current seed.
-    l3Type = registry.patch(
+    l3Type = registry.refreshTemplate(
       l3Type.name,
       {
         addTools: [...toolDecls],
         removeTools: HOST_TOOL_NAMES.filter(name => !toolDecls.some(tool => tool.name === name)),
-        ...(l3Type.systemPrompt !== MERISTEM_SYSTEM_PROMPT
-          ? { systemPromptReplace: MERISTEM_SYSTEM_PROMPT }
-          : {}),
+        systemPromptReplace: MERISTEM_SYSTEM_PROMPT,
       },
       'run-catalog',
       'refresh system tools + seed prompt'

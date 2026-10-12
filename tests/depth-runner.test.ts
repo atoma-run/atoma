@@ -102,7 +102,8 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
         const value = await req.executor!.execute('write_file', args);
         req.onToolInvocation?.({ name: 'write_file', args, result: value, startedAt, durationMs: Date.now() - startedAt });
         reply = { output: { files: ['server.js'] }, summary: 'Server written' };
-      } else if (req.role === 'skill') reply = recipe;
+      } else if (req.actor?.name === 'prompt-consolidation') reply = { amendment: null, reason: 'No novel discipline in this fixture.', evidenceIds: [] };
+      else if (req.role === 'skill') reply = recipe;
       else throw new Error(`Unexpected request: ${req.role}`);
       return { text: JSON.stringify(reply), stopReason: 'end_turn', usage: { inputTokens: 10, outputTokens: 10 } };
     } } });
@@ -157,7 +158,7 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
       expect(calls.filter((req) => req.actor?.name === 'run-root')).toHaveLength(1);
       expect(calls.some((req) => req.role === 'skill')).toBe(!deferred && !matched && rootApproved);
       expect(parseRunLog(logs.join('\n'))).toMatchObject({ uncoveredObligations: 0, deepenings: 0,
-        discardedLessons: !matched && !rootApproved ? 1 : 0 });
+        discardedLessons: rootApproved ? 0 : (matched ? 0 : 1) + (mode === 'short' ? 1 : 2) });
       expect(trace.events.some((event) => event.kind === 'skill' && event.op === 'credit-withheld')).toBe(false);
       expect(skills.loadFor(leafId)).toHaveLength(matched || (!deferred && rootApproved) ? 1 : 0);
       if (deferred) {
@@ -165,7 +166,8 @@ describe('runner supervision depth, concrete L3/L2/L1 and real backend', () => {
         expect(queue.pending()).toHaveLength(rootApproved ? 1 : 0);
         expect(launchLearning).toHaveBeenCalledTimes(rootApproved ? 1 : 0);
         if (rootApproved) {
-          expect(queue.get(trace.id)).toMatchObject({ lessons: [{ owner: leafId, kind: 'task' }] });
+          expect(queue.get(trace.id)!.lessons).toEqual(expect.arrayContaining([expect.objectContaining({ owner: leafId, kind: 'task' })]));
+          expect(queue.get(trace.id)!.lessons.filter(lesson => lesson.kind === 'atom').map(lesson => lesson.tier).sort()).toEqual([1, 2, 3]);
           expect(queue.get(trace.id)!.budget.tokens).not.toBe(0);
           expect(queue.get(trace.id)!.budget.costUsd).not.toBe(0);
         }

@@ -324,6 +324,8 @@ Neighbours:
 
 ## Intentional choices and rejected shortcuts
 
+- Approved learning includes at most one prompt candidate per rank, on the saved L2 author and L1 reviewer models/payers. [Contract](../../docs/prompt-consolidation-2026-10-12.md).
+
 - Replaying from the last checkpoint after an interrupted phase is refused:
   external effects and phase credits are not rolled back with files. Persist
   `running` before dispatch, require `ready` for resume, and never rehydrate

@@ -35,6 +35,16 @@ CREATE TABLE IF NOT EXISTS atom_types (
   PRIMARY KEY (tier, ordinal)
 );
 
+-- Host-owned template baselines, never inferred from model-authored prefixes.
+CREATE TABLE IF NOT EXISTS atom_prompt_templates (
+  atom_id TEXT PRIMARY KEY, prompt TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS atom_prompt_learning (
+  run_id TEXT NOT NULL, lesson_index INTEGER NOT NULL, atom_id TEXT NOT NULL,
+  outcome TEXT NOT NULL, detail TEXT NOT NULL, created_at TEXT NOT NULL,
+  PRIMARY KEY (run_id, lesson_index)
+);
+
 CREATE TABLE IF NOT EXISTS atom_type_versions (
   tier          INTEGER NOT NULL,
   ordinal       INTEGER NOT NULL,

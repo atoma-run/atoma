@@ -126,4 +126,6 @@ recovery rolls back shared trust. See [checkpoints](../../docs/run-checkpoints-2
 
 ## Intentional choices and rejected shortcuts
 
+- Host template baselines preserve learned suffixes; unknown replacements stay intact. Prompt amendments use transactional CAS/history/receipts and reset streaks. [Contract](../../docs/prompt-consolidation-2026-10-12.md).
+
 - Registry rollback is roll-forward-to-old-content and resets the trust streak.

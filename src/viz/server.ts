@@ -4580,6 +4580,22 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
       return;
     }
 
+    const projectLearning = pathname.match(/^\/api\/projects\/([^/]+)\/learning$/);
+    if (projectLearning && req.method === 'GET') {
+      if (!viewer) { sendJson(res, 401, { error: 'authentication required' }); return; }
+      const projectId = decodePathComponent(projectLearning[1]!);
+      if (!projectId) { sendJson(res, 400, { error: 'bad project id' }); return; }
+      try {
+        const params = new URL(req.url!, 'http://localhost').searchParams;
+        const input = { ...Object.fromEntries(params), ...(params.has('limit') ? { limit: Number(params.get('limit')) } : {}) };
+        sendJson(res, 200, PROJECTS_RUNTIME.projects.projectLearning(viewer, projectId, input));
+      } catch (error) {
+        if (!(error instanceof ProjectHttpError)) throw error;
+        sendJson(res, error.status, { error: error.message });
+      }
+      return;
+    }
+
     const projectRuns = pathname.match(/^\/api\/projects\/([^/]+)\/runs$/);
     if (projectRuns) {
       if (!viewer) {

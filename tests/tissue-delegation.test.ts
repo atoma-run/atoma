@@ -12,7 +12,7 @@ describe('seeded Meristem delegation', () => {
     const db = openDb(':memory:');
     try {
       const reg = new AtomRegistry(db);
-      const old = reg.create(3, { description: MERISTEM_DESCRIPTION,
+      const old = reg.createTemplate(3, { description: MERISTEM_DESCRIPTION,
         systemPrompt: 'You choose an L2 cell (reuse or create) and hand the task over.', tools: [], params: { maxTokens: 16384 }, createdBy: 'bootstrap-tissue-build' });
       reg.recordSuccess(old.name);
       const ctx = { registry: reg, toolDecls: [], log: () => {} };

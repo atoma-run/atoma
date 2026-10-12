@@ -7,6 +7,7 @@ import { openDb } from '../src/registry/db.js';
 import { L2Atom, parseSkillDraft, parseSkillDrafts, isSafeSkillId } from '../src/atoms/L2Atom.js';
 import { TRUST_THRESHOLD_SUCCESSES } from '../src/atoms/cost.js';
 import { SkillRegistry } from '../src/skills/registry.js';
+import type { ApprovedLesson } from '../src/contracts/skillLearning.js';
 import type { SkillEventInfo } from '../src/core/types.js';
 import { makeCtx, jsonText , nsOf} from './helpers.js';
 
@@ -316,7 +317,11 @@ describe('L2 onApproved — skill auto-creation (C3)', () => {
     });
     const neuron = L2Atom.fromType(reg.getByName('Tracheid')!, reg, [], skills);
     const queued: Array<(signal?: AbortSignal) => Promise<void>> = [];
-    const ctx = { ...makeCtx(), deferredLearning: { defer: (learn: (signal?: AbortSignal) => Promise<void>) => { queued.push(learn); } } };
+    const atomLessons: ApprovedLesson[] = [];
+    const ctx = { ...makeCtx(), deferredLearning: { defer: (learn: (signal?: AbortSignal) => Promise<void>, _owner?: string, lesson?: ApprovedLesson) => {
+      if (lesson?.kind === 'atom') atomLessons.push(lesson);
+      else queued.push(learn);
+    } } };
     ctx.llm.enqueueText(jsonText({ kind: 'reuse', target: 'Water', confidence: 'high', reasoning: 't' }));
     ctx.llm.enqueueText(jsonText({ kind: 'escalate', reasoning: 'no fit' }));
     ctx.llm.enqueueText(jsonText({ reasoning: 'r', proposedAction: 'a', expectedOutput: 'e' }));
@@ -325,6 +330,7 @@ describe('L2 onApproved — skill auto-creation (C3)', () => {
     await neuron.handleDirect({ description: 'build a small web thing' }, ctx);
     // Nothing distilled yet: the lesson waits, and the phase has already returned.
     expect(queued).toHaveLength(1);
+    expect(atomLessons).toHaveLength(1);
     expect(skills.loadFor(nsOf(reg, 'Water')).map((s) => s.id)).toEqual(['unrelated']);
     expect(ctx.llm.calls.some((c) => c.userContent.includes('"when_to_use"'))).toBe(false);
 

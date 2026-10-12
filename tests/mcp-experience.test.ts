@@ -1,3 +1,6 @@
+import { projectLearningResultSchema } from '../src/contracts/projectLearning.js';
+import { appendLedger, withLedgerScope } from '../src/core/ledger.js';
+import { openDb } from '../src/registry/db.js';
 import { projectRetrievalResponseSchema } from '../src/contracts/projectRetrieval.js';
 import { ProjectRetrievalLaunchStore } from '../src/projects/retrievalLaunch.js';
 import { retrievalContext } from './helpers/projectRetrievalCorpus.js';
@@ -674,4 +677,72 @@ it.each([false, true])('searches saved code through Haystack on both MCP eras (l
       citation: { path: 'refund.ts', startLine: 1 } }] });
     expect(f.driver).not.toHaveBeenCalled();
   } finally { vi.unstubAllEnvs(); }
+});
+
+
+it.each([false, true])('reads all project learning through the MCP with bounded stable pages (legacy=%s)', async legacy => {
+  const f = await fixture(legacy);
+  const items = [f.makeRun({ 'a.txt': 'a' }), f.makeRun({ 'b.txt': 'b' }), f.makeRun({ 'c.txt': 'c' })];
+  const db = openDb(f.dbPath);
+  try {
+    db.prepare('UPDATE project_runs SET created_at=? WHERE project_id=?').run('2026-10-10T00:00:00.000Z', f.project.projectId);
+    for (const item of items) {
+      mkdirSync(item.layout.runsPath, { recursive: true });
+      writeFileSync(join(item.layout.runsPath, item.run.projectRunId + '.json'), JSON.stringify({ id: item.run.projectRunId,
+        events: [{ id: 'credit', kind: 'registry', op: 'recordSuccess', name: 'Water', tier: 1 },
+          { id: 'patch', kind: 'registry', op: 'patch', name: 'Water', tier: 1, version: 2, modifications: { systemPromptAppend: 'method' }, reason: item.layout.workspacePath },
+          { id: 'root', kind: 'acceptance', approved: false, reasoning: 'Missing proof' }] }));
+      withLedgerScope({ orgId: f.viewer.orgId, projectId: f.project.projectId, runId: item.run.projectRunId }, () =>
+        appendLedger({ kind: 'prompt-learning', entity: 'Water', detail: { outcome: 'applied', toVersion: 2 } }, db));
+    }
+    const first = projectLearningResultSchema.parse((await f.call('atoma_project_learning', { projectId: f.project.projectId, limit: 1 })).structuredContent);
+    expect(first.coverage.totalRuns).toBe(3);
+    expect(first.runs[0]!.counts).toMatchObject({ 'registry:recordSuccess': 1, 'registry:patch': 1, 'acceptance:refused': 1, 'ledger:prompt-learning': 1 });
+    expect(first.runs[0]!.trace.status).toBe('complete');
+    expect(JSON.stringify(first)).not.toContain(f.root);
+    f.makeRun({ 'new.txt': 'new' });
+    withLedgerScope({ orgId: f.viewer.orgId, projectId: f.project.projectId, runId: items[0]!.run.projectRunId }, () =>
+      appendLedger({ kind: 'type-success', entity: 'Water' }, db));
+    const seen = first.runs.map(run => run.projectRunId);
+    let cursor = first.nextCursor;
+    while (cursor) {
+      const page = projectLearningResultSchema.parse((await f.call('atoma_project_learning', { projectId: f.project.projectId, limit: 1, cursor })).structuredContent);
+      expect(page.snapshot).toEqual(first.snapshot); expect(page.coverage.totalRuns).toBe(3);
+      expect(page.runs[0]!.ledger.events).toBe(1);
+      seen.push(...page.runs.map(run => run.projectRunId)); cursor = page.nextCursor;
+    }
+    expect(seen.sort()).toEqual(items.map(item => item.run.projectRunId).sort());
+    expect((await f.client.callTool({ name: 'atoma_project_learning', arguments: { projectId: f.project.projectId, cursor: first.nextCursor, since: '2026-10-11T00:00:00.000Z' } })).isError).toBe(true);
+    expect((await f.client.callTool({ name: 'atoma_project_learning', arguments: { projectId: f.project.projectId, limit: 6 } })).isError).toBe(true);
+    const full = projectLearningResultSchema.parse((await f.call('atoma_project_learning', { projectId: f.project.projectId })).structuredContent);
+    expect(full.runs[0]!.trace.status).toBe('missing');
+    f.setViewer({ ...f.viewer, orgId: randomUUID(), platformAdmin: false });
+    const denied = f.client.callTool({ name: 'atoma_project_learning', arguments: { projectId: f.project.projectId } });
+    if (legacy) await expect(denied).rejects.toThrow('session does not belong');
+    else expect((await denied).isError).toBe(true);
+    f.setViewer(f.viewer);
+    expect(f.driver).not.toHaveBeenCalled();
+  } finally { db.close(); }
+});
+
+
+it('reports omitted, invalid, oversized and absent learning evidence without hiding the project runs', async () => {
+  const f = await fixture();
+  const first = f.makeRun({ 'a.txt': 'a' });
+  const corrupt = f.makeRun({ 'b.txt': 'b' });
+  const oversized = f.makeRun({ 'c.txt': 'c' });
+  for (const item of [first, corrupt, oversized]) mkdirSync(item.layout.runsPath, { recursive: true });
+  writeFileSync(join(first.layout.runsPath, first.run.projectRunId + '.json'), JSON.stringify({ id: first.run.projectRunId,
+    events: Array.from({ length: 105 }, (_, i) => ({ id: String(i), kind: 'skill', op: 'learn', l1Name: 'Water',
+      l1AtomId: 'owner', skillId: 'recipe', executorName: 'Methane', reasoning: 'Reason '.repeat(400) })) }));
+  writeFileSync(join(corrupt.layout.runsPath, corrupt.run.projectRunId + '.json'), '{broken');
+  writeFileSync(join(oversized.layout.runsPath, oversized.run.projectRunId + '.json'), ' '.repeat(32 * 1024 * 1024 + 1));
+  const page = projectLearningResultSchema.parse((await f.call('atoma_project_learning', { projectId: f.project.projectId })).structuredContent);
+  const good = page.runs.find(run => run.projectRunId === first.run.projectRunId)!;
+  expect(good.trace).toMatchObject({ status: 'complete', events: 105, omitted: 5 });
+  expect(good.counts['skill:learn']).toBe(105);
+  expect(good.evidence[0]).toMatchObject({ atom: 'Water', ownerId: 'owner', skillId: 'recipe', executor: 'Methane' });
+  expect(good.evidence[0]!.detail).toContain('[truncated]');
+  expect(page.runs.find(run => run.projectRunId === corrupt.run.projectRunId)!.trace.status).toBe('invalid');
+  expect(page.runs.find(run => run.projectRunId === oversized.run.projectRunId)!.trace.status).toBe('overCeiling');
 });

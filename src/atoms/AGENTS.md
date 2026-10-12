@@ -573,6 +573,8 @@ load-bearing.
 
 ## Intentional choices and rejected shortcuts
 
+- Approved method hooks collect version-bound prompt lessons for all three ranks; root refusal discards them. Fixed author/reviewer prompts, bounded evidence and preservation rules: [prompt consolidation](../../docs/prompt-consolidation-2026-10-12.md).
+
 Read the archived sections before changing something that merely looks odd.
 
 - L3 construction is async because it may resolve the latest Opus model alias;

@@ -1,3 +1,4 @@
+import { restorationDamaged } from '../contracts/readOnlyPhase.js';
 import { EARLIER_LISTED_INPUT, baselineEstablishedNothing } from '../contracts/inheritedChecks.js';
 import type { Atom } from '../core/atom.js';
 import { setMaxListeners } from 'node:events';
@@ -193,7 +194,7 @@ export function withAcceptanceChecklist(task: Task, checklist: AcceptanceCheckli
 }
 
 export type Lesson = { readonly learn: (signal?: AbortSignal) => Promise<void>; readonly owner: string | undefined;
-  readonly lesson?: import('../contracts/skillLearning.js').SkillLesson };
+  readonly lesson?: import('../contracts/skillLearning.js').ApprovedLesson };
 
 /**
  * Run under the approved pass's finalization signal; each lesson logs its own
@@ -232,6 +233,7 @@ export async function runDepthTask(args: {
   restart: () => Promise<ToolExecutor>;
   onTopology: (info: TopologyInfo) => void;
   onAcceptance: (info: AcceptanceInfo) => void;
+  onApproved?: (actor: Atom, task: Task, result: Result, ctx: RunContext, feedback: readonly string[], approval: string) => void;
   /** Drafted once by the caller, before the attempt loop; a deepening keeps it. */
   checklist?: AcceptanceChecklist;
   /**
@@ -396,6 +398,17 @@ export async function runDepthTask(args: {
           }
           args.onAcceptance(acceptance);
           if (acceptance.approved) {
+            if (!acceptance.floorCoverage.some(item => item.status === 'uncovered') &&
+              !(passCtx.readOnlyPhases?.restorations() ?? []).some(item => item.attempt === (passCtx.attempt ?? 1) && restorationDamaged(item))) {
+              args.onApproved?.(actor, currentTask, result, passCtx, refused ? [refused.acceptance.reasoning] : [], acceptance.reasoning);
+            }
+            // At most one opportunity per rank per run. Prefer recovered failures;
+            // do not pay for several amendments to the same soon-stale version.
+            for (const tier of [1, 2, 3] as const) {
+              const candidates = lessons.filter(entry => entry.lesson?.kind === 'atom' && entry.lesson.tier === tier);
+              candidates.sort((a, b) => (b.lesson?.kind === 'atom' ? b.lesson.feedback.length : 0) - (a.lesson?.kind === 'atom' ? a.lesson.feedback.length : 0));
+              for (const entry of candidates.slice(1)) lessons.splice(lessons.indexOf(entry), 1);
+            }
             lessonsSaved = true;
             if (ctx.enqueueApprovedLessons && lessons.every(entry => entry.lesson)) {
               try { ctx.enqueueApprovedLessons(lessons.map(entry => entry.lesson!)); }

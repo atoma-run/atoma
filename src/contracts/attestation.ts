@@ -348,7 +348,7 @@ export function renderBrowserInputs(records: readonly AttestationRecord[]): stri
  * replays one smoke at five widths; five copies of it evicted execution
  * evidence from the same budget.
  */
-export function renderObservations(records: readonly AttestationRecord[]): string[] {
+export function renderObservations(records: readonly AttestationRecord[], options: { executionMaxChars?: number } = {}): string[] {
   const latest = new Map<string, string>();
   for (const record of records) {
     if (record.observation.kind === 'browser' && record.observation.smoke !== undefined) latest.set(record.observation.smoke, record.eventId);
@@ -359,6 +359,7 @@ export function renderObservations(records: readonly AttestationRecord[]): strin
     const holder = smoke === undefined ? undefined : latest.get(smoke);
     const rewritten = superseded.get(record.eventId);
     return renderObservation(record, {
+      ...options,
       ...(holder !== undefined && holder !== record.eventId ? { smokeSameAs: holder } : {}),
       ...(rewritten ? { rewrittenBy: rewritten.rewrittenBy } : {}),
     });
@@ -433,7 +434,7 @@ function requestedPath(record: AttestationRecord): string | undefined {
 /** The one-line rendering the supervisor shows a validator. */
 export function renderObservation(
   record: AttestationRecord,
-  options: { readonly smokeSameAs?: string; readonly rewrittenBy?: string } = {}
+  options: { readonly smokeSameAs?: string; readonly rewrittenBy?: string; readonly executionMaxChars?: number } = {}
 ): string {
   const o = record.observation;
   if (o.kind === 'execution') {
@@ -446,7 +447,7 @@ export function renderObservation(
     const response = options.rewrittenBy !== undefined
       ? '[superseded read result omitted; no evidence of current content]'
       : o.response;
-    return `${stale}${record.tool} (attempt=${record.attempt ?? 1}, branch=${record.branchId ?? 'root'}): request=${o.request}; observed result=${response}`;
+    return `${stale}${record.tool} (attempt=${record.attempt ?? 1}, branch=${record.branchId ?? 'root'}): request=${options.executionMaxChars ? evidenceExcerpt(o.request, options.executionMaxChars) : o.request}; observed result=${options.executionMaxChars ? evidenceExcerpt(response, options.executionMaxChars) : response}`;
   }
   const bits = [
     `ok=${o.ok}`,

@@ -855,7 +855,7 @@ export interface BranchEventInfo {
 export interface DeferredLearning {
   /** `owner` is the skill namespace written; lessons of one owner run in order, owners side by side. */
   defer(learn: (signal?: AbortSignal) => Promise<void>, owner?: string,
-    lesson?: import('../contracts/skillLearning.js').SkillLesson): void;
+    lesson?: import('../contracts/skillLearning.js').ApprovedLesson): void;
 }
 
 export interface RunContext {
@@ -868,7 +868,7 @@ export interface RunContext {
   /** Set where a root acceptance judges the run (depth routing); shared by every fork. */
   readonly deferredLearning?: DeferredLearning;
   /** Root approval commits serializable lessons before delivery; the host processes them separately. */
-  readonly enqueueApprovedLessons?: (lessons: readonly import('../contracts/skillLearning.js').SkillLesson[]) => void;
+  readonly enqueueApprovedLessons?: (lessons: readonly import('../contracts/skillLearning.js').ApprovedLesson[]) => void;
   readonly learningSource?: import('../contracts/skillLearning.js').LearningSource;
   readonly logger: Logger;
   /**
