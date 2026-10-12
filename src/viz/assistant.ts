@@ -3,7 +3,7 @@ import type { AssistantModels, AssistantModel } from './assistantModels.js';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { Viewer } from '../auth/store.js';
-import { assistantReplySchema, type AssistantConversation, type AssistantRequest, type AssistantView } from '../contracts/assistant.js';
+import { assistantReplySchema, type AssistantConversation, type AssistantRequest, type AssistantRun, type AssistantView } from '../contracts/assistant.js';
 import { estimateCostUsd, partialUsageOf, pricesFor } from '../core/metrics.js';
 import { goalPromptText } from '../mcp/prompts.js';
 import { AssistantConflict, AssistantStore, type AssistantScope } from './assistantStore.js';
@@ -15,6 +15,8 @@ const list = (value: unknown, key: string): Record<string, unknown>[] => {
   const entries = object(value)[key];
   return Array.isArray(entries) ? entries.map(object) : [];
 };
+/** Recent deliveries a conversation looks through for one still awaiting client acceptance. */
+const PENDING_ACCEPTANCE_SCAN = 5;
 function bounded(value: unknown, max = 20_000): string {
   const text = JSON.stringify(value);
   return text.length > max ? `${text.slice(0, max)}\n[Context truncated; do not infer omitted evidence.]` : text;
@@ -46,25 +48,44 @@ export class AssistantService {
     return { principalId: viewer.principalId, orgId: viewer.orgId, projectId, ...(conversationId ? { conversationId } : {}) };
   }
 
+  /**
+   * The run this conversation presents, whoever started it: a run launched
+   * over MCP or the CLI awaits the same client acceptance, and the result card
+   * is where the browser offers it. In order: a live run (its status), else
+   * the newest delivery still awaiting acceptance — a later cancelled, failed
+   * or comparison run must not hide it (2026-10-12) — else the newest run. An
+   * unbound conversation keeps the run it started.
+   */
+  private async presentedRun(conversation: AssistantConversation, mcp: AssistantMcp):
+    Promise<{ target: AssistantRun | null; status: Record<string, unknown> | null }> {
+    const projectId = conversation.projectId;
+    const read = async (target: AssistantRun) => ({ target, status: object(await mcp.call('atoma_run_status', target)) });
+    if (!projectId) return conversation.lastRun ? read(conversation.lastRun) : { target: null, status: null };
+    const page = async (args: Record<string, unknown>) =>
+      list(await mcp.call('atoma_project_runs', { projectId, view: 'compact', ...args }), 'runs')
+        .flatMap(row => typeof row['projectRunId'] === 'string' ? [{ projectId, runId: row['projectRunId'], status: row['status'] }] : []);
+    const [newest] = await page({ limit: 1 });
+    if (!newest) return conversation.lastRun ? read(conversation.lastRun) : { target: null, status: null };
+    if (newest.status === 'queued' || newest.status === 'running') return read({ projectId, runId: newest.runId });
+    for (const delivered of await page({ status: 'delivered', limit: PENDING_ACCEPTANCE_SCAN })) {
+      const candidate = await read({ projectId, runId: delivered.runId });
+      if (candidate.status['awaitingClientAcceptance'] === true) return candidate;
+      // A comparison rerun never publishes; look past it. Any other settled
+      // delivery (accepted, published) supersedes the older ones: stop.
+      if (typeof candidate.status['rerunOf'] !== 'string') break;
+    }
+    return read({ projectId, runId: newest.runId });
+  }
+
   async view(scope: AssistantScope, mcp: AssistantMcp, before?: number): Promise<AssistantView> {
     // Validate access even for an existing conversation after project access changed.
     const { conversation, busy, nextBefore } = this.store.page(scope, before);
     if (conversation.projectId) await mcp.call('atoma_project_context', { projectId: conversation.projectId });
-    let run: AssistantView['run'] = null;
-    // The project's newest run, whoever started it: a run launched over MCP or
-    // the CLI awaits the same client acceptance, and this card is where the
-    // browser offers it. An unbound conversation keeps the run it started.
-    const newest = conversation.projectId
-      ? list(await mcp.call('atoma_project_runs', { projectId: conversation.projectId, view: 'compact', limit: 1 }), 'runs')[0]
-      : undefined;
-    const target = typeof newest?.['projectRunId'] === 'string'
-      ? { projectId: conversation.projectId!, runId: newest['projectRunId'] } : conversation.lastRun;
-    if (target) {
-      const status = object(await mcp.call('atoma_run_status', target));
-      run = { ...target, status: typeof status['status'] === 'string' ? status['status'] : 'unknown', traceId: typeof status['traceId'] === 'string' ? status['traceId'] : null,
-        costUsd: typeof status['costUsd'] === 'number' ? status['costUsd'] : null,
-        error: typeof status['error'] === 'string' ? status['error'] : null };
-    }
+    const { target, status } = await this.presentedRun(conversation, mcp);
+    const run: AssistantView['run'] = target && status ? { ...target,
+      status: typeof status['status'] === 'string' ? status['status'] : 'unknown', traceId: typeof status['traceId'] === 'string' ? status['traceId'] : null,
+      costUsd: typeof status['costUsd'] === 'number' ? status['costUsd'] : null,
+      error: typeof status['error'] === 'string' ? status['error'] : null } : null;
     const choices = await this.models.choices(scope);
     const subscriptions = await this.models.subscriptions(scope);
     const selected = choices.find(choice => choice.id === conversation.modelChoice);

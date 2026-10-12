@@ -24,8 +24,10 @@ open in a new tab.
 
 The conversation shows recorded run status and cost, including a result card
 when a run finishes, even after returning to the project. In a project, that
-card follows the project's newest run, whether the conversation, an MCP client
-or the CLI started it, so every delivery can be accepted here. **Open run** leads to
+card follows the project's runs whoever started them (the conversation, an MCP
+client or the CLI): a live run's status first, else the newest delivery still
+awaiting acceptance, which a later cancelled, failed or comparison run does not
+hide, else the newest run. **Open run** leads to
 the existing progress and result reader; the project offers supported previews.
 For a delivered result, **Review and publish to GitHub** opens a review field.
 After testing or reviewing the result, enter your review and choose **Accept

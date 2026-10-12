@@ -103,6 +103,38 @@ describe('the integrated assistant', () => {
     expect((await f.service.view(f.scope, f.mcp)).run).toBeNull();
   });
 
+  it('keeps a delivery awaiting acceptance in view behind later cancelled or comparison runs', async () => {
+    type Row = { id: string; status: string; awaiting?: boolean; rerunOf?: string };
+    const presented = async (history: Row[]) => {
+      const f = fixture(start);
+      const call = f.call.getMockImplementation()!;
+      f.call.mockImplementation(async (name, args, task) => {
+        if (name === 'atoma_project_runs') {
+          const rows = history.filter(row => !args['status'] || row.status === args['status']).slice(0, Number(args['limit']));
+          return { runs: rows.map(row => ({ projectRunId: row.id, status: row.status })) };
+        }
+        if (name === 'atoma_run_status') {
+          const row = history.find(entry => entry.id === args['runId'])!;
+          return { projectId, projectRunId: row.id, status: row.status, awaitingClientAcceptance: row.awaiting ?? false,
+            ...(row.rerunOf ? { rerunOf: row.rerunOf } : {}), traceId: row.id, costUsd: 0.1, error: null };
+        }
+        return call(name, args, task);
+      });
+      return (await f.service.view(f.service.scope(f.viewer, projectId), f.mcp)).run?.runId;
+    };
+    const pending = { id: 'pending', status: 'delivered', awaiting: true };
+    // Newest first, as the store lists them. Measured on production 2026-10-12:
+    // a cancelled run and a comparison rerun each hid the delivery to accept.
+    expect(await presented([{ id: 'cancelled', status: 'cancelled' }, { id: 'rerun', status: 'delivered', rerunOf: 'pending' }, pending]))
+      .toBe('pending');
+    // A live run shows its status first.
+    expect(await presented([{ id: 'live', status: 'running' }, pending])).toBe('live');
+    // A newer accepted delivery supersedes an older unaccepted one: never offer it.
+    expect(await presented([{ id: 'accepted', status: 'delivered' }, pending])).toBe('accepted');
+    // Nothing to accept: the newest run, whatever its outcome.
+    expect(await presented([{ id: 'failed', status: 'failed' }, { id: 'accepted', status: 'delivered' }])).toBe('failed');
+  });
+
   it('uses the saved brief and latest run as context, and carries the approved criteria verbatim', async () => {
     const f = fixture(start);
     const scope = f.service.scope(f.viewer, projectId);
