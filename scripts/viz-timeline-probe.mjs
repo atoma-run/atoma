@@ -83,6 +83,30 @@ export async function assertTimelineMinimap(page, { leaveHovered = false } = {})
       return JSON.stringify(current) === JSON.stringify(ids);
     }, { timeout: 10_000 }, before);
     if ((await readRows())[0] !== first) throw new Error('Minimap did not follow the cards back to the top');
+    const animatedId = targets.at(-2);
+    const animatedPoint = await pointFor(animatedId);
+    await page.mouse.click(animatedPoint.x, animatedPoint.y);
+    const positions = await page.evaluate(async id => {
+      const samples = [];
+      const started = performance.now();
+      while (performance.now() - started < 250) {
+        const row = globalThis.__ATOMA_GPU__.hitTargets().find(target => target.id === id);
+        if (row) samples.push(row.y);
+        await new Promise(resolve => requestAnimationFrame(resolve));
+      }
+      return samples;
+    }, animatedId);
+    if (new Set(positions.map(y => Math.round(y * 10))).size < 3) {
+      throw new Error('Clicked minimap bar did not glide through intermediate positions');
+    }
+    if (Math.abs(positions.at(-1) - positions.at(-2)) > 0.1) throw new Error('Minimap recenter did not settle');
+    await wheelRail(-1000000);
+    const resetPoint = await pointFor(first);
+    await page.mouse.click(resetPoint.x, resetPoint.y);
+    await page.waitForFunction(ids => {
+      const current = globalThis.__ATOMA_GPU__.hitTargets().filter(target => target.id.startsWith('event.')).map(target => target.id);
+      return JSON.stringify(current) === JSON.stringify(ids);
+    }, { timeout: 10_000 }, before);
   }
   // At the top, visible event cards follow the same newest-first row order.
   // Choose an indexed event that is also visible so its identity comes from

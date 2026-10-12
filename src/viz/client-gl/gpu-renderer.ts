@@ -630,6 +630,10 @@ export class GpuRenderer {
     move: (offset: number) => void;
   } | null = null;
   timelineMinimapScroll: { bounds: Rectangle; move: (delta: number) => void } | null = null;
+  /** Carries a clicked bar's position across the selection/scroll rebuild. */
+  timelineMinimapMotion: {
+    key: string; position: number; from: number; target: number | null; elapsed: number;
+  } | null = null;
   /** Re-centres the retained window once the reader stops (`recenterRunsWindow`). */
   private runsRecenterTimer: ReturnType<typeof setTimeout> | null = null;
   private runsScrollWidth = 0;
@@ -1559,6 +1563,7 @@ export class GpuRenderer {
     document.removeEventListener('visibilitychange', this.syncRenderActivity);
     this.runsScroll = null;
     this.timelineMinimapScroll = null;
+    this.timelineMinimapMotion = null;
     publishSceneCapture(null);
     this.cameraFrameUnsubscribe?.();
     this.cameraFrameUnsubscribe = null;
@@ -1837,6 +1842,7 @@ export class GpuRenderer {
     this.runsRecenterTimer = null;
     this.runsScroll = null;
     this.timelineMinimapScroll = null;
+    if (snapshot.state.view !== 'runs') this.timelineMinimapMotion = null;
     this.runsScrollWidth = this.app.screen.width;
     this.runsScrollHeight = this.app.screen.height;
     this.snapshot = snapshot;
@@ -5473,6 +5479,7 @@ export type RendererCtx = Pick<
   | 'scrollMax'
   | 'runsScroll'
   | 'timelineMinimapScroll'
+  | 'timelineMinimapMotion'
   | 'detailScrollY'
   | 'detailScrollMax'
   | 'detailBounds'

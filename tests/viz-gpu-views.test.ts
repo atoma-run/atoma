@@ -330,6 +330,7 @@ function createRecordingCtx(): RecordingCtx {
     metrics: emptyRenderMetrics(),
     runsScroll: null,
     timelineMinimapScroll: null,
+    timelineMinimapMotion: null,
     // Headless retention stub: no renderer, so no textures to retain — every
     // call attaches a fresh mark, which is what the layout assertions read.
     // The orb is a Mesh with a shader and a decoded texture: recording the
@@ -7190,6 +7191,63 @@ describe('FPS follow-ups', () => {
     expect(colors()).toEqual([GPU_COLORS.success, 0x38bdf8, GPU_COLORS.primary]);
     filteredRail.getChildByLabel('run.timeline.row.1', true)!.emit('pointerover', {} as FederatedPointerEvent);
     expect(colors()).toEqual([GPU_COLORS.success, 0x38bdf8, GPU_COLORS.primary]);
+  });
+
+  it.each([false, true])('animates a clicked minimap bar across the selection rebuild (reduced motion: %s)', reduced => {
+    setReducedMotionOverrideForTests(reduced);
+    const events = Array.from({ length: 200 }, (_, i) => makeLlmEvent(`e${i}`));
+    const snapshot = makeSnapshot({}, { run: makeRun(events) });
+    const before = createRecordingCtx();
+    drawRuns(before, snapshot, 1280, 800);
+    before.timelineMinimapScroll!.move(500);
+    const row = 80;
+    const id = `run.timeline.row.${row}`;
+    const target = (ctx: RecordingCtx) => ctx.metrics.hitTargets.find(target => target.id === id)!;
+    const originY = target(before).y;
+    before.root.getChildByLabel(id, true)!.emit('pointertap', {} as FederatedPointerEvent);
+    const viewport = before.metrics.timelineViewport!;
+    const scrollY = viewport.contentTopPadding + (row + 0.5) * viewport.rowHeight - viewport.height / 2;
+    const after = createRecordingCtx();
+    after.timelineMinimapMotion = before.timelineMinimapMotion;
+    drawRuns(after, { ...snapshot, state: { ...snapshot.state,
+      selectedEventId: viewport.eventIds[row - viewport.rowOffset]!,
+      scrollY: { ...snapshot.state.scrollY, runs: scrollY },
+    } }, 1280, 800);
+    const destinationY = after.timelineMinimapMotion?.target;
+    if (reduced) {
+      expect(after.timelineMinimapMotion).toBeNull();
+      expect(target(after).y).not.toBe(originY);
+      return;
+    }
+    expect(destinationY).not.toBeNull();
+    expect(target(after).y).toBe(originY);
+    after.tickers.forEach(tick => tick({ deltaMS: 40 } as Ticker));
+    const intermediateY = target(after).y;
+    expect(intermediateY).not.toBe(originY);
+    expect(after.timelineMinimapMotion).not.toBeNull();
+    const preview = after.tooltips.find(region => region.y === intermediateY && region.width === 36);
+    expect(preview).toBeDefined();
+    after.tickers.forEach(tick => tick({ deltaMS: 120 } as Ticker));
+    expect(after.timelineMinimapMotion).toBeNull();
+    expect(Math.abs(target(after).y - originY)).toBeGreaterThan(Math.abs(intermediateY - originY));
+    expect(after.metrics.hitTargets.filter(target => target.id.startsWith('run.timeline.row.')).length).toBeLessThanOrEqual(40);
+  });
+
+  it('animates retained minimap navigation and lets a manual gesture interrupt it', () => {
+    setReducedMotionOverrideForTests(false);
+    const ctx = createRecordingCtx();
+    drawRuns(ctx, makeSnapshot({}, { run: makeRun(Array.from({ length: 200 }, (_, i) => makeLlmEvent(`e${i}`))) }), 1280, 800);
+    ctx.timelineMinimapScroll!.move(500);
+    ctx.root.getChildByLabel('run.timeline.row.80', true)!.emit('pointertap', {} as FederatedPointerEvent);
+    ctx.runsScroll!.move(3000);
+    expect(ctx.timelineMinimapMotion?.target).not.toBeNull();
+    ctx.tickers.forEach(tick => tick({ deltaMS: 40 } as Ticker));
+    expect(ctx.timelineMinimapMotion?.position).not.toBe(50);
+    ctx.timelineMinimapScroll!.move(-20);
+    expect(ctx.timelineMinimapMotion).toBeNull();
+    const positions = ctx.metrics.hitTargets.filter(target => target.id.startsWith('run.timeline.row.')).map(target => ({ ...target }));
+    ctx.tickers.forEach(tick => tick({ deltaMS: 200 } as Ticker));
+    expect(ctx.metrics.hitTargets.filter(target => target.id.startsWith('run.timeline.row.'))).toEqual(positions);
   });
 
   it('reuses only scroll updates; data, filters and window crossings rebuild', () => {
