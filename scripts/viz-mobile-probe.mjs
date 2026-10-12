@@ -69,7 +69,9 @@ export async function assertMobileProjects(page, projectId) {
     if (offscreen.y > 560 || offscreen.y < visibleTop) {
       await page.evaluate(({ x, y, visibleTop }) => {
         globalThis.__ATOMA_GPU__.app.canvas.dispatchEvent(new WheelEvent('wheel', {
-          deltaY: y - visibleTop, clientX: x, clientY: visibleTop, bubbles: true, cancelable: true,
+          // Aim inside the window, not at its edge: the pane converts client
+          // travel through the live camera and landed 0.4px above it (2026-10-12).
+          deltaY: y - visibleTop - 40, clientX: x, clientY: visibleTop, bubbles: true, cancelable: true,
         }));
       }, { ...offscreen, visibleTop });
       await page.waitForFunction(({ id, visibleTop }) => {

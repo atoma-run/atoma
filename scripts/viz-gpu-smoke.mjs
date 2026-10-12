@@ -2744,7 +2744,9 @@ try {
       // lower canvas. Dismiss that unrelated offer before scrolling the run.
       const notificationOffer = await accountPage.$('.gpu-push-prompt-actions button:last-child');
       if (notificationOffer) await notificationOffer.click();
-      for (let attempt = 0; attempt < 4; attempt++) {
+      // The run card's height follows its content: on 2026-10-12 the action
+      // started ~580px below the fold at this width, past four wheel ticks.
+      for (let attempt = 0; attempt < 10; attempt++) {
         const point = await accountPage.evaluate(id => {
           const handle = globalThis.__ATOMA_GPU__;
           const target = handle.hitTargets().find(entry => entry.id === id);
@@ -2962,6 +2964,14 @@ try {
         return contains(globalThis.__ATOMA_GPU__.app.stage);
       }, value);
       if (await resultHasText('recorded-result-probe')) throw new Error('Result exposes technical probes by default');
+      // Result rebuilds the scene once more after its first targets appear
+      // (measured 2026-10-12), and a click whose press and release straddle
+      // that rebuild is lost. Click once the hit targets have held still.
+      await accountPage.waitForFunction(() => new Promise(resolve => {
+        const handle = globalThis.__ATOMA_GPU__;
+        const first = handle.hitTargets();
+        setTimeout(() => resolve(handle.hitTargets() === first), 400);
+      }), { timeout: READY_TIMEOUT_MS, polling: 50 });
       await clickAccountTarget('result.details');
       await waitForHitTarget(accountPage, 'result.download', 'result export missing in technical details');
       if (!await resultHasText('recorded-result-probe')) throw new Error('Result details lost recorded evidence');
@@ -3207,8 +3217,9 @@ try {
         accountForm: document.querySelectorAll('.gpu-settings-rename').length,
         // The per-tier pickers: one row per tier for the account, and one per
         // tier for the organisation when the viewer may manage it.
-        accountPickers: document.querySelectorAll('[id^="accountmodel-"]').length,
-        orgPickers: document.querySelectorAll('[id^="orgmodel-"]').length,
+        // `select`: each picker's `-origin` note shares its id prefix.
+        accountPickers: document.querySelectorAll('select[id^="accountmodel-"]').length,
+        orgPickers: document.querySelectorAll('select[id^="orgmodel-"]').length,
       }));
       // Admin limits share the settings scroll body; a second fixed overlay
       // used to paint all its fields over General and the tab bar.
@@ -3499,6 +3510,7 @@ try {
         withOrb: accountStats.withOrb.filter((id) => id.startsWith('account.')),
         opened: accountStats.opened.filter((id) => id.startsWith('auth.') || id.startsWith('org.') || id.startsWith('account.')),
         settings: accountStats.settings.filter((id) => id.startsWith('settings.')),
+        settingsDom: accountStats.settingsDom,
         meshes: accountStats.meshes,
         afterTab: accountStats.afterTab.filter((id) => id.startsWith('account.')),
         meshesAfterTab: accountStats.meshesAfterTab,
