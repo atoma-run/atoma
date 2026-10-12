@@ -81,6 +81,12 @@ describe('reading the execution-effort answers', () => {
     [0.95, 0.05, 'low'],
     [0.05, 0.95, 'high'],
     [JEV_THRESHOLDS.effortClear, JEV_THRESHOLDS.effortRuledOut, 'low'],
+    // `high` reads open_problem at its own, lower bar (2026-10-13): the
+    // production readings that ruled spelled_out out ran up to 0.82.
+    [JEV_THRESHOLDS.effortRuledOut, JEV_THRESHOLDS.effortOpen, 'high'],
+    [0.09, 0.62, 'high'],
+    [0.09, 0.59, null],
+    [0.21, 0.9, null],
     [0.79, 0.05, null],
     [0.95, 0.21, null],
     [0.5, 0.5, null],

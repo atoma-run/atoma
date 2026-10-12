@@ -138,10 +138,20 @@ export const JEV_THRESHOLDS = {
    * `effortRuledOut` a decisive no; in between the execution keeps the effort
    * it had. UNMEASURED (owner decision 2026-10-06): every execution recorded
    * before it ran at one effort per transport, so no answer could be paired
-   * with the outcome of another. The band is the compilation one.
+   * with the outcome of another. The band is the compilation one, and `low`
+   * (`spelled_out` at or above it) keeps it: a starved execution is the costly error.
    */
   effortClear: 0.8,
   effortRuledOut: 0.2,
+  /**
+   * `open_problem` at or above this, with `spelled_out` ruled out, reads `high`.
+   * At `effortClear` it decided 3 of 159 production readings (2026-10-07→12):
+   * `spelled_out` sat at or below 0.2 on 149, `open_problem` spread from 0 to
+   * 0.82, and first attempts read at 0.6 or more were refused 17 of 31 times
+   * against 12 of 45 below 0.4. At 0.6, 63 of 159 are decisive, enough for the
+   * pre-registered holdout (benchmark/jev-effort-2026-10-13/) to accrue.
+   */
+  effortOpen: 0.6,
 } as const;
 
 export type JevThresholds = { readonly [K in keyof typeof JEV_THRESHOLDS]: number };
@@ -1120,7 +1130,7 @@ export function readEffort(
   const readings = `spelled_out ${round2(spelledOut)}, open_problem ${round2(openProblem)}`;
   // `choice` is what Jev READ, applied or not: the measurement of 2026-10-06
   // compares readings, so a withheld or held-out one must still say what it was.
-  if (openProblem >= thresholds.effortClear && spelledOut <= thresholds.effortRuledOut) {
+  if (openProblem >= thresholds.effortOpen && spelledOut <= thresholds.effortRuledOut) {
     return { decision: { effort: 'high' }, outcome: 'effort high', answer: { yes, choice: 'high' } };
   }
   if (spelledOut >= thresholds.effortClear && openProblem <= thresholds.effortRuledOut) {

@@ -842,6 +842,39 @@ question of 2026-10-01 was never asked live there, by reading of the code;
 the production traces were not counted. Every method is now forwarded, and
 `tests/jev-effort.test.ts` fails on the old wrapper.
 
+### The `high` bar, 2026-10-13
+
+Ordinary production runs from 2026-10-07 to 2026-10-12 (38 runs) carried 159
+`execute-effort` readings, each read back from its trace's `jev` event.
+Three were decisive: two `high` applied, one `high` held out, no `low`. The
+2026-10-07 candidate cause does not hold here: `spelled_out` was at or below
+0.2 on 149 of the 159 and above 0.5 once. What kept `high` out was
+`open_problem` at 0.8:
+
+| `open_problem` | readings | first attempts with a known result | refused | median execute | median output tokens |
+|---|---|---|---|---|---|
+| < 0.4 | 58 | 45 | 12 (27 %) | 59 s | 6 606 |
+| 0.4–0.6 | 38 | 24 | 8 (33 %) | 94 s | 10 102 |
+| ≥ 0.6 | 63 | 31 | 17 (55 %) | 100 s | 10 869 |
+
+Every one of these ran at the call's own effort (`medium` on Codex), so the
+table describes the tasks, not what an effort would do to them: the question
+orders executions by how often they fail and how long they take, which is
+what it was written to read. `high` now needs `open_problem` at
+`effortOpen` (0.6) with `spelled_out` still at or below 0.2; 63 of the 159
+would have been decisive, 31 of them on first attempts. `low` keeps the
+0.8/0.2 band: no reading came near it, and it is the costly error. The
+holdout stays at 0.5 and the comparison restarts on the revision that adds
+[benchmark/jev-effort-2026-10-13/PREREGISTRATION.md](../benchmark/jev-effort-2026-10-13/PREREGISTRATION.md);
+the 2026-10-06 protocol keeps its rows and its rules for the old bar.
+
+Limits: one L1 (`gpt-5.6-luna` on Codex), Jev's drift (up to 0.17 measured
+on other questions) makes readings near 0.6 decisive by chance, and refusals
+by band are confounded with molecule type (the browser and full-stack
+molecules read highest). About 27 runs' readings were transcribed from trace
+summaries by hand; the event ids were checked against the calibration rows,
+five values against the events.
+
 ## The October 1–9 reading, and twin agents — 2026-10-10
 
 `atoma_jev_calibrate` over the 191 project traces of October 1–9 (six

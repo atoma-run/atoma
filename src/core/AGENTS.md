@@ -295,14 +295,16 @@ Neighbours:
   executed-script proof; mock tests establish retry/fallback behavior
   ([measurement](../../docs/jev-decisions-2026-09-28.md#compilation-eligibility-owner-decision-2026-10-01)).
 - `execute-effort` (owner decision 2026-10-06): before a molecule's execute
-  call, two Nouls — `spelled_out`, `open_problem` — read in the 0.2/0.8 band
-  set `low` or `high`; a middle-band or contradictory pair, a failure, or a
+  call, two Nouls — `spelled_out`, `open_problem` — set `low` (0.8/0.2) or
+  `high` (`open_problem` ≥ 0.6, `spelled_out` ≤ 0.2: at 0.8 it decided 3 of
+  159 production readings, 2026-10-13); any other pair, a failure, or a
   `low` on the retry of a refused attempt keeps the call's effort. Not asked
   when the type pins an effort or the transport would drop the answer. The
   band is UNMEASURED; until its pre-registered measurement is written up,
   `JEV_EFFORT_HOLDOUT_RATE` of the decisive readings are held out at random,
   and `jevOutcomeReport` pairs each decision with its execution
-  ([record](../../docs/jev-decisions-2026-09-28.md#execution-effort-owner-decision-2026-10-06)).
+  ([record](../../docs/jev-decisions-2026-09-28.md#execution-effort-owner-decision-2026-10-06),
+  [the `high` bar](../../docs/jev-decisions-2026-09-28.md#the-high-bar-2026-10-13)).
 - `forkBranch` forwards every `JevDecider` method, optional ones included;
   until 2026-10-06 it listed four and dropped `compilable` in every fork.
 - The AUDIT keeps Jev measured once the model no longer sees its approvals:
