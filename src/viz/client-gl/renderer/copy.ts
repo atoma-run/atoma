@@ -1,4 +1,3 @@
-import { elementForTool } from '../../../contracts/toolTaxonomy.js';
 import { isStandingCoverage } from '../../../contracts/acceptanceChecklist.js';
 import { clockTime } from '../../client/date-format.js';
 import {
@@ -12,6 +11,9 @@ import { timelineBranchHeading, type TimelineBranch } from '../../client/timelin
 import type { VizEvent, VizRun } from '../../client/types.js';
 import {
   skillEventTitle,
+  toolDisplayName,
+  eventActionLabel,
+  eventRoleLabel,
   skillEventReasoning,
   type DetailTone,
   type StructuredDetailNode,
@@ -275,25 +277,20 @@ export function stopReasonLabel(stopReason: string | undefined, t: GpuTranslate)
 }
 
 export function gpuEventCardCopy(event: VizEvent, t: GpuTranslate): GpuEventCardCopy {
-  const toolElement = event.kind === 'tool' && event.name
-    ? elementForTool(event.name)
-    : undefined;
   const title =
     // The start marker is the same call as its completion, so it carries the
     // same title; `llm-start` on the card named the schema, not the step.
     event.kind === 'llm' || event.kind === 'llm-start'
-      ? event.role ?? 'llm'
+      ? eventRoleLabel(event.role, t)
       : event.kind === 'tool'
-        ? toolElement
-          ? `${toolElement.symbol} · ${event.name}`
-          : event.name ?? 'tool'
+        ? toolDisplayName(event.name ?? 'tool', t)
         : event.kind === 'skill'
           ? skillEventTitle(event, t)
           : event.kind === 'topology' || event.kind === 'acceptance'
             ? t(`depth.${event.kind}`)
           : event.kind === 'jev'
-            ? t('card.jev.title', { role: event.role ?? '' })
-          : `${event.kind}${event.op ? ` · ${event.op}` : ''}`;
+            ? t('card.jev.title', { role: eventRoleLabel(event.role, t) })
+          : eventActionLabel(event.op ?? event.kind, t);
   const meta = [
     event.actor?.name ? `L${event.actor.tier ?? '?'} ${event.actor.name}` : '',
     event.child?.name ? `→ ${event.child.name}` : '',
@@ -542,9 +539,8 @@ export function buildLlmStartDetail(
     .reverse()
     .map((tool) => {
       const name = tool.name ?? 'tool';
-      const element = elementForTool(name);
       const summary = toolArgSummary(tool.args);
-      const head = element ? `${element.symbol} · ${name}` : name;
+      const head = toolDisplayName(name, t);
       return [head, summary, tool.error ? '✕' : ''].filter(Boolean).join(' · ');
     });
   nodes.push({

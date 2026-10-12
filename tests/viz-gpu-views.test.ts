@@ -4708,7 +4708,7 @@ describe('drawRegistry scrolling honesty', () => {
     expect(values.indexOf('USER INSTRUCTION')).toBeLessThan(values.indexOf('SYSTEM PROMPT'));
     expect(values).toContain('You are a helper.');
     expect(values).toContain('L1 Molecule · #7 · v2 · ✓2/✗0');
-    expect(values).toContain('Li · read_file');
+    expect(values).toContain('Read file');
 
     // Empty type-level parameters say what their emptiness MEANS; a raw `{}`
     // made an ordinary default look like missing or broken data.
@@ -5929,7 +5929,7 @@ describe('drawRuns behavior', () => {
     expect(texts).not.toContain('llm-start');
     expect(texts).toContain(t('now.doing.execute', { actor: 'CarbonDioxide', child: '?' }));
     expect(texts).toContain('Write the README with the run instructions.');
-    expect(texts.some((value) => value.includes('write_file') && value.includes('README.md'))).toBe(true);
+    expect(texts.some((value) => value.includes('Write file') && value.includes('README.md'))).toBe(true);
     // The identifiers are still reachable, under their own heading, after the story.
     const expectedHeadings = [
       t('detail.field.subtask'),
@@ -6121,7 +6121,7 @@ describe('drawRuns behavior', () => {
     // Target THE card, not "whatever cards happen to exist": a loop that
     // skips cards without an actor passes whether or not the bug is present,
     // which is exactly how the first version of this test proved nothing.
-    const title = inCards.find((text) => text.value.includes('reverify_recorded_probe'));
+    const title = inCards.find((text) => text.value.includes('Reverify recorded probe'));
     expect(title, 'fixture must produce the long title').toBeDefined();
     const sameCard = inCards.filter((text) => text.parent === title!.parent);
     // The card is one line, and every label on it now shares the title's SIZE
@@ -6315,7 +6315,7 @@ describe('drawRuns behavior', () => {
     const llmCard = ctx.eventCards.find((card) => card.id === 'e1');
     expect(toolCard).toBeDefined();
     expect(llmCard).toBeDefined();
-    expect(ctx.texts.some((text) => text.value.includes('read_file'))).toBe(true);
+    expect(ctx.texts.some((text) => text.value.includes('Read file'))).toBe(true);
   });
 
   it('shows the branch heading toggle when a branch filter is active', () => {
@@ -7182,8 +7182,8 @@ describe('FPS follow-ups', () => {
     expect(filtered.metrics.hitTargets.filter(target => target.id.startsWith('run.timeline.row.'))
       .map(target => target.id)).toEqual(['run.timeline.row.0', 'run.timeline.row.1', 'run.timeline.row.2']);
     expect(filtered.metrics.timelineViewport!.eventIds).toEqual(['only-tool']);
-    expect(filtered.tooltips.some(region => region.text.includes('read_file'))).toBe(true);
-    const preview = filtered.tooltips.find(region => region.text.includes('read_file'));
+    expect(filtered.tooltips.some(region => region.text.includes('Read file'))).toBe(true);
+    const preview = filtered.tooltips.find(region => region.text.includes('Read file'));
     expect(preview).toMatchObject({ placement: 'left', instant: true });
     const filteredRail = filtered.root.getChildByLabel('timeline-minimap', true)!;
     const filteredInk = filteredRail.getChildByLabel('timeline-minimap-bars', true) as Graphics;

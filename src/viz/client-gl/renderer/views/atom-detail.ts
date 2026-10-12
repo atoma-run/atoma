@@ -3,7 +3,7 @@ import { formatDateTime } from '../../../client/date-format.js';
 import { trustCountsLabel } from '../../../client/trust-counts.js';
 import type { RegistryType } from '../../../client/types.js';
 import { taxonomyForTier } from '../../../../core/taxonomy.js';
-import { elementForTool } from '../../../../contracts/toolTaxonomy.js';
+import { toolDisplayName } from '../../../client/structured-detail.js';
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { GPU_COLORS } from '../../theme.js';
 import { createScrollPane } from '../scroll-pane.js';
@@ -101,12 +101,7 @@ export function drawAtomDetail(
   } else {
     body(
       atom.tools
-        .map((tool) => {
-          const element = elementForTool(tool);
-          return element
-            ? `${element.symbol} · ${tool}`
-            : tool;
-        })
+        .map(tool => toolDisplayName(tool, snapshot.t))
         .join('   '),
       { mono: true }
     );

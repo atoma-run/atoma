@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { BUILTIN_TOOL_NAMES, HOST_TOOL_NAMES } from '../src/contracts/toolTaxonomy.js';
 import {
   buildLlmStartDetail,
   compactModelName,
@@ -13,6 +14,24 @@ import { translate } from '../src/viz/client/i18n-catalog.js';
 import type { VizEvent, VizRun } from '../src/viz/client/types.js';
 
 const t = (key: string, vars?: Record<string, unknown>) => translate('en', key, vars);
+
+describe('readable event names', () => {
+  it.each([...BUILTIN_TOOL_NAMES, ...HOST_TOOL_NAMES])('localizes the display name for %s without changing its invocation', (name) => {
+    const event: VizEvent = Object.freeze({ id: 'tool', ts: 0, kind: 'tool', name });
+    const label = t(`toolName.${name}`);
+    expect(label).not.toBe(`toolName.${name}`);
+    expect(gpuEventCardCopy(event, t).title).toBe(label);
+    expect(gpuEventCardCopy(event, (key) => `localized:${key}`).title).toBe(`localized:toolName.${name}`);
+    expect(event.name).toBe(name);
+  });
+
+  it('uses readable translated action names in card and timeline copy', () => {
+    const event: VizEvent = { id: 'registry', ts: 0, kind: 'registry', op: 'recordSuccess' };
+    expect(gpuEventCardCopy(event, t).title).toBe('Record success');
+    expect(gpuEventCardCopy(event, (key) => `localized:${key}`).title).toBe('localized:eventAction.recordSuccess');
+    expect(gpuEventCardCopy({ ...event, kind: 'tool', name: 'validate_html' }, t).title).toBe('Validate HTML');
+  });
+});
 
 describe('compactModelName', () => {
   it('drops the release date a card has no room for', () => {
@@ -171,7 +190,7 @@ describe('gpuEventCardCopy for an LLM call', () => {
       },
       t
     );
-    expect(title).toContain('context');
+    expect(title).toContain('Context');
     // The body is the INJECT and nothing else: the source and the skill id
     // are the footer's own first members, and on the one-line card that
     // duplication spent the body budget restating them.
@@ -314,7 +333,7 @@ describe('buildLlmStartDetail', () => {
     expect(value.get('elapsed')).toBe('12.00s');
     expect(value.get('instruction')).toContain('Write flags.mjs');
     // Newest first, so the reader sees the latest element without scrolling.
-    expect(value.get('lastElements')).toBe('B · run_shell · node flags.mjs --check\nH · write_file · flags.mjs');
+    expect(value.get('lastElements')).toBe('Run shell command · node flags.mjs --check\nWrite file · flags.mjs');
     expect(value.has('elementErrors')).toBe(false);
     const elements = detail.nodes.find((node) => node.kind === 'section' && node.key === 'elements');
     expect(elements).toMatchObject({ count: 2 });

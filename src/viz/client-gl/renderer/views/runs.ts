@@ -590,7 +590,7 @@ export function drawRuns(
     roles: roleNames.length
       ? ['all', ...roleNames].map((role) => ({
           id: `run.filter.role.${role}`,
-          label: role === 'all' ? snapshot.t('filters.allRoles').toUpperCase() : role.toUpperCase(),
+          label: role === 'all' ? snapshot.t('filters.allRoles').toUpperCase() : eventRoleLabel(role, snapshot.t).toUpperCase(),
         }))
       : null,
   });
@@ -1788,11 +1788,7 @@ function drawEventDetail(
   }
   ctx.text(
     ctx.root,
-    event.kind === 'llm' || event.kind === 'llm-start'
-      ? eventRoleLabel(event.role, snapshot.t)
-      : event.kind === 'jev'
-        ? snapshot.t('card.jev.title', { role: eventRoleLabel(event.role, snapshot.t) })
-        : event.kind,
+    gpuEventCardCopy(event, snapshot.t).title,
     x + 18,
     y + 16,
     {

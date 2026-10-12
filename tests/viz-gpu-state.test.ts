@@ -437,7 +437,7 @@ describe('full-GL event cards preserve trace metadata', () => {
       durationMs: 12,
     }, t);
     expect(copy).toMatchObject({
-      title: 'Li · read_file',
+      title: 'Read file',
       meta: expect.stringContaining('L1 Ammonia'),
       body: expect.stringContaining('src/index.ts'),
     });
@@ -460,7 +460,7 @@ describe('full-GL event cards preserve trace metadata', () => {
       durationMs: 1500,
       costUsd: 0.0123,
     }, t);
-    expect(copy.title).toBe('validate-result');
+    expect(copy.title).toBe('Result validation');
     expect(copy.meta).toContain('L3 Meristem');
     expect(copy.meta).toContain('→ Erythrocyte');
     expect(copy.footer).toContain('zai:glm-4.5-air');

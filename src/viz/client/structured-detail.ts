@@ -362,6 +362,15 @@ export function structuredDetailLabel(key: string, t: Translator): string {
   return translatedOrNull(t, `detail.field.${key}`) ?? titleCaseIdentifier(key);
 }
 
+/** Display-only labels: invocation names and recorded trace values stay unchanged. */
+export function toolDisplayName(name: string, t: Translator): string {
+  return translatedOrNull(t, `toolName.${name}`) ?? titleCaseIdentifier(name);
+}
+
+export function eventActionLabel(name: string, t: Translator): string {
+  return translatedOrNull(t, `eventAction.${name}`) ?? titleCaseIdentifier(name);
+}
+
 export function eventRoleLabel(role: string | undefined, t: Translator): string {
   if (!role) return 'LLM';
   return translatedOrNull(t, `detail.role.${role}`) ?? titleCaseIdentifier(role);
