@@ -52,9 +52,8 @@ import {
   DETAIL_BADGE_TEXT_PAD,
   DETAIL_CARD_PAD,
   DETAIL_CARD_TEXT_PAD,
-  DETAIL_SECTION_INSET,
-  detailNodeWidth,
   layoutDetailRows,
+  detailNodeWidth,
   type DetailMeasure,
 } from '../detail-layout.js';
 import {
@@ -2089,8 +2088,6 @@ const DETAIL_SECTION_TITLE_TOP = 3;
 const DETAIL_SECTION_HEADER_GAP = 10;
 /** The fixed header advance the pane used to have, kept as a FLOOR. */
 const DETAIL_SECTION_HEADER_MIN = 29;
-const DETAIL_SECTION_RAIL_LIFT = 4;
-const DETAIL_SECTION_RAIL_TAIL = 7;
 const DETAIL_SECTION_TRAILING = 5;
 const DETAIL_FIELD_VALUE_CAP = 4000;
 const DETAIL_RAW_VALUE_CAP = 8000;
@@ -2206,7 +2203,7 @@ function drawDetailFieldContent(
   return valueTop + valueText.height + DETAIL_TEXT_BOTTOM_PAD;
 }
 
-/** A section's own header and rail, with its children laid out one level in. */
+/** Sections use headings and spacing; structural depth never consumes reading width. */
 function drawDetailSection(
   ctx: RendererCtx,
   parent: Container,
@@ -2218,10 +2215,25 @@ function drawDetailSection(
   width: number,
   depth: number
 ): number {
-  const rail = new Graphics();
-  parent.addChild(rail);
+  // A singleton collection already has a named item; repeating the collection
+  // heading and count adds no information.
+  if (node.count === 1 && node.children.length === 1 && node.children[0]?.kind === 'section') {
+    return drawStructuredDetailNodes(ctx, parent, node.children, x, cursor, width, depth);
+  }
+  const only = node.children.length === 1 ? node.children[0] : undefined;
+  if (only?.kind === 'field' && ['mode', 'description', 'value'].includes(only.key)) {
+    if (only.presentation === 'badge') {
+      return cursor + ctx.text(parent, `${node.label} · ${only.value}`, nodeX, cursor, {
+        size: 12, color: GPU_COLORS.text, width: nodeWidth,
+      }).height + 16;
+    }
+    cursor += ctx.text(parent, node.label, nodeX, cursor, {
+      size: 12, weight: '700', color: GPU_COLORS.primary, width: nodeWidth,
+    }).height + 8;
+    return drawSkillContextNodes(ctx, parent, [only], nodeX, cursor, nodeWidth);
+  }
   const title = node.count === undefined ? node.label : `${node.label} · ${node.count}`;
-  const titleLabel = ctx.text(parent, title, nodeX + DETAIL_CARD_PAD, cursor + DETAIL_SECTION_TITLE_TOP, {
+  const titleLabel = ctx.text(parent, title, nodeX, cursor + DETAIL_SECTION_TITLE_TOP, {
     size: depth === 0 ? 12 : 10,
     color: depth === 0 ? GPU_COLORS.primary : GPU_COLORS.text,
     weight: '700',
@@ -2233,7 +2245,6 @@ function drawDetailSection(
     DETAIL_SECTION_HEADER_MIN,
     Math.round(DETAIL_SECTION_TITLE_TOP + titleLabel.height + DETAIL_SECTION_HEADER_GAP)
   );
-  const railTop = cursor + headerHeight - DETAIL_SECTION_RAIL_LIFT;
   let bottom = drawStructuredDetailNodes(
     ctx,
     parent,
@@ -2243,14 +2254,6 @@ function drawDetailSection(
     width,
     depth + 1
   );
-  rail
-    .moveTo(nodeX + 2, railTop)
-    .lineTo(nodeX + 2, Math.max(railTop, bottom - DETAIL_SECTION_RAIL_TAIL));
-  rail.stroke({
-    color: depth === 0 ? GPU_COLORS.primary : GPU_COLORS.border,
-    width: depth === 0 ? 2 : 1,
-    alpha: 0.65,
-  });
   bottom += DETAIL_SECTION_TRAILING;
   return bottom;
 }
@@ -2271,8 +2274,8 @@ function drawStructuredDetailNodes(
   width: number,
   depth = 0
 ): number {
-  const nodeX = x + depth * DETAIL_SECTION_INSET;
-  const nodeWidth = detailNodeWidth(width, depth);
+  const nodeX = x;
+  const nodeWidth = detailNodeWidth(width, 0);
   const measure = detailMeasure(ctx);
   let cursor = startY;
   for (const row of layoutDetailRows(nodes, nodeWidth, measure)) {
@@ -2298,6 +2301,11 @@ function drawStructuredDetailNodes(
         width,
         depth
       );
+      continue;
+    }
+    if (row.cards.length === 1 && first.node.kind === 'field' &&
+      first.node.key === 'description' && first.node.presentation === 'text' && depth > 0) {
+      cursor = drawSkillContextNodes(ctx, parent, [first.node], nodeX, cursor, nodeWidth);
       continue;
     }
     // Every background is allocated BEFORE its own labels so it paints behind

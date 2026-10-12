@@ -5955,6 +5955,21 @@ describe('drawRuns behavior', () => {
     expect(new Set(recipeTexts.map(text => text.x)).size).toBe(1);
   });
 
+  it('flattens singleton subtask wrappers and aggregation mode without consuming reading width', () => {
+    const event: VizEvent = { id: 'flat-plan', kind: 'llm', role: 'plan', ts: 1,
+      response: JSON.stringify({ subtasks: [{ description: 'Build the requested interface.', preferredChild: 'RNA' }], aggregation: { mode: 'sequential' } }) };
+    const ctx = createRecordingCtx();
+    drawRuns(ctx, makeSnapshot({ selectedEventId: event.id }, { run: makeRun([event]) }), WIDTH, HEIGHT);
+    const texts = ctx.texts.map(text => text.value);
+    expect(texts).not.toContain('Subtasks · 1');
+    expect(texts).not.toContain('Description');
+    expect(texts).not.toContain('Mode');
+    expect(texts).toContain('Aggregation · Sequential');
+    const heading = ctx.texts.find(text => text.value === 'Subtask 1')!;
+    const description = ctx.texts.find(text => text.value === 'Build the requested interface.')!;
+    expect(description.x).toBe(heading.x);
+  });
+
   it('explains a selected llm-start marker instead of dumping its identifiers', () => {
     const started = Date.now() - 5_000;
     const events: VizEvent[] = [
@@ -7524,7 +7539,7 @@ describe('drawRuns — paired detail fields', () => {
     expect(bytes!.y).toBe(status!.y);
     // Three columns, in the projection's own order, left to right.
     const pane = runsPaneLayout(WIDTH);
-    const nodeWidth = detailNodeWidth(pane.rightWidth - 42, 1);
+    const nodeWidth = detailNodeWidth(pane.rightWidth - 42, 0);
     const columnWidth = detailColumnWidth(nodeWidth, 3);
     expect(columnWidth).toBeGreaterThanOrEqual(DETAIL_CARD_MIN_WIDTH);
     expect(path!.x - status!.x).toBeGreaterThanOrEqual(columnWidth);

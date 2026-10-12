@@ -101,6 +101,7 @@ export function detailFieldPairable(
   node: StructuredDetailNode
 ): node is StructuredDetailField {
   if (node.kind !== 'field') return false;
+  if (node.key === 'description' && node.presentation === 'text') return false;
   if (node.value.includes('\n')) return false;
   return node.value.length <= COMPACT_VALUE_MAX_CHARS;
 }

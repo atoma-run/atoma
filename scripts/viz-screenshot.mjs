@@ -663,7 +663,9 @@ function fixtureTrace() {
       actor: { name: 'RNA', tier: 1 }, model: 'sub:openai:gpt-5.6-luna',
       response: JSON.stringify({ steps: ['Inspect the current interface and identify the controls.',
         'Verify keyboard navigation, editing, deletion and persistent state.'],
-        reasoning: 'Check the existing behavior before changing the implementation.' }),
+        reasoning: 'Check the existing behavior before changing the implementation.',
+        subtasks: [{ description: 'Inspect the current interface, verify keyboard navigation and preserve persistent state.' }],
+        aggregation: { mode: 'sequential' } }),
       context: [{ id: 'skill-context-fixture', source: 'skill', skillId: 'build-stateful-widget-html',
         preview, chars: preview.length }],
     }));
