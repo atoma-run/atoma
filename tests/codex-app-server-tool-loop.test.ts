@@ -1,5 +1,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -11,7 +13,7 @@ import { PERSONAL_CODEX_PROFILE_ROOT_ENV, tryAcquireCodexHomeLease } from '../sr
 import type { LlmCompletionRequest } from '../src/core/types.js';
 import { makeTool } from './helpers/factories.js';
 import { ToolSandbox } from '../src/tools/sandbox.js';
-import { editFileTool, writeFileTool } from '../src/tools/builtin.js';
+import { editFileTool, writeFileTool, fetchUrlTool, readFileTool } from '../src/tools/builtin.js';
 
 const homes: string[] = [];
 afterEach(() => {
@@ -138,6 +140,51 @@ function request(over: Partial<LlmCompletionRequest> = {}): LlmCompletionRequest
 }
 
 describe('Codex app-server tool session', () => {
+  it('recovers listings from a truncated HTTP response through file pages without refetching', async () => {
+    const home = codexHome();
+    const sandbox = new ToolSandbox(path.join(path.dirname(home), 'workspace'));
+    const listings = '<script type="application/json">[{"price":275000,"area":74}]</script>';
+    const prefix = '<html><script>' + 'x'.repeat(100_000) + '</script>';
+    const body = prefix + listings + 'y'.repeat(100_000) + '</html>';
+    let requests = 0;
+    const http = createServer((_req, res) => {
+      requests++;
+      res.writeHead(requests === 1 ? 200 : 403, { 'Content-Type': 'text/html' });
+      res.end(requests === 1 ? body : 'No robots allowed!');
+    });
+    await new Promise<void>(resolve => http.listen(0, '127.0.0.1', resolve));
+    const url = `http://127.0.0.1:${(http.address() as AddressInfo).port}/listings`;
+    const builtins = [fetchUrlTool({ sandbox }), readFileTool({ sandbox })];
+    const observe = vi.fn();
+    const fake = fakeAppServer(async server => {
+      const fetched = (await server.callTool('fetch_url', { url, record: true })).contentItems[0]!.text;
+      expect(fetched).toContain('tool output truncated');
+      expect(fetched).not.toContain('275000');
+      const bodyFile = /"bodyFile":"([^"]+)"/.exec(fetched)![1]!;
+      expect(fetched).toContain('No new HTTP request is needed');
+      expect(readFileSync(sandbox.resolve(bodyFile), 'utf8')).toBe(body);
+      const page = (await server.callTool('read_file', { path: bodyFile, offset: prefix.length, limit: listings.length })).contentItems[0]!.text;
+      expect(JSON.parse(page)).toMatchObject({ content: listings, nextOffset: prefix.length + listings.length, totalChars: body.length });
+      expect(requests).toBe(1);
+      server.message('recovered'); server.complete();
+    });
+    try {
+      const response = await new CodexCliLlmClient({ env: { CODEX_HOME: home }, appServerSpawnFn: fake.spawnFn }).complete(request({
+        tools: builtins.map(tool => tool.declaration), onToolInvocation: observe,
+        executor: {
+          has: name => builtins.some(tool => tool.declaration.name === name),
+          execute: async (name, args) => builtins.find(tool => tool.declaration.name === name)!.execute(args),
+        },
+      }));
+      expect(response.text).toBe('recovered');
+      expect(observe.mock.calls[0]![0].result.body).toBe(body);
+      expect(requests).toBe(1);
+    } finally {
+      await new Promise<void>(resolve => http.close(() => resolve()));
+      await sandbox.cleanup();
+    }
+  });
+
   it('round-trips literal source escapes and edit diagnostics through native JSON-RPC tools', async () => {
     const home = codexHome();
     const sandbox = new ToolSandbox(path.join(path.dirname(home), 'workspace'));

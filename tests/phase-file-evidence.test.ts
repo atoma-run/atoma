@@ -102,6 +102,13 @@ describe('phase current file evidence', () => {
     }
   });
 
+  it('does not treat a short file page as complete-file evidence', () => {
+    const observation = parseExecutionObservation('read_file', { path: 'test.js', offset: 100, limit: 10 },
+      { content: 'last bytes', nextOffset: null })!;
+    const records = [{ eventId: 'page', tool: 'read_file', observation }];
+    expect([...fileReadsNeedingReadback(records, new Set(['page'])).values()]).toEqual(['test.js']);
+  });
+
   it.each(['phase', 'root'])('shows an unchanged executed test whose transport read was truncated (%s)', async scope => {
     const { ctx, branch, files, calls } = setup();
     const body = current + ' '.repeat(2000);

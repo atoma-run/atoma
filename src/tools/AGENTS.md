@@ -112,6 +112,11 @@ Neighbours:
 - Tool results are truncated before returning to the model, with the relevant
   head/tail retained. Budget-exhausted finalization keeps tools declared so the
   provider transcript remains valid.
+  Oversized `fetch_url` responses retain their complete decoded body in a
+  sandbox-resolved `.atoma-http/` file, with `bodyFile` before the truncated
+  payload. Recover it through `read_file` offset/limit or local parsing, never
+  by repeating the request. File pages use UTF-16 offsets and remain partial
+  evidence; they cannot supersede a complete-file read.
 - Shared smoke guidance lives in one constant. Do not duplicate or specialize
   it around one widget vocabulary. The guidance and the `validate_html`
   pre-flight guards are ONE contract: `SMOKE_ASYNC_TRANSITION_EXAMPLE` is

@@ -206,10 +206,11 @@ export function parseExecutionObservation(tool: string, args: Record<string, unk
   if (!['fetch_url', 'run_shell', 'record_probe', 'read_file', 'start_node_server'].includes(tool)) return null;
   const http = tool === 'fetch_url' ? servedHttpObservation(args, raw) : undefined;
   const response = typeof raw === 'string' ? raw : JSON.stringify(raw) ?? 'null';
+  // A page, including the final short one, never establishes a whole-file read.
   return executionObservationSchema.parse({ kind: 'execution',
     ...(tool === 'read_file' && typeof args['path'] === 'string' ? { filePath: args['path'] } : {}),
     request: evidenceExcerpt(args, 800), response: evidenceExcerpt(response, 1600),
-    ...(tool === 'read_file' ? { responseTruncated: response.length > 1600 } : {}), ...(http ? { http } : {}) });
+    ...(tool === 'read_file' ? { responseTruncated: response.length > 1600 || args['offset'] !== undefined || args['limit'] !== undefined } : {}), ...(http ? { http } : {}) });
 }
 
 /**

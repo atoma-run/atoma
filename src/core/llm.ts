@@ -1,5 +1,6 @@
 import { withPartialUsage } from './metrics.js';
 import { BUDGET_EXHAUSTED_HINT } from '../contracts/hostInstructions.js';
+import { MAX_TOOL_RESULT_CHARS } from '../contracts/toolOutput.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { modelSupportsEffort, modelSupportsSamplingParams } from './models.js';
 import type {
@@ -23,7 +24,7 @@ export const DEFAULT_MAX_TOOL_ITERATIONS = 24;
  * context-overflow crash vector. Observers (`onToolInvocation`) still get
  * the untruncated result — only the model-facing payload is elided.
  */
-export const MAX_TOOL_RESULT_CHARS = 20_000;
+export { MAX_TOOL_RESULT_CHARS };
 
 /** Host-authored, defined beside the other sentences the analyst must recognise. */
 export { BUDGET_EXHAUSTED_HINT };

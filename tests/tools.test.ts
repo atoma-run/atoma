@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync, writeFileSync, existsSync, symlinkSync } from 'node:fs';
+import { truncateToolResultContent } from '../src/core/llm.js';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ToolSandbox } from '../src/tools/sandbox.js';
@@ -90,6 +91,29 @@ describe('writeFileTool + readFileTool', () => {
 
     const readRes = (await r.execute({ path: 'hello.txt' })) as { content: string };
     expect(readRes.content).toBe('hi there');
+  });
+
+  it('pages escaped and Unicode content losslessly within the transport budget', async () => {
+    const content = ('\u0000"\\\nΕλλάδα😀').repeat(3000);
+    writeFileSync(join(root, 'page.txt'), content);
+    let offset = 0, rebuilt = '';
+    while (true) {
+      const page = await readFileTool({ sandbox }).execute({ path: 'page.txt', offset }) as {
+        content: string; nextOffset: number | null; totalChars: number;
+      };
+      const wire = JSON.stringify(page);
+      expect(truncateToolResultContent(wire)).toBe(wire);
+      expect(page.totalChars).toBe(content.length);
+      rebuilt += page.content;
+      if (page.nextOffset === null) break;
+      offset = page.nextOffset;
+    }
+    expect(rebuilt).toBe(content);
+    expect(await readFileTool({ sandbox }).execute({ path: 'page.txt', offset: content.length + 10 })).toMatchObject({ content: '', nextOffset: null });
+  });
+
+  it.each([{ offset: -1 }, { offset: 1.5 }, { offset: null }, { limit: 0 }, { limit: 2001 }, { limit: '2' }])('refuses invalid page arguments: %j', async args => {
+    await expect(readFileTool({ sandbox }).execute({ path: 'page.txt', ...args })).rejects.toThrow(/offset must/);
   });
 
   it('creates nested parent directories on write', async () => {
@@ -372,6 +396,9 @@ describe('fetchUrlTool', () => {
         } else if (req.url === '/404') {
           res.writeHead(404, { 'Content-Type': 'text/plain' });
           res.end('not found');
+        } else if (req.url === '/large') {
+          res.writeHead(403, { 'Content-Type': 'text/html' });
+          res.end('challenge'.repeat(5000));
         } else {
           res.writeHead(200, { 'Content-Type': 'text/plain' });
           res.end(`hello ${req.url}`);
@@ -399,6 +426,23 @@ describe('fetchUrlTool', () => {
     expect(res.ok).toBe(true);
     expect(res.status).toBe(200);
     expect(res.body).toBe('hello /hi');
+    expect(res).not.toHaveProperty('bodyFile');
+  });
+
+  it('preserves large error bodies separately on every request', async () => {
+    const tool = fetchUrlTool({ sandbox });
+    const first = await tool.execute({ url: `${baseUrl}/large` }) as { bodyFile: string; body: string };
+    const second = await tool.execute({ url: `${baseUrl}/large` }) as { bodyFile: string };
+    expect(first).toMatchObject({ ok: false, status: 403 });
+    expect(first.bodyFile).not.toBe(second.bodyFile);
+    expect(readFileSync(sandbox.resolve(first.bodyFile), 'utf8')).toBe(first.body);
+  });
+
+  it('refuses an escaping response directory without losing the HTTP observation', async () => {
+    symlinkSync(tmpdir(), join(root, '.atoma-http'), 'dir');
+    const result = await fetchUrlTool({ sandbox }).execute({ url: `${baseUrl}/large` });
+    expect(result).toMatchObject({ ok: false, status: 403, bodyFileError: expect.stringContaining('sandbox'), body: 'challenge'.repeat(5000) });
+    expect(result).not.toHaveProperty('bodyFile');
   });
 
   it('POSTs a JSON object body and auto-sets content-type', async () => {

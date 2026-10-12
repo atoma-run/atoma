@@ -2,7 +2,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, lstatS
 import { basename, dirname, join, relative, sep } from 'node:path';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createServer as createNetServer } from 'node:net';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { MAX_FILE_PAGE_CHARS, MAX_TOOL_RESULT_CHARS } from '../contracts/toolOutput.js';
 import type { Tool, Logger } from '../core/types.js';
 import { sandboxChildEnv, type ToolSandbox } from './sandbox.js';
 import {
@@ -568,17 +569,26 @@ export function readFileTool(opts: BuiltinToolOptions): BuiltinTool {
     declaration: {
       name: 'read_file',
       description:
-        'Read the full contents of a file. Paths are always relative to the workspace root, never the last listed directory. Copy list_files entry.path unchanged; list the parent directory before reading an uncertain path.',
+        'Read a file, or a bounded page with offset/limit (UTF-16 character units). For large files use offset=0, then nextOffset until null; pages do not refetch HTTP content. Paths are always relative to the workspace root, never the last listed directory. Copy list_files entry.path unchanged; list the parent directory before reading an uncertain path.',
       inputSchema: {
         type: 'object',
         properties: {
           path: { type: 'string' },
+          offset: { type: 'integer', minimum: 0, description: 'Start of the requested page in UTF-16 character units. Defaults to 0 when limit is supplied.' },
+          limit: { type: 'integer', minimum: 1, maximum: MAX_FILE_PAGE_CHARS, description: `Page length in UTF-16 character units; defaults to ${MAX_FILE_PAGE_CHARS} when offset is supplied.` },
         },
         required: ['path'],
       },
     },
     async execute(args) {
       const path = expectString(args, 'path');
+      const paged = args['offset'] !== undefined || args['limit'] !== undefined;
+      const offset = args['offset'] === undefined ? 0 : args['offset'];
+      const limit = args['limit'] === undefined ? MAX_FILE_PAGE_CHARS : args['limit'];
+      if (typeof offset !== 'number' || !Number.isSafeInteger(offset) || offset < 0 ||
+        typeof limit !== 'number' || !Number.isSafeInteger(limit) || limit < 1 || limit > MAX_FILE_PAGE_CHARS) {
+        throw new Error(`read_file: offset must be a nonnegative safe integer and limit an integer from 1 to ${MAX_FILE_PAGE_CHARS}`);
+      }
       const abs = opts.sandbox.resolve(path);
       let content: string;
       try {
@@ -591,6 +601,12 @@ export function readFileTool(opts: BuiltinToolOptions): BuiltinTool {
       }
       markSeen(opts.sandbox, abs);
       opts.logger?.debug(`[tool:read_file] ${path} (${Buffer.byteLength(content, 'utf8')} bytes)`);
+      if (paged) {
+        const start = Math.min(offset, content.length);
+        const end = Math.min(start + limit, content.length);
+        return { path, offset: start, totalChars: content.length, nextOffset: end < content.length ? end : null,
+          content: content.slice(start, end) };
+      }
       return { path, content };
     },
   };
@@ -1279,6 +1295,7 @@ export function fetchUrlTool(opts: BuiltinToolOptions): BuiltinTool {
       description: [
         'Issue an HTTP(S) request to any URL (localhost for probing your own server, or external APIs).',
         'Returns { status, headers, body }. Body is a UTF-8 string — parse JSON yourself if you need it.',
+        'Large responses also return bodyFile: the complete decoded response saved in the workspace. Read it with read_file offset/limit or parse it locally; do not repeat the HTTP request to recover truncated content.',
         'Use this AFTER start_node_server to verify the endpoints you just wrote actually answer correctly.',
         `Set record=true when the request is evidence; the tool appends the exact observation to ${PROBE_MANIFEST_FILENAME}.`,
       ].join(' '),
@@ -1380,13 +1397,32 @@ export function fetchUrlTool(opts: BuiltinToolOptions): BuiltinTool {
         } catch {
           servedBy = undefined;
         }
-        const result = {
+        let result = {
           ok: res.ok,
           status: res.status,
           headers: respHeaders,
           body: text,
           ...(servedBy ? { servedBy } : {}),
         };
+        const recording = args['record'] === true ? { recorded: true, manifest: PROBE_MANIFEST_FILENAME } : {};
+        if (JSON.stringify({ ...result, ...recording }).length > MAX_TOOL_RESULT_CHARS) {
+          // Put the recovery pointer BEFORE the body/headers, so every
+          // transport's head/tail truncation keeps it visible. The full body
+          // remains in the observed result as well as in the workspace.
+          const bodyFile = `.atoma-http/${randomUUID()}.txt`;
+          let recovery: Record<string, unknown>;
+          try {
+            const abs = opts.sandbox.resolve(bodyFile);
+            mkdirSync(dirname(abs), { recursive: true });
+            writeFileSync(abs, text, { encoding: 'utf8', flag: 'wx', mode: 0o600 });
+            markSeen(opts.sandbox, abs);
+            recovery = { bodyFile, bodyChars: text.length,
+              bodyReadHint: 'Complete response saved. Use read_file with this path and offset=0, follow nextOffset, or parse the file locally. No new HTTP request is needed.' };
+          } catch (error) {
+            recovery = { bodyFileError: `Could not save the complete HTTP body: ${error instanceof Error ? error.message : String(error)}` };
+          }
+          result = { ...recovery, ...result };
+        }
         if (args['record'] === true) {
           const parsedUrl = new URL(url);
           const entry: HttpEntry = {
