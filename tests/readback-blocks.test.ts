@@ -95,6 +95,16 @@ describe('read-back past a long file head', () => {
 });
 
 describe('read-back blocks stay inside the allowance', () => {
+  it('reserves no more than half for complete tests and leaves other current evidence visible', async () => {
+    const files = { 'first.test.js': 'a'.repeat(9000), 'second.test.js': 'b'.repeat(10000), 'requirements.md': 'c'.repeat(40000) };
+    const { ctx } = workspace(files);
+    const block = await criteriaFilesBlock(ctx, [], Object.keys(files), '');
+    expect(block).toContain(JSON.stringify(files['first.test.js']));
+    expect(block).toContain(JSON.stringify('b'.repeat(7500)));
+    expect(block).toContain(JSON.stringify('c'.repeat(7500)));
+    expect(block).not.toContain(JSON.stringify(files['second.test.js']));
+  });
+
   const longTests = (eol: string) => Array.from({ length: 400 }, (_, i) =>
     [`describe('case ${i} boundary', () => {`, `  it('holds ${i}', () => {`, `    assert.equal(run(${i}), ${i});`, '  });', '});'].join(eol)).join(eol);
 

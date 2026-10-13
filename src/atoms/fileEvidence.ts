@@ -186,14 +186,28 @@ export async function criteriaFilesBlock(
       }
     }
   }
+  // Preserve complete bounded test scripts before sharing the remainder.
+  // Flat CLI tests have no indented test() block: keyword excerpts can retain
+  // fifteen early setup lines and lose every later assertion (run 8a38383c).
+  // The existing test-path classification selects bytes, never execution
+  // credit. At most half the budget is reserved; implementations, documents
+  // and captured inputs still share the other half, even with many tests.
+  let remaining = sourceChars;
+  let testAllowance = Math.floor(sourceChars / 2);
+  const allowances = new Map<string, number>();
+  const bySize = [...files].sort((a, b) => a.content.length - b.content.length);
+  for (const file of bySize) {
+    if (!SCRIPT_PATH.test(file.label) || !TEST_SCRIPT.test(file.label) || file.content.length > testAllowance) continue;
+    allowances.set(file.label, file.content.length);
+    testAllowance -= file.content.length;
+    remaining -= file.content.length;
+  }
   // Water-fill the same total allowance: small files give their unused share
   // to larger ones. Crossing the total by one character must not collapse
   // every long file back to a 1,200-character head.
-  let remaining = sourceChars;
-  const allowances = new Map<string, number>();
-  const bySize = [...files].sort((a, b) => a.content.length - b.content.length);
-  for (const [index, file] of bySize.entries()) {
-    const allowance = Math.min(file.content.length, Math.floor(remaining / (bySize.length - index)));
+  const rest = bySize.filter(file => !allowances.has(file.label));
+  for (const [index, file] of rest.entries()) {
+    const allowance = Math.min(file.content.length, Math.floor(remaining / (rest.length - index)));
     allowances.set(file.label, allowance);
     remaining -= allowance;
   }

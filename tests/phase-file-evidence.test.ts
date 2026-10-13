@@ -44,6 +44,37 @@ function setup() {
 }
 
 describe('phase current file evidence', () => {
+  it('keeps flat CLI assertions visible to root and focused judges beside large captured responses', async () => {
+    const { ctx, branch, files, calls } = setup();
+    // Run 8a38383c: 15 early keyword matches consumed the excerpt slots before
+    // the CSV assertions. A passing stdout is not the missing test body.
+    const body = Array.from({ length: 90 }, (_, i) => `const source${i} = ${JSON.stringify('source csv fixture '.repeat(7))};`).join('\n') +
+      '\nconst first = readCsv(output);\nrunAgain();\nconst second = readCsv(output);\nassert.equal(second[0][13], first[0][13]);\n';
+    files['tests/export.test.js'] = body;
+    for (let i = 0; i < 8; i++) files[`capture${i}.html`] = 'captured source '.repeat(2500);
+    for (const path of Object.keys(files)) await branch.tools!.execute('read_file', { path });
+    await branch.tools!.execute('run_shell', { cmd: 'node tests/export.test.js' });
+    const evidence = executorEvidence({}, branch), count = calls.length;
+    const records = JSON.stringify(ctx.attestations.forAttempt(1));
+    const verdict = { approved: false, scope: 'ephemeral', reasoning: 'fixture refuses unverified semantics',
+      criteria: [{ id: 'c1', met: false, reason: 'fixture remains a model decision' }] };
+    ctx.llm.enqueueText(jsonText(verdict)); ctx.llm.enqueueText(jsonText(verdict));
+    const result = await acceptRootResult({ actor: child, task: { description: 'Check the source CSV fixture exports.' },
+      result: { output: 'done', summary: 'done', trace: [], evidence, producedBy: { tier: 1, name: 'Methane', viaFallback: false } },
+      ctx: branch, floor: [], phaseCoverage: [],
+      checklist: [{ id: 'c1', behaviour: 'CSV source dates survive two exports.', check: { kind: 'review' } }],
+      checklistOrigin: { source: 'user' } });
+    expect(ctx.llm.calls).toHaveLength(2);
+    for (const request of ctx.llm.calls) {
+      expect(request.userContent).toContain(JSON.stringify(body));
+      expect(request.userContent).toContain('capture0.html');
+      expect(request.userContent).toContain('assertions passed');
+    }
+    expect(result.approved).toBe(false);
+    expect(calls.slice(count).every(call => call.name === 'read_file')).toBe(true);
+    expect(JSON.stringify(ctx.attestations.forAttempt(1))).toBe(records);
+  });
+
   it('shows the resolver source and assertions after small proofs have been repaired and read again', async () => {
     const delivered = JSON.parse(readFileSync(new URL('../benchmark/dependency-resolver-2026-10-05/files.json', import.meta.url), 'utf8')) as Record<string, string>;
     const { ctx, branch, files, change, calls } = setup();
