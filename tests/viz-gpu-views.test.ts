@@ -6595,7 +6595,7 @@ describe('drawRuns — run status and timeline bookends', () => {
     delete (live as { endedAt?: string }).endedAt;
     drawRuns(ctx, makeSnapshot({}, { run: live }), WIDTH, HEIGHT);
     const texts = textsOf(ctx);
-    expect(texts).toContain(t('runs.flag.live'));
+    expect(texts).toContain(t('runs.status.live'));
     expect(texts.some((value) => value.startsWith(t('timeline.runUnfinished')))).toBe(true);
     expect(texts.some((value) => value.startsWith(t('timeline.runEnded')))).toBe(false);
   });

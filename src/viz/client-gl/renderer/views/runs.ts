@@ -70,6 +70,7 @@ import {
 import { LLM_FAMILY_COLOR, eventKindColor, llmRoleColor } from '../event-palette.js';
 import { drawScrollbarThumb } from '../scroll-pane.js';
 import { prefersReducedMotion } from '../motion.js';
+import { attachLiveAtomaMark } from '../atoma-mark.js';
 import { timelineConnectorGeometry } from '../timeline-rails.js';
 import { drawTimelineMinimap, TIMELINE_MINIMAP_WIDTH } from '../timeline-minimap.js';
 import {
@@ -448,12 +449,13 @@ export function drawRuns(
   // (2026-08-15 review of a real cancelled run).
   const status = runStatus(run);
   const statusColor = RUN_STATUS_COLOR[status];
-  const statusLabel = snapshot.t(`runs.flag.${status}`);
+  const statusLabel = snapshot.t(status === 'live' ? 'runs.status.live' : `runs.flag.${status}`);
+  const statusIconSpace = status === 'live' ? 18 : 0;
   const statusTextStyle = { size: 10, weight: '700' } as const;
   const statusWidth = Math.min(
     RUN_PICKER_STATUS_RESERVE,
     leftWidth - RUN_PICKER_HORIZONTAL_INSET * 2,
-    Math.max(64, Math.ceil(ctx.measureText(statusLabel, statusTextStyle)) + 16)
+    Math.max(64, Math.ceil(ctx.measureText(statusLabel, statusTextStyle)) + statusIconSpace + 16)
   );
   const statusX = leftX + leftWidth - statusWidth - 14;
   const statusY = top + 8 + RUNS_PROJECT_TITLE_HEIGHT;
@@ -463,10 +465,14 @@ export function drawRuns(
   statusChip.stroke({ color: statusColor, width: 1, alpha: 0.8 });
   statusChip.eventMode = 'none';
   ctx.root.addChild(statusChip);
-  const statusText = ctx.text(ctx.root, statusLabel, statusX + statusWidth / 2, statusY + 10, {
+  if (status === 'live') {
+    attachLiveAtomaMark(ctx.animatedLayer(ctx.root, 'run-status-crystal'),
+      callback => ctx.addTicker(callback), statusX + 7, statusY + 3, statusColor);
+  }
+  const statusText = ctx.text(ctx.root, statusLabel, statusX + (statusWidth + statusIconSpace) / 2, statusY + 10, {
     ...statusTextStyle,
     color: statusColor,
-    width: statusWidth - 16,
+    width: statusWidth - 16 - statusIconSpace,
     singleLine: true,
   });
   statusText.anchor.set(0.5, 0.5);
@@ -1553,13 +1559,19 @@ function drawRunSummaryCard(
   // used to read identically for a delivered and a cancelled run.
   const summaryStatus = runStatus(run);
   const summaryStatusColor = RUN_STATUS_COLOR[summaryStatus];
-  ctx.text(
+  const summaryStatusText = ctx.text(
     block,
-    snapshot.t(`runs.flag.${summaryStatus}`),
-    padX,
+    snapshot.t(summaryStatus === 'live' ? 'runs.status.live' : `runs.flag.${summaryStatus}`),
+    padX + (summaryStatus === 'live' ? 18 : 0),
     cursor,
     { size: 10, weight: '700', color: summaryStatusColor }
   );
+  if (summaryStatus === 'live') {
+    // The visible capitals sit below the centre of Pixi's line box.
+    const liveCrystalTop = cursor + (summaryStatusText.height - 14) / 2 + 1;
+    attachLiveAtomaMark(ctx.animatedLayer(block, 'run-summary-crystal'),
+      callback => ctx.addTicker(callback), padX, liveCrystalTop, summaryStatusColor);
+  }
   cursor += 26;
   // An incomplete run says what to do next, in words for the person who asked
   // for the work — on the collapsed card too, because it IS the verdict.

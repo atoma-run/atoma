@@ -937,6 +937,7 @@
   "runs.flag.failed": "✕ failed",
   "runs.flag.partial": "◐ incomplete",
   "runs.flag.live": "● LIVE",
+  "runs.status.live": "LIVE",
   "runs.flag.abandoned": "⚠ abandoned",
   "runs.flag.fallback": "⚠ fallback",
   "runs.calls_one": "{{count}} call",

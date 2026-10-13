@@ -11,6 +11,7 @@ import {
   ATOMA_MARK_CORE_RADIUS,
   ATOMA_MARK_LAMP_Z,
   ATOMA_MARK_LOCAL_SIZE,
+  ATOMA_MARK_MESH,
   ATOMA_MARK_REAR_LIGHT_RADIUS,
   buildAtomaMarkFrame,
   collectPointerFieldSpills,
@@ -55,6 +56,44 @@ import {
  * `(cx - ATOMA_MARK_LOCAL_CENTER, cy - ATOMA_MARK_LOCAL_CENTER)`.
  */
 export const ATOMA_MARK_LOCAL_CENTER = 14;
+
+/** Status-size crystal: the brand's mesh and pose, with a five-times faster turn. */
+export function attachLiveAtomaMark(
+  parent: Container,
+  addTicker: (callback: (ticker: Ticker) => void) => void,
+  x: number,
+  y: number,
+  color: number
+): void {
+  const gem = new Graphics();
+  gem.label = 'live-atoma-crystal';
+  gem.eventMode = 'none';
+  gem.position.set(x, y);
+  gem.scale.set(14 / ATOMA_MARK_LOCAL_SIZE);
+  parent.addChild(gem);
+  const paint = () => {
+    const frame = buildAtomaMarkFrame(prefersReducedMotion() ? 0 : performance.now() * 5);
+    gem.clear();
+    // At 14px, shade the shared facets directly: no per-badge offscreen
+    // textures, pointer lamps or writes to the main crystal's field light.
+    for (const index of frame.frontOrder) {
+      const facet = frame.facets[index]!;
+      const points = ATOMA_MARK_MESH.facets[index]!.points.flatMap(point => {
+        const projected = frame.projected[point]!;
+        return [projected.x, projected.y];
+      });
+      const light = Math.max(0, -facet.normal[0] * 0.38 + facet.normal[1] * 0.72 + facet.normal[2] * 1.05) / 1.33;
+      const shade = light > 0.65
+        ? mixColor(color, 0xffffff, (light - 0.65) * 1.4)
+        : mixColor(0x000000, color, 0.4 + light * 0.85);
+      gem.poly(points).fill(shade);
+    }
+    gem.circle(frame.corePosition.x, frame.corePosition.y, 1.25)
+      .fill({ color: mixColor(color, 0xffffff, 0.7), alpha: 0.9 });
+  };
+  paint();
+  if (!prefersReducedMotion()) addTicker(paint);
+}
 
 /** Compact scale used by the focused icon rail. */
 export const ATOMA_MARK_HEADER_SCALE = 1.8;
