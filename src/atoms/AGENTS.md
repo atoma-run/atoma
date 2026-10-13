@@ -377,9 +377,10 @@ load-bearing.
   Phase file read-back shares 24,000 source characters, root acceptance 48,000
   (one call per pass, a refusal costs a replan; three first refusals judged a
   page cut past 24,000), across at most sixteen files: unused shares from small files go to larger files; a batch that fits
-  stays complete. Complete test scripts reserve at most half that same budget,
-  smallest first, so flat CLI assertions survive beside large captured inputs;
-  the remaining files share the rest. This adds no execution credit or approval.
+  stays complete. Complete test scripts, smallest first, may borrow their missing
+  bytes from truncated non-test files, each retaining at least half its initial
+  fair share; complete small files stay whole. This avoids dropping a whole suite when test sizes cross half
+  the budget. The total stays fixed, without execution credit or approval.
   Longer files retain bounded heads and, past them, the BLOCK
   each line naming a criterion word opens (its deeper-indented lines and closer,
   a quarter of the block budget at most, never overlapping the head; "test" and

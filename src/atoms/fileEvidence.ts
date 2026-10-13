@@ -186,30 +186,40 @@ export async function criteriaFilesBlock(
       }
     }
   }
-  // Preserve complete bounded test scripts before sharing the remainder.
-  // Flat CLI tests have no indented test() block: keyword excerpts can retain
-  // fifteen early setup lines and lose every later assertion (run 8a38383c).
-  // The existing test-path classification selects bytes, never execution
-  // credit. At most half the budget is reserved; implementations, documents
-  // and captured inputs still share the other half, even with many tests.
-  let remaining = sourceChars;
-  let testAllowance = Math.floor(sourceChars / 2);
-  const allowances = new Map<string, number>();
-  const bySize = [...files].sort((a, b) => a.content.length - b.content.length);
-  for (const file of bySize) {
-    if (!SCRIPT_PATH.test(file.label) || !TEST_SCRIPT.test(file.label) || file.content.length > testAllowance) continue;
-    allowances.set(file.label, file.content.length);
-    testAllowance -= file.content.length;
-    remaining -= file.content.length;
-  }
   // Water-fill the same total allowance: small files give their unused share
   // to larger ones. Crossing the total by one character must not collapse
   // every long file back to a 1,200-character head.
-  const rest = bySize.filter(file => !allowances.has(file.label));
-  for (const [index, file] of rest.entries()) {
-    const allowance = Math.min(file.content.length, Math.floor(remaining / (rest.length - index)));
+  let remaining = sourceChars;
+  const allowances = new Map<string, number>();
+  const bySize = [...files].sort((a, b) => a.content.length - b.content.length);
+  for (const [index, file] of bySize.entries()) {
+    const allowance = Math.min(file.content.length, Math.floor(remaining / (bySize.length - index)));
     allowances.set(file.label, allowance);
     remaining -= allowance;
+  }
+  // Complete test bodies need only their missing bytes, not another whole
+  // reservation. The old half-budget packing dropped a 14k suite when three
+  // suites grew just past 24k in a 48k read (run 6782ce92). Each non-test file
+  // retains at least half its fair allowance; complete small files and test
+  // heads never donate their bytes.
+  // This changes read-back selection only, never execution credit or approval.
+  const tests = bySize.filter(file => SCRIPT_PATH.test(file.label) && TEST_SCRIPT.test(file.label));
+  const donors = bySize.filter(file => !tests.includes(file) && allowances.get(file.label)! < file.content.length);
+  let capacity = donors.reduce((sum, file) => sum + Math.floor(allowances.get(file.label)! / 2), 0);
+  let transferred = 0;
+  for (const file of tests) {
+    const missing = file.content.length - allowances.get(file.label)!;
+    if (missing > capacity - transferred) continue;
+    allowances.set(file.label, file.content.length);
+    transferred += missing;
+  }
+  for (const file of donors) {
+    const allowance = allowances.get(file.label)!;
+    const available = Math.floor(allowance / 2);
+    const transfer = capacity > 0 ? Math.floor(transferred * available / capacity) : 0;
+    allowances.set(file.label, allowance - transfer);
+    transferred -= transfer;
+    capacity -= available;
   }
   lines.push(...files.map(({ label, content, words, referencedBy }) =>
     `- ${label} (${content.length} chars${referencedBy ? `, referenced by a string literal in ${referencedBy}` : ''}): ${namedFileExcerpt(content, words, allowances.get(label)!, Math.floor(sourceChars / 4))}`));

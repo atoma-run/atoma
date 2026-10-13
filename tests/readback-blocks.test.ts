@@ -95,14 +95,36 @@ describe('read-back past a long file head', () => {
 });
 
 describe('read-back blocks stay inside the allowance', () => {
-  it('reserves no more than half for complete tests and leaves other current evidence visible', async () => {
-    const files = { 'first.test.js': 'a'.repeat(9000), 'second.test.js': 'b'.repeat(10000), 'requirements.md': 'c'.repeat(40000) };
+  it('completes test bodies while retaining at least half of every other fair share', async () => {
+    const files = { 'first.test.js': 'a'.repeat(9000), 'second.test.js': 'b'.repeat(10000),
+      'requirements.md': 'c'.repeat(40000), 'config.json': 'd'.repeat(1000) };
     const { ctx } = workspace(files);
     const block = await criteriaFilesBlock(ctx, [], Object.keys(files), '');
     expect(block).toContain(JSON.stringify(files['first.test.js']));
-    expect(block).toContain(JSON.stringify('b'.repeat(7500)));
-    expect(block).toContain(JSON.stringify('c'.repeat(7500)));
-    expect(block).not.toContain(JSON.stringify(files['second.test.js']));
+    expect(block).toContain(JSON.stringify(files['second.test.js']));
+    expect(block).toContain(JSON.stringify('c'.repeat(4000)));
+    expect(block).toContain(JSON.stringify(files['config.json']));
+    const shown = [...block.matchAll(/"([abcd]+)"/g)].reduce((sum, match) => sum + match[1]!.length, 0);
+    expect(shown).toBe(24000);
+  });
+
+  it('does not sacrifice other files or test heads when a full suite cannot fit', async () => {
+    const files = { 'large.test.js': 'a'.repeat(50000), 'source.js': 'b'.repeat(40000), 'requirements.md': 'c'.repeat(40000) };
+    const { ctx } = workspace(files);
+    const block = await criteriaFilesBlock(ctx, [], Object.keys(files), '');
+    for (const char of ['a', 'b', 'c']) expect(block).toContain(JSON.stringify(char.repeat(8000)));
+  });
+
+  it('keeps every donor visible when many small tests compete with implementation and input bytes', async () => {
+    const files = Object.fromEntries(Array.from({ length: 10 }, (_, i) => [`suite${i}.test.js`, String(i).repeat(3000)]));
+    Object.assign(files, { 'implementation.js': 'a'.repeat(50000), 'capture.html': 'b'.repeat(50000) });
+    const { ctx } = workspace(files);
+    const block = await criteriaFilesBlock(ctx, [], Object.keys(files), '');
+    // Twelve fair shares of 2k: at most half each non-test head can move.
+    expect(block).toContain(JSON.stringify('a'.repeat(1000)));
+    expect(block).toContain(JSON.stringify('b'.repeat(1000)));
+    const shown = [...block.matchAll(/"([0-9ab]+)"/g)].reduce((sum, match) => sum + match[1]!.length, 0);
+    expect(shown).toBe(24000);
   });
 
   const longTests = (eol: string) => Array.from({ length: 400 }, (_, i) =>

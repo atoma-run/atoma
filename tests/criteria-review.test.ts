@@ -61,7 +61,7 @@ describe('focused criterion review', () => {
 
   it.each([false, true])('shares the bounded readback across files without losing assertions (over budget=%s)', async overBudget => {
     const paths = ['stock-reconcile.js', 'test/stock-reconcile.test.js'];
-    const files = new Map(paths.map(path => [path, overBudget ? 'x'.repeat(30_000)
+    const files = new Map(paths.map(path => [path, overBudget ? (path.startsWith('test/') ? 't' : 's').repeat(30_000)
       : readFileSync(new URL(`../benchmark/warehouse-repair-2026-10-05/artifact/${path.replace('/', '-')}.txt`, import.meta.url), 'utf8')]));
     const ctx = { ...makeCtx(), tools: {
       has: (name: string) => name === 'read_file',
@@ -70,13 +70,12 @@ describe('focused criterion review', () => {
     const listed = paths.map((path, i) => ({ id: `c${i + 1}`, behaviour: `${path} implements and tests the required behavior.`, check: { kind: 'review' as const } }));
     const judgments = listed.map(item => ({ id: item.id, met: true, reason: 'Fixture accepts observed behavior.' }));
     for (let call = 0; call < 2; call++) ctx.llm.enqueue(req => {
-      for (const content of files.values()) {
-        if (overBudget) {
-          expect(req.userContent).not.toContain(JSON.stringify(content));
-          // No criterion word past the head: the whole allowance is head.
-          expect(req.userContent).toContain('cut at 24000 of 30000 chars');
-        } else expect(req.userContent).toContain(JSON.stringify(content));
-      }
+      if (overBudget) {
+        expect(req.userContent).toContain(JSON.stringify(files.get(paths[1]!)!));
+        expect(req.userContent).not.toContain(JSON.stringify(files.get(paths[0]!)!));
+        // Complete assertions borrow 6k; implementation keeps 18k, within 48k total.
+        expect(req.userContent).toContain('cut at 18000 of 30000 chars');
+      } else for (const content of files.values()) expect(req.userContent).toContain(JSON.stringify(content));
       return reply(judgments);
     });
     await acceptRootResult({ actor, task, result: { ...result, output: {} }, ctx, floor: [], phaseCoverage: [],

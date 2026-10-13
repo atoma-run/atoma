@@ -44,13 +44,19 @@ function setup() {
 }
 
 describe('phase current file evidence', () => {
-  it('keeps flat CLI assertions visible to root and focused judges beside large captured responses', async () => {
+  it.each([false, true])('keeps flat CLI assertions visible beside captured responses (multiple suites=%s)', async multiple => {
     const { ctx, branch, files, calls } = setup();
     // Run 8a38383c: 15 early keyword matches consumed the excerpt slots before
     // the CSV assertions. A passing stdout is not the missing test body.
-    const body = Array.from({ length: 90 }, (_, i) => `const source${i} = ${JSON.stringify('source csv fixture '.repeat(7))};`).join('\n') +
+    const body = Array.from({ length: 90 }, (_, i) => `const source${i} = ${JSON.stringify('source csv fixture '.repeat(7))};`).join('\n').padEnd(14_200, ' ') +
       '\nconst first = readCsv(output);\nrunAgain();\nconst second = readCsv(output);\nassert.equal(second[0][13], first[0][13]);\n';
     files['tests/export.test.js'] = body;
+    if (multiple) {
+      // Run 6782ce92: together the three suites crossed the old half-budget
+      // reservation by a few hundred characters; the largest lost its tail.
+      files['tests/history.test.js'] = '// history\n'.padEnd(6723, ' ');
+      files['test-source.mjs'] = '// source\n'.padEnd(3464, ' ');
+    }
     for (let i = 0; i < 8; i++) files[`capture${i}.html`] = 'captured source '.repeat(2500);
     for (const path of Object.keys(files)) await branch.tools!.execute('read_file', { path });
     await branch.tools!.execute('run_shell', { cmd: 'node tests/export.test.js' });
@@ -67,6 +73,10 @@ describe('phase current file evidence', () => {
     expect(ctx.llm.calls).toHaveLength(2);
     for (const request of ctx.llm.calls) {
       expect(request.userContent).toContain(JSON.stringify(body));
+      if (multiple) {
+        expect(request.userContent).toContain(JSON.stringify(files['tests/history.test.js']));
+        expect(request.userContent).toContain(JSON.stringify(files['test-source.mjs']));
+      }
       expect(request.userContent).toContain('capture0.html');
       expect(request.userContent).toContain('assertions passed');
     }
