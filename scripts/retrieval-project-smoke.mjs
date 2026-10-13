@@ -68,7 +68,8 @@ if (process.argv.includes('--child')) {
   let calls = 0;
   const sdk = { messages: { create: async request => {
     const content = request.messages.at(-1).content;
-    if (Array.isArray(content)) received.push(...content.filter(part => part.type === 'tool_result').map(part => JSON.parse(part.content)));
+    if (Array.isArray(content)) received.push(...content.filter(part => part.type === 'tool_result').map(part =>
+      part.tool_use_id === 'worker' && !realContainer ? part.content : JSON.parse(part.content)));
     calls++;
     if (calls === 1) return {
       // One tool round fits the real L1 deadline cap. Both calls still traverse production dispatch.
@@ -95,6 +96,10 @@ if (process.argv.includes('--child')) {
     if (realContainer) {
       assert.ok(received[1], JSON.stringify({ result, received }));
       assert.deepEqual(JSON.parse(received[1].stdout), { source: false, db: null, haystack: null });
+    } else {
+      // The model sees file text, while search/shell results remain structured JSON.
+      assert.match(received[1], /^read_file \{"path":"probe.txt"\}\n/);
+      assert.ok(received[1].includes('--- BEGIN FILE CONTENT ---\nworkspace fixture\n--- END FILE CONTENT ---'));
     }
     console.log('ATOMA_RETRIEVAL_SMOKE_READY');
     const tool = createProjectRetrievalTool(binding, run);

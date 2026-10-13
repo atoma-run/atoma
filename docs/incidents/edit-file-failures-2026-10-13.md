@@ -99,3 +99,9 @@ These are mocked transport and real-tool regression checks, not a paid LLM
 replay. A reduction in production error rate remains to be measured. This
 change does not make absent or ambiguous spans executable, and does not
 claim that all 60 failures would disappear.
+
+The first CI static job caught a compiled retrieval smoke whose fake model
+JSON-parsed every tool result, including the newly displayed file text.
+The smoke now checks file presentation explicitly and still parses and
+asserts the retrieval/shell results. The production change remained behind
+the failed CI deployment gate while this fixture was corrected.
