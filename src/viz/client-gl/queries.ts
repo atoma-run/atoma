@@ -217,7 +217,9 @@ export function useProjectRuns(projectId: string | null, active: boolean) {
     refetchInterval: (query) => {
       const runs = query.state.data;
       const live = runs?.some((run) => run.status === 'queued' || run.status === 'running');
-      return live ? 2_000 : false;
+      // An idle project can receive a run from MCP or another browser. Keep
+      // discovering runs while this query is enabled, then follow live work faster.
+      return live ? 2_000 : 5_000;
     },
     staleTime: 1_000,
   });
