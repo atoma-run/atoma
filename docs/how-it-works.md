@@ -23,17 +23,19 @@ The curated identity pools mirror expected population: 118 molecule names for th
 numerous L1 workers, 40 cell names for L2, and 20 botanical tissue names for the small
 L3 layer. Numeric tiers remain the stable storage and routing contract.
 
-Since 2026-09-14, ordinary build runs enter at L2 by default. L2 supervises
-L1 work without an initial L3 planning layer. If the entry cell exhausts its
-supervision retries, the runner stops and archives that attempt and starts
+Every run enters at L3 by default, from the CLI, MCP or a project launch: an
+L3 tissue chosen for the task decomposes the goal into phases. `--depth short`
+(or `depth: "short"` on a project run) enters at L2 instead; if that entry cell
+exhausts its supervision retries, the runner archives the attempt and starts
 once through L3, sharing the original deadline and accounting. Both paths
-receive independent root acceptance. `--depth deep` starts directly at L3;
-baseline and seeded comparisons retain their existing protocol.
+receive independent root acceptance. Baseline and registered comparison arms
+keep the protocol they were registered under, and a rerun keeps its origin's
+depth unless told otherwise.
 
 ```mermaid
 graph TB
-    APP([Your goal]) --> L2A
-    APP -. explicit deep .-> L3
+    APP([Your goal]) --> L3
+    APP -. explicit short .-> L2A
     L2A -. deepen after exhausted supervision .-> L3
     L3["<b>L3 — Tissues</b><br/>frontier model<br/><i>breaks the goal into phases</i>"] --> L2A
     L3 --> L2B
@@ -619,7 +621,7 @@ Typical roles in the measured normal path; counts are not hard limits or current
 
 | Slot | Model tier | Typical count | Note |
 |---|---|---|---|
-| Top-level plan | frontier | **1 on the deep path** | Default short runs enter at L2; deep runs and deepening add L3 strategy. Replanning or synthesis can add calls |
+| Top-level plan | frontier | **1 on the default path** | Runs enter at L3 by default; explicit short runs skip it unless they deepen. Replanning or synthesis can add calls |
 | Routing scans | Jev, then cheap-model fallback | Varies by phase and reuse | Exact cache hits and decisive Jev answers avoid the model scan |
 | Mid-tier plans | mid | **0 on the happy path** | Skipped entirely when the routing scan finds a clear match |
 | Reviews | Jev or cheap model | Varies with trust, gates and audits | Mechanical probes remain; root acceptance stays independent of Jev |

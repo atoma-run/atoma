@@ -32,7 +32,7 @@
 - [Server dev checkout](server-dev-checkout.md) — mgf@atoma.run has ~/dev/atoma on the 50 GB volume (2026-10-02); volume also holds OpenClaw backups; root disk ~80 % full
 - [Validator prompt replay](validator-prompt-replay.md) — PR #12 replayed on d5ca365f: no gain (full worse), terra 10/10; intermediate validators use tier-1 model; Windows codex replay recipe
 - [Run family removed](run-family-removed.md) — TaskProfile/family gone 2026-10-03 (eb24f1c3, in prod); burn-in family label kept; CI-vs-local store trap
-- [Jev calibration 2026-10-10](jev-calibration-2026-10-10.md) — Oct 1–9 reading: thresholds stay, agent 0.7/0.5 is a candidate measurement, 42 % unparsed = run actors (fixed ee0ed038), deferral-band ≠ live rates
+- [Jev calibration 2026-10-10](jev-calibration-2026-10-10.md) — Oct 1–9 and Oct 7–12 readings: result fast path 5/14 refused by audit (proposal open), effort high bar 0.8→0.6 shipped 5bf1f231 (holdout reading ≈10-27), agent 0.7/0.5 candidate, run actors fixed ee0ed038
 - [MCP review 2026-10-03](mcp-review-2026-10-03.md) — Atoma vs MCP 2026-07-28: fixes pushed 2026-10-04 (bridge isolation, Codex timeout, re-attach, instructions, tasks wire, smoke, OAuth, installations); owner decisions still open
 - [Showcase curation](showcase-curation.md) — opt-in since 2026-10-10 (default hidden); 7 campaign projects hidden, 2 left to owner
 - [First refusals 2026-10-10](first-refusals-2026-10-10.md) — 118/275 prod first root refusals classified (60 = criterion clause unseen by phases); phase criteria shipped 11f4d837; E3 and false approvals open

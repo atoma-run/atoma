@@ -240,9 +240,11 @@ merges. Read the [supervisor design](docs/supervisor-design.md).
 ## How it works
 
 atoma assigns planning, supervision and execution to different AI agents and
-model tiers. Ordinary build runs start with a supervisor and workers; a deeper
-planning tier takes over if supervision exhausts its retries, and a seeded run
-keeps its starting workspace when it does.
+model tiers. Every run starts by default with a planner that breaks the goal
+into phases, each handed to a supervisor and its workers. A run can instead
+start at the supervisor level; a planner then takes over if supervision
+exhausts its retries, and a seeded run keeps its starting workspace when it
+does.
 
 - **Workers build.** They read and write files, run commands and use tools.
   Project runs do so in a container with no network unless egress is
