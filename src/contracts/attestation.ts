@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { pathHeldNoFile } from './toolOutput.js';
 
 /**
  * PROOF ATTESTATION — transport-observed evidence, and what it covers.
@@ -204,6 +205,8 @@ export function parseExecutionObservation(tool: string, args: Record<string, unk
       request: evidenceExcerpt({ path: args['path'] }, 400), response: evidenceExcerpt(raw, 300) });
   }
   if (!['fetch_url', 'run_shell', 'record_probe', 'read_file', 'start_node_server'].includes(tool)) return null;
+  // An absent path or a directory read no file: like the throw it replaced, unattested.
+  if (tool === 'read_file' && pathHeldNoFile(raw)) return null;
   const http = tool === 'fetch_url' ? servedHttpObservation(args, raw) : undefined;
   const response = typeof raw === 'string' ? raw : JSON.stringify(raw) ?? 'null';
   // A page, including the final short one, never establishes a whole-file read.

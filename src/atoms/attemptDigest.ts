@@ -1,5 +1,6 @@
 import type { ToolInvocationInfo } from '../core/types.js';
 import { toolInvocationSucceeded } from './validationLedger.js';
+import { pathHeldNoFile } from '../contracts/toolOutput.js';
 
 /**
  * What one execution of a molecule DID, rendered for its next attempt at the
@@ -58,7 +59,7 @@ export class AttemptDigest {
         if (ok && filePath) this.changed.add(filePath);
         break;
       case 'read_file':
-        if (ok && filePath) this.read.add(filePath);
+        if (ok && filePath && !pathHeldNoFile(info.result)) this.read.add(filePath);
         break;
       case 'start_node_server':
       case 'start_static_server': {

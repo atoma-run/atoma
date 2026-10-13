@@ -5,6 +5,7 @@ import {
   isPreflightRefusal,
   type ObservedDocument,
 } from '../contracts/attestation.js';
+import { pathHeldNoFile } from '../contracts/toolOutput.js';
 
 /**
  * Did a tool invocation SUCCEED, as the transport saw it? One predicate for
@@ -16,6 +17,8 @@ export function toolInvocationSucceeded(info: ToolInvocationInfo): boolean {
   if (!info.result || typeof info.result !== 'object') return true;
   const result = info.result as Record<string, unknown>;
   if (result['unchanged'] === true) return false;
+  // An absent path or a directory answered instead of throwing: still no action.
+  if (pathHeldNoFile(result)) return false;
   if ('ok' in result && result['ok'] !== true) return false;
   if (typeof result['error'] === 'string' && result['error'].length > 0) return false;
   if (typeof result['exitCode'] === 'number' && result['exitCode'] !== 0) return false;

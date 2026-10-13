@@ -1,6 +1,7 @@
 import type { RunContext } from '../core/types.js';
 import { baseExecutorOf } from '../core/attestation.js';
 import { fileReadsNeedingReadback } from '../contracts/attestation.js';
+import { pathHeldNoFile } from '../contracts/toolOutput.js';
 import { criteriaFilesBlock } from './fileEvidence.js';
 import type { Atom } from '../core/atom.js';
 import {
@@ -328,6 +329,7 @@ async function probeGroundTruthBase(args: Parameters<typeof probeGroundTruthEx>[
       const rawManifest = await tools.execute('read_file', {
         path: PROBE_MANIFEST_FILENAME,
       });
+      if (pathHeldNoFile(rawManifest)) throw new Error(`${PROBE_MANIFEST_FILENAME} holds no file`);
       const text =
         rawManifest &&
         typeof rawManifest === 'object' &&
@@ -816,6 +818,7 @@ async function probeFilesGroundTruth(args: {
     if (args.ctx.signal?.aborted) return empty;
     try {
       const raw = await tools.execute('read_file', { path });
+      if (pathHeldNoFile(raw)) throw new Error(`${path} holds no file`);
       const content =
         raw && typeof raw === 'object' && typeof (raw as Record<string, unknown>)['content'] === 'string'
           ? ((raw as Record<string, unknown>)['content'] as string)

@@ -109,6 +109,16 @@ Neighbours:
   marker; captured before/after comparison) are strictly more robust, and a
   conditional relaxation would need colour-space resolution against the page
   source for marginal gain.
+- A path that holds no file is an ANSWER, not a failed tool (2026-10-13,
+  reversing 2026-10-06's retained ENOENT): `read_file` returns
+  `{exists:false, nearest}` for an absent path and `{kind:'dir', entries}` for
+  a directory; `list_files` returns `{exists:false, entries:[]}`. Measured on
+  153 production runs: 15 of 3,345 reads failed, all in opening bursts of
+  parallel reads (an output the plan named read as an input, a guessed or
+  mis-prefixed name, a directory), none retried. Neither answer is file
+  content: `pathHeldNoFile` ([src/contracts](../contracts/AGENTS.md)) keeps
+  it out of attestation, the attempt digest and every host reader, which
+  still sees a missing claim as missing. Other errors still throw.
 - Tool results are truncated before returning to the model, with the relevant
   head/tail retained. Budget-exhausted finalization keeps tools declared so the
   provider transcript remains valid.

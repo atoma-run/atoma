@@ -11,6 +11,7 @@ import {
   smokeResultIncludesStyling,
 } from '../contracts/probeManifest.js';
 import { extractRecordedProbes, recordedProbesFromWitnesses } from '../contracts/witness.js';
+import { pathHeldNoFile } from '../contracts/toolOutput.js';
 import { resultHasSuccessfulToolAction } from '../skills/lifecycle.js';
 
 /**
@@ -120,6 +121,7 @@ export function buildResultGateEnv(args: {
       try {
         // A supervisor read, on the base executor: never the child's attested evidence.
         const raw = await baseExecutorOf(args.ctx.tools).execute('read_file', { path });
+        if (pathHeldNoFile(raw)) throw new Error(`${path} holds no file`);
         const content =
           raw &&
           typeof raw === 'object' &&

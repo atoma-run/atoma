@@ -535,33 +535,68 @@ function workspaceEntry(sandbox: ToolSandbox, directory: string, name: string) {
   };
 }
 
-/** Diagnose only; never substitute a guessed file or hide the original failure. */
-function missingReadHint(sandbox: ToolSandbox, abs: string): string {
+function errorCode(error: unknown): unknown {
+  return error instanceof Error && 'code' in error ? error.code : undefined;
+}
+
+/** A bounded listing of one sandbox-resolved directory, for an answer that must stay small. */
+function boundedListing(sandbox: ToolSandbox, path: string) {
+  const checked = sandbox.resolve(path);
+  const names = readdirSync(checked);
+  const entries = [];
+  let bytes = 0;
+  for (const name of names.slice(0, 12)) {
+    const entry = workspaceEntry(sandbox, checked, name);
+    bytes += JSON.stringify(entry).length;
+    if (bytes > 3000) break;
+    entries.push(entry);
+  }
+  return { path, entries, truncated: entries.length < names.length };
+}
+
+/** Diagnose only; never substitute a guessed file. */
+function nearestExistingListing(sandbox: ToolSandbox, abs: string) {
   let directory = dirname(abs);
   while (true) {
-    const path = workspacePath(sandbox, directory);
     try {
-      const checked = sandbox.resolve(path);
-      const names = readdirSync(checked);
-      const entries = [];
-      let bytes = 0;
-      for (const name of names.slice(0, 12)) {
-        const entry = workspaceEntry(sandbox, checked, name);
-        bytes += JSON.stringify(entry).length;
-        if (bytes > 3000) break;
-        entries.push(entry);
-      }
-      return ` All tool paths start at the workspace root; list_files does not change directories. ` +
-        `Existing ancestor listing: ${JSON.stringify({ path, entries, truncated: entries.length < names.length })}. ` +
-        'Use list_files on the relevant directory, then copy an entry.path unchanged.';
+      return boundedListing(sandbox, workspacePath(sandbox, directory));
     } catch (error) {
       // Permission errors, unsafe links and concurrent filesystem changes must
-      // not replace the original read error with a misleading directory hint.
-      if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT') return '';
+      // not become a misleading directory hint.
+      if (errorCode(error) !== 'ENOENT') return undefined;
     }
-    if (directory === sandbox.root) return '';
+    if (directory === sandbox.root) return undefined;
     directory = dirname(directory);
   }
+}
+
+const ABSENT_PATH_NOTE = 'Nothing exists at this path. All tool paths start at the workspace root; list_files does not ' +
+  'change directories. To read an existing file, copy an entry.path unchanged from `nearest` (the closest existing ' +
+  'directory) or from list_files. A file the task asks you to produce does not exist until you write it.';
+const DIRECTORY_READ_NOTE = 'This path is a directory; read_file reads files. Pass one entry.path unchanged, or call ' +
+  'list_files on this path for the complete listing.';
+
+/**
+ * A path that holds no file is an ANSWER about the workspace, not a failed
+ * tool (2026-10-13, reversing 2026-10-06's "retain the ENOENT"). Measured on
+ * 153 production runs since 2026-10-05: 15 of 3,345 read_file calls failed,
+ * every one inside an opening burst of parallel reads sent before the listing
+ * came back — an output the goal or plan named, read as if it were an input;
+ * a guessed or mis-prefixed name; a directory. None was retried; each was
+ * recovered on the next turn from the listing the error already carried. The
+ * answer carries the same listing and the trace keeps the call.
+ */
+function noFileAnswer(sandbox: ToolSandbox, path: string, abs: string, error: unknown) {
+  const code = errorCode(error);
+  if (code === 'ENOENT') {
+    const nearest = nearestExistingListing(sandbox, abs);
+    return { path, exists: false as const, ...(nearest ? { nearest } : {}), note: ABSENT_PATH_NOTE };
+  }
+  if (code === 'EISDIR') {
+    const listing = boundedListing(sandbox, workspacePath(sandbox, abs));
+    return { path, kind: 'dir' as const, entries: listing.entries, truncated: listing.truncated, note: DIRECTORY_READ_NOTE };
+  }
+  return undefined;
 }
 
 export function readFileTool(opts: BuiltinToolOptions): BuiltinTool {
@@ -569,7 +604,7 @@ export function readFileTool(opts: BuiltinToolOptions): BuiltinTool {
     declaration: {
       name: 'read_file',
       description:
-        'Read a file, or a bounded page with offset/limit (UTF-16 character units). For large files use offset=0, then nextOffset until null; pages do not refetch HTTP content. Paths are always relative to the workspace root, never the last listed directory. Copy list_files entry.path unchanged; list the parent directory before reading an uncertain path.',
+        'Read a file, or a bounded page with offset/limit (UTF-16 character units). For large files use offset=0, then nextOffset until null; pages do not refetch HTTP content. Paths are always relative to the workspace root, never the last listed directory. Copy list_files entry.path unchanged; list the parent directory before reading an uncertain path. A path holding no file answers exists:false with the nearest existing directory; a directory answers its entries.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -594,9 +629,8 @@ export function readFileTool(opts: BuiltinToolOptions): BuiltinTool {
       try {
         content = readFileSync(abs, 'utf8');
       } catch (error) {
-        if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
-          error.message += missingReadHint(opts.sandbox, abs);
-        }
+        const answer = noFileAnswer(opts.sandbox, path, abs, error);
+        if (answer) return answer;
         throw error;
       }
       markSeen(opts.sandbox, abs);
@@ -631,7 +665,17 @@ export function listFilesTool(opts: BuiltinToolOptions): BuiltinTool {
     async execute(args) {
       const rel = typeof args['path'] === 'string' && args['path'] ? args['path'] : '.';
       const abs = opts.sandbox.resolve(rel);
-      const entries = readdirSync(abs).map((name) => workspaceEntry(opts.sandbox, abs, name));
+      let names: string[];
+      try {
+        names = readdirSync(abs);
+      } catch (error) {
+        // A directory the task will create is absent until it is written:
+        // an answer, like read_file's (2026-10-13).
+        if (errorCode(error) !== 'ENOENT') throw error;
+        const nearest = nearestExistingListing(opts.sandbox, abs);
+        return { path: rel, exists: false, entries: [], ...(nearest ? { nearest } : {}), note: ABSENT_PATH_NOTE };
+      }
+      const entries = names.map((name) => workspaceEntry(opts.sandbox, abs, name));
       return { path: rel, entries };
     },
   };

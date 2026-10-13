@@ -76,6 +76,11 @@ Neighbours:
   attestation record, and the obligation vocabulary. An observation is only
   ever OBSERVED: no model-authored payload may enter that module, and the only
   writer is the runtime seam that saw the raw tool result.
+- `pathHeldNoFile` (`toolOutput.ts`) is the one reading of a `read_file` or
+  `list_files` ANSWER that found no file (an absent path, a directory;
+  2026-10-13, [src/tools](../tools/AGENTS.md)): never attested, never a
+  successful tool action, never content to a host reader — what the throw it
+  replaced was.
 - `requestedInteractions` and `executedInteractions` are SEPARATE fields on
   purpose. Reporting one side is what let `ok: true` with an empty interaction
   log read as proof that clicking worked.

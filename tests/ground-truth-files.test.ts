@@ -9,6 +9,11 @@ import {
 import { L1Atom } from '../src/atoms/L1Atom.js';
 import { makeCtx, jsonText } from './helpers.js';
 import type { RunContext, Tool, ToolExecutor } from '../src/core/types.js';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { listFilesTool, readFileTool } from '../src/tools/builtin.js';
+import { ToolSandbox } from '../src/tools/sandbox.js';
 
 /**
  * Tests for #F9 — the supervisor-side FILE READ-BACK probe.
@@ -324,6 +329,34 @@ describe('file read-back probe (#F9)', () => {
     });
     expect(content).toMatch(/README\.md: MISSING or unreadable/);
     expect(content).toMatch(/REJECT only on a CONTRADICTION/);
+  });
+
+  it('flags a claimed file the REAL read_file answers as absent, and a claimed directory (2026-10-13)', async () => {
+    // read_file answers a path holding no file instead of throwing; the
+    // read-back probe must still see a missing claim, never the answer as content.
+    const root = mkdtempSync(join(tmpdir(), 'atoma-gt-absent-'));
+    const sandbox = new ToolSandbox(root);
+    try {
+      writeFileSync(join(root, 'index.js'), 'x');
+      // A claimed path that is a directory (claims need a file-like name).
+      mkdirSync(join(root, 'report.json'));
+      const tools = { read_file: readFileTool({ sandbox }), list_files: listFilesTool({ sandbox }) };
+      const exec: ToolExecutor = {
+        has: (name) => name in tools,
+        execute: (name, args) => tools[name as keyof typeof tools].execute(args),
+      };
+      const content = await runVerdict(ctxWith(exec), fileChild(), {
+        output: { files: ['index.js', 'README.md', 'report.json'] },
+        summary: 'wrote the files',
+      });
+      expect(content).toMatch(/README\.md: MISSING or unreadable/);
+      expect(content).toMatch(/report\.json: MISSING or unreadable/);
+      expect(content).not.toMatch(/README\.md: EXISTS/);
+      expect(content).toMatch(/index\.js: EXISTS \(1 chars\)/);
+    } finally {
+      await sandbox.cleanup();
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it('flags a claimed-but-EMPTY file', async () => {
