@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, writeFileSync, symlinkSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdtempSync, rmSync, writeFileSync, symlinkSync, mkdirSync } from 'node:fs';
+import { join, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ToolSandbox, sandboxChildEnv } from '../src/tools/sandbox.js';
-import { runShellTool } from '../src/tools/builtin.js';
+import { readFileTool, runShellTool, writeFileTool } from '../src/tools/builtin.js';
 
 const posixIt = it.skipIf(process.platform === 'win32');
 
@@ -161,6 +161,61 @@ describe('ToolSandbox.resolve — symlink containment (#7b)', () => {
     expect(() => sandbox.resolve('src/main.js')).not.toThrow();
     // write_file creates parents — a deep new path must still resolve.
     expect(() => sandbox.resolve('a/b/c/new.txt')).not.toThrow();
+  });
+
+  it('rejects a DANGLING symlink whose target is outside, before write_file creates it (2026-10-13)', async () => {
+    // existsSync follows links, so a dangling link read as a not-yet-created
+    // path and write_file followed it out of the jail.
+    symlinkSync(join(outside, 'planted.txt'), join(dir, 'dangling.txt'));
+    symlinkSync(join(outside, 'newdir'), join(dir, 'gone'), 'dir');
+    expect(() => sandbox.resolve('dangling.txt')).toThrow(/escapes sandbox via symlink/);
+    expect(() => sandbox.resolve('gone/deep/file.txt')).toThrow(/escapes sandbox via symlink/);
+    await expect(writeFileTool({ sandbox }).execute({ path: 'dangling.txt', content: 'x' }))
+      .rejects.toThrow(/escapes sandbox via symlink/);
+    expect(existsSync(join(outside, 'planted.txt'))).toBe(false);
+  });
+
+  it('applies ".." in a link target after the links before it, as the kernel does (review 2026-10-13)', async () => {
+    // path.resolve collapsed `inner/..` as text: the target read as inside
+    // while the kernel followed `inner` out first and wrote beside it.
+    mkdirSync(join(outside, 'deep'));
+    symlinkSync(join(outside, 'deep'), join(dir, 'inner'), 'dir');
+    symlinkSync('inner/../evilA.txt', join(dir, 'a.txt'));
+    symlinkSync([dir, 'inner', '..', 'evilB.txt'].join(sep), join(dir, 'b.txt')); // unjoined: join() would collapse it
+    symlinkSync('inner/../newdir', join(dir, 'c'), 'dir');
+    expect(() => sandbox.resolve('a.txt')).toThrow(/escapes sandbox via symlink/);
+    expect(() => sandbox.resolve('b.txt')).toThrow(/escapes sandbox via symlink/);
+    expect(() => sandbox.resolve('c/x.txt')).toThrow(/escapes sandbox via symlink/);
+    await expect(writeFileTool({ sandbox }).execute({ path: 'a.txt', content: 'x' })).rejects.toThrow(/escapes sandbox/);
+    expect(existsSync(join(outside, 'evilA.txt'))).toBe(false);
+    // A dangling link out of the jail is refused to read_file too, not answered as absent.
+    await expect(readFileTool({ sandbox }).execute({ path: 'b.txt' })).rejects.toThrow(/escapes sandbox via symlink/);
+  });
+
+  posixIt('applies ".." in an EXISTING link\'s target after the links before it (review 2026-10-13)', async () => {
+    // Node's JS realpathSync resolves a link's content as text: `up -> inner/..`
+    // read as the workspace itself while the kernel follows `inner` out.
+    mkdirSync(join(outside, 'deep'));
+    symlinkSync(join(outside, 'deep'), join(dir, 'inner'), 'dir');
+    symlinkSync('inner/..', join(dir, 'up'), 'dir');
+    symlinkSync('inner/../secret.txt', join(dir, 'rd.txt'));
+    expect(() => sandbox.resolve('up/planted.txt')).toThrow(/escapes sandbox via symlink/);
+    expect(() => sandbox.resolve('rd.txt')).toThrow(/escapes sandbox via symlink/);
+    await expect(writeFileTool({ sandbox }).execute({ path: 'up/planted.txt', content: 'x' })).rejects.toThrow(/escapes sandbox/);
+    expect(existsSync(join(outside, 'planted.txt'))).toBe(false);
+    await expect(readFileTool({ sandbox }).execute({ path: 'rd.txt' })).rejects.toThrow(/escapes sandbox via symlink/);
+  });
+
+  it('follows a dangling chain inside the workspace, relative targets included, and refuses a loop', () => {
+    mkdirSync(join(dir, 'sub'));
+    symlinkSync('../missing-target.txt', join(dir, 'sub', 'rel.txt'));
+    symlinkSync(join(dir, 'sub', 'rel.txt'), join(dir, 'chain.txt'));
+    expect(sandbox.resolve('chain.txt')).toBe(join(dir, 'chain.txt'));
+    symlinkSync('../../escape.txt', join(dir, 'sub', 'up.txt'));
+    expect(() => sandbox.resolve('sub/up.txt')).toThrow(/escapes sandbox via symlink/);
+    symlinkSync(join(dir, 'loop-b'), join(dir, 'loop-a'));
+    symlinkSync(join(dir, 'loop-a'), join(dir, 'loop-b'));
+    expect(() => sandbox.resolve('loop-a')).toThrow(/symbolic links/);
   });
 
   it('allows a symlink pointing to a sibling INSIDE the workspace', () => {

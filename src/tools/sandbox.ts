@@ -1,5 +1,5 @@
-import { mkdirSync, existsSync, realpathSync, mkdtempSync } from 'node:fs';
-import { resolve, relative, isAbsolute, join, dirname, basename } from 'node:path';
+import { mkdirSync, existsSync, realpathSync, mkdtempSync, lstatSync, readlinkSync } from 'node:fs';
+import { resolve, relative, isAbsolute, join, dirname, basename, sep } from 'node:path';
 import type { ChildProcess } from 'node:child_process';
 import { tmpdir } from 'node:os';
 
@@ -180,6 +180,42 @@ function killTrackedChildren(): void {
   }
 }
 
+/** The kernel's own bound on a link chain (Linux MAXSYMLINKS). */
+const MAX_DANGLING_LINK_HOPS = 40;
+
+/**
+ * The kernel's realpath. Node's JS `realpathSync` resolves a link's CONTENT
+ * as text, so `up -> inner/..` read as the workspace itself while the kernel
+ * follows `inner` out first, and `write_file up/x` wrote outside (review
+ * 2026-10-13; it predates the dangling-link fix). libc's realpath walks it as
+ * open() will. Windows keeps the JS one, so that escape stays OPEN there: no
+ * worker runs on Windows, and the native call has known `\\?\` and subst-drive
+ * quirks this boundary was never tested on.
+ */
+const kernelRealpath: (path: string) => string =
+  process.platform === 'win32' ? (path) => realpathSync(path) : (path) => realpathSync.native(path);
+
+/**
+ * Where a DANGLING symbolic link points, spelled as the kernel will walk it:
+ * the raw target, relative to the link's real parent directory, NEVER
+ * normalized. `path.resolve` collapsed `inner/..` as text while the kernel
+ * follows `inner` first, so a link to `inner/../x` with `inner` pointing out
+ * read as inside and was written outside (review 2026-10-13). Undefined when
+ * the path is not a link or does not exist even as one; once lstat says it is
+ * a link, an unreadable one throws rather than reading as a new path.
+ */
+function danglingLinkTarget(path: string): string | undefined {
+  let isLink: boolean;
+  try {
+    isLink = lstatSync(path).isSymbolicLink();
+  } catch {
+    return undefined;
+  }
+  if (!isLink) return undefined;
+  const raw = readlinkSync(path);
+  return isAbsolute(raw) ? raw : `${kernelRealpath(dirname(path))}${sep}${raw}`;
+}
+
 /**
  * A ToolSandbox confines tool side-effects to a single workspace directory
  * and tracks any child processes started by tools so they can be torn down
@@ -209,7 +245,7 @@ export class ToolSandbox {
     if (!existsSync(abs)) {
       mkdirSync(abs, { recursive: true });
     }
-    this.realRoot = realpathSync(abs);
+    this.realRoot = kernelRealpath(abs);
     ensureGlobalExitHandler();
   }
 
@@ -258,16 +294,28 @@ export class ToolSandbox {
    * are about to be written (write_file creates parents as needed) while
    * still following any symlink that already sits on the path.
    */
-  private realpathDeepestExisting(abs: string): string {
+  private realpathDeepestExisting(abs: string, hops = 0): string {
     let dir = abs;
     const tail: string[] = [];
     while (!existsSync(dir)) {
+      // existsSync FOLLOWS links, so a DANGLING link read as a not-yet-created
+      // path and write_file then created its target wherever it pointed
+      // (adversarial review 2026-10-13). Continue from the link's target.
+      const target = danglingLinkTarget(dir);
+      if (target !== undefined) {
+        if (hops >= MAX_DANGLING_LINK_HOPS) throw new Error(`path crosses too many symbolic links: ${abs}`);
+        // Concatenated, not joined: join() would collapse a `..` the kernel has not reached yet.
+        return this.realpathDeepestExisting([target, ...tail].join(sep), hops + 1);
+      }
       tail.unshift(basename(dir));
       const parent = dirname(dir);
       if (parent === dir) break;
       dir = parent;
     }
-    const real = realpathSync(dir);
+    // A `..` here can only come from a link target, below a component that
+    // does not exist yet: the kernel would refuse it, so refuse it unjoined.
+    if (tail.includes('..')) throw new Error(`path escapes sandbox via symlink: ${abs} (".." below a missing component)`);
+    const real = kernelRealpath(dir);
     return tail.length > 0 ? join(real, ...tail) : real;
   }
 

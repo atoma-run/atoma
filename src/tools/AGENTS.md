@@ -18,7 +18,14 @@ Neighbours:
 - L1 is the only tier with tools. `src/tools/` owns declarations, registry,
   sandbox, builtins, worker protocol, and execution backends.
 - `ToolSandbox` is the filesystem/process boundary. Resolve paths through it;
-  do not compare raw user spellings for protected files.
+  do not compare raw user spellings for protected files. Containment walks
+  links as the kernel does (2026-10-13, two escapes found by adversarial
+  review, both proven by a `write_file` landing outside): libc's realpath,
+  never Node's JS one, which resolves a link's content as text (`up ->
+  inner/..` read as the workspace); and a DANGLING link is followed to its
+  raw, unnormalized target instead of reading as a not-yet-created path.
+  Windows keeps the JS realpath, so the existing-link escape stays open there;
+  no worker runs on Windows.
 - Default builtins and the closed tool vocabulary must stay in lockstep. Tests
   compare names/order; executor scope is the ultimate permission gate.
 - The probe manifest has THREE recorders and no hand: `record_probe` for a
