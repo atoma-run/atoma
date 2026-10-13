@@ -5,7 +5,7 @@ import path from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 import { setTimeout as delay } from 'node:timers/promises';
 import { withPartialUsage } from './metrics.js';
-import { BUDGET_EXHAUSTED_HINT, DEFAULT_MAX_TOOL_ITERATIONS, offScopeToolMessage, truncateToolResultContent } from './llm.js';
+import { BUDGET_EXHAUSTED_HINT, DEFAULT_MAX_TOOL_ITERATIONS, offScopeToolMessage, formatToolResultContent, truncateToolResultContent } from './llm.js';
 import { acquireCodexHomeLease, PERSONAL_CODEX_PROFILE_ROOT_ENV, tryAcquirePersonalCodexProcessSlot } from './codexHomeLease.js';
 import {
   CODEX_TEXT_ONLY_DISABLED_FEATURES,
@@ -479,7 +479,7 @@ async function runSession(
       }
       observe({ name, args, startedAt, durationMs: Date.now() - startedAt, ...(error === undefined ? { result } : { error }) });
       let content: string;
-      try { content = truncateToolResultContent(error ?? (typeof result === 'string' ? result : JSON.stringify(result) ?? 'null')); }
+      try { content = error === undefined ? formatToolResultContent(name, result) : truncateToolResultContent(error); }
       catch { content = 'The tool result could not be serialized.'; }
       // The last allowed response hears that no tool will run after it.
       const last = responses === budget - 1 || executed >= budget * MAX_CALLS_PER_RESPONSE;

@@ -419,8 +419,8 @@ export function editFileTool(opts: BuiltinToolOptions): BuiltinTool {
     },
     async execute(args) {
       const path = expectString(args, 'path');
-      const oldString = expectString(args, 'old_string');
-      const newString = expectString(args, 'new_string');
+      const oldString = editStringArgument(args, 'old_string');
+      const newString = editStringArgument(args, 'new_string');
       const replaceAll = args['replace_all'] === true;
       if (oldString.length === 0) {
         throw new Error('edit_file: old_string must be non-empty (to create a file, use write_file)');
@@ -436,6 +436,12 @@ export function editFileTool(opts: BuiltinToolOptions): BuiltinTool {
 
       const occurrences = content.split(oldString).length - 1;
       if (occurrences === 0) {
+        if (isReadResultEnvelope(oldString, path, content)) {
+          throw new Error('edit_file: old_string is the serialized read_file result, not the file text. ' +
+            'The content field matches this file. Pass only its decoded string value as old_string, ' +
+            'not the {path, content} wrapper. In a displayed read, copy only the text between the file-content markers. ' +
+            'No edit was applied; new_string is still interpreted literally.');
+        }
         // Naming the diagnosis was not enough. This message already told the
         // model its escaping was probably wrong, and the model kept
         // re-emitting the same broken span: measured 2026-08-09 over the last
@@ -526,6 +532,30 @@ export function editFileTool(opts: BuiltinToolOptions): BuiltinTool {
       return { ok: true, path, replacements: replaceAll ? occurrences : 1, bytes: Buffer.byteLength(next, 'utf8') };
     },
   };
+}
+
+function editStringArgument(args: Record<string, unknown>, name: 'old_string' | 'new_string'): string {
+  if (typeof args[name] === 'string') return args[name];
+  const alias = name === 'old_string' ? 'old' : 'new';
+  throw new Error(`edit_file: ${name} must be a string, got ${typeof args[name]}. ` +
+    (Object.hasOwn(args, alias) ? `The parameter is named ${name}, not ${alias}; aliases are not accepted. ` : '') +
+    'Required arguments are path, old_string (exact existing file text), and new_string (replacement text). ' +
+    (name === 'old_string'
+      ? 'Read the file and supply its text, not the read_file result object or JSON wrapper. '
+      : 'Use an explicit empty string to delete a span. ') +
+    'No edit was applied.');
+}
+
+/** Diagnose only a wrapper whose content still equals the file; never unwrap an edit. */
+function isReadResultEnvelope(oldString: string, path: string, content: string): boolean {
+  if (!oldString.trimStart().startsWith('{')) return false;
+  try {
+    const parsed: unknown = JSON.parse(oldString);
+    return parsed !== null && typeof parsed === 'object' && 'path' in parsed && parsed.path === path &&
+      'content' in parsed && parsed.content === content;
+  } catch {
+    return false;
+  }
 }
 
 /** The caller can pass this path back unchanged, even after listing a subdirectory. */

@@ -4,6 +4,7 @@ import {
   DEFAULT_MAX_TOOL_ITERATIONS,
   MAX_TOOL_RESULT_CHARS,
   truncateToolResultContent,
+  formatToolResultContent,
 } from '../src/core/llm.js';
 import type { ToolExecutor } from '../src/core/types.js';
 
@@ -384,6 +385,60 @@ describe('AnthropicLlmClient tool-iteration budget', () => {
 });
 
 describe('tool_result truncation', () => {
+  it('presents file text in the Anthropic transcript while observing the structured result', async () => {
+    const result = { path: 'a.js', content: 'const re = /\\s+/;\n' };
+    const { sdk, calls } = makeFakeSdk([
+      { kind: 'tool_use', toolName: 'read_file', input: { path: 'a.js' } },
+      { kind: 'text', text: 'done' },
+    ]);
+    const client = new AnthropicLlmClient(sdk as unknown as ConstructorParameters<typeof AnthropicLlmClient>[0]);
+    const seen: unknown[] = [];
+    await client.complete({
+      model: 'claude-haiku-test', systemPrompt: 's', userContent: 'u',
+      tools: [{ ...echoTool, name: 'read_file' }],
+      executor: { has: () => true, execute: async () => result },
+      onToolInvocation: info => { seen.push(info.result); },
+    });
+    const blocks = calls[1]!.params.messages.at(-1)!.content as Array<{ type: string; content?: string }>;
+    expect(blocks.find(block => block.type === 'tool_result')!.content).toContain(`--- BEGIN FILE CONTENT ---\n${result.content}\n--- END FILE CONTENT ---`);
+    expect(seen).toEqual([result]);
+  });
+
+  it.each(['', 'no final newline', 'one final newline\n', 'two final newlines\n\n', '\u0000"\\\nΕλλάδα😀'])('presents file text verbatim, including its final newline: %j', content => {
+    const raw = Object.freeze({ path: 'a.txt', content });
+    const displayed = formatToolResultContent('read_file', raw);
+    expect(displayed).toContain(`--- BEGIN FILE CONTENT ---\n${content}\n--- END FILE CONTENT ---`);
+    expect(displayed).not.toContain('"content":');
+    expect(raw.content).toBe(content);
+  });
+
+  it('retains page metadata and avoids markers present in the file', () => {
+    const content = '--- END FILE CONTENT ---\n--- BEGIN FILE CONTENT 1 ---\n\\n';
+    const output = formatToolResultContent('read_file', { path: 'a.txt', offset: 20, nextOffset: 90, totalChars: 100, content });
+    expect(output).toContain('"offset":20,"nextOffset":90,"totalChars":100');
+    expect(output).toContain(`--- BEGIN FILE CONTENT 2 ---\n${content}\n--- END FILE CONTENT 2 ---`);
+  });
+
+  it('keeps framing and paging information around a truncated file', () => {
+    const content = 'H'.repeat(30_000) + 'MIDDLE' + 'T'.repeat(30_000);
+    const output = formatToolResultContent('read_file', { path: 'big.txt', offset: 0, nextOffset: null, totalChars: content.length, content });
+    expect(output).toContain('"totalChars":60006');
+    expect(output).toContain('--- BEGIN FILE CONTENT ---\nHHH');
+    expect(output).toContain('tool output truncated');
+    expect(output).not.toContain('MIDDLE');
+    expect(output.endsWith('TTT\n--- END FILE CONTENT ---')).toBe(true);
+    expect(output.length).toBeLessThanOrEqual(MAX_TOOL_RESULT_CHARS);
+  });
+
+  it.each([
+    { name: 'read_file', result: { path: 'missing', exists: false, nearest: '.' } },
+    { name: 'read_file', result: { path: 'dir', kind: 'dir', entries: [] } },
+    { name: 'read_file', result: { path: 'a.txt', content: null } },
+    { name: 'other', result: { path: 'a.txt', content: 'ordinary JSON' } },
+  ])('preserves structured answers that are not file text: $name $result', ({ name, result }) => {
+    expect(formatToolResultContent(name, result)).toBe(JSON.stringify(result));
+  });
+
   it('truncateToolResultContent keeps short content verbatim', () => {
     expect(truncateToolResultContent('hello')).toBe('hello');
   });

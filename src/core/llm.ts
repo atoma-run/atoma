@@ -228,15 +228,10 @@ export class AnthropicLlmClient implements LlmClient {
         }
         try {
           const result = await req.executor!.execute(tu.name, args);
-          // Compact stringify — the pretty-print indent of the old
-          // `JSON.stringify(result, null, 2)` was pure token overhead on
-          // every tool result of every iteration.
           toolResults.push({
             type: 'tool_result',
             tool_use_id: tu.id,
-            content: truncateToolResultContent(
-              typeof result === 'string' ? result : JSON.stringify(result)
-            ),
+            content: formatToolResultContent(tu.name, result),
           });
           notifyToolInvocation(req.onToolInvocation, {
             name: tu.name,
@@ -455,6 +450,28 @@ export function truncateToolResultContent(
     `(smaller file, quieter command, more specific probe) ...]\n` +
     `${tail}`
   );
+}
+
+/** Model-facing presentation only: observers and host readers retain the raw result. */
+export function formatToolResultContent(name: string, result: unknown): string {
+  if (name === 'read_file' && result !== null && typeof result === 'object' &&
+      !Array.isArray(result) && 'content' in result && typeof result.content === 'string') {
+    const { content, ...metadata } = result;
+    // A file may itself contain our framing. Pick markers absent from its text.
+    const usedSuffixes = new Set(Array.from(content.matchAll(/--- (?:BEGIN|END) FILE CONTENT( \d+)? ---/g), match => match[1] ?? ''));
+    let suffix = '';
+    for (let n = 1; usedSuffixes.has(suffix); n++) suffix = ` ${n}`;
+    const begin = `--- BEGIN FILE CONTENT${suffix} ---`;
+    const end = `--- END FILE CONTENT${suffix} ---`;
+    const header = `read_file ${JSON.stringify(metadata)}\n` +
+      `File text is verbatim between the markers; their adjacent framing newlines are not file text. ` +
+      `Use only file text in edit_file.old_string, without these headers or JSON encoding.\n${begin}\n`;
+    const footer = `\n${end}`;
+    // Keep paging metadata and both markers when a full-file read exceeds the budget.
+    const budget = MAX_TOOL_RESULT_CHARS - header.length - footer.length;
+    if (budget >= 2000) return header + truncateToolResultContent(content, budget) + footer;
+  }
+  return truncateToolResultContent(typeof result === 'string' ? result : JSON.stringify(result) ?? 'null');
 }
 
 function isSamplingParamDeprecatedError(err: unknown): boolean {

@@ -5,6 +5,7 @@ import {
   DEFAULT_MAX_TOOL_ITERATIONS,
   coercePseudoFinalToolCall,
   offScopeToolMessage,
+  formatToolResultContent,
   truncateToolResultContent,
 } from './llm.js';
 import type {
@@ -189,9 +190,7 @@ export class OpenAiLlmClient implements LlmClient {
           outputs.push({
             type: 'function_call_output',
             call_id: call.call_id,
-            output: truncateToolResultContent(
-              typeof result === 'string' ? result : JSON.stringify(result)
-            ),
+            output: formatToolResultContent(call.name, result),
           });
           notifyToolInvocation(req.onToolInvocation, {
             name: call.name,

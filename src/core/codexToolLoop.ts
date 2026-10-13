@@ -1,6 +1,6 @@
 import { withPartialUsage } from './metrics.js';
 import { z } from 'zod';
-import { BUDGET_EXHAUSTED_HINT, DEFAULT_MAX_TOOL_ITERATIONS, offScopeToolMessage, truncateToolResultContent } from './llm.js';
+import { BUDGET_EXHAUSTED_HINT, DEFAULT_MAX_TOOL_ITERATIONS, offScopeToolMessage, formatToolResultContent, truncateToolResultContent } from './llm.js';
 import type { LlmCompletionRequest, LlmCompletionResponse, ToolInvocationInfo } from './types.js';
 
 // Codex remains a text-only subprocess. Only this host-side protocol may
@@ -200,7 +200,7 @@ export async function completeCodexToolLoop(
         ...(error === undefined ? { result } : { error }) });
       req.signal?.throwIfAborted();
       transcript.push({ role: 'tool', name: action.name, success: error === undefined,
-        content: truncateToolResultContent(error ?? (typeof result === 'string' ? result : JSON.stringify(result) ?? 'null')) });
+        content: error === undefined ? formatToolResultContent(action.name, result) : truncateToolResultContent(error) });
     }
     throw new Error('Codex tool loop ended without a final response');
   } catch (error) {

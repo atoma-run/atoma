@@ -164,7 +164,8 @@ describe('Codex app-server tool session', () => {
       expect(fetched).toContain('No new HTTP request is needed');
       expect(readFileSync(sandbox.resolve(bodyFile), 'utf8')).toBe(body);
       const page = (await server.callTool('read_file', { path: bodyFile, offset: prefix.length, limit: listings.length })).contentItems[0]!.text;
-      expect(JSON.parse(page)).toMatchObject({ content: listings, nextOffset: prefix.length + listings.length, totalChars: body.length });
+      expect(JSON.parse(page.split('\n')[0]!.slice('read_file '.length))).toMatchObject({ nextOffset: prefix.length + listings.length, totalChars: body.length });
+      expect(page).toContain(`--- BEGIN FILE CONTENT ---\n${listings}\n--- END FILE CONTENT ---`);
       expect(requests).toBe(1);
       server.message('recovered'); server.complete();
     });
@@ -183,6 +184,41 @@ describe('Codex app-server tool session', () => {
       await new Promise<void>(resolve => http.close(() => resolve()));
       await sandbox.cleanup();
     }
+  });
+
+  it('presents read text verbatim for exact edits while recording the original structured read', async () => {
+    const home = codexHome();
+    const sandbox = new ToolSandbox(path.join(path.dirname(home), 'workspace'));
+    const source = 'const re = /\\s+/;\nconst text = "\\n";\n';
+    writeFileSync(sandbox.resolve('app.js'), source);
+    const builtins = [readFileTool({ sandbox }), editFileTool({ sandbox })];
+    const observe = vi.fn();
+    const fake = fakeAppServer(async server => {
+      const read = await server.callTool('read_file', { path: 'app.js' });
+      const shown = read.contentItems[0]!.text;
+      const fileText = shown.split('--- BEGIN FILE CONTENT ---\n')[1]!.split('\n--- END FILE CONTENT ---')[0]!;
+      expect(fileText).toBe(source);
+      expect(shown).not.toContain('"content":');
+      const bad = await server.callTool('edit_file', { path: 'app.js', old: fileText, new: 'wrong' });
+      expect(bad.success).toBe(false);
+      expect(bad.contentItems[0]!.text).toContain('old_string, not old');
+      expect((await server.callTool('edit_file', {
+        path: 'app.js', old_string: fileText, new_string: fileText.replace('/\\s+/', '/\\d+/'),
+      })).success).toBe(true);
+      server.message('done'); server.complete();
+    });
+    try {
+      await new CodexCliLlmClient({ env: { CODEX_HOME: home }, appServerSpawnFn: fake.spawnFn }).complete(request({
+        tools: builtins.map(tool => tool.declaration), onToolInvocation: observe,
+        executor: {
+          has: name => builtins.some(tool => tool.declaration.name === name),
+          execute: async (name, args) => builtins.find(tool => tool.declaration.name === name)!.execute(args),
+        },
+      }));
+      expect(observe.mock.calls[0]![0].result).toEqual({ path: 'app.js', content: source });
+      expect(observe.mock.calls[1]![0].error).toContain('old_string, not old');
+      expect(readFileSync(sandbox.resolve('app.js'), 'utf8')).toBe(source.replace('/\\s+/', '/\\d+/'));
+    } finally { await sandbox.cleanup(); }
   });
 
   it('round-trips literal source escapes and edit diagnostics through native JSON-RPC tools', async () => {

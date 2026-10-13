@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ToolSandbox } from '../src/tools/sandbox.js';
-import { editFileTool, defaultBuiltinTools } from '../src/tools/builtin.js';
+import { editFileTool, readFileTool, defaultBuiltinTools } from '../src/tools/builtin.js';
 
 /**
  * Tests for the `edit_file` tool (#6 of the cost review) — targeted
@@ -66,6 +66,57 @@ describe('edit_file', () => {
     await expect(
       tool.execute({ path: 'a.txt', old_string: 'goodbye', new_string: 'x' })
     ).rejects.toThrow(/not found in "a\.txt".*read_file/s);
+  });
+
+  it('diagnoses the complete read_file envelope without rewriting or decoding replacement text', async () => {
+    const content = 'const re = /\\s+/;\nconst s = "\\n";\n';
+    write('app.js', content);
+    const read = await readFileTool({ sandbox }).execute({ path: 'app.js' });
+    const tool = editFileTool({ sandbox });
+    const replacement = 'const re = /\\d+/;\nconst s = "\\n";\n';
+    await expect(tool.execute({ path: 'app.js', old_string: JSON.stringify(read), new_string: replacement }))
+      .rejects.toThrow(/serialized read_file result.*content field matches.*No edit was applied/s);
+    expect(readFileSync(join(dir, 'app.js'), 'utf8')).toBe(content);
+    await tool.execute({ path: 'app.js', old_string: content, new_string: replacement });
+    expect(readFileSync(join(dir, 'app.js'), 'utf8')).toBe(replacement);
+  });
+
+  it('edits literal JSON wrappers when they really are file text', async () => {
+    const content = JSON.stringify({ path: 'a.txt', content: 'hello' });
+    write('a.txt', content);
+    await editFileTool({ sandbox }).execute({ path: 'a.txt', old_string: content, new_string: 'replaced' });
+    expect(readFileSync(join(dir, 'a.txt'), 'utf8')).toBe('replaced');
+  });
+
+  it.each([
+    { path: 'other.txt', content: 'hello' },
+    { path: 'a.txt', content: 'stale' },
+  ])('does not claim an unrelated or stale wrapper matches the current file: %j', async envelope => {
+    write('a.txt', 'hello');
+    await expect(editFileTool({ sandbox }).execute({ path: 'a.txt', old_string: JSON.stringify(envelope), new_string: 'x' }))
+      .rejects.toThrow(/old_string not found/);
+    expect(readFileSync(join(dir, 'a.txt'), 'utf8')).toBe('hello');
+  });
+
+  it.each([
+    { args: { new_string: 'new' }, diagnostic: /old_string must be a string.*Required arguments/s },
+    { args: { old: 'old', new: 'new' }, diagnostic: /old_string, not old; aliases are not accepted/ },
+    { args: { old_string: 'old', new: 'new' }, diagnostic: /new_string, not new; aliases are not accepted/ },
+    { args: { old_string: 'old' }, diagnostic: /new_string must be a string.*explicit empty string/s },
+    { args: { old_string: { content: 'old' }, new_string: 'new' }, diagnostic: /old_string must be a string, got object/ },
+  ])('explains malformed arguments without repairing them: $args', async ({ args, diagnostic }) => {
+    write('a.txt', 'old');
+    await expect(editFileTool({ sandbox }).execute({ path: 'a.txt', ...args })).rejects.toThrow(diagnostic);
+    expect(readFileSync(join(dir, 'a.txt'), 'utf8')).toBe('old');
+  });
+
+  it('still requires a nonempty old span and permits explicit deletion', async () => {
+    write('a.txt', 'old');
+    const tool = editFileTool({ sandbox });
+    await expect(tool.execute({ path: 'a.txt', old_string: '', new_string: 'new' })).rejects.toThrow(/must be non-empty/);
+    expect(readFileSync(join(dir, 'a.txt'), 'utf8')).toBe('old');
+    await tool.execute({ path: 'a.txt', old_string: 'old', new_string: '' });
+    expect(readFileSync(join(dir, 'a.txt'), 'utf8')).toBe('');
   });
 
   it('errors on an ambiguous (multi-match) old_string without replace_all', async () => {

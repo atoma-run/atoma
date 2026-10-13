@@ -946,6 +946,25 @@ describe('Codex L1 host-side action loop', () => {
     expect(execute).toHaveBeenCalledExactlyOnceWith('write_file', { path: 'flags.mjs', content: 'export {};' });
   });
 
+  it('presents verbatim file text in the exec fallback without changing observations', async () => {
+    const file = { path: 'answer.js', content: 'const re = /\\s+/;\nconst text = "\\n";\n' };
+    const inputs: string[] = [];
+    const actions = [
+      { type: 'tool', name: 'read_file', arguments: { path: file.path } },
+      { type: 'final', text: 'done' },
+    ];
+    const observe = vi.fn();
+    const client = new CodexCliLlmClient({ env: {}, spawnFn: (_args, input) => {
+      inputs.push(input);
+      return fakeChild({ lines: messages(actions.shift()) });
+    } });
+    await client.complete(req({ tools: makeTools(['read_file']),
+      executor: { has: () => true, execute: async () => file }, onToolInvocation: observe }));
+    const transcript = JSON.parse(inputs[1]!) as Array<{ role: string; content: string }>;
+    expect(transcript.at(-1)!.content).toContain(`--- BEGIN FILE CONTENT ---\n${file.content}\n--- END FILE CONTENT ---`);
+    expect(observe.mock.calls[0]![0].result).toEqual(file);
+  });
+
   it('keeps each subprocess isolated, refuses off-scope tools, and feeds observed results back', async () => {
     const execute = vi.fn(async () => 'observed-' + 'x'.repeat(25000));
     const observe = vi.fn();

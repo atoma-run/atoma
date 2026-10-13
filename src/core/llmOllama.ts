@@ -9,7 +9,7 @@ import type {
 import {
   coercePseudoFinalToolCall,
   offScopeToolMessage,
-  truncateToolResultContent,
+  formatToolResultContent,
 } from './llm.js';
 import { cliCallTimeoutMs } from './llmClaudeCli.js';
 
@@ -317,9 +317,7 @@ export class OllamaLlmClient implements LlmClient {
             // byte stays resident in the transcript and is re-sent each
             // round. The observer callback below still gets the FULL
             // result; only the model-facing payload is elided.
-            content: truncateToolResultContent(
-              typeof result === 'string' ? result : JSON.stringify(result)
-            ),
+            content: formatToolResultContent(toolName, result),
             ...(tc.id ? { tool_call_id: tc.id } : {}),
             name: toolName,
           });

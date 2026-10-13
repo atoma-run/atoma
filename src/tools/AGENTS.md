@@ -303,6 +303,9 @@ Neighbours:
   [the 2026-10-05 incident](../../docs/incidents/dependency-resolver-2026-10-05.md);
   the bounded recovery and its exclusions are in
   [the 2026-10-06 follow-up](../../docs/incidents/edit-file-token-recovery-2026-10-06.md).
+  A serialized read result whose path and content equal the current file gets
+  a specific wrapper diagnostic, never automatic unwrapping. Missing or
+  aliased edit arguments get the required names; no alias is executed.
 
 - `hostReplay` is UNDECLARED, read as an own property only, and stripped
   from every call of a run and from every model-facing executor

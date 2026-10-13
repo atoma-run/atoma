@@ -19,3 +19,15 @@ Known limits: document binding fails on this Windows machine (tests/document-bin
 Open: the other 128 failures are single wasted calls with diagnostics (double-escape, memory-edited spans); 15 calls sent no old_string (arg shape unknown, read full events before deciding); 0a4a3e55 spent 16 not-found on one test file.
 
 **How to apply:** when a molecule loops on a refusal, check first whether the message names a tool it holds. See [[first-refusals-2026-10-10]].
+
+2026-10-13 follow-up: 19 project runs on Oct 12–13, 462 edits, 60 failures,
+no manifest refusals. Six not-found calls passed exactly JSON.stringify of
+the preceding read result (including path/content), with unchanged content.
+Eight omitted old_string (six path/new_string, two old/new aliases); the
+remaining cases were escaping, inexact/ambiguous spans and one empty span.
+Implemented one model-facing file-text formatter across all seven transport
+loops, preserving raw structured observations and paging metadata, plus
+specific non-mutating edit argument/wrapper diagnostics. Never automatically
+unwrap or unescape replacement arguments. Details and production event IDs:
+`docs/incidents/edit-file-failures-2026-10-13.md`. Production benefit remains
+unmeasured; mocked transport regressions establish the byte contract.

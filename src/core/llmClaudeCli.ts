@@ -2,7 +2,7 @@ import { withPartialUsage } from './metrics.js';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { truncateToolResultContent, DEFAULT_MAX_TOOL_ITERATIONS } from './llm.js';
+import { formatToolResultContent, truncateToolResultContent, DEFAULT_MAX_TOOL_ITERATIONS } from './llm.js';
 import { modelSupportsEffort } from './models.js';
 import { PLATFORM_TISSUE_AUTHOR_ENV } from '../contracts/tissueRouting.js';
 import type {
@@ -559,9 +559,7 @@ function buildToolBridge(
         content: [
           {
             type: 'text' as const,
-            text: truncateToolResultContent(
-              typeof result === 'string' ? result : JSON.stringify(result)
-            ),
+            text: formatToolResultContent(t.name, result),
           },
         ],
       };

@@ -224,6 +224,12 @@ Neighbours:
 
 ## Metrics and traces
 
+- All transports use `formatToolResultContent` for model-facing tool results.
+  `read_file` text is verbatim inside collision-free markers, with paging
+  metadata outside; missing paths/directories keep their structured answers.
+  Observers, attestations and host readers always receive the original object.
+  Do not JSON-encode file text again or change the element's return contract
+  to solve a presentation problem ([incident](../../docs/incidents/edit-file-failures-2026-10-13.md)).
 - `InMemoryMetrics` and `MetricsLlmClient` wrap calls; traces record requested
   model, served model, usage, cost, cache, decisions, and tool actions.
 - `RecordingLlmClient` preserves partial and failed attempts. A failure after

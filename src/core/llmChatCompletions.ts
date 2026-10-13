@@ -5,6 +5,7 @@ import {
   DEFAULT_MAX_TOOL_ITERATIONS,
   coercePseudoFinalToolCall,
   offScopeToolMessage,
+  formatToolResultContent,
   truncateToolResultContent,
 } from './llm.js';
 import { notifyToolInvocation, parseToolArgumentsJson } from './llmOpenAi.js';
@@ -333,7 +334,7 @@ export class ChatCompletionsLlmClient implements LlmClient {
         startedAt,
       });
       return reply(
-        truncateToolResultContent(typeof result === 'string' ? result : JSON.stringify(result))
+        formatToolResultContent(name, result)
       );
     } catch (err) {
       const errMsg = (err as Error).message;
