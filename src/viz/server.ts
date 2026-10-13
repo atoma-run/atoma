@@ -1,5 +1,4 @@
-import { Readable } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
+import { sendTraceResponse } from './traceResponse.js';
 import { traceDocumentChunks } from '../contracts/traceFields.js';
 import { Conversations } from '../projects/conversations.js';
 import { AssistantGrants } from '../auth/assistantGrants.js';
@@ -4899,9 +4898,7 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
     const read = readBoundedRunFile(file);
     if (!read.ok) {
       if (read.reason === 'overCeiling') {
-        res.setHeader('Content-Type', 'application/json; charset=utf-8');
-        res.setHeader('Cache-Control', 'no-store');
-        await pipeline(Readable.from(traceDocumentChunks(file, after)), res);
+        await sendTraceResponse(req, res, traceDocumentChunks(file, after));
         return;
       }
       // Unlinked, replaced, or no longer a regular file since it resolved.
@@ -4923,7 +4920,7 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
       if (!run || !Array.isArray(run.events)) {
         // Unparseable or shapeless on disk (a torn partial write): fall
         // back to the full body rather than inventing a delta.
-        send(res, 200, body, 'application/json; charset=utf-8');
+        await sendTraceResponse(req, res, body);
         return;
       }
       const total = run.events.length;
@@ -4931,10 +4928,10 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
       // the client is diffing against (id reuse / rewritten trace) — send
       // everything and let the client resync from scratch.
       const from = after <= total ? after : 0;
-      sendJson(res, 200, { ...run, events: run.events.slice(from), eventsFrom: from, eventsTotal: total });
+      await sendTraceResponse(req, res, JSON.stringify({ ...run, events: run.events.slice(from), eventsFrom: from, eventsTotal: total }));
       return;
     }
-    send(res, 200, body, 'application/json; charset=utf-8');
+    await sendTraceResponse(req, res, body);
     return;
   }
 

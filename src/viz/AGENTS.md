@@ -194,6 +194,9 @@ npm run viz:mark-turn:analyze
   descriptor; lists project accounting fields one event at a time. The shared
   byte scanner indexes ranges without materializing the trace. Memory is
   bounded by chunks, the range index and selected projections, not file size.
+  `traceResponse.ts` negotiates Brotli quality 4, gzip level 6 or identity for
+  complete traces and deltas, with streaming compression and `Vary: Accept-Encoding`.
+  Compression runs after authorization and never changes stored evidence.
 - The runs timeline reads NEWEST FIRST and is framed by two bookend rows
   (run ended / run started) that carry the verdict. Bookends are view rows:
   the view publishes `rowOffset` on the timeline viewport and overlays add it,

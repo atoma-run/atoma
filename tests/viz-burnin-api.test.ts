@@ -1,5 +1,6 @@
+import { brotliDecompressSync, gunzipSync } from 'node:zlib';
 import { spawn } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { request } from 'node:http';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -85,6 +86,19 @@ async function rawRequestStatus(
   });
 }
 
+async function rawTrace(port: number, path: string, encoding: string) {
+  return await new Promise<{ status: number; headers: import('node:http').IncomingHttpHeaders; body: Buffer }>((resolve, reject) => {
+    const req = request({ hostname: '127.0.0.1', port, path, headers: { 'accept-encoding': encoding } }, res => {
+      const chunks: Buffer[] = [];
+      res.on('data', (chunk: Buffer) => chunks.push(chunk));
+      res.once('error', reject);
+      res.once('end', () => resolve({ status: res.statusCode!, headers: res.headers, body: Buffer.concat(chunks) }));
+    });
+    req.once('error', reject);
+    req.end();
+  });
+}
+
 describe('GET /api/runs/:id', () => {
   it('streams large traces and deltas across the server process boundary', async () => {
     const root = mkdtempSync(join(tmpdir(), 'atoma-viz-trace-cap-'));
@@ -117,6 +131,27 @@ describe('GET /api/runs/:id', () => {
     expect(await delta.json()).toEqual({ ...trace, events: events.slice(33), eventsFrom: 33, eventsTotal: 34 });
     expect(await (await fetch(`${base}?after=34`)).json()).toMatchObject({ events: [], eventsFrom: 34, eventsTotal: 34 });
     expect((await fetch(`${base}?after=-1`)).status).toBe(400);
+    for (const [encoding, decode] of [['br', brotliDecompressSync], ['gzip', gunzipSync]] as const) {
+      const compressed = await rawTrace(port, '/api/runs/huge', encoding);
+      expect(compressed.status).toBe(200);
+      expect(compressed.headers['content-encoding']).toBe(encoding);
+      expect(compressed.headers['vary']).toBe('Accept-Encoding');
+      expect(compressed.headers['content-length']).toBeUndefined();
+      expect(compressed.headers['cache-control']).toBe('no-store');
+      expect(compressed.body.length).toBeLessThan(statSync(huge).size / 2);
+      expect(decode(compressed.body).equals(readFileSync(huge))).toBe(true);
+      const tail = await rawTrace(port, '/api/runs/huge?after=33', encoding);
+      expect(JSON.parse(decode(tail.body).toString('utf8'))).toEqual({
+        ...trace, events: events.slice(33), eventsFrom: 33, eventsTotal: 34,
+      });
+      const smallDelta = await rawTrace(port, '/api/runs/small?after=0', encoding);
+      expect(JSON.parse(decode(smallDelta.body).toString('utf8'))).toMatchObject({ id: 'small', events: [], eventsFrom: 0 });
+    }
+    const identity = await rawTrace(port, '/api/runs/small', 'br;q=0, gzip;q=0');
+    expect(identity.headers['content-encoding']).toBeUndefined();
+    expect(identity.body).toEqual(readFileSync(small));
+    expect((await rawTrace(port, '/api/runs/small', 'identity;q=0, *;q=0')).status).toBe(406);
+    expect((await rawTrace(port, '/api/runs/missing', 'br')).status).toBe(404);
     const index = await waitForResponse(`http://127.0.0.1:${port}/api/runs`);
     const rows = (await index!.json()) as Array<{ id: string }>;
     expect(rows.map((row) => row.id)).toContain('small');
