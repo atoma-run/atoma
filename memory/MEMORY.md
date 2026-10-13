@@ -39,4 +39,4 @@
 - [Worktree junction hazard](worktree-junction-hazard.md) — `git worktree remove --force` followed a node_modules junction and wiped the main checkout's node_modules (2026-10-11); rmdir the link first, verify node_modules after npx surprises
 - [edit_file manifest fix 2026-10-11](edit-file-manifest-2026-10-11.md) — 171/1198 edit_file failures measured; manifest refusal was the only loop; 4cf75d87: validate_html records, no model writes the manifest; other categories open
 - [Project chat acceptance](project-chat-acceptance.md) — 2026-10-12: the conversation is the one acceptance surface for runs started anywhere (live > pending delivery > newest); open: L3 astra cost (text-answer evidence resolved 8fb53702)
-- [read_file absence answer](read-file-absence-answer.md) — 2026-10-13: absent path/dir is an answer not an error (9558099a, prod); 15/3,345 measured; dangling-symlink write escape still open
+- [read_file absence answer](read-file-absence-answer.md) — 2026-10-13: absent path/dir is an answer not an error (9558099a, prod); 15/3,345 measured; sandbox now walks links like the kernel (3 escapes closed); open: Windows JS realpath, manifest alias link

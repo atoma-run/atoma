@@ -15,4 +15,6 @@ Owner chose "absence = observation", reversing 2026-10-06's retained ENOENT: rea
 **Why:** these were answers about the workspace shown as tool failures; the throw-dependent host readers had to stay strict.
 **How to apply:** any new host reader of read_file must require string `content` (or use pathHeldNoFile), never fall back to JSON.stringify(raw) or ''.
 
-Open (found by the adversarial review, pre-existing, local mode only): `ToolSandbox.resolve` lets a DANGLING symlink through (existsSync follows links), so write_file follows it outside the workspace. Not fixed; offered to the owner.
+Sandbox follow-up (owner said yes, same day): `ToolSandbox.resolve` now walks links as the kernel does — libc realpath (`realpathSync.native`) on POSIX, and a DANGLING link followed to its raw unnormalized target. Three escapes proven by write_file landing outside, all closed and tested in tests/sandbox-security.test.ts: dangling link out; `a -> inner/../x` with `inner` out; EXISTING `up -> inner/..` (Node's JS realpath resolves link content as text — predated everything). Native realpath also removed macOS case false refusals.
+
+Still open: Windows keeps the JS realpath, so the existing-link `inner/..` escape remains there (no worker runs on Windows); `isProbeManifestPath` compares the resolved lexical path, so a link `alias.json -> .atoma-probes.json` bypasses the manifest hand-write refusal (not a jail escape).
