@@ -1912,5 +1912,6 @@
   "result.workspaceFiles_one": "项目文件（{{count}}个文件）",
   "result.workspaceFiles_other": "项目文件（{{count}}个文件）",
   "result.workspaceFilesHint": "此结果为文本回答。以下是生成回答时所依据的项目文件；结果中不包含这些文件。",
-  "result.checks": "Atoma 如何检查此结果"
+  "result.checks": "Atoma 如何检查此结果",
+  "runs.status.live": "实时"
 }

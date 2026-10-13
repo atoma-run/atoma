@@ -1912,5 +1912,6 @@
   "result.workspaceFiles_one": "ملفات المشروع ({{count}} ملف)",
   "result.workspaceFiles_other": "ملفات المشروع (عدد الملفات: {{count}})",
   "result.workspaceFilesHint": "هذه النتيجة إجابة نصية. وهذه هي ملفات المشروع التي استندت إليها؛ ولا تقدّم أيًا منها.",
-  "result.checks": "كيفية تحقّق Atoma من هذه النتيجة"
+  "result.checks": "كيفية تحقّق Atoma من هذه النتيجة",
+  "runs.status.live": "مباشر"
 }

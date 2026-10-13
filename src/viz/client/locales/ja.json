@@ -1912,5 +1912,6 @@
   "result.workspaceFiles_one": "プロジェクトファイル（{{count}}件）",
   "result.workspaceFiles_other": "プロジェクトファイル（{{count}}件）",
   "result.workspaceFilesHint": "この結果はテキスト回答です。以下は回答の作成に使用したプロジェクトファイルであり、結果には含まれません。",
-  "result.checks": "Atomaがこの結果を確認した方法"
+  "result.checks": "Atomaがこの結果を確認した方法",
+  "runs.status.live": "ライブ"
 }

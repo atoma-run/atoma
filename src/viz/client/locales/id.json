@@ -1912,5 +1912,6 @@
   "result.workspaceFiles_one": "File proyek ({{count}} file)",
   "result.workspaceFiles_other": "File proyek ({{count}} file)",
   "result.workspaceFilesHint": "Hasil ini berupa jawaban teks. Ini adalah file proyek yang digunakan sebagai sumber; tidak ada file yang disertakan dalam hasil.",
-  "result.checks": "Cara Atoma memeriksa hasil ini"
+  "result.checks": "Cara Atoma memeriksa hasil ini",
+  "runs.status.live": "LANGSUNG"
 }

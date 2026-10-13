@@ -1912,5 +1912,6 @@
   "result.workspaceFiles_one": "پروجیکٹ فائلیں ({{count}} فائل)",
   "result.workspaceFiles_other": "پروجیکٹ فائلیں ({{count}} فائلیں)",
   "result.workspaceFilesHint": "یہ نتیجہ ایک متنی جواب ہے۔ یہ وہ پروجیکٹ فائلیں ہیں جن کی بنیاد پر اس نے کام کیا؛ یہ ان میں سے کوئی بھی فراہم نہیں کرتا۔",
-  "result.checks": "Atoma نے اس نتیجے کی جانچ کیسے کی"
+  "result.checks": "Atoma نے اس نتیجے کی جانچ کیسے کی",
+  "runs.status.live": "لائیو"
 }

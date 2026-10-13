@@ -1912,5 +1912,6 @@
   "result.workspaceFiles_one": "प्रोजेक्ट फ़ाइलें ({{count}} फ़ाइल)",
   "result.workspaceFiles_other": "प्रोजेक्ट फ़ाइलें ({{count}} फ़ाइलें)",
   "result.workspaceFilesHint": "यह परिणाम एक टेक्स्ट उत्तर है। ये वे प्रोजेक्ट फ़ाइलें हैं जिनके आधार पर इसने काम किया; यह इनमें से कोई भी फ़ाइल प्रदान नहीं करता।",
-  "result.checks": "Atoma ने इस परिणाम की जाँच कैसे की"
+  "result.checks": "Atoma ने इस परिणाम की जाँच कैसे की",
+  "runs.status.live": "लाइव"
 }

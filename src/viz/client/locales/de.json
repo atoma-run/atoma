@@ -1912,5 +1912,6 @@
   "result.workspaceFiles_one": "Projektdateien ({{count}} Datei)",
   "result.workspaceFiles_other": "Projektdateien ({{count}} Dateien)",
   "result.workspaceFilesHint": "Dieses Ergebnis ist eine Textantwort. Dies sind die Projektdateien, auf deren Grundlage sie erstellt wurde; keine davon wird ausgegeben.",
-  "result.checks": "So hat Atoma dieses Ergebnis geprüft"
+  "result.checks": "So hat Atoma dieses Ergebnis geprüft",
+  "runs.status.live": "LIVE"
 }

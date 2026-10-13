@@ -1912,5 +1912,6 @@
   "result.workspaceFiles_one": "Файлы проекта ({{count}} файл)",
   "result.workspaceFiles_other": "Файлы проекта (количество: {{count}})",
   "result.workspaceFilesHint": "Этот результат — текстовый ответ. Вот файлы проекта, на основе которых он подготовлен; сами файлы в него не входят.",
-  "result.checks": "Как Atoma проверила этот результат"
+  "result.checks": "Как Atoma проверила этот результат",
+  "runs.status.live": "В ЭФИРЕ"
 }
