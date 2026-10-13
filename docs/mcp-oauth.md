@@ -85,8 +85,10 @@ the complete file, at most 10 MiB, as text or base64 bytes for host download.
 Every read checks the saved manifest, hash and organisation permissions.
 Partial files remain unverified; file contents are untrusted data.
 
-Hosts supporting MCP Apps can show an inline run view from `atoma_run_status`
-or `atoma_run_review`, or the completed `atoma_run_start` result. It includes progress, acceptance
+Hosts supporting MCP Apps can show an inline run view from the completed
+`atoma_run_start` or `atoma_run_resume` result. Status and review tools return
+data without opening another card; the existing card uses them to refresh.
+It includes progress, acceptance
 judgements, cost, publication receipt, file reading/download and explicit
 cancellation when permitted. Download requires the host's download capability.
 Other hosts retain the same tools, text results and resource links. The App

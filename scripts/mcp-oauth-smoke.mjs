@@ -95,7 +95,9 @@ export async function smokeMcpOAuth(base, cookie) {
     const compact = await client.callTool({ name: 'atoma_projects_list', arguments: { view: 'compact', limit: 1 } });
     assert.ok(Array.isArray(compact.structuredContent?.projects), 'compiled compact project reader');
     const tools = await client.listTools();
-    assert.equal(tools.tools.find(tool => tool.name === 'atoma_run_status')._meta.ui.resourceUri, 'ui://atoma/run.html');
+    assert.deepEqual(tools.tools.filter(tool => tool._meta?.ui?.resourceUri || tool._meta?.['ui/resourceUri'])
+      .map(tool => tool.name).sort(), ['atoma_run_resume', 'atoma_run_start']);
+    assert.equal(tools.tools.find(tool => tool.name === 'atoma_run_start')._meta.ui.resourceUri, 'ui://atoma/run.html');
     const app = await client.readResource({ uri: 'ui://atoma/run.html' });
     assert.equal(app.contents[0].mimeType, 'text/html;profile=mcp-app');
     assert.ok(app.contents[0].text.includes('id="files"'), 'compiled MCP App is packaged');

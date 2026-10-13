@@ -5,7 +5,7 @@ import { registerAppResource, RESOURCE_MIME_TYPE } from '@modelcontextprotocol/e
 import { repoRoot } from './run.js';
 
 export const RUN_APP_URI = 'ui://atoma/run.html';
-/** Hosts negotiate the UI extension; others ignore this metadata and keep the full text result. */
+/** Only start/resume render a card. Readers must not create another card on every follow-up call. */
 export const RUN_APP_META = { ui: { resourceUri: RUN_APP_URI }, 'ui/resourceUri': RUN_APP_URI };
 
 export function registerRunApp(server: McpServer): void {

@@ -78,6 +78,31 @@ async function fixture(legacy = false, publisherFor?: (f: ReturnType<typeof proj
   return { ...f, service, coordinator, driver, client, call, url, setViewer: (v: typeof f.viewer) => { currentViewer = v; } };
 }
 
+it.each([false, true])('renders cards only for start/resume, keeping repeated readers data-only (legacy=%s)', async (legacy) => {
+  const f = await fixture(legacy);
+  const { run } = f.makeRun({ 'result.txt': 'Saved delivery' });
+  const ref = { projectId: f.project.projectId, runId: run.projectRunId };
+  const tools = (await f.client.listTools()).tools;
+  const rendersCard = (meta: Record<string, unknown> | undefined) => {
+    const ui = meta?.['ui'] as { resourceUri?: string } | undefined;
+    return ui?.resourceUri ?? meta?.['ui/resourceUri'] ?? meta?.['openai/outputTemplate'];
+  };
+  expect(tools.filter(tool => rendersCard(tool._meta)).map(tool => tool.name).sort())
+    .toEqual(['atoma_run_resume', 'atoma_run_start']);
+  for (const name of ['atoma_run_start', 'atoma_run_resume']) {
+    expect(rendersCard(tools.find(tool => tool.name === name)?._meta)).toBe('ui://atoma/run.html');
+  }
+  for (let read = 0; read < 2; read++) {
+    const status = await f.call('atoma_run_status', ref);
+    expect(status.structuredContent).toMatchObject({ projectRunId: run.projectRunId });
+    const review = await f.call('atoma_run_review', ref);
+    expect(review.structuredContent).toMatchObject({ run: { projectRunId: run.projectRunId } });
+    expect(rendersCard(status._meta)).toBeUndefined();
+    expect(rendersCard(review._meta)).toBeUndefined();
+  }
+  expect(f.driver).not.toHaveBeenCalled();
+});
+
 it('pages compact menus without full traces and preserves the legacy array text on both eras', async () => {
   const f = await fixture();
   const ids = [f.makeRun({ 'a.txt': 'a' }), f.makeRun({ 'b.txt': 'b' }), f.makeRun({ 'c.txt': 'c' })].map(item => item.run.projectRunId);

@@ -154,7 +154,10 @@ Neighbours:
   unavailable evidence is explicit, never a guessed percentage. Readiness
   resolves the launcher's existing configuration without admission or a
   provider request. Structured service errors include the next action.
-- MCP APPS is optional metadata on run start/status/review, with `ui://atoma/run.html`
+- MCP APPS is optional metadata on run start/resume only, with `ui://atoma/run.html`
+  as its resource. Status and review stay data-only: attaching UI metadata to
+  follow-up readers creates another card on every model call. The existing card
+  refreshes through those same readers over the Apps bridge. The resource is
   built by `mcp:build` into `dist/` and included in `build`. The official Apps
   SDK connects through the host; no credential or direct network access is
   embedded. The sandbox renders sanitized Markdown and highlighted source; raw HTML stays
