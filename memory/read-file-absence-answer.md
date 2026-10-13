@@ -17,4 +17,6 @@ Owner chose "absence = observation", reversing 2026-10-06's retained ENOENT: rea
 
 Sandbox follow-up (owner said yes, same day): `ToolSandbox.resolve` now walks links as the kernel does — libc realpath (`realpathSync.native`) on POSIX, and a DANGLING link followed to its raw unnormalized target. Three escapes proven by write_file landing outside, all closed and tested in tests/sandbox-security.test.ts: dangling link out; `a -> inner/../x` with `inner` out; EXISTING `up -> inner/..` (Node's JS realpath resolves link content as text — predated everything). Native realpath also removed macOS case false refusals.
 
-Still open: Windows keeps the JS realpath, so the existing-link `inner/..` escape remains there (no worker runs on Windows); `isProbeManifestPath` compares the resolved lexical path, so a link `alias.json -> .atoma-probes.json` bypasses the manifest hand-write refusal (not a jail escape).
+Closed the same day (owner: "corrige les points restés ouverts"): kernelRealpath is native on every platform (no win32 branch; both sides of the check share it, so a quirk refuses, never admits); `ToolSandbox.realPath` + inode + case-blind name make the manifest refusal hold under a symlink, dir link, hard link, dangling alias or case variant. run_shell can still write the manifest — the refusal steers, it is not a boundary.
+
+Test-isolation trap seen: tests/project-publisher "re-drives a failed publication" uses the MACHINE-GLOBAL run lock, so it fails (ProjectRunBusy) whenever a local project run is live — not a code regression.
