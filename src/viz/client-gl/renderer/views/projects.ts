@@ -39,19 +39,11 @@ const ROW_HEIGHT = 58;
 const PROJECT_BUTTON_HEIGHT = 46;
 const COMPACT_ROW_HEIGHT = ROW_HEIGHT;
 const COMPACT_PROJECT_PANEL_WIDTH = 400;
-const RUN_CARD_HEIGHT = 100;
-const RUN_COMPACT_CARD_HEIGHT = 140;
-const RUN_ROW_GAP = 14;
-/**
- * The Result control sits INSIDE the run's card, at its right edge beside the
- * date and status lines — the short ones — so it never truncates the title or
- * the metrics. It used to stand alone under the card, a second row per run
- * that read as belonging to the card below as much as to its own.
- */
-const RUN_RESULT_Y = 35;
-const RUN_RESULT_HEIGHT = 32;
-const RUN_RESULT_INSET = 12;
-const RUN_SECOND_LINE_EXTRA = 20;
+const RUN_ROW_GAP = 18;
+const RUN_CARD_PAD = 16;
+const RUN_RESULT_Y = 42;
+const RUN_RESULT_HEIGHT = 40;
+const RUN_SECOND_LINE_EXTRA = 28;
 const GITHUB_ACCESS_HEIGHT = 198;
 const PUBLICATION_RECOVERY_HEIGHT = 90;
 const STATUS_FONT_SIZE = 10;
@@ -154,18 +146,65 @@ function showsPartialGuidance(run: VizProjectRun, newest: boolean): boolean {
   return newest && run.status === 'partial' && !['paused', 'recoverable'].includes(run.checkpoint?.state ?? '');
 }
 
-function checkpointHeight(run: VizProjectRun): number { return run.checkpoint && run.checkpoint.state !== 'unavailable' ? 82 : 0; }
+/** Wrap explanatory copy against the same glyph metrics used to draw it. */
+function runCopyLines(ctx: RendererCtx, copy: string, width: number): string[] {
+  const lines: string[] = [];
+  let rest = copy.replace(/\s+/g, ' ').trim();
+  while (rest) {
+    if (ctx.measureText(rest, { size: 12 }) <= width) { lines.push(rest); break; }
+    const fitted = ctx.fitText(rest, width, { size: 12 }).replace(/…$/, '');
+    const boundary = fitted.lastIndexOf(' ');
+    const length = Math.max(1, boundary > 0 ? boundary : fitted.length);
+    lines.push(rest.slice(0, length));
+    rest = rest.slice(length).trimStart();
+  }
+  return lines;
+}
 
-function runRowHeight(run: VizProjectRun, compact = false, newest = false): number {
-  if (pendingGitHubAccess(run)) return (run.traceId ? (compact ? RUN_COMPACT_CARD_HEIGHT : RUN_CARD_HEIGHT) : 82) + GITHUB_ACCESS_HEIGHT + RUN_ROW_GAP;
-  const hasSecondLine = Boolean(
-    run.status === 'queued' || showsPartialGuidance(run, newest) ||
-    (run.error && run.status !== 'partial') ||
-    (run.publication?.status === 'published' && run.publication.pullRequestUrl)
-  );
-  return (compact ? RUN_COMPACT_CARD_HEIGHT : RUN_CARD_HEIGHT) + RUN_ROW_GAP +
-    (run.publication?.status === 'failed' ? PUBLICATION_RECOVERY_HEIGHT : 0) +
-    (hasSecondLine ? RUN_SECOND_LINE_EXTRA : 0) + checkpointHeight(run);
+/** One measured layout owns the frame, its contents and the scroll extent. */
+function runCardLayout(ctx: RendererCtx, snapshot: GpuRenderSnapshot, run: VizProjectRun, width: number, newest: boolean) {
+  const textWidth = Math.max(1, width - RUN_CARD_PAD * 2);
+  const metrics = [
+    run.durationS == null ? '—' : fmtMs(run.durationS * 1000),
+    snapshot.t('projects.runTokens', { value: run.tokens?.toLocaleString(snapshot.state.locale) ?? '—' }),
+    snapshot.t('projects.runLlmCalls', { value: run.llmCalls?.toLocaleString(snapshot.state.locale) ?? '—' }),
+    snapshot.t('projects.runJevCalls', { value: run.jevCalls == null ? '—'
+      : (run.jevCallsLowerBound ? '≥ ' : '') + run.jevCalls.toLocaleString(snapshot.state.locale) }),
+  ];
+  const metricRows: string[] = [];
+  if (pendingGitHubAccess(run)?.phase !== 'run') {
+    for (const metric of metrics) {
+      const last = metricRows.at(-1);
+      const joined = last ? last + ' · ' + metric : metric;
+      if (last && ctx.measureText(joined, { size: 12 }) <= textWidth) metricRows[metricRows.length - 1] = joined;
+      else metricRows.push(metric);
+    }
+  }
+  const resultLabel = snapshot.t('result.title');
+  const resultWidth = run.traceId ? Math.min(textWidth,
+    Math.ceil(ctx.measureText(resultLabel, { size: 11, weight: '600' })) + BUTTON_LABEL_INSET * 2 + BUTTON_ICON_SPACE) : 0;
+  // On a narrow card actions get their own row; metadata keeps its full width.
+  const stackedResult = width < 440;
+  const metricsY = 98;
+  const resultY = stackedResult ? metricsY + metricRows.length * 24 + 4 : RUN_RESULT_Y;
+  const baseHeight = (stackedResult && resultWidth ? resultY + RUN_RESULT_HEIGHT : metricsY + metricRows.length * 24) + RUN_CARD_PAD;
+  const hasSecondLine = Boolean(run.status === 'queued' || showsPartialGuidance(run, newest) ||
+    (run.error && run.status !== 'partial' && !run.githubAccess) ||
+    (run.publication?.status === 'published' && run.publication.pullRequestUrl));
+  const checkpointCopy = run.checkpoint && run.checkpoint.state !== 'unavailable'
+    ? snapshot.t('projects.checkpoint.progress', { completed: run.checkpoint.completed, total: run.checkpoint.total }) : null;
+  const checkpointLines = checkpointCopy ? runCopyLines(ctx, checkpointCopy, textWidth) : [];
+  const progress = snapshot.data.githubRecovery?.runId === run.projectRunId ? snapshot.data.githubRecovery : null;
+  const checkpointMessage = checkpointCopy ? progress?.message ?? (run.checkpoint?.reason ? snapshot.t(`projects.checkpoint.reason.${run.checkpoint.reason}`) : null) : null;
+  const messageLines = checkpointMessage ? runCopyLines(ctx, checkpointMessage, textWidth) : [];
+  const checkpointHeight = checkpointLines.length ? 16 + checkpointLines.length * 20 + 12 + 40 +
+    (messageLines.length ? 12 + messageLines.length * 20 : 0) + RUN_CARD_PAD : 0;
+  const recoveryHeight = pendingGitHubAccess(run) ? GITHUB_ACCESS_HEIGHT : run.publication?.status === 'failed' ? PUBLICATION_RECOVERY_HEIGHT : 0;
+  const recoveryY = baseHeight + (hasSecondLine ? RUN_SECOND_LINE_EXTRA : 0);
+  const checkpointY = recoveryY + recoveryHeight;
+  const height = checkpointY + checkpointHeight;
+  return { height, baseHeight, metrics, metricRows, metricsY, resultLabel, resultWidth, resultY, stackedResult,
+    recoveryY, checkpointY, checkpointLines, messageLines, textWidth };
 }
 
 const STATUS_COLORS: Record<string, number> = {
@@ -259,7 +298,7 @@ export function projectLayout(
   viewportWidth: number,
   projectCount: number,
   selectedIndex: number,
-  selectedRuns: readonly VizProjectRun[],
+  selectedRunHeights: readonly number[],
   /** A narrower column, when the project overview takes the right of the frame. */
   columnWidth?: number
 ) {
@@ -274,14 +313,12 @@ export function projectLayout(
     if (projectHidden(index, selectedIndex)) continue;
     cursor += projectRowHeight(compactRunRows, index === selectedIndex);
     if (index !== selectedIndex) continue;
-    if (selectedRuns.length === 0) {
+    if (selectedRunHeights.length === 0) {
       cursor += 24;
       continue;
     }
     cursor += RUNS_HEADING_HEIGHT;
-    selectedRuns.forEach((run, runIndex) => {
-      cursor += runRowHeight(run, compactRunRows, runIndex === 0);
-    });
+    selectedRunHeights.forEach(height => { cursor += height + RUN_ROW_GAP; });
   }
   const contentBottom = cursor + 20;
   return { x, panelWidth, listTop, contentBottom };
@@ -304,8 +341,7 @@ export function projectsGuideLayoutHeight(snapshot: GpuRenderSnapshot, width: nu
   if (!assistant || collapsed || snapshot.state.projectAssistantCompact) return base;
   const available = Math.max(0, frame.bottom - VIEW_FRAME_PAD - guideTop);
   if (selected) return available;
-  const runs = selected ? snapshot.data.projectRuns?.[projects[selectedIndex]!.projectId] ?? [] : [];
-  const listHeight = projectLayout(width, projects.length, selectedIndex, runs).contentBottom + PROJECTS_LIST_BOTTOM_PADDING;
+  const listHeight = projectLayout(width, projects.length, selectedIndex, []).contentBottom + PROJECTS_LIST_BOTTOM_PADDING;
   // Short lists keep only the space they use. Longer lists retain a visible
   // band below the conversation and scroll independently.
   const reserved = Math.min(listHeight, Math.max(180, available * 0.35));
@@ -638,7 +674,9 @@ export function drawProjects(
     ? projects.findIndex((project) => project.projectId === selectedProject.projectId)
     : -1;
   const selectedRuns = selectedIndex >= 0 ? expandedRunList[selectedIndex] ?? [] : [];
-  const viewportLayout = projectLayout(width, projects.length, selectedIndex, selectedRuns, aside?.mainWidth);
+  const cardWidth = Math.max(1, (aside?.mainWidth ?? projectsColumn(width).width) - 52);
+  const runLayouts = selectedRuns.map((run, index) => runCardLayout(ctx, snapshot, run, cardWidth, index === 0));
+  const viewportLayout = projectLayout(width, projects.length, selectedIndex, runLayouts.map(run => run.height), aside?.mainWidth);
   // Narrow frames have no room for the column: the overview heads the Runs list.
   const overviewHeight = selectedProject && !aside && snapshot.state.projectSection === 'runs'
     ? drawProjectOverviewCard(ctx, snapshot, pane.content, selectedProject, viewportLayout.x - frame.x, 0, viewportLayout.panelWidth) + 16
@@ -769,18 +807,15 @@ export function drawProjects(
       cursor += RUNS_HEADING_HEIGHT;
       runs.forEach((run, runIndex) => {
         const newest = runIndex === 0;
-        const rowHeight = runRowHeight(run, compactRunRows, newest);
+        const card = runLayouts[runIndex]!;
+        const rowHeight = card.height + RUN_ROW_GAP;
         const access = pendingGitHubAccess(run);
-        const cardHeight = rowHeight - checkpointHeight(run) - RUN_ROW_GAP -
-          (access ? GITHUB_ACCESS_HEIGHT : run.publication?.status === 'failed' ? PUBLICATION_RECOVERY_HEIGHT : 0);
-        const goalWidth = Math.max(0, layout.panelWidth - 52);
-        const textX = runColumnX + BUTTON_LABEL_INSET;
-        const textWidth = goalWidth - BUTTON_LABEL_INSET * 2;
-        const resultLabel = snapshot.t('result.title');
-        const resultWidth = run.traceId
-          ? Math.ceil(ctx.measureText(resultLabel, { size: 11, weight: '600' })) + BUTTON_LABEL_INSET * 2 + BUTTON_ICON_SPACE : 0;
-        // The date and status lines share the card's right edge with Result.
-        const besideResultWidth = resultWidth ? Math.max(0, textWidth - resultWidth - RUN_RESULT_INSET) : textWidth;
+        const cardHeight = card.height;
+        const goalWidth = cardWidth;
+        const textX = runColumnX + RUN_CARD_PAD;
+        const { textWidth, resultLabel, resultWidth, metrics, metricRows } = card;
+        const besideResultWidth = resultWidth && !card.stackedResult
+          ? Math.max(0, textWidth - resultWidth - 16) : textWidth;
         const rail = new Graphics();
         const railX = runColumnX - 12;
         rail.moveTo(railX, cursor + (newest ? 16 : -RUN_ROW_GAP));
@@ -794,45 +829,37 @@ export function drawProjects(
           : statusLabel(snapshot.t, run.status, 'projects.runStatus');
         const cost = run.costUsd === null ? '' : ' · ' + runCost(run.costUsd);
         const date = relativeTime(run.createdAt, snapshot.t, snapshot.state.locale) || run.createdAt;
-        const metrics = [
-          run.durationS == null ? '—' : fmtMs(run.durationS * 1000),
-          snapshot.t('projects.runTokens', { value: run.tokens?.toLocaleString(snapshot.state.locale) ?? '—' }),
-          snapshot.t('projects.runLlmCalls', { value: run.llmCalls?.toLocaleString(snapshot.state.locale) ?? '—' }),
-          snapshot.t('projects.runJevCalls', { value: run.jevCalls == null ? '—'
-            : (run.jevCallsLowerBound ? '≥ ' : '') + run.jevCalls.toLocaleString(snapshot.state.locale) }),
-        ];
         const runTitle = run.title ?? run.goal.replace(/\s+/g, ' ');
         if (run.traceId) {
           ctx.button(pane.content, 'project.run.' + run.traceId, 'button',
             // The short title once the run was named; the bubble keeps the whole goal.
             runTitle, runColumnX, cursor, goalWidth, cardHeight,
-            false, snapshot.onActivate, GPU_COLORS.primary, false, false, undefined, 9,
+            false, snapshot.onActivate, GPU_COLORS.primary, false, false, undefined, 16,
             [run.goal, date, statusText + cost, ...metrics].join(' · '));
         } else {
           // A run that failed during preparation has no trace for /api/runs/:id.
           // Keep its status and error here without offering a link that 404s.
-          ctx.text(pane.content, runTitle, runColumnX, cursor + 9,
-            { size: 13, color: GPU_COLORS.text, width: goalWidth, singleLine: true });
+          ctx.panel(pane.content, runColumnX, cursor, goalWidth, cardHeight, GPU_COLORS.panelRaised, GPU_COLORS.border, 7);
+          ctx.text(pane.content, runTitle, textX, cursor + 16,
+            { size: 13, weight: '600', color: GPU_COLORS.text, width: textWidth, singleLine: true });
           ctx.tooltip(pane.content, { x: runColumnX, y: cursor, width: goalWidth,
             height: cardHeight, text: [run.goal, run.error, statusText].filter(Boolean).join(' · ') });
         }
-        ctx.text(pane.content, date, textX, cursor + 32,
+        ctx.text(pane.content, date, textX, cursor + 44,
           { size: 12, color: GPU_COLORS.muted, width: besideResultWidth, singleLine: true });
         const exact = timestampTooltip(run.createdAt, snapshot.state.locale);
-        if (exact) ctx.tooltip(pane.content, { x: textX, y: cursor + 32, width: besideResultWidth, height: 18, text: exact });
-        ctx.text(pane.content, statusText + cost, textX, cursor + 54,
+        if (exact) ctx.tooltip(pane.content, { x: textX, y: cursor + 44, width: besideResultWidth, height: 18, text: exact });
+        ctx.text(pane.content, statusText + cost, textX, cursor + 68,
           { size: 12, color: access ? GPU_COLORS.warning : statusColor(run.status), width: besideResultWidth, singleLine: true });
-        const metricRows = compactRunRows ? [metrics.slice(0, 2), metrics.slice(2, 3), metrics.slice(3)] : [metrics];
-        (access?.phase === 'run' ? [] : metricRows).forEach((values, metricIndex) => {
-          const copy = values.join(' · ');
-          const metricY = cursor + 76 + metricIndex * 20;
+        metricRows.forEach((copy, metricIndex) => {
+          const metricY = cursor + card.metricsY + metricIndex * 24;
           ctx.text(pane.content, copy, textX, metricY,
             { size: 12, color: GPU_COLORS.muted, width: textWidth, singleLine: true });
-          const tooltip = run.jevCallsLowerBound && (!compactRunRows || metricIndex === metricRows.length - 1)
+          const tooltip = run.jevCallsLowerBound && metricIndex === metricRows.length - 1
             ? copy + '\n' + snapshot.t('projects.runJevCallsLowerBound') : copy;
           ctx.tooltip(pane.content, { x: textX, y: metricY, width: textWidth, height: 18, text: tooltip });
         });
-        const extraY = cursor + (compactRunRows ? RUN_COMPACT_CARD_HEIGHT : RUN_CARD_HEIGHT);
+        const extraY = cursor + card.baseHeight;
         if (run.publication?.status === 'published' && run.publication.pullRequestUrl) {
           ctx.text(pane.content, snapshot.t('projects.pullRequest'), textX, extraY,
             { size: 9, color: GPU_COLORS.primary, width: textWidth, singleLine: true });
@@ -854,17 +881,17 @@ export function drawProjects(
         if (run.traceId) {
           // Drawn after the card, so it is the topmost target where they overlap.
           ctx.button(pane.content, `result.open.${run.traceId}`, 'button', resultLabel,
-            runColumnX + goalWidth - RUN_RESULT_INSET - resultWidth, cursor + RUN_RESULT_Y,
+            card.stackedResult ? textX : runColumnX + goalWidth - RUN_CARD_PAD - resultWidth, cursor + card.resultY,
             resultWidth, RUN_RESULT_HEIGHT, false, snapshot.onActivate);
         }
         if (!access && run.publication?.status === 'failed') {
-          const retryY = cursor + rowHeight - PUBLICATION_RECOVERY_HEIGHT - RUN_ROW_GAP;
+          const retryY = cursor + card.recoveryY;
           const progress = snapshot.data.githubRecovery?.runId === run.projectRunId ? snapshot.data.githubRecovery : null;
           const busy = progress?.busy;
           ctx.text(pane.content, snapshot.t('projects.githubAccess.savedResult'), textX, retryY,
             { size: 11, color: GPU_COLORS.warning, width: textWidth, singleLine: true });
           ctx.button(pane.content, `project.githubRetry.${run.projectRunId}`, 'button', snapshot.t(busy ? 'projects.githubAccess.checking' : 'projects.githubAccess.retryPublication'),
-            runColumnX, retryY + 22, goalWidth, 40, false, snapshot.onActivate, GPU_COLORS.primary,
+            textX, retryY + 22, textWidth, 40, false, snapshot.onActivate, GPU_COLORS.primary,
             false, !!busy, undefined, undefined, undefined, !!busy || !canRetryPublication(run, snapshot.data.auth));
           if (progress?.message) {
             ctx.text(pane.content, progress.message, textX, retryY + 66, { size: 10, color: GPU_COLORS.warning, width: textWidth, singleLine: true });
@@ -872,7 +899,7 @@ export function drawProjects(
           }
         }
         if (access) {
-          const actionY = cursor + rowHeight - GITHUB_ACCESS_HEIGHT - RUN_ROW_GAP;
+          const actionY = cursor + card.recoveryY;
           const progress = snapshot.data.githubRecovery?.runId === run.projectRunId ? snapshot.data.githubRecovery : null;
           const canContinue = canContinueGitHubAccess(run, snapshot.data.auth);
           const copy = snapshot.t(access.phase === 'run' ? 'projects.githubAccess.savedRequest' : 'projects.githubAccess.savedResult');
@@ -886,10 +913,10 @@ export function drawProjects(
           ctx.text(pane.content, snapshot.t('projects.githubAccess.selection'), textX, actionY + 42,
             { size: 11, color: GPU_COLORS.muted, width: textWidth, singleLine: true });
           ctx.button(pane.content, `project.githubAuthorize.${run.projectRunId}`, 'button', snapshot.t('projects.githubAccess.authorize'),
-            runColumnX, actionY + 66, goalWidth, 40, false, snapshot.onActivate);
+            textX, actionY + 66, textWidth, 40, false, snapshot.onActivate);
           ctx.button(pane.content, `project.githubContinue.${run.projectRunId}`, 'button',
             snapshot.t(progress?.busy ? 'projects.githubAccess.checking' : access.phase === 'run' ? 'projects.githubAccess.continue' : 'projects.githubAccess.publish'),
-            runColumnX, actionY + 114, goalWidth, 40, false, snapshot.onActivate, GPU_COLORS.primary,
+            textX, actionY + 114, textWidth, 40, false, snapshot.onActivate, GPU_COLORS.primary,
             false, !!progress?.busy, undefined, undefined, undefined, !!progress?.busy || !canContinue);
           const notice = progress?.message ?? (!canContinue ? snapshot.t('projects.githubAccess.requesterOnly') : '');
           if (notice) {
@@ -897,19 +924,23 @@ export function drawProjects(
             ctx.tooltip(pane.content, { x: textX, y: actionY + 164, width: textWidth, height: 18, text: notice });
           }
         }
-        if (checkpointHeight(run)) {
-          const y = cursor + rowHeight - checkpointHeight(run) - RUN_ROW_GAP;
+        if (card.checkpointLines.length) {
+          const y = cursor + card.checkpointY;
+          const divider = new Graphics().moveTo(textX, y).lineTo(textX + textWidth, y)
+            .stroke({ color: GPU_COLORS.border, width: 1 });
+          pane.content.addChild(divider);
           const progress = snapshot.data.githubRecovery?.runId === run.projectRunId ? snapshot.data.githubRecovery : null;
-          const key = checkpointActionKey(run);
-          ctx.text(pane.content, snapshot.t('projects.checkpoint.progress', { completed: run.checkpoint!.completed, total: run.checkpoint!.total }),
-            textX, y, { size: 10, color: GPU_COLORS.muted });
-          ctx.button(pane.content, `project.checkpoint.${run.projectRunId}`, 'button', snapshot.t(key),
-            runColumnX, y + 20, Math.min(260, goalWidth), 28,
+          const label = snapshot.t(checkpointActionKey(run));
+          card.checkpointLines.forEach((line, index) => ctx.text(pane.content, line, textX, y + 16 + index * 20,
+            { size: 12, color: GPU_COLORS.muted, width: textWidth, singleLine: true }));
+          const actionY = y + 16 + card.checkpointLines.length * 20 + 12;
+          const actionWidth = Math.min(textWidth, Math.ceil(ctx.measureText(label, { size: 11, weight: '600' })) + BUTTON_LABEL_INSET * 2 + BUTTON_ICON_SPACE);
+          ctx.button(pane.content, `project.checkpoint.${run.projectRunId}`, 'button', label,
+            textX, actionY, actionWidth, 40,
             false, snapshot.onActivate, GPU_COLORS.primary, false, !!progress?.busy, undefined, undefined, undefined,
             !canControlCheckpoint(run, snapshot.data.auth) || !!progress?.busy);
-          const message = progress?.message ?? (run.checkpoint?.reason ? snapshot.t(`projects.checkpoint.reason.${run.checkpoint.reason}`) : null);
-          if (message) ctx.text(pane.content, message, textX, y + 54,
-            { size: 10, color: GPU_COLORS.warning, width: textWidth, singleLine: true });
+          card.messageLines.forEach((line, index) => ctx.text(pane.content, line, textX, actionY + 52 + index * 20,
+            { size: 12, color: GPU_COLORS.warning, width: textWidth, singleLine: true }));
         }
         cursor += rowHeight;
       });

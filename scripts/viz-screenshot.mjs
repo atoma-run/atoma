@@ -33,6 +33,7 @@
  *   --assistant-model-probe Change model and prove retention across reload.
  *   --assistant-links-probe Verify compact receipt buttons and their destinations
  *                        (with --auth --select-first --url <frontend URL>).
+ *   --project-run-cards  Running and paused cards in the selected project Runs tab.
  *   --project-tabs-probe Switch between Conversation and Runs, preserving a draft
  *                        (with --auth --select-first --assistant-history).
  *   --assistant-own-agent Open the external guide, check its usable height
@@ -99,6 +100,7 @@ if (assistantLinksProbe && (!authed || !selectFirst || !arg('--url'))) {
   throw new Error('--assistant-links-probe needs --auth --select-first --url <frontend URL>');
 }
 const projectTabsProbe = has('--project-tabs-probe');
+const projectRunCards = has('--project-run-cards');
 const overviewProbe = has('--overview-probe');
 const filesProbe = has('--files-probe');
 // A running app preview, so its controls (open, stop) are drawn.
@@ -266,6 +268,15 @@ function gatedStubs() {
     requestedByName: index % 2 ? 'Grace Hopper' : 'Ada Lovelace',
     costBreakdown: costUsd === null ? null : stubCostBreakdown(costUsd, index),
   }));
+  if (projectRunCards) {
+    Object.assign(runs[0], { orgId: 'org-a', requestedByPrincipalId: principalId, status: 'running', costUsd: 0.17, durationS: null, tokens: 51580, llmCalls: 5, jevCalls: 6,
+      createdAt: new Date().toISOString(), endedAt: null, publication: null,
+      goal: 'Finish correcting the existing collector from the saved partial run, addressing three independently reproduced defects while preserving working features and existing tests.',
+      checkpoint: { state: 'running', completed: 0, total: 3 } });
+    Object.assign(runs[1], { orgId: 'org-a', requestedByPrincipalId: principalId, status: 'partial', error: null, publication: null,
+      goal: 'Correct the collector: request handling, normalization and CSV tests',
+      checkpoint: { state: 'paused', completed: 2, total: 3 } });
+  }
   if (resultArtwork) Object.assign(runs[0], {
     traceId: 'run-fixture', goal: artworkGoal,
     artifactManifest: { version: 1, source: 'workspace', totalBytes: 16000,
@@ -1153,9 +1164,29 @@ try {
       await page.evaluate(() => new Promise((resolveWait) => setTimeout(resolveWait, 800)));
     }
 
-    if (view === 'Projects' && selectFirst && (githubAccessProbe || has('--github-access') || showResult || has('--touch-probe'))) {
-      await page.$eval('#project-tab-runs', tab => tab.click());
+    if (view === 'Projects' && selectFirst && (projectRunCards || githubAccessProbe || has('--github-access') || showResult || has('--touch-probe'))) {
+      if (projectRunCards) {
+        const point = await page.evaluate(() => {
+          const handle = globalThis.__ATOMA_GPU__;
+          const tab = handle.hitTargets().find(entry => entry.id === 'project.section.runs');
+          return handle.projectRendererPoint(tab.x + tab.width / 2, tab.y + tab.height / 2);
+        });
+        await page.mouse.click(point.x, point.y);
+      } else await page.$eval('#project-tab-runs', tab => tab.click());
       await page.waitForFunction(() => document.querySelector('.gpu-project-mcp')?.hidden);
+    }
+    if (projectRunCards) {
+      if (await page.$('.gpu-push-prompt-actions button:last-child')) await page.click('.gpu-push-prompt-actions button:last-child');
+      if (width < 900) {
+        const point = await page.evaluate(() => {
+          const handle = globalThis.__ATOMA_GPU__;
+          const toggle = handle.hitTargets().find(entry => entry.id === 'project.overview.toggle');
+          return handle.projectRendererPoint(toggle.x + toggle.width / 2, toggle.y + toggle.height / 2);
+        });
+        await page.mouse.click(point.x, point.y);
+      }
+      await page.mouse.move(0, 0);
+      await page.evaluate(() => new Promise(resolveWait => setTimeout(resolveWait, 500)));
     }
     if (githubAccessProbe) {
       const id = 'project.githubContinue.cccccccc-1111-4222-8333-dddddddddd10';

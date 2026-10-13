@@ -2698,7 +2698,7 @@ describe('drawProjects', () => {
       expect(button).toBeDefined();
       expect(!!button.disabled).toBe(blocked);
       expect(button.width).toBeLessThan(width);
-      if (blocked) expect(ctx.texts.some(text => text.value === t('projects.checkpoint.reason.external_effect'))).toBe(true);
+      if (blocked) expect(ctx.texts.map(text => text.value).join(' ')).toContain(t('projects.checkpoint.reason.external_effect'));
     }
   });
 
@@ -3230,7 +3230,7 @@ describe('drawProjects', () => {
     expect(linkOrigin.x + repositoryLink.width).toBeLessThanOrEqual(rightEdge);
     expect(status.node.anchor.x).toBe(0);
     const verdict = ctx.texts.find((text) => String(text.value).startsWith('delivered'));
-    expect(verdict!.parent.toGlobal({ x: verdict!.x, y: verdict!.y }).x).toBe(column.x + 34 + BUTTON_LABEL_INSET);
+    expect(verdict!.parent.toGlobal({ x: verdict!.x, y: verdict!.y }).x).toBe(column.x + 34 + 16);
     expect(verdict!.node.anchor.x).toBe(0);
     expect(rightEdge).toBeGreaterThan(staleCap);
     expect(ctx.texts.some((text) => text.value === 'atoma-org/weather-lab')).toBe(false);
@@ -3542,7 +3542,7 @@ describe('drawProjects', () => {
 
   // Result belongs to its run: inside the card, at its right edge beside the
   // short date and status lines, never a free-standing row under the card.
-  it('puts each run\'s Result inside its card, beside the date and status lines', () => {
+  it('keeps Result inside its card, beside metadata or on its own row when narrow', () => {
     const project = guidanceProject();
     const run = (index: number, traceId: string | null) => ({
       projectId: project.projectId, projectRunId: `run-${index}`, traceId,
@@ -3566,17 +3566,56 @@ describe('drawProjects', () => {
         expect(result.y).toBeGreaterThan(card.y + 26);
         expect(result.y + result.height).toBeLessThanOrEqual(card.y + card.height);
         // The lines beside it stop short of it; the metrics below run full width.
-        for (const offset of [32, 54]) {
+        for (const offset of [44, 68]) {
           const line = ctx.texts.find(text => text.parent === card.parent && text.y === card.y + offset)!;
-          expect(line.x + (line.options as { width: number }).width).toBeLessThan(result.x);
+          if (width > 440) expect(line.x + (line.options as { width: number }).width).toBeLessThan(result.x);
+          else expect(line.y + 18).toBeLessThan(result.y);
         }
-        const metrics = ctx.texts.find(text => text.parent === card.parent && text.y === card.y + 76)!;
-        expect(metrics.y).toBeGreaterThanOrEqual(result.y + result.height);
+        const metrics = ctx.texts.find(text => text.parent === card.parent && text.y === card.y + 98)!;
+        if (width > 440) expect(metrics.y).toBeGreaterThanOrEqual(result.y + result.height);
+        else expect(metrics.y + 18).toBeLessThan(result.y);
       }
       // No row is reserved under a card any more: the next card follows the gap.
-      expect(cards[1]!.y).toBe(cards[0]!.y + cards[0]!.height + 14);
+      expect(cards[1]!.y).toBe(cards[0]!.y + cards[0]!.height + 18);
       expect(ctx.buttons.some(button => button.id === 'result.open.null')).toBe(false);
     }
+  });
+
+  it.each([320, 528, 1000, 1600])('contains checkpoint copy and actions in each measured card at width %s', width => {
+    const project = guidanceProject();
+    const runs: VizProjectRun[] = ['running', 'paused', 'blocked', 'recoverable'].map((state, index) => ({
+      projectId: project.projectId, projectRunId: `checkpoint-${index}`, traceId: `checkpoint-trace-${index}`,
+      goal: 'Finish the existing collector, preserving its data and all working behaviour. '.repeat(4),
+      status: index === 0 ? 'running' : 'partial', costUsd: 0.17, durationS: null,
+      tokens: 51580, llmCalls: 5, jevCalls: 6, error: null,
+      createdAt: '2026-10-13T00:00:00.000Z', endedAt: null, publication: null,
+      checkpoint: { state: state as 'running' | 'paused' | 'blocked' | 'recoverable', completed: index, total: 4,
+        ...(state === 'blocked' ? { reason: 'external_effect' as const } : {}) },
+    }));
+    const ctx = createRecordingCtx();
+    drawProjects(ctx, makeSnapshot({ view: 'projects', selectedProjectId: project.projectId, projectSection: 'runs' }, {
+      auth: makeAuth(), projects: [project], projectRuns: { [project.projectId]: runs },
+      githubRecovery: { runId: 'checkpoint-3', busy: false, message: 'The saved checkpoint is available. '.repeat(12) },
+    }), width, 900);
+    const cards = runs.map(run => ctx.buttons.find(button => button.id === `project.run.${run.traceId}`)!);
+    cards.forEach((card, index) => {
+      const action = ctx.buttons.find(button => button.id === `project.checkpoint.checkpoint-${index}`)!;
+      expect(action.x).toBeGreaterThanOrEqual(card.x + 16);
+      expect(action.x + action.width).toBeLessThanOrEqual(card.x + card.width - 16);
+      expect(action.y + action.height).toBeLessThanOrEqual(card.y + card.height - 16);
+      const copy = ctx.texts.filter(text => text.parent === card.parent && text.y >= card.y && text.y < card.y + card.height);
+      expect(copy.map(text => text.value).join(' ')).toContain(t('projects.checkpoint.progress', { completed: index, total: 4 }));
+      for (const line of copy) {
+        const options = line.options as { width: number; size: number };
+        expect(line.x + options.width).toBeLessThanOrEqual(card.x + card.width - 16);
+        expect(line.y + options.size * 1.35).toBeLessThanOrEqual(card.y + card.height - 8);
+      }
+      if (index > 0) expect(card.y).toBe(cards[index - 1]!.y + cards[index - 1]!.height + 18);
+    });
+    // Wrapped recovery text participates in scrolling; the last card is reachable.
+    const last = cards.at(-1)!;
+    const lastBottom = last.parent.toGlobal({ x: last.x, y: last.y + last.height }).y;
+    expect(ctx.scrollMax.projects).toBeGreaterThanOrEqual(lastBottom - viewFrame(width, 900).bottom);
   });
 
   it('keeps all five project sections available when files or delivered results are absent', () => {
@@ -3726,7 +3765,7 @@ describe('drawProjects', () => {
       if (lowerBound) expect(ctx.tooltips.some(tooltip => tooltip.text.includes('Minimum confirmed'))).toBe(true);
       expect(metrics.value).toContain('Tokens: 12,500');
       expect(metrics.value).toContain('LLM calls: 7');
-      expect(metrics.x).toBe(card.x + BUTTON_LABEL_INSET);
+      expect(metrics.x).toBe(card.x + 16);
       expect(metrics.y).toBeGreaterThan(card.y + 30);
       expect(metrics.y + 12).toBeLessThan(card.y + card.height);
       expect(ctx.tooltips.length).toBeGreaterThanOrEqual(2);
@@ -3820,7 +3859,7 @@ describe('drawProjects', () => {
           x: secondLine!.x,
           y: secondLine!.y,
         }).x;
-        expect(secondLineLeft).toBe(titleLeft + BUTTON_LABEL_INSET);
+        expect(secondLineLeft).toBe(titleLeft + 16);
       }
     }
   });
