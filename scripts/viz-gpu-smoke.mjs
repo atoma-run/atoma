@@ -2660,6 +2660,7 @@ try {
       await waitForHitTarget(accountPage, 'result.details', 'Latest result scene did not replace the preview');
       await assertProjectRepository('Latest delivered results');
       await clickAccountTarget('project.section.conversation');
+      await accountPage.waitForSelector('.gpu-project-mcp-own-agent > summary', { visible: true });
       await accountPage.click('.gpu-project-mcp-own-agent > summary');
       await accountPage.waitForSelector('.gpu-project-mcp-own-agent[open] .gpu-project-mcp-actions input[type="checkbox"]', { visible: true });
       console.log('Project repository ok: real canvas link remains clickable in all five tabs');
@@ -2702,7 +2703,8 @@ try {
         }, checkpointTarget);
         if (point.y < point.height - 50) break;
         await accountPage.mouse.move(point.x, point.height - 100);
-        await accountPage.mouse.wheel({ deltaY: 180 });
+        // Follow the measured target: wrapped copy changes the card's height.
+        await accountPage.mouse.wheel({ deltaY: Math.max(180, point.y - (point.height - 120)) });
         await new Promise(resolve => setTimeout(resolve, 300));
       }
       await clickAccountTarget(checkpointTarget);
