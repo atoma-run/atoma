@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, lstatSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, lstatSync, statSync } from 'node:fs';
 import { basename, dirname, join, relative, sep } from 'node:path';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createServer as createNetServer } from 'node:net';
@@ -295,7 +295,17 @@ function manifestHandWriteRefusal(tool: 'write_file' | 'edit_file'): string {
 function isProbeManifestPath(sandbox: ToolSandbox, path: string): boolean {
   if (path === PROBE_MANIFEST_FILENAME) return true;
   try {
-    return sandbox.resolve(path) === sandbox.resolve(PROBE_MANIFEST_FILENAME);
+    // Compared where the write LANDS, links followed: comparing spellings let
+    // `alias.json -> .atoma-probes.json` past the refusal (review 2026-10-13).
+    const real = sandbox.realPath(path);
+    const manifest = sandbox.realPath(PROBE_MANIFEST_FILENAME);
+    // Case-blind on the name: on macOS and Windows `.ATOMA-PROBES.json`
+    // CREATES the manifest while it is absent (review). On Linux that also
+    // refuses a distinct file so named — a refusal, never an admission.
+    if (dirname(real) === dirname(manifest) && basename(real).toLowerCase() === basename(manifest).toLowerCase()) return true;
+    // A hard link is the same file under another name.
+    const [a, b] = [statSync(real, { throwIfNoEntry: false }), statSync(manifest, { throwIfNoEntry: false })];
+    return a !== undefined && b !== undefined && a.isFile() && a.dev === b.dev && a.ino === b.ino;
   } catch {
     // A path the sandbox refuses to resolve is not the manifest; the file
     // op itself will surface the real containment error.

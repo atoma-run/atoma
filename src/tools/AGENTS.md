@@ -24,8 +24,10 @@ Neighbours:
   never Node's JS one, which resolves a link's content as text (`up ->
   inner/..` read as the workspace); and a DANGLING link is followed to its
   raw, unnormalized target instead of reading as a not-yet-created path.
-  Windows keeps the JS realpath, so the existing-link escape stays open there;
-  no worker runs on Windows.
+  Every platform, Windows included: both sides of the check use the one
+  `kernelRealpath`, so a platform quirk can refuse, never admit.
+  `ToolSandbox.realPath` exposes where a write lands; a file identity check
+  compares that (and the inode), never spellings.
 - Default builtins and the closed tool vocabulary must stay in lockstep. Tests
   compare names/order; executor scope is the ultimate permission gate.
 - The probe manifest has THREE recorders and no hand: `record_probe` for a
@@ -184,7 +186,9 @@ Neighbours:
   no redirect. A static HTTP response must not classify browser `app.js` as
   a Node server. Foreign or stale origins remain unstamped.
 - `write_file` and `edit_file` REFUSE `.atoma-probes.json`
-  (`manifestHandWriteRefusal`), naming the recorder of each shape. Until
+  (`manifestHandWriteRefusal`), naming the recorder of each shape, under any
+  name that lands on it — a symlink, a directory link, a hard link
+  (2026-10-13). Until
   2026-10-11 the web canonical asked the molecule to write_file the manifest
   itself; measured on the 140 project runs since 2026-10-05: 1,198 edit_file
   calls, 171 failures, 43 of them this refusal — the only category that

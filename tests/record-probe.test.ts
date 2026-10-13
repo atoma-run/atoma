@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, linkSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer } from 'node:http';
@@ -7,6 +7,7 @@ import { ToolSandbox } from '../src/tools/sandbox.js';
 import {
   appendHttpProbe,
   commandLineNeedsShell,
+  editFileTool,
   fetchUrlTool,
   mergeProbeManifestWrite,
   mergeShellProbe,
@@ -548,6 +549,31 @@ describe('write_file refuses an unparseable probe manifest — the production pa
     expect(readFileSync(manifestPath(), 'utf8')).toBe('{"version":1,"entries":[');
     const reset = JSON.parse(mergeShellProbe(readFileSync(manifestPath(), 'utf8'), { cmd: 'node fixed.js', exitCode: 0 })) as { entries: unknown[] };
     expect(reset.entries).toEqual([{ cmd: 'node fixed.js', exitCode: 0 }]);
+  });
+
+  // Spellings compared before 2026-10-13: an alias reached the manifest (review).
+  it.skipIf(process.platform === 'win32')('refuses the manifest under another name: symlink, dangling symlink, directory link, hard link', async () => {
+    const recorded = JSON.stringify({ version: 1, entries: [{ cmd: 'node ok.js', exitCode: 0 }] });
+    writeFileSync(manifestPath(), recorded, 'utf8');
+    symlinkSync(PROBE_MANIFEST_FILENAME, join(root, 'alias.json'));
+    symlinkSync('.', join(root, 'here'), 'dir');
+    linkSync(manifestPath(), join(root, 'hard.json'));
+    const write = writeFileTool({ sandbox });
+    const edit = editFileTool({ sandbox });
+    for (const path of ['alias.json', 'here/.atoma-probes.json', 'hard.json', './.atoma-probes.json']) {
+      await expect(write.execute({ path, content: '{}' })).rejects.toThrow(/refuse to hand-write/);
+      await expect(edit.execute({ path, old_string: 'ok.js', new_string: 'forged.js' })).rejects.toThrow(/refuse to hand-edit/);
+    }
+    expect(readFileSync(manifestPath(), 'utf8')).toBe(recorded);
+    rmSync(manifestPath());
+    rmSync(join(root, 'hard.json'));
+    // Not yet recorded: a dangling alias would create it, and on a
+    // case-insensitive filesystem so would a case variant.
+    symlinkSync('.ATOMA-probes.json', join(root, 'alias2.json'));
+    for (const path of ['alias.json', 'alias2.json', '.ATOMA-PROBES.json', 'here/.Atoma-Probes.json']) {
+      await expect(write.execute({ path, content: '{}' })).rejects.toThrow(/refuse to hand-write/);
+    }
+    expect(existsSync(manifestPath())).toBe(false);
   });
 
   it('does not police ordinary files', async () => {

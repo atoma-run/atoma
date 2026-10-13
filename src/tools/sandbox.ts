@@ -184,16 +184,16 @@ function killTrackedChildren(): void {
 const MAX_DANGLING_LINK_HOPS = 40;
 
 /**
- * The kernel's realpath. Node's JS `realpathSync` resolves a link's CONTENT
- * as text, so `up -> inner/..` read as the workspace itself while the kernel
- * follows `inner` out first, and `write_file up/x` wrote outside (review
- * 2026-10-13; it predates the dangling-link fix). libc's realpath walks it as
- * open() will. Windows keeps the JS one, so that escape stays OPEN there: no
- * worker runs on Windows, and the native call has known `\\?\` and subst-drive
- * quirks this boundary was never tested on.
+ * The kernel's realpath, on every platform. Node's JS `realpathSync` resolves
+ * a link's CONTENT as text, so `up -> inner/..` read as the workspace itself
+ * while the kernel follows `inner` out first, and `write_file up/x` wrote
+ * outside (review 2026-10-13). libc's realpath (GetFinalPathNameByHandle on
+ * Windows) walks it as open() will. Both sides of every containment check go
+ * through this one function, so a platform quirk can refuse, never admit.
  */
-const kernelRealpath: (path: string) => string =
-  process.platform === 'win32' ? (path) => realpathSync(path) : (path) => realpathSync.native(path);
+function kernelRealpath(path: string): string {
+  return realpathSync.native(path);
+}
 
 /**
  * Where a DANGLING symbolic link points, spelled as the kernel will walk it:
@@ -264,6 +264,19 @@ export class ToolSandbox {
    * OR through a symlink planted inside the workspace.
    */
   resolve(input: string): string {
+    return this.resolvePair(input).base;
+  }
+
+  /**
+   * Where `input` lands once every link on it is followed, as the kernel
+   * will write it, under the same containment checks as `resolve`. Two
+   * spellings of one file share it; `resolve` keeps the caller's spelling.
+   */
+  realPath(input: string): string {
+    return this.resolvePair(input).real;
+  }
+
+  private resolvePair(input: string): { base: string; real: string } {
     if (typeof input !== 'string' || input.length === 0) {
       throw new Error('path must be a non-empty string');
     }
@@ -285,7 +298,7 @@ export class ToolSandbox {
         `path escapes sandbox via symlink: ${input} (real path ${real}, outside ${this.realRoot})`
       );
     }
-    return base;
+    return { base, real };
   }
 
   /**
