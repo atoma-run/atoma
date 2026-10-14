@@ -84,10 +84,12 @@ export const SUBSYSTEM_LINE_BUDGET = 700;
 // 2026-10-06: src/viz 680 -> 800, an owner decision. The GPU client is the
 // largest subtree and every raise so far bought ten or twenty lines for one
 // rule; the margin now covers the next rules without a raise per rule.
+// 2026-10-14: src/viz 800 -> 900, an owner decision, when the read-batch rule
+// met the 800 ceiling with two lines of margin left.
 // The src/preview (560) and src/projects (520) exceptions above were folded into
 // the 600-line default on 2026-10-04; src/viz keeps its own.
 export const SUBSYSTEM_LINE_BUDGET_OVERRIDES = new Map([
-  ['src/viz/AGENTS.md', 800],
+  ['src/viz/AGENTS.md', 900],
 ]);
 
 /**
