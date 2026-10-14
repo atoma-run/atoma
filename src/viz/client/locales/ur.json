@@ -1954,5 +1954,16 @@
   "hosting.open": "ایپلیکیشن کھولیں",
   "hosting.stop": "ایپلیکیشن روکیں اور ڈیٹا محفوظ رکھیں",
   "hosting.updateNotice": "پہلے سے آن لائن ایپلیکیشن کو اپ ڈیٹ کرنے کے لیے، پہلے اسے روکیں، پھر منظور شدہ ورژن تعینات کریں۔ اپ ڈیٹ کے دوران یہ دستیاب نہیں ہوگی۔",
-  "hosting.candidateVersion": "تعیناتی کے لیے منظور شدہ ورژن"
+  "hosting.candidateVersion": "تعیناتی کے لیے منظور شدہ ورژن",
+  "hostedBrowser.pageTitle": "ویب سائٹ کی توثیق",
+  "hostedBrowser.title": "ویب سائٹ کی توثیق مکمل کریں",
+  "hostedBrowser.instructions": "ذیل کا براؤزر استعمال کریں۔ مکمل ہونے کے بعد، دوبارہ شروع کرنے کے لیے اپنی ایپلیکیشن پر واپس جائیں۔",
+  "hostedBrowser.actions": "توثیقی اقدامات",
+  "hostedBrowser.reconnect": "دوبارہ منسلک کریں",
+  "hostedBrowser.back": "ایپلیکیشن پر واپس جائیں",
+  "hostedBrowser.connecting": "آپ کے پروجیکٹ کے براؤزر سے منسلک ہو رہا ہے…",
+  "hostedBrowser.screen": "انٹرایکٹو پروجیکٹ براؤزر",
+  "hostedBrowser.connected": "منسلک ہو گیا۔ ویب سائٹ پر توثیق مکمل کریں۔",
+  "hostedBrowser.disconnected": "کنکشن منقطع ہو گیا۔ دوبارہ منسلک کریں، یا اگر آپ کی رسائی کی میعاد ختم ہو گئی ہے تو Atoma سے اپنی ایپلیکیشن دوبارہ کھولیں۔",
+  "hostedBrowser.failed": "منسلک نہیں ہو سکا۔ Atoma سے اپنی ایپلیکیشن دوبارہ کھولیں۔"
 }

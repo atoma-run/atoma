@@ -1954,5 +1954,16 @@
   "hosting.open": "एप्लिकेशन खोलें",
   "hosting.stop": "एप्लिकेशन रोकें और डेटा सुरक्षित रखें",
   "hosting.updateNotice": "पहले से ऑनलाइन एप्लिकेशन को अपडेट करने के लिए, पहले उसे रोकें, फिर स्वीकृत वर्ज़न डिप्लॉय करें। अपडेट के दौरान वह उपलब्ध नहीं रहेगा।",
-  "hosting.candidateVersion": "डिप्लॉय करने के लिए स्वीकृत वर्ज़न"
+  "hosting.candidateVersion": "डिप्लॉय करने के लिए स्वीकृत वर्ज़न",
+  "hostedBrowser.pageTitle": "वेबसाइट सत्यापन",
+  "hostedBrowser.title": "वेबसाइट सत्यापन पूरा करें",
+  "hostedBrowser.instructions": "नीचे दिए गए ब्राउज़र का उपयोग करें। पूरा होने पर, जारी रखने के लिए अपने एप्लिकेशन पर वापस जाएँ।",
+  "hostedBrowser.actions": "सत्यापन कार्रवाइयाँ",
+  "hostedBrowser.reconnect": "फिर से कनेक्ट करें",
+  "hostedBrowser.back": "एप्लिकेशन पर वापस जाएँ",
+  "hostedBrowser.connecting": "आपके प्रोजेक्ट के ब्राउज़र से कनेक्ट किया जा रहा है…",
+  "hostedBrowser.screen": "इंटरैक्टिव प्रोजेक्ट ब्राउज़र",
+  "hostedBrowser.connected": "कनेक्ट हो गया। वेबसाइट पर सत्यापन पूरा करें।",
+  "hostedBrowser.disconnected": "कनेक्शन टूट गया। फिर से कनेक्ट करें या, यदि आपकी एक्सेस की अवधि समाप्त हो गई है, तो Atoma से अपना एप्लिकेशन दोबारा खोलें।",
+  "hostedBrowser.failed": "कनेक्ट नहीं हो सका। Atoma से अपना एप्लिकेशन दोबारा खोलें।"
 }

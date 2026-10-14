@@ -1954,5 +1954,16 @@
   "hosting.open": "Abrir aplicación",
   "hosting.stop": "Detener aplicación y conservar los datos",
   "hosting.updateNotice": "Para actualizar una aplicación que ya está en línea, deténgala primero y luego despliegue la versión aceptada. No estará disponible durante la actualización.",
-  "hosting.candidateVersion": "Versión aceptada para desplegar"
+  "hosting.candidateVersion": "Versión aceptada para desplegar",
+  "hostedBrowser.pageTitle": "Verificación del sitio web",
+  "hostedBrowser.title": "Complete la verificación del sitio web",
+  "hostedBrowser.instructions": "Use el navegador de abajo. Cuando termine, vuelva a la aplicación para continuar.",
+  "hostedBrowser.actions": "Acciones de verificación",
+  "hostedBrowser.reconnect": "Volver a conectar",
+  "hostedBrowser.back": "Volver a la aplicación",
+  "hostedBrowser.connecting": "Conectando con el navegador de su proyecto…",
+  "hostedBrowser.screen": "Navegador interactivo del proyecto",
+  "hostedBrowser.connected": "Conexión establecida. Complete la verificación en el sitio web.",
+  "hostedBrowser.disconnected": "Conexión interrumpida. Vuelva a conectarse o abra de nuevo la aplicación desde Atoma si su acceso ha caducado.",
+  "hostedBrowser.failed": "No se pudo establecer la conexión. Abra de nuevo la aplicación desde Atoma."
 }

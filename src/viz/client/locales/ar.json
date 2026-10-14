@@ -1954,5 +1954,16 @@
   "hosting.open": "فتح التطبيق",
   "hosting.stop": "إيقاف التطبيق والاحتفاظ بالبيانات",
   "hosting.updateNotice": "لتحديث تطبيق متاح بالفعل عبر الإنترنت، أوقفه أولًا، ثم انشر الإصدار المقبول. لن يكون متاحًا أثناء التحديث.",
-  "hosting.candidateVersion": "الإصدار المقبول المراد نشره"
+  "hosting.candidateVersion": "الإصدار المقبول المراد نشره",
+  "hostedBrowser.pageTitle": "التحقق من الموقع الإلكتروني",
+  "hostedBrowser.title": "أكمل التحقق من الموقع الإلكتروني",
+  "hostedBrowser.instructions": "استخدم المتصفح أدناه. بعد الانتهاء، ارجع إلى تطبيقك للمتابعة.",
+  "hostedBrowser.actions": "إجراءات التحقق",
+  "hostedBrowser.reconnect": "إعادة الاتصال",
+  "hostedBrowser.back": "العودة إلى التطبيق",
+  "hostedBrowser.connecting": "جارٍ الاتصال بمتصفح مشروعك…",
+  "hostedBrowser.screen": "متصفح المشروع التفاعلي",
+  "hostedBrowser.connected": "تم الاتصال. أكمل التحقق على الموقع الإلكتروني.",
+  "hostedBrowser.disconnected": "انقطع الاتصال. أعد الاتصال، أو افتح تطبيقك مجددًا من Atoma إذا انتهت صلاحية وصولك.",
+  "hostedBrowser.failed": "تعذر الاتصال. افتح تطبيقك مجددًا من Atoma."
 }

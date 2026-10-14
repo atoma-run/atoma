@@ -1954,5 +1954,16 @@
   "hosting.open": "Ouvrir l’application",
   "hosting.stop": "Arrêter l’application et conserver les données",
   "hosting.updateNotice": "Pour mettre à jour une application déjà en ligne, arrête-la d’abord, puis déploie la version acceptée. Elle sera indisponible pendant la mise à jour.",
-  "hosting.candidateVersion": "Version acceptée à déployer"
+  "hosting.candidateVersion": "Version acceptée à déployer",
+  "hostedBrowser.pageTitle": "Vérification du site web",
+  "hostedBrowser.title": "Termine la vérification du site web",
+  "hostedBrowser.instructions": "Utilise le navigateur ci-dessous. Une fois la vérification terminée, retourne dans ton application pour reprendre.",
+  "hostedBrowser.actions": "Actions de vérification",
+  "hostedBrowser.reconnect": "Se reconnecter",
+  "hostedBrowser.back": "Retour à l’application",
+  "hostedBrowser.connecting": "Connexion au navigateur de ton projet…",
+  "hostedBrowser.screen": "Navigateur interactif du projet",
+  "hostedBrowser.connected": "Connecté. Termine la vérification sur le site web.",
+  "hostedBrowser.disconnected": "Déconnecté. Reconnecte-toi ou rouvre ton application depuis atoma si ton accès a expiré.",
+  "hostedBrowser.failed": "Connexion impossible. Rouvre ton application depuis atoma."
 }

@@ -1954,5 +1954,16 @@
   "hosting.open": "Buka aplikasi",
   "hosting.stop": "Hentikan aplikasi dan simpan data",
   "hosting.updateNotice": "Untuk memperbarui aplikasi yang sudah online, hentikan terlebih dahulu, lalu deploy versi yang disetujui. Aplikasi tidak akan tersedia selama pembaruan.",
-  "hosting.candidateVersion": "Versi yang disetujui untuk di-deploy"
+  "hosting.candidateVersion": "Versi yang disetujui untuk di-deploy",
+  "hostedBrowser.pageTitle": "Verifikasi situs web",
+  "hostedBrowser.title": "Selesaikan verifikasi situs web",
+  "hostedBrowser.instructions": "Gunakan browser di bawah ini. Setelah selesai, kembali ke aplikasi Anda untuk melanjutkan.",
+  "hostedBrowser.actions": "Tindakan verifikasi",
+  "hostedBrowser.reconnect": "Hubungkan kembali",
+  "hostedBrowser.back": "Kembali ke aplikasi",
+  "hostedBrowser.connecting": "Menghubungkan ke browser proyek Anda…",
+  "hostedBrowser.screen": "Browser proyek interaktif",
+  "hostedBrowser.connected": "Terhubung. Selesaikan verifikasi di situs web.",
+  "hostedBrowser.disconnected": "Terputus. Hubungkan kembali, atau buka ulang aplikasi Anda dari Atoma jika akses Anda telah kedaluwarsa.",
+  "hostedBrowser.failed": "Tidak dapat terhubung. Buka ulang aplikasi Anda dari Atoma."
 }

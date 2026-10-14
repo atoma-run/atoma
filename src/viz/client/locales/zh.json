@@ -1954,5 +1954,16 @@
   "hosting.open": "打开应用",
   "hosting.stop": "停止应用并保留数据",
   "hosting.updateNotice": "要更新已上线的应用，请先停止应用，然后部署获准版本。更新期间应用将不可用。",
-  "hosting.candidateVersion": "待部署的获准版本"
+  "hosting.candidateVersion": "待部署的获准版本",
+  "hostedBrowser.pageTitle": "网站验证",
+  "hostedBrowser.title": "完成网站验证",
+  "hostedBrowser.instructions": "使用下方浏览器。完成后，返回应用以继续。",
+  "hostedBrowser.actions": "验证操作",
+  "hostedBrowser.reconnect": "重新连接",
+  "hostedBrowser.back": "返回应用",
+  "hostedBrowser.connecting": "正在连接到项目浏览器…",
+  "hostedBrowser.screen": "交互式项目浏览器",
+  "hostedBrowser.connected": "已连接。请在网站上完成验证。",
+  "hostedBrowser.disconnected": "连接已断开。请重新连接；如果访问权限已过期，请从 Atoma 重新打开应用。",
+  "hostedBrowser.failed": "无法连接。请从 Atoma 重新打开应用。"
 }

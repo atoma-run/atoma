@@ -1954,5 +1954,16 @@
   "hosting.open": "アプリケーションを開く",
   "hosting.stop": "データを保持してアプリケーションを停止",
   "hosting.updateNotice": "すでにオンラインのアプリケーションを更新するには、まず停止してから承認済みバージョンをデプロイしてください。更新中は利用できません。",
-  "hosting.candidateVersion": "デプロイする承認済みバージョン"
+  "hosting.candidateVersion": "デプロイする承認済みバージョン",
+  "hostedBrowser.pageTitle": "ウェブサイト認証",
+  "hostedBrowser.title": "ウェブサイト認証を完了してください",
+  "hostedBrowser.instructions": "以下のブラウザを使用してください。完了したら、アプリケーションに戻って再開してください。",
+  "hostedBrowser.actions": "認証操作",
+  "hostedBrowser.reconnect": "再接続",
+  "hostedBrowser.back": "アプリケーションに戻る",
+  "hostedBrowser.connecting": "プロジェクトのブラウザに接続しています…",
+  "hostedBrowser.screen": "操作可能なプロジェクトブラウザ",
+  "hostedBrowser.connected": "接続しました。ウェブサイトで認証を完了してください。",
+  "hostedBrowser.disconnected": "切断されました。再接続するか、アクセスの有効期限が切れている場合はAtomaからアプリケーションを再度開いてください。",
+  "hostedBrowser.failed": "接続できません。Atomaからアプリケーションを再度開いてください。"
 }

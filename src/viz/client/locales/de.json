@@ -1954,5 +1954,16 @@
   "hosting.open": "Anwendung öffnen",
   "hosting.stop": "Anwendung anhalten und Daten behalten",
   "hosting.updateNotice": "Um eine bereits online verfügbare Anwendung zu aktualisieren, halten Sie sie zuerst an und stellen Sie dann die akzeptierte Version bereit. Während der Aktualisierung ist sie nicht verfügbar.",
-  "hosting.candidateVersion": "Akzeptierte Version für die Bereitstellung"
+  "hosting.candidateVersion": "Akzeptierte Version für die Bereitstellung",
+  "hostedBrowser.pageTitle": "Website-Verifizierung",
+  "hostedBrowser.title": "Website-Verifizierung abschließen",
+  "hostedBrowser.instructions": "Verwenden Sie den Browser unten. Kehren Sie anschließend zu Ihrer Anwendung zurück, um fortzufahren.",
+  "hostedBrowser.actions": "Verifizierungsaktionen",
+  "hostedBrowser.reconnect": "Erneut verbinden",
+  "hostedBrowser.back": "Zurück zur Anwendung",
+  "hostedBrowser.connecting": "Verbindung mit dem Browser Ihres Projekts wird hergestellt…",
+  "hostedBrowser.screen": "Interaktiver Projektbrowser",
+  "hostedBrowser.connected": "Verbunden. Schließen Sie die Verifizierung auf der Website ab.",
+  "hostedBrowser.disconnected": "Verbindung getrennt. Stellen Sie die Verbindung erneut her oder öffnen Sie Ihre Anwendung erneut über Atoma, falls Ihr Zugriff abgelaufen ist.",
+  "hostedBrowser.failed": "Verbindung nicht möglich. Öffnen Sie Ihre Anwendung erneut über Atoma."
 }

@@ -1954,5 +1954,16 @@
   "hosting.open": "Abrir aplicação",
   "hosting.stop": "Parar aplicação e preservar dados",
   "hosting.updateNotice": "Para atualizar uma aplicação que já está online, pare-a primeiro e, em seguida, disponibilize a versão aprovada. A aplicação ficará indisponível durante a atualização.",
-  "hosting.candidateVersion": "Versão aprovada para disponibilização"
+  "hosting.candidateVersion": "Versão aprovada para disponibilização",
+  "hostedBrowser.pageTitle": "Verificação do site",
+  "hostedBrowser.title": "Conclua a verificação do site",
+  "hostedBrowser.instructions": "Use o navegador abaixo. Quando terminar, volte à sua aplicação para continuar.",
+  "hostedBrowser.actions": "Ações de verificação",
+  "hostedBrowser.reconnect": "Voltar a ligar",
+  "hostedBrowser.back": "Voltar à aplicação",
+  "hostedBrowser.connecting": "A ligar ao navegador do seu projeto…",
+  "hostedBrowser.screen": "Navegador interativo do projeto",
+  "hostedBrowser.connected": "Ligação estabelecida. Conclua a verificação no site.",
+  "hostedBrowser.disconnected": "Ligação interrompida. Volte a ligar ou reabra a sua aplicação a partir do Atoma se o seu acesso tiver expirado.",
+  "hostedBrowser.failed": "Não foi possível estabelecer ligação. Reabra a sua aplicação a partir do Atoma."
 }
