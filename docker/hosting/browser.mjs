@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdirSync, unlinkSync } from 'node:fs';
+import { mkdirSync, unlinkSync, readFileSync } from 'node:fs';
 import { createServer, request } from 'node:http';
 
 // Only this fixed broker exposes the application and desktop. CDP stays loopback-only.
@@ -51,6 +51,7 @@ try {
   await ready('http://127.0.0.1:6080/vnc.html');
   start('node', [process.argv[2]]);
   const server = createServer((req, res) => {
+    if (req.url === '/.atoma/browser/' || req.url === '/.atoma/browser') { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(readFileSync('/opt/atoma-hosting/browser-desktop.html')); return; }
     const desktop = req.url?.startsWith('/.atoma/browser/');
     if (req.url?.startsWith('/.atoma/') && !desktop) { res.writeHead(404).end(); return; }
     const upstream = request({ host: '127.0.0.1', port: desktop ? 6080 : 8082,

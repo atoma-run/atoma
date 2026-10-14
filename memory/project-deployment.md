@@ -128,3 +128,12 @@ no new client acceptance, publication or Attica deployment claimed. Existing loc
 pilot, its profile and 68 offers remain untouched. Platform rollout follows CI
 and the normal live-run drain gate; browser image and nginx WS config must be
 activated on the host after the platform release is live.
+
+Guided desktop follow-up: the application-provided desktop URL now opens a small
+verification page with instructions, reconnect state and Back to application,
+using noVNC's RFB module without exposing its technical toolbar. Real Chrome
+rendered the headed browser and verified logout disconnect through the private
+HTTPS gateway. Final guided runtime image:
+sha256:4aad7be141ab93a14ba96558abd0bd62cc6134306921e13529e1fca20ba14700.
+The platform implementation commit 247e55e1 passed CI 38612498763; deployment
+38613620283 is waiting at the normal activation stage while Attica runs.

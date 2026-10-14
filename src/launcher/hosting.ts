@@ -79,7 +79,7 @@ export class DockerHosting implements HostingLauncher {
         '--tmpfs', spec.browser ? '/tmp:rw,noexec,nosuid,size=256m' : '/tmp:rw,noexec,nosuid,size=64m', '--mount', `type=bind,src=${n.source},dst=/workspace,readonly`,
         '--mount', `type=bind,src=${n.data},dst=/data`, '-w', '/workspace',
         '-e', spec.browser ? 'PORT=8082' : 'PORT=8080', '-e', 'HOST=0.0.0.0', '-e', 'NODE_ENV=production', '-e', 'HOME=/tmp', '-e', 'ATOMA_DATA_DIR=/data',
-        ...(spec.browser ? ['-e', `ATOMA_BROWSER_PROXY=http://${proxyIp}:3128`, '-e', 'ATOMA_BROWSER_URL=http://127.0.0.1:9222', '-e', 'ATOMA_BROWSER_DESKTOP_URL=/.atoma/browser/vnc.html?autoconnect=1&resize=scale&path=.atoma/browser/websockify'] : []),
+        ...(spec.browser ? ['-e', `ATOMA_BROWSER_PROXY=http://${proxyIp}:3128`, '-e', 'ATOMA_BROWSER_URL=http://127.0.0.1:9222', '-e', 'ATOMA_BROWSER_DESKTOP_URL=/.atoma/browser/'] : []),
         '--entrypoint', 'node', spec.browser ? this.options.browserImage! : this.options.image,
         ...(spec.browser ? ['/opt/atoma-hosting/browser.mjs', spec.entry] : [spec.kind === 'static' ? '/opt/atoma-hosting/static.mjs' : spec.entry])]);
       const ip = (await this.run(['inspect', '--format', `{{with index .NetworkSettings.Networks ${JSON.stringify(n.internal)}}}{{.IPAddress}}{{end}}`, n.app])).trim();

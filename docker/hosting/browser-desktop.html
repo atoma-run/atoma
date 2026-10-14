@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Website verification</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#edf1f5;color:#172333;font:16px/1.5 system-ui,sans-serif;height:100dvh;display:flex;flex-direction:column}header{background:white;border-bottom:1px solid #ccd4de;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:20px}h1{font-size:20px;margin:0 0 3px}p{margin:0;color:#405169}nav{display:flex;gap:12px;flex-wrap:wrap;flex-shrink:0}a,button{font:inherit;min-height:44px;padding:9px 16px;border:1px solid #8698ad;border-radius:8px;color:#172333;background:white;text-decoration:none;cursor:pointer}a{background:#173b65;color:white;border-color:#173b65}a:focus-visible,button:focus-visible{outline:3px solid #1480d8;outline-offset:3px}#status{padding:8px 24px;font-size:14px}#screen{flex:1;min-height:0;overflow:hidden;background:#30343a;margin:0 16px 16px;border-radius:8px}button[hidden]{display:none}@media(max-width:720px){header{align-items:flex-start;flex-direction:column;padding:12px 16px;gap:12px}h1{font-size:18px}#status{padding:8px 16px}#screen{margin:0 8px 8px}}
+</style>
+</head>
+<body>
+<header><div><h1>Complete the website verification</h1><p>Use the browser below. Once finished, return to your application to resume.</p></div><nav aria-label="Verification actions"><button id="reconnect" type="button" hidden>Reconnect</button><a href="/">Back to application</a></nav></header>
+<p id="status" role="status" aria-live="polite">Connecting to your project’s browser…</p>
+<main id="screen" aria-label="Interactive project browser"></main>
+<script type="module">
+import RFB from '/.atoma/browser/core/rfb.js';
+const status=document.getElementById('status');
+const reconnect=document.getElementById('reconnect');
+let connection;
+function connect(){
+  reconnect.hidden=true;status.textContent='Connecting to your project’s browser…';
+  connection=new RFB(document.getElementById('screen'),`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}/.atoma/browser/websockify`);
+  connection.scaleViewport=true;
+  connection.addEventListener('connect',()=>{status.textContent='Connected. Complete the verification on the website.';document.body.dataset.connected='true';});
+  connection.addEventListener('disconnect',()=>{status.textContent='Disconnected. Reconnect, or reopen your application from Atoma if your access has expired.';reconnect.hidden=false;document.body.dataset.connected='false';});
+  connection.addEventListener('securityfailure',()=>{status.textContent='Unable to connect. Reopen your application from Atoma.';});
+}
+reconnect.addEventListener('click',connect);
+connect();
+</script>
+</body>
+</html>

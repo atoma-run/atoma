@@ -26,14 +26,14 @@ try {
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(gateway.open(viewer,row.projectId));
   await page.waitForFunction(()=>!document.getElementById('status'));
-  await page.goto(`https://${host}/.atoma/browser/vnc.html?autoconnect=1&resize=scale&path=.atoma/browser/websockify`);
-  await page.waitForFunction(()=>document.documentElement.classList.contains('noVNC_connected'),{timeout:20000});
+  await page.goto(`https://${host}/.atoma/browser/`);
+  await page.waitForFunction(()=>document.body.dataset.connected==='true',{timeout:20000});
   assert.equal(await page.$eval('canvas',el=>el.width),1280);
   await page.waitForFunction(()=>{const canvas=document.querySelector('canvas');const data=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;let light=0;for(let i=0;i<data.length;i+=16)if(data[i]>150&&data[i+1]>150&&data[i+2]>150)light++;return light>10000;},{timeout:20000});
   assert.deepEqual(errors,[]);
   await page.screenshot({path:process.argv[3]??'/tmp/atoma-hosted-browser.png'});
   gateway.claims.revokePrincipal(viewer.principalId);
-  await page.waitForFunction(()=>!document.documentElement.classList.contains('noVNC_connected'),{timeout:10000});
+  await page.waitForFunction(()=>document.body.dataset.connected==='false',{timeout:10000});
   console.log('PASS: private HTTPS claim, real noVNC canvas, CSP, WebSocket and logout disconnect.');
 } finally {
   await browser.close();gateway.server.emit('close');server.closeAllConnections();await new Promise(resolve=>server.close(resolve));rmSync(root,{recursive:true,force:true});
