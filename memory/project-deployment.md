@@ -29,3 +29,10 @@ checks passed. Build and MCP OAuth browser smoke passed. The complete GPU
 smoke passed after the new scenario used the intended viewport and restored
 the conversation before continuing the upstream-setting scenario. Focused
 Chrome journeys passed at 1600px and 900px with explicit save and re-entry.
+
+First CI attempt: 6,509 tests passed; the French parity check still saw the
+removed installation keys because tests and translation run independently on
+the original revision. The translation job removed the obsolete keys in
+`bb841255`; the two locale/build-contract suites then passed all 20 tests.
+The other failure was npm audit ECONNRESET, not an advisory; a fresh audit
+returned zero vulnerabilities. Ship from the synchronized catalog revision.
