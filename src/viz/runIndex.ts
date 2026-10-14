@@ -1,3 +1,4 @@
+import { lstatSync } from 'node:fs';
 import { projectTraceDocument } from '../contracts/traceFields.js';
 import { readBoundedRunFile } from '../contracts/traceFile.js';
 export { readBoundedRunFile, type BoundedRunFileRead } from '../contracts/traceFile.js';
@@ -55,7 +56,84 @@ export function summarizeTraceFileWithCost(file: string): { entry: VizRunIndexEn
   return summary?.costBreakdown ? { entry: summary.entry, costBreakdown: summary.costBreakdown } : null;
 }
 
-function summarizeTraceFileWith(file: string, withCost: boolean): { entry: VizRunIndexEntry; costBreakdown?: RunCostBreakdown } | null {
+type TraceSummary = { entry: VizRunIndexEntry; costBreakdown?: RunCostBreakdown };
+
+/**
+ * A row depends on the file's bytes alone, and a finished trace never changes,
+ * yet every run list re-parsed every trace on every poll: a platform admin's
+ * `/api/runs` read all of them (712 traces, 471 MB on 2026-10-14) every two
+ * seconds. Rows are therefore cached against the file's identity.
+ *
+ * Only a SETTLED file is cached. Linux advances mtime/ctime in coarse ticks, so
+ * two same-size rewrites inside one tick share an identity; a file untouched
+ * for `SUMMARY_SETTLED_MS` is past that window, and a live trace (rewritten on
+ * every flush) is simply re-read, as before. The identity is taken BEFORE the
+ * read: a write racing the read can only leave a newer row under an older
+ * identity, which the next poll replaces, never an older row under a newer one.
+ * `lstat` keeps the shared reader's symlink refusal: a file swapped for a link
+ * changes identity and is read, and refused, again.
+ */
+const SUMMARY_SETTLED_MS = 2_000;
+const SUMMARY_CACHE_MAX = 8_192;
+interface CachedSummary {
+  readonly identity: string;
+  readonly entry: VizRunIndexEntry | null;
+  /** Undefined until a reader asked for the cost breakdown of this identity. */
+  readonly costBreakdown?: RunCostBreakdown | null;
+}
+const summaryCache = new Map<string, CachedSummary>();
+
+function settledIdentity(file: string): string | null {
+  try {
+    const stat = lstatSync(file, { bigint: true });
+    const changedNs = stat.mtimeNs > stat.ctimeNs ? stat.mtimeNs : stat.ctimeNs;
+    if (Date.now() - Number(changedNs / 1_000_000n) < SUMMARY_SETTLED_MS) return null;
+    return `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeNs}:${stat.ctimeNs}`;
+  } catch {
+    return null;
+  }
+}
+
+function deepFreeze<T>(value: T): T {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const child of Object.values(value)) deepFreeze(child);
+  }
+  return value;
+}
+
+/** Test seam: forget every cached row. */
+export function clearRunSummaryCache(): void {
+  summaryCache.clear();
+}
+
+function summarizeTraceFileWith(file: string, withCost: boolean): TraceSummary | null {
+  const identity = settledIdentity(file);
+  const cached = identity === null ? undefined : summaryCache.get(file);
+  const current = cached?.identity === identity ? cached : undefined;
+  if (current && (!withCost || current.costBreakdown !== undefined)) {
+    // Re-insert so eviction drops the least recently listed file first.
+    summaryCache.delete(file);
+    summaryCache.set(file, current);
+    if (!current.entry) return null;
+    return withCost && current.costBreakdown ? { entry: current.entry, costBreakdown: current.costBreakdown } : { entry: current.entry };
+  }
+  const read = readTraceSummary(file, withCost);
+  if (identity !== null) {
+    summaryCache.delete(file);
+    // Shared by every later reader: frozen, so a caller that mutated a row
+    // would throw instead of silently editing another viewer's list.
+    summaryCache.set(file, {
+      identity,
+      entry: deepFreeze(read?.entry ?? null),
+      costBreakdown: withCost ? deepFreeze(read?.costBreakdown ?? null) : current?.costBreakdown,
+    });
+    if (summaryCache.size > SUMMARY_CACHE_MAX) summaryCache.delete(summaryCache.keys().next().value!);
+  }
+  return read;
+}
+
+function readTraceSummary(file: string, withCost: boolean): TraceSummary | null {
   try {
     // The ceiling and the symlink refusal live in the shared reader; the
     // fail-SOFT disposition over them stays HERE, where a skipped row is not a

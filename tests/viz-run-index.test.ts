@@ -1,13 +1,15 @@
-import { mkdirSync, mkdtempSync, rmSync, statSync, symlinkSync, truncateSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, statSync, symlinkSync, truncateSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MAX_TRACE_BYTES } from '../src/contracts/traceFields.js';
 import { RUN_INDEX_GOAL_MAX } from '../src/viz/trace.js';
 import {
+  clearRunSummaryCache,
   readBoundedRunFile,
   sortRunIndex,
   summarizeTraceFile,
+  summarizeTraceFileWithCost,
   TRACE_HEADER_KEYS,
 } from '../src/viz/runIndex.js';
 
@@ -288,5 +290,74 @@ describe('the row reads a stated set of trace members', () => {
       'task',
       'totals',
     ]);
+  });
+});
+
+describe('cached run rows', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    clearRunSummaryCache();
+  });
+
+  function trace(label: string, extra: Record<string, unknown> = {}) {
+    return JSON.stringify({ id: 'cached', label, startedAt: '2026-10-14T00:00:00Z', endedAt: '2026-10-14T00:01:00Z',
+      tierModels: { l1: 'api:zai:glm-4.5-air' }, totals: { calls: 1, costUsd: 0.5 }, events: [], ...extra });
+  }
+
+  it('parses a settled trace once and re-reads it when the file changes', () => {
+    root = mkdtempSync(join(tmpdir(), 'atoma-run-index-cache-'));
+    const file = join(root, 'cached.json');
+    writeFileSync(file, trace('first'));
+    // Settled: the file has not changed for longer than the coarse-mtime window.
+    const later = Date.now() + 10_000;
+    vi.spyOn(Date, 'now').mockReturnValue(later);
+    const first = summarizeTraceFile(file);
+    expect(first).toMatchObject({ label: 'first' });
+    expect(Object.isFrozen(first)).toBe(true);
+    expect(summarizeTraceFile(file)).toBe(first);
+
+    // Same size, new bytes: a rewrite is a new identity, never a stale row.
+    // Linux stamps both writes inside one coarse tick here; real time moving
+    // past the settled window is what the explicit mtime stands for.
+    writeFileSync(file, trace('other'));
+    utimesSync(file, new Date(later), new Date(later));
+    vi.spyOn(Date, 'now').mockReturnValue(later + 10_000);
+    const second = summarizeTraceFile(file);
+    expect(second).toMatchObject({ label: 'other' });
+    expect(second).not.toBe(first);
+  });
+
+  it('never caches a file still being written', () => {
+    root = mkdtempSync(join(tmpdir(), 'atoma-run-index-cache-'));
+    const file = join(root, 'cached.json');
+    writeFileSync(file, trace('live', { endedAt: undefined }));
+    const first = summarizeTraceFile(file);
+    expect(first).toMatchObject({ inFlight: true });
+    expect(summarizeTraceFile(file)).not.toBe(first);
+  });
+
+  it('serves the cost breakdown and the plain row from one cached parse', () => {
+    root = mkdtempSync(join(tmpdir(), 'atoma-run-index-cache-'));
+    const file = join(root, 'cached.json');
+    writeFileSync(file, trace('cost'));
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 10_000);
+    const plain = summarizeTraceFile(file);
+    const withCost = summarizeTraceFileWithCost(file);
+    expect(withCost?.entry).toEqual(plain);
+    expect(withCost?.costBreakdown).toBeTruthy();
+    expect(summarizeTraceFileWithCost(file)?.costBreakdown).toBe(withCost?.costBreakdown);
+    expect(summarizeTraceFile(file)).toBe(withCost?.entry);
+  });
+
+  it('remembers an unreadable trace only for its identity', () => {
+    root = mkdtempSync(join(tmpdir(), 'atoma-run-index-cache-'));
+    const file = join(root, 'cached.json');
+    writeFileSync(file, '{"id":');
+    const later = Date.now() + 10_000;
+    vi.spyOn(Date, 'now').mockReturnValue(later);
+    expect(summarizeTraceFile(file)).toBeNull();
+    writeFileSync(file, trace('repaired'));
+    vi.spyOn(Date, 'now').mockReturnValue(later + 10_000);
+    expect(summarizeTraceFile(file)).toMatchObject({ label: 'repaired' });
   });
 });

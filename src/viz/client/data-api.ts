@@ -57,6 +57,29 @@ export async function fetchJson<T>(path: string): Promise<T> {
   return (await response.json()) as T;
 }
 
+/**
+ * The last body of each POLLED list, with the validator the server sent for it.
+ * API responses are `no-store`, so the browser holds no copy to revalidate: the
+ * tab does it here, in memory, and a 304 hands back the SAME object, which
+ * React Query sees as unchanged data (no re-render, no GPU scene rebuild). The
+ * validator is a hash of the body, so a different principal or organisation
+ * can only match a list identical to the one held.
+ */
+const revalidated = new Map<string, { etag: string; value: unknown }>();
+
+export async function fetchRevalidatedJson<T>(path: string): Promise<T> {
+  const held = revalidated.get(path);
+  const response = await fetch(path, held ? { headers: { 'if-none-match': held.etag } } : undefined);
+  redirectIfAuthenticationRequired(response.status);
+  if (response.status === 304 && held) return held.value as T;
+  if (!response.ok) throw new ApiHttpError(response.status, path);
+  const value = (await response.json()) as T;
+  const etag = response.headers.get('etag');
+  if (etag) revalidated.set(path, { etag, value });
+  else revalidated.delete(path);
+  return value;
+}
+
 export const api = {
   assistant: (projectId: string | null, options: { conversationId?: string; before?: number } = {}) => {
     const params = new URLSearchParams();
@@ -66,7 +89,7 @@ export const api = {
     return fetchJson<AssistantView>(`/api/assistant?${params}`);
   },
   assistantRequest: (request: AssistantRequest) => mutateJson<AssistantView>('/api/assistant', request),
-  runs: () => fetchJson<RunIndexEntry[]>('/api/runs'),
+  runs: () => fetchRevalidatedJson<RunIndexEntry[]>('/api/runs'),
   run: async (id: string, after?: number) =>
     fetchJson<VizRun>(
       `/api/runs/${encodeURIComponent(id)}${after === undefined ? '' : `?after=${after}`}`
@@ -86,9 +109,9 @@ export const api = {
   burnin: () => fetchJson<{ rows: BurninRow[]; csvPath: string }>('/api/burnin'),
   goalGuidance: () =>
     fetchJson<{ launchEnabled: false; guidance: GoalGuidance }>('/api/goal-guidance'),
-  projects: () => fetchJson<VizProject[]>('/api/projects'),
+  projects: () => fetchRevalidatedJson<VizProject[]>('/api/projects'),
   projectRuns: (projectId: string) =>
-    fetchJson<VizProjectRun[]>(`/api/projects/${encodeURIComponent(projectId)}/runs`),
+    fetchRevalidatedJson<VizProjectRun[]>(`/api/projects/${encodeURIComponent(projectId)}/runs`),
   controlCheckpoint: (projectId: string, runId: string, action: 'pause' | 'resume') =>
     mutateJson<VizProjectRun>(`/api/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/${action}`, {}),
   continueGitHubAccess: (projectId: string, runId: string) =>

@@ -1754,6 +1754,44 @@ function sendJson(res: import('node:http').ServerResponse, code: number, obj: un
   send(res, code, JSON.stringify(obj), 'application/json; charset=utf-8');
 }
 
+/**
+ * A POLLED list, answered 304 when the client already holds these exact bytes.
+ * The run and project lists are re-fetched every few seconds and rarely change
+ * (3 of 84 project-list polls did on 2026-10-14). The validator is a hash of
+ * the body, so it can only match the same representation; it is WEAK because
+ * the reverse proxy compresses the body and weakens a strong one anyway. The
+ * response stays `no-store`: the browser never caches it, the client keeps the
+ * validator itself (`client/data-api.ts`), and the service worker still never
+ * sees `/api/*`.
+ */
+function sendJsonRevalidated(
+  req: import('node:http').IncomingMessage,
+  res: import('node:http').ServerResponse,
+  obj: unknown
+): void {
+  const body = JSON.stringify(obj);
+  const etag = `W/"${createHash('sha256').update(body).digest('base64url').slice(0, 32)}"`;
+  if (ifNoneMatch(req.headers['if-none-match'], etag)) {
+    res.writeHead(304, { etag, 'cache-control': 'no-store' });
+    res.end();
+    return;
+  }
+  res.writeHead(200, {
+    'content-type': 'application/json; charset=utf-8',
+    'content-length': Buffer.byteLength(body),
+    'cache-control': 'no-store',
+    etag,
+  });
+  res.end(body);
+}
+
+/** RFC 9110 weak comparison of an If-None-Match list against one entity tag. */
+function ifNoneMatch(header: string | undefined, etag: string): boolean {
+  if (!header) return false;
+  const opaque = (tag: string) => tag.trim().replace(/^W\//, '');
+  return header.split(',').some((tag) => tag.trim() === '*' || opaque(tag) === opaque(etag));
+}
+
 function projectReaderQuery(params: URLSearchParams) {
   const raw = Object.fromEntries([...params].filter(([key]) => ['view', 'search', 'limit', 'cursor', 'status'].includes(key)));
   const parsed = runPageInputSchema.safeParse({ ...raw, ...(params.has('limit') ? { limit: Number(params.get('limit')) } : {}) });
@@ -1876,8 +1914,14 @@ function listOrganisationRunIndex(orgId: string): VizRunIndexEntry[] {
 function listAllRunIndex(viewer: Viewer): VizRunIndexEntry[] {
   if (!PROJECTS_RUNTIME) return [];
   const entries: VizRunIndexEntry[] = [];
+  // One receipt per organisation and listing, as the project service audits:
+  // per ROW it re-checked the journal hundreds of times for the same answer.
+  const audited = new Set<string>();
   for (const row of PROJECTS_RUNTIME.store.listAllRunTraces()) {
-    PROJECTS_RUNTIME.projects.auditRead(viewer, row.orgId, 'runs.index');
+    if (!audited.has(row.orgId)) {
+      PROJECTS_RUNTIME.projects.auditRead(viewer, row.orgId, 'runs.index');
+      audited.add(row.orgId);
+    }
     const summary = summarizeTraceFile(row.file);
     if (!summary) continue;
     entries.push({
@@ -4446,7 +4490,7 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
         try {
           const params = new URL(req.url!, 'http://localhost').searchParams;
           const query = projectReaderQuery(params);
-          sendJson(res, 200, Object.keys(query).length ? PROJECTS_RUNTIME.projects.projectPage(viewer, query)
+          sendJsonRevalidated(req, res, Object.keys(query).length ? PROJECTS_RUNTIME.projects.projectPage(viewer, query)
             : PROJECTS_RUNTIME.projects.listProjects(viewer));
         } catch (error) {
           if (!(error instanceof ProjectHttpError)) throw error;
@@ -4612,7 +4656,7 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
       if (req.method === 'GET') {
         try {
           const query = projectReaderQuery(new URL(req.url!, 'http://localhost').searchParams);
-          sendJson(res, 200, Object.keys(query).length ? PROJECTS_RUNTIME.projects.projectRunsPage(viewer, projectId, query)
+          sendJsonRevalidated(req, res, Object.keys(query).length ? PROJECTS_RUNTIME.projects.projectRunsPage(viewer, projectId, query)
             : PROJECTS_RUNTIME.projects.listProjectRuns(viewer, projectId));
         } catch (error) {
           if (error instanceof ProjectHttpError) {
@@ -4863,7 +4907,7 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
   }
 
   if (pathname === '/api/runs') {
-    try { sendJson(res, 200, listIndex(AUTH?.resolve(req) ?? null)); }
+    try { sendJsonRevalidated(req, res, listIndex(AUTH?.resolve(req) ?? null)); }
     catch (error) {
       if (!(error instanceof ProjectHttpError)) throw error;
       sendJson(res, error.status, { error: error.message });

@@ -14,7 +14,11 @@ export function useRunsIndex(active: boolean) {
     queryKey: ['viz', 'runs'],
     queryFn: api.runs,
     enabled: active,
-    refetchInterval: active ? 2000 : false,
+    // Live work is followed at 2s. Otherwise the list only has to DISCOVER a
+    // run started elsewhere (MCP, another browser), at the project runs'
+    // idle cadence: polling a quiet platform every 2s re-listed every trace.
+    refetchInterval: (query) => !active ? false
+      : query.state.data?.some((entry) => isIndexEntryLive(entry)) ? 2_000 : 5_000,
     staleTime: 750,
   });
   return { ...query, error: active ? query.error : null };

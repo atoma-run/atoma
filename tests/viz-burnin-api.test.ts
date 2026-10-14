@@ -156,6 +156,25 @@ describe('GET /api/runs/:id', () => {
     const rows = (await index!.json()) as Array<{ id: string }>;
     expect(rows.map((row) => row.id)).toContain('small');
     expect(rows.map((row) => row.id)).toContain('huge');
+
+    // The polled list revalidates: a held validator gets an empty 304, in any
+    // weak/strong spelling a proxy may have produced, until the list changes.
+    const etag = index!.headers.get('etag');
+    expect(etag).toMatch(/^W\/"[A-Za-z0-9_-]{32}"$/);
+    expect(index!.headers.get('cache-control')).toBe('no-store');
+    for (const held of [etag!, etag!.slice(2), `W/"stale", ${etag}`, '*']) {
+      const unchanged = await fetch(`http://127.0.0.1:${port}/api/runs`, { headers: { 'if-none-match': held } });
+      expect(unchanged.status).toBe(304);
+      expect(unchanged.headers.get('etag')).toBe(etag);
+      expect(await unchanged.text()).toBe('');
+    }
+    expect((await fetch(`http://127.0.0.1:${port}/api/runs`, { headers: { 'if-none-match': 'W/"stale"' } })).status).toBe(200);
+    writeFileSync(join(runs, 'later.json'),
+      '{"id":"later","label":"later run","startedAt":"2026-10-14T00:00:00.000Z","events":[]}');
+    const changed = await fetch(`http://127.0.0.1:${port}/api/runs`, { headers: { 'if-none-match': etag! } });
+    expect(changed.status).toBe(200);
+    expect(changed.headers.get('etag')).not.toBe(etag);
+    expect(((await changed.json()) as Array<{ id: string }>).map((row) => row.id)).toContain('later');
   }, 20_000);
 });
 
