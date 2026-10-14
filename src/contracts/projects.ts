@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { deploymentDestinationSchema } from './projectDeployment.js';
 import { learningReceiptSchema } from './skillLearning.js';
 import { PLATFORM_SETTINGS } from './platformSettings.js';
 import { deliveryKindSchema } from './taskExecution.js';
@@ -279,6 +280,7 @@ export const projectSchema = z
     slug: projectSlugSchema,
     initialPrompt: projectPromptSchema,
     status: projectStatusSchema,
+    deploymentDestination: deploymentDestinationSchema.default('none'),
     showcase: projectShowcaseSchema,
     followUpstream: z.boolean().default(false),
     repositoryTarget: repositoryTargetSchema,

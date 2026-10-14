@@ -1,3 +1,4 @@
+import { deploymentSettingInputSchema } from '../contracts/projectDeployment.js';
 import { projectLearningInputSchema, projectLearningCursorSchema } from '../contracts/projectLearning.js';
 import { projectRetrievalRequestSchema } from '../contracts/projectRetrieval.js';
 import { searchSavedProjectCode } from './retrievalRead.js';
@@ -199,6 +200,7 @@ function publicProject(
     slug: project.slug,
     status: project.status,
     followUpstream: project.followUpstream,
+    deploymentDestination: project.deploymentDestination,
     /**
      * `showcase` and `showcaseShown` exist ONLY for a project of an
      * organisation a platform admin founded and still owns: any other project
@@ -474,6 +476,27 @@ export class ProjectService {
   /** POST /api/projects — org:member or above. */
   async createProject(req: IncomingMessage, viewer: Viewer): Promise<unknown> {
     return this.createProjectFromInput(viewer, await readJsonBody(req));
+  }
+
+  /** Project preference only: saving never deploys or stops an application. */
+  async setDeploymentDestination(req: IncomingMessage, viewer: Viewer, projectId: string): Promise<unknown> {
+    projectId = clientInput(projectIdSchema, projectId);
+    if (!roleAtLeast(viewer.role, 'org:admin')) throw new ProjectHttpError(403, 'org:admin role or above is required');
+    const parsed = deploymentSettingInputSchema.safeParse(await readJsonBody(req));
+    if (!parsed.success) throw new ProjectHttpError(400, 'invalid deployment preference');
+    let project;
+    try { project = this.store.setDeploymentDestination(viewer.orgId, projectId, parsed.data); }
+    catch (error) {
+      if (error instanceof ProjectStateConflict) throw new ProjectHttpError(409, error.message);
+      throw error;
+    }
+    if (!project) throw new ProjectHttpError(404, 'project not found');
+    if (parsed.data.expectedDestination !== project.deploymentDestination) this.events({
+      kind: 'project.deployment_preference_changed', actorType: 'principal', actorId: viewer.principalId,
+      orgId: viewer.orgId, projectId, summary: `Deployment preference changed for ${eventLabel(project.name, 80)}`,
+      detail: { from: parsed.data.expectedDestination, to: project.deploymentDestination },
+    });
+    return publicProject(project, undefined, this.showcaseViews()(viewer.orgId, projectId));
   }
 
   /** Whether a fork project follows its upstream: an organisation admin's decision, journaled. */

@@ -173,6 +173,7 @@ export interface GpuDataSnapshot {
   projectRuns: Record<string, VizProjectRun[]>;
   githubRecovery?: import('./github-access.js').GitHubRecoveryProgress | null;
   workspace?: WorkspaceBrowserData;
+  deploymentSettings?: import('./project-deployment.js').DeploymentSettingsView;
   githubInstallations: VizGitHubInstallation[];
   adminOrganisations: VizAdminOrganisation[];
   adminInvitation: VizAdminInvitation | null;

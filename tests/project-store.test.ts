@@ -1154,3 +1154,17 @@ it('reads an organisation\'s newest runs across its projects, the scan bounded (
   expect(store.recentProjectRuns(alice.orgId, 50)).toHaveLength(3);
   expect(store.recentProjectRuns(bob.orgId, 50)).toEqual([]);
 });
+
+
+it('migrates old projects to no deployment and keeps saved preferences across reopen', () => {
+  const owner = actor('deployment-owner');
+  const project = createProject(owner);
+  db.exec('ALTER TABLE projects DROP COLUMN deployment_destination');
+  store = new ProjectStore(db);
+  expect(store.getProject(owner.orgId, project.projectId)!.deploymentDestination).toBe('none');
+  store.setDeploymentDestination(owner.orgId, project.projectId, { destination: 'external', expectedDestination: 'none' });
+  db.close();
+  db = new Database(join(root, 'product.db'));
+  store = new ProjectStore(db);
+  expect(store.getProject(owner.orgId, project.projectId)!.deploymentDestination).toBe('external');
+});

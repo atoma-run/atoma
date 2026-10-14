@@ -25,6 +25,7 @@
  *                        them. Without it: the ungated developer rendering.
  *   --platform-admin     With --auth, include platform administrator controls.
  *   --settings-tab <id>   Settings panel to capture (default general).
+ *   --project-settings   With --auth --select-first, open project deployment settings.
  *   --select-first       Click the first project row after arrival (the run
  *                        list and selected-project MCP guide).
  *   --assistant-empty    Empty conversation before choosing a model.
@@ -65,9 +66,7 @@
  *   --width/--height     Viewport (default 1600x900, deviceScaleFactor 2).
  */
 import { spawn } from 'node:child_process';
-import { mkdir, mkdtemp, readFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { unzipSync } from 'fflate';
+import { mkdir } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -111,8 +110,7 @@ if (assistantLinksProbe && (!authed || !selectFirst || !arg('--url'))) {
 const projectTabsProbe = has('--project-tabs-probe');
 const projectRunCards = has('--project-run-cards');
 const overviewProbe = has('--overview-probe');
-const localDockerProbe = has('--local-docker-probe');
-const filesProbe = has('--files-probe') || localDockerProbe;
+const filesProbe = has('--files-probe');
 // A running app preview, so its controls (open, stop) are drawn.
 const previewReady = has('--preview-ready');
 // The saved workspace `--files-probe` browses: one root file and a folder.
@@ -121,12 +119,6 @@ const probeFiles = {
   'src/app.js': 'export function startStopwatch(clock) {\n  return clock.now();\n}\n',
   'src/styles.css': 'body { font-family: system-ui; }\n',
 };
-if (localDockerProbe) {
-  probeFiles['compose.yaml'] = 'services: {}\n';
-  probeFiles['atoma.local.json'] = JSON.stringify({version:1,runtime:'docker-compose',composeFile:'compose.yaml',
-    onboarding:{whyLocal:'Read stock files from your computer.',runsOnComputer:'The stock tracker and its import service run here.',dataAndConnections:'Stock records stay in the project data folder. Imports read files you choose.',firstSteps:['Open Inventory.','Choose Import and select a stock file.']},
-    appUrl:'http://127.0.0.1:3300/',verificationUrl:'http://127.0.0.1:6081/vnc.html?autoconnect=1',files:['compose.yaml','src/app.js']});
-}
 const showAssistant = has('--assistant') || assistantReconnect || assistantEmpty || assistantOwnAgent || assistantHistory || assistantModelProbe || assistantLinksProbe;
 const assistantFixture = {
   choices: [{ id: 'own:anthropic:haiku', model: 'own:anthropic:haiku', label: 'Claude · Haiku (beta)', payer: 'principal-subscription' }], nextBefore: null, available: true, model: 'api:anthropic:claude-haiku-4-5-20251001', busy: false, run: null,
@@ -917,9 +909,6 @@ try {
               const text = probeFiles[params.get('path')];
               void request.respond(text === undefined ? { status: 404, body: '' }
                 : { status: 200, contentType: 'application/octet-stream', body: text });
-            } else if (params.has('path')) {
-              const name = params.get('path'), text = probeFiles[name];
-              void request.respond({status:200,contentType:'application/json',body:JSON.stringify({path:name,size:Buffer.byteLength(text),kind:'text',text})});
             } else {
               void request.respond({ status: 200, contentType: 'application/json', headers: { 'cache-control': 'no-store' },
                 body: JSON.stringify({ runId, createdAt: '2026-08-20T00:00:59.000Z', status: 'delivered',
@@ -931,6 +920,12 @@ try {
             const runs = stubs[path.slice(0, path.lastIndexOf('/runs/') + 5)];
             runs[0].githubAccess.resumedRunId = 'eeeeeeee-1111-4222-8333-ffffffffffff';
             void request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify(runs[0]) });
+            return;
+          }
+          if (has('--project-settings') && /^\/api\/projects\/[^/]+\/deployment$/.test(path) && request.method() === 'PUT') {
+            const project = stubs['/api/projects'].find(row => row.projectId === path.split('/')[3]);
+            project.deploymentDestination = JSON.parse(request.postData()).destination;
+            void request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify(project) });
             return;
           }
           // A selected project asks for its latest delivered run's preview;
@@ -1182,6 +1177,38 @@ try {
         }, { timeout: READY_TIMEOUT_MS });
       }
       await page.evaluate(() => new Promise((resolveWait) => setTimeout(resolveWait, 800)));
+    }
+
+    if (has('--project-settings')) {
+      if (!authed || !selectFirst) throw new Error('--project-settings requires --auth --select-first');
+      const click = async id => {
+        await page.waitForFunction(targetId => globalThis.__ATOMA_GPU__?.hitTargets().some(row => row.id === targetId), {}, id);
+        const target = await page.evaluate(targetId => {
+          const handle = globalThis.__ATOMA_GPU__;
+          const row = handle.hitTargets().find(entry => entry.id === targetId);
+          return handle.projectRendererPoint(row.x + row.width / 2, row.y + row.height / 2);
+        }, id);
+        await page.mouse.move(target.x, target.y);
+        await page.evaluate(() => new Promise(resolveWait => requestAnimationFrame(() => requestAnimationFrame(resolveWait))));
+        await page.mouse.click(target.x, target.y);
+      };
+      await click('project.section.settings');
+      await page.waitForFunction(() => document.querySelector('#project-tab-settings')?.getAttribute('aria-selected') === 'true');
+      await click('deployment.choose.atoma');
+      await page.waitForFunction(() => document.querySelector('[aria-describedby="deployment-description-atoma"]')?.checked);
+      const before = stubs['/api/projects'].map(project => project.deploymentDestination ?? 'none');
+      if (before.some(value => value !== 'none')) throw new Error('Destination saved without confirmation');
+      // Save remains reachable on a short viewport through the pane's wheel routing.
+      await page.mouse.move(width / 2, height - 160);
+      await page.mouse.wheel({ deltaY: 900 });
+      await page.evaluate(() => new Promise(resolveWait => setTimeout(resolveWait, 300)));
+      await click('deployment.save');
+      await page.waitForFunction(() => document.body.textContent.includes('Preference saved.'));
+      if (!stubs['/api/projects'].some(project => project.deploymentDestination === 'atoma')) throw new Error('Preference was not saved');
+      await click('project.section.runs');
+      await click('project.section.settings');
+      await page.waitForFunction(() => document.querySelector('[aria-describedby="deployment-description-atoma"]')?.checked);
+      console.log('Project settings: default none, explicit save to Atoma, retained after tab navigation');
     }
 
     if (view === 'Projects' && selectFirst && (projectRunCards || githubAccessProbe || has('--github-access') || showResult || has('--touch-probe'))) {
@@ -1573,39 +1600,6 @@ try {
       const reads = text => page.waitForFunction(expected => [...document.querySelectorAll('.gpu-preview-frame')]
         .some(frame => frame.contentDocument?.body?.textContent?.includes(expected)), { timeout: READY_TIMEOUT_MS }, text);
       await clickTarget('project.section.files');
-      if (localDockerProbe) {
-        if (await page.evaluate(() => globalThis.__ATOMA_GPU__.hitTargets().some(t => t.id.startsWith('localDocker.')))) throw new Error('Installation still lives in Files');
-        await clickTarget('project.section.preview');
-        await page.waitForFunction(() => document.body.textContent.includes('Read stock files from your computer.'));
-        await page.screenshot({path:outPath.replace(/\.png$/, '-application.png')});
-        await clickTarget('localDocker.step.prepare');
-        await clickTarget('localDocker.step.launch');
-        const downloads = await mkdtemp(resolve(tmpdir(), 'atoma-installer-download-'));
-        const downloadSession = await browser.target().createCDPSession();
-        await downloadSession.send('Browser.setDownloadBehavior', {behavior:'allowAndName', downloadPath:downloads, eventsEnabled:true});
-        const completed = new Promise((resolveDownload, rejectDownload) => {
-          const timeout = setTimeout(() => rejectDownload(new Error('Installer download did not finish')), READY_TIMEOUT_MS);
-          downloadSession.on('Browser.downloadProgress', event => {
-            if (event.state === 'completed') {clearTimeout(timeout);resolveDownload(event.guid);}
-            if (event.state === 'canceled') {clearTimeout(timeout);rejectDownload(new Error('Installer download canceled'));}
-          });
-        });
-        await clickTarget('localDocker.download');
-        await page.waitForFunction(() => document.body.textContent.includes('Package prepared.'), {timeout: READY_TIMEOUT_MS});
-        const archive = unzipSync(await readFile(resolve(downloads, await completed)));
-        if (!archive['Start.command'] || !archive['Start.cmd'] || !archive['app/compose.yaml'] || archive['app/README.md']) {
-          throw new Error('Installer download differs from its declared source allowlist');
-        }
-        await downloadSession.detach();
-        if (!new TextDecoder().decode(archive['START-HERE.txt']).includes('Open Inventory.')) throw new Error('Offline guide lost the delivered first steps');
-        await clickTarget('localDocker.step.use');
-        await page.waitForFunction(() => document.body.textContent.includes('Choose Import and select a stock file.'));
-        if (await page.$('.gpu-preview-plane')) throw new Error('A local application started a hosted preview');
-        await page.screenshot({path:outPath.replace(/\.png$/, '-use.png')});
-        await clickTarget('localDocker.step.about');
-        await clickTarget('localDocker.step.use');
-        console.log('Application: real canvas setup, download, first steps and returning-user path passed; Files has no installer');
-      } else {
       await clickTarget('workspace.path.README.md');
       await reads('Start, stop and reset');
       if (await page.$('.gpu-workspace-reader')) {
@@ -1622,8 +1616,6 @@ try {
         if (!await page.$eval('.gpu-scene-host', host => host.inert)) throw new Error('The modal reader left the scene live');
         console.log('Files reader: modal, the column is too narrow to dock it');
       }
-    }
-
     }
 
     if (accountMenu) {

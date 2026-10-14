@@ -4649,6 +4649,19 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
       return;
     }
 
+    const deploymentSetting = pathname.match(/^\/api\/projects\/([^/]+)\/deployment$/);
+    if (deploymentSetting) {
+      if (!methodAllowed(req, res, 'PUT') || !sameOrigin(req, res)) return;
+      if (!viewer) { sendJson(res, 401, { error: 'authentication required' }); return; }
+      try {
+        sendJson(res, 200, await PROJECTS_RUNTIME.projects.setDeploymentDestination(req, viewer, deploymentSetting[1]!));
+      } catch (error) {
+        if (!(error instanceof ProjectHttpError)) throw error;
+        sendJson(res, error.status, { error: error.message });
+      }
+      return;
+    }
+
     const upstreamSetting = pathname.match(/^\/api\/projects\/([^/]+)\/upstream$/);
     if (upstreamSetting) {
       if (!methodAllowed(req, res, 'PUT') || !sameOrigin(req, res)) return;

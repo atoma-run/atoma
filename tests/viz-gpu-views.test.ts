@@ -3435,10 +3435,10 @@ describe('drawProjects', () => {
     expect(repositoryPositions.every(position => JSON.stringify(position) === JSON.stringify(repositoryPositions[0]))).toBe(true);
     const tabs = runs.buttons.filter(button => button.id.startsWith('project.section.'));
     expect(tabs.map(button => button.id)).toEqual([
-      'project.section.conversation', 'project.section.runs', 'project.section.preview', 'project.section.files', 'project.section.result',
+      'project.section.conversation', 'project.section.runs', 'project.section.preview', 'project.section.files', 'project.section.result', 'project.section.settings',
     ]);
     expect(new Set(tabs.map(button => button.y)).size).toBe(1);
-    expect(tabs.map(button => button.active)).toEqual([false, true, false, false, false]);
+    expect(tabs.map(button => button.active)).toEqual([false, true, false, false, false, false]);
     expect(tabs[0]?.y).toBe(viewFrame(1000, 900).contentTop);
     const conversation = draw('conversation');
     expect(conversation.buttons.some(button => button.id === 'project.run.saved-trace')).toBe(false);
@@ -3451,12 +3451,12 @@ describe('drawProjects', () => {
     expect(runs.buttons.some(button => button.id === 'run.preview.open')).toBe(false);
     const preview = draw('preview');
     expect(preview.buttons.filter(button => button.id.startsWith('project.section.')).map(button => button.active))
-      .toEqual([false, false, true, false, false]);
+      .toEqual([false, false, true, false, false, false]);
     expect(preview.buttons.some(button => button.id === 'project.run.saved-trace')).toBe(false);
     expect(preview.panels.some(panel => panel.y === PROJECTS_SELECTED_MCP_GUIDE_TOP)).toBe(false);
     const files = draw('files');
     expect(files.buttons.filter(button => button.id.startsWith('project.section.')).map(button => button.active))
-      .toEqual([false, false, false, true, false]);
+      .toEqual([false, false, false, true, false, false]);
     expect(files.buttons.some(button => button.id === 'workspace.path.src')).toBe(true);
     expect(files.buttons.some(button => button.id === 'project.run.saved-trace')).toBe(false);
     expect(files.panels.some(panel => panel.parent === files.root && panel.y === PROJECTS_SELECTED_MCP_GUIDE_TOP
@@ -3464,7 +3464,7 @@ describe('drawProjects', () => {
 
     const result = draw('result');
     expect(result.buttons.filter(button => button.id.startsWith('project.section.')).map(button => button.active))
-      .toEqual([false, false, false, false, true]);
+      .toEqual([false, false, false, false, true, false]);
     expect(result.texts.some(text => text.value === 'Delivered answer')).toBe(true);
     expect(result.buttons.some(button => button.id === 'project.run.saved-trace')).toBe(false);
     expect(result.buttons.some(button => button.id === 'result.close')).toBe(false);
@@ -3618,7 +3618,20 @@ describe('drawProjects', () => {
     expect(ctx.scrollMax.projects).toBeGreaterThanOrEqual(lastBottom - viewFrame(width, 900).bottom);
   });
 
-  it('keeps all five project sections available when files or delivered results are absent', () => {
+  it('renders the deployment settings and keeps the save action reachable by scrolling', () => {
+    const project = guidanceProject();
+    for (const width of [900, 1280]) {
+      const ctx = createRecordingCtx();
+      drawProjects(ctx, makeSnapshot({ view: 'projects', selectedProjectId: project.projectId, projectSection: 'settings' }, {
+        auth: makeAuth(), projects: [project], deploymentSettings: { saved: 'none', destination: 'atoma', canEdit: true, busy: false, status: 'idle' },
+      }), width, 900);
+      expect(ctx.buttons.some(button => button.id === 'deployment.choose.atoma')).toBe(true);
+      expect(ctx.texts.some(text => text.value === t('deployment.unavailable'))).toBe(true);
+      expect(ctx.scrollMax.projects).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it('keeps all six project sections available when files or delivered results are absent', () => {
     const project = guidanceProject();
     for (const [section, messageKey] of [
       ['preview', 'projects.section.noDeliveredResult'],
@@ -3628,7 +3641,7 @@ describe('drawProjects', () => {
       const ctx = createRecordingCtx();
       drawProjects(ctx, makeSnapshot({ view: 'projects', selectedProjectId: project.projectId,
         projectSection: section }, { projects: [project], projectRuns: { [project.projectId]: [] } }), 1000, 700);
-      expect(ctx.buttons.filter(button => button.id.startsWith('project.section.'))).toHaveLength(5);
+      expect(ctx.buttons.filter(button => button.id.startsWith('project.section.'))).toHaveLength(6);
       expect(ctx.texts.some(text => text.value === t(messageKey))).toBe(true);
       expect(ctx.scrollMax.projects).toBe(0);
     }

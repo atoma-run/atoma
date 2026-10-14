@@ -371,6 +371,10 @@ npm run viz:mark-turn:analyze
   before the `maxNodes` slice, never an array, and drops an entry with NO
   content (`stderr: ''`). `detail-layout.ts` packs adjacent fields up to THREE
   per row, at the narrowest count any MEASURES into: 2+2, not 3+1.
+- Project Settings holds the optional deployment preference (none, Atoma, external).
+  GPU and accessible controls share the choice model, explicit save and errors.
+  It never redirects preview to local Docker installation or claims hosting is
+  active. Saving has no execution or migration side effects.
 - Projects' Files explorer opens the newest retained delivered/partial lineage
   workspace, excluding comparison reruns. It labels the saved run and does not
   claim to be live GitHub. Folder/file navigation belongs to the shared GPU
@@ -390,11 +394,6 @@ npm run viz:mark-turn:analyze
   composition, even for trusted parent rendering. Tests prove CSP rejection.
   Remote images are limited to the GIS plugin's OpenStreetMap basemap.
   Generated HTML remains source text.
-- Completed Docker-ready workspaces expose a local install guide in Application via
-  `atoma.local.json`; delivery-authored explanations and setup steps are shared by
-  GPU and accessibility controls. Files remains a source explorer.
-  [Local installation contract](../../docs/local-docker-projects.md). No local
-  connectivity claim or automatic execution follows a download.
 - Runs' Progress reader projects recorded branch lifecycles and tool receipts
   through `client-gl/run-activity.ts`, shared by GPU and accessibility views.
   Only successful `write_file`/`edit_file` receipts count as changed files;

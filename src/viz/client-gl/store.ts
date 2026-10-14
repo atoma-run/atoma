@@ -216,7 +216,7 @@ export interface GpuUiState {
   selectedRegistryAtom: string | null;
   selectedSkill: { l1Name: string; id: string } | null;
   selectedProjectId: string | null;
-  projectSection: 'conversation' | 'runs' | 'preview' | 'files' | 'result';
+  projectSection: 'conversation' | 'runs' | 'preview' | 'files' | 'result' | 'settings';
   projectMcpCollapsed: boolean;
   /** The selected project's overview column folded to a strip; one setting for every project. */
   projectOverviewCollapsed: boolean;

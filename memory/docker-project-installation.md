@@ -1,6 +1,9 @@
-# Docker installation for customer projects
+# Historical Docker installation pilot (superseded)
 
-Owner decision, 2026-10-14: keep Docker as the only local runtime for now;
+Superseded later on 2026-10-14 by [project deployment](project-deployment.md).
+Preserve the historical pilot and data; do not restore local installation as the customer journey.
+
+Earlier owner decision, 2026-10-14: keep Docker as the only local runtime for now;
 simplify customer installation inside Atoma for projects needing it (for example,
 website scraping with human CAPTCHA verification). Do not build an independent
 Atoma desktop agent as part of this iteration.
@@ -9,7 +12,7 @@ Implementation: explicit `atoma.local.json` in completed delivery -> Application
 -> source-only ZIP, Start/Stop macOS and Windows launchers, Docker/Compose checks,
 stable per-project state directory and Compose identity, loopback app and optional
 verification links. No pairing, remote Docker control, installed-status claim or
-implicit local-to-cloud synchronization. Contract: `docs/local-docker-projects.md`.
+implicit local-to-cloud synchronization. The platform install contract has since been removed.
 The Windows launcher is not yet verified on native Windows. Each app must include
 and test its portable Compose config and complete source allowlist.
 

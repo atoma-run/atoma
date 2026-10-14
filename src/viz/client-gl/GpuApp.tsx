@@ -1,10 +1,9 @@
+import { useProjectDeployment } from './project-deployment.js';
 import { FilePreview } from './FilePreview.js';
 import { CHEVRON_CSS_VARS } from './button-icons.js';
 import { TIMELINE_JUMP_PREFIX } from './renderer/timeline-minimap.js';
 import { AssistantPanel } from './AssistantPanel.js';
-import { workspaceIndexSchema, workspaceFileSchema } from '../../contracts/workspaceBrowser.js';
-import { LOCAL_DOCKER_FILE, localDockerSchema, DOCKER_DESKTOP_URL } from '../../contracts/localDocker.js';
-import type { LocalDockerState } from './local-docker.js';
+import { workspaceIndexSchema } from '../../contracts/workspaceBrowser.js';
 import { latestWorkspaceRun, workspacePreviewPath, workspaceSplitForViewport } from './workspace-browser.js';
 import { canControlCheckpoint, pendingGitHubAccess, canContinueGitHubAccess, canRetryPublication } from './github-access.js';
 import { fetchJson } from '../client/data-api.js';
@@ -285,6 +284,9 @@ function GpuAppContent({
   // identities with it.
   const selectedProject =
     projectsQuery.data?.find((project) => project.projectId === state.selectedProjectId) ?? null;
+  const deployment = useProjectDeployment(selectedProject,
+    (authSnapshot?.viewer.role === 'org:owner' || authSnapshot?.viewer.role === 'org:admin') &&
+    (!selectedProject?.orgId || selectedProject.orgId === authSnapshot?.viewer.activeOrganisation?.id));
   const projectRunsQuery = useProjectRuns(
     selectedProject?.projectId ?? null,
     (state.view === 'projects' || state.view === 'runs') && !!selectedProject
@@ -301,37 +303,13 @@ function GpuAppContent({
     }
   }, [projectRunsQuery.data, selectedProject, state.view, state.projectSection,
     state.workspaceRunId, state.resultRunId, state.selectProjectSection]);
-  const applicationRun = state.projectSection === 'preview' ? latestDeliveredResult(projectRunsQuery.data ?? []) : undefined;
-  const workspaceRunId = state.projectSection === 'preview' ? applicationRun?.projectRunId : state.workspaceRunId;
-  const workspaceUrl = `/api/projects/${encodeURIComponent(selectedProject?.projectId ?? '')}/runs/${encodeURIComponent(workspaceRunId ?? '')}/workspace`;
-  const workspaceEnabled = authed && state.view === 'projects' && !!selectedProject && !!workspaceRunId && !applicationRun?.bytesExpiredAt;
+  const workspaceUrl = `/api/projects/${encodeURIComponent(selectedProject?.projectId ?? '')}/runs/${encodeURIComponent(state.workspaceRunId ?? '')}/workspace`;
+  const workspaceEnabled = authed && state.view === 'projects' && !!selectedProject && !!state.workspaceRunId;
   const workspaceIndex = useQuery({ queryKey: ['workspace', workspaceUrl],
     queryFn: async () => workspaceIndexSchema.parse(await fetchJson(workspaceUrl)), enabled: workspaceEnabled, retry: false });
-  const reloadWorkspace = workspaceIndex.refetch;
-  const hasLocalDocker = workspaceIndex.data?.status === 'delivered'
-    && workspaceIndex.data.files.some(file => file.path === LOCAL_DOCKER_FILE);
-  const localConfiguration = useQuery({ queryKey: ['local-docker', workspaceUrl],
-    queryFn: async () => {
-      const file = workspaceFileSchema.parse(await fetchJson(`${workspaceUrl}?path=${LOCAL_DOCKER_FILE}`));
-      if (file.kind !== 'text' || !file.text) throw new Error('Local installation descriptor is unavailable');
-      const config = localDockerSchema.parse(JSON.parse(file.text));
-      const { localDockerFiles } = await import('./local-docker.js');
-      localDockerFiles(config, workspaceIndex.data!);
-      return config;
-    }, enabled: workspaceEnabled && hasLocalDocker, retry: false });
-  const [localStep, setLocalStep] = useState<{ key: string; step: NonNullable<LocalDockerState['step']> } | null>(null);
-  const [localDownload, setLocalDownload] = useState<{ key: string; status: LocalDockerState['status'] } | null>(null);
-  const localDownloadIdentity = useRef('');
-  localDownloadIdentity.current = workspaceEnabled ? workspaceUrl : '';
-  const localDocker = useMemo<LocalDockerState | undefined>(() => !hasLocalDocker ? undefined : ({
-    config: localConfiguration.isError ? null : localConfiguration.data ?? null,
-    step: localStep?.key === workspaceUrl ? localStep.step : 'about',
-    status: localConfiguration.isError ? 'invalid' : !localConfiguration.data ? 'loading'
-      : localDownload?.key === workspaceUrl ? localDownload.status : 'ready',
-  }), [hasLocalDocker, localConfiguration.data, localConfiguration.isError, localDownload, localStep, workspaceUrl]);
   const workspace = useMemo(() => ({ index: workspaceIndex.data ?? null,
-    file: null, loading: workspaceIndex.isLoading, failed: workspaceIndex.isError, localDocker }),
-  [workspaceIndex.data, workspaceIndex.isLoading, workspaceIndex.isError, localDocker]);
+    file: null, loading: workspaceIndex.isLoading, failed: workspaceIndex.isError }),
+  [workspaceIndex.data, workspaceIndex.isLoading, workspaceIndex.isError]);
   const projectRuns = useMemo<Record<string, import('../client/types.js').VizProjectRun[]>>(
     () =>
       selectedProject && projectRunsQuery.data
@@ -690,8 +668,7 @@ function GpuAppContent({
   const { previewOpen, previewUrl, previewStatus, previewError, previewReloadNonce,
     requestPreview, closePreview, stopPreview, reloadPreview } = usePreviewSession({ previewTarget, previewSummary, t });
 
-  const projectApplicationSelected = state.view === 'projects' && !!selectedProject && state.projectSection === 'preview';
-  const projectPreviewSelected = projectApplicationSelected && workspaceIndex.isSuccess && !localDocker;
+  const projectPreviewSelected = state.view === 'projects' && !!selectedProject && state.projectSection === 'preview';
   // The renderer asks `workspaceSplit` with the same viewport width, so the
   // list narrows exactly when the reader docks; otherwise the modal opens.
   const viewportWidth = useSyncExternalStore(subscribeViewportWidth, viewportWidthSnapshot, () => 0);
@@ -937,7 +914,6 @@ function GpuAppContent({
     // The preview controls, drawn as siblings of the summary card so the
     // full-card toggle above cannot swallow them.
     if (id === 'run.preview.open') {
-      if (projectApplicationSelected && !projectPreviewSelected) return;
       // `failed` reopens as a RESTART, not an open: a generation that could
       // not start is not one to retry into, and the state machine already
       // says a new attempt is a new generation.
@@ -966,11 +942,13 @@ function GpuAppContent({
       store.toggleProjectOverview();
       return;
     }
+    if (id.startsWith('deployment.')) { deployment.activate(id); return; }
     if (id.startsWith('project.section.')) {
       if (!store.selectedProjectId) return;
       const section = id.slice('project.section.'.length);
       const rows = projectRunsQuery.data ?? [];
       if (section === 'conversation') store.selectProjectSection('conversation');
+      else if (section === 'settings') store.selectProjectSection('settings');
       else if (section === 'runs') store.selectProjectSection('runs');
       else if (section === 'preview') store.selectProjectSection('preview');
       else if (section === 'files') store.selectProjectSection('files', latestWorkspaceRun(rows)?.projectRunId);
@@ -978,45 +956,6 @@ function GpuAppContent({
       return;
     }
     if (id.startsWith('workspace.open.')) { store.openWorkspace(id.slice('workspace.open.'.length)); return; }
-    if (id === 'application.retry') { void reloadWorkspace(); return; }
-    if (id.startsWith('localDocker.')) {
-      if (!projectApplicationSelected) return;
-      if (id.startsWith('localDocker.step.')) {
-        const step = id.slice('localDocker.step.'.length);
-        if (step === 'about' || step === 'prepare' || step === 'launch' || step === 'use') {
-          setLocalStep({ key: workspaceUrl, step });
-          store.setScrollY('projects', 0);
-        }
-        return;
-      }
-      const config = localDocker?.config;
-      if (!config || !workspace.index || !state.selectedProjectId) return;
-      if (id === 'localDocker.install') window.open(DOCKER_DESKTOP_URL, '_blank', 'noopener,noreferrer');
-      else if (id === 'localDocker.open') window.open(config.appUrl, '_blank', 'noopener,noreferrer');
-      else if (id === 'localDocker.verify' && config.verificationUrl) window.open(config.verificationUrl, '_blank', 'noopener,noreferrer');
-      else if (id === 'localDocker.download' && localDocker.status !== 'downloading') {
-        const key = workspaceUrl, index = workspace.index, projectId = state.selectedProjectId;
-        setLocalDownload({ key, status: 'downloading' });
-        void (async () => {
-          try {
-            const { localDockerPackage } = await import('./local-docker.js');
-            const bytes = await localDockerPackage(config, index, projectId, async path => {
-              if (localDownloadIdentity.current !== key) throw new Error('Project changed');
-              const response = await fetch(`${key}?format=bytes&path=${encodeURIComponent(path)}`, { credentials: 'same-origin' });
-              if (!response.ok) throw new Error('Installation file could not be downloaded');
-              return new Uint8Array(await response.arrayBuffer());
-            });
-            if (localDownloadIdentity.current !== key) return;
-            const url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'application/zip' }));
-            const link = document.createElement('a');
-            link.href = url; link.download = `atoma-local-${projectId}-${index.runId.slice(0, 8)}.zip`;
-            link.click(); setTimeout(() => URL.revokeObjectURL(url), 30_000);
-            setLocalDownload({ key, status: 'downloaded' });
-          } catch { if (localDownloadIdentity.current === key) setLocalDownload({ key, status: 'failed' }); }
-        })();
-      }
-      return;
-    }
     if (id === 'workspace.close') { store.openWorkspace(null); return; }
     if (id.startsWith('workspace.path.')) {
       const path = id.slice('workspace.path.'.length);
@@ -1201,12 +1140,10 @@ function GpuAppContent({
     }
   }, [
     activateAuth,
+    deployment,
     queryClient,
     resultProjectId,
     workspace.index,
-    localDocker,
-    projectApplicationSelected, projectPreviewSelected, reloadWorkspace,
-    workspaceUrl,
     state.selectedProjectId,
     state.workspaceRunId,
     authSnapshot,
@@ -1303,6 +1240,7 @@ function GpuAppContent({
     burnin: burninQuery.data ?? null,
     guidance: null,
     workspace,
+    deploymentSettings: deployment.view,
     projects: projectsQuery.data ?? [],
     githubRecovery,
     projectRuns: resultProjectId && resultProjectRunsQuery.data
@@ -1333,6 +1271,7 @@ function GpuAppContent({
     loading,
     error,
   }), [
+    deployment.view,
     githubRecovery,
     workspace,
     accountError,
@@ -1402,7 +1341,7 @@ function GpuAppContent({
     <PreviewPlane
         embedded={projectPreviewSelected}
         veiled={state.accountMenuOpen || state.localeMenuOpen || state.notificationsMenuOpen}
-        open={previewOpen && (!projectApplicationSelected || projectPreviewSelected)}
+        open={previewOpen}
         summary={previewSummary}
         url={previewUrl}
         projectName={previewProject?.name ?? ''}
@@ -1477,13 +1416,13 @@ function GpuAppContent({
             onSettings={tab => { setSettingsInitialTab(tab); state.setView('settings'); }}
             onScopeChange={id => { state.selectProject(id); useGpuStore.setState({ projectMcpCollapsed: false }); }}
             onProject={id => { state.selectProject(id); state.selectProjectSection('runs'); }}
-            onApplication={id => { state.selectProject(id); state.selectProjectSection('preview'); }}
             onRun={(run, traceId) => {
               state.selectProject(run.projectId);
               state.selectProjectSection('runs');
               if (traceId) { state.selectRun(traceId); state.setView('runs'); }
             }}
           /> : null}
+          deploymentSettings={deployment.view}
           workspace={workspace}
           mcpAccessState={mcpAccessState}
           onOpenMcp={() => {

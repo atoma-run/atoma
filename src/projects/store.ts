@@ -1,3 +1,4 @@
+import { deploymentSettingInputSchema } from '../contracts/projectDeployment.js';
 import { readProjectLearning } from './learningRead.js';
 import type { ProjectLearningInput, ProjectLearningCursor } from '../contracts/projectLearning.js';
 import { initializeProjectContext, readProjectContext, projectContextHistory, updateProjectContext } from './context.js';
@@ -444,6 +445,7 @@ interface ProjectRow {
   /** NULL on a project created before 2026-10-06: listed, as it was. */
   showcase: string | null;
   follow_upstream: string | null;
+  deployment_destination: string | null;
   github_installation_id: string;
   repository_source_json: string | null;
   repository_target_owner: string;
@@ -534,6 +536,7 @@ function projectFromRow(row: ProjectRow): Project {
     status: row.status,
     showcase: row.showcase ?? 'listed',
     followUpstream: row.follow_upstream === '1',
+    deploymentDestination: row.deployment_destination ?? 'none',
     repositoryTarget: {
       installationId: row.github_installation_id,
       owner: row.repository_target_owner,
@@ -832,6 +835,7 @@ export class ProjectStore {
         ['projects', 'repository_source_json'],
         ['projects', 'showcase'],
         ['projects', 'follow_upstream'],
+        ['projects', 'deployment_destination'],
         ['project_runs', 'repository_base_json'],
         ['project_runs', 'github_access_json'],
         ['project_runs', 'skills_path'],
@@ -2431,6 +2435,24 @@ END;
       .prepare('SELECT * FROM project_publications WHERE publication_id = ? AND org_id = ?')
       .get(publicationId, orgId) as PublicationRow | undefined;
     return row ? publicationFromRow(row) : null;
+  }
+
+  /** Save a preference only. No runner, publication or deployment side effects. */
+  setDeploymentDestination(orgIdInput: string, projectIdInput: string, input: unknown): Project | null {
+    const orgId = organisationIdSchema.parse(orgIdInput);
+    const projectId = projectIdSchema.parse(projectIdInput);
+    const { destination, expectedDestination } = deploymentSettingInputSchema.parse(input);
+    return this.db.transaction(() => {
+      const before = this.getProject(orgId, projectId);
+      if (!before) return null;
+      if (before.deploymentDestination !== expectedDestination) {
+        throw new ProjectStateConflict('deployment preference changed; reload before saving');
+      }
+      if (destination !== expectedDestination) this.db.prepare(
+        'UPDATE projects SET deployment_destination = ?, updated_at = ? WHERE org_id = ? AND project_id = ?'
+      ).run(destination, new Date().toISOString(), orgId, projectId);
+      return this.getProject(orgId, projectId);
+    }).immediate();
   }
 
   setFollowUpstream(orgId: string, projectId: string, enabled: boolean): Project | null {

@@ -93,7 +93,7 @@ function payload(installationId: string, slug = 'weather-lab') {
   };
 }
 
-function service(): {
+function service(events?: import('../src/contracts/platformEvents.js').PlatformEventSink): {
   svc: ProjectService;
   start: ReturnType<typeof vi.fn>;
   retryPublication: ReturnType<typeof vi.fn>;
@@ -111,6 +111,7 @@ function service(): {
   });
   const retryPublication = vi.fn();
   const svc = new ProjectService({
+    events,
     store: projects,
     github,
     coordinator: {
@@ -707,5 +708,39 @@ describe('ProjectService — platform live runs', () => {
     for (const { owner, run } of rows) projects.transitionProjectRun({ orgId: owner.orgId,
       projectRunId: run.projectRunId, from: 'running', to: 'cancelled' });
     expect(svc.listLiveRuns(admin)).toEqual([]);
+  });
+});
+
+
+describe('deployment preference', () => {
+  it('persists an optional destination without starting a run or publishing', async () => {
+    const events = vi.fn();
+    const { svc, start, retryPublication } = service(events);
+    const project = projects.createProject({ orgId: alice.orgId, principalId: alice.principalId, project: payload('1') });
+    expect(project.deploymentDestination).toBe('none');
+    for (const [expectedDestination, destination] of [['none', 'atoma'], ['atoma', 'external'], ['external', 'none']]) {
+      const updated = await svc.setDeploymentDestination(jsonReq({ destination, expectedDestination }), alice, project.projectId);
+      expect(updated).toMatchObject({ deploymentDestination: destination });
+      expect(svc.listProjects(alice)).toEqual([expect.objectContaining({ deploymentDestination: destination })]);
+    }
+    expect(start).not.toHaveBeenCalled();
+    expect(retryPublication).not.toHaveBeenCalled();
+    expect(events).toHaveBeenCalledTimes(3);
+    expect(events).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'project.deployment_preference_changed',
+      orgId: alice.orgId, projectId: project.projectId, detail: { from: 'external', to: 'none' } }));
+  });
+
+  it('refuses foreign organisations, non-admins, stale updates and malformed settings', async () => {
+    const { svc } = service();
+    const project = projects.createProject({ orgId: alice.orgId, principalId: alice.principalId, project: payload('1') });
+    const input = { destination: 'atoma', expectedDestination: 'none' };
+    await expect(svc.setDeploymentDestination(jsonReq(input), bob, project.projectId)).rejects.toMatchObject({ status: 404 });
+    await expect(svc.setDeploymentDestination(jsonReq(input), { ...alice, role: 'org:member' }, project.projectId)).rejects.toMatchObject({ status: 403 });
+    for (const body of [{ ...input, destination: 'invalid' }, { ...input, deployNow: true }, { destination: 'atoma' }]) {
+      await expect(svc.setDeploymentDestination(jsonReq(body), alice, project.projectId)).rejects.toMatchObject({ status: 400 });
+    }
+    await svc.setDeploymentDestination(jsonReq(input), alice, project.projectId);
+    await expect(svc.setDeploymentDestination(jsonReq({ ...input, destination: 'external' }), alice, project.projectId)).rejects.toMatchObject({ status: 409 });
+    expect(projects.getProject(alice.orgId, project.projectId)!.deploymentDestination).toBe('atoma');
   });
 });

@@ -536,8 +536,8 @@ describe('full-GL minimal DOM bridge', () => {
     useGpuStore.setState({ view: 'projects', entered: true, projectSection: 'conversation' });
     renderBridge(vi.fn(), runs, undefined, [], 'Weather Lab');
     const tabs = within(screen.getByRole('tablist', { name: 'Weather Lab' })).getAllByRole('tab');
-    expect(tabs).toHaveLength(5);
-    expect(tabs.map(tab => tab.textContent?.trim())).toEqual(['Continue this project', 'Runs', 'Application', 'Files', 'Latest delivered results']);
+    expect(tabs).toHaveLength(6);
+    expect(tabs.map(tab => tab.textContent?.trim())).toEqual(['Continue this project', 'Runs', 'Preview app', 'Files', 'Latest delivered results', 'Project settings']);
     expect(document.querySelector('.gpu-project-mcp')).toHaveClass('gpu-project-mcp--selected');
     act(() => useGpuStore.getState().selectProjectSection('files'));
     expect(document.querySelector('.gpu-project-mcp')).not.toBeVisible();

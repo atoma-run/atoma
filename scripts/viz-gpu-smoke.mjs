@@ -2296,6 +2296,11 @@ try {
             body: updateShell.replace(/\/assets\/index-[\w-]+\.js/, '/assets/index-update-smoke.js') });
           return;
         }
+        if (path === `/api/projects/${projectId}/deployment` && request.method() === 'PUT') {
+          stubs['/api/projects'][0].deploymentDestination = JSON.parse(request.postData()).destination;
+          void request.respond({ status: 200, contentType: 'application/json', body: '{}' });
+          return;
+        }
         if (path === `/api/projects/${projectId}/upstream` && request.method() === 'PUT') {
           stubs['/api/projects'][0].followUpstream = JSON.parse(request.postData()).followUpstream;
           void request.respond({ status: 200, contentType: 'application/json', body: '{}' });
@@ -2398,6 +2403,7 @@ try {
             ) continue;
             const top = document.elementFromPoint(projected.x, projected.y);
             if (!top?.classList.contains('gpu-ui-canvas')) continue;
+
             return {
               ...projected,
               target: row,
@@ -2421,6 +2427,8 @@ try {
         const spot = await spotHandle.jsonValue();
         await spotHandle.dispose();
         if (!spot) throw new Error(`account scenario: hit target ${id} not found`);
+        await accountPage.mouse.move(spot.x, spot.y);
+        await accountPage.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
         await accountPage.mouse.click(spot.x, spot.y);
         return spot;
       };
@@ -2672,8 +2680,36 @@ try {
       await accountPage.click('.gpu-project-mcp-own-agent > summary');
       await accountPage.waitForSelector('.gpu-project-mcp-own-agent[open] .gpu-project-mcp-actions input[type="checkbox"]', { visible: true });
       console.log('Project repository ok: real canvas link remains clickable in all five tabs');
+      await accountPage.setViewport({ width: 1280, height: 900, deviceScaleFactor: 1 });
+      const settingsNotification = await accountPage.$('.gpu-push-prompt-actions button:last-child');
+      if (settingsNotification) await settingsNotification.click();
+      console.log('Project Preview tab ok: hosted preview -> Files; inline frame closes and reopens with a fresh claim');
+      await clickAccountTarget('project.section.settings');
+      await waitForHitTarget(accountPage, 'deployment.choose.atoma', 'Deployment settings did not render').catch(async error => {
+        await accountPage.screenshot({ path: '/tmp/atoma-deployment-settings-failure.png' });
+        throw new Error(await accountPage.evaluate(() => JSON.stringify({ text: document.body.innerText.slice(-4500), targets: globalThis.__ATOMA_GPU__?.hitTargets().map(row => row.id) })), { cause: error });
+      });
+      await clickAccountTarget('deployment.choose.atoma');
+      await accountPage.waitForFunction(() => document.querySelector('input[name="deployment-destination"][aria-describedby="deployment-description-atoma"]')?.checked);
+      if (stubs['/api/projects'][0].deploymentDestination) throw new Error('Selecting a destination saved without confirmation');
+      await accountPage.screenshot({ path: '/tmp/atoma-project-deployment-settings.png' });
+      await accountPage.mouse.move(800, 650);
+      await accountPage.mouse.wheel({ deltaY: 900 });
+      await waitForHitTarget(accountPage, 'deployment.save', 'Save preference cannot be reached');
+      await clickAccountTarget('deployment.save');
+      await accountPage.waitForFunction(() => document.body.textContent.includes('Preference saved.'));
+      if (stubs['/api/projects'][0].deploymentDestination !== 'atoma') throw new Error('Deployment preference did not persist');
+      await clickAccountTarget('project.section.runs');
+      await clickAccountTarget('project.section.settings');
+      await accountPage.waitForFunction(() => document.querySelector('input[name="deployment-destination"][aria-describedby="deployment-description-atoma"]')?.checked);
+      await accountPage.setViewport({ width: 900, height: 900, deviceScaleFactor: 1 });
+      await waitForHitTarget(accountPage, 'deployment.choose.atoma', 'Settings missing at 900px');
+      await accountPage.screenshot({ path: '/tmp/atoma-project-deployment-settings-900.png' });
+      await accountPage.setViewport({ width: 1280, height: 900, deviceScaleFactor: 1 });
+      await clickAccountTarget('project.section.conversation');
       await accountPage.setViewport({ width: 528, height: 800, deviceScaleFactor: 2 });
-      console.log('Project Application tab ok: hosted preview -> Files; inline frame closes and reopens with a fresh claim');
+      console.log('Deployment preference ok: explicit save, retained selection, desktop and narrow settings');
+
       // The notification invitation can cover the upstream checkbox after
       // narrowing the window. Dismiss it through its real customer control.
       const upstreamNotification = await accountPage.$('.gpu-push-prompt-actions button:last-child');

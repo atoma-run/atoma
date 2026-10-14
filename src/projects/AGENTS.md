@@ -10,6 +10,14 @@ Neighbours:
 - [`src/github`](../github/AGENTS.md) — where publication lands
 - [`src/platform`](../platform/AGENTS.md) — the journal this domain emits into
 
+## Deployment preference
+
+`deploymentDestination` is `none` (default), `atoma`, or `external`. The
+admin-only same-origin project setting uses an expected value to reject stale
+writes, is org-scoped and journaled, and never deploys or stops anything.
+Preview, acceptance, GitHub publication and deployment remain separate.
+Permanent hosting and external provider execution are not implemented yet.
+
 ## Run network
 
 Project runs enable isolated, proxied egress by default. `ATOMA_EGRESS=0` disables

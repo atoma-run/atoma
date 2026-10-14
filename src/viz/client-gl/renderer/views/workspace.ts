@@ -60,17 +60,16 @@ export function drawWorkspace(ctx: RendererCtx, snapshot: GpuRenderSnapshot, wid
   if (data?.failed) message('workspace.unavailable');
   else if (!data?.index || data.loading) message('workspace.loading');
   else {
-    const filesTop = bottom;
     const children = workspaceChildren(data.index, path);
     if (!children.length) message('workspace.empty');
     children.forEach((entry, i) => {
-      if (pane.visible(filesTop + i * 40, filesTop + i * 40 + 34)) ctx.button(pane.content, 'workspace.path.' + entry.path, 'button',
+      if (pane.visible(i * 40, i * 40 + 34)) ctx.button(pane.content, 'workspace.path.' + entry.path, 'button',
         entry.directory ? entry.name + '/' : `${entry.name} · ${entry.size.toLocaleString(snapshot.state.locale)} B`,
-        0, filesTop + i * 40, pane.width - 16, 34, !entry.directory && entry.path === previewPath, snapshot.onActivate,
+        0, i * 40, pane.width - 16, 34, !entry.directory && entry.path === previewPath, snapshot.onActivate,
         entry.directory ? GPU_COLORS.primary : GPU_COLORS.text,
         false, false, undefined, undefined, undefined, false, entry.directory ? 'folder' : 'file');
     });
-    bottom = Math.max(bottom, filesTop + children.length * 40);
+    bottom = Math.max(bottom, children.length * 40);
   }
   pane.extend(bottom); ctx.scrollMax.projects = pane.finish();
 }

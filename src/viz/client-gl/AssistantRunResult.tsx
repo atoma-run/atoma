@@ -5,10 +5,9 @@ import { api } from '../client/data-api.js';
 import { ButtonIcon } from './ButtonIcon.js';
 
 /** Current host receipts, not a generated reply or a rewrite of the conversation journal. */
-export function AssistantRunResult({ scopeKey, target, run, t, onRun, onApplication }: {
+export function AssistantRunResult({ scopeKey, target, run, t, onRun }: {
   scopeKey: string; target: AssistantRun; run: NonNullable<AssistantView['run']>;
   t: (key: string, vars?: Record<string, unknown>) => string;
-  onApplication?: (projectId: string) => void;
   onRun: (run: AssistantRun, traceId: string | null) => void;
 }) {
   const client = useQueryClient();
@@ -57,8 +56,6 @@ export function AssistantRunResult({ scopeKey, target, run, t, onRun, onApplicat
       : canAccept ? <p>{t(publishFiles ? 'assistant.deliveryReady' : 'assistant.deliveryReadyText')}</p> : null}
     {review?.filesState === 'expired' ? <p>{t('assistant.deliveryExpired')}</p> : null}
     <div className="gpu-assistant-message-actions">
-      {publishFiles && review?.filesState === 'available' && onApplication ? <button type="button" className="gpu-assistant-primary"
-        onClick={() => onApplication(target.projectId)}><ButtonIcon kind="eye" />{t('application.goTo')}</button> : null}
       <button type="button" onClick={() => onRun(target, run.traceId)}><ButtonIcon kind="play" />{t('assistant.openRun')}</button>
       {canAccept && !confirming ? <button type="button" disabled={busy || query.isError} onClick={() => setConfirming(true)}>
         {t(publishFiles ? 'assistant.reviewAndPublish' : 'assistant.reviewAndAccept')}</button> : null}

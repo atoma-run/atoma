@@ -14,7 +14,6 @@ interface Props {
   heading?: ReactNode;
   collapsed?: boolean;
   t: (key: string, vars?: Record<string, unknown>) => string;
-  onApplication?: (projectId: string) => void;
   onSettings: (tab: 'subscriptions' | 'keys') => void; onScopeChange: (id: string) => void; onProject: (id: string) => void; onRun: (run: AssistantRun, traceId: string | null) => void;
 }
 
@@ -24,7 +23,7 @@ interface Props {
  * its body, and the external-agent path takes over the body when opened.
  * The guide owns the frame, the veil and the collapse; this block fills it.
  */
-export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide, heading, collapsed = false, t, onSettings, onScopeChange, onProject, onRun, onApplication }: Props) {
+export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide, heading, collapsed = false, t, onSettings, onScopeChange, onProject, onRun }: Props) {
   const client = useQueryClient();
   const queryKey = ['viz', 'assistant', scopeKey, projectId];
   const conversationId = useRef<string | undefined>(undefined);
@@ -224,7 +223,7 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
         </div> : null}
       </article>)}
       {finishedRun ? <AssistantRunResult key={`${scopeKey}:${finishedRun.runId}`} scopeKey={scopeKey}
-        target={{ projectId: finishedRun.projectId, runId: finishedRun.runId }} run={finishedRun} t={t} onRun={onRun} onApplication={onApplication} /> : null}
+        target={{ projectId: finishedRun.projectId, runId: finishedRun.runId }} run={finishedRun} t={t} onRun={onRun} /> : null}
       {proposal && proposal.state !== 'done' ? <article className="gpu-assistant-proposal" aria-label={t('assistant.proposal')}>
         <h3>{t('assistant.proposal')}</h3>
         {proposal.action.kind === 'create_project' ? <>

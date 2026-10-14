@@ -243,6 +243,8 @@ export interface GoalGuidance {
  * `src/contracts/projects.ts`: host paths never cross this boundary.
  */
 export interface VizProject {
+  /** Present when a platform admin reads projects across organisations. */
+  orgId?: string;
   projectId: string;
   name: string;
   slug: string;
@@ -267,6 +269,7 @@ export interface VizProject {
   /** A showcase visitor sees one of its runs now. Absent whenever `showcase` is. */
   showcaseShown?: boolean;
   followUpstream?: boolean;
+  deploymentDestination?: import('../../contracts/projectDeployment.js').DeploymentDestination;
   createdAt: string;
   updatedAt: string;
 }

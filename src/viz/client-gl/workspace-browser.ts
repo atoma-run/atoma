@@ -2,14 +2,12 @@ import type { WorkspaceIndex, WorkspaceFile } from '../../contracts/workspaceBro
 import type { VizProjectRun } from '../client/types.js';
 import { sidebarWidthForViewport } from './theme.js';
 import { viewFrame } from './renderer/view-frame.js';
-import type { LocalDockerState } from './local-docker.js';
 export function latestWorkspaceRun(runs: readonly VizProjectRun[]) {
   return runs.find(r => !r.rerunOf && !r.bytesExpiredAt && (r.status === 'delivered' || r.status === 'partial'));
 }
 export interface FilePreviewTarget { projectId: string; runId: string; path: string }
 export interface WorkspaceBrowserData {
   index: WorkspaceIndex | null; file: WorkspaceFile | null; loading: boolean; failed: boolean;
-  localDocker?: LocalDockerState;
 }
 export function workspaceChildren(index: WorkspaceIndex | null, directory: string) {
   const prefix = directory ? directory + '/' : '';

@@ -42,17 +42,17 @@ export const CHEVRON_CSS_VARS = {
 
 /** Control identities, never translated copy, determine GPU pictograms. */
 export function buttonIconKind(id: string): ButtonIconKind {
-  if (id === 'localDocker.download') return 'download';
-  if (id === 'localDocker.open' || id === 'localDocker.verify') return 'eye';
-  if (id === 'localDocker.install') return 'link';
-  if (id === 'localDocker.step.about') return 'back';
-  if (id === 'application.retry') return 'refresh';
   if (id.startsWith('liveRuns.run.')) return 'play';
   if (id === 'project.section.conversation') return 'send';
   if (id === 'project.section.runs') return 'play';
   if (id === 'project.section.preview') return 'eye';
   if (id === 'project.section.files') return 'folder';
   if (id === 'project.section.result') return 'file';
+  if (id === 'project.section.settings') return 'settings';
+  if (id === 'deployment.choose.none') return 'file';
+  if (id === 'deployment.choose.atoma') return 'globe';
+  if (id === 'deployment.choose.external') return 'link';
+  if (id === 'deployment.save') return 'check';
   if (/^(result|workspace|activity)\.close$|^run.event.close$|^activity.files$|^workspace.parent$|^runs\.project\.back\./.test(id)) return 'back';
   if (/^activity.source\./.test(id)) return 'code';
   if (/^activity.collapse\.|\.more$/.test(id)) return 'down';

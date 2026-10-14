@@ -44,7 +44,7 @@ function panel(data: AssistantView = view(), scopeKey = 'alice:org-a') {
   const props = { scopeKey, projectId: null, locale: 'en', inert: false,
     externalAgentGuide: createElement('button', { type: 'button' }, 'Connect your agent'),
     t: (key: string, vars?: Record<string, unknown>) => translate('en', key, vars),
-    onSettings: vi.fn(), onScopeChange: vi.fn(), onProject: vi.fn(), onRun: vi.fn(), onApplication: vi.fn() };
+    onSettings: vi.fn(), onScopeChange: vi.fn(), onProject: vi.fn(), onRun: vi.fn() };
   const { unmount } = render(createElement(QueryClientProvider, { client }, createElement(AssistantPanel, props)));
   return { client, props, unmount };
 }
@@ -538,15 +538,4 @@ it('lets the user choose a model when browser storage is unavailable', async () 
   await userEvent.selectOptions(await screen.findByRole('combobox'), 'api:openai:small');
   expect(screen.getByRole('textbox')).toBeEnabled();
   expect(screen.getByRole('button', { name: 'Change model' })).toBeVisible();
-});
-
-
-it('opens the project Application from a delivered file receipt without accepting or publishing it', async () => {
-  vi.spyOn(api, 'runReview').mockResolvedValue(deliveryReview());
-  const accept = vi.spyOn(api, 'acceptDelivery');
-  const { props } = panel(deliveredView());
-  await userEvent.click(await screen.findByRole('button', { name: 'Go to Application' }));
-  expect(props.onApplication).toHaveBeenCalledWith(projectId);
-  expect(props.onRun).not.toHaveBeenCalled();
-  expect(accept).not.toHaveBeenCalled();
 });
