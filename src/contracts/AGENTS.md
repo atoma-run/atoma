@@ -15,6 +15,9 @@ Neighbours:
 
 ## Schemas and examples
 
+- `localDocker.ts` owns the explicit local-install delivery descriptor and
+  package bounds; [contract](../../docs/local-docker-projects.md).
+
 - Contract examples are parsed at module load. A schema/example mismatch must
   fail tests immediately.
 

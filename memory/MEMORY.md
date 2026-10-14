@@ -9,6 +9,7 @@
 - [Reader-facing docs](reader-facing-docs.md) — delivered docs carry no verification evidence; remove earlier runs' evidence on edit
 
 ## Current work
+- [Docker project installation](docker-project-installation.md) — Docker only for now; guided per-project source package, no separate desktop agent
 - [Property scraping priority](property-scraping-priority.md) — 2026-10-14: xe.gr first, Spitogatos paused; build the product through Atoma runs
 - [Spitogatos VPN probe](spitogatos-vpn-probe.md) — 2026-10-14: works only via reverse SOCKS + real Chrome + one human hCaptcha; NordVPN still 403
 - [Supervisor mender state](supervisor-mender-state.md) — no mender PR since #20: analyst drops proposedFix; p8 citation pass shipped, cite-only proposal open

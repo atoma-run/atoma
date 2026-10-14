@@ -109,7 +109,8 @@ if (assistantLinksProbe && (!authed || !selectFirst || !arg('--url'))) {
 const projectTabsProbe = has('--project-tabs-probe');
 const projectRunCards = has('--project-run-cards');
 const overviewProbe = has('--overview-probe');
-const filesProbe = has('--files-probe');
+const localDockerProbe = has('--local-docker-probe');
+const filesProbe = has('--files-probe') || localDockerProbe;
 // A running app preview, so its controls (open, stop) are drawn.
 const previewReady = has('--preview-ready');
 // The saved workspace `--files-probe` browses: one root file and a folder.
@@ -118,6 +119,11 @@ const probeFiles = {
   'src/app.js': 'export function startStopwatch(clock) {\n  return clock.now();\n}\n',
   'src/styles.css': 'body { font-family: system-ui; }\n',
 };
+if (localDockerProbe) {
+  probeFiles['compose.yaml'] = 'services: {}\n';
+  probeFiles['atoma.local.json'] = JSON.stringify({version:1,runtime:'docker-compose',composeFile:'compose.yaml',
+    appUrl:'http://127.0.0.1:3300/',verificationUrl:'http://127.0.0.1:6081/vnc.html?autoconnect=1',files:['compose.yaml','src/app.js']});
+}
 const showAssistant = has('--assistant') || assistantReconnect || assistantEmpty || assistantOwnAgent || assistantHistory || assistantModelProbe || assistantLinksProbe;
 const assistantFixture = {
   choices: [{ id: 'own:anthropic:haiku', model: 'own:anthropic:haiku', label: 'Claude · Haiku (beta)', payer: 'principal-subscription' }], nextBefore: null, available: true, model: 'api:anthropic:claude-haiku-4-5-20251001', busy: false, run: null,
@@ -908,6 +914,9 @@ try {
               const text = probeFiles[params.get('path')];
               void request.respond(text === undefined ? { status: 404, body: '' }
                 : { status: 200, contentType: 'application/octet-stream', body: text });
+            } else if (params.has('path')) {
+              const name = params.get('path'), text = probeFiles[name];
+              void request.respond({status:200,contentType:'application/json',body:JSON.stringify({path:name,size:Buffer.byteLength(text),kind:'text',text})});
             } else {
               void request.respond({ status: 200, contentType: 'application/json', headers: { 'cache-control': 'no-store' },
                 body: JSON.stringify({ runId, createdAt: '2026-08-20T00:00:59.000Z', status: 'delivered',
@@ -1561,6 +1570,11 @@ try {
       const reads = text => page.waitForFunction(expected => [...document.querySelectorAll('.gpu-preview-frame')]
         .some(frame => frame.contentDocument?.body?.textContent?.includes(expected)), { timeout: READY_TIMEOUT_MS }, text);
       await clickTarget('project.section.files');
+      if (localDockerProbe) {
+        await clickTarget('localDocker.download');
+        await page.waitForFunction(() => document.body.textContent.includes('Package prepared.'), {timeout: READY_TIMEOUT_MS});
+        console.log('Local Docker: real canvas download control prepared the source-only ZIP');
+      } else {
       await clickTarget('workspace.path.README.md');
       await reads('Start, stop and reset');
       if (await page.$('.gpu-workspace-reader')) {
@@ -1577,6 +1591,8 @@ try {
         if (!await page.$eval('.gpu-scene-host', host => host.inert)) throw new Error('The modal reader left the scene live');
         console.log('Files reader: modal, the column is too narrow to dock it');
       }
+    }
+
     }
 
     if (accountMenu) {

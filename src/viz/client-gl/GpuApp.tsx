@@ -2,7 +2,9 @@ import { FilePreview } from './FilePreview.js';
 import { CHEVRON_CSS_VARS } from './button-icons.js';
 import { TIMELINE_JUMP_PREFIX } from './renderer/timeline-minimap.js';
 import { AssistantPanel } from './AssistantPanel.js';
-import { workspaceIndexSchema } from '../../contracts/workspaceBrowser.js';
+import { workspaceIndexSchema, workspaceFileSchema } from '../../contracts/workspaceBrowser.js';
+import { LOCAL_DOCKER_FILE, localDockerSchema, DOCKER_DESKTOP_URL } from '../../contracts/localDocker.js';
+import type { LocalDockerState } from './local-docker.js';
 import { latestWorkspaceRun, workspacePreviewPath, workspaceSplitForViewport } from './workspace-browser.js';
 import { canControlCheckpoint, pendingGitHubAccess, canContinueGitHubAccess, canRetryPublication } from './github-access.js';
 import { fetchJson } from '../client/data-api.js';
@@ -303,9 +305,28 @@ function GpuAppContent({
   const workspaceEnabled = authed && state.view === 'projects' && !!selectedProject && !!state.workspaceRunId;
   const workspaceIndex = useQuery({ queryKey: ['workspace', workspaceUrl],
     queryFn: async () => workspaceIndexSchema.parse(await fetchJson(workspaceUrl)), enabled: workspaceEnabled, retry: false });
+  const hasLocalDocker = workspaceIndex.data?.status === 'delivered'
+    && workspaceIndex.data.files.some(file => file.path === LOCAL_DOCKER_FILE);
+  const localConfiguration = useQuery({ queryKey: ['local-docker', workspaceUrl],
+    queryFn: async () => {
+      const file = workspaceFileSchema.parse(await fetchJson(`${workspaceUrl}?path=${LOCAL_DOCKER_FILE}`));
+      if (file.kind !== 'text' || !file.text) throw new Error('Local installation descriptor is unavailable');
+      const config = localDockerSchema.parse(JSON.parse(file.text));
+      const { localDockerFiles } = await import('./local-docker.js');
+      localDockerFiles(config, workspaceIndex.data!);
+      return config;
+    }, enabled: workspaceEnabled && hasLocalDocker, retry: false });
+  const [localDownload, setLocalDownload] = useState<{ key: string; status: LocalDockerState['status'] } | null>(null);
+  const localDownloadIdentity = useRef('');
+  localDownloadIdentity.current = workspaceEnabled ? workspaceUrl : '';
+  const localDocker = useMemo<LocalDockerState | undefined>(() => !hasLocalDocker ? undefined : ({
+    config: localConfiguration.data ?? null,
+    status: localConfiguration.isError ? 'invalid' : !localConfiguration.data ? 'loading'
+      : localDownload?.key === workspaceUrl ? localDownload.status : 'ready',
+  }), [hasLocalDocker, localConfiguration.data, localConfiguration.isError, localDownload, workspaceUrl]);
   const workspace = useMemo(() => ({ index: workspaceIndex.data ?? null,
-    file: null, loading: workspaceIndex.isLoading, failed: workspaceIndex.isError }),
-  [workspaceIndex.data, workspaceIndex.isLoading, workspaceIndex.isError]);
+    file: null, loading: workspaceIndex.isLoading, failed: workspaceIndex.isError, localDocker }),
+  [workspaceIndex.data, workspaceIndex.isLoading, workspaceIndex.isError, localDocker]);
   const projectRuns = useMemo<Record<string, import('../client/types.js').VizProjectRun[]>>(
     () =>
       selectedProject && projectRunsQuery.data
@@ -950,6 +971,35 @@ function GpuAppContent({
       return;
     }
     if (id.startsWith('workspace.open.')) { store.openWorkspace(id.slice('workspace.open.'.length)); return; }
+    if (id.startsWith('localDocker.')) {
+      const config = localDocker?.config;
+      if (!config || !workspace.index || !state.selectedProjectId) return;
+      if (id === 'localDocker.install') window.open(DOCKER_DESKTOP_URL, '_blank', 'noopener,noreferrer');
+      else if (id === 'localDocker.open') window.open(config.appUrl, '_blank', 'noopener,noreferrer');
+      else if (id === 'localDocker.verify' && config.verificationUrl) window.open(config.verificationUrl, '_blank', 'noopener,noreferrer');
+      else if (id === 'localDocker.download' && localDocker.status !== 'downloading') {
+        const key = workspaceUrl, index = workspace.index, projectId = state.selectedProjectId;
+        setLocalDownload({ key, status: 'downloading' });
+        void (async () => {
+          try {
+            const { localDockerPackage } = await import('./local-docker.js');
+            const bytes = await localDockerPackage(config, index, projectId, async path => {
+              if (localDownloadIdentity.current !== key) throw new Error('Project changed');
+              const response = await fetch(`${key}?format=bytes&path=${encodeURIComponent(path)}`, { credentials: 'same-origin' });
+              if (!response.ok) throw new Error('Installation file could not be downloaded');
+              return new Uint8Array(await response.arrayBuffer());
+            });
+            if (localDownloadIdentity.current !== key) return;
+            const url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'application/zip' }));
+            const link = document.createElement('a');
+            link.href = url; link.download = `atoma-local-${projectId}-${index.runId.slice(0, 8)}.zip`;
+            link.click(); setTimeout(() => URL.revokeObjectURL(url), 30_000);
+            setLocalDownload({ key, status: 'downloaded' });
+          } catch { if (localDownloadIdentity.current === key) setLocalDownload({ key, status: 'failed' }); }
+        })();
+      }
+      return;
+    }
     if (id === 'workspace.close') { store.openWorkspace(null); return; }
     if (id.startsWith('workspace.path.')) {
       const path = id.slice('workspace.path.'.length);
@@ -1137,6 +1187,8 @@ function GpuAppContent({
     queryClient,
     resultProjectId,
     workspace.index,
+    localDocker,
+    workspaceUrl,
     state.selectedProjectId,
     state.workspaceRunId,
     authSnapshot,

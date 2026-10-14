@@ -60,16 +60,38 @@ export function drawWorkspace(ctx: RendererCtx, snapshot: GpuRenderSnapshot, wid
   if (data?.failed) message('workspace.unavailable');
   else if (!data?.index || data.loading) message('workspace.loading');
   else {
+    const local = data.localDocker;
+    if (!path && local) {
+      const line = (key: string) => {
+        const label = ctx.text(pane.content, t(key), 0, bottom, { size: 12, color: GPU_COLORS.text, width: pane.width - 20 });
+        bottom += label.height + 12;
+      };
+      line('localDocker.title');
+      line('localDocker.steps');
+      line(`localDocker.status.${local.status}`);
+      if (local.config) {
+        const actions = ['install', ...(local.status === 'downloading' ? [] : ['download']), 'open',
+          ...(local.config.verificationUrl ? ['verify'] : [])];
+        for (const action of actions) {
+          ctx.button(pane.content, `localDocker.${action}`, 'button', t(`localDocker.${action}`),
+            0, bottom, pane.width - 20, 40, false, snapshot.onActivate);
+          bottom += 48;
+        }
+      }
+      line('localDocker.localOnly');
+      bottom += 12;
+    }
+    const filesTop = bottom;
     const children = workspaceChildren(data.index, path);
     if (!children.length) message('workspace.empty');
     children.forEach((entry, i) => {
-      if (pane.visible(i * 40, i * 40 + 34)) ctx.button(pane.content, 'workspace.path.' + entry.path, 'button',
+      if (pane.visible(filesTop + i * 40, filesTop + i * 40 + 34)) ctx.button(pane.content, 'workspace.path.' + entry.path, 'button',
         entry.directory ? entry.name + '/' : `${entry.name} · ${entry.size.toLocaleString(snapshot.state.locale)} B`,
-        0, i * 40, pane.width - 16, 34, !entry.directory && entry.path === previewPath, snapshot.onActivate,
+        0, filesTop + i * 40, pane.width - 16, 34, !entry.directory && entry.path === previewPath, snapshot.onActivate,
         entry.directory ? GPU_COLORS.primary : GPU_COLORS.text,
         false, false, undefined, undefined, undefined, false, entry.directory ? 'folder' : 'file');
     });
-    bottom = Math.max(bottom, children.length * 40);
+    bottom = Math.max(bottom, filesTop + children.length * 40);
   }
   pane.extend(bottom); ctx.scrollMax.projects = pane.finish();
 }

@@ -38,6 +38,7 @@ npm run viz:shot -- --auth --view Runs --activity   # recorded steps and changed
 npm run viz:shot -- --auth --view Runs --activity-file app.js # bounded recorded edits
 npm run viz:shot -- --auth --select-first --result  # same result reader inside the project
 npm run viz:shot -- --auth --select-first --assistant-empty --overview-probe # overview column: slice bubble kept in the column, then folded (-hover/-folded PNGs)
+npm run viz:shot -- --auth --select-first --local-docker-probe # Docker installation package via the canvas
 npm run viz:shot -- --auth --select-first --files-probe # Files: reader docked beside the list, two files by canvas clicks
 npm run viz:shot -- --auth --select-first --files-probe --width 900 # too narrow to dock: the modal reader
 npm run viz:shot -- --auth --view Skills --select-first # member reads a shared recipe

@@ -1920,5 +1920,18 @@
   "assistant.cancelDeliveryReview": "Cancel",
   "assistant.deliverySaving": "Saving your acceptance and publication status…",
   "assistant.deliveryReadFailed": "Could not load the delivery review. Refresh it before accepting.",
-  "assistant.deliveryFailed": "Could not complete the delivery action. Refresh the status before retrying."
+  "assistant.deliveryFailed": "Could not complete the delivery action. Refresh the status before retrying.",
+  "localDocker.title": "Run on your computer with Docker",
+  "localDocker.steps": "1. Install and open Docker Desktop once. 2. Download and extract this project. 3. Open Start.command on macOS or Start.cmd on Windows.",
+  "localDocker.install": "Install Docker Desktop",
+  "localDocker.download": "Download installation package",
+  "localDocker.open": "Open local application",
+  "localDocker.verify": "Open website verification",
+  "localDocker.localOnly": "Keep Docker running while using this app. Use Stop to pause it and retain your data. Atoma cannot check whether Docker is running on your computer.",
+  "localDocker.status.loading": "Reading installation instructions…",
+  "localDocker.status.ready": "This delivery includes a local Docker configuration. The first launch builds the application.",
+  "localDocker.status.invalid": "The local installation configuration is incomplete or invalid. Ask for a corrected delivery.",
+  "localDocker.status.downloading": "Preparing your installation package…",
+  "localDocker.status.downloaded": "Package prepared. Extract the entire ZIP and open its Start launcher.",
+  "localDocker.status.failed": "The package could not be prepared. Retry or request a smaller, complete delivery."
 }
