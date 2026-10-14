@@ -65,7 +65,9 @@
  *   --width/--height     Viewport (default 1600x900, deviceScaleFactor 2).
  */
 import { spawn } from 'node:child_process';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { unzipSync } from 'fflate';
 import { createServer } from 'node:net';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -1571,9 +1573,24 @@ try {
         .some(frame => frame.contentDocument?.body?.textContent?.includes(expected)), { timeout: READY_TIMEOUT_MS }, text);
       await clickTarget('project.section.files');
       if (localDockerProbe) {
+        const downloads = await mkdtemp(resolve(tmpdir(), 'atoma-installer-download-'));
+        const downloadSession = await browser.target().createCDPSession();
+        await downloadSession.send('Browser.setDownloadBehavior', {behavior:'allowAndName', downloadPath:downloads, eventsEnabled:true});
+        const completed = new Promise((resolveDownload, rejectDownload) => {
+          const timeout = setTimeout(() => rejectDownload(new Error('Installer download did not finish')), READY_TIMEOUT_MS);
+          downloadSession.on('Browser.downloadProgress', event => {
+            if (event.state === 'completed') {clearTimeout(timeout);resolveDownload(event.guid);}
+            if (event.state === 'canceled') {clearTimeout(timeout);rejectDownload(new Error('Installer download canceled'));}
+          });
+        });
         await clickTarget('localDocker.download');
         await page.waitForFunction(() => document.body.textContent.includes('Package prepared.'), {timeout: READY_TIMEOUT_MS});
-        console.log('Local Docker: real canvas download control prepared the source-only ZIP');
+        const archive = unzipSync(await readFile(resolve(downloads, await completed)));
+        if (!archive['Start.command'] || !archive['Start.cmd'] || !archive['app/compose.yaml'] || archive['app/README.md']) {
+          throw new Error('Installer download differs from its declared source allowlist');
+        }
+        await downloadSession.detach();
+        console.log('Local Docker: real canvas control downloaded a complete source-only ZIP with both launchers');
       } else {
       await clickTarget('workspace.path.README.md');
       await reads('Start, stop and reset');
