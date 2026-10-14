@@ -137,3 +137,12 @@ HTTPS gateway. Final guided runtime image:
 sha256:4aad7be141ab93a14ba96558abd0bd62cc6134306921e13529e1fca20ba14700.
 The platform implementation commit 247e55e1 passed CI 38612498763; deployment
 38613620283 is waiting at the normal activation stage while Attica runs.
+
+Desktop copy is now rendered at image-build time from the canonical en.json
+product catalog (only the hostedBrowser.* slice enters the runtime). No target
+locale was hand-authored. Final image including this build contract:
+sha256:037aae04e48bc9ca9c65a15a821265d0f9748a59f57aff62af5641c993fee103.
+Full viz:smoke passed, including MCP OAuth and real GPU client checks. The
+browser UI smoke additionally exercises Back to application before reconnecting
+and revoking the grant. Root/progress validation of Attica is still in flight;
+its old 1/3 criterion snapshot is not a final delivery verdict.

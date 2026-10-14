@@ -32,6 +32,10 @@ try {
   await page.waitForFunction(()=>{const canvas=document.querySelector('canvas');const data=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;let light=0;for(let i=0;i<data.length;i+=16)if(data[i]>150&&data[i+1]>150&&data[i+2]>150)light++;return light>10000;},{timeout:20000});
   assert.deepEqual(errors,[]);
   await page.screenshot({path:process.argv[3]??'/tmp/atoma-hosted-browser.png'});
+  await Promise.all([page.waitForNavigation(), page.click('a[href="/"]')]);
+  assert.match(await page.$eval('body',el=>el.textContent), /Hosted browser fixture ready/);
+  await page.goto(`https://${host}/.atoma/browser/`);
+  await page.waitForFunction(()=>document.body.dataset.connected==='true',{timeout:20000});
   gateway.claims.revokePrincipal(viewer.principalId);
   await page.waitForFunction(()=>document.body.dataset.connected==='false',{timeout:10000});
   console.log('PASS: private HTTPS claim, real noVNC canvas, CSP, WebSocket and logout disconnect.');

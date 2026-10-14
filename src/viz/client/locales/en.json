@@ -1954,5 +1954,16 @@
   "hosting.open": "Open application",
   "hosting.stop": "Stop application and keep data",
   "hosting.updateNotice": "To update an application that is already online, stop it first, then deploy the accepted version. It will be unavailable during the update.",
-  "hosting.candidateVersion": "Accepted version to deploy"
+  "hosting.candidateVersion": "Accepted version to deploy",
+  "hostedBrowser.pageTitle": "Website verification",
+  "hostedBrowser.title": "Complete the website verification",
+  "hostedBrowser.instructions": "Use the browser below. Once finished, return to your application to resume.",
+  "hostedBrowser.actions": "Verification actions",
+  "hostedBrowser.reconnect": "Reconnect",
+  "hostedBrowser.back": "Back to application",
+  "hostedBrowser.connecting": "Connecting to your project’s browser…",
+  "hostedBrowser.screen": "Interactive project browser",
+  "hostedBrowser.connected": "Connected. Complete the verification on the website.",
+  "hostedBrowser.disconnected": "Disconnected. Reconnect, or reopen your application from Atoma if your access has expired.",
+  "hostedBrowser.failed": "Unable to connect. Reopen your application from Atoma."
 }
