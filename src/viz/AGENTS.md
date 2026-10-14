@@ -390,8 +390,9 @@ npm run viz:mark-turn:analyze
   composition, even for trusted parent rendering. Tests prove CSP rejection.
   Remote images are limited to the GIS plugin's OpenStreetMap basemap.
   Generated HTML remains source text.
-- Completed Docker-ready workspaces expose a local install guide in Files via
-  `atoma.local.json`; GPU and accessibility controls share download state.
+- Completed Docker-ready workspaces expose a local install guide in Application via
+  `atoma.local.json`; delivery-authored explanations and setup steps are shared by
+  GPU and accessibility controls. Files remains a source explorer.
   [Local installation contract](../../docs/local-docker-projects.md). No local
   connectivity claim or automatic execution follows a download.
 - Runs' Progress reader projects recorded branch lifecycles and tool receipts

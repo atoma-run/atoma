@@ -124,6 +124,7 @@ const probeFiles = {
 if (localDockerProbe) {
   probeFiles['compose.yaml'] = 'services: {}\n';
   probeFiles['atoma.local.json'] = JSON.stringify({version:1,runtime:'docker-compose',composeFile:'compose.yaml',
+    onboarding:{whyLocal:'Read stock files from your computer.',runsOnComputer:'The stock tracker and its import service run here.',dataAndConnections:'Stock records stay in the project data folder. Imports read files you choose.',firstSteps:['Open Inventory.','Choose Import and select a stock file.']},
     appUrl:'http://127.0.0.1:3300/',verificationUrl:'http://127.0.0.1:6081/vnc.html?autoconnect=1',files:['compose.yaml','src/app.js']});
 }
 const showAssistant = has('--assistant') || assistantReconnect || assistantEmpty || assistantOwnAgent || assistantHistory || assistantModelProbe || assistantLinksProbe;
@@ -1573,6 +1574,12 @@ try {
         .some(frame => frame.contentDocument?.body?.textContent?.includes(expected)), { timeout: READY_TIMEOUT_MS }, text);
       await clickTarget('project.section.files');
       if (localDockerProbe) {
+        if (await page.evaluate(() => globalThis.__ATOMA_GPU__.hitTargets().some(t => t.id.startsWith('localDocker.')))) throw new Error('Installation still lives in Files');
+        await clickTarget('project.section.preview');
+        await page.waitForFunction(() => document.body.textContent.includes('Read stock files from your computer.'));
+        await page.screenshot({path:outPath.replace(/\.png$/, '-application.png')});
+        await clickTarget('localDocker.step.prepare');
+        await clickTarget('localDocker.step.launch');
         const downloads = await mkdtemp(resolve(tmpdir(), 'atoma-installer-download-'));
         const downloadSession = await browser.target().createCDPSession();
         await downloadSession.send('Browser.setDownloadBehavior', {behavior:'allowAndName', downloadPath:downloads, eventsEnabled:true});
@@ -1590,7 +1597,14 @@ try {
           throw new Error('Installer download differs from its declared source allowlist');
         }
         await downloadSession.detach();
-        console.log('Local Docker: real canvas control downloaded a complete source-only ZIP with both launchers');
+        if (!new TextDecoder().decode(archive['START-HERE.txt']).includes('Open Inventory.')) throw new Error('Offline guide lost the delivered first steps');
+        await clickTarget('localDocker.step.use');
+        await page.waitForFunction(() => document.body.textContent.includes('Choose Import and select a stock file.'));
+        if (await page.$('.gpu-preview-plane')) throw new Error('A local application started a hosted preview');
+        await page.screenshot({path:outPath.replace(/\.png$/, '-use.png')});
+        await clickTarget('localDocker.step.about');
+        await clickTarget('localDocker.step.use');
+        console.log('Application: real canvas setup, download, first steps and returning-user path passed; Files has no installer');
       } else {
       await clickTarget('workspace.path.README.md');
       await reads('Start, stop and reset');

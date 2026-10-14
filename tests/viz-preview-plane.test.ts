@@ -289,12 +289,12 @@ describe('the preview control mirrored for the keyboard', () => {
     useGpuStore.setState({ entered: true, view: 'projects', selectedProjectId: 'project', resultRunId: null, projectSection });
     const onActivate = vi.fn();
     render(bridge({ state: 'stopped', availability: 'available' }, onActivate));
-    expect([...screen.getByRole('tab', { name: t('preview.app') }).parentElement!.querySelectorAll('[role="tab"]')].map(tab => tab.textContent)).toEqual([
-      t('projects.mcpTitle'), t('nav.runs'), t('preview.app'), t('workspace.title'), t('result.latest'),
+    expect([...screen.getByRole('tab', { name: t('application.title') }).parentElement!.querySelectorAll('[role="tab"]')].map(tab => tab.textContent)).toEqual([
+      t('projects.mcpTitle'), t('nav.runs'), t('application.title'), t('workspace.title'), t('result.latest'),
     ]);
-    await userEvent.click(screen.getByRole('tab', { name: t('preview.app') }));
+    await userEvent.click(screen.getByRole('tab', { name: t('application.title') }));
     expect(onActivate).toHaveBeenCalledWith('project.section.preview');
-    expect(screen.queryByRole('button', { name: t('preview.app') })).toBeNull();
+    expect(screen.queryByRole('button', { name: t('application.title') })).toBeNull();
     expect(useGpuStore.getState().projectSection).toBe(projectSection);
   });
 });

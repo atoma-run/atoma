@@ -301,10 +301,13 @@ function GpuAppContent({
     }
   }, [projectRunsQuery.data, selectedProject, state.view, state.projectSection,
     state.workspaceRunId, state.resultRunId, state.selectProjectSection]);
-  const workspaceUrl = `/api/projects/${encodeURIComponent(selectedProject?.projectId ?? '')}/runs/${encodeURIComponent(state.workspaceRunId ?? '')}/workspace`;
-  const workspaceEnabled = authed && state.view === 'projects' && !!selectedProject && !!state.workspaceRunId;
+  const applicationRun = state.projectSection === 'preview' ? latestDeliveredResult(projectRunsQuery.data ?? []) : undefined;
+  const workspaceRunId = state.projectSection === 'preview' ? applicationRun?.projectRunId : state.workspaceRunId;
+  const workspaceUrl = `/api/projects/${encodeURIComponent(selectedProject?.projectId ?? '')}/runs/${encodeURIComponent(workspaceRunId ?? '')}/workspace`;
+  const workspaceEnabled = authed && state.view === 'projects' && !!selectedProject && !!workspaceRunId && !applicationRun?.bytesExpiredAt;
   const workspaceIndex = useQuery({ queryKey: ['workspace', workspaceUrl],
     queryFn: async () => workspaceIndexSchema.parse(await fetchJson(workspaceUrl)), enabled: workspaceEnabled, retry: false });
+  const reloadWorkspace = workspaceIndex.refetch;
   const hasLocalDocker = workspaceIndex.data?.status === 'delivered'
     && workspaceIndex.data.files.some(file => file.path === LOCAL_DOCKER_FILE);
   const localConfiguration = useQuery({ queryKey: ['local-docker', workspaceUrl],
@@ -316,14 +319,16 @@ function GpuAppContent({
       localDockerFiles(config, workspaceIndex.data!);
       return config;
     }, enabled: workspaceEnabled && hasLocalDocker, retry: false });
+  const [localStep, setLocalStep] = useState<{ key: string; step: NonNullable<LocalDockerState['step']> } | null>(null);
   const [localDownload, setLocalDownload] = useState<{ key: string; status: LocalDockerState['status'] } | null>(null);
   const localDownloadIdentity = useRef('');
   localDownloadIdentity.current = workspaceEnabled ? workspaceUrl : '';
   const localDocker = useMemo<LocalDockerState | undefined>(() => !hasLocalDocker ? undefined : ({
-    config: localConfiguration.data ?? null,
+    config: localConfiguration.isError ? null : localConfiguration.data ?? null,
+    step: localStep?.key === workspaceUrl ? localStep.step : 'about',
     status: localConfiguration.isError ? 'invalid' : !localConfiguration.data ? 'loading'
       : localDownload?.key === workspaceUrl ? localDownload.status : 'ready',
-  }), [hasLocalDocker, localConfiguration.data, localConfiguration.isError, localDownload, workspaceUrl]);
+  }), [hasLocalDocker, localConfiguration.data, localConfiguration.isError, localDownload, localStep, workspaceUrl]);
   const workspace = useMemo(() => ({ index: workspaceIndex.data ?? null,
     file: null, loading: workspaceIndex.isLoading, failed: workspaceIndex.isError, localDocker }),
   [workspaceIndex.data, workspaceIndex.isLoading, workspaceIndex.isError, localDocker]);
@@ -685,7 +690,8 @@ function GpuAppContent({
   const { previewOpen, previewUrl, previewStatus, previewError, previewReloadNonce,
     requestPreview, closePreview, stopPreview, reloadPreview } = usePreviewSession({ previewTarget, previewSummary, t });
 
-  const projectPreviewSelected = state.view === 'projects' && !!selectedProject && state.projectSection === 'preview';
+  const projectApplicationSelected = state.view === 'projects' && !!selectedProject && state.projectSection === 'preview';
+  const projectPreviewSelected = projectApplicationSelected && workspaceIndex.isSuccess && !localDocker;
   // The renderer asks `workspaceSplit` with the same viewport width, so the
   // list narrows exactly when the reader docks; otherwise the modal opens.
   const viewportWidth = useSyncExternalStore(subscribeViewportWidth, viewportWidthSnapshot, () => 0);
@@ -931,6 +937,7 @@ function GpuAppContent({
     // The preview controls, drawn as siblings of the summary card so the
     // full-card toggle above cannot swallow them.
     if (id === 'run.preview.open') {
+      if (projectApplicationSelected && !projectPreviewSelected) return;
       // `failed` reopens as a RESTART, not an open: a generation that could
       // not start is not one to retry into, and the state machine already
       // says a new attempt is a new generation.
@@ -971,7 +978,17 @@ function GpuAppContent({
       return;
     }
     if (id.startsWith('workspace.open.')) { store.openWorkspace(id.slice('workspace.open.'.length)); return; }
+    if (id === 'application.retry') { void reloadWorkspace(); return; }
     if (id.startsWith('localDocker.')) {
+      if (!projectApplicationSelected) return;
+      if (id.startsWith('localDocker.step.')) {
+        const step = id.slice('localDocker.step.'.length);
+        if (step === 'about' || step === 'prepare' || step === 'launch' || step === 'use') {
+          setLocalStep({ key: workspaceUrl, step });
+          store.setScrollY('projects', 0);
+        }
+        return;
+      }
       const config = localDocker?.config;
       if (!config || !workspace.index || !state.selectedProjectId) return;
       if (id === 'localDocker.install') window.open(DOCKER_DESKTOP_URL, '_blank', 'noopener,noreferrer');
@@ -1188,6 +1205,7 @@ function GpuAppContent({
     resultProjectId,
     workspace.index,
     localDocker,
+    projectApplicationSelected, projectPreviewSelected, reloadWorkspace,
     workspaceUrl,
     state.selectedProjectId,
     state.workspaceRunId,
@@ -1384,7 +1402,7 @@ function GpuAppContent({
     <PreviewPlane
         embedded={projectPreviewSelected}
         veiled={state.accountMenuOpen || state.localeMenuOpen || state.notificationsMenuOpen}
-        open={previewOpen}
+        open={previewOpen && (!projectApplicationSelected || projectPreviewSelected)}
         summary={previewSummary}
         url={previewUrl}
         projectName={previewProject?.name ?? ''}
@@ -1459,6 +1477,7 @@ function GpuAppContent({
             onSettings={tab => { setSettingsInitialTab(tab); state.setView('settings'); }}
             onScopeChange={id => { state.selectProject(id); useGpuStore.setState({ projectMcpCollapsed: false }); }}
             onProject={id => { state.selectProject(id); state.selectProjectSection('runs'); }}
+            onApplication={id => { state.selectProject(id); state.selectProjectSection('preview'); }}
             onRun={(run, traceId) => {
               state.selectProject(run.projectId);
               state.selectProjectSection('runs');

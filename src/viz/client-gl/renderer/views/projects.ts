@@ -1,3 +1,4 @@
+import { drawApplicationGuide } from './application.js';
 import { drawWorkspace } from './workspace.js';
 import { latestWorkspaceRun } from '../../workspace-browser.js';
 import { Graphics, type Container } from 'pixi.js';
@@ -359,7 +360,7 @@ export function projectSectionLayout(ctx: Pick<RendererCtx, 'measureText'>, snap
   const sections = [
     { id: 'conversation', label: snapshot.t('projects.mcpTitle') },
     { id: 'runs', label: snapshot.t('nav.runs') },
-    { id: 'preview', label: snapshot.t(narrow ? 'preview.title' : 'preview.app') },
+    { id: 'preview', label: snapshot.t('application.title') },
     { id: 'files', label: snapshot.t('workspace.title') },
     { id: 'result', label: snapshot.t(narrow ? 'result.title' : 'result.latest') },
   ] as const;
@@ -603,6 +604,19 @@ export function drawProjects(
       return;
     }
     if (snapshot.state.projectSection === 'preview') {
+      const workspace = snapshot.data.workspace;
+      if (workspace?.localDocker) {
+        drawApplicationGuide(ctx, snapshot, { x: frame.innerX, top: contentTop, width: frame.innerWidth, bottom: frame.bottom });
+        return;
+      }
+      if (latestResult && !latestResult.bytesExpiredAt && (!workspace?.index || workspace.loading || workspace.failed)) {
+        ctx.text(ctx.root, snapshot.t(workspace?.failed ? 'application.unavailable' : 'application.loading'),
+          frame.innerX, contentTop, { size: 14, width: frame.innerWidth });
+        if (workspace?.failed) ctx.button(ctx.root, 'application.retry', 'button', snapshot.t('application.retry'),
+          frame.innerX, contentTop + 64, Math.min(320, frame.innerWidth), 44, false, snapshot.onActivate);
+        ctx.scrollMax.projects = 0;
+        return;
+      }
       const controlHeight = latestResult ? drawPreviewControl(ctx, snapshot, frame.innerX, contentTop, frame.innerWidth) : 0;
       if (!controlHeight) ctx.text(ctx.root, snapshot.t(latestResult ? 'preview.unavailable' : 'projects.section.noDeliveredResult'),
         frame.innerX, contentTop, { size: 13, color: GPU_COLORS.muted, width: frame.innerWidth });

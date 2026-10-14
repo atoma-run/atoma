@@ -42,6 +42,11 @@ export const CHEVRON_CSS_VARS = {
 
 /** Control identities, never translated copy, determine GPU pictograms. */
 export function buttonIconKind(id: string): ButtonIconKind {
+  if (id === 'localDocker.download') return 'download';
+  if (id === 'localDocker.open' || id === 'localDocker.verify') return 'eye';
+  if (id === 'localDocker.install') return 'link';
+  if (id === 'localDocker.step.about') return 'back';
+  if (id === 'application.retry') return 'refresh';
   if (id.startsWith('liveRuns.run.')) return 'play';
   if (id === 'project.section.conversation') return 'send';
   if (id === 'project.section.runs') return 'play';
