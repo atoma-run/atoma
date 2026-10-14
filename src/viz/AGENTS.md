@@ -748,9 +748,9 @@ npm run viz:mark-turn:analyze
   renderer chunk), in hosts that stay EMPTY until its canvas mounts: no static
   SVG crystal, before or instead (owner, twice: 936d00cc, 2026-10-10). Offscreen
   crystals wait until they approach the viewport. The versioned bundle is served
-  with Brotli and an immutable cache lifetime. All built JS/CSS assets are
-  precompressed once by `scripts/viz-build.mjs`; the server negotiates Brotli
-  and keeps the original bytes as an identity fallback. ONE per
+  with Brotli and an immutable cache lifetime. `scripts/viz-precompress.mjs`
+  alone lists what is precompressed (JS/CSS, wasm, glb, fonts, SVG); the server
+  serves any `.br` sibling to a Brotli client, identity bytes otherwise. ONE per
   page is lit: drawn over its `data-atoma-receiver` section, behind content, on
   `createFarField` (scenery off) so its light and caustics reach the background;
   the others snapshot and restore the page-global field light around each frame.

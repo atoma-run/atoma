@@ -5044,12 +5044,12 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
     existsSync(assetPath) &&
     statSync(assetPath).isFile()
   ) {
-    const compressible = /\.(?:m?js|css)$/.test(assetPath);
-    const brotliPath = compressible ? `${assetPath}.br` : null;
-    const compressed = Boolean(
-      brotliPath && acceptsBrotli(req.headers['accept-encoding']) && existsSync(brotliPath) && statSync(brotliPath).isFile()
-    );
-    const body = readFileSync(compressed ? brotliPath! : assetPath);
+    // `scripts/viz-precompress.mjs` decides which assets get a Brotli sibling;
+    // its presence is the whole rule here, so the two can never disagree.
+    const brotliPath = `${assetPath}.br`;
+    const compressible = existsSync(brotliPath) && statSync(brotliPath).isFile();
+    const compressed = compressible && acceptsBrotli(req.headers['accept-encoding']);
+    const body = readFileSync(compressed ? brotliPath : assetPath);
     const versionedShowcase = `${pathname}${url.search}` === SHOWCASE_ASSETS.markScript;
     res.writeHead(200, {
       'content-type': assetContentType(assetPath),
