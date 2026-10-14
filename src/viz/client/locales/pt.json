@@ -1938,5 +1938,21 @@
   "deployment.saving": "A guardar…",
   "deployment.saved": "Preferência guardada.",
   "deployment.failed": "Não foi possível confirmar que foi guardada. Recarregue para verificar a preferência guardada e tente novamente.",
-  "deployment.conflict": "Esta definição foi alterada noutra sessão. Recarregue a página antes de guardar."
+  "deployment.conflict": "Esta definição foi alterada noutra sessão. Recarregue a página antes de guardar.",
+  "hosting.title": "Aplicação alojada",
+  "hosting.private": "A aplicação é privada para a sua organização. Abra-a aqui após a disponibilização; não é necessária qualquer instalação local.",
+  "hosting.unconfigured": "O alojamento está a ser configurado pelo operador da atoma. O seu destino foi guardado.",
+  "hosting.not-deployed": "Ainda não foi disponibilizada nenhuma aplicação. Disponibilize uma versão aprovada publicada no GitHub.",
+  "hosting.starting": "A iniciar a aplicação e a verificar se responde…",
+  "hosting.ready": "Aplicação online",
+  "hosting.failed": "A disponibilização falhou. Os dados preservados da aplicação não foram eliminados.",
+  "hosting.stopped": "Aplicação parada. Os respetivos dados são preservados.",
+  "hosting.busy": "A atualizar o estado da aplicação…",
+  "hosting.error": "Não foi possível confirmar a operação. Atualize o estado antes de tentar novamente.",
+  "hosting.version": "Versão online",
+  "hosting.deploy": "Disponibilizar versão aprovada",
+  "hosting.open": "Abrir aplicação",
+  "hosting.stop": "Parar aplicação e preservar dados",
+  "hosting.updateNotice": "Para atualizar uma aplicação que já está online, pare-a primeiro e, em seguida, disponibilize a versão aprovada. A aplicação ficará indisponível durante a atualização.",
+  "hosting.candidateVersion": "Versão aprovada para disponibilização"
 }

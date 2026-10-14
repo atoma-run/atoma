@@ -1938,5 +1938,21 @@
   "deployment.saving": "正在保存…",
   "deployment.saved": "偏好设置已保存。",
   "deployment.failed": "无法确认是否保存成功。请重新加载以检查已保存的偏好设置，然后重试。",
-  "deployment.conflict": "此设置已在另一个会话中更改。请重新加载页面后再保存。"
+  "deployment.conflict": "此设置已在另一个会话中更改。请重新加载页面后再保存。",
+  "hosting.title": "托管应用",
+  "hosting.private": "此应用仅供贵组织内部使用。部署后可在此处打开，无需本地安装。",
+  "hosting.unconfigured": "Atoma 操作员正在设置托管服务。已保存您的目标地址。",
+  "hosting.not-deployed": "尚未部署应用。请部署已发布到 GitHub 的获准版本。",
+  "hosting.starting": "正在启动应用并检查其是否正常响应…",
+  "hosting.ready": "应用已上线",
+  "hosting.failed": "部署失败。保留的应用数据未被删除。",
+  "hosting.stopped": "应用已停止。其数据将保留。",
+  "hosting.busy": "正在更新应用状态…",
+  "hosting.error": "无法确认操作。请刷新状态后重试。",
+  "hosting.version": "在线版本",
+  "hosting.deploy": "部署获准版本",
+  "hosting.open": "打开应用",
+  "hosting.stop": "停止应用并保留数据",
+  "hosting.updateNotice": "要更新已上线的应用，请先停止应用，然后部署获准版本。更新期间应用将不可用。",
+  "hosting.candidateVersion": "待部署的获准版本"
 }

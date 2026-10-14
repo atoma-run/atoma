@@ -1938,5 +1938,21 @@
   "deployment.saving": "Wird gespeichert…",
   "deployment.saved": "Einstellung gespeichert.",
   "deployment.failed": "Das Speichern konnte nicht bestätigt werden. Laden Sie die Seite neu, um die gespeicherte Einstellung zu prüfen, und versuchen Sie es dann erneut.",
-  "deployment.conflict": "Diese Einstellung wurde in einer anderen Sitzung geändert. Laden Sie die Seite vor dem Speichern neu."
+  "deployment.conflict": "Diese Einstellung wurde in einer anderen Sitzung geändert. Laden Sie die Seite vor dem Speichern neu.",
+  "hosting.title": "Gehostete Anwendung",
+  "hosting.private": "Die Anwendung ist nur für Ihre Organisation zugänglich. Öffnen Sie sie nach der Bereitstellung hier; eine lokale Installation ist nicht erforderlich.",
+  "hosting.unconfigured": "Das Hosting wird vom Atoma-Betreiber eingerichtet. Ihr Ziel wurde gespeichert.",
+  "hosting.not-deployed": "Noch keine Anwendung bereitgestellt. Stellen Sie eine akzeptierte, auf GitHub veröffentlichte Version bereit.",
+  "hosting.starting": "Die Anwendung wird gestartet und ihre Erreichbarkeit geprüft…",
+  "hosting.ready": "Anwendung online",
+  "hosting.failed": "Bereitstellung fehlgeschlagen. Ihre gespeicherten Anwendungsdaten wurden nicht gelöscht.",
+  "hosting.stopped": "Anwendung angehalten. Ihre Daten bleiben erhalten.",
+  "hosting.busy": "Anwendungsstatus wird aktualisiert…",
+  "hosting.error": "Der Vorgang konnte nicht bestätigt werden. Aktualisieren Sie den Status, bevor Sie es erneut versuchen.",
+  "hosting.version": "Online-Version",
+  "hosting.deploy": "Akzeptierte Version bereitstellen",
+  "hosting.open": "Anwendung öffnen",
+  "hosting.stop": "Anwendung anhalten und Daten behalten",
+  "hosting.updateNotice": "Um eine bereits online verfügbare Anwendung zu aktualisieren, halten Sie sie zuerst an und stellen Sie dann die akzeptierte Version bereit. Während der Aktualisierung ist sie nicht verfügbar.",
+  "hosting.candidateVersion": "Akzeptierte Version für die Bereitstellung"
 }

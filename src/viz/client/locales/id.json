@@ -1938,5 +1938,21 @@
   "deployment.saving": "Menyimpan…",
   "deployment.saved": "Preferensi disimpan.",
   "deployment.failed": "Penyimpanan tidak dapat dikonfirmasi. Muat ulang untuk memeriksa preferensi yang tersimpan, lalu coba lagi.",
-  "deployment.conflict": "Pengaturan ini telah diubah dalam sesi lain. Muat ulang halaman sebelum menyimpan."
+  "deployment.conflict": "Pengaturan ini telah diubah dalam sesi lain. Muat ulang halaman sebelum menyimpan.",
+  "hosting.title": "Aplikasi yang dihosting",
+  "hosting.private": "Aplikasi ini bersifat privat untuk organisasi Anda. Buka di sini setelah deployment; instalasi lokal tidak diperlukan.",
+  "hosting.unconfigured": "Hosting sedang disiapkan oleh operator Atoma. Tujuan Anda telah disimpan.",
+  "hosting.not-deployed": "Belum ada aplikasi yang di-deploy. Deploy versi yang disetujui dan dipublikasikan ke GitHub.",
+  "hosting.starting": "Memulai aplikasi dan memeriksa responsnya…",
+  "hosting.ready": "Aplikasi online",
+  "hosting.failed": "Deployment gagal. Data aplikasi yang disimpan tidak dihapus.",
+  "hosting.stopped": "Aplikasi dihentikan. Datanya tetap disimpan.",
+  "hosting.busy": "Memperbarui status aplikasi…",
+  "hosting.error": "Operasi tidak dapat dikonfirmasi. Segarkan status sebelum mencoba lagi.",
+  "hosting.version": "Versi online",
+  "hosting.deploy": "Deploy versi yang disetujui",
+  "hosting.open": "Buka aplikasi",
+  "hosting.stop": "Hentikan aplikasi dan simpan data",
+  "hosting.updateNotice": "Untuk memperbarui aplikasi yang sudah online, hentikan terlebih dahulu, lalu deploy versi yang disetujui. Aplikasi tidak akan tersedia selama pembaruan.",
+  "hosting.candidateVersion": "Versi yang disetujui untuk di-deploy"
 }

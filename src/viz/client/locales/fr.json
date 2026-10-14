@@ -1938,5 +1938,21 @@
   "deployment.saving": "Enregistrement…",
   "deployment.saved": "Préférence enregistrée.",
   "deployment.failed": "Impossible de confirmer l’enregistrement. Recharge la page pour vérifier la préférence enregistrée, puis réessaie.",
-  "deployment.conflict": "Ce paramètre a été modifié dans une autre session. Recharge la page avant d’enregistrer."
+  "deployment.conflict": "Ce paramètre a été modifié dans une autre session. Recharge la page avant d’enregistrer.",
+  "hosting.title": "Application hébergée",
+  "hosting.private": "L’application est privée et réservée à ton organisation. Ouvre-la ici après le déploiement ; aucune installation locale n’est nécessaire.",
+  "hosting.unconfigured": "L’opérateur atoma configure l’hébergement. Ta destination est enregistrée.",
+  "hosting.not-deployed": "Aucune application n’est encore déployée. Déploie une version acceptée publiée sur GitHub.",
+  "hosting.starting": "Démarrage de l’application et vérification de sa réponse…",
+  "hosting.ready": "Application en ligne",
+  "hosting.failed": "Le déploiement a échoué. Les données conservées de ton application n’ont pas été supprimées.",
+  "hosting.stopped": "Application arrêtée. Ses données sont conservées.",
+  "hosting.busy": "Mise à jour du statut de l’application…",
+  "hosting.error": "Impossible de confirmer l’opération. Actualise le statut avant de réessayer.",
+  "hosting.version": "Version en ligne",
+  "hosting.deploy": "Déployer la version acceptée",
+  "hosting.open": "Ouvrir l’application",
+  "hosting.stop": "Arrêter l’application et conserver les données",
+  "hosting.updateNotice": "Pour mettre à jour une application déjà en ligne, arrête-la d’abord, puis déploie la version acceptée. Elle sera indisponible pendant la mise à jour.",
+  "hosting.candidateVersion": "Version acceptée à déployer"
 }
