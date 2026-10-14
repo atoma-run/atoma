@@ -1913,5 +1913,12 @@
   "result.workspaceFiles_other": "项目文件（{{count}}个文件）",
   "result.workspaceFilesHint": "此结果为文本回答。以下是生成回答时所依据的项目文件；结果中不包含这些文件。",
   "result.checks": "Atoma 如何检查此结果",
-  "runs.status.live": "实时"
+  "runs.status.live": "实时",
+  "card.batch.title": "{{tool}} × {{n}}",
+  "card.batch.failed": "✕ {{n}} 个失败",
+  "detail.batch.position": "此批次中的第 {{position}} 个读取，共 {{n}} 个",
+  "detail.batch.previous": "上一个读取",
+  "detail.batch.next": "下一个读取",
+  "detail.batch.files": "此批次中的读取",
+  "detail.batch.paths": "路径"
 }

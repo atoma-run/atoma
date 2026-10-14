@@ -1913,5 +1913,12 @@
   "result.workspaceFiles_other": "پروجیکٹ فائلیں ({{count}} فائلیں)",
   "result.workspaceFilesHint": "یہ نتیجہ ایک متنی جواب ہے۔ یہ وہ پروجیکٹ فائلیں ہیں جن کی بنیاد پر اس نے کام کیا؛ یہ ان میں سے کوئی بھی فراہم نہیں کرتا۔",
   "result.checks": "Atoma نے اس نتیجے کی جانچ کیسے کی",
-  "runs.status.live": "لائیو"
+  "runs.status.live": "لائیو",
+  "card.batch.title": "{{tool}} × {{n}}",
+  "card.batch.failed": "✕ {{n}} ناکام",
+  "detail.batch.position": "اس بیچ میں {{n}} میں سے {{position}}واں پڑھنے کا عمل",
+  "detail.batch.previous": "پچھلا پڑھنے کا عمل",
+  "detail.batch.next": "اگلا پڑھنے کا عمل",
+  "detail.batch.files": "اس بیچ میں پڑھنے کے عمل",
+  "detail.batch.paths": "راستے"
 }

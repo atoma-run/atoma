@@ -1913,5 +1913,12 @@
   "result.workspaceFiles_other": "プロジェクトファイル（{{count}}件）",
   "result.workspaceFilesHint": "この結果はテキスト回答です。以下は回答の作成に使用したプロジェクトファイルであり、結果には含まれません。",
   "result.checks": "Atomaがこの結果を確認した方法",
-  "runs.status.live": "ライブ"
+  "runs.status.live": "ライブ",
+  "card.batch.title": "{{tool}} × {{n}}",
+  "card.batch.failed": "✕ {{n}}件失敗",
+  "detail.batch.position": "このバッチの{{n}}件中{{position}}件目の読み取り",
+  "detail.batch.previous": "前の読み取り",
+  "detail.batch.next": "次の読み取り",
+  "detail.batch.files": "このバッチの読み取り",
+  "detail.batch.paths": "パス"
 }

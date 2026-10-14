@@ -1913,5 +1913,12 @@
   "result.workspaceFiles_other": "File proyek ({{count}} file)",
   "result.workspaceFilesHint": "Hasil ini berupa jawaban teks. Ini adalah file proyek yang digunakan sebagai sumber; tidak ada file yang disertakan dalam hasil.",
   "result.checks": "Cara Atoma memeriksa hasil ini",
-  "runs.status.live": "LANGSUNG"
+  "runs.status.live": "LANGSUNG",
+  "card.batch.title": "{{tool}} × {{n}}",
+  "card.batch.failed": "✕ {{n}} gagal",
+  "detail.batch.position": "Pembacaan {{position}} dari {{n}} dalam batch ini",
+  "detail.batch.previous": "Pembacaan sebelumnya",
+  "detail.batch.next": "Pembacaan berikutnya",
+  "detail.batch.files": "Pembacaan dalam batch ini",
+  "detail.batch.paths": "Jalur"
 }

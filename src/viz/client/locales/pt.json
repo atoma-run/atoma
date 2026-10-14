@@ -1913,5 +1913,12 @@
   "result.workspaceFiles_other": "Ficheiros do projeto ({{count}} ficheiros)",
   "result.workspaceFilesHint": "Este resultado é uma resposta em texto. Estes são os ficheiros do projeto usados como base; nenhum deles é entregue.",
   "result.checks": "Como a Atoma verificou este resultado",
-  "runs.status.live": "AO VIVO"
+  "runs.status.live": "AO VIVO",
+  "card.batch.title": "{{tool}} × {{n}}",
+  "card.batch.failed": "✕ Falhas: {{n}}",
+  "detail.batch.position": "Leitura {{position}} de {{n}} neste lote",
+  "detail.batch.previous": "Leitura anterior",
+  "detail.batch.next": "Leitura seguinte",
+  "detail.batch.files": "Leituras neste lote",
+  "detail.batch.paths": "Caminhos"
 }

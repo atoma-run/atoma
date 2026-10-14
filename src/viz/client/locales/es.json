@@ -1913,5 +1913,12 @@
   "result.workspaceFiles_other": "Archivos del proyecto ({{count}} archivos)",
   "result.workspaceFilesHint": "Este resultado es una respuesta de texto. Estos son los archivos del proyecto con los que trabajó; no entrega ninguno de ellos.",
   "result.checks": "Cómo comprobó Atoma este resultado",
-  "runs.status.live": "EN VIVO"
+  "runs.status.live": "EN VIVO",
+  "card.batch.title": "{{tool}} × {{n}}",
+  "card.batch.failed": "✕ Con errores: {{n}}",
+  "detail.batch.position": "Lectura {{position}} de {{n}} en este lote",
+  "detail.batch.previous": "Lectura anterior",
+  "detail.batch.next": "Lectura siguiente",
+  "detail.batch.files": "Lecturas en este lote",
+  "detail.batch.paths": "Rutas"
 }

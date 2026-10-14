@@ -1913,5 +1913,12 @@
   "result.workspaceFiles_other": "Файлы проекта (количество: {{count}})",
   "result.workspaceFilesHint": "Этот результат — текстовый ответ. Вот файлы проекта, на основе которых он подготовлен; сами файлы в него не входят.",
   "result.checks": "Как Atoma проверила этот результат",
-  "runs.status.live": "В ЭФИРЕ"
+  "runs.status.live": "В ЭФИРЕ",
+  "card.batch.title": "{{tool}} × {{n}}",
+  "card.batch.failed": "✕ С ошибкой: {{n}}",
+  "detail.batch.position": "Чтение {{position}} из {{n}} в этом пакете",
+  "detail.batch.previous": "Предыдущее чтение",
+  "detail.batch.next": "Следующее чтение",
+  "detail.batch.files": "Чтения в этом пакете",
+  "detail.batch.paths": "Пути"
 }

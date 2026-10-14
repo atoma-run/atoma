@@ -1913,5 +1913,12 @@
   "result.workspaceFiles_other": "प्रोजेक्ट फ़ाइलें ({{count}} फ़ाइलें)",
   "result.workspaceFilesHint": "यह परिणाम एक टेक्स्ट उत्तर है। ये वे प्रोजेक्ट फ़ाइलें हैं जिनके आधार पर इसने काम किया; यह इनमें से कोई भी फ़ाइल प्रदान नहीं करता।",
   "result.checks": "Atoma ने इस परिणाम की जाँच कैसे की",
-  "runs.status.live": "लाइव"
+  "runs.status.live": "लाइव",
+  "card.batch.title": "{{tool}} × {{n}}",
+  "card.batch.failed": "✕ {{n}} विफल",
+  "detail.batch.position": "इस बैच में {{n}} में से {{position}}वाँ रीड",
+  "detail.batch.previous": "पिछला रीड",
+  "detail.batch.next": "अगला रीड",
+  "detail.batch.files": "इस बैच के रीड",
+  "detail.batch.paths": "पथ"
 }

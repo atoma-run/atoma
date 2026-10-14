@@ -1913,5 +1913,12 @@
   "result.workspaceFiles_other": "ملفات المشروع (عدد الملفات: {{count}})",
   "result.workspaceFilesHint": "هذه النتيجة إجابة نصية. وهذه هي ملفات المشروع التي استندت إليها؛ ولا تقدّم أيًا منها.",
   "result.checks": "كيفية تحقّق Atoma من هذه النتيجة",
-  "runs.status.live": "مباشر"
+  "runs.status.live": "مباشر",
+  "card.batch.title": "{{tool}} × {{n}}",
+  "card.batch.failed": "✕ حالات الفشل: {{n}}",
+  "detail.batch.position": "القراءة {{position}} من أصل {{n}} في هذه الدفعة",
+  "detail.batch.previous": "القراءة السابقة",
+  "detail.batch.next": "القراءة التالية",
+  "detail.batch.files": "القراءات في هذه الدفعة",
+  "detail.batch.paths": "المسارات"
 }

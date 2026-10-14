@@ -1913,5 +1913,12 @@
   "result.workspaceFiles_other": "Projektdateien ({{count}} Dateien)",
   "result.workspaceFilesHint": "Dieses Ergebnis ist eine Textantwort. Dies sind die Projektdateien, auf deren Grundlage sie erstellt wurde; keine davon wird ausgegeben.",
   "result.checks": "So hat Atoma dieses Ergebnis geprüft",
-  "runs.status.live": "LIVE"
+  "runs.status.live": "LIVE",
+  "card.batch.title": "{{tool}} × {{n}}",
+  "card.batch.failed": "✕ Fehlgeschlagen: {{n}}",
+  "detail.batch.position": "Lesevorgang {{position}} von {{n}} in diesem Batch",
+  "detail.batch.previous": "Vorheriger Lesevorgang",
+  "detail.batch.next": "Nächster Lesevorgang",
+  "detail.batch.files": "Lesevorgänge in diesem Batch",
+  "detail.batch.paths": "Pfade"
 }
