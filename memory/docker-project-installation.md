@@ -22,8 +22,8 @@ immutable descriptors show an honest generic fallback. Hosted apps stay direct.
 
 Attica run 1a4dd9b1-e6a7-4729-bba7-7af623c8fec8 delivered the portable package
 on 2026-10-14; a real downloaded ZIP was started/stopped/restarted on macOS.
-It predates onboarding prose and is not recorded as client-accepted. Do not edit
-that saved delivery to retrofit the explanation. A future Atoma run can add it.
+It predates onboarding prose and is not recorded as client-accepted. Its immutable
+bytes remain retained; run `0daa2132-591f-4068-9040-25cba2dccac7` adds the explanation.
 The original pilot on 3300/6081 and its 68 collected offers stay separate and
 must not be replaced by platform UX work.
 
@@ -45,3 +45,14 @@ presentation now reports both units explicitly; a regression goes through real
 file tools and the validation prompt with accented, arrow and astral characters.
 The four ground-truth suites pass all 115 tests. This is evidence presentation,
 not a new acceptance gate or a claim that every future model will judge correctly.
+Fix `efefe36d` passed CI 38586619523 and deployed successfully (38587709734).
+
+Attica `0daa2132` delivered with 3/3 criteria met. Independent manifest comparison:
+only atoma.local.json and the two README navigation instructions changed; 95 files
+unchanged. The production schema accepts the descriptor with the same 22 allowed
+paths and unchanged runtime configuration. The real Application flow and its
+receipt entry were checked; the downloaded ZIP is 38,798 bytes with 27 files,
+contains the prose in START-HERE.txt, and has identical runtime source to the
+previously tested package. No new collection, local-state changes, native Windows
+test or client acceptance/publication occurred. Review is saved in the project's
+Atoma conversation; the latest delivery is available in Application.
