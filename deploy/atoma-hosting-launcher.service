@@ -10,6 +10,7 @@ User=atoma
 Group=atoma
 EnvironmentFile=/home/atoma/config/hosting.env
 ExecStart=/usr/bin/node /home/atoma/current/dist/launcher/hostingMain.js
+ExecStartPost=/usr/bin/node -e "const net=require('node:net');const end=Date.now()+20000;function probe(){const s=net.createConnection(process.env.ATOMA_HOSTING_SOCKET);s.on('connect',()=>{s.end();process.exit(0)});s.on('error',()=>Date.now()<end?setTimeout(probe,100):process.exit(1))}probe()"
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true

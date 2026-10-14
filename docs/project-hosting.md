@@ -101,3 +101,7 @@ Renewal must run automatically and reload nginx only after `nginx -t` passes.
 
 The host template includes `deploy/atoma-apps-cert.service` and its daily timer
 for the existing Gandi/certbot installation. Adjust paths for another host.
+Install `deploy/atoma-hosting-order.conf` as an `atoma.service.d` drop-in when
+hosting is enabled. The launcher's readiness command waits for its socket before
+the web service starts, including after a host reboot. Hosted containers are
+not tied to either service's lifetime.
