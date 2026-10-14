@@ -77,3 +77,21 @@ served a static site after the Node retention/isolation checks. Regression
 coverage includes real launcher process/socket connections, stale deployment
 requests, org permissions, acceptance/publication checks, gateway claims and
 CSRF, failed predecessor cleanup, and stop versus health-check races.
+
+Production activation completed: source `e407d518` passed CI `38605384578`
+and deployment `38606462452`. Startup ordering `31a7b99b` then passed CI
+`38605995345` and deployment `38607560833`; the host's current symlink now
+points to that exact release. Hosting was enabled under deploy-preflight's
+held admission/run lease. Both `atoma` and `atoma-hosting-launcher` are active;
+public Atoma returns HTTPS 200 and an unknown application host returns the
+private gateway's 404 (not nginx 502). The later platform release preserved
+the active hosting gateway. The service drop-in orders the socket-ready
+launcher before web startup; config lives in `/home/atoma/config/hosting.env`
+and the five `ATOMA_HOSTING_*` web settings. Capacity is initially two.
+
+A real signed-in Chrome session verified Attica's Project settings exposes
+Hosted application and deploy/open/stop controls. No hosted deployment was
+started for Attica: its accepted/published run `0daa2132` is retained but has no
+eligible web deployment candidate in the current descriptor. Its existing
+portable Docker/browser package still needs hosted browser/CAPTCHA support.
+No customer run was started, no local pilot data or browser session was moved.
