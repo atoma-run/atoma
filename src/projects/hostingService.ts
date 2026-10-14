@@ -1,3 +1,4 @@
+import { readHostingManifest } from './hostingManifest.js';
 import type { PlatformEventSink } from '../contracts/platformEvents.js';
 import { request } from 'node:http';
 import { randomUUID } from 'node:crypto';
@@ -40,10 +41,12 @@ export class HostingService {
     const run = this.deps.projects.acceptedReference(viewer.orgId, projectId);
     const publication = run ? this.deps.projects.getPublicationForRun(viewer.orgId, run.projectRunId) : null;
     const descriptor = run ? this.deps.previews.getDescriptor(viewer.orgId, run.projectRunId) : null;
+    let browser = false;
+    try { browser = !!(run && readHostingManifest(run.hostPaths.workspacePath, run.artifactManifest)); } catch { /* invalid capability is not deployable */ }
     return { available: true, state: row?.state ?? 'not-deployed', deploymentId: row?.deploymentId ?? null,
       runId: active?.runId ?? row?.runId ?? null, commitSha: active?.commitSha ?? row?.commitSha ?? null,
       url: active ? `https://${this.host(active)}/` : null, error: row?.error ?? null,
-      candidate: run?.artifactManifestHash && !run.bytesExpiredAt && descriptor?.availability === 'available' && publication?.status === 'published' && publication.commitSha
+      candidate: run?.artifactManifestHash && !run.bytesExpiredAt && (descriptor?.availability === 'available' || browser) && publication?.status === 'published' && publication.commitSha
         ? { runId: run.projectRunId, manifestHash: run.artifactManifestHash, commitSha: publication.commitSha } : null };
   }
   async deploy(viewer: Viewer, projectId: string, raw: unknown): Promise<HostingSummary> {
@@ -57,14 +60,17 @@ export class HostingService {
     const acceptance = this.deps.projects.getDeliveryAcceptance(viewer.orgId, input.runId);
     const publication = this.deps.projects.getPublicationForRun(viewer.orgId, input.runId);
     const descriptor = this.deps.previews.getDescriptor(viewer.orgId, input.runId);
+    let browserConfig;
+    try { browserConfig = run ? readHostingManifest(run.hostPaths.workspacePath, run.artifactManifest) : null; }
+    catch { throw new ProjectHttpError(409, 'Invalid hosting configuration in the accepted delivery'); }
     if (!run || run.projectId !== projectId || run.status !== 'delivered' || run.bytesExpiredAt || run.rerunOf ||
       !run.artifactManifest || run.artifactManifestHash !== input.manifestHash || acceptance?.manifestHash !== input.manifestHash ||
-      publication?.status !== 'published' || publication.manifestHash !== input.manifestHash || !publication.commitSha || descriptor?.availability !== 'available') {
+      publication?.status !== 'published' || publication.manifestHash !== input.manifestHash || !publication.commitSha || (!browserConfig && descriptor?.availability !== 'available')) {
       throw new ProjectHttpError(409, 'Deploy an accepted, published, retained application version');
     }
     const row: HostedDeployment = { orgId: viewer.orgId, projectId, deploymentId: randomUUID(), runId: input.runId,
-      manifestHash: input.manifestHash, commitSha: publication.commitSha, state: 'starting', kind: descriptor.kind!,
-      entry: descriptor.entry ?? 'index.js', createdAt: new Date().toISOString(), error: null, hostPort: null, image: null };
+      manifestHash: input.manifestHash, commitSha: publication.commitSha, state: 'starting', kind: browserConfig ? 'node' : descriptor!.kind!, browser: !!browserConfig,
+      entry: browserConfig?.entry ?? descriptor?.entry ?? 'index.js', createdAt: new Date().toISOString(), error: null, hostPort: null, image: null };
     try { this.deps.store.reserve(row, input.expectedDeploymentId, this.deps.maxDeployments); }
     catch (e) { if (e instanceof ProjectStateConflict) throw new ProjectHttpError(409, e.message); throw e; }
     this.event(row, viewer.principalId);
@@ -74,7 +80,7 @@ export class HostingService {
         materializePreviewWorkspace({ sourceRoot: run.hostPaths.workspacePath, destinationRoot: destination,
           ...(this.deps.copyOwnership ? { ownership: this.deps.copyOwnership } : {}) });
         revalidateArtifactManifest({ workspaceRoot: destination, manifest: run.artifactManifest!, expectedHash: row.manifestHash });
-        const handle = await this.deps.launcher.startHosting({ orgId: row.orgId, projectId, deploymentId: row.deploymentId, kind: row.kind, entry: row.entry });
+        const handle = await this.deps.launcher.startHosting({ orgId: row.orgId, projectId, deploymentId: row.deploymentId, kind: row.kind, entry: row.entry, browser: row.browser });
         let ready = false;
         for (let attempt = 0; attempt < 30; attempt++) {
           if (await this.deps.probe(handle.hostPort).catch(() => false)) { ready = true; break; }

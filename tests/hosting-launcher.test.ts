@@ -54,3 +54,25 @@ it('refuses path traversal, raw options and symlinked persistent data before eng
   const outside = join(f.root, 'outside'); mkdirSync(outside); symlinkSync(outside, join(f.root, f.id.orgId));
   await expect(f.launcher.prepareHosting(f.id)).rejects.toThrow('Invalid hosting directory'); expect(f.calls).toHaveLength(0);
 });
+it('browser capability uses a fixed image, persistent profile, and a public-only proxy on an isolated bridge', async () => {
+  const f = fixture();
+  await expect(f.launcher.startHosting({ ...f.id, entry: 'server.js', kind: 'node', browser: true })).rejects.toThrow('not configured');
+  const browserImage = `browser@sha256:${'b'.repeat(64)}`;
+  const launcher = new DockerHosting({ root: f.root, image: `node@sha256:${'a'.repeat(64)}`, relayImage: `relay@sha256:${'c'.repeat(64)}`, browserImage, user: '10001:10001', run: async args => {
+    f.calls.push(args);
+    if (args[0] === 'ps') return f.calls.some(a => a[0] === 'run' && a.includes('runsc')) ? [`atoma-hosted-${f.id.deploymentId}-app`, `atoma-hosted-${f.id.deploymentId}-relay`].join('\n') : '';
+    if (args[0] === 'port') return '127.0.0.1:32123';
+    if (args[0] === 'inspect') return args.includes('{{.Config.Image}}') ? browserImage : '10.5.0.2';
+    return '';
+  } });
+  await launcher.startHosting({ ...f.id, entry: 'browser/server.js', kind: 'node', browser: true });
+  const app = f.calls.find(a => a[0] === 'run' && a.includes('runsc'))!;
+  expect(app).toContain(browserImage);
+  expect(app).toContain('ATOMA_BROWSER_URL=http://127.0.0.1:9222');
+  expect(app).toContain('ATOMA_BROWSER_PROXY=http://10.5.0.2:3128');
+  expect(app).not.toContain('-p');
+  expect(app).toContain('/opt/atoma-hosting/browser.mjs');
+  const proxy = f.calls.find(a => a[0] === 'run' && a.includes('/app/dist/tools/egressProxy.js'))!;
+  expect(proxy).toEqual(expect.arrayContaining(['ATOMA_EGRESS_ALLOWLIST=*', '--read-only']));
+  expect(proxy).not.toContain('-p');
+});

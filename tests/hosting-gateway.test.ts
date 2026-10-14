@@ -1,5 +1,5 @@
 import { createServer, request, type Server } from 'node:http';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { afterEach, expect, it, vi } from 'vitest';
 import { createHostingGateway } from '../src/projects/hostingGateway.js';
 import { probeHostedApplication, type HostingService } from '../src/projects/hostingService.js';
@@ -41,4 +41,40 @@ it('exchanges a one-time private claim, strips credentials, and refuses cross-or
 it('does not confuse a relay 502 with application readiness', async () => {
   let status = 502; const port = await listen(createServer((_req, res) => { res.writeHead(status); res.end(); }));
   expect(await probeHostedApplication(port)).toBe(false); status = 200; expect(await probeHostedApplication(port)).toBe(true);
+});
+
+it('protects desktop HTTP and WebSocket and revokes an established tunnel after membership loss', async () => {
+  let received: import('node:http').IncomingHttpHeaders = {};
+  const upstream = createServer((_req, res) => res.end('desktop'));
+  upstream.on('upgrade', (req, socket) => {
+    received = req.headers;
+    const accept = createHash('sha1').update(`${req.headers['sec-websocket-key']}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`).digest('base64');
+    socket.write(`HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
+    socket.on('error', () => {}); socket.on('end', () => socket.end());
+  });
+  const row: HostedDeployment = { orgId: randomUUID(), projectId: randomUUID(), deploymentId: randomUUID(), runId: randomUUID(), manifestHash: 'a'.repeat(64), commitSha: 'b'.repeat(40), state: 'ready', kind: 'node', browser: true, entry: 'server.js', createdAt: new Date().toISOString(), error: null, hostPort: await listen(upstream), image: 'image' };
+  const host = `p-${row.projectId}.app.atoma.run`;
+  const service = { deps: { store: { list: () => [row] } }, host: () => host, status: vi.fn() } as unknown as HostingService;
+  let allowed = true;
+  const gateway = createHostingGateway(service, 'https://atoma.run', () => allowed);
+  const port = await listen(gateway.server);
+  const url = new URL(gateway.open({ orgId: row.orgId, principalId: randomUUID() } as Viewer, row.projectId));
+  const redeemed = await call(port, host, '/.atoma/claim', { origin: `https://${host}` }, JSON.stringify({ token: url.hash.slice(1) }));
+  const cookie = redeemed.headers['set-cookie']![0]!.split(';')[0]!;
+  expect((await call(port, host, '/.atoma/browser/vnc.html')).status).toBe(404);
+  const desktop = await call(port, host, '/.atoma/browser/vnc.html', { cookie });
+  expect(desktop.body).toBe('desktop');
+  expect(desktop.headers['content-security-policy']).toContain('sandbox allow-popups');
+  expect(desktop.headers['content-security-policy']).toContain(`wss://${host}`);
+  const connect = (origin: string, path = '/.atoma/browser/websockify') => new Promise<import('node:stream').Duplex>((resolve, reject) => {
+    const req = request({ host: '127.0.0.1', port, path, headers: { host, cookie, origin, authorization: 'Bearer private', connection: 'Upgrade', upgrade: 'websocket', 'sec-websocket-key': 'dGhlIHNhbXBsZSBub25jZQ==', 'sec-websocket-version': '13' } });
+    req.on('upgrade', (_res, socket) => resolve(socket)); req.on('error', reject); req.end();
+  });
+  await expect(connect('https://evil.test')).rejects.toThrow();
+  await expect(connect(`https://${host}`, '/json/version')).rejects.toThrow();
+  const socket = await connect(`https://${host}`);
+  expect(received).not.toHaveProperty('cookie'); expect(received).not.toHaveProperty('authorization');
+  const closed = new Promise<void>(resolve => { socket.on('close', () => resolve()); socket.resume(); });
+  allowed = false;
+  await closed;
 });

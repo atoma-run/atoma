@@ -10,16 +10,16 @@ const exec = promisify(execFile);
 const engine: AsyncDockerRunner = async args => (await exec('docker', args, { timeout: 30_000, maxBuffer: 1024 * 1024 })).stdout.trim();
 /** Durable deployments have their own namespace. Preview/worker sweeps never own these objects. */
 export class DockerHosting implements HostingLauncher {
-  constructor(private readonly options: { root: string; image: string; relayImage: string; user: string; run?: AsyncDockerRunner }) {
+  constructor(private readonly options: { root: string; image: string; browserImage?: string; relayImage: string; user: string; run?: AsyncDockerRunner }) {
     if (!path.isAbsolute(options.root) || options.root === '/') throw new Error('Dedicated absolute hosting root required');
-    for (const image of [options.image, options.relayImage]) if (!/(?:^|@)sha256:[a-f0-9]{64}$/.test(image)) throw new Error('Hosting images must be pinned');
+    for (const image of [options.image, options.relayImage, ...(options.browserImage ? [options.browserImage] : [])]) if (!/(?:^|@)sha256:[a-f0-9]{64}$/.test(image)) throw new Error('Hosting images must be pinned');
     if (!/^[1-9]\d*:\d+$/.test(options.user)) throw new Error('Non-root hosting identity required');
   }
   private run(args: string[]): Promise<string> { return (this.options.run ?? engine)(args); }
   private names(raw: HostingIdentity) {
     const id = hostingIdentitySchema.parse(raw);
     const prefix = `atoma-hosted-${id.deploymentId}`;
-    return { app: `${prefix}-app`, relay: `${prefix}-relay`, internal: `${prefix}-net`, uplink: `${prefix}-pub`,
+    return { app: `${prefix}-app`, relay: `${prefix}-relay`, proxy: `${prefix}-proxy`, internal: `${prefix}-net`, uplink: `${prefix}-pub`,
       source: path.join(this.options.root, id.orgId, id.projectId, 'releases', id.deploymentId),
       data: path.join(this.options.root, id.orgId, id.projectId, 'data') };
   }
@@ -41,6 +41,8 @@ export class DockerHosting implements HostingLauncher {
     const n = this.names(id);
     const names = (await this.run(['ps', '--filter', 'label=dev.atoma.owner=hosting', '--format', '{{.Names}}'])).split('\n');
     if (!names.includes(n.app) || !names.includes(n.relay)) return null;
+    const browser = await this.run(['inspect', '--format', '{{index .Config.Labels "dev.atoma.browser"}}', n.app]);
+    if (browser.trim() === 'true' && !names.includes(n.proxy)) return null;
     const output = await this.run(['port', n.relay, '8081']);
     const match = /^127\.0\.0\.1:(\d+)$/m.exec(output.trim());
     if (!match) throw new Error('Hosting ingress is not loopback-only');
@@ -49,6 +51,7 @@ export class DockerHosting implements HostingLauncher {
   }
   async startHosting(raw: HostingLaunch): Promise<HostingHandle> {
     const spec = hostingLaunchSchema.parse(raw);
+    if (spec.browser && (spec.kind !== 'node' || !this.options.browserImage)) throw new Error('Browser hosting is not configured');
     const id = { orgId: spec.orgId, projectId: spec.projectId, deploymentId: spec.deploymentId };
     const n = this.names(id);
     // Recovery observes the existing runtime; it never silently replaces its image.
@@ -60,12 +63,25 @@ export class DockerHosting implements HostingLauncher {
       await this.run(['network', 'create', '--internal', ...labels, '--opt', 'com.docker.network.bridge.gateway_mode_ipv4=isolated', '--opt', 'com.docker.network.bridge.gateway_mode_ipv6=isolated', n.internal]);
       await this.run(['network', 'create', ...labels, n.uplink]);
       const bounds = ['--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '--memory', '512m', '--memory-swap', '512m', '--cpus', '0.5', '--pids-limit', '128', '--log-opt', 'max-size=1m', '--log-opt', 'max-file=2'];
+      let proxyIp = '';
+      if (spec.browser) {
+        await this.run(['run', '-d', '--name', n.proxy, ...labels, '--restart', 'unless-stopped', '--network', n.uplink,
+          '--user', this.options.user, '--read-only', ...bounds, '-e', 'ATOMA_EGRESS_ALLOWLIST=*',
+          '--entrypoint', 'node', this.options.relayImage, '/app/dist/tools/egressProxy.js']);
+        await this.run(['network', 'connect', n.internal, n.proxy]);
+        proxyIp = (await this.run(['inspect', '--format', `{{with index .NetworkSettings.Networks ${JSON.stringify(n.internal)}}}{{.IPAddress}}{{end}}`, n.proxy])).trim();
+        if (!isIPv4(proxyIp)) throw new Error('No browser proxy address');
+      }
+      const appBounds = spec.browser ? ['--memory', '1536m', '--memory-swap', '1536m', '--cpus', '1', '--pids-limit', '256', '--shm-size', '256m'] : [];
       await this.run(['run', '-d', '--name', n.app, ...labels, '--restart', 'unless-stopped', '--network', n.internal,
-        '--runtime', 'runsc', '--user', this.options.user, '--read-only', ...bounds,
-        '--tmpfs', '/tmp:rw,noexec,nosuid,size=64m', '--mount', `type=bind,src=${n.source},dst=/workspace,readonly`,
+        ...(spec.browser ? ['--label', 'dev.atoma.browser=true'] : []),
+        '--runtime', 'runsc', '--user', this.options.user, '--read-only', ...bounds, ...appBounds,
+        '--tmpfs', spec.browser ? '/tmp:rw,noexec,nosuid,size=256m' : '/tmp:rw,noexec,nosuid,size=64m', '--mount', `type=bind,src=${n.source},dst=/workspace,readonly`,
         '--mount', `type=bind,src=${n.data},dst=/data`, '-w', '/workspace',
-        '-e', 'PORT=8080', '-e', 'HOST=0.0.0.0', '-e', 'NODE_ENV=production', '-e', 'HOME=/tmp', '-e', 'ATOMA_DATA_DIR=/data',
-        '--entrypoint', 'node', this.options.image, spec.kind === 'static' ? '/opt/atoma-hosting/static.mjs' : spec.entry]);
+        '-e', spec.browser ? 'PORT=8082' : 'PORT=8080', '-e', 'HOST=0.0.0.0', '-e', 'NODE_ENV=production', '-e', 'HOME=/tmp', '-e', 'ATOMA_DATA_DIR=/data',
+        ...(spec.browser ? ['-e', `ATOMA_BROWSER_PROXY=http://${proxyIp}:3128`, '-e', 'ATOMA_BROWSER_URL=http://127.0.0.1:9222', '-e', 'ATOMA_BROWSER_DESKTOP_URL=/.atoma/browser/vnc.html?autoconnect=1&resize=scale&path=.atoma/browser/websockify'] : []),
+        '--entrypoint', 'node', spec.browser ? this.options.browserImage! : this.options.image,
+        ...(spec.browser ? ['/opt/atoma-hosting/browser.mjs', spec.entry] : [spec.kind === 'static' ? '/opt/atoma-hosting/static.mjs' : spec.entry])]);
       const ip = (await this.run(['inspect', '--format', `{{with index .NetworkSettings.Networks ${JSON.stringify(n.internal)}}}{{.IPAddress}}{{end}}`, n.app])).trim();
       if (!isIPv4(ip)) throw new Error('No isolated application address');
       await this.run(['run', '-d', '--name', n.relay, ...labels, '--restart', 'unless-stopped', '--network', n.uplink,
@@ -79,7 +95,7 @@ export class DockerHosting implements HostingLauncher {
   async stopHosting(id: HostingIdentity): Promise<void> {
     const n = this.names(id);
     // Confirm absence before releasing networks. No source or data deletion here.
-    for (const name of [n.relay, n.app]) {
+    for (const name of [n.relay, n.app, n.proxy]) {
       const present = await this.run(['ps', '-a', '--filter', `name=^/${name}$`, '--format', '{{.Names}}']);
       if (present.trim()) { await this.run(['stop', '--time', '10', name]); await this.run(['rm', '-f', name]); }
     }

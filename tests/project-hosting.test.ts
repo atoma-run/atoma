@@ -111,3 +111,19 @@ it('does not resurrect a stopped application from an in-flight health probe', as
   complete(true); await check;
   expect(service.status(viewer, projectId).state).toBe('stopped');
 });
+it('deploys a declared hosted browser application without requiring a static preview classification', async () => {
+  writeFileSync(join(source, 'server.js'), 'console.log("application")');
+  writeFileSync(join(source, 'atoma.hosting.json'), JSON.stringify({ version: 1, runtime: 'node-browser', entry: 'server.js' }));
+  const prior = projects.getProjectRun(viewer.orgId, runId)!;
+  runId = projects.createProjectRun({ orgId: viewer.orgId, principalId: viewer.principalId, projectId, request: { goal: 'Hosted browser', idempotencyKey: 'browser' }, hostPaths: prior.hostPaths })!.run.projectRunId;
+  projects.transitionProjectRun({ orgId: viewer.orgId, projectRunId: runId, from: 'queued', to: 'running' });
+  projects.transitionProjectRun({ orgId: viewer.orgId, projectRunId: runId, from: 'running', to: 'delivered', traceId: 'browser', stats: prior.stats! });
+  const manifest = buildWorkspaceArtifactManifest({ workspaceRoot: source }); manifestHash = manifest.hash;
+  projects.saveArtifactManifest(viewer.orgId, runId, manifest.manifest);
+  vi.spyOn(service.deps.previews, 'getDescriptor').mockReturnValue(null);
+  publish();
+  expect(service.status(viewer, projectId).candidate?.runId).toBe(runId);
+  await service.deploy(viewer, projectId, input()); await service.idle();
+  expect(service.status(viewer, projectId).state).toBe('ready');
+  expect(launcher.startHosting).toHaveBeenCalledWith(expect.objectContaining({ browser: true, kind: 'node', entry: 'server.js' }));
+});

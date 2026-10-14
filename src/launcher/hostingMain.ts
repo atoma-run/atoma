@@ -16,7 +16,7 @@ async function main(): Promise<void> {
   const image = process.env['ATOMA_HOSTING_IMAGE'] ?? '';
   const relayImage = process.env['ATOMA_HOSTING_RELAY_IMAGE'] ?? '';
   const root = process.env['ATOMA_HOSTING_ROOT'] ?? '';
-  const hosting = new DockerHosting({ root, image, relayImage, user });
+  const hosting = new DockerHosting({ root, image, relayImage, user, ...(process.env['ATOMA_HOSTING_BROWSER_IMAGE'] ? { browserImage: process.env['ATOMA_HOSTING_BROWSER_IMAGE'] } : {}) });
   // Probe before unlink; a second process must never steal a live endpoint.
   const live = await new Promise<boolean>((resolve, reject) => {
     const socket = createConnection(socketPath);

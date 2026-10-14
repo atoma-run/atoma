@@ -94,7 +94,7 @@ async function main(): Promise<void> {
     socketPath, launcher, hello, workers,
     ...(process.env['ATOMA_HOSTING_ROOT'] ? { hosting: new DockerHosting({
       root: process.env['ATOMA_HOSTING_ROOT'], image: process.env['ATOMA_HOSTING_IMAGE'] ?? '',
-      relayImage: image, user: previewUser,
+      relayImage: image, user: previewUser, ...(process.env['ATOMA_HOSTING_BROWSER_IMAGE'] ? { browserImage: process.env['ATOMA_HOSTING_BROWSER_IMAGE'] } : {}),
     }) } : {}),
     leaseExpired: (family, ownerId) => volumes.expired(family === 'egress' ? 'worker' : 'preview', ownerId),
     renewLease: (family, ownerId) => volumes.renew(family === 'egress' ? 'worker' : 'preview', ownerId),

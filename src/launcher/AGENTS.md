@@ -284,6 +284,8 @@ Its `dev.atoma.owner=hosting` objects are excluded from ephemeral sweeps and
 survive control-socket disconnect and platform restart. `hostingMain` offers
 only those operations for installations still using the legacy run launcher.
 Images are immutable digests (including engine content IDs); gVisor is required.
-Only UUID identities and a validated relative Node entry cross RPC. Source is
+Only UUID identities, a validated relative Node entry and an optional browser
+capability cross RPC. The browser image, persistent profile, private desktop and
+public-only egress proxy are fixed by the host. CDP/VNC never publish ports. Source is
 read-only; per-project `/data` survives every stop. No deletion API exists.
 See [project hosting](../../docs/project-hosting.md) for supported limitations.

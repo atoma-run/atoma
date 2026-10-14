@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const hostingIdentitySchema = z.object({ orgId: z.string().uuid(), projectId: z.string().uuid(), deploymentId: z.string().uuid() }).strict();
-export const hostingLaunchSchema = hostingIdentitySchema.extend({ entry: z.string().min(1).max(512).refine(p => !p.startsWith('/') && !p.includes('\\') && p.split('/').every(s => s !== '..' && s !== '.' && s !== '') && /\.(mjs|cjs|js)$/.test(p)), kind: z.enum(['node', 'static']) }).strict();
+export const hostingLaunchSchema = hostingIdentitySchema.extend({ entry: z.string().min(1).max(512).refine(p => !p.startsWith('/') && !p.includes('\\') && p.split('/').every(s => s !== '..' && s !== '.' && s !== '') && /\.(mjs|cjs|js)$/.test(p)), kind: z.enum(['node', 'static']), browser: z.boolean().optional() }).strict();
 export const hostingHandleSchema = z.object({ hostPort: z.number().int().min(1).max(65535), image: z.string() }).strict();
 export type HostingIdentity = z.infer<typeof hostingIdentitySchema>;
 export type HostingLaunch = z.infer<typeof hostingLaunchSchema>;
@@ -19,7 +19,7 @@ export const hostingDeployInputSchema = z.object({
 export const hostedDeploymentSchema = hostingIdentitySchema.extend({
   runId: z.string().uuid(), manifestHash: z.string(), commitSha: z.string(),
   state: z.enum(['starting', 'ready', 'failed', 'stopped']),
-  kind: z.enum(['node', 'static']), entry: z.string(),
+  kind: z.enum(['node', 'static']), entry: z.string(), browser: z.boolean().optional(),
   createdAt: z.string(), error: z.enum(['startup-failed', 'runtime-unavailable', 'interrupted', 'cleanup-failed']).nullable(),
   hostPort: z.number().int().nullable(), image: z.string().nullable(),
 }).strict();
@@ -31,3 +31,6 @@ export const hostingSummarySchema = z.object({
   candidate: z.object({ runId: z.string().uuid(), manifestHash: z.string(), commitSha: z.string() }).nullable(),
 }).strict();
 export type HostingSummary = z.infer<typeof hostingSummarySchema>;
+
+/** Explicit capability in an accepted delivery; engine options remain host-owned. */
+export const hostingManifestSchema = z.object({ version: z.literal(1), runtime: z.literal('node-browser'), entry: hostingLaunchSchema.shape.entry }).strict();

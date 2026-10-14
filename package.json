@@ -84,6 +84,7 @@
     "viz:smoke:files": "node scripts/file-viewer-smoke.mjs",
     "mcp:build": "node scripts/build-mcp-app.mjs",
     "mcp:smoke": "npm run mcp:build && node scripts/mcp-app-browser-smoke.mjs",
+    "build:hosting:browser": "docker build -f docker/hosting-browser.Dockerfile -t atoma-hosted-browser:latest .",
     "build:hosting": "docker build -f docker/hosting.Dockerfile -t atoma-hosting:latest ."
   },
   "dependencies": {

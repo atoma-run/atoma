@@ -18,9 +18,9 @@ Node applications listen on `HOST`/`PORT` and keep persistent state beneath
 Applications run under gVisor, non-root, with dropped capabilities, read-only
 root, CPU/memory/process limits and isolated per-deployment networks. Ingress
 is a fixed relay published on loopback only. The runtime has no direct internet
-route or control-plane access. Browser automation, manual CAPTCHA desktops,
-custom secrets, custom domains, application cookies and external hosting
-providers are not supported by this initial runtime. A delivered Docker Compose
+route or control-plane access. The optional browser capability below adds a
+private manual-verification desktop and public Internet proxy. Custom secrets,
+custom domains, application cookies and external hosting providers remain unsupported. A delivered Docker Compose
 package is not automatically converted into a hosted application.
 
 Hosting is private to the organisation, including for a public repository.
@@ -105,3 +105,52 @@ Install `deploy/atoma-hosting-order.conf` as an `atoma.service.d` drop-in when
 hosting is enabled. The launcher's readiness command waits for its socket before
 the web service starts, including after a host reboot. Hosted containers are
 not tied to either service's lifetime.
+
+## Hosted browser capability
+
+A delivery opts in with a declared `atoma.hosting.json`:
+
+```json
+{"version":1,"runtime":"node-browser","entry":"browser/control-server.js"}
+```
+
+Both the descriptor and entry must be in the accepted, published artifact
+manifest. The descriptor is bounded and hash-checked; it does not accept engine
+commands, images, mounts or environment overrides. Ordinary Node/static hosting
+remains unchanged. The host must configure `ATOMA_HOSTING_BROWSER_IMAGE` with an
+immutable digest built from `docker/hosting-browser.Dockerfile`.
+
+The fixed runtime owns headed Chromium, its persistent `/data/browser-profile`,
+and the remote desktop. The application listens on supplied `HOST`/`PORT`, writes
+checkpoints and exports beneath `ATOMA_DATA_DIR`, and connects to the existing
+browser via `ATOMA_BROWSER_URL` (Playwright `connectOverCDP`, existing context).
+It must not launch or close that browser. `ATOMA_BROWSER_DESKTOP_URL` is the
+same-origin desktop link; open it in a separate tab. The application owns its
+pause/checkpoint/recheck state and user-facing explanation. Manual verification
+never implies success: recheck before resuming, preserving progress on failure.
+No CAPTCHA-solving service or automatic CAPTCHA interaction is provided.
+
+The desktop HTTP and WebSocket routes require the same short-lived private
+application grant, exact upgrade origin and current organisation membership.
+Established sockets recheck access every second; expiry, logout, membership
+removal, stop or deployment replacement closes them. Application status polling
+keeps the HTTP grant cookie alive; after expiry reopen from Atoma. CDP and VNC
+ports are never published. Nginx must forward WebSocket upgrades (see the supplied
+hosting configuration). Browser output and input are available to authorised
+project users; use this session only for project work.
+
+Browser deployments remain non-root, read-only and gVisor-isolated, with 1536 MiB
+RAM, 1 CPU and 256 PIDs. A per-deployment egress proxy uses the host-owned public
+Internet policy (all TCP ports), resolves and pins public addresses, and rejects private/loopback/link-local
+network targets. No direct uplink reaches the application. The profile and data
+survive application and platform restarts; source updates require stopping the
+previous Node deployment. The Linux smoke script exercises a synthetic manual
+checkpoint, desktop WebSocket, persisted profile/data and network isolation.
+A real third-party CAPTCHA still requires client verification after deployment.
+
+Operator validation: `scripts/hosting-browser-smoke.mjs` runs on Linux with the
+three immutable hosting image variables; it creates and removes its own fixture
+containers and data. `ATOMA_BROWSER_SMOKE_HOLD=1` leaves that fixture available
+for three minutes for `scripts/hosting-browser-ui-smoke.mjs <forwarded-relay-port>`
+on a development machine. The latter creates a temporary self-signed HTTPS gate,
+opens it in Chrome, verifies an actual rendered desktop, then revokes access.

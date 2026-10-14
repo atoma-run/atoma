@@ -95,3 +95,36 @@ started for Attica: its accepted/published run `0daa2132` is retained but has no
 eligible web deployment candidate in the current descriptor. Its existing
 portable Docker/browser package still needs hosted browser/CAPTCHA support.
 No customer run was started, no local pilot data or browser session was moved.
+
+## Hosted browser / manual verification implementation (2026-10-14)
+
+Owner explicitly requested the hosted browser and CAPTCHA journey. Browser
+capability is declared in accepted/published `atoma.hosting.json` (version 1,
+node-browser, relative Node entry), not inferred from site names. Fixed host
+image owns Chromium/Xvfb/noVNC and the persistent /data/browser-profile. Apps
+connect to ATOMA_BROWSER_URL and link ATOMA_BROWSER_DESKTOP_URL, keep checkpoints
+under ATOMA_DATA_DIR, and recheck after human verification. No automatic CAPTCHA
+solver. Public-only egress uses the existing wildcard proxy (all public TCP
+ports, private/loopback/link-local denied); app stays on the isolated bridge.
+Desktop HTTP/WS use the hosted grant; WS checks origin and revalidates membership,
+claim and deployment every second. Explicit stale Chromium singleton cleanup is
+safe only because the deployment store enforces one project data writer.
+
+Validation: release:check passed (6,541 tests / 10 skipped); 17 focused tests;
+real Linux gVisor runtime passed headed desktop/WS, private-network refusal,
+public HTTPS, synthetic checkpoint and profile/data across container recreation.
+Real Chrome passed HTTPS claim, rendered noVNC canvas and logout disconnection.
+The first restart test caught a stale profile singleton referring to the previous
+container hostname; fixed without clearing the profile. Test fixtures are not
+real CAPTCHA proof. Runtime image built on host:
+sha256:08b2ed6df051b28328cce45668578e9e41f13962d2fb560cae7eb67fb8ea60f5.
+
+Attica adaptation runs through Atoma, not direct collector edits:
+bec269a3-18c4-477b-8e55-3512e0ef17f6, accepted seed 0daa2132, idempotency
+attica-hosted-browser-captcha-20261014-v1. Started with explicit owner scope;
+MCP start exceeded its 300s client wait, but the run continued. Follow status,
+never start a duplicate. As of this note it is still repairing validation gaps;
+no new client acceptance, publication or Attica deployment claimed. Existing local
+pilot, its profile and 68 offers remain untouched. Platform rollout follows CI
+and the normal live-run drain gate; browser image and nginx WS config must be
+activated on the host after the platform release is live.
