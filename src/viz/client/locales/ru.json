@@ -1920,5 +1920,18 @@
   "detail.batch.previous": "Предыдущее чтение",
   "detail.batch.next": "Следующее чтение",
   "detail.batch.files": "Чтения в этом пакете",
-  "detail.batch.paths": "Пути"
+  "detail.batch.paths": "Пути",
+  "localDocker.title": "Запуск на вашем компьютере с Docker",
+  "localDocker.steps": "1. Установите и один раз откройте Docker Desktop. 2. Скачайте и распакуйте этот проект. 3. Откройте Start.command в macOS или Start.cmd в Windows.",
+  "localDocker.install": "Установить Docker Desktop",
+  "localDocker.download": "Скачать установочный пакет",
+  "localDocker.open": "Открыть локальное приложение",
+  "localDocker.verify": "Открыть сайт для проверки",
+  "localDocker.localOnly": "Не закрывайте Docker во время использования этого приложения. Используйте Stop, чтобы приостановить его и сохранить данные. atoma не может проверить, запущен ли Docker на вашем компьютере.",
+  "localDocker.status.loading": "Чтение инструкций по установке…",
+  "localDocker.status.ready": "Эта поставка включает локальную конфигурацию Docker. При первом запуске выполняется сборка приложения.",
+  "localDocker.status.invalid": "Конфигурация локальной установки неполна или недействительна. Запросите исправленную поставку.",
+  "localDocker.status.downloading": "Подготовка установочного пакета…",
+  "localDocker.status.downloaded": "Пакет подготовлен. Полностью распакуйте ZIP-архив и откройте файл запуска Start.",
+  "localDocker.status.failed": "Не удалось подготовить пакет. Повторите попытку или запросите поставку меньшего размера с полным содержимым."
 }

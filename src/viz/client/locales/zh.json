@@ -1920,5 +1920,18 @@
   "detail.batch.previous": "上一个读取",
   "detail.batch.next": "下一个读取",
   "detail.batch.files": "此批次中的读取",
-  "detail.batch.paths": "路径"
+  "detail.batch.paths": "路径",
+  "localDocker.title": "使用 Docker 在您的计算机上运行",
+  "localDocker.steps": "1. 安装并打开一次 Docker Desktop。2. 下载并解压此项目。3. 在 macOS 上打开 Start.command，或在 Windows 上打开 Start.cmd。",
+  "localDocker.install": "安装 Docker Desktop",
+  "localDocker.download": "下载安装包",
+  "localDocker.open": "打开本地应用",
+  "localDocker.verify": "打开网站验证",
+  "localDocker.localOnly": "使用此应用时请保持 Docker 运行。使用 Stop 可将其暂停并保留您的数据。Atoma 无法检查您计算机上的 Docker 是否正在运行。",
+  "localDocker.status.loading": "正在读取安装说明…",
+  "localDocker.status.ready": "此交付内容包含本地 Docker 配置。首次启动时将构建应用。",
+  "localDocker.status.invalid": "本地安装配置不完整或无效。请索取修正后的交付内容。",
+  "localDocker.status.downloading": "正在准备安装包…",
+  "localDocker.status.downloaded": "安装包已准备就绪。请解压整个 ZIP 文件并打开其中的 Start 启动程序。",
+  "localDocker.status.failed": "无法准备安装包。请重试或索取更小且完整的交付内容。"
 }

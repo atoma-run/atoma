@@ -1920,5 +1920,18 @@
   "detail.batch.previous": "আগের রিড",
   "detail.batch.next": "পরের রিড",
   "detail.batch.files": "এই ব্যাচের রিডগুলো",
-  "detail.batch.paths": "পাথসমূহ"
+  "detail.batch.paths": "পাথসমূহ",
+  "localDocker.title": "Docker দিয়ে আপনার কম্পিউটারে চালান",
+  "localDocker.steps": "১. Docker Desktop ইনস্টল করে একবার খুলুন। ২. এই প্রজেক্টটি ডাউনলোড করে এক্সট্র্যাক্ট করুন। ৩. macOS-এ Start.command অথবা Windows-এ Start.cmd খুলুন।",
+  "localDocker.install": "Docker Desktop ইনস্টল করুন",
+  "localDocker.download": "ইনস্টলেশন প্যাকেজ ডাউনলোড করুন",
+  "localDocker.open": "লোকাল অ্যাপ্লিকেশন খুলুন",
+  "localDocker.verify": "ওয়েবসাইট যাচাইকরণ খুলুন",
+  "localDocker.localOnly": "এই অ্যাপটি ব্যবহারের সময় Docker চালু রাখুন। এটি সাময়িকভাবে বন্ধ করতে এবং আপনার ডেটা সংরক্ষিত রাখতে Stop ব্যবহার করুন। আপনার কম্পিউটারে Docker চলছে কি না, atoma তা পরীক্ষা করতে পারে না।",
+  "localDocker.status.loading": "ইনস্টলেশনের নির্দেশাবলি পড়া হচ্ছে…",
+  "localDocker.status.ready": "এই ডেলিভারিতে একটি লোকাল Docker কনফিগারেশন রয়েছে। প্রথমবার চালু করলে অ্যাপ্লিকেশনটি বিল্ড হবে।",
+  "localDocker.status.invalid": "লোকাল ইনস্টলেশন কনফিগারেশনটি অসম্পূর্ণ বা অবৈধ। সংশোধিত ডেলিভারি চান।",
+  "localDocker.status.downloading": "আপনার ইনস্টলেশন প্যাকেজ প্রস্তুত করা হচ্ছে…",
+  "localDocker.status.downloaded": "প্যাকেজ প্রস্তুত। সম্পূর্ণ ZIP ফাইলটি এক্সট্র্যাক্ট করে এর Start লঞ্চারটি খুলুন।",
+  "localDocker.status.failed": "প্যাকেজটি প্রস্তুত করা যায়নি। আবার চেষ্টা করুন অথবা আকারে ছোট ও সম্পূর্ণ ডেলিভারি চান।"
 }

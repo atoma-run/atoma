@@ -1920,5 +1920,18 @@
   "detail.batch.previous": "القراءة السابقة",
   "detail.batch.next": "القراءة التالية",
   "detail.batch.files": "القراءات في هذه الدفعة",
-  "detail.batch.paths": "المسارات"
+  "detail.batch.paths": "المسارات",
+  "localDocker.title": "شغّل التطبيق على حاسوبك باستخدام Docker",
+  "localDocker.steps": "1. ثبّت Docker Desktop وافتحه مرة واحدة. 2. نزّل هذا المشروع واستخرجه. 3. افتح Start.command على macOS أو Start.cmd على Windows.",
+  "localDocker.install": "تثبيت Docker Desktop",
+  "localDocker.download": "تنزيل حزمة التثبيت",
+  "localDocker.open": "فتح التطبيق المحلي",
+  "localDocker.verify": "فتح صفحة التحقق",
+  "localDocker.localOnly": "أبقِ Docker قيد التشغيل أثناء استخدام هذا التطبيق. استخدم Stop لإيقافه مؤقتًا مع الاحتفاظ ببياناتك. لا يمكن لـ Atoma التحقق مما إذا كان Docker قيد التشغيل على حاسوبك.",
+  "localDocker.status.loading": "جارٍ قراءة تعليمات التثبيت…",
+  "localDocker.status.ready": "يتضمن هذا الإصدار إعدادًا محليًا لـ Docker. يؤدي التشغيل الأول إلى بناء التطبيق.",
+  "localDocker.status.invalid": "إعداد التثبيت المحلي غير مكتمل أو غير صالح. اطلب إصدارًا مصححًا.",
+  "localDocker.status.downloading": "جارٍ إعداد حزمة التثبيت…",
+  "localDocker.status.downloaded": "تم إعداد الحزمة. استخرج ملف ZIP بالكامل وافتح مشغّل Start الخاص به.",
+  "localDocker.status.failed": "تعذّر إعداد الحزمة. أعد المحاولة أو اطلب إصدارًا كاملًا أصغر حجمًا."
 }

@@ -1920,5 +1920,18 @@
   "detail.batch.previous": "Lectura anterior",
   "detail.batch.next": "Lectura siguiente",
   "detail.batch.files": "Lecturas en este lote",
-  "detail.batch.paths": "Rutas"
+  "detail.batch.paths": "Rutas",
+  "localDocker.title": "Ejecutar en tu computadora con Docker",
+  "localDocker.steps": "1. Instala y abre Docker Desktop una vez. 2. Descarga y extrae este proyecto. 3. Abre Start.command en macOS o Start.cmd en Windows.",
+  "localDocker.install": "Instalar Docker Desktop",
+  "localDocker.download": "Descargar paquete de instalación",
+  "localDocker.open": "Abrir aplicación local",
+  "localDocker.verify": "Abrir verificación del sitio web",
+  "localDocker.localOnly": "Mantén Docker en ejecución mientras usas esta aplicación. Usa Stop para pausarla y conservar tus datos. Atoma no puede comprobar si Docker se está ejecutando en tu computadora.",
+  "localDocker.status.loading": "Leyendo las instrucciones de instalación…",
+  "localDocker.status.ready": "Esta entrega incluye una configuración local de Docker. El primer inicio compila la aplicación.",
+  "localDocker.status.invalid": "La configuración de instalación local está incompleta o no es válida. Solicita una entrega corregida.",
+  "localDocker.status.downloading": "Preparando tu paquete de instalación…",
+  "localDocker.status.downloaded": "Paquete preparado. Extrae el ZIP completo y abre su iniciador Start.",
+  "localDocker.status.failed": "No se pudo preparar el paquete. Vuelve a intentarlo o solicita una entrega completa de menor tamaño."
 }

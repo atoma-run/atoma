@@ -1920,5 +1920,18 @@
   "detail.batch.previous": "Pembacaan sebelumnya",
   "detail.batch.next": "Pembacaan berikutnya",
   "detail.batch.files": "Pembacaan dalam batch ini",
-  "detail.batch.paths": "Jalur"
+  "detail.batch.paths": "Jalur",
+  "localDocker.title": "Jalankan di komputer Anda dengan Docker",
+  "localDocker.steps": "1. Instal dan buka Docker Desktop satu kali. 2. Unduh dan ekstrak proyek ini. 3. Buka Start.command di macOS atau Start.cmd di Windows.",
+  "localDocker.install": "Instal Docker Desktop",
+  "localDocker.download": "Unduh paket instalasi",
+  "localDocker.open": "Buka aplikasi lokal",
+  "localDocker.verify": "Buka verifikasi situs web",
+  "localDocker.localOnly": "Biarkan Docker tetap berjalan saat menggunakan aplikasi ini. Gunakan Stop untuk menjedakannya dan mempertahankan data Anda. Atoma tidak dapat memeriksa apakah Docker berjalan di komputer Anda.",
+  "localDocker.status.loading": "Membaca petunjuk instalasi…",
+  "localDocker.status.ready": "Paket ini menyertakan konfigurasi Docker lokal. Peluncuran pertama akan membangun aplikasi.",
+  "localDocker.status.invalid": "Konfigurasi instalasi lokal tidak lengkap atau tidak valid. Mintalah paket yang telah diperbaiki.",
+  "localDocker.status.downloading": "Menyiapkan paket instalasi Anda…",
+  "localDocker.status.downloaded": "Paket telah disiapkan. Ekstrak seluruh ZIP dan buka peluncur Start di dalamnya.",
+  "localDocker.status.failed": "Paket tidak dapat disiapkan. Coba lagi atau minta paket lengkap yang lebih kecil."
 }

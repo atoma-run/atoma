@@ -1920,5 +1920,18 @@
   "detail.batch.previous": "पिछला रीड",
   "detail.batch.next": "अगला रीड",
   "detail.batch.files": "इस बैच के रीड",
-  "detail.batch.paths": "पथ"
+  "detail.batch.paths": "पथ",
+  "localDocker.title": "Docker के साथ अपने कंप्यूटर पर चलाएँ",
+  "localDocker.steps": "1. Docker Desktop इंस्टॉल करें और एक बार खोलें। 2. इस प्रोजेक्ट को डाउनलोड करके एक्सट्रैक्ट करें। 3. macOS पर Start.command या Windows पर Start.cmd खोलें।",
+  "localDocker.install": "Docker Desktop इंस्टॉल करें",
+  "localDocker.download": "इंस्टॉलेशन पैकेज डाउनलोड करें",
+  "localDocker.open": "लोकल ऐप्लिकेशन खोलें",
+  "localDocker.verify": "वेबसाइट सत्यापन खोलें",
+  "localDocker.localOnly": "इस ऐप का उपयोग करते समय Docker को चालू रखें। इसे रोकने और अपना डेटा बनाए रखने के लिए Stop का उपयोग करें। Atoma यह जाँच नहीं सकता कि आपके कंप्यूटर पर Docker चल रहा है या नहीं।",
+  "localDocker.status.loading": "इंस्टॉलेशन निर्देश पढ़े जा रहे हैं…",
+  "localDocker.status.ready": "इस डिलीवरी में लोकल Docker कॉन्फ़िगरेशन शामिल है। पहली बार लॉन्च करने पर ऐप्लिकेशन बिल्ड होता है।",
+  "localDocker.status.invalid": "लोकल इंस्टॉलेशन कॉन्फ़िगरेशन अधूरा या अमान्य है। संशोधित डिलीवरी का अनुरोध करें।",
+  "localDocker.status.downloading": "आपका इंस्टॉलेशन पैकेज तैयार किया जा रहा है…",
+  "localDocker.status.downloaded": "पैकेज तैयार है। पूरी ZIP को एक्सट्रैक्ट करें और उसका Start लॉन्चर खोलें।",
+  "localDocker.status.failed": "पैकेज तैयार नहीं किया जा सका। फिर से प्रयास करें या छोटी और संपूर्ण डिलीवरी का अनुरोध करें।"
 }
