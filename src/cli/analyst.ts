@@ -24,6 +24,7 @@ import { mcpRunLockPath } from '../mcp/runLock.js';
 import { PlatformEventLog } from '../platform/events.js';
 import { hasProjectTables, ProjectStore } from '../projects/store.js';
 import { dispatchConfigFromEnv, type DispatchConfig } from '../supervisor/dispatch.js';
+import { supervisorDirPath } from '../supervisor/paths.js';
 import {
   ANALYST_DEFAULT_POLL_MS,
   ANALYST_DEFAULT_QUIET_MS,
@@ -79,7 +80,7 @@ flags:
   --budget-usd <usd>     Claude spend ceiling per analysis (default 2; unsupported by Codex)
   --timeout-ms <ms>      wall clock per analysis (default 900000)
   --runs <dir>           operator runs directory (default ATOMA_RUNS_DIR or ./runs)
-  --supervisor-dir <dir> where verdicts live (default ./supervisor)
+  --supervisor-dir <dir> where verdicts live (default ATOMA_SUPERVISOR_DIR or ./supervisor)
   --operator-only        do not read project runs even if this store has them
   --db <path>            product store holding the journal (default ATOMA_DB_PATH or ./atoma.db)
   --help                 show this help`;
@@ -119,7 +120,10 @@ async function main(): Promise<void> {
 
   const repoRoot = process.cwd();
   const runsDir = resolve(args.flags['runs'] || process.env['ATOMA_RUNS_DIR'] || './runs');
-  const supervisorDir = resolve(args.flags['supervisor-dir'] || './supervisor');
+  // The same resolution as the mender and the resident analyst. Until
+  // 2026-10-14 this read only the flag, so `--run` on the production host
+  // wrote its verdict into the release directory, where the mender never looks.
+  const supervisorDir = args.flags['supervisor-dir'] ? resolve(args.flags['supervisor-dir']) : supervisorDirPath();
   const dbPath = args.flags['db'] || storeDbPath();
   let provider;
   try {
