@@ -842,6 +842,12 @@ function GpuAppContent({
       store.selectEvent(id.slice('event.'.length));
       return;
     }
+    // The detail pane's pager through a read batch: the target read's id.
+    const batchStep = /^run\.batch\.(?:prev|next)\.(.+)$/.exec(id);
+    if (batchStep?.[1]) {
+      store.selectEvent(batchStep[1]);
+      return;
+    }
     if (id === 'run.event.close') {
       store.selectEvent(null);
       return;

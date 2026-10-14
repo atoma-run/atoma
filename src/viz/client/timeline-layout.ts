@@ -44,7 +44,14 @@ export interface TimelineBranch {
 }
 
 export interface TimelineItem {
+  /** The row's event; for a batch, its FIRST member (the card's identity). */
   readonly event: VizEvent;
+  /**
+   * Consecutive calls of one batched tool, chronological, two or more, when
+   * this row stands for them all (see `BATCHED_TOOLS`). Absent for a row that
+   * is one event.
+   */
+  readonly batch?: readonly VizEvent[];
   readonly row: number;
   readonly lane: number;
   readonly branchId?: string;
@@ -189,6 +196,43 @@ function markParallelSiblings(branches: MutableBranch[]): void {
         overlaps(other, branch)
     );
   }
+}
+
+/**
+ * Tools whose consecutive calls in ONE model turn share one timeline row.
+ * A molecule opens its execute turn by reading the files it needs in one
+ * burst — thirty `read_file` cards in a row on run 7d3373ba (2026-10-14) —
+ * and a card per read pushed the edits, probes and verdicts that follow off
+ * the screen. The batch is a display unit only: branch event counts, filters
+ * and the detail pane still address every read by its own id.
+ */
+const BATCHED_TOOLS: ReadonlySet<string> = new Set(['read_file']);
+
+function batchKey(event: VizEvent): string | undefined {
+  if (event.kind !== 'tool' || !event.name || !BATCHED_TOOLS.has(event.name)) return undefined;
+  return JSON.stringify([event.name, event.branchId ?? '', event.llmEventId ?? '', event.actor?.name ?? '']);
+}
+
+/** Groups adjacent calls that share a batch key; order is preserved. */
+function batchRows(visible: readonly VizEvent[]): { event: VizEvent; batch?: VizEvent[] }[] {
+  const rows: { event: VizEvent; batch?: VizEvent[] }[] = [];
+  let open: { key: string; members: VizEvent[] } | undefined;
+  for (const event of visible) {
+    const key = batchKey(event);
+    if (key !== undefined && open?.key === key) {
+      open.members.push(event);
+      continue;
+    }
+    open = key === undefined ? undefined : { key, members: [event] };
+    rows.push(open ? { event, batch: open.members } : { event });
+  }
+  return rows.map(row => (row.batch && row.batch.length > 1 ? row : { event: row.event }));
+}
+
+/** True when the row is, or stands for, the event with this id. */
+export function timelineItemHolds(item: TimelineItem, eventId: string | null | undefined): boolean {
+  if (!eventId) return false;
+  return item.event.id === eventId || (item.batch?.some(member => member.id === eventId) ?? false);
 }
 
 const LITERAL_CONTRACT_MARKER = '== LITERAL CONTRACTS FROM TOP-LEVEL GOAL ==';
@@ -444,8 +488,9 @@ export function buildTimelineLayout(
   // bottom of a branch's rail segment, not earliest/latest in time — the
   // causal ends are recovered below for the fork/join connectors.
   const newestFirst = options.newestFirst === true;
-  const ordered = newestFirst ? [...visible].reverse() : visible;
-  const items = ordered.map((event, row): TimelineItem => {
+  const rows = batchRows(visible);
+  const ordered = newestFirst ? [...rows].reverse() : rows;
+  const items = ordered.map(({ event, batch }, row): TimelineItem => {
     const branch = event.branchId ? branchById.get(event.branchId) : undefined;
     if (branch) {
       if (!firstRows.has(branch.id)) firstRows.set(branch.id, row);
@@ -453,6 +498,7 @@ export function buildTimelineLayout(
     }
     return {
       event,
+      ...(batch ? { batch } : {}),
       row,
       lane: branch?.lane ?? 0,
       ...(branch ? { branchId: branch.id } : {}),

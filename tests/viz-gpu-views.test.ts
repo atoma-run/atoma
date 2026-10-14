@@ -6016,6 +6016,35 @@ describe('drawRuns behavior', () => {
     }
   );
 
+  it('draws a burst of reads as one card and pages through its reads in the detail pane', () => {
+    const read = (id: string, ts: number, extra: Partial<VizEvent> = {}): VizEvent => ({
+      id, kind: 'tool', name: 'read_file', ts, branchId: 'task', llmEventId: 'turn',
+      actor: { name: 'RNA', tier: 1 }, args: { path: `src/${id}.ts` }, result: { content: id }, durationMs: 2, ...extra,
+    });
+    const run = makeRun([read('a', 1), read('b', 2, { error: 'ENOENT' }), read('c', 3)]);
+    const ctx = createRecordingCtx();
+    drawRuns(ctx, makeSnapshot({ selectedEventId: 'b' }, { run }), WIDTH, HEIGHT);
+    expect(ctx.eventCards.map(card => [card.id, card.selected])).toEqual([['a', true]]);
+    const texts = ctx.texts.map(text => text.value);
+    expect(texts).toContain('Read file × 3');
+    expect(texts).toContain('✕ 1 failed');
+    expect(texts).toContain('Read 2 of 3 in this batch');
+    expect(texts.some(text => text.includes('▸ 2. src/b.ts ✕'))).toBe(true);
+    const pager = ctx.buttons.filter(button => button.id.startsWith('run.batch.'));
+    expect(pager.map(button => [button.id, button.disabled])).toEqual([
+      ['run.batch.prev.a', false],
+      ['run.batch.next.c', false],
+    ]);
+
+    const first = createRecordingCtx();
+    drawRuns(first, makeSnapshot({ selectedEventId: 'a' }, { run }), WIDTH, HEIGHT);
+    expect(first.buttons.filter(button => button.id.startsWith('run.batch.'))
+      .map(button => [button.id, button.disabled])).toEqual([
+      ['run.batch.prev.a', true],
+      ['run.batch.next.b', false],
+    ]);
+  });
+
   it('renders skill context and simple plan lists as prose without nested item cards', () => {
     const preview = '# Verification\n\n- Read the entry file.\n- Start the local server.';
     const event: VizEvent = {

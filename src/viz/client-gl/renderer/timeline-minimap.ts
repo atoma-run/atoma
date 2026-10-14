@@ -1,8 +1,8 @@
 import { Container, Graphics, Rectangle } from 'pixi.js';
 import type { GpuRenderSnapshot, RendererCtx, GpuHitTarget } from '../gpu-renderer.js';
-import type { TimelineLayout } from '../../client/timeline-layout.js';
+import { timelineItemHolds, type TimelineLayout } from '../../client/timeline-layout.js';
 import { GPU_COLORS } from '../theme.js';
-import { eventAccent, gpuEventCardCopy } from './copy.js';
+import { eventAccent, timelineItemCardCopy } from './copy.js';
 import { createScrollPane } from './scroll-pane.js';
 import { prefersReducedMotion } from './motion.js';
 import type { TooltipRegion } from './tooltip.js';
@@ -63,7 +63,7 @@ export function drawTimelineMinimap(
     key, position: previous?.position ?? 0, scrollY: offset,
     selectedEventId: snapshot.state.selectedEventId,
   };
-  const selectedIndex = timeline.items.findIndex(item => item.event.id === snapshot.state.selectedEventId);
+  const selectedIndex = timeline.items.findIndex(item => timelineItemHolds(item, snapshot.state.selectedEventId));
   const centreOn = (row: number) => Math.max(0, Math.min(maxFirst, row + 0.5 - tickCount / 2));
   // Selection can come from a card or the keyboard, without scrolling the cards.
   if (previous && selectedIndex >= 0 && previous.selectedEventId !== snapshot.state.selectedEventId) {
@@ -117,7 +117,7 @@ export function drawTimelineMinimap(
       if (slot.row !== row) {
         slot.row = row;
         slot.color = item ? eventAccent(item.event) : row === 0 ? bookends.endColor : GPU_COLORS.primary;
-        const copy = item ? gpuEventCardCopy(item.event, snapshot.t) : null;
+        const copy = item ? timelineItemCardCopy(item, snapshot.t) : null;
         const title = copy?.title ?? (row === 0 ? bookends.end : bookends.start);
         const preview = copy
           ? [fit(title), fit(copy.body), fit([copy.meta, copy.footer].filter(Boolean).join(' · '))]
@@ -127,7 +127,7 @@ export function drawTimelineMinimap(
         slot.target.label = snapshot.t('timeline.jumpTo', { step: row + 1, title });
         if (slot.tooltip) Object.assign(slot.tooltip, { text: preview.filter(Boolean).join('\n'), accent: slot.color });
       }
-      const selected = !!item && item.event.id === snapshot.state.selectedEventId;
+      const selected = !!item && timelineItemHolds(item, snapshot.state.selectedEventId);
       const visible = row + 1 > first && row < last;
       const distance = hovered < 0 ? Infinity : Math.abs(index - hovered);
       const width = selected || distance === 0 ? 24 : distance === 1 ? 18
@@ -152,7 +152,7 @@ export function drawTimelineMinimap(
   ctx.timelineMinimapScroll = {
     bounds: new Rectangle(topLeft.x, topLeft.y, TIMELINE_MINIMAP_WIDTH, height),
     select(eventId) {
-      const index = timeline.items.findIndex(item => item.event.id === eventId);
+      const index = timeline.items.findIndex(item => timelineItemHolds(item, eventId));
       if (index < 0) return;
       const from = railOffset / PITCH;
       const target = centreOn(index + viewport.rowOffset);

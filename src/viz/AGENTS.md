@@ -415,6 +415,11 @@ npm run viz:mark-turn:analyze
   cartouche. A `context` inject scrolls in the masked layer every other kind
   uses. `GPU_COLORS.muted` is a LEGIBILITY FLOOR for the 8–9px facts it is
   mostly spent on (~7.9:1) — do not lower it back.
+- Consecutive `read_file` calls of one model turn (same branch, `llmEventId`,
+  actor) are ONE row: `TimelineItem.batch`, built in `buildTimelineLayout` so
+  cards, rails, minimap and the DOM slider share one row space. A display unit
+  only — branch counts and filters still see each read, `timelineItemHolds`
+  is the one selection test, and the detail pane pages the batch read by read.
 - The nav is a LEFT RAIL (`renderer/views/sidebar.ts`), not a header tab strip.
   `visibleViews` remains the ONE definition of which tabs a viewer gets; the
   rail only groups them, and a test holds the group list to it so a new view

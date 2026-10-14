@@ -21,6 +21,7 @@ import {
 import {
   buildTimelineLayout,
   timelineBranchHeading,
+  timelineItemHolds,
 } from '../../../client/timeline-layout.js';
 import {
   buildSkillEventDetail,
@@ -57,6 +58,7 @@ import {
   type DetailMeasure,
 } from '../detail-layout.js';
 import {
+  batchDetailNodes,
   buildLlmStartDetail,
   detailToneColor,
   eventAccent,
@@ -65,6 +67,7 @@ import {
   scalar,
   timelineBranchColor,
   timelineBranchLabel,
+  timelineItemCardCopy,
   truncate,
 } from '../copy.js';
 import { LLM_FAMILY_COLOR, eventKindColor, llmRoleColor } from '../event-palette.js';
@@ -1036,7 +1039,7 @@ export function drawRuns(
       ? timeline.branches.find((candidate) => candidate.id === item.branchId)
       : undefined;
     const color = branch ? timelineBranchColor(branch) : GPU_COLORS.primary;
-    if (item.event.id === snapshot.state.selectedEventId) {
+    if (timelineItemHolds(item, snapshot.state.selectedEventId)) {
       // Animate only the selected marker's group, never the static rails or
       // cards. Keeping it in listLayer preserves masked, retained scrolling.
       const layer = ctx.animatedLayer(listLayer, 'timeline-selection');
@@ -1168,7 +1171,7 @@ export function drawRuns(
       displayRow(item.row) * rowHeight -
       scrollY;
     if (y > listY + listHeight + overscan || y + rowHeight < listY - overscan) return;
-    const selected = snapshot.state.selectedEventId === event.id;
+    const selected = timelineItemHolds(item, snapshot.state.selectedEventId);
     const branch = item.branchId
       ? timeline.branches.find((candidate) => candidate.id === item.branchId)
       : undefined;
@@ -1193,7 +1196,7 @@ export function drawRuns(
       },
       zDepth
     );
-    const copy = gpuEventCardCopy(event, snapshot.t);
+    const copy = timelineItemCardCopy(item, snapshot.t);
     // The title was capped at 28 CHARACTERS while the actor sat at a fixed
     // x=118. Twenty-eight characters of 11px bold is ~180px, so any long title
     // — `registry · recordSuccess` is the one that shows it — ran straight
@@ -1274,7 +1277,8 @@ export function drawRuns(
     );
     ctx.text(cardContent, detail, detailX, EVENT_DETAIL_TOP, {
       size: RUNS_FACTS_SIZE,
-      color: event.error ? GPU_COLORS.error : GPU_COLORS.muted,
+      // A batch counts its failures in the decision column instead.
+      color: event.error && !item.batch ? GPU_COLORS.error : GPU_COLORS.muted,
       width: detailWidth,
       singleLine: true,
     });
@@ -1349,6 +1353,9 @@ export function drawRuns(
     const detailTop = top + summaryHeight;
     const detailHeight = height - detailTop;
     const event = run.events.find((value) => value.id === snapshot.state.selectedEventId);
+    const batch = event
+      ? timeline.items.find((item) => item.batch && timelineItemHolds(item, event.id))?.batch
+      : undefined;
     const atom = snapshot.state.selectedAtomName
       ? atoms.get(snapshot.state.selectedAtomName)
       : undefined;
@@ -1361,7 +1368,8 @@ export function drawRuns(
         rightX,
         detailTop,
         rightWidth,
-        detailHeight
+        detailHeight,
+        batch
       );
     } else if (atom?.stub) {
       drawAtomStubDetail(
@@ -1736,7 +1744,9 @@ function drawEventDetail(
   x: number,
   y: number,
   width: number,
-  height: number
+  height: number,
+  /** The read batch this event's timeline row stands for, when it has one. */
+  batch?: readonly VizEvent[]
 ) {
   const title = ctx.text(ctx.root,
     event.kind === 'skill' ? skillEventTitle(event, snapshot.t) : gpuEventCardCopy(event, snapshot.t).title,
@@ -1780,6 +1790,24 @@ function drawEventDetail(
     headerBottom += ctx.text(ctx.root, model, x + 18, headerBottom, {
       size: 10, color: GPU_COLORS.muted, width: width - 36,
     }).height + 8;
+  }
+  if (batch) {
+    // One card stands for the whole batch; the pane steps through its reads
+    // one at a time, each with its own full result and arguments.
+    const index = batch.findIndex((member) => member.id === event.id);
+    const previous = batch[index - 1];
+    const next = batch[index + 1];
+    headerBottom += ctx.text(ctx.root,
+      snapshot.t('detail.batch.position', { position: index + 1, n: batch.length }),
+      x + 18, headerBottom, { size: 10, color: GPU_COLORS.muted, width: width - 36 }).height + 4;
+    const half = (width - 36 - 8) / 2;
+    ctx.button(controls, `run.batch.prev.${(previous ?? event).id}`, 'button',
+      snapshot.t('detail.batch.previous'), x + 18, headerBottom, half, 30, false, snapshot.onActivate,
+      undefined, false, false, undefined, undefined, undefined, !previous, 'back');
+    ctx.button(controls, `run.batch.next.${(next ?? event).id}`, 'button',
+      snapshot.t('detail.batch.next'), x + 26 + half, headerBottom, half, 30, false, snapshot.onActivate,
+      undefined, false, false, undefined, undefined, undefined, !next, 'forward');
+    headerBottom += 40;
   }
   // Preserve the pane's bottom while letting every event family share this header.
   const headerGrowth = Math.max(0, headerBottom - (y + 60));
@@ -2021,7 +2049,9 @@ function drawEventDetail(
         });
   const detailNodes = event.kind === 'llm'
     ? llmDetailNodes(event, run, bodyNodes, snapshot.state.contextRawOpen, snapshot.t)
-    : bodyNodes;
+    : batch
+      ? [...batchDetailNodes(batch, event.id, snapshot.t), ...bodyNodes]
+      : bodyNodes;
   const contentBottom =
     detailNodes.length === 0
       ? detailTop +

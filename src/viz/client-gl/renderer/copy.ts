@@ -7,7 +7,7 @@ import {
   toolArgSummary,
   tryParseJson,
 } from '../../client/run-utils.js';
-import { timelineBranchHeading, type TimelineBranch } from '../../client/timeline-layout.js';
+import { timelineBranchHeading, type TimelineBranch, type TimelineItem } from '../../client/timeline-layout.js';
 import type { VizEvent, VizRun } from '../../client/types.js';
 import {
   skillEventTitle,
@@ -394,6 +394,66 @@ export function gpuEventCardCopy(event: VizEvent, t: GpuTranslate): GpuEventCard
                   ].filter(Boolean).join(' · ')
                 : [event.model, time].filter(Boolean).join(' · ');
   return { title, meta, body, footer, decision: eventDecision(event, t) };
+}
+
+/**
+ * One card for a batch of reads (`TimelineItem.batch`): the tool named once
+ * with its count, the paths as the body, the summed recorded duration. A
+ * failed member is counted in the decision column rather than tinting the
+ * whole row, since the other reads in the batch did answer.
+ */
+export function gpuBatchCardCopy(batch: readonly VizEvent[], t: GpuTranslate): GpuEventCardCopy {
+  const first = batch[0]!;
+  const failed = batch.filter((member) => typeof member.error === 'string').length;
+  const durationMs = batch.reduce(
+    (sum, member) => sum + (typeof member.durationMs === 'number' ? member.durationMs : 0),
+    0
+  );
+  return {
+    title: t('card.batch.title', { tool: toolDisplayName(first.name ?? 'tool', t), n: batch.length }),
+    meta: gpuEventCardCopy(first, t).meta,
+    body: batch.map((member) => toolArgSummary(member.args)).filter(Boolean).join(' · '),
+    footer: [fmtMs(durationMs), clockTime(first.ts)].filter(Boolean).join(' · '),
+    decision: failed ? t('card.batch.failed', { n: failed }) : '',
+  };
+}
+
+/**
+ * The batch's index in the detail pane, above the selected read's own
+ * result: every path in order, the selected one marked, failures flagged.
+ */
+export function batchDetailNodes(
+  batch: readonly VizEvent[],
+  selectedId: string,
+  t: GpuTranslate
+): StructuredDetailNode[] {
+  const lines = batch.map((member, index) =>
+    [
+      member.id === selectedId ? '▸' : ' ',
+      `${index + 1}.`,
+      toolArgSummary(member.args) || '?',
+      typeof member.error === 'string' ? '✕' : '',
+    ].filter(Boolean).join(' ')
+  );
+  return [{
+    kind: 'section',
+    key: 'batch',
+    label: t('detail.batch.files'),
+    count: batch.length,
+    children: [{
+      kind: 'field',
+      key: 'batchPaths',
+      label: t('detail.batch.paths'),
+      value: lines.join('\n'),
+      tone: batch.some((member) => typeof member.error === 'string') ? 'warning' : 'neutral',
+      presentation: 'code',
+    }],
+  }];
+}
+
+/** The copy of a timeline row, whether it is one event or a batch. */
+export function timelineItemCardCopy(item: TimelineItem, t: GpuTranslate): GpuEventCardCopy {
+  return item.batch ? gpuBatchCardCopy(item.batch, t) : gpuEventCardCopy(item.event, t);
 }
 
 export function nowDescription(t: GpuTranslate, event: VizEvent): string {

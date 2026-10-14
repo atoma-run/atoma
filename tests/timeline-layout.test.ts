@@ -3,6 +3,7 @@ import {
   buildTimelineLayout,
   timelineBranchHeading,
   timelineBranchTitle,
+  timelineItemHolds,
 } from '../src/viz/client/timeline-layout.js';
 import type { VizEvent } from '../src/viz/client/types.js';
 import en from '../src/viz/client/locales/en.json' with { type: 'json' };
@@ -424,5 +425,43 @@ describe('Runs timeline layout — newest-first and subtree rails', () => {
     // A leaf's subtree is itself.
     expect(child.subtreeFirstRow).toBe(child.firstRow);
     expect(child.subtreeLastRow).toBe(child.lastRow);
+  });
+
+  describe('read batches', () => {
+    const read = (id: string, ts: number, overrides: Partial<VizEvent> = {}) =>
+      event(id, ts, {
+        kind: 'tool', name: 'read_file', branchId: 'task', llmEventId: 'turn',
+        actor: { name: 'RNA', tier: 1 }, args: { path: `${id}.ts` }, ...overrides,
+      });
+
+    it('gives consecutive reads of one model turn a single row and keeps every read addressable', () => {
+      const events = [
+        event('list', 1, { kind: 'tool', name: 'list_files', branchId: 'task', llmEventId: 'turn' }),
+        read('a', 2), read('b', 3), read('c', 4, { error: 'ENOENT' }),
+        event('edit', 5, { kind: 'tool', name: 'edit_file', branchId: 'task', llmEventId: 'turn' }),
+      ];
+      const layout = buildTimelineLayout(events, all, { newestFirst: true });
+      expect(layout.items.map(item => item.event.id)).toEqual(['edit', 'a', 'list']);
+      const batch = layout.items[1]!;
+      expect(batch.batch?.map(member => member.id)).toEqual(['a', 'b', 'c']);
+      expect(['a', 'b', 'c'].every(id => timelineItemHolds(batch, id))).toBe(true);
+      expect(timelineItemHolds(batch, 'edit')).toBe(false);
+      expect(layout.items[0]!.batch).toBeUndefined();
+      // A display unit only: the branch still counts each read.
+      expect(layout.branches[0]!.eventCount).toBe(5);
+      expect(layout.totalHeight).toBe(3 * layout.rowHeight);
+    });
+
+    it('never batches across another call, another turn, another branch or a lone read', () => {
+      const layout = buildTimelineLayout([
+        read('a', 1), read('b', 2, { llmEventId: 'next-turn' }),
+        read('c', 3, { llmEventId: 'next-turn', branchId: 'other' }),
+        read('d', 4, { llmEventId: 'next-turn', branchId: 'other' }),
+        event('shell', 5, { kind: 'tool', name: 'run_shell', branchId: 'other', llmEventId: 'next-turn' }),
+        read('e', 6, { llmEventId: 'next-turn', branchId: 'other' }),
+      ], all);
+      expect(layout.items.map(item => item.batch?.map(member => member.id) ?? item.event.id))
+        .toEqual(['a', 'b', ['c', 'd'], 'shell', 'e']);
+    });
   });
 });
