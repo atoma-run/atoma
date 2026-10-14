@@ -1,3 +1,4 @@
+import { hostingIdentitySchema, hostingLaunchSchema, hostingHandleSchema } from './projectHosting.js';
 import { launcherWorkerSpecSchema, launcherWorkerHandleSchema } from './launcherWorker.js';
 import { z } from 'zod';
 import {
@@ -18,6 +19,10 @@ const operation = <T extends string, S extends z.ZodRawShape>(op: T, shape: S) =
 export const launcherRequestSchema = z.discriminatedUnion('op', [
   operation('hello', { version: z.literal(LAUNCHER_PROTOCOL_VERSION) }),
   operation('heartbeat', {}),
+  operation('prepareHosting', { identity: hostingIdentitySchema }),
+  operation('startHosting', { spec: hostingLaunchSchema }),
+  operation('inspectHosting', { identity: hostingIdentitySchema }),
+  operation('stopHosting', { identity: hostingIdentitySchema }),
   operation('startWorker', { spec: launcherWorkerSpecSchema }),
   operation('stopWorker', { id: z.string().uuid() }),
   operation('checkpointWorkerAbsent', { id: z.string().uuid() }),
@@ -54,6 +59,7 @@ export const launcherResponseSchema = z.discriminatedUnion('ok', [
 
 /** Per-operation response validation; void is encoded as null. */
 export const launcherResults = {
+  prepareHosting: z.string(), startHosting: hostingHandleSchema, inspectHosting: hostingHandleSchema.nullable(), stopHosting: z.null(),
   heartbeat: z.null(), hello: launcherHelloSchema, startWorker: launcherWorkerHandleSchema, stopWorker: z.null(),
   checkpointWorkerAbsent: z.boolean(),
   purgeOwner: z.null(), armHardExitCleanup: z.null(), disarmHardExitCleanup: z.null(),

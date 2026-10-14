@@ -1,10 +1,11 @@
 import { ButtonIcon } from './ButtonIcon.js';
-import { deploymentCopy, type DeploymentSettingsView } from './project-deployment.js';
+import { deploymentCopy, hostingCopy, type DeploymentSettingsView } from './project-deployment.js';
 
 export function ProjectSettingsAccessible({ view, t, onActivate }: {
   view: DeploymentSettingsView; t: (key: string) => string; onActivate: (id: string) => void;
 }) {
   const copy = deploymentCopy(view);
+  const hosted = hostingCopy(view);
   return <section aria-label={t('projects.settings')} aria-busy={view.busy}>
     <h2>{t('deployment.title')}</h2><p>{t('deployment.journey')}</p>
     <fieldset disabled={!view.canEdit || view.busy}>
@@ -22,5 +23,15 @@ export function ProjectSettingsAccessible({ view, t, onActivate }: {
     <button type="button" disabled={copy.saveDisabled} onClick={() => onActivate('deployment.save')}>
       <ButtonIcon kind="check" />{t('deployment.save')}
     </button>
+    {hosted ? <section aria-label={t('hosting.title')}>
+      <h3>{t('hosting.title')}</h3><p>{t('hosting.private')}</p>
+      <p role="status">{t(hosted.status)}</p>
+      {hosted.version ? <p>{t('hosting.version')}: {hosted.version}</p> : null}
+      {hosted.url ? <p>{hosted.url}</p> : null}
+      {hosted.candidateVersion ? <p>{t('hosting.candidateVersion')}: {hosted.candidateVersion}</p> : null}
+      <p>{t('hosting.updateNotice')}</p>
+      {hosted.buttons.map(button => <button key={button.id} type="button" disabled={Boolean(button.disabled)}
+        onClick={() => onActivate(button.id)}><ButtonIcon kind={button.id === 'hosting.deploy' ? 'globe' : button.id === 'hosting.open' ? 'link' : 'close'} />{t(button.id)}</button>)}
+    </section> : null}
   </section>;
 }

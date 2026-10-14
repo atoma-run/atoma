@@ -1,3 +1,9 @@
+import { HostingClient } from '../launcher/hostingClient.js';
+import { HostingService, probeHostedApplication } from '../projects/hostingService.js';
+import { HostingStore } from '../projects/hostingStore.js';
+import { hostingConfig } from '../projects/hostingConfig.js';
+import { createHostingGateway } from '../projects/hostingGateway.js';
+import { SocketLauncher } from '../launcher/client.js';
 import { sendTraceResponse } from './traceResponse.js';
 import { traceDocumentChunks } from '../contracts/traceFields.js';
 import { Conversations } from '../projects/conversations.js';
@@ -1165,6 +1171,28 @@ const PREVIEW_RUNTIME_PROMISE: Promise<PreviewRuntime | null> = (async () => {
     claims,
   };
 })();
+
+const HOSTING_RUNTIME_PROMISE = (async () => {
+  if (!PROJECTS_RUNTIME || !AUTH_RUNTIME) return null;
+  const config = hostingConfig(process.env, AUTH_RUNTIME.publicOrigin.origin);
+  if (!config) return null;
+  const socket = process.env['ATOMA_HOSTING_SOCKET'] ?? process.env['ATOMA_LAUNCHER_SOCKET'];
+  if (!socket) throw new Error('Hosting requires the separate launcher service');
+  const launcher = await SocketLauncher.connect(socket);
+  const ownership = launcher.previewOwnership(); launcher.close();
+  const service = new HostingService({ store: HostingStore.open(DBS[0]!.path), projects: PROJECTS_RUNTIME.store,
+    previews: PreviewStore.open(DBS[0]!.path), launcher: new HostingClient(socket), domain: config.domain, maxDeployments: config.maxDeployments,
+    events: emit, copyOwnership: ownership, probe: probeHostedApplication });
+  await service.recover();
+  const gateway = createHostingGateway(service, AUTH_RUNTIME.publicOrigin.origin,
+    (org, principal) => AUTH!.store!.listOrganisationsForPrincipal(principal).some(m => m.orgId === org));
+  await new Promise<void>((resolve, reject) => { gateway.server.once('error', reject); gateway.server.listen(config.port, '127.0.0.1', resolve); });
+  const health = setInterval(() => { void service.refreshHealth().catch(() => undefined); }, 15_000); health.unref();
+  gateway.server.once('close', () => clearInterval(health));
+  return { service, gateway };
+})();
+// A hosting outage must not take away project editing or the existing preview.
+void HOSTING_RUNTIME_PROMISE.catch(() => console.error('[atoma viz] project hosting unavailable; check launcher and hosting configuration'));
 
 let PREVIEW_RUNTIME: PreviewRuntime | null = null;
 void PREVIEW_RUNTIME_PROMISE.then((runtime) => {
@@ -2843,6 +2871,9 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
         return;
       }
       if (candidates.tokens.length > 0) {
+        const principals = candidates.tokens.map(token => authStore.resolveSession(token)?.principalId).filter(Boolean);
+        const hosting = await HOSTING_RUNTIME_PROMISE.catch(() => null);
+        for (const principal of principals) hosting?.gateway.claims.revokePrincipal(principal!);
         authStore.revokeSessions(candidates.tokens);
       }
       writeAuthRedirect(res, '/', [
@@ -4645,6 +4676,31 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
       } catch (error) {
         if (!(error instanceof ProjectHttpError)) throw error;
         sendJson(res, error.status, { error: error.message, problem: error.problem });
+      }
+      return;
+    }
+
+    const hostedProject = pathname.match(/^\/api\/projects\/([^/]+)\/hosting(?:\/(deploy|stop|open))?$/);
+    if (hostedProject) {
+      const action = hostedProject[2];
+      if (!methodAllowed(req, res, action ? 'POST' : 'GET') || (action && !sameOrigin(req, res))) return;
+      if (!viewer) { sendJson(res, 401, { error: 'authentication required' }); return; }
+      const runtime = await HOSTING_RUNTIME_PROMISE.catch(() => null);
+      if (!runtime) { sendJson(res, 503, { error: 'Project hosting is not configured yet' }); return; }
+      try {
+        const projectId = hostedProject[1]!;
+        if (!action) sendJson(res, 200, runtime.service.status(viewer, projectId));
+        else if (action === 'open') sendJson(res, 200, { url: runtime.gateway.open(viewer, projectId) });
+        else {
+          let body: unknown;
+          try { body = JSON.parse((await readBodyBounded(req, 4096)).toString('utf8')); }
+          catch { sendJson(res, 400, { error: 'Invalid hosting request' }); return; }
+          if (action === 'deploy') sendJson(res, 202, await runtime.service.deploy(viewer, projectId, body));
+          else sendJson(res, 200, await runtime.service.stop(viewer, projectId, (body as { expectedDeploymentId?: unknown } | null)?.expectedDeploymentId));
+        }
+      } catch (error) {
+        if (error instanceof ProjectHttpError) sendJson(res, error.status, { error: error.message });
+        else sendJson(res, 503, { error: 'Hosting operation unavailable; refresh its status before retrying' });
       }
       return;
     }

@@ -1,3 +1,4 @@
+import type { HostingLauncher } from '../contracts/projectHosting.js';
 import { WORKSPACE_LEASE_MS, WORKSPACE_HEARTBEAT_MS } from '../contracts/launcherVolumes.js';
 import type { WorkerLauncher } from '../contracts/launcherWorker.js';
 import { createServer, type Socket } from 'node:net';
@@ -18,6 +19,8 @@ export async function serveLauncher(options: {
   hello: LauncherHello;
   renewLease?(family: LauncherFamily, ownerId: string): void;
   leaseExpired?(family: LauncherFamily, ownerId: string): boolean;
+  hosting?: HostingLauncher;
+  hostingOnly?: boolean;
   workers?: WorkerLauncher & { reconcileOrphans(): Promise<number>; stopOwner(ownerId: string): Promise<void> };
   disconnectOwner(family: LauncherFamily, ownerId: string): Promise<void>;
 }): Promise<{ close(): Promise<void> }> {
@@ -86,12 +89,25 @@ export async function serveLauncher(options: {
     const dispatch = async (request: LauncherRequest): Promise<unknown> => {
       if (request.op === 'hello') { greeted = true; return hello; }
       if (!greeted) throw new Error('Handshake required');
+      if (options.hostingOnly && !['heartbeat', 'prepareHosting', 'startHosting', 'inspectHosting', 'stopHosting'].includes(request.op)) throw new Error('Hosting-only launcher');
       if (request.op !== 'startWorker' && request.op !== 'stopWorker') {
         const ownerId = 'ownerId' in request ? request.ownerId
-          : 'spec' in request ? request.spec.ownerId : 'handle' in request ? request.handle.ownerId : undefined;
+          : 'spec' in request && 'ownerId' in request.spec ? request.spec.ownerId : 'handle' in request ? request.handle.ownerId : undefined;
         if (ownerId && [...workers.values()].includes(ownerId)) throw new Error('Worker owns this lifecycle');
       }
       switch (request.op) {
+        case 'prepareHosting':
+          if (!options.hosting) throw new Error('Hosting disabled');
+          return options.hosting.prepareHosting(request.identity);
+        case 'startHosting':
+          if (!options.hosting) throw new Error('Hosting disabled');
+          return options.hosting.startHosting(request.spec);
+        case 'inspectHosting':
+          if (!options.hosting) throw new Error('Hosting disabled');
+          return options.hosting.inspectHosting(request.identity);
+        case 'stopHosting':
+          if (!options.hosting) throw new Error('Hosting disabled');
+          await options.hosting.stopHosting(request.identity); return null;
         case 'heartbeat':
           for (const state of held.values()) options.renewLease?.(state.family, state.ownerId);
           lastHeartbeat = Date.now();

@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily renewal check for Atoma application HTTPS
+
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=3600
+Persistent=true
+
+[Install]
+WantedBy=timers.target

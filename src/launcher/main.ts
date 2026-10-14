@@ -1,3 +1,4 @@
+import { DockerHosting } from './hosting.js';
 import { WorkspaceVolumes } from './volumes.js';
 import { readdirSync, rmSync } from 'node:fs';
 import { createConnection } from 'node:net';
@@ -91,6 +92,10 @@ async function main(): Promise<void> {
   } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
   const service = await serveLauncher({
     socketPath, launcher, hello, workers,
+    ...(process.env['ATOMA_HOSTING_ROOT'] ? { hosting: new DockerHosting({
+      root: process.env['ATOMA_HOSTING_ROOT'], image: process.env['ATOMA_HOSTING_IMAGE'] ?? '',
+      relayImage: image, user: previewUser,
+    }) } : {}),
     leaseExpired: (family, ownerId) => volumes.expired(family === 'egress' ? 'worker' : 'preview', ownerId),
     renewLease: (family, ownerId) => volumes.renew(family === 'egress' ? 'worker' : 'preview', ownerId),
     disconnectOwner: (family, ownerId) => launcher.reapDisconnectedOwner(family, ownerId),

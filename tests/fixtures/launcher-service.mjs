@@ -14,7 +14,17 @@ const launcher = new RecordingLauncher({
   },
   waitUntilReady: async () => undefined,
 });
+const hosted = new Map();
 const service = await serveLauncher({
+  hosting: {
+    prepareHosting: async id => `/retained/${id.deploymentId}`,
+    startHosting: async spec => {
+      const handle = { hostPort: 12345, image: 'runtime-image' };
+      hosted.set(spec.deploymentId, handle); return handle;
+    },
+    inspectHosting: async id => hosted.get(id.deploymentId) ?? null,
+    stopHosting: async id => { hosted.delete(id.deploymentId); },
+  },
   socketPath: process.env.ATOMA_TEST_SOCKET,
   launcher,
   disconnectOwner: (family, ownerId) => launcher.reapDisconnectedOwner(family, ownerId),

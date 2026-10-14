@@ -1,3 +1,4 @@
+import type { HostingIdentity, HostingLaunch, HostingHandle } from '../contracts/projectHosting.js';
 import { WORKSPACE_HEARTBEAT_MS } from '../contracts/launcherVolumes.js';
 import type { LauncherWorkerSpec, LauncherWorkerHandle } from '../contracts/launcherWorker.js';
 import { createConnection, type Socket } from 'node:net';
@@ -93,6 +94,11 @@ export class SocketLauncher implements ContainerLauncher {
     this.chain = run.catch(() => undefined);
     return run;
   }
+
+  prepareHosting(identity: HostingIdentity): Promise<string> { return this.call({ op: 'prepareHosting', identity }); }
+  startHosting(spec: HostingLaunch): Promise<HostingHandle> { return this.call({ op: 'startHosting', spec }); }
+  inspectHosting(identity: HostingIdentity): Promise<HostingHandle | null> { return this.call({ op: 'inspectHosting', identity }); }
+  async stopHosting(identity: HostingIdentity): Promise<void> { await this.call({ op: 'stopHosting', identity }); }
 
   startWorker(spec: LauncherWorkerSpec): Promise<LauncherWorkerHandle> { return this.call({ op: 'startWorker', spec }); }
   async stopWorker(id: string): Promise<void> { await this.call({ op: 'stopWorker', id }); }

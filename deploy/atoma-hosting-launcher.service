@@ -1,0 +1,22 @@
+[Unit]
+Description=Atoma persistent application launcher
+After=docker.service
+Requires=docker.service
+RequiresMountsFor=/home/atoma
+
+[Service]
+Type=simple
+User=atoma
+Group=atoma
+EnvironmentFile=/home/atoma/config/hosting.env
+ExecStart=/usr/bin/node /home/atoma/current/dist/launcher/hostingMain.js
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/home/atoma/hosting /home/atoma/hosting-control
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

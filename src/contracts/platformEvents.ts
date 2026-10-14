@@ -72,6 +72,8 @@ export const platformEventKindSchema = z.enum([
   'project.repository_attention',
   'project.upstream_follow_changed',
   'project.deployment_preference_changed',
+  'project.hosting_changed',
+  'project.hosting_failed',
   'github.installation_linked',
   'github.installation_status',
   /**
@@ -373,6 +375,8 @@ export const PLATFORM_EVENT_SEVERITY: Record<PlatformEventKind, PlatformEventSev
   'project.repository_attention': 'warning',
   'project.upstream_follow_changed': 'security',
   'project.deployment_preference_changed': 'info',
+  'project.hosting_changed': 'info',
+  'project.hosting_failed': 'warning',
   'github.installation_linked': 'info',
   // Suspended or deleted installations break the publication pipeline.
   'github.installation_status': 'warning',

@@ -2296,6 +2296,13 @@ try {
             body: updateShell.replace(/\/assets\/index-[\w-]+\.js/, '/assets/index-update-smoke.js') });
           return;
         }
+        if (/^\/api\/projects\/[^/]+\/hosting$/.test(path) && request.method() === 'GET') {
+          void request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify({
+            available: false, state: 'not-deployed', deploymentId: null, runId: null, commitSha: null,
+            url: null, error: null, candidate: null,
+          }) });
+          return;
+        }
         if (path === `/api/projects/${projectId}/deployment` && request.method() === 'PUT') {
           stubs['/api/projects'][0].deploymentDestination = JSON.parse(request.postData()).destination;
           void request.respond({ status: 200, contentType: 'application/json', body: '{}' });

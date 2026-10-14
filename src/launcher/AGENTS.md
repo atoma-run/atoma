@@ -276,3 +276,14 @@ teardown must share ONE deadline, not each get a fresh budget.
 - **A second copy of the naming rule.** `networkName` and `unitName` are on the
   contract so a failure path with no handle can still name what it must
   remove, instead of rebuilding the rule at the call site.
+
+## Persistent application hosting
+
+`hosting.ts` owns the closed prepare/start/inspect/stop profile for deployments.
+Its `dev.atoma.owner=hosting` objects are excluded from ephemeral sweeps and
+survive control-socket disconnect and platform restart. `hostingMain` offers
+only those operations for installations still using the legacy run launcher.
+Images are immutable digests (including engine content IDs); gVisor is required.
+Only UUID identities and a validated relative Node entry cross RPC. Source is
+read-only; per-project `/data` survives every stop. No deletion API exists.
+See [project hosting](../../docs/project-hosting.md) for supported limitations.

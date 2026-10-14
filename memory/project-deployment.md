@@ -42,3 +42,38 @@ and production deployment `38597966959`. A fresh production MCP project read
 confirmed Attica exposes `deploymentDestination: none`; its existing runs and
 repository are retained. The hosting executor remains unimplemented, as the
 settings screen states.
+
+## Hosted runtime implementation — 2026-10-14
+
+The `codex/project-hosting` change adds explicit deploy/open/stop operations in
+Project settings, separate from the destination preference. Deployment requires
+accepted, published, retained bytes; a private org-scoped gateway serves stable
+`p-<project UUID>.app.atoma.run` addresses. A separate hosting launcher owns
+persistent gVisor containers and data, outside ephemeral preview cleanup.
+Static and Node entries are supported initially. Node state belongs in
+`ATOMA_DATA_DIR`; stop preserves it. Node updates currently require stop first.
+Browser desktops, external egress and CAPTCHA collection are still unsupported:
+do not claim this deploys the complete Attica collector yet.
+
+The operator confirmed SSH `mgf@atoma.run`. Existing preview TLS already uses
+Gandi via root-only `/etc/letsencrypt-preview/gandi.ini` and the
+`/home/atoma/certbot-preview` environment. Reused this mechanism without copying
+or displaying its credential. Created wildcard A `*.app.atoma.run` ->
+46.225.4.14 and certificate `atoma-apps` (expires 2027-01-12). Installed a separate
+`atoma-apps-cert.timer` because the existing preview renewal pins its own cert.
+Nginx routes the namespace to loopback 4411. No per-project DNS writes are needed.
+
+Immutable hosting image built on the host:
+`sha256:7057759bffc9589424cf18f999975e3abbbee9d2d77d7a3c36ab1a1df8ec8dcc`.
+Real gVisor smoke proved HTTP, state retention across stop/start, and denial of
+host-control-plane and external network access. Product activation and release
+are recorded separately once verified; infrastructure setup alone is not a
+successful product deployment. Preserve the local Attica pilot and its data.
+
+Verification before publication: fresh `npm ci`, full `release:check` passed
+(6,537 tests, 10 skipped), full GPU browser smoke passed, explicit deployment
+journey captured at 1600x900 and 900x700. Final server container smoke also
+served a static site after the Node retention/isolation checks. Regression
+coverage includes real launcher process/socket connections, stale deployment
+requests, org permissions, acceptance/publication checks, gateway claims and
+CSRF, failed predecessor cleanup, and stop versus health-check races.

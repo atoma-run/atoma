@@ -16,7 +16,10 @@ Neighbours:
 admin-only same-origin project setting uses an expected value to reject stale
 writes, is org-scoped and journaled, and never deploys or stops anything.
 Preview, acceptance, GitHub publication and deployment remain separate.
-Permanent hosting and external provider execution are not implemented yet.
+Private hosted applications use `hostingService`, `hostingStore` and the separate
+hosting launcher; see [project hosting](../../docs/project-hosting.md). Hosting
+uses accepted, published, hash-verified copies. Settings never execute it.
+External provider execution is not implemented.
 
 ## Run network
 

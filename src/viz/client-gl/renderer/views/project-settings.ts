@@ -1,5 +1,5 @@
 import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
-import { deploymentCopy } from '../../project-deployment.js';
+import { deploymentCopy, hostingCopy } from '../../project-deployment.js';
 import { GPU_COLORS } from '../../theme.js';
 import { createScrollPane } from '../scroll-pane.js';
 
@@ -33,5 +33,21 @@ export function drawProjectSettings(ctx: RendererCtx, snapshot: GpuRenderSnapsho
   if (pane.visible(y, y + 44)) ctx.button(pane.content, 'deployment.save', 'button', snapshot.t('deployment.save'),
     0, y, width, 44, false, snapshot.onActivate, undefined, false, false, undefined, undefined, undefined, copy.saveDisabled);
   y += 60;
+  const hosted = hostingCopy(view);
+  if (hosted) {
+    paragraph('hosting.title', true); paragraph('hosting.private'); paragraph(hosted.status);
+    for (const value of [hosted.version, hosted.url].filter(Boolean)) {
+      const label = ctx.text(pane.content, value!, 0, y, { size: 13, color: GPU_COLORS.text, width }); y += label.height + 18;
+    }
+    if (hosted.candidateVersion) {
+      const label = ctx.text(pane.content, `${snapshot.t('hosting.candidateVersion')}: ${hosted.candidateVersion}`, 0, y, { size: 13, color: GPU_COLORS.text, width }); y += label.height + 18;
+    }
+    paragraph('hosting.updateNotice');
+    for (const button of hosted.buttons) {
+      if (pane.visible(y, y + 44)) ctx.button(pane.content, button.id, 'button', snapshot.t(button.id),
+        0, y, width, 44, false, snapshot.onActivate, undefined, false, false, undefined, undefined, undefined, Boolean(button.disabled));
+      y += 54;
+    }
+  }
   pane.extend(y); ctx.scrollMax.projects = pane.finish();
 }

@@ -28,16 +28,16 @@ function mount(canEdit = true) {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 it('saves only after explicit confirmation and keeps the server preference visible', async () => {
-  const fetch = vi.fn(async () => new Response('{}'));
+  const fetch = vi.fn(async (_url: unknown, init?: RequestInit) => new Response('{}', { status: init?.method === 'PUT' ? 200 : 503 }));
   vi.stubGlobal('fetch', fetch);
   const { client } = mount();
   expect(screen.getByRole('radio', { name: 'deployment.none' })).toBeChecked();
   await userEvent.click(screen.getByRole('radio', { name: 'deployment.atoma' }));
-  expect(fetch).not.toHaveBeenCalled();
+  expect(fetch.mock.calls.filter(([, init]) => init?.method === 'PUT')).toHaveLength(0);
   expect(screen.getByText('deployment.unavailable')).toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'deployment.save' }));
-  await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('deployment.saved'));
-  expect(fetch).toHaveBeenCalledExactlyOnceWith('/api/projects/project-1/deployment', expect.objectContaining({
+  await waitFor(() => expect(screen.getAllByRole('status')[0]).toHaveTextContent('deployment.saved'));
+  expect(fetch).toHaveBeenCalledWith('/api/projects/project-1/deployment', expect.objectContaining({
     method: 'PUT', body: '{"destination":"atoma","expectedDestination":"none"}',
   }));
   expect(client.getQueryData<VizProject[]>(['viz', 'projects'])![0]!.deploymentDestination).toBe('atoma');

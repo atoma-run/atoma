@@ -922,6 +922,15 @@ try {
             void request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify(runs[0]) });
             return;
           }
+          if (has('--project-settings') && /^\/api\/projects\/[^/]+\/hosting(?:\/deploy)?$/.test(path)) {
+            const key = path.replace(/\/deploy$/, '');
+            const state = stubs[key] ?? { available: true, state: 'not-deployed', deploymentId: null, runId: null,
+              commitSha: null, url: null, error: null, candidate: { runId: '11111111-1111-4111-8111-111111111111', manifestHash: 'a'.repeat(64), commitSha: 'b'.repeat(40) } };
+            if (request.method() === 'POST') Object.assign(state, { state: 'ready', deploymentId: '22222222-2222-4222-8222-222222222222',
+              runId: state.candidate.runId, commitSha: state.candidate.commitSha, url: 'https://fixture.app.atoma.run/' });
+            stubs[key] = state;
+            void request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify(state) }); return;
+          }
           if (has('--project-settings') && /^\/api\/projects\/[^/]+\/deployment$/.test(path) && request.method() === 'PUT') {
             const project = stubs['/api/projects'].find(row => row.projectId === path.split('/')[3]);
             project.deploymentDestination = JSON.parse(request.postData()).destination;
@@ -1208,7 +1217,13 @@ try {
       await click('project.section.runs');
       await click('project.section.settings');
       await page.waitForFunction(() => document.querySelector('[aria-describedby="deployment-description-atoma"]')?.checked);
-      console.log('Project settings: default none, explicit save to Atoma, retained after tab navigation');
+      await page.mouse.move(width / 2, height - 160); await page.mouse.wheel({ deltaY: 1500 });
+      await page.evaluate(() => new Promise(resolveWait => setTimeout(resolveWait, 500)));
+      if (Object.entries(stubs).some(([key, value]) => key.endsWith('/hosting') && value.state === 'ready')) throw new Error('Saving deployed without confirmation');
+      await click('hosting.deploy');
+      await page.waitForFunction(() => document.body.textContent.includes('Application online'));
+      if (!Object.entries(stubs).some(([key, value]) => key.endsWith('/hosting') && value.state === 'ready')) throw new Error('Deployment action missing');
+      console.log('Project settings: explicit preference save, separate deployment action, online version and access controls');
     }
 
     if (view === 'Projects' && selectFirst && (projectRunCards || githubAccessProbe || has('--github-access') || showResult || has('--touch-probe'))) {

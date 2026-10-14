@@ -52,6 +52,9 @@ export function buttonIconKind(id: string): ButtonIconKind {
   if (id === 'deployment.choose.none') return 'file';
   if (id === 'deployment.choose.atoma') return 'globe';
   if (id === 'deployment.choose.external') return 'link';
+  if (id === 'hosting.deploy') return 'globe';
+  if (id === 'hosting.open') return 'link';
+  if (id === 'hosting.stop') return 'close';
   if (id === 'deployment.save') return 'check';
   if (/^(result|workspace|activity)\.close$|^run.event.close$|^activity.files$|^workspace.parent$|^runs\.project\.back\./.test(id)) return 'back';
   if (/^activity.source\./.test(id)) return 'code';

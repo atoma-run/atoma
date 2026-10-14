@@ -1,0 +1,8 @@
+[Unit]
+Description=Renew Atoma hosted application wildcard certificate
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/atoma/certbot-preview/bin/certbot renew --quiet --config-dir /etc/letsencrypt-preview --work-dir /home/atoma/certbot-preview-work --logs-dir /home/atoma/certbot-preview-logs --cert-name atoma-apps --deploy-hook "/usr/sbin/nginx -t && /usr/bin/systemctl reload nginx"

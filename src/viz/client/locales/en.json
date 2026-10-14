@@ -1938,5 +1938,21 @@
   "deployment.saving": "Saving…",
   "deployment.saved": "Preference saved.",
   "deployment.failed": "Could not confirm the save. Reload to check the saved preference, then try again.",
-  "deployment.conflict": "This setting changed in another session. Reload the page before saving."
+  "deployment.conflict": "This setting changed in another session. Reload the page before saving.",
+  "hosting.title": "Hosted application",
+  "hosting.private": "The application is private to your organisation. Open it here after deployment; no local installation is needed.",
+  "hosting.unconfigured": "Hosting is being set up by the Atoma operator. Your destination is saved.",
+  "hosting.not-deployed": "No application deployed yet. Deploy an accepted version published to GitHub.",
+  "hosting.starting": "Starting the application and checking that it responds…",
+  "hosting.ready": "Application online",
+  "hosting.failed": "Deployment failed. Your retained application data has not been deleted.",
+  "hosting.stopped": "Application stopped. Its data is retained.",
+  "hosting.busy": "Updating the application status…",
+  "hosting.error": "Could not confirm the operation. Refresh the status before trying again.",
+  "hosting.version": "Version online",
+  "hosting.deploy": "Deploy accepted version",
+  "hosting.open": "Open application",
+  "hosting.stop": "Stop application and keep data",
+  "hosting.updateNotice": "To update an application that is already online, stop it first, then deploy the accepted version. It will be unavailable during the update.",
+  "hosting.candidateVersion": "Accepted version to deploy"
 }

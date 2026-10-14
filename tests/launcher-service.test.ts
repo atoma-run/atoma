@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
+import { HostingClient } from '../src/launcher/hostingClient.js';
 import { SocketLauncher } from '../src/launcher/client.js';
 import { connectContainerLauncher } from '../src/launcher/connect.js';
 import { startEgressSidecar } from '../src/tools/egressSidecar.js';
@@ -102,4 +103,14 @@ describe('separate launcher process', () => {
       expect(calls).toEqual([]);
     } finally { socket.destroy(); }
   });
+});
+
+it('retains hosted applications across independent socket connections', async () => {
+  const hosting = new HostingClient(socketPath);
+  const identity = { orgId: randomUUID(), projectId: randomUUID(), deploymentId: randomUUID() };
+  expect(await hosting.prepareHosting(identity)).toBe(`/retained/${identity.deploymentId}`);
+  const handle = await hosting.startHosting({ ...identity, kind: 'node', entry: 'server.js' });
+  expect(await hosting.inspectHosting(identity)).toEqual(handle);
+  await hosting.stopHosting(identity);
+  expect(await hosting.inspectHosting(identity)).toBeNull();
 });

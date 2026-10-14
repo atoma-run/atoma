@@ -942,7 +942,7 @@ function GpuAppContent({
       store.toggleProjectOverview();
       return;
     }
-    if (id.startsWith('deployment.')) { deployment.activate(id); return; }
+    if ((id.startsWith('deployment.') || id.startsWith('hosting.'))) { deployment.activate(id); return; }
     if (id.startsWith('project.section.')) {
       if (!store.selectedProjectId) return;
       const section = id.slice('project.section.'.length);
