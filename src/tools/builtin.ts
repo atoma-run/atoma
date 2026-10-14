@@ -3628,8 +3628,12 @@ function interpreterScriptPaths(
   shellProgram: string
 ): string[] {
   const paths = new Set<string>();
+  const syntaxOnly = (interpreter: string, args: readonly string[]): boolean =>
+    /^(?:node|nodejs)$/i.test(basename(interpreter)) &&
+    args.length === 2 &&
+    (args[0] === '--check' || args[0] === '-c');
   const directExtension = interpreterExtension(command);
-  if (directExtension) {
+  if (directExtension && !syntaxOnly(command, argv)) {
     // Inspect every plausible script argument. Node flags such as --require
     // can name JavaScript before the actual entrypoint; taking only the first
     // extension lets the entrypoint evade the server guard.
@@ -3649,7 +3653,11 @@ function interpreterScriptPaths(
     const extension = interpreterExtension(interpreter);
     if (!extension) continue;
     try {
-      for (const arg of splitCommandLine(match[2] ?? '')) {
+      const args = splitCommandLine(match[2] ?? '');
+      // Node's leading syntax-check flag parses the file without executing it.
+      // Scope this to this interpreter clause: a later server still runs.
+      if (syntaxOnly(interpreter, args)) continue;
+      for (const arg of args) {
         if (extension.test(arg)) paths.add(arg);
       }
     } catch {

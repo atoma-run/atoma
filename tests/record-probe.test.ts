@@ -183,6 +183,28 @@ describe('record_probe', () => {
     expect(() => manifest()).toThrow();
   });
 
+  it('records Node syntax checks without treating parsed server code as execution', async () => {
+    writeFileSync(
+      join(root, 'server.js'),
+      "require('http').createServer((_q,r)=>r.end('ok')).listen(0,()=>console.log('LISTENING_ON_PORT=1'));"
+    );
+    writeFileSync(join(root, 'bad.js'), 'const = ;');
+    const t = recordProbeTool({ sandbox, shellTimeoutMs: 1_000 });
+    for (const args of [['--check', 'server.js'], ['-c', 'server.js']]) {
+      await expect(t.execute({ command: 'node', args })).resolves.toMatchObject({ exitCode: 0 });
+    }
+    await expect(t.execute({ cmd: 'node --check server.js && node --check server.js' }))
+      .resolves.toMatchObject({ exitCode: 0 });
+    await expect(t.execute({ cmd: 'node --check bad.js' })).resolves.toMatchObject({ exitCode: 1 });
+    expect(manifest().entries).toHaveLength(4);
+    // A script argument is not a Node flag, and a check cannot hide a later boot.
+    for (const cmd of ['node server.js --check', 'node --check server.js && node server.js',
+      'node --require server.js --check server.js', 'node --check --require server.js server.js']) {
+      await expect(t.execute({ cmd })).rejects.toThrow(/long-running server/);
+    }
+    expect(manifest().entries).toHaveLength(4);
+  });
+
   it('allows finite modes when an argument guard owns the server boot', async () => {
     writeFileSync(
       join(root, 'domain-tests.js'),
