@@ -4,7 +4,7 @@ import { L2Atom } from '../src/atoms/L2Atom.js';
 import { L3Atom } from '../src/atoms/L3Atom.js';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
-import { EXISTING_FILE_GUIDANCE, PROOF_OBLIGATION_GUIDANCE, READER_FACING_DOC_GUIDANCE, TEST_ONLY_ELEMENT_GUIDANCE } from '../src/atoms/prompts.js';
+import { EXISTING_FILE_GUIDANCE, PROOF_OBLIGATION_GUIDANCE, READER_FACING_DOC_GUIDANCE, LOCAL_APPLICATION_GUIDANCE, TEST_ONLY_ELEMENT_GUIDANCE } from '../src/atoms/prompts.js';
 import { ensureCanonicalProjectDocsL1 } from '../src/atoms/capability.js';
 import { VALIDATION_SYSTEM_PROMPT } from '../src/atoms/verdict.js';
 import { HOST_TOOL_NAMES } from '../src/contracts/toolTaxonomy.js';
@@ -67,6 +67,9 @@ const twoPhases = {
 };
 
 describe('a delivered document is for its reader', () => {
+  it('shares local application explanation guidance with the existing validator', () => {
+    expect(VALIDATION_SYSTEM_PROMPT).toContain(LOCAL_APPLICATION_GUIDANCE);
+  });
   it('reaches every molecule that can write a file when it plans and executes, whatever its stored prompt', async () => {
     // Serotonin, trusted and on the fast path, wrote 1ed071e3's page from a
     // prompt stored before the rule existed (review 2026-10-01).
@@ -78,6 +81,7 @@ describe('a delivered document is for its reader', () => {
       const plan = await molecule.plan({ description: 'Update README.md' }, ctx);
       await molecule.execute({ description: 'Update README.md' }, plan, ctx);
       expect(ctx.llm.calls.map((call) => call.userContent.includes(READER_FACING_DOC_GUIDANCE))).toEqual([reads, reads]);
+      expect(ctx.llm.calls.map((call) => call.userContent.includes(LOCAL_APPLICATION_GUIDANCE))).toEqual([reads, reads]);
     }
   });
 
@@ -187,6 +191,7 @@ describe('a delivered document is for its reader', () => {
         { ...makeCtx(), llm: tissueLlm.llm, ...(withTools ? { tools: executor } : {}) });
       for (const [content] of [cellLlm.byRole.get('fallback-execute')!, tissueLlm.byRole.get('fallback-execute')!]) {
         expect(content!.includes(READER_FACING_DOC_GUIDANCE)).toBe(withTools);
+        expect(content!.includes(LOCAL_APPLICATION_GUIDANCE)).toBe(withTools);
       }
     }
   });

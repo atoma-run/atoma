@@ -4,6 +4,7 @@ import type { WorkspaceIndex } from '../../contracts/workspaceBrowser.js';
 
 export interface LocalDockerState {
   config: LocalDocker | null;
+  step?: 'about' | 'prepare' | 'launch' | 'use';
   status: 'loading' | 'ready' | 'invalid' | 'downloading' | 'downloaded' | 'failed';
 }
 
@@ -59,7 +60,7 @@ ${stop ? 'echo Stopped. Project data was preserved.' : `start "" "${config.appUr
   return {
     'Start.command': shell(false), 'Stop.command': shell(true),
     'Start.cmd': windows(false), 'Stop.cmd': windows(true),
-    'START-HERE.txt': `Run this project on your computer\n\n1. Install and open Docker Desktop: ${DOCKER_DESKTOP_URL}\n2. Extract the entire ZIP to a permanent folder.\n3. On macOS, open Start.command; on Windows, open Start.cmd. The first build can take several minutes.\n4. Open ${config.appUrl}\n\n${config.verificationUrl ? `If the application asks for website verification, open ${config.verificationUrl} and complete it yourself, then resume in the application.\n\n` : ''}Keep Docker running while you use the project. Stop.command / Stop.cmd stops only this project and retains its data. Different projects use separate Compose names and data directories. If a port is occupied, stop the conflicting project before retrying.\n\nDownloaded code runs locally when you choose Start. Atoma does not remotely start Docker or monitor this installation. Profiles and local data are not uploaded by this installer. Application-specific synchronization is separate.\n\nUpdates: stop the existing version, extract the new ZIP to a separate folder, then start it. Keep the old folder for rollback; both versions use the same project data directory. Do not run both simultaneously.\n\nProject: ${projectId}\nSaved delivery: ${runId}\n`,
+    'START-HERE.txt': `Run this project on your computer\n\n${config.onboarding ? `Why this application runs locally: ${config.onboarding.whyLocal}\n\nWhat runs: ${config.onboarding.runsOnComputer}\n\nData and connections: ${config.onboarding.dataAndConnections}\n\n` : ''}1. Install and open Docker Desktop: ${DOCKER_DESKTOP_URL}\n2. Extract the entire ZIP to a permanent folder.\n3. On macOS, open Start.command; on Windows, open Start.cmd. The first build can take several minutes.\n4. Open ${config.appUrl}\n\n${config.verificationUrl ? `If the application asks for website verification, open ${config.verificationUrl} and complete it yourself, then resume in the application.\n\n` : ''}Keep Docker running while you use the project. Stop.command / Stop.cmd stops only this project and retains its data. Different projects use separate Compose names and data directories. If a port is occupied, stop the conflicting project before retrying.\n\nDownloaded code runs locally when you choose Start. Atoma does not remotely start Docker or monitor this installation. Profiles and local data are not uploaded by this installer. Application-specific synchronization is separate.\n\nUpdates: stop the existing version, extract the new ZIP to a separate folder, then start it. Keep the old folder for rollback; both versions use the same project data directory. Do not run both simultaneously.\n\n${config.onboarding ? `Getting started:\n${config.onboarding.firstSteps.map((step, i) => `${i + 1}. ${step}`).join('\n')}\n\n` : ''}Project: ${projectId}\nSaved delivery: ${runId}\n`,
   };
 }
 

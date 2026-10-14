@@ -2673,7 +2673,11 @@ try {
       await accountPage.waitForSelector('.gpu-project-mcp-own-agent[open] .gpu-project-mcp-actions input[type="checkbox"]', { visible: true });
       console.log('Project repository ok: real canvas link remains clickable in all five tabs');
       await accountPage.setViewport({ width: 528, height: 800, deviceScaleFactor: 2 });
-      console.log('Project preview tab ok: Runs -> Preview app -> Files; inline frame closes and reopens with a fresh claim');
+      console.log('Project Application tab ok: hosted preview -> Files; inline frame closes and reopens with a fresh claim');
+      // The notification invitation can cover the upstream checkbox after
+      // narrowing the window. Dismiss it through its real customer control.
+      const upstreamNotification = await accountPage.$('.gpu-push-prompt-actions button:last-child');
+      if (upstreamNotification) await upstreamNotification.click();
       stubs[terminalPreviewPath] = { ...stubs[terminalPreviewPath], availability: 'unavailable',
         kind: null, reason: 'unsupported-deliverable', mode: undefined, state: 'stopped', generation: 0 };
       await accountPage.waitForSelector('.gpu-project-mcp-actions input[type="checkbox"]', { visible: true });
@@ -2846,8 +2850,32 @@ try {
       // toward the row again when it did not.
       const workspaceRows = () => accountPage.evaluate(() => {
         const handle = globalThis.__ATOMA_GPU__;
-        return handle.hitTargets().filter(entry => entry.id.startsWith('workspace.path.')).map(entry => ({ id: entry.id,
-          ...handle.projectRendererPoint(entry.x + entry.width / 2, entry.y + entry.height / 2), height: window.innerHeight }));
+        return handle.hitTargets().filter(entry => entry.id.startsWith('workspace.path.')).map(entry => {
+          // Read the row's actual mask. At narrow widths the tab/header band
+          // can push the pane below half the window; a viewport midpoint made
+          // the old retry oscillate across a partly masked PDF row forever.
+          const find = node => {
+            if (node.eventMode === 'static') {
+              const origin = node.toGlobal({x:0,y:0});
+              if (Math.abs(origin.x-entry.x)<1 && Math.abs(origin.y-entry.y)<1) return node;
+            }
+            for (const child of node.children ?? []) { const found=find(child); if (found) return found; }
+            return null;
+          };
+          let node=find(handle.app.stage), top=0, bottom=handle.app.screen.height;
+          if (!node) throw new Error(`No canvas container for ${entry.id}`);
+          for (;node;node=node.parent) {
+            const mask=node.mask, bounds=mask?.getLocalBounds?.();
+            if (bounds) {
+              // Pixi marks masks non-measurable, so getBounds() is empty.
+              const ys=[bounds.minX,bounds.maxX].flatMap(x => [bounds.minY,bounds.maxY].map(y => mask.toGlobal({x,y}).y));
+              top=Math.max(top,Math.min(...ys));bottom=Math.min(bottom,Math.max(...ys));
+            }
+          }
+          const x=entry.x+entry.width/2;
+          return {id:entry.id,...handle.projectRendererPoint(x,entry.y+entry.height/2),
+            top:handle.projectRendererPoint(x,top).y,bottom:handle.projectRendererPoint(x,bottom).y};
+        });
       });
       const scrollWorkspace = async deltaY => {
         await accountPage.mouse.move(await accountPage.evaluate(() => window.innerWidth / 2),
@@ -2861,8 +2889,8 @@ try {
           const rows = await workspaceRows();
           const point = rows.find(row => row.id === id);
           if (point) {
-            if (point.y >= 1 && point.y <= point.height - 100) return;
-            await scrollWorkspace(point.y > point.height / 2 ? 180 : -180);
+            if (point.y >= point.top + 18 && point.y <= point.bottom - 18) return;
+            await scrollWorkspace(point.y > (point.top + point.bottom) / 2 ? 180 : -180);
             // The list's last rows cannot rise further: stop where it stopped.
             const moved = (await workspaceRows()).find(row => row.id === id);
             if (moved && Math.abs(moved.y - point.y) < 1) return;
@@ -2886,9 +2914,10 @@ try {
           if (await accountPage.waitForFunction(landed, { timeout: 3_000 }, id).then(() => true, () => false)) return;
           // Still under a mask of the pane, upper or lower: scroll toward the row.
           const point = (await workspaceRows()).find(row => row.id === id);
-          if (point) await scrollWorkspace(point.y > point.height / 2 ? 180 : -180);
+          if (point) await scrollWorkspace(point.y > (point.top + point.bottom) / 2 ? 180 : -180);
         }
-        throw new Error(describe);
+        await accountPage.screenshot({path:'/tmp/atoma-workspace-click-failure.png'});
+        throw new Error(`${describe}: ${JSON.stringify(await workspaceRows())}`);
       };
       for (const [path, selector, text] of [
         ['README.md', 'h1', 'Preview heading'], ['table.csv', 'td', 'Atoma'], ['document.pdf', 'canvas.ofv-pdf-page', ''],

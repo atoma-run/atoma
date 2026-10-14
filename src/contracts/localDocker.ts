@@ -9,12 +9,22 @@ const filePath = z.string().max(240).regex(/^[A-Za-z0-9_. -]+(?:\/[A-Za-z0-9_. -
     && !/^(\.env(?:\..*)?|\.git|node_modules|\.local-browser|browser-state|browser-demo-state|profiles?|cookies|login data|web data|local state)$/i.test(part)));
 const localUrl = z.string().max(300).regex(/^http:\/\/127\.0\.0\.1:\d{1,5}(?:\/[A-Za-z0-9_./?=&-]*)?$/)
   .refine(value => { try { const port = Number(new URL(value).port); return port >= 1024 && port <= 65535; } catch { return false; } });
+const explanation = z.string().trim().min(1).max(600);
+/** Authored with the delivery, displayed as plain text; never executable instructions. */
+export const localOnboardingSchema = z.object({
+  whyLocal: explanation,
+  runsOnComputer: explanation,
+  dataAndConnections: explanation,
+  firstSteps: z.array(z.string().trim().min(1).max(240)).min(1).max(5),
+}).strict();
 export const localDockerSchema = z.object({
   version: z.literal(1),
   runtime: z.literal('docker-compose'),
   composeFile: filePath.refine(value => !value.includes('/')),
   appUrl: localUrl,
   verificationUrl: localUrl.optional(),
+  // Older immutable deliveries remain readable without inventing their explanation.
+  onboarding: localOnboardingSchema.optional(),
   // A source-only allowlist: never implicitly package a workspace's browser profile.
   files: z.array(filePath).min(1).max(2_000),
 }).strict().superRefine((value, ctx) => {

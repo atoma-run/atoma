@@ -1,4 +1,5 @@
 import { ButtonIcon } from './ButtonIcon.js';
+import { ApplicationAccessible } from './ApplicationAccessible.js';
 import { previewControlLabel } from './renderer/preview-control.js';
 import { checkpointActionKey, canControlCheckpoint, pendingGitHubAccess, canContinueGitHubAccess, canRetryPublication, type GitHubRecoveryProgress } from './github-access.js';
 import { WorkspaceAccessible } from './WorkspaceAccessible.js';
@@ -492,7 +493,7 @@ export function DomBridge({
             {([
               ['conversation', 'projects.mcpTitle', 'send'],
               ['runs', 'nav.runs', 'play'],
-              ['preview', 'preview.app', 'eye'],
+              ['preview', 'application.title', 'eye'],
               ['files', 'workspace.title', 'folder'],
               ['result', 'result.latest', 'file'],
             ] as const).map(([section, labelKey, icon]) => (
@@ -540,7 +541,11 @@ export function DomBridge({
           </section>) : null}
         {view === 'projects' && selectedProjectId && projectSection === 'files' && workspaceRunId ?
           <WorkspaceAccessible data={workspace} t={t} onActivate={onActivate} /> : null}
-        {(view === 'runs' || (view === 'projects' && selectedProjectId && (resultRunId || projectSection === 'preview'))) && preview && previewControlLabel(preview) && onActivate ? (
+        {view === 'projects' && selectedProjectId && projectSection === 'preview' && workspace?.localDocker ?
+          <ApplicationAccessible local={workspace.localDocker} t={t} onActivate={onActivate} /> : null}
+        {view === 'projects' && selectedProjectId && projectSection === 'preview' && workspace?.failed ?
+          <section role="status"><p>{t('application.unavailable')}</p><button type="button" onClick={() => onActivate?.('application.retry')}><ButtonIcon kind="refresh" />{t('application.retry')}</button></section> : null}
+        {(view !== 'projects' || projectSection !== 'preview' || (workspace?.index && !workspace.loading && !workspace.failed && !workspace.localDocker)) && (view === 'runs' || (view === 'projects' && selectedProjectId && (resultRunId || projectSection === 'preview'))) && preview && previewControlLabel(preview) && onActivate ? (
           <section aria-label={t('preview.region')}>
             <button
               type="button"

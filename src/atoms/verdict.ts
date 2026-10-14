@@ -10,7 +10,7 @@ import { RECIPE_STEP_LIMITS } from '../skills/events.js';
 import { TEXT_VERIFICATION_GUIDANCE } from '../contracts/taskExecution.js';
 import { renderTextLayouts } from './textLayout.js';
 import { ROOT_TEXT_REVIEW_REQUEST } from './textReview.js';
-import { WEB_DELIVERY_GUIDANCE, KEYBOARD_EVIDENCE_GUIDANCE, STATEFUL_EVIDENCE_GUIDANCE, STATEFUL_EVIDENCE_REVIEW } from './prompts.js';
+import { WEB_DELIVERY_GUIDANCE, KEYBOARD_EVIDENCE_GUIDANCE, STATEFUL_EVIDENCE_GUIDANCE, STATEFUL_EVIDENCE_REVIEW, LOCAL_APPLICATION_GUIDANCE } from './prompts.js';
 
 /**
  * VERDICT ENGINE — extracted from L2Atom (structural slice 2b).
@@ -608,6 +608,7 @@ export const VALIDATION_SYSTEM_PROMPT = [
   'validators to stop caching and run cost to roughly double.',
   '',
   WEB_DELIVERY_GUIDANCE,
+  LOCAL_APPLICATION_GUIDANCE,
   KEYBOARD_EVIDENCE_GUIDANCE,
   '',
   STATEFUL_EVIDENCE_GUIDANCE,

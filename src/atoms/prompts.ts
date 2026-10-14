@@ -8,6 +8,17 @@
 import type { Plan } from '../core/types.js';
 import type { Atom } from '../core/atom.js';
 import { SMOKE_TWO_CALL_LINES } from '../contracts/probeManifest.js';
+import { z } from 'zod';
+import { localOnboardingSchema } from '../contracts/localDocker.js';
+
+/** One delivery-time explanation; the UI never calls a model to explain an installation. */
+export const LOCAL_APPLICATION_GUIDANCE = [
+  'LOCAL APPLICATION DELIVERY: Only when the requested application needs execution on the customer computer, deliver a portable Docker Compose package with atoma.local.json (version 1, runtime docker-compose, root composeFile, loopback http://127.0.0.1:PORT appUrl, optional verificationUrl, complete source-only files allowlist). Do not turn an ordinary hosted app into a local installation.',
+  'Compose must be self-contained, bind exposed ports to 127.0.0.1, include readiness healthchecks and persist state through ATOMA_LOCAL_DATA_DIR or project-scoped named volumes. No developer paths, Docker socket or browser profiles in the package. Verify first-start and restart persistence where your tools support Docker; report any untested OS/runtime.',
+  'When creating or updating that local delivery, include onboarding matching this schema: ' + JSON.stringify(z.toJSONSchema(localOnboardingSchema)),
+  'Write these explanations for a nontechnical customer in the requested application language: whyLocal explains this application’s concrete need; runsOnComputer explains what will run; dataAndConnections states where data is saved and what leaves the computer or requires an account; firstSteps gives 1–5 actions in the actual app after opening. Plain text only, no shell commands, markup or invented capabilities. Atoma supplies the Docker download/start guide.',
+  'Read the delivered code and configuration before making these claims. In existing verification, compare them with that evidence: do not claim local-only data, automatic sync, unattended CAPTCHA resolution or supported operating systems without support. Report unverified behaviour honestly. Old deliveries without onboarding remain readable; unrelated tasks do not need a Docker descriptor.',
+].join('\n');
 
 /** Recovery must preserve the deliverable and verify its actual runtime. */
 export const FALLBACK_VERIFICATION_GUIDANCE = [
