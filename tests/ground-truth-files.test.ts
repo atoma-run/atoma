@@ -312,12 +312,38 @@ describe('file read-back probe (#F9)', () => {
 
     expect(content).toMatch(/GROUND-TRUTH EVIDENCE \(independent file read-back\)/);
     // Real sizes, read from the workspace — not the child's word for it.
-    expect(content).toMatch(/package\.json: EXISTS \(\d+ chars\)/);
-    expect(content).toMatch(/index\.js: EXISTS \(17 chars\)/);
+    expect(content).toMatch(/package\.json: EXISTS \(\d+ UTF-8 bytes; \d+ UTF-16 code units\)/);
+    expect(content).toContain('index.js: EXISTS (17 UTF-8 bytes; 17 UTF-16 code units)');
     expect(content).toMatch(/## Usage/); // excerpt made it in
     expect(content).toMatch(/workspace root now contains:/);
     // The probe read each claimed file back itself.
     expect(exec.calls.filter((c) => c.name === 'read_file')).toHaveLength(3);
+  });
+
+  it('distinguishes UTF-8 bytes from UTF-16 units in real Unicode file read-back', async () => {
+    // Attica 0daa2132 repeatedly rejected 2,116 measured bytes against 2,114
+    // read-back "chars". Show both units to the validator, from the same read.
+    const root = mkdtempSync(join(tmpdir(), 'atoma-gt-unicode-'));
+    const sandbox = new ToolSandbox(root);
+    try {
+      writeFileSync(join(root, 'README.md'), 'é→🏠');
+      const tools = { read_file: readFileTool({ sandbox }), list_files: listFilesTool({ sandbox }) };
+      const exec: ToolExecutor = {
+        has: (name) => name in tools,
+        execute: (name, args) => tools[name as keyof typeof tools].execute(args),
+      };
+      const ctx = ctxWith(exec);
+      const content = await runVerdict(ctx, fileChild(), {
+        output: { files: ['README.md'] },
+        summary: 'README.md contains 9 UTF-8 bytes.',
+      });
+      expect(content).toContain('README.md: EXISTS (9 UTF-8 bytes; 4 UTF-16 code units)');
+      expect(content).toContain('é→🏠');
+      expect(ctx.llm.calls).toHaveLength(1);
+    } finally {
+      await sandbox.cleanup();
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it('flags a claimed-but-MISSING file as a contradiction', async () => {
@@ -352,7 +378,7 @@ describe('file read-back probe (#F9)', () => {
       expect(content).toMatch(/README\.md: MISSING or unreadable/);
       expect(content).toMatch(/report\.json: MISSING or unreadable/);
       expect(content).not.toMatch(/README\.md: EXISTS/);
-      expect(content).toMatch(/index\.js: EXISTS \(1 chars\)/);
+      expect(content).toContain('index.js: EXISTS (1 UTF-8 bytes; 1 UTF-16 code units)');
     } finally {
       await sandbox.cleanup();
       rmSync(root, { recursive: true, force: true });

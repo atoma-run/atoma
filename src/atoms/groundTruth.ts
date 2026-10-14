@@ -857,7 +857,7 @@ async function probeFilesGroundTruth(args: {
         );
       }
       lines.push(
-        `- ${path}: EXISTS (${content.length} chars)` +
+        `- ${path}: EXISTS (${Buffer.byteLength(content, 'utf8')} UTF-8 bytes; ${content.length} UTF-16 code units)` +
           (content.trim().length === 0 && isClaim && !intentionalEmptyFixture
             ? ' — WARNING: file is EMPTY'
             : intentionalEmptyFixture

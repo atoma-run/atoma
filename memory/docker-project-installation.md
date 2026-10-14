@@ -34,3 +34,14 @@ suite had 6,521 passes and one external example.com fetch failure; the isolated
 container suite then passed all 22 tests. The complete GPU/browser smoke passed
 after its driver dismissed the notification invitation and read the real scroll
 mask (the longer Application tab exposes an extra row at narrow widths).
+
+Production release `8fe426d1` passed the complete CI (38581934011) and deployed
+successfully (38583114059). Attica onboarding run
+`0daa2132-591f-4068-9040-25cba2dccac7` starts from the exact portable delivery,
+with only onboarding metadata and README navigation changes requested.
+Its validators repeatedly confused the read-back's 2,114 UTF-16 units with the
+README's 2,116 UTF-8 bytes (events `6bb3f5b3` and `b9a7180b`). Ground-truth
+presentation now reports both units explicitly; a regression goes through real
+file tools and the validation prompt with accented, arrow and astral characters.
+The four ground-truth suites pass all 115 tests. This is evidence presentation,
+not a new acceptance gate or a claim that every future model will judge correctly.
