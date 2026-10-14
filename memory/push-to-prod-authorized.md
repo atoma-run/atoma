@@ -13,3 +13,5 @@ I may push to `origin/main` myself, which deploys to production, without asking 
 **Why:** the user trusts the checks (CI + deploy preflight) and does not want to be the push step; asking again every change slowed the loop.
 
 **How to apply:** still verify before pushing (tests/typecheck/lint/docs:check as relevant, `git diff --check`), rebase on origin/main, stage only my own paths, never touch another session's dirty files, then watch CI and the deploy and report the outcome. A classifier may still block a push; then say so. Related: [[deploy-pipeline-state]].
+
+Gotchas: a parallel agent and the i18n bot (`[skip ci]` locale commits) push to main too, so always `git fetch` and rebase right before pushing. A test that reads the local store (e.g. an MCP smoke calling `atoma_registry_list`) passes on a dev machine and fails on CI's clean checkout; use `tools/list`-shaped checks.

@@ -13,7 +13,7 @@ domain of the product. Repo placeholders (`atoma.example.com`) were replaced by
 `atoma.run` in `.env.example`, deployment/preview docs, the MCP address, the
 `MendRequest` example and `package.json` homepage the same day.
 
-Cutover completed 2026-09-06: DNS A -> 46.225.4.14 (Hetzner VPS debian-4gb-nbg1-1), nginx vhost + certbot, `ATOMA_VIZ_PUBLIC_ORIGIN=https://atoma.run`, GitHub `production` variables switched, platform-admin login verified on atoma.run. The old name atoma.iotanet.net redirects (301) for a transition period. Repo commit 20da806 on main.
+Cutover completed 2026-09-06: DNS A -> 46.225.4.14 (Hetzner VPS debian-4gb-nbg1-1), nginx vhost + certbot, `ATOMA_VIZ_PUBLIC_ORIGIN=https://atoma.run`, GitHub `production` variables switched, platform-admin login verified on atoma.run. The old name atoma.iotanet.net was meant to redirect (301), but on 2026-10-14 its nginx vhost still proxies to 4111 and `/` answers 200. Repo commit 20da806 on main.
 
 **Why:** one exact origin is a hard contract in this codebase (auth cookies,
 OAuth redirect, MCP host pinning, SEO canonical); changing it is a coordinated
