@@ -13,6 +13,14 @@
  * Scope covers `tests/` too, via `tsconfig.all.json`. The build tsconfig
  * excludes tests (they are never emitted), and without a lint-only project the
  * type-aware rules would skip the entire suite without saying so.
+ *
+ * `npm run lint` CACHES per file (node_modules/.cache/atoma/eslint/), keyed on
+ * the file's own content and this config. That key is blind to types: editing
+ * a signature in one file does not invalidate the cached result of another
+ * file whose floating promise it now creates. A local cached lint can
+ * therefore pass where a cold one fails. CI lints cold (no cache is restored),
+ * so the required check stays exact; delete the cache directory to reproduce
+ * it locally. Do not restore this cache in CI.
  */
 import js from '@eslint/js';
 import globals from 'globals';
