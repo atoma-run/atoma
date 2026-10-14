@@ -394,6 +394,44 @@ describe('spawnRun — reaping a child that parked', () => {
   }, 40_000);
 });
 
+describe('spawnRun — live log', () => {
+  it('persists startup output before the child can finish, then retains the complete log', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'atoma-burnin-live-log-'));
+    const fakeNpm = join(dir, 'npm');
+    const logPath = join(dir, 'child.log');
+    const releasePath = join(dir, 'release');
+    writeFileSync(logPath, 'stale previous output\n');
+    writeFileSync(fakeNpm, [
+      '#!/bin/sh',
+      'printf "preparing retrieval\\n"',
+      'while [ ! -f "$RELEASE_PATH" ]; do sleep 0.05; done',
+      'printf "preparation complete\\n" >&2',
+    ].join('\n') + '\n');
+    chmodSync(fakeNpm, 0o755);
+    let liveLog: string | undefined;
+    try {
+      const log = await spawnRun({
+        goal: 'observe preparation before the first trace',
+        timeoutMs: 5_000,
+        hardKillMarginMs: 0,
+        logPath,
+        env: { PATH: `${dir}:${process.env['PATH'] ?? ''}`, RELEASE_PATH: releasePath },
+        onChunk: chunk => {
+          if (chunk.includes('preparing retrieval')) {
+            liveLog = existsSync(logPath) ? readFileSync(logPath, 'utf8') : undefined;
+            writeFileSync(releasePath, 'continue');
+          }
+        },
+      });
+      expect(liveLog).toBe('preparing retrieval\n');
+      expect(log).toBe('preparing retrieval\npreparation complete\n');
+      expect(readFileSync(logPath, 'utf8')).toBe(log);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 10_000);
+});
+
 describe('spawnRun — experiment env isolation', () => {
   it('does not leak shell-level baseline or seed settings into the child', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'atoma-burnin-env-'));

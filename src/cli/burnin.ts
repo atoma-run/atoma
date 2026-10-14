@@ -608,10 +608,11 @@ export function spawnRun(opts: {
   const hardKillMarginMs = opts.hardKillMarginMs ?? DEFAULT_HARD_KILL_MARGIN_MS;
   const platform = opts.platform ?? process.platform;
   return new Promise((resolveRun, rejectRun) => {
-    // Ahead of the spawn: the write below happens on the settle path, and a
-    // throw there is what used to strand the promise.
+    // Make startup output readable before a trace exists. Logging stays best
+    // effort: an unwritable log must never strand the child or its promise.
     try {
       mkdirSync(dirname(resolve(logPath)), { recursive: true });
+      writeFileSync(logPath, '', 'utf8');
     } catch {
       /* the write is guarded too — a log we cannot keep must not lose the run */
     }
@@ -684,6 +685,11 @@ export function spawnRun(opts: {
     const onChunk = (c: Buffer): void => {
       const text = c.toString();
       log += text;
+      try {
+        appendFileSync(logPath, text, 'utf8');
+      } catch {
+        /* Keep the in-memory result and retry the full write at settlement. */
+      }
       opts.onChunk?.(text);
       // A delivered run that started a server idles forever by design —
       // terminate once the completion banner is in (metrics print before it).
