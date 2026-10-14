@@ -6,6 +6,9 @@ import { MAX_TRACE_BYTES } from '../src/contracts/traceFields.js';
 import { RUN_INDEX_GOAL_MAX } from '../src/viz/trace.js';
 import {
   clearRunSummaryCache,
+  decodeRunCursor,
+  encodeRunCursor,
+  pageRunIndex,
   readBoundedRunFile,
   sortRunIndex,
   summarizeTraceFile,
@@ -359,5 +362,30 @@ describe('cached run rows', () => {
     writeFileSync(file, trace('repaired'));
     vi.spyOn(Date, 'now').mockReturnValue(later + 10_000);
     expect(summarizeTraceFile(file)).toMatchObject({ label: 'repaired' });
+  });
+});
+
+describe('run index pages', () => {
+  const row = (id: string, startedAt: string) => ({ id, label: id, startedAt, hasError: false });
+  const sorted = sortRunIndex([
+    row('b', '2026-10-02T00:00:00Z'), row('a', '2026-10-02T00:00:00Z'),
+    row('c', '2026-10-03T00:00:00Z'), row('z', '2026-10-01T00:00:00Z'),
+  ]);
+
+  it('cuts after the cursor position, ties broken by id as the list is', () => {
+    const first = pageRunIndex(sorted, 2, null);
+    expect(first.runs.map((entry) => entry.id)).toEqual(['c', 'b']);
+    expect(first.total).toBe(4);
+    const second = pageRunIndex(sorted, 2, decodeRunCursor(first.nextBefore!));
+    expect(second.runs.map((entry) => entry.id)).toEqual(['a', 'z']);
+    expect(second.nextBefore).toBeNull();
+  });
+
+  it('round-trips its cursor and refuses anything else', () => {
+    const entry = row('x', '2026-10-14T00:00:00Z');
+    expect(decodeRunCursor(encodeRunCursor(entry))).toEqual({ startedAt: entry.startedAt, id: 'x' });
+    for (const bad of ['', 'not-base64!', Buffer.from('{}').toString('base64url'), Buffer.from('[1,2]').toString('base64url')]) {
+      expect(decodeRunCursor(bad)).toBeNull();
+    }
   });
 });

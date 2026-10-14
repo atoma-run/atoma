@@ -20,6 +20,13 @@
 import { createHash } from 'node:crypto';
 import { estimateCostUsd, pricesFor } from '../../src/core/metrics.ts';
 
+// `/api/runs` is paged since 2026-10-14; the fixtures stay plain lists.
+function runIndexPageStub(runs, params) {
+  const projectId = params.get('projectId');
+  const scoped = projectId ? runs.filter((run) => run.projectId === projectId) : runs;
+  return { runs: scoped, total: scoped.length, nextBefore: null };
+}
+
 const S = 1000;
 const MIN = 60 * S;
 const HOUR = 60 * MIN;
@@ -576,7 +583,7 @@ export function createWorld({ now }) {
     '/api/registry/atoma': () => ({ registry, types }),
     '/api/skills': () => [{ l1Name: 'shared-molecule', l1Label: 'Water', count: skills.length }],
     '/api/skills/shared-molecule': () => skills,
-    '/api/runs': () => runIndex(),
+    '/api/runs': (params) => runIndexPageStub(runIndex(), params),
     '/api/runs/r-flags-1': () => flagsTrace(),
     '/api/runs/r-sales-3': () => salesPartialTrace(),
     '/api/github/installations': () => [{ installationId: '501', accountLogin: 'analytical-engines', targetType: 'Organization', status: 'active', repositorySelection: 'all' }],
@@ -597,7 +604,7 @@ export function createWorld({ now }) {
   }
 
   /** Answer one intercepted request, or undefined to let it through. */
-  world.respond = (method, pathname) => {
+  world.respond = (method, pathname, searchParams = new URLSearchParams()) => {
     const previewMatch = /^\/api\/projects\/([^/]+)\/runs\/([^/]+)\/preview(?:\/(open|heartbeat|stop|restart))?$/.exec(pathname);
     if (previewMatch) {
       const [, projectId, runId, action] = previewMatch;
@@ -616,7 +623,7 @@ export function createWorld({ now }) {
       return flagsProjectRun();
     }
     const route = routes[pathname];
-    return route ? route() : undefined;
+    return route ? route(searchParams) : undefined;
   };
   return world;
 }

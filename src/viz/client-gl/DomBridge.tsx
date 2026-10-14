@@ -640,6 +640,8 @@ export function DomBridge({
               event.preventDefault();
               nextIndex = Math.max(0, Math.min(runPicker.options.length - 1, nextIndex));
               setRunPickerActiveIndex(nextIndex);
+              // The keyboard's way to the paged list's next page.
+              if (nextIndex === runPicker.options.length - 1) onActivate?.('runs.picker.more');
               const rowTop = runPicker.options[nextIndex]?.top ?? 0;
               const viewportHeight = runPickerInputViewportHeight(event.currentTarget);
               const currentScroll = Math.min(Math.max(0, runPicker.height - viewportHeight),

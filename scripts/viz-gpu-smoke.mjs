@@ -12,6 +12,13 @@ import { assertTimelineMinimap } from './viz-timeline-probe.mjs';
 import { fileViewerFixtures } from './file-viewer-fixtures.mjs';
 import { DEFAULT_PLATFORM_LIMITS, PLATFORM_SETTING_SPECS } from '../dist/contracts/platformSettings.js';
 
+// `/api/runs` is paged since 2026-10-14; the fixtures stay plain lists.
+function runIndexPageStub(runs, params) {
+  const projectId = params.get('projectId');
+  const scoped = projectId ? runs.filter((run) => run.projectId === projectId) : runs;
+  return { runs: scoped, total: scoped.length, nextBefore: null };
+}
+
 const packageMetadata = JSON.parse(
   await readFile(new URL('../package.json', import.meta.url), 'utf8')
 );
@@ -2332,6 +2339,7 @@ try {
           return;
         }
         let stub = stubs[path];
+        if (path === '/api/runs' && Array.isArray(stub)) stub = runIndexPageStub(stub, new URL(request.url()).searchParams);
         if (path === '/api/assistant' && stub?.conversation.projectId && !new URL(request.url()).searchParams.has('projectId')) {
           stub = { ...stub, run: null, conversation: { ...stub.conversation, projectId: null, lastRun: null, messages: [] } };
         }

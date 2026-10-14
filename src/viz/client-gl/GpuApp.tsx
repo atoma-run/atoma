@@ -219,7 +219,11 @@ function GpuAppContent({
   const operatorSurfaces =
     apiReady && (authSnapshot === null || authSnapshot.viewer.platformAdmin);
   const isPlatformAdmin = authSnapshot?.viewer.platformAdmin === true;
-  const runsQuery = useRunsIndex(state.view === 'runs' && apiReady);
+  const runsQuery = useRunsIndex(state.view === 'runs' && apiReady, state.selectedRunId, state.selectedProjectId);
+  const loadOlderRuns = useCallback(() => {
+    if (!runsQuery.hasNextPage || runsQuery.isFetchingNextPage) return;
+    void runsQuery.fetchNextPage();
+  }, [runsQuery]);
   const runQuery = useRunTrace(
     state.selectedRunId,
     state.view === 'runs' && apiReady,
@@ -1092,6 +1096,11 @@ function GpuAppContent({
       loadOlderEvents();
       return;
     }
+    // The run picker's own bottom: the platform-wide list is paged.
+    if (id === 'runs.picker.more') {
+      loadOlderRuns();
+      return;
+    }
     if (id.startsWith('scroll.end.')) return;
     if (id.startsWith('sentinel.run.')) {
       store.selectRun(id.slice('sentinel.run.'.length));
@@ -1128,6 +1137,7 @@ function GpuAppContent({
     arrive,
     loadOlderEvents,
     loadOlderNotifications,
+    loadOlderRuns,
     mintInvitation,
     pendingLoginProvider,
     previewQuery.data?.state,

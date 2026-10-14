@@ -943,6 +943,11 @@ export class GpuRenderer {
           Math.min(this.runPickerScrollMax, current + deltaY)
         );
         this.snapshot.onRunPickerScroll(next - current);
+        // The platform-wide list is paged: its bottom asks for older runs, as
+        // the notification tray's does (idempotent in the handler).
+        if (deltaY > 0 && next >= this.runPickerScrollMax) {
+          this.snapshot.onActivate('runs.picker.more');
+        }
         return;
       }
     }

@@ -3,6 +3,13 @@ import type { AccountSubscriptionsResponse } from '../../contracts/accountSubscr
 import type { AcceptanceInfo, TopologyInfo } from '../../contracts/depthRouting.js';
 import type { ArtifactManifest } from '../../contracts/projects.js';
 
+/** One page of `/api/runs`: `nextBefore` is opaque, null at the end. */
+export interface RunIndexPage {
+  runs: RunIndexEntry[];
+  total: number;
+  nextBefore: string | null;
+}
+
 export interface RunIndexEntry {
   id: string;
   label: string;

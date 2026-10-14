@@ -4,24 +4,91 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import { useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../client/data-api.js';
 import { isIndexEntryLive, isRunLive, projectRunUpdate } from '../client/run-utils.js';
-import type { RunIndexEntry, SkillSummary, VizApiTokens, VizRun } from '../client/types.js';
+import type { RunIndexEntry, RunIndexPage, SkillSummary, VizApiTokens, VizRun } from '../client/types.js';
+import { compareRunIndex } from '../runIndexOrder.js';
 
-export function useRunsIndex(active: boolean) {
-  const query = useQuery({
-    queryKey: ['viz', 'runs'],
-    queryFn: api.runs,
+/** Rows per page of the platform-wide list, and the most one project shows. */
+export const RUN_INDEX_PAGE = 50;
+export const RUN_INDEX_PROJECT_MAX = 200;
+
+/**
+ * Live work is followed at 2s. Otherwise the list only has to DISCOVER a run
+ * started elsewhere (MCP, another browser), at the project runs' idle cadence.
+ */
+function runsCadence(active: boolean, runs: readonly RunIndexEntry[]): number | false {
+  if (!active) return false;
+  return runs.some((entry) => isIndexEntryLive(entry)) ? 2_000 : 5_000;
+}
+
+/**
+ * The project's own list and the platform-wide pages, one row per id, in the
+ * server's order. The project list wins a duplicate: it is the complete one.
+ */
+export function mergeRunIndex(
+  project: readonly RunIndexEntry[] | undefined,
+  pages: readonly RunIndexPage[] | undefined
+): RunIndexEntry[] | undefined {
+  if (!pages && !project) return undefined;
+  const byId = new Map<string, RunIndexEntry>();
+  for (const page of pages ?? []) for (const entry of page.runs) byId.set(entry.id, entry);
+  for (const entry of project ?? []) byId.set(entry.id, entry);
+  return [...byId.values()].sort(compareRunIndex);
+}
+
+/**
+ * THE RUNS INDEX, paged. The platform-wide list arrives 50 rows at a time,
+ * older pages on request (`fetchNextPage`, the picker's bottom); the project
+ * of the selected run is read WHOLE, because the picker shows that project
+ * with its totals and search, and a page boundary would cut both.
+ *
+ * Every loaded page is re-polled: a refetch walks the pages from the first,
+ * re-deriving each cursor from the page before, so a run arriving at the top
+ * neither repeats nor hides a row. Unchanged pages answer 304.
+ */
+export function useRunsIndex(
+  active: boolean,
+  selectedRunId: string | null = null,
+  selectedProjectId: string | null = null
+) {
+  const pages = useInfiniteQuery({
+    queryKey: ['viz', 'runs', 'pages'],
+    queryFn: ({ pageParam }) => api.runsPage({ limit: RUN_INDEX_PAGE, before: pageParam }),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.nextBefore ?? undefined,
     enabled: active,
-    // Live work is followed at 2s. Otherwise the list only has to DISCOVER a
-    // run started elsewhere (MCP, another browser), at the project runs'
-    // idle cadence: polling a quiet platform every 2s re-listed every trace.
-    refetchInterval: (query) => !active ? false
-      : query.state.data?.some((entry) => isIndexEntryLive(entry)) ? 2_000 : 5_000,
     staleTime: 750,
+    refetchInterval: (query) =>
+      runsCadence(active, query.state.data?.pages.flatMap((page) => page.runs) ?? []),
   });
-  return { ...query, error: active ? query.error : null };
+  // The scope follows the SELECTED RUN's project, as the picker does; the
+  // first render knows only the pages, the next one may know the project.
+  const [scopeProjectId, setScopeProjectId] = useState<string | null>(null);
+  const project = useQuery({
+    queryKey: ['viz', 'runs', 'project', scopeProjectId],
+    queryFn: () => api.runsPage({ limit: RUN_INDEX_PROJECT_MAX, projectId: scopeProjectId }),
+    enabled: active && scopeProjectId !== null,
+    staleTime: 750,
+    refetchInterval: (query) => runsCadence(active, query.state.data?.runs ?? []),
+  });
+  const data = useMemo(
+    () => mergeRunIndex(scopeProjectId === null ? undefined : project.data?.runs, pages.data?.pages),
+    [pages.data, project.data, scopeProjectId]
+  );
+  useEffect(() => {
+    const selected = selectedRunId ? data?.find((entry) => entry.id === selectedRunId) : undefined;
+    setScopeProjectId(selected ? selected.projectId ?? null : selectedProjectId);
+  }, [data, selectedProjectId, selectedRunId]);
+  return {
+    data,
+    isLoading: pages.isLoading,
+    error: active ? pages.error ?? project.error : null,
+    hasNextPage: pages.hasNextPage,
+    isFetchingNextPage: pages.isFetchingNextPage,
+    fetchNextPage: pages.fetchNextPage,
+  };
 }
 
 export function useRunTrace(runId: string | null, active: boolean, indexEntry?: RunIndexEntry) {

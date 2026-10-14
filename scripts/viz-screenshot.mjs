@@ -75,6 +75,13 @@ import { assertMobileProjects } from './viz-mobile-probe.mjs';
 import { assertTimelineMinimap } from './viz-timeline-probe.mjs';
 import { DEFAULT_PLATFORM_LIMITS, PLATFORM_SETTING_SPECS } from '../src/contracts/platformSettings.ts';
 
+// `/api/runs` is paged since 2026-10-14; the fixtures stay plain lists.
+function runIndexPageStub(runs, params) {
+  const projectId = params.get('projectId');
+  const scoped = projectId ? runs.filter((run) => run.projectId === projectId) : runs;
+  return { runs: scoped, total: scoped.length, nextBefore: null };
+}
+
 const READY_TIMEOUT_MS = 60_000;
 
 function arg(name, fallback = null) {
@@ -916,9 +923,10 @@ try {
           }
           // A selected project asks for its latest delivered run's preview;
           // every run of the fixture project answers with the one preview stub.
-          const stub = stubs[path] ?? (/^\/api\/projects\/[^/]+\/runs\/[^/]+\/preview$/.test(path)
+          let stub = stubs[path] ?? (/^\/api\/projects\/[^/]+\/runs\/[^/]+\/preview$/.test(path)
             ? stubs[`/api/projects/${path.split('/')[3]}/runs/run-fixture/preview`]
             : undefined);
+          if (path === '/api/runs' && Array.isArray(stub)) stub = runIndexPageStub(stub, new URL(request.url()).searchParams);
           if (stub !== undefined) {
             void request.respond({
               status: 200,

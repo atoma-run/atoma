@@ -153,7 +153,7 @@ describe('GET /api/runs/:id', () => {
     expect((await rawTrace(port, '/api/runs/small', 'identity;q=0, *;q=0')).status).toBe(406);
     expect((await rawTrace(port, '/api/runs/missing', 'br')).status).toBe(404);
     const index = await waitForResponse(`http://127.0.0.1:${port}/api/runs`);
-    const rows = (await index!.json()) as Array<{ id: string }>;
+    const rows = ((await index!.json()) as { runs: Array<{ id: string }> }).runs;
     expect(rows.map((row) => row.id)).toContain('small');
     expect(rows.map((row) => row.id)).toContain('huge');
 
@@ -174,7 +174,47 @@ describe('GET /api/runs/:id', () => {
     const changed = await fetch(`http://127.0.0.1:${port}/api/runs`, { headers: { 'if-none-match': etag! } });
     expect(changed.status).toBe(200);
     expect(changed.headers.get('etag')).not.toBe(etag);
-    expect(((await changed.json()) as Array<{ id: string }>).map((row) => row.id)).toContain('later');
+    expect(((await changed.json()) as { runs: Array<{ id: string }> }).runs.map((row) => row.id)).toContain('later');
+  }, 20_000);
+});
+
+describe('GET /api/runs pages', () => {
+  it('pages newest first by position, filters a project and refuses bad queries', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'atoma-viz-run-pages-'));
+    roots.push(root);
+    const runs = join(root, 'runs');
+    mkdirSync(runs, { recursive: true });
+    const write = (id: string, day: number) => writeFileSync(join(runs, `${id}.json`),
+      JSON.stringify({ id, label: id, startedAt: `2026-10-${String(day).padStart(2, '0')}T00:00:00.000Z`, events: [] }));
+    for (const [id, day] of [['a', 1], ['b', 2], ['c', 3], ['d', 4], ['e', 5]] as const) write(id, day);
+    const port = await freePort();
+    startViz(port, root);
+    const base = `http://127.0.0.1:${port}/api/runs`;
+    type Page = { runs: Array<{ id: string }>; total: number; nextBefore: string | null };
+    const read = async (query: string) => {
+      const response = await fetch(`${base}${query}`);
+      return { status: response.status, body: (await response.json()) as Page };
+    };
+    expect((await waitForResponse(`${base}?limit=2`))?.status).toBe(200);
+
+    const first = await read('?limit=2');
+    expect(first.body.runs.map((run) => run.id)).toEqual(['e', 'd']);
+    expect(first.body.total).toBe(5);
+    // A run arriving at the top does not shift the next page: the cursor is a
+    // position in the order, not an offset.
+    write('f', 6);
+    const second = await read(`?limit=2&before=${first.body.nextBefore}`);
+    expect(second.body.runs.map((run) => run.id)).toEqual(['c', 'b']);
+    const last = await read(`?limit=2&before=${second.body.nextBefore}`);
+    expect(last.body).toMatchObject({ runs: [{ id: 'a' }], total: 6, nextBefore: null });
+
+    // No query is the first page at the default size.
+    expect((await read('')).body.runs.map((run) => run.id)).toEqual(['f', 'e', 'd', 'c', 'b', 'a']);
+    // Operator runs belong to no project.
+    expect((await read('?projectId=p1')).body).toEqual({ runs: [], total: 0, nextBefore: null });
+    for (const bad of ['?limit=0', '?limit=201', '?limit=two', '?before=%25%25', '?projectId=', '?page=2']) {
+      expect((await read(bad)).status, bad).toBe(400);
+    }
   }, 20_000);
 });
 

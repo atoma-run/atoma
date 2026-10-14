@@ -19,8 +19,8 @@ import { fileURLToPath } from 'node:url';
 import { requestWaitsForDeployment } from './deployment.js';
 import Database from 'better-sqlite3';
 import { SkillRegistry } from '../skills/registry.js';
-import { readBoundedRunFile, sortRunIndex, summarizeTraceFile } from './runIndex.js';
-import type { VizRunIndexEntry } from './trace.js';
+import { decodeRunCursor, pageRunIndex, readBoundedRunFile, sortRunIndex, summarizeTraceFile } from './runIndex.js';
+import type { VizRunIndexEntry, VizRunIndexPage } from './trace.js';
 import { skillsDirPath, storeDbPath } from '../core/stores.js';
 import { openLedgerHandle, readLedgerTail, type LedgerEvent } from '../core/ledger.js';
 import { GOAL_GUIDANCE } from '../run/guidance.js';
@@ -1896,10 +1896,11 @@ function listOperatorRunIndex(): VizRunIndexEntry[] {
   return sortRunIndex(entries);
 }
 
-function listOrganisationRunIndex(orgId: string): VizRunIndexEntry[] {
+function listOrganisationRunIndex(orgId: string, projectId: string | null): VizRunIndexEntry[] {
   if (!PROJECTS_RUNTIME) return [];
   const entries: VizRunIndexEntry[] = [];
   for (const row of PROJECTS_RUNTIME.store.listOrgRunTraces(orgId)) {
+    if (projectId !== null && row.projectId !== projectId) continue;
     const summary = summarizeTraceFile(row.file);
     if (!summary) continue;
     entries.push({
@@ -1915,13 +1916,15 @@ function listOrganisationRunIndex(orgId: string): VizRunIndexEntry[] {
   return sortRunIndex(entries);
 }
 
-function listAllRunIndex(viewer: Viewer): VizRunIndexEntry[] {
+function listAllRunIndex(viewer: Viewer, projectId: string | null): VizRunIndexEntry[] {
   if (!PROJECTS_RUNTIME) return [];
   const entries: VizRunIndexEntry[] = [];
   // One receipt per organisation and listing, as the project service audits:
   // per ROW it re-checked the journal hundreds of times for the same answer.
   const audited = new Set<string>();
   for (const row of PROJECTS_RUNTIME.store.listAllRunTraces()) {
+    // Filtered BEFORE the audit: one project's list reads one organisation.
+    if (projectId !== null && row.projectId !== projectId) continue;
     if (!audited.has(row.orgId)) {
       PROJECTS_RUNTIME.projects.auditRead(viewer, row.orgId, 'runs.index');
       audited.add(row.orgId);
@@ -1941,13 +1944,42 @@ function listAllRunIndex(viewer: Viewer): VizRunIndexEntry[] {
   return sortRunIndex(entries);
 }
 
-function listIndex(viewer: Viewer | null): VizRunIndexEntry[] {
+/** Every run the viewer may read, newest first; `projectId` keeps one project's. */
+function listIndex(viewer: Viewer | null, projectId: string | null = null): VizRunIndexEntry[] {
+  // Benchmark and operator runs belong to no project.
+  const unassigned = (entries: VizRunIndexEntry[]) =>
+    projectId === null ? entries : entries.filter((entry) => entry.projectId === projectId);
   if (AUTH) {
     if (!PROJECTS_RUNTIME || !viewer) return [];
     // The platform admin reads every organisation's project traces.
-    return viewer.platformAdmin ? sortRunIndex([...listAllRunIndex(viewer), ...BENCHMARK_RUNS.list(true)]) : listOrganisationRunIndex(viewer.orgId);
+    return viewer.platformAdmin
+      ? sortRunIndex([...listAllRunIndex(viewer, projectId), ...unassigned(BENCHMARK_RUNS.list(true))])
+      : listOrganisationRunIndex(viewer.orgId, projectId);
   }
-  return sortRunIndex([...listOperatorRunIndex(), ...BENCHMARK_RUNS.list(true)]);
+  return sortRunIndex(unassigned([...listOperatorRunIndex(), ...BENCHMARK_RUNS.list(true)]));
+}
+
+/**
+ * `/api/runs` is PAGED, newest first. The platform admin's unpaged list carried
+ * every organisation's runs on every poll (326 runs, 260 KB on 2026-10-14).
+ * `projectId` keeps one project's runs, which the run picker shows in full.
+ */
+const RUN_PAGE_DEFAULT = 50;
+const RUN_PAGE_MAX = 200;
+function runIndexPage(viewer: Viewer | null, params: URLSearchParams): VizRunIndexPage {
+  for (const key of params.keys()) {
+    if (key !== 'limit' && key !== 'before' && key !== 'projectId') throw new ProjectHttpError(400, `unknown query parameter ${key}`);
+  }
+  const limit = params.has('limit') ? Number(params.get('limit')) : RUN_PAGE_DEFAULT;
+  if (!Number.isInteger(limit) || limit < 1 || limit > RUN_PAGE_MAX) {
+    throw new ProjectHttpError(400, `limit must be an integer from 1 to ${RUN_PAGE_MAX}`);
+  }
+  const rawBefore = params.get('before');
+  const before = rawBefore === null ? null : decodeRunCursor(rawBefore);
+  if (rawBefore !== null && !before) throw new ProjectHttpError(400, 'bad cursor');
+  const projectId = params.get('projectId');
+  if (projectId !== null && (projectId.length === 0 || projectId.length > 200)) throw new ProjectHttpError(400, 'bad project id');
+  return pageRunIndex(listIndex(viewer, projectId), limit, before);
 }
 
 function resolveRunFile(id: string, viewer: Viewer | null): string | null {
@@ -4911,7 +4943,10 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
   }
 
   if (pathname === '/api/runs') {
-    try { sendJsonRevalidated(req, res, listIndex(AUTH?.resolve(req) ?? null)); }
+    try {
+      const viewer = AUTH?.resolve(req) ?? null;
+      sendJsonRevalidated(req, res, runIndexPage(viewer, url.searchParams));
+    }
     catch (error) {
       if (!(error instanceof ProjectHttpError)) throw error;
       sendJson(res, error.status, { error: error.message });

@@ -15,8 +15,9 @@ Neighbours:
 ## Commands
 
 Visualizer. The GPU client is the product UI (`npm run viz`). Every launcher here
-also arms the mechanical watch in-process behind the gate (`--no-sentinel`, `--sentinel-interval`, `--cost-alert`, or
-`ATOMA_VIZ_SENTINEL=0` on the launcher path, which forwards no flags).
+also arms the mechanical watch in-process behind the gate (`--no-sentinel`,
+`--sentinel-interval`, `--cost-alert`, or `ATOMA_VIZ_SENTINEL=0` on the launcher
+path, which forwards no flags).
 NO browser check is in `release:check` any more — `viz:smoke`, `viz:smoke:gc`
 and the mark-turn film all need a real Chrome (and, for GC, a real WebGPU
 adapter), which CI does not have. Run `viz:smoke` on a real machine before
@@ -195,6 +196,8 @@ npm run viz:mark-turn:analyze
   never changing stored evidence. Polled lists (`/api/runs`, `/api/projects`, project
   runs) send a body-hash weak ETag and an empty 304, held by `data-api.ts` (`no-store`
   stays); `runIndex.ts` caches the rows of SETTLED traces only, live ones re-read.
+  `/api/runs` is PAGED (`limit`, position cursor `before`, `projectId`): the picker
+  reads the selected run's project whole and the platform pages at its bottom.
 - The runs timeline reads NEWEST FIRST and is framed by two bookend rows
   (run ended / run started) that carry the verdict. Bookends are view rows:
   the view publishes `rowOffset` on the timeline viewport and overlays add it,

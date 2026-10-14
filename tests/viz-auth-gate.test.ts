@@ -630,7 +630,7 @@ describe('viz auth gate (process level)', () => {
     );
     const runs = await fetch(`${base}/api/runs`, { headers: { cookie: jar.header(base)! } });
     expect(runs.status).toBe(200);
-    expect(await runs.json()).toEqual([]);
+    expect(await runs.json()).toEqual({ runs: [], total: 0, nextBefore: null });
 
     const db = new Database(instance.dbPath, { readonly: true });
     try {
@@ -719,7 +719,7 @@ describe('viz auth gate (process level)', () => {
 
     const runs = await fetch(`${base}/api/runs`, { headers: { cookie: jar.header(base)! } });
     expect(runs.status).toBe(200);
-    const entries = (await runs.json()) as Array<Record<string, unknown>>;
+    const entries = ((await runs.json()) as { runs: Array<Record<string, unknown>> }).runs;
     expect(entries).toHaveLength(1);
     expect(entries[0]).toMatchObject({
       id: seeded.projectRunId,
@@ -832,7 +832,7 @@ describe('viz auth gate (process level)', () => {
       expect((await fetch(controlPath, { method: 'POST', headers: { ...cookie, origin: 'https://foreign.example' } })).status).toBe(403);
       expect((await fetch(controlPath, { method: 'POST', headers: { ...cookie, origin: base } })).status).toBe(404);
     }
-    expect(await (await fetch(`${base}/api/runs`, { headers: cookie })).json()).toEqual([]);
+    expect(await (await fetch(`${base}/api/runs`, { headers: cookie })).json()).toEqual({ runs: [], total: 0, nextBefore: null });
     expect((await fetch(`${base}/api/runs/${benchmark.start.runId}`, { headers: cookie })).status).toBe(404);
     for (const path of ['/api/skills', '/api/registries']) {
       expect((await fetch(`${base}${path}`, { headers: cookie })).status).toBe(200);
@@ -872,7 +872,7 @@ describe('viz auth gate (process level)', () => {
     const whoamiAfter = await fetch(`${base}/auth/whoami`, { headers: cookie });
     const admin = await whoamiAfter.json() as { principalId: string };
     expect(admin).toMatchObject({ authenticated: true, platformAdmin: true });
-    expect(await (await fetch(`${base}/api/runs`, { headers: cookie })).json()).toMatchObject([{ id: benchmark.start.runId }]);
+    expect(await (await fetch(`${base}/api/runs`, { headers: cookie })).json()).toMatchObject({ runs: [{ id: benchmark.start.runId }], total: 1 });
     expect(await (await fetch(`${base}/api/runs/${benchmark.start.runId}`, { headers: cookie })).json()).toEqual(benchmark.trace);
     expect((await fetch(`${base}/api/burnin`, { headers: cookie })).status).toBe(200);
 

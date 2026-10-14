@@ -2,8 +2,10 @@ import { lstatSync } from 'node:fs';
 import { projectTraceDocument } from '../contracts/traceFields.js';
 import { readBoundedRunFile } from '../contracts/traceFile.js';
 export { readBoundedRunFile, type BoundedRunFileRead } from '../contracts/traceFile.js';
-import { RUN_INDEX_GOAL_MAX, runLabelFromGoal, type VizRun, type VizRunIndexEntry } from './trace.js';
+import { RUN_INDEX_GOAL_MAX, runLabelFromGoal, type VizRun, type VizRunIndexEntry, type VizRunIndexPage } from './trace.js';
 import { isLanded } from '../contracts/runLanding.js';
+import { compareRunIndex } from './runIndexOrder.js';
+export { compareRunIndex } from './runIndexOrder.js';
 import { runCostBreakdown, type RunCostBreakdown } from '../contracts/runCostBreakdown.js';
 
 /**
@@ -228,12 +230,40 @@ function readTraceSummary(file: string, withCost: boolean): TraceSummary | null 
   }
 }
 
-/** Newest `startedAt` first. */
 export function sortRunIndex(entries: readonly VizRunIndexEntry[]): VizRunIndexEntry[] {
-  return [...entries].sort((a, b) => {
-    const tb = Date.parse(b.startedAt);
-    const ta = Date.parse(a.startedAt);
-    if (Number.isFinite(tb) && Number.isFinite(ta) && tb !== ta) return tb - ta;
-    return b.id.localeCompare(a.id);
-  });
+  return [...entries].sort(compareRunIndex);
+}
+
+/**
+ * A page boundary is the POSITION of the last row in that order, not an
+ * offset: runs keep arriving at the top, and an offset would repeat a row on
+ * the next page for each one. Opaque to clients.
+ */
+export function encodeRunCursor(entry: Pick<VizRunIndexEntry, 'startedAt' | 'id'>): string {
+  return Buffer.from(JSON.stringify([entry.startedAt, entry.id])).toString('base64url');
+}
+
+export function decodeRunCursor(cursor: string): Pick<VizRunIndexEntry, 'startedAt' | 'id'> | null {
+  try {
+    const value: unknown = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
+    if (!Array.isArray(value) || value.length !== 2 || typeof value[0] !== 'string' || typeof value[1] !== 'string') return null;
+    return { startedAt: value[0], id: value[1] };
+  } catch {
+    return null;
+  }
+}
+
+/** Rows strictly after `before`, at most `limit`; `total` counts the whole list. */
+export function pageRunIndex(
+  sorted: readonly VizRunIndexEntry[],
+  limit: number,
+  before: Pick<VizRunIndexEntry, 'startedAt' | 'id'> | null
+): VizRunIndexPage {
+  const rest = before ? sorted.filter((entry) => compareRunIndex(entry, before) > 0) : sorted;
+  const runs = rest.slice(0, limit);
+  return {
+    runs,
+    total: sorted.length,
+    nextBefore: rest.length > limit ? encodeRunCursor(runs[runs.length - 1]!) : null,
+  };
 }

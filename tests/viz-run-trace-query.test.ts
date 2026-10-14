@@ -14,7 +14,7 @@ const trace: VizRun = { ...entry, endedAt: new Date().toISOString(), events: [] 
 it('keeps a failed run index from poisoning another view after a deployment', async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   clients.push(client);
-  vi.spyOn(api, 'runs').mockRejectedValue(new Error('HTTP 502'));
+  vi.spyOn(api, 'runsPage').mockRejectedValue(new Error('HTTP 502'));
   const hook = renderHook(({ active }) => useRunsIndex(active), {
     initialProps: { active: true },
     wrapper: ({ children }: { children: ReactNode }) => createElement(QueryClientProvider, { client }, children),

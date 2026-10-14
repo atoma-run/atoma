@@ -10,7 +10,7 @@ import type {
   VizOrganisation,
   RegistrySummary,
   RegistryType,
-  RunIndexEntry,
+  RunIndexPage,
   SkillNamespace,
   SkillSummary,
   VizAdminInvitation,
@@ -71,7 +71,12 @@ export async function fetchRevalidatedJson<T>(path: string): Promise<T> {
   const held = revalidated.get(path);
   const response = await fetch(path, held ? { headers: { 'if-none-match': held.etag } } : undefined);
   redirectIfAuthenticationRequired(response.status);
-  if (response.status === 304 && held) return held.value as T;
+  if (response.status === 304 && held) {
+    // Drain the empty body: Chrome cancels an unread response and reports the
+    // request ABORTED (the browser smoke's six aborts, 2026-10-14).
+    await response.arrayBuffer();
+    return held.value as T;
+  }
   if (!response.ok) throw new ApiHttpError(response.status, path);
   const value = (await response.json()) as T;
   const etag = response.headers.get('etag');
@@ -89,7 +94,12 @@ export const api = {
     return fetchJson<AssistantView>(`/api/assistant?${params}`);
   },
   assistantRequest: (request: AssistantRequest) => mutateJson<AssistantView>('/api/assistant', request),
-  runs: () => fetchRevalidatedJson<RunIndexEntry[]>('/api/runs'),
+  runsPage: (options: { limit: number; before?: string | null; projectId?: string | null }) => {
+    const params = new URLSearchParams({ limit: String(options.limit) });
+    if (options.before) params.set('before', options.before);
+    if (options.projectId) params.set('projectId', options.projectId);
+    return fetchRevalidatedJson<RunIndexPage>(`/api/runs?${params}`);
+  },
   run: async (id: string, after?: number) =>
     fetchJson<VizRun>(
       `/api/runs/${encodeURIComponent(id)}${after === undefined ? '' : `?after=${after}`}`

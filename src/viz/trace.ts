@@ -407,6 +407,17 @@ export type VizEvent = (
  */
 export const RUN_INDEX_GOAL_MAX = 200;
 
+/**
+ * One page of `/api/runs` (`?limit=` asked for it; no query keeps the plain
+ * array). `total` counts the whole scope, `nextBefore` is an opaque cursor for
+ * the rows after the last one here, null at the end.
+ */
+export interface VizRunIndexPage {
+  runs: VizRunIndexEntry[];
+  total: number;
+  nextBefore: string | null;
+}
+
 export interface VizRunIndexEntry {
   /** Recorded HTTP attempts, or a lower bound recovered from legacy responses. */
   jevCalls?: number | null;

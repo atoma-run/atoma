@@ -297,7 +297,7 @@ try {
     throw new Error('compiled auth session did not resolve the admitted owner');
   }
   const runs = await request(jar, `${baseUrl}/api/runs`);
-  if (!runs.ok || !Array.isArray(await runs.json())) {
+  if (!runs.ok || !Array.isArray((await runs.json())?.runs)) {
     throw new Error('compiled authenticated API did not return runs');
   }
   const app = await request(jar, `${baseUrl}/`);
