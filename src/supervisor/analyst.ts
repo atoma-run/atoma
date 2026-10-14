@@ -2,10 +2,13 @@ import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { verdictsDirPath } from './paths.js';
 import type { PlatformEventSink } from '../contracts/platformEvents.js';
+import type { JsonSchema } from '../contracts/jsonSchema.js';
 import {
   FINDING_SEVERITY,
   ANALYST_VERDICT_JSON_SCHEMA,
+  CITATION_PASS_JSON_SCHEMA,
   analystVerdictSchema,
+  citationPassSchema,
   worstFindingKind,
   type FindingKind,
   type StoredVerdict,
@@ -18,7 +21,7 @@ import type { VizRun, VizRunIndexEntry } from '../viz/trace.js';
 import { anyRunActive, finishedRuns } from './activity.js';
 import { dispatchMendRequests, mendRequestsFor, type DispatchConfig, type FetchLike } from './dispatch.js';
 import { truncate, writeDigest } from './digest.js';
-import { ANALYST_HARDENING, ANALYST_PROMPT_VERSION, buildAnalystPrompt } from './analystPrompt.js';
+import { ANALYST_HARDENING, ANALYST_PROMPT_VERSION, CITATION_HARDENING, buildAnalystPrompt, buildCitationPrompt } from './analystPrompt.js';
 import { safeSink, verdictEvent } from './journal.js';
 import { createEvidenceReader } from './codexReader.js';
 import { runCodexSupervisor } from './codexSession.js';
@@ -165,20 +168,68 @@ export interface AnalyseResult {
 }
 
 /** The exact P0 argument shape, measured 2026-08-22 against the real CLI. */
-export function analystSessionArgs(prompt: string, provider: SupervisorProvider, budgetUsd: number): string[] {
+export function analystSessionArgs(
+  prompt: string,
+  provider: SupervisorProvider,
+  budgetUsd: number,
+  schema: JsonSchema = ANALYST_VERDICT_JSON_SCHEMA,
+  hardening: string = ANALYST_HARDENING
+): string[] {
   return [
     '-p',
     '--output-format', 'json',
-    '--json-schema', JSON.stringify(ANALYST_VERDICT_JSON_SCHEMA),
+    '--json-schema', JSON.stringify(schema),
     '--model', provider.model,
     '--tools', 'Read,Glob,Grep',
     '--allowedTools', 'Read Glob Grep',
     '--strict-mcp-config',
     '--no-session-persistence',
     '--max-budget-usd', String(budgetUsd),
-    '--append-system-prompt', ANALYST_HARDENING,
+    '--append-system-prompt', hardening,
     prompt,
   ];
+}
+
+/**
+ * The findings the citation pass is asked about: actionable (`defect` or
+ * `mechanism_candidate`), `high`, and without a `proposedFix`. `high` is the
+ * analyst's own bar ("you would bet the next batch on it"), not the mender's
+ * floor, which stays the mender's to apply in `menderPolicy.ts`.
+ */
+export function citationTargets(verdict: Pick<SupervisorVerdict, 'findings'>): number[] {
+  return verdict.findings.flatMap((finding, index) =>
+    (finding.kind === 'defect' || finding.kind === 'mechanism_candidate') &&
+    finding.confidence === 'high' &&
+    !finding.proposedFix
+      ? [index]
+      : []
+  );
+}
+
+/**
+ * Fold the citation pass's fixes into the verdict: only for an index it was
+ * asked about, the first answer per index, and only a fix the schema accepted.
+ * Nothing else in the verdict moves — kind, confidence and evidence are the
+ * main session's.
+ */
+export function applyCitationPass(
+  verdict: SupervisorVerdict,
+  asked: readonly number[],
+  answer: unknown
+): { verdict: SupervisorVerdict; filled: number[]; valid: boolean } {
+  const parsed = citationPassSchema.safeParse(answer);
+  if (!parsed.success) return { verdict, filled: [], valid: false };
+  const open = new Set(asked);
+  const findings = [...verdict.findings];
+  const filled: number[] = [];
+  for (const entry of parsed.data.fixes) {
+    if (!open.has(entry.findingIndex)) continue;
+    open.delete(entry.findingIndex);
+    if (!entry.proposedFix) continue;
+    findings[entry.findingIndex] = { ...findings[entry.findingIndex]!, proposedFix: entry.proposedFix };
+    filled.push(entry.findingIndex);
+  }
+  return { verdict: { ...verdict, findings }, filled, valid: true };
 }
 
 function findingKindCounts(verdict: SupervisorVerdict): Record<FindingKind, number> {
@@ -352,19 +403,19 @@ export async function analyseTarget(target: AnalysisTarget, options: AnalystOpti
     if (error instanceof RunLockBusyError) return { runId, outcome: 'refused-active', verdictPath: null };
     throw error;
   }
-  try {
-    const startedAt = Date.now();
-    if (options.signal?.aborted) return { runId, outcome: 'preempted', verdictPath: null };
-    const session = await (codex ? runCodexSupervisor({
+  // One launcher for both sessions of an analysis. Each Codex session gets a
+  // FRESH evidence reader, so the citation pass has its own read budget.
+  const startSession = (sessionPrompt: string, schema: JsonSchema, hardening: string) =>
+    (codex ? runCodexSupervisor({
       command: options.codexCommand ?? process.env['ATOMA_SUPERVISOR_CMD_CODEX'] ?? 'codex',
-      provider: options.provider, cwd: options.repoRoot, prompt,
-      hardening: `${ANALYST_HARDENING} Use only read_evidence to list, search and read files; there is no shell. Empty path lists files.`,
-      schema: ANALYST_VERDICT_JSON_SCHEMA, timeoutMs: options.timeoutMs, onLog: options.warn,
+      provider: options.provider, cwd: options.repoRoot, prompt: sessionPrompt,
+      hardening: `${hardening} Use only read_evidence to list, search and read files; there is no shell. Empty path lists files.`,
+      schema, timeoutMs: options.timeoutMs, onLog: options.warn,
       readEvidence: createEvidenceReader(options.repoRoot, { 'digest.json': digestPaths.digestPath, 'events.jsonl': digestPaths.eventsPath, 'run.json': runFile }),
       ...(options.signal ? { signal: options.signal } : {}),
     }) : runClaudeSession({
       claudeCommand: options.claudeCommand,
-      args,
+      args: analystSessionArgs(sessionPrompt, options.provider, options.budgetUsd, schema, hardening),
       cwd: options.repoRoot,
       provider: options.provider,
       timeoutMs: options.timeoutMs,
@@ -376,6 +427,10 @@ export async function analyseTarget(target: AnalysisTarget, options: AnalystOpti
       if (options.signal?.aborted) return null;
       throw error;
     });
+  try {
+    const startedAt = Date.now();
+    if (options.signal?.aborted) return { runId, outcome: 'preempted', verdictPath: null };
+    const session = await startSession(prompt, ANALYST_VERDICT_JSON_SCHEMA, ANALYST_HARDENING);
     if (session === null) {
       options.log(`analysis of ${runId} preempted by a product run; it keeps its place and its attempt`);
       return { runId, outcome: 'preempted', verdictPath: null };
@@ -402,7 +457,55 @@ export async function analyseTarget(target: AnalysisTarget, options: AnalystOpti
       );
     }
     // Never trust even the run id to echo correctly.
-    const verdict: SupervisorVerdict = { ...parsed.data, runId };
+    let verdict: SupervisorVerdict = { ...parsed.data, runId };
+    // THE CITATION PASS (2026-10-14). The main session spends its reads on six
+    // stage reviews; in the eight days after mender PR #20 it filed 23 `high`
+    // actionable findings without the cited `proposedFix` the mender needs,
+    // two of them defects whose `AGENTS.md` it said it had not read. A second
+    // session with a fresh read budget is asked for those fixes only. It runs
+    // under the same lease and the same preemption; whatever it returns, the
+    // main verdict is written — a pass that fails only leaves it as it was.
+    const asked = citationTargets(verdict);
+    let citationPass: VerdictMeta['citationPass'];
+    if (asked.length > 0 && !options.signal?.aborted) {
+      const citeStartedAt = Date.now();
+      options.log(`citation pass for ${runId}: ${asked.length} high finding(s) without a proposedFix`);
+      const cite = await startSession(
+        buildCitationPrompt({
+          runId,
+          digestPath: codex ? 'digest.json' : rel(digestPaths.digestPath),
+          eventsPath: codex ? 'events.jsonl' : rel(digestPaths.eventsPath),
+          findings: asked.map((index) => {
+            const finding = verdict.findings[index]!;
+            return { findingIndex: index, kind: finding.kind, title: finding.title, detail: finding.detail, evidence: finding.evidence };
+          }),
+        }),
+        CITATION_PASS_JSON_SCHEMA,
+        CITATION_HARDENING
+      );
+      let outcome: NonNullable<VerdictMeta['citationPass']>['outcome'];
+      let filled: number[] = [];
+      if (cite === null || options.signal?.aborted) outcome = 'preempted';
+      else if (cite.code !== 0) {
+        outcome = 'session-failed';
+        options.warn(`citation pass exited ${cite.code} for ${runId}: ${truncate(cite.stderr.trim() || cite.stdout.trim(), 500)}`);
+      } else {
+        const applied = applyCitationPass(verdict, asked, cite.structured);
+        outcome = applied.valid ? 'answered' : 'invalid';
+        if (!applied.valid) options.warn(`citation pass for ${runId} returned an invalid answer; the verdict keeps its findings as filed`);
+        verdict = applied.verdict;
+        filled = applied.filled;
+      }
+      citationPass = {
+        asked,
+        filled,
+        outcome,
+        modelsServed: cite?.usage.served ?? null,
+        costUsd: cite?.usage.costUsd ?? null,
+        durationMs: cite?.usage.durationMs ?? Date.now() - citeStartedAt,
+      };
+      options.log(`citation pass for ${runId}: ${outcome}, ${filled.length}/${asked.length} filled`);
+    }
     const meta: VerdictMeta = {
       analysedAt: new Date().toISOString(),
       promptVersion: ANALYST_PROMPT_VERSION,
@@ -414,6 +517,7 @@ export async function analyseTarget(target: AnalysisTarget, options: AnalystOpti
       analysisDurationMs: session.usage.durationMs ?? Date.now() - startedAt,
       analysisTurns: session.usage.turns,
       sessionId: session.usage.sessionId,
+      ...(citationPass ? { citationPass } : {}),
     };
     const written = routeVerdict(verdict, meta, paths, journal, options.log, options.warn, {
       orgId: target.orgId,

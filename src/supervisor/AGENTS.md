@@ -131,6 +131,17 @@ Neighbours:
   how to read by line: two high-confidence defects on 2026-09-27 went out
   without a `proposedFix`, the analyst having read `src/atoms/AGENTS.md` as
   empty through a lowercase query — and without one nothing is mendable.
+- THE CITATION PASS (2026-10-14): after a valid verdict, each `high`
+  `defect` or `mechanism_candidate` without a `proposedFix` goes to ONE second
+  read-only session with a fresh read budget, asked only for those fixes
+  (`citationPassSchema`). It never re-judges kind or confidence, a failed or
+  invalid pass leaves the verdict as filed, and `_meta.citationPass` records
+  asked/filled and its own cost apart from `analysisCostUsd`. Measured: in the
+  eight days after mender PR #20, 23 of 30 actionable findings were `high`
+  without a fix — 21 candidates omitted as "a policy decision", 2 defects
+  whose `AGENTS.md` went unread — and the mender received nothing. Prompt p8
+  says the same to the main session: the policy question is a candidate's
+  kind, never a reason to omit its direction.
 - A run with no `endedAt` is refused, never analysed: the digest of a live
   trace is a partial view and the session would spend beside the run.
 - A provider refusal of the ACCOUNT (`api_error_status: 429` in the `claude -p`

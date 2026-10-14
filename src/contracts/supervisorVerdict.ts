@@ -123,6 +123,30 @@ export type SupervisorVerdict = z.infer<typeof supervisorVerdictSchema>;
 /** What the headless session is held to. Derived, never written by hand. */
 export const SUPERVISOR_VERDICT_JSON_SCHEMA = jsonSchemaFromZod(supervisorVerdictSchema);
 
+/**
+ * The CITATION PASS's answer: a second, narrower read-only session asked only
+ * for the `proposedFix` a verdict left out on a `high` actionable finding.
+ * Measured 2026-10-14: in the eight days after mender PR #20, 23 of 30
+ * actionable findings were `high` without one, so nothing could be mended.
+ * One entry per finding it was asked about, by index into the verdict; an
+ * omission states why. Model-authored and UNTRUSTED, like the verdict.
+ */
+export const citationPassSchema = z
+  .object({
+    fixes: z.array(
+      z
+        .object({
+          findingIndex: z.number().int().min(0),
+          proposedFix: proposedFixSchema.optional(),
+          omittedBecause: z.string().min(1).max(500).optional(),
+        })
+        .strict()
+    ),
+  })
+  .strict();
+export const CITATION_PASS_JSON_SCHEMA = jsonSchemaFromZod(citationPassSchema);
+export type CitationPass = z.infer<typeof citationPassSchema>;
+
 /** Harness-side ordering for logs and routing. Never asked of the model. */
 export const FINDING_SEVERITY: Record<FindingKind, number> = {
   observation: 0,
@@ -169,6 +193,20 @@ export interface VerdictMeta {
   readonly analysisDurationMs: number | null;
   readonly analysisTurns: number | null;
   readonly sessionId: string | null;
+  /**
+   * The citation pass, when one ran: which findings it was asked about, which
+   * it filled, and what it consumed. Absent on verdicts written before
+   * 2026-10-14 and on verdicts that needed none. Its cost is NOT folded into
+   * `analysisCostUsd`, so the main session stays comparable across versions.
+   */
+  readonly citationPass?: {
+    readonly asked: readonly number[];
+    readonly filled: readonly number[];
+    readonly outcome: 'answered' | 'session-failed' | 'invalid' | 'preempted';
+    readonly modelsServed: readonly ServedModelUsage[] | null;
+    readonly costUsd: number | null;
+    readonly durationMs: number | null;
+  };
 }
 
 export type StoredVerdict = SupervisorVerdict & { readonly _meta: VerdictMeta };
