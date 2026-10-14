@@ -36,3 +36,9 @@ the original revision. The translation job removed the obsolete keys in
 `bb841255`; the two locale/build-contract suites then passed all 20 tests.
 The other failure was npm audit ECONNRESET, not an advisory; a fresh audit
 returned zero vulnerabilities. Ship from the synchronized catalog revision.
+
+Release `1f7664b2` passed CI `38596917871` (6,510 tests passed, 23 skipped)
+and production deployment `38597966959`. A fresh production MCP project read
+confirmed Attica exposes `deploymentDestination: none`; its existing runs and
+repository are retained. The hosting executor remains unimplemented, as the
+settings screen states.
