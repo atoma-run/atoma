@@ -7894,6 +7894,34 @@ describe('incomplete (partial) runs guide the next step', () => {
     expect(texts.some((value) => value.includes('loopback'))).toBe(false);
     expect(texts.some((value) => value.startsWith(t('projects.runStatus.partial')))).toBe(true);
   });
+
+  it('wears the live crystal and LIVE on a running project row', () => {
+    const ctx = createRecordingCtx();
+    drawProjects(
+      ctx,
+      makeSnapshot(
+        { view: 'projects', selectedProjectId: projectId },
+        {
+          auth: makeAuth({ activeOrganisation: { id: 'org-1', name: 'Org', role: 'org:owner' } }),
+          projects: [project()],
+          projectRuns: {
+            [projectId]: [{
+              projectRunId: 'live', projectId, goal: 'Evolve the collector', status: 'running' as const,
+              traceId: 'live', costUsd: null, durationS: null, error: null,
+              createdAt: '2026-10-14T08:00:00.000Z', endedAt: null, publication: null,
+            }],
+          },
+        }
+      ),
+      1280,
+      720
+    );
+    const texts = ctx.texts.map((entry) => String(entry.value));
+    expect(texts).toContain(t('runs.status.live'));
+    expect(texts).not.toContain(t('projects.runStatus.running'));
+    const band = findByLabel(ctx.root, 'project-run-live-crystal');
+    expect(band && findByLabel(band, 'live-atoma-crystal')).toBeTruthy();
+  });
 });
 
 

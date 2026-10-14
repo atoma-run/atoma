@@ -16,6 +16,8 @@ import { drawResultPanel } from './result.js';
 import { latestDeliveredResult } from '../../run-result.js';
 import { drawPreviewControl } from '../preview-control.js';
 import { drawProjectAside, drawProjectOverviewCard, projectAsideLayout, projectSectionShowsAside } from './project-overview.js';
+import { attachLiveAtomaMark } from '../atoma-mark.js';
+import { RUN_STATUS_COLOR } from './runs.js';
 import { checkpointActionKey, canControlCheckpoint, pendingGitHubAccess, canContinueGitHubAccess, canRetryPublication } from '../../github-access.js';
 
 /**
@@ -41,6 +43,8 @@ const COMPACT_ROW_HEIGHT = ROW_HEIGHT;
 const COMPACT_PROJECT_PANEL_WIDTH = 400;
 const RUN_ROW_GAP = 18;
 const RUN_CARD_PAD = 16;
+/** Room the live crystal takes before LIVE, as in the Runs view's status chip. */
+const LIVE_CRYSTAL_SPACE = 18;
 const RUN_RESULT_Y = 42;
 const RUN_RESULT_HEIGHT = 40;
 const RUN_SECOND_LINE_EXTRA = 28;
@@ -805,6 +809,8 @@ export function drawProjects(
         { size: 10, color: GPU_COLORS.muted, weight: '600' }
       );
       cursor += RUNS_HEADING_HEIGHT;
+      // One animated band for every live crystal in this list.
+      let liveLayer: Container | null = null;
       runs.forEach((run, runIndex) => {
         const newest = runIndex === 0;
         const card = runLayouts[runIndex]!;
@@ -816,17 +822,23 @@ export function drawProjects(
         const { textWidth, resultLabel, resultWidth, metrics, metricRows } = card;
         const besideResultWidth = resultWidth && !card.stackedResult
           ? Math.max(0, textWidth - resultWidth - 16) : textWidth;
+        // A plain running run wears the Runs view's live badge — the turning
+        // crystal and LIVE in the success colour — rather than a word of its own.
+        const live = run.status === 'running' && run.checkpoint?.state !== 'paused' && !access
+          && !run.githubAccess?.resumedRunId && !run.awaitingClientAcceptance;
+        const runStatusColor = access ? GPU_COLORS.warning : live ? RUN_STATUS_COLOR.live : statusColor(run.status);
+        const statusText = run.checkpoint?.state === 'paused' ? snapshot.t('projects.checkpoint.paused') : access ? snapshot.t('projects.githubAccess.title')
+          : run.githubAccess?.resumedRunId ? snapshot.t('projects.githubAccess.resumed')
+          : run.awaitingClientAcceptance ? snapshot.t('projects.awaitingClientAcceptance')
+          : live ? snapshot.t('runs.status.live')
+          : statusLabel(snapshot.t, run.status, 'projects.runStatus');
         const rail = new Graphics();
         const railX = runColumnX - 12;
         rail.moveTo(railX, cursor + (newest ? 16 : -RUN_ROW_GAP));
         rail.lineTo(railX, cursor + (runIndex === runs.length - 1 ? 16 : rowHeight));
         rail.stroke({ color: GPU_COLORS.border, width: 2 });
-        rail.circle(railX, cursor + 16, 4).fill(access ? GPU_COLORS.warning : statusColor(run.status));
+        rail.circle(railX, cursor + 16, 4).fill(runStatusColor);
         pane.content.addChild(rail);
-        const statusText = run.checkpoint?.state === 'paused' ? snapshot.t('projects.checkpoint.paused') : access ? snapshot.t('projects.githubAccess.title')
-          : run.githubAccess?.resumedRunId ? snapshot.t('projects.githubAccess.resumed')
-          : run.awaitingClientAcceptance ? snapshot.t('projects.awaitingClientAcceptance')
-          : statusLabel(snapshot.t, run.status, 'projects.runStatus');
         const cost = run.costUsd === null ? '' : ' · ' + runCost(run.costUsd);
         const date = relativeTime(run.createdAt, snapshot.t, snapshot.state.locale) || run.createdAt;
         const runTitle = run.title ?? run.goal.replace(/\s+/g, ' ');
@@ -849,8 +861,16 @@ export function drawProjects(
           { size: 12, color: GPU_COLORS.muted, width: besideResultWidth, singleLine: true });
         const exact = timestampTooltip(run.createdAt, snapshot.state.locale);
         if (exact) ctx.tooltip(pane.content, { x: textX, y: cursor + 44, width: besideResultWidth, height: 18, text: exact });
-        ctx.text(pane.content, statusText + cost, textX, cursor + 68,
-          { size: 12, color: access ? GPU_COLORS.warning : statusColor(run.status), width: besideResultWidth, singleLine: true });
+        if (live) {
+          const liveText = ctx.text(pane.content, statusText + cost, textX + LIVE_CRYSTAL_SPACE, cursor + 68,
+            { size: 12, weight: '700', color: runStatusColor, width: besideResultWidth - LIVE_CRYSTAL_SPACE, singleLine: true });
+          liveLayer ??= ctx.animatedLayer(pane.content, 'project-run-live-crystal');
+          attachLiveAtomaMark(liveLayer, callback => ctx.addTicker(callback),
+            textX, cursor + 68 + (liveText.height - 14) / 2, runStatusColor);
+        } else {
+          ctx.text(pane.content, statusText + cost, textX, cursor + 68,
+            { size: 12, color: runStatusColor, width: besideResultWidth, singleLine: true });
+        }
         metricRows.forEach((copy, metricIndex) => {
           const metricY = cursor + card.metricsY + metricIndex * 24;
           ctx.text(pane.content, copy, textX, metricY,
