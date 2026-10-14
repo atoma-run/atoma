@@ -1524,7 +1524,11 @@ const SHOWCASE_ASSETS: ShowcaseAssets = (() => {
     return { markScript: null };
   }
 })();
-const UI_HTML_PATH = join(CLIENT_DIR, 'index.html');
+// Compiled, the shell is the GPU build beside the server. From source (tsx)
+// there is no build there: the GPU client's own source shell stands in, as
+// the removed MUI client's did until 2026-10-14.
+const UI_HTML_PATH = [join(CLIENT_DIR, 'index.html'), join(HERE, 'client-gl', 'index.html')]
+  .find((file) => existsSync(file)) ?? join(CLIENT_DIR, 'index.html');
 const DEV_UI_URL = (() => {
   const configured = process.env['ATOMA_VIZ_DEV_URL']?.trim();
   if (!configured) return null;

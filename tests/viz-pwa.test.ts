@@ -33,7 +33,6 @@ describe('Atoma visualizer PWA assets', () => {
     icons: Array<{ src: string; sizes: string; purpose: string }>;
   };
   const gpuHtml = readFileSync('src/viz/client-gl/index.html', 'utf8');
-  const muiHtml = readFileSync('src/viz/client/index.html', 'utf8');
   const favicon = readFileSync('src/viz/public/favicon.svg', 'utf8');
   const serviceWorker = readFileSync('src/viz/public/sw.js', 'utf8');
   const registration = readFileSync('src/viz/client/pwa.ts', 'utf8');
@@ -100,7 +99,7 @@ describe('Atoma visualizer PWA assets', () => {
     expect(favicon).toContain('Atoma');
     expect(favicon).toMatch(/one crystal, three ranks/);
     expect(favicon).not.toMatch(/<circle|<ellipse/);
-    for (const html of [gpuHtml, muiHtml]) {
+    for (const html of [gpuHtml]) {
       expect(html).toContain('<title>Atoma');
       expect(html).toContain('href="/favicon.svg"');
       expect(html).toContain('href="/favicon.ico"');

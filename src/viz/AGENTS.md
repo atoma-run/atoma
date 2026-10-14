@@ -1,6 +1,6 @@
 # Visualizer — AGENTS.md
 
-`src/viz/` owns trace projection, gated HTTP, web push and the GPU client (MUI is frozen).
+`src/viz/` owns trace projection, gated HTTP, web push and the GPU client.
 
 Read [`AGENTS.md`](../../AGENTS.md) first for cross-cutting rules.
 Traces are immutable evidence: project them, never rewrite them.
@@ -14,9 +14,8 @@ Neighbours:
 
 ## Commands
 
-Visualizer. The GPU client is the product UI (`npm run viz`); MUI is the frozen
-fallback. Every launcher here also arms the mechanical watch in-process behind
-the gate (`--no-sentinel`, `--sentinel-interval`, `--cost-alert`, or
+Visualizer. The GPU client is the product UI (`npm run viz`). Every launcher here
+also arms the mechanical watch in-process behind the gate (`--no-sentinel`, `--sentinel-interval`, `--cost-alert`, or
 `ATOMA_VIZ_SENTINEL=0` on the launcher path, which forwards no flags).
 NO browser check is in `release:check` any more — `viz:smoke`, `viz:smoke:gc`
 and the mark-turn film all need a real Chrome (and, for GC, a real WebGPU
@@ -38,7 +37,6 @@ anonymous) for visual review after UI edits — [docs/viz-screenshot.md](../../d
 
 ```bash
 npm run viz
-npm run viz:mui
 npm run viz:serve
 npm run viz:demo
 npm run viz:shot -- --auth --select-first
@@ -56,11 +54,10 @@ npm run viz:mark-turn:analyze
 
 - Viz projects immutable traces at the typed boundary. Do not mutate raw trace
   prose to display current taxonomy.
-- The GPU client (`src/viz/client-gl/`) is the product UI. The MUI client
-  (`src/viz/client/`) is FROZEN as a fallback (`ATOMA_VIZ_UI=mui`,
-  `npm run viz:mui`): fix breakage, add nothing. Modules under `client/` that
-  the GL client imports (types, run-utils, search, timeline-layout,
-  structured-detail, i18n, data-api, pwa) are shared library code and stay live.
+- The GPU client (`src/viz/client-gl/`) is the only UI; the MUI client was
+  removed on 2026-10-14. `client/` holds the library code it imports (types,
+  run-utils, search, timeline-layout, structured-detail, i18n catalogs and
+  locales, data-api, pwa).
 - `gpu-renderer.ts` holds the stateful renderer class only. Pure chip layout,
   event copy, shaders, motion, and the scroll pane live under
   `client-gl/renderer/`; views are free functions over the exported
@@ -567,8 +564,7 @@ npm run viz:mark-turn:analyze
   see [contract and limits](../../docs/integrated-assistant.md).
   The `atoma_goal` MCP prompt and server tool guidance own the agent-facing
   instructions. `/api/goal-guidance` remains a read-only compatibility route;
-  it has no browser launch power. The frozen MUI fallback keeps its own Launch
-  tab because it has no Projects screen to use this flow.
+  it has no browser launch power.
 - DOCS IS THE MEMBER FIELD GUIDE, not an index of implementation contracts or
   platform-admin surfaces. `docs-content.ts` is the structured source shared by
   the Pixi article and its semantic DOM twin; the former canvas is aria-hidden,

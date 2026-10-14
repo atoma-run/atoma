@@ -1,19 +1,14 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { launchCommand } from '../src/viz/client/launch-utils.js';
 import { I18N_CATALOGS } from '../src/viz/client/i18n-catalog.js';
 
-describe('viz full-GL build contract with MUI fallback', () => {
+describe('viz full-GL build contract', () => {
   const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
     scripts: Record<string, string>;
     dependencies: Record<string, string>;
     devDependencies: Record<string, string>;
   };
   const server = readFileSync('src/viz/server.ts', 'utf8');
-  const app = readFileSync('src/viz/client/App.tsx', 'utf8');
-  const burnin = readFileSync('src/viz/client/features/BurninView.tsx', 'utf8');
-  const chart = readFileSync('src/viz/client/burnin-chart.ts', 'utf8');
-  const picker = readFileSync('src/viz/client/run-picker.tsx', 'utf8');
   const gpuApp = readFileSync('src/viz/client-gl/GpuApp.tsx', 'utf8');
   const gpuMain = readFileSync('src/viz/client-gl/main.tsx', 'utf8');
   const gpuRenderer = readFileSync('src/viz/client-gl/gpu-renderer.ts', 'utf8');
@@ -37,8 +32,10 @@ describe('viz full-GL build contract with MUI fallback', () => {
   const vite = readFileSync('vite.config.ts', 'utf8');
 
   it('has HMR development and compiled static deployment paths', () => {
-    expect(existsSync('src/viz/client/index.html')).toBe(true);
-    expect(existsSync('src/viz/client/main.tsx')).toBe(true);
+    // The MUI client was removed on 2026-10-14: `client/` is library code.
+    expect(existsSync('src/viz/client/index.html')).toBe(false);
+    expect(existsSync('src/viz/client/main.tsx')).toBe(false);
+    expect(existsSync('src/viz/client/App.tsx')).toBe(false);
     expect(existsSync('src/viz/client/main.js')).toBe(false);
     // Vite proxies the `/api` prefix. A root-level `api.ts` module is also
     // caught by that proxy and arrives as application/octet-stream.
@@ -48,15 +45,15 @@ describe('viz full-GL build contract with MUI fallback', () => {
     expect(existsSync('src/viz/client-gl/main.tsx')).toBe(true);
     expect(pkg.scripts['viz']).toMatch(/viz-dev/);
     expect(pkg.scripts['viz:build']).toMatch(/viz-build/);
-    expect(pkg.scripts['viz:build:mui']).toMatch(/viz-build.*mui/);
-    expect(pkg.scripts['viz:mui']).toMatch(/--ui mui/);
+    expect(pkg.scripts['viz:build:mui']).toBeUndefined();
+    expect(pkg.scripts['viz:mui']).toBeUndefined();
     expect(pkg.scripts['viz:smoke']).toMatch(/viz-gpu-smoke/);
     expect(pkg.scripts['viz:mark-turn']).toMatch(/viz-mark-turn/);
     expect(pkg.scripts['viz:serve']).toBe('node dist/viz/server.js');
     expect(pkg.scripts['build']).toMatch(/viz:build/);
     expect(server).toMatch(/dist\/viz\/client|CLIENT_DIR/);
     expect(pkg.devDependencies['react']).toBeTruthy();
-    expect(pkg.devDependencies['@mui/material']).toBeTruthy();
+    expect(pkg.devDependencies['@mui/material']).toBeUndefined();
     expect(pkg.devDependencies['@headlessui/react']).toBeTruthy();
     expect(pkg.devDependencies['pixi.js']).toBeTruthy();
     expect(pkg.devDependencies['zustand']).toBeTruthy();
@@ -70,7 +67,7 @@ describe('viz full-GL build contract with MUI fallback', () => {
     expect(existsSync('src/viz/client-gl/AtomaCrystal.tsx')).toBe(false);
     expect(vite).toMatch(/plugin-react/);
     expect(vite).toMatch(/client-gl/);
-    expect(app).toMatch(/ThemeProvider|lazy\(/);
+    expect(vite).not.toMatch(/ATOMA_VIZ_UI/);
     expect(devLauncher).toContain('ATOMA_VIZ_DEV_URL');
     expect(devLauncher).toContain('process.execPath');
     expect(devLauncher).not.toMatch(/npm['"],\s*\['exec'|npm exec/);
@@ -90,21 +87,6 @@ describe('viz full-GL build contract with MUI fallback', () => {
     expect(gpuStore).toMatch(/create<GpuUiState>/);
   });
 
-  it('uses component-based scalable charting, pagination and tooltips', () => {
-    expect(burnin).toMatch(/import\('\.\.\/burnin-chart\.js'\)/);
-    expect(chart).toMatch(/from 'echarts\/core'/);
-    expect(burnin).toMatch(/type:\s*'slider'/);
-    expect(burnin).toMatch(/PAGE_SIZE\s*=\s*50/);
-    expect(burnin).toMatch(/<HelpChip/);
-    expect(burnin).toMatch(/burnin\.metric\.fallbacks/);
-    expect(picker).toMatch(/virtual=\{\{ options: filtered \}\}/);
-    expect(picker).toMatch(/ComboboxInput/);
-    expect(picker).toMatch(/ArrowDropDownIcon/);
-    expect(picker).toMatch(/SearchIcon/);
-    expect(picker).not.toContain('>⌄<');
-    expect(picker).toMatch(/requestAnimationFrame\(\(\) => inputRef\.current\?\.focus\(\)\)/);
-  });
-
   // Drawing behavior (labels, cards, pagination, scroll bounds, masks, filter
   // layout) is asserted behaviorally in tests/viz-gpu-views.test.ts against
   // the exported view functions; layout/copy math in tests/viz-gpu-state.test.ts.
@@ -115,16 +97,13 @@ describe('viz full-GL build contract with MUI fallback', () => {
     expect(gpuRenderer).toMatch(/runPickerScrollMax/);
     expect(gpuRenderer).not.toMatch(/\.slice\(0, 12\)/);
     expect(rendererRuns).not.toMatch(/\.slice\(0, 12\)/);
-    // The GPU runs view and the MUI RunsView share ONE heading/detail source.
+    // The GPU runs view reads its heading/detail from ONE shared source.
     expect(rendererRuns).toMatch(/timelineBranchHeading\(/);
     expect(rendererRuns).toMatch(/filePathFromArgs/);
     expect(rendererRuns).toMatch(
       /buildSkillEventDetail\(event, skill, snapshot\.t, snapshot\.state\.locale\)/
     );
     expect(timelineLayout).toMatch(/export function timelineBranchHeading\(/);
-    expect(readFileSync('src/viz/client/features/RunsView.tsx', 'utf8')).toMatch(
-      /timelineBranchHeading\(/
-    );
     expect(timelineLayout).toMatch(/inferParents|assignLanes/);
     // Widget interactivity and the filter exit/enter animation protocol stay
     // on the renderer class.
@@ -258,10 +237,6 @@ describe('viz full-GL build contract with MUI fallback', () => {
     expect(gpuRenderer).toMatch(/import\.meta\.hot\.accept/);
     expect(gpuApp).toMatch(/useRunTrace|useBurnin|useSkillLists/);
     expect(gpuApp).toMatch(/runSkillSelection/);
-    expect(readFileSync('src/viz/client/features/RegistryView.tsx', 'utf8'))
-      .not.toMatch(/systemPrompt.*filter|filter.*systemPrompt/);
-    expect(readFileSync('src/viz/client/features/SkillsView.tsx', 'utf8'))
-      .toMatch(/matchesSearchQuery\(skillSearchText\(skill, namespace\.l1Name\)/);
   });
 });
 
@@ -274,11 +249,8 @@ describe('viz i18n catalogs stay in parity', () => {
     expect(Object.keys(I18N_CATALOGS.fr).filter((key) => !(key in I18N_CATALOGS.en))).toEqual([]);
   });
 
-  it('the Launch tab keys are present in both', () => {
+  it('the welcome keys are present in both', () => {
     for (const key of [
-      'nav.launch',
-      'launch.goal',
-      'launch.command',
       'welcome.continue',
       'welcome.version',
       'welcome.turn',
@@ -292,7 +264,6 @@ describe('viz i18n catalogs stay in parity', () => {
 });
 
 describe('viz burn-in lifecycle visibility', () => {
-  const burnin = readFileSync('src/viz/client/features/BurninView.tsx', 'utf8');
   const server = readFileSync('src/viz/server.ts', 'utf8');
 
   // The GPU client's rendering of these columns is asserted behaviorally in
@@ -301,33 +272,5 @@ describe('viz burn-in lifecycle visibility', () => {
   it('renders compiler refusals and transport errors already present in the API', () => {
     expect(server).toMatch(/refusals:\s*num\(c\[14\]\)\s*\?\?\s*0/);
     expect(server).toMatch(/compileErrors:\s*num\(c\[21\]\)\s*\?\?\s*0/);
-    expect(burnin).toContain("[row.refusals, '⛔', 'burnin.metric.refusals']");
-    expect(burnin).toContain("[row.compileErrors, '⚠', 'burnin.metric.compileErrors']");
-  });
-});
-
-describe('the generated command quotes the goal', () => {
-  it('escapes embedded double quotes', () => {
-    expect(
-      launchCommand(
-        { npmScript: 'run:build', help: '', examples: [] },
-        'Build a CLI that prints "hello"'
-      )
-    ).toBe('npm run run:build -- "Build a CLI that prints \\"hello\\""');
-  });
-});
-
-describe('the component client contains no hand-rolled DOM renderer', () => {
-  it('uses React roots and MUI components rather than the custom h() helper', () => {
-    const sources = [
-      'src/viz/client/App.tsx',
-      'src/viz/client/features/RunsView.tsx',
-      'src/viz/client/features/RegistryView.tsx',
-      'src/viz/client/features/SkillsView.tsx',
-      'src/viz/client/features/BurninView.tsx',
-      'src/viz/client/features/LaunchView.tsx',
-    ].map((path) => readFileSync(path, 'utf8')).join('\n');
-    expect(sources).not.toMatch(/\bfunction h\(|\bh\(\s*['"]/);
-    expect(sources).toMatch(/<Paper|<Stack|<Box/);
   });
 });

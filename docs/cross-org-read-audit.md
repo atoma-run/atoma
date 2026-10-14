@@ -8,7 +8,7 @@ grant and no change to organisation-bound writes.
 ## Polling and receipt policy
 
 The recorded one-second polling risk is still present in
-[the live run hook](../src/viz/client/use-runs.ts): an active trace is fetched
+[the live run hook](../src/viz/client-gl/queries.ts): an active trace is fetched
 once per second. This is a source cadence, not a new production measurement.
 One event per poll would generate 86,400 rows per day for one continuous
 reader/organisation pair, exceeding the existing 50,000-row journal ceiling.

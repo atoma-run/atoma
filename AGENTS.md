@@ -34,7 +34,7 @@ Use it when a rule's rationale matters, not as default session context.
 | `src/tools/` | [src/tools/AGENTS.md](src/tools/AGENTS.md) | elements, sandbox, worker, container isolation, egress, browser probes |
 | `src/contracts/` | [src/contracts/AGENTS.md](src/contracts/AGENTS.md) | one schema per shape, probe manifest identity and merge semantics |
 | `src/mcp/` | [src/mcp/AGENTS.md](src/mcp/AGENTS.md) | the one MCP over HTTP: tiered tool catalogue, API-token identity, run lease, bounded readers |
-| `src/viz/` | [src/viz/AGENTS.md](src/viz/AGENTS.md) | trace projection, GPU client, frozen MUI fallback, gated surfaces, push |
+| `src/viz/` | [src/viz/AGENTS.md](src/viz/AGENTS.md) | trace projection, GPU client, gated surfaces, push |
 | `src/auth/` | [src/auth/AGENTS.md](src/auth/AGENTS.md) | OAuth gate, organisations, invitations, the platform-admin flag |
 | `src/projects/` | [src/projects/AGENTS.md](src/projects/AGENTS.md) | org-scoped projects, their run corpus, artifact manifests, publication |
 | `src/launcher/` | [src/launcher/AGENTS.md](src/launcher/AGENTS.md) | the one holder of container-engine access: profiles, networks, orphan reconciliation |

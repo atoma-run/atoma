@@ -122,6 +122,12 @@ before launch, incomplete runs kept and explained, and comparison reruns.
   prescribes. An operator run's task belongs to the caller that started it,
   not to its session, so a reconnecting client still finds it.
 
+### Removed
+
+- The MUI visualizer client (`npm run viz:mui`, `npm run viz:build:mui`,
+  `ATOMA_VIZ_UI=mui`) and its `@mui/*` and `@emotion/*` dependencies. The GPU
+  client is the only UI; `src/viz/client/` keeps the library modules it shares.
+
 ### Fixed
 
 - Claude subscription runs no longer load the login's claude.ai connectors
