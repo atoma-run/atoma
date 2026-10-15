@@ -413,6 +413,14 @@ Steps:
 Done when: the description text is live (proposal 1) and, if the owner
 accepts proposal 2 after the review, its test passes.
 
+Proposal 1 implemented: the `atoma_run_start.depth` schema now recommends
+`deep` for numbered findings or multiple acceptance criteria, and limits the
+suggested use of `short` to one named defect with one criterion. The project
+coordinator already defaults absent depth to `deep`; `atoma_goal` does not set
+depth. Proposal 2 remains open: the local corpus of delivered `short` runs has
+not been measured, so there is no defensible threshold or adversarial review
+for a new deepening gate. No run-duration gain is claimed from guidance alone.
+
 ## E. Ladder: never descend to a molecule whose tools cannot produce the proof
 
 Goal: when an L2 retries a subtask with another molecule, it skips
