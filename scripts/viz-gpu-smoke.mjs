@@ -2439,6 +2439,18 @@ try {
         await accountPage.mouse.click(spot.x, spot.y);
         return spot;
       };
+      // A reload lands where the fragment says. Once a project is open, the
+      // deep link reopens it directly: there is no row to click, and the
+      // project's own tabs are what the page must show.
+      const reopenProjectByDeepLink = async (describe) => {
+        await accountPage.reload({ waitUntil: 'load' });
+        await passArrivalGate(accountPage);
+        const hash = new URL(accountPage.url()).hash;
+        if (hash !== `#/projects/${encodeURIComponent(projectId)}`) {
+          throw new Error(`${describe}: reload lost the project deep link (${hash || 'no fragment'})`);
+        }
+        await waitForHitTarget(accountPage, 'project.section.preview', `${describe}: not reopened by its deep link`);
+      };
       const targetIds = () =>
         accountPage.evaluate(() =>
           globalThis.__ATOMA_GPU__.hitTargets().map((entry) => entry.id)
@@ -2562,12 +2574,21 @@ try {
         `project.select.${projectId}`,
         `account scenario: project row ${projectId} never rendered`
       );
-      const accountUrlBeforeProjectClick = accountPage.url();
+      // A row click is a store navigation: the document must stay, and the
+      // deep link (the fragment) must name the project it opened.
+      const accountUrlBeforeProjectClick = new URL(accountPage.url());
       await clickAccountTarget(`project.select.${projectId}`);
       await new Promise((resolve) => setTimeout(resolve, 900));
-      if (accountPage.url() !== accountUrlBeforeProjectClick) {
+      const accountUrlAfterProjectClick = new URL(accountPage.url());
+      accountUrlBeforeProjectClick.hash = '';
+      const expectedProjectHash = `#/projects/${encodeURIComponent(projectId)}`;
+      if (
+        accountUrlAfterProjectClick.hash !== expectedProjectHash ||
+        `${accountUrlAfterProjectClick.origin}${accountUrlAfterProjectClick.pathname}${accountUrlAfterProjectClick.search}` !==
+          accountUrlBeforeProjectClick.href
+      ) {
         throw new Error(
-          `account scenario: project-row click navigated ${accountUrlBeforeProjectClick} -> ${accountPage.url()}`
+          `account scenario: project-row click navigated ${accountUrlBeforeProjectClick.href} -> ${accountUrlAfterProjectClick.href}; expected ${accountUrlBeforeProjectClick.href}${expectedProjectHash}`
         );
       }
       await accountPage.setViewport({ width: 1280, height: 900, deviceScaleFactor: 1 });
@@ -2620,10 +2641,7 @@ try {
       // At desktop width the repository link occupies the row centre; use
       // the same stacked project target as the selection arm above.
       await accountPage.setViewport({ width: 528, height: 800, deviceScaleFactor: 2 });
-      await accountPage.reload({ waitUntil: 'load' });
-      await passArrivalGate(accountPage);
-      await waitForHitTarget(accountPage, `project.select.${projectId}`, 'Delivery project missing after reload');
-      await clickAccountTarget(`project.select.${projectId}`);
+      await reopenProjectByDeepLink('Delivery project missing after reload');
       await accountPage.setViewport({ width: 1280, height: 900, deviceScaleFactor: 1 });
       await accountPage.waitForSelector('.gpu-assistant-result', { visible: true }).catch(async error => {
         await accountPage.screenshot({ path: '/tmp/atoma-assistant-delivery-failure.png' });
@@ -2650,10 +2668,7 @@ try {
       }
       stubs['/api/assistant'] = originalAssistant;
       await accountPage.setViewport({ width: 528, height: 800, deviceScaleFactor: 2 });
-      await accountPage.reload({ waitUntil: 'load' });
-      await passArrivalGate(accountPage);
-      await waitForHitTarget(accountPage, `project.select.${projectId}`, 'Project missing after delivery review');
-      await clickAccountTarget(`project.select.${projectId}`);
+      await reopenProjectByDeepLink('Project missing after delivery review');
       await accountPage.setViewport({ width: 1280, height: 900, deviceScaleFactor: 1 });
       console.log('Assistant delivery ok: completion and explicit GitHub review survive project re-entry');
       await clickAccountTarget('project.section.runs');
@@ -2726,10 +2741,7 @@ try {
       await accountPage.waitForSelector('.gpu-project-mcp-actions input[type="checkbox"]', { visible: true });
       await accountPage.click('.gpu-project-mcp-actions input[type="checkbox"]');
       await accountPage.waitForFunction(() => document.querySelector('.gpu-project-mcp-actions input[type="checkbox"]')?.checked);
-      await accountPage.reload({ waitUntil: 'load' });
-      await passArrivalGate(accountPage);
-      await waitForHitTarget(accountPage, `project.select.${projectId}`, 'fork project missing after reload');
-      await clickAccountTarget(`project.select.${projectId}`);
+      await reopenProjectByDeepLink('fork project missing after reload');
       await accountPage.click('.gpu-project-mcp-own-agent > summary');
       await accountPage.waitForSelector('.gpu-project-mcp-own-agent[open] .gpu-project-mcp-actions input[type="checkbox"]', { visible: true });
       await accountPage.waitForFunction(() => document.querySelector('.gpu-project-mcp-actions input[type="checkbox"]')?.checked);
@@ -2740,10 +2752,7 @@ try {
       blocked.orgId = 'org-a';
       blocked.status = 'running';
       blocked.checkpoint = { state: 'running', completed: 0, total: 2 };
-      await accountPage.reload({ waitUntil: 'load' });
-      await passArrivalGate(accountPage);
-      await waitForHitTarget(accountPage, `project.select.${projectId}`, 'checkpoint project missing');
-      await clickAccountTarget(`project.select.${projectId}`);
+      await reopenProjectByDeepLink('checkpoint project missing');
       await clickAccountTarget('project.section.runs');
       const checkpointTarget = `project.checkpoint.${blocked.projectRunId}`;
       await waitForHitTarget(accountPage, checkpointTarget, 'pause control missing');
@@ -2770,10 +2779,7 @@ try {
       console.log('Project checkpoints ok: real canvas pause, saved phase and resume actions');
       blocked.status = 'failed';
       blocked.checkpoint = { state: 'recoverable', completed: 1, total: 2 };
-      await accountPage.reload({ waitUntil: 'load' });
-      await passArrivalGate(accountPage);
-      await waitForHitTarget(accountPage, `project.select.${projectId}`, 'crash recovery project missing');
-      await clickAccountTarget(`project.select.${projectId}`);
+      await reopenProjectByDeepLink('crash recovery project missing');
       await clickAccountTarget('project.section.runs');
       await accountPage.waitForFunction(() => [...document.querySelectorAll('button')].some(button => button.textContent.includes('Recover validated work') && !button.disabled));
       // The keyboard mirror must dispatch the same resume action as Pixi.
@@ -2787,10 +2793,7 @@ try {
       delete blocked.checkpoint;
       blocked.githubAccess = { phase: 'run', repositoryId: '501', fullName: 'acme/app',
         settingsUrl: 'https://github.com/settings/installations/501' };
-      await accountPage.reload({ waitUntil: 'load' });
-      await passArrivalGate(accountPage);
-      await waitForHitTarget(accountPage, `project.select.${projectId}`, 'GitHub recovery project missing');
-      await clickAccountTarget(`project.select.${projectId}`);
+      await reopenProjectByDeepLink('GitHub recovery project missing');
       await clickAccountTarget('project.section.runs');
       const continueId = `project.githubContinue.${blocked.projectRunId}`;
       await waitForHitTarget(accountPage, continueId, 'GitHub continuation missing');

@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  navigationHash,
   navigationLocation,
   navigationStep,
   parseNavigationEntry,
+  parseNavigationHash,
+  restoreNavigationFromUrl,
   startNavigationHistory,
 } from '../src/viz/client-gl/navigation-history.js';
 import { useGpuStore, type ViewName } from '../src/viz/client-gl/store.js';
@@ -16,7 +19,7 @@ const pop = (state: unknown) => window.dispatchEvent(new PopStateEvent('popstate
 
 beforeEach(() => {
   useGpuStore.setState(initial, true);
-  history.replaceState(null, '');
+  history.replaceState(null, '', `${location.pathname}${location.search}`);
 });
 afterEach(() => {
   for (const stop of stops.splice(0)) stop();
@@ -29,15 +32,76 @@ function start(scope = 'p:o') {
 }
 
 describe('browser history over the store navigation', () => {
-  it('pushes one entry per navigation and leaves the URL alone', async () => {
-    const href = location.href;
+  it('pushes one entry per navigation and writes the place into the fragment', async () => {
     const pushed = start();
+    expect(location.hash).toBe('');
     useGpuStore.getState().activateView('runs');
     await settle();
-    useGpuStore.getState().activateView('skills');
+    expect(location.hash).toBe('#/runs');
+    useGpuStore.getState().activateView('settings');
     await settle();
     expect(pushed()).toBe(2);
-    expect(location.href).toBe(href);
+    expect(location.hash).toBe('#/settings');
+    useGpuStore.getState().selectRun('trace 1');
+    useGpuStore.getState().setView('runs');
+    await settle();
+    expect(location.hash).toBe('#/runs/trace%201');
+  });
+
+  it('names each view by its own subject, and the arrival by the bare URL', () => {
+    const base = navigationLocation(useGpuStore.getState());
+    expect(navigationHash(base)).toBe('');
+    expect(navigationHash({ ...base, selectedRunId: 'r' })).toBe('');
+    expect(navigationHash({ ...base, sceneCameraMode: 'focus' })).toBe('#/projects');
+    expect(navigationHash({ ...base, selectedProjectId: 'p/1', sceneCameraMode: 'focus' })).toBe('#/projects/p%2F1');
+    expect(navigationHash({ ...base, view: 'settings', selectedRunId: 'r', selectedProjectId: 'p' })).toBe('#/settings');
+    expect(navigationHash({ ...base, view: 'registry', selectedRegistryAtom: 'Hydrogen' })).toBe('#/registry/Hydrogen');
+    expect(navigationHash({ ...base, view: 'skills', selectedSkill: { l1Name: 'a', id: '1' } })).toBe('#/skills/a/1');
+    expect(navigationHash({ ...base, view: 'docs' })).toBe(`#/docs/${base.selectedDocsTheme}`);
+  });
+
+  it('parses a fragment back to a focused location, or to nothing', () => {
+    const theme = useGpuStore.getState().selectedDocsTheme;
+    expect(parseNavigationHash('', routable)).toBeNull();
+    expect(parseNavigationHash('#/', routable)).toBeNull();
+    expect(parseNavigationHash('#/nowhere', routable)).toBeNull();
+    expect(parseNavigationHash('#/admin', routable)).toBeNull();
+    expect(parseNavigationHash('#/settings', routable)).toMatchObject({ view: 'settings', sceneCameraMode: 'focus', selectedRunId: null });
+    expect(parseNavigationHash('#/runs/trace%201', routable)).toMatchObject({ view: 'runs', selectedRunId: 'trace 1' });
+    expect(parseNavigationHash('#/projects/p%2F1', routable)).toMatchObject({ view: 'projects', selectedProjectId: 'p/1' });
+    expect(parseNavigationHash('#/skills/a/1', routable)).toMatchObject({ selectedSkill: { l1Name: 'a', id: '1' } });
+    expect(parseNavigationHash('#/skills/a', routable)).toMatchObject({ view: 'skills', selectedSkill: null });
+    expect(parseNavigationHash('#/docs/unknown-theme', routable)).toMatchObject({ view: 'docs', selectedDocsTheme: theme });
+    expect(parseNavigationHash('#/runs/%E0%A4%A', routable)).toMatchObject({ view: 'runs', selectedRunId: null });
+    expect(parseNavigationHash(`#/runs/${'x'.repeat(201)}`, routable)).toMatchObject({ selectedRunId: null });
+  });
+
+  it('opens the page where its fragment says, then records that as the first entry', async () => {
+    history.replaceState(null, '', '#/settings');
+    expect(restoreNavigationFromUrl({ routable })).toBe(true);
+    expect(useGpuStore.getState().view).toBe('settings');
+    const pushed = start();
+    await settle();
+    expect(pushed()).toBe(0);
+    expect(location.hash).toBe('#/settings');
+    expect(parseNavigationEntry(history.state, 'p:o', routable)?.view).toBe('settings');
+  });
+
+  it('keeps the arrival when the fragment names a view the viewer cannot open', () => {
+    history.replaceState(null, '', '#/admin');
+    expect(restoreNavigationFromUrl({ routable })).toBe(false);
+    expect(useGpuStore.getState().view).toBe('projects');
+  });
+
+  it('follows a fragment typed into the address bar and claims it as an entry', async () => {
+    const pushed = start();
+    history.pushState(null, '', '#/runs/trace-9');
+    pop(null);
+    await settle();
+    expect(useGpuStore.getState().view).toBe('runs');
+    expect(useGpuStore.getState().selectedRunId).toBe('trace-9');
+    expect(parseNavigationEntry(history.state, 'p:o', routable)?.selectedRunId).toBe('trace-9');
+    expect(pushed()).toBe(1);
   });
 
   it('coalesces a cross-link that writes selection then view into one entry', async () => {

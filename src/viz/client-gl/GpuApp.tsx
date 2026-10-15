@@ -53,7 +53,7 @@ import { SceneTuningPanel } from './SceneTuningPanel.js';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, pendingApiMutations } from '../client/data-api.js';
 import { startAutoUpdate, restoreUpdateNavigation, saveUpdateNavigation } from './auto-update.js';
-import { startNavigationHistory } from './navigation-history.js';
+import { restoreNavigationFromUrl, startNavigationHistory } from './navigation-history.js';
 import { listenForNotificationLinks, takeLaunchNotificationLink } from './notification-link.js';
 import { notificationTarget } from './notification-target.js';
 import type { NotificationLink } from '../../contracts/notificationLink.js';
@@ -524,6 +524,9 @@ function GpuAppContent({
     const scope = authSnapshot
       ? `${authSnapshot.viewer.principalId}:${authSnapshot.viewer.activeOrganisation?.id ?? 'none'}` : 'ungated';
     restoreUpdateNavigation(scope, visibleViews(authSnapshot));
+    // The address bar last: a reload or a pasted link names where to open,
+    // and the recorder below mirrors every later move back into it.
+    restoreNavigationFromUrl({ routable: (view) => isRoutableView(view, authSnapshot) });
   }, [apiReady, authSnapshot]);
   // Back/Forward start recording only after that restore, so putting the tab
   // back where an update found it is the first entry, not a navigation.
