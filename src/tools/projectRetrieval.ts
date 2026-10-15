@@ -23,6 +23,14 @@ export interface ProjectRetrievalService {
   search(scope: ProjectRetrievalScope, query: ProjectRetrievalQuery,
     context: ProjectRetrievalCallContext): Promise<ProjectRetrievalResponse>;
   dispose(): Promise<void>;
+  /**
+   * Resolves once searches can be served; a rejection means the backend is
+   * unavailable for the rest of the run. Absent means always ready. The tool
+   * awaits it BEFORE arming a search's own deadline, bounded by the run's
+   * signal and deadline: preparation runs beside the run (2026-10-15), and a
+   * search that arrives while it is still running waits instead of timing out.
+   */
+  ready?(): Promise<void>;
 }
 
 export interface ProjectRetrievalBinding {
@@ -56,11 +64,28 @@ export function validateProjectRetrievalBinding(binding: ProjectRetrievalBinding
     limits: projectRetrievalLimitsSchema.parse({ ...DEFAULT_PROJECT_RETRIEVAL_LIMITS, ...binding.limits }),
     // Capture methods at construction; changing the caller's binding cannot replace the service.
     service: Object.freeze({ authorize: binding.service.authorize.bind(binding.service),
-      search: binding.service.search.bind(binding.service), dispose: binding.service.dispose.bind(binding.service) }),
+      search: binding.service.search.bind(binding.service), dispose: binding.service.dispose.bind(binding.service),
+      ...(typeof binding.service.ready === 'function' ? { ready: binding.service.ready.bind(binding.service) } : {}) }),
   });
 }
 
 function failure(status: ProjectRetrievalFailure['status']): ProjectRetrievalFailure { return { ok: false, status }; }
+
+/** Wait for the backend without letting the wait outlive the run. */
+async function untilReady(
+  ready: () => Promise<void>, signal: AbortSignal, deadlineAt: number,
+): Promise<'ready' | 'cancelled' | 'timed_out' | 'unavailable'> {
+  if (signal.aborted) return 'cancelled';
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let onAbort: () => void = () => {};
+  try {
+    return await Promise.race([
+      ready().then(() => 'ready' as const, () => 'unavailable' as const),
+      new Promise<'cancelled'>(resolve => { onAbort = () => resolve('cancelled'); signal.addEventListener('abort', onAbort, { once: true }); }),
+      new Promise<'timed_out'>(resolve => { timer = setTimeout(() => resolve('timed_out'), Math.max(0, deadlineAt - Date.now())); }),
+    ]);
+  } finally { clearTimeout(timer); signal.removeEventListener('abort', onAbort); }
+}
 
 /** Whole-passage truncation preserves original offsets/quotes and valid JSON. */
 function boundedResponse(
@@ -99,11 +124,16 @@ export function createProjectRetrievalTool(binding: ProjectRetrievalBinding, run
     get closed(): boolean { return runSignal.aborted; },
     async execute(args: Record<string, unknown>): Promise<ProjectRetrievalResponse> {
       if (runSignal.aborted) return failure('cancelled');
+      const query = parseProjectRetrievalQuery(args, limits);
+      if (!query) return failure('invalid_request');
+      const { ready } = service as { ready?(this: void): Promise<void> };
+      if (ready) {
+        const waited = await untilReady(ready, runSignal, deadlineAt);
+        if (waited !== 'ready') return failure(waited);
+      }
       const callDeadlineAt = Math.min(deadlineAt, Date.now() + limits.timeoutMs);
       const remaining = callDeadlineAt - Date.now();
       if (remaining <= 0) return failure('timed_out');
-      const query = parseProjectRetrievalQuery(args, limits);
-      if (!query) return failure('invalid_request');
       const timed = new AbortController();
       const timer = setTimeout(() => timed.abort(), Math.max(0, callDeadlineAt - Date.now()));
       const signal = AbortSignal.any([runSignal, timed.signal]);

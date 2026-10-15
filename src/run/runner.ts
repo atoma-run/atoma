@@ -1493,20 +1493,31 @@ async function startTaskInternal(
   };
   const watchdog = setTimeout(() => { void handleWedged(); }, timeoutMs + watchdogGraceMs);
 
-  let retrievalPrepared = !prepareRetrieval;
   const settled = (async (): Promise<RunOutcome> => {
     try {
+      // Set once the run's work has settled: a preparation the teardown then
+      // cancels is not a failure worth reporting.
+      let retrievalWatched = true;
       if (prepareRetrieval) {
-        // Persist the empty live trace before the CPU-bound Python preparation.
-        // Progress readers can then report "preparing" instead of "unknown".
         try { recorder.flushPartial(); } catch { /* Observability cannot block a run. */ }
         console.log('[atoma retrieval] preparation started');
         const retrievalStarted = Date.now();
-        await prepareRetrieval({ signal, deadlineAt });
-        console.log(`[atoma retrieval] preparation ready in ${Date.now() - retrievalStarted}ms`);
+        // BESIDE the run, not before it (2026-10-15): the first model call
+        // waited 361-389 s for a cold corpus on Attica runs 85cc4e83 and
+        // f74c140a, while only one molecule searched, minutes later. A search
+        // that arrives first waits for it (`ready`, src/tools/projectRetrieval.ts).
+        // A preparation that fails no longer stops the run, which may already
+        // have paid for work: search answers `unavailable` from then on, and
+        // this line says why (docs/project-retrieval-haystack-only-2026-09-09.md).
+        void prepareRetrieval({ signal, deadlineAt }).then(
+          () => console.log(`[atoma retrieval] preparation ready in ${Date.now() - retrievalStarted}ms`),
+          () => {
+            if (retrievalWatched && !signal.aborted) {
+              console.error(`[atoma retrieval] preparation failed after ${Date.now() - retrievalStarted}ms; project search is unavailable for the rest of this run`);
+            }
+          });
       }
-      retrievalPrepared = true;
-      const result = await handle(task, ctx);
+      const result = await handle(task, ctx).finally(() => { retrievalWatched = false; });
       clearTimeout(watchdog);
       // Audits still in flight record into this run's trace before it closes;
       // one that outlasts the bound is dropped, since it measures and decides nothing.
@@ -1693,7 +1704,7 @@ async function startTaskInternal(
       console.error(`LLM usage at abort:`);
       console.error(metrics.formatSummary());
       // A shutdown may finish while warmup rejects; retain its cancellation disposition.
-      console.error(formatRunStatsEpilogue(machineRunStats(torn ? 'cancelled' : retrievalPrepared ? 'failed' : 'error', metrics, runSignals)));
+      console.error(formatRunStatsEpilogue(machineRunStats(torn ? 'cancelled' : 'failed', metrics, runSignals)));
       console.error(
         `\nrun recorded in ${recorder.runsDir} — open the visualizer for details: npm run viz`
       );

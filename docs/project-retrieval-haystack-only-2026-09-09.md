@@ -65,6 +65,19 @@ The runtime settings and source/store paths never reach the worker.
 Preparation and warmup consume the existing run deadline. Failures stop the
 run; there is no fallback to a search-free project run.
 
+**Amended 2026-10-15.** Preparation now runs BESIDE the run, not before it.
+Attica runs 85cc4e83 and f74c140a waited 361 and 389 seconds for a cold
+corpus before their first model call, and only one molecule searched, minutes
+later. A search that arrives while preparation is still running waits for it
+(`ready`, `src/tools/projectRetrieval.ts`), outside the search's own deadline.
+Everything known at launch still refuses the run before any spend: missing or
+malformed configuration, a revoked, missing or corrupt receipt. A preparation
+that fails at runtime (Python exits, timeout) no longer stops a run that may
+already have paid for work: every later search answers `unavailable`, which
+the element already describes as no evidence of absence, and the run log says
+`[atoma retrieval] preparation failed`. Plan and measurements:
+[run duration plan, item C](run-duration-plan-2026-10-15.md).
+
 The element is always available to L1. The molecule chooses queries when they
 are relevant; no forced empty query or new model call is added. Ordinary file
 and shell tools remain available. Standalone operator tasks have no tenant

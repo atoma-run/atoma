@@ -65,6 +65,11 @@ Neighbours:
 - Document retrieval shares one Haystack process per run. A search timeout
   kills that process; subsequent searches in the same run return `unavailable`.
   The 10-second deadline bounds work but does not restart the retrieval service.
+  It is armed only once the service's optional `ready()` resolves: the runner
+  prepares Haystack beside the run (2026-10-15), and a search that arrives
+  first waits, bounded by the run's signal and deadline, instead of answering
+  `unavailable` while the corpus is still building. A rejected `ready()` is
+  `unavailable`; an invalid request is refused before any wait.
 - `run_shell` and `record_probe` take a per-call `timeoutMs` (2026-10-15):
   defaults 30 s and 120 s (`SHELL_TIMEOUT_MS`, `PROBE_TIMEOUT_MS`), at most
   five minutes, an out-of-range value REFUSED before anything runs, never

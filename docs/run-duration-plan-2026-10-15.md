@@ -69,7 +69,7 @@ Other measurements used below:
 
 1. [x] A. Acceptance evidence: stop refusing on invisible assertions (landed 2026-10-15, see the item's outcome)
 2. [x] B. Shell and probe timeout: 30 s kills real test suites (landed 2026-10-15, see the item's outcome)
-3. [ ] C. Retrieval preparation off the critical path
+3. [x] C. Retrieval preparation off the critical path (landed 2026-10-15, see the item's outcome)
 4. [ ] D. Depth choice: a five-finding goal is not `short`
 5. [ ] E. Ladder: never descend to a molecule whose tools cannot produce the proof
 6. [ ] F. Skill revision after failure: off the critical path or bounded
@@ -339,6 +339,33 @@ Steps:
 
 Done when: the test passes and a real run's first event is within seconds
 of `startedAt` while `[atoma retrieval] preparation ready` appears later.
+
+### Outcome, 2026-10-15
+
+- The runner starts `prepareRetrieval` without awaiting it; the first model
+  call no longer waits for the corpus.
+- The retrieval service gained an optional `ready()`. `search_project_docs`
+  awaits it, bounded by the run's signal and deadline, BEFORE arming its own
+  10 s deadline. Without that, a search during a cold preparation would have
+  answered `unavailable`. An invalid request is still refused at once.
+- Owner decision, 2026-10-15: a runtime preparation failure no longer stops
+  the run. Stopping was free when preparation preceded all spend; beside the
+  run it would discard paid work, for a tool one molecule calls a few times.
+  Launch-time refusals (configuration, receipt) are unchanged and still come
+  before any spend. The failure is logged, and every later search answers
+  `unavailable`. Recorded as an amendment in
+  `docs/project-retrieval-haystack-only-2026-09-09.md`.
+- Step 6 of the brief (persistent Haystack process for the 32 s warm
+  `pythonInitMs`) stays out of scope, as planned.
+- To measure on the next Attica run: the first trace event should follow
+  `startedAt` by seconds, and `[atoma retrieval] preparation ready` should
+  appear in the log after it.
+
+Regression tests: `tests/project-retrieval-runner.test.ts` (`slow-init`: the
+model starts before preparation is ready and the search waits for it;
+`broken-haystack`: the run delivers and search answers `unavailable`), and
+`tests/project-retrieval-host.test.ts` (wait outside the search deadline,
+rejection, invalid request, run deadline, cancellation).
 
 ## D. Depth choice: a five-finding goal is not `short`
 

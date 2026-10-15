@@ -13,7 +13,9 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line 
  const r = JSON.parse(line);
  if (${JSON.stringify(behavior)} === 'hang') return;
  if (r.op === 'init') { documents = r.documents;
-  reply({kind:'ready',id:0,version:'3.1.1',documents:documents.length,runtimeSha256:'f'.repeat(64)});
+  const ready = () => reply({kind:'ready',id:0,version:'3.1.1',documents:documents.length,runtimeSha256:'f'.repeat(64)});
+  // A cold corpus: preparation outlasts the run's first model call.
+  if (${JSON.stringify(behavior)} === 'slow-init') setTimeout(ready, 600); else ready();
  } else reply({kind:'result',id:r.id,hits:documents.slice(0,r.limit).map(d => ({id:d.id,score:1}))});
 });
 `, { mode: 0o700 });

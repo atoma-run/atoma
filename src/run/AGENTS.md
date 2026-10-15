@@ -75,6 +75,14 @@ Neighbours:
 
 ## Run host
 
+- A project run's Haystack preparation starts BESIDE the run, never awaited
+  before the first model call (2026-10-15): Attica runs 85cc4e83 and f74c140a
+  waited 361 and 389 s for a cold corpus while one molecule searched, minutes
+  later. Launch-time refusals (configuration, receipt) still come first; a
+  runtime preparation failure leaves search `unavailable` and the run going,
+  logged as `[atoma retrieval] preparation failed`
+  ([amended decision](../../docs/project-retrieval-haystack-only-2026-09-09.md)).
+
 - Project sequential boundaries can record a client question atomically with a
   sealed snapshot, including the initial zero-phase boundary. An unanswered
   question blocks continuation; host-recorded answers travel in the checkpoint,

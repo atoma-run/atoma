@@ -22,6 +22,10 @@ export function openProjectRunHaystack(input: Parameters<typeof openProjectRunRe
   const binding: ProjectRetrievalBinding = { scope: authority.scope, service: {
     authorize: async (scope, context) => !closed && await authority.service.authorize(scope, context) === true,
     search: async (scope, query, context) => delegate && !closed ? delegate.service.search(scope, query, context) : { ok: false, status: 'unavailable' },
+    // The runner starts preparation without awaiting it (2026-10-15): a search
+    // that arrives first waits here, outside its own deadline. A failed
+    // preparation rejects, which the tool reports as `unavailable`.
+    ready: async () => { if (preparing) await preparing; },
     dispose: async () => {
       if (closed) return;
       closed = true; cancelled.abort();

@@ -361,3 +361,45 @@ describe('host/worker composition', () => {
     expect(binding.service.dispose).toHaveBeenCalledTimes(1);
   });
 });
+
+// Since 2026-10-15 the runner prepares Haystack BESIDE the run instead of
+// before it (Attica runs 85cc4e83 and f74c140a waited 361-389 s): a search that
+// arrives first waits for the backend, outside the search's own deadline.
+describe('a search waits for a backend still preparing', () => {
+  const slow = () => {
+    const ready = retrievalDeferred<void>();
+    const binding = { ...retrievalTestBinding(), limits: { timeoutMs: 50 } };
+    const service = { ...binding.service, ready: vi.fn(() => ready.promise) };
+    return { binding: { ...binding, service }, service, ready };
+  };
+
+  it('starts the search only once ready, and its own deadline only then', async () => {
+    const { binding, service, ready } = slow();
+    const pending = host(binding).execute({ query: 'price' });
+    await new Promise(resolve => setTimeout(resolve, 120));
+    expect(service.search).not.toHaveBeenCalled();
+    ready.resolve();
+    expect(await pending).toMatchObject({ ok: true, status: 'ok' });
+    expect(service.search).toHaveBeenCalledTimes(1);
+  });
+
+  it('answers unavailable when preparation failed, without searching', async () => {
+    const { binding, service } = slow();
+    service.ready.mockImplementation(() => Promise.reject(new Error('preparation failed')));
+    expect(await host(binding).execute({ query: 'price' })).toEqual({ ok: false, status: 'unavailable' });
+    expect(service.search).not.toHaveBeenCalled();
+  });
+
+  it('refuses an invalid request at once, and never waits past the run', async () => {
+    const { binding, service } = slow();
+    expect(await host(binding).execute({})).toEqual({ ok: false, status: 'invalid_request' });
+    expect(service.ready).not.toHaveBeenCalled();
+    const late = host(binding, { signal: new AbortController().signal, deadlineAt: Date.now() + 80 });
+    expect(await late.execute({ query: 'price' })).toEqual({ ok: false, status: 'timed_out' });
+    const stop = new AbortController();
+    const cancelled = host(binding, { signal: stop.signal, deadlineAt: Date.now() + 30_000 }).execute({ query: 'price' });
+    stop.abort();
+    expect(await cancelled).toEqual({ ok: false, status: 'cancelled' });
+    expect(service.search).not.toHaveBeenCalled();
+  });
+});

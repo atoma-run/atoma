@@ -53,7 +53,11 @@ function environment() {
 }
 
 describe('trusted retrieval injection through startTask', () => {
-  it.each(['haystack', 'broken-haystack', 'failed-model', 'cancelled-warmup'])('resolves the coordinator receipt through startTask with %s', async mode => {
+  // Since 2026-10-15 preparation runs BESIDE the run (Attica runs 85cc4e83 and
+  // f74c140a waited 361-389 s for it before their first model call): the model
+  // starts at once, a search waits for the corpus, and a failed preparation
+  // leaves search `unavailable` instead of failing a run that may have paid.
+  it.each(['haystack', 'slow-init', 'broken-haystack', 'failed-model', 'cancelled-warmup'])('resolves the coordinator receipt through startTask with %s', async mode => {
     const root = environment();
     const f = projectRetrievalFixture(root);
     const source = f.makeRun({ 'docs.md': 'Private price is 190 euros.\n' });
@@ -63,7 +67,7 @@ describe('trusted retrieval injection through startTask', () => {
       ATOMA_DB_PATH: f.dbPath, ATOMA_BUILD_WORKSPACE: current.layout.workspacePath, ATOMA_RUNS_DIR: current.layout.runsPath,
       ATOMA_SKILLS_DIR: current.layout.skillsPath, ATOMA_SKILL_PROMOTE: '0', ATOMA_SKILL_DIRECT: '0', ATOMA_PREFILTER_CACHE: '0' })) vi.stubEnv(key, value);
     {
-      const config = haystackTestRuntime(root, mode === 'cancelled-warmup' ? 'hang' : 'valid');
+      const config = haystackTestRuntime(root, mode === 'cancelled-warmup' ? 'hang' : mode === 'slow-init' ? 'slow-init' : 'valid');
       if (mode === 'broken-haystack') config.runtimeSha256 = 'e'.repeat(64);
       vi.stubEnv(HAYSTACK_LAUNCH_ENV, JSON.stringify(config));
     }
@@ -72,7 +76,10 @@ describe('trusted retrieval injection through startTask', () => {
     const logs = vi.spyOn(console, 'log').mockImplementation(() => {});
     const llm = new MockLlmClient();
     let observed: unknown;
+    let readyBeforeModel: boolean | undefined;
+    const readyLogged = () => logs.mock.calls.some(c => String(c[0]).includes('[atoma retrieval] preparation ready'));
     llm.enqueue(async req => {
+      readyBeforeModel = readyLogged();
       if (mode === 'failed-model') throw new Error('Synthetic model failure');
       observed = await req.executor!.execute(SEARCH, { query: 'price' });
       return { text: 'Source consulted.', stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } };
@@ -93,14 +100,33 @@ describe('trusted retrieval injection through startTask', () => {
         await vi.waitFor(() => expect(existsSync(join(root, 'haystack.pid'))).toBe(true), { timeout: 3000 });
         await handle.shutdown();
       }
-      expect((await handle.settled).outcome).toBe(['broken-haystack', 'failed-model', 'cancelled-warmup'].includes(mode) ? 'failed' : 'delivered');
+      const outcome = (await handle.settled).outcome;
       const epilogue = parseRunStatsEpilogue([...logs.mock.calls, ...errors.mock.calls].map(c => c.join(' ')).join('\n'));
-      expect(epilogue?.outcome).toBe(mode === 'cancelled-warmup' ? 'cancelled' : mode === 'broken-haystack' ? 'error' : mode === 'failed-model' ? 'failed' : 'delivered');
-      if (mode === 'broken-haystack') {
+      const failedLine = errors.mock.calls.some(c => String(c[0]).includes('[atoma retrieval] preparation failed'));
+      if (mode === 'cancelled-warmup') {
+        // shutdown() is the SIGINT/SIGTERM teardown and the process exits right
+        // after it (`runTask`); what this run reports is the epilogue teardown
+        // wrote, not whatever the abandoned promise settles to afterwards.
+        const epilogues = errors.mock.calls.map(c => parseRunStatsEpilogue(c.join(' '))).filter(Boolean);
+        expect(epilogues[0]?.outcome).toBe('cancelled');
+        // The model started; its search was still waiting on the hung warmup when the run was cancelled.
+        expect(readyBeforeModel).toBe(false);
+        expect(observed).not.toMatchObject({ ok: true });
+        expect(failedLine).toBe(false);
+      } else if (mode === 'failed-model') {
+        expect([outcome, epilogue?.outcome]).toEqual(['failed', 'failed']);
         expect(observed).toBeUndefined();
-        expect(parseRunStatsEpilogue(errors.mock.calls.map(c => c.join(' ')).join('\n'))).toMatchObject({ outcome: 'error', llmCalls: 0 });
-      } else if (['failed-model', 'cancelled-warmup'].includes(mode)) expect(observed).toBeUndefined();
-      else expect(observed).toMatchObject({ ok: true, passages: [expect.objectContaining({ excerpt: 'Private price is 190 euros.\n' })] });
+      } else if (mode === 'broken-haystack') {
+        expect([outcome, epilogue?.outcome]).toEqual(['delivered', 'delivered']);
+        expect(observed).toEqual({ ok: false, status: 'unavailable' });
+        expect(failedLine).toBe(true);
+      } else {
+        expect([outcome, epilogue?.outcome]).toEqual(['delivered', 'delivered']);
+        expect(observed).toMatchObject({ ok: true, passages: [expect.objectContaining({ excerpt: 'Private price is 190 euros.\n' })] });
+        expect(failedLine).toBe(false);
+        // The cold corpus was still preparing when the model started, and the search waited for it.
+        if (mode === 'slow-init') expect(readyBeforeModel).toBe(false);
+      }
     } finally { await handle.shutdown(); }
     expect(() => process.kill(Number(readFileSync(join(root, 'haystack.pid'), 'utf8')), 0)).toThrow();
   });
