@@ -66,6 +66,28 @@ beforeEach(() => {
   delete process.env['ATOMA_CLAUDE_MODEL'];
 });
 
+it('reports the observed session quota refusal without retrying or losing usage', async () => {
+  queryMock.mockImplementationOnce(resultOnlyStream({
+    type: 'result', subtype: 'success',
+    result: "You've hit your session limit · resets 9am (UTC)",
+    usage: { input_tokens: 10, output_tokens: 5 },
+  }));
+  await expect(new ClaudeCliLlmClient().complete(REQ)).rejects.toMatchObject({
+    message: expect.stringContaining("account's limit is reached: You've hit your session limit"),
+    partialUsage: { inputTokens: 10, outputTokens: 5, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 },
+  });
+  expect(queryMock).toHaveBeenCalledTimes(1);
+});
+
+it('does not mistake a generated plan discussing session limits for a quota refusal', async () => {
+  const result = JSON.stringify({ plan: ["Document the message: You've hit your session limit"] });
+  queryMock.mockImplementationOnce(resultOnlyStream({
+    type: 'result', subtype: 'success', result,
+    usage: { input_tokens: 10, output_tokens: 5 },
+  }));
+  await expect(new ClaudeCliLlmClient().complete(REQ)).resolves.toMatchObject({ text: result });
+});
+
 describe('tool-budget finalization', () => {
   const request = () => ({
     ...REQ,

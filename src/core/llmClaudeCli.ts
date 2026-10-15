@@ -146,6 +146,9 @@ const CLI_QUOTA_REFUSALS = [
  */
 export function isCliQuotaRefusalText(text: string): boolean {
   const head = text.trimStart().slice(0, 200).toLowerCase();
+  // Attica 69e3f1dc, 2026-10-15. Match the observed refusal at the start;
+  // a generated plan can legitimately discuss a session limit.
+  if (head.startsWith("you've hit your session limit")) return true;
   return CLI_QUOTA_REFUSALS.some((phrase) => head.includes(phrase));
 }
 
