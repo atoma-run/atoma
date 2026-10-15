@@ -11,8 +11,12 @@ import {
   fetchUrlTool,
   mergeProbeManifestWrite,
   mergeShellProbe,
+  PROBE_TIMEOUT_MS,
   recordProbeTool,
   renderProbeCmd,
+  runShellTool,
+  SHELL_TIMEOUT_MAX_MS,
+  SHELL_TIMEOUT_MS,
   splitCommandLine,
   writeFileTool,
 } from '../src/tools/builtin.js';
@@ -885,5 +889,65 @@ describe('commandLineNeedsShell', () => {
 
   it('keeps an ordinary quoted argv line on the direct allowlisted path', () => {
     expect(commandLineNeedsShell('node x.js "Hello World" --flag')).toBe(false);
+  });
+});
+
+// Attica runs 85cc4e83, f74c140a, a62780e7 (2026-10-15): fifteen run_shell and
+// record_probe calls died at 28-30 s, the fixed limit, while running paced
+// finite suites (10 s between result pages, child restarts). The molecule split
+// the suites to fit and the acceptor refused the missing combined evidence.
+describe('a command may ask for the time a finite suite needs', () => {
+  let root: string;
+  let sandbox: ToolSandbox;
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), 'atoma-timeout-'));
+    sandbox = new ToolSandbox(root);
+    // A finite suite slower than the tool's default here (scaled: 400 ms vs 50 ms).
+    writeFileSync(join(root, 'paced.test.js'), "setTimeout(() => console.log('ok 1 - paced suite'), 400);");
+    // Leaves a grandchild that would write a file after the limit if the group survived.
+    writeFileSync(join(root, 'hang.js'),
+      "require('child_process').spawn(process.execPath, ['-e', \"setTimeout(()=>require('fs').writeFileSync('orphan.txt','x'),700)\"], {stdio:'ignore'}); setInterval(()=>{}, 1000);");
+  });
+  afterEach(async () => {
+    await sandbox.cleanup();
+    rmSync(root, { recursive: true, force: true });
+  });
+  const manifest = (): { entries: Array<Record<string, unknown>> } =>
+    JSON.parse(readFileSync(join(root, PROBE_MANIFEST_FILENAME), 'utf8'));
+
+  it('records a suite that outlives the default when the call asks for longer', async () => {
+    const probe = recordProbeTool({ sandbox, shellTimeoutMs: 50 });
+    await expect(probe.execute({ cmd: 'node paced.test.js', timeoutMs: 3_000 })).resolves.toMatchObject({ exitCode: 0, recorded: true });
+    expect(manifest().entries).toEqual([expect.objectContaining({ cmd: 'node paced.test.js', exitCode: 0, stdout: 'ok 1 - paced suite\n' })]);
+    const shell = runShellTool({ sandbox, shellTimeoutMs: 50 });
+    await expect(shell.execute({ cmd: 'node paced.test.js', timeoutMs: 3_000 })).resolves.toMatchObject({ exitCode: 0 });
+  });
+
+  it('still kills the whole process group at the limit it was given, and says how to ask for more', async () => {
+    const shell = runShellTool({ sandbox });
+    const result = await shell.execute({ cmd: 'node hang.js', timeoutMs: 150 }) as { exitCode: number; error?: string };
+    expect(result.exitCode).toBe(1);
+    expect(result.error).toContain('timed out after 150ms (process group killed)');
+    expect(result.error).toContain(`may pass timeoutMs, up to ${SHELL_TIMEOUT_MAX_MS}`);
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    expect(existsSync(join(root, 'orphan.txt'))).toBe(false);
+  });
+
+  it.each([0, -1, 1.5, '60000', SHELL_TIMEOUT_MAX_MS + 1, Number.NaN])('refuses timeoutMs %j before running anything', async (timeoutMs) => {
+    writeFileSync(join(root, 'side.js'), "require('fs').writeFileSync('ran.txt','x')");
+    for (const tool of [recordProbeTool({ sandbox }), runShellTool({ sandbox })]) {
+      await expect(tool.execute({ cmd: 'node side.js', timeoutMs })).rejects.toThrow(
+        `timeoutMs must be a whole number of milliseconds from 1 to ${SHELL_TIMEOUT_MAX_MS}`);
+    }
+    expect(existsSync(join(root, 'ran.txt'))).toBe(false);
+    expect(existsSync(join(root, PROBE_MANIFEST_FILENAME))).toBe(false);
+  });
+
+  it('declares the defaults: 30 s for run_shell, 120 s for evidence', () => {
+    expect([SHELL_TIMEOUT_MS, PROBE_TIMEOUT_MS, SHELL_TIMEOUT_MAX_MS]).toEqual([30_000, 120_000, 300_000]);
+    const described = (tool: { declaration: { inputSchema: unknown } }) =>
+      (tool.declaration.inputSchema as { properties: { timeoutMs: { type: string; description: string } } }).properties.timeoutMs;
+    expect(described(runShellTool({ sandbox }))).toMatchObject({ type: 'integer', description: expect.stringContaining('default 30000, at most 300000') });
+    expect(described(recordProbeTool({ sandbox }))).toMatchObject({ type: 'integer', description: expect.stringContaining('default 120000, at most 300000') });
   });
 });

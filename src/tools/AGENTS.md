@@ -65,6 +65,16 @@ Neighbours:
 - Document retrieval shares one Haystack process per run. A search timeout
   kills that process; subsequent searches in the same run return `unavailable`.
   The 10-second deadline bounds work but does not restart the retrieval service.
+- `run_shell` and `record_probe` take a per-call `timeoutMs` (2026-10-15):
+  defaults 30 s and 120 s (`SHELL_TIMEOUT_MS`, `PROBE_TIMEOUT_MS`), at most
+  five minutes, an out-of-range value REFUSED before anything runs, never
+  clamped. A timeout still SIGKILLs the whole process group, and its error
+  names the argument. Until then every command died at 30 s: three Attica runs
+  lost fifteen paced suites at 28–30 s and split them to fit, and the acceptor
+  refused the missing combined evidence. The Codex app-server loop pauses its
+  silence clock while a host tool runs; the Claude CLI clock does not, so an
+  `llm.callTimeoutMs` ceiling under five minutes can end a call a long
+  command is still holding.
 - Cleanup is mandatory on success, failure, timeout, signal, and hard-exit paths.
   Network teardown races need bounded retry.
 - `ToolSandbox.drain()` is the stronger local contract before workspace

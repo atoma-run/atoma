@@ -967,9 +967,39 @@ export const DEFAULT_SHELL_ALLOWLIST: readonly string[] = [
  */
 const SHELL_LINE_RE = /[\s|&;><]/;
 
+/**
+ * Per-call command limits. A run_shell call defaults to 30 s; a record_probe
+ * call — the evidence an acceptor reads — to 120 s. Either may ask for up to
+ * five minutes with `timeoutMs`. Until 2026-10-15 every command died at 30 s:
+ * the Attica suites pace 10 s between pages and restart child processes, so
+ * fifteen calls across three runs were killed at 28-30 s, the molecule split
+ * the suites to fit, and the acceptor refused the missing combined evidence
+ * (docs/run-duration-plan-2026-10-15.md, item B). The cap keeps a mistaken
+ * server or a hung command from holding a molecule much longer than before.
+ */
+export const SHELL_TIMEOUT_MS = 30_000;
+export const PROBE_TIMEOUT_MS = 120_000;
+export const SHELL_TIMEOUT_MAX_MS = 300_000;
+
+const TIMEOUT_ARG_DESCRIPTION = (fallback: number) =>
+  `Optional limit for this command in milliseconds (default ${fallback}, at most ${SHELL_TIMEOUT_MAX_MS}). ` +
+  'Raise it only for a FINITE command that honestly needs longer, such as a paced test suite; never to wait for a server.';
+
+/** The call's own limit, or the tool's default; refused, never clamped. */
+function commandTimeoutMs(tool: string, args: Record<string, unknown>, fallback: number): number {
+  const value = args['timeoutMs'];
+  if (value === undefined) return fallback;
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1 || value > SHELL_TIMEOUT_MAX_MS) {
+    throw new Error(
+      `${tool}: timeoutMs must be a whole number of milliseconds from 1 to ${SHELL_TIMEOUT_MAX_MS}; got ${JSON.stringify(value)}. No command was run.`
+    );
+  }
+  return value;
+}
+
 export function runShellTool(opts: BuiltinToolOptions): BuiltinTool {
   const allowlist = new Set(opts.shellAllowlist ?? DEFAULT_SHELL_ALLOWLIST);
-  const timeoutMs = opts.shellTimeoutMs ?? 30_000;
+  const defaultTimeoutMs = opts.shellTimeoutMs ?? SHELL_TIMEOUT_MS;
 
   return {
     declaration: {
@@ -997,6 +1027,7 @@ export function runShellTool(opts: BuiltinToolOptions): BuiltinTool {
             items: { type: 'string' },
             description: 'Positional arguments, used with "command". E.g. ["--version"].',
           },
+          timeoutMs: { type: 'integer', description: TIMEOUT_ARG_DESCRIPTION(defaultTimeoutMs) },
         },
       },
     },
@@ -1009,6 +1040,7 @@ export function runShellTool(opts: BuiltinToolOptions): BuiltinTool {
       // choice. A line needing a shell is routed through bash (already on the
       // allowlist and documented as a sanctioned escape hatch); a plain one is
       // split and still checked against the allowlist.
+      const timeoutMs = commandTimeoutMs('run_shell', args, defaultTimeoutMs);
       let line = typeof args['cmd'] === 'string' ? args['cmd'].trim() : '';
       const rawArgs = Array.isArray(args['args']) ? (args['args'] as unknown[]) : [];
       const commandField =
@@ -1115,7 +1147,10 @@ export function runShellTool(opts: BuiltinToolOptions): BuiltinTool {
               exitCode: 1,
               stdout,
               stderr,
-              error: `run_shell: timed out after ${timeoutMs}ms (process group killed)`,
+              error: `run_shell: timed out after ${timeoutMs}ms (process group killed)` +
+                (timeoutMs < SHELL_TIMEOUT_MAX_MS
+                  ? `. A finite command that needs longer may pass timeoutMs, up to ${SHELL_TIMEOUT_MAX_MS}; a server belongs to start_node_server.`
+                  : ''),
             });
           } else {
             resolvePromise({
@@ -3747,6 +3782,7 @@ function sourceStartsLongRunningServer(
  */
 export function recordProbeTool(opts: BuiltinToolOptions): BuiltinTool {
   const shell = runShellTool(opts);
+  const defaultTimeoutMs = opts.shellTimeoutMs ?? PROBE_TIMEOUT_MS;
   return {
     declaration: {
       name: 'record_probe',
@@ -3772,6 +3808,7 @@ export function recordProbeTool(opts: BuiltinToolOptions): BuiltinTool {
           command: { type: 'string', description: 'Alternative to cmd: program alone, as for run_shell.' },
           args: { type: 'array', items: { type: 'string' }, description: 'Positional arguments, with "command".' },
           note: { type: 'string', description: 'Optional one-line reason this invocation is evidence.' },
+          timeoutMs: { type: 'integer', description: TIMEOUT_ARG_DESCRIPTION(defaultTimeoutMs) },
           supersedes: {
             type: 'string',
             description:
@@ -3786,6 +3823,7 @@ export function recordProbeTool(opts: BuiltinToolOptions): BuiltinTool {
       // callers written against run_shell. Whichever arrives, the RECORDED
       // cmd is the bare command — never a `bash -c` wrapper, which round 3
       // measured corrupting a compiled verifier's argument extraction.
+      const timeoutMs = commandTimeoutMs('record_probe', args, defaultTimeoutMs);
       const rawLine = typeof args['cmd'] === 'string' ? args['cmd'].trim() : '';
       let command: string;
       let argv: string[];
@@ -3885,7 +3923,7 @@ export function recordProbeTool(opts: BuiltinToolOptions): BuiltinTool {
         }
       }
 
-      const result = (await shell.execute({ command, args: argv })) as {
+      const result = (await shell.execute({ command, args: argv, timeoutMs })) as {
         exitCode: number;
         stdout?: string;
         stderr?: string;

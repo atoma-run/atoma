@@ -68,7 +68,7 @@ Other measurements used below:
 ## Order of work
 
 1. [x] A. Acceptance evidence: stop refusing on invisible assertions (landed 2026-10-15, see the item's outcome)
-2. [ ] B. Shell and probe timeout: 30 s kills real test suites
+2. [x] B. Shell and probe timeout: 30 s kills real test suites (landed 2026-10-15, see the item's outcome)
 3. [ ] C. Retrieval preparation off the critical path
 4. [ ] D. Depth choice: a five-finding goal is not `short`
 5. [ ] E. Ladder: never descend to a molecule whose tools cannot produce the proof
@@ -266,6 +266,29 @@ Steps:
 
 Done when: the test passes, the next real run shows the long suites
 recorded with exit codes, and `src/tools/AGENTS.md` mentions the argument.
+
+### Outcome, 2026-10-15
+
+- `run_shell` and `record_probe` accept `timeoutMs` (integer, 1 to 300,000).
+  Defaults: 30,000 for `run_shell`, unchanged, and 120,000 for
+  `record_probe`. Out-of-range values are refused before anything runs.
+- The timeout error now says that `timeoutMs` exists and where its cap is.
+  The process-group SIGKILL is unchanged.
+- No host layer cuts a long call first: the worker protocol passes arguments
+  through, and the Codex app-server loop pauses its silence clock while a host
+  tool runs. The Claude CLI loop keeps its clock running (default 10 minutes),
+  so only an admin `llm.callTimeoutMs` ceiling under 300 s could end such a
+  call; that was already true of any quiet stretch.
+- Step 5 checked: the worker and in-process paths run the same
+  `runShellTool`, and `src/contracts/workerProtocol.ts` passes `args` as an
+  open record, so `timeoutMs` crosses the container boundary.
+- To measure on the next Attica run: count `record_probe` and `run_shell`
+  events with `durationMs` between 28,000 and 30,500; expect none that are
+  timeouts.
+
+Regression tests: `tests/record-probe.test.ts`, describe "a command may ask
+for the time a finite suite needs" (per-call override beats a short default,
+group kill at the given limit, refusals, declared defaults).
 
 ## C. Retrieval preparation off the critical path
 
