@@ -36,6 +36,23 @@ the index is shared too, not only the worktree. So stage and commit in ONE
 command (`git add <paths> && git commit`), never leave files staged across a
 verification, and read `git show --stat HEAD` after every commit on this tree.
 
+Fourth, 2026-10-15 afternoon: I edited runs.ts and chip-layout.ts for a
+typography change and staged them by name. Both already carried a peer's
+UNCOMMITTED proposal (the dense branch strip, marked "PROPOSAL, uncommitted"
+in comments); its third file, copy.ts, stayed unstaged. My local typecheck
+passed because the worktree had all three; origin/main failed on
+`timelineBranchLabel` (15cbcd69, fixed by 66f95248 from a scratch worktree
+cherry-pick, since the tree held other peer edits). A name-listed `git add`
+is still a whole-file add.
+
+- A "PROPOSAL (uncommitted)" comment in a file I am about to touch is a
+  peer's live work: diff the file against origin/main before editing, and
+  either push their whole set with them or stage only my hunks.
+- To push while the shared tree is dirty with a peer's edits: scratch
+  `git worktree add --detach <path> origin/main`, cherry-pick or apply my
+  hunk, symlink node_modules for the hook, push `HEAD:main`, remove the
+  worktree. Never pull --rebase or autostash on the shared tree.
+
 Related: [[push-to-prod-authorized]].
 
 The index is shared too (2026-10-15, second incident). I ran `git add <my paths>` and then a plain `git commit`, which swept six files a peer session had already STAGED (assayer, server.ts, supervisor AGENTS.md) into my commit. Checking `git diff --cached --name-only` before committing would have shown them. Separately, a peer's `reset` to origin/main dropped my unpushed local commit from main; its changes survived in the working tree.
