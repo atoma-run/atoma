@@ -90,3 +90,11 @@ acceptance, publication or real collection occurred in this continuation.
   fake page, but restart ticks run a disabled scheduler; 27 debug scripts left at root.
   Final polish run started with key attica-control-polish-20261015-v1 (base 6b6b1952).
   Nothing accepted or published; acceptedReference still 7b126338.
+- 12bdcf19 (failed after 15 min, $2.24, base 6b6b1952): a Haiku molecule plan reply
+  had raw newlines and unescaped quotes in "reasoning"; the ValidationError left
+  superviseLoop and ended the run. Fixed in 0d3739dc: unparseable plan → trace
+  `plan-unparseable` + re-ask within maxPlanIterations (no trust blame/branch).
+  NEXT for Attica: relaunch the polish goal (scratchpad final-goal.txt of the
+  2026-10-15 session: resume lock try/finally, enabled-scheduler restart ticks,
+  exact retryNotBefore, CAPTCHA success path, delete 27 root debug scripts) from
+  base 6b6b1952. Session total ≈ $24 subscription-equivalent over 4 started runs.
