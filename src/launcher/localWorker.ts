@@ -1,3 +1,4 @@
+import { workerCallTimeoutMs } from '../contracts/commandTimeouts.js';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import type { Tool, ToolExecutor } from '../core/types.js';
@@ -207,7 +208,7 @@ export class LocalContainerToolExecutor implements ToolExecutor {
     if (!child?.stdin) throw new Error('worker container is not running');
     const id = this.nextId++;
     return new Promise<unknown>((resolve, reject) => {
-      const timeoutMs = this.opts.callTimeoutMs ?? 120_000;
+      const timeoutMs = workerCallTimeoutMs(name, args, this.opts.callTimeoutMs);
       const timer = setTimeout(() => {
         this.pending.delete(id);
         reject(new Error(`tool "${name}" timed out after ${timeoutMs}ms in the worker`));

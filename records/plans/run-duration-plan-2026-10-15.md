@@ -282,6 +282,13 @@ recorded with exit codes, and `src/tools/AGENTS.md` mentions the argument.
 - Step 5 checked: the worker and in-process paths run the same
   `runShellTool`, and `src/contracts/workerProtocol.ts` passes `args` as an
   open record, so `timeoutMs` crosses the container boundary.
+- Correction, same day: step 5 was incomplete. Both container worker clients
+  (`src/launcher/localWorker.ts`, `remoteWorker.ts`) bounded every call at a
+  flat 120 s on the host. Run 90ad4303 then lost a 120 s probe at exactly that
+  bound ("timed out after 120000ms in the worker"), and any longer `timeoutMs`
+  was capped at 120 s in a container. Fixed by `workerCallTimeoutMs`
+  (`src/contracts/commandTimeouts.ts`): the command's own limit plus 15 s, 120 s
+  for other tools; test `tests/command-timeouts.test.ts`.
 - To measure on the next Attica run: count `record_probe` and `run_shell`
   events with `durationMs` between 28,000 and 30,500; expect none that are
   timeouts.

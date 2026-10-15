@@ -34,6 +34,7 @@ import { elementForTool } from '../contracts/toolTaxonomy.js';
 import { MAX_VIEWPORT_PX, MIN_VIEWPORT_PX, PROBE_URL_REFUSAL_PREFIX, SMOKE_PREFLIGHT_REFUSAL_PREFIX } from '../contracts/attestation.js';
 import { HOST_REPLAY_ARG } from '../contracts/inheritedChecks.js';
 import { RUN_SHELL_BASH_ROUTE_HINT } from '../contracts/hostInstructions.js';
+import { PROBE_TIMEOUT_MS, SHELL_TIMEOUT_MAX_MS, SHELL_TIMEOUT_MS } from '../contracts/commandTimeouts.js';
 import { serverCodeDigest } from '../contracts/serverDigest.js';
 import {
   DEFAULT_HOLD_MS,
@@ -977,9 +978,8 @@ const SHELL_LINE_RE = /[\s|&;><]/;
  * (records/plans/run-duration-plan-2026-10-15.md, item B). The cap keeps a mistaken
  * server or a hung command from holding a molecule much longer than before.
  */
-export const SHELL_TIMEOUT_MS = 30_000;
-export const PROBE_TIMEOUT_MS = 120_000;
-export const SHELL_TIMEOUT_MAX_MS = 300_000;
+// Defined once in src/contracts/commandTimeouts.ts, which the worker clients read too.
+export { PROBE_TIMEOUT_MS, SHELL_TIMEOUT_MAX_MS, SHELL_TIMEOUT_MS };
 
 const TIMEOUT_ARG_DESCRIPTION = (fallback: number) =>
   `Optional limit for this command in milliseconds (default ${fallback}, at most ${SHELL_TIMEOUT_MAX_MS}). ` +

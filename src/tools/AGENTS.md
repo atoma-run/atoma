@@ -76,7 +76,11 @@ Neighbours:
   clamped. A timeout still SIGKILLs the whole process group, and its error
   names the argument. Until then every command died at 30 s: three Attica runs
   lost fifteen paced suites at 28–30 s and split them to fit, and the acceptor
-  refused the missing combined evidence. The Codex app-server loop pauses its
+  refused the missing combined evidence. A container call crosses a host-side
+  bound too (`workerCallTimeoutMs`, `src/contracts/commandTimeouts.ts`): the
+  command's own limit plus 15 s, 120 s for every other tool. It was a flat
+  120 s, which cut run 90ad4303's 120 s probe at the instant it would have been
+  recorded and capped every longer limit. The Codex app-server loop pauses its
   silence clock while a host tool runs; the Claude CLI clock does not, so an
   `llm.callTimeoutMs` ceiling under five minutes can end a call a long
   command is still holding.

@@ -1,3 +1,4 @@
+import { workerCallTimeoutMs } from '../contracts/commandTimeouts.js';
 import type { ProjectWorkspaceIdentity } from '../contracts/launcherVolumes.js';
 import { createConnection, type Socket } from 'node:net';
 import path from 'node:path';
@@ -100,7 +101,7 @@ export class RemoteWorkerExecutor implements ToolExecutor {
     const frame = encodeMessage({ id, name, args });
     if (Buffer.byteLength(frame) > WORKER_FRAME_BYTES || this.pending.size >= 256 || this.socket.writableLength > WORKER_FRAME_BYTES) throw new Error('Worker transport capacity exceeded');
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { this.pending.delete(id); reject(new Error(`Worker tool ${name} timed out`)); }, this.options.callTimeoutMs ?? 120_000);
+      const timer = setTimeout(() => { this.pending.delete(id); reject(new Error(`Worker tool ${name} timed out`)); }, workerCallTimeoutMs(name, args, this.options.callTimeoutMs));
       this.pending.set(id, {
         resolve: value => { clearTimeout(timer); resolve(value); },
         reject: error => { clearTimeout(timer); reject(error); },
