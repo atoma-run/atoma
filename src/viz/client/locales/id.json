@@ -1965,5 +1965,15 @@
   "hostedBrowser.screen": "Browser proyek interaktif",
   "hostedBrowser.connected": "Terhubung. Selesaikan verifikasi di situs web.",
   "hostedBrowser.disconnected": "Terputus. Hubungkan kembali, atau buka ulang aplikasi Anda dari Atoma jika akses Anda telah kedaluwarsa.",
-  "hostedBrowser.failed": "Tidak dapat terhubung. Buka ulang aplikasi Anda dari Atoma."
+  "hostedBrowser.failed": "Tidak dapat terhubung. Buka ulang aplikasi Anda dari Atoma.",
+  "detail.batch.requestPosition": "Permintaan {{position}} dari {{n}} dalam batch ini",
+  "detail.batch.previousRequest": "Permintaan sebelumnya",
+  "detail.batch.nextRequest": "Permintaan berikutnya",
+  "detail.batch.requests": "Permintaan dalam batch ini",
+  "detail.batch.urls": "URL",
+  "detail.batch.probePosition": "Probe {{position}} dari {{n}} dalam batch ini",
+  "detail.batch.previousProbe": "Probe sebelumnya",
+  "detail.batch.nextProbe": "Probe berikutnya",
+  "detail.batch.probes": "Probe dalam batch ini",
+  "detail.batch.commands": "Perintah"
 }

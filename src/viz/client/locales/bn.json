@@ -1965,5 +1965,15 @@
   "hostedBrowser.screen": "ইন্টার‌্যাক্টিভ প্রজেক্ট ব্রাউজার",
   "hostedBrowser.connected": "সংযুক্ত হয়েছে। ওয়েবসাইটে যাচাইকরণ সম্পন্ন করুন।",
   "hostedBrowser.disconnected": "সংযোগ বিচ্ছিন্ন হয়েছে। পুনরায় সংযোগ করুন, অথবা আপনার অ্যাক্সেসের মেয়াদ শেষ হয়ে থাকলে Atoma থেকে অ্যাপ্লিকেশনটি আবার খুলুন।",
-  "hostedBrowser.failed": "সংযোগ করা যায়নি। Atoma থেকে আপনার অ্যাপ্লিকেশনটি আবার খুলুন।"
+  "hostedBrowser.failed": "সংযোগ করা যায়নি। Atoma থেকে আপনার অ্যাপ্লিকেশনটি আবার খুলুন।",
+  "detail.batch.requestPosition": "এই ব্যাচে {{n}}টির মধ্যে অনুরোধ {{position}}",
+  "detail.batch.previousRequest": "আগের অনুরোধ",
+  "detail.batch.nextRequest": "পরের অনুরোধ",
+  "detail.batch.requests": "এই ব্যাচের অনুরোধসমূহ",
+  "detail.batch.urls": "URLসমূহ",
+  "detail.batch.probePosition": "এই ব্যাচে {{n}}টির মধ্যে প্রোব {{position}}",
+  "detail.batch.previousProbe": "আগের প্রোব",
+  "detail.batch.nextProbe": "পরের প্রোব",
+  "detail.batch.probes": "এই ব্যাচের প্রোবসমূহ",
+  "detail.batch.commands": "কমান্ডসমূহ"
 }

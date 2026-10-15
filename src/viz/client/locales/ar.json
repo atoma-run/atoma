@@ -1965,5 +1965,15 @@
   "hostedBrowser.screen": "متصفح المشروع التفاعلي",
   "hostedBrowser.connected": "تم الاتصال. أكمل التحقق على الموقع الإلكتروني.",
   "hostedBrowser.disconnected": "انقطع الاتصال. أعد الاتصال، أو افتح تطبيقك مجددًا من Atoma إذا انتهت صلاحية وصولك.",
-  "hostedBrowser.failed": "تعذر الاتصال. افتح تطبيقك مجددًا من Atoma."
+  "hostedBrowser.failed": "تعذر الاتصال. افتح تطبيقك مجددًا من Atoma.",
+  "detail.batch.requestPosition": "الطلب {{position}} من {{n}} في هذه الدفعة",
+  "detail.batch.previousRequest": "الطلب السابق",
+  "detail.batch.nextRequest": "الطلب التالي",
+  "detail.batch.requests": "الطلبات في هذه الدفعة",
+  "detail.batch.urls": "عناوين URL",
+  "detail.batch.probePosition": "الفحص {{position}} من {{n}} في هذه الدفعة",
+  "detail.batch.previousProbe": "الفحص السابق",
+  "detail.batch.nextProbe": "الفحص التالي",
+  "detail.batch.probes": "الفحوصات في هذه الدفعة",
+  "detail.batch.commands": "الأوامر"
 }

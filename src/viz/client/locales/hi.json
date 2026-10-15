@@ -1965,5 +1965,15 @@
   "hostedBrowser.screen": "इंटरैक्टिव प्रोजेक्ट ब्राउज़र",
   "hostedBrowser.connected": "कनेक्ट हो गया। वेबसाइट पर सत्यापन पूरा करें।",
   "hostedBrowser.disconnected": "कनेक्शन टूट गया। फिर से कनेक्ट करें या, यदि आपकी एक्सेस की अवधि समाप्त हो गई है, तो Atoma से अपना एप्लिकेशन दोबारा खोलें।",
-  "hostedBrowser.failed": "कनेक्ट नहीं हो सका। Atoma से अपना एप्लिकेशन दोबारा खोलें।"
+  "hostedBrowser.failed": "कनेक्ट नहीं हो सका। Atoma से अपना एप्लिकेशन दोबारा खोलें।",
+  "detail.batch.requestPosition": "इस बैच में अनुरोध {{position}}, कुल {{n}}",
+  "detail.batch.previousRequest": "पिछला अनुरोध",
+  "detail.batch.nextRequest": "अगला अनुरोध",
+  "detail.batch.requests": "इस बैच के अनुरोध",
+  "detail.batch.urls": "URL",
+  "detail.batch.probePosition": "इस बैच में जाँच {{position}}, कुल {{n}}",
+  "detail.batch.previousProbe": "पिछली जाँच",
+  "detail.batch.nextProbe": "अगली जाँच",
+  "detail.batch.probes": "इस बैच की जाँचें",
+  "detail.batch.commands": "कमांड"
 }

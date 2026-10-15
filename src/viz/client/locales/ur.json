@@ -1965,5 +1965,15 @@
   "hostedBrowser.screen": "انٹرایکٹو پروجیکٹ براؤزر",
   "hostedBrowser.connected": "منسلک ہو گیا۔ ویب سائٹ پر توثیق مکمل کریں۔",
   "hostedBrowser.disconnected": "کنکشن منقطع ہو گیا۔ دوبارہ منسلک کریں، یا اگر آپ کی رسائی کی میعاد ختم ہو گئی ہے تو Atoma سے اپنی ایپلیکیشن دوبارہ کھولیں۔",
-  "hostedBrowser.failed": "منسلک نہیں ہو سکا۔ Atoma سے اپنی ایپلیکیشن دوبارہ کھولیں۔"
+  "hostedBrowser.failed": "منسلک نہیں ہو سکا۔ Atoma سے اپنی ایپلیکیشن دوبارہ کھولیں۔",
+  "detail.batch.requestPosition": "اس بیچ میں {{n}} میں سے درخواست {{position}}",
+  "detail.batch.previousRequest": "پچھلی درخواست",
+  "detail.batch.nextRequest": "اگلی درخواست",
+  "detail.batch.requests": "اس بیچ کی درخواستیں",
+  "detail.batch.urls": "URLs",
+  "detail.batch.probePosition": "اس بیچ میں {{n}} میں سے جانچ {{position}}",
+  "detail.batch.previousProbe": "پچھلی جانچ",
+  "detail.batch.nextProbe": "اگلی جانچ",
+  "detail.batch.probes": "اس بیچ کی جانچیں",
+  "detail.batch.commands": "کمانڈز"
 }

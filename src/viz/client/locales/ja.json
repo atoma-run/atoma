@@ -1965,5 +1965,15 @@
   "hostedBrowser.screen": "操作可能なプロジェクトブラウザ",
   "hostedBrowser.connected": "接続しました。ウェブサイトで認証を完了してください。",
   "hostedBrowser.disconnected": "切断されました。再接続するか、アクセスの有効期限が切れている場合はAtomaからアプリケーションを再度開いてください。",
-  "hostedBrowser.failed": "接続できません。Atomaからアプリケーションを再度開いてください。"
+  "hostedBrowser.failed": "接続できません。Atomaからアプリケーションを再度開いてください。",
+  "detail.batch.requestPosition": "このバッチのリクエスト{{n}}件中{{position}}件目",
+  "detail.batch.previousRequest": "前のリクエスト",
+  "detail.batch.nextRequest": "次のリクエスト",
+  "detail.batch.requests": "このバッチのリクエスト",
+  "detail.batch.urls": "URL",
+  "detail.batch.probePosition": "このバッチのプローブ{{n}}件中{{position}}件目",
+  "detail.batch.previousProbe": "前のプローブ",
+  "detail.batch.nextProbe": "次のプローブ",
+  "detail.batch.probes": "このバッチのプローブ",
+  "detail.batch.commands": "コマンド"
 }

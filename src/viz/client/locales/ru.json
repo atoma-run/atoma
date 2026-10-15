@@ -1965,5 +1965,15 @@
   "hostedBrowser.screen": "Интерактивный браузер проекта",
   "hostedBrowser.connected": "Подключено. Пройдите проверку на сайте.",
   "hostedBrowser.disconnected": "Соединение разорвано. Подключитесь снова или повторно откройте приложение из Atoma, если срок доступа истёк.",
-  "hostedBrowser.failed": "Не удалось подключиться. Повторно откройте приложение из Atoma."
+  "hostedBrowser.failed": "Не удалось подключиться. Повторно откройте приложение из Atoma.",
+  "detail.batch.requestPosition": "Запрос {{position}} из {{n}} в этом пакете",
+  "detail.batch.previousRequest": "Предыдущий запрос",
+  "detail.batch.nextRequest": "Следующий запрос",
+  "detail.batch.requests": "Запросы в этом пакете",
+  "detail.batch.urls": "URL-адреса",
+  "detail.batch.probePosition": "Проверка {{position}} из {{n}} в этом пакете",
+  "detail.batch.previousProbe": "Предыдущая проверка",
+  "detail.batch.nextProbe": "Следующая проверка",
+  "detail.batch.probes": "Проверки в этом пакете",
+  "detail.batch.commands": "Команды"
 }

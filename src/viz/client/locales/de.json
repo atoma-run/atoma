@@ -1965,5 +1965,15 @@
   "hostedBrowser.screen": "Interaktiver Projektbrowser",
   "hostedBrowser.connected": "Verbunden. Schließen Sie die Verifizierung auf der Website ab.",
   "hostedBrowser.disconnected": "Verbindung getrennt. Stellen Sie die Verbindung erneut her oder öffnen Sie Ihre Anwendung erneut über Atoma, falls Ihr Zugriff abgelaufen ist.",
-  "hostedBrowser.failed": "Verbindung nicht möglich. Öffnen Sie Ihre Anwendung erneut über Atoma."
+  "hostedBrowser.failed": "Verbindung nicht möglich. Öffnen Sie Ihre Anwendung erneut über Atoma.",
+  "detail.batch.requestPosition": "Anfrage {{position}} von {{n}} in diesem Batch",
+  "detail.batch.previousRequest": "Vorherige Anfrage",
+  "detail.batch.nextRequest": "Nächste Anfrage",
+  "detail.batch.requests": "Anfragen in diesem Batch",
+  "detail.batch.urls": "URLs",
+  "detail.batch.probePosition": "Prüfung {{position}} von {{n}} in diesem Batch",
+  "detail.batch.previousProbe": "Vorherige Prüfung",
+  "detail.batch.nextProbe": "Nächste Prüfung",
+  "detail.batch.probes": "Prüfungen in diesem Batch",
+  "detail.batch.commands": "Befehle"
 }

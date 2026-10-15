@@ -1965,5 +1965,15 @@
   "hostedBrowser.screen": "Navegador interativo do projeto",
   "hostedBrowser.connected": "Ligação estabelecida. Conclua a verificação no site.",
   "hostedBrowser.disconnected": "Ligação interrompida. Volte a ligar ou reabra a sua aplicação a partir do Atoma se o seu acesso tiver expirado.",
-  "hostedBrowser.failed": "Não foi possível estabelecer ligação. Reabra a sua aplicação a partir do Atoma."
+  "hostedBrowser.failed": "Não foi possível estabelecer ligação. Reabra a sua aplicação a partir do Atoma.",
+  "detail.batch.requestPosition": "Solicitação {{position}} de {{n}} neste lote",
+  "detail.batch.previousRequest": "Solicitação anterior",
+  "detail.batch.nextRequest": "Solicitação seguinte",
+  "detail.batch.requests": "Solicitações neste lote",
+  "detail.batch.urls": "URLs",
+  "detail.batch.probePosition": "Sondagem {{position}} de {{n}} neste lote",
+  "detail.batch.previousProbe": "Sondagem anterior",
+  "detail.batch.nextProbe": "Sondagem seguinte",
+  "detail.batch.probes": "Sondagens neste lote",
+  "detail.batch.commands": "Comandos"
 }

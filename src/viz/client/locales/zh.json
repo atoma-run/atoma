@@ -1965,5 +1965,15 @@
   "hostedBrowser.screen": "交互式项目浏览器",
   "hostedBrowser.connected": "已连接。请在网站上完成验证。",
   "hostedBrowser.disconnected": "连接已断开。请重新连接；如果访问权限已过期，请从 Atoma 重新打开应用。",
-  "hostedBrowser.failed": "无法连接。请从 Atoma 重新打开应用。"
+  "hostedBrowser.failed": "无法连接。请从 Atoma 重新打开应用。",
+  "detail.batch.requestPosition": "此批次中的第{{position}}个请求，共{{n}}个",
+  "detail.batch.previousRequest": "上一个请求",
+  "detail.batch.nextRequest": "下一个请求",
+  "detail.batch.requests": "此批次中的请求",
+  "detail.batch.urls": "URL",
+  "detail.batch.probePosition": "此批次中的第{{position}}个探测，共{{n}}个",
+  "detail.batch.previousProbe": "上一个探测",
+  "detail.batch.nextProbe": "下一个探测",
+  "detail.batch.probes": "此批次中的探测",
+  "detail.batch.commands": "命令"
 }

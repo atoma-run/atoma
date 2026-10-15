@@ -1965,5 +1965,15 @@
   "hostedBrowser.screen": "Navigateur interactif du projet",
   "hostedBrowser.connected": "Connecté. Termine la vérification sur le site web.",
   "hostedBrowser.disconnected": "Déconnecté. Reconnecte-toi ou rouvre ton application depuis atoma si ton accès a expiré.",
-  "hostedBrowser.failed": "Connexion impossible. Rouvre ton application depuis atoma."
+  "hostedBrowser.failed": "Connexion impossible. Rouvre ton application depuis atoma.",
+  "detail.batch.requestPosition": "Requête {{position}} sur {{n}} dans ce lot",
+  "detail.batch.previousRequest": "Requête précédente",
+  "detail.batch.nextRequest": "Requête suivante",
+  "detail.batch.requests": "Requêtes de ce lot",
+  "detail.batch.urls": "URL",
+  "detail.batch.probePosition": "Sonde {{position}} sur {{n}} dans ce lot",
+  "detail.batch.previousProbe": "Sonde précédente",
+  "detail.batch.nextProbe": "Sonde suivante",
+  "detail.batch.probes": "Sondes de ce lot",
+  "detail.batch.commands": "Commandes"
 }
