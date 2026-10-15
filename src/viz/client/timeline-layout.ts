@@ -200,13 +200,12 @@ function markParallelSiblings(branches: MutableBranch[]): void {
 
 /**
  * Tools whose consecutive calls in ONE model turn share one timeline row.
- * A molecule opens its execute turn by reading the files it needs in one
- * burst — thirty `read_file` cards in a row on run 7d3373ba (2026-10-14) —
- * and a card per read pushed the edits, probes and verdicts that follow off
- * the screen. The batch is a display unit only: branch event counts, filters
- * and the detail pane still address every read by its own id.
+ * File reads and HTTP probes often arrive in bursts; one card per call pushes
+ * the work that follows off the screen. The batch is a display unit only:
+ * branch event counts, filters and the detail pane still address every call
+ * by its own id.
  */
-const BATCHED_TOOLS: ReadonlySet<string> = new Set(['read_file']);
+const BATCHED_TOOLS: ReadonlySet<string> = new Set(['read_file', 'fetch_url']);
 
 function batchKey(event: VizEvent): string | undefined {
   if (event.kind !== 'tool' || !event.name || !BATCHED_TOOLS.has(event.name)) return undefined;

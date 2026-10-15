@@ -464,4 +464,21 @@ describe('Runs timeline layout — newest-first and subtree rails', () => {
         .toEqual(['a', 'b', ['c', 'd'], 'shell', 'e']);
     });
   });
+
+  it('batches consecutive fetches within a turn without merging them with reads or later turns', () => {
+    const tool = (id: string, ts: number, name: string, llmEventId = 'turn') =>
+      event(id, ts, {
+        kind: 'tool', name, branchId: 'task', llmEventId,
+        actor: { name: 'RNA', tier: 1 }, args: { url: `http://localhost/${id}` },
+      });
+    const layout = buildTimelineLayout([
+      tool('fetch-a', 1, 'fetch_url'), tool('fetch-b', 2, 'fetch_url'),
+      tool('read', 3, 'read_file'), tool('fetch-c', 4, 'fetch_url'),
+      tool('fetch-d', 5, 'fetch_url', 'next-turn'), tool('fetch-e', 6, 'fetch_url', 'next-turn'),
+    ], all);
+    expect(layout.items.map(item => item.batch?.map(member => member.id) ?? item.event.id))
+      .toEqual([['fetch-a', 'fetch-b'], 'read', 'fetch-c', ['fetch-d', 'fetch-e']]);
+    expect(timelineItemHolds(layout.items[0]!, 'fetch-b')).toBe(true);
+    expect(layout.branches[0]!.eventCount).toBe(6);
+  });
 });

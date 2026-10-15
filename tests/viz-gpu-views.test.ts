@@ -6058,6 +6058,28 @@ describe('drawRuns behavior', () => {
     ]);
   });
 
+  it('draws fetches as one card and pages through their URLs and individual results', () => {
+    const fetch = (id: string, ts: number, extra: Partial<VizEvent> = {}): VizEvent => ({
+      id, kind: 'tool', name: 'fetch_url', ts, branchId: 'task', llmEventId: 'turn',
+      actor: { name: 'RNA', tier: 1 }, args: { url: `http://localhost/${id}` },
+      result: { ok: true, status: 200, body: id }, durationMs: 2, ...extra,
+    });
+    const run = makeRun([fetch('a', 1), fetch('b', 2, { error: 'timeout' }), fetch('c', 3)]);
+    const ctx = createRecordingCtx();
+    drawRuns(ctx, makeSnapshot({ selectedEventId: 'b' }, { run }), WIDTH, HEIGHT);
+    expect(ctx.eventCards.map(card => [card.id, card.selected])).toEqual([['a', true]]);
+    const texts = ctx.texts.map(text => text.value);
+    expect(texts).toContain('Fetch URL × 3');
+    expect(texts).toContain('✕ 1 failed');
+    expect(texts).toContain('Request 2 of 3 in this batch');
+    expect(texts.some(text => text.includes('▸ 2. http://localhost/b ✕'))).toBe(true);
+    expect(ctx.buttons.filter(button => button.id.startsWith('run.batch.'))
+      .map(button => [button.id, button.label])).toEqual([
+      ['run.batch.prev.a', 'Previous request'],
+      ['run.batch.next.c', 'Next request'],
+    ]);
+  });
+
   it('renders skill context and simple plan lists as prose without nested item cards', () => {
     const preview = '# Verification\n\n- Read the entry file.\n- Start the local server.';
     const event: VizEvent = {

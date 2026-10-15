@@ -397,10 +397,9 @@ export function gpuEventCardCopy(event: VizEvent, t: GpuTranslate): GpuEventCard
 }
 
 /**
- * One card for a batch of reads (`TimelineItem.batch`): the tool named once
- * with its count, the paths as the body, the summed recorded duration. A
- * failed member is counted in the decision column rather than tinting the
- * whole row, since the other reads in the batch did answer.
+ * One card for a batch of tool calls (`TimelineItem.batch`): the tool named
+ * once with its count, the paths or URLs as the body, and summed duration.
+ * Failed members are counted rather than tinting the whole row.
  */
 export function gpuBatchCardCopy(batch: readonly VizEvent[], t: GpuTranslate): GpuEventCardCopy {
   const first = batch[0]!;
@@ -419,14 +418,15 @@ export function gpuBatchCardCopy(batch: readonly VizEvent[], t: GpuTranslate): G
 }
 
 /**
- * The batch's index in the detail pane, above the selected read's own
- * result: every path in order, the selected one marked, failures flagged.
+ * The batch's index in the detail pane, above the selected call's own result:
+ * every path or URL in order, the selected one marked, failures flagged.
  */
 export function batchDetailNodes(
   batch: readonly VizEvent[],
   selectedId: string,
   t: GpuTranslate
 ): StructuredDetailNode[] {
+  const requests = batch[0]?.name === 'fetch_url';
   const lines = batch.map((member, index) =>
     [
       member.id === selectedId ? '▸' : ' ',
@@ -438,12 +438,12 @@ export function batchDetailNodes(
   return [{
     kind: 'section',
     key: 'batch',
-    label: t('detail.batch.files'),
+    label: t(requests ? 'detail.batch.requests' : 'detail.batch.files'),
     count: batch.length,
     children: [{
       kind: 'field',
       key: 'batchPaths',
-      label: t('detail.batch.paths'),
+      label: t(requests ? 'detail.batch.urls' : 'detail.batch.paths'),
       value: lines.join('\n'),
       tone: batch.some((member) => typeof member.error === 'string') ? 'warning' : 'neutral',
       presentation: 'code',
