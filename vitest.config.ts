@@ -85,6 +85,9 @@ export default defineConfig({
       // assert exact LLM call counts, so a shared cache would make test
       // order change which calls fire. Cache tests re-enable it per-test.
       ATOMA_PREFILTER_CACHE: '0',
+      // Trigger evaluation is on everywhere in the product; mocked suites
+      // that enqueue exact replies opt in per test.
+      ATOMA_SKILL_TRIGGER_EVAL: '0',
       // Mock LLMs live in this process. Ordinary fixtures retain inline learning;
       // the worker regressions opt in explicitly and use only local fake servers.
       ATOMA_DEFER_LEARNING: '0',

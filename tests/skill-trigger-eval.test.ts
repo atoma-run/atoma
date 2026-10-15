@@ -9,6 +9,7 @@ import {
   corpusNegatives,
   evaluateTriggerCases,
   qualifyDraft,
+  triggerEvalEnabled,
   TRIGGER_EVAL_MAX_REVISIONS,
   type TriggerCase,
 } from '../src/skills/triggerEval.js';
@@ -282,6 +283,16 @@ describe('distillation under ATOMA_SKILL_TRIGGER_EVAL=1', () => {
 });
 
 describe('resolveTriggerEval', () => {
+  it('is on with nothing set, for library callers too, and off only on an explicit 0', () => {
+    const saved = process.env['ATOMA_SKILL_TRIGGER_EVAL'];
+    delete process.env['ATOMA_SKILL_TRIGGER_EVAL'];
+    expect(triggerEvalEnabled()).toBe(true);
+    process.env['ATOMA_SKILL_TRIGGER_EVAL'] = 'anything';
+    expect(triggerEvalEnabled()).toBe(true);
+    process.env['ATOMA_SKILL_TRIGGER_EVAL'] = '0';
+    expect(triggerEvalEnabled()).toBe(false);
+    if (saved === undefined) delete process.env['ATOMA_SKILL_TRIGGER_EVAL']; else process.env['ATOMA_SKILL_TRIGGER_EVAL'] = saved;
+  });
   it('is on by default under learning, off on an explicit 0, and moot when learning is off', () => {
     expect(resolveTriggerEval(true, undefined)).toEqual({ enabled: true, source: 'default-enable' });
     expect(resolveTriggerEval(true, '0')).toEqual({ enabled: false, source: 'environment-disable' });

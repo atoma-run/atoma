@@ -39,11 +39,12 @@ judge and no person in the loop.
   (`triggerRejections` in the run stats). An `accepted` draft is saved with
   the revised surface and the summary in its provenance (`evaluation`). A
   `skipped` evaluation (any error) saves the draft as drafted.
-- The switch: `ATOMA_SKILL_TRIGGER_EVAL`. The runner sets it on under
-  learning and off on an explicit `0` (`resolveTriggerEval`); the learning job
-  carries it in `policy.triggerEval`, as it carries promotion, because the
-  learner's environment is the coordinator's, not the run's. Library use is
-  opt-in, like learning.
+- The switch: `ATOMA_SKILL_TRIGGER_EVAL`. On everywhere unless an explicit
+  `0`: the runner under learning (`resolveTriggerEval`), the learner from
+  `policy.triggerEval` carried by the job (the learner's environment is the
+  coordinator's, not the run's), and library callers at call time. The owner
+  asked for no condition or configuration to use it; the test configuration
+  is the one place that sets `0`.
 
 ## The cases
 

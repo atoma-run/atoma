@@ -28,7 +28,7 @@ function fixture(twoOwners = false, atoms = false) {
   const model = 'api:ollama:qwen3.5:9b';
   const job: LearningJob = { version: 1, runId: randomUUID(), approvedAt: new Date().toISOString(),
     skillsPath: join(root, 'skills'), runsPath: join(root, 'runs'), model,
-    policy: { promote: '1' }, budget: { tokens: 10000, costUsd: 1 },
+    policy: { promote: '1', triggerEval: '0' }, budget: { tokens: 10000, costUsd: 1 },
     lessons: [{ kind: 'task', owner: randomUUID(), host: { name: 'Companion', model, params: {}, systemPrompt: 'Author recipes.' },
       task: 'Read the entry file', summary: 'Read and checked the entry file',
       childName: 'Water', childTools: ['read_file'], hostTools: ['read_file'],

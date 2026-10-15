@@ -373,7 +373,12 @@ export async function qualifyDraft(args: TriggerEvalArgs): Promise<{ draft: Trig
   }
 }
 
-/** The one switch, read at call time like `ATOMA_SKILL_LEARN`: the runner sets it on by default. */
+/**
+ * The one switch, read at call time. ON everywhere — runs, the deferred
+ * learner, library callers — unless it is an explicit `0` (owner decision
+ * 2026-10-15: no condition or configuration to use the mechanism). The test
+ * configuration is the one place that sets `0`.
+ */
 export function triggerEvalEnabled(): boolean {
-  return process.env['ATOMA_SKILL_TRIGGER_EVAL'] === '1';
+  return process.env['ATOMA_SKILL_TRIGGER_EVAL'] !== '0';
 }

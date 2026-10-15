@@ -219,8 +219,10 @@ by owner decision on 2026-09-26
   (`skill-trigger-rejected` in the run stats). The body is never revised
   here. The summary lives in the recipe's provenance (`evaluation`). An error
   anywhere saves the draft as drafted (`skipped`), like the twin guard. The
-  switch is `ATOMA_SKILL_TRIGGER_EVAL` (runner: on under learning, `0` to
-  disable; carried to the learner in the job's `policy`; library use opt-in).
+  switch is `ATOMA_SKILL_TRIGGER_EVAL`, ON EVERYWHERE unless an explicit `0`
+  (owner decision 2026-10-15: no configuration to use it; the runner reads it
+  under learning, the learner from the job's `policy`, library callers at
+  call time; only `vitest.config.ts` sets `0`).
   Bounded spend per draft: one generation call, two revision calls, and at
   most 12 cases × 3 rounds of cheapest-tier selections.
 - `validateProbeManifest` gates malformed machine input before dispatch.
