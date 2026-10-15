@@ -76,7 +76,7 @@ that fails at runtime (Python exits, timeout) no longer stops a run that may
 already have paid for work: every later search answers `unavailable`, which
 the element already describes as no evidence of absence, and the run log says
 `[atoma retrieval] preparation failed`. Plan and measurements:
-[run duration plan, item C](run-duration-plan-2026-10-15.md).
+[run duration plan, item C](../records/plans/run-duration-plan-2026-10-15.md).
 
 The element is always available to L1. The molecule chooses queries when they
 are relevant; no forced empty query or new model call is added. Ordinary file

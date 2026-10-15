@@ -18,7 +18,7 @@ export const CRITERIA_SOURCE_CHARS = 24_000;
  * acceptor saw as titles only. Their five executed suites total 41,953
  * characters, and measured on that shape 96,000 is the first budget that shows
  * all five whole while every other file keeps its share
- * (docs/run-duration-plan-2026-10-15.md, item A).
+ * (records/plans/run-duration-plan-2026-10-15.md, item A).
  */
 export const ROOT_CRITERIA_SOURCE_CHARS = 96_000;
 const CRITERIA_FILE_MATCHED_BLOCKS = 15;

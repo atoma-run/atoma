@@ -21,6 +21,7 @@ name `docs/` locations from before 2026-10-15.
 
 - [Incidents](incidents/): dated run evidence and failure investigations.
 - [Measurements](measurements/): calibration readings and measured proposals.
+- [Plans](plans/): working plans whose items are being delivered.
 - [Code review index](code-reviews.md): reviewed revisions and correction windows.
 
 ## Earlier designs and snapshots

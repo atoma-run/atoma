@@ -113,3 +113,5 @@ Mac tunnel) inside the Gluetun netns, NordVPN Greece exit 186.247.178.171:
 CloudFront 403, 919 B. The VPN IP itself is blocked. NordVPN cannot replace a
 residential exit; remaining options are a paid static residential proxy, a
 mobile SIM, or a home box running the reverse tunnel. Container torn down.
+
+Full test log: [[spitogatos-access-tests-2026-10-14]].

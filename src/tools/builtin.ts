@@ -974,7 +974,7 @@ const SHELL_LINE_RE = /[\s|&;><]/;
  * the Attica suites pace 10 s between pages and restart child processes, so
  * fifteen calls across three runs were killed at 28-30 s, the molecule split
  * the suites to fit, and the acceptor refused the missing combined evidence
- * (docs/run-duration-plan-2026-10-15.md, item B). The cap keeps a mistaken
+ * (records/plans/run-duration-plan-2026-10-15.md, item B). The cap keeps a mistaken
  * server or a hung command from holding a molecule much longer than before.
  */
 export const SHELL_TIMEOUT_MS = 30_000;
