@@ -1204,6 +1204,21 @@ const HOSTING_RUNTIME_PROMISE = (async () => {
   gateway.server.once('close', () => clearInterval(health));
   return { service, gateway };
 })();
+let HOSTING_RUNTIME: Awaited<typeof HOSTING_RUNTIME_PROMISE> = null;
+void HOSTING_RUNTIME_PROMISE.then(runtime => { HOSTING_RUNTIME = runtime; }, () => undefined);
+/**
+ * Each listed project carries where its application is online now
+ * (`hostedUrl`), so every project surface can link to it. The list is
+ * already authorised for the viewer; hosting adds no project to it.
+ */
+function withHostedUrls<T>(payload: T): T {
+  const rows = Array.isArray(payload) ? payload : (payload as { projects?: unknown } | null)?.projects;
+  if (!HOSTING_RUNTIME || !Array.isArray(rows)) return payload;
+  const list = rows as Array<{ projectId: string; hostedUrl?: string | null }>;
+  const urls = HOSTING_RUNTIME.service.onlineUrls(list.map(row => row.projectId));
+  for (const row of list) row.hostedUrl = urls.get(row.projectId) ?? null;
+  return payload;
+}
 // A hosting outage must not take away project editing or the existing preview.
 void HOSTING_RUNTIME_PROMISE.catch(() => console.error('[atoma viz] project hosting unavailable; check launcher and hosting configuration'));
 
@@ -4617,8 +4632,8 @@ async function handle(req: import('node:http').IncomingMessage, res: import('nod
         try {
           const params = new URL(req.url!, 'http://localhost').searchParams;
           const query = projectReaderQuery(params);
-          sendJsonRevalidated(req, res, Object.keys(query).length ? PROJECTS_RUNTIME.projects.projectPage(viewer, query)
-            : PROJECTS_RUNTIME.projects.listProjects(viewer));
+          sendJsonRevalidated(req, res, withHostedUrls(Object.keys(query).length ? PROJECTS_RUNTIME.projects.projectPage(viewer, query)
+            : PROJECTS_RUNTIME.projects.listProjects(viewer)));
         } catch (error) {
           if (!(error instanceof ProjectHttpError)) throw error;
           sendJson(res, error.status, { error: error.message });

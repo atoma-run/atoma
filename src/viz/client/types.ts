@@ -272,6 +272,8 @@ export interface VizProject {
   deploymentDestination?: import('../../contracts/projectDeployment.js').DeploymentDestination;
   /** The label under the hosting namespace, once assigned. Absent on an older server. */
   hostingSubdomain?: string | null;
+  /** Where the project's application is online now; null or absent when it is not. */
+  hostedUrl?: string | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -1232,10 +1232,15 @@ try {
       await click('hosting.deploy');
       await page.waitForFunction(() => document.body.textContent.includes('Application online'));
       if (!Object.entries(stubs).some(([key, value]) => key.endsWith('/hosting') && value.state === 'ready')) throw new Error('Deployment action missing');
+      // Online: the project header links to the application on every tab, and the address in the card is clickable.
+      for (const project of stubs['/api/projects']) project.hostedUrl = 'https://fixture.app.atoma.run/';
+      await page.waitForFunction(() => globalThis.__ATOMA_GPU__?.hitTargets().some(row => row.id.startsWith('project.hosted.')), { timeout: 20000 })
+        .catch(error => { throw new Error('The project header shows no link to the online application', { cause: error }); });
       // The hosted-application card leads the settings: back to the top to read it.
       await page.mouse.move(width / 2, height - 160); await page.mouse.wheel({ deltaY: -3000 });
       await page.evaluate(() => { document.activeElement?.blur?.(); return new Promise(resolveWait => setTimeout(resolveWait, 500)); });
       await page.screenshot({ path: outPath.replace(/\.png$/, '-online.png') });
+      if (!await page.evaluate(() => globalThis.__ATOMA_GPU__.hitTargets().some(row => row.id === 'hosting.open.address'))) throw new Error('The online address is not clickable');
       // Renaming starts on the canvas control and edits in the revealed keyboard palette.
       for (const project of stubs['/api/projects']) project.hostingSubdomain = 'fixture';
       await click('hosting.rename');

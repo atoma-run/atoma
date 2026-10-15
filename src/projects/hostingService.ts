@@ -43,6 +43,18 @@ export class HostingService {
   }
   host(row: HostedDeployment): string { return this.hostOf(row.orgId, row.projectId); }
   /**
+   * Where each listed project's application answers now, for lists the
+   * caller already authorised: online deployments only, newest first.
+   */
+  onlineUrls(projectIds: readonly string[]): Map<string, string> {
+    const wanted = new Set(projectIds); const urls = new Map<string, string>();
+    for (const row of this.deps.store.list().filter(r => r.state === 'ready' && wanted.has(r.projectId))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))) {
+      if (!urls.has(row.projectId)) urls.set(row.projectId, `https://${this.host(row)}/`);
+    }
+    return urls;
+  }
+  /**
    * Where a retired address now lives: the project's CURRENT address, never
    * the next hop, so a twice-renamed project still answers in one redirect.
    * Null for anything that is not a retired label under this domain.

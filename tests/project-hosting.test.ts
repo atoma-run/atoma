@@ -82,6 +82,10 @@ it('gives a project its model-proposed address before the first deployment and s
   expect(named.movedHost('acme-site.app.atoma.run')).toBe('acme-shop.app.atoma.run');
   expect(named.movedHost('acme-shop.app.atoma.run')).toBeNull();
   expect(named.movedHost('acme-site.elsewhere.test')).toBeNull();
+  // Every project surface links to where the application is online now, and only for projects asked about.
+  expect(named.onlineUrls([projectId, randomUUID()])).toEqual(new Map([[projectId, 'https://acme-shop.app.atoma.run/']]));
+  await named.stop(viewer, projectId, named.status(viewer, projectId).deploymentId);
+  expect(named.onlineUrls([projectId]).size).toBe(0);
 });
 it('refuses foreign organisations, members, stale requests and a concurrent start', async () => {
   publish();

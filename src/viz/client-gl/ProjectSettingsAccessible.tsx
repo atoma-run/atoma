@@ -16,7 +16,8 @@ export function ProjectSettingsAccessible({ view, t, onActivate, onRenameAddress
     {hosted ? <section aria-label={t('hosting.title')}>
       <h3>{t('hosting.title')}</h3>
       <p role="status">{t(hosted.status)}{hosted.version && hosted.tone === 'success' ? ` · ${t('hosting.versionShort', { version: hosted.version })}` : ''}</p>
-      {hosted.address ? <p>{t('hosting.address')}: {hosted.address}</p> : null}
+      {hosted.address ? <p>{t('hosting.address')}: {hosted.actions.some(action => action.id === 'hosting.open')
+        ? <button type="button" onClick={() => onActivate('hosting.open')}>{hosted.address}</button> : hosted.address}</p> : null}
       {hosted.actions.map(control)}
       {view.renaming && hosted.label && hosted.domain && onRenameAddress ?
         <AddressForm key={hosted.label} label={hosted.label} domain={hosted.domain} view={view} t={t}

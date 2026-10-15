@@ -408,7 +408,13 @@ function repositoryInfo(ctx: RendererCtx, snapshot: GpuRenderSnapshot, project: 
   const destinationChromeWidth = project.repositoryUrl
     ? REPOSITORY_ICON_OFFSET_X + REPOSITORY_ICON_SIZE + REPOSITORY_ICON_GAP
     : 0;
+  // Where the application is online, after the repository: shown in full when
+  // it fits, never taking more than half of the line from the repository.
+  const hostedText = project.hostedUrl ? `● ${new URL(project.hostedUrl).host}` : null;
+  const hostedChrome = hostedText ? PROJECT_INFO_SEPARATOR_BEFORE_GAP + separatorWidth + PROJECT_INFO_SEPARATOR_AFTER_GAP : 0;
+  const hostedWidth = hostedText ? Math.max(0, Math.min(ctx.measureText(hostedText, { size: 9 }), infoMaxWidth / 2 - hostedChrome)) : 0;
   const fixedInfoWidth =
+    hostedChrome + hostedWidth +
     privateIconSpace +
     statusWidth +
     PROJECT_INFO_SEPARATOR_BEFORE_GAP +
@@ -421,12 +427,12 @@ function repositoryInfo(ctx: RendererCtx, snapshot: GpuRenderSnapshot, project: 
   );
   const infoWidth = fixedInfoWidth + destinationTextWidth;
   return { repositoryStatusCopy, privateIconSpace, statusWidth, separatorWidth,
-    destinationText, destinationTextWidth, infoWidth };
+    destinationText, destinationTextWidth, infoWidth, hostedText, hostedWidth };
 }
 
 function drawRepositoryInfo(ctx: RendererCtx, snapshot: GpuRenderSnapshot, project: VizProject,
   rowParent: Container, infoX: number, y: number, info: ReturnType<typeof repositoryInfo>): void {
-  const { repositoryStatusCopy, privateIconSpace, statusWidth, separatorWidth, destinationText, destinationTextWidth } = info;
+  const { repositoryStatusCopy, privateIconSpace, statusWidth, separatorWidth, destinationText, destinationTextWidth, hostedText, hostedWidth } = info;
   let infoCursor = infoX;
   if (project.repositoryTarget.visibility === 'private') {
     ctx.privateRepositoryIcon(
@@ -512,6 +518,17 @@ function drawRepositoryInfo(ctx: RendererCtx, snapshot: GpuRenderSnapshot, proje
         singleLine: true,
       }
     );
+  }
+  if (hostedText && hostedWidth > 0) {
+    infoCursor += (project.repositoryUrl ? REPOSITORY_ICON_OFFSET_X + REPOSITORY_ICON_SIZE + REPOSITORY_ICON_GAP : 0)
+      + destinationTextWidth + PROJECT_INFO_SEPARATOR_BEFORE_GAP;
+    ctx.text(rowParent, PROJECT_INFO_SEPARATOR, infoCursor, y + PROJECT_INFO_TEXT_Y,
+      { size: STATUS_FONT_SIZE, color: GPU_COLORS.muted, mono: true, width: separatorWidth, singleLine: true });
+    infoCursor += separatorWidth + PROJECT_INFO_SEPARATOR_AFTER_GAP;
+    // A private application opens through a one-time claim, never a bare link: the activation asks for one.
+    const hostedLink = ctx.linkRegion(rowParent, `project.hosted.${project.projectId}`, hostedText,
+      infoCursor, y + 2, hostedWidth, REPOSITORY_ICON_SIZE, snapshot.onActivate);
+    ctx.text(hostedLink, hostedText, 0, 14, { size: 9, color: GPU_COLORS.success, width: hostedWidth, singleLine: true });
   }
 }
 

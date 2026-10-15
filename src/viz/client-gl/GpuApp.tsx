@@ -974,6 +974,25 @@ function GpuAppContent({
       store.selectProject(projectSelectionAfterActivate(store.selectedProjectId, projectId));
       return;
     }
+    if (id.startsWith('project.hosted.')) {
+      // A private application: ask for a one-time claim, then open it. The tab
+      // opens now, inside the click, or the browser blocks it as a popup.
+      const projectId = id.slice('project.hosted.'.length);
+      const project = projectsQuery.data?.find((candidate) => candidate.projectId === projectId);
+      if (!project?.hostedUrl) return;
+      const popup = window.open('about:blank', '_blank');
+      if (!popup) return;
+      popup.opener = null;
+      void fetch(`/api/projects/${encodeURIComponent(projectId)}/hosting/open`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+      }).then(async response => {
+        if (!response.ok) throw new Error('open refused');
+        const { url } = await response.json() as { url: string };
+        if (new URL(url).origin !== new URL(project.hostedUrl!).origin) throw new Error('unexpected application address');
+        popup.location.replace(url);
+      }).catch(() => popup.close());
+      return;
+    }
     if (id.startsWith('project.repository.')) {
       const projectId = id.slice('project.repository.'.length);
       const project = projectsQuery.data?.find((candidate) => candidate.projectId === projectId);

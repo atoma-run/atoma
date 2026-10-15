@@ -67,7 +67,14 @@ export function drawProjectSettings(ctx: RendererCtx, snapshot: GpuRenderSnapsho
     line(status, { color: TONE[hosted.tone], weight: '600', gap: 16 });
     if (hosted.address) {
       line(snapshot.t('hosting.address'), { size: 12, gap: 4 });
-      line(hosted.address, { color: GPU_COLORS.text, gap: 14 });
+      const open = hosted.actions.find(action => action.id === 'hosting.open' && !action.disabled);
+      if (open) {
+        // Online: the address itself opens the application, like its button.
+        const linkWidth = Math.min(inner, ctx.measureText(hosted.address, { size: 13 }) + 4);
+        const link = ctx.linkRegion(content, 'hosting.open.address', hosted.address, PAD, y - 2, linkWidth, 22, () => snapshot.onActivate('hosting.open'));
+        ctx.text(link, hosted.address, 0, 2, { size: 13, color: GPU_COLORS.primary, width: linkWidth, singleLine: true });
+        y += 32;
+      } else line(hosted.address, { color: GPU_COLORS.text, gap: 14 });
     }
     buttonRow(hosted.actions);
     if (hosted.update) {
