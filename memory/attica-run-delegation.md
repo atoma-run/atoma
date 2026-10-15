@@ -76,3 +76,10 @@ acceptance, publication or real collection occurred in this continuation.
   to the agent). Relaunched as key attica-control-proofs-idle-cancel-20261015-v2.
 - Atoma fixes: 8d4b0e4c (claude-cli rethrows the caller's abort reason instead of
   "aborted by user"; deployed), d822ae99 (strip "Name:" from run titles).
+- 7062fdc1 (deployed 17:10 UTC): before creating its egress networks a run reaps
+  owners whose label hash proves `run-<pid>` for a dead pid in the same pid
+  namespace (new `dev.atoma.pidns` label; legacy unlabelled ones on Linux only).
+  The next Attica run 6b6b1952 (17:12 UTC) got past network creation. Cause of
+  the exhaustion was NOT confirmed on the host (no host access); if it recurs,
+  list `docker network ls` by `dev.atoma.owner` and consider /24
+  `default-address-pools` — hosting networks are permanent by design.
