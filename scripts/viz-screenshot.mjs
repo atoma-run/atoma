@@ -1241,11 +1241,25 @@ try {
         return { width: rect.width, height: rect.height, focused: document.activeElement === input, value: input.value }; });
       if (!palette.focused || palette.value !== 'fixture' || palette.width < 200 || palette.height < 40) throw new Error(`Address field not shown: ${JSON.stringify(palette)}`);
       await page.screenshot({ path: outPath.replace(/\.png$/, '-rename.png') });
+      // Every control and line of the revealed palette stays inside it, with the field open and closed.
+      const paletteOverflow = () => page.evaluate(() => {
+        const bridge = document.querySelector('.gpu-a11y-bridge');
+        const edge = bridge.getBoundingClientRect().right - 10;
+        return [...bridge.querySelectorAll('section, p, label, form, button, input')]
+          .filter(element => element.getClientRects().length && element.getBoundingClientRect().right > edge + 1)
+          .map(element => `${element.tagName}:${(element.textContent || element.value || '').slice(0, 40)}`);
+      });
+      const openOverflow = await paletteOverflow();
+      if (openOverflow.length) throw new Error(`Palette content overflows with the address field open: ${openOverflow.join(' | ')}`);
       await field.evaluate(input => input.select()); await field.type('fixture-shop'); await page.keyboard.press('Enter');
       await page.waitForFunction(() => document.body.textContent.includes('https://fixture-shop.app.atoma.run/')).catch(async error => {
         throw new Error(`Rename did not land: ${JSON.stringify({ sent: stubs.renamedAddress ?? null,
           text: await page.evaluate(() => document.querySelector('.gpu-a11y-bridge')?.textContent?.slice(-600)) })}`, { cause: error });
       });
+      await page.evaluate(() => document.querySelector('.gpu-a11y-bridge button')?.focus());
+      const closedOverflow = await paletteOverflow();
+      if (closedOverflow.length) throw new Error(`Palette content overflows: ${closedOverflow.join(' | ')}`);
+      await page.screenshot({ path: outPath.replace(/\.png$/, '-palette.png') });
       if (stubs.renamedAddress?.subdomain !== 'fixture-shop' || stubs.renamedAddress?.expectedSubdomain !== 'fixture') throw new Error(`Rename not sent: ${JSON.stringify(stubs.renamedAddress)}`);
       console.log('Project settings: explicit preference save, separate deployment action, online version, access controls and address rename');
     }
