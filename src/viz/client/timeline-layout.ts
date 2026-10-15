@@ -48,7 +48,7 @@ export interface TimelineItem {
   readonly event: VizEvent;
   /**
    * Consecutive calls of one batched tool, chronological, two or more, when
-   * this row stands for them all (see `BATCHED_TOOLS`). Absent for a row that
+   * this row stands for them all (see `batchKey`). Absent for a row that
    * is one event.
    */
   readonly batch?: readonly VizEvent[];
@@ -199,17 +199,15 @@ function markParallelSiblings(branches: MutableBranch[]): void {
 }
 
 /**
- * Tools whose consecutive calls in ONE model turn share one timeline row.
- * File reads, HTTP requests and recorded probes arrive in bursts; one card
- * per call pushes the work that follows off the screen. The batch is a
- * display unit only:
- * branch event counts, filters and the detail pane still address every call
- * by its own id.
+ * Consecutive calls of the SAME tool in ONE model turn share one timeline
+ * row, whatever the tool: reads, fetches, probes, shell commands and HTML
+ * checks all arrive in bursts, and one card per call pushed the work that
+ * follows off the screen (owner request, 2026-10-15). The batch is a display
+ * unit only: branch event counts, filters and the detail pane still address
+ * every call by its own id.
  */
-const BATCHED_TOOLS: ReadonlySet<string> = new Set(['read_file', 'fetch_url', 'record_probe']);
-
 function batchKey(event: VizEvent): string | undefined {
-  if (event.kind !== 'tool' || !event.name || !BATCHED_TOOLS.has(event.name)) return undefined;
+  if (event.kind !== 'tool' || !event.name) return undefined;
   return JSON.stringify([event.name, event.branchId ?? '', event.llmEventId ?? '', event.actor?.name ?? '']);
 }
 

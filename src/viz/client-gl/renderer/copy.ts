@@ -436,9 +436,13 @@ export function batchDetailCopyKeys(name: string | undefined) {
     position: 'detail.batch.probePosition', previous: 'detail.batch.previousProbe',
     next: 'detail.batch.nextProbe', list: 'detail.batch.probes', items: 'detail.batch.commands',
   };
-  return {
+  if (name === 'read_file') return {
     position: 'detail.batch.position', previous: 'detail.batch.previous',
     next: 'detail.batch.next', list: 'detail.batch.files', items: 'detail.batch.paths',
+  };
+  return {
+    position: 'detail.batch.callPosition', previous: 'detail.batch.previousCall',
+    next: 'detail.batch.nextCall', list: 'detail.batch.calls', items: 'detail.batch.arguments',
   };
 }
 

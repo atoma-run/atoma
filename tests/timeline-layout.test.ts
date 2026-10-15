@@ -482,6 +482,17 @@ describe('Runs timeline layout — newest-first and subtree rails', () => {
     expect(layout.branches[0]!.eventCount).toBe(6);
   });
 
+  it('batches any tool, so shell commands and HTML checks collapse like reads', () => {
+    const tool = (id: string, ts: number, name: string) =>
+      event(id, ts, { kind: 'tool', name, branchId: 'task', llmEventId: 'turn', actor: { name: 'RNA', tier: 1 } });
+    const layout = buildTimelineLayout([
+      tool('sh-a', 1, 'run_shell'), tool('sh-b', 2, 'run_shell'), tool('sh-c', 3, 'run_shell'),
+      tool('html-a', 4, 'validate_html'), tool('html-b', 5, 'validate_html'), tool('edit', 6, 'edit_file'),
+    ], all);
+    expect(layout.items.map(item => item.batch?.map(member => member.id) ?? item.event.id))
+      .toEqual([['sh-a', 'sh-b', 'sh-c'], ['html-a', 'html-b'], 'edit']);
+  });
+
   it('batches consecutive recorded probes without merging different tools or turns', () => {
     const probe = (id: string, ts: number, llmEventId = 'turn') =>
       event(id, ts, {

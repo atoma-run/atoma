@@ -429,7 +429,7 @@ npm run viz:mark-turn:analyze
   cartouche. A `context` inject scrolls in the masked layer every other kind
   uses. `GPU_COLORS.muted` is a LEGIBILITY FLOOR for the 8–9px facts it is
   mostly spent on (~7.9:1) — do not lower it back.
-- Consecutive `read_file`, `fetch_url` or `record_probe` calls of one model
+- Consecutive calls of any one tool in one model
   turn (same tool, branch, `llmEventId`, actor) are ONE row:
   `TimelineItem.batch`, built in `buildTimelineLayout` so
   cards, rails, minimap and the DOM slider share one row space. A display unit
