@@ -94,11 +94,12 @@ export function timelineBranchColor(branch: TimelineBranch): number {
 
 export function timelineBranchLabel(
   branch: TimelineBranch,
-  t: (key: string, vars?: Record<string, unknown>) => string
+  t: (key: string, vars?: Record<string, unknown>) => string,
+  titleLength = 28
 ): string {
   const heading = timelineBranchHeading(branch, t);
   if (heading.title === heading.eyebrow) return heading.eyebrow;
-  return `${heading.eyebrow} · ${truncate(heading.title, 28)}`;
+  return `${heading.eyebrow} · ${truncate(heading.title, titleLength)}`;
 }
 
 
