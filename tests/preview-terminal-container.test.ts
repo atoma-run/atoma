@@ -24,9 +24,10 @@ it.skipIf(!previewImage)('serves CLI tests through the production launcher while
     previewRuntime: runtime, workspaceRoot: join(root, 'copies') });
   let cursor = 0;
   let output = '';
+  const probe = async (port: number) => (await fetch(`http://127.0.0.1:${port}/`, { signal: AbortSignal.timeout(5000) })).ok;
   try {
     const running = await startPreview({ launcher, imageDigest: null, runtime,
-      probe: async (port) => (await fetch(`http://127.0.0.1:${port}/`)).ok },
+      probe, log: console.info },
     { ownerId, sourceWorkspace: source, entry: '', mode: 'terminal', allowedHosts: ['example.com'] });
     const base = `http://127.0.0.1:${running.hostPort}`;
     const input = async (command: string) => {
@@ -65,7 +66,7 @@ it.skipIf(!previewImage)('serves CLI tests through the production launcher while
     execFileSync('docker', ['rm', '-f', fixture], { stdio: 'ignore' });
     await teardownPreview({ launcher }, ownerId, {});
     const reset = await startPreview({ launcher, imageDigest: null, runtime,
-      probe: async (port) => (await fetch(`http://127.0.0.1:${port}/`)).ok },
+      probe, log: console.info },
     { ownerId, sourceWorkspace: source, entry: '', mode: 'terminal', allowedHosts: [] });
     expect((await fetch(`http://127.0.0.1:${reset.hostPort}/input`, { method: 'POST',
       headers: { 'x-atoma-terminal': '1' }, body: 'cat input.json\r' })).status).toBe(200);
@@ -78,6 +79,12 @@ it.skipIf(!previewImage)('serves CLI tests through the production launcher while
       await new Promise((done) => setTimeout(done, 25));
     }
     expect(resetOutput).toContain('{"value":21}');
+  } catch (error) {
+    for (const kind of ['preview-app', 'preview-ingress'] as const) {
+      try { console.error(execFileSync('docker', ['logs', '--tail', '40', launcher.unitName(kind, ownerId)], { encoding: 'utf8' })); }
+      catch { /* Startup may already have removed a failed unit. */ }
+    }
+    throw error;
   } finally {
     try { execFileSync('docker', ['rm', '-f', fixture], { stdio: 'ignore' }); } catch { /* absent */ }
     await teardownPreview({ launcher }, ownerId, {});

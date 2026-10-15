@@ -164,3 +164,14 @@ The Linux gVisor smoke attaches via Playwright from the app before testing
 desktop, restart persistence and network isolation; all passed with image
 sha256:bc60dc463b22155cdbdc444bc446ab23152afc9f24545b24077e2e1d703b5867.
 This newer image still requires activation after packaging release checks.
+
+Client explicitly accepted 30e53f08 and authorized deployment on 2026-10-15.
+MCP acceptance published commit 42383f37d09a582940f774d7cca7788d8cd64cfd to
+mgtf/atoma-attica-property-flipping main. The hosting UI exposes this candidate.
+Platform packaging commit e01dec6a was held by CI 38658393522 twice: the fresh
+preview terminal never started. Reproduced with Node 24.22 in node:24-slim:
+cpSync(errorOnExist) rejects the empty destination the server had just created.
+Fix creates only its parent, lets cp create workspace, then resolves its path.
+Fresh container regression and compiled PTY tests passed (five tests). No
+isolation flag or overwrite protection was removed. Browser hosting itself
+was already healthy; activation of the Playwright image awaits this release.

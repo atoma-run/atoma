@@ -54,9 +54,11 @@ export async function startTerminalServer(options: {
 }) {
   // /workspace is mounted read-only. All writes are charged to /data's tmpfs.
   const destination = join(options.dataRoot, 'workspace');
-  mkdirSync(destination, { recursive: true });
+  mkdirSync(options.dataRoot, { recursive: true });
+  // Let cp create the destination; newer Node releases reject an existing
+  // directory with errorOnExist, including an empty one we just created.
+  cpSync(options.sourceRoot, destination, { recursive: true, dereference: false, errorOnExist: true, force: false });
   const workspace = realpathSync(destination);
-  cpSync(options.sourceRoot, workspace, { recursive: true, dereference: false, errorOnExist: true, force: false });
   const assets = new Map<string, { mime: string; bytes: Buffer }>([
     ['/', { mime: 'text/html; charset=utf-8', bytes: readFileSync(join(options.assetsRoot, 'index.html')) }],
     ['/client.js', { mime: 'text/javascript; charset=utf-8', bytes: readFileSync(join(options.assetsRoot, 'client.js')) }],
