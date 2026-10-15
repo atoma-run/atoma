@@ -53,6 +53,13 @@ is still a whole-file add.
   hunk, symlink node_modules for the hook, push `HEAD:main`, remove the
   worktree. Never pull --rebase or autostash on the shared tree.
 
+Phantom modifications (2026-10-15 13:30): after a `reset --soft origin/main`
++ `reset` realignment, every file the skipped commits touched keeps its OLD
+bytes and shows as modified, reverting main. Checked: 23 such files each equal
+an older main version. After moving HEAD, restore exactly those files:
+`git diff --name-only <old HEAD> origin/main`, confirm none holds a peer's
+live edit, then `git checkout origin/main -- <files>`.
+
 Related: [[push-to-prod-authorized]].
 
 The index is shared too (2026-10-15, second incident). I ran `git add <my paths>` and then a plain `git commit`, which swept six files a peer session had already STAGED (assayer, server.ts, supervisor AGENTS.md) into my commit. Checking `git diff --cached --name-only` before committing would have shown them. Separately, a peer's `reset` to origin/main dropped my unpushed local commit from main; its changes survived in the working tree.
