@@ -1,4 +1,4 @@
-import { deploymentSettingInputSchema } from '../contracts/projectDeployment.js';
+import { deploymentSettingInputSchema, hostingSubdomainSchema, RESERVED_HOSTING_SUBDOMAINS } from '../contracts/projectDeployment.js';
 import { readProjectLearning } from './learningRead.js';
 import type { ProjectLearningInput, ProjectLearningCursor } from '../contracts/projectLearning.js';
 import { initializeProjectContext, readProjectContext, projectContextHistory, updateProjectContext } from './context.js';
@@ -446,6 +446,7 @@ interface ProjectRow {
   showcase: string | null;
   follow_upstream: string | null;
   deployment_destination: string | null;
+  hosting_subdomain?: string | null;
   github_installation_id: string;
   repository_source_json: string | null;
   repository_target_owner: string;
@@ -537,6 +538,7 @@ function projectFromRow(row: ProjectRow): Project {
     showcase: row.showcase ?? 'listed',
     followUpstream: row.follow_upstream === '1',
     deploymentDestination: row.deployment_destination ?? 'none',
+    hostingSubdomain: row.hosting_subdomain ?? null,
     repositoryTarget: {
       installationId: row.github_installation_id,
       owner: row.repository_target_owner,
@@ -836,6 +838,8 @@ export class ProjectStore {
         ['projects', 'showcase'],
         ['projects', 'follow_upstream'],
         ['projects', 'deployment_destination'],
+        ['projects', 'hosting_subdomain'],
+        ['projects', 'hosting_subdomain_receipt_json'],
         ['project_runs', 'repository_base_json'],
         ['project_runs', 'github_access_json'],
         ['project_runs', 'skills_path'],
@@ -877,6 +881,12 @@ export class ProjectStore {
       // re-ran and on which models is fixed at reservation, and a seed once
       // recorded is a fact about the past.
       this.db.exec(`
+CREATE UNIQUE INDEX IF NOT EXISTS projects_hosting_subdomain ON projects(hosting_subdomain) WHERE hosting_subdomain IS NOT NULL;
+CREATE TRIGGER IF NOT EXISTS projects_hosting_subdomain_immutable
+BEFORE UPDATE OF hosting_subdomain, hosting_subdomain_receipt_json ON projects
+WHEN OLD.hosting_subdomain IS NOT NULL
+  AND (NEW.hosting_subdomain IS NOT OLD.hosting_subdomain OR NEW.hosting_subdomain_receipt_json IS NOT OLD.hosting_subdomain_receipt_json)
+BEGIN SELECT RAISE(ABORT, 'a project hosting address is immutable'); END;
 CREATE TRIGGER IF NOT EXISTS project_runs_base_immutable BEFORE UPDATE OF base_run_id ON project_runs
 WHEN NEW.base_run_id IS NOT OLD.base_run_id
 BEGIN SELECT RAISE(ABORT, 'iteration base is immutable'); END;
@@ -2453,6 +2463,47 @@ END;
       ).run(destination, new Date().toISOString(), orgId, projectId);
       return this.getProject(orgId, projectId);
     }).immediate();
+  }
+
+  /**
+   * Give a project its hosting label, ONCE: the first candidate no other
+   * project holds wins, in one transaction, and the unique index is the
+   * backstop across processes. A project that already has one keeps it and
+   * nothing is written, so a second assigner (a retry, a racing deploy) is
+   * harmless. Answers the stored label, or null when the project is gone or
+   * every candidate was taken. `updated_at` is left alone: no one edited the
+   * project, the platform addressed it.
+   */
+  assignHostingSubdomain(orgIdInput: string, projectIdInput: string, candidates: readonly string[],
+    receipt: RunTitleReceipt | null): { subdomain: string; assigned: boolean } | null {
+    const orgId = organisationIdSchema.parse(orgIdInput);
+    const projectId = projectIdSchema.parse(projectIdInput);
+    const stored = receipt ? JSON.stringify(runTitleReceiptSchema.parse(receipt)) : null;
+    return this.db.transaction(() => {
+      const before = this.getProject(orgId, projectId);
+      if (!before) return null;
+      if (before.hostingSubdomain) return { subdomain: before.hostingSubdomain, assigned: false };
+      const taken = this.db.prepare('SELECT 1 FROM projects WHERE hosting_subdomain = ?');
+      for (const candidate of candidates) {
+        const parsed = hostingSubdomainSchema.safeParse(candidate);
+        if (!parsed.success || RESERVED_HOSTING_SUBDOMAINS.has(parsed.data) || taken.get(parsed.data)) continue;
+        this.db.prepare(`UPDATE projects SET hosting_subdomain = ?, hosting_subdomain_receipt_json = ?
+          WHERE org_id = ? AND project_id = ? AND hosting_subdomain IS NULL`).run(parsed.data, stored, orgId, projectId);
+        return { subdomain: parsed.data, assigned: true };
+      }
+      return null;
+    }).immediate();
+  }
+
+  /** What choosing this project's hosting label cost; null when no model was paid. */
+  getHostingSubdomainReceipt(orgIdInput: string, projectIdInput: string): RunTitleReceipt | null {
+    const orgId = organisationIdSchema.parse(orgIdInput);
+    const projectId = projectIdSchema.parse(projectIdInput);
+    const row = this.db.prepare('SELECT hosting_subdomain_receipt_json FROM projects WHERE org_id = ? AND project_id = ?')
+      .get(orgId, projectId) as { hosting_subdomain_receipt_json: string | null } | undefined;
+    return row?.hosting_subdomain_receipt_json
+      ? runTitleReceiptSchema.parse(parseJson(row.hosting_subdomain_receipt_json, 'hosting address receipt'))
+      : null;
   }
 
   setFollowUpstream(orgId: string, projectId: string, enabled: boolean): Project | null {

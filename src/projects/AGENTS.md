@@ -19,6 +19,8 @@ Preview, acceptance, GitHub publication and deployment remain separate.
 Private hosted applications use `hostingService`, `hostingStore` and the separate
 hosting launcher; see [project hosting](../../docs/project-hosting.md). Hosting
 uses accepted, published, hash-verified copies. Settings never execute it.
+Saving Atoma assigns the immutable `hostingSubdomain` label (model-proposed,
+`[a-z]` words, [rules](../../docs/project-hosting.md#dns-and-https)).
 External provider execution is not implemented.
 
 ## Run network

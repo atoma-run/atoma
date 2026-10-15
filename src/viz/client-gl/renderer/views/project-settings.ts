@@ -36,7 +36,7 @@ export function drawProjectSettings(ctx: RendererCtx, snapshot: GpuRenderSnapsho
   const hosted = hostingCopy(view);
   if (hosted) {
     paragraph('hosting.title', true); paragraph('hosting.private'); paragraph(hosted.status);
-    for (const value of [hosted.version, hosted.url].filter(Boolean)) {
+    for (const value of [hosted.version, hosted.address ? `${snapshot.t('hosting.address')}: ${hosted.address}` : null, hosted.url].filter(Boolean)) {
       const label = ctx.text(pane.content, value!, 0, y, { size: 13, color: GPU_COLORS.text, width }); y += label.height + 18;
     }
     if (hosted.candidateVersion) {

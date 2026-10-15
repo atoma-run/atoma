@@ -66,6 +66,17 @@ it('deploys verified copied bytes, retains runtime through recovery, and stops w
   expect(recovered.status(viewer, projectId).state).toBe('stopped');
   expect(readFileSync(join(source, 'index.html'), 'utf8')).toContain('Accepted app');
 });
+it('gives a project its model-proposed address before the first deployment and serves it there', async () => {
+  publish();
+  expect(service.status(viewer, projectId).address).toBeNull();
+  const namer = vi.fn(async () => ({ candidates: ['acme-site'], receipt: null }));
+  const named = new HostingService({ ...service.deps, namer });
+  await named.deploy(viewer, projectId, input()); await named.idle();
+  expect(namer).toHaveBeenCalledExactlyOnceWith({ name: 'Site', brief: '' });
+  expect(projects.getProject(viewer.orgId, projectId)!.hostingSubdomain).toBe('acme-site');
+  expect(named.status(viewer, projectId)).toMatchObject({ state: 'ready', address: 'https://acme-site.app.atoma.run/', url: 'https://acme-site.app.atoma.run/' });
+  expect(named.host(named.deps.store.list()[0]!)).toBe('acme-site.app.atoma.run');
+});
 it('refuses foreign organisations, members, stale requests and a concurrent start', async () => {
   publish();
   await expect(service.deploy({ ...viewer, orgId: randomUUID(), platformAdmin: true }, projectId, input())).rejects.toMatchObject({ status: 404 });

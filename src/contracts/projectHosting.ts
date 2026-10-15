@@ -28,6 +28,8 @@ export const hostingSummarySchema = z.object({
   available: z.boolean(), state: z.enum(['not-deployed', 'starting', 'ready', 'failed', 'stopped']),
   deploymentId: z.string().uuid().nullable(), runId: z.string().uuid().nullable(),
   commitSha: z.string().nullable(), url: z.string().nullable(), error: z.string().nullable(),
+  /** The project's stable address, assigned before its first deployment; null until then. */
+  address: z.string().nullable(),
   candidate: z.object({ runId: z.string().uuid(), manifestHash: z.string(), commitSha: z.string() }).nullable(),
 }).strict();
 export type HostingSummary = z.infer<typeof hostingSummarySchema>;

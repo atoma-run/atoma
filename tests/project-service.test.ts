@@ -725,7 +725,12 @@ describe('deployment preference', () => {
     }
     expect(start).not.toHaveBeenCalled();
     expect(retryPublication).not.toHaveBeenCalled();
-    expect(events).toHaveBeenCalledTimes(3);
+    // Three preference changes, plus the address the first save to Atoma assigned
+    // (no namer here: derived from the slug). Moving away keeps it.
+    expect(events).toHaveBeenCalledTimes(4);
+    expect(events).toHaveBeenCalledWith(expect.objectContaining({ kind: 'project.hosting_address_assigned',
+      orgId: alice.orgId, projectId: project.projectId, detail: { subdomain: expect.stringMatching(/^[a-z]+(?:-[a-z]+){0,2}$/), source: 'fallback' } }));
+    expect(svc.listProjects(alice)).toEqual([expect.objectContaining({ hostingSubdomain: expect.any(String) })]);
     expect(events).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'project.deployment_preference_changed',
       orgId: alice.orgId, projectId: project.projectId, detail: { from: 'external', to: 'none' } }));
   });

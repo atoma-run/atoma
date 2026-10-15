@@ -38,6 +38,18 @@ it('exchanges a one-time private claim, strips credentials, and refuses cross-or
   expect((await call(port, host, '/', { cookie, origin: 'https://evil.test' }, '{}')).status).toBe(403);
   allowed = false; expect((await call(port, host, '/', { cookie })).status).toBe(404);
 });
+it('answers an unknown address exactly as a private one, so readable addresses cannot be enumerated', async () => {
+  const upstreamPort = await listen(createServer((_req, res) => res.end('offers')));
+  const row: HostedDeployment = { orgId: randomUUID(), projectId: randomUUID(), deploymentId: randomUUID(), runId: randomUUID(), manifestHash: 'a'.repeat(64), commitSha: 'b'.repeat(40), state: 'ready', kind: 'static', entry: 'index.js', createdAt: new Date().toISOString(), error: null, hostPort: upstreamPort, image: 'image' };
+  const service = { deps: { store: { list: () => [row] } }, host: () => 'weather-lab.app.atoma.run', status: vi.fn() } as unknown as HostingService;
+  const port = await listen(createHostingGateway(service, 'https://atoma.run', () => true).server);
+  for (const path of ['/', '/.atoma/open']) {
+    const known = await call(port, 'weather-lab.app.atoma.run', path); const unknown = await call(port, 'weather-lob.app.atoma.run', path);
+    expect([unknown.status, unknown.body.replace(/nonce-[^']+|nonce="[^"]+"/g, '')]).toEqual([known.status, known.body.replace(/nonce-[^']+|nonce="[^"]+"/g, '')]);
+  }
+  const claim = (host: string) => call(port, host, '/.atoma/claim', { origin: `https://${host}` }, JSON.stringify({ token: 'guess' }));
+  expect((await claim('weather-lob.app.atoma.run')).status).toBe((await claim('weather-lab.app.atoma.run')).status);
+});
 it('does not confuse a relay 502 with application readiness', async () => {
   let status = 502; const port = await listen(createServer((_req, res) => { res.writeHead(status); res.end(); }));
   expect(await probeHostedApplication(port)).toBe(false); status = 200; expect(await probeHostedApplication(port)).toBe(true);

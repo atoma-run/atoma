@@ -270,6 +270,8 @@ export interface VizProject {
   showcaseShown?: boolean;
   followUpstream?: boolean;
   deploymentDestination?: import('../../contracts/projectDeployment.js').DeploymentDestination;
+  /** The label under the hosting namespace, once assigned. Absent on an older server. */
+  hostingSubdomain?: string | null;
   createdAt: string;
   updatedAt: string;
 }

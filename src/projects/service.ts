@@ -5,6 +5,7 @@ import { searchSavedProjectCode } from './retrievalRead.js';
 import { answerClientQuestionSchema, type ClientQuestionView } from '../contracts/clientQuestion.js';
 import { projectContextReadSchema, projectContextUpdateSchema } from '../contracts/projectContext.js';
 import { ProjectContextConflict } from './context.js';
+import { ensureHostingSubdomain, type HostingSubdomainNamer } from './hostingSubdomain.js';
 import { PROJECT_RUN_WAITING_MESSAGE } from '../contracts/projects.js';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
@@ -97,6 +98,12 @@ export interface ProjectServiceDeps {
    * means it does not: a project is then never reported as shown on it.
    */
   readonly showcaseEnabled?: () => boolean;
+  /**
+   * Proposes a project's hosting address when it is first given to Atoma
+   * hosting (`hostingSubdomain.ts`). Absent, the label is derived from the
+   * project's slug and name.
+   */
+  readonly hostingNamer?: HostingSubdomainNamer;
 }
 
 async function readJsonBody(req: IncomingMessage): Promise<unknown> {
@@ -201,6 +208,7 @@ function publicProject(
     status: project.status,
     followUpstream: project.followUpstream,
     deploymentDestination: project.deploymentDestination,
+    hostingSubdomain: project.hostingSubdomain,
     /**
      * `showcase` and `showcaseShown` exist ONLY for a project of an
      * organisation a platform admin founded and still owns: any other project
@@ -250,6 +258,7 @@ export class ProjectService {
   private readonly readAudit?: CrossOrgReadSink;
   private readonly publisher?: ProjectServiceDeps['publisher'];
   private readonly showcaseEnabled: () => boolean;
+  private readonly hostingNamer?: HostingSubdomainNamer;
 
   constructor(deps: ProjectServiceDeps) {
     this.store = deps.store;
@@ -260,6 +269,7 @@ export class ProjectService {
     // A no-op default keeps every emission site free of `?.` noise.
     this.events = deps.events ?? (() => undefined);
     this.showcaseEnabled = deps.showcaseEnabled ?? (() => false);
+    if (deps.hostingNamer) this.hostingNamer = deps.hostingNamer;
   }
 
   /** The projects a showcase visitor sees now, from the page's own read. */
@@ -496,6 +506,12 @@ export class ProjectService {
       orgId: viewer.orgId, projectId, summary: `Deployment preference changed for ${eventLabel(project.name, 80)}`,
       detail: { from: parsed.data.expectedDestination, to: project.deploymentDestination },
     });
+    // The address is chosen now, off the request: saving stays configuration
+    // only, and the settings show the address once it is stored.
+    if (project.deploymentDestination === 'atoma' && !project.hostingSubdomain) {
+      void ensureHostingSubdomain({ store: this.store, namer: this.hostingNamer, events: this.events }, viewer.orgId, projectId)
+        .catch((error: unknown) => process.stderr.write(`[atoma projects] hosting address not assigned: ${error instanceof Error ? error.message : String(error)}\n`));
+    }
     return publicProject(project, undefined, this.showcaseViews()(viewer.orgId, projectId));
   }
 

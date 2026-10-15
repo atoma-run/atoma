@@ -315,6 +315,7 @@ const PUSH_ROUTE_SOURCES: Record<PlatformEventKind, PushRouteSource | null> = {
   'project.deployment_preference_changed': null,
   'project.hosting_changed': null,
   'project.hosting_failed': null,
+  'project.hosting_address_assigned': null,
   'project.repository_moved': {
     audience: { orgOwners: true }, vars: () => ({}),
     copy: { en: { title: 'Atoma — repository changed', body: 'The repository changed outside Atoma. The next run will synchronise it.' },

@@ -6,6 +6,7 @@ import type { HostingService } from './hostingService.js';
 import type { Viewer } from '../auth/store.js';
 
 const COOKIE = '__Host-AtomaHosted';
+const PRIVATE = 'Open this private application from its Atoma project.';
 /** Private applications: platform credentials never cross to generated code. */
 export function createHostingGateway(service: HostingService, controlOrigin: string, member: (org: string, principal: string) => boolean) {
   const claims = new PreviewClaimRegistry();
@@ -17,10 +18,12 @@ export function createHostingGateway(service: HostingService, controlOrigin: str
   const respond = (res: ServerResponse, status: number, body = '') => { res.writeHead(status, policy); res.end(body); };
   async function handler(req: IncomingMessage, res: ServerResponse) {
     const host = req.headers.host?.toLowerCase();
+    if (!host || req.headers['service-worker']) { respond(res, 404); return; }
+    // Addresses are readable words, so they are guessable: an unknown address
+    // and a private one must answer alike, or the gateway tells strangers
+    // which projects exist and are online.
     const row = service.deps.store.list().filter(r => r.state === 'ready').sort((a, b) => b.createdAt.localeCompare(a.createdAt)).find(r => service.host(r) === host);
-    if (!row || !host || req.headers['service-worker']) { respond(res, 404); return; }
     const origin = `https://${host}`;
-    const binding = { orgId: row.orgId, projectRunId: row.deploymentId, generation: 1, host };
     const pathname = new URL(req.url ?? '/', origin).pathname;
     if (pathname === '/.atoma/open' && req.method === 'GET') {
       const nonce = randomBytes(18).toString('base64');
@@ -34,14 +37,16 @@ export function createHostingGateway(service: HostingService, controlOrigin: str
       const chunks: Buffer[] = []; let size = 0;
       for await (const chunk of req) { size += Buffer.byteLength(chunk as Buffer); if (size > 4096) { respond(res, 413); req.destroy(); return; } chunks.push(Buffer.from(chunk as Buffer)); }
       let token: unknown; try { token = (JSON.parse(Buffer.concat(chunks).toString()) as { token?: unknown }).token; } catch { respond(res, 400); return; }
-      if (typeof token !== 'string' || token.length > 128) { respond(res, 404); return; }
+      if (!row || typeof token !== 'string' || token.length > 128) { respond(res, 404); return; }
       const redeemed = claims.redeem(token, host);
       if (!redeemed.ok || redeemed.grant.binding.projectRunId !== row.deploymentId || !member(row.orgId, redeemed.grant.binding.principalId)) { respond(res, 404); return; }
       res.setHeader('set-cookie', cookie(redeemed.token)); respond(res, 204); return;
     }
+    if (!row) { respond(res, 404, PRIVATE); return; }
+    const binding = { orgId: row.orgId, projectRunId: row.deploymentId, generation: 1, host };
     const token = req.headers.cookie?.split(';').map(x => x.trim()).find(x => x.startsWith(`${COOKIE}=`))?.slice(COOKIE.length + 1);
     const grant = token ? claims.authorise(token, binding) : null;
-    if (!grant || !member(row.orgId, grant.binding.principalId)) { respond(res, 404, 'Open this private application from its Atoma project.'); return; }
+    if (!grant || !member(row.orgId, grant.binding.principalId)) { respond(res, 404, PRIVATE); return; }
     if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method ?? 'GET') && req.headers.origin !== origin) { respond(res, 403); return; }
     if (pathname.startsWith('/.atoma/') && !(row.browser && pathname.startsWith('/.atoma/browser/'))) { respond(res, 404); return; }
     claims.renew(token!, binding); res.setHeader('set-cookie', cookie(token!));

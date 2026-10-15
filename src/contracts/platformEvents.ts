@@ -74,6 +74,8 @@ export const platformEventKindSchema = z.enum([
   'project.deployment_preference_changed',
   'project.hosting_changed',
   'project.hosting_failed',
+  /** A project received its hosting address: who can reach what changed. */
+  'project.hosting_address_assigned',
   'github.installation_linked',
   'github.installation_status',
   /**
@@ -377,6 +379,7 @@ export const PLATFORM_EVENT_SEVERITY: Record<PlatformEventKind, PlatformEventSev
   'project.deployment_preference_changed': 'info',
   'project.hosting_changed': 'info',
   'project.hosting_failed': 'warning',
+  'project.hosting_address_assigned': 'info',
   'github.installation_linked': 'info',
   // Suspended or deleted installations break the publication pipeline.
   'github.installation_status': 'warning',

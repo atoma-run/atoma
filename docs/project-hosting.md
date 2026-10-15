@@ -88,9 +88,23 @@ project preference intact and reports its unavailability.
 
 ## DNS and HTTPS
 
-One wildcard A record `*.app.atoma.run` points at the hosting ingress. Project
-addresses use UUIDs to avoid collisions across organisations. No DNS mutation
-occurs when a project is deployed. TLS uses a wildcard certificate obtained with
+One wildcard A record `*.app.atoma.run` points at the hosting ingress. No DNS
+mutation occurs when a project is deployed.
+
+A project's address is `<label>.app.atoma.run`. The label is chosen once, when
+the destination is first saved as Atoma (or at the first deployment of a
+project saved earlier), and stored on the project; it never changes after.
+The host's `api:` tier-1 model proposes candidates from the project's name and
+brief, on the platform's credential like run titles, and its receipt is kept.
+Only one to three words of `a-z` joined by single hyphens are accepted, and
+reserved platform words are refused. Labels are unique across every
+organisation: the first free candidate wins, then the project's slug and name,
+then the slug's first words plus a random word. A model outage never blocks a
+deployment. A project deployed before labels existed keeps `p-<project UUID>`
+until it receives one, then moves to it; reopen it from Atoma.
+
+Readable labels are guessable, so the gateway answers an unknown address and a
+private one identically: the address does not reveal whether a project exists. TLS uses a wildcard certificate obtained with
 DNS-01. An operator-scoped Gandi PAT belongs only in the certificate-renewal
 service, never in Atoma, the product DB, a project or its runtime.
 

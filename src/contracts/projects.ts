@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { deploymentDestinationSchema } from './projectDeployment.js';
+import { deploymentDestinationSchema, hostingSubdomainSchema } from './projectDeployment.js';
 import { learningReceiptSchema } from './skillLearning.js';
 import { PLATFORM_SETTINGS } from './platformSettings.js';
 import { deliveryKindSchema } from './taskExecution.js';
@@ -281,6 +281,8 @@ export const projectSchema = z
     initialPrompt: projectPromptSchema,
     status: projectStatusSchema,
     deploymentDestination: deploymentDestinationSchema.default('none'),
+    /** Assigned once, when the project is first given to Atoma hosting; null before. */
+    hostingSubdomain: hostingSubdomainSchema.nullable().default(null),
     showcase: projectShowcaseSchema,
     followUpstream: z.boolean().default(false),
     repositoryTarget: repositoryTargetSchema,

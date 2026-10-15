@@ -27,6 +27,7 @@ export function ProjectSettingsAccessible({ view, t, onActivate }: {
       <h3>{t('hosting.title')}</h3><p>{t('hosting.private')}</p>
       <p role="status">{t(hosted.status)}</p>
       {hosted.version ? <p>{t('hosting.version')}: {hosted.version}</p> : null}
+      {hosted.address ? <p>{t('hosting.address')}: {hosted.address}</p> : null}
       {hosted.url ? <p>{hosted.url}</p> : null}
       {hosted.candidateVersion ? <p>{t('hosting.candidateVersion')}: {hosted.candidateVersion}</p> : null}
       <p>{t('hosting.updateNotice')}</p>

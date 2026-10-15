@@ -1960,6 +1960,7 @@
   "hosting.busy": "Updating the application status…",
   "hosting.error": "Could not confirm the operation. Refresh the status before trying again.",
   "hosting.version": "Version online",
+  "hosting.address": "Address",
   "hosting.deploy": "Deploy accepted version",
   "hosting.open": "Open application",
   "hosting.stop": "Stop application and keep data",

@@ -144,7 +144,7 @@ export function hostRunTitleConfig(
   const selector = tryParseModelSelector(model);
   if (!selector) return { unavailable: 'ATOMA_MODEL_L1 is not a valid model selector on this host' };
   if (selector.mode !== 'api') {
-    return { unavailable: `run titles need an api: tier-1 selector, and ${model} is a machine login` };
+    return { unavailable: `platform naming needs an api: tier-1 selector, and ${model} is a machine login` };
   }
   const provider = findProvider(selector.vendor)!;
   const env: Record<string, string> = {};

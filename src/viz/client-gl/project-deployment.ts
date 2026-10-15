@@ -110,7 +110,9 @@ export function hostingCopy(view: DeploymentSettingsView) {
   if (view.saved !== 'atoma' && !view.hosting?.deploymentId) return null;
   const hosting = view.hosting;
   return { status: view.hostingError ? 'hosting.error' : view.hostingBusy ? 'hosting.busy' : hosting ? `hosting.${hosting.state}` : 'hosting.unconfigured',
-    version: hosting?.commitSha?.slice(0, 8), candidateVersion: hosting?.candidate?.commitSha.slice(0, 8), url: hosting?.url,
+    version: hosting?.commitSha?.slice(0, 8), candidateVersion: hosting?.candidate?.commitSha.slice(0, 8),
+    // The stored address; a deployment still served at its pre-address `p-<uuid>` host shows that host too.
+    address: hosting?.address ?? null, url: hosting?.url && hosting.url !== hosting.address ? hosting.url : null,
     buttons: [
       { id: 'hosting.deploy', disabled: !view.canEdit || !hosting?.candidate || view.hostingBusy || hosting.state === 'starting' || !!hosting.url },
       { id: 'hosting.open', disabled: !hosting?.url || view.hostingBusy },

@@ -10,6 +10,7 @@ import type { PreviewStore } from '../preview/store.js';
 import { materializePreviewWorkspace } from '../preview/policy.js';
 import { revalidateArtifactManifest } from './artifacts.js';
 import { HostingStore } from './hostingStore.js';
+import { ensureHostingSubdomain, type HostingSubdomainNamer } from './hostingSubdomain.js';
 
 const identity = (row: HostedDeployment): HostingIdentity => ({ orgId: row.orgId, projectId: row.projectId, deploymentId: row.deploymentId });
 
@@ -20,6 +21,8 @@ export class HostingService {
   constructor(readonly deps: { store: HostingStore; projects: ProjectStore; previews: PreviewStore;
     launcher: HostingLauncher; domain: string; maxDeployments: number; probe(port: number): Promise<boolean>;
     events?: PlatformEventSink;
+    /** Proposes the project's address label; absent, the label is derived from its slug and name. */
+    namer?: HostingSubdomainNamer;
     copyOwnership?: { uid: number; gid: number } | null }) {}
   private event(row: HostedDeployment, principalId?: string): void {
     this.deps.events?.({ kind: row.state === 'failed' ? 'project.hosting_failed' : 'project.hosting_changed',
@@ -33,9 +36,14 @@ export class HostingService {
     if (write && !roleAtLeast(viewer.role, 'org:admin')) throw new ProjectHttpError(403, 'An organisation administrator is required');
     return project;
   }
-  host(row: HostedDeployment): string { return `p-${row.projectId}.${this.deps.domain}`; }
+  /** The project's assigned label; a project deployed before labels existed keeps `p-<uuid>` until it gets one. */
+  private hostOf(orgId: string, projectId: string): string {
+    const label = this.deps.projects.getProject(orgId, projectId)?.hostingSubdomain;
+    return `${label ?? `p-${projectId}`}.${this.deps.domain}`;
+  }
+  host(row: HostedDeployment): string { return this.hostOf(row.orgId, row.projectId); }
   status(viewer: Viewer, projectId: string): HostingSummary {
-    this.project(viewer, projectId);
+    const project = this.project(viewer, projectId);
     const rows = this.deps.store.list(viewer.orgId, projectId); const row = rows[0];
     const active = rows.find(r => r.state === 'ready');
     const run = this.deps.projects.acceptedReference(viewer.orgId, projectId);
@@ -46,6 +54,7 @@ export class HostingService {
     return { available: true, state: row?.state ?? 'not-deployed', deploymentId: row?.deploymentId ?? null,
       runId: active?.runId ?? row?.runId ?? null, commitSha: active?.commitSha ?? row?.commitSha ?? null,
       url: active ? `https://${this.host(active)}/` : null, error: row?.error ?? null,
+      address: project.hostingSubdomain ? `https://${project.hostingSubdomain}.${this.deps.domain}/` : null,
       candidate: run?.artifactManifestHash && !run.bytesExpiredAt && (descriptor?.availability === 'available' || browser) && publication?.status === 'published' && publication.commitSha
         ? { runId: run.projectRunId, manifestHash: run.artifactManifestHash, commitSha: publication.commitSha } : null };
   }
@@ -68,6 +77,9 @@ export class HostingService {
       publication?.status !== 'published' || publication.manifestHash !== input.manifestHash || !publication.commitSha || (!browserConfig && descriptor?.availability !== 'available')) {
       throw new ProjectHttpError(409, 'Deploy an accepted, published, retained application version');
     }
+    // Normally chosen when the destination was saved; a project saved before
+    // addresses existed, or whose choice is still in flight, gets it here.
+    if (!project.hostingSubdomain) await ensureHostingSubdomain({ store: this.deps.projects, namer: this.deps.namer, events: this.deps.events }, viewer.orgId, projectId);
     const row: HostedDeployment = { orgId: viewer.orgId, projectId, deploymentId: randomUUID(), runId: input.runId,
       manifestHash: input.manifestHash, commitSha: publication.commitSha, state: 'starting', kind: browserConfig ? 'node' : descriptor!.kind!, browser: !!browserConfig,
       entry: browserConfig?.entry ?? descriptor?.entry ?? 'index.js', createdAt: new Date().toISOString(), error: null, hostPort: null, image: null };

@@ -131,6 +131,7 @@ import {
   ProjectRunCoordinator,
 } from '../projects/coordinator.js';
 import { hostRunTitler } from '../projects/runTitle.js';
+import { hostHostingSubdomainNamer } from '../projects/hostingSubdomain.js';
 import { createShowcaseSource, servesShowcaseHome, showcaseEnabled, type ShowcaseSource } from './showcase.js';
 import {
   renderShowcaseEntry,
@@ -801,6 +802,8 @@ interface ProjectsRuntime {
   readonly resolveUserAccessToken: ((principalId: string) => Promise<string>) | null;
 }
 
+/** One namer for both doors that assign a hosting address: saving the destination, and deploying. */
+const HOSTING_NAMER = hostHostingSubdomainNamer(process.env);
 const PROJECTS_RUNTIME: ProjectsRuntime | null = (() => {
   if (!AUTH_RUNTIME) return null;
   const dbPath = DBS[0]!.path;
@@ -1008,6 +1011,7 @@ const PROJECTS_RUNTIME: ProjectsRuntime | null = (() => {
     github: githubStore,
     events: emit,
     showcaseEnabled: () => showcaseEnabled(),
+    hostingNamer: HOSTING_NAMER,
     ...(publisher ? { publisher } : {}),
   });
   return {
@@ -1182,7 +1186,7 @@ const HOSTING_RUNTIME_PROMISE = (async () => {
   const ownership = launcher.previewOwnership(); launcher.close();
   const service = new HostingService({ store: HostingStore.open(DBS[0]!.path), projects: PROJECTS_RUNTIME.store,
     previews: PreviewStore.open(DBS[0]!.path), launcher: new HostingClient(socket), domain: config.domain, maxDeployments: config.maxDeployments,
-    events: emit, copyOwnership: ownership, probe: probeHostedApplication });
+    events: emit, namer: HOSTING_NAMER, copyOwnership: ownership, probe: probeHostedApplication });
   await service.recover();
   const gateway = createHostingGateway(service, AUTH_RUNTIME.publicOrigin.origin,
     (org, principal) => AUTH!.store!.listOrganisationsForPrincipal(principal).some(m => m.orgId === org));
