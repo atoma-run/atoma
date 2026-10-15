@@ -1558,16 +1558,24 @@ html.atoma-cursor-active * {
 
 .gpu-plan-limits {
   grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
   margin: 10px 0 2px;
   padding-top: 8px;
   border-top: 1px solid rgba(110, 168, 255, .16);
 }
 
+/* Details read smaller than the card's name and summary (owner, 2026-10-15):
+   a limit value and a feature line are facts to scan, not the headline. */
+.gpu-plan-limits dd {
+  font-size: 10px;
+  line-height: 1.35;
+}
+
 .gpu-plan-features {
   margin: 8px 0 0;
-  padding: 0 0 0 16px;
+  padding: 0 0 0 14px;
   color: #c6d2e4;
-  font: 12px/1.5 ui-sans-serif, system-ui, sans-serif;
+  font: 10.5px/1.45 ui-sans-serif, system-ui, sans-serif;
 }
 
 .gpu-plan-unavailable {
